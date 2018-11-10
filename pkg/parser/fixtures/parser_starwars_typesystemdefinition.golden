@@ -1,0 +1,1596 @@
+{
+  "SchemaDefinition": {
+    "Query": "Query",
+    "Mutation": "Mutation",
+    "Subscription": "Subscription",
+    "Directives": null
+  },
+  "ScalarTypeDefinitions": [
+    {
+      "Description": "The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.",
+      "Name": "Int",
+      "Directives": null
+    },
+    {
+      "Description": "The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](http://en.wikipedia.org/wiki/IEEE_floating_point).",
+      "Name": "Float",
+      "Directives": null
+    },
+    {
+      "Description": "The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.",
+      "Name": "String",
+      "Directives": null
+    },
+    {
+      "Description": "The `Boolean` scalar type represents `true` or `false` .",
+      "Name": "Boolean",
+      "Directives": null
+    },
+    {
+      "Description": "The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `4`) or integer (such as 4) input value will be accepted as an ID.",
+      "Name": "ID",
+      "Directives": [
+        {
+          "Name": "custom",
+          "Arguments": [
+            {
+              "Name": "typeName",
+              "Value": {
+                "Val": "string"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "ObjectTypeDefinitions": [
+    {
+      "Description": "The query type, represents all of the entry points into our object graph",
+      "Name": "Query",
+      "FieldsDefinition": [
+        {
+          "Description": "",
+          "Name": "__schema",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "__Schema",
+            "NonNull": true
+          },
+          "Directives": null
+        },
+        {
+          "Description": "",
+          "Name": "__type",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "__Type",
+            "NonNull": true
+          },
+          "Directives": null
+        },
+        {
+          "Description": "",
+          "Name": "hero",
+          "ArgumentsDefinition": [
+            {
+              "Description": "",
+              "Name": "episode",
+              "Type": {
+                "Name": "Episode",
+                "NonNull": false
+              },
+              "DefaultValue": null,
+              "Directives": null
+            }
+          ],
+          "Type": {
+            "Name": "Character",
+            "NonNull": false
+          },
+          "Directives": null
+        },
+        {
+          "Description": "",
+          "Name": "reviews",
+          "ArgumentsDefinition": [
+            {
+              "Description": "",
+              "Name": "episode",
+              "Type": {
+                "Name": "Episode",
+                "NonNull": true
+              },
+              "DefaultValue": null,
+              "Directives": null
+            }
+          ],
+          "Type": {
+            "Type": {
+              "Name": "Review",
+              "NonNull": false
+            },
+            "NonNull": false
+          },
+          "Directives": null
+        },
+        {
+          "Description": "",
+          "Name": "search",
+          "ArgumentsDefinition": [
+            {
+              "Description": "",
+              "Name": "text",
+              "Type": {
+                "Name": "String",
+                "NonNull": false
+              },
+              "DefaultValue": null,
+              "Directives": null
+            }
+          ],
+          "Type": {
+            "Type": {
+              "Name": "SearchResult",
+              "NonNull": false
+            },
+            "NonNull": false
+          },
+          "Directives": null
+        },
+        {
+          "Description": "",
+          "Name": "character",
+          "ArgumentsDefinition": [
+            {
+              "Description": "",
+              "Name": "id",
+              "Type": {
+                "Name": "ID",
+                "NonNull": true
+              },
+              "DefaultValue": null,
+              "Directives": null
+            }
+          ],
+          "Type": {
+            "Name": "Character",
+            "NonNull": false
+          },
+          "Directives": null
+        },
+        {
+          "Description": "",
+          "Name": "droid",
+          "ArgumentsDefinition": [
+            {
+              "Description": "",
+              "Name": "id",
+              "Type": {
+                "Name": "ID",
+                "NonNull": true
+              },
+              "DefaultValue": null,
+              "Directives": null
+            }
+          ],
+          "Type": {
+            "Name": "Droid",
+            "NonNull": false
+          },
+          "Directives": null
+        },
+        {
+          "Description": "",
+          "Name": "human",
+          "ArgumentsDefinition": [
+            {
+              "Description": "",
+              "Name": "id",
+              "Type": {
+                "Name": "ID",
+                "NonNull": true
+              },
+              "DefaultValue": null,
+              "Directives": null
+            }
+          ],
+          "Type": {
+            "Name": "Human",
+            "NonNull": false
+          },
+          "Directives": null
+        },
+        {
+          "Description": "",
+          "Name": "starship",
+          "ArgumentsDefinition": [
+            {
+              "Description": "",
+              "Name": "id",
+              "Type": {
+                "Name": "ID",
+                "NonNull": true
+              },
+              "DefaultValue": null,
+              "Directives": null
+            }
+          ],
+          "Type": {
+            "Name": "Starship",
+            "NonNull": false
+          },
+          "Directives": null
+        }
+      ],
+      "ImplementsInterfaces": null,
+      "Directives": null
+    },
+    {
+      "Description": "The mutation type, represents all updates we can make to our data",
+      "Name": "Mutation",
+      "FieldsDefinition": [
+        {
+          "Description": "",
+          "Name": "createReview",
+          "ArgumentsDefinition": [
+            {
+              "Description": "",
+              "Name": "episode",
+              "Type": {
+                "Name": "Episode",
+                "NonNull": false
+              },
+              "DefaultValue": null,
+              "Directives": null
+            },
+            {
+              "Description": "",
+              "Name": "review",
+              "Type": {
+                "Name": "ReviewInput",
+                "NonNull": true
+              },
+              "DefaultValue": null,
+              "Directives": null
+            }
+          ],
+          "Type": {
+            "Name": "Review",
+            "NonNull": false
+          },
+          "Directives": null
+        }
+      ],
+      "ImplementsInterfaces": null,
+      "Directives": null
+    },
+    {
+      "Description": "The subscription type, represents all subscriptions we can make to our data",
+      "Name": "Subscription",
+      "FieldsDefinition": [
+        {
+          "Description": "",
+          "Name": "reviewAdded",
+          "ArgumentsDefinition": [
+            {
+              "Description": "",
+              "Name": "episode",
+              "Type": {
+                "Name": "Episode",
+                "NonNull": false
+              },
+              "DefaultValue": null,
+              "Directives": null
+            }
+          ],
+          "Type": {
+            "Name": "Review",
+            "NonNull": false
+          },
+          "Directives": null
+        }
+      ],
+      "ImplementsInterfaces": null,
+      "Directives": null
+    },
+    {
+      "Description": "A humanoid creature from the Star Wars universe",
+      "Name": "Human",
+      "FieldsDefinition": [
+        {
+          "Description": "The ID of the human",
+          "Name": "id",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "ID",
+            "NonNull": true
+          },
+          "Directives": null
+        },
+        {
+          "Description": "What this human calls themselves",
+          "Name": "name",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "String",
+            "NonNull": true
+          },
+          "Directives": null
+        },
+        {
+          "Description": "The home planet of the human, or null if unknown",
+          "Name": "homePlanet",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "String",
+            "NonNull": false
+          },
+          "Directives": null
+        },
+        {
+          "Description": "Height in the preferred unit, default is meters",
+          "Name": "height",
+          "ArgumentsDefinition": [
+            {
+              "Description": "",
+              "Name": "unit",
+              "Type": {
+                "Name": "LengthUnit",
+                "NonNull": false
+              },
+              "DefaultValue": {
+                "Name": "METER"
+              },
+              "Directives": null
+            }
+          ],
+          "Type": {
+            "Name": "Float",
+            "NonNull": false
+          },
+          "Directives": null
+        },
+        {
+          "Description": "Mass in kilograms, or null if unknown",
+          "Name": "mass",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "Float",
+            "NonNull": false
+          },
+          "Directives": null
+        },
+        {
+          "Description": "This human's friends, or an empty list if they have none",
+          "Name": "friends",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Type": {
+              "Name": "Character",
+              "NonNull": false
+            },
+            "NonNull": false
+          },
+          "Directives": null
+        },
+        {
+          "Description": "The friends of the human exposed as a connection with edges",
+          "Name": "friendsConnection",
+          "ArgumentsDefinition": [
+            {
+              "Description": "",
+              "Name": "first",
+              "Type": {
+                "Name": "Int",
+                "NonNull": false
+              },
+              "DefaultValue": null,
+              "Directives": null
+            },
+            {
+              "Description": "",
+              "Name": "after",
+              "Type": {
+                "Name": "ID",
+                "NonNull": false
+              },
+              "DefaultValue": null,
+              "Directives": null
+            }
+          ],
+          "Type": {
+            "Name": "FriendsConnection",
+            "NonNull": true
+          },
+          "Directives": null
+        },
+        {
+          "Description": "The movies this human appears in",
+          "Name": "appearsIn",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Type": {
+              "Name": "Episode",
+              "NonNull": false
+            },
+            "NonNull": true
+          },
+          "Directives": null
+        },
+        {
+          "Description": "A list of starships this person has piloted, or an empty list if none",
+          "Name": "starships",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Type": {
+              "Name": "Starship",
+              "NonNull": false
+            },
+            "NonNull": false
+          },
+          "Directives": null
+        }
+      ],
+      "ImplementsInterfaces": [
+        "Character"
+      ],
+      "Directives": null
+    },
+    {
+      "Description": "An autonomous mechanical character in the Star Wars universe",
+      "Name": "Droid",
+      "FieldsDefinition": [
+        {
+          "Description": "The ID of the droid",
+          "Name": "id",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "ID",
+            "NonNull": true
+          },
+          "Directives": null
+        },
+        {
+          "Description": "What others call this droid",
+          "Name": "name",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "String",
+            "NonNull": true
+          },
+          "Directives": null
+        },
+        {
+          "Description": "This droid's friends, or an empty list if they have none",
+          "Name": "friends",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Type": {
+              "Name": "Character",
+              "NonNull": false
+            },
+            "NonNull": false
+          },
+          "Directives": null
+        },
+        {
+          "Description": "The friends of the droid exposed as a connection with edges",
+          "Name": "friendsConnection",
+          "ArgumentsDefinition": [
+            {
+              "Description": "",
+              "Name": "first",
+              "Type": {
+                "Name": "Int",
+                "NonNull": false
+              },
+              "DefaultValue": null,
+              "Directives": null
+            },
+            {
+              "Description": "",
+              "Name": "after",
+              "Type": {
+                "Name": "ID",
+                "NonNull": false
+              },
+              "DefaultValue": null,
+              "Directives": null
+            }
+          ],
+          "Type": {
+            "Name": "FriendsConnection",
+            "NonNull": true
+          },
+          "Directives": null
+        },
+        {
+          "Description": "The movies this droid appears in",
+          "Name": "appearsIn",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Type": {
+              "Name": "Episode",
+              "NonNull": false
+            },
+            "NonNull": true
+          },
+          "Directives": null
+        },
+        {
+          "Description": "This droid's primary function",
+          "Name": "primaryFunction",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "String",
+            "NonNull": false
+          },
+          "Directives": null
+        }
+      ],
+      "ImplementsInterfaces": [
+        "Character"
+      ],
+      "Directives": null
+    },
+    {
+      "Description": "A connection object for a character's friends",
+      "Name": "FriendsConnection",
+      "FieldsDefinition": [
+        {
+          "Description": "The total number of friends",
+          "Name": "totalCount",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "Int",
+            "NonNull": false
+          },
+          "Directives": null
+        },
+        {
+          "Description": "The edges for each of the character's friends.",
+          "Name": "edges",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Type": {
+              "Name": "FriendsEdge",
+              "NonNull": false
+            },
+            "NonNull": false
+          },
+          "Directives": null
+        },
+        {
+          "Description": "A list of the friends, as a convenience when edges are not needed.",
+          "Name": "friends",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Type": {
+              "Name": "Character",
+              "NonNull": false
+            },
+            "NonNull": false
+          },
+          "Directives": null
+        },
+        {
+          "Description": "Information for paginating this connection",
+          "Name": "pageInfo",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "PageInfo",
+            "NonNull": true
+          },
+          "Directives": null
+        }
+      ],
+      "ImplementsInterfaces": null,
+      "Directives": null
+    },
+    {
+      "Description": "An edge object for a character's friends",
+      "Name": "FriendsEdge",
+      "FieldsDefinition": [
+        {
+          "Description": "A cursor used for pagination",
+          "Name": "cursor",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "ID",
+            "NonNull": true
+          },
+          "Directives": null
+        },
+        {
+          "Description": "The character represented by this friendship edge",
+          "Name": "node",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "Character",
+            "NonNull": false
+          },
+          "Directives": null
+        }
+      ],
+      "ImplementsInterfaces": null,
+      "Directives": null
+    },
+    {
+      "Description": "Information for paginating this connection",
+      "Name": "PageInfo",
+      "FieldsDefinition": [
+        {
+          "Description": "",
+          "Name": "startCursor",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "ID",
+            "NonNull": false
+          },
+          "Directives": null
+        },
+        {
+          "Description": "",
+          "Name": "endCursor",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "ID",
+            "NonNull": false
+          },
+          "Directives": null
+        },
+        {
+          "Description": "",
+          "Name": "hasNextPage",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "Boolean",
+            "NonNull": true
+          },
+          "Directives": null
+        }
+      ],
+      "ImplementsInterfaces": null,
+      "Directives": null
+    },
+    {
+      "Description": "Represents a review for a movie",
+      "Name": "Review",
+      "FieldsDefinition": [
+        {
+          "Description": "The movie",
+          "Name": "episode",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "Episode",
+            "NonNull": false
+          },
+          "Directives": null
+        },
+        {
+          "Description": "The number of stars this review gave, 1-5",
+          "Name": "stars",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "Int",
+            "NonNull": true
+          },
+          "Directives": null
+        },
+        {
+          "Description": "Comment about the movie",
+          "Name": "commentary",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "String",
+            "NonNull": false
+          },
+          "Directives": null
+        }
+      ],
+      "ImplementsInterfaces": null,
+      "Directives": null
+    },
+    {
+      "Description": "",
+      "Name": "Starship",
+      "FieldsDefinition": [
+        {
+          "Description": "The ID of the starship",
+          "Name": "id",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "ID",
+            "NonNull": true
+          },
+          "Directives": null
+        },
+        {
+          "Description": "The name of the starship",
+          "Name": "name",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "String",
+            "NonNull": true
+          },
+          "Directives": null
+        },
+        {
+          "Description": "Length of the starship, along the longest axis",
+          "Name": "length",
+          "ArgumentsDefinition": [
+            {
+              "Description": "",
+              "Name": "unit",
+              "Type": {
+                "Name": "LengthUnit",
+                "NonNull": false
+              },
+              "DefaultValue": {
+                "Name": "METER"
+              },
+              "Directives": null
+            }
+          ],
+          "Type": {
+            "Name": "Float",
+            "NonNull": false
+          },
+          "Directives": null
+        }
+      ],
+      "ImplementsInterfaces": null,
+      "Directives": null
+    },
+    {
+      "Description": "A Directive provides a way to describe alternate runtime execution and type validation behavior in a GraphQL document.\nIn some cases, you need to provide options to alter GraphQL's execution behavior\nin ways field arguments will not suffice, such as conditionally including or\nskipping a field. Directives provide this by describing additional information\nto the executor.",
+      "Name": "__Directive",
+      "FieldsDefinition": [
+        {
+          "Description": "",
+          "Name": "name",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "String",
+            "NonNull": true
+          },
+          "Directives": null
+        },
+        {
+          "Description": "",
+          "Name": "description",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "String",
+            "NonNull": false
+          },
+          "Directives": null
+        },
+        {
+          "Description": "",
+          "Name": "locations",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Type": {
+              "Name": "__DirectiveLocation",
+              "NonNull": true
+            },
+            "NonNull": true
+          },
+          "Directives": null
+        },
+        {
+          "Description": "",
+          "Name": "args",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Type": {
+              "Name": "__InputValue",
+              "NonNull": true
+            },
+            "NonNull": true
+          },
+          "Directives": null
+        }
+      ],
+      "ImplementsInterfaces": null,
+      "Directives": null
+    },
+    {
+      "Description": "One possible value for a given Enum. Enum values are unique values, not a\nplaceholder for a string or numeric value. However an Enum value is returned in\na JSON response as a string.",
+      "Name": "__EnumValue",
+      "FieldsDefinition": [
+        {
+          "Description": "",
+          "Name": "name",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "String",
+            "NonNull": true
+          },
+          "Directives": null
+        },
+        {
+          "Description": "",
+          "Name": "description",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "String",
+            "NonNull": false
+          },
+          "Directives": null
+        },
+        {
+          "Description": "",
+          "Name": "isDeprecated",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "Boolean",
+            "NonNull": true
+          },
+          "Directives": null
+        },
+        {
+          "Description": "",
+          "Name": "deprecationReason",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "String",
+            "NonNull": false
+          },
+          "Directives": null
+        }
+      ],
+      "ImplementsInterfaces": null,
+      "Directives": null
+    },
+    {
+      "Description": "Object and Interface types are described by a list of Fields, each of which has\na name, potentially a list of arguments, and a return type.",
+      "Name": "__Field",
+      "FieldsDefinition": [
+        {
+          "Description": "",
+          "Name": "name",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "String",
+            "NonNull": true
+          },
+          "Directives": null
+        },
+        {
+          "Description": "",
+          "Name": "description",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "String",
+            "NonNull": false
+          },
+          "Directives": null
+        },
+        {
+          "Description": "",
+          "Name": "args",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Type": {
+              "Name": "__InputValue",
+              "NonNull": true
+            },
+            "NonNull": true
+          },
+          "Directives": null
+        },
+        {
+          "Description": "",
+          "Name": "type",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "__Type",
+            "NonNull": true
+          },
+          "Directives": null
+        },
+        {
+          "Description": "",
+          "Name": "isDeprecated",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "Boolean",
+            "NonNull": true
+          },
+          "Directives": null
+        },
+        {
+          "Description": "",
+          "Name": "deprecationReason",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "String",
+            "NonNull": false
+          },
+          "Directives": null
+        }
+      ],
+      "ImplementsInterfaces": null,
+      "Directives": null
+    },
+    {
+      "Description": "Arguments provided to Fields or Directives and the input fields of an\nInputObject are represented as Input Values which describe their type and\noptionally a default value.",
+      "Name": "__InputValue",
+      "FieldsDefinition": [
+        {
+          "Description": "",
+          "Name": "name",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "String",
+            "NonNull": true
+          },
+          "Directives": null
+        },
+        {
+          "Description": "",
+          "Name": "description",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "String",
+            "NonNull": false
+          },
+          "Directives": null
+        },
+        {
+          "Description": "",
+          "Name": "type",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "__Type",
+            "NonNull": true
+          },
+          "Directives": null
+        },
+        {
+          "Description": "A GraphQL-formatted string representing the default value for this input value.",
+          "Name": "defaultValue",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "String",
+            "NonNull": false
+          },
+          "Directives": null
+        }
+      ],
+      "ImplementsInterfaces": null,
+      "Directives": null
+    },
+    {
+      "Description": "A GraphQL Schema defines the capabilities of a GraphQL server. It exposes all\navailable types and directives on the server, as well as the entry points for\nquery, mutation, and subscription operations.",
+      "Name": "__Schema",
+      "FieldsDefinition": [
+        {
+          "Description": "A list of all types supported by this server.",
+          "Name": "types",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Type": {
+              "Name": "__Type",
+              "NonNull": true
+            },
+            "NonNull": true
+          },
+          "Directives": null
+        },
+        {
+          "Description": "The type that query operations will be rooted at.",
+          "Name": "queryType",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "__Type",
+            "NonNull": true
+          },
+          "Directives": null
+        },
+        {
+          "Description": "If this server supports mutation, the type that mutation operations will be rooted at.",
+          "Name": "mutationType",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "__Type",
+            "NonNull": false
+          },
+          "Directives": null
+        },
+        {
+          "Description": "If this server support subscription, the type that subscription operations will be rooted at.",
+          "Name": "subscriptionType",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "__Type",
+            "NonNull": false
+          },
+          "Directives": null
+        },
+        {
+          "Description": "A list of all directives supported by this server.",
+          "Name": "directives",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Type": {
+              "Name": "__Directive",
+              "NonNull": true
+            },
+            "NonNull": true
+          },
+          "Directives": null
+        }
+      ],
+      "ImplementsInterfaces": null,
+      "Directives": null
+    },
+    {
+      "Description": "The fundamental unit of any GraphQL Schema is the type. There are many kinds of\ntypes in GraphQL as represented by the `__TypeKind` enum.\n\nDepending on the kind of a type, certain fields describe information about that\ntype. Scalar types provide no information beyond a name and description, while\nEnum types provide their values. Object and Interface types provide the fields\nthey describe. Abstract types, Union and Interface, provide the Object types\npossible at runtime. List and NonNull types compose other types.",
+      "Name": "__Type",
+      "FieldsDefinition": [
+        {
+          "Description": "",
+          "Name": "kind",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "__TypeKind",
+            "NonNull": true
+          },
+          "Directives": null
+        },
+        {
+          "Description": "",
+          "Name": "name",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "String",
+            "NonNull": false
+          },
+          "Directives": null
+        },
+        {
+          "Description": "",
+          "Name": "description",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "String",
+            "NonNull": false
+          },
+          "Directives": null
+        },
+        {
+          "Description": "",
+          "Name": "fields",
+          "ArgumentsDefinition": [
+            {
+              "Description": "",
+              "Name": "includeDeprecated",
+              "Type": {
+                "Name": "Boolean",
+                "NonNull": false
+              },
+              "DefaultValue": {
+                "Val": false
+              },
+              "Directives": null
+            }
+          ],
+          "Type": {
+            "Type": {
+              "Name": "__Field",
+              "NonNull": true
+            },
+            "NonNull": false
+          },
+          "Directives": null
+        },
+        {
+          "Description": "",
+          "Name": "interfaces",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Type": {
+              "Name": "__Type",
+              "NonNull": true
+            },
+            "NonNull": false
+          },
+          "Directives": null
+        },
+        {
+          "Description": "",
+          "Name": "possibleTypes",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Type": {
+              "Name": "__Type",
+              "NonNull": true
+            },
+            "NonNull": false
+          },
+          "Directives": null
+        },
+        {
+          "Description": "",
+          "Name": "enumValues",
+          "ArgumentsDefinition": [
+            {
+              "Description": "",
+              "Name": "includeDeprecated",
+              "Type": {
+                "Name": "Boolean",
+                "NonNull": false
+              },
+              "DefaultValue": {
+                "Val": false
+              },
+              "Directives": null
+            }
+          ],
+          "Type": {
+            "Type": {
+              "Name": "__EnumValue",
+              "NonNull": true
+            },
+            "NonNull": false
+          },
+          "Directives": null
+        },
+        {
+          "Description": "",
+          "Name": "inputFields",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Type": {
+              "Name": "__InputValue",
+              "NonNull": true
+            },
+            "NonNull": false
+          },
+          "Directives": null
+        },
+        {
+          "Description": "",
+          "Name": "ofType",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "__Type",
+            "NonNull": false
+          },
+          "Directives": null
+        }
+      ],
+      "ImplementsInterfaces": null,
+      "Directives": null
+    }
+  ],
+  "InterfaceTypeDefinitions": [
+    {
+      "Description": "A character from the Star Wars universe",
+      "Name": "Character",
+      "FieldsDefinition": [
+        {
+          "Description": "The ID of the character",
+          "Name": "id",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "ID",
+            "NonNull": true
+          },
+          "Directives": null
+        },
+        {
+          "Description": "The name of the character",
+          "Name": "name",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Name": "String",
+            "NonNull": true
+          },
+          "Directives": null
+        },
+        {
+          "Description": "The friends of the character, or an empty list if they have none",
+          "Name": "friends",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Type": {
+              "Name": "Character",
+              "NonNull": false
+            },
+            "NonNull": false
+          },
+          "Directives": null
+        },
+        {
+          "Description": "The friends of the character exposed as a connection with edges",
+          "Name": "friendsConnection",
+          "ArgumentsDefinition": [
+            {
+              "Description": "",
+              "Name": "first",
+              "Type": {
+                "Name": "Int",
+                "NonNull": false
+              },
+              "DefaultValue": null,
+              "Directives": null
+            },
+            {
+              "Description": "",
+              "Name": "after",
+              "Type": {
+                "Name": "ID",
+                "NonNull": false
+              },
+              "DefaultValue": null,
+              "Directives": null
+            }
+          ],
+          "Type": {
+            "Name": "FriendsConnection",
+            "NonNull": true
+          },
+          "Directives": null
+        },
+        {
+          "Description": "The movies this character appears in",
+          "Name": "appearsIn",
+          "ArgumentsDefinition": null,
+          "Type": {
+            "Type": {
+              "Name": "Episode",
+              "NonNull": false
+            },
+            "NonNull": true
+          },
+          "Directives": null
+        }
+      ],
+      "Directives": null
+    }
+  ],
+  "UnionTypeDefinitions": [
+    {
+      "Description": "",
+      "Name": "SearchResult",
+      "UnionMemberTypes": [
+        "Human",
+        "Droid",
+        "Starship"
+      ],
+      "Directives": null
+    }
+  ],
+  "EnumTypeDefinitions": [
+    {
+      "Description": "The episodes in the Star Wars trilogy",
+      "Name": "Episode",
+      "EnumValuesDefinition": [
+        {
+          "Description": "Star Wars Episode IV: A New Hope, released in 1977.",
+          "EnumValue": "NEWHOPE",
+          "Directives": null
+        },
+        {
+          "Description": "Star Wars Episode V: The Empire Strikes Back, released in 1980.",
+          "EnumValue": "EMPIRE",
+          "Directives": null
+        },
+        {
+          "Description": "Star Wars Episode VI: Return of the Jedi, released in 1983.",
+          "EnumValue": "JEDI",
+          "Directives": null
+        }
+      ],
+      "Directives": null
+    },
+    {
+      "Description": "Units of height",
+      "Name": "LengthUnit",
+      "EnumValuesDefinition": [
+        {
+          "Description": "The standard unit around the world",
+          "EnumValue": "METER",
+          "Directives": null
+        },
+        {
+          "Description": "Primarily used in the United States",
+          "EnumValue": "FOOT",
+          "Directives": null
+        }
+      ],
+      "Directives": null
+    },
+    {
+      "Description": "A Directive can be adjacent to many parts of the GraphQL language, a\n__DirectiveLocation describes one such possible adjacencies.",
+      "Name": "__DirectiveLocation",
+      "EnumValuesDefinition": [
+        {
+          "Description": "Location adjacent to a query operation.",
+          "EnumValue": "QUERY",
+          "Directives": null
+        },
+        {
+          "Description": "Location adjacent to a mutation operation.",
+          "EnumValue": "MUTATION",
+          "Directives": null
+        },
+        {
+          "Description": "Location adjacent to a subscription operation.",
+          "EnumValue": "SUBSCRIPTION",
+          "Directives": null
+        },
+        {
+          "Description": "Location adjacent to a field.",
+          "EnumValue": "FIELD",
+          "Directives": null
+        },
+        {
+          "Description": "Location adjacent to a fragment definition.",
+          "EnumValue": "FRAGMENT_DEFINITION",
+          "Directives": null
+        },
+        {
+          "Description": "Location adjacent to a fragment spread.",
+          "EnumValue": "FRAGMENT_SPREAD",
+          "Directives": null
+        },
+        {
+          "Description": "Location adjacent to an inline fragment.",
+          "EnumValue": "INLINE_FRAGMENT",
+          "Directives": null
+        },
+        {
+          "Description": "Location adjacent to a schema definition.",
+          "EnumValue": "SCHEMA",
+          "Directives": null
+        },
+        {
+          "Description": "Location adjacent to a scalar definition.",
+          "EnumValue": "SCALAR",
+          "Directives": null
+        },
+        {
+          "Description": "Location adjacent to an object type definition.",
+          "EnumValue": "OBJECT",
+          "Directives": null
+        },
+        {
+          "Description": "Location adjacent to a field definition.",
+          "EnumValue": "FIELD_DEFINITION",
+          "Directives": null
+        },
+        {
+          "Description": "Location adjacent to an argument definition.",
+          "EnumValue": "ARGUMENT_DEFINITION",
+          "Directives": null
+        },
+        {
+          "Description": "Location adjacent to an interface definition.",
+          "EnumValue": "INTERFACE",
+          "Directives": null
+        },
+        {
+          "Description": "Location adjacent to a union definition.",
+          "EnumValue": "UNION",
+          "Directives": null
+        },
+        {
+          "Description": "Location adjacent to an enum definition.",
+          "EnumValue": "ENUM",
+          "Directives": null
+        },
+        {
+          "Description": "Location adjacent to an enum value definition.",
+          "EnumValue": "ENUM_VALUE",
+          "Directives": null
+        },
+        {
+          "Description": "Location adjacent to an input object type definition.",
+          "EnumValue": "INPUT_OBJECT",
+          "Directives": null
+        },
+        {
+          "Description": "Location adjacent to an input object field definition.",
+          "EnumValue": "INPUT_FIELD_DEFINITION",
+          "Directives": null
+        }
+      ],
+      "Directives": null
+    },
+    {
+      "Description": "An enum describing what kind of type a given `__Type` is.",
+      "Name": "__TypeKind",
+      "EnumValuesDefinition": [
+        {
+          "Description": "Indicates this type is a scalar.",
+          "EnumValue": "SCALAR",
+          "Directives": null
+        },
+        {
+          "Description": "Indicates this type is an object. `fields` and `interfaces` are valid fields.",
+          "EnumValue": "OBJECT",
+          "Directives": null
+        },
+        {
+          "Description": "Indicates this type is an interface. `fields` ` and ` `possibleTypes` are valid fields.",
+          "EnumValue": "INTERFACE",
+          "Directives": null
+        },
+        {
+          "Description": "Indicates this type is a union. `possibleTypes` is a valid field.",
+          "EnumValue": "UNION",
+          "Directives": null
+        },
+        {
+          "Description": "Indicates this type is an enum. `enumValues` is a valid field.",
+          "EnumValue": "ENUM",
+          "Directives": null
+        },
+        {
+          "Description": "Indicates this type is an input object. `inputFields` is a valid field.",
+          "EnumValue": "INPUT_OBJECT",
+          "Directives": null
+        },
+        {
+          "Description": "Indicates this type is a list. `ofType` is a valid field.",
+          "EnumValue": "LIST",
+          "Directives": null
+        },
+        {
+          "Description": "Indicates this type is a non-null. `ofType` is a valid field.",
+          "EnumValue": "NON_NULL",
+          "Directives": null
+        }
+      ],
+      "Directives": null
+    }
+  ],
+  "InputObjectTypeDefinitions": [
+    {
+      "Description": "The input object sent when someone is creating a new review",
+      "Name": "ReviewInput",
+      "InputFieldsDefinition": [
+        {
+          "Description": "0-5 stars",
+          "Name": "stars",
+          "Type": {
+            "Name": "Int",
+            "NonNull": true
+          },
+          "DefaultValue": null,
+          "Directives": null
+        },
+        {
+          "Description": "Comment about the movie, optional",
+          "Name": "commentary",
+          "Type": {
+            "Name": "String",
+            "NonNull": false
+          },
+          "DefaultValue": null,
+          "Directives": null
+        },
+        {
+          "Description": "Favorite color, optional",
+          "Name": "favorite_color",
+          "Type": {
+            "Name": "ColorInput",
+            "NonNull": false
+          },
+          "DefaultValue": null,
+          "Directives": null
+        }
+      ],
+      "Directives": null
+    },
+    {
+      "Description": "The input object sent when passing in a color",
+      "Name": "ColorInput",
+      "InputFieldsDefinition": [
+        {
+          "Description": "",
+          "Name": "red",
+          "Type": {
+            "Name": "Int",
+            "NonNull": true
+          },
+          "DefaultValue": null,
+          "Directives": null
+        },
+        {
+          "Description": "",
+          "Name": "green",
+          "Type": {
+            "Name": "Int",
+            "NonNull": true
+          },
+          "DefaultValue": null,
+          "Directives": null
+        },
+        {
+          "Description": "",
+          "Name": "blue",
+          "Type": {
+            "Name": "Int",
+            "NonNull": true
+          },
+          "DefaultValue": null,
+          "Directives": null
+        }
+      ],
+      "Directives": null
+    }
+  ],
+  "DirectiveDefinitions": [
+    {
+      "Description": "Directs the executor to include this field or fragment only when the argument is true.",
+      "Name": "include",
+      "ArgumentsDefinition": [
+        {
+          "Description": "Included when true.",
+          "Name": "if",
+          "Type": {
+            "Name": "Boolean",
+            "NonNull": true
+          },
+          "DefaultValue": null,
+          "Directives": null
+        }
+      ],
+      "DirectiveLocations": [
+        3,
+        5,
+        6
+      ]
+    },
+    {
+      "Description": "Directs the executor to skip this field or fragment when the argument is true.",
+      "Name": "skip",
+      "ArgumentsDefinition": [
+        {
+          "Description": "Skipped when true.",
+          "Name": "if",
+          "Type": {
+            "Name": "Boolean",
+            "NonNull": true
+          },
+          "DefaultValue": null,
+          "Directives": null
+        }
+      ],
+      "DirectiveLocations": [
+        3,
+        5,
+        6
+      ]
+    },
+    {
+      "Description": "Marks an element of a GraphQL schema as no longer supported.",
+      "Name": "deprecated",
+      "ArgumentsDefinition": [
+        {
+          "Description": "Explains why this element was deprecated, usually also including a suggestion\n    for how to access supported similar data. Formatted in\n    [Markdown](https://daringfireball.net/projects/markdown/).",
+          "Name": "reason",
+          "Type": {
+            "Name": "String",
+            "NonNull": false
+          },
+          "DefaultValue": {
+            "Val": "No longer supported"
+          },
+          "Directives": null
+        }
+      ],
+      "DirectiveLocations": [
+        10,
+        15
+      ]
+    }
+  ]
+}
