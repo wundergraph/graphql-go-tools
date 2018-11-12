@@ -36,6 +36,49 @@ func TestArgumentsParser(t *testing.T) {
 				}),
 			},
 			{
+				it:        "should parse a list of const strings",
+				input:     `(fooBars: ["foo","bar"])`,
+				expectErr: BeNil(),
+				expectValues: Equal(document.Arguments{
+					document.Argument{
+						Name: "fooBars",
+						Value: document.ListValue{
+							Values: []document.Value{
+								document.StringValue{
+									Val: "foo",
+								},
+								document.StringValue{
+									Val: "bar",
+								},
+							},
+						},
+					},
+				}),
+			},
+			{
+				it:        "should parse a list of const integers",
+				input:     `(integers: [1,2,3])`,
+				expectErr: BeNil(),
+				expectValues: Equal(document.Arguments{
+					document.Argument{
+						Name: "integers",
+						Value: document.ListValue{
+							Values: []document.Value{
+								document.IntValue{
+									Val: 1,
+								},
+								document.IntValue{
+									Val: 2,
+								},
+								document.IntValue{
+									Val: 3,
+								},
+							},
+						},
+					},
+				}),
+			},
+			{
 				it:        "should parse multiple arguments",
 				input:     `(name: "Gophus", surname: "Gophersson")`,
 				expectErr: BeNil(),

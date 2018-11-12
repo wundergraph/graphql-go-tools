@@ -22,5 +22,7 @@ func (p *Parser) parseListValue() (val document.ListValue, err error) {
 		return true
 	})
 
+	p.read(WithWhitelist(token.SQUAREBRACKETCLOSE))
+
 	return
 }
