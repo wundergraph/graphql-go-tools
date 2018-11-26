@@ -39,7 +39,16 @@ func (p *Parser) parseObjectTypeDefinition() (objectTypeDefinition document.Obje
 				Name: "__type",
 				Type: document.NamedType{
 					Name:    "__Type",
-					NonNull: true,
+					NonNull: false,
+				},
+				ArgumentsDefinition: []document.InputValueDefinition{
+					{
+						Name: "name",
+						Type: document.NamedType{
+							Name:    "String",
+							NonNull: true,
+						},
+					},
 				},
 			},
 		}
