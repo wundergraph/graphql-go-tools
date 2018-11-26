@@ -62,10 +62,21 @@
         {
           "Description": "",
           "Name": "__type",
-          "ArgumentsDefinition": null,
+          "ArgumentsDefinition": [
+            {
+              "Description": "",
+              "Name": "name",
+              "Type": {
+                "Name": "String",
+                "NonNull": true
+              },
+              "DefaultValue": null,
+              "Directives": null
+            }
+          ],
           "Type": {
             "Name": "__Type",
-            "NonNull": true
+            "NonNull": false
           },
           "Directives": null
         },
