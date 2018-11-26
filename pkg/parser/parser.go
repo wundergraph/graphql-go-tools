@@ -44,8 +44,14 @@ func NewParser() *Parser {
 	}
 }
 
-// ParseTypeSystemDefinition reads from an io.Reader and emits a document.Definition
+// ParseTypeSystemDefinition parses a TypeSystemDefinition from an io.Reader
 func (p *Parser) ParseTypeSystemDefinition(reader io.Reader) (def document.TypeSystemDefinition, err error) {
 	p.l.SetInput(reader)
 	return p.parseTypeSystemDefinition()
+}
+
+// ParseExecutableDefinition parses an ExecutableDefinition from an io.Reader
+func (p *Parser) ParseExecutableDefinition(reader io.Reader) (def document.ExecutableDefinition, err error) {
+	p.l.SetInput(reader)
+	return p.parseExecutableDefinition()
 }
