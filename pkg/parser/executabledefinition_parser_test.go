@@ -1,11 +1,11 @@
 package parser
 
 import (
-	"bytes"
 	. "github.com/franela/goblin"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
+	"strings"
 	"testing"
 )
 
@@ -111,7 +111,7 @@ func TestExecutableDefinitionParser(t *testing.T) {
 				query allGophinas($color: String) {
 					name
 				}
-				
+
 				`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.ExecutableDefinition{
@@ -167,7 +167,7 @@ func TestExecutableDefinitionParser(t *testing.T) {
 				query allGophinas($color: String) {
 					name
 				}
-				
+
 				`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.ExecutableDefinition{
@@ -262,7 +262,7 @@ func TestExecutableDefinitionParser(t *testing.T) {
 						}
 					}
 				}
-				
+
 				fragment vehicleFields on Vehicle {
 					name
 					weapon
@@ -333,6 +333,31 @@ func TestExecutableDefinitionParser(t *testing.T) {
 					},
 				}),
 			},
+			{
+				it:        "should parse query with escaped line terminators",
+				input:     "{\n  hero {\n    id\n    name\n  }\n}\n",
+				expectErr: BeNil(),
+				expectValues: Equal(document.ExecutableDefinition{
+					OperationDefinitions: []document.OperationDefinition{
+						{
+							OperationType: document.OperationTypeQuery,
+							SelectionSet: []document.Selection{
+								document.Field{
+									Name: "hero",
+									SelectionSet: []document.Selection{
+										document.Field{
+											Name: "id",
+										},
+										document.Field{
+											Name: "name",
+										},
+									},
+								},
+							},
+						},
+					},
+				}),
+			},
 		}
 
 		for _, test := range tests {
@@ -340,9 +365,8 @@ func TestExecutableDefinitionParser(t *testing.T) {
 
 			g.It(test.it, func() {
 
-				reader := bytes.NewReader([]byte(test.input))
 				parser := NewParser()
-				parser.l.SetInput(reader)
+				parser.l.SetInput(strings.NewReader(test.input))
 
 				val, err := parser.parseExecutableDefinition()
 				Expect(err).To(test.expectErr)

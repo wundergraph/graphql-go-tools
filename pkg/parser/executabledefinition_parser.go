@@ -8,7 +8,7 @@ import (
 
 func (p *Parser) parseExecutableDefinition() (executableDefinition document.ExecutableDefinition, err error) {
 
-	_, err = p.readAllUntil(token.EOF).
+	matched, err := p.readAllUntil(token.EOF, WithReadRepeat()).
 		foreachMatchedPattern(Pattern(token.IDENT),
 			func(tokens []token.Token) (err error) {
 
@@ -33,5 +33,14 @@ func (p *Parser) parseExecutableDefinition() (executableDefinition document.Exec
 				}
 			})
 
-	return
+	if err == nil && matched == 0 {
+		operationDefinition, err := p.parseOperationDefinition()
+		if err != nil {
+			return executableDefinition, err
+		}
+		operationDefinition.OperationType = document.OperationTypeQuery
+		executableDefinition.OperationDefinitions = append(executableDefinition.OperationDefinitions, operationDefinition)
+	}
+
+	return executableDefinition, err
 }
