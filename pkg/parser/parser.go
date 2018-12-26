@@ -6,6 +6,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
 	"io"
 )
@@ -14,10 +15,10 @@ type errInvalidType struct {
 	enclosingFunctionName string
 	expected              string
 	actual                string
-	position              keyword.Position
+	position              position.Position
 }
 
-func newErrInvalidType(position keyword.Position, enclosingFunctionName, expected, actual string) errInvalidType {
+func newErrInvalidType(position position.Position, enclosingFunctionName, expected, actual string) errInvalidType {
 	return errInvalidType{
 		enclosingFunctionName: enclosingFunctionName,
 		expected:              expected,

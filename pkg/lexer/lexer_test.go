@@ -7,6 +7,7 @@ import (
 	"github.com/jensneuse/diffview"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
@@ -92,7 +93,7 @@ var _ = Describe("Lexer.Read", func() {
 			out: token.Token{
 				Keyword: keyword.INTEGER,
 				Literal: []byte("1337"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -103,7 +104,7 @@ var _ = Describe("Lexer.Read", func() {
 			out: token.Token{
 				Keyword: keyword.FLOAT,
 				Literal: []byte("13.37"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -113,7 +114,7 @@ var _ = Describe("Lexer.Read", func() {
 			in:        []byte("13."),
 			expectErr: Not(BeNil()),
 			out: token.Token{
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -124,7 +125,7 @@ var _ = Describe("Lexer.Read", func() {
 			out: token.Token{
 				Keyword: keyword.STRING,
 				Literal: []byte(`foo bar`),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -135,7 +136,7 @@ var _ = Describe("Lexer.Read", func() {
 			out: token.Token{
 				Keyword: keyword.STRING,
 				Literal: []byte(`foo bar " baz`),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -146,7 +147,7 @@ var _ = Describe("Lexer.Read", func() {
 			out: token.Token{
 				Keyword: keyword.STRING,
 				Literal: []byte(`foo bar """ baz`),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -160,7 +161,7 @@ bar"""`),
 				Keyword: keyword.STRING,
 				Literal: []byte(`foo
 bar`),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -173,7 +174,7 @@ foo
 			out: token.Token{
 				Keyword: keyword.STRING,
 				Literal: []byte(`foo`),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -184,7 +185,7 @@ foo
 			out: token.Token{
 				Keyword: keyword.PIPE,
 				Literal: literal.PIPE,
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -193,7 +194,7 @@ foo
 		Entry("should not read dot", Case{
 			in: []byte("."),
 			out: token.Token{
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -205,7 +206,7 @@ foo
 			out: token.Token{
 				Keyword: keyword.SPREAD,
 				Literal: literal.SPREAD,
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -216,7 +217,7 @@ foo
 			out: token.Token{
 				Keyword: keyword.VARIABLE,
 				Literal: []byte("123"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -227,7 +228,7 @@ foo
 			out: token.Token{
 				Keyword: keyword.VARIABLE,
 				Literal: []byte("foo"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -238,7 +239,7 @@ foo
 			out: token.Token{
 				Keyword: keyword.VARIABLE,
 				Literal: []byte("_foo"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -249,7 +250,7 @@ foo
 			out: token.Token{
 				Keyword: keyword.VARIABLE,
 				Literal: []byte("123"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -260,7 +261,7 @@ foo
 			out: token.Token{
 				Keyword: keyword.VARIABLE,
 				Literal: []byte("123"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -271,7 +272,7 @@ foo
 			out: token.Token{
 				Keyword: keyword.AT,
 				Literal: []byte("@"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -282,7 +283,7 @@ foo
 			out: token.Token{
 				Keyword: keyword.EQUALS,
 				Literal: []byte("="),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -293,7 +294,7 @@ foo
 			out: token.Token{
 				Keyword: keyword.COLON,
 				Literal: []byte(":"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -304,7 +305,7 @@ foo
 			out: token.Token{
 				Keyword: keyword.BANG,
 				Literal: []byte("!"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -315,7 +316,7 @@ foo
 			out: token.Token{
 				Keyword: keyword.BRACKETOPEN,
 				Literal: []byte("("),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -326,7 +327,7 @@ foo
 			out: token.Token{
 				Keyword: keyword.BRACKETCLOSE,
 				Literal: []byte(")"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -337,7 +338,7 @@ foo
 			out: token.Token{
 				Keyword: keyword.CURLYBRACKETOPEN,
 				Literal: []byte("{"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -348,7 +349,7 @@ foo
 			out: token.Token{
 				Keyword: keyword.CURLYBRACKETCLOSE,
 				Literal: []byte("}"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -359,7 +360,7 @@ foo
 			out: token.Token{
 				Keyword: keyword.SQUAREBRACKETOPEN,
 				Literal: []byte("["),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -370,7 +371,7 @@ foo
 			out: token.Token{
 				Keyword: keyword.SQUAREBRACKETCLOSE,
 				Literal: []byte("]"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -381,7 +382,7 @@ foo
 			out: token.Token{
 				Keyword: keyword.AND,
 				Literal: []byte("&"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -392,7 +393,7 @@ foo
 			out: token.Token{
 				Keyword: keyword.EOF,
 				Literal: literal.EOF,
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -403,7 +404,7 @@ foo
 			out: token.Token{
 				Keyword: keyword.IDENT,
 				Literal: []byte("foo"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -414,7 +415,7 @@ foo
 			out: token.Token{
 				Keyword: keyword.IDENT,
 				Literal: []byte("foo"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -425,7 +426,7 @@ foo
 			out: token.Token{
 				Keyword: keyword.TRUE,
 				Literal: []byte("true"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -436,7 +437,7 @@ foo
 			out: token.Token{
 				Keyword: keyword.FALSE,
 				Literal: []byte("false"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -486,7 +487,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.EOF,
 				Literal: []byte("eof"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -500,7 +501,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.QUERY,
 				Literal: []byte("query"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -514,7 +515,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.MUTATION,
 				Literal: []byte("mutation"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -528,7 +529,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.SUBSCRIPTION,
 				Literal: []byte("subscription"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -542,7 +543,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.FRAGMENT,
 				Literal: []byte("fragment"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -556,7 +557,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.SPREAD,
 				Literal: []byte("..."),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -570,7 +571,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.IMPLEMENTS,
 				Literal: []byte("implements"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -584,7 +585,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.SCHEMA,
 				Literal: []byte("schema"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -598,7 +599,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.SCALAR,
 				Literal: []byte("scalar"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -612,7 +613,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.TYPE,
 				Literal: []byte("type"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -626,7 +627,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.INTERFACE,
 				Literal: []byte("interface"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -640,7 +641,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.UNION,
 				Literal: []byte("union"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -654,7 +655,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.ENUM,
 				Literal: []byte("enum"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -668,7 +669,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.INPUT,
 				Literal: []byte("input"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -682,7 +683,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.DIRECTIVE,
 				Literal: []byte("directive"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -696,7 +697,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.IDENT,
 				Literal: []byte("inputValue"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -710,7 +711,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.ON,
 				Literal: []byte("on"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -722,7 +723,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.EOF,
 				Literal: []byte("eof"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 2,
 				},
@@ -734,7 +735,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.VARIABLE,
 				Literal: []byte("color"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -751,7 +752,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.EOF,
 				Literal: []byte("eof"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 2,
 				},
@@ -763,7 +764,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.EOF,
 				Literal: []byte("eof"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 2,
 				},
@@ -775,7 +776,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.EOF,
 				Literal: []byte("eof"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 2,
 					Char: 1,
 				},
@@ -787,7 +788,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.STRING,
 				Literal: []byte("foo"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -799,7 +800,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.STRING,
 				Literal: []byte("foo"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -811,7 +812,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.VARIABLE,
 				Literal: []byte("foo"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -827,7 +828,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.PIPE,
 				Literal: []byte("|"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -839,7 +840,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.EQUALS,
 				Literal: []byte("="),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -851,7 +852,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.AT,
 				Literal: []byte("@"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -863,7 +864,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.NULL,
 				Literal: []byte("null"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -875,7 +876,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.COLON,
 				Literal: []byte(":"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -887,7 +888,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.BANG,
 				Literal: []byte("!"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -899,7 +900,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.BRACKETOPEN,
 				Literal: []byte("("),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -911,7 +912,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.BRACKETCLOSE,
 				Literal: []byte(")"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -923,7 +924,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.SQUAREBRACKETOPEN,
 				Literal: []byte("["),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -935,7 +936,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.SQUAREBRACKETCLOSE,
 				Literal: []byte("]"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -947,7 +948,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.CURLYBRACKETOPEN,
 				Literal: []byte("{"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -959,7 +960,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.CURLYBRACKETCLOSE,
 				Literal: []byte("}"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -971,7 +972,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.AND,
 				Literal: []byte("&"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -983,7 +984,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.IDENT,
 				Literal: []byte("foo"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -995,7 +996,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.INTEGER,
 				Literal: []byte("1337"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -1007,7 +1008,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.FLOAT,
 				Literal: []byte("13.37"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -1019,7 +1020,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.TRUE,
 				Literal: []byte("true"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -1031,7 +1032,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.TRUE,
 				Literal: []byte("true"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 2,
 				},
@@ -1043,7 +1044,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.TRUE,
 				Literal: []byte("true"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 4,
 				},
@@ -1055,7 +1056,7 @@ var _ = Describe("Lexer.Peek()", func() {
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.FALSE,
 				Literal: []byte("false"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -1144,7 +1145,7 @@ var _ = Describe("Lexer.Read", func() {
 			{
 				Keyword: keyword.IDENT,
 				Literal: []byte("foo"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
@@ -1152,7 +1153,7 @@ var _ = Describe("Lexer.Read", func() {
 			{
 				Keyword: keyword.COLON,
 				Literal: []byte(":"),
-				Position: keyword.Position{
+				Position: position.Position{
 					Line: 1,
 					Char: 4,
 				},
@@ -1172,77 +1173,77 @@ var _ = Describe("Lexer.Read", func() {
 				{
 					Keyword:  keyword.IDENT,
 					Literal:  []byte("Goland"),
-					Position: keyword.Position{1, 1},
+					Position: position.Position{1, 1},
 				},
 				{
 					Keyword:  keyword.CURLYBRACKETOPEN,
 					Literal:  []byte("{"),
-					Position: keyword.Position{1, 8},
+					Position: position.Position{1, 8},
 				},
 				{
 					Keyword:  keyword.SPREAD,
 					Literal:  []byte("..."),
-					Position: keyword.Position{2, 6},
+					Position: position.Position{2, 6},
 				},
 				{
 					Keyword:  keyword.ON,
 					Literal:  []byte("on"),
-					Position: keyword.Position{2, 10},
+					Position: position.Position{2, 10},
 				},
 				{
 					Keyword:  keyword.IDENT,
 					Literal:  []byte("GoWater"),
-					Position: keyword.Position{2, 13},
+					Position: position.Position{2, 13},
 				},
 				{
 					Keyword:  keyword.CURLYBRACKETOPEN,
 					Literal:  []byte("{"),
-					Position: keyword.Position{2, 21},
+					Position: position.Position{2, 21},
 				},
 				{
 					Keyword:  keyword.SPREAD,
 					Literal:  []byte("..."),
-					Position: keyword.Position{3, 7},
+					Position: position.Position{3, 7},
 				},
 				{
 					Keyword:  keyword.ON,
 					Literal:  []byte("on"),
-					Position: keyword.Position{3, 11},
+					Position: position.Position{3, 11},
 				},
 				{
 					Keyword:  keyword.IDENT,
 					Literal:  []byte("GoAir"),
-					Position: keyword.Position{3, 14},
+					Position: position.Position{3, 14},
 				},
 				{
 					Keyword:  keyword.CURLYBRACKETOPEN,
 					Literal:  []byte("{"),
-					Position: keyword.Position{3, 20},
+					Position: position.Position{3, 20},
 				},
 				{
 					Keyword:  keyword.IDENT,
 					Literal:  []byte("go"),
-					Position: keyword.Position{4, 8},
+					Position: position.Position{4, 8},
 				},
 				{
 					Keyword:  keyword.CURLYBRACKETCLOSE,
 					Literal:  []byte("}"),
-					Position: keyword.Position{5, 7},
+					Position: position.Position{5, 7},
 				},
 				{
 					Keyword:  keyword.CURLYBRACKETCLOSE,
 					Literal:  []byte("}"),
-					Position: keyword.Position{6, 6},
+					Position: position.Position{6, 6},
 				},
 				{
 					Keyword:  keyword.CURLYBRACKETCLOSE,
 					Literal:  []byte("}"),
-					Position: keyword.Position{7, 5},
+					Position: position.Position{7, 5},
 				},
 				{
 					Keyword:  keyword.EOF,
 					Literal:  []byte("eof"),
-					Position: keyword.Position{8, 5},
+					Position: position.Position{8, 5},
 				},
 			},
 		}),
@@ -1257,7 +1258,7 @@ baz
 				{
 					Keyword: keyword.INTEGER,
 					Literal: []byte("1337"),
-					Position: keyword.Position{
+					Position: position.Position{
 						Line: 1,
 						Char: 1,
 					},
@@ -1265,7 +1266,7 @@ baz
 				{
 					Keyword: keyword.INTEGER,
 					Literal: []byte("1338"),
-					Position: keyword.Position{
+					Position: position.Position{
 						Line: 1,
 						Char: 6,
 					},
@@ -1273,7 +1274,7 @@ baz
 				{
 					Keyword: keyword.INTEGER,
 					Literal: []byte("1339"),
-					Position: keyword.Position{
+					Position: position.Position{
 						Line: 1,
 						Char: 11,
 					},
@@ -1281,7 +1282,7 @@ baz
 				{
 					Keyword: keyword.STRING,
 					Literal: []byte(`foo`),
-					Position: keyword.Position{
+					Position: position.Position{
 						Line: 1,
 						Char: 16,
 					},
@@ -1289,7 +1290,7 @@ baz
 				{
 					Keyword: keyword.STRING,
 					Literal: []byte(`bar`),
-					Position: keyword.Position{
+					Position: position.Position{
 						Line: 1,
 						Char: 22,
 					},
@@ -1297,7 +1298,7 @@ baz
 				{
 					Keyword: keyword.STRING,
 					Literal: []byte(`foo bar`),
-					Position: keyword.Position{
+					Position: position.Position{
 						Line: 1,
 						Char: 28,
 					},
@@ -1306,7 +1307,7 @@ baz
 					Keyword: keyword.STRING,
 					Literal: []byte(`foo
 bar`),
-					Position: keyword.Position{
+					Position: position.Position{
 						Line: 1,
 						Char: 42,
 					},
@@ -1316,7 +1317,7 @@ bar`),
 					Literal: []byte(`foo
 bar 
 baz`),
-					Position: keyword.Position{
+					Position: position.Position{
 						Line: 2,
 						Char: 8,
 					},
@@ -1324,7 +1325,7 @@ baz`),
 				{
 					Keyword: keyword.FLOAT,
 					Literal: []byte("13.37"),
-					Position: keyword.Position{
+					Position: position.Position{
 						Line: 6,
 						Char: 1,
 					},
@@ -1338,7 +1339,7 @@ baz`),
 				{
 					Keyword: keyword.QUERY,
 					Literal: []byte("query"),
-					Position: keyword.Position{
+					Position: position.Position{
 						Line: 1,
 						Char: 1,
 					},
@@ -1346,7 +1347,7 @@ baz`),
 				{
 					Keyword: keyword.IDENT,
 					Literal: []byte("IntrospectionQuery"),
-					Position: keyword.Position{
+					Position: position.Position{
 						Line: 1,
 						Char: 7,
 					},
@@ -1354,7 +1355,7 @@ baz`),
 				{
 					Keyword: keyword.CURLYBRACKETOPEN,
 					Literal: literal.CURLYBRACKETOPEN,
-					Position: keyword.Position{
+					Position: position.Position{
 						Line: 1,
 						Char: 26,
 					},
@@ -1362,7 +1363,7 @@ baz`),
 				{
 					Keyword: keyword.IDENT,
 					Literal: []byte("__schema"),
-					Position: keyword.Position{
+					Position: position.Position{
 						Line: 2,
 						Char: 3,
 					},
@@ -1370,7 +1371,7 @@ baz`),
 				{
 					Keyword: keyword.CURLYBRACKETOPEN,
 					Literal: literal.CURLYBRACKETOPEN,
-					Position: keyword.Position{
+					Position: position.Position{
 						Line: 2,
 						Char: 12,
 					},

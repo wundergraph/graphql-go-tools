@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 )
 
 type Token struct {
 	Keyword     keyword.Keyword
 	Literal     keyword.Literal
-	Position    keyword.Position
+	Position    position.Position
 	Description string
 }
 

@@ -98,15 +98,6 @@ func (k Keyword) String() string {
 	}
 }
 
-type Position struct {
-	Line int
-	Char int
-}
-
-func (p Position) String() string {
-	return fmt.Sprintf("%d:%d", p.Line, p.Char)
-}
-
 type Literal []byte
 
 func (l Literal) Equals(another Literal) bool {

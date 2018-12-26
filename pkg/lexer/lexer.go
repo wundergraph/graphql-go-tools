@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/runes"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
 	"io"
@@ -217,7 +218,7 @@ func (l *Lexer) peekIsFloat() (isFloat bool, err error) {
 	return
 }
 
-func (l *Lexer) switchSimpleTokens(position keyword.Position, run rune) (tok token.Token, matched bool) {
+func (l *Lexer) switchSimpleTokens(position position.Position, run rune) (tok token.Token, matched bool) {
 
 	matched = true
 
@@ -255,7 +256,7 @@ func (l *Lexer) switchSimpleTokens(position keyword.Position, run rune) (tok tok
 	return
 }
 
-func (l *Lexer) readIdent(position keyword.Position, beginWith rune) (tok token.Token, err error) {
+func (l *Lexer) readIdent(position position.Position, beginWith rune) (tok token.Token, err error) {
 
 	tok.Position = position
 
@@ -571,7 +572,7 @@ func (l *Lexer) peekIdent() (k keyword.Keyword, err error) {
 	return keyword.IDENT, nil
 }
 
-func (l *Lexer) readVariable(position keyword.Position) (tok token.Token, err error) {
+func (l *Lexer) readVariable(position position.Position) (tok token.Token, err error) {
 
 	tok.Position = position
 	tok.Keyword = keyword.VARIABLE
@@ -597,7 +598,7 @@ func (l *Lexer) readVariable(position keyword.Position) (tok token.Token, err er
 	return
 }
 
-func (l *Lexer) readSpread(position keyword.Position) (tok token.Token, err error) {
+func (l *Lexer) readSpread(position position.Position) (tok token.Token, err error) {
 
 	tok.Position = position
 
@@ -615,7 +616,7 @@ func (l *Lexer) readSpread(position keyword.Position) (tok token.Token, err erro
 	return
 }
 
-func (l *Lexer) readString(position keyword.Position) (tok token.Token, err error) {
+func (l *Lexer) readString(position position.Position) (tok token.Token, err error) {
 
 	tok.Keyword = keyword.STRING
 	tok.Position = position
@@ -750,7 +751,7 @@ func (l *Lexer) peekEquals(equals []rune, swallow, returnErrorOnEOF bool) (bool,
 	return matches, err
 }
 
-func (l *Lexer) readDigit(position keyword.Position, beginWith rune) (tok token.Token, err error) {
+func (l *Lexer) readDigit(position position.Position, beginWith rune) (tok token.Token, err error) {
 
 	tok.Position = position
 
@@ -779,7 +780,7 @@ func (l *Lexer) readDigit(position keyword.Position, beginWith rune) (tok token.
 	return
 }
 
-func (l *Lexer) readFloat(position keyword.Position, integerPart []byte) (tok token.Token, err error) {
+func (l *Lexer) readFloat(position position.Position, integerPart []byte) (tok token.Token, err error) {
 
 	tok.Position = position
 
@@ -847,7 +848,7 @@ func (l *Lexer) trimStartEnd(input, trim []byte) []byte {
 	return bytes.TrimSuffix(bytes.TrimPrefix(input, trim), trim)
 }
 
-func (l *Lexer) readRune() (r rune, position keyword.Position, err error) {
+func (l *Lexer) readRune() (r rune, position position.Position, err error) {
 
 	position.Line = l.line
 	position.Char = l.char
