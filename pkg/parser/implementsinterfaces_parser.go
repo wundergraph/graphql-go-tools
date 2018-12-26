@@ -2,28 +2,35 @@ package parser
 
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
 func (p *Parser) parseImplementsInterfaces() (implementsInterfaces document.ImplementsInterfaces, err error) {
 
-	if _, matched, err := p.readOptionalLiteral(literal.IMPLEMENTS); err != nil || !matched {
-		return implementsInterfaces, err
-	}
-
-	tok, err := p.read(WithWhitelist(token.IDENT))
+	doesImplement, err := p.peekExpect(keyword.IMPLEMENTS, true)
 	if err != nil {
 		return implementsInterfaces, err
 	}
 
-	implementsInterfaces = append(implementsInterfaces, string(tok.Literal))
+	if !doesImplement {
+		return
+	}
 
-	_, err = p.readAllUntil(token.EOF, WithReadRepeat()).
-		foreachMatchedPattern(Pattern(token.AND, token.IDENT),
-			func(tokens []token.Token) error {
-				implementsInterfaces = append(implementsInterfaces, string(tokens[1].Literal))
-				return nil
-			})
-	return
+	for {
+		next, err := p.readExpect(keyword.IDENT, "parseImplementsInterfaces")
+		if err != nil {
+			return implementsInterfaces, err
+		}
+
+		implementsInterfaces = append(implementsInterfaces, string(next.Literal))
+
+		willImplementAnother, err := p.peekExpect(keyword.AND, true)
+		if err != nil {
+			return implementsInterfaces, err
+		}
+
+		if !willImplementAnother {
+			return implementsInterfaces, err
+		}
+	}
 }

@@ -3,50 +3,48 @@ package parser
 import (
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
 var (
-	parseValuePossibleKeywords = []token.Keyword{token.FALSE, token.TRUE, token.VARIABLE, token.INTEGER, token.FLOAT, token.STRING, token.NULL, token.IDENT, token.SQUAREBRACKETOPEN, token.SQUAREBRACKETCLOSE}
+	parseValuePossibleKeywords = []keyword.Keyword{keyword.FALSE, keyword.TRUE, keyword.VARIABLE, keyword.INTEGER, keyword.FLOAT, keyword.STRING, keyword.NULL, keyword.IDENT, keyword.SQUAREBRACKETOPEN, keyword.SQUAREBRACKETCLOSE}
 )
 
 func (p *Parser) parseValue() (val document.Value, err error) {
 
-	tok, err := p.read(WithReadRepeat())
-	if err != nil {
-		return nil, err
-	}
+	key, err := p.l.Peek(true)
 
-	switch tok.Keyword {
-	case token.FALSE, token.TRUE:
-		val, err = p.parseBoolValue()
+	switch key {
+	case keyword.FALSE, keyword.TRUE:
+		val, err = p.parsePeekedBoolValue()
 		return
-	case token.VARIABLE:
-		val, err = p.parseVariableValue()
+	case keyword.VARIABLE:
+		val, err = p.parsePeekedVariableValue()
 		return
-	case token.INTEGER:
-		val, err = p.parseIntValue()
+	case keyword.INTEGER:
+		val, err = p.parsePeekedIntValue()
 		return
-	case token.FLOAT:
-		val, err = p.parseFloatValue()
+	case keyword.FLOAT:
+		val, err = p.parsePeekedFloatValue()
 		return
-	case token.STRING:
-		val, err = p.parseStringValue()
+	case keyword.STRING:
+		val, err = p.parsePeekedStringValue()
 		return
-	case token.NULL:
-		p.read()
+	case keyword.NULL:
+		_, err = p.l.Read()
 		val = document.NullValue{}
 		return
-	case token.IDENT:
-		val, err = p.parseEnumValue()
+	case keyword.IDENT:
+		val, err = p.parsePeekedEnumValue()
 		return
-	case token.SQUAREBRACKETOPEN:
-		val, err = p.parseListValue()
+	case keyword.SQUAREBRACKETOPEN:
+		val, err = p.parsePeekedListValue()
 		return
-	case token.CURLYBRACKETOPEN:
-		val, err = p.parseObjectValue()
+	case keyword.CURLYBRACKETOPEN:
+		val, err = p.parsePeekedObjectValue()
 		return
 	default:
-		return nil, newErrInvalidType(tok.Position, "parseValue", fmt.Sprintf("%v", parseValuePossibleKeywords), string(tok.Keyword))
+		invalidToken, _ := p.l.Read()
+		return nil, newErrInvalidType(invalidToken.Position, "parseValue", fmt.Sprintf("%v", parseValuePossibleKeywords), string(invalidToken.Keyword))
 	}
 }

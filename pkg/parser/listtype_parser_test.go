@@ -72,13 +72,13 @@ func TestListTypeParser(t *testing.T) {
 				}),
 			},
 			{
-				it:           "should not parse a List Type on non-SQUAREBRACKETOPEN token",
+				it:           "should not parse a List Type on non-SQUAREBRACKETOPEN keyword",
 				input:        "String]",
 				expectErr:    Not(BeNil()),
 				expectValues: Equal(document.ListType{}),
 			},
 			{
-				it:        "should not parse a List Type on missing SQUAREBRACKETCLOSE token",
+				it:        "should not parse a List Type on missing SQUAREBRACKETCLOSE keyword",
 				input:     "[String",
 				expectErr: Not(BeNil()),
 				expectValues: Equal(document.ListType{

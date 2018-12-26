@@ -25,14 +25,12 @@ func TestSelectionSetParser(t *testing.T) {
 			{
 				it: "should parse a simple SelectionSet",
 				input: `{
-					... on Goland
+					foo
 				}`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.SelectionSet{
-					document.InlineFragment{
-						TypeCondition: document.NamedType{
-							Name: "Goland",
-						},
+					document.Field{
+						Name: "foo",
 					},
 				}),
 			},

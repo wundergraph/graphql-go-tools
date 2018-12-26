@@ -2,17 +2,17 @@ package parser
 
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
 func (p *Parser) parseType() (ref document.Type, err error) {
 
-	tok, err := p.read(WithReadRepeat())
+	next, err := p.l.Peek(true)
 	if err != nil {
-		return
+		return nil, err
 	}
 
-	if tok.Keyword == token.SQUAREBRACKETOPEN {
+	if next == keyword.SQUAREBRACKETOPEN {
 		return p.parseListType()
 	}
 

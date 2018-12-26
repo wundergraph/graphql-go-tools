@@ -13,7 +13,7 @@ func TestEnumValueParser(t *testing.T) {
 	g := Goblin(t)
 	RegisterFailHandler(func(m string, _ ...int) { g.Fail(m) })
 
-	g.Describe("parser.parseEnumValue", func() {
+	g.Describe("parser.parsePeekedEnumValue", func() {
 
 		tests := []struct {
 			it         string
@@ -38,7 +38,7 @@ func TestEnumValueParser(t *testing.T) {
 				parser := NewParser()
 				parser.l.SetInput(reader)
 
-				val, err := parser.parseEnumValue()
+				val, err := parser.parsePeekedEnumValue()
 				Expect(err).To(test.expectErr)
 				Expect(val.Name).To(test.expectName)
 			})

@@ -14,7 +14,7 @@ func TestIntValueParser(t *testing.T) {
 	g := Goblin(t)
 	RegisterFailHandler(func(m string, _ ...int) { g.Fail(m) })
 
-	g.Describe("parser.parseIntValue", func() {
+	g.Describe("parser.parsePeekedIntValue", func() {
 
 		tests := []struct {
 			it           string
@@ -41,7 +41,7 @@ func TestIntValueParser(t *testing.T) {
 				parser := NewParser()
 				parser.l.SetInput(reader)
 
-				val, err := parser.parseIntValue()
+				val, err := parser.parsePeekedIntValue()
 				Expect(err).To(test.expectErr)
 				Expect(val).To(test.expectValues)
 			})

@@ -35,7 +35,7 @@ func TestValueParser(t *testing.T) {
 			{
 				it:        "should throw an error when using '$ foo' instead of '$foo'",
 				input:     "$ foo",
-				expectErr: Not(BeNil()),
+				expectErr: HaveOccurred(),
 			},
 			{
 				it:        "should parse Int32 values",
@@ -119,7 +119,7 @@ func TestValueParser(t *testing.T) {
 				}),
 			},
 			{
-				it:           "should fail at not listed token and return an error",
+				it:           "should fail at not listed keyword and return an error",
 				input:        "}",
 				expectErr:    Not(BeNil()),
 				expectValues: BeNil(),

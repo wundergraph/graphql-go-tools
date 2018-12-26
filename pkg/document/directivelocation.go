@@ -4,7 +4,7 @@ package document
 
 import (
 	"fmt"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 	"github.com/pkg/errors"
 	"strings"
 )
@@ -52,7 +52,7 @@ func (d DirectiveLocations) String() string {
 }
 
 // NewDirectiveLocations creates directive locations from raw strings
-func NewDirectiveLocations(rawLocations []string, position token.Position) (locations DirectiveLocations, err error) {
+func NewDirectiveLocations(rawLocations []string, position keyword.Position) (locations DirectiveLocations, err error) {
 	for _, raw := range rawLocations {
 
 		location, err := ParseDirectiveLocation(raw)

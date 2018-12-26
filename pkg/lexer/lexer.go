@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/runes"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
@@ -25,7 +26,7 @@ type Lexer struct {
 
 type lexedRune struct {
 	rune     rune
-	position token.Position
+	position keyword.Position
 }
 
 // NewLexer returns a new *Lexer, a runestringer must be supplied
@@ -48,14 +49,9 @@ func (l *Lexer) SetInput(reader io.Reader) {
 	l.reset(reader)
 }
 
-// ReadRepeatCurrentToken makes the lexer re read the emitted token
-func (l *Lexer) ReadRepeatCurrentToken() {
-	l.readRepeatCurrentToken = true
-}
-
 func (l *Lexer) reset(reader io.Reader) {
 	l.reader.Reset(reader)
-	l.lexedRunes = []lexedRune{}
+	l.lexedRunes = make([]lexedRune, 0)
 	l.readFromLexed = 0
 }
 
@@ -69,7 +65,7 @@ func (l *Lexer) unread() error {
 	return nil
 }
 
-// Read emits the next token
+// Read emits the next keyword
 func (l *Lexer) Read() (token.Token, error) {
 
 	if l.readRepeatCurrentToken {
@@ -85,7 +81,7 @@ func (l *Lexer) Read() (token.Token, error) {
 
 	switch r.rune {
 	case runes.EOF:
-		l.current.Keyword = token.EOF
+		l.current.Keyword = keyword.EOF
 		l.current.Literal = literal.EOF
 		return l.current, nil
 	case runes.COMMA, runes.SPACE, runes.TAB, runes.LINETERMINATOR:
@@ -93,73 +89,73 @@ func (l *Lexer) Read() (token.Token, error) {
 	case runes.DOT:
 		isSpread, err := l.scanSpread()
 		if isSpread {
-			l.current.Keyword = token.SPREAD
+			l.current.Keyword = keyword.SPREAD
 			l.current.Literal = literal.SPREAD
 		} else {
-			l.current.Keyword = token.DOT
+			l.current.Keyword = keyword.DOT
 			l.current.Literal = literal.DOT
 		}
 		return l.current, err
 	case runes.PIPE:
-		l.current.Keyword = token.PIPE
+		l.current.Keyword = keyword.PIPE
 		l.current.Literal = literal.PIPE
 		return l.current, nil
 	case runes.EQUALS:
-		l.current.Keyword = token.EQUALS
+		l.current.Keyword = keyword.EQUALS
 		l.current.Literal = literal.EQUALS
 		return l.current, nil
 	case runes.QUOTE:
 		var err error
-		l.current.Keyword = token.STRING
+		l.current.Keyword = keyword.STRING
 		l.current.Literal, err = l.scanString()
 		return l.current, err
 	case runes.AT:
-		l.current.Keyword = token.AT
+		l.current.Keyword = keyword.AT
 		l.current.Literal = literal.AT
 		return l.current, nil
 	case runes.COLON:
-		l.current.Keyword = token.COLON
+		l.current.Keyword = keyword.COLON
 		l.current.Literal = literal.COLON
 		return l.current, nil
 	case runes.BANG:
-		l.current.Keyword = token.BANG
+		l.current.Keyword = keyword.BANG
 		l.current.Literal = literal.BANG
 		return l.current, nil
 	case runes.HASHTAG:
-		l.current.Keyword = token.COMMENT
+		l.current.Keyword = keyword.COMMENT
 		l.current.Literal = l.scanComment()
 		return l.current, nil
 	case runes.BRACKETOPEN:
-		l.current.Keyword = token.BRACKETOPEN
+		l.current.Keyword = keyword.BRACKETOPEN
 		l.current.Literal = literal.BRACKETOPEN
 		return l.current, nil
 	case runes.BRACKETCLOSE:
-		l.current.Keyword = token.BRACKETCLOSE
+		l.current.Keyword = keyword.BRACKETCLOSE
 		l.current.Literal = literal.BRACKETCLOSE
 		return l.current, nil
 	case runes.CURLYBRACKETOPEN:
-		l.current.Keyword = token.CURLYBRACKETOPEN
+		l.current.Keyword = keyword.CURLYBRACKETOPEN
 		l.current.Literal = literal.CURLYBRACKETOPEN
 		return l.current, nil
 	case runes.CURLYBRACKETCLOSE:
-		l.current.Keyword = token.CURLYBRACKETCLOSE
+		l.current.Keyword = keyword.CURLYBRACKETCLOSE
 		l.current.Literal = literal.CURLYBRACKETCLOSE
 		return l.current, nil
 	case runes.SQUAREBRACKETOPEN:
-		l.current.Keyword = token.SQUAREBRACKETOPEN
+		l.current.Keyword = keyword.SQUAREBRACKETOPEN
 		l.current.Literal = literal.SQUAREBRACKETOPEN
 		return l.current, nil
 	case runes.SQUAREBRACKETCLOSE:
-		l.current.Keyword = token.SQUAREBRACKETCLOSE
+		l.current.Keyword = keyword.SQUAREBRACKETCLOSE
 		l.current.Literal = literal.SQUAREBRACKETCLOSE
 		return l.current, nil
 	case runes.AND:
-		l.current.Keyword = token.AND
+		l.current.Keyword = keyword.AND
 		l.current.Literal = literal.AND
 		return l.current, nil
 	case runes.DOLLAR:
 		var err error
-		l.current.Keyword = token.VARIABLE
+		l.current.Keyword = keyword.VARIABLE
 		l.current.Literal, err = l.scanVariable()
 		return l.current, err
 	}
@@ -183,6 +179,7 @@ func (l *Lexer) scanVariable() (lit []byte, err error) {
 		l.runeStringer.Write(first.rune)
 	} else {
 		err = fmt.Errorf("scanVariable: unexpected rune '%s' @ %s (wanted literal)", string(first.rune), first.position)
+		return nil, err
 	}
 
 	for {
@@ -212,7 +209,7 @@ func (l *Lexer) scanComment() []byte {
 
 func (l *Lexer) scanString() (lit []byte, err error) {
 
-	isBlockString, err := l.PeekMatchRunes(runes.QUOTE, 2)
+	isBlockString, err := l.peekMatchRunes(runes.QUOTE, 2)
 	if err != nil {
 		return lit, err
 	}
@@ -258,7 +255,7 @@ func (l *Lexer) scanSingleLineString() (lit []byte, err error) {
 
 func (l *Lexer) scanBlockString() (lit []byte, err error) {
 
-	err = l.SwallowRunes(2)
+	err = l.swallowRunes(2)
 	if err != nil {
 		return
 	}
@@ -271,13 +268,13 @@ func (l *Lexer) scanBlockString() (lit []byte, err error) {
 			err = fmt.Errorf("scanBlockString: unexpected EOF @ %s", run.position)
 			return
 		case runes.QUOTE:
-			done, err := l.PeekMatchRunes(runes.QUOTE, 2)
+			done, err := l.peekMatchRunes(runes.QUOTE, 2)
 			if err != nil {
 				return lit, err
 			}
 
 			if done {
-				l.SwallowRunes(2)
+				l.swallowRunes(2)
 				lit = transform.TrimWhitespace(l.runeStringer.Bytes())
 				return lit, err
 			}
@@ -290,7 +287,7 @@ func (l *Lexer) scanBlockString() (lit []byte, err error) {
 
 }
 
-func (l *Lexer) scanNumber(beginWith rune) (keyword token.Keyword, lit []byte, err error) {
+func (l *Lexer) scanNumber(beginWith rune) (key keyword.Keyword, lit []byte, err error) {
 
 	l.runeStringer.Write(beginWith)
 
@@ -315,9 +312,9 @@ func (l *Lexer) scanNumber(beginWith rune) (keyword token.Keyword, lit []byte, e
 			lit = l.runeStringer.Bytes()
 
 			if isFloat {
-				keyword = token.FLOAT
+				key = keyword.FLOAT
 			} else {
-				keyword = token.INTEGER
+				key = keyword.INTEGER
 			}
 
 			return
@@ -326,7 +323,7 @@ func (l *Lexer) scanNumber(beginWith rune) (keyword token.Keyword, lit []byte, e
 
 }
 
-func (l *Lexer) scanLiteral(beginWith rune) (key token.Keyword, lit []byte, err error) {
+func (l *Lexer) scanLiteral(beginWith rune) (key keyword.Keyword, lit []byte, err error) {
 
 	l.runeStringer.Write(beginWith)
 
@@ -367,17 +364,17 @@ func (l *Lexer) scanSpread() (isSpread bool, err error) {
 	return true, nil
 }
 
-func getLiteralKeyword(lit []byte) token.Keyword {
+func getLiteralKeyword(lit []byte) keyword.Keyword {
 
 	if bytes.Equal(lit, literal.TRUE) {
-		return token.TRUE
+		return keyword.TRUE
 	} else if bytes.Equal(lit, literal.FALSE) {
-		return token.FALSE
+		return keyword.FALSE
 	} else if bytes.Equal(lit, literal.NULL) {
-		return token.NULL
+		return keyword.NULL
 	}
 
-	return token.IDENT
+	return keyword.IDENT
 }
 
 func (l *Lexer) readRune() (lexed lexedRune) {
@@ -414,8 +411,8 @@ func (l *Lexer) readRune() (lexed lexedRune) {
 	return
 }
 
-// PeekRunes emits the desired amount of runes and unreads them
-func (l *Lexer) PeekRunes(amount int) (runes []rune, err error) {
+// peekRunes emits the desired amount of runes and unreads them
+func (l *Lexer) peekRunes(amount int) (runes []rune, err error) {
 	for i := 0; i < amount; i++ {
 		next := l.readRune()
 		runes = append(runes, next.rune)
@@ -431,10 +428,10 @@ func (l *Lexer) PeekRunes(amount int) (runes []rune, err error) {
 	return
 }
 
-// PeekMatchRunes returns true if the desired amount of runes peeked match a specified rune
-func (l *Lexer) PeekMatchRunes(match rune, amount int) (matches bool, err error) {
+// peekMatchRunes returns true if the desired amount of runes peeked match a specified rune
+func (l *Lexer) peekMatchRunes(match rune, amount int) (matches bool, err error) {
 
-	peeked, err := l.PeekRunes(amount)
+	peeked, err := l.peekRunes(amount)
 	if err != nil {
 		return false, err
 	}
@@ -448,8 +445,8 @@ func (l *Lexer) PeekMatchRunes(match rune, amount int) (matches bool, err error)
 	return true, nil
 }
 
-// SwallowRunes swallows the desired amount of runes
-func (l *Lexer) SwallowRunes(amount int) (err error) {
+// swallowRunes swallows the desired amount of runes
+func (l *Lexer) swallowRunes(amount int) (err error) {
 
 	for i := 0; i < amount; i++ {
 		l.readRune()

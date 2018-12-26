@@ -2,45 +2,82 @@ package parser
 
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
 func (p *Parser) parseExecutableDefinition() (executableDefinition document.ExecutableDefinition, err error) {
 
-	matched, err := p.readAllUntil(token.EOF, WithReadRepeat()).
-		foreachMatchedPattern(Pattern(token.IDENT),
-			func(tokens []token.Token) (err error) {
+	isSimpleQuery, err := p.peekExpect(keyword.CURLYBRACKETOPEN, false)
+	if err != nil {
+		return executableDefinition, err
+	}
 
-				identifier := tokens[0].Literal
-				position := tokens[0].Position
+	if isSimpleQuery {
+		return p.parseSimpleQueryExecutableDefinition()
+	}
 
-				switch {
-				case identifier.Equals(literal.FRAGMENT):
-					fragmentDefinition, err := p.parseFragmentDefinition()
-					executableDefinition.FragmentDefinitions = append(executableDefinition.FragmentDefinitions, fragmentDefinition)
-					return err
-				case identifier.Equals(literal.QUERY), identifier.Equals(literal.MUTATION), identifier.Equals(literal.SUBSCRIPTION):
-					operationDefinition, err := p.parseOperationDefinition()
-					if err != nil {
-						return err
-					}
-					operationDefinition.OperationType, err = document.ParseOperationType(string(identifier))
-					executableDefinition.OperationDefinitions = append(executableDefinition.OperationDefinitions, operationDefinition)
-					return err
-				default:
-					return newErrInvalidType(position, "parseExecutableDefinition", "a valid ExecutableDefinition identifier", string(identifier))
-				}
-			})
+	return p.parseComplexExecutableDefinition()
+}
 
-	if err == nil && matched == 0 {
-		operationDefinition, err := p.parseOperationDefinition()
+func (p *Parser) parseSimpleQueryExecutableDefinition() (executableDefinition document.ExecutableDefinition, err error) {
+
+	operation := document.OperationDefinition{
+		OperationType: document.OperationTypeQuery,
+	}
+
+	operation.SelectionSet, err = p.parseSelectionSet()
+	if err != nil {
+		return executableDefinition, err
+	}
+
+	executableDefinition.OperationDefinitions = make(document.OperationDefinitions, 1)
+	executableDefinition.OperationDefinitions[0] = operation
+
+	return
+}
+
+func (p *Parser) parseComplexExecutableDefinition() (executableDefinition document.ExecutableDefinition, err error) {
+
+	for {
+		next, err := p.l.Read()
 		if err != nil {
 			return executableDefinition, err
 		}
-		operationDefinition.OperationType = document.OperationTypeQuery
-		executableDefinition.OperationDefinitions = append(executableDefinition.OperationDefinitions, operationDefinition)
-	}
 
-	return executableDefinition, err
+		switch next.Keyword {
+		case keyword.FRAGMENT:
+
+			fragmentDefinition, err := p.parseFragmentDefinition()
+			if err != nil {
+				return executableDefinition, err
+			}
+
+			executableDefinition.FragmentDefinitions = append(executableDefinition.FragmentDefinitions, fragmentDefinition)
+
+		case keyword.QUERY, keyword.MUTATION, keyword.SUBSCRIPTION:
+
+			operationDefinition, err := p.parseOperationDefinition()
+			if err != nil {
+				return executableDefinition, err
+			}
+
+			if next.Keyword == keyword.QUERY {
+				operationDefinition.OperationType = document.OperationTypeQuery
+			} else if next.Keyword == keyword.MUTATION {
+				operationDefinition.OperationType = document.OperationTypeMutation
+			} else {
+				operationDefinition.OperationType = document.OperationTypeSubscription
+			}
+
+			executableDefinition.OperationDefinitions = append(executableDefinition.OperationDefinitions, operationDefinition)
+
+		default:
+
+			if len(executableDefinition.OperationDefinitions) == 0 {
+				err = newErrInvalidType(next.Position, "parseComplexExecutableDefinition", "fragment/query/mutation/subscription", next.String())
+			}
+
+			return executableDefinition, err
+		}
+	}
 }

@@ -2,20 +2,17 @@ package parser
 
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
 func (p *Parser) parseFragmentSpread() (fragmentSpread document.FragmentSpread, err error) {
 
-	tok, err := p.read(WithWhitelist(token.IDENT), WithExcludeLiteral(literal.ON))
+	fragmentIdent, err := p.readExpect(keyword.IDENT, "parseFragmentSpread")
 	if err != nil {
-		return
+		return fragmentSpread, err
 	}
 
-	fragmentSpread.FragmentName = string(tok.Literal)
-
+	fragmentSpread.FragmentName = string(fragmentIdent.Literal)
 	fragmentSpread.Directives, err = p.parseDirectives()
-
 	return
 }

@@ -2,20 +2,18 @@ package parser
 
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
 func (p *Parser) parseInlineFragment() (inlineFragment document.InlineFragment, err error) {
 
-	tok, matched, err := p.readOptionalToken(token.IDENT)
+	fragmentIdent, err := p.readExpect(keyword.IDENT, "parseInlineFragment")
 	if err != nil {
-		return
+		return inlineFragment, err
 	}
 
-	if matched {
-		inlineFragment.TypeCondition = document.NamedType{
-			Name: string(tok.Literal),
-		}
+	inlineFragment.TypeCondition = document.NamedType{
+		Name: string(fragmentIdent.Literal),
 	}
 
 	inlineFragment.Directives, err = p.parseDirectives()

@@ -14,7 +14,7 @@ func TestFloatValueParser(t *testing.T) {
 	g := Goblin(t)
 	RegisterFailHandler(func(m string, _ ...int) { g.Fail(m) })
 
-	g.Describe("parser.parseFloatValue", func() {
+	g.Describe("parser.parsePeekedFloatValue", func() {
 
 		tests := []struct {
 			it           string
@@ -41,7 +41,7 @@ func TestFloatValueParser(t *testing.T) {
 				parser := NewParser()
 				parser.l.SetInput(reader)
 
-				val, err := parser.parseFloatValue()
+				val, err := parser.parsePeekedFloatValue()
 				Expect(err).To(test.expectErr)
 				Expect(val).To(test.expectValues)
 			})

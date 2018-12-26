@@ -2,32 +2,48 @@ package parser
 
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
 func (p *Parser) parseUnionTypeDefinition() (unionTypeDefinition document.UnionTypeDefinition, err error) {
 
-	tok, err := p.read(WithWhitelist(token.IDENT))
+	unionName, err := p.readExpect(keyword.IDENT, "parseUnionTypeDefinition")
 	if err != nil {
 		return
 	}
 
-	unionTypeDefinition.Name = string(tok.Literal)
+	unionTypeDefinition.Name = string(unionName.Literal)
 
 	unionTypeDefinition.Directives, err = p.parseDirectives()
 	if err != nil {
 		return
 	}
 
-	_, matched, err := p.readOptionalToken(token.EQUALS)
+	hasMembers, err := p.peekExpect(keyword.EQUALS, true)
 	if err != nil {
 		return
 	}
-	if !matched {
+
+	if !hasMembers {
 		return
 	}
 
-	unionTypeDefinition.UnionMemberTypes, err = p.parseKeywordDividedIdentifiers(token.PIPE)
+	for {
 
-	return
+		member, err := p.readExpect(keyword.IDENT, "parseUnionTypeDefinition")
+		if err != nil {
+			return unionTypeDefinition, err
+		}
+
+		unionTypeDefinition.UnionMemberTypes = append(unionTypeDefinition.UnionMemberTypes, string(member.Literal))
+
+		hasAnother, err := p.peekExpect(keyword.PIPE, true)
+		if err != nil {
+			return unionTypeDefinition, err
+		}
+
+		if !hasAnother {
+			return unionTypeDefinition, err
+		}
+	}
 }

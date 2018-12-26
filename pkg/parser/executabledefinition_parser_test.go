@@ -70,9 +70,23 @@ func TestExecutableDefinitionParser(t *testing.T) {
 				fragment MyFragment on SomeType @rename(index: 3){
 					name
 				}
+				query Q1 {
+					foo
+				}
 				`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.ExecutableDefinition{
+					OperationDefinitions: []document.OperationDefinition{
+						{
+							Name:          "Q1",
+							OperationType: document.OperationTypeQuery,
+							SelectionSet: []document.Selection{
+								document.Field{
+									Name: "foo",
+								},
+							},
+						},
+					},
 					FragmentDefinitions: document.FragmentDefinitions{
 						{
 							FragmentName: "MyFragment",

@@ -2,7 +2,8 @@ package parser
 
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
+	"github.com/jensneuse/graphql-go-tools/pkg/transform"
 )
 
 // InputValueDefinitions cannot be found in the graphQL spec.
@@ -13,29 +14,57 @@ import (
 
 func (p *Parser) parseInputValueDefinitions() (inputValueDefinitions []document.InputValueDefinition, err error) {
 
-	_, err = p.readAllUntil(token.EOF,
-		WithReadRepeat(),
-		WithDescription(),
-	).foreachMatchedPattern(Pattern(token.IDENT, token.COLON),
-		func(tokens []token.Token) error {
-			ivdType, err := p.parseType()
-			if err != nil {
-				return err
-			}
-			defaultValue, err := p.parseDefaultValue()
-			if err != nil {
-				return err
-			}
-			directives, err := p.parseDirectives()
-			inputValueDefinitions = append(inputValueDefinitions, document.InputValueDefinition{
-				Description:  string(tokens[0].Description),
-				Name:         string(tokens[0].Literal),
-				Type:         ivdType,
-				DefaultValue: defaultValue,
-				Directives:   directives,
-			})
-			return err
-		})
+	var description string
 
-	return
+	for {
+		next, err := p.l.Peek(true)
+		if err != nil {
+			return inputValueDefinitions, err
+		}
+
+		if next == keyword.STRING {
+
+			quote, err := p.l.Read()
+			if err != nil {
+				return inputValueDefinitions, err
+			}
+
+			description = string(transform.TrimWhitespace(quote.Literal))
+
+		} else if next == keyword.IDENT {
+
+			ident, err := p.l.Read()
+			if err != nil {
+				return inputValueDefinitions, err
+			}
+
+			inputValueDefinition := document.InputValueDefinition{
+				Description: description,
+				Name:        string(ident.Literal),
+			}
+
+			description = ""
+
+			_, err = p.readExpect(keyword.COLON, "parseInputValueDefinitions")
+			if err != nil {
+				return inputValueDefinitions, err
+			}
+
+			inputValueDefinition.Type, err = p.parseType()
+			if err != nil {
+				return inputValueDefinitions, err
+			}
+			inputValueDefinition.DefaultValue, err = p.parseDefaultValue()
+			if err != nil {
+				return inputValueDefinitions, err
+			}
+
+			inputValueDefinition.Directives, err = p.parseDirectives()
+
+			inputValueDefinitions = append(inputValueDefinitions, inputValueDefinition)
+
+		} else {
+			return inputValueDefinitions, nil
+		}
+	}
 }

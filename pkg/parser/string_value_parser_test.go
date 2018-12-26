@@ -13,7 +13,7 @@ func TestStringValueParser(t *testing.T) {
 	g := Goblin(t)
 	RegisterFailHandler(func(m string, _ ...int) { g.Fail(m) })
 
-	g.Describe("parser.parseStringValue", func() {
+	g.Describe("parser.parsePeekedStringValue", func() {
 
 		tests := []struct {
 			it        string
@@ -59,7 +59,7 @@ foo \" bar
 				parser := NewParser()
 				parser.l.SetInput(reader)
 
-				val, err := parser.parseStringValue()
+				val, err := parser.parsePeekedStringValue()
 				Expect(err).To(test.expectErr)
 				Expect(val.Val).To(test.expectVal)
 			})

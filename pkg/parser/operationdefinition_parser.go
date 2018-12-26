@@ -1,18 +1,24 @@
 package parser
 
 import (
+	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
 func (p *Parser) parseOperationDefinition() (operationDefinition document.OperationDefinition, err error) {
 
-	tok, matched, err := p.readOptionalToken(token.IDENT)
+	isNamedOperation, err := p.peekExpect(keyword.IDENT, false)
 	if err != nil {
-		return
+		return operationDefinition, err
 	}
-	if matched {
-		operationDefinition.Name = string(tok.Literal)
+
+	if isNamedOperation {
+		name, err := p.l.Read()
+		if err != nil {
+			return operationDefinition, err
+		}
+		operationDefinition.Name = string(name.Literal)
 	}
 
 	operationDefinition.VariableDefinitions, err = p.parseVariableDefinitions()
@@ -25,12 +31,10 @@ func (p *Parser) parseOperationDefinition() (operationDefinition document.Operat
 		return
 	}
 
-	tok, err = p.read(WithWhitelist(token.CURLYBRACKETOPEN), WithReadRepeat())
-	if err != nil {
-		return
-	}
-
 	operationDefinition.SelectionSet, err = p.parseSelectionSet()
+	if len(operationDefinition.SelectionSet) == 0 {
+		err = fmt.Errorf("parseOperationDefinition: selectionSet must not be empty")
+	}
 
 	return
 }

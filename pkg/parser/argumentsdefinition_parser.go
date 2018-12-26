@@ -2,13 +2,18 @@ package parser
 
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
 func (p *Parser) parseArgumentsDefinition() (argumentsDefinition document.ArgumentsDefinition, err error) {
 
-	if _, matched, err := p.readOptionalToken(token.BRACKETOPEN); err != nil || !matched {
+	isBracketOpen, err := p.peekExpect(keyword.BRACKETOPEN, true)
+	if err != nil {
 		return argumentsDefinition, err
+	}
+
+	if !isBracketOpen {
+		return
 	}
 
 	argumentsDefinition, err = p.parseInputValueDefinitions()
@@ -16,10 +21,6 @@ func (p *Parser) parseArgumentsDefinition() (argumentsDefinition document.Argume
 		return
 	}
 
-	_, err = p.read(WithWhitelist(token.BRACKETCLOSE))
-	if err != nil {
-		return
-	}
-
+	_, err = p.readExpect(keyword.BRACKETCLOSE, "parseArgumentsDefinition")
 	return
 }

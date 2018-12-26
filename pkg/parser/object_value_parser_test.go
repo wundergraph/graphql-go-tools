@@ -14,7 +14,7 @@ func TestObjectValueParser(t *testing.T) {
 	g := Goblin(t)
 	RegisterFailHandler(func(m string, _ ...int) { g.Fail(m) })
 
-	g.Describe("parser.parseObjectValue", func() {
+	g.Describe("parser.parsePeekedObjectValue", func() {
 
 		tests := []struct {
 			it        string
@@ -39,7 +39,7 @@ func TestObjectValueParser(t *testing.T) {
 			},
 			{
 				it:        "should parse multiple values",
-				input:     `{ foo: "bar" baz: "bat", bas: "bal" enum: NUM, smallEnum: numnum }`,
+				input:     `{ foo: "bar" baz: "bat", bas: "bal" anEnum: NUM, smallEnum: numnum }`,
 				expectErr: BeNil(),
 				expectVal: Equal(document.ObjectValue{
 					Val: []document.ObjectField{
@@ -62,7 +62,7 @@ func TestObjectValueParser(t *testing.T) {
 							},
 						},
 						{
-							Name: "enum",
+							Name: "anEnum",
 							Value: document.EnumValue{
 								Name: "NUM",
 							},
@@ -135,7 +135,7 @@ func TestObjectValueParser(t *testing.T) {
 				parser := NewParser()
 				parser.l.SetInput(reader)
 
-				val, err := parser.parseObjectValue()
+				val, err := parser.parsePeekedObjectValue()
 				Expect(err).To(test.expectErr)
 				Expect(val).To(test.expectVal)
 			})

@@ -2,7 +2,7 @@ package parser
 
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
 func (p *Parser) parseSchemaDefinition() (schemaDefinition document.SchemaDefinition, err error) {
@@ -12,21 +12,43 @@ func (p *Parser) parseSchemaDefinition() (schemaDefinition document.SchemaDefini
 		return
 	}
 
-	_, err = p.read(WithWhitelist(token.CURLYBRACKETOPEN))
+	_, err = p.readExpect(keyword.CURLYBRACKETOPEN, "parseSchemaDefinition")
 	if err != nil {
 		return
 	}
 
-	_, err = p.readAllUntil(token.CURLYBRACKETCLOSE,
-		WithWhitelist(token.COLON, token.IDENT)).
-		foreachMatchedPattern(Pattern(token.IDENT, token.COLON, token.IDENT),
-			func(tokens []token.Token) error {
+	for {
+		next, err := p.l.Read()
+		if err != nil {
+			return schemaDefinition, err
+		}
 
-				operationType := string(tokens[0].Literal)
-				operationName := string(tokens[2].Literal)
+		switch next.Keyword {
+		case keyword.CURLYBRACKETCLOSE:
+			return schemaDefinition, err
+		case keyword.QUERY, keyword.MUTATION, keyword.SUBSCRIPTION:
 
-				return schemaDefinition.SetOperationType(operationType, operationName)
-			})
+			operationType := string(next.Literal)
 
-	return schemaDefinition, err
+			_, err = p.readExpect(keyword.COLON, "parseSchemaDefinition")
+			if err != nil {
+				return schemaDefinition, err
+			}
+
+			operationNameToken, err := p.readExpect(keyword.IDENT, "parseSchemaDefinition")
+			if err != nil {
+				return schemaDefinition, err
+			}
+
+			operationName := string(operationNameToken.Literal)
+
+			err = schemaDefinition.SetOperationType(operationType, operationName)
+			if err != nil {
+				return schemaDefinition, err
+			}
+
+		default:
+			return schemaDefinition, newErrInvalidType(next.Position, "parseSchemaDefinition", "curlyBracketClose/query/subscription/mutation", next.String())
+		}
+	}
 }

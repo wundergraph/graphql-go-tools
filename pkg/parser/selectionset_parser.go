@@ -2,24 +2,29 @@ package parser
 
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
 func (p *Parser) parseSelectionSet() (selectionSet document.SelectionSet, err error) {
 
-	if _, matched, err := p.readOptionalToken(token.CURLYBRACKETOPEN); err != nil || !matched {
+	hasSubSelection, err := p.peekExpect(keyword.CURLYBRACKETOPEN, true)
+	if err != nil {
 		return selectionSet, err
+	}
+
+	if !hasSubSelection {
+		return
 	}
 
 	for {
 
-		tok, err := p.read(WithReadRepeat())
+		next, err := p.l.Peek(true)
 		if err != nil {
 			return selectionSet, err
 		}
 
-		if tok.Keyword == token.CURLYBRACKETCLOSE || tok.Keyword == token.EOF {
-			_, err = p.read()
+		if next == keyword.CURLYBRACKETCLOSE {
+			_, err = p.l.Read()
 			return selectionSet, err
 		}
 
@@ -27,6 +32,7 @@ func (p *Parser) parseSelectionSet() (selectionSet document.SelectionSet, err er
 		if err != nil {
 			return selectionSet, err
 		}
+
 		selectionSet = append(selectionSet, selection)
 	}
 

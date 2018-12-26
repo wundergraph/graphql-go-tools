@@ -98,23 +98,10 @@ func TestArgumentsParser(t *testing.T) {
 				}),
 			},
 			{
-				it:        "should not parse arguments when no bracket close",
-				input:     `(name: "Gophus", surname: "Gophersson"`,
-				expectErr: Not(BeNil()),
-				expectValues: Equal(document.Arguments{
-					document.Argument{
-						Name: "name",
-						Value: document.StringValue{
-							Val: "Gophus",
-						},
-					},
-					document.Argument{
-						Name: "surname",
-						Value: document.StringValue{
-							Val: "Gophersson",
-						},
-					},
-				}),
+				it:           "should not parse arguments when no bracket close",
+				input:        `(name: "Gophus", surname: "Gophersson"`,
+				expectErr:    HaveOccurred(),
+				expectValues: BeNil(),
 			},
 			{
 				it:           "should parse Arguments optionally",

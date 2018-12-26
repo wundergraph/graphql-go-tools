@@ -2,32 +2,31 @@ package parser
 
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
 func (p *Parser) parseField() (field document.Field, err error) {
 
-	tok, err := p.read(WithWhitelist(token.IDENT))
+	firstIdent, err := p.l.Read()
 	if err != nil {
-		return
+		return field, err
 	}
 
-	firstIdent := string(tok.Literal)
+	field.Name = string(firstIdent.Literal)
 
-	_, wasAlias, err := p.readOptionalToken(token.COLON)
+	hasAlias, err := p.peekExpect(keyword.COLON, true)
 	if err != nil {
-		return
+		return field, err
 	}
 
-	if wasAlias {
-		field.Alias = firstIdent
-		tok, err := p.read(WithWhitelist(token.IDENT))
+	if hasAlias {
+		field.Alias = field.Name
+		fieldName, err := p.readExpect(keyword.IDENT, "parseField")
 		if err != nil {
 			return field, err
 		}
-		field.Name = string(tok.Literal)
-	} else {
-		field.Name = firstIdent
+
+		field.Name = string(fieldName.Literal)
 	}
 
 	field.Arguments, err = p.parseArguments()

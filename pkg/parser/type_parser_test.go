@@ -40,7 +40,7 @@ func TestTypeParser(t *testing.T) {
 				}),
 			},
 			{
-				it:           "should not parse Type on non-IDENT/non-SQUAREBRACKETOPEN token",
+				it:           "should not parse Type on non-IDENT/non-SQUAREBRACKETOPEN keyword",
 				input:        ":String",
 				expectErr:    Not(BeNil()),
 				expectValues: Equal(document.NamedType{}),
@@ -95,7 +95,7 @@ func TestTypeParser(t *testing.T) {
 				}),
 			},
 			{
-				it:        "should not parse a List Type on missing SQUAREBRACKETCLOSE token",
+				it:        "should not parse a List Type on missing SQUAREBRACKETCLOSE keyword",
 				input:     "[String",
 				expectErr: Not(BeNil()),
 				expectValues: Equal(document.ListType{

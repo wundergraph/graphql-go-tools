@@ -2,38 +2,58 @@ package parser
 
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
 func (p *Parser) parseVariableDefinitions() (variableDefinitions document.VariableDefinitions, err error) {
 
-	if _, matched, err := p.readOptionalToken(token.BRACKETOPEN); err != nil || !matched {
+	hasVariableDefinitions, err := p.peekExpect(keyword.BRACKETOPEN, true)
+	if err != nil {
 		return variableDefinitions, err
 	}
 
-	_, err = p.readAllUntil(token.BRACKETCLOSE, WithReadRepeat()).
-		foreachMatchedPattern(Pattern(token.VARIABLE, token.COLON),
-			func(tokens []token.Token) error {
-
-				variableDefinition := document.VariableDefinition{
-					Variable: string(tokens[0].Literal),
-				}
-
-				variableDefinition.Type, err = p.parseType()
-				if err != nil {
-					return err
-				}
-
-				variableDefinition.DefaultValue, err = p.parseDefaultValue()
-				variableDefinitions = append(variableDefinitions, variableDefinition)
-
-				return err
-			})
-
-	_, err = p.read(WithWhitelist(token.BRACKETCLOSE))
-	if err != nil {
+	if !hasVariableDefinitions {
 		return
 	}
 
-	return
+	for {
+		next, err := p.l.Peek(true)
+		if err != nil {
+			return variableDefinitions, err
+		}
+
+		switch next {
+		case keyword.VARIABLE:
+
+			variable, err := p.l.Read()
+			if err != nil {
+				return variableDefinitions, err
+			}
+
+			variableDefinition := document.VariableDefinition{
+				Variable: string(variable.Literal),
+			}
+
+			_, err = p.readExpect(keyword.COLON, "parseVariableDefinitions")
+			if err != nil {
+				return variableDefinitions, err
+			}
+
+			variableDefinition.Type, err = p.parseType()
+			if err != nil {
+				return variableDefinitions, err
+			}
+
+			variableDefinition.DefaultValue, err = p.parseDefaultValue()
+
+			variableDefinitions = append(variableDefinitions, variableDefinition)
+
+		case keyword.BRACKETCLOSE:
+			_, err = p.l.Read()
+			return variableDefinitions, err
+		default:
+			invalid, _ := p.l.Read()
+			return variableDefinitions, newErrInvalidType(invalid.Position, "parseVariableDefinitions", "variable/bracket close", invalid.Keyword.String())
+		}
+	}
 }

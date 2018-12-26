@@ -2,17 +2,17 @@ package parser
 
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
 func (p *Parser) parseScalarTypeDefinition() (scalarTypeDefinition document.ScalarTypeDefinition, err error) {
 
-	tok, err := p.read(WithWhitelist(token.IDENT))
+	scalar, err := p.readExpect(keyword.IDENT, "parseScalarTypeDefinition")
 	if err != nil {
 		return
 	}
 
-	scalarTypeDefinition.Name = string(tok.Literal)
+	scalarTypeDefinition.Name = string(scalar.Literal)
 
 	scalarTypeDefinition.Directives, err = p.parseDirectives()
 

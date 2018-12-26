@@ -2,23 +2,42 @@ package parser
 
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
 func (p *Parser) parseDirectives() (directives document.Directives, err error) {
-	_, err = p.readAllUntil(token.EOF, WithReadRepeat()).
-		foreachMatchedPattern(Pattern(token.AT, token.IDENT),
-			func(tokens []token.Token) error {
-				arguments, err := p.parseArguments()
-				if err != nil {
-					return err
-				}
-				directives = append(directives, document.Directive{
-					Name:      string(tokens[1].Literal),
-					Arguments: arguments,
-				})
-				return nil
-			})
 
-	return
+	for {
+		next, err := p.l.Peek(true)
+		if err != nil {
+			return directives, err
+		}
+
+		if next == keyword.AT {
+
+			_, err = p.l.Read()
+			if err != nil {
+				return directives, err
+			}
+
+			ident, err := p.readExpect(keyword.IDENT, "parseDirectives")
+			if err != nil {
+				return directives, err
+			}
+
+			directive := document.Directive{
+				Name: string(ident.Literal),
+			}
+
+			directive.Arguments, err = p.parseArguments()
+			if err != nil {
+				return directives, err
+			}
+
+			directives = append(directives, directive)
+
+		} else {
+			return directives, err
+		}
+	}
 }

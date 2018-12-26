@@ -2,40 +2,59 @@ package parser
 
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
 func (p *Parser) parseDirectiveDefinition() (directiveDefinition document.DirectiveDefinition, err error) {
 
-	if _, err = p.read(WithWhitelist(token.AT)); err != nil {
+	_, err = p.readExpect(keyword.AT, "parseDirectiveDefinition")
+	if err != nil {
 		return directiveDefinition, err
 	}
 
-	definingTok, err := p.read(WithWhitelist(token.IDENT))
+	directiveIdent, err := p.readExpect(keyword.IDENT, "parseDirectiveDefinition")
 	if err != nil {
-		return
+		return directiveDefinition, err
 	}
 
-	directiveDefinition.Name = string(definingTok.Literal)
+	directiveDefinition.Name = string(directiveIdent.Literal)
 
 	directiveDefinition.ArgumentsDefinition, err = p.parseArgumentsDefinition()
 	if err != nil {
 		return
 	}
 
-	if tok, matched, err := p.readOptionalLiteral(literal.ON); err != nil || !matched {
+	_, err = p.readExpect(keyword.ON, "parseDirectiveDefinition")
+	if err != nil {
+		return directiveDefinition, err
+	}
+
+	var possibleLocations []string
+
+	for {
+		next, err := p.l.Peek(true)
 		if err != nil {
 			return directiveDefinition, err
 		}
-		return directiveDefinition, newErrInvalidType(tok.Position, "parseDirectiveDefinition", string(literal.ON), string(tok.Literal))
+
+		if next == keyword.PIPE {
+			_, err = p.l.Read()
+			if err != nil {
+				return directiveDefinition, err
+			}
+		} else if next == keyword.IDENT {
+			location, err := p.l.Read()
+			if err != nil {
+				return directiveDefinition, err
+			}
+
+			possibleLocations = append(possibleLocations, string(location.Literal))
+		} else {
+			break
+		}
 	}
 
-	locations, err := p.parseKeywordDividedIdentifiers(token.PIPE)
-	if err != nil {
-		return
-	}
+	directiveDefinition.DirectiveLocations, err = document.NewDirectiveLocations(possibleLocations, directiveIdent.Position)
 
-	directiveDefinition.DirectiveLocations, err = document.NewDirectiveLocations(locations, definingTok.Position)
 	return
 }

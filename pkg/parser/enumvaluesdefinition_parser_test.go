@@ -96,9 +96,9 @@ func TestParseEnumValuesDefinition(t *testing.T) {
 
 	SOUTH
 
-	"""
-	describes west
-	"""
+"""
+describes west
+"""
 
 	WEST
 

@@ -3,19 +3,19 @@ package parser
 import (
 	// "fmt"
 	document "github.com/jensneuse/graphql-go-tools/pkg/document"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
 func (p *Parser) parseObjectField() (field document.ObjectField, err error) {
 
-	tok, err := p.read(WithWhitelist(token.IDENT))
+	ident, err := p.readExpect(keyword.IDENT, "parseObjectField")
 	if err != nil {
 		return field, err
 	}
 
-	field.Name = string(tok.Literal)
+	field.Name = string(ident.Literal)
 
-	_, err = p.read(WithWhitelist(token.COLON))
+	_, err = p.readExpect(keyword.COLON, "parseObjectField")
 	if err != nil {
 		return field, err
 	}

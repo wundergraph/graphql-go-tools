@@ -2,14 +2,14 @@ package parser
 
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
 func (p *Parser) parseListType() (listType document.ListType, err error) {
 
-	_, err = p.read(WithWhitelist(token.SQUAREBRACKETOPEN))
+	_, err = p.readExpect(keyword.SQUAREBRACKETOPEN, "parseListType")
 	if err != nil {
-		return
+		return listType, err
 	}
 
 	listType.Type, err = p.parseType()
@@ -17,16 +17,11 @@ func (p *Parser) parseListType() (listType document.ListType, err error) {
 		return
 	}
 
-	_, err = p.read(WithWhitelist(token.SQUAREBRACKETCLOSE))
+	_, err = p.readExpect(keyword.SQUAREBRACKETCLOSE, "parseListType")
 	if err != nil {
 		return
 	}
 
-	_, matched, err := p.readOptionalToken(token.BANG)
-
-	if matched {
-		listType.NonNull = true
-	}
-
+	listType.NonNull, err = p.peekExpect(keyword.BANG, true)
 	return
 }

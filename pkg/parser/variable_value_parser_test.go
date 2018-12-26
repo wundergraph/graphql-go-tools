@@ -14,7 +14,7 @@ func TestVariableValueParser(t *testing.T) {
 	g := Goblin(t)
 	RegisterFailHandler(func(m string, _ ...int) { g.Fail(m) })
 
-	g.Describe("parser.parseVariableValue", func() {
+	g.Describe("parser.parsePeekedVariableValue", func() {
 
 		tests := []struct {
 			it           string
@@ -24,11 +24,17 @@ func TestVariableValueParser(t *testing.T) {
 		}{
 			{
 				it:        "should parse a simple variable",
-				input:     `$CouldBeAnyIdent`,
+				input:     `$anyIdent`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.VariableValue{
-					Name: "CouldBeAnyIdent",
+					Name: "anyIdent",
 				}),
+			},
+			{
+				it:           "should parse a simple variable",
+				input:        `$ anyIdent`,
+				expectErr:    HaveOccurred(),
+				expectValues: Equal(document.VariableValue{}),
 			},
 		}
 
@@ -41,7 +47,7 @@ func TestVariableValueParser(t *testing.T) {
 				parser := NewParser()
 				parser.l.SetInput(reader)
 
-				val, err := parser.parseVariableValue()
+				val, err := parser.parsePeekedVariableValue()
 				Expect(err).To(test.expectErr)
 				Expect(val).To(test.expectValues)
 			})

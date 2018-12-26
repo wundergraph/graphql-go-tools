@@ -2,17 +2,17 @@ package parser
 
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
 func (p *Parser) parseObjectTypeDefinition() (objectTypeDefinition document.ObjectTypeDefinition, err error) {
 
-	tok, err := p.read(WithWhitelist(token.IDENT))
+	objectTypeName, err := p.readExpect(keyword.IDENT, "parseObjectTypeDefinition")
 	if err != nil {
 		return
 	}
 
-	objectTypeDefinition.Name = string(tok.Literal)
+	objectTypeDefinition.Name = string(objectTypeName.Literal)
 
 	objectTypeDefinition.ImplementsInterfaces, err = p.parseImplementsInterfaces()
 	if err != nil {
@@ -25,6 +25,9 @@ func (p *Parser) parseObjectTypeDefinition() (objectTypeDefinition document.Obje
 	}
 
 	objectTypeDefinition.FieldsDefinition, err = p.parseFieldsDefinition()
+	if err != nil {
+		return objectTypeDefinition, err
+	}
 
 	if objectTypeDefinition.Name == "Query" {
 		introspectionFields := document.FieldsDefinition{

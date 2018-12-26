@@ -2,27 +2,26 @@ package parser
 
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
 func (p *Parser) parseSelection() (selection document.Selection, err error) {
 
-	_, matchField, err := p.readOptionalToken(token.SPREAD)
+	isFragmentSelection, err := p.peekExpect(keyword.SPREAD, true)
 	if err != nil {
-		return
+		return selection, err
 	}
 
-	if !matchField {
+	if !isFragmentSelection {
 		return p.parseField()
 	}
 
-	_, matchInline, err := p.readOptionalLiteral(literal.ON)
+	isInlineFragment, err := p.peekExpect(keyword.ON, true)
 	if err != nil {
-		return
+		return selection, err
 	}
 
-	if matchInline {
+	if isInlineFragment {
 		return p.parseInlineFragment()
 	}
 

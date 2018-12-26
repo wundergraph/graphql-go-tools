@@ -37,6 +37,20 @@ func TestVariableDefinitionsParser(t *testing.T) {
 				}),
 			},
 			{
+				it:        "should parse a simple, single nullable VariableDefinition",
+				input:     "($color: String)",
+				expectErr: BeNil(),
+				expectValues: Equal(document.VariableDefinitions{
+					document.VariableDefinition{
+						Variable: "color",
+						Type: document.NamedType{
+							Name:    "String",
+							NonNull: false,
+						},
+					},
+				}),
+			},
+			{
 				it:        "should parse simple VariableDefinitions",
 				input:     "($foo : bar $baz : bax)",
 				expectErr: BeNil(),

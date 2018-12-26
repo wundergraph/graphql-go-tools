@@ -2,26 +2,17 @@ package parser
 
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
 func (p *Parser) parseNamedType() (namedType document.NamedType, err error) {
 
-	tok, err := p.read(WithWhitelist(token.IDENT))
+	ident, err := p.readExpect(keyword.IDENT, "parseNamedType")
 	if err != nil {
-		return
+		return namedType, err
 	}
 
-	namedType.Name = string(tok.Literal)
-
-	tok, matched, err := p.readOptionalToken(token.BANG)
-	if err != nil {
-		return
-	}
-
-	if matched {
-		namedType.NonNull = true
-	}
-
+	namedType.Name = string(ident.Literal)
+	namedType.NonNull, err = p.peekExpect(keyword.BANG, true)
 	return
 }

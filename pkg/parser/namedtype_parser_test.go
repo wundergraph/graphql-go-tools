@@ -40,7 +40,7 @@ func TestNamedTypeParser(t *testing.T) {
 				}),
 			},
 			{
-				it:           "should not parse a Named Type on non-IDENT token",
+				it:           "should not parse a Named Type on non-IDENT keyword",
 				input:        ":String",
 				expectErr:    Not(BeNil()),
 				expectValues: Equal(document.NamedType{}),

@@ -3,7 +3,7 @@ package lexer
 import (
 	"bytes"
 	. "github.com/franela/goblin"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 	"github.com/jensneuse/graphql-go-tools/pkg/runestringer"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
@@ -19,38 +19,38 @@ func TestLexer(t *testing.T) {
 
 		g.It("should parse int32(1337)", func() {
 			lexer := NewLexer(runestringer.NewBuffered())
-			lexer.SetInput(bytes.NewReader(token.Literal("1337")))
+			lexer.SetInput(bytes.NewReader(keyword.Literal("1337")))
 
 			tok, err := lexer.Read()
 			Expect(err).To(BeNil())
 
-			Expect(tok.Keyword).To(Equal(token.INTEGER))
-			Expect(tok.Literal).To(Equal(token.Literal("1337")))
+			Expect(tok.Keyword).To(Equal(keyword.INTEGER))
+			Expect(tok.Literal).To(Equal(keyword.Literal("1337")))
 		})
 
 		g.It("should parse float32(13.37)", func() {
 			lexer := NewLexer(runestringer.NewBuffered())
-			lexer.SetInput(bytes.NewReader(token.Literal("13.37")))
+			lexer.SetInput(bytes.NewReader(keyword.Literal("13.37")))
 
 			tok, err := lexer.Read()
 			Expect(err).To(BeNil())
 
-			Expect(tok.Keyword).To(Equal(token.FLOAT))
-			Expect(tok.Literal).To(Equal(token.Literal("13.37")))
+			Expect(tok.Keyword).To(Equal(keyword.FLOAT))
+			Expect(tok.Literal).To(Equal(keyword.Literal("13.37")))
 		})
 
 		g.It("should not parse 13.37.1337", func() {
 			lexer := NewLexer(runestringer.NewBuffered())
-			lexer.SetInput(bytes.NewReader(token.Literal("13.37.1337")))
+			lexer.SetInput(bytes.NewReader(keyword.Literal("13.37.1337")))
 
 			tok, err := lexer.Read()
 			Expect(err).NotTo(BeNil())
-			Expect(tok.Keyword).To(Equal(token.UNDEFINED))
+			Expect(tok.Keyword).To(Equal(keyword.UNDEFINED))
 		})
 
 		g.It("should allow un-reading four values (and more)", func() {
 			lexer := NewLexer(runestringer.NewBuffered())
-			lexer.SetInput(bytes.NewReader(token.Literal(`""""
+			lexer.SetInput(bytes.NewReader(keyword.Literal(`""""
 foo`)))
 
 			// read all values
@@ -112,7 +112,7 @@ foo`)))
 		g.It("should fail when un-reading too many runes", func() {
 
 			lexer := NewLexer(runestringer.NewBuffered())
-			lexer.SetInput(bytes.NewReader(token.Literal(`foo`)))
+			lexer.SetInput(bytes.NewReader(keyword.Literal(`foo`)))
 
 			for i := 0; i < 3; i++ {
 				lexer.readRune()
@@ -128,7 +128,7 @@ foo`)))
 		g.It("should handle position tracking independent from the direction", func() {
 
 			lexer := NewLexer(runestringer.NewBuffered())
-			lexer.SetInput(bytes.NewReader(token.Literal(`foo
+			lexer.SetInput(bytes.NewReader(keyword.Literal(`foo
 bar
 
 baz`)))
@@ -153,7 +153,7 @@ baz`)))
 
 			tok, err = lexer.Read()
 			Expect(err).To(BeNil())
-			Expect(tok.Keyword).To(Equal(token.EOF))
+			Expect(tok.Keyword).To(Equal(keyword.EOF))
 
 			for i := 0; i < 13; i++ {
 				lexer.unread()
@@ -189,7 +189,7 @@ baz`)))
 
 			tok, err = lexer.Read()
 			Expect(err).To(BeNil())
-			Expect(tok.Keyword).To(Equal(token.EOF))
+			Expect(tok.Keyword).To(Equal(keyword.EOF))
 
 			for i := 0; i < 4; i++ {
 				lexer.unread()
@@ -212,11 +212,11 @@ baz`)))
 
 			tok, err = lexer.Read()
 			Expect(err).To(BeNil())
-			Expect(tok.Keyword).To(Equal(token.EOF))
+			Expect(tok.Keyword).To(Equal(keyword.EOF))
 		})
 	})
 
-	g.Describe("lexer.PeekMatchRunes", func() {
+	g.Describe("lexer.peekMatchRunes", func() {
 
 		tests := []struct {
 			it            string
@@ -273,9 +273,9 @@ baz`)))
 
 			g.It(test.it, func() {
 				lexer := NewLexer(runestringer.NewBuffered())
-				lexer.SetInput(bytes.NewReader(token.Literal(test.input)))
+				lexer.SetInput(bytes.NewReader(keyword.Literal(test.input)))
 
-				matches, err := lexer.PeekMatchRunes(test.match, test.amount)
+				matches, err := lexer.peekMatchRunes(test.match, test.amount)
 				Expect(err).To(test.expectErr)
 				Expect(matches).To(test.expectMatches)
 			})
@@ -295,8 +295,8 @@ baz`)))
 				it:            "should lex single line string",
 				input:         `" foo bar "`,
 				expectErr:     BeNil(),
-				expectKeyword: Equal(token.STRING),
-				expectLiteral: Equal(token.Literal("foo bar")),
+				expectKeyword: Equal(keyword.STRING),
+				expectLiteral: Equal(keyword.Literal("foo bar")),
 			},
 			{
 				it: "should fail when single line string contains LINETERMINATOR",
@@ -314,8 +314,8 @@ baz`)))
 				input: `""" foo "" bar
 """`,
 				expectErr:     BeNil(),
-				expectKeyword: Equal(token.STRING),
-				expectLiteral: Equal(token.Literal(`foo "" bar`)),
+				expectKeyword: Equal(keyword.STRING),
+				expectLiteral: Equal(keyword.Literal(`foo "" bar`)),
 			},
 			{
 				it:        "should fail when block string contains EOF",
@@ -326,76 +326,76 @@ baz`)))
 				it:            "should lex null",
 				input:         "null",
 				expectErr:     BeNil(),
-				expectKeyword: Equal(token.NULL),
+				expectKeyword: Equal(keyword.NULL),
 			},
 			{
 				it:            "should lex comment",
 				input:         "# foo bar",
 				expectErr:     BeNil(),
-				expectKeyword: Equal(token.COMMENT),
-				expectLiteral: Equal(token.Literal(`foo bar`)),
+				expectKeyword: Equal(keyword.COMMENT),
+				expectLiteral: Equal(keyword.Literal(`foo bar`)),
 			},
 			{
-				it: "should dismiss all whitespace (LINETERMINATOR,TAB,SPACE,COMMA) before a token",
+				it: "should dismiss all whitespace (LINETERMINATOR,TAB,SPACE,COMMA) before a keyword",
 				input: `
 	 , foo`,
 				expectErr:     BeNil(),
-				expectKeyword: Equal(token.IDENT),
-				expectLiteral: Equal(token.Literal(`foo`)),
+				expectKeyword: Equal(keyword.IDENT),
+				expectLiteral: Equal(keyword.Literal(`foo`)),
 			},
 			{
 				it:            "should scan valid variable",
 				input:         `$foo `,
 				expectErr:     BeNil(),
-				expectKeyword: Equal(token.VARIABLE),
-				expectLiteral: Equal(token.Literal(`foo`)),
+				expectKeyword: Equal(keyword.VARIABLE),
+				expectLiteral: Equal(keyword.Literal(`foo`)),
 			},
 			{
 				it:            "should scan valid variable with digits",
 				input:         `$123Foo `,
 				expectErr:     BeNil(),
-				expectKeyword: Equal(token.VARIABLE),
-				expectLiteral: Equal(token.Literal(`123Foo`)),
+				expectKeyword: Equal(keyword.VARIABLE),
+				expectLiteral: Equal(keyword.Literal(`123Foo`)),
 			},
 			{
 				it:            "should scan valid variable with underscore and digits",
 				input:         `$_123Foo `,
 				expectErr:     BeNil(),
-				expectKeyword: Equal(token.VARIABLE),
-				expectLiteral: Equal(token.Literal(`_123Foo`)),
+				expectKeyword: Equal(keyword.VARIABLE),
+				expectLiteral: Equal(keyword.Literal(`_123Foo`)),
 			},
 			{
 				it:            "should fail scanning variable with space after $",
 				input:         `$ foo `,
 				expectErr:     Not(BeNil()),
-				expectKeyword: Equal(token.VARIABLE),
+				expectKeyword: Equal(keyword.VARIABLE),
 			},
 			{
 				it: "should fail scaning variable with tab after $",
 				input: `$	foo `,
 				expectErr:     Not(BeNil()),
-				expectKeyword: Equal(token.VARIABLE),
+				expectKeyword: Equal(keyword.VARIABLE),
 			},
 			{
 				it: "should fail scaning variable with lineTerminator after $",
 				input: `$
 foo `,
 				expectErr:     Not(BeNil()),
-				expectKeyword: Equal(token.VARIABLE),
+				expectKeyword: Equal(keyword.VARIABLE),
 			},
 			{
 				it:            "should scan SPREAD",
 				input:         `... `,
 				expectErr:     BeNil(),
-				expectKeyword: Equal(token.SPREAD),
-				expectLiteral: Equal(token.Literal(`...`)),
+				expectKeyword: Equal(keyword.SPREAD),
+				expectLiteral: Equal(keyword.Literal(`...`)),
 			},
 			{
 				it:            "should throw error on '..'",
 				input:         `..`,
 				expectErr:     Not(BeNil()),
-				expectKeyword: Equal(token.DOT),
-				expectLiteral: Equal(token.Literal(`.`)),
+				expectKeyword: Equal(keyword.DOT),
+				expectLiteral: Equal(keyword.Literal(`.`)),
 			},
 		}
 
@@ -404,7 +404,7 @@ foo `,
 
 			g.It(test.it, func() {
 				lexer := NewLexer(runestringer.NewBuffered())
-				lexer.SetInput(bytes.NewReader(token.Literal(test.input)))
+				lexer.SetInput(bytes.NewReader(keyword.Literal(test.input)))
 
 				tok, err := lexer.Read()
 				Expect(err).To(test.expectErr)
@@ -421,24 +421,24 @@ foo `,
 	g.Describe("l.scanVariable", func() {
 		g.It("should parse int32(1337)", func() {
 			lexer := NewLexer(runestringer.NewBuffered())
-			lexer.SetInput(bytes.NewReader(token.Literal("$foo:")))
+			lexer.SetInput(bytes.NewReader(keyword.Literal("$foo:")))
 
 			tok, err := lexer.Read()
 			Expect(err).To(BeNil())
 
-			Expect(tok.Keyword).To(Equal(token.VARIABLE))
-			Expect(tok.Literal).To(Equal(token.Literal("foo")))
+			Expect(tok.Keyword).To(Equal(keyword.VARIABLE))
+			Expect(tok.Literal).To(Equal(keyword.Literal("foo")))
 
 			tok, err = lexer.Read()
 			Expect(err).To(BeNil())
 
-			Expect(tok.Keyword).To(Equal(token.COLON))
-			Expect(tok.Literal).To(Equal(token.Literal(":")))
+			Expect(tok.Keyword).To(Equal(keyword.COLON))
+			Expect(tok.Literal).To(Equal(keyword.Literal(":")))
 		})
 	})
 }
 
-var simpleGraphqlDoc = token.Literal(`# root Resolver
+var simpleGraphqlDoc = keyword.Literal(`# root Resolver
 	schema {
 		query: Query
 		mutation: Mutation
@@ -497,224 +497,124 @@ var simpleGraphqlDoc = token.Literal(`# root Resolver
 	}
 `)
 
-/*func TestLexer(t *testing.T) {
-	g := Goblin(t)
-	RegisterFailHandler(func(m string, _ ...int) { g.Fail(m) })
+var introspectionQuery = []byte(`query IntrospectionQuery {
+  __schema {
+    queryType {
+      name
+    }
+    mutationType {
+      name
+    }
+    subscriptionType {
+      name
+    }
+    types {
+      ...FullType
+    }
+    directives {
+      name
+      description
+      locations
+      args {
+        ...InputValue
+      }
+    }
+  }
+}
 
-	g.Describe("Lexer", func() {
-		g.It("should lex simple doc", func() {
+fragment FullType on __Type {
+  kind
+  name
+  description
+  fields(includeDeprecated: true) {
+    name
+    description
+    args {
+      ...InputValue
+    }
+    type {
+      ...TypeRef
+    }
+    isDeprecated
+    deprecationReason
+  }
+  inputFields {
+    ...InputValue
+  }
+  interfaces {
+    ...TypeRef
+  }
+  enumValues(includeDeprecated: true) {
+    name
+    description
+    isDeprecated
+    deprecationReason
+  }
+  possibleTypes {
+    ...TypeRef
+  }
+}
 
-			stringer := runestringer.NewBuffered()
-			lex := NewLexer(stringer)
-			lex.SetInput(bytes.NewReader(simpleGraphqlDoc))
+fragment InputValue on __InputValue {
+  name
+  description
+  type {
+    ...TypeRef
+  }
+  defaultValue
+}
 
-			for {
-				tok, err := lex.readRune()
-				if err != nil {
-					t.Fatal(err)
-				}
-
-				if tok.Keyword == token.EOF {
-					break
-				}
-
-				fmt.Println(tok)
-			}
-		})
-	})
-}*/
-
-/*func TestCached(t *testing.T){
-
-	g := Goblin(t)
-	RegisterFailHandler(func(m string, _ ...int) { g.Fail(m) })
-
-	g.Describe("Cached Stringer", func() {
-		g.It("should work", func() {
-
-			Expect("").To(Equal(""),"")
-
-			bufferedStringer := runestringer.NewBuffered()
-			cachedStringer := runestringer.NewCached()
-
-			lex := NewLexer(bufferedStringer)
-			lex.SetInput(bytes.NewReader(simpleGraphqlDoc))
-
-			for {
-				tok, err := lex.readRune()
-				if err != nil {
-					t.Fatal(err)
-				}
-
-				if tok.Keyword == token.EOF {
-					break
-				}
-
-				if tok.Keyword == token.IDENT {
-					cachedStringer.Train(tok.Literal)
-				}
-			}
-
-			lex = NewLexer(cachedStringer)
-			lex.SetInput(bytes.NewReader(simpleGraphqlDoc))
-
-			i := 0
-
-			for {
-				tok, err := lex.readRune()
-				if err != nil {
-					t.Fatal(err)
-				}
-
-				if tok.Keyword == token.EOF {
-					fmt.Println(i)
-					break
-				}
-
-				if tok.Keyword == token.IDENT {
-					i++
-				}
-
-				fmt.Println(tok)
-			}
-
-		})
-	})
-}*/
+fragment TypeRef on __Type {
+  kind
+  name
+  ofType {
+    kind
+    name
+    ofType {
+      kind
+      name
+      ofType {
+        kind
+        name
+        ofType {
+          kind
+          name
+          ofType {
+            kind
+            name
+            ofType {
+              kind
+              name
+              ofType {
+                kind
+                name
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}`)
 
 func BenchmarkLexer_Buffered(b *testing.B) {
+
+	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
 
 		b.StopTimer()
-		reader := bytes.NewReader(simpleGraphqlDoc)
+		reader := bytes.NewReader(introspectionQuery)
 		stringer := runestringer.NewBuffered()
 		lex := NewLexer(stringer)
 		lex.SetInput(reader)
 		b.StartTimer()
 
 		for {
-			tok, err := lex.Read()
-			if err != nil {
-				b.Fatal(err)
-			}
-
-			if tok.Keyword == token.EOF {
+			tok, _ := lex.Read()
+			if tok.Keyword == keyword.EOF {
 				break
 			}
 		}
 	}
 }
-
-/*
-func BenchmarkLexer_Unsafe(b *testing.B) {
-
-	for i := 0; i < b.N; i++ {
-
-		b.StopTimer()
-		reader := bytes.NewReader(simpleGraphqlDoc)
-		stringer := runestringer.NewUnsafe(125)
-		lex := NewLexer(stringer)
-		lex.SetInput(reader)
-		b.StartTimer()
-
-		for {
-			tok, err := lex.readRune()
-			if err != nil {
-				b.Fatal(err)
-			}
-
-			if tok.Keyword == token.EOF {
-				break
-			}
-		}
-
-		stringer.Reset()
-	}
-}
-
-func BenchmarkLexer_Cached(b *testing.B) {
-
-	b.StopTimer()
-	bufferedStringer := runestringer.NewBuffered()
-	cachedStringer := runestringer.NewCached()
-
-	lex := NewLexer(bufferedStringer)
-	lex.SetInput(bytes.NewReader(simpleGraphqlDoc))
-	b.StartTimer()
-
-	for {
-		tok, err := lex.readRune()
-		if err != nil {
-			b.Fatal(err)
-		}
-
-		if tok.Keyword == token.EOF {
-			break
-		}
-
-		if tok.Keyword == token.IDENT {
-			cachedStringer.Train(tok.Literal)
-		}
-	}
-
-	b.StartTimer()
-
-	for i := 0; i < b.N; i++ {
-
-		b.StopTimer()
-		lex := NewLexer(cachedStringer)
-		lex.SetInput(bytes.NewReader(simpleGraphqlDoc))
-		b.StartTimer()
-
-		for {
-			tok, err := lex.readRune()
-			if err != nil {
-				b.Fatal(err)
-			}
-
-			if tok.Keyword == token.EOF {
-				break
-			}
-		}
-	}
-}
-
-func BenchmarkLexer_LazyCached(b *testing.B) {
-
-	b.StopTimer()
-	stringer := runestringer.NewLazyCached()
-	lex := NewLexer(stringer)
-	lex.SetInput(bytes.NewReader(simpleGraphqlDoc))
-
-	for {
-		tok, err := lex.readRune()
-		if err != nil {
-			b.Fatal(err)
-		}
-
-		if tok.Keyword == token.EOF {
-			break
-		}
-	}
-	b.StartTimer()
-
-	for i := 0; i < b.N; i++ {
-
-		b.StopTimer()
-		lex := NewLexer(stringer)
-		lex.SetInput(bytes.NewReader(simpleGraphqlDoc))
-		b.StartTimer()
-
-		for {
-			tok, err := lex.readRune()
-			if err != nil {
-				b.Fatal(err)
-			}
-
-			if tok.Keyword == token.EOF {
-				break
-			}
-		}
-	}
-}*/

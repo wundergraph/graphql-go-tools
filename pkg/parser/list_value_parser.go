@@ -2,27 +2,35 @@ package parser
 
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
-func (p *Parser) parseListValue() (val document.ListValue, err error) {
+func (p *Parser) parsePeekedListValue() (val document.ListValue, err error) {
 
-	_, err = p.read(WithWhitelist(token.SQUAREBRACKETOPEN))
+	_, err = p.l.Read()
 	if err != nil {
-		return
+		return val, nil
 	}
 
-	err = p.readAllUntil(token.SQUAREBRACKETCLOSE, WithReadRepeat()).foreach(func(tok token.Token) bool {
-		listItem, err := p.parseValue()
+	var peeked keyword.Keyword
+
+	for {
+		peeked, err = p.l.Peek(true)
 		if err != nil {
-			return false
+			return val, err
 		}
 
-		val.Values = append(val.Values, listItem)
-		return true
-	})
+		switch peeked {
+		case keyword.SQUAREBRACKETCLOSE:
+			_, err = p.l.Read()
+			return val, err
+		default:
+			listValue, err := p.parseValue()
+			if err != nil {
+				return val, err
+			}
 
-	p.read(WithWhitelist(token.SQUAREBRACKETCLOSE))
-
-	return
+			val.Values = append(val.Values, listValue)
+		}
+	}
 }
