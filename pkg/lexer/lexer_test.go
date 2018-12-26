@@ -1,4 +1,4 @@
-package lex2
+package lexer
 
 import (
 	"bytes"
