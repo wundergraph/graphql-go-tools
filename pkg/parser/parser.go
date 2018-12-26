@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
-	"github.com/jensneuse/graphql-go-tools/pkg/lex2"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
 	"io"
@@ -46,7 +46,7 @@ type Lexer interface {
 // NewParser returns a new parser using a buffered runestringer
 func NewParser() *Parser {
 	return &Parser{
-		l:    lex2.NewLexer(),
+		l:    lexer.NewLexer(),
 		buff: bytes.Buffer{},
 	}
 }
