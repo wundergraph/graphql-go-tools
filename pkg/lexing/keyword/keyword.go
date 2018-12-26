@@ -1,7 +1,6 @@
 package keyword
 
 import (
-	"bytes"
 	"fmt"
 )
 
@@ -96,12 +95,6 @@ func (k Keyword) String() string {
 	default:
 		return fmt.Sprintf("#undefined String case for %d# (see keyword.go)", k)
 	}
-}
-
-type Literal []byte
-
-func (l Literal) Equals(another Literal) bool {
-	return bytes.Equal(l, another)
 }
 
 const (

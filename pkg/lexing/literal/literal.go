@@ -1,5 +1,7 @@
 package literal
 
+import "bytes"
+
 var (
 	COLON          = []byte(":")
 	BANG           = []byte("!")
@@ -46,3 +48,9 @@ var (
 	TRUE  = []byte("true")
 	FALSE = []byte("false")
 )
+
+type Literal []byte
+
+func (l Literal) Equals(another Literal) bool {
+	return bytes.Equal(l, another)
+}

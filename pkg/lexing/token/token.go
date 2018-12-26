@@ -9,7 +9,7 @@ import (
 
 type Token struct {
 	Keyword     keyword.Keyword
-	Literal     keyword.Literal
+	Literal     literal.Literal
 	Position    position.Position
 	Description string
 }
