@@ -32,6 +32,7 @@ func (p *Parser) parseEnumValuesDefinition() (values document.EnumValuesDefiniti
 			}
 
 			description = string(stringToken.Literal)
+			continue
 
 		} else if next == keyword.IDENT {
 			ident, err := p.l.Read()
@@ -52,30 +53,14 @@ func (p *Parser) parseEnumValuesDefinition() (values document.EnumValuesDefiniti
 			}
 
 			values = append(values, enumValueDefinition)
+			continue
 
 		} else if next == keyword.CURLYBRACKETCLOSE {
 			_, err = p.l.Read()
 			return values, err
-		} else {
-			invalid, _ := p.l.Read()
-			err = newErrInvalidType(invalid.Position, "parseEnumValuesDefinition", "string/ident/curlyBracketClose", invalid.Keyword.String())
 		}
+
+		invalid, _ := p.l.Read()
+		return values, newErrInvalidType(invalid.Position, "parseEnumValuesDefinition", "string/ident/curlyBracketClose", invalid.Keyword.String())
 	}
-	/*
-		_, err = p.readAllUntil(keyword.CURLYBRACKETCLOSE,
-			WithWhitelist(keyword.IDENT, keyword.COLON),
-			WithDescription(),
-		).foreachMatchedPattern(Pattern(keyword.IDENT),
-			func(tokens []token.Token) error {
-				directives, err := p.parseDirectives()
-				values = append(values, document.EnumValueDefinition{
-					EnumValue:   string(tokens[0].Literal),
-					Description: tokens[0].Description,
-					Directives:  directives,
-				})
-
-				return err
-			})
-
-		return*/
 }

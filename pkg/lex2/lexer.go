@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 )
 
+// Lexer emits tokens from a input reader
 type Lexer struct {
 	reader                           *bufio.Reader
 	buffer                           *bytes.Buffer
@@ -22,6 +23,7 @@ type Lexer struct {
 	charPositionBeforeLineTerminator int
 }
 
+// NewLexer initializes a new lexer
 func NewLexer() *Lexer {
 	return &Lexer{
 		buffer:       &bytes.Buffer{},
@@ -29,6 +31,7 @@ func NewLexer() *Lexer {
 	}
 }
 
+// SetInput sets the new reader as input and resets all position stats
 func (l *Lexer) SetInput(reader io.Reader) {
 	if l.reader == nil {
 		l.reader = bufio.NewReader(reader)
@@ -40,6 +43,7 @@ func (l *Lexer) SetInput(reader io.Reader) {
 	l.char = 1
 }
 
+// Read emits the next token, this cannot be undone
 func (l *Lexer) Read() (tok token.Token, err error) {
 
 	run, position, err := l.readRune()
@@ -96,6 +100,7 @@ func (l *Lexer) swallowWhitespace() error {
 	}
 }
 
+// Peek will emit the next token without advancing the reader position
 func (l *Lexer) Peek(ignoreWhitespace bool) (key keyword.Keyword, err error) {
 
 	if ignoreWhitespace {
@@ -356,7 +361,7 @@ func (l *Lexer) isTerminated(input []byte) bool {
 		bytes.HasSuffix(input, literal.AT)
 }
 
-func (l *Lexer) peekEofSafe(n int) ([]byte, error) {
+func (l *Lexer) peekEOFSafe(n int) ([]byte, error) {
 	peeked, err := l.reader.Peek(n)
 	if err == nil || err == io.EOF {
 		return peeked, nil
@@ -367,7 +372,7 @@ func (l *Lexer) peekEofSafe(n int) ([]byte, error) {
 
 func (l *Lexer) peekIdent2() (done bool, k keyword.Keyword, err error) {
 
-	peeked, err := l.peekEofSafe(3)
+	peeked, err := l.peekEOFSafe(3)
 	if err != nil {
 		return true, k, err
 	}
@@ -385,7 +390,7 @@ func (l *Lexer) peekIdent2() (done bool, k keyword.Keyword, err error) {
 
 func (l *Lexer) peekIdent4() (done bool, k keyword.Keyword, err error) {
 
-	peeked, err := l.peekEofSafe(5)
+	peeked, err := l.peekEOFSafe(5)
 	if err != nil {
 		return true, k, err
 	}
@@ -411,7 +416,7 @@ func (l *Lexer) peekIdent4() (done bool, k keyword.Keyword, err error) {
 
 func (l *Lexer) peekIdent5() (done bool, k keyword.Keyword, err error) {
 
-	peeked, err := l.peekEofSafe(6)
+	peeked, err := l.peekEOFSafe(6)
 	if err != nil {
 		return true, k, err
 	}
@@ -435,7 +440,7 @@ func (l *Lexer) peekIdent5() (done bool, k keyword.Keyword, err error) {
 
 func (l *Lexer) peekIdent6() (done bool, k keyword.Keyword, err error) {
 
-	peeked, err := l.peekEofSafe(7)
+	peeked, err := l.peekEOFSafe(7)
 	if err != nil {
 		return true, k, err
 	}
@@ -455,7 +460,7 @@ func (l *Lexer) peekIdent6() (done bool, k keyword.Keyword, err error) {
 
 func (l *Lexer) peekIdent8() (done bool, k keyword.Keyword, err error) {
 
-	peeked, err := l.peekEofSafe(9)
+	peeked, err := l.peekEOFSafe(9)
 	if err != nil {
 		return true, k, err
 	}
@@ -475,7 +480,7 @@ func (l *Lexer) peekIdent8() (done bool, k keyword.Keyword, err error) {
 
 func (l *Lexer) peekIdent9() (done bool, k keyword.Keyword, err error) {
 
-	peeked, err := l.peekEofSafe(10)
+	peeked, err := l.peekEOFSafe(10)
 	if err != nil {
 		return true, k, err
 	}
@@ -495,7 +500,7 @@ func (l *Lexer) peekIdent9() (done bool, k keyword.Keyword, err error) {
 
 func (l *Lexer) peekIdent10() (done bool, k keyword.Keyword, err error) {
 
-	peeked, err := l.peekEofSafe(11)
+	peeked, err := l.peekEOFSafe(11)
 	if err != nil {
 		return true, k, err
 	}
@@ -513,7 +518,7 @@ func (l *Lexer) peekIdent10() (done bool, k keyword.Keyword, err error) {
 
 func (l *Lexer) peekIdent12() (done bool, k keyword.Keyword, err error) {
 
-	peeked, err := l.peekEofSafe(13)
+	peeked, err := l.peekEOFSafe(13)
 	if err != nil {
 		return true, k, err
 	}
@@ -715,34 +720,6 @@ func (l *Lexer) swallow(amount int) error {
 	return nil
 }
 
-func (l *Lexer) readWriteUntil(delimiter []rune, swallowDelimiter bool) (data []byte, err error) {
-
-	var done bool
-
-	for {
-		done, err = l.peekEquals(delimiter, swallowDelimiter, true)
-		if err != nil {
-			return data, err
-		}
-
-		if done {
-			data = l.buffer.Bytes()
-			l.buffer.Reset()
-			return data, err
-		}
-
-		run, _, err := l.readRune()
-		if err != nil {
-			return data, err
-		}
-
-		_, err = l.buffer.WriteRune(run)
-		if err != nil {
-			return data, err
-		}
-	}
-}
-
 func (l *Lexer) peekEquals(equals []rune, swallow, returnErrorOnEOF bool) (bool, error) {
 
 	for _, r := range equals {
@@ -824,10 +801,10 @@ func (l *Lexer) readFloat(position keyword.Position, integerPart []byte) (tok to
 
 	if totalMatches == 0 {
 		return tok, fmt.Errorf("readFloat: expected float part after '.'")
-	} else {
-		tok.Keyword = keyword.FLOAT
-		tok.Literal = lit
 	}
+
+	tok.Keyword = keyword.FLOAT
+	tok.Literal = lit
 
 	return
 }
@@ -866,26 +843,8 @@ func (l *Lexer) readWriteWhileMatching(matcher func(rune) bool, returnErrorOnEOF
 	}
 }
 
-func (l *Lexer) trimStart(input, trim []byte) []byte {
-
-	if bytes.HasPrefix(input, trim) {
-		input = input[len(trim):]
-	}
-
-	return input
-}
-
-func (l *Lexer) trimEnd(input, trim []byte) []byte {
-
-	if bytes.HasSuffix(input, trim) {
-		input = input[:len(input)-len(trim)]
-	}
-
-	return input
-}
-
 func (l *Lexer) trimStartEnd(input, trim []byte) []byte {
-	return l.trimStart(l.trimEnd(input, trim), trim)
+	return bytes.TrimSuffix(bytes.TrimPrefix(input, trim), trim)
 }
 
 func (l *Lexer) readRune() (r rune, position keyword.Position, err error) {
@@ -897,7 +856,7 @@ func (l *Lexer) readRune() (r rune, position keyword.Position, err error) {
 
 	if r == runes.LINETERMINATOR {
 		l.charPositionBeforeLineTerminator = l.char
-		l.line += 1
+		l.line++
 		l.char = 1
 	} else {
 		l.char += size
@@ -926,9 +885,4 @@ func (l *Lexer) unreadRune() error {
 	}
 
 	return nil
-}
-
-func (l *Lexer) setPosition(tok token.Token, err error, position keyword.Position) (token.Token, error) {
-	tok.Position = position
-	return tok, err
 }

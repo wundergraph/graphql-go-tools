@@ -60,6 +60,9 @@ func (p *Parser) parseInputValueDefinitions() (inputValueDefinitions []document.
 			}
 
 			inputValueDefinition.Directives, err = p.parseDirectives()
+			if err != nil {
+				return inputValueDefinitions, err
+			}
 
 			inputValueDefinitions = append(inputValueDefinitions, inputValueDefinition)
 

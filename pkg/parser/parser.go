@@ -36,15 +36,12 @@ type Parser struct {
 	buff bytes.Buffer
 }
 
+// Lexer is the interface used by the Parser to lex tokens
 type Lexer interface {
 	SetInput(reader io.Reader)
 	Read() (tok token.Token, err error)
 	Peek(ignoreWhitespace bool) (key keyword.Keyword, err error)
 }
-
-type Matcher func(key keyword.Keyword) bool
-type EmitOne func(t token.Token)
-type EmitTwo func(t1, t2 token.Token)
 
 // NewParser returns a new parser using a buffered runestringer
 func NewParser() *Parser {

@@ -438,65 +438,6 @@ foo `,
 	})
 }
 
-var simpleGraphqlDoc = keyword.Literal(`# root Resolver
-	schema {
-		query: Query
-		mutation: Mutation
-	}
-	
-	# root Query
-	type Query {
-		# get story
-		storyById(
-			# you must provide a valid story id
-			id: String!
-		): Story
-		# return all Stories
-		allStories: [Story]
-		# get images by id
-		imageById(
-			# image identifier
-			id: String
-		): SourceImage
-	}
-	
-	# root Mutation
-	type Mutation {
-		# creates a story
-		createStory(
-			input: CreateStoryInput
-		): Story
-		# update a story via a patch
-		updateStoryById(
-			# patch
-			input: UpdateStoryInput
-		): Story
-		# deletes a story
-		deleteStoryById(
-			# story identifier
-			id: String
-		): MutationResult!
-		# create a new image - you must attach the image data via multipart
-		createImage: SourceImage
-		# update image
-		updateImageById(
-			# update image patch
-			input: UpdateImageInput
-		): SourceImage
-		# delete an image via its id
-		deleteImageById(
-			# image identifier
-			id: String!
-		): MutationResult!
-	}
-	
-	# a generic mutation result for operations without a result
-	type MutationResult {
-		# indicate if the operation succeeded
-		success: Boolean
-	}
-`)
-
 var introspectionQuery = []byte(`query IntrospectionQuery {
   __schema {
     queryType {

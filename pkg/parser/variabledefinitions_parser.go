@@ -45,6 +45,9 @@ func (p *Parser) parseVariableDefinitions() (variableDefinitions document.Variab
 			}
 
 			variableDefinition.DefaultValue, err = p.parseDefaultValue()
+			if err != nil {
+				return variableDefinitions, err
+			}
 
 			variableDefinitions = append(variableDefinitions, variableDefinition)
 

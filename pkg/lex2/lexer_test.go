@@ -1401,7 +1401,14 @@ func BenchmarkLexer(b *testing.B) {
 
 		for err == nil && tok.Keyword != keyword.EOF && key != keyword.EOF {
 			key, err = lexer.Peek(true)
+			if err != nil {
+				b.Fatal(err)
+			}
+
 			tok, err = lexer.Read()
+			if err != nil {
+				b.Fatal(err)
+			}
 		}
 	}
 }
