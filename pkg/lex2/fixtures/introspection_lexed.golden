@@ -1,0 +1,1298 @@
+[
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXA=",
+    "Position": {
+      "Line": 1,
+      "Char": 1
+    },
+    "Description": "query"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBlZnRhbHVlc2Fzb255",
+    "Position": {
+      "Line": 1,
+      "Char": 7
+    },
+    "Description": "IntrospectionQuery"
+  },
+  {
+    "Keyword": 29,
+    "Literal": "ew==",
+    "Position": {
+      "Line": 1,
+      "Char": 26
+    },
+    "Description": "{"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBlZnQ=",
+    "Position": {
+      "Line": 2,
+      "Char": 3
+    },
+    "Description": "__schema"
+  },
+  {
+    "Keyword": 29,
+    "Literal": "ew==",
+    "Position": {
+      "Line": 2,
+      "Char": 12
+    },
+    "Description": "{"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBlZnRh",
+    "Position": {
+      "Line": 3,
+      "Char": 5
+    },
+    "Description": "queryType"
+  },
+  {
+    "Keyword": 29,
+    "Literal": "ew==",
+    "Position": {
+      "Line": 3,
+      "Char": 15
+    },
+    "Description": "{"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZQ==",
+    "Position": {
+      "Line": 4,
+      "Char": 7
+    },
+    "Description": "name"
+  },
+  {
+    "Keyword": 30,
+    "Literal": "fQ==",
+    "Position": {
+      "Line": 5,
+      "Char": 5
+    },
+    "Description": "}"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBlZnRhbHVl",
+    "Position": {
+      "Line": 6,
+      "Char": 5
+    },
+    "Description": "mutationType"
+  },
+  {
+    "Keyword": 29,
+    "Literal": "ew==",
+    "Position": {
+      "Line": 6,
+      "Char": 18
+    },
+    "Description": "{"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZQ==",
+    "Position": {
+      "Line": 7,
+      "Char": 7
+    },
+    "Description": "name"
+  },
+  {
+    "Keyword": 30,
+    "Literal": "fQ==",
+    "Position": {
+      "Line": 8,
+      "Char": 5
+    },
+    "Description": "}"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBlZnRhbHVlc2Fzbw==",
+    "Position": {
+      "Line": 9,
+      "Char": 5
+    },
+    "Description": "subscriptionType"
+  },
+  {
+    "Keyword": 29,
+    "Literal": "ew==",
+    "Position": {
+      "Line": 9,
+      "Char": 22
+    },
+    "Description": "{"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZQ==",
+    "Position": {
+      "Line": 10,
+      "Char": 7
+    },
+    "Description": "name"
+  },
+  {
+    "Keyword": 30,
+    "Literal": "fQ==",
+    "Position": {
+      "Line": 11,
+      "Char": 5
+    },
+    "Description": "}"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXA=",
+    "Position": {
+      "Line": 12,
+      "Char": 5
+    },
+    "Description": "types"
+  },
+  {
+    "Keyword": 29,
+    "Literal": "ew==",
+    "Position": {
+      "Line": 12,
+      "Char": 11
+    },
+    "Description": "{"
+  },
+  {
+    "Keyword": 12,
+    "Literal": "Li4u",
+    "Position": {
+      "Line": 13,
+      "Char": 7
+    },
+    "Description": "..."
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBlZnQ=",
+    "Position": {
+      "Line": 13,
+      "Char": 10
+    },
+    "Description": "FullType"
+  },
+  {
+    "Keyword": 30,
+    "Literal": "fQ==",
+    "Position": {
+      "Line": 14,
+      "Char": 5
+    },
+    "Description": "}"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBlZnRhbA==",
+    "Position": {
+      "Line": 15,
+      "Char": 5
+    },
+    "Description": "directives"
+  },
+  {
+    "Keyword": 29,
+    "Literal": "ew==",
+    "Position": {
+      "Line": 15,
+      "Char": 16
+    },
+    "Description": "{"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZQ==",
+    "Position": {
+      "Line": 16,
+      "Char": 7
+    },
+    "Description": "name"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBlZnRhbHU=",
+    "Position": {
+      "Line": 17,
+      "Char": 7
+    },
+    "Description": "description"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBlZnRh",
+    "Position": {
+      "Line": 18,
+      "Char": 7
+    },
+    "Description": "locations"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZQ==",
+    "Position": {
+      "Line": 19,
+      "Char": 7
+    },
+    "Description": "args"
+  },
+  {
+    "Keyword": 29,
+    "Literal": "ew==",
+    "Position": {
+      "Line": 19,
+      "Char": 12
+    },
+    "Description": "{"
+  },
+  {
+    "Keyword": 12,
+    "Literal": "Li4u",
+    "Position": {
+      "Line": 20,
+      "Char": 9
+    },
+    "Description": "..."
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBlZnRhbA==",
+    "Position": {
+      "Line": 20,
+      "Char": 12
+    },
+    "Description": "InputValue"
+  },
+  {
+    "Keyword": 30,
+    "Literal": "fQ==",
+    "Position": {
+      "Line": 21,
+      "Char": 7
+    },
+    "Description": "}"
+  },
+  {
+    "Keyword": 30,
+    "Literal": "fQ==",
+    "Position": {
+      "Line": 22,
+      "Char": 5
+    },
+    "Description": "}"
+  },
+  {
+    "Keyword": 30,
+    "Literal": "fQ==",
+    "Position": {
+      "Line": 23,
+      "Char": 3
+    },
+    "Description": "}"
+  },
+  {
+    "Keyword": 30,
+    "Literal": "fQ==",
+    "Position": {
+      "Line": 24,
+      "Char": 1
+    },
+    "Description": "}"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBlZnQ=",
+    "Position": {
+      "Line": 26,
+      "Char": 1
+    },
+    "Description": "fragment"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBlZnQ=",
+    "Position": {
+      "Line": 26,
+      "Char": 10
+    },
+    "Description": "FullType"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmE=",
+    "Position": {
+      "Line": 26,
+      "Char": 19
+    },
+    "Description": "on"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBl",
+    "Position": {
+      "Line": 26,
+      "Char": 22
+    },
+    "Description": "__Type"
+  },
+  {
+    "Keyword": 29,
+    "Literal": "ew==",
+    "Position": {
+      "Line": 26,
+      "Char": 29
+    },
+    "Description": "{"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZQ==",
+    "Position": {
+      "Line": 27,
+      "Char": 3
+    },
+    "Description": "kind"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZQ==",
+    "Position": {
+      "Line": 28,
+      "Char": 3
+    },
+    "Description": "name"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBlZnRhbHU=",
+    "Position": {
+      "Line": 29,
+      "Char": 3
+    },
+    "Description": "description"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBl",
+    "Position": {
+      "Line": 30,
+      "Char": 3
+    },
+    "Description": "fields"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBlZnRhbHVlc2Fzb24=",
+    "Position": {
+      "Line": 30,
+      "Char": 10
+    },
+    "Description": "includeDeprecated"
+  },
+  {
+    "Keyword": 22,
+    "Literal": "bmFtZQ==",
+    "Position": {
+      "Line": 30,
+      "Char": 29
+    },
+    "Description": "true"
+  },
+  {
+    "Keyword": 29,
+    "Literal": "ew==",
+    "Position": {
+      "Line": 30,
+      "Char": 35
+    },
+    "Description": "{"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZQ==",
+    "Position": {
+      "Line": 31,
+      "Char": 5
+    },
+    "Description": "name"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBlZnRhbHU=",
+    "Position": {
+      "Line": 32,
+      "Char": 5
+    },
+    "Description": "description"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZQ==",
+    "Position": {
+      "Line": 33,
+      "Char": 5
+    },
+    "Description": "args"
+  },
+  {
+    "Keyword": 29,
+    "Literal": "ew==",
+    "Position": {
+      "Line": 33,
+      "Char": 10
+    },
+    "Description": "{"
+  },
+  {
+    "Keyword": 12,
+    "Literal": "Li4u",
+    "Position": {
+      "Line": 34,
+      "Char": 7
+    },
+    "Description": "..."
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBlZnRhbA==",
+    "Position": {
+      "Line": 34,
+      "Char": 10
+    },
+    "Description": "InputValue"
+  },
+  {
+    "Keyword": 30,
+    "Literal": "fQ==",
+    "Position": {
+      "Line": 35,
+      "Char": 5
+    },
+    "Description": "}"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZQ==",
+    "Position": {
+      "Line": 36,
+      "Char": 5
+    },
+    "Description": "type"
+  },
+  {
+    "Keyword": 29,
+    "Literal": "ew==",
+    "Position": {
+      "Line": 36,
+      "Char": 10
+    },
+    "Description": "{"
+  },
+  {
+    "Keyword": 12,
+    "Literal": "Li4u",
+    "Position": {
+      "Line": 37,
+      "Char": 7
+    },
+    "Description": "..."
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBlZg==",
+    "Position": {
+      "Line": 37,
+      "Char": 10
+    },
+    "Description": "TypeRef"
+  },
+  {
+    "Keyword": 30,
+    "Literal": "fQ==",
+    "Position": {
+      "Line": 38,
+      "Char": 5
+    },
+    "Description": "}"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBlZnRhbHVl",
+    "Position": {
+      "Line": 39,
+      "Char": 5
+    },
+    "Description": "isDeprecated"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBlZnRhbHVlc2Fzb24=",
+    "Position": {
+      "Line": 40,
+      "Char": 5
+    },
+    "Description": "deprecationReason"
+  },
+  {
+    "Keyword": 30,
+    "Literal": "fQ==",
+    "Position": {
+      "Line": 41,
+      "Char": 3
+    },
+    "Description": "}"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBlZnRhbHU=",
+    "Position": {
+      "Line": 42,
+      "Char": 3
+    },
+    "Description": "inputFields"
+  },
+  {
+    "Keyword": 29,
+    "Literal": "ew==",
+    "Position": {
+      "Line": 42,
+      "Char": 15
+    },
+    "Description": "{"
+  },
+  {
+    "Keyword": 12,
+    "Literal": "Li4u",
+    "Position": {
+      "Line": 43,
+      "Char": 5
+    },
+    "Description": "..."
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBlZnRhbA==",
+    "Position": {
+      "Line": 43,
+      "Char": 8
+    },
+    "Description": "InputValue"
+  },
+  {
+    "Keyword": 30,
+    "Literal": "fQ==",
+    "Position": {
+      "Line": 44,
+      "Char": 3
+    },
+    "Description": "}"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBlZnRhbA==",
+    "Position": {
+      "Line": 45,
+      "Char": 3
+    },
+    "Description": "interfaces"
+  },
+  {
+    "Keyword": 29,
+    "Literal": "ew==",
+    "Position": {
+      "Line": 45,
+      "Char": 14
+    },
+    "Description": "{"
+  },
+  {
+    "Keyword": 12,
+    "Literal": "Li4u",
+    "Position": {
+      "Line": 46,
+      "Char": 5
+    },
+    "Description": "..."
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBlZg==",
+    "Position": {
+      "Line": 46,
+      "Char": 8
+    },
+    "Description": "TypeRef"
+  },
+  {
+    "Keyword": 30,
+    "Literal": "fQ==",
+    "Position": {
+      "Line": 47,
+      "Char": 3
+    },
+    "Description": "}"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBlZnRhbA==",
+    "Position": {
+      "Line": 48,
+      "Char": 3
+    },
+    "Description": "enumValues"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBlZnRhbHVlc2Fzb24=",
+    "Position": {
+      "Line": 48,
+      "Char": 14
+    },
+    "Description": "includeDeprecated"
+  },
+  {
+    "Keyword": 22,
+    "Literal": "bmFtZQ==",
+    "Position": {
+      "Line": 48,
+      "Char": 33
+    },
+    "Description": "true"
+  },
+  {
+    "Keyword": 29,
+    "Literal": "ew==",
+    "Position": {
+      "Line": 48,
+      "Char": 39
+    },
+    "Description": "{"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZQ==",
+    "Position": {
+      "Line": 49,
+      "Char": 5
+    },
+    "Description": "name"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBlZnRhbHU=",
+    "Position": {
+      "Line": 50,
+      "Char": 5
+    },
+    "Description": "description"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBlZnRhbHVl",
+    "Position": {
+      "Line": 51,
+      "Char": 5
+    },
+    "Description": "isDeprecated"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBlZnRhbHVlc2Fzb24=",
+    "Position": {
+      "Line": 52,
+      "Char": 5
+    },
+    "Description": "deprecationReason"
+  },
+  {
+    "Keyword": 30,
+    "Literal": "fQ==",
+    "Position": {
+      "Line": 53,
+      "Char": 3
+    },
+    "Description": "}"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBlZnRhbHVlcw==",
+    "Position": {
+      "Line": 54,
+      "Char": 3
+    },
+    "Description": "possibleTypes"
+  },
+  {
+    "Keyword": 29,
+    "Literal": "ew==",
+    "Position": {
+      "Line": 54,
+      "Char": 17
+    },
+    "Description": "{"
+  },
+  {
+    "Keyword": 12,
+    "Literal": "Li4u",
+    "Position": {
+      "Line": 55,
+      "Char": 5
+    },
+    "Description": "..."
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBlZg==",
+    "Position": {
+      "Line": 55,
+      "Char": 8
+    },
+    "Description": "TypeRef"
+  },
+  {
+    "Keyword": 30,
+    "Literal": "fQ==",
+    "Position": {
+      "Line": 56,
+      "Char": 3
+    },
+    "Description": "}"
+  },
+  {
+    "Keyword": 30,
+    "Literal": "fQ==",
+    "Position": {
+      "Line": 57,
+      "Char": 1
+    },
+    "Description": "}"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBlZnQ=",
+    "Position": {
+      "Line": 59,
+      "Char": 1
+    },
+    "Description": "fragment"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBlZnRhbA==",
+    "Position": {
+      "Line": 59,
+      "Char": 10
+    },
+    "Description": "InputValue"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmE=",
+    "Position": {
+      "Line": 59,
+      "Char": 21
+    },
+    "Description": "on"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBlZnRhbHVl",
+    "Position": {
+      "Line": 59,
+      "Char": 24
+    },
+    "Description": "__InputValue"
+  },
+  {
+    "Keyword": 29,
+    "Literal": "ew==",
+    "Position": {
+      "Line": 59,
+      "Char": 37
+    },
+    "Description": "{"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZQ==",
+    "Position": {
+      "Line": 60,
+      "Char": 3
+    },
+    "Description": "name"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBlZnRhbHU=",
+    "Position": {
+      "Line": 61,
+      "Char": 3
+    },
+    "Description": "description"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZQ==",
+    "Position": {
+      "Line": 62,
+      "Char": 3
+    },
+    "Description": "type"
+  },
+  {
+    "Keyword": 29,
+    "Literal": "ew==",
+    "Position": {
+      "Line": 62,
+      "Char": 8
+    },
+    "Description": "{"
+  },
+  {
+    "Keyword": 12,
+    "Literal": "Li4u",
+    "Position": {
+      "Line": 63,
+      "Char": 5
+    },
+    "Description": "..."
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBlZg==",
+    "Position": {
+      "Line": 63,
+      "Char": 8
+    },
+    "Description": "TypeRef"
+  },
+  {
+    "Keyword": 30,
+    "Literal": "fQ==",
+    "Position": {
+      "Line": 64,
+      "Char": 3
+    },
+    "Description": "}"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBlZnRhbHVl",
+    "Position": {
+      "Line": 65,
+      "Char": 3
+    },
+    "Description": "defaultValue"
+  },
+  {
+    "Keyword": 30,
+    "Literal": "fQ==",
+    "Position": {
+      "Line": 66,
+      "Char": 1
+    },
+    "Description": "}"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBlZnQ=",
+    "Position": {
+      "Line": 68,
+      "Char": 1
+    },
+    "Description": "fragment"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBlZg==",
+    "Position": {
+      "Line": 68,
+      "Char": 10
+    },
+    "Description": "TypeRef"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmE=",
+    "Position": {
+      "Line": 68,
+      "Char": 18
+    },
+    "Description": "on"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBl",
+    "Position": {
+      "Line": 68,
+      "Char": 21
+    },
+    "Description": "__Type"
+  },
+  {
+    "Keyword": 29,
+    "Literal": "ew==",
+    "Position": {
+      "Line": 68,
+      "Char": 28
+    },
+    "Description": "{"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZQ==",
+    "Position": {
+      "Line": 69,
+      "Char": 3
+    },
+    "Description": "kind"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZQ==",
+    "Position": {
+      "Line": 70,
+      "Char": 3
+    },
+    "Description": "name"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBl",
+    "Position": {
+      "Line": 71,
+      "Char": 3
+    },
+    "Description": "ofType"
+  },
+  {
+    "Keyword": 29,
+    "Literal": "ew==",
+    "Position": {
+      "Line": 71,
+      "Char": 10
+    },
+    "Description": "{"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZQ==",
+    "Position": {
+      "Line": 72,
+      "Char": 5
+    },
+    "Description": "kind"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZQ==",
+    "Position": {
+      "Line": 73,
+      "Char": 5
+    },
+    "Description": "name"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBl",
+    "Position": {
+      "Line": 74,
+      "Char": 5
+    },
+    "Description": "ofType"
+  },
+  {
+    "Keyword": 29,
+    "Literal": "ew==",
+    "Position": {
+      "Line": 74,
+      "Char": 12
+    },
+    "Description": "{"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZQ==",
+    "Position": {
+      "Line": 75,
+      "Char": 7
+    },
+    "Description": "kind"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZQ==",
+    "Position": {
+      "Line": 76,
+      "Char": 7
+    },
+    "Description": "name"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBl",
+    "Position": {
+      "Line": 77,
+      "Char": 7
+    },
+    "Description": "ofType"
+  },
+  {
+    "Keyword": 29,
+    "Literal": "ew==",
+    "Position": {
+      "Line": 77,
+      "Char": 14
+    },
+    "Description": "{"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZQ==",
+    "Position": {
+      "Line": 78,
+      "Char": 9
+    },
+    "Description": "kind"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZQ==",
+    "Position": {
+      "Line": 79,
+      "Char": 9
+    },
+    "Description": "name"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBl",
+    "Position": {
+      "Line": 80,
+      "Char": 9
+    },
+    "Description": "ofType"
+  },
+  {
+    "Keyword": 29,
+    "Literal": "ew==",
+    "Position": {
+      "Line": 80,
+      "Char": 16
+    },
+    "Description": "{"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZQ==",
+    "Position": {
+      "Line": 81,
+      "Char": 11
+    },
+    "Description": "kind"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZQ==",
+    "Position": {
+      "Line": 82,
+      "Char": 11
+    },
+    "Description": "name"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBl",
+    "Position": {
+      "Line": 83,
+      "Char": 11
+    },
+    "Description": "ofType"
+  },
+  {
+    "Keyword": 29,
+    "Literal": "ew==",
+    "Position": {
+      "Line": 83,
+      "Char": 18
+    },
+    "Description": "{"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZQ==",
+    "Position": {
+      "Line": 84,
+      "Char": 13
+    },
+    "Description": "kind"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZQ==",
+    "Position": {
+      "Line": 85,
+      "Char": 13
+    },
+    "Description": "name"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBl",
+    "Position": {
+      "Line": 86,
+      "Char": 13
+    },
+    "Description": "ofType"
+  },
+  {
+    "Keyword": 29,
+    "Literal": "ew==",
+    "Position": {
+      "Line": 86,
+      "Char": 20
+    },
+    "Description": "{"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZQ==",
+    "Position": {
+      "Line": 87,
+      "Char": 15
+    },
+    "Description": "kind"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZQ==",
+    "Position": {
+      "Line": 88,
+      "Char": 15
+    },
+    "Description": "name"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZXBl",
+    "Position": {
+      "Line": 89,
+      "Char": 15
+    },
+    "Description": "ofType"
+  },
+  {
+    "Keyword": 29,
+    "Literal": "ew==",
+    "Position": {
+      "Line": 89,
+      "Char": 22
+    },
+    "Description": "{"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZQ==",
+    "Position": {
+      "Line": 90,
+      "Char": 17
+    },
+    "Description": "kind"
+  },
+  {
+    "Keyword": 1,
+    "Literal": "bmFtZQ==",
+    "Position": {
+      "Line": 91,
+      "Char": 17
+    },
+    "Description": "name"
+  },
+  {
+    "Keyword": 30,
+    "Literal": "fQ==",
+    "Position": {
+      "Line": 92,
+      "Char": 15
+    },
+    "Description": "}"
+  },
+  {
+    "Keyword": 30,
+    "Literal": "fQ==",
+    "Position": {
+      "Line": 93,
+      "Char": 13
+    },
+    "Description": "}"
+  },
+  {
+    "Keyword": 30,
+    "Literal": "fQ==",
+    "Position": {
+      "Line": 94,
+      "Char": 11
+    },
+    "Description": "}"
+  },
+  {
+    "Keyword": 30,
+    "Literal": "fQ==",
+    "Position": {
+      "Line": 95,
+      "Char": 9
+    },
+    "Description": "}"
+  },
+  {
+    "Keyword": 30,
+    "Literal": "fQ==",
+    "Position": {
+      "Line": 96,
+      "Char": 7
+    },
+    "Description": "}"
+  },
+  {
+    "Keyword": 30,
+    "Literal": "fQ==",
+    "Position": {
+      "Line": 97,
+      "Char": 5
+    },
+    "Description": "}"
+  },
+  {
+    "Keyword": 30,
+    "Literal": "fQ==",
+    "Position": {
+      "Line": 98,
+      "Char": 3
+    },
+    "Description": "}"
+  },
+  {
+    "Keyword": 30,
+    "Literal": "fQ==",
+    "Position": {
+      "Line": 99,
+      "Char": 1
+    },
+    "Description": "}"
+  }
+]

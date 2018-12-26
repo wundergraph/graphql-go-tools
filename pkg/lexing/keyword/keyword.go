@@ -65,6 +65,34 @@ func (k Keyword) String() string {
 		return "SLASH"
 	case NULL:
 		return "NULL"
+	case ON:
+		return "ON"
+	case IMPLEMENTS:
+		return "IMPLEMENTS"
+	case SCHEMA:
+		return "SCHEMA"
+	case SCALAR:
+		return "SCALAR"
+	case TYPE:
+		return "TYPE"
+	case INTERFACE:
+		return "INTERFACE"
+	case UNION:
+		return "UNION"
+	case ENUM:
+		return "ENUM"
+	case INPUT:
+		return "INPUT"
+	case DIRECTIVE:
+		return "DIRECTIVE"
+	case QUERY:
+		return "QUERY"
+	case MUTATION:
+		return "MUTATION"
+	case SUBSCRIPTION:
+		return "SUBSCRIPTION"
+	case FRAGMENT:
+		return "FRAGMENT"
 	default:
 		return fmt.Sprintf("#undefined String case for %d# (see keyword.go)", k)
 	}
@@ -83,17 +111,6 @@ type Literal []byte
 
 func (l Literal) Equals(another Literal) bool {
 	return bytes.Equal(l, another)
-}
-
-type Token struct {
-	Keyword     Keyword
-	Literal     Literal
-	Position    Position
-	Description string
-}
-
-func (t Token) String() string {
-	return fmt.Sprintf("Token:: Type: %d, Literal: %s Pos: %s", t.Keyword, t.Literal, t.Position)
 }
 
 const (
@@ -116,6 +133,17 @@ const (
 	EQUALS
 	NEGATIVESIGN
 	AND
+	ON
+
+	IMPLEMENTS
+	SCHEMA
+	SCALAR
+	TYPE
+	INTERFACE
+	UNION
+	ENUM
+	INPUT
+	DIRECTIVE
 
 	VARIABLE
 	STRING
@@ -124,6 +152,10 @@ const (
 	TRUE
 	FALSE
 	NULL
+	QUERY
+	MUTATION
+	SUBSCRIPTION
+	FRAGMENT
 
 	BRACKETOPEN
 	BRACKETCLOSE
