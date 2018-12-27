@@ -27,7 +27,7 @@ func TestImplementsInterfacesParser(t *testing.T) {
 				input:     "implements Dogs",
 				expectErr: BeNil(),
 				expectValues: Equal(document.ImplementsInterfaces{
-					"Dogs",
+					[]byte("Dogs"),
 				}),
 			},
 			{
@@ -35,9 +35,9 @@ func TestImplementsInterfacesParser(t *testing.T) {
 				input:     "implements Dogs & Cats & Mice",
 				expectErr: BeNil(),
 				expectValues: Equal(document.ImplementsInterfaces{
-					"Dogs",
-					"Cats",
-					"Mice",
+					[]byte("Dogs"),
+					[]byte("Cats"),
+					[]byte("Mice"),
 				}),
 			},
 			{
@@ -45,8 +45,8 @@ func TestImplementsInterfacesParser(t *testing.T) {
 				input:     "implements Dogs & Cats Mice",
 				expectErr: BeNil(),
 				expectValues: Equal(document.ImplementsInterfaces{
-					"Dogs",
-					"Cats",
+					[]byte("Dogs"),
+					[]byte("Cats"),
 				}),
 			},
 			{

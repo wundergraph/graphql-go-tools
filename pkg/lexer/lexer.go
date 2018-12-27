@@ -26,10 +26,13 @@ type Lexer struct {
 
 // NewLexer initializes a new lexer
 func NewLexer() *Lexer {
-	return &Lexer{
-		buffer:       &bytes.Buffer{},
+
+	l := &Lexer{
 		equalsBuffer: &bytes.Buffer{},
+		buffer:       &bytes.Buffer{},
 	}
+
+	return l
 }
 
 // SetInput sets the new reader as input and resets all position stats
@@ -47,35 +50,45 @@ func (l *Lexer) SetInput(reader io.Reader) {
 // Read emits the next token, this cannot be undone
 func (l *Lexer) Read() (tok token.Token, err error) {
 
-	run, position, err := l.readRune()
-	if err == io.EOF {
-		tok = token.EOF
-		tok.Position = position
-		return tok, nil
-	} else if err != nil {
-		return tok, err
+	var r rune
+	var pos position.Position
+
+	for {
+		r, pos, err = l.readRune()
+		if err == io.EOF {
+			tok = token.EOF
+			tok.Position = pos
+			return tok, nil
+		} else if err != nil {
+			return tok, err
+		}
+
+		if r != runes.SPACE &&
+			r != runes.TAB &&
+			r != runes.LINETERMINATOR &&
+			r != runes.COMMA {
+			break
+		}
 	}
 
-	if tok, matched := l.switchSimpleTokens(position, run); matched {
+	if tok, matched := l.switchSimpleTokens(pos, r); matched {
 		return tok, nil
 	}
 
-	switch run {
-	case runes.COMMA, runes.SPACE, runes.TAB, runes.LINETERMINATOR:
-		return l.Read()
+	switch r {
 	case runes.QUOTE:
-		return l.readString(position)
+		return l.readString(pos)
 	case runes.DOT:
-		return l.readSpread(position)
+		return l.readSpread(pos)
 	case runes.DOLLAR:
-		return l.readVariable(position)
+		return l.readVariable(pos)
 	}
 
-	if unicode.IsDigit(run) {
-		return l.readDigit(position, run)
+	if unicode.IsDigit(r) {
+		return l.readDigit(pos, r)
 	}
 
-	return l.readIdent(position, run)
+	return l.readIdent(pos, r)
 }
 
 func (l *Lexer) swallowWhitespace() error {
@@ -295,7 +308,8 @@ func (l *Lexer) readIdent(position position.Position, beginWith rune) (tok token
 		}
 	}
 
-	tok.Literal = l.buffer.Bytes()
+	tok.Literal = make([]byte, l.buffer.Len())
+	copy(tok.Literal, l.buffer.Bytes())
 	l.buffer.Reset()
 
 	if bytes.Equal(tok.Literal, literal.TRUE) {
@@ -653,7 +667,8 @@ func (l *Lexer) readString(position position.Position) (tok token.Token, err err
 						l.buffer.WriteRune(nextRune)
 						escaped = false
 					} else {
-						tok.Literal = l.buffer.Bytes()
+						tok.Literal = make([]byte, l.buffer.Len())
+						copy(tok.Literal, l.buffer.Bytes())
 						l.buffer.Reset()
 						tok.Literal = l.trimStartEnd(tok.Literal, literal.LINETERMINATOR)
 						return tok, nil
@@ -692,7 +707,8 @@ func (l *Lexer) readString(position position.Position) (tok token.Token, err err
 				l.buffer.WriteRune(nextRune)
 				escaped = false
 			} else {
-				tok.Literal = l.buffer.Bytes()
+				tok.Literal = make([]byte, l.buffer.Len())
+				copy(tok.Literal, l.buffer.Bytes())
 				l.buffer.Reset()
 				return tok, nil
 			}
@@ -762,11 +778,41 @@ func (l *Lexer) readDigit(position position.Position, beginWith rune) (tok token
 
 	tok.Keyword = keyword.INTEGER
 
-	tok.Literal, _, err = l.readWriteWhileMatching(unicode.IsDigit, false)
+	var totalMatches int
+	var r rune
 
-	if err != nil {
-		return tok, err
+	for {
+		r, _, err = l.readRune()
+		if err == io.EOF {
+			err = nil
+			break
+		} else if err != nil {
+			l.buffer.Reset()
+			return tok, err
+		}
+
+		if unicode.IsDigit(r) {
+			_, err = l.buffer.WriteRune(r)
+			if err != nil {
+				l.buffer.Reset()
+				return tok, err
+			}
+
+			totalMatches++
+
+		} else {
+			err = l.unreadRune()
+			if err != nil {
+				l.buffer.Reset()
+				return tok, err
+			}
+			break
+		}
 	}
+
+	tok.Literal = make([]byte, l.buffer.Len())
+	copy(tok.Literal, l.buffer.Bytes())
+	l.buffer.Reset()
 
 	isFloat, err := l.peekEquals([]rune{runes.DOT}, true, false)
 	if err != nil {
@@ -786,62 +832,58 @@ func (l *Lexer) readFloat(position position.Position, integerPart []byte) (tok t
 
 	_, err = l.buffer.Write(integerPart)
 	if err != nil {
+		l.buffer.Reset()
 		return tok, err
 	}
 
 	_, err = l.buffer.WriteRune(runes.DOT)
 	if err != nil {
+		l.buffer.Reset()
 		return tok, err
 	}
 
-	lit, totalMatches, err := l.readWriteWhileMatching(unicode.IsDigit, false)
+	var totalMatches int
+	var r rune
 
-	if err != nil {
-		return tok, err
+	for {
+		r, _, err = l.readRune()
+		if err == io.EOF {
+			err = nil
+			break
+		} else if err != nil {
+			l.buffer.Reset()
+			return tok, err
+		}
+
+		if unicode.IsDigit(r) {
+			_, err = l.buffer.WriteRune(r)
+			if err != nil {
+				l.buffer.Reset()
+				return tok, err
+			}
+
+			totalMatches++
+
+		} else {
+			err = l.unreadRune()
+			if err != nil {
+				l.buffer.Reset()
+				return tok, err
+			}
+			break
+		}
 	}
 
 	if totalMatches == 0 {
+		l.buffer.Reset()
 		return tok, fmt.Errorf("readFloat: expected float part after '.'")
 	}
 
 	tok.Keyword = keyword.FLOAT
-	tok.Literal = lit
+	tok.Literal = make([]byte, l.buffer.Len())
+	copy(tok.Literal, l.buffer.Bytes())
 
 	return
-}
-
-func (l *Lexer) readWriteWhileMatching(matcher func(rune) bool, returnErrorOnEOF bool) (lit []byte, totalMatches int, err error) {
-
-	for {
-		run, _, err := l.readRune()
-		if !returnErrorOnEOF && err == io.EOF {
-			lit = l.buffer.Bytes()
-			return lit, totalMatches, nil
-		} else if err != nil {
-			return lit, totalMatches, err
-		}
-
-		if matcher(run) {
-
-			totalMatches++
-
-			_, err = l.buffer.WriteRune(run)
-			if err != nil {
-				return lit, totalMatches, err
-			}
-
-		} else {
-
-			err = l.unreadRune()
-			if err != nil {
-				return lit, totalMatches, err
-			}
-
-			lit = l.buffer.Bytes()
-			l.buffer.Reset()
-			return lit, totalMatches, nil
-		}
-	}
 }
 
 func (l *Lexer) trimStartEnd(input, trim []byte) []byte {

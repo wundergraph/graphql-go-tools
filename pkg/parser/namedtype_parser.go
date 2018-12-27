@@ -12,7 +12,7 @@ func (p *Parser) parseNamedType() (namedType document.NamedType, err error) {
 		return namedType, err
 	}
 
-	namedType.Name = string(ident.Literal)
+	namedType.Name = ident.Literal
 	namedType.NonNull, err = p.peekExpect(keyword.BANG, true)
 	return
 }

@@ -13,7 +13,7 @@ func (p *Parser) parseObjectField() (field document.ObjectField, err error) {
 		return field, err
 	}
 
-	field.Name = string(ident.Literal)
+	field.Name = ident.Literal
 
 	_, err = p.readExpect(keyword.COLON, "parseObjectField")
 	if err != nil {

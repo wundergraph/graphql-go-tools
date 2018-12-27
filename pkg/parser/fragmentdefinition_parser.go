@@ -12,7 +12,7 @@ func (p *Parser) parseFragmentDefinition() (fragmentDefinition document.Fragment
 		return fragmentDefinition, err
 	}
 
-	fragmentDefinition.FragmentName = string(fragmentIdent.Literal)
+	fragmentDefinition.FragmentName = fragmentIdent.Literal
 
 	_, err = p.readExpect(keyword.ON, "parseFragmentDefinition")
 	if err != nil {

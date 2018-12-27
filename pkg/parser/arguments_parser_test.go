@@ -28,9 +28,9 @@ func TestArgumentsParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.Arguments{
 					document.Argument{
-						Name: "name",
+						Name: []byte("name"),
 						Value: document.StringValue{
-							Val: "Gophus",
+							Val: []byte("Gophus"),
 						},
 					},
 				}),
@@ -41,14 +41,14 @@ func TestArgumentsParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.Arguments{
 					document.Argument{
-						Name: "fooBars",
+						Name: []byte("fooBars"),
 						Value: document.ListValue{
 							Values: []document.Value{
 								document.StringValue{
-									Val: "foo",
+									Val: []byte("foo"),
 								},
 								document.StringValue{
-									Val: "bar",
+									Val: []byte("bar"),
 								},
 							},
 						},
@@ -61,7 +61,7 @@ func TestArgumentsParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.Arguments{
 					document.Argument{
-						Name: "integers",
+						Name: []byte("integers"),
 						Value: document.ListValue{
 							Values: []document.Value{
 								document.IntValue{
@@ -84,15 +84,15 @@ func TestArgumentsParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.Arguments{
 					document.Argument{
-						Name: "name",
+						Name: []byte("name"),
 						Value: document.StringValue{
-							Val: "Gophus",
+							Val: []byte("Gophus"),
 						},
 					},
 					document.Argument{
-						Name: "surname",
+						Name: []byte("surname"),
 						Value: document.StringValue{
-							Val: "Gophersson",
+							Val: []byte("Gophersson"),
 						},
 					},
 				}),

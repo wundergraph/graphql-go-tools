@@ -29,9 +29,9 @@ func TestObjectValueParser(t *testing.T) {
 				expectVal: Equal(document.ObjectValue{
 					Val: []document.ObjectField{
 						{
-							Name: "foo",
+							Name: []byte("foo"),
 							Value: document.StringValue{
-								Val: "bar",
+								Val: []byte("bar"),
 							},
 						},
 					},
@@ -44,33 +44,33 @@ func TestObjectValueParser(t *testing.T) {
 				expectVal: Equal(document.ObjectValue{
 					Val: []document.ObjectField{
 						{
-							Name: "foo",
+							Name: []byte("foo"),
 							Value: document.StringValue{
-								Val: "bar",
+								Val: []byte("bar"),
 							},
 						},
 						{
-							Name: "baz",
+							Name: []byte("baz"),
 							Value: document.StringValue{
-								Val: "bat",
+								Val: []byte("bat"),
 							},
 						},
 						{
-							Name: "bas",
+							Name: []byte("bas"),
 							Value: document.StringValue{
-								Val: "bal",
+								Val: []byte("bal"),
 							},
 						},
 						{
-							Name: "anEnum",
+							Name: []byte("anEnum"),
 							Value: document.EnumValue{
-								Name: "NUM",
+								Name: []byte("NUM"),
 							},
 						},
 						{
-							Name: "smallEnum",
+							Name: []byte("smallEnum"),
 							Value: document.EnumValue{
-								Name: "numnum",
+								Name: []byte("numnum"),
 							},
 						},
 					},
@@ -83,13 +83,13 @@ func TestObjectValueParser(t *testing.T) {
 				expectVal: Equal(document.ObjectValue{
 					Val: []document.ObjectField{
 						{
-							Name: "foo",
+							Name: []byte("foo"),
 							Value: document.ObjectValue{
 								Val: []document.ObjectField{
 									{
-										Name: "bar",
+										Name: []byte("bar"),
 										Value: document.StringValue{
-											Val: "baz",
+											Val: []byte("baz"),
 										},
 									},
 								},
@@ -109,13 +109,13 @@ func TestObjectValueParser(t *testing.T) {
 				expectVal: Equal(document.ObjectValue{
 					Val: []document.ObjectField{
 						{
-							Name: "foo",
+							Name: []byte("foo"),
 							Value: document.ObjectValue{
 								Val: []document.ObjectField{
 									{
-										Name: "bar",
+										Name: []byte("bar"),
 										Value: document.StringValue{
-											Val: "baz",
+											Val: []byte("baz"),
 										},
 									},
 								},

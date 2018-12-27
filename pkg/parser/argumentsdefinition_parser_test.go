@@ -28,9 +28,9 @@ func TestArgumentsDefinitionParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.ArgumentsDefinition{
 					document.InputValueDefinition{
-						Name: "inputValue",
+						Name: []byte("inputValue"),
 						Type: document.NamedType{
-							Name: "Int",
+							Name: []byte("Int"),
 						},
 					},
 				}),
@@ -47,15 +47,15 @@ func TestArgumentsDefinitionParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.ArgumentsDefinition{
 					document.InputValueDefinition{
-						Name: "inputValue",
+						Name: []byte("inputValue"),
 						Type: document.NamedType{
-							Name: "Int",
+							Name: []byte("Int"),
 						},
 					},
 					document.InputValueDefinition{
-						Name: "outputValue",
+						Name: []byte("outputValue"),
 						Type: document.NamedType{
-							Name: "String",
+							Name: []byte("String"),
 						},
 					},
 				}),
@@ -78,9 +78,9 @@ func TestArgumentsDefinitionParser(t *testing.T) {
 				expectErr: Not(BeNil()),
 				expectValues: Equal(document.ArgumentsDefinition(document.ArgumentsDefinition{
 					document.InputValueDefinition{
-						Name: "inputValue",
+						Name: []byte("inputValue"),
 						Type: document.NamedType{
-							Name: "Int",
+							Name: []byte("Int"),
 						},
 					},
 				})),

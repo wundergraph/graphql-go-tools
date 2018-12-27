@@ -6,6 +6,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
+	"io"
 	"testing"
 )
 
@@ -27,11 +28,11 @@ func TestFieldParser(t *testing.T) {
 				input:     "preferredName: originalName(isSet: true) @rename(index: 3)",
 				expectErr: BeNil(),
 				expectValues: Equal(document.Field{
-					Alias: "preferredName",
-					Name:  "originalName",
+					Alias: []byte("preferredName"),
+					Name:  []byte("originalName"),
 					Arguments: document.Arguments{
 						document.Argument{
-							Name: "isSet",
+							Name: []byte("isSet"),
 							Value: document.BooleanValue{
 								Val: true,
 							},
@@ -39,10 +40,10 @@ func TestFieldParser(t *testing.T) {
 					},
 					Directives: document.Directives{
 						document.Directive{
-							Name: "rename",
+							Name: []byte("rename"),
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: "index",
+									Name: []byte("index"),
 									Value: document.IntValue{
 										Val: 3,
 									},
@@ -57,10 +58,10 @@ func TestFieldParser(t *testing.T) {
 				input:     "originalName(isSet: true) @rename(index: 3)",
 				expectErr: BeNil(),
 				expectValues: Equal(document.Field{
-					Name: "originalName",
+					Name: []byte("originalName"),
 					Arguments: document.Arguments{
 						document.Argument{
-							Name: "isSet",
+							Name: []byte("isSet"),
 							Value: document.BooleanValue{
 								Val: true,
 							},
@@ -68,10 +69,10 @@ func TestFieldParser(t *testing.T) {
 					},
 					Directives: document.Directives{
 						document.Directive{
-							Name: "rename",
+							Name: []byte("rename"),
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: "index",
+									Name: []byte("index"),
 									Value: document.IntValue{
 										Val: 3,
 									},
@@ -86,14 +87,14 @@ func TestFieldParser(t *testing.T) {
 				input:     "preferredName: originalName @rename(index: 3)",
 				expectErr: BeNil(),
 				expectValues: Equal(document.Field{
-					Alias: "preferredName",
-					Name:  "originalName",
+					Alias: []byte("preferredName"),
+					Name:  []byte("originalName"),
 					Directives: document.Directives{
 						document.Directive{
-							Name: "rename",
+							Name: []byte("rename"),
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: "index",
+									Name: []byte("index"),
 									Value: document.IntValue{
 										Val: 3,
 									},
@@ -108,11 +109,11 @@ func TestFieldParser(t *testing.T) {
 				input:     "preferredName: originalName(isSet: true)",
 				expectErr: BeNil(),
 				expectValues: Equal(document.Field{
-					Alias: "preferredName",
-					Name:  "originalName",
+					Alias: []byte("preferredName"),
+					Name:  []byte("originalName"),
 					Arguments: document.Arguments{
 						document.Argument{
-							Name: "isSet",
+							Name: []byte("isSet"),
 							Value: document.BooleanValue{
 								Val: true,
 							},
@@ -131,13 +132,13 @@ func TestFieldParser(t *testing.T) {
 				`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.Field{
-					Name: "originalName",
+					Name: []byte("originalName"),
 					SelectionSet: document.SelectionSet{
 						document.Field{
-							Name: "unoriginalName",
+							Name: []byte("unoriginalName"),
 							SelectionSet: document.SelectionSet{
 								document.Field{
-									Name: "worstNamePossible",
+									Name: []byte("worstNamePossible"),
 								},
 							},
 						},
@@ -161,4 +162,30 @@ func TestFieldParser(t *testing.T) {
 			})
 		}
 	})
+}
+
+var parseFieldBenchmarkInput = []byte(`t { kind name ofType { kind name ofType { kind name } } }`)
+
+func BenchmarkParseField(b *testing.B) {
+
+	reader := bytes.NewReader(parseFieldBenchmarkInput)
+	var err error
+
+	parser := NewParser()
+
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+
+		_, err = reader.Seek(0, io.SeekStart)
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		parser.l.SetInput(reader)
+		_, err = parser.parseField()
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
 }

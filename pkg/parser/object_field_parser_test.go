@@ -27,9 +27,9 @@ func TestObjectFieldParser(t *testing.T) {
 				it:              "should parse simple object field",
 				input:           `foo: "bar"`,
 				expectErr:       BeNil(),
-				expectFieldName: Equal("foo"),
+				expectFieldName: Equal(document.ByteSlice("foo")),
 				expectFieldValue: Equal(document.StringValue{
-					Val: "bar",
+					Val: document.ByteSlice("bar"),
 				}),
 			},
 		}
@@ -39,7 +39,7 @@ func TestObjectFieldParser(t *testing.T) {
 
 			g.It(test.it, func() {
 
-				reader := bytes.NewReader([]byte(test.input))
+				reader := bytes.NewReader(document.ByteSlice(test.input))
 				parser := NewParser()
 				parser.l.SetInput(reader)
 

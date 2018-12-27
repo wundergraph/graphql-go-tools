@@ -29,12 +29,12 @@ func TestInterfaceTypeDefinitionParser(t *testing.T) {
 				}`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.InterfaceTypeDefinition{
-					Name: "NameEntity",
+					Name: []byte("NameEntity"),
 					FieldsDefinition: document.FieldsDefinition{
 						document.FieldDefinition{
-							Name: "name",
+							Name: []byte("name"),
 							Type: document.NamedType{
-								Name: "String",
+								Name: []byte("String"),
 							},
 						},
 					},
@@ -48,22 +48,22 @@ func TestInterfaceTypeDefinitionParser(t *testing.T) {
 				}`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.InterfaceTypeDefinition{
-					Name: "Person",
+					Name: []byte("Person"),
 					FieldsDefinition: document.FieldsDefinition{
 						document.FieldDefinition{
-							Name: "name",
+							Name: []byte("name"),
 							Type: document.ListType{
 								Type: document.NamedType{
-									Name: "String",
+									Name: []byte("String"),
 								},
 								NonNull: true,
 							},
 						},
 						document.FieldDefinition{
-							Name: "age",
+							Name: []byte("age"),
 							Type: document.ListType{
 								Type: document.NamedType{
-									Name: "Int",
+									Name: []byte("Int"),
 								},
 							},
 						},
@@ -75,7 +75,7 @@ func TestInterfaceTypeDefinitionParser(t *testing.T) {
 				input:     `Person `,
 				expectErr: BeNil(),
 				expectValues: Equal(document.InterfaceTypeDefinition{
-					Name: "Person",
+					Name: []byte("Person"),
 				}),
 			},
 			{
@@ -85,26 +85,26 @@ func TestInterfaceTypeDefinitionParser(t *testing.T) {
 				}`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.InterfaceTypeDefinition{
-					Name: "NameEntity",
+					Name: []byte("NameEntity"),
 					Directives: document.Directives{
 						document.Directive{
-							Name: "fromTop",
+							Name: []byte("fromTop"),
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: "to",
+									Name: []byte("to"),
 									Value: document.StringValue{
-										Val: "bottom",
+										Val: []byte("bottom"),
 									},
 								},
 							},
 						},
 						document.Directive{
-							Name: "fromBottom",
+							Name: []byte("fromBottom"),
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: "to",
+									Name: []byte("to"),
 									Value: document.StringValue{
-										Val: "top",
+										Val: []byte("top"),
 									},
 								},
 							},
@@ -112,9 +112,9 @@ func TestInterfaceTypeDefinitionParser(t *testing.T) {
 					},
 					FieldsDefinition: document.FieldsDefinition{
 						document.FieldDefinition{
-							Name: "name",
+							Name: []byte("name"),
 							Type: document.NamedType{
-								Name: "String",
+								Name: []byte("String"),
 							},
 						},
 					},

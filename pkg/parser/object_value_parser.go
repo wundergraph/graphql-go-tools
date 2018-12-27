@@ -32,7 +32,7 @@ func (p *Parser) parsePeekedObjectValue() (objectValue document.ObjectValue, err
 			}
 
 			var field document.ObjectField
-			field.Name = string(identToken.Literal)
+			field.Name = identToken.Literal
 
 			expectColon, err := p.l.Peek(true)
 			if err != nil {

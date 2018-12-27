@@ -30,9 +30,9 @@ func TestFieldsDefinitionParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.FieldsDefinition{
 					{
-						Name: "name",
+						Name: []byte("name"),
 						Type: document.NamedType{
-							Name: "String",
+							Name: []byte("String"),
 						},
 					},
 				}),
@@ -46,15 +46,15 @@ func TestFieldsDefinitionParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.FieldsDefinition{
 					{
-						Name: "name",
+						Name: []byte("name"),
 						Type: document.NamedType{
-							Name: "String",
+							Name: []byte("String"),
 						},
 					},
 					{
-						Name: "age",
+						Name: []byte("age"),
 						Type: document.NamedType{
-							Name: "Int",
+							Name: []byte("Int"),
 						},
 					},
 				}),
@@ -68,10 +68,10 @@ func TestFieldsDefinitionParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.FieldsDefinition{
 					{
-						Description: "describes the name",
-						Name:        "name",
+						Description: []byte("describes the name"),
+						Name:        []byte("name"),
 						Type: document.NamedType{
-							Name: "String",
+							Name: []byte("String"),
 						},
 					},
 				}),
@@ -85,18 +85,18 @@ func TestFieldsDefinitionParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.FieldsDefinition{
 					{
-						Name: "name",
+						Name: []byte("name"),
 						Type: document.ListType{
 							Type: document.NamedType{
-								Name: "String",
+								Name: []byte("String"),
 							},
 							NonNull: true,
 						},
 					},
 					{
-						Name: "age",
+						Name: []byte("age"),
 						Type: document.NamedType{
-							Name:    "Int",
+							Name:    []byte("Int"),
 							NonNull: true,
 						},
 					},
@@ -126,9 +126,9 @@ func TestFieldsDefinitionParser(t *testing.T) {
 				expectErr: Not(BeNil()),
 				expectValues: Equal(document.FieldsDefinition{
 					{
-						Name: "name",
+						Name: []byte("name"),
 						Type: document.NamedType{
-							Name: "String",
+							Name: []byte("String"),
 						},
 					},
 				}),
@@ -141,15 +141,15 @@ func TestFieldsDefinitionParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.FieldsDefinition{
 					{
-						Name: "name",
+						Name: []byte("name"),
 						Type: document.NamedType{
-							Name: "String",
+							Name: []byte("String"),
 						},
 						ArgumentsDefinition: document.ArgumentsDefinition{
 							document.InputValueDefinition{
-								Name: "isSet",
+								Name: []byte("isSet"),
 								Type: document.NamedType{
-									Name:    "boolean",
+									Name:    []byte("boolean"),
 									NonNull: true,
 								},
 							},
@@ -165,33 +165,33 @@ func TestFieldsDefinitionParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.FieldsDefinition{
 					{
-						Name: "name",
+						Name: []byte("name"),
 						Directives: document.Directives{
 							document.Directive{
-								Name: "fromTop",
+								Name: []byte("fromTop"),
 								Arguments: document.Arguments{
 									document.Argument{
-										Name: "to",
+										Name: []byte("to"),
 										Value: document.StringValue{
-											Val: "bottom",
+											Val: []byte("bottom"),
 										},
 									},
 								},
 							},
 							document.Directive{
-								Name: "fromBottom",
+								Name: []byte("fromBottom"),
 								Arguments: document.Arguments{
 									document.Argument{
-										Name: "to",
+										Name: []byte("to"),
 										Value: document.StringValue{
-											Val: "top",
+											Val: []byte("top"),
 										},
 									},
 								},
 							},
 						},
 						Type: document.NamedType{
-							Name: "String",
+							Name: []byte("String"),
 						},
 					},
 				}),

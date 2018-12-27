@@ -35,21 +35,21 @@ func TestInlineFragmentParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.InlineFragment{
 					TypeCondition: document.NamedType{
-						Name: "Goland",
+						Name: []byte("Goland"),
 					},
 					SelectionSet: document.SelectionSet{
 						document.InlineFragment{
 							TypeCondition: document.NamedType{
-								Name: "GoWater",
+								Name: []byte("GoWater"),
 							},
 							SelectionSet: document.SelectionSet{
 								document.InlineFragment{
 									TypeCondition: document.NamedType{
-										Name: "GoAir",
+										Name: []byte("GoAir"),
 									},
 									SelectionSet: []document.Selection{
 										document.Field{
-											Name: "go",
+											Name: []byte("go"),
 										},
 									},
 								},

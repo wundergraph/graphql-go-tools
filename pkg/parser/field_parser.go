@@ -12,7 +12,7 @@ func (p *Parser) parseField() (field document.Field, err error) {
 		return field, err
 	}
 
-	field.Name = string(firstIdent.Literal)
+	field.Name = firstIdent.Literal
 
 	hasAlias, err := p.peekExpect(keyword.COLON, true)
 	if err != nil {
@@ -26,7 +26,7 @@ func (p *Parser) parseField() (field document.Field, err error) {
 			return field, err
 		}
 
-		field.Name = string(fieldName.Literal)
+		field.Name = fieldName.Literal
 	}
 
 	field.Arguments, err = p.parseArguments()

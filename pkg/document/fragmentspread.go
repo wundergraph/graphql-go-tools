@@ -3,7 +3,7 @@ package document
 // FragmentSpread as specified in:
 // http://facebook.github.io/graphql/draft/#FragmentSpread
 type FragmentSpread struct {
-	FragmentName string
+	FragmentName ByteSlice
 	Directives   Directives
 }
 

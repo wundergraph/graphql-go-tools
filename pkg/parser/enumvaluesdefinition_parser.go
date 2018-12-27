@@ -16,7 +16,7 @@ func (p *Parser) parseEnumValuesDefinition() (values document.EnumValuesDefiniti
 		return
 	}
 
-	var description string
+	var description []byte
 
 	for {
 		next, err := p.l.Peek(true)
@@ -31,7 +31,7 @@ func (p *Parser) parseEnumValuesDefinition() (values document.EnumValuesDefiniti
 				return values, err
 			}
 
-			description = string(stringToken.Literal)
+			description = stringToken.Literal
 			continue
 
 		} else if next == keyword.IDENT {
@@ -41,11 +41,11 @@ func (p *Parser) parseEnumValuesDefinition() (values document.EnumValuesDefiniti
 			}
 
 			enumValueDefinition := document.EnumValueDefinition{
-				EnumValue:   string(ident.Literal),
+				EnumValue:   ident.Literal,
 				Description: description,
 			}
 
-			description = ""
+			description = nil
 
 			enumValueDefinition.Directives, err = p.parseDirectives()
 			if err != nil {

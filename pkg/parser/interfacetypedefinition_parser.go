@@ -12,7 +12,7 @@ func (p *Parser) parseInterfaceTypeDefinition() (interfaceTypeDefinition documen
 		return
 	}
 
-	interfaceTypeDefinition.Name = string(interfaceName.Literal)
+	interfaceTypeDefinition.Name = interfaceName.Literal
 
 	interfaceTypeDefinition.Directives, err = p.parseDirectives()
 	if err != nil {

@@ -22,7 +22,7 @@ func (p *Parser) parseImplementsInterfaces() (implementsInterfaces document.Impl
 			return implementsInterfaces, err
 		}
 
-		implementsInterfaces = append(implementsInterfaces, string(next.Literal))
+		implementsInterfaces = append(implementsInterfaces, next.Literal)
 
 		willImplementAnother, err := p.peekExpect(keyword.AND, true)
 		if err != nil {

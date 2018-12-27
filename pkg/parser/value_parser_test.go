@@ -74,7 +74,7 @@ func TestValueParser(t *testing.T) {
 				input:     `"this is a string value"`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.StringValue{
-					Val: "this is a string value",
+					Val: []byte("this is a string value"),
 				}),
 			},
 			{
@@ -82,7 +82,7 @@ func TestValueParser(t *testing.T) {
 				input:     `"""this is a string value"""`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.StringValue{
-					Val: "this is a string value",
+					Val: []byte("this is a string value"),
 				}),
 			},
 			{
@@ -110,7 +110,7 @@ func TestValueParser(t *testing.T) {
 				expectValues: Equal(document.ObjectValue{
 					Val: []document.ObjectField{
 						{
-							Name: "isTrue",
+							Name: []byte("isTrue"),
 							Value: document.BooleanValue{
 								Val: true,
 							},

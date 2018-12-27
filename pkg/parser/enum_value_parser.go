@@ -11,7 +11,7 @@ func (p *Parser) parsePeekedEnumValue() (val document.EnumValue, err error) {
 		return val, err
 	}
 
-	val.Name = string(enumToken.Literal)
+	val.Name = enumToken.Literal
 
 	return
 }

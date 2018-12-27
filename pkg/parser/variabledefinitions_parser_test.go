@@ -28,9 +28,9 @@ func TestVariableDefinitionsParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.VariableDefinitions{
 					document.VariableDefinition{
-						Variable: "foo",
+						Variable: []byte("foo"),
 						Type: document.NamedType{
-							Name:    "bar",
+							Name:    []byte("bar"),
 							NonNull: true,
 						},
 					},
@@ -42,9 +42,9 @@ func TestVariableDefinitionsParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.VariableDefinitions{
 					document.VariableDefinition{
-						Variable: "color",
+						Variable: []byte("color"),
 						Type: document.NamedType{
-							Name:    "String",
+							Name:    []byte("String"),
 							NonNull: false,
 						},
 					},
@@ -56,15 +56,15 @@ func TestVariableDefinitionsParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.VariableDefinitions{
 					document.VariableDefinition{
-						Variable: "foo",
+						Variable: []byte("foo"),
 						Type: document.NamedType{
-							Name: "bar",
+							Name: []byte("bar"),
 						},
 					},
 					document.VariableDefinition{
-						Variable: "baz",
+						Variable: []byte("baz"),
 						Type: document.NamedType{
-							Name: "bax",
+							Name: []byte("bax"),
 						},
 					},
 				}),
@@ -75,15 +75,15 @@ func TestVariableDefinitionsParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.VariableDefinitions{
 					document.VariableDefinition{
-						Variable: "foo",
+						Variable: []byte("foo"),
 						Type: document.ListType{Type: document.NamedType{
-							Name: "bar",
+							Name: []byte("bar"),
 						}},
 					},
 					document.VariableDefinition{
-						Variable: "baz",
+						Variable: []byte("baz"),
 						Type: document.NamedType{
-							Name: "bax",
+							Name: []byte("bax"),
 						},
 					},
 				}),
@@ -94,16 +94,16 @@ func TestVariableDefinitionsParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.VariableDefinitions{
 					document.VariableDefinition{
-						Variable: "foo",
+						Variable: []byte("foo"),
 						Type: document.NamedType{
-							Name:    "bar",
+							Name:    []byte("bar"),
 							NonNull: true,
 						},
 					},
 					document.VariableDefinition{
-						Variable: "baz",
+						Variable: []byte("baz"),
 						Type: document.NamedType{
-							Name: "bax",
+							Name: []byte("bax"),
 						},
 					},
 				}),
@@ -114,19 +114,19 @@ func TestVariableDefinitionsParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.VariableDefinitions{
 					document.VariableDefinition{
-						Variable: "foo",
+						Variable: []byte("foo"),
 						Type: document.NamedType{
-							Name:    "bar",
+							Name:    []byte("bar"),
 							NonNull: true,
 						},
 						DefaultValue: document.StringValue{
-							Val: "me",
+							Val: []byte("me"),
 						},
 					},
 					document.VariableDefinition{
-						Variable: "baz",
+						Variable: []byte("baz"),
 						Type: document.NamedType{
-							Name: "bax",
+							Name: []byte("bax"),
 						},
 					},
 				}),
@@ -137,9 +137,9 @@ func TestVariableDefinitionsParser(t *testing.T) {
 				expectErr: Not(BeNil()),
 				expectValues: Equal(document.VariableDefinitions{
 					document.VariableDefinition{
-						Variable: "foo",
+						Variable: []byte("foo"),
 						Type: document.NamedType{
-							Name:    "bar",
+							Name:    []byte("bar"),
 							NonNull: true,
 						},
 					},

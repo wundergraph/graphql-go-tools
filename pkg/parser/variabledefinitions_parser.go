@@ -31,7 +31,7 @@ func (p *Parser) parseVariableDefinitions() (variableDefinitions document.Variab
 			}
 
 			variableDefinition := document.VariableDefinition{
-				Variable: string(variable.Literal),
+				Variable: variable.Literal,
 			}
 
 			_, err = p.readExpect(keyword.COLON, "parseVariableDefinitions")

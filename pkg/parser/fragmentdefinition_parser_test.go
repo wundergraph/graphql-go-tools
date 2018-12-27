@@ -30,16 +30,16 @@ func TestFragmentDefinitionParser(t *testing.T) {
 				}`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.FragmentDefinition{
-					FragmentName: "MyFragment",
+					FragmentName: []byte("MyFragment"),
 					TypeCondition: document.NamedType{
-						Name: "SomeType",
+						Name: []byte("SomeType"),
 					},
 					Directives: document.Directives{
 						document.Directive{
-							Name: "rename",
+							Name: []byte("rename"),
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: "index",
+									Name: []byte("index"),
 									Value: document.IntValue{
 										Val: 3,
 									},
@@ -49,7 +49,7 @@ func TestFragmentDefinitionParser(t *testing.T) {
 					},
 					SelectionSet: document.SelectionSet{
 						document.Field{
-							Name: "name",
+							Name: []byte("name"),
 						},
 					},
 				}),
@@ -62,13 +62,13 @@ func TestFragmentDefinitionParser(t *testing.T) {
 				}`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.FragmentDefinition{
-					FragmentName: "MyFragment",
+					FragmentName: []byte("MyFragment"),
 					TypeCondition: document.NamedType{
-						Name: "SomeType",
+						Name: []byte("SomeType"),
 					},
 					SelectionSet: document.SelectionSet{
 						document.Field{
-							Name: "name",
+							Name: []byte("name"),
 						},
 					},
 				}),
@@ -81,7 +81,7 @@ func TestFragmentDefinitionParser(t *testing.T) {
 				}`,
 				expectErr: Not(BeNil()),
 				expectValues: Equal(document.FragmentDefinition{
-					FragmentName: "MyFragment",
+					FragmentName: []byte("MyFragment"),
 				}),
 			},
 			{
@@ -92,7 +92,7 @@ func TestFragmentDefinitionParser(t *testing.T) {
 				}`,
 				expectErr: Not(BeNil()),
 				expectValues: Equal(document.FragmentDefinition{
-					FragmentName: "MyFragment",
+					FragmentName: []byte("MyFragment"),
 				}),
 			},
 		}

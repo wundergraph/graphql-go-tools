@@ -16,7 +16,7 @@ func (p *Parser) parseFieldsDefinition() (fieldsDefinition document.FieldsDefini
 		return
 	}
 
-	var description string
+	var description []byte
 
 	for {
 		next, err := p.l.Peek(true)
@@ -31,7 +31,8 @@ func (p *Parser) parseFieldsDefinition() (fieldsDefinition document.FieldsDefini
 				return fieldsDefinition, err
 			}
 
-			description = string(stringToken.Literal)
+			description = stringToken.Literal
+
 		case keyword.CURLYBRACKETCLOSE:
 			_, err = p.l.Read()
 			return fieldsDefinition, err
@@ -44,10 +45,10 @@ func (p *Parser) parseFieldsDefinition() (fieldsDefinition document.FieldsDefini
 
 			fieldDefinition := document.FieldDefinition{
 				Description: description,
-				Name:        string(fieldIdent.Literal),
+				Name:        fieldIdent.Literal,
 			}
 
-			description = ""
+			description = nil
 
 			fieldDefinition.ArgumentsDefinition, err = p.parseArgumentsDefinition()
 			if err != nil {

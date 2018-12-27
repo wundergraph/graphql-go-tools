@@ -1,9 +1,11 @@
 package document
 
+import "bytes"
+
 // FragmentDefinition as specified in
 // http://facebook.github.io/graphql/draft/#FragmentDefinition
 type FragmentDefinition struct {
-	FragmentName  string // but not on
+	FragmentName  ByteSlice // but not on
 	TypeCondition NamedType
 	Directives    Directives
 	SelectionSet  SelectionSet
@@ -13,9 +15,9 @@ type FragmentDefinition struct {
 type FragmentDefinitions []FragmentDefinition
 
 // GetByName returns the fragment definition with the given name if contained
-func (f FragmentDefinitions) GetByName(name string) (FragmentDefinition, bool) {
+func (f FragmentDefinitions) GetByName(name []byte) (FragmentDefinition, bool) {
 	for _, fragment := range f {
-		if fragment.FragmentName == name {
+		if bytes.Equal(fragment.FragmentName, name) {
 			return fragment, true
 		}
 	}

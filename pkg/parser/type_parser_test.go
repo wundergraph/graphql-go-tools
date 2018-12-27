@@ -27,7 +27,7 @@ func TestTypeParser(t *testing.T) {
 				input:     "String",
 				expectErr: BeNil(),
 				expectValues: Equal(document.NamedType{
-					Name: "String",
+					Name: []byte("String"),
 				}),
 			},
 			{
@@ -35,7 +35,7 @@ func TestTypeParser(t *testing.T) {
 				input:     "String!",
 				expectErr: BeNil(),
 				expectValues: Equal(document.NamedType{
-					Name:    "String",
+					Name:    []byte("String"),
 					NonNull: true,
 				}),
 			},
@@ -51,7 +51,7 @@ func TestTypeParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.ListType{
 					Type: document.NamedType{
-						Name: "String",
+						Name: []byte("String"),
 					},
 				}),
 			},
@@ -61,7 +61,7 @@ func TestTypeParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.ListType{
 					Type: document.NamedType{
-						Name: "String",
+						Name: []byte("String"),
 					},
 					NonNull: true,
 				}),
@@ -72,7 +72,7 @@ func TestTypeParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.ListType{
 					Type: document.NamedType{
-						Name:    "String",
+						Name:    []byte("String"),
 						NonNull: true,
 					},
 					NonNull: true,
@@ -86,7 +86,7 @@ func TestTypeParser(t *testing.T) {
 					Type: document.ListType{
 						Type: document.ListType{
 							Type: document.NamedType{
-								Name:    "String",
+								Name:    []byte("String"),
 								NonNull: true,
 							},
 						},
@@ -100,7 +100,7 @@ func TestTypeParser(t *testing.T) {
 				expectErr: Not(BeNil()),
 				expectValues: Equal(document.ListType{
 					Type: document.NamedType{
-						Name: "String",
+						Name: []byte("String"),
 					},
 				}),
 			},

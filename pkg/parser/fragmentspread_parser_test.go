@@ -27,13 +27,13 @@ func TestFragmentSpreadParser(t *testing.T) {
 				input:     "firstFragment @rename(index: 3)",
 				expectErr: BeNil(),
 				expectValues: Equal(document.FragmentSpread{
-					FragmentName: "firstFragment",
+					FragmentName: []byte("firstFragment"),
 					Directives: document.Directives{
 						document.Directive{
-							Name: "rename",
+							Name: []byte("rename"),
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: "index",
+									Name: []byte("index"),
 									Value: document.IntValue{
 										Val: 3,
 									},
@@ -48,7 +48,7 @@ func TestFragmentSpreadParser(t *testing.T) {
 				input:     "firstFragment ",
 				expectErr: BeNil(),
 				expectValues: Equal(document.FragmentSpread{
-					FragmentName: "firstFragment",
+					FragmentName: []byte("firstFragment"),
 				}),
 			},
 			{

@@ -17,7 +17,7 @@ func (p *Parser) parseDirectiveDefinition() (directiveDefinition document.Direct
 		return directiveDefinition, err
 	}
 
-	directiveDefinition.Name = string(directiveIdent.Literal)
+	directiveDefinition.Name = directiveIdent.Literal
 
 	directiveDefinition.ArgumentsDefinition, err = p.parseArgumentsDefinition()
 	if err != nil {

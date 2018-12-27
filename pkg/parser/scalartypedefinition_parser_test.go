@@ -26,7 +26,7 @@ func TestParseScalar(t *testing.T) {
 				input:     ` JSON`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.ScalarTypeDefinition{
-					Name: "JSON",
+					Name: []byte("JSON"),
 				}),
 			},
 			{
@@ -34,26 +34,26 @@ func TestParseScalar(t *testing.T) {
 				input:     ` JSON @fromTop(to: "bottom") @fromBottom(to: "top") `,
 				expectErr: BeNil(),
 				expectValues: Equal(document.ScalarTypeDefinition{
-					Name: "JSON",
+					Name: []byte("JSON"),
 					Directives: document.Directives{
 						document.Directive{
-							Name: "fromTop",
+							Name: []byte("fromTop"),
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: "to",
+									Name: []byte("to"),
 									Value: document.StringValue{
-										Val: "bottom",
+										Val: []byte("bottom"),
 									},
 								},
 							},
 						},
 						document.Directive{
-							Name: "fromBottom",
+							Name: []byte("fromBottom"),
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: "to",
+									Name: []byte("to"),
 									Value: document.StringValue{
-										Val: "top",
+										Val: []byte("top"),
 									},
 								},
 							},

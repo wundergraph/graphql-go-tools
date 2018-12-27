@@ -29,12 +29,12 @@ func TestObjectTypeDefinitionParser(t *testing.T) {
 				}`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.ObjectTypeDefinition{
-					Name: "Person",
+					Name: []byte("Person"),
 					FieldsDefinition: document.FieldsDefinition{
 						document.FieldDefinition{
-							Name: "name",
+							Name: []byte("name"),
 							Type: document.NamedType{
-								Name: "String",
+								Name: []byte("String"),
 							},
 						},
 					},
@@ -48,22 +48,22 @@ func TestObjectTypeDefinitionParser(t *testing.T) {
 				}`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.ObjectTypeDefinition{
-					Name: "Person",
+					Name: []byte("Person"),
 					FieldsDefinition: document.FieldsDefinition{
 						document.FieldDefinition{
-							Name: "name",
+							Name: []byte("name"),
 							Type: document.ListType{
 								Type: document.NamedType{
-									Name: "String",
+									Name: []byte("String"),
 								},
 								NonNull: true,
 							},
 						},
 						document.FieldDefinition{
-							Name: "age",
+							Name: []byte("age"),
 							Type: document.ListType{
 								Type: document.NamedType{
-									Name: "Int",
+									Name: []byte("Int"),
 								},
 							},
 						},
@@ -75,7 +75,7 @@ func TestObjectTypeDefinitionParser(t *testing.T) {
 				input:     `Person `,
 				expectErr: BeNil(),
 				expectValues: Equal(document.ObjectTypeDefinition{
-					Name: "Person",
+					Name: []byte("Person"),
 				}),
 			},
 			{
@@ -85,13 +85,13 @@ func TestObjectTypeDefinitionParser(t *testing.T) {
 				}`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.ObjectTypeDefinition{
-					Name:                 "Person",
-					ImplementsInterfaces: document.ImplementsInterfaces{"Human"},
+					Name:                 []byte("Person"),
+					ImplementsInterfaces: document.ImplementsInterfaces{[]byte("Human")},
 					FieldsDefinition: document.FieldsDefinition{
 						document.FieldDefinition{
-							Name: "name",
+							Name: []byte("name"),
 							Type: document.NamedType{
-								Name: "String",
+								Name: []byte("String"),
 							},
 						},
 					},
@@ -104,13 +104,13 @@ func TestObjectTypeDefinitionParser(t *testing.T) {
 				}`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.ObjectTypeDefinition{
-					Name:                 "Person",
-					ImplementsInterfaces: document.ImplementsInterfaces{"Human", "Mammal"},
+					Name:                 []byte("Person"),
+					ImplementsInterfaces: document.ImplementsInterfaces{[]byte("Human"), []byte("Mammal")},
 					FieldsDefinition: document.FieldsDefinition{
 						document.FieldDefinition{
-							Name: "name",
+							Name: []byte("name"),
 							Type: document.NamedType{
-								Name: "String",
+								Name: []byte("String"),
 							},
 						},
 					},
@@ -123,26 +123,26 @@ func TestObjectTypeDefinitionParser(t *testing.T) {
 				}`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.ObjectTypeDefinition{
-					Name: "Person",
+					Name: []byte("Person"),
 					Directives: document.Directives{
 						document.Directive{
-							Name: "fromTop",
+							Name: []byte("fromTop"),
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: "to",
+									Name: []byte("to"),
 									Value: document.StringValue{
-										Val: "bottom",
+										Val: []byte("bottom"),
 									},
 								},
 							},
 						},
 						document.Directive{
-							Name: "fromBottom",
+							Name: []byte("fromBottom"),
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: "to",
+									Name: []byte("to"),
 									Value: document.StringValue{
-										Val: "top",
+										Val: []byte("top"),
 									},
 								},
 							},
@@ -150,9 +150,9 @@ func TestObjectTypeDefinitionParser(t *testing.T) {
 					},
 					FieldsDefinition: document.FieldsDefinition{
 						document.FieldDefinition{
-							Name: "name",
+							Name: []byte("name"),
 							Type: document.NamedType{
-								Name: "String",
+								Name: []byte("String"),
 							},
 						},
 					},

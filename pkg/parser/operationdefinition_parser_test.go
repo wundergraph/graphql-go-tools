@@ -32,21 +32,21 @@ func TestOperationDefinitionParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.OperationDefinition{
 					OperationType: document.OperationTypeQuery,
-					Name:          "allGophers",
+					Name:          []byte("allGophers"),
 					VariableDefinitions: document.VariableDefinitions{
 						{
-							Variable: "color",
+							Variable: []byte("color"),
 							Type: document.NamedType{
-								Name: "String",
+								Name: []byte("String"),
 							},
 						},
 					},
 					Directives: document.Directives{
 						document.Directive{
-							Name: "rename",
+							Name: []byte("rename"),
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: "index",
+									Name: []byte("index"),
 									Value: document.IntValue{
 										Val: 3,
 									},
@@ -56,7 +56,7 @@ func TestOperationDefinitionParser(t *testing.T) {
 					},
 					SelectionSet: document.SelectionSet{
 						document.Field{
-							Name: "name",
+							Name: []byte("name"),
 						},
 					},
 				}),
@@ -71,18 +71,18 @@ func TestOperationDefinitionParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.OperationDefinition{
 					OperationType: document.OperationTypeQuery,
-					Name:          "allGophers",
+					Name:          []byte("allGophers"),
 					VariableDefinitions: document.VariableDefinitions{
 						{
-							Variable: "color",
+							Variable: []byte("color"),
 							Type: document.NamedType{
-								Name: "String",
+								Name: []byte("String"),
 							},
 						},
 					},
 					SelectionSet: document.SelectionSet{
 						document.Field{
-							Name: "name",
+							Name: []byte("name"),
 						},
 					},
 				}),
@@ -97,13 +97,13 @@ func TestOperationDefinitionParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.OperationDefinition{
 					OperationType: document.OperationTypeQuery,
-					Name:          "allGophers",
+					Name:          []byte("allGophers"),
 					Directives: document.Directives{
 						document.Directive{
-							Name: "rename",
+							Name: []byte("rename"),
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: "index",
+									Name: []byte("index"),
 									Value: document.IntValue{
 										Val: 3,
 									},
@@ -113,7 +113,7 @@ func TestOperationDefinitionParser(t *testing.T) {
 					},
 					SelectionSet: document.SelectionSet{
 						document.Field{
-							Name: "name",
+							Name: []byte("name"),
 						},
 					},
 				}),
@@ -130,18 +130,18 @@ func TestOperationDefinitionParser(t *testing.T) {
 					OperationType: document.OperationTypeQuery,
 					VariableDefinitions: document.VariableDefinitions{
 						{
-							Variable: "color",
+							Variable: []byte("color"),
 							Type: document.NamedType{
-								Name: "String",
+								Name: []byte("String"),
 							},
 						},
 					},
 					Directives: document.Directives{
 						document.Directive{
-							Name: "rename",
+							Name: []byte("rename"),
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: "index",
+									Name: []byte("index"),
 									Value: document.IntValue{
 										Val: 3,
 									},
@@ -151,7 +151,7 @@ func TestOperationDefinitionParser(t *testing.T) {
 					},
 					SelectionSet: document.SelectionSet{
 						document.Field{
-							Name: "name",
+							Name: []byte("name"),
 						},
 					},
 				}),
@@ -168,7 +168,7 @@ func TestOperationDefinitionParser(t *testing.T) {
 					OperationType: document.OperationTypeQuery,
 					SelectionSet: document.SelectionSet{
 						document.Field{
-							Name: "name",
+							Name: []byte("name"),
 						},
 					},
 				}),
@@ -180,21 +180,21 @@ func TestOperationDefinitionParser(t *testing.T) {
 				expectErr: Not(BeNil()),
 				expectValues: Equal(document.OperationDefinition{
 					OperationType: document.OperationTypeQuery,
-					Name:          "allGophers",
+					Name:          []byte("allGophers"),
 					VariableDefinitions: document.VariableDefinitions{
 						{
-							Variable: "color",
+							Variable: []byte("color"),
 							Type: document.NamedType{
-								Name: "String",
+								Name: []byte("String"),
 							},
 						},
 					},
 					Directives: document.Directives{
 						document.Directive{
-							Name: "rename",
+							Name: []byte("rename"),
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: "index",
+									Name: []byte("index"),
 									Value: document.IntValue{
 										Val: 3,
 									},

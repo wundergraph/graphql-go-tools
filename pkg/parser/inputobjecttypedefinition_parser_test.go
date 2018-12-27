@@ -29,12 +29,12 @@ func TestInputObjectTypeDefinitionParser(t *testing.T) {
 				}`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.InputObjectTypeDefinition{
-					Name: "Person",
+					Name: []byte("Person"),
 					InputFieldsDefinition: document.InputFieldsDefinition{
 						document.InputValueDefinition{
-							Name: "name",
+							Name: []byte("name"),
 							Type: document.NamedType{
-								Name: "String",
+								Name: []byte("String"),
 							},
 						},
 					},
@@ -48,22 +48,22 @@ func TestInputObjectTypeDefinitionParser(t *testing.T) {
 				}`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.InputObjectTypeDefinition{
-					Name: "Person",
+					Name: []byte("Person"),
 					InputFieldsDefinition: document.InputFieldsDefinition{
 						document.InputValueDefinition{
-							Name: "name",
+							Name: []byte("name"),
 							Type: document.ListType{
 								Type: document.NamedType{
-									Name: "String",
+									Name: []byte("String"),
 								},
 								NonNull: true,
 							},
 						},
 						document.InputValueDefinition{
-							Name: "age",
+							Name: []byte("age"),
 							Type: document.ListType{
 								Type: document.NamedType{
-									Name: "Int",
+									Name: []byte("Int"),
 								},
 							},
 						},
@@ -77,15 +77,15 @@ func TestInputObjectTypeDefinitionParser(t *testing.T) {
 				}`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.InputObjectTypeDefinition{
-					Name: "Person",
+					Name: []byte("Person"),
 					InputFieldsDefinition: document.InputFieldsDefinition{
 						document.InputValueDefinition{
-							Name: "name",
+							Name: []byte("name"),
 							DefaultValue: document.StringValue{
-								Val: "Gophina",
+								Val: []byte("Gophina"),
 							},
 							Type: document.NamedType{
-								Name: "String",
+								Name: []byte("String"),
 							},
 						},
 					},
@@ -96,7 +96,7 @@ func TestInputObjectTypeDefinitionParser(t *testing.T) {
 				input:     `Person `,
 				expectErr: BeNil(),
 				expectValues: Equal(document.InputObjectTypeDefinition{
-					Name: "Person",
+					Name: []byte("Person"),
 				}),
 			},
 			{
@@ -106,26 +106,26 @@ func TestInputObjectTypeDefinitionParser(t *testing.T) {
 				}`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.InputObjectTypeDefinition{
-					Name: "Person",
+					Name: []byte("Person"),
 					Directives: document.Directives{
 						document.Directive{
-							Name: "fromTop",
+							Name: []byte("fromTop"),
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: "to",
+									Name: []byte("to"),
 									Value: document.StringValue{
-										Val: "bottom",
+										Val: []byte("bottom"),
 									},
 								},
 							},
 						},
 						document.Directive{
-							Name: "fromBottom",
+							Name: []byte("fromBottom"),
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: "to",
+									Name: []byte("to"),
 									Value: document.StringValue{
-										Val: "top",
+										Val: []byte("top"),
 									},
 								},
 							},
@@ -133,9 +133,9 @@ func TestInputObjectTypeDefinitionParser(t *testing.T) {
 					},
 					InputFieldsDefinition: document.InputFieldsDefinition{
 						document.InputValueDefinition{
-							Name: "name",
+							Name: []byte("name"),
 							Type: document.NamedType{
-								Name: "String",
+								Name: []byte("String"),
 							},
 						},
 					},

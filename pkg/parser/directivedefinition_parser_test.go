@@ -27,7 +27,7 @@ func TestDirectiveDefinitionParser(t *testing.T) {
 				input:     "@ somewhere on QUERY",
 				expectErr: BeNil(),
 				expectValues: Equal(document.DirectiveDefinition{
-					Name: "somewhere",
+					Name: []byte("somewhere"),
 					DirectiveLocations: document.DirectiveLocations{
 						document.DirectiveLocationQUERY,
 					},
@@ -38,7 +38,7 @@ func TestDirectiveDefinitionParser(t *testing.T) {
 				input:     "@ somewhere on | QUERY",
 				expectErr: BeNil(),
 				expectValues: Equal(document.DirectiveDefinition{
-					Name: "somewhere",
+					Name: []byte("somewhere"),
 					DirectiveLocations: document.DirectiveLocations{
 						document.DirectiveLocationQUERY,
 					},
@@ -49,12 +49,12 @@ func TestDirectiveDefinitionParser(t *testing.T) {
 				input:     "@ somewhere(inputValue: Int) on QUERY",
 				expectErr: BeNil(),
 				expectValues: Equal(document.DirectiveDefinition{
-					Name: "somewhere",
+					Name: []byte("somewhere"),
 					ArgumentsDefinition: document.ArgumentsDefinition{
 						document.InputValueDefinition{
-							Name: "inputValue",
+							Name: []byte("inputValue"),
 							Type: document.NamedType{
-								Name: "Int",
+								Name: []byte("Int"),
 							},
 						},
 					},
@@ -68,7 +68,7 @@ func TestDirectiveDefinitionParser(t *testing.T) {
 				input:     "@ somewhere QUERY",
 				expectErr: Not(BeNil()),
 				expectValues: Equal(document.DirectiveDefinition{
-					Name: "somewhere",
+					Name: []byte("somewhere"),
 				}),
 			},
 			{
@@ -76,7 +76,7 @@ func TestDirectiveDefinitionParser(t *testing.T) {
 				input:     "@ somewhere off QUERY",
 				expectErr: Not(BeNil()),
 				expectValues: Equal(document.DirectiveDefinition{
-					Name: "somewhere",
+					Name: []byte("somewhere"),
 				}),
 			},
 			{
@@ -84,7 +84,7 @@ func TestDirectiveDefinitionParser(t *testing.T) {
 				input:     "@ somewhere on QUERY | thisshouldntwork",
 				expectErr: Not(BeNil()),
 				expectValues: Equal(document.DirectiveDefinition{
-					Name: "somewhere",
+					Name: []byte("somewhere"),
 					DirectiveLocations: document.DirectiveLocations{
 						document.DirectiveLocationQUERY,
 					},

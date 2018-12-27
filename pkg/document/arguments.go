@@ -3,7 +3,7 @@ package document
 // Argument as specified in
 // http://facebook.github.io/graphql/draft/#Argument
 type Argument struct {
-	Name  string
+	Name  ByteSlice
 	Value Value
 }
 

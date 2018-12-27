@@ -1,10 +1,12 @@
 package document
 
+import "bytes"
+
 // DirectiveDefinition as specified in
 // http://facebook.github.io/graphql/draft/#DirectiveDefinition
 type DirectiveDefinition struct {
-	Description         string
-	Name                string
+	Description         ByteSlice
+	Name                ByteSlice
 	ArgumentsDefinition ArgumentsDefinition
 	DirectiveLocations  DirectiveLocations
 }
@@ -24,9 +26,9 @@ func (d DirectiveDefinition) ContainsLocation(location DirectiveLocation) bool {
 type DirectiveDefinitions []DirectiveDefinition
 
 // GetByName returns the DirectiveDefinition via $name
-func (d DirectiveDefinitions) GetByName(name string) *DirectiveDefinition {
+func (d DirectiveDefinitions) GetByName(name []byte) *DirectiveDefinition {
 	for _, directive := range d {
-		if directive.Name == name {
+		if bytes.Equal(directive.Name, name) {
 			return &directive
 		}
 	}

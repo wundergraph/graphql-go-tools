@@ -2,6 +2,7 @@ package document
 
 import (
 	. "github.com/franela/goblin"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
 	"testing"
@@ -22,59 +23,59 @@ func TestAsGoType(t *testing.T) {
 			{
 				it: "should convert gql 'Int' to go 'int32'",
 				input: NamedType{
-					Name: "Int",
+					Name: literal.INT,
 				},
-
 				expectErr:    BeNil(),
-				expectValues: Equal("int32"),
+				expectValues: Equal([]byte("int32")),
 			},
 			{
 				it: "should convert gql 'Float' to go 'float32'",
 				input: NamedType{
-					Name: "Float",
+					Name: literal.FLOAT,
 				},
-
 				expectErr:    BeNil(),
-				expectValues: Equal("float32"),
+				expectValues: Equal([]byte("float32")),
 			},
 			{
 				it: "should convert gql 'String' to go 'string'",
 				input: NamedType{
-					Name: "String",
+					Name: literal.STRING,
 				},
 				expectErr:    BeNil(),
-				expectValues: Equal("string"),
+				expectValues: Equal([]byte("string")),
 			},
 			{
 				it: "should convert gql 'Boolean' to go 'bool'",
 				input: NamedType{
-					Name:    "Boolean",
+					Name:    literal.BOOLEAN,
 					NonNull: false,
 				},
 				expectErr:    BeNil(),
-				expectValues: Equal("bool"),
+				expectValues: Equal([]byte("bool")),
 			},
 			{
 				it: "should convert gql '[Int]' to go '[]int32'",
 				input: ListType{
 					Type: NamedType{
-						Name:    "Int",
+						Name:    literal.INT,
 						NonNull: false,
 					}},
 
 				expectErr:    BeNil(),
-				expectValues: Equal("[]int32"),
+				expectValues: Equal([]byte("[]int32")),
 			},
 			{
 				it: "should convert gql '[[Int]]' to go '[][]int32'",
 				input: ListType{
-					Type: NamedType{
-						Name:    "Int",
-						NonNull: false,
+					Type: ListType{
+						Type: NamedType{
+							Name:    literal.INT,
+							NonNull: false,
+						},
 					}},
 
 				expectErr:    BeNil(),
-				expectValues: Equal("[]int32"),
+				expectValues: Equal([]byte("[][]int32")),
 			},
 		}
 

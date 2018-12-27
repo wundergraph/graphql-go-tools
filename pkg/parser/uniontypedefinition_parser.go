@@ -12,7 +12,7 @@ func (p *Parser) parseUnionTypeDefinition() (unionTypeDefinition document.UnionT
 		return
 	}
 
-	unionTypeDefinition.Name = string(unionName.Literal)
+	unionTypeDefinition.Name = unionName.Literal
 
 	unionTypeDefinition.Directives, err = p.parseDirectives()
 	if err != nil {
@@ -35,7 +35,7 @@ func (p *Parser) parseUnionTypeDefinition() (unionTypeDefinition document.UnionT
 			return unionTypeDefinition, err
 		}
 
-		unionTypeDefinition.UnionMemberTypes = append(unionTypeDefinition.UnionMemberTypes, string(member.Literal))
+		unionTypeDefinition.UnionMemberTypes = append(unionTypeDefinition.UnionMemberTypes, member.Literal)
 
 		hasAnother, err := p.peekExpect(keyword.PIPE, true)
 		if err != nil {

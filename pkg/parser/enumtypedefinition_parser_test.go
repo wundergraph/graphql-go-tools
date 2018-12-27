@@ -32,19 +32,19 @@ func TestParseEnumTypeDefinition(t *testing.T) {
 }`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.EnumTypeDefinition{
-					Name: "Direction",
+					Name: []byte("Direction"),
 					EnumValuesDefinition: document.EnumValuesDefinition{
 						{
-							EnumValue: "NORTH",
+							EnumValue: []byte("NORTH"),
 						},
 						{
-							EnumValue: "EAST",
+							EnumValue: []byte("EAST"),
 						},
 						{
-							EnumValue: "SOUTH",
+							EnumValue: []byte("SOUTH"),
 						},
 						{
-							EnumValue: "WEST",
+							EnumValue: []byte("WEST"),
 						},
 					},
 				}),
@@ -63,23 +63,23 @@ func TestParseEnumTypeDefinition(t *testing.T) {
 }`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.EnumTypeDefinition{
-					Name: "Direction",
+					Name: []byte("Direction"),
 					EnumValuesDefinition: document.EnumValuesDefinition{
 						{
-							Description: "describes north",
-							EnumValue:   "NORTH",
+							Description: []byte("describes north"),
+							EnumValue:   []byte("NORTH"),
 						},
 						{
-							Description: "describes east",
-							EnumValue:   "EAST",
+							Description: []byte("describes east"),
+							EnumValue:   []byte("EAST"),
 						},
 						{
-							Description: "describes south",
-							EnumValue:   "SOUTH",
+							Description: []byte("describes south"),
+							EnumValue:   []byte("SOUTH"),
 						},
 						{
-							Description: "describes west",
-							EnumValue:   "WEST",
+							Description: []byte("describes west"),
+							EnumValue:   []byte("WEST"),
 						},
 					},
 				}),
@@ -101,23 +101,23 @@ func TestParseEnumTypeDefinition(t *testing.T) {
 }`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.EnumTypeDefinition{
-					Name: "Direction",
+					Name: []byte("Direction"),
 					EnumValuesDefinition: document.EnumValuesDefinition{
 						{
-							Description: "describes north",
-							EnumValue:   "NORTH",
+							Description: []byte("describes north"),
+							EnumValue:   []byte("NORTH"),
 						},
 						{
-							Description: "describes east",
-							EnumValue:   "EAST",
+							Description: []byte("describes east"),
+							EnumValue:   []byte("EAST"),
 						},
 						{
-							Description: "describes south",
-							EnumValue:   "SOUTH",
+							Description: []byte("describes south"),
+							EnumValue:   []byte("SOUTH"),
 						},
 						{
-							Description: "describes west",
-							EnumValue:   "WEST",
+							Description: []byte("describes west"),
+							EnumValue:   []byte("WEST"),
 						},
 					},
 				}),
@@ -129,26 +129,26 @@ func TestParseEnumTypeDefinition(t *testing.T) {
 }`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.EnumTypeDefinition{
-					Name: "Direction",
+					Name: []byte("Direction"),
 					Directives: document.Directives{
 						document.Directive{
-							Name: "fromTop",
+							Name: []byte("fromTop"),
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: "to",
+									Name: []byte("to"),
 									Value: document.StringValue{
-										Val: "bottom",
+										Val: []byte("bottom"),
 									},
 								},
 							},
 						},
 						document.Directive{
-							Name: "fromBottom",
+							Name: []byte("fromBottom"),
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: "to",
+									Name: []byte("to"),
 									Value: document.StringValue{
-										Val: "top",
+										Val: []byte("top"),
 									},
 								},
 							},
@@ -156,7 +156,7 @@ func TestParseEnumTypeDefinition(t *testing.T) {
 					},
 					EnumValuesDefinition: document.EnumValuesDefinition{
 						{
-							EnumValue: "NORTH",
+							EnumValue: []byte("NORTH"),
 						},
 					},
 				}),
@@ -166,7 +166,7 @@ func TestParseEnumTypeDefinition(t *testing.T) {
 				input:     ` Direction`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.EnumTypeDefinition{
-					Name: "Direction",
+					Name: []byte("Direction"),
 				}),
 			},
 		}

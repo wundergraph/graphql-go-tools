@@ -22,7 +22,7 @@ func (p *Parser) parseArguments() (arguments document.Arguments, err error) {
 		return
 	}
 
-	var valueName string
+	var valueName []byte
 
 	for {
 		key, err = p.l.Peek(true)
@@ -36,7 +36,7 @@ func (p *Parser) parseArguments() (arguments document.Arguments, err error) {
 				return nil, err
 			}
 
-			valueName = string(identToken.Literal)
+			valueName = identToken.Literal
 
 		} else if key == keyword.BRACKETCLOSE {
 			_, err = p.l.Read()

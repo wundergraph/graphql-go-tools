@@ -27,9 +27,10 @@ func TestParseUnionTypeDefinition(t *testing.T) {
 				input:     ` SearchResult = Photo | Person`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.UnionTypeDefinition{
-					Name: "SearchResult",
+					Name: []byte("SearchResult"),
 					UnionMemberTypes: document.UnionMemberTypes{
-						"Photo", "Person",
+						[]byte("Photo"),
+						[]byte("Person"),
 					},
 				}),
 			},
@@ -38,9 +39,12 @@ func TestParseUnionTypeDefinition(t *testing.T) {
 				input:     ` SearchResult = Photo | Person | Car | Planet`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.UnionTypeDefinition{
-					Name: "SearchResult",
+					Name: []byte("SearchResult"),
 					UnionMemberTypes: document.UnionMemberTypes{
-						"Photo", "Person", "Car", "Planet",
+						[]byte("Photo"),
+						[]byte("Person"),
+						[]byte("Car"),
+						[]byte("Planet"),
 					},
 				}),
 			},
@@ -52,9 +56,12 @@ func TestParseUnionTypeDefinition(t *testing.T) {
 | Planet`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.UnionTypeDefinition{
-					Name: "SearchResult",
+					Name: []byte("SearchResult"),
 					UnionMemberTypes: document.UnionMemberTypes{
-						"Photo", "Person", "Car", "Planet",
+						[]byte("Photo"),
+						[]byte("Person"),
+						[]byte("Car"),
+						[]byte("Planet"),
 					},
 				}),
 			},
@@ -63,33 +70,34 @@ func TestParseUnionTypeDefinition(t *testing.T) {
 				input:     ` SearchResult @fromTop(to: "bottom") @fromBottom(to: "top") = Photo | Person`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.UnionTypeDefinition{
-					Name: "SearchResult",
+					Name: []byte("SearchResult"),
 					Directives: document.Directives{
 						document.Directive{
-							Name: "fromTop",
+							Name: []byte("fromTop"),
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: "to",
+									Name: []byte("to"),
 									Value: document.StringValue{
-										Val: "bottom",
+										Val: []byte("bottom"),
 									},
 								},
 							},
 						},
 						document.Directive{
-							Name: "fromBottom",
+							Name: []byte("fromBottom"),
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: "to",
+									Name: []byte("to"),
 									Value: document.StringValue{
-										Val: "top",
+										Val: []byte("top"),
 									},
 								},
 							},
 						},
 					},
 					UnionMemberTypes: document.UnionMemberTypes{
-						"Photo", "Person",
+						[]byte("Photo"),
+						[]byte("Person"),
 					},
 				}),
 			},
@@ -98,7 +106,7 @@ func TestParseUnionTypeDefinition(t *testing.T) {
 				input:     ` SearchResult`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.UnionTypeDefinition{
-					Name: "SearchResult",
+					Name: []byte("SearchResult"),
 				}),
 			},
 		}

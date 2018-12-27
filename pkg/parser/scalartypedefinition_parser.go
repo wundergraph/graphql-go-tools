@@ -12,7 +12,7 @@ func (p *Parser) parseScalarTypeDefinition() (scalarTypeDefinition document.Scal
 		return
 	}
 
-	scalarTypeDefinition.Name = string(scalar.Literal)
+	scalarTypeDefinition.Name = scalar.Literal
 
 	scalarTypeDefinition.Directives, err = p.parseDirectives()
 

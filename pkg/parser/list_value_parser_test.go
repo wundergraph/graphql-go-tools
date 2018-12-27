@@ -47,7 +47,7 @@ func TestListValueParser(t *testing.T) {
 						Val: 1,
 					},
 					document.StringValue{
-						Val: "2",
+						Val: []byte("2"),
 					},
 					document.IntValue{
 						Val: 3,

@@ -12,7 +12,7 @@ func (p *Parser) parseEnumTypeDefinition() (enumTypeDefinition document.EnumType
 		return
 	}
 
-	enumTypeDefinition.Name = string(ident.Literal)
+	enumTypeDefinition.Name = ident.Literal
 
 	enumTypeDefinition.Directives, err = p.parseDirectives()
 	if err != nil {

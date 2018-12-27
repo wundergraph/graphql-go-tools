@@ -12,7 +12,7 @@ func (p *Parser) parseInputObjectTypeDefinition() (inputObjectTypeDefinition doc
 		return
 	}
 
-	inputObjectTypeDefinition.Name = string(ident.Literal)
+	inputObjectTypeDefinition.Name = ident.Literal
 
 	inputObjectTypeDefinition.Directives, err = p.parseDirectives()
 	if err != nil {

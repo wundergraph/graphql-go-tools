@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"bytes"
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer"
@@ -33,8 +32,7 @@ func (e errInvalidType) Error() string {
 
 // Parser holds the lexer and a buffer for writing literals
 type Parser struct {
-	l    Lexer
-	buff bytes.Buffer
+	l Lexer
 }
 
 // Lexer is the interface used by the Parser to lex tokens
@@ -47,8 +45,7 @@ type Lexer interface {
 // NewParser returns a new parser using a buffered runestringer
 func NewParser() *Parser {
 	return &Parser{
-		l:    lexer.NewLexer(),
-		buff: bytes.Buffer{},
+		l: lexer.NewLexer(),
 	}
 }
 

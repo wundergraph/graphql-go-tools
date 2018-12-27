@@ -28,8 +28,6 @@ func (p *Parser) parseSchemaDefinition() (schemaDefinition document.SchemaDefini
 			return schemaDefinition, err
 		case keyword.QUERY, keyword.MUTATION, keyword.SUBSCRIPTION:
 
-			operationType := string(next.Literal)
-
 			_, err = p.readExpect(keyword.COLON, "parseSchemaDefinition")
 			if err != nil {
 				return schemaDefinition, err
@@ -40,9 +38,8 @@ func (p *Parser) parseSchemaDefinition() (schemaDefinition document.SchemaDefini
 				return schemaDefinition, err
 			}
 
-			operationName := string(operationNameToken.Literal)
+			err = schemaDefinition.SetOperationType(next.Literal, operationNameToken.Literal)
 
-			err = schemaDefinition.SetOperationType(operationType, operationName)
 			if err != nil {
 				return schemaDefinition, err
 			}

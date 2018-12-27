@@ -7,7 +7,7 @@ import (
 
 func (p *Parser) parseTypeSystemDefinition() (typeSystemDefinition document.TypeSystemDefinition, err error) {
 
-	var description string
+	var description []byte
 
 	for {
 		next, err := p.l.Read()
@@ -20,7 +20,7 @@ func (p *Parser) parseTypeSystemDefinition() (typeSystemDefinition document.Type
 			return typeSystemDefinition, err
 		case keyword.STRING:
 
-			description = string(next.Literal)
+			description = next.Literal
 			continue
 
 		case keyword.SCHEMA:
@@ -109,6 +109,6 @@ func (p *Parser) parseTypeSystemDefinition() (typeSystemDefinition document.Type
 			return typeSystemDefinition, newErrInvalidType(invalid.Position, "parseTypeSystemDefinition", "eof/string/schema/scalar/type/interface/union/directive/input/enum", invalid.Keyword.String())
 		}
 
-		description = ""
+		description = nil
 	}
 }

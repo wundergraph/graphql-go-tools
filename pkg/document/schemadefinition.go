@@ -1,13 +1,17 @@
 package document
 
-import "fmt"
+import (
+	"bytes"
+	"fmt"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
+)
 
 // SchemaDefinition as specified in:
 // http://facebook.github.io/graphql/draft/#SchemaDefinition
 type SchemaDefinition struct {
-	Query        string
-	Mutation     string
-	Subscription string
+	Query        ByteSlice
+	Mutation     ByteSlice
+	Subscription ByteSlice
 	Directives   Directives
 }
 
@@ -29,28 +33,28 @@ func (s SchemaDefinition) DirectiveLocation() DirectiveLocation {
 // IsDefined returns a bool depending on whether SchemaDefinition has already
 // been defined
 func (s SchemaDefinition) IsDefined() bool {
-	return s.Query != "" || s.Mutation != "" || s.Subscription != ""
+	return len(s.Query) != 0 || len(s.Mutation) != 0 || len(s.Subscription) != 0
 }
 
 // SetOperationType sets the operationType and operationName and will return an error in case of setting one value multiple times
-func (s *SchemaDefinition) SetOperationType(operationType, operationName string) error {
-	switch operationType {
-	case "query":
-		if s.Query == "" {
+func (s *SchemaDefinition) SetOperationType(operationType, operationName []byte) error {
+
+	if bytes.Equal(operationType, literal.QUERY) {
+		if len(s.Query) == 0 {
 			s.Query = operationName
 			return nil
 		}
-	case "mutation":
-		if s.Mutation == "" {
+	} else if bytes.Equal(operationType, literal.MUTATION) {
+		if len(s.Mutation) == 0 {
 			s.Mutation = operationName
 			return nil
 		}
-	case "subscription":
-		if s.Subscription == "" {
+	} else if bytes.Equal(operationType, literal.SUBSCRIPTION) {
+		if len(s.Subscription) == 0 {
 			s.Subscription = operationName
 			return nil
 		}
-	default:
+	} else {
 		return fmt.Errorf("setOperationType: unknown operationType '%s' expected one of: [query,subscription,mutation]", operationType)
 	}
 

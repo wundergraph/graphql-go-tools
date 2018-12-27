@@ -13,7 +13,7 @@ func (p *Parser) parseInlineFragment() (inlineFragment document.InlineFragment, 
 	}
 
 	inlineFragment.TypeCondition = document.NamedType{
-		Name: string(fragmentIdent.Literal),
+		Name: fragmentIdent.Literal,
 	}
 
 	inlineFragment.Directives, err = p.parseDirectives()

@@ -12,7 +12,7 @@ func (p *Parser) parseFragmentSpread() (fragmentSpread document.FragmentSpread, 
 		return fragmentSpread, err
 	}
 
-	fragmentSpread.FragmentName = string(fragmentIdent.Literal)
+	fragmentSpread.FragmentName = fragmentIdent.Literal
 	fragmentSpread.Directives, err = p.parseDirectives()
 	return
 }

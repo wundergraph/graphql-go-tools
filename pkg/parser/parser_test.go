@@ -3,133 +3,117 @@ package parser
 import (
 	"encoding/json"
 	"fmt"
-	. "github.com/franela/goblin"
 	"github.com/jensneuse/diffview"
 	. "github.com/onsi/gomega"
 	"github.com/sebdah/goldie"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
 	"testing"
 )
 
-func TestParser(t *testing.T) {
+func TestParser_Starwars(t *testing.T) {
 
-	g := Goblin(t)
-	RegisterFailHandler(func(m string, _ ...int) { g.Fail(m) })
+	inputFileName := "../../starwars.schema.graphql"
+	fixtureFileName := "type_system_definition_parsed_starwars"
 
-	g.Describe("ParseTypeSystemDefinition()", func() {
-		tests := []struct {
-			it             string
-			inputFileName  string
-			goldenFileName string
-		}{
-			{
-				it:             "should parse the starwars schema",
-				inputFileName:  "../../starwars.schema.graphql",
-				goldenFileName: "parser_starwars_typesystemdefinition",
-			},
+	parser := NewParser()
+
+	starwarsSchema, err := os.Open(inputFileName)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer starwarsSchema.Close()
+
+	def, err := parser.ParseTypeSystemDefinition(starwarsSchema)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	jsonBytes, err := json.MarshalIndent(def, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	goldie.Assert(t, fixtureFileName, jsonBytes)
+	if t.Failed() {
+
+		fixtureData, err := ioutil.ReadFile(fmt.Sprintf("./fixtures/%s.golden", fixtureFileName))
+		if err != nil {
+			log.Fatal(err)
 		}
 
-		for _, test := range tests {
-			test := test
-			g.It(test.it, func() {
-				parser := NewParser()
+		diffview.NewGoland().DiffViewBytes(fixtureFileName, fixtureData, jsonBytes)
+	}
+}
 
-				starwarsSchema, err := os.Open(test.inputFileName)
-				if err != nil {
-					t.Fatal(err)
-				}
+func TestParser_IntrospectionQuery(t *testing.T) {
 
-				defer starwarsSchema.Close()
+	inputFileName := "./testdata/introspectionquery.graphql"
+	fixtureFileName := "type_system_definition_parsed_introspection"
 
-				def, err := parser.ParseTypeSystemDefinition(starwarsSchema)
-				if err != nil {
-					t.Fatal(err)
-				}
+	inputFile, err := os.Open(inputFileName)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-				jsonBytes, err := json.MarshalIndent(def, "", "  ")
-				if err != nil {
-					t.Fatal(err)
-				}
+	defer inputFile.Close()
 
-				goldie.Assert(t, test.goldenFileName, jsonBytes)
-				if t.Failed() {
+	parser := NewParser()
+	executableDefinition, err := parser.ParseExecutableDefinition(inputFile)
+	Expect(err).To(BeNil())
 
-					fixtureData, err := ioutil.ReadFile(fmt.Sprintf("./fixtures/%s.golden", test.goldenFileName))
-					if err != nil {
-						log.Fatal(err)
-					}
+	jsonBytes, err := json.MarshalIndent(executableDefinition, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
 
-					diffview.NewGoland().DiffViewBytes(test.goldenFileName, fixtureData, jsonBytes)
-				}
-			})
-		}
-	})
+	goldie.Assert(t, fixtureFileName, jsonBytes)
+	if t.Failed() {
 
-	g.Describe("ParseExecutableDefinition()", func() {
-		tests := []struct {
-			it             string
-			inputFileName  string
-			goldenFileName string
-		}{
-			{
-				it:             "should parse the introspection query",
-				inputFileName:  "./testdata/introspectionquery.graphql",
-				goldenFileName: "introspectionquery",
-			},
+		fixtureData, err := ioutil.ReadFile(fmt.Sprintf("./fixtures/%s.golden", fixtureFileName))
+		if err != nil {
+			log.Fatal(err)
 		}
 
-		for _, test := range tests {
-			test := test
-			g.It(test.it, func() {
-
-				inputFile, err := os.Open(test.inputFileName)
-				if err != nil {
-					g.Fail(err)
-				}
-
-				defer inputFile.Close()
-
-				parser := NewParser()
-				executableDefinition, err := parser.ParseExecutableDefinition(inputFile)
-				Expect(err).To(BeNil())
-
-				jsonBytes, err := json.MarshalIndent(executableDefinition, "", "  ")
-				if err != nil {
-					g.Fail(err)
-				}
-
-				goldie.Assert(t, test.goldenFileName, jsonBytes)
-			})
-		}
-	})
+		diffview.NewGoland().DiffViewBytes(fixtureFileName, fixtureData, jsonBytes)
+	}
 }
 
 func BenchmarkParser(b *testing.B) {
 
 	b.ReportAllocs()
 
+	parser := NewParser()
+
+	introspectionQueryFile, err := os.Open("./testdata/introspectionquery.graphql")
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	parser.ParseExecutableDefinition(introspectionQueryFile)
+
+	defer introspectionQueryFile.Close()
+
+	b.ResetTimer()
+
 	for i := 0; i < b.N; i++ {
 
 		b.StopTimer()
-
-		parser := NewParser()
-
-		introspectionQueryFile, err := os.Open("./testdata/introspectionquery.graphql")
+		_, err = introspectionQueryFile.Seek(0, io.SeekStart)
 		if err != nil {
 			b.Fatal(err)
 		}
-
 		b.StartTimer()
 
 		executableDefinition, err := parser.ParseExecutableDefinition(introspectionQueryFile)
 		if err != nil {
-			introspectionQueryFile.Close()
 			b.Fatal(err)
 		}
 
 		_ = executableDefinition
-		introspectionQueryFile.Close()
+
 	}
 }

@@ -3,6 +3,7 @@ package parser
 import (
 	"bytes"
 	. "github.com/franela/goblin"
+	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
 	"testing"
@@ -25,7 +26,7 @@ func TestEnumValueParser(t *testing.T) {
 				it:         "should parse MY_ENUM",
 				input:      "MY_ENUM",
 				expectErr:  BeNil(),
-				expectName: Equal("MY_ENUM"),
+				expectName: Equal(document.ByteSlice("MY_ENUM")),
 			},
 		}
 

@@ -30,9 +30,9 @@ func TestParseSchemaDefinition(t *testing.T) {
 }`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.SchemaDefinition{
-					Query:        "Query",
-					Mutation:     "Mutation",
-					Subscription: "Subscription",
+					Query:        []byte("Query"),
+					Mutation:     []byte("Mutation"),
+					Subscription: []byte("Subscription"),
 				}),
 			},
 			{
@@ -48,9 +48,9 @@ func TestParseSchemaDefinition(t *testing.T) {
 }`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.SchemaDefinition{
-					Query:        "Query",
-					Mutation:     "Mutation",
-					Subscription: "Subscription",
+					Query:        []byte("Query"),
+					Mutation:     []byte("Mutation"),
+					Subscription: []byte("Subscription"),
 				}),
 			},
 			{
@@ -68,9 +68,9 @@ func TestParseSchemaDefinition(t *testing.T) {
 }`,
 				expectErr: Not(BeNil()),
 				expectValues: Equal(document.SchemaDefinition{
-					Query:        "Query",
-					Mutation:     "Mutation",
-					Subscription: "Subscription",
+					Query:        []byte("Query"),
+					Mutation:     []byte("Mutation"),
+					Subscription: []byte("Subscription"),
 				}),
 			},
 			{
@@ -82,28 +82,28 @@ func TestParseSchemaDefinition(t *testing.T) {
 }`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.SchemaDefinition{
-					Query:        "Query",
-					Mutation:     "Mutation",
-					Subscription: "Subscription",
+					Query:        []byte("Query"),
+					Mutation:     []byte("Mutation"),
+					Subscription: []byte("Subscription"),
 					Directives: document.Directives{
 						document.Directive{
-							Name: "fromTop",
+							Name: []byte("fromTop"),
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: "to",
+									Name: []byte("to"),
 									Value: document.StringValue{
-										Val: "bottom",
+										Val: []byte("bottom"),
 									},
 								},
 							},
 						},
 						document.Directive{
-							Name: "fromBottom",
+							Name: []byte("fromBottom"),
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: "to",
+									Name: []byte("to"),
 									Value: document.StringValue{
-										Val: "top",
+										Val: []byte("top"),
 									},
 								},
 							},

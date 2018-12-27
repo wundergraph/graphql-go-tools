@@ -18,7 +18,7 @@ func (p *Parser) parseOperationDefinition() (operationDefinition document.Operat
 		if err != nil {
 			return operationDefinition, err
 		}
-		operationDefinition.Name = string(name.Literal)
+		operationDefinition.Name = name.Literal
 	}
 
 	operationDefinition.VariableDefinitions, err = p.parseVariableDefinitions()

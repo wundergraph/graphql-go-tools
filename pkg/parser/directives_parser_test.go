@@ -28,10 +28,10 @@ func TestDirectivesParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.Directives{
 					document.Directive{
-						Name: "rename",
+						Name: []byte("rename"),
 						Arguments: document.Arguments{
 							document.Argument{
-								Name: "index",
+								Name: []byte("index"),
 								Value: document.IntValue{
 									Val: 3,
 								},
@@ -46,10 +46,10 @@ func TestDirectivesParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.Directives{
 					document.Directive{
-						Name: "rename",
+						Name: []byte("rename"),
 						Arguments: document.Arguments{
 							document.Argument{
-								Name: "index",
+								Name: []byte("index"),
 								Value: document.IntValue{
 									Val: 3,
 								},
@@ -57,10 +57,10 @@ func TestDirectivesParser(t *testing.T) {
 						},
 					},
 					document.Directive{
-						Name: "moveto",
+						Name: []byte("moveto"),
 						Arguments: document.Arguments{
 							document.Argument{
-								Name: "index",
+								Name: []byte("index"),
 								Value: document.IntValue{
 									Val: 4,
 								},
@@ -75,16 +75,16 @@ func TestDirectivesParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.Directives{
 					document.Directive{
-						Name: "rename",
+						Name: []byte("rename"),
 						Arguments: document.Arguments{
 							document.Argument{
-								Name: "index",
+								Name: []byte("index"),
 								Value: document.IntValue{
 									Val: 3,
 								},
 							},
 							document.Argument{
-								Name: "count",
+								Name: []byte("count"),
 								Value: document.IntValue{
 									Val: 10,
 								},

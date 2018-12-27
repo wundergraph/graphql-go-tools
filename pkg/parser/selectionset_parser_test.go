@@ -6,6 +6,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
+	"io"
 	"testing"
 )
 
@@ -30,7 +31,7 @@ func TestSelectionSetParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.SelectionSet{
 					document.Field{
-						Name: "foo",
+						Name: []byte("foo"),
 					},
 				}),
 			},
@@ -45,15 +46,15 @@ func TestSelectionSetParser(t *testing.T) {
 				expectValues: Equal(document.SelectionSet{
 					document.InlineFragment{
 						TypeCondition: document.NamedType{
-							Name: "Goland",
+							Name: []byte("Goland"),
 						},
 					},
 					document.FragmentSpread{
-						FragmentName: "Air",
+						FragmentName: []byte("Air"),
 					},
 					document.InlineFragment{
 						TypeCondition: document.NamedType{
-							Name: "Water",
+							Name: []byte("Water"),
 						},
 					},
 				}),
@@ -69,15 +70,15 @@ func TestSelectionSetParser(t *testing.T) {
 				expectValues: Equal(document.SelectionSet{
 					document.InlineFragment{
 						TypeCondition: document.NamedType{
-							Name: "Goland",
+							Name: []byte("Goland"),
 						},
 					},
 					document.Field{
-						Alias: "preferredName",
-						Name:  "originalName",
+						Alias: []byte("preferredName"),
+						Name:  []byte("originalName"),
 						Arguments: document.Arguments{
 							document.Argument{
-								Name: "isSet",
+								Name: []byte("isSet"),
 								Value: document.BooleanValue{
 									Val: true,
 								},
@@ -86,7 +87,7 @@ func TestSelectionSetParser(t *testing.T) {
 					},
 					document.InlineFragment{
 						TypeCondition: document.NamedType{
-							Name: "Water",
+							Name: []byte("Water"),
 						},
 					},
 				}),
@@ -102,15 +103,15 @@ func TestSelectionSetParser(t *testing.T) {
 				expectValues: Equal(document.SelectionSet{
 					document.InlineFragment{
 						TypeCondition: document.NamedType{
-							Name: "Goland",
+							Name: []byte("Goland"),
 						},
 					},
 					document.Field{
-						Alias: "preferredName",
-						Name:  "originalName",
+						Alias: []byte("preferredName"),
+						Name:  []byte("originalName"),
 						Arguments: document.Arguments{
 							document.Argument{
-								Name: "isSet",
+								Name: []byte("isSet"),
 								Value: document.BooleanValue{
 									Val: true,
 								},
@@ -118,10 +119,10 @@ func TestSelectionSetParser(t *testing.T) {
 						},
 						Directives: document.Directives{
 							document.Directive{
-								Name: "rename",
+								Name: []byte("rename"),
 								Arguments: document.Arguments{
 									document.Argument{
-										Name: "index",
+										Name: []byte("index"),
 										Value: document.IntValue{
 											Val: 3,
 										},
@@ -132,7 +133,7 @@ func TestSelectionSetParser(t *testing.T) {
 					},
 					document.InlineFragment{
 						TypeCondition: document.NamedType{
-							Name: "Water",
+							Name: []byte("Water"),
 						},
 					},
 				}),
@@ -148,17 +149,17 @@ func TestSelectionSetParser(t *testing.T) {
 				expectValues: Equal(document.SelectionSet{
 					document.InlineFragment{
 						TypeCondition: document.NamedType{
-							Name: "Goland",
+							Name: []byte("Goland"),
 						},
 					},
 					document.FragmentSpread{
-						FragmentName: "firstFragment",
+						FragmentName: []byte("firstFragment"),
 						Directives: document.Directives{
 							document.Directive{
-								Name: "rename",
+								Name: []byte("rename"),
 								Arguments: document.Arguments{
 									document.Argument{
-										Name: "index",
+										Name: []byte("index"),
 										Value: document.IntValue{
 											Val: 3,
 										},
@@ -169,7 +170,7 @@ func TestSelectionSetParser(t *testing.T) {
 					},
 					document.InlineFragment{
 						TypeCondition: document.NamedType{
-							Name: "Water",
+							Name: []byte("Water"),
 						},
 					},
 				}),
@@ -191,4 +192,70 @@ func TestSelectionSetParser(t *testing.T) {
 			})
 		}
 	})
+}
+
+var selectionSetBenchmarkInput = []byte(`{
+  kind
+  name
+  ofType {
+    kind
+    name
+    ofType {
+      kind
+      name
+      ofType {
+        kind
+        name
+        ofType {
+          kind
+          name
+          ofType {
+            kind
+            name
+            ofType {
+              kind
+              name
+              ofType {
+                kind
+                name
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}`)
+
+func BenchmarkParseSelectionSet(b *testing.B) {
+
+	reader := bytes.NewReader(selectionSetBenchmarkInput)
+	var err error
+
+	parser := NewParser()
+
+	parse := func() {
+
+		_, err = reader.Seek(0, io.SeekStart)
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		parser.l.SetInput(reader)
+		_, err = parser.parseSelectionSet()
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+
+	for i := 0; i < 10; i++ {
+		parse()
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		parse()
+	}
 }

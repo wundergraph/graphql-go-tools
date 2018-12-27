@@ -26,7 +26,7 @@ func (p *Parser) parseDirectives() (directives document.Directives, err error) {
 			}
 
 			directive := document.Directive{
-				Name: string(ident.Literal),
+				Name: ident.Literal,
 			}
 
 			directive.Arguments, err = p.parseArguments()

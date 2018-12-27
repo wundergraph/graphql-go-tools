@@ -12,7 +12,7 @@ func (p *Parser) parsePeekedStringValue() (val document.StringValue, err error) 
 		return val, err
 	}
 
-	val.Val = string(transform.TrimWhitespace(stringToken.Literal))
+	val.Val = transform.TrimWhitespace(stringToken.Literal)
 
 	return
 }

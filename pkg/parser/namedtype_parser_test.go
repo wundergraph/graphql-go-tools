@@ -27,7 +27,7 @@ func TestNamedTypeParser(t *testing.T) {
 				input:     "String",
 				expectErr: BeNil(),
 				expectValues: Equal(document.NamedType{
-					Name: "String",
+					Name: []byte("String"),
 				}),
 			},
 			{
@@ -35,7 +35,7 @@ func TestNamedTypeParser(t *testing.T) {
 				input:     "String!",
 				expectErr: BeNil(),
 				expectValues: Equal(document.NamedType{
-					Name:    "String",
+					Name:    []byte("String"),
 					NonNull: true,
 				}),
 			},

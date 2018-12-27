@@ -14,7 +14,7 @@ import (
 
 func (p *Parser) parseInputValueDefinitions() (inputValueDefinitions []document.InputValueDefinition, err error) {
 
-	var description string
+	var description []byte
 
 	for {
 		next, err := p.l.Peek(true)
@@ -29,7 +29,7 @@ func (p *Parser) parseInputValueDefinitions() (inputValueDefinitions []document.
 				return inputValueDefinitions, err
 			}
 
-			description = string(transform.TrimWhitespace(quote.Literal))
+			description = transform.TrimWhitespace(quote.Literal)
 
 		} else if next == keyword.IDENT {
 
@@ -40,10 +40,10 @@ func (p *Parser) parseInputValueDefinitions() (inputValueDefinitions []document.
 
 			inputValueDefinition := document.InputValueDefinition{
 				Description: description,
-				Name:        string(ident.Literal),
+				Name:        ident.Literal,
 			}
 
-			description = ""
+			description = nil
 
 			_, err = p.readExpect(keyword.COLON, "parseInputValueDefinitions")
 			if err != nil {
