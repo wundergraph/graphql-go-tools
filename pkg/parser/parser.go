@@ -32,7 +32,8 @@ func (e errInvalidType) Error() string {
 
 // Parser holds the lexer and a buffer for writing literals
 type Parser struct {
-	l Lexer
+	l                   Lexer
+	selectionSetBuffers []document.SelectionSet
 }
 
 // Lexer is the interface used by the Parser to lex tokens
@@ -45,7 +46,8 @@ type Lexer interface {
 // NewParser returns a new parser using a buffered runestringer
 func NewParser() *Parser {
 	return &Parser{
-		l: lexer.NewLexer(),
+		l:                   lexer.NewLexer(),
+		selectionSetBuffers: make([]document.SelectionSet, 10),
 	}
 }
 
@@ -87,4 +89,22 @@ func (p *Parser) peekExpect(expected keyword.Keyword, swallow bool) (matched boo
 	}
 
 	return
+}
+
+func (p *Parser) getSelectionSetBuffer() *document.SelectionSet {
+
+	var s document.SelectionSet
+
+	if len(p.selectionSetBuffers) == 0 {
+		s = make(document.SelectionSet, 10)
+	} else {
+		s, p.selectionSetBuffers = p.selectionSetBuffers[0], p.selectionSetBuffers[1:]
+		s = s[:0]
+	}
+
+	return &s
+}
+
+func (p *Parser) putSelectionSet(set *document.SelectionSet) {
+	p.selectionSetBuffers = append(p.selectionSetBuffers, *set)
 }
