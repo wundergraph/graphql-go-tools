@@ -165,6 +165,17 @@ var _ = Describe("Lexer.Read", func() {
 				},
 			},
 		}),
+		Entry("should read integer with comma at the end", Case{
+			in: []byte("1337,"),
+			out: token.Token{
+				Keyword: keyword.INTEGER,
+				Literal: []byte("1337"),
+				Position: position.Position{
+					Line: 1,
+					Char: 1,
+				},
+			},
+		}),
 		Entry("should read float", Case{
 			in: []byte("13.37"),
 			out: token.Token{
@@ -1468,6 +1479,35 @@ baz`),
 					Position: position.Position{
 						Line: 2,
 						Char: 12,
+					},
+				},
+			},
+		}),
+		Entry("should read '1,2,3' as three integers", Case{
+			in: []byte("1,2,3"),
+			out: []token.Token{
+				{
+					Keyword: keyword.INTEGER,
+					Literal: []byte("1"),
+					Position: position.Position{
+						Line: 1,
+						Char: 1,
+					},
+				},
+				{
+					Keyword: keyword.INTEGER,
+					Literal: []byte("2"),
+					Position: position.Position{
+						Line: 1,
+						Char: 3,
+					},
+				},
+				{
+					Keyword: keyword.INTEGER,
+					Literal: []byte("3"),
+					Position: position.Position{
+						Line: 1,
+						Char: 5,
 					},
 				},
 			},

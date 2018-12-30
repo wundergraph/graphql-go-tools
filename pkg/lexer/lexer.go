@@ -519,15 +519,10 @@ func (l *Lexer) readDigit(position position.Position, beginWith rune) (tok token
 		return tok, err
 	}
 
-	totalMatches, err := l.writeNextDigitsToBuffer()
+	_, err = l.writeNextDigitsToBuffer()
 	if err != nil {
 		l.buffer.Reset()
 		return tok, err
-	}
-
-	if totalMatches == 0 {
-		l.buffer.Reset()
-		return tok, fmt.Errorf("readDigit: expected float part after '.'")
 	}
 
 	isFloat, err := l.peekEquals([]byte("."), true, false)
