@@ -75,10 +75,11 @@ var _ = Describe("Lexer.Read", func() {
 	It("should read correctly from reader when re-setting input", func() {
 		lexer := NewLexer()
 		lexer.SetInput(bytes.NewReader([]byte("x")))
-		x, err := lexer.Read()
+		_, err := lexer.Read()
+		Expect(err).NotTo(HaveOccurred())
 
 		lexer.SetInput(bytes.NewReader([]byte("x")))
-		x, err = lexer.Read()
+		x, err := lexer.Read()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(x).To(Equal(token.Token{
 			Keyword: keyword.IDENT,
