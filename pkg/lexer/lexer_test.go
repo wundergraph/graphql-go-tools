@@ -63,6 +63,72 @@ func TestLexerRegressions(t *testing.T) {
 }
 
 var _ = Describe("Lexer.Read", func() {
+	It("should not panic if reader is nil", func() {
+		lexer := NewLexer()
+		f := func() {
+			_, err := lexer.Read()
+			Expect(err).To(HaveOccurred())
+		}
+
+		Expect(f).ShouldNot(Panic())
+	})
+	It("should read correctly from reader when re-setting input", func() {
+		lexer := NewLexer()
+		lexer.SetInput(bytes.NewReader([]byte("x")))
+		x, err := lexer.Read()
+
+		lexer.SetInput(bytes.NewReader([]byte("x")))
+		x, err = lexer.Read()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(x).To(Equal(token.Token{
+			Keyword: keyword.IDENT,
+			Literal: []byte("x"),
+			Position: position.Position{
+				Line: 1,
+				Char: 1,
+			},
+		}))
+	})
+	It("should read eof multiple times correctly", func() {
+		lexer := NewLexer()
+		lexer.SetInput(bytes.NewReader([]byte("x")))
+
+		x, err := lexer.Read()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(x).To(Equal(token.Token{
+			Keyword: keyword.IDENT,
+			Literal: []byte("x"),
+			Position: position.Position{
+				Line: 1,
+				Char: 1,
+			},
+		}))
+
+		eof1, err := lexer.Read()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(eof1).To(Equal(token.Token{
+			Keyword: keyword.EOF,
+			Literal: []byte("eof"),
+			Position: position.Position{
+				Line: 1,
+				Char: 2,
+			},
+		}))
+
+		eof2, err := lexer.Read()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(eof2).To(Equal(token.Token{
+			Keyword: keyword.EOF,
+			Literal: []byte("eof"),
+			Position: position.Position{
+				Line: 1,
+				Char: 2,
+			},
+		}))
+	})
+})
+
+var _ = Describe("Lexer.Read", func() {
 
 	type Case struct {
 		in        []byte
@@ -717,6 +783,20 @@ var _ = Describe("Lexer.Peek()", func() {
 				},
 			}),
 		}),
+		Entry("should peek ON with whitespace behind", Case{
+			input:              []byte("on "),
+			expectKey:          Equal(keyword.ON),
+			expectErr:          BeNil(),
+			expectNextTokenErr: BeNil(),
+			expectNextToken: Equal(token.Token{
+				Keyword: keyword.ON,
+				Literal: []byte("on"),
+				Position: position.Position{
+					Line: 1,
+					Char: 1,
+				},
+			}),
+		}),
 		Entry("should peek ignore comma", Case{
 			input:     []byte(","),
 			expectKey: Equal(keyword.EOF),
@@ -1114,6 +1194,20 @@ var _ = Describe("Lexer.peekIsFloat", func() {
 	}),
 	)
 })
+
+func BenchmarkPeekIsFloat(b *testing.B) {
+	input := bytes.NewReader([]byte("13373737.37"))
+	lexer := NewLexer()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		input.Seek(0, io.SeekStart)
+		lexer.SetInput(input)
+		lexer.peekIsFloat()
+	}
+}
 
 var _ = Describe("Lexer.Read", func() {
 
