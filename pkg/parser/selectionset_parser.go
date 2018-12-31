@@ -16,24 +16,34 @@ func (p *Parser) parseSelectionSet() (selectionSet document.SelectionSet, err er
 		return
 	}
 
+	buffer := p.getSelectionSetBuffer()
+
 	for {
 
 		next, err := p.l.Peek(true)
 		if err != nil {
+			p.putSelectionSet(buffer)
 			return selectionSet, err
 		}
 
 		if next == keyword.CURLYBRACKETCLOSE {
 			_, err = p.l.Read()
+
+			selectionSet = make(document.SelectionSet, len(*buffer))
+			copy(selectionSet, *buffer)
+
+			p.putSelectionSet(buffer)
+
 			return selectionSet, err
 		}
 
 		selection, err := p.parseSelection()
 		if err != nil {
+			p.putSelectionSet(buffer)
 			return selectionSet, err
 		}
 
-		selectionSet = append(selectionSet, selection)
+		*buffer = append(*buffer, selection)
 	}
 
 }

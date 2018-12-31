@@ -18,7 +18,6 @@ import (
 type Lexer struct {
 	reader                           *bufio.Reader
 	buffer                           *bytes.Buffer
-	equalsBuffer                     *bytes.Buffer
 	line                             int
 	char                             int
 	charPositionBeforeLineTerminator int
@@ -26,13 +25,9 @@ type Lexer struct {
 
 // NewLexer initializes a new lexer
 func NewLexer() *Lexer {
-
-	l := &Lexer{
-		equalsBuffer: &bytes.Buffer{},
-		buffer:       &bytes.Buffer{},
+	return &Lexer{
+		buffer: &bytes.Buffer{},
 	}
-
-	return l
 }
 
 // SetInput sets the new reader as input and resets all position stats
@@ -63,15 +58,12 @@ func (l *Lexer) Read() (tok token.Token, err error) {
 			return tok, err
 		}
 
-		if r != runes.SPACE &&
-			r != runes.TAB &&
-			r != runes.LINETERMINATOR &&
-			r != runes.COMMA {
+		if !l.runeIsWhitespace(r) {
 			break
 		}
 	}
 
-	if tok, matched := l.switchSimpleTokens(pos, r); matched {
+	if tok, matched := l.matchSingleRuneToken(pos, r); matched {
 		return tok, nil
 	}
 
@@ -91,19 +83,19 @@ func (l *Lexer) Read() (tok token.Token, err error) {
 	return l.readIdent(pos, r)
 }
 
-func (l *Lexer) swallowWhitespace() error {
+func (l *Lexer) swallowWhitespace() (err error) {
+
+	var peeked []byte
+
 	for {
-		next, err := l.reader.Peek(1)
+		peeked, err = l.reader.Peek(1)
 		if err == io.EOF {
 			return nil
 		} else if err != nil {
 			return err
 		}
 
-		if bytes.Equal(next, literal.SPACE) ||
-			bytes.Equal(next, literal.TAB) ||
-			bytes.Equal(next, literal.LINETERMINATOR) ||
-			bytes.Equal(next, literal.COMMA) {
+		if l.bytesIsWhitespace(peeked) {
 			_, _, err = l.readRune()
 			if err != nil {
 				return err
@@ -131,10 +123,10 @@ func (l *Lexer) Peek(ignoreWhitespace bool) (key keyword.Keyword, err error) {
 		return key, err
 	}
 
-	return l.keyFromBytes(peeked)
+	return l.keywordFromBytes(peeked)
 }
 
-func (l *Lexer) keyFromBytes(b []byte) (key keyword.Keyword, err error) {
+func (l *Lexer) keywordFromBytes(b []byte) (key keyword.Keyword, err error) {
 
 	r, _ := utf8.DecodeRune(b)
 
@@ -208,30 +200,30 @@ func (l *Lexer) peekSpread() (key keyword.Keyword, err error) {
 }
 
 func (l *Lexer) peekIsFloat() (isFloat bool, err error) {
-	var numBytesToRead int
-	var bytesPeeked []byte
-	for err == nil {
-		numBytesToRead++
 
-		bytesPeeked, err = l.reader.Peek(numBytesToRead)
-		if bytes.HasSuffix(bytesPeeked, literal.SPACE) ||
-			bytes.HasSuffix(bytesPeeked, literal.TAB) ||
-			bytes.HasSuffix(bytesPeeked, literal.LINETERMINATOR) ||
-			bytes.HasSuffix(bytesPeeked, literal.COMMA) {
-			return
-		} else if bytes.HasSuffix(bytesPeeked, literal.DOT) {
-			return true, nil
+	peeked, err := l.reader.Peek(32)
+	if err == io.EOF {
+		err = nil
+	} else if err != nil {
+		return false, err
+	}
+
+	for pos := range peeked {
+		r, _ := utf8.DecodeRune(peeked[pos : pos+1])
+
+		if !isFloat && r == runes.DOT {
+			isFloat = true
+		} else if isFloat && r == runes.DOT {
+			return false, fmt.Errorf("peekIsFloat: invalid input")
+		} else if !unicode.IsDigit(r) {
+			break
 		}
 	}
 
-	if err == io.EOF {
-		err = nil
-	}
-
-	return
+	return isFloat, err
 }
 
-func (l *Lexer) switchSimpleTokens(position position.Position, run rune) (tok token.Token, matched bool) {
+func (l *Lexer) matchSingleRuneToken(position position.Position, run rune) (tok token.Token, matched bool) {
 
 	matched = true
 
@@ -278,32 +270,29 @@ func (l *Lexer) readIdent(position position.Position, beginWith rune) (tok token
 		return tok, err
 	}
 
-	var nextRune rune
+	var peeked []byte
+	var r rune
 
 	for {
-		nextRune, _, err = l.readRune()
+		peeked, err = l.reader.Peek(1)
 		if err == io.EOF {
 			err = nil
 			break
-		}
-		if err != nil {
-			l.buffer.Reset()
+		} else if err != nil {
 			return
 		}
 
-		if unicode.IsLetter(nextRune) ||
-			unicode.IsDigit(nextRune) ||
-			nextRune == runes.UNDERSCORE ||
-			nextRune == runes.NEGATIVESIGN {
-			_, err = l.buffer.WriteRune(nextRune)
+		if l.bytesIsIdent(peeked) {
+			r, _, err = l.readRune()
+			if err != nil {
+				return tok, err
+			}
+
+			_, err = l.buffer.WriteRune(r)
 			if err != nil {
 				return tok, err
 			}
 		} else {
-			err = l.unreadRune()
-			if err != nil {
-				return tok, err
-			}
 			break
 		}
 	}
@@ -312,68 +301,41 @@ func (l *Lexer) readIdent(position position.Position, beginWith rune) (tok token
 	copy(tok.Literal, l.buffer.Bytes())
 	l.buffer.Reset()
 
-	if bytes.Equal(tok.Literal, literal.TRUE) {
-		tok.Keyword = keyword.TRUE
-	} else if bytes.Equal(tok.Literal, literal.FALSE) {
-		tok.Keyword = keyword.FALSE
-	} else if bytes.Equal(tok.Literal, literal.NULL) {
-		tok.Keyword = keyword.NULL
-	} else if bytes.Equal(tok.Literal, literal.ON) {
-		tok.Keyword = keyword.ON
-	} else if bytes.Equal(tok.Literal, literal.IMPLEMENTS) {
-		tok.Keyword = keyword.IMPLEMENTS
-	} else if bytes.Equal(tok.Literal, literal.SCHEMA) {
-		tok.Keyword = keyword.SCHEMA
-	} else if bytes.Equal(tok.Literal, literal.SCALAR) {
-		tok.Keyword = keyword.SCALAR
-	} else if bytes.Equal(tok.Literal, literal.TYPE) {
-		tok.Keyword = keyword.TYPE
-	} else if bytes.Equal(tok.Literal, literal.INTERFACE) {
-		tok.Keyword = keyword.INTERFACE
-	} else if bytes.Equal(tok.Literal, literal.UNION) {
-		tok.Keyword = keyword.UNION
-	} else if bytes.Equal(tok.Literal, literal.ENUM) {
-		tok.Keyword = keyword.ENUM
-	} else if bytes.Equal(tok.Literal, literal.INPUT) {
-		tok.Keyword = keyword.INPUT
-	} else if bytes.Equal(tok.Literal, literal.DIRECTIVE) {
-		tok.Keyword = keyword.DIRECTIVE
-	} else if bytes.Equal(tok.Literal, literal.QUERY) {
-		tok.Keyword = keyword.QUERY
-	} else if bytes.Equal(tok.Literal, literal.MUTATION) {
-		tok.Keyword = keyword.MUTATION
-	} else if bytes.Equal(tok.Literal, literal.SUBSCRIPTION) {
-		tok.Keyword = keyword.SUBSCRIPTION
-	} else if bytes.Equal(tok.Literal, literal.FRAGMENT) {
-		tok.Keyword = keyword.FRAGMENT
-	} else {
-		tok.Keyword = keyword.IDENT
-	}
+	tok.Keyword = l.identKeywordFromBytes(tok.Literal)
 
 	return
 }
 
-func (l *Lexer) isTerminated(input []byte) bool {
-	return bytes.HasSuffix(input, literal.SPACE) ||
-		bytes.HasSuffix(input, literal.TAB) ||
-		bytes.HasSuffix(input, literal.LINETERMINATOR) ||
-		bytes.HasSuffix(input, literal.COMMA) ||
-		bytes.HasSuffix(input, literal.EQUALS) ||
-		bytes.HasSuffix(input, literal.COLON) ||
-		bytes.HasSuffix(input, literal.CURLYBRACKETOPEN) ||
-		bytes.HasSuffix(input, literal.CURLYBRACKETCLOSE) ||
-		bytes.HasSuffix(input, literal.BRACKETOPEN) ||
-		bytes.HasSuffix(input, literal.BRACKETCLOSE) ||
-		bytes.HasSuffix(input, literal.SQUAREBRACKETOPEN) ||
-		bytes.HasSuffix(input, literal.SQUAREBRACKETCLOSE) ||
-		bytes.HasSuffix(input, literal.PIPE) ||
-		bytes.HasSuffix(input, literal.BANG) ||
-		bytes.HasSuffix(input, literal.AND) ||
-		bytes.HasSuffix(input, literal.DOLLAR) ||
-		bytes.HasSuffix(input, literal.QUOTE) ||
-		bytes.HasSuffix(input, literal.SLASH) ||
-		bytes.HasSuffix(input, literal.BACKSLASH) ||
-		bytes.HasSuffix(input, literal.AT)
+const identWantBytes = 13
+
+func (l *Lexer) peekIdent() (k keyword.Keyword, err error) {
+
+	peeked, err := l.peekEOFSafe(identWantBytes)
+	if err != nil {
+		return k, err
+	}
+
+	nonIdentPosition := bytes.IndexFunc(peeked, func(r rune) bool {
+		return !l.runeIsIdent(r)
+	})
+
+	if l.isUnterminatedIdent(identWantBytes, len(peeked), nonIdentPosition) {
+		return keyword.IDENT, nil
+	}
+
+	if !l.isIndexFuncResultUnsatisfied(nonIdentPosition) {
+		peeked = peeked[:nonIdentPosition]
+	}
+
+	return l.identKeywordFromBytes(peeked), nil
+}
+
+func (l *Lexer) isUnterminatedIdent(nWantBytes, nGotBytes, nonIdentPosition int) bool {
+	return l.isIndexFuncResultUnsatisfied(nonIdentPosition) && nWantBytes == nGotBytes
+}
+
+func (l *Lexer) isIndexFuncResultUnsatisfied(result int) bool {
+	return result == -1
 }
 
 func (l *Lexer) peekEOFSafe(n int) ([]byte, error) {
@@ -385,205 +347,78 @@ func (l *Lexer) peekEOFSafe(n int) ([]byte, error) {
 	return nil, err
 }
 
-func (l *Lexer) peekIdent2() (done bool, k keyword.Keyword, err error) {
-
-	peeked, err := l.peekEOFSafe(3)
-	if err != nil {
-		return true, k, err
+func (l *Lexer) identKeywordFromBytes(ident []byte) (k keyword.Keyword) {
+	switch len(ident) {
+	case 2:
+		if bytes.Equal(ident, literal.ON) {
+			k = keyword.ON
+			return
+		}
+	case 4:
+		if bytes.Equal(ident, literal.TRUE) {
+			k = keyword.TRUE
+			return
+		} else if bytes.Equal(ident, literal.NULL) {
+			k = keyword.NULL
+			return
+		} else if bytes.Equal(ident, literal.TYPE) {
+			k = keyword.TYPE
+			return
+		} else if bytes.Equal(ident, literal.ENUM) {
+			k = keyword.ENUM
+			return
+		}
+	case 5:
+		if bytes.Equal(ident, literal.FALSE) {
+			k = keyword.FALSE
+			return
+		} else if bytes.Equal(ident, literal.UNION) {
+			k = keyword.UNION
+			return
+		} else if bytes.Equal(ident, literal.INPUT) {
+			k = keyword.INPUT
+			return
+		} else if bytes.Equal(ident, literal.QUERY) {
+			k = keyword.QUERY
+			return
+		}
+	case 6:
+		if bytes.Equal(ident, literal.SCHEMA) {
+			k = keyword.SCHEMA
+			return
+		} else if bytes.Equal(ident, literal.SCALAR) {
+			k = keyword.SCALAR
+			return
+		}
+	case 8:
+		if bytes.Equal(ident, literal.MUTATION) {
+			k = keyword.MUTATION
+			return
+		} else if bytes.Equal(ident, literal.FRAGMENT) {
+			k = keyword.FRAGMENT
+			return
+		}
+	case 9:
+		if bytes.Equal(ident, literal.INTERFACE) {
+			k = keyword.INTERFACE
+			return
+		} else if bytes.Equal(ident, literal.DIRECTIVE) {
+			k = keyword.DIRECTIVE
+			return
+		}
+	case 10:
+		if bytes.Equal(ident, literal.IMPLEMENTS) {
+			k = keyword.IMPLEMENTS
+			return
+		}
+	case 12:
+		if bytes.Equal(ident, literal.SUBSCRIPTION) {
+			k = keyword.SUBSCRIPTION
+			return
+		}
 	}
 
-	if len(peeked) == 3 && !l.isTerminated(peeked) {
-		return false, k, err
-	}
-
-	if bytes.HasPrefix(peeked, literal.ON) {
-		return true, keyword.ON, nil
-	}
-
-	return true, keyword.IDENT, nil
-}
-
-func (l *Lexer) peekIdent4() (done bool, k keyword.Keyword, err error) {
-
-	peeked, err := l.peekEOFSafe(5)
-	if err != nil {
-		return true, k, err
-	}
-
-	if len(peeked) == 5 && !l.isTerminated(peeked) {
-		return false, k, err
-	}
-
-	if bytes.HasPrefix(peeked, literal.TRUE) {
-		return true, keyword.TRUE, nil
-	} else if bytes.HasPrefix(peeked, literal.FALSE) {
-		return true, keyword.FALSE, nil
-	} else if bytes.HasPrefix(peeked, literal.NULL) {
-		return true, keyword.NULL, nil
-	} else if bytes.HasPrefix(peeked, literal.TYPE) {
-		return true, keyword.TYPE, nil
-	} else if bytes.HasPrefix(peeked, literal.ENUM) {
-		return true, keyword.ENUM, nil
-	}
-
-	return true, keyword.IDENT, nil
-}
-
-func (l *Lexer) peekIdent5() (done bool, k keyword.Keyword, err error) {
-
-	peeked, err := l.peekEOFSafe(6)
-	if err != nil {
-		return true, k, err
-	}
-
-	if len(peeked) == 6 && !l.isTerminated(peeked) {
-		return false, k, err
-	}
-
-	if bytes.HasPrefix(peeked, literal.FALSE) {
-		return true, keyword.FALSE, nil
-	} else if bytes.HasPrefix(peeked, literal.UNION) {
-		return true, keyword.UNION, nil
-	} else if bytes.HasPrefix(peeked, literal.INPUT) {
-		return true, keyword.INPUT, nil
-	} else if bytes.HasPrefix(peeked, literal.QUERY) {
-		return true, keyword.QUERY, nil
-	}
-
-	return true, keyword.IDENT, nil
-}
-
-func (l *Lexer) peekIdent6() (done bool, k keyword.Keyword, err error) {
-
-	peeked, err := l.peekEOFSafe(7)
-	if err != nil {
-		return true, k, err
-	}
-
-	if len(peeked) == 7 && !l.isTerminated(peeked) {
-		return false, k, err
-	}
-
-	if bytes.HasPrefix(peeked, literal.SCHEMA) {
-		return true, keyword.SCHEMA, nil
-	} else if bytes.HasPrefix(peeked, literal.SCALAR) {
-		return true, keyword.SCALAR, nil
-	}
-
-	return true, keyword.IDENT, nil
-}
-
-func (l *Lexer) peekIdent8() (done bool, k keyword.Keyword, err error) {
-
-	peeked, err := l.peekEOFSafe(9)
-	if err != nil {
-		return true, k, err
-	}
-
-	if len(peeked) == 9 && !l.isTerminated(peeked) {
-		return false, k, err
-	}
-
-	if bytes.HasPrefix(peeked, literal.MUTATION) {
-		return true, keyword.MUTATION, nil
-	} else if bytes.HasPrefix(peeked, literal.FRAGMENT) {
-		return true, keyword.FRAGMENT, nil
-	}
-
-	return true, keyword.IDENT, nil
-}
-
-func (l *Lexer) peekIdent9() (done bool, k keyword.Keyword, err error) {
-
-	peeked, err := l.peekEOFSafe(10)
-	if err != nil {
-		return true, k, err
-	}
-
-	if len(peeked) == 10 && !l.isTerminated(peeked) {
-		return false, k, err
-	}
-
-	if bytes.HasPrefix(peeked, literal.INTERFACE) {
-		return true, keyword.INTERFACE, nil
-	} else if bytes.HasPrefix(peeked, literal.DIRECTIVE) {
-		return true, keyword.DIRECTIVE, nil
-	}
-
-	return true, keyword.IDENT, nil
-}
-
-func (l *Lexer) peekIdent10() (done bool, k keyword.Keyword, err error) {
-
-	peeked, err := l.peekEOFSafe(11)
-	if err != nil {
-		return true, k, err
-	}
-
-	if len(peeked) == 11 && !l.isTerminated(peeked) {
-		return false, k, err
-	}
-
-	if bytes.HasPrefix(peeked, literal.IMPLEMENTS) {
-		return true, keyword.IMPLEMENTS, nil
-	}
-
-	return true, keyword.IDENT, nil
-}
-
-func (l *Lexer) peekIdent12() (done bool, k keyword.Keyword, err error) {
-
-	peeked, err := l.peekEOFSafe(13)
-	if err != nil {
-		return true, k, err
-	}
-
-	if len(peeked) == 13 && !l.isTerminated(peeked) {
-		return false, k, err
-	}
-
-	if bytes.HasPrefix(peeked, literal.SUBSCRIPTION) {
-		return true, keyword.SUBSCRIPTION, nil
-	}
-
-	return true, keyword.IDENT, nil
-}
-
-func (l *Lexer) peekIdent() (k keyword.Keyword, err error) {
-
-	if done, k, err := l.peekIdent2(); done {
-		return k, err
-	}
-
-	if done, k, err := l.peekIdent4(); done {
-		return k, err
-	}
-
-	if done, k, err := l.peekIdent5(); done {
-		return k, err
-	}
-
-	if done, k, err := l.peekIdent6(); done {
-		return k, err
-	}
-
-	if done, k, err := l.peekIdent8(); done {
-		return k, err
-	}
-
-	if done, k, err := l.peekIdent9(); done {
-		return k, err
-	}
-
-	if done, k, err := l.peekIdent10(); done {
-		return k, err
-	}
-
-	if done, k, err := l.peekIdent12(); done {
-		return k, err
-	}
-
-	return keyword.IDENT, nil
+	return keyword.IDENT
 }
 
 func (l *Lexer) readVariable(position position.Position) (tok token.Token, err error) {
@@ -616,7 +451,7 @@ func (l *Lexer) readSpread(position position.Position) (tok token.Token, err err
 
 	tok.Position = position
 
-	isSpread, err := l.peekEquals([]rune{runes.DOT, runes.DOT}, true, false)
+	isSpread, err := l.peekEquals([]byte(".."), true, false)
 	if err != nil {
 		return tok, err
 	}
@@ -630,67 +465,278 @@ func (l *Lexer) readSpread(position position.Position) (tok token.Token, err err
 	return
 }
 
-func (l *Lexer) readString(position position.Position) (tok token.Token, err error) {
+func (l *Lexer) readString(pos position.Position) (tok token.Token, err error) {
 
-	tok.Keyword = keyword.STRING
-	tok.Position = position
-
-	isMultiLineString, err := l.peekEquals([]rune{runes.QUOTE, runes.QUOTE}, true, true)
+	isMultiLineString, err := l.peekEquals([]byte(`""`), true, true)
 	if err != nil {
 		return tok, err
 	}
 
 	if isMultiLineString {
+		return l.readMultiLineString(pos)
+	}
 
-		var escaped bool
+	return l.readSingleLineString(pos)
+}
 
-		for {
+func (l *Lexer) swallowAmount(amount int) error {
+	for i := 0; i < amount; i++ {
+		_, _, err := l.readRune()
+		if err != nil {
+			return err
+		}
+	}
 
-			nextRune, _, err := l.readRune()
-			if err != nil {
-				return tok, err
-			}
+	return nil
+}
 
-			switch nextRune {
-			case runes.QUOTE:
-				if escaped {
-					l.buffer.WriteRune(nextRune)
-					escaped = false
-				} else {
+func (l *Lexer) peekEquals(equals []byte, swallow, returnErrorOnEOF bool) (bool, error) {
 
-					isMultiLineStringEnd, err := l.peekEquals([]rune{runes.QUOTE, runes.QUOTE}, true, true)
-					if err != nil {
-						return tok, err
-					}
+	var matches bool
+	peeked, err := l.reader.Peek(len(equals))
+	if !returnErrorOnEOF && err == io.EOF {
+		return false, nil
+	}
 
-					if !isMultiLineStringEnd {
-						l.buffer.WriteRune(nextRune)
-						escaped = false
-					} else {
-						tok.Literal = make([]byte, l.buffer.Len())
-						copy(tok.Literal, l.buffer.Bytes())
-						l.buffer.Reset()
-						tok.Literal = l.trimStartEnd(tok.Literal, literal.LINETERMINATOR)
-						return tok, nil
-					}
-				}
-			case runes.BACKSLASH:
-				if escaped {
-					l.buffer.WriteRune(nextRune)
-					escaped = false
-				} else {
-					escaped = true
-				}
-			default:
-				l.buffer.WriteRune(nextRune)
-				escaped = false
-			}
+	if err != nil {
+		return matches, err
+	}
+
+	matches = bytes.Equal(equals, peeked)
+	if swallow && matches {
+		err = l.swallowAmount(len(equals))
+	}
+
+	return matches, err
+}
+
+func (l *Lexer) readDigit(position position.Position, beginWith rune) (tok token.Token, err error) {
+
+	tok.Position = position
+
+	_, err = l.buffer.WriteRune(beginWith)
+	if err != nil {
+		return tok, err
+	}
+
+	_, err = l.writeNextDigitsToBuffer()
+	if err != nil {
+		l.buffer.Reset()
+		return tok, err
+	}
+
+	isFloat, err := l.peekEquals([]byte("."), true, false)
+	if err != nil {
+		return tok, err
+	}
+
+	if isFloat {
+		return l.readFloat(position, tok.Literal)
+	}
+
+	tok.Keyword = keyword.INTEGER
+
+	tok.Literal = make([]byte, l.buffer.Len())
+	copy(tok.Literal, l.buffer.Bytes())
+	l.buffer.Reset()
+
+	return
+}
+
+func (l *Lexer) readFloat(position position.Position, integerPart []byte) (tok token.Token, err error) {
+
+	tok.Position = position
+
+	_, err = l.buffer.WriteRune(runes.DOT)
+	if err != nil {
+		l.buffer.Reset()
+		return tok, err
+	}
+
+	totalMatches, err := l.writeNextDigitsToBuffer()
+	if err != nil {
+		l.buffer.Reset()
+		return tok, err
+	}
+
+	if totalMatches == 0 {
+		l.buffer.Reset()
+		return tok, fmt.Errorf("readFloat: expected float part after '.'")
+	}
+
+	tok.Keyword = keyword.FLOAT
+	tok.Literal = make([]byte, l.buffer.Len())
+	copy(tok.Literal, l.buffer.Bytes())
+	l.buffer.Reset()
+
+	return
+}
+
+func (l *Lexer) writeNextDigitsToBuffer() (totalMatches int, err error) {
+
+	var r rune
+
+	for {
+		r, _, err = l.readRune()
+		if err == io.EOF {
+			err = nil
+			break
+		} else if err != nil {
+			return totalMatches, err
 		}
 
-		//tok.Literal, err = l.readWriteUntil([]rune{runes.QUOTE, runes.QUOTE, runes.QUOTE}, true)
-		//tok.Literal = l.trimStartEnd(tok.Literal, literal.LINETERMINATOR)
-		return
+		if unicode.IsDigit(r) {
+			_, err = l.buffer.WriteRune(r)
+			if err != nil {
+				return totalMatches, err
+			}
+
+			totalMatches++
+
+		} else {
+			err = l.unreadRune()
+			if err != nil {
+				return totalMatches, err
+			}
+			break
+		}
 	}
+
+	return
+}
+
+func (l *Lexer) trimStartEnd(input, trim []byte) []byte {
+	return bytes.TrimSuffix(bytes.TrimPrefix(input, trim), trim)
+}
+
+func (l *Lexer) readRune() (r rune, position position.Position, err error) {
+
+	if l.reader == nil {
+		return r, position, fmt.Errorf("readRune: reader must not be nil")
+	}
+
+	position.Line = l.line
+	position.Char = l.char
+
+	r, size, err := l.reader.ReadRune()
+	if err != nil {
+		return r, position, err
+	}
+
+	if r == runes.LINETERMINATOR {
+		l.charPositionBeforeLineTerminator = l.char
+		l.line++
+		l.char = 1
+	} else {
+		l.char += size
+	}
+
+	return r, position, err
+}
+
+func (l *Lexer) unreadRune() error {
+
+	err := l.reader.UnreadRune()
+	if err != nil {
+		return err
+	}
+
+	isLineTerminator, err := l.peekEquals([]byte("\n"), false, false)
+	if err != nil {
+		return err
+	}
+
+	if isLineTerminator {
+		l.line = l.line - 1
+		l.char = l.charPositionBeforeLineTerminator
+	} else {
+		l.char = l.char - 1
+	}
+
+	return nil
+}
+
+func (l *Lexer) runeIsIdent(r rune) bool {
+	return unicode.IsLetter(r) ||
+		unicode.IsDigit(r) ||
+		r == runes.NEGATIVESIGN ||
+		r == runes.UNDERSCORE
+}
+
+func (l *Lexer) bytesIsIdent(b []byte) bool {
+	r, _ := utf8.DecodeRune(b)
+	return l.runeIsIdent(r)
+}
+
+func (l *Lexer) runeIsWhitespace(r rune) bool {
+	return r == runes.SPACE ||
+		r == runes.TAB ||
+		r == runes.LINETERMINATOR ||
+		r == runes.COMMA
+}
+
+func (l *Lexer) bytesIsWhitespace(b []byte) bool {
+	return bytes.Equal(b, literal.SPACE) ||
+		bytes.Equal(b, literal.TAB) ||
+		bytes.Equal(b, literal.LINETERMINATOR) ||
+		bytes.Equal(b, literal.COMMA)
+}
+
+func (l *Lexer) readMultiLineString(pos position.Position) (tok token.Token, err error) {
+
+	tok.Keyword = keyword.STRING
+	tok.Position = pos
+
+	var escaped bool
+
+	for {
+
+		nextRune, _, err := l.readRune()
+		if err != nil {
+			return tok, err
+		}
+
+		switch nextRune {
+		case runes.QUOTE:
+			if escaped {
+				l.buffer.WriteRune(nextRune)
+				escaped = false
+			} else {
+
+				isMultiLineStringEnd, err := l.peekEquals([]byte(`""`), true, true)
+				if err != nil {
+					return tok, err
+				}
+
+				if !isMultiLineStringEnd {
+					l.buffer.WriteRune(nextRune)
+					escaped = false
+				} else {
+					tok.Literal = make([]byte, l.buffer.Len())
+					copy(tok.Literal, l.buffer.Bytes())
+					l.buffer.Reset()
+					tok.Literal = l.trimStartEnd(tok.Literal, literal.LINETERMINATOR)
+					return tok, nil
+				}
+			}
+		case runes.BACKSLASH:
+			if escaped {
+				l.buffer.WriteRune(nextRune)
+				escaped = false
+			} else {
+				escaped = true
+			}
+		default:
+			l.buffer.WriteRune(nextRune)
+			escaped = false
+		}
+	}
+}
+
+func (l *Lexer) readSingleLineString(pos position.Position) (tok token.Token, err error) {
+
+	tok.Keyword = keyword.STRING
+	tok.Position = pos
 
 	var escaped bool
 
@@ -724,208 +770,4 @@ func (l *Lexer) readString(position position.Position) (tok token.Token, err err
 			escaped = false
 		}
 	}
-}
-
-func (l *Lexer) swallow(amount int) error {
-	for i := 0; i < amount; i++ {
-		_, _, err := l.readRune()
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (l *Lexer) peekEquals(equals []rune, swallow, returnErrorOnEOF bool) (bool, error) {
-
-	for _, r := range equals {
-		_, err := l.equalsBuffer.WriteRune(r)
-		if err != nil {
-			return false, err
-		}
-	}
-
-	equalBytes := l.equalsBuffer.Bytes()
-	l.equalsBuffer.Reset()
-
-	var matches bool
-	peeked, err := l.reader.Peek(len(equalBytes))
-	if !returnErrorOnEOF && err == io.EOF {
-		return false, nil
-	}
-
-	if err != nil {
-		return matches, err
-	}
-
-	matches = bytes.Equal(equalBytes, peeked)
-	if swallow && matches {
-		err = l.swallow(len(equals))
-	}
-
-	return matches, err
-}
-
-func (l *Lexer) readDigit(position position.Position, beginWith rune) (tok token.Token, err error) {
-
-	tok.Position = position
-
-	_, err = l.buffer.WriteRune(beginWith)
-	if err != nil {
-		return tok, err
-	}
-
-	tok.Keyword = keyword.INTEGER
-
-	var totalMatches int
-	var r rune
-
-	for {
-		r, _, err = l.readRune()
-		if err == io.EOF {
-			err = nil
-			break
-		} else if err != nil {
-			l.buffer.Reset()
-			return tok, err
-		}
-
-		if unicode.IsDigit(r) {
-			_, err = l.buffer.WriteRune(r)
-			if err != nil {
-				l.buffer.Reset()
-				return tok, err
-			}
-
-			totalMatches++
-
-		} else {
-			err = l.unreadRune()
-			if err != nil {
-				l.buffer.Reset()
-				return tok, err
-			}
-			break
-		}
-	}
-
-	tok.Literal = make([]byte, l.buffer.Len())
-	copy(tok.Literal, l.buffer.Bytes())
-	l.buffer.Reset()
-
-	isFloat, err := l.peekEquals([]rune{runes.DOT}, true, false)
-	if err != nil {
-		return tok, err
-	}
-
-	if isFloat {
-		return l.readFloat(position, tok.Literal)
-	}
-
-	return
-}
-
-func (l *Lexer) readFloat(position position.Position, integerPart []byte) (tok token.Token, err error) {
-
-	tok.Position = position
-
-	_, err = l.buffer.Write(integerPart)
-	if err != nil {
-		l.buffer.Reset()
-		return tok, err
-	}
-
-	_, err = l.buffer.WriteRune(runes.DOT)
-	if err != nil {
-		l.buffer.Reset()
-		return tok, err
-	}
-
-	var totalMatches int
-	var r rune
-
-	for {
-		r, _, err = l.readRune()
-		if err == io.EOF {
-			err = nil
-			break
-		} else if err != nil {
-			l.buffer.Reset()
-			return tok, err
-		}
-
-		if unicode.IsDigit(r) {
-			_, err = l.buffer.WriteRune(r)
-			if err != nil {
-				l.buffer.Reset()
-				return tok, err
-			}
-
-			totalMatches++
-
-		} else {
-			err = l.unreadRune()
-			if err != nil {
-				l.buffer.Reset()
-				return tok, err
-			}
-			break
-		}
-	}
-
-	if totalMatches == 0 {
-		l.buffer.Reset()
-		return tok, fmt.Errorf("readFloat: expected float part after '.'")
-	}
-
-	tok.Keyword = keyword.FLOAT
-	tok.Literal = make([]byte, l.buffer.Len())
-	copy(tok.Literal, l.buffer.Bytes())
-
-	return
-}
-
-func (l *Lexer) trimStartEnd(input, trim []byte) []byte {
-	return bytes.TrimSuffix(bytes.TrimPrefix(input, trim), trim)
-}
-
-func (l *Lexer) readRune() (r rune, position position.Position, err error) {
-
-	position.Line = l.line
-	position.Char = l.char
-
-	r, size, err := l.reader.ReadRune()
-
-	if r == runes.LINETERMINATOR {
-		l.charPositionBeforeLineTerminator = l.char
-		l.line++
-		l.char = 1
-	} else {
-		l.char += size
-	}
-
-	return r, position, err
-}
-
-func (l *Lexer) unreadRune() error {
-
-	err := l.reader.UnreadRune()
-	if err != nil {
-		return err
-	}
-
-	isLineTerminator, err := l.peekEquals([]rune{runes.LINETERMINATOR}, false, false)
-	if err != nil {
-		return err
-	}
-
-	if isLineTerminator {
-		l.line = l.line - 1
-		l.char = l.charPositionBeforeLineTerminator
-	} else {
-		l.char = l.char - 1
-	}
-
-	return nil
 }
