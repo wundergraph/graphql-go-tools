@@ -10,6 +10,7 @@ const (
 	COMMA          = ','
 	HASHTAG        = '#'
 	QUOTE          = '"'
+	SINGLE_QUOTE   = '\''
 	BACKSLASH      = '\\'
 	DOT            = '.'
 	AT             = '@'
