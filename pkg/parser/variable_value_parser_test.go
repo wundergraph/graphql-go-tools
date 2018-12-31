@@ -27,7 +27,7 @@ func TestVariableValueParser(t *testing.T) {
 				input:     `$anyIdent`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.VariableValue{
-					Name: "anyIdent",
+					Name: []byte("anyIdent"),
 				}),
 			},
 			{

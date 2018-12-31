@@ -9,7 +9,7 @@ type Value interface {
 // VariableValue as specified in:
 // http://facebook.github.io/graphql/draft/#Variable
 type VariableValue struct {
-	Name string
+	Name []byte
 }
 
 func (VariableValue) isValue() {}

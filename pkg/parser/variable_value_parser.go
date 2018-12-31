@@ -11,7 +11,7 @@ func (p *Parser) parsePeekedVariableValue() (val document.VariableValue, err err
 		return val, err
 	}
 
-	val.Name = string(variableToken.Literal)
+	val.Name = variableToken.Literal
 
 	return
 }

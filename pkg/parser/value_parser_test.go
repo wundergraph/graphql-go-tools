@@ -29,7 +29,7 @@ func TestValueParser(t *testing.T) {
 				input:     "$foo",
 				expectErr: BeNil(),
 				expectValues: Equal(document.VariableValue{
-					Name: "foo",
+					Name: []byte("foo"),
 				}),
 			},
 			{
