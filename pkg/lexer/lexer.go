@@ -9,7 +9,6 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
 	"strings"
 	"unicode"
-	"unicode/utf8"
 )
 
 // Lexer emits tokens from a input reader
@@ -23,18 +22,6 @@ type Lexer struct {
 type parsedRune struct {
 	r   rune
 	pos position.Position
-}
-
-type parsedRunes []parsedRune
-
-func (p parsedRunes) nonIdentPosition() int {
-	for i := range p {
-		if !runeIsIdent(p[i].r) {
-			return i
-		}
-	}
-
-	return -1
 }
 
 // NewLexer initializes a new lexer
@@ -334,94 +321,6 @@ func (l *Lexer) keywordFromIdentString(ident string) (k keyword.Keyword) {
 	}
 }
 
-func (l *Lexer) isUnterminatedIdent(nWantBytes, nGotBytes, nonIdentPosition int) bool {
-	return l.isIndexFuncResultUnsatisfied(nonIdentPosition) && nWantBytes == nGotBytes
-}
-
-func (l *Lexer) isIndexFuncResultUnsatisfied(result int) bool {
-	return result == -1
-}
-
-func (l *Lexer) identKeywordFromParsedRunes(runes parsedRunes) (k keyword.Keyword) {
-	switch len(runes) {
-	case 2:
-		if runes[0].r == 'o' && runes[1].r == 'n' {
-			k = keyword.ON
-			return
-		}
-	case 4:
-		if runes[0].r == 't' {
-			if runes[1].r == 'r' && runes[2].r == 'u' && runes[3].r == 'e' {
-				k = keyword.TRUE
-				return
-			} else if runes[1].r == 'y' && runes[2].r == 'p' && runes[3].r == 'e' {
-				k = keyword.TYPE
-				return
-			}
-		} else if runes[0].r == 'n' {
-			if runes[1].r == 'u' && runes[2].r == 'l' && runes[3].r == 'l' {
-				k = keyword.NULL
-				return
-			}
-		} else if runes[0].r == 'e' {
-			if runes[1].r == 'n' && runes[2].r == 'u' && runes[3].r == 'm' {
-				k = keyword.ENUM
-				return
-			}
-		}
-	case 5:
-		if runes[0].r == 'f' && runes[1].r == 'a' && runes[2].r == 'l' && runes[3].r == 's' && runes[4].r == 'e' {
-			k = keyword.FALSE
-			return
-		} else if runes[0].r == 'u' && runes[1].r == 'n' && runes[2].r == 'i' && runes[3].r == 'o' && runes[4].r == 'n' {
-			k = keyword.UNION
-			return
-		} else if runes[0].r == 'q' && runes[1].r == 'u' && runes[2].r == 'e' && runes[3].r == 'r' && runes[4].r == 'y' {
-			k = keyword.QUERY
-			return
-		} else if runes[0].r == 'i' && runes[1].r == 'n' && runes[2].r == 'p' && runes[3].r == 'u' && runes[4].r == 't' {
-			k = keyword.INPUT
-			return
-		}
-	case 6:
-		if runes[0].r == 's' && runes[1].r == 'c' && runes[2].r == 'h' && runes[3].r == 'e' && runes[4].r == 'm' && runes[5].r == 'a' {
-			k = keyword.SCHEMA
-			return
-		} else if runes[0].r == 's' && runes[1].r == 'c' && runes[2].r == 'a' && runes[3].r == 'l' && runes[4].r == 'a' && runes[5].r == 'r' {
-			k = keyword.SCALAR
-			return
-		}
-	case 8:
-		if runes[0].r == 'm' && runes[1].r == 'u' && runes[2].r == 't' && runes[3].r == 'a' && runes[4].r == 't' && runes[5].r == 'i' && runes[6].r == 'o' && runes[7].r == 'n' {
-			k = keyword.MUTATION
-			return
-		} else if runes[0].r == 'f' && runes[1].r == 'r' && runes[2].r == 'a' && runes[3].r == 'g' && runes[4].r == 'm' && runes[5].r == 'e' && runes[6].r == 'n' && runes[7].r == 't' {
-			k = keyword.FRAGMENT
-			return
-		}
-	case 9:
-		if runes[0].r == 'i' && runes[1].r == 'n' && runes[2].r == 't' && runes[3].r == 'e' && runes[4].r == 'r' && runes[5].r == 'f' && runes[6].r == 'a' && runes[7].r == 'c' && runes[8].r == 'e' {
-			k = keyword.INTERFACE
-			return
-		} else if runes[0].r == 'd' && runes[1].r == 'i' && runes[2].r == 'r' && runes[3].r == 'e' && runes[4].r == 'c' && runes[5].r == 't' && runes[6].r == 'i' && runes[7].r == 'v' && runes[8].r == 'e' {
-			k = keyword.DIRECTIVE
-			return
-		}
-	case 10:
-		if runes[0].r == 'i' && runes[1].r == 'm' && runes[2].r == 'p' && runes[3].r == 'l' && runes[4].r == 'e' && runes[5].r == 'm' && runes[6].r == 'e' && runes[7].r == 'n' && runes[8].r == 't' && runes[9].r == 's' {
-			k = keyword.IMPLEMENTS
-			return
-		}
-	case 12:
-		if runes[0].r == 's' && runes[1].r == 'u' && runes[2].r == 'b' && runes[3].r == 's' && runes[4].r == 'c' && runes[5].r == 'r' && runes[6].r == 'i' && runes[7].r == 'p' && runes[8].r == 't' && runes[9].r == 'i' && runes[10].r == 'o' && runes[11].r == 'n' {
-			k = keyword.SUBSCRIPTION
-			return
-		}
-	}
-
-	return keyword.IDENT
-}
-
 func (l *Lexer) readVariable(startRune parsedRune) (tok token.Token, err error) {
 
 	tok.Position = startRune.pos
@@ -620,19 +519,6 @@ func (l *Lexer) peekRune() (r rune) {
 	return runes.EOF
 }
 
-func (l *Lexer) peekRunes(amount int) []rune {
-
-	out := make([]rune, 0, amount)
-
-	for i := l.inputPosition; i < l.inputPosition+amount; i++ {
-		if len(l.input)-1 > 1 {
-			out = append(out, rune(l.input[i]))
-		}
-	}
-
-	return out
-}
-
 func runeIsIdent(r rune) bool {
 	switch r {
 	case 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', runes.NEGATIVESIGN, runes.UNDERSCORE:
@@ -651,16 +537,13 @@ func runeIsDigit(r rune) bool {
 	}
 }
 
-func (l *Lexer) bytesIsIdent(b []byte) bool {
-	r, _ := utf8.DecodeRune(b)
-	return runeIsIdent(r)
-}
-
 func (l *Lexer) runeIsWhitespace(r rune) bool {
-	return r == runes.SPACE ||
-		r == runes.TAB ||
-		r == runes.LINETERMINATOR ||
-		r == runes.COMMA
+	switch r {
+	case runes.SPACE, runes.TAB, runes.LINETERMINATOR, runes.COMMA:
+		return true
+	default:
+		return false
+	}
 }
 
 func (l *Lexer) readMultiLineString(startRune parsedRune) (tok token.Token, err error) {
