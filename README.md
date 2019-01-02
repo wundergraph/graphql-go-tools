@@ -40,6 +40,18 @@ BenchmarkParser-4   	   50000	     36444 ns/op	    9746 B/op	     130 allocs/op
 Allocations could easily reduced below 70 allocs/op 7000 B/op by introducing resource pooling.
 That being said I don't see any value in micro optimizing at this stage. <0.04 ms/op for parsing the Introspection Query seems good enough.
 
+For comparison (using the exact same input & hardware):
+
+```
+goos: darwin
+goarch: amd64
+pkg: github.com/vektah/gqlparser/parser
+BenchmarkParser-4   	   50000	     36128 ns/op	   16112 B/op	     217 allocs/op
+BenchmarkParser-4   	   50000	     35946 ns/op	   16112 B/op	     217 allocs/op
+BenchmarkParser-4   	   50000	     36039 ns/op	   16112 B/op	     217 allocs/op
+BenchmarkParser-4   	   50000	     35985 ns/op	   16112 B/op	     217 allocs/op
+```
+
 ## Contributors
 
 This repository was initially developed and maintained by one single person:
