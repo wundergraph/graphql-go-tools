@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"bytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
@@ -30,26 +29,26 @@ func (p *Parser) parseObjectTypeDefinition() (objectTypeDefinition document.Obje
 		return objectTypeDefinition, err
 	}
 
-	if bytes.Equal(objectTypeDefinition.Name, []byte("Query")) {
+	/*	if objectTypeDefinition.Name == "Query" {
 		introspectionFields := document.FieldsDefinition{
 			{
-				Name: []byte("__schema"),
+				Name: "__schema",
 				Type: document.NamedType{
-					Name:    []byte("__Schema"),
+					Name:    "__Schema",
 					NonNull: true,
 				},
 			},
 			{
-				Name: []byte("__type"),
+				Name: "__type",
 				Type: document.NamedType{
-					Name:    []byte("__Type"),
+					Name:    "__Type",
 					NonNull: false,
 				},
 				ArgumentsDefinition: []document.InputValueDefinition{
 					{
-						Name: []byte("name"),
+						Name: "name",
 						Type: document.NamedType{
-							Name:    []byte("String"),
+							Name:    "String",
 							NonNull: true,
 						},
 					},
@@ -58,7 +57,7 @@ func (p *Parser) parseObjectTypeDefinition() (objectTypeDefinition document.Obje
 		}
 
 		objectTypeDefinition.FieldsDefinition = append(introspectionFields, objectTypeDefinition.FieldsDefinition...)
-	}
+	}*/
 
 	return
 }

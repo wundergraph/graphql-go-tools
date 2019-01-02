@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"bytes"
 	. "github.com/franela/goblin"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	. "github.com/onsi/gomega"
@@ -27,7 +26,7 @@ func TestImplementsInterfacesParser(t *testing.T) {
 				input:     "implements Dogs",
 				expectErr: BeNil(),
 				expectValues: Equal(document.ImplementsInterfaces{
-					[]byte("Dogs"),
+					"Dogs",
 				}),
 			},
 			{
@@ -35,9 +34,9 @@ func TestImplementsInterfacesParser(t *testing.T) {
 				input:     "implements Dogs & Cats & Mice",
 				expectErr: BeNil(),
 				expectValues: Equal(document.ImplementsInterfaces{
-					[]byte("Dogs"),
-					[]byte("Cats"),
-					[]byte("Mice"),
+					"Dogs",
+					"Cats",
+					"Mice",
 				}),
 			},
 			{
@@ -45,8 +44,8 @@ func TestImplementsInterfacesParser(t *testing.T) {
 				input:     "implements Dogs & Cats Mice",
 				expectErr: BeNil(),
 				expectValues: Equal(document.ImplementsInterfaces{
-					[]byte("Dogs"),
-					[]byte("Cats"),
+					"Dogs",
+					"Cats",
 				}),
 			},
 			{
@@ -62,9 +61,8 @@ func TestImplementsInterfacesParser(t *testing.T) {
 
 			g.It(test.it, func() {
 
-				reader := bytes.NewReader([]byte(test.input))
 				parser := NewParser()
-				parser.l.SetInput(reader)
+				parser.l.SetInput(test.input)
 
 				val, err := parser.parseImplementsInterfaces()
 				Expect(err).To(test.expectErr)

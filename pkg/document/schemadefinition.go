@@ -1,7 +1,6 @@
 package document
 
 import (
-	"bytes"
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
 )
@@ -9,9 +8,9 @@ import (
 // SchemaDefinition as specified in:
 // http://facebook.github.io/graphql/draft/#SchemaDefinition
 type SchemaDefinition struct {
-	Query        ByteSlice
-	Mutation     ByteSlice
-	Subscription ByteSlice
+	Query        string
+	Mutation     string
+	Subscription string
 	Directives   Directives
 }
 
@@ -37,19 +36,19 @@ func (s SchemaDefinition) IsDefined() bool {
 }
 
 // SetOperationType sets the operationType and operationName and will return an error in case of setting one value multiple times
-func (s *SchemaDefinition) SetOperationType(operationType, operationName []byte) error {
+func (s *SchemaDefinition) SetOperationType(operationType, operationName string) error {
 
-	if bytes.Equal(operationType, literal.QUERY) {
+	if operationType == literal.QUERY {
 		if len(s.Query) == 0 {
 			s.Query = operationName
 			return nil
 		}
-	} else if bytes.Equal(operationType, literal.MUTATION) {
+	} else if operationType == literal.MUTATION {
 		if len(s.Mutation) == 0 {
 			s.Mutation = operationName
 			return nil
 		}
-	} else if bytes.Equal(operationType, literal.SUBSCRIPTION) {
+	} else if operationType == literal.SUBSCRIPTION {
 		if len(s.Subscription) == 0 {
 			s.Subscription = operationName
 			return nil
@@ -63,4 +62,4 @@ func (s *SchemaDefinition) SetOperationType(operationType, operationName []byte)
 
 // RootOperationTypeDefinition as specified in
 // http://facebook.github.io/graphql/draft/#RootOperationTypeDefinition
-type RootOperationTypeDefinition []byte
+type RootOperationTypeDefinition string

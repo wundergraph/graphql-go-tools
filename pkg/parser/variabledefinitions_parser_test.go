@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"bytes"
 	. "github.com/franela/goblin"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	. "github.com/onsi/gomega"
@@ -28,9 +27,9 @@ func TestVariableDefinitionsParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.VariableDefinitions{
 					document.VariableDefinition{
-						Variable: []byte("foo"),
+						Variable: "foo",
 						Type: document.NamedType{
-							Name:    []byte("bar"),
+							Name:    "bar",
 							NonNull: true,
 						},
 					},
@@ -42,9 +41,9 @@ func TestVariableDefinitionsParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.VariableDefinitions{
 					document.VariableDefinition{
-						Variable: []byte("color"),
+						Variable: "color",
 						Type: document.NamedType{
-							Name:    []byte("String"),
+							Name:    "String",
 							NonNull: false,
 						},
 					},
@@ -56,15 +55,15 @@ func TestVariableDefinitionsParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.VariableDefinitions{
 					document.VariableDefinition{
-						Variable: []byte("foo"),
+						Variable: "foo",
 						Type: document.NamedType{
-							Name: []byte("bar"),
+							Name: "bar",
 						},
 					},
 					document.VariableDefinition{
-						Variable: []byte("baz"),
+						Variable: "baz",
 						Type: document.NamedType{
-							Name: []byte("bax"),
+							Name: "bax",
 						},
 					},
 				}),
@@ -75,15 +74,15 @@ func TestVariableDefinitionsParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.VariableDefinitions{
 					document.VariableDefinition{
-						Variable: []byte("foo"),
+						Variable: "foo",
 						Type: document.ListType{Type: document.NamedType{
-							Name: []byte("bar"),
+							Name: "bar",
 						}},
 					},
 					document.VariableDefinition{
-						Variable: []byte("baz"),
+						Variable: "baz",
 						Type: document.NamedType{
-							Name: []byte("bax"),
+							Name: "bax",
 						},
 					},
 				}),
@@ -94,16 +93,16 @@ func TestVariableDefinitionsParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.VariableDefinitions{
 					document.VariableDefinition{
-						Variable: []byte("foo"),
+						Variable: "foo",
 						Type: document.NamedType{
-							Name:    []byte("bar"),
+							Name:    "bar",
 							NonNull: true,
 						},
 					},
 					document.VariableDefinition{
-						Variable: []byte("baz"),
+						Variable: "baz",
 						Type: document.NamedType{
-							Name: []byte("bax"),
+							Name: "bax",
 						},
 					},
 				}),
@@ -114,19 +113,19 @@ func TestVariableDefinitionsParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.VariableDefinitions{
 					document.VariableDefinition{
-						Variable: []byte("foo"),
+						Variable: "foo",
 						Type: document.NamedType{
-							Name:    []byte("bar"),
+							Name:    "bar",
 							NonNull: true,
 						},
 						DefaultValue: document.StringValue{
-							Val: []byte("me"),
+							Val: "me",
 						},
 					},
 					document.VariableDefinition{
-						Variable: []byte("baz"),
+						Variable: "baz",
 						Type: document.NamedType{
-							Name: []byte("bax"),
+							Name: "bax",
 						},
 					},
 				}),
@@ -137,9 +136,9 @@ func TestVariableDefinitionsParser(t *testing.T) {
 				expectErr: Not(BeNil()),
 				expectValues: Equal(document.VariableDefinitions{
 					document.VariableDefinition{
-						Variable: []byte("foo"),
+						Variable: "foo",
 						Type: document.NamedType{
-							Name:    []byte("bar"),
+							Name:    "bar",
 							NonNull: true,
 						},
 					},
@@ -158,9 +157,8 @@ func TestVariableDefinitionsParser(t *testing.T) {
 
 			g.It(test.it, func() {
 
-				reader := bytes.NewReader([]byte(test.input))
 				parser := NewParser()
-				parser.l.SetInput(reader)
+				parser.l.SetInput(test.input)
 
 				val, err := parser.parseVariableDefinitions()
 				Expect(err).To(test.expectErr)

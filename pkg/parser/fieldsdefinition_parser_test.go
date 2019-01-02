@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"bytes"
 	. "github.com/franela/goblin"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	. "github.com/onsi/gomega"
@@ -30,9 +29,9 @@ func TestFieldsDefinitionParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.FieldsDefinition{
 					{
-						Name: []byte("name"),
+						Name: "name",
 						Type: document.NamedType{
-							Name: []byte("String"),
+							Name: "String",
 						},
 					},
 				}),
@@ -46,15 +45,15 @@ func TestFieldsDefinitionParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.FieldsDefinition{
 					{
-						Name: []byte("name"),
+						Name: "name",
 						Type: document.NamedType{
-							Name: []byte("String"),
+							Name: "String",
 						},
 					},
 					{
-						Name: []byte("age"),
+						Name: "age",
 						Type: document.NamedType{
-							Name: []byte("Int"),
+							Name: "Int",
 						},
 					},
 				}),
@@ -68,10 +67,10 @@ func TestFieldsDefinitionParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.FieldsDefinition{
 					{
-						Description: []byte("describes the name"),
-						Name:        []byte("name"),
+						Description: "describes the name",
+						Name:        "name",
 						Type: document.NamedType{
-							Name: []byte("String"),
+							Name: "String",
 						},
 					},
 				}),
@@ -85,18 +84,18 @@ func TestFieldsDefinitionParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.FieldsDefinition{
 					{
-						Name: []byte("name"),
+						Name: "name",
 						Type: document.ListType{
 							Type: document.NamedType{
-								Name: []byte("String"),
+								Name: "String",
 							},
 							NonNull: true,
 						},
 					},
 					{
-						Name: []byte("age"),
+						Name: "age",
 						Type: document.NamedType{
-							Name:    []byte("Int"),
+							Name:    "Int",
 							NonNull: true,
 						},
 					},
@@ -126,9 +125,9 @@ func TestFieldsDefinitionParser(t *testing.T) {
 				expectErr: Not(BeNil()),
 				expectValues: Equal(document.FieldsDefinition{
 					{
-						Name: []byte("name"),
+						Name: "name",
 						Type: document.NamedType{
-							Name: []byte("String"),
+							Name: "String",
 						},
 					},
 				}),
@@ -141,15 +140,15 @@ func TestFieldsDefinitionParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.FieldsDefinition{
 					{
-						Name: []byte("name"),
+						Name: "name",
 						Type: document.NamedType{
-							Name: []byte("String"),
+							Name: "String",
 						},
 						ArgumentsDefinition: document.ArgumentsDefinition{
 							document.InputValueDefinition{
-								Name: []byte("isSet"),
+								Name: "isSet",
 								Type: document.NamedType{
-									Name:    []byte("boolean"),
+									Name:    "boolean",
 									NonNull: true,
 								},
 							},
@@ -165,33 +164,33 @@ func TestFieldsDefinitionParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.FieldsDefinition{
 					{
-						Name: []byte("name"),
+						Name: "name",
 						Directives: document.Directives{
 							document.Directive{
-								Name: []byte("fromTop"),
+								Name: "fromTop",
 								Arguments: document.Arguments{
 									document.Argument{
-										Name: []byte("to"),
+										Name: "to",
 										Value: document.StringValue{
-											Val: []byte("bottom"),
+											Val: "bottom",
 										},
 									},
 								},
 							},
 							document.Directive{
-								Name: []byte("fromBottom"),
+								Name: "fromBottom",
 								Arguments: document.Arguments{
 									document.Argument{
-										Name: []byte("to"),
+										Name: "to",
 										Value: document.StringValue{
-											Val: []byte("top"),
+											Val: "top",
 										},
 									},
 								},
 							},
 						},
 						Type: document.NamedType{
-							Name: []byte("String"),
+							Name: "String",
 						},
 					},
 				}),
@@ -203,9 +202,8 @@ func TestFieldsDefinitionParser(t *testing.T) {
 
 			g.It(test.it, func() {
 
-				reader := bytes.NewReader([]byte(test.input))
 				parser := NewParser()
-				parser.l.SetInput(reader)
+				parser.l.SetInput(test.input)
 
 				val, err := parser.parseFieldsDefinition()
 				Expect(err).To(test.expectErr)

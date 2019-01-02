@@ -3,7 +3,7 @@ package document
 // ObjectField as specified in:
 // http://facebook.github.io/graphql/draft/#ObjectField
 type ObjectField struct {
-	Name  ByteSlice
+	Name  string
 	Value Value
 }
 

@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"bytes"
 	. "github.com/franela/goblin"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	. "github.com/onsi/gomega"
@@ -32,8 +31,8 @@ func TestTypeSystemDefinition(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.TypeSystemDefinition{
 					SchemaDefinition: document.SchemaDefinition{
-						Query:    []byte("Query"),
-						Mutation: []byte("Mutation"),
+						Query:    "Query",
+						Mutation: "Mutation",
 					}}),
 			},
 			{
@@ -47,19 +46,19 @@ func TestTypeSystemDefinition(t *testing.T) {
 				expectValues: Equal(document.TypeSystemDefinition{
 					ScalarTypeDefinitions: []document.ScalarTypeDefinition{
 						{
-							Name:        []byte("JSON"),
-							Description: []byte("this is a scalar"),
+							Name:        "JSON",
+							Description: "this is a scalar",
 						},
 						{
-							Name: []byte("testName"),
+							Name: "testName",
 							Directives: document.Directives{
 								document.Directive{
-									Name: []byte("fromTop"),
+									Name: "fromTop",
 									Arguments: document.Arguments{
 										document.Argument{
-											Name: []byte("to"),
+											Name: "to",
 											Value: document.StringValue{
-												Val: []byte("bottom"),
+												Val: "bottom",
 											},
 										},
 									},
@@ -67,8 +66,8 @@ func TestTypeSystemDefinition(t *testing.T) {
 							},
 						},
 						{
-							Name:        []byte("XML"),
-							Description: []byte("this is another scalar"),
+							Name:        "XML",
+							Description: "this is another scalar",
 						},
 					}}),
 			},
@@ -91,34 +90,34 @@ func TestTypeSystemDefinition(t *testing.T) {
 				expectValues: Equal(document.TypeSystemDefinition{
 					ObjectTypeDefinitions: []document.ObjectTypeDefinition{
 						{
-							Name:        []byte("Person"),
-							Description: []byte("this is a Person"),
+							Name:        "Person",
+							Description: "this is a Person",
 							FieldsDefinition: document.FieldsDefinition{
 								document.FieldDefinition{
-									Name: []byte("name"),
+									Name: "name",
 									Type: document.NamedType{
-										Name: []byte("String"),
+										Name: "String",
 									},
 								},
 							},
 						},
 						{
-							Name: []byte("testType"),
+							Name: "testType",
 						},
 						{
-							Name:        []byte("secondType"),
-							Description: []byte("second Type"),
+							Name:        "secondType",
+							Description: "second Type",
 						},
 						{
-							Name: []byte("thirdType"),
+							Name: "thirdType",
 							Directives: document.Directives{
 								document.Directive{
-									Name: []byte("fromTop"),
+									Name: "fromTop",
 									Arguments: document.Arguments{
 										document.Argument{
-											Name: []byte("to"),
+											Name: "to",
 											Value: document.StringValue{
-												Val: []byte("bottom"),
+												Val: "bottom",
 											},
 										},
 									},
@@ -126,13 +125,13 @@ func TestTypeSystemDefinition(t *testing.T) {
 							},
 						},
 						{
-							Name:        []byte("Animal"),
-							Description: []byte("this is an Animal"),
+							Name:        "Animal",
+							Description: "this is an Animal",
 							FieldsDefinition: document.FieldsDefinition{
 								document.FieldDefinition{
-									Name: []byte("age"),
+									Name: "age",
 									Type: document.NamedType{
-										Name: []byte("Int"),
+										Name: "Int",
 									},
 								},
 							},
@@ -159,34 +158,34 @@ func TestTypeSystemDefinition(t *testing.T) {
 				expectValues: Equal(document.TypeSystemDefinition{
 					InterfaceTypeDefinitions: []document.InterfaceTypeDefinition{
 						{
-							Name:        []byte("firstEntity"),
-							Description: []byte("describes firstEntity"),
+							Name:        "firstEntity",
+							Description: "describes firstEntity",
 							FieldsDefinition: document.FieldsDefinition{
 								document.FieldDefinition{
-									Name: []byte("name"),
+									Name: "name",
 									Type: document.NamedType{
-										Name: []byte("String"),
+										Name: "String",
 									},
 								},
 							},
 						},
 						{
-							Name: []byte("firstInterface"),
+							Name: "firstInterface",
 						},
 						{
-							Name:        []byte("secondInterface"),
-							Description: []byte("second interface"),
+							Name:        "secondInterface",
+							Description: "second interface",
 						},
 						{
-							Name: []byte("thirdInterface"),
+							Name: "thirdInterface",
 							Directives: document.Directives{
 								document.Directive{
-									Name: []byte("fromTop"),
+									Name: "fromTop",
 									Arguments: document.Arguments{
 										document.Argument{
-											Name: []byte("to"),
+											Name: "to",
 											Value: document.StringValue{
-												Val: []byte("bottom"),
+												Val: "bottom",
 											},
 										},
 									},
@@ -194,13 +193,13 @@ func TestTypeSystemDefinition(t *testing.T) {
 							},
 						},
 						{
-							Name:        []byte("secondEntity"),
-							Description: []byte("describes secondEntity"),
+							Name:        "secondEntity",
+							Description: "describes secondEntity",
 							FieldsDefinition: document.FieldsDefinition{
 								document.FieldDefinition{
-									Name: []byte("age"),
+									Name: "age",
 									Type: document.NamedType{
-										Name: []byte("Int"),
+										Name: "Int",
 									},
 								},
 							},
@@ -224,30 +223,30 @@ func TestTypeSystemDefinition(t *testing.T) {
 				expectValues: Equal(document.TypeSystemDefinition{
 					UnionTypeDefinitions: []document.UnionTypeDefinition{
 						{
-							Name:        []byte("SearchResult"),
-							Description: []byte("unifies SearchResult"),
+							Name:        "SearchResult",
+							Description: "unifies SearchResult",
 							UnionMemberTypes: document.UnionMemberTypes{
-								[]byte("Photo"),
-								[]byte("Person"),
+								"Photo",
+								"Person",
 							},
 						},
 						{
-							Name: []byte("thirdUnion"),
+							Name: "thirdUnion",
 						},
 						{
-							Name:        []byte("secondUnion"),
-							Description: []byte("second union"),
+							Name:        "secondUnion",
+							Description: "second union",
 						},
 						{
-							Name: []byte("firstUnion"),
+							Name: "firstUnion",
 							Directives: document.Directives{
 								document.Directive{
-									Name: []byte("fromTop"),
+									Name: "fromTop",
 									Arguments: document.Arguments{
 										document.Argument{
-											Name: []byte("to"),
+											Name: "to",
 											Value: document.StringValue{
-												Val: []byte("bottom"),
+												Val: "bottom",
 											},
 										},
 									},
@@ -255,11 +254,11 @@ func TestTypeSystemDefinition(t *testing.T) {
 							},
 						},
 						{
-							Name:        []byte("UnionExample"),
-							Description: []byte("unifies UnionExample"),
+							Name:        "UnionExample",
+							Description: "unifies UnionExample",
 							UnionMemberTypes: document.UnionMemberTypes{
-								[]byte("First"),
-								[]byte("Second"),
+								"First",
+								"Second",
 							},
 						},
 					}}),
@@ -284,31 +283,31 @@ func TestTypeSystemDefinition(t *testing.T) {
 				expectValues: Equal(document.TypeSystemDefinition{
 					EnumTypeDefinitions: []document.EnumTypeDefinition{
 						{
-							Name:        []byte("Direction"),
-							Description: []byte("describes direction"),
+							Name:        "Direction",
+							Description: "describes direction",
 							EnumValuesDefinition: document.EnumValuesDefinition{
 								{
-									EnumValue: []byte("NORTH"),
+									EnumValue: "NORTH",
 								},
 							},
 						},
 						{
-							Name: []byte("thirdEnum"),
+							Name: "thirdEnum",
 						},
 						{
-							Name:        []byte("secondEnum"),
-							Description: []byte("second enum"),
+							Name:        "secondEnum",
+							Description: "second enum",
 						},
 						{
-							Name: []byte("firstEnum"),
+							Name: "firstEnum",
 							Directives: document.Directives{
 								document.Directive{
-									Name: []byte("fromTop"),
+									Name: "fromTop",
 									Arguments: document.Arguments{
 										document.Argument{
-											Name: []byte("to"),
+											Name: "to",
 											Value: document.StringValue{
-												Val: []byte("bottom"),
+												Val: "bottom",
 											},
 										},
 									},
@@ -316,11 +315,11 @@ func TestTypeSystemDefinition(t *testing.T) {
 							},
 						},
 						{
-							Name:        []byte("EnumExample"),
-							Description: []byte("enumerates EnumExample"),
+							Name:        "EnumExample",
+							Description: "enumerates EnumExample",
 							EnumValuesDefinition: document.EnumValuesDefinition{
 								{
-									EnumValue: []byte("NORTH"),
+									EnumValue: "NORTH",
 								},
 							},
 						},
@@ -346,34 +345,34 @@ func TestTypeSystemDefinition(t *testing.T) {
 				expectValues: Equal(document.TypeSystemDefinition{
 					InputObjectTypeDefinitions: []document.InputObjectTypeDefinition{
 						{
-							Name:        []byte("Person"),
-							Description: []byte("describes Person"),
+							Name:        "Person",
+							Description: "describes Person",
 							InputFieldsDefinition: document.InputFieldsDefinition{
 								document.InputValueDefinition{
-									Name: []byte("name"),
+									Name: "name",
 									Type: document.NamedType{
-										Name: []byte("String"),
+										Name: "String",
 									},
 								},
 							},
 						},
 						{
-							Name: []byte("thirdInput"),
+							Name: "thirdInput",
 						},
 						{
-							Name:        []byte("secondInput"),
-							Description: []byte("second input"),
+							Name:        "secondInput",
+							Description: "second input",
 						},
 						{
-							Name: []byte("firstInput"),
+							Name: "firstInput",
 							Directives: document.Directives{
 								document.Directive{
-									Name: []byte("fromTop"),
+									Name: "fromTop",
 									Arguments: document.Arguments{
 										document.Argument{
-											Name: []byte("to"),
+											Name: "to",
 											Value: document.StringValue{
-												Val: []byte("bottom"),
+												Val: "bottom",
 											},
 										},
 									},
@@ -381,13 +380,13 @@ func TestTypeSystemDefinition(t *testing.T) {
 							},
 						},
 						{
-							Name:        []byte("InputExample"),
-							Description: []byte("inputs InputExample"),
+							Name:        "InputExample",
+							Description: "inputs InputExample",
 							InputFieldsDefinition: document.InputFieldsDefinition{
 								document.InputValueDefinition{
-									Name: []byte("name"),
+									Name: "name",
 									Type: document.NamedType{
-										Name: []byte("String"),
+										Name: "String",
 									},
 								},
 							},
@@ -408,21 +407,21 @@ func TestTypeSystemDefinition(t *testing.T) {
 				expectValues: Equal(document.TypeSystemDefinition{
 					DirectiveDefinitions: []document.DirectiveDefinition{
 						{
-							Name:        []byte("somewhere"),
-							Description: []byte("describes somewhere"),
+							Name:        "somewhere",
+							Description: "describes somewhere",
 							DirectiveLocations: document.DirectiveLocations{
 								document.DirectiveLocationQUERY,
 							},
 						},
 						{
-							Name: []byte("somehow"),
+							Name: "somehow",
 							DirectiveLocations: document.DirectiveLocations{
 								document.DirectiveLocationMUTATION,
 							},
 						},
 						{
-							Name:        []byte("someway"),
-							Description: []byte("describes someway"),
+							Name:        "someway",
+							Description: "describes someway",
 							DirectiveLocations: document.DirectiveLocations{
 								document.DirectiveLocationSUBSCRIPTION,
 							},
@@ -454,8 +453,8 @@ func TestTypeSystemDefinition(t *testing.T) {
 				expectErr: Not(BeNil()),
 				expectValues: Equal(document.TypeSystemDefinition{
 					SchemaDefinition: document.SchemaDefinition{
-						Query:    []byte("Query"),
-						Mutation: []byte("Mutation"),
+						Query:    "Query",
+						Mutation: "Mutation",
 					}}),
 			},
 		}
@@ -464,9 +463,8 @@ func TestTypeSystemDefinition(t *testing.T) {
 
 			g.It(test.it, func() {
 
-				reader := bytes.NewReader([]byte(test.input))
 				parser := NewParser()
-				parser.l.SetInput(reader)
+				parser.l.SetInput(test.input)
 
 				val, err := parser.parseTypeSystemDefinition()
 				Expect(val).To(test.expectValues)
@@ -475,7 +473,7 @@ func TestTypeSystemDefinition(t *testing.T) {
 		}
 	})
 
-	starWarsSchema := []byte(`
+	starWarsSchema := `
 	schema {
 	  query: Query
 	  mutation: Mutation
@@ -638,364 +636,364 @@ func TestTypeSystemDefinition(t *testing.T) {
 	}
 
 	union SearchResult = Human | Droid | Starship
-	`)
+	`
 
 	g.Describe("StarWars Schema", func() {
-		g.It("should parse", func() {
-			reader := bytes.NewReader(starWarsSchema)
+		g.It("should parse the starwars schema", func() {
+
 			parser := NewParser()
-			parser.l.SetInput(reader)
+			parser.l.SetInput(starWarsSchema)
 
 			val, err := parser.parseTypeSystemDefinition()
 			Expect(val).To(Equal(document.TypeSystemDefinition{
 				SchemaDefinition: document.SchemaDefinition{
-					Query:        []byte("Query"),
-					Mutation:     []byte("Mutation"),
-					Subscription: []byte("Subscription"),
+					Query:        "Query",
+					Mutation:     "Mutation",
+					Subscription: "Subscription",
 				},
 				ScalarTypeDefinitions: nil,
 				ObjectTypeDefinitions: []document.ObjectTypeDefinition{
 					{
-						Description: []byte("The query type, represents all of the entry points into our object graph"),
-						Name:        []byte("Query"),
+						Description: "The query type, represents all of the entry points into our object graph",
+						Name:        "Query",
 						FieldsDefinition: []document.FieldDefinition{
-							{
-								Name: []byte("__schema"),
+							/*{
+								Name: "__schema",
 								Type: document.NamedType{
-									Name:    []byte("__Schema"),
+									Name:    "__Schema",
 									NonNull: true,
 								},
 							},
 							{
-								Name: []byte("__type"),
+								Name: "__type",
 								Type: document.NamedType{
-									Name:    []byte("__Type"),
+									Name:    "__Type",
 									NonNull: false,
 								},
 								ArgumentsDefinition: []document.InputValueDefinition{
 									{
-										Name: []byte("name"),
+										Name: "name",
 										Type: document.NamedType{
-											Name:    []byte("String"),
+											Name:    "String",
 											NonNull: true,
 										},
 									},
 								},
-							},
+							},*/
 							{
-								Name: []byte("hero"),
+								Name: "hero",
 								ArgumentsDefinition: document.ArgumentsDefinition{
 									{
-										Name: []byte("episode"),
-										Type: document.NamedType{Name: []byte("Episode")},
+										Name: "episode",
+										Type: document.NamedType{Name: "Episode"},
 									},
 								},
-								Type: document.NamedType{Name: []byte("Character")},
+								Type: document.NamedType{Name: "Character"},
 							},
 							{
-								Name: []byte("reviews"),
+								Name: "reviews",
 								ArgumentsDefinition: document.ArgumentsDefinition{
 									{
-										Name: []byte("episode"),
-										Type: document.NamedType{Name: []byte("Episode"), NonNull: true},
+										Name: "episode",
+										Type: document.NamedType{Name: "Episode", NonNull: true},
 									},
 								},
-								Type: document.ListType{Type: document.NamedType{Name: []byte("Review")}},
+								Type: document.ListType{Type: document.NamedType{Name: "Review"}},
 							},
 							{
-								Name: []byte("search"),
+								Name: "search",
 								ArgumentsDefinition: document.ArgumentsDefinition{
 									{
-										Name: []byte("text"),
-										Type: document.NamedType{Name: []byte("String")},
+										Name: "text",
+										Type: document.NamedType{Name: "String"},
 									},
 								},
-								Type: document.ListType{Type: document.NamedType{Name: []byte("SearchResult")}},
+								Type: document.ListType{Type: document.NamedType{Name: "SearchResult"}},
 							},
 							{
-								Name: []byte("character"),
+								Name: "character",
 								ArgumentsDefinition: document.ArgumentsDefinition{
 									{
-										Name: []byte("id"),
-										Type: document.NamedType{Name: []byte("ID"), NonNull: true},
+										Name: "id",
+										Type: document.NamedType{Name: "ID", NonNull: true},
 									},
 								},
-								Type: document.NamedType{Name: []byte("Character")},
+								Type: document.NamedType{Name: "Character"},
 							},
 							{
-								Name: []byte("droid"),
+								Name: "droid",
 								ArgumentsDefinition: document.ArgumentsDefinition{
 									{
-										Name: []byte("id"),
-										Type: document.NamedType{Name: []byte("ID"), NonNull: true},
+										Name: "id",
+										Type: document.NamedType{Name: "ID", NonNull: true},
 									},
 								},
-								Type: document.NamedType{Name: []byte("Droid")},
+								Type: document.NamedType{Name: "Droid"},
 							},
 							{
-								Name: []byte("human"),
+								Name: "human",
 								ArgumentsDefinition: document.ArgumentsDefinition{
 									{
-										Name: []byte("id"),
-										Type: document.NamedType{Name: []byte("ID"), NonNull: true},
+										Name: "id",
+										Type: document.NamedType{Name: "ID", NonNull: true},
 									},
 								},
-								Type: document.NamedType{Name: []byte("Human")},
+								Type: document.NamedType{Name: "Human"},
 							},
 							{
-								Name: []byte("starship"),
+								Name: "starship",
 								ArgumentsDefinition: document.ArgumentsDefinition{
 									{
-										Name: []byte("id"),
-										Type: document.NamedType{Name: []byte("ID"), NonNull: true},
+										Name: "id",
+										Type: document.NamedType{Name: "ID", NonNull: true},
 									},
 								},
-								Type: document.NamedType{Name: []byte("Starship")},
+								Type: document.NamedType{Name: "Starship"},
 							},
 						},
 						ImplementsInterfaces: nil,
 						Directives:           nil,
 					},
 					{
-						Description: []byte("The mutation type, represents all updates we can make to our data"),
-						Name:        []byte("Mutation"),
+						Description: "The mutation type, represents all updates we can make to our data",
+						Name:        "Mutation",
 						FieldsDefinition: document.FieldsDefinition{
 							{
-								Name: []byte("createReview"),
+								Name: "createReview",
 								ArgumentsDefinition: document.ArgumentsDefinition{
 									{
-										Name: []byte("episode"),
-										Type: document.NamedType{Name: []byte("Episode")},
+										Name: "episode",
+										Type: document.NamedType{Name: "Episode"},
 									},
 									{
-										Name: []byte("review"),
-										Type: document.NamedType{Name: []byte("ReviewInput"), NonNull: true},
+										Name: "review",
+										Type: document.NamedType{Name: "ReviewInput", NonNull: true},
 									},
 								},
-								Type: document.NamedType{Name: []byte("Review")},
+								Type: document.NamedType{Name: "Review"},
 							},
 						},
 						ImplementsInterfaces: nil,
 						Directives:           nil,
 					},
 					{
-						Description: []byte("The subscription type, represents all subscriptions we can make to our data"),
-						Name:        []byte("Subscription"),
+						Description: "The subscription type, represents all subscriptions we can make to our data",
+						Name:        "Subscription",
 						FieldsDefinition: document.FieldsDefinition{
 							{
-								Name: []byte("reviewAdded"),
+								Name: "reviewAdded",
 								ArgumentsDefinition: document.ArgumentsDefinition{
 									{
-										Name: []byte("episode"),
-										Type: document.NamedType{Name: []byte("Episode")},
+										Name: "episode",
+										Type: document.NamedType{Name: "Episode"},
 									},
 								},
-								Type: document.NamedType{Name: []byte("Review")},
+								Type: document.NamedType{Name: "Review"},
 							},
 						},
 						ImplementsInterfaces: nil,
 						Directives:           nil,
 					},
 					{
-						Description: []byte("A humanoid creature from the Star Wars universe"),
-						Name:        []byte("Human"),
+						Description: "A humanoid creature from the Star Wars universe",
+						Name:        "Human",
 						FieldsDefinition: document.FieldsDefinition{
 							{
-								Description:         []byte("The ID of the human"),
-								Name:                []byte("id"),
+								Description:         "The ID of the human",
+								Name:                "id",
 								ArgumentsDefinition: nil,
-								Type:                document.NamedType{Name: []byte("ID"), NonNull: true},
+								Type:                document.NamedType{Name: "ID", NonNull: true},
 								Directives:          nil,
 							},
 							{
-								Description:         []byte("What this human calls themselves"),
-								Name:                []byte("name"),
+								Description:         "What this human calls themselves",
+								Name:                "name",
 								ArgumentsDefinition: nil,
-								Type:                document.NamedType{Name: []byte("String"), NonNull: true},
+								Type:                document.NamedType{Name: "String", NonNull: true},
 								Directives:          nil,
 							},
 							{
-								Description:         []byte("The home planet of the human, or null if unknown"),
-								Name:                []byte("homePlanet"),
+								Description:         "The home planet of the human, or null if unknown",
+								Name:                "homePlanet",
 								ArgumentsDefinition: nil,
-								Type:                document.NamedType{Name: []byte("String")},
+								Type:                document.NamedType{Name: "String"},
 								Directives:          nil,
 							},
 							{
-								Description: []byte("Height in the preferred unit, default is meters"),
-								Name:        []byte("height"),
+								Description: "Height in the preferred unit, default is meters",
+								Name:        "height",
 								ArgumentsDefinition: document.ArgumentsDefinition{
 									{
-										Name:         []byte("unit"),
-										Type:         document.NamedType{Name: []byte("LengthUnit")},
-										DefaultValue: document.EnumValue{Name: []byte("METER")},
+										Name:         "unit",
+										Type:         document.NamedType{Name: "LengthUnit"},
+										DefaultValue: document.EnumValue{Name: "METER"},
 									},
 								},
-								Type: document.NamedType{Name: []byte("Float")},
+								Type: document.NamedType{Name: "Float"},
 							},
 							{
-								Description:         []byte("Mass in kilograms, or null if unknown"),
-								Name:                []byte("mass"),
+								Description:         "Mass in kilograms, or null if unknown",
+								Name:                "mass",
 								ArgumentsDefinition: nil,
-								Type:                document.NamedType{Name: []byte("Float")},
+								Type:                document.NamedType{Name: "Float"},
 								Directives:          nil,
 							},
 							{
-								Description:         []byte("This human's friends, or an empty list if they have none"),
-								Name:                []byte("friends"),
+								Description:         "This human's friends, or an empty list if they have none",
+								Name:                "friends",
 								ArgumentsDefinition: nil,
-								Type:                document.ListType{Type: document.NamedType{Name: []byte("Character")}},
+								Type:                document.ListType{Type: document.NamedType{Name: "Character"}},
 								Directives:          nil,
 							},
 							{
-								Description: []byte("The friends of the human exposed as a connection with edges"),
-								Name:        []byte("friendsConnection"),
+								Description: "The friends of the human exposed as a connection with edges",
+								Name:        "friendsConnection",
 								ArgumentsDefinition: document.ArgumentsDefinition{
 									{
-										Name: []byte("first"),
-										Type: document.NamedType{Name: []byte("Int")},
+										Name: "first",
+										Type: document.NamedType{Name: "Int"},
 									},
 									{
-										Name: []byte("after"),
-										Type: document.NamedType{Name: []byte("ID")},
+										Name: "after",
+										Type: document.NamedType{Name: "ID"},
 									},
 								},
 								Type: document.NamedType{
-									Name:    []byte("FriendsConnection"),
+									Name:    "FriendsConnection",
 									NonNull: true,
 								},
 							},
 							{
-								Description:         []byte("The movies this human appears in"),
-								Name:                []byte("appearsIn"),
+								Description:         "The movies this human appears in",
+								Name:                "appearsIn",
 								ArgumentsDefinition: nil,
 								Type: document.ListType{Type: document.NamedType{
-									Name: []byte("Episode"),
+									Name: "Episode",
 								},
 									NonNull: true,
 								},
 							},
 							{
-								Description:         []byte("A list of starships this person has piloted, or an empty list if none"),
-								Name:                []byte("starships"),
+								Description:         "A list of starships this person has piloted, or an empty list if none",
+								Name:                "starships",
 								ArgumentsDefinition: nil,
 								Type: document.ListType{Type: document.NamedType{
-									Name: []byte("Starship"),
+									Name: "Starship",
 								},
 								},
 							},
 						},
-						ImplementsInterfaces: document.ImplementsInterfaces{[]byte("Character")},
+						ImplementsInterfaces: document.ImplementsInterfaces{"Character"},
 						Directives:           nil,
 					},
 					{
-						Description: []byte("An autonomous mechanical character in the Star Wars universe"),
-						Name:        []byte("Droid"),
+						Description: "An autonomous mechanical character in the Star Wars universe",
+						Name:        "Droid",
 						FieldsDefinition: document.FieldsDefinition{
 							{
-								Description:         []byte("The ID of the droid"),
-								Name:                []byte("id"),
+								Description:         "The ID of the droid",
+								Name:                "id",
 								ArgumentsDefinition: nil,
 								Type: document.NamedType{
-									Name:    []byte("ID"),
+									Name:    "ID",
 									NonNull: true,
 								},
 							},
 							{
-								Description:         []byte("What others call this droid"),
-								Name:                []byte("name"),
+								Description:         "What others call this droid",
+								Name:                "name",
 								ArgumentsDefinition: nil,
 								Type: document.NamedType{
-									Name:    []byte("String"),
+									Name:    "String",
 									NonNull: true,
 								},
 							},
 							{
-								Description:         []byte("This droid's friends, or an empty list if they have none"),
-								Name:                []byte("friends"),
+								Description:         "This droid's friends, or an empty list if they have none",
+								Name:                "friends",
 								ArgumentsDefinition: nil,
 								Type: document.ListType{Type: document.NamedType{
-									Name: []byte("Character"),
+									Name: "Character",
 								}},
 							},
 							{
-								Description: []byte("The friends of the droid exposed as a connection with edges"),
-								Name:        []byte("friendsConnection"),
+								Description: "The friends of the droid exposed as a connection with edges",
+								Name:        "friendsConnection",
 								ArgumentsDefinition: document.ArgumentsDefinition{
 									{
-										Name: []byte("first"),
+										Name: "first",
 										Type: document.NamedType{
-											Name: []byte("Int"),
+											Name: "Int",
 										},
 									},
 									{
-										Name: []byte("after"),
+										Name: "after",
 										Type: document.NamedType{
-											Name: []byte("ID"),
+											Name: "ID",
 										},
 									},
 								},
 								Type: document.NamedType{
-									Name:    []byte("FriendsConnection"),
+									Name:    "FriendsConnection",
 									NonNull: true,
 								},
 							},
 							{
-								Description:         []byte("The movies this droid appears in"),
-								Name:                []byte("appearsIn"),
+								Description:         "The movies this droid appears in",
+								Name:                "appearsIn",
 								ArgumentsDefinition: nil,
 								Type: document.ListType{Type: document.NamedType{
-									Name: []byte("Episode"),
+									Name: "Episode",
 								},
 									NonNull: true,
 								},
 							},
 							{
-								Description:         []byte("This droid's primary function"),
-								Name:                []byte("primaryFunction"),
+								Description:         "This droid's primary function",
+								Name:                "primaryFunction",
 								ArgumentsDefinition: nil,
 								Type: document.NamedType{
-									Name: []byte("String"),
+									Name: "String",
 								},
 							},
 						},
-						ImplementsInterfaces: document.ImplementsInterfaces{[]byte("Character")},
+						ImplementsInterfaces: document.ImplementsInterfaces{"Character"},
 						Directives:           nil,
 					},
 					{
-						Description: []byte("A connection object for a character's friends"),
-						Name:        []byte("FriendsConnection"),
+						Description: "A connection object for a character's friends",
+						Name:        "FriendsConnection",
 						FieldsDefinition: document.FieldsDefinition{
 							{
-								Description:         []byte("The total number of friends"),
-								Name:                []byte("totalCount"),
+								Description:         "The total number of friends",
+								Name:                "totalCount",
 								ArgumentsDefinition: nil,
 								Type: document.NamedType{
-									Name: []byte("Int"),
+									Name: "Int",
 								},
 							},
 							{
-								Description:         []byte("The edges for each of the character's friends."),
-								Name:                []byte("edges"),
+								Description:         "The edges for each of the character's friends.",
+								Name:                "edges",
 								ArgumentsDefinition: nil,
 								Type: document.ListType{Type: document.NamedType{
-									Name: []byte("FriendsEdge"),
+									Name: "FriendsEdge",
 								}},
 							},
 							{
-								Description:         []byte("A list of the friends, as a convenience when edges are not needed."),
-								Name:                []byte("friends"),
+								Description:         "A list of the friends, as a convenience when edges are not needed.",
+								Name:                "friends",
 								ArgumentsDefinition: nil,
 								Type: document.ListType{Type: document.NamedType{
-									Name: []byte("Character"),
+									Name: "Character",
 								}},
 							},
 							{
-								Description:         []byte("Information for paginating this connection"),
-								Name:                []byte("pageInfo"),
+								Description:         "Information for paginating this connection",
+								Name:                "pageInfo",
 								ArgumentsDefinition: nil,
 								Type: document.NamedType{
-									Name:    []byte("PageInfo"),
+									Name:    "PageInfo",
 									NonNull: true,
 								},
 							},
@@ -1004,24 +1002,24 @@ func TestTypeSystemDefinition(t *testing.T) {
 						Directives:           nil,
 					},
 					{
-						Description: []byte("An edge object for a character's friends"),
-						Name:        []byte("FriendsEdge"),
+						Description: "An edge object for a character's friends",
+						Name:        "FriendsEdge",
 						FieldsDefinition: document.FieldsDefinition{
 							{
-								Description:         []byte("A cursor used for pagination"),
-								Name:                []byte("cursor"),
+								Description:         "A cursor used for pagination",
+								Name:                "cursor",
 								ArgumentsDefinition: nil,
 								Type: document.NamedType{
-									Name:    []byte("ID"),
+									Name:    "ID",
 									NonNull: true,
 								},
 							},
 							{
-								Description:         []byte("The character represented by this friendship edge"),
-								Name:                []byte("node"),
+								Description:         "The character represented by this friendship edge",
+								Name:                "node",
 								ArgumentsDefinition: nil,
 								Type: document.NamedType{
-									Name: []byte("Character"),
+									Name: "Character",
 								},
 							},
 						},
@@ -1029,28 +1027,28 @@ func TestTypeSystemDefinition(t *testing.T) {
 						Directives:           nil,
 					},
 					{
-						Description: []byte("Information for paginating this connection"),
-						Name:        []byte("PageInfo"),
+						Description: "Information for paginating this connection",
+						Name:        "PageInfo",
 						FieldsDefinition: document.FieldsDefinition{
 							{
-								Name:                []byte("startCursor"),
+								Name:                "startCursor",
 								ArgumentsDefinition: nil,
 								Type: document.NamedType{
-									Name: []byte("ID"),
+									Name: "ID",
 								},
 							},
 							{
-								Name:                []byte("endCursor"),
+								Name:                "endCursor",
 								ArgumentsDefinition: nil,
 								Type: document.NamedType{
-									Name: []byte("ID"),
+									Name: "ID",
 								},
 							},
 							{
-								Name:                []byte("hasNextPage"),
+								Name:                "hasNextPage",
 								ArgumentsDefinition: nil,
 								Type: document.NamedType{
-									Name:    []byte("Boolean"),
+									Name:    "Boolean",
 									NonNull: true,
 								},
 							},
@@ -1059,32 +1057,32 @@ func TestTypeSystemDefinition(t *testing.T) {
 						Directives:           nil,
 					},
 					{
-						Description: []byte("Represents a review for a movie"),
-						Name:        []byte("Review"),
+						Description: "Represents a review for a movie",
+						Name:        "Review",
 						FieldsDefinition: document.FieldsDefinition{
 							{
-								Description:         []byte("The movie"),
-								Name:                []byte("episode"),
+								Description:         "The movie",
+								Name:                "episode",
 								ArgumentsDefinition: nil,
 								Type: document.NamedType{
-									Name: []byte("Episode"),
+									Name: "Episode",
 								},
 							},
 							{
-								Description:         []byte("The number of stars this review gave, 1-5"),
-								Name:                []byte("stars"),
+								Description:         "The number of stars this review gave, 1-5",
+								Name:                "stars",
 								ArgumentsDefinition: nil,
 								Type: document.NamedType{
-									Name:    []byte("Int"),
+									Name:    "Int",
 									NonNull: true,
 								},
 							},
 							{
-								Description:         []byte("Comment about the movie"),
-								Name:                []byte("commentary"),
+								Description:         "Comment about the movie",
+								Name:                "commentary",
 								ArgumentsDefinition: nil,
 								Type: document.NamedType{
-									Name: []byte("String"),
+									Name: "String",
 								},
 							},
 						},
@@ -1092,48 +1090,48 @@ func TestTypeSystemDefinition(t *testing.T) {
 						Directives:           nil,
 					},
 					{
-						Name: []byte("Starship"),
+						Name: "Starship",
 						FieldsDefinition: document.FieldsDefinition{
 							{
-								Description:         []byte("The ID of the starship"),
-								Name:                []byte("id"),
+								Description:         "The ID of the starship",
+								Name:                "id",
 								ArgumentsDefinition: nil,
 								Type: document.NamedType{
-									Name:    []byte("ID"),
+									Name:    "ID",
 									NonNull: true,
 								},
 							},
 							{
-								Description:         []byte("The name of the starship"),
-								Name:                []byte("name"),
+								Description:         "The name of the starship",
+								Name:                "name",
 								ArgumentsDefinition: nil,
 								Type: document.NamedType{
-									Name:    []byte("String"),
+									Name:    "String",
 									NonNull: true,
 								},
 							},
 							{
-								Description: []byte("Length of the starship, along the longest axis"),
-								Name:        []byte("length"),
+								Description: "Length of the starship, along the longest axis",
+								Name:        "length",
 								ArgumentsDefinition: document.ArgumentsDefinition{
 									{
-										Name: []byte("unit"),
+										Name: "unit",
 										Type: document.NamedType{
-											Name: []byte("LengthUnit"),
+											Name: "LengthUnit",
 										},
-										DefaultValue: document.EnumValue{Name: []byte("METER")},
+										DefaultValue: document.EnumValue{Name: "METER"},
 									},
 								},
 								Type: document.NamedType{
-									Name: []byte("Float"),
+									Name: "Float",
 								},
 							},
 							{
-								Name: []byte("coordinates"),
+								Name: "coordinates",
 								Type: document.ListType{
 									Type: document.ListType{
 										Type: document.NamedType{
-											Name:    []byte("Float"),
+											Name:    "Float",
 											NonNull: true,
 										},
 										NonNull: true,
@@ -1147,53 +1145,53 @@ func TestTypeSystemDefinition(t *testing.T) {
 				},
 				InterfaceTypeDefinitions: []document.InterfaceTypeDefinition{
 					{
-						Description: []byte("A character from the Star Wars universe"),
-						Name:        []byte("Character"),
+						Description: "A character from the Star Wars universe",
+						Name:        "Character",
 						FieldsDefinition: document.FieldsDefinition{
 							{
-								Description:         []byte("The ID of the character"),
-								Name:                []byte("id"),
+								Description:         "The ID of the character",
+								Name:                "id",
 								ArgumentsDefinition: nil,
-								Type:                document.NamedType{Name: []byte("ID"), NonNull: true},
+								Type:                document.NamedType{Name: "ID", NonNull: true},
 								Directives:          nil,
 							},
 							{
-								Description:         []byte("The name of the character"),
-								Name:                []byte("name"),
+								Description:         "The name of the character",
+								Name:                "name",
 								ArgumentsDefinition: nil,
-								Type:                document.NamedType{Name: []byte("String"), NonNull: true},
+								Type:                document.NamedType{Name: "String", NonNull: true},
 								Directives:          nil,
 							},
 							{
-								Description:         []byte("The friends of the character, or an empty list if they have none"),
-								Name:                []byte("friends"),
+								Description:         "The friends of the character, or an empty list if they have none",
+								Name:                "friends",
 								ArgumentsDefinition: nil,
-								Type:                document.ListType{Type: document.NamedType{Name: []byte("Character")}},
+								Type:                document.ListType{Type: document.NamedType{Name: "Character"}},
 								Directives:          nil,
 							},
 							{
-								Description: []byte("The friends of the character exposed as a connection with edges"),
-								Name:        []byte("friendsConnection"),
+								Description: "The friends of the character exposed as a connection with edges",
+								Name:        "friendsConnection",
 								ArgumentsDefinition: document.ArgumentsDefinition{
 									{
-										Name: []byte("first"),
-										Type: document.NamedType{Name: []byte("Int")},
+										Name: "first",
+										Type: document.NamedType{Name: "Int"},
 									},
 									{
-										Name: []byte("after"),
-										Type: document.NamedType{Name: []byte("ID")},
+										Name: "after",
+										Type: document.NamedType{Name: "ID"},
 									},
 								},
 								Type: document.NamedType{
-									Name:    []byte("FriendsConnection"),
+									Name:    "FriendsConnection",
 									NonNull: true,
 								},
 							},
 							{
-								Description:         []byte("The movies this character appears in"),
-								Name:                []byte("appearsIn"),
+								Description:         "The movies this character appears in",
+								Name:                "appearsIn",
 								ArgumentsDefinition: nil,
-								Type:                document.ListType{Type: document.NamedType{Name: []byte("Episode")}, NonNull: true},
+								Type:                document.ListType{Type: document.NamedType{Name: "Episode"}, NonNull: true},
 								Directives:          nil,
 							},
 						},
@@ -1201,96 +1199,96 @@ func TestTypeSystemDefinition(t *testing.T) {
 				},
 				UnionTypeDefinitions: []document.UnionTypeDefinition{
 					{
-						Name:             []byte("SearchResult"),
-						UnionMemberTypes: document.UnionMemberTypes{[]byte("Human"), []byte("Droid"), []byte("Starship")},
+						Name:             "SearchResult",
+						UnionMemberTypes: document.UnionMemberTypes{"Human", "Droid", "Starship"},
 						Directives:       nil,
 					},
 				},
 				EnumTypeDefinitions: []document.EnumTypeDefinition{
 					{
-						Description: []byte("The episodes in the Star Wars trilogy"),
-						Name:        []byte("Episode"),
+						Description: "The episodes in the Star Wars trilogy",
+						Name:        "Episode",
 						EnumValuesDefinition: document.EnumValuesDefinition{
 							{
-								Description: []byte("Star Wars Episode IV: A New Hope, released in 1977."),
-								EnumValue:   []byte("NEWHOPE"),
+								Description: "Star Wars Episode IV: A New Hope, released in 1977.",
+								EnumValue:   "NEWHOPE",
 							},
 							{
-								Description: []byte("Star Wars Episode V: The Empire Strikes Back, released in 1980."),
-								EnumValue:   []byte("EMPIRE"),
+								Description: "Star Wars Episode V: The Empire Strikes Back, released in 1980.",
+								EnumValue:   "EMPIRE",
 							},
 							{
-								Description: []byte("Star Wars Episode VI: Return of the Jedi, released in 1983."),
-								EnumValue:   []byte("JEDI"),
+								Description: "Star Wars Episode VI: Return of the Jedi, released in 1983.",
+								EnumValue:   "JEDI",
 							},
 						},
 					},
 					{
-						Description: []byte("Units of height"),
-						Name:        []byte("LengthUnit"),
+						Description: "Units of height",
+						Name:        "LengthUnit",
 						EnumValuesDefinition: document.EnumValuesDefinition{
 							{
-								Description: []byte("The standard unit around the world"),
-								EnumValue:   []byte("METER"),
+								Description: "The standard unit around the world",
+								EnumValue:   "METER",
 							},
 							{
-								Description: []byte("Primarily used in the United States"),
-								EnumValue:   []byte("FOOT"),
+								Description: "Primarily used in the United States",
+								EnumValue:   "FOOT",
 							},
 						},
 					},
 				},
 				InputObjectTypeDefinitions: document.InputObjectTypeDefinitions{
 					{
-						Description: []byte("The input object sent when someone is creating a new review"),
-						Name:        []byte("ReviewInput"),
+						Description: "The input object sent when someone is creating a new review",
+						Name:        "ReviewInput",
 						InputFieldsDefinition: document.InputFieldsDefinition{
 							{
-								Description: []byte("0-5 stars"),
-								Name:        []byte("stars"),
+								Description: "0-5 stars",
+								Name:        "stars",
 								Type: document.NamedType{
-									Name:    []byte("Int"),
+									Name:    "Int",
 									NonNull: true,
 								},
 							},
 							{
-								Description: []byte("Comment about the movie, optional"),
-								Name:        []byte("commentary"),
+								Description: "Comment about the movie, optional",
+								Name:        "commentary",
 								Type: document.NamedType{
-									Name: []byte("String"),
+									Name: "String",
 								},
 							},
 							{
-								Description: []byte("Favorite color, optional"),
-								Name:        []byte("favorite_color"),
+								Description: "Favorite color, optional",
+								Name:        "favorite_color",
 								Type: document.NamedType{
-									Name: []byte("ColorInput"),
+									Name: "ColorInput",
 								},
 							},
 						},
 					},
 					{
-						Description: []byte("The input object sent when passing in a color"),
-						Name:        []byte("ColorInput"),
+						Description: "The input object sent when passing in a color",
+						Name:        "ColorInput",
 						InputFieldsDefinition: document.InputFieldsDefinition{
 							{
-								Name: []byte("red"),
+								Name: "red",
 								Type: document.NamedType{
-									Name:    []byte("Int"),
+									Name:    "Int",
 									NonNull: true,
 								},
 							},
 							{
-								Name: []byte("green"),
+								Name: "green",
 								Type: document.NamedType{
-									Name:    []byte("Int"),
+									Name:    "Int",
 									NonNull: true,
 								},
 							},
 							{
-								Name: []byte("blue"),
+								Name: "blue",
 								Type: document.NamedType{
-									Name:    []byte("Int"),
+									Name:    "Int",
 									NonNull: true,
 								},
 							},

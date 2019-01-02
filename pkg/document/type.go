@@ -1,13 +1,13 @@
 package document
 
 // TypeKind marks Types to identify them
-type TypeKind []byte
+type TypeKind string
 
 // Type as specified in:
 // http://facebook.github.io/graphql/draft/#Type
 type Type interface {
 	GetTypeKind() TypeKind
-	AsGoType() []byte
+	AsGoType() string
 	IsBaseType() bool
-	TypeName() []byte
+	TypeName() string
 }

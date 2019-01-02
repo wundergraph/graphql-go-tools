@@ -1,9 +1,7 @@
 package parser
 
 import (
-	"bytes"
 	. "github.com/franela/goblin"
-	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
 	"testing"
@@ -26,7 +24,7 @@ func TestStringValueParser(t *testing.T) {
 				it:        "should parse single line string value",
 				input:     `"lorem ipsum"`,
 				expectErr: BeNil(),
-				expectVal: Equal(document.ByteSlice("lorem ipsum")),
+				expectVal: Equal("lorem ipsum"),
 			},
 			{
 				it: "should parse multi line string value",
@@ -34,21 +32,21 @@ func TestStringValueParser(t *testing.T) {
 lorem ipsum
 """`,
 				expectErr: BeNil(),
-				expectVal: Equal(document.ByteSlice("lorem ipsum")),
+				expectVal: Equal("lorem ipsum"),
 			},
 			{
-				it: "should parse multi line string value",
+				it: "should parse multi line string value with escaped quote",
 				input: `"""
 foo \" bar 
 """`,
 				expectErr: BeNil(),
-				expectVal: Equal(document.ByteSlice(`foo " bar`)),
+				expectVal: Equal(`foo \" bar`),
 			},
 			{
 				it:        "should parse single line string with escaped\"",
 				input:     `"foo bar \" baz"`,
 				expectErr: BeNil(),
-				expectVal: Equal(document.ByteSlice("foo bar \" baz")),
+				expectVal: Equal("foo bar \\\" baz"),
 			},
 		}
 
@@ -56,9 +54,9 @@ foo \" bar
 			test := test
 
 			g.It(test.it, func() {
-				reader := bytes.NewReader(document.ByteSlice(test.input))
+
 				parser := NewParser()
-				parser.l.SetInput(reader)
+				parser.l.SetInput(test.input)
 
 				val, err := parser.parsePeekedStringValue()
 				Expect(err).To(test.expectErr)

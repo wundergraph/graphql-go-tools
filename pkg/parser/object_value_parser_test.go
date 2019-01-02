@@ -1,9 +1,8 @@
 package parser
 
 import (
-	"bytes"
 	. "github.com/franela/goblin"
-	document "github.com/jensneuse/graphql-go-tools/pkg/document"
+	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
 	"testing"
@@ -29,9 +28,9 @@ func TestObjectValueParser(t *testing.T) {
 				expectVal: Equal(document.ObjectValue{
 					Val: []document.ObjectField{
 						{
-							Name: []byte("foo"),
+							Name: "foo",
 							Value: document.StringValue{
-								Val: []byte("bar"),
+								Val: "bar",
 							},
 						},
 					},
@@ -44,33 +43,33 @@ func TestObjectValueParser(t *testing.T) {
 				expectVal: Equal(document.ObjectValue{
 					Val: []document.ObjectField{
 						{
-							Name: []byte("foo"),
+							Name: "foo",
 							Value: document.StringValue{
-								Val: []byte("bar"),
+								Val: "bar",
 							},
 						},
 						{
-							Name: []byte("baz"),
+							Name: "baz",
 							Value: document.StringValue{
-								Val: []byte("bat"),
+								Val: "bat",
 							},
 						},
 						{
-							Name: []byte("bas"),
+							Name: "bas",
 							Value: document.StringValue{
-								Val: []byte("bal"),
+								Val: "bal",
 							},
 						},
 						{
-							Name: []byte("anEnum"),
+							Name: "anEnum",
 							Value: document.EnumValue{
-								Name: []byte("NUM"),
+								Name: "NUM",
 							},
 						},
 						{
-							Name: []byte("smallEnum"),
+							Name: "smallEnum",
 							Value: document.EnumValue{
-								Name: []byte("numnum"),
+								Name: "numnum",
 							},
 						},
 					},
@@ -83,13 +82,13 @@ func TestObjectValueParser(t *testing.T) {
 				expectVal: Equal(document.ObjectValue{
 					Val: []document.ObjectField{
 						{
-							Name: []byte("foo"),
+							Name: "foo",
 							Value: document.ObjectValue{
 								Val: []document.ObjectField{
 									{
-										Name: []byte("bar"),
+										Name: "bar",
 										Value: document.StringValue{
-											Val: []byte("baz"),
+											Val: "baz",
 										},
 									},
 								},
@@ -109,13 +108,13 @@ func TestObjectValueParser(t *testing.T) {
 				expectVal: Equal(document.ObjectValue{
 					Val: []document.ObjectField{
 						{
-							Name: []byte("foo"),
+							Name: "foo",
 							Value: document.ObjectValue{
 								Val: []document.ObjectField{
 									{
-										Name: []byte("bar"),
+										Name: "bar",
 										Value: document.StringValue{
-											Val: []byte("baz"),
+											Val: "baz",
 										},
 									},
 								},
@@ -131,9 +130,8 @@ func TestObjectValueParser(t *testing.T) {
 
 			g.It(test.it, func() {
 
-				reader := bytes.NewReader([]byte(test.input))
 				parser := NewParser()
-				parser.l.SetInput(reader)
+				parser.l.SetInput(test.input)
 
 				val, err := parser.parsePeekedObjectValue()
 				Expect(err).To(test.expectErr)

@@ -1,9 +1,8 @@
 package parser
 
 import (
-	"bytes"
 	. "github.com/franela/goblin"
-	document "github.com/jensneuse/graphql-go-tools/pkg/document"
+	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
 	"testing"
@@ -27,9 +26,9 @@ func TestObjectFieldParser(t *testing.T) {
 				it:              "should parse simple object field",
 				input:           `foo: "bar"`,
 				expectErr:       BeNil(),
-				expectFieldName: Equal(document.ByteSlice("foo")),
+				expectFieldName: Equal("foo"),
 				expectFieldValue: Equal(document.StringValue{
-					Val: document.ByteSlice("bar"),
+					Val: "bar",
 				}),
 			},
 		}
@@ -39,9 +38,8 @@ func TestObjectFieldParser(t *testing.T) {
 
 			g.It(test.it, func() {
 
-				reader := bytes.NewReader(document.ByteSlice(test.input))
 				parser := NewParser()
-				parser.l.SetInput(reader)
+				parser.l.SetInput(test.input)
 
 				field, err := parser.parseObjectField()
 				Expect(err).To(test.expectErr)

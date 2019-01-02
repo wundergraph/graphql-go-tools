@@ -1,12 +1,10 @@
 package document
 
-import "bytes"
-
 // InputObjectTypeDefinition as specified in:
 // http://facebook.github.io/graphql/draft/#InputObjectTypeDefinition
 type InputObjectTypeDefinition struct {
-	Description           ByteSlice
-	Name                  ByteSlice
+	Description           string
+	Name                  string
 	InputFieldsDefinition InputFieldsDefinition
 	Directives            Directives
 }
@@ -15,10 +13,10 @@ type InputObjectTypeDefinition struct {
 type InputObjectTypeDefinitions []InputObjectTypeDefinition
 
 // HasDefinition returns true if an InputObjectTypeDefinition with $name is contained
-func (i InputObjectTypeDefinitions) HasDefinition(name []byte) bool {
+func (i InputObjectTypeDefinitions) HasDefinition(name string) bool {
 
 	for _, definition := range i {
-		if bytes.Equal(definition.Name, name) {
+		if definition.Name == name {
 			return true
 		}
 	}
@@ -27,9 +25,9 @@ func (i InputObjectTypeDefinitions) HasDefinition(name []byte) bool {
 }
 
 // GetByName returns a InputObjectTypeDefinition by $name or nil if not found
-func (i InputObjectTypeDefinitions) GetByName(name []byte) *InputObjectTypeDefinition {
+func (i InputObjectTypeDefinitions) GetByName(name string) *InputObjectTypeDefinition {
 	for _, definition := range i {
-		if bytes.Equal(definition.Name, name) {
+		if definition.Name == name {
 			return &definition
 		}
 	}

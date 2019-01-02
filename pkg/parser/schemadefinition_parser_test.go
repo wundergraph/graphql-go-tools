@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"bytes"
 	. "github.com/franela/goblin"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	. "github.com/onsi/gomega"
@@ -30,9 +29,9 @@ func TestParseSchemaDefinition(t *testing.T) {
 }`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.SchemaDefinition{
-					Query:        []byte("Query"),
-					Mutation:     []byte("Mutation"),
-					Subscription: []byte("Subscription"),
+					Query:        "Query",
+					Mutation:     "Mutation",
+					Subscription: "Subscription",
 				}),
 			},
 			{
@@ -48,9 +47,9 @@ func TestParseSchemaDefinition(t *testing.T) {
 }`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.SchemaDefinition{
-					Query:        []byte("Query"),
-					Mutation:     []byte("Mutation"),
-					Subscription: []byte("Subscription"),
+					Query:        "Query",
+					Mutation:     "Mutation",
+					Subscription: "Subscription",
 				}),
 			},
 			{
@@ -68,9 +67,9 @@ func TestParseSchemaDefinition(t *testing.T) {
 }`,
 				expectErr: Not(BeNil()),
 				expectValues: Equal(document.SchemaDefinition{
-					Query:        []byte("Query"),
-					Mutation:     []byte("Mutation"),
-					Subscription: []byte("Subscription"),
+					Query:        "Query",
+					Mutation:     "Mutation",
+					Subscription: "Subscription",
 				}),
 			},
 			{
@@ -82,28 +81,28 @@ func TestParseSchemaDefinition(t *testing.T) {
 }`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.SchemaDefinition{
-					Query:        []byte("Query"),
-					Mutation:     []byte("Mutation"),
-					Subscription: []byte("Subscription"),
+					Query:        "Query",
+					Mutation:     "Mutation",
+					Subscription: "Subscription",
 					Directives: document.Directives{
 						document.Directive{
-							Name: []byte("fromTop"),
+							Name: "fromTop",
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: []byte("to"),
+									Name: "to",
 									Value: document.StringValue{
-										Val: []byte("bottom"),
+										Val: "bottom",
 									},
 								},
 							},
 						},
 						document.Directive{
-							Name: []byte("fromBottom"),
+							Name: "fromBottom",
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: []byte("to"),
+									Name: "to",
 									Value: document.StringValue{
-										Val: []byte("top"),
+										Val: "top",
 									},
 								},
 							},
@@ -118,9 +117,8 @@ func TestParseSchemaDefinition(t *testing.T) {
 
 			g.It(test.it, func() {
 
-				reader := bytes.NewReader([]byte(test.input))
 				parser := NewParser()
-				parser.l.SetInput(reader)
+				parser.l.SetInput(test.input)
 
 				val, err := parser.parseSchemaDefinition()
 				Expect(err).To(test.expectErr)

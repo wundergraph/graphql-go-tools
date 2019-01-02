@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"bytes"
 	. "github.com/franela/goblin"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	. "github.com/onsi/gomega"
@@ -32,19 +31,19 @@ func TestParseEnumTypeDefinition(t *testing.T) {
 }`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.EnumTypeDefinition{
-					Name: []byte("Direction"),
+					Name: "Direction",
 					EnumValuesDefinition: document.EnumValuesDefinition{
 						{
-							EnumValue: []byte("NORTH"),
+							EnumValue: "NORTH",
 						},
 						{
-							EnumValue: []byte("EAST"),
+							EnumValue: "EAST",
 						},
 						{
-							EnumValue: []byte("SOUTH"),
+							EnumValue: "SOUTH",
 						},
 						{
-							EnumValue: []byte("WEST"),
+							EnumValue: "WEST",
 						},
 					},
 				}),
@@ -63,23 +62,23 @@ func TestParseEnumTypeDefinition(t *testing.T) {
 }`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.EnumTypeDefinition{
-					Name: []byte("Direction"),
+					Name: "Direction",
 					EnumValuesDefinition: document.EnumValuesDefinition{
 						{
-							Description: []byte("describes north"),
-							EnumValue:   []byte("NORTH"),
+							Description: "describes north",
+							EnumValue:   "NORTH",
 						},
 						{
-							Description: []byte("describes east"),
-							EnumValue:   []byte("EAST"),
+							Description: "describes east",
+							EnumValue:   "EAST",
 						},
 						{
-							Description: []byte("describes south"),
-							EnumValue:   []byte("SOUTH"),
+							Description: "describes south",
+							EnumValue:   "SOUTH",
 						},
 						{
-							Description: []byte("describes west"),
-							EnumValue:   []byte("WEST"),
+							Description: "describes west",
+							EnumValue:   "WEST",
 						},
 					},
 				}),
@@ -101,23 +100,23 @@ func TestParseEnumTypeDefinition(t *testing.T) {
 }`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.EnumTypeDefinition{
-					Name: []byte("Direction"),
+					Name: "Direction",
 					EnumValuesDefinition: document.EnumValuesDefinition{
 						{
-							Description: []byte("describes north"),
-							EnumValue:   []byte("NORTH"),
+							Description: "describes north",
+							EnumValue:   "NORTH",
 						},
 						{
-							Description: []byte("describes east"),
-							EnumValue:   []byte("EAST"),
+							Description: "describes east",
+							EnumValue:   "EAST",
 						},
 						{
-							Description: []byte("describes south"),
-							EnumValue:   []byte("SOUTH"),
+							Description: "describes south",
+							EnumValue:   "SOUTH",
 						},
 						{
-							Description: []byte("describes west"),
-							EnumValue:   []byte("WEST"),
+							Description: "describes west",
+							EnumValue:   "WEST",
 						},
 					},
 				}),
@@ -129,26 +128,26 @@ func TestParseEnumTypeDefinition(t *testing.T) {
 }`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.EnumTypeDefinition{
-					Name: []byte("Direction"),
+					Name: "Direction",
 					Directives: document.Directives{
 						document.Directive{
-							Name: []byte("fromTop"),
+							Name: "fromTop",
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: []byte("to"),
+									Name: "to",
 									Value: document.StringValue{
-										Val: []byte("bottom"),
+										Val: "bottom",
 									},
 								},
 							},
 						},
 						document.Directive{
-							Name: []byte("fromBottom"),
+							Name: "fromBottom",
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: []byte("to"),
+									Name: "to",
 									Value: document.StringValue{
-										Val: []byte("top"),
+										Val: "top",
 									},
 								},
 							},
@@ -156,7 +155,7 @@ func TestParseEnumTypeDefinition(t *testing.T) {
 					},
 					EnumValuesDefinition: document.EnumValuesDefinition{
 						{
-							EnumValue: []byte("NORTH"),
+							EnumValue: "NORTH",
 						},
 					},
 				}),
@@ -166,7 +165,7 @@ func TestParseEnumTypeDefinition(t *testing.T) {
 				input:     ` Direction`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.EnumTypeDefinition{
-					Name: []byte("Direction"),
+					Name: "Direction",
 				}),
 			},
 		}
@@ -176,9 +175,8 @@ func TestParseEnumTypeDefinition(t *testing.T) {
 
 			g.It(test.it, func() {
 
-				reader := bytes.NewReader([]byte(test.input))
 				parser := NewParser()
-				parser.l.SetInput(reader)
+				parser.l.SetInput(test.input)
 
 				val, err := parser.parseEnumTypeDefinition()
 				Expect(err).To(test.expectErr)

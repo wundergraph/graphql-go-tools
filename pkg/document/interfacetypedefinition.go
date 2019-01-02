@@ -1,12 +1,10 @@
 package document
 
-import "bytes"
-
 // InterfaceTypeDefinition as specified in:
 // http://facebook.github.io/graphql/draft/#InterfaceTypeDefinition
 type InterfaceTypeDefinition struct {
-	Description      ByteSlice
-	Name             ByteSlice
+	Description      string
+	Name             string
 	FieldsDefinition FieldsDefinition
 	Directives       Directives
 }
@@ -15,9 +13,9 @@ type InterfaceTypeDefinition struct {
 type InterfaceTypeDefinitions []InterfaceTypeDefinition
 
 // GetByName returns the interface type definition by name if contained
-func (i InterfaceTypeDefinitions) GetByName(name []byte) *InterfaceTypeDefinition {
+func (i InterfaceTypeDefinitions) GetByName(name string) *InterfaceTypeDefinition {
 	for _, iFace := range i {
-		if bytes.Equal(iFace.Name, name) {
+		if iFace.Name == name {
 			return &iFace
 		}
 	}

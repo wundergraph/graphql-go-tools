@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"bytes"
 	. "github.com/franela/goblin"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	. "github.com/onsi/gomega"
@@ -28,9 +27,9 @@ func TestArgumentsParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.Arguments{
 					document.Argument{
-						Name: []byte("name"),
+						Name: "name",
 						Value: document.StringValue{
-							Val: []byte("Gophus"),
+							Val: "Gophus",
 						},
 					},
 				}),
@@ -41,14 +40,14 @@ func TestArgumentsParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.Arguments{
 					document.Argument{
-						Name: []byte("fooBars"),
+						Name: "fooBars",
 						Value: document.ListValue{
 							Values: []document.Value{
 								document.StringValue{
-									Val: []byte("foo"),
+									Val: "foo",
 								},
 								document.StringValue{
-									Val: []byte("bar"),
+									Val: "bar",
 								},
 							},
 						},
@@ -61,7 +60,7 @@ func TestArgumentsParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.Arguments{
 					document.Argument{
-						Name: []byte("integers"),
+						Name: "integers",
 						Value: document.ListValue{
 							Values: []document.Value{
 								document.IntValue{
@@ -84,15 +83,15 @@ func TestArgumentsParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.Arguments{
 					document.Argument{
-						Name: []byte("name"),
+						Name: "name",
 						Value: document.StringValue{
-							Val: []byte("Gophus"),
+							Val: "Gophus",
 						},
 					},
 					document.Argument{
-						Name: []byte("surname"),
+						Name: "surname",
 						Value: document.StringValue{
-							Val: []byte("Gophersson"),
+							Val: "Gophersson",
 						},
 					},
 				}),
@@ -122,9 +121,8 @@ func TestArgumentsParser(t *testing.T) {
 
 			g.It(test.it, func() {
 
-				reader := bytes.NewReader([]byte(test.input))
 				parser := NewParser()
-				parser.l.SetInput(reader)
+				parser.l.SetInput(test.input)
 
 				val, err := parser.parseArguments()
 				Expect(err).To(test.expectErr)

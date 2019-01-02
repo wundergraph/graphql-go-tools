@@ -2,7 +2,6 @@ package token
 
 import (
 	"fmt"
-	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
@@ -10,7 +9,7 @@ import (
 
 type Token struct {
 	Keyword     keyword.Keyword
-	Literal     document.ByteSlice
+	Literal     string
 	Position    position.Position
 	Description string
 }

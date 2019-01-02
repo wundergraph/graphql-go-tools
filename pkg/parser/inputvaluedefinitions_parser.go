@@ -14,7 +14,7 @@ import (
 
 func (p *Parser) parseInputValueDefinitions() (inputValueDefinitions []document.InputValueDefinition, err error) {
 
-	var description []byte
+	var description string
 
 	for {
 		next, err := p.l.Peek(true)
@@ -43,7 +43,7 @@ func (p *Parser) parseInputValueDefinitions() (inputValueDefinitions []document.
 				Name:        ident.Literal,
 			}
 
-			description = nil
+			description = ""
 
 			_, err = p.readExpect(keyword.COLON, "parseInputValueDefinitions")
 			if err != nil {

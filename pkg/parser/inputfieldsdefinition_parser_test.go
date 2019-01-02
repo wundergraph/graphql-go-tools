@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"bytes"
 	. "github.com/franela/goblin"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	. "github.com/onsi/gomega"
@@ -28,9 +27,9 @@ func TestInputFieldsDefinitionParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.InputFieldsDefinition{
 					document.InputValueDefinition{
-						Name: []byte("inputValue"),
+						Name: "inputValue",
 						Type: document.NamedType{
-							Name: []byte("Int"),
+							Name: "Int",
 						},
 					},
 				}),
@@ -47,15 +46,15 @@ func TestInputFieldsDefinitionParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.InputFieldsDefinition{
 					document.InputValueDefinition{
-						Name: []byte("inputValue"),
+						Name: "inputValue",
 						Type: document.NamedType{
-							Name: []byte("Int"),
+							Name: "Int",
 						},
 					},
 					document.InputValueDefinition{
-						Name: []byte("outputValue"),
+						Name: "outputValue",
 						Type: document.NamedType{
-							Name: []byte("String"),
+							Name: "String",
 						},
 					},
 				}),
@@ -78,9 +77,9 @@ func TestInputFieldsDefinitionParser(t *testing.T) {
 				expectErr: Not(BeNil()),
 				expectValues: Equal(document.InputFieldsDefinition(document.InputFieldsDefinition{
 					document.InputValueDefinition{
-						Name: []byte("inputValue"),
+						Name: "inputValue",
 						Type: document.NamedType{
-							Name: []byte("Int"),
+							Name: "Int",
 						},
 					},
 				})),
@@ -92,9 +91,8 @@ func TestInputFieldsDefinitionParser(t *testing.T) {
 
 			g.It(test.it, func() {
 
-				reader := bytes.NewReader([]byte(test.input))
 				parser := NewParser()
-				parser.l.SetInput(reader)
+				parser.l.SetInput(test.input)
 
 				val, err := parser.parseInputFieldsDefinition()
 				Expect(err).To(test.expectErr)

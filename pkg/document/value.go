@@ -9,7 +9,7 @@ type Value interface {
 // VariableValue as specified in:
 // http://facebook.github.io/graphql/draft/#Variable
 type VariableValue struct {
-	Name []byte
+	Name string
 }
 
 func (VariableValue) isValue() {}
@@ -49,7 +49,7 @@ func (FloatValue) ValueType() ValueType {
 // StringValue as specified in:
 // http://facebook.github.io/graphql/draft/#StringValue
 type StringValue struct {
-	Val ByteSlice
+	Val string
 }
 
 func (StringValue) isValue() {}
@@ -86,7 +86,7 @@ func (NullValue) ValueType() ValueType {
 // EnumValue as specified in:
 // http://facebook.github.io/graphql/draft/#EnumValue
 type EnumValue struct {
-	Name ByteSlice // but not true or false or null
+	Name string // but not true or false or null
 }
 
 func (EnumValue) isValue() {}

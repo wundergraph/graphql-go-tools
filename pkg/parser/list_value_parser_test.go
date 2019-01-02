@@ -1,9 +1,8 @@
 package parser
 
 import (
-	"bytes"
 	. "github.com/franela/goblin"
-	document "github.com/jensneuse/graphql-go-tools/pkg/document"
+	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
 	"testing"
@@ -47,7 +46,7 @@ func TestListValueParser(t *testing.T) {
 						Val: 1,
 					},
 					document.StringValue{
-						Val: []byte("2"),
+						Val: "2",
 					},
 					document.IntValue{
 						Val: 3,
@@ -68,9 +67,8 @@ func TestListValueParser(t *testing.T) {
 
 			g.It(test.it, func() {
 
-				reader := bytes.NewReader([]byte(test.input))
 				parser := NewParser()
-				parser.l.SetInput(reader)
+				parser.l.SetInput(test.input)
 
 				val, err := parser.parsePeekedListValue()
 				Expect(err).To(test.expectErr)

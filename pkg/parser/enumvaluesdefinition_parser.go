@@ -16,7 +16,7 @@ func (p *Parser) parseEnumValuesDefinition() (values document.EnumValuesDefiniti
 		return
 	}
 
-	var description []byte
+	var description string
 
 	for {
 		next, err := p.l.Peek(true)
@@ -45,7 +45,7 @@ func (p *Parser) parseEnumValuesDefinition() (values document.EnumValuesDefiniti
 				Description: description,
 			}
 
-			description = nil
+			description = ""
 
 			enumValueDefinition.Directives, err = p.parseDirectives()
 			if err != nil {

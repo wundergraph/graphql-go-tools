@@ -3,7 +3,7 @@ package document
 // VariableDefinition as specified in:
 // http://facebook.github.io/graphql/draft/#VariableDefinition
 type VariableDefinition struct {
-	Variable     ByteSlice
+	Variable     string
 	Type         Type
 	DefaultValue Value
 }

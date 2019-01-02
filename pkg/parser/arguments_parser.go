@@ -22,7 +22,7 @@ func (p *Parser) parseArguments() (arguments document.Arguments, err error) {
 		return
 	}
 
-	var valueName []byte
+	var valueName string
 
 	for {
 		key, err = p.l.Peek(true)
@@ -64,9 +64,11 @@ func (p *Parser) parseArguments() (arguments document.Arguments, err error) {
 			return nil, err
 		}
 
-		arguments = append(arguments, document.Argument{
+		argument := document.Argument{
 			Name:  valueName,
 			Value: value,
-		})
+		}
+
+		arguments = append(arguments, argument)
 	}
 }

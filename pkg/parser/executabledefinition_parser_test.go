@@ -5,7 +5,6 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
-	"strings"
 	"testing"
 )
 
@@ -33,21 +32,21 @@ func TestExecutableDefinitionParser(t *testing.T) {
 					OperationDefinitions: document.OperationDefinitions{
 						{
 							OperationType: document.OperationTypeQuery,
-							Name:          []byte("allGophers"),
+							Name:          "allGophers",
 							VariableDefinitions: document.VariableDefinitions{
 								{
-									Variable: []byte("color"),
+									Variable: "color",
 									Type: document.NamedType{
-										Name: []byte("String"),
+										Name: "String",
 									},
 								},
 							},
 							Directives: document.Directives{
 								document.Directive{
-									Name: []byte("rename"),
+									Name: "rename",
 									Arguments: document.Arguments{
 										document.Argument{
-											Name: []byte("index"),
+											Name: "index",
 											Value: document.IntValue{
 												Val: 3,
 											},
@@ -57,7 +56,7 @@ func TestExecutableDefinitionParser(t *testing.T) {
 							},
 							SelectionSet: document.SelectionSet{
 								document.Field{
-									Name: []byte("name"),
+									Name: "name",
 								},
 							},
 						},
@@ -78,27 +77,27 @@ func TestExecutableDefinitionParser(t *testing.T) {
 				expectValues: Equal(document.ExecutableDefinition{
 					OperationDefinitions: []document.OperationDefinition{
 						{
-							Name:          []byte("Q1"),
+							Name:          "Q1",
 							OperationType: document.OperationTypeQuery,
 							SelectionSet: []document.Selection{
 								document.Field{
-									Name: []byte("foo"),
+									Name: "foo",
 								},
 							},
 						},
 					},
 					FragmentDefinitions: document.FragmentDefinitions{
 						{
-							FragmentName: []byte("MyFragment"),
+							FragmentName: "MyFragment",
 							TypeCondition: document.NamedType{
-								Name: []byte("SomeType"),
+								Name: "SomeType",
 							},
 							Directives: document.Directives{
 								document.Directive{
-									Name: []byte("rename"),
+									Name: "rename",
 									Arguments: document.Arguments{
 										document.Argument{
-											Name: []byte("index"),
+											Name: "index",
 											Value: document.IntValue{
 												Val: 3,
 											},
@@ -108,7 +107,7 @@ func TestExecutableDefinitionParser(t *testing.T) {
 							},
 							SelectionSet: document.SelectionSet{
 								document.Field{
-									Name: []byte("name"),
+									Name: "name",
 								},
 							},
 						},
@@ -132,35 +131,35 @@ func TestExecutableDefinitionParser(t *testing.T) {
 					OperationDefinitions: document.OperationDefinitions{
 						{
 							OperationType: document.OperationTypeQuery,
-							Name:          []byte("allGophers"),
+							Name:          "allGophers",
 							VariableDefinitions: document.VariableDefinitions{
 								{
-									Variable: []byte("color"),
+									Variable: "color",
 									Type: document.NamedType{
-										Name: []byte("String"),
+										Name: "String",
 									},
 								},
 							},
 							SelectionSet: document.SelectionSet{
 								document.Field{
-									Name: []byte("name"),
+									Name: "name",
 								},
 							},
 						},
 						{
 							OperationType: document.OperationTypeQuery,
-							Name:          []byte("allGophinas"),
+							Name:          "allGophinas",
 							VariableDefinitions: document.VariableDefinitions{
 								{
-									Variable: []byte("color"),
+									Variable: "color",
 									Type: document.NamedType{
-										Name: []byte("String"),
+										Name: "String",
 									},
 								},
 							},
 							SelectionSet: document.SelectionSet{
 								document.Field{
-									Name: []byte("name"),
+									Name: "name",
 								},
 							},
 						},
@@ -188,51 +187,51 @@ func TestExecutableDefinitionParser(t *testing.T) {
 					OperationDefinitions: document.OperationDefinitions{
 						{
 							OperationType: document.OperationTypeQuery,
-							Name:          []byte("allGophers"),
+							Name:          "allGophers",
 							VariableDefinitions: document.VariableDefinitions{
 								{
-									Variable: []byte("color"),
+									Variable: "color",
 									Type: document.NamedType{
-										Name: []byte("String"),
+										Name: "String",
 									},
 								},
 							},
 							SelectionSet: document.SelectionSet{
 								document.Field{
-									Name: []byte("name"),
+									Name: "name",
 								},
 							},
 						},
 						{
 							OperationType: document.OperationTypeQuery,
-							Name:          []byte("allGophinas"),
+							Name:          "allGophinas",
 							VariableDefinitions: document.VariableDefinitions{
 								{
-									Variable: []byte("color"),
+									Variable: "color",
 									Type: document.NamedType{
-										Name: []byte("String"),
+										Name: "String",
 									},
 								},
 							},
 							SelectionSet: document.SelectionSet{
 								document.Field{
-									Name: []byte("name"),
+									Name: "name",
 								},
 							},
 						},
 					},
 					FragmentDefinitions: document.FragmentDefinitions{
 						{
-							FragmentName: []byte("MyFragment"),
+							FragmentName: "MyFragment",
 							TypeCondition: document.NamedType{
-								Name: []byte("SomeType"),
+								Name: "SomeType",
 							},
 							Directives: document.Directives{
 								document.Directive{
-									Name: []byte("rename"),
+									Name: "rename",
 									Arguments: document.Arguments{
 										document.Argument{
-											Name: []byte("index"),
+											Name: "index",
 											Value: document.IntValue{
 												Val: 3,
 											},
@@ -242,7 +241,7 @@ func TestExecutableDefinitionParser(t *testing.T) {
 							},
 							SelectionSet: document.SelectionSet{
 								document.Field{
-									Name: []byte("name"),
+									Name: "name",
 								},
 							},
 						},
@@ -286,14 +285,14 @@ func TestExecutableDefinitionParser(t *testing.T) {
 				expectValues: Equal(document.ExecutableDefinition{
 					OperationDefinitions: document.OperationDefinitions{
 						{
-							Name:          []byte("QueryWithFragments"),
+							Name:          "QueryWithFragments",
 							OperationType: document.OperationTypeQuery,
 							SelectionSet: document.SelectionSet{
 								document.Field{
-									Name: []byte("hero"),
+									Name: "hero",
 									SelectionSet: document.SelectionSet{
 										document.FragmentSpread{
-											FragmentName: []byte("heroFields"),
+											FragmentName: "heroFields",
 										},
 									},
 								},
@@ -302,27 +301,27 @@ func TestExecutableDefinitionParser(t *testing.T) {
 					},
 					FragmentDefinitions: document.FragmentDefinitions{
 						{
-							FragmentName: []byte("heroFields"),
+							FragmentName: "heroFields",
 							TypeCondition: document.NamedType{
-								Name: []byte("SuperHero"),
+								Name: "SuperHero",
 							},
 							SelectionSet: document.SelectionSet{
 								document.Field{
-									Name: []byte("name"),
+									Name: "name",
 								},
 								document.Field{
-									Name: []byte("skill"),
+									Name: "skill",
 								},
 								document.InlineFragment{
 									TypeCondition: document.NamedType{
-										Name: []byte("DrivingSuperHero"),
+										Name: "DrivingSuperHero",
 									},
 									SelectionSet: document.SelectionSet{
 										document.Field{
-											Name: []byte("vehicles"),
+											Name: "vehicles",
 											SelectionSet: document.SelectionSet{
 												document.FragmentSpread{
-													FragmentName: []byte("vehicleFields"),
+													FragmentName: "vehicleFields",
 												},
 											},
 										},
@@ -331,16 +330,16 @@ func TestExecutableDefinitionParser(t *testing.T) {
 							},
 						},
 						{
-							FragmentName: []byte("vehicleFields"),
+							FragmentName: "vehicleFields",
 							TypeCondition: document.NamedType{
-								Name: []byte("Vehicle"),
+								Name: "Vehicle",
 							},
 							SelectionSet: document.SelectionSet{
 								document.Field{
-									Name: []byte("name"),
+									Name: "name",
 								},
 								document.Field{
-									Name: []byte("weapon"),
+									Name: "weapon",
 								},
 							},
 						},
@@ -357,13 +356,13 @@ func TestExecutableDefinitionParser(t *testing.T) {
 							OperationType: document.OperationTypeQuery,
 							SelectionSet: []document.Selection{
 								document.Field{
-									Name: []byte("hero"),
+									Name: "hero",
 									SelectionSet: []document.Selection{
 										document.Field{
-											Name: []byte("id"),
+											Name: "id",
 										},
 										document.Field{
-											Name: []byte("name"),
+											Name: "name",
 										},
 									},
 								},
@@ -380,7 +379,7 @@ func TestExecutableDefinitionParser(t *testing.T) {
 			g.It(test.it, func() {
 
 				parser := NewParser()
-				parser.l.SetInput(strings.NewReader(test.input))
+				parser.l.SetInput(test.input)
 
 				val, err := parser.parseExecutableDefinition()
 				Expect(err).To(test.expectErr)

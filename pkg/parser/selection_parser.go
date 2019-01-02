@@ -13,7 +13,8 @@ func (p *Parser) parseSelection() (selection document.Selection, err error) {
 	}
 
 	if !isFragmentSelection {
-		return p.parseField()
+		selection, err = p.parseField()
+		return
 	}
 
 	isInlineFragment, err := p.peekExpect(keyword.ON, true)
@@ -22,8 +23,10 @@ func (p *Parser) parseSelection() (selection document.Selection, err error) {
 	}
 
 	if isInlineFragment {
-		return p.parseInlineFragment()
+		selection, err = p.parseInlineFragment()
+		return
 	}
 
-	return p.parseFragmentSpread()
+	selection, err = p.parseFragmentSpread()
+	return
 }

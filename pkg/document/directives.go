@@ -3,7 +3,7 @@ package document
 // Directive as specified in:
 // http://facebook.github.io/graphql/draft/#Directive
 type Directive struct {
-	Name      ByteSlice
+	Name      string
 	Arguments Arguments
 }
 

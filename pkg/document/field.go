@@ -3,8 +3,8 @@ package document
 // Field as specified in:
 // http://facebook.github.io/graphql/draft/#Field
 type Field struct {
-	Alias        ByteSlice
-	Name         ByteSlice
+	Alias        string
+	Name         string
 	Arguments    Arguments
 	Directives   Directives
 	SelectionSet SelectionSet

@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"bytes"
 	. "github.com/franela/goblin"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	. "github.com/onsi/gomega"
@@ -26,7 +25,7 @@ func TestParseScalar(t *testing.T) {
 				input:     ` JSON`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.ScalarTypeDefinition{
-					Name: []byte("JSON"),
+					Name: "JSON",
 				}),
 			},
 			{
@@ -34,26 +33,26 @@ func TestParseScalar(t *testing.T) {
 				input:     ` JSON @fromTop(to: "bottom") @fromBottom(to: "top") `,
 				expectErr: BeNil(),
 				expectValues: Equal(document.ScalarTypeDefinition{
-					Name: []byte("JSON"),
+					Name: "JSON",
 					Directives: document.Directives{
 						document.Directive{
-							Name: []byte("fromTop"),
+							Name: "fromTop",
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: []byte("to"),
+									Name: "to",
 									Value: document.StringValue{
-										Val: []byte("bottom"),
+										Val: "bottom",
 									},
 								},
 							},
 						},
 						document.Directive{
-							Name: []byte("fromBottom"),
+							Name: "fromBottom",
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: []byte("to"),
+									Name: "to",
 									Value: document.StringValue{
-										Val: []byte("top"),
+										Val: "top",
 									},
 								},
 							},
@@ -68,9 +67,8 @@ func TestParseScalar(t *testing.T) {
 
 			g.It(test.it, func() {
 
-				reader := bytes.NewReader([]byte(test.input))
 				parser := NewParser()
-				parser.l.SetInput(reader)
+				parser.l.SetInput(test.input)
 
 				val, err := parser.parseScalarTypeDefinition()
 				Expect(err).To(test.expectErr)

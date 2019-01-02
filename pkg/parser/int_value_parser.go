@@ -12,7 +12,7 @@ func (p *Parser) parsePeekedIntValue() (val document.IntValue, err error) {
 		return val, err
 	}
 
-	val.Val, err = transform.StringSliceToInt32(integerToken.Literal)
+	val.Val, err = transform.StringToInt32(integerToken.Literal)
 
 	return
 }
