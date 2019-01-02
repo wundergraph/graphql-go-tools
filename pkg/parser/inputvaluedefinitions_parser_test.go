@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"bytes"
 	. "github.com/franela/goblin"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	. "github.com/onsi/gomega"
@@ -27,9 +26,9 @@ func TestInputValueDefinitionsParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal([]document.InputValueDefinition{
 					{
-						Name: []byte("inputValue"),
+						Name: "inputValue",
 						Type: document.NamedType{
-							Name: []byte("Int"),
+							Name: "Int",
 						},
 					},
 				}),
@@ -40,9 +39,9 @@ func TestInputValueDefinitionsParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal([]document.InputValueDefinition{
 					{
-						Name: []byte("inputValue"),
+						Name: "inputValue",
 						Type: document.NamedType{
-							Name: []byte("Int"),
+							Name: "Int",
 						},
 						DefaultValue: document.IntValue{
 							Val: 2,
@@ -56,10 +55,10 @@ func TestInputValueDefinitionsParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal([]document.InputValueDefinition{
 					{
-						Description: []byte("useful description"),
-						Name:        []byte("inputValue"),
+						Description: "useful description",
+						Name:        "inputValue",
 						Type: document.NamedType{
-							Name: []byte("Int"),
+							Name: "Int",
 						},
 						DefaultValue: document.IntValue{
 							Val: 2,
@@ -73,15 +72,15 @@ func TestInputValueDefinitionsParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal([]document.InputValueDefinition{
 					{
-						Name: []byte("inputValue"),
+						Name: "inputValue",
 						Type: document.NamedType{
-							Name: []byte("Int"),
+							Name: "Int",
 						},
 					},
 					{
-						Name: []byte("outputValue"),
+						Name: "outputValue",
 						Type: document.NamedType{
-							Name: []byte("String"),
+							Name: "String",
 						},
 					},
 				}),
@@ -92,17 +91,17 @@ func TestInputValueDefinitionsParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal([]document.InputValueDefinition{
 					{
-						Description: []byte("this is a inputValue"),
-						Name:        []byte("inputValue"),
+						Description: "this is a inputValue",
+						Name:        "inputValue",
 						Type: document.NamedType{
-							Name: []byte("Int"),
+							Name: "Int",
 						},
 					},
 					{
-						Description: []byte("this is a outputValue"),
-						Name:        []byte("outputValue"),
+						Description: "this is a outputValue",
+						Name:        "outputValue",
 						Type: document.NamedType{
-							Name: []byte("String"),
+							Name: "String",
 						},
 					},
 				}),
@@ -113,23 +112,23 @@ func TestInputValueDefinitionsParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal([]document.InputValueDefinition{
 					{
-						Description: []byte("this is a inputValue"),
-						Name:        []byte("inputValue"),
+						Description: "this is a inputValue",
+						Name:        "inputValue",
 						Type: document.NamedType{
-							Name: []byte("Int"),
+							Name: "Int",
 						},
 						DefaultValue: document.IntValue{
 							Val: 2,
 						},
 					},
 					{
-						Description: []byte("this is a outputValue"),
-						Name:        []byte("outputValue"),
+						Description: "this is a outputValue",
+						Name:        "outputValue",
 						Type: document.NamedType{
-							Name: []byte("String"),
+							Name: "String",
 						},
 						DefaultValue: document.StringValue{
-							Val: []byte("test"),
+							Val: "test",
 						},
 					},
 				}),
@@ -140,9 +139,9 @@ func TestInputValueDefinitionsParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal([]document.InputValueDefinition{
 					{
-						Name: []byte("inputValue"),
+						Name: "inputValue",
 						Type: document.NamedType{
-							Name:    []byte("Int"),
+							Name:    "Int",
 							NonNull: true,
 						},
 					},
@@ -154,10 +153,10 @@ func TestInputValueDefinitionsParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal([]document.InputValueDefinition{
 					{
-						Name: []byte("inputValue"),
+						Name: "inputValue",
 						Type: document.ListType{
 							Type: document.NamedType{
-								Name: []byte("Int"),
+								Name: "Int",
 							},
 						},
 					},
@@ -169,29 +168,29 @@ func TestInputValueDefinitionsParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal([]document.InputValueDefinition{
 					{
-						Name: []byte("inputValue"),
+						Name: "inputValue",
 						Type: document.NamedType{
-							Name: []byte("Int"),
+							Name: "Int",
 						},
 						Directives: document.Directives{
 							document.Directive{
-								Name: []byte("fromTop"),
+								Name: "fromTop",
 								Arguments: document.Arguments{
 									document.Argument{
-										Name: []byte("to"),
+										Name: "to",
 										Value: document.StringValue{
-											Val: []byte("bottom"),
+											Val: "bottom",
 										},
 									},
 								},
 							},
 							document.Directive{
-								Name: []byte("fromBottom"),
+								Name: "fromBottom",
 								Arguments: document.Arguments{
 									document.Argument{
-										Name: []byte("to"),
+										Name: "to",
 										Value: document.StringValue{
-											Val: []byte("top"),
+											Val: "top",
 										},
 									},
 								},
@@ -207,9 +206,8 @@ func TestInputValueDefinitionsParser(t *testing.T) {
 
 			g.It(test.it, func() {
 
-				reader := bytes.NewReader([]byte(test.input))
 				parser := NewParser()
-				parser.l.SetInput(reader)
+				parser.l.SetInput(test.input)
 
 				val, err := parser.parseInputValueDefinitions()
 				Expect(err).To(test.expectErr)

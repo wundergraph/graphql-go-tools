@@ -51,37 +51,6 @@
       "FieldsDefinition": [
         {
           "Description": "",
-          "Name": "__schema",
-          "ArgumentsDefinition": null,
-          "Type": {
-            "Name": "__Schema",
-            "NonNull": true
-          },
-          "Directives": null
-        },
-        {
-          "Description": "",
-          "Name": "__type",
-          "ArgumentsDefinition": [
-            {
-              "Description": "",
-              "Name": "name",
-              "Type": {
-                "Name": "String",
-                "NonNull": true
-              },
-              "DefaultValue": null,
-              "Directives": null
-            }
-          ],
-          "Type": {
-            "Name": "__Type",
-            "NonNull": false
-          },
-          "Directives": null
-        },
-        {
-          "Description": "",
           "Name": "hero",
           "ArgumentsDefinition": [
             {

@@ -16,6 +16,7 @@
     "vet"
   ],
   "Exclude": [
-    "pkg/document/directivelocation_enum.go"
+    "pkg/document/directivelocation_enum.go",
+    "../../../../../../../usr/local/go/src/.."
   ]
 }

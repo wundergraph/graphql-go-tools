@@ -29,16 +29,16 @@ var _ = Describe("SchemaDefinition", func() {
 			Expect(err).To(c.expectErr)
 		}
 
-		Expect(actualOut).To(c.expectOut)
+		Expect(string(actualOut)).To(c.expectOut)
 	},
 		Entry("should marshal simple SchemaDefinition", Case{
 			input: SchemaDefinition{
-				Query:        []byte("Query"),
-				Mutation:     []byte("Mutation"),
-				Subscription: []byte("Subscription"),
+				Query:        "Query",
+				Mutation:     "Mutation",
+				Subscription: "Subscription",
 			},
 			expectErr: Not(HaveOccurred()),
-			expectOut: Equal([]byte(`{"Query":"Query","Mutation":"Mutation","Subscription":"Subscription","Directives":null}`)),
+			expectOut: Equal(`{"Query":"Query","Mutation":"Mutation","Subscription":"Subscription","Directives":null}`),
 		}),
 	)
 })

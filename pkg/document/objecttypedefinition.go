@@ -1,12 +1,10 @@
 package document
 
-import "bytes"
-
 // ObjectTypeDefinition as specified in:
 // http://facebook.github.io/graphql/draft/#ObjectTypeDefinition
 type ObjectTypeDefinition struct {
-	Description          ByteSlice
-	Name                 ByteSlice
+	Description          string
+	Name                 string
 	FieldsDefinition     FieldsDefinition
 	ImplementsInterfaces ImplementsInterfaces
 	Directives           Directives
@@ -16,9 +14,9 @@ type ObjectTypeDefinition struct {
 type ObjectTypeDefinitions []ObjectTypeDefinition
 
 // HasType returns if a type with $name is contained
-func (o ObjectTypeDefinitions) HasType(name []byte) bool {
+func (o ObjectTypeDefinitions) HasType(name string) bool {
 	for _, objectType := range o {
-		if bytes.Equal(objectType.Name, name) {
+		if objectType.Name == name {
 			return true
 		}
 	}
@@ -27,9 +25,9 @@ func (o ObjectTypeDefinitions) HasType(name []byte) bool {
 }
 
 // ObjectTypeDefinitionByName returns ObjectTypeDefinition,true if it is contained
-func (o *ObjectTypeDefinitions) ObjectTypeDefinitionByName(name []byte) *ObjectTypeDefinition {
+func (o *ObjectTypeDefinitions) ObjectTypeDefinitionByName(name string) *ObjectTypeDefinition {
 	for _, objectType := range *o {
-		if bytes.Equal(objectType.Name, name) {
+		if objectType.Name == name {
 			return &objectType
 		}
 	}

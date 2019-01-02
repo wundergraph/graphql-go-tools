@@ -1,12 +1,10 @@
 package parser
 
 import (
-	"bytes"
 	. "github.com/franela/goblin"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
-	"io"
 	"testing"
 )
 
@@ -28,11 +26,11 @@ func TestFieldParser(t *testing.T) {
 				input:     "preferredName: originalName(isSet: true) @rename(index: 3)",
 				expectErr: BeNil(),
 				expectValues: Equal(document.Field{
-					Alias: []byte("preferredName"),
-					Name:  []byte("originalName"),
+					Alias: "preferredName",
+					Name:  "originalName",
 					Arguments: document.Arguments{
 						document.Argument{
-							Name: []byte("isSet"),
+							Name: "isSet",
 							Value: document.BooleanValue{
 								Val: true,
 							},
@@ -40,10 +38,10 @@ func TestFieldParser(t *testing.T) {
 					},
 					Directives: document.Directives{
 						document.Directive{
-							Name: []byte("rename"),
+							Name: "rename",
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: []byte("index"),
+									Name: "index",
 									Value: document.IntValue{
 										Val: 3,
 									},
@@ -58,10 +56,10 @@ func TestFieldParser(t *testing.T) {
 				input:     "originalName(isSet: true) @rename(index: 3)",
 				expectErr: BeNil(),
 				expectValues: Equal(document.Field{
-					Name: []byte("originalName"),
+					Name: "originalName",
 					Arguments: document.Arguments{
 						document.Argument{
-							Name: []byte("isSet"),
+							Name: "isSet",
 							Value: document.BooleanValue{
 								Val: true,
 							},
@@ -69,10 +67,10 @@ func TestFieldParser(t *testing.T) {
 					},
 					Directives: document.Directives{
 						document.Directive{
-							Name: []byte("rename"),
+							Name: "rename",
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: []byte("index"),
+									Name: "index",
 									Value: document.IntValue{
 										Val: 3,
 									},
@@ -87,14 +85,14 @@ func TestFieldParser(t *testing.T) {
 				input:     "preferredName: originalName @rename(index: 3)",
 				expectErr: BeNil(),
 				expectValues: Equal(document.Field{
-					Alias: []byte("preferredName"),
-					Name:  []byte("originalName"),
+					Alias: "preferredName",
+					Name:  "originalName",
 					Directives: document.Directives{
 						document.Directive{
-							Name: []byte("rename"),
+							Name: "rename",
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: []byte("index"),
+									Name: "index",
 									Value: document.IntValue{
 										Val: 3,
 									},
@@ -109,11 +107,11 @@ func TestFieldParser(t *testing.T) {
 				input:     "preferredName: originalName(isSet: true)",
 				expectErr: BeNil(),
 				expectValues: Equal(document.Field{
-					Alias: []byte("preferredName"),
-					Name:  []byte("originalName"),
+					Alias: "preferredName",
+					Name:  "originalName",
 					Arguments: document.Arguments{
 						document.Argument{
-							Name: []byte("isSet"),
+							Name: "isSet",
 							Value: document.BooleanValue{
 								Val: true,
 							},
@@ -132,13 +130,13 @@ func TestFieldParser(t *testing.T) {
 				`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.Field{
-					Name: []byte("originalName"),
+					Name: "originalName",
 					SelectionSet: document.SelectionSet{
 						document.Field{
-							Name: []byte("unoriginalName"),
+							Name: "unoriginalName",
 							SelectionSet: document.SelectionSet{
 								document.Field{
-									Name: []byte("worstNamePossible"),
+									Name: "worstNamePossible",
 								},
 							},
 						},
@@ -152,9 +150,8 @@ func TestFieldParser(t *testing.T) {
 
 			g.It(test.it, func() {
 
-				reader := bytes.NewReader([]byte(test.input))
 				parser := NewParser()
-				parser.l.SetInput(reader)
+				parser.l.SetInput(test.input)
 
 				val, err := parser.parseField()
 				Expect(err).To(test.expectErr)
@@ -164,11 +161,10 @@ func TestFieldParser(t *testing.T) {
 	})
 }
 
-var parseFieldBenchmarkInput = []byte(`t { kind name ofType { kind name ofType { kind name } } }`)
+var parseFieldBenchmarkInput = `t { kind name ofType { kind name ofType { kind name } } }`
 
 func BenchmarkParseField(b *testing.B) {
 
-	reader := bytes.NewReader(parseFieldBenchmarkInput)
 	var err error
 
 	parser := NewParser()
@@ -177,12 +173,7 @@ func BenchmarkParseField(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 
-		_, err = reader.Seek(0, io.SeekStart)
-		if err != nil {
-			b.Fatal(err)
-		}
-
-		parser.l.SetInput(reader)
+		parser.l.SetInput(parseFieldBenchmarkInput)
 		_, err = parser.parseField()
 		if err != nil {
 			b.Fatal(err)

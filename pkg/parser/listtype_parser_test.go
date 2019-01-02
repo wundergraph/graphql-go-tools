@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"bytes"
 	. "github.com/franela/goblin"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	. "github.com/onsi/gomega"
@@ -28,7 +27,7 @@ func TestListTypeParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.ListType{
 					Type: document.NamedType{
-						Name: []byte("String"),
+						Name: "String",
 					},
 				}),
 			},
@@ -38,7 +37,7 @@ func TestListTypeParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.ListType{
 					Type: document.NamedType{
-						Name: []byte("String"),
+						Name: "String",
 					},
 					NonNull: true,
 				}),
@@ -49,7 +48,7 @@ func TestListTypeParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.ListType{
 					Type: document.NamedType{
-						Name:    []byte("String"),
+						Name:    "String",
 						NonNull: true,
 					},
 					NonNull: true,
@@ -63,7 +62,7 @@ func TestListTypeParser(t *testing.T) {
 					Type: document.ListType{
 						Type: document.ListType{
 							Type: document.NamedType{
-								Name:    []byte("String"),
+								Name:    "String",
 								NonNull: true,
 							},
 						},
@@ -83,7 +82,7 @@ func TestListTypeParser(t *testing.T) {
 				expectErr: Not(BeNil()),
 				expectValues: Equal(document.ListType{
 					Type: document.NamedType{
-						Name: []byte("String"),
+						Name: "String",
 					},
 				}),
 			},
@@ -94,9 +93,8 @@ func TestListTypeParser(t *testing.T) {
 
 			g.It(test.it, func() {
 
-				reader := bytes.NewReader([]byte(test.input))
 				parser := NewParser()
-				parser.l.SetInput(reader)
+				parser.l.SetInput(test.input)
 
 				val, err := parser.parseListType()
 				Expect(err).To(test.expectErr)

@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"bytes"
 	. "github.com/franela/goblin"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	. "github.com/onsi/gomega"
@@ -27,10 +26,10 @@ func TestParseUnionTypeDefinition(t *testing.T) {
 				input:     ` SearchResult = Photo | Person`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.UnionTypeDefinition{
-					Name: []byte("SearchResult"),
+					Name: "SearchResult",
 					UnionMemberTypes: document.UnionMemberTypes{
-						[]byte("Photo"),
-						[]byte("Person"),
+						"Photo",
+						"Person",
 					},
 				}),
 			},
@@ -39,12 +38,12 @@ func TestParseUnionTypeDefinition(t *testing.T) {
 				input:     ` SearchResult = Photo | Person | Car | Planet`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.UnionTypeDefinition{
-					Name: []byte("SearchResult"),
+					Name: "SearchResult",
 					UnionMemberTypes: document.UnionMemberTypes{
-						[]byte("Photo"),
-						[]byte("Person"),
-						[]byte("Car"),
-						[]byte("Planet"),
+						"Photo",
+						"Person",
+						"Car",
+						"Planet",
 					},
 				}),
 			},
@@ -56,12 +55,12 @@ func TestParseUnionTypeDefinition(t *testing.T) {
 | Planet`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.UnionTypeDefinition{
-					Name: []byte("SearchResult"),
+					Name: "SearchResult",
 					UnionMemberTypes: document.UnionMemberTypes{
-						[]byte("Photo"),
-						[]byte("Person"),
-						[]byte("Car"),
-						[]byte("Planet"),
+						"Photo",
+						"Person",
+						"Car",
+						"Planet",
 					},
 				}),
 			},
@@ -70,34 +69,34 @@ func TestParseUnionTypeDefinition(t *testing.T) {
 				input:     ` SearchResult @fromTop(to: "bottom") @fromBottom(to: "top") = Photo | Person`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.UnionTypeDefinition{
-					Name: []byte("SearchResult"),
+					Name: "SearchResult",
 					Directives: document.Directives{
 						document.Directive{
-							Name: []byte("fromTop"),
+							Name: "fromTop",
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: []byte("to"),
+									Name: "to",
 									Value: document.StringValue{
-										Val: []byte("bottom"),
+										Val: "bottom",
 									},
 								},
 							},
 						},
 						document.Directive{
-							Name: []byte("fromBottom"),
+							Name: "fromBottom",
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: []byte("to"),
+									Name: "to",
 									Value: document.StringValue{
-										Val: []byte("top"),
+										Val: "top",
 									},
 								},
 							},
 						},
 					},
 					UnionMemberTypes: document.UnionMemberTypes{
-						[]byte("Photo"),
-						[]byte("Person"),
+						"Photo",
+						"Person",
 					},
 				}),
 			},
@@ -106,7 +105,7 @@ func TestParseUnionTypeDefinition(t *testing.T) {
 				input:     ` SearchResult`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.UnionTypeDefinition{
-					Name: []byte("SearchResult"),
+					Name: "SearchResult",
 				}),
 			},
 		}
@@ -116,9 +115,8 @@ func TestParseUnionTypeDefinition(t *testing.T) {
 
 			g.It(test.it, func() {
 
-				reader := bytes.NewReader([]byte(test.input))
 				parser := NewParser()
-				parser.l.SetInput(reader)
+				parser.l.SetInput(test.input)
 
 				val, err := parser.parseUnionTypeDefinition()
 				Expect(err).To(test.expectErr)

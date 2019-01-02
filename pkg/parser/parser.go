@@ -7,7 +7,6 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
-	"io"
 )
 
 type errInvalidType struct {
@@ -32,13 +31,12 @@ func (e errInvalidType) Error() string {
 
 // Parser holds the lexer and a buffer for writing literals
 type Parser struct {
-	l                   Lexer
-	selectionSetBuffers []document.SelectionSet
+	l Lexer
 }
 
 // Lexer is the interface used by the Parser to lex tokens
 type Lexer interface {
-	SetInput(reader io.Reader)
+	SetInput(input string)
 	Read() (tok token.Token, err error)
 	Peek(ignoreWhitespace bool) (key keyword.Keyword, err error)
 }
@@ -46,20 +44,20 @@ type Lexer interface {
 // NewParser returns a new parser using a buffered runestringer
 func NewParser() *Parser {
 	return &Parser{
-		l:                   lexer.NewLexer(),
-		selectionSetBuffers: make([]document.SelectionSet, 10),
+		l: lexer.NewLexer(),
 	}
 }
 
 // ParseTypeSystemDefinition parses a TypeSystemDefinition from an io.Reader
-func (p *Parser) ParseTypeSystemDefinition(reader io.Reader) (def document.TypeSystemDefinition, err error) {
-	p.l.SetInput(reader)
+func (p *Parser) ParseTypeSystemDefinition(input string) (def document.TypeSystemDefinition, err error) {
+	p.l.SetInput(input)
 	return p.parseTypeSystemDefinition()
 }
 
 // ParseExecutableDefinition parses an ExecutableDefinition from an io.Reader
-func (p *Parser) ParseExecutableDefinition(reader io.Reader) (def document.ExecutableDefinition, err error) {
-	p.l.SetInput(reader)
+func (p *Parser) ParseExecutableDefinition(input string) (def document.ExecutableDefinition, err error) {
+
+	p.l.SetInput(input)
 	return p.parseExecutableDefinition()
 }
 
@@ -89,22 +87,4 @@ func (p *Parser) peekExpect(expected keyword.Keyword, swallow bool) (matched boo
 	}
 
 	return
-}
-
-func (p *Parser) getSelectionSetBuffer() *document.SelectionSet {
-
-	var s document.SelectionSet
-
-	if len(p.selectionSetBuffers) == 0 {
-		s = make(document.SelectionSet, 10)
-	} else {
-		s, p.selectionSetBuffers = p.selectionSetBuffers[0], p.selectionSetBuffers[1:]
-		s = s[:0]
-	}
-
-	return &s
-}
-
-func (p *Parser) putSelectionSet(set *document.SelectionSet) {
-	p.selectionSetBuffers = append(p.selectionSetBuffers, *set)
 }

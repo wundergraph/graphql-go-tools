@@ -1,32 +1,32 @@
 package document
 
 import (
-	"bytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
+	"strings"
 )
 
 // FieldDefinition as specified in:
 // http://facebook.github.io/graphql/draft/#FieldDefinition
 type FieldDefinition struct {
-	Description         ByteSlice
-	Name                ByteSlice
+	Description         string
+	Name                string
 	ArgumentsDefinition ArgumentsDefinition
 	Type                Type
 	Directives          Directives
 }
 
 // NameAsTitle trims all prefixed __ and formats the name with strings.Title
-func (f FieldDefinition) NameAsTitle() []byte {
-	return bytes.Title(bytes.TrimPrefix(f.Name, []byte("__")))
+func (f FieldDefinition) NameAsTitle() string {
+	return strings.Title(strings.TrimPrefix(f.Name, "__"))
 }
 
 // NameAsGoTypeName returns the field definition name as a go type name
-func (f FieldDefinition) NameAsGoTypeName() []byte {
+func (f FieldDefinition) NameAsGoTypeName() string {
 
 	name := f.NameAsTitle()
-	name = append(bytes.ToLower(name[:1]), name[1:]...)
+	name = strings.ToLower(name[:1]) + name[1:]
 
-	if bytes.Equal(name, literal.TYPE) {
+	if name == literal.TYPE {
 		name = literal.GRAPHQLTYPE
 	}
 

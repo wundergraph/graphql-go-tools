@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"bytes"
 	. "github.com/franela/goblin"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	. "github.com/onsi/gomega"
@@ -29,12 +28,12 @@ func TestObjectTypeDefinitionParser(t *testing.T) {
 				}`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.ObjectTypeDefinition{
-					Name: []byte("Person"),
+					Name: "Person",
 					FieldsDefinition: document.FieldsDefinition{
 						document.FieldDefinition{
-							Name: []byte("name"),
+							Name: "name",
 							Type: document.NamedType{
-								Name: []byte("String"),
+								Name: "String",
 							},
 						},
 					},
@@ -48,22 +47,22 @@ func TestObjectTypeDefinitionParser(t *testing.T) {
 				}`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.ObjectTypeDefinition{
-					Name: []byte("Person"),
+					Name: "Person",
 					FieldsDefinition: document.FieldsDefinition{
 						document.FieldDefinition{
-							Name: []byte("name"),
+							Name: "name",
 							Type: document.ListType{
 								Type: document.NamedType{
-									Name: []byte("String"),
+									Name: "String",
 								},
 								NonNull: true,
 							},
 						},
 						document.FieldDefinition{
-							Name: []byte("age"),
+							Name: "age",
 							Type: document.ListType{
 								Type: document.NamedType{
-									Name: []byte("Int"),
+									Name: "Int",
 								},
 							},
 						},
@@ -75,7 +74,7 @@ func TestObjectTypeDefinitionParser(t *testing.T) {
 				input:     `Person `,
 				expectErr: BeNil(),
 				expectValues: Equal(document.ObjectTypeDefinition{
-					Name: []byte("Person"),
+					Name: "Person",
 				}),
 			},
 			{
@@ -85,13 +84,13 @@ func TestObjectTypeDefinitionParser(t *testing.T) {
 				}`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.ObjectTypeDefinition{
-					Name:                 []byte("Person"),
-					ImplementsInterfaces: document.ImplementsInterfaces{[]byte("Human")},
+					Name:                 "Person",
+					ImplementsInterfaces: document.ImplementsInterfaces{"Human"},
 					FieldsDefinition: document.FieldsDefinition{
 						document.FieldDefinition{
-							Name: []byte("name"),
+							Name: "name",
 							Type: document.NamedType{
-								Name: []byte("String"),
+								Name: "String",
 							},
 						},
 					},
@@ -104,13 +103,13 @@ func TestObjectTypeDefinitionParser(t *testing.T) {
 				}`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.ObjectTypeDefinition{
-					Name:                 []byte("Person"),
-					ImplementsInterfaces: document.ImplementsInterfaces{[]byte("Human"), []byte("Mammal")},
+					Name:                 "Person",
+					ImplementsInterfaces: document.ImplementsInterfaces{"Human", "Mammal"},
 					FieldsDefinition: document.FieldsDefinition{
 						document.FieldDefinition{
-							Name: []byte("name"),
+							Name: "name",
 							Type: document.NamedType{
-								Name: []byte("String"),
+								Name: "String",
 							},
 						},
 					},
@@ -123,26 +122,26 @@ func TestObjectTypeDefinitionParser(t *testing.T) {
 				}`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.ObjectTypeDefinition{
-					Name: []byte("Person"),
+					Name: "Person",
 					Directives: document.Directives{
 						document.Directive{
-							Name: []byte("fromTop"),
+							Name: "fromTop",
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: []byte("to"),
+									Name: "to",
 									Value: document.StringValue{
-										Val: []byte("bottom"),
+										Val: "bottom",
 									},
 								},
 							},
 						},
 						document.Directive{
-							Name: []byte("fromBottom"),
+							Name: "fromBottom",
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: []byte("to"),
+									Name: "to",
 									Value: document.StringValue{
-										Val: []byte("top"),
+										Val: "top",
 									},
 								},
 							},
@@ -150,9 +149,9 @@ func TestObjectTypeDefinitionParser(t *testing.T) {
 					},
 					FieldsDefinition: document.FieldsDefinition{
 						document.FieldDefinition{
-							Name: []byte("name"),
+							Name: "name",
 							Type: document.NamedType{
-								Name: []byte("String"),
+								Name: "String",
 							},
 						},
 					},
@@ -165,9 +164,8 @@ func TestObjectTypeDefinitionParser(t *testing.T) {
 
 			g.It(test.it, func() {
 
-				reader := bytes.NewReader([]byte(test.input))
 				parser := NewParser()
-				parser.l.SetInput(reader)
+				parser.l.SetInput(test.input)
 
 				val, err := parser.parseObjectTypeDefinition()
 				Expect(err).To(test.expectErr)

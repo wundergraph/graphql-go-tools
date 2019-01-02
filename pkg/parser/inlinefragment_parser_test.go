@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"bytes"
 	. "github.com/franela/goblin"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	. "github.com/onsi/gomega"
@@ -35,21 +34,21 @@ func TestInlineFragmentParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.InlineFragment{
 					TypeCondition: document.NamedType{
-						Name: []byte("Goland"),
+						Name: "Goland",
 					},
 					SelectionSet: document.SelectionSet{
 						document.InlineFragment{
 							TypeCondition: document.NamedType{
-								Name: []byte("GoWater"),
+								Name: "GoWater",
 							},
 							SelectionSet: document.SelectionSet{
 								document.InlineFragment{
 									TypeCondition: document.NamedType{
-										Name: []byte("GoAir"),
+										Name: "GoAir",
 									},
 									SelectionSet: []document.Selection{
 										document.Field{
-											Name: []byte("go"),
+											Name: "go",
 										},
 									},
 								},
@@ -65,9 +64,8 @@ func TestInlineFragmentParser(t *testing.T) {
 
 			g.It(test.it, func() {
 
-				reader := bytes.NewReader([]byte(test.input))
 				parser := NewParser()
-				parser.l.SetInput(reader)
+				parser.l.SetInput(test.input)
 
 				val, err := parser.parseInlineFragment()
 				Expect(err).To(test.expectErr)

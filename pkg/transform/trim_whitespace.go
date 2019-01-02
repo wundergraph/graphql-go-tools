@@ -1,27 +1,27 @@
 package transform
 
 import (
-	"bytes"
+	"strings"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
 )
 
 // TrimWhitespace removes all spaces,tabs,lineterminators before and after a literal
-func TrimWhitespace(lit []byte) []byte {
+func TrimWhitespace(lit string) string {
 	for {
 
-		if bytes.HasPrefix(lit, literal.SPACE) {
-			lit = bytes.TrimPrefix(lit, literal.SPACE)
+		if strings.HasPrefix(lit, literal.SPACE) {
+			lit = strings.TrimPrefix(lit, literal.SPACE)
 			continue
 		}
 
-		if bytes.HasPrefix(lit, literal.TAB) {
-			lit = bytes.TrimPrefix(lit, literal.TAB)
+		if strings.HasPrefix(lit, literal.TAB) {
+			lit = strings.TrimPrefix(lit, literal.TAB)
 			continue
 		}
 
-		if bytes.HasPrefix(lit, literal.LINETERMINATOR) {
-			lit = bytes.TrimPrefix(lit, literal.LINETERMINATOR)
+		if strings.HasPrefix(lit, literal.LINETERMINATOR) {
+			lit = strings.TrimPrefix(lit, literal.LINETERMINATOR)
 			continue
 		}
 
@@ -29,18 +29,18 @@ func TrimWhitespace(lit []byte) []byte {
 	}
 
 	for {
-		if bytes.HasSuffix(lit, literal.SPACE) {
-			lit = bytes.TrimSuffix(lit, literal.SPACE)
+		if strings.HasSuffix(lit, literal.SPACE) {
+			lit = strings.TrimSuffix(lit, literal.SPACE)
 			continue
 		}
 
-		if bytes.HasSuffix(lit, literal.TAB) {
-			lit = bytes.TrimSuffix(lit, literal.TAB)
+		if strings.HasSuffix(lit, literal.TAB) {
+			lit = strings.TrimSuffix(lit, literal.TAB)
 			continue
 		}
 
-		if bytes.HasSuffix(lit, literal.LINETERMINATOR) {
-			lit = bytes.TrimSuffix(lit, literal.LINETERMINATOR)
+		if strings.HasSuffix(lit, literal.LINETERMINATOR) {
+			lit = strings.TrimSuffix(lit, literal.LINETERMINATOR)
 			continue
 		}
 

@@ -26,7 +26,7 @@ func TestAsGoType(t *testing.T) {
 					Name: literal.INT,
 				},
 				expectErr:    BeNil(),
-				expectValues: Equal([]byte("int32")),
+				expectValues: Equal("int32"),
 			},
 			{
 				it: "should convert gql 'Float' to go 'float32'",
@@ -34,7 +34,7 @@ func TestAsGoType(t *testing.T) {
 					Name: literal.FLOAT,
 				},
 				expectErr:    BeNil(),
-				expectValues: Equal([]byte("float32")),
+				expectValues: Equal("float32"),
 			},
 			{
 				it: "should convert gql 'String' to go 'string'",
@@ -42,7 +42,7 @@ func TestAsGoType(t *testing.T) {
 					Name: literal.STRING,
 				},
 				expectErr:    BeNil(),
-				expectValues: Equal([]byte("string")),
+				expectValues: Equal("string"),
 			},
 			{
 				it: "should convert gql 'Boolean' to go 'bool'",
@@ -51,7 +51,7 @@ func TestAsGoType(t *testing.T) {
 					NonNull: false,
 				},
 				expectErr:    BeNil(),
-				expectValues: Equal([]byte("bool")),
+				expectValues: Equal("bool"),
 			},
 			{
 				it: "should convert gql '[Int]' to go '[]int32'",
@@ -62,7 +62,7 @@ func TestAsGoType(t *testing.T) {
 					}},
 
 				expectErr:    BeNil(),
-				expectValues: Equal([]byte("[]int32")),
+				expectValues: Equal("[]int32"),
 			},
 			{
 				it: "should convert gql '[[Int]]' to go '[][]int32'",
@@ -75,7 +75,7 @@ func TestAsGoType(t *testing.T) {
 					}},
 
 				expectErr:    BeNil(),
-				expectValues: Equal([]byte("[][]int32")),
+				expectValues: Equal("[][]int32"),
 			},
 		}
 

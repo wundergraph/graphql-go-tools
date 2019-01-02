@@ -12,7 +12,7 @@ func (p *Parser) parsePeekedFloatValue() (val document.FloatValue, err error) {
 		return val, err
 	}
 
-	val.Val, err = transform.StringSliceToFloat32(floatToken.Literal)
+	val.Val, err = transform.StringToFloat32(floatToken.Literal)
 
 	return
 }

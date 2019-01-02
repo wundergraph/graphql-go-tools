@@ -1,7 +1,6 @@
 package lexer
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"github.com/jensneuse/diffview"
@@ -14,7 +13,6 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
 	"github.com/sebdah/goldie"
-	"io"
 	"io/ioutil"
 	"testing"
 )
@@ -27,8 +25,7 @@ func TestLexer(t *testing.T) {
 func TestLexerRegressions(t *testing.T) {
 
 	lexer := NewLexer()
-	reader := bytes.NewReader(introspectionQuery)
-	lexer.SetInput(reader)
+	lexer.SetInput(introspectionQuery)
 
 	var total []token.Token
 	for {
@@ -39,8 +36,6 @@ func TestLexerRegressions(t *testing.T) {
 		if tok.Keyword == keyword.EOF {
 			break
 		}
-
-		tok.Description = string(tok.Literal)
 
 		total = append(total, tok)
 	}
@@ -63,27 +58,18 @@ func TestLexerRegressions(t *testing.T) {
 }
 
 var _ = Describe("Lexer.Read", func() {
-	It("should not panic if reader is nil", func() {
-		lexer := NewLexer()
-		f := func() {
-			_, err := lexer.Read()
-			Expect(err).To(HaveOccurred())
-		}
-
-		Expect(f).ShouldNot(Panic())
-	})
 	It("should read correctly from reader when re-setting input", func() {
 		lexer := NewLexer()
-		lexer.SetInput(bytes.NewReader([]byte("x")))
+		lexer.SetInput("x")
 		_, err := lexer.Read()
 		Expect(err).NotTo(HaveOccurred())
 
-		lexer.SetInput(bytes.NewReader([]byte("x")))
+		lexer.SetInput("x")
 		x, err := lexer.Read()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(x).To(Equal(token.Token{
 			Keyword: keyword.IDENT,
-			Literal: []byte("x"),
+			Literal: "x",
 			Position: position.Position{
 				Line: 1,
 				Char: 1,
@@ -92,13 +78,13 @@ var _ = Describe("Lexer.Read", func() {
 	})
 	It("should read eof multiple times correctly", func() {
 		lexer := NewLexer()
-		lexer.SetInput(bytes.NewReader([]byte("x")))
+		lexer.SetInput("x")
 
 		x, err := lexer.Read()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(x).To(Equal(token.Token{
 			Keyword: keyword.IDENT,
-			Literal: []byte("x"),
+			Literal: "x",
 			Position: position.Position{
 				Line: 1,
 				Char: 1,
@@ -109,18 +95,7 @@ var _ = Describe("Lexer.Read", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(eof1).To(Equal(token.Token{
 			Keyword: keyword.EOF,
-			Literal: []byte("eof"),
-			Position: position.Position{
-				Line: 1,
-				Char: 2,
-			},
-		}))
-
-		eof2, err := lexer.Read()
-		Expect(err).NotTo(HaveOccurred())
-		Expect(eof2).To(Equal(token.Token{
-			Keyword: keyword.EOF,
-			Literal: []byte("eof"),
+			Literal: "eof",
 			Position: position.Position{
 				Line: 1,
 				Char: 2,
@@ -132,7 +107,7 @@ var _ = Describe("Lexer.Read", func() {
 var _ = Describe("Lexer.Read", func() {
 
 	type Case struct {
-		in        []byte
+		in        string
 		out       token.Token
 		expectErr types.GomegaMatcher
 	}
@@ -145,7 +120,7 @@ var _ = Describe("Lexer.Read", func() {
 
 	DescribeTable("Read Single Token", func(c Case) {
 
-		lexer.SetInput(bytes.NewReader(c.in))
+		lexer.SetInput(c.in)
 		tok, err := lexer.Read()
 		if c.expectErr != nil {
 			Expect(err).To(c.expectErr)
@@ -156,10 +131,10 @@ var _ = Describe("Lexer.Read", func() {
 
 	},
 		Entry("should read integer", Case{
-			in: []byte("1337"),
+			in: "1337",
 			out: token.Token{
 				Keyword: keyword.INTEGER,
-				Literal: []byte("1337"),
+				Literal: "1337",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -167,10 +142,10 @@ var _ = Describe("Lexer.Read", func() {
 			},
 		}),
 		Entry("should read integer with comma at the end", Case{
-			in: []byte("1337,"),
+			in: "1337,",
 			out: token.Token{
 				Keyword: keyword.INTEGER,
-				Literal: []byte("1337"),
+				Literal: "1337",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -178,10 +153,10 @@ var _ = Describe("Lexer.Read", func() {
 			},
 		}),
 		Entry("should read float", Case{
-			in: []byte("13.37"),
+			in: "13.37",
 			out: token.Token{
 				Keyword: keyword.FLOAT,
-				Literal: []byte("13.37"),
+				Literal: "13.37",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -189,8 +164,8 @@ var _ = Describe("Lexer.Read", func() {
 			},
 		}),
 		Entry("should fail reading incomplete float", Case{
-			in:        []byte("13."),
-			expectErr: Not(BeNil()),
+			in:        "13.",
+			expectErr: HaveOccurred(),
 			out: token.Token{
 				Position: position.Position{
 					Line: 1,
@@ -199,10 +174,10 @@ var _ = Describe("Lexer.Read", func() {
 			},
 		}),
 		Entry("should read single line string", Case{
-			in: []byte(`"foo bar"`),
+			in: `"foo bar"`,
 			out: token.Token{
 				Keyword: keyword.STRING,
-				Literal: []byte(`foo bar`),
+				Literal: `foo bar`,
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -210,10 +185,10 @@ var _ = Describe("Lexer.Read", func() {
 			},
 		}),
 		Entry("should read single line string with escaped quote", Case{
-			in: []byte(`"foo bar \" baz"`),
+			in: "\"foo bar \\\" baz\"",
 			out: token.Token{
 				Keyword: keyword.STRING,
-				Literal: []byte(`foo bar " baz`),
+				Literal: "foo bar \\\" baz",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -221,10 +196,10 @@ var _ = Describe("Lexer.Read", func() {
 			},
 		}),
 		Entry("should read multi line string with escaped quote", Case{
-			in: []byte(`"""foo bar \""" baz"""`),
+			in: "\"\"\"foo bar \\\"\\\"\\\" baz\"\"\"",
 			out: token.Token{
 				Keyword: keyword.STRING,
-				Literal: []byte(`foo bar """ baz`),
+				Literal: "foo bar \\\"\\\"\\\" baz",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -232,13 +207,13 @@ var _ = Describe("Lexer.Read", func() {
 			},
 		}),
 		Entry("should read multi single line string", Case{
-			in: []byte(`"""
+			in: `"""
 foo
-bar"""`),
+bar"""`,
 			out: token.Token{
 				Keyword: keyword.STRING,
-				Literal: []byte(`foo
-bar`),
+				Literal: `foo
+bar`,
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -246,12 +221,12 @@ bar`),
 			},
 		}),
 		Entry("should read multi single line string with correct whitespace trimming", Case{
-			in: []byte(`"""
+			in: `"""
 foo
-"""`),
+"""`,
 			out: token.Token{
 				Keyword: keyword.STRING,
-				Literal: []byte(`foo`),
+				Literal: `foo`,
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -259,7 +234,7 @@ foo
 			},
 		}),
 		Entry("should read pipe", Case{
-			in: []byte("|"),
+			in: "|",
 			out: token.Token{
 				Keyword: keyword.PIPE,
 				Literal: literal.PIPE,
@@ -270,17 +245,17 @@ foo
 			},
 		}),
 		Entry("should not read dot", Case{
-			in: []byte("."),
+			in: ".",
 			out: token.Token{
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
 				},
 			},
-			expectErr: Not(BeNil()),
+			expectErr: HaveOccurred(),
 		}),
 		Entry("should read spread (...)", Case{
-			in: []byte("..."),
+			in: "...",
 			out: token.Token{
 				Keyword: keyword.SPREAD,
 				Literal: literal.SPREAD,
@@ -291,10 +266,10 @@ foo
 			},
 		}),
 		Entry("should read $123", Case{
-			in: []byte("$123"),
+			in: "$123",
 			out: token.Token{
 				Keyword: keyword.VARIABLE,
-				Literal: []byte("123"),
+				Literal: "123",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -302,10 +277,10 @@ foo
 			},
 		}),
 		Entry("should read $foo", Case{
-			in: []byte("$foo"),
+			in: "$foo",
 			out: token.Token{
 				Keyword: keyword.VARIABLE,
-				Literal: []byte("foo"),
+				Literal: "foo",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -313,10 +288,10 @@ foo
 			},
 		}),
 		Entry("should read $_foo", Case{
-			in: []byte("$_foo"),
+			in: "$_foo",
 			out: token.Token{
 				Keyword: keyword.VARIABLE,
-				Literal: []byte("_foo"),
+				Literal: "_foo",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -324,10 +299,10 @@ foo
 			},
 		}),
 		Entry("should read $123 ", Case{
-			in: []byte("$123 "),
+			in: "$123 ",
 			out: token.Token{
 				Keyword: keyword.VARIABLE,
-				Literal: []byte("123"),
+				Literal: "123",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -335,10 +310,10 @@ foo
 			},
 		}),
 		Entry("should read $123\n", Case{
-			in: []byte("$123\n"),
+			in: "$123\n",
 			out: token.Token{
 				Keyword: keyword.VARIABLE,
-				Literal: []byte("123"),
+				Literal: "123",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -346,10 +321,10 @@ foo
 			},
 		}),
 		Entry("should read @", Case{
-			in: []byte("@"),
+			in: "@",
 			out: token.Token{
 				Keyword: keyword.AT,
-				Literal: []byte("@"),
+				Literal: "@",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -357,10 +332,10 @@ foo
 			},
 		}),
 		Entry("should read =", Case{
-			in: []byte("="),
+			in: "=",
 			out: token.Token{
 				Keyword: keyword.EQUALS,
-				Literal: []byte("="),
+				Literal: "=",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -368,10 +343,10 @@ foo
 			},
 		}),
 		Entry("should read :", Case{
-			in: []byte(":"),
+			in: ":",
 			out: token.Token{
 				Keyword: keyword.COLON,
-				Literal: []byte(":"),
+				Literal: ":",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -379,10 +354,10 @@ foo
 			},
 		}),
 		Entry("should read !", Case{
-			in: []byte("!"),
+			in: "!",
 			out: token.Token{
 				Keyword: keyword.BANG,
-				Literal: []byte("!"),
+				Literal: "!",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -390,10 +365,10 @@ foo
 			},
 		}),
 		Entry("should read (", Case{
-			in: []byte("("),
+			in: "(",
 			out: token.Token{
 				Keyword: keyword.BRACKETOPEN,
-				Literal: []byte("("),
+				Literal: "(",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -401,10 +376,10 @@ foo
 			},
 		}),
 		Entry("should read )", Case{
-			in: []byte(")"),
+			in: ")",
 			out: token.Token{
 				Keyword: keyword.BRACKETCLOSE,
-				Literal: []byte(")"),
+				Literal: ")",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -412,10 +387,10 @@ foo
 			},
 		}),
 		Entry("should read {", Case{
-			in: []byte("{"),
+			in: "{",
 			out: token.Token{
 				Keyword: keyword.CURLYBRACKETOPEN,
-				Literal: []byte("{"),
+				Literal: "{",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -423,10 +398,10 @@ foo
 			},
 		}),
 		Entry("should read }", Case{
-			in: []byte("}"),
+			in: "}",
 			out: token.Token{
 				Keyword: keyword.CURLYBRACKETCLOSE,
-				Literal: []byte("}"),
+				Literal: "}",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -434,10 +409,10 @@ foo
 			},
 		}),
 		Entry("should read [", Case{
-			in: []byte("["),
+			in: "[",
 			out: token.Token{
 				Keyword: keyword.SQUAREBRACKETOPEN,
-				Literal: []byte("["),
+				Literal: "[",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -445,10 +420,10 @@ foo
 			},
 		}),
 		Entry("should read ]", Case{
-			in: []byte("]"),
+			in: "]",
 			out: token.Token{
 				Keyword: keyword.SQUAREBRACKETCLOSE,
-				Literal: []byte("]"),
+				Literal: "]",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -456,10 +431,10 @@ foo
 			},
 		}),
 		Entry("should read &", Case{
-			in: []byte("&"),
+			in: "&",
 			out: token.Token{
 				Keyword: keyword.AND,
-				Literal: []byte("&"),
+				Literal: "&",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -467,7 +442,7 @@ foo
 			},
 		}),
 		Entry("should read EOF", Case{
-			in: []byte(""),
+			in: "",
 			out: token.Token{
 				Keyword: keyword.EOF,
 				Literal: literal.EOF,
@@ -478,10 +453,10 @@ foo
 			},
 		}),
 		Entry("should read ident 'foo'", Case{
-			in: []byte("foo"),
+			in: "foo",
 			out: token.Token{
 				Keyword: keyword.IDENT,
-				Literal: []byte("foo"),
+				Literal: "foo",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -489,10 +464,10 @@ foo
 			},
 		}),
 		Entry("should read ident 'foo' from 'foo:'", Case{
-			in: []byte("foo:"),
+			in: "foo:",
 			out: token.Token{
 				Keyword: keyword.IDENT,
-				Literal: []byte("foo"),
+				Literal: "foo",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -500,10 +475,10 @@ foo
 			},
 		}),
 		Entry("should read ident true", Case{
-			in: []byte("true"),
+			in: "true",
 			out: token.Token{
 				Keyword: keyword.TRUE,
-				Literal: []byte("true"),
+				Literal: "true",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -511,10 +486,10 @@ foo
 			},
 		}),
 		Entry("should read ident false", Case{
-			in: []byte("false"),
+			in: "false",
 			out: token.Token{
 				Keyword: keyword.FALSE,
-				Literal: []byte("false"),
+				Literal: "false",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -526,7 +501,7 @@ foo
 
 var _ = Describe("Lexer.Peek()", func() {
 	type Case struct {
-		input              []byte
+		input              string
 		expectErr          types.GomegaMatcher
 		expectKey          types.GomegaMatcher
 		expectNextToken    types.GomegaMatcher
@@ -540,7 +515,7 @@ var _ = Describe("Lexer.Peek()", func() {
 	})
 
 	DescribeTable("Peek Tests", func(c Case) {
-		lexer.SetInput(bytes.NewReader(c.input))
+		lexer.SetInput(c.input)
 		key, err := lexer.Peek(true)
 		if c.expectErr != nil {
 			Expect(err).To(c.expectErr)
@@ -558,13 +533,13 @@ var _ = Describe("Lexer.Peek()", func() {
 		}
 	},
 		Entry("should peek EOF", Case{
-			input:              []byte(""),
+			input:              "",
 			expectKey:          Equal(keyword.EOF),
 			expectErr:          BeNil(),
 			expectNextTokenErr: BeNil(),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.EOF,
-				Literal: []byte("eof"),
+				Literal: "eof",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -572,13 +547,13 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek query", Case{
-			input:              []byte("query"),
+			input:              "query ",
 			expectKey:          Equal(keyword.QUERY),
 			expectErr:          BeNil(),
 			expectNextTokenErr: BeNil(),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.QUERY,
-				Literal: []byte("query"),
+				Literal: "query",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -586,13 +561,13 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek mutation", Case{
-			input:              []byte("mutation"),
+			input:              "mutation",
 			expectKey:          Equal(keyword.MUTATION),
 			expectErr:          BeNil(),
 			expectNextTokenErr: BeNil(),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.MUTATION,
-				Literal: []byte("mutation"),
+				Literal: "mutation",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -600,13 +575,13 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek subscription", Case{
-			input:              []byte("subscription"),
+			input:              "subscription",
 			expectKey:          Equal(keyword.SUBSCRIPTION),
 			expectErr:          BeNil(),
 			expectNextTokenErr: BeNil(),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.SUBSCRIPTION,
-				Literal: []byte("subscription"),
+				Literal: "subscription",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -614,13 +589,13 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek fragment", Case{
-			input:              []byte("fragment"),
+			input:              "fragment",
 			expectKey:          Equal(keyword.FRAGMENT),
 			expectErr:          BeNil(),
 			expectNextTokenErr: BeNil(),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.FRAGMENT,
-				Literal: []byte("fragment"),
+				Literal: "fragment",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -628,13 +603,13 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek spread (...)", Case{
-			input:              []byte("..."),
+			input:              "...",
 			expectKey:          Equal(keyword.SPREAD),
 			expectErr:          BeNil(),
 			expectNextTokenErr: BeNil(),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.SPREAD,
-				Literal: []byte("..."),
+				Literal: "...",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -642,13 +617,13 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek 'implements'", Case{
-			input:              []byte("implements"),
+			input:              "implements",
 			expectKey:          Equal(keyword.IMPLEMENTS),
 			expectErr:          BeNil(),
 			expectNextTokenErr: BeNil(),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.IMPLEMENTS,
-				Literal: []byte("implements"),
+				Literal: "implements",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -656,13 +631,13 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek 'schema'", Case{
-			input:              []byte("schema"),
+			input:              "schema",
 			expectKey:          Equal(keyword.SCHEMA),
 			expectErr:          BeNil(),
 			expectNextTokenErr: BeNil(),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.SCHEMA,
-				Literal: []byte("schema"),
+				Literal: "schema",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -670,13 +645,13 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek 'scalar'", Case{
-			input:              []byte("scalar"),
+			input:              "scalar",
 			expectKey:          Equal(keyword.SCALAR),
 			expectErr:          BeNil(),
 			expectNextTokenErr: BeNil(),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.SCALAR,
-				Literal: []byte("scalar"),
+				Literal: "scalar",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -684,13 +659,13 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek 'type'", Case{
-			input:              []byte("type"),
+			input:              "type",
 			expectKey:          Equal(keyword.TYPE),
 			expectErr:          BeNil(),
 			expectNextTokenErr: BeNil(),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.TYPE,
-				Literal: []byte("type"),
+				Literal: "type",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -698,13 +673,13 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek 'interface'", Case{
-			input:              []byte("interface"),
+			input:              "interface",
 			expectKey:          Equal(keyword.INTERFACE),
 			expectErr:          BeNil(),
 			expectNextTokenErr: BeNil(),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.INTERFACE,
-				Literal: []byte("interface"),
+				Literal: "interface",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -712,13 +687,13 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek 'union'", Case{
-			input:              []byte("union"),
+			input:              "union",
 			expectKey:          Equal(keyword.UNION),
 			expectErr:          BeNil(),
 			expectNextTokenErr: BeNil(),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.UNION,
-				Literal: []byte("union"),
+				Literal: "union",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -726,13 +701,13 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek 'enum'", Case{
-			input:              []byte("enum"),
+			input:              "enum",
 			expectKey:          Equal(keyword.ENUM),
 			expectErr:          BeNil(),
 			expectNextTokenErr: BeNil(),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.ENUM,
-				Literal: []byte("enum"),
+				Literal: "enum",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -740,13 +715,13 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek 'input'", Case{
-			input:              []byte("input"),
+			input:              "input",
 			expectKey:          Equal(keyword.INPUT),
 			expectErr:          BeNil(),
 			expectNextTokenErr: BeNil(),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.INPUT,
-				Literal: []byte("input"),
+				Literal: "input",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -754,13 +729,13 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek 'directive'", Case{
-			input:              []byte("directive"),
+			input:              "directive",
 			expectKey:          Equal(keyword.DIRECTIVE),
 			expectErr:          BeNil(),
 			expectNextTokenErr: BeNil(),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.DIRECTIVE,
-				Literal: []byte("directive"),
+				Literal: "directive",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -768,13 +743,13 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek 'inputValue' as ident", Case{
-			input:              []byte("inputValue"),
+			input:              "inputValue",
 			expectKey:          Equal(keyword.IDENT),
 			expectErr:          BeNil(),
 			expectNextTokenErr: BeNil(),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.IDENT,
-				Literal: []byte("inputValue"),
+				Literal: "inputValue",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -782,13 +757,13 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek ON", Case{
-			input:              []byte("on"),
+			input:              "on",
 			expectKey:          Equal(keyword.ON),
 			expectErr:          BeNil(),
 			expectNextTokenErr: BeNil(),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.ON,
-				Literal: []byte("on"),
+				Literal: "on",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -796,13 +771,13 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek ON with whitespace behind", Case{
-			input:              []byte("on "),
+			input:              "on ",
 			expectKey:          Equal(keyword.ON),
 			expectErr:          BeNil(),
 			expectNextTokenErr: BeNil(),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.ON,
-				Literal: []byte("on"),
+				Literal: "on",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -810,11 +785,11 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek ignore comma", Case{
-			input:     []byte(","),
+			input:     ",",
 			expectKey: Equal(keyword.EOF),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.EOF,
-				Literal: []byte("eof"),
+				Literal: "eof",
 				Position: position.Position{
 					Line: 1,
 					Char: 2,
@@ -822,11 +797,11 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek '$color:' as variable color", Case{
-			input:     []byte("$color:"),
+			input:     "$color:",
 			expectKey: Equal(keyword.VARIABLE),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.VARIABLE,
-				Literal: []byte("color"),
+				Literal: "color",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -834,16 +809,16 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek '$ color:' as invalid", Case{
-			input:              []byte("$ color:"),
+			input:              "$ color:",
 			expectErr:          BeNil(),
 			expectNextTokenErr: HaveOccurred(),
 		}),
 		Entry("should peek ignore space", Case{
-			input:     []byte(" "),
+			input:     " ",
 			expectKey: Equal(keyword.EOF),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.EOF,
-				Literal: []byte("eof"),
+				Literal: "eof",
 				Position: position.Position{
 					Line: 1,
 					Char: 2,
@@ -851,11 +826,11 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek ignore tab", Case{
-			input: []byte("	"),
+			input: "	",
 			expectKey: Equal(keyword.EOF),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.EOF,
-				Literal: []byte("eof"),
+				Literal: "eof",
 				Position: position.Position{
 					Line: 1,
 					Char: 2,
@@ -863,11 +838,11 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek ignore line terminator", Case{
-			input:     []byte("\n"),
+			input:     "\n",
 			expectKey: Equal(keyword.EOF),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.EOF,
-				Literal: []byte("eof"),
+				Literal: "eof",
 				Position: position.Position{
 					Line: 2,
 					Char: 1,
@@ -875,11 +850,11 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek single line string", Case{
-			input:     []byte(`"foo"`),
+			input:     `"foo"`,
 			expectKey: Equal(keyword.STRING),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.STRING,
-				Literal: []byte("foo"),
+				Literal: "foo",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -887,11 +862,11 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek multi line string", Case{
-			input:     []byte(`"""foo"""`),
+			input:     `"""foo"""`,
 			expectKey: Equal(keyword.STRING),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.STRING,
-				Literal: []byte("foo"),
+				Literal: "foo",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -899,11 +874,11 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek variable", Case{
-			input:     []byte("$foo"),
+			input:     "$foo",
 			expectKey: Equal(keyword.VARIABLE),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.VARIABLE,
-				Literal: []byte("foo"),
+				Literal: "foo",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -911,15 +886,15 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should throw error when reading invalid variable", Case{
-			input:              []byte("$ foo"),
+			input:              "$ foo",
 			expectNextTokenErr: HaveOccurred(),
 		}),
 		Entry("should peek pipe", Case{
-			input:     []byte("|"),
+			input:     "|",
 			expectKey: Equal(keyword.PIPE),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.PIPE,
-				Literal: []byte("|"),
+				Literal: "|",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -927,11 +902,11 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek equals", Case{
-			input:     []byte("="),
+			input:     "=",
 			expectKey: Equal(keyword.EQUALS),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.EQUALS,
-				Literal: []byte("="),
+				Literal: "=",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -939,11 +914,11 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek at", Case{
-			input:     []byte("@"),
+			input:     "@",
 			expectKey: Equal(keyword.AT),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.AT,
-				Literal: []byte("@"),
+				Literal: "@",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -951,11 +926,11 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek null", Case{
-			input:     []byte("null"),
+			input:     "null",
 			expectKey: Equal(keyword.NULL),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.NULL,
-				Literal: []byte("null"),
+				Literal: "null",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -963,11 +938,11 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek colon", Case{
-			input:     []byte(":"),
+			input:     ":",
 			expectKey: Equal(keyword.COLON),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.COLON,
-				Literal: []byte(":"),
+				Literal: ":",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -975,11 +950,11 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek bang", Case{
-			input:     []byte("!"),
+			input:     "!",
 			expectKey: Equal(keyword.BANG),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.BANG,
-				Literal: []byte("!"),
+				Literal: "!",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -987,11 +962,11 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek bracket open", Case{
-			input:     []byte("("),
+			input:     "(",
 			expectKey: Equal(keyword.BRACKETOPEN),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.BRACKETOPEN,
-				Literal: []byte("("),
+				Literal: "(",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -999,11 +974,11 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek bracket close", Case{
-			input:     []byte(")"),
+			input:     ")",
 			expectKey: Equal(keyword.BRACKETCLOSE),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.BRACKETCLOSE,
-				Literal: []byte(")"),
+				Literal: ")",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -1011,11 +986,11 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek squared bracket open", Case{
-			input:     []byte("["),
+			input:     "[",
 			expectKey: Equal(keyword.SQUAREBRACKETOPEN),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.SQUAREBRACKETOPEN,
-				Literal: []byte("["),
+				Literal: "[",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -1023,11 +998,11 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek squared bracket close", Case{
-			input:     []byte("]"),
+			input:     "]",
 			expectKey: Equal(keyword.SQUAREBRACKETCLOSE),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.SQUAREBRACKETCLOSE,
-				Literal: []byte("]"),
+				Literal: "]",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -1035,11 +1010,11 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek curly bracket open", Case{
-			input:     []byte("{"),
+			input:     "{",
 			expectKey: Equal(keyword.CURLYBRACKETOPEN),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.CURLYBRACKETOPEN,
-				Literal: []byte("{"),
+				Literal: "{",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -1047,11 +1022,11 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek curly bracket close", Case{
-			input:     []byte("}"),
+			input:     "}",
 			expectKey: Equal(keyword.CURLYBRACKETCLOSE),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.CURLYBRACKETCLOSE,
-				Literal: []byte("}"),
+				Literal: "}",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -1059,11 +1034,11 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek and", Case{
-			input:     []byte("&"),
+			input:     "&",
 			expectKey: Equal(keyword.AND),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.AND,
-				Literal: []byte("&"),
+				Literal: "&",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -1071,11 +1046,11 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek ident", Case{
-			input:     []byte("foo"),
+			input:     "foo",
 			expectKey: Equal(keyword.IDENT),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.IDENT,
-				Literal: []byte("foo"),
+				Literal: "foo",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -1083,11 +1058,11 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek integer", Case{
-			input:     []byte("1337"),
+			input:     "1337",
 			expectKey: Equal(keyword.INTEGER),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.INTEGER,
-				Literal: []byte("1337"),
+				Literal: "1337",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -1095,11 +1070,11 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek float", Case{
-			input:     []byte("13.37"),
+			input:     "13.37",
 			expectKey: Equal(keyword.FLOAT),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.FLOAT,
-				Literal: []byte("13.37"),
+				Literal: "13.37",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -1107,11 +1082,11 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek true", Case{
-			input:     []byte("true "),
+			input:     "true ",
 			expectKey: Equal(keyword.TRUE),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.TRUE,
-				Literal: []byte("true"),
+				Literal: "true",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -1119,11 +1094,11 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek true with space in front", Case{
-			input:     []byte(" true "),
+			input:     " true ",
 			expectKey: Equal(keyword.TRUE),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.TRUE,
-				Literal: []byte("true"),
+				Literal: "true",
 				Position: position.Position{
 					Line: 1,
 					Char: 2,
@@ -1131,11 +1106,11 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek true with multiple spaces in front", Case{
-			input:     []byte("   true"),
+			input:     "   true",
 			expectKey: Equal(keyword.TRUE),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.TRUE,
-				Literal: []byte("true"),
+				Literal: "true",
 				Position: position.Position{
 					Line: 1,
 					Char: 4,
@@ -1143,11 +1118,11 @@ var _ = Describe("Lexer.Peek()", func() {
 			}),
 		}),
 		Entry("should peek false", Case{
-			input:     []byte("false "),
+			input:     "false ",
 			expectKey: Equal(keyword.FALSE),
 			expectNextToken: Equal(token.Token{
 				Keyword: keyword.FALSE,
-				Literal: []byte("false"),
+				Literal: "false",
 				Position: position.Position{
 					Line: 1,
 					Char: 1,
@@ -1159,9 +1134,8 @@ var _ = Describe("Lexer.Peek()", func() {
 
 var _ = Describe("Lexer.peekIsFloat", func() {
 	type Case struct {
-		in        []byte
-		isFloat   bool
-		expectErr types.GomegaMatcher
+		in      string
+		isFloat bool
 	}
 
 	var lexer *Lexer
@@ -1172,59 +1146,93 @@ var _ = Describe("Lexer.peekIsFloat", func() {
 
 	DescribeTable("peekIsFloat cases", func(c Case) {
 
-		lexer.SetInput(bytes.NewReader(c.in))
-		actualIsFloat, err := lexer.peekIsFloat()
+		lexer.SetInput(c.in)
+		actualIsFloat := lexer.peekIsFloat()
 		Expect(actualIsFloat).To(Equal(c.isFloat))
-		if c.expectErr != nil {
-			Expect(err).To(c.expectErr)
-		}
 
 	}, Entry("should identify 13.37 as float", Case{
-		in:        []byte("13.37"),
-		expectErr: BeNil(),
-		isFloat:   true,
+		in:      "13.37",
+		isFloat: true,
 	}), Entry("should identify 13.37 as float (with space suffix)", Case{
-		in:        []byte("13.37 "),
-		expectErr: BeNil(),
-		isFloat:   true,
+		in:      "13.37 ",
+		isFloat: true,
 	}), Entry("should identify 13.37 as float (with tab suffix)", Case{
-		in: []byte("13.37	"),
-		expectErr: BeNil(),
-		isFloat:   true,
+		in: "13.37	",
+		isFloat: true,
 	}), Entry("should identify 13.37 as float (with line terminator suffix)", Case{
-		in:        []byte("13.37\n"),
-		expectErr: BeNil(),
-		isFloat:   true,
+		in:      "13.37\n",
+		isFloat: true,
 	}), Entry("should identify 13.37 as float (with comma suffix)", Case{
-		in:        []byte("13.37,"),
-		expectErr: BeNil(),
-		isFloat:   true,
+		in:      "13.37,",
+		isFloat: true,
 	}), Entry("should identify 1337 as non float", Case{
-		in:        []byte("1337"),
-		expectErr: BeNil(),
-		isFloat:   false,
+		in:      "1337",
+		isFloat: false,
 	}),
 	)
 })
 
 func BenchmarkPeekIsFloat(b *testing.B) {
-	input := bytes.NewReader([]byte("13373737.37"))
+	input := "13373737.37"
 	lexer := NewLexer()
 
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		input.Seek(0, io.SeekStart)
 		lexer.SetInput(input)
 		lexer.peekIsFloat()
 	}
 }
 
+var _ = Describe("Lexer.readMultiLineString", func() {
+	lexer := NewLexer()
+	lexer.SetInput("\"\"\"foo\"\"\" x")
+
+	It("should read foo", func() {
+		foo, err := lexer.Read()
+		Expect(err).To(BeNil())
+		Expect(foo).To(Equal(token.Token{
+			Literal: "foo",
+			Keyword: keyword.STRING,
+			Position: position.Position{
+				Line: 1,
+				Char: 1,
+			},
+		}))
+	})
+
+	It("should read x", func() {
+		foo, err := lexer.Read()
+		Expect(err).To(BeNil())
+		Expect(foo).To(Equal(token.Token{
+			Literal: "x",
+			Keyword: keyword.IDENT,
+			Position: position.Position{
+				Line: 1,
+				Char: 11,
+			},
+		}))
+	})
+
+	It("should read eof", func() {
+		foo, err := lexer.Read()
+		Expect(err).To(BeNil())
+		Expect(foo).To(Equal(token.Token{
+			Literal: "eof",
+			Keyword: keyword.EOF,
+			Position: position.Position{
+				Line: 1,
+				Char: 12,
+			},
+		}))
+	})
+})
+
 var _ = Describe("Lexer.Read", func() {
 
 	type Case struct {
-		in  []byte
+		in  string
 		out []token.Token
 	}
 
@@ -1236,7 +1244,7 @@ var _ = Describe("Lexer.Read", func() {
 
 	DescribeTable("Read Multiple Tokens", func(c Case) {
 
-		lexer.SetInput(bytes.NewReader(c.in))
+		lexer.SetInput(c.in)
 		for i := 0; i < len(c.out); i++ {
 			peeked, _ := lexer.Peek(true)
 			Expect(peeked).To(Equal(c.out[i].Keyword), fmt.Sprintf("Token: %d", i+1))
@@ -1245,125 +1253,126 @@ var _ = Describe("Lexer.Read", func() {
 			Expect(tok).To(Equal(c.out[i]))
 		}
 
-	}, Entry("should read ident followed by colon", Case{
-		in: []byte("foo:"),
-		out: []token.Token{
-			{
-				Keyword: keyword.IDENT,
-				Literal: []byte("foo"),
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
+	},
+		Entry("should read ident followed by colon", Case{
+			in: "foo:",
+			out: []token.Token{
+				{
+					Keyword: keyword.IDENT,
+					Literal: "foo",
+					Position: position.Position{
+						Line: 1,
+						Char: 1,
+					},
+				},
+				{
+					Keyword: keyword.COLON,
+					Literal: ":",
+					Position: position.Position{
+						Line: 1,
+						Char: 4,
+					},
 				},
 			},
-			{
-				Keyword: keyword.COLON,
-				Literal: []byte(":"),
-				Position: position.Position{
-					Line: 1,
-					Char: 4,
-				},
-			},
-		},
-	}),
+		}),
 		Entry("should read complex nested structure", Case{
-			in: []byte(`Goland {
+			in: `Goland {
 					... on GoWater {
 						... on GoAir {
 							go
 						}
 					}
 				}
-				`),
+				`,
 			out: []token.Token{
 				{
 					Keyword:  keyword.IDENT,
-					Literal:  []byte("Goland"),
+					Literal:  "Goland",
 					Position: position.Position{1, 1},
 				},
 				{
 					Keyword:  keyword.CURLYBRACKETOPEN,
-					Literal:  []byte("{"),
+					Literal:  "{",
 					Position: position.Position{1, 8},
 				},
 				{
 					Keyword:  keyword.SPREAD,
-					Literal:  []byte("..."),
+					Literal:  "...",
 					Position: position.Position{2, 6},
 				},
 				{
 					Keyword:  keyword.ON,
-					Literal:  []byte("on"),
+					Literal:  "on",
 					Position: position.Position{2, 10},
 				},
 				{
 					Keyword:  keyword.IDENT,
-					Literal:  []byte("GoWater"),
+					Literal:  "GoWater",
 					Position: position.Position{2, 13},
 				},
 				{
 					Keyword:  keyword.CURLYBRACKETOPEN,
-					Literal:  []byte("{"),
+					Literal:  "{",
 					Position: position.Position{2, 21},
 				},
 				{
 					Keyword:  keyword.SPREAD,
-					Literal:  []byte("..."),
+					Literal:  "...",
 					Position: position.Position{3, 7},
 				},
 				{
 					Keyword:  keyword.ON,
-					Literal:  []byte("on"),
+					Literal:  "on",
 					Position: position.Position{3, 11},
 				},
 				{
 					Keyword:  keyword.IDENT,
-					Literal:  []byte("GoAir"),
+					Literal:  "GoAir",
 					Position: position.Position{3, 14},
 				},
 				{
 					Keyword:  keyword.CURLYBRACKETOPEN,
-					Literal:  []byte("{"),
+					Literal:  "{",
 					Position: position.Position{3, 20},
 				},
 				{
 					Keyword:  keyword.IDENT,
-					Literal:  []byte("go"),
+					Literal:  "go",
 					Position: position.Position{4, 8},
 				},
 				{
 					Keyword:  keyword.CURLYBRACKETCLOSE,
-					Literal:  []byte("}"),
+					Literal:  "}",
 					Position: position.Position{5, 7},
 				},
 				{
 					Keyword:  keyword.CURLYBRACKETCLOSE,
-					Literal:  []byte("}"),
+					Literal:  "}",
 					Position: position.Position{6, 6},
 				},
 				{
 					Keyword:  keyword.CURLYBRACKETCLOSE,
-					Literal:  []byte("}"),
+					Literal:  "}",
 					Position: position.Position{7, 5},
 				},
 				{
 					Keyword:  keyword.EOF,
-					Literal:  []byte("eof"),
+					Literal:  "eof",
 					Position: position.Position{8, 5},
 				},
 			},
 		}),
 		Entry("should read multiple keywords", Case{
-			in: []byte(`1337 1338 1339 "foo" "bar" """foo bar""" """foo
+			in: `1337 1338 1339 "foo" "bar" """foo bar""" """foo
 bar""" """foo
 bar 
 baz
 """
-13.37`),
+13.37`,
 			out: []token.Token{
 				{
 					Keyword: keyword.INTEGER,
-					Literal: []byte("1337"),
+					Literal: "1337",
 					Position: position.Position{
 						Line: 1,
 						Char: 1,
@@ -1371,7 +1380,7 @@ baz
 				},
 				{
 					Keyword: keyword.INTEGER,
-					Literal: []byte("1338"),
+					Literal: "1338",
 					Position: position.Position{
 						Line: 1,
 						Char: 6,
@@ -1379,7 +1388,7 @@ baz
 				},
 				{
 					Keyword: keyword.INTEGER,
-					Literal: []byte("1339"),
+					Literal: "1339",
 					Position: position.Position{
 						Line: 1,
 						Char: 11,
@@ -1387,7 +1396,7 @@ baz
 				},
 				{
 					Keyword: keyword.STRING,
-					Literal: []byte(`foo`),
+					Literal: `foo`,
 					Position: position.Position{
 						Line: 1,
 						Char: 16,
@@ -1395,7 +1404,7 @@ baz
 				},
 				{
 					Keyword: keyword.STRING,
-					Literal: []byte(`bar`),
+					Literal: `bar`,
 					Position: position.Position{
 						Line: 1,
 						Char: 22,
@@ -1403,7 +1412,7 @@ baz
 				},
 				{
 					Keyword: keyword.STRING,
-					Literal: []byte(`foo bar`),
+					Literal: `foo bar`,
 					Position: position.Position{
 						Line: 1,
 						Char: 28,
@@ -1411,8 +1420,8 @@ baz
 				},
 				{
 					Keyword: keyword.STRING,
-					Literal: []byte(`foo
-bar`),
+					Literal: `foo
+bar`,
 					Position: position.Position{
 						Line: 1,
 						Char: 42,
@@ -1420,9 +1429,9 @@ bar`),
 				},
 				{
 					Keyword: keyword.STRING,
-					Literal: []byte(`foo
+					Literal: `foo
 bar 
-baz`),
+baz`,
 					Position: position.Position{
 						Line: 2,
 						Char: 8,
@@ -1430,7 +1439,7 @@ baz`),
 				},
 				{
 					Keyword: keyword.FLOAT,
-					Literal: []byte("13.37"),
+					Literal: "13.37",
 					Position: position.Position{
 						Line: 6,
 						Char: 1,
@@ -1439,12 +1448,12 @@ baz`),
 			},
 		}),
 		Entry("should read the introspection query", Case{
-			in: []byte(`query IntrospectionQuery {
-  __schema {`),
+			in: `query IntrospectionQuery {
+  __schema {`,
 			out: []token.Token{
 				{
 					Keyword: keyword.QUERY,
-					Literal: []byte("query"),
+					Literal: "query",
 					Position: position.Position{
 						Line: 1,
 						Char: 1,
@@ -1452,7 +1461,7 @@ baz`),
 				},
 				{
 					Keyword: keyword.IDENT,
-					Literal: []byte("IntrospectionQuery"),
+					Literal: "IntrospectionQuery",
 					Position: position.Position{
 						Line: 1,
 						Char: 7,
@@ -1468,7 +1477,7 @@ baz`),
 				},
 				{
 					Keyword: keyword.IDENT,
-					Literal: []byte("__schema"),
+					Literal: "__schema",
 					Position: position.Position{
 						Line: 2,
 						Char: 3,
@@ -1485,11 +1494,11 @@ baz`),
 			},
 		}),
 		Entry("should read '1,2,3' as three integers", Case{
-			in: []byte("1,2,3"),
+			in: "1,2,3",
 			out: []token.Token{
 				{
 					Keyword: keyword.INTEGER,
-					Literal: []byte("1"),
+					Literal: "1",
 					Position: position.Position{
 						Line: 1,
 						Char: 1,
@@ -1497,7 +1506,7 @@ baz`),
 				},
 				{
 					Keyword: keyword.INTEGER,
-					Literal: []byte("2"),
+					Literal: "2",
 					Position: position.Position{
 						Line: 1,
 						Char: 3,
@@ -1505,7 +1514,7 @@ baz`),
 				},
 				{
 					Keyword: keyword.INTEGER,
-					Literal: []byte("3"),
+					Literal: "3",
 					Position: position.Position{
 						Line: 1,
 						Char: 5,
@@ -1519,21 +1528,18 @@ baz`),
 func BenchmarkLexer(b *testing.B) {
 
 	lexer := NewLexer()
-	reader := bytes.NewReader(introspectionQuery)
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
 
+		b.StopTimer()
+		lexer.SetInput(introspectionQuery)
+		b.StartTimer()
+
 		var tok token.Token
 		var key keyword.Keyword
-
-		_, err := reader.Seek(0, io.SeekStart)
-		if err != nil {
-			b.Fatal(err)
-		}
-
-		lexer.SetInput(reader)
+		var err error
 
 		for err == nil && tok.Keyword != keyword.EOF && key != keyword.EOF {
 			key, err = lexer.Peek(true)
@@ -1549,7 +1555,7 @@ func BenchmarkLexer(b *testing.B) {
 	}
 }
 
-var introspectionQuery = []byte(`query IntrospectionQuery {
+var introspectionQuery = `query IntrospectionQuery {
   __schema {
     queryType {
       name
@@ -1647,4 +1653,4 @@ fragment TypeRef on __Type {
       }
     }
   }
-}`)
+}`

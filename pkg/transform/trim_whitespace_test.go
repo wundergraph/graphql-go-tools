@@ -16,32 +16,32 @@ func TestTemplate(t *testing.T) {
 
 		tests := []struct {
 			it     string
-			input  []byte
+			input  string
 			expect types.GomegaMatcher
 		}{
 			{
 				it:     "should trim space",
-				input:  []byte(` lorem ipsum `),
-				expect: Equal([]byte(`lorem ipsum`)),
+				input:  ` lorem ipsum `,
+				expect: Equal(`lorem ipsum`),
 			},
 			{
 				it: "should trim tabs",
-				input: []byte(`	lorem ipsum	`),
-				expect: Equal([]byte(`lorem ipsum`)),
+				input: `	lorem ipsum	`,
+				expect: Equal(`lorem ipsum`),
 			},
 			{
 				it: "should trim lineterminators",
-				input: []byte(`
+				input: `
 lorem ipsum
-`),
-				expect: Equal([]byte(`lorem ipsum`)),
+`,
+				expect: Equal(`lorem ipsum`),
 			},
 			{
 				it: "should trim all kinds of whitespace",
-				input: []byte(`
+				input: `
 	 lorem ipsum
-	 `),
-				expect: Equal([]byte(`lorem ipsum`)),
+	 `,
+				expect: Equal(`lorem ipsum`),
 			},
 		}
 

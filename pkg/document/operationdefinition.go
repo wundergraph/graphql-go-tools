@@ -4,7 +4,7 @@ package document
 // http://facebook.github.io/graphql/draft/#OperationDefinition
 type OperationDefinition struct {
 	OperationType       OperationType
-	Name                ByteSlice
+	Name                string
 	VariableDefinitions VariableDefinitions
 	Directives          Directives
 	SelectionSet        SelectionSet

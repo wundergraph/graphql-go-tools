@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"bytes"
 	. "github.com/franela/goblin"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	. "github.com/onsi/gomega"
@@ -32,21 +31,21 @@ func TestOperationDefinitionParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.OperationDefinition{
 					OperationType: document.OperationTypeQuery,
-					Name:          []byte("allGophers"),
+					Name:          "allGophers",
 					VariableDefinitions: document.VariableDefinitions{
 						{
-							Variable: []byte("color"),
+							Variable: "color",
 							Type: document.NamedType{
-								Name: []byte("String"),
+								Name: "String",
 							},
 						},
 					},
 					Directives: document.Directives{
 						document.Directive{
-							Name: []byte("rename"),
+							Name: "rename",
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: []byte("index"),
+									Name: "index",
 									Value: document.IntValue{
 										Val: 3,
 									},
@@ -56,7 +55,7 @@ func TestOperationDefinitionParser(t *testing.T) {
 					},
 					SelectionSet: document.SelectionSet{
 						document.Field{
-							Name: []byte("name"),
+							Name: "name",
 						},
 					},
 				}),
@@ -71,18 +70,18 @@ func TestOperationDefinitionParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.OperationDefinition{
 					OperationType: document.OperationTypeQuery,
-					Name:          []byte("allGophers"),
+					Name:          "allGophers",
 					VariableDefinitions: document.VariableDefinitions{
 						{
-							Variable: []byte("color"),
+							Variable: "color",
 							Type: document.NamedType{
-								Name: []byte("String"),
+								Name: "String",
 							},
 						},
 					},
 					SelectionSet: document.SelectionSet{
 						document.Field{
-							Name: []byte("name"),
+							Name: "name",
 						},
 					},
 				}),
@@ -97,13 +96,13 @@ func TestOperationDefinitionParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.OperationDefinition{
 					OperationType: document.OperationTypeQuery,
-					Name:          []byte("allGophers"),
+					Name:          "allGophers",
 					Directives: document.Directives{
 						document.Directive{
-							Name: []byte("rename"),
+							Name: "rename",
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: []byte("index"),
+									Name: "index",
 									Value: document.IntValue{
 										Val: 3,
 									},
@@ -113,7 +112,7 @@ func TestOperationDefinitionParser(t *testing.T) {
 					},
 					SelectionSet: document.SelectionSet{
 						document.Field{
-							Name: []byte("name"),
+							Name: "name",
 						},
 					},
 				}),
@@ -130,18 +129,18 @@ func TestOperationDefinitionParser(t *testing.T) {
 					OperationType: document.OperationTypeQuery,
 					VariableDefinitions: document.VariableDefinitions{
 						{
-							Variable: []byte("color"),
+							Variable: "color",
 							Type: document.NamedType{
-								Name: []byte("String"),
+								Name: "String",
 							},
 						},
 					},
 					Directives: document.Directives{
 						document.Directive{
-							Name: []byte("rename"),
+							Name: "rename",
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: []byte("index"),
+									Name: "index",
 									Value: document.IntValue{
 										Val: 3,
 									},
@@ -151,7 +150,7 @@ func TestOperationDefinitionParser(t *testing.T) {
 					},
 					SelectionSet: document.SelectionSet{
 						document.Field{
-							Name: []byte("name"),
+							Name: "name",
 						},
 					},
 				}),
@@ -168,7 +167,7 @@ func TestOperationDefinitionParser(t *testing.T) {
 					OperationType: document.OperationTypeQuery,
 					SelectionSet: document.SelectionSet{
 						document.Field{
-							Name: []byte("name"),
+							Name: "name",
 						},
 					},
 				}),
@@ -180,21 +179,21 @@ func TestOperationDefinitionParser(t *testing.T) {
 				expectErr: Not(BeNil()),
 				expectValues: Equal(document.OperationDefinition{
 					OperationType: document.OperationTypeQuery,
-					Name:          []byte("allGophers"),
+					Name:          "allGophers",
 					VariableDefinitions: document.VariableDefinitions{
 						{
-							Variable: []byte("color"),
+							Variable: "color",
 							Type: document.NamedType{
-								Name: []byte("String"),
+								Name: "String",
 							},
 						},
 					},
 					Directives: document.Directives{
 						document.Directive{
-							Name: []byte("rename"),
+							Name: "rename",
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: []byte("index"),
+									Name: "index",
 									Value: document.IntValue{
 										Val: 3,
 									},
@@ -211,9 +210,8 @@ func TestOperationDefinitionParser(t *testing.T) {
 
 			g.It(test.it, func() {
 
-				reader := bytes.NewReader([]byte(test.input))
 				parser := NewParser()
-				parser.l.SetInput(reader)
+				parser.l.SetInput(test.input)
 
 				val, err := parser.parseOperationDefinition()
 				Expect(err).To(test.expectErr)

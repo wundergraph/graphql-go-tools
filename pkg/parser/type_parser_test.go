@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"bytes"
 	"testing"
 
 	. "github.com/franela/goblin"
@@ -27,7 +26,7 @@ func TestTypeParser(t *testing.T) {
 				input:     "String",
 				expectErr: BeNil(),
 				expectValues: Equal(document.NamedType{
-					Name: []byte("String"),
+					Name: "String",
 				}),
 			},
 			{
@@ -35,7 +34,7 @@ func TestTypeParser(t *testing.T) {
 				input:     "String!",
 				expectErr: BeNil(),
 				expectValues: Equal(document.NamedType{
-					Name:    []byte("String"),
+					Name:    "String",
 					NonNull: true,
 				}),
 			},
@@ -51,7 +50,7 @@ func TestTypeParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.ListType{
 					Type: document.NamedType{
-						Name: []byte("String"),
+						Name: "String",
 					},
 				}),
 			},
@@ -61,7 +60,7 @@ func TestTypeParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.ListType{
 					Type: document.NamedType{
-						Name: []byte("String"),
+						Name: "String",
 					},
 					NonNull: true,
 				}),
@@ -72,7 +71,7 @@ func TestTypeParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.ListType{
 					Type: document.NamedType{
-						Name:    []byte("String"),
+						Name:    "String",
 						NonNull: true,
 					},
 					NonNull: true,
@@ -86,7 +85,7 @@ func TestTypeParser(t *testing.T) {
 					Type: document.ListType{
 						Type: document.ListType{
 							Type: document.NamedType{
-								Name:    []byte("String"),
+								Name:    "String",
 								NonNull: true,
 							},
 						},
@@ -100,7 +99,7 @@ func TestTypeParser(t *testing.T) {
 				expectErr: Not(BeNil()),
 				expectValues: Equal(document.ListType{
 					Type: document.NamedType{
-						Name: []byte("String"),
+						Name: "String",
 					},
 				}),
 			},
@@ -111,9 +110,8 @@ func TestTypeParser(t *testing.T) {
 
 			g.It(test.it, func() {
 
-				reader := bytes.NewReader([]byte(test.input))
 				parser := NewParser()
-				parser.l.SetInput(reader)
+				parser.l.SetInput(test.input)
 
 				val, err := parser.parseType()
 				Expect(err).To(test.expectErr)

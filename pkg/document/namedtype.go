@@ -1,34 +1,31 @@
 package document
 
 import (
-	"bytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
+	"strings"
 )
 
 // NamedType as specified in:
 // https://facebook.github.io/graphql/draft/#NamedType
 type NamedType struct {
-	Name    ByteSlice
+	Name    string
 	NonNull bool
 }
 
 // TypeName returns the name of the type and makes NamedType implement the Type interface
-func (n NamedType) TypeName() []byte {
+func (n NamedType) TypeName() string {
 	return n.Name
 }
 
 // IsBaseType returns if the type is a base scalar (ID,String,Float,Boolean,Int) or a custom type
 func (n NamedType) IsBaseType() bool {
 
-	if bytes.Equal(n.Name, literal.ID) ||
-		bytes.Equal(n.Name, literal.STRING) ||
-		bytes.Equal(n.Name, literal.FLOAT) ||
-		bytes.Equal(n.Name, literal.BOOLEAN) ||
-		bytes.Equal(n.Name, literal.INT) {
+	switch n.Name {
+	case literal.ID, literal.STRING, literal.FLOAT, literal.BOOLEAN, literal.INT:
 		return true
+	default:
+		return false
 	}
-
-	return false
 }
 
 // GetTypeKind returns the NamedTypeKind
@@ -37,23 +34,24 @@ func (n NamedType) GetTypeKind() TypeKind {
 }
 
 // AsGoType returns the GraphQL Named Type Name as valid go type
-func (n NamedType) AsGoType() []byte {
+func (n NamedType) AsGoType() string {
 
-	if bytes.Equal(n.Name, literal.INT) {
+	switch n.Name {
+	case literal.INT:
 		return literal.GOINT32
-	} else if bytes.Equal(n.Name, literal.FLOAT) {
+	case literal.FLOAT:
 		return literal.GOFLOAT32
-	} else if bytes.Equal(n.Name, literal.STRING) {
+	case literal.STRING:
 		return literal.GOSTRING
-	} else if bytes.Equal(n.Name, literal.BOOLEAN) {
+	case literal.BOOLEAN:
 		return literal.GOBOOL
-	} else if bytes.Equal(n.Name, literal.NULL) {
+	case literal.NULL:
 		return literal.GONIL
+	default:
+		return strings.Title(strings.TrimPrefix(n.Name, "__"))
 	}
-
-	return bytes.Title(bytes.TrimPrefix(n.Name, []byte("__")))
 
 }
 
 // NamedTypeKind marks a Type as NamedType
-var NamedTypeKind TypeKind = []byte("NamedType")
+var NamedTypeKind TypeKind = "NamedType"

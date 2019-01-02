@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"bytes"
 	. "github.com/franela/goblin"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	. "github.com/onsi/gomega"
@@ -27,13 +26,13 @@ func TestFragmentSpreadParser(t *testing.T) {
 				input:     "firstFragment @rename(index: 3)",
 				expectErr: BeNil(),
 				expectValues: Equal(document.FragmentSpread{
-					FragmentName: []byte("firstFragment"),
+					FragmentName: "firstFragment",
 					Directives: document.Directives{
 						document.Directive{
-							Name: []byte("rename"),
+							Name: "rename",
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: []byte("index"),
+									Name: "index",
 									Value: document.IntValue{
 										Val: 3,
 									},
@@ -48,7 +47,7 @@ func TestFragmentSpreadParser(t *testing.T) {
 				input:     "firstFragment ",
 				expectErr: BeNil(),
 				expectValues: Equal(document.FragmentSpread{
-					FragmentName: []byte("firstFragment"),
+					FragmentName: "firstFragment",
 				}),
 			},
 			{
@@ -64,9 +63,8 @@ func TestFragmentSpreadParser(t *testing.T) {
 
 			g.It(test.it, func() {
 
-				reader := bytes.NewReader([]byte(test.input))
 				parser := NewParser()
-				parser.l.SetInput(reader)
+				parser.l.SetInput(test.input)
 
 				val, err := parser.parseFragmentSpread()
 				Expect(err).To(test.expectErr)

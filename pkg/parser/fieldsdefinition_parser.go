@@ -16,7 +16,7 @@ func (p *Parser) parseFieldsDefinition() (fieldsDefinition document.FieldsDefini
 		return
 	}
 
-	var description []byte
+	var description string
 
 	for {
 		next, err := p.l.Peek(true)
@@ -48,7 +48,7 @@ func (p *Parser) parseFieldsDefinition() (fieldsDefinition document.FieldsDefini
 				Name:        fieldIdent.Literal,
 			}
 
-			description = nil
+			description = ""
 
 			fieldDefinition.ArgumentsDefinition, err = p.parseArgumentsDefinition()
 			if err != nil {
@@ -76,39 +76,4 @@ func (p *Parser) parseFieldsDefinition() (fieldsDefinition document.FieldsDefini
 			return fieldsDefinition, newErrInvalidType(invalid.Position, "parseFieldsDefinition", "string/curly bracket close/ident", invalid.Keyword.String())
 		}
 	}
-
-	/*	_, err = p.readAllUntil(keyword.CURLYBRACKETCLOSE, WithReadRepeat(), WithDescription()).
-			foreachMatchedPattern(Pattern(keyword.IDENT),
-				func(tokens []token.Token) error {
-					description := string(tokens[0].Description)
-					name := string(tokens[0].Literal)
-					argumentsDefinition, err := p.parseArgumentsDefinition()
-					if err != nil {
-						return err
-					}
-					_, err = p.read(WithWhitelist(keyword.COLON))
-					if err != nil {
-						return err
-					}
-					fieldType, err := p.parseType()
-					if err != nil {
-						return err
-					}
-					directives, err := p.parseDirectives()
-					fieldsDefinition = append(fieldsDefinition, document.FieldDefinition{
-						Description:         description,
-						Name:                name,
-						Type:                fieldType,
-						ArgumentsDefinition: argumentsDefinition,
-						Directives:          directives,
-					})
-					return err
-				})
-
-		_, err = p.read(WithWhitelist(keyword.CURLYBRACKETCLOSE))
-		if err != nil {
-			return
-		}
-
-		return*/
 }

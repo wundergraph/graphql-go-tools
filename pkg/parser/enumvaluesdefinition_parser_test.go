@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"bytes"
 	. "github.com/franela/goblin"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	. "github.com/onsi/gomega"
@@ -34,16 +33,16 @@ func TestParseEnumValuesDefinition(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.EnumValuesDefinition{
 					{
-						EnumValue: []byte("NORTH"),
+						EnumValue: "NORTH",
 					},
 					{
-						EnumValue: []byte("EAST"),
+						EnumValue: "EAST",
 					},
 					{
-						EnumValue: []byte("SOUTH"),
+						EnumValue: "SOUTH",
 					},
 					{
-						EnumValue: []byte("WEST"),
+						EnumValue: "WEST",
 					},
 				},
 				),
@@ -63,20 +62,20 @@ func TestParseEnumValuesDefinition(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.EnumValuesDefinition{
 					{
-						Description: []byte("describes north"),
-						EnumValue:   []byte("NORTH"),
+						Description: "describes north",
+						EnumValue:   "NORTH",
 					},
 					{
-						Description: []byte("describes east"),
-						EnumValue:   []byte("EAST"),
+						Description: "describes east",
+						EnumValue:   "EAST",
 					},
 					{
-						Description: []byte("describes south"),
-						EnumValue:   []byte("SOUTH"),
+						Description: "describes south",
+						EnumValue:   "SOUTH",
 					},
 					{
-						Description: []byte("describes west"),
-						EnumValue:   []byte("WEST"),
+						Description: "describes west",
+						EnumValue:   "WEST",
 					},
 				},
 				),
@@ -106,20 +105,20 @@ describes west
 				expectErr: BeNil(),
 				expectValues: Equal(document.EnumValuesDefinition{
 					{
-						Description: []byte("describes north"),
-						EnumValue:   []byte("NORTH"),
+						Description: "describes north",
+						EnumValue:   "NORTH",
 					},
 					{
-						Description: []byte("describes east"),
-						EnumValue:   []byte("EAST"),
+						Description: "describes east",
+						EnumValue:   "EAST",
 					},
 					{
-						Description: []byte("describes south"),
-						EnumValue:   []byte("SOUTH"),
+						Description: "describes south",
+						EnumValue:   "SOUTH",
 					},
 					{
-						Description: []byte("describes west"),
-						EnumValue:   []byte("WEST"),
+						Description: "describes west",
+						EnumValue:   "WEST",
 					},
 				},
 				),
@@ -132,26 +131,26 @@ describes west
 				expectErr: BeNil(),
 				expectValues: Equal(document.EnumValuesDefinition{
 					{
-						EnumValue: []byte("NORTH"),
+						EnumValue: "NORTH",
 						Directives: document.Directives{
 							document.Directive{
-								Name: []byte("fromTop"),
+								Name: "fromTop",
 								Arguments: document.Arguments{
 									document.Argument{
-										Name: []byte("to"),
+										Name: "to",
 										Value: document.StringValue{
-											Val: []byte("bottom"),
+											Val: "bottom",
 										},
 									},
 								},
 							},
 							document.Directive{
-								Name: []byte("fromBottom"),
+								Name: "fromBottom",
 								Arguments: document.Arguments{
 									document.Argument{
-										Name: []byte("to"),
+										Name: "to",
 										Value: document.StringValue{
-											Val: []byte("top"),
+											Val: "top",
 										},
 									},
 								},
@@ -170,26 +169,26 @@ describes west
 				expectErr: BeNil(),
 				expectValues: Equal(document.EnumValuesDefinition{
 					{
-						EnumValue: []byte("NORTH"),
+						EnumValue: "NORTH",
 						Directives: document.Directives{
 							document.Directive{
-								Name: []byte("fromTop"),
+								Name: "fromTop",
 								Arguments: document.Arguments{
 									document.Argument{
-										Name: []byte("to"),
+										Name: "to",
 										Value: document.StringValue{
-											Val: []byte("bottom"),
+											Val: "bottom",
 										},
 									},
 								},
 							},
 							document.Directive{
-								Name: []byte("fromBottom"),
+								Name: "fromBottom",
 								Arguments: document.Arguments{
 									document.Argument{
-										Name: []byte("to"),
+										Name: "to",
 										Value: document.StringValue{
-											Val: []byte("top"),
+											Val: "top",
 										},
 									},
 								},
@@ -197,26 +196,26 @@ describes west
 						},
 					},
 					{
-						EnumValue: []byte("EAST"),
+						EnumValue: "EAST",
 						Directives: document.Directives{
 							document.Directive{
-								Name: []byte("fromTop"),
+								Name: "fromTop",
 								Arguments: document.Arguments{
 									document.Argument{
-										Name: []byte("to"),
+										Name: "to",
 										Value: document.StringValue{
-											Val: []byte("bottom"),
+											Val: "bottom",
 										},
 									},
 								},
 							},
 							document.Directive{
-								Name: []byte("fromBottom"),
+								Name: "fromBottom",
 								Arguments: document.Arguments{
 									document.Argument{
-										Name: []byte("to"),
+										Name: "to",
 										Value: document.StringValue{
-											Val: []byte("top"),
+											Val: "top",
 										},
 									},
 								},
@@ -233,9 +232,8 @@ describes west
 
 			g.It(test.it, func() {
 
-				reader := bytes.NewReader([]byte(test.input))
 				parser := NewParser()
-				parser.l.SetInput(reader)
+				parser.l.SetInput(test.input)
 
 				val, err := parser.parseEnumValuesDefinition()
 				Expect(err).To(test.expectErr)

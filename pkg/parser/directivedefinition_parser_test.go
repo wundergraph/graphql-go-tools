@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"bytes"
 	. "github.com/franela/goblin"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	. "github.com/onsi/gomega"
@@ -27,7 +26,7 @@ func TestDirectiveDefinitionParser(t *testing.T) {
 				input:     "@ somewhere on QUERY",
 				expectErr: BeNil(),
 				expectValues: Equal(document.DirectiveDefinition{
-					Name: []byte("somewhere"),
+					Name: "somewhere",
 					DirectiveLocations: document.DirectiveLocations{
 						document.DirectiveLocationQUERY,
 					},
@@ -38,7 +37,7 @@ func TestDirectiveDefinitionParser(t *testing.T) {
 				input:     "@ somewhere on | QUERY",
 				expectErr: BeNil(),
 				expectValues: Equal(document.DirectiveDefinition{
-					Name: []byte("somewhere"),
+					Name: "somewhere",
 					DirectiveLocations: document.DirectiveLocations{
 						document.DirectiveLocationQUERY,
 					},
@@ -49,12 +48,12 @@ func TestDirectiveDefinitionParser(t *testing.T) {
 				input:     "@ somewhere(inputValue: Int) on QUERY",
 				expectErr: BeNil(),
 				expectValues: Equal(document.DirectiveDefinition{
-					Name: []byte("somewhere"),
+					Name: "somewhere",
 					ArgumentsDefinition: document.ArgumentsDefinition{
 						document.InputValueDefinition{
-							Name: []byte("inputValue"),
+							Name: "inputValue",
 							Type: document.NamedType{
-								Name: []byte("Int"),
+								Name: "Int",
 							},
 						},
 					},
@@ -68,7 +67,7 @@ func TestDirectiveDefinitionParser(t *testing.T) {
 				input:     "@ somewhere QUERY",
 				expectErr: Not(BeNil()),
 				expectValues: Equal(document.DirectiveDefinition{
-					Name: []byte("somewhere"),
+					Name: "somewhere",
 				}),
 			},
 			{
@@ -76,7 +75,7 @@ func TestDirectiveDefinitionParser(t *testing.T) {
 				input:     "@ somewhere off QUERY",
 				expectErr: Not(BeNil()),
 				expectValues: Equal(document.DirectiveDefinition{
-					Name: []byte("somewhere"),
+					Name: "somewhere",
 				}),
 			},
 			{
@@ -84,7 +83,7 @@ func TestDirectiveDefinitionParser(t *testing.T) {
 				input:     "@ somewhere on QUERY | thisshouldntwork",
 				expectErr: Not(BeNil()),
 				expectValues: Equal(document.DirectiveDefinition{
-					Name: []byte("somewhere"),
+					Name: "somewhere",
 					DirectiveLocations: document.DirectiveLocations{
 						document.DirectiveLocationQUERY,
 					},
@@ -97,9 +96,8 @@ func TestDirectiveDefinitionParser(t *testing.T) {
 
 			g.It(test.it, func() {
 
-				reader := bytes.NewReader([]byte(test.input))
 				parser := NewParser()
-				parser.l.SetInput(reader)
+				parser.l.SetInput(test.input)
 
 				val, err := parser.parseDirectiveDefinition()
 				Expect(err).To(test.expectErr)

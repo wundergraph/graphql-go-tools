@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"bytes"
 	. "github.com/franela/goblin"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	. "github.com/onsi/gomega"
@@ -29,12 +28,12 @@ func TestInputObjectTypeDefinitionParser(t *testing.T) {
 				}`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.InputObjectTypeDefinition{
-					Name: []byte("Person"),
+					Name: "Person",
 					InputFieldsDefinition: document.InputFieldsDefinition{
 						document.InputValueDefinition{
-							Name: []byte("name"),
+							Name: "name",
 							Type: document.NamedType{
-								Name: []byte("String"),
+								Name: "String",
 							},
 						},
 					},
@@ -48,22 +47,22 @@ func TestInputObjectTypeDefinitionParser(t *testing.T) {
 				}`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.InputObjectTypeDefinition{
-					Name: []byte("Person"),
+					Name: "Person",
 					InputFieldsDefinition: document.InputFieldsDefinition{
 						document.InputValueDefinition{
-							Name: []byte("name"),
+							Name: "name",
 							Type: document.ListType{
 								Type: document.NamedType{
-									Name: []byte("String"),
+									Name: "String",
 								},
 								NonNull: true,
 							},
 						},
 						document.InputValueDefinition{
-							Name: []byte("age"),
+							Name: "age",
 							Type: document.ListType{
 								Type: document.NamedType{
-									Name: []byte("Int"),
+									Name: "Int",
 								},
 							},
 						},
@@ -77,15 +76,15 @@ func TestInputObjectTypeDefinitionParser(t *testing.T) {
 				}`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.InputObjectTypeDefinition{
-					Name: []byte("Person"),
+					Name: "Person",
 					InputFieldsDefinition: document.InputFieldsDefinition{
 						document.InputValueDefinition{
-							Name: []byte("name"),
+							Name: "name",
 							DefaultValue: document.StringValue{
-								Val: []byte("Gophina"),
+								Val: "Gophina",
 							},
 							Type: document.NamedType{
-								Name: []byte("String"),
+								Name: "String",
 							},
 						},
 					},
@@ -96,7 +95,7 @@ func TestInputObjectTypeDefinitionParser(t *testing.T) {
 				input:     `Person `,
 				expectErr: BeNil(),
 				expectValues: Equal(document.InputObjectTypeDefinition{
-					Name: []byte("Person"),
+					Name: "Person",
 				}),
 			},
 			{
@@ -106,26 +105,26 @@ func TestInputObjectTypeDefinitionParser(t *testing.T) {
 				}`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.InputObjectTypeDefinition{
-					Name: []byte("Person"),
+					Name: "Person",
 					Directives: document.Directives{
 						document.Directive{
-							Name: []byte("fromTop"),
+							Name: "fromTop",
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: []byte("to"),
+									Name: "to",
 									Value: document.StringValue{
-										Val: []byte("bottom"),
+										Val: "bottom",
 									},
 								},
 							},
 						},
 						document.Directive{
-							Name: []byte("fromBottom"),
+							Name: "fromBottom",
 							Arguments: document.Arguments{
 								document.Argument{
-									Name: []byte("to"),
+									Name: "to",
 									Value: document.StringValue{
-										Val: []byte("top"),
+										Val: "top",
 									},
 								},
 							},
@@ -133,9 +132,9 @@ func TestInputObjectTypeDefinitionParser(t *testing.T) {
 					},
 					InputFieldsDefinition: document.InputFieldsDefinition{
 						document.InputValueDefinition{
-							Name: []byte("name"),
+							Name: "name",
 							Type: document.NamedType{
-								Name: []byte("String"),
+								Name: "String",
 							},
 						},
 					},
@@ -148,9 +147,8 @@ func TestInputObjectTypeDefinitionParser(t *testing.T) {
 
 			g.It(test.it, func() {
 
-				reader := bytes.NewReader([]byte(test.input))
 				parser := NewParser()
-				parser.l.SetInput(reader)
+				parser.l.SetInput(test.input)
 
 				val, err := parser.parseInputObjectTypeDefinition()
 				Expect(err).To(test.expectErr)

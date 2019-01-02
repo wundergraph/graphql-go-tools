@@ -1,12 +1,10 @@
 package parser
 
 import (
-	"bytes"
 	. "github.com/franela/goblin"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
-	"io"
 	"testing"
 )
 
@@ -29,7 +27,7 @@ func TestSelectionParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.InlineFragment{
 					TypeCondition: document.NamedType{
-						Name: []byte("Land"),
+						Name: "Land",
 					},
 				}),
 			},
@@ -38,7 +36,7 @@ func TestSelectionParser(t *testing.T) {
 				input:     "originalName",
 				expectErr: BeNil(),
 				expectValues: Equal(document.Field{
-					Name: []byte("originalName"),
+					Name: "originalName",
 				}),
 			},
 			{
@@ -46,31 +44,31 @@ func TestSelectionParser(t *testing.T) {
 				input:     `t { kind name ofType { kind name ofType { kind name } } }`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.Field{
-					Name: []byte("t"),
+					Name: "t",
 					SelectionSet: []document.Selection{
 						document.Field{
-							Name: []byte(`kind`),
+							Name: "kind",
 						},
 						document.Field{
-							Name: []byte(`name`),
+							Name: "name",
 						},
 						document.Field{
-							Name: []byte(`ofType`),
+							Name: "ofType",
 							SelectionSet: []document.Selection{
 								document.Field{
-									Name: []byte(`kind`),
+									Name: "kind",
 								},
 								document.Field{
-									Name: []byte(`name`),
+									Name: "name",
 								},
 								document.Field{
-									Name: []byte(`ofType`),
+									Name: "ofType",
 									SelectionSet: []document.Selection{
 										document.Field{
-											Name: []byte(`kind`),
+											Name: "kind",
 										},
 										document.Field{
-											Name: []byte(`name`),
+											Name: "name",
 										},
 									},
 								},
@@ -84,10 +82,10 @@ func TestSelectionParser(t *testing.T) {
 				input:     "originalName(isSet: true)",
 				expectErr: BeNil(),
 				expectValues: Equal(document.Field{
-					Name: []byte("originalName"),
+					Name: "originalName",
 					Arguments: document.Arguments{
 						document.Argument{
-							Name: []byte("isSet"),
+							Name: "isSet",
 							Value: document.BooleanValue{
 								Val: true,
 							},
@@ -100,7 +98,7 @@ func TestSelectionParser(t *testing.T) {
 				input:     "...Land",
 				expectErr: BeNil(),
 				expectValues: Equal(document.FragmentSpread{
-					FragmentName: []byte("Land"),
+					FragmentName: "Land",
 				}),
 			},
 		}
@@ -110,9 +108,8 @@ func TestSelectionParser(t *testing.T) {
 
 			g.It(test.it, func() {
 
-				reader := bytes.NewReader([]byte(test.input))
 				parser := NewParser()
-				parser.l.SetInput(reader)
+				parser.l.SetInput(test.input)
 
 				val, err := parser.parseSelection()
 				Expect(err).To(test.expectErr)
@@ -122,11 +119,9 @@ func TestSelectionParser(t *testing.T) {
 	})
 }
 
-var parseSelectionBenchmarkInput = []byte(`t { kind name ofType { kind name ofType { kind name } } }`)
+var parseSelectionBenchmarkInput = `t { kind name ofType { kind name ofType { kind name } } }`
 
 func BenchmarkParseSelection(b *testing.B) {
-	reader := bytes.NewReader(parseSelectionBenchmarkInput)
-	var err error
 
 	parser := NewParser()
 
@@ -134,13 +129,8 @@ func BenchmarkParseSelection(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 
-		_, err = reader.Seek(0, io.SeekStart)
-		if err != nil {
-			b.Fatal(err)
-		}
-
-		parser.l.SetInput(reader)
-		_, err = parser.parseSelection()
+		parser.l.SetInput(parseSelectionBenchmarkInput)
+		_, err := parser.parseSelection()
 		if err != nil {
 			b.Fatal(err)
 		}

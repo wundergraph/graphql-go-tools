@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"bytes"
 	. "github.com/franela/goblin"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	. "github.com/onsi/gomega"
@@ -28,10 +27,10 @@ func TestDirectivesParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.Directives{
 					document.Directive{
-						Name: []byte("rename"),
+						Name: "rename",
 						Arguments: document.Arguments{
 							document.Argument{
-								Name: []byte("index"),
+								Name: "index",
 								Value: document.IntValue{
 									Val: 3,
 								},
@@ -46,10 +45,10 @@ func TestDirectivesParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.Directives{
 					document.Directive{
-						Name: []byte("rename"),
+						Name: "rename",
 						Arguments: document.Arguments{
 							document.Argument{
-								Name: []byte("index"),
+								Name: "index",
 								Value: document.IntValue{
 									Val: 3,
 								},
@@ -57,10 +56,10 @@ func TestDirectivesParser(t *testing.T) {
 						},
 					},
 					document.Directive{
-						Name: []byte("moveto"),
+						Name: "moveto",
 						Arguments: document.Arguments{
 							document.Argument{
-								Name: []byte("index"),
+								Name: "index",
 								Value: document.IntValue{
 									Val: 4,
 								},
@@ -75,16 +74,16 @@ func TestDirectivesParser(t *testing.T) {
 				expectErr: BeNil(),
 				expectValues: Equal(document.Directives{
 					document.Directive{
-						Name: []byte("rename"),
+						Name: "rename",
 						Arguments: document.Arguments{
 							document.Argument{
-								Name: []byte("index"),
+								Name: "index",
 								Value: document.IntValue{
 									Val: 3,
 								},
 							},
 							document.Argument{
-								Name: []byte("count"),
+								Name: "count",
 								Value: document.IntValue{
 									Val: 10,
 								},
@@ -100,9 +99,8 @@ func TestDirectivesParser(t *testing.T) {
 
 			g.It(test.it, func() {
 
-				reader := bytes.NewReader([]byte(test.input))
 				parser := NewParser()
-				parser.l.SetInput(reader)
+				parser.l.SetInput(test.input)
 
 				val, err := parser.parseDirectives()
 				Expect(err).To(test.expectErr)

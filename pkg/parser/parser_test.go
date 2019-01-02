@@ -6,10 +6,9 @@ import (
 	"github.com/jensneuse/diffview"
 	. "github.com/onsi/gomega"
 	"github.com/sebdah/goldie"
-	"io"
 	"io/ioutil"
 	"log"
-	"os"
+	"strings"
 	"testing"
 )
 
@@ -20,14 +19,15 @@ func TestParser_Starwars(t *testing.T) {
 
 	parser := NewParser()
 
-	starwarsSchema, err := os.Open(inputFileName)
+	starwarsSchema, err := ioutil.ReadFile(inputFileName)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	defer starwarsSchema.Close()
+	builder := &strings.Builder{}
+	builder.Write(starwarsSchema)
 
-	def, err := parser.ParseTypeSystemDefinition(starwarsSchema)
+	def, err := parser.ParseTypeSystemDefinition(builder.String())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,15 +54,16 @@ func TestParser_IntrospectionQuery(t *testing.T) {
 	inputFileName := "./testdata/introspectionquery.graphql"
 	fixtureFileName := "type_system_definition_parsed_introspection"
 
-	inputFile, err := os.Open(inputFileName)
+	inputFileData, err := ioutil.ReadFile(inputFileName)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	defer inputFile.Close()
+	builder := &strings.Builder{}
+	builder.Write(inputFileData)
 
 	parser := NewParser()
-	executableDefinition, err := parser.ParseExecutableDefinition(inputFile)
+	executableDefinition, err := parser.ParseExecutableDefinition(builder.String())
 	Expect(err).To(BeNil())
 
 	jsonBytes, err := json.MarshalIndent(executableDefinition, "", "  ")
@@ -88,27 +89,21 @@ func BenchmarkParser(b *testing.B) {
 
 	parser := NewParser()
 
-	introspectionQueryFile, err := os.Open("./testdata/introspectionquery.graphql")
+	testData, err := ioutil.ReadFile("./testdata/introspectionquery.graphql")
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	parser.ParseExecutableDefinition(introspectionQueryFile)
+	builder := &strings.Builder{}
+	builder.Write(testData)
 
-	defer introspectionQueryFile.Close()
+	inputString := builder.String()
 
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
 
-		b.StopTimer()
-		_, err = introspectionQueryFile.Seek(0, io.SeekStart)
-		if err != nil {
-			b.Fatal(err)
-		}
-		b.StartTimer()
-
-		executableDefinition, err := parser.ParseExecutableDefinition(introspectionQueryFile)
+		executableDefinition, err := parser.ParseExecutableDefinition(inputString)
 		if err != nil {
 			b.Fatal(err)
 		}

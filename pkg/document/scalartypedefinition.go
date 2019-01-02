@@ -3,8 +3,8 @@ package document
 // ScalarTypeDefinition as specified in:
 // http://facebook.github.io/graphql/draft/#sec-Scalars
 type ScalarTypeDefinition struct {
-	Description ByteSlice
-	Name        ByteSlice
+	Description string
+	Name        string
 	Directives  Directives
 }
 

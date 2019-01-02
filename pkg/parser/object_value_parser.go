@@ -59,22 +59,4 @@ func (p *Parser) parsePeekedObjectValue() (objectValue document.ObjectValue, err
 			return objectValue, fmt.Errorf("parsePeekedObjectValue: expected }/ident, got: %s", peeked)
 		}
 	}
-
-	/*	err = p.readAllUntil(keyword.CURLYBRACKETCLOSE,
-		WithWhitelist(keyword.IDENT),
-		WithReadRepeat()).
-		foreach(func(tok token.Token) bool {
-
-			var field document.ObjectField
-			field, err = p.parseObjectField()
-			if err != nil {
-				return false
-			}
-
-			objectValue.Val = append(objectValue.Val, field)
-
-			return true
-		})
-
-	return*/
 }

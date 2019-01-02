@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"bytes"
 	"testing"
 
 	. "github.com/franela/goblin"
@@ -29,7 +28,7 @@ func TestValueParser(t *testing.T) {
 				input:     "$foo",
 				expectErr: BeNil(),
 				expectValues: Equal(document.VariableValue{
-					Name: []byte("foo"),
+					Name: "foo",
 				}),
 			},
 			{
@@ -74,7 +73,7 @@ func TestValueParser(t *testing.T) {
 				input:     `"this is a string value"`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.StringValue{
-					Val: []byte("this is a string value"),
+					Val: "this is a string value",
 				}),
 			},
 			{
@@ -82,7 +81,7 @@ func TestValueParser(t *testing.T) {
 				input:     `"""this is a string value"""`,
 				expectErr: BeNil(),
 				expectValues: Equal(document.StringValue{
-					Val: []byte("this is a string value"),
+					Val: "this is a string value",
 				}),
 			},
 			{
@@ -110,7 +109,7 @@ func TestValueParser(t *testing.T) {
 				expectValues: Equal(document.ObjectValue{
 					Val: []document.ObjectField{
 						{
-							Name: []byte("isTrue"),
+							Name: "isTrue",
 							Value: document.BooleanValue{
 								Val: true,
 							},
@@ -139,9 +138,8 @@ func TestValueParser(t *testing.T) {
 
 			g.It(test.it, func() {
 
-				reader := bytes.NewReader([]byte(test.input))
 				parser := NewParser()
-				parser.l.SetInput(reader)
+				parser.l.SetInput(test.input)
 
 				val, err := parser.parseValue()
 				Expect(err).To(test.expectErr)
