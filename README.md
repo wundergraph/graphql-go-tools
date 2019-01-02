@@ -25,6 +25,21 @@ See pkg/parser/parser_test.go
 
 `make lint`
 
+## Benchmarks
+
+```
+goos: darwin
+goarch: amd64
+pkg: github.com/jensneuse/graphql-go-tools/pkg/parser
+BenchmarkParser-4   	   50000	     36178 ns/op	    9746 B/op	     130 allocs/op
+BenchmarkParser-4   	   50000	     36630 ns/op	    9746 B/op	     130 allocs/op
+BenchmarkParser-4   	   50000	     36620 ns/op	    9746 B/op	     130 allocs/op
+BenchmarkParser-4   	   50000	     36444 ns/op	    9746 B/op	     130 allocs/op
+```
+
+Allocations could easily reduced below 70 allocs/op 7000 B/op by introducing resource pooling.
+That being said I don't see any value in micro optimizing at this stage. <0.04 ms/op for parsing the Introspection Query seems good enough.
+
 ## Contributors
 
 This repository was initially developed and maintained by one single person:
