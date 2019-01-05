@@ -25,8 +25,9 @@ func TestFloatValueParser(t *testing.T) {
 				it:        "should parse a simple float value",
 				input:     "12.12",
 				expectErr: BeNil(),
-				expectValues: Equal(document.FloatValue{
-					Val: 12.12,
+				expectValues: Equal(document.Value{
+					ValueType:  document.ValueTypeFloat,
+					FloatValue: 12.12,
 				}),
 			},
 		}

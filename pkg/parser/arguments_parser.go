@@ -6,20 +6,20 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
-func (p *Parser) parseArguments() (arguments document.Arguments, err error) {
+func (p *Parser) parseArguments(index *[]int) error {
 
 	key, err := p.l.Peek(true)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if key != keyword.BRACKETOPEN {
-		return
+		return nil
 	}
 
 	_, err = p.l.Read()
 	if err != nil {
-		return
+		return err
 	}
 
 	var valueName string
@@ -27,41 +27,41 @@ func (p *Parser) parseArguments() (arguments document.Arguments, err error) {
 	for {
 		key, err = p.l.Peek(true)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		if key == keyword.IDENT {
 			identToken, err := p.l.Read()
 			if err != nil {
-				return nil, err
+				return err
 			}
 
 			valueName = identToken.Literal
 
 		} else if key == keyword.BRACKETCLOSE {
 			_, err = p.l.Read()
-			return arguments, err
+			return err
 		} else {
-			return nil, fmt.Errorf("parseArguments: ident/bracketclose expected, got %s", key)
+			return fmt.Errorf("parseArguments: ident/bracketclose expected, got %s", key)
 		}
 
 		key, err = p.l.Peek(true)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		if key == keyword.COLON {
 			_, err = p.l.Read()
 			if err != nil {
-				return
+				return err
 			}
 		} else {
-			return nil, fmt.Errorf("parseArguments: colon expected, got %s", key)
+			return fmt.Errorf("parseArguments: colon expected, got %s", key)
 		}
 
 		value, err := p.parseValue()
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		argument := document.Argument{
@@ -69,6 +69,6 @@ func (p *Parser) parseArguments() (arguments document.Arguments, err error) {
 			Value: value,
 		}
 
-		arguments = append(arguments, argument)
+		*index = append(*index, p.putArgument(argument))
 	}
 }

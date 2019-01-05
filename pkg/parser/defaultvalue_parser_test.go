@@ -25,21 +25,22 @@ func TestDefaultValueParser(t *testing.T) {
 				it:        "should parse a simple DefaultValue",
 				input:     "= 2",
 				expectErr: BeNil(),
-				expectValues: Equal(document.IntValue{
-					Val: 2,
+				expectValues: Equal(document.Value{
+					ValueType: document.ValueTypeInt,
+					IntValue:  2,
 				}),
 			},
 			{
 				it:           "should ignore a non existing DefaultValue",
 				input:        " ",
 				expectErr:    BeNil(),
-				expectValues: BeNil(),
+				expectValues: Equal(document.Value{}),
 			},
 			{
 				it:           "should not parse when no EQUALS is set",
 				input:        "2",
 				expectErr:    BeNil(),
-				expectValues: BeNil(),
+				expectValues: Equal(document.Value{}),
 			},
 		}
 

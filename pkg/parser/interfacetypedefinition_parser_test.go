@@ -16,28 +16,38 @@ func TestInterfaceTypeDefinitionParser(t *testing.T) {
 	g.Describe("parser.parseInterfaceTypeDefinition", func() {
 
 		tests := []struct {
-			it           string
-			input        string
-			expectErr    types.GomegaMatcher
-			expectValues types.GomegaMatcher
+			it                      string
+			input                   string
+			expectErr               types.GomegaMatcher
+			expectIndex             types.GomegaMatcher
+			expectParsedDefinitions types.GomegaMatcher
 		}{
 			{
 				it: "should parse a simple InterfaceTypeDefinition",
 				input: `NameEntity {
 					name: String
 				}`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.InterfaceTypeDefinition{
-					Name: "NameEntity",
-					FieldsDefinition: document.FieldsDefinition{
-						document.FieldDefinition{
-							Name: "name",
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					FieldDefinitions: document.FieldDefinitions{
+						{
+							Name:                "name",
+							Directives:          []int{},
+							ArgumentsDefinition: []int{},
 							Type: document.NamedType{
 								Name: "String",
 							},
 						},
 					},
-				}),
+					InterfaceTypeDefinitions: document.InterfaceTypeDefinitions{
+						{
+							Name:             "NameEntity",
+							FieldsDefinition: []int{0},
+							Directives:       []int{},
+						},
+					},
+				}.initEmptySlices()),
 			},
 			{
 				it: "should parse an InterfaceTypeDefinition with multiple FieldDefinition",
@@ -45,12 +55,14 @@ func TestInterfaceTypeDefinitionParser(t *testing.T) {
 					name: [String]!
 					age: [ Int ]
 				}`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.InterfaceTypeDefinition{
-					Name: "Person",
-					FieldsDefinition: document.FieldsDefinition{
-						document.FieldDefinition{
-							Name: "name",
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					FieldDefinitions: document.FieldDefinitions{
+						{
+							Name:                "name",
+							Directives:          []int{},
+							ArgumentsDefinition: []int{},
 							Type: document.ListType{
 								Type: document.NamedType{
 									Name: "String",
@@ -58,8 +70,10 @@ func TestInterfaceTypeDefinitionParser(t *testing.T) {
 								NonNull: true,
 							},
 						},
-						document.FieldDefinition{
-							Name: "age",
+						{
+							Name:                "age",
+							Directives:          []int{},
+							ArgumentsDefinition: []int{},
 							Type: document.ListType{
 								Type: document.NamedType{
 									Name: "Int",
@@ -67,57 +81,82 @@ func TestInterfaceTypeDefinitionParser(t *testing.T) {
 							},
 						},
 					},
-				}),
+					InterfaceTypeDefinitions: document.InterfaceTypeDefinitions{
+						{
+							Name:             "Person",
+							FieldsDefinition: []int{0, 1},
+							Directives:       []int{},
+						},
+					},
+				}.initEmptySlices()),
 			},
 			{
-				it:        "should parse an InterfaceTypeDefinition with optional FieldsDefinition",
-				input:     `Person `,
-				expectErr: BeNil(),
-				expectValues: Equal(document.InterfaceTypeDefinition{
-					Name: "Person",
-				}),
+				it:          "should parse an InterfaceTypeDefinition with optional FieldDefinitions",
+				input:       `Person `,
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					InterfaceTypeDefinitions: document.InterfaceTypeDefinitions{
+						{
+							Name:             "Person",
+							Directives:       []int{},
+							FieldsDefinition: []int{},
+						},
+					},
+				}.initEmptySlices()),
 			},
 			{
 				it: "should parse an InterfaceTypeDefinition with Directives",
 				input: `NameEntity @fromTop(to: "bottom") @fromBottom(to: "top") {
 					name: String
 				}`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.InterfaceTypeDefinition{
-					Name: "NameEntity",
-					Directives: document.Directives{
-						document.Directive{
-							Name: "fromTop",
-							Arguments: document.Arguments{
-								document.Argument{
-									Name: "to",
-									Value: document.StringValue{
-										Val: "bottom",
-									},
-								},
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					Arguments: document.Arguments{
+						{
+							Name: "to",
+							Value: document.Value{
+								ValueType:   document.ValueTypeString,
+								StringValue: "bottom",
 							},
 						},
-						document.Directive{
-							Name: "fromBottom",
-							Arguments: document.Arguments{
-								document.Argument{
-									Name: "to",
-									Value: document.StringValue{
-										Val: "top",
-									},
-								},
+						{
+							Name: "to",
+							Value: document.Value{
+								ValueType:   document.ValueTypeString,
+								StringValue: "top",
 							},
 						},
 					},
-					FieldsDefinition: document.FieldsDefinition{
-						document.FieldDefinition{
-							Name: "name",
+					Directives: document.Directives{
+						{
+							Name:      "fromTop",
+							Arguments: []int{0},
+						},
+						{
+							Name:      "fromBottom",
+							Arguments: []int{1},
+						},
+					},
+					FieldDefinitions: document.FieldDefinitions{
+						{
+							Name:                "name",
+							Directives:          []int{},
+							ArgumentsDefinition: []int{},
 							Type: document.NamedType{
 								Name: "String",
 							},
 						},
 					},
-				}),
+					InterfaceTypeDefinitions: document.InterfaceTypeDefinitions{
+						{
+							Name:             "NameEntity",
+							Directives:       []int{0, 1},
+							FieldsDefinition: []int{0},
+						},
+					},
+				}.initEmptySlices()),
 			},
 		}
 
@@ -129,9 +168,15 @@ func TestInterfaceTypeDefinitionParser(t *testing.T) {
 				parser := NewParser()
 				parser.l.SetInput(test.input)
 
-				val, err := parser.parseInterfaceTypeDefinition()
+				var index []int
+				err := parser.parseInterfaceTypeDefinition(&index)
 				Expect(err).To(test.expectErr)
-				Expect(val).To(test.expectValues)
+				if test.expectIndex != nil {
+					Expect(index).To(test.expectIndex)
+				}
+				if test.expectParsedDefinitions != nil {
+					Expect(parser.ParsedDefinitions).To(test.expectParsedDefinitions)
+				}
 			})
 		}
 	})

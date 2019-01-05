@@ -5,8 +5,8 @@ package document
 type InterfaceTypeDefinition struct {
 	Description      string
 	Name             string
-	FieldsDefinition FieldsDefinition
-	Directives       Directives
+	FieldsDefinition []int
+	Directives       []int
 }
 
 // InterfaceTypeDefinitions is the plural of InterfaceTypeDefinition

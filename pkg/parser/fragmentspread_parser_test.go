@@ -16,45 +16,62 @@ func TestFragmentSpreadParser(t *testing.T) {
 	g.Describe("parser.parseFragmentSpread", func() {
 
 		tests := []struct {
-			it           string
-			input        string
-			expectErr    types.GomegaMatcher
-			expectValues types.GomegaMatcher
+			it                      string
+			input                   string
+			expectErr               types.GomegaMatcher
+			expectIndex             types.GomegaMatcher
+			expectParsedDefinitions types.GomegaMatcher
 		}{
 			{
-				it:        "should parse a simple FragmentSpread",
-				input:     "firstFragment @rename(index: 3)",
-				expectErr: BeNil(),
-				expectValues: Equal(document.FragmentSpread{
-					FragmentName: "firstFragment",
+				it:          "should parse a simple FragmentSpread",
+				input:       "firstFragment @rename(index: 3)",
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
 					Directives: document.Directives{
-						document.Directive{
-							Name: "rename",
-							Arguments: document.Arguments{
-								document.Argument{
-									Name: "index",
-									Value: document.IntValue{
-										Val: 3,
-									},
-								},
+						{
+							Name:      "rename",
+							Arguments: []int{0},
+						},
+					},
+					FieldDefinitions: document.FieldDefinitions{},
+					Arguments: document.Arguments{
+						{
+							Name: "index",
+							Value: document.Value{
+								ValueType: document.ValueTypeInt,
+								IntValue:  3,
 							},
 						},
 					},
-				}),
+					EnumValuesDefinitions: document.EnumValueDefinitions{},
+					EnumTypeDefinitions:   document.EnumTypeDefinitions{},
+					FragmentSpreads: document.FragmentSpreads{
+						{
+							FragmentName: "firstFragment",
+							Directives:   []int{0},
+						},
+					},
+				}.initEmptySlices()),
 			},
 			{
-				it:        "should parse FragmentSpread with optional Directives",
-				input:     "firstFragment ",
-				expectErr: BeNil(),
-				expectValues: Equal(document.FragmentSpread{
-					FragmentName: "firstFragment",
-				}),
+				it:          "should parse FragmentSpread with optional Directives",
+				input:       "firstFragment ",
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					FragmentSpreads: document.FragmentSpreads{
+						{
+							FragmentName: "firstFragment",
+							Directives:   []int{},
+						},
+					},
+				}.initEmptySlices()),
 			},
 			{
-				it:           "should not parse FragmentSpread when FragmentName is 'on'",
-				input:        "on",
-				expectErr:    Not(BeNil()),
-				expectValues: Equal(document.FragmentSpread{}),
+				it:        "should not parse FragmentSpread when FragmentName is 'on'",
+				input:     "on",
+				expectErr: HaveOccurred(),
 			},
 		}
 
@@ -66,9 +83,15 @@ func TestFragmentSpreadParser(t *testing.T) {
 				parser := NewParser()
 				parser.l.SetInput(test.input)
 
-				val, err := parser.parseFragmentSpread()
+				var index []int
+				err := parser.parseFragmentSpread(&index)
 				Expect(err).To(test.expectErr)
-				Expect(val).To(test.expectValues)
+				if test.expectIndex != nil {
+					Expect(index).To(test.expectIndex)
+				}
+				if test.expectParsedDefinitions != nil {
+					Expect(parser.ParsedDefinitions).To(test.expectParsedDefinitions)
+				}
 			})
 		}
 	})

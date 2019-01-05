@@ -16,103 +16,126 @@ func TestArgumentsParser(t *testing.T) {
 	g.Describe("parser.parseArguments", func() {
 
 		tests := []struct {
-			it           string
-			input        string
-			expectErr    types.GomegaMatcher
-			expectValues types.GomegaMatcher
+			it                      string
+			input                   string
+			expectErr               types.GomegaMatcher
+			expectIndex             types.GomegaMatcher
+			expectParsedDefinitions types.GomegaMatcher
 		}{
 			{
-				it:        "should parse simple arguments",
-				input:     `(name: "Gophus")`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.Arguments{
-					document.Argument{
-						Name: "name",
-						Value: document.StringValue{
-							Val: "Gophus",
+				it:          "should parse simple arguments",
+				input:       `(name: "Gophus")`,
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					Arguments: document.Arguments{
+						{
+							Name: "name",
+							Value: document.Value{
+								ValueType:   document.ValueTypeString,
+								StringValue: "Gophus",
+							},
 						},
 					},
-				}),
+				}.initEmptySlices()),
 			},
 			{
-				it:        "should parse a list of const strings",
-				input:     `(fooBars: ["foo","bar"])`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.Arguments{
-					document.Argument{
-						Name: "fooBars",
-						Value: document.ListValue{
-							Values: []document.Value{
-								document.StringValue{
-									Val: "foo",
-								},
-								document.StringValue{
-									Val: "bar",
+				it:          "should parse a list of const strings",
+				input:       `(fooBars: ["foo","bar"])`,
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					Arguments: document.Arguments{
+						{
+							Name: "fooBars",
+							Value: document.Value{
+								ValueType: document.ValueTypeList,
+								ListValue: []document.Value{
+									{
+										ValueType:   document.ValueTypeString,
+										StringValue: "foo",
+									},
+									{
+										ValueType:   document.ValueTypeString,
+										StringValue: "bar",
+									},
 								},
 							},
 						},
 					},
-				}),
+				}.initEmptySlices()),
 			},
 			{
-				it:        "should parse a list of const integers",
-				input:     `(integers: [1,2,3])`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.Arguments{
-					document.Argument{
-						Name: "integers",
-						Value: document.ListValue{
-							Values: []document.Value{
-								document.IntValue{
-									Val: 1,
-								},
-								document.IntValue{
-									Val: 2,
-								},
-								document.IntValue{
-									Val: 3,
+				it:          "should parse a list of const integers",
+				input:       `(integers: [1,2,3])`,
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					Arguments: document.Arguments{
+						{
+							Name: "integers",
+							Value: document.Value{
+								ValueType: document.ValueTypeList,
+								ListValue: []document.Value{
+									{
+										ValueType: document.ValueTypeInt,
+										IntValue:  1,
+									},
+									{
+										ValueType: document.ValueTypeInt,
+										IntValue:  2,
+									},
+									{
+										ValueType: document.ValueTypeInt,
+										IntValue:  3,
+									},
 								},
 							},
 						},
 					},
-				}),
+				}.initEmptySlices()),
 			},
 			{
-				it:        "should parse multiple arguments",
-				input:     `(name: "Gophus", surname: "Gophersson")`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.Arguments{
-					document.Argument{
-						Name: "name",
-						Value: document.StringValue{
-							Val: "Gophus",
+				it:          "should parse multiple arguments",
+				input:       `(name: "Gophus", surname: "Gophersson")`,
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0, 1}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					Arguments: document.Arguments{
+						{
+							Name: "name",
+							Value: document.Value{
+								ValueType:   document.ValueTypeString,
+								StringValue: "Gophus",
+							},
+						},
+						{
+							Name: "surname",
+							Value: document.Value{
+								ValueType:   document.ValueTypeString,
+								StringValue: "Gophersson",
+							},
 						},
 					},
-					document.Argument{
-						Name: "surname",
-						Value: document.StringValue{
-							Val: "Gophersson",
-						},
-					},
-				}),
+				}.initEmptySlices()),
 			},
 			{
-				it:           "should not parse arguments when no bracket close",
-				input:        `(name: "Gophus", surname: "Gophersson"`,
-				expectErr:    HaveOccurred(),
-				expectValues: BeNil(),
+				it:          "should not parse arguments when no bracket close",
+				input:       `(name: "Gophus", surname: "Gophersson"`,
+				expectErr:   HaveOccurred(),
+				expectIndex: Equal([]int{0, 1}),
 			},
 			{
-				it:           "should parse Arguments optionally",
-				input:        `name: "Gophus", surname: "Gophersson")`,
-				expectErr:    BeNil(),
-				expectValues: Equal(document.Arguments(nil)),
+				it:          "should parse Arguments optionally",
+				input:       `name: "Gophus", surname: "Gophersson")`,
+				expectErr:   BeNil(),
+				expectIndex: BeNil(),
 			},
 			{
-				it:           "should not parse arguments when multiple brackets open",
-				input:        `((name: "Gophus", surname: "Gophersson")`,
-				expectErr:    Not(BeNil()),
-				expectValues: Equal(document.Arguments(nil)),
+				it:          "should not parse arguments when multiple brackets open",
+				input:       `((name: "Gophus", surname: "Gophersson")`,
+				expectErr:   HaveOccurred(),
+				expectIndex: BeNil(),
 			},
 		}
 
@@ -124,9 +147,15 @@ func TestArgumentsParser(t *testing.T) {
 				parser := NewParser()
 				parser.l.SetInput(test.input)
 
-				val, err := parser.parseArguments()
+				var index []int
+				err := parser.parseArguments(&index)
 				Expect(err).To(test.expectErr)
-				Expect(val).To(test.expectValues)
+				if test.expectIndex != nil {
+					Expect(index).To(test.expectIndex)
+				}
+				if test.expectParsedDefinitions != nil {
+					Expect(parser.ParsedDefinitions).To(test.expectParsedDefinitions)
+				}
 			})
 		}
 	})

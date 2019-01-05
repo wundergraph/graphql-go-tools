@@ -5,7 +5,7 @@ package document
 type DirectiveDefinition struct {
 	Description         string
 	Name                string
-	ArgumentsDefinition ArgumentsDefinition
+	ArgumentsDefinition []int
 	DirectiveLocations  DirectiveLocations
 }
 

@@ -15,50 +15,65 @@ func TestParseScalar(t *testing.T) {
 
 	g.Describe("parseScalar", func() {
 		tests := []struct {
-			it           string
-			input        string
-			expectErr    types.GomegaMatcher
-			expectValues types.GomegaMatcher
+			it                      string
+			input                   string
+			expectErr               types.GomegaMatcher
+			expectIndex             types.GomegaMatcher
+			expectParsedDefinitions types.GomegaMatcher
 		}{
 			{
-				it:        "should parse simple scalar",
-				input:     ` JSON`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.ScalarTypeDefinition{
-					Name: "JSON",
-				}),
+				it:          "should parse simple scalar",
+				input:       ` JSON`,
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					ScalarTypeDefinitions: document.ScalarTypeDefinitions{
+						{
+							Name:       "JSON",
+							Directives: []int{},
+						},
+					},
+				}.initEmptySlices()),
 			},
 			{
-				it:        "should parse a scalar with Directives",
-				input:     ` JSON @fromTop(to: "bottom") @fromBottom(to: "top") `,
-				expectErr: BeNil(),
-				expectValues: Equal(document.ScalarTypeDefinition{
-					Name: "JSON",
-					Directives: document.Directives{
-						document.Directive{
-							Name: "fromTop",
-							Arguments: document.Arguments{
-								document.Argument{
-									Name: "to",
-									Value: document.StringValue{
-										Val: "bottom",
-									},
-								},
+				it:          "should parse a scalar with Directives",
+				input:       ` JSON @fromTop(to: "bottom") @fromBottom(to: "top") `,
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					Arguments: document.Arguments{
+						{
+							Name: "to",
+							Value: document.Value{
+								ValueType:   document.ValueTypeString,
+								StringValue: "bottom",
 							},
 						},
-						document.Directive{
-							Name: "fromBottom",
-							Arguments: document.Arguments{
-								document.Argument{
-									Name: "to",
-									Value: document.StringValue{
-										Val: "top",
-									},
-								},
+						{
+							Name: "to",
+							Value: document.Value{
+								ValueType:   document.ValueTypeString,
+								StringValue: "top",
 							},
 						},
 					},
-				}),
+					Directives: document.Directives{
+						{
+							Name:      "fromTop",
+							Arguments: []int{0},
+						},
+						{
+							Name:      "fromBottom",
+							Arguments: []int{1},
+						},
+					},
+					ScalarTypeDefinitions: document.ScalarTypeDefinitions{
+						{
+							Name:       "JSON",
+							Directives: []int{0, 1},
+						},
+					},
+				}.initEmptySlices()),
 			},
 		}
 
@@ -70,9 +85,15 @@ func TestParseScalar(t *testing.T) {
 				parser := NewParser()
 				parser.l.SetInput(test.input)
 
-				val, err := parser.parseScalarTypeDefinition()
+				var index []int
+				err := parser.parseScalarTypeDefinition(&index)
 				Expect(err).To(test.expectErr)
-				Expect(val).To(test.expectValues)
+				if test.expectIndex != nil {
+					Expect(index).To(test.expectIndex)
+				}
+				if test.expectParsedDefinitions != nil {
+					Expect(parser.ParsedDefinitions).To(test.expectParsedDefinitions)
+				}
 			})
 		}
 	})

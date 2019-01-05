@@ -25,12 +25,14 @@ func TestObjectValueParser(t *testing.T) {
 				it:        "should parse simple object value",
 				input:     `{ foo: "bar" }`,
 				expectErr: BeNil(),
-				expectVal: Equal(document.ObjectValue{
-					Val: []document.ObjectField{
+				expectVal: Equal(document.Value{
+					ValueType: document.ValueTypeObject,
+					ObjectValue: []document.ObjectField{
 						{
 							Name: "foo",
-							Value: document.StringValue{
-								Val: "bar",
+							Value: document.Value{
+								ValueType:   document.ValueTypeString,
+								StringValue: "bar",
 							},
 						},
 					},
@@ -40,36 +42,42 @@ func TestObjectValueParser(t *testing.T) {
 				it:        "should parse multiple values",
 				input:     `{ foo: "bar" baz: "bat", bas: "bal" anEnum: NUM, smallEnum: numnum }`,
 				expectErr: BeNil(),
-				expectVal: Equal(document.ObjectValue{
-					Val: []document.ObjectField{
+				expectVal: Equal(document.Value{
+					ValueType: document.ValueTypeObject,
+					ObjectValue: []document.ObjectField{
 						{
 							Name: "foo",
-							Value: document.StringValue{
-								Val: "bar",
+							Value: document.Value{
+								ValueType:   document.ValueTypeString,
+								StringValue: "bar",
 							},
 						},
 						{
 							Name: "baz",
-							Value: document.StringValue{
-								Val: "bat",
+							Value: document.Value{
+								ValueType:   document.ValueTypeString,
+								StringValue: "bat",
 							},
 						},
 						{
 							Name: "bas",
-							Value: document.StringValue{
-								Val: "bal",
+							Value: document.Value{
+								ValueType:   document.ValueTypeString,
+								StringValue: "bal",
 							},
 						},
 						{
 							Name: "anEnum",
-							Value: document.EnumValue{
-								Name: "NUM",
+							Value: document.Value{
+								ValueType: document.ValueTypeEnum,
+								EnumValue: "NUM",
 							},
 						},
 						{
 							Name: "smallEnum",
-							Value: document.EnumValue{
-								Name: "numnum",
+							Value: document.Value{
+								ValueType: document.ValueTypeEnum,
+								EnumValue: "numnum",
 							},
 						},
 					},
@@ -79,16 +87,19 @@ func TestObjectValueParser(t *testing.T) {
 				it:        "should parse nested object value",
 				input:     `{ foo: { bar: "baz" } }`,
 				expectErr: BeNil(),
-				expectVal: Equal(document.ObjectValue{
-					Val: []document.ObjectField{
+				expectVal: Equal(document.Value{
+					ValueType: document.ValueTypeObject,
+					ObjectValue: []document.ObjectField{
 						{
 							Name: "foo",
-							Value: document.ObjectValue{
-								Val: []document.ObjectField{
+							Value: document.Value{
+								ValueType: document.ValueTypeObject,
+								ObjectValue: []document.ObjectField{
 									{
 										Name: "bar",
-										Value: document.StringValue{
-											Val: "baz",
+										Value: document.Value{
+											ValueType:   document.ValueTypeString,
+											StringValue: "baz",
 										},
 									},
 								},
@@ -105,16 +116,19 @@ func TestObjectValueParser(t *testing.T) {
 	}
 }`,
 				expectErr: BeNil(),
-				expectVal: Equal(document.ObjectValue{
-					Val: []document.ObjectField{
+				expectVal: Equal(document.Value{
+					ValueType: document.ValueTypeObject,
+					ObjectValue: []document.ObjectField{
 						{
 							Name: "foo",
-							Value: document.ObjectValue{
-								Val: []document.ObjectField{
+							Value: document.Value{
+								ValueType: document.ValueTypeObject,
+								ObjectValue: []document.ObjectField{
 									{
 										Name: "bar",
-										Value: document.StringValue{
-											Val: "baz",
+										Value: document.Value{
+											ValueType:   document.ValueTypeString,
+											StringValue: "baz",
 										},
 									},
 								},

@@ -5,8 +5,8 @@ package document
 type InputObjectTypeDefinition struct {
 	Description           string
 	Name                  string
-	InputFieldsDefinition InputFieldsDefinition
-	Directives            Directives
+	InputFieldsDefinition []int
+	Directives            []int
 }
 
 // InputObjectTypeDefinitions is the plural of InputObjectTypeDefinition

@@ -5,14 +5,15 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/transform"
 )
 
-func (p *Parser) parsePeekedFloatValue() (val document.FloatValue, err error) {
+func (p *Parser) parsePeekedFloatValue() (val document.Value, err error) {
 
 	floatToken, err := p.l.Read()
 	if err != nil {
 		return val, err
 	}
 
-	val.Val, err = transform.StringToFloat32(floatToken.Literal)
+	val.ValueType = document.ValueTypeFloat
+	val.FloatValue, err = transform.StringToFloat32(floatToken.Literal)
 
 	return
 }

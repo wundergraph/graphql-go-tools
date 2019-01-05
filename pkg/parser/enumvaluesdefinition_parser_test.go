@@ -16,39 +16,46 @@ func TestParseEnumValuesDefinition(t *testing.T) {
 	g.Describe("parseEnumValuesDefinition", func() {
 
 		tests := []struct {
-			it           string
-			input        string
-			expectErr    types.GomegaMatcher
-			expectValues types.GomegaMatcher
+			it                      string
+			input                   string
+			expectErr               types.GomegaMatcher
+			expectIndex             types.GomegaMatcher
+			expectParsedDefinitions types.GomegaMatcher
 		}{
 
 			{
-				it: "should parse simple EnumValuesDefinition",
+				it: "should parse simple EnumValueDefinitions",
 				input: `{
 	NORTH
 	EAST
 	SOUTH
 	WEST
 }`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.EnumValuesDefinition{
-					{
-						EnumValue: "NORTH",
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0, 1, 2, 3}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					EnumValuesDefinitions: document.EnumValueDefinitions{
+						{
+							EnumValue:  "NORTH",
+							Directives: []int{},
+						},
+						{
+							EnumValue:  "EAST",
+							Directives: []int{},
+						},
+						{
+							EnumValue:  "SOUTH",
+							Directives: []int{},
+						},
+						{
+							EnumValue:  "WEST",
+							Directives: []int{},
+						},
 					},
-					{
-						EnumValue: "EAST",
-					},
-					{
-						EnumValue: "SOUTH",
-					},
-					{
-						EnumValue: "WEST",
-					},
-				},
-				),
+				}.initEmptySlices()),
 			},
 			{
-				it: "should parse EnumValuesDefinition with descriptions",
+				it: "should parse EnumValueDefinitions with descriptions",
 				input: `{
 	"describes north"
 	NORTH
@@ -59,29 +66,36 @@ func TestParseEnumValuesDefinition(t *testing.T) {
 	"describes west"
 	WEST
 }`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.EnumValuesDefinition{
-					{
-						Description: "describes north",
-						EnumValue:   "NORTH",
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0, 1, 2, 3}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					Arguments: document.Arguments{},
+					EnumValuesDefinitions: document.EnumValueDefinitions{
+						{
+							Description: "describes north",
+							EnumValue:   "NORTH",
+							Directives:  []int{},
+						},
+						{
+							Description: "describes east",
+							EnumValue:   "EAST",
+							Directives:  []int{},
+						},
+						{
+							Description: "describes south",
+							EnumValue:   "SOUTH",
+							Directives:  []int{},
+						},
+						{
+							Description: "describes west",
+							EnumValue:   "WEST",
+							Directives:  []int{},
+						},
 					},
-					{
-						Description: "describes east",
-						EnumValue:   "EAST",
-					},
-					{
-						Description: "describes south",
-						EnumValue:   "SOUTH",
-					},
-					{
-						Description: "describes west",
-						EnumValue:   "WEST",
-					},
-				},
-				),
+				}.initEmptySlices()),
 			},
 			{
-				it: "should parse EnumValuesDefinition with descriptions and empty lines",
+				it: "should parse EnumValueDefinitions with descriptions and empty lines",
 				input: `{
 
 	"describes north"
@@ -102,128 +116,144 @@ describes west
 	WEST
 
 }`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.EnumValuesDefinition{
-					{
-						Description: "describes north",
-						EnumValue:   "NORTH",
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0, 1, 2, 3}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					Arguments: document.Arguments{},
+					EnumValuesDefinitions: document.EnumValueDefinitions{
+						{
+							Description: "describes north",
+							EnumValue:   "NORTH",
+							Directives:  []int{},
+						},
+						{
+							Description: "describes east",
+							EnumValue:   "EAST",
+							Directives:  []int{},
+						},
+						{
+							Description: "describes south",
+							EnumValue:   "SOUTH",
+							Directives:  []int{},
+						},
+						{
+							Description: "describes west",
+							EnumValue:   "WEST",
+							Directives:  []int{},
+						},
 					},
-					{
-						Description: "describes east",
-						EnumValue:   "EAST",
-					},
-					{
-						Description: "describes south",
-						EnumValue:   "SOUTH",
-					},
-					{
-						Description: "describes west",
-						EnumValue:   "WEST",
-					},
-				},
-				),
+				}.initEmptySlices()),
 			},
 			{
-				it: "should parse a EnumValuesDefinition with multiple Directives",
+				it: "should parse a EnumValueDefinitions with multiple Directives",
 				input: `{
 	NORTH @fromTop(to: "bottom") @fromBottom(to: "top")
 }`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.EnumValuesDefinition{
-					{
-						EnumValue: "NORTH",
-						Directives: document.Directives{
-							document.Directive{
-								Name: "fromTop",
-								Arguments: document.Arguments{
-									document.Argument{
-										Name: "to",
-										Value: document.StringValue{
-											Val: "bottom",
-										},
-									},
-								},
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					Arguments: document.Arguments{
+						{
+							Name: "to",
+							Value: document.Value{
+								ValueType:   document.ValueTypeString,
+								StringValue: "bottom",
 							},
-							document.Directive{
-								Name: "fromBottom",
-								Arguments: document.Arguments{
-									document.Argument{
-										Name: "to",
-										Value: document.StringValue{
-											Val: "top",
-										},
-									},
-								},
+						},
+						{
+							Name: "to",
+							Value: document.Value{
+								ValueType:   document.ValueTypeString,
+								StringValue: "top",
 							},
 						},
 					},
-				},
-				),
+					EnumValuesDefinitions: document.EnumValueDefinitions{
+						{
+							EnumValue:  "NORTH",
+							Directives: []int{0, 1},
+						},
+					},
+					Directives: document.Directives{
+						{
+							Name:      "fromTop",
+							Arguments: []int{0},
+						},
+						{
+							Name:      "fromBottom",
+							Arguments: []int{1},
+						},
+					},
+				}.initEmptySlices()),
 			},
 			{
-				it: "should parse multiple EnumValuesDefinition with multiple Directives",
+				it: "should parse multiple EnumValueDefinitions with multiple Directives",
 				input: `{
 	NORTH @fromTop(to: "bottom") @fromBottom(to: "top")
 	EAST @fromTop(to: "bottom") @fromBottom(to: "top")
 }`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.EnumValuesDefinition{
-					{
-						EnumValue: "NORTH",
-						Directives: document.Directives{
-							document.Directive{
-								Name: "fromTop",
-								Arguments: document.Arguments{
-									document.Argument{
-										Name: "to",
-										Value: document.StringValue{
-											Val: "bottom",
-										},
-									},
-								},
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0, 1}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					Arguments: document.Arguments{
+						{
+							Name: "to",
+							Value: document.Value{
+								ValueType:   document.ValueTypeString,
+								StringValue: "bottom",
 							},
-							document.Directive{
-								Name: "fromBottom",
-								Arguments: document.Arguments{
-									document.Argument{
-										Name: "to",
-										Value: document.StringValue{
-											Val: "top",
-										},
-									},
-								},
+						},
+						{
+							Name: "to",
+							Value: document.Value{
+								ValueType:   document.ValueTypeString,
+								StringValue: "top",
+							},
+						},
+						{
+							Name: "to",
+							Value: document.Value{
+								ValueType:   document.ValueTypeString,
+								StringValue: "bottom",
+							},
+						},
+						{
+							Name: "to",
+							Value: document.Value{
+								ValueType:   document.ValueTypeString,
+								StringValue: "top",
 							},
 						},
 					},
-					{
-						EnumValue: "EAST",
-						Directives: document.Directives{
-							document.Directive{
-								Name: "fromTop",
-								Arguments: document.Arguments{
-									document.Argument{
-										Name: "to",
-										Value: document.StringValue{
-											Val: "bottom",
-										},
-									},
-								},
-							},
-							document.Directive{
-								Name: "fromBottom",
-								Arguments: document.Arguments{
-									document.Argument{
-										Name: "to",
-										Value: document.StringValue{
-											Val: "top",
-										},
-									},
-								},
-							},
+					EnumValuesDefinitions: document.EnumValueDefinitions{
+						{
+							EnumValue:  "NORTH",
+							Directives: []int{0, 1},
+						},
+						{
+							EnumValue:  "EAST",
+							Directives: []int{2, 3},
 						},
 					},
-				},
-				),
+					Directives: document.Directives{
+						{
+							Name:      "fromTop",
+							Arguments: []int{0},
+						},
+						{
+							Name:      "fromBottom",
+							Arguments: []int{1},
+						},
+						document.Directive{
+							Name:      "fromTop",
+							Arguments: []int{2},
+						},
+						document.Directive{
+							Name:      "fromBottom",
+							Arguments: []int{3},
+						},
+					},
+				}.initEmptySlices()),
 			},
 		}
 
@@ -235,9 +265,15 @@ describes west
 				parser := NewParser()
 				parser.l.SetInput(test.input)
 
-				val, err := parser.parseEnumValuesDefinition()
+				index := []int{}
+				err := parser.parseEnumValuesDefinition(&index)
 				Expect(err).To(test.expectErr)
-				Expect(val).To(test.expectValues)
+				if test.expectIndex != nil {
+					Expect(index).To(test.expectIndex)
+				}
+				if test.expectParsedDefinitions != nil {
+					Expect(parser.ParsedDefinitions).To(test.expectParsedDefinitions)
+				}
 			})
 		}
 	})

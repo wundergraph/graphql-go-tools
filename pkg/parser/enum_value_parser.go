@@ -4,14 +4,15 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 )
 
-func (p *Parser) parsePeekedEnumValue() (val document.EnumValue, err error) {
+func (p *Parser) parsePeekedEnumValue() (val document.Value, err error) {
 
 	enumToken, err := p.l.Read()
 	if err != nil {
 		return val, err
 	}
 
-	val.Name = enumToken.Literal
+	val.ValueType = document.ValueTypeEnum
+	val.EnumValue = enumToken.Literal
 
 	return
 }

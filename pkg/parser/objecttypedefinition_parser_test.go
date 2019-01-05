@@ -16,28 +16,35 @@ func TestObjectTypeDefinitionParser(t *testing.T) {
 	g.Describe("parser.parseObjectTypeDefinition", func() {
 
 		tests := []struct {
-			it           string
-			input        string
-			expectErr    types.GomegaMatcher
-			expectValues types.GomegaMatcher
+			it                      string
+			input                   string
+			expectErr               types.GomegaMatcher
+			expectIndex             types.GomegaMatcher
+			expectParsedDefinitions types.GomegaMatcher
 		}{
 			{
 				it: "should parse a simple ObjectTypeDefinition",
 				input: `Person {
 					name: String
 				}`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.ObjectTypeDefinition{
-					Name: "Person",
-					FieldsDefinition: document.FieldsDefinition{
-						document.FieldDefinition{
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					FieldDefinitions: document.FieldDefinitions{
+						{
 							Name: "name",
 							Type: document.NamedType{
 								Name: "String",
 							},
 						},
 					},
-				}),
+					ObjectTypeDefinitions: document.ObjectTypeDefinitions{
+						{
+							Name:             "Person",
+							FieldsDefinition: []int{0},
+						},
+					},
+				}.initEmptySlices()),
 			},
 			{
 				it: "should parse an ObjectTypeDefinition with multiple FieldDefinition",
@@ -45,10 +52,10 @@ func TestObjectTypeDefinitionParser(t *testing.T) {
 					name: [String]!
 					age: [ Int ]
 				}`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.ObjectTypeDefinition{
-					Name: "Person",
-					FieldsDefinition: document.FieldsDefinition{
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					FieldDefinitions: document.FieldDefinitions{
 						document.FieldDefinition{
 							Name: "name",
 							Type: document.ListType{
@@ -67,26 +74,36 @@ func TestObjectTypeDefinitionParser(t *testing.T) {
 							},
 						},
 					},
-				}),
+					ObjectTypeDefinitions: document.ObjectTypeDefinitions{
+						{
+							Name:             "Person",
+							FieldsDefinition: []int{0, 1},
+						},
+					},
+				}.initEmptySlices()),
 			},
 			{
-				it:        "should parse an ObjectTypeDefinition with optional FieldsDefinition",
-				input:     `Person `,
-				expectErr: BeNil(),
-				expectValues: Equal(document.ObjectTypeDefinition{
-					Name: "Person",
-				}),
+				it:          "should parse an ObjectTypeDefinition with optional FieldDefinitions",
+				input:       `Person `,
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					ObjectTypeDefinitions: document.ObjectTypeDefinitions{
+						{
+							Name: "Person",
+						},
+					},
+				}.initEmptySlices()),
 			},
 			{
 				it: "should parse a ObjectTypeDefinition implementing a single interface",
 				input: `Person implements Human {
 					name: String
 				}`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.ObjectTypeDefinition{
-					Name:                 "Person",
-					ImplementsInterfaces: document.ImplementsInterfaces{"Human"},
-					FieldsDefinition: document.FieldsDefinition{
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					FieldDefinitions: document.FieldDefinitions{
 						document.FieldDefinition{
 							Name: "name",
 							Type: document.NamedType{
@@ -94,18 +111,24 @@ func TestObjectTypeDefinitionParser(t *testing.T) {
 							},
 						},
 					},
-				}),
+					ObjectTypeDefinitions: document.ObjectTypeDefinitions{
+						{
+							Name:                 "Person",
+							ImplementsInterfaces: document.ImplementsInterfaces{"Human"},
+							FieldsDefinition:     []int{0},
+						},
+					},
+				}.initEmptySlices()),
 			},
 			{
 				it: "should parse a ObjectTypeDefinition implementing a multiple interfaces",
 				input: `Person implements Human & Mammal {
 					name: String
 				}`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.ObjectTypeDefinition{
-					Name:                 "Person",
-					ImplementsInterfaces: document.ImplementsInterfaces{"Human", "Mammal"},
-					FieldsDefinition: document.FieldsDefinition{
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					FieldDefinitions: document.FieldDefinitions{
 						document.FieldDefinition{
 							Name: "name",
 							Type: document.NamedType{
@@ -113,49 +136,65 @@ func TestObjectTypeDefinitionParser(t *testing.T) {
 							},
 						},
 					},
-				}),
+					ObjectTypeDefinitions: document.ObjectTypeDefinitions{
+						{
+							Name:                 "Person",
+							ImplementsInterfaces: document.ImplementsInterfaces{"Human", "Mammal"},
+							FieldsDefinition:     []int{0},
+						},
+					},
+				}.initEmptySlices()),
 			},
 			{
 				it: "should parse an ObjectTypeDefinition with Directives",
 				input: `Person @fromTop(to: "bottom") @fromBottom(to: "top") {
 					name: String
 				}`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.ObjectTypeDefinition{
-					Name: "Person",
-					Directives: document.Directives{
-						document.Directive{
-							Name: "fromTop",
-							Arguments: document.Arguments{
-								document.Argument{
-									Name: "to",
-									Value: document.StringValue{
-										Val: "bottom",
-									},
-								},
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					Arguments: document.Arguments{
+						{
+							Name: "to",
+							Value: document.Value{
+								ValueType:   document.ValueTypeString,
+								StringValue: "bottom",
 							},
 						},
-						document.Directive{
-							Name: "fromBottom",
-							Arguments: document.Arguments{
-								document.Argument{
-									Name: "to",
-									Value: document.StringValue{
-										Val: "top",
-									},
-								},
+						{
+							Name: "to",
+							Value: document.Value{
+								ValueType:   document.ValueTypeString,
+								StringValue: "top",
 							},
 						},
 					},
-					FieldsDefinition: document.FieldsDefinition{
-						document.FieldDefinition{
+					FieldDefinitions: document.FieldDefinitions{
+						{
 							Name: "name",
 							Type: document.NamedType{
 								Name: "String",
 							},
 						},
 					},
-				}),
+					Directives: document.Directives{
+						document.Directive{
+							Name:      "fromTop",
+							Arguments: []int{0},
+						},
+						document.Directive{
+							Name:      "fromBottom",
+							Arguments: []int{1},
+						},
+					},
+					ObjectTypeDefinitions: document.ObjectTypeDefinitions{
+						{
+							Name:             "Person",
+							Directives:       []int{0, 1},
+							FieldsDefinition: []int{0},
+						},
+					},
+				}.initEmptySlices()),
 			},
 		}
 
@@ -167,9 +206,10 @@ func TestObjectTypeDefinitionParser(t *testing.T) {
 				parser := NewParser()
 				parser.l.SetInput(test.input)
 
-				val, err := parser.parseObjectTypeDefinition()
+				var index []int
+				err := parser.parseObjectTypeDefinition(&index)
 				Expect(err).To(test.expectErr)
-				Expect(val).To(test.expectValues)
+
 			})
 		}
 	})

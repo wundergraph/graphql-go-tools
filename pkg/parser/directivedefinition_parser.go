@@ -5,56 +5,62 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
-func (p *Parser) parseDirectiveDefinition() (directiveDefinition document.DirectiveDefinition, err error) {
+func (p *Parser) parseDirectiveDefinition(index *[]int) error {
 
-	_, err = p.readExpect(keyword.AT, "parseDirectiveDefinition")
+	_, err := p.readExpect(keyword.AT, "parseDirectiveDefinition")
 	if err != nil {
-		return directiveDefinition, err
+		return err
 	}
 
 	directiveIdent, err := p.readExpect(keyword.IDENT, "parseDirectiveDefinition")
 	if err != nil {
-		return directiveDefinition, err
+		return err
 	}
 
-	directiveDefinition.Name = directiveIdent.Literal
+	definition := p.makeDirectiveDefinition()
 
-	directiveDefinition.ArgumentsDefinition, err = p.parseArgumentsDefinition()
+	definition.Name = directiveIdent.Literal
+
+	err = p.parseArgumentsDefinition(&definition.ArgumentsDefinition)
 	if err != nil {
-		return
+		return err
 	}
 
 	_, err = p.readExpect(keyword.ON, "parseDirectiveDefinition")
 	if err != nil {
-		return directiveDefinition, err
+		return err
 	}
-
-	var possibleLocations []string
 
 	for {
 		next, err := p.l.Peek(true)
 		if err != nil {
-			return directiveDefinition, err
+			return err
 		}
 
 		if next == keyword.PIPE {
 			_, err = p.l.Read()
 			if err != nil {
-				return directiveDefinition, err
+				return err
 			}
 		} else if next == keyword.IDENT {
 			location, err := p.l.Read()
 			if err != nil {
-				return directiveDefinition, err
+				return err
 			}
 
-			possibleLocations = append(possibleLocations, string(location.Literal))
+			parsedLocation, err := document.ParseDirectiveLocation(location.Literal)
+			if err != nil {
+				return err
+			}
+
+			definition.DirectiveLocations = append(definition.DirectiveLocations, parsedLocation)
+
 		} else {
 			break
 		}
 	}
 
-	directiveDefinition.DirectiveLocations, err = document.NewDirectiveLocations(possibleLocations, directiveIdent.Position)
+	*index = append(*index, p.putDirectiveDefinition(definition))
 
-	return
+	return nil
 }

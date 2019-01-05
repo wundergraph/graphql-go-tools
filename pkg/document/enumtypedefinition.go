@@ -9,8 +9,8 @@ import (
 type EnumTypeDefinition struct {
 	Description          string
 	Name                 string
-	EnumValuesDefinition EnumValuesDefinition
-	Directives           Directives
+	EnumValuesDefinition []int
+	Directives           []int
 }
 
 // TitleCaseName returns the EnumTypeDefinition's Name

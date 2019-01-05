@@ -1,45 +1,48 @@
 package parser
 
 import (
-	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
-func (p *Parser) parseField() (field document.Field, err error) {
+func (p *Parser) parseField(index *[]int) (err error) {
+
+	field := p.makeField()
 
 	firstIdent, err := p.l.Read()
 	if err != nil {
-		return field, err
+		return err
 	}
 
 	field.Name = firstIdent.Literal
 
 	hasAlias, err := p.peekExpect(keyword.COLON, true)
 	if err != nil {
-		return field, err
+		return err
 	}
 
 	if hasAlias {
 		field.Alias = field.Name
 		fieldName, err := p.readExpect(keyword.IDENT, "parseField")
 		if err != nil {
-			return field, err
+			return err
 		}
 
 		field.Name = fieldName.Literal
 	}
 
-	field.Arguments, err = p.parseArguments()
+	err = p.parseArguments(&field.Arguments)
 	if err != nil {
 		return
 	}
 
-	field.Directives, err = p.parseDirectives()
+	err = p.parseDirectives(&field.Directives)
 	if err != nil {
 		return
 	}
 
-	field.SelectionSet, err = p.parseSelectionSet()
+	err = p.parseSelectionSet(&field.SelectionSet)
+
+	*index = append(*index, p.putField(field))
 
 	return
 }

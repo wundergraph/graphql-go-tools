@@ -21,60 +21,57 @@ func (p *Parser) parseExecutableDefinition() (executableDefinition document.Exec
 
 func (p *Parser) parseSimpleQueryExecutableDefinition() (executableDefinition document.ExecutableDefinition, err error) {
 
-	operation := document.OperationDefinition{
-		OperationType: document.OperationTypeQuery,
-	}
+	executableDefinition = p.makeExecutableDefinition()
 
-	operation.SelectionSet, err = p.parseSelectionSet()
+	operationDefinition := p.makeOperationDefinition()
+	operationDefinition.OperationType = document.OperationTypeQuery
+
+	err = p.parseSelectionSet(&operationDefinition.SelectionSet)
 	if err != nil {
 		return executableDefinition, err
 	}
 
-	executableDefinition.OperationDefinitions = make(document.OperationDefinitions, 1)
-	executableDefinition.OperationDefinitions[0] = operation
+	executableDefinition.OperationDefinitions =
+		append(executableDefinition.OperationDefinitions, p.putOperationDefinition(operationDefinition))
 
 	return
 }
 
 func (p *Parser) parseComplexExecutableDefinition() (executableDefinition document.ExecutableDefinition, err error) {
 
+	executableDefinition = p.makeExecutableDefinition()
+
 	for {
-		next, err := p.l.Read()
+		next, err := p.l.Peek(true)
 		if err != nil {
 			return executableDefinition, err
 		}
 
-		switch next.Keyword {
+		switch next {
 		case keyword.FRAGMENT:
 
-			fragmentDefinition, err := p.parseFragmentDefinition()
+			_, err = p.l.Read()
 			if err != nil {
 				return executableDefinition, err
 			}
 
-			executableDefinition.FragmentDefinitions = append(executableDefinition.FragmentDefinitions, fragmentDefinition)
+			err := p.parseFragmentDefinition(&executableDefinition.FragmentDefinitions)
+			if err != nil {
+				return executableDefinition, err
+			}
 
 		case keyword.QUERY, keyword.MUTATION, keyword.SUBSCRIPTION:
 
-			operationDefinition, err := p.parseOperationDefinition()
+			err := p.parseOperationDefinition(&executableDefinition.OperationDefinitions)
 			if err != nil {
 				return executableDefinition, err
 			}
-
-			if next.Keyword == keyword.QUERY {
-				operationDefinition.OperationType = document.OperationTypeQuery
-			} else if next.Keyword == keyword.MUTATION {
-				operationDefinition.OperationType = document.OperationTypeMutation
-			} else {
-				operationDefinition.OperationType = document.OperationTypeSubscription
-			}
-
-			executableDefinition.OperationDefinitions = append(executableDefinition.OperationDefinitions, operationDefinition)
 
 		default:
 
 			if len(executableDefinition.OperationDefinitions) == 0 {
-				err = newErrInvalidType(next.Position, "parseComplexExecutableDefinition", "fragment/query/mutation/subscription", next.String())
+				invalid, _ := p.l.Read()
+				err = newErrInvalidType(invalid.Position, "parseComplexExecutableDefinition", "fragment/query/mutation/subscription", next.String())
 			}
 
 			return executableDefinition, err

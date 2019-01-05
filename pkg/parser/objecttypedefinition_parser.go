@@ -1,63 +1,36 @@
 package parser
 
 import (
-	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
-func (p *Parser) parseObjectTypeDefinition() (objectTypeDefinition document.ObjectTypeDefinition, err error) {
+func (p *Parser) parseObjectTypeDefinition(index *[]int) error {
 
 	objectTypeName, err := p.readExpect(keyword.IDENT, "parseObjectTypeDefinition")
 	if err != nil {
-		return
+		return err
 	}
 
-	objectTypeDefinition.Name = objectTypeName.Literal
+	definition := p.makeObjectTypeDefinition()
 
-	objectTypeDefinition.ImplementsInterfaces, err = p.parseImplementsInterfaces()
+	definition.Name = objectTypeName.Literal
+
+	definition.ImplementsInterfaces, err = p.parseImplementsInterfaces()
 	if err != nil {
-		return
+		return err
 	}
 
-	objectTypeDefinition.Directives, err = p.parseDirectives()
+	err = p.parseDirectives(&definition.Directives)
 	if err != nil {
-		return
+		return err
 	}
 
-	objectTypeDefinition.FieldsDefinition, err = p.parseFieldsDefinition()
+	err = p.parseFieldsDefinition(&definition.FieldsDefinition)
 	if err != nil {
-		return objectTypeDefinition, err
+		return err
 	}
 
-	/*	if objectTypeDefinition.Name == "Query" {
-		introspectionFields := document.FieldsDefinition{
-			{
-				Name: "__schema",
-				Type: document.NamedType{
-					Name:    "__Schema",
-					NonNull: true,
-				},
-			},
-			{
-				Name: "__type",
-				Type: document.NamedType{
-					Name:    "__Type",
-					NonNull: false,
-				},
-				ArgumentsDefinition: []document.InputValueDefinition{
-					{
-						Name: "name",
-						Type: document.NamedType{
-							Name:    "String",
-							NonNull: true,
-						},
-					},
-				},
-			},
-		}
+	*index = append(*index, p.putObjectTypeDefinition(definition))
 
-		objectTypeDefinition.FieldsDefinition = append(introspectionFields, objectTypeDefinition.FieldsDefinition...)
-	}*/
-
-	return
+	return nil
 }

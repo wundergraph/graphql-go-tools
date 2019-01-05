@@ -5,7 +5,9 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
-func (p *Parser) parsePeekedListValue() (val document.ListValue, err error) {
+func (p *Parser) parsePeekedListValue() (val document.Value, err error) {
+
+	val.ValueType = document.ValueTypeList
 
 	_, err = p.l.Read()
 	if err != nil {
@@ -30,7 +32,7 @@ func (p *Parser) parsePeekedListValue() (val document.ListValue, err error) {
 				return val, err
 			}
 
-			val.Values = append(val.Values, listValue)
+			val.ListValue = append(val.ListValue, listValue)
 		}
 	}
 }

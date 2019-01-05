@@ -2,6 +2,7 @@ package parser
 
 import (
 	. "github.com/franela/goblin"
+	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
 	"testing"
@@ -24,7 +25,10 @@ func TestStringValueParser(t *testing.T) {
 				it:        "should parse single line string value",
 				input:     `"lorem ipsum"`,
 				expectErr: BeNil(),
-				expectVal: Equal("lorem ipsum"),
+				expectVal: Equal(document.Value{
+					ValueType:   document.ValueTypeString,
+					StringValue: "lorem ipsum",
+				}),
 			},
 			{
 				it: "should parse multi line string value",
@@ -32,7 +36,10 @@ func TestStringValueParser(t *testing.T) {
 lorem ipsum
 """`,
 				expectErr: BeNil(),
-				expectVal: Equal("lorem ipsum"),
+				expectVal: Equal(document.Value{
+					ValueType:   document.ValueTypeString,
+					StringValue: "lorem ipsum",
+				}),
 			},
 			{
 				it: "should parse multi line string value with escaped quote",
@@ -40,13 +47,19 @@ lorem ipsum
 foo \" bar 
 """`,
 				expectErr: BeNil(),
-				expectVal: Equal(`foo \" bar`),
+				expectVal: Equal(document.Value{
+					ValueType:   document.ValueTypeString,
+					StringValue: `foo \" bar`,
+				}),
 			},
 			{
 				it:        "should parse single line string with escaped\"",
 				input:     `"foo bar \" baz"`,
 				expectErr: BeNil(),
-				expectVal: Equal("foo bar \\\" baz"),
+				expectVal: Equal(document.Value{
+					ValueType:   document.ValueTypeString,
+					StringValue: "foo bar \\\" baz",
+				}),
 			},
 		}
 
@@ -60,7 +73,7 @@ foo \" bar
 
 				val, err := parser.parsePeekedStringValue()
 				Expect(err).To(test.expectErr)
-				Expect(val.Val).To(test.expectVal)
+				Expect(val).To(test.expectVal)
 			})
 		}
 	})

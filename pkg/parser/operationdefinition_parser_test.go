@@ -16,22 +16,50 @@ func TestOperationDefinitionParser(t *testing.T) {
 	g.Describe("parser.parseOperationDefinition", func() {
 
 		tests := []struct {
-			it           string
-			input        string
-			expectErr    types.GomegaMatcher
-			expectValues types.GomegaMatcher
+			it                      string
+			input                   string
+			expectErr               types.GomegaMatcher
+			expectIndex             types.GomegaMatcher
+			expectParsedDefinitions types.GomegaMatcher
 		}{
 			{
 				it: "should parse a simple OperationDefinition",
 				input: `
-				allGophers($color: String)@rename(index: 3) {
+				query allGophers($color: String)@rename(index: 3) {
 					name
 				}
 				`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.OperationDefinition{
-					OperationType: document.OperationTypeQuery,
-					Name:          "allGophers",
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					Arguments: document.Arguments{
+						{
+							Name: "index",
+							Value: document.Value{
+								ValueType: document.ValueTypeInt,
+								IntValue:  3,
+							},
+						},
+					},
+					Directives: document.Directives{
+						{
+							Name:      "rename",
+							Arguments: []int{0},
+						},
+					},
+					OperationDefinitions: document.OperationDefinitions{
+						{
+							OperationType:       document.OperationTypeQuery,
+							Name:                "allGophers",
+							VariableDefinitions: []int{0},
+							Directives:          []int{0},
+							SelectionSet: document.SelectionSet{
+								Fields:          []int{0},
+								FragmentSpreads: []int{},
+								InlineFragments: []int{},
+							},
+						},
+					},
 					VariableDefinitions: document.VariableDefinitions{
 						{
 							Variable: "color",
@@ -40,37 +68,46 @@ func TestOperationDefinitionParser(t *testing.T) {
 							},
 						},
 					},
-					Directives: document.Directives{
-						document.Directive{
-							Name: "rename",
-							Arguments: document.Arguments{
-								document.Argument{
-									Name: "index",
-									Value: document.IntValue{
-										Val: 3,
-									},
-								},
+					Fields: document.Fields{
+						{
+							Name:       "name",
+							Directives: []int{},
+							Arguments:  []int{},
+							SelectionSet: document.SelectionSet{
+								Fields:          []int{},
+								FragmentSpreads: []int{},
+								InlineFragments: []int{},
 							},
 						},
 					},
-					SelectionSet: document.SelectionSet{
-						document.Field{
-							Name: "name",
-						},
-					},
-				}),
+				}.initEmptySlices()),
 			},
 			{
 				it: "should parse a OperationDefinition with optional Directives",
 				input: `
-				allGophers($color: String) {
+				query allGophers($color: String) {
 					name
 				}
 				`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.OperationDefinition{
-					OperationType: document.OperationTypeQuery,
-					Name:          "allGophers",
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					FragmentDefinitions: document.FragmentDefinitions{},
+					InlineFragments:     document.InlineFragments{},
+					FragmentSpreads:     document.FragmentSpreads{},
+					OperationDefinitions: document.OperationDefinitions{
+						{
+							OperationType:       document.OperationTypeQuery,
+							Name:                "allGophers",
+							VariableDefinitions: []int{0},
+							SelectionSet: document.SelectionSet{
+								Fields:          []int{0},
+								InlineFragments: []int{},
+								FragmentSpreads: []int{},
+							},
+							Directives: []int{},
+						},
+					},
 					VariableDefinitions: document.VariableDefinitions{
 						{
 							Variable: "color",
@@ -79,54 +116,108 @@ func TestOperationDefinitionParser(t *testing.T) {
 							},
 						},
 					},
-					SelectionSet: document.SelectionSet{
-						document.Field{
-							Name: "name",
+					Fields: document.Fields{
+						{
+							Name:       "name",
+							Directives: []int{},
+							Arguments:  []int{},
+							SelectionSet: document.SelectionSet{
+								Fields:          []int{},
+								FragmentSpreads: []int{},
+								InlineFragments: []int{},
+							},
 						},
 					},
-				}),
+				}.initEmptySlices()),
 			},
 			{
 				it: "should parse a OperationDefinition with optional VariableDefinitions",
 				input: `
-				allGophers@rename(index: 3) {
+				query allGophers@rename(index: 3) {
 					name
 				}
 				`,
 				expectErr: BeNil(),
-				expectValues: Equal(document.OperationDefinition{
-					OperationType: document.OperationTypeQuery,
-					Name:          "allGophers",
-					Directives: document.Directives{
-						document.Directive{
-							Name: "rename",
-							Arguments: document.Arguments{
-								document.Argument{
-									Name: "index",
-									Value: document.IntValue{
-										Val: 3,
-									},
-								},
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					Arguments: document.Arguments{
+						{
+							Name: "index",
+							Value: document.Value{
+								ValueType: document.ValueTypeInt,
+								IntValue:  3,
 							},
 						},
 					},
-					SelectionSet: document.SelectionSet{
-						document.Field{
-							Name: "name",
+					Directives: document.Directives{
+						{
+							Name:      "rename",
+							Arguments: []int{0},
 						},
 					},
-				}),
+					OperationDefinitions: document.OperationDefinitions{
+						{
+							OperationType: document.OperationTypeQuery,
+							Name:          "allGophers",
+							Directives:    []int{0},
+							SelectionSet: document.SelectionSet{
+								Fields:          []int{0},
+								FragmentSpreads: []int{},
+								InlineFragments: []int{},
+							},
+							VariableDefinitions: []int{},
+						},
+					},
+					Fields: document.Fields{
+						{
+							Name:       "name",
+							Directives: []int{},
+							Arguments:  []int{},
+							SelectionSet: document.SelectionSet{
+								Fields:          []int{},
+								FragmentSpreads: []int{},
+								InlineFragments: []int{},
+							},
+						},
+					},
+				}.initEmptySlices()),
 			},
 			{
 				it: "should parse an OperationDefinition with optional Name",
 				input: `
-				($color: String)@rename(index: 3) {
+				query ($color: String)@rename(index: 3) {
 					name
 				}
 				`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.OperationDefinition{
-					OperationType: document.OperationTypeQuery,
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					Directives: document.Directives{
+						{
+							Name:      "rename",
+							Arguments: []int{0},
+						},
+					},
+					Arguments: document.Arguments{
+						{
+							Name: "index",
+							Value: document.Value{
+								ValueType: document.ValueTypeInt,
+								IntValue:  3,
+							},
+						},
+					},
+					OperationDefinitions: document.OperationDefinitions{
+						{
+							OperationType:       document.OperationTypeQuery,
+							VariableDefinitions: []int{0},
+							Directives:          []int{0},
+							SelectionSet: document.SelectionSet{
+								Fields:          []int{0},
+								InlineFragments: []int{},
+								FragmentSpreads: []int{},
+							},
+						},
+					},
 					VariableDefinitions: document.VariableDefinitions{
 						{
 							Variable: "color",
@@ -135,25 +226,19 @@ func TestOperationDefinitionParser(t *testing.T) {
 							},
 						},
 					},
-					Directives: document.Directives{
-						document.Directive{
-							Name: "rename",
-							Arguments: document.Arguments{
-								document.Argument{
-									Name: "index",
-									Value: document.IntValue{
-										Val: 3,
-									},
-								},
+					Fields: document.Fields{
+						{
+							Name:       "name",
+							Directives: []int{},
+							Arguments:  []int{},
+							SelectionSet: document.SelectionSet{
+								Fields:          []int{},
+								FragmentSpreads: []int{},
+								InlineFragments: []int{},
 							},
 						},
 					},
-					SelectionSet: document.SelectionSet{
-						document.Field{
-							Name: "name",
-						},
-					},
-				}),
+				}.initEmptySlices()),
 			},
 			{
 				it: "should parse a OperationDefinition omitting all optional types",
@@ -162,24 +247,70 @@ func TestOperationDefinitionParser(t *testing.T) {
 					name
 				}
 				`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.OperationDefinition{
-					OperationType: document.OperationTypeQuery,
-					SelectionSet: document.SelectionSet{
-						document.Field{
-							Name: "name",
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					OperationDefinitions: document.OperationDefinitions{
+						{
+							OperationType: document.OperationTypeQuery,
+							SelectionSet: document.SelectionSet{
+								Fields:          []int{0},
+								FragmentSpreads: []int{},
+								InlineFragments: []int{},
+							},
+							VariableDefinitions: []int{},
+							Directives:          []int{},
 						},
 					},
-				}),
+					Fields: document.Fields{
+						{
+							Name:       "name",
+							Directives: []int{},
+							Arguments:  []int{},
+							SelectionSet: document.SelectionSet{
+								Fields:          []int{},
+								FragmentSpreads: []int{},
+								InlineFragments: []int{},
+							},
+						},
+					},
+				}.initEmptySlices()),
 			},
 			{
 				it: "should not parse a OperationDefinition without SelectionSet",
 				input: `
-				allGophers($color: String)@rename(index: 3) `,
-				expectErr: Not(BeNil()),
-				expectValues: Equal(document.OperationDefinition{
-					OperationType: document.OperationTypeQuery,
-					Name:          "allGophers",
+				query allGophers($color: String)@rename(index: 3) `,
+				expectErr:   Not(BeNil()),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					Directives: document.Directives{
+						{
+							Name:      "rename",
+							Arguments: []int{0},
+						},
+					},
+					Arguments: document.Arguments{
+						{
+							Name: "index",
+							Value: document.Value{
+								ValueType: document.ValueTypeInt,
+								IntValue:  3,
+							},
+						},
+					},
+					OperationDefinitions: document.OperationDefinitions{
+						{
+							OperationType:       document.OperationTypeQuery,
+							Name:                "allGophers",
+							VariableDefinitions: []int{0},
+							Directives:          []int{0},
+							SelectionSet: document.SelectionSet{
+								Fields:          []int{},
+								FragmentSpreads: []int{},
+								InlineFragments: []int{},
+							},
+						},
+					},
 					VariableDefinitions: document.VariableDefinitions{
 						{
 							Variable: "color",
@@ -188,20 +319,7 @@ func TestOperationDefinitionParser(t *testing.T) {
 							},
 						},
 					},
-					Directives: document.Directives{
-						document.Directive{
-							Name: "rename",
-							Arguments: document.Arguments{
-								document.Argument{
-									Name: "index",
-									Value: document.IntValue{
-										Val: 3,
-									},
-								},
-							},
-						},
-					},
-				}),
+				}.initEmptySlices()),
 			},
 		}
 
@@ -213,9 +331,15 @@ func TestOperationDefinitionParser(t *testing.T) {
 				parser := NewParser()
 				parser.l.SetInput(test.input)
 
-				val, err := parser.parseOperationDefinition()
+				var index []int
+				err := parser.parseOperationDefinition(&index)
 				Expect(err).To(test.expectErr)
-				Expect(val).To(test.expectValues)
+				if test.expectIndex != nil {
+					Expect(index).To(test.expectIndex)
+				}
+				if test.expectParsedDefinitions != nil {
+					Expect(parser.ParsedDefinitions).To(test.expectParsedDefinitions)
+				}
 			})
 		}
 	})

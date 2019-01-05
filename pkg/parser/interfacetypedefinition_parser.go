@@ -1,25 +1,31 @@
 package parser
 
 import (
-	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
-func (p *Parser) parseInterfaceTypeDefinition() (interfaceTypeDefinition document.InterfaceTypeDefinition, err error) {
+func (p *Parser) parseInterfaceTypeDefinition(index *[]int) error {
+
+	definition := p.makeInterfaceTypeDefinition()
 
 	interfaceName, err := p.readExpect(keyword.IDENT, "parseInterfaceTypeDefinition")
 	if err != nil {
-		return
+		return err
 	}
 
-	interfaceTypeDefinition.Name = interfaceName.Literal
+	definition.Name = interfaceName.Literal
 
-	interfaceTypeDefinition.Directives, err = p.parseDirectives()
+	err = p.parseDirectives(&definition.Directives)
 	if err != nil {
-		return
+		return err
 	}
 
-	interfaceTypeDefinition.FieldsDefinition, err = p.parseFieldsDefinition()
+	err = p.parseFieldsDefinition(&definition.FieldsDefinition)
+	if err != nil {
+		return err
+	}
 
-	return
+	*index = append(*index, p.putInterfaceTypeDefinition(definition))
+
+	return nil
 }

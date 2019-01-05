@@ -89,6 +89,17 @@
   version = "v1.4.3"
 
 [[projects]]
+  branch = "master"
+  digest = "1:c497b54ed4be2a7753ae4bfc7629f7168530f22e70ede8badd2aae657ba472b4"
+  name = "github.com/palantir/stacktrace"
+  packages = [
+    ".",
+    "cleanpath",
+  ]
+  pruneopts = "UT"
+  revision = "78658fd2d1772b755720ed8c44367d11ee5380d6"
+
+[[projects]]
   digest = "1:40e195917a951a8bf867cd05de2a46aaf1806c50cf92eebf4c16f78cd196f747"
   name = "github.com/pkg/errors"
   packages = ["."]
@@ -183,6 +194,7 @@
     "github.com/onsi/ginkgo/extensions/table",
     "github.com/onsi/gomega",
     "github.com/onsi/gomega/types",
+    "github.com/palantir/stacktrace",
     "github.com/pkg/errors",
     "github.com/sebdah/goldie",
   ]

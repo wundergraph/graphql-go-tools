@@ -5,5 +5,5 @@ package document
 type TypeDefinition struct {
 	Description      string
 	Name             string
-	FieldsDefinition FieldsDefinition
+	FieldsDefinition FieldDefinitions
 }

@@ -5,7 +5,7 @@ package document
 type ScalarTypeDefinition struct {
 	Description string
 	Name        string
-	Directives  Directives
+	Directives  []int
 }
 
 // ScalarTypeDefinitions is the plural of ScalarTypeDefinition

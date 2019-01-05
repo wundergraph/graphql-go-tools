@@ -16,108 +16,164 @@ func TestFieldParser(t *testing.T) {
 	g.Describe("parser.parseField", func() {
 
 		tests := []struct {
-			it           string
-			input        string
-			expectErr    types.GomegaMatcher
-			expectValues types.GomegaMatcher
+			it                      string
+			input                   string
+			expectErr               types.GomegaMatcher
+			expectIndex             types.GomegaMatcher
+			expectParsedDefinitions types.GomegaMatcher
 		}{
 			{
-				it:        "should parse a simple Field",
-				input:     "preferredName: originalName(isSet: true) @rename(index: 3)",
-				expectErr: BeNil(),
-				expectValues: Equal(document.Field{
-					Alias: "preferredName",
-					Name:  "originalName",
+				it:          "should parse a simple Field",
+				input:       "preferredName: originalName(isSet: true) @rename(index: 3)",
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					Directives: document.Directives{
+						{
+							Name:      "rename",
+							Arguments: []int{1},
+						},
+					},
 					Arguments: document.Arguments{
-						document.Argument{
+						{
 							Name: "isSet",
-							Value: document.BooleanValue{
-								Val: true,
+							Value: document.Value{
+								ValueType:    document.ValueTypeBoolean,
+								BooleanValue: true,
+							},
+						},
+						{
+							Name: "index",
+							Value: document.Value{
+								ValueType: document.ValueTypeInt,
+								IntValue:  3,
+							},
+						},
+					},
+					Fields: document.Fields{
+						{
+							Alias:      "preferredName",
+							Name:       "originalName",
+							Arguments:  []int{0},
+							Directives: []int{0},
+							SelectionSet: document.SelectionSet{
+								Fields:          []int{},
+								FragmentSpreads: []int{},
+								InlineFragments: []int{},
+							},
+						},
+					},
+				}.initEmptySlices()),
+			},
+			{
+				it:          "should parse Field with optional Alias",
+				input:       "originalName(isSet: true) @rename(index: 3)",
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					Arguments: document.Arguments{
+						{
+							Name: "isSet",
+							Value: document.Value{
+								ValueType:    document.ValueTypeBoolean,
+								BooleanValue: true,
+							},
+						},
+						{
+							Name: "index",
+							Value: document.Value{
+								ValueType: document.ValueTypeInt,
+								IntValue:  3,
 							},
 						},
 					},
 					Directives: document.Directives{
-						document.Directive{
-							Name: "rename",
-							Arguments: document.Arguments{
-								document.Argument{
-									Name: "index",
-									Value: document.IntValue{
-										Val: 3,
-									},
-								},
+						{
+							Name:      "rename",
+							Arguments: []int{1},
+						},
+					},
+					EnumValuesDefinitions: document.EnumValueDefinitions{},
+					EnumTypeDefinitions:   document.EnumTypeDefinitions{},
+					Fields: document.Fields{
+						{
+							Name:       "originalName",
+							Arguments:  []int{0},
+							Directives: []int{0},
+							SelectionSet: document.SelectionSet{
+								Fields:          []int{},
+								FragmentSpreads: []int{},
+								InlineFragments: []int{},
 							},
 						},
 					},
-				}),
+				}.initEmptySlices()),
 			},
 			{
-				it:        "should parse Field with optional Alias",
-				input:     "originalName(isSet: true) @rename(index: 3)",
-				expectErr: BeNil(),
-				expectValues: Equal(document.Field{
-					Name: "originalName",
-					Arguments: document.Arguments{
-						document.Argument{
-							Name: "isSet",
-							Value: document.BooleanValue{
-								Val: true,
-							},
-						},
-					},
+				it:          "should parse Field with optional Arguments",
+				input:       "preferredName: originalName @rename(index: 3)",
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
 					Directives: document.Directives{
-						document.Directive{
-							Name: "rename",
-							Arguments: document.Arguments{
-								document.Argument{
-									Name: "index",
-									Value: document.IntValue{
-										Val: 3,
-									},
-								},
-							},
+						{
+							Name:      "rename",
+							Arguments: []int{0},
 						},
 					},
-				}),
-			},
-			{
-				it:        "should parse Field with optional Arguments",
-				input:     "preferredName: originalName @rename(index: 3)",
-				expectErr: BeNil(),
-				expectValues: Equal(document.Field{
-					Alias: "preferredName",
-					Name:  "originalName",
-					Directives: document.Directives{
-						document.Directive{
-							Name: "rename",
-							Arguments: document.Arguments{
-								document.Argument{
-									Name: "index",
-									Value: document.IntValue{
-										Val: 3,
-									},
-								},
-							},
-						},
-					},
-				}),
-			},
-			{
-				it:        "should parse Field with optional Directives",
-				input:     "preferredName: originalName(isSet: true)",
-				expectErr: BeNil(),
-				expectValues: Equal(document.Field{
-					Alias: "preferredName",
-					Name:  "originalName",
 					Arguments: document.Arguments{
-						document.Argument{
-							Name: "isSet",
-							Value: document.BooleanValue{
-								Val: true,
+						{
+							Name: "index",
+							Value: document.Value{
+								ValueType: document.ValueTypeInt,
+								IntValue:  3,
 							},
 						},
 					},
-				}),
+					Fields: document.Fields{
+						{
+							Alias:      "preferredName",
+							Name:       "originalName",
+							Directives: []int{0},
+							Arguments:  []int{},
+							SelectionSet: document.SelectionSet{
+								Fields:          []int{},
+								FragmentSpreads: []int{},
+								InlineFragments: []int{},
+							},
+						},
+					},
+				}.initEmptySlices()),
+			},
+			{
+				it:          "should parse Field with optional Directives",
+				input:       "preferredName: originalName(isSet: true)",
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					Arguments: document.Arguments{
+						{
+							Name: "isSet",
+							Value: document.Value{
+								ValueType:    document.ValueTypeBoolean,
+								BooleanValue: true,
+							},
+						},
+					},
+					Fields: document.Fields{
+						{
+							Alias:      "preferredName",
+							Name:       "originalName",
+							Arguments:  []int{0},
+							Directives: []int{},
+							SelectionSet: document.SelectionSet{
+								Fields:          []int{},
+								FragmentSpreads: []int{},
+								InlineFragments: []int{},
+							},
+						},
+					},
+				}.initEmptySlices()),
 			},
 			{
 				it: "should parse Field with nested SelectionSets",
@@ -128,20 +184,42 @@ func TestFieldParser(t *testing.T) {
 					}
 				}
 				`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.Field{
-					Name: "originalName",
-					SelectionSet: document.SelectionSet{
-						document.Field{
-							Name: "unoriginalName",
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{2}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					Fields: document.Fields{
+						{
+							Name:       "worstNamePossible",
+							Arguments:  []int{},
+							Directives: []int{},
 							SelectionSet: document.SelectionSet{
-								document.Field{
-									Name: "worstNamePossible",
-								},
+								Fields:          []int{},
+								FragmentSpreads: []int{},
+								InlineFragments: []int{},
+							},
+						},
+						{
+							Name:       "unoriginalName",
+							Arguments:  []int{},
+							Directives: []int{},
+							SelectionSet: document.SelectionSet{
+								Fields:          []int{0},
+								FragmentSpreads: []int{},
+								InlineFragments: []int{},
+							},
+						},
+						{
+							Name:       "originalName",
+							Arguments:  []int{},
+							Directives: []int{},
+							SelectionSet: document.SelectionSet{
+								Fields:          []int{1},
+								InlineFragments: []int{},
+								FragmentSpreads: []int{},
 							},
 						},
 					},
-				}),
+				}.initEmptySlices()),
 			},
 		}
 
@@ -153,9 +231,18 @@ func TestFieldParser(t *testing.T) {
 				parser := NewParser()
 				parser.l.SetInput(test.input)
 
-				val, err := parser.parseField()
+				var index []int
+				err := parser.parseField(&index)
+
 				Expect(err).To(test.expectErr)
-				Expect(val).To(test.expectValues)
+
+				if test.expectIndex != nil {
+					Expect(index).To(test.expectIndex)
+				}
+
+				if test.expectParsedDefinitions != nil {
+					Expect(parser.ParsedDefinitions).To(test.expectParsedDefinitions)
+				}
 			})
 		}
 	})
@@ -174,7 +261,8 @@ func BenchmarkParseField(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 
 		parser.l.SetInput(parseFieldBenchmarkInput)
-		_, err = parser.parseField()
+		var index []int
+		err = parser.parseField(&index)
 		if err != nil {
 			b.Fatal(err)
 		}

@@ -5,19 +5,21 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
-func (p *Parser) parseTypeSystemDefinition() (typeSystemDefinition document.TypeSystemDefinition, err error) {
+func (p *Parser) parseTypeSystemDefinition() (definition document.TypeSystemDefinition, err error) {
+
+	definition = p.makeTypeSystemDefinition()
 
 	var description string
 
 	for {
 		next, err := p.l.Read()
 		if err != nil {
-			return typeSystemDefinition, err
+			return definition, err
 		}
 
 		switch next.Keyword {
 		case keyword.EOF:
-			return typeSystemDefinition, err
+			return definition, err
 		case keyword.STRING:
 
 			description = next.Literal
@@ -25,88 +27,83 @@ func (p *Parser) parseTypeSystemDefinition() (typeSystemDefinition document.Type
 
 		case keyword.SCHEMA:
 
-			if typeSystemDefinition.SchemaDefinition.IsDefined() {
-				return typeSystemDefinition, newErrInvalidType(next.Position, "parseTypeSystemDefinition", "not a re-assignment of SchemaDefinition", "multiple SchemaDefinition assignments")
+			if definition.SchemaDefinition.IsDefined() {
+				return definition, newErrInvalidType(next.Position, "parseTypeSystemDefinition", "not a re-assignment of SchemaDefinition", "multiple SchemaDefinition assignments")
 			}
 
-			typeSystemDefinition.SchemaDefinition, err = p.parseSchemaDefinition()
+			definition.SchemaDefinition, err = p.parseSchemaDefinition()
 			if err != nil {
-				return typeSystemDefinition, err
+				return definition, err
 			}
 
 		case keyword.SCALAR:
 
-			scalarTypeDefinition, err := p.parseScalarTypeDefinition()
+			err := p.parseScalarTypeDefinition(&definition.ScalarTypeDefinitions)
 			if err != nil {
-				return typeSystemDefinition, err
+				return definition, err
 			}
 
-			scalarTypeDefinition.Description = description
-			typeSystemDefinition.ScalarTypeDefinitions = append(typeSystemDefinition.ScalarTypeDefinitions, scalarTypeDefinition)
+			p.ParsedDefinitions.ScalarTypeDefinitions[len(p.ParsedDefinitions.ScalarTypeDefinitions)-1].Description = description
 
 		case keyword.TYPE:
 
-			objectTypeDefinition, err := p.parseObjectTypeDefinition()
+			err := p.parseObjectTypeDefinition(&definition.ObjectTypeDefinitions)
 			if err != nil {
-				return typeSystemDefinition, err
+				return definition, err
 			}
 
-			objectTypeDefinition.Description = description
-			typeSystemDefinition.ObjectTypeDefinitions = append(typeSystemDefinition.ObjectTypeDefinitions, objectTypeDefinition)
+			p.ParsedDefinitions.ObjectTypeDefinitions[len(p.ParsedDefinitions.ObjectTypeDefinitions)-1].Description = description
 
 		case keyword.INTERFACE:
 
-			interfaceTypeDefinition, err := p.parseInterfaceTypeDefinition()
+			err := p.parseInterfaceTypeDefinition(&definition.InterfaceTypeDefinitions)
 			if err != nil {
-				return typeSystemDefinition, err
+				return definition, err
 			}
 
-			interfaceTypeDefinition.Description = description
-			typeSystemDefinition.InterfaceTypeDefinitions = append(typeSystemDefinition.InterfaceTypeDefinitions, interfaceTypeDefinition)
+			p.ParsedDefinitions.InterfaceTypeDefinitions[len(p.ParsedDefinitions.InterfaceTypeDefinitions)-1].Description = description
 
 		case keyword.UNION:
 
-			unionTypeDefinition, err := p.parseUnionTypeDefinition()
+			err := p.parseUnionTypeDefinition(&definition.UnionTypeDefinitions)
 			if err != nil {
-				return typeSystemDefinition, err
+				return definition, err
 			}
 
-			unionTypeDefinition.Description = description
-			typeSystemDefinition.UnionTypeDefinitions = append(typeSystemDefinition.UnionTypeDefinitions, unionTypeDefinition)
+			p.ParsedDefinitions.UnionTypeDefinitions[len(p.ParsedDefinitions.UnionTypeDefinitions)-1].Description = description
 
 		case keyword.ENUM:
 
-			enumTypeDefinition, err := p.parseEnumTypeDefinition()
+			err := p.parseEnumTypeDefinition(&definition.EnumTypeDefinitions)
 			if err != nil {
-				return typeSystemDefinition, err
+				return definition, err
 			}
 
-			enumTypeDefinition.Description = description
-			typeSystemDefinition.EnumTypeDefinitions = append(typeSystemDefinition.EnumTypeDefinitions, enumTypeDefinition)
+			p.ParsedDefinitions.EnumTypeDefinitions[len(p.ParsedDefinitions.EnumTypeDefinitions)-1].Description =
+				description
 
 		case keyword.INPUT:
 
-			inputObjectTypeDefinition, err := p.parseInputObjectTypeDefinition()
+			err := p.parseInputObjectTypeDefinition(&definition.InputObjectTypeDefinitions)
 			if err != nil {
-				return typeSystemDefinition, err
+				return definition, err
 			}
 
-			inputObjectTypeDefinition.Description = description
-			typeSystemDefinition.InputObjectTypeDefinitions = append(typeSystemDefinition.InputObjectTypeDefinitions, inputObjectTypeDefinition)
+			p.ParsedDefinitions.InputObjectTypeDefinitions[len(p.ParsedDefinitions.InputObjectTypeDefinitions)-1].Description = description
 
 		case keyword.DIRECTIVE:
 
-			directiveDefinition, err := p.parseDirectiveDefinition()
+			err := p.parseDirectiveDefinition(&definition.DirectiveDefinitions)
 			if err != nil {
-				return typeSystemDefinition, err
+				return definition, err
 			}
 
-			directiveDefinition.Description = description
-			typeSystemDefinition.DirectiveDefinitions = append(typeSystemDefinition.DirectiveDefinitions, directiveDefinition)
+			p.ParsedDefinitions.DirectiveDefinitions[len(p.ParsedDefinitions.DirectiveDefinitions)-1].Description =
+				description
 
 		default:
 			invalid, _ := p.l.Read()
-			return typeSystemDefinition, newErrInvalidType(invalid.Position, "parseTypeSystemDefinition", "eof/string/schema/scalar/type/interface/union/directive/input/enum", invalid.Keyword.String())
+			return definition, newErrInvalidType(invalid.Position, "parseTypeSystemDefinition", "eof/string/schema/scalar/type/interface/union/directive/input/enum", invalid.Keyword.String())
 		}
 
 		description = ""

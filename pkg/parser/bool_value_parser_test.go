@@ -25,16 +25,18 @@ func TestBoolValueParser(t *testing.T) {
 				it:        "should parse a true boolean",
 				input:     "true",
 				expectErr: BeNil(),
-				expectValues: Equal(document.BooleanValue{
-					Val: true,
+				expectValues: Equal(document.Value{
+					ValueType:    document.ValueTypeBoolean,
+					BooleanValue: true,
 				}),
 			},
 			{
 				it:        "should parse a false boolean",
 				input:     "false",
 				expectErr: BeNil(),
-				expectValues: Equal(document.BooleanValue{
-					Val: false,
+				expectValues: Equal(document.Value{
+					ValueType:    document.ValueTypeBoolean,
+					BooleanValue: false,
 				}),
 			},
 		}

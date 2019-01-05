@@ -4,11 +4,11 @@ package document
 // http://facebook.github.io/graphql/draft/#TypeSystemDefinition
 type TypeSystemDefinition struct {
 	SchemaDefinition           SchemaDefinition
-	ScalarTypeDefinitions      ScalarTypeDefinitions
-	ObjectTypeDefinitions      ObjectTypeDefinitions
-	InterfaceTypeDefinitions   InterfaceTypeDefinitions
-	UnionTypeDefinitions       UnionTypeDefinitions
-	EnumTypeDefinitions        EnumTypeDefinitions
-	InputObjectTypeDefinitions InputObjectTypeDefinitions
-	DirectiveDefinitions       DirectiveDefinitions
+	ScalarTypeDefinitions      []int
+	ObjectTypeDefinitions      []int
+	InterfaceTypeDefinitions   []int
+	UnionTypeDefinitions       []int
+	EnumTypeDefinitions        []int
+	InputObjectTypeDefinitions []int
+	DirectiveDefinitions       []int
 }

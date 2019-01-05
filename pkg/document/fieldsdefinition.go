@@ -1,5 +1,5 @@
 package document
 
-// FieldsDefinition as specified in:
+// FieldDefinitions as specified in:
 // http://facebook.github.io/graphql/draft/#FieldsDefinition
-type FieldsDefinition []FieldDefinition
+type FieldDefinitions []FieldDefinition

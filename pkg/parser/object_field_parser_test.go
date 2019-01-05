@@ -27,8 +27,9 @@ func TestObjectFieldParser(t *testing.T) {
 				input:           `foo: "bar"`,
 				expectErr:       BeNil(),
 				expectFieldName: Equal("foo"),
-				expectFieldValue: Equal(document.StringValue{
-					Val: "bar",
+				expectFieldValue: Equal(document.Value{
+					ValueType:   document.ValueTypeString,
+					StringValue: "bar",
 				}),
 			},
 		}

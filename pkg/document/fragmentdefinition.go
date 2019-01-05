@@ -5,7 +5,7 @@ package document
 type FragmentDefinition struct {
 	FragmentName  string // but not on
 	TypeCondition NamedType
-	Directives    Directives
+	Directives    []int
 	SelectionSet  SelectionSet
 }
 

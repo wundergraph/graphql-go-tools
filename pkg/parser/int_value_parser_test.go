@@ -25,8 +25,9 @@ func TestIntValueParser(t *testing.T) {
 				it:        "should parse a simple int value",
 				input:     "12",
 				expectErr: BeNil(),
-				expectValues: Equal(document.IntValue{
-					Val: 12,
+				expectValues: Equal(document.Value{
+					ValueType: document.ValueTypeInt,
+					IntValue:  12,
 				}),
 			},
 		}

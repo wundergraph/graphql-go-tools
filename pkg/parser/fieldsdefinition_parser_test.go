@@ -16,184 +16,229 @@ func TestFieldsDefinitionParser(t *testing.T) {
 	g.Describe("parser.parseFieldsDefinition", func() {
 
 		tests := []struct {
-			it           string
-			input        string
-			expectErr    types.GomegaMatcher
-			expectValues types.GomegaMatcher
+			it                      string
+			input                   string
+			expectErr               types.GomegaMatcher
+			expectIndex             types.GomegaMatcher
+			expectParsedDefinitions types.GomegaMatcher
 		}{
 			{
-				it: "should parse a simple FieldsDefinition",
+				it: "should parse a simple FieldDefinitions",
 				input: `{
 					name: String
 				}`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.FieldsDefinition{
-					{
-						Name: "name",
-						Type: document.NamedType{
-							Name: "String",
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					FieldDefinitions: document.FieldDefinitions{
+						{
+							Name:                "name",
+							Directives:          []int{},
+							ArgumentsDefinition: []int{},
+							Type: document.NamedType{
+								Name: "String",
+							},
 						},
 					},
-				}),
+				}.initEmptySlices()),
 			},
 			{
-				it: "should parse FieldsDefinition with multiple FieldDefinitions",
+				it: "should parse FieldDefinitions with multiple FieldDefinitions",
 				input: `{
 					name: String
 					age: Int
 				}`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.FieldsDefinition{
-					{
-						Name: "name",
-						Type: document.NamedType{
-							Name: "String",
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0, 1}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					FieldDefinitions: document.FieldDefinitions{
+						{
+							Name:                "name",
+							Directives:          []int{},
+							ArgumentsDefinition: []int{},
+							Type: document.NamedType{
+								Name: "String",
+							},
+						},
+						{
+							Name:                "age",
+							Directives:          []int{},
+							ArgumentsDefinition: []int{},
+							Type: document.NamedType{
+								Name: "Int",
+							},
 						},
 					},
-					{
-						Name: "age",
-						Type: document.NamedType{
-							Name: "Int",
-						},
-					},
-				}),
+				}.initEmptySlices()),
 			},
 			{
-				it: "should parse FieldsDefinition with a Description on a FieldDefinition",
+				it: "should parse FieldDefinitions with a Description on a FieldDefinition",
 				input: `{
 					"describes the name"
 					name: String
 				}`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.FieldsDefinition{
-					{
-						Description: "describes the name",
-						Name:        "name",
-						Type: document.NamedType{
-							Name: "String",
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					FieldDefinitions: document.FieldDefinitions{
+						{
+							Description:         "describes the name",
+							Name:                "name",
+							Directives:          []int{},
+							ArgumentsDefinition: []int{},
+							Type: document.NamedType{
+								Name: "String",
+							},
 						},
 					},
-				}),
+				}.initEmptySlices()),
 			},
 			{
-				it: "should parse FieldsDefinition with multiple FieldDefinitions and special Types",
+				it: "should parse FieldDefinitions with multiple FieldDefinitions and special Types",
 				input: `{
 					name: [ String ]!
 					age: Int!
 				}`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.FieldsDefinition{
-					{
-						Name: "name",
-						Type: document.ListType{
-							Type: document.NamedType{
-								Name: "String",
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0, 1}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					FieldDefinitions: document.FieldDefinitions{
+						{
+							Name:                "name",
+							Directives:          []int{},
+							ArgumentsDefinition: []int{},
+							Type: document.ListType{
+								Type: document.NamedType{
+									Name: "String",
+								},
+								NonNull: true,
 							},
-							NonNull: true,
+						},
+						{
+							Name:                "age",
+							Directives:          []int{},
+							ArgumentsDefinition: []int{},
+							Type: document.NamedType{
+								Name:    "Int",
+								NonNull: true,
+							},
 						},
 					},
-					{
-						Name: "age",
-						Type: document.NamedType{
-							Name:    "Int",
-							NonNull: true,
-						},
-					},
-				}),
+				}.initEmptySlices()),
 			},
 			{
-				it: "should return empty when no bracket open (FieldsDefinition can be optional)",
+				it: "should return empty when no bracket open (FieldDefinitions can be optional)",
 				input: `
 					name: String
 				}`,
-				expectErr:    BeNil(),
-				expectValues: Equal(document.FieldsDefinition(nil)),
+				expectErr:               BeNil(),
+				expectIndex:             Equal([]int{}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{}.initEmptySlices()),
 			},
 			{
-				it: "should not parse FieldsDefinition when multiple brackets open",
+				it: "should not parse FieldDefinitions when multiple brackets open",
 				input: `{{
 					name: String
 				}`,
-				expectErr:    Not(BeNil()),
-				expectValues: Equal(document.FieldsDefinition(nil)),
+				expectErr:               HaveOccurred(),
+				expectIndex:             Equal([]int{}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{}.initEmptySlices()),
 			},
 			{
-				it: "should not parse FieldsDefinition when no bracket close",
+				it: "should not parse FieldDefinitions when no bracket close",
 				input: `{
 					name: String
 				`,
-				expectErr: Not(BeNil()),
-				expectValues: Equal(document.FieldsDefinition{
-					{
-						Name: "name",
-						Type: document.NamedType{
-							Name: "String",
+				expectErr:   HaveOccurred(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					FieldDefinitions: document.FieldDefinitions{
+						{
+							Name:                "name",
+							Directives:          []int{},
+							ArgumentsDefinition: []int{},
+							Type: document.NamedType{
+								Name: "String",
+							},
 						},
 					},
-				}),
+				}.initEmptySlices()),
 			},
 			{
-				it: "should parse FieldsDefinition with FieldDefinition containing an ArgumentsDefinition",
+				it: "should parse FieldDefinitions with FieldDefinition containing an ArgumentsDefinition",
 				input: `{
 					name(isSet: boolean!): String
 				}`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.FieldsDefinition{
-					{
-						Name: "name",
-						Type: document.NamedType{
-							Name: "String",
-						},
-						ArgumentsDefinition: document.ArgumentsDefinition{
-							document.InputValueDefinition{
-								Name: "isSet",
-								Type: document.NamedType{
-									Name:    "boolean",
-									NonNull: true,
-								},
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					InputValueDefinitions: document.InputValueDefinitions{
+						{
+							Name:       "isSet",
+							Directives: []int{},
+							Type: document.NamedType{
+								Name:    "boolean",
+								NonNull: true,
 							},
 						},
 					},
-				}),
+					FieldDefinitions: document.FieldDefinitions{
+						{
+							Name: "name",
+							Type: document.NamedType{
+								Name: "String",
+							},
+							Directives:          []int{},
+							ArgumentsDefinition: []int{0},
+						},
+					},
+				}.initEmptySlices()),
 			},
 			{
-				it: "should parse a FieldsDefinition with Directives",
+				it: "should parse a FieldDefinitions with Directives",
 				input: `{
 					name: String @fromTop(to: "bottom") @fromBottom(to: "top") 
 				}`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.FieldsDefinition{
-					{
-						Name: "name",
-						Directives: document.Directives{
-							document.Directive{
-								Name: "fromTop",
-								Arguments: document.Arguments{
-									document.Argument{
-										Name: "to",
-										Value: document.StringValue{
-											Val: "bottom",
-										},
-									},
-								},
-							},
-							document.Directive{
-								Name: "fromBottom",
-								Arguments: document.Arguments{
-									document.Argument{
-										Name: "to",
-										Value: document.StringValue{
-											Val: "top",
-										},
-									},
-								},
-							},
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					Directives: document.Directives{
+						document.Directive{
+							Name:      "fromTop",
+							Arguments: []int{0},
 						},
-						Type: document.NamedType{
-							Name: "String",
+						document.Directive{
+							Name:      "fromBottom",
+							Arguments: []int{1},
 						},
 					},
-				}),
+					FieldDefinitions: document.FieldDefinitions{
+						{
+							Name:                "name",
+							Directives:          []int{0, 1},
+							ArgumentsDefinition: []int{},
+							Type: document.NamedType{
+								Name: "String",
+							},
+						},
+					},
+					Arguments: document.Arguments{
+						{
+							Name: "to",
+							Value: document.Value{
+								ValueType:   document.ValueTypeString,
+								StringValue: "bottom",
+							},
+						},
+						{
+							Name: "to",
+							Value: document.Value{
+								ValueType:   document.ValueTypeString,
+								StringValue: "top",
+							},
+						},
+					},
+				}.initEmptySlices()),
 			},
 		}
 
@@ -205,9 +250,15 @@ func TestFieldsDefinitionParser(t *testing.T) {
 				parser := NewParser()
 				parser.l.SetInput(test.input)
 
-				val, err := parser.parseFieldsDefinition()
+				index := []int{}
+				err := parser.parseFieldsDefinition(&index)
 				Expect(err).To(test.expectErr)
-				Expect(val).To(test.expectValues)
+				if test.expectIndex != nil {
+					Expect(index).To(test.expectIndex)
+				}
+				if test.expectParsedDefinitions != nil {
+					Expect(parser.ParsedDefinitions).To(test.expectParsedDefinitions)
+				}
 			})
 		}
 	})

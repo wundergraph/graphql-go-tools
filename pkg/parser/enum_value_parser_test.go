@@ -2,6 +2,7 @@ package parser
 
 import (
 	. "github.com/franela/goblin"
+	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
 	"testing"
@@ -38,7 +39,8 @@ func TestEnumValueParser(t *testing.T) {
 
 				val, err := parser.parsePeekedEnumValue()
 				Expect(err).To(test.expectErr)
-				Expect(val.Name).To(test.expectName)
+				Expect(val.ValueType).To(Equal(document.ValueTypeEnum))
+				Expect(val.EnumValue).To(test.expectName)
 			})
 		}
 	})

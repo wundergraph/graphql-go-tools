@@ -6,35 +6,62 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
-func (p *Parser) parseOperationDefinition() (operationDefinition document.OperationDefinition, err error) {
+func (p *Parser) parseOperationDefinition(index *[]int) (err error) {
+
+	operationDefinition := p.makeOperationDefinition()
+
+	operationType, err := p.l.Peek(true)
+	if err != nil {
+		return err
+	}
+
+	switch operationType {
+	case keyword.QUERY:
+		operationDefinition.OperationType = document.OperationTypeQuery
+		_, err = p.l.Read()
+	case keyword.MUTATION:
+		operationDefinition.OperationType = document.OperationTypeMutation
+		_, err = p.l.Read()
+	case keyword.SUBSCRIPTION:
+		operationDefinition.OperationType = document.OperationTypeSubscription
+		_, err = p.l.Read()
+	default:
+		operationDefinition.OperationType = document.OperationTypeQuery
+	}
+
+	if err != nil {
+		return err
+	}
 
 	isNamedOperation, err := p.peekExpect(keyword.IDENT, false)
 	if err != nil {
-		return operationDefinition, err
+		return err
 	}
 
 	if isNamedOperation {
 		name, err := p.l.Read()
 		if err != nil {
-			return operationDefinition, err
+			return err
 		}
 		operationDefinition.Name = name.Literal
 	}
 
-	operationDefinition.VariableDefinitions, err = p.parseVariableDefinitions()
+	err = p.parseVariableDefinitions(&operationDefinition.VariableDefinitions)
 	if err != nil {
 		return
 	}
 
-	operationDefinition.Directives, err = p.parseDirectives()
+	err = p.parseDirectives(&operationDefinition.Directives)
 	if err != nil {
 		return
 	}
 
-	operationDefinition.SelectionSet, err = p.parseSelectionSet()
-	if len(operationDefinition.SelectionSet) == 0 {
+	err = p.parseSelectionSet(&operationDefinition.SelectionSet)
+	if operationDefinition.SelectionSet.IsEmpty() {
 		err = fmt.Errorf("parseOperationDefinition: selectionSet must not be empty")
 	}
+
+	*index = append(*index, p.putOperationDefinition(operationDefinition))
 
 	return
 }

@@ -27,8 +27,9 @@ func TestValueParser(t *testing.T) {
 				it:        "should parse variableValue",
 				input:     "$foo",
 				expectErr: BeNil(),
-				expectValues: Equal(document.VariableValue{
-					Name: "foo",
+				expectValues: Equal(document.Value{
+					ValueType:     document.ValueTypeVariable,
+					VariableValue: "foo",
 				}),
 			},
 			{
@@ -40,64 +41,74 @@ func TestValueParser(t *testing.T) {
 				it:        "should parse Int32 values",
 				input:     "1337",
 				expectErr: BeNil(),
-				expectValues: Equal(document.IntValue{
-					Val: int32(1337),
+				expectValues: Equal(document.Value{
+					ValueType: document.ValueTypeInt,
+					IntValue:  1337,
 				}),
 			},
 			{
 				it:        "should parse Float32 values",
 				input:     "13.37",
 				expectErr: BeNil(),
-				expectValues: Equal(document.FloatValue{
-					Val: float32(13.37),
+				expectValues: Equal(document.Value{
+					ValueType:  document.ValueTypeFloat,
+					FloatValue: 13.37,
 				}),
 			},
 			{
 				it:        "should parse true as BooleanValue",
 				input:     "true",
 				expectErr: BeNil(),
-				expectValues: Equal(document.BooleanValue{
-					Val: true,
+				expectValues: Equal(document.Value{
+					ValueType:    document.ValueTypeBoolean,
+					BooleanValue: true,
 				}),
 			},
 			{
 				it:        "should parse false as BooleanValue",
 				input:     "false",
 				expectErr: BeNil(),
-				expectValues: Equal(document.BooleanValue{
-					Val: false,
+				expectValues: Equal(document.Value{
+					ValueType:    document.ValueTypeBoolean,
+					BooleanValue: false,
 				}),
 			},
 			{
 				it:        "should parse StringValue on single quote",
 				input:     `"this is a string value"`,
 				expectErr: BeNil(),
-				expectValues: Equal(document.StringValue{
-					Val: "this is a string value",
+				expectValues: Equal(document.Value{
+					ValueType:   document.ValueTypeString,
+					StringValue: "this is a string value",
 				}),
 			},
 			{
 				it:        "should parse StringValue on triple quote",
 				input:     `"""this is a string value"""`,
 				expectErr: BeNil(),
-				expectValues: Equal(document.StringValue{
-					Val: "this is a string value",
+				expectValues: Equal(document.Value{
+					ValueType:   document.ValueTypeString,
+					StringValue: "this is a string value",
 				}),
 			},
 			{
-				it:           "should parse null value",
-				input:        "null",
-				expectErr:    BeNil(),
-				expectValues: Equal(document.NullValue{}),
+				it:        "should parse null value",
+				input:     "null",
+				expectErr: BeNil(),
+				expectValues: Equal(document.Value{
+					ValueType: document.ValueTypeNull,
+				}),
 			},
 			{
 				it:        "should parse list value",
 				input:     "[true]",
 				expectErr: BeNil(),
-				expectValues: Equal(document.ListValue{
-					Values: []document.Value{
-						document.BooleanValue{
-							Val: true,
+				expectValues: Equal(document.Value{
+					ValueType: document.ValueTypeList,
+					ListValue: []document.Value{
+						{
+							ValueType:    document.ValueTypeBoolean,
+							BooleanValue: true,
 						},
 					},
 				}),
@@ -106,12 +117,14 @@ func TestValueParser(t *testing.T) {
 				it:        "should parse object value",
 				input:     "{isTrue: true}",
 				expectErr: BeNil(),
-				expectValues: Equal(document.ObjectValue{
-					Val: []document.ObjectField{
+				expectValues: Equal(document.Value{
+					ValueType: document.ValueTypeObject,
+					ObjectValue: []document.ObjectField{
 						{
 							Name: "isTrue",
-							Value: document.BooleanValue{
-								Val: true,
+							Value: document.Value{
+								ValueType:    document.ValueTypeBoolean,
+								BooleanValue: true,
 							},
 						},
 					},
@@ -120,15 +133,16 @@ func TestValueParser(t *testing.T) {
 			{
 				it:           "should fail at not listed keyword and return an error",
 				input:        "}",
-				expectErr:    Not(BeNil()),
-				expectValues: BeNil(),
+				expectErr:    HaveOccurred(),
+				expectValues: Equal(document.Value{}),
 			},
 			{
 				it: "should parse value despite whitespace in front",
 				input: "		 true",
 				expectErr: BeNil(),
-				expectValues: Equal(document.BooleanValue{
-					Val: true,
+				expectValues: Equal(document.Value{
+					ValueType:    document.ValueTypeBoolean,
+					BooleanValue: true,
 				}),
 			},
 		}

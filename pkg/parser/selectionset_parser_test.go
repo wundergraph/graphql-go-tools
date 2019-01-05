@@ -16,10 +16,11 @@ func TestSelectionSetParser(t *testing.T) {
 	g.Describe("parser.parseSelectionSet", func() {
 
 		tests := []struct {
-			it           string
-			input        string
-			expectErr    types.GomegaMatcher
-			expectValues types.GomegaMatcher
+			it                      string
+			input                   string
+			expectErr               types.GomegaMatcher
+			expectSelectionSet      types.GomegaMatcher
+			expectParsedDefinitions types.GomegaMatcher
 		}{
 			{
 				it: "should parse a simple SelectionSet",
@@ -27,11 +28,25 @@ func TestSelectionSetParser(t *testing.T) {
 					foo
 				}`,
 				expectErr: BeNil(),
-				expectValues: Equal(document.SelectionSet{
-					document.Field{
-						Name: "foo",
-					},
+				expectSelectionSet: Equal(document.SelectionSet{
+					Fields:          []int{0},
+					InlineFragments: []int{},
+					FragmentSpreads: []int{},
 				}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					Fields: document.Fields{
+						{
+							Name:       "foo",
+							Directives: []int{},
+							Arguments:  []int{},
+							SelectionSet: document.SelectionSet{
+								Fields:          []int{},
+								FragmentSpreads: []int{},
+								InlineFragments: []int{},
+							},
+						},
+					},
+				}.initEmptySlices()),
 			},
 			{
 				it: "should parse SelectionSet with multiple elements in it",
@@ -41,21 +56,43 @@ func TestSelectionSetParser(t *testing.T) {
 					... on Water
 				}`,
 				expectErr: BeNil(),
-				expectValues: Equal(document.SelectionSet{
-					document.InlineFragment{
-						TypeCondition: document.NamedType{
-							Name: "Goland",
-						},
-					},
-					document.FragmentSpread{
-						FragmentName: "Air",
-					},
-					document.InlineFragment{
-						TypeCondition: document.NamedType{
-							Name: "Water",
-						},
-					},
+				expectSelectionSet: Equal(document.SelectionSet{
+					InlineFragments: []int{0, 1},
+					FragmentSpreads: []int{0},
+					Fields:          []int{},
 				}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					InlineFragments: document.InlineFragments{
+						{
+							TypeCondition: document.NamedType{
+								Name: "Goland",
+							},
+							Directives: []int{},
+							SelectionSet: document.SelectionSet{
+								InlineFragments: []int{},
+								FragmentSpreads: []int{},
+								Fields:          []int{},
+							},
+						},
+						{
+							TypeCondition: document.NamedType{
+								Name: "Water",
+							},
+							Directives: []int{},
+							SelectionSet: document.SelectionSet{
+								InlineFragments: []int{},
+								FragmentSpreads: []int{},
+								Fields:          []int{},
+							},
+						},
+					},
+					FragmentSpreads: document.FragmentSpreads{
+						{
+							FragmentName: "Air",
+							Directives:   []int{},
+						},
+					},
+				}.initEmptySlices()),
 			},
 			{
 				it: "should parse SelectionSet with multiple different elements in it",
@@ -65,30 +102,59 @@ func TestSelectionSetParser(t *testing.T) {
 					... on Water
 				}`,
 				expectErr: BeNil(),
-				expectValues: Equal(document.SelectionSet{
-					document.InlineFragment{
-						TypeCondition: document.NamedType{
-							Name: "Goland",
-						},
-					},
-					document.Field{
-						Alias: "preferredName",
-						Name:  "originalName",
-						Arguments: document.Arguments{
-							document.Argument{
-								Name: "isSet",
-								Value: document.BooleanValue{
-									Val: true,
-								},
+				expectSelectionSet: Equal(document.SelectionSet{
+					Fields:          []int{0},
+					InlineFragments: []int{0, 1},
+					FragmentSpreads: []int{},
+				}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					Arguments: document.Arguments{
+						{
+							Name: "isSet",
+							Value: document.Value{
+								ValueType:    document.ValueTypeBoolean,
+								BooleanValue: true,
 							},
 						},
 					},
-					document.InlineFragment{
-						TypeCondition: document.NamedType{
-							Name: "Water",
+					Fields: document.Fields{
+						{
+							Alias:     "preferredName",
+							Name:      "originalName",
+							Arguments: []int{0},
+							SelectionSet: document.SelectionSet{
+								Fields:          []int{},
+								FragmentSpreads: []int{},
+								InlineFragments: []int{},
+							},
+							Directives: []int{},
 						},
 					},
-				}),
+					InlineFragments: document.InlineFragments{
+						{
+							TypeCondition: document.NamedType{
+								Name: "Goland",
+							},
+							Directives: []int{},
+							SelectionSet: document.SelectionSet{
+								InlineFragments: []int{},
+								FragmentSpreads: []int{},
+								Fields:          []int{},
+							},
+						},
+						{
+							TypeCondition: document.NamedType{
+								Name: "Water",
+							},
+							Directives: []int{},
+							SelectionSet: document.SelectionSet{
+								InlineFragments: []int{},
+								FragmentSpreads: []int{},
+								Fields:          []int{},
+							},
+						},
+					},
+				}.initEmptySlices()),
 			},
 			{
 				it: "should parse SelectionSet with Field containing directives",
@@ -98,43 +164,72 @@ func TestSelectionSetParser(t *testing.T) {
 					... on Water
 				}`,
 				expectErr: BeNil(),
-				expectValues: Equal(document.SelectionSet{
-					document.InlineFragment{
-						TypeCondition: document.NamedType{
-							Name: "Goland",
-						},
-					},
-					document.Field{
-						Alias: "preferredName",
-						Name:  "originalName",
-						Arguments: document.Arguments{
-							document.Argument{
-								Name: "isSet",
-								Value: document.BooleanValue{
-									Val: true,
-								},
-							},
-						},
-						Directives: document.Directives{
-							document.Directive{
-								Name: "rename",
-								Arguments: document.Arguments{
-									document.Argument{
-										Name: "index",
-										Value: document.IntValue{
-											Val: 3,
-										},
-									},
-								},
-							},
-						},
-					},
-					document.InlineFragment{
-						TypeCondition: document.NamedType{
-							Name: "Water",
-						},
-					},
+				expectSelectionSet: Equal(document.SelectionSet{
+					Fields:          []int{0},
+					InlineFragments: []int{0, 1},
+					FragmentSpreads: []int{},
 				}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					Directives: document.Directives{
+						{
+							Name:      "rename",
+							Arguments: []int{1},
+						},
+					},
+					Arguments: document.Arguments{
+						{
+							Name: "isSet",
+							Value: document.Value{
+								ValueType:    document.ValueTypeBoolean,
+								BooleanValue: true,
+							},
+						},
+						{
+							Name: "index",
+							Value: document.Value{
+								ValueType: document.ValueTypeInt,
+								IntValue:  3,
+							},
+						},
+					},
+					Fields: document.Fields{
+						{
+							Alias:      "preferredName",
+							Name:       "originalName",
+							Arguments:  []int{0},
+							Directives: []int{0},
+							SelectionSet: document.SelectionSet{
+								Fields:          []int{},
+								FragmentSpreads: []int{},
+								InlineFragments: []int{},
+							},
+						},
+					},
+					InlineFragments: document.InlineFragments{
+						{
+							TypeCondition: document.NamedType{
+								Name: "Goland",
+							},
+							SelectionSet: document.SelectionSet{
+								InlineFragments: []int{},
+								FragmentSpreads: []int{},
+								Fields:          []int{},
+							},
+							Directives: []int{},
+						},
+						{
+							TypeCondition: document.NamedType{
+								Name: "Water",
+							},
+							SelectionSet: document.SelectionSet{
+								InlineFragments: []int{},
+								FragmentSpreads: []int{},
+								Fields:          []int{},
+							},
+							Directives: []int{},
+						},
+					},
+				}.initEmptySlices()),
 			},
 			{
 				it: "should parse SelectionSet with FragmentSpread containing Directive",
@@ -144,34 +239,58 @@ func TestSelectionSetParser(t *testing.T) {
 					... on Water
 				}`,
 				expectErr: BeNil(),
-				expectValues: Equal(document.SelectionSet{
-					document.InlineFragment{
-						TypeCondition: document.NamedType{
-							Name: "Goland",
+				expectSelectionSet: Equal(document.SelectionSet{
+					InlineFragments: []int{0, 1},
+					FragmentSpreads: []int{0},
+					Fields:          []int{},
+				}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					InlineFragments: document.InlineFragments{
+						{
+							TypeCondition: document.NamedType{
+								Name: "Goland",
+							},
+							SelectionSet: document.SelectionSet{
+								InlineFragments: []int{},
+								FragmentSpreads: []int{},
+								Fields:          []int{},
+							},
+							Directives: []int{},
+						},
+						{
+							TypeCondition: document.NamedType{
+								Name: "Water",
+							},
+							SelectionSet: document.SelectionSet{
+								InlineFragments: []int{},
+								FragmentSpreads: []int{},
+								Fields:          []int{},
+							},
+							Directives: []int{},
 						},
 					},
-					document.FragmentSpread{
-						FragmentName: "firstFragment",
-						Directives: document.Directives{
-							document.Directive{
-								Name: "rename",
-								Arguments: document.Arguments{
-									document.Argument{
-										Name: "index",
-										Value: document.IntValue{
-											Val: 3,
-										},
-									},
-								},
+					Arguments: document.Arguments{
+						{
+							Name: "index",
+							Value: document.Value{
+								ValueType: document.ValueTypeInt,
+								IntValue:  3,
 							},
 						},
 					},
-					document.InlineFragment{
-						TypeCondition: document.NamedType{
-							Name: "Water",
+					Directives: document.Directives{
+						document.Directive{
+							Name:      "rename",
+							Arguments: []int{0},
 						},
 					},
-				}),
+					FragmentSpreads: document.FragmentSpreads{
+						{
+							FragmentName: "firstFragment",
+							Directives:   []int{0},
+						},
+					},
+				}.initEmptySlices()),
 			},
 		}
 
@@ -183,9 +302,15 @@ func TestSelectionSetParser(t *testing.T) {
 				parser := NewParser()
 				parser.l.SetInput(test.input)
 
-				val, err := parser.parseSelectionSet()
+				set := parser.makeSelectionSet()
+				err := parser.parseSelectionSet(&set)
 				Expect(err).To(test.expectErr)
-				Expect(val).To(test.expectValues)
+				if test.expectSelectionSet != nil {
+					Expect(set).To(test.expectSelectionSet)
+				}
+				if test.expectParsedDefinitions != nil {
+					Expect(parser.ParsedDefinitions).To(test.expectParsedDefinitions)
+				}
 			})
 		}
 	})
@@ -232,7 +357,9 @@ func BenchmarkParseSelectionSet(b *testing.B) {
 	parse := func() {
 
 		parser.l.SetInput(selectionSetBenchmarkInput)
-		_, err = parser.parseSelectionSet()
+
+		selectionSet := parser.makeSelectionSet()
+		err = parser.parseSelectionSet(&selectionSet)
 		if err != nil {
 			b.Fatal(err)
 		}

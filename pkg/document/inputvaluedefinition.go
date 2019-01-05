@@ -7,9 +7,5 @@ type InputValueDefinition struct {
 	Name         string
 	Type         Type
 	DefaultValue Value
-	Directives   Directives
+	Directives   []int
 }
-
-// DefaultValue as specified in:
-// http://facebook.github.io/graphql/draft/#DefaultValue
-type DefaultValue Value

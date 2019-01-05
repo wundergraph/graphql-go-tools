@@ -5,6 +5,7 @@ package document
 // ValueType differentiates the different types of values
 /*
 ENUM(
+DefaultNull
 Variable
 Int
 Float

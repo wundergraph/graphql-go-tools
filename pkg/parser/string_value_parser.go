@@ -5,14 +5,15 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/transform"
 )
 
-func (p *Parser) parsePeekedStringValue() (val document.StringValue, err error) {
+func (p *Parser) parsePeekedStringValue() (val document.Value, err error) {
 
 	stringToken, err := p.l.Read()
 	if err != nil {
 		return val, err
 	}
 
-	val.Val = transform.TrimWhitespace(stringToken.Literal)
+	val.ValueType = document.ValueTypeString
+	val.StringValue = transform.TrimWhitespace(stringToken.Literal)
 
 	return
 }

@@ -1,25 +1,31 @@
 package parser
 
 import (
-	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
-func (p *Parser) parseEnumTypeDefinition() (enumTypeDefinition document.EnumTypeDefinition, err error) {
+func (p *Parser) parseEnumTypeDefinition(index *[]int) error {
+
+	definition := p.makeEnumTypeDefinition()
 
 	ident, err := p.readExpect(keyword.IDENT, "parseEnumTypeDefinition")
 	if err != nil {
-		return
+		return err
 	}
 
-	enumTypeDefinition.Name = ident.Literal
+	definition.Name = ident.Literal
 
-	enumTypeDefinition.Directives, err = p.parseDirectives()
+	err = p.parseDirectives(&definition.Directives)
 	if err != nil {
-		return
+		return err
 	}
 
-	enumTypeDefinition.EnumValuesDefinition, err = p.parseEnumValuesDefinition()
+	err = p.parseEnumValuesDefinition(&definition.EnumValuesDefinition)
+	if err != nil {
+		return err
+	}
 
-	return
+	*index = append(*index, p.putEnumTypeDefinition(definition))
+
+	return nil
 }

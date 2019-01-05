@@ -1,11 +1,11 @@
 package document
 
-// InputFieldsDefinition as specified in:
+// InputValueDefinitions as specified in:
 // http://facebook.github.io/graphql/draft/#InputFieldsDefinition
-type InputFieldsDefinition []InputValueDefinition
+type InputValueDefinitions []InputValueDefinition
 
 // GetByName returns a InputValueDefinition by $name or nil if not found
-func (i InputFieldsDefinition) GetByName(name string) *InputValueDefinition {
+func (i InputValueDefinitions) GetByName(name string) *InputValueDefinition {
 	for _, definition := range i {
 		if definition.Name == name {
 			return &definition

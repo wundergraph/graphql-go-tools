@@ -4,7 +4,7 @@ package document
 // http://facebook.github.io/graphql/draft/#Directive
 type Directive struct {
 	Name      string
-	Arguments Arguments
+	Arguments []int
 }
 
 // Directives as specified in

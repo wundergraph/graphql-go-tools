@@ -6,11 +6,13 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
-func (p *Parser) parsePeekedObjectValue() (objectValue document.ObjectValue, err error) {
+func (p *Parser) parsePeekedObjectValue() (value document.Value, err error) {
+
+	value.ValueType = document.ValueTypeObject
 
 	_, err = p.l.Read()
 	if err != nil {
-		return objectValue, err
+		return value, err
 	}
 
 	var peeked keyword.Keyword
@@ -18,17 +20,17 @@ func (p *Parser) parsePeekedObjectValue() (objectValue document.ObjectValue, err
 	for {
 		peeked, err = p.l.Peek(true)
 		if err != nil {
-			return objectValue, err
+			return value, err
 		}
 
 		switch peeked {
 		case keyword.CURLYBRACKETCLOSE:
 			_, err = p.l.Read()
-			return objectValue, err
+			return value, err
 		case keyword.IDENT:
 			identToken, err := p.l.Read()
 			if err != nil {
-				return objectValue, err
+				return value, err
 			}
 
 			var field document.ObjectField
@@ -36,27 +38,27 @@ func (p *Parser) parsePeekedObjectValue() (objectValue document.ObjectValue, err
 
 			expectColon, err := p.l.Peek(true)
 			if err != nil {
-				return objectValue, err
+				return value, err
 			}
 
 			if expectColon != keyword.COLON {
-				return objectValue, fmt.Errorf("parsePeekedObjectValue: expected colon, got %s", expectColon)
+				return value, fmt.Errorf("parsePeekedObjectValue: expected colon, got %s", expectColon)
 			}
 
 			_, err = p.l.Read()
 			if err != nil {
-				return objectValue, err
+				return value, err
 			}
 
 			field.Value, err = p.parseValue()
 			if err != nil {
-				return objectValue, err
+				return value, err
 			}
 
-			objectValue.Val = append(objectValue.Val, field)
+			value.ObjectValue = append(value.ObjectValue, field)
 
 		default:
-			return objectValue, fmt.Errorf("parsePeekedObjectValue: expected }/ident, got: %s", peeked)
+			return value, fmt.Errorf("parsePeekedObjectValue: expected }/ident, got: %s", peeked)
 		}
 	}
 }

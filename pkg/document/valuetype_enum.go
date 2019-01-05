@@ -8,8 +8,10 @@ import (
 )
 
 const (
+	// ValueTypeDefaultNull is a ValueType of type DefaultNull
+	ValueTypeDefaultNull ValueType = iota
 	// ValueTypeVariable is a ValueType of type Variable
-	ValueTypeVariable ValueType = iota
+	ValueTypeVariable
 	// ValueTypeInt is a ValueType of type Int
 	ValueTypeInt
 	// ValueTypeFloat is a ValueType of type Float
@@ -28,18 +30,19 @@ const (
 	ValueTypeObject
 )
 
-const _ValueTypeName = "VariableIntFloatStringBooleanNullEnumListObject"
+const _ValueTypeName = "DefaultNullVariableIntFloatStringBooleanNullEnumListObject"
 
 var _ValueTypeMap = map[ValueType]string{
-	0: _ValueTypeName[0:8],
-	1: _ValueTypeName[8:11],
-	2: _ValueTypeName[11:16],
-	3: _ValueTypeName[16:22],
-	4: _ValueTypeName[22:29],
-	5: _ValueTypeName[29:33],
-	6: _ValueTypeName[33:37],
-	7: _ValueTypeName[37:41],
-	8: _ValueTypeName[41:47],
+	0: _ValueTypeName[0:11],
+	1: _ValueTypeName[11:19],
+	2: _ValueTypeName[19:22],
+	3: _ValueTypeName[22:27],
+	4: _ValueTypeName[27:33],
+	5: _ValueTypeName[33:40],
+	6: _ValueTypeName[40:44],
+	7: _ValueTypeName[44:48],
+	8: _ValueTypeName[48:52],
+	9: _ValueTypeName[52:58],
 }
 
 // String implements the Stringer interface.
@@ -51,15 +54,16 @@ func (x ValueType) String() string {
 }
 
 var _ValueTypeValue = map[string]ValueType{
-	_ValueTypeName[0:8]:   0,
-	_ValueTypeName[8:11]:  1,
-	_ValueTypeName[11:16]: 2,
-	_ValueTypeName[16:22]: 3,
-	_ValueTypeName[22:29]: 4,
-	_ValueTypeName[29:33]: 5,
-	_ValueTypeName[33:37]: 6,
-	_ValueTypeName[37:41]: 7,
-	_ValueTypeName[41:47]: 8,
+	_ValueTypeName[0:11]:  0,
+	_ValueTypeName[11:19]: 1,
+	_ValueTypeName[19:22]: 2,
+	_ValueTypeName[22:27]: 3,
+	_ValueTypeName[27:33]: 4,
+	_ValueTypeName[33:40]: 5,
+	_ValueTypeName[40:44]: 6,
+	_ValueTypeName[44:48]: 7,
+	_ValueTypeName[48:52]: 8,
+	_ValueTypeName[52:58]: 9,
 }
 
 // ParseValueType attempts to convert a string to a ValueType

@@ -5,9 +5,9 @@ package document
 type ObjectTypeDefinition struct {
 	Description          string
 	Name                 string
-	FieldsDefinition     FieldsDefinition
+	FieldsDefinition     []int
 	ImplementsInterfaces ImplementsInterfaces
-	Directives           Directives
+	Directives           []int
 }
 
 // ObjectTypeDefinitions is the plural of ObjectTypeDefinition

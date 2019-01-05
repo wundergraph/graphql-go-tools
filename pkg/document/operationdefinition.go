@@ -5,8 +5,8 @@ package document
 type OperationDefinition struct {
 	OperationType       OperationType
 	Name                string
-	VariableDefinitions VariableDefinitions
-	Directives          Directives
+	VariableDefinitions []int
+	Directives          []int
 	SelectionSet        SelectionSet
 }
 

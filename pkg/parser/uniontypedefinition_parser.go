@@ -1,49 +1,45 @@
 package parser
 
 import (
-	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
-func (p *Parser) parseUnionTypeDefinition() (unionTypeDefinition document.UnionTypeDefinition, err error) {
+func (p *Parser) parseUnionTypeDefinition(index *[]int) error {
 
 	unionName, err := p.readExpect(keyword.IDENT, "parseUnionTypeDefinition")
 	if err != nil {
-		return
+		return err
 	}
 
-	unionTypeDefinition.Name = unionName.Literal
+	definition := p.makeUnionTypeDefinition()
 
-	unionTypeDefinition.Directives, err = p.parseDirectives()
+	definition.Name = unionName.Literal
+
+	err = p.parseDirectives(&definition.Directives)
 	if err != nil {
-		return
+		return err
 	}
 
-	hasMembers, err := p.peekExpect(keyword.EQUALS, true)
+	shouldParseMembers, err := p.peekExpect(keyword.EQUALS, true)
 	if err != nil {
-		return
+		return err
 	}
 
-	if !hasMembers {
-		return
-	}
-
-	for {
+	for shouldParseMembers {
 
 		member, err := p.readExpect(keyword.IDENT, "parseUnionTypeDefinition")
 		if err != nil {
-			return unionTypeDefinition, err
+			return err
 		}
 
-		unionTypeDefinition.UnionMemberTypes = append(unionTypeDefinition.UnionMemberTypes, member.Literal)
+		definition.UnionMemberTypes = append(definition.UnionMemberTypes, member.Literal)
 
-		hasAnother, err := p.peekExpect(keyword.PIPE, true)
+		shouldParseMembers, err = p.peekExpect(keyword.PIPE, true)
 		if err != nil {
-			return unionTypeDefinition, err
-		}
-
-		if !hasAnother {
-			return unionTypeDefinition, err
+			return err
 		}
 	}
+
+	*index = append(*index, p.putUnionTypeDefinition(definition))
+	return nil
 }

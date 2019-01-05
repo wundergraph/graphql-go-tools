@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 	"github.com/jensneuse/graphql-go-tools/pkg/transform"
 )
@@ -9,24 +8,24 @@ import (
 // InputValueDefinitions cannot be found in the graphQL spec.
 // This parser was still implemented due to InputValueDefinition
 // always appearing in a list, which may be contained by
-// InputFieldsDefinitions: http://facebook.github.io/graphql/draft/#InputFieldsDefinition
+// InputValueDefinitions: http://facebook.github.io/graphql/draft/#InputFieldsDefinition
 // or ArgumentsDefinition http://facebook.github.io/graphql/draft/#ArgumentsDefinition
 
-func (p *Parser) parseInputValueDefinitions() (inputValueDefinitions []document.InputValueDefinition, err error) {
+func (p *Parser) parseInputValueDefinitions(index *[]int, closeKeyword keyword.Keyword) error {
 
 	var description string
 
 	for {
 		next, err := p.l.Peek(true)
 		if err != nil {
-			return inputValueDefinitions, err
+			return err
 		}
 
 		if next == keyword.STRING {
 
 			quote, err := p.l.Read()
 			if err != nil {
-				return inputValueDefinitions, err
+				return err
 			}
 
 			description = transform.TrimWhitespace(quote.Literal)
@@ -35,39 +34,41 @@ func (p *Parser) parseInputValueDefinitions() (inputValueDefinitions []document.
 
 			ident, err := p.l.Read()
 			if err != nil {
-				return inputValueDefinitions, err
+				return err
 			}
 
-			inputValueDefinition := document.InputValueDefinition{
-				Description: description,
-				Name:        ident.Literal,
-			}
+			definition := p.makeInputValueDefinition()
+			definition.Description = description
+			definition.Name = ident.Literal
 
 			description = ""
 
 			_, err = p.readExpect(keyword.COLON, "parseInputValueDefinitions")
 			if err != nil {
-				return inputValueDefinitions, err
+				return err
 			}
 
-			inputValueDefinition.Type, err = p.parseType()
+			definition.Type, err = p.parseType()
 			if err != nil {
-				return inputValueDefinitions, err
+				return err
 			}
-			inputValueDefinition.DefaultValue, err = p.parseDefaultValue()
+			definition.DefaultValue, err = p.parseDefaultValue()
 			if err != nil {
-				return inputValueDefinitions, err
+				return err
 			}
 
-			inputValueDefinition.Directives, err = p.parseDirectives()
+			err = p.parseDirectives(&definition.Directives)
 			if err != nil {
-				return inputValueDefinitions, err
+				return err
 			}
 
-			inputValueDefinitions = append(inputValueDefinitions, inputValueDefinition)
+			*index = append(*index, p.putInputValueDefinition(definition))
 
-		} else {
-			return inputValueDefinitions, nil
+		} else if next != closeKeyword && closeKeyword != keyword.UNDEFINED {
+			invalid, _ := p.l.Read()
+			return newErrInvalidType(invalid.Position, "parseInputValueDefinitions", "string/ident/"+closeKeyword.String(), invalid.String())
+		} else { // nolint
+			return nil
 		}
 	}
 }

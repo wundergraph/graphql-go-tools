@@ -10,9 +10,9 @@ import (
 type FieldDefinition struct {
 	Description         string
 	Name                string
-	ArgumentsDefinition ArgumentsDefinition
+	ArgumentsDefinition []int
 	Type                Type
-	Directives          Directives
+	Directives          []int
 }
 
 // NameAsTitle trims all prefixed __ and formats the name with strings.Title

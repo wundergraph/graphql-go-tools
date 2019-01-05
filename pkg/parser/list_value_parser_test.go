@@ -25,15 +25,21 @@ func TestListValueParser(t *testing.T) {
 				it:        "should parse simple list",
 				input:     "[1,2,3]",
 				expectErr: BeNil(),
-				expectValues: Equal([]document.Value{
-					document.IntValue{
-						Val: 1,
-					},
-					document.IntValue{
-						Val: 2,
-					},
-					document.IntValue{
-						Val: 3,
+				expectValues: Equal(document.Value{
+					ValueType: document.ValueTypeList,
+					ListValue: []document.Value{
+						{
+							ValueType: document.ValueTypeInt,
+							IntValue:  1,
+						},
+						{
+							ValueType: document.ValueTypeInt,
+							IntValue:  2,
+						},
+						{
+							ValueType: document.ValueTypeInt,
+							IntValue:  3,
+						},
 					},
 				}),
 			},
@@ -41,20 +47,28 @@ func TestListValueParser(t *testing.T) {
 				it: "should parse complex list",
 				input: `[ 1	,"2" 3,,[	1	]]`,
 				expectErr: BeNil(),
-				expectValues: Equal([]document.Value{
-					document.IntValue{
-						Val: 1,
-					},
-					document.StringValue{
-						Val: "2",
-					},
-					document.IntValue{
-						Val: 3,
-					},
-					document.ListValue{
-						Values: []document.Value{
-							document.IntValue{
-								Val: 1,
+				expectValues: Equal(document.Value{
+					ValueType: document.ValueTypeList,
+					ListValue: []document.Value{
+						{
+							ValueType: document.ValueTypeInt,
+							IntValue:  1,
+						},
+						{
+							ValueType:   document.ValueTypeString,
+							StringValue: "2",
+						},
+						{
+							ValueType: document.ValueTypeInt,
+							IntValue:  3,
+						},
+						{
+							ValueType: document.ValueTypeList,
+							ListValue: []document.Value{
+								{
+									ValueType: document.ValueTypeInt,
+									IntValue:  1,
+								},
 							},
 						},
 					},
@@ -72,7 +86,7 @@ func TestListValueParser(t *testing.T) {
 
 				val, err := parser.parsePeekedListValue()
 				Expect(err).To(test.expectErr)
-				Expect(val.Values).To(test.expectValues)
+				Expect(val).To(test.expectValues)
 			})
 		}
 	})

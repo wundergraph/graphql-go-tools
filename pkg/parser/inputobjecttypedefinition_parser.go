@@ -1,25 +1,31 @@
 package parser
 
 import (
-	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
-func (p *Parser) parseInputObjectTypeDefinition() (inputObjectTypeDefinition document.InputObjectTypeDefinition, err error) {
+func (p *Parser) parseInputObjectTypeDefinition(index *[]int) error {
 
 	ident, err := p.readExpect(keyword.IDENT, "parseInputObjectTypeDefinition")
 	if err != nil {
-		return
+		return err
 	}
 
-	inputObjectTypeDefinition.Name = ident.Literal
+	definition := p.makeInputObjectTypeDefinition()
 
-	inputObjectTypeDefinition.Directives, err = p.parseDirectives()
+	definition.Name = ident.Literal
+
+	err = p.parseDirectives(&definition.Directives)
 	if err != nil {
-		return
+		return err
 	}
 
-	inputObjectTypeDefinition.InputFieldsDefinition, err = p.parseInputFieldsDefinition()
+	err = p.parseInputFieldsDefinition(&definition.InputFieldsDefinition)
+	if err != nil {
+		return err
+	}
 
-	return
+	*index = append(*index, p.putInputObjectTypeDefinition(definition))
+
+	return nil
 }

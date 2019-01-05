@@ -15,10 +15,11 @@ func TestParseSchemaDefinition(t *testing.T) {
 
 	g.Describe("parseSchemaDefinition", func() {
 		tests := []struct {
-			it           string
-			input        string
-			expectErr    types.GomegaMatcher
-			expectValues types.GomegaMatcher
+			it                      string
+			input                   string
+			expectErr               types.GomegaMatcher
+			expectSchemaDefinition  types.GomegaMatcher
+			expectParsedDefinitions types.GomegaMatcher
 		}{
 			{
 				it: "should parse simple SchemaDefinition",
@@ -28,10 +29,11 @@ func TestParseSchemaDefinition(t *testing.T) {
 	subscription: Subscription
 }`,
 				expectErr: BeNil(),
-				expectValues: Equal(document.SchemaDefinition{
+				expectSchemaDefinition: Equal(document.SchemaDefinition{
 					Query:        "Query",
 					Mutation:     "Mutation",
 					Subscription: "Subscription",
+					Directives:   []int{},
 				}),
 			},
 			{
@@ -46,10 +48,11 @@ func TestParseSchemaDefinition(t *testing.T) {
 
 }`,
 				expectErr: BeNil(),
-				expectValues: Equal(document.SchemaDefinition{
+				expectSchemaDefinition: Equal(document.SchemaDefinition{
 					Query:        "Query",
 					Mutation:     "Mutation",
 					Subscription: "Subscription",
+					Directives:   []int{},
 				}),
 			},
 			{
@@ -66,10 +69,11 @@ func TestParseSchemaDefinition(t *testing.T) {
 
 }`,
 				expectErr: Not(BeNil()),
-				expectValues: Equal(document.SchemaDefinition{
+				expectSchemaDefinition: Equal(document.SchemaDefinition{
 					Query:        "Query",
 					Mutation:     "Mutation",
 					Subscription: "Subscription",
+					Directives:   []int{},
 				}),
 			},
 			{
@@ -80,34 +84,39 @@ func TestParseSchemaDefinition(t *testing.T) {
 	subscription: Subscription
 }`,
 				expectErr: BeNil(),
-				expectValues: Equal(document.SchemaDefinition{
-					Query:        "Query",
-					Mutation:     "Mutation",
-					Subscription: "Subscription",
-					Directives: document.Directives{
-						document.Directive{
-							Name: "fromTop",
-							Arguments: document.Arguments{
-								document.Argument{
-									Name: "to",
-									Value: document.StringValue{
-										Val: "bottom",
-									},
-								},
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					Arguments: document.Arguments{
+						{
+							Name: "to",
+							Value: document.Value{
+								ValueType:   document.ValueTypeString,
+								StringValue: "bottom",
 							},
 						},
-						document.Directive{
-							Name: "fromBottom",
-							Arguments: document.Arguments{
-								document.Argument{
-									Name: "to",
-									Value: document.StringValue{
-										Val: "top",
-									},
-								},
+						{
+							Name: "to",
+							Value: document.Value{
+								ValueType:   document.ValueTypeString,
+								StringValue: "top",
 							},
 						},
 					},
+					Directives: document.Directives{
+						{
+							Name:      "fromTop",
+							Arguments: []int{0},
+						},
+						{
+							Name:      "fromBottom",
+							Arguments: []int{1},
+						},
+					},
+				}.initEmptySlices()),
+				expectSchemaDefinition: Equal(document.SchemaDefinition{
+					Query:        "Query",
+					Mutation:     "Mutation",
+					Subscription: "Subscription",
+					Directives:   []int{0, 1},
 				}),
 			},
 		}
@@ -122,7 +131,10 @@ func TestParseSchemaDefinition(t *testing.T) {
 
 				val, err := parser.parseSchemaDefinition()
 				Expect(err).To(test.expectErr)
-				Expect(val).To(test.expectValues)
+				Expect(val).To(test.expectSchemaDefinition)
+				if test.expectParsedDefinitions != nil {
+					Expect(parser.ParsedDefinitions).To(test.expectParsedDefinitions)
+				}
 			})
 		}
 	})

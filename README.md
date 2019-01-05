@@ -1,17 +1,23 @@
 [![CircleCI](https://circleci.com/gh/jensneuse/graphql-go-tools.svg?style=svg)](https://circleci.com/gh/jensneuse/graphql-go-tools)
 # graphql-go-tools
 
-This repository tries to implement useful graphql tools in the golang programming language.
-The major differentiation from other implementations is heavy use of testing to ensure high quality.
+This repository implements useful graphql tools in the golang programming language.
+The major differentiation from other implementations is heavy use of testing to ensure high quality and maintainability.
+The code is written in a way that enables easy refactoring. Feel free to submit a PR to improve it further.
+
+Until the repository hits 1.0 the API might be subject to change!
 
 Currently implemented:
 
 - lexing
 - parsing
 
-TODO:
+TODO (1.0 planned @ 02/2019):
 
 - validation
+- introspection
+- schema printer
+- cleanup different styles of testing
 
 ## Usage
 
@@ -31,14 +37,17 @@ See pkg/parser/parser_test.go
 goos: darwin
 goarch: amd64
 pkg: github.com/jensneuse/graphql-go-tools/pkg/parser
-BenchmarkParser-4   	   50000	     36178 ns/op	    9746 B/op	     130 allocs/op
-BenchmarkParser-4   	   50000	     36630 ns/op	    9746 B/op	     130 allocs/op
-BenchmarkParser-4   	   50000	     36620 ns/op	    9746 B/op	     130 allocs/op
-BenchmarkParser-4   	   50000	     36444 ns/op	    9746 B/op	     130 allocs/op
+BenchmarkParser-4   	   50000	     30105 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParser-4   	   50000	     29615 ns/op	       1 B/op	       0 allocs/op
+BenchmarkParser-4   	   50000	     29952 ns/op	       1 B/op	       0 allocs/op
+BenchmarkParser-4   	   50000	     29849 ns/op	       0 B/op	       0 allocs/op
 ```
 
-Allocations could easily reduced below 70 allocs/op 7000 B/op by introducing resource pooling.
-That being said I don't see any value in micro optimizing at this stage. <0.04 ms/op for parsing the Introspection Query seems good enough.
+In a previous release I found that nested slice structs accounted for huge amounts of gc and decreased performance.
+This is fixed. I've also added resource pooling to avoid slice grows. As a caveat the parser is not thread safe.
+A possible solution would be to have a pool of parsers which should work fine as parser doesn't allocate a lot of memory.
+
+Other than that I don't see any value in further optimizing for performance as it is "good enough".
 
 For comparison (using the exact same input & hardware):
 

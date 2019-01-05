@@ -25,15 +25,16 @@ func TestVariableValueParser(t *testing.T) {
 				it:        "should parse a simple variable",
 				input:     `$anyIdent`,
 				expectErr: BeNil(),
-				expectValues: Equal(document.VariableValue{
-					Name: "anyIdent",
+				expectValues: Equal(document.Value{
+					ValueType:     document.ValueTypeVariable,
+					VariableValue: "anyIdent",
 				}),
 			},
 			{
 				it:           "should parse a simple variable",
 				input:        `$ anyIdent`,
 				expectErr:    HaveOccurred(),
-				expectValues: Equal(document.VariableValue{}),
+				expectValues: Equal(document.Value{}),
 			},
 		}
 

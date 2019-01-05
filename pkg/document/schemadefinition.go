@@ -11,17 +11,12 @@ type SchemaDefinition struct {
 	Query        string
 	Mutation     string
 	Subscription string
-	Directives   Directives
+	Directives   []int
 }
 
 // ObjectName returns the struct name for ease of use
 func (s SchemaDefinition) ObjectName() string {
 	return "SchemaDefinition"
-}
-
-// GetDirectives returns all directives of SchemaDefinition
-func (s SchemaDefinition) GetDirectives() Directives {
-	return s.Directives
 }
 
 // DirectiveLocation returns the related directive location of SchemaDefinition

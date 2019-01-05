@@ -15,37 +15,48 @@ func TestParseUnionTypeDefinition(t *testing.T) {
 
 	g.Describe("parseUnionTypeDefinition", func() {
 		tests := []struct {
-			it           string
-			input        string
-			expectErr    types.GomegaMatcher
-			expectValues types.GomegaMatcher
+			it                      string
+			input                   string
+			expectErr               types.GomegaMatcher
+			expectIndex             types.GomegaMatcher
+			expectParsedDefinitions types.GomegaMatcher
 		}{
 
 			{
-				it:        "should parse simple UnionTypeDefinition",
-				input:     ` SearchResult = Photo | Person`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.UnionTypeDefinition{
-					Name: "SearchResult",
-					UnionMemberTypes: document.UnionMemberTypes{
-						"Photo",
-						"Person",
+				it:          "should parse simple UnionTypeDefinition",
+				input:       ` SearchResult = Photo | Person`,
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					UnionTypeDefinitions: document.UnionTypeDefinitions{
+						{
+							Name: "SearchResult",
+							UnionMemberTypes: document.UnionMemberTypes{
+								"Photo",
+								"Person",
+							},
+						},
 					},
-				}),
+				}.initEmptySlices()),
 			},
 			{
-				it:        "should parse multiple UnionMemberTypes in UnionTypeDefinition",
-				input:     ` SearchResult = Photo | Person | Car | Planet`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.UnionTypeDefinition{
-					Name: "SearchResult",
-					UnionMemberTypes: document.UnionMemberTypes{
-						"Photo",
-						"Person",
-						"Car",
-						"Planet",
+				it:          "should parse multiple UnionMemberTypes in UnionTypeDefinition",
+				input:       ` SearchResult = Photo | Person | Car | Planet`,
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					UnionTypeDefinitions: document.UnionTypeDefinitions{
+						{
+							Name: "SearchResult",
+							UnionMemberTypes: document.UnionMemberTypes{
+								"Photo",
+								"Person",
+								"Car",
+								"Planet",
+							},
+						},
 					},
-				}),
+				}.initEmptySlices()),
 			},
 			{
 				it: "should parse multiple UnionMemberTypes spread over multiple lines in UnionTypeDefinition",
@@ -53,60 +64,78 @@ func TestParseUnionTypeDefinition(t *testing.T) {
 | Person 
 | Car 
 | Planet`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.UnionTypeDefinition{
-					Name: "SearchResult",
-					UnionMemberTypes: document.UnionMemberTypes{
-						"Photo",
-						"Person",
-						"Car",
-						"Planet",
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					UnionTypeDefinitions: document.UnionTypeDefinitions{
+						{
+							Name: "SearchResult",
+							UnionMemberTypes: document.UnionMemberTypes{
+								"Photo",
+								"Person",
+								"Car",
+								"Planet",
+							},
+						},
 					},
-				}),
+				}.initEmptySlices()),
 			},
 			{
-				it:        "should parse a UnionTypeDefinition with Directives",
-				input:     ` SearchResult @fromTop(to: "bottom") @fromBottom(to: "top") = Photo | Person`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.UnionTypeDefinition{
-					Name: "SearchResult",
+				it:          "should parse a UnionTypeDefinition with Directives",
+				input:       ` SearchResult @fromTop(to: "bottom") @fromBottom(to: "top") = Photo | Person`,
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					Arguments: document.Arguments{
+						{
+							Name: "to",
+							Value: document.Value{
+								ValueType:   document.ValueTypeString,
+								StringValue: "bottom",
+							},
+						},
+						{
+							Name: "to",
+							Value: document.Value{
+								ValueType:   document.ValueTypeString,
+								StringValue: "top",
+							},
+						},
+					},
 					Directives: document.Directives{
 						document.Directive{
-							Name: "fromTop",
-							Arguments: document.Arguments{
-								document.Argument{
-									Name: "to",
-									Value: document.StringValue{
-										Val: "bottom",
-									},
-								},
-							},
+							Name:      "fromTop",
+							Arguments: []int{0},
 						},
 						document.Directive{
-							Name: "fromBottom",
-							Arguments: document.Arguments{
-								document.Argument{
-									Name: "to",
-									Value: document.StringValue{
-										Val: "top",
-									},
-								},
+							Name:      "fromBottom",
+							Arguments: []int{1},
+						},
+					},
+					UnionTypeDefinitions: document.UnionTypeDefinitions{
+						{
+							Name:       "SearchResult",
+							Directives: []int{0, 1},
+							UnionMemberTypes: document.UnionMemberTypes{
+								"Photo",
+								"Person",
 							},
 						},
 					},
-					UnionMemberTypes: document.UnionMemberTypes{
-						"Photo",
-						"Person",
-					},
-				}),
+				}.initEmptySlices()),
 			},
 			{
-				it:        "should parse a UnionTypeDefinition with optional UnionMemberTypes",
-				input:     ` SearchResult`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.UnionTypeDefinition{
-					Name: "SearchResult",
-				}),
+				it:          "should parse a UnionTypeDefinition with optional UnionMemberTypes",
+				input:       ` SearchResult`,
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					UnionTypeDefinitions: document.UnionTypeDefinitions{
+						{
+							Name: "SearchResult",
+						},
+					},
+				}.initEmptySlices()),
 			},
 		}
 
@@ -118,9 +147,10 @@ func TestParseUnionTypeDefinition(t *testing.T) {
 				parser := NewParser()
 				parser.l.SetInput(test.input)
 
-				val, err := parser.parseUnionTypeDefinition()
+				var index []int
+				err := parser.parseUnionTypeDefinition(&index)
 				Expect(err).To(test.expectErr)
-				Expect(val).To(test.expectValues)
+
 			})
 		}
 

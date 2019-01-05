@@ -9,7 +9,7 @@ import (
 type EnumValueDefinition struct {
 	Description string
 	EnumValue   string
-	Directives  Directives
+	Directives  []int
 }
 
 // ProperCaseVal returns the EnumValueDefinition's EnumValue

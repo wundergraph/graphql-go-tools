@@ -16,10 +16,11 @@ func TestInlineFragmentParser(t *testing.T) {
 	g.Describe("parser.parseInlineFragment", func() {
 
 		tests := []struct {
-			it           string
-			input        string
-			expectErr    types.GomegaMatcher
-			expectValues types.GomegaMatcher
+			it                      string
+			input                   string
+			expectErr               types.GomegaMatcher
+			expectIndex             types.GomegaMatcher
+			expectParsedDefinitions types.GomegaMatcher
 		}{
 			{
 				it: "should parse InlineFragment with nested SelectionSets",
@@ -31,31 +32,57 @@ func TestInlineFragmentParser(t *testing.T) {
 					}
 				}
 				`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.InlineFragment{
-					TypeCondition: document.NamedType{
-						Name: "Goland",
-					},
-					SelectionSet: document.SelectionSet{
-						document.InlineFragment{
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{2}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					InlineFragments: document.InlineFragments{
+						{
+							TypeCondition: document.NamedType{
+								Name: "GoAir",
+							},
+							Directives: []int{},
+							SelectionSet: document.SelectionSet{
+								Fields:          []int{0},
+								FragmentSpreads: []int{},
+								InlineFragments: []int{},
+							},
+						},
+						{
 							TypeCondition: document.NamedType{
 								Name: "GoWater",
 							},
+							Directives: []int{},
 							SelectionSet: document.SelectionSet{
-								document.InlineFragment{
-									TypeCondition: document.NamedType{
-										Name: "GoAir",
-									},
-									SelectionSet: []document.Selection{
-										document.Field{
-											Name: "go",
-										},
-									},
-								},
+								InlineFragments: []int{0},
+								FragmentSpreads: []int{},
+								Fields:          []int{},
+							},
+						},
+						{
+							TypeCondition: document.NamedType{
+								Name: "Goland",
+							},
+							Directives: []int{},
+							SelectionSet: document.SelectionSet{
+								InlineFragments: []int{1},
+								Fields:          []int{},
+								FragmentSpreads: []int{},
 							},
 						},
 					},
-				}),
+					Fields: document.Fields{
+						{
+							Name:       "go",
+							Directives: []int{},
+							Arguments:  []int{},
+							SelectionSet: document.SelectionSet{
+								Fields:          []int{},
+								FragmentSpreads: []int{},
+								InlineFragments: []int{},
+							},
+						},
+					},
+				}.initEmptySlices()),
 			},
 		}
 
@@ -67,9 +94,15 @@ func TestInlineFragmentParser(t *testing.T) {
 				parser := NewParser()
 				parser.l.SetInput(test.input)
 
-				val, err := parser.parseInlineFragment()
+				var index []int
+				err := parser.parseInlineFragment(&index)
 				Expect(err).To(test.expectErr)
-				Expect(val).To(test.expectValues)
+				if test.expectIndex != nil {
+					Expect(index).To(test.expectIndex)
+				}
+				if test.expectParsedDefinitions != nil {
+					Expect(parser.ParsedDefinitions).To(test.expectParsedDefinitions)
+				}
 			})
 		}
 	})

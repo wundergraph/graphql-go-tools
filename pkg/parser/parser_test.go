@@ -4,13 +4,78 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/jensneuse/diffview"
-	. "github.com/onsi/gomega"
+	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/sebdah/goldie"
 	"io/ioutil"
 	"log"
+	"runtime"
 	"strings"
 	"testing"
 )
+
+func (p ParsedDefinitions) initEmptySlices() ParsedDefinitions {
+
+	if p.OperationDefinitions == nil {
+		p.OperationDefinitions = []document.OperationDefinition{}
+	}
+	if p.FragmentDefinitions == nil {
+		p.FragmentDefinitions = []document.FragmentDefinition{}
+	}
+	if p.VariableDefinitions == nil {
+		p.VariableDefinitions = []document.VariableDefinition{}
+	}
+	if p.Fields == nil {
+		p.Fields = []document.Field{}
+	}
+	if p.InlineFragments == nil {
+		p.InlineFragments = []document.InlineFragment{}
+	}
+	if p.FragmentSpreads == nil {
+		p.FragmentSpreads = []document.FragmentSpread{}
+	}
+	if p.Arguments == nil {
+		p.Arguments = []document.Argument{}
+	}
+	if p.Directives == nil {
+		p.Directives = []document.Directive{}
+	}
+	if p.EnumTypeDefinitions == nil {
+		p.EnumTypeDefinitions = []document.EnumTypeDefinition{}
+	}
+	if p.EnumValuesDefinitions == nil {
+		p.EnumValuesDefinitions = []document.EnumValueDefinition{}
+	}
+	if p.FieldDefinitions == nil {
+		p.FieldDefinitions = []document.FieldDefinition{}
+	}
+	if p.InputValueDefinitions == nil {
+		p.InputValueDefinitions = []document.InputValueDefinition{}
+	}
+	if p.InputObjectTypeDefinitions == nil {
+		p.InputObjectTypeDefinitions = []document.InputObjectTypeDefinition{}
+	}
+	if p.DirectiveDefinitions == nil {
+		p.DirectiveDefinitions = []document.DirectiveDefinition{}
+	}
+
+	if p.InterfaceTypeDefinitions == nil {
+		p.InterfaceTypeDefinitions = []document.InterfaceTypeDefinition{}
+	}
+
+	if p.ObjectTypeDefinitions == nil {
+		p.ObjectTypeDefinitions = []document.ObjectTypeDefinition{}
+	}
+
+	if p.ScalarTypeDefinitions == nil {
+		p.ScalarTypeDefinitions = []document.ScalarTypeDefinition{}
+	}
+
+	if p.UnionTypeDefinitions == nil {
+		p.UnionTypeDefinitions = []document.UnionTypeDefinition{}
+	}
+
+	return p
+}
 
 func TestParser_Starwars(t *testing.T) {
 
@@ -64,12 +129,23 @@ func TestParser_IntrospectionQuery(t *testing.T) {
 
 	parser := NewParser()
 	executableDefinition, err := parser.ParseExecutableDefinition(builder.String())
-	Expect(err).To(BeNil())
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	jsonBytes, err := json.MarshalIndent(executableDefinition, "", "  ")
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	jsonBytes = append(jsonBytes, []byte("\n\n")...)
+
+	parserData, err := json.MarshalIndent(parser, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	jsonBytes = append(jsonBytes, parserData...)
 
 	goldie.Assert(t, fixtureFileName, jsonBytes)
 	if t.Failed() {
@@ -111,4 +187,19 @@ func BenchmarkParser(b *testing.B) {
 		_ = executableDefinition
 
 	}
+
+}
+
+func PrintMemUsage() {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	// For info on each, see: https://golang.org/pkg/runtime/#MemStats
+	fmt.Printf("Alloc = %v MiB", bToMb(m.Alloc))
+	fmt.Printf("\tTotalAlloc = %v MiB", bToMb(m.TotalAlloc))
+	fmt.Printf("\tSys = %v MiB", bToMb(m.Sys))
+	fmt.Printf("\tNumGC = %v\n", m.NumGC)
+}
+
+func bToMb(b uint64) uint64 {
+	return b / 1024 / 1024
 }

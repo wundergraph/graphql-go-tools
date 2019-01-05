@@ -5,11 +5,11 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
-func (p *Parser) parseVariableDefinitions() (variableDefinitions document.VariableDefinitions, err error) {
+func (p *Parser) parseVariableDefinitions(index *[]int) (err error) {
 
 	hasVariableDefinitions, err := p.peekExpect(keyword.BRACKETOPEN, true)
 	if err != nil {
-		return variableDefinitions, err
+		return err
 	}
 
 	if !hasVariableDefinitions {
@@ -19,7 +19,7 @@ func (p *Parser) parseVariableDefinitions() (variableDefinitions document.Variab
 	for {
 		next, err := p.l.Peek(true)
 		if err != nil {
-			return variableDefinitions, err
+			return err
 		}
 
 		switch next {
@@ -27,7 +27,7 @@ func (p *Parser) parseVariableDefinitions() (variableDefinitions document.Variab
 
 			variable, err := p.l.Read()
 			if err != nil {
-				return variableDefinitions, err
+				return err
 			}
 
 			variableDefinition := document.VariableDefinition{
@@ -36,27 +36,27 @@ func (p *Parser) parseVariableDefinitions() (variableDefinitions document.Variab
 
 			_, err = p.readExpect(keyword.COLON, "parseVariableDefinitions")
 			if err != nil {
-				return variableDefinitions, err
+				return err
 			}
 
 			variableDefinition.Type, err = p.parseType()
 			if err != nil {
-				return variableDefinitions, err
+				return err
 			}
 
 			variableDefinition.DefaultValue, err = p.parseDefaultValue()
 			if err != nil {
-				return variableDefinitions, err
+				return err
 			}
 
-			variableDefinitions = append(variableDefinitions, variableDefinition)
+			*index = append(*index, p.putVariableDefinition(variableDefinition))
 
 		case keyword.BRACKETCLOSE:
 			_, err = p.l.Read()
-			return variableDefinitions, err
+			return err
 		default:
 			invalid, _ := p.l.Read()
-			return variableDefinitions, newErrInvalidType(invalid.Position, "parseVariableDefinitions", "variable/bracket close", invalid.Keyword.String())
+			return newErrInvalidType(invalid.Position, "parseVariableDefinitions", "variable/bracket close", invalid.Keyword.String())
 		}
 	}
 }

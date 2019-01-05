@@ -32,7 +32,7 @@ func (p *Parser) parseValue() (val document.Value, err error) {
 		return
 	case keyword.NULL:
 		_, err = p.l.Read()
-		val = document.NullValue{}
+		val.ValueType = document.ValueTypeNull
 		return
 	case keyword.IDENT:
 		val, err = p.parsePeekedEnumValue()
@@ -45,6 +45,6 @@ func (p *Parser) parseValue() (val document.Value, err error) {
 		return
 	default:
 		invalidToken, _ := p.l.Read()
-		return nil, newErrInvalidType(invalidToken.Position, "parseValue", fmt.Sprintf("%v", parseValuePossibleKeywords), string(invalidToken.Keyword))
+		return val, newErrInvalidType(invalidToken.Position, "parseValue", fmt.Sprintf("%v", parseValuePossibleKeywords), string(invalidToken.Keyword))
 	}
 }

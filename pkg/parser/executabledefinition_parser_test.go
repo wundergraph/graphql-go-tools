@@ -16,10 +16,11 @@ func TestExecutableDefinitionParser(t *testing.T) {
 	g.Describe("parser.parseExecutableDefinition", func() {
 
 		tests := []struct {
-			it           string
-			input        string
-			expectErr    types.GomegaMatcher
-			expectValues types.GomegaMatcher
+			it                         string
+			input                      string
+			expectErr                  types.GomegaMatcher
+			expectExecutableDefinition types.GomegaMatcher
+			expectParsedDefinitions    types.GomegaMatcher
 		}{
 			{
 				it: "should parse a simple ExecutableDefinition with OperationDefinition",
@@ -28,40 +29,60 @@ func TestExecutableDefinitionParser(t *testing.T) {
 					name
 				}`,
 				expectErr: BeNil(),
-				expectValues: Equal(document.ExecutableDefinition{
-					OperationDefinitions: document.OperationDefinitions{
+				expectExecutableDefinition: Equal(document.ExecutableDefinition{
+					OperationDefinitions: []int{0},
+					FragmentDefinitions:  []int{},
+				}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					Directives: document.Directives{
 						{
-							OperationType: document.OperationTypeQuery,
-							Name:          "allGophers",
-							VariableDefinitions: document.VariableDefinitions{
-								{
-									Variable: "color",
-									Type: document.NamedType{
-										Name: "String",
-									},
-								},
-							},
-							Directives: document.Directives{
-								document.Directive{
-									Name: "rename",
-									Arguments: document.Arguments{
-										document.Argument{
-											Name: "index",
-											Value: document.IntValue{
-												Val: 3,
-											},
-										},
-									},
-								},
-							},
-							SelectionSet: document.SelectionSet{
-								document.Field{
-									Name: "name",
-								},
+							Name:      "rename",
+							Arguments: []int{0},
+						},
+					},
+					Arguments: document.Arguments{
+						{
+							Name: "index",
+							Value: document.Value{
+								ValueType: document.ValueTypeInt,
+								IntValue:  3,
 							},
 						},
 					},
-				}),
+					VariableDefinitions: document.VariableDefinitions{
+						{
+							Variable: "color",
+							Type: document.NamedType{
+								Name: "String",
+							},
+						},
+					},
+					OperationDefinitions: document.OperationDefinitions{
+						{
+							OperationType:       document.OperationTypeQuery,
+							Name:                "allGophers",
+							VariableDefinitions: []int{0},
+							Directives:          []int{0},
+							SelectionSet: document.SelectionSet{
+								Fields:          []int{0},
+								FragmentSpreads: []int{},
+								InlineFragments: []int{},
+							},
+						},
+					},
+					Fields: document.Fields{
+						{
+							Name:       "name",
+							Directives: []int{},
+							Arguments:  []int{},
+							SelectionSet: document.SelectionSet{
+								Fields:          []int{},
+								FragmentSpreads: []int{},
+								InlineFragments: []int{},
+							},
+						},
+					},
+				}.initEmptySlices()),
 			},
 			{
 				it: "should parse a simple ExecutableDefinition with FragmentDefinition",
@@ -74,15 +95,36 @@ func TestExecutableDefinitionParser(t *testing.T) {
 				}
 				`,
 				expectErr: BeNil(),
-				expectValues: Equal(document.ExecutableDefinition{
-					OperationDefinitions: []document.OperationDefinition{
+				expectExecutableDefinition: Equal(document.ExecutableDefinition{
+					OperationDefinitions: []int{0},
+					FragmentDefinitions:  []int{0},
+				}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					Directives: document.Directives{
 						{
-							Name:          "Q1",
-							OperationType: document.OperationTypeQuery,
-							SelectionSet: []document.Selection{
-								document.Field{
-									Name: "foo",
-								},
+							Name:      "rename",
+							Arguments: []int{0},
+						},
+					},
+					Arguments: document.Arguments{
+						{
+							Name: "index",
+							Value: document.Value{
+								ValueType: document.ValueTypeInt,
+								IntValue:  3,
+							},
+						},
+					},
+					OperationDefinitions: document.OperationDefinitions{
+						{
+							Name:                "Q1",
+							OperationType:       document.OperationTypeQuery,
+							VariableDefinitions: []int{},
+							Directives:          []int{},
+							SelectionSet: document.SelectionSet{
+								Fields:          []int{1},
+								InlineFragments: []int{},
+								FragmentSpreads: []int{},
 							},
 						},
 					},
@@ -92,27 +134,37 @@ func TestExecutableDefinitionParser(t *testing.T) {
 							TypeCondition: document.NamedType{
 								Name: "SomeType",
 							},
-							Directives: document.Directives{
-								document.Directive{
-									Name: "rename",
-									Arguments: document.Arguments{
-										document.Argument{
-											Name: "index",
-											Value: document.IntValue{
-												Val: 3,
-											},
-										},
-									},
-								},
-							},
+							Directives: []int{0},
 							SelectionSet: document.SelectionSet{
-								document.Field{
-									Name: "name",
-								},
+								Fields:          []int{0},
+								FragmentSpreads: []int{},
+								InlineFragments: []int{},
 							},
 						},
 					},
-				}),
+					Fields: document.Fields{
+						{
+							Name:       "name",
+							Directives: []int{},
+							Arguments:  []int{},
+							SelectionSet: document.SelectionSet{
+								Fields:          []int{},
+								FragmentSpreads: []int{},
+								InlineFragments: []int{},
+							},
+						},
+						{
+							Name:       "foo",
+							Directives: []int{},
+							Arguments:  []int{},
+							SelectionSet: document.SelectionSet{
+								Fields:          []int{},
+								FragmentSpreads: []int{},
+								InlineFragments: []int{},
+							},
+						},
+					},
+				}.initEmptySlices()),
 			},
 			{
 				it: "should parse a ExecutableDefinition with multiple elements",
@@ -127,44 +179,72 @@ func TestExecutableDefinitionParser(t *testing.T) {
 
 				`,
 				expectErr: BeNil(),
-				expectValues: Equal(document.ExecutableDefinition{
+				expectExecutableDefinition: Equal(document.ExecutableDefinition{
+					OperationDefinitions: []int{0, 1},
+					FragmentDefinitions:  []int{},
+				}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
 					OperationDefinitions: document.OperationDefinitions{
 						{
-							OperationType: document.OperationTypeQuery,
-							Name:          "allGophers",
-							VariableDefinitions: document.VariableDefinitions{
-								{
-									Variable: "color",
-									Type: document.NamedType{
-										Name: "String",
-									},
-								},
-							},
+							OperationType:       document.OperationTypeQuery,
+							Name:                "allGophers",
+							VariableDefinitions: []int{0},
+							Directives:          []int{},
 							SelectionSet: document.SelectionSet{
-								document.Field{
-									Name: "name",
-								},
+								Fields:          []int{0},
+								InlineFragments: []int{},
+								FragmentSpreads: []int{},
 							},
 						},
 						{
-							OperationType: document.OperationTypeQuery,
-							Name:          "allGophinas",
-							VariableDefinitions: document.VariableDefinitions{
-								{
-									Variable: "color",
-									Type: document.NamedType{
-										Name: "String",
-									},
-								},
-							},
+							OperationType:       document.OperationTypeQuery,
+							Name:                "allGophinas",
+							VariableDefinitions: []int{1},
+							Directives:          []int{},
 							SelectionSet: document.SelectionSet{
-								document.Field{
-									Name: "name",
-								},
+								Fields:          []int{1},
+								FragmentSpreads: []int{},
+								InlineFragments: []int{},
 							},
 						},
 					},
-				}),
+					VariableDefinitions: document.VariableDefinitions{
+						{
+							Variable: "color",
+							Type: document.NamedType{
+								Name: "String",
+							},
+						},
+						{
+							Variable: "color",
+							Type: document.NamedType{
+								Name: "String",
+							},
+						},
+					},
+					Fields: document.Fields{
+						{
+							Name:       "name",
+							Directives: []int{},
+							Arguments:  []int{},
+							SelectionSet: document.SelectionSet{
+								Fields:          []int{},
+								FragmentSpreads: []int{},
+								InlineFragments: []int{},
+							},
+						},
+						{
+							Name:       "name",
+							Directives: []int{},
+							Arguments:  []int{},
+							SelectionSet: document.SelectionSet{
+								Fields:          []int{},
+								FragmentSpreads: []int{},
+								InlineFragments: []int{},
+							},
+						},
+					},
+				}.initEmptySlices()),
 			},
 			{
 				it: "should parse a ExecutableDefinition with multiple elements of different types",
@@ -183,40 +263,63 @@ func TestExecutableDefinitionParser(t *testing.T) {
 
 				`,
 				expectErr: BeNil(),
-				expectValues: Equal(document.ExecutableDefinition{
+				expectExecutableDefinition: Equal(document.ExecutableDefinition{
+					OperationDefinitions: []int{0, 1},
+					FragmentDefinitions:  []int{0},
+				}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					FragmentSpreads: document.FragmentSpreads{},
+					InlineFragments: document.InlineFragments{},
+					Arguments: document.Arguments{
+						{
+							Name: "index",
+							Value: document.Value{
+								ValueType: document.ValueTypeInt,
+								IntValue:  3,
+							},
+						},
+					},
+					Directives: document.Directives{
+						{
+							Name:      "rename",
+							Arguments: []int{0},
+						},
+					},
 					OperationDefinitions: document.OperationDefinitions{
 						{
-							OperationType: document.OperationTypeQuery,
-							Name:          "allGophers",
-							VariableDefinitions: document.VariableDefinitions{
-								{
-									Variable: "color",
-									Type: document.NamedType{
-										Name: "String",
-									},
-								},
-							},
+							OperationType:       document.OperationTypeQuery,
+							Name:                "allGophers",
+							VariableDefinitions: []int{0},
+							Directives:          []int{},
 							SelectionSet: document.SelectionSet{
-								document.Field{
-									Name: "name",
-								},
+								Fields:          []int{0},
+								InlineFragments: []int{},
+								FragmentSpreads: []int{},
 							},
 						},
 						{
-							OperationType: document.OperationTypeQuery,
-							Name:          "allGophinas",
-							VariableDefinitions: document.VariableDefinitions{
-								{
-									Variable: "color",
-									Type: document.NamedType{
-										Name: "String",
-									},
-								},
-							},
+							OperationType:       document.OperationTypeQuery,
+							Name:                "allGophinas",
+							VariableDefinitions: []int{1},
+							Directives:          []int{},
 							SelectionSet: document.SelectionSet{
-								document.Field{
-									Name: "name",
-								},
+								Fields:          []int{2},
+								FragmentSpreads: []int{},
+								InlineFragments: []int{},
+							},
+						},
+					},
+					VariableDefinitions: document.VariableDefinitions{
+						{
+							Variable: "color",
+							Type: document.NamedType{
+								Name: "String",
+							},
+						},
+						{
+							Variable: "color",
+							Type: document.NamedType{
+								Name: "String",
 							},
 						},
 					},
@@ -226,27 +329,47 @@ func TestExecutableDefinitionParser(t *testing.T) {
 							TypeCondition: document.NamedType{
 								Name: "SomeType",
 							},
-							Directives: document.Directives{
-								document.Directive{
-									Name: "rename",
-									Arguments: document.Arguments{
-										document.Argument{
-											Name: "index",
-											Value: document.IntValue{
-												Val: 3,
-											},
-										},
-									},
-								},
-							},
+							Directives: []int{0},
 							SelectionSet: document.SelectionSet{
-								document.Field{
-									Name: "name",
-								},
+								Fields:          []int{1},
+								InlineFragments: []int{},
+								FragmentSpreads: []int{},
 							},
 						},
 					},
-				}),
+					Fields: document.Fields{
+						{
+							Name:       "name",
+							Directives: []int{},
+							Arguments:  []int{},
+							SelectionSet: document.SelectionSet{
+								Fields:          []int{},
+								FragmentSpreads: []int{},
+								InlineFragments: []int{},
+							},
+						},
+						{
+							Name:       "name",
+							Directives: []int{},
+							Arguments:  []int{},
+							SelectionSet: document.SelectionSet{
+								Fields:          []int{},
+								FragmentSpreads: []int{},
+								InlineFragments: []int{},
+							},
+						},
+						{
+							Name:       "name",
+							Directives: []int{},
+							Arguments:  []int{},
+							SelectionSet: document.SelectionSet{
+								Fields:          []int{},
+								FragmentSpreads: []int{},
+								InlineFragments: []int{},
+							},
+						},
+					},
+				}.initEmptySlices()),
 			},
 			{
 				it: "should not parse a ExecutableDefinition without a known identifier",
@@ -254,8 +377,11 @@ func TestExecutableDefinitionParser(t *testing.T) {
 				Barry allGophers($color: String)@rename(index: 3) {
 					name
 				}`,
-				expectErr:    Not(BeNil()),
-				expectValues: Equal(document.ExecutableDefinition{}),
+				expectErr: HaveOccurred(),
+				expectExecutableDefinition: Equal(document.ExecutableDefinition{
+					FragmentDefinitions:  []int{},
+					OperationDefinitions: []int{},
+				}),
 			},
 			{
 				it: "should parse an ExecutableDefinition with inline and spread Fragments",
@@ -282,20 +408,22 @@ func TestExecutableDefinitionParser(t *testing.T) {
 				}
 				`,
 				expectErr: BeNil(),
-				expectValues: Equal(document.ExecutableDefinition{
+				expectExecutableDefinition: Equal(document.ExecutableDefinition{
+					OperationDefinitions: []int{0},
+					FragmentDefinitions:  []int{0, 1},
+				}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					VariableDefinitions: document.VariableDefinitions{},
 					OperationDefinitions: document.OperationDefinitions{
 						{
-							Name:          "QueryWithFragments",
-							OperationType: document.OperationTypeQuery,
+							Name:                "QueryWithFragments",
+							OperationType:       document.OperationTypeQuery,
+							Directives:          []int{},
+							VariableDefinitions: []int{},
 							SelectionSet: document.SelectionSet{
-								document.Field{
-									Name: "hero",
-									SelectionSet: document.SelectionSet{
-										document.FragmentSpread{
-											FragmentName: "heroFields",
-										},
-									},
-								},
+								Fields:          []int{0},
+								FragmentSpreads: []int{},
+								InlineFragments: []int{},
 							},
 						},
 					},
@@ -305,28 +433,11 @@ func TestExecutableDefinitionParser(t *testing.T) {
 							TypeCondition: document.NamedType{
 								Name: "SuperHero",
 							},
+							Directives: []int{},
 							SelectionSet: document.SelectionSet{
-								document.Field{
-									Name: "name",
-								},
-								document.Field{
-									Name: "skill",
-								},
-								document.InlineFragment{
-									TypeCondition: document.NamedType{
-										Name: "DrivingSuperHero",
-									},
-									SelectionSet: document.SelectionSet{
-										document.Field{
-											Name: "vehicles",
-											SelectionSet: document.SelectionSet{
-												document.FragmentSpread{
-													FragmentName: "vehicleFields",
-												},
-											},
-										},
-									},
-								},
+								Fields:          []int{1, 2},
+								InlineFragments: []int{0},
+								FragmentSpreads: []int{},
 							},
 						},
 						{
@@ -334,42 +445,155 @@ func TestExecutableDefinitionParser(t *testing.T) {
 							TypeCondition: document.NamedType{
 								Name: "Vehicle",
 							},
+							Directives: []int{},
 							SelectionSet: document.SelectionSet{
-								document.Field{
-									Name: "name",
-								},
-								document.Field{
-									Name: "weapon",
-								},
+								Fields:          []int{4, 5},
+								FragmentSpreads: []int{},
+								InlineFragments: []int{},
 							},
 						},
 					},
-				}),
+					Fields: document.Fields{
+						{
+							Name:       "hero",
+							Arguments:  []int{},
+							Directives: []int{},
+							SelectionSet: document.SelectionSet{
+								FragmentSpreads: []int{0},
+								InlineFragments: []int{},
+								Fields:          []int{},
+							},
+						},
+						{
+							Name:       "name",
+							Arguments:  []int{},
+							Directives: []int{},
+							SelectionSet: document.SelectionSet{
+								Fields:          []int{},
+								FragmentSpreads: []int{},
+								InlineFragments: []int{},
+							},
+						},
+						{
+							Name:       "skill",
+							Arguments:  []int{},
+							Directives: []int{},
+							SelectionSet: document.SelectionSet{
+								Fields:          []int{},
+								FragmentSpreads: []int{},
+								InlineFragments: []int{},
+							},
+						},
+						{
+							Name:       "vehicles",
+							Arguments:  []int{},
+							Directives: []int{},
+							SelectionSet: document.SelectionSet{
+								FragmentSpreads: []int{1},
+								Fields:          []int{},
+								InlineFragments: []int{},
+							},
+						},
+						{
+							Name:       "name",
+							Arguments:  []int{},
+							Directives: []int{},
+							SelectionSet: document.SelectionSet{
+								Fields:          []int{},
+								FragmentSpreads: []int{},
+								InlineFragments: []int{},
+							},
+						},
+						{
+							Name:       "weapon",
+							Arguments:  []int{},
+							Directives: []int{},
+							SelectionSet: document.SelectionSet{
+								Fields:          []int{},
+								FragmentSpreads: []int{},
+								InlineFragments: []int{},
+							},
+						},
+					},
+					FragmentSpreads: document.FragmentSpreads{
+						{
+							FragmentName: "heroFields",
+							Directives:   []int{},
+						},
+						{
+							FragmentName: "vehicleFields",
+							Directives:   []int{},
+						},
+					},
+					InlineFragments: document.InlineFragments{
+						{
+							TypeCondition: document.NamedType{
+								Name: "DrivingSuperHero",
+							},
+							Directives: []int{},
+							SelectionSet: document.SelectionSet{
+								Fields:          []int{3},
+								InlineFragments: []int{},
+								FragmentSpreads: []int{},
+							},
+						},
+					},
+				}.initEmptySlices()),
 			},
 			{
 				it:        "should parse query with escaped line terminators",
 				input:     "{\n  hero {\n    id\n    name\n  }\n}\n",
 				expectErr: BeNil(),
-				expectValues: Equal(document.ExecutableDefinition{
-					OperationDefinitions: []document.OperationDefinition{
+				expectExecutableDefinition: Equal(document.ExecutableDefinition{
+					OperationDefinitions: []int{0},
+					FragmentDefinitions:  []int{},
+				}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					OperationDefinitions: document.OperationDefinitions{
 						{
-							OperationType: document.OperationTypeQuery,
-							SelectionSet: []document.Selection{
-								document.Field{
-									Name: "hero",
-									SelectionSet: []document.Selection{
-										document.Field{
-											Name: "id",
-										},
-										document.Field{
-											Name: "name",
-										},
-									},
-								},
+							OperationType:       document.OperationTypeQuery,
+							Directives:          []int{},
+							VariableDefinitions: []int{},
+							SelectionSet: document.SelectionSet{
+								Fields:          []int{2},
+								FragmentSpreads: []int{},
+								InlineFragments: []int{},
 							},
 						},
 					},
-				}),
+					Fields: document.Fields{
+						{
+							Name:       "id",
+							Arguments:  []int{},
+							Directives: []int{},
+							SelectionSet: document.SelectionSet{
+								Fields:          []int{},
+								FragmentSpreads: []int{},
+								InlineFragments: []int{},
+							},
+						},
+						{
+							Name:       "name",
+							Arguments:  []int{},
+							Directives: []int{},
+							SelectionSet: document.SelectionSet{
+								Fields:          []int{},
+								FragmentSpreads: []int{},
+								InlineFragments: []int{},
+							},
+						},
+						{
+							Name:       "hero",
+							Arguments:  []int{},
+							Directives: []int{},
+							SelectionSet: document.SelectionSet{
+								Fields:          []int{0, 1},
+								InlineFragments: []int{},
+								FragmentSpreads: []int{},
+							},
+						},
+					},
+				}.initEmptySlices()),
 			},
 		}
 
@@ -383,7 +607,10 @@ func TestExecutableDefinitionParser(t *testing.T) {
 
 				val, err := parser.parseExecutableDefinition()
 				Expect(err).To(test.expectErr)
-				Expect(val).To(test.expectValues)
+				Expect(val).To(test.expectExecutableDefinition)
+				if test.expectParsedDefinitions != nil {
+					Expect(parser.ParsedDefinitions).To(test.expectParsedDefinitions)
+				}
 			})
 		}
 	})

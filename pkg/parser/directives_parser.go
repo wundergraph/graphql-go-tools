@@ -5,39 +5,39 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
-func (p *Parser) parseDirectives() (directives document.Directives, err error) {
+func (p *Parser) parseDirectives(index *[]int) error {
 
 	for {
 		next, err := p.l.Peek(true)
 		if err != nil {
-			return directives, err
+			return err
 		}
 
 		if next == keyword.AT {
 
 			_, err = p.l.Read()
 			if err != nil {
-				return directives, err
+				return err
 			}
 
 			ident, err := p.readExpect(keyword.IDENT, "parseDirectives")
 			if err != nil {
-				return directives, err
+				return err
 			}
 
 			directive := document.Directive{
 				Name: ident.Literal,
 			}
 
-			directive.Arguments, err = p.parseArguments()
+			err = p.parseArguments(&directive.Arguments)
 			if err != nil {
-				return directives, err
+				return err
 			}
 
-			directives = append(directives, directive)
+			*index = append(*index, p.putDirective(directive))
 
 		} else {
-			return directives, err
+			return err
 		}
 	}
 }

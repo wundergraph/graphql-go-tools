@@ -16,28 +16,37 @@ func TestInputObjectTypeDefinitionParser(t *testing.T) {
 	g.Describe("parser.parseInputObjectTypeDefinition", func() {
 
 		tests := []struct {
-			it           string
-			input        string
-			expectErr    types.GomegaMatcher
-			expectValues types.GomegaMatcher
+			it                      string
+			input                   string
+			expectErr               types.GomegaMatcher
+			expectIndex             types.GomegaMatcher
+			expectParsedDefinitions types.GomegaMatcher
 		}{
 			{
 				it: "should parse a simple InputObjectTypeDefinition",
 				input: `Person {
 					name: String
 				}`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.InputObjectTypeDefinition{
-					Name: "Person",
-					InputFieldsDefinition: document.InputFieldsDefinition{
-						document.InputValueDefinition{
-							Name: "name",
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					InputObjectTypeDefinitions: document.InputObjectTypeDefinitions{
+						{
+							Name:                  "Person",
+							InputFieldsDefinition: []int{0},
+							Directives:            []int{},
+						},
+					},
+					InputValueDefinitions: document.InputValueDefinitions{
+						{
+							Name:       "name",
+							Directives: []int{},
 							Type: document.NamedType{
 								Name: "String",
 							},
 						},
 					},
-				}),
+				}.initEmptySlices()),
 			},
 			{
 				it: "should parse an InputObjectTypeDefinition with multiple InputValueDefinition",
@@ -45,12 +54,20 @@ func TestInputObjectTypeDefinitionParser(t *testing.T) {
 					name: [String]!
 					age: [ Int ]
 				}`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.InputObjectTypeDefinition{
-					Name: "Person",
-					InputFieldsDefinition: document.InputFieldsDefinition{
-						document.InputValueDefinition{
-							Name: "name",
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					InputObjectTypeDefinitions: document.InputObjectTypeDefinitions{
+						{
+							Name:                  "Person",
+							InputFieldsDefinition: []int{0, 1},
+							Directives:            []int{},
+						},
+					},
+					InputValueDefinitions: document.InputValueDefinitions{
+						{
+							Name:       "name",
+							Directives: []int{},
 							Type: document.ListType{
 								Type: document.NamedType{
 									Name: "String",
@@ -58,8 +75,9 @@ func TestInputObjectTypeDefinitionParser(t *testing.T) {
 								NonNull: true,
 							},
 						},
-						document.InputValueDefinition{
-							Name: "age",
+						{
+							Name:       "age",
+							Directives: []int{},
 							Type: document.ListType{
 								Type: document.NamedType{
 									Name: "Int",
@@ -67,78 +85,106 @@ func TestInputObjectTypeDefinitionParser(t *testing.T) {
 							},
 						},
 					},
-				}),
+				}.initEmptySlices()),
 			},
 			{
 				it: "should parse a simple InputObjectTypeDefinition containing a DefaultValue",
 				input: `Person {
 					name: String = "Gophina"
 				}`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.InputObjectTypeDefinition{
-					Name: "Person",
-					InputFieldsDefinition: document.InputFieldsDefinition{
-						document.InputValueDefinition{
-							Name: "name",
-							DefaultValue: document.StringValue{
-								Val: "Gophina",
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					InputObjectTypeDefinitions: document.InputObjectTypeDefinitions{
+						{
+							Name:                  "Person",
+							InputFieldsDefinition: []int{0},
+							Directives:            []int{},
+						},
+					},
+					InputValueDefinitions: document.InputValueDefinitions{
+						{
+							Name:       "name",
+							Directives: []int{},
+							DefaultValue: document.Value{
+								ValueType:   document.ValueTypeString,
+								StringValue: "Gophina",
 							},
 							Type: document.NamedType{
 								Name: "String",
 							},
 						},
 					},
-				}),
+				}.initEmptySlices()),
 			},
 			{
-				it:        "should parse an InputObjectTypeDefinition with optional InputFieldsDefinition",
-				input:     `Person `,
-				expectErr: BeNil(),
-				expectValues: Equal(document.InputObjectTypeDefinition{
-					Name: "Person",
-				}),
+				it:          "should parse an InputObjectTypeDefinition with optional InputValueDefinitions",
+				input:       `Person `,
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					InputObjectTypeDefinitions: document.InputObjectTypeDefinitions{
+						{
+							Name:                  "Person",
+							Directives:            []int{},
+							InputFieldsDefinition: []int{},
+						},
+					},
+					InputValueDefinitions: document.InputValueDefinitions{},
+				}.initEmptySlices()),
 			},
 			{
 				it: "should parse an InputObjectTypeDefinition with Directives",
 				input: `Person @fromTop(to: "bottom") @fromBottom(to: "top"){
 					name: String
 				}`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.InputObjectTypeDefinition{
-					Name: "Person",
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					InputObjectTypeDefinitions: document.InputObjectTypeDefinitions{
+						{
+							Name:                  "Person",
+							Directives:            []int{0, 1},
+							InputFieldsDefinition: []int{0},
+						},
+					},
 					Directives: document.Directives{
 						document.Directive{
-							Name: "fromTop",
-							Arguments: document.Arguments{
-								document.Argument{
-									Name: "to",
-									Value: document.StringValue{
-										Val: "bottom",
-									},
-								},
-							},
+							Name:      "fromTop",
+							Arguments: []int{0},
 						},
 						document.Directive{
-							Name: "fromBottom",
-							Arguments: document.Arguments{
-								document.Argument{
-									Name: "to",
-									Value: document.StringValue{
-										Val: "top",
-									},
-								},
+							Name:      "fromBottom",
+							Arguments: []int{1},
+						},
+					},
+					EnumValuesDefinitions: document.EnumValueDefinitions{},
+					Arguments: document.Arguments{
+						{
+							Name: "to",
+							Value: document.Value{
+								ValueType:   document.ValueTypeString,
+								StringValue: "bottom",
+							},
+						},
+						{
+							Name: "to",
+							Value: document.Value{
+								ValueType:   document.ValueTypeString,
+								StringValue: "top",
 							},
 						},
 					},
-					InputFieldsDefinition: document.InputFieldsDefinition{
-						document.InputValueDefinition{
-							Name: "name",
+					InputValueDefinitions: document.InputValueDefinitions{
+						{
+							Name:       "name",
+							Directives: []int{},
 							Type: document.NamedType{
 								Name: "String",
 							},
 						},
 					},
-				}),
+				}.initEmptySlices()),
 			},
 		}
 
@@ -150,9 +196,15 @@ func TestInputObjectTypeDefinitionParser(t *testing.T) {
 				parser := NewParser()
 				parser.l.SetInput(test.input)
 
-				val, err := parser.parseInputObjectTypeDefinition()
+				var index []int
+				err := parser.parseInputObjectTypeDefinition(&index)
 				Expect(err).To(test.expectErr)
-				Expect(val).To(test.expectValues)
+				if test.expectIndex != nil {
+					Expect(index).To(test.expectIndex)
+				}
+				if test.expectParsedDefinitions != nil {
+					Expect(parser.ParsedDefinitions).To(test.expectParsedDefinitions)
+				}
 			})
 		}
 	})

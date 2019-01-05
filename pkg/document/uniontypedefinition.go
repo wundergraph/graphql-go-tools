@@ -6,7 +6,7 @@ type UnionTypeDefinition struct {
 	Description      string
 	Name             string
 	UnionMemberTypes UnionMemberTypes
-	Directives       Directives
+	Directives       []int
 }
 
 // GroupingFuncName returns a name to name a function after. Example:

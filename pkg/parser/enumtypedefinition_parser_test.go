@@ -15,10 +15,11 @@ func TestParseEnumTypeDefinition(t *testing.T) {
 
 	g.Describe("parseEnumTypeDefinition", func() {
 		tests := []struct {
-			it           string
-			input        string
-			expectErr    types.GomegaMatcher
-			expectValues types.GomegaMatcher
+			it                      string
+			input                   string
+			expectErr               types.GomegaMatcher
+			expectIndex             types.GomegaMatcher
+			expectParsedDefinitions types.GomegaMatcher
 		}{
 
 			{
@@ -29,24 +30,35 @@ func TestParseEnumTypeDefinition(t *testing.T) {
   SOUTH
   WEST
 }`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.EnumTypeDefinition{
-					Name: "Direction",
-					EnumValuesDefinition: document.EnumValuesDefinition{
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					EnumValuesDefinitions: document.EnumValueDefinitions{
 						{
-							EnumValue: "NORTH",
+							EnumValue:  "NORTH",
+							Directives: []int{},
 						},
 						{
-							EnumValue: "EAST",
+							EnumValue:  "EAST",
+							Directives: []int{},
 						},
 						{
-							EnumValue: "SOUTH",
+							EnumValue:  "SOUTH",
+							Directives: []int{},
 						},
 						{
-							EnumValue: "WEST",
+							EnumValue:  "WEST",
+							Directives: []int{},
 						},
 					},
-				}),
+					EnumTypeDefinitions: document.EnumTypeDefinitions{
+						{
+							Name:                 "Direction",
+							EnumValuesDefinition: []int{0, 1, 2, 3},
+							Directives:           []int{},
+						},
+					},
+				}.initEmptySlices()),
 			},
 			{
 				it: "should parse EnumTypeDefinition with descriptions",
@@ -60,28 +72,39 @@ func TestParseEnumTypeDefinition(t *testing.T) {
   "describes west"
   WEST
 }`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.EnumTypeDefinition{
-					Name: "Direction",
-					EnumValuesDefinition: document.EnumValuesDefinition{
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					EnumValuesDefinitions: document.EnumValueDefinitions{
 						{
 							Description: "describes north",
 							EnumValue:   "NORTH",
+							Directives:  []int{},
 						},
 						{
 							Description: "describes east",
 							EnumValue:   "EAST",
+							Directives:  []int{},
 						},
 						{
 							Description: "describes south",
 							EnumValue:   "SOUTH",
+							Directives:  []int{},
 						},
 						{
 							Description: "describes west",
 							EnumValue:   "WEST",
+							Directives:  []int{},
 						},
 					},
-				}),
+					EnumTypeDefinitions: document.EnumTypeDefinitions{
+						{
+							Name:                 "Direction",
+							EnumValuesDefinition: []int{0, 1, 2, 3},
+							Directives:           []int{},
+						},
+					},
+				}.initEmptySlices()),
 			},
 			{
 				it: "should parse EnumTypeDefinition with descriptions, spaces and empty lines",
@@ -98,75 +121,103 @@ func TestParseEnumTypeDefinition(t *testing.T) {
   "describes west"
   WEST
 }`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.EnumTypeDefinition{
-					Name: "Direction",
-					EnumValuesDefinition: document.EnumValuesDefinition{
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					EnumValuesDefinitions: document.EnumValueDefinitions{
 						{
 							Description: "describes north",
 							EnumValue:   "NORTH",
+							Directives:  []int{},
 						},
 						{
 							Description: "describes east",
 							EnumValue:   "EAST",
+							Directives:  []int{},
 						},
 						{
 							Description: "describes south",
 							EnumValue:   "SOUTH",
+							Directives:  []int{},
 						},
 						{
 							Description: "describes west",
 							EnumValue:   "WEST",
+							Directives:  []int{},
 						},
 					},
-				}),
+					EnumTypeDefinitions: document.EnumTypeDefinitions{
+						{
+							Name:                 "Direction",
+							EnumValuesDefinition: []int{0, 1, 2, 3},
+							Directives:           []int{},
+						},
+					},
+				}.initEmptySlices()),
 			},
 			{
 				it: "should parse EnumTypeDefinition with Directives",
 				input: ` Direction @fromTop(to: "bottom") @fromBottom(to: "top"){
   NORTH
 }`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.EnumTypeDefinition{
-					Name: "Direction",
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					Arguments: document.Arguments{
+						{
+							Name: "to",
+							Value: document.Value{
+								ValueType:   document.ValueTypeString,
+								StringValue: "bottom",
+							},
+						},
+						{
+							Name: "to",
+							Value: document.Value{
+								ValueType:   document.ValueTypeString,
+								StringValue: "top",
+							},
+						},
+					},
 					Directives: document.Directives{
 						document.Directive{
-							Name: "fromTop",
-							Arguments: document.Arguments{
-								document.Argument{
-									Name: "to",
-									Value: document.StringValue{
-										Val: "bottom",
-									},
-								},
-							},
+							Name:      "fromTop",
+							Arguments: []int{0},
 						},
 						document.Directive{
-							Name: "fromBottom",
-							Arguments: document.Arguments{
-								document.Argument{
-									Name: "to",
-									Value: document.StringValue{
-										Val: "top",
-									},
-								},
-							},
+							Name:      "fromBottom",
+							Arguments: []int{1},
 						},
 					},
-					EnumValuesDefinition: document.EnumValuesDefinition{
+					EnumValuesDefinitions: document.EnumValueDefinitions{
 						{
-							EnumValue: "NORTH",
+							EnumValue:  "NORTH",
+							Directives: []int{},
 						},
 					},
-				}),
+					EnumTypeDefinitions: document.EnumTypeDefinitions{
+						{
+							Name:                 "Direction",
+							Directives:           []int{0, 1},
+							EnumValuesDefinition: []int{0},
+						},
+					},
+				}.initEmptySlices()),
 			},
 			{
-				it:        "should parse a EnumTypeDefinition with optional EnumValuesDefinition",
-				input:     ` Direction`,
-				expectErr: BeNil(),
-				expectValues: Equal(document.EnumTypeDefinition{
-					Name: "Direction",
-				}),
+				it:          "should parse a EnumTypeDefinition with optional EnumValueDefinitions",
+				input:       ` Direction`,
+				expectErr:   BeNil(),
+				expectIndex: Equal([]int{0}),
+				expectParsedDefinitions: Equal(ParsedDefinitions{
+					EnumTypeDefinitions: document.EnumTypeDefinitions{
+						{
+							Name:                 "Direction",
+							Directives:           []int{},
+							EnumValuesDefinition: []int{},
+						},
+					},
+				}.initEmptySlices()),
 			},
 		}
 
@@ -178,9 +229,15 @@ func TestParseEnumTypeDefinition(t *testing.T) {
 				parser := NewParser()
 				parser.l.SetInput(test.input)
 
-				val, err := parser.parseEnumTypeDefinition()
+				index := []int{}
+				err := parser.parseEnumTypeDefinition(&index)
 				Expect(err).To(test.expectErr)
-				Expect(val).To(test.expectValues)
+				if test.expectIndex != nil {
+					Expect(index).To(test.expectIndex)
+				}
+				if test.expectParsedDefinitions != nil {
+					Expect(parser.ParsedDefinitions).To(test.expectParsedDefinitions)
+				}
 			})
 		}
 	})

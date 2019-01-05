@@ -1,5 +1,5 @@
 package document
 
-// EnumValuesDefinition as specified in:
+// EnumValueDefinitions as specified in:
 // http://facebook.github.io/graphql/draft/#EnumValuesDefinition
-type EnumValuesDefinition []EnumValueDefinition
+type EnumValueDefinitions []EnumValueDefinition

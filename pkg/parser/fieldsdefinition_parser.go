@@ -1,15 +1,14 @@
 package parser
 
 import (
-	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
-func (p *Parser) parseFieldsDefinition() (fieldsDefinition document.FieldsDefinition, err error) {
+func (p *Parser) parseFieldsDefinition(index *[]int) (err error) {
 
 	hasSubFields, err := p.peekExpect(keyword.CURLYBRACKETOPEN, true)
 	if err != nil {
-		return fieldsDefinition, err
+		return err
 	}
 
 	if !hasSubFields {
@@ -21,59 +20,58 @@ func (p *Parser) parseFieldsDefinition() (fieldsDefinition document.FieldsDefini
 	for {
 		next, err := p.l.Peek(true)
 		if err != nil {
-			return fieldsDefinition, err
+			return err
 		}
 
 		switch next {
 		case keyword.STRING:
 			stringToken, err := p.l.Read()
 			if err != nil {
-				return fieldsDefinition, err
+				return err
 			}
 
 			description = stringToken.Literal
 
 		case keyword.CURLYBRACKETCLOSE:
 			_, err = p.l.Read()
-			return fieldsDefinition, err
+			return err
 		case keyword.IDENT, keyword.TYPE:
 
 			fieldIdent, err := p.l.Read()
 			if err != nil {
-				return fieldsDefinition, err
+				return err
 			}
 
-			fieldDefinition := document.FieldDefinition{
-				Description: description,
-				Name:        fieldIdent.Literal,
-			}
+			definition := p.makeFieldDefinition()
+			definition.Description = description
+			definition.Name = fieldIdent.Literal
 
 			description = ""
 
-			fieldDefinition.ArgumentsDefinition, err = p.parseArgumentsDefinition()
+			err = p.parseArgumentsDefinition(&definition.ArgumentsDefinition)
 			if err != nil {
-				return fieldsDefinition, err
+				return err
 			}
 
 			_, err = p.readExpect(keyword.COLON, "parseFieldsDefinition")
 			if err != nil {
-				return fieldsDefinition, err
+				return err
 			}
 
-			fieldDefinition.Type, err = p.parseType()
+			definition.Type, err = p.parseType()
 			if err != nil {
-				return fieldsDefinition, err
+				return err
 			}
 
-			fieldDefinition.Directives, err = p.parseDirectives()
+			err = p.parseDirectives(&definition.Directives)
 			if err != nil {
-				return fieldsDefinition, err
+				return err
 			}
 
-			fieldsDefinition = append(fieldsDefinition, fieldDefinition)
+			*index = append(*index, p.putFieldDefinition(definition))
 		default:
 			invalid, _ := p.l.Read()
-			return fieldsDefinition, newErrInvalidType(invalid.Position, "parseFieldsDefinition", "string/curly bracket close/ident", invalid.Keyword.String())
+			return newErrInvalidType(invalid.Position, "parseFieldsDefinition", "string/curly bracket close/ident", invalid.Keyword.String())
 		}
 	}
 }

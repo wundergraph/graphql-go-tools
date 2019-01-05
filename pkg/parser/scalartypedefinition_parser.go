@@ -1,20 +1,26 @@
 package parser
 
 import (
-	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
-func (p *Parser) parseScalarTypeDefinition() (scalarTypeDefinition document.ScalarTypeDefinition, err error) {
+func (p *Parser) parseScalarTypeDefinition(index *[]int) error {
 
 	scalar, err := p.readExpect(keyword.IDENT, "parseScalarTypeDefinition")
 	if err != nil {
-		return
+		return err
 	}
 
-	scalarTypeDefinition.Name = scalar.Literal
+	definition := p.makeScalarTypeDefinition()
 
-	scalarTypeDefinition.Directives, err = p.parseDirectives()
+	definition.Name = scalar.Literal
 
-	return
+	err = p.parseDirectives(&definition.Directives)
+	if err != nil {
+		return err
+	}
+
+	*index = append(*index, p.putScalarTypeDefinition(definition))
+
+	return nil
 }

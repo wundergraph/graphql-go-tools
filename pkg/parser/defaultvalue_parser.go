@@ -5,7 +5,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
-func (p *Parser) parseDefaultValue() (val document.DefaultValue, err error) {
+func (p *Parser) parseDefaultValue() (val document.Value, err error) {
 
 	hasDefaultValue, err := p.peekExpect(keyword.EQUALS, true)
 	if err != nil {
