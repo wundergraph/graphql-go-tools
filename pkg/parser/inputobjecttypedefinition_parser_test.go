@@ -19,8 +19,8 @@ func TestInputObjectTypeDefinitionParser(t *testing.T) {
 			it                      string
 			input                   string
 			expectErr               types.GomegaMatcher
-			expectIndex             types.GomegaMatcher
 			expectParsedDefinitions types.GomegaMatcher
+			expectIndex             types.GomegaMatcher
 		}{
 			{
 				it: "should parse a simple InputObjectTypeDefinition",
@@ -32,7 +32,7 @@ func TestInputObjectTypeDefinitionParser(t *testing.T) {
 				expectParsedDefinitions: Equal(ParsedDefinitions{
 					InputObjectTypeDefinitions: document.InputObjectTypeDefinitions{
 						{
-							Name:                  "Person",
+							Name: "Person",
 							InputFieldsDefinition: []int{0},
 							Directives:            []int{},
 						},
@@ -59,7 +59,7 @@ func TestInputObjectTypeDefinitionParser(t *testing.T) {
 				expectParsedDefinitions: Equal(ParsedDefinitions{
 					InputObjectTypeDefinitions: document.InputObjectTypeDefinitions{
 						{
-							Name:                  "Person",
+							Name: "Person",
 							InputFieldsDefinition: []int{0, 1},
 							Directives:            []int{},
 						},
@@ -97,7 +97,7 @@ func TestInputObjectTypeDefinitionParser(t *testing.T) {
 				expectParsedDefinitions: Equal(ParsedDefinitions{
 					InputObjectTypeDefinitions: document.InputObjectTypeDefinitions{
 						{
-							Name:                  "Person",
+							Name: "Person",
 							InputFieldsDefinition: []int{0},
 							Directives:            []int{},
 						},
