@@ -5,7 +5,7 @@ version: 2
 jobs:
   build:
     docker:
-    - image: circleci/golang:1.10.3
+    - image: circleci/golang:1.11
     working_directory: /go/src/github.com/jensneuse/graphql-go-tools
     steps:
     - checkout
