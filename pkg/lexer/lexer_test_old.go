@@ -22,7 +22,7 @@ func TestLexer(t *testing.T) {
 	RunSpecs(t, "Lexer")
 }
 
-func TestLexerRegressions(t *testing.T) {
+func _TestLexerRegressions(t *testing.T) {
 
 	lexer := NewLexer()
 	lexer.SetInput(introspectionQuery)
@@ -1524,36 +1524,6 @@ baz`,
 		}),
 	)
 })
-
-func BenchmarkLexer(b *testing.B) {
-
-	lexer := NewLexer()
-	b.ReportAllocs()
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
-
-		b.StopTimer()
-		lexer.SetInput(introspectionQuery)
-		b.StartTimer()
-
-		var tok token.Token
-		var key keyword.Keyword
-		var err error
-
-		for err == nil && tok.Keyword != keyword.EOF && key != keyword.EOF {
-			key, err = lexer.Peek(true)
-			if err != nil {
-				b.Fatal(err)
-			}
-
-			tok, err = lexer.Read()
-			if err != nil {
-				b.Fatal(err)
-			}
-		}
-	}
-}
 
 var introspectionQuery = `query IntrospectionQuery {
   __schema {
