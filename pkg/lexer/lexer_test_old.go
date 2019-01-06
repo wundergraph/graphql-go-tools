@@ -1,5 +1,6 @@
 package lexer
 
+// nolint
 import (
 	"encoding/json"
 	"fmt"
@@ -17,11 +18,13 @@ import (
 	"testing"
 )
 
+// nolint
 func TestLexer(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Lexer")
 }
 
+// nolint
 func _TestLexerRegressions(t *testing.T) {
 
 	lexer := NewLexer()
@@ -1172,6 +1175,7 @@ var _ = Describe("Lexer.peekIsFloat", func() {
 	)
 })
 
+// nolint
 func BenchmarkPeekIsFloat(b *testing.B) {
 	input := "13373737.37"
 	lexer := NewLexer()
