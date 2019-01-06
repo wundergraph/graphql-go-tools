@@ -4,22 +4,337 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/jensneuse/diffview"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
+	. "github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/ginkgo/extensions/table"
-	. "github.com/onsi/gomega"
-	"github.com/onsi/gomega/types"
 	"github.com/sebdah/goldie"
 	"io/ioutil"
 	"testing"
 )
 
-func TestLexer(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Lexer")
+func TestLexer_Peek_Read(t *testing.T) {
+
+	type checkFunc func(lex *Lexer, i int)
+
+	run := func(input string, checks ...checkFunc) {
+		lex := NewLexer()
+		lex.SetInput(input)
+		for i := range checks {
+			checks[i](lex, i+1)
+		}
+	}
+
+	mustPeek := func(k Keyword) checkFunc {
+		return func(lex *Lexer, i int) {
+			peeked, err := lex.Peek(true)
+			if err != nil {
+				panic(err)
+			}
+			if peeked != k {
+				panic(fmt.Errorf("mustPeek: want: %s, got: %s [check: %d]", k.String(), peeked.String(), i))
+			}
+		}
+	}
+
+	mustRead := func(k Keyword, literal string) checkFunc {
+		return func(lex *Lexer, i int) {
+			tok, err := lex.Read()
+			if err != nil {
+				panic(err)
+			}
+			if k != tok.Keyword {
+				panic(fmt.Errorf("mustRead: want(keyword): %s, got: %s [check: %d]", k.String(), tok.String(), i))
+			}
+			if literal != tok.Literal {
+				panic(fmt.Errorf("mustRead: want(literal): %s, got: %s [check: %d]", literal, tok.Literal, i))
+			}
+		}
+	}
+
+	mustPeekAndRead := func(k Keyword, literal string) checkFunc {
+		return func(lex *Lexer, i int) {
+			mustPeek(k)(lex, i)
+			mustRead(k, literal)(lex, i)
+		}
+	}
+
+	mustErrRead := func() checkFunc {
+		return func(lex *Lexer, i int) {
+			_, err := lex.Read()
+			if err == nil {
+				panic(fmt.Errorf("mustErrRead: want error, got nil [check: %d]", i))
+			}
+		}
+	}
+
+	resetInput := func(input string) checkFunc {
+		return func(lex *Lexer, i int) {
+			lex.SetInput(input)
+		}
+	}
+
+	mustReadPosition := func(line, char int) checkFunc {
+		return func(lex *Lexer, i int) {
+			tok, err := lex.Read()
+			if err != nil {
+				panic(err)
+			}
+
+			if line != tok.Position.Line {
+				panic(fmt.Errorf("mustReadPosition: want(line): %d, got: %d [check: %d]", line, tok.Position.Line, i))
+			}
+			if char != tok.Position.Char {
+				panic(fmt.Errorf("mustReadPosition: want(char): %d, got: %d [check: %d]", char, tok.Position.Char, i))
+			}
+		}
+	}
+
+	t.Run("read correct when resetting input", func(t *testing.T) {
+		run("x",
+			mustRead(IDENT, "x"),
+			resetInput("y"),
+			mustRead(IDENT, "y"),
+		)
+	})
+	t.Run("read eof multiple times", func(t *testing.T) {
+		run("x",
+			mustRead(IDENT, "x"),
+			mustRead(EOF, "eof"),
+			mustRead(EOF, "eof"),
+		)
+	})
+	t.Run("read integer", func(t *testing.T) {
+		run("1337", mustPeekAndRead(INTEGER, "1337"))
+	})
+	t.Run("read integer with comma", func(t *testing.T) {
+		run("1337,", mustPeekAndRead(INTEGER, "1337"))
+	})
+	t.Run("read float", func(t *testing.T) {
+		run("13.37", mustPeekAndRead(FLOAT, "13.37"))
+	})
+	t.Run("read float with space", func(t *testing.T) {
+		run("13.37 ", mustPeekAndRead(FLOAT, "13.37"))
+	})
+	t.Run("read float with tab", func(t *testing.T) {
+		run("13.37	", mustPeekAndRead(FLOAT, "13.37"))
+	})
+	t.Run("read with with lineTerminator", func(t *testing.T) {
+		run("13.37\n", mustPeekAndRead(FLOAT, "13.37"))
+	})
+	t.Run("read float with comma", func(t *testing.T) {
+		run("13.37,", mustPeekAndRead(FLOAT, "13.37"))
+	})
+	t.Run("fail reading incomplete float", func(t *testing.T) {
+		run("13.", mustErrRead())
+	})
+	t.Run("read single line string", func(t *testing.T) {
+		run("\"foo\"", mustPeekAndRead(STRING, "foo"))
+	})
+	t.Run("read single line string with escaped quote", func(t *testing.T) {
+		run("\"foo \\\" bar\"", mustPeekAndRead(STRING, "foo \\\" bar"))
+	})
+	t.Run("read multi line string with escaped quote", func(t *testing.T) {
+		run("\"\"\"foo \\\" bar\"\"\"", mustPeekAndRead(STRING, "foo \\\" bar"))
+	})
+	t.Run("read multi line string", func(t *testing.T) {
+		run("\"\"\"\nfoo\nbar\"\"\"", mustPeekAndRead(STRING, "foo\nbar"))
+	})
+	t.Run("read pipe", func(t *testing.T) {
+		run("|", mustPeekAndRead(PIPE, "|"))
+	})
+	t.Run("err reading dot", func(t *testing.T) {
+		run(".", mustErrRead())
+	})
+	t.Run("read fragment spread", func(t *testing.T) {
+		run("...", mustPeekAndRead(SPREAD, "..."))
+	})
+	t.Run("read variable", func(t *testing.T) {
+		run("$123", mustPeekAndRead(VARIABLE, "123"))
+	})
+	t.Run("read variable 2", func(t *testing.T) {
+		run("$foo", mustPeekAndRead(VARIABLE, "foo"))
+	})
+	t.Run("read variable 3", func(t *testing.T) {
+		run("$_foo", mustPeekAndRead(VARIABLE, "_foo"))
+	})
+	t.Run("read variable 3", func(t *testing.T) {
+		run("$123", mustPeekAndRead(VARIABLE, "123"))
+	})
+	t.Run("read variable 4", func(t *testing.T) {
+		run("$foo\n", mustPeekAndRead(VARIABLE, "foo"))
+	})
+	t.Run("read err invalid variable", func(t *testing.T) {
+		run("$ foo", mustErrRead())
+	})
+	t.Run("read @", func(t *testing.T) {
+		run("@", mustPeekAndRead(AT, "@"))
+	})
+	t.Run("read equals", func(t *testing.T) {
+		run("=", mustPeekAndRead(EQUALS, "="))
+	})
+	t.Run("read variable colon", func(t *testing.T) {
+		run(":", mustPeekAndRead(COLON, ":"))
+	})
+	t.Run("read bang", func(t *testing.T) {
+		run("!", mustPeekAndRead(BANG, "!"))
+	})
+	t.Run("read bracket open", func(t *testing.T) {
+		run("(", mustPeekAndRead(BRACKETOPEN, "("))
+	})
+	t.Run("read bracket close", func(t *testing.T) {
+		run(")", mustPeekAndRead(BRACKETCLOSE, ")"))
+	})
+	t.Run("read squared bracket open", func(t *testing.T) {
+		run("[", mustPeekAndRead(SQUAREBRACKETOPEN, "["))
+	})
+	t.Run("read squared bracket close", func(t *testing.T) {
+		run("]", mustPeekAndRead(SQUAREBRACKETCLOSE, "]"))
+	})
+	t.Run("read curly bracket open", func(t *testing.T) {
+		run("{", mustPeekAndRead(CURLYBRACKETOPEN, "{"))
+	})
+	t.Run("read curly bracket close", func(t *testing.T) {
+		run("}", mustPeekAndRead(CURLYBRACKETCLOSE, "}"))
+	})
+	t.Run("read and", func(t *testing.T) {
+		run("&", mustPeekAndRead(AND, "&"))
+	})
+	t.Run("read EOF", func(t *testing.T) {
+		run("", mustPeekAndRead(EOF, "eof"))
+	})
+	t.Run("read ident", func(t *testing.T) {
+		run("foo", mustPeekAndRead(IDENT, "foo"))
+	})
+	t.Run("read ident with colon", func(t *testing.T) {
+		run("foo:", mustPeekAndRead(IDENT, "foo"))
+	})
+	t.Run("read true", func(t *testing.T) {
+		run("true", mustPeekAndRead(TRUE, "true"))
+	})
+	t.Run("read true with space", func(t *testing.T) {
+		run(" true ", mustPeekAndRead(TRUE, "true"))
+	})
+	t.Run("read false", func(t *testing.T) {
+		run("false", mustPeekAndRead(FALSE, "false"))
+	})
+	t.Run("read query", func(t *testing.T) {
+		run("query", mustPeekAndRead(QUERY, "query"))
+	})
+	t.Run("read mutation", func(t *testing.T) {
+		run("mutation", mustPeekAndRead(MUTATION, "mutation"))
+	})
+	t.Run("read subscription", func(t *testing.T) {
+		run("subscription", mustPeekAndRead(SUBSCRIPTION, "subscription"))
+	})
+	t.Run("read fragment", func(t *testing.T) {
+		run("fragment", mustPeekAndRead(FRAGMENT, "fragment"))
+	})
+	t.Run("read implements", func(t *testing.T) {
+		run("implements", mustPeekAndRead(IMPLEMENTS, "implements"))
+	})
+	t.Run("read schema", func(t *testing.T) {
+		run("schema", mustPeekAndRead(SCHEMA, "schema"))
+	})
+	t.Run("read scalar", func(t *testing.T) {
+		run("scalar", mustPeekAndRead(SCALAR, "scalar"))
+	})
+	t.Run("read type", func(t *testing.T) {
+		run("type", mustPeekAndRead(TYPE, "type"))
+	})
+	t.Run("read interface", func(t *testing.T) {
+		run("interface", mustPeekAndRead(INTERFACE, "interface"))
+	})
+	t.Run("read union", func(t *testing.T) {
+		run("union", mustPeekAndRead(UNION, "union"))
+	})
+	t.Run("read enum", func(t *testing.T) {
+		run("enum", mustPeekAndRead(ENUM, "enum"))
+	})
+	t.Run("read input", func(t *testing.T) {
+		run("input", mustPeekAndRead(INPUT, "input"))
+	})
+	t.Run("read directive", func(t *testing.T) {
+		run("directive", mustPeekAndRead(DIRECTIVE, "directive"))
+	})
+	t.Run("read inputValue", func(t *testing.T) {
+		run("inputValue", mustPeekAndRead(IDENT, "inputValue"))
+	})
+	t.Run("read on", func(t *testing.T) {
+		run("on", mustPeekAndRead(ON, "on"))
+	})
+	t.Run("read on with whitespace", func(t *testing.T) {
+		run("on ", mustPeekAndRead(ON, "on"))
+	})
+	t.Run("read ignore comma", func(t *testing.T) {
+		run(",", mustPeekAndRead(EOF, "eof"))
+	})
+	t.Run("read ignore space", func(t *testing.T) {
+		run(" ", mustPeekAndRead(EOF, "eof"))
+	})
+	t.Run("read ignore tab", func(t *testing.T) {
+		run("	", mustPeekAndRead(EOF, "eof"))
+	})
+	t.Run("read ignore lineTerminator", func(t *testing.T) {
+		run("\n", mustPeekAndRead(EOF, "eof"))
+	})
+	t.Run("read null", func(t *testing.T) {
+		run("null", mustPeekAndRead(NULL, "null"))
+	})
+	t.Run("multi read 'foo:'", func(t *testing.T) {
+		run("foo:",
+			mustPeekAndRead(IDENT, "foo"),
+			mustPeekAndRead(COLON, ":"),
+		)
+	})
+	t.Run("multi read '1,2,3'", func(t *testing.T) {
+		run("1,2,3",
+			mustPeekAndRead(INTEGER, "1"),
+			mustPeekAndRead(INTEGER, "2"),
+			mustPeekAndRead(INTEGER, "3"),
+		)
+	})
+	t.Run("multi read positions", func(t *testing.T) {
+		run(`foo bar baz
+bal
+ bas """x"""`,
+			mustReadPosition(1, 1),
+			mustReadPosition(1, 5),
+			mustReadPosition(1, 9),
+			mustReadPosition(2, 1),
+			mustReadPosition(3, 2),
+			mustReadPosition(3, 6),
+		)
+	})
+	t.Run("multi read nested structure", func(t *testing.T) {
+		run(`Goland {
+						... on GoWater {
+							... on GoAir {
+								go
+							}
+						}
+					}`,
+			mustPeekAndRead(IDENT, "Goland"), mustPeekAndRead(CURLYBRACKETOPEN, "{"),
+			mustPeekAndRead(SPREAD, "..."), mustPeekAndRead(ON, "on"), mustPeekAndRead(IDENT, "GoWater"), mustPeekAndRead(CURLYBRACKETOPEN, "{"),
+			mustPeekAndRead(SPREAD, "..."), mustPeekAndRead(ON, "on"), mustPeekAndRead(IDENT, "GoAir"), mustPeekAndRead(CURLYBRACKETOPEN, "{"),
+			mustPeekAndRead(IDENT, "go"),
+			mustPeekAndRead(CURLYBRACKETCLOSE, "}"),
+			mustPeekAndRead(CURLYBRACKETCLOSE, "}"),
+			mustPeekAndRead(CURLYBRACKETCLOSE, "}"),
+		)
+	})
+	t.Run("multi read many idents and strings", func(t *testing.T) {
+		run(`1337 1338 1339 "foo" "bar" """foo bar""" """foo
+bar""" """foo
+bar
+baz
+"""
+13.37`,
+			mustPeekAndRead(INTEGER, "1337"), mustPeekAndRead(INTEGER, "1338"), mustPeekAndRead(INTEGER, "1339"),
+			mustPeekAndRead(STRING, "foo"), mustPeekAndRead(STRING, "bar"), mustPeekAndRead(STRING, "foo bar"),
+			mustPeekAndRead(STRING, "foo\nbar"),
+			mustPeekAndRead(STRING, "foo\nbar\nbaz"),
+			mustPeekAndRead(FLOAT, "13.37"),
+		)
+	})
 }
 
 func TestLexerRegressions(t *testing.T) {
@@ -33,7 +348,7 @@ func TestLexerRegressions(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if tok.Keyword == keyword.EOF {
+		if tok.Keyword == EOF {
 			break
 		}
 
@@ -57,1474 +372,6 @@ func TestLexerRegressions(t *testing.T) {
 	}
 }
 
-var _ = Describe("Lexer.Read", func() {
-	It("should read correctly from reader when re-setting input", func() {
-		lexer := NewLexer()
-		lexer.SetInput("x")
-		_, err := lexer.Read()
-		Expect(err).NotTo(HaveOccurred())
-
-		lexer.SetInput("x")
-		x, err := lexer.Read()
-		Expect(err).NotTo(HaveOccurred())
-		Expect(x).To(Equal(token.Token{
-			Keyword: keyword.IDENT,
-			Literal: "x",
-			Position: position.Position{
-				Line: 1,
-				Char: 1,
-			},
-		}))
-	})
-	It("should read eof multiple times correctly", func() {
-		lexer := NewLexer()
-		lexer.SetInput("x")
-
-		x, err := lexer.Read()
-		Expect(err).NotTo(HaveOccurred())
-		Expect(x).To(Equal(token.Token{
-			Keyword: keyword.IDENT,
-			Literal: "x",
-			Position: position.Position{
-				Line: 1,
-				Char: 1,
-			},
-		}))
-
-		eof1, err := lexer.Read()
-		Expect(err).NotTo(HaveOccurred())
-		Expect(eof1).To(Equal(token.Token{
-			Keyword: keyword.EOF,
-			Literal: "eof",
-			Position: position.Position{
-				Line: 1,
-				Char: 2,
-			},
-		}))
-	})
-})
-
-var _ = Describe("Lexer.Read", func() {
-
-	type Case struct {
-		in        string
-		out       token.Token
-		expectErr types.GomegaMatcher
-	}
-
-	var lexer *Lexer
-
-	BeforeEach(func() {
-		lexer = NewLexer()
-	})
-
-	DescribeTable("Read Single Token", func(c Case) {
-
-		lexer.SetInput(c.in)
-		tok, err := lexer.Read()
-		if c.expectErr != nil {
-			Expect(err).To(c.expectErr)
-		} else {
-			Expect(err).To(BeNil())
-		}
-		Expect(tok).To(Equal(c.out))
-
-	},
-		Entry("should read integer", Case{
-			in: "1337",
-			out: token.Token{
-				Keyword: keyword.INTEGER,
-				Literal: "1337",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			},
-		}),
-		Entry("should read integer with comma at the end", Case{
-			in: "1337,",
-			out: token.Token{
-				Keyword: keyword.INTEGER,
-				Literal: "1337",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			},
-		}),
-		Entry("should read float", Case{
-			in: "13.37",
-			out: token.Token{
-				Keyword: keyword.FLOAT,
-				Literal: "13.37",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			},
-		}),
-		Entry("should fail reading incomplete float", Case{
-			in:        "13.",
-			expectErr: HaveOccurred(),
-			out: token.Token{
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			},
-		}),
-		Entry("should read single line string", Case{
-			in: `"foo bar"`,
-			out: token.Token{
-				Keyword: keyword.STRING,
-				Literal: `foo bar`,
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			},
-		}),
-		Entry("should read single line string with escaped quote", Case{
-			in: "\"foo bar \\\" baz\"",
-			out: token.Token{
-				Keyword: keyword.STRING,
-				Literal: "foo bar \\\" baz",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			},
-		}),
-		Entry("should read multi line string with escaped quote", Case{
-			in: "\"\"\"foo bar \\\"\\\"\\\" baz\"\"\"",
-			out: token.Token{
-				Keyword: keyword.STRING,
-				Literal: "foo bar \\\"\\\"\\\" baz",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			},
-		}),
-		Entry("should read multi single line string", Case{
-			in: `"""
-foo
-bar"""`,
-			out: token.Token{
-				Keyword: keyword.STRING,
-				Literal: `foo
-bar`,
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			},
-		}),
-		Entry("should read multi single line string with correct whitespace trimming", Case{
-			in: `"""
-foo
-"""`,
-			out: token.Token{
-				Keyword: keyword.STRING,
-				Literal: `foo`,
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			},
-		}),
-		Entry("should read pipe", Case{
-			in: "|",
-			out: token.Token{
-				Keyword: keyword.PIPE,
-				Literal: literal.PIPE,
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			},
-		}),
-		Entry("should not read dot", Case{
-			in: ".",
-			out: token.Token{
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			},
-			expectErr: HaveOccurred(),
-		}),
-		Entry("should read spread (...)", Case{
-			in: "...",
-			out: token.Token{
-				Keyword: keyword.SPREAD,
-				Literal: literal.SPREAD,
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			},
-		}),
-		Entry("should read $123", Case{
-			in: "$123",
-			out: token.Token{
-				Keyword: keyword.VARIABLE,
-				Literal: "123",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			},
-		}),
-		Entry("should read $foo", Case{
-			in: "$foo",
-			out: token.Token{
-				Keyword: keyword.VARIABLE,
-				Literal: "foo",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			},
-		}),
-		Entry("should read $_foo", Case{
-			in: "$_foo",
-			out: token.Token{
-				Keyword: keyword.VARIABLE,
-				Literal: "_foo",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			},
-		}),
-		Entry("should read $123 ", Case{
-			in: "$123 ",
-			out: token.Token{
-				Keyword: keyword.VARIABLE,
-				Literal: "123",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			},
-		}),
-		Entry("should read $123\n", Case{
-			in: "$123\n",
-			out: token.Token{
-				Keyword: keyword.VARIABLE,
-				Literal: "123",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			},
-		}),
-		Entry("should read @", Case{
-			in: "@",
-			out: token.Token{
-				Keyword: keyword.AT,
-				Literal: "@",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			},
-		}),
-		Entry("should read =", Case{
-			in: "=",
-			out: token.Token{
-				Keyword: keyword.EQUALS,
-				Literal: "=",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			},
-		}),
-		Entry("should read :", Case{
-			in: ":",
-			out: token.Token{
-				Keyword: keyword.COLON,
-				Literal: ":",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			},
-		}),
-		Entry("should read !", Case{
-			in: "!",
-			out: token.Token{
-				Keyword: keyword.BANG,
-				Literal: "!",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			},
-		}),
-		Entry("should read (", Case{
-			in: "(",
-			out: token.Token{
-				Keyword: keyword.BRACKETOPEN,
-				Literal: "(",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			},
-		}),
-		Entry("should read )", Case{
-			in: ")",
-			out: token.Token{
-				Keyword: keyword.BRACKETCLOSE,
-				Literal: ")",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			},
-		}),
-		Entry("should read {", Case{
-			in: "{",
-			out: token.Token{
-				Keyword: keyword.CURLYBRACKETOPEN,
-				Literal: "{",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			},
-		}),
-		Entry("should read }", Case{
-			in: "}",
-			out: token.Token{
-				Keyword: keyword.CURLYBRACKETCLOSE,
-				Literal: "}",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			},
-		}),
-		Entry("should read [", Case{
-			in: "[",
-			out: token.Token{
-				Keyword: keyword.SQUAREBRACKETOPEN,
-				Literal: "[",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			},
-		}),
-		Entry("should read ]", Case{
-			in: "]",
-			out: token.Token{
-				Keyword: keyword.SQUAREBRACKETCLOSE,
-				Literal: "]",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			},
-		}),
-		Entry("should read &", Case{
-			in: "&",
-			out: token.Token{
-				Keyword: keyword.AND,
-				Literal: "&",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			},
-		}),
-		Entry("should read EOF", Case{
-			in: "",
-			out: token.Token{
-				Keyword: keyword.EOF,
-				Literal: literal.EOF,
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			},
-		}),
-		Entry("should read ident 'foo'", Case{
-			in: "foo",
-			out: token.Token{
-				Keyword: keyword.IDENT,
-				Literal: "foo",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			},
-		}),
-		Entry("should read ident 'foo' from 'foo:'", Case{
-			in: "foo:",
-			out: token.Token{
-				Keyword: keyword.IDENT,
-				Literal: "foo",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			},
-		}),
-		Entry("should read ident true", Case{
-			in: "true",
-			out: token.Token{
-				Keyword: keyword.TRUE,
-				Literal: "true",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			},
-		}),
-		Entry("should read ident false", Case{
-			in: "false",
-			out: token.Token{
-				Keyword: keyword.FALSE,
-				Literal: "false",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			},
-		}),
-	)
-})
-
-var _ = Describe("Lexer.Peek()", func() {
-	type Case struct {
-		input              string
-		expectErr          types.GomegaMatcher
-		expectKey          types.GomegaMatcher
-		expectNextToken    types.GomegaMatcher
-		expectNextTokenErr types.GomegaMatcher
-	}
-
-	var lexer *Lexer
-
-	BeforeEach(func() {
-		lexer = NewLexer()
-	})
-
-	DescribeTable("Peek Tests", func(c Case) {
-		lexer.SetInput(c.input)
-		key, err := lexer.Peek(true)
-		if c.expectErr != nil {
-			Expect(err).To(c.expectErr)
-		}
-		if c.expectKey != nil {
-			Expect(key).To(c.expectKey)
-		}
-		if c.expectNextToken != nil {
-			tok, err := lexer.Read()
-			if c.expectNextTokenErr != nil {
-				Expect(err).To(c.expectNextTokenErr)
-			}
-
-			Expect(tok).To(c.expectNextToken)
-		}
-	},
-		Entry("should peek EOF", Case{
-			input:              "",
-			expectKey:          Equal(keyword.EOF),
-			expectErr:          BeNil(),
-			expectNextTokenErr: BeNil(),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.EOF,
-				Literal: "eof",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			}),
-		}),
-		Entry("should peek query", Case{
-			input:              "query ",
-			expectKey:          Equal(keyword.QUERY),
-			expectErr:          BeNil(),
-			expectNextTokenErr: BeNil(),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.QUERY,
-				Literal: "query",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			}),
-		}),
-		Entry("should peek mutation", Case{
-			input:              "mutation",
-			expectKey:          Equal(keyword.MUTATION),
-			expectErr:          BeNil(),
-			expectNextTokenErr: BeNil(),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.MUTATION,
-				Literal: "mutation",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			}),
-		}),
-		Entry("should peek subscription", Case{
-			input:              "subscription",
-			expectKey:          Equal(keyword.SUBSCRIPTION),
-			expectErr:          BeNil(),
-			expectNextTokenErr: BeNil(),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.SUBSCRIPTION,
-				Literal: "subscription",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			}),
-		}),
-		Entry("should peek fragment", Case{
-			input:              "fragment",
-			expectKey:          Equal(keyword.FRAGMENT),
-			expectErr:          BeNil(),
-			expectNextTokenErr: BeNil(),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.FRAGMENT,
-				Literal: "fragment",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			}),
-		}),
-		Entry("should peek spread (...)", Case{
-			input:              "...",
-			expectKey:          Equal(keyword.SPREAD),
-			expectErr:          BeNil(),
-			expectNextTokenErr: BeNil(),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.SPREAD,
-				Literal: "...",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			}),
-		}),
-		Entry("should peek 'implements'", Case{
-			input:              "implements",
-			expectKey:          Equal(keyword.IMPLEMENTS),
-			expectErr:          BeNil(),
-			expectNextTokenErr: BeNil(),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.IMPLEMENTS,
-				Literal: "implements",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			}),
-		}),
-		Entry("should peek 'schema'", Case{
-			input:              "schema",
-			expectKey:          Equal(keyword.SCHEMA),
-			expectErr:          BeNil(),
-			expectNextTokenErr: BeNil(),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.SCHEMA,
-				Literal: "schema",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			}),
-		}),
-		Entry("should peek 'scalar'", Case{
-			input:              "scalar",
-			expectKey:          Equal(keyword.SCALAR),
-			expectErr:          BeNil(),
-			expectNextTokenErr: BeNil(),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.SCALAR,
-				Literal: "scalar",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			}),
-		}),
-		Entry("should peek 'type'", Case{
-			input:              "type",
-			expectKey:          Equal(keyword.TYPE),
-			expectErr:          BeNil(),
-			expectNextTokenErr: BeNil(),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.TYPE,
-				Literal: "type",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			}),
-		}),
-		Entry("should peek 'interface'", Case{
-			input:              "interface",
-			expectKey:          Equal(keyword.INTERFACE),
-			expectErr:          BeNil(),
-			expectNextTokenErr: BeNil(),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.INTERFACE,
-				Literal: "interface",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			}),
-		}),
-		Entry("should peek 'union'", Case{
-			input:              "union",
-			expectKey:          Equal(keyword.UNION),
-			expectErr:          BeNil(),
-			expectNextTokenErr: BeNil(),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.UNION,
-				Literal: "union",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			}),
-		}),
-		Entry("should peek 'enum'", Case{
-			input:              "enum",
-			expectKey:          Equal(keyword.ENUM),
-			expectErr:          BeNil(),
-			expectNextTokenErr: BeNil(),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.ENUM,
-				Literal: "enum",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			}),
-		}),
-		Entry("should peek 'input'", Case{
-			input:              "input",
-			expectKey:          Equal(keyword.INPUT),
-			expectErr:          BeNil(),
-			expectNextTokenErr: BeNil(),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.INPUT,
-				Literal: "input",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			}),
-		}),
-		Entry("should peek 'directive'", Case{
-			input:              "directive",
-			expectKey:          Equal(keyword.DIRECTIVE),
-			expectErr:          BeNil(),
-			expectNextTokenErr: BeNil(),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.DIRECTIVE,
-				Literal: "directive",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			}),
-		}),
-		Entry("should peek 'inputValue' as ident", Case{
-			input:              "inputValue",
-			expectKey:          Equal(keyword.IDENT),
-			expectErr:          BeNil(),
-			expectNextTokenErr: BeNil(),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.IDENT,
-				Literal: "inputValue",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			}),
-		}),
-		Entry("should peek ON", Case{
-			input:              "on",
-			expectKey:          Equal(keyword.ON),
-			expectErr:          BeNil(),
-			expectNextTokenErr: BeNil(),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.ON,
-				Literal: "on",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			}),
-		}),
-		Entry("should peek ON with whitespace behind", Case{
-			input:              "on ",
-			expectKey:          Equal(keyword.ON),
-			expectErr:          BeNil(),
-			expectNextTokenErr: BeNil(),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.ON,
-				Literal: "on",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			}),
-		}),
-		Entry("should peek ignore comma", Case{
-			input:     ",",
-			expectKey: Equal(keyword.EOF),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.EOF,
-				Literal: "eof",
-				Position: position.Position{
-					Line: 1,
-					Char: 2,
-				},
-			}),
-		}),
-		Entry("should peek '$color:' as variable color", Case{
-			input:     "$color:",
-			expectKey: Equal(keyword.VARIABLE),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.VARIABLE,
-				Literal: "color",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			}),
-		}),
-		Entry("should peek '$ color:' as invalid", Case{
-			input:              "$ color:",
-			expectErr:          BeNil(),
-			expectNextTokenErr: HaveOccurred(),
-		}),
-		Entry("should peek ignore space", Case{
-			input:     " ",
-			expectKey: Equal(keyword.EOF),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.EOF,
-				Literal: "eof",
-				Position: position.Position{
-					Line: 1,
-					Char: 2,
-				},
-			}),
-		}),
-		Entry("should peek ignore tab", Case{
-			input: "	",
-			expectKey: Equal(keyword.EOF),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.EOF,
-				Literal: "eof",
-				Position: position.Position{
-					Line: 1,
-					Char: 2,
-				},
-			}),
-		}),
-		Entry("should peek ignore line terminator", Case{
-			input:     "\n",
-			expectKey: Equal(keyword.EOF),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.EOF,
-				Literal: "eof",
-				Position: position.Position{
-					Line: 2,
-					Char: 1,
-				},
-			}),
-		}),
-		Entry("should peek single line string", Case{
-			input:     `"foo"`,
-			expectKey: Equal(keyword.STRING),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.STRING,
-				Literal: "foo",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			}),
-		}),
-		Entry("should peek multi line string", Case{
-			input:     `"""foo"""`,
-			expectKey: Equal(keyword.STRING),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.STRING,
-				Literal: "foo",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			}),
-		}),
-		Entry("should peek variable", Case{
-			input:     "$foo",
-			expectKey: Equal(keyword.VARIABLE),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.VARIABLE,
-				Literal: "foo",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			}),
-		}),
-		Entry("should throw error when reading invalid variable", Case{
-			input:              "$ foo",
-			expectNextTokenErr: HaveOccurred(),
-		}),
-		Entry("should peek pipe", Case{
-			input:     "|",
-			expectKey: Equal(keyword.PIPE),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.PIPE,
-				Literal: "|",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			}),
-		}),
-		Entry("should peek equals", Case{
-			input:     "=",
-			expectKey: Equal(keyword.EQUALS),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.EQUALS,
-				Literal: "=",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			}),
-		}),
-		Entry("should peek at", Case{
-			input:     "@",
-			expectKey: Equal(keyword.AT),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.AT,
-				Literal: "@",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			}),
-		}),
-		Entry("should peek null", Case{
-			input:     "null",
-			expectKey: Equal(keyword.NULL),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.NULL,
-				Literal: "null",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			}),
-		}),
-		Entry("should peek colon", Case{
-			input:     ":",
-			expectKey: Equal(keyword.COLON),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.COLON,
-				Literal: ":",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			}),
-		}),
-		Entry("should peek bang", Case{
-			input:     "!",
-			expectKey: Equal(keyword.BANG),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.BANG,
-				Literal: "!",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			}),
-		}),
-		Entry("should peek bracket open", Case{
-			input:     "(",
-			expectKey: Equal(keyword.BRACKETOPEN),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.BRACKETOPEN,
-				Literal: "(",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			}),
-		}),
-		Entry("should peek bracket close", Case{
-			input:     ")",
-			expectKey: Equal(keyword.BRACKETCLOSE),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.BRACKETCLOSE,
-				Literal: ")",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			}),
-		}),
-		Entry("should peek squared bracket open", Case{
-			input:     "[",
-			expectKey: Equal(keyword.SQUAREBRACKETOPEN),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.SQUAREBRACKETOPEN,
-				Literal: "[",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			}),
-		}),
-		Entry("should peek squared bracket close", Case{
-			input:     "]",
-			expectKey: Equal(keyword.SQUAREBRACKETCLOSE),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.SQUAREBRACKETCLOSE,
-				Literal: "]",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			}),
-		}),
-		Entry("should peek curly bracket open", Case{
-			input:     "{",
-			expectKey: Equal(keyword.CURLYBRACKETOPEN),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.CURLYBRACKETOPEN,
-				Literal: "{",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			}),
-		}),
-		Entry("should peek curly bracket close", Case{
-			input:     "}",
-			expectKey: Equal(keyword.CURLYBRACKETCLOSE),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.CURLYBRACKETCLOSE,
-				Literal: "}",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			}),
-		}),
-		Entry("should peek and", Case{
-			input:     "&",
-			expectKey: Equal(keyword.AND),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.AND,
-				Literal: "&",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			}),
-		}),
-		Entry("should peek ident", Case{
-			input:     "foo",
-			expectKey: Equal(keyword.IDENT),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.IDENT,
-				Literal: "foo",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			}),
-		}),
-		Entry("should peek integer", Case{
-			input:     "1337",
-			expectKey: Equal(keyword.INTEGER),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.INTEGER,
-				Literal: "1337",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			}),
-		}),
-		Entry("should peek float", Case{
-			input:     "13.37",
-			expectKey: Equal(keyword.FLOAT),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.FLOAT,
-				Literal: "13.37",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			}),
-		}),
-		Entry("should peek true", Case{
-			input:     "true ",
-			expectKey: Equal(keyword.TRUE),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.TRUE,
-				Literal: "true",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			}),
-		}),
-		Entry("should peek true with space in front", Case{
-			input:     " true ",
-			expectKey: Equal(keyword.TRUE),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.TRUE,
-				Literal: "true",
-				Position: position.Position{
-					Line: 1,
-					Char: 2,
-				},
-			}),
-		}),
-		Entry("should peek true with multiple spaces in front", Case{
-			input:     "   true",
-			expectKey: Equal(keyword.TRUE),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.TRUE,
-				Literal: "true",
-				Position: position.Position{
-					Line: 1,
-					Char: 4,
-				},
-			}),
-		}),
-		Entry("should peek false", Case{
-			input:     "false ",
-			expectKey: Equal(keyword.FALSE),
-			expectNextToken: Equal(token.Token{
-				Keyword: keyword.FALSE,
-				Literal: "false",
-				Position: position.Position{
-					Line: 1,
-					Char: 1,
-				},
-			}),
-		}),
-	)
-})
-
-var _ = Describe("Lexer.peekIsFloat", func() {
-	type Case struct {
-		in      string
-		isFloat bool
-	}
-
-	var lexer *Lexer
-
-	BeforeEach(func() {
-		lexer = NewLexer()
-	})
-
-	DescribeTable("peekIsFloat cases", func(c Case) {
-
-		lexer.SetInput(c.in)
-		actualIsFloat := lexer.peekIsFloat()
-		Expect(actualIsFloat).To(Equal(c.isFloat))
-
-	}, Entry("should identify 13.37 as float", Case{
-		in:      "13.37",
-		isFloat: true,
-	}), Entry("should identify 13.37 as float (with space suffix)", Case{
-		in:      "13.37 ",
-		isFloat: true,
-	}), Entry("should identify 13.37 as float (with tab suffix)", Case{
-		in: "13.37	",
-		isFloat: true,
-	}), Entry("should identify 13.37 as float (with line terminator suffix)", Case{
-		in:      "13.37\n",
-		isFloat: true,
-	}), Entry("should identify 13.37 as float (with comma suffix)", Case{
-		in:      "13.37,",
-		isFloat: true,
-	}), Entry("should identify 1337 as non float", Case{
-		in:      "1337",
-		isFloat: false,
-	}),
-	)
-})
-
-func BenchmarkPeekIsFloat(b *testing.B) {
-	input := "13373737.37"
-	lexer := NewLexer()
-
-	b.ReportAllocs()
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
-		lexer.SetInput(input)
-		lexer.peekIsFloat()
-	}
-}
-
-var _ = Describe("Lexer.readMultiLineString", func() {
-	lexer := NewLexer()
-	lexer.SetInput("\"\"\"foo\"\"\" x")
-
-	It("should read foo", func() {
-		foo, err := lexer.Read()
-		Expect(err).To(BeNil())
-		Expect(foo).To(Equal(token.Token{
-			Literal: "foo",
-			Keyword: keyword.STRING,
-			Position: position.Position{
-				Line: 1,
-				Char: 1,
-			},
-		}))
-	})
-
-	It("should read x", func() {
-		foo, err := lexer.Read()
-		Expect(err).To(BeNil())
-		Expect(foo).To(Equal(token.Token{
-			Literal: "x",
-			Keyword: keyword.IDENT,
-			Position: position.Position{
-				Line: 1,
-				Char: 11,
-			},
-		}))
-	})
-
-	It("should read eof", func() {
-		foo, err := lexer.Read()
-		Expect(err).To(BeNil())
-		Expect(foo).To(Equal(token.Token{
-			Literal: "eof",
-			Keyword: keyword.EOF,
-			Position: position.Position{
-				Line: 1,
-				Char: 12,
-			},
-		}))
-	})
-})
-
-var _ = Describe("Lexer.Read", func() {
-
-	type Case struct {
-		in  string
-		out []token.Token
-	}
-
-	var lexer *Lexer
-
-	BeforeEach(func() {
-		lexer = NewLexer()
-	})
-
-	DescribeTable("Read Multiple Tokens", func(c Case) {
-
-		lexer.SetInput(c.in)
-		for i := 0; i < len(c.out); i++ {
-			peeked, _ := lexer.Peek(true)
-			Expect(peeked).To(Equal(c.out[i].Keyword), fmt.Sprintf("Token: %d", i+1))
-			tok, err := lexer.Read()
-			Expect(err).To(BeNil())
-			Expect(tok).To(Equal(c.out[i]))
-		}
-
-	},
-		Entry("should read ident followed by colon", Case{
-			in: "foo:",
-			out: []token.Token{
-				{
-					Keyword: keyword.IDENT,
-					Literal: "foo",
-					Position: position.Position{
-						Line: 1,
-						Char: 1,
-					},
-				},
-				{
-					Keyword: keyword.COLON,
-					Literal: ":",
-					Position: position.Position{
-						Line: 1,
-						Char: 4,
-					},
-				},
-			},
-		}),
-		Entry("should read complex nested structure", Case{
-			in: `Goland {
-					... on GoWater {
-						... on GoAir {
-							go
-						}
-					}
-				}
-				`,
-			out: []token.Token{
-				{
-					Keyword:  keyword.IDENT,
-					Literal:  "Goland",
-					Position: position.Position{1, 1},
-				},
-				{
-					Keyword:  keyword.CURLYBRACKETOPEN,
-					Literal:  "{",
-					Position: position.Position{1, 8},
-				},
-				{
-					Keyword:  keyword.SPREAD,
-					Literal:  "...",
-					Position: position.Position{2, 6},
-				},
-				{
-					Keyword:  keyword.ON,
-					Literal:  "on",
-					Position: position.Position{2, 10},
-				},
-				{
-					Keyword:  keyword.IDENT,
-					Literal:  "GoWater",
-					Position: position.Position{2, 13},
-				},
-				{
-					Keyword:  keyword.CURLYBRACKETOPEN,
-					Literal:  "{",
-					Position: position.Position{2, 21},
-				},
-				{
-					Keyword:  keyword.SPREAD,
-					Literal:  "...",
-					Position: position.Position{3, 7},
-				},
-				{
-					Keyword:  keyword.ON,
-					Literal:  "on",
-					Position: position.Position{3, 11},
-				},
-				{
-					Keyword:  keyword.IDENT,
-					Literal:  "GoAir",
-					Position: position.Position{3, 14},
-				},
-				{
-					Keyword:  keyword.CURLYBRACKETOPEN,
-					Literal:  "{",
-					Position: position.Position{3, 20},
-				},
-				{
-					Keyword:  keyword.IDENT,
-					Literal:  "go",
-					Position: position.Position{4, 8},
-				},
-				{
-					Keyword:  keyword.CURLYBRACKETCLOSE,
-					Literal:  "}",
-					Position: position.Position{5, 7},
-				},
-				{
-					Keyword:  keyword.CURLYBRACKETCLOSE,
-					Literal:  "}",
-					Position: position.Position{6, 6},
-				},
-				{
-					Keyword:  keyword.CURLYBRACKETCLOSE,
-					Literal:  "}",
-					Position: position.Position{7, 5},
-				},
-				{
-					Keyword:  keyword.EOF,
-					Literal:  "eof",
-					Position: position.Position{8, 5},
-				},
-			},
-		}),
-		Entry("should read multiple keywords", Case{
-			in: `1337 1338 1339 "foo" "bar" """foo bar""" """foo
-bar""" """foo
-bar 
-baz
-"""
-13.37`,
-			out: []token.Token{
-				{
-					Keyword: keyword.INTEGER,
-					Literal: "1337",
-					Position: position.Position{
-						Line: 1,
-						Char: 1,
-					},
-				},
-				{
-					Keyword: keyword.INTEGER,
-					Literal: "1338",
-					Position: position.Position{
-						Line: 1,
-						Char: 6,
-					},
-				},
-				{
-					Keyword: keyword.INTEGER,
-					Literal: "1339",
-					Position: position.Position{
-						Line: 1,
-						Char: 11,
-					},
-				},
-				{
-					Keyword: keyword.STRING,
-					Literal: `foo`,
-					Position: position.Position{
-						Line: 1,
-						Char: 16,
-					},
-				},
-				{
-					Keyword: keyword.STRING,
-					Literal: `bar`,
-					Position: position.Position{
-						Line: 1,
-						Char: 22,
-					},
-				},
-				{
-					Keyword: keyword.STRING,
-					Literal: `foo bar`,
-					Position: position.Position{
-						Line: 1,
-						Char: 28,
-					},
-				},
-				{
-					Keyword: keyword.STRING,
-					Literal: `foo
-bar`,
-					Position: position.Position{
-						Line: 1,
-						Char: 42,
-					},
-				},
-				{
-					Keyword: keyword.STRING,
-					Literal: `foo
-bar 
-baz`,
-					Position: position.Position{
-						Line: 2,
-						Char: 8,
-					},
-				},
-				{
-					Keyword: keyword.FLOAT,
-					Literal: "13.37",
-					Position: position.Position{
-						Line: 6,
-						Char: 1,
-					},
-				},
-			},
-		}),
-		Entry("should read the introspection query", Case{
-			in: `query IntrospectionQuery {
-  __schema {`,
-			out: []token.Token{
-				{
-					Keyword: keyword.QUERY,
-					Literal: "query",
-					Position: position.Position{
-						Line: 1,
-						Char: 1,
-					},
-				},
-				{
-					Keyword: keyword.IDENT,
-					Literal: "IntrospectionQuery",
-					Position: position.Position{
-						Line: 1,
-						Char: 7,
-					},
-				},
-				{
-					Keyword: keyword.CURLYBRACKETOPEN,
-					Literal: literal.CURLYBRACKETOPEN,
-					Position: position.Position{
-						Line: 1,
-						Char: 26,
-					},
-				},
-				{
-					Keyword: keyword.IDENT,
-					Literal: "__schema",
-					Position: position.Position{
-						Line: 2,
-						Char: 3,
-					},
-				},
-				{
-					Keyword: keyword.CURLYBRACKETOPEN,
-					Literal: literal.CURLYBRACKETOPEN,
-					Position: position.Position{
-						Line: 2,
-						Char: 12,
-					},
-				},
-			},
-		}),
-		Entry("should read '1,2,3' as three integers", Case{
-			in: "1,2,3",
-			out: []token.Token{
-				{
-					Keyword: keyword.INTEGER,
-					Literal: "1",
-					Position: position.Position{
-						Line: 1,
-						Char: 1,
-					},
-				},
-				{
-					Keyword: keyword.INTEGER,
-					Literal: "2",
-					Position: position.Position{
-						Line: 1,
-						Char: 3,
-					},
-				},
-				{
-					Keyword: keyword.INTEGER,
-					Literal: "3",
-					Position: position.Position{
-						Line: 1,
-						Char: 5,
-					},
-				},
-			},
-		}),
-	)
-})
-
 func BenchmarkLexer(b *testing.B) {
 
 	lexer := NewLexer()
@@ -1537,120 +384,21 @@ func BenchmarkLexer(b *testing.B) {
 		lexer.SetInput(introspectionQuery)
 		b.StartTimer()
 
-		var tok token.Token
-		var key keyword.Keyword
+		var key Keyword
 		var err error
 
-		for err == nil && tok.Keyword != keyword.EOF && key != keyword.EOF {
+		for key != EOF {
 			key, err = lexer.Peek(true)
 			if err != nil {
 				b.Fatal(err)
 			}
 
-			tok, err = lexer.Read()
+			tok, err := lexer.Read()
 			if err != nil {
 				b.Fatal(err)
 			}
+
+			_ = tok
 		}
 	}
 }
-
-var introspectionQuery = `query IntrospectionQuery {
-  __schema {
-    queryType {
-      name
-    }
-    mutationType {
-      name
-    }
-    subscriptionType {
-      name
-    }
-    types {
-      ...FullType
-    }
-    directives {
-      name
-      description
-      locations
-      args {
-        ...InputValue
-      }
-    }
-  }
-}
-
-fragment FullType on __Type {
-  kind
-  name
-  description
-  fields(includeDeprecated: true) {
-    name
-    description
-    args {
-      ...InputValue
-    }
-    type {
-      ...TypeRef
-    }
-    isDeprecated
-    deprecationReason
-  }
-  inputFields {
-    ...InputValue
-  }
-  interfaces {
-    ...TypeRef
-  }
-  enumValues(includeDeprecated: true) {
-    name
-    description
-    isDeprecated
-    deprecationReason
-  }
-  possibleTypes {
-    ...TypeRef
-  }
-}
-
-fragment InputValue on __InputValue {
-  name
-  description
-  type {
-    ...TypeRef
-  }
-  defaultValue
-}
-
-fragment TypeRef on __Type {
-  kind
-  name
-  ofType {
-    kind
-    name
-    ofType {
-      kind
-      name
-      ofType {
-        kind
-        name
-        ofType {
-          kind
-          name
-          ofType {
-            kind
-            name
-            ofType {
-              kind
-              name
-              ofType {
-                kind
-                name
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-}`
