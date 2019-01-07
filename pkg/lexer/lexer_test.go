@@ -17,7 +17,7 @@ func TestLexer_Peek_Read(t *testing.T) {
 
 	run := func(input string, checks ...checkFunc) {
 		lex := NewLexer()
-		lex.SetInput(input)
+		lex.SetInput([]byte(input))
 		for i := range checks {
 			checks[i](lex, i+1)
 		}
@@ -44,7 +44,7 @@ func TestLexer_Peek_Read(t *testing.T) {
 			if k != tok.Keyword {
 				panic(fmt.Errorf("mustRead: want(keyword): %s, got: %s [check: %d]", k.String(), tok.String(), i))
 			}
-			if literal != tok.Literal {
+			if literal != string(tok.Literal) {
 				panic(fmt.Errorf("mustRead: want(literal): %s, got: %s [check: %d]", literal, tok.Literal, i))
 			}
 		}
@@ -68,7 +68,7 @@ func TestLexer_Peek_Read(t *testing.T) {
 
 	resetInput := func(input string) checkFunc {
 		return func(lex *Lexer, i int) {
-			lex.SetInput(input)
+			lex.SetInput([]byte(input))
 		}
 	}
 
@@ -337,10 +337,110 @@ baz
 	})
 }
 
+var introspectionQuery = `query IntrospectionQuery {
+  __schema {
+    queryType {
+      name
+    }
+    mutationType {
+      name
+    }
+    subscriptionType {
+      name
+    }
+    types {
+      ...FullType
+    }
+    directives {
+      name
+      description
+      locations
+      args {
+        ...InputValue
+      }
+    }
+  }
+}
+
+fragment FullType on __Type {
+  kind
+  name
+  description
+  fields(includeDeprecated: true) {
+    name
+    description
+    args {
+      ...InputValue
+    }
+    type {
+      ...TypeRef
+    }
+    isDeprecated
+    deprecationReason
+  }
+  inputFields {
+    ...InputValue
+  }
+  interfaces {
+    ...TypeRef
+  }
+  enumValues(includeDeprecated: true) {
+    name
+    description
+    isDeprecated
+    deprecationReason
+  }
+  possibleTypes {
+    ...TypeRef
+  }
+}
+
+fragment InputValue on __InputValue {
+  name
+  description
+  type {
+    ...TypeRef
+  }
+  defaultValue
+}
+
+fragment TypeRef on __Type {
+  kind
+  name
+  ofType {
+    kind
+    name
+    ofType {
+      kind
+      name
+      ofType {
+        kind
+        name
+        ofType {
+          kind
+          name
+          ofType {
+            kind
+            name
+            ofType {
+              kind
+              name
+              ofType {
+                kind
+                name
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}`
+
 func TestLexerRegressions(t *testing.T) {
 
 	lexer := NewLexer()
-	lexer.SetInput(introspectionQuery)
+	lexer.SetInput([]byte(introspectionQuery))
 
 	var total []token.Token
 	for {
@@ -375,13 +475,15 @@ func TestLexerRegressions(t *testing.T) {
 func BenchmarkLexer(b *testing.B) {
 
 	lexer := NewLexer()
+	inputBytes := []byte(introspectionQuery)
+
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
 
 		b.StopTimer()
-		lexer.SetInput(introspectionQuery)
+		lexer.SetInput(inputBytes)
 		b.StartTimer()
 
 		var key Keyword

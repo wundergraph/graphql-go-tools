@@ -1,5 +1,6 @@
 package lexer
 
+/*
 // nolint
 import (
 	"encoding/json"
@@ -1628,3 +1629,4 @@ fragment TypeRef on __Type {
     }
   }
 }`
+*/
