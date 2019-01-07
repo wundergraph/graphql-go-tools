@@ -482,9 +482,7 @@ func BenchmarkLexer(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 
-		b.StopTimer()
 		lexer.SetInput(inputBytes)
-		b.StartTimer()
 
 		var key Keyword
 		var err error
