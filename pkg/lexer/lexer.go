@@ -281,46 +281,44 @@ func (l *Lexer) peekIdent() (k keyword.Keyword) {
 }
 
 func (l *Lexer) keywordFromIdentString(ident []byte) (k keyword.Keyword) {
-
-	/*if bytes.Equal(ident, literal.ON) {
+	switch string(ident) {
+	case "on":
 		return keyword.ON
-	} else if bytes.Equal(ident, literal.TRUE) {
+	case "true":
 		return keyword.TRUE
-	} else if bytes.Equal(ident, literal.TYPE) {
+	case "type":
 		return keyword.TYPE
-	} else if bytes.Equal(ident, literal.NULL) {
+	case "null":
 		return keyword.NULL
-	} else if bytes.Equal(ident, literal.ENUM) {
+	case "enum":
 		return keyword.ENUM
-	} else if bytes.Equal(ident, literal.FALSE) {
+	case "false":
 		return keyword.FALSE
-	} else if bytes.Equal(ident, literal.UNION) {
+	case "union":
 		return keyword.UNION
-	} else if bytes.Equal(ident, literal.QUERY) {
+	case "query":
 		return keyword.QUERY
-	} else if bytes.Equal(ident, literal.INPUT) {
+	case "input":
 		return keyword.INPUT
-	} else if bytes.Equal(ident, literal.SCHEMA) {
+	case "schema":
 		return keyword.SCHEMA
-	} else if bytes.Equal(ident, literal.SCALAR) {
+	case "scalar":
 		return keyword.SCALAR
-	} else if bytes.Equal(ident, literal.MUTATION) {
+	case "mutation":
 		return keyword.MUTATION
-	} else if bytes.Equal(ident, literal.FRAGMENT) {
+	case "fragment":
 		return keyword.FRAGMENT
-	} else if bytes.Equal(ident, literal.INTERFACE) {
+	case "interface":
 		return keyword.INTERFACE
-	} else if bytes.Equal(ident, literal.DIRECTIVE) {
+	case "directive":
 		return keyword.DIRECTIVE
-	} else if bytes.Equal(ident, literal.IMPLEMENTS) {
+	case "implements":
 		return keyword.IMPLEMENTS
-	} else if bytes.Equal(ident, literal.SUBSCRIPTION) {
+	case "subscription":
 		return keyword.SUBSCRIPTION
-	} else {
+	default:
 		return keyword.IDENT
-	}*/
-
-	return keyword.IDENT
+	}
 }
 
 func (l *Lexer) readVariable(startRune parsedRune) (tok token.Token, err error) {

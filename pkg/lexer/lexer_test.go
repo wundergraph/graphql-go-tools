@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/jensneuse/diffview"
-	. "github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
 	"github.com/sebdah/goldie"
 	"io/ioutil"
@@ -23,7 +23,7 @@ func TestLexer_Peek_Read(t *testing.T) {
 		}
 	}
 
-	mustPeek := func(k Keyword) checkFunc {
+	mustPeek := func(k keyword.Keyword) checkFunc {
 		return func(lex *Lexer, i int) {
 			peeked, err := lex.Peek(true)
 			if err != nil {
@@ -35,7 +35,7 @@ func TestLexer_Peek_Read(t *testing.T) {
 		}
 	}
 
-	mustRead := func(k Keyword, literal string) checkFunc {
+	mustRead := func(k keyword.Keyword, literal string) checkFunc {
 		return func(lex *Lexer, i int) {
 			tok, err := lex.Read()
 			if err != nil {
@@ -50,7 +50,7 @@ func TestLexer_Peek_Read(t *testing.T) {
 		}
 	}
 
-	mustPeekAndRead := func(k Keyword, literal string) checkFunc {
+	mustPeekAndRead := func(k keyword.Keyword, literal string) checkFunc {
 		return func(lex *Lexer, i int) {
 			mustPeek(k)(lex, i)
 			mustRead(k, literal)(lex, i)
@@ -90,206 +90,206 @@ func TestLexer_Peek_Read(t *testing.T) {
 
 	t.Run("read correct when resetting input", func(t *testing.T) {
 		run("x",
-			mustRead(IDENT, "x"),
+			mustRead(keyword.IDENT, "x"),
 			resetInput("y"),
-			mustRead(IDENT, "y"),
+			mustRead(keyword.IDENT, "y"),
 		)
 	})
 	t.Run("read eof multiple times", func(t *testing.T) {
 		run("x",
-			mustRead(IDENT, "x"),
-			mustRead(EOF, "eof"),
-			mustRead(EOF, "eof"),
+			mustRead(keyword.IDENT, "x"),
+			mustRead(keyword.EOF, "eof"),
+			mustRead(keyword.EOF, "eof"),
 		)
 	})
 	t.Run("read integer", func(t *testing.T) {
-		run("1337", mustPeekAndRead(INTEGER, "1337"))
+		run("1337", mustPeekAndRead(keyword.INTEGER, "1337"))
 	})
 	t.Run("read integer with comma", func(t *testing.T) {
-		run("1337,", mustPeekAndRead(INTEGER, "1337"))
+		run("1337,", mustPeekAndRead(keyword.INTEGER, "1337"))
 	})
 	t.Run("read float", func(t *testing.T) {
-		run("13.37", mustPeekAndRead(FLOAT, "13.37"))
+		run("13.37", mustPeekAndRead(keyword.FLOAT, "13.37"))
 	})
 	t.Run("read float with space", func(t *testing.T) {
-		run("13.37 ", mustPeekAndRead(FLOAT, "13.37"))
+		run("13.37 ", mustPeekAndRead(keyword.FLOAT, "13.37"))
 	})
 	t.Run("read float with tab", func(t *testing.T) {
-		run("13.37	", mustPeekAndRead(FLOAT, "13.37"))
+		run("13.37	", mustPeekAndRead(keyword.FLOAT, "13.37"))
 	})
 	t.Run("read with with lineTerminator", func(t *testing.T) {
-		run("13.37\n", mustPeekAndRead(FLOAT, "13.37"))
+		run("13.37\n", mustPeekAndRead(keyword.FLOAT, "13.37"))
 	})
 	t.Run("read float with comma", func(t *testing.T) {
-		run("13.37,", mustPeekAndRead(FLOAT, "13.37"))
+		run("13.37,", mustPeekAndRead(keyword.FLOAT, "13.37"))
 	})
 	t.Run("fail reading incomplete float", func(t *testing.T) {
 		run("13.", mustErrRead())
 	})
 	t.Run("read single line string", func(t *testing.T) {
-		run("\"foo\"", mustPeekAndRead(STRING, "foo"))
+		run("\"foo\"", mustPeekAndRead(keyword.STRING, "foo"))
 	})
 	t.Run("read single line string with escaped quote", func(t *testing.T) {
-		run("\"foo \\\" bar\"", mustPeekAndRead(STRING, "foo \\\" bar"))
+		run("\"foo \\\" bar\"", mustPeekAndRead(keyword.STRING, "foo \\\" bar"))
 	})
 	t.Run("read multi line string with escaped quote", func(t *testing.T) {
-		run("\"\"\"foo \\\" bar\"\"\"", mustPeekAndRead(STRING, "foo \\\" bar"))
+		run("\"\"\"foo \\\" bar\"\"\"", mustPeekAndRead(keyword.STRING, "foo \\\" bar"))
 	})
 	t.Run("read multi line string", func(t *testing.T) {
-		run("\"\"\"\nfoo\nbar\"\"\"", mustPeekAndRead(STRING, "foo\nbar"))
+		run("\"\"\"\nfoo\nbar\"\"\"", mustPeekAndRead(keyword.STRING, "foo\nbar"))
 	})
 	t.Run("read pipe", func(t *testing.T) {
-		run("|", mustPeekAndRead(PIPE, "|"))
+		run("|", mustPeekAndRead(keyword.PIPE, "|"))
 	})
 	t.Run("err reading dot", func(t *testing.T) {
 		run(".", mustErrRead())
 	})
 	t.Run("read fragment spread", func(t *testing.T) {
-		run("...", mustPeekAndRead(SPREAD, "..."))
+		run("...", mustPeekAndRead(keyword.SPREAD, "..."))
 	})
 	t.Run("read variable", func(t *testing.T) {
-		run("$123", mustPeekAndRead(VARIABLE, "123"))
+		run("$123", mustPeekAndRead(keyword.VARIABLE, "123"))
 	})
 	t.Run("read variable 2", func(t *testing.T) {
-		run("$foo", mustPeekAndRead(VARIABLE, "foo"))
+		run("$foo", mustPeekAndRead(keyword.VARIABLE, "foo"))
 	})
 	t.Run("read variable 3", func(t *testing.T) {
-		run("$_foo", mustPeekAndRead(VARIABLE, "_foo"))
+		run("$_foo", mustPeekAndRead(keyword.VARIABLE, "_foo"))
 	})
 	t.Run("read variable 3", func(t *testing.T) {
-		run("$123", mustPeekAndRead(VARIABLE, "123"))
+		run("$123", mustPeekAndRead(keyword.VARIABLE, "123"))
 	})
 	t.Run("read variable 4", func(t *testing.T) {
-		run("$foo\n", mustPeekAndRead(VARIABLE, "foo"))
+		run("$foo\n", mustPeekAndRead(keyword.VARIABLE, "foo"))
 	})
 	t.Run("read err invalid variable", func(t *testing.T) {
 		run("$ foo", mustErrRead())
 	})
 	t.Run("read @", func(t *testing.T) {
-		run("@", mustPeekAndRead(AT, "@"))
+		run("@", mustPeekAndRead(keyword.AT, "@"))
 	})
 	t.Run("read equals", func(t *testing.T) {
-		run("=", mustPeekAndRead(EQUALS, "="))
+		run("=", mustPeekAndRead(keyword.EQUALS, "="))
 	})
 	t.Run("read variable colon", func(t *testing.T) {
-		run(":", mustPeekAndRead(COLON, ":"))
+		run(":", mustPeekAndRead(keyword.COLON, ":"))
 	})
 	t.Run("read bang", func(t *testing.T) {
-		run("!", mustPeekAndRead(BANG, "!"))
+		run("!", mustPeekAndRead(keyword.BANG, "!"))
 	})
 	t.Run("read bracket open", func(t *testing.T) {
-		run("(", mustPeekAndRead(BRACKETOPEN, "("))
+		run("(", mustPeekAndRead(keyword.BRACKETOPEN, "("))
 	})
 	t.Run("read bracket close", func(t *testing.T) {
-		run(")", mustPeekAndRead(BRACKETCLOSE, ")"))
+		run(")", mustPeekAndRead(keyword.BRACKETCLOSE, ")"))
 	})
 	t.Run("read squared bracket open", func(t *testing.T) {
-		run("[", mustPeekAndRead(SQUAREBRACKETOPEN, "["))
+		run("[", mustPeekAndRead(keyword.SQUAREBRACKETOPEN, "["))
 	})
 	t.Run("read squared bracket close", func(t *testing.T) {
-		run("]", mustPeekAndRead(SQUAREBRACKETCLOSE, "]"))
+		run("]", mustPeekAndRead(keyword.SQUAREBRACKETCLOSE, "]"))
 	})
 	t.Run("read curly bracket open", func(t *testing.T) {
-		run("{", mustPeekAndRead(CURLYBRACKETOPEN, "{"))
+		run("{", mustPeekAndRead(keyword.CURLYBRACKETOPEN, "{"))
 	})
 	t.Run("read curly bracket close", func(t *testing.T) {
-		run("}", mustPeekAndRead(CURLYBRACKETCLOSE, "}"))
+		run("}", mustPeekAndRead(keyword.CURLYBRACKETCLOSE, "}"))
 	})
 	t.Run("read and", func(t *testing.T) {
-		run("&", mustPeekAndRead(AND, "&"))
+		run("&", mustPeekAndRead(keyword.AND, "&"))
 	})
 	t.Run("read EOF", func(t *testing.T) {
-		run("", mustPeekAndRead(EOF, "eof"))
+		run("", mustPeekAndRead(keyword.EOF, "eof"))
 	})
 	t.Run("read ident", func(t *testing.T) {
-		run("foo", mustPeekAndRead(IDENT, "foo"))
+		run("foo", mustPeekAndRead(keyword.IDENT, "foo"))
 	})
 	t.Run("read ident with colon", func(t *testing.T) {
-		run("foo:", mustPeekAndRead(IDENT, "foo"))
+		run("foo:", mustPeekAndRead(keyword.IDENT, "foo"))
 	})
 	t.Run("read true", func(t *testing.T) {
-		run("true", mustPeekAndRead(TRUE, "true"))
+		run("true", mustPeekAndRead(keyword.TRUE, "true"))
 	})
 	t.Run("read true with space", func(t *testing.T) {
-		run(" true ", mustPeekAndRead(TRUE, "true"))
+		run(" true ", mustPeekAndRead(keyword.TRUE, "true"))
 	})
 	t.Run("read false", func(t *testing.T) {
-		run("false", mustPeekAndRead(FALSE, "false"))
+		run("false", mustPeekAndRead(keyword.FALSE, "false"))
 	})
 	t.Run("read query", func(t *testing.T) {
-		run("query", mustPeekAndRead(QUERY, "query"))
+		run("query", mustPeekAndRead(keyword.QUERY, "query"))
 	})
 	t.Run("read mutation", func(t *testing.T) {
-		run("mutation", mustPeekAndRead(MUTATION, "mutation"))
+		run("mutation", mustPeekAndRead(keyword.MUTATION, "mutation"))
 	})
 	t.Run("read subscription", func(t *testing.T) {
-		run("subscription", mustPeekAndRead(SUBSCRIPTION, "subscription"))
+		run("subscription", mustPeekAndRead(keyword.SUBSCRIPTION, "subscription"))
 	})
 	t.Run("read fragment", func(t *testing.T) {
-		run("fragment", mustPeekAndRead(FRAGMENT, "fragment"))
+		run("fragment", mustPeekAndRead(keyword.FRAGMENT, "fragment"))
 	})
 	t.Run("read implements", func(t *testing.T) {
-		run("implements", mustPeekAndRead(IMPLEMENTS, "implements"))
+		run("implements", mustPeekAndRead(keyword.IMPLEMENTS, "implements"))
 	})
 	t.Run("read schema", func(t *testing.T) {
-		run("schema", mustPeekAndRead(SCHEMA, "schema"))
+		run("schema", mustPeekAndRead(keyword.SCHEMA, "schema"))
 	})
 	t.Run("read scalar", func(t *testing.T) {
-		run("scalar", mustPeekAndRead(SCALAR, "scalar"))
+		run("scalar", mustPeekAndRead(keyword.SCALAR, "scalar"))
 	})
 	t.Run("read type", func(t *testing.T) {
-		run("type", mustPeekAndRead(TYPE, "type"))
+		run("type", mustPeekAndRead(keyword.TYPE, "type"))
 	})
 	t.Run("read interface", func(t *testing.T) {
-		run("interface", mustPeekAndRead(INTERFACE, "interface"))
+		run("interface", mustPeekAndRead(keyword.INTERFACE, "interface"))
 	})
 	t.Run("read union", func(t *testing.T) {
-		run("union", mustPeekAndRead(UNION, "union"))
+		run("union", mustPeekAndRead(keyword.UNION, "union"))
 	})
 	t.Run("read enum", func(t *testing.T) {
-		run("enum", mustPeekAndRead(ENUM, "enum"))
+		run("enum", mustPeekAndRead(keyword.ENUM, "enum"))
 	})
 	t.Run("read input", func(t *testing.T) {
-		run("input", mustPeekAndRead(INPUT, "input"))
+		run("input", mustPeekAndRead(keyword.INPUT, "input"))
 	})
 	t.Run("read directive", func(t *testing.T) {
-		run("directive", mustPeekAndRead(DIRECTIVE, "directive"))
+		run("directive", mustPeekAndRead(keyword.DIRECTIVE, "directive"))
 	})
 	t.Run("read inputValue", func(t *testing.T) {
-		run("inputValue", mustPeekAndRead(IDENT, "inputValue"))
+		run("inputValue", mustPeekAndRead(keyword.IDENT, "inputValue"))
 	})
 	t.Run("read on", func(t *testing.T) {
-		run("on", mustPeekAndRead(ON, "on"))
+		run("on", mustPeekAndRead(keyword.ON, "on"))
 	})
 	t.Run("read on with whitespace", func(t *testing.T) {
-		run("on ", mustPeekAndRead(ON, "on"))
+		run("on ", mustPeekAndRead(keyword.ON, "on"))
 	})
 	t.Run("read ignore comma", func(t *testing.T) {
-		run(",", mustPeekAndRead(EOF, "eof"))
+		run(",", mustPeekAndRead(keyword.EOF, "eof"))
 	})
 	t.Run("read ignore space", func(t *testing.T) {
-		run(" ", mustPeekAndRead(EOF, "eof"))
+		run(" ", mustPeekAndRead(keyword.EOF, "eof"))
 	})
 	t.Run("read ignore tab", func(t *testing.T) {
-		run("	", mustPeekAndRead(EOF, "eof"))
+		run("	", mustPeekAndRead(keyword.EOF, "eof"))
 	})
 	t.Run("read ignore lineTerminator", func(t *testing.T) {
-		run("\n", mustPeekAndRead(EOF, "eof"))
+		run("\n", mustPeekAndRead(keyword.EOF, "eof"))
 	})
 	t.Run("read null", func(t *testing.T) {
-		run("null", mustPeekAndRead(NULL, "null"))
+		run("null", mustPeekAndRead(keyword.NULL, "null"))
 	})
 	t.Run("multi read 'foo:'", func(t *testing.T) {
 		run("foo:",
-			mustPeekAndRead(IDENT, "foo"),
-			mustPeekAndRead(COLON, ":"),
+			mustPeekAndRead(keyword.IDENT, "foo"),
+			mustPeekAndRead(keyword.COLON, ":"),
 		)
 	})
 	t.Run("multi read '1,2,3'", func(t *testing.T) {
 		run("1,2,3",
-			mustPeekAndRead(INTEGER, "1"),
-			mustPeekAndRead(INTEGER, "2"),
-			mustPeekAndRead(INTEGER, "3"),
+			mustPeekAndRead(keyword.INTEGER, "1"),
+			mustPeekAndRead(keyword.INTEGER, "2"),
+			mustPeekAndRead(keyword.INTEGER, "3"),
 		)
 	})
 	t.Run("multi read positions", func(t *testing.T) {
@@ -312,13 +312,13 @@ bal
 							}
 						}
 					}`,
-			mustPeekAndRead(IDENT, "Goland"), mustPeekAndRead(CURLYBRACKETOPEN, "{"),
-			mustPeekAndRead(SPREAD, "..."), mustPeekAndRead(ON, "on"), mustPeekAndRead(IDENT, "GoWater"), mustPeekAndRead(CURLYBRACKETOPEN, "{"),
-			mustPeekAndRead(SPREAD, "..."), mustPeekAndRead(ON, "on"), mustPeekAndRead(IDENT, "GoAir"), mustPeekAndRead(CURLYBRACKETOPEN, "{"),
-			mustPeekAndRead(IDENT, "go"),
-			mustPeekAndRead(CURLYBRACKETCLOSE, "}"),
-			mustPeekAndRead(CURLYBRACKETCLOSE, "}"),
-			mustPeekAndRead(CURLYBRACKETCLOSE, "}"),
+			mustPeekAndRead(keyword.IDENT, "Goland"), mustPeekAndRead(keyword.CURLYBRACKETOPEN, "{"),
+			mustPeekAndRead(keyword.SPREAD, "..."), mustPeekAndRead(keyword.ON, "on"), mustPeekAndRead(keyword.IDENT, "GoWater"), mustPeekAndRead(keyword.CURLYBRACKETOPEN, "{"),
+			mustPeekAndRead(keyword.SPREAD, "..."), mustPeekAndRead(keyword.ON, "on"), mustPeekAndRead(keyword.IDENT, "GoAir"), mustPeekAndRead(keyword.CURLYBRACKETOPEN, "{"),
+			mustPeekAndRead(keyword.IDENT, "go"),
+			mustPeekAndRead(keyword.CURLYBRACKETCLOSE, "}"),
+			mustPeekAndRead(keyword.CURLYBRACKETCLOSE, "}"),
+			mustPeekAndRead(keyword.CURLYBRACKETCLOSE, "}"),
 		)
 	})
 	t.Run("multi read many idents and strings", func(t *testing.T) {
@@ -328,11 +328,11 @@ bar
 baz
 """
 13.37`,
-			mustPeekAndRead(INTEGER, "1337"), mustPeekAndRead(INTEGER, "1338"), mustPeekAndRead(INTEGER, "1339"),
-			mustPeekAndRead(STRING, "foo"), mustPeekAndRead(STRING, "bar"), mustPeekAndRead(STRING, "foo bar"),
-			mustPeekAndRead(STRING, "foo\nbar"),
-			mustPeekAndRead(STRING, "foo\nbar\nbaz"),
-			mustPeekAndRead(FLOAT, "13.37"),
+			mustPeekAndRead(keyword.INTEGER, "1337"), mustPeekAndRead(keyword.INTEGER, "1338"), mustPeekAndRead(keyword.INTEGER, "1339"),
+			mustPeekAndRead(keyword.STRING, "foo"), mustPeekAndRead(keyword.STRING, "bar"), mustPeekAndRead(keyword.STRING, "foo bar"),
+			mustPeekAndRead(keyword.STRING, "foo\nbar"),
+			mustPeekAndRead(keyword.STRING, "foo\nbar\nbaz"),
+			mustPeekAndRead(keyword.FLOAT, "13.37"),
 		)
 	})
 }
@@ -448,7 +448,7 @@ func TestLexerRegressions(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if tok.Keyword == EOF {
+		if tok.Keyword == keyword.EOF {
 			break
 		}
 
@@ -484,10 +484,10 @@ func BenchmarkLexer(b *testing.B) {
 
 		lexer.SetInput(inputBytes)
 
-		var key Keyword
+		var key keyword.Keyword
 		var err error
 
-		for key != EOF {
+		for key != keyword.EOF {
 			key, err = lexer.Peek(true)
 			if err != nil {
 				b.Fatal(err)
