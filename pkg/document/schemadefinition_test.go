@@ -33,9 +33,9 @@ var _ = Describe("SchemaDefinition", func() {
 	},
 		Entry("should marshal simple SchemaDefinition", Case{
 			input: SchemaDefinition{
-				Query:        "Query",
-				Mutation:     "Mutation",
-				Subscription: "Subscription",
+				Query:        []byte("Query"),
+				Mutation:     []byte("Mutation"),
+				Subscription: []byte("Subscription"),
 			},
 			expectErr: Not(HaveOccurred()),
 			expectOut: Equal(`{"Query":"Query","Mutation":"Mutation","Subscription":"Subscription","Directives":null}`),
