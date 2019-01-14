@@ -14,10 +14,10 @@ Currently implemented:
 
 TODO (1.0 planned @ 02/2019):
 
-- validation
-- introspection
-- schema printer
-- cleanup different styles of testing
+- [x] cleanup different styles of testing
+- [ ] validation
+- [ ] introspection
+- [ ] schema printer
 
 ## Usage
 
@@ -34,13 +34,11 @@ See pkg/parser/parser_test.go
 ## Benchmarks
 
 ```
-goos: darwin
-goarch: amd64
 pkg: github.com/jensneuse/graphql-go-tools/pkg/parser
-BenchmarkParser-4   	   50000	     30105 ns/op	       0 B/op	       0 allocs/op
-BenchmarkParser-4   	   50000	     29615 ns/op	       1 B/op	       0 allocs/op
-BenchmarkParser-4   	   50000	     29952 ns/op	       1 B/op	       0 allocs/op
-BenchmarkParser-4   	   50000	     29849 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParser-4   	   50000	     24778 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParser-4   	   50000	     24950 ns/op	       1 B/op	       0 allocs/op
+BenchmarkParser-4   	   50000	     25724 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParser-4   	   50000	     25537 ns/op	       0 B/op	       0 allocs/op
 ```
 
 In a previous release I found that nested slice structs accounted for huge amounts of gc and decreased performance.
