@@ -15,7 +15,7 @@ Currently implemented:
 TODO (1.0 planned @ 02/2019):
 
 - [x] cleanup different styles of testing
-- [ ] validation
+- [ ] validation (WIP)
 - [ ] introspection
 - [ ] schema printer
 
