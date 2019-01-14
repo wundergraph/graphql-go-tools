@@ -29,10 +29,7 @@
     "FragmentDefinitions": [
       {
         "FragmentName": "FullType",
-        "TypeCondition": {
-          "Name": "__Type",
-          "NonNull": false
-        },
+        "TypeCondition": 0,
         "Directives": [],
         "SelectionSet": {
           "Fields": [
@@ -51,10 +48,7 @@
       },
       {
         "FragmentName": "InputValue",
-        "TypeCondition": {
-          "Name": "__InputValue",
-          "NonNull": false
-        },
+        "TypeCondition": 1,
         "Directives": [],
         "SelectionSet": {
           "Fields": [
@@ -69,10 +63,7 @@
       },
       {
         "FragmentName": "TypeRef",
-        "TypeCondition": {
-          "Name": "__Type",
-          "NonNull": false
-        },
+        "TypeCondition": 2,
         "Directives": [],
         "SelectionSet": {
           "Fields": [
@@ -840,31 +831,11 @@
     "Arguments": [
       {
         "Name": "includeDeprecated",
-        "Value": {
-          "ValueType": 5,
-          "VariableValue": "",
-          "IntValue": 0,
-          "FloatValue": 0,
-          "StringValue": "",
-          "BooleanValue": true,
-          "EnumValue": "",
-          "ListValue": null,
-          "ObjectValue": null
-        }
+        "Value": 0
       },
       {
         "Name": "includeDeprecated",
-        "Value": {
-          "ValueType": 5,
-          "VariableValue": "",
-          "IntValue": 0,
-          "FloatValue": 0,
-          "StringValue": "",
-          "BooleanValue": true,
-          "EnumValue": "",
-          "ListValue": null,
-          "ObjectValue": null
-        }
+        "Value": 1
       }
     ],
     "Directives": [],
@@ -877,6 +848,43 @@
     "InterfaceTypeDefinitions": [],
     "ObjectTypeDefinitions": [],
     "ScalarTypeDefinitions": [],
-    "UnionTypeDefinitions": []
+    "UnionTypeDefinitions": [],
+    "Values": [
+      {
+        "ValueType": 5,
+        "Reference": 1
+      },
+      {
+        "ValueType": 5,
+        "Reference": 1
+      }
+    ],
+    "ListValues": [],
+    "ObjectValues": [],
+    "ObjectFields": [],
+    "Types": [
+      {
+        "Kind": 2,
+        "Name": "__Type",
+        "OfType": -1
+      },
+      {
+        "Kind": 2,
+        "Name": "__InputValue",
+        "OfType": -1
+      },
+      {
+        "Kind": 2,
+        "Name": "__Type",
+        "OfType": -1
+      }
+    ],
+    "ByteSlices": [],
+    "Integers": [],
+    "Floats": [],
+    "Booleans": [
+      false,
+      true
+    ]
   }
 }
