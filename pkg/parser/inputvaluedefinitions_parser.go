@@ -69,7 +69,7 @@ func (p *Parser) parseInputValueDefinitions(index *[]int, closeKeyword keyword.K
 		} else if next != closeKeyword && closeKeyword != keyword.UNDEFINED {
 			invalid, _ := p.l.Read()
 			return newErrInvalidType(invalid.Position, "parseInputValueDefinitions", "string/ident/"+closeKeyword.String(), invalid.String())
-		} else { // nolint
+		} else {
 			return nil
 		}
 	}

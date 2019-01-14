@@ -54,5 +54,5 @@ func (p *Parser) parseValue(index *int) error {
 
 	p.putValue(value, *index)
 
-	return nil
+	return err
 }
