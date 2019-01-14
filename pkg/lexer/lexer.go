@@ -44,7 +44,7 @@ func (l *Lexer) Read() (tok token.Token, err error) {
 
 	for {
 		next = l.readRune()
-		if !l.runeIsWhitespace(next.r) {
+		if !l.byteIsWhitespace(next.r) {
 			break
 		}
 	}
@@ -73,18 +73,20 @@ func (l *Lexer) Read() (tok token.Token, err error) {
 
 func (l *Lexer) swallowWhitespace() (err error) {
 
-	var next parsedRune
+	var next rune
 
 	for {
-		next = l.readRune()
+		next = l.peekRune()
 
-		if next.r == runes.EOF {
+		if next == runes.EOF {
 			return nil
 		}
 
-		if !l.runeIsWhitespace(next.r) {
-			return l.unreadRune()
+		if !l.runeIsWhitespace(next) {
+			return nil
 		}
+
+		l.readRune()
 	}
 }
 
@@ -175,7 +177,7 @@ func (l *Lexer) peekIsFloat() (isFloat bool) {
 
 		if peeked == runes.EOF {
 			return hasDot
-		} else if l.runeIsWhitespace(peeked) {
+		} else if l.byteIsWhitespace(peeked) {
 			return hasDot
 		} else if peeked == runes.DOT && !hasDot {
 			hasDot = true
@@ -520,8 +522,17 @@ func (l *Lexer) peekRune() (r rune) {
 }
 
 func runeIsIdent(r byte) bool {
-	switch r {
-	case 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', runes.NEGATIVESIGN, runes.UNDERSCORE:
+
+	switch {
+	case r >= 'a' && r <= 'z':
+		return true
+	case r >= 'A' && r <= 'Z':
+		return true
+	case r >= '0' && r <= '9':
+		return true
+	case r == runes.NEGATIVESIGN:
+		return true
+	case r == runes.UNDERSCORE:
 		return true
 	default:
 		return false
@@ -529,15 +540,24 @@ func runeIsIdent(r byte) bool {
 }
 
 func runeIsDigit(r byte) bool {
-	switch r {
-	case '1', '2', '3', '4', '5', '6', '7', '8', '9', '0':
+	switch {
+	case r >= '0' && r <= '9':
 		return true
 	default:
 		return false
 	}
 }
 
-func (l *Lexer) runeIsWhitespace(r byte) bool {
+func (l *Lexer) runeIsWhitespace(r rune) bool {
+	switch r {
+	case runes.SPACE, runes.TAB, runes.LINETERMINATOR, runes.COMMA:
+		return true
+	default:
+		return false
+	}
+}
+
+func (l *Lexer) byteIsWhitespace(r byte) bool {
 	switch r {
 	case runes.SPACE, runes.TAB, runes.LINETERMINATOR, runes.COMMA:
 		return true
