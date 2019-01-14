@@ -9,7 +9,7 @@ func (p *Parser) parseTypeSystemDefinition() (definition document.TypeSystemDefi
 
 	definition = p.makeTypeSystemDefinition()
 
-	var description string
+	var description document.ByteSlice
 
 	for {
 		next, err := p.l.Read()
@@ -106,6 +106,6 @@ func (p *Parser) parseTypeSystemDefinition() (definition document.TypeSystemDefi
 			return definition, newErrInvalidType(invalid.Position, "parseTypeSystemDefinition", "eof/string/schema/scalar/type/interface/union/directive/input/enum", invalid.Keyword.String())
 		}
 
-		description = ""
+		description = nil
 	}
 }

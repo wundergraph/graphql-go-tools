@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 	"github.com/jensneuse/graphql-go-tools/pkg/transform"
 )
@@ -13,7 +14,7 @@ import (
 
 func (p *Parser) parseInputValueDefinitions(index *[]int, closeKeyword keyword.Keyword) error {
 
-	var description string
+	var description document.ByteSlice
 
 	for {
 		next, err := p.l.Peek(true)
@@ -41,18 +42,19 @@ func (p *Parser) parseInputValueDefinitions(index *[]int, closeKeyword keyword.K
 			definition.Description = description
 			definition.Name = ident.Literal
 
-			description = ""
+			description = nil
 
 			_, err = p.readExpect(keyword.COLON, "parseInputValueDefinitions")
 			if err != nil {
 				return err
 			}
 
-			definition.Type, err = p.parseType()
+			err = p.parseType(&definition.Type)
 			if err != nil {
 				return err
 			}
-			definition.DefaultValue, err = p.parseDefaultValue()
+
+			err = p.parseDefaultValue(&definition.DefaultValue)
 			if err != nil {
 				return err
 			}

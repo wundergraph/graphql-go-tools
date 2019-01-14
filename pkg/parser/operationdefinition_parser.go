@@ -8,7 +8,8 @@ import (
 
 func (p *Parser) parseOperationDefinition(index *[]int) (err error) {
 
-	operationDefinition := p.makeOperationDefinition()
+	var operationDefinition document.OperationDefinition
+	p.initOperationDefinition(&operationDefinition)
 
 	operationType, err := p.l.Peek(true)
 	if err != nil {

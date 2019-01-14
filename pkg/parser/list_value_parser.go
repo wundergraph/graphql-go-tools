@@ -1,38 +1,44 @@
 package parser
 
 import (
-	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
-func (p *Parser) parsePeekedListValue() (val document.Value, err error) {
+func (p *Parser) parsePeekedListValue(index *int) error {
 
-	val.ValueType = document.ValueTypeList
-
-	_, err = p.l.Read()
+	_, err := p.l.Read()
 	if err != nil {
-		return val, nil
+		return nil
 	}
 
+	listValue := p.makeListValue(index)
 	var peeked keyword.Keyword
 
 	for {
 		peeked, err = p.l.Peek(true)
 		if err != nil {
-			return val, err
+			return err
 		}
 
 		switch peeked {
 		case keyword.SQUAREBRACKETCLOSE:
 			_, err = p.l.Read()
-			return val, err
-		default:
-			listValue, err := p.parseValue()
 			if err != nil {
-				return val, err
+				return err
 			}
 
-			val.ListValue = append(val.ListValue, listValue)
+			p.putListValue(listValue, *index)
+			return nil
+
+		default:
+
+			var next int
+			err := p.parseValue(&next)
+			if err != nil {
+				return err
+			}
+
+			listValue = append(listValue, next)
 		}
 	}
 }

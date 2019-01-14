@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
@@ -15,7 +16,7 @@ func (p *Parser) parseEnumValuesDefinition(index *[]int) error {
 		return nil
 	}
 
-	var description string
+	var description document.ByteSlice
 
 	for {
 		next, err := p.l.Peek(true)
@@ -43,7 +44,7 @@ func (p *Parser) parseEnumValuesDefinition(index *[]int) error {
 			definition.EnumValue = ident.Literal
 			definition.Description = description
 
-			description = ""
+			description = nil
 
 			err = p.parseDirectives(&definition.Directives)
 			if err != nil {

@@ -22,7 +22,7 @@ func (p *Parser) parseArguments(index *[]int) error {
 		return err
 	}
 
-	var valueName string
+	var valueName document.ByteSlice
 
 	for {
 		key, err = p.l.Peek(true)
@@ -59,14 +59,13 @@ func (p *Parser) parseArguments(index *[]int) error {
 			return fmt.Errorf("parseArguments: colon expected, got %s", key)
 		}
 
-		value, err := p.parseValue()
-		if err != nil {
-			return err
+		argument := document.Argument{
+			Name: valueName,
 		}
 
-		argument := document.Argument{
-			Name:  valueName,
-			Value: value,
+		err := p.parseValue(&argument.Value)
+		if err != nil {
+			return err
 		}
 
 		*index = append(*index, p.putArgument(argument))

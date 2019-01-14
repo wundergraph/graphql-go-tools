@@ -1,27 +1,35 @@
 package parser
 
-import (
-	"github.com/jensneuse/graphql-go-tools/pkg/document"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
-)
+/*func (p *Parser) parseListType(index *int) error {
 
-func (p *Parser) parseListType() (listType document.ListType, err error) {
-
-	_, err = p.readExpect(keyword.SQUAREBRACKETOPEN, "parseListType")
+	_, err := p.readExpect(keyword.SQUAREBRACKETOPEN, "parseListType")
 	if err != nil {
-		return listType, err
+		return err
 	}
 
-	listType.Type, err = p.parseType()
+	listType := p.makeType(index)
+
+	var ofTypeIndex int
+
+	err = p.parseType(&ofTypeIndex)
 	if err != nil {
-		return
+		return err
 	}
 
 	_, err = p.readExpect(keyword.SQUAREBRACKETCLOSE, "parseListType")
 	if err != nil {
-		return
+		return err
 	}
 
-	listType.NonNull, err = p.peekExpect(keyword.BANG, true)
-	return
+	isNonNull, err := p.peekExpect(keyword.BANG, true)
+	if err != nil {
+		return err
+	}
+
+	if isNonNull {
+
+	}
+
+	return nil
 }
+*/

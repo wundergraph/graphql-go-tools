@@ -1,6 +1,6 @@
 package parser
 
-func (p *Parser) parsePeekedVariableValue(index *int) error {
+func (p *Parser) parsePeekedByteSlice(index *int) error {
 
 	variableToken, err := p.l.Read()
 	if err != nil {

@@ -39,12 +39,12 @@ func (p *Parser) parseVariableDefinitions(index *[]int) (err error) {
 				return err
 			}
 
-			variableDefinition.Type, err = p.parseType()
+			err = p.parseType(&variableDefinition.Type)
 			if err != nil {
 				return err
 			}
 
-			variableDefinition.DefaultValue, err = p.parseDefaultValue()
+			err = p.parseDefaultValue(&variableDefinition.DefaultValue)
 			if err != nil {
 				return err
 			}

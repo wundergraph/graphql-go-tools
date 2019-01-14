@@ -1,12 +1,14 @@
 package parser
 
 import (
+	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
 func (p *Parser) parseFragmentDefinition(index *[]int) error {
 
-	fragmentDefinition := p.makeFragmentDefinition()
+	var fragmentDefinition document.FragmentDefinition
+	p.initFragmentDefinition(&fragmentDefinition)
 
 	fragmentIdent, err := p.readExpect(keyword.IDENT, "parseFragmentDefinition")
 	if err != nil {
@@ -20,7 +22,7 @@ func (p *Parser) parseFragmentDefinition(index *[]int) error {
 		return err
 	}
 
-	fragmentDefinition.TypeCondition, err = p.parseNamedType()
+	err = p.parseType(&fragmentDefinition.TypeCondition)
 	if err != nil {
 		return err
 	}
