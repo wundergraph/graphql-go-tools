@@ -977,18 +977,6 @@ func TestParser(t *testing.T) {
 			mustPanic(mustParseArgumentDefinitions()))
 	})
 
-	// parsePeekedBoolValue
-
-	/*	t.Run("true", func(t *testing.T) {
-			run("true", mustParsePeekedBoolValue(true))
-		})
-		t.Run("false", func(t *testing.T) {
-			run("false", mustParsePeekedBoolValue(false))
-		})
-		t.Run("invalid", func(t *testing.T) {
-			run("not_true", mustPanic(mustParsePeekedBoolValue(true)))
-		})*/
-
 	// parseDefaultValue
 
 	t.Run("integer", func(t *testing.T) {
@@ -1062,12 +1050,6 @@ func TestParser(t *testing.T) {
 			mustPanic(mustParseDirectives("rename")),
 		)
 	})
-
-	// parsePeekedEnumValue
-
-	/*	t.Run("simple enum", func(t *testing.T) {
-		run("MY_ENUM", mustParsePeekedEnumValue("MY_ENUM"))
-	})*/
 
 	// parseEnumTypeDefinition
 
@@ -1491,12 +1473,6 @@ func TestParser(t *testing.T) {
 				),
 			))
 	})
-
-	// parsePeekedFloatValue
-
-	/*	t.Run("valid float", func(t *testing.T) {
-		run("12.12", mustParsePeekedFloatValue(12.12))
-	})*/
 
 	// parseFragmentDefinition
 
@@ -1938,14 +1914,6 @@ func TestParser(t *testing.T) {
 		)
 	})
 
-	// parsePeekedListValue
-	/*	t.Run("simple 3", func(t *testing.T) {
-			run("[1,2,3]", mustParsePeekedListValue(3))
-		})
-		t.Run("complex 4", func(t *testing.T) {
-			run(`[ 1	,"2" 3,,[	1	]]`, mustParsePeekedListValue(4))
-		})*/
-
 	// parseObjectTypeDefinition
 
 	t.Run("simple", func(t *testing.T) {
@@ -2328,25 +2296,6 @@ query: Query2 }`, mustPanic(mustParseSchemaDefinition("Query", "Mutation", "Subs
 		))
 	})
 
-	// parsePeekedStringValue
-
-	/*	t.Run("simple", func(t *testing.T) {
-				run(`"lorem ipsum"`, mustParsePeekedStringValue("lorem ipsum"))
-			})
-			t.Run("multiline", func(t *testing.T) {
-				run(`"""
-		lorem ipsum
-		"""`, mustParsePeekedStringValue("lorem ipsum"))
-			})
-			t.Run("multiline escaped", func(t *testing.T) {
-				run(`"""
-		foo \" bar
-		"""`, mustParsePeekedStringValue("foo \\\" bar"))
-			})
-			t.Run("single line escaped", func(t *testing.T) {
-				run(`"foo bar \" baz"`, mustParsePeekedStringValue("foo bar \\\" baz"))
-			})*/
-
 	// parseTypeSystemDefinition
 
 	t.Run("unions", func(t *testing.T) {
@@ -2559,6 +2508,7 @@ directive @ someway on SUBSCRIPTION | MUTATION`,
 	})
 
 	// parseValue
+
 	t.Run("int", func(t *testing.T) {
 		run("1337", mustParseValue(
 			document.ValueTypeInt,
