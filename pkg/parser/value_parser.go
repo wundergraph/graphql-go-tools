@@ -10,41 +10,49 @@ var (
 	parseValuePossibleKeywords = []keyword.Keyword{keyword.FALSE, keyword.TRUE, keyword.VARIABLE, keyword.INTEGER, keyword.FLOAT, keyword.STRING, keyword.NULL, keyword.IDENT, keyword.SQUAREBRACKETOPEN, keyword.SQUAREBRACKETCLOSE}
 )
 
-func (p *Parser) parseValue() (val document.Value, err error) {
+func (p *Parser) parseValue(index *int) error {
 
 	key, err := p.l.Peek(true)
+	if err != nil {
+		return err
+	}
+
+	value := p.makeValue(index)
 
 	switch key {
 	case keyword.FALSE, keyword.TRUE:
-		val, err = p.parsePeekedBoolValue()
-		return
+		value.ValueType = document.ValueTypeBoolean
+		err = p.parsePeekedBoolValue(&value.Reference)
 	case keyword.VARIABLE:
-		val, err = p.parsePeekedVariableValue()
-		return
+		value.ValueType = document.ValueTypeVariable
+		err = p.parsePeekedByteSlice(&value.Reference)
 	case keyword.INTEGER:
-		val, err = p.parsePeekedIntValue()
-		return
+		value.ValueType = document.ValueTypeInt
+		err = p.parsePeekedIntValue(&value.Reference)
 	case keyword.FLOAT:
-		val, err = p.parsePeekedFloatValue()
-		return
+		value.ValueType = document.ValueTypeFloat
+		err = p.parsePeekedFloatValue(&value.Reference)
 	case keyword.STRING:
-		val, err = p.parsePeekedStringValue()
-		return
+		value.ValueType = document.ValueTypeString
+		err = p.parsePeekedByteSlice(&value.Reference)
 	case keyword.NULL:
+		value.ValueType = document.ValueTypeNull
 		_, err = p.l.Read()
-		val.ValueType = document.ValueTypeNull
-		return
 	case keyword.IDENT:
-		val, err = p.parsePeekedEnumValue()
-		return
+		value.ValueType = document.ValueTypeEnum
+		err = p.parsePeekedByteSlice(&value.Reference)
 	case keyword.SQUAREBRACKETOPEN:
-		val, err = p.parsePeekedListValue()
-		return
+		value.ValueType = document.ValueTypeList
+		err = p.parsePeekedListValue(&value.Reference)
 	case keyword.CURLYBRACKETOPEN:
-		val, err = p.parsePeekedObjectValue()
-		return
+		value.ValueType = document.ValueTypeObject
+		err = p.parsePeekedObjectValue(&value.Reference)
 	default:
 		invalidToken, _ := p.l.Read()
-		return val, newErrInvalidType(invalidToken.Position, "parseValue", fmt.Sprintf("%v", parseValuePossibleKeywords), string(invalidToken.Keyword))
+		return newErrInvalidType(invalidToken.Position, "parseValue", fmt.Sprintf("%v", parseValuePossibleKeywords), string(invalidToken.Keyword))
 	}
+
+	p.putValue(value, *index)
+
+	return err
 }

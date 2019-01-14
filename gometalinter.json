@@ -8,7 +8,6 @@
   "Enable": [
     "deadcode",
     "gofmt",
-    "golint",
     "gosimple",
     "ineffassign",
     "misspell",

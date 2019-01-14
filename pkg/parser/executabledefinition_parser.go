@@ -23,7 +23,8 @@ func (p *Parser) parseSimpleQueryExecutableDefinition() (executableDefinition do
 
 	executableDefinition = p.makeExecutableDefinition()
 
-	operationDefinition := p.makeOperationDefinition()
+	var operationDefinition document.OperationDefinition
+	p.initOperationDefinition(&operationDefinition)
 	operationDefinition.OperationType = document.OperationTypeQuery
 
 	err = p.parseSelectionSet(&operationDefinition.SelectionSet)

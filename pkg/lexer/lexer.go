@@ -1,26 +1,26 @@
 package lexer
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/runes"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
-	"strings"
 	"unicode"
 )
 
 // Lexer emits tokens from a input reader
 type Lexer struct {
-	input                                string
+	input                                []byte
 	inputPosition                        int
 	textPosition                         position.Position
 	beforeLastLineTerminatorTextPosition position.Position
 }
 
 type parsedRune struct {
-	r   rune
+	r   byte
 	pos position.Position
 }
 
@@ -30,7 +30,7 @@ func NewLexer() *Lexer {
 }
 
 // SetInput sets the new reader as input and resets all position stats
-func (l *Lexer) SetInput(input string) {
+func (l *Lexer) SetInput(input []byte) {
 	l.input = input
 	l.inputPosition = 0
 	l.textPosition.Line = 1
@@ -44,7 +44,7 @@ func (l *Lexer) Read() (tok token.Token, err error) {
 
 	for {
 		next = l.readRune()
-		if !l.runeIsWhitespace(next.r) {
+		if !l.byteIsWhitespace(next.r) {
 			break
 		}
 	}
@@ -73,18 +73,20 @@ func (l *Lexer) Read() (tok token.Token, err error) {
 
 func (l *Lexer) swallowWhitespace() (err error) {
 
-	var next parsedRune
+	var next rune
 
 	for {
-		next = l.readRune()
+		next = l.peekRune()
 
-		if next.r == runes.EOF {
+		if next == runes.EOF {
 			return nil
 		}
 
-		if !l.runeIsWhitespace(next.r) {
-			return l.unreadRune()
+		if !l.runeIsWhitespace(next) {
+			return nil
 		}
+
+		l.readRune()
 	}
 }
 
@@ -148,7 +150,7 @@ func (l *Lexer) keywordFromRune(r rune) (key keyword.Keyword, err error) {
 	case runes.AND:
 		return keyword.AND, nil
 	case runes.DOT:
-		if l.peekEquals("...") {
+		if l.peekEquals([]byte("...")) {
 			return keyword.SPREAD, nil
 		}
 		return key, fmt.Errorf("keywordFromRune: must be '...'")
@@ -167,21 +169,21 @@ func (l *Lexer) keywordFromRune(r rune) (key keyword.Keyword, err error) {
 func (l *Lexer) peekIsFloat() (isFloat bool) {
 
 	var hasDot bool
-	var peeked rune
+	var peeked byte
 
 	for i := l.inputPosition; i < len(l.input); i++ {
 
-		peeked = rune(l.input[i])
+		peeked = l.input[i]
 
 		if peeked == runes.EOF {
 			return hasDot
-		} else if l.runeIsWhitespace(peeked) {
+		} else if l.byteIsWhitespace(peeked) {
 			return hasDot
 		} else if peeked == runes.DOT && !hasDot {
 			hasDot = true
 		} else if peeked == runes.DOT && hasDot {
 			return false
-		} else if !unicode.IsDigit(peeked) {
+		} else if !runeIsDigit(peeked) {
 			return false
 		}
 	}
@@ -280,8 +282,8 @@ func (l *Lexer) peekIdent() (k keyword.Keyword) {
 	return l.keywordFromIdentString(peeked)
 }
 
-func (l *Lexer) keywordFromIdentString(ident string) (k keyword.Keyword) {
-	switch ident {
+func (l *Lexer) keywordFromIdentString(ident []byte) (k keyword.Keyword) {
+	switch string(ident) {
 	case "on":
 		return keyword.ON
 	case "true":
@@ -349,7 +351,7 @@ func (l *Lexer) readVariable(startRune parsedRune) (tok token.Token, err error) 
 
 func (l *Lexer) readSpread(startRune parsedRune) (tok token.Token, err error) {
 
-	isSpread := l.peekEquals("..")
+	isSpread := l.peekEquals([]byte(".."))
 
 	if !isSpread {
 		tok.Position = startRune.pos
@@ -365,7 +367,7 @@ func (l *Lexer) readSpread(startRune parsedRune) (tok token.Token, err error) {
 
 func (l *Lexer) readString(startRune parsedRune) (tok token.Token, err error) {
 
-	isMultiLineString := l.peekEquals("\"\"")
+	isMultiLineString := l.peekEquals([]byte("\"\""))
 
 	if isMultiLineString {
 		l.swallowAmount(2)
@@ -381,7 +383,7 @@ func (l *Lexer) swallowAmount(amount int) {
 	}
 }
 
-func (l *Lexer) peekEquals(equals string) bool {
+func (l *Lexer) peekEquals(equals []byte) bool {
 
 	start := l.inputPosition
 	end := l.inputPosition + len(equals)
@@ -390,7 +392,7 @@ func (l *Lexer) peekEquals(equals string) bool {
 		return false
 	}
 
-	return l.input[start:end] == equals
+	return bytes.Equal(l.input[start:end], equals)
 }
 
 func (l *Lexer) readDigit(startRune parsedRune) (tok token.Token, err error) {
@@ -464,8 +466,8 @@ func (l *Lexer) readFloat(position position.Position, start int) (tok token.Toke
 	return
 }
 
-func (l *Lexer) trimStartEnd(input, trim string) string {
-	return strings.TrimSuffix(strings.TrimPrefix(input, trim), trim)
+func (l *Lexer) trimStartEnd(input, trim []byte) []byte {
+	return bytes.TrimSuffix(bytes.TrimPrefix(input, trim), trim)
 }
 
 func (l *Lexer) readRune() (r parsedRune) {
@@ -474,7 +476,7 @@ func (l *Lexer) readRune() (r parsedRune) {
 	r.pos.Char = l.textPosition.Char
 
 	if l.inputPosition < len(l.input) {
-		r.r = rune(l.input[l.inputPosition])
+		r.r = l.input[l.inputPosition]
 
 		if r.r == runes.LINETERMINATOR {
 			l.beforeLastLineTerminatorTextPosition = l.textPosition
@@ -519,18 +521,27 @@ func (l *Lexer) peekRune() (r rune) {
 	return runes.EOF
 }
 
-func runeIsIdent(r rune) bool {
-	switch r {
-	case 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', runes.NEGATIVESIGN, runes.UNDERSCORE:
+func runeIsIdent(r byte) bool {
+
+	switch {
+	case r >= 'a' && r <= 'z':
+		return true
+	case r >= 'A' && r <= 'Z':
+		return true
+	case r >= '0' && r <= '9':
+		return true
+	case r == runes.NEGATIVESIGN:
+		return true
+	case r == runes.UNDERSCORE:
 		return true
 	default:
 		return false
 	}
 }
 
-func runeIsDigit(r rune) bool {
-	switch r {
-	case '1', '2', '3', '4', '5', '6', '7', '8', '9', '0':
+func runeIsDigit(r byte) bool {
+	switch {
+	case r >= '0' && r <= '9':
 		return true
 	default:
 		return false
@@ -538,6 +549,15 @@ func runeIsDigit(r rune) bool {
 }
 
 func (l *Lexer) runeIsWhitespace(r rune) bool {
+	switch r {
+	case runes.SPACE, runes.TAB, runes.LINETERMINATOR, runes.COMMA:
+		return true
+	default:
+		return false
+	}
+}
+
+func (l *Lexer) byteIsWhitespace(r byte) bool {
 	switch r {
 	case runes.SPACE, runes.TAB, runes.LINETERMINATOR, runes.COMMA:
 		return true
@@ -565,7 +585,7 @@ func (l *Lexer) readMultiLineString(startRune parsedRune) (tok token.Token, err 
 				escaped = false
 			} else {
 
-				isMultiLineStringEnd := l.peekEquals("\"\"")
+				isMultiLineStringEnd := l.peekEquals([]byte("\"\""))
 
 				if !isMultiLineStringEnd {
 					escaped = false

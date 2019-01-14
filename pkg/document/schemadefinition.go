@@ -2,15 +2,14 @@ package document
 
 import (
 	"fmt"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
 )
 
 // SchemaDefinition as specified in:
 // http://facebook.github.io/graphql/draft/#SchemaDefinition
 type SchemaDefinition struct {
-	Query        string
-	Mutation     string
-	Subscription string
+	Query        ByteSlice
+	Mutation     ByteSlice
+	Subscription ByteSlice
 	Directives   []int
 }
 
@@ -31,28 +30,30 @@ func (s SchemaDefinition) IsDefined() bool {
 }
 
 // SetOperationType sets the operationType and operationName and will return an error in case of setting one value multiple times
-func (s *SchemaDefinition) SetOperationType(operationType, operationName string) error {
+func (s *SchemaDefinition) SetOperationType(operationType, operationName ByteSlice) error {
 
-	if operationType == literal.QUERY {
-		if len(s.Query) == 0 {
-			s.Query = operationName
-			return nil
+	switch string(operationType) {
+	case "query":
+		if s.Query != nil {
+			return fmt.Errorf("setOperationType: operationName for operationType '%s' already set", operationType)
 		}
-	} else if operationType == literal.MUTATION {
-		if len(s.Mutation) == 0 {
-			s.Mutation = operationName
-			return nil
+		s.Query = operationName
+		return nil
+	case "mutation":
+		if s.Mutation != nil {
+			return fmt.Errorf("setOperationType: operationName for operationType '%s' already set", operationType)
 		}
-	} else if operationType == literal.SUBSCRIPTION {
-		if len(s.Subscription) == 0 {
-			s.Subscription = operationName
-			return nil
+		s.Mutation = operationName
+		return nil
+	case "subscription":
+		if s.Subscription != nil {
+			return fmt.Errorf("setOperationType: operationName for operationType '%s' already set", operationType)
 		}
-	} else {
-		return fmt.Errorf("setOperationType: unknown operationType '%s' expected one of: [query,subscription,mutation]", operationType)
+		s.Subscription = operationName
+		return nil
+	default:
+		return fmt.Errorf("setOperationType: unknown operationType '%s' expected one of: [query,subscription,mutation]", string(operationType))
 	}
-
-	return fmt.Errorf("setOperationType: operationName for operationType '%s' already set", operationType)
 }
 
 // RootOperationTypeDefinition as specified in

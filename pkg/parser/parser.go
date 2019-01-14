@@ -71,11 +71,21 @@ type ParsedDefinitions struct {
 	ObjectTypeDefinitions      document.ObjectTypeDefinitions
 	ScalarTypeDefinitions      document.ScalarTypeDefinitions
 	UnionTypeDefinitions       document.UnionTypeDefinitions
+	Values                     []document.Value
+	ListValues                 []document.ListValue
+	ObjectValues               []document.ObjectValue
+	ObjectFields               document.ObjectFields
+	Types                      document.Types
+
+	ByteSlices []document.ByteSlice
+	Integers   []int32
+	Floats     []float32
+	Booleans   [2]bool
 }
 
 // Lexer is the interface used by the Parser to lex tokens
 type Lexer interface {
-	SetInput(input string)
+	SetInput(input []byte)
 	Read() (tok token.Token, err error)
 	Peek(ignoreWhitespace bool) (key keyword.Keyword, err error)
 }
@@ -89,41 +99,55 @@ func NewParser() *Parser {
 		pool[i] = make([]int, 0, 8)
 	}
 
+	definitions := ParsedDefinitions{
+		OperationDefinitions:       make(document.OperationDefinitions, 0, 8),
+		FragmentDefinitions:        make(document.FragmentDefinitions, 0, 8),
+		VariableDefinitions:        make(document.VariableDefinitions, 0, 8),
+		Fields:                     make(document.Fields, 0, 48),
+		InlineFragments:            make(document.InlineFragments, 0, 8),
+		FragmentSpreads:            make(document.FragmentSpreads, 0, 8),
+		Arguments:                  make(document.Arguments, 0, 8),
+		Directives:                 make(document.Directives, 0, 8),
+		EnumTypeDefinitions:        make(document.EnumTypeDefinitions, 0, 8),
+		EnumValuesDefinitions:      make(document.EnumValueDefinitions, 0, 8),
+		FieldDefinitions:           make(document.FieldDefinitions, 0, 8),
+		InputValueDefinitions:      make(document.InputValueDefinitions, 0, 8),
+		InputObjectTypeDefinitions: make(document.InputObjectTypeDefinitions, 0, 8),
+		DirectiveDefinitions:       make(document.DirectiveDefinitions, 0, 8),
+		InterfaceTypeDefinitions:   make(document.InterfaceTypeDefinitions, 0, 8),
+		ObjectTypeDefinitions:      make(document.ObjectTypeDefinitions, 0, 8),
+		ScalarTypeDefinitions:      make(document.ScalarTypeDefinitions, 0, 8),
+		UnionTypeDefinitions:       make(document.UnionTypeDefinitions, 0, 8),
+		Values:                     make([]document.Value, 0, 8),
+		ListValues:                 make([]document.ListValue, 0, 8),
+		ObjectValues:               make([]document.ObjectValue, 0, 8),
+		ObjectFields:               make(document.ObjectFields, 0, 8),
+		Types:                      make(document.Types, 0, 8),
+
+		Integers:   make([]int32, 0, 8),
+		Floats:     make([]float32, 0, 8),
+		ByteSlices: make([]document.ByteSlice, 0, 8),
+	}
+
+	definitions.Booleans[0] = false
+	definitions.Booleans[1] = true
+
 	return &Parser{
-		l:         lexer.NewLexer(),
-		indexPool: pool,
-		ParsedDefinitions: ParsedDefinitions{
-			OperationDefinitions:       make(document.OperationDefinitions, 0, 8),
-			FragmentDefinitions:        make(document.FragmentDefinitions, 0, 8),
-			VariableDefinitions:        make(document.VariableDefinitions, 0, 8),
-			Fields:                     make(document.Fields, 0, 48),
-			InlineFragments:            make(document.InlineFragments, 0, 8),
-			FragmentSpreads:            make(document.FragmentSpreads, 0, 8),
-			Arguments:                  make(document.Arguments, 0, 8),
-			Directives:                 make(document.Directives, 0, 8),
-			EnumTypeDefinitions:        make(document.EnumTypeDefinitions, 0, 8),
-			EnumValuesDefinitions:      make(document.EnumValueDefinitions, 0, 8),
-			FieldDefinitions:           make(document.FieldDefinitions, 0, 8),
-			InputValueDefinitions:      make(document.InputValueDefinitions, 0, 8),
-			InputObjectTypeDefinitions: make(document.InputObjectTypeDefinitions, 0, 8),
-			DirectiveDefinitions:       make(document.DirectiveDefinitions, 0, 8),
-			InterfaceTypeDefinitions:   make(document.InterfaceTypeDefinitions, 0, 8),
-			ObjectTypeDefinitions:      make(document.ObjectTypeDefinitions, 0, 8),
-			ScalarTypeDefinitions:      make(document.ScalarTypeDefinitions, 0, 8),
-			UnionTypeDefinitions:       make(document.UnionTypeDefinitions, 0, 8),
-		},
+		l:                 lexer.NewLexer(),
+		indexPool:         pool,
+		ParsedDefinitions: definitions,
 	}
 }
 
 // ParseTypeSystemDefinition parses a TypeSystemDefinition from an io.Reader
-func (p *Parser) ParseTypeSystemDefinition(input string) (document.TypeSystemDefinition, error) {
+func (p *Parser) ParseTypeSystemDefinition(input []byte) (document.TypeSystemDefinition, error) {
 	p.resetObjects()
 	p.l.SetInput(input)
 	return p.parseTypeSystemDefinition()
 }
 
 // ParseExecutableDefinition parses an ExecutableDefinition from an io.Reader
-func (p *Parser) ParseExecutableDefinition(input string) (def document.ExecutableDefinition, err error) {
+func (p *Parser) ParseExecutableDefinition(input []byte) (def document.ExecutableDefinition, err error) {
 	p.resetObjects()
 	p.l.SetInput(input)
 	return p.parseExecutableDefinition()
@@ -167,20 +191,16 @@ func (p *Parser) indexPoolGet() []int {
 	return p.indexPool[p.indexPoolPosition][:0]
 }
 
-func (p *Parser) makeSelectionSet() document.SelectionSet {
-	return document.SelectionSet{
-		InlineFragments: p.indexPoolGet(),
-		FragmentSpreads: p.indexPoolGet(),
-		Fields:          p.indexPoolGet(),
-	}
+func (p *Parser) initSelectionSet(set *document.SelectionSet) {
+	set.InlineFragments = p.indexPoolGet()
+	set.FragmentSpreads = p.indexPoolGet()
+	set.Fields = p.indexPoolGet()
 }
 
-func (p *Parser) makeField() document.Field {
-	return document.Field{
-		SelectionSet: p.makeSelectionSet(),
-		Directives:   p.indexPoolGet(),
-		Arguments:    p.indexPoolGet(),
-	}
+func (p *Parser) initField(field *document.Field) {
+	field.Directives = p.indexPoolGet()
+	field.Arguments = p.indexPoolGet()
+	p.initSelectionSet(&field.SelectionSet)
 }
 
 func (p *Parser) makeFieldDefinition() document.FieldDefinition {
@@ -260,26 +280,20 @@ func (p *Parser) makeEnumValueDefinition() document.EnumValueDefinition {
 	}
 }
 
-func (p *Parser) makeFragmentDefinition() document.FragmentDefinition {
-	return document.FragmentDefinition{
-		Directives:   p.indexPoolGet(),
-		SelectionSet: p.makeSelectionSet(),
-	}
+func (p *Parser) initFragmentDefinition(definition *document.FragmentDefinition) {
+	definition.Directives = p.indexPoolGet()
+	p.initSelectionSet(&definition.SelectionSet)
 }
 
-func (p *Parser) makeOperationDefinition() document.OperationDefinition {
-	return document.OperationDefinition{
-		SelectionSet:        p.makeSelectionSet(),
-		Directives:          p.indexPoolGet(),
-		VariableDefinitions: p.indexPoolGet(),
-	}
+func (p *Parser) initOperationDefinition(definition *document.OperationDefinition) {
+	p.initSelectionSet(&definition.SelectionSet)
+	definition.Directives = p.indexPoolGet()
+	definition.VariableDefinitions = p.indexPoolGet()
 }
 
-func (p *Parser) makeInlineFragment() document.InlineFragment {
-	return document.InlineFragment{
-		Directives:   p.indexPoolGet(),
-		SelectionSet: p.makeSelectionSet(),
-	}
+func (p *Parser) initInlineFragment(fragment *document.InlineFragment) {
+	fragment.Directives = p.indexPoolGet()
+	p.initSelectionSet(&fragment.SelectionSet)
 }
 
 func (p *Parser) makeFragmentSpread() document.FragmentSpread {
@@ -293,6 +307,36 @@ func (p *Parser) makeExecutableDefinition() document.ExecutableDefinition {
 		FragmentDefinitions:  p.indexPoolGet(),
 		OperationDefinitions: p.indexPoolGet(),
 	}
+}
+
+func (p *Parser) makeListValue(index *int) document.ListValue {
+	value := p.indexPoolGet()
+	p.ParsedDefinitions.ListValues = append(p.ParsedDefinitions.ListValues, value)
+	*index = len(p.ParsedDefinitions.ListValues) - 1
+	return value
+}
+
+func (p *Parser) makeObjectValue(index *int) document.ObjectValue {
+	value := p.indexPoolGet()
+	p.ParsedDefinitions.ObjectValues = append(p.ParsedDefinitions.ObjectValues, value)
+	*index = len(p.ParsedDefinitions.ObjectValues) - 1
+	return value
+}
+
+func (p *Parser) makeValue(index *int) document.Value {
+	value := document.Value{}
+	p.ParsedDefinitions.Values = append(p.ParsedDefinitions.Values, value)
+	*index = len(p.ParsedDefinitions.Values) - 1
+	return value
+}
+
+func (p *Parser) makeType(index *int) document.Type {
+	documentType := document.Type{
+		OfType: -1,
+	}
+	p.ParsedDefinitions.Types = append(p.ParsedDefinitions.Types, documentType)
+	*index = len(p.ParsedDefinitions.Types) - 1
+	return documentType
 }
 
 func (p *Parser) resetObjects() {
@@ -317,6 +361,14 @@ func (p *Parser) resetObjects() {
 	p.ParsedDefinitions.ObjectTypeDefinitions = p.ParsedDefinitions.ObjectTypeDefinitions[:0]
 	p.ParsedDefinitions.ScalarTypeDefinitions = p.ParsedDefinitions.ScalarTypeDefinitions[:0]
 	p.ParsedDefinitions.UnionTypeDefinitions = p.ParsedDefinitions.UnionTypeDefinitions[:0]
+	p.ParsedDefinitions.ByteSlices = p.ParsedDefinitions.ByteSlices[:0]
+	p.ParsedDefinitions.Values = p.ParsedDefinitions.Values[:0]
+	p.ParsedDefinitions.Integers = p.ParsedDefinitions.Integers[:0]
+	p.ParsedDefinitions.Floats = p.ParsedDefinitions.Floats[:0]
+	p.ParsedDefinitions.ListValues = p.ParsedDefinitions.ListValues[:0]
+	p.ParsedDefinitions.ObjectValues = p.ParsedDefinitions.ObjectValues[:0]
+	p.ParsedDefinitions.ObjectFields = p.ParsedDefinitions.ObjectFields[:0]
+	p.ParsedDefinitions.Types = p.ParsedDefinitions.Types[:0]
 }
 
 func (p *Parser) putOperationDefinition(definition document.OperationDefinition) int {
@@ -407,4 +459,40 @@ func (p *Parser) putScalarTypeDefinition(definition document.ScalarTypeDefinitio
 func (p *Parser) putUnionTypeDefinition(definition document.UnionTypeDefinition) int {
 	p.ParsedDefinitions.UnionTypeDefinitions = append(p.ParsedDefinitions.UnionTypeDefinitions, definition)
 	return len(p.ParsedDefinitions.UnionTypeDefinitions) - 1
+}
+
+func (p *Parser) putByteSlice(slice document.ByteSlice) int {
+	p.ParsedDefinitions.ByteSlices = append(p.ParsedDefinitions.ByteSlices, slice)
+	return len(p.ParsedDefinitions.ByteSlices) - 1
+}
+
+func (p *Parser) putValue(value document.Value, index int) {
+	p.ParsedDefinitions.Values[index] = value
+}
+
+func (p *Parser) putInteger(integer int32) int {
+	p.ParsedDefinitions.Integers = append(p.ParsedDefinitions.Integers, integer)
+	return len(p.ParsedDefinitions.Integers) - 1
+}
+
+func (p *Parser) putFloat(float float32) int {
+	p.ParsedDefinitions.Floats = append(p.ParsedDefinitions.Floats, float)
+	return len(p.ParsedDefinitions.Floats) - 1
+}
+
+func (p *Parser) putListValue(value document.ListValue, index int) {
+	p.ParsedDefinitions.ListValues[index] = value
+}
+
+func (p *Parser) putObjectValue(value document.ObjectValue, index int) {
+	p.ParsedDefinitions.ObjectValues[index] = value
+}
+
+func (p *Parser) putObjectField(field document.ObjectField) int {
+	p.ParsedDefinitions.ObjectFields = append(p.ParsedDefinitions.ObjectFields, field)
+	return len(p.ParsedDefinitions.ObjectFields) - 1
+}
+
+func (p *Parser) putType(documentType document.Type, index int) {
+	p.ParsedDefinitions.Types[index] = documentType
 }

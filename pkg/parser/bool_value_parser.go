@@ -1,19 +1,21 @@
 package parser
 
 import (
-	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
-func (p *Parser) parsePeekedBoolValue() (val document.Value, err error) {
+func (p *Parser) parsePeekedBoolValue(index *int) error {
 
-	trueFalseToken, err := p.l.Read()
+	tok, err := p.l.Read()
 	if err != nil {
-		return val, err
+		return err
 	}
 
-	val.ValueType = document.ValueTypeBoolean
-	val.BooleanValue = trueFalseToken.Keyword == keyword.TRUE
+	if tok.Keyword == keyword.FALSE {
+		*index = 0
+	} else {
+		*index = 1
+	}
 
-	return
+	return nil
 }

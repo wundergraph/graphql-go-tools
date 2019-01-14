@@ -1,20 +1,19 @@
 package parser
 
 import (
-	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
-func (p *Parser) parseDefaultValue() (val document.Value, err error) {
+func (p *Parser) parseDefaultValue(index *int) error {
 
 	hasDefaultValue, err := p.peekExpect(keyword.EQUALS, true)
 	if err != nil {
-		return val, err
+		return err
 	}
 
 	if !hasDefaultValue {
-		return
+		return nil
 	}
 
-	return p.parseValue()
+	return p.parseValue(index)
 }

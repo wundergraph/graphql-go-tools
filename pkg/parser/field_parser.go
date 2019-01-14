@@ -1,12 +1,14 @@
 package parser
 
 import (
+	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
 func (p *Parser) parseField(index *[]int) (err error) {
 
-	field := p.makeField()
+	var field document.Field
+	p.initField(&field)
 
 	firstIdent, err := p.l.Read()
 	if err != nil {

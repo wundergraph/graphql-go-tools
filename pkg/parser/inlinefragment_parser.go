@@ -7,16 +7,18 @@ import (
 
 func (p *Parser) parseInlineFragment(index *[]int) error {
 
-	fragment := p.makeInlineFragment()
+	var fragment document.InlineFragment
+	p.initInlineFragment(&fragment)
 
 	fragmentIdent, err := p.readExpect(keyword.IDENT, "parseInlineFragment")
 	if err != nil {
 		return err
 	}
 
-	fragment.TypeCondition = document.NamedType{
-		Name: fragmentIdent.Literal,
-	}
+	fragmentType := p.makeType(&fragment.TypeCondition)
+	fragmentType.Kind = document.TypeKindNAMED
+	fragmentType.Name = fragmentIdent.Literal
+	p.putType(fragmentType, fragment.TypeCondition)
 
 	err = p.parseDirectives(&fragment.Directives)
 	if err != nil {

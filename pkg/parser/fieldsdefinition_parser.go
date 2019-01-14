@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
@@ -15,7 +16,7 @@ func (p *Parser) parseFieldsDefinition(index *[]int) (err error) {
 		return
 	}
 
-	var description string
+	var description document.ByteSlice
 
 	for {
 		next, err := p.l.Peek(true)
@@ -46,7 +47,7 @@ func (p *Parser) parseFieldsDefinition(index *[]int) (err error) {
 			definition.Description = description
 			definition.Name = fieldIdent.Literal
 
-			description = ""
+			description = nil
 
 			err = p.parseArgumentsDefinition(&definition.ArgumentsDefinition)
 			if err != nil {
@@ -58,7 +59,7 @@ func (p *Parser) parseFieldsDefinition(index *[]int) (err error) {
 				return err
 			}
 
-			definition.Type, err = p.parseType()
+			err = p.parseType(&definition.Type)
 			if err != nil {
 				return err
 			}

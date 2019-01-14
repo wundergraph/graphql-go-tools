@@ -52,7 +52,7 @@ func (d DirectiveLocations) String() string {
 }
 
 // NewDirectiveLocations creates directive locations from raw strings
-func NewDirectiveLocations(rawLocations []string, position position.Position) (locations DirectiveLocations, err error) {
+func NewDirectiveLocations(rawLocations []ByteSlice, position position.Position) (locations DirectiveLocations, err error) {
 	for _, raw := range rawLocations {
 
 		location, err := ParseDirectiveLocation(raw)
