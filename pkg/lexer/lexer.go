@@ -33,8 +33,8 @@ func NewLexer() *Lexer {
 func (l *Lexer) SetInput(input []byte) {
 	l.input = input
 	l.inputPosition = 0
-	l.textPosition.Line = 1
-	l.textPosition.Char = 1
+	l.textPosition.LineStart = 1
+	l.textPosition.CharStart = 1
 }
 
 // Read emits the next token, this cannot be undone
@@ -235,6 +235,7 @@ func (l *Lexer) readIdent(startRune parsedRune) (tok token.Token, err error) {
 
 	tok.Position = startRune.pos
 	start := l.inputPosition - 1
+	var lastValidRune parsedRune
 	var r parsedRune
 
 	for {
@@ -242,6 +243,8 @@ func (l *Lexer) readIdent(startRune parsedRune) (tok token.Token, err error) {
 		if !runeIsIdent(r.r) {
 			break
 		}
+
+		lastValidRune = r
 	}
 
 	if r.r != runes.EOF && l.inputPosition > start+1 {
@@ -255,6 +258,7 @@ func (l *Lexer) readIdent(startRune parsedRune) (tok token.Token, err error) {
 
 	tok.Literal = l.input[start:end]
 	tok.Keyword = l.keywordFromIdentString(tok.Literal)
+	tok.Position.SetEnd(lastValidRune.pos)
 
 	return
 }
@@ -346,6 +350,7 @@ func (l *Lexer) readVariable(startRune parsedRune) (tok token.Token, err error) 
 	}
 
 	tok.Literal = ident.Literal[1:]
+	tok.Position.SetEnd(ident.Position)
 	return
 }
 
@@ -362,6 +367,7 @@ func (l *Lexer) readSpread(startRune parsedRune) (tok token.Token, err error) {
 
 	tok = token.Spread
 	tok.Position = startRune.pos
+	tok.Position.CharEnd = tok.Position.CharStart + 3
 	return
 }
 
@@ -401,12 +407,14 @@ func (l *Lexer) readDigit(startRune parsedRune) (tok token.Token, err error) {
 
 	start := l.inputPosition - 1
 
+	var lastValidRune parsedRune
 	var r parsedRune
 	for {
 		r = l.readRune()
 		if !runeIsDigit(r.r) {
 			break
 		}
+		lastValidRune = r
 	}
 
 	isFloat := r.r == runes.DOT
@@ -427,6 +435,7 @@ func (l *Lexer) readDigit(startRune parsedRune) (tok token.Token, err error) {
 
 	tok.Keyword = keyword.INTEGER
 	tok.Literal = l.input[start:end]
+	tok.Position.SetEnd(lastValidRune.pos)
 
 	return
 }
@@ -472,18 +481,20 @@ func (l *Lexer) trimStartEnd(input, trim []byte) []byte {
 
 func (l *Lexer) readRune() (r parsedRune) {
 
-	r.pos.Line = l.textPosition.Line
-	r.pos.Char = l.textPosition.Char
+	r.pos.LineStart = l.textPosition.LineStart
+	r.pos.CharStart = l.textPosition.CharStart
+	r.pos.LineEnd = l.textPosition.LineStart
+	r.pos.CharEnd = l.textPosition.CharStart + 1
 
 	if l.inputPosition < len(l.input) {
 		r.r = l.input[l.inputPosition]
 
 		if r.r == runes.LINETERMINATOR {
 			l.beforeLastLineTerminatorTextPosition = l.textPosition
-			l.textPosition.Line++
-			l.textPosition.Char = 1
+			l.textPosition.LineStart++
+			l.textPosition.CharStart = 1
 		} else {
-			l.textPosition.Char++
+			l.textPosition.CharStart++
 		}
 
 		l.inputPosition++
@@ -506,7 +517,7 @@ func (l *Lexer) unreadRune() error {
 	if r == runes.LINETERMINATOR {
 		l.textPosition = l.beforeLastLineTerminatorTextPosition
 	} else {
-		l.textPosition.Char--
+		l.textPosition.CharStart--
 	}
 
 	return nil
@@ -595,6 +606,8 @@ func (l *Lexer) readMultiLineString(startRune parsedRune) (tok token.Token, err 
 					l.swallowAmount(2)
 
 					tok.Literal = l.trimStartEnd(l.input[start:end], literal.LINETERMINATOR)
+					tok.Position.SetEnd(nextRune.pos)
+					tok.Position.CharEnd += 2
 					return tok, nil
 				}
 			}
@@ -630,6 +643,7 @@ func (l *Lexer) readSingleLineString(startRune parsedRune) (tok token.Token, err
 			} else {
 				end := l.inputPosition - 1
 				tok.Literal = l.input[start:end]
+				tok.Position.SetEnd(nextRune.pos)
 				return tok, nil
 			}
 		case runes.BACKSLASH:

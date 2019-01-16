@@ -72,18 +72,24 @@ func TestLexer_Peek_Read(t *testing.T) {
 		}
 	}
 
-	mustReadPosition := func(line, char int) checkFunc {
+	mustReadPosition := func(lineStart, charStart, lineEnd, charEnd uint16) checkFunc {
 		return func(lex *Lexer, i int) {
 			tok, err := lex.Read()
 			if err != nil {
 				panic(err)
 			}
 
-			if line != tok.Position.Line {
-				panic(fmt.Errorf("mustReadPosition: want(line): %d, got: %d [check: %d]", line, tok.Position.Line, i))
+			if lineStart != tok.Position.LineStart {
+				panic(fmt.Errorf("mustReadPosition: want(lineStart): %d, got: %d [check: %d]", lineStart, tok.Position.LineStart, i))
 			}
-			if char != tok.Position.Char {
-				panic(fmt.Errorf("mustReadPosition: want(char): %d, got: %d [check: %d]", char, tok.Position.Char, i))
+			if charStart != tok.Position.CharStart {
+				panic(fmt.Errorf("mustReadPosition: want(charStart): %d, got: %d [check: %d]", charStart, tok.Position.CharStart, i))
+			}
+			if lineEnd != tok.Position.LineEnd {
+				panic(fmt.Errorf("mustReadPosition: want(lineEnd): %d, got: %d [check: %d]", lineEnd, tok.Position.LineEnd, i))
+			}
+			if charEnd != tok.Position.CharEnd {
+				panic(fmt.Errorf("mustReadPosition: want(charEnd): %d, got: %d [check: %d]", charEnd, tok.Position.CharEnd, i))
 			}
 		}
 	}
@@ -295,13 +301,22 @@ func TestLexer_Peek_Read(t *testing.T) {
 	t.Run("multi read positions", func(t *testing.T) {
 		run(`foo bar baz
 bal
- bas """x"""`,
-			mustReadPosition(1, 1),
-			mustReadPosition(1, 5),
-			mustReadPosition(1, 9),
-			mustReadPosition(2, 1),
-			mustReadPosition(3, 2),
-			mustReadPosition(3, 6),
+ bas """
+x"""
+"foo bar baz "
+ ...
+$foo 
+ 1337 `,
+			mustReadPosition(1, 1, 1, 4),
+			mustReadPosition(1, 5, 1, 8),
+			mustReadPosition(1, 9, 1, 12),
+			mustReadPosition(2, 1, 2, 4),
+			mustReadPosition(3, 2, 3, 5),
+			mustReadPosition(3, 6, 4, 5),
+			mustReadPosition(5, 1, 5, 15),
+			mustReadPosition(6, 2, 6, 5),
+			mustReadPosition(7, 1, 7, 5),
+			mustReadPosition(8, 2, 8, 6),
 		)
 	})
 	t.Run("multi read nested structure", func(t *testing.T) {

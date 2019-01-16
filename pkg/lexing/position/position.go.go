@@ -3,10 +3,17 @@ package position
 import "fmt"
 
 type Position struct {
-	Line int
-	Char int
+	LineStart uint16
+	LineEnd   uint16
+	CharStart uint16
+	CharEnd   uint16
 }
 
 func (p Position) String() string {
-	return fmt.Sprintf("%d:%d", p.Line, p.Char)
+	return fmt.Sprintf("%d:%d-%d:%d", p.LineStart, p.CharStart, p.LineEnd, p.CharEnd)
+}
+
+func (p *Position) SetEnd(position Position) {
+	p.LineEnd = position.LineEnd
+	p.CharEnd = position.CharEnd
 }
