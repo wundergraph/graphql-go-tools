@@ -3,8 +3,10 @@
     "Keyword": 35,
     "Literal": "query",
     "Position": {
-      "Line": 1,
-      "Char": 1
+      "LineStart": 1,
+      "LineEnd": 1,
+      "CharStart": 1,
+      "CharEnd": 6
     },
     "Description": ""
   },
@@ -12,8 +14,10 @@
     "Keyword": 1,
     "Literal": "IntrospectionQuery",
     "Position": {
-      "Line": 1,
-      "Char": 7
+      "LineStart": 1,
+      "LineEnd": 1,
+      "CharStart": 7,
+      "CharEnd": 25
     },
     "Description": ""
   },
@@ -21,8 +25,10 @@
     "Keyword": 43,
     "Literal": "{",
     "Position": {
-      "Line": 1,
-      "Char": 26
+      "LineStart": 1,
+      "LineEnd": 1,
+      "CharStart": 26,
+      "CharEnd": 27
     },
     "Description": ""
   },
@@ -30,8 +36,10 @@
     "Keyword": 1,
     "Literal": "__schema",
     "Position": {
-      "Line": 2,
-      "Char": 3
+      "LineStart": 2,
+      "LineEnd": 2,
+      "CharStart": 3,
+      "CharEnd": 11
     },
     "Description": ""
   },
@@ -39,8 +47,10 @@
     "Keyword": 43,
     "Literal": "{",
     "Position": {
-      "Line": 2,
-      "Char": 12
+      "LineStart": 2,
+      "LineEnd": 2,
+      "CharStart": 12,
+      "CharEnd": 13
     },
     "Description": ""
   },
@@ -48,8 +58,10 @@
     "Keyword": 1,
     "Literal": "queryType",
     "Position": {
-      "Line": 3,
-      "Char": 5
+      "LineStart": 3,
+      "LineEnd": 3,
+      "CharStart": 5,
+      "CharEnd": 14
     },
     "Description": ""
   },
@@ -57,8 +69,10 @@
     "Keyword": 43,
     "Literal": "{",
     "Position": {
-      "Line": 3,
-      "Char": 15
+      "LineStart": 3,
+      "LineEnd": 3,
+      "CharStart": 15,
+      "CharEnd": 16
     },
     "Description": ""
   },
@@ -66,8 +80,10 @@
     "Keyword": 1,
     "Literal": "name",
     "Position": {
-      "Line": 4,
-      "Char": 7
+      "LineStart": 4,
+      "LineEnd": 4,
+      "CharStart": 7,
+      "CharEnd": 11
     },
     "Description": ""
   },
@@ -75,8 +91,10 @@
     "Keyword": 44,
     "Literal": "}",
     "Position": {
-      "Line": 5,
-      "Char": 5
+      "LineStart": 5,
+      "LineEnd": 5,
+      "CharStart": 5,
+      "CharEnd": 6
     },
     "Description": ""
   },
@@ -84,8 +102,10 @@
     "Keyword": 1,
     "Literal": "mutationType",
     "Position": {
-      "Line": 6,
-      "Char": 5
+      "LineStart": 6,
+      "LineEnd": 6,
+      "CharStart": 5,
+      "CharEnd": 17
     },
     "Description": ""
   },
@@ -93,8 +113,10 @@
     "Keyword": 43,
     "Literal": "{",
     "Position": {
-      "Line": 6,
-      "Char": 18
+      "LineStart": 6,
+      "LineEnd": 6,
+      "CharStart": 18,
+      "CharEnd": 19
     },
     "Description": ""
   },
@@ -102,8 +124,10 @@
     "Keyword": 1,
     "Literal": "name",
     "Position": {
-      "Line": 7,
-      "Char": 7
+      "LineStart": 7,
+      "LineEnd": 7,
+      "CharStart": 7,
+      "CharEnd": 11
     },
     "Description": ""
   },
@@ -111,8 +135,10 @@
     "Keyword": 44,
     "Literal": "}",
     "Position": {
-      "Line": 8,
-      "Char": 5
+      "LineStart": 8,
+      "LineEnd": 8,
+      "CharStart": 5,
+      "CharEnd": 6
     },
     "Description": ""
   },
@@ -120,8 +146,10 @@
     "Keyword": 1,
     "Literal": "subscriptionType",
     "Position": {
-      "Line": 9,
-      "Char": 5
+      "LineStart": 9,
+      "LineEnd": 9,
+      "CharStart": 5,
+      "CharEnd": 21
     },
     "Description": ""
   },
@@ -129,8 +157,10 @@
     "Keyword": 43,
     "Literal": "{",
     "Position": {
-      "Line": 9,
-      "Char": 22
+      "LineStart": 9,
+      "LineEnd": 9,
+      "CharStart": 22,
+      "CharEnd": 23
     },
     "Description": ""
   },
@@ -138,8 +168,10 @@
     "Keyword": 1,
     "Literal": "name",
     "Position": {
-      "Line": 10,
-      "Char": 7
+      "LineStart": 10,
+      "LineEnd": 10,
+      "CharStart": 7,
+      "CharEnd": 11
     },
     "Description": ""
   },
@@ -147,8 +179,10 @@
     "Keyword": 44,
     "Literal": "}",
     "Position": {
-      "Line": 11,
-      "Char": 5
+      "LineStart": 11,
+      "LineEnd": 11,
+      "CharStart": 5,
+      "CharEnd": 6
     },
     "Description": ""
   },
@@ -156,8 +190,10 @@
     "Keyword": 1,
     "Literal": "types",
     "Position": {
-      "Line": 12,
-      "Char": 5
+      "LineStart": 12,
+      "LineEnd": 12,
+      "CharStart": 5,
+      "CharEnd": 10
     },
     "Description": ""
   },
@@ -165,8 +201,10 @@
     "Keyword": 43,
     "Literal": "{",
     "Position": {
-      "Line": 12,
-      "Char": 11
+      "LineStart": 12,
+      "LineEnd": 12,
+      "CharStart": 11,
+      "CharEnd": 12
     },
     "Description": ""
   },
@@ -174,8 +212,10 @@
     "Keyword": 12,
     "Literal": "...",
     "Position": {
-      "Line": 13,
-      "Char": 7
+      "LineStart": 13,
+      "LineEnd": 13,
+      "CharStart": 7,
+      "CharEnd": 10
     },
     "Description": ""
   },
@@ -183,8 +223,10 @@
     "Keyword": 1,
     "Literal": "FullType",
     "Position": {
-      "Line": 13,
-      "Char": 10
+      "LineStart": 13,
+      "LineEnd": 13,
+      "CharStart": 10,
+      "CharEnd": 18
     },
     "Description": ""
   },
@@ -192,8 +234,10 @@
     "Keyword": 44,
     "Literal": "}",
     "Position": {
-      "Line": 14,
-      "Char": 5
+      "LineStart": 14,
+      "LineEnd": 14,
+      "CharStart": 5,
+      "CharEnd": 6
     },
     "Description": ""
   },
@@ -201,8 +245,10 @@
     "Keyword": 1,
     "Literal": "directives",
     "Position": {
-      "Line": 15,
-      "Char": 5
+      "LineStart": 15,
+      "LineEnd": 15,
+      "CharStart": 5,
+      "CharEnd": 15
     },
     "Description": ""
   },
@@ -210,8 +256,10 @@
     "Keyword": 43,
     "Literal": "{",
     "Position": {
-      "Line": 15,
-      "Char": 16
+      "LineStart": 15,
+      "LineEnd": 15,
+      "CharStart": 16,
+      "CharEnd": 17
     },
     "Description": ""
   },
@@ -219,8 +267,10 @@
     "Keyword": 1,
     "Literal": "name",
     "Position": {
-      "Line": 16,
-      "Char": 7
+      "LineStart": 16,
+      "LineEnd": 16,
+      "CharStart": 7,
+      "CharEnd": 11
     },
     "Description": ""
   },
@@ -228,8 +278,10 @@
     "Keyword": 1,
     "Literal": "description",
     "Position": {
-      "Line": 17,
-      "Char": 7
+      "LineStart": 17,
+      "LineEnd": 17,
+      "CharStart": 7,
+      "CharEnd": 18
     },
     "Description": ""
   },
@@ -237,8 +289,10 @@
     "Keyword": 1,
     "Literal": "locations",
     "Position": {
-      "Line": 18,
-      "Char": 7
+      "LineStart": 18,
+      "LineEnd": 18,
+      "CharStart": 7,
+      "CharEnd": 16
     },
     "Description": ""
   },
@@ -246,8 +300,10 @@
     "Keyword": 1,
     "Literal": "args",
     "Position": {
-      "Line": 19,
-      "Char": 7
+      "LineStart": 19,
+      "LineEnd": 19,
+      "CharStart": 7,
+      "CharEnd": 11
     },
     "Description": ""
   },
@@ -255,8 +311,10 @@
     "Keyword": 43,
     "Literal": "{",
     "Position": {
-      "Line": 19,
-      "Char": 12
+      "LineStart": 19,
+      "LineEnd": 19,
+      "CharStart": 12,
+      "CharEnd": 13
     },
     "Description": ""
   },
@@ -264,8 +322,10 @@
     "Keyword": 12,
     "Literal": "...",
     "Position": {
-      "Line": 20,
-      "Char": 9
+      "LineStart": 20,
+      "LineEnd": 20,
+      "CharStart": 9,
+      "CharEnd": 12
     },
     "Description": ""
   },
@@ -273,8 +333,10 @@
     "Keyword": 1,
     "Literal": "InputValue",
     "Position": {
-      "Line": 20,
-      "Char": 12
+      "LineStart": 20,
+      "LineEnd": 20,
+      "CharStart": 12,
+      "CharEnd": 22
     },
     "Description": ""
   },
@@ -282,8 +344,10 @@
     "Keyword": 44,
     "Literal": "}",
     "Position": {
-      "Line": 21,
-      "Char": 7
+      "LineStart": 21,
+      "LineEnd": 21,
+      "CharStart": 7,
+      "CharEnd": 8
     },
     "Description": ""
   },
@@ -291,8 +355,10 @@
     "Keyword": 44,
     "Literal": "}",
     "Position": {
-      "Line": 22,
-      "Char": 5
+      "LineStart": 22,
+      "LineEnd": 22,
+      "CharStart": 5,
+      "CharEnd": 6
     },
     "Description": ""
   },
@@ -300,8 +366,10 @@
     "Keyword": 44,
     "Literal": "}",
     "Position": {
-      "Line": 23,
-      "Char": 3
+      "LineStart": 23,
+      "LineEnd": 23,
+      "CharStart": 3,
+      "CharEnd": 4
     },
     "Description": ""
   },
@@ -309,8 +377,10 @@
     "Keyword": 44,
     "Literal": "}",
     "Position": {
-      "Line": 24,
-      "Char": 1
+      "LineStart": 24,
+      "LineEnd": 24,
+      "CharStart": 1,
+      "CharEnd": 2
     },
     "Description": ""
   },
@@ -318,8 +388,10 @@
     "Keyword": 38,
     "Literal": "fragment",
     "Position": {
-      "Line": 26,
-      "Char": 1
+      "LineStart": 26,
+      "LineEnd": 26,
+      "CharStart": 1,
+      "CharEnd": 9
     },
     "Description": ""
   },
@@ -327,8 +399,10 @@
     "Keyword": 1,
     "Literal": "FullType",
     "Position": {
-      "Line": 26,
-      "Char": 10
+      "LineStart": 26,
+      "LineEnd": 26,
+      "CharStart": 10,
+      "CharEnd": 18
     },
     "Description": ""
   },
@@ -336,8 +410,10 @@
     "Keyword": 18,
     "Literal": "on",
     "Position": {
-      "Line": 26,
-      "Char": 19
+      "LineStart": 26,
+      "LineEnd": 26,
+      "CharStart": 19,
+      "CharEnd": 21
     },
     "Description": ""
   },
@@ -345,8 +421,10 @@
     "Keyword": 1,
     "Literal": "__Type",
     "Position": {
-      "Line": 26,
-      "Char": 22
+      "LineStart": 26,
+      "LineEnd": 26,
+      "CharStart": 22,
+      "CharEnd": 28
     },
     "Description": ""
   },
@@ -354,8 +432,10 @@
     "Keyword": 43,
     "Literal": "{",
     "Position": {
-      "Line": 26,
-      "Char": 29
+      "LineStart": 26,
+      "LineEnd": 26,
+      "CharStart": 29,
+      "CharEnd": 30
     },
     "Description": ""
   },
@@ -363,8 +443,10 @@
     "Keyword": 1,
     "Literal": "kind",
     "Position": {
-      "Line": 27,
-      "Char": 3
+      "LineStart": 27,
+      "LineEnd": 27,
+      "CharStart": 3,
+      "CharEnd": 7
     },
     "Description": ""
   },
@@ -372,8 +454,10 @@
     "Keyword": 1,
     "Literal": "name",
     "Position": {
-      "Line": 28,
-      "Char": 3
+      "LineStart": 28,
+      "LineEnd": 28,
+      "CharStart": 3,
+      "CharEnd": 7
     },
     "Description": ""
   },
@@ -381,8 +465,10 @@
     "Keyword": 1,
     "Literal": "description",
     "Position": {
-      "Line": 29,
-      "Char": 3
+      "LineStart": 29,
+      "LineEnd": 29,
+      "CharStart": 3,
+      "CharEnd": 14
     },
     "Description": ""
   },
@@ -390,8 +476,10 @@
     "Keyword": 1,
     "Literal": "fields",
     "Position": {
-      "Line": 30,
-      "Char": 3
+      "LineStart": 30,
+      "LineEnd": 30,
+      "CharStart": 3,
+      "CharEnd": 9
     },
     "Description": ""
   },
@@ -399,8 +487,10 @@
     "Keyword": 39,
     "Literal": "(",
     "Position": {
-      "Line": 30,
-      "Char": 9
+      "LineStart": 30,
+      "LineEnd": 30,
+      "CharStart": 9,
+      "CharEnd": 10
     },
     "Description": ""
   },
@@ -408,8 +498,10 @@
     "Keyword": 1,
     "Literal": "includeDeprecated",
     "Position": {
-      "Line": 30,
-      "Char": 10
+      "LineStart": 30,
+      "LineEnd": 30,
+      "CharStart": 10,
+      "CharEnd": 27
     },
     "Description": ""
   },
@@ -417,8 +509,10 @@
     "Keyword": 4,
     "Literal": ":",
     "Position": {
-      "Line": 30,
-      "Char": 27
+      "LineStart": 30,
+      "LineEnd": 30,
+      "CharStart": 27,
+      "CharEnd": 28
     },
     "Description": ""
   },
@@ -426,8 +520,10 @@
     "Keyword": 32,
     "Literal": "true",
     "Position": {
-      "Line": 30,
-      "Char": 29
+      "LineStart": 30,
+      "LineEnd": 30,
+      "CharStart": 29,
+      "CharEnd": 33
     },
     "Description": ""
   },
@@ -435,8 +531,10 @@
     "Keyword": 40,
     "Literal": ")",
     "Position": {
-      "Line": 30,
-      "Char": 33
+      "LineStart": 30,
+      "LineEnd": 30,
+      "CharStart": 33,
+      "CharEnd": 34
     },
     "Description": ""
   },
@@ -444,8 +542,10 @@
     "Keyword": 43,
     "Literal": "{",
     "Position": {
-      "Line": 30,
-      "Char": 35
+      "LineStart": 30,
+      "LineEnd": 30,
+      "CharStart": 35,
+      "CharEnd": 36
     },
     "Description": ""
   },
@@ -453,8 +553,10 @@
     "Keyword": 1,
     "Literal": "name",
     "Position": {
-      "Line": 31,
-      "Char": 5
+      "LineStart": 31,
+      "LineEnd": 31,
+      "CharStart": 5,
+      "CharEnd": 9
     },
     "Description": ""
   },
@@ -462,8 +564,10 @@
     "Keyword": 1,
     "Literal": "description",
     "Position": {
-      "Line": 32,
-      "Char": 5
+      "LineStart": 32,
+      "LineEnd": 32,
+      "CharStart": 5,
+      "CharEnd": 16
     },
     "Description": ""
   },
@@ -471,8 +575,10 @@
     "Keyword": 1,
     "Literal": "args",
     "Position": {
-      "Line": 33,
-      "Char": 5
+      "LineStart": 33,
+      "LineEnd": 33,
+      "CharStart": 5,
+      "CharEnd": 9
     },
     "Description": ""
   },
@@ -480,8 +586,10 @@
     "Keyword": 43,
     "Literal": "{",
     "Position": {
-      "Line": 33,
-      "Char": 10
+      "LineStart": 33,
+      "LineEnd": 33,
+      "CharStart": 10,
+      "CharEnd": 11
     },
     "Description": ""
   },
@@ -489,8 +597,10 @@
     "Keyword": 12,
     "Literal": "...",
     "Position": {
-      "Line": 34,
-      "Char": 7
+      "LineStart": 34,
+      "LineEnd": 34,
+      "CharStart": 7,
+      "CharEnd": 10
     },
     "Description": ""
   },
@@ -498,8 +608,10 @@
     "Keyword": 1,
     "Literal": "InputValue",
     "Position": {
-      "Line": 34,
-      "Char": 10
+      "LineStart": 34,
+      "LineEnd": 34,
+      "CharStart": 10,
+      "CharEnd": 20
     },
     "Description": ""
   },
@@ -507,8 +619,10 @@
     "Keyword": 44,
     "Literal": "}",
     "Position": {
-      "Line": 35,
-      "Char": 5
+      "LineStart": 35,
+      "LineEnd": 35,
+      "CharStart": 5,
+      "CharEnd": 6
     },
     "Description": ""
   },
@@ -516,8 +630,10 @@
     "Keyword": 22,
     "Literal": "type",
     "Position": {
-      "Line": 36,
-      "Char": 5
+      "LineStart": 36,
+      "LineEnd": 36,
+      "CharStart": 5,
+      "CharEnd": 9
     },
     "Description": ""
   },
@@ -525,8 +641,10 @@
     "Keyword": 43,
     "Literal": "{",
     "Position": {
-      "Line": 36,
-      "Char": 10
+      "LineStart": 36,
+      "LineEnd": 36,
+      "CharStart": 10,
+      "CharEnd": 11
     },
     "Description": ""
   },
@@ -534,8 +652,10 @@
     "Keyword": 12,
     "Literal": "...",
     "Position": {
-      "Line": 37,
-      "Char": 7
+      "LineStart": 37,
+      "LineEnd": 37,
+      "CharStart": 7,
+      "CharEnd": 10
     },
     "Description": ""
   },
@@ -543,8 +663,10 @@
     "Keyword": 1,
     "Literal": "TypeRef",
     "Position": {
-      "Line": 37,
-      "Char": 10
+      "LineStart": 37,
+      "LineEnd": 37,
+      "CharStart": 10,
+      "CharEnd": 17
     },
     "Description": ""
   },
@@ -552,8 +674,10 @@
     "Keyword": 44,
     "Literal": "}",
     "Position": {
-      "Line": 38,
-      "Char": 5
+      "LineStart": 38,
+      "LineEnd": 38,
+      "CharStart": 5,
+      "CharEnd": 6
     },
     "Description": ""
   },
@@ -561,8 +685,10 @@
     "Keyword": 1,
     "Literal": "isDeprecated",
     "Position": {
-      "Line": 39,
-      "Char": 5
+      "LineStart": 39,
+      "LineEnd": 39,
+      "CharStart": 5,
+      "CharEnd": 17
     },
     "Description": ""
   },
@@ -570,8 +696,10 @@
     "Keyword": 1,
     "Literal": "deprecationReason",
     "Position": {
-      "Line": 40,
-      "Char": 5
+      "LineStart": 40,
+      "LineEnd": 40,
+      "CharStart": 5,
+      "CharEnd": 22
     },
     "Description": ""
   },
@@ -579,8 +707,10 @@
     "Keyword": 44,
     "Literal": "}",
     "Position": {
-      "Line": 41,
-      "Char": 3
+      "LineStart": 41,
+      "LineEnd": 41,
+      "CharStart": 3,
+      "CharEnd": 4
     },
     "Description": ""
   },
@@ -588,8 +718,10 @@
     "Keyword": 1,
     "Literal": "inputFields",
     "Position": {
-      "Line": 42,
-      "Char": 3
+      "LineStart": 42,
+      "LineEnd": 42,
+      "CharStart": 3,
+      "CharEnd": 14
     },
     "Description": ""
   },
@@ -597,8 +729,10 @@
     "Keyword": 43,
     "Literal": "{",
     "Position": {
-      "Line": 42,
-      "Char": 15
+      "LineStart": 42,
+      "LineEnd": 42,
+      "CharStart": 15,
+      "CharEnd": 16
     },
     "Description": ""
   },
@@ -606,8 +740,10 @@
     "Keyword": 12,
     "Literal": "...",
     "Position": {
-      "Line": 43,
-      "Char": 5
+      "LineStart": 43,
+      "LineEnd": 43,
+      "CharStart": 5,
+      "CharEnd": 8
     },
     "Description": ""
   },
@@ -615,8 +751,10 @@
     "Keyword": 1,
     "Literal": "InputValue",
     "Position": {
-      "Line": 43,
-      "Char": 8
+      "LineStart": 43,
+      "LineEnd": 43,
+      "CharStart": 8,
+      "CharEnd": 18
     },
     "Description": ""
   },
@@ -624,8 +762,10 @@
     "Keyword": 44,
     "Literal": "}",
     "Position": {
-      "Line": 44,
-      "Char": 3
+      "LineStart": 44,
+      "LineEnd": 44,
+      "CharStart": 3,
+      "CharEnd": 4
     },
     "Description": ""
   },
@@ -633,8 +773,10 @@
     "Keyword": 1,
     "Literal": "interfaces",
     "Position": {
-      "Line": 45,
-      "Char": 3
+      "LineStart": 45,
+      "LineEnd": 45,
+      "CharStart": 3,
+      "CharEnd": 13
     },
     "Description": ""
   },
@@ -642,8 +784,10 @@
     "Keyword": 43,
     "Literal": "{",
     "Position": {
-      "Line": 45,
-      "Char": 14
+      "LineStart": 45,
+      "LineEnd": 45,
+      "CharStart": 14,
+      "CharEnd": 15
     },
     "Description": ""
   },
@@ -651,8 +795,10 @@
     "Keyword": 12,
     "Literal": "...",
     "Position": {
-      "Line": 46,
-      "Char": 5
+      "LineStart": 46,
+      "LineEnd": 46,
+      "CharStart": 5,
+      "CharEnd": 8
     },
     "Description": ""
   },
@@ -660,8 +806,10 @@
     "Keyword": 1,
     "Literal": "TypeRef",
     "Position": {
-      "Line": 46,
-      "Char": 8
+      "LineStart": 46,
+      "LineEnd": 46,
+      "CharStart": 8,
+      "CharEnd": 15
     },
     "Description": ""
   },
@@ -669,8 +817,10 @@
     "Keyword": 44,
     "Literal": "}",
     "Position": {
-      "Line": 47,
-      "Char": 3
+      "LineStart": 47,
+      "LineEnd": 47,
+      "CharStart": 3,
+      "CharEnd": 4
     },
     "Description": ""
   },
@@ -678,8 +828,10 @@
     "Keyword": 1,
     "Literal": "enumValues",
     "Position": {
-      "Line": 48,
-      "Char": 3
+      "LineStart": 48,
+      "LineEnd": 48,
+      "CharStart": 3,
+      "CharEnd": 13
     },
     "Description": ""
   },
@@ -687,8 +839,10 @@
     "Keyword": 39,
     "Literal": "(",
     "Position": {
-      "Line": 48,
-      "Char": 13
+      "LineStart": 48,
+      "LineEnd": 48,
+      "CharStart": 13,
+      "CharEnd": 14
     },
     "Description": ""
   },
@@ -696,8 +850,10 @@
     "Keyword": 1,
     "Literal": "includeDeprecated",
     "Position": {
-      "Line": 48,
-      "Char": 14
+      "LineStart": 48,
+      "LineEnd": 48,
+      "CharStart": 14,
+      "CharEnd": 31
     },
     "Description": ""
   },
@@ -705,8 +861,10 @@
     "Keyword": 4,
     "Literal": ":",
     "Position": {
-      "Line": 48,
-      "Char": 31
+      "LineStart": 48,
+      "LineEnd": 48,
+      "CharStart": 31,
+      "CharEnd": 32
     },
     "Description": ""
   },
@@ -714,8 +872,10 @@
     "Keyword": 32,
     "Literal": "true",
     "Position": {
-      "Line": 48,
-      "Char": 33
+      "LineStart": 48,
+      "LineEnd": 48,
+      "CharStart": 33,
+      "CharEnd": 37
     },
     "Description": ""
   },
@@ -723,8 +883,10 @@
     "Keyword": 40,
     "Literal": ")",
     "Position": {
-      "Line": 48,
-      "Char": 37
+      "LineStart": 48,
+      "LineEnd": 48,
+      "CharStart": 37,
+      "CharEnd": 38
     },
     "Description": ""
   },
@@ -732,8 +894,10 @@
     "Keyword": 43,
     "Literal": "{",
     "Position": {
-      "Line": 48,
-      "Char": 39
+      "LineStart": 48,
+      "LineEnd": 48,
+      "CharStart": 39,
+      "CharEnd": 40
     },
     "Description": ""
   },
@@ -741,8 +905,10 @@
     "Keyword": 1,
     "Literal": "name",
     "Position": {
-      "Line": 49,
-      "Char": 5
+      "LineStart": 49,
+      "LineEnd": 49,
+      "CharStart": 5,
+      "CharEnd": 9
     },
     "Description": ""
   },
@@ -750,8 +916,10 @@
     "Keyword": 1,
     "Literal": "description",
     "Position": {
-      "Line": 50,
-      "Char": 5
+      "LineStart": 50,
+      "LineEnd": 50,
+      "CharStart": 5,
+      "CharEnd": 16
     },
     "Description": ""
   },
@@ -759,8 +927,10 @@
     "Keyword": 1,
     "Literal": "isDeprecated",
     "Position": {
-      "Line": 51,
-      "Char": 5
+      "LineStart": 51,
+      "LineEnd": 51,
+      "CharStart": 5,
+      "CharEnd": 17
     },
     "Description": ""
   },
@@ -768,8 +938,10 @@
     "Keyword": 1,
     "Literal": "deprecationReason",
     "Position": {
-      "Line": 52,
-      "Char": 5
+      "LineStart": 52,
+      "LineEnd": 52,
+      "CharStart": 5,
+      "CharEnd": 22
     },
     "Description": ""
   },
@@ -777,8 +949,10 @@
     "Keyword": 44,
     "Literal": "}",
     "Position": {
-      "Line": 53,
-      "Char": 3
+      "LineStart": 53,
+      "LineEnd": 53,
+      "CharStart": 3,
+      "CharEnd": 4
     },
     "Description": ""
   },
@@ -786,8 +960,10 @@
     "Keyword": 1,
     "Literal": "possibleTypes",
     "Position": {
-      "Line": 54,
-      "Char": 3
+      "LineStart": 54,
+      "LineEnd": 54,
+      "CharStart": 3,
+      "CharEnd": 16
     },
     "Description": ""
   },
@@ -795,8 +971,10 @@
     "Keyword": 43,
     "Literal": "{",
     "Position": {
-      "Line": 54,
-      "Char": 17
+      "LineStart": 54,
+      "LineEnd": 54,
+      "CharStart": 17,
+      "CharEnd": 18
     },
     "Description": ""
   },
@@ -804,8 +982,10 @@
     "Keyword": 12,
     "Literal": "...",
     "Position": {
-      "Line": 55,
-      "Char": 5
+      "LineStart": 55,
+      "LineEnd": 55,
+      "CharStart": 5,
+      "CharEnd": 8
     },
     "Description": ""
   },
@@ -813,8 +993,10 @@
     "Keyword": 1,
     "Literal": "TypeRef",
     "Position": {
-      "Line": 55,
-      "Char": 8
+      "LineStart": 55,
+      "LineEnd": 55,
+      "CharStart": 8,
+      "CharEnd": 15
     },
     "Description": ""
   },
@@ -822,8 +1004,10 @@
     "Keyword": 44,
     "Literal": "}",
     "Position": {
-      "Line": 56,
-      "Char": 3
+      "LineStart": 56,
+      "LineEnd": 56,
+      "CharStart": 3,
+      "CharEnd": 4
     },
     "Description": ""
   },
@@ -831,8 +1015,10 @@
     "Keyword": 44,
     "Literal": "}",
     "Position": {
-      "Line": 57,
-      "Char": 1
+      "LineStart": 57,
+      "LineEnd": 57,
+      "CharStart": 1,
+      "CharEnd": 2
     },
     "Description": ""
   },
@@ -840,8 +1026,10 @@
     "Keyword": 38,
     "Literal": "fragment",
     "Position": {
-      "Line": 59,
-      "Char": 1
+      "LineStart": 59,
+      "LineEnd": 59,
+      "CharStart": 1,
+      "CharEnd": 9
     },
     "Description": ""
   },
@@ -849,8 +1037,10 @@
     "Keyword": 1,
     "Literal": "InputValue",
     "Position": {
-      "Line": 59,
-      "Char": 10
+      "LineStart": 59,
+      "LineEnd": 59,
+      "CharStart": 10,
+      "CharEnd": 20
     },
     "Description": ""
   },
@@ -858,8 +1048,10 @@
     "Keyword": 18,
     "Literal": "on",
     "Position": {
-      "Line": 59,
-      "Char": 21
+      "LineStart": 59,
+      "LineEnd": 59,
+      "CharStart": 21,
+      "CharEnd": 23
     },
     "Description": ""
   },
@@ -867,8 +1059,10 @@
     "Keyword": 1,
     "Literal": "__InputValue",
     "Position": {
-      "Line": 59,
-      "Char": 24
+      "LineStart": 59,
+      "LineEnd": 59,
+      "CharStart": 24,
+      "CharEnd": 36
     },
     "Description": ""
   },
@@ -876,8 +1070,10 @@
     "Keyword": 43,
     "Literal": "{",
     "Position": {
-      "Line": 59,
-      "Char": 37
+      "LineStart": 59,
+      "LineEnd": 59,
+      "CharStart": 37,
+      "CharEnd": 38
     },
     "Description": ""
   },
@@ -885,8 +1081,10 @@
     "Keyword": 1,
     "Literal": "name",
     "Position": {
-      "Line": 60,
-      "Char": 3
+      "LineStart": 60,
+      "LineEnd": 60,
+      "CharStart": 3,
+      "CharEnd": 7
     },
     "Description": ""
   },
@@ -894,8 +1092,10 @@
     "Keyword": 1,
     "Literal": "description",
     "Position": {
-      "Line": 61,
-      "Char": 3
+      "LineStart": 61,
+      "LineEnd": 61,
+      "CharStart": 3,
+      "CharEnd": 14
     },
     "Description": ""
   },
@@ -903,8 +1103,10 @@
     "Keyword": 22,
     "Literal": "type",
     "Position": {
-      "Line": 62,
-      "Char": 3
+      "LineStart": 62,
+      "LineEnd": 62,
+      "CharStart": 3,
+      "CharEnd": 7
     },
     "Description": ""
   },
@@ -912,8 +1114,10 @@
     "Keyword": 43,
     "Literal": "{",
     "Position": {
-      "Line": 62,
-      "Char": 8
+      "LineStart": 62,
+      "LineEnd": 62,
+      "CharStart": 8,
+      "CharEnd": 9
     },
     "Description": ""
   },
@@ -921,8 +1125,10 @@
     "Keyword": 12,
     "Literal": "...",
     "Position": {
-      "Line": 63,
-      "Char": 5
+      "LineStart": 63,
+      "LineEnd": 63,
+      "CharStart": 5,
+      "CharEnd": 8
     },
     "Description": ""
   },
@@ -930,8 +1136,10 @@
     "Keyword": 1,
     "Literal": "TypeRef",
     "Position": {
-      "Line": 63,
-      "Char": 8
+      "LineStart": 63,
+      "LineEnd": 63,
+      "CharStart": 8,
+      "CharEnd": 15
     },
     "Description": ""
   },
@@ -939,8 +1147,10 @@
     "Keyword": 44,
     "Literal": "}",
     "Position": {
-      "Line": 64,
-      "Char": 3
+      "LineStart": 64,
+      "LineEnd": 64,
+      "CharStart": 3,
+      "CharEnd": 4
     },
     "Description": ""
   },
@@ -948,8 +1158,10 @@
     "Keyword": 1,
     "Literal": "defaultValue",
     "Position": {
-      "Line": 65,
-      "Char": 3
+      "LineStart": 65,
+      "LineEnd": 65,
+      "CharStart": 3,
+      "CharEnd": 15
     },
     "Description": ""
   },
@@ -957,8 +1169,10 @@
     "Keyword": 44,
     "Literal": "}",
     "Position": {
-      "Line": 66,
-      "Char": 1
+      "LineStart": 66,
+      "LineEnd": 66,
+      "CharStart": 1,
+      "CharEnd": 2
     },
     "Description": ""
   },
@@ -966,8 +1180,10 @@
     "Keyword": 38,
     "Literal": "fragment",
     "Position": {
-      "Line": 68,
-      "Char": 1
+      "LineStart": 68,
+      "LineEnd": 68,
+      "CharStart": 1,
+      "CharEnd": 9
     },
     "Description": ""
   },
@@ -975,8 +1191,10 @@
     "Keyword": 1,
     "Literal": "TypeRef",
     "Position": {
-      "Line": 68,
-      "Char": 10
+      "LineStart": 68,
+      "LineEnd": 68,
+      "CharStart": 10,
+      "CharEnd": 17
     },
     "Description": ""
   },
@@ -984,8 +1202,10 @@
     "Keyword": 18,
     "Literal": "on",
     "Position": {
-      "Line": 68,
-      "Char": 18
+      "LineStart": 68,
+      "LineEnd": 68,
+      "CharStart": 18,
+      "CharEnd": 20
     },
     "Description": ""
   },
@@ -993,8 +1213,10 @@
     "Keyword": 1,
     "Literal": "__Type",
     "Position": {
-      "Line": 68,
-      "Char": 21
+      "LineStart": 68,
+      "LineEnd": 68,
+      "CharStart": 21,
+      "CharEnd": 27
     },
     "Description": ""
   },
@@ -1002,8 +1224,10 @@
     "Keyword": 43,
     "Literal": "{",
     "Position": {
-      "Line": 68,
-      "Char": 28
+      "LineStart": 68,
+      "LineEnd": 68,
+      "CharStart": 28,
+      "CharEnd": 29
     },
     "Description": ""
   },
@@ -1011,8 +1235,10 @@
     "Keyword": 1,
     "Literal": "kind",
     "Position": {
-      "Line": 69,
-      "Char": 3
+      "LineStart": 69,
+      "LineEnd": 69,
+      "CharStart": 3,
+      "CharEnd": 7
     },
     "Description": ""
   },
@@ -1020,8 +1246,10 @@
     "Keyword": 1,
     "Literal": "name",
     "Position": {
-      "Line": 70,
-      "Char": 3
+      "LineStart": 70,
+      "LineEnd": 70,
+      "CharStart": 3,
+      "CharEnd": 7
     },
     "Description": ""
   },
@@ -1029,8 +1257,10 @@
     "Keyword": 1,
     "Literal": "ofType",
     "Position": {
-      "Line": 71,
-      "Char": 3
+      "LineStart": 71,
+      "LineEnd": 71,
+      "CharStart": 3,
+      "CharEnd": 9
     },
     "Description": ""
   },
@@ -1038,8 +1268,10 @@
     "Keyword": 43,
     "Literal": "{",
     "Position": {
-      "Line": 71,
-      "Char": 10
+      "LineStart": 71,
+      "LineEnd": 71,
+      "CharStart": 10,
+      "CharEnd": 11
     },
     "Description": ""
   },
@@ -1047,8 +1279,10 @@
     "Keyword": 1,
     "Literal": "kind",
     "Position": {
-      "Line": 72,
-      "Char": 5
+      "LineStart": 72,
+      "LineEnd": 72,
+      "CharStart": 5,
+      "CharEnd": 9
     },
     "Description": ""
   },
@@ -1056,8 +1290,10 @@
     "Keyword": 1,
     "Literal": "name",
     "Position": {
-      "Line": 73,
-      "Char": 5
+      "LineStart": 73,
+      "LineEnd": 73,
+      "CharStart": 5,
+      "CharEnd": 9
     },
     "Description": ""
   },
@@ -1065,8 +1301,10 @@
     "Keyword": 1,
     "Literal": "ofType",
     "Position": {
-      "Line": 74,
-      "Char": 5
+      "LineStart": 74,
+      "LineEnd": 74,
+      "CharStart": 5,
+      "CharEnd": 11
     },
     "Description": ""
   },
@@ -1074,8 +1312,10 @@
     "Keyword": 43,
     "Literal": "{",
     "Position": {
-      "Line": 74,
-      "Char": 12
+      "LineStart": 74,
+      "LineEnd": 74,
+      "CharStart": 12,
+      "CharEnd": 13
     },
     "Description": ""
   },
@@ -1083,8 +1323,10 @@
     "Keyword": 1,
     "Literal": "kind",
     "Position": {
-      "Line": 75,
-      "Char": 7
+      "LineStart": 75,
+      "LineEnd": 75,
+      "CharStart": 7,
+      "CharEnd": 11
     },
     "Description": ""
   },
@@ -1092,8 +1334,10 @@
     "Keyword": 1,
     "Literal": "name",
     "Position": {
-      "Line": 76,
-      "Char": 7
+      "LineStart": 76,
+      "LineEnd": 76,
+      "CharStart": 7,
+      "CharEnd": 11
     },
     "Description": ""
   },
@@ -1101,8 +1345,10 @@
     "Keyword": 1,
     "Literal": "ofType",
     "Position": {
-      "Line": 77,
-      "Char": 7
+      "LineStart": 77,
+      "LineEnd": 77,
+      "CharStart": 7,
+      "CharEnd": 13
     },
     "Description": ""
   },
@@ -1110,8 +1356,10 @@
     "Keyword": 43,
     "Literal": "{",
     "Position": {
-      "Line": 77,
-      "Char": 14
+      "LineStart": 77,
+      "LineEnd": 77,
+      "CharStart": 14,
+      "CharEnd": 15
     },
     "Description": ""
   },
@@ -1119,8 +1367,10 @@
     "Keyword": 1,
     "Literal": "kind",
     "Position": {
-      "Line": 78,
-      "Char": 9
+      "LineStart": 78,
+      "LineEnd": 78,
+      "CharStart": 9,
+      "CharEnd": 13
     },
     "Description": ""
   },
@@ -1128,8 +1378,10 @@
     "Keyword": 1,
     "Literal": "name",
     "Position": {
-      "Line": 79,
-      "Char": 9
+      "LineStart": 79,
+      "LineEnd": 79,
+      "CharStart": 9,
+      "CharEnd": 13
     },
     "Description": ""
   },
@@ -1137,8 +1389,10 @@
     "Keyword": 1,
     "Literal": "ofType",
     "Position": {
-      "Line": 80,
-      "Char": 9
+      "LineStart": 80,
+      "LineEnd": 80,
+      "CharStart": 9,
+      "CharEnd": 15
     },
     "Description": ""
   },
@@ -1146,8 +1400,10 @@
     "Keyword": 43,
     "Literal": "{",
     "Position": {
-      "Line": 80,
-      "Char": 16
+      "LineStart": 80,
+      "LineEnd": 80,
+      "CharStart": 16,
+      "CharEnd": 17
     },
     "Description": ""
   },
@@ -1155,8 +1411,10 @@
     "Keyword": 1,
     "Literal": "kind",
     "Position": {
-      "Line": 81,
-      "Char": 11
+      "LineStart": 81,
+      "LineEnd": 81,
+      "CharStart": 11,
+      "CharEnd": 15
     },
     "Description": ""
   },
@@ -1164,8 +1422,10 @@
     "Keyword": 1,
     "Literal": "name",
     "Position": {
-      "Line": 82,
-      "Char": 11
+      "LineStart": 82,
+      "LineEnd": 82,
+      "CharStart": 11,
+      "CharEnd": 15
     },
     "Description": ""
   },
@@ -1173,8 +1433,10 @@
     "Keyword": 1,
     "Literal": "ofType",
     "Position": {
-      "Line": 83,
-      "Char": 11
+      "LineStart": 83,
+      "LineEnd": 83,
+      "CharStart": 11,
+      "CharEnd": 17
     },
     "Description": ""
   },
@@ -1182,8 +1444,10 @@
     "Keyword": 43,
     "Literal": "{",
     "Position": {
-      "Line": 83,
-      "Char": 18
+      "LineStart": 83,
+      "LineEnd": 83,
+      "CharStart": 18,
+      "CharEnd": 19
     },
     "Description": ""
   },
@@ -1191,8 +1455,10 @@
     "Keyword": 1,
     "Literal": "kind",
     "Position": {
-      "Line": 84,
-      "Char": 13
+      "LineStart": 84,
+      "LineEnd": 84,
+      "CharStart": 13,
+      "CharEnd": 17
     },
     "Description": ""
   },
@@ -1200,8 +1466,10 @@
     "Keyword": 1,
     "Literal": "name",
     "Position": {
-      "Line": 85,
-      "Char": 13
+      "LineStart": 85,
+      "LineEnd": 85,
+      "CharStart": 13,
+      "CharEnd": 17
     },
     "Description": ""
   },
@@ -1209,8 +1477,10 @@
     "Keyword": 1,
     "Literal": "ofType",
     "Position": {
-      "Line": 86,
-      "Char": 13
+      "LineStart": 86,
+      "LineEnd": 86,
+      "CharStart": 13,
+      "CharEnd": 19
     },
     "Description": ""
   },
@@ -1218,8 +1488,10 @@
     "Keyword": 43,
     "Literal": "{",
     "Position": {
-      "Line": 86,
-      "Char": 20
+      "LineStart": 86,
+      "LineEnd": 86,
+      "CharStart": 20,
+      "CharEnd": 21
     },
     "Description": ""
   },
@@ -1227,8 +1499,10 @@
     "Keyword": 1,
     "Literal": "kind",
     "Position": {
-      "Line": 87,
-      "Char": 15
+      "LineStart": 87,
+      "LineEnd": 87,
+      "CharStart": 15,
+      "CharEnd": 19
     },
     "Description": ""
   },
@@ -1236,8 +1510,10 @@
     "Keyword": 1,
     "Literal": "name",
     "Position": {
-      "Line": 88,
-      "Char": 15
+      "LineStart": 88,
+      "LineEnd": 88,
+      "CharStart": 15,
+      "CharEnd": 19
     },
     "Description": ""
   },
@@ -1245,8 +1521,10 @@
     "Keyword": 1,
     "Literal": "ofType",
     "Position": {
-      "Line": 89,
-      "Char": 15
+      "LineStart": 89,
+      "LineEnd": 89,
+      "CharStart": 15,
+      "CharEnd": 21
     },
     "Description": ""
   },
@@ -1254,8 +1532,10 @@
     "Keyword": 43,
     "Literal": "{",
     "Position": {
-      "Line": 89,
-      "Char": 22
+      "LineStart": 89,
+      "LineEnd": 89,
+      "CharStart": 22,
+      "CharEnd": 23
     },
     "Description": ""
   },
@@ -1263,8 +1543,10 @@
     "Keyword": 1,
     "Literal": "kind",
     "Position": {
-      "Line": 90,
-      "Char": 17
+      "LineStart": 90,
+      "LineEnd": 90,
+      "CharStart": 17,
+      "CharEnd": 21
     },
     "Description": ""
   },
@@ -1272,8 +1554,10 @@
     "Keyword": 1,
     "Literal": "name",
     "Position": {
-      "Line": 91,
-      "Char": 17
+      "LineStart": 91,
+      "LineEnd": 91,
+      "CharStart": 17,
+      "CharEnd": 21
     },
     "Description": ""
   },
@@ -1281,8 +1565,10 @@
     "Keyword": 44,
     "Literal": "}",
     "Position": {
-      "Line": 92,
-      "Char": 15
+      "LineStart": 92,
+      "LineEnd": 92,
+      "CharStart": 15,
+      "CharEnd": 16
     },
     "Description": ""
   },
@@ -1290,8 +1576,10 @@
     "Keyword": 44,
     "Literal": "}",
     "Position": {
-      "Line": 93,
-      "Char": 13
+      "LineStart": 93,
+      "LineEnd": 93,
+      "CharStart": 13,
+      "CharEnd": 14
     },
     "Description": ""
   },
@@ -1299,8 +1587,10 @@
     "Keyword": 44,
     "Literal": "}",
     "Position": {
-      "Line": 94,
-      "Char": 11
+      "LineStart": 94,
+      "LineEnd": 94,
+      "CharStart": 11,
+      "CharEnd": 12
     },
     "Description": ""
   },
@@ -1308,8 +1598,10 @@
     "Keyword": 44,
     "Literal": "}",
     "Position": {
-      "Line": 95,
-      "Char": 9
+      "LineStart": 95,
+      "LineEnd": 95,
+      "CharStart": 9,
+      "CharEnd": 10
     },
     "Description": ""
   },
@@ -1317,8 +1609,10 @@
     "Keyword": 44,
     "Literal": "}",
     "Position": {
-      "Line": 96,
-      "Char": 7
+      "LineStart": 96,
+      "LineEnd": 96,
+      "CharStart": 7,
+      "CharEnd": 8
     },
     "Description": ""
   },
@@ -1326,8 +1620,10 @@
     "Keyword": 44,
     "Literal": "}",
     "Position": {
-      "Line": 97,
-      "Char": 5
+      "LineStart": 97,
+      "LineEnd": 97,
+      "CharStart": 5,
+      "CharEnd": 6
     },
     "Description": ""
   },
@@ -1335,8 +1631,10 @@
     "Keyword": 44,
     "Literal": "}",
     "Position": {
-      "Line": 98,
-      "Char": 3
+      "LineStart": 98,
+      "LineEnd": 98,
+      "CharStart": 3,
+      "CharEnd": 4
     },
     "Description": ""
   },
@@ -1344,8 +1642,10 @@
     "Keyword": 44,
     "Literal": "}",
     "Position": {
-      "Line": 99,
-      "Char": 1
+      "LineStart": 99,
+      "LineEnd": 99,
+      "CharStart": 1,
+      "CharEnd": 2
     },
     "Description": ""
   }
