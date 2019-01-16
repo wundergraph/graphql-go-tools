@@ -3,10 +3,10 @@ package position
 import "fmt"
 
 type Position struct {
-	LineStart int
-	LineEnd   int
-	CharStart int
-	CharEnd   int
+	LineStart uint16
+	LineEnd   uint16
+	CharStart uint16
+	CharEnd   uint16
 }
 
 func (p Position) String() string {

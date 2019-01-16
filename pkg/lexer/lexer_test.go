@@ -72,7 +72,7 @@ func TestLexer_Peek_Read(t *testing.T) {
 		}
 	}
 
-	mustReadPosition := func(lineStart, charStart, lineEnd, charEnd int) checkFunc {
+	mustReadPosition := func(lineStart, charStart, lineEnd, charEnd uint16) checkFunc {
 		return func(lex *Lexer, i int) {
 			tok, err := lex.Read()
 			if err != nil {
