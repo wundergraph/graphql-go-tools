@@ -48,7 +48,7 @@ func (p *Parser) parseDirectiveDefinition(index *[]int) error {
 				return err
 			}
 
-			parsedLocation, err := document.ParseDirectiveLocation(location.Literal)
+			parsedLocation, err := document.ParseDirectiveLocation(p.ByteSlice(location.Literal))
 			if err != nil {
 				return err
 			}

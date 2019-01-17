@@ -29,7 +29,7 @@ func (p *Parser) parseType(index *int) error {
 
 	firstType := p.makeType(index)
 	var ofType int
-	var name document.ByteSlice
+	var name document.ByteSliceReference
 
 	if isListType {
 

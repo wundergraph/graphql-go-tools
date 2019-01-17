@@ -40,14 +40,14 @@ func (p *Parser) parseSchemaDefinition() (definition document.SchemaDefinition, 
 				return definition, err
 			}
 
-			err = definition.SetOperationType(next.Literal, operationNameToken.Literal)
+			err = definition.SetOperationType(p.ByteSlice(next.Literal), p.ByteSlice(operationNameToken.Literal))
 
 			if err != nil {
 				return definition, err
 			}
 
 		default:
-			return definition, newErrInvalidType(next.Position, "parseSchemaDefinition", "curlyBracketClose/query/subscription/mutation", next.String())
+			return definition, newErrInvalidType(next.TextPosition, "parseSchemaDefinition", "curlyBracketClose/query/subscription/mutation", next.String())
 		}
 	}
 }

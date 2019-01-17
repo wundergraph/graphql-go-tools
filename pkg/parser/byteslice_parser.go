@@ -7,6 +7,6 @@ func (p *Parser) parsePeekedByteSlice(index *int) error {
 		return err
 	}
 
-	*index = p.putByteSlice(variableToken.Literal)
+	*index = p.putByteSliceReference(variableToken.Literal)
 	return nil
 }

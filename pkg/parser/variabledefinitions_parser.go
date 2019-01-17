@@ -56,7 +56,7 @@ func (p *Parser) parseVariableDefinitions(index *[]int) (err error) {
 			return err
 		default:
 			invalid, _ := p.l.Read()
-			return newErrInvalidType(invalid.Position, "parseVariableDefinitions", "variable/bracket close", invalid.Keyword.String())
+			return newErrInvalidType(invalid.TextPosition, "parseVariableDefinitions", "variable/bracket close", invalid.Keyword.String())
 		}
 	}
 }

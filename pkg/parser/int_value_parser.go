@@ -11,7 +11,7 @@ func (p *Parser) parsePeekedIntValue(index *int) error {
 		return err
 	}
 
-	integer, err := transform.StringToInt32(integerToken.Literal)
+	integer, err := transform.StringToInt32(p.ByteSlice(integerToken.Literal))
 	if err != nil {
 		return err
 	}
