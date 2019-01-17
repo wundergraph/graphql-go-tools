@@ -1,14 +1,10 @@
 package document
 
-import (
-	"bytes"
-)
-
 // EnumValueDefinition as specified in:
 // http://facebook.github.io/graphql/draft/#EnumValueDefinition
 type EnumValueDefinition struct {
-	Description ByteSlice
-	EnumValue   ByteSlice
+	Description ByteSliceReference
+	EnumValue   ByteSliceReference
 	Directives  []int
 }
 
@@ -20,7 +16,7 @@ func (e EnumValueDefinition) NodeValueReference() int {
 	panic("implement me")
 }
 
-func (e EnumValueDefinition) NodeUnionMemberTypes() []ByteSlice {
+func (e EnumValueDefinition) NodeUnionMemberTypes() []ByteSliceReference {
 	panic("implement me")
 }
 
@@ -56,7 +52,7 @@ func (e EnumValueDefinition) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (e EnumValueDefinition) NodeImplementsInterfaces() []ByteSlice {
+func (e EnumValueDefinition) NodeImplementsInterfaces() []ByteSliceReference {
 	panic("implement me")
 }
 
@@ -76,7 +72,7 @@ func (e EnumValueDefinition) NodeArgumentsDefinition() []int {
 	panic("implement me")
 }
 
-func (e EnumValueDefinition) NodeAlias() string {
+func (e EnumValueDefinition) NodeAlias() ByteSliceReference {
 	panic("implement me")
 }
 
@@ -104,12 +100,12 @@ func (e EnumValueDefinition) NodeInlineFragments() []int {
 	return nil
 }
 
-func (e EnumValueDefinition) NodeName() string {
-	return string(e.EnumValue)
+func (e EnumValueDefinition) NodeName() ByteSliceReference {
+	return e.EnumValue
 }
 
-func (e EnumValueDefinition) NodeDescription() string {
-	return string(e.Description)
+func (e EnumValueDefinition) NodeDescription() ByteSliceReference {
+	return e.Description
 }
 
 func (e EnumValueDefinition) NodeArguments() []int {
@@ -122,11 +118,4 @@ func (e EnumValueDefinition) NodeDirectives() []int {
 
 func (e EnumValueDefinition) NodeEnumValuesDefinition() []int {
 	return nil
-}
-
-// ProperCaseVal returns the EnumValueDefinition's EnumValue
-// as proper case string. example:
-// NORTH => North
-func (e EnumValueDefinition) ProperCaseVal() ByteSlice {
-	return bytes.Title(bytes.ToLower(e.EnumValue))
 }

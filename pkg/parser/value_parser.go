@@ -49,7 +49,7 @@ func (p *Parser) parseValue(index *int) error {
 		err = p.parsePeekedObjectValue(&value.Reference)
 	default:
 		invalidToken, _ := p.l.Read()
-		return newErrInvalidType(invalidToken.Position, "parseValue", fmt.Sprintf("%v", parseValuePossibleKeywords), string(invalidToken.Keyword))
+		return newErrInvalidType(invalidToken.TextPosition, "parseValue", fmt.Sprintf("%v", parseValuePossibleKeywords), string(invalidToken.Keyword))
 	}
 
 	p.putValue(value, *index)

@@ -22,7 +22,7 @@ func (p *Parser) parseArguments(index *[]int) error {
 		return err
 	}
 
-	var valueName document.ByteSlice
+	var valueName document.ByteSliceReference
 
 	for {
 		key, err = p.l.Peek(true)

@@ -11,7 +11,7 @@ func (p *Parser) parsePeekedFloatValue(index *int) error {
 		return err
 	}
 
-	float, err := transform.StringToFloat32(floatToken.Literal)
+	float, err := transform.StringToFloat32(p.ByteSlice(floatToken.Literal))
 	if err != nil {
 		return err
 	}

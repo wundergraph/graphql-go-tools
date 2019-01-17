@@ -3,7 +3,6 @@ package parser
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
-	"github.com/jensneuse/graphql-go-tools/pkg/transform"
 )
 
 // InputValueDefinitions cannot be found in the graphQL spec.
@@ -14,7 +13,7 @@ import (
 
 func (p *Parser) parseInputValueDefinitions(index *[]int, closeKeyword keyword.Keyword) error {
 
-	var description document.ByteSlice
+	var description *document.ByteSliceReference
 
 	for {
 		next, err := p.l.Peek(true)
@@ -29,7 +28,8 @@ func (p *Parser) parseInputValueDefinitions(index *[]int, closeKeyword keyword.K
 				return err
 			}
 
-			description = transform.TrimWhitespace(quote.Literal)
+			//*description = transform.TrimWhitespace(p.ByteSlice(quote.Literal)) TODO: fix trimming
+			description = &quote.Literal
 
 		} else if next == keyword.IDENT {
 
@@ -39,7 +39,9 @@ func (p *Parser) parseInputValueDefinitions(index *[]int, closeKeyword keyword.K
 			}
 
 			definition := p.makeInputValueDefinition()
-			definition.Description = description
+			if description != nil {
+				definition.Description = *description
+			}
 			definition.Name = ident.Literal
 
 			description = nil
@@ -68,7 +70,7 @@ func (p *Parser) parseInputValueDefinitions(index *[]int, closeKeyword keyword.K
 
 		} else if next != closeKeyword && closeKeyword != keyword.UNDEFINED {
 			invalid, _ := p.l.Read()
-			return newErrInvalidType(invalid.Position, "parseInputValueDefinitions", "string/ident/"+closeKeyword.String(), invalid.String())
+			return newErrInvalidType(invalid.TextPosition, "parseInputValueDefinitions", "string/ident/"+closeKeyword.String(), invalid.String())
 		} else {
 			return nil
 		}

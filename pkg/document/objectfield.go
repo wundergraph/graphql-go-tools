@@ -3,7 +3,7 @@ package document
 // ObjectField as specified in:
 // http://facebook.github.io/graphql/draft/#ObjectField
 type ObjectField struct {
-	Name  ByteSlice
+	Name  ByteSliceReference
 	Value int
 }
 
@@ -11,15 +11,15 @@ func (o ObjectField) NodeType() int {
 	panic("implement me")
 }
 
-func (o ObjectField) NodeName() string {
-	return string(o.Name)
+func (o ObjectField) NodeName() ByteSliceReference {
+	return o.Name
 }
 
-func (o ObjectField) NodeAlias() string {
+func (o ObjectField) NodeAlias() ByteSliceReference {
 	panic("implement me")
 }
 
-func (o ObjectField) NodeDescription() string {
+func (o ObjectField) NodeDescription() ByteSliceReference {
 	panic("implement me")
 }
 
@@ -71,7 +71,7 @@ func (o ObjectField) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (o ObjectField) NodeImplementsInterfaces() []ByteSlice {
+func (o ObjectField) NodeImplementsInterfaces() []ByteSliceReference {
 	panic("implement me")
 }
 
@@ -107,7 +107,7 @@ func (o ObjectField) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (o ObjectField) NodeUnionMemberTypes() []ByteSlice {
+func (o ObjectField) NodeUnionMemberTypes() []ByteSliceReference {
 	panic("implement me")
 }
 

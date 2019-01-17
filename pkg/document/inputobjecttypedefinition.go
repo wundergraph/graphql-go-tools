@@ -1,12 +1,10 @@
 package document
 
-import "bytes"
-
 // InputObjectTypeDefinition as specified in:
 // http://facebook.github.io/graphql/draft/#InputObjectTypeDefinition
 type InputObjectTypeDefinition struct {
-	Description           ByteSlice
-	Name                  ByteSlice
+	Description           ByteSliceReference
+	Name                  ByteSliceReference
 	InputFieldsDefinition []int
 	Directives            []int
 }
@@ -19,7 +17,7 @@ func (i InputObjectTypeDefinition) NodeValueReference() int {
 	panic("implement me")
 }
 
-func (i InputObjectTypeDefinition) NodeUnionMemberTypes() []ByteSlice {
+func (i InputObjectTypeDefinition) NodeUnionMemberTypes() []ByteSliceReference {
 	panic("implement me")
 }
 
@@ -55,20 +53,20 @@ func (i InputObjectTypeDefinition) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (i InputObjectTypeDefinition) NodeImplementsInterfaces() []ByteSlice {
+func (i InputObjectTypeDefinition) NodeImplementsInterfaces() []ByteSliceReference {
 	panic("implement me")
 }
 
-func (i InputObjectTypeDefinition) NodeName() string {
-	return string(i.Name)
+func (i InputObjectTypeDefinition) NodeName() ByteSliceReference {
+	return i.Name
 }
 
-func (i InputObjectTypeDefinition) NodeAlias() string {
+func (i InputObjectTypeDefinition) NodeAlias() ByteSliceReference {
 	panic("implement me")
 }
 
-func (i InputObjectTypeDefinition) NodeDescription() string {
-	return string(i.Description)
+func (i InputObjectTypeDefinition) NodeDescription() ByteSliceReference {
+	return i.Description
 }
 
 func (i InputObjectTypeDefinition) NodeArguments() []int {
@@ -125,26 +123,3 @@ func (i InputObjectTypeDefinition) NodeDefaultValue() int {
 
 // InputObjectTypeDefinitions is the plural of InputObjectTypeDefinition
 type InputObjectTypeDefinitions []InputObjectTypeDefinition
-
-// HasDefinition returns true if an InputObjectTypeDefinition with $name is contained
-func (i InputObjectTypeDefinitions) HasDefinition(name ByteSlice) bool {
-
-	for _, definition := range i {
-		if bytes.Equal(definition.Name, name) {
-			return true
-		}
-	}
-
-	return false
-}
-
-// GetByName returns a InputObjectTypeDefinition by $name or nil if not found
-func (i InputObjectTypeDefinitions) GetByName(name ByteSlice) *InputObjectTypeDefinition {
-	for _, definition := range i {
-		if bytes.Equal(definition.Name, name) {
-			return &definition
-		}
-	}
-
-	return nil
-}

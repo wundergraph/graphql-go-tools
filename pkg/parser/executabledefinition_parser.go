@@ -72,7 +72,7 @@ func (p *Parser) parseComplexExecutableDefinition() (executableDefinition docume
 
 			if len(executableDefinition.OperationDefinitions) == 0 {
 				invalid, _ := p.l.Read()
-				err = newErrInvalidType(invalid.Position, "parseComplexExecutableDefinition", "fragment/query/mutation/subscription", next.String())
+				err = newErrInvalidType(invalid.TextPosition, "parseComplexExecutableDefinition", "fragment/query/mutation/subscription", next.String())
 			}
 
 			return executableDefinition, err

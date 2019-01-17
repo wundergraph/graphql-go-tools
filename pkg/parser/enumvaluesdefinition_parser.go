@@ -16,7 +16,7 @@ func (p *Parser) parseEnumValuesDefinition(index *[]int) error {
 		return nil
 	}
 
-	var description document.ByteSlice
+	var description *document.ByteSliceReference
 
 	for {
 		next, err := p.l.Peek(true)
@@ -31,7 +31,7 @@ func (p *Parser) parseEnumValuesDefinition(index *[]int) error {
 				return err
 			}
 
-			description = stringToken.Literal
+			description = &stringToken.Literal
 			continue
 
 		} else if next == keyword.IDENT {
@@ -42,7 +42,9 @@ func (p *Parser) parseEnumValuesDefinition(index *[]int) error {
 
 			definition := p.makeEnumValueDefinition()
 			definition.EnumValue = ident.Literal
-			definition.Description = description
+			if description != nil {
+				definition.Description = *description
+			}
 
 			description = nil
 
@@ -60,6 +62,6 @@ func (p *Parser) parseEnumValuesDefinition(index *[]int) error {
 		}
 
 		invalid, _ := p.l.Read()
-		return newErrInvalidType(invalid.Position, "parseEnumValuesDefinition", "string/ident/curlyBracketClose", invalid.Keyword.String())
+		return newErrInvalidType(invalid.TextPosition, "parseEnumValuesDefinition", "string/ident/curlyBracketClose", invalid.Keyword.String())
 	}
 }

@@ -3,7 +3,7 @@ package document
 // Argument as specified in
 // http://facebook.github.io/graphql/draft/#Argument
 type Argument struct {
-	Name  ByteSlice
+	Name  ByteSliceReference
 	Value int
 }
 
@@ -15,7 +15,7 @@ func (a Argument) NodeValueReference() int {
 	panic("implement me")
 }
 
-func (a Argument) NodeUnionMemberTypes() []ByteSlice {
+func (a Argument) NodeUnionMemberTypes() []ByteSliceReference {
 	panic("implement me")
 }
 
@@ -51,7 +51,7 @@ func (a Argument) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (a Argument) NodeImplementsInterfaces() []ByteSlice {
+func (a Argument) NodeImplementsInterfaces() []ByteSliceReference {
 	panic("implement me")
 }
 
@@ -71,15 +71,15 @@ func (a Argument) NodeArgumentsDefinition() []int {
 	panic("implement me")
 }
 
-func (a Argument) NodeName() string {
-	return string(a.Name)
+func (a Argument) NodeName() ByteSliceReference {
+	return a.Name
 }
 
-func (a Argument) NodeAlias() string {
+func (a Argument) NodeAlias() ByteSliceReference {
 	panic("implement me")
 }
 
-func (a Argument) NodeDescription() string {
+func (a Argument) NodeDescription() ByteSliceReference {
 	panic("implement me")
 }
 

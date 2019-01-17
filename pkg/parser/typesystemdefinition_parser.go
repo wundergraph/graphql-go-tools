@@ -9,7 +9,7 @@ func (p *Parser) parseTypeSystemDefinition() (definition document.TypeSystemDefi
 
 	definition = p.makeTypeSystemDefinition()
 
-	var description document.ByteSlice
+	var description *document.ByteSliceReference
 
 	for {
 		next, err := p.l.Read()
@@ -22,13 +22,13 @@ func (p *Parser) parseTypeSystemDefinition() (definition document.TypeSystemDefi
 			return definition, err
 		case keyword.STRING:
 
-			description = next.Literal
+			description = &next.Literal
 			continue
 
 		case keyword.SCHEMA:
 
 			if definition.SchemaDefinition.IsDefined() {
-				return definition, newErrInvalidType(next.Position, "parseTypeSystemDefinition", "not a re-assignment of SchemaDefinition", "multiple SchemaDefinition assignments")
+				return definition, newErrInvalidType(next.TextPosition, "parseTypeSystemDefinition", "not a re-assignment of SchemaDefinition", "multiple SchemaDefinition assignments")
 			}
 
 			definition.SchemaDefinition, err = p.parseSchemaDefinition()
@@ -43,7 +43,9 @@ func (p *Parser) parseTypeSystemDefinition() (definition document.TypeSystemDefi
 				return definition, err
 			}
 
-			p.ParsedDefinitions.ScalarTypeDefinitions[len(p.ParsedDefinitions.ScalarTypeDefinitions)-1].Description = description
+			if description != nil {
+				p.ParsedDefinitions.ScalarTypeDefinitions[len(p.ParsedDefinitions.ScalarTypeDefinitions)-1].Description = *description
+			}
 
 		case keyword.TYPE:
 
@@ -52,7 +54,9 @@ func (p *Parser) parseTypeSystemDefinition() (definition document.TypeSystemDefi
 				return definition, err
 			}
 
-			p.ParsedDefinitions.ObjectTypeDefinitions[len(p.ParsedDefinitions.ObjectTypeDefinitions)-1].Description = description
+			if description != nil {
+				p.ParsedDefinitions.ObjectTypeDefinitions[len(p.ParsedDefinitions.ObjectTypeDefinitions)-1].Description = *description
+			}
 
 		case keyword.INTERFACE:
 
@@ -61,7 +65,9 @@ func (p *Parser) parseTypeSystemDefinition() (definition document.TypeSystemDefi
 				return definition, err
 			}
 
-			p.ParsedDefinitions.InterfaceTypeDefinitions[len(p.ParsedDefinitions.InterfaceTypeDefinitions)-1].Description = description
+			if description != nil {
+				p.ParsedDefinitions.InterfaceTypeDefinitions[len(p.ParsedDefinitions.InterfaceTypeDefinitions)-1].Description = *description
+			}
 
 		case keyword.UNION:
 
@@ -70,7 +76,9 @@ func (p *Parser) parseTypeSystemDefinition() (definition document.TypeSystemDefi
 				return definition, err
 			}
 
-			p.ParsedDefinitions.UnionTypeDefinitions[len(p.ParsedDefinitions.UnionTypeDefinitions)-1].Description = description
+			if description != nil {
+				p.ParsedDefinitions.UnionTypeDefinitions[len(p.ParsedDefinitions.UnionTypeDefinitions)-1].Description = *description
+			}
 
 		case keyword.ENUM:
 
@@ -79,8 +87,10 @@ func (p *Parser) parseTypeSystemDefinition() (definition document.TypeSystemDefi
 				return definition, err
 			}
 
-			p.ParsedDefinitions.EnumTypeDefinitions[len(p.ParsedDefinitions.EnumTypeDefinitions)-1].Description =
-				description
+			if description != nil {
+				p.ParsedDefinitions.EnumTypeDefinitions[len(p.ParsedDefinitions.EnumTypeDefinitions)-1].Description =
+					*description
+			}
 
 		case keyword.INPUT:
 
@@ -89,7 +99,9 @@ func (p *Parser) parseTypeSystemDefinition() (definition document.TypeSystemDefi
 				return definition, err
 			}
 
-			p.ParsedDefinitions.InputObjectTypeDefinitions[len(p.ParsedDefinitions.InputObjectTypeDefinitions)-1].Description = description
+			if description != nil {
+				p.ParsedDefinitions.InputObjectTypeDefinitions[len(p.ParsedDefinitions.InputObjectTypeDefinitions)-1].Description = *description
+			}
 
 		case keyword.DIRECTIVE:
 
@@ -98,12 +110,14 @@ func (p *Parser) parseTypeSystemDefinition() (definition document.TypeSystemDefi
 				return definition, err
 			}
 
-			p.ParsedDefinitions.DirectiveDefinitions[len(p.ParsedDefinitions.DirectiveDefinitions)-1].Description =
-				description
+			if description != nil {
+				p.ParsedDefinitions.DirectiveDefinitions[len(p.ParsedDefinitions.DirectiveDefinitions)-1].Description =
+					*description
+			}
 
 		default:
 			invalid, _ := p.l.Read()
-			return definition, newErrInvalidType(invalid.Position, "parseTypeSystemDefinition", "eof/string/schema/scalar/type/interface/union/directive/input/enum", invalid.Keyword.String())
+			return definition, newErrInvalidType(invalid.TextPosition, "parseTypeSystemDefinition", "eof/string/schema/scalar/type/interface/union/directive/input/enum", invalid.Keyword.String())
 		}
 
 		description = nil

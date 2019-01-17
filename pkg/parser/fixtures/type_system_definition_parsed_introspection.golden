@@ -14,7 +14,10 @@
     "OperationDefinitions": [
       {
         "OperationType": 0,
-        "Name": "IntrospectionQuery",
+        "Name": {
+          "Start": 6,
+          "End": 24
+        },
         "VariableDefinitions": [],
         "Directives": [],
         "SelectionSet": {
@@ -28,7 +31,10 @@
     ],
     "FragmentDefinitions": [
       {
-        "FragmentName": "FullType",
+        "FragmentName": {
+          "Start": 312,
+          "End": 320
+        },
         "TypeCondition": 0,
         "Directives": [],
         "SelectionSet": {
@@ -47,7 +53,10 @@
         }
       },
       {
-        "FragmentName": "InputValue",
+        "FragmentName": {
+          "Start": 765,
+          "End": 775
+        },
         "TypeCondition": 1,
         "Directives": [],
         "SelectionSet": {
@@ -62,7 +71,10 @@
         }
       },
       {
-        "FragmentName": "TypeRef",
+        "FragmentName": {
+          "Start": 870,
+          "End": 877
+        },
         "TypeCondition": 2,
         "Directives": [],
         "SelectionSet": {
@@ -79,8 +91,14 @@
     "VariableDefinitions": [],
     "Fields": [
       {
-        "Alias": "",
-        "Name": "name",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 62,
+          "End": 66
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -90,8 +108,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "queryType",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 44,
+          "End": 53
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -103,8 +127,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "name",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 98,
+          "End": 102
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -114,8 +144,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "mutationType",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 77,
+          "End": 89
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -127,8 +163,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "name",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 138,
+          "End": 142
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -138,8 +180,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "subscriptionType",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 113,
+          "End": 129
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -151,8 +199,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "types",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 153,
+          "End": 158
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -164,8 +218,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "name",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 208,
+          "End": 212
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -175,8 +235,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "description",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 219,
+          "End": 230
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -186,8 +252,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "locations",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 237,
+          "End": 246
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -197,8 +269,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "args",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 253,
+          "End": 257
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -210,8 +288,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "directives",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 189,
+          "End": 199
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -226,8 +310,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "__schema",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 29,
+          "End": 37
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -243,8 +333,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "kind",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 335,
+          "End": 339
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -254,8 +350,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "name",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 342,
+          "End": 346
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -265,8 +367,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "description",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 349,
+          "End": 360
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -276,8 +384,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "name",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 401,
+          "End": 405
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -287,8 +401,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "description",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 410,
+          "End": 421
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -298,8 +418,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "args",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 426,
+          "End": 430
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -311,8 +437,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "type",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 463,
+          "End": 467
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -324,8 +456,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "isDeprecated",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 497,
+          "End": 509
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -335,8 +473,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "deprecationReason",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 514,
+          "End": 531
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -346,8 +490,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "fields",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 363,
+          "End": 369
+        },
         "Arguments": [
           0
         ],
@@ -366,8 +516,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "inputFields",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 538,
+          "End": 549
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -379,8 +535,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "interfaces",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 576,
+          "End": 586
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -392,8 +554,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "name",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 652,
+          "End": 656
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -403,8 +571,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "description",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 661,
+          "End": 672
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -414,8 +588,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "isDeprecated",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 677,
+          "End": 689
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -425,8 +605,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "deprecationReason",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 694,
+          "End": 711
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -436,8 +622,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "enumValues",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 610,
+          "End": 620
+        },
         "Arguments": [
           1
         ],
@@ -454,8 +646,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "possibleTypes",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 718,
+          "End": 731
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -467,8 +665,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "name",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 796,
+          "End": 800
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -478,8 +682,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "description",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 803,
+          "End": 814
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -489,8 +699,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "type",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 817,
+          "End": 821
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -502,8 +718,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "defaultValue",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 845,
+          "End": 857
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -513,8 +735,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "kind",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 892,
+          "End": 896
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -524,8 +752,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "name",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 899,
+          "End": 903
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -535,8 +769,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "kind",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 919,
+          "End": 923
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -546,8 +786,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "name",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 928,
+          "End": 932
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -557,8 +803,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "kind",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 952,
+          "End": 956
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -568,8 +820,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "name",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 963,
+          "End": 967
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -579,8 +837,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "kind",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 991,
+          "End": 995
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -590,8 +854,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "name",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 1004,
+          "End": 1008
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -601,8 +871,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "kind",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 1036,
+          "End": 1040
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -612,8 +888,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "name",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 1051,
+          "End": 1055
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -623,8 +905,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "kind",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 1087,
+          "End": 1091
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -634,8 +922,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "name",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 1104,
+          "End": 1108
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -645,8 +939,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "kind",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 1144,
+          "End": 1148
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -656,8 +956,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "name",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 1163,
+          "End": 1167
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -667,8 +973,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "kind",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 1207,
+          "End": 1211
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -678,8 +990,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "name",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 1228,
+          "End": 1232
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -689,8 +1007,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "ofType",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 1182,
+          "End": 1188
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -703,8 +1027,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "ofType",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 1121,
+          "End": 1127
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -718,8 +1048,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "ofType",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 1066,
+          "End": 1072
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -733,8 +1069,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "ofType",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 1017,
+          "End": 1023
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -748,8 +1090,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "ofType",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 974,
+          "End": 980
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -763,8 +1111,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "ofType",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 937,
+          "End": 943
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -778,8 +1132,14 @@
         }
       },
       {
-        "Alias": "",
-        "Name": "ofType",
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 906,
+          "End": 912
+        },
         "Arguments": [],
         "Directives": [],
         "SelectionSet": {
@@ -796,45 +1156,75 @@
     "InlineFragments": [],
     "FragmentSpreads": [
       {
-        "FragmentName": "FullType",
+        "FragmentName": {
+          "Start": 170,
+          "End": 178
+        },
         "Directives": []
       },
       {
-        "FragmentName": "InputValue",
+        "FragmentName": {
+          "Start": 271,
+          "End": 281
+        },
         "Directives": []
       },
       {
-        "FragmentName": "InputValue",
+        "FragmentName": {
+          "Start": 442,
+          "End": 452
+        },
         "Directives": []
       },
       {
-        "FragmentName": "TypeRef",
+        "FragmentName": {
+          "Start": 479,
+          "End": 486
+        },
         "Directives": []
       },
       {
-        "FragmentName": "InputValue",
+        "FragmentName": {
+          "Start": 559,
+          "End": 569
+        },
         "Directives": []
       },
       {
-        "FragmentName": "TypeRef",
+        "FragmentName": {
+          "Start": 596,
+          "End": 603
+        },
         "Directives": []
       },
       {
-        "FragmentName": "TypeRef",
+        "FragmentName": {
+          "Start": 741,
+          "End": 748
+        },
         "Directives": []
       },
       {
-        "FragmentName": "TypeRef",
+        "FragmentName": {
+          "Start": 831,
+          "End": 838
+        },
         "Directives": []
       }
     ],
     "Arguments": [
       {
-        "Name": "includeDeprecated",
+        "Name": {
+          "Start": 370,
+          "End": 387
+        },
         "Value": 0
       },
       {
-        "Name": "includeDeprecated",
+        "Name": {
+          "Start": 621,
+          "End": 638
+        },
         "Value": 1
       }
     ],
@@ -865,21 +1255,30 @@
     "Types": [
       {
         "Kind": 2,
-        "Name": "__Type",
+        "Name": {
+          "Start": 324,
+          "End": 330
+        },
         "OfType": -1
       },
       {
         "Kind": 2,
-        "Name": "__InputValue",
+        "Name": {
+          "Start": 779,
+          "End": 791
+        },
         "OfType": -1
       },
       {
         "Kind": 2,
-        "Name": "__Type",
+        "Name": {
+          "Start": 881,
+          "End": 887
+        },
         "OfType": -1
       }
     ],
-    "ByteSlices": [],
+    "ByteSliceReferences": [],
     "Integers": [],
     "Floats": [],
     "Booleans": [

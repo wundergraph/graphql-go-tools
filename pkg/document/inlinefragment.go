@@ -16,7 +16,7 @@ func (i InlineFragment) NodeValueReference() int {
 	panic("implement me")
 }
 
-func (i InlineFragment) NodeUnionMemberTypes() []ByteSlice {
+func (i InlineFragment) NodeUnionMemberTypes() []ByteSliceReference {
 	panic("implement me")
 }
 
@@ -52,7 +52,7 @@ func (i InlineFragment) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (i InlineFragment) NodeImplementsInterfaces() []ByteSlice {
+func (i InlineFragment) NodeImplementsInterfaces() []ByteSliceReference {
 	panic("implement me")
 }
 
@@ -64,7 +64,7 @@ func (i InlineFragment) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (i InlineFragment) NodeAlias() string {
+func (i InlineFragment) NodeAlias() ByteSliceReference {
 	panic("implement me")
 }
 
@@ -80,11 +80,11 @@ func (i InlineFragment) NodeOperationType() OperationType {
 	panic("implement me")
 }
 
-func (i InlineFragment) NodeName() string {
+func (i InlineFragment) NodeName() ByteSliceReference {
 	panic("implement me")
 }
 
-func (i InlineFragment) NodeDescription() string {
+func (i InlineFragment) NodeDescription() ByteSliceReference {
 	panic("implement me")
 }
 

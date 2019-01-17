@@ -1,12 +1,10 @@
 package document
 
-import "bytes"
-
 // InterfaceTypeDefinition as specified in:
 // http://facebook.github.io/graphql/draft/#InterfaceTypeDefinition
 type InterfaceTypeDefinition struct {
-	Description      ByteSlice
-	Name             ByteSlice
+	Description      ByteSliceReference
+	Name             ByteSliceReference
 	FieldsDefinition []int
 	Directives       []int
 }
@@ -19,7 +17,7 @@ func (i InterfaceTypeDefinition) NodeValueReference() int {
 	panic("implement me")
 }
 
-func (i InterfaceTypeDefinition) NodeUnionMemberTypes() []ByteSlice {
+func (i InterfaceTypeDefinition) NodeUnionMemberTypes() []ByteSliceReference {
 	panic("implement me")
 }
 
@@ -55,7 +53,7 @@ func (i InterfaceTypeDefinition) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (i InterfaceTypeDefinition) NodeImplementsInterfaces() []ByteSlice {
+func (i InterfaceTypeDefinition) NodeImplementsInterfaces() []ByteSliceReference {
 	panic("implement me")
 }
 
@@ -71,16 +69,16 @@ func (i InterfaceTypeDefinition) NodeFieldsDefinition() []int {
 	return i.FieldsDefinition
 }
 
-func (i InterfaceTypeDefinition) NodeName() string {
-	return string(i.Name)
+func (i InterfaceTypeDefinition) NodeName() ByteSliceReference {
+	return i.Name
 }
 
-func (i InterfaceTypeDefinition) NodeAlias() string {
+func (i InterfaceTypeDefinition) NodeAlias() ByteSliceReference {
 	panic("implement me")
 }
 
-func (i InterfaceTypeDefinition) NodeDescription() string {
-	return string(i.Description)
+func (i InterfaceTypeDefinition) NodeDescription() ByteSliceReference {
+	return i.Description
 }
 
 func (i InterfaceTypeDefinition) NodeArguments() []int {
@@ -125,14 +123,3 @@ func (i InterfaceTypeDefinition) NodeOperationType() OperationType {
 
 // InterfaceTypeDefinitions is the plural of InterfaceTypeDefinition
 type InterfaceTypeDefinitions []InterfaceTypeDefinition
-
-// GetByName returns the interface type definition by name if contained
-func (i InterfaceTypeDefinitions) GetByName(name ByteSlice) *InterfaceTypeDefinition {
-	for _, iFace := range i {
-		if bytes.Equal(iFace.Name, name) {
-			return &iFace
-		}
-	}
-
-	return nil
-}

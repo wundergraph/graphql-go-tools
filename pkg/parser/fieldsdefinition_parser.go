@@ -16,7 +16,7 @@ func (p *Parser) parseFieldsDefinition(index *[]int) (err error) {
 		return
 	}
 
-	var description document.ByteSlice
+	var description *document.ByteSliceReference
 
 	for {
 		next, err := p.l.Peek(true)
@@ -31,7 +31,7 @@ func (p *Parser) parseFieldsDefinition(index *[]int) (err error) {
 				return err
 			}
 
-			description = stringToken.Literal
+			description = &stringToken.Literal
 
 		case keyword.CURLYBRACKETCLOSE:
 			_, err = p.l.Read()
@@ -44,7 +44,9 @@ func (p *Parser) parseFieldsDefinition(index *[]int) (err error) {
 			}
 
 			definition := p.makeFieldDefinition()
-			definition.Description = description
+			if description != nil {
+				definition.Description = *description
+			}
 			definition.Name = fieldIdent.Literal
 
 			description = nil
@@ -72,7 +74,7 @@ func (p *Parser) parseFieldsDefinition(index *[]int) (err error) {
 			*index = append(*index, p.putFieldDefinition(definition))
 		default:
 			invalid, _ := p.l.Read()
-			return newErrInvalidType(invalid.Position, "parseFieldsDefinition", "string/curly bracket close/ident", invalid.Keyword.String())
+			return newErrInvalidType(invalid.TextPosition, "parseFieldsDefinition", "string/curly bracket close/ident", invalid.Keyword.String())
 		}
 	}
 }

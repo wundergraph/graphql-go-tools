@@ -16,7 +16,7 @@ func (s SelectionSet) NodeValueReference() int {
 	panic("implement me")
 }
 
-func (s SelectionSet) NodeUnionMemberTypes() []ByteSlice {
+func (s SelectionSet) NodeUnionMemberTypes() []ByteSliceReference {
 	panic("implement me")
 }
 
@@ -52,15 +52,15 @@ func (s SelectionSet) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (s SelectionSet) NodeName() string {
+func (s SelectionSet) NodeName() ByteSliceReference {
 	panic("implement me")
 }
 
-func (s SelectionSet) NodeAlias() string {
+func (s SelectionSet) NodeAlias() ByteSliceReference {
 	panic("implement me")
 }
 
-func (s SelectionSet) NodeDescription() string {
+func (s SelectionSet) NodeDescription() ByteSliceReference {
 	panic("implement me")
 }
 
@@ -116,7 +116,7 @@ func (s SelectionSet) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (s SelectionSet) NodeImplementsInterfaces() []ByteSlice {
+func (s SelectionSet) NodeImplementsInterfaces() []ByteSliceReference {
 	panic("implement me")
 }
 
