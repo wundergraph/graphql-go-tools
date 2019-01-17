@@ -3,8 +3,8 @@ package document
 // InputValueDefinition as specified in:
 // http://facebook.github.io/graphql/draft/#InputValueDefinition
 type InputValueDefinition struct {
-	Description  ByteSlice
-	Name         ByteSlice
+	Description  ByteSliceReference
+	Name         ByteSliceReference
 	Type         int
 	DefaultValue int
 	Directives   []int
@@ -18,7 +18,7 @@ func (i InputValueDefinition) NodeValueReference() int {
 	panic("implement me")
 }
 
-func (i InputValueDefinition) NodeUnionMemberTypes() []ByteSlice {
+func (i InputValueDefinition) NodeUnionMemberTypes() []ByteSliceReference {
 	panic("implement me")
 }
 
@@ -54,7 +54,7 @@ func (i InputValueDefinition) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (i InputValueDefinition) NodeImplementsInterfaces() []ByteSlice {
+func (i InputValueDefinition) NodeImplementsInterfaces() []ByteSliceReference {
 	panic("implement me")
 }
 
@@ -66,16 +66,16 @@ func (i InputValueDefinition) NodeDefaultValue() int {
 	return i.DefaultValue
 }
 
-func (i InputValueDefinition) NodeName() string {
-	return string(i.Name)
+func (i InputValueDefinition) NodeName() ByteSliceReference {
+	return i.Name
 }
 
-func (i InputValueDefinition) NodeAlias() string {
+func (i InputValueDefinition) NodeAlias() ByteSliceReference {
 	panic("implement me")
 }
 
-func (i InputValueDefinition) NodeDescription() string {
-	return string(i.Description)
+func (i InputValueDefinition) NodeDescription() ByteSliceReference {
+	return i.Description
 }
 
 func (i InputValueDefinition) NodeArguments() []int {

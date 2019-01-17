@@ -1,9 +1,9 @@
 package document
 
 type Node interface {
-	NodeName() string
-	NodeAlias() string
-	NodeDescription() string
+	NodeName() ByteSliceReference
+	NodeAlias() ByteSliceReference
+	NodeDescription() ByteSliceReference
 	NodeArguments() []int
 	NodeArgumentsDefinition() []int
 	NodeDirectives() []int
@@ -17,7 +17,7 @@ type Node interface {
 	NodeOperationType() OperationType
 	NodeValue() int
 	NodeDefaultValue() int
-	NodeImplementsInterfaces() []ByteSlice
+	NodeImplementsInterfaces() []ByteSliceReference
 
 	TypeSystemDefinitionNode
 	UnionTypeSystemDefinitionNode
@@ -36,7 +36,7 @@ type TypeSystemDefinitionNode interface {
 }
 
 type UnionTypeSystemDefinitionNode interface {
-	NodeUnionMemberTypes() []ByteSlice
+	NodeUnionMemberTypes() []ByteSliceReference
 }
 
 type ValueNode interface {

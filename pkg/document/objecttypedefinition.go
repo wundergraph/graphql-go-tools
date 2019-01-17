@@ -1,12 +1,10 @@
 package document
 
-import "bytes"
-
 // ObjectTypeDefinition as specified in:
 // http://facebook.github.io/graphql/draft/#ObjectTypeDefinition
 type ObjectTypeDefinition struct {
-	Description          ByteSlice
-	Name                 ByteSlice
+	Description          ByteSliceReference
+	Name                 ByteSliceReference
 	FieldsDefinition     []int
 	ImplementsInterfaces ImplementsInterfaces
 	Directives           []int
@@ -20,7 +18,7 @@ func (o ObjectTypeDefinition) NodeValueReference() int {
 	panic("implement me")
 }
 
-func (o ObjectTypeDefinition) NodeUnionMemberTypes() []ByteSlice {
+func (o ObjectTypeDefinition) NodeUnionMemberTypes() []ByteSliceReference {
 	panic("implement me")
 }
 
@@ -56,20 +54,20 @@ func (o ObjectTypeDefinition) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (o ObjectTypeDefinition) NodeImplementsInterfaces() []ByteSlice {
+func (o ObjectTypeDefinition) NodeImplementsInterfaces() []ByteSliceReference {
 	return o.ImplementsInterfaces
 }
 
-func (o ObjectTypeDefinition) NodeName() string {
-	return string(o.Name)
+func (o ObjectTypeDefinition) NodeName() ByteSliceReference {
+	return o.Name
 }
 
-func (o ObjectTypeDefinition) NodeAlias() string {
+func (o ObjectTypeDefinition) NodeAlias() ByteSliceReference {
 	panic("implement me")
 }
 
-func (o ObjectTypeDefinition) NodeDescription() string {
-	return string(o.Description)
+func (o ObjectTypeDefinition) NodeDescription() ByteSliceReference {
+	return o.Description
 }
 
 func (o ObjectTypeDefinition) NodeArguments() []int {
@@ -126,25 +124,3 @@ func (o ObjectTypeDefinition) NodeDefaultValue() int {
 
 // ObjectTypeDefinitions is the plural of ObjectTypeDefinition
 type ObjectTypeDefinitions []ObjectTypeDefinition
-
-// HasType returns if a type with $name is contained
-func (o ObjectTypeDefinitions) HasType(name ByteSlice) bool {
-	for _, objectType := range o {
-		if bytes.Equal(objectType.Name, name) {
-			return true
-		}
-	}
-
-	return false
-}
-
-// ObjectTypeDefinitionByName returns ObjectTypeDefinition,true if it is contained
-func (o *ObjectTypeDefinitions) ObjectTypeDefinitionByName(name ByteSlice) *ObjectTypeDefinition {
-	for _, objectType := range *o {
-		if bytes.Equal(objectType.Name, name) {
-			return &objectType
-		}
-	}
-
-	return nil
-}

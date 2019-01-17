@@ -1,11 +1,9 @@
 package document
 
-import "bytes"
-
 // FragmentDefinition as specified in
 // http://facebook.github.io/graphql/draft/#FragmentDefinition
 type FragmentDefinition struct {
-	FragmentName  ByteSlice // but not on
+	FragmentName  ByteSliceReference // but not on
 	TypeCondition int
 	Directives    []int
 	SelectionSet  SelectionSet
@@ -19,7 +17,7 @@ func (f FragmentDefinition) NodeValueReference() int {
 	panic("implement me")
 }
 
-func (f FragmentDefinition) NodeUnionMemberTypes() []ByteSlice {
+func (f FragmentDefinition) NodeUnionMemberTypes() []ByteSliceReference {
 	panic("implement me")
 }
 
@@ -55,7 +53,7 @@ func (f FragmentDefinition) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (f FragmentDefinition) NodeImplementsInterfaces() []ByteSlice {
+func (f FragmentDefinition) NodeImplementsInterfaces() []ByteSliceReference {
 	panic("implement me")
 }
 
@@ -75,7 +73,7 @@ func (f FragmentDefinition) NodeArgumentsDefinition() []int {
 	panic("implement me")
 }
 
-func (f FragmentDefinition) NodeAlias() string {
+func (f FragmentDefinition) NodeAlias() ByteSliceReference {
 	panic("implement me")
 }
 
@@ -103,11 +101,11 @@ func (f FragmentDefinition) NodeInlineFragments() []int {
 	return f.SelectionSet.InlineFragments
 }
 
-func (f FragmentDefinition) NodeName() string {
-	return string(f.FragmentName)
+func (f FragmentDefinition) NodeName() ByteSliceReference {
+	return f.FragmentName
 }
 
-func (f FragmentDefinition) NodeDescription() string {
+func (f FragmentDefinition) NodeDescription() ByteSliceReference {
 	panic("implement me")
 }
 
@@ -125,14 +123,3 @@ func (f FragmentDefinition) NodeEnumValuesDefinition() []int {
 
 // FragmentDefinitions is the plural of FragmentDefinition
 type FragmentDefinitions []FragmentDefinition
-
-// GetByName returns the fragment definition with the given name if contained
-func (f FragmentDefinitions) GetByName(name ByteSlice) (FragmentDefinition, bool) {
-	for _, fragment := range f {
-		if bytes.Equal(fragment.FragmentName, name) {
-			return fragment, true
-		}
-	}
-
-	return FragmentDefinition{}, false
-}
