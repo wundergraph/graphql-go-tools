@@ -21,19 +21,19 @@ func (t TypeSystemDefinition) NodeValueReference() int {
 	panic("implement me")
 }
 
-func (t TypeSystemDefinition) NodeUnionMemberTypes() []ByteSlice {
+func (t TypeSystemDefinition) NodeUnionMemberTypes() []ByteSliceReference {
 	panic("implement me")
 }
 
-func (t TypeSystemDefinition) NodeName() string {
+func (t TypeSystemDefinition) NodeName() ByteSliceReference {
 	panic("implement me")
 }
 
-func (t TypeSystemDefinition) NodeAlias() string {
+func (t TypeSystemDefinition) NodeAlias() ByteSliceReference {
 	panic("implement me")
 }
 
-func (t TypeSystemDefinition) NodeDescription() string {
+func (t TypeSystemDefinition) NodeDescription() ByteSliceReference {
 	panic("implement me")
 }
 
@@ -89,7 +89,7 @@ func (t TypeSystemDefinition) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (t TypeSystemDefinition) NodeImplementsInterfaces() []ByteSlice {
+func (t TypeSystemDefinition) NodeImplementsInterfaces() []ByteSliceReference {
 	panic("implement me")
 }
 

@@ -3,8 +3,8 @@ package document
 // ScalarTypeDefinition as specified in:
 // http://facebook.github.io/graphql/draft/#sec-Scalars
 type ScalarTypeDefinition struct {
-	Description ByteSlice
-	Name        ByteSlice
+	Description ByteSliceReference
+	Name        ByteSliceReference
 	Directives  []int
 }
 
@@ -16,7 +16,7 @@ func (s ScalarTypeDefinition) NodeValueReference() int {
 	panic("implement me")
 }
 
-func (s ScalarTypeDefinition) NodeUnionMemberTypes() []ByteSlice {
+func (s ScalarTypeDefinition) NodeUnionMemberTypes() []ByteSliceReference {
 	panic("implement me")
 }
 
@@ -52,16 +52,16 @@ func (s ScalarTypeDefinition) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (s ScalarTypeDefinition) NodeName() string {
-	return string(s.Name)
+func (s ScalarTypeDefinition) NodeName() ByteSliceReference {
+	return s.Name
 }
 
-func (s ScalarTypeDefinition) NodeAlias() string {
+func (s ScalarTypeDefinition) NodeAlias() ByteSliceReference {
 	panic("implement me")
 }
 
-func (s ScalarTypeDefinition) NodeDescription() string {
-	return string(s.Description)
+func (s ScalarTypeDefinition) NodeDescription() ByteSliceReference {
+	return s.Description
 }
 
 func (s ScalarTypeDefinition) NodeArguments() []int {
@@ -116,7 +116,7 @@ func (s ScalarTypeDefinition) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (s ScalarTypeDefinition) NodeImplementsInterfaces() []ByteSlice {
+func (s ScalarTypeDefinition) NodeImplementsInterfaces() []ByteSliceReference {
 	panic("implement me")
 }
 

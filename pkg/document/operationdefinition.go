@@ -4,7 +4,7 @@ package document
 // http://facebook.github.io/graphql/draft/#OperationDefinition
 type OperationDefinition struct {
 	OperationType       OperationType
-	Name                ByteSlice
+	Name                ByteSliceReference
 	VariableDefinitions []int
 	Directives          []int
 	SelectionSet        SelectionSet
@@ -18,7 +18,7 @@ func (o OperationDefinition) NodeValueReference() int {
 	panic("implement me")
 }
 
-func (o OperationDefinition) NodeUnionMemberTypes() []ByteSlice {
+func (o OperationDefinition) NodeUnionMemberTypes() []ByteSliceReference {
 	panic("implement me")
 }
 
@@ -54,7 +54,7 @@ func (o OperationDefinition) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (o OperationDefinition) NodeImplementsInterfaces() []ByteSlice {
+func (o OperationDefinition) NodeImplementsInterfaces() []ByteSliceReference {
 	panic("implement me")
 }
 
@@ -74,7 +74,7 @@ func (o OperationDefinition) NodeArgumentsDefinition() []int {
 	panic("implement me")
 }
 
-func (o OperationDefinition) NodeAlias() string {
+func (o OperationDefinition) NodeAlias() ByteSliceReference {
 	panic("implement me")
 }
 
@@ -102,11 +102,11 @@ func (o OperationDefinition) NodeInlineFragments() []int {
 	return o.SelectionSet.InlineFragments
 }
 
-func (o OperationDefinition) NodeName() string {
-	return string(o.Name)
+func (o OperationDefinition) NodeName() ByteSliceReference {
+	return o.Name
 }
 
-func (o OperationDefinition) NodeDescription() string {
+func (o OperationDefinition) NodeDescription() ByteSliceReference {
 	panic("implement me")
 }
 

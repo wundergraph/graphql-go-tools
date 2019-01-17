@@ -12,12 +12,12 @@ import (
 	"testing"
 )
 
-type rule func(node document.Node, definitions ParsedDefinitions, ruleIndex, ruleSetIndex int)
+type rule func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int)
 type ruleSet []rule
 
-func (r ruleSet) eval(node document.Node, definitions ParsedDefinitions, ruleIndex int) {
+func (r ruleSet) eval(node document.Node, parser *Parser, ruleIndex int) {
 	for i, rule := range r {
-		rule(node, definitions, ruleIndex, i)
+		rule(node, parser, ruleIndex, i)
 	}
 }
 
@@ -27,7 +27,9 @@ func TestParser(t *testing.T) {
 
 	run := func(input string, checks ...checkFunc) {
 		parser := NewParser()
-		parser.l.SetInput([]byte(input))
+		if err := parser.l.SetInput([]byte(input)); err != nil {
+			panic(err)
+		}
 		for i, checkFunc := range checks {
 			checkFunc(parser, i)
 		}
@@ -41,46 +43,49 @@ func TestParser(t *testing.T) {
 		return sets
 	}
 
-	evalRules := func(node document.Node, definitions ParsedDefinitions, rules ruleSet, ruleIndex int) {
-		rules.eval(node, definitions, ruleIndex)
+	evalRules := func(node document.Node, parser *Parser, rules ruleSet, ruleIndex int) {
+		rules.eval(node, parser, ruleIndex)
 	}
 
-	hasName := func(name string) rule {
-		return func(node document.Node, definitions ParsedDefinitions, ruleIndex, ruleSetIndex int) {
-			if name != node.NodeName() {
-				panic(fmt.Errorf("hasName: want: %s, got: %s [rule: %d, node: %d]", name, node.NodeName(), ruleIndex, ruleSetIndex))
+	hasName := func(wantName string) rule {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
+			gotName := string(parser.ByteSlice(node.NodeName()))
+			if wantName != gotName {
+				panic(fmt.Errorf("hasName: want: %s, got: %s [rule: %d, node: %d]", wantName, gotName, ruleIndex, ruleSetIndex))
 			}
 		}
 	}
 
-	hasAlias := func(alias string) rule {
-		return func(node document.Node, definitions ParsedDefinitions, ruleIndex, ruleSetIndex int) {
-			if alias != node.NodeAlias() {
-				panic(fmt.Errorf("hasAlias: want: %s, got: %s [rule: %d, node: %d]", alias, node.NodeAlias(), ruleIndex, ruleSetIndex))
+	hasAlias := func(wantAlias string) rule {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
+			gotAlias := string(parser.ByteSlice(node.NodeAlias()))
+			if wantAlias != gotAlias {
+				panic(fmt.Errorf("hasAlias: want: %s, got: %s [rule: %d, node: %d]", wantAlias, gotAlias, ruleIndex, ruleSetIndex))
 			}
 		}
 	}
 
-	hasDescription := func(description string) rule {
-		return func(node document.Node, definitions ParsedDefinitions, ruleIndex, ruleSetIndex int) {
-			if description != node.NodeDescription() {
-				panic(fmt.Errorf("hasName: want: %s, got: %s [rule: %d, node: %d]", description, node.NodeDescription(), ruleIndex, ruleSetIndex))
+	hasDescription := func(wantDescription string) rule {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
+			gotDescription := string(parser.ByteSlice(node.NodeDescription()))
+			if wantDescription != gotDescription {
+				panic(fmt.Errorf("hasName: want: %s, got: %s [rule: %d, node: %d]", wantDescription, gotDescription, ruleIndex, ruleSetIndex))
 			}
 		}
 	}
 
-	unwrapObjectField := func(node document.Node, definitions ParsedDefinitions) document.Node {
+	unwrapObjectField := func(node document.Node, parser *Parser) document.Node {
 		objectField, ok := node.(document.ObjectField)
 		if ok {
-			node = definitions.Values[objectField.Value]
+			node = parser.ParsedDefinitions.Values[objectField.Value]
 		}
 		return node
 	}
 
 	expectIntegerValue := func(want int32) rule {
-		return func(node document.Node, definitions ParsedDefinitions, ruleIndex, ruleSetIndex int) {
-			node = unwrapObjectField(node, definitions)
-			got := definitions.Integers[node.NodeValueReference()]
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
+			node = unwrapObjectField(node, parser)
+			got := parser.ParsedDefinitions.Integers[node.NodeValueReference()]
 			if want != got {
 				panic(fmt.Errorf("expectIntegerValue: want: %d, got: %d [rule: %d, node: %d]", want, got, ruleIndex, ruleSetIndex))
 			}
@@ -88,9 +93,9 @@ func TestParser(t *testing.T) {
 	}
 
 	expectFloatValue := func(want float32) rule {
-		return func(node document.Node, definitions ParsedDefinitions, ruleIndex, ruleSetIndex int) {
-			node = unwrapObjectField(node, definitions)
-			got := definitions.Floats[node.NodeValueReference()]
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
+			node = unwrapObjectField(node, parser)
+			got := parser.ParsedDefinitions.Floats[node.NodeValueReference()]
 			if want != got {
 				panic(fmt.Errorf("expectIntegerValue: want: %.2f, got: %.2f [rule: %d, node: %d]", want, got, ruleIndex, ruleSetIndex))
 			}
@@ -98,9 +103,9 @@ func TestParser(t *testing.T) {
 	}
 
 	expectBooleanValue := func(want bool) rule {
-		return func(node document.Node, definitions ParsedDefinitions, ruleIndex, ruleSetIndex int) {
-			node = unwrapObjectField(node, definitions)
-			got := definitions.Booleans[node.NodeValueReference()]
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
+			node = unwrapObjectField(node, parser)
+			got := parser.ParsedDefinitions.Booleans[node.NodeValueReference()]
 			if want != got {
 				panic(fmt.Errorf("expectIntegerValue: want: %v, got: %v [rule: %d, node: %d]", want, got, ruleIndex, ruleSetIndex))
 			}
@@ -108,9 +113,9 @@ func TestParser(t *testing.T) {
 	}
 
 	expectByteSliceValue := func(want string) rule {
-		return func(node document.Node, definitions ParsedDefinitions, ruleIndex, ruleSetIndex int) {
-			node = unwrapObjectField(node, definitions)
-			got := string(definitions.ByteSlices[node.NodeValueReference()])
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
+			node = unwrapObjectField(node, parser)
+			got := string(parser.ByteSlice(parser.ParsedDefinitions.ByteSliceReferences[node.NodeValueReference()]))
 			if want != got {
 				panic(fmt.Errorf("expectByteSliceValue: want: %s, got: %s [rule: %d, node: %d]", want, got, ruleIndex, ruleSetIndex))
 			}
@@ -118,30 +123,30 @@ func TestParser(t *testing.T) {
 	}
 
 	expectListValue := func(rules ...rule) rule {
-		return func(node document.Node, definitions ParsedDefinitions, ruleIndex, ruleSetIndex int) {
-			list := definitions.ListValues[node.NodeValueReference()]
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
+			list := parser.ParsedDefinitions.ListValues[node.NodeValueReference()]
 			for j, rule := range rules {
 				valueIndex := list[j]
-				value := definitions.Values[valueIndex]
-				rule(value, definitions, j, ruleSetIndex)
+				value := parser.ParsedDefinitions.Values[valueIndex]
+				rule(value, parser, j, ruleSetIndex)
 			}
 		}
 	}
 
 	expectObjectValue := func(rules ...ruleSet) rule {
-		return func(node document.Node, definitions ParsedDefinitions, ruleIndex, ruleSetIndex int) {
-			node = unwrapObjectField(node, definitions)
-			list := definitions.ObjectValues[node.NodeValueReference()]
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
+			node = unwrapObjectField(node, parser)
+			list := parser.ParsedDefinitions.ObjectValues[node.NodeValueReference()]
 			for j, rule := range rules {
 				valueIndex := list[j]
-				value := definitions.ObjectFields[valueIndex]
-				rule.eval(value, definitions, j)
+				value := parser.ParsedDefinitions.ObjectFields[valueIndex]
+				rule.eval(value, parser, j)
 			}
 		}
 	}
 
 	hasOperationType := func(operationType document.OperationType) rule {
-		return func(node document.Node, definitions ParsedDefinitions, ruleIndex, ruleSetIndex int) {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 			gotOperationType := node.NodeOperationType().String()
 			wantOperationType := operationType.String()
 			if wantOperationType != gotOperationType {
@@ -151,7 +156,7 @@ func TestParser(t *testing.T) {
 	}
 
 	hasTypeKind := func(wantTypeKind document.TypeKind) rule {
-		return func(node document.Node, definitions ParsedDefinitions, ruleIndex, ruleSetIndex int) {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 			gotTypeKind := node.(document.Type).Kind
 			if wantTypeKind != gotTypeKind {
 				panic(fmt.Errorf("hasTypeKind: want(typeKind): %s, got: %s [rule: %d, node: %d]", wantTypeKind, gotTypeKind, ruleIndex, ruleSetIndex))
@@ -160,35 +165,35 @@ func TestParser(t *testing.T) {
 	}
 
 	nodeType := func(rules ...rule) rule {
-		return func(node document.Node, definitions ParsedDefinitions, ruleIndex, ruleSetIndex int) {
-			nodeType := definitions.Types[node.NodeType()]
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
+			nodeType := parser.ParsedDefinitions.Types[node.NodeType()]
 			for j, rule := range rules {
-				rule(nodeType, definitions, j, ruleSetIndex)
+				rule(nodeType, parser, j, ruleSetIndex)
 			}
 		}
 	}
 
 	ofType := func(rules ...rule) rule {
-		return func(node document.Node, definitions ParsedDefinitions, ruleIndex, ruleSetIndex int) {
-			ofType := definitions.Types[node.(document.Type).OfType]
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
+			ofType := parser.ParsedDefinitions.Types[node.(document.Type).OfType]
 			for j, rule := range rules {
-				rule(ofType, definitions, j, ruleSetIndex)
+				rule(ofType, parser, j, ruleSetIndex)
 			}
 		}
 	}
 
 	hasTypeName := func(wantName string) rule {
-		return func(node document.Node, definitions ParsedDefinitions, ruleIndex, ruleSetIndex int) {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
 			if fragment, ok := node.(document.FragmentDefinition); ok {
-				node = definitions.Types[fragment.TypeCondition]
+				node = parser.ParsedDefinitions.Types[fragment.TypeCondition]
 			}
 
 			if inlineFragment, ok := node.(document.InlineFragment); ok {
-				node = definitions.Types[inlineFragment.TypeCondition]
+				node = parser.ParsedDefinitions.Types[inlineFragment.TypeCondition]
 			}
 
-			gotName := string(node.(document.Type).Name)
+			gotName := string(parser.ByteSlice(node.(document.Type).Name))
 			if wantName != gotName {
 				panic(fmt.Errorf("hasTypeName: want: %s, got: %s [rule: %d, node: %d]", wantName, gotName, ruleIndex, ruleSetIndex))
 			}
@@ -196,7 +201,7 @@ func TestParser(t *testing.T) {
 	}
 
 	/*	hasDefaultValue := func(want document.Value) rule {
-		return func(node document.Node, definitions ParsedDefinitions, ruleIndex, ruleSetIndex int) {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
 			got := node.NodeDefaultValue()
 
@@ -207,116 +212,116 @@ func TestParser(t *testing.T) {
 	}*/
 
 	hasEnumValuesDefinitions := func(rules ...ruleSet) rule {
-		return func(node document.Node, definitions ParsedDefinitions, ruleIndex, ruleSetIndex int) {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
 			index := node.NodeEnumValuesDefinition()
 
 			for j, k := range index {
 				ruleSet := rules[j]
-				subNode := definitions.EnumValuesDefinitions[k]
-				ruleSet.eval(subNode, definitions, k)
+				subNode := parser.ParsedDefinitions.EnumValuesDefinitions[k]
+				ruleSet.eval(subNode, parser, k)
 			}
 		}
 	}
 
 	hasUnionTypeSystemDefinitions := func(rules ...ruleSet) rule {
-		return func(node document.Node, definitions ParsedDefinitions, ruleIndex, ruleSetIndex int) {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
 			typeDefinitionIndex := node.NodeUnionTypeDefinitions()
 
 			for j, ruleSet := range rules {
 				definitionIndex := typeDefinitionIndex[j]
-				subNode := definitions.UnionTypeDefinitions[definitionIndex]
-				ruleSet.eval(subNode, definitions, j)
+				subNode := parser.ParsedDefinitions.UnionTypeDefinitions[definitionIndex]
+				ruleSet.eval(subNode, parser, j)
 			}
 		}
 	}
 
 	hasScalarTypeSystemDefinitions := func(rules ...ruleSet) rule {
-		return func(node document.Node, definitions ParsedDefinitions, ruleIndex, ruleSetIndex int) {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
 			typeDefinitionIndex := node.NodeScalarTypeDefinitions()
 
 			for j, ruleSet := range rules {
 				definitionIndex := typeDefinitionIndex[j]
-				subNode := definitions.ScalarTypeDefinitions[definitionIndex]
-				ruleSet.eval(subNode, definitions, j)
+				subNode := parser.ParsedDefinitions.ScalarTypeDefinitions[definitionIndex]
+				ruleSet.eval(subNode, parser, j)
 			}
 		}
 	}
 
 	hasObjectTypeSystemDefinitions := func(rules ...ruleSet) rule {
-		return func(node document.Node, definitions ParsedDefinitions, ruleIndex, ruleSetIndex int) {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
 			typeDefinitionIndex := node.NodeObjectTypeDefinitions()
 
 			for j, ruleSet := range rules {
 				definitionIndex := typeDefinitionIndex[j]
-				subNode := definitions.ObjectTypeDefinitions[definitionIndex]
-				ruleSet.eval(subNode, definitions, j)
+				subNode := parser.ParsedDefinitions.ObjectTypeDefinitions[definitionIndex]
+				ruleSet.eval(subNode, parser, j)
 			}
 		}
 	}
 
 	hasInterfaceTypeSystemDefinitions := func(rules ...ruleSet) rule {
-		return func(node document.Node, definitions ParsedDefinitions, ruleIndex, ruleSetIndex int) {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
 			typeDefinitionIndex := node.NodeInterfaceTypeDefinitions()
 
 			for j, ruleSet := range rules {
 				definitionIndex := typeDefinitionIndex[j]
-				subNode := definitions.InterfaceTypeDefinitions[definitionIndex]
-				ruleSet.eval(subNode, definitions, j)
+				subNode := parser.ParsedDefinitions.InterfaceTypeDefinitions[definitionIndex]
+				ruleSet.eval(subNode, parser, j)
 			}
 		}
 	}
 
 	hasEnumTypeSystemDefinitions := func(rules ...ruleSet) rule {
-		return func(node document.Node, definitions ParsedDefinitions, ruleIndex, ruleSetIndex int) {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
 			typeDefinitionIndex := node.NodeEnumTypeDefinitions()
 
 			for j, ruleSet := range rules {
 				definitionIndex := typeDefinitionIndex[j]
-				subNode := definitions.EnumTypeDefinitions[definitionIndex]
-				ruleSet.eval(subNode, definitions, j)
+				subNode := parser.ParsedDefinitions.EnumTypeDefinitions[definitionIndex]
+				ruleSet.eval(subNode, parser, j)
 			}
 		}
 	}
 
 	hasInputObjectTypeSystemDefinitions := func(rules ...ruleSet) rule {
-		return func(node document.Node, definitions ParsedDefinitions, ruleIndex, ruleSetIndex int) {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
 			typeDefinitionIndex := node.NodeInputObjectTypeDefinitions()
 
 			for j, ruleSet := range rules {
 				definitionIndex := typeDefinitionIndex[j]
-				subNode := definitions.InputObjectTypeDefinitions[definitionIndex]
-				ruleSet.eval(subNode, definitions, j)
+				subNode := parser.ParsedDefinitions.InputObjectTypeDefinitions[definitionIndex]
+				ruleSet.eval(subNode, parser, j)
 			}
 		}
 	}
 
 	hasDirectiveDefinitions := func(rules ...ruleSet) rule {
-		return func(node document.Node, definitions ParsedDefinitions, ruleIndex, ruleSetIndex int) {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
 			typeDefinitionIndex := node.NodeDirectiveDefinitions()
 
 			for j, ruleSet := range rules {
 				definitionIndex := typeDefinitionIndex[j]
-				subNode := definitions.DirectiveDefinitions[definitionIndex]
-				ruleSet.eval(subNode, definitions, j)
+				subNode := parser.ParsedDefinitions.DirectiveDefinitions[definitionIndex]
+				ruleSet.eval(subNode, parser, j)
 			}
 		}
 	}
 
 	hasUnionMemberTypes := func(members ...string) rule {
-		return func(node document.Node, definitions ParsedDefinitions, ruleIndex, ruleSetIndex int) {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
 			typeDefinitionIndex := node.NodeUnionMemberTypes()
 
 			for j, want := range members {
-				got := string(typeDefinitionIndex[j])
+				got := string(parser.ByteSlice(typeDefinitionIndex[j]))
 				if want != got {
 					panic(fmt.Errorf("hasUnionMemberTypes: want: %s, got: %s [check: %d]", want, got, ruleSetIndex))
 				}
@@ -325,7 +330,7 @@ func TestParser(t *testing.T) {
 	}
 
 	hasSchemaDefinition := func() rule {
-		return func(node document.Node, definitions ParsedDefinitions, ruleIndex, ruleSetIndex int) {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
 			schemaDefinition := node.NodeSchemaDefinition()
 			if !schemaDefinition.IsDefined() {
@@ -335,37 +340,37 @@ func TestParser(t *testing.T) {
 	}
 
 	hasVariableDefinitions := func(rules ...ruleSet) rule {
-		return func(node document.Node, definitions ParsedDefinitions, ruleIndex, ruleSetIndex int) {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
 			index := node.NodeVariableDefinitions()
 
 			for j, k := range index {
 				ruleSet := rules[j]
-				subNode := definitions.VariableDefinitions[k]
-				ruleSet.eval(subNode, definitions, k)
+				subNode := parser.ParsedDefinitions.VariableDefinitions[k]
+				ruleSet.eval(subNode, parser, k)
 			}
 		}
 	}
 
 	hasDirectives := func(rules ...ruleSet) rule {
-		return func(node document.Node, definitions ParsedDefinitions, ruleIndex, ruleSetIndex int) {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
 			index := node.NodeDirectives()
 
 			for i := range rules {
 				ruleSet := rules[i]
-				subNode := definitions.Directives[index[i]]
-				ruleSet.eval(subNode, definitions, index[i])
+				subNode := parser.ParsedDefinitions.Directives[index[i]]
+				ruleSet.eval(subNode, parser, index[i])
 			}
 		}
 	}
 
 	hasImplementsInterfaces := func(interfaces ...string) rule {
-		return func(node document.Node, definitions ParsedDefinitions, ruleIndex, ruleSetIndex int) {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
 			actual := node.NodeImplementsInterfaces()
 			for i, want := range interfaces {
-				got := string(actual[i])
+				got := string(parser.ByteSlice(actual[i]))
 
 				if want != got {
 					panic(fmt.Errorf("hasImplementsInterfaces: want(at: %d): %s, got: %s [check: %d]", i, want, got, ruleSetIndex))
@@ -375,79 +380,79 @@ func TestParser(t *testing.T) {
 	}
 
 	hasFields := func(rules ...ruleSet) rule {
-		return func(node document.Node, definitions ParsedDefinitions, ruleIndex, ruleSetIndex int) {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
 			index := node.NodeFields()
 
 			for i := range rules {
 				ruleSet := rules[i]
-				subNode := definitions.Fields[index[i]]
-				ruleSet.eval(subNode, definitions, index[i])
+				subNode := parser.ParsedDefinitions.Fields[index[i]]
+				ruleSet.eval(subNode, parser, index[i])
 			}
 		}
 	}
 
 	hasFieldsDefinitions := func(rules ...ruleSet) rule {
-		return func(node document.Node, definitions ParsedDefinitions, ruleIndex, ruleSetIndex int) {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
 			index := node.NodeFieldsDefinition()
 
 			for i := range rules {
 				ruleSet := rules[i]
-				field := definitions.FieldDefinitions[index[i]]
-				ruleSet.eval(field, definitions, index[i])
+				field := parser.ParsedDefinitions.FieldDefinitions[index[i]]
+				ruleSet.eval(field, parser, index[i])
 			}
 		}
 	}
 
 	hasInputFields := func(rules ...ruleSet) rule {
-		return func(node document.Node, definitions ParsedDefinitions, ruleIndex, ruleSetIndex int) {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
 			index := node.NodeFields()
 
 			for i := range rules {
 				ruleSet := rules[i]
-				subNode := definitions.InputValueDefinitions[index[i]]
-				ruleSet.eval(subNode, definitions, index[i])
+				subNode := parser.ParsedDefinitions.InputValueDefinitions[index[i]]
+				ruleSet.eval(subNode, parser, index[i])
 			}
 		}
 	}
 
 	hasArguments := func(rules ...ruleSet) rule {
-		return func(node document.Node, definitions ParsedDefinitions, ruleIndex, ruleSetIndex int) {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
 			index := node.NodeArguments()
 
 			for i := range rules {
 				ruleSet := rules[i]
-				subNode := definitions.Arguments[index[i]]
-				ruleSet.eval(subNode, definitions, index[i])
+				subNode := parser.ParsedDefinitions.Arguments[index[i]]
+				ruleSet.eval(subNode, parser, index[i])
 			}
 		}
 	}
 
 	hasInlineFragments := func(rules ...ruleSet) rule {
-		return func(node document.Node, definitions ParsedDefinitions, ruleIndex, ruleSetIndex int) {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
 			index := node.NodeInlineFragments()
 
 			for i := range rules {
 				ruleSet := rules[i]
-				subNode := definitions.InlineFragments[index[i]]
-				ruleSet.eval(subNode, definitions, index[i])
+				subNode := parser.ParsedDefinitions.InlineFragments[index[i]]
+				ruleSet.eval(subNode, parser, index[i])
 			}
 		}
 	}
 
 	hasFragmentSpreads := func(rules ...ruleSet) rule {
-		return func(node document.Node, definitions ParsedDefinitions, ruleIndex, ruleSetIndex int) {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
 			index := node.NodeFragmentSpreads()
 
 			for i := range rules {
 				ruleSet := rules[i]
-				subNode := definitions.FragmentSpreads[index[i]]
-				ruleSet.eval(subNode, definitions, index[i])
+				subNode := parser.ParsedDefinitions.FragmentSpreads[index[i]]
+				ruleSet.eval(subNode, parser, index[i])
 			}
 		}
 	}
@@ -473,7 +478,7 @@ func TestParser(t *testing.T) {
 			}
 
 			for k, want := range argumentNames {
-				got := string(parser.ParsedDefinitions.Arguments[k].Name)
+				got := string(parser.ByteSlice(parser.ParsedDefinitions.Arguments[k].Name))
 				if want != got {
 					panic(fmt.Errorf("mustParseArguments: want(i: %d): %s, got: %s [check: %d]", k, want, got, i))
 				}
@@ -489,7 +494,7 @@ func TestParser(t *testing.T) {
 			}
 
 			for k, want := range argumentNames {
-				got := string(parser.ParsedDefinitions.InputValueDefinitions[k].Name)
+				got := string(parser.ByteSlice(parser.ParsedDefinitions.InputValueDefinitions[k].Name))
 				if want != got {
 					panic(fmt.Errorf("mustParseArguments: want(i: %d): %s, got: %s [check: %d]", k, want, got, i))
 				}
@@ -513,7 +518,7 @@ func TestParser(t *testing.T) {
 		}
 	}
 
-	mustParseDirectiveDefinition := func(name string, locations ...document.DirectiveLocation) checkFunc {
+	mustParseDirectiveDefinition := func(wantName string, locations ...document.DirectiveLocation) checkFunc {
 		return func(parser *Parser, i int) {
 			var index []int
 			if err := parser.parseDirectiveDefinition(&index); err != nil {
@@ -521,8 +526,9 @@ func TestParser(t *testing.T) {
 			}
 
 			got := parser.ParsedDefinitions.DirectiveDefinitions[0]
-			if string(got.Name) != name {
-				panic(fmt.Errorf("mustParseDirectiveDefinition: want(name): %s, got: %s", name, got.Name))
+			gotName := string(parser.ByteSlice(got.Name))
+			if wantName != gotName {
+				panic(fmt.Errorf("mustParseDirectiveDefinition: want(name): %s, got: %s", wantName, gotName))
 			}
 
 			for k, wantLocation := range locations {
@@ -536,7 +542,7 @@ func TestParser(t *testing.T) {
 
 	mustContainInputValueDefinition := func(index int, wantName string) checkFunc {
 		return func(parser *Parser, i int) {
-			gotName := string(parser.ParsedDefinitions.InputValueDefinitions[index].Name)
+			gotName := string(parser.ByteSlice(parser.ParsedDefinitions.InputValueDefinitions[index].Name))
 			if wantName != gotName {
 				panic(fmt.Errorf("mustContainInputValueDefinition: want for index %d: %s,got: %s", index, wantName, gotName))
 			}
@@ -547,7 +553,7 @@ func TestParser(t *testing.T) {
 		return func(parser *Parser, i int) {
 
 			for k, wantName := range name {
-				gotName := string(parser.ParsedDefinitions.Arguments[k].Name)
+				gotName := string(parser.ByteSlice(parser.ParsedDefinitions.Arguments[k].Name))
 				if wantName != gotName {
 					panic(fmt.Errorf("mustContainArguments: want for index %d: %s,got: %s", k, wantName, gotName))
 				}
@@ -564,7 +570,7 @@ func TestParser(t *testing.T) {
 
 			for i, k := range index {
 				wantName := name[i]
-				gotName := string(parser.ParsedDefinitions.Directives[k].Name)
+				gotName := string(parser.ByteSlice(parser.ParsedDefinitions.Directives[k].Name))
 				if gotName != wantName {
 					panic(fmt.Errorf("mustParseDirectives: want: %s,got: %s [check: %d]", wantName, gotName, i))
 				}
@@ -580,7 +586,7 @@ func TestParser(t *testing.T) {
 			}
 
 			enum := parser.ParsedDefinitions.EnumTypeDefinitions[0]
-			evalRules(enum, parser.ParsedDefinitions, rules, i)
+			evalRules(enum, parser, rules, i)
 		}
 	}
 
@@ -595,13 +601,13 @@ func TestParser(t *testing.T) {
 			for i, set := range fragments {
 				fragmentIndex := definition.FragmentDefinitions[i]
 				fragment := parser.ParsedDefinitions.FragmentDefinitions[fragmentIndex]
-				set.eval(fragment, parser.ParsedDefinitions, i)
+				set.eval(fragment, parser, i)
 			}
 
 			for i, set := range operations {
 				opIndex := definition.OperationDefinitions[i]
 				operation := parser.ParsedDefinitions.OperationDefinitions[opIndex]
-				set.eval(operation, parser.ParsedDefinitions, i)
+				set.eval(operation, parser, i)
 			}
 		}
 	}
@@ -616,7 +622,7 @@ func TestParser(t *testing.T) {
 			for j, rule := range rules {
 				reverseIndex := len(parser.ParsedDefinitions.Fields) - 1 - j
 				field := parser.ParsedDefinitions.Fields[reverseIndex]
-				evalRules(field, parser.ParsedDefinitions, rule, i)
+				evalRules(field, parser, rule, i)
 			}
 		}
 	}
@@ -630,7 +636,7 @@ func TestParser(t *testing.T) {
 
 			for j, rule := range rules {
 				field := parser.ParsedDefinitions.FieldDefinitions[j]
-				evalRules(field, parser.ParsedDefinitions, rule, i)
+				evalRules(field, parser, rule, i)
 			}
 		}
 	}
@@ -645,7 +651,7 @@ func TestParser(t *testing.T) {
 
 			for j, rule := range rules {
 				fragmentDefinition := parser.ParsedDefinitions.FragmentDefinitions[j]
-				evalRules(fragmentDefinition, parser.ParsedDefinitions, rule, i)
+				evalRules(fragmentDefinition, parser, rule, i)
 			}
 		}
 	}
@@ -659,7 +665,7 @@ func TestParser(t *testing.T) {
 
 			for j, rule := range rules {
 				spread := parser.ParsedDefinitions.FragmentSpreads[j]
-				evalRules(spread, parser.ParsedDefinitions, rule, i)
+				evalRules(spread, parser, rule, i)
 			}
 		}
 	}
@@ -673,7 +679,7 @@ func TestParser(t *testing.T) {
 			}
 
 			for j, want := range implements {
-				got := string(interfaces[j])
+				got := string(parser.ByteSlice(interfaces[j]))
 				if want != got {
 					panic(fmt.Errorf("mustParseImplementsInterfaces: want: %s, got: %s [check: %d]", want, got, i))
 				}
@@ -689,7 +695,7 @@ func TestParser(t *testing.T) {
 			}
 
 			gotKeyword := next.Keyword
-			gotLiteral := string(next.Literal)
+			gotLiteral := string(parser.ByteSlice(next.Literal))
 
 			if wantKeyword != gotKeyword {
 				panic(fmt.Errorf("mustParseLiteral: want(keyword): %s, got: %s, [check: %d]", wantKeyword.String(), gotKeyword.String(), i))
@@ -711,7 +717,7 @@ func TestParser(t *testing.T) {
 			for j, rule := range rules {
 				reverseIndex := len(parser.ParsedDefinitions.InlineFragments) - 1 - j
 				inlineFragment := parser.ParsedDefinitions.InlineFragments[reverseIndex]
-				evalRules(inlineFragment, parser.ParsedDefinitions, rule, i)
+				evalRules(inlineFragment, parser, rule, i)
 			}
 		}
 	}
@@ -725,7 +731,7 @@ func TestParser(t *testing.T) {
 
 			for j, rule := range rules {
 				inputValueDefinition := parser.ParsedDefinitions.InputValueDefinitions[j]
-				evalRules(inputValueDefinition, parser.ParsedDefinitions, rule, i)
+				evalRules(inputValueDefinition, parser, rule, i)
 			}
 		}
 	}
@@ -739,7 +745,7 @@ func TestParser(t *testing.T) {
 
 			for j, rule := range rules {
 				inputObjectDefinition := parser.ParsedDefinitions.InputObjectTypeDefinitions[j]
-				evalRules(inputObjectDefinition, parser.ParsedDefinitions, rule, i)
+				evalRules(inputObjectDefinition, parser, rule, i)
 			}
 		}
 	}
@@ -753,7 +759,7 @@ func TestParser(t *testing.T) {
 
 			for j, rule := range rules {
 				inputValueDefinition := parser.ParsedDefinitions.InputValueDefinitions[j]
-				evalRules(inputValueDefinition, parser.ParsedDefinitions, rule, i)
+				evalRules(inputValueDefinition, parser, rule, i)
 			}
 		}
 	}
@@ -767,7 +773,7 @@ func TestParser(t *testing.T) {
 
 			for j, rule := range rules {
 				interfaceTypeDefinition := parser.ParsedDefinitions.InterfaceTypeDefinitions[j]
-				evalRules(interfaceTypeDefinition, parser.ParsedDefinitions, rule, i)
+				evalRules(interfaceTypeDefinition, parser, rule, i)
 			}
 		}
 	}
@@ -781,7 +787,7 @@ func TestParser(t *testing.T) {
 
 			for j, rule := range rules {
 				objectTypeDefinition := parser.ParsedDefinitions.ObjectTypeDefinitions[j]
-				evalRules(objectTypeDefinition, parser.ParsedDefinitions, rule, i)
+				evalRules(objectTypeDefinition, parser, rule, i)
 			}
 		}
 	}
@@ -795,7 +801,7 @@ func TestParser(t *testing.T) {
 
 			for j, rule := range rules {
 				operationDefinition := parser.ParsedDefinitions.OperationDefinitions[j]
-				evalRules(operationDefinition, parser.ParsedDefinitions, rule, i)
+				evalRules(operationDefinition, parser, rule, i)
 			}
 		}
 	}
@@ -809,7 +815,7 @@ func TestParser(t *testing.T) {
 
 			for j, rule := range rules {
 				scalarTypeDefinition := parser.ParsedDefinitions.ScalarTypeDefinitions[j]
-				evalRules(scalarTypeDefinition, parser.ParsedDefinitions, rule, i)
+				evalRules(scalarTypeDefinition, parser, rule, i)
 			}
 		}
 	}
@@ -822,7 +828,7 @@ func TestParser(t *testing.T) {
 				panic(err)
 			}
 
-			evalRules(definition, parser.ParsedDefinitions, rules, i)
+			evalRules(definition, parser, rules, i)
 		}
 	}
 
@@ -849,7 +855,7 @@ func TestParser(t *testing.T) {
 
 			for j, rule := range directives {
 				directive := parser.ParsedDefinitions.Directives[j]
-				evalRules(directive, parser.ParsedDefinitions, rule, i)
+				evalRules(directive, parser, rule, i)
 			}
 		}
 	}
@@ -861,7 +867,7 @@ func TestParser(t *testing.T) {
 				panic(err)
 			}
 
-			rules.eval(selectionSet, parser.ParsedDefinitions, i)
+			rules.eval(selectionSet, parser, i)
 		}
 	}
 
@@ -874,7 +880,7 @@ func TestParser(t *testing.T) {
 
 			for j, rule := range rules {
 				scalarTypeDefinition := parser.ParsedDefinitions.UnionTypeDefinitions[j]
-				evalRules(scalarTypeDefinition, parser.ParsedDefinitions, rule, i)
+				evalRules(scalarTypeDefinition, parser, rule, i)
 			}
 		}
 	}
@@ -888,7 +894,7 @@ func TestParser(t *testing.T) {
 
 			for j, rule := range rules {
 				scalarTypeDefinition := parser.ParsedDefinitions.VariableDefinitions[j]
-				evalRules(scalarTypeDefinition, parser.ParsedDefinitions, rule, i)
+				evalRules(scalarTypeDefinition, parser, rule, i)
 			}
 		}
 	}
@@ -907,7 +913,7 @@ func TestParser(t *testing.T) {
 			}
 
 			for _, rule := range rules {
-				rule(value, parser.ParsedDefinitions, i, i)
+				rule(value, parser, i, i)
 			}
 		}
 	}
@@ -922,7 +928,7 @@ func TestParser(t *testing.T) {
 			node := parser.ParsedDefinitions.Types[index]
 
 			for j, rule := range rules {
-				rule(node, parser.ParsedDefinitions, j, i)
+				rule(node, parser, j, i)
 			}
 		}
 	}

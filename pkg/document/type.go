@@ -16,19 +16,19 @@ type TypeKind int
 // http://facebook.github.io/graphql/draft/#Type
 type Type struct {
 	Kind   TypeKind
-	Name   ByteSlice
+	Name   ByteSliceReference
 	OfType int
 }
 
-func (t Type) NodeName() string {
-	return string(t.Name)
+func (t Type) NodeName() ByteSliceReference {
+	return t.Name
 }
 
-func (t Type) NodeAlias() string {
+func (t Type) NodeAlias() ByteSliceReference {
 	panic("implement me")
 }
 
-func (t Type) NodeDescription() string {
+func (t Type) NodeDescription() ByteSliceReference {
 	panic("implement me")
 }
 
@@ -84,7 +84,7 @@ func (t Type) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (t Type) NodeImplementsInterfaces() []ByteSlice {
+func (t Type) NodeImplementsInterfaces() []ByteSliceReference {
 	panic("implement me")
 }
 
@@ -120,7 +120,7 @@ func (t Type) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (t Type) NodeUnionMemberTypes() []ByteSlice {
+func (t Type) NodeUnionMemberTypes() []ByteSliceReference {
 	panic("implement me")
 }
 

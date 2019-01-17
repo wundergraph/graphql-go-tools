@@ -3,7 +3,7 @@ package document
 // FragmentSpread as specified in:
 // http://facebook.github.io/graphql/draft/#FragmentSpread
 type FragmentSpread struct {
-	FragmentName ByteSlice
+	FragmentName ByteSliceReference
 	Directives   []int
 }
 
@@ -15,7 +15,7 @@ func (f FragmentSpread) NodeValueReference() int {
 	panic("implement me")
 }
 
-func (f FragmentSpread) NodeUnionMemberTypes() []ByteSlice {
+func (f FragmentSpread) NodeUnionMemberTypes() []ByteSliceReference {
 	panic("implement me")
 }
 
@@ -51,7 +51,7 @@ func (f FragmentSpread) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (f FragmentSpread) NodeImplementsInterfaces() []ByteSlice {
+func (f FragmentSpread) NodeImplementsInterfaces() []ByteSliceReference {
 	panic("implement me")
 }
 
@@ -67,7 +67,7 @@ func (f FragmentSpread) NodeFieldsDefinition() []int {
 	panic("implement me")
 }
 
-func (f FragmentSpread) NodeAlias() string {
+func (f FragmentSpread) NodeAlias() ByteSliceReference {
 	panic("implement me")
 }
 
@@ -79,11 +79,11 @@ func (f FragmentSpread) NodeOperationType() OperationType {
 	panic("implement me")
 }
 
-func (f FragmentSpread) NodeName() string {
-	return string(f.FragmentName)
+func (f FragmentSpread) NodeName() ByteSliceReference {
+	return f.FragmentName
 }
 
-func (f FragmentSpread) NodeDescription() string {
+func (f FragmentSpread) NodeDescription() ByteSliceReference {
 	panic("implement me")
 }
 

@@ -1,12 +1,10 @@
 package document
 
-import "bytes"
-
 // DirectiveDefinition as specified in
 // http://facebook.github.io/graphql/draft/#DirectiveDefinition
 type DirectiveDefinition struct {
-	Description         ByteSlice
-	Name                ByteSlice
+	Description         ByteSliceReference
+	Name                ByteSliceReference
 	ArgumentsDefinition []int
 	DirectiveLocations  DirectiveLocations
 }
@@ -19,16 +17,16 @@ func (d DirectiveDefinition) NodeValueReference() int {
 	panic("implement me")
 }
 
-func (d DirectiveDefinition) NodeName() string {
-	return string(d.Name)
+func (d DirectiveDefinition) NodeName() ByteSliceReference {
+	return d.Name
 }
 
-func (d DirectiveDefinition) NodeAlias() string {
+func (d DirectiveDefinition) NodeAlias() ByteSliceReference {
 	panic("implement me")
 }
 
-func (d DirectiveDefinition) NodeDescription() string {
-	return string(d.Description)
+func (d DirectiveDefinition) NodeDescription() ByteSliceReference {
+	return d.Description
 }
 
 func (d DirectiveDefinition) NodeArguments() []int {
@@ -83,7 +81,7 @@ func (d DirectiveDefinition) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (d DirectiveDefinition) NodeImplementsInterfaces() []ByteSlice {
+func (d DirectiveDefinition) NodeImplementsInterfaces() []ByteSliceReference {
 	panic("implement me")
 }
 
@@ -119,7 +117,7 @@ func (d DirectiveDefinition) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (d DirectiveDefinition) NodeUnionMemberTypes() []ByteSlice {
+func (d DirectiveDefinition) NodeUnionMemberTypes() []ByteSliceReference {
 	panic("implement me")
 }
 
@@ -136,14 +134,3 @@ func (d DirectiveDefinition) ContainsLocation(location DirectiveLocation) bool {
 
 // DirectiveDefinitions is the plural of DirectiveDefinition
 type DirectiveDefinitions []DirectiveDefinition
-
-// GetByName returns the DirectiveDefinition via $name
-func (d DirectiveDefinitions) GetByName(name ByteSlice) *DirectiveDefinition {
-	for _, directive := range d {
-		if bytes.Equal(directive.Name, name) {
-			return &directive
-		}
-	}
-
-	return nil
-}

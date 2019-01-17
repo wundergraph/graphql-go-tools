@@ -3,8 +3,8 @@ package document
 // Field as specified in:
 // http://facebook.github.io/graphql/draft/#Field
 type Field struct {
-	Alias        ByteSlice
-	Name         ByteSlice
+	Alias        ByteSliceReference
+	Name         ByteSliceReference
 	Arguments    []int
 	Directives   []int
 	SelectionSet SelectionSet
@@ -18,7 +18,7 @@ func (f Field) NodeValueReference() int {
 	panic("implement me")
 }
 
-func (f Field) NodeUnionMemberTypes() []ByteSlice {
+func (f Field) NodeUnionMemberTypes() []ByteSliceReference {
 	panic("implement me")
 }
 
@@ -54,7 +54,7 @@ func (f Field) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (f Field) NodeImplementsInterfaces() []ByteSlice {
+func (f Field) NodeImplementsInterfaces() []ByteSliceReference {
 	panic("implement me")
 }
 
@@ -74,19 +74,19 @@ func (f Field) NodeArgumentsDefinition() []int {
 	panic("implement me")
 }
 
-func (f Field) NodeAlias() string {
-	return string(f.Alias)
+func (f Field) NodeAlias() ByteSliceReference {
+	return f.Alias
 }
 
 func (f Field) NodeOperationType() OperationType {
 	panic("implement me")
 }
 
-func (f Field) NodeName() string {
-	return string(f.Name)
+func (f Field) NodeName() ByteSliceReference {
+	return f.Name
 }
 
-func (f Field) NodeDescription() string {
+func (f Field) NodeDescription() ByteSliceReference {
 	panic("implement me")
 }
 

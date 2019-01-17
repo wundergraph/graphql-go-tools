@@ -3,7 +3,7 @@ package document
 // Directive as specified in:
 // http://facebook.github.io/graphql/draft/#Directive
 type Directive struct {
-	Name      ByteSlice
+	Name      ByteSliceReference
 	Arguments []int
 }
 
@@ -15,7 +15,7 @@ func (d Directive) NodeValueReference() int {
 	panic("implement me")
 }
 
-func (d Directive) NodeUnionMemberTypes() []ByteSlice {
+func (d Directive) NodeUnionMemberTypes() []ByteSliceReference {
 	panic("implement me")
 }
 
@@ -51,7 +51,7 @@ func (d Directive) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (d Directive) NodeImplementsInterfaces() []ByteSlice {
+func (d Directive) NodeImplementsInterfaces() []ByteSliceReference {
 	panic("implement me")
 }
 
@@ -71,7 +71,7 @@ func (d Directive) NodeArgumentsDefinition() []int {
 	panic("implement me")
 }
 
-func (d Directive) NodeAlias() string {
+func (d Directive) NodeAlias() ByteSliceReference {
 	panic("implement me")
 }
 
@@ -99,11 +99,11 @@ func (d Directive) NodeInlineFragments() []int {
 	panic("implement me")
 }
 
-func (d Directive) NodeName() string {
-	return string(d.Name)
+func (d Directive) NodeName() ByteSliceReference {
+	return d.Name
 }
 
-func (d Directive) NodeDescription() string {
+func (d Directive) NodeDescription() ByteSliceReference {
 	panic("implement me")
 }
 

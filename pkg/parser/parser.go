@@ -77,17 +77,18 @@ type ParsedDefinitions struct {
 	ObjectFields               document.ObjectFields
 	Types                      document.Types
 
-	ByteSlices []document.ByteSlice
-	Integers   []int32
-	Floats     []float32
-	Booleans   [2]bool
+	ByteSliceReferences []document.ByteSliceReference
+	Integers            []int32
+	Floats              []float32
+	Booleans            [2]bool
 }
 
 // Lexer is the interface used by the Parser to lex tokens
 type Lexer interface {
-	SetInput(input []byte)
+	SetInput(input []byte) error
 	Read() (tok token.Token, err error)
 	Peek(ignoreWhitespace bool) (key keyword.Keyword, err error)
+	ByteSlice(reference document.ByteSliceReference) document.ByteSlice
 }
 
 // NewParser returns a new parser using a buffered runestringer
@@ -124,9 +125,9 @@ func NewParser() *Parser {
 		ObjectFields:               make(document.ObjectFields, 0, 8),
 		Types:                      make(document.Types, 0, 8),
 
-		Integers:   make([]int32, 0, 8),
-		Floats:     make([]float32, 0, 8),
-		ByteSlices: make([]document.ByteSlice, 0, 8),
+		Integers:            make([]int32, 0, 8),
+		Floats:              make([]float32, 0, 8),
+		ByteSliceReferences: make([]document.ByteSliceReference, 0, 8),
 	}
 
 	definitions.Booleans[0] = false
@@ -139,17 +140,27 @@ func NewParser() *Parser {
 	}
 }
 
+func (p *Parser) ByteSlice(reference document.ByteSliceReference) document.ByteSlice {
+	return p.l.ByteSlice(reference)
+}
+
 // ParseTypeSystemDefinition parses a TypeSystemDefinition from an io.Reader
-func (p *Parser) ParseTypeSystemDefinition(input []byte) (document.TypeSystemDefinition, error) {
+func (p *Parser) ParseTypeSystemDefinition(input []byte) (definition document.TypeSystemDefinition, err error) {
 	p.resetObjects()
-	p.l.SetInput(input)
+	err = p.l.SetInput(input)
+	if err != nil {
+		return
+	}
 	return p.parseTypeSystemDefinition()
 }
 
 // ParseExecutableDefinition parses an ExecutableDefinition from an io.Reader
-func (p *Parser) ParseExecutableDefinition(input []byte) (def document.ExecutableDefinition, err error) {
+func (p *Parser) ParseExecutableDefinition(input []byte) (definition document.ExecutableDefinition, err error) {
 	p.resetObjects()
-	p.l.SetInput(input)
+	err = p.l.SetInput(input)
+	if err != nil {
+		return
+	}
 	return p.parseExecutableDefinition()
 }
 
@@ -160,7 +171,7 @@ func (p *Parser) readExpect(expected keyword.Keyword, enclosingFunctionName stri
 	}
 
 	if t.Keyword != expected {
-		return t, newErrInvalidType(t.Position, enclosingFunctionName, expected.String(), t.Keyword.String()+" lit: "+string(t.Literal))
+		return t, newErrInvalidType(t.TextPosition, enclosingFunctionName, expected.String(), t.Keyword.String()+" lit: "+string(p.ByteSlice(t.Literal)))
 	}
 
 	return
@@ -361,7 +372,7 @@ func (p *Parser) resetObjects() {
 	p.ParsedDefinitions.ObjectTypeDefinitions = p.ParsedDefinitions.ObjectTypeDefinitions[:0]
 	p.ParsedDefinitions.ScalarTypeDefinitions = p.ParsedDefinitions.ScalarTypeDefinitions[:0]
 	p.ParsedDefinitions.UnionTypeDefinitions = p.ParsedDefinitions.UnionTypeDefinitions[:0]
-	p.ParsedDefinitions.ByteSlices = p.ParsedDefinitions.ByteSlices[:0]
+	p.ParsedDefinitions.ByteSliceReferences = p.ParsedDefinitions.ByteSliceReferences[:0]
 	p.ParsedDefinitions.Values = p.ParsedDefinitions.Values[:0]
 	p.ParsedDefinitions.Integers = p.ParsedDefinitions.Integers[:0]
 	p.ParsedDefinitions.Floats = p.ParsedDefinitions.Floats[:0]
@@ -461,9 +472,9 @@ func (p *Parser) putUnionTypeDefinition(definition document.UnionTypeDefinition)
 	return len(p.ParsedDefinitions.UnionTypeDefinitions) - 1
 }
 
-func (p *Parser) putByteSlice(slice document.ByteSlice) int {
-	p.ParsedDefinitions.ByteSlices = append(p.ParsedDefinitions.ByteSlices, slice)
-	return len(p.ParsedDefinitions.ByteSlices) - 1
+func (p *Parser) putByteSliceReference(slice document.ByteSliceReference) int {
+	p.ParsedDefinitions.ByteSliceReferences = append(p.ParsedDefinitions.ByteSliceReferences, slice)
+	return len(p.ParsedDefinitions.ByteSliceReferences) - 1
 }
 
 func (p *Parser) putValue(value document.Value, index int) {

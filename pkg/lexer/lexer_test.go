@@ -17,7 +17,9 @@ func TestLexer_Peek_Read(t *testing.T) {
 
 	run := func(input string, checks ...checkFunc) {
 		lex := NewLexer()
-		lex.SetInput([]byte(input))
+		if err := lex.SetInput([]byte(input)); err != nil {
+			panic(err)
+		}
 		for i := range checks {
 			checks[i](lex, i+1)
 		}
@@ -35,7 +37,7 @@ func TestLexer_Peek_Read(t *testing.T) {
 		}
 	}
 
-	mustRead := func(k keyword.Keyword, literal string) checkFunc {
+	mustRead := func(k keyword.Keyword, wantLiteral string) checkFunc {
 		return func(lex *Lexer, i int) {
 			tok, err := lex.Read()
 			if err != nil {
@@ -44,8 +46,9 @@ func TestLexer_Peek_Read(t *testing.T) {
 			if k != tok.Keyword {
 				panic(fmt.Errorf("mustRead: want(keyword): %s, got: %s [check: %d]", k.String(), tok.String(), i))
 			}
-			if literal != string(tok.Literal) {
-				panic(fmt.Errorf("mustRead: want(literal): %s, got: %s [check: %d]", literal, tok.Literal, i))
+			gotLiteral := string(lex.ByteSlice(tok.Literal))
+			if wantLiteral != gotLiteral {
+				panic(fmt.Errorf("mustRead: want(literal): %s, got: %s [check: %d]", wantLiteral, gotLiteral, i))
 			}
 		}
 	}
@@ -68,7 +71,9 @@ func TestLexer_Peek_Read(t *testing.T) {
 
 	resetInput := func(input string) checkFunc {
 		return func(lex *Lexer, i int) {
-			lex.SetInput([]byte(input))
+			if err := lex.SetInput([]byte(input)); err != nil {
+				panic(err)
+			}
 		}
 	}
 
@@ -79,17 +84,17 @@ func TestLexer_Peek_Read(t *testing.T) {
 				panic(err)
 			}
 
-			if lineStart != tok.Position.LineStart {
-				panic(fmt.Errorf("mustReadPosition: want(lineStart): %d, got: %d [check: %d]", lineStart, tok.Position.LineStart, i))
+			if lineStart != tok.TextPosition.LineStart {
+				panic(fmt.Errorf("mustReadPosition: want(lineStart): %d, got: %d [check: %d]", lineStart, tok.TextPosition.LineStart, i))
 			}
-			if charStart != tok.Position.CharStart {
-				panic(fmt.Errorf("mustReadPosition: want(charStart): %d, got: %d [check: %d]", charStart, tok.Position.CharStart, i))
+			if charStart != tok.TextPosition.CharStart {
+				panic(fmt.Errorf("mustReadPosition: want(charStart): %d, got: %d [check: %d]", charStart, tok.TextPosition.CharStart, i))
 			}
-			if lineEnd != tok.Position.LineEnd {
-				panic(fmt.Errorf("mustReadPosition: want(lineEnd): %d, got: %d [check: %d]", lineEnd, tok.Position.LineEnd, i))
+			if lineEnd != tok.TextPosition.LineEnd {
+				panic(fmt.Errorf("mustReadPosition: want(lineEnd): %d, got: %d [check: %d]", lineEnd, tok.TextPosition.LineEnd, i))
 			}
-			if charEnd != tok.Position.CharEnd {
-				panic(fmt.Errorf("mustReadPosition: want(charEnd): %d, got: %d [check: %d]", charEnd, tok.Position.CharEnd, i))
+			if charEnd != tok.TextPosition.CharEnd {
+				panic(fmt.Errorf("mustReadPosition: want(charEnd): %d, got: %d [check: %d]", charEnd, tok.TextPosition.CharEnd, i))
 			}
 		}
 	}
@@ -104,8 +109,8 @@ func TestLexer_Peek_Read(t *testing.T) {
 	t.Run("read eof multiple times", func(t *testing.T) {
 		run("x",
 			mustRead(keyword.IDENT, "x"),
-			mustRead(keyword.EOF, "eof"),
-			mustRead(keyword.EOF, "eof"),
+			mustRead(keyword.EOF, ""),
+			mustRead(keyword.EOF, ""),
 		)
 	})
 	t.Run("read integer", func(t *testing.T) {
@@ -142,7 +147,7 @@ func TestLexer_Peek_Read(t *testing.T) {
 		run("\"\"\"foo \\\" bar\"\"\"", mustPeekAndRead(keyword.STRING, "foo \\\" bar"))
 	})
 	t.Run("read multi line string", func(t *testing.T) {
-		run("\"\"\"\nfoo\nbar\"\"\"", mustPeekAndRead(keyword.STRING, "foo\nbar"))
+		run("\"\"\"\nfoo\nbar\"\"\"", mustPeekAndRead(keyword.STRING, "\nfoo\nbar"))
 	})
 	t.Run("read pipe", func(t *testing.T) {
 		run("|", mustPeekAndRead(keyword.PIPE, "|"))
@@ -152,6 +157,9 @@ func TestLexer_Peek_Read(t *testing.T) {
 	})
 	t.Run("read fragment spread", func(t *testing.T) {
 		run("...", mustPeekAndRead(keyword.SPREAD, "..."))
+	})
+	t.Run("must not read invalid fragment spread", func(t *testing.T) {
+		run("..", mustErrRead())
 	})
 	t.Run("read variable", func(t *testing.T) {
 		run("$123", mustPeekAndRead(keyword.VARIABLE, "123"))
@@ -205,7 +213,7 @@ func TestLexer_Peek_Read(t *testing.T) {
 		run("&", mustPeekAndRead(keyword.AND, "&"))
 	})
 	t.Run("read EOF", func(t *testing.T) {
-		run("", mustPeekAndRead(keyword.EOF, "eof"))
+		run("", mustPeekAndRead(keyword.EOF, ""))
 	})
 	t.Run("read ident", func(t *testing.T) {
 		run("foo", mustPeekAndRead(keyword.IDENT, "foo"))
@@ -271,16 +279,16 @@ func TestLexer_Peek_Read(t *testing.T) {
 		run("on ", mustPeekAndRead(keyword.ON, "on"))
 	})
 	t.Run("read ignore comma", func(t *testing.T) {
-		run(",", mustPeekAndRead(keyword.EOF, "eof"))
+		run(",", mustPeekAndRead(keyword.EOF, ""))
 	})
 	t.Run("read ignore space", func(t *testing.T) {
-		run(" ", mustPeekAndRead(keyword.EOF, "eof"))
+		run(" ", mustPeekAndRead(keyword.EOF, ""))
 	})
 	t.Run("read ignore tab", func(t *testing.T) {
-		run("	", mustPeekAndRead(keyword.EOF, "eof"))
+		run("	", mustPeekAndRead(keyword.EOF, ""))
 	})
 	t.Run("read ignore lineTerminator", func(t *testing.T) {
-		run("\n", mustPeekAndRead(keyword.EOF, "eof"))
+		run("\n", mustPeekAndRead(keyword.EOF, ""))
 	})
 	t.Run("read null", func(t *testing.T) {
 		run("null", mustPeekAndRead(keyword.NULL, "null"))
@@ -346,7 +354,7 @@ baz
 			mustPeekAndRead(keyword.INTEGER, "1337"), mustPeekAndRead(keyword.INTEGER, "1338"), mustPeekAndRead(keyword.INTEGER, "1339"),
 			mustPeekAndRead(keyword.STRING, "foo"), mustPeekAndRead(keyword.STRING, "bar"), mustPeekAndRead(keyword.STRING, "foo bar"),
 			mustPeekAndRead(keyword.STRING, "foo\nbar"),
-			mustPeekAndRead(keyword.STRING, "foo\nbar\nbaz"),
+			mustPeekAndRead(keyword.STRING, "foo\nbar\nbaz\n"),
 			mustPeekAndRead(keyword.FLOAT, "13.37"),
 		)
 	})
@@ -455,7 +463,9 @@ fragment TypeRef on __Type {
 func TestLexerRegressions(t *testing.T) {
 
 	lexer := NewLexer()
-	lexer.SetInput([]byte(introspectionQuery))
+	if err := lexer.SetInput([]byte(introspectionQuery)); err != nil {
+		t.Fatal(err)
+	}
 
 	var total []token.Token
 	for {
@@ -497,7 +507,9 @@ func BenchmarkLexer(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 
-		lexer.SetInput(inputBytes)
+		if err := lexer.SetInput(inputBytes); err != nil {
+			b.Fatal(err)
+		}
 
 		var key keyword.Keyword
 		var err error

@@ -14,15 +14,15 @@ func (v Value) NodeValueReference() int {
 	return v.Reference
 }
 
-func (v Value) NodeName() string {
+func (v Value) NodeName() ByteSliceReference {
 	panic("implement me")
 }
 
-func (v Value) NodeAlias() string {
+func (v Value) NodeAlias() ByteSliceReference {
 	panic("implement me")
 }
 
-func (v Value) NodeDescription() string {
+func (v Value) NodeDescription() ByteSliceReference {
 	panic("implement me")
 }
 
@@ -78,7 +78,7 @@ func (v Value) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (v Value) NodeImplementsInterfaces() []ByteSlice {
+func (v Value) NodeImplementsInterfaces() []ByteSliceReference {
 	panic("implement me")
 }
 
@@ -114,7 +114,7 @@ func (v Value) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (v Value) NodeUnionMemberTypes() []ByteSlice {
+func (v Value) NodeUnionMemberTypes() []ByteSliceReference {
 	panic("implement me")
 }
 

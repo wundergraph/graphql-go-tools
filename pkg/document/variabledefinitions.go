@@ -3,7 +3,7 @@ package document
 // VariableDefinition as specified in:
 // http://facebook.github.io/graphql/draft/#VariableDefinition
 type VariableDefinition struct {
-	Variable     ByteSlice
+	Variable     ByteSliceReference
 	Type         int
 	DefaultValue int
 }
@@ -16,7 +16,7 @@ func (v VariableDefinition) NodeValueReference() int {
 	panic("implement me")
 }
 
-func (v VariableDefinition) NodeUnionMemberTypes() []ByteSlice {
+func (v VariableDefinition) NodeUnionMemberTypes() []ByteSliceReference {
 	panic("implement me")
 }
 
@@ -52,7 +52,7 @@ func (v VariableDefinition) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (v VariableDefinition) NodeImplementsInterfaces() []ByteSlice {
+func (v VariableDefinition) NodeImplementsInterfaces() []ByteSliceReference {
 	panic("implement me")
 }
 
@@ -72,7 +72,7 @@ func (v VariableDefinition) NodeArgumentsDefinition() []int {
 	panic("implement me")
 }
 
-func (v VariableDefinition) NodeAlias() string {
+func (v VariableDefinition) NodeAlias() ByteSliceReference {
 	panic("implement me")
 }
 
@@ -84,11 +84,11 @@ func (v VariableDefinition) NodeType() int {
 	return v.Type
 }
 
-func (v VariableDefinition) NodeName() string {
-	return string(v.Variable)
+func (v VariableDefinition) NodeName() ByteSliceReference {
+	return v.Variable
 }
 
-func (v VariableDefinition) NodeDescription() string {
+func (v VariableDefinition) NodeDescription() ByteSliceReference {
 	panic("implement me")
 }
 
