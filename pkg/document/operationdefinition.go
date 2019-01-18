@@ -1,5 +1,7 @@
 package document
 
+import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
+
 // OperationDefinition as specified in:
 // http://facebook.github.io/graphql/draft/#OperationDefinition
 type OperationDefinition struct {
@@ -8,6 +10,11 @@ type OperationDefinition struct {
 	VariableDefinitions []int
 	Directives          []int
 	SelectionSet        SelectionSet
+	Position position.Position
+}
+
+func (o OperationDefinition) NodePosition() position.Position {
+	return o.Position
 }
 
 func (o OperationDefinition) NodeValueType() ValueType {

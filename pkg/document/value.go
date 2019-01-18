@@ -1,9 +1,16 @@
 package document
 
+import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
+
 // Value as specified in http://facebook.github.io/graphql/draft/#Value
 type Value struct {
 	ValueType ValueType
 	Reference int
+	Position position.Position
+}
+
+func (v Value) NodePosition() position.Position {
+	return v.Position
 }
 
 func (v Value) NodeValueType() ValueType {

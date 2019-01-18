@@ -1,6 +1,8 @@
 //go:generate go-enum -f=$GOFILE
 package document
 
+import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
+
 /*
 // TypeKind marks Types to identify them
 ENUM(
@@ -18,6 +20,11 @@ type Type struct {
 	Kind   TypeKind
 	Name   ByteSliceReference
 	OfType int
+	Position position.Position
+}
+
+func (t Type) NodePosition() position.Position {
+	return t.Position
 }
 
 func (t Type) NodeName() ByteSliceReference {

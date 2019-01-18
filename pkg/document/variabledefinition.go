@@ -1,11 +1,18 @@
 package document
 
+import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
+
 // VariableDefinition as specified in:
 // http://facebook.github.io/graphql/draft/#VariableDefinition
 type VariableDefinition struct {
 	Variable     ByteSliceReference
 	Type         int
 	DefaultValue int
+	Position     position.Position
+}
+
+func (v VariableDefinition) NodePosition() position.Position {
+	return v.Position
 }
 
 func (v VariableDefinition) NodeValueType() ValueType {

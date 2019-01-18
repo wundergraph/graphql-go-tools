@@ -1,5 +1,7 @@
 package document
 
+import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
+
 // TypeSystemDefinition as specified in:
 // http://facebook.github.io/graphql/draft/#TypeSystemDefinition
 type TypeSystemDefinition struct {
@@ -11,6 +13,11 @@ type TypeSystemDefinition struct {
 	EnumTypeDefinitions        []int
 	InputObjectTypeDefinitions []int
 	DirectiveDefinitions       []int
+	Position position.Position
+}
+
+func (t TypeSystemDefinition) NodePosition() position.Position {
+	return t.Position
 }
 
 func (t TypeSystemDefinition) NodeValueType() ValueType {

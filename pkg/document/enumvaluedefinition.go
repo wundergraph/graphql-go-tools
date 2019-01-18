@@ -1,11 +1,18 @@
 package document
 
+import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
+
 // EnumValueDefinition as specified in:
 // http://facebook.github.io/graphql/draft/#EnumValueDefinition
 type EnumValueDefinition struct {
 	Description ByteSliceReference
 	EnumValue   ByteSliceReference
 	Directives  []int
+	Position position.Position
+}
+
+func (e EnumValueDefinition) NodePosition() position.Position {
+	return e.Position
 }
 
 func (e EnumValueDefinition) NodeValueType() ValueType {

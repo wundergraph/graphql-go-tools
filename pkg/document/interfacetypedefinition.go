@@ -1,5 +1,7 @@
 package document
 
+import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
+
 // InterfaceTypeDefinition as specified in:
 // http://facebook.github.io/graphql/draft/#InterfaceTypeDefinition
 type InterfaceTypeDefinition struct {
@@ -7,6 +9,11 @@ type InterfaceTypeDefinition struct {
 	Name             ByteSliceReference
 	FieldsDefinition []int
 	Directives       []int
+	Position position.Position
+}
+
+func (i InterfaceTypeDefinition) NodePosition() position.Position {
+	return i.Position
 }
 
 func (i InterfaceTypeDefinition) NodeValueType() ValueType {

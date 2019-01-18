@@ -1,11 +1,18 @@
 package document
 
+import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
+
 // SelectionSet as specified in:
 // http://facebook.github.io/graphql/draft/#SelectionSet
 type SelectionSet struct {
 	Fields          []int
 	FragmentSpreads []int
 	InlineFragments []int
+	Position position.Position
+}
+
+func (s SelectionSet) NodePosition() position.Position {
+	return s.Position
 }
 
 func (s SelectionSet) NodeValueType() ValueType {

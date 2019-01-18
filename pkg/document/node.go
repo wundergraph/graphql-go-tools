@@ -1,5 +1,7 @@
 package document
 
+import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
+
 type Node interface {
 	NodeName() ByteSliceReference
 	NodeAlias() ByteSliceReference
@@ -22,6 +24,7 @@ type Node interface {
 	TypeSystemDefinitionNode
 	UnionTypeSystemDefinitionNode
 	ValueNode
+	PositionNode
 }
 
 type TypeSystemDefinitionNode interface {
@@ -42,4 +45,8 @@ type UnionTypeSystemDefinitionNode interface {
 type ValueNode interface {
 	NodeValueType() ValueType
 	NodeValueReference() int
+}
+
+type PositionNode interface {
+	NodePosition () position.Position
 }

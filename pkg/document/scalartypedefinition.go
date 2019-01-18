@@ -1,11 +1,18 @@
 package document
 
+import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
+
 // ScalarTypeDefinition as specified in:
 // http://facebook.github.io/graphql/draft/#sec-Scalars
 type ScalarTypeDefinition struct {
 	Description ByteSliceReference
 	Name        ByteSliceReference
 	Directives  []int
+	Position position.Position
+}
+
+func (s ScalarTypeDefinition) NodePosition() position.Position {
+	return s.Position
 }
 
 func (s ScalarTypeDefinition) NodeValueType() ValueType {

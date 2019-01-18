@@ -1,5 +1,7 @@
 package document
 
+import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
+
 // DirectiveDefinition as specified in
 // http://facebook.github.io/graphql/draft/#DirectiveDefinition
 type DirectiveDefinition struct {
@@ -7,6 +9,11 @@ type DirectiveDefinition struct {
 	Name                ByteSliceReference
 	ArgumentsDefinition []int
 	DirectiveLocations  DirectiveLocations
+	Position position.Position
+}
+
+func (d DirectiveDefinition) NodePosition() position.Position {
+	return d.Position
 }
 
 func (d DirectiveDefinition) NodeValueType() ValueType {
