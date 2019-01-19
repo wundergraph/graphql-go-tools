@@ -22,7 +22,6 @@ func (p *Parser) parseArguments(index *[]int) error {
 		if key == keyword.IDENT {
 			identToken := p.l.Read()
 			valueName = identToken.Literal
-
 		} else if key == keyword.BRACKETCLOSE {
 			_ = p.l.Read()
 			return nil

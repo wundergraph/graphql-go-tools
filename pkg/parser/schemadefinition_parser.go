@@ -38,7 +38,6 @@ func (p *Parser) parseSchemaDefinition() (definition document.SchemaDefinition, 
 			}
 
 			err = definition.SetOperationType(p.ByteSlice(next.Literal), p.ByteSlice(operationNameToken.Literal))
-
 			if err != nil {
 				return definition, err
 			}

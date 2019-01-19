@@ -7,10 +7,7 @@ import (
 
 func (p *Parser) parseExecutableDefinition() (executableDefinition document.ExecutableDefinition, err error) {
 
-	isSimpleQuery, err := p.peekExpect(keyword.CURLYBRACKETOPEN, false)
-	if err != nil {
-		return executableDefinition, err
-	}
+	isSimpleQuery := p.peekExpect(keyword.CURLYBRACKETOPEN, false)
 
 	if isSimpleQuery {
 		return p.parseSimpleQueryExecutableDefinition()

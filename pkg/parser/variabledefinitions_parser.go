@@ -7,12 +7,7 @@ import (
 
 func (p *Parser) parseVariableDefinitions(index *[]int) (err error) {
 
-	hasVariableDefinitions, err := p.peekExpect(keyword.BRACKETOPEN, true)
-	if err != nil {
-		return err
-	}
-
-	if !hasVariableDefinitions {
+	if open := p.peekExpect(keyword.BRACKETOPEN, true); !open {
 		return
 	}
 

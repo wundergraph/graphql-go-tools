@@ -20,10 +20,7 @@ func (p *Parser) parseUnionTypeDefinition(index *[]int) error {
 		return err
 	}
 
-	shouldParseMembers, err := p.peekExpect(keyword.EQUALS, true)
-	if err != nil {
-		return err
-	}
+	shouldParseMembers := p.peekExpect(keyword.EQUALS, true)
 
 	for shouldParseMembers {
 
@@ -34,10 +31,7 @@ func (p *Parser) parseUnionTypeDefinition(index *[]int) error {
 
 		definition.UnionMemberTypes = append(definition.UnionMemberTypes, member.Literal)
 
-		shouldParseMembers, err = p.peekExpect(keyword.PIPE, true)
-		if err != nil {
-			return err
-		}
+		shouldParseMembers = p.peekExpect(keyword.PIPE, true)
 	}
 
 	*index = append(*index, p.putUnionTypeDefinition(definition))

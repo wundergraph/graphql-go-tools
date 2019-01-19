@@ -13,10 +13,7 @@ func (p *Parser) parseField(index *[]int) (err error) {
 	firstIdent := p.l.Read()
 	field.Name = firstIdent.Literal
 
-	hasAlias, err := p.peekExpect(keyword.COLON, true)
-	if err != nil {
-		return err
-	}
+	hasAlias := p.peekExpect(keyword.COLON, true)
 
 	if hasAlias {
 		field.Alias = field.Name

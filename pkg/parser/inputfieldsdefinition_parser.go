@@ -6,16 +6,11 @@ import (
 
 func (p *Parser) parseInputFieldsDefinition(index *[]int) error {
 
-	hasFields, err := p.peekExpect(keyword.CURLYBRACKETOPEN, true)
-	if err != nil {
-		return err
-	}
-
-	if !hasFields {
+	if open := p.peekExpect(keyword.CURLYBRACKETOPEN, true); !open {
 		return nil
 	}
 
-	err = p.parseInputValueDefinitions(index, keyword.CURLYBRACKETCLOSE)
+	err := p.parseInputValueDefinitions(index, keyword.CURLYBRACKETCLOSE)
 	if err != nil {
 		return err
 	}

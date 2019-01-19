@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
@@ -27,15 +26,7 @@ func (p *Parser) parseOperationDefinition(index *[]int) (err error) {
 		operationDefinition.OperationType = document.OperationTypeQuery
 	}
 
-	if err != nil {
-		return err
-	}
-
-	isNamedOperation, err := p.peekExpect(keyword.IDENT, false)
-	if err != nil {
-		return err
-	}
-
+	isNamedOperation := p.peekExpect(keyword.IDENT, false)
 	if isNamedOperation {
 		name := p.l.Read()
 		operationDefinition.Name = name.Literal
@@ -52,9 +43,6 @@ func (p *Parser) parseOperationDefinition(index *[]int) (err error) {
 	}
 
 	err = p.parseSelectionSet(&operationDefinition.SelectionSet)
-	if operationDefinition.SelectionSet.IsEmpty() {
-		err = fmt.Errorf("parseOperationDefinition: selectionSet must not be empty")
-	}
 
 	*index = append(*index, p.putOperationDefinition(operationDefinition))
 

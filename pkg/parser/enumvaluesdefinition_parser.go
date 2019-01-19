@@ -7,12 +7,7 @@ import (
 
 func (p *Parser) parseEnumValuesDefinition(index *[]int) error {
 
-	hasCurlyBracketOpen, err := p.peekExpect(keyword.CURLYBRACKETOPEN, true)
-	if err != nil {
-		return err
-	}
-
-	if !hasCurlyBracketOpen {
+	if open := p.peekExpect(keyword.CURLYBRACKETOPEN, true); !open {
 		return nil
 	}
 
@@ -37,7 +32,7 @@ func (p *Parser) parseEnumValuesDefinition(index *[]int) error {
 
 			description = nil
 
-			err = p.parseDirectives(&definition.Directives)
+			err := p.parseDirectives(&definition.Directives)
 			if err != nil {
 				return err
 			}
