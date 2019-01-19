@@ -1,4 +1,4 @@
-[![CircleCI](https://circleci.com/gh/jensneuse/graphql-go-tools.svg?style=svg)](https://circleci.com/gh/jensneuse/graphql-go-tools)
+[![Coverage Status](https://coveralls.io/repos/github/jensneuse/graphql-go-tools/badge.svg?branch=master)](https://coveralls.io/github/jensneuse/graphql-go-tools?branch=master) [![CircleCI](https://circleci.com/gh/jensneuse/graphql-go-tools.svg?style=svg)](https://circleci.com/gh/jensneuse/graphql-go-tools)
 # graphql-go-tools
 
 This repository implements useful graphql tools in the golang programming language.
