@@ -156,6 +156,9 @@ func TestLexer_Peek_Read(t *testing.T) {
 	t.Run("read single line string", func(t *testing.T) {
 		run("\"foo\"", mustPeekAndRead(keyword.STRING, "foo"))
 	})
+	t.Run("peek incomplete string as quote", func(t *testing.T) {
+		run("\"foo", mustPeekAndRead(keyword.QUOTE, "\""))
+	})
 	t.Run("read single line string with escaped quote", func(t *testing.T) {
 		run("\"foo \\\" bar\"", mustPeekAndRead(keyword.STRING, "foo \\\" bar"))
 	})
