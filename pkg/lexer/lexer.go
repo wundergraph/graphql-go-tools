@@ -132,7 +132,10 @@ func (l *Lexer) keywordFromRune(r byte) keyword.Keyword {
 	case runes.LINETERMINATOR:
 		return keyword.LINETERMINATOR
 	case runes.QUOTE:
-		return keyword.STRING
+		if l.peekWillHaveRune(runes.QUOTE, 1) {
+			return keyword.STRING
+		}
+		return keyword.QUOTE
 	case runes.DOLLAR:
 		return keyword.VARIABLE
 	case runes.PIPE:
@@ -174,6 +177,16 @@ func (l *Lexer) keywordFromRune(r byte) keyword.Keyword {
 	}
 
 	return l.peekIdent()
+}
+
+func (l *Lexer) peekWillHaveRune(rune byte, offset int) bool {
+	for i := l.inputPosition + offset; i < len(l.input); i++ {
+		if l.input[i] == rune {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (l *Lexer) peekIsFloat() (isFloat bool) {
@@ -578,6 +591,12 @@ func (l *Lexer) readMultiLineString(tok *token.Token) {
 }
 
 func (l *Lexer) readSingleLineString(tok *token.Token) {
+
+	if !l.peekWillHaveRune(runes.QUOTE, 0) {
+		tok.Keyword = keyword.QUOTE
+		tok.SetEnd(l.inputPosition, l.textPosition)
+		return
+	}
 
 	tok.SetStart(l.inputPosition, l.textPosition)
 

@@ -6,16 +6,13 @@ import (
 
 func (p *Parser) parseArgumentsDefinition(index *[]int) error {
 
-	isBracketOpen, err := p.peekExpect(keyword.BRACKETOPEN, true)
-	if err != nil {
-		return err
-	}
+	isBracketOpen := p.peekExpect(keyword.BRACKETOPEN, true)
 
 	if !isBracketOpen {
 		return nil
 	}
 
-	err = p.parseInputValueDefinitions(index, keyword.BRACKETCLOSE)
+	err := p.parseInputValueDefinitions(index, keyword.BRACKETCLOSE)
 	if err != nil {
 		return err
 	}

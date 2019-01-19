@@ -5,27 +5,9 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
-/*func (p *Parser) parseType(index *int) error {
-
-	next, err := p.l.Peek(true)
-	if err != nil {
-		return err
-	}
-
-	if next == keyword.SQUAREBRACKETOPEN {
-		return p.parseListType(index)
-	}
-
-	return p.parseNamedType(index)
-
-}*/
-
 func (p *Parser) parseType(index *int) error {
 
-	isListType, err := p.peekExpect(keyword.SQUAREBRACKETOPEN, true)
-	if err != nil {
-		return err
-	}
+	isListType := p.peekExpect(keyword.SQUAREBRACKETOPEN, true)
 
 	firstType := p.makeType(index)
 	var ofType int
@@ -33,7 +15,7 @@ func (p *Parser) parseType(index *int) error {
 
 	if isListType {
 
-		err = p.parseType(&ofType)
+		err := p.parseType(&ofType)
 		if err != nil {
 			return err
 		}
@@ -52,10 +34,7 @@ func (p *Parser) parseType(index *int) error {
 		name = ident.Literal
 	}
 
-	isNonNull, err := p.peekExpect(keyword.BANG, true)
-	if err != nil {
-		return err
-	}
+	isNonNull := p.peekExpect(keyword.BANG, true)
 
 	if !isNonNull && isListType {
 		firstType.Kind = document.TypeKindLIST

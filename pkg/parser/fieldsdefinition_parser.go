@@ -7,12 +7,7 @@ import (
 
 func (p *Parser) parseFieldsDefinition(index *[]int) (err error) {
 
-	hasSubFields, err := p.peekExpect(keyword.CURLYBRACKETOPEN, true)
-	if err != nil {
-		return err
-	}
-
-	if !hasSubFields {
+	if hasOpen := p.peekExpect(keyword.CURLYBRACKETOPEN, true); !hasOpen {
 		return
 	}
 

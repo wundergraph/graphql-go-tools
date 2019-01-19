@@ -173,19 +173,13 @@ func (p *Parser) readExpect(expected keyword.Keyword, enclosingFunctionName stri
 	return
 }
 
-func (p *Parser) peekExpect(expected keyword.Keyword, swallow bool) (matched bool, err error) {
-	next := p.l.Peek(true)
-	if err != nil {
-		return false, err
-	}
-
-	matched = next == expected
-
-	if matched && swallow {
+func (p *Parser) peekExpect(expected keyword.Keyword, swallow bool) bool {
+	matches := expected == p.l.Peek(true)
+	if swallow && matches {
 		p.l.Read()
 	}
 
-	return
+	return matches
 }
 
 func (p *Parser) indexPoolGet() []int {

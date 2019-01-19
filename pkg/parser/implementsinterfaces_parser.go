@@ -7,12 +7,7 @@ import (
 
 func (p *Parser) parseImplementsInterfaces() (implementsInterfaces document.ImplementsInterfaces, err error) {
 
-	doesImplement, err := p.peekExpect(keyword.IMPLEMENTS, true)
-	if err != nil {
-		return implementsInterfaces, err
-	}
-
-	if !doesImplement {
+	if implements := p.peekExpect(keyword.IMPLEMENTS, true); !implements {
 		return
 	}
 
@@ -24,12 +19,7 @@ func (p *Parser) parseImplementsInterfaces() (implementsInterfaces document.Impl
 
 		implementsInterfaces = append(implementsInterfaces, next.Literal)
 
-		willImplementAnother, err := p.peekExpect(keyword.AND, true)
-		if err != nil {
-			return implementsInterfaces, err
-		}
-
-		if !willImplementAnother {
+		if another := p.peekExpect(keyword.AND, true); !another {
 			return implementsInterfaces, err
 		}
 	}

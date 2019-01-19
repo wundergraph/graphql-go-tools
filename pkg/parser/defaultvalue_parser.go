@@ -6,12 +6,7 @@ import (
 
 func (p *Parser) parseDefaultValue(index *int) error {
 
-	hasDefaultValue, err := p.peekExpect(keyword.EQUALS, true)
-	if err != nil {
-		return err
-	}
-
-	if !hasDefaultValue {
+	if hasDefaultValue := p.peekExpect(keyword.EQUALS, true); !hasDefaultValue {
 		return nil
 	}
 
