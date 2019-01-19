@@ -6,10 +6,7 @@ import (
 
 func (p *Parser) parsePeekedIntValue(index *int) error {
 
-	integerToken, err := p.l.Read()
-	if err != nil {
-		return err
-	}
+	integerToken := p.l.Read()
 
 	integer, err := transform.StringToInt32(p.ByteSlice(integerToken.Literal))
 	if err != nil {

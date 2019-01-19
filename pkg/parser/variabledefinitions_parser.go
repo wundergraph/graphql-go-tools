@@ -7,28 +7,17 @@ import (
 
 func (p *Parser) parseVariableDefinitions(index *[]int) (err error) {
 
-	hasVariableDefinitions, err := p.peekExpect(keyword.BRACKETOPEN, true)
-	if err != nil {
-		return err
-	}
-
-	if !hasVariableDefinitions {
+	if open := p.peekExpect(keyword.BRACKETOPEN, true); !open {
 		return
 	}
 
 	for {
-		next, err := p.l.Peek(true)
-		if err != nil {
-			return err
-		}
+		next := p.l.Peek(true)
 
 		switch next {
 		case keyword.VARIABLE:
 
-			variable, err := p.l.Read()
-			if err != nil {
-				return err
-			}
+			variable := p.l.Read()
 
 			variableDefinition := document.VariableDefinition{
 				Variable: variable.Literal,
@@ -52,10 +41,10 @@ func (p *Parser) parseVariableDefinitions(index *[]int) (err error) {
 			*index = append(*index, p.putVariableDefinition(variableDefinition))
 
 		case keyword.BRACKETCLOSE:
-			_, err = p.l.Read()
+			p.l.Read()
 			return err
 		default:
-			invalid, _ := p.l.Read()
+			invalid := p.l.Read()
 			return newErrInvalidType(invalid.TextPosition, "parseVariableDefinitions", "variable/bracket close", invalid.Keyword.String())
 		}
 	}

@@ -7,39 +7,23 @@ import (
 
 func (p *Parser) parseEnumValuesDefinition(index *[]int) error {
 
-	hasCurlyBracketOpen, err := p.peekExpect(keyword.CURLYBRACKETOPEN, true)
-	if err != nil {
-		return err
-	}
-
-	if !hasCurlyBracketOpen {
+	if open := p.peekExpect(keyword.CURLYBRACKETOPEN, true); !open {
 		return nil
 	}
 
 	var description *document.ByteSliceReference
 
 	for {
-		next, err := p.l.Peek(true)
-		if err != nil {
-			return err
-		}
+		next := p.l.Peek(true)
 
 		if next == keyword.STRING {
 
-			stringToken, err := p.l.Read()
-			if err != nil {
-				return err
-			}
-
+			stringToken := p.l.Read()
 			description = &stringToken.Literal
 			continue
 
 		} else if next == keyword.IDENT {
-			ident, err := p.l.Read()
-			if err != nil {
-				return err
-			}
-
+			ident := p.l.Read()
 			definition := p.makeEnumValueDefinition()
 			definition.EnumValue = ident.Literal
 			if description != nil {
@@ -48,7 +32,7 @@ func (p *Parser) parseEnumValuesDefinition(index *[]int) error {
 
 			description = nil
 
-			err = p.parseDirectives(&definition.Directives)
+			err := p.parseDirectives(&definition.Directives)
 			if err != nil {
 				return err
 			}
@@ -57,11 +41,11 @@ func (p *Parser) parseEnumValuesDefinition(index *[]int) error {
 			continue
 
 		} else if next == keyword.CURLYBRACKETCLOSE {
-			_, err = p.l.Read()
-			return err
+			p.l.Read()
+			return nil
 		}
 
-		invalid, _ := p.l.Read()
+		invalid := p.l.Read()
 		return newErrInvalidType(invalid.TextPosition, "parseEnumValuesDefinition", "string/ident/curlyBracketClose", invalid.Keyword.String())
 	}
 }

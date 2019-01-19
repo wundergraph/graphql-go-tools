@@ -7,42 +7,26 @@ import (
 
 func (p *Parser) parseFieldsDefinition(index *[]int) (err error) {
 
-	hasSubFields, err := p.peekExpect(keyword.CURLYBRACKETOPEN, true)
-	if err != nil {
-		return err
-	}
-
-	if !hasSubFields {
+	if hasOpen := p.peekExpect(keyword.CURLYBRACKETOPEN, true); !hasOpen {
 		return
 	}
 
 	var description *document.ByteSliceReference
 
 	for {
-		next, err := p.l.Peek(true)
-		if err != nil {
-			return err
-		}
+		next := p.l.Peek(true)
 
 		switch next {
 		case keyword.STRING:
-			stringToken, err := p.l.Read()
-			if err != nil {
-				return err
-			}
-
+			stringToken := p.l.Read()
 			description = &stringToken.Literal
 
 		case keyword.CURLYBRACKETCLOSE:
-			_, err = p.l.Read()
-			return err
+			p.l.Read()
+			return nil
 		case keyword.IDENT, keyword.TYPE:
 
-			fieldIdent, err := p.l.Read()
-			if err != nil {
-				return err
-			}
-
+			fieldIdent := p.l.Read()
 			definition := p.makeFieldDefinition()
 			if description != nil {
 				definition.Description = *description
@@ -73,7 +57,7 @@ func (p *Parser) parseFieldsDefinition(index *[]int) (err error) {
 
 			*index = append(*index, p.putFieldDefinition(definition))
 		default:
-			invalid, _ := p.l.Read()
+			invalid := p.l.Read()
 			return newErrInvalidType(invalid.TextPosition, "parseFieldsDefinition", "string/curly bracket close/ident", invalid.Keyword.String())
 		}
 	}

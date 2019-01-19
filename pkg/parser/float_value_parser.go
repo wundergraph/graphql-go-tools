@@ -6,10 +6,7 @@ import (
 
 func (p *Parser) parsePeekedFloatValue(index *int) error {
 
-	floatToken, err := p.l.Read()
-	if err != nil {
-		return err
-	}
+	floatToken := p.l.Read()
 
 	float, err := transform.StringToFloat32(p.ByteSlice(floatToken.Literal))
 	if err != nil {

@@ -7,32 +7,20 @@ import (
 
 func (p *Parser) parseSelectionSet(set *document.SelectionSet) (err error) {
 
-	hasSubSelection, err := p.peekExpect(keyword.CURLYBRACKETOPEN, true)
-	if err != nil {
-		return err
-	}
-
-	if !hasSubSelection {
+	if open := p.peekExpect(keyword.CURLYBRACKETOPEN, true); !open {
 		return
 	}
 
 	for {
 
-		next, err := p.l.Peek(true)
-		if err != nil {
-			return err
-		}
+		next := p.l.Peek(true)
 
 		if next == keyword.CURLYBRACKETCLOSE {
-			_, err = p.l.Read()
-			return err
+			p.l.Read()
+			return nil
 		}
 
-		isFragmentSelection, err := p.peekExpect(keyword.SPREAD, true)
-		if err != nil {
-			return err
-		}
-
+		isFragmentSelection := p.peekExpect(keyword.SPREAD, true)
 		if !isFragmentSelection {
 			err := p.parseField(&set.Fields)
 			if err != nil {
@@ -40,11 +28,7 @@ func (p *Parser) parseSelectionSet(set *document.SelectionSet) (err error) {
 			}
 		} else {
 
-			isInlineFragment, err := p.peekExpect(keyword.ON, true)
-			if err != nil {
-				return err
-			}
-
+			isInlineFragment := p.peekExpect(keyword.ON, true)
 			if isInlineFragment {
 
 				err := p.parseInlineFragment(&set.InlineFragments)

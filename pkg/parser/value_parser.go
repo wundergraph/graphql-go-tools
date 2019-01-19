@@ -10,22 +10,18 @@ var (
 	parseValuePossibleKeywords = []keyword.Keyword{keyword.FALSE, keyword.TRUE, keyword.VARIABLE, keyword.INTEGER, keyword.FLOAT, keyword.STRING, keyword.NULL, keyword.IDENT, keyword.SQUAREBRACKETOPEN, keyword.SQUAREBRACKETCLOSE}
 )
 
-func (p *Parser) parseValue(index *int) error {
+func (p *Parser) parseValue(index *int) (err error) {
 
-	key, err := p.l.Peek(true)
-	if err != nil {
-		return err
-	}
-
+	key := p.l.Peek(true)
 	value := p.makeValue(index)
 
 	switch key {
 	case keyword.FALSE, keyword.TRUE:
 		value.ValueType = document.ValueTypeBoolean
-		err = p.parsePeekedBoolValue(&value.Reference)
+		p.parsePeekedBoolValue(&value.Reference)
 	case keyword.VARIABLE:
 		value.ValueType = document.ValueTypeVariable
-		err = p.parsePeekedByteSlice(&value.Reference)
+		p.parsePeekedByteSlice(&value.Reference)
 	case keyword.INTEGER:
 		value.ValueType = document.ValueTypeInt
 		err = p.parsePeekedIntValue(&value.Reference)
@@ -34,13 +30,13 @@ func (p *Parser) parseValue(index *int) error {
 		err = p.parsePeekedFloatValue(&value.Reference)
 	case keyword.STRING:
 		value.ValueType = document.ValueTypeString
-		err = p.parsePeekedByteSlice(&value.Reference)
+		p.parsePeekedByteSlice(&value.Reference)
 	case keyword.NULL:
 		value.ValueType = document.ValueTypeNull
-		_, err = p.l.Read()
+		p.l.Read()
 	case keyword.IDENT:
 		value.ValueType = document.ValueTypeEnum
-		err = p.parsePeekedByteSlice(&value.Reference)
+		p.parsePeekedByteSlice(&value.Reference)
 	case keyword.SQUAREBRACKETOPEN:
 		value.ValueType = document.ValueTypeList
 		err = p.parsePeekedListValue(&value.Reference)
@@ -48,7 +44,7 @@ func (p *Parser) parseValue(index *int) error {
 		value.ValueType = document.ValueTypeObject
 		err = p.parsePeekedObjectValue(&value.Reference)
 	default:
-		invalidToken, _ := p.l.Read()
+		invalidToken := p.l.Read()
 		return newErrInvalidType(invalidToken.TextPosition, "parseValue", fmt.Sprintf("%v", parseValuePossibleKeywords), string(invalidToken.Keyword))
 	}
 

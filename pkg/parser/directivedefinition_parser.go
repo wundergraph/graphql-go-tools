@@ -32,21 +32,12 @@ func (p *Parser) parseDirectiveDefinition(index *[]int) error {
 	}
 
 	for {
-		next, err := p.l.Peek(true)
-		if err != nil {
-			return err
-		}
+		next := p.l.Peek(true)
 
 		if next == keyword.PIPE {
-			_, err = p.l.Read()
-			if err != nil {
-				return err
-			}
+			p.l.Read()
 		} else if next == keyword.IDENT {
-			location, err := p.l.Read()
-			if err != nil {
-				return err
-			}
+			location := p.l.Read()
 
 			parsedLocation, err := document.ParseDirectiveLocation(p.ByteSlice(location.Literal))
 			if err != nil {

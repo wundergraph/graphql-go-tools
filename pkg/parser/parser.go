@@ -86,8 +86,8 @@ type ParsedDefinitions struct {
 // Lexer is the interface used by the Parser to lex tokens
 type Lexer interface {
 	SetInput(input []byte) error
-	Read() (tok token.Token, err error)
-	Peek(ignoreWhitespace bool) (key keyword.Keyword, err error)
+	Read() (tok token.Token)
+	Peek(ignoreWhitespace bool) keyword.Keyword
 	ByteSlice(reference document.ByteSliceReference) document.ByteSlice
 }
 
@@ -165,11 +165,7 @@ func (p *Parser) ParseExecutableDefinition(input []byte) (definition document.Ex
 }
 
 func (p *Parser) readExpect(expected keyword.Keyword, enclosingFunctionName string) (t token.Token, err error) {
-	t, err = p.l.Read()
-	if err != nil {
-		return t, err
-	}
-
+	t = p.l.Read()
 	if t.Keyword != expected {
 		return t, newErrInvalidType(t.TextPosition, enclosingFunctionName, expected.String(), t.Keyword.String()+" lit: "+string(p.ByteSlice(t.Literal)))
 	}
@@ -177,19 +173,13 @@ func (p *Parser) readExpect(expected keyword.Keyword, enclosingFunctionName stri
 	return
 }
 
-func (p *Parser) peekExpect(expected keyword.Keyword, swallow bool) (matched bool, err error) {
-	next, err := p.l.Peek(true)
-	if err != nil {
-		return false, err
+func (p *Parser) peekExpect(expected keyword.Keyword, swallow bool) bool {
+	matches := expected == p.l.Peek(true)
+	if swallow && matches {
+		p.l.Read()
 	}
 
-	matched = next == expected
-
-	if matched && swallow {
-		_, err = p.l.Read()
-	}
-
-	return
+	return matches
 }
 
 func (p *Parser) indexPoolGet() []int {
