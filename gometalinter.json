@@ -8,10 +8,9 @@
   "Enable": [
     "deadcode",
     "gofmt",
-    "gosimple",
     "ineffassign",
     "misspell",
-    "unused",
+    "staticcheck",
     "vet"
   ],
   "Exclude": [
