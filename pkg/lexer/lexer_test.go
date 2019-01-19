@@ -36,10 +36,7 @@ func TestLexer_Peek_Read(t *testing.T) {
 
 	mustRead := func(k keyword.Keyword, wantLiteral string) checkFunc {
 		return func(lex *Lexer, i int) {
-			tok, err := lex.Read()
-			if err != nil {
-				panic(err)
-			}
+			tok := lex.Read()
 			if k != tok.Keyword {
 				panic(fmt.Errorf("mustRead: want(keyword): %s, got: %s [check: %d]", k.String(), tok.String(), i))
 			}
@@ -57,15 +54,6 @@ func TestLexer_Peek_Read(t *testing.T) {
 		}
 	}
 
-	mustErrRead := func() checkFunc {
-		return func(lex *Lexer, i int) {
-			_, err := lex.Read()
-			if err == nil {
-				panic(fmt.Errorf("mustErrRead: want error, got nil [check: %d]", i))
-			}
-		}
-	}
-
 	resetInput := func(input string) checkFunc {
 		return func(lex *Lexer, i int) {
 			if err := lex.SetInput([]byte(input)); err != nil {
@@ -76,10 +64,7 @@ func TestLexer_Peek_Read(t *testing.T) {
 
 	mustReadPosition := func(lineStart, charStart, lineEnd, charEnd uint16) checkFunc {
 		return func(lex *Lexer, i int) {
-			tok, err := lex.Read()
-			if err != nil {
-				panic(err)
-			}
+			tok := lex.Read()
 
 			if lineStart != tok.TextPosition.LineStart {
 				panic(fmt.Errorf("mustReadPosition: want(lineStart): %d, got: %d [check: %d]", lineStart, tok.TextPosition.LineStart, i))
@@ -166,7 +151,7 @@ func TestLexer_Peek_Read(t *testing.T) {
 		run("1.3x", mustPeek(keyword.INTEGER, true))
 	})
 	t.Run("fail reading incomplete float", func(t *testing.T) {
-		run("13.", mustErrRead())
+		run("13.", mustPeekAndRead(keyword.FLOAT, "13."))
 	})
 	t.Run("read single line string", func(t *testing.T) {
 		run("\"foo\"", mustPeekAndRead(keyword.STRING, "foo"))
@@ -193,13 +178,15 @@ func TestLexer_Peek_Read(t *testing.T) {
 		run("|", mustPeekAndRead(keyword.PIPE, "|"))
 	})
 	t.Run("err reading dot", func(t *testing.T) {
-		run(".", mustErrRead())
+		run(".", mustPeekAndRead(keyword.DOT, "."))
 	})
 	t.Run("read fragment spread", func(t *testing.T) {
 		run("...", mustPeekAndRead(keyword.SPREAD, "..."))
 	})
 	t.Run("must not read invalid fragment spread", func(t *testing.T) {
-		run("..", mustErrRead())
+		run("..",
+			mustPeekAndRead(keyword.DOT, "."),
+			mustPeekAndRead(keyword.DOT, "."))
 	})
 	t.Run("read variable", func(t *testing.T) {
 		run("$123", mustPeekAndRead(keyword.VARIABLE, "123"))
@@ -217,7 +204,10 @@ func TestLexer_Peek_Read(t *testing.T) {
 		run("$foo\n", mustPeekAndRead(keyword.VARIABLE, "foo"))
 	})
 	t.Run("read err invalid variable", func(t *testing.T) {
-		run("$ foo", mustErrRead())
+		run("$ foo",
+			mustPeekAndRead(keyword.VARIABLE, ""),
+			mustPeekAndRead(keyword.IDENT, "foo"),
+		)
 	})
 	t.Run("read @", func(t *testing.T) {
 		run("@", mustPeekAndRead(keyword.AT, "@"))
@@ -512,10 +502,7 @@ func TestLexerRegressions(t *testing.T) {
 
 	var total []token.Token
 	for {
-		tok, err := lexer.Read()
-		if err != nil {
-			t.Fatal(err)
-		}
+		tok := lexer.Read()
 		if tok.Keyword == keyword.EOF {
 			break
 		}
@@ -559,11 +546,7 @@ func BenchmarkLexer(b *testing.B) {
 		for key != keyword.EOF {
 			key = lexer.Peek(true)
 
-			tok, err := lexer.Read()
-			if err != nil {
-				b.Fatal(err)
-			}
-
+			tok := lexer.Read()
 			_ = tok
 		}
 	}
