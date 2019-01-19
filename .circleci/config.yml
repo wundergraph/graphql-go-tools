@@ -15,4 +15,4 @@ jobs:
     - run: go get -u golang.org/x/tools/cmd/cover
     - run: go get -u github.com/mattn/goveralls
     - run: go test -v -covermode=count -coverprofile=coverage.out ./...
-    - run: $HOME/gopath/bin/goveralls -coverprofile=coverage.out -service=circle-ci -repotoken $COVERALLS_TOKEN
+    - run: goveralls -coverprofile=coverage.out -service=circle-ci -repotoken $COVERALLS_TOKEN
