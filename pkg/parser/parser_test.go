@@ -689,10 +689,7 @@ func TestParser(t *testing.T) {
 
 	mustParseLiteral := func(wantKeyword keyword.Keyword, wantLiteral string) checkFunc {
 		return func(parser *Parser, i int) {
-			next, err := parser.l.Read()
-			if err != nil {
-				panic(err)
-			}
+			next := parser.l.Read()
 
 			gotKeyword := next.Keyword
 			gotLiteral := string(parser.ByteSlice(next.Literal))

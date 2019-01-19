@@ -25,12 +25,9 @@ func TestLexer_Peek_Read(t *testing.T) {
 		}
 	}
 
-	mustPeek := func(k keyword.Keyword) checkFunc {
+	mustPeek := func(k keyword.Keyword, ignoreWhitespace bool) checkFunc {
 		return func(lex *Lexer, i int) {
-			peeked, err := lex.Peek(true)
-			if err != nil {
-				panic(err)
-			}
+			peeked := lex.Peek(ignoreWhitespace)
 			if peeked != k {
 				panic(fmt.Errorf("mustPeek: want: %s, got: %s [check: %d]", k.String(), peeked.String(), i))
 			}
@@ -39,10 +36,7 @@ func TestLexer_Peek_Read(t *testing.T) {
 
 	mustRead := func(k keyword.Keyword, wantLiteral string) checkFunc {
 		return func(lex *Lexer, i int) {
-			tok, err := lex.Read()
-			if err != nil {
-				panic(err)
-			}
+			tok := lex.Read()
 			if k != tok.Keyword {
 				panic(fmt.Errorf("mustRead: want(keyword): %s, got: %s [check: %d]", k.String(), tok.String(), i))
 			}
@@ -55,17 +49,8 @@ func TestLexer_Peek_Read(t *testing.T) {
 
 	mustPeekAndRead := func(k keyword.Keyword, literal string) checkFunc {
 		return func(lex *Lexer, i int) {
-			mustPeek(k)(lex, i)
+			mustPeek(k, true)(lex, i)
 			mustRead(k, literal)(lex, i)
-		}
-	}
-
-	mustErrRead := func() checkFunc {
-		return func(lex *Lexer, i int) {
-			_, err := lex.Read()
-			if err == nil {
-				panic(fmt.Errorf("mustErrRead: want error, got nil [check: %d]", i))
-			}
 		}
 	}
 
@@ -79,10 +64,7 @@ func TestLexer_Peek_Read(t *testing.T) {
 
 	mustReadPosition := func(lineStart, charStart, lineEnd, charEnd uint16) checkFunc {
 		return func(lex *Lexer, i int) {
-			tok, err := lex.Read()
-			if err != nil {
-				panic(err)
-			}
+			tok := lex.Read()
 
 			if lineStart != tok.TextPosition.LineStart {
 				panic(fmt.Errorf("mustReadPosition: want(lineStart): %d, got: %d [check: %d]", lineStart, tok.TextPosition.LineStart, i))
@@ -99,6 +81,12 @@ func TestLexer_Peek_Read(t *testing.T) {
 		}
 	}
 
+	t.Run("set too large input", func(t *testing.T) {
+		lex := NewLexer()
+		if err := lex.SetInput(make([]byte, 65536)); err == nil {
+			panic(fmt.Errorf("must err on too large input"))
+		}
+	})
 	t.Run("read correct when resetting input", func(t *testing.T) {
 		run("x",
 			mustRead(keyword.IDENT, "x"),
@@ -112,6 +100,28 @@ func TestLexer_Peek_Read(t *testing.T) {
 			mustRead(keyword.EOF, ""),
 			mustRead(keyword.EOF, ""),
 		)
+	})
+	t.Run("peek space", func(t *testing.T) {
+		run(" ", mustPeek(keyword.SPACE, false))
+	})
+	t.Run("peek tab", func(t *testing.T) {
+		run("\t", mustPeek(keyword.TAB, false))
+	})
+	t.Run("peek tab 2", func(t *testing.T) {
+		run("	", mustPeek(keyword.TAB, false))
+	})
+	t.Run("peek comma", func(t *testing.T) {
+		run(",", mustPeek(keyword.COMMA, false))
+	})
+	t.Run("peek line terminator", func(t *testing.T) {
+		run("\n", mustPeek(keyword.LINETERMINATOR, false))
+	})
+	t.Run("peek line terminator 2", func(t *testing.T) {
+		run(`
+`, mustPeek(keyword.LINETERMINATOR, false))
+	})
+	t.Run("peek dot", func(t *testing.T) {
+		run(".. ", mustPeek(keyword.DOT, false))
 	})
 	t.Run("read integer", func(t *testing.T) {
 		run("1337", mustPeekAndRead(keyword.INTEGER, "1337"))
@@ -134,8 +144,14 @@ func TestLexer_Peek_Read(t *testing.T) {
 	t.Run("read float with comma", func(t *testing.T) {
 		run("13.37,", mustPeekAndRead(keyword.FLOAT, "13.37"))
 	})
+	t.Run("peek invalid float as integer", func(t *testing.T) {
+		run("1.3.3", mustPeek(keyword.INTEGER, true))
+	})
+	t.Run("peek invalid float as integer 2", func(t *testing.T) {
+		run("1.3x", mustPeek(keyword.INTEGER, true))
+	})
 	t.Run("fail reading incomplete float", func(t *testing.T) {
-		run("13.", mustErrRead())
+		run("13.", mustPeekAndRead(keyword.FLOAT, "13."))
 	})
 	t.Run("read single line string", func(t *testing.T) {
 		run("\"foo\"", mustPeekAndRead(keyword.STRING, "foo"))
@@ -143,23 +159,34 @@ func TestLexer_Peek_Read(t *testing.T) {
 	t.Run("read single line string with escaped quote", func(t *testing.T) {
 		run("\"foo \\\" bar\"", mustPeekAndRead(keyword.STRING, "foo \\\" bar"))
 	})
+	t.Run("read single line string with escaped backslash", func(t *testing.T) {
+		run("\"foo \\\\ bar\"", mustPeekAndRead(keyword.STRING, "foo \\\\ bar"))
+	})
 	t.Run("read multi line string with escaped quote", func(t *testing.T) {
 		run("\"\"\"foo \\\" bar\"\"\"", mustPeekAndRead(keyword.STRING, "foo \\\" bar"))
 	})
+	t.Run("read multi line string with two escaped quotes", func(t *testing.T) {
+		run("\"\"\"foo \"\" bar\"\"\"", mustPeekAndRead(keyword.STRING, "foo \"\" bar"))
+	})
 	t.Run("read multi line string", func(t *testing.T) {
 		run("\"\"\"\nfoo\nbar\"\"\"", mustPeekAndRead(keyword.STRING, "\nfoo\nbar"))
+	})
+	t.Run("read multi line string with escaped backslash", func(t *testing.T) {
+		run("\"\"\"foo \\\\ bar\"\"\"", mustPeekAndRead(keyword.STRING, "foo \\\\ bar"))
 	})
 	t.Run("read pipe", func(t *testing.T) {
 		run("|", mustPeekAndRead(keyword.PIPE, "|"))
 	})
 	t.Run("err reading dot", func(t *testing.T) {
-		run(".", mustErrRead())
+		run(".", mustPeekAndRead(keyword.DOT, "."))
 	})
 	t.Run("read fragment spread", func(t *testing.T) {
 		run("...", mustPeekAndRead(keyword.SPREAD, "..."))
 	})
 	t.Run("must not read invalid fragment spread", func(t *testing.T) {
-		run("..", mustErrRead())
+		run("..",
+			mustPeekAndRead(keyword.DOT, "."),
+			mustPeekAndRead(keyword.DOT, "."))
 	})
 	t.Run("read variable", func(t *testing.T) {
 		run("$123", mustPeekAndRead(keyword.VARIABLE, "123"))
@@ -177,7 +204,10 @@ func TestLexer_Peek_Read(t *testing.T) {
 		run("$foo\n", mustPeekAndRead(keyword.VARIABLE, "foo"))
 	})
 	t.Run("read err invalid variable", func(t *testing.T) {
-		run("$ foo", mustErrRead())
+		run("$ foo",
+			mustPeekAndRead(keyword.VARIABLE, ""),
+			mustPeekAndRead(keyword.IDENT, "foo"),
+		)
 	})
 	t.Run("read @", func(t *testing.T) {
 		run("@", mustPeekAndRead(keyword.AT, "@"))
@@ -220,6 +250,9 @@ func TestLexer_Peek_Read(t *testing.T) {
 	})
 	t.Run("read ident with colon", func(t *testing.T) {
 		run("foo:", mustPeekAndRead(keyword.IDENT, "foo"))
+	})
+	t.Run("read ident with negative sign", func(t *testing.T) {
+		run("foo-bar", mustPeekAndRead(keyword.IDENT, "foo-bar"))
 	})
 	t.Run("read true", func(t *testing.T) {
 		run("true", mustPeekAndRead(keyword.TRUE, "true"))
@@ -469,10 +502,7 @@ func TestLexerRegressions(t *testing.T) {
 
 	var total []token.Token
 	for {
-		tok, err := lexer.Read()
-		if err != nil {
-			t.Fatal(err)
-		}
+		tok := lexer.Read()
 		if tok.Keyword == keyword.EOF {
 			break
 		}
@@ -512,19 +542,11 @@ func BenchmarkLexer(b *testing.B) {
 		}
 
 		var key keyword.Keyword
-		var err error
 
 		for key != keyword.EOF {
-			key, err = lexer.Peek(true)
-			if err != nil {
-				b.Fatal(err)
-			}
+			key = lexer.Peek(true)
 
-			tok, err := lexer.Read()
-			if err != nil {
-				b.Fatal(err)
-			}
-
+			tok := lexer.Read()
 			_ = tok
 		}
 	}

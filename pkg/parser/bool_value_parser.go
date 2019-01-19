@@ -4,18 +4,13 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
-func (p *Parser) parsePeekedBoolValue(index *int) error {
+func (p *Parser) parsePeekedBoolValue(index *int) {
 
-	tok, err := p.l.Read()
-	if err != nil {
-		return err
-	}
+	tok := p.l.Read()
 
 	if tok.Keyword == keyword.FALSE {
 		*index = 0
 	} else {
 		*index = 1
 	}
-
-	return nil
 }

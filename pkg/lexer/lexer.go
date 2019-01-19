@@ -46,7 +46,7 @@ func (l *Lexer) ByteSlice(reference document.ByteSliceReference) document.ByteSl
 }
 
 // Read emits the next token, this cannot be undone
-func (l *Lexer) Read() (tok token.Token, err error) {
+func (l *Lexer) Read() (tok token.Token) {
 
 	var next byte
 	var inputPositionStart int
@@ -66,28 +66,28 @@ func (l *Lexer) Read() (tok token.Token, err error) {
 
 	switch next {
 	case runes.QUOTE:
-		err = l.readString(&tok)
+		l.readString(&tok)
 		return
 	case runes.DOT:
-		err = l.readSpread(&tok)
+		l.readDotOrSpread(&tok)
 		return
 	case runes.DOLLAR:
-		err = l.readVariable(&tok)
+		l.readVariable(&tok)
 		return
 	}
 
 	if runeIsDigit(next) {
-		err = l.readDigit(&tok)
+		l.readDigit(&tok)
 		return
 	}
 
-	err = l.readIdent()
+	l.readIdent()
 	tok.Keyword = l.keywordFromIdent(inputPositionStart, l.inputPosition)
 	tok.SetEnd(l.inputPosition, l.textPosition)
 	return
 }
 
-func (l *Lexer) swallowWhitespace() (err error) {
+func (l *Lexer) swallowWhitespace() {
 
 	var next byte
 
@@ -95,11 +95,11 @@ func (l *Lexer) swallowWhitespace() (err error) {
 		next = l.peekRune()
 
 		if next == runes.EOF {
-			return nil
+			return
 		}
 
 		if !l.byteIsWhitespace(next) {
-			return nil
+			return
 		}
 
 		l.readRune()
@@ -107,79 +107,73 @@ func (l *Lexer) swallowWhitespace() (err error) {
 }
 
 // Peek will emit the next keyword without advancing the reader position
-func (l *Lexer) Peek(ignoreWhitespace bool) (key keyword.Keyword, err error) {
+func (l *Lexer) Peek(ignoreWhitespace bool) keyword.Keyword {
 
 	if ignoreWhitespace {
-		err = l.swallowWhitespace()
-		if err != nil {
-			return key, err
-		}
+		l.swallowWhitespace()
 	}
 
 	next := l.peekRune()
-	if err != nil {
-		return key, err
-	}
 
 	return l.keywordFromRune(next)
 }
 
-func (l *Lexer) keywordFromRune(r byte) (key keyword.Keyword, err error) {
+func (l *Lexer) keywordFromRune(r byte) keyword.Keyword {
 
 	switch r {
 	case runes.EOF:
-		return keyword.EOF, nil
+		return keyword.EOF
 	case runes.SPACE:
-		return keyword.SPACE, nil
+		return keyword.SPACE
 	case runes.TAB:
-		return keyword.TAB, nil
+		return keyword.TAB
 	case runes.COMMA:
-		return keyword.COMMA, nil
+		return keyword.COMMA
 	case runes.LINETERMINATOR:
-		return runes.LINETERMINATOR, nil
+		return keyword.LINETERMINATOR
 	case runes.QUOTE:
-		return keyword.STRING, nil
+		return keyword.STRING
 	case runes.DOLLAR:
-		return keyword.VARIABLE, nil
+		return keyword.VARIABLE
 	case runes.PIPE:
-		return keyword.PIPE, nil
+		return keyword.PIPE
 	case runes.EQUALS:
-		return keyword.EQUALS, nil
+		return keyword.EQUALS
 	case runes.AT:
-		return keyword.AT, nil
+		return keyword.AT
 	case runes.COLON:
-		return keyword.COLON, nil
+		return keyword.COLON
 	case runes.BANG:
-		return keyword.BANG, nil
+		return keyword.BANG
 	case runes.BRACKETOPEN:
-		return keyword.BRACKETOPEN, nil
+		return keyword.BRACKETOPEN
 	case runes.BRACKETCLOSE:
-		return keyword.BRACKETCLOSE, nil
+		return keyword.BRACKETCLOSE
 	case runes.CURLYBRACKETOPEN:
-		return keyword.CURLYBRACKETOPEN, nil
+		return keyword.CURLYBRACKETOPEN
 	case runes.CURLYBRACKETCLOSE:
-		return keyword.CURLYBRACKETCLOSE, nil
+		return keyword.CURLYBRACKETCLOSE
 	case runes.SQUAREBRACKETOPEN:
-		return keyword.SQUAREBRACKETOPEN, nil
+		return keyword.SQUAREBRACKETOPEN
 	case runes.SQUAREBRACKETCLOSE:
-		return keyword.SQUAREBRACKETCLOSE, nil
+		return keyword.SQUAREBRACKETCLOSE
 	case runes.AND:
-		return keyword.AND, nil
+		return keyword.AND
 	case runes.DOT:
 		if l.peekEquals(runes.DOT, runes.DOT, runes.DOT) {
-			return keyword.SPREAD, nil
+			return keyword.SPREAD
 		}
-		return key, fmt.Errorf("keywordFromRune: must be '...'")
+		return keyword.DOT
 	}
 
 	if runeIsDigit(r) {
 		if l.peekIsFloat() {
-			return keyword.FLOAT, nil
+			return keyword.FLOAT
 		}
-		return keyword.INTEGER, nil
+		return keyword.INTEGER
 	}
 
-	return l.peekIdent(), nil
+	return l.peekIdent()
 }
 
 func (l *Lexer) peekIsFloat() (isFloat bool) {
@@ -191,9 +185,7 @@ func (l *Lexer) peekIsFloat() (isFloat bool) {
 
 		peeked = l.input[i]
 
-		if peeked == runes.EOF {
-			return hasDot
-		} else if l.byteIsWhitespace(peeked) {
+		if l.byteIsWhitespace(peeked) {
 			return hasDot
 		} else if peeked == runes.DOT && !hasDot {
 			hasDot = true
@@ -245,7 +237,7 @@ func (l *Lexer) matchSingleRuneToken(r byte, tok *token.Token) bool {
 	return true
 }
 
-func (l *Lexer) readIdent() error {
+func (l *Lexer) readIdent() {
 
 	var r byte
 
@@ -253,9 +245,9 @@ func (l *Lexer) readIdent() error {
 		r = l.readRune()
 		if !runeIsIdent(r) {
 			if r != runes.EOF {
-				return l.unreadRune()
+				l.unreadRune()
 			}
-			return nil
+			return
 		}
 	}
 }
@@ -354,50 +346,33 @@ func (l *Lexer) keywordFromIdent(start, end int) (k keyword.Keyword) {
 	return keyword.IDENT
 }
 
-func (l *Lexer) readVariable(tok *token.Token) error {
+func (l *Lexer) readVariable(tok *token.Token) {
 
 	tok.SetStart(l.inputPosition, l.textPosition)
 
 	tok.Keyword = keyword.VARIABLE
 
-	peeked, err := l.Peek(false)
-	if err != nil {
-		return err
-	}
-
-	if peeked == keyword.SPACE ||
-		peeked == keyword.TAB ||
-		peeked == keyword.COMMA ||
-		peeked == keyword.LINETERMINATOR {
-		return fmt.Errorf("readVariable: must not have whitespace after $")
-	}
-
-	err = l.readIdent()
-	if err != nil {
-		return err
-	}
+	l.readIdent()
 
 	tok.SetEnd(l.inputPosition, l.textPosition)
 	tok.TextPosition.CharStart -= 1
-	return nil
 }
 
-func (l *Lexer) readSpread(tok *token.Token) error {
+func (l *Lexer) readDotOrSpread(tok *token.Token) {
 
 	isSpread := l.peekEquals(runes.DOT, runes.DOT)
 
-	if !isSpread {
-		return fmt.Errorf("readSpread: invalid '.' at position %s", l.textPosition)
+	if isSpread {
+		l.swallowAmount(2)
+		tok.Keyword = keyword.SPREAD
+	} else {
+		tok.Keyword = keyword.DOT
 	}
 
-	l.swallowAmount(2)
-
-	tok.Keyword = keyword.SPREAD
 	tok.SetEnd(l.inputPosition, l.textPosition)
-	return nil
 }
 
-func (l *Lexer) readString(tok *token.Token) error {
+func (l *Lexer) readString(tok *token.Token) {
 
 	tok.Keyword = keyword.STRING
 
@@ -405,10 +380,11 @@ func (l *Lexer) readString(tok *token.Token) error {
 
 	if isMultiLineString {
 		l.swallowAmount(2)
-		return l.readMultiLineString(tok)
+		l.readMultiLineString(tok)
+		return
 	}
 
-	return l.readSingleLineString(tok)
+	l.readSingleLineString(tok)
 }
 
 func (l *Lexer) swallowAmount(amount int) {
@@ -435,7 +411,7 @@ func (l *Lexer) peekEquals(equals ...byte) bool {
 	return true
 }
 
-func (l *Lexer) readDigit(tok *token.Token) error {
+func (l *Lexer) readDigit(tok *token.Token) {
 
 	var r byte
 	for {
@@ -449,49 +425,34 @@ func (l *Lexer) readDigit(tok *token.Token) error {
 
 	if isFloat {
 		l.swallowAmount(1)
-		return l.readFloat(tok)
+		l.readFloat(tok)
+		return
 	}
 
 	if r != runes.EOF {
-		err := l.unreadRune()
-		if err != nil {
-			return err
-		}
+		l.unreadRune()
 	}
 
 	tok.Keyword = keyword.INTEGER
 	tok.SetEnd(l.inputPosition, l.textPosition)
-	return nil
 }
 
-func (l *Lexer) readFloat(tok *token.Token) error {
-
-	var valid bool
+func (l *Lexer) readFloat(tok *token.Token) {
 
 	var r byte
 	for {
 		r = l.readRune()
 		if !runeIsDigit(r) {
 			break
-		} else if !valid {
-			valid = true
 		}
-	}
-
-	if !valid {
-		return fmt.Errorf("readFloat: incomplete float, must have digits after dot")
 	}
 
 	if r != runes.EOF {
-		err := l.unreadRune()
-		if err != nil {
-			return err
-		}
+		l.unreadRune()
 	}
 
 	tok.Keyword = keyword.FLOAT
 	tok.SetEnd(l.inputPosition, l.textPosition)
-	return nil
 }
 
 func (l *Lexer) readRune() (r byte) {
@@ -515,11 +476,7 @@ func (l *Lexer) readRune() (r byte) {
 	return
 }
 
-func (l *Lexer) unreadRune() error {
-
-	if l.inputPosition == 0 {
-		return fmt.Errorf("unreadRune: cannot unread from inputPosition 0")
-	}
+func (l *Lexer) unreadRune() {
 
 	l.inputPosition--
 
@@ -529,8 +486,6 @@ func (l *Lexer) unreadRune() error {
 	} else {
 		l.textPosition.CharStart--
 	}
-
-	return nil
 }
 
 func (l *Lexer) peekRune() (r byte) {
@@ -578,7 +533,7 @@ func (l *Lexer) byteIsWhitespace(r byte) bool {
 	}
 }
 
-func (l *Lexer) readMultiLineString(tok *token.Token) error {
+func (l *Lexer) readMultiLineString(tok *token.Token) {
 
 	tok.SetStart(l.inputPosition, l.textPosition)
 
@@ -599,12 +554,13 @@ func (l *Lexer) readMultiLineString(tok *token.Token) error {
 
 				if !isMultiLineStringEnd {
 					escaped = false
+					l.readRune()
 				} else {
 					tok.SetEnd(l.inputPosition, l.textPosition)
 					tok.TextPosition.CharStart -= 3
 					tok.TextPosition.CharEnd += 3
 					l.swallowAmount(3)
-					return nil
+					return
 				}
 			}
 		case runes.BACKSLASH:
@@ -621,7 +577,7 @@ func (l *Lexer) readMultiLineString(tok *token.Token) error {
 	}
 }
 
-func (l *Lexer) readSingleLineString(tok *token.Token) error {
+func (l *Lexer) readSingleLineString(tok *token.Token) {
 
 	tok.SetStart(l.inputPosition, l.textPosition)
 
@@ -641,7 +597,7 @@ func (l *Lexer) readSingleLineString(tok *token.Token) error {
 				tok.TextPosition.CharStart -= 1
 				tok.TextPosition.CharEnd += 1
 				l.swallowAmount(1)
-				return nil
+				return
 			}
 		case runes.BACKSLASH:
 			l.readRune()

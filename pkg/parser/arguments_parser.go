@@ -8,53 +8,32 @@ import (
 
 func (p *Parser) parseArguments(index *[]int) error {
 
-	key, err := p.l.Peek(true)
-	if err != nil {
-		return err
-	}
+	key := p.l.Peek(true)
 
 	if key != keyword.BRACKETOPEN {
 		return nil
 	}
 
-	_, err = p.l.Read()
-	if err != nil {
-		return err
-	}
-
+	p.l.Read()
 	var valueName document.ByteSliceReference
 
 	for {
-		key, err = p.l.Peek(true)
-		if err != nil {
-			return err
-		}
-
+		key = p.l.Peek(true)
 		if key == keyword.IDENT {
-			identToken, err := p.l.Read()
-			if err != nil {
-				return err
-			}
-
+			identToken := p.l.Read()
 			valueName = identToken.Literal
 
 		} else if key == keyword.BRACKETCLOSE {
-			_, err = p.l.Read()
-			return err
+			_ = p.l.Read()
+			return nil
 		} else {
 			return fmt.Errorf("parseArguments: ident/bracketclose expected, got %s", key)
 		}
 
-		key, err = p.l.Peek(true)
-		if err != nil {
-			return err
-		}
+		key = p.l.Peek(true)
 
 		if key == keyword.COLON {
-			_, err = p.l.Read()
-			if err != nil {
-				return err
-			}
+			_ = p.l.Read()
 		} else {
 			return fmt.Errorf("parseArguments: colon expected, got %s", key)
 		}

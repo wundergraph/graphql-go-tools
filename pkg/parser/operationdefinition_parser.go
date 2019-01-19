@@ -11,21 +11,18 @@ func (p *Parser) parseOperationDefinition(index *[]int) (err error) {
 	var operationDefinition document.OperationDefinition
 	p.initOperationDefinition(&operationDefinition)
 
-	operationType, err := p.l.Peek(true)
-	if err != nil {
-		return err
-	}
+	operationType := p.l.Peek(true)
 
 	switch operationType {
 	case keyword.QUERY:
 		operationDefinition.OperationType = document.OperationTypeQuery
-		_, err = p.l.Read()
+		p.l.Read()
 	case keyword.MUTATION:
 		operationDefinition.OperationType = document.OperationTypeMutation
-		_, err = p.l.Read()
+		p.l.Read()
 	case keyword.SUBSCRIPTION:
 		operationDefinition.OperationType = document.OperationTypeSubscription
-		_, err = p.l.Read()
+		p.l.Read()
 	default:
 		operationDefinition.OperationType = document.OperationTypeQuery
 	}
@@ -40,10 +37,7 @@ func (p *Parser) parseOperationDefinition(index *[]int) (err error) {
 	}
 
 	if isNamedOperation {
-		name, err := p.l.Read()
-		if err != nil {
-			return err
-		}
+		name := p.l.Read()
 		operationDefinition.Name = name.Literal
 	}
 

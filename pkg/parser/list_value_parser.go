@@ -6,31 +6,20 @@ import (
 
 func (p *Parser) parsePeekedListValue(index *int) error {
 
-	_, err := p.l.Read()
-	if err != nil {
-		return nil
-	}
+	p.l.Read()
 
 	listValue := p.makeListValue(index)
-	var peeked keyword.Keyword
 
 	for {
-		peeked, err = p.l.Peek(true)
-		if err != nil {
-			return err
-		}
 
-		switch peeked {
-		case keyword.SQUAREBRACKETCLOSE:
-			_, err = p.l.Read()
-			if err != nil {
-				return err
-			}
+		peeked := p.l.Peek(true)
 
+		if peeked == keyword.SQUAREBRACKETCLOSE {
+			p.l.Read()
 			p.putListValue(listValue, *index)
 			return nil
 
-		default:
+		} else {
 
 			var next int
 			err := p.parseValue(&next)

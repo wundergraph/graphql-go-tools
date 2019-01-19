@@ -8,17 +8,11 @@ import (
 func (p *Parser) parseDirectives(index *[]int) error {
 
 	for {
-		next, err := p.l.Peek(true)
-		if err != nil {
-			return err
-		}
+		next := p.l.Peek(true)
 
 		if next == keyword.AT {
 
-			_, err = p.l.Read()
-			if err != nil {
-				return err
-			}
+			p.l.Read()
 
 			ident, err := p.readExpect(keyword.IDENT, "parseDirectives")
 			if err != nil {
@@ -37,7 +31,7 @@ func (p *Parser) parseDirectives(index *[]int) error {
 			*index = append(*index, p.putDirective(directive))
 
 		} else {
-			return err
+			return nil
 		}
 	}
 }

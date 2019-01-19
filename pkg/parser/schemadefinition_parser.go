@@ -20,10 +20,7 @@ func (p *Parser) parseSchemaDefinition() (definition document.SchemaDefinition, 
 	}
 
 	for {
-		next, err := p.l.Read()
-		if err != nil {
-			return definition, err
-		}
+		next := p.l.Read()
 
 		switch next.Keyword {
 		case keyword.CURLYBRACKETCLOSE:

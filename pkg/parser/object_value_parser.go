@@ -8,44 +8,30 @@ import (
 
 func (p *Parser) parsePeekedObjectValue(index *int) error {
 
-	_, err := p.l.Read()
-	if err != nil {
-		return err
-	}
+	p.l.Read()
 
 	objectValue := p.makeObjectValue(index)
 
 	var peeked keyword.Keyword
 
 	for {
-		peeked, err = p.l.Peek(true)
-		if err != nil {
-			return err
-		}
+		peeked = p.l.Peek(true)
 
 		switch peeked {
 		case keyword.CURLYBRACKETCLOSE:
 
-			_, err = p.l.Read()
-			if err != nil {
-				return err
-			}
-
+			p.l.Read()
 			p.putObjectValue(objectValue, *index)
 			return nil
 
 		case keyword.IDENT:
 
-			identToken, err := p.l.Read()
-			if err != nil {
-				return err
-			}
-
+			identToken := p.l.Read()
 			field := document.ObjectField{
 				Name: identToken.Literal,
 			}
 
-			_, err = p.readExpect(keyword.COLON, "parsePeekedObjectValue")
+			_, err := p.readExpect(keyword.COLON, "parsePeekedObjectValue")
 			if err != nil {
 				return err
 			}

@@ -18,14 +18,11 @@ func (p *Parser) parseSelectionSet(set *document.SelectionSet) (err error) {
 
 	for {
 
-		next, err := p.l.Peek(true)
-		if err != nil {
-			return err
-		}
+		next := p.l.Peek(true)
 
 		if next == keyword.CURLYBRACKETCLOSE {
-			_, err = p.l.Read()
-			return err
+			p.l.Read()
+			return nil
 		}
 
 		isFragmentSelection, err := p.peekExpect(keyword.SPREAD, true)
