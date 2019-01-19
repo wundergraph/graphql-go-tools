@@ -35,10 +35,10 @@ See pkg/parser/parser_test.go
 
 ```
 pkg: github.com/jensneuse/graphql-go-tools/pkg/parser
-BenchmarkParser-4   	  100000	     21264 ns/op	       0 B/op	       0 allocs/op
-BenchmarkParser-4   	  100000	     21531 ns/op	       0 B/op	       0 allocs/op
-BenchmarkParser-4   	  100000	     21150 ns/op	       0 B/op	       0 allocs/op
-BenchmarkParser-4   	  100000	     21234 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParser-4   	  100000	     19724 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParser-4   	  100000	     19548 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParser-4   	  100000	     19409 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParser-4   	  100000	     19233 ns/op	       0 B/op	       0 allocs/op
 ```
 
 In a previous release I found that nested slice structs accounted for huge amounts of gc and decreased performance.
