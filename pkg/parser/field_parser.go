@@ -10,11 +10,7 @@ func (p *Parser) parseField(index *[]int) (err error) {
 	var field document.Field
 	p.initField(&field)
 
-	firstIdent, err := p.l.Read()
-	if err != nil {
-		return err
-	}
-
+	firstIdent := p.l.Read()
 	field.Name = firstIdent.Literal
 
 	hasAlias, err := p.peekExpect(keyword.COLON, true)

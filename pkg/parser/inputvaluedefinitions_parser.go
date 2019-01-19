@@ -16,28 +16,18 @@ func (p *Parser) parseInputValueDefinitions(index *[]int, closeKeyword keyword.K
 	var description *document.ByteSliceReference
 
 	for {
-		next, err := p.l.Peek(true)
-		if err != nil {
-			return err
-		}
+		next := p.l.Peek(true)
 
 		if next == keyword.STRING {
 
-			quote, err := p.l.Read()
-			if err != nil {
-				return err
-			}
+			quote := p.l.Read()
 
 			//*description = transform.TrimWhitespace(p.ByteSlice(quote.Literal)) TODO: fix trimming
 			description = &quote.Literal
 
 		} else if next == keyword.IDENT {
 
-			ident, err := p.l.Read()
-			if err != nil {
-				return err
-			}
-
+			ident := p.l.Read()
 			definition := p.makeInputValueDefinition()
 			if description != nil {
 				definition.Description = *description
@@ -46,7 +36,7 @@ func (p *Parser) parseInputValueDefinitions(index *[]int, closeKeyword keyword.K
 
 			description = nil
 
-			_, err = p.readExpect(keyword.COLON, "parseInputValueDefinitions")
+			_, err := p.readExpect(keyword.COLON, "parseInputValueDefinitions")
 			if err != nil {
 				return err
 			}
@@ -69,7 +59,7 @@ func (p *Parser) parseInputValueDefinitions(index *[]int, closeKeyword keyword.K
 			*index = append(*index, p.putInputValueDefinition(definition))
 
 		} else if next != closeKeyword && closeKeyword != keyword.UNDEFINED {
-			invalid, _ := p.l.Read()
+			invalid := p.l.Read()
 			return newErrInvalidType(invalid.TextPosition, "parseInputValueDefinitions", "string/ident/"+closeKeyword.String(), invalid.String())
 		} else {
 			return nil

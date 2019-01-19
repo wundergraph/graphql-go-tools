@@ -43,18 +43,12 @@ func (p *Parser) parseComplexExecutableDefinition() (executableDefinition docume
 	executableDefinition = p.makeExecutableDefinition()
 
 	for {
-		next, err := p.l.Peek(true)
-		if err != nil {
-			return executableDefinition, err
-		}
+		next := p.l.Peek(true)
 
 		switch next {
 		case keyword.FRAGMENT:
 
-			_, err = p.l.Read()
-			if err != nil {
-				return executableDefinition, err
-			}
+			p.l.Read()
 
 			err := p.parseFragmentDefinition(&executableDefinition.FragmentDefinitions)
 			if err != nil {
@@ -71,7 +65,7 @@ func (p *Parser) parseComplexExecutableDefinition() (executableDefinition docume
 		default:
 
 			if len(executableDefinition.OperationDefinitions) == 0 {
-				invalid, _ := p.l.Read()
+				invalid := p.l.Read()
 				err = newErrInvalidType(invalid.TextPosition, "parseComplexExecutableDefinition", "fragment/query/mutation/subscription", next.String())
 			}
 

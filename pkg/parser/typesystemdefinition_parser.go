@@ -12,10 +12,7 @@ func (p *Parser) parseTypeSystemDefinition() (definition document.TypeSystemDefi
 	var description *document.ByteSliceReference
 
 	for {
-		next, err := p.l.Read()
-		if err != nil {
-			return definition, err
-		}
+		next := p.l.Read()
 
 		switch next.Keyword {
 		case keyword.EOF:
@@ -116,7 +113,7 @@ func (p *Parser) parseTypeSystemDefinition() (definition document.TypeSystemDefi
 			}
 
 		default:
-			invalid, _ := p.l.Read()
+			invalid := p.l.Read()
 			return definition, newErrInvalidType(invalid.TextPosition, "parseTypeSystemDefinition", "eof/string/schema/scalar/type/interface/union/directive/input/enum", invalid.Keyword.String())
 		}
 
