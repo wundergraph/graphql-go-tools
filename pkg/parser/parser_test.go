@@ -3020,6 +3020,54 @@ directive @ someway on SUBSCRIPTION | MUTATION`,
 				),
 			))
 	})
+	t.Run("set schema multiple times", func(t *testing.T) {
+		run(`
+schema {
+	query: Query
+	mutation: Mutation
+}
+schema {
+	query: Query
+	mutation: Mutation
+}`, mustPanic(mustParseTypeSystemDefinition(node())))
+	})
+	t.Run("invalid schema", func(t *testing.T) {
+		run(`
+schema {
+	query: Query
+	mutation: Mutation
+)`, mustPanic(mustParseTypeSystemDefinition(node())))
+	})
+	t.Run("invalid scalar", func(t *testing.T) {
+		run(`scalar JSON @foo(bar: .)`, mustPanic(mustParseTypeSystemDefinition(node())))
+	})
+	t.Run("invalid object type definition", func(t *testing.T) {
+		run(`type Foo implements Bar { foo(bar: .): Baz}`, mustPanic(mustParseTypeSystemDefinition(node())))
+	})
+	t.Run("invalid interface type definition", func(t *testing.T) {
+		run(`interface Bar { baz: [Bal!}`, mustPanic(mustParseTypeSystemDefinition(node())))
+	})
+	t.Run("invalid union type definition", func(t *testing.T) {
+		run(`union Foo = Bar | Baz | 1337`, mustPanic(mustParseTypeSystemDefinition(node())))
+	})
+	t.Run("invalid union type definition 2", func(t *testing.T) {
+		run(`union Foo = Bar | Baz | "Bal"`, mustPanic(mustParseTypeSystemDefinition(node())))
+	})
+	t.Run("invalid enum type definition", func(t *testing.T) {
+		run(`enum Foo { Bar @baz(bal: .)}`, mustPanic(mustParseTypeSystemDefinition(node())))
+	})
+	t.Run("invalid input object type definition", func(t *testing.T) {
+		run(`input Foo { foo(bar: .): Baz}`, mustPanic(mustParseTypeSystemDefinition(node())))
+	})
+	t.Run("invalid directive definition", func(t *testing.T) {
+		run(`directive @ foo ON InvalidLocation`, mustPanic(mustParseTypeSystemDefinition(node())))
+	})
+	t.Run("invalid directive definition 2", func(t *testing.T) {
+		run(`directive @ foo(bar: .) ON QUERY`, mustPanic(mustParseTypeSystemDefinition(node())))
+	})
+	t.Run("invalid keyword", func(t *testing.T) {
+		run(`unknown {}`, mustPanic(mustParseTypeSystemDefinition(node())))
+	})
 
 	// parseUnionTypeDefinition
 
@@ -3103,6 +3151,18 @@ directive @ someway on SUBSCRIPTION | MUTATION`,
 					node(
 						hasName("SearchResult"),
 						hasUnionMemberTypes("Photo", "Person", "1337"),
+					),
+				),
+			),
+		)
+	})
+	t.Run("invalid 4", func(t *testing.T) {
+		run("SearchResult = Photo | Person | \"Video\"",
+			mustPanic(
+				mustParseUnionTypeDefinition(
+					node(
+						hasName("SearchResult"),
+						hasUnionMemberTypes("Photo", "Person"),
 					),
 				),
 			),
@@ -3417,7 +3477,7 @@ func TestParser_Starwars(t *testing.T) {
 	inputFileName := "../../starwars.schema.graphql"
 	fixtureFileName := "type_system_definition_parsed_starwars"
 
-	parser := NewParser()
+	parser := NewParser(WithPoolSize(2), WithMinimumSliceSize(2))
 
 	starwarsSchema, err := ioutil.ReadFile(inputFileName)
 	if err != nil {
