@@ -15,13 +15,16 @@ func (p *Parser) parseArguments(index *[]int) error {
 	}
 
 	p.l.Read()
-	var valueName document.ByteSliceReference
 
 	for {
+
+		var argument document.Argument
+
 		key = p.l.Peek(true)
 		if key == keyword.IDENT {
 			identToken := p.l.Read()
-			valueName = identToken.Literal
+			argument.Name = identToken.Literal
+			argument.Position.MergeStartIntoStart(identToken.TextPosition)
 		} else if key == keyword.BRACKETCLOSE {
 			_ = p.l.Read()
 			return nil
@@ -37,14 +40,12 @@ func (p *Parser) parseArguments(index *[]int) error {
 			return fmt.Errorf("parseArguments: colon expected, got %s", key)
 		}
 
-		argument := document.Argument{
-			Name: valueName,
-		}
-
 		err := p.parseValue(&argument.Value)
 		if err != nil {
 			return err
 		}
+
+		argument.Position.MergeStartIntoEnd(p.TextPosition())
 
 		*index = append(*index, p.putArgument(argument))
 	}
