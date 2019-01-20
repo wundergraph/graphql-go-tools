@@ -25,7 +25,19 @@
             12
           ],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       }
     ],
@@ -49,7 +61,19 @@
             30
           ],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -67,7 +91,19 @@
             34
           ],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -84,7 +120,19 @@
             57
           ],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       }
     ],
@@ -104,7 +152,19 @@
         "SelectionSet": {
           "Fields": [],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -123,7 +183,19 @@
             0
           ],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -140,7 +212,19 @@
         "SelectionSet": {
           "Fields": [],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -159,7 +243,19 @@
             2
           ],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -176,7 +272,19 @@
         "SelectionSet": {
           "Fields": [],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -195,7 +303,19 @@
             4
           ],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -214,7 +334,19 @@
           "FragmentSpreads": [
             0
           ],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -231,7 +363,19 @@
         "SelectionSet": {
           "Fields": [],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -248,7 +392,19 @@
         "SelectionSet": {
           "Fields": [],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -265,7 +421,19 @@
         "SelectionSet": {
           "Fields": [],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -284,7 +452,19 @@
           "FragmentSpreads": [
             1
           ],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -306,7 +486,19 @@
             10
           ],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -329,7 +521,19 @@
             11
           ],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -346,7 +550,19 @@
         "SelectionSet": {
           "Fields": [],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -363,7 +579,19 @@
         "SelectionSet": {
           "Fields": [],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -380,7 +608,19 @@
         "SelectionSet": {
           "Fields": [],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -397,7 +637,19 @@
         "SelectionSet": {
           "Fields": [],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -414,7 +666,19 @@
         "SelectionSet": {
           "Fields": [],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -433,7 +697,19 @@
           "FragmentSpreads": [
             2
           ],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -452,7 +728,19 @@
           "FragmentSpreads": [
             3
           ],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -469,7 +757,19 @@
         "SelectionSet": {
           "Fields": [],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -486,7 +786,19 @@
         "SelectionSet": {
           "Fields": [],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -512,7 +824,19 @@
             21
           ],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -531,7 +855,19 @@
           "FragmentSpreads": [
             4
           ],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -550,7 +886,19 @@
           "FragmentSpreads": [
             5
           ],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -567,7 +915,19 @@
         "SelectionSet": {
           "Fields": [],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -584,7 +944,19 @@
         "SelectionSet": {
           "Fields": [],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -601,7 +973,19 @@
         "SelectionSet": {
           "Fields": [],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -618,7 +1002,19 @@
         "SelectionSet": {
           "Fields": [],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -642,7 +1038,19 @@
             28
           ],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -661,7 +1069,19 @@
           "FragmentSpreads": [
             6
           ],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -678,7 +1098,19 @@
         "SelectionSet": {
           "Fields": [],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -695,7 +1127,19 @@
         "SelectionSet": {
           "Fields": [],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -714,7 +1158,19 @@
           "FragmentSpreads": [
             7
           ],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -731,7 +1187,19 @@
         "SelectionSet": {
           "Fields": [],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -748,7 +1216,19 @@
         "SelectionSet": {
           "Fields": [],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -765,7 +1245,19 @@
         "SelectionSet": {
           "Fields": [],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -782,7 +1274,19 @@
         "SelectionSet": {
           "Fields": [],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -799,7 +1303,19 @@
         "SelectionSet": {
           "Fields": [],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -816,7 +1332,19 @@
         "SelectionSet": {
           "Fields": [],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -833,7 +1361,19 @@
         "SelectionSet": {
           "Fields": [],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -850,7 +1390,19 @@
         "SelectionSet": {
           "Fields": [],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -867,7 +1419,19 @@
         "SelectionSet": {
           "Fields": [],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -884,7 +1448,19 @@
         "SelectionSet": {
           "Fields": [],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -901,7 +1477,19 @@
         "SelectionSet": {
           "Fields": [],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -918,7 +1506,19 @@
         "SelectionSet": {
           "Fields": [],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -935,7 +1535,19 @@
         "SelectionSet": {
           "Fields": [],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -952,7 +1564,19 @@
         "SelectionSet": {
           "Fields": [],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -969,7 +1593,19 @@
         "SelectionSet": {
           "Fields": [],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -986,7 +1622,19 @@
         "SelectionSet": {
           "Fields": [],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -1003,7 +1651,19 @@
         "SelectionSet": {
           "Fields": [],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -1023,7 +1683,19 @@
             50
           ],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -1044,7 +1716,19 @@
             51
           ],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -1065,7 +1749,19 @@
             52
           ],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -1086,7 +1782,19 @@
             53
           ],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -1107,7 +1815,19 @@
             54
           ],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -1128,7 +1848,19 @@
             55
           ],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -1149,7 +1881,19 @@
             56
           ],
           "FragmentSpreads": [],
-          "InlineFragments": []
+          "InlineFragments": [],
+          "Position": {
+            "LineStart": 0,
+            "LineEnd": 0,
+            "CharStart": 0,
+            "CharEnd": 0
+          }
+        },
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       }
     ],
@@ -1160,56 +1904,104 @@
           "Start": 170,
           "End": 178
         },
-        "Directives": []
+        "Directives": [],
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
+        }
       },
       {
         "FragmentName": {
           "Start": 271,
           "End": 281
         },
-        "Directives": []
+        "Directives": [],
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
+        }
       },
       {
         "FragmentName": {
           "Start": 442,
           "End": 452
         },
-        "Directives": []
+        "Directives": [],
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
+        }
       },
       {
         "FragmentName": {
           "Start": 479,
           "End": 486
         },
-        "Directives": []
+        "Directives": [],
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
+        }
       },
       {
         "FragmentName": {
           "Start": 559,
           "End": 569
         },
-        "Directives": []
+        "Directives": [],
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
+        }
       },
       {
         "FragmentName": {
           "Start": 596,
           "End": 603
         },
-        "Directives": []
+        "Directives": [],
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
+        }
       },
       {
         "FragmentName": {
           "Start": 741,
           "End": 748
         },
-        "Directives": []
+        "Directives": [],
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
+        }
       },
       {
         "FragmentName": {
           "Start": 831,
           "End": 838
         },
-        "Directives": []
+        "Directives": [],
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
+        }
       }
     ],
     "Arguments": [
@@ -1218,14 +2010,26 @@
           "Start": 370,
           "End": 387
         },
-        "Value": 0
+        "Value": 0,
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
+        }
       },
       {
         "Name": {
           "Start": 621,
           "End": 638
         },
-        "Value": 1
+        "Value": 1,
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
+        }
       }
     ],
     "Directives": [],
@@ -1242,11 +2046,23 @@
     "Values": [
       {
         "ValueType": 5,
-        "Reference": 1
+        "Reference": 1,
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
+        }
       },
       {
         "ValueType": 5,
-        "Reference": 1
+        "Reference": 1,
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
+        }
       }
     ],
     "ListValues": [],
@@ -1259,7 +2075,13 @@
           "Start": 324,
           "End": 330
         },
-        "OfType": -1
+        "OfType": -1,
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
+        }
       },
       {
         "Kind": 2,
@@ -1267,7 +2089,13 @@
           "Start": 779,
           "End": 791
         },
-        "OfType": -1
+        "OfType": -1,
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
+        }
       },
       {
         "Kind": 2,
@@ -1275,7 +2103,13 @@
           "Start": 881,
           "End": 887
         },
-        "OfType": -1
+        "OfType": -1,
+        "Position": {
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
+        }
       }
     ],
     "ByteSliceReferences": [],
