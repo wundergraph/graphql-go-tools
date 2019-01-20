@@ -1,5 +1,7 @@
 package document
 
+import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
+
 // UnionTypeDefinition as specified in:
 // http://facebook.github.io/graphql/draft/#UnionTypeDefinition
 type UnionTypeDefinition struct {
@@ -7,6 +9,11 @@ type UnionTypeDefinition struct {
 	Name             ByteSliceReference
 	UnionMemberTypes UnionMemberTypes
 	Directives       []int
+	Position         position.Position
+}
+
+func (u UnionTypeDefinition) NodePosition() position.Position {
+	return u.Position
 }
 
 func (u UnionTypeDefinition) NodeValueType() ValueType {

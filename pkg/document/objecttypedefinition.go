@@ -1,5 +1,7 @@
 package document
 
+import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
+
 // ObjectTypeDefinition as specified in:
 // http://facebook.github.io/graphql/draft/#ObjectTypeDefinition
 type ObjectTypeDefinition struct {
@@ -8,6 +10,11 @@ type ObjectTypeDefinition struct {
 	FieldsDefinition     []int
 	ImplementsInterfaces ImplementsInterfaces
 	Directives           []int
+	Position             position.Position
+}
+
+func (o ObjectTypeDefinition) NodePosition() position.Position {
+	return o.Position
 }
 
 func (o ObjectTypeDefinition) NodeValueType() ValueType {

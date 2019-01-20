@@ -1,5 +1,7 @@
 package document
 
+import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
+
 // FragmentDefinition as specified in
 // http://facebook.github.io/graphql/draft/#FragmentDefinition
 type FragmentDefinition struct {
@@ -7,6 +9,11 @@ type FragmentDefinition struct {
 	TypeCondition int
 	Directives    []int
 	SelectionSet  SelectionSet
+	Position      position.Position
+}
+
+func (f FragmentDefinition) NodePosition() position.Position {
+	return f.Position
 }
 
 func (f FragmentDefinition) NodeValueType() ValueType {

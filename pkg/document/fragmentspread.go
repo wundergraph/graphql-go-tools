@@ -1,10 +1,17 @@
 package document
 
+import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
+
 // FragmentSpread as specified in:
 // http://facebook.github.io/graphql/draft/#FragmentSpread
 type FragmentSpread struct {
 	FragmentName ByteSliceReference
 	Directives   []int
+	Position     position.Position
+}
+
+func (f FragmentSpread) NodePosition() position.Position {
+	return f.Position
 }
 
 func (f FragmentSpread) NodeValueType() ValueType {

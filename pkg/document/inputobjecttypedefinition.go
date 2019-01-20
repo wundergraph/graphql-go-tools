@@ -1,5 +1,7 @@
 package document
 
+import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
+
 // InputObjectTypeDefinition as specified in:
 // http://facebook.github.io/graphql/draft/#InputObjectTypeDefinition
 type InputObjectTypeDefinition struct {
@@ -7,6 +9,11 @@ type InputObjectTypeDefinition struct {
 	Name                  ByteSliceReference
 	InputFieldsDefinition []int
 	Directives            []int
+	Position              position.Position
+}
+
+func (i InputObjectTypeDefinition) NodePosition() position.Position {
+	return i.Position
 }
 
 func (i InputObjectTypeDefinition) NodeValueType() ValueType {

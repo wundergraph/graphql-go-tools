@@ -2,6 +2,7 @@ package document
 
 import (
 	"fmt"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 )
 
 // SchemaDefinition as specified in:
@@ -11,6 +12,7 @@ type SchemaDefinition struct {
 	Mutation     ByteSlice
 	Subscription ByteSlice
 	Directives   []int
+	Position     position.Position
 }
 
 // ObjectName returns the struct name for ease of use

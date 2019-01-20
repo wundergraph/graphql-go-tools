@@ -3,7 +3,13 @@
     "Query": "Query",
     "Mutation": "Mutation",
     "Subscription": "Subscription",
-    "Directives": []
+    "Directives": [],
+    "Position": {
+      "LineStart": 0,
+      "LineEnd": 0,
+      "CharStart": 0,
+      "CharEnd": 0
+    }
   },
   "ScalarTypeDefinitions": [
     0,
@@ -50,5 +56,11 @@
     0,
     1,
     2
-  ]
+  ],
+  "Position": {
+    "LineStart": 0,
+    "LineEnd": 0,
+    "CharStart": 0,
+    "CharEnd": 0
+  }
 }

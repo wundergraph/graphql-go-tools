@@ -1,5 +1,7 @@
 package document
 
+import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
+
 // Field as specified in:
 // http://facebook.github.io/graphql/draft/#Field
 type Field struct {
@@ -8,6 +10,11 @@ type Field struct {
 	Arguments    []int
 	Directives   []int
 	SelectionSet SelectionSet
+	Position     position.Position
+}
+
+func (f Field) NodePosition() position.Position {
+	return f.Position
 }
 
 func (f Field) NodeValueType() ValueType {
