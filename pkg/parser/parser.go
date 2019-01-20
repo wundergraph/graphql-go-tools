@@ -90,6 +90,7 @@ type Lexer interface {
 	Read() (tok token.Token)
 	Peek(ignoreWhitespace bool) keyword.Keyword
 	ByteSlice(reference document.ByteSliceReference) document.ByteSlice
+	TextPosition() position.Position
 }
 
 type Options struct {
@@ -170,6 +171,10 @@ func NewParser(withOptions ...Option) *Parser {
 
 func (p *Parser) ByteSlice(reference document.ByteSliceReference) document.ByteSlice {
 	return p.l.ByteSlice(reference)
+}
+
+func (p *Parser) TextPosition() position.Position {
+	return p.l.TextPosition()
 }
 
 // ParseTypeSystemDefinition parses a TypeSystemDefinition from an io.Reader

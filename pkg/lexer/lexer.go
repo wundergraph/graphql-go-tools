@@ -45,6 +45,10 @@ func (l *Lexer) ByteSlice(reference document.ByteSliceReference) document.ByteSl
 	return l.input[reference.Start:reference.End]
 }
 
+func (l *Lexer) TextPosition() position.Position {
+	return l.textPosition
+}
+
 // Read emits the next token, this cannot be undone
 func (l *Lexer) Read() (tok token.Token) {
 
