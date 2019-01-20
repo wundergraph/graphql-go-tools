@@ -31,7 +31,7 @@ func (e errInvalidType) Error() string {
 
 type indexPool [][]int
 
-func (i *indexPool) grow() {
+func (i *indexPool) grow(minimumSliceSize int) {
 
 	grow := 10
 	if (len(*i) / 2) > grow {
@@ -39,7 +39,7 @@ func (i *indexPool) grow() {
 	}
 
 	for k := 0; k < grow; k++ {
-		*i = append(*i, make([]int, 0, 8))
+		*i = append(*i, make([]int, 0, minimumSliceSize))
 	}
 }
 
@@ -49,6 +49,7 @@ type Parser struct {
 	ParsedDefinitions ParsedDefinitions
 	indexPool         indexPool
 	indexPoolPosition int
+	options           Options
 }
 
 // ParsedDefinitions contains all parsed definitions to avoid deeply nested data structures while parsing
@@ -91,43 +92,69 @@ type Lexer interface {
 	ByteSlice(reference document.ByteSliceReference) document.ByteSlice
 }
 
-// NewParser returns a new parser using a buffered runestringer
-func NewParser() *Parser {
+type Options struct {
+	poolSize         int
+	minimumSliceSize int
+}
 
-	poolSize := 512
-	pool := make([][]int, poolSize)
-	for i := 0; i < poolSize; i++ {
-		pool[i] = make([]int, 0, 8)
+type Option func(options *Options)
+
+func WithPoolSize(poolSize int) Option {
+	return func(options *Options) {
+		options.poolSize = poolSize
+	}
+}
+
+func WithMinimumSliceSize(size int) Option {
+	return func(options *Options) {
+		options.minimumSliceSize = size
+	}
+}
+
+// NewParser returns a new parser using a buffered runestringer
+func NewParser(withOptions ...Option) *Parser {
+
+	options := Options{
+		poolSize:         256,
+		minimumSliceSize: 8,
+	}
+
+	for _, option := range withOptions {
+		option(&options)
+	}
+
+	pool := make([][]int, options.poolSize)
+	for i := 0; i < options.poolSize; i++ {
+		pool[i] = make([]int, 0, options.minimumSliceSize)
 	}
 
 	definitions := ParsedDefinitions{
-		OperationDefinitions:       make(document.OperationDefinitions, 0, 8),
-		FragmentDefinitions:        make(document.FragmentDefinitions, 0, 8),
-		VariableDefinitions:        make(document.VariableDefinitions, 0, 8),
-		Fields:                     make(document.Fields, 0, 48),
-		InlineFragments:            make(document.InlineFragments, 0, 8),
-		FragmentSpreads:            make(document.FragmentSpreads, 0, 8),
-		Arguments:                  make(document.Arguments, 0, 8),
-		Directives:                 make(document.Directives, 0, 8),
-		EnumTypeDefinitions:        make(document.EnumTypeDefinitions, 0, 8),
-		EnumValuesDefinitions:      make(document.EnumValueDefinitions, 0, 8),
-		FieldDefinitions:           make(document.FieldDefinitions, 0, 8),
-		InputValueDefinitions:      make(document.InputValueDefinitions, 0, 8),
-		InputObjectTypeDefinitions: make(document.InputObjectTypeDefinitions, 0, 8),
-		DirectiveDefinitions:       make(document.DirectiveDefinitions, 0, 8),
-		InterfaceTypeDefinitions:   make(document.InterfaceTypeDefinitions, 0, 8),
-		ObjectTypeDefinitions:      make(document.ObjectTypeDefinitions, 0, 8),
-		ScalarTypeDefinitions:      make(document.ScalarTypeDefinitions, 0, 8),
-		UnionTypeDefinitions:       make(document.UnionTypeDefinitions, 0, 8),
-		Values:                     make([]document.Value, 0, 8),
-		ListValues:                 make([]document.ListValue, 0, 8),
-		ObjectValues:               make([]document.ObjectValue, 0, 8),
-		ObjectFields:               make(document.ObjectFields, 0, 8),
-		Types:                      make(document.Types, 0, 8),
-
-		Integers:            make([]int32, 0, 8),
-		Floats:              make([]float32, 0, 8),
-		ByteSliceReferences: make([]document.ByteSliceReference, 0, 8),
+		OperationDefinitions:       make(document.OperationDefinitions, 0, options.minimumSliceSize),
+		FragmentDefinitions:        make(document.FragmentDefinitions, 0, options.minimumSliceSize),
+		VariableDefinitions:        make(document.VariableDefinitions, 0, options.minimumSliceSize),
+		Fields:                     make(document.Fields, 0, options.minimumSliceSize*4),
+		InlineFragments:            make(document.InlineFragments, 0, options.minimumSliceSize),
+		FragmentSpreads:            make(document.FragmentSpreads, 0, options.minimumSliceSize),
+		Arguments:                  make(document.Arguments, 0, options.minimumSliceSize),
+		Directives:                 make(document.Directives, 0, options.minimumSliceSize),
+		EnumTypeDefinitions:        make(document.EnumTypeDefinitions, 0, options.minimumSliceSize),
+		EnumValuesDefinitions:      make(document.EnumValueDefinitions, 0, options.minimumSliceSize),
+		FieldDefinitions:           make(document.FieldDefinitions, 0, options.minimumSliceSize),
+		InputValueDefinitions:      make(document.InputValueDefinitions, 0, options.minimumSliceSize),
+		InputObjectTypeDefinitions: make(document.InputObjectTypeDefinitions, 0, options.minimumSliceSize),
+		DirectiveDefinitions:       make(document.DirectiveDefinitions, 0, options.minimumSliceSize),
+		InterfaceTypeDefinitions:   make(document.InterfaceTypeDefinitions, 0, options.minimumSliceSize),
+		ObjectTypeDefinitions:      make(document.ObjectTypeDefinitions, 0, options.minimumSliceSize),
+		ScalarTypeDefinitions:      make(document.ScalarTypeDefinitions, 0, options.minimumSliceSize),
+		UnionTypeDefinitions:       make(document.UnionTypeDefinitions, 0, options.minimumSliceSize),
+		Values:                     make([]document.Value, 0, options.minimumSliceSize),
+		ListValues:                 make([]document.ListValue, 0, options.minimumSliceSize),
+		ObjectValues:               make([]document.ObjectValue, 0, options.minimumSliceSize),
+		ObjectFields:               make(document.ObjectFields, 0, options.minimumSliceSize),
+		Types:                      make(document.Types, 0, options.minimumSliceSize),
+		Integers:                   make([]int32, 0, options.minimumSliceSize),
+		Floats:                     make([]float32, 0, options.minimumSliceSize),
+		ByteSliceReferences:        make([]document.ByteSliceReference, 0, options.minimumSliceSize),
 	}
 
 	definitions.Booleans[0] = false
@@ -137,6 +164,7 @@ func NewParser() *Parser {
 		l:                 lexer.NewLexer(),
 		indexPool:         pool,
 		ParsedDefinitions: definitions,
+		options:           options,
 	}
 }
 
@@ -186,7 +214,7 @@ func (p *Parser) indexPoolGet() []int {
 	p.indexPoolPosition++
 
 	if len(p.indexPool)-1 <= p.indexPoolPosition {
-		p.indexPool.grow()
+		p.indexPool.grow(p.options.minimumSliceSize)
 	}
 
 	return p.indexPool[p.indexPoolPosition][:0]
