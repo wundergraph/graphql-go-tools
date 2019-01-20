@@ -9,7 +9,7 @@ type InputObjectTypeDefinition struct {
 	Name                  ByteSliceReference
 	InputFieldsDefinition []int
 	Directives            []int
-	Position position.Position
+	Position              position.Position
 }
 
 func (i InputObjectTypeDefinition) NodePosition() position.Position {

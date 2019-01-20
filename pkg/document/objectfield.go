@@ -5,8 +5,8 @@ import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 // ObjectField as specified in:
 // http://facebook.github.io/graphql/draft/#ObjectField
 type ObjectField struct {
-	Name  ByteSliceReference
-	Value int
+	Name     ByteSliceReference
+	Value    int
 	Position position.Position
 }
 

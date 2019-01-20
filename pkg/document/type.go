@@ -17,9 +17,9 @@ type TypeKind int
 // Type as specified in:
 // http://facebook.github.io/graphql/draft/#Type
 type Type struct {
-	Kind   TypeKind
-	Name   ByteSliceReference
-	OfType int
+	Kind     TypeKind
+	Name     ByteSliceReference
+	OfType   int
 	Position position.Position
 }
 

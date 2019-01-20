@@ -10,7 +10,7 @@ type InputValueDefinition struct {
 	Type         int
 	DefaultValue int
 	Directives   []int
-	Position position.Position
+	Position     position.Position
 }
 
 func (i InputValueDefinition) NodePosition() position.Position {

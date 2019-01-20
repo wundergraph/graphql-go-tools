@@ -9,7 +9,7 @@ type InterfaceTypeDefinition struct {
 	Name             ByteSliceReference
 	FieldsDefinition []int
 	Directives       []int
-	Position position.Position
+	Position         position.Position
 }
 
 func (i InterfaceTypeDefinition) NodePosition() position.Position {

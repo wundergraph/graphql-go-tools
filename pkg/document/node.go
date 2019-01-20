@@ -48,5 +48,5 @@ type ValueNode interface {
 }
 
 type PositionNode interface {
-	NodePosition () position.Position
+	NodePosition() position.Position
 }

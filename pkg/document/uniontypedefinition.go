@@ -9,7 +9,7 @@ type UnionTypeDefinition struct {
 	Name             ByteSliceReference
 	UnionMemberTypes UnionMemberTypes
 	Directives       []int
-	Position position.Position
+	Position         position.Position
 }
 
 func (u UnionTypeDefinition) NodePosition() position.Position {

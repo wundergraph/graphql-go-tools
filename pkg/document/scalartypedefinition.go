@@ -8,7 +8,7 @@ type ScalarTypeDefinition struct {
 	Description ByteSliceReference
 	Name        ByteSliceReference
 	Directives  []int
-	Position position.Position
+	Position    position.Position
 }
 
 func (s ScalarTypeDefinition) NodePosition() position.Position {

@@ -13,7 +13,7 @@ type TypeSystemDefinition struct {
 	EnumTypeDefinitions        []int
 	InputObjectTypeDefinitions []int
 	DirectiveDefinitions       []int
-	Position position.Position
+	Position                   position.Position
 }
 
 func (t TypeSystemDefinition) NodePosition() position.Position {

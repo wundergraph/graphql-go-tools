@@ -10,7 +10,7 @@ type FieldDefinition struct {
 	ArgumentsDefinition []int
 	Type                int
 	Directives          []int
-	Position position.Position
+	Position            position.Position
 }
 
 func (f FieldDefinition) NodePosition() position.Position {

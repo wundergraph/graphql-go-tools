@@ -7,7 +7,7 @@ import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 type FragmentSpread struct {
 	FragmentName ByteSliceReference
 	Directives   []int
-	Position position.Position
+	Position     position.Position
 }
 
 func (f FragmentSpread) NodePosition() position.Position {

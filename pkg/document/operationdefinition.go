@@ -10,7 +10,7 @@ type OperationDefinition struct {
 	VariableDefinitions []int
 	Directives          []int
 	SelectionSet        SelectionSet
-	Position position.Position
+	Position            position.Position
 }
 
 func (o OperationDefinition) NodePosition() position.Position {

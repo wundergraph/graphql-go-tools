@@ -8,7 +8,7 @@ type InlineFragment struct {
 	TypeCondition int
 	Directives    []int
 	SelectionSet  SelectionSet
-	Position position.Position
+	Position      position.Position
 }
 
 func (i InlineFragment) NodePosition() position.Position {

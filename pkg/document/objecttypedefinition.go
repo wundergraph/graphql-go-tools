@@ -10,7 +10,7 @@ type ObjectTypeDefinition struct {
 	FieldsDefinition     []int
 	ImplementsInterfaces ImplementsInterfaces
 	Directives           []int
-	Position position.Position
+	Position             position.Position
 }
 
 func (o ObjectTypeDefinition) NodePosition() position.Position {

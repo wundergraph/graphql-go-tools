@@ -6,7 +6,7 @@ import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 type Value struct {
 	ValueType ValueType
 	Reference int
-	Position position.Position
+	Position  position.Position
 }
 
 func (v Value) NodePosition() position.Position {

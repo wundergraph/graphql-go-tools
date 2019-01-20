@@ -8,7 +8,7 @@ type SelectionSet struct {
 	Fields          []int
 	FragmentSpreads []int
 	InlineFragments []int
-	Position position.Position
+	Position        position.Position
 }
 
 func (s SelectionSet) NodePosition() position.Position {

@@ -9,7 +9,7 @@ type EnumTypeDefinition struct {
 	Name                 ByteSliceReference
 	EnumValuesDefinition []int
 	Directives           []int
-	Position position.Position
+	Position             position.Position
 }
 
 func (e EnumTypeDefinition) NodePosition() position.Position {

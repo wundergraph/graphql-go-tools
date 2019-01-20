@@ -9,7 +9,7 @@ type DirectiveDefinition struct {
 	Name                ByteSliceReference
 	ArgumentsDefinition []int
 	DirectiveLocations  DirectiveLocations
-	Position position.Position
+	Position            position.Position
 }
 
 func (d DirectiveDefinition) NodePosition() position.Position {

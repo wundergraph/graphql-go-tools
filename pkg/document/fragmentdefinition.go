@@ -9,7 +9,7 @@ type FragmentDefinition struct {
 	TypeCondition int
 	Directives    []int
 	SelectionSet  SelectionSet
-	Position position.Position
+	Position      position.Position
 }
 
 func (f FragmentDefinition) NodePosition() position.Position {

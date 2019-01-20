@@ -7,7 +7,7 @@ import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 type Directive struct {
 	Name      ByteSliceReference
 	Arguments []int
-	Position position.Position
+	Position  position.Position
 }
 
 func (d Directive) NodePosition() position.Position {

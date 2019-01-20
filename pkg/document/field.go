@@ -10,7 +10,7 @@ type Field struct {
 	Arguments    []int
 	Directives   []int
 	SelectionSet SelectionSet
-	Position position.Position
+	Position     position.Position
 }
 
 func (f Field) NodePosition() position.Position {

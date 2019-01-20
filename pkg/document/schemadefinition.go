@@ -12,7 +12,7 @@ type SchemaDefinition struct {
 	Mutation     ByteSlice
 	Subscription ByteSlice
 	Directives   []int
-	Position position.Position
+	Position     position.Position
 }
 
 // ObjectName returns the struct name for ease of use
