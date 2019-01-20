@@ -6,9 +6,11 @@ import (
 	"github.com/jensneuse/diffview"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 	"github.com/sebdah/goldie"
 	"io/ioutil"
 	"log"
+	"reflect"
 	"testing"
 )
 
@@ -52,6 +54,15 @@ func TestParser(t *testing.T) {
 			gotName := string(parser.ByteSlice(node.NodeName()))
 			if wantName != gotName {
 				panic(fmt.Errorf("hasName: want: %s, got: %s [rule: %d, node: %d]", wantName, gotName, ruleIndex, ruleSetIndex))
+			}
+		}
+	}
+
+	hasPosition := func(position position.Position) rule {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
+			gotPosition := node.NodePosition()
+			if !reflect.DeepEqual(position, gotPosition) {
+				panic(fmt.Errorf("hasPosition: want: %+v, got: %+v [rule: %d, node: %d]", position, gotPosition, ruleIndex, ruleSetIndex))
 			}
 		}
 	}
@@ -470,18 +481,16 @@ func TestParser(t *testing.T) {
 		}
 	}
 
-	mustParseArguments := func(argumentNames ...string) checkFunc {
+	mustParseArguments := func(wantArgumentNodes ...ruleSet) checkFunc {
 		return func(parser *Parser, i int) {
 			var index []int
 			if err := parser.parseArguments(&index); err != nil {
 				panic(err)
 			}
 
-			for k, want := range argumentNames {
-				got := string(parser.ByteSlice(parser.ParsedDefinitions.Arguments[k].Name))
-				if want != got {
-					panic(fmt.Errorf("mustParseArguments: want(i: %d): %s, got: %s [check: %d]", k, want, got, i))
-				}
+			for k, want := range wantArgumentNodes {
+				argument := parser.ParsedDefinitions.Arguments[k]
+				want.eval(argument, parser, k)
 			}
 		}
 	}
@@ -933,17 +942,67 @@ func TestParser(t *testing.T) {
 	// arguments
 
 	t.Run("string argument", func(t *testing.T) {
-		run(`(name: "Gophus")`, mustParseArguments("name"))
+		run(`(name: "Gophus")`,
+			mustParseArguments(
+				node(
+					hasName("name"),
+					hasPosition(position.Position{
+						LineStart: 1,
+						LineEnd:   1,
+						CharStart: 2,
+						CharEnd:   16,
+					}),
+				),
+			),
+		)
 	})
 	t.Run("string array argument", func(t *testing.T) {
-		run(`(fooBars: ["foo","bar"])`, mustParseArguments("fooBars"))
+		run(`(fooBars: ["foo","bar"])`,
+			mustParseArguments(
+				node(
+					hasName("fooBars"),
+				),
+			),
+		)
 	})
 	t.Run("int array argument", func(t *testing.T) {
-		run(`(integers: [1,2,3])`, mustParseArguments("integers"))
+		run(`(integers: [1,2,3])`,
+			mustParseArguments(
+				node(
+					hasName("integers"),
+					hasPosition(position.Position{
+						LineStart: 1,
+						LineEnd:   1,
+						CharStart: 2,
+						CharEnd:   19,
+					}),
+				),
+			),
+		)
 	})
 	t.Run("multiple string arguments", func(t *testing.T) {
 		run(`(name: "Gophus", surname: "Gophersson")`,
-			mustParseArguments("name", "surname"))
+			mustParseArguments(
+				node(
+					hasName("name"),
+					hasPosition(position.Position{
+						LineStart: 1,
+						LineEnd:   1,
+						CharStart: 2,
+						CharEnd:   16,
+					}),
+				),
+				node(
+					hasName("surname"),
+					hasPosition(position.Position{
+						LineStart: 1,
+						LineEnd:   1,
+						CharStart: 18,
+						CharEnd:   39,
+					}),
+				),
+			),
+		)
 	})
 	t.Run("invalid argument must err", func(t *testing.T) {
 		run(`(name: "Gophus", surname: "Gophersson"`,
