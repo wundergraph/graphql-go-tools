@@ -664,7 +664,7 @@ func TestParser(t *testing.T) {
 	mustParseFragmentSpread := func(rules ...ruleSet) checkFunc {
 		return func(parser *Parser, i int) {
 			var index []int
-			if err := parser.parseFragmentSpread(&index); err != nil {
+			if err := parser.parseFragmentSpread(position.Position{}, &index); err != nil {
 				panic(err)
 			}
 
@@ -712,7 +712,7 @@ func TestParser(t *testing.T) {
 	mustParseInlineFragments := func(rules ...ruleSet) checkFunc {
 		return func(parser *Parser, i int) {
 			var index []int
-			if err := parser.parseInlineFragment(&index); err != nil {
+			if err := parser.parseInlineFragment(position.Position{}, &index); err != nil {
 				panic(err)
 			}
 
@@ -2127,12 +2127,30 @@ func TestParser(t *testing.T) {
 			mustParseInlineFragments(
 				node(
 					hasTypeName("Goland"),
+					hasPosition(position.Position{
+						LineStart: 0, // default/unrelevant
+						CharStart: 0, // default/unrelevant
+						LineEnd:   7,
+						CharEnd:   6,
+					}),
 					hasInlineFragments(
 						node(
 							hasTypeName("GoWater"),
+							hasPosition(position.Position{
+								LineStart: 2,
+								CharStart: 6,
+								LineEnd:   6,
+								CharEnd:   7,
+							}),
 							hasInlineFragments(
 								node(
 									hasTypeName("GoAir"),
+									hasPosition(position.Position{
+										LineStart: 3,
+										CharStart: 7,
+										LineEnd:   5,
+										CharEnd:   8,
+									}),
 									hasFields(
 										node(
 											hasName("go"),

@@ -2,11 +2,13 @@ package parser
 
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 )
 
-func (p *Parser) parseFragmentSpread(index *[]int) error {
+func (p *Parser) parseFragmentSpread(startPosition position.Position, index *[]int) error {
 
 	fragmentSpread := p.makeFragmentSpread()
+	fragmentSpread.Position.MergeStartIntoStart(startPosition)
 
 	fragmentIdent, err := p.readExpect(keyword.IDENT, "parseFragmentSpread")
 	if err != nil {
@@ -18,6 +20,8 @@ func (p *Parser) parseFragmentSpread(index *[]int) error {
 	if err != nil {
 		return err
 	}
+
+	fragmentSpread.Position.MergeStartIntoEnd(p.TextPosition())
 
 	*index = append(*index, p.putFragmentSpread(fragmentSpread))
 

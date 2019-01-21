@@ -3,11 +3,13 @@ package parser
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 )
 
-func (p *Parser) parseInlineFragment(index *[]int) error {
+func (p *Parser) parseInlineFragment(startPosition position.Position, index *[]int) error {
 
 	var fragment document.InlineFragment
+	fragment.Position.MergeStartIntoStart(startPosition)
 	p.initInlineFragment(&fragment)
 
 	fragmentIdent, err := p.readExpect(keyword.IDENT, "parseInlineFragment")
@@ -30,6 +32,7 @@ func (p *Parser) parseInlineFragment(index *[]int) error {
 		return err
 	}
 
+	fragment.Position.MergeStartIntoEnd(p.TextPosition())
 	*index = append(*index, p.putInlineFragment(fragment))
 	return nil
 }

@@ -20,7 +20,7 @@ func (p *Parser) parseSelectionSet(set *document.SelectionSet) (err error) {
 			return nil
 		}
 
-		isFragmentSelection := p.peekExpect(keyword.SPREAD, true)
+		isFragmentSelection := p.peekExpect(keyword.SPREAD, false)
 		if !isFragmentSelection {
 			err := p.parseField(&set.Fields)
 			if err != nil {
@@ -28,17 +28,19 @@ func (p *Parser) parseSelectionSet(set *document.SelectionSet) (err error) {
 			}
 		} else {
 
+			start := p.l.Read()
+
 			isInlineFragment := p.peekExpect(keyword.ON, true)
 			if isInlineFragment {
 
-				err := p.parseInlineFragment(&set.InlineFragments)
+				err := p.parseInlineFragment(start.TextPosition, &set.InlineFragments)
 				if err != nil {
 					return err
 				}
 
 			} else {
 
-				err := p.parseFragmentSpread(&set.FragmentSpreads)
+				err := p.parseFragmentSpread(start.TextPosition, &set.FragmentSpreads)
 				if err != nil {
 					return err
 				}
