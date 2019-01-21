@@ -23,12 +23,9 @@ func (p *Parser) parseInputFieldsDefinition(index *int) error {
 	}
 
 	_, err = p.readExpect(keyword.CURLYBRACKETCLOSE, "parseInputFieldsDefinition")
-	if err != nil {
-		return err
-	}
 
 	definition.Position.MergeStartIntoEnd(p.TextPosition())
 	*index = p.putInputFieldsDefinitions(definition)
 
-	return nil
+	return err
 }

@@ -3893,6 +3893,20 @@ schema {
 	})
 }
 
+func TestParser_ParseExecutableDefinition(t *testing.T) {
+	parser := NewParser()
+	input := make([]byte, 65536)
+	_, err := parser.ParseTypeSystemDefinition(input)
+	if err == nil {
+		t.Fatal("want err, got nil")
+	}
+
+	_, err = parser.ParseExecutableDefinition(input)
+	if err == nil {
+		t.Fatal("want err, got nil")
+	}
+}
+
 func TestParser_Starwars(t *testing.T) {
 
 	inputFileName := "../../starwars.schema.graphql"
