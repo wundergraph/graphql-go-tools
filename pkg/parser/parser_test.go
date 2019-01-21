@@ -1565,15 +1565,33 @@ func TestParser(t *testing.T) {
 				nodes(
 					node(
 						hasName("heroFields"),
+						hasPosition(position.Position{
+							LineStart: 8,
+							CharStart: 5,
+							LineEnd:   16,
+							CharEnd:   6,
+						}),
 					),
 					node(
 						hasName("vehicleFields"),
+						hasPosition(position.Position{
+							LineStart: 18,
+							CharStart: 5,
+							LineEnd:   21,
+							CharEnd:   6,
+						}),
 					),
 				),
 				nodes(
 					node(
 						hasOperationType(document.OperationTypeQuery),
 						hasName("QueryWithFragments"),
+						hasPosition(position.Position{
+							LineStart: 2,
+							CharStart: 5,
+							LineEnd:   6,
+							CharEnd:   6,
+						}),
 					),
 				)))
 	})
@@ -1959,7 +1977,7 @@ func TestParser(t *testing.T) {
 
 	t.Run("simple fragment definition", func(t *testing.T) {
 		run(`
-				MyFragment on SomeType @rename(index: 3){
+				fragment MyFragment on SomeType @rename(index: 3){
 					name
 				}`,
 			mustParseFragmentDefinition(
@@ -1982,7 +2000,7 @@ func TestParser(t *testing.T) {
 	})
 	t.Run("fragment without optional directives", func(t *testing.T) {
 		run(`
-				MyFragment on SomeType{
+				fragment MyFragment on SomeType{
 					name
 				}`,
 			mustParseFragmentDefinition(
@@ -1999,35 +2017,35 @@ func TestParser(t *testing.T) {
 	})
 	t.Run("invalid fragment 1", func(t *testing.T) {
 		run(`
-				MyFragment SomeType{
+				fragment MyFragment SomeType{
 					name
 				}`,
 			mustPanic(mustParseFragmentDefinition()))
 	})
 	t.Run("invalid fragment 2", func(t *testing.T) {
 		run(`
-				MyFragment un SomeType{
+				fragment MyFragment un SomeType{
 					name
 				}`,
 			mustPanic(mustParseFragmentDefinition()))
 	})
 	t.Run("invalid fragment 3", func(t *testing.T) {
 		run(`
-				1337 on SomeType{
+				fragment 1337 on SomeType{
 					name
 				}`,
 			mustPanic(mustParseFragmentDefinition()))
 	})
 	t.Run("invalid fragment 4", func(t *testing.T) {
 		run(`
-				Fields on [SomeType! {
+				fragment Fields on [SomeType! {
 					name
 				}`,
 			mustPanic(mustParseFragmentDefinition()))
 	})
 	t.Run("invalid fragment 4", func(t *testing.T) {
 		run(`
-				Fields on SomeType @foo(bar: .) {
+				fragment Fields on SomeType @foo(bar: .) {
 					name
 				}`,
 			mustPanic(mustParseFragmentDefinition()))
