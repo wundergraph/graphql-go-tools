@@ -17,7 +17,7 @@ func (p *Parser) parseDirectiveDefinition(index *[]int) error {
 		return err
 	}
 
-	definition := p.makeDirectiveDefinition()
+	var definition document.DirectiveDefinition
 
 	definition.Name = directiveIdent.Literal
 

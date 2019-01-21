@@ -63,6 +63,7 @@ type ParsedDefinitions struct {
 	Arguments                  document.Arguments
 	Directives                 document.Directives
 	EnumTypeDefinitions        document.EnumTypeDefinitions
+	ArgumentsDefinitions       document.ArgumentsDefinitions
 	EnumValuesDefinitions      document.EnumValueDefinitions
 	FieldDefinitions           document.FieldDefinitions
 	InputValueDefinitions      document.InputValueDefinitions
@@ -140,6 +141,7 @@ func NewParser(withOptions ...Option) *Parser {
 		Directives:                 make(document.Directives, 0, options.minimumSliceSize),
 		EnumTypeDefinitions:        make(document.EnumTypeDefinitions, 0, options.minimumSliceSize),
 		EnumValuesDefinitions:      make(document.EnumValueDefinitions, 0, options.minimumSliceSize),
+		ArgumentsDefinitions:       make(document.ArgumentsDefinitions, 0, options.minimumSliceSize),
 		FieldDefinitions:           make(document.FieldDefinitions, 0, options.minimumSliceSize),
 		InputValueDefinitions:      make(document.InputValueDefinitions, 0, options.minimumSliceSize),
 		InputObjectTypeDefinitions: make(document.InputObjectTypeDefinitions, 0, options.minimumSliceSize),
@@ -215,6 +217,15 @@ func (p *Parser) peekExpect(expected keyword.Keyword, swallow bool) bool {
 	return matches
 }
 
+func (p *Parser) peekExpectSwallow(expected keyword.Keyword) (tok token.Token, matches bool) {
+	matches = expected == p.l.Peek(true)
+	if matches {
+		tok = p.l.Read()
+	}
+
+	return
+}
+
 func (p *Parser) indexPoolGet() []int {
 	p.indexPoolPosition++
 
@@ -239,8 +250,7 @@ func (p *Parser) initField(field *document.Field) {
 
 func (p *Parser) makeFieldDefinition() document.FieldDefinition {
 	return document.FieldDefinition{
-		Directives:          p.indexPoolGet(),
-		ArgumentsDefinition: p.indexPoolGet(),
+		Directives: p.indexPoolGet(),
 	}
 }
 
@@ -260,7 +270,7 @@ func (p *Parser) makeInputValueDefinition() document.InputValueDefinition {
 func (p *Parser) makeInputObjectTypeDefinition() document.InputObjectTypeDefinition {
 	return document.InputObjectTypeDefinition{
 		Directives:            p.indexPoolGet(),
-		InputFieldsDefinition: p.indexPoolGet(),
+		InputValueDefinitions: p.indexPoolGet(),
 	}
 }
 
@@ -273,12 +283,6 @@ func (p *Parser) makeTypeSystemDefinition() document.TypeSystemDefinition {
 		ObjectTypeDefinitions:      p.indexPoolGet(),
 		ScalarTypeDefinitions:      p.indexPoolGet(),
 		UnionTypeDefinitions:       p.indexPoolGet(),
-	}
-}
-
-func (p *Parser) makeDirectiveDefinition() document.DirectiveDefinition {
-	return document.DirectiveDefinition{
-		ArgumentsDefinition: p.indexPoolGet(),
 	}
 }
 
@@ -373,6 +377,10 @@ func (p *Parser) makeType(index *int) document.Type {
 	return documentType
 }
 
+func (p *Parser) initArgumentsDefinition(definition *document.ArgumentsDefinition) {
+	definition.InputValueDefinitions = p.indexPoolGet()
+}
+
 func (p *Parser) resetObjects() {
 
 	p.indexPoolPosition = -1
@@ -403,6 +411,7 @@ func (p *Parser) resetObjects() {
 	p.ParsedDefinitions.ObjectValues = p.ParsedDefinitions.ObjectValues[:0]
 	p.ParsedDefinitions.ObjectFields = p.ParsedDefinitions.ObjectFields[:0]
 	p.ParsedDefinitions.Types = p.ParsedDefinitions.Types[:0]
+	p.ParsedDefinitions.ArgumentsDefinitions = p.ParsedDefinitions.ArgumentsDefinitions[:0]
 }
 
 func (p *Parser) putOperationDefinition(definition document.OperationDefinition) int {
@@ -529,4 +538,9 @@ func (p *Parser) putObjectField(field document.ObjectField) int {
 
 func (p *Parser) putType(documentType document.Type, index int) {
 	p.ParsedDefinitions.Types[index] = documentType
+}
+
+func (p *Parser) putArgumentsDefinition(definition document.ArgumentsDefinition) int {
+	p.ParsedDefinitions.ArgumentsDefinitions = append(p.ParsedDefinitions.ArgumentsDefinitions, definition)
+	return len(p.ParsedDefinitions.ArgumentsDefinitions) - 1
 }

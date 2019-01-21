@@ -416,10 +416,10 @@ func TestParser(t *testing.T) {
 		}
 	}
 
-	hasInputFields := func(rules ...ruleSet) rule {
+	hasInputValueDefinitions := func(rules ...ruleSet) rule {
 		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
-			index := node.NodeFields()
+			index := node.NodeInputValueDefinitions()
 
 			for i := range rules {
 				ruleSet := rules[i]
@@ -495,19 +495,21 @@ func TestParser(t *testing.T) {
 		}
 	}
 
-	mustParseArgumentDefinitions := func(argumentNames ...string) checkFunc {
+	mustParseArgumentDefinition := func(rule ...ruleSet) checkFunc {
 		return func(parser *Parser, i int) {
-			var index []int
+			var index int
 			if err := parser.parseArgumentsDefinition(&index); err != nil {
 				panic(err)
 			}
 
-			for k, want := range argumentNames {
-				got := string(parser.ByteSlice(parser.ParsedDefinitions.InputValueDefinitions[k].Name))
-				if want != got {
-					panic(fmt.Errorf("mustParseArguments: want(i: %d): %s, got: %s [check: %d]", k, want, got, i))
-				}
+			if len(rule) == 0 {
+				return
+			} else if len(rule) != 1 {
+				panic("must be only 1 node")
 			}
+
+			node := parser.ParsedDefinitions.ArgumentsDefinitions[index]
+			rule[0].eval(node, parser, i)
 		}
 	}
 
@@ -1021,26 +1023,59 @@ func TestParser(t *testing.T) {
 
 	t.Run("single int value", func(t *testing.T) {
 		run(`(inputValue: Int)`,
-			mustParseArgumentDefinitions("inputValue"))
+			mustParseArgumentDefinition(
+				node(
+					hasInputValueDefinitions(
+						node(
+							hasName("inputValue"),
+						),
+					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						LineEnd:   1,
+						CharStart: 1,
+						CharEnd:   18,
+					}),
+				),
+			),
+		)
 	})
 	t.Run("optional value", func(t *testing.T) {
-		run(" ", mustParseArgumentDefinitions())
+		run(" ", mustParseArgumentDefinition())
 	})
 	t.Run("multiple values", func(t *testing.T) {
 		run(`(inputValue: Int, outputValue: String)`,
-			mustParseArgumentDefinitions("inputValue", "outputValue"))
+			mustParseArgumentDefinition(
+				node(
+					hasInputValueDefinitions(
+						node(
+							hasName("inputValue"),
+						),
+						node(
+							hasName("outputValue"),
+						),
+					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						LineEnd:   1,
+						CharStart: 1,
+						CharEnd:   39,
+					}),
+				),
+			),
+		)
 	})
 	t.Run("not read optional", func(t *testing.T) {
 		run(`inputValue: Int)`,
-			mustParseArgumentDefinitions())
+			mustParseArgumentDefinition())
 	})
 	t.Run("invalid 1", func(t *testing.T) {
 		run(`((inputValue: Int)`,
-			mustPanic(mustParseArgumentDefinitions()))
+			mustPanic(mustParseArgumentDefinition()))
 	})
 	t.Run("invalid 2", func(t *testing.T) {
 		run(`(inputValue: Int`,
-			mustPanic(mustParseArgumentDefinitions()))
+			mustPanic(mustParseArgumentDefinition()))
 	})
 
 	// parseDefaultValue
@@ -2045,7 +2080,7 @@ func TestParser(t *testing.T) {
 			mustParseInputObjectTypeDefinition(
 				node(
 					hasName("Person"),
-					hasInputFields(
+					hasInputValueDefinitions(
 						node(
 							hasName("name"),
 						),
@@ -2062,7 +2097,7 @@ func TestParser(t *testing.T) {
 			mustParseInputObjectTypeDefinition(
 				node(
 					hasName("Person"),
-					hasInputFields(
+					hasInputValueDefinitions(
 						node(hasName("name")),
 						node(hasName("age")),
 					),
@@ -2077,7 +2112,7 @@ func TestParser(t *testing.T) {
 			mustParseInputObjectTypeDefinition(
 				node(
 					hasName("Person"),
-					hasInputFields(
+					hasInputValueDefinitions(
 						node(
 							hasName("name"),
 							nodeType(
@@ -2112,7 +2147,7 @@ func TestParser(t *testing.T) {
 							hasName("fromBottom"),
 						),
 					),
-					hasInputFields(
+					hasInputValueDefinitions(
 						node(
 							hasName("name"),
 						),

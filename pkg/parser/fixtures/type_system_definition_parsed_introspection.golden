@@ -2012,10 +2012,10 @@
         },
         "Value": 0,
         "Position": {
-          "LineStart": 0,
-          "LineEnd": 0,
-          "CharStart": 0,
-          "CharEnd": 0
+          "LineStart": 30,
+          "LineEnd": 30,
+          "CharStart": 10,
+          "CharEnd": 33
         }
       },
       {
@@ -2025,15 +2025,16 @@
         },
         "Value": 1,
         "Position": {
-          "LineStart": 0,
-          "LineEnd": 0,
-          "CharStart": 0,
-          "CharEnd": 0
+          "LineStart": 48,
+          "LineEnd": 48,
+          "CharStart": 14,
+          "CharEnd": 37
         }
       }
     ],
     "Directives": [],
     "EnumTypeDefinitions": [],
+    "ArgumentsDefinitions": [],
     "EnumValuesDefinitions": [],
     "FieldDefinitions": [],
     "InputValueDefinitions": [],
