@@ -91,25 +91,6 @@ func (l *Lexer) Read() (tok token.Token) {
 	return
 }
 
-func (l *Lexer) swallowWhitespace() {
-
-	var next byte
-
-	for {
-		next = l.peekRune(false)
-
-		if next == runes.EOF {
-			return
-		}
-
-		if !l.byteIsWhitespace(next) {
-			return
-		}
-
-		l.readRune()
-	}
-}
-
 // Peek will emit the next keyword without advancing the reader position
 func (l *Lexer) Peek(ignoreWhitespace bool) keyword.Keyword {
 	next := l.peekRune(ignoreWhitespace)
