@@ -7,7 +7,7 @@ import (
 
 func (p *Parser) parseDirectiveDefinition(index *[]int) error {
 
-	_, err := p.readExpect(keyword.AT, "parseDirectiveDefinition")
+	start, err := p.readExpect(keyword.AT, "parseDirectiveDefinition")
 	if err != nil {
 		return err
 	}
@@ -18,7 +18,7 @@ func (p *Parser) parseDirectiveDefinition(index *[]int) error {
 	}
 
 	var definition document.DirectiveDefinition
-
+	definition.Position.MergeStartIntoStart(start.TextPosition)
 	definition.Name = directiveIdent.Literal
 
 	err = p.parseArgumentsDefinition(&definition.ArgumentsDefinition)
@@ -51,6 +51,7 @@ func (p *Parser) parseDirectiveDefinition(index *[]int) error {
 		}
 	}
 
+	definition.Position.MergeStartIntoEnd(p.TextPosition())
 	*index = append(*index, p.putDirectiveDefinition(definition))
 
 	return nil

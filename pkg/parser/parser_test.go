@@ -85,6 +85,20 @@ func TestParser(t *testing.T) {
 		}
 	}
 
+	hasDirectiveLocations := func(locations ...document.DirectiveLocation) rule {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
+
+			got := node.(document.DirectiveDefinition).DirectiveLocations
+
+			for k, wantLocation := range locations {
+				gotLocation := got[k]
+				if wantLocation != gotLocation {
+					panic(fmt.Errorf("mustParseDirectiveDefinition: want(location: %d): %s, got: %s", k, wantLocation.String(), gotLocation.String()))
+				}
+			}
+		}
+	}
+
 	unwrapObjectField := func(node document.Node, parser *Parser) document.Node {
 		objectField, ok := node.(document.ObjectField)
 		if ok {
@@ -442,6 +456,18 @@ func TestParser(t *testing.T) {
 		}
 	}
 
+	hasArgumentsDefinition := func(rules ...rule) rule {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
+
+			index := node.NodeArgumentsDefinition()
+			node = parser.ParsedDefinitions.ArgumentsDefinitions[index]
+
+			for k, rule := range rules {
+				rule(node, parser, k, ruleSetIndex)
+			}
+		}
+	}
+
 	hasInlineFragments := func(rules ...ruleSet) rule {
 		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
@@ -529,33 +555,16 @@ func TestParser(t *testing.T) {
 		}
 	}
 
-	mustParseDirectiveDefinition := func(wantName string, locations ...document.DirectiveLocation) checkFunc {
+	mustParseDirectiveDefinition := func(rules ...ruleSet) checkFunc {
 		return func(parser *Parser, i int) {
 			var index []int
 			if err := parser.parseDirectiveDefinition(&index); err != nil {
 				panic(err)
 			}
 
-			got := parser.ParsedDefinitions.DirectiveDefinitions[0]
-			gotName := string(parser.ByteSlice(got.Name))
-			if wantName != gotName {
-				panic(fmt.Errorf("mustParseDirectiveDefinition: want(name): %s, got: %s", wantName, gotName))
-			}
-
-			for k, wantLocation := range locations {
-				gotLocation := got.DirectiveLocations[k]
-				if wantLocation != gotLocation {
-					panic(fmt.Errorf("mustParseDirectiveDefinition: want(location: %d): %s, got: %s", k, wantLocation.String(), gotLocation.String()))
-				}
-			}
-		}
-	}
-
-	mustContainInputValueDefinition := func(index int, wantName string) checkFunc {
-		return func(parser *Parser, i int) {
-			gotName := string(parser.ByteSlice(parser.ParsedDefinitions.InputValueDefinitions[index].Name))
-			if wantName != gotName {
-				panic(fmt.Errorf("mustContainInputValueDefinition: want for index %d: %s,got: %s", index, wantName, gotName))
+			for k, rule := range rules {
+				node := parser.ParsedDefinitions.DirectiveDefinitions[index[k]]
+				rule.eval(node, parser, k)
 			}
 		}
 	}
@@ -1094,50 +1103,137 @@ func TestParser(t *testing.T) {
 
 	t.Run("single directive with location", func(t *testing.T) {
 		run("@ somewhere on QUERY",
-			mustParseDirectiveDefinition("somewhere", document.DirectiveLocationQUERY))
+			mustParseDirectiveDefinition(
+				node(
+					hasName("somewhere"),
+					hasDirectiveLocations(document.DirectiveLocationQUERY),
+					hasPosition(position.Position{
+						LineStart: 1,
+						LineEnd:   1,
+						CharStart: 1,
+						CharEnd:   21,
+					}),
+				),
+			),
+		)
 	})
 	t.Run("trailing pipe", func(t *testing.T) {
 		run("@ somewhere on | QUERY",
-			mustParseDirectiveDefinition("somewhere", document.DirectiveLocationQUERY))
+			mustParseDirectiveDefinition(
+				node(
+					hasName("somewhere"),
+					hasDirectiveLocations(document.DirectiveLocationQUERY),
+				),
+			),
+		)
 	})
 	t.Run("with input value", func(t *testing.T) {
 		run("@ somewhere(inputValue: Int) on QUERY",
-			mustParseDirectiveDefinition("somewhere", document.DirectiveLocationQUERY),
-			mustContainInputValueDefinition(0, "inputValue"),
+			mustParseDirectiveDefinition(
+				node(
+					hasName("somewhere"),
+					hasDirectiveLocations(document.DirectiveLocationQUERY),
+					hasArgumentsDefinition(
+						hasInputValueDefinitions(
+							node(
+								hasName("inputValue"),
+							),
+						),
+					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						LineEnd:   1,
+						CharStart: 1,
+						CharEnd:   38,
+					}),
+				),
+			),
 		)
 	})
 	t.Run("multiple locations", func(t *testing.T) {
-		run("@ somewhere on QUERY | MUTATION",
-			mustParseDirectiveDefinition("somewhere",
-				document.DirectiveLocationQUERY, document.DirectiveLocationMUTATION))
+		run("@ somewhere on QUERY |\nMUTATION",
+			mustParseDirectiveDefinition(
+				node(
+					hasName("somewhere"),
+					hasDirectiveLocations(document.DirectiveLocationQUERY, document.DirectiveLocationMUTATION),
+					hasPosition(position.Position{
+						LineStart: 1,
+						LineEnd:   2,
+						CharStart: 1,
+						CharEnd:   9,
+					}),
+				),
+			),
+		)
 	})
 	t.Run("invalid 1", func(t *testing.T) {
 		run("@ somewhere QUERY",
-			mustPanic(mustParseDirectiveDefinition("somewhere", document.DirectiveLocationQUERY)),
+			mustPanic(
+				mustParseDirectiveDefinition(
+					node(
+						hasName("somewhere"),
+						hasDirectiveLocations(document.DirectiveLocationQUERY),
+					),
+				),
+			),
 		)
 	})
 	t.Run("invalid 2", func(t *testing.T) {
 		run("@ somewhere off QUERY",
-			mustPanic(mustParseDirectiveDefinition("somewhere")))
+			mustPanic(
+				mustParseDirectiveDefinition(
+					node(
+						hasName("somewhere"),
+					),
+				),
+			),
+		)
 	})
 	t.Run("missing at", func(t *testing.T) {
 		run("somewhere off QUERY",
-			mustPanic(mustParseDirectiveDefinition("somewhere")))
+			mustPanic(
+				mustParseDirectiveDefinition(
+					node(
+						hasName("somewhere"),
+					),
+				),
+			),
+		)
 	})
 	t.Run("invalid args", func(t *testing.T) {
 		run("@ somewhere(inputValue: .) on QUERY",
 			mustPanic(
-				mustParseDirectiveDefinition("somewhere", document.DirectiveLocationQUERY),
+				mustParseDirectiveDefinition(
+					node(
+						hasName("somewhere"),
+						hasDirectiveLocations(document.DirectiveLocationQUERY),
+					),
+				),
 			),
 		)
 	})
 	t.Run("missing ident after at", func(t *testing.T) {
 		run("@ \"somewhere\" off QUERY",
-			mustPanic(mustParseDirectiveDefinition("somewhere")))
+			mustPanic(
+				mustParseDirectiveDefinition(
+					node(
+						hasName("somewhere"),
+					),
+				),
+			),
+		)
 	})
 	t.Run("invalid location", func(t *testing.T) {
 		run("@ somewhere on QUERY | thisshouldntwork",
-			mustPanic(mustParseDirectiveDefinition("somewhere", document.DirectiveLocationQUERY)))
+			mustPanic(
+				mustParseDirectiveDefinition(
+					node(
+						hasName("somewhere"),
+						hasDirectiveLocations(document.DirectiveLocationQUERY),
+					),
+				),
+			),
+		)
 	})
 
 	// parseDirectives
@@ -3341,12 +3437,24 @@ schema {
 		run("1337", mustParseValue(
 			document.ValueTypeInt,
 			expectIntegerValue(1337),
+			hasPosition(position.Position{
+				LineStart: 1,
+				LineEnd:   1,
+				CharStart: 1,
+				CharEnd:   5,
+			}),
 		))
 	})
 	t.Run("string", func(t *testing.T) {
 		run(`"foo"`, mustParseValue(
 			document.ValueTypeString,
 			expectByteSliceValue("foo"),
+			hasPosition(position.Position{
+				LineStart: 1,
+				LineEnd:   1,
+				CharStart: 1,
+				CharEnd:   6,
+			}),
 		))
 	})
 	t.Run("list", func(t *testing.T) {
@@ -3358,6 +3466,12 @@ schema {
 				expectIntegerValue(3),
 				expectIntegerValue(7),
 			),
+			hasPosition(position.Position{
+				LineStart: 1,
+				LineEnd:   1,
+				CharStart: 1,
+				CharEnd:   10,
+			}),
 		))
 	})
 	t.Run("mixed list", func(t *testing.T) {
@@ -3378,6 +3492,12 @@ schema {
 						),
 					),
 				),
+				hasPosition(position.Position{
+					LineStart: 1,
+					LineEnd:   1,
+					CharStart: 1,
+					CharEnd:   35,
+				}),
 			))
 	})
 	t.Run("object", func(t *testing.T) {
@@ -3389,6 +3509,12 @@ schema {
 						expectByteSliceValue("bar"),
 					),
 				),
+				hasPosition(position.Position{
+					LineStart: 1,
+					LineEnd:   1,
+					CharStart: 1,
+					CharEnd:   13,
+				}),
 			))
 	})
 	t.Run("invalid object", func(t *testing.T) {
@@ -3450,10 +3576,25 @@ schema {
 					expectByteSliceValue("SOME_ENUM"),
 				),
 			),
+			hasPosition(position.Position{
+				LineStart: 1,
+				LineEnd:   1,
+				CharStart: 1,
+				CharEnd:   42,
+			}),
 		))
 	})
 	t.Run("variable", func(t *testing.T) {
-		run("$1337", mustParseValue(document.ValueTypeVariable, expectByteSliceValue("1337")))
+		run("$1337", mustParseValue(
+			document.ValueTypeVariable,
+			expectByteSliceValue("1337"),
+			hasPosition(position.Position{
+				LineStart: 1,
+				LineEnd:   1,
+				CharStart: 1,
+				CharEnd:   6,
+			}),
+		))
 	})
 	t.Run("variable 2", func(t *testing.T) {
 		run("$foo", mustParseValue(document.ValueTypeVariable, expectByteSliceValue("foo")))
@@ -3465,13 +3606,31 @@ schema {
 		run("$ foo", mustPanic(mustParseValue(document.ValueTypeVariable, expectByteSliceValue(" foo"))))
 	})
 	t.Run("float", func(t *testing.T) {
-		run("13.37", mustParseValue(document.ValueTypeFloat, expectFloatValue(13.37)))
+		run("13.37", mustParseValue(
+			document.ValueTypeFloat,
+			expectFloatValue(13.37),
+			hasPosition(position.Position{
+				LineStart: 1,
+				LineEnd:   1,
+				CharStart: 1,
+				CharEnd:   6,
+			}),
+		))
 	})
 	t.Run("invalid float", func(t *testing.T) {
 		run("1.3.3.7", mustPanic(mustParseValue(document.ValueTypeFloat, expectFloatValue(13.37))))
 	})
 	t.Run("boolean", func(t *testing.T) {
-		run("true", mustParseValue(document.ValueTypeBoolean, expectBooleanValue(true)))
+		run("true", mustParseValue(
+			document.ValueTypeBoolean,
+			expectBooleanValue(true),
+			hasPosition(position.Position{
+				LineStart: 1,
+				LineEnd:   1,
+				CharStart: 1,
+				CharEnd:   5,
+			}),
+		))
 	})
 	t.Run("boolean 2", func(t *testing.T) {
 		run("false", mustParseValue(document.ValueTypeBoolean, expectBooleanValue(false)))
@@ -3483,7 +3642,15 @@ schema {
 		run(`"""foo"""`, mustParseValue(document.ValueTypeString, expectByteSliceValue("foo")))
 	})
 	t.Run("null", func(t *testing.T) {
-		run("null", mustParseValue(document.ValueTypeNull))
+		run("null", mustParseValue(
+			document.ValueTypeNull,
+			hasPosition(position.Position{
+				LineStart: 1,
+				LineEnd:   1,
+				CharStart: 1,
+				CharEnd:   5,
+			}),
+		))
 	})
 
 	// parseTypes
