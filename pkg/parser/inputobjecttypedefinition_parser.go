@@ -20,7 +20,7 @@ func (p *Parser) parseInputObjectTypeDefinition(index *[]int) error {
 		return err
 	}
 
-	err = p.parseInputFieldsDefinition(&definition.InputValueDefinitions)
+	err = p.parseInputFieldsDefinition(&definition.InputFieldsDefinition)
 	if err != nil {
 		return err
 	}

@@ -430,6 +430,18 @@ func TestParser(t *testing.T) {
 		}
 	}
 
+	hasInputFieldsDefinition := func(rules ...rule) rule {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
+
+			index := node.NodeInputFieldsDefinition()
+			node = parser.ParsedDefinitions.InputFieldsDefinitions[index]
+
+			for i, rule := range rules {
+				rule(node, parser, i, ruleSetIndex)
+			}
+		}
+	}
+
 	hasInputValueDefinitions := func(rules ...ruleSet) rule {
 		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
@@ -724,16 +736,22 @@ func TestParser(t *testing.T) {
 		}
 	}
 
-	mustParseInputFieldsDefinition := func(rules ...ruleSet) checkFunc {
+	mustParseInputFieldsDefinition := func(rules ...rule) checkFunc {
 		return func(parser *Parser, i int) {
-			var index []int
+
+			var index int
 			if err := parser.parseInputFieldsDefinition(&index); err != nil {
 				panic(err)
 			}
 
-			for j, rule := range rules {
-				inputValueDefinition := parser.ParsedDefinitions.InputValueDefinitions[j]
-				evalRules(inputValueDefinition, parser, rule, i)
+			if len(rules) == 0 {
+				return
+			}
+
+			node := parser.ParsedDefinitions.InputFieldsDefinitions[index]
+
+			for k, rule := range rules {
+				rule(node, parser, k, i)
 			}
 		}
 	}
@@ -2235,13 +2253,21 @@ func TestParser(t *testing.T) {
 	t.Run("simple input fields definition", func(t *testing.T) {
 		run("{inputValue: Int}",
 			mustParseInputFieldsDefinition(
-				node(
-					hasName("inputValue"),
-					nodeType(
-						hasTypeKind(document.TypeKindNAMED),
-						hasTypeName("Int"),
+				hasInputValueDefinitions(
+					node(
+						hasName("inputValue"),
+						nodeType(
+							hasTypeKind(document.TypeKindNAMED),
+							hasTypeName("Int"),
+						),
 					),
 				),
+				hasPosition(position.Position{
+					LineStart: 1,
+					CharStart: 1,
+					LineEnd:   1,
+					CharEnd:   18,
+				}),
 			),
 		)
 	})
@@ -2251,20 +2277,28 @@ func TestParser(t *testing.T) {
 	t.Run("multiple", func(t *testing.T) {
 		run("{inputValue: Int, outputValue: String}",
 			mustParseInputFieldsDefinition(
-				node(
-					hasName("inputValue"),
-					nodeType(
-						hasTypeKind(document.TypeKindNAMED),
-						hasTypeName("Int"),
+				hasInputValueDefinitions(
+					node(
+						hasName("inputValue"),
+						nodeType(
+							hasTypeKind(document.TypeKindNAMED),
+							hasTypeName("Int"),
+						),
+					),
+					node(
+						hasName("outputValue"),
+						nodeType(
+							hasTypeKind(document.TypeKindNAMED),
+							hasTypeName("String"),
+						),
 					),
 				),
-				node(
-					hasName("outputValue"),
-					nodeType(
-						hasTypeKind(document.TypeKindNAMED),
-						hasTypeName("String"),
-					),
-				),
+				hasPosition(position.Position{
+					LineStart: 1,
+					CharStart: 1,
+					LineEnd:   1,
+					CharEnd:   39,
+				}),
 			),
 		)
 	})
@@ -2294,9 +2328,11 @@ func TestParser(t *testing.T) {
 			mustParseInputObjectTypeDefinition(
 				node(
 					hasName("Person"),
-					hasInputValueDefinitions(
-						node(
-							hasName("name"),
+					hasInputFieldsDefinition(
+						hasInputValueDefinitions(
+							node(
+								hasName("name"),
+							),
 						),
 					),
 				),
@@ -2311,9 +2347,11 @@ func TestParser(t *testing.T) {
 			mustParseInputObjectTypeDefinition(
 				node(
 					hasName("Person"),
-					hasInputValueDefinitions(
-						node(hasName("name")),
-						node(hasName("age")),
+					hasInputFieldsDefinition(
+						hasInputValueDefinitions(
+							node(hasName("name")),
+							node(hasName("age")),
+						),
 					),
 				),
 			),
@@ -2326,12 +2364,14 @@ func TestParser(t *testing.T) {
 			mustParseInputObjectTypeDefinition(
 				node(
 					hasName("Person"),
-					hasInputValueDefinitions(
-						node(
-							hasName("name"),
-							nodeType(
-								hasTypeKind(document.TypeKindNAMED),
-								hasTypeName("String"),
+					hasInputFieldsDefinition(
+						hasInputValueDefinitions(
+							node(
+								hasName("name"),
+								nodeType(
+									hasTypeKind(document.TypeKindNAMED),
+									hasTypeName("String"),
+								),
 							),
 						),
 					),
@@ -2361,9 +2401,11 @@ func TestParser(t *testing.T) {
 							hasName("fromBottom"),
 						),
 					),
-					hasInputValueDefinitions(
-						node(
-							hasName("name"),
+					hasInputFieldsDefinition(
+						hasInputValueDefinitions(
+							node(
+								hasName("name"),
+							),
 						),
 					),
 				),

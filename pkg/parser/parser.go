@@ -73,6 +73,7 @@ type ParsedDefinitions struct {
 	ObjectTypeDefinitions      document.ObjectTypeDefinitions
 	ScalarTypeDefinitions      document.ScalarTypeDefinitions
 	UnionTypeDefinitions       document.UnionTypeDefinitions
+	InputFieldsDefinitions     document.InputFieldsDefinitions
 	Values                     []document.Value
 	ListValues                 []document.ListValue
 	ObjectValues               []document.ObjectValue
@@ -150,6 +151,7 @@ func NewParser(withOptions ...Option) *Parser {
 		ObjectTypeDefinitions:      make(document.ObjectTypeDefinitions, 0, options.minimumSliceSize),
 		ScalarTypeDefinitions:      make(document.ScalarTypeDefinitions, 0, options.minimumSliceSize),
 		UnionTypeDefinitions:       make(document.UnionTypeDefinitions, 0, options.minimumSliceSize),
+		InputFieldsDefinitions:     make(document.InputFieldsDefinitions, 0, options.minimumSliceSize),
 		Values:                     make([]document.Value, 0, options.minimumSliceSize),
 		ListValues:                 make([]document.ListValue, 0, options.minimumSliceSize),
 		ObjectValues:               make([]document.ObjectValue, 0, options.minimumSliceSize),
@@ -269,8 +271,7 @@ func (p *Parser) makeInputValueDefinition() document.InputValueDefinition {
 
 func (p *Parser) makeInputObjectTypeDefinition() document.InputObjectTypeDefinition {
 	return document.InputObjectTypeDefinition{
-		Directives:            p.indexPoolGet(),
-		InputValueDefinitions: p.indexPoolGet(),
+		Directives: p.indexPoolGet(),
 	}
 }
 
@@ -381,6 +382,10 @@ func (p *Parser) initArgumentsDefinition(definition *document.ArgumentsDefinitio
 	definition.InputValueDefinitions = p.indexPoolGet()
 }
 
+func (p *Parser) initInputFieldsDefinition(definition *document.InputFieldsDefinition) {
+	definition.InputValueDefinitions = p.indexPoolGet()
+}
+
 func (p *Parser) resetObjects() {
 
 	p.indexPoolPosition = -1
@@ -412,6 +417,7 @@ func (p *Parser) resetObjects() {
 	p.ParsedDefinitions.ObjectFields = p.ParsedDefinitions.ObjectFields[:0]
 	p.ParsedDefinitions.Types = p.ParsedDefinitions.Types[:0]
 	p.ParsedDefinitions.ArgumentsDefinitions = p.ParsedDefinitions.ArgumentsDefinitions[:0]
+	p.ParsedDefinitions.InputFieldsDefinitions = p.ParsedDefinitions.InputFieldsDefinitions[:0]
 }
 
 func (p *Parser) putOperationDefinition(definition document.OperationDefinition) int {
@@ -543,4 +549,9 @@ func (p *Parser) putType(documentType document.Type, index int) {
 func (p *Parser) putArgumentsDefinition(definition document.ArgumentsDefinition) int {
 	p.ParsedDefinitions.ArgumentsDefinitions = append(p.ParsedDefinitions.ArgumentsDefinitions, definition)
 	return len(p.ParsedDefinitions.ArgumentsDefinitions) - 1
+}
+
+func (p *Parser) putInputFieldsDefinitions(definition document.InputFieldsDefinition) int {
+	p.ParsedDefinitions.InputFieldsDefinitions = append(p.ParsedDefinitions.InputFieldsDefinitions, definition)
+	return len(p.ParsedDefinitions.InputFieldsDefinitions) - 1
 }
