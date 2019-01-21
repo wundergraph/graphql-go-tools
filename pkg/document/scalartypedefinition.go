@@ -11,6 +11,10 @@ type ScalarTypeDefinition struct {
 	Position    position.Position
 }
 
+func (s ScalarTypeDefinition) NodeInputValueDefinitions() []int {
+	panic("implement me")
+}
+
 func (s ScalarTypeDefinition) NodePosition() position.Position {
 	return s.Position
 }
@@ -75,7 +79,7 @@ func (s ScalarTypeDefinition) NodeArguments() []int {
 	panic("implement me")
 }
 
-func (s ScalarTypeDefinition) NodeArgumentsDefinition() []int {
+func (s ScalarTypeDefinition) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 

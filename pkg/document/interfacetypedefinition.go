@@ -12,6 +12,10 @@ type InterfaceTypeDefinition struct {
 	Position         position.Position
 }
 
+func (i InterfaceTypeDefinition) NodeInputValueDefinitions() []int {
+	panic("implement me")
+}
+
 func (i InterfaceTypeDefinition) NodePosition() position.Position {
 	return i.Position
 }
@@ -92,7 +96,7 @@ func (i InterfaceTypeDefinition) NodeArguments() []int {
 	panic("implement me")
 }
 
-func (i InterfaceTypeDefinition) NodeArgumentsDefinition() []int {
+func (i InterfaceTypeDefinition) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 

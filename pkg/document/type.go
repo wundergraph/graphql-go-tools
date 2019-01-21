@@ -23,6 +23,10 @@ type Type struct {
 	Position position.Position
 }
 
+func (t Type) NodeInputValueDefinitions() []int {
+	panic("implement me")
+}
+
 func (t Type) NodePosition() position.Position {
 	return t.Position
 }
@@ -43,7 +47,7 @@ func (t Type) NodeArguments() []int {
 	panic("implement me")
 }
 
-func (t Type) NodeArgumentsDefinition() []int {
+func (t Type) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 

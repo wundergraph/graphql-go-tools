@@ -12,6 +12,10 @@ type FragmentDefinition struct {
 	Position      position.Position
 }
 
+func (f FragmentDefinition) NodeInputValueDefinitions() []int {
+	panic("implement me")
+}
+
 func (f FragmentDefinition) NodePosition() position.Position {
 	return f.Position
 }
@@ -76,7 +80,7 @@ func (f FragmentDefinition) NodeFieldsDefinition() []int {
 	panic("implement me")
 }
 
-func (f FragmentDefinition) NodeArgumentsDefinition() []int {
+func (f FragmentDefinition) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 

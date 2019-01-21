@@ -10,6 +10,10 @@ type Directive struct {
 	Position  position.Position
 }
 
+func (d Directive) NodeInputValueDefinitions() []int {
+	panic("implement me")
+}
+
 func (d Directive) NodePosition() position.Position {
 	return d.Position
 }
@@ -74,7 +78,7 @@ func (d Directive) NodeFieldsDefinition() []int {
 	panic("implement me")
 }
 
-func (d Directive) NodeArgumentsDefinition() []int {
+func (d Directive) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 

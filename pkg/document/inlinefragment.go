@@ -11,6 +11,10 @@ type InlineFragment struct {
 	Position      position.Position
 }
 
+func (i InlineFragment) NodeInputValueDefinitions() []int {
+	panic("implement me")
+}
+
 func (i InlineFragment) NodePosition() position.Position {
 	return i.Position
 }
@@ -75,7 +79,7 @@ func (i InlineFragment) NodeAlias() ByteSliceReference {
 	panic("implement me")
 }
 
-func (i InlineFragment) NodeArgumentsDefinition() []int {
+func (i InlineFragment) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 

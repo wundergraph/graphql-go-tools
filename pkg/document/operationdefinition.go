@@ -13,6 +13,10 @@ type OperationDefinition struct {
 	Position            position.Position
 }
 
+func (o OperationDefinition) NodeInputValueDefinitions() []int {
+	panic("implement me")
+}
+
 func (o OperationDefinition) NodePosition() position.Position {
 	return o.Position
 }
@@ -77,7 +81,7 @@ func (o OperationDefinition) NodeFieldsDefinition() []int {
 	panic("implement me")
 }
 
-func (o OperationDefinition) NodeArgumentsDefinition() []int {
+func (o OperationDefinition) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 

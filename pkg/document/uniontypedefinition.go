@@ -12,6 +12,10 @@ type UnionTypeDefinition struct {
 	Position         position.Position
 }
 
+func (u UnionTypeDefinition) NodeInputValueDefinitions() []int {
+	panic("implement me")
+}
+
 func (u UnionTypeDefinition) NodePosition() position.Position {
 	return u.Position
 }
@@ -44,7 +48,7 @@ func (u UnionTypeDefinition) NodeArguments() []int {
 	panic("implement me")
 }
 
-func (u UnionTypeDefinition) NodeArgumentsDefinition() []int {
+func (u UnionTypeDefinition) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 

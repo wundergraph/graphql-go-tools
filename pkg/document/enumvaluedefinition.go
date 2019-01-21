@@ -11,6 +11,10 @@ type EnumValueDefinition struct {
 	Position    position.Position
 }
 
+func (e EnumValueDefinition) NodeInputValueDefinitions() []int {
+	panic("implement me")
+}
+
 func (e EnumValueDefinition) NodePosition() position.Position {
 	return e.Position
 }
@@ -75,7 +79,7 @@ func (e EnumValueDefinition) NodeFieldsDefinition() []int {
 	panic("implement me")
 }
 
-func (e EnumValueDefinition) NodeArgumentsDefinition() []int {
+func (e EnumValueDefinition) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 
