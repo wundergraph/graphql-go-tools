@@ -15,6 +15,130 @@ type SchemaDefinition struct {
 	Position     position.Position
 }
 
+func (s SchemaDefinition) NodeName() ByteSliceReference {
+	panic("implement me")
+}
+
+func (s SchemaDefinition) NodeAlias() ByteSliceReference {
+	panic("implement me")
+}
+
+func (s SchemaDefinition) NodeDescription() ByteSliceReference {
+	panic("implement me")
+}
+
+func (s SchemaDefinition) NodeArguments() []int {
+	panic("implement me")
+}
+
+func (s SchemaDefinition) NodeArgumentsDefinition() int {
+	panic("implement me")
+}
+
+func (s SchemaDefinition) NodeDirectives() []int {
+	return s.Directives
+}
+
+func (s SchemaDefinition) NodeEnumValuesDefinition() []int {
+	panic("implement me")
+}
+
+func (s SchemaDefinition) NodeFields() []int {
+	panic("implement me")
+}
+
+func (s SchemaDefinition) NodeFieldsDefinition() []int {
+	panic("implement me")
+}
+
+func (s SchemaDefinition) NodeFragmentSpreads() []int {
+	panic("implement me")
+}
+
+func (s SchemaDefinition) NodeInlineFragments() []int {
+	panic("implement me")
+}
+
+func (s SchemaDefinition) NodeVariableDefinitions() []int {
+	panic("implement me")
+}
+
+func (s SchemaDefinition) NodeType() int {
+	panic("implement me")
+}
+
+func (s SchemaDefinition) NodeOperationType() OperationType {
+	panic("implement me")
+}
+
+func (s SchemaDefinition) NodeValue() int {
+	panic("implement me")
+}
+
+func (s SchemaDefinition) NodeDefaultValue() int {
+	panic("implement me")
+}
+
+func (s SchemaDefinition) NodeImplementsInterfaces() []ByteSliceReference {
+	panic("implement me")
+}
+
+func (s SchemaDefinition) NodeInputValueDefinitions() []int {
+	panic("implement me")
+}
+
+func (s SchemaDefinition) NodeSchemaDefinition() SchemaDefinition {
+	panic("implement me")
+}
+
+func (s SchemaDefinition) NodeScalarTypeDefinitions() []int {
+	panic("implement me")
+}
+
+func (s SchemaDefinition) NodeObjectTypeDefinitions() []int {
+	panic("implement me")
+}
+
+func (s SchemaDefinition) NodeInterfaceTypeDefinitions() []int {
+	panic("implement me")
+}
+
+func (s SchemaDefinition) NodeUnionTypeDefinitions() []int {
+	panic("implement me")
+}
+
+func (s SchemaDefinition) NodeEnumTypeDefinitions() []int {
+	panic("implement me")
+}
+
+func (s SchemaDefinition) NodeInputObjectTypeDefinitions() []int {
+	panic("implement me")
+}
+
+func (s SchemaDefinition) NodeDirectiveDefinitions() []int {
+	panic("implement me")
+}
+
+func (s SchemaDefinition) NodeUnionMemberTypes() []ByteSliceReference {
+	panic("implement me")
+}
+
+func (s SchemaDefinition) NodeValueType() ValueType {
+	panic("implement me")
+}
+
+func (s SchemaDefinition) NodeValueReference() int {
+	panic("implement me")
+}
+
+func (s SchemaDefinition) NodePosition() position.Position {
+	return s.Position
+}
+
+func (s SchemaDefinition) NodeInputFieldsDefinition() int {
+	panic("implement me")
+}
+
 // ObjectName returns the struct name for ease of use
 func (s SchemaDefinition) ObjectName() string {
 	return "SchemaDefinition"

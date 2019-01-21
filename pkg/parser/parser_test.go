@@ -354,12 +354,16 @@ func TestParser(t *testing.T) {
 		}
 	}
 
-	hasSchemaDefinition := func() rule {
+	hasSchemaDefinition := func(rules ...rule) rule {
 		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
 			schemaDefinition := node.NodeSchemaDefinition()
 			if !schemaDefinition.IsDefined() {
 				panic(fmt.Errorf("hasSchemaDefinition: schemaDefinition is undefined [check: %d]", ruleSetIndex))
+			}
+
+			for i, rule := range rules {
+				rule(schemaDefinition, parser, i, ruleSetIndex)
 			}
 		}
 	}
@@ -570,7 +574,7 @@ func TestParser(t *testing.T) {
 	mustParseDirectiveDefinition := func(rules ...ruleSet) checkFunc {
 		return func(parser *Parser, i int) {
 			var index []int
-			if err := parser.parseDirectiveDefinition(&index); err != nil {
+			if err := parser.parseDirectiveDefinition(nil, &index); err != nil {
 				panic(err)
 			}
 
@@ -598,7 +602,7 @@ func TestParser(t *testing.T) {
 	mustParseEnumTypeDefinition := func(rules ...rule) checkFunc {
 		return func(parser *Parser, i int) {
 			var index []int
-			if err := parser.parseEnumTypeDefinition(&index); err != nil {
+			if err := parser.parseEnumTypeDefinition(nil, &index); err != nil {
 				panic(err)
 			}
 
@@ -759,7 +763,7 @@ func TestParser(t *testing.T) {
 	mustParseInputObjectTypeDefinition := func(rules ...ruleSet) checkFunc {
 		return func(parser *Parser, i int) {
 			var index []int
-			if err := parser.parseInputObjectTypeDefinition(&index); err != nil {
+			if err := parser.parseInputObjectTypeDefinition(nil, &index); err != nil {
 				panic(err)
 			}
 
@@ -787,7 +791,7 @@ func TestParser(t *testing.T) {
 	mustParseInterfaceTypeDefinition := func(rules ...ruleSet) checkFunc {
 		return func(parser *Parser, i int) {
 			var index []int
-			if err := parser.parseInterfaceTypeDefinition(&index); err != nil {
+			if err := parser.parseInterfaceTypeDefinition(nil, &index); err != nil {
 				panic(err)
 			}
 
@@ -801,7 +805,7 @@ func TestParser(t *testing.T) {
 	mustParseObjectTypeDefinition := func(rules ...ruleSet) checkFunc {
 		return func(parser *Parser, i int) {
 			var index []int
-			if err := parser.parseObjectTypeDefinition(&index); err != nil {
+			if err := parser.parseObjectTypeDefinition(nil, &index); err != nil {
 				panic(err)
 			}
 
@@ -829,7 +833,7 @@ func TestParser(t *testing.T) {
 	mustParseScalarTypeDefinition := func(rules ...ruleSet) checkFunc {
 		return func(parser *Parser, i int) {
 			var index []int
-			if err := parser.parseScalarTypeDefinition(&index); err != nil {
+			if err := parser.parseScalarTypeDefinition(nil, &index); err != nil {
 				panic(err)
 			}
 
@@ -854,7 +858,8 @@ func TestParser(t *testing.T) {
 
 	mustParseSchemaDefinition := func(wantQuery, wantMutation, wantSubscription string, directives ...ruleSet) checkFunc {
 		return func(parser *Parser, i int) {
-			schemaDefinition, err := parser.parseSchemaDefinition()
+			var schemaDefinition document.SchemaDefinition
+			err := parser.parseSchemaDefinition(&schemaDefinition)
 			if err != nil {
 				panic(err)
 			}
@@ -894,7 +899,7 @@ func TestParser(t *testing.T) {
 	mustParseUnionTypeDefinition := func(rules ...ruleSet) checkFunc {
 		return func(parser *Parser, i int) {
 			var index []int
-			if err := parser.parseUnionTypeDefinition(&index); err != nil {
+			if err := parser.parseUnionTypeDefinition(nil, &index); err != nil {
 				panic(err)
 			}
 
@@ -1105,7 +1110,7 @@ func TestParser(t *testing.T) {
 	// parseDirectiveDefinition
 
 	t.Run("single directive with location", func(t *testing.T) {
-		run("@ somewhere on QUERY",
+		run("directive @ somewhere on QUERY",
 			mustParseDirectiveDefinition(
 				node(
 					hasName("somewhere"),
@@ -1114,14 +1119,14 @@ func TestParser(t *testing.T) {
 						LineStart: 1,
 						LineEnd:   1,
 						CharStart: 1,
-						CharEnd:   21,
+						CharEnd:   31,
 					}),
 				),
 			),
 		)
 	})
 	t.Run("trailing pipe", func(t *testing.T) {
-		run("@ somewhere on | QUERY",
+		run("directive @ somewhere on | QUERY",
 			mustParseDirectiveDefinition(
 				node(
 					hasName("somewhere"),
@@ -1131,7 +1136,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("with input value", func(t *testing.T) {
-		run("@ somewhere(inputValue: Int) on QUERY",
+		run("directive @ somewhere(inputValue: Int) on QUERY",
 			mustParseDirectiveDefinition(
 				node(
 					hasName("somewhere"),
@@ -1147,14 +1152,14 @@ func TestParser(t *testing.T) {
 						LineStart: 1,
 						LineEnd:   1,
 						CharStart: 1,
-						CharEnd:   38,
+						CharEnd:   48,
 					}),
 				),
 			),
 		)
 	})
 	t.Run("multiple locations", func(t *testing.T) {
-		run("@ somewhere on QUERY |\nMUTATION",
+		run("directive @ somewhere on QUERY |\nMUTATION",
 			mustParseDirectiveDefinition(
 				node(
 					hasName("somewhere"),
@@ -1326,7 +1331,7 @@ func TestParser(t *testing.T) {
 	// parseEnumTypeDefinition
 
 	t.Run("simple enum", func(t *testing.T) {
-		run(` Direction {
+		run(`enum Direction {
 						NORTH
 						EAST
 						SOUTH
@@ -1342,7 +1347,7 @@ func TestParser(t *testing.T) {
 		))
 	})
 	t.Run("enum with descriptions", func(t *testing.T) {
-		run(` Direction {
+		run(`enum Direction {
   						"describes north"
   						NORTH
   						"describes east"
@@ -1362,7 +1367,7 @@ func TestParser(t *testing.T) {
 			))
 	})
 	t.Run("enum with space", func(t *testing.T) {
-		run(` Direction {
+		run(`enum Direction {
   "describes north"
   NORTH
 
@@ -1385,7 +1390,7 @@ func TestParser(t *testing.T) {
 		))
 	})
 	t.Run("enum with directives", func(t *testing.T) {
-		run(` Direction @fromTop(to: "bottom") @fromBottom(to: "top"){ NORTH }`,
+		run(`enum Direction @fromTop(to: "bottom") @fromBottom(to: "top"){ NORTH }`,
 			mustParseEnumTypeDefinition(
 				hasName("Direction"),
 				hasDirectives(
@@ -1398,19 +1403,19 @@ func TestParser(t *testing.T) {
 			))
 	})
 	t.Run("enum without values", func(t *testing.T) {
-		run("Direction", mustParseEnumTypeDefinition(hasName("Direction")))
+		run("enum Direction", mustParseEnumTypeDefinition(hasName("Direction")))
 	})
 	t.Run("invalid enum", func(t *testing.T) {
-		run("Direction {", mustPanic(mustParseEnumTypeDefinition()))
+		run("enum Direction {", mustPanic(mustParseEnumTypeDefinition()))
 	})
 	t.Run("invalid enum 2", func(t *testing.T) {
-		run("\"Direction\" {}", mustPanic(mustParseEnumTypeDefinition()))
+		run("enum  \"Direction\" {}", mustPanic(mustParseEnumTypeDefinition()))
 	})
 	t.Run("invalid enum 2", func(t *testing.T) {
-		run("Direction @from(foo: .)", mustPanic(mustParseEnumTypeDefinition(hasName("Direction"))))
+		run("enum  Direction @from(foo: .)", mustPanic(mustParseEnumTypeDefinition(hasName("Direction"))))
 	})
 	t.Run("invalid enum 3", func(t *testing.T) {
-		run("Direction {FOO @bar(baz: .)}", mustPanic(mustParseEnumTypeDefinition(hasName("Direction"))))
+		run("enum Direction {FOO @bar(baz: .)}", mustPanic(mustParseEnumTypeDefinition(hasName("Direction"))))
 	})
 
 	// parseExecutableDefinition
@@ -2322,7 +2327,7 @@ func TestParser(t *testing.T) {
 	// parseInputObjectTypeDefinition
 
 	t.Run("simple", func(t *testing.T) {
-		run(`Person {
+		run(`input Person {
 					name: String
 				}`,
 			mustParseInputObjectTypeDefinition(
@@ -2340,7 +2345,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("multiple fields", func(t *testing.T) {
-		run(`Person {
+		run(`input Person {
 					name: [String]!
 					age: [ Int ]
 				}`,
@@ -2358,7 +2363,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("with default value", func(t *testing.T) {
-		run(`Person {
+		run(`input Person {
 					name: String = "Gophina"
 				}`,
 			mustParseInputObjectTypeDefinition(
@@ -2380,14 +2385,14 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("all optional", func(t *testing.T) {
-		run("Person", mustParseInputObjectTypeDefinition(
+		run("input Person", mustParseInputObjectTypeDefinition(
 			node(
 				hasName("Person"),
 			),
 		))
 	})
 	t.Run("complex", func(t *testing.T) {
-		run(`Person @fromTop(to: "bottom") @fromBottom(to: "top"){
+		run(`input Person @fromTop(to: "bottom") @fromBottom(to: "top"){
 					name: String
 				}`,
 			mustParseInputObjectTypeDefinition(
@@ -2413,7 +2418,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("invalid 1", func(t *testing.T) {
-		run("1337 {}",
+		run("input 1337 {}",
 			mustPanic(
 				mustParseInputObjectTypeDefinition(
 					node(
@@ -2423,7 +2428,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("invalid 2", func(t *testing.T) {
-		run("Person @foo(bar: .) {}",
+		run("input Person @foo(bar: .) {}",
 			mustPanic(
 				mustParseInputObjectTypeDefinition(
 					node(
@@ -2433,7 +2438,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("invalid 3", func(t *testing.T) {
-		run("Person { a: .}",
+		run("input Person { a: .}",
 			mustPanic(
 				mustParseInputObjectTypeDefinition(
 					node(
@@ -2573,7 +2578,7 @@ func TestParser(t *testing.T) {
 	// parseInterfaceTypeDefinition
 
 	t.Run("simple", func(t *testing.T) {
-		run(`NameEntity {
+		run(`interface NameEntity {
 					name: String
 				}`,
 			mustParseInterfaceTypeDefinition(
@@ -2589,7 +2594,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("multiple fields", func(t *testing.T) {
-		run(`Person {
+		run(`interface Person {
 					name: [String]!
 					age: [ Int ]
 				}`,
@@ -2609,7 +2614,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("optional", func(t *testing.T) {
-		run(`Person`,
+		run(`interface Person`,
 			mustParseInterfaceTypeDefinition(
 				node(
 					hasName("Person"),
@@ -2618,7 +2623,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("with directives", func(t *testing.T) {
-		run(`NameEntity @fromTop(to: "bottom") @fromBottom(to: "top") {
+		run(`interface NameEntity @fromTop(to: "bottom") @fromBottom(to: "top") {
 					name: String
 				}`,
 			mustParseInterfaceTypeDefinition(
@@ -2642,7 +2647,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("invalid 1", func(t *testing.T) {
-		run(`1337 {
+		run(`interface 1337 {
 					name: String
 				}`,
 			mustPanic(
@@ -2660,7 +2665,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("invalid 2", func(t *testing.T) {
-		run(`Person @foo(bar: .) {
+		run(`interface Person @foo(bar: .) {
 					name: String
 				}`,
 			mustPanic(
@@ -2678,7 +2683,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("invalid 3", func(t *testing.T) {
-		run(`Person {
+		run(`interface Person {
 					name: [String!
 				}`,
 			mustPanic(
@@ -2699,7 +2704,7 @@ func TestParser(t *testing.T) {
 	// parseObjectTypeDefinition
 
 	t.Run("simple", func(t *testing.T) {
-		run(`Person {
+		run(`type Person {
 					name: String
 				}`,
 			mustParseObjectTypeDefinition(
@@ -2715,7 +2720,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("multiple fields", func(t *testing.T) {
-		run(`Person {
+		run(`type Person {
 					name: [String]!
 					age: [ Int ]
 				}`,
@@ -2735,7 +2740,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("all optional", func(t *testing.T) {
-		run(`Person`,
+		run(`type Person`,
 			mustParseObjectTypeDefinition(
 				node(
 					hasName("Person"),
@@ -2744,7 +2749,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("implements interface", func(t *testing.T) {
-		run(`Person implements Human {
+		run(`type Person implements Human {
 					name: String
 				}`,
 			mustParseObjectTypeDefinition(
@@ -2761,7 +2766,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("implements multiple interfaces", func(t *testing.T) {
-		run(`Person implements Human & Mammal {
+		run(`type Person implements Human & Mammal {
 					name: String
 				}`,
 			mustParseObjectTypeDefinition(
@@ -2778,7 +2783,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("with directives", func(t *testing.T) {
-		run(`Person @fromTop(to: "bottom") @fromBottom(to: "top") {
+		run(`type Person @fromTop(to: "bottom") @fromBottom(to: "top") {
 					name: String
 				}`,
 			mustParseObjectTypeDefinition(
@@ -2802,7 +2807,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("invalid 1", func(t *testing.T) {
-		run(`1337 {
+		run(`type 1337 {
 					name: String
 				}`,
 			mustPanic(
@@ -2820,7 +2825,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("invalid 2", func(t *testing.T) {
-		run(`Person implements 1337 {
+		run(`type Person implements 1337 {
 					name: String
 				}`,
 			mustPanic(
@@ -2838,7 +2843,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("invalid 3", func(t *testing.T) {
-		run(`Person @foo(bar: .) {
+		run(`type Person @foo(bar: .) {
 					name: String
 				}`,
 			mustPanic(
@@ -2856,7 +2861,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("invalid 4", func(t *testing.T) {
-		run(`Person {
+		run(`type Person {
 					name: [String!
 				}`,
 			mustPanic(
@@ -3030,14 +3035,14 @@ func TestParser(t *testing.T) {
 	// parseScalarTypeDefinition
 
 	t.Run("simple", func(t *testing.T) {
-		run("JSON", mustParseScalarTypeDefinition(
+		run("scalar JSON", mustParseScalarTypeDefinition(
 			node(
 				hasName("JSON"),
 			),
 		))
 	})
 	t.Run("with directives", func(t *testing.T) {
-		run(`JSON @fromTop(to: "bottom") @fromBottom(to: "top")`, mustParseScalarTypeDefinition(
+		run(`scalar JSON @fromTop(to: "bottom") @fromBottom(to: "top")`, mustParseScalarTypeDefinition(
 			node(
 				hasName("JSON"),
 				hasDirectives(
@@ -3052,7 +3057,7 @@ func TestParser(t *testing.T) {
 		))
 	})
 	t.Run("invalid 1", func(t *testing.T) {
-		run("1337",
+		run("scalar 1337",
 			mustPanic(
 				mustParseScalarTypeDefinition(
 					node(
@@ -3063,7 +3068,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("invalid 2", func(t *testing.T) {
-		run("JSON @foo(bar: .)",
+		run("scalar JSON @foo(bar: .)",
 			mustPanic(
 				mustParseScalarTypeDefinition(
 					node(
@@ -3078,14 +3083,14 @@ func TestParser(t *testing.T) {
 
 	t.Run("simple", func(t *testing.T) {
 		run(`
-{
+schema {
 	query: Query
 	mutation: Mutation
 	subscription: Subscription
 }`, mustParseSchemaDefinition("Query", "Mutation", "Subscription"))
 	})
 	t.Run("invalid", func(t *testing.T) {
-		run(` {
+		run(`schema {
 query : Query	
 mutation : Mutation
 subscription : Subscription
@@ -3093,7 +3098,7 @@ query: Query2 }`, mustPanic(mustParseSchemaDefinition("Query", "Mutation", "Subs
 		)
 	})
 	t.Run("invalid", func(t *testing.T) {
-		run(` @fromTop(to: "bottom") @fromBottom(to: "top") {
+		run(`schema @fromTop(to: "bottom") @fromBottom(to: "top") {
 	query: Query
 	mutation: Mutation
 	subscription: Subscription
@@ -3107,35 +3112,35 @@ query: Query2 }`, mustPanic(mustParseSchemaDefinition("Query", "Mutation", "Subs
 		))
 	})
 	t.Run("invalid 1", func(t *testing.T) {
-		run(` @foo(bar: .) { query: Query }`,
+		run(`schema  @foo(bar: .) { query: Query }`,
 			mustPanic(
 				mustParseSchemaDefinition("Query", "", ""),
 			),
 		)
 	})
 	t.Run("invalid 2", func(t *testing.T) {
-		run(`( query: Query }`,
+		run(`schema ( query: Query }`,
 			mustPanic(
 				mustParseSchemaDefinition("Query", "", ""),
 			),
 		)
 	})
 	t.Run("invalid 3", func(t *testing.T) {
-		run(`{ query. Query }`,
+		run(`schema { query. Query }`,
 			mustPanic(
 				mustParseSchemaDefinition("Query", "", ""),
 			),
 		)
 	})
 	t.Run("invalid 4", func(t *testing.T) {
-		run(`{ query: 1337 }`,
+		run(`schema { query: 1337 }`,
 			mustPanic(
 				mustParseSchemaDefinition("1337", "", ""),
 			),
 		)
 	})
 	t.Run("invalid 5", func(t *testing.T) {
-		run(`{ query: Query )`,
+		run(`schema { query: Query )`,
 			mustPanic(
 				mustParseSchemaDefinition("Query", "", ""),
 			),
@@ -3290,6 +3295,12 @@ query: Query2 }`, mustPanic(mustParseSchemaDefinition("Query", "Mutation", "Subs
 					hasUnionTypeSystemDefinitions(
 						node(
 							hasName("SearchResult"),
+							hasPosition(position.Position{
+								LineStart: 2,
+								CharStart: 5,
+								LineEnd:   3,
+								CharEnd:   40,
+							}),
 						),
 						node(
 							hasName("thirdUnion"),
@@ -3302,6 +3313,12 @@ query: Query2 }`, mustPanic(mustParseSchemaDefinition("Query", "Mutation", "Subs
 						),
 						node(
 							hasName("UnionExample"),
+							hasPosition(position.Position{
+								LineStart: 8,
+								CharStart: 5,
+								LineEnd:   9,
+								CharEnd:   40,
+							}),
 						),
 					),
 				),
@@ -3336,35 +3353,78 @@ input Person {
 directive @ someway on SUBSCRIPTION | MUTATION`,
 			mustParseTypeSystemDefinition(
 				node(
-					hasSchemaDefinition(),
+					hasSchemaDefinition(
+						hasPosition(position.Position{
+							LineStart: 2,
+							CharStart: 1,
+							LineEnd:   5,
+							CharEnd:   2,
+						}),
+					),
 					hasScalarTypeSystemDefinitions(
 						node(
 							hasName("JSON"),
+							hasPosition(position.Position{
+								LineStart: 6,
+								CharStart: 1,
+								LineEnd:   7,
+								CharEnd:   12,
+							}),
 						),
 					),
 					hasObjectTypeSystemDefinitions(
 						node(
 							hasName("Person"),
+							hasPosition(position.Position{
+								LineStart: 8,
+								CharStart: 1,
+								LineEnd:   11,
+								CharEnd:   2,
+							}),
 						),
 					),
 					hasInterfaceTypeSystemDefinitions(
 						node(
 							hasName("firstEntity"),
+							hasPosition(position.Position{
+								LineStart: 12,
+								CharStart: 1,
+								LineEnd:   15,
+								CharEnd:   2,
+							}),
 						),
 					),
 					hasEnumTypeSystemDefinitions(
 						node(
 							hasName("Direction"),
+							hasPosition(position.Position{
+								LineStart: 16,
+								CharStart: 1,
+								LineEnd:   19,
+								CharEnd:   2,
+							}),
 						),
 					),
 					hasInputObjectTypeSystemDefinitions(
 						node(
 							hasName("Person"),
+							hasPosition(position.Position{
+								LineStart: 20,
+								CharStart: 1,
+								LineEnd:   23,
+								CharEnd:   2,
+							}),
 						),
 					),
 					hasDirectiveDefinitions(
 						node(
 							hasName("someway"),
+							hasPosition(position.Position{
+								LineStart: 24,
+								CharStart: 1,
+								LineEnd:   25,
+								CharEnd:   47,
+							}),
 						),
 					),
 				),
@@ -3422,7 +3482,7 @@ schema {
 	// parseUnionTypeDefinition
 
 	t.Run("simple", func(t *testing.T) {
-		run("SearchResult = Photo | Person",
+		run("union SearchResult = Photo | Person",
 			mustParseUnionTypeDefinition(
 				node(
 					hasName("SearchResult"),
@@ -3431,7 +3491,7 @@ schema {
 			))
 	})
 	t.Run("multiple members", func(t *testing.T) {
-		run("SearchResult = Photo | Person | Car | Planet",
+		run("union SearchResult = Photo | Person | Car | Planet",
 			mustParseUnionTypeDefinition(
 				node(
 					hasName("SearchResult"),
@@ -3441,7 +3501,7 @@ schema {
 		)
 	})
 	t.Run("with linebreaks", func(t *testing.T) {
-		run(` SearchResult = Photo 
+		run(`union SearchResult = Photo 
 | Person 
 | Car 
 | Planet`,
@@ -3454,7 +3514,7 @@ schema {
 		)
 	})
 	t.Run("with directives", func(t *testing.T) {
-		run(`SearchResult @fromTop(to: "bottom") @fromBottom(to: "top") = Photo | Person`,
+		run(`union SearchResult @fromTop(to: "bottom") @fromBottom(to: "top") = Photo | Person`,
 			mustParseUnionTypeDefinition(
 				node(
 					hasName("SearchResult"),
@@ -3471,7 +3531,7 @@ schema {
 			))
 	})
 	t.Run("invalid 1", func(t *testing.T) {
-		run("1337 = Photo | Person",
+		run("union 1337 = Photo | Person",
 			mustPanic(
 				mustParseUnionTypeDefinition(
 					node(
@@ -3483,7 +3543,7 @@ schema {
 		)
 	})
 	t.Run("invalid 2", func(t *testing.T) {
-		run("SearchResult @foo(bar: .) = Photo | Person",
+		run("union SearchResult @foo(bar: .) = Photo | Person",
 			mustPanic(
 				mustParseUnionTypeDefinition(
 					node(
@@ -3495,7 +3555,7 @@ schema {
 		)
 	})
 	t.Run("invalid 3", func(t *testing.T) {
-		run("SearchResult = Photo | Person | 1337",
+		run("union SearchResult = Photo | Person | 1337",
 			mustPanic(
 				mustParseUnionTypeDefinition(
 					node(
@@ -3507,7 +3567,7 @@ schema {
 		)
 	})
 	t.Run("invalid 4", func(t *testing.T) {
-		run("SearchResult = Photo | Person | \"Video\"",
+		run("union SearchResult = Photo | Person | \"Video\"",
 			mustPanic(
 				mustParseUnionTypeDefinition(
 					node(

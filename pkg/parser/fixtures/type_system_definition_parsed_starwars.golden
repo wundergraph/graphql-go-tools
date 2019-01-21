@@ -5,10 +5,10 @@
     "Subscription": "Subscription",
     "Directives": [],
     "Position": {
-      "LineStart": 0,
-      "LineEnd": 0,
-      "CharStart": 0,
-      "CharEnd": 0
+      "LineStart": 2,
+      "LineEnd": 6,
+      "CharStart": 1,
+      "CharEnd": 2
     }
   },
   "ScalarTypeDefinitions": [
