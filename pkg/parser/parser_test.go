@@ -569,31 +569,16 @@ func TestParser(t *testing.T) {
 		}
 	}
 
-	mustContainArguments := func(name ...string) checkFunc {
-		return func(parser *Parser, i int) {
-
-			for k, wantName := range name {
-				gotName := string(parser.ByteSlice(parser.ParsedDefinitions.Arguments[k].Name))
-				if wantName != gotName {
-					panic(fmt.Errorf("mustContainArguments: want for index %d: %s,got: %s", k, wantName, gotName))
-				}
-			}
-		}
-	}
-
-	mustParseDirectives := func(name ...string) checkFunc {
+	mustParseDirectives := func(directives ...ruleSet) checkFunc {
 		return func(parser *Parser, i int) {
 			var index []int
 			if err := parser.parseDirectives(&index); err != nil {
 				panic(err)
 			}
 
-			for i, k := range index {
-				wantName := name[i]
-				gotName := string(parser.ByteSlice(parser.ParsedDefinitions.Directives[k].Name))
-				if gotName != wantName {
-					panic(fmt.Errorf("mustParseDirectives: want: %s,got: %s [check: %d]", wantName, gotName, i))
-				}
+			for k, rule := range directives {
+				node := parser.ParsedDefinitions.Directives[index[k]]
+				rule.eval(node, parser, k)
 			}
 		}
 	}
@@ -1240,29 +1225,83 @@ func TestParser(t *testing.T) {
 
 	t.Run(`simple directive`, func(t *testing.T) {
 		run(`@rename(index: 3)`,
-			mustParseDirectives("rename"),
-			mustContainArguments("index"))
+			mustParseDirectives(
+				node(
+					hasName("rename"),
+					hasArguments(
+						node(
+							hasName("index"),
+						),
+					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						LineEnd:   1,
+						CharStart: 1,
+						CharEnd:   18,
+					}),
+				),
+			),
+		)
 	})
 	t.Run("multiple directives", func(t *testing.T) {
 		run(`@rename(index: 3)@moveto(index: 4)`,
-			mustParseDirectives("rename", "moveto"),
-			mustContainArguments("index", "index"),
+			mustParseDirectives(
+				node(
+					hasName("rename"),
+					hasArguments(
+						node(
+							hasName("index"),
+						),
+					),
+				),
+				node(
+					hasName("moveto"),
+					hasArguments(
+						node(
+							hasName("index"),
+						),
+					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						LineEnd:   1,
+						CharStart: 18,
+						CharEnd:   35,
+					}),
+				),
+			),
 		)
 	})
 	t.Run("multiple arguments", func(t *testing.T) {
 		run(`@rename(index: 3, count: 10)`,
-			mustParseDirectives("rename"),
-			mustContainArguments("index", "count"),
+			mustParseDirectives(
+				node(
+					hasName("rename"),
+					hasArguments(
+						node(
+							hasName("index"),
+						),
+						node(
+							hasName("count"),
+						),
+					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						LineEnd:   1,
+						CharStart: 1,
+						CharEnd:   29,
+					}),
+				),
+			),
 		)
 	})
 	t.Run("invalid", func(t *testing.T) {
 		run(`@rename(index)`,
-			mustPanic(mustParseDirectives("rename")),
+			mustPanic(mustParseDirectives()),
 		)
 	})
 	t.Run("invalid 2", func(t *testing.T) {
 		run(`@1337(index)`,
-			mustPanic(mustParseDirectives("rename")),
+			mustPanic(mustParseDirectives()),
 		)
 	})
 

@@ -12,7 +12,7 @@ func (p *Parser) parseDirectives(index *[]int) error {
 
 		if next == keyword.AT {
 
-			p.l.Read()
+			start := p.l.Read()
 
 			ident, err := p.readExpect(keyword.IDENT, "parseDirectives")
 			if err != nil {
@@ -23,10 +23,14 @@ func (p *Parser) parseDirectives(index *[]int) error {
 				Name: ident.Literal,
 			}
 
+			directive.Position.MergeStartIntoStart(start.TextPosition)
+
 			err = p.parseArguments(&directive.Arguments)
 			if err != nil {
 				return err
 			}
+
+			directive.Position.MergeStartIntoEnd(p.TextPosition())
 
 			*index = append(*index, p.putDirective(directive))
 
