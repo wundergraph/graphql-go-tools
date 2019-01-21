@@ -12,6 +12,7 @@ func (p *Parser) parseField(index *[]int) (err error) {
 
 	firstIdent := p.l.Read()
 	field.Name = firstIdent.Literal
+	field.Position.MergeStartIntoStart(firstIdent.TextPosition)
 
 	hasAlias := p.peekExpect(keyword.COLON, true)
 
@@ -36,6 +37,12 @@ func (p *Parser) parseField(index *[]int) (err error) {
 	}
 
 	err = p.parseSelectionSet(&field.SelectionSet)
+
+	if len(field.Arguments) == 0 && len(field.Directives) == 0 && field.SelectionSet.IsEmpty() {
+		field.Position.MergeEndIntoEnd(firstIdent.TextPosition)
+	} else {
+		field.Position.MergeStartIntoEnd(p.TextPosition())
+	}
 
 	*index = append(*index, p.putField(field))
 

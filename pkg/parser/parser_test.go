@@ -1666,6 +1666,12 @@ func TestParser(t *testing.T) {
 							hasName("rename"),
 						),
 					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						LineEnd:   1,
+						CharStart: 1,
+						CharEnd:   59,
+					}),
 				),
 			),
 		)
@@ -1728,12 +1734,30 @@ func TestParser(t *testing.T) {
 			mustParseFields(
 				node(
 					hasName("level1"),
+					hasPosition(position.Position{
+						LineStart: 2,
+						CharStart: 5,
+						LineEnd:   6,
+						CharEnd:   6,
+					}),
 					hasFields(
 						node(
 							hasName("level2"),
+							hasPosition(position.Position{
+								LineStart: 3,
+								CharStart: 6,
+								LineEnd:   5,
+								CharEnd:   7,
+							}),
 							hasFields(
 								node(
 									hasName("level3"),
+									hasPosition(position.Position{
+										LineStart: 4,
+										CharStart: 7,
+										LineEnd:   4,
+										CharEnd:   13,
+									}),
 								),
 							),
 						),
