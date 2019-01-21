@@ -1560,21 +1560,22 @@ func TestParser(t *testing.T) {
 					name
 					weapon
 				}
-				`, mustParseExecutableDefinition(
-			nodes(
-				node(
-					hasName("heroFields"),
+				`,
+			mustParseExecutableDefinition(
+				nodes(
+					node(
+						hasName("heroFields"),
+					),
+					node(
+						hasName("vehicleFields"),
+					),
 				),
-				node(
-					hasName("vehicleFields"),
-				),
-			),
-			nodes(
-				node(
-					hasOperationType(document.OperationTypeQuery),
-					hasName("QueryWithFragments"),
-				),
-			)))
+				nodes(
+					node(
+						hasOperationType(document.OperationTypeQuery),
+						hasName("QueryWithFragments"),
+					),
+				)))
 	})
 	t.Run("unnamed operation", func(t *testing.T) {
 		run("{\n  hero {\n    id\n    name\n  }\n}\n",
@@ -1815,6 +1816,12 @@ func TestParser(t *testing.T) {
 						hasTypeKind(document.TypeKindNAMED),
 						hasTypeName("String"),
 					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						CharStart: 3,
+						LineEnd:   1,
+						CharEnd:   15,
+					}),
 				),
 			))
 	})
@@ -1829,6 +1836,12 @@ func TestParser(t *testing.T) {
 					nodeType(
 						hasTypeName("String"),
 					),
+					hasPosition(position.Position{
+						LineStart: 2,
+						CharStart: 6,
+						LineEnd:   2,
+						CharEnd:   18,
+					}),
 				),
 				node(
 					hasName("age"),
@@ -1864,6 +1877,12 @@ func TestParser(t *testing.T) {
 							hasTypeKind(document.TypeKindLIST),
 						),
 					),
+					hasPosition(position.Position{
+						LineStart: 2,
+						CharStart: 6,
+						LineEnd:   2,
+						CharEnd:   23,
+					}),
 				),
 				node(
 					hasName("age"),
