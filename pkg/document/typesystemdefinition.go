@@ -16,6 +16,10 @@ type TypeSystemDefinition struct {
 	Position                   position.Position
 }
 
+func (t TypeSystemDefinition) NodeInputFieldsDefinition() int {
+	panic("implement me")
+}
+
 func (t TypeSystemDefinition) NodeInputValueDefinitions() []int {
 	panic("implement me")
 }

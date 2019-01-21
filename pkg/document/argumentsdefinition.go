@@ -9,6 +9,10 @@ type ArgumentsDefinition struct {
 	Position              position.Position
 }
 
+func (a ArgumentsDefinition) NodeInputFieldsDefinition() int {
+	panic("implement me")
+}
+
 func (a ArgumentsDefinition) NodeInputValueDefinitions() []int {
 	return a.InputValueDefinitions
 }

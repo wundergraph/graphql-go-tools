@@ -11,6 +11,10 @@ type InlineFragment struct {
 	Position      position.Position
 }
 
+func (i InlineFragment) NodeInputFieldsDefinition() int {
+	panic("implement me")
+}
+
 func (i InlineFragment) NodeInputValueDefinitions() []int {
 	panic("implement me")
 }

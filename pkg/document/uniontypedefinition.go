@@ -12,6 +12,10 @@ type UnionTypeDefinition struct {
 	Position         position.Position
 }
 
+func (u UnionTypeDefinition) NodeInputFieldsDefinition() int {
+	panic("implement me")
+}
+
 func (u UnionTypeDefinition) NodeInputValueDefinitions() []int {
 	panic("implement me")
 }

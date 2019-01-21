@@ -11,6 +11,10 @@ type SelectionSet struct {
 	Position        position.Position
 }
 
+func (s SelectionSet) NodeInputFieldsDefinition() int {
+	panic("implement me")
+}
+
 func (s SelectionSet) NodeInputValueDefinitions() []int {
 	panic("implement me")
 }

@@ -13,6 +13,10 @@ type Field struct {
 	Position     position.Position
 }
 
+func (f Field) NodeInputFieldsDefinition() int {
+	panic("implement me")
+}
+
 func (f Field) NodeInputValueDefinitions() []int {
 	panic("implement me")
 }

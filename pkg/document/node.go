@@ -25,6 +25,7 @@ type Node interface {
 	UnionTypeSystemDefinitionNode
 	ValueNode
 	PositionNode
+	InputFieldsDefinitionNode
 }
 
 type TypeSystemDefinitionNode interface {
@@ -53,4 +54,8 @@ type PositionNode interface {
 
 type InputValueDefinitionsNode interface {
 	NodeInputValueDefinitions() []int
+}
+
+type InputFieldsDefinitionNode interface {
+	NodeInputFieldsDefinition() int
 }

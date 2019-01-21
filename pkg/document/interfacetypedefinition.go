@@ -12,6 +12,10 @@ type InterfaceTypeDefinition struct {
 	Position         position.Position
 }
 
+func (i InterfaceTypeDefinition) NodeInputFieldsDefinition() int {
+	panic("implement me")
+}
+
 func (i InterfaceTypeDefinition) NodeInputValueDefinitions() []int {
 	panic("implement me")
 }

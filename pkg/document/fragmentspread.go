@@ -10,6 +10,10 @@ type FragmentSpread struct {
 	Position     position.Position
 }
 
+func (f FragmentSpread) NodeInputFieldsDefinition() int {
+	panic("implement me")
+}
+
 func (f FragmentSpread) NodeInputValueDefinitions() []int {
 	panic("implement me")
 }
