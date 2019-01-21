@@ -96,7 +96,7 @@ func (l *Lexer) swallowWhitespace() {
 	var next byte
 
 	for {
-		next = l.peekRune()
+		next = l.peekRune(false)
 
 		if next == runes.EOF {
 			return
@@ -112,13 +112,7 @@ func (l *Lexer) swallowWhitespace() {
 
 // Peek will emit the next keyword without advancing the reader position
 func (l *Lexer) Peek(ignoreWhitespace bool) keyword.Keyword {
-
-	if ignoreWhitespace {
-		l.swallowWhitespace()
-	}
-
-	next := l.peekRune()
-
+	next := l.peekRune(ignoreWhitespace)
 	return l.keywordFromRune(next)
 }
 
@@ -164,7 +158,7 @@ func (l *Lexer) keywordFromRune(r byte) keyword.Keyword {
 	case runes.AND:
 		return keyword.AND
 	case runes.DOT:
-		if l.peekEquals(runes.DOT, runes.DOT, runes.DOT) {
+		if l.peekEquals(true, runes.DOT, runes.DOT, runes.DOT) {
 			return keyword.SPREAD
 		}
 		return keyword.DOT
@@ -185,7 +179,9 @@ func (l *Lexer) peekIsFloat() (isFloat bool) {
 	var hasDot bool
 	var peeked byte
 
-	for i := l.inputPosition; i < len(l.input); i++ {
+	start := l.inputPosition + l.peekWhitespaceLength()
+
+	for i := start; i < len(l.input); i++ {
 
 		peeked = l.input[i]
 
@@ -260,9 +256,10 @@ const identWantRunes = 13
 
 func (l *Lexer) peekIdent() (k keyword.Keyword) {
 
-	start := l.inputPosition
+	whitespaceOffset := l.peekWhitespaceLength()
 
-	end := l.inputPosition + identWantRunes
+	start := l.inputPosition + whitespaceOffset
+	end := start + identWantRunes
 	if end > len(l.input) {
 		end = len(l.input)
 	}
@@ -364,7 +361,7 @@ func (l *Lexer) readVariable(tok *token.Token) {
 
 func (l *Lexer) readDotOrSpread(tok *token.Token) {
 
-	isSpread := l.peekEquals(runes.DOT, runes.DOT)
+	isSpread := l.peekEquals(false, runes.DOT, runes.DOT)
 
 	if isSpread {
 		l.swallowAmount(2)
@@ -380,7 +377,7 @@ func (l *Lexer) readString(tok *token.Token) {
 
 	tok.Keyword = keyword.STRING
 
-	isMultiLineString := l.peekEquals(runes.QUOTE, runes.QUOTE)
+	isMultiLineString := l.peekEquals(false, runes.QUOTE, runes.QUOTE)
 
 	if isMultiLineString {
 		l.swallowAmount(2)
@@ -397,10 +394,15 @@ func (l *Lexer) swallowAmount(amount int) {
 	}
 }
 
-func (l *Lexer) peekEquals(equals ...byte) bool {
+func (l *Lexer) peekEquals(ignoreWhitespace bool, equals ...byte) bool {
 
-	start := l.inputPosition
-	end := l.inputPosition + len(equals)
+	var whitespaceOffset int
+	if ignoreWhitespace {
+		whitespaceOffset = l.peekWhitespaceLength()
+	}
+
+	start := l.inputPosition + whitespaceOffset
+	end := l.inputPosition + len(equals) + whitespaceOffset
 
 	if end > len(l.input) {
 		return false
@@ -413,6 +415,18 @@ func (l *Lexer) peekEquals(equals ...byte) bool {
 	}
 
 	return true
+}
+
+func (l *Lexer) peekWhitespaceLength() (amount int) {
+	for i := l.inputPosition; i < len(l.input); i++ {
+		if l.byteIsWhitespace(l.input[i]) {
+			amount++
+		} else {
+			break
+		}
+	}
+
+	return amount
 }
 
 func (l *Lexer) readDigit(tok *token.Token) {
@@ -492,10 +506,15 @@ func (l *Lexer) unreadRune() {
 	}
 }
 
-func (l *Lexer) peekRune() (r byte) {
+func (l *Lexer) peekRune(ignoreWhitespace bool) (r byte) {
 
-	if l.inputPosition < len(l.input) {
-		return l.input[l.inputPosition]
+	for i := l.inputPosition; i < len(l.input); i++ {
+		r = l.input[i]
+		if !ignoreWhitespace {
+			return r
+		} else if !l.byteIsWhitespace(r) {
+			return r
+		}
 	}
 
 	return runes.EOF
@@ -545,7 +564,7 @@ func (l *Lexer) readMultiLineString(tok *token.Token) {
 
 	for {
 
-		nextRune := l.peekRune()
+		nextRune := l.peekRune(false)
 
 		switch nextRune {
 		case runes.QUOTE, runes.EOF:
@@ -554,7 +573,7 @@ func (l *Lexer) readMultiLineString(tok *token.Token) {
 				l.readRune()
 			} else {
 
-				isMultiLineStringEnd := l.peekEquals(runes.QUOTE, runes.QUOTE, runes.QUOTE)
+				isMultiLineStringEnd := l.peekEquals(false, runes.QUOTE, runes.QUOTE, runes.QUOTE)
 
 				if !isMultiLineStringEnd {
 					escaped = false
@@ -589,7 +608,7 @@ func (l *Lexer) readSingleLineString(tok *token.Token) {
 
 	for {
 
-		nextRune := l.peekRune()
+		nextRune := l.peekRune(false)
 
 		switch nextRune {
 		case runes.QUOTE, runes.EOF:
