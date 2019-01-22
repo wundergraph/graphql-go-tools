@@ -981,6 +981,21 @@ func TestParser(t *testing.T) {
 		}
 	}
 
+	mustParseFloatValue := func(want float32) checkFunc {
+		return func(parser *Parser, i int) {
+			var index int
+			if err := parser.parsePeekedFloatValue(&index); err != nil {
+				panic(err)
+			}
+
+			got := parser.ParsedDefinitions.Floats[index]
+
+			if want != got {
+				panic(fmt.Errorf("mustParseFloatValue: want: %.2f, got: %.2f [check: %d]", want, got, i))
+			}
+		}
+	}
+
 	// arguments
 
 	t.Run("string argument", func(t *testing.T) {
@@ -1198,7 +1213,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("invalid 1", func(t *testing.T) {
-		run("@ somewhere QUERY",
+		run("directive @ somewhere QUERY",
 			mustPanic(
 				mustParseDirectiveDefinition(
 					node(
@@ -1210,7 +1225,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("invalid 2", func(t *testing.T) {
-		run("@ somewhere off QUERY",
+		run("directive @ somewhere off QUERY",
 			mustPanic(
 				mustParseDirectiveDefinition(
 					node(
@@ -1221,7 +1236,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("missing at", func(t *testing.T) {
-		run("somewhere off QUERY",
+		run("directive somewhere off QUERY",
 			mustPanic(
 				mustParseDirectiveDefinition(
 					node(
@@ -1232,7 +1247,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("invalid args", func(t *testing.T) {
-		run("@ somewhere(inputValue: .) on QUERY",
+		run("directive @ somewhere(inputValue: .) on QUERY",
 			mustPanic(
 				mustParseDirectiveDefinition(
 					node(
@@ -1244,7 +1259,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("missing ident after at", func(t *testing.T) {
-		run("@ \"somewhere\" off QUERY",
+		run("directive @ \"somewhere\" off QUERY",
 			mustPanic(
 				mustParseDirectiveDefinition(
 					node(
@@ -1255,12 +1270,23 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("invalid location", func(t *testing.T) {
-		run("@ somewhere on QUERY | thisshouldntwork",
+		run("directive @ somewhere on QUERY | thisshouldntwork",
 			mustPanic(
 				mustParseDirectiveDefinition(
 					node(
 						hasName("somewhere"),
 						hasDirectiveLocations(document.DirectiveLocationQUERY),
+					),
+				),
+			),
+		)
+	})
+	t.Run("invalid prefix", func(t *testing.T) {
+		run("notdirective @ somewhere on QUERY",
+			mustPanic(
+				mustParseDirectiveDefinition(
+					node(
+						hasName("somewhere"),
 					),
 				),
 			),
@@ -1453,6 +1479,9 @@ func TestParser(t *testing.T) {
 	})
 	t.Run("invalid enum 3", func(t *testing.T) {
 		run("enum Direction {FOO @bar(baz: .)}", mustPanic(mustParseEnumTypeDefinition(hasName("Direction"))))
+	})
+	t.Run("invalid enum 4", func(t *testing.T) {
+		run("notenum Direction", mustPanic(mustParseEnumTypeDefinition()))
 	})
 
 	// parseExecutableDefinition
@@ -2508,6 +2537,16 @@ func TestParser(t *testing.T) {
 				)),
 		)
 	})
+	t.Run("invalid 4", func(t *testing.T) {
+		run("notinput Foo {}",
+			mustPanic(
+				mustParseInputObjectTypeDefinition(
+					node(
+						hasName("1337"),
+					),
+				)),
+		)
+	})
 
 	// parseInputValueDefinitions
 
@@ -2797,6 +2836,15 @@ func TestParser(t *testing.T) {
 			),
 		)
 	})
+	t.Run("invalid 4", func(t *testing.T) {
+		run(`notinterface Person {
+					name: [String!]
+				}`,
+			mustPanic(
+				mustParseInterfaceTypeDefinition(),
+			),
+		)
+	})
 
 	// parseObjectTypeDefinition
 
@@ -2979,6 +3027,13 @@ func TestParser(t *testing.T) {
 					),
 				),
 			),
+		)
+	})
+	t.Run("invalid 5", func(t *testing.T) {
+		run(`nottype Person {
+					name: [String!]
+				}`,
+			mustPanic(mustParseObjectTypeDefinition()),
 		)
 	})
 
@@ -3200,6 +3255,13 @@ func TestParser(t *testing.T) {
 			),
 		)
 	})
+	t.Run("invalid 3", func(t *testing.T) {
+		run("notscalar JSON",
+			mustPanic(
+				mustParseScalarTypeDefinition(),
+			),
+		)
+	})
 
 	// parseSchemaDefinition
 
@@ -3268,6 +3330,11 @@ func TestParser(t *testing.T) {
 	})
 	t.Run("invalid 5", func(t *testing.T) {
 		run(`schema { query: Query )`,
+			mustPanic(mustParseSchemaDefinition()),
+		)
+	})
+	t.Run("invalid 6", func(t *testing.T) {
+		run(`notschema { query: Query }`,
 			mustPanic(mustParseSchemaDefinition()),
 		)
 	})
@@ -3730,6 +3797,11 @@ func TestParser(t *testing.T) {
 			),
 		)
 	})
+	t.Run("invalid 5", func(t *testing.T) {
+		run("notunion SearchResult = Photo | Person",
+			mustPanic(mustParseUnionTypeDefinition()),
+		)
+	})
 
 	// parseVariableDefinitions
 
@@ -4148,6 +4220,14 @@ func TestParser(t *testing.T) {
 				),
 			),
 		)
+	})
+
+	// parsePeekedFloatValue
+	t.Run("valid float", func(t *testing.T) {
+		run("13.37", mustParseFloatValue(13.37))
+	})
+	t.Run("invalid float", func(t *testing.T) {
+		run("1.3.3.7", mustPanic(mustParseFloatValue(13.37)))
 	})
 }
 
