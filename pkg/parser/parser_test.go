@@ -3187,6 +3187,12 @@ query: Query2 }`, mustPanic(mustParseSchemaDefinition("Query", "Mutation", "Subs
 						hasName("foo"),
 					),
 				),
+				hasPosition(position.Position{
+					LineStart: 1,
+					CharStart: 1,
+					LineEnd:   1,
+					CharEnd:   8,
+				}),
 			),
 		))
 	})
@@ -3195,23 +3201,31 @@ query: Query2 }`, mustPanic(mustParseSchemaDefinition("Query", "Mutation", "Subs
 					... on Goland
 					...Air
 					... on Water
-				}`, mustParseSelectionSet(
-			node(
-				hasInlineFragments(
-					node(
-						hasTypeName("Goland"),
+				}`,
+			mustParseSelectionSet(
+				node(
+					hasInlineFragments(
+						node(
+							hasTypeName("Goland"),
+						),
+						node(
+							hasTypeName("Water"),
+						),
 					),
-					node(
-						hasTypeName("Water"),
+					hasFragmentSpreads(
+						node(
+							hasName("Air"),
+						),
 					),
-				),
-				hasFragmentSpreads(
-					node(
-						hasName("Air"),
-					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						CharStart: 1,
+						LineEnd:   5,
+						CharEnd:   6,
+					}),
 				),
 			),
-		))
+		)
 	})
 	t.Run("mixed", func(t *testing.T) {
 		run(`{
@@ -3263,6 +3277,12 @@ query: Query2 }`, mustPanic(mustParseSchemaDefinition("Query", "Mutation", "Subs
 						),
 					),
 				),
+				hasPosition(position.Position{
+					LineStart: 1,
+					CharStart: 1,
+					LineEnd:   3,
+					CharEnd:   6,
+				}),
 			),
 		))
 	})

@@ -7,16 +7,20 @@ import (
 
 func (p *Parser) parseSelectionSet(set *document.SelectionSet) (err error) {
 
-	if open := p.peekExpect(keyword.CURLYBRACKETOPEN, true); !open {
+	if open := p.peekExpect(keyword.CURLYBRACKETOPEN, false); !open {
 		return
 	}
+
+	start := p.l.Read()
+	set.Position.MergeStartIntoStart(start.TextPosition)
 
 	for {
 
 		next := p.l.Peek(true)
 
 		if next == keyword.CURLYBRACKETCLOSE {
-			p.l.Read()
+			end := p.l.Read()
+			set.Position.MergeEndIntoEnd(end.TextPosition)
 			return nil
 		}
 
