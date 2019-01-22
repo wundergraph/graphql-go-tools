@@ -3639,6 +3639,12 @@ schema {
 					nodeType(
 						hasTypeName("bar"),
 					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						CharStart: 2,
+						LineEnd:   1,
+						CharEnd:   12,
+					}),
 				),
 			),
 		)
@@ -3673,6 +3679,12 @@ schema {
 							hasTypeName("bar"),
 						),
 					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						CharStart: 2,
+						LineEnd:   1,
+						CharEnd:   20,
+					}),
 				),
 				node(
 					hasName("baz"),
@@ -3680,6 +3692,12 @@ schema {
 						hasTypeKind(document.TypeKindNAMED),
 						hasTypeName("bat"),
 					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						CharStart: 21,
+						LineEnd:   1,
+						CharEnd:   31,
+					}),
 				),
 			),
 		)
