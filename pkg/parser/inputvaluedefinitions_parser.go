@@ -1,8 +1,8 @@
 package parser
 
 import (
-	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
 )
 
 // InputValueDefinitions cannot be found in the graphQL spec.
@@ -13,7 +13,7 @@ import (
 
 func (p *Parser) parseInputValueDefinitions(index *[]int, closeKeyword keyword.Keyword) error {
 
-	var description *document.ByteSliceReference
+	var description *token.Token
 
 	for {
 		next := p.l.Peek(true)
@@ -21,20 +21,22 @@ func (p *Parser) parseInputValueDefinitions(index *[]int, closeKeyword keyword.K
 		if next == keyword.STRING {
 
 			quote := p.l.Read()
-
-			//*description = transform.TrimWhitespace(p.ByteSlice(quote.Literal)) TODO: fix trimming
-			description = &quote.Literal
+			description = &quote
 
 		} else if next == keyword.IDENT {
 
 			ident := p.l.Read()
 			definition := p.makeInputValueDefinition()
-			if description != nil {
-				definition.Description = *description
-			}
-			definition.Name = ident.Literal
 
-			description = nil
+			if description != nil {
+				definition.Description = description.Literal
+				definition.Position.MergeStartIntoStart(description.TextPosition)
+				description = nil
+			} else {
+				definition.Position.MergeStartIntoStart(ident.TextPosition)
+			}
+
+			definition.Name = ident.Literal
 
 			_, err := p.readExpect(keyword.COLON, "parseInputValueDefinitions")
 			if err != nil {
@@ -56,6 +58,7 @@ func (p *Parser) parseInputValueDefinitions(index *[]int, closeKeyword keyword.K
 				return err
 			}
 
+			definition.Position.MergeStartIntoEnd(p.TextPosition())
 			*index = append(*index, p.putInputValueDefinition(definition))
 
 		} else if next != closeKeyword && closeKeyword != keyword.UNDEFINED {

@@ -2459,6 +2459,12 @@ func TestParser(t *testing.T) {
 						hasTypeKind(document.TypeKindNAMED),
 						hasTypeName("Int"),
 					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						CharStart: 1,
+						LineEnd:   1,
+						CharEnd:   16,
+					}),
 				),
 			),
 		)
@@ -2482,6 +2488,12 @@ func TestParser(t *testing.T) {
 				node(
 					hasDescription("useful description"),
 					hasName("inputValue"),
+					hasPosition(position.Position{
+						LineStart: 1,
+						CharStart: 1,
+						LineEnd:   1,
+						CharEnd:   40,
+					}),
 				),
 			),
 		)
@@ -2496,6 +2508,12 @@ func TestParser(t *testing.T) {
 						hasTypeKind(document.TypeKindNAMED),
 						hasTypeName("Int"),
 					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						CharStart: 1,
+						LineEnd:   1,
+						CharEnd:   42,
+					}),
 				),
 				node(
 					hasDescription("this is a outputValue"),
@@ -2504,6 +2522,12 @@ func TestParser(t *testing.T) {
 						hasTypeKind(document.TypeKindNAMED),
 						hasTypeName("String"),
 					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						CharStart: 44,
+						LineEnd:   1,
+						CharEnd:   94,
+					}),
 				),
 			),
 		)
@@ -2525,6 +2549,12 @@ func TestParser(t *testing.T) {
 							hasName("fromBottom"),
 						),
 					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						CharStart: 1,
+						LineEnd:   1,
+						CharEnd:   62,
+					}),
 				),
 			),
 		)
