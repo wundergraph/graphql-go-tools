@@ -3,9 +3,6 @@
 package document
 
 import (
-	"fmt"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
-	"github.com/pkg/errors"
 	"strings"
 )
 
@@ -49,19 +46,4 @@ func (d DirectiveLocations) String() string {
 	}
 	builder.WriteString("]")
 	return builder.String()
-}
-
-// NewDirectiveLocations creates directive locations from raw strings
-func NewDirectiveLocations(rawLocations []ByteSlice, position position.Position) (locations DirectiveLocations, err error) {
-	for _, raw := range rawLocations {
-
-		location, err := ParseDirectiveLocation(raw)
-		if err != nil {
-			return locations, errors.Wrap(err, fmt.Sprintf("position: %s", position.String()))
-		}
-
-		locations = append(locations, location)
-	}
-
-	return
 }
