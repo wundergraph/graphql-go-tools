@@ -58,6 +58,27 @@ func TestParser(t *testing.T) {
 		}
 	}
 
+	hasSchemaOperationTypeName := func(operationType document.OperationType, wantTypeName string) rule {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
+
+			schemaDefinition := node.(document.SchemaDefinition)
+
+			gotQuery := string(schemaDefinition.Query)
+			gotMutation := string(schemaDefinition.Mutation)
+			gotSubscription := string(schemaDefinition.Subscription)
+
+			if operationType == document.OperationTypeQuery && wantTypeName != gotQuery {
+				panic(fmt.Errorf("hasOperationTypeName: want(query): %s, got: %s [check: %d]", wantTypeName, gotQuery, ruleIndex))
+			}
+			if operationType == document.OperationTypeMutation && wantTypeName != gotMutation {
+				panic(fmt.Errorf("hasOperationTypeName: want(mutation): %s, got: %s [check: %d]", wantTypeName, gotMutation, ruleIndex))
+			}
+			if operationType == document.OperationTypeSubscription && wantTypeName != gotSubscription {
+				panic(fmt.Errorf("hasOperationTypeName: want(subscription): %s, got: %s [check: %d]", wantTypeName, gotSubscription, ruleIndex))
+			}
+		}
+	}
+
 	hasPosition := func(position position.Position) rule {
 		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 			gotPosition := node.NodePosition()
@@ -225,16 +246,33 @@ func TestParser(t *testing.T) {
 		}
 	}
 
-	/*	hasDefaultValue := func(want document.Value) rule {
+	hasDefaultValue := func(rules ...rule) rule {
 		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
-
-			got := node.NodeDefaultValue()
-
-			if reflect.DeepEqual(want, got) {
-				panic(fmt.Errorf("hasDefaultValue: want: %+v, got: %+v [rule: %d, node: %d]", want, got, ruleIndex, ruleSetIndex))
+			index := node.NodeDefaultValue()
+			node = parser.ParsedDefinitions.Values[index]
+			for k, rule := range rules {
+				rule(node, parser, k, ruleSetIndex)
 			}
 		}
-	}*/
+	}
+
+	hasValueType := func(valueType document.ValueType) rule {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
+			if node.NodeValueType() != valueType {
+				panic(fmt.Errorf("hasValueType: want: %s, got: %s [check: %d]", valueType.String(), node.NodeValueType().String(), ruleIndex))
+			}
+		}
+	}
+
+	hasByteSliceValue := func(want string) rule {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
+			byteSliceRef := parser.ParsedDefinitions.ByteSliceReferences[node.NodeValueReference()]
+			got := string(parser.ByteSlice(byteSliceRef))
+			if want != got {
+				panic(fmt.Errorf("hasByteSliceValue: want: %s, got: %s [check: %d]", want, got, ruleIndex))
+			}
+		}
+	}
 
 	hasEnumValuesDefinitions := func(rules ...ruleSet) rule {
 		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
@@ -856,7 +894,7 @@ func TestParser(t *testing.T) {
 		}
 	}
 
-	mustParseSchemaDefinition := func(wantQuery, wantMutation, wantSubscription string, directives ...ruleSet) checkFunc {
+	mustParseSchemaDefinition := func(rules ...rule) checkFunc {
 		return func(parser *Parser, i int) {
 			var schemaDefinition document.SchemaDefinition
 			err := parser.parseSchemaDefinition(&schemaDefinition)
@@ -864,23 +902,8 @@ func TestParser(t *testing.T) {
 				panic(err)
 			}
 
-			gotQuery := string(schemaDefinition.Query)
-			gotMutation := string(schemaDefinition.Mutation)
-			gotSubscription := string(schemaDefinition.Subscription)
-
-			if wantQuery != gotQuery {
-				panic(fmt.Errorf("mustParseSchemaDefinition: want(query): %s, got: %s [check: %d]", wantQuery, gotQuery, i))
-			}
-			if wantMutation != gotMutation {
-				panic(fmt.Errorf("mustParseSchemaDefinition: want(mutation): %s, got: %s [check: %d]", wantMutation, wantMutation, i))
-			}
-			if wantSubscription != gotSubscription {
-				panic(fmt.Errorf("mustParseSchemaDefinition: want(subscription): %s, got: %s [check: %d]", wantSubscription, gotSubscription, i))
-			}
-
-			for j, rule := range directives {
-				directive := parser.ParsedDefinitions.Directives[j]
-				evalRules(directive, parser, rule, i)
+			for k, rule := range rules {
+				rule(schemaDefinition, parser, k, i)
 			}
 		}
 	}
@@ -1336,15 +1359,23 @@ func TestParser(t *testing.T) {
 						EAST
 						SOUTH
 						WEST
-		}`, mustParseEnumTypeDefinition(
-			hasName("Direction"),
-			hasEnumValuesDefinitions(
-				node(hasName("NORTH")),
-				node(hasName("EAST")),
-				node(hasName("SOUTH")),
-				node(hasName("WEST")),
+		}`,
+			mustParseEnumTypeDefinition(
+				hasName("Direction"),
+				hasEnumValuesDefinitions(
+					node(hasName("NORTH")),
+					node(hasName("EAST")),
+					node(hasName("SOUTH")),
+					node(hasName("WEST")),
+				),
+				hasPosition(position.Position{
+					LineStart: 1,
+					CharStart: 1,
+					LineEnd:   6,
+					CharEnd:   4,
+				}),
 			),
-		))
+		)
 	})
 	t.Run("enum with descriptions", func(t *testing.T) {
 		run(`enum Direction {
@@ -1387,6 +1418,12 @@ func TestParser(t *testing.T) {
 				node(hasName("SOUTH"), hasDescription("describes south")),
 				node(hasName("WEST"), hasDescription("describes west")),
 			),
+			hasPosition(position.Position{
+				LineStart: 1,
+				CharStart: 1,
+				LineEnd:   13,
+				CharEnd:   2,
+			}),
 		))
 	})
 	t.Run("enum with directives", func(t *testing.T) {
@@ -1445,6 +1482,12 @@ func TestParser(t *testing.T) {
 								hasName("name"),
 							),
 						),
+						hasPosition(position.Position{
+							LineStart: 1,
+							CharStart: 1,
+							LineEnd:   1,
+							CharEnd:   59,
+						}),
 					),
 				),
 			))
@@ -2017,6 +2060,12 @@ func TestParser(t *testing.T) {
 							hasName("rename"),
 						),
 					),
+					hasPosition(position.Position{
+						LineStart: 2,
+						CharStart: 5,
+						LineEnd:   4,
+						CharEnd:   6,
+					}),
 				),
 			),
 		)
@@ -2086,6 +2135,12 @@ func TestParser(t *testing.T) {
 							hasName("rename"),
 						),
 					),
+					hasPosition(position.Position{
+						LineStart: 0, // default, see mustParseFragmentSpread
+						CharStart: 0, // default, see mustParseFragmentSpread
+						LineEnd:   1,
+						CharEnd:   32,
+					}),
 				),
 			),
 		)
@@ -2151,8 +2206,8 @@ func TestParser(t *testing.T) {
 				node(
 					hasTypeName("Goland"),
 					hasPosition(position.Position{
-						LineStart: 0, // default/unrelevant
-						CharStart: 0, // default/unrelevant
+						LineStart: 0, // default, see mustParseFragmentSpread
+						CharStart: 0, // default, see mustParseFragmentSpread
 						LineEnd:   7,
 						CharEnd:   6,
 					}),
@@ -2340,6 +2395,12 @@ func TestParser(t *testing.T) {
 							),
 						),
 					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						CharStart: 1,
+						LineEnd:   3,
+						CharEnd:   6,
+					}),
 				),
 			),
 		)
@@ -2619,6 +2680,12 @@ func TestParser(t *testing.T) {
 							hasName("name"),
 						),
 					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						CharStart: 1,
+						LineEnd:   3,
+						CharEnd:   6,
+					}),
 				),
 			),
 		)
@@ -2745,6 +2812,12 @@ func TestParser(t *testing.T) {
 							hasName("name"),
 						),
 					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						CharStart: 1,
+						LineEnd:   3,
+						CharEnd:   6,
+					}),
 				),
 			),
 		)
@@ -2934,6 +3007,12 @@ func TestParser(t *testing.T) {
 							hasName("name"),
 						),
 					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						CharStart: 1,
+						LineEnd:   3,
+						CharEnd:   6,
+					}),
 				),
 			),
 		)
@@ -3004,11 +3083,18 @@ func TestParser(t *testing.T) {
 				}`,
 			mustParseOperationDefinition(
 				node(
+					hasOperationType(document.OperationTypeQuery),
 					hasFields(
 						node(
 							hasName("name"),
 						),
 					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						CharStart: 1,
+						LineEnd:   3,
+						CharEnd:   6,
+					}),
 				),
 			),
 		)
@@ -3083,6 +3169,12 @@ func TestParser(t *testing.T) {
 						hasName("fromBottom"),
 					),
 				),
+				hasPosition(position.Position{
+					LineStart: 1,
+					CharStart: 1,
+					LineEnd:   1,
+					CharEnd:   58,
+				}),
 			),
 		))
 	})
@@ -3112,68 +3204,71 @@ func TestParser(t *testing.T) {
 	// parseSchemaDefinition
 
 	t.Run("simple", func(t *testing.T) {
-		run(`
-schema {
-	query: Query
-	mutation: Mutation
-	subscription: Subscription
-}`, mustParseSchemaDefinition("Query", "Mutation", "Subscription"))
-	})
-	t.Run("invalid", func(t *testing.T) {
-		run(`schema {
-query : Query	
-mutation : Mutation
-subscription : Subscription
-query: Query2 }`, mustPanic(mustParseSchemaDefinition("Query", "Mutation", "Subscription")),
+		run(`	schema {
+						query: Query
+						mutation: Mutation
+						subscription: Subscription 
+					}`,
+			mustParseSchemaDefinition(
+				hasSchemaOperationTypeName(document.OperationTypeQuery, "Query"),
+				hasSchemaOperationTypeName(document.OperationTypeMutation, "Mutation"),
+				hasSchemaOperationTypeName(document.OperationTypeSubscription, "Subscription"),
+			),
 		)
 	})
 	t.Run("invalid", func(t *testing.T) {
-		run(`schema @fromTop(to: "bottom") @fromBottom(to: "top") {
-	query: Query
-	mutation: Mutation
-	subscription: Subscription
-}`, mustParseSchemaDefinition("Query", "Mutation", "Subscription",
-			node(
-				hasName("fromTop"),
-			),
-			node(
-				hasName("fromBottom"),
-			),
-		))
+		run(`	schema {
+						query : Query	
+						mutation : Mutation
+						subscription : Subscription
+						query: Query2 
+					}`,
+			mustPanic(mustParseSchemaDefinition()),
+		)
+	})
+	t.Run("invalid", func(t *testing.T) {
+		run(`	schema @fromTop(to: "bottom") @fromBottom(to: "top") {
+						query: Query
+						mutation: Mutation
+						subscription: Subscription
+					}`,
+			mustParseSchemaDefinition(
+				hasSchemaOperationTypeName(document.OperationTypeQuery, "Query"),
+				hasSchemaOperationTypeName(document.OperationTypeMutation, "Mutation"),
+				hasSchemaOperationTypeName(document.OperationTypeSubscription, "Subscription"),
+				hasDirectives(
+					node(
+						hasName("fromTop"),
+					),
+					node(
+						hasName("fromBottom"),
+					),
+				),
+			))
 	})
 	t.Run("invalid 1", func(t *testing.T) {
 		run(`schema  @foo(bar: .) { query: Query }`,
-			mustPanic(
-				mustParseSchemaDefinition("Query", "", ""),
-			),
+			mustPanic(mustParseSchemaDefinition()),
 		)
 	})
 	t.Run("invalid 2", func(t *testing.T) {
 		run(`schema ( query: Query }`,
-			mustPanic(
-				mustParseSchemaDefinition("Query", "", ""),
-			),
+			mustPanic(mustParseSchemaDefinition()),
 		)
 	})
 	t.Run("invalid 3", func(t *testing.T) {
 		run(`schema { query. Query }`,
-			mustPanic(
-				mustParseSchemaDefinition("Query", "", ""),
-			),
+			mustPanic(mustParseSchemaDefinition()),
 		)
 	})
 	t.Run("invalid 4", func(t *testing.T) {
 		run(`schema { query: 1337 }`,
-			mustPanic(
-				mustParseSchemaDefinition("1337", "", ""),
-			),
+			mustPanic(mustParseSchemaDefinition()),
 		)
 	})
 	t.Run("invalid 5", func(t *testing.T) {
 		run(`schema { query: Query )`,
-			mustPanic(
-				mustParseSchemaDefinition("Query", "", ""),
-			),
+			mustPanic(mustParseSchemaDefinition()),
 		)
 	})
 
@@ -3376,39 +3471,45 @@ query: Query2 }`, mustPanic(mustParseSchemaDefinition("Query", "Mutation", "Subs
 		)
 	})
 	t.Run("schema", func(t *testing.T) {
-		run(`
-schema {
-	query: Query
-	mutation: Mutation
-}
-"this is a scalar"
-scalar JSON
-"this is a Person"
-	type Person {
-	name: String
-}
-"describes firstEntity"
-interface firstEntity {
-	name: String
-}
-"describes direction"
-enum Direction {
-	NORTH
-}
-"describes Person"
-input Person {
-	name: String
-}
-"describes someway"
-directive @ someway on SUBSCRIPTION | MUTATION`,
+		run(`	schema {
+						query: Query
+						mutation: Mutation
+					}
+					
+					"this is a scalar"
+					scalar JSON
+
+					"this is a Person"
+					type Person {
+						name: String
+					}
+
+
+					"describes firstEntity"
+					interface firstEntity {
+						name: String
+					}
+
+					"describes direction"
+					enum Direction {
+						NORTH
+					}
+
+					"describes Person"
+					input Person {
+						name: String
+					}
+
+					"describes someway"
+					directive @ someway on SUBSCRIPTION | MUTATION`,
 			mustParseTypeSystemDefinition(
 				node(
 					hasSchemaDefinition(
 						hasPosition(position.Position{
-							LineStart: 2,
-							CharStart: 1,
-							LineEnd:   5,
-							CharEnd:   2,
+							LineStart: 1,
+							CharStart: 2,
+							LineEnd:   4,
+							CharEnd:   7,
 						}),
 					),
 					hasScalarTypeSystemDefinitions(
@@ -3416,9 +3517,9 @@ directive @ someway on SUBSCRIPTION | MUTATION`,
 							hasName("JSON"),
 							hasPosition(position.Position{
 								LineStart: 6,
-								CharStart: 1,
+								CharStart: 6,
 								LineEnd:   7,
-								CharEnd:   12,
+								CharEnd:   17,
 							}),
 						),
 					),
@@ -3426,10 +3527,10 @@ directive @ someway on SUBSCRIPTION | MUTATION`,
 						node(
 							hasName("Person"),
 							hasPosition(position.Position{
-								LineStart: 8,
-								CharStart: 1,
-								LineEnd:   11,
-								CharEnd:   2,
+								LineStart: 9,
+								CharStart: 6,
+								LineEnd:   12,
+								CharEnd:   7,
 							}),
 						),
 					),
@@ -3437,10 +3538,10 @@ directive @ someway on SUBSCRIPTION | MUTATION`,
 						node(
 							hasName("firstEntity"),
 							hasPosition(position.Position{
-								LineStart: 12,
-								CharStart: 1,
-								LineEnd:   15,
-								CharEnd:   2,
+								LineStart: 15,
+								CharStart: 6,
+								LineEnd:   18,
+								CharEnd:   7,
 							}),
 						),
 					),
@@ -3448,10 +3549,10 @@ directive @ someway on SUBSCRIPTION | MUTATION`,
 						node(
 							hasName("Direction"),
 							hasPosition(position.Position{
-								LineStart: 16,
-								CharStart: 1,
-								LineEnd:   19,
-								CharEnd:   2,
+								LineStart: 20,
+								CharStart: 6,
+								LineEnd:   23,
+								CharEnd:   7,
 							}),
 						),
 					),
@@ -3459,10 +3560,10 @@ directive @ someway on SUBSCRIPTION | MUTATION`,
 						node(
 							hasName("Person"),
 							hasPosition(position.Position{
-								LineStart: 20,
-								CharStart: 1,
-								LineEnd:   23,
-								CharEnd:   2,
+								LineStart: 25,
+								CharStart: 6,
+								LineEnd:   28,
+								CharEnd:   7,
 							}),
 						),
 					),
@@ -3470,10 +3571,10 @@ directive @ someway on SUBSCRIPTION | MUTATION`,
 						node(
 							hasName("someway"),
 							hasPosition(position.Position{
-								LineStart: 24,
-								CharStart: 1,
-								LineEnd:   25,
-								CharEnd:   47,
+								LineStart: 30,
+								CharStart: 6,
+								LineEnd:   31,
+								CharEnd:   52,
 							}),
 						),
 					),
@@ -3481,22 +3582,23 @@ directive @ someway on SUBSCRIPTION | MUTATION`,
 			))
 	})
 	t.Run("set schema multiple times", func(t *testing.T) {
-		run(`
-schema {
-	query: Query
-	mutation: Mutation
-}
-schema {
-	query: Query
-	mutation: Mutation
-}`, mustPanic(mustParseTypeSystemDefinition(node())))
+		run(`	schema {
+						query: Query
+						mutation: Mutation
+					}
+
+					schema {
+						query: Query
+						mutation: Mutation
+					}`,
+			mustPanic(mustParseTypeSystemDefinition(node())))
 	})
 	t.Run("invalid schema", func(t *testing.T) {
-		run(`
-schema {
-	query: Query
-	mutation: Mutation
-)`, mustPanic(mustParseTypeSystemDefinition(node())))
+		run(`	schema {
+						query: Query
+						mutation: Mutation
+					)`,
+			mustPanic(mustParseTypeSystemDefinition(node())))
 	})
 	t.Run("invalid scalar", func(t *testing.T) {
 		run(`scalar JSON @foo(bar: .)`, mustPanic(mustParseTypeSystemDefinition(node())))
@@ -3552,9 +3654,9 @@ schema {
 	})
 	t.Run("with linebreaks", func(t *testing.T) {
 		run(`union SearchResult = Photo 
-| Person 
-| Car 
-| Planet`,
+										| Person 
+										| Car 
+										| Planet`,
 			mustParseUnionTypeDefinition(
 				node(
 					hasName("SearchResult"),
@@ -3678,6 +3780,10 @@ schema {
 							hasTypeKind(document.TypeKindNAMED),
 							hasTypeName("bar"),
 						),
+					),
+					hasDefaultValue(
+						hasValueType(document.ValueTypeString),
+						hasByteSliceValue("me"),
 					),
 					hasPosition(position.Position{
 						LineStart: 1,

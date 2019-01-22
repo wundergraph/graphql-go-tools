@@ -133,11 +133,5 @@ func (v Value) NodeUnionMemberTypes() []ByteSliceReference {
 	panic("implement me")
 }
 
-type VariableValue ByteSlice
-type IntValue int32
-type FloatValue float32
-type StringValue ByteSlice
-type BooleanValue bool
-type EnumValue ByteSlice
 type ListValue []int
 type ObjectValue []int
