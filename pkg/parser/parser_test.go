@@ -3,10 +3,12 @@ package parser
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/golang/mock/gomock"
 	"github.com/jensneuse/diffview"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
 	"github.com/sebdah/goldie"
 	"io/ioutil"
 	"log"
@@ -981,8 +983,25 @@ func TestParser(t *testing.T) {
 		}
 	}
 
-	mustParseFloatValue := func(want float32) checkFunc {
+	mustParseFloatValue := func(t *testing.T, input string, want float32) checkFunc {
 		return func(parser *Parser, i int) {
+
+			controller := gomock.NewController(t)
+			lexer := NewMockLexer(controller)
+
+			parser.l = lexer
+
+			ref := document.ByteSliceReference{
+				Start: 0,
+				End:   0,
+			}
+
+			lexer.EXPECT().Read().Return(token.Token{
+				Literal: ref,
+			})
+
+			lexer.EXPECT().ByteSlice(ref).Return([]byte(input))
+
 			var index int
 			if err := parser.parsePeekedFloatValue(&index); err != nil {
 				panic(err)
@@ -4224,10 +4243,21 @@ func TestParser(t *testing.T) {
 
 	// parsePeekedFloatValue
 	t.Run("valid float", func(t *testing.T) {
-		run("13.37", mustParseFloatValue(13.37))
+		run("", mustParseFloatValue(t, "13.37", 13.37))
 	})
 	t.Run("invalid float", func(t *testing.T) {
-		run("1.3.3.7", mustPanic(mustParseFloatValue(13.37)))
+		run("1.3.3.7", mustPanic(mustParseFloatValue(t, "1.3.3.7", 13.37)))
+	})
+
+	// newErrInvalidType
+
+	t.Run("newErrInvalidType", func(t *testing.T) {
+		want := "parser:a:invalidType - expected 'b', got 'c' @ 1:3-2:4"
+		got := newErrInvalidType(position.Position{1, 2, 3, 4}, "a", "b", "c").Error()
+
+		if want != got {
+			t.Fatalf("newErrInvalidType: \nwant: %s\ngot: %s", want, got)
+		}
 	})
 }
 
