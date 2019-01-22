@@ -3929,6 +3929,12 @@ schema {
 		run("String", mustParseType(
 			hasTypeKind(document.TypeKindNAMED),
 			hasTypeName("String"),
+			hasPosition(position.Position{
+				LineStart: 1,
+				CharStart: 1,
+				LineEnd:   1,
+				CharEnd:   7,
+			}),
 		))
 	})
 	t.Run("named non null", func(t *testing.T) {
@@ -3950,6 +3956,12 @@ schema {
 					hasTypeName("String"),
 				),
 			),
+			hasPosition(position.Position{
+				LineStart: 1,
+				CharStart: 1,
+				LineEnd:   1,
+				CharEnd:   10,
+			}),
 		))
 	})
 	t.Run("non null named non null list", func(t *testing.T) {
@@ -3979,10 +3991,22 @@ schema {
 						ofType(
 							hasTypeKind(document.TypeKindNAMED),
 							hasTypeName("String"),
+							hasPosition(position.Position{
+								LineStart: 1,
+								CharStart: 4,
+								LineEnd:   1,
+								CharEnd:   10,
+							}),
 						),
 					),
 				),
 			),
+			hasPosition(position.Position{
+				LineStart: 1,
+				CharStart: 1,
+				LineEnd:   1,
+				CharEnd:   14,
+			}),
 		))
 	})
 	t.Run("invalid", func(t *testing.T) {

@@ -3,17 +3,23 @@ package parser
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
 )
 
 func (p *Parser) parseType(index *int) error {
 
-	isListType := p.peekExpect(keyword.SQUAREBRACKETOPEN, true)
+	isListType := p.peekExpect(keyword.SQUAREBRACKETOPEN, false)
+
+	var start token.Token
+	var err error
 
 	firstType := p.makeType(index)
 	var ofType int
 	var name document.ByteSliceReference
 
 	if isListType {
+
+		start = p.l.Read()
 
 		err := p.parseType(&ofType)
 		if err != nil {
@@ -26,13 +32,15 @@ func (p *Parser) parseType(index *int) error {
 		}
 	} else {
 
-		ident, err := p.readExpect(keyword.IDENT, "parseNamedType")
+		start, err = p.readExpect(keyword.IDENT, "parseNamedType")
 		if err != nil {
 			return err
 		}
 
-		name = ident.Literal
+		name = start.Literal
 	}
+
+	firstType.Position.MergeStartIntoStart(start.TextPosition)
 
 	isNonNull := p.peekExpect(keyword.BANG, true)
 
@@ -63,6 +71,7 @@ func (p *Parser) parseType(index *int) error {
 		firstType.OfType = secondIndex
 	}
 
+	firstType.Position.MergeStartIntoEnd(p.TextPosition())
 	p.putType(firstType, *index)
 	return nil
 }
