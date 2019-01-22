@@ -1,22 +1,30 @@
 package parser
 
 import (
+	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
-func (p *Parser) parseArgumentsDefinition(index *[]int) error {
+func (p *Parser) parseArgumentsDefinition(index *int) error {
 
-	isBracketOpen := p.peekExpect(keyword.BRACKETOPEN, true)
-
-	if !isBracketOpen {
+	start, matches := p.peekExpectSwallow(keyword.BRACKETOPEN)
+	if !matches {
 		return nil
 	}
 
-	err := p.parseInputValueDefinitions(index, keyword.BRACKETCLOSE)
+	var definition document.ArgumentsDefinition
+	p.initArgumentsDefinition(&definition)
+	definition.Position.MergeStartIntoStart(start.TextPosition)
+
+	err := p.parseInputValueDefinitions(&definition.InputValueDefinitions, keyword.BRACKETCLOSE)
 	if err != nil {
 		return err
 	}
 
-	_, err = p.readExpect(keyword.BRACKETCLOSE, "parseArgumentsDefinition")
+	end, err := p.readExpect(keyword.BRACKETCLOSE, "parseArgumentsDefinition")
+	definition.Position.MergeEndIntoEnd(end.TextPosition)
+
+	*index = p.putArgumentsDefinition(definition)
+
 	return err
 }

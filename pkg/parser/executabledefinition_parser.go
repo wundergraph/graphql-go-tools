@@ -45,8 +45,6 @@ func (p *Parser) parseComplexExecutableDefinition() (executableDefinition docume
 		switch next {
 		case keyword.FRAGMENT:
 
-			p.l.Read()
-
 			err := p.parseFragmentDefinition(&executableDefinition.FragmentDefinitions)
 			if err != nil {
 				return executableDefinition, err

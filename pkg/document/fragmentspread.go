@@ -10,6 +10,14 @@ type FragmentSpread struct {
 	Position     position.Position
 }
 
+func (f FragmentSpread) NodeInputFieldsDefinition() int {
+	panic("implement me")
+}
+
+func (f FragmentSpread) NodeInputValueDefinitions() []int {
+	panic("implement me")
+}
+
 func (f FragmentSpread) NodePosition() position.Position {
 	return f.Position
 }
@@ -78,7 +86,7 @@ func (f FragmentSpread) NodeAlias() ByteSliceReference {
 	panic("implement me")
 }
 
-func (f FragmentSpread) NodeArgumentsDefinition() []int {
+func (f FragmentSpread) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 

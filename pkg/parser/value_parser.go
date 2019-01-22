@@ -14,6 +14,7 @@ func (p *Parser) parseValue(index *int) (err error) {
 
 	key := p.l.Peek(true)
 	value := p.makeValue(index)
+	value.Position.MergeStartIntoStart(p.TextPosition())
 
 	switch key {
 	case keyword.FALSE, keyword.TRUE:
@@ -48,6 +49,7 @@ func (p *Parser) parseValue(index *int) (err error) {
 		return newErrInvalidType(invalidToken.TextPosition, "parseValue", fmt.Sprintf("%v", parseValuePossibleKeywords), string(invalidToken.Keyword))
 	}
 
+	value.Position.MergeStartIntoEnd(p.TextPosition())
 	p.putValue(value, *index)
 
 	return err

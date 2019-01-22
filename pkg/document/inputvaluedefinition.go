@@ -13,6 +13,14 @@ type InputValueDefinition struct {
 	Position     position.Position
 }
 
+func (i InputValueDefinition) NodeInputFieldsDefinition() int {
+	panic("implement me")
+}
+
+func (i InputValueDefinition) NodeInputValueDefinitions() []int {
+	panic("implement me")
+}
+
 func (i InputValueDefinition) NodePosition() position.Position {
 	return i.Position
 }
@@ -89,7 +97,7 @@ func (i InputValueDefinition) NodeArguments() []int {
 	panic("implement me")
 }
 
-func (i InputValueDefinition) NodeArgumentsDefinition() []int {
+func (i InputValueDefinition) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 
@@ -128,3 +136,5 @@ func (i InputValueDefinition) NodeType() int {
 func (i InputValueDefinition) NodeOperationType() OperationType {
 	panic("implement me")
 }
+
+type InputValueDefinitions []InputValueDefinition

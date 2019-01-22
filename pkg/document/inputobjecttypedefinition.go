@@ -7,9 +7,17 @@ import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 type InputObjectTypeDefinition struct {
 	Description           ByteSliceReference
 	Name                  ByteSliceReference
-	InputFieldsDefinition []int
+	InputFieldsDefinition int
 	Directives            []int
 	Position              position.Position
+}
+
+func (i InputObjectTypeDefinition) NodeInputFieldsDefinition() int {
+	return i.InputFieldsDefinition
+}
+
+func (i InputObjectTypeDefinition) NodeInputValueDefinitions() []int {
+	panic("implement me")
 }
 
 func (i InputObjectTypeDefinition) NodePosition() position.Position {
@@ -80,7 +88,7 @@ func (i InputObjectTypeDefinition) NodeArguments() []int {
 	panic("implement me")
 }
 
-func (i InputObjectTypeDefinition) NodeArgumentsDefinition() []int {
+func (i InputObjectTypeDefinition) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 
@@ -93,7 +101,7 @@ func (i InputObjectTypeDefinition) NodeEnumValuesDefinition() []int {
 }
 
 func (i InputObjectTypeDefinition) NodeFields() []int {
-	return i.InputFieldsDefinition
+	panic("implement me")
 }
 
 func (i InputObjectTypeDefinition) NodeFieldsDefinition() []int {

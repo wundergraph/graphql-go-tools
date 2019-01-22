@@ -23,6 +23,8 @@ func (p *Parser) parseVariableDefinitions(index *[]int) (err error) {
 				Variable: variable.Literal,
 			}
 
+			variableDefinition.Position.MergeStartIntoStart(variable.TextPosition)
+
 			_, err = p.readExpect(keyword.COLON, "parseVariableDefinitions")
 			if err != nil {
 				return err
@@ -38,6 +40,7 @@ func (p *Parser) parseVariableDefinitions(index *[]int) (err error) {
 				return err
 			}
 
+			variableDefinition.Position.MergeStartIntoEnd(p.TextPosition())
 			*index = append(*index, p.putVariableDefinition(variableDefinition))
 
 		case keyword.BRACKETCLOSE:

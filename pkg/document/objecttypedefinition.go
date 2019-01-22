@@ -13,6 +13,14 @@ type ObjectTypeDefinition struct {
 	Position             position.Position
 }
 
+func (o ObjectTypeDefinition) NodeInputFieldsDefinition() int {
+	panic("implement me")
+}
+
+func (o ObjectTypeDefinition) NodeInputValueDefinitions() []int {
+	panic("implement me")
+}
+
 func (o ObjectTypeDefinition) NodePosition() position.Position {
 	return o.Position
 }
@@ -81,7 +89,7 @@ func (o ObjectTypeDefinition) NodeArguments() []int {
 	panic("implement me")
 }
 
-func (o ObjectTypeDefinition) NodeArgumentsDefinition() []int {
+func (o ObjectTypeDefinition) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 

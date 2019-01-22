@@ -1,3 +1,4 @@
+//go:generate mockgen -source=$GOFILE -destination=./parser_mock_test.go -package=parser Lexer
 package parser
 
 import (
@@ -63,6 +64,7 @@ type ParsedDefinitions struct {
 	Arguments                  document.Arguments
 	Directives                 document.Directives
 	EnumTypeDefinitions        document.EnumTypeDefinitions
+	ArgumentsDefinitions       document.ArgumentsDefinitions
 	EnumValuesDefinitions      document.EnumValueDefinitions
 	FieldDefinitions           document.FieldDefinitions
 	InputValueDefinitions      document.InputValueDefinitions
@@ -72,6 +74,7 @@ type ParsedDefinitions struct {
 	ObjectTypeDefinitions      document.ObjectTypeDefinitions
 	ScalarTypeDefinitions      document.ScalarTypeDefinitions
 	UnionTypeDefinitions       document.UnionTypeDefinitions
+	InputFieldsDefinitions     document.InputFieldsDefinitions
 	Values                     []document.Value
 	ListValues                 []document.ListValue
 	ObjectValues               []document.ObjectValue
@@ -90,6 +93,7 @@ type Lexer interface {
 	Read() (tok token.Token)
 	Peek(ignoreWhitespace bool) keyword.Keyword
 	ByteSlice(reference document.ByteSliceReference) document.ByteSlice
+	TextPosition() position.Position
 }
 
 type Options struct {
@@ -139,6 +143,7 @@ func NewParser(withOptions ...Option) *Parser {
 		Directives:                 make(document.Directives, 0, options.minimumSliceSize),
 		EnumTypeDefinitions:        make(document.EnumTypeDefinitions, 0, options.minimumSliceSize),
 		EnumValuesDefinitions:      make(document.EnumValueDefinitions, 0, options.minimumSliceSize),
+		ArgumentsDefinitions:       make(document.ArgumentsDefinitions, 0, options.minimumSliceSize),
 		FieldDefinitions:           make(document.FieldDefinitions, 0, options.minimumSliceSize),
 		InputValueDefinitions:      make(document.InputValueDefinitions, 0, options.minimumSliceSize),
 		InputObjectTypeDefinitions: make(document.InputObjectTypeDefinitions, 0, options.minimumSliceSize),
@@ -147,6 +152,7 @@ func NewParser(withOptions ...Option) *Parser {
 		ObjectTypeDefinitions:      make(document.ObjectTypeDefinitions, 0, options.minimumSliceSize),
 		ScalarTypeDefinitions:      make(document.ScalarTypeDefinitions, 0, options.minimumSliceSize),
 		UnionTypeDefinitions:       make(document.UnionTypeDefinitions, 0, options.minimumSliceSize),
+		InputFieldsDefinitions:     make(document.InputFieldsDefinitions, 0, options.minimumSliceSize),
 		Values:                     make([]document.Value, 0, options.minimumSliceSize),
 		ListValues:                 make([]document.ListValue, 0, options.minimumSliceSize),
 		ObjectValues:               make([]document.ObjectValue, 0, options.minimumSliceSize),
@@ -170,6 +176,10 @@ func NewParser(withOptions ...Option) *Parser {
 
 func (p *Parser) ByteSlice(reference document.ByteSliceReference) document.ByteSlice {
 	return p.l.ByteSlice(reference)
+}
+
+func (p *Parser) TextPosition() position.Position {
+	return p.l.TextPosition()
 }
 
 // ParseTypeSystemDefinition parses a TypeSystemDefinition from an io.Reader
@@ -210,6 +220,15 @@ func (p *Parser) peekExpect(expected keyword.Keyword, swallow bool) bool {
 	return matches
 }
 
+func (p *Parser) peekExpectSwallow(expected keyword.Keyword) (tok token.Token, matches bool) {
+	matches = expected == p.l.Peek(true)
+	if matches {
+		tok = p.l.Read()
+	}
+
+	return
+}
+
 func (p *Parser) indexPoolGet() []int {
 	p.indexPoolPosition++
 
@@ -234,8 +253,7 @@ func (p *Parser) initField(field *document.Field) {
 
 func (p *Parser) makeFieldDefinition() document.FieldDefinition {
 	return document.FieldDefinition{
-		Directives:          p.indexPoolGet(),
-		ArgumentsDefinition: p.indexPoolGet(),
+		Directives: p.indexPoolGet(),
 	}
 }
 
@@ -254,8 +272,7 @@ func (p *Parser) makeInputValueDefinition() document.InputValueDefinition {
 
 func (p *Parser) makeInputObjectTypeDefinition() document.InputObjectTypeDefinition {
 	return document.InputObjectTypeDefinition{
-		Directives:            p.indexPoolGet(),
-		InputFieldsDefinition: p.indexPoolGet(),
+		Directives: p.indexPoolGet(),
 	}
 }
 
@@ -268,12 +285,6 @@ func (p *Parser) makeTypeSystemDefinition() document.TypeSystemDefinition {
 		ObjectTypeDefinitions:      p.indexPoolGet(),
 		ScalarTypeDefinitions:      p.indexPoolGet(),
 		UnionTypeDefinitions:       p.indexPoolGet(),
-	}
-}
-
-func (p *Parser) makeDirectiveDefinition() document.DirectiveDefinition {
-	return document.DirectiveDefinition{
-		ArgumentsDefinition: p.indexPoolGet(),
 	}
 }
 
@@ -368,6 +379,14 @@ func (p *Parser) makeType(index *int) document.Type {
 	return documentType
 }
 
+func (p *Parser) initArgumentsDefinition(definition *document.ArgumentsDefinition) {
+	definition.InputValueDefinitions = p.indexPoolGet()
+}
+
+func (p *Parser) initInputFieldsDefinition(definition *document.InputFieldsDefinition) {
+	definition.InputValueDefinitions = p.indexPoolGet()
+}
+
 func (p *Parser) resetObjects() {
 
 	p.indexPoolPosition = -1
@@ -398,6 +417,8 @@ func (p *Parser) resetObjects() {
 	p.ParsedDefinitions.ObjectValues = p.ParsedDefinitions.ObjectValues[:0]
 	p.ParsedDefinitions.ObjectFields = p.ParsedDefinitions.ObjectFields[:0]
 	p.ParsedDefinitions.Types = p.ParsedDefinitions.Types[:0]
+	p.ParsedDefinitions.ArgumentsDefinitions = p.ParsedDefinitions.ArgumentsDefinitions[:0]
+	p.ParsedDefinitions.InputFieldsDefinitions = p.ParsedDefinitions.InputFieldsDefinitions[:0]
 }
 
 func (p *Parser) putOperationDefinition(definition document.OperationDefinition) int {
@@ -524,4 +545,14 @@ func (p *Parser) putObjectField(field document.ObjectField) int {
 
 func (p *Parser) putType(documentType document.Type, index int) {
 	p.ParsedDefinitions.Types[index] = documentType
+}
+
+func (p *Parser) putArgumentsDefinition(definition document.ArgumentsDefinition) int {
+	p.ParsedDefinitions.ArgumentsDefinitions = append(p.ParsedDefinitions.ArgumentsDefinitions, definition)
+	return len(p.ParsedDefinitions.ArgumentsDefinitions) - 1
+}
+
+func (p *Parser) putInputFieldsDefinitions(definition document.InputFieldsDefinition) int {
+	p.ParsedDefinitions.InputFieldsDefinitions = append(p.ParsedDefinitions.InputFieldsDefinitions, definition)
+	return len(p.ParsedDefinitions.InputFieldsDefinitions) - 1
 }

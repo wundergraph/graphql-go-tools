@@ -7,7 +7,7 @@ type Node interface {
 	NodeAlias() ByteSliceReference
 	NodeDescription() ByteSliceReference
 	NodeArguments() []int
-	NodeArgumentsDefinition() []int
+	NodeArgumentsDefinition() int
 	NodeDirectives() []int
 	NodeEnumValuesDefinition() []int
 	NodeFields() []int
@@ -20,11 +20,12 @@ type Node interface {
 	NodeValue() int
 	NodeDefaultValue() int
 	NodeImplementsInterfaces() []ByteSliceReference
-
+	InputValueDefinitionsNode
 	TypeSystemDefinitionNode
 	UnionTypeSystemDefinitionNode
 	ValueNode
 	PositionNode
+	InputFieldsDefinitionNode
 }
 
 type TypeSystemDefinitionNode interface {
@@ -49,4 +50,12 @@ type ValueNode interface {
 
 type PositionNode interface {
 	NodePosition() position.Position
+}
+
+type InputValueDefinitionsNode interface {
+	NodeInputValueDefinitions() []int
+}
+
+type InputFieldsDefinitionNode interface {
+	NodeInputFieldsDefinition() int
 }

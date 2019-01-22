@@ -81,6 +81,27 @@ func TestLexer_Peek_Read(t *testing.T) {
 		}
 	}
 
+	mustPeekWhitespaceLength := func(want int) checkFunc {
+		return func(lex *Lexer, i int) {
+			got := lex.peekWhitespaceLength()
+			if want != got {
+				panic(fmt.Errorf("mustPeekWhitespaceLength: want: %d, got: %d [check: %d]", want, got, i))
+			}
+		}
+	}
+
+	t.Run("peek whitespace length", func(t *testing.T) {
+		run("   foo", mustPeekWhitespaceLength(3))
+	})
+	t.Run("peek whitespace length with tab", func(t *testing.T) {
+		run("   	foo", mustPeekWhitespaceLength(4))
+	})
+	t.Run("peek whitespace length with linebreak", func(t *testing.T) {
+		run("   \nfoo", mustPeekWhitespaceLength(4))
+	})
+	t.Run("peek whitespace length with comma", func(t *testing.T) {
+		run("   ,foo", mustPeekWhitespaceLength(4))
+	})
 	t.Run("set too large input", func(t *testing.T) {
 		lex := NewLexer()
 		if err := lex.SetInput(make([]byte, 65536)); err == nil {
@@ -277,6 +298,9 @@ func TestLexer_Peek_Read(t *testing.T) {
 	})
 	t.Run("read fragment", func(t *testing.T) {
 		run("fragment", mustPeekAndRead(keyword.FRAGMENT, "fragment"))
+	})
+	t.Run("read fragment", func(t *testing.T) {
+		run("\n\n fragment", mustPeekAndRead(keyword.FRAGMENT, "fragment"))
 	})
 	t.Run("read implements", func(t *testing.T) {
 		run("implements", mustPeekAndRead(keyword.IMPLEMENTS, "implements"))

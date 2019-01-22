@@ -10,6 +10,14 @@ type ObjectField struct {
 	Position position.Position
 }
 
+func (o ObjectField) NodeInputFieldsDefinition() int {
+	panic("implement me")
+}
+
+func (o ObjectField) NodeInputValueDefinitions() []int {
+	panic("implement me")
+}
+
 func (o ObjectField) NodePosition() position.Position {
 	return o.Position
 }
@@ -34,7 +42,7 @@ func (o ObjectField) NodeArguments() []int {
 	panic("implement me")
 }
 
-func (o ObjectField) NodeArgumentsDefinition() []int {
+func (o ObjectField) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 

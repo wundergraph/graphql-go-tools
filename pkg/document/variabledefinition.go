@@ -11,6 +11,14 @@ type VariableDefinition struct {
 	Position     position.Position
 }
 
+func (v VariableDefinition) NodeInputFieldsDefinition() int {
+	panic("implement me")
+}
+
+func (v VariableDefinition) NodeInputValueDefinitions() []int {
+	panic("implement me")
+}
+
 func (v VariableDefinition) NodePosition() position.Position {
 	return v.Position
 }
@@ -75,7 +83,7 @@ func (v VariableDefinition) NodeFieldsDefinition() []int {
 	panic("implement me")
 }
 
-func (v VariableDefinition) NodeArgumentsDefinition() []int {
+func (v VariableDefinition) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 

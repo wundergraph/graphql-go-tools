@@ -3,12 +3,16 @@ package parser
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/golang/mock/gomock"
 	"github.com/jensneuse/diffview"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
 	"github.com/sebdah/goldie"
 	"io/ioutil"
 	"log"
+	"reflect"
 	"testing"
 )
 
@@ -56,6 +60,36 @@ func TestParser(t *testing.T) {
 		}
 	}
 
+	hasSchemaOperationTypeName := func(operationType document.OperationType, wantTypeName string) rule {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
+
+			schemaDefinition := node.(document.SchemaDefinition)
+
+			gotQuery := string(schemaDefinition.Query)
+			gotMutation := string(schemaDefinition.Mutation)
+			gotSubscription := string(schemaDefinition.Subscription)
+
+			if operationType == document.OperationTypeQuery && wantTypeName != gotQuery {
+				panic(fmt.Errorf("hasOperationTypeName: want(query): %s, got: %s [check: %d]", wantTypeName, gotQuery, ruleIndex))
+			}
+			if operationType == document.OperationTypeMutation && wantTypeName != gotMutation {
+				panic(fmt.Errorf("hasOperationTypeName: want(mutation): %s, got: %s [check: %d]", wantTypeName, gotMutation, ruleIndex))
+			}
+			if operationType == document.OperationTypeSubscription && wantTypeName != gotSubscription {
+				panic(fmt.Errorf("hasOperationTypeName: want(subscription): %s, got: %s [check: %d]", wantTypeName, gotSubscription, ruleIndex))
+			}
+		}
+	}
+
+	hasPosition := func(position position.Position) rule {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
+			gotPosition := node.NodePosition()
+			if !reflect.DeepEqual(position, gotPosition) {
+				panic(fmt.Errorf("hasPosition: want: %+v, got: %+v [rule: %d, node: %d]", position, gotPosition, ruleIndex, ruleSetIndex))
+			}
+		}
+	}
+
 	hasAlias := func(wantAlias string) rule {
 		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 			gotAlias := string(parser.ByteSlice(node.NodeAlias()))
@@ -70,6 +104,20 @@ func TestParser(t *testing.T) {
 			gotDescription := string(parser.ByteSlice(node.NodeDescription()))
 			if wantDescription != gotDescription {
 				panic(fmt.Errorf("hasName: want: %s, got: %s [rule: %d, node: %d]", wantDescription, gotDescription, ruleIndex, ruleSetIndex))
+			}
+		}
+	}
+
+	hasDirectiveLocations := func(locations ...document.DirectiveLocation) rule {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
+
+			got := node.(document.DirectiveDefinition).DirectiveLocations
+
+			for k, wantLocation := range locations {
+				gotLocation := got[k]
+				if wantLocation != gotLocation {
+					panic(fmt.Errorf("mustParseDirectiveDefinition: want(location: %d): %s, got: %s", k, wantLocation.String(), gotLocation.String()))
+				}
 			}
 		}
 	}
@@ -200,16 +248,33 @@ func TestParser(t *testing.T) {
 		}
 	}
 
-	/*	hasDefaultValue := func(want document.Value) rule {
+	hasDefaultValue := func(rules ...rule) rule {
 		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
-
-			got := node.NodeDefaultValue()
-
-			if reflect.DeepEqual(want, got) {
-				panic(fmt.Errorf("hasDefaultValue: want: %+v, got: %+v [rule: %d, node: %d]", want, got, ruleIndex, ruleSetIndex))
+			index := node.NodeDefaultValue()
+			node = parser.ParsedDefinitions.Values[index]
+			for k, rule := range rules {
+				rule(node, parser, k, ruleSetIndex)
 			}
 		}
-	}*/
+	}
+
+	hasValueType := func(valueType document.ValueType) rule {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
+			if node.NodeValueType() != valueType {
+				panic(fmt.Errorf("hasValueType: want: %s, got: %s [check: %d]", valueType.String(), node.NodeValueType().String(), ruleIndex))
+			}
+		}
+	}
+
+	hasByteSliceValue := func(want string) rule {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
+			byteSliceRef := parser.ParsedDefinitions.ByteSliceReferences[node.NodeValueReference()]
+			got := string(parser.ByteSlice(byteSliceRef))
+			if want != got {
+				panic(fmt.Errorf("hasByteSliceValue: want: %s, got: %s [check: %d]", want, got, ruleIndex))
+			}
+		}
+	}
 
 	hasEnumValuesDefinitions := func(rules ...ruleSet) rule {
 		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
@@ -329,12 +394,16 @@ func TestParser(t *testing.T) {
 		}
 	}
 
-	hasSchemaDefinition := func() rule {
+	hasSchemaDefinition := func(rules ...rule) rule {
 		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
 			schemaDefinition := node.NodeSchemaDefinition()
 			if !schemaDefinition.IsDefined() {
 				panic(fmt.Errorf("hasSchemaDefinition: schemaDefinition is undefined [check: %d]", ruleSetIndex))
+			}
+
+			for i, rule := range rules {
+				rule(schemaDefinition, parser, i, ruleSetIndex)
 			}
 		}
 	}
@@ -405,10 +474,22 @@ func TestParser(t *testing.T) {
 		}
 	}
 
-	hasInputFields := func(rules ...ruleSet) rule {
+	hasInputFieldsDefinition := func(rules ...rule) rule {
 		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
-			index := node.NodeFields()
+			index := node.NodeInputFieldsDefinition()
+			node = parser.ParsedDefinitions.InputFieldsDefinitions[index]
+
+			for i, rule := range rules {
+				rule(node, parser, i, ruleSetIndex)
+			}
+		}
+	}
+
+	hasInputValueDefinitions := func(rules ...ruleSet) rule {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
+
+			index := node.NodeInputValueDefinitions()
 
 			for i := range rules {
 				ruleSet := rules[i]
@@ -427,6 +508,18 @@ func TestParser(t *testing.T) {
 				ruleSet := rules[i]
 				subNode := parser.ParsedDefinitions.Arguments[index[i]]
 				ruleSet.eval(subNode, parser, index[i])
+			}
+		}
+	}
+
+	hasArgumentsDefinition := func(rules ...rule) rule {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
+
+			index := node.NodeArgumentsDefinition()
+			node = parser.ParsedDefinitions.ArgumentsDefinitions[index]
+
+			for k, rule := range rules {
+				rule(node, parser, k, ruleSetIndex)
 			}
 		}
 	}
@@ -470,35 +563,35 @@ func TestParser(t *testing.T) {
 		}
 	}
 
-	mustParseArguments := func(argumentNames ...string) checkFunc {
+	mustParseArguments := func(wantArgumentNodes ...ruleSet) checkFunc {
 		return func(parser *Parser, i int) {
 			var index []int
 			if err := parser.parseArguments(&index); err != nil {
 				panic(err)
 			}
 
-			for k, want := range argumentNames {
-				got := string(parser.ByteSlice(parser.ParsedDefinitions.Arguments[k].Name))
-				if want != got {
-					panic(fmt.Errorf("mustParseArguments: want(i: %d): %s, got: %s [check: %d]", k, want, got, i))
-				}
+			for k, want := range wantArgumentNodes {
+				argument := parser.ParsedDefinitions.Arguments[k]
+				want.eval(argument, parser, k)
 			}
 		}
 	}
 
-	mustParseArgumentDefinitions := func(argumentNames ...string) checkFunc {
+	mustParseArgumentDefinition := func(rule ...ruleSet) checkFunc {
 		return func(parser *Parser, i int) {
-			var index []int
+			var index int
 			if err := parser.parseArgumentsDefinition(&index); err != nil {
 				panic(err)
 			}
 
-			for k, want := range argumentNames {
-				got := string(parser.ByteSlice(parser.ParsedDefinitions.InputValueDefinitions[k].Name))
-				if want != got {
-					panic(fmt.Errorf("mustParseArguments: want(i: %d): %s, got: %s [check: %d]", k, want, got, i))
-				}
+			if len(rule) == 0 {
+				return
+			} else if len(rule) != 1 {
+				panic("must be only 1 node")
 			}
+
+			node := parser.ParsedDefinitions.ArgumentsDefinitions[index]
+			rule[0].eval(node, parser, i)
 		}
 	}
 
@@ -518,62 +611,30 @@ func TestParser(t *testing.T) {
 		}
 	}
 
-	mustParseDirectiveDefinition := func(wantName string, locations ...document.DirectiveLocation) checkFunc {
+	mustParseDirectiveDefinition := func(rules ...ruleSet) checkFunc {
 		return func(parser *Parser, i int) {
 			var index []int
-			if err := parser.parseDirectiveDefinition(&index); err != nil {
+			if err := parser.parseDirectiveDefinition(nil, &index); err != nil {
 				panic(err)
 			}
 
-			got := parser.ParsedDefinitions.DirectiveDefinitions[0]
-			gotName := string(parser.ByteSlice(got.Name))
-			if wantName != gotName {
-				panic(fmt.Errorf("mustParseDirectiveDefinition: want(name): %s, got: %s", wantName, gotName))
-			}
-
-			for k, wantLocation := range locations {
-				gotLocation := got.DirectiveLocations[k]
-				if wantLocation != gotLocation {
-					panic(fmt.Errorf("mustParseDirectiveDefinition: want(location: %d): %s, got: %s", k, wantLocation.String(), gotLocation.String()))
-				}
+			for k, rule := range rules {
+				node := parser.ParsedDefinitions.DirectiveDefinitions[index[k]]
+				rule.eval(node, parser, k)
 			}
 		}
 	}
 
-	mustContainInputValueDefinition := func(index int, wantName string) checkFunc {
-		return func(parser *Parser, i int) {
-			gotName := string(parser.ByteSlice(parser.ParsedDefinitions.InputValueDefinitions[index].Name))
-			if wantName != gotName {
-				panic(fmt.Errorf("mustContainInputValueDefinition: want for index %d: %s,got: %s", index, wantName, gotName))
-			}
-		}
-	}
-
-	mustContainArguments := func(name ...string) checkFunc {
-		return func(parser *Parser, i int) {
-
-			for k, wantName := range name {
-				gotName := string(parser.ByteSlice(parser.ParsedDefinitions.Arguments[k].Name))
-				if wantName != gotName {
-					panic(fmt.Errorf("mustContainArguments: want for index %d: %s,got: %s", k, wantName, gotName))
-				}
-			}
-		}
-	}
-
-	mustParseDirectives := func(name ...string) checkFunc {
+	mustParseDirectives := func(directives ...ruleSet) checkFunc {
 		return func(parser *Parser, i int) {
 			var index []int
 			if err := parser.parseDirectives(&index); err != nil {
 				panic(err)
 			}
 
-			for i, k := range index {
-				wantName := name[i]
-				gotName := string(parser.ByteSlice(parser.ParsedDefinitions.Directives[k].Name))
-				if gotName != wantName {
-					panic(fmt.Errorf("mustParseDirectives: want: %s,got: %s [check: %d]", wantName, gotName, i))
-				}
+			for k, rule := range directives {
+				node := parser.ParsedDefinitions.Directives[index[k]]
+				rule.eval(node, parser, k)
 			}
 		}
 	}
@@ -581,7 +642,7 @@ func TestParser(t *testing.T) {
 	mustParseEnumTypeDefinition := func(rules ...rule) checkFunc {
 		return func(parser *Parser, i int) {
 			var index []int
-			if err := parser.parseEnumTypeDefinition(&index); err != nil {
+			if err := parser.parseEnumTypeDefinition(nil, &index); err != nil {
 				panic(err)
 			}
 
@@ -659,7 +720,7 @@ func TestParser(t *testing.T) {
 	mustParseFragmentSpread := func(rules ...ruleSet) checkFunc {
 		return func(parser *Parser, i int) {
 			var index []int
-			if err := parser.parseFragmentSpread(&index); err != nil {
+			if err := parser.parseFragmentSpread(position.Position{}, &index); err != nil {
 				panic(err)
 			}
 
@@ -707,7 +768,7 @@ func TestParser(t *testing.T) {
 	mustParseInlineFragments := func(rules ...ruleSet) checkFunc {
 		return func(parser *Parser, i int) {
 			var index []int
-			if err := parser.parseInlineFragment(&index); err != nil {
+			if err := parser.parseInlineFragment(position.Position{}, &index); err != nil {
 				panic(err)
 			}
 
@@ -719,16 +780,22 @@ func TestParser(t *testing.T) {
 		}
 	}
 
-	mustParseInputFieldsDefinition := func(rules ...ruleSet) checkFunc {
+	mustParseInputFieldsDefinition := func(rules ...rule) checkFunc {
 		return func(parser *Parser, i int) {
-			var index []int
+
+			var index int
 			if err := parser.parseInputFieldsDefinition(&index); err != nil {
 				panic(err)
 			}
 
-			for j, rule := range rules {
-				inputValueDefinition := parser.ParsedDefinitions.InputValueDefinitions[j]
-				evalRules(inputValueDefinition, parser, rule, i)
+			if len(rules) == 0 {
+				return
+			}
+
+			node := parser.ParsedDefinitions.InputFieldsDefinitions[index]
+
+			for k, rule := range rules {
+				rule(node, parser, k, i)
 			}
 		}
 	}
@@ -736,7 +803,7 @@ func TestParser(t *testing.T) {
 	mustParseInputObjectTypeDefinition := func(rules ...ruleSet) checkFunc {
 		return func(parser *Parser, i int) {
 			var index []int
-			if err := parser.parseInputObjectTypeDefinition(&index); err != nil {
+			if err := parser.parseInputObjectTypeDefinition(nil, &index); err != nil {
 				panic(err)
 			}
 
@@ -764,7 +831,7 @@ func TestParser(t *testing.T) {
 	mustParseInterfaceTypeDefinition := func(rules ...ruleSet) checkFunc {
 		return func(parser *Parser, i int) {
 			var index []int
-			if err := parser.parseInterfaceTypeDefinition(&index); err != nil {
+			if err := parser.parseInterfaceTypeDefinition(nil, &index); err != nil {
 				panic(err)
 			}
 
@@ -778,7 +845,7 @@ func TestParser(t *testing.T) {
 	mustParseObjectTypeDefinition := func(rules ...ruleSet) checkFunc {
 		return func(parser *Parser, i int) {
 			var index []int
-			if err := parser.parseObjectTypeDefinition(&index); err != nil {
+			if err := parser.parseObjectTypeDefinition(nil, &index); err != nil {
 				panic(err)
 			}
 
@@ -806,7 +873,7 @@ func TestParser(t *testing.T) {
 	mustParseScalarTypeDefinition := func(rules ...ruleSet) checkFunc {
 		return func(parser *Parser, i int) {
 			var index []int
-			if err := parser.parseScalarTypeDefinition(&index); err != nil {
+			if err := parser.parseScalarTypeDefinition(nil, &index); err != nil {
 				panic(err)
 			}
 
@@ -829,30 +896,16 @@ func TestParser(t *testing.T) {
 		}
 	}
 
-	mustParseSchemaDefinition := func(wantQuery, wantMutation, wantSubscription string, directives ...ruleSet) checkFunc {
+	mustParseSchemaDefinition := func(rules ...rule) checkFunc {
 		return func(parser *Parser, i int) {
-			schemaDefinition, err := parser.parseSchemaDefinition()
+			var schemaDefinition document.SchemaDefinition
+			err := parser.parseSchemaDefinition(&schemaDefinition)
 			if err != nil {
 				panic(err)
 			}
 
-			gotQuery := string(schemaDefinition.Query)
-			gotMutation := string(schemaDefinition.Mutation)
-			gotSubscription := string(schemaDefinition.Subscription)
-
-			if wantQuery != gotQuery {
-				panic(fmt.Errorf("mustParseSchemaDefinition: want(query): %s, got: %s [check: %d]", wantQuery, gotQuery, i))
-			}
-			if wantMutation != gotMutation {
-				panic(fmt.Errorf("mustParseSchemaDefinition: want(mutation): %s, got: %s [check: %d]", wantMutation, wantMutation, i))
-			}
-			if wantSubscription != gotSubscription {
-				panic(fmt.Errorf("mustParseSchemaDefinition: want(subscription): %s, got: %s [check: %d]", wantSubscription, gotSubscription, i))
-			}
-
-			for j, rule := range directives {
-				directive := parser.ParsedDefinitions.Directives[j]
-				evalRules(directive, parser, rule, i)
+			for k, rule := range rules {
+				rule(schemaDefinition, parser, k, i)
 			}
 		}
 	}
@@ -871,7 +924,7 @@ func TestParser(t *testing.T) {
 	mustParseUnionTypeDefinition := func(rules ...ruleSet) checkFunc {
 		return func(parser *Parser, i int) {
 			var index []int
-			if err := parser.parseUnionTypeDefinition(&index); err != nil {
+			if err := parser.parseUnionTypeDefinition(nil, &index); err != nil {
 				panic(err)
 			}
 
@@ -930,20 +983,102 @@ func TestParser(t *testing.T) {
 		}
 	}
 
+	mustParseFloatValue := func(t *testing.T, input string, want float32) checkFunc {
+		return func(parser *Parser, i int) {
+
+			controller := gomock.NewController(t)
+			lexer := NewMockLexer(controller)
+
+			parser.l = lexer
+
+			ref := document.ByteSliceReference{
+				Start: 0,
+				End:   0,
+			}
+
+			lexer.EXPECT().Read().Return(token.Token{
+				Literal: ref,
+			})
+
+			lexer.EXPECT().ByteSlice(ref).Return([]byte(input))
+
+			var index int
+			if err := parser.parsePeekedFloatValue(&index); err != nil {
+				panic(err)
+			}
+
+			got := parser.ParsedDefinitions.Floats[index]
+
+			if want != got {
+				panic(fmt.Errorf("mustParseFloatValue: want: %.2f, got: %.2f [check: %d]", want, got, i))
+			}
+		}
+	}
+
 	// arguments
 
 	t.Run("string argument", func(t *testing.T) {
-		run(`(name: "Gophus")`, mustParseArguments("name"))
+		run(`(name: "Gophus")`,
+			mustParseArguments(
+				node(
+					hasName("name"),
+					hasPosition(position.Position{
+						LineStart: 1,
+						LineEnd:   1,
+						CharStart: 2,
+						CharEnd:   16,
+					}),
+				),
+			),
+		)
 	})
 	t.Run("string array argument", func(t *testing.T) {
-		run(`(fooBars: ["foo","bar"])`, mustParseArguments("fooBars"))
+		run(`(fooBars: ["foo","bar"])`,
+			mustParseArguments(
+				node(
+					hasName("fooBars"),
+				),
+			),
+		)
 	})
 	t.Run("int array argument", func(t *testing.T) {
-		run(`(integers: [1,2,3])`, mustParseArguments("integers"))
+		run(`(integers: [1,2,3])`,
+			mustParseArguments(
+				node(
+					hasName("integers"),
+					hasPosition(position.Position{
+						LineStart: 1,
+						LineEnd:   1,
+						CharStart: 2,
+						CharEnd:   19,
+					}),
+				),
+			),
+		)
 	})
 	t.Run("multiple string arguments", func(t *testing.T) {
 		run(`(name: "Gophus", surname: "Gophersson")`,
-			mustParseArguments("name", "surname"))
+			mustParseArguments(
+				node(
+					hasName("name"),
+					hasPosition(position.Position{
+						LineStart: 1,
+						LineEnd:   1,
+						CharStart: 2,
+						CharEnd:   16,
+					}),
+				),
+				node(
+					hasName("surname"),
+					hasPosition(position.Position{
+						LineStart: 1,
+						LineEnd:   1,
+						CharStart: 18,
+						CharEnd:   39,
+					}),
+				),
+			),
+		)
 	})
 	t.Run("invalid argument must err", func(t *testing.T) {
 		run(`(name: "Gophus", surname: "Gophersson"`,
@@ -962,26 +1097,59 @@ func TestParser(t *testing.T) {
 
 	t.Run("single int value", func(t *testing.T) {
 		run(`(inputValue: Int)`,
-			mustParseArgumentDefinitions("inputValue"))
+			mustParseArgumentDefinition(
+				node(
+					hasInputValueDefinitions(
+						node(
+							hasName("inputValue"),
+						),
+					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						LineEnd:   1,
+						CharStart: 1,
+						CharEnd:   18,
+					}),
+				),
+			),
+		)
 	})
 	t.Run("optional value", func(t *testing.T) {
-		run(" ", mustParseArgumentDefinitions())
+		run(" ", mustParseArgumentDefinition())
 	})
 	t.Run("multiple values", func(t *testing.T) {
 		run(`(inputValue: Int, outputValue: String)`,
-			mustParseArgumentDefinitions("inputValue", "outputValue"))
+			mustParseArgumentDefinition(
+				node(
+					hasInputValueDefinitions(
+						node(
+							hasName("inputValue"),
+						),
+						node(
+							hasName("outputValue"),
+						),
+					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						LineEnd:   1,
+						CharStart: 1,
+						CharEnd:   39,
+					}),
+				),
+			),
+		)
 	})
 	t.Run("not read optional", func(t *testing.T) {
 		run(`inputValue: Int)`,
-			mustParseArgumentDefinitions())
+			mustParseArgumentDefinition())
 	})
 	t.Run("invalid 1", func(t *testing.T) {
 		run(`((inputValue: Int)`,
-			mustPanic(mustParseArgumentDefinitions()))
+			mustPanic(mustParseArgumentDefinition()))
 	})
 	t.Run("invalid 2", func(t *testing.T) {
 		run(`(inputValue: Int`,
-			mustPanic(mustParseArgumentDefinitions()))
+			mustPanic(mustParseArgumentDefinition()))
 	})
 
 	// parseDefaultValue
@@ -999,103 +1167,263 @@ func TestParser(t *testing.T) {
 	// parseDirectiveDefinition
 
 	t.Run("single directive with location", func(t *testing.T) {
-		run("@ somewhere on QUERY",
-			mustParseDirectiveDefinition("somewhere", document.DirectiveLocationQUERY))
+		run("directive @ somewhere on QUERY",
+			mustParseDirectiveDefinition(
+				node(
+					hasName("somewhere"),
+					hasDirectiveLocations(document.DirectiveLocationQUERY),
+					hasPosition(position.Position{
+						LineStart: 1,
+						LineEnd:   1,
+						CharStart: 1,
+						CharEnd:   31,
+					}),
+				),
+			),
+		)
 	})
 	t.Run("trailing pipe", func(t *testing.T) {
-		run("@ somewhere on | QUERY",
-			mustParseDirectiveDefinition("somewhere", document.DirectiveLocationQUERY))
+		run("directive @ somewhere on | QUERY",
+			mustParseDirectiveDefinition(
+				node(
+					hasName("somewhere"),
+					hasDirectiveLocations(document.DirectiveLocationQUERY),
+				),
+			),
+		)
 	})
 	t.Run("with input value", func(t *testing.T) {
-		run("@ somewhere(inputValue: Int) on QUERY",
-			mustParseDirectiveDefinition("somewhere", document.DirectiveLocationQUERY),
-			mustContainInputValueDefinition(0, "inputValue"),
+		run("directive @ somewhere(inputValue: Int) on QUERY",
+			mustParseDirectiveDefinition(
+				node(
+					hasName("somewhere"),
+					hasDirectiveLocations(document.DirectiveLocationQUERY),
+					hasArgumentsDefinition(
+						hasInputValueDefinitions(
+							node(
+								hasName("inputValue"),
+							),
+						),
+					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						LineEnd:   1,
+						CharStart: 1,
+						CharEnd:   48,
+					}),
+				),
+			),
 		)
 	})
 	t.Run("multiple locations", func(t *testing.T) {
-		run("@ somewhere on QUERY | MUTATION",
-			mustParseDirectiveDefinition("somewhere",
-				document.DirectiveLocationQUERY, document.DirectiveLocationMUTATION))
+		run("directive @ somewhere on QUERY |\nMUTATION",
+			mustParseDirectiveDefinition(
+				node(
+					hasName("somewhere"),
+					hasDirectiveLocations(document.DirectiveLocationQUERY, document.DirectiveLocationMUTATION),
+					hasPosition(position.Position{
+						LineStart: 1,
+						LineEnd:   2,
+						CharStart: 1,
+						CharEnd:   9,
+					}),
+				),
+			),
+		)
 	})
 	t.Run("invalid 1", func(t *testing.T) {
-		run("@ somewhere QUERY",
-			mustPanic(mustParseDirectiveDefinition("somewhere", document.DirectiveLocationQUERY)),
+		run("directive @ somewhere QUERY",
+			mustPanic(
+				mustParseDirectiveDefinition(
+					node(
+						hasName("somewhere"),
+						hasDirectiveLocations(document.DirectiveLocationQUERY),
+					),
+				),
+			),
 		)
 	})
 	t.Run("invalid 2", func(t *testing.T) {
-		run("@ somewhere off QUERY",
-			mustPanic(mustParseDirectiveDefinition("somewhere")))
+		run("directive @ somewhere off QUERY",
+			mustPanic(
+				mustParseDirectiveDefinition(
+					node(
+						hasName("somewhere"),
+					),
+				),
+			),
+		)
 	})
 	t.Run("missing at", func(t *testing.T) {
-		run("somewhere off QUERY",
-			mustPanic(mustParseDirectiveDefinition("somewhere")))
+		run("directive somewhere off QUERY",
+			mustPanic(
+				mustParseDirectiveDefinition(
+					node(
+						hasName("somewhere"),
+					),
+				),
+			),
+		)
 	})
 	t.Run("invalid args", func(t *testing.T) {
-		run("@ somewhere(inputValue: .) on QUERY",
+		run("directive @ somewhere(inputValue: .) on QUERY",
 			mustPanic(
-				mustParseDirectiveDefinition("somewhere", document.DirectiveLocationQUERY),
+				mustParseDirectiveDefinition(
+					node(
+						hasName("somewhere"),
+						hasDirectiveLocations(document.DirectiveLocationQUERY),
+					),
+				),
 			),
 		)
 	})
 	t.Run("missing ident after at", func(t *testing.T) {
-		run("@ \"somewhere\" off QUERY",
-			mustPanic(mustParseDirectiveDefinition("somewhere")))
+		run("directive @ \"somewhere\" off QUERY",
+			mustPanic(
+				mustParseDirectiveDefinition(
+					node(
+						hasName("somewhere"),
+					),
+				),
+			),
+		)
 	})
 	t.Run("invalid location", func(t *testing.T) {
-		run("@ somewhere on QUERY | thisshouldntwork",
-			mustPanic(mustParseDirectiveDefinition("somewhere", document.DirectiveLocationQUERY)))
+		run("directive @ somewhere on QUERY | thisshouldntwork",
+			mustPanic(
+				mustParseDirectiveDefinition(
+					node(
+						hasName("somewhere"),
+						hasDirectiveLocations(document.DirectiveLocationQUERY),
+					),
+				),
+			),
+		)
+	})
+	t.Run("invalid prefix", func(t *testing.T) {
+		run("notdirective @ somewhere on QUERY",
+			mustPanic(
+				mustParseDirectiveDefinition(
+					node(
+						hasName("somewhere"),
+					),
+				),
+			),
+		)
 	})
 
 	// parseDirectives
 
 	t.Run(`simple directive`, func(t *testing.T) {
 		run(`@rename(index: 3)`,
-			mustParseDirectives("rename"),
-			mustContainArguments("index"))
+			mustParseDirectives(
+				node(
+					hasName("rename"),
+					hasArguments(
+						node(
+							hasName("index"),
+						),
+					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						LineEnd:   1,
+						CharStart: 1,
+						CharEnd:   18,
+					}),
+				),
+			),
+		)
 	})
 	t.Run("multiple directives", func(t *testing.T) {
 		run(`@rename(index: 3)@moveto(index: 4)`,
-			mustParseDirectives("rename", "moveto"),
-			mustContainArguments("index", "index"),
+			mustParseDirectives(
+				node(
+					hasName("rename"),
+					hasArguments(
+						node(
+							hasName("index"),
+						),
+					),
+				),
+				node(
+					hasName("moveto"),
+					hasArguments(
+						node(
+							hasName("index"),
+						),
+					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						LineEnd:   1,
+						CharStart: 18,
+						CharEnd:   35,
+					}),
+				),
+			),
 		)
 	})
 	t.Run("multiple arguments", func(t *testing.T) {
 		run(`@rename(index: 3, count: 10)`,
-			mustParseDirectives("rename"),
-			mustContainArguments("index", "count"),
+			mustParseDirectives(
+				node(
+					hasName("rename"),
+					hasArguments(
+						node(
+							hasName("index"),
+						),
+						node(
+							hasName("count"),
+						),
+					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						LineEnd:   1,
+						CharStart: 1,
+						CharEnd:   29,
+					}),
+				),
+			),
 		)
 	})
 	t.Run("invalid", func(t *testing.T) {
 		run(`@rename(index)`,
-			mustPanic(mustParseDirectives("rename")),
+			mustPanic(mustParseDirectives()),
 		)
 	})
 	t.Run("invalid 2", func(t *testing.T) {
 		run(`@1337(index)`,
-			mustPanic(mustParseDirectives("rename")),
+			mustPanic(mustParseDirectives()),
 		)
 	})
 
 	// parseEnumTypeDefinition
 
 	t.Run("simple enum", func(t *testing.T) {
-		run(` Direction {
+		run(`enum Direction {
 						NORTH
 						EAST
 						SOUTH
 						WEST
-		}`, mustParseEnumTypeDefinition(
-			hasName("Direction"),
-			hasEnumValuesDefinitions(
-				node(hasName("NORTH")),
-				node(hasName("EAST")),
-				node(hasName("SOUTH")),
-				node(hasName("WEST")),
+		}`,
+			mustParseEnumTypeDefinition(
+				hasName("Direction"),
+				hasEnumValuesDefinitions(
+					node(hasName("NORTH")),
+					node(hasName("EAST")),
+					node(hasName("SOUTH")),
+					node(hasName("WEST")),
+				),
+				hasPosition(position.Position{
+					LineStart: 1,
+					CharStart: 1,
+					LineEnd:   6,
+					CharEnd:   4,
+				}),
 			),
-		))
+		)
 	})
 	t.Run("enum with descriptions", func(t *testing.T) {
-		run(` Direction {
+		run(`enum Direction {
   						"describes north"
   						NORTH
   						"describes east"
@@ -1115,7 +1443,7 @@ func TestParser(t *testing.T) {
 			))
 	})
 	t.Run("enum with space", func(t *testing.T) {
-		run(` Direction {
+		run(`enum Direction {
   "describes north"
   NORTH
 
@@ -1135,10 +1463,16 @@ func TestParser(t *testing.T) {
 				node(hasName("SOUTH"), hasDescription("describes south")),
 				node(hasName("WEST"), hasDescription("describes west")),
 			),
+			hasPosition(position.Position{
+				LineStart: 1,
+				CharStart: 1,
+				LineEnd:   13,
+				CharEnd:   2,
+			}),
 		))
 	})
 	t.Run("enum with directives", func(t *testing.T) {
-		run(` Direction @fromTop(to: "bottom") @fromBottom(to: "top"){ NORTH }`,
+		run(`enum Direction @fromTop(to: "bottom") @fromBottom(to: "top"){ NORTH }`,
 			mustParseEnumTypeDefinition(
 				hasName("Direction"),
 				hasDirectives(
@@ -1151,19 +1485,22 @@ func TestParser(t *testing.T) {
 			))
 	})
 	t.Run("enum without values", func(t *testing.T) {
-		run("Direction", mustParseEnumTypeDefinition(hasName("Direction")))
+		run("enum Direction", mustParseEnumTypeDefinition(hasName("Direction")))
 	})
 	t.Run("invalid enum", func(t *testing.T) {
-		run("Direction {", mustPanic(mustParseEnumTypeDefinition()))
+		run("enum Direction {", mustPanic(mustParseEnumTypeDefinition()))
 	})
 	t.Run("invalid enum 2", func(t *testing.T) {
-		run("\"Direction\" {}", mustPanic(mustParseEnumTypeDefinition()))
+		run("enum  \"Direction\" {}", mustPanic(mustParseEnumTypeDefinition()))
 	})
 	t.Run("invalid enum 2", func(t *testing.T) {
-		run("Direction @from(foo: .)", mustPanic(mustParseEnumTypeDefinition(hasName("Direction"))))
+		run("enum  Direction @from(foo: .)", mustPanic(mustParseEnumTypeDefinition(hasName("Direction"))))
 	})
 	t.Run("invalid enum 3", func(t *testing.T) {
-		run("Direction {FOO @bar(baz: .)}", mustPanic(mustParseEnumTypeDefinition(hasName("Direction"))))
+		run("enum Direction {FOO @bar(baz: .)}", mustPanic(mustParseEnumTypeDefinition(hasName("Direction"))))
+	})
+	t.Run("invalid enum 4", func(t *testing.T) {
+		run("notenum Direction", mustPanic(mustParseEnumTypeDefinition()))
 	})
 
 	// parseExecutableDefinition
@@ -1193,6 +1530,12 @@ func TestParser(t *testing.T) {
 								hasName("name"),
 							),
 						),
+						hasPosition(position.Position{
+							LineStart: 1,
+							CharStart: 1,
+							LineEnd:   1,
+							CharEnd:   59,
+						}),
 					),
 				),
 			))
@@ -1331,21 +1674,40 @@ func TestParser(t *testing.T) {
 					name
 					weapon
 				}
-				`, mustParseExecutableDefinition(
-			nodes(
-				node(
-					hasName("heroFields"),
+				`,
+			mustParseExecutableDefinition(
+				nodes(
+					node(
+						hasName("heroFields"),
+						hasPosition(position.Position{
+							LineStart: 8,
+							CharStart: 5,
+							LineEnd:   16,
+							CharEnd:   6,
+						}),
+					),
+					node(
+						hasName("vehicleFields"),
+						hasPosition(position.Position{
+							LineStart: 18,
+							CharStart: 5,
+							LineEnd:   21,
+							CharEnd:   6,
+						}),
+					),
 				),
-				node(
-					hasName("vehicleFields"),
-				),
-			),
-			nodes(
-				node(
-					hasOperationType(document.OperationTypeQuery),
-					hasName("QueryWithFragments"),
-				),
-			)))
+				nodes(
+					node(
+						hasOperationType(document.OperationTypeQuery),
+						hasName("QueryWithFragments"),
+						hasPosition(position.Position{
+							LineStart: 2,
+							CharStart: 5,
+							LineEnd:   6,
+							CharEnd:   6,
+						}),
+					),
+				)))
 	})
 	t.Run("unnamed operation", func(t *testing.T) {
 		run("{\n  hero {\n    id\n    name\n  }\n}\n",
@@ -1437,6 +1799,12 @@ func TestParser(t *testing.T) {
 							hasName("rename"),
 						),
 					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						LineEnd:   1,
+						CharStart: 1,
+						CharEnd:   59,
+					}),
 				),
 			),
 		)
@@ -1499,12 +1867,30 @@ func TestParser(t *testing.T) {
 			mustParseFields(
 				node(
 					hasName("level1"),
+					hasPosition(position.Position{
+						LineStart: 2,
+						CharStart: 5,
+						LineEnd:   6,
+						CharEnd:   6,
+					}),
 					hasFields(
 						node(
 							hasName("level2"),
+							hasPosition(position.Position{
+								LineStart: 3,
+								CharStart: 6,
+								LineEnd:   5,
+								CharEnd:   7,
+							}),
 							hasFields(
 								node(
 									hasName("level3"),
+									hasPosition(position.Position{
+										LineStart: 4,
+										CharStart: 7,
+										LineEnd:   4,
+										CharEnd:   13,
+									}),
 								),
 							),
 						),
@@ -1562,6 +1948,12 @@ func TestParser(t *testing.T) {
 						hasTypeKind(document.TypeKindNAMED),
 						hasTypeName("String"),
 					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						CharStart: 3,
+						LineEnd:   1,
+						CharEnd:   15,
+					}),
 				),
 			))
 	})
@@ -1576,6 +1968,12 @@ func TestParser(t *testing.T) {
 					nodeType(
 						hasTypeName("String"),
 					),
+					hasPosition(position.Position{
+						LineStart: 2,
+						CharStart: 6,
+						LineEnd:   2,
+						CharEnd:   18,
+					}),
 				),
 				node(
 					hasName("age"),
@@ -1611,6 +2009,12 @@ func TestParser(t *testing.T) {
 							hasTypeKind(document.TypeKindLIST),
 						),
 					),
+					hasPosition(position.Position{
+						LineStart: 2,
+						CharStart: 6,
+						LineEnd:   2,
+						CharEnd:   23,
+					}),
 				),
 				node(
 					hasName("age"),
@@ -1687,7 +2091,7 @@ func TestParser(t *testing.T) {
 
 	t.Run("simple fragment definition", func(t *testing.T) {
 		run(`
-				MyFragment on SomeType @rename(index: 3){
+				fragment MyFragment on SomeType @rename(index: 3){
 					name
 				}`,
 			mustParseFragmentDefinition(
@@ -1704,13 +2108,19 @@ func TestParser(t *testing.T) {
 							hasName("rename"),
 						),
 					),
+					hasPosition(position.Position{
+						LineStart: 2,
+						CharStart: 5,
+						LineEnd:   4,
+						CharEnd:   6,
+					}),
 				),
 			),
 		)
 	})
 	t.Run("fragment without optional directives", func(t *testing.T) {
 		run(`
-				MyFragment on SomeType{
+				fragment MyFragment on SomeType{
 					name
 				}`,
 			mustParseFragmentDefinition(
@@ -1727,35 +2137,35 @@ func TestParser(t *testing.T) {
 	})
 	t.Run("invalid fragment 1", func(t *testing.T) {
 		run(`
-				MyFragment SomeType{
+				fragment MyFragment SomeType{
 					name
 				}`,
 			mustPanic(mustParseFragmentDefinition()))
 	})
 	t.Run("invalid fragment 2", func(t *testing.T) {
 		run(`
-				MyFragment un SomeType{
+				fragment MyFragment un SomeType{
 					name
 				}`,
 			mustPanic(mustParseFragmentDefinition()))
 	})
 	t.Run("invalid fragment 3", func(t *testing.T) {
 		run(`
-				1337 on SomeType{
+				fragment 1337 on SomeType{
 					name
 				}`,
 			mustPanic(mustParseFragmentDefinition()))
 	})
 	t.Run("invalid fragment 4", func(t *testing.T) {
 		run(`
-				Fields on [SomeType! {
+				fragment Fields on [SomeType! {
 					name
 				}`,
 			mustPanic(mustParseFragmentDefinition()))
 	})
 	t.Run("invalid fragment 4", func(t *testing.T) {
 		run(`
-				Fields on SomeType @foo(bar: .) {
+				fragment Fields on SomeType @foo(bar: .) {
 					name
 				}`,
 			mustPanic(mustParseFragmentDefinition()))
@@ -1773,6 +2183,12 @@ func TestParser(t *testing.T) {
 							hasName("rename"),
 						),
 					),
+					hasPosition(position.Position{
+						LineStart: 0, // default, see mustParseFragmentSpread
+						CharStart: 0, // default, see mustParseFragmentSpread
+						LineEnd:   1,
+						CharEnd:   32,
+					}),
 				),
 			),
 		)
@@ -1837,12 +2253,30 @@ func TestParser(t *testing.T) {
 			mustParseInlineFragments(
 				node(
 					hasTypeName("Goland"),
+					hasPosition(position.Position{
+						LineStart: 0, // default, see mustParseFragmentSpread
+						CharStart: 0, // default, see mustParseFragmentSpread
+						LineEnd:   7,
+						CharEnd:   6,
+					}),
 					hasInlineFragments(
 						node(
 							hasTypeName("GoWater"),
+							hasPosition(position.Position{
+								LineStart: 2,
+								CharStart: 6,
+								LineEnd:   6,
+								CharEnd:   7,
+							}),
 							hasInlineFragments(
 								node(
 									hasTypeName("GoAir"),
+									hasPosition(position.Position{
+										LineStart: 3,
+										CharStart: 7,
+										LineEnd:   5,
+										CharEnd:   8,
+									}),
 									hasFields(
 										node(
 											hasName("go"),
@@ -1927,13 +2361,21 @@ func TestParser(t *testing.T) {
 	t.Run("simple input fields definition", func(t *testing.T) {
 		run("{inputValue: Int}",
 			mustParseInputFieldsDefinition(
-				node(
-					hasName("inputValue"),
-					nodeType(
-						hasTypeKind(document.TypeKindNAMED),
-						hasTypeName("Int"),
+				hasInputValueDefinitions(
+					node(
+						hasName("inputValue"),
+						nodeType(
+							hasTypeKind(document.TypeKindNAMED),
+							hasTypeName("Int"),
+						),
 					),
 				),
+				hasPosition(position.Position{
+					LineStart: 1,
+					CharStart: 1,
+					LineEnd:   1,
+					CharEnd:   18,
+				}),
 			),
 		)
 	})
@@ -1943,20 +2385,28 @@ func TestParser(t *testing.T) {
 	t.Run("multiple", func(t *testing.T) {
 		run("{inputValue: Int, outputValue: String}",
 			mustParseInputFieldsDefinition(
-				node(
-					hasName("inputValue"),
-					nodeType(
-						hasTypeKind(document.TypeKindNAMED),
-						hasTypeName("Int"),
+				hasInputValueDefinitions(
+					node(
+						hasName("inputValue"),
+						nodeType(
+							hasTypeKind(document.TypeKindNAMED),
+							hasTypeName("Int"),
+						),
+					),
+					node(
+						hasName("outputValue"),
+						nodeType(
+							hasTypeKind(document.TypeKindNAMED),
+							hasTypeName("String"),
+						),
 					),
 				),
-				node(
-					hasName("outputValue"),
-					nodeType(
-						hasTypeKind(document.TypeKindNAMED),
-						hasTypeName("String"),
-					),
-				),
+				hasPosition(position.Position{
+					LineStart: 1,
+					CharStart: 1,
+					LineEnd:   1,
+					CharEnd:   39,
+				}),
 			),
 		)
 	})
@@ -1980,50 +2430,62 @@ func TestParser(t *testing.T) {
 	// parseInputObjectTypeDefinition
 
 	t.Run("simple", func(t *testing.T) {
-		run(`Person {
+		run(`input Person {
 					name: String
 				}`,
 			mustParseInputObjectTypeDefinition(
 				node(
 					hasName("Person"),
-					hasInputFields(
-						node(
-							hasName("name"),
+					hasInputFieldsDefinition(
+						hasInputValueDefinitions(
+							node(
+								hasName("name"),
+							),
 						),
 					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						CharStart: 1,
+						LineEnd:   3,
+						CharEnd:   6,
+					}),
 				),
 			),
 		)
 	})
 	t.Run("multiple fields", func(t *testing.T) {
-		run(`Person {
+		run(`input Person {
 					name: [String]!
 					age: [ Int ]
 				}`,
 			mustParseInputObjectTypeDefinition(
 				node(
 					hasName("Person"),
-					hasInputFields(
-						node(hasName("name")),
-						node(hasName("age")),
+					hasInputFieldsDefinition(
+						hasInputValueDefinitions(
+							node(hasName("name")),
+							node(hasName("age")),
+						),
 					),
 				),
 			),
 		)
 	})
 	t.Run("with default value", func(t *testing.T) {
-		run(`Person {
+		run(`input Person {
 					name: String = "Gophina"
 				}`,
 			mustParseInputObjectTypeDefinition(
 				node(
 					hasName("Person"),
-					hasInputFields(
-						node(
-							hasName("name"),
-							nodeType(
-								hasTypeKind(document.TypeKindNAMED),
-								hasTypeName("String"),
+					hasInputFieldsDefinition(
+						hasInputValueDefinitions(
+							node(
+								hasName("name"),
+								nodeType(
+									hasTypeKind(document.TypeKindNAMED),
+									hasTypeName("String"),
+								),
 							),
 						),
 					),
@@ -2032,14 +2494,14 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("all optional", func(t *testing.T) {
-		run("Person", mustParseInputObjectTypeDefinition(
+		run("input Person", mustParseInputObjectTypeDefinition(
 			node(
 				hasName("Person"),
 			),
 		))
 	})
 	t.Run("complex", func(t *testing.T) {
-		run(`Person @fromTop(to: "bottom") @fromBottom(to: "top"){
+		run(`input Person @fromTop(to: "bottom") @fromBottom(to: "top"){
 					name: String
 				}`,
 			mustParseInputObjectTypeDefinition(
@@ -2053,9 +2515,11 @@ func TestParser(t *testing.T) {
 							hasName("fromBottom"),
 						),
 					),
-					hasInputFields(
-						node(
-							hasName("name"),
+					hasInputFieldsDefinition(
+						hasInputValueDefinitions(
+							node(
+								hasName("name"),
+							),
 						),
 					),
 				),
@@ -2063,7 +2527,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("invalid 1", func(t *testing.T) {
-		run("1337 {}",
+		run("input 1337 {}",
 			mustPanic(
 				mustParseInputObjectTypeDefinition(
 					node(
@@ -2073,7 +2537,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("invalid 2", func(t *testing.T) {
-		run("Person @foo(bar: .) {}",
+		run("input Person @foo(bar: .) {}",
 			mustPanic(
 				mustParseInputObjectTypeDefinition(
 					node(
@@ -2083,7 +2547,17 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("invalid 3", func(t *testing.T) {
-		run("Person { a: .}",
+		run("input Person { a: .}",
+			mustPanic(
+				mustParseInputObjectTypeDefinition(
+					node(
+						hasName("1337"),
+					),
+				)),
+		)
+	})
+	t.Run("invalid 4", func(t *testing.T) {
+		run("notinput Foo {}",
 			mustPanic(
 				mustParseInputObjectTypeDefinition(
 					node(
@@ -2104,6 +2578,12 @@ func TestParser(t *testing.T) {
 						hasTypeKind(document.TypeKindNAMED),
 						hasTypeName("Int"),
 					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						CharStart: 1,
+						LineEnd:   1,
+						CharEnd:   16,
+					}),
 				),
 			),
 		)
@@ -2127,6 +2607,12 @@ func TestParser(t *testing.T) {
 				node(
 					hasDescription("useful description"),
 					hasName("inputValue"),
+					hasPosition(position.Position{
+						LineStart: 1,
+						CharStart: 1,
+						LineEnd:   1,
+						CharEnd:   40,
+					}),
 				),
 			),
 		)
@@ -2141,6 +2627,12 @@ func TestParser(t *testing.T) {
 						hasTypeKind(document.TypeKindNAMED),
 						hasTypeName("Int"),
 					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						CharStart: 1,
+						LineEnd:   1,
+						CharEnd:   42,
+					}),
 				),
 				node(
 					hasDescription("this is a outputValue"),
@@ -2149,6 +2641,12 @@ func TestParser(t *testing.T) {
 						hasTypeKind(document.TypeKindNAMED),
 						hasTypeName("String"),
 					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						CharStart: 44,
+						LineEnd:   1,
+						CharEnd:   94,
+					}),
 				),
 			),
 		)
@@ -2170,6 +2668,12 @@ func TestParser(t *testing.T) {
 							hasName("fromBottom"),
 						),
 					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						CharStart: 1,
+						LineEnd:   1,
+						CharEnd:   62,
+					}),
 				),
 			),
 		)
@@ -2223,7 +2727,7 @@ func TestParser(t *testing.T) {
 	// parseInterfaceTypeDefinition
 
 	t.Run("simple", func(t *testing.T) {
-		run(`NameEntity {
+		run(`interface NameEntity {
 					name: String
 				}`,
 			mustParseInterfaceTypeDefinition(
@@ -2234,12 +2738,18 @@ func TestParser(t *testing.T) {
 							hasName("name"),
 						),
 					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						CharStart: 1,
+						LineEnd:   3,
+						CharEnd:   6,
+					}),
 				),
 			),
 		)
 	})
 	t.Run("multiple fields", func(t *testing.T) {
-		run(`Person {
+		run(`interface Person {
 					name: [String]!
 					age: [ Int ]
 				}`,
@@ -2259,7 +2769,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("optional", func(t *testing.T) {
-		run(`Person`,
+		run(`interface Person`,
 			mustParseInterfaceTypeDefinition(
 				node(
 					hasName("Person"),
@@ -2268,7 +2778,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("with directives", func(t *testing.T) {
-		run(`NameEntity @fromTop(to: "bottom") @fromBottom(to: "top") {
+		run(`interface NameEntity @fromTop(to: "bottom") @fromBottom(to: "top") {
 					name: String
 				}`,
 			mustParseInterfaceTypeDefinition(
@@ -2292,7 +2802,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("invalid 1", func(t *testing.T) {
-		run(`1337 {
+		run(`interface 1337 {
 					name: String
 				}`,
 			mustPanic(
@@ -2310,7 +2820,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("invalid 2", func(t *testing.T) {
-		run(`Person @foo(bar: .) {
+		run(`interface Person @foo(bar: .) {
 					name: String
 				}`,
 			mustPanic(
@@ -2328,7 +2838,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("invalid 3", func(t *testing.T) {
-		run(`Person {
+		run(`interface Person {
 					name: [String!
 				}`,
 			mustPanic(
@@ -2345,11 +2855,20 @@ func TestParser(t *testing.T) {
 			),
 		)
 	})
+	t.Run("invalid 4", func(t *testing.T) {
+		run(`notinterface Person {
+					name: [String!]
+				}`,
+			mustPanic(
+				mustParseInterfaceTypeDefinition(),
+			),
+		)
+	})
 
 	// parseObjectTypeDefinition
 
 	t.Run("simple", func(t *testing.T) {
-		run(`Person {
+		run(`type Person {
 					name: String
 				}`,
 			mustParseObjectTypeDefinition(
@@ -2360,12 +2879,18 @@ func TestParser(t *testing.T) {
 							hasName("name"),
 						),
 					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						CharStart: 1,
+						LineEnd:   3,
+						CharEnd:   6,
+					}),
 				),
 			),
 		)
 	})
 	t.Run("multiple fields", func(t *testing.T) {
-		run(`Person {
+		run(`type Person {
 					name: [String]!
 					age: [ Int ]
 				}`,
@@ -2385,7 +2910,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("all optional", func(t *testing.T) {
-		run(`Person`,
+		run(`type Person`,
 			mustParseObjectTypeDefinition(
 				node(
 					hasName("Person"),
@@ -2394,7 +2919,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("implements interface", func(t *testing.T) {
-		run(`Person implements Human {
+		run(`type Person implements Human {
 					name: String
 				}`,
 			mustParseObjectTypeDefinition(
@@ -2411,7 +2936,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("implements multiple interfaces", func(t *testing.T) {
-		run(`Person implements Human & Mammal {
+		run(`type Person implements Human & Mammal {
 					name: String
 				}`,
 			mustParseObjectTypeDefinition(
@@ -2428,7 +2953,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("with directives", func(t *testing.T) {
-		run(`Person @fromTop(to: "bottom") @fromBottom(to: "top") {
+		run(`type Person @fromTop(to: "bottom") @fromBottom(to: "top") {
 					name: String
 				}`,
 			mustParseObjectTypeDefinition(
@@ -2452,7 +2977,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("invalid 1", func(t *testing.T) {
-		run(`1337 {
+		run(`type 1337 {
 					name: String
 				}`,
 			mustPanic(
@@ -2470,7 +2995,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("invalid 2", func(t *testing.T) {
-		run(`Person implements 1337 {
+		run(`type Person implements 1337 {
 					name: String
 				}`,
 			mustPanic(
@@ -2488,7 +3013,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("invalid 3", func(t *testing.T) {
-		run(`Person @foo(bar: .) {
+		run(`type Person @foo(bar: .) {
 					name: String
 				}`,
 			mustPanic(
@@ -2506,7 +3031,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("invalid 4", func(t *testing.T) {
-		run(`Person {
+		run(`type Person {
 					name: [String!
 				}`,
 			mustPanic(
@@ -2521,6 +3046,13 @@ func TestParser(t *testing.T) {
 					),
 				),
 			),
+		)
+	})
+	t.Run("invalid 5", func(t *testing.T) {
+		run(`nottype Person {
+					name: [String!]
+				}`,
+			mustPanic(mustParseObjectTypeDefinition()),
 		)
 	})
 
@@ -2549,6 +3081,12 @@ func TestParser(t *testing.T) {
 							hasName("name"),
 						),
 					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						CharStart: 1,
+						LineEnd:   3,
+						CharEnd:   6,
+					}),
 				),
 			),
 		)
@@ -2619,11 +3157,18 @@ func TestParser(t *testing.T) {
 				}`,
 			mustParseOperationDefinition(
 				node(
+					hasOperationType(document.OperationTypeQuery),
 					hasFields(
 						node(
 							hasName("name"),
 						),
 					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						CharStart: 1,
+						LineEnd:   3,
+						CharEnd:   6,
+					}),
 				),
 			),
 		)
@@ -2680,14 +3225,14 @@ func TestParser(t *testing.T) {
 	// parseScalarTypeDefinition
 
 	t.Run("simple", func(t *testing.T) {
-		run("JSON", mustParseScalarTypeDefinition(
+		run("scalar JSON", mustParseScalarTypeDefinition(
 			node(
 				hasName("JSON"),
 			),
 		))
 	})
 	t.Run("with directives", func(t *testing.T) {
-		run(`JSON @fromTop(to: "bottom") @fromBottom(to: "top")`, mustParseScalarTypeDefinition(
+		run(`scalar JSON @fromTop(to: "bottom") @fromBottom(to: "top")`, mustParseScalarTypeDefinition(
 			node(
 				hasName("JSON"),
 				hasDirectives(
@@ -2698,11 +3243,17 @@ func TestParser(t *testing.T) {
 						hasName("fromBottom"),
 					),
 				),
+				hasPosition(position.Position{
+					LineStart: 1,
+					CharStart: 1,
+					LineEnd:   1,
+					CharEnd:   58,
+				}),
 			),
 		))
 	})
 	t.Run("invalid 1", func(t *testing.T) {
-		run("1337",
+		run("scalar 1337",
 			mustPanic(
 				mustParseScalarTypeDefinition(
 					node(
@@ -2713,13 +3264,20 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("invalid 2", func(t *testing.T) {
-		run("JSON @foo(bar: .)",
+		run("scalar JSON @foo(bar: .)",
 			mustPanic(
 				mustParseScalarTypeDefinition(
 					node(
 						hasName("1337"),
 					),
 				),
+			),
+		)
+	})
+	t.Run("invalid 3", func(t *testing.T) {
+		run("notscalar JSON",
+			mustPanic(
+				mustParseScalarTypeDefinition(),
 			),
 		)
 	})
@@ -2727,68 +3285,76 @@ func TestParser(t *testing.T) {
 	// parseSchemaDefinition
 
 	t.Run("simple", func(t *testing.T) {
-		run(`
-{
-	query: Query
-	mutation: Mutation
-	subscription: Subscription
-}`, mustParseSchemaDefinition("Query", "Mutation", "Subscription"))
-	})
-	t.Run("invalid", func(t *testing.T) {
-		run(` {
-query : Query	
-mutation : Mutation
-subscription : Subscription
-query: Query2 }`, mustPanic(mustParseSchemaDefinition("Query", "Mutation", "Subscription")),
+		run(`	schema {
+						query: Query
+						mutation: Mutation
+						subscription: Subscription 
+					}`,
+			mustParseSchemaDefinition(
+				hasSchemaOperationTypeName(document.OperationTypeQuery, "Query"),
+				hasSchemaOperationTypeName(document.OperationTypeMutation, "Mutation"),
+				hasSchemaOperationTypeName(document.OperationTypeSubscription, "Subscription"),
+			),
 		)
 	})
 	t.Run("invalid", func(t *testing.T) {
-		run(` @fromTop(to: "bottom") @fromBottom(to: "top") {
-	query: Query
-	mutation: Mutation
-	subscription: Subscription
-}`, mustParseSchemaDefinition("Query", "Mutation", "Subscription",
-			node(
-				hasName("fromTop"),
-			),
-			node(
-				hasName("fromBottom"),
-			),
-		))
+		run(`	schema {
+						query : Query	
+						mutation : Mutation
+						subscription : Subscription
+						query: Query2 
+					}`,
+			mustPanic(mustParseSchemaDefinition()),
+		)
+	})
+	t.Run("invalid", func(t *testing.T) {
+		run(`	schema @fromTop(to: "bottom") @fromBottom(to: "top") {
+						query: Query
+						mutation: Mutation
+						subscription: Subscription
+					}`,
+			mustParseSchemaDefinition(
+				hasSchemaOperationTypeName(document.OperationTypeQuery, "Query"),
+				hasSchemaOperationTypeName(document.OperationTypeMutation, "Mutation"),
+				hasSchemaOperationTypeName(document.OperationTypeSubscription, "Subscription"),
+				hasDirectives(
+					node(
+						hasName("fromTop"),
+					),
+					node(
+						hasName("fromBottom"),
+					),
+				),
+			))
 	})
 	t.Run("invalid 1", func(t *testing.T) {
-		run(` @foo(bar: .) { query: Query }`,
-			mustPanic(
-				mustParseSchemaDefinition("Query", "", ""),
-			),
+		run(`schema  @foo(bar: .) { query: Query }`,
+			mustPanic(mustParseSchemaDefinition()),
 		)
 	})
 	t.Run("invalid 2", func(t *testing.T) {
-		run(`( query: Query }`,
-			mustPanic(
-				mustParseSchemaDefinition("Query", "", ""),
-			),
+		run(`schema ( query: Query }`,
+			mustPanic(mustParseSchemaDefinition()),
 		)
 	})
 	t.Run("invalid 3", func(t *testing.T) {
-		run(`{ query. Query }`,
-			mustPanic(
-				mustParseSchemaDefinition("Query", "", ""),
-			),
+		run(`schema { query. Query }`,
+			mustPanic(mustParseSchemaDefinition()),
 		)
 	})
 	t.Run("invalid 4", func(t *testing.T) {
-		run(`{ query: 1337 }`,
-			mustPanic(
-				mustParseSchemaDefinition("1337", "", ""),
-			),
+		run(`schema { query: 1337 }`,
+			mustPanic(mustParseSchemaDefinition()),
 		)
 	})
 	t.Run("invalid 5", func(t *testing.T) {
-		run(`{ query: Query )`,
-			mustPanic(
-				mustParseSchemaDefinition("Query", "", ""),
-			),
+		run(`schema { query: Query )`,
+			mustPanic(mustParseSchemaDefinition()),
+		)
+	})
+	t.Run("invalid 6", func(t *testing.T) {
+		run(`notschema { query: Query }`,
+			mustPanic(mustParseSchemaDefinition()),
 		)
 	})
 
@@ -2802,6 +3368,12 @@ query: Query2 }`, mustPanic(mustParseSchemaDefinition("Query", "Mutation", "Subs
 						hasName("foo"),
 					),
 				),
+				hasPosition(position.Position{
+					LineStart: 1,
+					CharStart: 1,
+					LineEnd:   1,
+					CharEnd:   8,
+				}),
 			),
 		))
 	})
@@ -2810,23 +3382,31 @@ query: Query2 }`, mustPanic(mustParseSchemaDefinition("Query", "Mutation", "Subs
 					... on Goland
 					...Air
 					... on Water
-				}`, mustParseSelectionSet(
-			node(
-				hasInlineFragments(
-					node(
-						hasTypeName("Goland"),
+				}`,
+			mustParseSelectionSet(
+				node(
+					hasInlineFragments(
+						node(
+							hasTypeName("Goland"),
+						),
+						node(
+							hasTypeName("Water"),
+						),
 					),
-					node(
-						hasTypeName("Water"),
+					hasFragmentSpreads(
+						node(
+							hasName("Air"),
+						),
 					),
-				),
-				hasFragmentSpreads(
-					node(
-						hasName("Air"),
-					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						CharStart: 1,
+						LineEnd:   5,
+						CharEnd:   6,
+					}),
 				),
 			),
-		))
+		)
 	})
 	t.Run("mixed", func(t *testing.T) {
 		run(`{
@@ -2878,6 +3458,12 @@ query: Query2 }`, mustPanic(mustParseSchemaDefinition("Query", "Mutation", "Subs
 						),
 					),
 				),
+				hasPosition(position.Position{
+					LineStart: 1,
+					CharStart: 1,
+					LineEnd:   3,
+					CharEnd:   6,
+				}),
 			),
 		))
 	})
@@ -2940,6 +3526,12 @@ query: Query2 }`, mustPanic(mustParseSchemaDefinition("Query", "Mutation", "Subs
 					hasUnionTypeSystemDefinitions(
 						node(
 							hasName("SearchResult"),
+							hasPosition(position.Position{
+								LineStart: 2,
+								CharStart: 5,
+								LineEnd:   3,
+								CharEnd:   40,
+							}),
 						),
 						node(
 							hasName("thirdUnion"),
@@ -2952,6 +3544,12 @@ query: Query2 }`, mustPanic(mustParseSchemaDefinition("Query", "Mutation", "Subs
 						),
 						node(
 							hasName("UnionExample"),
+							hasPosition(position.Position{
+								LineStart: 8,
+								CharStart: 5,
+								LineEnd:   9,
+								CharEnd:   40,
+							}),
 						),
 					),
 				),
@@ -2959,84 +3557,134 @@ query: Query2 }`, mustPanic(mustParseSchemaDefinition("Query", "Mutation", "Subs
 		)
 	})
 	t.Run("schema", func(t *testing.T) {
-		run(`
-schema {
-	query: Query
-	mutation: Mutation
-}
-"this is a scalar"
-scalar JSON
-"this is a Person"
-	type Person {
-	name: String
-}
-"describes firstEntity"
-interface firstEntity {
-	name: String
-}
-"describes direction"
-enum Direction {
-	NORTH
-}
-"describes Person"
-input Person {
-	name: String
-}
-"describes someway"
-directive @ someway on SUBSCRIPTION | MUTATION`,
+		run(`	schema {
+						query: Query
+						mutation: Mutation
+					}
+					
+					"this is a scalar"
+					scalar JSON
+
+					"this is a Person"
+					type Person {
+						name: String
+					}
+
+
+					"describes firstEntity"
+					interface firstEntity {
+						name: String
+					}
+
+					"describes direction"
+					enum Direction {
+						NORTH
+					}
+
+					"describes Person"
+					input Person {
+						name: String
+					}
+
+					"describes someway"
+					directive @ someway on SUBSCRIPTION | MUTATION`,
 			mustParseTypeSystemDefinition(
 				node(
-					hasSchemaDefinition(),
+					hasSchemaDefinition(
+						hasPosition(position.Position{
+							LineStart: 1,
+							CharStart: 2,
+							LineEnd:   4,
+							CharEnd:   7,
+						}),
+					),
 					hasScalarTypeSystemDefinitions(
 						node(
 							hasName("JSON"),
+							hasPosition(position.Position{
+								LineStart: 6,
+								CharStart: 6,
+								LineEnd:   7,
+								CharEnd:   17,
+							}),
 						),
 					),
 					hasObjectTypeSystemDefinitions(
 						node(
 							hasName("Person"),
+							hasPosition(position.Position{
+								LineStart: 9,
+								CharStart: 6,
+								LineEnd:   12,
+								CharEnd:   7,
+							}),
 						),
 					),
 					hasInterfaceTypeSystemDefinitions(
 						node(
 							hasName("firstEntity"),
+							hasPosition(position.Position{
+								LineStart: 15,
+								CharStart: 6,
+								LineEnd:   18,
+								CharEnd:   7,
+							}),
 						),
 					),
 					hasEnumTypeSystemDefinitions(
 						node(
 							hasName("Direction"),
+							hasPosition(position.Position{
+								LineStart: 20,
+								CharStart: 6,
+								LineEnd:   23,
+								CharEnd:   7,
+							}),
 						),
 					),
 					hasInputObjectTypeSystemDefinitions(
 						node(
 							hasName("Person"),
+							hasPosition(position.Position{
+								LineStart: 25,
+								CharStart: 6,
+								LineEnd:   28,
+								CharEnd:   7,
+							}),
 						),
 					),
 					hasDirectiveDefinitions(
 						node(
 							hasName("someway"),
+							hasPosition(position.Position{
+								LineStart: 30,
+								CharStart: 6,
+								LineEnd:   31,
+								CharEnd:   52,
+							}),
 						),
 					),
 				),
 			))
 	})
 	t.Run("set schema multiple times", func(t *testing.T) {
-		run(`
-schema {
-	query: Query
-	mutation: Mutation
-}
-schema {
-	query: Query
-	mutation: Mutation
-}`, mustPanic(mustParseTypeSystemDefinition(node())))
+		run(`	schema {
+						query: Query
+						mutation: Mutation
+					}
+
+					schema {
+						query: Query
+						mutation: Mutation
+					}`,
+			mustPanic(mustParseTypeSystemDefinition(node())))
 	})
 	t.Run("invalid schema", func(t *testing.T) {
-		run(`
-schema {
-	query: Query
-	mutation: Mutation
-)`, mustPanic(mustParseTypeSystemDefinition(node())))
+		run(`	schema {
+						query: Query
+						mutation: Mutation
+					)`,
+			mustPanic(mustParseTypeSystemDefinition(node())))
 	})
 	t.Run("invalid scalar", func(t *testing.T) {
 		run(`scalar JSON @foo(bar: .)`, mustPanic(mustParseTypeSystemDefinition(node())))
@@ -3072,7 +3720,7 @@ schema {
 	// parseUnionTypeDefinition
 
 	t.Run("simple", func(t *testing.T) {
-		run("SearchResult = Photo | Person",
+		run("union SearchResult = Photo | Person",
 			mustParseUnionTypeDefinition(
 				node(
 					hasName("SearchResult"),
@@ -3081,7 +3729,7 @@ schema {
 			))
 	})
 	t.Run("multiple members", func(t *testing.T) {
-		run("SearchResult = Photo | Person | Car | Planet",
+		run("union SearchResult = Photo | Person | Car | Planet",
 			mustParseUnionTypeDefinition(
 				node(
 					hasName("SearchResult"),
@@ -3091,10 +3739,10 @@ schema {
 		)
 	})
 	t.Run("with linebreaks", func(t *testing.T) {
-		run(` SearchResult = Photo 
-| Person 
-| Car 
-| Planet`,
+		run(`union SearchResult = Photo 
+										| Person 
+										| Car 
+										| Planet`,
 			mustParseUnionTypeDefinition(
 				node(
 					hasName("SearchResult"),
@@ -3104,7 +3752,7 @@ schema {
 		)
 	})
 	t.Run("with directives", func(t *testing.T) {
-		run(`SearchResult @fromTop(to: "bottom") @fromBottom(to: "top") = Photo | Person`,
+		run(`union SearchResult @fromTop(to: "bottom") @fromBottom(to: "top") = Photo | Person`,
 			mustParseUnionTypeDefinition(
 				node(
 					hasName("SearchResult"),
@@ -3121,7 +3769,7 @@ schema {
 			))
 	})
 	t.Run("invalid 1", func(t *testing.T) {
-		run("1337 = Photo | Person",
+		run("union 1337 = Photo | Person",
 			mustPanic(
 				mustParseUnionTypeDefinition(
 					node(
@@ -3133,7 +3781,7 @@ schema {
 		)
 	})
 	t.Run("invalid 2", func(t *testing.T) {
-		run("SearchResult @foo(bar: .) = Photo | Person",
+		run("union SearchResult @foo(bar: .) = Photo | Person",
 			mustPanic(
 				mustParseUnionTypeDefinition(
 					node(
@@ -3145,7 +3793,7 @@ schema {
 		)
 	})
 	t.Run("invalid 3", func(t *testing.T) {
-		run("SearchResult = Photo | Person | 1337",
+		run("union SearchResult = Photo | Person | 1337",
 			mustPanic(
 				mustParseUnionTypeDefinition(
 					node(
@@ -3157,7 +3805,7 @@ schema {
 		)
 	})
 	t.Run("invalid 4", func(t *testing.T) {
-		run("SearchResult = Photo | Person | \"Video\"",
+		run("union SearchResult = Photo | Person | \"Video\"",
 			mustPanic(
 				mustParseUnionTypeDefinition(
 					node(
@@ -3166,6 +3814,11 @@ schema {
 					),
 				),
 			),
+		)
+	})
+	t.Run("invalid 5", func(t *testing.T) {
+		run("notunion SearchResult = Photo | Person",
+			mustPanic(mustParseUnionTypeDefinition()),
 		)
 	})
 
@@ -3179,6 +3832,12 @@ schema {
 					nodeType(
 						hasTypeName("bar"),
 					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						CharStart: 2,
+						LineEnd:   1,
+						CharEnd:   12,
+					}),
 				),
 			),
 		)
@@ -3213,6 +3872,16 @@ schema {
 							hasTypeName("bar"),
 						),
 					),
+					hasDefaultValue(
+						hasValueType(document.ValueTypeString),
+						hasByteSliceValue("me"),
+					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						CharStart: 2,
+						LineEnd:   1,
+						CharEnd:   20,
+					}),
 				),
 				node(
 					hasName("baz"),
@@ -3220,6 +3889,12 @@ schema {
 						hasTypeKind(document.TypeKindNAMED),
 						hasTypeName("bat"),
 					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						CharStart: 21,
+						LineEnd:   1,
+						CharEnd:   31,
+					}),
 				),
 			),
 		)
@@ -3247,12 +3922,24 @@ schema {
 		run("1337", mustParseValue(
 			document.ValueTypeInt,
 			expectIntegerValue(1337),
+			hasPosition(position.Position{
+				LineStart: 1,
+				LineEnd:   1,
+				CharStart: 1,
+				CharEnd:   5,
+			}),
 		))
 	})
 	t.Run("string", func(t *testing.T) {
 		run(`"foo"`, mustParseValue(
 			document.ValueTypeString,
 			expectByteSliceValue("foo"),
+			hasPosition(position.Position{
+				LineStart: 1,
+				LineEnd:   1,
+				CharStart: 1,
+				CharEnd:   6,
+			}),
 		))
 	})
 	t.Run("list", func(t *testing.T) {
@@ -3264,6 +3951,12 @@ schema {
 				expectIntegerValue(3),
 				expectIntegerValue(7),
 			),
+			hasPosition(position.Position{
+				LineStart: 1,
+				LineEnd:   1,
+				CharStart: 1,
+				CharEnd:   10,
+			}),
 		))
 	})
 	t.Run("mixed list", func(t *testing.T) {
@@ -3284,6 +3977,12 @@ schema {
 						),
 					),
 				),
+				hasPosition(position.Position{
+					LineStart: 1,
+					LineEnd:   1,
+					CharStart: 1,
+					CharEnd:   35,
+				}),
 			))
 	})
 	t.Run("object", func(t *testing.T) {
@@ -3295,6 +3994,12 @@ schema {
 						expectByteSliceValue("bar"),
 					),
 				),
+				hasPosition(position.Position{
+					LineStart: 1,
+					LineEnd:   1,
+					CharStart: 1,
+					CharEnd:   13,
+				}),
 			))
 	})
 	t.Run("invalid object", func(t *testing.T) {
@@ -3356,10 +4061,25 @@ schema {
 					expectByteSliceValue("SOME_ENUM"),
 				),
 			),
+			hasPosition(position.Position{
+				LineStart: 1,
+				LineEnd:   1,
+				CharStart: 1,
+				CharEnd:   42,
+			}),
 		))
 	})
 	t.Run("variable", func(t *testing.T) {
-		run("$1337", mustParseValue(document.ValueTypeVariable, expectByteSliceValue("1337")))
+		run("$1337", mustParseValue(
+			document.ValueTypeVariable,
+			expectByteSliceValue("1337"),
+			hasPosition(position.Position{
+				LineStart: 1,
+				LineEnd:   1,
+				CharStart: 1,
+				CharEnd:   6,
+			}),
+		))
 	})
 	t.Run("variable 2", func(t *testing.T) {
 		run("$foo", mustParseValue(document.ValueTypeVariable, expectByteSliceValue("foo")))
@@ -3371,13 +4091,31 @@ schema {
 		run("$ foo", mustPanic(mustParseValue(document.ValueTypeVariable, expectByteSliceValue(" foo"))))
 	})
 	t.Run("float", func(t *testing.T) {
-		run("13.37", mustParseValue(document.ValueTypeFloat, expectFloatValue(13.37)))
+		run("13.37", mustParseValue(
+			document.ValueTypeFloat,
+			expectFloatValue(13.37),
+			hasPosition(position.Position{
+				LineStart: 1,
+				LineEnd:   1,
+				CharStart: 1,
+				CharEnd:   6,
+			}),
+		))
 	})
 	t.Run("invalid float", func(t *testing.T) {
 		run("1.3.3.7", mustPanic(mustParseValue(document.ValueTypeFloat, expectFloatValue(13.37))))
 	})
 	t.Run("boolean", func(t *testing.T) {
-		run("true", mustParseValue(document.ValueTypeBoolean, expectBooleanValue(true)))
+		run("true", mustParseValue(
+			document.ValueTypeBoolean,
+			expectBooleanValue(true),
+			hasPosition(position.Position{
+				LineStart: 1,
+				LineEnd:   1,
+				CharStart: 1,
+				CharEnd:   5,
+			}),
+		))
 	})
 	t.Run("boolean 2", func(t *testing.T) {
 		run("false", mustParseValue(document.ValueTypeBoolean, expectBooleanValue(false)))
@@ -3389,7 +4127,15 @@ schema {
 		run(`"""foo"""`, mustParseValue(document.ValueTypeString, expectByteSliceValue("foo")))
 	})
 	t.Run("null", func(t *testing.T) {
-		run("null", mustParseValue(document.ValueTypeNull))
+		run("null", mustParseValue(
+			document.ValueTypeNull,
+			hasPosition(position.Position{
+				LineStart: 1,
+				LineEnd:   1,
+				CharStart: 1,
+				CharEnd:   5,
+			}),
+		))
 	})
 
 	// parseTypes
@@ -3398,6 +4144,12 @@ schema {
 		run("String", mustParseType(
 			hasTypeKind(document.TypeKindNAMED),
 			hasTypeName("String"),
+			hasPosition(position.Position{
+				LineStart: 1,
+				CharStart: 1,
+				LineEnd:   1,
+				CharEnd:   7,
+			}),
 		))
 	})
 	t.Run("named non null", func(t *testing.T) {
@@ -3419,6 +4171,12 @@ schema {
 					hasTypeName("String"),
 				),
 			),
+			hasPosition(position.Position{
+				LineStart: 1,
+				CharStart: 1,
+				LineEnd:   1,
+				CharEnd:   10,
+			}),
 		))
 	})
 	t.Run("non null named non null list", func(t *testing.T) {
@@ -3448,10 +4206,22 @@ schema {
 						ofType(
 							hasTypeKind(document.TypeKindNAMED),
 							hasTypeName("String"),
+							hasPosition(position.Position{
+								LineStart: 1,
+								CharStart: 4,
+								LineEnd:   1,
+								CharEnd:   10,
+							}),
 						),
 					),
 				),
 			),
+			hasPosition(position.Position{
+				LineStart: 1,
+				CharStart: 1,
+				LineEnd:   1,
+				CharEnd:   14,
+			}),
 		))
 	})
 	t.Run("invalid", func(t *testing.T) {
@@ -3470,6 +4240,39 @@ schema {
 			),
 		)
 	})
+
+	// parsePeekedFloatValue
+	t.Run("valid float", func(t *testing.T) {
+		run("", mustParseFloatValue(t, "13.37", 13.37))
+	})
+	t.Run("invalid float", func(t *testing.T) {
+		run("1.3.3.7", mustPanic(mustParseFloatValue(t, "1.3.3.7", 13.37)))
+	})
+
+	// newErrInvalidType
+
+	t.Run("newErrInvalidType", func(t *testing.T) {
+		want := "parser:a:invalidType - expected 'b', got 'c' @ 1:3-2:4"
+		got := newErrInvalidType(position.Position{1, 2, 3, 4}, "a", "b", "c").Error()
+
+		if want != got {
+			t.Fatalf("newErrInvalidType: \nwant: %s\ngot: %s", want, got)
+		}
+	})
+}
+
+func TestParser_ParseExecutableDefinition(t *testing.T) {
+	parser := NewParser()
+	input := make([]byte, 65536)
+	_, err := parser.ParseTypeSystemDefinition(input)
+	if err == nil {
+		t.Fatal("want err, got nil")
+	}
+
+	_, err = parser.ParseExecutableDefinition(input)
+	if err == nil {
+		t.Fatal("want err, got nil")
+	}
 }
 
 func TestParser_Starwars(t *testing.T) {

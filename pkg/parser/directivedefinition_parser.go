@@ -3,11 +3,17 @@ package parser
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
 )
 
-func (p *Parser) parseDirectiveDefinition(index *[]int) error {
+func (p *Parser) parseDirectiveDefinition(description *token.Token, index *[]int) error {
 
-	_, err := p.readExpect(keyword.AT, "parseDirectiveDefinition")
+	start, err := p.readExpect(keyword.DIRECTIVE, "parseDirectiveDefinition")
+	if err != nil {
+		return err
+	}
+
+	_, err = p.readExpect(keyword.AT, "parseDirectiveDefinition")
 	if err != nil {
 		return err
 	}
@@ -17,9 +23,14 @@ func (p *Parser) parseDirectiveDefinition(index *[]int) error {
 		return err
 	}
 
-	definition := p.makeDirectiveDefinition()
-
+	var definition document.DirectiveDefinition
 	definition.Name = directiveIdent.Literal
+
+	if description != nil {
+		definition.Position.MergeStartIntoStart(description.TextPosition)
+	} else {
+		definition.Position.MergeStartIntoStart(start.TextPosition)
+	}
 
 	err = p.parseArgumentsDefinition(&definition.ArgumentsDefinition)
 	if err != nil {
@@ -51,6 +62,7 @@ func (p *Parser) parseDirectiveDefinition(index *[]int) error {
 		}
 	}
 
+	definition.Position.MergeStartIntoEnd(p.TextPosition())
 	*index = append(*index, p.putDirectiveDefinition(definition))
 
 	return nil

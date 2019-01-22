@@ -15,15 +15,16 @@ func (p *Parser) parseOperationDefinition(index *[]int) (err error) {
 	switch operationType {
 	case keyword.QUERY:
 		operationDefinition.OperationType = document.OperationTypeQuery
-		p.l.Read()
+		operationDefinition.Position.MergeStartIntoStart(p.l.Read().TextPosition)
 	case keyword.MUTATION:
 		operationDefinition.OperationType = document.OperationTypeMutation
-		p.l.Read()
+		operationDefinition.Position.MergeStartIntoStart(p.l.Read().TextPosition)
 	case keyword.SUBSCRIPTION:
 		operationDefinition.OperationType = document.OperationTypeSubscription
-		p.l.Read()
+		operationDefinition.Position.MergeStartIntoStart(p.l.Read().TextPosition)
 	default:
 		operationDefinition.OperationType = document.OperationTypeQuery
+		operationDefinition.Position.MergeStartIntoStart(p.TextPosition())
 	}
 
 	isNamedOperation := p.peekExpect(keyword.IDENT, false)
@@ -44,6 +45,7 @@ func (p *Parser) parseOperationDefinition(index *[]int) (err error) {
 
 	err = p.parseSelectionSet(&operationDefinition.SelectionSet)
 
+	operationDefinition.Position.MergeStartIntoEnd(p.TextPosition())
 	*index = append(*index, p.putOperationDefinition(operationDefinition))
 
 	return

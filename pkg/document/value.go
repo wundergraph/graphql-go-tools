@@ -9,6 +9,14 @@ type Value struct {
 	Position  position.Position
 }
 
+func (v Value) NodeInputFieldsDefinition() int {
+	panic("implement me")
+}
+
+func (v Value) NodeInputValueDefinitions() []int {
+	panic("implement me")
+}
+
 func (v Value) NodePosition() position.Position {
 	return v.Position
 }
@@ -37,7 +45,7 @@ func (v Value) NodeArguments() []int {
 	panic("implement me")
 }
 
-func (v Value) NodeArgumentsDefinition() []int {
+func (v Value) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 
@@ -125,11 +133,5 @@ func (v Value) NodeUnionMemberTypes() []ByteSliceReference {
 	panic("implement me")
 }
 
-type VariableValue ByteSlice
-type IntValue int32
-type FloatValue float32
-type StringValue ByteSlice
-type BooleanValue bool
-type EnumValue ByteSlice
 type ListValue []int
 type ObjectValue []int

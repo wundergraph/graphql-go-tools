@@ -3,113 +3,84 @@ package parser
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
 )
 
 func (p *Parser) parseTypeSystemDefinition() (definition document.TypeSystemDefinition, err error) {
 
 	definition = p.makeTypeSystemDefinition()
 
-	var description *document.ByteSliceReference
+	var description *token.Token
 
 	for {
-		next := p.l.Read()
+		next := p.l.Peek(true)
 
-		switch next.Keyword {
+		switch next {
 		case keyword.EOF:
 			return definition, err
 		case keyword.STRING:
-
-			description = &next.Literal
+			descriptionToken := p.l.Read()
+			description = &descriptionToken
 			continue
-
 		case keyword.SCHEMA:
 
 			if definition.SchemaDefinition.IsDefined() {
-				return definition, newErrInvalidType(next.TextPosition, "parseTypeSystemDefinition", "not a re-assignment of SchemaDefinition", "multiple SchemaDefinition assignments")
+				invalid := p.l.Read()
+				return definition, newErrInvalidType(invalid.TextPosition, "parseTypeSystemDefinition", "not a re-assignment of SchemaDefinition", "multiple SchemaDefinition assignments")
 			}
 
-			definition.SchemaDefinition, err = p.parseSchemaDefinition()
+			err = p.parseSchemaDefinition(&definition.SchemaDefinition)
 			if err != nil {
 				return definition, err
 			}
 
 		case keyword.SCALAR:
 
-			err := p.parseScalarTypeDefinition(&definition.ScalarTypeDefinitions)
+			err := p.parseScalarTypeDefinition(description, &definition.ScalarTypeDefinitions)
 			if err != nil {
 				return definition, err
-			}
-
-			if description != nil {
-				p.ParsedDefinitions.ScalarTypeDefinitions[len(p.ParsedDefinitions.ScalarTypeDefinitions)-1].Description = *description
 			}
 
 		case keyword.TYPE:
 
-			err := p.parseObjectTypeDefinition(&definition.ObjectTypeDefinitions)
+			err := p.parseObjectTypeDefinition(description, &definition.ObjectTypeDefinitions)
 			if err != nil {
 				return definition, err
-			}
-
-			if description != nil {
-				p.ParsedDefinitions.ObjectTypeDefinitions[len(p.ParsedDefinitions.ObjectTypeDefinitions)-1].Description = *description
 			}
 
 		case keyword.INTERFACE:
 
-			err := p.parseInterfaceTypeDefinition(&definition.InterfaceTypeDefinitions)
+			err := p.parseInterfaceTypeDefinition(description, &definition.InterfaceTypeDefinitions)
 			if err != nil {
 				return definition, err
-			}
-
-			if description != nil {
-				p.ParsedDefinitions.InterfaceTypeDefinitions[len(p.ParsedDefinitions.InterfaceTypeDefinitions)-1].Description = *description
 			}
 
 		case keyword.UNION:
 
-			err := p.parseUnionTypeDefinition(&definition.UnionTypeDefinitions)
+			err := p.parseUnionTypeDefinition(description, &definition.UnionTypeDefinitions)
 			if err != nil {
 				return definition, err
-			}
-
-			if description != nil {
-				p.ParsedDefinitions.UnionTypeDefinitions[len(p.ParsedDefinitions.UnionTypeDefinitions)-1].Description = *description
 			}
 
 		case keyword.ENUM:
 
-			err := p.parseEnumTypeDefinition(&definition.EnumTypeDefinitions)
+			err := p.parseEnumTypeDefinition(description, &definition.EnumTypeDefinitions)
 			if err != nil {
 				return definition, err
-			}
-
-			if description != nil {
-				p.ParsedDefinitions.EnumTypeDefinitions[len(p.ParsedDefinitions.EnumTypeDefinitions)-1].Description =
-					*description
 			}
 
 		case keyword.INPUT:
 
-			err := p.parseInputObjectTypeDefinition(&definition.InputObjectTypeDefinitions)
+			err := p.parseInputObjectTypeDefinition(description, &definition.InputObjectTypeDefinitions)
 			if err != nil {
 				return definition, err
-			}
-
-			if description != nil {
-				p.ParsedDefinitions.InputObjectTypeDefinitions[len(p.ParsedDefinitions.InputObjectTypeDefinitions)-1].Description = *description
 			}
 
 		case keyword.DIRECTIVE:
 
-			err := p.parseDirectiveDefinition(&definition.DirectiveDefinitions)
+			err := p.parseDirectiveDefinition(description, &definition.DirectiveDefinitions)
 			if err != nil {
 				return definition, err
-			}
-
-			if description != nil {
-				p.ParsedDefinitions.DirectiveDefinitions[len(p.ParsedDefinitions.DirectiveDefinitions)-1].Description =
-					*description
 			}
 
 		default:
