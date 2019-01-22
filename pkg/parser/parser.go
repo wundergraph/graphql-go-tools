@@ -1,3 +1,4 @@
+//go:generate mockgen -source=$GOFILE -destination=./parser_mock_test.go -package=parser Lexer
 package parser
 
 import (
