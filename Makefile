@@ -23,11 +23,15 @@ HAS_DEP          := $(shell command -v dep;)
 HAS_GIT          := $(shell command -v git;)
 
 .PHONY: generate
-generate: $(GOPATH)/src/github.com/abice/go-enum
+generate: $(GOPATH)/src/github.com/abice/go-enum $(GOPATH)/src/github.com/golang/mock/gomock
 	go generate ./...
 
 $(GOPATH)/src/github.com/abice/go-enum:
 	go get -u github.com/abice/go-enum
+
+$(GOPATH)/src/github.com/golang/mock/gomock:
+	go get -u github.com/golang/mock/gomock
+	go install github.com/golang/mock/mockgen
 
 .PHONY: bootstrap
 bootstrap:

@@ -26,18 +26,6 @@
 
 
 [[constraint]]
-  name = "github.com/franela/goblin"
-  version = "0.0.2"
-
-[[constraint]]
-  name = "github.com/onsi/ginkgo"
-  version = "1.7.0"
-
-[[constraint]]
-  name = "github.com/onsi/gomega"
-  version = "1.4.3"
-
-[[constraint]]
   name = "github.com/pkg/errors"
   version = "0.8.0"
 
