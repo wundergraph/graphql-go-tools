@@ -1650,7 +1650,7 @@ func TestParser(t *testing.T) {
 		run(`
 				Barry allGophers($color: String)@rename(index: 3) {
 					name
-				}`, mustPanic(mustParseExecutableDefinition(nil, nil)))
+				}`, mustParseExecutableDefinition(nil, nil))
 	})
 	t.Run("large nested object", func(t *testing.T) {
 		run(`
@@ -4264,12 +4264,14 @@ func TestParser(t *testing.T) {
 func TestParser_ParseExecutableDefinition(t *testing.T) {
 	parser := NewParser()
 	input := make([]byte, 65536)
-	_, err := parser.ParseTypeSystemDefinition(input)
+	err := parser.ParseTypeSystemDefinition(input)
 	if err == nil {
 		t.Fatal("want err, got nil")
 	}
 
-	_, err = parser.ParseExecutableDefinition(input)
+	parser = NewParser()
+
+	err = parser.ParseExecutableDefinition(input)
 	if err == nil {
 		t.Fatal("want err, got nil")
 	}
@@ -4287,12 +4289,12 @@ func TestParser_Starwars(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	def, err := parser.ParseTypeSystemDefinition(starwarsSchema)
+	err = parser.ParseTypeSystemDefinition(starwarsSchema)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	jsonBytes, err := json.MarshalIndent(def, "", "  ")
+	jsonBytes, err := json.MarshalIndent(parser.ParsedDefinitions.TypeSystemDefinition, "", "  ")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -4320,12 +4322,12 @@ func TestParser_IntrospectionQuery(t *testing.T) {
 	}
 
 	parser := NewParser()
-	executableDefinition, err := parser.ParseExecutableDefinition(inputFileData)
+	err = parser.ParseExecutableDefinition(inputFileData)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	jsonBytes, err := json.MarshalIndent(executableDefinition, "", "  ")
+	jsonBytes, err := json.MarshalIndent(parser.ParsedDefinitions.ExecutableDefinition, "", "  ")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -4366,12 +4368,10 @@ func BenchmarkParser(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 
-		executableDefinition, err := parser.ParseExecutableDefinition(testData)
+		err := parser.ParseExecutableDefinition(testData)
 		if err != nil {
 			b.Fatal(err)
 		}
-
-		_ = executableDefinition
 
 	}
 

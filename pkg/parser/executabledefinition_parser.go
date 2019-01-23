@@ -58,13 +58,7 @@ func (p *Parser) parseComplexExecutableDefinition() (executableDefinition docume
 			}
 
 		default:
-
-			if len(executableDefinition.OperationDefinitions) == 0 {
-				invalid := p.l.Read()
-				err = newErrInvalidType(invalid.TextPosition, "parseComplexExecutableDefinition", "fragment/query/mutation/subscription", next.String())
-			}
-
-			return executableDefinition, err
+			return
 		}
 	}
 }
