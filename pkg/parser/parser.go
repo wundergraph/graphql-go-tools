@@ -55,6 +55,9 @@ type Parser struct {
 
 // ParsedDefinitions contains all parsed definitions to avoid deeply nested data structures while parsing
 type ParsedDefinitions struct {
+	TypeSystemDefinition document.TypeSystemDefinition
+	ExecutableDefinition document.ExecutableDefinition
+
 	OperationDefinitions       document.OperationDefinitions
 	FragmentDefinitions        document.FragmentDefinitions
 	VariableDefinitions        document.VariableDefinitions
@@ -183,23 +186,27 @@ func (p *Parser) TextPosition() position.Position {
 }
 
 // ParseTypeSystemDefinition parses a TypeSystemDefinition from an io.Reader
-func (p *Parser) ParseTypeSystemDefinition(input []byte) (definition document.TypeSystemDefinition, err error) {
+func (p *Parser) ParseTypeSystemDefinition(input []byte) (err error) {
 	p.resetObjects()
 	err = p.l.SetInput(input)
 	if err != nil {
 		return
 	}
-	return p.parseTypeSystemDefinition()
+
+	p.ParsedDefinitions.TypeSystemDefinition, err = p.parseTypeSystemDefinition()
+	return err
 }
 
 // ParseExecutableDefinition parses an ExecutableDefinition from an io.Reader
-func (p *Parser) ParseExecutableDefinition(input []byte) (definition document.ExecutableDefinition, err error) {
+func (p *Parser) ParseExecutableDefinition(input []byte) (err error) {
 	p.resetObjects()
 	err = p.l.SetInput(input)
 	if err != nil {
 		return
 	}
-	return p.parseExecutableDefinition()
+
+	p.ParsedDefinitions.ExecutableDefinition, err = p.parseExecutableDefinition()
+	return err
 }
 
 func (p *Parser) readExpect(expected keyword.Keyword, enclosingFunctionName string) (t token.Token, err error) {
