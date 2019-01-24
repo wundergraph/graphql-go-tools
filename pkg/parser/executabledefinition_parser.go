@@ -7,42 +7,19 @@ import (
 
 func (p *Parser) parseExecutableDefinition() (executableDefinition document.ExecutableDefinition, err error) {
 
-	isSimpleQuery := p.peekExpect(keyword.CURLYBRACKETOPEN, false)
-
-	if isSimpleQuery {
-		return p.parseSimpleQueryExecutableDefinition()
-	}
-
-	return p.parseComplexExecutableDefinition()
-}
-
-func (p *Parser) parseSimpleQueryExecutableDefinition() (executableDefinition document.ExecutableDefinition, err error) {
-
-	executableDefinition = p.makeExecutableDefinition()
-
-	var operationDefinition document.OperationDefinition
-	p.initOperationDefinition(&operationDefinition)
-	operationDefinition.OperationType = document.OperationTypeQuery
-
-	err = p.parseSelectionSet(&operationDefinition.SelectionSet)
-	if err != nil {
-		return executableDefinition, err
-	}
-
-	executableDefinition.OperationDefinitions =
-		append(executableDefinition.OperationDefinitions, p.putOperationDefinition(operationDefinition))
-
-	return
-}
-
-func (p *Parser) parseComplexExecutableDefinition() (executableDefinition document.ExecutableDefinition, err error) {
-
 	executableDefinition = p.makeExecutableDefinition()
 
 	for {
 		next := p.l.Peek(true)
 
 		switch next {
+		case keyword.CURLYBRACKETOPEN:
+
+			err := p.parseAnonymousOperation(&executableDefinition)
+			if err != nil {
+				return executableDefinition, err
+			}
+
 		case keyword.FRAGMENT:
 
 			err := p.parseFragmentDefinition(&executableDefinition.FragmentDefinitions)
@@ -61,4 +38,21 @@ func (p *Parser) parseComplexExecutableDefinition() (executableDefinition docume
 			return
 		}
 	}
+}
+
+func (p *Parser) parseAnonymousOperation(executableDefinition *document.ExecutableDefinition) error {
+
+	var operationDefinition document.OperationDefinition
+	p.initOperationDefinition(&operationDefinition)
+	operationDefinition.OperationType = document.OperationTypeQuery
+
+	err := p.parseSelectionSet(&operationDefinition.SelectionSet)
+	if err != nil {
+		return err
+	}
+
+	executableDefinition.OperationDefinitions =
+		append(executableDefinition.OperationDefinitions, p.putOperationDefinition(operationDefinition))
+
+	return nil
 }

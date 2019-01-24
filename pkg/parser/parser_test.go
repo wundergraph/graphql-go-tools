@@ -1732,6 +1732,29 @@ func TestParser(t *testing.T) {
 				),
 			))
 	})
+	t.Run("unnamed operation with fragment", func(t *testing.T) {
+		run(`	{
+						dog {
+							...fieldNotDefined
+						}
+					}
+					fragment fieldNotDefined on Dog {
+  						meowVolume
+					}`,
+			mustParseExecutableDefinition(
+				nodes(
+					node(
+						hasName("fieldNotDefined"),
+					),
+				),
+				nodes(
+					node(
+						hasOperationType(document.OperationTypeQuery),
+						hasName(""),
+					),
+				),
+			))
+	})
 	t.Run("invalid", func(t *testing.T) {
 		run("{foo { bar(foo: .) }}",
 			mustPanic(mustParseExecutableDefinition(
