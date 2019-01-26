@@ -260,7 +260,8 @@ func (p *Parser) initField(field *document.Field) {
 
 func (p *Parser) makeFieldDefinition() document.FieldDefinition {
 	return document.FieldDefinition{
-		Directives: p.indexPoolGet(),
+		Directives:          p.indexPoolGet(),
+		ArgumentsDefinition: -1,
 	}
 }
 
