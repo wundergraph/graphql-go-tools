@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
@@ -18,7 +19,9 @@ func (p *Parser) parseSelectionSet(set *document.SelectionSet) (err error) {
 
 		next := p.l.Peek(true)
 
-		if next == keyword.CURLYBRACKETCLOSE {
+		if next == keyword.EOF {
+			return fmt.Errorf("parseSelectionSet: unexpected EOF, forgot to close bracket? ")
+		} else if next == keyword.CURLYBRACKETCLOSE {
 			end := p.l.Read()
 			set.Position.MergeEndIntoEnd(end.TextPosition)
 			return nil
