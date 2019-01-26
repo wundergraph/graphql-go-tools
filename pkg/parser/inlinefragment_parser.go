@@ -12,17 +12,16 @@ func (p *Parser) parseInlineFragment(startPosition position.Position, index *[]i
 	fragment.Position.MergeStartIntoStart(startPosition)
 	p.initInlineFragment(&fragment)
 
-	fragmentIdent, err := p.readExpect(keyword.IDENT, "parseInlineFragment")
-	if err != nil {
-		return err
+	hasTypeCondition := p.peekExpect(keyword.IDENT, false)
+	if hasTypeCondition {
+		fragmentIdent := p.l.Read()
+		fragmentType := p.makeType(&fragment.TypeCondition)
+		fragmentType.Name = fragmentIdent.Literal
+		fragmentType.Kind = document.TypeKindNAMED
+		p.putType(fragmentType, fragment.TypeCondition)
 	}
 
-	fragmentType := p.makeType(&fragment.TypeCondition)
-	fragmentType.Kind = document.TypeKindNAMED
-	fragmentType.Name = fragmentIdent.Literal
-	p.putType(fragmentType, fragment.TypeCondition)
-
-	err = p.parseDirectives(&fragment.Directives)
+	err := p.parseDirectives(&fragment.Directives)
 	if err != nil {
 		return err
 	}
