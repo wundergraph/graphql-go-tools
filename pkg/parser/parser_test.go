@@ -2166,6 +2166,33 @@ func TestParser(t *testing.T) {
 				),
 			))
 	})
+	t.Run("fragment with untyped inline fragment", func(t *testing.T) {
+		run(`	fragment inlineFragment2 on Dog {
+  						... @include(if: true) {
+    						name
+  						}
+					}`,
+			mustParseFragmentDefinition(
+				node(
+					hasTypeName("Dog"),
+					hasInlineFragments(
+						node(
+							hasDirectives(
+								node(
+									hasName("include"),
+								),
+							),
+							hasFields(
+								node(
+									hasName("name"),
+								),
+							),
+						),
+					),
+				),
+			),
+		)
+	})
 	t.Run("invalid fragment 1", func(t *testing.T) {
 		run(`
 				fragment MyFragment SomeType{
@@ -2273,7 +2300,7 @@ func TestParser(t *testing.T) {
 	// parseInlineFragment
 
 	t.Run("with nested selectionsets", func(t *testing.T) {
-		run(`Goland {
+		run(`on Goland {
 					... on GoWater {
 						... on GoAir {
 							go
