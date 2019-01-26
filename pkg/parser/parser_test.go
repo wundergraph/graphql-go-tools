@@ -1732,19 +1732,27 @@ func TestParser(t *testing.T) {
 				),
 			))
 	})
+	t.Run("unnamed operation with unclosed selection", func(t *testing.T) {
+		run(`	{
+						dog {
+							...scalarSelectionsNotAllowedOnInt	
+					}`,
+			mustPanic(mustParseExecutableDefinition(nil, nil)))
+	})
 	t.Run("unnamed operation with fragment", func(t *testing.T) {
 		run(`	{
 						dog {
 							...fieldNotDefined
 						}
 					}
-					fragment fieldNotDefined on Dog {
+					fragment fieldNotDefined on Pet {
   						meowVolume
 					}`,
 			mustParseExecutableDefinition(
 				nodes(
 					node(
 						hasName("fieldNotDefined"),
+						hasTypeName("Pet"),
 					),
 				),
 				nodes(
@@ -2307,6 +2315,26 @@ func TestParser(t *testing.T) {
 									),
 								),
 							),
+						),
+					),
+				),
+			),
+		)
+	})
+	t.Run("inline fragment without type condition", func(t *testing.T) {
+		run(`	@include(if: true) {
+    					name
+					}`,
+			mustParseInlineFragments(
+				node(
+					hasDirectives(
+						node(
+							hasName("include"),
+						),
+					),
+					hasFields(
+						node(
+							hasName("name"),
 						),
 					),
 				),
