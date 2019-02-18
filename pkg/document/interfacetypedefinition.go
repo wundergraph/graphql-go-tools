@@ -6,10 +6,14 @@ import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 // http://facebook.github.io/graphql/draft/#InterfaceTypeDefinition
 type InterfaceTypeDefinition struct {
 	Description      ByteSliceReference
-	Name             ByteSliceReference
+	Name             int
 	FieldsDefinition []int
-	Directives       []int
+	DirectiveSet     int
 	Position         position.Position
+}
+
+func (i InterfaceTypeDefinition) NodeSelectionSet() int {
+	panic("implement me")
 }
 
 func (i InterfaceTypeDefinition) NodeInputFieldsDefinition() int {
@@ -32,7 +36,7 @@ func (i InterfaceTypeDefinition) NodeValueReference() int {
 	panic("implement me")
 }
 
-func (i InterfaceTypeDefinition) NodeUnionMemberTypes() []ByteSliceReference {
+func (i InterfaceTypeDefinition) NodeUnionMemberTypes() []int {
 	panic("implement me")
 }
 
@@ -68,7 +72,7 @@ func (i InterfaceTypeDefinition) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (i InterfaceTypeDefinition) NodeImplementsInterfaces() []ByteSliceReference {
+func (i InterfaceTypeDefinition) NodeImplementsInterfaces() []int {
 	panic("implement me")
 }
 
@@ -84,11 +88,11 @@ func (i InterfaceTypeDefinition) NodeFieldsDefinition() []int {
 	return i.FieldsDefinition
 }
 
-func (i InterfaceTypeDefinition) NodeName() ByteSliceReference {
+func (i InterfaceTypeDefinition) NodeName() int {
 	return i.Name
 }
 
-func (i InterfaceTypeDefinition) NodeAlias() ByteSliceReference {
+func (i InterfaceTypeDefinition) NodeAlias() int {
 	panic("implement me")
 }
 
@@ -96,7 +100,7 @@ func (i InterfaceTypeDefinition) NodeDescription() ByteSliceReference {
 	return i.Description
 }
 
-func (i InterfaceTypeDefinition) NodeArguments() []int {
+func (i InterfaceTypeDefinition) NodeArgumentSet() int {
 	panic("implement me")
 }
 
@@ -104,8 +108,8 @@ func (i InterfaceTypeDefinition) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 
-func (i InterfaceTypeDefinition) NodeDirectives() []int {
-	return i.Directives
+func (i InterfaceTypeDefinition) NodeDirectiveSet() int {
+	return i.DirectiveSet
 }
 
 func (i InterfaceTypeDefinition) NodeEnumValuesDefinition() []int {
