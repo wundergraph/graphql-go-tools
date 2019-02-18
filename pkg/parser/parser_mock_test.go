@@ -36,18 +36,32 @@ func (m *MockLexer) EXPECT() *MockLexerMockRecorder {
 	return m.recorder
 }
 
-// SetInput mocks base method
-func (m *MockLexer) SetInput(input []byte) error {
+// SetTypeSystemInput mocks base method
+func (m *MockLexer) SetTypeSystemInput(input []byte) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetInput", input)
+	ret := m.ctrl.Call(m, "SetTypeSystemInput", input)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// SetInput indicates an expected call of SetInput
-func (mr *MockLexerMockRecorder) SetInput(input interface{}) *gomock.Call {
+// SetTypeSystemInput indicates an expected call of SetTypeSystemInput
+func (mr *MockLexerMockRecorder) SetTypeSystemInput(input interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetInput", reflect.TypeOf((*MockLexer)(nil).SetInput), input)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTypeSystemInput", reflect.TypeOf((*MockLexer)(nil).SetTypeSystemInput), input)
+}
+
+// SetExecutableInput mocks base method
+func (m *MockLexer) SetExecutableInput(input []byte) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetExecutableInput", input)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetExecutableInput indicates an expected call of SetExecutableInput
+func (mr *MockLexerMockRecorder) SetExecutableInput(input interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetExecutableInput", reflect.TypeOf((*MockLexer)(nil).SetExecutableInput), input)
 }
 
 // Read mocks base method
