@@ -43,7 +43,7 @@ func (p *Parser) parseFieldsDefinition(index *[]int) (err error) {
 				definition.Position.MergeStartIntoStart(fieldIdent.TextPosition)
 			}
 
-			definition.Name = fieldIdent.Literal
+			definition.Name = p.putByteSliceReference(fieldIdent.Literal)
 
 			err = p.parseArgumentsDefinition(&definition.ArgumentsDefinition)
 			if err != nil {
@@ -62,7 +62,7 @@ func (p *Parser) parseFieldsDefinition(index *[]int) (err error) {
 
 			definition.Position.MergeStartIntoEnd(p.TextPosition())
 
-			err = p.parseDirectives(&definition.Directives)
+			err = p.parseDirectives(&definition.DirectiveSet)
 			if err != nil {
 				return err
 			}
