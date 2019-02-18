@@ -11,6 +11,10 @@ type SelectionSet struct {
 	Position        position.Position
 }
 
+func (s SelectionSet) NodeSelectionSet() int {
+	panic("implement me")
+}
+
 func (s SelectionSet) NodeInputFieldsDefinition() int {
 	panic("implement me")
 }
@@ -31,7 +35,7 @@ func (s SelectionSet) NodeValueReference() int {
 	panic("implement me")
 }
 
-func (s SelectionSet) NodeUnionMemberTypes() []ByteSliceReference {
+func (s SelectionSet) NodeUnionMemberTypes() []int {
 	panic("implement me")
 }
 
@@ -67,11 +71,11 @@ func (s SelectionSet) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (s SelectionSet) NodeName() ByteSliceReference {
+func (s SelectionSet) NodeName() int {
 	panic("implement me")
 }
 
-func (s SelectionSet) NodeAlias() ByteSliceReference {
+func (s SelectionSet) NodeAlias() int {
 	panic("implement me")
 }
 
@@ -79,7 +83,7 @@ func (s SelectionSet) NodeDescription() ByteSliceReference {
 	panic("implement me")
 }
 
-func (s SelectionSet) NodeArguments() []int {
+func (s SelectionSet) NodeArgumentSet() int {
 	panic("implement me")
 }
 
@@ -87,7 +91,7 @@ func (s SelectionSet) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 
-func (s SelectionSet) NodeDirectives() []int {
+func (s SelectionSet) NodeDirectiveSet() int {
 	panic("implement me")
 }
 
@@ -131,7 +135,7 @@ func (s SelectionSet) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (s SelectionSet) NodeImplementsInterfaces() []ByteSliceReference {
+func (s SelectionSet) NodeImplementsInterfaces() []int {
 	panic("implement me")
 }
 
