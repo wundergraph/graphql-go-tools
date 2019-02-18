@@ -9,8 +9,8 @@ import (
 func (p *Parser) parseInlineFragment(startPosition position.Position, index *[]int) error {
 
 	var fragment document.InlineFragment
-	fragment.Position.MergeStartIntoStart(startPosition)
 	p.initInlineFragment(&fragment)
+	fragment.Position.MergeStartIntoStart(startPosition)
 
 	hasTypeCondition := p.peekExpect(keyword.ON, true)
 	if hasTypeCondition {
@@ -19,12 +19,12 @@ func (p *Parser) parseInlineFragment(startPosition position.Position, index *[]i
 			return err
 		}
 		fragmentType := p.makeType(&fragment.TypeCondition)
-		fragmentType.Name = fragmentIdent.Literal
+		fragmentType.Name = p.putByteSliceReference(fragmentIdent.Literal)
 		fragmentType.Kind = document.TypeKindNAMED
 		p.putType(fragmentType, fragment.TypeCondition)
 	}
 
-	err := p.parseDirectives(&fragment.Directives)
+	err := p.parseDirectives(&fragment.DirectiveSet)
 	if err != nil {
 		return err
 	}
