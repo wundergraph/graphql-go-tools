@@ -13,6 +13,7 @@ import (
 type Lexer struct {
 	input                                []byte
 	inputPosition                        int
+	typeSystemEndPosition                int
 	textPosition                         position.Position
 	beforeLastLineTerminatorTextPosition position.Position
 }
@@ -26,15 +27,34 @@ const (
 	uint16Max = 65535
 )
 
-// SetInput sets the new reader as input and resets all position stats
-func (l *Lexer) SetInput(input []byte) error {
+// SetTypeSystemInput sets the new reader as input and resets all position stats
+func (l *Lexer) SetTypeSystemInput(input []byte) error {
 
 	if len(input) > uint16Max {
-		return fmt.Errorf("SetInput: input size must not be > %d, got: %d", uint16Max, len(input))
+		return fmt.Errorf("SetTypeSystemInput: input size must not be > %d, got: %d", uint16Max, len(input))
 	}
 
 	l.input = input
 	l.inputPosition = 0
+	l.textPosition.LineStart = 1
+	l.textPosition.CharStart = 1
+	l.typeSystemEndPosition = len(input)
+
+	return nil
+}
+
+func (l *Lexer) SetExecutableInput(input []byte) error {
+
+	//l.input = append(l.input[:l.typeSystemEndPosition], input...)
+
+	l.input = l.input[:l.typeSystemEndPosition]
+	l.input = append(l.input, input...)
+
+	if len(input) > uint16Max {
+		return fmt.Errorf("SetTypeSystemInput: input size must not be > %d, got: %d", uint16Max, len(input))
+	}
+
+	l.inputPosition = l.typeSystemEndPosition
 	l.textPosition.LineStart = 1
 	l.textPosition.CharStart = 1
 
@@ -166,7 +186,7 @@ func (l *Lexer) peekIsFloat() (isFloat bool) {
 
 		peeked = l.input[i]
 
-		if l.byteIsWhitespace(peeked) {
+		if l.byteTerminatesSequence(peeked) {
 			return hasDot
 		} else if peeked == runes.DOT && !hasDot {
 			hasDot = true
@@ -531,6 +551,35 @@ func runeIsDigit(r byte) bool {
 func (l *Lexer) byteIsWhitespace(r byte) bool {
 	switch r {
 	case runes.SPACE, runes.TAB, runes.LINETERMINATOR, runes.COMMA:
+		return true
+	default:
+		return false
+	}
+}
+
+func (l *Lexer) byteTerminatesSequence(r byte) bool {
+	switch r {
+	case runes.SPACE,
+		runes.TAB,
+		runes.LINETERMINATOR,
+		runes.COMMA,
+		runes.BRACKETOPEN,
+		runes.BRACKETCLOSE,
+		runes.CURLYBRACKETOPEN,
+		runes.CURLYBRACKETCLOSE,
+		runes.SQUAREBRACKETOPEN,
+		runes.SQUAREBRACKETCLOSE,
+		runes.AND,
+		runes.AT,
+		runes.BANG,
+		runes.COLON,
+		runes.DOLLAR,
+		runes.EQUALS,
+		runes.HASHTAG,
+		runes.NEGATIVESIGN,
+		runes.PIPE,
+		runes.QUOTE,
+		runes.SLASH:
 		return true
 	default:
 		return false

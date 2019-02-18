@@ -17,7 +17,7 @@ func TestLexer_Peek_Read(t *testing.T) {
 
 	run := func(input string, checks ...checkFunc) {
 		lex := NewLexer()
-		if err := lex.SetInput([]byte(input)); err != nil {
+		if err := lex.SetTypeSystemInput([]byte(input)); err != nil {
 			panic(err)
 		}
 		for i := range checks {
@@ -56,7 +56,7 @@ func TestLexer_Peek_Read(t *testing.T) {
 
 	resetInput := func(input string) checkFunc {
 		return func(lex *Lexer, i int) {
-			if err := lex.SetInput([]byte(input)); err != nil {
+			if err := lex.SetTypeSystemInput([]byte(input)); err != nil {
 				panic(err)
 			}
 		}
@@ -104,7 +104,7 @@ func TestLexer_Peek_Read(t *testing.T) {
 	})
 	t.Run("set too large input", func(t *testing.T) {
 		lex := NewLexer()
-		if err := lex.SetInput(make([]byte, 65536)); err == nil {
+		if err := lex.SetTypeSystemInput(make([]byte, 65536)); err == nil {
 			panic(fmt.Errorf("must err on too large input"))
 		}
 	})
@@ -152,6 +152,9 @@ func TestLexer_Peek_Read(t *testing.T) {
 	})
 	t.Run("read float", func(t *testing.T) {
 		run("13.37", mustPeekAndRead(keyword.FLOAT, "13.37"))
+	})
+	t.Run("read float", func(t *testing.T) {
+		run("1.1)", mustPeekAndRead(keyword.FLOAT, "1.1"))
 	})
 	t.Run("read float with space", func(t *testing.T) {
 		run("13.37 ", mustPeekAndRead(keyword.FLOAT, "13.37"))
@@ -523,7 +526,7 @@ fragment TypeRef on __Type {
 func TestLexerRegressions(t *testing.T) {
 
 	lexer := NewLexer()
-	if err := lexer.SetInput([]byte(introspectionQuery)); err != nil {
+	if err := lexer.SetTypeSystemInput([]byte(introspectionQuery)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -564,7 +567,7 @@ func BenchmarkLexer(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 
-		if err := lexer.SetInput(inputBytes); err != nil {
+		if err := lexer.SetTypeSystemInput(inputBytes); err != nil {
 			b.Fatal(err)
 		}
 
