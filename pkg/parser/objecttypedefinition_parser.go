@@ -18,7 +18,7 @@ func (p *Parser) parseObjectTypeDefinition(description *token.Token, index *[]in
 	}
 
 	definition := p.makeObjectTypeDefinition()
-	definition.Name = objectTypeName.Literal
+	definition.Name = p.putByteSliceReference(objectTypeName.Literal)
 
 	if description != nil {
 		definition.Position.MergeStartIntoStart(description.TextPosition)
@@ -31,7 +31,7 @@ func (p *Parser) parseObjectTypeDefinition(description *token.Token, index *[]in
 		return err
 	}
 
-	err = p.parseDirectives(&definition.Directives)
+	err = p.parseDirectives(&definition.DirectiveSet)
 	if err != nil {
 		return err
 	}
