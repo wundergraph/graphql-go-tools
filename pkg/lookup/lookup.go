@@ -918,7 +918,6 @@ func (l *Lookup) PossibleSelectionTypes(typeName int, possibleTypeNames *[]int) 
 			l.PossibleSelectionTypes(member, possibleTypeNames)
 		}
 	}
-	return
 }
 
 func (l *Lookup) FieldType(typeName int, fieldName int) (document.Type, bool) {
@@ -1255,7 +1254,6 @@ func (l *Lookup) UnionTypeDefinitionNamesContainingMember(memberName int, nameRe
 			*nameRefs = append(*nameRefs, union.Name)
 		}
 	}
-	return
 }
 
 type VariableDefinitionsIterator struct {
@@ -1350,7 +1348,7 @@ func (l *Lookup) SelectionSetsAreOfSameResponseShape(leftSet, rightSet TypedSet)
 	for {
 		leftNext := left.Next()
 		rightNext := right.Next()
-		if leftNext == false && rightNext == false {
+		if !leftNext && !rightNext {
 			return true
 		} else if leftNext != rightNext {
 			return false
@@ -1420,10 +1418,7 @@ func (l *Lookup) FieldsDeepEqual(left, right document.Field) bool {
 	}
 	leftSet := l.SelectionSet(left.SelectionSet)
 	rightSet := l.SelectionSet(right.SelectionSet)
-	if !l.SelectionSetDeepEqual(leftSet, rightSet) {
-		return false
-	}
-	return true
+	return l.SelectionSetDeepEqual(leftSet, rightSet)
 }
 
 func (l *Lookup) SelectionSetDeepEqual(left, right document.SelectionSet) bool {
@@ -1456,15 +1451,9 @@ func (l *Lookup) SelectionSetDeepEqual(left, right document.SelectionSet) bool {
 
 // TODO: add directives
 func (l *Lookup) InlineFragmentsDeepEqual(left, right document.InlineFragment) bool {
-	if !l.SelectionSetDeepEqual(l.SelectionSet(left.SelectionSet), l.SelectionSet(right.SelectionSet)) {
-		return false
-	}
-	return true
+	return l.SelectionSetDeepEqual(l.SelectionSet(left.SelectionSet), l.SelectionSet(right.SelectionSet))
 }
 
 func (l *Lookup) FragmentSpreadsDeepEqual(left, right document.FragmentSpread) bool {
-	if left.FragmentName != right.FragmentName {
-		return false
-	}
-	return true
+	return left.FragmentName == right.FragmentName
 }
