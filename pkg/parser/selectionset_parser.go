@@ -6,13 +6,15 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
-func (p *Parser) parseSelectionSet(set *document.SelectionSet) (err error) {
+func (p *Parser) parseSelectionSet(ref *int) (err error) {
 
 	if open := p.peekExpect(keyword.CURLYBRACKETOPEN, false); !open {
 		return
 	}
 
 	start := p.l.Read()
+	var set document.SelectionSet
+	p.initSelectionSet(&set)
 	set.Position.MergeStartIntoStart(start.TextPosition)
 
 	for {
@@ -24,6 +26,7 @@ func (p *Parser) parseSelectionSet(set *document.SelectionSet) (err error) {
 		} else if next == keyword.CURLYBRACKETCLOSE {
 			end := p.l.Read()
 			set.Position.MergeEndIntoEnd(end.TextPosition)
+			*ref = p.putSelectionSet(set)
 			return nil
 		}
 
