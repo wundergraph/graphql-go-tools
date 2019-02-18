@@ -5,12 +5,16 @@ import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 // Field as specified in:
 // http://facebook.github.io/graphql/draft/#Field
 type Field struct {
-	Alias        ByteSliceReference
-	Name         ByteSliceReference
-	Arguments    []int
-	Directives   []int
-	SelectionSet SelectionSet
+	Alias        int
+	Name         int
+	ArgumentSet  int
+	DirectiveSet int
+	SelectionSet int
 	Position     position.Position
+}
+
+func (f Field) NodeSelectionSet() int {
+	return f.SelectionSet
 }
 
 func (f Field) NodeInputFieldsDefinition() int {
@@ -33,7 +37,7 @@ func (f Field) NodeValueReference() int {
 	panic("implement me")
 }
 
-func (f Field) NodeUnionMemberTypes() []ByteSliceReference {
+func (f Field) NodeUnionMemberTypes() []int {
 	panic("implement me")
 }
 
@@ -69,7 +73,7 @@ func (f Field) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (f Field) NodeImplementsInterfaces() []ByteSliceReference {
+func (f Field) NodeImplementsInterfaces() []int {
 	panic("implement me")
 }
 
@@ -89,7 +93,7 @@ func (f Field) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 
-func (f Field) NodeAlias() ByteSliceReference {
+func (f Field) NodeAlias() int {
 	return f.Alias
 }
 
@@ -97,7 +101,7 @@ func (f Field) NodeOperationType() OperationType {
 	panic("implement me")
 }
 
-func (f Field) NodeName() ByteSliceReference {
+func (f Field) NodeName() int {
 	return f.Name
 }
 
@@ -105,12 +109,12 @@ func (f Field) NodeDescription() ByteSliceReference {
 	panic("implement me")
 }
 
-func (f Field) NodeArguments() []int {
-	return f.Arguments
+func (f Field) NodeArgumentSet() int {
+	return f.ArgumentSet
 }
 
-func (f Field) NodeDirectives() []int {
-	return f.Directives
+func (f Field) NodeDirectiveSet() int {
+	return f.DirectiveSet
 }
 
 func (f Field) NodeEnumValuesDefinition() []int {
@@ -118,15 +122,15 @@ func (f Field) NodeEnumValuesDefinition() []int {
 }
 
 func (f Field) NodeFields() []int {
-	return f.SelectionSet.Fields
+	panic("implement me")
 }
 
 func (f Field) NodeFragmentSpreads() []int {
-	return f.SelectionSet.FragmentSpreads
+	panic("implement me")
 }
 
 func (f Field) NodeInlineFragments() []int {
-	return f.SelectionSet.InlineFragments
+	panic("implement me")
 }
 
 func (f Field) NodeVariableDefinitions() []int {
