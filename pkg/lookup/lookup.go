@@ -1,0 +1,1470 @@
+package lookup
+
+import (
+	"bytes"
+	"github.com/jensneuse/graphql-go-tools/pkg/document"
+	"github.com/jensneuse/graphql-go-tools/pkg/parser"
+)
+
+// Lookup is a helper to easily look things up in a parsed definition
+type Lookup struct {
+	p        *parser.Parser
+	refCache []int
+	refPool  refPool
+}
+
+type refPool struct {
+	refs     [][]int
+	position int
+}
+
+func (r *refPool) get() []int {
+	r.position++
+	if len(r.refs)-1 < r.position {
+		r.refs = append(r.refs, make([]int, 8))
+	}
+	return r.refs[r.position][:0]
+}
+
+func New(p *parser.Parser) *Lookup {
+
+	var pool refPool
+	pool.position = -1
+	pool.refs = make([][]int, 128)
+
+	for i := 0; i < 128; i++ {
+		pool.refs[i] = make([]int, 8)
+	}
+
+	return &Lookup{
+		p:        p,
+		refCache: make([]int, 0, 48),
+		refPool:  pool,
+	}
+}
+
+func (l *Lookup) ResetPool() {
+	l.refPool.position = -1
+}
+
+func (l *Lookup) SetParser(p *parser.Parser) {
+	l.p = p
+}
+
+func (l *Lookup) initRefsFromCache(refs *[]int) {
+	*refs = l.refCache[:0]
+}
+
+func (l *Lookup) OperationDefinition(i int) document.OperationDefinition {
+	return l.p.ParsedDefinitions.OperationDefinitions[i]
+}
+
+func (l *Lookup) OperationDefinitions() document.OperationDefinitions {
+	return l.p.ParsedDefinitions.OperationDefinitions
+}
+
+func (l *Lookup) ByteSlice(reference document.ByteSliceReference) document.ByteSlice {
+	return l.p.ByteSlice(reference)
+}
+
+func (l *Lookup) CachedName(i int) document.ByteSlice {
+	return l.p.CachedByteSlice(i)
+}
+
+func (l *Lookup) InlineFragment(i int) document.InlineFragment {
+	return l.p.ParsedDefinitions.InlineFragments[i]
+}
+
+type InlineFragmentIterable struct {
+	current int
+	refs    []int
+	l       *Lookup
+}
+
+func (i *InlineFragmentIterable) Next() bool {
+	i.current++
+	return len(i.refs)-1 >= i.current
+}
+
+func (i *InlineFragmentIterable) Value() (inlineFragment document.InlineFragment, ref int) {
+	ref = i.refs[i.current]
+	inlineFragment = i.l.InlineFragment(ref)
+	return
+}
+
+func (l *Lookup) InlineFragmentIterable(refs []int) InlineFragmentIterable {
+	return InlineFragmentIterable{
+		current: -1,
+		refs:    refs,
+		l:       l,
+	}
+}
+
+func (l *Lookup) FragmentSpread(i int) document.FragmentSpread {
+	return l.p.ParsedDefinitions.FragmentSpreads[i]
+}
+
+func (l *Lookup) FragmentSpreads() document.FragmentSpreads {
+	return l.p.ParsedDefinitions.FragmentSpreads
+}
+
+type FragmentSpreadIterable struct {
+	current int
+	refs    []int
+	l       *Lookup
+}
+
+func (f *FragmentSpreadIterable) Next() bool {
+	f.current++
+	return len(f.refs)-1 >= f.current
+}
+
+func (f *FragmentSpreadIterable) Value() (spread document.FragmentSpread, ref int) {
+	ref = f.refs[f.current]
+	spread = f.l.FragmentSpread(ref)
+	return
+}
+
+func (l *Lookup) FragmentSpreadIterable(refs []int) FragmentSpreadIterable {
+	return FragmentSpreadIterable{
+		current: -1,
+		refs:    refs,
+		l:       l,
+	}
+}
+
+func (l *Lookup) FragmentDefinitions() document.FragmentDefinitions {
+	return l.p.ParsedDefinitions.FragmentDefinitions
+}
+
+func (l *Lookup) FragmentDefinition(i int) document.FragmentDefinition {
+	return l.p.ParsedDefinitions.FragmentDefinitions[i]
+}
+
+func (l *Lookup) FragmentDefinitionByName(name int) (definition document.FragmentDefinition, index int, valid bool) {
+
+	for i, definition := range l.p.ParsedDefinitions.FragmentDefinitions {
+		if definition.FragmentName == name {
+			return definition, i, true
+		}
+	}
+
+	return document.FragmentDefinition{}, -1, false
+}
+
+func (l Lookup) Field(i int) document.Field {
+	return l.p.ParsedDefinitions.Fields[i]
+}
+
+func (l *Lookup) FragmentSpreadsRootNumFields(spreadRefs []int) (amount int) {
+	iter := l.FragmentSpreadIterable(spreadRefs)
+	for iter.Next() {
+		spread, _ := iter.Value()
+		definition, _, _ := l.FragmentDefinitionByName(spread.FragmentName)
+		set := l.SelectionSet(definition.SelectionSet)
+		amount += len(set.Fields)
+		amount += len(set.FragmentSpreads)
+		amount += len(set.InlineFragments)
+	}
+	return
+}
+
+func (l *Lookup) InlineFragmentRootNumFields(inlineFragmentRefs []int) (amount int) {
+	iter := l.InlineFragmentIterable(inlineFragmentRefs)
+	for iter.Next() {
+		inlineFragment, _ := iter.Value()
+		set := l.SelectionSet(inlineFragment.SelectionSet)
+		amount += len(set.Fields)
+		amount += len(set.FragmentSpreads)
+		amount += len(set.InlineFragments)
+	}
+	return
+}
+
+func (l *Lookup) SelectionSet(ref int) document.SelectionSet {
+	if ref == -1 {
+		return document.SelectionSet{}
+	}
+	return l.p.ParsedDefinitions.SelectionSets[ref]
+}
+
+func (l *Lookup) SelectionSetNumRootFields(set document.SelectionSet) int {
+	return len(set.Fields) + l.FragmentSpreadsRootNumFields(set.FragmentSpreads) + l.InlineFragmentRootNumFields(set.InlineFragments)
+}
+
+func (l *Lookup) UnwrappedNamedType(docType document.Type) document.Type {
+
+	for docType.Kind != document.TypeKindNAMED {
+		docType = l.Type(docType.OfType)
+	}
+
+	return docType
+}
+
+func (l *Lookup) Type(i int) document.Type {
+	return l.p.ParsedDefinitions.Types[i]
+}
+
+func (l *Lookup) ObjectTypeDefinitionByName(name int) (document.ObjectTypeDefinition, bool) {
+	for _, definition := range l.p.ParsedDefinitions.ObjectTypeDefinitions {
+		if name == definition.Name {
+			return definition, true
+		}
+	}
+
+	return document.ObjectTypeDefinition{}, false
+}
+
+func (l *Lookup) ScalarTypeDefinitionByName(name int) (document.ScalarTypeDefinition, bool) {
+	for _, definition := range l.p.ParsedDefinitions.ScalarTypeDefinitions {
+		if name == definition.Name {
+			return definition, true
+		}
+	}
+
+	return document.ScalarTypeDefinition{}, false
+}
+
+func (l *Lookup) EnumTypeDefinitionByName(name int) (document.EnumTypeDefinition, bool) {
+	for _, definition := range l.p.ParsedDefinitions.EnumTypeDefinitions {
+		if name == definition.Name {
+			return definition, true
+		}
+	}
+
+	return document.EnumTypeDefinition{}, false
+}
+
+func (l *Lookup) InterfaceTypeDefinitionByName(name int) (document.InterfaceTypeDefinition, bool) {
+	for _, definition := range l.p.ParsedDefinitions.InterfaceTypeDefinitions {
+		if name == definition.Name {
+			return definition, true
+		}
+	}
+	return document.InterfaceTypeDefinition{}, false
+}
+
+func (l *Lookup) UnionTypeDefinitionByName(name int) (document.UnionTypeDefinition, bool) {
+	for _, definition := range l.p.ParsedDefinitions.UnionTypeDefinitions {
+		if name == definition.Name {
+			return definition, true
+		}
+	}
+
+	return document.UnionTypeDefinition{}, false
+}
+
+func (l *Lookup) FieldDefinitionByNameFromIndex(index []int, name int) (document.FieldDefinition, bool) {
+
+	for _, i := range index {
+		definition := l.p.ParsedDefinitions.FieldDefinitions[i]
+		if name == definition.Name {
+			return definition, true
+		}
+	}
+
+	return document.FieldDefinition{}, false
+}
+
+type FieldsIterator struct {
+	l       *Lookup
+	current int
+	index   []int
+}
+
+func (f *FieldsIterator) Next() bool {
+	f.current++
+	return len(f.index)-1 >= f.current
+}
+
+func (f *FieldsIterator) Value() (field document.Field, ref int) {
+	ref = f.index[f.current]
+	field = f.l.p.ParsedDefinitions.Fields[ref]
+	return
+}
+
+func (l *Lookup) FieldsIterator(i []int) FieldsIterator {
+	return FieldsIterator{
+		current: -1,
+		index:   i,
+		l:       l,
+	}
+}
+
+type SelectionSetFieldsIterator struct {
+	l           *Lookup
+	setTypeName int
+	refs        []int
+	current     int
+}
+
+func (s *SelectionSetFieldsIterator) traverse(set document.SelectionSet, isRootLevel bool) {
+	fields := s.l.FieldsIterator(set.Fields)
+	for fields.Next() {
+		_, ref := fields.Value()
+		s.refs = append(s.refs, ref)
+	}
+	inlineFragments := s.l.InlineFragmentIterable(set.InlineFragments)
+	for inlineFragments.Next() {
+		fragment, _ := inlineFragments.Value()
+		if fragment.TypeCondition == -1 || s.l.Type(fragment.TypeCondition).Name == s.setTypeName {
+			s.traverse(s.l.SelectionSet(fragment.SelectionSet), false)
+		}
+	}
+	spreads := s.l.FragmentSpreadIterable(set.FragmentSpreads)
+	for spreads.Next() {
+		spread, _ := spreads.Value()
+		fragment, _, ok := s.l.FragmentDefinitionByName(spread.FragmentName)
+		if !ok {
+			continue
+		}
+		if s.l.Type(fragment.TypeCondition).Name == s.setTypeName {
+			s.traverse(s.l.SelectionSet(fragment.SelectionSet), false)
+		}
+	}
+}
+
+func (s *SelectionSetFieldsIterator) Next() bool {
+	s.current++
+	return len(s.refs)-1 >= s.current
+}
+
+func (s *SelectionSetFieldsIterator) Value() document.Field {
+	return s.l.Field(s.refs[s.current])
+}
+
+func (l *Lookup) SelectionSetCollectedFields(set document.SelectionSet, setTypeName int) SelectionSetFieldsIterator {
+	iter := SelectionSetFieldsIterator{
+		current:     -1,
+		setTypeName: setTypeName,
+		l:           l,
+		refs:        l.refPool.get(),
+	}
+
+	iter.traverse(set, true)
+	return iter
+}
+
+type TypedSet struct {
+	SetRef int
+	Type   document.Type
+}
+
+type SelectionSetDifferingSelectionSetIterator struct {
+	l              *Lookup
+	ignoreTypeName int
+	setRefs        []int
+	typeRefs       []int
+	current        int
+}
+
+func (s *SelectionSetDifferingSelectionSetIterator) traverse(set document.SelectionSet, isRootLevel bool) {
+	inlineFragments := s.l.InlineFragmentIterable(set.InlineFragments)
+	for inlineFragments.Next() {
+		fragment, _ := inlineFragments.Value()
+		if fragment.TypeCondition == -1 {
+			s.traverse(s.l.SelectionSet(fragment.SelectionSet), false)
+		} else if s.l.Type(fragment.TypeCondition).Name != s.ignoreTypeName {
+			s.setRefs = append(s.setRefs, fragment.SelectionSet)
+			s.typeRefs = append(s.typeRefs, fragment.TypeCondition)
+		}
+	}
+	spreads := s.l.FragmentSpreadIterable(set.FragmentSpreads)
+	for spreads.Next() {
+		spread, _ := spreads.Value()
+		fragment, _, _ := s.l.FragmentDefinitionByName(spread.FragmentName)
+		if s.l.Type(fragment.TypeCondition).Name != s.ignoreTypeName {
+			s.setRefs = append(s.setRefs, fragment.SelectionSet)
+			s.typeRefs = append(s.typeRefs, fragment.TypeCondition)
+		}
+
+		s.traverse(s.l.SelectionSet(fragment.SelectionSet), false)
+	}
+}
+
+func (s *SelectionSetDifferingSelectionSetIterator) Next() bool {
+	s.current++
+	return len(s.setRefs)-1 >= s.current
+}
+
+func (s *SelectionSetDifferingSelectionSetIterator) Value() TypedSet {
+	return TypedSet{
+		SetRef: s.setRefs[s.current],
+		Type:   s.l.Type(s.typeRefs[s.current]),
+	}
+}
+
+func (l *Lookup) SelectionSetDifferingSelectionSetIterator(set document.SelectionSet, ignoreTypeName int) SelectionSetDifferingSelectionSetIterator {
+	iter := SelectionSetDifferingSelectionSetIterator{
+		current:        -1,
+		ignoreTypeName: ignoreTypeName,
+		l:              l,
+		setRefs:        l.refPool.get(),
+		typeRefs:       l.refPool.get(),
+	}
+	iter.traverse(set, true)
+	return iter
+}
+
+func (l *Lookup) QueryObjectTypeDefinition() (document.ObjectTypeDefinition, bool) {
+	want := l.p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition.Query
+	for _, definition := range l.p.ParsedDefinitions.ObjectTypeDefinitions {
+		if definition.Name == want {
+			return definition, true
+		}
+	}
+
+	return document.ObjectTypeDefinition{}, false
+}
+
+func (l *Lookup) MutationObjectTypeDefinition() (document.ObjectTypeDefinition, bool) {
+	want := l.p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition.Mutation
+	for _, definition := range l.p.ParsedDefinitions.ObjectTypeDefinitions {
+		if definition.Name == want {
+			return definition, true
+		}
+	}
+
+	return document.ObjectTypeDefinition{}, false
+}
+
+func (l *Lookup) SubscriptionObjectTypeDefinition() (document.ObjectTypeDefinition, bool) {
+	want := l.p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition.Subscription
+	for _, definition := range l.p.ParsedDefinitions.ObjectTypeDefinitions {
+		if definition.Name == want {
+			return definition, true
+		}
+	}
+
+	return document.ObjectTypeDefinition{}, false
+}
+
+func (l *Lookup) UnionTypeDefinitionContainsType(definition document.UnionTypeDefinition, typeName int) bool {
+	for _, member := range definition.UnionMemberTypes {
+		if member == typeName {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (l *Lookup) ObjectTypeDefinitionImplementsInterface(definition document.ObjectTypeDefinition, interfaceName int) bool {
+	for _, implements := range definition.ImplementsInterfaces {
+		if implements == interfaceName {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (l *Lookup) ArgumentSet(ref int) document.ArgumentSet {
+	if ref == -1 {
+		return nil
+	}
+	return l.p.ParsedDefinitions.ArgumentSets[ref]
+}
+
+func (l *Lookup) ArgumentsAreEqual(first []int, second []int) bool {
+
+	if len(first) != len(second) {
+		return false
+	}
+
+	for _, i := range first {
+		firstArg := l.Argument(i)
+		secondArg, ok := l.ArgumentByIndexAndName(second, firstArg.Name)
+		if !ok {
+			return false
+		}
+		if !l.ValuesAreEqual(firstArg.Value, secondArg.Value) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (l *Lookup) Argument(i int) document.Argument {
+	return l.p.ParsedDefinitions.Arguments[i]
+}
+
+type ArgumentsIterable struct {
+	current int
+	refs    []int
+	l       *Lookup
+}
+
+func (a *ArgumentsIterable) Next() bool {
+	a.current++
+	return len(a.refs)-1 >= a.current
+}
+
+func (a *ArgumentsIterable) Value() (argument document.Argument, ref int) {
+	ref = a.refs[a.current]
+	argument = a.l.Argument(ref)
+	return
+}
+
+func (l *Lookup) ArgumentsIterable(refs []int) ArgumentsIterable {
+	return ArgumentsIterable{
+		current: -1,
+		refs:    refs,
+		l:       l,
+	}
+}
+
+func (l *Lookup) ArgumentByIndexAndName(index []int, name int) (document.Argument, bool) {
+	for _, i := range index {
+		arg := l.Argument(i)
+		if arg.Name == name {
+			return arg, true
+		}
+	}
+	return document.Argument{}, false
+}
+
+func (l *Lookup) ArgumentsDefinition(i int) document.ArgumentsDefinition {
+	if i == -1 {
+		return document.ArgumentsDefinition{}
+	}
+	return l.p.ParsedDefinitions.ArgumentsDefinitions[i]
+}
+
+func (l *Lookup) InputValueDefinitionByNameAndIndex(name int, i []int) (document.InputValueDefinition, bool) {
+	for _, j := range i {
+		definition := l.p.ParsedDefinitions.InputValueDefinitions[j]
+		if name == definition.Name {
+			return definition, true
+		}
+	}
+	return document.InputValueDefinition{}, false
+}
+
+type InputValueDefinitionIterator struct {
+	current int
+	refs    []int
+	l       *Lookup
+}
+
+func (i *InputValueDefinitionIterator) Next() bool {
+	i.current++
+	return len(i.refs)-1 >= i.current
+}
+
+func (i *InputValueDefinitionIterator) Value() (definition document.InputValueDefinition, ref int) {
+	ref = i.refs[i.current]
+	definition = i.l.p.ParsedDefinitions.InputValueDefinitions[ref]
+	return
+}
+
+func (l *Lookup) InputValueDefinitionIterator(refs []int) InputValueDefinitionIterator {
+	return InputValueDefinitionIterator{
+		current: -1,
+		refs:    refs,
+		l:       l,
+	}
+}
+
+func (l *Lookup) ValuesAreEqual(first, second int) bool {
+	a := l.Value(first)
+	b := l.Value(second)
+
+	if a.ValueType != b.ValueType {
+		return false
+	}
+
+	switch a.ValueType {
+	case document.ValueTypeVariable:
+		return bytes.Equal(l.ByteSlice(l.p.ParsedDefinitions.ByteSliceReferences[a.Reference]),
+			l.ByteSlice(l.p.ParsedDefinitions.ByteSliceReferences[b.Reference]))
+	case document.ValueTypeInt:
+		return l.p.ParsedDefinitions.Integers[a.Reference] == l.p.ParsedDefinitions.Integers[b.Reference]
+	case document.ValueTypeFloat:
+		return l.p.ParsedDefinitions.Floats[a.Reference] == l.p.ParsedDefinitions.Floats[b.Reference]
+	case document.ValueTypeString:
+		return bytes.Equal(l.ByteSlice(l.p.ParsedDefinitions.ByteSliceReferences[a.Reference]),
+			l.ByteSlice(l.p.ParsedDefinitions.ByteSliceReferences[b.Reference]))
+	case document.ValueTypeBoolean:
+		return l.p.ParsedDefinitions.Booleans[a.Reference] == l.p.ParsedDefinitions.Booleans[b.Reference]
+	case document.ValueTypeNull:
+		return true
+	case document.ValueTypeEnum:
+		return bytes.Equal(l.ByteSlice(l.p.ParsedDefinitions.ByteSliceReferences[a.Reference]),
+			l.ByteSlice(l.p.ParsedDefinitions.ByteSliceReferences[b.Reference]))
+	case document.ValueTypeList:
+		return l.ValueListsAreEqual(a.Reference, b.Reference)
+	case document.ValueTypeObject:
+		return l.ValueObjectsAreEqual(a.Reference, b.Reference)
+	default:
+		return false
+	}
+}
+
+func (l *Lookup) Value(i int) document.Value {
+	return l.p.ParsedDefinitions.Values[i]
+}
+
+func (l *Lookup) ValueListsAreEqual(first, second int) bool {
+	a := l.p.ParsedDefinitions.ListValues[first]
+	b := l.p.ParsedDefinitions.ListValues[second]
+
+	if len(a) != len(b) {
+		return false
+	}
+
+Outer:
+	for _, left := range a {
+		for _, right := range b {
+			if l.ValuesAreEqual(left, right) {
+				continue Outer
+			}
+		}
+		return false
+	}
+	return true
+}
+
+func (l *Lookup) ValueObjectsAreEqual(first, second int) bool {
+	a := l.p.ParsedDefinitions.ObjectValues[first]
+	b := l.p.ParsedDefinitions.ObjectValues[second]
+
+	if len(a) != len(b) {
+		return false
+	}
+
+	for _, i := range a {
+		left := l.ObjectField(i)
+		right, ok := l.ObjectFieldByIndexAndName(b, left.Name)
+		if !ok {
+			return false
+		}
+
+		if !l.ValuesAreEqual(left.Value, right.Value) {
+			return false
+		}
+	}
+	return true
+}
+
+func (l *Lookup) ObjectField(i int) document.ObjectField {
+	return l.p.ParsedDefinitions.ObjectFields[i]
+}
+
+type ObjectFieldsIterator struct {
+	current int
+	refs    []int
+	l       *Lookup
+}
+
+func (o *ObjectFieldsIterator) Next() bool {
+	o.current++
+	return len(o.refs)-1 >= o.current
+}
+
+func (o *ObjectFieldsIterator) Value() (field document.ObjectField, ref int) {
+	ref = o.refs[o.current]
+	field = o.l.ObjectField(ref)
+	return
+}
+
+func (l *Lookup) ObjectFieldsIterator(refs []int) ObjectFieldsIterator {
+	return ObjectFieldsIterator{
+		current: -1,
+		refs:    refs,
+		l:       l,
+	}
+}
+
+func (l *Lookup) ObjectFieldByIndexAndName(index []int, name int) (document.ObjectField, bool) {
+	for _, i := range index {
+		field := l.ObjectField(i)
+		if name == field.Name {
+			return field, true
+		}
+	}
+	return document.ObjectField{}, false
+}
+
+func (l *Lookup) FieldsDefinitionFromNamedType(name int) (fields []int) {
+
+	_, ok := l.UnionTypeDefinitionByName(name)
+	if ok {
+		return
+	}
+
+	objectType, ok := l.ObjectTypeDefinitionByName(name)
+	if ok {
+		fields = objectType.FieldsDefinition
+		return
+	}
+
+	interfaceType, ok := l.InterfaceTypeDefinitionByName(name)
+	if ok {
+		fields = interfaceType.FieldsDefinition
+		return
+	}
+
+	return
+}
+
+func (l *Lookup) TypesAreEqual(left, right document.Type) bool {
+
+	if left.Kind != right.Kind {
+		return false
+	}
+
+	if left.Kind == document.TypeKindNAMED && left.Name != right.Name {
+		return false
+	}
+
+	if left.OfType == -1 && right.OfType == -1 {
+		return true
+	}
+
+	return l.TypesAreEqual(l.Type(left.OfType), l.Type(right.OfType))
+}
+
+func (l *Lookup) IsLeafNode(typeName int) bool {
+	_, ok := l.ScalarTypeDefinitionByName(typeName)
+	if ok {
+		return true
+	}
+	_, ok = l.EnumTypeDefinitionByName(typeName)
+	return ok
+}
+
+func (l *Lookup) Directive(i int) document.Directive {
+	return l.p.ParsedDefinitions.Directives[i]
+}
+
+type DirectiveIterable struct {
+	current int
+	refs    []int
+	l       *Lookup
+}
+
+func (d *DirectiveIterable) Next() bool {
+	d.current++
+	return len(d.refs)-1 >= d.current
+}
+
+func (d *DirectiveIterable) Value() (directive document.Directive, ref int) {
+	ref = d.refs[d.current]
+	directive = d.l.Directive(ref)
+	return
+}
+
+func (l *Lookup) DirectiveIterable(refs []int) DirectiveIterable {
+	return DirectiveIterable{
+		current: -1,
+		refs:    refs,
+		l:       l,
+	}
+}
+
+func (l *Lookup) DirectiveSet(ref int) document.DirectiveSet {
+	if ref == -1 {
+		return nil
+	}
+	return l.p.ParsedDefinitions.DirectiveSets[ref]
+}
+
+func (l *Lookup) DirectiveDefinitionByName(name int) (document.DirectiveDefinition, bool) {
+	for _, definition := range l.p.ParsedDefinitions.DirectiveDefinitions {
+		if name == definition.Name {
+			return definition, true
+		}
+	}
+	return document.DirectiveDefinition{}, false
+}
+
+func (l *Lookup) IsUniqueFragmentName(fragmentIndex int, name int) bool {
+	for j, k := range l.p.ParsedDefinitions.FragmentDefinitions {
+		if fragmentIndex == j {
+			continue
+		}
+		if name == k.FragmentName {
+			return false
+		}
+	}
+	return true
+}
+
+func (l *Lookup) TypeIsValidFragmentTypeCondition(name int) bool {
+	_, ok := l.UnionTypeDefinitionByName(name)
+	if ok {
+		return true
+	}
+	_, ok = l.InterfaceTypeDefinitionByName(name)
+	if ok {
+		return true
+	}
+	_, ok = l.ObjectTypeDefinitionByName(name)
+	return ok
+}
+
+func (l *Lookup) TypeIsScalarOrEnum(name int) bool {
+	_, ok := l.ScalarTypeDefinitionByName(name)
+	if ok {
+		return true
+	}
+	_, ok = l.EnumTypeDefinitionByName(name)
+	return ok
+}
+
+func (l *Lookup) IsFragmentDefinitionUsedInOperation(name int) bool {
+
+	for _, definitions := range l.p.ParsedDefinitions.OperationDefinitions {
+		set := l.SelectionSet(definitions.SelectionSet)
+		for _, i := range set.FragmentSpreads {
+			spread := l.p.ParsedDefinitions.FragmentSpreads[i]
+			if spread.FragmentName == name {
+				return true
+			}
+		}
+	}
+
+	for _, definitions := range l.p.ParsedDefinitions.Fields {
+		set := l.SelectionSet(definitions.SelectionSet)
+		for _, i := range set.FragmentSpreads {
+			spread := l.p.ParsedDefinitions.FragmentSpreads[i]
+			if spread.FragmentName == name {
+				return true
+			}
+		}
+	}
+
+	for _, definitions := range l.p.ParsedDefinitions.FragmentDefinitions {
+		set := l.SelectionSet(definitions.SelectionSet)
+		for _, i := range set.FragmentSpreads {
+			spread := l.p.ParsedDefinitions.FragmentSpreads[i]
+			if spread.FragmentName == name {
+				return true
+			}
+		}
+	}
+
+	for _, definitions := range l.p.ParsedDefinitions.InlineFragments {
+		set := l.SelectionSet(definitions.SelectionSet)
+		for _, i := range set.FragmentSpreads {
+			spread := l.p.ParsedDefinitions.FragmentSpreads[i]
+			if spread.FragmentName == name {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+func (l *Lookup) SelectionSetContainsFragmentSpread(set document.SelectionSet, spreadIndex int) bool {
+
+	for _, i := range set.FragmentSpreads {
+		if i == spreadIndex {
+			return true
+		}
+	}
+
+	fragmentSpreadIter := l.FragmentSpreadIterable(set.FragmentSpreads)
+	for fragmentSpreadIter.Next() {
+		spread, _ := fragmentSpreadIter.Value()
+		definition, _, ok := l.FragmentDefinitionByName(spread.FragmentName)
+		if ok && l.SelectionSetContainsFragmentSpread(l.SelectionSet(definition.SelectionSet), spreadIndex) {
+			return true
+		}
+	}
+	fieldsIter := l.FieldsIterator(set.Fields)
+	for fieldsIter.Next() {
+		field, _ := fieldsIter.Value()
+		if l.SelectionSetContainsFragmentSpread(l.SelectionSet(field.SelectionSet), spreadIndex) {
+			return true
+		}
+	}
+	inlineFragmentIter := l.InlineFragmentIterable(set.InlineFragments)
+	for inlineFragmentIter.Next() {
+		inlineFragment, _ := inlineFragmentIter.Value()
+		if l.SelectionSetContainsFragmentSpread(l.SelectionSet(inlineFragment.SelectionSet), spreadIndex) {
+			return true
+		}
+	}
+	return false
+}
+
+func (l *Lookup) PossibleSelectionTypes(typeName int, possibleTypeNames *[]int) {
+
+	*possibleTypeNames = append(*possibleTypeNames, typeName)
+
+	objectType, ok := l.ObjectTypeDefinitionByName(typeName)
+	if ok {
+		*possibleTypeNames = append(*possibleTypeNames, objectType.ImplementsInterfaces...)
+		l.UnionTypeDefinitionNamesContainingMember(typeName, possibleTypeNames)
+		return
+	}
+	_, ok = l.InterfaceTypeDefinitionByName(typeName)
+	if ok {
+		for _, objectTypeDefinition := range l.p.ParsedDefinitions.ObjectTypeDefinitions {
+			if l.ObjectTypeDefinitionImplementsInterface(objectTypeDefinition, typeName) {
+				l.PossibleSelectionTypes(objectTypeDefinition.Name, possibleTypeNames)
+			}
+		}
+		return
+	}
+	unionTypeDefinition, ok := l.UnionTypeDefinitionByName(typeName)
+	if ok {
+		*possibleTypeNames = append(*possibleTypeNames, unionTypeDefinition.UnionMemberTypes...)
+		for _, member := range unionTypeDefinition.UnionMemberTypes {
+			l.PossibleSelectionTypes(member, possibleTypeNames)
+		}
+	}
+	return
+}
+
+func (l *Lookup) FieldType(typeName int, fieldName int) (document.Type, bool) {
+	objectTypeDefinition, ok := l.ObjectTypeDefinitionByName(typeName)
+	if ok {
+		definition, ok := l.FieldDefinitionByNameFromIndex(objectTypeDefinition.FieldsDefinition, fieldName)
+		if !ok {
+			return document.Type{}, false
+		}
+		return l.Type(definition.Type), true
+	}
+	interfaceTypeDefinition, ok := l.InterfaceTypeDefinitionByName(typeName)
+	if ok {
+		definition, ok := l.FieldDefinitionByNameFromIndex(interfaceTypeDefinition.FieldsDefinition, fieldName)
+		if !ok {
+			return document.Type{}, false
+		}
+		return l.Type(definition.Type), true
+	}
+	return document.Type{}, false
+}
+
+func (l *Lookup) FieldSelectionsArePossible(onTypeName int, selections document.SelectionSet) bool {
+
+	fieldDefinitions := l.FieldsDefinitionFromNamedType(onTypeName)
+
+	fields := l.FieldsIterator(selections.Fields)
+	for fields.Next() {
+		field, _ := fields.Value()
+
+		if bytes.Equal(l.CachedName(field.Name), []byte("__typename")) {
+			continue
+		}
+
+		fieldDefinition, ok := l.FieldDefinitionByNameFromIndex(fieldDefinitions, field.Name)
+		if !ok {
+			return false
+		}
+
+		fieldDefinitionType := l.UnwrappedNamedType(l.Type(fieldDefinition.Type))
+		if !l.FieldSelectionsArePossible(fieldDefinitionType.Name, l.SelectionSet(field.SelectionSet)) {
+			//return err
+			return false
+		}
+
+		hasSelections := l.SelectionSetHasSelections(l.SelectionSet(field.SelectionSet))
+		isLeafNode := l.IsLeafNode(fieldDefinitionType.Name)
+		if !isLeafNode && !hasSelections {
+			return false
+		}
+	}
+
+	inlineFragments := l.InlineFragmentIterable(selections.InlineFragments)
+	for inlineFragments.Next() {
+		inlineFragment, _ := inlineFragments.Value()
+		if inlineFragment.TypeCondition == -1 {
+			if !l.FieldSelectionsArePossible(onTypeName, l.SelectionSet(inlineFragment.SelectionSet)) {
+				//return err
+				return false
+			}
+		} else {
+			typeCondition := l.Type(inlineFragment.TypeCondition)
+			if !l.FieldSelectionsArePossible(typeCondition.Name, l.SelectionSet(inlineFragment.SelectionSet)) {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+func (l *Lookup) ValueIsValid(value document.Value, typeSystemType document.Type, variableDefinitionRefs []int, inputValueDefinitionHasDefaultValue bool) bool {
+
+	if value.ValueType == document.ValueTypeVariable {
+		variableValue, ok := l.VariableDefinition(value.Reference, variableDefinitionRefs)
+		if !ok {
+			return false
+		}
+
+		variableType := l.Type(variableValue.Type)
+
+		if typeSystemType.Kind == document.TypeKindNON_NULL && (variableType.Kind == document.TypeKindNON_NULL || variableValue.DefaultValue != -1 || inputValueDefinitionHasDefaultValue) {
+			typeSystemType = l.Type(typeSystemType.OfType)
+		}
+
+		if !l.TypeSatisfiesTypeSystemType(typeSystemType, variableType) {
+			return false
+		}
+
+		if variableValue.DefaultValue != -1 {
+			defaultValue := l.Value(variableValue.DefaultValue)
+			return l.ValueIsValid(defaultValue, typeSystemType, variableDefinitionRefs, inputValueDefinitionHasDefaultValue)
+		}
+
+		return true
+	}
+
+	nonNull := typeSystemType.Kind == document.TypeKindNON_NULL
+	if nonNull {
+		typeSystemType = l.Type(typeSystemType.OfType)
+	}
+
+	typeNameBytes := l.CachedName(typeSystemType.Name)
+
+	switch value.ValueType {
+	case document.ValueTypeInt:
+		return bytes.Equal(typeNameBytes, []byte("Float")) || bytes.Equal(typeNameBytes, []byte("Int"))
+	case document.ValueTypeFloat:
+		return bytes.Equal([]byte("Float"), typeNameBytes)
+	case document.ValueTypeString:
+		return bytes.Equal([]byte("String"), typeNameBytes)
+	case document.ValueTypeBoolean:
+		return bytes.Equal([]byte("Boolean"), typeNameBytes)
+	case document.ValueTypeNull:
+		return !nonNull
+	case document.ValueTypeEnum:
+		enumTypeDefinition, ok := l.EnumTypeDefinitionByName(typeSystemType.Name)
+		if !ok {
+			return false
+		}
+		if !l.EnumTypeDefinitionContainsValue(enumTypeDefinition, value.Reference) {
+			return false
+		}
+	case document.ValueTypeList:
+
+		if typeSystemType.Kind != document.TypeKindLIST {
+			return false
+		}
+
+		listType := l.Type(typeSystemType.OfType)
+
+		listValue := l.ListValue(value.Reference)
+		if !l.listValueIsValid(listValue, listType, variableDefinitionRefs) {
+			return false
+		}
+	case document.ValueTypeObject:
+		inputObjectTypeDefinition, ok := l.InputObjectTypeDefinitionByName(typeSystemType.Name)
+		if !ok {
+			return false
+		}
+		objectValue := l.p.ParsedDefinitions.ObjectValues[value.Reference]
+		if !l.objectValueIsValid(objectValue, inputObjectTypeDefinition, variableDefinitionRefs) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (l *Lookup) ListValue(ref int) document.ListValue {
+	return l.p.ParsedDefinitions.ListValues[ref]
+}
+
+func (l *Lookup) listValueIsValid(value document.ListValue, typeSystemType document.Type, variableDefinitionRefs []int) bool {
+	for _, i := range value {
+		listMember := l.Value(i)
+		if !l.ValueIsValid(listMember, typeSystemType, variableDefinitionRefs, false) {
+			return false
+		}
+	}
+	return true
+}
+
+func (l *Lookup) objectValueIsValid(value document.ObjectValue, definition document.InputObjectTypeDefinition, variableDefinitionRefs []int) bool {
+
+	inputFieldsDefinition := l.p.ParsedDefinitions.InputFieldsDefinitions[definition.InputFieldsDefinition]
+
+	inputValueDefinitions := l.InputValueDefinitionIterator(inputFieldsDefinition.InputValueDefinitions)
+	for inputValueDefinitions.Next() {
+		inputValueDefinition, _ := inputValueDefinitions.Value()
+		inputType := l.Type(inputValueDefinition.Type)
+
+		objectField, ok := l.ObjectFieldByIndexAndName(value, inputValueDefinition.Name)
+		if inputType.Kind == document.TypeKindNON_NULL && !ok {
+			//return fmt.Errorf("validateObjectValue: required objectField '%s' missing", string(l.CachedName(inputValueDefinition.Name)))
+			return false
+		} else if !ok {
+			continue
+		}
+
+		objectFieldValue := l.Value(objectField.Value)
+
+		if !l.ValueIsValid(objectFieldValue, inputType, variableDefinitionRefs, l.InputValueDefinitionHasDefaultValue(inputValueDefinition)) {
+			//return errors.Wrap(err, "validateObjectValue->")
+			return false
+		}
+	}
+
+	leftFields := l.ObjectFieldsIterator(value)
+	for leftFields.Next() {
+		left, i := leftFields.Value()
+		_, ok := l.InputValueDefinitionByNameAndIndex(left.Name, inputFieldsDefinition.InputValueDefinitions)
+		if !ok {
+			//return fmt.Errorf("validateObjectValue: input field '%s' not defined", string(l.CachedName(left.Name)))
+			return false
+		}
+		rightFields := l.ObjectFieldsIterator(value)
+		for rightFields.Next() {
+			right, j := rightFields.Value()
+			if i == j {
+				continue
+			}
+			if left.Name == right.Name {
+				//return fmt.Errorf("validateObjectValue: object field '%s' must be unique", string(l.CachedName(left.Name)))
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+func (l *Lookup) InputObjectTypeDefinitionByName(name int) (document.InputObjectTypeDefinition, bool) {
+	for _, definition := range l.p.ParsedDefinitions.InputObjectTypeDefinitions {
+		if definition.Name == name {
+			return definition, true
+		}
+	}
+	return document.InputObjectTypeDefinition{}, false
+}
+
+func (l *Lookup) VariableDefinition(variableName int, variableDefinitionRefs []int) (document.VariableDefinition, bool) {
+
+	iter := l.VariableDefinitionIterator(variableDefinitionRefs)
+	for iter.Next() {
+		variableDefinition, _ := iter.Value()
+		if variableDefinition.Variable == variableName {
+			return variableDefinition, true
+		}
+	}
+
+	return document.VariableDefinition{}, false
+}
+
+func (l *Lookup) EnumTypeDefinitionContainsValue(definition document.EnumTypeDefinition, enumValue int) bool {
+
+	if enumValue == -1 {
+		return false
+	}
+
+	iter := l.EnumValueDefinitionIterator(definition.EnumValuesDefinition)
+
+	for iter.Next() {
+		enumValueDefinition, _ := iter.Value()
+		if enumValueDefinition.EnumValue == enumValue {
+			return true
+		}
+	}
+
+	return false
+}
+
+type EnumValueDefinitionIterator struct {
+	current int
+	refs    []int
+	l       *Lookup
+}
+
+func (e *EnumValueDefinitionIterator) Next() bool {
+	e.current++
+	return len(e.refs)-1 >= e.current
+}
+
+func (e *EnumValueDefinitionIterator) Value() (definition document.EnumValueDefinition, ref int) {
+	ref = e.refs[e.current]
+	definition = e.l.p.ParsedDefinitions.EnumValuesDefinitions[ref]
+	return
+}
+
+func (l *Lookup) EnumValueDefinitionIterator(refs []int) EnumValueDefinitionIterator {
+	return EnumValueDefinitionIterator{
+		current: -1,
+		refs:    refs,
+		l:       l,
+	}
+}
+
+func (l *Lookup) InputValueDefinitionIsRequired(inputValue document.InputValueDefinition) bool {
+	return l.Type(inputValue.Type).Kind == document.TypeKindNON_NULL
+}
+
+func (l *Lookup) SelectionSetHasSelections(set document.SelectionSet) bool {
+	return len(set.Fields)+len(set.FragmentSpreads)+len(set.InlineFragments) > 0
+}
+
+func (l *Lookup) FragmentSelectionsArePossible(onTypeName int, selections document.SelectionSet) bool {
+
+	var possibleTypes []int
+	l.initRefsFromCache(&possibleTypes)
+	l.PossibleSelectionTypes(onTypeName, &possibleTypes)
+
+	inlineFragments := l.InlineFragmentIterable(selections.InlineFragments)
+	for inlineFragments.Next() {
+		fragment, _ := inlineFragments.Value()
+		if fragment.TypeCondition == -1 {
+			continue
+		}
+		typeCondition := l.Type(fragment.TypeCondition)
+		if !l.IntegersContainsMember(possibleTypes, typeCondition.Name) {
+			return false
+		}
+	}
+
+	spreads := l.FragmentSpreadIterable(selections.FragmentSpreads)
+	for spreads.Next() {
+		spread, _ := spreads.Value()
+		fragment, _, ok := l.FragmentDefinitionByName(spread.FragmentName)
+		if !ok {
+			return false
+		}
+		typeCondition := l.Type(fragment.TypeCondition)
+		if typeCondition.Kind != document.TypeKindNAMED {
+			return false
+		}
+		if !l.IntegersContainsMember(possibleTypes, typeCondition.Name) {
+			return false
+		}
+	}
+	return true
+}
+
+func (l *Lookup) IntegersContainsMember(integers []int, possibleMember int) bool {
+	for _, i := range integers {
+		if i == possibleMember {
+			return true
+		}
+	}
+	return false
+}
+
+func (l *Lookup) UnionTypeDefinitionNamesContainingMember(memberName int, nameRefs *[]int) {
+	for _, union := range l.p.ParsedDefinitions.UnionTypeDefinitions {
+		if l.UnionTypeDefinitionContainsType(union, memberName) {
+			*nameRefs = append(*nameRefs, union.Name)
+		}
+	}
+	return
+}
+
+type VariableDefinitionsIterator struct {
+	current int
+	refs    []int
+	l       *Lookup
+}
+
+func (v *VariableDefinitionsIterator) Next() bool {
+	v.current++
+	return len(v.refs)-1 >= v.current
+}
+
+func (v *VariableDefinitionsIterator) Value() (definition document.VariableDefinition, index int) {
+	index = v.refs[v.current]
+	return v.l.p.ParsedDefinitions.VariableDefinitions[index], index
+}
+
+func (l *Lookup) VariableDefinitionIterator(refs []int) VariableDefinitionsIterator {
+	return VariableDefinitionsIterator{
+		l:       l,
+		current: -1,
+		refs:    refs,
+	}
+}
+
+func (l *Lookup) TypeSatisfiesTypeSystemType(typeSystemTypeDefinition document.Type, executableTypeDefinition document.Type) bool {
+	if executableTypeDefinition.Kind == document.TypeKindNON_NULL && typeSystemTypeDefinition.Kind != document.TypeKindNON_NULL {
+		executableTypeDefinition = l.Type(executableTypeDefinition.OfType)
+	}
+	if typeSystemTypeDefinition.Kind != executableTypeDefinition.Kind {
+		return false
+	}
+	if typeSystemTypeDefinition.Kind == document.TypeKindNAMED {
+		if typeSystemTypeDefinition.Name != executableTypeDefinition.Name {
+			return false
+		}
+	}
+	if typeSystemTypeDefinition.OfType == -1 && executableTypeDefinition.OfType == -1 {
+		return true
+	}
+
+	return l.TypeSatisfiesTypeSystemType(l.Type(typeSystemTypeDefinition.OfType), l.Type(executableTypeDefinition.OfType))
+}
+
+func (l *Lookup) DirectiveLocationFromNode(node Node) document.DirectiveLocation {
+	switch node.Kind {
+	case FIELD:
+		return document.DirectiveLocationFIELD
+	case OPERATION_DEFINITION:
+		definition := l.OperationDefinition(node.Ref)
+		switch definition.OperationType {
+		case document.OperationTypeQuery:
+			return document.DirectiveLocationQUERY
+		case document.OperationTypeMutation:
+			return document.DirectiveLocationMUTATION
+		case document.OperationTypeSubscription:
+			return document.DirectiveLocationSUBSCRIPTION
+		}
+	case INLINE_FRAGMENT:
+		return document.DirectiveLocationINLINE_FRAGMENT
+	case FRAGMENT_SPREAD:
+		return document.DirectiveLocationFRAGMENT_SPREAD
+	case FRAGMENT_DEFINITION:
+		return document.DirectiveLocationFRAGMENT_DEFINITION
+	}
+	return document.DirectiveLocationUNKNOWN
+}
+
+func (l *Lookup) InputValueDefinitionHasDefaultValue(definition document.InputValueDefinition) bool {
+	return definition.DefaultValue != -1
+}
+
+func (l *Lookup) OperationTypeName(definition document.OperationDefinition) int {
+	switch definition.OperationType {
+	case document.OperationTypeQuery:
+		return l.p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition.Query
+	case document.OperationTypeMutation:
+		return l.p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition.Mutation
+	case document.OperationTypeSubscription:
+		return l.p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition.Subscription
+	default:
+		return -1
+	}
+}
+
+func (l *Lookup) SelectionSetsAreOfSameResponseShape(leftSet, rightSet TypedSet) bool {
+
+	left := l.SelectionSetCollectedFields(l.SelectionSet(leftSet.SetRef), leftSet.Type.Name)
+	right := l.SelectionSetCollectedFields(l.SelectionSet(rightSet.SetRef), rightSet.Type.Name)
+
+	for {
+		leftNext := left.Next()
+		rightNext := right.Next()
+		if leftNext == false && rightNext == false {
+			return true
+		} else if leftNext != rightNext {
+			return false
+		}
+
+		leftField := left.Value()
+		rightField := right.Value()
+		if !l.FieldResponseNamesAreEqual(leftField, rightField) {
+			return false
+		}
+
+		leftType, ok := l.FieldType(leftSet.Type.Name, leftField.Name)
+		if !ok {
+			return false
+		}
+		rightType, ok := l.FieldType(rightSet.Type.Name, rightField.Name)
+		if !ok {
+			return false
+		}
+
+		if l.typesAreLeafNodes(leftType, rightType) && !l.TypesAreEqual(leftType, rightType) {
+			return false
+		}
+
+		leftFieldTypedSet := TypedSet{
+			Type:   leftType,
+			SetRef: leftField.SelectionSet,
+		}
+
+		rightFieldTypedSet := TypedSet{
+			Type:   rightType,
+			SetRef: rightField.SelectionSet,
+		}
+
+		if !l.SelectionSetsAreOfSameResponseShape(leftFieldTypedSet, rightFieldTypedSet) {
+			return false
+		}
+	}
+}
+
+func (l *Lookup) typesAreLeafNodes(left, right document.Type) bool {
+	return l.IsLeafNode(l.UnwrappedNamedType(left).Name) &&
+		l.IsLeafNode(l.UnwrappedNamedType(right).Name)
+}
+
+func (l *Lookup) FieldResponseNamesAreEqual(left, right document.Field) bool {
+	return l.responseFieldName(left) == l.responseFieldName(right)
+}
+
+func (l *Lookup) responseFieldName(field document.Field) int {
+	if field.Alias != -1 {
+		return field.Alias
+	}
+	return field.Name
+}
+
+func (l *Lookup) FieldNamesAndAliasesAreEqual(left, right document.Field) bool {
+	return left.Name == right.Name && left.Alias == right.Alias
+}
+
+func (l *Lookup) FieldsDeepEqual(left, right document.Field) bool {
+	if !l.FieldNamesAndAliasesAreEqual(left, right) {
+		return false
+	}
+	if !l.ArgumentsAreEqual(l.ArgumentSet(left.ArgumentSet), l.ArgumentSet(right.ArgumentSet)) {
+		return false
+	}
+	leftSet := l.SelectionSet(left.SelectionSet)
+	rightSet := l.SelectionSet(right.SelectionSet)
+	if !l.SelectionSetDeepEqual(leftSet, rightSet) {
+		return false
+	}
+	return true
+}
+
+func (l *Lookup) SelectionSetDeepEqual(left, right document.SelectionSet) bool {
+	if len(left.Fields) != len(right.Fields) {
+		return false
+	}
+	for i := range left.Fields {
+		if !l.FieldsDeepEqual(l.Field(left.Fields[i]), l.Field(right.Fields[i])) {
+			return false
+		}
+	}
+	if len(left.InlineFragments) != len(right.InlineFragments) {
+		return false
+	}
+	for i := range left.InlineFragments {
+		if !l.InlineFragmentsDeepEqual(l.InlineFragment(left.InlineFragments[i]), l.InlineFragment(right.InlineFragments[i])) {
+			return false
+		}
+	}
+	if len(left.FragmentSpreads) != len(right.FragmentSpreads) {
+		return false
+	}
+	for i := range left.FragmentSpreads {
+		if !l.FragmentSpreadsDeepEqual(l.FragmentSpread(left.FragmentSpreads[i]), l.FragmentSpread(right.FragmentSpreads[i])) {
+			return false
+		}
+	}
+	return true
+}
+
+// TODO: add directives
+func (l *Lookup) InlineFragmentsDeepEqual(left, right document.InlineFragment) bool {
+	if !l.SelectionSetDeepEqual(l.SelectionSet(left.SelectionSet), l.SelectionSet(right.SelectionSet)) {
+		return false
+	}
+	return true
+}
+
+func (l *Lookup) FragmentSpreadsDeepEqual(left, right document.FragmentSpread) bool {
+	if left.FragmentName != right.FragmentName {
+		return false
+	}
+	return true
+}
