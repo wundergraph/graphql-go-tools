@@ -11,7 +11,7 @@ func (p *Parser) parseField(index *[]int) (err error) {
 	p.initField(&field)
 
 	firstIdent := p.l.Read()
-	field.Name = firstIdent.Literal
+	field.Name = p.putByteSliceReference(firstIdent.Literal)
 	field.Position.MergeStartIntoStart(firstIdent.TextPosition)
 
 	hasAlias := p.peekExpect(keyword.COLON, true)
@@ -23,22 +23,34 @@ func (p *Parser) parseField(index *[]int) (err error) {
 			return err
 		}
 
-		field.Name = fieldName.Literal
+		field.Name = p.putByteSliceReference(fieldName.Literal)
 	}
 
-	err = p.parseArguments(&field.Arguments)
+	err = p.parseArgumentSet(&field.ArgumentSet)
 	if err != nil {
 		return
 	}
 
-	err = p.parseDirectives(&field.Directives)
+	err = p.parseDirectives(&field.DirectiveSet)
 	if err != nil {
 		return
 	}
 
 	err = p.parseSelectionSet(&field.SelectionSet)
 
-	if len(field.Arguments) == 0 && len(field.Directives) == 0 && field.SelectionSet.IsEmpty() {
+	var arguments document.ArgumentSet
+	if field.ArgumentSet != -1 {
+		arguments = p.ParsedDefinitions.ArgumentSets[field.ArgumentSet]
+	}
+
+	directives := p.ParsedDefinitions.DirectiveSets[field.DirectiveSet]
+
+	var selectionSet document.SelectionSet
+	if field.SelectionSet != -1 {
+		selectionSet = p.ParsedDefinitions.SelectionSets[field.SelectionSet]
+	}
+
+	if len(arguments) == 0 && len(directives) == 0 && selectionSet.IsEmpty() {
 		field.Position.MergeEndIntoEnd(firstIdent.TextPosition)
 	} else {
 		field.Position.MergeStartIntoEnd(p.TextPosition())
