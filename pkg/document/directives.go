@@ -5,9 +5,13 @@ import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 // Directive as specified in:
 // http://facebook.github.io/graphql/draft/#Directive
 type Directive struct {
-	Name      ByteSliceReference
-	Arguments []int
-	Position  position.Position
+	Name        int
+	ArgumentSet int
+	Position    position.Position
+}
+
+func (d Directive) NodeSelectionSet() int {
+	panic("implement me")
 }
 
 func (d Directive) NodeInputFieldsDefinition() int {
@@ -30,7 +34,7 @@ func (d Directive) NodeValueReference() int {
 	panic("implement me")
 }
 
-func (d Directive) NodeUnionMemberTypes() []ByteSliceReference {
+func (d Directive) NodeUnionMemberTypes() []int {
 	panic("implement me")
 }
 
@@ -66,7 +70,7 @@ func (d Directive) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (d Directive) NodeImplementsInterfaces() []ByteSliceReference {
+func (d Directive) NodeImplementsInterfaces() []int {
 	panic("implement me")
 }
 
@@ -86,7 +90,7 @@ func (d Directive) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 
-func (d Directive) NodeAlias() ByteSliceReference {
+func (d Directive) NodeAlias() int {
 	panic("implement me")
 }
 
@@ -114,7 +118,7 @@ func (d Directive) NodeInlineFragments() []int {
 	panic("implement me")
 }
 
-func (d Directive) NodeName() ByteSliceReference {
+func (d Directive) NodeName() int {
 	return d.Name
 }
 
@@ -122,11 +126,11 @@ func (d Directive) NodeDescription() ByteSliceReference {
 	panic("implement me")
 }
 
-func (d Directive) NodeArguments() []int {
-	return d.Arguments
+func (d Directive) NodeArgumentSet() int {
+	return d.ArgumentSet
 }
 
-func (d Directive) NodeDirectives() []int {
+func (d Directive) NodeDirectiveSet() int {
 	panic("implement me")
 }
 
@@ -137,3 +141,5 @@ func (d Directive) NodeEnumValuesDefinition() []int {
 // Directives as specified in
 // http://facebook.github.io/graphql/draft/#Directives
 type Directives []Directive
+
+type DirectiveSet []int
