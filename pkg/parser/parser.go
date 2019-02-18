@@ -796,13 +796,6 @@ func (p *Parser) putSelectionSet(set document.SelectionSet) int {
 	return len(p.ParsedDefinitions.SelectionSets) - 1
 }
 
-func (p *Parser) areFragmentSpreadsEqual(left, right document.FragmentSpread) bool {
-	return left.FragmentName == right.FragmentName &&
-		p.integersContainSameValues(
-			p.ParsedDefinitions.DirectiveSets[left.DirectiveSet],
-			p.ParsedDefinitions.DirectiveSets[right.DirectiveSet])
-}
-
 func (p *Parser) integersContainSameValues(left []int, right []int) bool {
 	if len(left) != len(right) {
 		return false
@@ -822,26 +815,4 @@ func (p *Parser) integersContainValue(integer []int, want int) bool {
 		}
 	}
 	return false
-}
-
-func (p *Parser) areByteSliceContentsEqual(left, right document.ByteSliceReference) bool {
-	return left.Length() == right.Length() &&
-		bytes.Equal(p.ByteSlice(left), p.ByteSlice(right))
-}
-
-func (p *Parser) areDirectivesEqual(left, right document.Directive) bool {
-	return left.Name == right.Name &&
-		p.integersContainSameValues(
-			p.ParsedDefinitions.ArgumentSets[left.ArgumentSet],
-			p.ParsedDefinitions.ArgumentSets[right.ArgumentSet])
-}
-
-func (p *Parser) areArgumentsEqual(left, right document.Argument) bool {
-	return left.Name == right.Name &&
-		left.Value == right.Value
-}
-
-func (p *Parser) areValuesEqual(left, right document.Value) bool {
-	return left.ValueType == right.ValueType &&
-		left.Reference == right.Reference
 }
