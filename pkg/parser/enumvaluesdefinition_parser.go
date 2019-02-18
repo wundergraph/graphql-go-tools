@@ -25,14 +25,14 @@ func (p *Parser) parseEnumValuesDefinition(index *[]int) error {
 		} else if next == keyword.IDENT {
 			ident := p.l.Read()
 			definition := p.makeEnumValueDefinition()
-			definition.EnumValue = ident.Literal
+			definition.EnumValue = p.putByteSliceReference(ident.Literal)
 			if description != nil {
 				definition.Description = *description
 			}
 
 			description = nil
 
-			err := p.parseDirectives(&definition.Directives)
+			err := p.parseDirectives(&definition.DirectiveSet)
 			if err != nil {
 				return err
 			}
