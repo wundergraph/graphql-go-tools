@@ -2,6 +2,7 @@
 package parser
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer"
@@ -51,6 +52,7 @@ type Parser struct {
 	indexPool         indexPool
 	indexPoolPosition int
 	options           Options
+	cacheStats        cacheStats
 }
 
 // ParsedDefinitions contains all parsed definitions to avoid deeply nested data structures while parsing
@@ -65,7 +67,9 @@ type ParsedDefinitions struct {
 	InlineFragments            document.InlineFragments
 	FragmentSpreads            document.FragmentSpreads
 	Arguments                  document.Arguments
+	ArgumentSets               []document.ArgumentSet
 	Directives                 document.Directives
+	DirectiveSets              []document.DirectiveSet
 	EnumTypeDefinitions        document.EnumTypeDefinitions
 	ArgumentsDefinitions       document.ArgumentsDefinitions
 	EnumValuesDefinitions      document.EnumValueDefinitions
@@ -83,6 +87,7 @@ type ParsedDefinitions struct {
 	ObjectValues               []document.ObjectValue
 	ObjectFields               document.ObjectFields
 	Types                      document.Types
+	SelectionSets              []document.SelectionSet
 
 	ByteSliceReferences []document.ByteSliceReference
 	Integers            []int32
@@ -90,9 +95,47 @@ type ParsedDefinitions struct {
 	Booleans            [2]bool
 }
 
+type cacheStats struct {
+	IndexPoolPosition          int
+	TypeSystemDefinition       int
+	ExecutableDefinition       int
+	OperationDefinitions       int
+	FragmentDefinitions        int
+	VariableDefinitions        int
+	Fields                     int
+	InlineFragments            int
+	FragmentSpreads            int
+	Arguments                  int
+	ArgumentSets               int
+	Directives                 int
+	DirectiveSets              int
+	EnumTypeDefinitions        int
+	ArgumentsDefinitions       int
+	EnumValuesDefinitions      int
+	FieldDefinitions           int
+	InputValueDefinitions      int
+	InputObjectTypeDefinitions int
+	DirectiveDefinitions       int
+	InterfaceTypeDefinitions   int
+	ObjectTypeDefinitions      int
+	ScalarTypeDefinitions      int
+	UnionTypeDefinitions       int
+	InputFieldsDefinitions     int
+	Values                     int
+	ListValues                 int
+	ObjectValues               int
+	ObjectFields               int
+	Types                      int
+	SelectionSets              int
+	ByteSliceReferences        int
+	Integers                   int
+	Floats                     int
+}
+
 // Lexer is the interface used by the Parser to lex tokens
 type Lexer interface {
-	SetInput(input []byte) error
+	SetTypeSystemInput(input []byte) error
+	SetExecutableInput(input []byte) error
 	Read() (tok token.Token)
 	Peek(ignoreWhitespace bool) keyword.Keyword
 	ByteSlice(reference document.ByteSliceReference) document.ByteSlice
@@ -143,7 +186,9 @@ func NewParser(withOptions ...Option) *Parser {
 		InlineFragments:            make(document.InlineFragments, 0, options.minimumSliceSize),
 		FragmentSpreads:            make(document.FragmentSpreads, 0, options.minimumSliceSize),
 		Arguments:                  make(document.Arguments, 0, options.minimumSliceSize),
+		ArgumentSets:               make([]document.ArgumentSet, 0, options.minimumSliceSize),
 		Directives:                 make(document.Directives, 0, options.minimumSliceSize),
+		DirectiveSets:              make([]document.DirectiveSet, 0, options.minimumSliceSize),
 		EnumTypeDefinitions:        make(document.EnumTypeDefinitions, 0, options.minimumSliceSize),
 		EnumValuesDefinitions:      make(document.EnumValueDefinitions, 0, options.minimumSliceSize),
 		ArgumentsDefinitions:       make(document.ArgumentsDefinitions, 0, options.minimumSliceSize),
@@ -161,6 +206,7 @@ func NewParser(withOptions ...Option) *Parser {
 		ObjectValues:               make([]document.ObjectValue, 0, options.minimumSliceSize),
 		ObjectFields:               make(document.ObjectFields, 0, options.minimumSliceSize),
 		Types:                      make(document.Types, 0, options.minimumSliceSize),
+		SelectionSets:              make([]document.SelectionSet, 0, options.minimumSliceSize),
 		Integers:                   make([]int32, 0, options.minimumSliceSize),
 		Floats:                     make([]float32, 0, options.minimumSliceSize),
 		ByteSliceReferences:        make([]document.ByteSliceReference, 0, options.minimumSliceSize),
@@ -181,26 +227,35 @@ func (p *Parser) ByteSlice(reference document.ByteSliceReference) document.ByteS
 	return p.l.ByteSlice(reference)
 }
 
+func (p *Parser) CachedByteSlice(i int) document.ByteSlice {
+	if i == -1 {
+		return nil
+	}
+	return p.l.ByteSlice(p.ParsedDefinitions.ByteSliceReferences[i])
+}
+
 func (p *Parser) TextPosition() position.Position {
 	return p.l.TextPosition()
 }
 
 // ParseTypeSystemDefinition parses a TypeSystemDefinition from an io.Reader
 func (p *Parser) ParseTypeSystemDefinition(input []byte) (err error) {
-	p.resetObjects()
-	err = p.l.SetInput(input)
+	p.resetCaches()
+	err = p.l.SetTypeSystemInput(input)
 	if err != nil {
 		return
 	}
 
 	p.ParsedDefinitions.TypeSystemDefinition, err = p.parseTypeSystemDefinition()
+	p.setCacheStats()
+
 	return err
 }
 
 // ParseExecutableDefinition parses an ExecutableDefinition from an io.Reader
 func (p *Parser) ParseExecutableDefinition(input []byte) (err error) {
-	p.resetObjects()
-	err = p.l.SetInput(input)
+	p.resetExecutableCaches()
+	err = p.l.SetExecutableInput(input)
 	if err != nil {
 		return
 	}
@@ -253,34 +308,36 @@ func (p *Parser) initSelectionSet(set *document.SelectionSet) {
 }
 
 func (p *Parser) initField(field *document.Field) {
-	field.Directives = p.indexPoolGet()
-	field.Arguments = p.indexPoolGet()
-	p.initSelectionSet(&field.SelectionSet)
+	field.Alias = -1
+	field.DirectiveSet = -1
+	field.ArgumentSet = -1
+	field.SelectionSet = -1
 }
 
 func (p *Parser) makeFieldDefinition() document.FieldDefinition {
 	return document.FieldDefinition{
-		Directives:          p.indexPoolGet(),
+		DirectiveSet:        -1,
 		ArgumentsDefinition: -1,
 	}
 }
 
 func (p *Parser) makeEnumTypeDefinition() document.EnumTypeDefinition {
 	return document.EnumTypeDefinition{
-		Directives:           p.indexPoolGet(),
+		DirectiveSet:         -1,
 		EnumValuesDefinition: p.indexPoolGet(),
 	}
 }
 
 func (p *Parser) makeInputValueDefinition() document.InputValueDefinition {
 	return document.InputValueDefinition{
-		Directives: p.indexPoolGet(),
+		DefaultValue: -1,
+		DirectiveSet: -1,
 	}
 }
 
 func (p *Parser) makeInputObjectTypeDefinition() document.InputObjectTypeDefinition {
 	return document.InputObjectTypeDefinition{
-		Directives: p.indexPoolGet(),
+		DirectiveSet: -1,
 	}
 }
 
@@ -293,60 +350,72 @@ func (p *Parser) makeTypeSystemDefinition() document.TypeSystemDefinition {
 		ObjectTypeDefinitions:      p.indexPoolGet(),
 		ScalarTypeDefinitions:      p.indexPoolGet(),
 		UnionTypeDefinitions:       p.indexPoolGet(),
+		SchemaDefinition: document.SchemaDefinition{
+			Query:        -1,
+			Mutation:     -1,
+			Subscription: -1,
+			DirectiveSet: -1,
+		},
 	}
 }
 
 func (p *Parser) makeInterfaceTypeDefinition() document.InterfaceTypeDefinition {
 	return document.InterfaceTypeDefinition{
-		Directives:       p.indexPoolGet(),
+		DirectiveSet:     -1,
 		FieldsDefinition: p.indexPoolGet(),
 	}
 }
 
 func (p *Parser) makeObjectTypeDefinition() document.ObjectTypeDefinition {
 	return document.ObjectTypeDefinition{
-		Directives:       p.indexPoolGet(),
+		DirectiveSet:     -1,
 		FieldsDefinition: p.indexPoolGet(),
 	}
 }
 
 func (p *Parser) makeScalarTypeDefinition() document.ScalarTypeDefinition {
 	return document.ScalarTypeDefinition{
-		Directives: p.indexPoolGet(),
+		DirectiveSet: -1,
 	}
 }
 
 func (p *Parser) makeUnionTypeDefinition() document.UnionTypeDefinition {
 	return document.UnionTypeDefinition{
-		Directives: p.indexPoolGet(),
+		DirectiveSet: -1,
 	}
 }
 
 func (p *Parser) makeEnumValueDefinition() document.EnumValueDefinition {
 	return document.EnumValueDefinition{
-		Directives: p.indexPoolGet(),
+		DirectiveSet: -1,
 	}
 }
 
 func (p *Parser) initFragmentDefinition(definition *document.FragmentDefinition) {
-	definition.Directives = p.indexPoolGet()
-	p.initSelectionSet(&definition.SelectionSet)
+	definition.DirectiveSet = -1
+	definition.SelectionSet = -1
 }
 
 func (p *Parser) initOperationDefinition(definition *document.OperationDefinition) {
-	p.initSelectionSet(&definition.SelectionSet)
-	definition.Directives = p.indexPoolGet()
+	definition.Name = -1
+	definition.DirectiveSet = -1
 	definition.VariableDefinitions = p.indexPoolGet()
+	definition.SelectionSet = -1
 }
 
 func (p *Parser) initInlineFragment(fragment *document.InlineFragment) {
-	fragment.Directives = p.indexPoolGet()
-	p.initSelectionSet(&fragment.SelectionSet)
+	fragment.DirectiveSet = -1
+	fragment.TypeCondition = -1
+	fragment.SelectionSet = -1
+}
+
+func (p *Parser) InitDirectiveSet(set *document.DirectiveSet) {
+	*set = p.indexPoolGet()
 }
 
 func (p *Parser) makeFragmentSpread() document.FragmentSpread {
 	return document.FragmentSpread{
-		Directives: p.indexPoolGet(),
+		DirectiveSet: -1,
 	}
 }
 
@@ -378,6 +447,10 @@ func (p *Parser) makeValue(index *int) document.Value {
 	return value
 }
 
+func (p *Parser) initArgumentSet(set *document.ArgumentSet) {
+	*set = p.indexPoolGet()
+}
+
 func (p *Parser) makeType(index *int) document.Type {
 	documentType := document.Type{
 		OfType: -1,
@@ -395,7 +468,42 @@ func (p *Parser) initInputFieldsDefinition(definition *document.InputFieldsDefin
 	definition.InputValueDefinitions = p.indexPoolGet()
 }
 
-func (p *Parser) resetObjects() {
+func (p *Parser) setCacheStats() {
+	p.cacheStats.IndexPoolPosition = p.indexPoolPosition
+	p.cacheStats.OperationDefinitions = len(p.ParsedDefinitions.OperationDefinitions)
+	p.cacheStats.FragmentDefinitions = len(p.ParsedDefinitions.FragmentDefinitions)
+	p.cacheStats.VariableDefinitions = len(p.ParsedDefinitions.VariableDefinitions)
+	p.cacheStats.Fields = len(p.ParsedDefinitions.Fields)
+	p.cacheStats.InlineFragments = len(p.ParsedDefinitions.InlineFragments)
+	p.cacheStats.FragmentSpreads = len(p.ParsedDefinitions.FragmentSpreads)
+	p.cacheStats.Arguments = len(p.ParsedDefinitions.Arguments)
+	p.cacheStats.ArgumentSets = len(p.ParsedDefinitions.ArgumentSets)
+	p.cacheStats.Directives = len(p.ParsedDefinitions.Directives)
+	p.cacheStats.DirectiveSets = len(p.ParsedDefinitions.DirectiveSets)
+	p.cacheStats.EnumTypeDefinitions = len(p.ParsedDefinitions.EnumTypeDefinitions)
+	p.cacheStats.EnumValuesDefinitions = len(p.ParsedDefinitions.EnumValuesDefinitions)
+	p.cacheStats.FieldDefinitions = len(p.ParsedDefinitions.FieldDefinitions)
+	p.cacheStats.InputValueDefinitions = len(p.ParsedDefinitions.InputValueDefinitions)
+	p.cacheStats.InputObjectTypeDefinitions = len(p.ParsedDefinitions.InputObjectTypeDefinitions)
+	p.cacheStats.DirectiveDefinitions = len(p.ParsedDefinitions.DirectiveDefinitions)
+	p.cacheStats.InterfaceTypeDefinitions = len(p.ParsedDefinitions.InterfaceTypeDefinitions)
+	p.cacheStats.ObjectTypeDefinitions = len(p.ParsedDefinitions.ObjectTypeDefinitions)
+	p.cacheStats.ScalarTypeDefinitions = len(p.ParsedDefinitions.ScalarTypeDefinitions)
+	p.cacheStats.UnionTypeDefinitions = len(p.ParsedDefinitions.UnionTypeDefinitions)
+	p.cacheStats.ByteSliceReferences = len(p.ParsedDefinitions.ByteSliceReferences)
+	p.cacheStats.Values = len(p.ParsedDefinitions.Values)
+	p.cacheStats.Integers = len(p.ParsedDefinitions.Integers)
+	p.cacheStats.Floats = len(p.ParsedDefinitions.Floats)
+	p.cacheStats.ListValues = len(p.ParsedDefinitions.ListValues)
+	p.cacheStats.ObjectValues = len(p.ParsedDefinitions.ObjectValues)
+	p.cacheStats.ObjectFields = len(p.ParsedDefinitions.ObjectFields)
+	p.cacheStats.Types = len(p.ParsedDefinitions.Types)
+	p.cacheStats.SelectionSets = len(p.ParsedDefinitions.SelectionSets)
+	p.cacheStats.ArgumentsDefinitions = len(p.ParsedDefinitions.ArgumentsDefinitions)
+	p.cacheStats.InputFieldsDefinitions = len(p.ParsedDefinitions.InputFieldsDefinitions)
+}
+
+func (p *Parser) resetCaches() {
 
 	p.indexPoolPosition = -1
 
@@ -406,7 +514,9 @@ func (p *Parser) resetObjects() {
 	p.ParsedDefinitions.InlineFragments = p.ParsedDefinitions.InlineFragments[:0]
 	p.ParsedDefinitions.FragmentSpreads = p.ParsedDefinitions.FragmentSpreads[:0]
 	p.ParsedDefinitions.Arguments = p.ParsedDefinitions.Arguments[:0]
+	p.ParsedDefinitions.ArgumentSets = p.ParsedDefinitions.ArgumentSets[:0]
 	p.ParsedDefinitions.Directives = p.ParsedDefinitions.Directives[:0]
+	p.ParsedDefinitions.DirectiveSets = p.ParsedDefinitions.DirectiveSets[:0]
 	p.ParsedDefinitions.EnumTypeDefinitions = p.ParsedDefinitions.EnumTypeDefinitions[:0]
 	p.ParsedDefinitions.EnumValuesDefinitions = p.ParsedDefinitions.EnumValuesDefinitions[:0]
 	p.ParsedDefinitions.FieldDefinitions = p.ParsedDefinitions.FieldDefinitions[:0]
@@ -425,8 +535,47 @@ func (p *Parser) resetObjects() {
 	p.ParsedDefinitions.ObjectValues = p.ParsedDefinitions.ObjectValues[:0]
 	p.ParsedDefinitions.ObjectFields = p.ParsedDefinitions.ObjectFields[:0]
 	p.ParsedDefinitions.Types = p.ParsedDefinitions.Types[:0]
+	p.ParsedDefinitions.SelectionSets = p.ParsedDefinitions.SelectionSets[:0]
 	p.ParsedDefinitions.ArgumentsDefinitions = p.ParsedDefinitions.ArgumentsDefinitions[:0]
 	p.ParsedDefinitions.InputFieldsDefinitions = p.ParsedDefinitions.InputFieldsDefinitions[:0]
+}
+
+func (p *Parser) resetExecutableCaches() {
+
+	s := p.cacheStats
+
+	p.indexPoolPosition = s.IndexPoolPosition
+	p.ParsedDefinitions.OperationDefinitions = p.ParsedDefinitions.OperationDefinitions[:s.OperationDefinitions]
+	p.ParsedDefinitions.FragmentDefinitions = p.ParsedDefinitions.FragmentDefinitions[:s.FragmentDefinitions]
+	p.ParsedDefinitions.VariableDefinitions = p.ParsedDefinitions.VariableDefinitions[:s.VariableDefinitions]
+	p.ParsedDefinitions.Fields = p.ParsedDefinitions.Fields[:s.Fields]
+	p.ParsedDefinitions.InlineFragments = p.ParsedDefinitions.InlineFragments[:s.InlineFragments]
+	p.ParsedDefinitions.FragmentSpreads = p.ParsedDefinitions.FragmentSpreads[:s.FragmentSpreads]
+	p.ParsedDefinitions.Arguments = p.ParsedDefinitions.Arguments[:s.Arguments]
+	p.ParsedDefinitions.ArgumentSets = p.ParsedDefinitions.ArgumentSets[:s.ArgumentSets]
+	p.ParsedDefinitions.Directives = p.ParsedDefinitions.Directives[:s.Directives]
+	p.ParsedDefinitions.DirectiveSets = p.ParsedDefinitions.DirectiveSets[:s.DirectiveSets]
+	p.ParsedDefinitions.EnumTypeDefinitions = p.ParsedDefinitions.EnumTypeDefinitions[:s.EnumTypeDefinitions]
+	p.ParsedDefinitions.EnumValuesDefinitions = p.ParsedDefinitions.EnumValuesDefinitions[:s.EnumValuesDefinitions]
+	p.ParsedDefinitions.FieldDefinitions = p.ParsedDefinitions.FieldDefinitions[:s.FieldDefinitions]
+	p.ParsedDefinitions.InputValueDefinitions = p.ParsedDefinitions.InputValueDefinitions[:s.InputValueDefinitions]
+	p.ParsedDefinitions.InputObjectTypeDefinitions = p.ParsedDefinitions.InputObjectTypeDefinitions[:s.InputObjectTypeDefinitions]
+	p.ParsedDefinitions.DirectiveDefinitions = p.ParsedDefinitions.DirectiveDefinitions[:s.DirectiveDefinitions]
+	p.ParsedDefinitions.InterfaceTypeDefinitions = p.ParsedDefinitions.InterfaceTypeDefinitions[:s.InterfaceTypeDefinitions]
+	p.ParsedDefinitions.ObjectTypeDefinitions = p.ParsedDefinitions.ObjectTypeDefinitions[:s.ObjectTypeDefinitions]
+	p.ParsedDefinitions.ScalarTypeDefinitions = p.ParsedDefinitions.ScalarTypeDefinitions[:s.ScalarTypeDefinitions]
+	p.ParsedDefinitions.UnionTypeDefinitions = p.ParsedDefinitions.UnionTypeDefinitions[:s.UnionTypeDefinitions]
+	p.ParsedDefinitions.ByteSliceReferences = p.ParsedDefinitions.ByteSliceReferences[:s.ByteSliceReferences]
+	p.ParsedDefinitions.Values = p.ParsedDefinitions.Values[:s.Values]
+	p.ParsedDefinitions.Integers = p.ParsedDefinitions.Integers[:s.Integers]
+	p.ParsedDefinitions.Floats = p.ParsedDefinitions.Floats[:s.Floats]
+	p.ParsedDefinitions.ListValues = p.ParsedDefinitions.ListValues[:s.ListValues]
+	p.ParsedDefinitions.ObjectValues = p.ParsedDefinitions.ObjectValues[:s.ObjectValues]
+	p.ParsedDefinitions.ObjectFields = p.ParsedDefinitions.ObjectFields[:s.ObjectFields]
+	p.ParsedDefinitions.Types = p.ParsedDefinitions.Types[:s.Types]
+	p.ParsedDefinitions.SelectionSets = p.ParsedDefinitions.SelectionSets[:s.SelectionSets]
+	p.ParsedDefinitions.ArgumentsDefinitions = p.ParsedDefinitions.ArgumentsDefinitions[:s.ArgumentsDefinitions]
+	p.ParsedDefinitions.InputFieldsDefinitions = p.ParsedDefinitions.InputFieldsDefinitions[:s.InputFieldsDefinitions]
 }
 
 func (p *Parser) putOperationDefinition(definition document.OperationDefinition) int {
@@ -455,6 +604,16 @@ func (p *Parser) putInlineFragment(fragment document.InlineFragment) int {
 }
 
 func (p *Parser) putFragmentSpread(spread document.FragmentSpread) int {
+
+	for i, current := range p.ParsedDefinitions.FragmentSpreads {
+		if spread.FragmentName == current.FragmentName &&
+			p.integersContainSameValues(
+				p.ParsedDefinitions.DirectiveSets[spread.DirectiveSet],
+				p.ParsedDefinitions.DirectiveSets[current.DirectiveSet]) {
+			return i
+		}
+	}
+
 	p.ParsedDefinitions.FragmentSpreads = append(p.ParsedDefinitions.FragmentSpreads, spread)
 	return len(p.ParsedDefinitions.FragmentSpreads) - 1
 }
@@ -520,6 +679,20 @@ func (p *Parser) putUnionTypeDefinition(definition document.UnionTypeDefinition)
 }
 
 func (p *Parser) putByteSliceReference(slice document.ByteSliceReference) int {
+
+	nextSliceContents := p.ByteSlice(slice)
+	nextSliceLength := slice.End - slice.Start
+
+	for i, ref := range p.ParsedDefinitions.ByteSliceReferences {
+		refLength := ref.End - ref.Start
+		if refLength == nextSliceLength {
+			refContents := p.ByteSlice(ref)
+			if bytes.Equal(refContents, nextSliceContents) {
+				return i
+			}
+		}
+	}
+
 	p.ParsedDefinitions.ByteSliceReferences = append(p.ParsedDefinitions.ByteSliceReferences, slice)
 	return len(p.ParsedDefinitions.ByteSliceReferences) - 1
 }
@@ -529,24 +702,67 @@ func (p *Parser) putValue(value document.Value, index int) {
 }
 
 func (p *Parser) putInteger(integer int32) int {
+
+	for i, known := range p.ParsedDefinitions.Integers {
+		if known == integer {
+			return i
+		}
+	}
+
 	p.ParsedDefinitions.Integers = append(p.ParsedDefinitions.Integers, integer)
 	return len(p.ParsedDefinitions.Integers) - 1
 }
 
 func (p *Parser) putFloat(float float32) int {
+
+	for i, known := range p.ParsedDefinitions.Floats {
+		if known == float {
+			return i
+		}
+	}
+
 	p.ParsedDefinitions.Floats = append(p.ParsedDefinitions.Floats, float)
 	return len(p.ParsedDefinitions.Floats) - 1
 }
 
-func (p *Parser) putListValue(value document.ListValue, index int) {
-	p.ParsedDefinitions.ListValues[index] = value
+func (p *Parser) putListValue(value document.ListValue, index *int) {
+	for i, known := range p.ParsedDefinitions.ListValues {
+		if p.integersContainSameValues(value, known) {
+			p.ParsedDefinitions.ListValues = // delete the dupe
+				append(p.ParsedDefinitions.ListValues[:*index], p.ParsedDefinitions.ListValues[*index+1:]...)
+			*index = i
+			return
+		}
+	}
+	p.ParsedDefinitions.ListValues[*index] = value
 }
 
-func (p *Parser) putObjectValue(value document.ObjectValue, index int) {
-	p.ParsedDefinitions.ObjectValues[index] = value
+func (p *Parser) putObjectValue(value document.ObjectValue, index *int) {
+
+	if len(value) == 0 {
+		p.ParsedDefinitions.ObjectValues[*index] = value
+		return
+	}
+
+	for i, known := range p.ParsedDefinitions.ObjectValues {
+		if p.integersContainSameValues(value, known) {
+			p.ParsedDefinitions.ObjectValues = // delete the dupe
+				append(p.ParsedDefinitions.ObjectValues[:*index], p.ParsedDefinitions.ObjectValues[*index+1:]...)
+			*index = i
+		}
+	}
+
+	p.ParsedDefinitions.ObjectValues[*index] = value
 }
 
 func (p *Parser) putObjectField(field document.ObjectField) int {
+
+	for i, known := range p.ParsedDefinitions.ObjectFields {
+		if field.Name == known.Name && field.Value == known.Value {
+			return i
+		}
+	}
+
 	p.ParsedDefinitions.ObjectFields = append(p.ParsedDefinitions.ObjectFields, field)
 	return len(p.ParsedDefinitions.ObjectFields) - 1
 }
@@ -563,4 +779,69 @@ func (p *Parser) putArgumentsDefinition(definition document.ArgumentsDefinition)
 func (p *Parser) putInputFieldsDefinitions(definition document.InputFieldsDefinition) int {
 	p.ParsedDefinitions.InputFieldsDefinitions = append(p.ParsedDefinitions.InputFieldsDefinitions, definition)
 	return len(p.ParsedDefinitions.InputFieldsDefinitions) - 1
+}
+
+func (p *Parser) putArgumentSet(set document.ArgumentSet) int {
+	p.ParsedDefinitions.ArgumentSets = append(p.ParsedDefinitions.ArgumentSets, set)
+	return len(p.ParsedDefinitions.ArgumentSets) - 1
+}
+
+func (p *Parser) putDirectiveSet(set document.DirectiveSet) int {
+	p.ParsedDefinitions.DirectiveSets = append(p.ParsedDefinitions.DirectiveSets, set)
+	return len(p.ParsedDefinitions.DirectiveSets) - 1
+}
+
+func (p *Parser) putSelectionSet(set document.SelectionSet) int {
+	p.ParsedDefinitions.SelectionSets = append(p.ParsedDefinitions.SelectionSets, set)
+	return len(p.ParsedDefinitions.SelectionSets) - 1
+}
+
+func (p *Parser) areFragmentSpreadsEqual(left, right document.FragmentSpread) bool {
+	return left.FragmentName == right.FragmentName &&
+		p.integersContainSameValues(
+			p.ParsedDefinitions.DirectiveSets[left.DirectiveSet],
+			p.ParsedDefinitions.DirectiveSets[right.DirectiveSet])
+}
+
+func (p *Parser) integersContainSameValues(left []int, right []int) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for _, i := range left {
+		if !p.integersContainValue(right, i) {
+			return false
+		}
+	}
+	return true
+}
+
+func (p *Parser) integersContainValue(integer []int, want int) bool {
+	for _, got := range integer {
+		if want == got {
+			return true
+		}
+	}
+	return false
+}
+
+func (p *Parser) areByteSliceContentsEqual(left, right document.ByteSliceReference) bool {
+	return left.Length() == right.Length() &&
+		bytes.Equal(p.ByteSlice(left), p.ByteSlice(right))
+}
+
+func (p *Parser) areDirectivesEqual(left, right document.Directive) bool {
+	return left.Name == right.Name &&
+		p.integersContainSameValues(
+			p.ParsedDefinitions.ArgumentSets[left.ArgumentSet],
+			p.ParsedDefinitions.ArgumentSets[right.ArgumentSet])
+}
+
+func (p *Parser) areArgumentsEqual(left, right document.Argument) bool {
+	return left.Name == right.Name &&
+		left.Value == right.Value
+}
+
+func (p *Parser) areValuesEqual(left, right document.Value) bool {
+	return left.ValueType == right.ValueType &&
+		left.Reference == right.Reference
 }
