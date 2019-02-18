@@ -20,7 +20,8 @@ func (p *Parser) parseVariableDefinitions(index *[]int) (err error) {
 			variable := p.l.Read()
 
 			variableDefinition := document.VariableDefinition{
-				Variable: variable.Literal,
+				DefaultValue: -1,
+				Variable:     p.putByteSliceReference(variable.Literal),
 			}
 
 			variableDefinition.Position.MergeStartIntoStart(variable.TextPosition)
