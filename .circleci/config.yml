@@ -14,6 +14,6 @@ jobs:
     - run: gometalinter --config ./gometalinter.json ./pkg/**
     - run: go get -u golang.org/x/tools/cmd/cover
     - run: go get -u github.com/mattn/goveralls
-    - run: go test -v -covermode=count -coverprofile=coverage_temp.out ./...
+    - run: go test -v -covermode=count -coverprofile=coverage_temp.out ./... > coverage_temp.out
     - run: cat coverage_temp.out | grep -v "github.com/jensneuse/graphql-go-tools/pkg/document/" > coverage.out
     - run: goveralls -coverprofile=coverage.out -service=circle-ci -repotoken $COVERALLS_TOKEN
