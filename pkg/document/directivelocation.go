@@ -10,6 +10,7 @@ import (
 // http://facebook.github.io/graphql/draft/#DirectiveLocations
 /*
 ENUM(
+UNKNOWN
 QUERY
 MUTATION
 SUBSCRIPTION
