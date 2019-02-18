@@ -30,7 +30,7 @@ func (p *Parser) parseOperationDefinition(index *[]int) (err error) {
 	isNamedOperation := p.peekExpect(keyword.IDENT, false)
 	if isNamedOperation {
 		name := p.l.Read()
-		operationDefinition.Name = name.Literal
+		operationDefinition.Name = p.putByteSliceReference(name.Literal)
 	}
 
 	err = p.parseVariableDefinitions(&operationDefinition.VariableDefinitions)
@@ -38,7 +38,7 @@ func (p *Parser) parseOperationDefinition(index *[]int) (err error) {
 		return
 	}
 
-	err = p.parseDirectives(&operationDefinition.Directives)
+	err = p.parseDirectives(&operationDefinition.DirectiveSet)
 	if err != nil {
 		return
 	}
