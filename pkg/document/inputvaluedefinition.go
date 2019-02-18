@@ -6,11 +6,15 @@ import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 // http://facebook.github.io/graphql/draft/#InputValueDefinition
 type InputValueDefinition struct {
 	Description  ByteSliceReference
-	Name         ByteSliceReference
+	Name         int
 	Type         int
 	DefaultValue int
-	Directives   []int
+	DirectiveSet int
 	Position     position.Position
+}
+
+func (i InputValueDefinition) NodeSelectionSet() int {
+	panic("implement me")
 }
 
 func (i InputValueDefinition) NodeInputFieldsDefinition() int {
@@ -33,7 +37,7 @@ func (i InputValueDefinition) NodeValueReference() int {
 	panic("implement me")
 }
 
-func (i InputValueDefinition) NodeUnionMemberTypes() []ByteSliceReference {
+func (i InputValueDefinition) NodeUnionMemberTypes() []int {
 	panic("implement me")
 }
 
@@ -69,7 +73,7 @@ func (i InputValueDefinition) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (i InputValueDefinition) NodeImplementsInterfaces() []ByteSliceReference {
+func (i InputValueDefinition) NodeImplementsInterfaces() []int {
 	panic("implement me")
 }
 
@@ -81,11 +85,11 @@ func (i InputValueDefinition) NodeDefaultValue() int {
 	return i.DefaultValue
 }
 
-func (i InputValueDefinition) NodeName() ByteSliceReference {
+func (i InputValueDefinition) NodeName() int {
 	return i.Name
 }
 
-func (i InputValueDefinition) NodeAlias() ByteSliceReference {
+func (i InputValueDefinition) NodeAlias() int {
 	panic("implement me")
 }
 
@@ -93,7 +97,7 @@ func (i InputValueDefinition) NodeDescription() ByteSliceReference {
 	return i.Description
 }
 
-func (i InputValueDefinition) NodeArguments() []int {
+func (i InputValueDefinition) NodeArgumentSet() int {
 	panic("implement me")
 }
 
@@ -101,8 +105,8 @@ func (i InputValueDefinition) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 
-func (i InputValueDefinition) NodeDirectives() []int {
-	return i.Directives
+func (i InputValueDefinition) NodeDirectiveSet() int {
+	return i.DirectiveSet
 }
 
 func (i InputValueDefinition) NodeEnumValuesDefinition() []int {
