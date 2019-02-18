@@ -18,7 +18,7 @@ func (p *Parser) parseFragmentDefinition(index *[]int) error {
 		return err
 	}
 
-	fragmentDefinition.FragmentName = fragmentIdent.Literal
+	fragmentDefinition.FragmentName = p.putByteSliceReference(fragmentIdent.Literal)
 
 	_, err = p.readExpect(keyword.ON, "parseFragmentDefinition")
 	if err != nil {
@@ -30,7 +30,7 @@ func (p *Parser) parseFragmentDefinition(index *[]int) error {
 		return err
 	}
 
-	err = p.parseDirectives(&fragmentDefinition.Directives)
+	err = p.parseDirectives(&fragmentDefinition.DirectiveSet)
 	if err != nil {
 		return err
 	}
