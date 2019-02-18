@@ -5,9 +5,13 @@ import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 // FragmentSpread as specified in:
 // http://facebook.github.io/graphql/draft/#FragmentSpread
 type FragmentSpread struct {
-	FragmentName ByteSliceReference
-	Directives   []int
+	FragmentName int
+	DirectiveSet int
 	Position     position.Position
+}
+
+func (f FragmentSpread) NodeSelectionSet() int {
+	panic("implement me")
 }
 
 func (f FragmentSpread) NodeInputFieldsDefinition() int {
@@ -30,7 +34,7 @@ func (f FragmentSpread) NodeValueReference() int {
 	panic("implement me")
 }
 
-func (f FragmentSpread) NodeUnionMemberTypes() []ByteSliceReference {
+func (f FragmentSpread) NodeUnionMemberTypes() []int {
 	panic("implement me")
 }
 
@@ -66,7 +70,7 @@ func (f FragmentSpread) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (f FragmentSpread) NodeImplementsInterfaces() []ByteSliceReference {
+func (f FragmentSpread) NodeImplementsInterfaces() []int {
 	panic("implement me")
 }
 
@@ -82,7 +86,7 @@ func (f FragmentSpread) NodeFieldsDefinition() []int {
 	panic("implement me")
 }
 
-func (f FragmentSpread) NodeAlias() ByteSliceReference {
+func (f FragmentSpread) NodeAlias() int {
 	panic("implement me")
 }
 
@@ -94,7 +98,7 @@ func (f FragmentSpread) NodeOperationType() OperationType {
 	panic("implement me")
 }
 
-func (f FragmentSpread) NodeName() ByteSliceReference {
+func (f FragmentSpread) NodeName() int {
 	return f.FragmentName
 }
 
@@ -102,12 +106,12 @@ func (f FragmentSpread) NodeDescription() ByteSliceReference {
 	panic("implement me")
 }
 
-func (f FragmentSpread) NodeArguments() []int {
+func (f FragmentSpread) NodeArgumentSet() int {
 	panic("implement me")
 }
 
-func (f FragmentSpread) NodeDirectives() []int {
-	return f.Directives
+func (f FragmentSpread) NodeDirectiveSet() int {
+	return f.DirectiveSet
 }
 
 func (f FragmentSpread) NodeEnumValuesDefinition() []int {
