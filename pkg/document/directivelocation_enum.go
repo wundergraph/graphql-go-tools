@@ -8,8 +8,10 @@ import (
 )
 
 const (
+	// DirectiveLocationUNKNOWN is a DirectiveLocation of type UNKNOWN
+	DirectiveLocationUNKNOWN DirectiveLocation = iota
 	// DirectiveLocationQUERY is a DirectiveLocation of type QUERY
-	DirectiveLocationQUERY DirectiveLocation = iota
+	DirectiveLocationQUERY
 	// DirectiveLocationMUTATION is a DirectiveLocation of type MUTATION
 	DirectiveLocationMUTATION
 	// DirectiveLocationSUBSCRIPTION is a DirectiveLocation of type SUBSCRIPTION
@@ -46,27 +48,28 @@ const (
 	DirectiveLocationINPUT_FIELD_DEFINITION
 )
 
-const _DirectiveLocationName = "QUERYMUTATIONSUBSCRIPTIONFIELDFRAGMENT_DEFINITIONFRAGMENT_SPREADINLINE_FRAGMENTSCHEMASCALAROBJECTFIELD_DEFINITIONARGUMENT_DEFINITIONINTERFACEUNIONENUMENUM_VALUEINPUT_OBJECTINPUT_FIELD_DEFINITION"
+const _DirectiveLocationName = "UNKNOWNQUERYMUTATIONSUBSCRIPTIONFIELDFRAGMENT_DEFINITIONFRAGMENT_SPREADINLINE_FRAGMENTSCHEMASCALAROBJECTFIELD_DEFINITIONARGUMENT_DEFINITIONINTERFACEUNIONENUMENUM_VALUEINPUT_OBJECTINPUT_FIELD_DEFINITION"
 
 var _DirectiveLocationMap = map[DirectiveLocation]string{
-	0:  _DirectiveLocationName[0:5],
-	1:  _DirectiveLocationName[5:13],
-	2:  _DirectiveLocationName[13:25],
-	3:  _DirectiveLocationName[25:30],
-	4:  _DirectiveLocationName[30:49],
-	5:  _DirectiveLocationName[49:64],
-	6:  _DirectiveLocationName[64:79],
-	7:  _DirectiveLocationName[79:85],
-	8:  _DirectiveLocationName[85:91],
-	9:  _DirectiveLocationName[91:97],
-	10: _DirectiveLocationName[97:113],
-	11: _DirectiveLocationName[113:132],
-	12: _DirectiveLocationName[132:141],
-	13: _DirectiveLocationName[141:146],
-	14: _DirectiveLocationName[146:150],
-	15: _DirectiveLocationName[150:160],
-	16: _DirectiveLocationName[160:172],
-	17: _DirectiveLocationName[172:194],
+	0:  _DirectiveLocationName[0:7],
+	1:  _DirectiveLocationName[7:12],
+	2:  _DirectiveLocationName[12:20],
+	3:  _DirectiveLocationName[20:32],
+	4:  _DirectiveLocationName[32:37],
+	5:  _DirectiveLocationName[37:56],
+	6:  _DirectiveLocationName[56:71],
+	7:  _DirectiveLocationName[71:86],
+	8:  _DirectiveLocationName[86:92],
+	9:  _DirectiveLocationName[92:98],
+	10: _DirectiveLocationName[98:104],
+	11: _DirectiveLocationName[104:120],
+	12: _DirectiveLocationName[120:139],
+	13: _DirectiveLocationName[139:148],
+	14: _DirectiveLocationName[148:153],
+	15: _DirectiveLocationName[153:157],
+	16: _DirectiveLocationName[157:167],
+	17: _DirectiveLocationName[167:179],
+	18: _DirectiveLocationName[179:201],
 }
 
 // String implements the Stringer interface.
@@ -78,24 +81,25 @@ func (x DirectiveLocation) String() string {
 }
 
 var _DirectiveLocationValue = map[string]DirectiveLocation{
-	_DirectiveLocationName[0:5]:     0,
-	_DirectiveLocationName[5:13]:    1,
-	_DirectiveLocationName[13:25]:   2,
-	_DirectiveLocationName[25:30]:   3,
-	_DirectiveLocationName[30:49]:   4,
-	_DirectiveLocationName[49:64]:   5,
-	_DirectiveLocationName[64:79]:   6,
-	_DirectiveLocationName[79:85]:   7,
-	_DirectiveLocationName[85:91]:   8,
-	_DirectiveLocationName[91:97]:   9,
-	_DirectiveLocationName[97:113]:  10,
-	_DirectiveLocationName[113:132]: 11,
-	_DirectiveLocationName[132:141]: 12,
-	_DirectiveLocationName[141:146]: 13,
-	_DirectiveLocationName[146:150]: 14,
-	_DirectiveLocationName[150:160]: 15,
-	_DirectiveLocationName[160:172]: 16,
-	_DirectiveLocationName[172:194]: 17,
+	_DirectiveLocationName[0:7]:     0,
+	_DirectiveLocationName[7:12]:    1,
+	_DirectiveLocationName[12:20]:   2,
+	_DirectiveLocationName[20:32]:   3,
+	_DirectiveLocationName[32:37]:   4,
+	_DirectiveLocationName[37:56]:   5,
+	_DirectiveLocationName[56:71]:   6,
+	_DirectiveLocationName[71:86]:   7,
+	_DirectiveLocationName[86:92]:   8,
+	_DirectiveLocationName[92:98]:   9,
+	_DirectiveLocationName[98:104]:  10,
+	_DirectiveLocationName[104:120]: 11,
+	_DirectiveLocationName[120:139]: 12,
+	_DirectiveLocationName[139:148]: 13,
+	_DirectiveLocationName[148:153]: 14,
+	_DirectiveLocationName[153:157]: 15,
+	_DirectiveLocationName[157:167]: 16,
+	_DirectiveLocationName[167:179]: 17,
+	_DirectiveLocationName[179:201]: 18,
 }
 
 // ParseDirectiveLocation attempts to convert a string to a DirectiveLocation
