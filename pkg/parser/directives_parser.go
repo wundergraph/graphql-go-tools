@@ -5,7 +5,10 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
-func (p *Parser) parseDirectives(index *[]int) error {
+func (p *Parser) parseDirectives(index *int) error {
+
+	var set document.DirectiveSet
+	p.InitDirectiveSet(&set)
 
 	for {
 		next := p.l.Peek(true)
@@ -20,21 +23,22 @@ func (p *Parser) parseDirectives(index *[]int) error {
 			}
 
 			directive := document.Directive{
-				Name: ident.Literal,
+				Name: p.putByteSliceReference(ident.Literal),
 			}
 
 			directive.Position.MergeStartIntoStart(start.TextPosition)
 
-			err = p.parseArguments(&directive.Arguments)
+			err = p.parseArgumentSet(&directive.ArgumentSet)
 			if err != nil {
 				return err
 			}
 
 			directive.Position.MergeStartIntoEnd(p.TextPosition())
 
-			*index = append(*index, p.putDirective(directive))
+			set = append(set, p.putDirective(directive))
 
 		} else {
+			*index = p.putDirectiveSet(set)
 			return nil
 		}
 	}
