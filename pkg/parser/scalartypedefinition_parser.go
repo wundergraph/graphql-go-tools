@@ -18,7 +18,7 @@ func (p *Parser) parseScalarTypeDefinition(description *token.Token, index *[]in
 	}
 
 	definition := p.makeScalarTypeDefinition()
-	definition.Name = scalar.Literal
+	definition.Name = p.putByteSliceReference(scalar.Literal)
 
 	if description != nil {
 		definition.Position.MergeStartIntoStart(description.TextPosition)
@@ -26,7 +26,7 @@ func (p *Parser) parseScalarTypeDefinition(description *token.Token, index *[]in
 		definition.Position.MergeStartIntoStart(start.TextPosition)
 	}
 
-	err = p.parseDirectives(&definition.Directives)
+	err = p.parseDirectives(&definition.DirectiveSet)
 	if err != nil {
 		return err
 	}
