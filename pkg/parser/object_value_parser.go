@@ -21,14 +21,14 @@ func (p *Parser) parsePeekedObjectValue(index *int) error {
 		case keyword.CURLYBRACKETCLOSE:
 
 			p.l.Read()
-			p.putObjectValue(objectValue, *index)
+			p.putObjectValue(objectValue, index)
 			return nil
 
 		case keyword.IDENT:
 
 			identToken := p.l.Read()
 			field := document.ObjectField{
-				Name: identToken.Literal,
+				Name: p.putByteSliceReference(identToken.Literal),
 			}
 
 			_, err := p.readExpect(keyword.COLON, "parsePeekedObjectValue")
