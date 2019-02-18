@@ -6,11 +6,15 @@ import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 // http://facebook.github.io/graphql/draft/#OperationDefinition
 type OperationDefinition struct {
 	OperationType       OperationType
-	Name                ByteSliceReference
+	Name                int
 	VariableDefinitions []int
-	Directives          []int
-	SelectionSet        SelectionSet
+	DirectiveSet        int
+	SelectionSet        int
 	Position            position.Position
+}
+
+func (o OperationDefinition) NodeSelectionSet() int {
+	return o.SelectionSet
 }
 
 func (o OperationDefinition) NodeInputFieldsDefinition() int {
@@ -33,7 +37,7 @@ func (o OperationDefinition) NodeValueReference() int {
 	panic("implement me")
 }
 
-func (o OperationDefinition) NodeUnionMemberTypes() []ByteSliceReference {
+func (o OperationDefinition) NodeUnionMemberTypes() []int {
 	panic("implement me")
 }
 
@@ -69,7 +73,7 @@ func (o OperationDefinition) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (o OperationDefinition) NodeImplementsInterfaces() []ByteSliceReference {
+func (o OperationDefinition) NodeImplementsInterfaces() []int {
 	panic("implement me")
 }
 
@@ -89,7 +93,7 @@ func (o OperationDefinition) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 
-func (o OperationDefinition) NodeAlias() ByteSliceReference {
+func (o OperationDefinition) NodeAlias() int {
 	panic("implement me")
 }
 
@@ -106,18 +110,18 @@ func (o OperationDefinition) NodeVariableDefinitions() []int {
 }
 
 func (o OperationDefinition) NodeFields() []int {
-	return o.SelectionSet.Fields
+	panic("implement me")
 }
 
 func (o OperationDefinition) NodeFragmentSpreads() []int {
-	return o.SelectionSet.FragmentSpreads
+	panic("implement me")
 }
 
 func (o OperationDefinition) NodeInlineFragments() []int {
-	return o.SelectionSet.InlineFragments
+	panic("implement me")
 }
 
-func (o OperationDefinition) NodeName() ByteSliceReference {
+func (o OperationDefinition) NodeName() int {
 	return o.Name
 }
 
@@ -125,12 +129,12 @@ func (o OperationDefinition) NodeDescription() ByteSliceReference {
 	panic("implement me")
 }
 
-func (o OperationDefinition) NodeArguments() []int {
+func (o OperationDefinition) NodeArgumentSet() int {
 	panic("implement me")
 }
 
-func (o OperationDefinition) NodeDirectives() []int {
-	return o.Directives
+func (o OperationDefinition) NodeDirectiveSet() int {
+	return o.DirectiveSet
 }
 
 func (o OperationDefinition) NodeEnumValuesDefinition() []int {
