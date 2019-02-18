@@ -3,13 +3,14 @@ package document
 import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 
 type Node interface {
-	NodeName() ByteSliceReference
-	NodeAlias() ByteSliceReference
+	NodeName() int
+	NodeAlias() int
 	NodeDescription() ByteSliceReference
-	NodeArguments() []int
+	NodeArgumentSet() int
 	NodeArgumentsDefinition() int
-	NodeDirectives() []int
+	NodeDirectiveSet() int // Change Signature to int (DirectiveSet)
 	NodeEnumValuesDefinition() []int
+	NodeSelectionSet() int
 	NodeFields() []int
 	NodeFieldsDefinition() []int
 	NodeFragmentSpreads() []int
@@ -19,7 +20,7 @@ type Node interface {
 	NodeOperationType() OperationType
 	NodeValue() int
 	NodeDefaultValue() int
-	NodeImplementsInterfaces() []ByteSliceReference
+	NodeImplementsInterfaces() []int
 	InputValueDefinitionsNode
 	TypeSystemDefinitionNode
 	UnionTypeSystemDefinitionNode
@@ -40,7 +41,7 @@ type TypeSystemDefinitionNode interface {
 }
 
 type UnionTypeSystemDefinitionNode interface {
-	NodeUnionMemberTypes() []ByteSliceReference
+	NodeUnionMemberTypes() []int
 }
 
 type ValueNode interface {
