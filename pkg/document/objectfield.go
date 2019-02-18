@@ -5,9 +5,13 @@ import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 // ObjectField as specified in:
 // http://facebook.github.io/graphql/draft/#ObjectField
 type ObjectField struct {
-	Name     ByteSliceReference
+	Name     int
 	Value    int
 	Position position.Position
+}
+
+func (o ObjectField) NodeSelectionSet() int {
+	panic("implement me")
 }
 
 func (o ObjectField) NodeInputFieldsDefinition() int {
@@ -26,11 +30,11 @@ func (o ObjectField) NodeType() int {
 	panic("implement me")
 }
 
-func (o ObjectField) NodeName() ByteSliceReference {
+func (o ObjectField) NodeName() int {
 	return o.Name
 }
 
-func (o ObjectField) NodeAlias() ByteSliceReference {
+func (o ObjectField) NodeAlias() int {
 	panic("implement me")
 }
 
@@ -38,7 +42,7 @@ func (o ObjectField) NodeDescription() ByteSliceReference {
 	panic("implement me")
 }
 
-func (o ObjectField) NodeArguments() []int {
+func (o ObjectField) NodeArgumentSet() int {
 	panic("implement me")
 }
 
@@ -46,7 +50,7 @@ func (o ObjectField) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 
-func (o ObjectField) NodeDirectives() []int {
+func (o ObjectField) NodeDirectiveSet() int {
 	panic("implement me")
 }
 
@@ -86,7 +90,7 @@ func (o ObjectField) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (o ObjectField) NodeImplementsInterfaces() []ByteSliceReference {
+func (o ObjectField) NodeImplementsInterfaces() []int {
 	panic("implement me")
 }
 
@@ -122,7 +126,7 @@ func (o ObjectField) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (o ObjectField) NodeUnionMemberTypes() []ByteSliceReference {
+func (o ObjectField) NodeUnionMemberTypes() []int {
 	panic("implement me")
 }
 
