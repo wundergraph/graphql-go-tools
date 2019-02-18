@@ -6,10 +6,14 @@ import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 // http://facebook.github.io/graphql/draft/#UnionTypeDefinition
 type UnionTypeDefinition struct {
 	Description      ByteSliceReference
-	Name             ByteSliceReference
+	Name             int
 	UnionMemberTypes UnionMemberTypes
-	Directives       []int
+	DirectiveSet     int
 	Position         position.Position
+}
+
+func (u UnionTypeDefinition) NodeSelectionSet() int {
+	panic("implement me")
 }
 
 func (u UnionTypeDefinition) NodeInputFieldsDefinition() int {
@@ -32,15 +36,15 @@ func (u UnionTypeDefinition) NodeValueReference() int {
 	panic("implement me")
 }
 
-func (u UnionTypeDefinition) NodeUnionMemberTypes() []ByteSliceReference {
+func (u UnionTypeDefinition) NodeUnionMemberTypes() []int {
 	return u.UnionMemberTypes
 }
 
-func (u UnionTypeDefinition) NodeName() ByteSliceReference {
+func (u UnionTypeDefinition) NodeName() int {
 	return u.Name
 }
 
-func (u UnionTypeDefinition) NodeAlias() ByteSliceReference {
+func (u UnionTypeDefinition) NodeAlias() int {
 	panic("implement me")
 }
 
@@ -48,7 +52,7 @@ func (u UnionTypeDefinition) NodeDescription() ByteSliceReference {
 	return u.Description
 }
 
-func (u UnionTypeDefinition) NodeArguments() []int {
+func (u UnionTypeDefinition) NodeArgumentSet() int {
 	panic("implement me")
 }
 
@@ -56,8 +60,8 @@ func (u UnionTypeDefinition) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 
-func (u UnionTypeDefinition) NodeDirectives() []int {
-	return u.Directives
+func (u UnionTypeDefinition) NodeDirectiveSet() int {
+	return u.DirectiveSet
 }
 
 func (u UnionTypeDefinition) NodeEnumValuesDefinition() []int {
@@ -100,7 +104,7 @@ func (u UnionTypeDefinition) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (u UnionTypeDefinition) NodeImplementsInterfaces() []ByteSliceReference {
+func (u UnionTypeDefinition) NodeImplementsInterfaces() []int {
 	panic("implement me")
 }
 
@@ -138,7 +142,7 @@ func (u UnionTypeDefinition) NodeDirectiveDefinitions() []int {
 
 // UnionMemberTypes as specified in:
 // http://facebook.github.io/graphql/draft/#UnionMemberTypes
-type UnionMemberTypes []ByteSliceReference
+type UnionMemberTypes []int
 
 // UnionTypeDefinitions is the plural of UnionTypeDefinition
 type UnionTypeDefinitions []UnionTypeDefinition
