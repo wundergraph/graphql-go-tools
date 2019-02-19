@@ -975,7 +975,6 @@ func (l *Lookup) FieldSelectionsArePossible(onTypeName int, selections document.
 		inlineFragment, _ := inlineFragments.Value()
 		if inlineFragment.TypeCondition == -1 {
 			if !l.FieldSelectionsArePossible(onTypeName, l.SelectionSet(inlineFragment.SelectionSet)) {
-				//return err
 				return false
 			}
 		} else {
@@ -1229,9 +1228,6 @@ func (l *Lookup) FragmentSelectionsArePossible(onTypeName int, selections docume
 			return false
 		}
 		typeCondition := l.Type(fragment.TypeCondition)
-		if typeCondition.Kind != document.TypeKindNAMED {
-			return false
-		}
 		if !l.IntegersContainsMember(possibleTypes, typeCondition.Name) {
 			return false
 		}

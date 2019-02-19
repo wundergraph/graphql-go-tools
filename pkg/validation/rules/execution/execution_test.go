@@ -1895,6 +1895,13 @@ func TestExecutionValidation(t *testing.T) {
 								}
 							}`,
 					Values(), true)
+				run(`
+							query goodComplexDefaultValue() {
+								arguments {
+									floatArgField(floatArg: 1.23)
+								}
+							}`,
+					Values(), true)
 			})
 			t.Run("145 variant", func(t *testing.T) {
 				run(`query goodComplexDefaultValue($search: ComplexInput = { name: 123 }) {
@@ -1919,6 +1926,38 @@ func TestExecutionValidation(t *testing.T) {
 										findDog(complex: { name: "123" })
 									}`,
 					Values(), true)
+			})
+			t.Run("145 variant", func(t *testing.T) {
+				run(`	{
+								dog {
+									doesKnowCommand(dogCommand: SIT)
+								}
+							}`,
+					Values(), true)
+			})
+			t.Run("145 variant", func(t *testing.T) {
+				run(`	{
+								dog {
+									doesKnowCommand(dogCommand: MEOW)
+								}
+							}`,
+					Values(), false)
+			})
+			t.Run("145 variant", func(t *testing.T) {
+				run(`	{
+								dog {
+									doesKnowCommand(dogCommand: [true])
+								}
+							}`,
+					Values(), false)
+			})
+			t.Run("145 variant", func(t *testing.T) {
+				run(`	{
+								dog {
+									doesKnowCommand(dogCommand: {foo: "bar"})
+								}
+							}`,
+					Values(), false)
 			})
 			t.Run("146", func(t *testing.T) {
 				run(`
