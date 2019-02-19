@@ -1037,10 +1037,10 @@
         "Name": 13,
         "OfType": -1,
         "Position": {
-          "LineStart": 26,
-          "LineEnd": 26,
-          "CharStart": 22,
-          "CharEnd": 28
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -1048,10 +1048,10 @@
         "Name": 25,
         "OfType": -1,
         "Position": {
-          "LineStart": 59,
-          "LineEnd": 59,
-          "CharStart": 24,
-          "CharEnd": 36
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       },
       {
@@ -1059,10 +1059,10 @@
         "Name": 13,
         "OfType": -1,
         "Position": {
-          "LineStart": 68,
-          "LineEnd": 68,
-          "CharStart": 21,
-          "CharEnd": 27
+          "LineStart": 0,
+          "LineEnd": 0,
+          "CharStart": 0,
+          "CharEnd": 0
         }
       }
     ],
