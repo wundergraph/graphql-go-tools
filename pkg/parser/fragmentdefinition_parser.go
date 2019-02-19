@@ -25,10 +25,14 @@ func (p *Parser) parseFragmentDefinition(index *[]int) error {
 		return err
 	}
 
-	err = p.parseType(&fragmentDefinition.TypeCondition)
+	typeIdent, err := p.readExpect(keyword.IDENT, "parseFragmentDefinition")
 	if err != nil {
 		return err
 	}
+	fragmentType := p.makeType(&fragmentDefinition.TypeCondition)
+	fragmentType.Name = p.putByteSliceReference(typeIdent.Literal)
+	fragmentType.Kind = document.TypeKindNAMED
+	p.putType(fragmentType, fragmentDefinition.TypeCondition)
 
 	err = p.parseDirectives(&fragmentDefinition.DirectiveSet)
 	if err != nil {
