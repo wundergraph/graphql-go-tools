@@ -2386,7 +2386,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("invalid", func(t *testing.T) {
-		run(`Goland {
+		run(`on Goland {
 					... on 1337 {
 						... on GoAir {
 							go
@@ -2419,7 +2419,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("invalid 2", func(t *testing.T) {
-		run(`Goland {
+		run(`on Goland {
 					... on GoWater @foo(bar: .) {
 						... on GoAir {
 							go
@@ -2449,6 +2449,13 @@ func TestParser(t *testing.T) {
 					),
 				),
 			))
+	})
+	t.Run("invalid 2", func(t *testing.T) {
+		run(`	on Goland {
+						... on [Water] {
+							waterField
+						}
+					}`, mustPanic(mustParseInlineFragments()))
 	})
 
 	// parseInputFieldsDefinition
@@ -4369,6 +4376,104 @@ func TestParser_ParseExecutableDefinition(t *testing.T) {
 	err = parser.ParseExecutableDefinition(input)
 	if err == nil {
 		t.Fatal("want err, got nil")
+	}
+}
+
+func TestParser_CachedByteSlice(t *testing.T) {
+	parser := NewParser()
+	if parser.CachedByteSlice(-1) != nil {
+		panic("want nil")
+	}
+}
+
+func TestParser_putListValue(t *testing.T) {
+	parser := NewParser()
+
+	var valueIndex int
+	value := parser.makeValue(&valueIndex)
+	value.ValueType = document.ValueTypeInt
+	value.Reference = parser.putInteger(1234)
+	parser.putValue(value, valueIndex)
+
+	var listValueIndex int
+	var listValueIndex2 int
+
+	listValue := parser.makeListValue(&listValueIndex)
+	listValue2 := parser.makeListValue(&listValueIndex2)
+	listValue = append(listValue, valueIndex)
+	listValue2 = append(listValue2, valueIndex)
+
+	parser.putListValue(listValue, &listValueIndex)
+	parser.putListValue(listValue2, &listValueIndex2)
+
+	if listValueIndex != listValueIndex2 {
+		panic("expect lists to be merged")
+	}
+
+	if len(parser.ParsedDefinitions.ListValues) != 1 {
+		panic("want duplicate to be deleted")
+	}
+}
+
+func TestParser_putObjectValue(t *testing.T) {
+	parser := NewParser()
+	if err := parser.l.SetTypeSystemInput([]byte("foo bar")); err != nil {
+		panic(err)
+	}
+
+	var iFoo int
+	var iBar int
+	parser.parsePeekedByteSlice(&iFoo)
+	parser.parsePeekedByteSlice(&iBar)
+
+	var iValue1 int
+	value1 := parser.makeValue(&iValue1)
+	value1.ValueType = document.ValueTypeInt
+	value1.Reference = parser.putInteger(1234)
+	parser.putValue(value1, iValue1)
+
+	var iValue2 int
+	value2 := parser.makeValue(&iValue1)
+	value2.ValueType = document.ValueTypeInt
+	value2.Reference = parser.putInteger(1234)
+	parser.putValue(value2, iValue2)
+
+	field1 := parser.putObjectField(document.ObjectField{
+		Name:  iFoo,
+		Value: iValue1,
+	})
+
+	field3 := parser.putObjectField(document.ObjectField{
+		Name:  iFoo,
+		Value: iValue1,
+	})
+
+	if field1 != field3 {
+		panic("want identical fields to be merged")
+	}
+
+	field2 := parser.putObjectField(document.ObjectField{
+		Name:  iBar,
+		Value: iValue2,
+	})
+
+	var iObjectValue1 int
+	objectValue1 := parser.makeObjectValue(&iObjectValue1)
+	objectValue1 = append(objectValue1, field1, field2)
+
+	var iObjectValue2 int
+	objectValue2 := parser.makeObjectValue(&iObjectValue2)
+	objectValue2 = append(objectValue2, field1, field2)
+
+	parser.putObjectValue(objectValue1, &iObjectValue1)
+	parser.putObjectValue(objectValue2, &iObjectValue2)
+
+	if iObjectValue1 != iObjectValue2 {
+		panic("expected object values to merge")
+	}
+
+	if len(parser.ParsedDefinitions.ObjectValues) != 1 {
+		panic("want duplicated to be deleted")
 	}
 }
 
