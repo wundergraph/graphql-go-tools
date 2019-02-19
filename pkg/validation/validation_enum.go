@@ -12,16 +12,10 @@ const (
 	NoDescription Description = iota
 	// AnonymousOperationMustBeLonePerDocument is a Description of type AnonymousOperationMustBeLonePerDocument
 	AnonymousOperationMustBeLonePerDocument
-	// ArgumentNotDefined is a Description of type ArgumentNotDefined
-	ArgumentNotDefined
 	// ArgumentMustBeUnique is a Description of type ArgumentMustBeUnique
 	ArgumentMustBeUnique
 	// ArgumentRequired is a Description of type ArgumentRequired
 	ArgumentRequired
-	// ArgumentsDefinitionMissing is a Description of type ArgumentsDefinitionMissing
-	ArgumentsDefinitionMissing
-	// ArgumentMismatch is a Description of type ArgumentMismatch
-	ArgumentMismatch
 	// DirectiveNotDefined is a Description of type DirectiveNotDefined
 	DirectiveNotDefined
 	// DirectiveLocationInvalid is a Description of type DirectiveLocationInvalid
@@ -42,18 +36,12 @@ const (
 	FragmentRedeclared
 	// FragmentDeclaredButNeverUsed is a Description of type FragmentDeclaredButNeverUsed
 	FragmentDeclaredButNeverUsed
-	// InlineFragmentOnLeafNode is a Description of type InlineFragmentOnLeafNode
-	InlineFragmentOnLeafNode
 	// InputValueNotDefined is a Description of type InputValueNotDefined
 	InputValueNotDefined
 	// MustHaveTypeCondition is a Description of type MustHaveTypeCondition
 	MustHaveTypeCondition
-	// MustHaveNamedTypeCondition is a Description of type MustHaveNamedTypeCondition
-	MustHaveNamedTypeCondition
 	// OperationNameMustBeUnique is a Description of type OperationNameMustBeUnique
 	OperationNameMustBeUnique
-	// QueryObjectTypeNotDefined is a Description of type QueryObjectTypeNotDefined
-	QueryObjectTypeNotDefined
 	// RootTypeNotDefined is a Description of type RootTypeNotDefined
 	RootTypeNotDefined
 	// SelectionSetInvalid is a Description of type SelectionSetInvalid
@@ -76,42 +64,36 @@ const (
 	VariableDefinedButNotUsed
 )
 
-const _DescriptionName = "NoDescriptionAnonymousOperationMustBeLonePerDocumentArgumentNotDefinedArgumentMustBeUniqueArgumentRequiredArgumentsDefinitionMissingArgumentMismatchDirectiveNotDefinedDirectiveLocationInvalidDirectiveMustBeUniquePerLocationFieldNameOrAliasMismatchFieldSelectionsInvalidFragmentNotDefinedFragmentSpreadCyclicReferenceFragmentDefinitionOnLeafNodeFragmentRedeclaredFragmentDeclaredButNeverUsedInlineFragmentOnLeafNodeInputValueNotDefinedMustHaveTypeConditionMustHaveNamedTypeConditionOperationNameMustBeUniqueQueryObjectTypeNotDefinedRootTypeNotDefinedSelectionSetInvalidSelectionSetResponseShapesCannotMergeSubscriptionsMustHaveMaxOneRootFieldTypeNotDefinedValueInvalidVariableMustBeUniquePerOperationVariableMustBeValidInputTypeVariableNotDefinedVariableDefinedButNotUsed"
+const _DescriptionName = "NoDescriptionAnonymousOperationMustBeLonePerDocumentArgumentMustBeUniqueArgumentRequiredDirectiveNotDefinedDirectiveLocationInvalidDirectiveMustBeUniquePerLocationFieldNameOrAliasMismatchFieldSelectionsInvalidFragmentNotDefinedFragmentSpreadCyclicReferenceFragmentDefinitionOnLeafNodeFragmentRedeclaredFragmentDeclaredButNeverUsedInputValueNotDefinedMustHaveTypeConditionOperationNameMustBeUniqueRootTypeNotDefinedSelectionSetInvalidSelectionSetResponseShapesCannotMergeSubscriptionsMustHaveMaxOneRootFieldTypeNotDefinedValueInvalidVariableMustBeUniquePerOperationVariableMustBeValidInputTypeVariableNotDefinedVariableDefinedButNotUsed"
 
 var _DescriptionMap = map[Description]string{
 	0:  _DescriptionName[0:13],
 	1:  _DescriptionName[13:52],
-	2:  _DescriptionName[52:70],
-	3:  _DescriptionName[70:90],
-	4:  _DescriptionName[90:106],
-	5:  _DescriptionName[106:132],
-	6:  _DescriptionName[132:148],
-	7:  _DescriptionName[148:167],
-	8:  _DescriptionName[167:191],
-	9:  _DescriptionName[191:223],
-	10: _DescriptionName[223:247],
-	11: _DescriptionName[247:269],
-	12: _DescriptionName[269:287],
-	13: _DescriptionName[287:316],
-	14: _DescriptionName[316:344],
-	15: _DescriptionName[344:362],
-	16: _DescriptionName[362:390],
-	17: _DescriptionName[390:414],
-	18: _DescriptionName[414:434],
-	19: _DescriptionName[434:455],
-	20: _DescriptionName[455:481],
-	21: _DescriptionName[481:506],
-	22: _DescriptionName[506:531],
-	23: _DescriptionName[531:549],
-	24: _DescriptionName[549:568],
-	25: _DescriptionName[568:605],
-	26: _DescriptionName[605:641],
-	27: _DescriptionName[641:655],
-	28: _DescriptionName[655:667],
-	29: _DescriptionName[667:699],
-	30: _DescriptionName[699:727],
-	31: _DescriptionName[727:745],
-	32: _DescriptionName[745:770],
+	2:  _DescriptionName[52:72],
+	3:  _DescriptionName[72:88],
+	4:  _DescriptionName[88:107],
+	5:  _DescriptionName[107:131],
+	6:  _DescriptionName[131:163],
+	7:  _DescriptionName[163:187],
+	8:  _DescriptionName[187:209],
+	9:  _DescriptionName[209:227],
+	10: _DescriptionName[227:256],
+	11: _DescriptionName[256:284],
+	12: _DescriptionName[284:302],
+	13: _DescriptionName[302:330],
+	14: _DescriptionName[330:350],
+	15: _DescriptionName[350:371],
+	16: _DescriptionName[371:396],
+	17: _DescriptionName[396:414],
+	18: _DescriptionName[414:433],
+	19: _DescriptionName[433:470],
+	20: _DescriptionName[470:506],
+	21: _DescriptionName[506:520],
+	22: _DescriptionName[520:532],
+	23: _DescriptionName[532:564],
+	24: _DescriptionName[564:592],
+	25: _DescriptionName[592:610],
+	26: _DescriptionName[610:635],
 }
 
 // String implements the Stringer interface.
@@ -125,37 +107,31 @@ func (x Description) String() string {
 var _DescriptionValue = map[string]Description{
 	_DescriptionName[0:13]:    0,
 	_DescriptionName[13:52]:   1,
-	_DescriptionName[52:70]:   2,
-	_DescriptionName[70:90]:   3,
-	_DescriptionName[90:106]:  4,
-	_DescriptionName[106:132]: 5,
-	_DescriptionName[132:148]: 6,
-	_DescriptionName[148:167]: 7,
-	_DescriptionName[167:191]: 8,
-	_DescriptionName[191:223]: 9,
-	_DescriptionName[223:247]: 10,
-	_DescriptionName[247:269]: 11,
-	_DescriptionName[269:287]: 12,
-	_DescriptionName[287:316]: 13,
-	_DescriptionName[316:344]: 14,
-	_DescriptionName[344:362]: 15,
-	_DescriptionName[362:390]: 16,
-	_DescriptionName[390:414]: 17,
-	_DescriptionName[414:434]: 18,
-	_DescriptionName[434:455]: 19,
-	_DescriptionName[455:481]: 20,
-	_DescriptionName[481:506]: 21,
-	_DescriptionName[506:531]: 22,
-	_DescriptionName[531:549]: 23,
-	_DescriptionName[549:568]: 24,
-	_DescriptionName[568:605]: 25,
-	_DescriptionName[605:641]: 26,
-	_DescriptionName[641:655]: 27,
-	_DescriptionName[655:667]: 28,
-	_DescriptionName[667:699]: 29,
-	_DescriptionName[699:727]: 30,
-	_DescriptionName[727:745]: 31,
-	_DescriptionName[745:770]: 32,
+	_DescriptionName[52:72]:   2,
+	_DescriptionName[72:88]:   3,
+	_DescriptionName[88:107]:  4,
+	_DescriptionName[107:131]: 5,
+	_DescriptionName[131:163]: 6,
+	_DescriptionName[163:187]: 7,
+	_DescriptionName[187:209]: 8,
+	_DescriptionName[209:227]: 9,
+	_DescriptionName[227:256]: 10,
+	_DescriptionName[256:284]: 11,
+	_DescriptionName[284:302]: 12,
+	_DescriptionName[302:330]: 13,
+	_DescriptionName[330:350]: 14,
+	_DescriptionName[350:371]: 15,
+	_DescriptionName[371:396]: 16,
+	_DescriptionName[396:414]: 17,
+	_DescriptionName[414:433]: 18,
+	_DescriptionName[433:470]: 19,
+	_DescriptionName[470:506]: 20,
+	_DescriptionName[506:520]: 21,
+	_DescriptionName[520:532]: 22,
+	_DescriptionName[532:564]: 23,
+	_DescriptionName[564:592]: 24,
+	_DescriptionName[592:610]: 25,
+	_DescriptionName[610:635]: 26,
 }
 
 // ParseDescription attempts to convert a string to a Description

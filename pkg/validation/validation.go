@@ -63,11 +63,8 @@ type RuleName int
 ENUM(
 NoDescription
 AnonymousOperationMustBeLonePerDocument
-ArgumentNotDefined
 ArgumentMustBeUnique
 ArgumentRequired
-ArgumentsDefinitionMissing
-ArgumentMismatch
 DirectiveNotDefined
 DirectiveLocationInvalid
 DirectiveMustBeUniquePerLocation
@@ -78,12 +75,8 @@ FragmentSpreadCyclicReference
 FragmentDefinitionOnLeafNode
 FragmentRedeclared
 FragmentDeclaredButNeverUsed
-InlineFragmentOnLeafNode
 InputValueNotDefined
-MustHaveTypeCondition
-MustHaveNamedTypeCondition
 OperationNameMustBeUnique
-QueryObjectTypeNotDefined
 RootTypeNotDefined
 SelectionSetInvalid
 SelectionSetResponseShapesCannotMerge
