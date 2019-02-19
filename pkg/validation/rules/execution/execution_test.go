@@ -1151,12 +1151,6 @@ func TestExecutionValidation(t *testing.T) {
 							}`,
 					FieldSelections(), true)
 			})
-			t.Run("113 variant", func(t *testing.T) {
-				run(`	fragment scalarSelection on [Dog] {
-								barkVolume
-							}`,
-					FieldSelections(), false)
-			})
 			t.Run("114", func(t *testing.T) {
 				run(`	fragment scalarSelectionsNotAllowedOnInt on Dog {
 								barkVolume {
@@ -1625,15 +1619,6 @@ func TestExecutionValidation(t *testing.T) {
 						Fragments(), true)
 				})
 				t.Run("132 variant", func(t *testing.T) {
-					run(`	fragment dogNames on [Query] {
-									dog { name }
-								}
-								{
-									...dogNames
-								}`,
-						Fragments(), false)
-				})
-				t.Run("132 variant", func(t *testing.T) {
 					run(`	fragment catNames on Query {
 									dog { name }
 								}
@@ -1760,19 +1745,6 @@ func TestExecutionValidation(t *testing.T) {
 										}
 									}
 									fragment catInDogFragmentInvalid on Dog {
-										... on Cat {
-											meowVolume
-										}
-									}`,
-							Fragments(), false)
-					})
-					t.Run("138 variant", func(t *testing.T) {
-						run(` {
-										dog {
-											...catInDogFragmentInvalid
-										}
-									}
-									fragment catInDogFragmentInvalid on [Dog] {
 										... on Cat {
 											meowVolume
 										}
