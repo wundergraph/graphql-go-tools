@@ -5,10 +5,14 @@ import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 // VariableDefinition as specified in:
 // http://facebook.github.io/graphql/draft/#VariableDefinition
 type VariableDefinition struct {
-	Variable     ByteSliceReference
+	Variable     int
 	Type         int
 	DefaultValue int
 	Position     position.Position
+}
+
+func (v VariableDefinition) NodeSelectionSet() int {
+	panic("implement me")
 }
 
 func (v VariableDefinition) NodeInputFieldsDefinition() int {
@@ -31,7 +35,7 @@ func (v VariableDefinition) NodeValueReference() int {
 	panic("implement me")
 }
 
-func (v VariableDefinition) NodeUnionMemberTypes() []ByteSliceReference {
+func (v VariableDefinition) NodeUnionMemberTypes() []int {
 	panic("implement me")
 }
 
@@ -67,7 +71,7 @@ func (v VariableDefinition) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (v VariableDefinition) NodeImplementsInterfaces() []ByteSliceReference {
+func (v VariableDefinition) NodeImplementsInterfaces() []int {
 	panic("implement me")
 }
 
@@ -87,7 +91,7 @@ func (v VariableDefinition) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 
-func (v VariableDefinition) NodeAlias() ByteSliceReference {
+func (v VariableDefinition) NodeAlias() int {
 	panic("implement me")
 }
 
@@ -99,7 +103,7 @@ func (v VariableDefinition) NodeType() int {
 	return v.Type
 }
 
-func (v VariableDefinition) NodeName() ByteSliceReference {
+func (v VariableDefinition) NodeName() int {
 	return v.Variable
 }
 
@@ -107,11 +111,11 @@ func (v VariableDefinition) NodeDescription() ByteSliceReference {
 	panic("implement me")
 }
 
-func (v VariableDefinition) NodeArguments() []int {
+func (v VariableDefinition) NodeArgumentSet() int {
 	panic("implement me")
 }
 
-func (v VariableDefinition) NodeDirectives() []int {
+func (v VariableDefinition) NodeDirectiveSet() int {
 	panic("implement me")
 }
 

@@ -24,7 +24,7 @@ func (p *Parser) parseDirectiveDefinition(description *token.Token, index *[]int
 	}
 
 	var definition document.DirectiveDefinition
-	definition.Name = directiveIdent.Literal
+	definition.Name = p.putByteSliceReference(directiveIdent.Literal)
 
 	if description != nil {
 		definition.Position.MergeStartIntoStart(description.TextPosition)

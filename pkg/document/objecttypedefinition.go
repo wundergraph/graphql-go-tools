@@ -2,15 +2,19 @@ package document
 
 import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 
-// ObjectTypeDefinition as specified in:
+// ObjectTypeDefinitionByNameRef as specified in:
 // http://facebook.github.io/graphql/draft/#ObjectTypeDefinition
 type ObjectTypeDefinition struct {
 	Description          ByteSliceReference
-	Name                 ByteSliceReference
+	Name                 int
 	FieldsDefinition     []int
 	ImplementsInterfaces ImplementsInterfaces
-	Directives           []int
+	DirectiveSet         int
 	Position             position.Position
+}
+
+func (o ObjectTypeDefinition) NodeSelectionSet() int {
+	panic("implement me")
 }
 
 func (o ObjectTypeDefinition) NodeInputFieldsDefinition() int {
@@ -33,7 +37,7 @@ func (o ObjectTypeDefinition) NodeValueReference() int {
 	panic("implement me")
 }
 
-func (o ObjectTypeDefinition) NodeUnionMemberTypes() []ByteSliceReference {
+func (o ObjectTypeDefinition) NodeUnionMemberTypes() []int {
 	panic("implement me")
 }
 
@@ -69,15 +73,15 @@ func (o ObjectTypeDefinition) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (o ObjectTypeDefinition) NodeImplementsInterfaces() []ByteSliceReference {
+func (o ObjectTypeDefinition) NodeImplementsInterfaces() []int {
 	return o.ImplementsInterfaces
 }
 
-func (o ObjectTypeDefinition) NodeName() ByteSliceReference {
+func (o ObjectTypeDefinition) NodeName() int {
 	return o.Name
 }
 
-func (o ObjectTypeDefinition) NodeAlias() ByteSliceReference {
+func (o ObjectTypeDefinition) NodeAlias() int {
 	panic("implement me")
 }
 
@@ -85,7 +89,7 @@ func (o ObjectTypeDefinition) NodeDescription() ByteSliceReference {
 	return o.Description
 }
 
-func (o ObjectTypeDefinition) NodeArguments() []int {
+func (o ObjectTypeDefinition) NodeArgumentSet() int {
 	panic("implement me")
 }
 
@@ -93,8 +97,8 @@ func (o ObjectTypeDefinition) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 
-func (o ObjectTypeDefinition) NodeDirectives() []int {
-	return o.Directives
+func (o ObjectTypeDefinition) NodeDirectiveSet() int {
+	return o.DirectiveSet
 }
 
 func (o ObjectTypeDefinition) NodeEnumValuesDefinition() []int {
@@ -137,5 +141,5 @@ func (o ObjectTypeDefinition) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-// ObjectTypeDefinitions is the plural of ObjectTypeDefinition
+// ObjectTypeDefinitions is the plural of ObjectTypeDefinitionByNameRef
 type ObjectTypeDefinitions []ObjectTypeDefinition

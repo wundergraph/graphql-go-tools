@@ -1,9 +1,9 @@
 {
   "SchemaDefinition": {
-    "Query": "Query",
-    "Mutation": "Mutation",
-    "Subscription": "Subscription",
-    "Directives": [],
+    "Query": 0,
+    "Mutation": 1,
+    "Subscription": 2,
+    "DirectiveSet": 0,
     "Position": {
       "LineStart": 2,
       "LineEnd": 6,

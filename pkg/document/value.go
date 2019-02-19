@@ -9,6 +9,10 @@ type Value struct {
 	Position  position.Position
 }
 
+func (v Value) NodeSelectionSet() int {
+	panic("implement me")
+}
+
 func (v Value) NodeInputFieldsDefinition() int {
 	panic("implement me")
 }
@@ -29,11 +33,11 @@ func (v Value) NodeValueReference() int {
 	return v.Reference
 }
 
-func (v Value) NodeName() ByteSliceReference {
+func (v Value) NodeName() int {
 	panic("implement me")
 }
 
-func (v Value) NodeAlias() ByteSliceReference {
+func (v Value) NodeAlias() int {
 	panic("implement me")
 }
 
@@ -41,7 +45,7 @@ func (v Value) NodeDescription() ByteSliceReference {
 	panic("implement me")
 }
 
-func (v Value) NodeArguments() []int {
+func (v Value) NodeArgumentSet() int {
 	panic("implement me")
 }
 
@@ -49,7 +53,7 @@ func (v Value) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 
-func (v Value) NodeDirectives() []int {
+func (v Value) NodeDirectiveSet() int {
 	panic("implement me")
 }
 
@@ -93,7 +97,7 @@ func (v Value) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (v Value) NodeImplementsInterfaces() []ByteSliceReference {
+func (v Value) NodeImplementsInterfaces() []int {
 	panic("implement me")
 }
 
@@ -129,7 +133,7 @@ func (v Value) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (v Value) NodeUnionMemberTypes() []ByteSliceReference {
+func (v Value) NodeUnionMemberTypes() []int {
 	panic("implement me")
 }
 

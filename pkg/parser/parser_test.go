@@ -31,7 +31,7 @@ func TestParser(t *testing.T) {
 
 	run := func(input string, checks ...checkFunc) {
 		parser := NewParser()
-		if err := parser.l.SetInput([]byte(input)); err != nil {
+		if err := parser.l.SetTypeSystemInput([]byte(input)); err != nil {
 			panic(err)
 		}
 		for i, checkFunc := range checks {
@@ -53,7 +53,10 @@ func TestParser(t *testing.T) {
 
 	hasName := func(wantName string) rule {
 		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
-			gotName := string(parser.ByteSlice(node.NodeName()))
+			var gotName string
+			if node.NodeName() != -1 {
+				gotName = string(parser.CachedByteSlice(node.NodeName()))
+			}
 			if wantName != gotName {
 				panic(fmt.Errorf("hasName: want: %s, got: %s [rule: %d, node: %d]", wantName, gotName, ruleIndex, ruleSetIndex))
 			}
@@ -65,9 +68,9 @@ func TestParser(t *testing.T) {
 
 			schemaDefinition := node.(document.SchemaDefinition)
 
-			gotQuery := string(schemaDefinition.Query)
-			gotMutation := string(schemaDefinition.Mutation)
-			gotSubscription := string(schemaDefinition.Subscription)
+			gotQuery := string(parser.CachedByteSlice(schemaDefinition.Query))
+			gotMutation := string(parser.CachedByteSlice(schemaDefinition.Mutation))
+			gotSubscription := string(parser.CachedByteSlice(schemaDefinition.Subscription))
 
 			if operationType == document.OperationTypeQuery && wantTypeName != gotQuery {
 				panic(fmt.Errorf("hasOperationTypeName: want(query): %s, got: %s [check: %d]", wantTypeName, gotQuery, ruleIndex))
@@ -92,7 +95,10 @@ func TestParser(t *testing.T) {
 
 	hasAlias := func(wantAlias string) rule {
 		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
-			gotAlias := string(parser.ByteSlice(node.NodeAlias()))
+			var gotAlias string
+			if node.NodeAlias() != -1 {
+				gotAlias = string(parser.CachedByteSlice(node.NodeAlias()))
+			}
 			if wantAlias != gotAlias {
 				panic(fmt.Errorf("hasAlias: want: %s, got: %s [rule: %d, node: %d]", wantAlias, gotAlias, ruleIndex, ruleSetIndex))
 			}
@@ -163,7 +169,7 @@ func TestParser(t *testing.T) {
 	expectByteSliceValue := func(want string) rule {
 		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 			node = unwrapObjectField(node, parser)
-			got := string(parser.ByteSlice(parser.ParsedDefinitions.ByteSliceReferences[node.NodeValueReference()]))
+			got := string(parser.CachedByteSlice(node.NodeValueReference()))
 			if want != got {
 				panic(fmt.Errorf("expectByteSliceValue: want: %s, got: %s [rule: %d, node: %d]", want, got, ruleIndex, ruleSetIndex))
 			}
@@ -241,7 +247,7 @@ func TestParser(t *testing.T) {
 				node = parser.ParsedDefinitions.Types[inlineFragment.TypeCondition]
 			}
 
-			gotName := string(parser.ByteSlice(node.(document.Type).Name))
+			gotName := string(parser.CachedByteSlice(node.(document.Type).Name))
 			if wantName != gotName {
 				panic(fmt.Errorf("hasTypeName: want: %s, got: %s [rule: %d, node: %d]", wantName, gotName, ruleIndex, ruleSetIndex))
 			}
@@ -268,8 +274,7 @@ func TestParser(t *testing.T) {
 
 	hasByteSliceValue := func(want string) rule {
 		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
-			byteSliceRef := parser.ParsedDefinitions.ByteSliceReferences[node.NodeValueReference()]
-			got := string(parser.ByteSlice(byteSliceRef))
+			got := string(parser.CachedByteSlice(node.NodeValueReference()))
 			if want != got {
 				panic(fmt.Errorf("hasByteSliceValue: want: %s, got: %s [check: %d]", want, got, ruleIndex))
 			}
@@ -386,7 +391,7 @@ func TestParser(t *testing.T) {
 			typeDefinitionIndex := node.NodeUnionMemberTypes()
 
 			for j, want := range members {
-				got := string(parser.ByteSlice(typeDefinitionIndex[j]))
+				got := string(parser.CachedByteSlice(typeDefinitionIndex[j]))
 				if want != got {
 					panic(fmt.Errorf("hasUnionMemberTypes: want: %s, got: %s [check: %d]", want, got, ruleSetIndex))
 				}
@@ -424,7 +429,8 @@ func TestParser(t *testing.T) {
 	hasDirectives := func(rules ...ruleSet) rule {
 		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
-			index := node.NodeDirectives()
+			set := node.NodeDirectiveSet()
+			index := parser.ParsedDefinitions.DirectiveSets[set]
 
 			for i := range rules {
 				ruleSet := rules[i]
@@ -439,7 +445,7 @@ func TestParser(t *testing.T) {
 
 			actual := node.NodeImplementsInterfaces()
 			for i, want := range interfaces {
-				got := string(parser.ByteSlice(actual[i]))
+				got := string(parser.CachedByteSlice(actual[i]))
 
 				if want != got {
 					panic(fmt.Errorf("hasImplementsInterfaces: want(at: %d): %s, got: %s [check: %d]", i, want, got, ruleSetIndex))
@@ -451,6 +457,9 @@ func TestParser(t *testing.T) {
 	hasFields := func(rules ...ruleSet) rule {
 		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
+			if _, ok := node.(document.SelectionSet); !ok {
+				node = parser.ParsedDefinitions.SelectionSets[node.NodeSelectionSet()]
+			}
 			index := node.NodeFields()
 
 			for i := range rules {
@@ -502,7 +511,8 @@ func TestParser(t *testing.T) {
 	hasArguments := func(rules ...ruleSet) rule {
 		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
-			index := node.NodeArguments()
+			set := node.NodeArgumentSet()
+			index := parser.ParsedDefinitions.ArgumentSets[set]
 
 			for i := range rules {
 				ruleSet := rules[i]
@@ -527,6 +537,9 @@ func TestParser(t *testing.T) {
 	hasInlineFragments := func(rules ...ruleSet) rule {
 		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
+			if _, ok := node.(document.SelectionSet); !ok {
+				node = parser.ParsedDefinitions.SelectionSets[node.NodeSelectionSet()]
+			}
 			index := node.NodeInlineFragments()
 
 			for i := range rules {
@@ -565,8 +578,8 @@ func TestParser(t *testing.T) {
 
 	mustParseArguments := func(wantArgumentNodes ...ruleSet) checkFunc {
 		return func(parser *Parser, i int) {
-			var index []int
-			if err := parser.parseArguments(&index); err != nil {
+			var set int
+			if err := parser.parseArgumentSet(&set); err != nil {
 				panic(err)
 			}
 
@@ -627,10 +640,12 @@ func TestParser(t *testing.T) {
 
 	mustParseDirectives := func(directives ...ruleSet) checkFunc {
 		return func(parser *Parser, i int) {
-			var index []int
-			if err := parser.parseDirectives(&index); err != nil {
+			var set int
+			if err := parser.parseDirectives(&set); err != nil {
 				panic(err)
 			}
+
+			index := parser.ParsedDefinitions.DirectiveSets[set]
 
 			for k, rule := range directives {
 				node := parser.ParsedDefinitions.Directives[index[k]]
@@ -740,7 +755,7 @@ func TestParser(t *testing.T) {
 			}
 
 			for j, want := range implements {
-				got := string(parser.ByteSlice(interfaces[j]))
+				got := string(parser.CachedByteSlice(interfaces[j]))
 				if want != got {
 					panic(fmt.Errorf("mustParseImplementsInterfaces: want: %s, got: %s [check: %d]", want, got, i))
 				}
@@ -898,24 +913,26 @@ func TestParser(t *testing.T) {
 
 	mustParseSchemaDefinition := func(rules ...rule) checkFunc {
 		return func(parser *Parser, i int) {
-			var schemaDefinition document.SchemaDefinition
-			err := parser.parseSchemaDefinition(&schemaDefinition)
+			typeSystemDefinition := parser.makeTypeSystemDefinition()
+			err := parser.parseSchemaDefinition(&typeSystemDefinition.SchemaDefinition)
 			if err != nil {
 				panic(err)
 			}
 
 			for k, rule := range rules {
-				rule(schemaDefinition, parser, k, i)
+				rule(typeSystemDefinition.SchemaDefinition, parser, k, i)
 			}
 		}
 	}
 
 	mustParseSelectionSet := func(rules ruleSet) checkFunc {
 		return func(parser *Parser, i int) {
-			var selectionSet document.SelectionSet
-			if err := parser.parseSelectionSet(&selectionSet); err != nil {
+			var ref int
+			if err := parser.parseSelectionSet(&ref); err != nil {
 				panic(err)
 			}
+
+			selectionSet := parser.ParsedDefinitions.SelectionSets[ref]
 
 			rules.eval(selectionSet, parser, i)
 		}
@@ -1650,7 +1667,7 @@ func TestParser(t *testing.T) {
 		run(`
 				Barry allGophers($color: String)@rename(index: 3) {
 					name
-				}`, mustPanic(mustParseExecutableDefinition(nil, nil)))
+				}`, mustParseExecutableDefinition(nil, nil))
 	})
 	t.Run("large nested object", func(t *testing.T) {
 		run(`
@@ -1728,6 +1745,37 @@ func TestParser(t *testing.T) {
 								),
 							),
 						),
+					),
+				),
+			))
+	})
+	t.Run("unnamed operation with unclosed selection", func(t *testing.T) {
+		run(`	{
+						dog {
+							...scalarSelectionsNotAllowedOnInt	
+					}`,
+			mustPanic(mustParseExecutableDefinition(nil, nil)))
+	})
+	t.Run("unnamed operation with fragment", func(t *testing.T) {
+		run(`	{
+						dog {
+							...fieldNotDefined
+						}
+					}
+					fragment fieldNotDefined on Pet {
+  						meowVolume
+					}`,
+			mustParseExecutableDefinition(
+				nodes(
+					node(
+						hasName("fieldNotDefined"),
+						hasTypeName("Pet"),
+					),
+				),
+				nodes(
+					node(
+						hasOperationType(document.OperationTypeQuery),
+						hasName(""),
 					),
 				),
 			))
@@ -2135,6 +2183,33 @@ func TestParser(t *testing.T) {
 				),
 			))
 	})
+	t.Run("fragment with untyped inline fragment", func(t *testing.T) {
+		run(`	fragment inlineFragment2 on Dog {
+  						... @include(if: true) {
+    						name
+  						}
+					}`,
+			mustParseFragmentDefinition(
+				node(
+					hasTypeName("Dog"),
+					hasInlineFragments(
+						node(
+							hasDirectives(
+								node(
+									hasName("include"),
+								),
+							),
+							hasFields(
+								node(
+									hasName("name"),
+								),
+							),
+						),
+					),
+				),
+			),
+		)
+	})
 	t.Run("invalid fragment 1", func(t *testing.T) {
 		run(`
 				fragment MyFragment SomeType{
@@ -2242,7 +2317,7 @@ func TestParser(t *testing.T) {
 	// parseInlineFragment
 
 	t.Run("with nested selectionsets", func(t *testing.T) {
-		run(`Goland {
+		run(`on Goland {
 					... on GoWater {
 						... on GoAir {
 							go
@@ -2290,8 +2365,28 @@ func TestParser(t *testing.T) {
 			),
 		)
 	})
+	t.Run("inline fragment without type condition", func(t *testing.T) {
+		run(`	@include(if: true) {
+    					name
+					}`,
+			mustParseInlineFragments(
+				node(
+					hasDirectives(
+						node(
+							hasName("include"),
+						),
+					),
+					hasFields(
+						node(
+							hasName("name"),
+						),
+					),
+				),
+			),
+		)
+	})
 	t.Run("invalid", func(t *testing.T) {
-		run(`Goland {
+		run(`on Goland {
 					... on 1337 {
 						... on GoAir {
 							go
@@ -2324,7 +2419,7 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("invalid 2", func(t *testing.T) {
-		run(`Goland {
+		run(`on Goland {
 					... on GoWater @foo(bar: .) {
 						... on GoAir {
 							go
@@ -2354,6 +2449,13 @@ func TestParser(t *testing.T) {
 					),
 				),
 			))
+	})
+	t.Run("invalid 2", func(t *testing.T) {
+		run(`	on Goland {
+						... on [Water] {
+							waterField
+						}
+					}`, mustPanic(mustParseInlineFragments()))
 	})
 
 	// parseInputFieldsDefinition
@@ -4264,14 +4366,114 @@ func TestParser(t *testing.T) {
 func TestParser_ParseExecutableDefinition(t *testing.T) {
 	parser := NewParser()
 	input := make([]byte, 65536)
-	_, err := parser.ParseTypeSystemDefinition(input)
+	err := parser.ParseTypeSystemDefinition(input)
 	if err == nil {
 		t.Fatal("want err, got nil")
 	}
 
-	_, err = parser.ParseExecutableDefinition(input)
+	parser = NewParser()
+
+	err = parser.ParseExecutableDefinition(input)
 	if err == nil {
 		t.Fatal("want err, got nil")
+	}
+}
+
+func TestParser_CachedByteSlice(t *testing.T) {
+	parser := NewParser()
+	if parser.CachedByteSlice(-1) != nil {
+		panic("want nil")
+	}
+}
+
+func TestParser_putListValue(t *testing.T) {
+	parser := NewParser()
+
+	var valueIndex int
+	value := parser.makeValue(&valueIndex)
+	value.ValueType = document.ValueTypeInt
+	value.Reference = parser.putInteger(1234)
+	parser.putValue(value, valueIndex)
+
+	var listValueIndex int
+	var listValueIndex2 int
+
+	listValue := parser.makeListValue(&listValueIndex)
+	listValue2 := parser.makeListValue(&listValueIndex2)
+	listValue = append(listValue, valueIndex)
+	listValue2 = append(listValue2, valueIndex)
+
+	parser.putListValue(listValue, &listValueIndex)
+	parser.putListValue(listValue2, &listValueIndex2)
+
+	if listValueIndex != listValueIndex2 {
+		panic("expect lists to be merged")
+	}
+
+	if len(parser.ParsedDefinitions.ListValues) != 1 {
+		panic("want duplicate to be deleted")
+	}
+}
+
+func TestParser_putObjectValue(t *testing.T) {
+	parser := NewParser()
+	if err := parser.l.SetTypeSystemInput([]byte("foo bar")); err != nil {
+		panic(err)
+	}
+
+	var iFoo int
+	var iBar int
+	parser.parsePeekedByteSlice(&iFoo)
+	parser.parsePeekedByteSlice(&iBar)
+
+	var iValue1 int
+	value1 := parser.makeValue(&iValue1)
+	value1.ValueType = document.ValueTypeInt
+	value1.Reference = parser.putInteger(1234)
+	parser.putValue(value1, iValue1)
+
+	var iValue2 int
+	value2 := parser.makeValue(&iValue1)
+	value2.ValueType = document.ValueTypeInt
+	value2.Reference = parser.putInteger(1234)
+	parser.putValue(value2, iValue2)
+
+	field1 := parser.putObjectField(document.ObjectField{
+		Name:  iFoo,
+		Value: iValue1,
+	})
+
+	field3 := parser.putObjectField(document.ObjectField{
+		Name:  iFoo,
+		Value: iValue1,
+	})
+
+	if field1 != field3 {
+		panic("want identical fields to be merged")
+	}
+
+	field2 := parser.putObjectField(document.ObjectField{
+		Name:  iBar,
+		Value: iValue2,
+	})
+
+	var iObjectValue1 int
+	objectValue1 := parser.makeObjectValue(&iObjectValue1)
+	objectValue1 = append(objectValue1, field1, field2)
+
+	var iObjectValue2 int
+	objectValue2 := parser.makeObjectValue(&iObjectValue2)
+	objectValue2 = append(objectValue2, field1, field2)
+
+	parser.putObjectValue(objectValue1, &iObjectValue1)
+	parser.putObjectValue(objectValue2, &iObjectValue2)
+
+	if iObjectValue1 != iObjectValue2 {
+		panic("expected object values to merge")
+	}
+
+	if len(parser.ParsedDefinitions.ObjectValues) != 1 {
+		panic("want duplicated to be deleted")
 	}
 }
 
@@ -4287,12 +4489,12 @@ func TestParser_Starwars(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	def, err := parser.ParseTypeSystemDefinition(starwarsSchema)
+	err = parser.ParseTypeSystemDefinition(starwarsSchema)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	jsonBytes, err := json.MarshalIndent(def, "", "  ")
+	jsonBytes, err := json.MarshalIndent(parser.ParsedDefinitions.TypeSystemDefinition, "", "  ")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -4320,12 +4522,17 @@ func TestParser_IntrospectionQuery(t *testing.T) {
 	}
 
 	parser := NewParser()
-	executableDefinition, err := parser.ParseExecutableDefinition(inputFileData)
+	err = parser.ParseExecutableDefinition(inputFileData)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	jsonBytes, err := json.MarshalIndent(executableDefinition, "", "  ")
+	err = parser.ParseExecutableDefinition(inputFileData)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	jsonBytes, err := json.MarshalIndent(parser.ParsedDefinitions.ExecutableDefinition, "", "  ")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -4366,12 +4573,10 @@ func BenchmarkParser(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 
-		executableDefinition, err := parser.ParseExecutableDefinition(testData)
+		err := parser.ParseExecutableDefinition(testData)
 		if err != nil {
 			b.Fatal(err)
 		}
-
-		_ = executableDefinition
 
 	}
 

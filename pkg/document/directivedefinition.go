@@ -6,10 +6,14 @@ import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 // http://facebook.github.io/graphql/draft/#DirectiveDefinition
 type DirectiveDefinition struct {
 	Description         ByteSliceReference
-	Name                ByteSliceReference
+	Name                int
 	ArgumentsDefinition int
 	DirectiveLocations  DirectiveLocations
 	Position            position.Position
+}
+
+func (d DirectiveDefinition) NodeSelectionSet() int {
+	panic("implement me")
 }
 
 func (d DirectiveDefinition) NodeInputFieldsDefinition() int {
@@ -32,11 +36,11 @@ func (d DirectiveDefinition) NodeValueReference() int {
 	panic("implement me")
 }
 
-func (d DirectiveDefinition) NodeName() ByteSliceReference {
+func (d DirectiveDefinition) NodeName() int {
 	return d.Name
 }
 
-func (d DirectiveDefinition) NodeAlias() ByteSliceReference {
+func (d DirectiveDefinition) NodeAlias() int {
 	panic("implement me")
 }
 
@@ -44,7 +48,7 @@ func (d DirectiveDefinition) NodeDescription() ByteSliceReference {
 	return d.Description
 }
 
-func (d DirectiveDefinition) NodeArguments() []int {
+func (d DirectiveDefinition) NodeArgumentSet() int {
 	panic("implement me")
 }
 
@@ -52,7 +56,7 @@ func (d DirectiveDefinition) NodeArgumentsDefinition() int {
 	return d.ArgumentsDefinition
 }
 
-func (d DirectiveDefinition) NodeDirectives() []int {
+func (d DirectiveDefinition) NodeDirectiveSet() int {
 	panic("implement me")
 }
 
@@ -96,7 +100,7 @@ func (d DirectiveDefinition) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (d DirectiveDefinition) NodeImplementsInterfaces() []ByteSliceReference {
+func (d DirectiveDefinition) NodeImplementsInterfaces() []int {
 	panic("implement me")
 }
 
@@ -132,7 +136,7 @@ func (d DirectiveDefinition) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (d DirectiveDefinition) NodeUnionMemberTypes() []ByteSliceReference {
+func (d DirectiveDefinition) NodeUnionMemberTypes() []int {
 	panic("implement me")
 }
 

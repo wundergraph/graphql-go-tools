@@ -6,11 +6,15 @@ import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 // http://facebook.github.io/graphql/draft/#FieldDefinition
 type FieldDefinition struct {
 	Description         ByteSliceReference
-	Name                ByteSliceReference
+	Name                int
 	ArgumentsDefinition int
 	Type                int
-	Directives          []int
+	DirectiveSet        int
 	Position            position.Position
+}
+
+func (f FieldDefinition) NodeSelectionSet() int {
+	panic("implement me")
 }
 
 func (f FieldDefinition) NodeInputFieldsDefinition() int {
@@ -33,7 +37,7 @@ func (f FieldDefinition) NodeValueReference() int {
 	panic("implement me")
 }
 
-func (f FieldDefinition) NodeUnionMemberTypes() []ByteSliceReference {
+func (f FieldDefinition) NodeUnionMemberTypes() []int {
 	panic("implement me")
 }
 
@@ -69,7 +73,7 @@ func (f FieldDefinition) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (f FieldDefinition) NodeImplementsInterfaces() []ByteSliceReference {
+func (f FieldDefinition) NodeImplementsInterfaces() []int {
 	panic("implement me")
 }
 
@@ -89,11 +93,11 @@ func (f FieldDefinition) NodeArgumentsDefinition() int {
 	return f.ArgumentsDefinition
 }
 
-func (f FieldDefinition) NodeName() ByteSliceReference {
+func (f FieldDefinition) NodeName() int {
 	return f.Name
 }
 
-func (f FieldDefinition) NodeAlias() ByteSliceReference {
+func (f FieldDefinition) NodeAlias() int {
 	panic("implement me")
 }
 
@@ -101,12 +105,12 @@ func (f FieldDefinition) NodeDescription() ByteSliceReference {
 	return f.Description
 }
 
-func (f FieldDefinition) NodeArguments() []int {
+func (f FieldDefinition) NodeArgumentSet() int {
 	panic("implement me")
 }
 
-func (f FieldDefinition) NodeDirectives() []int {
-	return f.Directives
+func (f FieldDefinition) NodeDirectiveSet() int {
+	return f.DirectiveSet
 }
 
 func (f FieldDefinition) NodeEnumValuesDefinition() []int {

@@ -36,7 +36,7 @@ func (p *Parser) parseInputValueDefinitions(index *[]int, closeKeyword keyword.K
 				definition.Position.MergeStartIntoStart(ident.TextPosition)
 			}
 
-			definition.Name = ident.Literal
+			definition.Name = p.putByteSliceReference(ident.Literal)
 
 			_, err := p.readExpect(keyword.COLON, "parseInputValueDefinitions")
 			if err != nil {
@@ -53,7 +53,7 @@ func (p *Parser) parseInputValueDefinitions(index *[]int, closeKeyword keyword.K
 				return err
 			}
 
-			err = p.parseDirectives(&definition.Directives)
+			err = p.parseDirectives(&definition.DirectiveSet)
 			if err != nil {
 				return err
 			}

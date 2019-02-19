@@ -6,9 +6,13 @@ import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 // http://facebook.github.io/graphql/draft/#InlineFragment
 type InlineFragment struct {
 	TypeCondition int
-	Directives    []int
-	SelectionSet  SelectionSet
+	DirectiveSet  int
+	SelectionSet  int
 	Position      position.Position
+}
+
+func (i InlineFragment) NodeSelectionSet() int {
+	return i.SelectionSet
 }
 
 func (i InlineFragment) NodeInputFieldsDefinition() int {
@@ -31,7 +35,7 @@ func (i InlineFragment) NodeValueReference() int {
 	panic("implement me")
 }
 
-func (i InlineFragment) NodeUnionMemberTypes() []ByteSliceReference {
+func (i InlineFragment) NodeUnionMemberTypes() []int {
 	panic("implement me")
 }
 
@@ -67,7 +71,7 @@ func (i InlineFragment) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (i InlineFragment) NodeImplementsInterfaces() []ByteSliceReference {
+func (i InlineFragment) NodeImplementsInterfaces() []int {
 	panic("implement me")
 }
 
@@ -79,7 +83,7 @@ func (i InlineFragment) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (i InlineFragment) NodeAlias() ByteSliceReference {
+func (i InlineFragment) NodeAlias() int {
 	panic("implement me")
 }
 
@@ -95,7 +99,7 @@ func (i InlineFragment) NodeOperationType() OperationType {
 	panic("implement me")
 }
 
-func (i InlineFragment) NodeName() ByteSliceReference {
+func (i InlineFragment) NodeName() int {
 	panic("implement me")
 }
 
@@ -103,12 +107,12 @@ func (i InlineFragment) NodeDescription() ByteSliceReference {
 	panic("implement me")
 }
 
-func (i InlineFragment) NodeArguments() []int {
+func (i InlineFragment) NodeArgumentSet() int {
 	panic("implement me")
 }
 
-func (i InlineFragment) NodeDirectives() []int {
-	return i.Directives
+func (i InlineFragment) NodeDirectiveSet() int {
+	return i.DirectiveSet
 }
 
 func (i InlineFragment) NodeEnumValuesDefinition() []int {
@@ -116,15 +120,15 @@ func (i InlineFragment) NodeEnumValuesDefinition() []int {
 }
 
 func (i InlineFragment) NodeFields() []int {
-	return i.SelectionSet.Fields
+	panic("implement me")
 }
 
 func (i InlineFragment) NodeFragmentSpreads() []int {
-	return i.SelectionSet.FragmentSpreads
+	panic("implement me")
 }
 
 func (i InlineFragment) NodeInlineFragments() []int {
-	return i.SelectionSet.InlineFragments
+	panic("implement me")
 }
 
 func (i InlineFragment) NodeVariableDefinitions() []int {

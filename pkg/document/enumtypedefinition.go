@@ -6,10 +6,14 @@ import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 // http://facebook.github.io/graphql/draft/#EnumTypeDefinition
 type EnumTypeDefinition struct {
 	Description          ByteSliceReference
-	Name                 ByteSliceReference
+	Name                 int
 	EnumValuesDefinition []int
-	Directives           []int
+	DirectiveSet         int
 	Position             position.Position
+}
+
+func (e EnumTypeDefinition) NodeSelectionSet() int {
+	panic("implement me")
 }
 
 func (e EnumTypeDefinition) NodeInputFieldsDefinition() int {
@@ -32,7 +36,7 @@ func (e EnumTypeDefinition) NodeValueReference() int {
 	panic("implement me")
 }
 
-func (e EnumTypeDefinition) NodeUnionMemberTypes() []ByteSliceReference {
+func (e EnumTypeDefinition) NodeUnionMemberTypes() []int {
 	panic("implement me")
 }
 
@@ -68,7 +72,7 @@ func (e EnumTypeDefinition) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (e EnumTypeDefinition) NodeImplementsInterfaces() []ByteSliceReference {
+func (e EnumTypeDefinition) NodeImplementsInterfaces() []int {
 	panic("implement me")
 }
 
@@ -88,7 +92,7 @@ func (e EnumTypeDefinition) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 
-func (e EnumTypeDefinition) NodeAlias() ByteSliceReference {
+func (e EnumTypeDefinition) NodeAlias() int {
 	panic("implement me")
 }
 
@@ -120,7 +124,7 @@ func (e EnumTypeDefinition) NodeEnumValuesDefinition() []int {
 	return e.EnumValuesDefinition
 }
 
-func (e EnumTypeDefinition) NodeName() ByteSliceReference {
+func (e EnumTypeDefinition) NodeName() int {
 	return e.Name
 }
 
@@ -128,12 +132,12 @@ func (e EnumTypeDefinition) NodeDescription() ByteSliceReference {
 	return e.Description
 }
 
-func (e EnumTypeDefinition) NodeArguments() []int {
-	return nil
+func (e EnumTypeDefinition) NodeArgumentSet() int {
+	panic("implement me")
 }
 
-func (e EnumTypeDefinition) NodeDirectives() []int {
-	return e.Directives
+func (e EnumTypeDefinition) NodeDirectiveSet() int {
+	return e.DirectiveSet
 }
 
 // EnumTypeDefinitions is the plural of EnumTypeDefinition

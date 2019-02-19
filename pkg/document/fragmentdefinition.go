@@ -5,11 +5,15 @@ import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 // FragmentDefinition as specified in
 // http://facebook.github.io/graphql/draft/#FragmentDefinition
 type FragmentDefinition struct {
-	FragmentName  ByteSliceReference // but not on
+	FragmentName  int
 	TypeCondition int
-	Directives    []int
-	SelectionSet  SelectionSet
+	DirectiveSet  int
+	SelectionSet  int
 	Position      position.Position
+}
+
+func (f FragmentDefinition) NodeSelectionSet() int {
+	return f.SelectionSet
 }
 
 func (f FragmentDefinition) NodeInputFieldsDefinition() int {
@@ -32,7 +36,7 @@ func (f FragmentDefinition) NodeValueReference() int {
 	panic("implement me")
 }
 
-func (f FragmentDefinition) NodeUnionMemberTypes() []ByteSliceReference {
+func (f FragmentDefinition) NodeUnionMemberTypes() []int {
 	panic("implement me")
 }
 
@@ -68,7 +72,7 @@ func (f FragmentDefinition) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (f FragmentDefinition) NodeImplementsInterfaces() []ByteSliceReference {
+func (f FragmentDefinition) NodeImplementsInterfaces() []int {
 	panic("implement me")
 }
 
@@ -88,7 +92,7 @@ func (f FragmentDefinition) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 
-func (f FragmentDefinition) NodeAlias() ByteSliceReference {
+func (f FragmentDefinition) NodeAlias() int {
 	panic("implement me")
 }
 
@@ -105,18 +109,18 @@ func (f FragmentDefinition) NodeVariableDefinitions() []int {
 }
 
 func (f FragmentDefinition) NodeFields() []int {
-	return f.SelectionSet.Fields
+	panic("implement me")
 }
 
 func (f FragmentDefinition) NodeFragmentSpreads() []int {
-	return f.SelectionSet.FragmentSpreads
+	panic("implement me")
 }
 
 func (f FragmentDefinition) NodeInlineFragments() []int {
-	return f.SelectionSet.InlineFragments
+	panic("implement me")
 }
 
-func (f FragmentDefinition) NodeName() ByteSliceReference {
+func (f FragmentDefinition) NodeName() int {
 	return f.FragmentName
 }
 
@@ -124,12 +128,12 @@ func (f FragmentDefinition) NodeDescription() ByteSliceReference {
 	panic("implement me")
 }
 
-func (f FragmentDefinition) NodeArguments() []int {
-	return nil
+func (f FragmentDefinition) NodeArgumentSet() int {
+	panic("implement me")
 }
 
-func (f FragmentDefinition) NodeDirectives() []int {
-	return f.Directives
+func (f FragmentDefinition) NodeDirectiveSet() int {
+	return f.DirectiveSet
 }
 
 func (f FragmentDefinition) NodeEnumValuesDefinition() []int {

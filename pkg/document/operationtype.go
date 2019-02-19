@@ -5,6 +5,7 @@ package document
 // OperationType is the type of the Operation
 /*
 ENUM(
+unknown
 query
 mutation
 subscription

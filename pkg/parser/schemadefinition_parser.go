@@ -13,9 +13,7 @@ func (p *Parser) parseSchemaDefinition(definition *document.SchemaDefinition) er
 	}
 
 	definition.Position.MergeStartIntoStart(start.TextPosition)
-	definition.Directives = p.indexPoolGet()
-
-	err = p.parseDirectives(&definition.Directives)
+	err = p.parseDirectives(&definition.DirectiveSet)
 	if err != nil {
 		return err
 	}
@@ -44,7 +42,7 @@ func (p *Parser) parseSchemaDefinition(definition *document.SchemaDefinition) er
 				return err
 			}
 
-			err = definition.SetOperationType(p.ByteSlice(next.Literal), p.ByteSlice(operationNameToken.Literal))
+			err = definition.SetOperationType(p.ByteSlice(next.Literal), p.putByteSliceReference(operationNameToken.Literal))
 			if err != nil {
 				return err
 			}

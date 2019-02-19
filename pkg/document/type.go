@@ -18,9 +18,13 @@ type TypeKind int
 // http://facebook.github.io/graphql/draft/#Type
 type Type struct {
 	Kind     TypeKind
-	Name     ByteSliceReference
+	Name     int
 	OfType   int
 	Position position.Position
+}
+
+func (t Type) NodeSelectionSet() int {
+	panic("implement me")
 }
 
 func (t Type) NodeInputFieldsDefinition() int {
@@ -35,11 +39,11 @@ func (t Type) NodePosition() position.Position {
 	return t.Position
 }
 
-func (t Type) NodeName() ByteSliceReference {
+func (t Type) NodeName() int {
 	return t.Name
 }
 
-func (t Type) NodeAlias() ByteSliceReference {
+func (t Type) NodeAlias() int {
 	panic("implement me")
 }
 
@@ -47,7 +51,7 @@ func (t Type) NodeDescription() ByteSliceReference {
 	panic("implement me")
 }
 
-func (t Type) NodeArguments() []int {
+func (t Type) NodeArgumentSet() int {
 	panic("implement me")
 }
 
@@ -55,7 +59,7 @@ func (t Type) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 
-func (t Type) NodeDirectives() []int {
+func (t Type) NodeDirectiveSet() int {
 	panic("implement me")
 }
 
@@ -99,7 +103,7 @@ func (t Type) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (t Type) NodeImplementsInterfaces() []ByteSliceReference {
+func (t Type) NodeImplementsInterfaces() []int {
 	panic("implement me")
 }
 
@@ -135,7 +139,7 @@ func (t Type) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (t Type) NodeUnionMemberTypes() []ByteSliceReference {
+func (t Type) NodeUnionMemberTypes() []int {
 	panic("implement me")
 }
 

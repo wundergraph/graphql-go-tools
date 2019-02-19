@@ -9,15 +9,19 @@ type InputFieldsDefinition struct {
 	InputValueDefinitions []int
 }
 
+func (i InputFieldsDefinition) NodeSelectionSet() int {
+	panic("implement me")
+}
+
 func (i InputFieldsDefinition) NodeInputFieldsDefinition() int {
 	panic("implement me")
 }
 
-func (i InputFieldsDefinition) NodeName() ByteSliceReference {
+func (i InputFieldsDefinition) NodeName() int {
 	panic("implement me")
 }
 
-func (i InputFieldsDefinition) NodeAlias() ByteSliceReference {
+func (i InputFieldsDefinition) NodeAlias() int {
 	panic("implement me")
 }
 
@@ -25,7 +29,7 @@ func (i InputFieldsDefinition) NodeDescription() ByteSliceReference {
 	panic("implement me")
 }
 
-func (i InputFieldsDefinition) NodeArguments() []int {
+func (i InputFieldsDefinition) NodeArgumentSet() int {
 	panic("implement me")
 }
 
@@ -33,7 +37,7 @@ func (i InputFieldsDefinition) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 
-func (i InputFieldsDefinition) NodeDirectives() []int {
+func (i InputFieldsDefinition) NodeDirectiveSet() int {
 	panic("implement me")
 }
 
@@ -77,7 +81,7 @@ func (i InputFieldsDefinition) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (i InputFieldsDefinition) NodeImplementsInterfaces() []ByteSliceReference {
+func (i InputFieldsDefinition) NodeImplementsInterfaces() []int {
 	panic("implement me")
 }
 
@@ -117,7 +121,7 @@ func (i InputFieldsDefinition) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (i InputFieldsDefinition) NodeUnionMemberTypes() []ByteSliceReference {
+func (i InputFieldsDefinition) NodeUnionMemberTypes() []int {
 	panic("implement me")
 }
 

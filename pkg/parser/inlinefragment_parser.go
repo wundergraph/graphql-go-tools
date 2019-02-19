@@ -9,20 +9,22 @@ import (
 func (p *Parser) parseInlineFragment(startPosition position.Position, index *[]int) error {
 
 	var fragment document.InlineFragment
-	fragment.Position.MergeStartIntoStart(startPosition)
 	p.initInlineFragment(&fragment)
+	fragment.Position.MergeStartIntoStart(startPosition)
 
-	fragmentIdent, err := p.readExpect(keyword.IDENT, "parseInlineFragment")
-	if err != nil {
-		return err
+	hasTypeCondition := p.peekExpect(keyword.ON, true)
+	if hasTypeCondition {
+		fragmentIdent, err := p.readExpect(keyword.IDENT, "parseInlineFragment")
+		if err != nil {
+			return err
+		}
+		fragmentType := p.makeType(&fragment.TypeCondition)
+		fragmentType.Name = p.putByteSliceReference(fragmentIdent.Literal)
+		fragmentType.Kind = document.TypeKindNAMED
+		p.putType(fragmentType, fragment.TypeCondition)
 	}
 
-	fragmentType := p.makeType(&fragment.TypeCondition)
-	fragmentType.Kind = document.TypeKindNAMED
-	fragmentType.Name = fragmentIdent.Literal
-	p.putType(fragmentType, fragment.TypeCondition)
-
-	err = p.parseDirectives(&fragment.Directives)
+	err := p.parseDirectives(&fragment.DirectiveSet)
 	if err != nil {
 		return err
 	}

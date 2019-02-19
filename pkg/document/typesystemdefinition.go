@@ -16,6 +16,10 @@ type TypeSystemDefinition struct {
 	Position                   position.Position
 }
 
+func (t TypeSystemDefinition) NodeSelectionSet() int {
+	panic("implement me")
+}
+
 func (t TypeSystemDefinition) NodeInputFieldsDefinition() int {
 	panic("implement me")
 }
@@ -36,15 +40,15 @@ func (t TypeSystemDefinition) NodeValueReference() int {
 	panic("implement me")
 }
 
-func (t TypeSystemDefinition) NodeUnionMemberTypes() []ByteSliceReference {
+func (t TypeSystemDefinition) NodeUnionMemberTypes() []int {
 	panic("implement me")
 }
 
-func (t TypeSystemDefinition) NodeName() ByteSliceReference {
+func (t TypeSystemDefinition) NodeName() int {
 	panic("implement me")
 }
 
-func (t TypeSystemDefinition) NodeAlias() ByteSliceReference {
+func (t TypeSystemDefinition) NodeAlias() int {
 	panic("implement me")
 }
 
@@ -52,7 +56,7 @@ func (t TypeSystemDefinition) NodeDescription() ByteSliceReference {
 	panic("implement me")
 }
 
-func (t TypeSystemDefinition) NodeArguments() []int {
+func (t TypeSystemDefinition) NodeArgumentSet() int {
 	panic("implement me")
 }
 
@@ -60,7 +64,7 @@ func (t TypeSystemDefinition) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 
-func (t TypeSystemDefinition) NodeDirectives() []int {
+func (t TypeSystemDefinition) NodeDirectiveSet() int {
 	panic("implement me")
 }
 
@@ -104,7 +108,7 @@ func (t TypeSystemDefinition) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (t TypeSystemDefinition) NodeImplementsInterfaces() []ByteSliceReference {
+func (t TypeSystemDefinition) NodeImplementsInterfaces() []int {
 	panic("implement me")
 }
 
@@ -139,3 +143,5 @@ func (t TypeSystemDefinition) NodeInputObjectTypeDefinitions() []int {
 func (t TypeSystemDefinition) NodeDirectiveDefinitions() []int {
 	return t.DirectiveDefinitions
 }
+
+type TypeSystemDefinitions []TypeSystemDefinition

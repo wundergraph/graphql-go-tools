@@ -25,9 +25,9 @@ func (p *Parser) parseEnumTypeDefinition(description *token.Token, index *[]int)
 		return err
 	}
 
-	definition.Name = ident.Literal
+	definition.Name = p.putByteSliceReference(ident.Literal)
 
-	err = p.parseDirectives(&definition.Directives)
+	err = p.parseDirectives(&definition.DirectiveSet)
 	if err != nil {
 		return err
 	}

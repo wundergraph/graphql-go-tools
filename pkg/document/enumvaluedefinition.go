@@ -5,10 +5,14 @@ import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 // EnumValueDefinition as specified in:
 // http://facebook.github.io/graphql/draft/#EnumValueDefinition
 type EnumValueDefinition struct {
-	Description ByteSliceReference
-	EnumValue   ByteSliceReference
-	Directives  []int
-	Position    position.Position
+	Description  ByteSliceReference
+	EnumValue    int
+	DirectiveSet int
+	Position     position.Position
+}
+
+func (e EnumValueDefinition) NodeSelectionSet() int {
+	panic("implement me")
 }
 
 func (e EnumValueDefinition) NodeInputFieldsDefinition() int {
@@ -31,7 +35,7 @@ func (e EnumValueDefinition) NodeValueReference() int {
 	panic("implement me")
 }
 
-func (e EnumValueDefinition) NodeUnionMemberTypes() []ByteSliceReference {
+func (e EnumValueDefinition) NodeUnionMemberTypes() []int {
 	panic("implement me")
 }
 
@@ -67,7 +71,7 @@ func (e EnumValueDefinition) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (e EnumValueDefinition) NodeImplementsInterfaces() []ByteSliceReference {
+func (e EnumValueDefinition) NodeImplementsInterfaces() []int {
 	panic("implement me")
 }
 
@@ -87,7 +91,7 @@ func (e EnumValueDefinition) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 
-func (e EnumValueDefinition) NodeAlias() ByteSliceReference {
+func (e EnumValueDefinition) NodeAlias() int {
 	panic("implement me")
 }
 
@@ -115,7 +119,7 @@ func (e EnumValueDefinition) NodeInlineFragments() []int {
 	return nil
 }
 
-func (e EnumValueDefinition) NodeName() ByteSliceReference {
+func (e EnumValueDefinition) NodeName() int {
 	return e.EnumValue
 }
 
@@ -123,12 +127,12 @@ func (e EnumValueDefinition) NodeDescription() ByteSliceReference {
 	return e.Description
 }
 
-func (e EnumValueDefinition) NodeArguments() []int {
-	return nil
+func (e EnumValueDefinition) NodeArgumentSet() int {
+	panic("implement me")
 }
 
-func (e EnumValueDefinition) NodeDirectives() []int {
-	return e.Directives
+func (e EnumValueDefinition) NodeDirectiveSet() int {
+	return e.DirectiveSet
 }
 
 func (e EnumValueDefinition) NodeEnumValuesDefinition() []int {

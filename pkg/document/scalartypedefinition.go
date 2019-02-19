@@ -5,10 +5,14 @@ import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 // ScalarTypeDefinition as specified in:
 // http://facebook.github.io/graphql/draft/#sec-Scalars
 type ScalarTypeDefinition struct {
-	Description ByteSliceReference
-	Name        ByteSliceReference
-	Directives  []int
-	Position    position.Position
+	Description  ByteSliceReference
+	Name         int
+	DirectiveSet int
+	Position     position.Position
+}
+
+func (s ScalarTypeDefinition) NodeSelectionSet() int {
+	panic("implement me")
 }
 
 func (s ScalarTypeDefinition) NodeInputFieldsDefinition() int {
@@ -31,7 +35,7 @@ func (s ScalarTypeDefinition) NodeValueReference() int {
 	panic("implement me")
 }
 
-func (s ScalarTypeDefinition) NodeUnionMemberTypes() []ByteSliceReference {
+func (s ScalarTypeDefinition) NodeUnionMemberTypes() []int {
 	panic("implement me")
 }
 
@@ -67,11 +71,11 @@ func (s ScalarTypeDefinition) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (s ScalarTypeDefinition) NodeName() ByteSliceReference {
+func (s ScalarTypeDefinition) NodeName() int {
 	return s.Name
 }
 
-func (s ScalarTypeDefinition) NodeAlias() ByteSliceReference {
+func (s ScalarTypeDefinition) NodeAlias() int {
 	panic("implement me")
 }
 
@@ -79,7 +83,7 @@ func (s ScalarTypeDefinition) NodeDescription() ByteSliceReference {
 	return s.Description
 }
 
-func (s ScalarTypeDefinition) NodeArguments() []int {
+func (s ScalarTypeDefinition) NodeArgumentSet() int {
 	panic("implement me")
 }
 
@@ -87,8 +91,8 @@ func (s ScalarTypeDefinition) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 
-func (s ScalarTypeDefinition) NodeDirectives() []int {
-	return s.Directives
+func (s ScalarTypeDefinition) NodeDirectiveSet() int {
+	return s.DirectiveSet
 }
 
 func (s ScalarTypeDefinition) NodeEnumValuesDefinition() []int {
@@ -131,7 +135,7 @@ func (s ScalarTypeDefinition) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (s ScalarTypeDefinition) NodeImplementsInterfaces() []ByteSliceReference {
+func (s ScalarTypeDefinition) NodeImplementsInterfaces() []int {
 	panic("implement me")
 }
 

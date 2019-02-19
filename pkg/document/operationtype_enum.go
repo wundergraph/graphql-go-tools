@@ -8,20 +8,23 @@ import (
 )
 
 const (
+	// OperationTypeUnknown is a OperationType of type Unknown
+	OperationTypeUnknown OperationType = iota
 	// OperationTypeQuery is a OperationType of type Query
-	OperationTypeQuery OperationType = iota
+	OperationTypeQuery
 	// OperationTypeMutation is a OperationType of type Mutation
 	OperationTypeMutation
 	// OperationTypeSubscription is a OperationType of type Subscription
 	OperationTypeSubscription
 )
 
-const _OperationTypeName = "querymutationsubscription"
+const _OperationTypeName = "unknownquerymutationsubscription"
 
 var _OperationTypeMap = map[OperationType]string{
-	0: _OperationTypeName[0:5],
-	1: _OperationTypeName[5:13],
-	2: _OperationTypeName[13:25],
+	0: _OperationTypeName[0:7],
+	1: _OperationTypeName[7:12],
+	2: _OperationTypeName[12:20],
+	3: _OperationTypeName[20:32],
 }
 
 // String implements the Stringer interface.
@@ -33,9 +36,10 @@ func (x OperationType) String() string {
 }
 
 var _OperationTypeValue = map[string]OperationType{
-	_OperationTypeName[0:5]:   0,
-	_OperationTypeName[5:13]:  1,
-	_OperationTypeName[13:25]: 2,
+	_OperationTypeName[0:7]:   0,
+	_OperationTypeName[7:12]:  1,
+	_OperationTypeName[12:20]: 2,
+	_OperationTypeName[20:32]: 3,
 }
 
 // ParseOperationType attempts to convert a string to a OperationType

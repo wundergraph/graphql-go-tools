@@ -8,18 +8,22 @@ import (
 // SchemaDefinition as specified in:
 // http://facebook.github.io/graphql/draft/#SchemaDefinition
 type SchemaDefinition struct {
-	Query        ByteSlice
-	Mutation     ByteSlice
-	Subscription ByteSlice
-	Directives   []int
+	Query        int
+	Mutation     int
+	Subscription int
+	DirectiveSet int
 	Position     position.Position
 }
 
-func (s SchemaDefinition) NodeName() ByteSliceReference {
+func (s SchemaDefinition) NodeSelectionSet() int {
 	panic("implement me")
 }
 
-func (s SchemaDefinition) NodeAlias() ByteSliceReference {
+func (s SchemaDefinition) NodeName() int {
+	panic("implement me")
+}
+
+func (s SchemaDefinition) NodeAlias() int {
 	panic("implement me")
 }
 
@@ -27,7 +31,7 @@ func (s SchemaDefinition) NodeDescription() ByteSliceReference {
 	panic("implement me")
 }
 
-func (s SchemaDefinition) NodeArguments() []int {
+func (s SchemaDefinition) NodeArgumentSet() int {
 	panic("implement me")
 }
 
@@ -35,8 +39,8 @@ func (s SchemaDefinition) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 
-func (s SchemaDefinition) NodeDirectives() []int {
-	return s.Directives
+func (s SchemaDefinition) NodeDirectiveSet() int {
+	return s.DirectiveSet
 }
 
 func (s SchemaDefinition) NodeEnumValuesDefinition() []int {
@@ -79,7 +83,7 @@ func (s SchemaDefinition) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (s SchemaDefinition) NodeImplementsInterfaces() []ByteSliceReference {
+func (s SchemaDefinition) NodeImplementsInterfaces() []int {
 	panic("implement me")
 }
 
@@ -119,7 +123,7 @@ func (s SchemaDefinition) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (s SchemaDefinition) NodeUnionMemberTypes() []ByteSliceReference {
+func (s SchemaDefinition) NodeUnionMemberTypes() []int {
 	panic("implement me")
 }
 
@@ -152,27 +156,27 @@ func (s SchemaDefinition) DirectiveLocation() DirectiveLocation {
 // IsDefined returns a bool depending on whether SchemaDefinition has already
 // been defined
 func (s SchemaDefinition) IsDefined() bool {
-	return len(s.Query) != 0 || len(s.Mutation) != 0 || len(s.Subscription) != 0
+	return s.Query != -1 || s.Mutation != -1 || s.Subscription != -1
 }
 
 // SetOperationType sets the operationType and operationName and will return an error in case of setting one value multiple times
-func (s *SchemaDefinition) SetOperationType(operationType, operationName ByteSlice) error {
+func (s *SchemaDefinition) SetOperationType(operationType ByteSlice, operationName int) error {
 
 	switch string(operationType) {
 	case "query":
-		if s.Query != nil {
+		if s.Query != -1 {
 			return fmt.Errorf("setOperationType: operationName for operationType '%s' already set", operationType)
 		}
 		s.Query = operationName
 		return nil
 	case "mutation":
-		if s.Mutation != nil {
+		if s.Mutation != -1 {
 			return fmt.Errorf("setOperationType: operationName for operationType '%s' already set", operationType)
 		}
 		s.Mutation = operationName
 		return nil
 	case "subscription":
-		if s.Subscription != nil {
+		if s.Subscription != -1 {
 			return fmt.Errorf("setOperationType: operationName for operationType '%s' already set", operationType)
 		}
 		s.Subscription = operationName

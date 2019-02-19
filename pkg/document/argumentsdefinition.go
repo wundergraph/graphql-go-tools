@@ -9,6 +9,10 @@ type ArgumentsDefinition struct {
 	Position              position.Position
 }
 
+func (a ArgumentsDefinition) NodeSelectionSet() int {
+	panic("implement me")
+}
+
 func (a ArgumentsDefinition) NodeInputFieldsDefinition() int {
 	panic("implement me")
 }
@@ -17,11 +21,11 @@ func (a ArgumentsDefinition) NodeInputValueDefinitions() []int {
 	return a.InputValueDefinitions
 }
 
-func (a ArgumentsDefinition) NodeName() ByteSliceReference {
+func (a ArgumentsDefinition) NodeName() int {
 	panic("implement me")
 }
 
-func (a ArgumentsDefinition) NodeAlias() ByteSliceReference {
+func (a ArgumentsDefinition) NodeAlias() int {
 	panic("implement me")
 }
 
@@ -29,7 +33,7 @@ func (a ArgumentsDefinition) NodeDescription() ByteSliceReference {
 	panic("implement me")
 }
 
-func (a ArgumentsDefinition) NodeArguments() []int {
+func (a ArgumentsDefinition) NodeArgumentSet() int {
 	panic("implement me")
 }
 
@@ -37,7 +41,7 @@ func (a ArgumentsDefinition) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 
-func (a ArgumentsDefinition) NodeDirectives() []int {
+func (a ArgumentsDefinition) NodeDirectiveSet() int {
 	panic("implement me")
 }
 
@@ -81,7 +85,7 @@ func (a ArgumentsDefinition) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (a ArgumentsDefinition) NodeImplementsInterfaces() []ByteSliceReference {
+func (a ArgumentsDefinition) NodeImplementsInterfaces() []int {
 	panic("implement me")
 }
 
@@ -117,7 +121,7 @@ func (a ArgumentsDefinition) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (a ArgumentsDefinition) NodeUnionMemberTypes() []ByteSliceReference {
+func (a ArgumentsDefinition) NodeUnionMemberTypes() []int {
 	panic("implement me")
 }
 

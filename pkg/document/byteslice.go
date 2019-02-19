@@ -12,3 +12,7 @@ type ByteSliceReference struct {
 	Start uint16
 	End   uint16
 }
+
+func (b ByteSliceReference) Length() uint16 {
+	return b.End - b.Start
+}

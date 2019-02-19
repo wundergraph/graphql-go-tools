@@ -16,7 +16,7 @@ func (p *Parser) parsePeekedListValue(index *int) error {
 
 		if peeked == keyword.SQUAREBRACKETCLOSE {
 			p.l.Read()
-			p.putListValue(listValue, *index)
+			p.putListValue(listValue, index)
 			return nil
 
 		} else {

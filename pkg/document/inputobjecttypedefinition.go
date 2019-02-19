@@ -6,10 +6,14 @@ import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 // http://facebook.github.io/graphql/draft/#InputObjectTypeDefinition
 type InputObjectTypeDefinition struct {
 	Description           ByteSliceReference
-	Name                  ByteSliceReference
+	Name                  int
 	InputFieldsDefinition int
-	Directives            []int
+	DirectiveSet          int
 	Position              position.Position
+}
+
+func (i InputObjectTypeDefinition) NodeSelectionSet() int {
+	panic("implement me")
 }
 
 func (i InputObjectTypeDefinition) NodeInputFieldsDefinition() int {
@@ -32,7 +36,7 @@ func (i InputObjectTypeDefinition) NodeValueReference() int {
 	panic("implement me")
 }
 
-func (i InputObjectTypeDefinition) NodeUnionMemberTypes() []ByteSliceReference {
+func (i InputObjectTypeDefinition) NodeUnionMemberTypes() []int {
 	panic("implement me")
 }
 
@@ -68,15 +72,15 @@ func (i InputObjectTypeDefinition) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (i InputObjectTypeDefinition) NodeImplementsInterfaces() []ByteSliceReference {
+func (i InputObjectTypeDefinition) NodeImplementsInterfaces() []int {
 	panic("implement me")
 }
 
-func (i InputObjectTypeDefinition) NodeName() ByteSliceReference {
+func (i InputObjectTypeDefinition) NodeName() int {
 	return i.Name
 }
 
-func (i InputObjectTypeDefinition) NodeAlias() ByteSliceReference {
+func (i InputObjectTypeDefinition) NodeAlias() int {
 	panic("implement me")
 }
 
@@ -84,7 +88,7 @@ func (i InputObjectTypeDefinition) NodeDescription() ByteSliceReference {
 	return i.Description
 }
 
-func (i InputObjectTypeDefinition) NodeArguments() []int {
+func (i InputObjectTypeDefinition) NodeArgumentSet() int {
 	panic("implement me")
 }
 
@@ -92,8 +96,8 @@ func (i InputObjectTypeDefinition) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 
-func (i InputObjectTypeDefinition) NodeDirectives() []int {
-	return i.Directives
+func (i InputObjectTypeDefinition) NodeDirectiveSet() int {
+	return i.DirectiveSet
 }
 
 func (i InputObjectTypeDefinition) NodeEnumValuesDefinition() []int {

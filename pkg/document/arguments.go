@@ -5,9 +5,13 @@ import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 // Argument as specified in
 // http://facebook.github.io/graphql/draft/#Argument
 type Argument struct {
-	Name     ByteSliceReference
+	Name     int
 	Value    int
 	Position position.Position
+}
+
+func (a Argument) NodeSelectionSet() int {
+	panic("implement me")
 }
 
 func (a Argument) NodeInputFieldsDefinition() int {
@@ -30,7 +34,7 @@ func (a Argument) NodeValueReference() int {
 	panic("implement me")
 }
 
-func (a Argument) NodeUnionMemberTypes() []ByteSliceReference {
+func (a Argument) NodeUnionMemberTypes() []int {
 	panic("implement me")
 }
 
@@ -66,7 +70,7 @@ func (a Argument) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (a Argument) NodeImplementsInterfaces() []ByteSliceReference {
+func (a Argument) NodeImplementsInterfaces() []int {
 	panic("implement me")
 }
 
@@ -86,11 +90,11 @@ func (a Argument) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 
-func (a Argument) NodeName() ByteSliceReference {
+func (a Argument) NodeName() int {
 	return a.Name
 }
 
-func (a Argument) NodeAlias() ByteSliceReference {
+func (a Argument) NodeAlias() int {
 	panic("implement me")
 }
 
@@ -98,11 +102,11 @@ func (a Argument) NodeDescription() ByteSliceReference {
 	panic("implement me")
 }
 
-func (a Argument) NodeArguments() []int {
+func (a Argument) NodeArgumentSet() int {
 	panic("implement me")
 }
 
-func (a Argument) NodeDirectives() []int {
+func (a Argument) NodeDirectiveSet() int {
 	panic("implement me")
 }
 
@@ -137,3 +141,5 @@ func (a Argument) NodeOperationType() OperationType {
 // Arguments as specified in
 // http://facebook.github.io/graphql/draft/#Arguments
 type Arguments []Argument
+
+type ArgumentSet []int

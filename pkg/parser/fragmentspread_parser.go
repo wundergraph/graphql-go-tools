@@ -15,8 +15,8 @@ func (p *Parser) parseFragmentSpread(startPosition position.Position, index *[]i
 		return err
 	}
 
-	fragmentSpread.FragmentName = fragmentIdent.Literal
-	err = p.parseDirectives(&fragmentSpread.Directives)
+	fragmentSpread.FragmentName = p.putByteSliceReference(fragmentIdent.Literal)
+	err = p.parseDirectives(&fragmentSpread.DirectiveSet)
 	if err != nil {
 		return err
 	}
