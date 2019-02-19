@@ -6,7 +6,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 )
 
-func (p *Parser) parseInlineFragment(startPosition position.Position, index *[]int) error {
+func (p *Parser) parseInlineFragment(startPosition position.Position) (ref int, err error) {
 
 	var fragment document.InlineFragment
 	p.initInlineFragment(&fragment)
@@ -16,7 +16,7 @@ func (p *Parser) parseInlineFragment(startPosition position.Position, index *[]i
 	if hasTypeCondition {
 		fragmentIdent, err := p.readExpect(keyword.IDENT, "parseInlineFragment")
 		if err != nil {
-			return err
+			return ref, err
 		}
 		fragmentType := p.makeType(&fragment.TypeCondition)
 		fragmentType.Name = p.putByteSliceReference(fragmentIdent.Literal)
@@ -24,17 +24,16 @@ func (p *Parser) parseInlineFragment(startPosition position.Position, index *[]i
 		p.putType(fragmentType, fragment.TypeCondition)
 	}
 
-	err := p.parseDirectives(&fragment.DirectiveSet)
+	err = p.parseDirectives(&fragment.DirectiveSet)
 	if err != nil {
-		return err
+		return ref, err
 	}
 
 	err = p.parseSelectionSet(&fragment.SelectionSet)
 	if err != nil {
-		return err
+		return ref, err
 	}
 
 	fragment.Position.MergeStartIntoEnd(p.TextPosition())
-	*index = append(*index, p.putInlineFragment(fragment))
-	return nil
+	return p.putInlineFragment(fragment), err
 }

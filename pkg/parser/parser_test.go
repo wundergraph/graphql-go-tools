@@ -688,18 +688,15 @@ func TestParser(t *testing.T) {
 		}
 	}
 
-	mustParseFields := func(rules ...ruleSet) checkFunc {
+	mustParseFields := func(rule ruleSet) checkFunc {
 		return func(parser *Parser, i int) {
-			var index []int
-			if err := parser.parseField(&index); err != nil {
+			fieldRef, err := parser.parseField()
+			if err != nil {
 				panic(err)
 			}
 
-			for j, rule := range rules {
-				reverseIndex := len(parser.ParsedDefinitions.Fields) - 1 - j
-				field := parser.ParsedDefinitions.Fields[reverseIndex]
-				evalRules(field, parser, rule, i)
-			}
+			field := parser.ParsedDefinitions.Fields[fieldRef]
+			evalRules(field, parser, rule, i)
 		}
 	}
 
@@ -732,17 +729,15 @@ func TestParser(t *testing.T) {
 		}
 	}
 
-	mustParseFragmentSpread := func(rules ...ruleSet) checkFunc {
+	mustParseFragmentSpread := func(rule ruleSet) checkFunc {
 		return func(parser *Parser, i int) {
-			var index []int
-			if err := parser.parseFragmentSpread(position.Position{}, &index); err != nil {
+			fragmentSpreadRef, err := parser.parseFragmentSpread(position.Position{})
+			if err != nil {
 				panic(err)
 			}
 
-			for j, rule := range rules {
-				spread := parser.ParsedDefinitions.FragmentSpreads[j]
-				evalRules(spread, parser, rule, i)
-			}
+			spread := parser.ParsedDefinitions.FragmentSpreads[fragmentSpreadRef]
+			evalRules(spread, parser, rule, i)
 		}
 	}
 
@@ -780,18 +775,15 @@ func TestParser(t *testing.T) {
 		}
 	}
 
-	mustParseInlineFragments := func(rules ...ruleSet) checkFunc {
+	mustParseInlineFragments := func(rule ruleSet) checkFunc {
 		return func(parser *Parser, i int) {
-			var index []int
-			if err := parser.parseInlineFragment(position.Position{}, &index); err != nil {
+			inlineFragmentRef, err := parser.parseInlineFragment(position.Position{})
+			if err != nil {
 				panic(err)
 			}
 
-			for j, rule := range rules {
-				reverseIndex := len(parser.ParsedDefinitions.InlineFragments) - 1 - j
-				inlineFragment := parser.ParsedDefinitions.InlineFragments[reverseIndex]
-				evalRules(inlineFragment, parser, rule, i)
-			}
+			inlineFragment := parser.ParsedDefinitions.InlineFragments[inlineFragmentRef]
+			evalRules(inlineFragment, parser, rule, i)
 		}
 	}
 
@@ -2278,10 +2270,10 @@ func TestParser(t *testing.T) {
 		)
 	})
 	t.Run("invalid", func(t *testing.T) {
-		run("on", mustPanic(mustParseFragmentSpread()))
+		run("on", mustPanic(mustParseFragmentSpread(node())))
 	})
 	t.Run("invalid 2", func(t *testing.T) {
-		run("afragment @foo(bar: .)", mustPanic(mustParseFragmentSpread()))
+		run("afragment @foo(bar: .)", mustPanic(mustParseFragmentSpread(node())))
 	})
 
 	// parseImplementsInterfaces
@@ -2455,7 +2447,7 @@ func TestParser(t *testing.T) {
 						... on [Water] {
 							waterField
 						}
-					}`, mustPanic(mustParseInlineFragments()))
+					}`, mustPanic(mustParseInlineFragments(node())))
 	})
 
 	// parseInputFieldsDefinition

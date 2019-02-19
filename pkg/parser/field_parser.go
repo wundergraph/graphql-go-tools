@@ -5,7 +5,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
-func (p *Parser) parseField(index *[]int) (err error) {
+func (p *Parser) parseField() (ref int, err error) {
 
 	var field document.Field
 	p.initField(&field)
@@ -20,7 +20,7 @@ func (p *Parser) parseField(index *[]int) (err error) {
 		field.Alias = field.Name
 		fieldName, err := p.readExpect(keyword.IDENT, "parseField")
 		if err != nil {
-			return err
+			return ref, err
 		}
 
 		field.Name = p.putByteSliceReference(fieldName.Literal)
@@ -28,12 +28,12 @@ func (p *Parser) parseField(index *[]int) (err error) {
 
 	err = p.parseArgumentSet(&field.ArgumentSet)
 	if err != nil {
-		return
+		return ref, err
 	}
 
 	err = p.parseDirectives(&field.DirectiveSet)
 	if err != nil {
-		return
+		return ref, err
 	}
 
 	err = p.parseSelectionSet(&field.SelectionSet)
@@ -56,7 +56,5 @@ func (p *Parser) parseField(index *[]int) (err error) {
 		field.Position.MergeStartIntoEnd(p.TextPosition())
 	}
 
-	*index = append(*index, p.putField(field))
-
-	return
+	return p.putField(field), err
 }
