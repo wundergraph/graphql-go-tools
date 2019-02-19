@@ -32,25 +32,36 @@ func (p *Parser) parseSelectionSet(ref *int) (err error) {
 
 		isFragmentSelection := p.peekExpect(keyword.SPREAD, false)
 		if !isFragmentSelection {
-			err := p.parseField(&set.Fields)
+
+			field, err := p.parseField()
 			if err != nil {
 				return err
 			}
+
+			set.Fields = append(set.Fields, field)
+
 		} else {
 
 			start := p.l.Read()
 
 			isFragmentSpread := p.peekExpect(keyword.IDENT, false)
 			if isFragmentSpread {
-				err := p.parseFragmentSpread(start.TextPosition, &set.FragmentSpreads)
+
+				fragmentSpread, err := p.parseFragmentSpread(start.TextPosition)
 				if err != nil {
 					return err
 				}
+
+				set.FragmentSpreads = append(set.FragmentSpreads, fragmentSpread)
+
 			} else {
-				err := p.parseInlineFragment(start.TextPosition, &set.InlineFragments)
+
+				inlineFragment, err := p.parseInlineFragment(start.TextPosition)
 				if err != nil {
 					return err
 				}
+
+				set.InlineFragments = append(set.InlineFragments, inlineFragment)
 			}
 		}
 	}
