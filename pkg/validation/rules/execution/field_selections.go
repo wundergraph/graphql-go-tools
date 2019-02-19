@@ -35,9 +35,6 @@ func FieldSelections() rules.ExecutionRule {
 
 		for _, fragmentDefinition := range l.FragmentDefinitions() {
 			typeCondition := l.Type(fragmentDefinition.TypeCondition)
-			if typeCondition.Kind != document.TypeKindNAMED {
-				return validation.Invalid(validation.FieldSelections, validation.MustHaveNamedTypeCondition, fragmentDefinition.Position, fragmentDefinition.FragmentName)
-			}
 			if !l.FieldSelectionsArePossible(typeCondition.Name, l.SelectionSet(fragmentDefinition.SelectionSet)) {
 				return validation.Invalid(validation.FieldSelections, validation.FieldSelectionsInvalid, fragmentDefinition.Position, fragmentDefinition.FragmentName)
 			}
