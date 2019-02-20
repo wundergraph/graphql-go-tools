@@ -26,13 +26,13 @@ func (r *refPool) get() []int {
 	return r.refs[r.position][:0]
 }
 
-func New(p *parser.Parser) *Lookup {
+func New(p *parser.Parser, refPoolSize int) *Lookup {
 
 	var pool refPool
 	pool.position = -1
-	pool.refs = make([][]int, 128)
+	pool.refs = make([][]int, refPoolSize)
 
-	for i := 0; i < 128; i++ {
+	for i := 0; i < refPoolSize; i++ {
 		pool.refs[i] = make([]int, 8)
 	}
 
@@ -205,10 +205,10 @@ func (l *Lookup) Type(i int) document.Type {
 	return l.p.ParsedDefinitions.Types[i]
 }
 
-func (l *Lookup) ObjectTypeDefinitionByName(name int) (document.ObjectTypeDefinition, bool) {
-	for _, definition := range l.p.ParsedDefinitions.ObjectTypeDefinitions {
-		if name == definition.Name {
-			return definition, true
+func (l *Lookup) ObjectTypeDefinitionByName(name int) (definition document.ObjectTypeDefinition, exists bool) {
+	for i := range l.p.ParsedDefinitions.ObjectTypeDefinitions {
+		if name == l.p.ParsedDefinitions.ObjectTypeDefinitions[i].Name {
+			return l.p.ParsedDefinitions.ObjectTypeDefinitions[i], true
 		}
 	}
 
