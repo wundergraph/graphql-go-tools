@@ -43,7 +43,7 @@ var (
 
 func (v *Validator) SetInput(p *parser.Parser) {
 	if v.l == nil {
-		v.l = lookup.New(p)
+		v.l = lookup.New(p, 256)
 	} else {
 		v.l.SetParser(p)
 	}
