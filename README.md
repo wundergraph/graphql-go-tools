@@ -11,13 +11,7 @@ Currently implemented:
 
 - lexing
 - parsing
-
-TODO (1.0 planned @ 02/2019):
-
-- [x] cleanup different styles of testing
-- [ ] validation (WIP)
-- [ ] introspection
-- [ ] schema printer
+- validation
 
 ## Usage
 
@@ -35,29 +29,29 @@ See pkg/parser/parser_test.go
 
 ```
 pkg: github.com/jensneuse/graphql-go-tools/pkg/parser
-BenchmarkParser-4   	  100000	     19724 ns/op	       0 B/op	       0 allocs/op
-BenchmarkParser-4   	  100000	     19548 ns/op	       0 B/op	       0 allocs/op
-BenchmarkParser-4   	  100000	     19409 ns/op	       0 B/op	       0 allocs/op
-BenchmarkParser-4   	  100000	     19233 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParser-4   	   50000	     29490 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParser-4   	   50000	     29931 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParser-4   	   50000	     28779 ns/op	       1 B/op	       0 allocs/op
+BenchmarkParser-4   	   50000	     29176 ns/op	       0 B/op	       0 allocs/op
 ```
 
-In a previous release I found that nested slice structs accounted for huge amounts of gc and decreased performance.
-This is fixed. I've also added resource pooling to avoid slice grows. As a caveat the parser is not thread safe.
-A possible solution would be to have a pool of parsers which should work fine as parser doesn't allocate a lot of memory.
-
-Other than that I don't see any value in further optimizing for performance as it is "good enough".
-
-For comparison (using the exact same input & hardware):
-
 ```
-goos: darwin
-goarch: amd64
-pkg: github.com/vektah/gqlparser/parser
-BenchmarkParser-4   	   50000	     36128 ns/op	   16112 B/op	     217 allocs/op
-BenchmarkParser-4   	   50000	     35946 ns/op	   16112 B/op	     217 allocs/op
-BenchmarkParser-4   	   50000	     36039 ns/op	   16112 B/op	     217 allocs/op
-BenchmarkParser-4   	   50000	     35985 ns/op	   16112 B/op	     217 allocs/op
+pkg: github.com/jensneuse/graphql-go-tools/pkg/validator
+BenchmarkValidator/test_valid_schema-4         	  200000	      7823 ns/op	       0 B/op	       0 allocs/op
+BenchmarkValidator/test_valid_schema-4         	  200000	      7836 ns/op	       0 B/op	       0 allocs/op
+BenchmarkValidator/test_valid_schema-4         	  200000	      7766 ns/op	       0 B/op	       0 allocs/op
+BenchmarkValidator/test_valid_schema-4         	  200000	      7777 ns/op	       0 B/op	       0 allocs/op
+BenchmarkValidator/introspection_query-4       	    3000	    407511 ns/op	      44 B/op	       0 allocs/op
+BenchmarkValidator/introspection_query-4       	    3000	    410118 ns/op	      44 B/op	       0 allocs/op
+BenchmarkValidator/introspection_query-4       	    3000	    405893 ns/op	      45 B/op	       0 allocs/op
+BenchmarkValidator/introspection_query-4       	    3000	    403380 ns/op	      56 B/op	       0 allocs/op
 ```
+
+To put these numbers into perspective. Parsing + validating the (quite complex) introspection query is < 0.5ms (on my 2013 MacBook) which should be acceptable for web applications.
+
+It's important to note that gc is kept at a minimum which should enable applications built on top of this library to have almost zero deviation regarding latency.
+
+You'll probably add bottlenecks at another layer, e.g. invoking a database. 
 
 ## Contributors
 
@@ -67,7 +61,7 @@ This repository was initially developed and maintained by one single person:
 These users are actively maintaining and/or developing as of today:
 
 - [Jens Neuse][jens-neuse-github] (Project Lead)
-- [Jonas Bergner][jonas-bergner-github] (Major contributions to the parser, extensive testing)
+- [Jonas Bergner][jonas-bergner-github] (Contributions to the initial version of the parser, contributions to the tests)
 
 [jens-neuse-github]: https://github.com/jensneuse
 [jonas-bergner-github]: https://github.com/java-jonas
