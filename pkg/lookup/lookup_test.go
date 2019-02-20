@@ -26,7 +26,7 @@ func TestLookup(t *testing.T) {
 			panic(err)
 		}
 
-		l := New(p)
+		l := New(p, 256)
 
 		err = p.ParseExecutableDefinition([]byte(input))
 		if err != nil {
