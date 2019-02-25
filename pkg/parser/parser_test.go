@@ -156,6 +156,16 @@ func TestParser(t *testing.T) {
 		}
 	}
 
+	expectByteSliceRef := func(want document.ByteSliceReference) rule {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
+			node = unwrapObjectField(node, parser)
+			got := node.(document.Value).Raw
+			if want != got {
+				panic(fmt.Errorf("expectIntegerValue: want: %+v, got: %+v [rule: %d, node: %d]", want, got, ruleIndex, ruleSetIndex))
+			}
+		}
+	}
+
 	expectBooleanValue := func(want bool) rule {
 		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 			node = unwrapObjectField(node, parser)
@@ -1011,12 +1021,12 @@ func TestParser(t *testing.T) {
 
 			lexer.EXPECT().ByteSlice(ref).Return([]byte(input))
 
-			var index int
-			if err := parser.parsePeekedFloatValue(&index); err != nil {
+			var value document.Value
+			if err := parser.parsePeekedFloatValue(&value); err != nil {
 				panic(err)
 			}
 
-			got := parser.ParsedDefinitions.Floats[index]
+			got := parser.ParsedDefinitions.Floats[value.Reference]
 
 			if want != got {
 				panic(fmt.Errorf("mustParseFloatValue: want: %.2f, got: %.2f [check: %d]", want, got, i))
@@ -4022,6 +4032,10 @@ func TestParser(t *testing.T) {
 				CharStart: 1,
 				CharEnd:   5,
 			}),
+			expectByteSliceRef(document.ByteSliceReference{
+				Start: 0,
+				End:   4},
+			),
 		))
 	})
 	t.Run("string", func(t *testing.T) {
@@ -4176,7 +4190,13 @@ func TestParser(t *testing.T) {
 		))
 	})
 	t.Run("variable 2", func(t *testing.T) {
-		run("$foo", mustParseValue(document.ValueTypeVariable, expectByteSliceValue("foo")))
+		run("$foo", mustParseValue(document.ValueTypeVariable,
+			expectByteSliceValue("foo"),
+			expectByteSliceRef(document.ByteSliceReference{
+				Start: 1,
+				End:   4},
+			),
+		))
 	})
 	t.Run("variable 3", func(t *testing.T) {
 		run("$_foo", mustParseValue(document.ValueTypeVariable, expectByteSliceValue("_foo")))
@@ -4188,6 +4208,10 @@ func TestParser(t *testing.T) {
 		run("13.37", mustParseValue(
 			document.ValueTypeFloat,
 			expectFloatValue(13.37),
+			expectByteSliceRef(document.ByteSliceReference{
+				Start: 0,
+				End:   5},
+			),
 			hasPosition(position.Position{
 				LineStart: 1,
 				LineEnd:   1,
@@ -4203,6 +4227,10 @@ func TestParser(t *testing.T) {
 		run("true", mustParseValue(
 			document.ValueTypeBoolean,
 			expectBooleanValue(true),
+			expectByteSliceRef(document.ByteSliceReference{
+				Start: 0,
+				End:   4},
+			),
 			hasPosition(position.Position{
 				LineStart: 1,
 				LineEnd:   1,
@@ -4212,10 +4240,23 @@ func TestParser(t *testing.T) {
 		))
 	})
 	t.Run("boolean 2", func(t *testing.T) {
-		run("false", mustParseValue(document.ValueTypeBoolean, expectBooleanValue(false)))
+		run("false", mustParseValue(document.ValueTypeBoolean,
+			expectBooleanValue(false),
+			expectByteSliceRef(document.ByteSliceReference{
+				Start: 0,
+				End:   5},
+			),
+		))
 	})
 	t.Run("string", func(t *testing.T) {
-		run(`"foo"`, mustParseValue(document.ValueTypeString, expectByteSliceValue("foo")))
+		run(`"foo"`,
+			mustParseValue(document.ValueTypeString,
+				expectByteSliceValue("foo"),
+				expectByteSliceRef(document.ByteSliceReference{
+					Start: 1,
+					End:   4},
+				),
+			))
 	})
 	t.Run("string 2", func(t *testing.T) {
 		run(`"""foo"""`, mustParseValue(document.ValueTypeString, expectByteSliceValue("foo")))
@@ -4223,6 +4264,10 @@ func TestParser(t *testing.T) {
 	t.Run("null", func(t *testing.T) {
 		run("null", mustParseValue(
 			document.ValueTypeNull,
+			expectByteSliceRef(document.ByteSliceReference{
+				Start: 0,
+				End:   0},
+			),
 			hasPosition(position.Position{
 				LineStart: 1,
 				LineEnd:   1,
@@ -4413,8 +4458,8 @@ func TestParser_putObjectValue(t *testing.T) {
 		panic(err)
 	}
 
-	var iFoo int
-	var iBar int
+	var iFoo document.Value
+	var iBar document.Value
 	parser.parsePeekedByteSlice(&iFoo)
 	parser.parsePeekedByteSlice(&iBar)
 
@@ -4431,12 +4476,12 @@ func TestParser_putObjectValue(t *testing.T) {
 	parser.putValue(value2, iValue2)
 
 	field1 := parser.putObjectField(document.ObjectField{
-		Name:  iFoo,
+		Name:  iFoo.Reference,
 		Value: iValue1,
 	})
 
 	field3 := parser.putObjectField(document.ObjectField{
-		Name:  iFoo,
+		Name:  iFoo.Reference,
 		Value: iValue1,
 	})
 
@@ -4445,7 +4490,7 @@ func TestParser_putObjectValue(t *testing.T) {
 	}
 
 	field2 := parser.putObjectField(document.ObjectField{
-		Name:  iBar,
+		Name:  iBar.Reference,
 		Value: iValue2,
 	})
 
