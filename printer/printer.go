@@ -13,6 +13,7 @@ type Printer struct {
 	w   *lookup.Walker
 	p   *parser.Parser
 	out io.Writer
+	err error
 }
 
 func New() *Printer {
@@ -30,9 +31,17 @@ func (p *Printer) SetInput(parser *parser.Parser) {
 	}
 
 	p.w.SetLookup(p.l)
+	p.err = nil
 }
 
-func (p *Printer) PrintExecutableSchema(out io.Writer) (err error) {
+func (p *Printer) write(bytes []byte) {
+	if p.err != nil {
+		return
+	}
+	_, p.err = p.out.Write(bytes)
+}
+
+func (p *Printer) PrintExecutableSchema(out io.Writer) {
 
 	p.out = out
 	p.w.WalkExecutable()
@@ -40,106 +49,136 @@ func (p *Printer) PrintExecutableSchema(out io.Writer) (err error) {
 	operations := p.w.OperationDefinitionIterable()
 	for operations.Next() {
 		operation := operations.Value()
-		if operation.SelectionSet != -1 {
-			err = p.printSelectionSet(operation.SelectionSet)
-		}
+		p.printOperation(operation)
 	}
 
-	return err
+	if p.l.HasOperationDefinitions() && p.l.HasFragmentDefinitions() {
+		p.write(literal.LINETERMINATOR)
+	}
+
+	fragments := p.w.FragmentDefinitionIterable()
+	var addNewLine bool
+	for fragments.Next() {
+		if addNewLine {
+			p.write(literal.LINETERMINATOR)
+		}
+		fragment := fragments.Value()
+		p.printFragmentDefinition(fragment)
+		addNewLine = true
+	}
 }
 
-func (p *Printer) printSelectionSet(ref int) (err error) {
+func (p *Printer) printFragmentDefinition(fragment document.FragmentDefinition) {
+	p.write(literal.FRAGMENT)
+	p.write(literal.SPACE)
+	p.write(p.p.CachedByteSlice(fragment.FragmentName))
+	p.write(literal.SPACE)
+	p.write(literal.ON)
+	p.write(literal.SPACE)
+	p.write(p.p.CachedByteSlice(p.l.Type(fragment.TypeCondition).Name))
+	p.write(literal.SPACE)
+	p.printSelectionSet(fragment.SelectionSet)
+}
 
-	_, err = p.out.Write(literal.CURLYBRACKETOPEN)
-	if err != nil {
-		return err
+func (p *Printer) printOperation(operation document.OperationDefinition) {
+	hasName := operation.Name != -1
+	p.printOperationType(operation.OperationType, hasName)
+	if hasName {
+		p.write(p.p.CachedByteSlice(operation.Name))
+		p.write(literal.SPACE)
 	}
+	if operation.SelectionSet != -1 {
+		p.printSelectionSet(operation.SelectionSet)
+	}
+}
+
+func (p *Printer) printOperationType(operationType document.OperationType, hasName bool) {
+	switch operationType {
+	case document.OperationTypeQuery:
+		if hasName {
+			p.write(literal.QUERY)
+			p.write(literal.SPACE)
+		}
+	case document.OperationTypeMutation:
+		p.write(literal.MUTATION)
+		p.write(literal.SPACE)
+	case document.OperationTypeSubscription:
+		p.write(literal.SUBSCRIPTION)
+		p.write(literal.SPACE)
+	}
+	return
+}
+
+func (p *Printer) printSelectionSet(ref int) {
+
+	p.write(literal.CURLYBRACKETOPEN)
 
 	set := p.l.SelectionSetContentsIterator(ref)
 	var addSpace bool
 	for set.Next() {
 
 		if addSpace {
-			_, err = p.out.Write(literal.SPACE)
+			p.write(literal.SPACE)
 		}
 
 		kind, ref := set.Value()
 		switch kind {
 		case lookup.FIELD:
-			err = p.printField(ref)
+			p.printField(ref)
 		case lookup.FRAGMENT_SPREAD:
-			err = p.printFragmentSpread(ref)
+			p.printFragmentSpread(ref)
 		case lookup.INLINE_FRAGMENT:
-			err = p.printInlineFragment(ref)
+			p.printInlineFragment(ref)
 		}
 
 		addSpace = true
 	}
 
-	_, err = p.out.Write(literal.CURLYBRACKETCLOSE)
-	if err != nil {
-		return err
-	}
-
-	return
+	p.write(literal.CURLYBRACKETCLOSE)
 }
 
-func (p *Printer) printField(ref int) (err error) {
+func (p *Printer) printField(ref int) {
 
 	field := p.l.Field(ref)
-	_, err = p.out.Write(p.p.CachedByteSlice(field.Name))
+	p.write(p.p.CachedByteSlice(field.Name))
 
 	if field.SelectionSet != -1 {
-		_, err = p.out.Write(literal.SPACE)
-		if err != nil {
-			return err
-		}
-		err = p.printSelectionSet(field.SelectionSet)
-		if err != nil {
-			return err
-		}
+		p.write(literal.SPACE)
+		p.printSelectionSet(field.SelectionSet)
 	}
 
 	if field.ArgumentSet != -1 {
-		err = p.printArgumentSet(field.ArgumentSet)
+		p.printArgumentSet(field.ArgumentSet)
 	}
 
 	return
 }
 
-func (p *Printer) printFragmentSpread(ref int) (err error) {
-
+func (p *Printer) printFragmentSpread(ref int) {
 	spread := p.l.FragmentSpread(ref)
-	_, err = p.out.Write(literal.SPREAD)
-	_, err = p.out.Write(p.p.CachedByteSlice(spread.FragmentName))
-
-	return
+	p.write(literal.SPREAD)
+	p.write(p.p.CachedByteSlice(spread.FragmentName))
 }
 
-func (p *Printer) printInlineFragment(ref int) (err error) {
+func (p *Printer) printInlineFragment(ref int) {
 
 	inline := p.l.InlineFragment(ref)
-	_, err = p.out.Write(literal.SPREAD)
+	p.write(literal.SPREAD)
 
 	if inline.TypeCondition != -1 {
 		typeCondition := p.l.Type(inline.TypeCondition)
-		_, err = p.out.Write(literal.ON)
-		_, err = p.out.Write(literal.SPACE)
-		_, err = p.out.Write(p.p.CachedByteSlice(typeCondition.Name))
-		_, err = p.out.Write(literal.SPACE)
+		p.write(literal.ON)
+		p.write(literal.SPACE)
+		p.write(p.p.CachedByteSlice(typeCondition.Name))
+		p.write(literal.SPACE)
 	}
 
-	err = p.printSelectionSet(inline.SelectionSet)
-
-	return
+	p.printSelectionSet(inline.SelectionSet)
 }
 
-func (p *Printer) printArgumentSet(ref int) (err error) {
+func (p *Printer) printArgumentSet(ref int) {
 
-	_, err = p.out.Write(literal.BRACKETOPEN)
-	if err != nil {
-		return err
-	}
+	p.write(literal.BRACKETOPEN)
 
 	set := p.l.ArgumentSet(ref)
 	iter := p.l.ArgumentsIterable(set)
@@ -147,131 +186,87 @@ func (p *Printer) printArgumentSet(ref int) (err error) {
 	for iter.Next() {
 
 		if addSpace {
-			_, err = p.out.Write(literal.SPACE)
-			if err != nil {
-				return err
-			}
+			p.write(literal.SPACE)
 		}
 
 		argument, _ := iter.Value()
-		err = p.printArgument(argument)
-		if err != nil {
-			return err
-		}
+		p.printArgument(argument)
 	}
 
-	_, err = p.out.Write(literal.BRACKETCLOSE)
-	if err != nil {
-		return err
-	}
-
-	return
+	p.write(literal.BRACKETCLOSE)
 }
 
-func (p *Printer) printArgument(arg document.Argument) (err error) {
-
-	_, err = p.out.Write(p.p.CachedByteSlice(arg.Name))
-	if err != nil {
-		return err
-	}
-
-	_, err = p.out.Write(literal.COLON)
-	if err != nil {
-		return err
-	}
-
-	err = p.printValue(arg.Value)
-
-	return
+func (p *Printer) printArgument(arg document.Argument) {
+	p.write(p.p.CachedByteSlice(arg.Name))
+	p.write(literal.COLON)
+	p.printValue(arg.Value)
 }
 
-func (p *Printer) printValue(ref int) (err error) {
+func (p *Printer) printValue(ref int) {
 
 	value := p.l.Value(ref)
 
 	switch value.ValueType {
 	case document.ValueTypeBoolean, document.ValueTypeInt, document.ValueTypeFloat, document.ValueTypeEnum:
-		_, err = p.out.Write(p.p.ByteSlice(value.Raw))
+		p.write(p.p.ByteSlice(value.Raw))
 	case document.ValueTypeNull:
-		_, err = p.out.Write(literal.NULL)
+		p.write(literal.NULL)
 	case document.ValueTypeString:
-		_, err = p.out.Write(literal.QUOTE)
-		_, err = p.out.Write(p.p.ByteSlice(value.Raw))
-		_, err = p.out.Write(literal.QUOTE)
+		p.write(literal.QUOTE)
+		p.write(p.p.ByteSlice(value.Raw))
+		p.write(literal.QUOTE)
 	case document.ValueTypeVariable:
-		_, err = p.out.Write(literal.DOLLAR)
-		_, err = p.out.Write(p.p.ByteSlice(value.Raw))
+		p.write(literal.DOLLAR)
+		p.write(p.p.ByteSlice(value.Raw))
 	case document.ValueTypeObject:
-		err = p.printObjectValue(value.Reference)
+		p.printObjectValue(value.Reference)
 	case document.ValueTypeList:
-		err = p.printListValue(value.Reference)
+		p.printListValue(value.Reference)
 	}
-
-	return
 }
 
-func (p *Printer) printObjectValue(ref int) (err error) {
+func (p *Printer) printObjectValue(ref int) {
 
-	_, err = p.out.Write(literal.CURLYBRACKETOPEN)
-	if err != nil {
-		return err
-	}
+	p.write(literal.CURLYBRACKETOPEN)
 
 	objectValue := p.l.ObjectValue(ref)
 	fields := p.l.ObjectFieldsIterator(objectValue)
 	var addComma bool
 	for fields.Next() {
 		if addComma {
-			_, err = p.out.Write(literal.COMMA)
+			p.write(literal.COMMA)
 		}
 
 		field, _ := fields.Value()
-		err = p.printObjectField(field)
+		p.printObjectField(field)
 
 		addComma = true
 	}
 
-	_, err = p.out.Write(literal.CURLYBRACKETCLOSE)
-	if err != nil {
-		return err
-	}
-
-	return
+	p.write(literal.CURLYBRACKETCLOSE)
 }
 
-func (p *Printer) printObjectField(field document.ObjectField) (err error) {
-	_, err = p.out.Write(p.p.CachedByteSlice(field.Name))
-	_, err = p.out.Write(literal.COLON)
-	err = p.printValue(field.Value)
-	return
+func (p *Printer) printObjectField(field document.ObjectField) {
+	p.write(p.p.CachedByteSlice(field.Name))
+	p.write(literal.COLON)
+	p.printValue(field.Value)
 }
 
-func (p *Printer) printListValue(ref int) (err error) {
+func (p *Printer) printListValue(ref int) {
 
-	_, err = p.out.Write(literal.SQUAREBRACKETOPEN)
-	if err != nil {
-		return err
-	}
+	p.write(literal.SQUAREBRACKETOPEN)
 
 	list := p.l.ListValue(ref)
 	var addComma bool
 	for _, valueRef := range list {
 
 		if addComma {
-			_, err = p.out.Write(literal.COMMA)
-			if err != nil {
-				return err
-			}
+			p.write(literal.COMMA)
 		}
 
-		err = p.printValue(valueRef)
+		p.printValue(valueRef)
 		addComma = true
 	}
 
-	_, err = p.out.Write(literal.SQUAREBRACKETCLOSE)
-	if err != nil {
-		return err
-	}
-
-	return
+	p.write(literal.SQUAREBRACKETCLOSE)
 }
