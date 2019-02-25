@@ -25,9 +25,9 @@ func TestPrinter(t *testing.T) {
 
 		buff := bytes.Buffer{}
 		out := bufio.NewWriter(&buff)
-		err = printer.PrintExecutableSchema(out)
-		if err != nil {
-			panic(err)
+		printer.PrintExecutableSchema(out)
+		if printer.err != nil {
+			panic(printer.err)
 		}
 
 		err = out.Flush()
@@ -43,6 +43,9 @@ func TestPrinter(t *testing.T) {
 
 	t.Run("single field", func(t *testing.T) {
 		run("{foo}")
+	})
+	t.Run("query prefix", func(t *testing.T) {
+		run("query MyQuery {foo}")
 	})
 	t.Run("two fields", func(t *testing.T) {
 		run("{foo bar}")
@@ -95,11 +98,17 @@ func TestPrinter(t *testing.T) {
 	t.Run("list arg", func(t *testing.T) {
 		run("{assets(first:[1,3,3,7])}")
 	})
+	t.Run("fragment definition", func(t *testing.T) {
+		run("fragment MyFragment on Dog {foo bar}")
+	})
+	t.Run("multiple fragment definitions", func(t *testing.T) {
+		run("fragment MyFragment on Dog {foo bar}\nfragment MyFragment on Dog {foo bar}")
+	})
 }
 
 func BenchmarkPrinter_PrintExecutableSchema(b *testing.B) {
 
-	inputBytes := []byte("{foo bar ...{baz} ...Bal ...on Bar {bat bar} bart assets(first:{foo:\"bar\",baz:1}) assets(first:[1,3,3,7]) assets(first:null)}")
+	inputBytes := []byte("{foo bar ...{baz} ...Bal ...on Bar {bat bar} bart assets(first:{foo:\"bar\",baz:1}) assets(first:[1,3,3,7]) assets(first:null)}\nfragment MyFrag on Dog {foo bar}")
 
 	p := parser.NewParser()
 	err := p.ParseExecutableDefinition(inputBytes)
@@ -118,9 +127,9 @@ func BenchmarkPrinter_PrintExecutableSchema(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 
 		printer.SetInput(p)
-		err = printer.PrintExecutableSchema(bufOut)
-		if err != nil {
-			panic(err)
+		printer.PrintExecutableSchema(bufOut)
+		if printer.err != nil {
+			panic(printer.err)
 		}
 
 		if err := bufOut.Flush(); err != nil {
