@@ -7,6 +7,7 @@ type Value struct {
 	ValueType ValueType
 	Reference int
 	Position  position.Position
+	Raw       ByteSliceReference
 }
 
 func (v Value) NodeSelectionSet() int {
