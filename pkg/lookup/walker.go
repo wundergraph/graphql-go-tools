@@ -41,7 +41,8 @@ type walkerCache struct {
 	selectionSets       []int
 	fields              []int
 
-	path []int
+	path                []int
+	fragmentDefinitions []int
 }
 
 func NewWalker(nodeCacheSize int, defaultCacheSize int) *Walker {
@@ -55,6 +56,7 @@ func NewWalker(nodeCacheSize int, defaultCacheSize int) *Walker {
 			directiveSets:       make([]int, 0, defaultCacheSize),
 			selectionSets:       make([]int, 0, defaultCacheSize),
 			fields:              make([]int, 0, defaultCacheSize),
+			fragmentDefinitions: make([]int, 0, defaultCacheSize),
 			path:                make([]int, 16),
 		},
 	}
@@ -72,6 +74,7 @@ func (w *Walker) SetLookup(l *Lookup) {
 	w.c.directiveSets = w.c.directiveSets[:0]
 	w.c.selectionSets = w.c.selectionSets[:0]
 	w.c.fields = w.c.fields[:0]
+	w.c.fragmentDefinitions = w.c.fragmentDefinitions[:0]
 }
 
 func (w *Walker) putNode(node Node) int {
@@ -265,11 +268,15 @@ func (w *Walker) referenceFormsCycle(kind NodeKind, ref, parent int) bool {
 }
 
 func (w *Walker) walkFragmentDefinition(definition document.FragmentDefinition, index int, parent int) {
+
 	ref := w.putNode(Node{
 		Parent: parent,
 		Kind:   FRAGMENT_DEFINITION,
 		Ref:    index,
 	})
+
+	w.c.fragmentDefinitions = append(w.c.fragmentDefinitions, ref)
+
 	w.walkDirectiveSet(definition.DirectiveSet, ref)
 	w.walkSelectionSet(definition.SelectionSet, ref)
 }
