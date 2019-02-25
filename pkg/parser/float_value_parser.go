@@ -1,10 +1,11 @@
 package parser
 
 import (
+	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/transform"
 )
 
-func (p *Parser) parsePeekedFloatValue(index *int) error {
+func (p *Parser) parsePeekedFloatValue(value *document.Value) error {
 
 	floatToken := p.l.Read()
 
@@ -13,6 +14,8 @@ func (p *Parser) parsePeekedFloatValue(index *int) error {
 		return err
 	}
 
-	*index = p.putFloat(float)
+	value.Raw = floatToken.Literal
+	value.Reference = p.putFloat(float)
+
 	return nil
 }

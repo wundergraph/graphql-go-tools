@@ -19,25 +19,25 @@ func (p *Parser) parseValue(index *int) (err error) {
 	switch key {
 	case keyword.FALSE, keyword.TRUE:
 		value.ValueType = document.ValueTypeBoolean
-		p.parsePeekedBoolValue(&value.Reference)
+		p.parsePeekedBoolValue(&value)
 	case keyword.VARIABLE:
 		value.ValueType = document.ValueTypeVariable
-		p.parsePeekedByteSlice(&value.Reference)
+		p.parsePeekedByteSlice(&value)
 	case keyword.INTEGER:
 		value.ValueType = document.ValueTypeInt
-		err = p.parsePeekedIntValue(&value.Reference)
+		err = p.parsePeekedIntValue(&value)
 	case keyword.FLOAT:
 		value.ValueType = document.ValueTypeFloat
-		err = p.parsePeekedFloatValue(&value.Reference)
+		err = p.parsePeekedFloatValue(&value)
 	case keyword.STRING:
 		value.ValueType = document.ValueTypeString
-		p.parsePeekedByteSlice(&value.Reference)
+		p.parsePeekedByteSlice(&value)
 	case keyword.NULL:
 		value.ValueType = document.ValueTypeNull
 		p.l.Read()
 	case keyword.IDENT:
 		value.ValueType = document.ValueTypeEnum
-		p.parsePeekedByteSlice(&value.Reference)
+		p.parsePeekedByteSlice(&value)
 	case keyword.SQUAREBRACKETOPEN:
 		value.ValueType = document.ValueTypeList
 		err = p.parsePeekedListValue(&value.Reference)
