@@ -55,6 +55,14 @@ func (l *Lookup) initRefsFromCache(refs *[]int) {
 	*refs = l.refCache[:0]
 }
 
+func (l *Lookup) HasOperationDefinitions() bool {
+	return len(l.p.ParsedDefinitions.OperationDefinitions) > 0
+}
+
+func (l *Lookup) HasFragmentDefinitions() bool {
+	return len(l.p.ParsedDefinitions.FragmentDefinitions) > 0
+}
+
 func (l *Lookup) OperationDefinition(i int) document.OperationDefinition {
 	return l.p.ParsedDefinitions.OperationDefinitions[i]
 }
