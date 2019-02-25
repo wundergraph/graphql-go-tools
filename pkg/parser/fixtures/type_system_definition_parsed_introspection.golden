@@ -1015,6 +1015,10 @@
           "LineEnd": 30,
           "CharStart": 28,
           "CharEnd": 33
+        },
+        "Raw": {
+          "Start": 389,
+          "End": 393
         }
       },
       {
@@ -1025,6 +1029,10 @@
           "LineEnd": 48,
           "CharStart": 32,
           "CharEnd": 37
+        },
+        "Raw": {
+          "Start": 640,
+          "End": 644
         }
       }
     ],
