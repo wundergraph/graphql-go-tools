@@ -28,12 +28,9 @@ steps:
   displayName: 'Set up the Go workspace'
 
 - script: |
-    go version
-    go get -v -t -d ./...
-    if [ -f Gopkg.toml ]; then
-        curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
-        dep ensure
-    fi
-    go build -v .
+    go get -u github.com/alecthomas/gometalinter
+    gometalinter --install
+    gometalinter --config ./gometalinter.json ./pkg/**
+    go test ./...
   workingDirectory: '$(modulePath)'
-  displayName: 'Get dependencies, then build'
+  displayName: 'dep install, lint, test'
