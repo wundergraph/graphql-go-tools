@@ -593,8 +593,10 @@ func TestParser(t *testing.T) {
 				panic(err)
 			}
 
+			arguments := parser.ParsedDefinitions.ArgumentSets[set]
+
 			for k, want := range wantArgumentNodes {
-				argument := parser.ParsedDefinitions.Arguments[k]
+				argument := parser.ParsedDefinitions.Arguments[arguments[k]]
 				want.eval(argument, parser, k)
 			}
 		}
@@ -1049,6 +1051,34 @@ func TestParser(t *testing.T) {
 					}),
 				),
 			),
+		)
+	})
+	t.Run("multiple argument sets", func(t *testing.T) {
+		run(`(name: "Gophus")(name2: "Gophus")`,
+			mustParseArguments(
+				node(
+					hasName("name"),
+				),
+			),
+			mustParseArguments(
+				node(
+					hasName("name2"),
+				),
+			),
+		)
+	})
+	t.Run("multiple argument sets", func(t *testing.T) {
+		run(`(name: "Gophus")()`,
+			mustParseArguments(
+				node(
+					hasName("name"),
+				),
+			),
+			mustPanic(mustParseArguments(
+				node(
+					hasName("name2"),
+				),
+			)),
 		)
 	})
 	t.Run("string array argument", func(t *testing.T) {
