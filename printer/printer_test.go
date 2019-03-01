@@ -57,13 +57,19 @@ func TestPrinter(t *testing.T) {
 		run("{foo {bar {bat ...bal ...{bak}}} baz}")
 	})
 	t.Run("inline fragment with type condition", func(t *testing.T) {
-		run("{foo ...on Bar {baz}}")
+		run("{foo ...on Bar{baz}}")
+	})
+	t.Run("inline fragment with type condition and directive", func(t *testing.T) {
+		run("{foo ...on Bar @foo @bar(baz:\"bat\"){baz}}")
 	})
 	t.Run("field with fragment spread", func(t *testing.T) {
 		run("{foo ...Bar}")
 	})
+	t.Run("field with fragment spread and directive", func(t *testing.T) {
+		run("{foo ...Bar @foo}")
+	})
 	t.Run("complex", func(t *testing.T) {
-		run("{foo bar ...{baz} ...Bal ...on Bar {bat bar} bart}")
+		run("{foo bar ...{baz} ...Bal ...on Bar{bat bar} bart}")
 	})
 	t.Run("field with arguments", func(t *testing.T) {
 		run("{assets(first:1) noArgField}")
@@ -101,6 +107,9 @@ func TestPrinter(t *testing.T) {
 	t.Run("fragment definition", func(t *testing.T) {
 		run("fragment MyFragment on Dog {foo bar}")
 	})
+	t.Run("fragment definition with directive", func(t *testing.T) {
+		run("fragment MyFragment on Dog @foo @bar(baz:\"bat\") {foo bar}")
+	})
 	t.Run("multiple fragment definitions", func(t *testing.T) {
 		run("fragment MyFragment on Dog {foo bar}\nfragment MyFragment on Dog {foo bar}")
 	})
@@ -109,6 +118,12 @@ func TestPrinter(t *testing.T) {
 	})
 	t.Run("multiple directives on query", func(t *testing.T) {
 		run("query mQuery @foo(bar:\"baz\") @foo2 {bat}")
+	})
+	t.Run("directive on field", func(t *testing.T) {
+		run("{foo @bar(baz:\"bat\")}")
+	})
+	t.Run("multiple directive on field", func(t *testing.T) {
+		run("{foo @bar(baz:\"bat\") @foo2}")
 	})
 }
 
