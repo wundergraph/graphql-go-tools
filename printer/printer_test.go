@@ -104,6 +104,12 @@ func TestPrinter(t *testing.T) {
 	t.Run("multiple fragment definitions", func(t *testing.T) {
 		run("fragment MyFragment on Dog {foo bar}\nfragment MyFragment on Dog {foo bar}")
 	})
+	t.Run("directive on query", func(t *testing.T) {
+		run("query mQuery @foo(bar:\"baz\") {bat}")
+	})
+	t.Run("multiple directives on query", func(t *testing.T) {
+		run("query mQuery @foo(bar:\"baz\") @foo2 {bat}")
+	})
 }
 
 func BenchmarkPrinter_PrintExecutableSchema(b *testing.B) {
