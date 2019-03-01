@@ -606,10 +606,22 @@ func (p *Parser) putInlineFragment(fragment document.InlineFragment) int {
 func (p *Parser) putFragmentSpread(spread document.FragmentSpread) int {
 
 	for i, current := range p.ParsedDefinitions.FragmentSpreads {
-		if spread.FragmentName == current.FragmentName &&
-			p.integersContainSameValues(
-				p.ParsedDefinitions.DirectiveSets[spread.DirectiveSet],
-				p.ParsedDefinitions.DirectiveSets[current.DirectiveSet]) {
+
+		if spread.FragmentName != current.FragmentName {
+			continue
+		}
+
+		if spread.DirectiveSet == -1 && current.DirectiveSet == -1 {
+			return i
+		}
+
+		if spread.DirectiveSet == -1 || current.DirectiveSet == -1 {
+			continue
+		}
+
+		if p.integersContainSameValues(
+			p.ParsedDefinitions.DirectiveSets[spread.DirectiveSet],
+			p.ParsedDefinitions.DirectiveSets[current.DirectiveSet]) {
 			return i
 		}
 	}
