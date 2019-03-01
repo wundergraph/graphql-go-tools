@@ -77,6 +77,10 @@ func (p *Printer) printFragmentDefinition(fragment document.FragmentDefinition) 
 	p.write(literal.SPACE)
 	p.write(p.p.CachedByteSlice(p.l.Type(fragment.TypeCondition).Name))
 	p.write(literal.SPACE)
+	if fragment.DirectiveSet != -1 {
+		p.printDirectiveSet(fragment.DirectiveSet)
+		p.write(literal.SPACE)
+	}
 	p.printSelectionSet(fragment.SelectionSet)
 }
 
@@ -89,6 +93,7 @@ func (p *Printer) printOperation(operation document.OperationDefinition) {
 	}
 	if operation.DirectiveSet != -1 {
 		p.printDirectiveSet(operation.DirectiveSet)
+		p.write(literal.SPACE)
 	}
 	if operation.SelectionSet != -1 {
 		p.printSelectionSet(operation.SelectionSet)
@@ -106,10 +111,6 @@ func (p *Printer) printDirectiveSet(setRef int) {
 		directive, _ := iter.Value()
 		p.printDirective(directive)
 		addSpace = true
-	}
-
-	if addSpace {
-		p.write(literal.SPACE)
 	}
 }
 
@@ -171,13 +172,18 @@ func (p *Printer) printField(ref int) {
 	field := p.l.Field(ref)
 	p.write(p.p.CachedByteSlice(field.Name))
 
+	if field.ArgumentSet != -1 {
+		p.printArgumentSet(field.ArgumentSet)
+	}
+
+	if field.DirectiveSet != -1 {
+		p.write(literal.SPACE)
+		p.printDirectiveSet(field.DirectiveSet)
+	}
+
 	if field.SelectionSet != -1 {
 		p.write(literal.SPACE)
 		p.printSelectionSet(field.SelectionSet)
-	}
-
-	if field.ArgumentSet != -1 {
-		p.printArgumentSet(field.ArgumentSet)
 	}
 
 	return
@@ -187,6 +193,10 @@ func (p *Printer) printFragmentSpread(ref int) {
 	spread := p.l.FragmentSpread(ref)
 	p.write(literal.SPREAD)
 	p.write(p.p.CachedByteSlice(spread.FragmentName))
+	if spread.DirectiveSet != -1 {
+		p.write(literal.SPACE)
+		p.printDirectiveSet(spread.DirectiveSet)
+	}
 }
 
 func (p *Printer) printInlineFragment(ref int) {
@@ -199,7 +209,11 @@ func (p *Printer) printInlineFragment(ref int) {
 		p.write(literal.ON)
 		p.write(literal.SPACE)
 		p.write(p.p.CachedByteSlice(typeCondition.Name))
+	}
+
+	if inline.DirectiveSet != -1 {
 		p.write(literal.SPACE)
+		p.printDirectiveSet(inline.DirectiveSet)
 	}
 
 	p.printSelectionSet(inline.SelectionSet)
