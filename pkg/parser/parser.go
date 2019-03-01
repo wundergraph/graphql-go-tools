@@ -782,11 +782,21 @@ func (p *Parser) putInputFieldsDefinitions(definition document.InputFieldsDefini
 }
 
 func (p *Parser) putArgumentSet(set document.ArgumentSet) int {
+
+	if len(set) == 0 {
+		return -1
+	}
+
 	p.ParsedDefinitions.ArgumentSets = append(p.ParsedDefinitions.ArgumentSets, set)
 	return len(p.ParsedDefinitions.ArgumentSets) - 1
 }
 
 func (p *Parser) putDirectiveSet(set document.DirectiveSet) int {
+
+	if len(set) == 0 {
+		return -1
+	}
+
 	p.ParsedDefinitions.DirectiveSets = append(p.ParsedDefinitions.DirectiveSets, set)
 	return len(p.ParsedDefinitions.DirectiveSets) - 1
 }
