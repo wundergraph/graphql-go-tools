@@ -11,6 +11,7 @@ func (p *Parser) parseArgumentSet(index *int) error {
 	key := p.l.Peek(true)
 
 	if key != keyword.BRACKETOPEN {
+		*index = -1
 		return nil
 	}
 
@@ -36,15 +37,12 @@ func (p *Parser) parseArgumentSet(index *int) error {
 			return fmt.Errorf("parseArgumentSet: ident/bracketclose expected, got %s", key)
 		}
 
-		key = p.l.Peek(true)
-
-		if key == keyword.COLON {
-			_ = p.l.Read()
-		} else {
-			return fmt.Errorf("parseArgumentSet: colon expected, got %s", key)
+		_, err := p.readExpect(keyword.COLON, "parseArgumentSet")
+		if err != nil {
+			return err
 		}
 
-		err := p.parseValue(&argument.Value)
+		err = p.parseValue(&argument.Value)
 		if err != nil {
 			return err
 		}
