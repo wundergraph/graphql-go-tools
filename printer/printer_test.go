@@ -129,7 +129,7 @@ func TestPrinter(t *testing.T) {
 
 func BenchmarkPrinter_PrintExecutableSchema(b *testing.B) {
 
-	inputBytes := []byte("{foo bar ...{baz} ...Bal ...on Bar {bat bar} bart assets(first:{foo:\"bar\",baz:1}) assets(first:[1,3,3,7]) assets(first:null)}\nfragment MyFrag on Dog {foo bar}")
+	inputBytes := []byte("{foo bar ...{baz} ...Bal ...on Bar{bat bar} bart assets(first:{foo:\"bar\",baz:1}) assets(first:[1,3,3,7]) assets(first:null)}\nfragment MyFrag on Dog {foo bar}")
 
 	p := parser.NewParser()
 	err := p.ParseExecutableDefinition(inputBytes)
