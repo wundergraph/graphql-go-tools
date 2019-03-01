@@ -87,8 +87,37 @@ func (p *Printer) printOperation(operation document.OperationDefinition) {
 		p.write(p.p.CachedByteSlice(operation.Name))
 		p.write(literal.SPACE)
 	}
+	if operation.DirectiveSet != -1 {
+		p.printDirectiveSet(operation.DirectiveSet)
+	}
 	if operation.SelectionSet != -1 {
 		p.printSelectionSet(operation.SelectionSet)
+	}
+}
+
+func (p *Printer) printDirectiveSet(setRef int) {
+	set := p.l.DirectiveSet(setRef)
+	iter := p.l.DirectiveIterable(set)
+	var addSpace bool
+	for iter.Next() {
+		if addSpace {
+			p.write(literal.SPACE)
+		}
+		directive, _ := iter.Value()
+		p.printDirective(directive)
+		addSpace = true
+	}
+
+	if addSpace {
+		p.write(literal.SPACE)
+	}
+}
+
+func (p *Printer) printDirective(directive document.Directive) {
+	p.write(literal.AT)
+	p.write(p.p.CachedByteSlice(directive.Name))
+	if directive.ArgumentSet != -1 {
+		p.printArgumentSet(directive.ArgumentSet)
 	}
 }
 
