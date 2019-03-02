@@ -104,59 +104,6 @@ func TestLookup(t *testing.T) {
 		}
 	}
 
-	/*	wantSetWithSubsets := func(name string, subsets ..._wantSet) _wantSetWithSubsets {
-			return _wantSetWithSubsets{
-				name:    name,
-				subSets: subsets,
-			}
-		}
-
-		mustHaveSelectionSetsWithDifferingSubSets := func(sets ..._wantSetWithSubsets) checkFunc {
-			return func(walker *Walker) {
-				iter := walker.SelectionSetIterable()
-				for _, want := range sets {
-					if !iter.Next() {
-						panic("mustHaveSelectionSetsWithDifferingSubSets: want next set, got nothing")
-					}
-					set, _, parent := iter.Value()
-					typeName := walker.SelectionSetTypeName(set, parent)
-					got := string(walker.l.CachedName(typeName))
-					if want.name != got {
-						panic(fmt.Errorf("mustHaveSelectionSetsWithDifferingSubSets: want type name: %s, got: %s", want, got))
-					}
-
-					subSets := walker.l.SelectionSetDifferingSelectionSetIterator(set, typeName)
-					for _, wantSubset := range want.subSets {
-						if !subSets.Next() {
-							panic(fmt.Errorf("mustHaveSelectionSetsWithDifferingSubSets: want next subset, got nothing"))
-						}
-						typedSet := subSets.Value()
-						gotName := string(walker.l.CachedName(typedSet.Type.Name))
-						if gotName != wantSubset.name {
-							panic(fmt.Errorf("mustHaveSelectionSetsWithDifferingSubSets: want subSet with type: %s, got: %s", wantSubset.name, gotName))
-						}
-
-						fields := walker.l.SelectionSetCollectedFields(set, typeName)
-						for _, wantField := range wantSubset.fields {
-							if !fields.Next() {
-								panic(fmt.Errorf("mustHaveSelectionSetsWithDifferingSubSets: want next field (%s), got nothing", wantField))
-							}
-							gotField := fields.Value()
-							fieldName := string(walker.l.CachedName(gotField.Name))
-							if fieldName != wantField {
-								panic(fmt.Errorf("mustHaveSelectionSetsWithDifferingSubSets: want field: %s, got: %s", wantField, fieldName))
-							}
-						}
-
-						if fields.Next() {
-							next := string(walker.l.CachedName(fields.Value().Name))
-							panic(fmt.Errorf("mustHaveSelectionSetsWithDifferingSubSets: want Next() to return false, got next field: %s", next))
-						}
-					}
-				}
-			}
-		}*/
-
 	t.Run("lookup SelectionSetTypeName", func(t *testing.T) {
 		t.Run("on fragment definition", func(t *testing.T) {
 			run(testDefinition, `fragment conflictingBecauseAlias on Dog {
@@ -207,7 +154,7 @@ func TestLookup(t *testing.T) {
 						fragment nameFrag on Dog {
 							name
 						}`,
-				mustHaveSelectionSetTypeNames("Dog", "Query", "Dog", "Dog"),
+				mustHaveSelectionSetTypeNames("Dog", "Query", "Dog"),
 			)
 		})
 	})

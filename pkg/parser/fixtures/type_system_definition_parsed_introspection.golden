@@ -53,7 +53,7 @@
         "OperationType": 1,
         "Name": 0,
         "VariableDefinitions": [],
-        "DirectiveSet": 0,
+        "DirectiveSet": -1,
         "SelectionSet": 7,
         "Position": {
           "LineStart": 1,
@@ -67,7 +67,7 @@
       {
         "FragmentName": 7,
         "TypeCondition": 0,
-        "DirectiveSet": 16,
+        "DirectiveSet": -1,
         "SelectionSet": 15,
         "Position": {
           "LineStart": 26,
@@ -79,7 +79,7 @@
       {
         "FragmentName": 12,
         "TypeCondition": 1,
-        "DirectiveSet": 40,
+        "DirectiveSet": -1,
         "SelectionSet": 17,
         "Position": {
           "LineStart": 59,
@@ -91,7 +91,7 @@
       {
         "FragmentName": 18,
         "TypeCondition": 2,
-        "DirectiveSet": 46,
+        "DirectiveSet": -1,
         "SelectionSet": 25,
         "Position": {
           "LineStart": 68,
@@ -107,7 +107,7 @@
         "Alias": -1,
         "Name": 3,
         "ArgumentSet": -1,
-        "DirectiveSet": 3,
+        "DirectiveSet": -1,
         "SelectionSet": -1,
         "Position": {
           "LineStart": 4,
@@ -120,7 +120,7 @@
         "Alias": -1,
         "Name": 2,
         "ArgumentSet": -1,
-        "DirectiveSet": 2,
+        "DirectiveSet": -1,
         "SelectionSet": 0,
         "Position": {
           "LineStart": 3,
@@ -133,7 +133,7 @@
         "Alias": -1,
         "Name": 3,
         "ArgumentSet": -1,
-        "DirectiveSet": 5,
+        "DirectiveSet": -1,
         "SelectionSet": -1,
         "Position": {
           "LineStart": 7,
@@ -146,7 +146,7 @@
         "Alias": -1,
         "Name": 4,
         "ArgumentSet": -1,
-        "DirectiveSet": 4,
+        "DirectiveSet": -1,
         "SelectionSet": 1,
         "Position": {
           "LineStart": 6,
@@ -159,7 +159,7 @@
         "Alias": -1,
         "Name": 3,
         "ArgumentSet": -1,
-        "DirectiveSet": 7,
+        "DirectiveSet": -1,
         "SelectionSet": -1,
         "Position": {
           "LineStart": 10,
@@ -172,7 +172,7 @@
         "Alias": -1,
         "Name": 5,
         "ArgumentSet": -1,
-        "DirectiveSet": 6,
+        "DirectiveSet": -1,
         "SelectionSet": 2,
         "Position": {
           "LineStart": 9,
@@ -185,7 +185,7 @@
         "Alias": -1,
         "Name": 6,
         "ArgumentSet": -1,
-        "DirectiveSet": 8,
+        "DirectiveSet": -1,
         "SelectionSet": 3,
         "Position": {
           "LineStart": 12,
@@ -198,7 +198,7 @@
         "Alias": -1,
         "Name": 3,
         "ArgumentSet": -1,
-        "DirectiveSet": 11,
+        "DirectiveSet": -1,
         "SelectionSet": -1,
         "Position": {
           "LineStart": 16,
@@ -211,7 +211,7 @@
         "Alias": -1,
         "Name": 9,
         "ArgumentSet": -1,
-        "DirectiveSet": 12,
+        "DirectiveSet": -1,
         "SelectionSet": -1,
         "Position": {
           "LineStart": 17,
@@ -224,7 +224,7 @@
         "Alias": -1,
         "Name": 10,
         "ArgumentSet": -1,
-        "DirectiveSet": 13,
+        "DirectiveSet": -1,
         "SelectionSet": -1,
         "Position": {
           "LineStart": 18,
@@ -237,7 +237,7 @@
         "Alias": -1,
         "Name": 11,
         "ArgumentSet": -1,
-        "DirectiveSet": 14,
+        "DirectiveSet": -1,
         "SelectionSet": 4,
         "Position": {
           "LineStart": 19,
@@ -250,7 +250,7 @@
         "Alias": -1,
         "Name": 8,
         "ArgumentSet": -1,
-        "DirectiveSet": 10,
+        "DirectiveSet": -1,
         "SelectionSet": 5,
         "Position": {
           "LineStart": 15,
@@ -263,7 +263,7 @@
         "Alias": -1,
         "Name": 1,
         "ArgumentSet": -1,
-        "DirectiveSet": 1,
+        "DirectiveSet": -1,
         "SelectionSet": 6,
         "Position": {
           "LineStart": 2,
@@ -276,7 +276,7 @@
         "Alias": -1,
         "Name": 14,
         "ArgumentSet": -1,
-        "DirectiveSet": 17,
+        "DirectiveSet": -1,
         "SelectionSet": -1,
         "Position": {
           "LineStart": 27,
@@ -289,7 +289,7 @@
         "Alias": -1,
         "Name": 3,
         "ArgumentSet": -1,
-        "DirectiveSet": 18,
+        "DirectiveSet": -1,
         "SelectionSet": -1,
         "Position": {
           "LineStart": 28,
@@ -302,7 +302,7 @@
         "Alias": -1,
         "Name": 9,
         "ArgumentSet": -1,
-        "DirectiveSet": 19,
+        "DirectiveSet": -1,
         "SelectionSet": -1,
         "Position": {
           "LineStart": 29,
@@ -315,7 +315,7 @@
         "Alias": -1,
         "Name": 3,
         "ArgumentSet": -1,
-        "DirectiveSet": 21,
+        "DirectiveSet": -1,
         "SelectionSet": -1,
         "Position": {
           "LineStart": 31,
@@ -328,7 +328,7 @@
         "Alias": -1,
         "Name": 9,
         "ArgumentSet": -1,
-        "DirectiveSet": 22,
+        "DirectiveSet": -1,
         "SelectionSet": -1,
         "Position": {
           "LineStart": 32,
@@ -341,7 +341,7 @@
         "Alias": -1,
         "Name": 11,
         "ArgumentSet": -1,
-        "DirectiveSet": 23,
+        "DirectiveSet": -1,
         "SelectionSet": 8,
         "Position": {
           "LineStart": 33,
@@ -354,7 +354,7 @@
         "Alias": -1,
         "Name": 17,
         "ArgumentSet": -1,
-        "DirectiveSet": 25,
+        "DirectiveSet": -1,
         "SelectionSet": 9,
         "Position": {
           "LineStart": 36,
@@ -367,7 +367,7 @@
         "Alias": -1,
         "Name": 19,
         "ArgumentSet": -1,
-        "DirectiveSet": 27,
+        "DirectiveSet": -1,
         "SelectionSet": -1,
         "Position": {
           "LineStart": 39,
@@ -380,7 +380,7 @@
         "Alias": -1,
         "Name": 20,
         "ArgumentSet": -1,
-        "DirectiveSet": 28,
+        "DirectiveSet": -1,
         "SelectionSet": -1,
         "Position": {
           "LineStart": 40,
@@ -393,7 +393,7 @@
         "Alias": -1,
         "Name": 15,
         "ArgumentSet": 0,
-        "DirectiveSet": 20,
+        "DirectiveSet": -1,
         "SelectionSet": 10,
         "Position": {
           "LineStart": 30,
@@ -406,7 +406,7 @@
         "Alias": -1,
         "Name": 21,
         "ArgumentSet": -1,
-        "DirectiveSet": 29,
+        "DirectiveSet": -1,
         "SelectionSet": 11,
         "Position": {
           "LineStart": 42,
@@ -419,7 +419,7 @@
         "Alias": -1,
         "Name": 22,
         "ArgumentSet": -1,
-        "DirectiveSet": 31,
+        "DirectiveSet": -1,
         "SelectionSet": 12,
         "Position": {
           "LineStart": 45,
@@ -432,7 +432,7 @@
         "Alias": -1,
         "Name": 3,
         "ArgumentSet": -1,
-        "DirectiveSet": 34,
+        "DirectiveSet": -1,
         "SelectionSet": -1,
         "Position": {
           "LineStart": 49,
@@ -445,7 +445,7 @@
         "Alias": -1,
         "Name": 9,
         "ArgumentSet": -1,
-        "DirectiveSet": 35,
+        "DirectiveSet": -1,
         "SelectionSet": -1,
         "Position": {
           "LineStart": 50,
@@ -458,7 +458,7 @@
         "Alias": -1,
         "Name": 19,
         "ArgumentSet": -1,
-        "DirectiveSet": 36,
+        "DirectiveSet": -1,
         "SelectionSet": -1,
         "Position": {
           "LineStart": 51,
@@ -471,7 +471,7 @@
         "Alias": -1,
         "Name": 20,
         "ArgumentSet": -1,
-        "DirectiveSet": 37,
+        "DirectiveSet": -1,
         "SelectionSet": -1,
         "Position": {
           "LineStart": 52,
@@ -484,7 +484,7 @@
         "Alias": -1,
         "Name": 23,
         "ArgumentSet": 1,
-        "DirectiveSet": 33,
+        "DirectiveSet": -1,
         "SelectionSet": 13,
         "Position": {
           "LineStart": 48,
@@ -497,7 +497,7 @@
         "Alias": -1,
         "Name": 24,
         "ArgumentSet": -1,
-        "DirectiveSet": 38,
+        "DirectiveSet": -1,
         "SelectionSet": 14,
         "Position": {
           "LineStart": 54,
@@ -510,7 +510,7 @@
         "Alias": -1,
         "Name": 3,
         "ArgumentSet": -1,
-        "DirectiveSet": 41,
+        "DirectiveSet": -1,
         "SelectionSet": -1,
         "Position": {
           "LineStart": 60,
@@ -523,7 +523,7 @@
         "Alias": -1,
         "Name": 9,
         "ArgumentSet": -1,
-        "DirectiveSet": 42,
+        "DirectiveSet": -1,
         "SelectionSet": -1,
         "Position": {
           "LineStart": 61,
@@ -536,7 +536,7 @@
         "Alias": -1,
         "Name": 17,
         "ArgumentSet": -1,
-        "DirectiveSet": 43,
+        "DirectiveSet": -1,
         "SelectionSet": 16,
         "Position": {
           "LineStart": 62,
@@ -549,7 +549,7 @@
         "Alias": -1,
         "Name": 26,
         "ArgumentSet": -1,
-        "DirectiveSet": 45,
+        "DirectiveSet": -1,
         "SelectionSet": -1,
         "Position": {
           "LineStart": 65,
@@ -562,7 +562,7 @@
         "Alias": -1,
         "Name": 14,
         "ArgumentSet": -1,
-        "DirectiveSet": 47,
+        "DirectiveSet": -1,
         "SelectionSet": -1,
         "Position": {
           "LineStart": 69,
@@ -575,7 +575,7 @@
         "Alias": -1,
         "Name": 3,
         "ArgumentSet": -1,
-        "DirectiveSet": 48,
+        "DirectiveSet": -1,
         "SelectionSet": -1,
         "Position": {
           "LineStart": 70,
@@ -588,7 +588,7 @@
         "Alias": -1,
         "Name": 14,
         "ArgumentSet": -1,
-        "DirectiveSet": 50,
+        "DirectiveSet": -1,
         "SelectionSet": -1,
         "Position": {
           "LineStart": 72,
@@ -601,7 +601,7 @@
         "Alias": -1,
         "Name": 3,
         "ArgumentSet": -1,
-        "DirectiveSet": 51,
+        "DirectiveSet": -1,
         "SelectionSet": -1,
         "Position": {
           "LineStart": 73,
@@ -614,7 +614,7 @@
         "Alias": -1,
         "Name": 14,
         "ArgumentSet": -1,
-        "DirectiveSet": 53,
+        "DirectiveSet": -1,
         "SelectionSet": -1,
         "Position": {
           "LineStart": 75,
@@ -627,7 +627,7 @@
         "Alias": -1,
         "Name": 3,
         "ArgumentSet": -1,
-        "DirectiveSet": 54,
+        "DirectiveSet": -1,
         "SelectionSet": -1,
         "Position": {
           "LineStart": 76,
@@ -640,7 +640,7 @@
         "Alias": -1,
         "Name": 14,
         "ArgumentSet": -1,
-        "DirectiveSet": 56,
+        "DirectiveSet": -1,
         "SelectionSet": -1,
         "Position": {
           "LineStart": 78,
@@ -653,7 +653,7 @@
         "Alias": -1,
         "Name": 3,
         "ArgumentSet": -1,
-        "DirectiveSet": 57,
+        "DirectiveSet": -1,
         "SelectionSet": -1,
         "Position": {
           "LineStart": 79,
@@ -666,7 +666,7 @@
         "Alias": -1,
         "Name": 14,
         "ArgumentSet": -1,
-        "DirectiveSet": 59,
+        "DirectiveSet": -1,
         "SelectionSet": -1,
         "Position": {
           "LineStart": 81,
@@ -679,7 +679,7 @@
         "Alias": -1,
         "Name": 3,
         "ArgumentSet": -1,
-        "DirectiveSet": 60,
+        "DirectiveSet": -1,
         "SelectionSet": -1,
         "Position": {
           "LineStart": 82,
@@ -692,7 +692,7 @@
         "Alias": -1,
         "Name": 14,
         "ArgumentSet": -1,
-        "DirectiveSet": 62,
+        "DirectiveSet": -1,
         "SelectionSet": -1,
         "Position": {
           "LineStart": 84,
@@ -705,7 +705,7 @@
         "Alias": -1,
         "Name": 3,
         "ArgumentSet": -1,
-        "DirectiveSet": 63,
+        "DirectiveSet": -1,
         "SelectionSet": -1,
         "Position": {
           "LineStart": 85,
@@ -718,7 +718,7 @@
         "Alias": -1,
         "Name": 14,
         "ArgumentSet": -1,
-        "DirectiveSet": 65,
+        "DirectiveSet": -1,
         "SelectionSet": -1,
         "Position": {
           "LineStart": 87,
@@ -731,7 +731,7 @@
         "Alias": -1,
         "Name": 3,
         "ArgumentSet": -1,
-        "DirectiveSet": 66,
+        "DirectiveSet": -1,
         "SelectionSet": -1,
         "Position": {
           "LineStart": 88,
@@ -744,7 +744,7 @@
         "Alias": -1,
         "Name": 14,
         "ArgumentSet": -1,
-        "DirectiveSet": 68,
+        "DirectiveSet": -1,
         "SelectionSet": -1,
         "Position": {
           "LineStart": 90,
@@ -757,7 +757,7 @@
         "Alias": -1,
         "Name": 3,
         "ArgumentSet": -1,
-        "DirectiveSet": 69,
+        "DirectiveSet": -1,
         "SelectionSet": -1,
         "Position": {
           "LineStart": 91,
@@ -770,7 +770,7 @@
         "Alias": -1,
         "Name": 27,
         "ArgumentSet": -1,
-        "DirectiveSet": 67,
+        "DirectiveSet": -1,
         "SelectionSet": 18,
         "Position": {
           "LineStart": 89,
@@ -783,7 +783,7 @@
         "Alias": -1,
         "Name": 27,
         "ArgumentSet": -1,
-        "DirectiveSet": 64,
+        "DirectiveSet": -1,
         "SelectionSet": 19,
         "Position": {
           "LineStart": 86,
@@ -796,7 +796,7 @@
         "Alias": -1,
         "Name": 27,
         "ArgumentSet": -1,
-        "DirectiveSet": 61,
+        "DirectiveSet": -1,
         "SelectionSet": 20,
         "Position": {
           "LineStart": 83,
@@ -809,7 +809,7 @@
         "Alias": -1,
         "Name": 27,
         "ArgumentSet": -1,
-        "DirectiveSet": 58,
+        "DirectiveSet": -1,
         "SelectionSet": 21,
         "Position": {
           "LineStart": 80,
@@ -822,7 +822,7 @@
         "Alias": -1,
         "Name": 27,
         "ArgumentSet": -1,
-        "DirectiveSet": 55,
+        "DirectiveSet": -1,
         "SelectionSet": 22,
         "Position": {
           "LineStart": 77,
@@ -835,7 +835,7 @@
         "Alias": -1,
         "Name": 27,
         "ArgumentSet": -1,
-        "DirectiveSet": 52,
+        "DirectiveSet": -1,
         "SelectionSet": 23,
         "Position": {
           "LineStart": 74,
@@ -848,7 +848,7 @@
         "Alias": -1,
         "Name": 27,
         "ArgumentSet": -1,
-        "DirectiveSet": 49,
+        "DirectiveSet": -1,
         "SelectionSet": 24,
         "Position": {
           "LineStart": 71,
@@ -862,7 +862,7 @@
     "FragmentSpreads": [
       {
         "FragmentName": 7,
-        "DirectiveSet": 9,
+        "DirectiveSet": -1,
         "Position": {
           "LineStart": 13,
           "LineEnd": 13,
@@ -872,7 +872,7 @@
       },
       {
         "FragmentName": 12,
-        "DirectiveSet": 15,
+        "DirectiveSet": -1,
         "Position": {
           "LineStart": 20,
           "LineEnd": 20,
@@ -882,7 +882,7 @@
       },
       {
         "FragmentName": 18,
-        "DirectiveSet": 26,
+        "DirectiveSet": -1,
         "Position": {
           "LineStart": 37,
           "LineEnd": 37,
@@ -922,78 +922,7 @@
       ]
     ],
     "Directives": [],
-    "DirectiveSets": [
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      []
-    ],
+    "DirectiveSets": [],
     "EnumTypeDefinitions": [],
     "ArgumentsDefinitions": [],
     "EnumValuesDefinitions": [],
@@ -1015,6 +944,10 @@
           "LineEnd": 30,
           "CharStart": 28,
           "CharEnd": 33
+        },
+        "Raw": {
+          "Start": 389,
+          "End": 393
         }
       },
       {
@@ -1025,6 +958,10 @@
           "LineEnd": 48,
           "CharStart": 32,
           "CharEnd": 37
+        },
+        "Raw": {
+          "Start": 640,
+          "End": 644
         }
       }
     ],

@@ -190,9 +190,9 @@ func NewParser(withOptions ...Option) *Parser {
 		Directives:                 make(document.Directives, 0, options.minimumSliceSize),
 		DirectiveSets:              make([]document.DirectiveSet, 0, options.minimumSliceSize*2),
 		EnumTypeDefinitions:        make(document.EnumTypeDefinitions, 0, options.minimumSliceSize),
-		EnumValuesDefinitions:      make(document.EnumValueDefinitions, 0, options.minimumSliceSize),
+		EnumValuesDefinitions:      make(document.EnumValueDefinitions, 0, options.minimumSliceSize*2),
 		ArgumentsDefinitions:       make(document.ArgumentsDefinitions, 0, options.minimumSliceSize),
-		FieldDefinitions:           make(document.FieldDefinitions, 0, options.minimumSliceSize*2),
+		FieldDefinitions:           make(document.FieldDefinitions, 0, options.minimumSliceSize*4),
 		InputValueDefinitions:      make(document.InputValueDefinitions, 0, options.minimumSliceSize),
 		InputObjectTypeDefinitions: make(document.InputObjectTypeDefinitions, 0, options.minimumSliceSize),
 		DirectiveDefinitions:       make(document.DirectiveDefinitions, 0, options.minimumSliceSize),
@@ -205,8 +205,8 @@ func NewParser(withOptions ...Option) *Parser {
 		ListValues:                 make([]document.ListValue, 0, options.minimumSliceSize),
 		ObjectValues:               make([]document.ObjectValue, 0, options.minimumSliceSize),
 		ObjectFields:               make(document.ObjectFields, 0, options.minimumSliceSize),
-		Types:                      make(document.Types, 0, options.minimumSliceSize),
-		SelectionSets:              make([]document.SelectionSet, 0, options.minimumSliceSize),
+		Types:                      make(document.Types, 0, options.minimumSliceSize*2),
+		SelectionSets:              make([]document.SelectionSet, 0, options.minimumSliceSize*2),
 		Integers:                   make([]int32, 0, options.minimumSliceSize),
 		Floats:                     make([]float32, 0, options.minimumSliceSize),
 		ByteSliceReferences:        make([]document.ByteSliceReference, 0, options.minimumSliceSize),
@@ -606,10 +606,22 @@ func (p *Parser) putInlineFragment(fragment document.InlineFragment) int {
 func (p *Parser) putFragmentSpread(spread document.FragmentSpread) int {
 
 	for i, current := range p.ParsedDefinitions.FragmentSpreads {
-		if spread.FragmentName == current.FragmentName &&
-			p.integersContainSameValues(
-				p.ParsedDefinitions.DirectiveSets[spread.DirectiveSet],
-				p.ParsedDefinitions.DirectiveSets[current.DirectiveSet]) {
+
+		if spread.FragmentName != current.FragmentName {
+			continue
+		}
+
+		if spread.DirectiveSet == -1 && current.DirectiveSet == -1 {
+			return i
+		}
+
+		if spread.DirectiveSet == -1 || current.DirectiveSet == -1 {
+			continue
+		}
+
+		if p.integersContainSameValues(
+			p.ParsedDefinitions.DirectiveSets[spread.DirectiveSet],
+			p.ParsedDefinitions.DirectiveSets[current.DirectiveSet]) {
 			return i
 		}
 	}
@@ -782,11 +794,21 @@ func (p *Parser) putInputFieldsDefinitions(definition document.InputFieldsDefini
 }
 
 func (p *Parser) putArgumentSet(set document.ArgumentSet) int {
+
+	if len(set) == 0 {
+		return -1
+	}
+
 	p.ParsedDefinitions.ArgumentSets = append(p.ParsedDefinitions.ArgumentSets, set)
 	return len(p.ParsedDefinitions.ArgumentSets) - 1
 }
 
 func (p *Parser) putDirectiveSet(set document.DirectiveSet) int {
+
+	if len(set) == 0 {
+		return -1
+	}
+
 	p.ParsedDefinitions.DirectiveSets = append(p.ParsedDefinitions.DirectiveSets, set)
 	return len(p.ParsedDefinitions.DirectiveSets) - 1
 }

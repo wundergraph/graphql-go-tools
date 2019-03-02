@@ -1,10 +1,11 @@
 package parser
 
 import (
+	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/transform"
 )
 
-func (p *Parser) parsePeekedIntValue(index *int) error {
+func (p *Parser) parsePeekedIntValue(value *document.Value) error {
 
 	integerToken := p.l.Read()
 
@@ -13,6 +14,8 @@ func (p *Parser) parsePeekedIntValue(index *int) error {
 		return err
 	}
 
-	*index = p.putInteger(integer)
+	value.Raw = integerToken.Literal
+	value.Reference = p.putInteger(integer)
+
 	return nil
 }

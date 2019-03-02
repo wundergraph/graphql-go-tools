@@ -43,7 +43,10 @@ func (p *Parser) parseField() (ref int, err error) {
 		arguments = p.ParsedDefinitions.ArgumentSets[field.ArgumentSet]
 	}
 
-	directives := p.ParsedDefinitions.DirectiveSets[field.DirectiveSet]
+	var directives document.DirectiveSet
+	if field.DirectiveSet != -1 {
+		directives = p.ParsedDefinitions.DirectiveSets[field.DirectiveSet]
+	}
 
 	var selectionSet document.SelectionSet
 	if field.SelectionSet != -1 {

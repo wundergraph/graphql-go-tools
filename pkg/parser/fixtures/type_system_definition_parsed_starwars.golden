@@ -3,7 +3,7 @@
     "Query": 0,
     "Mutation": 1,
     "Subscription": 2,
-    "DirectiveSet": 0,
+    "DirectiveSet": -1,
     "Position": {
       "LineStart": 2,
       "LineEnd": 6,

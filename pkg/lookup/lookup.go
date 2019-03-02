@@ -55,6 +55,14 @@ func (l *Lookup) initRefsFromCache(refs *[]int) {
 	*refs = l.refCache[:0]
 }
 
+func (l *Lookup) HasOperationDefinitions() bool {
+	return len(l.p.ParsedDefinitions.OperationDefinitions) > 0
+}
+
+func (l *Lookup) HasFragmentDefinitions() bool {
+	return len(l.p.ParsedDefinitions.FragmentDefinitions) > 0
+}
+
 func (l *Lookup) OperationDefinition(i int) document.OperationDefinition {
 	return l.p.ParsedDefinitions.OperationDefinitions[i]
 }
@@ -288,6 +296,74 @@ func (l *Lookup) FieldsIterator(i []int) FieldsIterator {
 		current: -1,
 		index:   i,
 		l:       l,
+	}
+}
+
+type SelectionSetContentsIterator struct {
+	set  document.SelectionSet
+	kind NodeKind
+	ref  int
+	l    *Lookup
+}
+
+func (s *SelectionSetContentsIterator) Next() bool {
+
+	var field document.Field
+	var inline document.InlineFragment
+	var spread document.FragmentSpread
+
+	hasField := len(s.set.Fields) > 0
+	hasInline := len(s.set.InlineFragments) > 0
+	hasSpread := len(s.set.FragmentSpreads) > 0
+
+	if hasField {
+		field = s.l.Field(s.set.Fields[0])
+	}
+	if hasInline {
+		inline = s.l.InlineFragment(s.set.InlineFragments[0])
+	}
+	if hasSpread {
+		spread = s.l.FragmentSpread(s.set.FragmentSpreads[0])
+	}
+
+	if hasField {
+		if !hasSpread || hasSpread && field.Position.IsBefore(spread.Position) {
+			if !hasInline || hasInline && field.Position.IsBefore(inline.Position) {
+				s.kind = FIELD
+				s.ref = s.set.Fields[0]
+				s.set.Fields = s.set.Fields[1:]
+				return true
+			}
+		}
+	}
+
+	if hasInline {
+		if !hasSpread || hasSpread && inline.Position.IsBefore(spread.Position) {
+			s.kind = INLINE_FRAGMENT
+			s.ref = s.set.InlineFragments[0]
+			s.set.InlineFragments = s.set.InlineFragments[1:]
+			return true
+		}
+	}
+
+	if hasSpread {
+		s.kind = FRAGMENT_SPREAD
+		s.ref = s.set.FragmentSpreads[0]
+		s.set.FragmentSpreads = s.set.FragmentSpreads[1:]
+		return true
+	}
+
+	return false
+}
+
+func (s *SelectionSetContentsIterator) Value() (kind NodeKind, ref int) {
+	return s.kind, s.ref
+}
+
+func (l *Lookup) SelectionSetContentsIterator(ref int) SelectionSetContentsIterator {
+	return SelectionSetContentsIterator{
+		l:   l,
+		set: l.SelectionSet(ref),
 	}
 }
 
@@ -646,6 +722,10 @@ func (l *Lookup) ValueObjectsAreEqual(first, second int) bool {
 		}
 	}
 	return true
+}
+
+func (l *Lookup) ObjectValue(ref int) document.ObjectValue {
+	return l.p.ParsedDefinitions.ObjectValues[ref]
 }
 
 func (l *Lookup) ObjectField(i int) document.ObjectField {

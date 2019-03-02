@@ -30,6 +30,20 @@ func (w *Walker) newIterable(refs []int) Iterable {
 	}
 }
 
+type FragmentDefinitionIterable struct {
+	Iterable
+}
+
+func (f *FragmentDefinitionIterable) Value() document.FragmentDefinition {
+	return f.w.l.FragmentDefinition(f.node().Ref)
+}
+
+func (w *Walker) FragmentDefinitionIterable() FragmentDefinitionIterable {
+	return FragmentDefinitionIterable{
+		Iterable: w.newIterable(w.c.fragmentDefinitions),
+	}
+}
+
 type OperationDefinitionIterable struct {
 	Iterable
 }

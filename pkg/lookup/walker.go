@@ -41,7 +41,9 @@ type walkerCache struct {
 	selectionSets       []int
 	fields              []int
 
-	path []int
+	path                []int
+	fragmentDefinitions []int
+	fragmentSpreads     []int
 }
 
 func NewWalker(nodeCacheSize int, defaultCacheSize int) *Walker {
@@ -55,6 +57,8 @@ func NewWalker(nodeCacheSize int, defaultCacheSize int) *Walker {
 			directiveSets:       make([]int, 0, defaultCacheSize),
 			selectionSets:       make([]int, 0, defaultCacheSize),
 			fields:              make([]int, 0, defaultCacheSize),
+			fragmentDefinitions: make([]int, 0, defaultCacheSize),
+			fragmentSpreads:     make([]int, 0, defaultCacheSize),
 			path:                make([]int, 16),
 		},
 	}
@@ -72,6 +76,8 @@ func (w *Walker) SetLookup(l *Lookup) {
 	w.c.directiveSets = w.c.directiveSets[:0]
 	w.c.selectionSets = w.c.selectionSets[:0]
 	w.c.fields = w.c.fields[:0]
+	w.c.fragmentDefinitions = w.c.fragmentDefinitions[:0]
+	w.c.fragmentSpreads = w.c.fragmentSpreads[:0]
 }
 
 func (w *Walker) putNode(node Node) int {
@@ -115,6 +121,10 @@ func (w *Walker) walkOperationDefinition(definition document.OperationDefinition
 
 func (w *Walker) walkDirectiveSet(set int, parent int) {
 
+	if set == -1 {
+		return
+	}
+
 	ref := w.putNode(Node{
 		Parent: parent,
 		Kind:   DIRECTIVE_SET,
@@ -144,6 +154,10 @@ func (w *Walker) walkDirective(directive int, parent int) {
 }
 
 func (w *Walker) walkArgumentSet(set int, parent int) {
+
+	if set == -1 {
+		return
+	}
 
 	arguments := w.l.ArgumentSet(set)
 	if len(arguments) == 0 {
@@ -176,6 +190,10 @@ func (w *Walker) walkArgument(argument, parent int) {
 
 func (w *Walker) walkSelectionSet(setRef, parent int) {
 
+	if setRef == -1 {
+		return
+	}
+
 	set := w.l.SelectionSet(setRef)
 	if set.IsEmpty() {
 		return
@@ -195,6 +213,11 @@ func (w *Walker) walkSelectionSet(setRef, parent int) {
 }
 
 func (w *Walker) walkFields(i []int, parent int) {
+
+	if len(i) == 0 {
+		return
+	}
+
 	iter := w.l.FieldsIterator(i)
 	for iter.Next() {
 
@@ -238,16 +261,18 @@ func (w *Walker) walkFragmentSpreads(refs []int, parent int) {
 			Ref:    spreadRef,
 		})
 
+		w.c.fragmentSpreads = append(w.c.fragmentSpreads, ref)
+
 		w.walkDirectiveSet(spread.DirectiveSet, ref)
 
 		if w.referenceFormsCycle(FRAGMENT_SPREAD, spreadRef, parent) {
 			continue
 		}
 
-		fragmentDefinition, index, ok := w.l.FragmentDefinitionByName(spread.FragmentName)
+		/*fragmentDefinition, index, ok := w.l.FragmentDefinitionByName(spread.FragmentName)
 		if ok {
 			w.walkFragmentDefinition(fragmentDefinition, index, ref)
-		}
+		}*/
 	}
 }
 
@@ -265,11 +290,15 @@ func (w *Walker) referenceFormsCycle(kind NodeKind, ref, parent int) bool {
 }
 
 func (w *Walker) walkFragmentDefinition(definition document.FragmentDefinition, index int, parent int) {
+
 	ref := w.putNode(Node{
 		Parent: parent,
 		Kind:   FRAGMENT_DEFINITION,
 		Ref:    index,
 	})
+
+	w.c.fragmentDefinitions = append(w.c.fragmentDefinitions, ref)
+
 	w.walkDirectiveSet(definition.DirectiveSet, ref)
 	w.walkSelectionSet(definition.SelectionSet, ref)
 }
@@ -352,18 +381,76 @@ func (w *Walker) WalkUpUntilTypeName(from Node, fieldPath *[]int) (typeName int,
 	}
 }
 
-func (w *Walker) OperationDefinition(parent int) (document.OperationDefinition, bool) {
-	node := Node{
-		Parent: parent,
+type NodeUsageInOperationsIterator struct {
+	current int
+	refs    []int
+	w       *Walker
+}
+
+func (n *NodeUsageInOperationsIterator) Next() bool {
+	n.current++
+	return len(n.refs)-1 >= n.current
+}
+
+func (n *NodeUsageInOperationsIterator) Value() int {
+	return n.refs[n.current]
+}
+
+func (w *Walker) NodeUsageInOperationsIterator(ref int) (iter NodeUsageInOperationsIterator) {
+
+	iter.current = -1
+	iter.w = w
+
+	rootNode, ok := w.RootNode(ref)
+	if !ok {
+		return
 	}
-	var ok bool
-	for node.Kind != OPERATION_DEFINITION {
-		node, ok = w.Parent(node.Parent)
-		if !ok {
-			return document.OperationDefinition{}, false
+
+	iter.refs = w.l.refPool.get()
+
+	switch rootNode.Kind {
+	case OPERATION_DEFINITION:
+		iter.refs = append(iter.refs, rootNode.Ref)
+	case FRAGMENT_DEFINITION:
+		fragmentDefinition := w.l.FragmentDefinition(rootNode.Ref)
+		w.FragmentUsageInOperations(fragmentDefinition.FragmentName, &iter.refs)
+	}
+
+	return
+}
+
+func (w *Walker) FragmentUsageInOperations(fragmentName int, refs *[]int) {
+	for i := range w.c.fragmentSpreads {
+		ref := w.c.fragmentSpreads[i]
+		node := w.Node(ref)
+		spread := w.l.FragmentSpread(node.Ref)
+		if spread.FragmentName != fragmentName {
+			continue
+		}
+
+		iter := w.NodeUsageInOperationsIterator(ref)
+	Loop:
+		for iter.Next() {
+			operationDefinitionRef := iter.Value()
+			for _, current := range *refs {
+				if current == operationDefinitionRef {
+					continue Loop
+				}
+			}
+			*refs = append(*refs, operationDefinitionRef)
 		}
 	}
-	return w.l.p.ParsedDefinitions.OperationDefinitions[node.Ref], true
+}
+
+func (w *Walker) RootNode(ref int) (node Node, ok bool) {
+	node.Parent = ref
+	for node.Parent != -1 {
+		node, ok = w.Parent(node.Parent)
+		if !ok {
+			return
+		}
+	}
+	return
 }
 
 func (w *Walker) SelectionSetTypeName(set document.SelectionSet, parent int) int {

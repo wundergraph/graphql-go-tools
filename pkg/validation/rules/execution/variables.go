@@ -80,21 +80,21 @@ func AllVariableUsesDefined() rules.ExecutionRule {
 
 		iter := w.ArgumentSetIterable()
 		for iter.Next() {
-			set, parent := iter.Value()
+			set, _ := iter.Value()
 			arguments := l.ArgumentsIterable(set)
 
-			operationDefinition, ok := w.OperationDefinition(parent)
-			if !ok {
-				continue
-			}
-
 			for arguments.Next() {
-				argument, _ := arguments.Value()
+				argument, ref := arguments.Value()
 				value := l.Value(argument.Value)
 				if isVariable(value) {
-					_, isDefined := l.VariableDefinition(value.Reference, operationDefinition.VariableDefinitions)
-					if !isDefined {
-						return validation.Invalid(validation.AllVariableUsesDefined, validation.VariableNotDefined, value.Position, value.Reference)
+
+					operationDefinitions := w.NodeUsageInOperationsIterator(ref)
+					for operationDefinitions.Next() {
+						operationDefinition := l.OperationDefinition(operationDefinitions.Value())
+						_, isDefined := l.VariableDefinition(value.Reference, operationDefinition.VariableDefinitions)
+						if !isDefined {
+							return validation.Invalid(validation.AllVariableUsesDefined, validation.VariableNotDefined, value.Position, value.Reference)
+						}
 					}
 				}
 			}
