@@ -1533,3 +1533,15 @@ func (l *Lookup) InlineFragmentsDeepEqual(left, right document.InlineFragment) b
 func (l *Lookup) FragmentSpreadsDeepEqual(left, right document.FragmentSpread) bool {
 	return left.FragmentName == right.FragmentName
 }
+
+func (l *Lookup) ByteSliceName(slice []byte) (name int) {
+	length := uint16(len(slice))
+	for i := range l.p.ParsedDefinitions.ByteSliceReferences {
+		if l.p.ParsedDefinitions.ByteSliceReferences[i].Length() == length {
+			if bytes.Equal(l.ByteSlice(l.p.ParsedDefinitions.ByteSliceReferences[i]), slice) {
+				return i
+			}
+		}
+	}
+	return -1
+}
