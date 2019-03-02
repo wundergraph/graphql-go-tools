@@ -15,22 +15,22 @@ func Values() rules.ExecutionRule {
 			set, parent := iter.Value()
 			arguments := l.ArgumentsIterable(set)
 
-			operationDefinition, ok := w.OperationDefinition(parent)
-			if !ok {
-				continue
-			}
+			operationDefinitions := w.NodeUsageInOperationsIterator(parent)
+			for operationDefinitions.Next() {
+				operationDefinition := l.OperationDefinition(operationDefinitions.Value())
 
-			argumentsDefinition := w.ArgumentsDefinition(parent)
+				argumentsDefinition := w.ArgumentsDefinition(parent)
 
-			for arguments.Next() {
-				argument, _ := arguments.Value()
-				inputValueDefinition, ok := l.InputValueDefinitionByNameAndIndex(argument.Name, argumentsDefinition.InputValueDefinitions)
-				if !ok {
-					return validation.Invalid(validation.Values, validation.InputValueNotDefined, argument.Position, argument.Name)
-				}
+				for arguments.Next() {
+					argument, _ := arguments.Value()
+					inputValueDefinition, ok := l.InputValueDefinitionByNameAndIndex(argument.Name, argumentsDefinition.InputValueDefinitions)
+					if !ok {
+						return validation.Invalid(validation.Values, validation.InputValueNotDefined, argument.Position, argument.Name)
+					}
 
-				if !l.ValueIsValid(l.Value(argument.Value), l.Type(inputValueDefinition.Type), operationDefinition.VariableDefinitions, l.InputValueDefinitionHasDefaultValue(inputValueDefinition)) {
-					return validation.Invalid(validation.Values, validation.ValueInvalid, argument.Position, argument.Name)
+					if !l.ValueIsValid(l.Value(argument.Value), l.Type(inputValueDefinition.Type), operationDefinition.VariableDefinitions, l.InputValueDefinitionHasDefaultValue(inputValueDefinition)) {
+						return validation.Invalid(validation.Values, validation.ValueInvalid, argument.Position, argument.Name)
+					}
 				}
 			}
 		}
