@@ -34,9 +34,9 @@ func FieldSelectionMerging() rules.ExecutionRule {
 
 		sets := w.SelectionSetIterable()
 		for sets.Next() {
-			set, ref, _ := sets.Value()
 
-			typeName := w.SelectionSetTypeName(set, ref)
+			set, nodeRef, _, _ := sets.Value()
+			typeName := w.SelectionSetTypeName(set, nodeRef)
 
 			if result := validateSet(set, typeName); !result.Valid {
 				return result
