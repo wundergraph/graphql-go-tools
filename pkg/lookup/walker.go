@@ -453,20 +453,6 @@ func (w *Walker) RootNode(ref int) (node Node, ok bool) {
 	return
 }
 
-func (w *Walker) OperationDefinition(parent int) (document.OperationDefinition, bool) {
-	node := Node{
-		Parent: parent,
-	}
-	var ok bool
-	for node.Kind != OPERATION_DEFINITION {
-		node, ok = w.Parent(node.Parent)
-		if !ok {
-			return document.OperationDefinition{}, false
-		}
-	}
-	return w.l.p.ParsedDefinitions.OperationDefinitions[node.Ref], true
-}
-
 func (w *Walker) SelectionSetTypeName(set document.SelectionSet, parent int) int {
 
 	path := w.c.path[:0]
