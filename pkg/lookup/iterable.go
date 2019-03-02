@@ -92,9 +92,13 @@ type SelectionSetIterable struct {
 	Iterable
 }
 
-func (s *SelectionSetIterable) Value() (set document.SelectionSet, ref, parent int) {
+func (s *SelectionSetIterable) Value() (set document.SelectionSet, nodeRef, setRef, parent int) {
 	node := s.node()
-	return s.w.l.SelectionSet(node.Ref), s.ref(), node.Parent
+	nodeRef = s.ref()
+	parent = node.Parent
+	setRef = node.Ref
+	set = s.w.l.SelectionSet(setRef)
+	return
 }
 
 func (w *Walker) SelectionSetIterable() SelectionSetIterable {
