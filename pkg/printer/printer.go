@@ -127,7 +127,6 @@ func (p *Printer) printOperationType(operationType document.OperationType, hasNa
 		p.write(literal.SUBSCRIPTION)
 		p.write(literal.SPACE)
 	}
-	return
 }
 
 func (p *Printer) printSelectionSet(ref int) {
@@ -176,8 +175,6 @@ func (p *Printer) printField(ref int) {
 		p.write(literal.SPACE)
 		p.printSelectionSet(field.SelectionSet)
 	}
-
-	return
 }
 
 func (p *Printer) printFragmentSpread(ref int) {
