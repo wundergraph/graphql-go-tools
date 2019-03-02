@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/parser"
+	"github.com/sebdah/goldie"
 	"testing"
 )
 
@@ -127,6 +128,34 @@ func TestPrinter(t *testing.T) {
 	})
 }
 
+func TestPrinter_Regression(t *testing.T) {
+	inputBytes := []byte(introspectionQuery)
+
+	p := parser.NewParser()
+	err := p.ParseExecutableDefinition(inputBytes)
+	if err != nil {
+		panic(err)
+	}
+
+	printer := New()
+	printer.SetInput(p)
+
+	buff := bytes.Buffer{}
+	out := bufio.NewWriter(&buff)
+	printer.PrintExecutableSchema(out)
+	if printer.err != nil {
+		panic(printer.err)
+	}
+
+	err = out.Flush()
+	if err != nil {
+		panic(err)
+	}
+
+	printedBytes := buff.Bytes()
+	goldie.Assert(t, "printer_introspection", printedBytes)
+}
+
 func BenchmarkPrinter_PrintExecutableSchema(b *testing.B) {
 
 	inputBytes := []byte("{foo bar ...{baz} ...Bal ...on Bar{bat bar} bart assets(first:{foo:\"bar\",baz:1}) assets(first:[1,3,3,7]) assets(first:null)}\nfragment MyFrag on Dog {foo bar}")
@@ -166,3 +195,103 @@ func BenchmarkPrinter_PrintExecutableSchema(b *testing.B) {
 		bufOut.Reset(&buff)
 	}
 }
+
+var introspectionQuery = `query IntrospectionQuery {
+  __schema {
+    queryType {
+      name
+    }
+    mutationType {
+      name
+    }
+    subscriptionType {
+      name
+    }
+    types {
+      ...FullType
+    }
+    directives {
+      name
+      description
+      locations
+      args {
+        ...InputValue
+      }
+    }
+  }
+}
+
+fragment FullType on __Type {
+  kind
+  name
+  description
+  fields(includeDeprecated: true) {
+    name
+    description
+    args {
+      ...InputValue
+    }
+    type {
+      ...TypeRef
+    }
+    isDeprecated
+    deprecationReason
+  }
+  inputFields {
+    ...InputValue
+  }
+  interfaces {
+    ...TypeRef
+  }
+  enumValues(includeDeprecated: true) {
+    name
+    description
+    isDeprecated
+    deprecationReason
+  }
+  possibleTypes {
+    ...TypeRef
+  }
+}
+
+fragment InputValue on __InputValue {
+  name
+  description
+  type {
+    ...TypeRef
+  }
+  defaultValue
+}
+
+fragment TypeRef on __Type {
+  kind
+  name
+  ofType {
+    kind
+    name
+    ofType {
+      kind
+      name
+      ofType {
+        kind
+        name
+        ofType {
+          kind
+          name
+          ofType {
+            kind
+            name
+            ofType {
+              kind
+              name
+              ofType {
+                kind
+                name
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}`
