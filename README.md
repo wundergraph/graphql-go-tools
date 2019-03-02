@@ -37,21 +37,25 @@ BenchmarkParser-4   	   50000	     29176 ns/op	       0 B/op	       0 allocs/op
 
 ```
 pkg: github.com/jensneuse/graphql-go-tools/pkg/validator
-BenchmarkValidator/test_valid_schema-4         	  200000	      7823 ns/op	       0 B/op	       0 allocs/op
-BenchmarkValidator/test_valid_schema-4         	  200000	      7836 ns/op	       0 B/op	       0 allocs/op
-BenchmarkValidator/test_valid_schema-4         	  200000	      7766 ns/op	       0 B/op	       0 allocs/op
-BenchmarkValidator/test_valid_schema-4         	  200000	      7777 ns/op	       0 B/op	       0 allocs/op
-BenchmarkValidator/introspection_query-4       	    3000	    407511 ns/op	      44 B/op	       0 allocs/op
-BenchmarkValidator/introspection_query-4       	    3000	    410118 ns/op	      44 B/op	       0 allocs/op
-BenchmarkValidator/introspection_query-4       	    3000	    405893 ns/op	      45 B/op	       0 allocs/op
-BenchmarkValidator/introspection_query-4       	    3000	    403380 ns/op	      56 B/op	       0 allocs/op
+BenchmarkValidator/test_valid_schema-4         	  200000	      6091 ns/op	       0 B/op	       0 allocs/op
+BenchmarkValidator/test_valid_schema-4         	  200000	      6174 ns/op	       0 B/op	       0 allocs/op
+BenchmarkValidator/test_valid_schema-4         	  200000	      6119 ns/op	       0 B/op	       0 allocs/op
+BenchmarkValidator/test_valid_schema-4         	  200000	      5975 ns/op	       0 B/op	       0 allocs/op
+BenchmarkValidator/introspection_query-4       	   20000	     86069 ns/op	       2 B/op	       0 allocs/op
+BenchmarkValidator/introspection_query-4       	   20000	     88226 ns/op	       4 B/op	       0 allocs/op
+BenchmarkValidator/introspection_query-4       	   20000	     88185 ns/op	       2 B/op	       0 allocs/op
+BenchmarkValidator/introspection_query-4       	   20000	     88447 ns/op	       2 B/op	       0 allocs/op
 ```
 
-To put these numbers into perspective. Parsing + validating the (quite complex) introspection query is < 0.5ms (on my 2013 MacBook) which should be acceptable for web applications.
+To put these numbers into perspective. Parsing + validating the (quite complex) introspection query is ~ 0.1ms (on my 2013 MacBook) which should be acceptable for web applications.
 
 It's important to note that gc is kept at a minimum which should enable applications built on top of this library to have almost zero deviation regarding latency.
 
-You'll probably add bottlenecks at another layer, e.g. invoking a database. 
+You'll probably add bottlenecks at another layer, e.g. invoking a database.
+
+While adding the ast printing feature I found a severe logical error that made the walker walk way too many times the same values.
+I've refactored the validator to properly handle fragment spreads which also helped to easily find the operation definitions a fragment is used by.
+By fixing this issue validation time for the introspection query dropped from ~ 407k ns to ~ 88k ns. 
 
 ## Contributors
 
