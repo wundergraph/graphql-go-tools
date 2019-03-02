@@ -48,7 +48,7 @@ func TestLookup(t *testing.T) {
 				if !iter.Next() {
 					panic("mustHaveSelectionSetTypeNames: want next")
 				}
-				set, _, parent := iter.Value()
+				set, _, _, parent := iter.Value()
 				typeName := walker.SelectionSetTypeName(set, parent)
 				got := string(walker.l.CachedName(typeName))
 				if want != got {
@@ -77,7 +77,7 @@ func TestLookup(t *testing.T) {
 				if !iter.Next() {
 					panic("mustHaveSelectionSets: want next set")
 				}
-				set, _, parent := iter.Value()
+				set, _, _, parent := iter.Value()
 				typeName := walker.SelectionSetTypeName(set, parent)
 				got := string(walker.l.CachedName(typeName))
 				if want.name != got {
