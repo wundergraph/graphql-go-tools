@@ -22,7 +22,7 @@ func (p *Parser) parsePeekedListValue(index *int) error {
 		} else {
 
 			var next int
-			err := p.parseValue(&next)
+			next, err := p.parseValue()
 			if err != nil {
 				return err
 			}

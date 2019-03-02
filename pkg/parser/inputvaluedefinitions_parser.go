@@ -48,7 +48,7 @@ func (p *Parser) parseInputValueDefinitions(index *[]int, closeKeyword keyword.K
 				return err
 			}
 
-			err = p.parseDefaultValue(&definition.DefaultValue)
+			definition.DefaultValue, err = p.parseDefaultValue()
 			if err != nil {
 				return err
 			}

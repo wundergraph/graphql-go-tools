@@ -36,7 +36,7 @@ func (p *Parser) parseVariableDefinitions(index *[]int) (err error) {
 				return err
 			}
 
-			err = p.parseDefaultValue(&variableDefinition.DefaultValue)
+			variableDefinition.DefaultValue, err = p.parseDefaultValue()
 			if err != nil {
 				return err
 			}
