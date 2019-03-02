@@ -44,7 +44,6 @@ func (p *Printer) write(bytes []byte) {
 func (p *Printer) PrintExecutableSchema(out io.Writer) {
 
 	p.out = out
-	p.w.WalkExecutable()
 
 	operations := p.w.OperationDefinitionIterable()
 	for operations.Next() {
