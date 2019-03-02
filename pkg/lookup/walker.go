@@ -268,11 +268,6 @@ func (w *Walker) walkFragmentSpreads(refs []int, parent int) {
 		if w.referenceFormsCycle(FRAGMENT_SPREAD, spreadRef, parent) {
 			continue
 		}
-
-		/*fragmentDefinition, index, ok := w.l.FragmentDefinitionByName(spread.FragmentName)
-		if ok {
-			w.walkFragmentDefinition(fragmentDefinition, index, ref)
-		}*/
 	}
 }
 

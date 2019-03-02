@@ -17,21 +17,13 @@ type Printer struct {
 }
 
 func New() *Printer {
-	return &Printer{
-		w: lookup.NewWalker(1024, 8),
-	}
+	return &Printer{}
 }
 
-func (p *Printer) SetInput(parser *parser.Parser) {
+func (p *Printer) SetInput(parser *parser.Parser, l *lookup.Lookup, w *lookup.Walker) {
 	p.p = parser
-	if p.l == nil {
-		p.l = lookup.New(parser, 256)
-	} else {
-		p.l.SetParser(parser)
-	}
-
-	p.w.SetLookup(p.l)
-	p.err = nil
+	p.l = l
+	p.w = w
 }
 
 func (p *Printer) write(bytes []byte) {

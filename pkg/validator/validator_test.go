@@ -2,6 +2,7 @@ package validator
 
 import (
 	"fmt"
+	"github.com/jensneuse/graphql-go-tools/pkg/lookup"
 	"github.com/jensneuse/graphql-go-tools/pkg/parser"
 	"testing"
 )
@@ -20,9 +21,13 @@ func TestValidator(t *testing.T) {
 			panic(err)
 		}
 
+		l := lookup.New(p, 256)
+		l.SetParser(p)
+		w := lookup.NewWalker(1024, 8)
+		w.SetLookup(l)
+		w.WalkExecutable()
 		v := New()
-		v.SetInput(p)
-		v.SetInput(p)
+		v.SetInput(l, w)
 		result := v.ValidateExecutableDefinition(DefaultExecutionRules)
 		if wantResultValid != result.Valid {
 			panic(fmt.Errorf("want valid result: %t, got: %t (result: %+v,\n subject: %s)", wantResultValid, result.Valid, result, p.CachedByteSlice(result.Meta.SubjectNameRef)))
@@ -78,14 +83,19 @@ func BenchmarkValidator(b *testing.B) {
 			panic(err)
 		}
 
+		l := lookup.New(p, 256)
+		w := lookup.NewWalker(1024, 8)
+
 		v := New()
 
 		b.ResetTimer()
 		b.ReportAllocs()
 
 		for i := 0; i < b.N; i++ {
-			v.SetInput(p)
+			w.SetLookup(l)
+			v.SetInput(l, w)
 			v.l.ResetPool()
+			w.WalkExecutable()
 			v.ValidateExecutableDefinition(DefaultExecutionRules)
 		}
 	}

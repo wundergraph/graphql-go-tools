@@ -2,7 +2,6 @@ package validator
 
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lookup"
-	"github.com/jensneuse/graphql-go-tools/pkg/parser"
 	"github.com/jensneuse/graphql-go-tools/pkg/validation"
 	"github.com/jensneuse/graphql-go-tools/pkg/validation/rules"
 	"github.com/jensneuse/graphql-go-tools/pkg/validation/rules/execution"
@@ -14,9 +13,7 @@ type Validator struct {
 }
 
 func New() *Validator {
-	return &Validator{
-		w: lookup.NewWalker(1024, 8),
-	}
+	return &Validator{}
 }
 
 var (
@@ -41,18 +38,13 @@ var (
 	}
 )
 
-func (v *Validator) SetInput(p *parser.Parser) {
-	if v.l == nil {
-		v.l = lookup.New(p, 256)
-	} else {
-		v.l.SetParser(p)
-	}
-
-	v.w.SetLookup(v.l)
+func (v *Validator) SetInput(l *lookup.Lookup, w *lookup.Walker) {
+	v.l = l
+	v.w = w
 }
 
 func (v *Validator) ValidateExecutableDefinition(executionRules []rules.ExecutionRule) (result validation.Result) {
-	v.w.WalkExecutable()
+
 	for _, rule := range executionRules {
 		result = rule(v.l, v.w)
 		if !result.Valid {
