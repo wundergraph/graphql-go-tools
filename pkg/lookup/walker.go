@@ -195,9 +195,6 @@ func (w *Walker) walkSelectionSet(setRef, parent int) {
 	}
 
 	set := w.l.SelectionSet(setRef)
-	if set.IsEmpty() {
-		return
-	}
 
 	ref := w.putNode(Node{
 		Parent: parent,
@@ -206,6 +203,10 @@ func (w *Walker) walkSelectionSet(setRef, parent int) {
 	})
 
 	w.c.selectionSets = append(w.c.selectionSets, ref)
+
+	if set.IsEmpty() {
+		return
+	}
 
 	w.walkFields(set.Fields, ref)
 	w.walkInlineFragments(set.InlineFragments, ref)
