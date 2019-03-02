@@ -17,21 +17,13 @@ type Printer struct {
 }
 
 func New() *Printer {
-	return &Printer{
-		w: lookup.NewWalker(1024, 8),
-	}
+	return &Printer{}
 }
 
-func (p *Printer) SetInput(parser *parser.Parser) {
+func (p *Printer) SetInput(parser *parser.Parser, l *lookup.Lookup, w *lookup.Walker) {
 	p.p = parser
-	if p.l == nil {
-		p.l = lookup.New(parser, 256)
-	} else {
-		p.l.SetParser(parser)
-	}
-
-	p.w.SetLookup(p.l)
-	p.err = nil
+	p.l = l
+	p.w = w
 }
 
 func (p *Printer) write(bytes []byte) {
@@ -44,7 +36,6 @@ func (p *Printer) write(bytes []byte) {
 func (p *Printer) PrintExecutableSchema(out io.Writer) {
 
 	p.out = out
-	p.w.WalkExecutable()
 
 	operations := p.w.OperationDefinitionIterable()
 	for operations.Next() {
@@ -136,7 +127,6 @@ func (p *Printer) printOperationType(operationType document.OperationType, hasNa
 		p.write(literal.SUBSCRIPTION)
 		p.write(literal.SPACE)
 	}
-	return
 }
 
 func (p *Printer) printSelectionSet(ref int) {
@@ -185,8 +175,6 @@ func (p *Printer) printField(ref int) {
 		p.write(literal.SPACE)
 		p.printSelectionSet(field.SelectionSet)
 	}
-
-	return
 }
 
 func (p *Printer) printFragmentSpread(ref int) {

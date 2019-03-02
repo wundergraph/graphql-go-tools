@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"github.com/jensneuse/graphql-go-tools/pkg/lookup"
 	"github.com/jensneuse/graphql-go-tools/pkg/parser"
 	"github.com/sebdah/goldie"
 	"testing"
@@ -21,8 +22,15 @@ func TestPrinter(t *testing.T) {
 			panic(err)
 		}
 
+		l := lookup.New(p, 256)
+		l.SetParser(p)
+
+		w := lookup.NewWalker(1024, 8)
+		w.SetLookup(l)
+		w.WalkExecutable()
+
 		printer := New()
-		printer.SetInput(p)
+		printer.SetInput(p, l, w)
 
 		buff := bytes.Buffer{}
 		out := bufio.NewWriter(&buff)
@@ -137,8 +145,13 @@ func TestPrinter_Regression(t *testing.T) {
 		panic(err)
 	}
 
+	l := lookup.New(p, 256)
+	w := lookup.NewWalker(1024, 8)
+	w.SetLookup(l)
+	w.WalkExecutable()
+
 	printer := New()
-	printer.SetInput(p)
+	printer.SetInput(p, l, w)
 
 	buff := bytes.Buffer{}
 	out := bufio.NewWriter(&buff)
@@ -171,12 +184,18 @@ func BenchmarkPrinter_PrintExecutableSchema(b *testing.B) {
 	buff := bytes.Buffer{}
 	bufOut := bufio.NewWriter(&buff)
 
+	l := lookup.New(p, 256)
+	w := lookup.NewWalker(1024, 8)
+
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
 
-		printer.SetInput(p)
+		w.SetLookup(l)
+		w.WalkExecutable()
+
+		printer.SetInput(p, l, w)
 		printer.PrintExecutableSchema(bufOut)
 		if printer.err != nil {
 			panic(printer.err)
