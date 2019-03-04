@@ -1,6 +1,9 @@
 package lookup
 
-import "github.com/jensneuse/graphql-go-tools/pkg/document"
+import (
+	"github.com/jensneuse/graphql-go-tools/pkg/document"
+	"sort"
+)
 
 type Iterable struct {
 	current int
@@ -121,5 +124,35 @@ func (f *FieldsIterable) Value() (field document.Field, ref, parent int) {
 func (w *Walker) FieldsIterable() FieldsIterable {
 	return FieldsIterable{
 		Iterable: w.newIterable(w.c.fields),
+	}
+}
+
+type TypeSystemDefinitionOrderedRootNodes struct {
+	Iterable
+}
+
+func (t *TypeSystemDefinitionOrderedRootNodes) Value() (ref int, kind NodeKind) {
+	node := t.node()
+	ref = node.Ref
+	kind = node.Kind
+	return
+}
+
+func (w *Walker) TypeSystemDefinitionOrderedRootNodes() TypeSystemDefinitionOrderedRootNodes {
+
+	refs := w.c.rootNodes[:0]
+
+	sort.Slice(w.nodes, func(i, j int) bool {
+		return w.nodes[i].Position.LineStart < w.nodes[i].Position.LineStart
+	})
+
+	for i := range w.nodes {
+		if w.nodes[i].Parent == -1 {
+			refs = append(refs, i)
+		}
+	}
+
+	return TypeSystemDefinitionOrderedRootNodes{
+		Iterable: w.newIterable(refs),
 	}
 }
