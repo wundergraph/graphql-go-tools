@@ -142,15 +142,17 @@ func (w *Walker) TypeSystemDefinitionOrderedRootNodes() TypeSystemDefinitionOrde
 
 	refs := w.c.rootNodes[:0]
 
-	sort.Slice(w.nodes, func(i, j int) bool {
-		return w.nodes[i].Position.LineStart < w.nodes[i].Position.LineStart
-	})
-
 	for i := range w.nodes {
 		if w.nodes[i].Parent == -1 {
 			refs = append(refs, i)
 		}
 	}
+
+	sort.Slice(refs, func(i, j int) bool {
+		left := refs[i]
+		right := refs[j]
+		return w.nodes[left].Position.LineStart < w.nodes[right].Position.LineStart
+	})
 
 	return TypeSystemDefinitionOrderedRootNodes{
 		Iterable: w.newIterable(refs),
