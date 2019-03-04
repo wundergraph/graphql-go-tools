@@ -18,16 +18,20 @@ FRAGMENT_SPREAD
 INLINE_FRAGMENT
 SCHEMA
 SCALAR
+SCALAR_TYPE_DEFINITION
 OBJECT
 OBJECT_TYPE_DEFINITION
 FIELD_DEFINITION
 ARGUMENT_DEFINITION
 INTERFACE
+INTERFACE_TYPE_DEFINITION
 UNION
+UNION_TYPE_DEFINITION
 ENUM
 ENUM_VALUE
 ENUM_TYPE_DEFINITION
 INPUT_OBJECT
+INPUT_OBJECT_TYPE_DEFINITION
 INPUT_FIELD_DEFINITION
 OPERATION_DEFINITION
 DIRECTIVE_SET
@@ -167,7 +171,7 @@ func (w *Walker) WalkEnumTypeDefinitions(refs []int) {
 }
 
 func (w *Walker) WalkDirectiveDefinitions(refs []int) {
-	for i := range refs {
+	for _, i := range refs {
 		definition := w.l.p.ParsedDefinitions.DirectiveDefinitions[i]
 		w.putNode(Node{
 			Kind:     DIRECTIVE_DEFINITION,
@@ -179,19 +183,51 @@ func (w *Walker) WalkDirectiveDefinitions(refs []int) {
 }
 
 func (w *Walker) WalkInterfaceTypeDefinitions(refs []int) {
-
+	for _, i := range refs {
+		definition := w.l.p.ParsedDefinitions.InterfaceTypeDefinitions[i]
+		w.putNode(Node{
+			Kind:     INTERFACE_TYPE_DEFINITION,
+			Ref:      i,
+			Parent:   -1,
+			Position: definition.Position,
+		})
+	}
 }
 
 func (w *Walker) WalkScalarTypeDefinitions(refs []int) {
-
+	for _, i := range refs {
+		definition := w.l.p.ParsedDefinitions.ScalarTypeDefinitions[i]
+		w.putNode(Node{
+			Kind:     SCALAR_TYPE_DEFINITION,
+			Position: definition.Position,
+			Parent:   -1,
+			Ref:      i,
+		})
+	}
 }
 
 func (w *Walker) WalkUnionTypeDefinitions(refs []int) {
-
+	for _, i := range refs {
+		definition := w.l.p.ParsedDefinitions.UnionTypeDefinitions[i]
+		w.putNode(Node{
+			Kind:     UNION_TYPE_DEFINITION,
+			Parent:   -1,
+			Position: definition.Position,
+			Ref:      i,
+		})
+	}
 }
 
 func (w *Walker) WalkInputObjectTypeDefinitions(refs []int) {
-
+	for _, i := range refs {
+		definition := w.l.p.ParsedDefinitions.InputObjectTypeDefinitions[i]
+		w.putNode(Node{
+			Kind:     INPUT_OBJECT_TYPE_DEFINITION,
+			Position: definition.Position,
+			Parent:   -1,
+			Ref:      i,
+		})
+	}
 }
 
 func (w *Walker) WalkExecutable() {
