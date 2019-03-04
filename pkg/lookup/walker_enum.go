@@ -28,6 +28,8 @@ const (
 	SCHEMA
 	// SCALAR is a NodeKind of type SCALAR
 	SCALAR
+	// SCALAR_TYPE_DEFINITION is a NodeKind of type SCALAR_TYPE_DEFINITION
+	SCALAR_TYPE_DEFINITION
 	// OBJECT is a NodeKind of type OBJECT
 	OBJECT
 	// OBJECT_TYPE_DEFINITION is a NodeKind of type OBJECT_TYPE_DEFINITION
@@ -38,8 +40,12 @@ const (
 	ARGUMENT_DEFINITION
 	// INTERFACE is a NodeKind of type INTERFACE
 	INTERFACE
+	// INTERFACE_TYPE_DEFINITION is a NodeKind of type INTERFACE_TYPE_DEFINITION
+	INTERFACE_TYPE_DEFINITION
 	// UNION is a NodeKind of type UNION
 	UNION
+	// UNION_TYPE_DEFINITION is a NodeKind of type UNION_TYPE_DEFINITION
+	UNION_TYPE_DEFINITION
 	// ENUM is a NodeKind of type ENUM
 	ENUM
 	// ENUM_VALUE is a NodeKind of type ENUM_VALUE
@@ -48,6 +54,8 @@ const (
 	ENUM_TYPE_DEFINITION
 	// INPUT_OBJECT is a NodeKind of type INPUT_OBJECT
 	INPUT_OBJECT
+	// INPUT_OBJECT_TYPE_DEFINITION is a NodeKind of type INPUT_OBJECT_TYPE_DEFINITION
+	INPUT_OBJECT_TYPE_DEFINITION
 	// INPUT_FIELD_DEFINITION is a NodeKind of type INPUT_FIELD_DEFINITION
 	INPUT_FIELD_DEFINITION
 	// OPERATION_DEFINITION is a NodeKind of type OPERATION_DEFINITION
@@ -66,7 +74,7 @@ const (
 	ARGUMENT_SET
 )
 
-const _NodeKindName = "UNKNOWNQUERYMUTATIONSUBSCRIPTIONFIELDFRAGMENT_DEFINITIONFRAGMENT_SPREADINLINE_FRAGMENTSCHEMASCALAROBJECTOBJECT_TYPE_DEFINITIONFIELD_DEFINITIONARGUMENT_DEFINITIONINTERFACEUNIONENUMENUM_VALUEENUM_TYPE_DEFINITIONINPUT_OBJECTINPUT_FIELD_DEFINITIONOPERATION_DEFINITIONDIRECTIVE_SETDIRECTIVEDIRECTIVE_DEFINITIONSELECTION_SETARGUMENTARGUMENT_SET"
+const _NodeKindName = "UNKNOWNQUERYMUTATIONSUBSCRIPTIONFIELDFRAGMENT_DEFINITIONFRAGMENT_SPREADINLINE_FRAGMENTSCHEMASCALARSCALAR_TYPE_DEFINITIONOBJECTOBJECT_TYPE_DEFINITIONFIELD_DEFINITIONARGUMENT_DEFINITIONINTERFACEINTERFACE_TYPE_DEFINITIONUNIONUNION_TYPE_DEFINITIONENUMENUM_VALUEENUM_TYPE_DEFINITIONINPUT_OBJECTINPUT_OBJECT_TYPE_DEFINITIONINPUT_FIELD_DEFINITIONOPERATION_DEFINITIONDIRECTIVE_SETDIRECTIVEDIRECTIVE_DEFINITIONSELECTION_SETARGUMENTARGUMENT_SET"
 
 var _NodeKindMap = map[NodeKind]string{
 	0:  _NodeKindName[0:7],
@@ -79,24 +87,28 @@ var _NodeKindMap = map[NodeKind]string{
 	7:  _NodeKindName[71:86],
 	8:  _NodeKindName[86:92],
 	9:  _NodeKindName[92:98],
-	10: _NodeKindName[98:104],
-	11: _NodeKindName[104:126],
-	12: _NodeKindName[126:142],
-	13: _NodeKindName[142:161],
-	14: _NodeKindName[161:170],
-	15: _NodeKindName[170:175],
-	16: _NodeKindName[175:179],
-	17: _NodeKindName[179:189],
-	18: _NodeKindName[189:209],
-	19: _NodeKindName[209:221],
-	20: _NodeKindName[221:243],
-	21: _NodeKindName[243:263],
-	22: _NodeKindName[263:276],
-	23: _NodeKindName[276:285],
-	24: _NodeKindName[285:305],
-	25: _NodeKindName[305:318],
-	26: _NodeKindName[318:326],
-	27: _NodeKindName[326:338],
+	10: _NodeKindName[98:120],
+	11: _NodeKindName[120:126],
+	12: _NodeKindName[126:148],
+	13: _NodeKindName[148:164],
+	14: _NodeKindName[164:183],
+	15: _NodeKindName[183:192],
+	16: _NodeKindName[192:217],
+	17: _NodeKindName[217:222],
+	18: _NodeKindName[222:243],
+	19: _NodeKindName[243:247],
+	20: _NodeKindName[247:257],
+	21: _NodeKindName[257:277],
+	22: _NodeKindName[277:289],
+	23: _NodeKindName[289:317],
+	24: _NodeKindName[317:339],
+	25: _NodeKindName[339:359],
+	26: _NodeKindName[359:372],
+	27: _NodeKindName[372:381],
+	28: _NodeKindName[381:401],
+	29: _NodeKindName[401:414],
+	30: _NodeKindName[414:422],
+	31: _NodeKindName[422:434],
 }
 
 // String implements the Stringer interface.
@@ -118,24 +130,28 @@ var _NodeKindValue = map[string]NodeKind{
 	_NodeKindName[71:86]:   7,
 	_NodeKindName[86:92]:   8,
 	_NodeKindName[92:98]:   9,
-	_NodeKindName[98:104]:  10,
-	_NodeKindName[104:126]: 11,
-	_NodeKindName[126:142]: 12,
-	_NodeKindName[142:161]: 13,
-	_NodeKindName[161:170]: 14,
-	_NodeKindName[170:175]: 15,
-	_NodeKindName[175:179]: 16,
-	_NodeKindName[179:189]: 17,
-	_NodeKindName[189:209]: 18,
-	_NodeKindName[209:221]: 19,
-	_NodeKindName[221:243]: 20,
-	_NodeKindName[243:263]: 21,
-	_NodeKindName[263:276]: 22,
-	_NodeKindName[276:285]: 23,
-	_NodeKindName[285:305]: 24,
-	_NodeKindName[305:318]: 25,
-	_NodeKindName[318:326]: 26,
-	_NodeKindName[326:338]: 27,
+	_NodeKindName[98:120]:  10,
+	_NodeKindName[120:126]: 11,
+	_NodeKindName[126:148]: 12,
+	_NodeKindName[148:164]: 13,
+	_NodeKindName[164:183]: 14,
+	_NodeKindName[183:192]: 15,
+	_NodeKindName[192:217]: 16,
+	_NodeKindName[217:222]: 17,
+	_NodeKindName[222:243]: 18,
+	_NodeKindName[243:247]: 19,
+	_NodeKindName[247:257]: 20,
+	_NodeKindName[257:277]: 21,
+	_NodeKindName[277:289]: 22,
+	_NodeKindName[289:317]: 23,
+	_NodeKindName[317:339]: 24,
+	_NodeKindName[339:359]: 25,
+	_NodeKindName[359:372]: 26,
+	_NodeKindName[372:381]: 27,
+	_NodeKindName[381:401]: 28,
+	_NodeKindName[401:414]: 29,
+	_NodeKindName[414:422]: 30,
+	_NodeKindName[422:434]: 31,
 }
 
 // ParseNodeKind attempts to convert a string to a NodeKind
