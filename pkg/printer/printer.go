@@ -1,6 +1,7 @@
 package printer
 
 import (
+	"bytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/lookup"
@@ -49,37 +50,154 @@ func (p *Printer) PrintTypeSystemDefinition(out io.Writer) {
 		ref, kind := rootNodes.Value()
 		switch kind {
 		case lookup.SCHEMA:
-			p.PrintSchemaDefinition(p.p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition)
+			p.PrintSchemaDefinition()
 		case lookup.OBJECT_TYPE_DEFINITION:
 			p.PrintObjectTypeDefinition(ref)
 		case lookup.ENUM_TYPE_DEFINITION:
 			p.PrintEnumTypeDefinition(ref)
 		case lookup.DIRECTIVE_DEFINITION:
 			p.PrintDirectiveDefinition(ref)
+		case lookup.INTERFACE_TYPE_DEFINITION:
+			p.PrintInterfaceTypeDefinition(ref)
+		case lookup.SCALAR_TYPE_DEFINITION:
+			p.PrintScalarTypeDefinition(ref)
+		case lookup.UNION_TYPE_DEFINITION:
+			p.PrintUnionTypeDefinition(ref)
+		case lookup.INPUT_OBJECT_TYPE_DEFINITION:
+			p.PrintInputObjectTypeDefinition(ref)
 		}
 
 		addDoubleLineTerminator = true
 	}
 }
 
-func (p *Printer) PrintSchemaDefinition(definition document.SchemaDefinition) {
+func (p *Printer) PrintSchemaDefinition() {
+	definition := p.p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition
 	p.write(literal.SCHEMA)
+	p.write(literal.SPACE)
 	p.write(literal.CURLYBRACKETOPEN)
+	if definition.Query != -1 {
+		p.write(literal.LINETERMINATOR)
+		p.write(literal.TAB)
+		p.PrintSimpleField(literal.QUERY, definition.Query)
+	}
+	if definition.Mutation != -1 {
+		p.write(literal.LINETERMINATOR)
+		p.write(literal.TAB)
+		p.PrintSimpleField(literal.MUTATION, definition.Mutation)
+	}
+	if definition.Subscription != -1 {
+		p.write(literal.LINETERMINATOR)
+		p.write(literal.TAB)
+		p.PrintSimpleField(literal.SUBSCRIPTION, definition.Subscription)
+	}
+	p.write(literal.LINETERMINATOR)
 	p.write(literal.CURLYBRACKETCLOSE)
+}
+
+func (p *Printer) PrintSimpleField(name []byte, value int) {
+	p.write(name)
+	p.write(literal.COLON)
+	p.write(literal.SPACE)
+	p.write(p.p.CachedByteSlice(value))
+}
+
+func (p *Printer) PrintDescription(ref document.ByteSliceReference) {
+	description := p.p.ByteSlice(ref)
+	multiLine := bytes.Contains(description, literal.LINETERMINATOR)
+	if !multiLine {
+		p.write(literal.QUOTE)
+		p.write(description)
+		p.write(literal.QUOTE)
+		p.write(literal.LINETERMINATOR)
+		return
+	}
+	p.write(literal.QUOTE)
+	p.write(literal.QUOTE)
+	p.write(literal.QUOTE)
+	p.write(literal.LINETERMINATOR)
+	p.write(description)
+	p.write(literal.LINETERMINATOR)
+	p.write(literal.QUOTE)
+	p.write(literal.QUOTE)
+	p.write(literal.QUOTE)
+	p.write(literal.LINETERMINATOR)
+}
+
+func (p *Printer) PrintFieldDefinition(ref int) {
+	definition := p.p.ParsedDefinitions.FieldDefinitions[ref]
+	p.write(p.p.CachedByteSlice(definition.Name))
+	if definition.ArgumentsDefinition != -1 {
+		p.PrintArgumentsDefinition(definition.ArgumentsDefinition)
+	}
+	p.write(literal.COLON)
+	p.write(literal.SPACE)
+	p.PrintType(definition.Type)
+}
+
+func (p *Printer) PrintArgumentsDefinition(ref int) {
+	definition := p.p.ParsedDefinitions.ArgumentsDefinitions[ref]
+	p.write(literal.BRACKETOPEN)
+	var addSpace bool
+	for _, i := range definition.InputValueDefinitions {
+		if addSpace {
+			p.write(literal.SPACE)
+		}
+		p.PrintInputValueDefinition(i)
+		addSpace = true
+	}
+	p.write(literal.BRACKETCLOSE)
+}
+
+func (p *Printer) PrintInputValueDefinition(ref int) {
+	definition := p.p.ParsedDefinitions.InputValueDefinitions[ref]
+	p.write(p.p.CachedByteSlice(definition.Name))
+	p.write(literal.COLON)
+	p.write(literal.SPACE)
+	p.PrintType(definition.Type)
+	if definition.DefaultValue != -1 {
+		p.write(literal.SPACE)
+		p.write(literal.EQUALS)
+		p.write(literal.SPACE)
+		p.PrintValue(definition.DefaultValue)
+	}
+}
+
+func (p *Printer) PrintType(ref int) {
+	definition := p.p.ParsedDefinitions.Types[ref]
+	switch definition.Kind {
+	case document.TypeKindNON_NULL:
+		p.PrintType(definition.OfType)
+		p.write(literal.BANG)
+	case document.TypeKindLIST:
+		p.write(literal.SQUAREBRACKETOPEN)
+		p.PrintType(definition.OfType)
+		p.write(literal.SQUAREBRACKETCLOSE)
+	case document.TypeKindNAMED:
+		p.write(p.p.CachedByteSlice(definition.Name))
+	}
 }
 
 func (p *Printer) PrintObjectTypeDefinition(ref int) {
 	definition := p.l.ObjectTypeDefinition(ref)
+	p.PrintDescription(definition.Description)
 	p.write(literal.TYPE)
 	p.write(literal.SPACE)
 	p.write(p.p.CachedByteSlice(definition.Name))
 	p.write(literal.SPACE)
 	p.write(literal.CURLYBRACKETOPEN)
+	for _, i := range definition.FieldsDefinition {
+		p.write(literal.LINETERMINATOR)
+		p.write(literal.TAB)
+		p.PrintFieldDefinition(i)
+	}
+	p.write(literal.LINETERMINATOR)
 	p.write(literal.CURLYBRACKETCLOSE)
 }
 
 func (p *Printer) PrintEnumTypeDefinition(ref int) {
 	definition := p.p.ParsedDefinitions.EnumTypeDefinitions[ref]
+	p.PrintDescription(definition.Description)
 	p.write(literal.ENUM)
 	p.write(literal.SPACE)
 	p.write(p.p.CachedByteSlice(definition.Name))
@@ -90,6 +208,7 @@ func (p *Printer) PrintEnumTypeDefinition(ref int) {
 
 func (p *Printer) PrintDirectiveDefinition(ref int) {
 	definition := p.p.ParsedDefinitions.DirectiveDefinitions[ref]
+	p.PrintDescription(definition.Description)
 	p.write(literal.DIRECTIVE)
 	p.write(literal.SPACE)
 	p.write(literal.AT)
@@ -114,6 +233,57 @@ func (p *Printer) PrintDirectiveLocations(locations document.DirectiveLocations)
 
 		addPipe = true
 	}
+}
+
+func (p *Printer) PrintInterfaceTypeDefinition(ref int) {
+	definition := p.p.ParsedDefinitions.InterfaceTypeDefinitions[ref]
+	p.PrintDescription(definition.Description)
+	p.write(literal.INTERFACE)
+	p.write(literal.SPACE)
+	p.write(p.p.CachedByteSlice(definition.Name))
+	p.write(literal.SPACE)
+	p.write(literal.CURLYBRACKETOPEN)
+	p.write(literal.CURLYBRACKETCLOSE)
+}
+
+func (p *Printer) PrintScalarTypeDefinition(ref int) {
+	definition := p.p.ParsedDefinitions.ScalarTypeDefinitions[ref]
+	p.PrintDescription(definition.Description)
+	p.write(literal.SCALAR)
+	p.write(literal.SPACE)
+	p.write(p.p.CachedByteSlice(definition.Name))
+}
+
+func (p *Printer) PrintUnionTypeDefinition(ref int) {
+	definition := p.p.ParsedDefinitions.UnionTypeDefinitions[ref]
+	p.PrintDescription(definition.Description)
+	p.write(literal.UNION)
+	p.write(literal.SPACE)
+	p.write(p.p.CachedByteSlice(definition.Name))
+	p.write(literal.SPACE)
+	p.write(literal.EQUALS)
+	p.write(literal.SPACE)
+	var addPipe bool
+	for _, memberName := range definition.UnionMemberTypes {
+		if addPipe {
+			p.write(literal.SPACE)
+			p.write(literal.PIPE)
+			p.write(literal.SPACE)
+		}
+		p.write(p.p.CachedByteSlice(memberName))
+		addPipe = true
+	}
+}
+
+func (p *Printer) PrintInputObjectTypeDefinition(ref int) {
+	definition := p.p.ParsedDefinitions.InputObjectTypeDefinitions[ref]
+	p.PrintDescription(definition.Description)
+	p.write(literal.INPUT)
+	p.write(literal.SPACE)
+	p.write(p.p.CachedByteSlice(definition.Name))
+	p.write(literal.SPACE)
+	p.write(literal.CURLYBRACKETOPEN)
+	p.write(literal.CURLYBRACKETCLOSE)
 }
 
 func (p *Printer) PrintExecutableSchema(out io.Writer) {
@@ -313,10 +483,10 @@ func (p *Printer) printArgumentSet(ref int) {
 func (p *Printer) printArgument(arg document.Argument) {
 	p.write(p.p.CachedByteSlice(arg.Name))
 	p.write(literal.COLON)
-	p.printValue(arg.Value)
+	p.PrintValue(arg.Value)
 }
 
-func (p *Printer) printValue(ref int) {
+func (p *Printer) PrintValue(ref int) {
 
 	value := p.l.Value(ref)
 
@@ -363,7 +533,7 @@ func (p *Printer) printObjectValue(ref int) {
 func (p *Printer) printObjectField(field document.ObjectField) {
 	p.write(p.p.CachedByteSlice(field.Name))
 	p.write(literal.COLON)
-	p.printValue(field.Value)
+	p.PrintValue(field.Value)
 }
 
 func (p *Printer) printListValue(ref int) {
@@ -378,7 +548,7 @@ func (p *Printer) printListValue(ref int) {
 			p.write(literal.COMMA)
 		}
 
-		p.printValue(valueRef)
+		p.PrintValue(valueRef)
 		addComma = true
 	}
 
