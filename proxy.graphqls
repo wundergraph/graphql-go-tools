@@ -6,9 +6,7 @@ type Query {
     assets(first: Int): [Asset]
 }
 
-directive @RequestMiddleware on OBJECT_TYPE
-
-type Asset implements Node @RequestMiddleware {
+type Asset implements Node {
     status: Status!
     updatedAt: DateTime!
     createdAt: DateTime!
