@@ -33,6 +33,89 @@ func (p *Printer) write(bytes []byte) {
 	_, p.err = p.out.Write(bytes)
 }
 
+func (p *Printer) PrintTypeSystemDefinition(out io.Writer) {
+
+	p.out = out
+
+	rootNodes := p.w.TypeSystemDefinitionOrderedRootNodes()
+	var addDoubleLineTerminator bool
+	for rootNodes.Next() {
+
+		if addDoubleLineTerminator {
+			p.write(literal.LINETERMINATOR)
+			p.write(literal.LINETERMINATOR)
+		}
+
+		ref, kind := rootNodes.Value()
+		switch kind {
+		case lookup.SCHEMA:
+			p.PrintSchemaDefinition(p.p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition)
+		case lookup.OBJECT_TYPE_DEFINITION:
+			p.PrintObjectTypeDefinition(ref)
+		case lookup.ENUM_TYPE_DEFINITION:
+			p.PrintEnumTypeDefinition(ref)
+		case lookup.DIRECTIVE_DEFINITION:
+			p.PrintDirectiveDefinition(ref)
+		}
+
+		addDoubleLineTerminator = true
+	}
+}
+
+func (p *Printer) PrintSchemaDefinition(definition document.SchemaDefinition) {
+	p.write(literal.SCHEMA)
+	p.write(literal.CURLYBRACKETOPEN)
+	p.write(literal.CURLYBRACKETCLOSE)
+}
+
+func (p *Printer) PrintObjectTypeDefinition(ref int) {
+	definition := p.l.ObjectTypeDefinition(ref)
+	p.write(literal.TYPE)
+	p.write(literal.SPACE)
+	p.write(p.p.CachedByteSlice(definition.Name))
+	p.write(literal.SPACE)
+	p.write(literal.CURLYBRACKETOPEN)
+	p.write(literal.CURLYBRACKETCLOSE)
+}
+
+func (p *Printer) PrintEnumTypeDefinition(ref int) {
+	definition := p.p.ParsedDefinitions.EnumTypeDefinitions[ref]
+	p.write(literal.ENUM)
+	p.write(literal.SPACE)
+	p.write(p.p.CachedByteSlice(definition.Name))
+	p.write(literal.SPACE)
+	p.write(literal.CURLYBRACKETOPEN)
+	p.write(literal.CURLYBRACKETCLOSE)
+}
+
+func (p *Printer) PrintDirectiveDefinition(ref int) {
+	definition := p.p.ParsedDefinitions.DirectiveDefinitions[ref]
+	p.write(literal.DIRECTIVE)
+	p.write(literal.SPACE)
+	p.write(literal.AT)
+	p.write(p.p.CachedByteSlice(definition.Name))
+	p.write(literal.SPACE)
+	p.write(literal.ON)
+	p.write(literal.SPACE)
+	p.PrintDirectiveLocations(definition.DirectiveLocations)
+}
+
+func (p *Printer) PrintDirectiveLocations(locations document.DirectiveLocations) {
+	var addPipe bool
+	for _, location := range locations {
+
+		if addPipe {
+			p.write(literal.SPACE)
+			p.write(literal.PIPE)
+			p.write(literal.SPACE)
+		}
+
+		p.write([]byte(location.String()))
+
+		addPipe = true
+	}
+}
+
 func (p *Printer) PrintExecutableSchema(out io.Writer) {
 
 	p.out = out
