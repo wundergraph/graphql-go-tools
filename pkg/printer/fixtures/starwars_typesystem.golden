@@ -1,0 +1,47 @@
+schema{}
+
+type Query {}
+
+type Mutation {}
+
+type Subscription {}
+
+type Human {}
+
+type Droid {}
+
+type FriendsConnection {}
+
+type FriendsEdge {}
+
+type PageInfo {}
+
+type Review {}
+
+type Starship {}
+
+type __Directive {}
+
+type __EnumValue {}
+
+type __Field {}
+
+type __InputValue {}
+
+type __Schema {}
+
+type __Type {}
+
+enum Episode {}
+
+enum LengthUnit {}
+
+enum __DirectiveLocation {}
+
+enum __TypeKind {}
+
+directive @include on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
+
+directive @skip on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
+
+directive @deprecated on FIELD_DEFINITION | ENUM_VALUE
