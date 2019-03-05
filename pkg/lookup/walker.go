@@ -294,9 +294,6 @@ func (w *Walker) walkArgumentSet(set int, parent int) {
 	}
 
 	arguments := w.l.ArgumentSet(set)
-	if len(arguments) == 0 {
-		return
-	}
 
 	ref := w.putNode(Node{
 		Parent: parent,
