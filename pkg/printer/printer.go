@@ -6,6 +6,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/lookup"
 	"github.com/jensneuse/graphql-go-tools/pkg/parser"
+	"github.com/jensneuse/graphql-go-tools/pkg/transform"
 	"io"
 )
 
@@ -102,22 +103,38 @@ func (p *Printer) PrintSimpleField(name []byte, value int) {
 	p.write(p.p.CachedByteSlice(value))
 }
 
-func (p *Printer) PrintDescription(ref document.ByteSliceReference) {
+func (p *Printer) PrintDescription(ref document.ByteSliceReference, linePrefix ...[]byte) {
+	if ref.Length() == 0 {
+		return
+	}
 	description := p.p.ByteSlice(ref)
 	multiLine := bytes.Contains(description, literal.LINETERMINATOR)
 	if !multiLine {
+		for _, prefix := range linePrefix {
+			p.write(prefix)
+		}
 		p.write(literal.QUOTE)
 		p.write(description)
 		p.write(literal.QUOTE)
 		p.write(literal.LINETERMINATOR)
 		return
 	}
+	description = transform.TrimWhitespace(description)
+	for _, prefix := range linePrefix {
+		p.write(prefix)
+	}
 	p.write(literal.QUOTE)
 	p.write(literal.QUOTE)
 	p.write(literal.QUOTE)
 	p.write(literal.LINETERMINATOR)
+	for _, prefix := range linePrefix {
+		p.write(prefix)
+	}
 	p.write(description)
 	p.write(literal.LINETERMINATOR)
+	for _, prefix := range linePrefix {
+		p.write(prefix)
+	}
 	p.write(literal.QUOTE)
 	p.write(literal.QUOTE)
 	p.write(literal.QUOTE)
@@ -126,9 +143,11 @@ func (p *Printer) PrintDescription(ref document.ByteSliceReference) {
 
 func (p *Printer) PrintFieldDefinition(ref int) {
 	definition := p.p.ParsedDefinitions.FieldDefinitions[ref]
+	p.PrintDescription(definition.Description, literal.TAB)
+	p.write(literal.TAB)
 	p.write(p.p.CachedByteSlice(definition.Name))
 	if definition.ArgumentsDefinition != -1 {
-		p.PrintArgumentsDefinition(definition.ArgumentsDefinition)
+		p.PrintArgumentsDefinitionInline(definition.ArgumentsDefinition)
 	}
 	p.write(literal.COLON)
 	p.write(literal.SPACE)
@@ -138,18 +157,39 @@ func (p *Printer) PrintFieldDefinition(ref int) {
 func (p *Printer) PrintArgumentsDefinition(ref int) {
 	definition := p.p.ParsedDefinitions.ArgumentsDefinitions[ref]
 	p.write(literal.BRACKETOPEN)
+	for _, i := range definition.InputValueDefinitions {
+		p.write(literal.LINETERMINATOR)
+		p.PrintInputValueDefinition(i)
+	}
+	p.write(literal.LINETERMINATOR)
+	p.write(literal.BRACKETCLOSE)
+}
+
+func (p *Printer) PrintArgumentsDefinitionInline(ref int) {
+	definition := p.p.ParsedDefinitions.ArgumentsDefinitions[ref]
+	p.write(literal.BRACKETOPEN)
 	var addSpace bool
 	for _, i := range definition.InputValueDefinitions {
 		if addSpace {
 			p.write(literal.SPACE)
 		}
-		p.PrintInputValueDefinition(i)
+		p.PrintInputValueDefinitionInline(i)
 		addSpace = true
 	}
 	p.write(literal.BRACKETCLOSE)
 }
 
 func (p *Printer) PrintInputValueDefinition(ref int) {
+	definition := p.p.ParsedDefinitions.InputValueDefinitions[ref]
+	p.PrintDescription(definition.Description, literal.TAB)
+	p.write(literal.TAB)
+	p.write(p.p.CachedByteSlice(definition.Name))
+	p.write(literal.COLON)
+	p.write(literal.SPACE)
+	p.PrintType(definition.Type)
+}
+
+func (p *Printer) PrintInputValueDefinitionInline(ref int) {
 	definition := p.p.ParsedDefinitions.InputValueDefinitions[ref]
 	p.write(p.p.CachedByteSlice(definition.Name))
 	p.write(literal.COLON)
@@ -188,7 +228,6 @@ func (p *Printer) PrintObjectTypeDefinition(ref int) {
 	p.write(literal.CURLYBRACKETOPEN)
 	for _, i := range definition.FieldsDefinition {
 		p.write(literal.LINETERMINATOR)
-		p.write(literal.TAB)
 		p.PrintFieldDefinition(i)
 	}
 	p.write(literal.LINETERMINATOR)
@@ -203,7 +242,24 @@ func (p *Printer) PrintEnumTypeDefinition(ref int) {
 	p.write(p.p.CachedByteSlice(definition.Name))
 	p.write(literal.SPACE)
 	p.write(literal.CURLYBRACKETOPEN)
+	p.write(literal.LINETERMINATOR)
+	var addLineTerminator bool
+	for _, enumValue := range definition.EnumValuesDefinition {
+		if addLineTerminator {
+			p.write(literal.LINETERMINATOR)
+		}
+		p.PrintEnumValueDefinition(enumValue)
+		addLineTerminator = true
+	}
+	p.write(literal.LINETERMINATOR)
 	p.write(literal.CURLYBRACKETCLOSE)
+}
+
+func (p *Printer) PrintEnumValueDefinition(ref int) {
+	definition := p.p.ParsedDefinitions.EnumValuesDefinitions[ref]
+	p.PrintDescription(definition.Description, literal.TAB)
+	p.write(literal.TAB)
+	p.write(p.p.CachedByteSlice(definition.EnumValue))
 }
 
 func (p *Printer) PrintDirectiveDefinition(ref int) {
@@ -214,6 +270,10 @@ func (p *Printer) PrintDirectiveDefinition(ref int) {
 	p.write(literal.AT)
 	p.write(p.p.CachedByteSlice(definition.Name))
 	p.write(literal.SPACE)
+	if definition.ArgumentsDefinition != -1 {
+		p.PrintArgumentsDefinition(definition.ArgumentsDefinition)
+		p.write(literal.SPACE)
+	}
 	p.write(literal.ON)
 	p.write(literal.SPACE)
 	p.PrintDirectiveLocations(definition.DirectiveLocations)
@@ -243,6 +303,11 @@ func (p *Printer) PrintInterfaceTypeDefinition(ref int) {
 	p.write(p.p.CachedByteSlice(definition.Name))
 	p.write(literal.SPACE)
 	p.write(literal.CURLYBRACKETOPEN)
+	for _, field := range definition.FieldsDefinition {
+		p.write(literal.LINETERMINATOR)
+		p.PrintFieldDefinition(field)
+	}
+	p.write(literal.LINETERMINATOR)
 	p.write(literal.CURLYBRACKETCLOSE)
 }
 
@@ -283,6 +348,11 @@ func (p *Printer) PrintInputObjectTypeDefinition(ref int) {
 	p.write(p.p.CachedByteSlice(definition.Name))
 	p.write(literal.SPACE)
 	p.write(literal.CURLYBRACKETOPEN)
+	for _, inputValueDefinition := range p.p.ParsedDefinitions.InputFieldsDefinitions[definition.InputFieldsDefinition].InputValueDefinitions {
+		p.write(literal.LINETERMINATOR)
+		p.PrintInputValueDefinition(inputValueDefinition)
+	}
+	p.write(literal.LINETERMINATOR)
 	p.write(literal.CURLYBRACKETCLOSE)
 }
 
