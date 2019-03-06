@@ -5,8 +5,8 @@ schema {
 }
 
 "The query type, represents all of the entry points into our object graph"
-type Query {
-	hero(episode: Episode): Character
+type Query @directiveOnObject {
+	hero(episode: Episode): Character @directiveOnField @directiveOnField2(with:"argument")
 	reviews(episode: Episode!): [Review]
 	search(text: String): [SearchResult]
 	character(id: ID!): Character
@@ -26,7 +26,7 @@ type Subscription {
 }
 
 "The episodes in the Star Wars trilogy"
-enum Episode {
+enum Episode @directiveOnEnum {
 	"Star Wars Episode IV: A New Hope, released in 1977."
 	NEWHOPE
 	"Star Wars Episode V: The Empire Strikes Back, released in 1980."
@@ -36,7 +36,7 @@ enum Episode {
 }
 
 "A character from the Star Wars universe"
-interface Character {
+interface Character @directiveOnInterface {
 	"The ID of the character"
 	id: ID!
 	"The name of the character"
@@ -88,7 +88,7 @@ type Droid {
 	"This droid's friends, or an empty list if they have none"
 	friends: [Character]
 	"The friends of the droid exposed as a connection with edges"
-	friendsConnection(first: Int after: ID): FriendsConnection!
+	friendsConnection(first: Int after: ID @directiveOnArgument): FriendsConnection!
 	"The movies this droid appears in"
 	appearsIn: [Episode]!
 	"This droid's primary function"
@@ -139,7 +139,7 @@ input ReviewInput {
 	"Comment about the movie, optional"
 	commentary: String
 	"Favorite color, optional"
-	favorite_color: ColorInput
+	favorite_color: ColorInput @directiveOnInputField
 }
 
 "The input object sent when passing in a color"
@@ -155,13 +155,13 @@ type Starship {
 	"The name of the starship"
 	name: String!
 	"Length of the starship, along the longest axis"
-	length(unit: LengthUnit = METER): Float
+	length(unit: LengthUnit = METER @directiveOnArgument): Float
 }
 
-union SearchResult = Human | Droid | Starship
+union SearchResult @directiveOnUnion = Human | Droid | Starship
 
 "The 'Int' scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1."
-scalar Int
+scalar Int @directiveOnScalar
 
 "The 'Float' scalar type represents signed double-precision fractional values as specified by [IEEE 754](http://en.wikipedia.org/wiki/IEEE_floating_point)."
 scalar Float
