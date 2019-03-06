@@ -12,10 +12,10 @@ jobs:
     - run: go test ./...
   release:
     docker:
-      - image: circleci/golang:1.10
+    - image: circleci/golang:1.10
     steps:
-      - checkout
-      - run: curl -sL https://git.io/goreleaser | bash
+    - checkout
+    - run: curl -sL https://git.io/goreleaser | bash
 workflows:
   version: 2
   release:
