@@ -8,44 +8,107 @@ import (
 )
 
 const (
-	// NONE is a NodeKind of type NONE
-	NONE NodeKind = iota
-	// OPERATION_DEFINITION is a NodeKind of type OPERATION_DEFINITION
-	OPERATION_DEFINITION
-	// DIRECTIVE is a NodeKind of type DIRECTIVE
-	DIRECTIVE
-	// DIRECTIVE_SET is a NodeKind of type DIRECTIVE_SET
-	DIRECTIVE_SET
-	// SELECTION_SET is a NodeKind of type SELECTION_SET
-	SELECTION_SET
+	// UNKNOWN is a NodeKind of type UNKNOWN
+	UNKNOWN NodeKind = iota
+	// QUERY is a NodeKind of type QUERY
+	QUERY
+	// MUTATION is a NodeKind of type MUTATION
+	MUTATION
+	// SUBSCRIPTION is a NodeKind of type SUBSCRIPTION
+	SUBSCRIPTION
 	// FIELD is a NodeKind of type FIELD
 	FIELD
-	// INLINE_FRAGMENT is a NodeKind of type INLINE_FRAGMENT
-	INLINE_FRAGMENT
-	// FRAGMENT_SPREAD is a NodeKind of type FRAGMENT_SPREAD
-	FRAGMENT_SPREAD
 	// FRAGMENT_DEFINITION is a NodeKind of type FRAGMENT_DEFINITION
 	FRAGMENT_DEFINITION
-	// ARGUMENT_SET is a NodeKind of type ARGUMENT_SET
-	ARGUMENT_SET
+	// FRAGMENT_SPREAD is a NodeKind of type FRAGMENT_SPREAD
+	FRAGMENT_SPREAD
+	// INLINE_FRAGMENT is a NodeKind of type INLINE_FRAGMENT
+	INLINE_FRAGMENT
+	// SCHEMA is a NodeKind of type SCHEMA
+	SCHEMA
+	// SCALAR is a NodeKind of type SCALAR
+	SCALAR
+	// SCALAR_TYPE_DEFINITION is a NodeKind of type SCALAR_TYPE_DEFINITION
+	SCALAR_TYPE_DEFINITION
+	// OBJECT is a NodeKind of type OBJECT
+	OBJECT
+	// OBJECT_TYPE_DEFINITION is a NodeKind of type OBJECT_TYPE_DEFINITION
+	OBJECT_TYPE_DEFINITION
+	// FIELD_DEFINITION is a NodeKind of type FIELD_DEFINITION
+	FIELD_DEFINITION
+	// ARGUMENT_DEFINITION is a NodeKind of type ARGUMENT_DEFINITION
+	ARGUMENT_DEFINITION
+	// INTERFACE is a NodeKind of type INTERFACE
+	INTERFACE
+	// INTERFACE_TYPE_DEFINITION is a NodeKind of type INTERFACE_TYPE_DEFINITION
+	INTERFACE_TYPE_DEFINITION
+	// UNION is a NodeKind of type UNION
+	UNION
+	// UNION_TYPE_DEFINITION is a NodeKind of type UNION_TYPE_DEFINITION
+	UNION_TYPE_DEFINITION
+	// ENUM is a NodeKind of type ENUM
+	ENUM
+	// ENUM_VALUE is a NodeKind of type ENUM_VALUE
+	ENUM_VALUE
+	// ENUM_TYPE_DEFINITION is a NodeKind of type ENUM_TYPE_DEFINITION
+	ENUM_TYPE_DEFINITION
+	// INPUT_OBJECT is a NodeKind of type INPUT_OBJECT
+	INPUT_OBJECT
+	// INPUT_OBJECT_TYPE_DEFINITION is a NodeKind of type INPUT_OBJECT_TYPE_DEFINITION
+	INPUT_OBJECT_TYPE_DEFINITION
+	// INPUT_FIELD_DEFINITION is a NodeKind of type INPUT_FIELD_DEFINITION
+	INPUT_FIELD_DEFINITION
+	// OPERATION_DEFINITION is a NodeKind of type OPERATION_DEFINITION
+	OPERATION_DEFINITION
+	// DIRECTIVE_SET is a NodeKind of type DIRECTIVE_SET
+	DIRECTIVE_SET
+	// DIRECTIVE is a NodeKind of type DIRECTIVE
+	DIRECTIVE
+	// DIRECTIVE_DEFINITION is a NodeKind of type DIRECTIVE_DEFINITION
+	DIRECTIVE_DEFINITION
+	// SELECTION_SET is a NodeKind of type SELECTION_SET
+	SELECTION_SET
 	// ARGUMENT is a NodeKind of type ARGUMENT
 	ARGUMENT
+	// ARGUMENT_SET is a NodeKind of type ARGUMENT_SET
+	ARGUMENT_SET
 )
 
-const _NodeKindName = "NONEOPERATION_DEFINITIONDIRECTIVEDIRECTIVE_SETSELECTION_SETFIELDINLINE_FRAGMENTFRAGMENT_SPREADFRAGMENT_DEFINITIONARGUMENT_SETARGUMENT"
+const _NodeKindName = "UNKNOWNQUERYMUTATIONSUBSCRIPTIONFIELDFRAGMENT_DEFINITIONFRAGMENT_SPREADINLINE_FRAGMENTSCHEMASCALARSCALAR_TYPE_DEFINITIONOBJECTOBJECT_TYPE_DEFINITIONFIELD_DEFINITIONARGUMENT_DEFINITIONINTERFACEINTERFACE_TYPE_DEFINITIONUNIONUNION_TYPE_DEFINITIONENUMENUM_VALUEENUM_TYPE_DEFINITIONINPUT_OBJECTINPUT_OBJECT_TYPE_DEFINITIONINPUT_FIELD_DEFINITIONOPERATION_DEFINITIONDIRECTIVE_SETDIRECTIVEDIRECTIVE_DEFINITIONSELECTION_SETARGUMENTARGUMENT_SET"
 
 var _NodeKindMap = map[NodeKind]string{
-	0:  _NodeKindName[0:4],
-	1:  _NodeKindName[4:24],
-	2:  _NodeKindName[24:33],
-	3:  _NodeKindName[33:46],
-	4:  _NodeKindName[46:59],
-	5:  _NodeKindName[59:64],
-	6:  _NodeKindName[64:79],
-	7:  _NodeKindName[79:94],
-	8:  _NodeKindName[94:113],
-	9:  _NodeKindName[113:125],
-	10: _NodeKindName[125:133],
+	0:  _NodeKindName[0:7],
+	1:  _NodeKindName[7:12],
+	2:  _NodeKindName[12:20],
+	3:  _NodeKindName[20:32],
+	4:  _NodeKindName[32:37],
+	5:  _NodeKindName[37:56],
+	6:  _NodeKindName[56:71],
+	7:  _NodeKindName[71:86],
+	8:  _NodeKindName[86:92],
+	9:  _NodeKindName[92:98],
+	10: _NodeKindName[98:120],
+	11: _NodeKindName[120:126],
+	12: _NodeKindName[126:148],
+	13: _NodeKindName[148:164],
+	14: _NodeKindName[164:183],
+	15: _NodeKindName[183:192],
+	16: _NodeKindName[192:217],
+	17: _NodeKindName[217:222],
+	18: _NodeKindName[222:243],
+	19: _NodeKindName[243:247],
+	20: _NodeKindName[247:257],
+	21: _NodeKindName[257:277],
+	22: _NodeKindName[277:289],
+	23: _NodeKindName[289:317],
+	24: _NodeKindName[317:339],
+	25: _NodeKindName[339:359],
+	26: _NodeKindName[359:372],
+	27: _NodeKindName[372:381],
+	28: _NodeKindName[381:401],
+	29: _NodeKindName[401:414],
+	30: _NodeKindName[414:422],
+	31: _NodeKindName[422:434],
 }
 
 // String implements the Stringer interface.
@@ -57,17 +120,38 @@ func (x NodeKind) String() string {
 }
 
 var _NodeKindValue = map[string]NodeKind{
-	_NodeKindName[0:4]:     0,
-	_NodeKindName[4:24]:    1,
-	_NodeKindName[24:33]:   2,
-	_NodeKindName[33:46]:   3,
-	_NodeKindName[46:59]:   4,
-	_NodeKindName[59:64]:   5,
-	_NodeKindName[64:79]:   6,
-	_NodeKindName[79:94]:   7,
-	_NodeKindName[94:113]:  8,
-	_NodeKindName[113:125]: 9,
-	_NodeKindName[125:133]: 10,
+	_NodeKindName[0:7]:     0,
+	_NodeKindName[7:12]:    1,
+	_NodeKindName[12:20]:   2,
+	_NodeKindName[20:32]:   3,
+	_NodeKindName[32:37]:   4,
+	_NodeKindName[37:56]:   5,
+	_NodeKindName[56:71]:   6,
+	_NodeKindName[71:86]:   7,
+	_NodeKindName[86:92]:   8,
+	_NodeKindName[92:98]:   9,
+	_NodeKindName[98:120]:  10,
+	_NodeKindName[120:126]: 11,
+	_NodeKindName[126:148]: 12,
+	_NodeKindName[148:164]: 13,
+	_NodeKindName[164:183]: 14,
+	_NodeKindName[183:192]: 15,
+	_NodeKindName[192:217]: 16,
+	_NodeKindName[217:222]: 17,
+	_NodeKindName[222:243]: 18,
+	_NodeKindName[243:247]: 19,
+	_NodeKindName[247:257]: 20,
+	_NodeKindName[257:277]: 21,
+	_NodeKindName[277:289]: 22,
+	_NodeKindName[289:317]: 23,
+	_NodeKindName[317:339]: 24,
+	_NodeKindName[339:359]: 25,
+	_NodeKindName[359:372]: 26,
+	_NodeKindName[372:381]: 27,
+	_NodeKindName[381:401]: 28,
+	_NodeKindName[401:414]: 29,
+	_NodeKindName[414:422]: 30,
+	_NodeKindName[422:434]: 31,
 }
 
 // ParseNodeKind attempts to convert a string to a NodeKind

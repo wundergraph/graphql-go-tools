@@ -22,6 +22,7 @@ func (p *Parser) parseInputObjectTypeDefinition(description *token.Token, index 
 
 	if description != nil {
 		definition.Position.MergeStartIntoStart(description.TextPosition)
+		definition.Description = description.Literal
 	} else {
 		definition.Position.MergeStartIntoStart(start.TextPosition)
 	}
