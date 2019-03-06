@@ -394,25 +394,7 @@ func (w *Walker) walkFragmentSpreads(refs []int, parent int) {
 		})
 
 		w.c.fragmentSpreads = append(w.c.fragmentSpreads, ref)
-
 		w.walkDirectiveSet(spread.DirectiveSet, ref)
-
-		if w.referenceFormsCycle(FRAGMENT_SPREAD, spreadRef, parent) {
-			continue
-		}
-	}
-}
-
-func (w *Walker) referenceFormsCycle(kind NodeKind, ref, parent int) bool {
-	for {
-		node, hasParent := w.Parent(parent)
-		if !hasParent {
-			return false
-		}
-		if node.Kind == kind && ref == node.Ref {
-			return true
-		}
-		parent = node.Parent
 	}
 }
 
@@ -528,10 +510,7 @@ func (w *Walker) NodeUsageInOperationsIterator(ref int) (iter NodeUsageInOperati
 	iter.current = -1
 	iter.w = w
 
-	rootNode, ok := w.RootNode(ref)
-	if !ok {
-		return
-	}
+	rootNode := w.RootNode(ref)
 
 	iter.refs = w.l.refPool.get()
 
@@ -569,13 +548,10 @@ func (w *Walker) FragmentUsageInOperations(fragmentName int, refs *[]int) {
 	}
 }
 
-func (w *Walker) RootNode(ref int) (node Node, ok bool) {
-	node.Parent = ref
+func (w *Walker) RootNode(ref int) (node Node) {
+	node = w.Node(ref)
 	for node.Parent != -1 {
-		node, ok = w.Parent(node.Parent)
-		if !ok {
-			return
-		}
+		node = w.Node(node.Parent)
 	}
 	return
 }
