@@ -9,7 +9,18 @@ jobs:
     working_directory: /go/src/github.com/jensneuse/graphql-go-tools
     steps:
     - checkout
+    - run: curl -sL https://git.io/goreleaser | bash
     - run: go get -u github.com/alecthomas/gometalinter
     - run: gometalinter --install
     - run: gometalinter --config ./gometalinter.json ./pkg/**
     - run: go test ./...
+workflows:
+  version: 2
+  release:
+    jobs:
+      - release:
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /v[0-9]+(\.[0-9]+)*(-.*)*/
