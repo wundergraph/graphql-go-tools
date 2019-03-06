@@ -28,10 +28,6 @@ func (p *Position) MergeEndIntoEnd(position Position) {
 	p.CharEnd = position.CharEnd
 }
 
-func (p *Position) IsSet() bool {
-	return p.CharStart != 0 || p.CharEnd != 0 || p.LineStart != 0 || p.LineEnd != 0
-}
-
 func (p *Position) IsBefore(another Position) bool {
 	return p.LineEnd < another.LineStart ||
 		p.LineEnd == another.LineStart && p.CharEnd < another.CharStart

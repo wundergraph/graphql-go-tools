@@ -1,0 +1,21 @@
+schema {
+    query: Query
+}
+
+type Query {
+    assets(first: Int): [Asset]
+}
+
+type Asset implements Node {
+    status: Status!
+    updatedAt: DateTime!
+    createdAt: DateTime!
+    id: ID!
+    handle: String!
+    fileName: String!
+    height: Float
+    width: Float
+    size: Float
+    mimeType: String
+    url: String!
+}

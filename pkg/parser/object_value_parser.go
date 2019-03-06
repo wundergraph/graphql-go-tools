@@ -36,7 +36,7 @@ func (p *Parser) parsePeekedObjectValue(index *int) error {
 				return err
 			}
 
-			err = p.parseValue(&field.Value)
+			field.Value, err = p.parseValue()
 			if err != nil {
 				return err
 			}

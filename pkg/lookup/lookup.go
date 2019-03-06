@@ -213,6 +213,35 @@ func (l *Lookup) Type(i int) document.Type {
 	return l.p.ParsedDefinitions.Types[i]
 }
 
+type ObjectTypeDefinitionIterable struct {
+	current int
+	refs    []int
+	l       *Lookup
+}
+
+func (o *ObjectTypeDefinitionIterable) Next() bool {
+	o.current++
+	return len(o.refs)-1 >= o.current
+}
+
+func (o *ObjectTypeDefinitionIterable) Value() (ref int, definition document.ObjectTypeDefinition) {
+	ref = o.refs[o.current]
+	definition = o.l.ObjectTypeDefinition(ref)
+	return
+}
+
+func (l *Lookup) ObjectTypeDefinitionIterable(refs []int) ObjectTypeDefinitionIterable {
+	return ObjectTypeDefinitionIterable{
+		current: -1,
+		refs:    refs,
+		l:       l,
+	}
+}
+
+func (l *Lookup) ObjectTypeDefinition(ref int) document.ObjectTypeDefinition {
+	return l.p.ParsedDefinitions.ObjectTypeDefinitions[ref]
+}
+
 func (l *Lookup) ObjectTypeDefinitionByName(name int) (definition document.ObjectTypeDefinition, exists bool) {
 	for i := range l.p.ParsedDefinitions.ObjectTypeDefinitions {
 		if name == l.p.ParsedDefinitions.ObjectTypeDefinitions[i].Name {
@@ -231,6 +260,31 @@ func (l *Lookup) ScalarTypeDefinitionByName(name int) (document.ScalarTypeDefini
 	}
 
 	return document.ScalarTypeDefinition{}, false
+}
+
+type EnumTypeDefinitionIterable struct {
+	l       *Lookup
+	refs    []int
+	current int
+}
+
+func (e *EnumTypeDefinitionIterable) Next() bool {
+	e.current++
+	return len(e.refs)-1 >= e.current
+}
+
+func (e *EnumTypeDefinitionIterable) Value() (ref int, definition document.EnumTypeDefinition) {
+	ref = e.refs[e.current]
+	definition = e.l.p.ParsedDefinitions.EnumTypeDefinitions[ref]
+	return
+}
+
+func (l *Lookup) EnumTypeDefinitionIterable(refs []int) EnumTypeDefinitionIterable {
+	return EnumTypeDefinitionIterable{
+		current: -1,
+		refs:    refs,
+		l:       l,
+	}
 }
 
 func (l *Lookup) EnumTypeDefinitionByName(name int) (document.EnumTypeDefinition, bool) {
@@ -1532,4 +1586,16 @@ func (l *Lookup) InlineFragmentsDeepEqual(left, right document.InlineFragment) b
 
 func (l *Lookup) FragmentSpreadsDeepEqual(left, right document.FragmentSpread) bool {
 	return left.FragmentName == right.FragmentName
+}
+
+func (l *Lookup) ByteSliceName(slice []byte) (name int) {
+	length := uint16(len(slice))
+	for i := range l.p.ParsedDefinitions.ByteSliceReferences {
+		if l.p.ParsedDefinitions.ByteSliceReferences[i].Length() == length {
+			if bytes.Equal(l.ByteSlice(l.p.ParsedDefinitions.ByteSliceReferences[i]), slice) {
+				return i
+			}
+		}
+	}
+	return -1
 }

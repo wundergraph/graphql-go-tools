@@ -622,8 +622,7 @@ func TestParser(t *testing.T) {
 
 	mustParseDefaultValue := func(wantValueType document.ValueType) checkFunc {
 		return func(parser *Parser, i int) {
-			var index int
-			err := parser.parseDefaultValue(&index)
+			index, err := parser.parseDefaultValue()
 			if err != nil {
 				panic(err)
 			}
@@ -973,7 +972,8 @@ func TestParser(t *testing.T) {
 	mustParseValue := func(valueType document.ValueType, rules ...rule) checkFunc {
 		return func(parser *Parser, i int) {
 			var index int
-			if err := parser.parseValue(&index); err != nil {
+			var err error
+			if index, err = parser.parseValue(); err != nil {
 				panic(err)
 			}
 
@@ -4456,8 +4456,7 @@ func TestParser_CachedByteSlice(t *testing.T) {
 func TestParser_putListValue(t *testing.T) {
 	parser := NewParser()
 
-	var valueIndex int
-	value := parser.makeValue(&valueIndex)
+	value, valueIndex := parser.makeValue()
 	value.ValueType = document.ValueTypeInt
 	value.Reference = parser.putInteger(1234)
 	parser.putValue(value, valueIndex)
@@ -4493,14 +4492,12 @@ func TestParser_putObjectValue(t *testing.T) {
 	parser.parsePeekedByteSlice(&iFoo)
 	parser.parsePeekedByteSlice(&iBar)
 
-	var iValue1 int
-	value1 := parser.makeValue(&iValue1)
+	value1, iValue1 := parser.makeValue()
 	value1.ValueType = document.ValueTypeInt
 	value1.Reference = parser.putInteger(1234)
 	parser.putValue(value1, iValue1)
 
-	var iValue2 int
-	value2 := parser.makeValue(&iValue1)
+	value2, iValue2 := parser.makeValue()
 	value2.ValueType = document.ValueTypeInt
 	value2.Reference = parser.putInteger(1234)
 	parser.putValue(value2, iValue2)

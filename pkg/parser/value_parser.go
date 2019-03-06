@@ -10,10 +10,11 @@ var (
 	parseValuePossibleKeywords = []keyword.Keyword{keyword.FALSE, keyword.TRUE, keyword.VARIABLE, keyword.INTEGER, keyword.FLOAT, keyword.STRING, keyword.NULL, keyword.IDENT, keyword.SQUAREBRACKETOPEN, keyword.SQUAREBRACKETCLOSE}
 )
 
-func (p *Parser) parseValue(index *int) (err error) {
+func (p *Parser) parseValue() (ref int, err error) {
 
 	key := p.l.Peek(true)
-	value := p.makeValue(index)
+	var value document.Value
+	value, ref = p.makeValue()
 	value.Position.MergeStartIntoStart(p.TextPosition())
 
 	switch key {
@@ -46,11 +47,12 @@ func (p *Parser) parseValue(index *int) (err error) {
 		err = p.parsePeekedObjectValue(&value.Reference)
 	default:
 		invalidToken := p.l.Read()
-		return newErrInvalidType(invalidToken.TextPosition, "parseValue", fmt.Sprintf("%v", parseValuePossibleKeywords), string(invalidToken.Keyword))
+		err = newErrInvalidType(invalidToken.TextPosition, "parseValue", fmt.Sprintf("%v", parseValuePossibleKeywords), string(invalidToken.Keyword))
+		return
 	}
 
 	value.Position.MergeStartIntoEnd(p.TextPosition())
-	p.putValue(value, *index)
+	p.putValue(value, ref)
 
-	return err
+	return
 }

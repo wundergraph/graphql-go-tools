@@ -16,6 +16,7 @@ func (p *Parser) parseEnumTypeDefinition(description *token.Token, index *[]int)
 
 	if description != nil {
 		definition.Position.MergeStartIntoStart(description.TextPosition)
+		definition.Description = description.Literal
 	} else {
 		definition.Position.MergeStartIntoStart(start.TextPosition)
 	}

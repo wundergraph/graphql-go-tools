@@ -440,11 +440,10 @@ func (p *Parser) makeObjectValue(index *int) document.ObjectValue {
 	return value
 }
 
-func (p *Parser) makeValue(index *int) document.Value {
-	value := document.Value{}
+func (p *Parser) makeValue() (value document.Value, ref int) {
 	p.ParsedDefinitions.Values = append(p.ParsedDefinitions.Values, value)
-	*index = len(p.ParsedDefinitions.Values) - 1
-	return value
+	ref = len(p.ParsedDefinitions.Values) - 1
+	return
 }
 
 func (p *Parser) initArgumentSet(set *document.ArgumentSet) {

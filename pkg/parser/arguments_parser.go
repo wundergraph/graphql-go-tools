@@ -42,7 +42,7 @@ func (p *Parser) parseArgumentSet(index *int) error {
 			return err
 		}
 
-		err = p.parseValue(&argument.Value)
+		argument.Value, err = p.parseValue()
 		if err != nil {
 			return err
 		}

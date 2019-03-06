@@ -45,8 +45,6 @@ func (l *Lexer) SetTypeSystemInput(input []byte) error {
 
 func (l *Lexer) SetExecutableInput(input []byte) error {
 
-	//l.input = append(l.input[:l.typeSystemEndPosition], input...)
-
 	l.input = l.input[:l.typeSystemEndPosition]
 	l.input = append(l.input, input...)
 

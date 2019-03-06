@@ -1,29 +1,54 @@
 //go:generate go-enum -f=$GOFILE --noprefix
 package lookup
 
-import "github.com/jensneuse/graphql-go-tools/pkg/document"
+import (
+	"github.com/jensneuse/graphql-go-tools/pkg/document"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
+)
 
 /*
 ENUM(
-NONE
-OPERATION_DEFINITION
-DIRECTIVE
-DIRECTIVE_SET
-SELECTION_SET
+UNKNOWN
+QUERY
+MUTATION
+SUBSCRIPTION
 FIELD
-INLINE_FRAGMENT
-FRAGMENT_SPREAD
 FRAGMENT_DEFINITION
-ARGUMENT_SET
+FRAGMENT_SPREAD
+INLINE_FRAGMENT
+SCHEMA
+SCALAR
+SCALAR_TYPE_DEFINITION
+OBJECT
+OBJECT_TYPE_DEFINITION
+FIELD_DEFINITION
+ARGUMENT_DEFINITION
+INTERFACE
+INTERFACE_TYPE_DEFINITION
+UNION
+UNION_TYPE_DEFINITION
+ENUM
+ENUM_VALUE
+ENUM_TYPE_DEFINITION
+INPUT_OBJECT
+INPUT_OBJECT_TYPE_DEFINITION
+INPUT_FIELD_DEFINITION
+OPERATION_DEFINITION
+DIRECTIVE_SET
+DIRECTIVE
+DIRECTIVE_DEFINITION
+SELECTION_SET
 ARGUMENT
+ARGUMENT_SET
 )
 */
 type NodeKind int
 
 type Node struct {
-	Parent int
-	Kind   NodeKind
-	Ref    int
+	Parent   int
+	Kind     NodeKind
+	Ref      int
+	Position position.Position
 }
 
 type Walker struct {
@@ -42,6 +67,7 @@ type walkerCache struct {
 	fields              []int
 
 	path                []int
+	rootNodes           []int
 	fragmentDefinitions []int
 	fragmentSpreads     []int
 }
@@ -60,6 +86,7 @@ func NewWalker(nodeCacheSize int, defaultCacheSize int) *Walker {
 			fragmentDefinitions: make([]int, 0, defaultCacheSize),
 			fragmentSpreads:     make([]int, 0, defaultCacheSize),
 			path:                make([]int, 16),
+			rootNodes:           make([]int, 32),
 		},
 	}
 }
@@ -78,6 +105,8 @@ func (w *Walker) SetLookup(l *Lookup) {
 	w.c.fields = w.c.fields[:0]
 	w.c.fragmentDefinitions = w.c.fragmentDefinitions[:0]
 	w.c.fragmentSpreads = w.c.fragmentSpreads[:0]
+	w.c.path = w.c.path[:0]
+	w.c.rootNodes = w.c.rootNodes[:0]
 }
 
 func (w *Walker) putNode(node Node) int {
@@ -94,6 +123,111 @@ func (w *Walker) Parent(i int) (Node, bool) {
 
 func (w *Walker) Node(ref int) Node {
 	return w.nodes[ref]
+}
+
+func (w *Walker) WalkTypeSystemDefinition() {
+	w.WalkSchemaDefinition(w.l.p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition)
+	w.WalkObjectTypeDefinitions(w.l.p.ParsedDefinitions.TypeSystemDefinition.ObjectTypeDefinitions)
+	w.WalkEnumTypeDefinitions(w.l.p.ParsedDefinitions.TypeSystemDefinition.EnumTypeDefinitions)
+	w.WalkDirectiveDefinitions(w.l.p.ParsedDefinitions.TypeSystemDefinition.DirectiveDefinitions)
+	w.WalkInterfaceTypeDefinitions(w.l.p.ParsedDefinitions.TypeSystemDefinition.InterfaceTypeDefinitions)
+	w.WalkScalarTypeDefinitions(w.l.p.ParsedDefinitions.TypeSystemDefinition.ScalarTypeDefinitions)
+	w.WalkUnionTypeDefinitions(w.l.p.ParsedDefinitions.TypeSystemDefinition.UnionTypeDefinitions)
+	w.WalkInputObjectTypeDefinitions(w.l.p.ParsedDefinitions.TypeSystemDefinition.InputObjectTypeDefinitions)
+}
+
+func (w *Walker) WalkSchemaDefinition(definition document.SchemaDefinition) {
+	w.putNode(Node{
+		Kind:     SCHEMA,
+		Parent:   -1,
+		Position: definition.Position,
+	})
+}
+
+func (w *Walker) WalkObjectTypeDefinitions(refs []int) {
+	iter := w.l.ObjectTypeDefinitionIterable(refs)
+	for iter.Next() {
+		ref, definition := iter.Value()
+		w.putNode(Node{
+			Ref:      ref,
+			Kind:     OBJECT_TYPE_DEFINITION,
+			Parent:   -1,
+			Position: definition.Position,
+		})
+	}
+}
+
+func (w *Walker) WalkEnumTypeDefinitions(refs []int) {
+	iter := w.l.EnumTypeDefinitionIterable(refs)
+	for iter.Next() {
+		ref, definition := iter.Value()
+		w.putNode(Node{
+			Kind:     ENUM_TYPE_DEFINITION,
+			Ref:      ref,
+			Position: definition.Position,
+			Parent:   -1,
+		})
+	}
+}
+
+func (w *Walker) WalkDirectiveDefinitions(refs []int) {
+	for _, i := range refs {
+		definition := w.l.p.ParsedDefinitions.DirectiveDefinitions[i]
+		w.putNode(Node{
+			Kind:     DIRECTIVE_DEFINITION,
+			Parent:   -1,
+			Ref:      i,
+			Position: definition.Position,
+		})
+	}
+}
+
+func (w *Walker) WalkInterfaceTypeDefinitions(refs []int) {
+	for _, i := range refs {
+		definition := w.l.p.ParsedDefinitions.InterfaceTypeDefinitions[i]
+		w.putNode(Node{
+			Kind:     INTERFACE_TYPE_DEFINITION,
+			Ref:      i,
+			Parent:   -1,
+			Position: definition.Position,
+		})
+	}
+}
+
+func (w *Walker) WalkScalarTypeDefinitions(refs []int) {
+	for _, i := range refs {
+		definition := w.l.p.ParsedDefinitions.ScalarTypeDefinitions[i]
+		w.putNode(Node{
+			Kind:     SCALAR_TYPE_DEFINITION,
+			Position: definition.Position,
+			Parent:   -1,
+			Ref:      i,
+		})
+	}
+}
+
+func (w *Walker) WalkUnionTypeDefinitions(refs []int) {
+	for _, i := range refs {
+		definition := w.l.p.ParsedDefinitions.UnionTypeDefinitions[i]
+		w.putNode(Node{
+			Kind:     UNION_TYPE_DEFINITION,
+			Parent:   -1,
+			Position: definition.Position,
+			Ref:      i,
+		})
+	}
+}
+
+func (w *Walker) WalkInputObjectTypeDefinitions(refs []int) {
+	for _, i := range refs {
+		definition := w.l.p.ParsedDefinitions.InputObjectTypeDefinitions[i]
+		w.putNode(Node{
+			Kind:     INPUT_OBJECT_TYPE_DEFINITION,
+			Position: definition.Position,
+			Parent:   -1,
+			Ref:      i,
+		})
+	}
 }
 
 func (w *Walker) WalkExecutable() {
@@ -160,9 +294,6 @@ func (w *Walker) walkArgumentSet(set int, parent int) {
 	}
 
 	arguments := w.l.ArgumentSet(set)
-	if len(arguments) == 0 {
-		return
-	}
 
 	ref := w.putNode(Node{
 		Parent: parent,
@@ -195,9 +326,6 @@ func (w *Walker) walkSelectionSet(setRef, parent int) {
 	}
 
 	set := w.l.SelectionSet(setRef)
-	if set.IsEmpty() {
-		return
-	}
 
 	ref := w.putNode(Node{
 		Parent: parent,
@@ -206,6 +334,10 @@ func (w *Walker) walkSelectionSet(setRef, parent int) {
 	})
 
 	w.c.selectionSets = append(w.c.selectionSets, ref)
+
+	if set.IsEmpty() {
+		return
+	}
 
 	w.walkFields(set.Fields, ref)
 	w.walkInlineFragments(set.InlineFragments, ref)
@@ -262,25 +394,7 @@ func (w *Walker) walkFragmentSpreads(refs []int, parent int) {
 		})
 
 		w.c.fragmentSpreads = append(w.c.fragmentSpreads, ref)
-
 		w.walkDirectiveSet(spread.DirectiveSet, ref)
-
-		if w.referenceFormsCycle(FRAGMENT_SPREAD, spreadRef, parent) {
-			continue
-		}
-	}
-}
-
-func (w *Walker) referenceFormsCycle(kind NodeKind, ref, parent int) bool {
-	for {
-		node, hasParent := w.Parent(parent)
-		if !hasParent {
-			return false
-		}
-		if node.Kind == kind && ref == node.Ref {
-			return true
-		}
-		parent = node.Parent
 	}
 }
 
@@ -396,10 +510,7 @@ func (w *Walker) NodeUsageInOperationsIterator(ref int) (iter NodeUsageInOperati
 	iter.current = -1
 	iter.w = w
 
-	rootNode, ok := w.RootNode(ref)
-	if !ok {
-		return
-	}
+	rootNode := w.RootNode(ref)
 
 	iter.refs = w.l.refPool.get()
 
@@ -437,13 +548,10 @@ func (w *Walker) FragmentUsageInOperations(fragmentName int, refs *[]int) {
 	}
 }
 
-func (w *Walker) RootNode(ref int) (node Node, ok bool) {
-	node.Parent = ref
+func (w *Walker) RootNode(ref int) (node Node) {
+	node = w.Node(ref)
 	for node.Parent != -1 {
-		node, ok = w.Parent(node.Parent)
-		if !ok {
-			return
-		}
+		node = w.Node(node.Parent)
 	}
 	return
 }
