@@ -57,6 +57,12 @@ func TestPrinter(t *testing.T) {
 	t.Run("query prefix", func(t *testing.T) {
 		run("query MyQuery {foo}")
 	})
+	t.Run("mutation prefix", func(t *testing.T) {
+		run("mutation MyQuery {foo}")
+	})
+	t.Run("subscription prefix", func(t *testing.T) {
+		run("subscription MyQuery {foo}")
+	})
 	t.Run("two fields", func(t *testing.T) {
 		run("{foo bar}")
 	})
@@ -70,7 +76,7 @@ func TestPrinter(t *testing.T) {
 		run("{foo ...on Bar{baz}}")
 	})
 	t.Run("inline fragment with type condition and directive", func(t *testing.T) {
-		run("{foo ...on Bar @foo @bar(baz:\"bat\"){baz}}")
+		run("{foo ...on Bar @foo @bar(baz:\"bat\" bal:\"bar\"){baz}}")
 	})
 	t.Run("field with fragment spread", func(t *testing.T) {
 		run("{foo ...Bar}")
