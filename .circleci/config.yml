@@ -13,6 +13,7 @@ jobs:
   release:
     docker:
     - image: circleci/golang:1.10
+    working_directory: /go/src/github.com/jensneuse/graphql-go-tools
     steps:
     - checkout
     - run: curl -sL https://git.io/goreleaser | bash
