@@ -571,13 +571,12 @@ func (p *Printer) printArgumentSet(ref int) {
 	iter := p.l.ArgumentsIterable(set)
 	var addSpace bool
 	for iter.Next() {
-
 		if addSpace {
 			p.write(literal.SPACE)
 		}
-
 		argument, _ := iter.Value()
 		p.printArgument(argument)
+		addSpace = true
 	}
 
 	p.write(literal.BRACKETCLOSE)
