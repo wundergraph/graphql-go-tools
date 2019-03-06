@@ -1,9 +1,6 @@
-# Golang CircleCI 2.0 configuration file
-#
-# Check https://circleci.com/docs/2.0/language-go/ for more details
 version: 2
 jobs:
-  build:
+  test:
     docker:
     - image: circleci/golang:1.11
     working_directory: /go/src/github.com/jensneuse/graphql-go-tools
@@ -13,3 +10,20 @@ jobs:
     - run: gometalinter --install
     - run: gometalinter --config ./gometalinter.json ./pkg/**
     - run: go test ./...
+  release:
+    docker:
+    - image: circleci/golang:1.10
+    steps:
+    - checkout
+    - run: curl -sL https://git.io/goreleaser | bash
+workflows:
+  version: 2
+  release:
+    jobs:
+    - test
+    - release:
+        filters:
+          branches:
+            ignore: /.*/
+          tags:
+            only: /v[0-9]+(\.[0-9]+)*(-.*)*/
