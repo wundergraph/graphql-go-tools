@@ -152,6 +152,10 @@ func (p *Printer) PrintFieldDefinition(ref int) {
 	p.write(literal.COLON)
 	p.write(literal.SPACE)
 	p.PrintType(definition.Type)
+	if definition.DirectiveSet != -1 {
+		p.write(literal.SPACE)
+		p.printDirectiveSet(definition.DirectiveSet)
+	}
 }
 
 func (p *Printer) PrintArgumentsDefinition(ref int) {
@@ -187,6 +191,10 @@ func (p *Printer) PrintInputValueDefinition(ref int) {
 	p.write(literal.COLON)
 	p.write(literal.SPACE)
 	p.PrintType(definition.Type)
+	if definition.DirectiveSet != -1 {
+		p.write(literal.SPACE)
+		p.printDirectiveSet(definition.DirectiveSet)
+	}
 }
 
 func (p *Printer) PrintInputValueDefinitionInline(ref int) {
@@ -200,6 +208,10 @@ func (p *Printer) PrintInputValueDefinitionInline(ref int) {
 		p.write(literal.EQUALS)
 		p.write(literal.SPACE)
 		p.PrintValue(definition.DefaultValue)
+	}
+	if definition.DirectiveSet != -1 {
+		p.write(literal.SPACE)
+		p.printDirectiveSet(definition.DirectiveSet)
 	}
 }
 
@@ -224,6 +236,11 @@ func (p *Printer) PrintObjectTypeDefinition(ref int) {
 	p.write(literal.TYPE)
 	p.write(literal.SPACE)
 	p.write(p.p.CachedByteSlice(definition.Name))
+	if definition.DirectiveSet != -1 {
+		p.write(literal.SPACE)
+		p.printDirectiveSet(definition.DirectiveSet)
+
+	}
 	p.write(literal.SPACE)
 	p.write(literal.CURLYBRACKETOPEN)
 	for _, i := range definition.FieldsDefinition {
@@ -240,6 +257,10 @@ func (p *Printer) PrintEnumTypeDefinition(ref int) {
 	p.write(literal.ENUM)
 	p.write(literal.SPACE)
 	p.write(p.p.CachedByteSlice(definition.Name))
+	if definition.DirectiveSet != -1 {
+		p.write(literal.SPACE)
+		p.printDirectiveSet(definition.DirectiveSet)
+	}
 	p.write(literal.SPACE)
 	p.write(literal.CURLYBRACKETOPEN)
 	p.write(literal.LINETERMINATOR)
@@ -301,6 +322,10 @@ func (p *Printer) PrintInterfaceTypeDefinition(ref int) {
 	p.write(literal.INTERFACE)
 	p.write(literal.SPACE)
 	p.write(p.p.CachedByteSlice(definition.Name))
+	if definition.DirectiveSet != -1 {
+		p.write(literal.SPACE)
+		p.printDirectiveSet(definition.DirectiveSet)
+	}
 	p.write(literal.SPACE)
 	p.write(literal.CURLYBRACKETOPEN)
 	for _, field := range definition.FieldsDefinition {
@@ -317,6 +342,10 @@ func (p *Printer) PrintScalarTypeDefinition(ref int) {
 	p.write(literal.SCALAR)
 	p.write(literal.SPACE)
 	p.write(p.p.CachedByteSlice(definition.Name))
+	if definition.DirectiveSet != -1 {
+		p.write(literal.SPACE)
+		p.printDirectiveSet(definition.DirectiveSet)
+	}
 }
 
 func (p *Printer) PrintUnionTypeDefinition(ref int) {
@@ -325,6 +354,10 @@ func (p *Printer) PrintUnionTypeDefinition(ref int) {
 	p.write(literal.UNION)
 	p.write(literal.SPACE)
 	p.write(p.p.CachedByteSlice(definition.Name))
+	if definition.DirectiveSet != -1 {
+		p.write(literal.SPACE)
+		p.printDirectiveSet(definition.DirectiveSet)
+	}
 	p.write(literal.SPACE)
 	p.write(literal.EQUALS)
 	p.write(literal.SPACE)
