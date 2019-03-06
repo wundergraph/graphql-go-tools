@@ -70,6 +70,8 @@ func (p *Printer) PrintTypeSystemDefinition(out io.Writer) {
 
 		addDoubleLineTerminator = true
 	}
+
+	p.write(literal.LINETERMINATOR)
 }
 
 func (p *Printer) PrintSchemaDefinition() {
