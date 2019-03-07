@@ -12,10 +12,23 @@ Currently implemented:
 - lexing
 - parsing
 - validation
+- schema formatting
+
+## WIP
+
+- (remote) schema introspection
+- graphql proxy
 
 ## Usage
 
-See pkg/parser/parser_test.go
+Please see the tests to understand the library.
+
+## CMD usage
+
+pretty print/format a graphql schema:
+```bash
+graphql-go-tools fmt schema starwars.schema.graphql > formatted.graphql
+```
 
 ## Testing
 
