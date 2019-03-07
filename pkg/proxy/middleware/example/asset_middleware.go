@@ -41,7 +41,7 @@ func (a *AssetUrlMiddleware) OnRequest(l *lookup.Lookup, w *lookup.Walker, parse
 		}
 		setRef := w.Node(parent).Ref
 		set := l.SelectionSet(setRef)
-		setTypeName, _ := w.SelectionSetTypeName(set, parent)
+		setTypeName := w.SelectionSetTypeName(set, parent)
 		if setTypeName != assetName { // verify if field 'url' sits inside an Asset type
 			continue
 		}
@@ -52,7 +52,7 @@ func (a *AssetUrlMiddleware) OnRequest(l *lookup.Lookup, w *lookup.Walker, parse
 	for sets.Next() {
 
 		set, _, setRef, parent := sets.Value()
-		typeName, _ := w.SelectionSetTypeName(set, parent)
+		typeName := w.SelectionSetTypeName(set, parent)
 		if typeName != assetName { // find all selectionSets belonging to type Asset
 			continue
 		}
