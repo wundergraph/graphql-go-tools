@@ -43,6 +43,26 @@ func (l *Lexer) SetTypeSystemInput(input []byte) error {
 	return nil
 }
 
+func (l *Lexer) ResetTypeSystemInput() {
+	l.input = l.input[:0]
+	l.inputPosition = 0
+	l.textPosition.LineStart = 1
+	l.textPosition.CharStart = 1
+	l.typeSystemEndPosition = 0
+}
+
+func (l *Lexer) AppendBytes(input []byte) (err error) {
+	currentLength := len(l.input)
+	inputLength := len(input)
+	totalLength := currentLength + inputLength
+	if totalLength > uint16Max {
+		return fmt.Errorf("AppendBytes: input size must not be > %d, got: %d", uint16Max, totalLength)
+	}
+
+	l.input = append(l.input, input...)
+	return
+}
+
 func (l *Lexer) SetExecutableInput(input []byte) error {
 
 	l.input = l.input[:l.typeSystemEndPosition]

@@ -135,7 +135,9 @@ type cacheStats struct {
 // Lexer is the interface used by the Parser to lex tokens
 type Lexer interface {
 	SetTypeSystemInput(input []byte) error
+	ResetTypeSystemInput()
 	SetExecutableInput(input []byte) error
+	AppendBytes(input []byte) (err error)
 	Read() (tok token.Token)
 	Peek(ignoreWhitespace bool) keyword.Keyword
 	ByteSlice(reference document.ByteSliceReference) document.ByteSlice
