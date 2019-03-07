@@ -2,6 +2,14 @@
 
 
 [[projects]]
+  digest = "1:608b2b045f70e1c7002181db5d614fe8edf6a70bd151c2abcb8928af002bc17b"
+  name = "github.com/Jeffail/gabs"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "74ef14cf8f407ee3ca8ec01bb6f52d6104edea80"
+  version = "v1.2.0"
+
+[[projects]]
   digest = "1:ffe9824d294da03b391f44e1ae8281281b4afc1bdaa9588c9097785e3af10cec"
   name = "github.com/davecgh/go-spew"
   packages = ["spew"]
@@ -186,6 +194,7 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
+    "github.com/Jeffail/gabs",
     "github.com/golang/mock/gomock",
     "github.com/jensneuse/diffview",
     "github.com/mitchellh/go-homedir",
