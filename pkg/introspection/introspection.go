@@ -77,7 +77,13 @@ func (x __TypeKind) MarshalJSON() ([]byte, error) {
 
 	var buff bytes.Buffer
 	_, err = buff.WriteRune('"')
+	if err != nil {
+		return nil, err
+	}
 	_, err = buff.Write(text)
+	if err != nil {
+		return nil, err
+	}
 	_, err = buff.WriteRune('"')
 
 	return buff.Bytes(), err
