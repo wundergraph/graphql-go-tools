@@ -78,15 +78,40 @@ func TestWalker(t *testing.T) {
 		}
 	}
 
-	t.Run("get argument root from inside operation definition", func(t *testing.T) {
-		run(`	query argOnRequiredArg($booleanArg: Boolean) {
+	wantFieldPath := func(forNamedField string, wantPath ...string) check {
+		return func(w *Walker) {
+			fields := w.FieldsIterable()
+			for fields.Next() {
+				field, _, parent := fields.Value()
+				fieldName := string(w.l.CachedName(field.Name))
+				if fieldName != forNamedField {
+					continue
+				}
+
+				gotPath := w.FieldPath(parent)
+				if len(wantPath) != len(gotPath) {
+					panic(fmt.Errorf("wantFieldPath: want path with len: %d, got: %d", len(wantPath), len(gotPath)))
+				}
+				for i, wantName := range wantPath {
+					gotName := string(w.l.CachedName(gotPath[len(gotPath)-1-i]))
+					if gotName != wantName {
+						panic(fmt.Errorf("wantFieldPath: want path field name: %s, got: %s (pos: %d)", wantName, gotName, i))
+					}
+				}
+			}
+		}
+	}
+
+	t.Run("argumentUsedInOperations", func(t *testing.T) {
+		t.Run("get argument root from inside operation definition", func(t *testing.T) {
+			run(`	query argOnRequiredArg($booleanArg: Boolean) {
 						dog {
 							isHousetrained(atOtherHomes: $booleanArg) @include(if: $booleanArg)
 						}
 					}`, argumentUsedInOperations("atOtherHomes", "argOnRequiredArg"))
-	})
-	t.Run("get argument root from inside fragment", func(t *testing.T) {
-		run(`	query argOnRequiredArg($booleanArg: Boolean) {
+		})
+		t.Run("get argument root from inside fragment", func(t *testing.T) {
+			run(`	query argOnRequiredArg($booleanArg: Boolean) {
 						dog {
 							...argOnOptional
 						}
@@ -94,9 +119,9 @@ func TestWalker(t *testing.T) {
 					fragment argOnOptional on Dog {
 						isHousetrained(atOtherHomes: $booleanArg) @include(if: $booleanArg)
 					}`, argumentUsedInOperations("atOtherHomes", "argOnRequiredArg"))
-	})
-	t.Run("get argument root from inside fragment multiple times", func(t *testing.T) {
-		run(`	query argOnRequiredArg($booleanArg: Boolean) {
+		})
+		t.Run("get argument root from inside fragment multiple times", func(t *testing.T) {
+			run(`	query argOnRequiredArg($booleanArg: Boolean) {
 						dog {
 							...argOnOptional
 							...argOnOptional
@@ -106,9 +131,9 @@ func TestWalker(t *testing.T) {
 					fragment argOnOptional on Dog {
 						isHousetrained(atOtherHomes: $booleanArg) @include(if: $booleanArg)
 					}`, argumentUsedInOperations("atOtherHomes", "argOnRequiredArg"))
-	})
-	t.Run("get argument root from inside fragment multiple times (check de-duplicating)", func(t *testing.T) {
-		run(`	query argOnRequiredArg($booleanArg: Boolean) {
+		})
+		t.Run("get argument root from inside fragment multiple times (check de-duplicating)", func(t *testing.T) {
+			run(`	query argOnRequiredArg($booleanArg: Boolean) {
 						dog {
 							...argOnOptional
 							...argOnOptional
@@ -118,9 +143,9 @@ func TestWalker(t *testing.T) {
 					fragment argOnOptional on Dog {
 						isHousetrained(atOtherHomes: $booleanArg) @include(if: $booleanArg)
 					}`, mustPanic(argumentUsedInOperations("atOtherHomes", "argOnRequiredArg", "argOnRequiredArg")))
-	})
-	t.Run("get argument root from inside nested fragment", func(t *testing.T) {
-		run(`	query argOnRequiredArg($booleanArg: Boolean) {
+		})
+		t.Run("get argument root from inside nested fragment", func(t *testing.T) {
+			run(`	query argOnRequiredArg($booleanArg: Boolean) {
 						dog {
 							...argOnOptional1
 						}
@@ -135,9 +160,9 @@ func TestWalker(t *testing.T) {
 					fragment argOnOptional2 on Dog {
 						isHousetrained(atOtherHomes: $booleanArg) @include(if: $booleanArg)
 					}`, argumentUsedInOperations("atOtherHomes", "argOnRequiredArg"))
-	})
-	t.Run("get argument root from inside fragment used in multiple operations", func(t *testing.T) {
-		run(`	query argOnRequiredArg1($booleanArg: Boolean) {
+		})
+		t.Run("get argument root from inside fragment used in multiple operations", func(t *testing.T) {
+			run(`	query argOnRequiredArg1($booleanArg: Boolean) {
 						dog {
 							...argOnOptional
 						}
@@ -150,5 +175,23 @@ func TestWalker(t *testing.T) {
 					fragment argOnOptional on Dog {
 						isHousetrained(atOtherHomes: $booleanArg) @include(if: $booleanArg)
 					}`, argumentUsedInOperations("atOtherHomes", "argOnRequiredArg1", "argOnRequiredArg2"))
+		})
+	})
+	t.Run("fieldPath", func(t *testing.T) {
+		t.Run("nested 2 levels", func(t *testing.T) {
+			run(`{dog{owner{name}}}`, wantFieldPath("name", "dog", "owner"))
+		})
+		t.Run("nested 3 levels", func(t *testing.T) {
+			run(`{dog{owner{another{name}}}}`, wantFieldPath("name", "dog", "owner", "another"))
+		})
+		t.Run("with inline fragment", func(t *testing.T) {
+			run(`{ dog { ... on Dog { owner { name } } } }`, wantFieldPath("name", "dog", "owner"))
+		})
+		t.Run("with nested inline fragments", func(t *testing.T) {
+			run(`{ dog { ... on Dog { ... { owner { name } } } } }`, wantFieldPath("name", "dog", "owner"))
+		})
+		t.Run("with alias", func(t *testing.T) {
+			run(`{dog{renamed:owner{name}}}`, wantFieldPath("name", "dog", "renamed"))
+		})
 	})
 }

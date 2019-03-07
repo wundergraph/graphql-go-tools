@@ -605,3 +605,32 @@ func (w *Walker) resolveTypeName(typeName int, path []int) int {
 
 	return typeName
 }
+
+func (w *Walker) FieldPath(parent int) (path []int) {
+
+	if parent == -1 {
+		return nil
+	}
+
+	path = w.c.path[:0]
+	node := Node{
+		Parent: parent,
+	}
+
+	for {
+		node = w.Node(node.Parent)
+		switch node.Kind {
+		case FIELD:
+			field := w.l.Field(node.Ref)
+			if field.Alias != -1 {
+				path = append(path, field.Alias)
+			} else {
+				path = append(path, field.Name)
+			}
+		}
+
+		if node.Parent == -1 {
+			return
+		}
+	}
+}
