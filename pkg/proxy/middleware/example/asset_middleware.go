@@ -95,28 +95,28 @@ func (a *AssetUrlMiddleware) OnResponse(response *[]byte, l *lookup.Lookup, w *l
 			continue
 		}
 
-		path := w.FieldPath(parent)
-		var builder strings.Builder
-		builder.WriteString("data")
+		path := w.FieldPath(parent) // get the field path from the ast
 
+		var builder strings.Builder // build the path string (e.g. 'data.assets'
+		builder.WriteString("data")
 		for i := range path {
 			builder.WriteRune(runes.DOT)
 			builder.Write(l.CachedName(path[len(path)-1-i]))
 		}
 
-		children, err := jsonObject.Path(builder.String()).Children()
+		children, err := jsonObject.Path(builder.String()).Children() // get the assets children
 		if err != nil {
 			return err
 		}
 
 		for _, child := range children {
-			handle := child.Path("handle").Data().(string)
-			err = child.DeleteP("handle")
-			_, err = child.Set(fmt.Sprintf("https://media.graphcms.com//%s", handle), "url")
+			handle := child.Path("handle").Data().(string)                                   // extract the handle value
+			err = child.DeleteP("handle")                                                    // delete the handle value
+			_, err = child.Set(fmt.Sprintf("https://media.graphcms.com//%s", handle), "url") // set the formatted url value
 		}
 	}
 
-	*response = jsonObject.Bytes()
+	*response = jsonObject.Bytes() // overwrite the response with the updated fields
 
 	return err
 }
