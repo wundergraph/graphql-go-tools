@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"github.com/Jeffail/gabs"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/runes"
 	"github.com/jensneuse/graphql-go-tools/pkg/lookup"
 	"github.com/jensneuse/graphql-go-tools/pkg/parser"
+	"strings"
 )
 
 type AssetUrlMiddleware struct {
@@ -70,15 +72,48 @@ func (a *AssetUrlMiddleware) OnResponse(response *[]byte, l *lookup.Lookup, w *l
 		return err
 	}
 
-	children, err := jsonObject.Path("data.assets").Children()
-	if err != nil {
-		return err
+	w.SetLookup(l)
+	w.WalkExecutable()
+
+	assetName := l.ByteSliceName([]byte("Asset"))
+	handleName := l.ByteSliceName([]byte("handle"))
+
+	if assetName == -1 || handleName == -1 {
+		return nil
 	}
 
-	for _, child := range children {
-		handle := child.Path("handle").Data().(string)
-		err = child.DeleteP("handle")
-		_, err = child.Set(fmt.Sprintf("https://media.graphcms.com//%s", handle), "url")
+	fields := w.FieldsIterable()
+	for fields.Next() {
+		field, _, parent := fields.Value()
+		if field.Name != handleName { // find all fields in the ast named 'url'
+			continue
+		}
+		setRef := w.Node(parent).Ref
+		set := l.SelectionSet(setRef)
+		setTypeName := w.SelectionSetTypeName(set, parent)
+		if setTypeName != assetName { // verify if field 'url' sits inside an Asset type
+			continue
+		}
+
+		path := w.FieldPath(parent)
+		var builder strings.Builder
+		builder.WriteString("data")
+
+		for i := range path {
+			builder.WriteRune(runes.DOT)
+			builder.Write(l.CachedName(path[len(path)-1-i]))
+		}
+
+		children, err := jsonObject.Path(builder.String()).Children()
+		if err != nil {
+			return err
+		}
+
+		for _, child := range children {
+			handle := child.Path("handle").Data().(string)
+			err = child.DeleteP("handle")
+			_, err = child.Set(fmt.Sprintf("https://media.graphcms.com//%s", handle), "url")
+		}
 	}
 
 	*response = jsonObject.Bytes()
