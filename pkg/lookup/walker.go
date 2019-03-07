@@ -556,9 +556,9 @@ func (w *Walker) RootNode(ref int) (node Node) {
 	return
 }
 
-func (w *Walker) SelectionSetTypeName(set document.SelectionSet, parent int) int {
+func (w *Walker) SelectionSetTypeName(set document.SelectionSet, parent int) (typeName int, path []int) {
 
-	path := w.c.path[:0]
+	path = w.c.path[:0]
 
 	for {
 		node := w.Node(parent)
@@ -568,7 +568,7 @@ func (w *Walker) SelectionSetTypeName(set document.SelectionSet, parent int) int
 			def := w.l.InlineFragment(node.Ref)
 			if def.TypeCondition != -1 {
 				typeName := w.l.Type(def.TypeCondition).Name
-				return w.resolveTypeName(typeName, path)
+				return w.resolveTypeName(typeName, path), path
 			}
 		case FIELD:
 			def := w.l.Field(node.Ref)
@@ -576,11 +576,11 @@ func (w *Walker) SelectionSetTypeName(set document.SelectionSet, parent int) int
 		case FRAGMENT_DEFINITION:
 			def := w.l.FragmentDefinition(node.Ref)
 			typeName := w.l.Type(def.TypeCondition).Name
-			return w.resolveTypeName(typeName, path)
+			return w.resolveTypeName(typeName, path), path
 		case OPERATION_DEFINITION:
 			def := w.l.OperationDefinition(node.Ref)
 			operationTypeName := w.l.OperationTypeName(def)
-			return w.resolveTypeName(operationTypeName, path)
+			return w.resolveTypeName(operationTypeName, path), path
 		}
 
 		parent = node.Parent
