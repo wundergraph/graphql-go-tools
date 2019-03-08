@@ -55,14 +55,12 @@ func (p *Proxy) Request(path string, request []byte) (response []byte, err error
 		return
 	}
 
-	schemaBytes := []byte(schema)
-	err = p.parse.ParseTypeSystemDefinition(&schemaBytes)
+	err = p.parse.ParseTypeSystemDefinition([]byte(schema))
 	if err != nil {
 		return
 	}
 
-	requestBytes := []byte(request)
-	err = p.parse.ParseExecutableDefinition(&requestBytes)
+	err = p.parse.ParseExecutableDefinition([]byte(request))
 	if err != nil {
 		return
 	}

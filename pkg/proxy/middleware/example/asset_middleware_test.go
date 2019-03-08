@@ -14,14 +14,12 @@ func TestProxy(t *testing.T) {
 
 	run := func(schema, queryBefore, queryAfter string, middleWares ...proxy.GraphqlMiddleware) {
 		p := parser.NewParser()
-		schemaBytes := []byte(schema)
-		err := p.ParseTypeSystemDefinition(&schemaBytes)
+		err := p.ParseTypeSystemDefinition([]byte(schema))
 		if err != nil {
 			panic(err)
 		}
 
-		queryBeforeBytes := []byte(queryBefore)
-		err = p.ParseExecutableDefinition(&queryBeforeBytes)
+		err = p.ParseExecutableDefinition([]byte(queryBefore))
 		if err != nil {
 			panic(err)
 		}
@@ -52,8 +50,7 @@ func TestProxy(t *testing.T) {
 
 		// parse expectation and compare
 
-		queryAfterBytes := []byte(queryAfter)
-		err = p.ParseExecutableDefinition(&queryAfterBytes)
+		err = p.ParseExecutableDefinition([]byte(queryAfter))
 		l.ResetPool()
 		w.SetLookup(l)
 		w.WalkExecutable()
@@ -127,8 +124,7 @@ func BenchmarkProxy(b *testing.B) {
 
 	run := func(b *testing.B, schema, queryBefore, queryAfter string, middleWares ...proxy.GraphqlMiddleware) {
 		p := parser.NewParser()
-		schemaBytes := []byte(schema)
-		err := p.ParseTypeSystemDefinition(&schemaBytes)
+		err := p.ParseTypeSystemDefinition([]byte(schema))
 		if err != nil {
 			panic(err)
 		}
@@ -148,7 +144,7 @@ func BenchmarkProxy(b *testing.B) {
 
 		for i := 0; i < b.N; i++ {
 
-			err = p.ParseExecutableDefinition(&input)
+			err = p.ParseExecutableDefinition(input)
 			if err != nil {
 				panic(err)
 			}
