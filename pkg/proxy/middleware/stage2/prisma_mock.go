@@ -33,15 +33,13 @@ func (m *MockPrisma) EXPECT() *MockPrismaMockRecorder {
 }
 
 // Query mocks base method
-func (m *MockPrisma) Query(request string) string {
-	m.ctrl.T.Helper()
+func (m *MockPrisma) Query(request []byte) []byte {
 	ret := m.ctrl.Call(m, "Query", request)
-	ret0, _ := ret[0].(string)
+	ret0, _ := ret[0].([]byte)
 	return ret0
 }
 
 // Query indicates an expected call of Query
 func (mr *MockPrismaMockRecorder) Query(request interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Query", reflect.TypeOf((*MockPrisma)(nil).Query), request)
 }

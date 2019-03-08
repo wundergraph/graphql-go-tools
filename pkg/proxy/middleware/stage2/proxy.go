@@ -12,12 +12,27 @@ import (
 type Proxy struct {
 	FakeRedis         *FakeRedis
 	PrismaConnections map[string]Prisma
+	parse             *parser.Parser
+	look              *lookup.Lookup
+	walk              *lookup.Walker
+	mod               *parser.ManualAstMod
+	astPrint          *printer.Printer
+	buff              *bytes.Buffer
 }
 
 func NewProxy() *Proxy {
+
+	parse := parser.NewParser()
+
 	return &Proxy{
 		FakeRedis:         NewFakeRedis(),
 		PrismaConnections: make(map[string]Prisma),
+		parse:             parse,
+		look:              lookup.New(parse, 1024),
+		walk:              lookup.NewWalker(512, 8),
+		mod:               parser.NewManualAstMod(parse),
+		astPrint:          printer.New(),
+		buff:              &bytes.Buffer{},
 	}
 }
 
@@ -26,7 +41,7 @@ func (p *Proxy) ConfigureSchema(path string, schema string, prisma Prisma) {
 	p.PrismaConnections[path] = prisma
 }
 
-func (p *Proxy) Request(path string, request string) (response string, err error) {
+func (p *Proxy) Request(path string, request []byte) (response []byte, err error) {
 
 	prisma, exists := p.PrismaConnections[path]
 	if !exists {
@@ -40,39 +55,34 @@ func (p *Proxy) Request(path string, request string) (response string, err error
 		return
 	}
 
-	parse := parser.NewParser()
-	err = parse.ParseTypeSystemDefinition([]byte(schema))
+	schemaBytes := []byte(schema)
+	err = p.parse.ParseTypeSystemDefinition(&schemaBytes)
 	if err != nil {
 		return
 	}
 
-	err = parse.ParseExecutableDefinition([]byte(request))
+	requestBytes := []byte(request)
+	err = p.parse.ParseExecutableDefinition(&requestBytes)
 	if err != nil {
 		return
 	}
 
-	look := lookup.New(parse, 512)
-	walk := lookup.NewWalker(1024, 8)
-	walk.SetLookup(look)
-	walk.WalkExecutable()
-	mod := parser.NewManualAstMod(parse)
+	p.walk.SetLookup(p.look)
+	p.walk.WalkExecutable()
 
 	middleware := example.AssetUrlMiddleware{}
-	middleware.OnRequest(look, walk, parse, mod)
+	middleware.OnRequest(p.look, p.walk, p.parse, p.mod)
 
-	astPrint := printer.New()
-	astPrint.SetInput(parse, look, walk)
-	var buff bytes.Buffer
-	astPrint.PrintExecutableSchema(&buff)
+	p.astPrint.SetInput(p.parse, p.look, p.walk)
+	p.buff.Reset()
+	p.astPrint.PrintExecutableSchema(p.buff)
 
-	out := []byte(prisma.Query(string(buff.Bytes())))
+	response = prisma.Query(p.buff.Bytes())
 
-	err = middleware.OnResponse(&out, look, walk, parse, mod)
+	err = middleware.OnResponse(&response, p.look, p.walk, p.parse, p.mod)
 	if err != nil {
 		return
 	}
-
-	response = string(out)
 
 	return
 }

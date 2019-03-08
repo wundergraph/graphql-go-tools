@@ -2,5 +2,5 @@
 package stage2
 
 type Prisma interface {
-	Query(request string) (result string)
+	Query(request []byte) (result []byte)
 }

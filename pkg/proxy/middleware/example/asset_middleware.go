@@ -1,12 +1,15 @@
 package example
 
 import (
+	"bytes"
 	"fmt"
-	"github.com/Jeffail/gabs"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/runes"
 	"github.com/jensneuse/graphql-go-tools/pkg/lookup"
 	"github.com/jensneuse/graphql-go-tools/pkg/parser"
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
+	"strconv"
 	"strings"
 )
 
@@ -65,12 +68,7 @@ func (a *AssetUrlMiddleware) OnRequest(l *lookup.Lookup, w *lookup.Walker, parse
 	return
 }
 
-func (a *AssetUrlMiddleware) OnResponse(response *[]byte, l *lookup.Lookup, w *lookup.Walker, parser *parser.Parser, mod *parser.ManualAstMod) error {
-
-	jsonObject, err := gabs.ParseJSON(*response)
-	if err != nil {
-		return err
-	}
+func (a *AssetUrlMiddleware) OnResponse(response *[]byte, l *lookup.Lookup, w *lookup.Walker, parser *parser.Parser, mod *parser.ManualAstMod) (err error) {
 
 	w.SetLookup(l)
 	w.WalkExecutable()
@@ -104,7 +102,22 @@ func (a *AssetUrlMiddleware) OnResponse(response *[]byte, l *lookup.Lookup, w *l
 			builder.Write(l.CachedName(path[len(path)-1-i]))
 		}
 
-		children, err := jsonObject.Path(builder.String()).Children() // get the assets children
+		builder.WriteString(".#.handle")
+
+		strPath := builder.String()
+
+		js := gjson.GetBytes(*response, strPath)
+
+		for i, handle := range js.Array() {
+			id := handle.String()
+			handlePath := strings.Replace(strPath, "#", strconv.Itoa(i), 1)
+			url := fmt.Sprintf("https://media.graphcms.com//%s", id)
+			*response, err = sjson.SetBytesOptions(*response, handlePath, url, &sjson.Options{Optimistic: true, ReplaceInPlace: true})
+		}
+
+		*response = bytes.Replace(*response, []byte(`"handle"`), []byte(`"url"`), -1)
+
+		/*children, err := jsonObject.Path(builder.String()).Children() // get the assets children
 		if err != nil {
 			return err
 		}
@@ -113,10 +126,10 @@ func (a *AssetUrlMiddleware) OnResponse(response *[]byte, l *lookup.Lookup, w *l
 			handle := child.Path("handle").Data().(string)                                   // extract the handle value
 			err = child.DeleteP("handle")                                                    // delete the handle value
 			_, err = child.Set(fmt.Sprintf("https://media.graphcms.com//%s", handle), "url") // set the formatted url value
-		}
+		}*/
 	}
 
-	*response = jsonObject.Bytes() // overwrite the response with the updated fields
+	// *response = jsonObject.Bytes() // overwrite the response with the updated fields
 
-	return err
+	return
 }

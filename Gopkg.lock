@@ -2,14 +2,6 @@
 
 
 [[projects]]
-  digest = "1:608b2b045f70e1c7002181db5d614fe8edf6a70bd151c2abcb8928af002bc17b"
-  name = "github.com/Jeffail/gabs"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "74ef14cf8f407ee3ca8ec01bb6f52d6104edea80"
-  version = "v1.2.0"
-
-[[projects]]
   digest = "1:ffe9824d294da03b391f44e1ae8281281b4afc1bdaa9588c9097785e3af10cec"
   name = "github.com/davecgh/go-spew"
   packages = ["spew"]
@@ -160,6 +152,38 @@
   version = "v1.3.1"
 
 [[projects]]
+  digest = "1:7df351557a6d5c30804e7d6f7ed87f2fccb0619c08fcc84869a93f22bec96c11"
+  name = "github.com/tidwall/gjson"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "eee0b6226f0d1db2675a176fdfaa8419bcad4ca8"
+  version = "v1.2.1"
+
+[[projects]]
+  digest = "1:8453ddbed197809ee8ca28b06bd04e127bec9912deb4ba451fea7a1eca578328"
+  name = "github.com/tidwall/match"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "33827db735fff6510490d69a8622612558a557ed"
+  version = "v1.0.1"
+
+[[projects]]
+  branch = "master"
+  digest = "1:88611438dc87bda5862e2d12d8e901bac8ebfd4a9034a896d2f69835360439a7"
+  name = "github.com/tidwall/pretty"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "65a9db5fad5105a89e17f38adcc9878685be6d78"
+
+[[projects]]
+  digest = "1:b70c951ba6fdeecfbd50dabe95aa5e1b973866ae9abbece46ad60348112214f2"
+  name = "github.com/tidwall/sjson"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "25fb082a20e29e83fb7b7ef5f5919166aad1f084"
+  version = "v1.0.4"
+
+[[projects]]
   branch = "master"
   digest = "1:7705456281a2327caef2d26e5881361effba03476bd9d09c60f3e4958d6c981c"
   name = "golang.org/x/sys"
@@ -194,13 +218,14 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
-    "github.com/Jeffail/gabs",
     "github.com/golang/mock/gomock",
     "github.com/jensneuse/diffview",
     "github.com/mitchellh/go-homedir",
     "github.com/sebdah/goldie",
     "github.com/spf13/cobra",
     "github.com/spf13/viper",
+    "github.com/tidwall/gjson",
+    "github.com/tidwall/sjson",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1

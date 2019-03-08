@@ -1,6 +1,7 @@
 package stage2
 
 import (
+	"bytes"
 	"github.com/golang/mock/gomock"
 	"testing"
 )
@@ -19,14 +20,67 @@ func TestProxy(t *testing.T) {
 	if err1 != nil {
 		panic(err1)
 	}
-	if response1 != query1Response {
+	if !bytes.Equal(response1, query1Response) {
 		t.Fatalf("unexpected query1Reponse\nwant:\n%s\n\ngot:\n%s", string(query1Response), string(response1))
 	}
 }
 
-var query1Response = `{"data":{"assets":[{"fileName":"A.jpg","id":"cjsyjgosm6kp30852mk7ojj3e","url":"https://media.graphcms.com//R2YHaAHYTJaZcQ45oWEP"},{"fileName":"B.jpg","id":"cjsyjgzbi6kpw0852bcf29ykp","url":"https://media.graphcms.com//TRwqQhZERjCxj96Mx6pu"}],"castles":[{"id":"cjsyjigj06kt90852o0ijogi1","name":"Burg Kronberg"},{"id":"cjsyjjkiv6kvr0852zm2mz5pg","name":"Burg Münzenberg"}]}}`
+type FakePrisma struct {
+}
 
-var prismaResponse1 = `{
+func (FakePrisma) Query(request []byte) (result []byte) {
+	return prismaResponse1
+}
+
+func BenchmarkProxy(b *testing.B) {
+
+	prismaA := FakePrisma{}
+
+	proxy := NewProxy()
+	proxy.ConfigureSchema("a", schemaA, prismaA)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		response1, err1 := proxy.Request("a", query1)
+		if err1 != nil {
+			panic(err1)
+		}
+		if !bytes.Equal(response1, query1Response) {
+			b.Fatalf("unexpected query1Reponse\nwant:\n%s\n\ngot:\n%s", string(query1Response), string(response1))
+		}
+	}
+}
+
+var query1Response = []byte(`{
+  "data": {
+    "assets": [
+      {
+        "id": "cjsyjgosm6kp30852mk7ojj3e",
+        "fileName": "A.jpg",
+        "url": "https://media.graphcms.com//R2YHaAHYTJaZcQ45oWEP"
+      },
+      {
+        "id": "cjsyjgzbi6kpw0852bcf29ykp",
+        "fileName": "B.jpg",
+        "url": "https://media.graphcms.com//TRwqQhZERjCxj96Mx6pu"
+      }
+    ],
+    "castles": [
+      {
+        "id": "cjsyjigj06kt90852o0ijogi1",
+        "name": "Burg Kronberg"
+      },
+      {
+        "id": "cjsyjjkiv6kvr0852zm2mz5pg",
+        "name": "Burg Münzenberg"
+      }
+    ]
+  }
+}`)
+
+var prismaResponse1 = []byte(`{
   "data": {
     "assets": [
       {
@@ -51,11 +105,11 @@ var prismaResponse1 = `{
       }
     ]
   }
-}`
+}`)
 
-var prismaQuery1 = "query one {assets {id fileName handle} castles {id name}}"
+var prismaQuery1 = []byte("query one {assets {id fileName handle} castles {id name}}")
 
-var query1 = `query one {
+var query1 = []byte(`query one {
   assets {
     id
     fileName
@@ -65,7 +119,7 @@ var query1 = `query one {
     id
     name
   }
-}`
+}`)
 
 var schemaA = `type Asset implements Node {
   id: ID!
