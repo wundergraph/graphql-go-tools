@@ -174,6 +174,10 @@ type Query {
   castles: [Castle]!
 }
 
+scalar ID
+scalar String
+scalar Int
+
 schema {
   query: Query
 }`

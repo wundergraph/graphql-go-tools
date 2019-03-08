@@ -7,6 +7,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/parser"
 	"github.com/jensneuse/graphql-go-tools/pkg/printer"
 	"github.com/jensneuse/graphql-go-tools/pkg/proxy/middleware/example"
+	"github.com/jensneuse/graphql-go-tools/pkg/validator"
 )
 
 type Proxy struct {
@@ -18,6 +19,7 @@ type Proxy struct {
 	mod               *parser.ManualAstMod
 	astPrint          *printer.Printer
 	buff              *bytes.Buffer
+	valid             *validator.Validator
 }
 
 func NewProxy() *Proxy {
@@ -33,6 +35,7 @@ func NewProxy() *Proxy {
 		mod:               parser.NewManualAstMod(parse),
 		astPrint:          printer.New(),
 		buff:              &bytes.Buffer{},
+		valid:             validator.New(),
 	}
 }
 
@@ -67,6 +70,13 @@ func (p *Proxy) Request(path string, request []byte) (response []byte, err error
 
 	p.walk.SetLookup(p.look)
 	p.walk.WalkExecutable()
+
+	p.valid.SetInput(p.look, p.walk)
+	validationResult := p.valid.ValidateExecutableDefinition(validator.DefaultExecutionRules)
+	if !validationResult.Valid {
+		err = fmt.Errorf("validation failed: %+v, subjectName: %s", validationResult, string(p.look.CachedName(validationResult.Meta.SubjectNameRef)))
+		return
+	}
 
 	middleware := example.AssetUrlMiddleware{}
 	middleware.OnRequest(p.look, p.walk, p.parse, p.mod)
