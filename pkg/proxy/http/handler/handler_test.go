@@ -1,4 +1,4 @@
-package http
+package handler
 
 import (
 	"github.com/jensneuse/graphql-go-tools/hack/middleware/example"
@@ -21,7 +21,8 @@ func TestProxyHandler(t *testing.T) {
 	}))
 	defer es.Close()
 
-	ph := NewProxyHandler([]byte(assetSchema), es.URL, &example.AssetUrlMiddleware{})
+	schemaProvider := NewStaticSchemaProvider([]byte(assetSchema))
+	ph := NewHttpProxyHandler(es.URL, schemaProvider, &example.AssetUrlMiddleware{})
 	ts := httptest.NewServer(ph)
 	defer ts.Close()
 
@@ -33,6 +34,34 @@ func TestProxyHandler(t *testing.T) {
 	})
 }
 
+func BenchmarkProxyHandler(b *testing.B) {
+	es := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			b.Error(err)
+		}
+		if string(body) != assetOutput {
+			b.Errorf("Expected %s, got %s", assetOutput, body)
+		}
+	}))
+	defer es.Close()
+
+	schemaProvider := NewStaticSchemaProvider([]byte(assetSchema))
+	ph := NewHttpProxyHandler(es.URL, schemaProvider, &example.AssetUrlMiddleware{})
+	ts := httptest.NewServer(ph)
+	defer ts.Close()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		_, err := http.Post(ts.URL, "application/graphql", strings.NewReader(assetInput))
+		if err != nil {
+			b.Error(err)
+		}
+	}
+}
+
 const assetSchema = `
 schema {
     query: Query
@@ -42,7 +71,7 @@ type Query {
     assets(first: Int): [Asset]
 }
 
-type Asset implements Node @RequestMiddleware {
+type Asset implements Node {
     status: Status!
     updatedAt: DateTime!
     createdAt: DateTime!
