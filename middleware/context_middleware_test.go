@@ -2,13 +2,12 @@ package middleware
 
 import (
 	"context"
+	"github.com/jensneuse/graphql-go-tools/pkg/proxy/http/handler"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/jensneuse/graphql-go-tools/pkg/proxy/handler"
 )
 
 func TestContextMiddleware(t *testing.T) {
@@ -27,7 +26,9 @@ func TestContextMiddleware(t *testing.T) {
 	}))
 	defer es.Close()
 
-	ph := handler.NewProxyHandler([]byte(publicSchema), es.URL, &ContextMiddleware{})
+	schemaProvider := handler.NewStaticSchemaProvider([]byte(publicSchema))
+
+	ph := handler.NewHttpProxyHandler(es.URL, schemaProvider, &ContextMiddleware{})
 	ts := httptest.NewServer(ph)
 	defer ts.Close()
 
