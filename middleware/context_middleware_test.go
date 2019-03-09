@@ -46,14 +46,20 @@ func TestContextMiddleware(t *testing.T) {
 	})
 }
 
-
 const publicSchema = `
+directive @addArgumentFromContext(
+	name: String!
+	contextKey: String!
+) on FIELD_DEFINITION
+
+scalar String
+
 schema {
 	query: Query
 }
 
 type Query {
-	documents: [Document] @context_insert(user: "user")
+	documents: [Document] @addArgumentFromContext(name: "user",contextKey: "user")
 }
 
 type Document implements Node {
@@ -63,7 +69,7 @@ type Document implements Node {
 `
 
 // This schema is unused, left for reference
-const privateSchema = `
+const _ = `
 schema {
 	query: Query
 }

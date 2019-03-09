@@ -1,13 +1,12 @@
-package handler
+package http
 
 import (
+	"github.com/jensneuse/graphql-go-tools/hack/middleware/example"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/jensneuse/graphql-go-tools/pkg/proxy/middleware/example"
 )
 
 func TestProxyHandler(t *testing.T) {
@@ -57,8 +56,7 @@ type Asset implements Node @RequestMiddleware {
     url: String!
 }`
 
-const assetInput =
-	`query testQueryWithoutHandle {
+const assetInput = `query testQueryWithoutHandle {
   								assets(first: 1) {
     							id
     							fileName
