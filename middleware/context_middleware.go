@@ -11,5 +11,6 @@ func (a *ContextMiddleware) OnResponse(response *[]byte, l *lookup.Lookup, w *lo
 	return nil
 }
 
-func (a *ContextMiddleware) OnRequest(l *lookup.Lookup, w *lookup.Walker, parser *parser.Parser, mod *parser.ManualAstMod) {
+func (a *ContextMiddleware) OnRequest(l *lookup.Lookup, w *lookup.Walker, parser *parser.Parser, mod *parser.ManualAstMod) error {
+	return nil
 }
