@@ -1,68 +1,34 @@
-package http
+package handler
 
 import (
 	"bytes"
-	"github.com/jensneuse/graphql-go-tools/handler/request"
 	"github.com/jensneuse/graphql-go-tools/middleware"
 	"io/ioutil"
 	"net/http"
+	"sync"
 )
 
-type RequestHandler struct {
+type HttpProxyHandler struct {
 	schemaProvider SchemaProvider
 	host           string
-	requestHandler *request.Handler
+	invokerPool    sync.Pool
+	middleWares    []middleware.GraphqlMiddleware
 	http.Handler
 }
 
-func NewProxyHandler(host string, schemaProvider SchemaProvider, middlewares ...middleware.GraphqlMiddleware) *RequestHandler {
-	return &RequestHandler{
+func NewHttpProxyHandler(host string, schemaProvider SchemaProvider, graphqlMiddleWares ...middleware.GraphqlMiddleware) *HttpProxyHandler {
+	return &HttpProxyHandler{
 		schemaProvider: schemaProvider,
 		host:           host,
-		requestHandler: request.NewRequestHandler(middlewares...),
+		invokerPool: sync.Pool{
+			New: func() interface{} {
+				return middleware.NewInvoker(graphqlMiddleWares...)
+			},
+		},
 	}
 }
 
-/*func (ph *RequestHandler) executeMiddlewares(query []byte) ([]byte, error) {
-	p := parser.NewParser()
-	err := p.ParseTypeSystemDefinition(ph.schema)
-	if err != nil {
-		return nil, err
-	}
-
-	err = p.ParseExecutableDefinition(query)
-	if err != nil {
-		return nil, err
-	}
-
-	l := lookup.New(p, 256)
-	l.SetParser(p)
-	w := lookup.NewWalker(1024, 8)
-	w.SetLookup(l)
-	w.WalkExecutable()
-
-	astPrinter := printer.New()
-	astPrinter.SetInput(p, l, w)
-
-	buff := bytes.Buffer{}
-
-	// init done
-
-	mod := parser.NewManualAstMod(p)
-	prox := proxy.NewProxy(mod)
-	prox.SetMiddleWares(ph.middlewares...)
-
-	prox.SetInput(l, w, p, mod)
-	prox.OnQuery()
-
-	astPrinter.PrintExecutableSchema(&buff)
-	proxiedQuery := buff.Bytes()
-	buff.Reset()
-
-	return proxiedQuery, nil
-}*/
-
-func (p *RequestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (p *HttpProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	input, err := ioutil.ReadAll(r.Body)
 	if err != nil {
@@ -72,27 +38,31 @@ func (p *RequestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var schema []byte
 	p.schemaProvider.GetSchema(r.RequestURI, &schema)
 
-	err = p.requestHandler.SetSchema(&schema)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
+	invoker := p.invokerPool.Get().(*middleware.Invoker)
+	defer p.invokerPool.Put(invoker)
 
-	err = p.requestHandler.HandleRequest(&input)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	/*proxiedQuery, err := ph.executeMiddlewares(incomingQuery)
-	if err != nil {
-		panic(err)
-	}*/
-
-	resp, err := http.Post(p.host, "application/graphql", bytes.NewReader(input))
+	err = invoker.SetSchema(&schema)
 	if err != nil {
 		panic(err)
 	}
+
+	err = invoker.InvokeMiddleWares(&input)
+	if err != nil {
+		panic(err)
+	}
+
+	buff := bytes.Buffer{}
+
+	err = invoker.RewriteRequest(&buff)
+	if err != nil {
+		panic(err)
+	}
+
+	resp, err := http.Post(p.host, "application/graphql", &buff)
+	if err != nil {
+		panic(err)
+	}
+
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		panic(err)
@@ -101,8 +71,8 @@ func (p *RequestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	rw.WriteHeader(resp.StatusCode)
-	_, err = rw.Write(body)
+	w.WriteHeader(resp.StatusCode)
+	_, err = w.Write(body)
 	if err != nil {
 		panic(err)
 	}
