@@ -15,6 +15,7 @@ type Proxy struct {
 
 type GraphqlMiddleware interface {
 	OnRequest(l *lookup.Lookup, w *lookup.Walker, parser *parser.Parser, mod *parser.ManualAstMod)
+	OnResponse(response *[]byte, l *lookup.Lookup, w *lookup.Walker, parser *parser.Parser, mod *parser.ManualAstMod) error
 }
 
 func NewProxy(mod *parser.ManualAstMod) *Proxy {

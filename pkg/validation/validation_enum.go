@@ -38,8 +38,6 @@ const (
 	FragmentDeclaredButNeverUsed
 	// InputValueNotDefined is a Description of type InputValueNotDefined
 	InputValueNotDefined
-	// MustHaveTypeCondition is a Description of type MustHaveTypeCondition
-	MustHaveTypeCondition
 	// OperationNameMustBeUnique is a Description of type OperationNameMustBeUnique
 	OperationNameMustBeUnique
 	// RootTypeNotDefined is a Description of type RootTypeNotDefined
@@ -64,7 +62,7 @@ const (
 	VariableDefinedButNotUsed
 )
 
-const _DescriptionName = "NoDescriptionAnonymousOperationMustBeLonePerDocumentArgumentMustBeUniqueArgumentRequiredDirectiveNotDefinedDirectiveLocationInvalidDirectiveMustBeUniquePerLocationFieldNameOrAliasMismatchFieldSelectionsInvalidFragmentNotDefinedFragmentSpreadCyclicReferenceFragmentDefinitionOnLeafNodeFragmentRedeclaredFragmentDeclaredButNeverUsedInputValueNotDefinedMustHaveTypeConditionOperationNameMustBeUniqueRootTypeNotDefinedSelectionSetInvalidSelectionSetResponseShapesCannotMergeSubscriptionsMustHaveMaxOneRootFieldTypeNotDefinedValueInvalidVariableMustBeUniquePerOperationVariableMustBeValidInputTypeVariableNotDefinedVariableDefinedButNotUsed"
+const _DescriptionName = "NoDescriptionAnonymousOperationMustBeLonePerDocumentArgumentMustBeUniqueArgumentRequiredDirectiveNotDefinedDirectiveLocationInvalidDirectiveMustBeUniquePerLocationFieldNameOrAliasMismatchFieldSelectionsInvalidFragmentNotDefinedFragmentSpreadCyclicReferenceFragmentDefinitionOnLeafNodeFragmentRedeclaredFragmentDeclaredButNeverUsedInputValueNotDefinedOperationNameMustBeUniqueRootTypeNotDefinedSelectionSetInvalidSelectionSetResponseShapesCannotMergeSubscriptionsMustHaveMaxOneRootFieldTypeNotDefinedValueInvalidVariableMustBeUniquePerOperationVariableMustBeValidInputTypeVariableNotDefinedVariableDefinedButNotUsed"
 
 var _DescriptionMap = map[Description]string{
 	0:  _DescriptionName[0:13],
@@ -82,18 +80,17 @@ var _DescriptionMap = map[Description]string{
 	12: _DescriptionName[284:302],
 	13: _DescriptionName[302:330],
 	14: _DescriptionName[330:350],
-	15: _DescriptionName[350:371],
-	16: _DescriptionName[371:396],
-	17: _DescriptionName[396:414],
-	18: _DescriptionName[414:433],
-	19: _DescriptionName[433:470],
-	20: _DescriptionName[470:506],
-	21: _DescriptionName[506:520],
-	22: _DescriptionName[520:532],
-	23: _DescriptionName[532:564],
-	24: _DescriptionName[564:592],
-	25: _DescriptionName[592:610],
-	26: _DescriptionName[610:635],
+	15: _DescriptionName[350:375],
+	16: _DescriptionName[375:393],
+	17: _DescriptionName[393:412],
+	18: _DescriptionName[412:449],
+	19: _DescriptionName[449:485],
+	20: _DescriptionName[485:499],
+	21: _DescriptionName[499:511],
+	22: _DescriptionName[511:543],
+	23: _DescriptionName[543:571],
+	24: _DescriptionName[571:589],
+	25: _DescriptionName[589:614],
 }
 
 // String implements the Stringer interface.
@@ -120,18 +117,17 @@ var _DescriptionValue = map[string]Description{
 	_DescriptionName[284:302]: 12,
 	_DescriptionName[302:330]: 13,
 	_DescriptionName[330:350]: 14,
-	_DescriptionName[350:371]: 15,
-	_DescriptionName[371:396]: 16,
-	_DescriptionName[396:414]: 17,
-	_DescriptionName[414:433]: 18,
-	_DescriptionName[433:470]: 19,
-	_DescriptionName[470:506]: 20,
-	_DescriptionName[506:520]: 21,
-	_DescriptionName[520:532]: 22,
-	_DescriptionName[532:564]: 23,
-	_DescriptionName[564:592]: 24,
-	_DescriptionName[592:610]: 25,
-	_DescriptionName[610:635]: 26,
+	_DescriptionName[350:375]: 15,
+	_DescriptionName[375:393]: 16,
+	_DescriptionName[393:412]: 17,
+	_DescriptionName[412:449]: 18,
+	_DescriptionName[449:485]: 19,
+	_DescriptionName[485:499]: 20,
+	_DescriptionName[499:511]: 21,
+	_DescriptionName[511:543]: 22,
+	_DescriptionName[543:571]: 23,
+	_DescriptionName[571:589]: 24,
+	_DescriptionName[589:614]: 25,
 }
 
 // ParseDescription attempts to convert a string to a Description
