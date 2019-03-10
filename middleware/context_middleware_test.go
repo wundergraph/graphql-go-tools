@@ -1,16 +1,21 @@
 package middleware
 
 import (
-	"context"
-	"github.com/jensneuse/graphql-go-tools/pkg/proxy/http/handler"
-	"io/ioutil"
-	"net/http"
-	"net/http/httptest"
-	"strings"
+	"github.com/jensneuse/graphql-go-tools/pkg/testhelper"
 	"testing"
 )
 
 func TestContextMiddleware(t *testing.T) {
+
+	got := InvokeMiddleware(&ContextMiddleware{}, publicSchema, publicQuery)
+	want := testhelper.UglifyRequestString(privateQuery)
+
+	if want != got {
+		t.Errorf("\nwant:\n%s\ngot:\n%s", want, got)
+	}
+}
+
+/*func TestContextMiddleware(t *testing.T) {
 	es := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// set context that would usually be set in other application middleware
 		userCtx := context.WithValue(r.Context(), "user", "jsmith@example.org")
@@ -45,7 +50,7 @@ func TestContextMiddleware(t *testing.T) {
 			t.Error(err)
 		}
 	})
-}
+}*/
 
 const publicSchema = `
 directive @addArgumentFromContext(
