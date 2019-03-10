@@ -89,7 +89,7 @@ func TestLookup(t *testing.T) {
 					if !fields.Next() {
 						panic(fmt.Errorf("mustHaveSelectionSets: want next field (%s), got nothing", wantField))
 					}
-					gotField := fields.Value()
+					_, gotField := fields.Value()
 					fieldName := string(walker.l.CachedName(gotField.Name))
 					if fieldName != wantField {
 						panic(fmt.Errorf("mustHaveSelectionSets: want field: %s, got: %s", wantField, fieldName))
@@ -97,7 +97,8 @@ func TestLookup(t *testing.T) {
 				}
 
 				if fields.Next() {
-					next := string(walker.l.CachedName(fields.Value().Name))
+					_, value := fields.Value()
+					next := string(walker.l.CachedName(value.Name))
 					panic(fmt.Errorf("mustHaveSelectionSets: want Next() to return false, got next field: %s", next))
 				}
 			}
