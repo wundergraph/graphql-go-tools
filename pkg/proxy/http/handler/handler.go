@@ -2,7 +2,7 @@ package handler
 
 import (
 	"bytes"
-	"github.com/jensneuse/graphql-go-tools/middleware"
+	"github.com/jensneuse/graphql-go-tools/pkg/middleware"
 	"io/ioutil"
 	"net/http"
 	"sync"
