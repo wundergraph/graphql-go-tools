@@ -79,8 +79,6 @@ func (m *ManualAstMod) MergeArgIntoFieldArguments(argRef, fieldRef int) {
 	arg := m.p.ParsedDefinitions.Arguments[argRef]
 	field := m.p.ParsedDefinitions.Fields[fieldRef]
 
-	//fmt.Printf("merging arg: %d into field: %d", argRef, fieldRef)
-
 	if field.ArgumentSet == -1 {
 		set := m.p.indexPoolGet()
 		set = append(set, argRef)
