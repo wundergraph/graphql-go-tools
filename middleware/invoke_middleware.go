@@ -1,14 +1,14 @@
-package testhelper
+package middleware
 
 import (
 	"bytes"
-	"github.com/jensneuse/graphql-go-tools/middleware"
+	"context"
 	"github.com/jensneuse/graphql-go-tools/pkg/lookup"
 	"github.com/jensneuse/graphql-go-tools/pkg/parser"
 	"github.com/jensneuse/graphql-go-tools/pkg/printer"
 )
 
-func InvokeMiddleware(middleware middleware.GraphqlMiddleware, schema, request string) []byte {
+func InvokeMiddleware(middleware GraphqlMiddleware, schema, request string) string {
 	parse := parser.NewParser()
 	if err := parse.ParseTypeSystemDefinition([]byte(schema)); err != nil {
 		panic(err)
@@ -22,7 +22,7 @@ func InvokeMiddleware(middleware middleware.GraphqlMiddleware, schema, request s
 	mod := parser.NewManualAstMod(parse)
 	walk.SetLookup(look)
 
-	if err := middleware.OnRequest(look, walk, parse, mod); err != nil {
+	if err := middleware.OnRequest(context.Background(), look, walk, parse, mod); err != nil {
 		panic(err)
 	}
 
@@ -34,5 +34,5 @@ func InvokeMiddleware(middleware middleware.GraphqlMiddleware, schema, request s
 	if err := astPrint.PrintExecutableSchema(&buff); err != nil {
 		panic(err)
 	}
-	return buff.Bytes()
+	return buff.String()
 }

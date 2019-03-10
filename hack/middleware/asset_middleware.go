@@ -1,7 +1,8 @@
-package example
+package middleware
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/runes"
@@ -16,7 +17,7 @@ import (
 type AssetUrlMiddleware struct {
 }
 
-func (a *AssetUrlMiddleware) OnRequest(l *lookup.Lookup, w *lookup.Walker, parser *parser.Parser, mod *parser.ManualAstMod) error {
+func (a *AssetUrlMiddleware) OnRequest(context context.Context, l *lookup.Lookup, w *lookup.Walker, parser *parser.Parser, mod *parser.ManualAstMod) error {
 
 	w.WalkExecutable()
 
@@ -70,7 +71,7 @@ func (a *AssetUrlMiddleware) OnRequest(l *lookup.Lookup, w *lookup.Walker, parse
 	return nil
 }
 
-func (a *AssetUrlMiddleware) OnResponse(response *[]byte, l *lookup.Lookup, w *lookup.Walker, parser *parser.Parser, mod *parser.ManualAstMod) (err error) {
+func (a *AssetUrlMiddleware) OnResponse(context context.Context, response *[]byte, l *lookup.Lookup, w *lookup.Walker, parser *parser.Parser, mod *parser.ManualAstMod) (err error) {
 
 	w.SetLookup(l)
 	w.WalkExecutable()

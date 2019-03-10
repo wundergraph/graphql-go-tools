@@ -1,7 +1,6 @@
-package example
+package middleware
 
 import (
-	"bytes"
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/testhelper"
 	"testing"
@@ -11,11 +10,11 @@ func TestAssetMiddleware(t *testing.T) {
 
 	run := func(schema, queryBefore, queryAfter string) {
 
-		got := testhelper.InvokeMiddleware(&AssetUrlMiddleware{}, schema, queryBefore)
+		got := InvokeMiddleware(&AssetUrlMiddleware{}, schema, queryBefore)
 		want := testhelper.UglifyRequestString(queryAfter)
 
-		if !bytes.Equal(want, got) {
-			panic(fmt.Errorf("want:\n%s\ngot:\n%s\n", string(want), string(got)))
+		if want != got {
+			panic(fmt.Errorf("want:\n%s\ngot:\n%s\n", want, got))
 		}
 	}
 
