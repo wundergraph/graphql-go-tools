@@ -33,6 +33,7 @@ ENUM_TYPE_DEFINITION
 INPUT_OBJECT
 INPUT_OBJECT_TYPE_DEFINITION
 INPUT_FIELD_DEFINITION
+INPUT_VALUE_DEFINITION
 OPERATION_DEFINITION
 DIRECTIVE_SET
 DIRECTIVE
@@ -148,12 +149,59 @@ func (w *Walker) WalkObjectTypeDefinitions(refs []int) {
 	iter := w.l.ObjectTypeDefinitionIterable(refs)
 	for iter.Next() {
 		ref, definition := iter.Value()
-		w.putNode(Node{
+		nodeRef := w.putNode(Node{
 			Ref:      ref,
 			Kind:     OBJECT_TYPE_DEFINITION,
 			Parent:   -1,
 			Position: definition.Position,
 		})
+
+		if len(definition.FieldsDefinition) != 0 {
+			w.walkFieldDefinitions(definition.FieldsDefinition, nodeRef)
+		}
+
+		if definition.DirectiveSet != -1 {
+			w.walkDirectiveSet(definition.DirectiveSet, nodeRef)
+		}
+	}
+}
+
+func (w *Walker) walkFieldDefinitions(refs []int, parent int) {
+
+	for _, ref := range refs {
+		definition := w.l.FieldDefinition(ref)
+		nodeRef := w.putNode(Node{
+			Kind:     FIELD_DEFINITION,
+			Parent:   parent,
+			Ref:      ref,
+			Position: definition.Position,
+		})
+
+		if definition.ArgumentsDefinition != -1 {
+			args := w.l.ArgumentsDefinition(definition.ArgumentsDefinition)
+			w.WalkInputValueDefinitions(args.InputValueDefinitions, nodeRef)
+		}
+
+		if definition.DirectiveSet != -1 {
+			w.walkDirectiveSet(definition.DirectiveSet, nodeRef)
+		}
+	}
+}
+
+func (w *Walker) WalkInputValueDefinitions(refs []int, parent int) {
+	iter := w.l.InputValueDefinitionIterator(refs)
+	for iter.Next() {
+		definition, ref := iter.Value()
+		nodeRef := w.putNode(Node{
+			Kind:     INPUT_VALUE_DEFINITION,
+			Position: definition.Position,
+			Ref:      ref,
+			Parent:   parent,
+		})
+
+		if definition.DirectiveSet != -1 {
+			w.walkDirectiveSet(definition.DirectiveSet, nodeRef)
+		}
 	}
 }
 
