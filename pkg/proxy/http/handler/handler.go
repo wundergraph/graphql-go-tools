@@ -46,7 +46,7 @@ func (p *HttpProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	err = invoker.InvokeMiddleWares(&input)
+	err = invoker.InvokeMiddleWares(r.Context(), &input)
 	if err != nil {
 		panic(err)
 	}
