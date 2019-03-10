@@ -16,10 +16,10 @@ func FieldSelectionMerging() rules.ExecutionRule {
 		validateSet := func(set document.SelectionSet, typeName int) validation.Result {
 			lefts := l.SelectionSetCollectedFields(set, typeName)
 			for lefts.Next() {
-				left := lefts.Value()
+				_, left := lefts.Value()
 				rights := l.SelectionSetCollectedFields(set, typeName)
 				for rights.Next() {
-					right := rights.Value()
+					_, right := rights.Value()
 					if !l.FieldResponseNamesAreEqual(left, right) {
 						continue
 					}
