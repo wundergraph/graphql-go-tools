@@ -2,11 +2,12 @@ package stage2
 
 import (
 	"bytes"
+	"context"
 	"fmt"
+	middleware2 "github.com/jensneuse/graphql-go-tools/hack/middleware"
 	"github.com/jensneuse/graphql-go-tools/pkg/lookup"
 	"github.com/jensneuse/graphql-go-tools/pkg/parser"
 	"github.com/jensneuse/graphql-go-tools/pkg/printer"
-	"github.com/jensneuse/graphql-go-tools/pkg/proxy/middleware/example"
 	"github.com/jensneuse/graphql-go-tools/pkg/validator"
 )
 
@@ -78,8 +79,8 @@ func (p *Proxy) Request(path string, request []byte) (response []byte, err error
 		return
 	}
 
-	middleware := example.AssetUrlMiddleware{}
-	middleware.OnRequest(p.look, p.walk, p.parse, p.mod)
+	middleware := middleware2.AssetUrlMiddleware{}
+	middleware.OnRequest(context.Background(), p.look, p.walk, p.parse, p.mod)
 
 	p.astPrint.SetInput(p.parse, p.look, p.walk)
 	p.buff.Reset()
@@ -87,7 +88,7 @@ func (p *Proxy) Request(path string, request []byte) (response []byte, err error
 
 	response = prisma.Query(p.buff.Bytes())
 
-	err = middleware.OnResponse(&response, p.look, p.walk, p.parse, p.mod)
+	err = middleware.OnResponse(context.Background(), &response, p.look, p.walk, p.parse, p.mod)
 	if err != nil {
 		return
 	}

@@ -19,6 +19,7 @@ type AssetUrlMiddleware struct {
 
 func (a *AssetUrlMiddleware) OnRequest(context context.Context, l *lookup.Lookup, w *lookup.Walker, parser *parser.Parser, mod *parser.ManualAstMod) error {
 
+	w.SetLookup(l)
 	w.WalkExecutable()
 
 	// get the required names (int)
