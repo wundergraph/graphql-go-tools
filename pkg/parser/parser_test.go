@@ -532,6 +532,25 @@ func TestParser(t *testing.T) {
 		}
 	}
 
+	hasValue := func(rules ...rule) rule {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
+			valueRef := node.NodeValue()
+			value := parser.ParsedDefinitions.Values[valueRef]
+			for i, rule := range rules {
+				rule(value, parser, i, ruleSetIndex)
+			}
+		}
+	}
+
+	hasRawValueContent := func(want string) rule {
+		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
+			got := string(parser.ByteSlice(node.(document.Value).Raw))
+			if want != got {
+				panic(fmt.Errorf("hasRawValueContent: want: %s, got: %s", want, got))
+			}
+		}
+	}
+
 	hasArgumentsDefinition := func(rules ...rule) rule {
 		return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
@@ -881,6 +900,15 @@ func TestParser(t *testing.T) {
 				panic(err)
 			}
 
+			for j, rule := range rules {
+				operationDefinition := parser.ParsedDefinitions.OperationDefinitions[j]
+				evalRules(operationDefinition, parser, rule, i)
+			}
+		}
+	}
+
+	mustContainOperationDefinition := func(rules ...ruleSet) checkFunc {
+		return func(parser *Parser, i int) {
 			for j, rule := range rules {
 				operationDefinition := parser.ParsedDefinitions.OperationDefinitions[j]
 				evalRules(operationDefinition, parser, rule, i)
@@ -4427,6 +4455,179 @@ func TestParser(t *testing.T) {
 		if want != got {
 			t.Fatalf("newErrInvalidType: \nwant: %s\ngot: %s", want, got)
 		}
+	})
+
+	// manual ast mod
+
+	mustMergeArgumentOnField := func(fieldName, argumentName, valueContent string) checkFunc {
+		return func(parser *Parser, i int) {
+			mod := NewManualAstMod(parser)
+
+			sensitiveInformationRef, _, err := mod.PutLiteralString(fieldName)
+			if err != nil {
+				panic(err)
+			}
+
+			argumentNameRef, _, err := mod.PutLiteralString(argumentName)
+			if err != nil {
+				panic(err)
+			}
+
+			valueContentRef, valueContentByteSliceRef, err := mod.PutLiteralString(valueContent)
+			if err != nil {
+				panic(err)
+			}
+
+			val := document.Value{
+				ValueType: document.ValueTypeString,
+				Reference: valueContentRef,
+				Raw:       valueContentByteSliceRef,
+			}
+
+			valueRef := mod.PutValue(val)
+
+			for fieldRef, field := range parser.ParsedDefinitions.Fields {
+				if field.Name == sensitiveInformationRef {
+
+					arg := document.Argument{
+						Name:  argumentNameRef,
+						Value: valueRef,
+					}
+
+					argumentRef := mod.PutArgument(arg)
+
+					mod.MergeArgIntoFieldArguments(argumentRef, fieldRef)
+					break
+				}
+			}
+		}
+	}
+
+	t.Run("manual ast modifications", func(t *testing.T) {
+		t.Run("merge argument into field without arguments", func(t *testing.T) {
+			run(`query myDocuments {
+						documents {
+							sensitiveInformation
+						}
+					}`, mustParseOperationDefinition(),
+				mustMergeArgumentOnField("sensitiveInformation", "user", `"jsmith@example.org"`),
+				mustContainOperationDefinition(
+					node(
+						hasFields(
+							node(
+								hasName("documents"),
+								hasFields(
+									node(
+										hasName("sensitiveInformation"),
+										hasArguments(
+											node(
+												hasName("user"),
+												hasValue(hasRawValueContent("jsmith@example.org")),
+											),
+										),
+									),
+								),
+							),
+						),
+					),
+				),
+			)
+		})
+		t.Run("merge argument into field with existing argument", func(t *testing.T) {
+			run(`query myDocuments {
+						documents {
+							sensitiveInformation(foo: "bar")
+						}
+					}`, mustParseOperationDefinition(),
+				mustMergeArgumentOnField("sensitiveInformation", "user", `"jsmith@example.org"`),
+				mustContainOperationDefinition(
+					node(
+						hasFields(
+							node(
+								hasName("documents"),
+								hasFields(
+									node(
+										hasName("sensitiveInformation"),
+										hasArguments(
+											node(
+												hasName("foo"),
+												hasValue(hasRawValueContent("bar")),
+											),
+											node(
+												hasName("user"),
+												hasValue(hasRawValueContent("jsmith@example.org")),
+											),
+										),
+									),
+								),
+							),
+						),
+					),
+				),
+			)
+		})
+		t.Run("merge argument into field with existing argument of same name", func(t *testing.T) {
+			run(`query myDocuments {
+						documents {
+							sensitiveInformation(user: "bar")
+						}
+					}`, mustParseOperationDefinition(),
+				mustMergeArgumentOnField("sensitiveInformation", "user", `"jsmith@example.org"`),
+				mustContainOperationDefinition(
+					node(
+						hasFields(
+							node(
+								hasName("documents"),
+								hasFields(
+									node(
+										hasName("sensitiveInformation"),
+										hasArguments(
+											node(
+												hasName("user"),
+												hasValue(hasRawValueContent("jsmith@example.org")),
+											),
+										),
+									),
+								),
+							),
+						),
+					),
+				),
+			)
+		})
+		t.Run("merge argument into field with existing argument of same name (reverse test)", func(t *testing.T) {
+			run(`query myDocuments {
+						documents {
+							sensitiveInformation(user: "bar")
+						}
+					}`, mustParseOperationDefinition(),
+				mustMergeArgumentOnField("sensitiveInformation", "user", `"jsmith@example.org"`),
+				mustPanic(mustContainOperationDefinition(
+					node(
+						hasFields(
+							node(
+								hasName("documents"),
+								hasFields(
+									node(
+										hasName("sensitiveInformation"),
+										hasArguments(
+											node(
+												hasName("user"),
+												hasValue(hasRawValueContent("bar")),
+											),
+											node(
+												hasName("user"),
+												hasValue(hasRawValueContent("jsmith@example.org")),
+											),
+										),
+									),
+								),
+							),
+						),
+					),
+				)),
+			)
+		})
 	})
 }
 
