@@ -10,7 +10,7 @@ func (p *Parser) ParseIntrospectionResponse(response *introspection.Response) (e
 	p.l.ResetTypeSystemInput()
 
 	if response.Data.Schema.QueryType != nil {
-		ref, err := mod.PutLiteralString(response.Data.Schema.QueryType.Name)
+		ref, _, err := mod.PutLiteralString(response.Data.Schema.QueryType.Name)
 		if err != nil {
 			return err
 		}
@@ -18,7 +18,7 @@ func (p *Parser) ParseIntrospectionResponse(response *introspection.Response) (e
 	}
 
 	if response.Data.Schema.MutationType != nil {
-		ref, err := mod.PutLiteralString(response.Data.Schema.MutationType.Name)
+		ref, _, err := mod.PutLiteralString(response.Data.Schema.MutationType.Name)
 		if err != nil {
 			return err
 		}
@@ -26,7 +26,7 @@ func (p *Parser) ParseIntrospectionResponse(response *introspection.Response) (e
 	}
 
 	if response.Data.Schema.SubscriptionType != nil {
-		ref, err := mod.PutLiteralString(response.Data.Schema.SubscriptionType.Name)
+		ref, _, err := mod.PutLiteralString(response.Data.Schema.SubscriptionType.Name)
 		if err != nil {
 			return err
 		}
