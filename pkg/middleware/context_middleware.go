@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"context"
-	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lookup"
 	"github.com/jensneuse/graphql-go-tools/pkg/parser"
@@ -52,7 +51,7 @@ func (a *ContextMiddleware) OnRequest(context context.Context, l *lookup.Lookup,
 				continue
 			}
 
-			fmt.Println("found directive")
+			//fmt.Println("found directive")
 
 			field := w.Node(parent)
 			if field.Kind != lookup.FIELD_DEFINITION {
@@ -61,14 +60,14 @@ func (a *ContextMiddleware) OnRequest(context context.Context, l *lookup.Lookup,
 
 			fieldDefintion := l.FieldDefinition(field.Ref)
 
-			fmt.Println("parent is field")
+			//fmt.Println("parent is field")
 
 			fieldType := w.Node(field.Parent)
 			if fieldType.Kind != lookup.OBJECT_TYPE_DEFINITION {
 				continue
 			}
 
-			fmt.Println("fieldType is object type definition")
+			//fmt.Println("fieldType is object type definition")
 
 			objectTypeDefinition := l.ObjectTypeDefinition(fieldType.Ref)
 
@@ -106,7 +105,7 @@ func (a *ContextMiddleware) OnRequest(context context.Context, l *lookup.Lookup,
 		}
 	}
 
-	fmt.Printf("directive on fields: %+v\n", typeNamesAndFieldNamesWithDirective)
+	//fmt.Printf("directive on fields: %+v\n", typeNamesAndFieldNamesWithDirective)
 
 	w.SetLookup(l)
 	w.WalkExecutable()
@@ -120,17 +119,17 @@ func (a *ContextMiddleware) OnRequest(context context.Context, l *lookup.Lookup,
 			continue
 		}
 
-		fmt.Printf("fieldsWithDirective: %+v\n", fieldsWithDirective)
+		//fmt.Printf("fieldsWithDirective: %+v\n", fieldsWithDirective)
 
 		fields := l.SelectionSetCollectedFields(set, typeName)
 		for fields.Next() {
 			fieldRef, field := fields.Value()
 			for _, i := range fieldsWithDirective {
 				if i.fieldName == field.Name {
-					fmt.Printf("must merge args into: %d\n", field.ArgumentSet)
+					//fmt.Printf("must merge args into: %d\n", field.ArgumentSet)
 
 					argumentValue := context.Value(string(i.argumentValueContextKey)).([]byte)
-					fmt.Printf("argumentValue: %s\n", string(argumentValue))
+					//fmt.Printf("argumentValue: %s\n", string(argumentValue))
 
 					argNameRef, argByteSliceRef, err := mod.PutLiteralBytes(argumentValue)
 					if err != nil {
