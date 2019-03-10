@@ -7,8 +7,8 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/printer"
 )
 
-func UglifyRequestString(request string) []byte {
-	return UglifyRequestBytes([]byte(request))
+func UglifyRequestString(request string) string {
+	return string(UglifyRequestBytes([]byte(request)))
 }
 
 func UglifyRequestBytes(request []byte) []byte {
