@@ -1,4 +1,4 @@
-package middleware_wip
+package middleware
 
 import (
 	"bytes"
