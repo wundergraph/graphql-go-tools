@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"github.com/jensneuse/graphql-go-tools/hack/middleware/example"
+	"github.com/jensneuse/graphql-go-tools/hack/middleware"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -22,7 +22,7 @@ func TestProxyHandler(t *testing.T) {
 	defer es.Close()
 
 	schemaProvider := NewStaticSchemaProvider([]byte(assetSchema))
-	ph := NewHttpProxyHandler(es.URL, schemaProvider, &example.AssetUrlMiddleware{})
+	ph := NewHttpProxyHandler(es.URL, schemaProvider, &middleware.AssetUrlMiddleware{})
 	ts := httptest.NewServer(ph)
 	defer ts.Close()
 
@@ -47,7 +47,7 @@ func BenchmarkProxyHandler(b *testing.B) {
 	defer es.Close()
 
 	schemaProvider := NewStaticSchemaProvider([]byte(assetSchema))
-	ph := NewHttpProxyHandler(es.URL, schemaProvider, &example.AssetUrlMiddleware{})
+	ph := NewHttpProxyHandler(es.URL, schemaProvider, &middleware.AssetUrlMiddleware{})
 	ts := httptest.NewServer(ph)
 	defer ts.Close()
 
