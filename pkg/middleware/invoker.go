@@ -9,8 +9,7 @@ import (
 )
 
 type Invoker struct {
-	schema      *[]byte
-	middlewares []GraphqlMiddleware
+	middleWares []GraphqlMiddleware
 	parse       *parser.Parser
 	look        *lookup.Lookup
 	walk        *lookup.Walker
@@ -30,7 +29,7 @@ func NewInvoker(middleWares ...GraphqlMiddleware) *Invoker {
 		walk:        walk,
 		mod:         parser.NewManualAstMod(parse),
 		astPrint:    astPrint,
-		middlewares: middleWares,
+		middleWares: middleWares,
 	}
 }
 
@@ -57,8 +56,8 @@ func (i *Invoker) RewriteRequest(w io.Writer) error {
 }
 
 func (i *Invoker) invokeMiddleWares(context context.Context) error {
-	for j := range i.middlewares {
-		err := i.middlewares[j].OnRequest(context, i.look, i.walk, i.parse, i.mod)
+	for j := range i.middleWares {
+		err := i.middleWares[j].OnRequest(context, i.look, i.walk, i.parse, i.mod)
 		if err != nil {
 			return err
 		}
