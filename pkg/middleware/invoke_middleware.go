@@ -8,7 +8,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/printer"
 )
 
-func InvokeMiddleware(middleware GraphqlMiddleware, schema, request string) string {
+func InvokeMiddleware(middleware GraphqlMiddleware, context context.Context, schema, request string) string {
 	parse := parser.NewParser()
 	if err := parse.ParseTypeSystemDefinition([]byte(schema)); err != nil {
 		panic(err)
@@ -22,7 +22,7 @@ func InvokeMiddleware(middleware GraphqlMiddleware, schema, request string) stri
 	mod := parser.NewManualAstMod(parse)
 	walk.SetLookup(look)
 
-	if err := middleware.OnRequest(context.Background(), look, walk, parse, mod); err != nil {
+	if err := middleware.OnRequest(context, look, walk, parse, mod); err != nil {
 		panic(err)
 	}
 
