@@ -7,7 +7,43 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/parser"
 )
 
-type ContextMiddleware struct{}
+/*
+directive @addArgumentFromContext(
+	name: String!
+	contextKey: String!
+) on FIELD_DEFINITION
+*/
+
+/*
+ContextMiddleware does rewrite graphql requests based on schema annotations using a provided context object as input
+
+example schema:
+
+type Query {
+	documents: [Document] @addArgumentFromContext(name: "user",contextKey: "user")
+}
+
+given there's an object with key "user" and value "jsmith@example.org" in the context
+
+original Request:
+
+query myDocuments {
+	documents {
+		sensitiveInformation
+	}
+}
+
+Request after rewriting:
+
+query myDocuments {
+	documents(user: "jsmith@example.org") {
+		sensitiveInformation
+	}
+}
+
+*/
+type ContextMiddleware struct {
+}
 
 func (a *ContextMiddleware) OnResponse(context context.Context, response *[]byte, l *lookup.Lookup, w *lookup.Walker, parser *parser.Parser, mod *parser.ManualAstMod) error {
 	return nil
@@ -41,71 +77,46 @@ func (a *ContextMiddleware) OnRequest(context context.Context, l *lookup.Lookup,
 
 	typeNamesAndFieldNamesWithDirective := make(map[int][]ContextRewriteConfig)
 
-	directiveSets := w.DirectiveSetIterable()
-	for directiveSets.Next() {
-		set, parent := directiveSets.Value()
-		directives := l.DirectiveIterable(set)
-		for directives.Next() {
-			directive, _ := directives.Value()
-			if directive.Name != addArgumentFromContextDirectiveName {
-				continue
-			}
+	fields := w.FieldsContainingDirectiveIterator(addArgumentFromContextDirectiveName)
+	for fields.Next() {
+		fieldRef, objectTypeDefinitionRef, directiveRef := fields.Value()
 
-			//fmt.Println("found directive")
+		directive := l.Directive(directiveRef)
+		fieldDefinition := l.FieldDefinition(fieldRef)
+		objectTypeDefinition := l.ObjectTypeDefinition(objectTypeDefinitionRef)
 
-			field := w.Node(parent)
-			if field.Kind != lookup.FIELD_DEFINITION {
-				continue
-			}
-
-			fieldDefintion := l.FieldDefinition(field.Ref)
-
-			//fmt.Println("parent is field")
-
-			fieldType := w.Node(field.Parent)
-			if fieldType.Kind != lookup.OBJECT_TYPE_DEFINITION {
-				continue
-			}
-
-			//fmt.Println("fieldType is object type definition")
-
-			objectTypeDefinition := l.ObjectTypeDefinition(fieldType.Ref)
-
-			rewriteConfig := ContextRewriteConfig{
-				fieldName: fieldDefintion.Name,
-			}
-
-			argSet := l.ArgumentSet(directive.ArgumentSet)
-			args := l.ArgumentsIterable(argSet)
-			for args.Next() {
-				arg, _ := args.Value()
-				if arg.Name == nameLiteral {
-					value := l.Value(arg.Value)
-					raw := l.ByteSlice(value.Raw)
-
-					//raw = bytes.Replace(raw,literal.QUOTE,nil,-1)
-
-					argName, _, err := mod.PutLiteralBytes(raw)
-					if err != nil {
-						return err
-					}
-
-					rewriteConfig.argumentName = argName
-				} else if arg.Name == contextKeyLiteral {
-					value := l.Value(arg.Value)
-					raw := l.ByteSlice(value.Raw)
-
-					//raw = bytes.Replace(raw,literal.QUOTE,nil,-1)
-
-					rewriteConfig.argumentValueContextKey = raw
-				}
-			}
-
-			typeNamesAndFieldNamesWithDirective[objectTypeDefinition.Name] = append(typeNamesAndFieldNamesWithDirective[objectTypeDefinition.Name], rewriteConfig)
+		rewriteConfig := ContextRewriteConfig{
+			fieldName: fieldDefinition.Name,
 		}
-	}
 
-	//fmt.Printf("directive on fields: %+v\n", typeNamesAndFieldNamesWithDirective)
+		argSet := l.ArgumentSet(directive.ArgumentSet)
+		args := l.ArgumentsIterable(argSet)
+		for args.Next() {
+			arg, _ := args.Value()
+			if arg.Name == nameLiteral {
+				value := l.Value(arg.Value)
+				raw := l.ByteSlice(value.Raw)
+
+				//raw = bytes.Replace(raw,literal.QUOTE,nil,-1)
+
+				argName, _, err := mod.PutLiteralBytes(raw)
+				if err != nil {
+					return err
+				}
+
+				rewriteConfig.argumentName = argName
+			} else if arg.Name == contextKeyLiteral {
+				value := l.Value(arg.Value)
+				raw := l.ByteSlice(value.Raw)
+
+				//raw = bytes.Replace(raw,literal.QUOTE,nil,-1)
+
+				rewriteConfig.argumentValueContextKey = raw
+			}
+		}
+
+		typeNamesAndFieldNamesWithDirective[objectTypeDefinition.Name] = append(typeNamesAndFieldNamesWithDirective[objectTypeDefinition.Name], rewriteConfig)
+	}
 
 	w.SetLookup(l)
 	w.WalkExecutable()
