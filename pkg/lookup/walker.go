@@ -71,23 +71,30 @@ type walkerCache struct {
 	rootNodes           []int
 	fragmentDefinitions []int
 	fragmentSpreads     []int
+
+	fieldsContainingDirectiveFields     []int
+	fieldsContainingDirectiveObjects    []int
+	fieldsContainingDirectiveDirectives []int
 }
 
 func NewWalker(nodeCacheSize int, defaultCacheSize int) *Walker {
 	return &Walker{
 		nodes: make([]Node, 0, nodeCacheSize),
 		c: walkerCache{
-			operationDefinition: make([]int, 0, defaultCacheSize),
-			argumentSets:        make([]int, 0, defaultCacheSize),
-			arguments:           make([]int, 0, defaultCacheSize),
-			directives:          make([]int, 0, defaultCacheSize),
-			directiveSets:       make([]int, 0, defaultCacheSize),
-			selectionSets:       make([]int, 0, defaultCacheSize),
-			fields:              make([]int, 0, defaultCacheSize),
-			fragmentDefinitions: make([]int, 0, defaultCacheSize),
-			fragmentSpreads:     make([]int, 0, defaultCacheSize),
-			path:                make([]int, 16),
-			rootNodes:           make([]int, 32),
+			operationDefinition:                 make([]int, 0, defaultCacheSize),
+			argumentSets:                        make([]int, 0, defaultCacheSize),
+			arguments:                           make([]int, 0, defaultCacheSize),
+			directives:                          make([]int, 0, defaultCacheSize),
+			directiveSets:                       make([]int, 0, defaultCacheSize),
+			selectionSets:                       make([]int, 0, defaultCacheSize),
+			fields:                              make([]int, 0, defaultCacheSize),
+			fragmentDefinitions:                 make([]int, 0, defaultCacheSize),
+			fragmentSpreads:                     make([]int, 0, defaultCacheSize),
+			fieldsContainingDirectiveFields:     make([]int, 0, defaultCacheSize),
+			fieldsContainingDirectiveObjects:    make([]int, 0, defaultCacheSize),
+			fieldsContainingDirectiveDirectives: make([]int, 0, defaultCacheSize),
+			path:      make([]int, 16),
+			rootNodes: make([]int, 32),
 		},
 	}
 }
@@ -106,6 +113,9 @@ func (w *Walker) SetLookup(l *Lookup) {
 	w.c.fields = w.c.fields[:0]
 	w.c.fragmentDefinitions = w.c.fragmentDefinitions[:0]
 	w.c.fragmentSpreads = w.c.fragmentSpreads[:0]
+	w.c.fieldsContainingDirectiveFields = w.c.fieldsContainingDirectiveFields[:0]
+	w.c.fieldsContainingDirectiveObjects = w.c.fieldsContainingDirectiveObjects[:0]
+	w.c.fieldsContainingDirectiveDirectives = w.c.fieldsContainingDirectiveDirectives[:0]
 	w.c.path = w.c.path[:0]
 	w.c.rootNodes = w.c.rootNodes[:0]
 }
