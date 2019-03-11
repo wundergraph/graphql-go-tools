@@ -962,6 +962,34 @@ func mustParseSelectionSet(rules ruleSet) checkFunc {
 	}
 }
 
+func mustContainSelectionSet(ref int, rules ruleSet) checkFunc {
+	return func(parser *Parser, i int) {
+		selectionSet := parser.ParsedDefinitions.SelectionSets[ref]
+		rules.eval(selectionSet, parser, i)
+	}
+}
+
+func mustAppendFieldToSelectionSet(setRef int, fieldName string) checkFunc {
+	return func(parser *Parser, i int) {
+		mod := NewManualAstMod(parser)
+		fieldNameRef, _, err := mod.PutLiteralString(fieldName)
+		if err != nil {
+			panic(err)
+		}
+		fieldRef := mod.PutField(document.Field{
+			Name: fieldNameRef,
+		})
+		mod.AppendFieldToSelectionSet(fieldRef, setRef)
+	}
+}
+
+func mustDeleteFieldFromSelectionSet(setRef, fieldRef int) checkFunc {
+	return func(parser *Parser, i int) {
+		mod := NewManualAstMod(parser)
+		mod.DeleteFieldFromSelectionSet(fieldRef, setRef)
+	}
+}
+
 func mustParseUnionTypeDefinition(rules ...ruleSet) checkFunc {
 	return func(parser *Parser, i int) {
 		var index []int
