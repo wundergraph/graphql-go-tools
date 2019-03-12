@@ -1439,6 +1439,8 @@ func (l *Lookup) DirectiveLocationFromNode(node Node) document.DirectiveLocation
 	switch node.Kind {
 	case FIELD:
 		return document.DirectiveLocationFIELD
+	case FIELD_DEFINITION:
+		return document.DirectiveLocationFIELD_DEFINITION
 	case OPERATION_DEFINITION:
 		definition := l.OperationDefinition(node.Ref)
 		switch definition.OperationType {
