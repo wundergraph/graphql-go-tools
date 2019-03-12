@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
@@ -11,7 +12,8 @@ func (p *Parser) parseEnumValuesDefinition(index *[]int) error {
 		return nil
 	}
 
-	var description *document.ByteSliceReference
+	var hasDescription bool
+	var description document.ByteSliceReference
 
 	for {
 		next := p.l.Peek(true)
@@ -19,22 +21,26 @@ func (p *Parser) parseEnumValuesDefinition(index *[]int) error {
 		if next == keyword.STRING {
 
 			stringToken := p.l.Read()
-			description = &stringToken.Literal
+			description = stringToken.Literal
+			hasDescription = true
 			continue
 
 		} else if next == keyword.IDENT {
 			ident := p.l.Read()
 			definition := p.makeEnumValueDefinition()
 			definition.EnumValue = p.putByteSliceReference(ident.Literal)
-			if description != nil {
-				definition.Description = *description
+			if hasDescription {
+				definition.Description = description
+				hasDescription = false
 			}
-
-			description = nil
 
 			err := p.parseDirectives(&definition.DirectiveSet)
 			if err != nil {
 				return err
+			}
+
+			if len(*index) == cap(*index) {
+				fmt.Println("must grow", len(*index))
 			}
 
 			*index = append(*index, p.putEnumValueDefinition(definition))
