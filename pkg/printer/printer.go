@@ -304,7 +304,7 @@ func (p *Printer) PrintDirectiveDefinition(ref int) {
 	p.PrintDirectiveLocations(definition.DirectiveLocations)
 }
 
-func (p *Printer) PrintDirectiveLocations(locations document.DirectiveLocations) {
+func (p *Printer) PrintDirectiveLocations(locations []int) {
 	var addPipe bool
 	for _, location := range locations {
 
@@ -314,7 +314,7 @@ func (p *Printer) PrintDirectiveLocations(locations document.DirectiveLocations)
 			p.write(literal.SPACE)
 		}
 
-		p.write([]byte(location.String()))
+		p.write([]byte(document.DirectiveLocation(location).String()))
 
 		addPipe = true
 	}

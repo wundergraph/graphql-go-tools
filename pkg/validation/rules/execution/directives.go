@@ -1,7 +1,6 @@
 package execution
 
 import (
-	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lookup"
 	"github.com/jensneuse/graphql-go-tools/pkg/validation"
 	"github.com/jensneuse/graphql-go-tools/pkg/validation/rules"
@@ -30,7 +29,7 @@ func DirectivesAreDefined() rules.ExecutionRule {
 
 func DirectivesAreInValidLocations() rules.ExecutionRule {
 
-	locationIsValid := func(validLocations document.DirectiveLocations, actual document.DirectiveLocation) bool {
+	locationIsValid := func(validLocations []int, actual int) bool {
 		for _, expected := range validLocations {
 			if expected == actual {
 				return true
@@ -58,7 +57,7 @@ func DirectivesAreInValidLocations() rules.ExecutionRule {
 				// they're always attached to a parent node and therefore this case can currently not occur
 
 				directiveLocation := l.DirectiveLocationFromNode(node)
-				if !locationIsValid(definition.DirectiveLocations, directiveLocation) {
+				if !locationIsValid(definition.DirectiveLocations, int(directiveLocation)) {
 					return validation.Invalid(validation.DirectivesAreInValidLocations, validation.DirectiveLocationInvalid, directive.Position, directive.Name)
 				}
 			}
