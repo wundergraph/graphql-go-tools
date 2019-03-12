@@ -114,8 +114,8 @@ func hasDirectiveLocations(locations ...document.DirectiveLocation) rule {
 
 		for k, wantLocation := range locations {
 			gotLocation := got[k]
-			if wantLocation != gotLocation {
-				panic(fmt.Errorf("mustParseDirectiveDefinition: want(location: %d): %s, got: %s", k, wantLocation.String(), gotLocation.String()))
+			if int(wantLocation) != gotLocation {
+				panic(fmt.Errorf("mustParseDirectiveDefinition: want(location: %d): %s, got: %s", k, wantLocation.String(), document.DirectiveLocation(gotLocation).String()))
 			}
 		}
 	}
@@ -650,7 +650,7 @@ func mustParseDefaultValue(wantValueType document.ValueType) checkFunc {
 func mustParseDirectiveDefinition(rules ...ruleSet) checkFunc {
 	return func(parser *Parser, i int) {
 		var index []int
-		if err := parser.parseDirectiveDefinition(nil, &index); err != nil {
+		if err := parser.parseDirectiveDefinition(false, token.Token{}, &index); err != nil {
 			panic(err)
 		}
 
@@ -680,7 +680,7 @@ func mustParseDirectives(directives ...ruleSet) checkFunc {
 func mustParseEnumTypeDefinition(rules ...rule) checkFunc {
 	return func(parser *Parser, i int) {
 		var index []int
-		if err := parser.parseEnumTypeDefinition(nil, &index); err != nil {
+		if err := parser.parseEnumTypeDefinition(false, token.Token{}, &index); err != nil {
 			panic(err)
 		}
 
@@ -833,7 +833,7 @@ func mustParseInputFieldsDefinition(rules ...rule) checkFunc {
 func mustParseInputObjectTypeDefinition(rules ...ruleSet) checkFunc {
 	return func(parser *Parser, i int) {
 		var index []int
-		if err := parser.parseInputObjectTypeDefinition(nil, &index); err != nil {
+		if err := parser.parseInputObjectTypeDefinition(false, token.Token{}, &index); err != nil {
 			panic(err)
 		}
 
@@ -861,7 +861,7 @@ func mustParseInputValueDefinitions(rules ...ruleSet) checkFunc {
 func mustParseInterfaceTypeDefinition(rules ...ruleSet) checkFunc {
 	return func(parser *Parser, i int) {
 		var index []int
-		if err := parser.parseInterfaceTypeDefinition(nil, &index); err != nil {
+		if err := parser.parseInterfaceTypeDefinition(false, token.Token{}, &index); err != nil {
 			panic(err)
 		}
 
@@ -875,7 +875,7 @@ func mustParseInterfaceTypeDefinition(rules ...ruleSet) checkFunc {
 func mustParseObjectTypeDefinition(rules ...ruleSet) checkFunc {
 	return func(parser *Parser, i int) {
 		var index []int
-		if err := parser.parseObjectTypeDefinition(nil, &index); err != nil {
+		if err := parser.parseObjectTypeDefinition(false, token.Token{}, &index); err != nil {
 			panic(err)
 		}
 
@@ -912,7 +912,7 @@ func mustContainOperationDefinition(rules ...ruleSet) checkFunc {
 func mustParseScalarTypeDefinition(rules ...ruleSet) checkFunc {
 	return func(parser *Parser, i int) {
 		var index []int
-		if err := parser.parseScalarTypeDefinition(nil, &index); err != nil {
+		if err := parser.parseScalarTypeDefinition(false, token.Token{}, &index); err != nil {
 			panic(err)
 		}
 
@@ -937,7 +937,8 @@ func mustParseTypeSystemDefinition(rules ruleSet) checkFunc {
 
 func mustParseSchemaDefinition(rules ...rule) checkFunc {
 	return func(parser *Parser, i int) {
-		typeSystemDefinition := parser.makeTypeSystemDefinition()
+		var typeSystemDefinition document.TypeSystemDefinition
+		parser.initTypeSystemDefinition(&typeSystemDefinition)
 		err := parser.parseSchemaDefinition(&typeSystemDefinition.SchemaDefinition)
 		if err != nil {
 			panic(err)
@@ -993,7 +994,7 @@ func mustDeleteFieldFromSelectionSet(setRef, fieldRef int) checkFunc {
 func mustParseUnionTypeDefinition(rules ...ruleSet) checkFunc {
 	return func(parser *Parser, i int) {
 		var index []int
-		if err := parser.parseUnionTypeDefinition(nil, &index); err != nil {
+		if err := parser.parseUnionTypeDefinition(false, token.Token{}, &index); err != nil {
 			panic(err)
 		}
 
