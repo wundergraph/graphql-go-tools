@@ -11,6 +11,7 @@ import (
 
 // Lexer emits tokens from a input reader
 type Lexer struct {
+	_storage                             [65535]byte
 	input                                []byte
 	inputPosition                        int
 	typeSystemEndPosition                int
@@ -34,7 +35,9 @@ func (l *Lexer) SetTypeSystemInput(input []byte) error {
 		return fmt.Errorf("SetTypeSystemInput: input size must not be > %d, got: %d", uint16Max, len(input))
 	}
 
-	l.input = input
+	l.input = l._storage[:0]
+	l.input = append(l.input, input...)
+
 	l.inputPosition = 0
 	l.textPosition.LineStart = 1
 	l.textPosition.CharStart = 1
@@ -44,7 +47,7 @@ func (l *Lexer) SetTypeSystemInput(input []byte) error {
 }
 
 func (l *Lexer) ResetTypeSystemInput() {
-	l.input = l.input[:0]
+	l.input = l._storage[:0]
 	l.inputPosition = 0
 	l.textPosition.LineStart = 1
 	l.textPosition.CharStart = 1
@@ -65,8 +68,7 @@ func (l *Lexer) AppendBytes(input []byte) (err error) {
 
 func (l *Lexer) SetExecutableInput(input []byte) error {
 
-	l.input = l.input[:l.typeSystemEndPosition]
-	l.input = append(l.input, input...)
+	l.input = append(l.input[:l.typeSystemEndPosition], input...)
 
 	if len(input) > uint16Max {
 		return fmt.Errorf("SetTypeSystemInput: input size must not be > %d, got: %d", uint16Max, len(input))
