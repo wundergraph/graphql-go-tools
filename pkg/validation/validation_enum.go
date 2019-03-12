@@ -149,6 +149,8 @@ const (
 	DirectivesAreInValidLocations
 	// DirectivesAreUniquePerLocation is a RuleName of type DirectivesAreUniquePerLocation
 	DirectivesAreUniquePerLocation
+	// DirectivesHaveRequiredArguments is a RuleName of type DirectivesHaveRequiredArguments
+	DirectivesHaveRequiredArguments
 	// FieldSelectionMerging is a RuleName of type FieldSelectionMerging
 	FieldSelectionMerging
 	// FieldSelections is a RuleName of type FieldSelections
@@ -177,7 +179,7 @@ const (
 	AllVariableUsesDefined
 )
 
-const _RuleNameName = "NoRuleArgumentUniquenessDirectivesAreDefinedDirectivesAreInValidLocationsDirectivesAreUniquePerLocationFieldSelectionMergingFieldSelectionsFragmentsLoneAnonymousOperationOperationNameUniquenessRequiredArgumentsSubscriptionSingleRootFieldValidArgumentsValuesVariableUniquenessVariablesAreInputTypesAllVariablesUsedAllVariableUsesDefined"
+const _RuleNameName = "NoRuleArgumentUniquenessDirectivesAreDefinedDirectivesAreInValidLocationsDirectivesAreUniquePerLocationDirectivesHaveRequiredArgumentsFieldSelectionMergingFieldSelectionsFragmentsLoneAnonymousOperationOperationNameUniquenessRequiredArgumentsSubscriptionSingleRootFieldValidArgumentsValuesVariableUniquenessVariablesAreInputTypesAllVariablesUsedAllVariableUsesDefined"
 
 var _RuleNameMap = map[RuleName]string{
 	0:  _RuleNameName[0:6],
@@ -185,19 +187,20 @@ var _RuleNameMap = map[RuleName]string{
 	2:  _RuleNameName[24:44],
 	3:  _RuleNameName[44:73],
 	4:  _RuleNameName[73:103],
-	5:  _RuleNameName[103:124],
-	6:  _RuleNameName[124:139],
-	7:  _RuleNameName[139:148],
-	8:  _RuleNameName[148:170],
-	9:  _RuleNameName[170:193],
-	10: _RuleNameName[193:210],
-	11: _RuleNameName[210:237],
-	12: _RuleNameName[237:251],
-	13: _RuleNameName[251:257],
-	14: _RuleNameName[257:275],
-	15: _RuleNameName[275:297],
-	16: _RuleNameName[297:313],
-	17: _RuleNameName[313:335],
+	5:  _RuleNameName[103:134],
+	6:  _RuleNameName[134:155],
+	7:  _RuleNameName[155:170],
+	8:  _RuleNameName[170:179],
+	9:  _RuleNameName[179:201],
+	10: _RuleNameName[201:224],
+	11: _RuleNameName[224:241],
+	12: _RuleNameName[241:268],
+	13: _RuleNameName[268:282],
+	14: _RuleNameName[282:288],
+	15: _RuleNameName[288:306],
+	16: _RuleNameName[306:328],
+	17: _RuleNameName[328:344],
+	18: _RuleNameName[344:366],
 }
 
 // String implements the Stringer interface.
@@ -214,19 +217,20 @@ var _RuleNameValue = map[string]RuleName{
 	_RuleNameName[24:44]:   2,
 	_RuleNameName[44:73]:   3,
 	_RuleNameName[73:103]:  4,
-	_RuleNameName[103:124]: 5,
-	_RuleNameName[124:139]: 6,
-	_RuleNameName[139:148]: 7,
-	_RuleNameName[148:170]: 8,
-	_RuleNameName[170:193]: 9,
-	_RuleNameName[193:210]: 10,
-	_RuleNameName[210:237]: 11,
-	_RuleNameName[237:251]: 12,
-	_RuleNameName[251:257]: 13,
-	_RuleNameName[257:275]: 14,
-	_RuleNameName[275:297]: 15,
-	_RuleNameName[297:313]: 16,
-	_RuleNameName[313:335]: 17,
+	_RuleNameName[103:134]: 5,
+	_RuleNameName[134:155]: 6,
+	_RuleNameName[155:170]: 7,
+	_RuleNameName[170:179]: 8,
+	_RuleNameName[179:201]: 9,
+	_RuleNameName[201:224]: 10,
+	_RuleNameName[224:241]: 11,
+	_RuleNameName[241:268]: 12,
+	_RuleNameName[268:282]: 13,
+	_RuleNameName[282:288]: 14,
+	_RuleNameName[288:306]: 15,
+	_RuleNameName[306:328]: 16,
+	_RuleNameName[328:344]: 17,
+	_RuleNameName[344:366]: 18,
 }
 
 // ParseRuleName attempts to convert a string to a RuleName
