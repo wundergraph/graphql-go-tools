@@ -5,7 +5,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
 )
 
-func (p *Parser) parseEnumTypeDefinition(description *token.Token, index *[]int) error {
+func (p *Parser) parseEnumTypeDefinition(hasDescription bool, description token.Token, index *[]int) error {
 
 	start, err := p.readExpect(keyword.ENUM, "parseEnumTypeDefinition")
 	if err != nil {
@@ -14,7 +14,7 @@ func (p *Parser) parseEnumTypeDefinition(description *token.Token, index *[]int)
 
 	definition := p.makeEnumTypeDefinition()
 
-	if description != nil {
+	if hasDescription {
 		definition.Position.MergeStartIntoStart(description.TextPosition)
 		definition.Description = description.Literal
 	} else {

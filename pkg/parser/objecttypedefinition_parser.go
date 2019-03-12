@@ -5,7 +5,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
 )
 
-func (p *Parser) parseObjectTypeDefinition(description *token.Token, index *[]int) error {
+func (p *Parser) parseObjectTypeDefinition(hasDescription bool, description token.Token, index *[]int) error {
 
 	start, err := p.readExpect(keyword.TYPE, "parseObjectTypeDefinition")
 	if err != nil {
@@ -20,7 +20,7 @@ func (p *Parser) parseObjectTypeDefinition(description *token.Token, index *[]in
 	definition := p.makeObjectTypeDefinition()
 	definition.Name = p.putByteSliceReference(objectTypeName.Literal)
 
-	if description != nil {
+	if hasDescription {
 		definition.Position.MergeStartIntoStart(description.TextPosition)
 		definition.Description = description.Literal
 	} else {
