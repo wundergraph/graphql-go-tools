@@ -217,20 +217,29 @@ func TestParser_IntrospectionQuery(t *testing.T) {
 
 func BenchmarkParser(b *testing.B) {
 
-	b.ReportAllocs()
+	parser := NewParser(WithMinimumSliceSize(32))
 
-	parser := NewParser()
+	schemaData, err := ioutil.ReadFile("./testdata/starwars.schema.graphql")
+	if err != nil {
+		b.Fatal(err)
+	}
 
-	testData, err := ioutil.ReadFile("./testdata/introspectionquery.graphql")
+	queryData, err := ioutil.ReadFile("./testdata/introspectionquery.graphql")
 	if err != nil {
 		b.Fatal(err)
 	}
 
 	b.ResetTimer()
+	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
 
-		err := parser.ParseExecutableDefinition(testData)
+		err = parser.ParseTypeSystemDefinition(schemaData)
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		err = parser.ParseExecutableDefinition(queryData)
 		if err != nil {
 			b.Fatal(err)
 		}
