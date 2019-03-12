@@ -8,7 +8,7 @@ type DirectiveDefinition struct {
 	Description         ByteSliceReference
 	Name                int
 	ArgumentsDefinition int
-	DirectiveLocations  DirectiveLocations
+	DirectiveLocations  []int
 	Position            position.Position
 }
 
@@ -138,17 +138,6 @@ func (d DirectiveDefinition) NodeDirectiveDefinitions() []int {
 
 func (d DirectiveDefinition) NodeUnionMemberTypes() []int {
 	panic("implement me")
-}
-
-// ContainsLocation returns if the $location is contained
-func (d DirectiveDefinition) ContainsLocation(location DirectiveLocation) bool {
-	for _, dirLoc := range d.DirectiveLocations {
-		if dirLoc == location {
-			return true
-		}
-	}
-
-	return false
 }
 
 // DirectiveDefinitions is the plural of DirectiveDefinition
