@@ -6,7 +6,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/validation/rules"
 )
 
-func DirectivesAreDefined() rules.ExecutionRule {
+func DirectivesAreDefined() rules.Rule {
 	return func(l *lookup.Lookup, w *lookup.Walker) validation.Result {
 
 		sets := w.DirectiveSetIterable()
@@ -27,7 +27,7 @@ func DirectivesAreDefined() rules.ExecutionRule {
 	}
 }
 
-func DirectivesAreInValidLocations() rules.ExecutionRule {
+func DirectivesAreInValidLocations() rules.Rule {
 
 	locationIsValid := func(validLocations []int, actual int) bool {
 		for _, expected := range validLocations {
@@ -67,7 +67,7 @@ func DirectivesAreInValidLocations() rules.ExecutionRule {
 	}
 }
 
-func DirectivesAreUniquePerLocation() rules.ExecutionRule {
+func DirectivesAreUniquePerLocation() rules.Rule {
 
 	return func(l *lookup.Lookup, w *lookup.Walker) validation.Result {
 

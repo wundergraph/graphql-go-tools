@@ -7,7 +7,7 @@ import (
 )
 
 // ValidArguments checks if arguments present fit the input value definition
-func ValidArguments() rules.ExecutionRule {
+func ValidArguments() rules.Rule {
 	return func(l *lookup.Lookup, w *lookup.Walker) validation.Result {
 
 		argumentSets := w.ArgumentSetIterable()
@@ -42,7 +42,7 @@ func ValidArguments() rules.ExecutionRule {
 }
 
 // ArgumentUniqueness checks if arguments are unique per argument set
-func ArgumentUniqueness() rules.ExecutionRule {
+func ArgumentUniqueness() rules.Rule {
 	return func(l *lookup.Lookup, w *lookup.Walker) validation.Result {
 
 		iter := w.ArgumentSetIterable()
@@ -69,7 +69,7 @@ func ArgumentUniqueness() rules.ExecutionRule {
 }
 
 // RequiredArguments checks if required arguments are defined
-func RequiredArguments() rules.ExecutionRule {
+func RequiredArguments() rules.Rule {
 	return func(l *lookup.Lookup, w *lookup.Walker) validation.Result {
 
 		hasNamedArgument := func(argumentSet int, name int) bool {

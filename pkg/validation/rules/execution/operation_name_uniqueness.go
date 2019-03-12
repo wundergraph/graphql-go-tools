@@ -8,7 +8,7 @@ import (
 
 // OperationNameUniqueness
 // https://facebook.github.io/graphql/draft/#sec-Operation-Name-Uniqueness
-func OperationNameUniqueness() rules.ExecutionRule {
+func OperationNameUniqueness() rules.Rule {
 	return func(l *lookup.Lookup, w *lookup.Walker) validation.Result {
 
 		definitions := l.OperationDefinitions()

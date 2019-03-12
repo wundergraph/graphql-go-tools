@@ -7,7 +7,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/validation/rules"
 )
 
-func VariableUniqueness() rules.ExecutionRule {
+func VariableUniqueness() rules.Rule {
 	return func(l *lookup.Lookup, w *lookup.Walker) validation.Result {
 
 		iter := w.OperationDefinitionIterable()
@@ -39,7 +39,7 @@ func VariableUniqueness() rules.ExecutionRule {
 	}
 }
 
-func VariablesAreInputTypes() rules.ExecutionRule {
+func VariablesAreInputTypes() rules.Rule {
 	return func(l *lookup.Lookup, w *lookup.Walker) validation.Result {
 		iter := w.OperationDefinitionIterable()
 		for iter.Next() {
@@ -71,7 +71,7 @@ func VariablesAreInputTypes() rules.ExecutionRule {
 	}
 }
 
-func AllVariableUsesDefined() rules.ExecutionRule {
+func AllVariableUsesDefined() rules.Rule {
 	return func(l *lookup.Lookup, w *lookup.Walker) validation.Result {
 
 		isVariable := func(value document.Value) bool {
@@ -104,7 +104,7 @@ func AllVariableUsesDefined() rules.ExecutionRule {
 	}
 }
 
-func AllVariablesUsed() rules.ExecutionRule {
+func AllVariablesUsed() rules.Rule {
 	return func(l *lookup.Lookup, w *lookup.Walker) validation.Result {
 
 		isVariable := func(value document.Value) bool {

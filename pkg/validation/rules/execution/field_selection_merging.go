@@ -9,7 +9,7 @@ import (
 
 // FieldSelectionMerging
 // https://facebook.github.io/graphql/draft/#sec-Field-Selection-Merging
-func FieldSelectionMerging() rules.ExecutionRule {
+func FieldSelectionMerging() rules.Rule {
 
 	return func(l *lookup.Lookup, w *lookup.Walker) validation.Result {
 

@@ -8,7 +8,7 @@ import (
 )
 
 // FieldSelections
-func FieldSelections() rules.ExecutionRule {
+func FieldSelections() rules.Rule {
 	return func(l *lookup.Lookup, w *lookup.Walker) validation.Result {
 
 		for _, operation := range l.OperationDefinitions() {

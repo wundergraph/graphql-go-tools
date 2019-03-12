@@ -17,7 +17,7 @@ func New() *Validator {
 }
 
 var (
-	DefaultExecutionRules = []rules.ExecutionRule{
+	DefaultExecutionRules = []rules.Rule{
 		execution.ArgumentUniqueness(),
 		execution.RequiredArguments(),
 		execution.ValidArguments(),
@@ -43,7 +43,7 @@ func (v *Validator) SetInput(l *lookup.Lookup, w *lookup.Walker) {
 	v.w = w
 }
 
-func (v *Validator) ValidateExecutableDefinition(executionRules []rules.ExecutionRule) (result validation.Result) {
+func (v *Validator) ValidateExecutableDefinition(executionRules []rules.Rule) (result validation.Result) {
 
 	for _, rule := range executionRules {
 		result = rule(v.l, v.w)

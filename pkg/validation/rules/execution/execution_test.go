@@ -10,7 +10,7 @@ import (
 
 func TestExecutionValidation(t *testing.T) {
 
-	run := func(input string, rule rules.ExecutionRule, valid bool) {
+	run := func(input string, rule rules.Rule, valid bool) {
 		p := parser.NewParser()
 		err := p.ParseTypeSystemDefinition(testDefinition)
 		if err != nil {
@@ -2528,7 +2528,7 @@ func TestExecutionValidation(t *testing.T) {
 
 func BenchmarkExecutionValidation(t *testing.B) {
 
-	run := func(b *testing.B, input string, rule rules.ExecutionRule, valid bool) {
+	run := func(b *testing.B, input string, rule rules.Rule, valid bool) {
 		p := parser.NewParser()
 		err := p.ParseTypeSystemDefinition(testDefinition)
 		if err != nil {
