@@ -42,6 +42,7 @@ ArgumentUniqueness
 DirectivesAreDefined
 DirectivesAreInValidLocations
 DirectivesAreUniquePerLocation
+DirectivesHaveRequiredArguments
 FieldSelectionMerging
 FieldSelections
 Fragments
