@@ -16,6 +16,8 @@ const (
 	ArgumentMustBeUnique
 	// ArgumentRequired is a Description of type ArgumentRequired
 	ArgumentRequired
+	// ArgumentValueTypeMismatch is a Description of type ArgumentValueTypeMismatch
+	ArgumentValueTypeMismatch
 	// DirectiveNotDefined is a Description of type DirectiveNotDefined
 	DirectiveNotDefined
 	// DirectiveLocationInvalid is a Description of type DirectiveLocationInvalid
@@ -62,35 +64,36 @@ const (
 	VariableDefinedButNotUsed
 )
 
-const _DescriptionName = "NoDescriptionAnonymousOperationMustBeLonePerDocumentArgumentMustBeUniqueArgumentRequiredDirectiveNotDefinedDirectiveLocationInvalidDirectiveMustBeUniquePerLocationFieldNameOrAliasMismatchFieldSelectionsInvalidFragmentNotDefinedFragmentSpreadCyclicReferenceFragmentDefinitionOnLeafNodeFragmentRedeclaredFragmentDeclaredButNeverUsedInputValueNotDefinedOperationNameMustBeUniqueRootTypeNotDefinedSelectionSetInvalidSelectionSetResponseShapesCannotMergeSubscriptionsMustHaveMaxOneRootFieldTypeNotDefinedValueInvalidVariableMustBeUniquePerOperationVariableMustBeValidInputTypeVariableNotDefinedVariableDefinedButNotUsed"
+const _DescriptionName = "NoDescriptionAnonymousOperationMustBeLonePerDocumentArgumentMustBeUniqueArgumentRequiredArgumentValueTypeMismatchDirectiveNotDefinedDirectiveLocationInvalidDirectiveMustBeUniquePerLocationFieldNameOrAliasMismatchFieldSelectionsInvalidFragmentNotDefinedFragmentSpreadCyclicReferenceFragmentDefinitionOnLeafNodeFragmentRedeclaredFragmentDeclaredButNeverUsedInputValueNotDefinedOperationNameMustBeUniqueRootTypeNotDefinedSelectionSetInvalidSelectionSetResponseShapesCannotMergeSubscriptionsMustHaveMaxOneRootFieldTypeNotDefinedValueInvalidVariableMustBeUniquePerOperationVariableMustBeValidInputTypeVariableNotDefinedVariableDefinedButNotUsed"
 
 var _DescriptionMap = map[Description]string{
 	0:  _DescriptionName[0:13],
 	1:  _DescriptionName[13:52],
 	2:  _DescriptionName[52:72],
 	3:  _DescriptionName[72:88],
-	4:  _DescriptionName[88:107],
-	5:  _DescriptionName[107:131],
-	6:  _DescriptionName[131:163],
-	7:  _DescriptionName[163:187],
-	8:  _DescriptionName[187:209],
-	9:  _DescriptionName[209:227],
-	10: _DescriptionName[227:256],
-	11: _DescriptionName[256:284],
-	12: _DescriptionName[284:302],
-	13: _DescriptionName[302:330],
-	14: _DescriptionName[330:350],
-	15: _DescriptionName[350:375],
-	16: _DescriptionName[375:393],
-	17: _DescriptionName[393:412],
-	18: _DescriptionName[412:449],
-	19: _DescriptionName[449:485],
-	20: _DescriptionName[485:499],
-	21: _DescriptionName[499:511],
-	22: _DescriptionName[511:543],
-	23: _DescriptionName[543:571],
-	24: _DescriptionName[571:589],
-	25: _DescriptionName[589:614],
+	4:  _DescriptionName[88:113],
+	5:  _DescriptionName[113:132],
+	6:  _DescriptionName[132:156],
+	7:  _DescriptionName[156:188],
+	8:  _DescriptionName[188:212],
+	9:  _DescriptionName[212:234],
+	10: _DescriptionName[234:252],
+	11: _DescriptionName[252:281],
+	12: _DescriptionName[281:309],
+	13: _DescriptionName[309:327],
+	14: _DescriptionName[327:355],
+	15: _DescriptionName[355:375],
+	16: _DescriptionName[375:400],
+	17: _DescriptionName[400:418],
+	18: _DescriptionName[418:437],
+	19: _DescriptionName[437:474],
+	20: _DescriptionName[474:510],
+	21: _DescriptionName[510:524],
+	22: _DescriptionName[524:536],
+	23: _DescriptionName[536:568],
+	24: _DescriptionName[568:596],
+	25: _DescriptionName[596:614],
+	26: _DescriptionName[614:639],
 }
 
 // String implements the Stringer interface.
@@ -106,28 +109,29 @@ var _DescriptionValue = map[string]Description{
 	_DescriptionName[13:52]:   1,
 	_DescriptionName[52:72]:   2,
 	_DescriptionName[72:88]:   3,
-	_DescriptionName[88:107]:  4,
-	_DescriptionName[107:131]: 5,
-	_DescriptionName[131:163]: 6,
-	_DescriptionName[163:187]: 7,
-	_DescriptionName[187:209]: 8,
-	_DescriptionName[209:227]: 9,
-	_DescriptionName[227:256]: 10,
-	_DescriptionName[256:284]: 11,
-	_DescriptionName[284:302]: 12,
-	_DescriptionName[302:330]: 13,
-	_DescriptionName[330:350]: 14,
-	_DescriptionName[350:375]: 15,
-	_DescriptionName[375:393]: 16,
-	_DescriptionName[393:412]: 17,
-	_DescriptionName[412:449]: 18,
-	_DescriptionName[449:485]: 19,
-	_DescriptionName[485:499]: 20,
-	_DescriptionName[499:511]: 21,
-	_DescriptionName[511:543]: 22,
-	_DescriptionName[543:571]: 23,
-	_DescriptionName[571:589]: 24,
-	_DescriptionName[589:614]: 25,
+	_DescriptionName[88:113]:  4,
+	_DescriptionName[113:132]: 5,
+	_DescriptionName[132:156]: 6,
+	_DescriptionName[156:188]: 7,
+	_DescriptionName[188:212]: 8,
+	_DescriptionName[212:234]: 9,
+	_DescriptionName[234:252]: 10,
+	_DescriptionName[252:281]: 11,
+	_DescriptionName[281:309]: 12,
+	_DescriptionName[309:327]: 13,
+	_DescriptionName[327:355]: 14,
+	_DescriptionName[355:375]: 15,
+	_DescriptionName[375:400]: 16,
+	_DescriptionName[400:418]: 17,
+	_DescriptionName[418:437]: 18,
+	_DescriptionName[437:474]: 19,
+	_DescriptionName[474:510]: 20,
+	_DescriptionName[510:524]: 21,
+	_DescriptionName[524:536]: 22,
+	_DescriptionName[536:568]: 23,
+	_DescriptionName[568:596]: 24,
+	_DescriptionName[596:614]: 25,
+	_DescriptionName[614:639]: 26,
 }
 
 // ParseDescription attempts to convert a string to a Description
@@ -151,6 +155,8 @@ const (
 	DirectivesAreUniquePerLocation
 	// DirectivesHaveRequiredArguments is a RuleName of type DirectivesHaveRequiredArguments
 	DirectivesHaveRequiredArguments
+	// DirectivesArgumentsAreDefined is a RuleName of type DirectivesArgumentsAreDefined
+	DirectivesArgumentsAreDefined
 	// FieldSelectionMerging is a RuleName of type FieldSelectionMerging
 	FieldSelectionMerging
 	// FieldSelections is a RuleName of type FieldSelections
@@ -179,7 +185,7 @@ const (
 	AllVariableUsesDefined
 )
 
-const _RuleNameName = "NoRuleArgumentUniquenessDirectivesAreDefinedDirectivesAreInValidLocationsDirectivesAreUniquePerLocationDirectivesHaveRequiredArgumentsFieldSelectionMergingFieldSelectionsFragmentsLoneAnonymousOperationOperationNameUniquenessRequiredArgumentsSubscriptionSingleRootFieldValidArgumentsValuesVariableUniquenessVariablesAreInputTypesAllVariablesUsedAllVariableUsesDefined"
+const _RuleNameName = "NoRuleArgumentUniquenessDirectivesAreDefinedDirectivesAreInValidLocationsDirectivesAreUniquePerLocationDirectivesHaveRequiredArgumentsDirectivesArgumentsAreDefinedFieldSelectionMergingFieldSelectionsFragmentsLoneAnonymousOperationOperationNameUniquenessRequiredArgumentsSubscriptionSingleRootFieldValidArgumentsValuesVariableUniquenessVariablesAreInputTypesAllVariablesUsedAllVariableUsesDefined"
 
 var _RuleNameMap = map[RuleName]string{
 	0:  _RuleNameName[0:6],
@@ -188,19 +194,20 @@ var _RuleNameMap = map[RuleName]string{
 	3:  _RuleNameName[44:73],
 	4:  _RuleNameName[73:103],
 	5:  _RuleNameName[103:134],
-	6:  _RuleNameName[134:155],
-	7:  _RuleNameName[155:170],
-	8:  _RuleNameName[170:179],
-	9:  _RuleNameName[179:201],
-	10: _RuleNameName[201:224],
-	11: _RuleNameName[224:241],
-	12: _RuleNameName[241:268],
-	13: _RuleNameName[268:282],
-	14: _RuleNameName[282:288],
-	15: _RuleNameName[288:306],
-	16: _RuleNameName[306:328],
-	17: _RuleNameName[328:344],
-	18: _RuleNameName[344:366],
+	6:  _RuleNameName[134:163],
+	7:  _RuleNameName[163:184],
+	8:  _RuleNameName[184:199],
+	9:  _RuleNameName[199:208],
+	10: _RuleNameName[208:230],
+	11: _RuleNameName[230:253],
+	12: _RuleNameName[253:270],
+	13: _RuleNameName[270:297],
+	14: _RuleNameName[297:311],
+	15: _RuleNameName[311:317],
+	16: _RuleNameName[317:335],
+	17: _RuleNameName[335:357],
+	18: _RuleNameName[357:373],
+	19: _RuleNameName[373:395],
 }
 
 // String implements the Stringer interface.
@@ -218,19 +225,20 @@ var _RuleNameValue = map[string]RuleName{
 	_RuleNameName[44:73]:   3,
 	_RuleNameName[73:103]:  4,
 	_RuleNameName[103:134]: 5,
-	_RuleNameName[134:155]: 6,
-	_RuleNameName[155:170]: 7,
-	_RuleNameName[170:179]: 8,
-	_RuleNameName[179:201]: 9,
-	_RuleNameName[201:224]: 10,
-	_RuleNameName[224:241]: 11,
-	_RuleNameName[241:268]: 12,
-	_RuleNameName[268:282]: 13,
-	_RuleNameName[282:288]: 14,
-	_RuleNameName[288:306]: 15,
-	_RuleNameName[306:328]: 16,
-	_RuleNameName[328:344]: 17,
-	_RuleNameName[344:366]: 18,
+	_RuleNameName[134:163]: 6,
+	_RuleNameName[163:184]: 7,
+	_RuleNameName[184:199]: 8,
+	_RuleNameName[199:208]: 9,
+	_RuleNameName[208:230]: 10,
+	_RuleNameName[230:253]: 11,
+	_RuleNameName[253:270]: 12,
+	_RuleNameName[270:297]: 13,
+	_RuleNameName[297:311]: 14,
+	_RuleNameName[311:317]: 15,
+	_RuleNameName[317:335]: 16,
+	_RuleNameName[335:357]: 17,
+	_RuleNameName[357:373]: 18,
+	_RuleNameName[373:395]: 19,
 }
 
 // ParseRuleName attempts to convert a string to a RuleName

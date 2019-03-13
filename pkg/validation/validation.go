@@ -43,6 +43,7 @@ DirectivesAreDefined
 DirectivesAreInValidLocations
 DirectivesAreUniquePerLocation
 DirectivesHaveRequiredArguments
+DirectivesArgumentsAreDefined
 FieldSelectionMerging
 FieldSelections
 Fragments
@@ -66,6 +67,7 @@ NoDescription
 AnonymousOperationMustBeLonePerDocument
 ArgumentMustBeUnique
 ArgumentRequired
+ArgumentValueTypeMismatch
 DirectiveNotDefined
 DirectiveLocationInvalid
 DirectiveMustBeUniquePerLocation
