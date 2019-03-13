@@ -112,6 +112,16 @@ func TestValidateTypeSystemDefinition_Directives(t *testing.T) {
 						}`,
 				DirectivesHaveRequiredArguments(), true)
 		})
+		t.Run("valid with default value", func(t *testing.T) {
+			run(`	directive @addArgumentFromContext(
+							name: String! = "user"
+							contextKey: String!
+						) on FIELD_DEFINITION
+						type Query {
+							documents: [Document] @addArgumentFromContext(contextKey: "user")
+						}`,
+				DirectivesHaveRequiredArguments(), true)
+		})
 		t.Run("arg missing", func(t *testing.T) {
 			run(`	directive @addArgumentFromContext(
 							name: String!
@@ -189,6 +199,28 @@ func TestValidateTypeSystemDefinition_Directives(t *testing.T) {
 							documents: [Document] @addArgumentFromContext(name: "user",contextKey: "user",argNotExists: true)
 						}`,
 				DirectiveArgumentsAreDefined(), false)
+		})
+	})
+	t.Run("directive arguments are constants", func(t *testing.T) {
+		t.Run("happy", func(t *testing.T) {
+			run(`	directive @addArgumentFromContext(
+						name: String!
+						contextKey: String!
+					) on FIELD_DEFINITION
+					type Query {
+						documents: [Document] @addArgumentFromContext(name: "user",contextKey: "user")
+					}`,
+				DirectiveArgumentsAreConstants(), true)
+		})
+		t.Run("variable value", func(t *testing.T) {
+			run(`	directive @addArgumentFromContext(
+						name: String!
+						contextKey: String!
+					) on FIELD_DEFINITION
+					type Query {
+						documents: [Document] @addArgumentFromContext(name: "user",contextKey: $user)
+					}`,
+				DirectiveArgumentsAreConstants(), false)
 		})
 	})
 }

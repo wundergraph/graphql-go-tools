@@ -116,6 +116,7 @@ func DirectivesHaveRequiredArguments() rules.Rule {
 			WithNextInputValueDefinition:
 				for inputValueDefinitions.Next() {
 					inputValueDefinition, _ := inputValueDefinitions.Value()
+					hasDefaultValue := inputValueDefinition.DefaultValue != -1
 					wantType := l.Type(inputValueDefinition.Type)
 					if wantType.Kind != document.TypeKindNON_NULL {
 						continue
@@ -123,11 +124,14 @@ func DirectivesHaveRequiredArguments() rules.Rule {
 					args := l.ArgumentsIterable(argumentSet)
 					for args.Next() {
 						argument, _ := args.Value()
-						if argument.Name == inputValueDefinition.Name && l.ValueIsValid(l.Value(argument.Value), wantType, nil, false) {
+						if argument.Name == inputValueDefinition.Name && l.ValueIsValid(l.Value(argument.Value), wantType, nil, hasDefaultValue) {
 							continue WithNextInputValueDefinition
 						}
 					}
-					return validation.Invalid(validation.DirectivesHaveRequiredArguments, validation.ArgumentRequired, directive.Position, inputValueDefinition.Name)
+
+					if !hasDefaultValue {
+						return validation.Invalid(validation.DirectivesHaveRequiredArguments, validation.ArgumentRequired, directive.Position, inputValueDefinition.Name)
+					}
 				}
 			}
 		}
@@ -171,6 +175,37 @@ func DirectiveArgumentsAreDefined() rules.Rule {
 			}
 		}
 
+		return validation.Valid()
+	}
+}
+
+func DirectiveArgumentsAreConstants() rules.Rule {
+	return func(l *lookup.Lookup, w *lookup.Walker) validation.Result {
+
+		sets := w.DirectiveSetIterable()
+		for sets.Next() {
+			set, _ := sets.Value()
+			directives := l.DirectiveIterable(set)
+			for directives.Next() {
+				directive, _ := directives.Value()
+				argumentSet := l.ArgumentSet(directive.ArgumentSet)
+				args := l.ArgumentsIterable(argumentSet)
+				for args.Next() {
+					argument, _ := args.Value()
+					value := l.Value(argument.Value)
+					if value.ValueType == document.ValueTypeVariable {
+						return validation.Invalid(validation.DirectiveArgumentsAreConstants, validation.ValueInvalid, value.Position, argument.Name)
+					}
+				}
+			}
+		}
+
+		return validation.Valid()
+	}
+}
+
+func DirectiveDefinitionDefaultValuesAreOfCorrectType() rules.Rule {
+	return func(l *lookup.Lookup, w *lookup.Walker) validation.Result {
 		return validation.Valid()
 	}
 }
