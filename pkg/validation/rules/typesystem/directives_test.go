@@ -142,5 +142,53 @@ func TestValidateTypeSystemDefinition_Directives(t *testing.T) {
 						}`,
 				DirectivesHaveRequiredArguments(), false)
 		})
+		t.Run("args missing", func(t *testing.T) {
+			run(`	directive @addArgumentFromContext(
+							name: String!
+							contextKey: String!
+						) on FIELD_DEFINITION
+						type Query {
+							documents: [Document] @addArgumentFromContext
+						}`,
+				DirectivesHaveRequiredArguments(), false)
+		})
+	})
+	t.Run("directive arguments are defined", func(t *testing.T) {
+		t.Run("happy path", func(t *testing.T) {
+			run(`	directive @addArgumentFromContext(
+						name: String!
+						contextKey: String!
+					) on FIELD_DEFINITION
+					type Query {
+						documents: [Document] @addArgumentFromContext(name: "user",contextKey: "user")
+					}`,
+				DirectiveArgumentsAreDefined(), true)
+		})
+		t.Run("value type mismatch", func(t *testing.T) {
+			run(`	directive @addArgumentFromContext(
+						name: String!
+						contextKey: String!
+					) on FIELD_DEFINITION
+					type Query {
+						documents: [Document] @addArgumentFromContext(name: "user",contextKey: 123456)
+					}`,
+				DirectiveArgumentsAreDefined(), false)
+		})
+		t.Run("arg not exists", func(t *testing.T) {
+			run(`	directive @addArgumentFromContext(
+						name: String!
+						contextKey: String!
+					) on FIELD_DEFINITION
+					type Query {
+						documents: [Document] @addArgumentFromContext(name: "user",contextKey: "user",argNotExists: true)
+					}`,
+				DirectiveArgumentsAreDefined(), false)
+		})
+		t.Run("definition missing", func(t *testing.T) {
+			run(`	type Query {
+							documents: [Document] @addArgumentFromContext(name: "user",contextKey: "user",argNotExists: true)
+						}`,
+				DirectiveArgumentsAreDefined(), false)
+		})
 	})
 }

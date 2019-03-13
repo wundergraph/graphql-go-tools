@@ -135,3 +135,42 @@ func DirectivesHaveRequiredArguments() rules.Rule {
 		return validation.Valid()
 	}
 }
+
+func DirectiveArgumentsAreDefined() rules.Rule {
+	return func(l *lookup.Lookup, w *lookup.Walker) validation.Result {
+
+		sets := w.DirectiveSetIterable()
+		for sets.Next() {
+			set, _ := sets.Value()
+			directives := l.DirectiveIterable(set)
+			for directives.Next() {
+				directive, _ := directives.Value()
+				definition, exists := l.DirectiveDefinitionByName(directive.Name)
+				if !exists {
+					return validation.Invalid(validation.DirectivesArgumentsAreDefined, validation.DirectiveNotDefined, directive.Position, directive.Name)
+				}
+				argumentsDefinition := l.ArgumentsDefinition(definition.ArgumentsDefinition)
+
+				argumentSet := l.ArgumentSet(directive.ArgumentSet)
+
+				args := l.ArgumentsIterable(argumentSet)
+				for args.Next() {
+					argument, _ := args.Value()
+
+					inputValueDefinition, ok := l.InputValueDefinitionByNameAndIndex(argument.Name, argumentsDefinition.InputValueDefinitions)
+					if !ok {
+						return validation.Invalid(validation.DirectivesArgumentsAreDefined, validation.InputValueNotDefined, argument.Position, argument.Name)
+					}
+
+					wantType := l.Type(inputValueDefinition.Type)
+
+					if !l.ValueIsValid(l.Value(argument.Value), wantType, nil, false) {
+						return validation.Invalid(validation.DirectivesArgumentsAreDefined, validation.ArgumentValueTypeMismatch, argument.Position, argument.Name)
+					}
+				}
+			}
+		}
+
+		return validation.Valid()
+	}
+}
