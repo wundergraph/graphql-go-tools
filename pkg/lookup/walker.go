@@ -75,6 +75,8 @@ type walkerCache struct {
 	fieldsContainingDirectiveFields     []int
 	fieldsContainingDirectiveObjects    []int
 	fieldsContainingDirectiveDirectives []int
+
+	directiveDefinitions []int
 }
 
 func NewWalker(nodeCacheSize int, defaultCacheSize int) *Walker {
@@ -93,8 +95,9 @@ func NewWalker(nodeCacheSize int, defaultCacheSize int) *Walker {
 			fieldsContainingDirectiveFields:     make([]int, 0, defaultCacheSize),
 			fieldsContainingDirectiveObjects:    make([]int, 0, defaultCacheSize),
 			fieldsContainingDirectiveDirectives: make([]int, 0, defaultCacheSize),
-			path:      make([]int, 16),
-			rootNodes: make([]int, 32),
+			directiveDefinitions:                make([]int, 0, defaultCacheSize),
+			path:                                make([]int, 16),
+			rootNodes:                           make([]int, 32),
 		},
 	}
 }
@@ -116,6 +119,7 @@ func (w *Walker) SetLookup(l *Lookup) {
 	w.c.fieldsContainingDirectiveFields = w.c.fieldsContainingDirectiveFields[:0]
 	w.c.fieldsContainingDirectiveObjects = w.c.fieldsContainingDirectiveObjects[:0]
 	w.c.fieldsContainingDirectiveDirectives = w.c.fieldsContainingDirectiveDirectives[:0]
+	w.c.directiveDefinitions = w.c.directiveDefinitions[:0]
 	w.c.path = w.c.path[:0]
 	w.c.rootNodes = w.c.rootNodes[:0]
 }
@@ -231,12 +235,13 @@ func (w *Walker) WalkEnumTypeDefinitions(refs []int) {
 func (w *Walker) WalkDirectiveDefinitions(refs []int) {
 	for _, i := range refs {
 		definition := w.l.p.ParsedDefinitions.DirectiveDefinitions[i]
-		w.putNode(Node{
+		ref := w.putNode(Node{
 			Kind:     DIRECTIVE_DEFINITION,
 			Parent:   -1,
 			Ref:      i,
 			Position: definition.Position,
 		})
+		w.c.directiveDefinitions = append(w.c.directiveDefinitions, ref)
 	}
 }
 

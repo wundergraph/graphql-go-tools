@@ -47,6 +47,20 @@ func (w *Walker) FragmentDefinitionIterable() FragmentDefinitionIterable {
 	}
 }
 
+type DirectiveDefinitionIterable struct {
+	Iterable
+}
+
+func (d *DirectiveDefinitionIterable) Value() (definition document.DirectiveDefinition, ref int) {
+	ref = d.ref()
+	definition = d.w.l.DirectiveDefinition(ref)
+	return
+}
+
+func (w *Walker) DirectiveDefinitionIterable() DirectiveDefinitionIterable {
+	return DirectiveDefinitionIterable{Iterable: w.newIterable(w.c.directiveDefinitions)}
+}
+
 type OperationDefinitionIterable struct {
 	Iterable
 }
