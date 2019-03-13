@@ -1,4 +1,4 @@
-package handler
+package proxy
 
 // SchemaProvider exists because it's not usually the case for the handler to keep the schema around
 // Think multi tenant SaaS applications where a handler might handle schemas for many tenants
