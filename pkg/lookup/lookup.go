@@ -911,6 +911,10 @@ func (l *Lookup) DirectiveSet(ref int) document.DirectiveSet {
 	return l.p.ParsedDefinitions.DirectiveSets[ref]
 }
 
+func (l *Lookup) DirectiveDefinition(ref int) document.DirectiveDefinition {
+	return l.p.ParsedDefinitions.DirectiveDefinitions[ref]
+}
+
 func (l *Lookup) DirectiveDefinitionByName(name int) (document.DirectiveDefinition, bool) {
 	for _, definition := range l.p.ParsedDefinitions.DirectiveDefinitions {
 		if name == definition.Name {
