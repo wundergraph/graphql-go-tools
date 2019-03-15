@@ -2,6 +2,8 @@ package http
 
 import (
 	"context"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
+	"github.com/jensneuse/graphql-go-tools/pkg/testhelper"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -17,12 +19,12 @@ func TestProxyIntegration(t *testing.T) {
 
 	// middleware that extracts a "security token" from a header
 	checkUserMiddleware := func(h http.Handler) http.Handler {
-		f := func( w http.ResponseWriter, r *http.Request) {
+		f := func(w http.ResponseWriter, r *http.Request) {
 			userToken := r.Header.Get("user")
 			if userToken == "" {
 				t.Fatal("No user token found")
 			} else {
-				ctx := context.WithValue(r.Context(), "user", []byte(userToken))
+				ctx := context.WithValue(r.Context(), "user", append(literal.QUOTE, append([]byte(userToken), literal.QUOTE...)...))
 				h.ServeHTTP(w, r.WithContext(ctx))
 			}
 		}
@@ -35,8 +37,11 @@ func TestProxyIntegration(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
-		if string(body) != privateQuery {
-			t.Errorf("Expected %s, got %s", privateQuery, body)
+
+		want := testhelper.UglifyRequestString(privateQuery)
+
+		if string(body) != want {
+			t.Errorf("Expected %s, got %s", want, body)
 		}
 	})
 
@@ -44,6 +49,7 @@ func TestProxyIntegration(t *testing.T) {
 	defer endpointServer.Close()
 
 	schemaProvider := proxy.NewStaticSchemaProvider([]byte(publicSchema))
+
 	ip := sync.Pool{
 		New: func() interface{} {
 			return middleware.NewInvoker(&middleware.ContextMiddleware{})
