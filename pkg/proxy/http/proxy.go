@@ -93,9 +93,9 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func NewDefaultProxy(host string, provider proxy.SchemaProvider, middlewares... middleware.GraphqlMiddleware) *Proxy {
+func NewDefaultProxy(host string, provider proxy.SchemaProvider, middlewares ...middleware.GraphqlMiddleware) *Proxy {
 	return &Proxy{
-		Host: host,
+		Host:           host,
 		SchemaProvider: provider,
 		InvokerPool: sync.Pool{
 			New: func() interface{} {

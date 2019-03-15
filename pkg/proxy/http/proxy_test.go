@@ -32,10 +32,10 @@ func TestProxyHandler(t *testing.T) {
 		},
 	}
 	ph := &Proxy{
-		Host: es.URL,
+		Host:           es.URL,
 		SchemaProvider: schemaProvider,
-		InvokerPool: ip,
-		Client: *http.DefaultClient,
+		InvokerPool:    ip,
+		Client:         *http.DefaultClient,
 		HandleError: func(err error, w http.ResponseWriter) {
 			t.Fatal(err)
 		},
@@ -70,10 +70,10 @@ func BenchmarkProxyHandler(b *testing.B) {
 		},
 	}
 	ph := &Proxy{
-		Host: es.URL,
+		Host:           es.URL,
 		SchemaProvider: schemaProvider,
-		InvokerPool: ip,
-		Client: *http.DefaultClient,
+		InvokerPool:    ip,
+		Client:         *http.DefaultClient,
 		HandleError: func(err error, w http.ResponseWriter) {
 			b.Fatal(err)
 		},
