@@ -30,7 +30,7 @@ func TestContextMiddleware(t *testing.T) {
 			t.Error(err)
 		}
 
-		got := string(gotBytes.Bytes())
+		got := gotBytes.String()
 		want := testhelper.UglifyRequestString(privateQuery)
 
 		if want != got {

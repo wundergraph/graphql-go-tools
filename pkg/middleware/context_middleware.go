@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lookup"
@@ -144,14 +143,13 @@ func (a *ContextMiddleware) OnRequest(context context.Context, l *lookup.Lookup,
 
 					iArg := context.Value(string(i.argumentValueContextKey))
 					if iArg == nil {
-						return errors.New(fmt.Sprintf("No value for key: %v", string(i.argumentValueContextKey)))
+						return fmt.Errorf("OnRequest: No value for key: %s", string(i.argumentValueContextKey))
 					}
 					var argumentValue []byte
 					argumentValue, ok = iArg.([]byte)
 					if !ok {
-						return errors.New(fmt.Sprintf("Expected []byte, got: %v", reflect.TypeOf(iArg)))
+						return fmt.Errorf("OnRequest: Expected []byte, got: %v", reflect.TypeOf(iArg))
 					}
-					//fmt.Printf("argumentValue: %s\n", string(argumentValue))
 
 					argNameRef, argByteSliceRef, err := mod.PutLiteralBytes(argumentValue)
 					if err != nil {
