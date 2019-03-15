@@ -2,9 +2,11 @@ package middleware
 
 import (
 	"context"
+	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lookup"
 	"github.com/jensneuse/graphql-go-tools/pkg/parser"
+	"reflect"
 )
 
 /*
@@ -139,8 +141,15 @@ func (a *ContextMiddleware) OnRequest(context context.Context, l *lookup.Lookup,
 				if i.fieldName == field.Name {
 					//fmt.Printf("must merge args into: %d\n", field.ArgumentSet)
 
-					argumentValue := context.Value(string(i.argumentValueContextKey)).([]byte)
-					//fmt.Printf("argumentValue: %s\n", string(argumentValue))
+					iArg := context.Value(string(i.argumentValueContextKey))
+					if iArg == nil {
+						return fmt.Errorf("OnRequest: No value for key: %s", string(i.argumentValueContextKey))
+					}
+					var argumentValue []byte
+					argumentValue, ok = iArg.([]byte)
+					if !ok {
+						return fmt.Errorf("OnRequest: Expected []byte, got: %v", reflect.TypeOf(iArg))
+					}
 
 					argNameRef, argByteSliceRef, err := mod.PutLiteralBytes(argumentValue)
 					if err != nil {
