@@ -1,12 +1,16 @@
-package handler
+package http
 
 import (
-	"github.com/jensneuse/graphql-go-tools/hack/middleware"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
+
+	hackmiddleware "github.com/jensneuse/graphql-go-tools/hack/middleware"
+	"github.com/jensneuse/graphql-go-tools/pkg/middleware"
+	"github.com/jensneuse/graphql-go-tools/pkg/proxy"
 )
 
 func TestProxyHandler(t *testing.T) {
@@ -21,8 +25,21 @@ func TestProxyHandler(t *testing.T) {
 	}))
 	defer es.Close()
 
-	schemaProvider := NewStaticSchemaProvider([]byte(assetSchema))
-	ph := NewHttpProxyHandler(es.URL, schemaProvider, &middleware.AssetUrlMiddleware{})
+	schemaProvider := proxy.NewStaticSchemaProvider([]byte(assetSchema))
+	ip := sync.Pool{
+		New: func() interface{} {
+			return middleware.NewInvoker(&hackmiddleware.AssetUrlMiddleware{})
+		},
+	}
+	ph := &Proxy{
+		Host: es.URL,
+		SchemaProvider: schemaProvider,
+		InvokerPool: ip,
+		Client: *http.DefaultClient,
+		HandleError: func(err error, w http.ResponseWriter) {
+			t.Fatal(err)
+		},
+	}
 	ts := httptest.NewServer(ph)
 	defer ts.Close()
 
@@ -46,8 +63,21 @@ func BenchmarkProxyHandler(b *testing.B) {
 	}))
 	defer es.Close()
 
-	schemaProvider := NewStaticSchemaProvider([]byte(assetSchema))
-	ph := NewHttpProxyHandler(es.URL, schemaProvider, &middleware.AssetUrlMiddleware{})
+	schemaProvider := proxy.NewStaticSchemaProvider([]byte(assetSchema))
+	ip := sync.Pool{
+		New: func() interface{} {
+			return middleware.NewInvoker(&hackmiddleware.AssetUrlMiddleware{})
+		},
+	}
+	ph := &Proxy{
+		Host: es.URL,
+		SchemaProvider: schemaProvider,
+		InvokerPool: ip,
+		Client: *http.DefaultClient,
+		HandleError: func(err error, w http.ResponseWriter) {
+			b.Fatal(err)
+		},
+	}
 	ts := httptest.NewServer(ph)
 	defer ts.Close()
 
