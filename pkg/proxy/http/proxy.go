@@ -3,13 +3,13 @@ package http
 import (
 	"bytes"
 	"context"
-	"io"
-	"io/ioutil"
-	"net/http"
-	"sync"
-
 	"github.com/jensneuse/graphql-go-tools/pkg/middleware"
 	"github.com/jensneuse/graphql-go-tools/pkg/proxy"
+	"io"
+	"io/ioutil"
+	"log"
+	"net/http"
+	"sync"
 )
 
 type Proxy struct {
@@ -90,5 +90,23 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if _, err := w.Write(resp); err != nil {
 		p.HandleError(err, w)
+	}
+}
+
+func NewDefaultProxy(host string, provider proxy.SchemaProvider, middlewares... middleware.GraphqlMiddleware) *Proxy {
+	return &Proxy{
+		Host: host,
+		SchemaProvider: provider,
+		InvokerPool: sync.Pool{
+			New: func() interface{} {
+				return middleware.NewInvoker(middlewares...)
+			},
+		},
+		Client: *http.DefaultClient,
+		HandleError: func(err error, w http.ResponseWriter) {
+			log.Printf("Error: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(err.Error()))
+		},
 	}
 }
