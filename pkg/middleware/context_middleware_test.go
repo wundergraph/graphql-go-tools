@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/testhelper"
@@ -15,22 +14,7 @@ func TestContextMiddleware(t *testing.T) {
 		// we might push this including checks into the implementation
 		ctx = context.WithValue(ctx, "user", []byte(`"jsmith@example.org"`))
 
-		invoker := NewInvoker(&ContextMiddleware{})
-		schema := []byte(publicSchema)
-		if err := invoker.SetSchema(&schema); err != nil {
-			t.Error(err)
-		}
-		query := []byte(publicQuery)
-		if err := invoker.InvokeMiddleWares(ctx, &query); err != nil {
-			t.Error(err)
-		}
-
-		var gotBytes bytes.Buffer
-		if err := invoker.RewriteRequest(&gotBytes); err != nil {
-			t.Error(err)
-		}
-
-		got := gotBytes.String()
+		got := InvokeMiddleware(&ContextMiddleware{}, ctx, publicSchema, publicQuery)
 		want := testhelper.UglifyRequestString(privateQuery)
 
 		if want != got {
