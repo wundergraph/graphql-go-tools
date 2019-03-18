@@ -17,6 +17,8 @@ import (
 
 func TestProxyIntegration(t *testing.T) {
 
+	fakeResponse := `{"data":{"documents":[{"sensitiveInformation":"jsmith"},{"sensitiveInformation":"got proxied"}]}}`
+
 	// middleware that extracts a "security token" from a header
 	checkUserMiddleware := func(h http.Handler) http.Handler {
 		f := func(w http.ResponseWriter, r *http.Request) {
@@ -43,6 +45,8 @@ func TestProxyIntegration(t *testing.T) {
 		if string(body) != want {
 			t.Errorf("Expected %s, got %s", want, body)
 		}
+
+		_, err = w.Write([]byte(fakeResponse))
 	})
 
 	endpointServer := httptest.NewServer(endpointHandler)
@@ -76,9 +80,17 @@ func TestProxyIntegration(t *testing.T) {
 		}
 		request.Header.Set("user", "jsmith@example.org")
 		request.Header.Set("Content-Type", "application/graphql")
-		_, err = http.DefaultClient.Do(request)
+		resp, err := http.DefaultClient.Do(request)
 		if err != nil {
 			t.Error(err)
+		}
+
+		responseBody, _ := ioutil.ReadAll(resp.Body)
+
+		gotResponse := string(responseBody)
+		wantResponse := fakeResponse
+		if wantResponse != gotResponse {
+			t.Errorf("want response: '%s', got: '%s'", wantResponse, gotResponse)
 		}
 	})
 }
