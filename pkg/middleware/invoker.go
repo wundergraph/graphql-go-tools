@@ -33,8 +33,8 @@ func NewInvoker(middleWares ...GraphqlMiddleware) *Invoker {
 	}
 }
 
-func (i *Invoker) SetSchema(schema *[]byte) error {
-	return i.parse.ParseTypeSystemDefinition(*schema)
+func (i *Invoker) SetSchema(schema []byte) error {
+	return i.parse.ParseTypeSystemDefinition(schema)
 }
 
 func (i *Invoker) InvokeMiddleWares(context context.Context, request *[]byte) (err error) {
