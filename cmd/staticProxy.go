@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/middleware"
 	"github.com/jensneuse/graphql-go-tools/pkg/proxy/http"
+	http2 "net/http"
 	"runtime"
 	"time"
 
@@ -30,6 +31,8 @@ to quickly create a Cobra application.`,
 			Schema:     []byte(testSchema),
 			BackendURL: "http://0.0.0.0:8889/query",
 		})
+
+		http2.DefaultTransport.(*http2.Transport).MaxIdleConnsPerHost = 100
 
 		err := staticProxy.ListenAndServe("0.0.0.0:8888")
 		if err != nil {
