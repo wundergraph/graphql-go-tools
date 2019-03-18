@@ -1,0 +1,1 @@
+curl 'http://localhost:8888/query' -H 'Accept-Encoding: gzip, deflate, br' -H 'content-type: application/json' -H 'Connection: keep-alive' --data-binary '{"operationName":null,"variables":{},"query":"{\n  documents {\n    owner\n    sensitiveInformation\n  }\n}\n"}' --compressed -H 'user: jens'

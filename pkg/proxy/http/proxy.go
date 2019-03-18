@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"github.com/jensneuse/graphql-go-tools/pkg/middleware"
 	"github.com/jensneuse/graphql-go-tools/pkg/proxy"
 	"io"
@@ -22,6 +23,11 @@ type Proxy struct {
 	BufferedReaderPool sync.Pool
 }
 
+type GraphqlJsonRequest struct {
+	OperationName string `json:"operationName"`
+	Query         string `json:"query"`
+}
+
 func (p *Proxy) AcceptRequest(ctx context.Context, uri string, body io.ReadCloser, buff *bytes.Buffer) error {
 
 	schema := p.SchemaProvider.GetSchema(uri)
@@ -34,15 +40,18 @@ func (p *Proxy) AcceptRequest(ctx context.Context, uri string, body io.ReadClose
 		return err
 	}
 
-	_, err = buff.ReadFrom(body)
-	requestData := buff.Bytes()
-
-	err = invoker.InvokeMiddleWares(ctx, &requestData)
+	var graphqlJsonRequest GraphqlJsonRequest
+	err = json.NewDecoder(body).Decode(&graphqlJsonRequest)
 	if err != nil {
 		return err
 	}
 
-	buff.Reset()
+	query := []byte(graphqlJsonRequest.Query)
+
+	err = invoker.InvokeMiddleWares(ctx, &query)
+	if err != nil {
+		return err
+	}
 
 	err = invoker.RewriteRequest(buff)
 	if err != nil {
@@ -53,7 +62,19 @@ func (p *Proxy) AcceptRequest(ctx context.Context, uri string, body io.ReadClose
 }
 
 func (p *Proxy) DispatchRequest(buff *bytes.Buffer) (*http.Response, error) {
-	return p.Client.Post(p.Host, "application/graphql", buff)
+
+	req := GraphqlJsonRequest{
+		Query: buff.String(),
+	}
+
+	out := bytes.Buffer{}
+	err := json.NewEncoder(&out).Encode(req)
+	if err != nil {
+		return nil, err
+	}
+
+	//return p.Client.Post(p.Host, "application/graphql", buff)
+	return p.Client.Post(p.Host, "application/json", &out)
 }
 
 func (p *Proxy) AcceptResponse() {
@@ -69,7 +90,10 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	buff := p.BufferPool.Get().(*bytes.Buffer)
 	buff.Reset()
 
-	err := p.AcceptRequest(r.Context(), r.RequestURI, r.Body, buff)
+	ctx := r.Context()
+	ctx = context.WithValue(ctx, "user", []byte(r.Header.Get("user")))
+
+	err := p.AcceptRequest(ctx, r.RequestURI, r.Body, buff)
 	if err != nil {
 		p.BufferPool.Put(buff)
 		p.HandleError(err, w)
