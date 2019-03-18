@@ -28,7 +28,7 @@ type GraphqlJsonRequest struct {
 	Query         string `json:"query"`
 }
 
-func (p *Proxy) AcceptRequest(ctx context.Context, uri string, body io.ReadCloser, buff *bytes.Buffer) error {
+func (p *Proxy) AcceptRequest(ctx context.Context, uri string, body io.Reader, buff *bytes.Buffer) error {
 
 	schema := p.SchemaProvider.GetSchema(uri)
 
@@ -93,7 +93,10 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	ctx = context.WithValue(ctx, "user", []byte(r.Header.Get("user")))
 
-	err := p.AcceptRequest(ctx, r.RequestURI, r.Body, buff)
+	bufferedReader := p.BufferedReaderPool.Get().(*bufio.Reader)
+	bufferedReader.Reset(r.Body)
+
+	err := p.AcceptRequest(ctx, r.RequestURI, bufferedReader, buff)
 	if err != nil {
 		p.BufferPool.Put(buff)
 		p.HandleError(err, w)
@@ -102,26 +105,31 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	response, err := p.DispatchRequest(buff)
 	if err != nil {
+		p.BufferedReaderPool.Put(bufferedReader)
 		p.BufferPool.Put(buff)
-		p.HandleError(err, w)
+		r.Body.Close()
+		response.Body.Close()
 		return
 	}
 
 	// todo: implement the OnResponse handlers
 
-	bufferedReader := p.BufferedReaderPool.Get().(*bufio.Reader)
 	bufferedReader.Reset(response.Body)
 
 	_, err = bufferedReader.WriteTo(w)
 	if err != nil {
 		p.BufferedReaderPool.Put(bufferedReader)
 		p.BufferPool.Put(buff)
+		r.Body.Close()
+		response.Body.Close()
 		p.HandleError(err, w)
 		return
 	}
 
 	p.BufferedReaderPool.Put(bufferedReader)
 	p.BufferPool.Put(buff)
+	r.Body.Close()
+	response.Body.Close()
 }
 
 func NewDefaultProxy(host string, provider proxy.SchemaProvider, middlewares ...middleware.GraphqlMiddleware) *Proxy {
