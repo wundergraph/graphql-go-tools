@@ -33,6 +33,7 @@ ENUM_TYPE_DEFINITION
 INPUT_OBJECT
 INPUT_OBJECT_TYPE_DEFINITION
 INPUT_FIELD_DEFINITION
+INPUT_VALUE_DEFINITION
 OPERATION_DEFINITION
 DIRECTIVE_SET
 DIRECTIVE
@@ -70,23 +71,33 @@ type walkerCache struct {
 	rootNodes           []int
 	fragmentDefinitions []int
 	fragmentSpreads     []int
+
+	fieldsContainingDirectiveFields     []int
+	fieldsContainingDirectiveObjects    []int
+	fieldsContainingDirectiveDirectives []int
+
+	directiveDefinitions []int
 }
 
 func NewWalker(nodeCacheSize int, defaultCacheSize int) *Walker {
 	return &Walker{
 		nodes: make([]Node, 0, nodeCacheSize),
 		c: walkerCache{
-			operationDefinition: make([]int, 0, defaultCacheSize),
-			argumentSets:        make([]int, 0, defaultCacheSize),
-			arguments:           make([]int, 0, defaultCacheSize),
-			directives:          make([]int, 0, defaultCacheSize),
-			directiveSets:       make([]int, 0, defaultCacheSize),
-			selectionSets:       make([]int, 0, defaultCacheSize),
-			fields:              make([]int, 0, defaultCacheSize),
-			fragmentDefinitions: make([]int, 0, defaultCacheSize),
-			fragmentSpreads:     make([]int, 0, defaultCacheSize),
-			path:                make([]int, 16),
-			rootNodes:           make([]int, 32),
+			operationDefinition:                 make([]int, 0, defaultCacheSize),
+			argumentSets:                        make([]int, 0, defaultCacheSize),
+			arguments:                           make([]int, 0, defaultCacheSize),
+			directives:                          make([]int, 0, defaultCacheSize),
+			directiveSets:                       make([]int, 0, defaultCacheSize),
+			selectionSets:                       make([]int, 0, defaultCacheSize),
+			fields:                              make([]int, 0, defaultCacheSize),
+			fragmentDefinitions:                 make([]int, 0, defaultCacheSize),
+			fragmentSpreads:                     make([]int, 0, defaultCacheSize),
+			fieldsContainingDirectiveFields:     make([]int, 0, defaultCacheSize),
+			fieldsContainingDirectiveObjects:    make([]int, 0, defaultCacheSize),
+			fieldsContainingDirectiveDirectives: make([]int, 0, defaultCacheSize),
+			directiveDefinitions:                make([]int, 0, defaultCacheSize),
+			path:                                make([]int, 16),
+			rootNodes:                           make([]int, 32),
 		},
 	}
 }
@@ -105,6 +116,10 @@ func (w *Walker) SetLookup(l *Lookup) {
 	w.c.fields = w.c.fields[:0]
 	w.c.fragmentDefinitions = w.c.fragmentDefinitions[:0]
 	w.c.fragmentSpreads = w.c.fragmentSpreads[:0]
+	w.c.fieldsContainingDirectiveFields = w.c.fieldsContainingDirectiveFields[:0]
+	w.c.fieldsContainingDirectiveObjects = w.c.fieldsContainingDirectiveObjects[:0]
+	w.c.fieldsContainingDirectiveDirectives = w.c.fieldsContainingDirectiveDirectives[:0]
+	w.c.directiveDefinitions = w.c.directiveDefinitions[:0]
 	w.c.path = w.c.path[:0]
 	w.c.rootNodes = w.c.rootNodes[:0]
 }
@@ -148,12 +163,59 @@ func (w *Walker) WalkObjectTypeDefinitions(refs []int) {
 	iter := w.l.ObjectTypeDefinitionIterable(refs)
 	for iter.Next() {
 		ref, definition := iter.Value()
-		w.putNode(Node{
+		nodeRef := w.putNode(Node{
 			Ref:      ref,
 			Kind:     OBJECT_TYPE_DEFINITION,
 			Parent:   -1,
 			Position: definition.Position,
 		})
+
+		if len(definition.FieldsDefinition) != 0 {
+			w.walkFieldDefinitions(definition.FieldsDefinition, nodeRef)
+		}
+
+		if definition.DirectiveSet != -1 {
+			w.walkDirectiveSet(definition.DirectiveSet, nodeRef)
+		}
+	}
+}
+
+func (w *Walker) walkFieldDefinitions(refs []int, parent int) {
+
+	for _, ref := range refs {
+		definition := w.l.FieldDefinition(ref)
+		nodeRef := w.putNode(Node{
+			Kind:     FIELD_DEFINITION,
+			Parent:   parent,
+			Ref:      ref,
+			Position: definition.Position,
+		})
+
+		if definition.ArgumentsDefinition != -1 {
+			args := w.l.ArgumentsDefinition(definition.ArgumentsDefinition)
+			w.WalkInputValueDefinitions(args.InputValueDefinitions, nodeRef)
+		}
+
+		if definition.DirectiveSet != -1 {
+			w.walkDirectiveSet(definition.DirectiveSet, nodeRef)
+		}
+	}
+}
+
+func (w *Walker) WalkInputValueDefinitions(refs []int, parent int) {
+	iter := w.l.InputValueDefinitionIterator(refs)
+	for iter.Next() {
+		definition, ref := iter.Value()
+		nodeRef := w.putNode(Node{
+			Kind:     INPUT_VALUE_DEFINITION,
+			Position: definition.Position,
+			Ref:      ref,
+			Parent:   parent,
+		})
+
+		if definition.DirectiveSet != -1 {
+			w.walkDirectiveSet(definition.DirectiveSet, nodeRef)
+		}
 	}
 }
 
@@ -173,12 +235,13 @@ func (w *Walker) WalkEnumTypeDefinitions(refs []int) {
 func (w *Walker) WalkDirectiveDefinitions(refs []int) {
 	for _, i := range refs {
 		definition := w.l.p.ParsedDefinitions.DirectiveDefinitions[i]
-		w.putNode(Node{
+		ref := w.putNode(Node{
 			Kind:     DIRECTIVE_DEFINITION,
 			Parent:   -1,
 			Ref:      i,
 			Position: definition.Position,
 		})
+		w.c.directiveDefinitions = append(w.c.directiveDefinitions, ref)
 	}
 }
 

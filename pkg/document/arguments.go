@@ -31,7 +31,7 @@ func (a Argument) NodeValueType() ValueType {
 }
 
 func (a Argument) NodeValueReference() int {
-	panic("implement me")
+	return a.Value
 }
 
 func (a Argument) NodeUnionMemberTypes() []int {

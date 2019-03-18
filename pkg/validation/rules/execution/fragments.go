@@ -8,7 +8,7 @@ import (
 
 // Fragments
 // https://facebook.github.io/graphql/draft/#sec-Fragment-Name-Uniqueness
-func Fragments() rules.ExecutionRule {
+func Fragments() rules.Rule {
 	return func(l *lookup.Lookup, w *lookup.Walker) validation.Result {
 
 		definitions := l.FragmentDefinitions()

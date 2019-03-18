@@ -26,6 +26,7 @@ func (p *Printer) SetInput(parser *parser.Parser, l *lookup.Lookup, w *lookup.Wa
 	p.p = parser
 	p.l = l
 	p.w = w
+	p.err = nil
 }
 
 func (p *Printer) write(bytes []byte) {
@@ -35,7 +36,7 @@ func (p *Printer) write(bytes []byte) {
 	_, p.err = p.out.Write(bytes)
 }
 
-func (p *Printer) PrintTypeSystemDefinition(out io.Writer) {
+func (p *Printer) PrintTypeSystemDefinition(out io.Writer) error {
 
 	p.out = out
 
@@ -72,6 +73,7 @@ func (p *Printer) PrintTypeSystemDefinition(out io.Writer) {
 	}
 
 	p.write(literal.LINETERMINATOR)
+	return p.err
 }
 
 func (p *Printer) PrintSchemaDefinition() {
@@ -302,7 +304,7 @@ func (p *Printer) PrintDirectiveDefinition(ref int) {
 	p.PrintDirectiveLocations(definition.DirectiveLocations)
 }
 
-func (p *Printer) PrintDirectiveLocations(locations document.DirectiveLocations) {
+func (p *Printer) PrintDirectiveLocations(locations []int) {
 	var addPipe bool
 	for _, location := range locations {
 
@@ -312,7 +314,7 @@ func (p *Printer) PrintDirectiveLocations(locations document.DirectiveLocations)
 			p.write(literal.SPACE)
 		}
 
-		p.write([]byte(location.String()))
+		p.write([]byte(document.DirectiveLocation(location).String()))
 
 		addPipe = true
 	}
@@ -391,7 +393,7 @@ func (p *Printer) PrintInputObjectTypeDefinition(ref int) {
 	p.write(literal.CURLYBRACKETCLOSE)
 }
 
-func (p *Printer) PrintExecutableSchema(out io.Writer) {
+func (p *Printer) PrintExecutableSchema(out io.Writer) error {
 
 	p.out = out
 
@@ -415,6 +417,7 @@ func (p *Printer) PrintExecutableSchema(out io.Writer) {
 		p.printFragmentDefinition(fragment)
 		addNewLine = true
 	}
+	return p.err
 }
 
 func (p *Printer) printFragmentDefinition(fragment document.FragmentDefinition) {

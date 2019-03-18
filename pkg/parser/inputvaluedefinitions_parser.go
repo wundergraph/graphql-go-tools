@@ -13,7 +13,8 @@ import (
 
 func (p *Parser) parseInputValueDefinitions(index *[]int, closeKeyword keyword.Keyword) error {
 
-	var description *token.Token
+	var hasDescription bool
+	var description token.Token
 
 	for {
 		next := p.l.Peek(true)
@@ -21,17 +22,18 @@ func (p *Parser) parseInputValueDefinitions(index *[]int, closeKeyword keyword.K
 		if next == keyword.STRING {
 
 			quote := p.l.Read()
-			description = &quote
+			description = quote
+			hasDescription = true
 
 		} else if next == keyword.IDENT {
 
 			ident := p.l.Read()
 			definition := p.makeInputValueDefinition()
 
-			if description != nil {
+			if hasDescription {
 				definition.Description = description.Literal
 				definition.Position.MergeStartIntoStart(description.TextPosition)
-				description = nil
+				hasDescription = false
 			} else {
 				definition.Position.MergeStartIntoStart(ident.TextPosition)
 			}

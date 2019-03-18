@@ -47,6 +47,20 @@ func (w *Walker) FragmentDefinitionIterable() FragmentDefinitionIterable {
 	}
 }
 
+type DirectiveDefinitionIterable struct {
+	Iterable
+}
+
+func (d *DirectiveDefinitionIterable) Value() (definition document.DirectiveDefinition, ref int) {
+	ref = d.ref()
+	definition = d.w.l.DirectiveDefinition(ref)
+	return
+}
+
+func (w *Walker) DirectiveDefinitionIterable() DirectiveDefinitionIterable {
+	return DirectiveDefinitionIterable{Iterable: w.newIterable(w.c.directiveDefinitions)}
+}
+
 type OperationDefinitionIterable struct {
 	Iterable
 }
@@ -156,5 +170,64 @@ func (w *Walker) TypeSystemDefinitionOrderedRootNodes() TypeSystemDefinitionOrde
 
 	return TypeSystemDefinitionOrderedRootNodes{
 		Iterable: w.newIterable(refs),
+	}
+}
+
+type FieldsContainingDirectiveIterator struct {
+	fieldRefs                []int
+	directives               []int
+	objectTypeDefinitionRefs []int
+	current                  int
+}
+
+func (f *FieldsContainingDirectiveIterator) Next() bool {
+	f.current++
+	return len(f.fieldRefs)-1 >= f.current
+}
+
+func (f *FieldsContainingDirectiveIterator) Value() (fieldDefinitionRef, objectTypeDefinitionRef, directiveRef int) {
+	fieldDefinitionRef = f.fieldRefs[f.current]
+	objectTypeDefinitionRef = f.objectTypeDefinitionRefs[f.current]
+	directiveRef = f.directives[f.current]
+	return
+}
+
+func (w *Walker) FieldsContainingDirectiveIterator(directiveNameRef int) FieldsContainingDirectiveIterator {
+
+	fields := w.c.fieldsContainingDirectiveFields[:0]
+	objects := w.c.fieldsContainingDirectiveObjects[:0]
+	directiveRefs := w.c.fieldsContainingDirectiveDirectives[:0]
+
+	sets := w.DirectiveSetIterable()
+	for sets.Next() {
+		set, parent := sets.Value()
+		directives := w.l.DirectiveIterable(set)
+		for directives.Next() {
+			directive, directiveRef := directives.Value()
+			if directive.Name != directiveNameRef {
+				continue
+			}
+
+			field := w.Node(parent)
+			if field.Kind != FIELD_DEFINITION {
+				continue
+			}
+
+			fieldType := w.Node(field.Parent)
+			if fieldType.Kind != OBJECT_TYPE_DEFINITION {
+				continue
+			}
+
+			fields = append(fields, field.Ref)
+			objects = append(objects, fieldType.Ref)
+			directiveRefs = append(directiveRefs, directiveRef)
+		}
+	}
+
+	return FieldsContainingDirectiveIterator{
+		current:                  -1,
+		objectTypeDefinitionRefs: objects,
+		fieldRefs:                fields,
+		directives:               directiveRefs,
 	}
 }

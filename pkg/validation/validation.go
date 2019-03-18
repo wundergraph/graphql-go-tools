@@ -42,6 +42,11 @@ ArgumentUniqueness
 DirectivesAreDefined
 DirectivesAreInValidLocations
 DirectivesAreUniquePerLocation
+DirectivesHaveRequiredArguments
+DirectivesArgumentsAreDefined
+DirectiveArgumentsAreConstants
+DirectiveDefinitionArgumentsAreConstants
+DirectiveDefinitionDefaultValuesAreOfCorrectType
 FieldSelectionMerging
 FieldSelections
 Fragments
@@ -65,6 +70,7 @@ NoDescription
 AnonymousOperationMustBeLonePerDocument
 ArgumentMustBeUnique
 ArgumentRequired
+ArgumentValueTypeMismatch
 DirectiveNotDefined
 DirectiveLocationInvalid
 DirectiveMustBeUniquePerLocation

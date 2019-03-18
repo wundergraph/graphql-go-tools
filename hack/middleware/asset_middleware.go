@@ -1,7 +1,8 @@
-package example
+package middleware
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/runes"
@@ -16,7 +17,10 @@ import (
 type AssetUrlMiddleware struct {
 }
 
-func (a *AssetUrlMiddleware) OnRequest(l *lookup.Lookup, w *lookup.Walker, parser *parser.Parser, mod *parser.ManualAstMod) {
+func (a *AssetUrlMiddleware) OnRequest(context context.Context, l *lookup.Lookup, w *lookup.Walker, parser *parser.Parser, mod *parser.ManualAstMod) error {
+
+	w.SetLookup(l)
+	w.WalkExecutable()
 
 	// get the required names (int)
 	// if they don't exist in the type system definition we'd receive '-1' which indicates the literal doesn't exist
@@ -26,7 +30,7 @@ func (a *AssetUrlMiddleware) OnRequest(l *lookup.Lookup, w *lookup.Walker, parse
 
 	// handle gracefully/error logging
 	if assetName == -1 || urlName == -1 || handleName == -1 {
-		return
+		return nil
 	}
 
 	field := document.Field{
@@ -65,10 +69,10 @@ func (a *AssetUrlMiddleware) OnRequest(l *lookup.Lookup, w *lookup.Walker, parse
 		mod.AppendFieldToSelectionSet(handleFieldRef, setRef) // append the handler field
 	}
 
-	return
+	return nil
 }
 
-func (a *AssetUrlMiddleware) OnResponse(response *[]byte, l *lookup.Lookup, w *lookup.Walker, parser *parser.Parser, mod *parser.ManualAstMod) (err error) {
+func (a *AssetUrlMiddleware) OnResponse(context context.Context, response *[]byte, l *lookup.Lookup, w *lookup.Walker, parser *parser.Parser, mod *parser.ManualAstMod) (err error) {
 
 	w.SetLookup(l)
 	w.WalkExecutable()

@@ -12,8 +12,9 @@ func (p *Parser) parseFieldsDefinition(index *[]int) (err error) {
 		return
 	}
 
-	var description *document.ByteSliceReference
-	var startPosition *position.Position
+	var hasDescription bool
+	var description document.ByteSliceReference
+	var startPosition position.Position
 
 	for {
 		next := p.l.Peek(true)
@@ -21,8 +22,9 @@ func (p *Parser) parseFieldsDefinition(index *[]int) (err error) {
 		switch next {
 		case keyword.STRING:
 			stringToken := p.l.Read()
-			description = &stringToken.Literal
-			startPosition = &stringToken.TextPosition
+			description = stringToken.Literal
+			startPosition = stringToken.TextPosition
+			hasDescription = true
 		case keyword.CURLYBRACKETCLOSE:
 			p.l.Read()
 			return nil
@@ -31,14 +33,10 @@ func (p *Parser) parseFieldsDefinition(index *[]int) (err error) {
 			fieldIdent := p.l.Read()
 			definition := p.makeFieldDefinition()
 
-			if description != nil {
-				definition.Description = *description
-				description = nil
-			}
-
-			if startPosition != nil {
-				definition.Position.MergeStartIntoStart(*startPosition)
-				startPosition = nil
+			if hasDescription {
+				definition.Description = description
+				definition.Position.MergeStartIntoStart(startPosition)
+				hasDescription = false
 			} else {
 				definition.Position.MergeStartIntoStart(fieldIdent.TextPosition)
 			}

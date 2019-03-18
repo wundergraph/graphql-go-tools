@@ -9,7 +9,7 @@ import (
 
 // SubscriptionSingleRootField
 // https://facebook.github.io/graphql/draft/#sec-Single-root-field
-func SubscriptionSingleRootField() rules.ExecutionRule {
+func SubscriptionSingleRootField() rules.Rule {
 	return func(l *lookup.Lookup, w *lookup.Walker) validation.Result {
 
 		for _, operation := range l.OperationDefinitions() {

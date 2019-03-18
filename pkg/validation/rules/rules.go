@@ -5,7 +5,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/validation"
 )
 
-type ExecutionRule func(l *lookup.Lookup, w *lookup.Walker) validation.Result
+type Rule func(l *lookup.Lookup, w *lookup.Walker) validation.Result
 
 // https://facebook.github.io/graphql/draft/#sec-Executable-Definitions
 // the parser impl does not allow parsing such documents

@@ -8,7 +8,7 @@ import (
 
 // LoneAnonymousOperation
 // https://facebook.github.io/graphql/draft/#sec-Lone-Anonymous-Operation
-func LoneAnonymousOperation() rules.ExecutionRule {
+func LoneAnonymousOperation() rules.Rule {
 	return func(l *lookup.Lookup, w *lookup.Walker) validation.Result {
 
 		definitions := l.OperationDefinitions()

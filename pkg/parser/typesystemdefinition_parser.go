@@ -8,9 +8,10 @@ import (
 
 func (p *Parser) parseTypeSystemDefinition() (definition document.TypeSystemDefinition, err error) {
 
-	definition = p.makeTypeSystemDefinition()
+	p.initTypeSystemDefinition(&definition)
 
-	var description *token.Token
+	var hasDescription bool
+	var description token.Token
 
 	for {
 		next := p.l.Peek(true)
@@ -20,7 +21,8 @@ func (p *Parser) parseTypeSystemDefinition() (definition document.TypeSystemDefi
 			return definition, err
 		case keyword.STRING:
 			descriptionToken := p.l.Read()
-			description = &descriptionToken
+			description = descriptionToken
+			hasDescription = true
 			continue
 		case keyword.SCHEMA:
 
@@ -36,49 +38,49 @@ func (p *Parser) parseTypeSystemDefinition() (definition document.TypeSystemDefi
 
 		case keyword.SCALAR:
 
-			err := p.parseScalarTypeDefinition(description, &definition.ScalarTypeDefinitions)
+			err := p.parseScalarTypeDefinition(hasDescription, description, &definition.ScalarTypeDefinitions)
 			if err != nil {
 				return definition, err
 			}
 
 		case keyword.TYPE:
 
-			err := p.parseObjectTypeDefinition(description, &definition.ObjectTypeDefinitions)
+			err := p.parseObjectTypeDefinition(hasDescription, description, &definition.ObjectTypeDefinitions)
 			if err != nil {
 				return definition, err
 			}
 
 		case keyword.INTERFACE:
 
-			err := p.parseInterfaceTypeDefinition(description, &definition.InterfaceTypeDefinitions)
+			err := p.parseInterfaceTypeDefinition(hasDescription, description, &definition.InterfaceTypeDefinitions)
 			if err != nil {
 				return definition, err
 			}
 
 		case keyword.UNION:
 
-			err := p.parseUnionTypeDefinition(description, &definition.UnionTypeDefinitions)
+			err := p.parseUnionTypeDefinition(hasDescription, description, &definition.UnionTypeDefinitions)
 			if err != nil {
 				return definition, err
 			}
 
 		case keyword.ENUM:
 
-			err := p.parseEnumTypeDefinition(description, &definition.EnumTypeDefinitions)
+			err := p.parseEnumTypeDefinition(hasDescription, description, &definition.EnumTypeDefinitions)
 			if err != nil {
 				return definition, err
 			}
 
 		case keyword.INPUT:
 
-			err := p.parseInputObjectTypeDefinition(description, &definition.InputObjectTypeDefinitions)
+			err := p.parseInputObjectTypeDefinition(hasDescription, description, &definition.InputObjectTypeDefinitions)
 			if err != nil {
 				return definition, err
 			}
 
 		case keyword.DIRECTIVE:
 
-			err := p.parseDirectiveDefinition(description, &definition.DirectiveDefinitions)
+			err := p.parseDirectiveDefinition(hasDescription, description, &definition.DirectiveDefinitions)
 			if err != nil {
 				return definition, err
 			}
@@ -88,6 +90,6 @@ func (p *Parser) parseTypeSystemDefinition() (definition document.TypeSystemDefi
 			return definition, newErrInvalidType(invalid.TextPosition, "parseTypeSystemDefinition", "eof/string/schema/scalar/type/interface/union/directive/input/enum", invalid.Keyword.String())
 		}
 
-		description = nil
+		hasDescription = false
 	}
 }

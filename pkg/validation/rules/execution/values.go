@@ -7,7 +7,7 @@ import (
 )
 
 // Values
-func Values() rules.ExecutionRule {
+func Values() rules.Rule {
 	return func(l *lookup.Lookup, w *lookup.Walker) validation.Result {
 
 		iter := w.ArgumentSetIterable()

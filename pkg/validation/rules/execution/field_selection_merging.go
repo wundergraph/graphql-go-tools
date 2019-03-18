@@ -9,17 +9,17 @@ import (
 
 // FieldSelectionMerging
 // https://facebook.github.io/graphql/draft/#sec-Field-Selection-Merging
-func FieldSelectionMerging() rules.ExecutionRule {
+func FieldSelectionMerging() rules.Rule {
 
 	return func(l *lookup.Lookup, w *lookup.Walker) validation.Result {
 
 		validateSet := func(set document.SelectionSet, typeName int) validation.Result {
 			lefts := l.SelectionSetCollectedFields(set, typeName)
 			for lefts.Next() {
-				left := lefts.Value()
+				_, left := lefts.Value()
 				rights := l.SelectionSetCollectedFields(set, typeName)
 				for rights.Next() {
-					right := rights.Value()
+					_, right := rights.Value()
 					if !l.FieldResponseNamesAreEqual(left, right) {
 						continue
 					}

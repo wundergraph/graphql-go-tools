@@ -14,6 +14,10 @@ Currently implemented:
 - validation
 - schema formatting
 
+## Docs
+
+https://jens-neuse.gitbook.io/graphql-go-tools
+
 ## WIP
 
 - (remote) schema introspection
@@ -72,15 +76,12 @@ By fixing this issue validation time for the introspection query dropped from ~ 
 
 ## Contributors
 
-This repository was initially developed and maintained by one single person:
-[Jens Neuse][jens-neuse-github].
-
-These users are actively maintaining and/or developing as of today:
-
-- [Jens Neuse][jens-neuse-github] (Project Lead)
+- [Jens Neuse][jens-neuse-github] (Project Lead & Active Maintainer)
+- [Mantas Vidutis][mantas-vidutis-github](Contributions to the http proxy & the Context Middleware)
 - [Jonas Bergner][jonas-bergner-github] (Contributions to the initial version of the parser, contributions to the tests)
 
 [jens-neuse-github]: https://github.com/jensneuse
+[mantas-vidutis-github]: https://github.com/mvid
 [jonas-bergner-github]: https://github.com/java-jonas
 
 ## Contributions

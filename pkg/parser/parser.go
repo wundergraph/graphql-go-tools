@@ -194,7 +194,7 @@ func NewParser(withOptions ...Option) *Parser {
 		EnumTypeDefinitions:        make(document.EnumTypeDefinitions, 0, options.minimumSliceSize),
 		EnumValuesDefinitions:      make(document.EnumValueDefinitions, 0, options.minimumSliceSize*2),
 		ArgumentsDefinitions:       make(document.ArgumentsDefinitions, 0, options.minimumSliceSize),
-		FieldDefinitions:           make(document.FieldDefinitions, 0, options.minimumSliceSize*4),
+		FieldDefinitions:           make(document.FieldDefinitions, 0, options.minimumSliceSize*2),
 		InputValueDefinitions:      make(document.InputValueDefinitions, 0, options.minimumSliceSize),
 		InputObjectTypeDefinitions: make(document.InputObjectTypeDefinitions, 0, options.minimumSliceSize),
 		DirectiveDefinitions:       make(document.DirectiveDefinitions, 0, options.minimumSliceSize),
@@ -343,21 +343,19 @@ func (p *Parser) makeInputObjectTypeDefinition() document.InputObjectTypeDefinit
 	}
 }
 
-func (p *Parser) makeTypeSystemDefinition() document.TypeSystemDefinition {
-	return document.TypeSystemDefinition{
-		InputObjectTypeDefinitions: p.indexPoolGet(),
-		EnumTypeDefinitions:        p.indexPoolGet(),
-		DirectiveDefinitions:       p.indexPoolGet(),
-		InterfaceTypeDefinitions:   p.indexPoolGet(),
-		ObjectTypeDefinitions:      p.indexPoolGet(),
-		ScalarTypeDefinitions:      p.indexPoolGet(),
-		UnionTypeDefinitions:       p.indexPoolGet(),
-		SchemaDefinition: document.SchemaDefinition{
-			Query:        -1,
-			Mutation:     -1,
-			Subscription: -1,
-			DirectiveSet: -1,
-		},
+func (p *Parser) initTypeSystemDefinition(definition *document.TypeSystemDefinition) {
+	definition.InputObjectTypeDefinitions = p.indexPoolGet()
+	definition.EnumTypeDefinitions = p.indexPoolGet()
+	definition.DirectiveDefinitions = p.indexPoolGet()
+	definition.InterfaceTypeDefinitions = p.indexPoolGet()
+	definition.ObjectTypeDefinitions = p.indexPoolGet()
+	definition.ScalarTypeDefinitions = p.indexPoolGet()
+	definition.UnionTypeDefinitions = p.indexPoolGet()
+	definition.SchemaDefinition = document.SchemaDefinition{
+		Query:        -1,
+		Mutation:     -1,
+		Subscription: -1,
+		DirectiveSet: -1,
 	}
 }
 

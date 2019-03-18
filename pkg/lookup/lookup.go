@@ -316,6 +316,10 @@ func (l *Lookup) UnionTypeDefinitionByName(name int) (document.UnionTypeDefiniti
 	return document.UnionTypeDefinition{}, false
 }
 
+func (l *Lookup) FieldDefinition(ref int) document.FieldDefinition {
+	return l.p.ParsedDefinitions.FieldDefinitions[ref]
+}
+
 func (l *Lookup) FieldDefinitionByNameFromIndex(index []int, name int) (document.FieldDefinition, bool) {
 
 	for _, i := range index {
@@ -459,8 +463,10 @@ func (s *SelectionSetFieldsIterator) Next() bool {
 	return len(s.refs)-1 >= s.current
 }
 
-func (s *SelectionSetFieldsIterator) Value() document.Field {
-	return s.l.Field(s.refs[s.current])
+func (s *SelectionSetFieldsIterator) Value() (ref int, field document.Field) {
+	ref = s.refs[s.current]
+	field = s.l.Field(ref)
+	return
 }
 
 func (l *Lookup) SelectionSetCollectedFields(set document.SelectionSet, setTypeName int) SelectionSetFieldsIterator {
@@ -903,6 +909,10 @@ func (l *Lookup) DirectiveSet(ref int) document.DirectiveSet {
 		return nil
 	}
 	return l.p.ParsedDefinitions.DirectiveSets[ref]
+}
+
+func (l *Lookup) DirectiveDefinition(ref int) document.DirectiveDefinition {
+	return l.p.ParsedDefinitions.DirectiveDefinitions[ref]
 }
 
 func (l *Lookup) DirectiveDefinitionByName(name int) (document.DirectiveDefinition, bool) {
@@ -1433,6 +1443,8 @@ func (l *Lookup) DirectiveLocationFromNode(node Node) document.DirectiveLocation
 	switch node.Kind {
 	case FIELD:
 		return document.DirectiveLocationFIELD
+	case FIELD_DEFINITION:
+		return document.DirectiveLocationFIELD_DEFINITION
 	case OPERATION_DEFINITION:
 		definition := l.OperationDefinition(node.Ref)
 		switch definition.OperationType {
@@ -1484,8 +1496,8 @@ func (l *Lookup) SelectionSetsAreOfSameResponseShape(leftSet, rightSet TypedSet)
 			return false
 		}
 
-		leftField := left.Value()
-		rightField := right.Value()
+		_, leftField := left.Value()
+		_, rightField := right.Value()
 		if !l.FieldResponseNamesAreEqual(leftField, rightField) {
 			return false
 		}
