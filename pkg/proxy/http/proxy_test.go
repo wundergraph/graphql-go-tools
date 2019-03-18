@@ -48,6 +48,11 @@ func TestProxyHandler(t *testing.T) {
 				return &bytes.Buffer{}
 			},
 		},
+		BufferedReaderPool: sync.Pool{
+			New: func() interface{} {
+				return &bufio.Reader{}
+			},
+		},
 	}
 	ts := httptest.NewServer(ph)
 	defer ts.Close()
