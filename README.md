@@ -14,6 +14,10 @@ Currently implemented:
 - validation
 - schema formatting
 
+## Docs
+
+https://jens-neuse.gitbook.io/graphql-go-tools
+
 ## WIP
 
 - (remote) schema introspection
