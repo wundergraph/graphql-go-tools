@@ -1,6 +1,8 @@
 package http
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/testhelper"
@@ -68,6 +70,16 @@ func TestProxyIntegration(t *testing.T) {
 		Client:         *http.DefaultClient,
 		HandleError: func(err error, w http.ResponseWriter) {
 			t.Fatal(err)
+		},
+		BufferPool: sync.Pool{
+			New: func() interface{} {
+				return &bytes.Buffer{}
+			},
+		},
+		BufferedReaderPool: sync.Pool{
+			New: func() interface{} {
+				return &bufio.Reader{}
+			},
 		},
 	}
 	proxyServer := httptest.NewServer(checkUserMiddleware(proxyHandler))

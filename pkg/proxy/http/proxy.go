@@ -1,71 +1,59 @@
 package http
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"github.com/jensneuse/graphql-go-tools/pkg/middleware"
 	"github.com/jensneuse/graphql-go-tools/pkg/proxy"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"sync"
 )
 
 type Proxy struct {
-	SchemaProvider proxy.SchemaProvider
-	Host           string
-	InvokerPool    sync.Pool
-	Client         http.Client
-	HandleError    func(err error, w http.ResponseWriter)
+	SchemaProvider     proxy.SchemaProvider
+	Host               string
+	InvokerPool        sync.Pool
+	Client             http.Client
+	HandleError        func(err error, w http.ResponseWriter)
+	BufferPool         sync.Pool
+	BufferedReaderPool sync.Pool
 }
 
-func (p *Proxy) AcceptRequest(uri string, body io.ReadCloser, ctx context.Context) (*bytes.Buffer, error) {
-	var schema []byte
-	p.SchemaProvider.GetSchema(uri, &schema)
+func (p *Proxy) AcceptRequest(ctx context.Context, uri string, body io.ReadCloser, buff *bytes.Buffer) error {
+
+	schema := p.SchemaProvider.GetSchema(uri)
 
 	invoker := p.InvokerPool.Get().(*middleware.Invoker)
 	defer p.InvokerPool.Put(invoker)
 
-	err := invoker.SetSchema(&schema)
+	err := invoker.SetSchema(schema)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	input, err := ioutil.ReadAll(body)
+	_, err = buff.ReadFrom(body)
+	requestData := buff.Bytes()
+
+	err = invoker.InvokeMiddleWares(ctx, &requestData)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	err = invoker.InvokeMiddleWares(ctx, &input)
+	buff.Reset()
+
+	err = invoker.RewriteRequest(buff)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	buff := bytes.Buffer{}
-
-	err = invoker.RewriteRequest(&buff)
-	if err != nil {
-		return nil, err
-	}
-
-	return &buff, err
+	return err
 }
 
-func (p *Proxy) DispatchRequest(input []byte) ([]byte, error) {
-	resp, err := p.Client.Post(p.Host, "application/graphql", bytes.NewReader(input))
-	if err != nil {
-		return nil, err
-	}
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	if err := resp.Body.Close(); err != nil {
-		return nil, err
-	}
-	return body, nil
+func (p *Proxy) DispatchRequest(buff *bytes.Buffer) (*http.Response, error) {
+	return p.Client.Post(p.Host, "application/graphql", buff)
 }
 
 func (p *Proxy) AcceptResponse() {
@@ -77,20 +65,39 @@ func (p *Proxy) DispatchResponse() {
 }
 
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	buff, err := p.AcceptRequest(r.RequestURI, r.Body, r.Context())
+
+	buff := p.BufferPool.Get().(*bytes.Buffer)
+	buff.Reset()
+
+	err := p.AcceptRequest(r.Context(), r.RequestURI, r.Body, buff)
 	if err != nil {
+		p.BufferPool.Put(buff)
 		p.HandleError(err, w)
+		return
 	}
-	resp, err := p.DispatchRequest(buff.Bytes())
+
+	response, err := p.DispatchRequest(buff)
 	if err != nil {
+		p.BufferPool.Put(buff)
 		p.HandleError(err, w)
+		return
 	}
 
 	// todo: implement the OnResponse handlers
 
-	if _, err := w.Write(resp); err != nil {
+	bufferedReader := p.BufferedReaderPool.Get().(*bufio.Reader)
+	bufferedReader.Reset(response.Body)
+
+	_, err = bufferedReader.WriteTo(w)
+	if err != nil {
+		p.BufferedReaderPool.Put(bufferedReader)
+		p.BufferPool.Put(buff)
 		p.HandleError(err, w)
+		return
 	}
+
+	p.BufferedReaderPool.Put(bufferedReader)
+	p.BufferPool.Put(buff)
 }
 
 func NewDefaultProxy(host string, provider proxy.SchemaProvider, middlewares ...middleware.GraphqlMiddleware) *Proxy {
@@ -107,6 +114,16 @@ func NewDefaultProxy(host string, provider proxy.SchemaProvider, middlewares ...
 			log.Printf("Error: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte(err.Error()))
+		},
+		BufferPool: sync.Pool{
+			New: func() interface{} {
+				return &bytes.Buffer{}
+			},
+		},
+		BufferedReaderPool: sync.Pool{
+			New: func() interface{} {
+				return &bufio.Reader{}
+			},
 		},
 	}
 }

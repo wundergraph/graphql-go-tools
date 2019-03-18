@@ -1,16 +1,20 @@
 package http
 
 import (
-	"io/ioutil"
-	"net/http"
-	"net/http/httptest"
-	"strings"
-	"sync"
-	"testing"
-
+	"bufio"
+	"bytes"
+	"fmt"
 	hackmiddleware "github.com/jensneuse/graphql-go-tools/hack/middleware"
 	"github.com/jensneuse/graphql-go-tools/pkg/middleware"
 	"github.com/jensneuse/graphql-go-tools/pkg/proxy"
+	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
+	"runtime"
+	"strings"
+	"sync"
+	"testing"
+	"time"
 )
 
 func TestProxyHandler(t *testing.T) {
@@ -39,6 +43,11 @@ func TestProxyHandler(t *testing.T) {
 		HandleError: func(err error, w http.ResponseWriter) {
 			t.Fatal(err)
 		},
+		BufferPool: sync.Pool{
+			New: func() interface{} {
+				return &bytes.Buffer{}
+			},
+		},
 	}
 	ts := httptest.NewServer(ph)
 	defer ts.Close()
@@ -52,6 +61,9 @@ func TestProxyHandler(t *testing.T) {
 }
 
 func BenchmarkProxyHandler(b *testing.B) {
+
+	go printMemUsage()
+
 	es := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
@@ -77,6 +89,16 @@ func BenchmarkProxyHandler(b *testing.B) {
 		HandleError: func(err error, w http.ResponseWriter) {
 			b.Fatal(err)
 		},
+		BufferPool: sync.Pool{
+			New: func() interface{} {
+				return &bytes.Buffer{}
+			},
+		},
+		BufferedReaderPool: sync.Pool{
+			New: func() interface{} {
+				return &bufio.Reader{}
+			},
+		},
 	}
 	ts := httptest.NewServer(ph)
 	defer ts.Close()
@@ -90,6 +112,23 @@ func BenchmarkProxyHandler(b *testing.B) {
 			b.Error(err)
 		}
 	}
+}
+
+func printMemUsage() {
+	for {
+		time.Sleep(time.Millisecond * time.Duration(1000))
+		var m runtime.MemStats
+		runtime.ReadMemStats(&m)
+		// For info on each, see: https://golang.org/pkg/runtime/#MemStats
+		fmt.Printf("Alloc = %v MiB", bToMb(m.Alloc))
+		fmt.Printf("\tTotalAlloc = %v MiB", bToMb(m.TotalAlloc))
+		fmt.Printf("\tSys = %v MiB", bToMb(m.Sys))
+		fmt.Printf("\tNumGC = %v\n", m.NumGC)
+	}
+}
+
+func bToMb(b uint64) uint64 {
+	return b / 1024 / 1024
 }
 
 const assetSchema = `
