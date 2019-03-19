@@ -108,7 +108,6 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		p.BufferedReaderPool.Put(bufferedReader)
 		p.BufferPool.Put(buff)
 		r.Body.Close()
-		response.Body.Close()
 		return
 	}
 
