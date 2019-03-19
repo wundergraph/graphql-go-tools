@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
-	"github.com/jensneuse/graphql-go-tools/pkg/testhelper"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -42,10 +41,11 @@ func TestProxyIntegration(t *testing.T) {
 			t.Error(err)
 		}
 
-		want := testhelper.UglifyRequestString(privateQuery)
+		want := privateQuery
+		got := string(body)
 
-		if string(body) != want {
-			t.Errorf("Expected %s, got %s", want, body)
+		if want != got {
+			t.Fatalf("Expected:\n%s\ngot\n%s\n\n", want, got)
 		}
 
 		_, err = w.Write([]byte(fakeResponse))
@@ -94,7 +94,7 @@ func TestProxyIntegration(t *testing.T) {
 		request.Header.Set("Content-Type", "application/graphql")
 		resp, err := http.DefaultClient.Do(request)
 		if err != nil {
-			t.Error(err)
+			t.Fatal(err)
 		}
 
 		responseBody, _ := ioutil.ReadAll(resp.Body)
@@ -147,18 +147,8 @@ type Document implements Node {
 }
 */
 
-const publicQuery = `
-query myDocuments {
-	documents {
-		sensitiveInformation
-	}
-}
+const publicQuery = `{"query":"query myDocuments {documents {sensitiveInformation}}"}
 `
 
-const privateQuery = `
-query myDocuments {
-	documents(user: "jsmith@example.org") {
-		sensitiveInformation
-	}
-}
+const privateQuery = `{"operationName":"","query":"query myDocuments {documents(user:\"jsmith\") {sensitiveInformation}}"}
 `
