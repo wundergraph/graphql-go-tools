@@ -12,6 +12,7 @@ import (
 
 type StaticProxyConfig struct {
 	BackendURL  string
+	BackendHost string
 	Schema      []byte
 	MiddleWares []middleware.GraphqlMiddleware
 }
@@ -23,7 +24,7 @@ type StaticProxy struct {
 func NewStaticProxy(config StaticProxyConfig) *StaticProxy {
 
 	handler := &Proxy{
-		Host:           config.BackendURL,
+		Host:           config.BackendHost,
 		SchemaProvider: proxy.NewStaticSchemaProvider(config.Schema),
 		InvokerPool: sync.Pool{
 			New: func() interface{} {

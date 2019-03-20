@@ -2,25 +2,17 @@ package main
 
 import (
 	"github.com/valyala/fasthttp"
-	"github.com/valyala/fasthttp/pprofhandler"
 )
+
+var fakeResponse = []byte(`{"data":{"documents":[{"sensitiveInformation":"jsmith"},{"sensitiveInformation":"got proxied"}]}}`)
 
 func fastHTTPHandler(ctx *fasthttp.RequestCtx) {
 	ctx.Response.SetStatusCode(fasthttp.StatusOK)
+	ctx.Response.SetBody(fakeResponse)
 }
 
 func main() {
-
-	go runPprof()
-
 	err := fasthttp.ListenAndServe("0.0.0.0:8080", fastHTTPHandler)
-	if err != nil {
-		panic(err)
-	}
-}
-
-func runPprof() {
-	err := fasthttp.ListenAndServe("0.0.0.0:8081", pprofhandler.PprofHandler)
 	if err != nil {
 		panic(err)
 	}

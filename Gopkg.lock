@@ -113,6 +113,14 @@
   version = "v1.2.0"
 
 [[projects]]
+  digest = "1:7413525ee648f20b4181be7fe8103d0cb98be9e141926a03ee082dc207061e4e"
+  name = "github.com/phayes/freeport"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "b8543db493a5ed890c5499e935e2cad7504f3a04"
+  version = "1.0.2"
+
+[[projects]]
   branch = "master"
   digest = "1:b450e7e26884b4aea569d00db31e6309a236ebbcec07e8ad1d869a37be66ee37"
   name = "github.com/sebdah/goldie"
@@ -263,6 +271,7 @@
     "github.com/golang/mock/gomock",
     "github.com/jensneuse/diffview",
     "github.com/mitchellh/go-homedir",
+    "github.com/phayes/freeport",
     "github.com/sebdah/goldie",
     "github.com/spf13/cobra",
     "github.com/spf13/viper",

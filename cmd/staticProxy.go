@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/middleware"
 	"github.com/jensneuse/graphql-go-tools/pkg/proxy/http"
-	http2 "net/http"
+	"github.com/valyala/fasthttp"
+	"github.com/valyala/fasthttp/pprofhandler"
 	"runtime"
 	"time"
 
@@ -24,21 +25,32 @@ to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("staticProxy called")
 
-		staticProxy := http.NewStaticProxy(http.StaticProxyConfig{
+		prox := http.NewFastStaticProxy(http.FastStaticProxyConfig{
 			MiddleWares: []middleware.GraphqlMiddleware{
 				&middleware.ContextMiddleware{},
 			},
-			Schema:     []byte(testSchema),
-			BackendURL: "http://0.0.0.0:8889/query",
+			Schema:      []byte(testSchema),
+			BackendURL:  "http://0.0.0.0:8080/query",
+			BackendHost: "0.0.0.0:8080",
 		})
 
-		http2.DefaultTransport.(*http2.Transport).MaxIdleConnsPerHost = 100
+		go runPprof()
+		printMemory()
 
-		err := staticProxy.ListenAndServe("0.0.0.0:8888")
+		//http2.DefaultTransport.(*http2.Transport).MaxIdleConnsPerHost = 100
+
+		err := prox.ListenAndServe("0.0.0.0:8888")
 		if err != nil {
 			cmd.OutOrStderr().Write([]byte(err.Error()))
 		}
 	},
+}
+
+func runPprof() {
+	err := fasthttp.ListenAndServe("0.0.0.0:8081", pprofhandler.PprofHandler)
+	if err != nil {
+		panic(err)
+	}
 }
 
 func init() {
