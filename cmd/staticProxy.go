@@ -6,15 +6,27 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/proxy/http"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/pprofhandler"
+	"io/ioutil"
 	"runtime"
 	"time"
 
 	"github.com/spf13/cobra"
 )
 
+var (
+	staticProxyPrintMemory bool
+	staticProxyRunPPROF    bool
+
+	staticProxyAddr        string
+	staticProxyPprofAddr   string
+	staticProxySchemaFile  string
+	staticProxyBackendAddr string
+	staticProxyBackendURL  string
+)
+
 // staticProxyCmd represents the staticProxy command
 var staticProxyCmd = &cobra.Command{
-	Use:   "staticProxy",
+	Use:   "static-proxy",
 	Short: "A brief description of your command",
 	Long: `A longer description that spans multiple lines and likely contains examples
 and usage of using your command. For example:
@@ -23,51 +35,96 @@ Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("staticProxy called")
-
-		prox := http.NewFastStaticProxy(http.FastStaticProxyConfig{
-			MiddleWares: []middleware.GraphqlMiddleware{
-				&middleware.ContextMiddleware{},
-			},
-			Schema:      []byte(testSchema),
-			BackendURL:  "http://0.0.0.0:8080/query",
-			BackendHost: "0.0.0.0:8080",
-		})
-
-		go runPprof()
-		printMemory()
-
-		//http2.DefaultTransport.(*http2.Transport).MaxIdleConnsPerHost = 100
-
-		err := prox.ListenAndServe("0.0.0.0:8888")
-		if err != nil {
-			cmd.OutOrStderr().Write([]byte(err.Error()))
-		}
+		printConfig()
+		runPrintMemoryUsage()
+		runPPROF()
+		runProxyBlocking()
 	},
 }
 
-func runPprof() {
-	err := fasthttp.ListenAndServe("0.0.0.0:8081", pprofhandler.PprofHandler)
+func printConfig() {
+	fmt.Printf(`Running static proxy..
+
+Proxy Configuration:
+- proxyAddr: %s
+- backendAddr: %s
+- backendURL: %s
+
+Schema Configuration:
+- schema file: %s
+
+Debug Configuration:
+- pprof enabled: %t
+- pprofAddr: %s
+- print memory: %t
+
+Example usage:
+curl --data '{"operationName":null,"variables":{},"query":"{\n  documents{\n    owner\n    sensitiveInformation\n  }\n}\n"}' --header "Content-Type: application/json" -v http://0.0.0.0:8888
+
+`,
+		staticProxyAddr,
+		staticProxyBackendAddr,
+		staticProxyBackendURL,
+		staticProxySchemaFile,
+		staticProxyRunPPROF,
+		staticProxyPprofAddr,
+		staticProxyPrintMemory)
+}
+
+func runProxyBlocking() {
+
+	schema, err := ioutil.ReadFile(staticProxySchemaFile)
+	if err != nil {
+		panic(err)
+	}
+
+	prox := http.NewFastStaticProxy(http.FastStaticProxyConfig{
+		MiddleWares: []middleware.GraphqlMiddleware{
+			&middleware.ContextMiddleware{},
+		},
+		Schema:      schema,
+		BackendURL:  staticProxyBackendURL,
+		BackendHost: staticProxyBackendAddr,
+	})
+
+	err = prox.ListenAndServe(staticProxyAddr)
 	if err != nil {
 		panic(err)
 	}
 }
 
+func runPPROF() {
+
+	if !staticProxyRunPPROF {
+		return
+	}
+
+	go func() {
+		err := fasthttp.ListenAndServe(staticProxyPprofAddr, pprofhandler.PprofHandler)
+		if err != nil {
+			panic(err)
+		}
+	}()
+}
+
 func init() {
 	rootCmd.AddCommand(staticProxyCmd)
 
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// staticProxyCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// staticProxyCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	staticProxyCmd.Flags().BoolVar(&staticProxyPrintMemory, "printMemory", false, "continuously prints memory usage")
+	staticProxyCmd.Flags().BoolVar(&staticProxyRunPPROF, "pprof", false, "run pprof server in background thread")
+	staticProxyCmd.Flags().StringVar(&staticProxyAddr, "proxyAddr", "0.0.0.0:8888", "host:port the proxy should listen on")
+	staticProxyCmd.Flags().StringVar(&staticProxyPprofAddr, "pprofAddr", "0.0.0.0:8081", "host:port the pprof web server should listen on")
+	staticProxyCmd.Flags().StringVar(&staticProxySchemaFile, "schemaFile", "./schema.graphql", "the file to read the schema from")
+	staticProxyCmd.Flags().StringVar(&staticProxyBackendURL, "backendURL", "http://0.0.0.0:8080/query", "the backend URL to proxy requests to")
+	staticProxyCmd.Flags().StringVar(&staticProxyBackendAddr, "backendAddr", "0.0.0.0:8080", "the backend Addr")
 }
 
-func printMemory() {
+func runPrintMemoryUsage() {
+
+	if !staticProxyPrintMemory {
+		return
+	}
+
 	go func() {
 		for {
 			time.Sleep(1 * time.Second)
@@ -75,28 +132,6 @@ func printMemory() {
 		}
 	}()
 }
-
-const testSchema = `
-directive @addArgumentFromContext(
-	name: String!
-	contextKey: String!
-) on FIELD_DEFINITION
-
-scalar String
-
-schema {
-	query: Query
-}
-
-type Query {
-	documents: [Document] @addArgumentFromContext(name: "user",contextKey: "user")
-}
-
-type Document {
-	owner: String
-	sensitiveInformation: String
-}
-`
 
 func PrintMemUsage() {
 	var m runtime.MemStats
