@@ -27,11 +27,16 @@ func NewFastStaticProxy(config FastStaticProxyConfig) *FastStaticProxy {
 	prox := &FastHttpProxy{
 		Host:           config.BackendURL,
 		SchemaProvider: proxy.NewStaticSchemaProvider(config.Schema),
-		Invoker:        middleware.NewInvoker(config.MiddleWares...),
+		InvokerPool:    middleware.NewInvokerPool(8, config.MiddleWares...),
 		invokeMux:      sync.Mutex{},
 		Client:         *http.DefaultClient,
 		HandleError: func(err error, w http.ResponseWriter) {
 			fmt.Println(err.Error())
+		},
+		UserValuePool: sync.Pool{
+			New: func() interface{} {
+				return make(map[string][]byte)
+			},
 		},
 		BufferPool: sync.Pool{
 			New: func() interface{} {
