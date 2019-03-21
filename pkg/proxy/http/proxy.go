@@ -3,7 +3,6 @@ package http
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"encoding/json"
 	"github.com/jensneuse/graphql-go-tools/pkg/middleware"
 	"github.com/jensneuse/graphql-go-tools/pkg/proxy"
@@ -28,9 +27,9 @@ type GraphqlJsonRequest struct {
 	Query         string `json:"query"`
 }
 
-func (p *Proxy) AcceptRequest(ctx context.Context, uri string, body io.Reader, buff *bytes.Buffer) error {
+func (p *Proxy) AcceptRequest(userValues map[string][]byte, requestURI []byte, body io.Reader, buff *bytes.Buffer) error {
 
-	schema := p.SchemaProvider.GetSchema(uri)
+	schema := p.SchemaProvider.GetSchema(requestURI)
 
 	invoker := p.InvokerPool.Get().(*middleware.Invoker)
 	defer p.InvokerPool.Put(invoker)
@@ -48,7 +47,7 @@ func (p *Proxy) AcceptRequest(ctx context.Context, uri string, body io.Reader, b
 
 	query := []byte(graphqlJsonRequest.Query)
 
-	err = invoker.InvokeMiddleWares(ctx, &query)
+	err = invoker.InvokeMiddleWares(userValues, query) // TODO: fix nil
 	if err != nil {
 		return err
 	}
@@ -90,13 +89,13 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	buff := p.BufferPool.Get().(*bytes.Buffer)
 	buff.Reset()
 
-	ctx := r.Context()
-	ctx = context.WithValue(ctx, "user", []byte(r.Header.Get("user")))
+	userValues := make(map[string][]byte)
+	userValues["user"] = []byte(r.Header.Get("user"))
 
 	bufferedReader := p.BufferedReaderPool.Get().(*bufio.Reader)
 	bufferedReader.Reset(r.Body)
 
-	err := p.AcceptRequest(ctx, r.RequestURI, bufferedReader, buff)
+	err := p.AcceptRequest(userValues, []byte(r.RequestURI), bufferedReader, buff)
 	if err != nil {
 		p.BufferPool.Put(buff)
 		p.HandleError(err, w)

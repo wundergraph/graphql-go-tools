@@ -21,10 +21,10 @@ func TestProxyHandler(t *testing.T) {
 	es := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
-			t.Error(err)
+			t.Fatal(err)
 		}
 		if string(body) != assetOutput {
-			t.Errorf("Expected %s, got %s", assetOutput, body)
+			t.Fatalf("Expected:\n%s\ngot\n%s", assetOutput, body)
 		}
 	}))
 	defer es.Close()
@@ -159,12 +159,7 @@ type Asset implements Node {
     url: String!
 }`
 
-const assetInput = `query testQueryWithoutHandle {
-  								assets(first: 1) {
-    							id
-    							fileName
-    							url(transformation: {image: {resize: {width: 100, height: 100}}})
-  							}
-						}`
+const assetInput = `{"query":"query testQueryWithoutHandle {assets(first: 1) { id fileName url(transformation: {image: {resize: {width: 100, height: 100}}})}}"}`
 
-const assetOutput = "query testQueryWithoutHandle {assets(first:1) {id fileName handle}}"
+const assetOutput = `{"operationName":"","query":"query testQueryWithoutHandle {assets(first:1) {id fileName handle}}"}
+`
