@@ -4,14 +4,14 @@ package proxy
 // Think multi tenant SaaS applications where a handler might handle schemas for many tenants
 // In case you just want to use one single schema simply use StaticSchemaProvider
 type SchemaProvider interface {
-	GetSchema(url string) []byte
+	GetSchema(requestURI []byte) []byte
 }
 
 type StaticSchemaProvider struct {
 	schema []byte
 }
 
-func (s StaticSchemaProvider) GetSchema(url string) []byte {
+func (s StaticSchemaProvider) GetSchema(requestURI []byte) []byte {
 	return s.schema
 }
 
