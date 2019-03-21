@@ -17,7 +17,7 @@ import (
 
 func BenchmarkFastStaticProxy(b *testing.B) {
 
-	b.SetParallelism(1)
+	b.SetParallelism(4)
 
 	port, _ := freeport.GetFreePort()
 	backendPort := strconv.Itoa(port)
