@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"bytes"
-	"context"
 	"github.com/jensneuse/graphql-go-tools/pkg/lookup"
 	"github.com/jensneuse/graphql-go-tools/pkg/parser"
 	"github.com/jensneuse/graphql-go-tools/pkg/printer"
@@ -11,7 +10,7 @@ import (
 // InvokeMiddleware is a one off middleware invocation helper
 // This should only be used for testing as it's a waste of resources
 // It makes use of panics to don't use this in production!
-func InvokeMiddleware(middleware GraphqlMiddleware, context context.Context, schema, request string) string {
+func InvokeMiddleware(middleware GraphqlMiddleware, userValues map[string][]byte, schema, request string) string {
 	parse := parser.NewParser()
 	if err := parse.ParseTypeSystemDefinition([]byte(schema)); err != nil {
 		panic(err)
@@ -25,7 +24,7 @@ func InvokeMiddleware(middleware GraphqlMiddleware, context context.Context, sch
 	mod := parser.NewManualAstMod(parse)
 	walk.SetLookup(look)
 
-	if err := middleware.OnRequest(context, look, walk, parse, mod); err != nil {
+	if err := middleware.OnRequest(userValues, look, walk, parse, mod); err != nil {
 		panic(err)
 	}
 

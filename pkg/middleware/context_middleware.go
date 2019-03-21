@@ -1,12 +1,10 @@
 package middleware
 
 import (
-	"context"
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lookup"
 	"github.com/jensneuse/graphql-go-tools/pkg/parser"
-	"reflect"
 )
 
 /*
@@ -47,7 +45,7 @@ query myDocuments {
 type ContextMiddleware struct {
 }
 
-func (a *ContextMiddleware) OnResponse(context context.Context, response *[]byte, l *lookup.Lookup, w *lookup.Walker, parser *parser.Parser, mod *parser.ManualAstMod) error {
+func (a *ContextMiddleware) OnResponse(userValues map[string][]byte, response *[]byte, l *lookup.Lookup, w *lookup.Walker, parser *parser.Parser, mod *parser.ManualAstMod) error {
 	return nil
 }
 
@@ -57,7 +55,7 @@ type ContextRewriteConfig struct {
 	argumentValueContextKey document.ByteSlice
 }
 
-func (a *ContextMiddleware) OnRequest(context context.Context, l *lookup.Lookup, w *lookup.Walker, parser *parser.Parser, mod *parser.ManualAstMod) error {
+func (a *ContextMiddleware) OnRequest(userValues map[string][]byte, l *lookup.Lookup, w *lookup.Walker, parser *parser.Parser, mod *parser.ManualAstMod) error {
 
 	w.SetLookup(l)
 	w.WalkTypeSystemDefinition()
@@ -141,14 +139,9 @@ func (a *ContextMiddleware) OnRequest(context context.Context, l *lookup.Lookup,
 				if i.fieldName == field.Name {
 					//fmt.Printf("must merge args into: %d\n", field.ArgumentSet)
 
-					iArg := context.Value(string(i.argumentValueContextKey))
-					if iArg == nil {
+					argumentValue := userValues[string(i.argumentValueContextKey)]
+					if argumentValue == nil {
 						return fmt.Errorf("OnRequest: No value for key: %s", string(i.argumentValueContextKey))
-					}
-					var argumentValue []byte
-					argumentValue, ok = iArg.([]byte)
-					if !ok {
-						return fmt.Errorf("OnRequest: Expected []byte, got: %v", reflect.TypeOf(iArg))
 					}
 
 					argNameRef, argByteSliceRef, err := mod.PutLiteralBytes(argumentValue)
