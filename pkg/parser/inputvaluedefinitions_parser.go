@@ -25,7 +25,7 @@ func (p *Parser) parseInputValueDefinitions(index *[]int, closeKeyword keyword.K
 			description = quote
 			hasDescription = true
 
-		} else if next == keyword.IDENT {
+		} else if next == keyword.IDENT || next == keyword.TYPE || next == keyword.MUTATION {
 
 			ident := p.l.Read()
 			definition := p.makeInputValueDefinition()
