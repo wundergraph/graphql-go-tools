@@ -8,12 +8,15 @@ import (
 func (p *Parser) parseDirectives(index *int) error {
 
 	var set document.DirectiveSet
-	p.InitDirectiveSet(&set)
 
 	for {
 		next := p.l.Peek(true)
 
 		if next == keyword.AT {
+
+			if cap(set) == 0 {
+				p.InitDirectiveSet(&set)
+			}
 
 			start := p.l.Read()
 
