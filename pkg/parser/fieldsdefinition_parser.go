@@ -28,7 +28,7 @@ func (p *Parser) parseFieldsDefinition(index *[]int) (err error) {
 		case keyword.CURLYBRACKETCLOSE:
 			p.l.Read()
 			return nil
-		case keyword.IDENT, keyword.TYPE:
+		case keyword.IDENT, keyword.TYPE, keyword.MUTATION:
 
 			fieldIdent := p.l.Read()
 			definition := p.makeFieldDefinition()
