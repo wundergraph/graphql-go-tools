@@ -2,7 +2,6 @@
 package parser
 
 import (
-	"bytes"
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer"
@@ -53,6 +52,7 @@ type Parser struct {
 	indexPoolPosition int
 	options           Options
 	cacheStats        cacheStats
+	sliceIndex        map[string]int
 }
 
 // ParsedDefinitions contains all parsed definitions to avoid deeply nested data structures while parsing
@@ -222,6 +222,7 @@ func NewParser(withOptions ...Option) *Parser {
 		indexPool:         pool,
 		ParsedDefinitions: definitions,
 		options:           options,
+		sliceIndex:        make(map[string]int, 1024),
 	}
 }
 
@@ -381,7 +382,8 @@ func (p *Parser) makeScalarTypeDefinition() document.ScalarTypeDefinition {
 
 func (p *Parser) makeUnionTypeDefinition() document.UnionTypeDefinition {
 	return document.UnionTypeDefinition{
-		DirectiveSet: -1,
+		DirectiveSet:     -1,
+		UnionMemberTypes: p.indexPoolGet(),
 	}
 }
 
@@ -690,20 +692,6 @@ func (p *Parser) putUnionTypeDefinition(definition document.UnionTypeDefinition)
 }
 
 func (p *Parser) putByteSliceReference(slice document.ByteSliceReference) int {
-
-	nextSliceContents := p.ByteSlice(slice)
-	nextSliceLength := slice.End - slice.Start
-
-	for i, ref := range p.ParsedDefinitions.ByteSliceReferences {
-		refLength := ref.End - ref.Start
-		if refLength == nextSliceLength {
-			refContents := p.ByteSlice(ref)
-			if bytes.Equal(refContents, nextSliceContents) {
-				return i
-			}
-		}
-	}
-
 	p.ParsedDefinitions.ByteSliceReferences = append(p.ParsedDefinitions.ByteSliceReferences, slice)
 	return len(p.ParsedDefinitions.ByteSliceReferences) - 1
 }
