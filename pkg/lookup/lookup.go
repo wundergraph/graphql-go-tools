@@ -1601,7 +1601,7 @@ func (l *Lookup) FragmentSpreadsDeepEqual(left, right document.FragmentSpread) b
 }
 
 func (l *Lookup) ByteSliceName(slice []byte) (name int) {
-	length := uint16(len(slice))
+	length := uint32(len(slice))
 	for i := range l.p.ParsedDefinitions.ByteSliceReferences {
 		if l.p.ParsedDefinitions.ByteSliceReferences[i].Length() == length {
 			if bytes.Equal(l.ByteSlice(l.p.ParsedDefinitions.ByteSliceReferences[i]), slice) {
