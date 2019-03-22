@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
@@ -37,10 +36,6 @@ func (p *Parser) parseEnumValuesDefinition(index *[]int) error {
 			err := p.parseDirectives(&definition.DirectiveSet)
 			if err != nil {
 				return err
-			}
-
-			if len(*index) == cap(*index) {
-				fmt.Println("must grow", len(*index))
 			}
 
 			*index = append(*index, p.putEnumValueDefinition(definition))
