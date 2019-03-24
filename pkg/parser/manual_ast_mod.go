@@ -3,6 +3,7 @@ package parser
 import (
 	"bytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
 // ManualAstMod keeps functions to manually modify the parsed ast
@@ -32,7 +33,18 @@ func (m *ManualAstMod) PutLiteralString(literal string) (byteSliceRef document.B
 	return m.PutLiteralBytes([]byte(literal))
 }
 
+// PutLiteralBytes appends a literal to the end of the lexer input storage
+// before appending the lexer will read forward until EOF
+// by doing this we make sure there's no unexpected content at the end of the input
+// this step is necessary because clients like curl end a request by appending a newline ('\n')
+// the parser does not expect a newLine at the end of the input so we have to read over it
 func (m *ManualAstMod) PutLiteralBytes(literal []byte) (byteSliceRef document.ByteSliceReference, ref int, err error) {
+
+	for {
+		if m.p.l.Read().Keyword == keyword.EOF {
+			break
+		}
+	}
 
 	err = m.p.l.AppendBytes(literal)
 	if err != nil {
@@ -83,7 +95,7 @@ func (m *ManualAstMod) MergeArgIntoFieldArguments(argRef, fieldRef int) {
 	field := m.p.ParsedDefinitions.Fields[fieldRef]
 
 	if field.ArgumentSet == -1 {
-		set := m.p.indexPoolGet()
+		set := m.p.IndexPoolGet()
 		set = append(set, argRef)
 		field.ArgumentSet = m.PutArgumentSet(set)
 	} else {
