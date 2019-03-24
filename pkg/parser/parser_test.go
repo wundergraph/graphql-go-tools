@@ -7,8 +7,6 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 	"github.com/sebdah/goldie"
-	vektahAst "github.com/vektah/gqlparser/ast"
-	vektahParser "github.com/vektah/gqlparser/parser"
 	"io/ioutil"
 	"log"
 	"testing"
@@ -265,31 +263,6 @@ func BenchmarkParserLotto(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 
 		err = parser.ParseTypeSystemDefinition(schemaData)
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
-
-}
-
-func BenchmarkParserLottoGqlGen(b *testing.B) {
-
-	schemaData, err := ioutil.ReadFile("./testdata/lotto.graphql")
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	source := &vektahAst.Source{
-		Name:  "lotto",
-		Input: string(schemaData),
-	}
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for i := 0; i < b.N; i++ {
-
-		_, err := vektahParser.ParseSchema(source)
 		if err != nil {
 			b.Fatal(err)
 		}
