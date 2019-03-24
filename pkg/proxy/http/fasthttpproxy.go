@@ -2,37 +2,30 @@ package http
 
 import (
 	"bytes"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/middleware"
 	"github.com/jensneuse/graphql-go-tools/pkg/proxy"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 	"github.com/valyala/fasthttp"
 	"io"
-	"net/http"
 	"sync"
 )
 
 type FastHttpProxy struct {
-	SchemaProvider     proxy.SchemaProvider
-	Host               string
-	InvokerPool        *middleware.InvokerPool
-	UserValuePool      sync.Pool
-	invokeMux          sync.Mutex
-	Client             http.Client
-	HandleError        func(err error, w http.ResponseWriter)
-	BufferPool         sync.Pool
-	BufferedReaderPool sync.Pool
-	HostClient         *fasthttp.HostClient
+	requestConfigProvider proxy.RequestConfigProvider
+	invokerPool           *middleware.InvokerPool
+	userValuePool         sync.Pool
+	bufferPool            sync.Pool
+	hostClientPool        sync.Pool
 }
 
-func (f *FastHttpProxy) RewriteQuery(userValues map[string][]byte, requestURI []byte, query []byte, out io.Writer) error {
+func (f *FastHttpProxy) RewriteQuery(config proxy.RequestConfig, userValues map[string][]byte, requestURI []byte, query []byte, out io.Writer) error {
 
-	schema := f.SchemaProvider.GetSchema(requestURI)
+	idx, invoker := f.invokerPool.Get()
+	defer f.invokerPool.Free(idx)
 
-	idx, invoker := f.InvokerPool.Get()
-	defer f.InvokerPool.Free(idx)
-
-	err := invoker.SetSchema(schema)
+	err := invoker.SetSchema(*config.Schema)
 	if err != nil {
 		return err
 	}
@@ -52,11 +45,12 @@ func (f *FastHttpProxy) RewriteQuery(userValues map[string][]byte, requestURI []
 
 func (f *FastHttpProxy) HandleRequest(ctx *fasthttp.RequestCtx) {
 
-	userValues := f.UserValuePool.Get().(map[string][]byte)
-	f.CleanUserValues(&userValues)
-	defer f.UserValuePool.Put(userValues)
+	config := f.requestConfigProvider.GetRequestConfig(ctx.RequestURI())
 
-	userValues["user"] = ctx.Request.Header.Peek("user")
+	userValues := f.userValuePool.Get().(map[string][]byte)
+	defer f.userValuePool.Put(userValues)
+
+	f.SetUserValues(&userValues, ctx.Request.Header, config.AddHeadersToContext)
 
 	body := ctx.Request.Body()
 
@@ -65,13 +59,17 @@ func (f *FastHttpProxy) HandleRequest(ctx *fasthttp.RequestCtx) {
 	if result.Index > 0 {
 		query = body[result.Index : result.Index+len(result.Raw)]
 	} else {
-		body = []byte(result.Raw)
+		query = []byte(result.Raw)
 	}
 
-	buff := f.BufferPool.Get().(*bytes.Buffer)
-	defer f.BufferPool.Put(buff)
+	query = bytes.TrimPrefix(query, literal.QUOTE)
+	query = bytes.TrimSuffix(query, literal.QUOTE)
 
-	err := f.RewriteQuery(userValues, ctx.RequestURI(), query, buff)
+	buff := f.bufferPool.Get().(*bytes.Buffer)
+	buff.Reset()
+	defer f.bufferPool.Put(buff)
+
+	err := f.RewriteQuery(config, userValues, ctx.RequestURI(), query, buff)
 	if err != nil {
 		ctx.Error(err.Error(), fasthttp.StatusInternalServerError)
 		return
@@ -85,9 +83,14 @@ func (f *FastHttpProxy) HandleRequest(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
+	ctx.Request.SetRequestURIBytes(config.BackendAddr)
 	ctx.Request.SetBody(body)
 
-	err = f.HostClient.Do(&ctx.Request, &ctx.Response)
+	client := f.hostClientPool.Get().(*fasthttp.HostClient)
+	defer f.hostClientPool.Put(client)
+	client.Addr = config.BackendHost
+
+	err = client.Do(&ctx.Request, &ctx.Response)
 	if err != nil {
 		ctx.Error(err.Error(), fasthttp.StatusInternalServerError)
 		return
@@ -96,8 +99,11 @@ func (f *FastHttpProxy) HandleRequest(ctx *fasthttp.RequestCtx) {
 	// todo: implement the OnResponse handlers / do something with the response
 }
 
-func (f *FastHttpProxy) CleanUserValues(values *map[string][]byte) {
-	for key := range *values {
-		delete(*values, key)
+func (f *FastHttpProxy) SetUserValues(userValues *map[string][]byte, header fasthttp.RequestHeader, addHeaders [][]byte) {
+	for key := range *userValues {
+		delete(*userValues, key)
+	}
+	for _, key := range addHeaders {
+		(*userValues)[string(key)] = header.PeekBytes(key)
 	}
 }
