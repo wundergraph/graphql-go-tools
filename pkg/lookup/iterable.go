@@ -204,6 +204,7 @@ func (w *Walker) FieldsContainingDirectiveIterator(directiveNameRef document.Byt
 		directives := w.l.DirectiveIterable(set)
 		for directives.Next() {
 			directive, directiveRef := directives.Value()
+
 			if !w.l.ByteSliceReferenceContentsEquals(directive.Name, directiveNameRef) {
 				continue
 			}
