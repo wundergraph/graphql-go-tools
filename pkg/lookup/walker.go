@@ -67,7 +67,7 @@ type walkerCache struct {
 	selectionSets       []int
 	fields              []int
 
-	path                []int
+	path                []document.ByteSliceReference
 	rootNodes           []int
 	fragmentDefinitions []int
 	fragmentSpreads     []int
@@ -96,7 +96,7 @@ func NewWalker(nodeCacheSize int, defaultCacheSize int) *Walker {
 			fieldsContainingDirectiveObjects:    make([]int, 0, defaultCacheSize),
 			fieldsContainingDirectiveDirectives: make([]int, 0, defaultCacheSize),
 			directiveDefinitions:                make([]int, 0, defaultCacheSize),
-			path:                                make([]int, 16),
+			path:                                make([]document.ByteSliceReference, 16),
 			rootNodes:                           make([]int, 32),
 		},
 	}
@@ -482,7 +482,7 @@ func (w *Walker) ParentEquals(parent int, kind NodeKind) (Node, bool) {
 
 func (w *Walker) ArgumentsDefinition(parent int) document.ArgumentsDefinition {
 
-	var typeName int
+	var typeName document.ByteSliceReference
 	path := w.c.path[:0]
 	node, ok := w.ParentEquals(parent, FIELD)
 	if ok {
@@ -514,7 +514,7 @@ func (w *Walker) ArgumentsDefinition(parent int) document.ArgumentsDefinition {
 	return document.ArgumentsDefinition{}
 }
 
-func (w *Walker) WalkUpUntilTypeName(from Node, fieldPath *[]int) (typeName int, node Node) {
+func (w *Walker) WalkUpUntilTypeName(from Node, fieldPath *[]document.ByteSliceReference) (typeName document.ByteSliceReference, node Node) {
 
 	node = from
 
@@ -588,12 +588,12 @@ func (w *Walker) NodeUsageInOperationsIterator(ref int) (iter NodeUsageInOperati
 	return
 }
 
-func (w *Walker) FragmentUsageInOperations(fragmentName int, refs *[]int) {
+func (w *Walker) FragmentUsageInOperations(fragmentName document.ByteSliceReference, refs *[]int) {
 	for i := range w.c.fragmentSpreads {
 		ref := w.c.fragmentSpreads[i]
 		node := w.Node(ref)
 		spread := w.l.FragmentSpread(node.Ref)
-		if spread.FragmentName != fragmentName {
+		if !w.l.ByteSliceReferenceContentsEquals(spread.FragmentName, fragmentName) {
 			continue
 		}
 
@@ -619,7 +619,7 @@ func (w *Walker) RootNode(ref int) (node Node) {
 	return
 }
 
-func (w *Walker) SelectionSetTypeName(set document.SelectionSet, parent int) (typeName int) {
+func (w *Walker) SelectionSetTypeName(set document.SelectionSet, parent int) (typeName document.ByteSliceReference) {
 
 	path := w.c.path[:0]
 
@@ -650,7 +650,8 @@ func (w *Walker) SelectionSetTypeName(set document.SelectionSet, parent int) (ty
 	}
 }
 
-func (w *Walker) resolveTypeName(typeName int, path []int) int {
+func (w *Walker) resolveTypeName(typeName document.ByteSliceReference, path []document.ByteSliceReference) document.ByteSliceReference {
+
 	if len(path) == 0 {
 		return typeName
 	}
@@ -661,7 +662,7 @@ func (w *Walker) resolveTypeName(typeName int, path []int) int {
 		fieldsDefinition := w.l.FieldsDefinitionFromNamedType(typeName)
 		definition, ok := w.l.FieldDefinitionByNameFromIndex(fieldsDefinition, fieldName)
 		if !ok {
-			return -1
+			return document.ByteSliceReference{}
 		}
 		typeName = w.l.UnwrappedNamedType(w.l.Type(definition.Type)).Name
 	}
@@ -669,7 +670,7 @@ func (w *Walker) resolveTypeName(typeName int, path []int) int {
 	return typeName
 }
 
-func (w *Walker) FieldPath(parent int) (path []int) {
+func (w *Walker) FieldPath(parent int) (path []document.ByteSliceReference) {
 
 	if parent == -1 {
 		return nil
@@ -685,7 +686,7 @@ func (w *Walker) FieldPath(parent int) (path []int) {
 		switch node.Kind {
 		case FIELD:
 			field := w.l.Field(node.Ref)
-			if field.Alias != -1 {
+			if field.Alias.Length() != 0 {
 				path = append(path, field.Alias)
 			} else {
 				path = append(path, field.Name)

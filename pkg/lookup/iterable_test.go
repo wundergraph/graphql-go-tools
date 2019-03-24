@@ -1,11 +1,12 @@
 package lookup
 
 import (
+	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/parser"
 	"testing"
 )
 
-func putLiteralString(p *parser.Parser, literal string) int {
+func putLiteralString(p *parser.Parser, literal string) document.ByteSliceReference {
 	mod := parser.NewManualAstMod(p)
 	ref, _, err := mod.PutLiteralString(literal)
 	if err != nil {
@@ -14,8 +15,8 @@ func putLiteralString(p *parser.Parser, literal string) int {
 	return ref
 }
 
-func literalString(p *parser.Parser, cachedName int) string {
-	return string(p.CachedByteSlice(cachedName))
+func literalString(p *parser.Parser, cachedName document.ByteSliceReference) string {
+	return string(p.ByteSlice(cachedName))
 }
 
 func TestFieldsContainingDirectiveIterator(t *testing.T) {
@@ -41,15 +42,15 @@ func TestFieldsContainingDirectiveIterator(t *testing.T) {
 	}
 	field, object, directive := iter.Value()
 	directiveName := look.Directive(directive).Name
-	if directiveName != addArgumentFromContext {
+	if !look.ByteSliceReferenceContentsEquals(directiveName, addArgumentFromContext) {
 		t.Errorf("want directive name: %s, got: %s", "addArgumentFromContext", literalString(p, directiveName))
 	}
 	fieldName := look.FieldDefinition(field).Name
-	if fieldName != documents {
+	if !look.ByteSliceReferenceContentsEquals(fieldName, documents) {
 		t.Errorf("want field name: %s, got: %s", "documents", literalString(p, fieldName))
 	}
 	objectName := look.ObjectTypeDefinition(object).Name
-	if objectName != Query {
+	if !look.ByteSliceReferenceContentsEquals(objectName, Query) {
 		t.Errorf("want object type definition name: %s. got: %s", "Query", literalString(p, objectName))
 	}
 	if iter.Next() == false {
@@ -57,15 +58,15 @@ func TestFieldsContainingDirectiveIterator(t *testing.T) {
 	}
 	field, object, directive = iter.Value()
 	directiveName = look.Directive(directive).Name
-	if directiveName != addArgumentFromContext {
+	if !look.ByteSliceReferenceContentsEquals(directiveName, addArgumentFromContext) {
 		t.Errorf("want directive name: %s, got: %s", "addArgumentFromContext", literalString(p, directiveName))
 	}
 	fieldName = look.FieldDefinition(field).Name
-	if fieldName != adminField {
+	if !look.ByteSliceReferenceContentsEquals(fieldName, adminField) {
 		t.Errorf("want field: %s, got: %s", "adminField", literalString(p, fieldName))
 	}
 	objectName = look.ObjectTypeDefinition(object).Name
-	if objectName != Document {
+	if !look.ByteSliceReferenceContentsEquals(objectName, Document) {
 		t.Errorf("want object type definition: %s, got: %s", "Document", literalString(p, objectName))
 	}
 	if iter.Next() {

@@ -2,6 +2,7 @@
 package validation
 
 import (
+	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 )
 
@@ -11,7 +12,7 @@ func Valid() Result {
 	}
 }
 
-func Invalid(ruleName RuleName, description Description, subjectPosition position.Position, subjectNameRef int) Result {
+func Invalid(ruleName RuleName, description Description, subjectPosition position.Position, subjectNameRef document.ByteSliceReference) Result {
 	return Result{
 		Valid:       false,
 		RuleName:    ruleName,
@@ -32,7 +33,7 @@ type Result struct {
 
 type Meta struct {
 	SubjectPosition position.Position
-	SubjectNameRef  int
+	SubjectNameRef  document.ByteSliceReference
 }
 
 /*

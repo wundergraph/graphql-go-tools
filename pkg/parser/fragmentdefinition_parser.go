@@ -18,7 +18,7 @@ func (p *Parser) parseFragmentDefinition(index *[]int) error {
 		return err
 	}
 
-	fragmentDefinition.FragmentName = p.putByteSliceReference(fragmentIdent.Literal)
+	fragmentDefinition.FragmentName = fragmentIdent.Literal
 
 	_, err = p.readExpect(keyword.ON, "parseFragmentDefinition")
 	if err != nil {
@@ -30,7 +30,7 @@ func (p *Parser) parseFragmentDefinition(index *[]int) error {
 		return err
 	}
 	fragmentType := p.makeType(&fragmentDefinition.TypeCondition)
-	fragmentType.Name = p.putByteSliceReference(typeIdent.Literal)
+	fragmentType.Name = typeIdent.Literal
 	fragmentType.Kind = document.TypeKindNAMED
 	p.putType(fragmentType, fragmentDefinition.TypeCondition)
 

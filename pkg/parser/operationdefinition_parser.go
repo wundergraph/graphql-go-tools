@@ -30,7 +30,7 @@ func (p *Parser) parseOperationDefinition(index *[]int) (err error) {
 	isNamedOperation := p.peekExpect(keyword.IDENT, false)
 	if isNamedOperation {
 		name := p.l.Read()
-		operationDefinition.Name = p.putByteSliceReference(name.Literal)
+		operationDefinition.Name = name.Literal
 	}
 
 	err = p.parseVariableDefinitions(&operationDefinition.VariableDefinitions)

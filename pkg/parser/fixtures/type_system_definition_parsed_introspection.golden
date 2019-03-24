@@ -13,9 +13,18 @@
   "ParsedDefinitions": {
     "TypeSystemDefinition": {
       "SchemaDefinition": {
-        "Query": 0,
-        "Mutation": 0,
-        "Subscription": 0,
+        "Query": {
+          "Start": 0,
+          "End": 0
+        },
+        "Mutation": {
+          "Start": 0,
+          "End": 0
+        },
+        "Subscription": {
+          "Start": 0,
+          "End": 0
+        },
         "DirectiveSet": 0,
         "Position": {
           "LineStart": 0,
@@ -51,7 +60,10 @@
     "OperationDefinitions": [
       {
         "OperationType": 1,
-        "Name": 0,
+        "Name": {
+          "Start": 6,
+          "End": 24
+        },
         "VariableDefinitions": [],
         "DirectiveSet": -1,
         "SelectionSet": 7,
@@ -65,7 +77,10 @@
     ],
     "FragmentDefinitions": [
       {
-        "FragmentName": 7,
+        "FragmentName": {
+          "Start": 312,
+          "End": 320
+        },
         "TypeCondition": 0,
         "DirectiveSet": -1,
         "SelectionSet": 15,
@@ -77,7 +92,10 @@
         }
       },
       {
-        "FragmentName": 12,
+        "FragmentName": {
+          "Start": 765,
+          "End": 775
+        },
         "TypeCondition": 1,
         "DirectiveSet": -1,
         "SelectionSet": 17,
@@ -89,7 +107,10 @@
         }
       },
       {
-        "FragmentName": 18,
+        "FragmentName": {
+          "Start": 870,
+          "End": 877
+        },
         "TypeCondition": 2,
         "DirectiveSet": -1,
         "SelectionSet": 25,
@@ -104,8 +125,14 @@
     "VariableDefinitions": [],
     "Fields": [
       {
-        "Alias": -1,
-        "Name": 3,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 62,
+          "End": 66
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": -1,
@@ -117,8 +144,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 2,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 44,
+          "End": 53
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": 0,
@@ -130,8 +163,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 3,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 98,
+          "End": 102
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": -1,
@@ -143,8 +182,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 4,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 77,
+          "End": 89
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": 1,
@@ -156,8 +201,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 3,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 138,
+          "End": 142
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": -1,
@@ -169,8 +220,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 5,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 113,
+          "End": 129
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": 2,
@@ -182,8 +239,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 6,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 153,
+          "End": 158
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": 3,
@@ -195,8 +258,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 3,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 208,
+          "End": 212
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": -1,
@@ -208,8 +277,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 9,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 219,
+          "End": 230
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": -1,
@@ -221,8 +296,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 10,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 237,
+          "End": 246
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": -1,
@@ -234,8 +315,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 11,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 253,
+          "End": 257
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": 4,
@@ -247,8 +334,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 8,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 189,
+          "End": 199
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": 5,
@@ -260,8 +353,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 1,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 29,
+          "End": 37
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": 6,
@@ -273,8 +372,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 14,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 335,
+          "End": 339
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": -1,
@@ -286,8 +391,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 3,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 342,
+          "End": 346
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": -1,
@@ -299,8 +410,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 9,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 349,
+          "End": 360
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": -1,
@@ -312,8 +429,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 3,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 401,
+          "End": 405
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": -1,
@@ -325,8 +448,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 9,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 410,
+          "End": 421
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": -1,
@@ -338,8 +467,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 11,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 426,
+          "End": 430
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": 8,
@@ -351,8 +486,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 17,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 463,
+          "End": 467
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": 9,
@@ -364,8 +505,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 19,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 497,
+          "End": 509
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": -1,
@@ -377,8 +524,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 20,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 514,
+          "End": 531
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": -1,
@@ -390,8 +543,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 15,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 363,
+          "End": 369
+        },
         "ArgumentSet": 0,
         "DirectiveSet": -1,
         "SelectionSet": 10,
@@ -403,8 +562,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 21,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 538,
+          "End": 549
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": 11,
@@ -416,8 +581,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 22,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 576,
+          "End": 586
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": 12,
@@ -429,8 +600,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 3,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 652,
+          "End": 656
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": -1,
@@ -442,8 +619,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 9,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 661,
+          "End": 672
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": -1,
@@ -455,8 +638,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 19,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 677,
+          "End": 689
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": -1,
@@ -468,8 +657,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 20,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 694,
+          "End": 711
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": -1,
@@ -481,8 +676,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 23,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 610,
+          "End": 620
+        },
         "ArgumentSet": 1,
         "DirectiveSet": -1,
         "SelectionSet": 13,
@@ -494,8 +695,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 24,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 718,
+          "End": 731
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": 14,
@@ -507,8 +714,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 3,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 796,
+          "End": 800
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": -1,
@@ -520,8 +733,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 9,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 803,
+          "End": 814
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": -1,
@@ -533,8 +752,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 17,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 817,
+          "End": 821
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": 16,
@@ -546,8 +771,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 26,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 845,
+          "End": 857
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": -1,
@@ -559,8 +790,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 14,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 892,
+          "End": 896
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": -1,
@@ -572,8 +809,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 3,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 899,
+          "End": 903
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": -1,
@@ -585,8 +828,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 14,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 919,
+          "End": 923
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": -1,
@@ -598,8 +847,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 3,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 928,
+          "End": 932
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": -1,
@@ -611,8 +866,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 14,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 952,
+          "End": 956
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": -1,
@@ -624,8 +885,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 3,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 963,
+          "End": 967
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": -1,
@@ -637,8 +904,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 14,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 991,
+          "End": 995
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": -1,
@@ -650,8 +923,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 3,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 1004,
+          "End": 1008
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": -1,
@@ -663,8 +942,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 14,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 1036,
+          "End": 1040
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": -1,
@@ -676,8 +961,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 3,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 1051,
+          "End": 1055
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": -1,
@@ -689,8 +980,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 14,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 1087,
+          "End": 1091
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": -1,
@@ -702,8 +999,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 3,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 1104,
+          "End": 1108
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": -1,
@@ -715,8 +1018,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 14,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 1144,
+          "End": 1148
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": -1,
@@ -728,8 +1037,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 3,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 1163,
+          "End": 1167
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": -1,
@@ -741,8 +1056,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 14,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 1207,
+          "End": 1211
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": -1,
@@ -754,8 +1075,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 3,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 1228,
+          "End": 1232
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": -1,
@@ -767,8 +1094,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 27,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 1182,
+          "End": 1188
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": 18,
@@ -780,8 +1113,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 27,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 1121,
+          "End": 1127
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": 19,
@@ -793,8 +1132,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 27,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 1066,
+          "End": 1072
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": 20,
@@ -806,8 +1151,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 27,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 1017,
+          "End": 1023
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": 21,
@@ -819,8 +1170,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 27,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 974,
+          "End": 980
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": 22,
@@ -832,8 +1189,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 27,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 937,
+          "End": 943
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": 23,
@@ -845,8 +1208,14 @@
         }
       },
       {
-        "Alias": -1,
-        "Name": 27,
+        "Alias": {
+          "Start": 0,
+          "End": 0
+        },
+        "Name": {
+          "Start": 906,
+          "End": 912
+        },
         "ArgumentSet": -1,
         "DirectiveSet": -1,
         "SelectionSet": 24,
@@ -861,7 +1230,10 @@
     "InlineFragments": [],
     "FragmentSpreads": [
       {
-        "FragmentName": 7,
+        "FragmentName": {
+          "Start": 170,
+          "End": 178
+        },
         "DirectiveSet": -1,
         "Position": {
           "LineStart": 13,
@@ -871,7 +1243,10 @@
         }
       },
       {
-        "FragmentName": 12,
+        "FragmentName": {
+          "Start": 271,
+          "End": 281
+        },
         "DirectiveSet": -1,
         "Position": {
           "LineStart": 20,
@@ -881,7 +1256,23 @@
         }
       },
       {
-        "FragmentName": 18,
+        "FragmentName": {
+          "Start": 442,
+          "End": 452
+        },
+        "DirectiveSet": -1,
+        "Position": {
+          "LineStart": 34,
+          "LineEnd": 34,
+          "CharStart": 7,
+          "CharEnd": 20
+        }
+      },
+      {
+        "FragmentName": {
+          "Start": 479,
+          "End": 486
+        },
         "DirectiveSet": -1,
         "Position": {
           "LineStart": 37,
@@ -889,11 +1280,66 @@
           "CharStart": 7,
           "CharEnd": 17
         }
+      },
+      {
+        "FragmentName": {
+          "Start": 559,
+          "End": 569
+        },
+        "DirectiveSet": -1,
+        "Position": {
+          "LineStart": 43,
+          "LineEnd": 43,
+          "CharStart": 5,
+          "CharEnd": 18
+        }
+      },
+      {
+        "FragmentName": {
+          "Start": 596,
+          "End": 603
+        },
+        "DirectiveSet": -1,
+        "Position": {
+          "LineStart": 46,
+          "LineEnd": 46,
+          "CharStart": 5,
+          "CharEnd": 15
+        }
+      },
+      {
+        "FragmentName": {
+          "Start": 741,
+          "End": 748
+        },
+        "DirectiveSet": -1,
+        "Position": {
+          "LineStart": 55,
+          "LineEnd": 55,
+          "CharStart": 5,
+          "CharEnd": 15
+        }
+      },
+      {
+        "FragmentName": {
+          "Start": 831,
+          "End": 838
+        },
+        "DirectiveSet": -1,
+        "Position": {
+          "LineStart": 63,
+          "LineEnd": 63,
+          "CharStart": 5,
+          "CharEnd": 15
+        }
       }
     ],
     "Arguments": [
       {
-        "Name": 16,
+        "Name": {
+          "Start": 370,
+          "End": 387
+        },
         "Value": 0,
         "Position": {
           "LineStart": 30,
@@ -903,7 +1349,10 @@
         }
       },
       {
-        "Name": 16,
+        "Name": {
+          "Start": 621,
+          "End": 638
+        },
         "Value": 1,
         "Position": {
           "LineStart": 48,
@@ -971,7 +1420,10 @@
     "Types": [
       {
         "Kind": 2,
-        "Name": 13,
+        "Name": {
+          "Start": 324,
+          "End": 330
+        },
         "OfType": -1,
         "Position": {
           "LineStart": 0,
@@ -982,7 +1434,10 @@
       },
       {
         "Kind": 2,
-        "Name": 25,
+        "Name": {
+          "Start": 779,
+          "End": 791
+        },
         "OfType": -1,
         "Position": {
           "LineStart": 0,
@@ -993,7 +1448,10 @@
       },
       {
         "Kind": 2,
-        "Name": 13,
+        "Name": {
+          "Start": 881,
+          "End": 887
+        },
         "OfType": -1,
         "Position": {
           "LineStart": 0,
@@ -1118,7 +1576,7 @@
       {
         "Fields": [],
         "FragmentSpreads": [
-          1
+          2
         ],
         "InlineFragments": [],
         "Position": {
@@ -1131,7 +1589,7 @@
       {
         "Fields": [],
         "FragmentSpreads": [
-          2
+          3
         ],
         "InlineFragments": [],
         "Position": {
@@ -1162,7 +1620,7 @@
       {
         "Fields": [],
         "FragmentSpreads": [
-          1
+          4
         ],
         "InlineFragments": [],
         "Position": {
@@ -1175,7 +1633,7 @@
       {
         "Fields": [],
         "FragmentSpreads": [
-          2
+          5
         ],
         "InlineFragments": [],
         "Position": {
@@ -1204,7 +1662,7 @@
       {
         "Fields": [],
         "FragmentSpreads": [
-          2
+          6
         ],
         "InlineFragments": [],
         "Position": {
@@ -1237,7 +1695,7 @@
       {
         "Fields": [],
         "FragmentSpreads": [
-          2
+          7
         ],
         "InlineFragments": [],
         "Position": {

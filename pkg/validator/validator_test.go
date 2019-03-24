@@ -30,7 +30,7 @@ func TestValidator(t *testing.T) {
 		v.SetInput(l, w)
 		result := v.ValidateExecutableDefinition(DefaultExecutionRules)
 		if wantResultValid != result.Valid {
-			panic(fmt.Errorf("want valid result: %t, got: %t (result: %+v,\n subject: %s)", wantResultValid, result.Valid, result, p.CachedByteSlice(result.Meta.SubjectNameRef)))
+			panic(fmt.Errorf("want valid result: %t, got: %t (result: %+v,\n subject: %s)", wantResultValid, result.Valid, result, string(p.ByteSlice(result.Meta.SubjectNameRef))))
 		}
 	}
 
@@ -72,7 +72,7 @@ func TestValidator(t *testing.T) {
 func BenchmarkValidator(b *testing.B) {
 
 	run := func(executable string, b *testing.B, wantResultValid bool) {
-		p := parser.NewParser()
+		p := parser.NewParser(parser.WithPoolSize(32))
 		err := p.ParseTypeSystemDefinition(testDefinition)
 		if err != nil {
 			panic(err)

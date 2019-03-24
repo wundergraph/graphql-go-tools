@@ -2,7 +2,6 @@ package stage2
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	middleware2 "github.com/jensneuse/graphql-go-tools/hack/middleware"
 	"github.com/jensneuse/graphql-go-tools/pkg/lookup"
@@ -75,20 +74,26 @@ func (p *Proxy) Request(path string, request []byte) (response []byte, err error
 	p.valid.SetInput(p.look, p.walk)
 	validationResult := p.valid.ValidateExecutableDefinition(validator.DefaultExecutionRules)
 	if !validationResult.Valid {
-		err = fmt.Errorf("validation failed: %+v, subjectName: %s", validationResult, string(p.look.CachedName(validationResult.Meta.SubjectNameRef)))
+		err = fmt.Errorf("validation failed: %+v, subjectName: %s", validationResult, string(p.look.ByteSlice(validationResult.Meta.SubjectNameRef)))
 		return
 	}
 
 	middleware := middleware2.AssetUrlMiddleware{}
-	middleware.OnRequest(context.Background(), p.look, p.walk, p.parse, p.mod)
+	err = middleware.OnRequest(nil, p.look, p.walk, p.parse, p.mod)
+	if err != nil {
+		return
+	}
 
 	p.astPrint.SetInput(p.parse, p.look, p.walk)
 	p.buff.Reset()
-	p.astPrint.PrintExecutableSchema(p.buff)
+	err = p.astPrint.PrintExecutableSchema(p.buff)
+	if err != nil {
+		return
+	}
 
 	response = prisma.Query(p.buff.Bytes())
 
-	err = middleware.OnResponse(context.Background(), &response, p.look, p.walk, p.parse, p.mod)
+	err = middleware.OnResponse(nil, &response, p.look, p.walk, p.parse, p.mod)
 	if err != nil {
 		return
 	}

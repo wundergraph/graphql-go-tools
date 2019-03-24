@@ -19,7 +19,7 @@ func (p *Parser) parseInlineFragment(startPosition position.Position) (ref int, 
 			return ref, err
 		}
 		fragmentType := p.makeType(&fragment.TypeCondition)
-		fragmentType.Name = p.putByteSliceReference(fragmentIdent.Literal)
+		fragmentType.Name = fragmentIdent.Literal
 		fragmentType.Kind = document.TypeKindNAMED
 		p.putType(fragmentType, fragment.TypeCondition)
 	}

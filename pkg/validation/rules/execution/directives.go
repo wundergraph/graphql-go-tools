@@ -83,7 +83,7 @@ func DirectivesAreUniquePerLocation() rules.Rule {
 					if i == j {
 						continue
 					}
-					if left.Name == right.Name {
+					if l.ByteSliceReferenceContentsEquals(left.Name, right.Name) {
 						return validation.Invalid(validation.DirectivesAreUniquePerLocation, validation.DirectiveMustBeUniquePerLocation, left.Position, left.Name)
 					}
 				}

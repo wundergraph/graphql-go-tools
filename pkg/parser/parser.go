@@ -311,7 +311,6 @@ func (p *Parser) initSelectionSet(set *document.SelectionSet) {
 }
 
 func (p *Parser) initField(field *document.Field) {
-	field.Alias = -1
 	field.DirectiveSet = -1
 	field.ArgumentSet = -1
 	field.SelectionSet = -1
@@ -353,9 +352,6 @@ func (p *Parser) initTypeSystemDefinition(definition *document.TypeSystemDefinit
 	definition.ScalarTypeDefinitions = p.indexPoolGet()
 	definition.UnionTypeDefinitions = p.indexPoolGet()
 	definition.SchemaDefinition = document.SchemaDefinition{
-		Query:        -1,
-		Mutation:     -1,
-		Subscription: -1,
 		DirectiveSet: -1,
 	}
 }
@@ -399,7 +395,6 @@ func (p *Parser) initFragmentDefinition(definition *document.FragmentDefinition)
 }
 
 func (p *Parser) initOperationDefinition(definition *document.OperationDefinition) {
-	definition.Name = -1
 	definition.DirectiveSet = -1
 	definition.VariableDefinitions = p.indexPoolGet()
 	definition.SelectionSet = -1
@@ -691,7 +686,7 @@ func (p *Parser) putUnionTypeDefinition(definition document.UnionTypeDefinition)
 	return len(p.ParsedDefinitions.UnionTypeDefinitions) - 1
 }
 
-func (p *Parser) putByteSliceReference(slice document.ByteSliceReference) int {
+func (p *Parser) _putByteSliceReference(slice document.ByteSliceReference) int {
 	p.ParsedDefinitions.ByteSliceReferences = append(p.ParsedDefinitions.ByteSliceReferences, slice)
 	return len(p.ParsedDefinitions.ByteSliceReferences) - 1
 }

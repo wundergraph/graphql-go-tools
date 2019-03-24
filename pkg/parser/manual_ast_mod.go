@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"bytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 )
 
@@ -15,23 +16,23 @@ func NewManualAstMod(p *Parser) *ManualAstMod {
 	}
 }
 
-func (m *ManualAstMod) SetQueryTypeName(name int) {
+func (m *ManualAstMod) SetQueryTypeName(name document.ByteSliceReference) {
 	m.p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition.Query = name
 }
 
-func (m *ManualAstMod) SetMutationTypeName(name int) {
+func (m *ManualAstMod) SetMutationTypeName(name document.ByteSliceReference) {
 	m.p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition.Mutation = name
 }
 
-func (m *ManualAstMod) SetSubscriptionTypeName(name int) {
+func (m *ManualAstMod) SetSubscriptionTypeName(name document.ByteSliceReference) {
 	m.p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition.Subscription = name
 }
 
-func (m *ManualAstMod) PutLiteralString(literal string) (nameRef int, byteSliceRef document.ByteSliceReference, err error) {
+func (m *ManualAstMod) PutLiteralString(literal string) (byteSliceRef document.ByteSliceReference, ref int, err error) {
 	return m.PutLiteralBytes([]byte(literal))
 }
 
-func (m *ManualAstMod) PutLiteralBytes(literal []byte) (nameRef int, byteSliceRef document.ByteSliceReference, err error) {
+func (m *ManualAstMod) PutLiteralBytes(literal []byte) (byteSliceRef document.ByteSliceReference, ref int, err error) {
 
 	err = m.p.l.AppendBytes(literal)
 	if err != nil {
@@ -41,7 +42,9 @@ func (m *ManualAstMod) PutLiteralBytes(literal []byte) (nameRef int, byteSliceRe
 	tok := m.p.l.Read()
 
 	byteSliceRef = tok.Literal
-	nameRef = m.p.putByteSliceReference(byteSliceRef)
+
+	m.p.ParsedDefinitions.ByteSliceReferences = append(m.p.ParsedDefinitions.ByteSliceReferences, byteSliceRef)
+	ref = len(m.p.ParsedDefinitions.ByteSliceReferences) - 1
 
 	return
 }
@@ -87,7 +90,7 @@ func (m *ManualAstMod) MergeArgIntoFieldArguments(argRef, fieldRef int) {
 		var didUpdate bool
 		for i, j := range m.p.ParsedDefinitions.ArgumentSets[field.ArgumentSet] {
 			current := m.p.ParsedDefinitions.Arguments[j]
-			if current.Name == arg.Name {
+			if bytes.Equal(m.p.ByteSlice(current.Name), m.p.ByteSlice(arg.Name)) {
 				m.p.ParsedDefinitions.ArgumentSets[field.ArgumentSet][i] = argRef // update reference in place
 				didUpdate = true
 				break

@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/golang/mock/gomock"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
@@ -47,8 +48,8 @@ func evalRules(node document.Node, parser *Parser, rules ruleSet, ruleIndex int)
 func hasName(wantName string) rule {
 	return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 		var gotName string
-		if node.NodeName() != -1 {
-			gotName = string(parser.CachedByteSlice(node.NodeName()))
+		if node.NodeName().Length() != 0 {
+			gotName = string(parser.ByteSlice(node.NodeName()))
 		}
 		if wantName != gotName {
 			panic(fmt.Errorf("hasName: want: %s, got: %s [rule: %d, node: %d]", wantName, gotName, ruleIndex, ruleSetIndex))
@@ -61,9 +62,9 @@ func hasSchemaOperationTypeName(operationType document.OperationType, wantTypeNa
 
 		schemaDefinition := node.(document.SchemaDefinition)
 
-		gotQuery := string(parser.CachedByteSlice(schemaDefinition.Query))
-		gotMutation := string(parser.CachedByteSlice(schemaDefinition.Mutation))
-		gotSubscription := string(parser.CachedByteSlice(schemaDefinition.Subscription))
+		gotQuery := string(parser.ByteSlice(schemaDefinition.Query))
+		gotMutation := string(parser.ByteSlice(schemaDefinition.Mutation))
+		gotSubscription := string(parser.ByteSlice(schemaDefinition.Subscription))
 
 		if operationType == document.OperationTypeQuery && wantTypeName != gotQuery {
 			panic(fmt.Errorf("hasOperationTypeName: want(query): %s, got: %s [check: %d]", wantTypeName, gotQuery, ruleIndex))
@@ -89,8 +90,8 @@ func hasPosition(position position.Position) rule {
 func hasAlias(wantAlias string) rule {
 	return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 		var gotAlias string
-		if node.NodeAlias() != -1 {
-			gotAlias = string(parser.CachedByteSlice(node.NodeAlias()))
+		if node.NodeAlias().Length() != 0 {
+			gotAlias = string(parser.ByteSlice(node.NodeAlias()))
 		}
 		if wantAlias != gotAlias {
 			panic(fmt.Errorf("hasAlias: want: %s, got: %s [rule: %d, node: %d]", wantAlias, gotAlias, ruleIndex, ruleSetIndex))
@@ -250,7 +251,7 @@ func hasTypeName(wantName string) rule {
 			node = parser.ParsedDefinitions.Types[inlineFragment.TypeCondition]
 		}
 
-		gotName := string(parser.CachedByteSlice(node.(document.Type).Name))
+		gotName := string(parser.ByteSlice(node.(document.Type).Name))
 		if wantName != gotName {
 			panic(fmt.Errorf("hasTypeName: want: %s, got: %s [rule: %d, node: %d]", wantName, gotName, ruleIndex, ruleSetIndex))
 		}
@@ -1100,7 +1101,7 @@ func mustMergeArgumentOnField(fieldName, argumentName, valueContent string) chec
 			panic(err)
 		}
 
-		valueContentRef, valueContentByteSliceRef, err := mod.PutLiteralString(valueContent)
+		valueContentByteSliceRef, valueContentRef, err := mod.PutLiteralString(valueContent)
 		if err != nil {
 			panic(err)
 		}
@@ -1114,7 +1115,7 @@ func mustMergeArgumentOnField(fieldName, argumentName, valueContent string) chec
 		valueRef := mod.PutValue(val)
 
 		for fieldRef, field := range parser.ParsedDefinitions.Fields {
-			if field.Name == sensitiveInformationRef {
+			if bytes.Equal(parser.ByteSlice(field.Name), parser.ByteSlice(sensitiveInformationRef)) {
 
 				arg := document.Argument{
 					Name:  argumentNameRef,

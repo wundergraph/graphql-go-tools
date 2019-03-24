@@ -26,7 +26,7 @@ func (p *Parser) parseDirectives(index *int) error {
 			}
 
 			directive := document.Directive{
-				Name: p.putByteSliceReference(ident.Literal),
+				Name: ident.Literal,
 			}
 
 			directive.Position.MergeStartIntoStart(start.TextPosition)

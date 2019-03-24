@@ -1,6 +1,7 @@
 package execution
 
 import (
+	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lookup"
 	"github.com/jensneuse/graphql-go-tools/pkg/validation"
 	"github.com/jensneuse/graphql-go-tools/pkg/validation/rules"
@@ -57,7 +58,7 @@ func ArgumentUniqueness() rules.Rule {
 					if i == j {
 						continue
 					}
-					if left.Name == right.Name {
+					if l.ByteSliceReferenceContentsEquals(left.Name, right.Name) {
 						return validation.Invalid(validation.ArgumentUniqueness, validation.ArgumentMustBeUnique, left.Position, left.Name)
 					}
 				}
@@ -72,11 +73,11 @@ func ArgumentUniqueness() rules.Rule {
 func RequiredArguments() rules.Rule {
 	return func(l *lookup.Lookup, w *lookup.Walker) validation.Result {
 
-		hasNamedArgument := func(argumentSet int, name int) bool {
+		hasNamedArgument := func(argumentSet int, name document.ByteSliceReference) bool {
 			args := l.ArgumentsIterable(l.ArgumentSet(argumentSet))
 			for args.Next() {
 				arg, _ := args.Value()
-				if arg.Name == name {
+				if l.ByteSliceReferenceContentsEquals(arg.Name, name) {
 					return true
 				}
 			}

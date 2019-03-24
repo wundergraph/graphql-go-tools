@@ -34,13 +34,13 @@ func Fragments() rules.Rule {
 		}
 
 		fragmentSpreads := l.FragmentSpreads()
-		for i, fragment := range fragmentSpreads {
+		for _, fragment := range fragmentSpreads {
 			definition, _, ok := l.FragmentDefinitionByName(fragment.FragmentName)
 			if !ok {
 				return validation.Invalid(validation.Fragments, validation.FragmentNotDefined, fragment.Position, fragment.FragmentName)
 			}
 
-			if l.SelectionSetContainsFragmentSpread(l.SelectionSet(definition.SelectionSet), i) {
+			if l.SelectionSetContainsFragmentSpread(l.SelectionSet(definition.SelectionSet), fragment.FragmentName) {
 				return validation.Invalid(validation.Fragments, validation.FragmentSpreadCyclicReference, definition.Position, definition.FragmentName)
 			}
 		}

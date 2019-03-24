@@ -41,7 +41,7 @@ func (p *Parser) parseFieldsDefinition(index *[]int) (err error) {
 				definition.Position.MergeStartIntoStart(fieldIdent.TextPosition)
 			}
 
-			definition.Name = p.putByteSliceReference(fieldIdent.Literal)
+			definition.Name = fieldIdent.Literal
 
 			err = p.parseArgumentsDefinition(&definition.ArgumentsDefinition)
 			if err != nil {

@@ -26,7 +26,7 @@ func (p *Parser) parseInterfaceTypeDefinition(hasDescription bool, description t
 		return err
 	}
 
-	definition.Name = p.putByteSliceReference(interfaceName.Literal)
+	definition.Name = interfaceName.Literal
 
 	err = p.parseDirectives(&definition.DirectiveSet)
 	if err != nil {

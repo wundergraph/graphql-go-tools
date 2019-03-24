@@ -25,19 +25,19 @@ func TestParser_ParseIntrospectionResponse(t *testing.T) {
 	mustHaveSchema := func(wantQuery, wantMutation, wantSubscription string) check {
 		return func(p *Parser) {
 			if wantQuery != "" {
-				gotQuery := string(p.CachedByteSlice(p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition.Query))
+				gotQuery := string(p.ByteSlice(p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition.Query))
 				if wantQuery != gotQuery {
 					panic(fmt.Errorf("mustHaveSchema: want(query): %s, got: %s", wantQuery, gotQuery))
 				}
 			}
 			if wantMutation != "" {
-				gotMutation := string(p.CachedByteSlice(p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition.Mutation))
+				gotMutation := string(p.ByteSlice(p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition.Mutation))
 				if wantMutation != gotMutation {
 					panic(fmt.Errorf("mustHaveSchema: want(mutation): %s, got: %s", wantMutation, gotMutation))
 				}
 			}
 			if wantSubscription != "" {
-				gotSubscription := string(p.CachedByteSlice(p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition.Subscription))
+				gotSubscription := string(p.ByteSlice(p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition.Subscription))
 				if wantSubscription != gotSubscription {
 					panic(fmt.Errorf("mustHaveSchema: want(subscription): %s, got: %s", wantSubscription, gotSubscription))
 				}

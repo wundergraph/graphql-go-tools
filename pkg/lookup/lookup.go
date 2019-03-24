@@ -75,8 +75,19 @@ func (l *Lookup) ByteSlice(reference document.ByteSliceReference) document.ByteS
 	return l.p.ByteSlice(reference)
 }
 
+func (l *Lookup) ByteSliceReference(ref int) document.ByteSliceReference {
+	return l.p.ParsedDefinitions.ByteSliceReferences[ref]
+}
+
 func (l *Lookup) CachedName(i int) document.ByteSlice {
 	return l.p.CachedByteSlice(i)
+}
+
+func (l *Lookup) ByteSliceReferenceContentsEquals(left, right document.ByteSliceReference) bool {
+	if left.Length() != right.Length() {
+		return false
+	}
+	return bytes.Equal(l.p.ByteSlice(left), l.p.ByteSlice(right))
 }
 
 func (l *Lookup) InlineFragment(i int) document.InlineFragment {
@@ -149,10 +160,10 @@ func (l *Lookup) FragmentDefinition(i int) document.FragmentDefinition {
 	return l.p.ParsedDefinitions.FragmentDefinitions[i]
 }
 
-func (l *Lookup) FragmentDefinitionByName(name int) (definition document.FragmentDefinition, index int, valid bool) {
+func (l *Lookup) FragmentDefinitionByName(name document.ByteSliceReference) (definition document.FragmentDefinition, index int, valid bool) {
 
 	for i, definition := range l.p.ParsedDefinitions.FragmentDefinitions {
-		if definition.FragmentName == name {
+		if l.ByteSliceReferenceContentsEquals(definition.FragmentName, name) {
 			return definition, i, true
 		}
 	}
@@ -242,9 +253,9 @@ func (l *Lookup) ObjectTypeDefinition(ref int) document.ObjectTypeDefinition {
 	return l.p.ParsedDefinitions.ObjectTypeDefinitions[ref]
 }
 
-func (l *Lookup) ObjectTypeDefinitionByName(name int) (definition document.ObjectTypeDefinition, exists bool) {
+func (l *Lookup) ObjectTypeDefinitionByName(name document.ByteSliceReference) (definition document.ObjectTypeDefinition, exists bool) {
 	for i := range l.p.ParsedDefinitions.ObjectTypeDefinitions {
-		if name == l.p.ParsedDefinitions.ObjectTypeDefinitions[i].Name {
+		if l.ByteSliceReferenceContentsEquals(name, l.p.ParsedDefinitions.ObjectTypeDefinitions[i].Name) {
 			return l.p.ParsedDefinitions.ObjectTypeDefinitions[i], true
 		}
 	}
@@ -252,9 +263,9 @@ func (l *Lookup) ObjectTypeDefinitionByName(name int) (definition document.Objec
 	return document.ObjectTypeDefinition{}, false
 }
 
-func (l *Lookup) ScalarTypeDefinitionByName(name int) (document.ScalarTypeDefinition, bool) {
+func (l *Lookup) ScalarTypeDefinitionByName(name document.ByteSliceReference) (document.ScalarTypeDefinition, bool) {
 	for _, definition := range l.p.ParsedDefinitions.ScalarTypeDefinitions {
-		if name == definition.Name {
+		if l.ByteSliceReferenceContentsEquals(name, definition.Name) {
 			return definition, true
 		}
 	}
@@ -287,9 +298,9 @@ func (l *Lookup) EnumTypeDefinitionIterable(refs []int) EnumTypeDefinitionIterab
 	}
 }
 
-func (l *Lookup) EnumTypeDefinitionByName(name int) (document.EnumTypeDefinition, bool) {
+func (l *Lookup) EnumTypeDefinitionByName(name document.ByteSliceReference) (document.EnumTypeDefinition, bool) {
 	for _, definition := range l.p.ParsedDefinitions.EnumTypeDefinitions {
-		if name == definition.Name {
+		if l.ByteSliceReferenceContentsEquals(name, definition.Name) {
 			return definition, true
 		}
 	}
@@ -297,18 +308,18 @@ func (l *Lookup) EnumTypeDefinitionByName(name int) (document.EnumTypeDefinition
 	return document.EnumTypeDefinition{}, false
 }
 
-func (l *Lookup) InterfaceTypeDefinitionByName(name int) (document.InterfaceTypeDefinition, bool) {
+func (l *Lookup) InterfaceTypeDefinitionByName(name document.ByteSliceReference) (document.InterfaceTypeDefinition, bool) {
 	for _, definition := range l.p.ParsedDefinitions.InterfaceTypeDefinitions {
-		if name == definition.Name {
+		if l.ByteSliceReferenceContentsEquals(name, definition.Name) {
 			return definition, true
 		}
 	}
 	return document.InterfaceTypeDefinition{}, false
 }
 
-func (l *Lookup) UnionTypeDefinitionByName(name int) (document.UnionTypeDefinition, bool) {
+func (l *Lookup) UnionTypeDefinitionByName(name document.ByteSliceReference) (document.UnionTypeDefinition, bool) {
 	for _, definition := range l.p.ParsedDefinitions.UnionTypeDefinitions {
-		if name == definition.Name {
+		if l.ByteSliceReferenceContentsEquals(name, definition.Name) {
 			return definition, true
 		}
 	}
@@ -320,11 +331,11 @@ func (l *Lookup) FieldDefinition(ref int) document.FieldDefinition {
 	return l.p.ParsedDefinitions.FieldDefinitions[ref]
 }
 
-func (l *Lookup) FieldDefinitionByNameFromIndex(index []int, name int) (document.FieldDefinition, bool) {
+func (l *Lookup) FieldDefinitionByNameFromIndex(index []int, name document.ByteSliceReference) (document.FieldDefinition, bool) {
 
 	for _, i := range index {
 		definition := l.p.ParsedDefinitions.FieldDefinitions[i]
-		if name == definition.Name {
+		if l.ByteSliceReferenceContentsEquals(name, definition.Name) {
 			return definition, true
 		}
 	}
@@ -427,7 +438,7 @@ func (l *Lookup) SelectionSetContentsIterator(ref int) SelectionSetContentsItera
 
 type SelectionSetFieldsIterator struct {
 	l           *Lookup
-	setTypeName int
+	setTypeName document.ByteSliceReference
 	refs        []int
 	current     int
 }
@@ -441,7 +452,7 @@ func (s *SelectionSetFieldsIterator) traverse(set document.SelectionSet, isRootL
 	inlineFragments := s.l.InlineFragmentIterable(set.InlineFragments)
 	for inlineFragments.Next() {
 		fragment, _ := inlineFragments.Value()
-		if fragment.TypeCondition == -1 || s.l.Type(fragment.TypeCondition).Name == s.setTypeName {
+		if fragment.TypeCondition == -1 || s.l.ByteSliceReferenceContentsEquals(s.l.Type(fragment.TypeCondition).Name, s.setTypeName) {
 			s.traverse(s.l.SelectionSet(fragment.SelectionSet), false)
 		}
 	}
@@ -452,7 +463,7 @@ func (s *SelectionSetFieldsIterator) traverse(set document.SelectionSet, isRootL
 		if !ok {
 			continue
 		}
-		if s.l.Type(fragment.TypeCondition).Name == s.setTypeName {
+		if s.l.ByteSliceReferenceContentsEquals(s.l.Type(fragment.TypeCondition).Name, s.setTypeName) {
 			s.traverse(s.l.SelectionSet(fragment.SelectionSet), false)
 		}
 	}
@@ -469,7 +480,7 @@ func (s *SelectionSetFieldsIterator) Value() (ref int, field document.Field) {
 	return
 }
 
-func (l *Lookup) SelectionSetCollectedFields(set document.SelectionSet, setTypeName int) SelectionSetFieldsIterator {
+func (l *Lookup) SelectionSetCollectedFields(set document.SelectionSet, setTypeName document.ByteSliceReference) SelectionSetFieldsIterator {
 	iter := SelectionSetFieldsIterator{
 		current:     -1,
 		setTypeName: setTypeName,
@@ -488,7 +499,7 @@ type TypedSet struct {
 
 type SelectionSetDifferingSelectionSetIterator struct {
 	l              *Lookup
-	ignoreTypeName int
+	ignoreTypeName document.ByteSliceReference
 	setRefs        []int
 	typeRefs       []int
 	current        int
@@ -500,7 +511,7 @@ func (s *SelectionSetDifferingSelectionSetIterator) traverse(set document.Select
 		fragment, _ := inlineFragments.Value()
 		if fragment.TypeCondition == -1 {
 			s.traverse(s.l.SelectionSet(fragment.SelectionSet), false)
-		} else if s.l.Type(fragment.TypeCondition).Name != s.ignoreTypeName {
+		} else if !s.l.ByteSliceReferenceContentsEquals(s.l.Type(fragment.TypeCondition).Name, s.ignoreTypeName) {
 			s.setRefs = append(s.setRefs, fragment.SelectionSet)
 			s.typeRefs = append(s.typeRefs, fragment.TypeCondition)
 		}
@@ -509,7 +520,7 @@ func (s *SelectionSetDifferingSelectionSetIterator) traverse(set document.Select
 	for spreads.Next() {
 		spread, _ := spreads.Value()
 		fragment, _, _ := s.l.FragmentDefinitionByName(spread.FragmentName)
-		if s.l.Type(fragment.TypeCondition).Name != s.ignoreTypeName {
+		if !s.l.ByteSliceReferenceContentsEquals(s.l.Type(fragment.TypeCondition).Name, s.ignoreTypeName) {
 			s.setRefs = append(s.setRefs, fragment.SelectionSet)
 			s.typeRefs = append(s.typeRefs, fragment.TypeCondition)
 		}
@@ -530,7 +541,7 @@ func (s *SelectionSetDifferingSelectionSetIterator) Value() TypedSet {
 	}
 }
 
-func (l *Lookup) SelectionSetDifferingSelectionSetIterator(set document.SelectionSet, ignoreTypeName int) SelectionSetDifferingSelectionSetIterator {
+func (l *Lookup) SelectionSetDifferingSelectionSetIterator(set document.SelectionSet, ignoreTypeName document.ByteSliceReference) SelectionSetDifferingSelectionSetIterator {
 	iter := SelectionSetDifferingSelectionSetIterator{
 		current:        -1,
 		ignoreTypeName: ignoreTypeName,
@@ -545,7 +556,7 @@ func (l *Lookup) SelectionSetDifferingSelectionSetIterator(set document.Selectio
 func (l *Lookup) QueryObjectTypeDefinition() (document.ObjectTypeDefinition, bool) {
 	want := l.p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition.Query
 	for _, definition := range l.p.ParsedDefinitions.ObjectTypeDefinitions {
-		if definition.Name == want {
+		if l.ByteSliceReferenceContentsEquals(definition.Name, want) {
 			return definition, true
 		}
 	}
@@ -556,7 +567,7 @@ func (l *Lookup) QueryObjectTypeDefinition() (document.ObjectTypeDefinition, boo
 func (l *Lookup) MutationObjectTypeDefinition() (document.ObjectTypeDefinition, bool) {
 	want := l.p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition.Mutation
 	for _, definition := range l.p.ParsedDefinitions.ObjectTypeDefinitions {
-		if definition.Name == want {
+		if l.ByteSliceReferenceContentsEquals(definition.Name, want) {
 			return definition, true
 		}
 	}
@@ -567,7 +578,7 @@ func (l *Lookup) MutationObjectTypeDefinition() (document.ObjectTypeDefinition, 
 func (l *Lookup) SubscriptionObjectTypeDefinition() (document.ObjectTypeDefinition, bool) {
 	want := l.p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition.Subscription
 	for _, definition := range l.p.ParsedDefinitions.ObjectTypeDefinitions {
-		if definition.Name == want {
+		if l.ByteSliceReferenceContentsEquals(definition.Name, want) {
 			return definition, true
 		}
 	}
@@ -575,9 +586,9 @@ func (l *Lookup) SubscriptionObjectTypeDefinition() (document.ObjectTypeDefiniti
 	return document.ObjectTypeDefinition{}, false
 }
 
-func (l *Lookup) UnionTypeDefinitionContainsType(definition document.UnionTypeDefinition, typeName int) bool {
+func (l *Lookup) UnionTypeDefinitionContainsType(definition document.UnionTypeDefinition, typeName document.ByteSliceReference) bool {
 	for _, member := range definition.UnionMemberTypes {
-		if member == typeName {
+		if l.ByteSliceReferenceContentsEquals(l.ByteSliceReference(member), typeName) {
 			return true
 		}
 	}
@@ -585,9 +596,9 @@ func (l *Lookup) UnionTypeDefinitionContainsType(definition document.UnionTypeDe
 	return false
 }
 
-func (l *Lookup) ObjectTypeDefinitionImplementsInterface(definition document.ObjectTypeDefinition, interfaceName int) bool {
+func (l *Lookup) ObjectTypeDefinitionImplementsInterface(definition document.ObjectTypeDefinition, interfaceName document.ByteSliceReference) bool {
 	for _, implements := range definition.ImplementsInterfaces {
-		if implements == interfaceName {
+		if l.ByteSliceReferenceContentsEquals(l.ByteSliceReference(implements), interfaceName) {
 			return true
 		}
 	}
@@ -651,10 +662,10 @@ func (l *Lookup) ArgumentsIterable(refs []int) ArgumentsIterable {
 	}
 }
 
-func (l *Lookup) ArgumentByIndexAndName(index []int, name int) (document.Argument, bool) {
+func (l *Lookup) ArgumentByIndexAndName(index []int, name document.ByteSliceReference) (document.Argument, bool) {
 	for _, i := range index {
 		arg := l.Argument(i)
-		if arg.Name == name {
+		if l.ByteSliceReferenceContentsEquals(arg.Name, name) {
 			return arg, true
 		}
 	}
@@ -668,10 +679,10 @@ func (l *Lookup) ArgumentsDefinition(i int) document.ArgumentsDefinition {
 	return l.p.ParsedDefinitions.ArgumentsDefinitions[i]
 }
 
-func (l *Lookup) InputValueDefinitionByNameAndIndex(name int, i []int) (document.InputValueDefinition, bool) {
+func (l *Lookup) InputValueDefinitionByNameAndIndex(name document.ByteSliceReference, i []int) (document.InputValueDefinition, bool) {
 	for _, j := range i {
 		definition := l.p.ParsedDefinitions.InputValueDefinitions[j]
-		if name == definition.Name {
+		if l.ByteSliceReferenceContentsEquals(name, definition.Name) {
 			return definition, true
 		}
 	}
@@ -817,17 +828,17 @@ func (l *Lookup) ObjectFieldsIterator(refs []int) ObjectFieldsIterator {
 	}
 }
 
-func (l *Lookup) ObjectFieldByIndexAndName(index []int, name int) (document.ObjectField, bool) {
+func (l *Lookup) ObjectFieldByIndexAndName(index []int, name document.ByteSliceReference) (document.ObjectField, bool) {
 	for _, i := range index {
 		field := l.ObjectField(i)
-		if name == field.Name {
+		if l.ByteSliceReferenceContentsEquals(name, field.Name) {
 			return field, true
 		}
 	}
 	return document.ObjectField{}, false
 }
 
-func (l *Lookup) FieldsDefinitionFromNamedType(name int) (fields []int) {
+func (l *Lookup) FieldsDefinitionFromNamedType(name document.ByteSliceReference) (fields []int) {
 
 	_, ok := l.UnionTypeDefinitionByName(name)
 	if ok {
@@ -855,7 +866,7 @@ func (l *Lookup) TypesAreEqual(left, right document.Type) bool {
 		return false
 	}
 
-	if left.Kind == document.TypeKindNAMED && left.Name != right.Name {
+	if left.Kind == document.TypeKindNAMED && !l.ByteSliceReferenceContentsEquals(left.Name, right.Name) {
 		return false
 	}
 
@@ -866,7 +877,7 @@ func (l *Lookup) TypesAreEqual(left, right document.Type) bool {
 	return l.TypesAreEqual(l.Type(left.OfType), l.Type(right.OfType))
 }
 
-func (l *Lookup) IsLeafNode(typeName int) bool {
+func (l *Lookup) IsLeafNode(typeName document.ByteSliceReference) bool {
 	_, ok := l.ScalarTypeDefinitionByName(typeName)
 	if ok {
 		return true
@@ -915,28 +926,28 @@ func (l *Lookup) DirectiveDefinition(ref int) document.DirectiveDefinition {
 	return l.p.ParsedDefinitions.DirectiveDefinitions[ref]
 }
 
-func (l *Lookup) DirectiveDefinitionByName(name int) (document.DirectiveDefinition, bool) {
+func (l *Lookup) DirectiveDefinitionByName(name document.ByteSliceReference) (document.DirectiveDefinition, bool) {
 	for _, definition := range l.p.ParsedDefinitions.DirectiveDefinitions {
-		if name == definition.Name {
+		if l.ByteSliceReferenceContentsEquals(name, definition.Name) {
 			return definition, true
 		}
 	}
 	return document.DirectiveDefinition{}, false
 }
 
-func (l *Lookup) IsUniqueFragmentName(fragmentIndex int, name int) bool {
+func (l *Lookup) IsUniqueFragmentName(fragmentIndex int, name document.ByteSliceReference) bool {
 	for j, k := range l.p.ParsedDefinitions.FragmentDefinitions {
 		if fragmentIndex == j {
 			continue
 		}
-		if name == k.FragmentName {
+		if l.ByteSliceReferenceContentsEquals(name, k.FragmentName) {
 			return false
 		}
 	}
 	return true
 }
 
-func (l *Lookup) TypeIsValidFragmentTypeCondition(name int) bool {
+func (l *Lookup) TypeIsValidFragmentTypeCondition(name document.ByteSliceReference) bool {
 	_, ok := l.UnionTypeDefinitionByName(name)
 	if ok {
 		return true
@@ -949,7 +960,7 @@ func (l *Lookup) TypeIsValidFragmentTypeCondition(name int) bool {
 	return ok
 }
 
-func (l *Lookup) TypeIsScalarOrEnum(name int) bool {
+func (l *Lookup) TypeIsScalarOrEnum(name document.ByteSliceReference) bool {
 	_, ok := l.ScalarTypeDefinitionByName(name)
 	if ok {
 		return true
@@ -958,13 +969,13 @@ func (l *Lookup) TypeIsScalarOrEnum(name int) bool {
 	return ok
 }
 
-func (l *Lookup) IsFragmentDefinitionUsedInOperation(name int) bool {
+func (l *Lookup) IsFragmentDefinitionUsedInOperation(name document.ByteSliceReference) bool {
 
 	for _, definitions := range l.p.ParsedDefinitions.OperationDefinitions {
 		set := l.SelectionSet(definitions.SelectionSet)
 		for _, i := range set.FragmentSpreads {
 			spread := l.p.ParsedDefinitions.FragmentSpreads[i]
-			if spread.FragmentName == name {
+			if l.ByteSliceReferenceContentsEquals(spread.FragmentName, name) {
 				return true
 			}
 		}
@@ -974,7 +985,7 @@ func (l *Lookup) IsFragmentDefinitionUsedInOperation(name int) bool {
 		set := l.SelectionSet(definitions.SelectionSet)
 		for _, i := range set.FragmentSpreads {
 			spread := l.p.ParsedDefinitions.FragmentSpreads[i]
-			if spread.FragmentName == name {
+			if l.ByteSliceReferenceContentsEquals(spread.FragmentName, name) {
 				return true
 			}
 		}
@@ -984,7 +995,7 @@ func (l *Lookup) IsFragmentDefinitionUsedInOperation(name int) bool {
 		set := l.SelectionSet(definitions.SelectionSet)
 		for _, i := range set.FragmentSpreads {
 			spread := l.p.ParsedDefinitions.FragmentSpreads[i]
-			if spread.FragmentName == name {
+			if l.ByteSliceReferenceContentsEquals(spread.FragmentName, name) {
 				return true
 			}
 		}
@@ -994,7 +1005,7 @@ func (l *Lookup) IsFragmentDefinitionUsedInOperation(name int) bool {
 		set := l.SelectionSet(definitions.SelectionSet)
 		for _, i := range set.FragmentSpreads {
 			spread := l.p.ParsedDefinitions.FragmentSpreads[i]
-			if spread.FragmentName == name {
+			if l.ByteSliceReferenceContentsEquals(spread.FragmentName, name) {
 				return true
 			}
 		}
@@ -1003,10 +1014,10 @@ func (l *Lookup) IsFragmentDefinitionUsedInOperation(name int) bool {
 	return false
 }
 
-func (l *Lookup) SelectionSetContainsFragmentSpread(set document.SelectionSet, spreadIndex int) bool {
+func (l *Lookup) SelectionSetContainsFragmentSpread(set document.SelectionSet, spreadName document.ByteSliceReference) bool {
 
 	for _, i := range set.FragmentSpreads {
-		if i == spreadIndex {
+		if l.ByteSliceReferenceContentsEquals(l.FragmentSpread(i).FragmentName, spreadName) {
 			return true
 		}
 	}
@@ -1015,34 +1026,37 @@ func (l *Lookup) SelectionSetContainsFragmentSpread(set document.SelectionSet, s
 	for fragmentSpreadIter.Next() {
 		spread, _ := fragmentSpreadIter.Value()
 		definition, _, ok := l.FragmentDefinitionByName(spread.FragmentName)
-		if ok && l.SelectionSetContainsFragmentSpread(l.SelectionSet(definition.SelectionSet), spreadIndex) {
+		if ok && l.SelectionSetContainsFragmentSpread(l.SelectionSet(definition.SelectionSet), spreadName) {
 			return true
 		}
 	}
 	fieldsIter := l.FieldsIterator(set.Fields)
 	for fieldsIter.Next() {
 		field, _ := fieldsIter.Value()
-		if l.SelectionSetContainsFragmentSpread(l.SelectionSet(field.SelectionSet), spreadIndex) {
+		if l.SelectionSetContainsFragmentSpread(l.SelectionSet(field.SelectionSet), spreadName) {
 			return true
 		}
 	}
 	inlineFragmentIter := l.InlineFragmentIterable(set.InlineFragments)
 	for inlineFragmentIter.Next() {
 		inlineFragment, _ := inlineFragmentIter.Value()
-		if l.SelectionSetContainsFragmentSpread(l.SelectionSet(inlineFragment.SelectionSet), spreadIndex) {
+		if l.SelectionSetContainsFragmentSpread(l.SelectionSet(inlineFragment.SelectionSet), spreadName) {
 			return true
 		}
 	}
+
 	return false
 }
 
-func (l *Lookup) PossibleSelectionTypes(typeName int, possibleTypeNames *[]int) {
+func (l *Lookup) PossibleSelectionTypes(typeName document.ByteSliceReference, possibleTypeNames *[]document.ByteSliceReference) {
 
 	*possibleTypeNames = append(*possibleTypeNames, typeName)
 
 	objectType, ok := l.ObjectTypeDefinitionByName(typeName)
 	if ok {
-		*possibleTypeNames = append(*possibleTypeNames, objectType.ImplementsInterfaces...)
+		for _, implementsInterface := range objectType.ImplementsInterfaces {
+			*possibleTypeNames = append(*possibleTypeNames, l.ByteSliceReference(implementsInterface))
+		}
 		l.UnionTypeDefinitionNamesContainingMember(typeName, possibleTypeNames)
 		return
 	}
@@ -1055,16 +1069,18 @@ func (l *Lookup) PossibleSelectionTypes(typeName int, possibleTypeNames *[]int) 
 		}
 		return
 	}
+
 	unionTypeDefinition, ok := l.UnionTypeDefinitionByName(typeName)
 	if ok {
-		*possibleTypeNames = append(*possibleTypeNames, unionTypeDefinition.UnionMemberTypes...)
 		for _, member := range unionTypeDefinition.UnionMemberTypes {
-			l.PossibleSelectionTypes(member, possibleTypeNames)
+			memberNameRef := l.ByteSliceReference(member)
+			*possibleTypeNames = append(*possibleTypeNames, memberNameRef)
+			l.PossibleSelectionTypes(memberNameRef, possibleTypeNames)
 		}
 	}
 }
 
-func (l *Lookup) FieldType(typeName int, fieldName int) (document.Type, bool) {
+func (l *Lookup) FieldType(typeName document.ByteSliceReference, fieldName document.ByteSliceReference) (document.Type, bool) {
 	objectTypeDefinition, ok := l.ObjectTypeDefinitionByName(typeName)
 	if ok {
 		definition, ok := l.FieldDefinitionByNameFromIndex(objectTypeDefinition.FieldsDefinition, fieldName)
@@ -1084,7 +1100,7 @@ func (l *Lookup) FieldType(typeName int, fieldName int) (document.Type, bool) {
 	return document.Type{}, false
 }
 
-func (l *Lookup) FieldSelectionsArePossible(onTypeName int, selections document.SelectionSet) bool {
+func (l *Lookup) FieldSelectionsArePossible(onTypeName document.ByteSliceReference, selections document.SelectionSet) bool {
 
 	fieldDefinitions := l.FieldsDefinitionFromNamedType(onTypeName)
 
@@ -1092,7 +1108,7 @@ func (l *Lookup) FieldSelectionsArePossible(onTypeName int, selections document.
 	for fields.Next() {
 		field, _ := fields.Value()
 
-		if bytes.Equal(l.CachedName(field.Name), []byte("__typename")) {
+		if bytes.Equal(l.ByteSlice(field.Name), []byte("__typename")) {
 			continue
 		}
 
@@ -1135,7 +1151,7 @@ func (l *Lookup) FieldSelectionsArePossible(onTypeName int, selections document.
 func (l *Lookup) ValueIsValid(value document.Value, typeSystemType document.Type, variableDefinitionRefs []int, inputValueDefinitionHasDefaultValue bool) bool {
 
 	if value.ValueType == document.ValueTypeVariable {
-		variableValue, ok := l.VariableDefinition(value.Reference, variableDefinitionRefs)
+		variableValue, ok := l.VariableDefinition(l.p.ParsedDefinitions.ByteSliceReferences[value.Reference], variableDefinitionRefs)
 		if !ok {
 			return false
 		}
@@ -1163,7 +1179,7 @@ func (l *Lookup) ValueIsValid(value document.Value, typeSystemType document.Type
 		typeSystemType = l.Type(typeSystemType.OfType)
 	}
 
-	typeNameBytes := l.CachedName(typeSystemType.Name)
+	typeNameBytes := l.ByteSlice(typeSystemType.Name)
 
 	switch value.ValueType {
 	case document.ValueTypeInt:
@@ -1181,7 +1197,7 @@ func (l *Lookup) ValueIsValid(value document.Value, typeSystemType document.Type
 		if !ok {
 			return false
 		}
-		if !l.EnumTypeDefinitionContainsValue(enumTypeDefinition, value.Reference) {
+		if !l.EnumTypeDefinitionContainsValue(enumTypeDefinition, l.p.ParsedDefinitions.ByteSliceReferences[value.Reference]) {
 			return false
 		}
 	case document.ValueTypeList:
@@ -1263,7 +1279,7 @@ func (l *Lookup) objectValueIsValid(value document.ObjectValue, definition docum
 			if i == j {
 				continue
 			}
-			if left.Name == right.Name {
+			if l.ByteSliceReferenceContentsEquals(left.Name, right.Name) {
 				//return fmt.Errorf("validateObjectValue: object field '%s' must be unique", string(l.CachedName(left.Name)))
 				return false
 			}
@@ -1273,21 +1289,21 @@ func (l *Lookup) objectValueIsValid(value document.ObjectValue, definition docum
 	return true
 }
 
-func (l *Lookup) InputObjectTypeDefinitionByName(name int) (document.InputObjectTypeDefinition, bool) {
+func (l *Lookup) InputObjectTypeDefinitionByName(name document.ByteSliceReference) (document.InputObjectTypeDefinition, bool) {
 	for _, definition := range l.p.ParsedDefinitions.InputObjectTypeDefinitions {
-		if definition.Name == name {
+		if l.ByteSliceReferenceContentsEquals(definition.Name, name) {
 			return definition, true
 		}
 	}
 	return document.InputObjectTypeDefinition{}, false
 }
 
-func (l *Lookup) VariableDefinition(variableName int, variableDefinitionRefs []int) (document.VariableDefinition, bool) {
+func (l *Lookup) VariableDefinition(variableName document.ByteSliceReference, variableDefinitionRefs []int) (document.VariableDefinition, bool) {
 
 	iter := l.VariableDefinitionIterator(variableDefinitionRefs)
 	for iter.Next() {
 		variableDefinition, _ := iter.Value()
-		if variableDefinition.Variable == variableName {
+		if l.ByteSliceReferenceContentsEquals(variableDefinition.Variable, variableName) {
 			return variableDefinition, true
 		}
 	}
@@ -1295,9 +1311,9 @@ func (l *Lookup) VariableDefinition(variableName int, variableDefinitionRefs []i
 	return document.VariableDefinition{}, false
 }
 
-func (l *Lookup) EnumTypeDefinitionContainsValue(definition document.EnumTypeDefinition, enumValue int) bool {
+func (l *Lookup) EnumTypeDefinitionContainsValue(definition document.EnumTypeDefinition, enumValue document.ByteSliceReference) bool {
 
-	if enumValue == -1 {
+	if enumValue.Length() == 0 {
 		return false
 	}
 
@@ -1305,7 +1321,7 @@ func (l *Lookup) EnumTypeDefinitionContainsValue(definition document.EnumTypeDef
 
 	for iter.Next() {
 		enumValueDefinition, _ := iter.Value()
-		if enumValueDefinition.EnumValue == enumValue {
+		if l.ByteSliceReferenceContentsEquals(enumValueDefinition.EnumValue, enumValue) {
 			return true
 		}
 	}
@@ -1346,10 +1362,9 @@ func (l *Lookup) SelectionSetHasSelections(set document.SelectionSet) bool {
 	return len(set.Fields)+len(set.FragmentSpreads)+len(set.InlineFragments) > 0
 }
 
-func (l *Lookup) FragmentSelectionsArePossible(onTypeName int, selections document.SelectionSet) bool {
+func (l *Lookup) FragmentSelectionsArePossible(onTypeName document.ByteSliceReference, selections document.SelectionSet) bool {
 
-	var possibleTypes []int
-	l.initRefsFromCache(&possibleTypes)
+	var possibleTypes []document.ByteSliceReference
 	l.PossibleSelectionTypes(onTypeName, &possibleTypes)
 
 	inlineFragments := l.InlineFragmentIterable(selections.InlineFragments)
@@ -1359,7 +1374,7 @@ func (l *Lookup) FragmentSelectionsArePossible(onTypeName int, selections docume
 			continue
 		}
 		typeCondition := l.Type(fragment.TypeCondition)
-		if !l.IntegersContainsMember(possibleTypes, typeCondition.Name) {
+		if !l.ByteSliceReferencesContainName(possibleTypes, typeCondition.Name) {
 			return false
 		}
 	}
@@ -1372,23 +1387,25 @@ func (l *Lookup) FragmentSelectionsArePossible(onTypeName int, selections docume
 			return false
 		}
 		typeCondition := l.Type(fragment.TypeCondition)
-		if !l.IntegersContainsMember(possibleTypes, typeCondition.Name) {
+		if !l.ByteSliceReferencesContainName(possibleTypes, typeCondition.Name) {
 			return false
 		}
 	}
 	return true
 }
 
-func (l *Lookup) IntegersContainsMember(integers []int, possibleMember int) bool {
-	for _, i := range integers {
-		if i == possibleMember {
+func (l *Lookup) ByteSliceReferencesContainName(refs []document.ByteSliceReference, name document.ByteSliceReference) bool {
+
+	for i := range refs {
+		if l.ByteSliceReferenceContentsEquals(refs[i], name) {
 			return true
 		}
 	}
+
 	return false
 }
 
-func (l *Lookup) UnionTypeDefinitionNamesContainingMember(memberName int, nameRefs *[]int) {
+func (l *Lookup) UnionTypeDefinitionNamesContainingMember(memberName document.ByteSliceReference, nameRefs *[]document.ByteSliceReference) {
 	for _, union := range l.p.ParsedDefinitions.UnionTypeDefinitions {
 		if l.UnionTypeDefinitionContainsType(union, memberName) {
 			*nameRefs = append(*nameRefs, union.Name)
@@ -1428,7 +1445,7 @@ func (l *Lookup) TypeSatisfiesTypeSystemType(typeSystemTypeDefinition document.T
 		return false
 	}
 	if typeSystemTypeDefinition.Kind == document.TypeKindNAMED {
-		if typeSystemTypeDefinition.Name != executableTypeDefinition.Name {
+		if !l.ByteSliceReferenceContentsEquals(typeSystemTypeDefinition.Name, executableTypeDefinition.Name) {
 			return false
 		}
 	}
@@ -1469,7 +1486,7 @@ func (l *Lookup) InputValueDefinitionHasDefaultValue(definition document.InputVa
 	return definition.DefaultValue != -1
 }
 
-func (l *Lookup) OperationTypeName(definition document.OperationDefinition) int {
+func (l *Lookup) OperationTypeName(definition document.OperationDefinition) document.ByteSliceReference {
 	switch definition.OperationType {
 	case document.OperationTypeQuery:
 		return l.p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition.Query
@@ -1478,7 +1495,7 @@ func (l *Lookup) OperationTypeName(definition document.OperationDefinition) int 
 	case document.OperationTypeSubscription:
 		return l.p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition.Subscription
 	default:
-		return -1
+		return document.ByteSliceReference{}
 	}
 }
 
@@ -1537,18 +1554,18 @@ func (l *Lookup) typesAreLeafNodes(left, right document.Type) bool {
 }
 
 func (l *Lookup) FieldResponseNamesAreEqual(left, right document.Field) bool {
-	return l.responseFieldName(left) == l.responseFieldName(right)
+	return l.ByteSliceReferenceContentsEquals(l.responseFieldName(left), l.responseFieldName(right))
 }
 
-func (l *Lookup) responseFieldName(field document.Field) int {
-	if field.Alias != -1 {
+func (l *Lookup) responseFieldName(field document.Field) document.ByteSliceReference {
+	if field.Alias.Length() != 0 {
 		return field.Alias
 	}
 	return field.Name
 }
 
 func (l *Lookup) FieldNamesAndAliasesAreEqual(left, right document.Field) bool {
-	return left.Name == right.Name && left.Alias == right.Alias
+	return l.ByteSliceReferenceContentsEquals(left.Name, right.Name) && l.ByteSliceReferenceContentsEquals(left.Alias, right.Alias)
 }
 
 func (l *Lookup) FieldsDeepEqual(left, right document.Field) bool {
@@ -1598,16 +1615,4 @@ func (l *Lookup) InlineFragmentsDeepEqual(left, right document.InlineFragment) b
 
 func (l *Lookup) FragmentSpreadsDeepEqual(left, right document.FragmentSpread) bool {
 	return left.FragmentName == right.FragmentName
-}
-
-func (l *Lookup) ByteSliceName(slice []byte) (name int) {
-	length := uint32(len(slice))
-	for i := range l.p.ParsedDefinitions.ByteSliceReferences {
-		if l.p.ParsedDefinitions.ByteSliceReferences[i].Length() == length {
-			if bytes.Equal(l.ByteSlice(l.p.ParsedDefinitions.ByteSliceReferences[i]), slice) {
-				return i
-			}
-		}
-	}
-	return -1
 }

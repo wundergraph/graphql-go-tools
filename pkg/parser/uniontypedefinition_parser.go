@@ -18,7 +18,7 @@ func (p *Parser) parseUnionTypeDefinition(hasDescription bool, description token
 	}
 
 	definition := p.makeUnionTypeDefinition()
-	definition.Name = p.putByteSliceReference(unionName.Literal)
+	definition.Name = unionName.Literal
 
 	if hasDescription {
 		definition.Position.MergeStartIntoStart(description.TextPosition)
@@ -40,7 +40,7 @@ func (p *Parser) parseUnionTypeDefinition(hasDescription bool, description token
 			return err
 		}
 
-		definition.UnionMemberTypes = append(definition.UnionMemberTypes, p.putByteSliceReference(member.Literal))
+		definition.UnionMemberTypes = append(definition.UnionMemberTypes, p._putByteSliceReference(member.Literal))
 
 		shouldParseMembers = p.peekExpect(keyword.PIPE, true)
 	}

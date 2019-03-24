@@ -84,7 +84,7 @@ func DirectivesAreUniquePerLocation() rules.Rule {
 					if i == j {
 						continue
 					}
-					if left.Name == right.Name {
+					if l.ByteSliceReferenceContentsEquals(left.Name, right.Name) {
 						return validation.Invalid(validation.DirectivesAreUniquePerLocation, validation.DirectiveMustBeUniquePerLocation, left.Position, left.Name)
 					}
 				}
@@ -124,7 +124,7 @@ func DirectivesHaveRequiredArguments() rules.Rule {
 					args := l.ArgumentsIterable(argumentSet)
 					for args.Next() {
 						argument, _ := args.Value()
-						if argument.Name == inputValueDefinition.Name && l.ValueIsValid(l.Value(argument.Value), wantType, nil, hasDefaultValue) {
+						if l.ByteSliceReferenceContentsEquals(argument.Name, inputValueDefinition.Name) && l.ValueIsValid(l.Value(argument.Value), wantType, nil, hasDefaultValue) {
 							continue WithNextInputValueDefinition
 						}
 					}

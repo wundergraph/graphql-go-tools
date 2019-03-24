@@ -32,7 +32,7 @@ func TestExecutionValidation(t *testing.T) {
 		result := rule(l, walker)
 
 		if valid != result.Valid {
-			panic(fmt.Errorf("want valid: %t, got: %t (result: %+v, subName: %s)", valid, result.Valid, result, l.CachedName(result.Meta.SubjectNameRef)))
+			panic(fmt.Errorf("want valid: %t, got: %t (result: %+v, subName: %s)", valid, result.Valid, result, string(l.ByteSlice(result.Meta.SubjectNameRef))))
 		}
 	}
 
@@ -3790,6 +3790,12 @@ func BenchmarkExecutionValidation(t *testing.B) {
 			t.Run("149", func(t *testing.B) {
 				run(t, `{
 									findDog(complex: { name: "Fido", name: "Goofy"})
+								}`,
+					Values(), false)
+			})
+			t.Run("149 variant", func(t *testing.B) {
+				run(t, `{
+									findDog(complex: { name: "Fido", name1: "Goofy"})
 								}`,
 					Values(), false)
 			})

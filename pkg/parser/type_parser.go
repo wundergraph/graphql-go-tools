@@ -49,7 +49,7 @@ func (p *Parser) parseType(index *int) error {
 		firstType.OfType = ofType
 	} else if !isNonNull && !isListType {
 		firstType.Kind = document.TypeKindNAMED
-		firstType.Name = p.putByteSliceReference(name)
+		firstType.Name = name
 	} else if isNonNull && isListType {
 		var secondIndex int
 		secondType := p.makeType(&secondIndex)
@@ -58,7 +58,6 @@ func (p *Parser) parseType(index *int) error {
 
 		p.putType(secondType, secondIndex)
 
-		firstType.Name = -1
 		firstType.Kind = document.TypeKindNON_NULL
 		firstType.OfType = secondIndex
 
@@ -66,11 +65,10 @@ func (p *Parser) parseType(index *int) error {
 		var secondIndex int
 		secondType := p.makeType(&secondIndex)
 		secondType.Kind = document.TypeKindNAMED
-		secondType.Name = p.putByteSliceReference(name)
+		secondType.Name = name
 
 		p.putType(secondType, secondIndex)
 
-		firstType.Name = -1
 		firstType.Kind = document.TypeKindNON_NULL
 		firstType.OfType = secondIndex
 	}

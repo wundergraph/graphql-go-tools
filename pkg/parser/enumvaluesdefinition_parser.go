@@ -27,7 +27,7 @@ func (p *Parser) parseEnumValuesDefinition(index *[]int) error {
 		} else if next == keyword.IDENT {
 			ident := p.l.Read()
 			definition := p.makeEnumValueDefinition()
-			definition.EnumValue = p.putByteSliceReference(ident.Literal)
+			definition.EnumValue = ident.Literal
 			if hasDescription {
 				definition.Description = description
 				hasDescription = false

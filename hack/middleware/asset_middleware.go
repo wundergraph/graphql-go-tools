@@ -23,14 +23,25 @@ func (a *AssetUrlMiddleware) OnRequest(userValues map[string][]byte, l *lookup.L
 
 	// get the required names (int)
 	// if they don't exist in the type system definition we'd receive '-1' which indicates the literal doesn't exist
-	assetName := l.ByteSliceName([]byte("Asset"))
-	urlName := l.ByteSliceName([]byte("url"))
-	handleName := l.ByteSliceName([]byte("handle"))
+	assetName, _, err := mod.PutLiteralBytes([]byte("Asset"))
+	if err != nil {
+		return err
+	}
+
+	urlName, _, err := mod.PutLiteralBytes([]byte("url"))
+	if err != nil {
+		return err
+	}
+
+	handleName, _, err := mod.PutLiteralBytes([]byte("handle"))
+	if err != nil {
+		return err
+	}
 
 	// handle gracefully/error logging
-	if assetName == -1 || urlName == -1 || handleName == -1 {
+	/*if assetName == -1 || urlName == -1 || handleName == -1 {
 		return nil
-	}
+	}*/
 
 	field := document.Field{
 		Name:         handleName,
@@ -44,13 +55,13 @@ func (a *AssetUrlMiddleware) OnRequest(userValues map[string][]byte, l *lookup.L
 	fields := w.FieldsIterable()
 	for fields.Next() {
 		field, fieldRef, parent := fields.Value()
-		if field.Name != urlName { // find all fields in the ast named 'url'
+		if !l.ByteSliceReferenceContentsEquals(field.Name, urlName) { // find all fields in the ast named 'url'
 			continue
 		}
 		setRef := w.Node(parent).Ref
 		set := l.SelectionSet(setRef)
 		setTypeName := w.SelectionSetTypeName(set, parent)
-		if setTypeName != assetName { // verify if field 'url' sits inside an Asset type
+		if !l.ByteSliceReferenceContentsEquals(setTypeName, assetName) { // verify if field 'url' sits inside an Asset type
 			continue
 		}
 		mod.DeleteFieldFromSelectionSet(fieldRef, setRef) // delete the field on the selectionSet
@@ -61,7 +72,7 @@ func (a *AssetUrlMiddleware) OnRequest(userValues map[string][]byte, l *lookup.L
 
 		set, _, setRef, parent := sets.Value()
 		typeName := w.SelectionSetTypeName(set, parent)
-		if typeName != assetName { // find all selectionSets belonging to type Asset
+		if !l.ByteSliceReferenceContentsEquals(typeName, assetName) { // find all selectionSets belonging to type Asset
 			continue
 		}
 
@@ -76,23 +87,30 @@ func (a *AssetUrlMiddleware) OnResponse(userValues map[string][]byte, response *
 	w.SetLookup(l)
 	w.WalkExecutable()
 
-	assetName := l.ByteSliceName([]byte("Asset"))
-	handleName := l.ByteSliceName([]byte("handle"))
-
-	if assetName == -1 || handleName == -1 {
-		return nil
+	assetName, _, err := mod.PutLiteralBytes([]byte("Asset"))
+	if err != nil {
+		return err
 	}
+
+	handleName, _, err := mod.PutLiteralBytes([]byte("handle"))
+	if err != nil {
+		return err
+	}
+
+	/*if assetName == -1 || handleName == -1 {
+		return nil
+	}*/
 
 	fields := w.FieldsIterable()
 	for fields.Next() {
 		field, _, parent := fields.Value()
-		if field.Name != handleName { // find all fields in the ast named 'url'
+		if !l.ByteSliceReferenceContentsEquals(field.Name, handleName) { // find all fields in the ast named 'url'
 			continue
 		}
 		setRef := w.Node(parent).Ref
 		set := l.SelectionSet(setRef)
 		setTypeName := w.SelectionSetTypeName(set, parent)
-		if setTypeName != assetName { // verify if field 'url' sits inside an Asset type
+		if !l.ByteSliceReferenceContentsEquals(setTypeName, assetName) { // verify if field 'url' sits inside an Asset type
 			continue
 		}
 
@@ -102,7 +120,7 @@ func (a *AssetUrlMiddleware) OnResponse(userValues map[string][]byte, response *
 		builder.WriteString("data")
 		for i := range path {
 			builder.WriteRune(runes.DOT)
-			builder.Write(l.CachedName(path[len(path)-1-i]))
+			builder.Write(l.ByteSlice(path[len(path)-1-i]))
 		}
 
 		builder.WriteString(".#.handle")

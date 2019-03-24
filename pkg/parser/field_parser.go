@@ -11,7 +11,7 @@ func (p *Parser) parseField() (ref int, err error) {
 	p.initField(&field)
 
 	firstIdent := p.l.Read()
-	field.Name = p.putByteSliceReference(firstIdent.Literal)
+	field.Name = firstIdent.Literal
 	field.Position.MergeStartIntoStart(firstIdent.TextPosition)
 
 	hasAlias := p.peekExpect(keyword.COLON, true)
@@ -23,7 +23,7 @@ func (p *Parser) parseField() (ref int, err error) {
 			return ref, err
 		}
 
-		field.Name = p.putByteSliceReference(fieldName.Literal)
+		field.Name = fieldName.Literal
 	}
 
 	err = p.parseArgumentSet(&field.ArgumentSet)

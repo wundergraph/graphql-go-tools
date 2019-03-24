@@ -55,7 +55,7 @@ func TestWalker(t *testing.T) {
 				args := w.l.ArgumentsIterable(set)
 				for args.Next() {
 					arg, ref := args.Value()
-					if string(w.l.p.CachedByteSlice(arg.Name)) == argumentName {
+					if string(w.l.p.ByteSlice(arg.Name)) == argumentName {
 
 						operations := w.NodeUsageInOperationsIterator(ref)
 						for i := range operationNames {
@@ -65,7 +65,7 @@ func TestWalker(t *testing.T) {
 							}
 							ref := operations.Value()
 							operationDefinition := w.l.OperationDefinition(ref)
-							gotName := string(w.l.p.CachedByteSlice(operationDefinition.Name))
+							gotName := string(w.l.p.ByteSlice(operationDefinition.Name))
 							if wantName != gotName {
 								panic(fmt.Errorf("argumentUsedInOperations: want operation name: '%s', got: '%s'", wantName, gotName))
 							}
@@ -83,7 +83,7 @@ func TestWalker(t *testing.T) {
 			fields := w.FieldsIterable()
 			for fields.Next() {
 				field, _, parent := fields.Value()
-				fieldName := string(w.l.CachedName(field.Name))
+				fieldName := string(w.l.ByteSlice(field.Name))
 				if fieldName != forNamedField {
 					continue
 				}
@@ -93,7 +93,7 @@ func TestWalker(t *testing.T) {
 					panic(fmt.Errorf("wantFieldPath: want path with len: %d, got: %d", len(wantPath), len(gotPath)))
 				}
 				for i, wantName := range wantPath {
-					gotName := string(w.l.CachedName(gotPath[len(gotPath)-1-i]))
+					gotName := string(w.l.ByteSlice(gotPath[len(gotPath)-1-i]))
 					if gotName != wantName {
 						panic(fmt.Errorf("wantFieldPath: want path field name: %s, got: %s (pos: %d)", wantName, gotName, i))
 					}

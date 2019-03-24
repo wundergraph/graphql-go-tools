@@ -50,8 +50,8 @@ func (a *ContextMiddleware) OnResponse(userValues map[string][]byte, response *[
 }
 
 type ContextRewriteConfig struct {
-	fieldName               int
-	argumentName            int
+	fieldName               document.ByteSliceReference
+	argumentName            document.ByteSliceReference
 	argumentValueContextKey document.ByteSlice
 }
 
@@ -75,7 +75,7 @@ func (a *ContextMiddleware) OnRequest(userValues map[string][]byte, l *lookup.Lo
 		return err
 	}
 
-	typeNamesAndFieldNamesWithDirective := make(map[int][]ContextRewriteConfig)
+	typeNamesAndFieldNamesWithDirective := make(map[string][]ContextRewriteConfig)
 
 	fields := w.FieldsContainingDirectiveIterator(addArgumentFromContextDirectiveName)
 	for fields.Next() {
@@ -93,29 +93,16 @@ func (a *ContextMiddleware) OnRequest(userValues map[string][]byte, l *lookup.Lo
 		args := l.ArgumentsIterable(argSet)
 		for args.Next() {
 			arg, _ := args.Value()
-			if arg.Name == nameLiteral {
+			if l.ByteSliceReferenceContentsEquals(arg.Name, nameLiteral) {
 				value := l.Value(arg.Value)
-				raw := l.ByteSlice(value.Raw)
-
-				//raw = bytes.Replace(raw,literal.QUOTE,nil,-1)
-
-				argName, _, err := mod.PutLiteralBytes(raw)
-				if err != nil {
-					return err
-				}
-
-				rewriteConfig.argumentName = argName
-			} else if arg.Name == contextKeyLiteral {
+				rewriteConfig.argumentName = value.Raw
+			} else if l.ByteSliceReferenceContentsEquals(arg.Name, contextKeyLiteral) {
 				value := l.Value(arg.Value)
-				raw := l.ByteSlice(value.Raw)
-
-				//raw = bytes.Replace(raw,literal.QUOTE,nil,-1)
-
-				rewriteConfig.argumentValueContextKey = raw
+				rewriteConfig.argumentValueContextKey = l.ByteSlice(value.Raw)
 			}
 		}
 
-		typeNamesAndFieldNamesWithDirective[objectTypeDefinition.Name] = append(typeNamesAndFieldNamesWithDirective[objectTypeDefinition.Name], rewriteConfig)
+		typeNamesAndFieldNamesWithDirective[string(l.ByteSlice(objectTypeDefinition.Name))] = append(typeNamesAndFieldNamesWithDirective[string(l.ByteSlice(objectTypeDefinition.Name))], rewriteConfig)
 	}
 
 	w.SetLookup(l)
@@ -125,7 +112,7 @@ func (a *ContextMiddleware) OnRequest(userValues map[string][]byte, l *lookup.Lo
 	for selectionSets.Next() {
 		set, _, _, parent := selectionSets.Value()
 		typeName := w.SelectionSetTypeName(set, parent)
-		fieldsWithDirective, ok := typeNamesAndFieldNamesWithDirective[typeName]
+		fieldsWithDirective, ok := typeNamesAndFieldNamesWithDirective[string(l.ByteSlice(typeName))]
 		if !ok {
 			continue
 		}
@@ -136,7 +123,7 @@ func (a *ContextMiddleware) OnRequest(userValues map[string][]byte, l *lookup.Lo
 		for fields.Next() {
 			fieldRef, field := fields.Value()
 			for _, i := range fieldsWithDirective {
-				if i.fieldName == field.Name {
+				if l.ByteSliceReferenceContentsEquals(i.fieldName, field.Name) {
 					//fmt.Printf("must merge args into: %d\n", field.ArgumentSet)
 
 					argumentValue := userValues[string(i.argumentValueContextKey)]
@@ -144,7 +131,7 @@ func (a *ContextMiddleware) OnRequest(userValues map[string][]byte, l *lookup.Lo
 						return fmt.Errorf("OnRequest: No value for key: %s", string(i.argumentValueContextKey))
 					}
 
-					argNameRef, argByteSliceRef, err := mod.PutLiteralBytes(argumentValue)
+					argByteSliceRef, argNameRef, err := mod.PutLiteralBytes(argumentValue)
 					if err != nil {
 						return err
 					}
