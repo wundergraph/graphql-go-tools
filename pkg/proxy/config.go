@@ -1,22 +1,26 @@
 package proxy
 
-// SchemaProvider exists because it's not usually the case for the handler to keep the schema around
-// Think multi tenant SaaS applications where a handler might handle schemas for many tenants
-// In case you just want to use one single schema simply use StaticSchemaProvider
-type SchemaProvider interface {
-	GetSchema(requestURI []byte) []byte
+type RequestConfigProvider interface {
+	GetRequestConfig(requestURI []byte) RequestConfig
 }
 
-type StaticSchemaProvider struct {
-	schema []byte
+type RequestConfig struct {
+	Schema              *[]byte
+	BackendHost         string
+	BackendAddr         []byte
+	AddHeadersToContext [][]byte
 }
 
-func (s StaticSchemaProvider) GetSchema(requestURI []byte) []byte {
-	return s.schema
+type StaticRequestConfigProvider struct {
+	config RequestConfig
 }
 
-func NewStaticSchemaProvider(schema []byte) *StaticSchemaProvider {
-	return &StaticSchemaProvider{
-		schema: schema,
+func (s *StaticRequestConfigProvider) GetRequestConfig(requestURI []byte) RequestConfig {
+	return s.config
+}
+
+func NewStaticSchemaProvider(config RequestConfig) *StaticRequestConfigProvider {
+	return &StaticRequestConfigProvider{
+		config: config,
 	}
 }
