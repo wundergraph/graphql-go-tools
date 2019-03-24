@@ -5,7 +5,7 @@ import "testing"
 func TestManualAstMod_PutLiteralBytes(t *testing.T) {
 	parser := NewParser()
 	mod := NewManualAstMod(parser)
-	input := make([]byte, 655350+1)
+	input := make([]byte, 1000000+1)
 	_, _, err := mod.PutLiteralBytes(input)
 	if err == nil {
 		panic("want err")
