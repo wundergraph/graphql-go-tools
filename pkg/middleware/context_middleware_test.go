@@ -15,7 +15,10 @@ func TestContextMiddleware(t *testing.T) {
 		userValues := make(map[string][]byte)
 		userValues["user"] = []byte(`"jsmith@example.org"`)
 
-		got := InvokeMiddleware(&ContextMiddleware{}, userValues, publicSchema, publicQuery)
+		got, err := InvokeMiddleware(&ContextMiddleware{}, userValues, publicSchema, publicQuery)
+		if err != nil {
+			t.Fatal(err)
+		}
 		want := testhelper.UglifyRequestString(privateQuery)
 
 		if want != got {
