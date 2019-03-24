@@ -104,7 +104,7 @@ func TestLexer_Peek_Read(t *testing.T) {
 	})
 	t.Run("set too large input", func(t *testing.T) {
 		lex := NewLexer()
-		if err := lex.SetTypeSystemInput(make([]byte, 655360)); err == nil {
+		if err := lex.SetTypeSystemInput(make([]byte, 1000000+1)); err == nil {
 			panic(fmt.Errorf("must err on too large input"))
 		}
 	})
