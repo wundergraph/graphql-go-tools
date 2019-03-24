@@ -575,7 +575,7 @@ func (w *Walker) NodeUsageInOperationsIterator(ref int) (iter NodeUsageInOperati
 
 	rootNode := w.RootNode(ref)
 
-	iter.refs = w.l.refPool.get()
+	iter.refs = w.l.p.IndexPoolGet()
 
 	switch rootNode.Kind {
 	case OPERATION_DEFINITION:
