@@ -25,7 +25,8 @@ func NewLexer() *Lexer {
 }
 
 const (
-	maxInput = 655350
+	//maxInput = 655350
+	maxInput = 1000000
 )
 
 // SetTypeSystemInput sets the new reader as input and resets all position stats
