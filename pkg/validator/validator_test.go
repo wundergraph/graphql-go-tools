@@ -94,7 +94,6 @@ func BenchmarkValidator(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			w.SetLookup(l)
 			v.SetInput(l, w)
-			v.l.ResetPool()
 			w.WalkExecutable()
 			v.ValidateExecutableDefinition(DefaultExecutionRules)
 		}
