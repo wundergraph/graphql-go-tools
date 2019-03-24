@@ -29,17 +29,24 @@ func TestProxyHandler(t *testing.T) {
 	}))
 	defer es.Close()
 
-	schemaProvider := proxy.NewStaticSchemaProvider([]byte(assetSchema))
+	schema := []byte(assetSchema)
+
+	requestConfigProvider := proxy.NewStaticSchemaProvider(proxy.RequestConfig{
+		Schema:      &schema,
+		BackendHost: es.Listener.Addr().String(),
+		BackendAddr: []byte(es.URL),
+	})
+
 	ip := sync.Pool{
 		New: func() interface{} {
 			return middleware.NewInvoker(&hackmiddleware.AssetUrlMiddleware{})
 		},
 	}
 	ph := &Proxy{
-		Host:           es.URL,
-		SchemaProvider: schemaProvider,
-		InvokerPool:    ip,
-		Client:         *http.DefaultClient,
+		Host:                  es.URL,
+		RequestConfigProvider: requestConfigProvider,
+		InvokerPool:           ip,
+		Client:                *http.DefaultClient,
 		HandleError: func(err error, w http.ResponseWriter) {
 			t.Fatal(err)
 		},
@@ -80,17 +87,25 @@ func BenchmarkProxyHandler(b *testing.B) {
 	}))
 	defer es.Close()
 
-	schemaProvider := proxy.NewStaticSchemaProvider([]byte(assetSchema))
+	schema := []byte(assetSchema)
+
+	requestConfigProvider := proxy.NewStaticSchemaProvider(proxy.RequestConfig{
+		Schema:      &schema,
+		BackendHost: es.Listener.Addr().String(),
+		BackendAddr: []byte(es.URL),
+	})
+
 	ip := sync.Pool{
 		New: func() interface{} {
 			return middleware.NewInvoker(&hackmiddleware.AssetUrlMiddleware{})
 		},
 	}
+
 	ph := &Proxy{
-		Host:           es.URL,
-		SchemaProvider: schemaProvider,
-		InvokerPool:    ip,
-		Client:         *http.DefaultClient,
+		Host:                  es.URL,
+		RequestConfigProvider: requestConfigProvider,
+		InvokerPool:           ip,
+		Client:                *http.DefaultClient,
 		HandleError: func(err error, w http.ResponseWriter) {
 			b.Fatal(err)
 		},

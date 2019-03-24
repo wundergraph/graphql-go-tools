@@ -54,7 +54,13 @@ func TestProxyIntegration(t *testing.T) {
 	endpointServer := httptest.NewServer(endpointHandler)
 	defer endpointServer.Close()
 
-	schemaProvider := proxy.NewStaticSchemaProvider([]byte(publicSchema))
+	schema := []byte(publicSchema)
+
+	schemaProvider := proxy.NewStaticSchemaProvider(proxy.RequestConfig{
+		Schema:      &schema,
+		BackendHost: endpointServer.Listener.Addr().String(),
+		BackendAddr: []byte(endpointServer.URL),
+	})
 
 	ip := sync.Pool{
 		New: func() interface{} {
@@ -64,10 +70,10 @@ func TestProxyIntegration(t *testing.T) {
 
 	// the handler for the graphql proxy
 	proxyHandler := &Proxy{
-		Host:           endpointServer.URL,
-		SchemaProvider: schemaProvider,
-		InvokerPool:    ip,
-		Client:         *http.DefaultClient,
+		Host:                  endpointServer.URL,
+		RequestConfigProvider: schemaProvider,
+		InvokerPool:           ip,
+		Client:                *http.DefaultClient,
 		HandleError: func(err error, w http.ResponseWriter) {
 			t.Fatal(err)
 		},
@@ -82,6 +88,7 @@ func TestProxyIntegration(t *testing.T) {
 			},
 		},
 	}
+
 	proxyServer := httptest.NewServer(checkUserMiddleware(proxyHandler))
 	defer proxyServer.Close()
 
