@@ -11,7 +11,10 @@ func TestAssetMiddleware(t *testing.T) {
 
 	run := func(schema, queryBefore, queryAfter string) {
 
-		got := middleware.InvokeMiddleware(&AssetUrlMiddleware{}, nil, schema, queryBefore)
+		got, err := middleware.InvokeMiddleware(&AssetUrlMiddleware{}, nil, schema, queryBefore)
+		if err != nil {
+			t.Fatal(err)
+		}
 		want := testhelper.UglifyRequestString(queryAfter)
 
 		if want != got {
