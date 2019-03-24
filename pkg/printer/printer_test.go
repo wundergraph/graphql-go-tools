@@ -23,7 +23,7 @@ func TestPrinter(t *testing.T) {
 			panic(err)
 		}
 
-		l := lookup.New(p, 256)
+		l := lookup.New(p)
 		l.SetParser(p)
 
 		w := lookup.NewWalker(1024, 8)
@@ -183,7 +183,7 @@ func TestPrinter_Regression(t *testing.T) {
 		p := parser.NewParser()
 		parse(p, inputBytes)
 
-		l := lookup.New(p, 256)
+		l := lookup.New(p)
 		w := lookup.NewWalker(1024, 8)
 		w.SetLookup(l)
 		walk(w)
@@ -230,7 +230,7 @@ func BenchmarkPrinter_PrintExecutableSchema(b *testing.B) {
 	buff := bytes.Buffer{}
 	bufOut := bufio.NewWriter(&buff)
 
-	l := lookup.New(p, 256)
+	l := lookup.New(p)
 	w := lookup.NewWalker(1024, 8)
 
 	b.ResetTimer()

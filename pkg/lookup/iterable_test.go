@@ -21,7 +21,7 @@ func literalString(p *parser.Parser, cachedName document.ByteSliceReference) str
 
 func TestFieldsContainingDirectiveIterator(t *testing.T) {
 	p := parser.NewParser()
-	look := New(p, 512)
+	look := New(p)
 	if err := p.ParseTypeSystemDefinition([]byte(FieldsContainingDirectiveIteratorInput)); err != nil {
 		panic(err)
 	}

@@ -17,7 +17,7 @@ func TestWalker(t *testing.T) {
 			panic(err)
 		}
 
-		l := New(p, 256)
+		l := New(p)
 
 		err = p.ParseExecutableDefinition([]byte(input))
 		if err != nil {

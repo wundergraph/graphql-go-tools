@@ -19,7 +19,7 @@ func InvokeMiddleware(middleware GraphqlMiddleware, userValues map[string][]byte
 		return
 	}
 	astPrint := printer.New()
-	look := lookup.New(parse, 512)
+	look := lookup.New(parse)
 	walk := lookup.NewWalker(1024, 8)
 	mod := parser.NewManualAstMod(parse)
 	walk.SetLookup(look)

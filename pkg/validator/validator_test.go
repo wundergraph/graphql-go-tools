@@ -21,7 +21,7 @@ func TestValidator(t *testing.T) {
 			panic(err)
 		}
 
-		l := lookup.New(p, 256)
+		l := lookup.New(p)
 		l.SetParser(p)
 		w := lookup.NewWalker(1024, 8)
 		w.SetLookup(l)
@@ -83,7 +83,7 @@ func BenchmarkValidator(b *testing.B) {
 			panic(err)
 		}
 
-		l := lookup.New(p, 256)
+		l := lookup.New(p)
 		w := lookup.NewWalker(1024, 8)
 
 		v := New()

@@ -17,7 +17,7 @@ func UglifyRequestBytes(request []byte) []byte {
 		panic(err)
 	}
 	astPrint := printer.New()
-	look := lookup.New(parse, 512)
+	look := lookup.New(parse)
 	walk := lookup.NewWalker(1024, 8)
 	walk.SetLookup(look)
 	walk.WalkExecutable()

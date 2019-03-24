@@ -30,7 +30,7 @@ func NewProxy() *Proxy {
 		FakeRedis:         NewFakeRedis(),
 		PrismaConnections: make(map[string]Prisma),
 		parse:             parse,
-		look:              lookup.New(parse, 1024),
+		look:              lookup.New(parse),
 		walk:              lookup.NewWalker(512, 8),
 		mod:               parser.NewManualAstMod(parse),
 		astPrint:          printer.New(),

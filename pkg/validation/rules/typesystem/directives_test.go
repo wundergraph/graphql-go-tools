@@ -16,7 +16,7 @@ func TestValidateTypeSystemDefinition_Directives(t *testing.T) {
 			panic(err)
 		}
 
-		l := lookup.New(p, 256)
+		l := lookup.New(p)
 
 		walker := lookup.NewWalker(1024, 8)
 		walker.SetLookup(l)

@@ -18,7 +18,7 @@ type Invoker struct {
 
 func NewInvoker(middleWares ...GraphqlMiddleware) *Invoker {
 	parse := parser.NewParser()
-	look := lookup.New(parse, 256)
+	look := lookup.New(parse)
 	walk := lookup.NewWalker(512, 8)
 	astPrint := printer.New()
 	astPrint.SetInput(parse, look, walk)

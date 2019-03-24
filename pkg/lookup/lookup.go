@@ -12,29 +12,7 @@ type Lookup struct {
 	refCache []int
 }
 
-type refPool struct {
-	refs     [][]int
-	position int
-}
-
-func (r *refPool) get() []int {
-	r.position++
-	if len(r.refs)-1 < r.position {
-		r.refs = append(r.refs, make([]int, 8))
-	}
-	return r.refs[r.position][:0]
-}
-
-func New(p *parser.Parser, refPoolSize int) *Lookup {
-
-	var pool refPool
-	pool.position = -1
-	pool.refs = make([][]int, refPoolSize)
-
-	for i := 0; i < refPoolSize; i++ {
-		pool.refs[i] = make([]int, 8)
-	}
-
+func New(p *parser.Parser) *Lookup {
 	return &Lookup{
 		p:        p,
 		refCache: make([]int, 0, 48),
@@ -43,10 +21,6 @@ func New(p *parser.Parser, refPoolSize int) *Lookup {
 
 func (l *Lookup) SetParser(p *parser.Parser) {
 	l.p = p
-}
-
-func (l *Lookup) initRefsFromCache(refs *[]int) {
-	*refs = l.refCache[:0]
 }
 
 func (l *Lookup) HasOperationDefinitions() bool {

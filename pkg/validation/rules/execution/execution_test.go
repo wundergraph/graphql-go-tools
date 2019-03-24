@@ -17,7 +17,7 @@ func TestExecutionValidation(t *testing.T) {
 			panic(err)
 		}
 
-		l := lookup.New(p, 256)
+		l := lookup.New(p)
 
 		err = p.ParseExecutableDefinition([]byte(input))
 		if err != nil {
@@ -2534,7 +2534,7 @@ func BenchmarkExecutionValidation(t *testing.B) {
 			panic(err)
 		}
 
-		l := lookup.New(p, 256)
+		l := lookup.New(p)
 
 		err = p.ParseExecutableDefinition([]byte(input))
 		if err != nil {
