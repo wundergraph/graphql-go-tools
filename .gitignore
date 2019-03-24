@@ -1,3 +1,4 @@
 .idea/*
 *.out
 *.test
+pkg/parser/testdata/lotto.graphql
