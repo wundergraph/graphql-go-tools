@@ -24,7 +24,7 @@ func (p *Parser) parseDirectiveDefinition(hasDescription bool, description token
 	}
 
 	var definition document.DirectiveDefinition
-	definition.DirectiveLocations = p.indexPoolGet()
+	definition.DirectiveLocations = p.IndexPoolGet()
 	definition.Name = directiveIdent.Literal
 
 	if hasDescription {
