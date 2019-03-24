@@ -18,7 +18,6 @@ func TestWalker(t *testing.T) {
 		}
 
 		l := New(p, 256)
-		l.ResetPool()
 
 		err = p.ParseExecutableDefinition([]byte(input))
 		if err != nil {
