@@ -117,14 +117,11 @@ func (a *ContextMiddleware) OnRequest(userValues map[string][]byte, l *lookup.Lo
 			continue
 		}
 
-		//fmt.Printf("fieldsWithDirective: %+v\n", fieldsWithDirective)
-
 		fields := l.SelectionSetCollectedFields(set, typeName)
 		for fields.Next() {
 			fieldRef, field := fields.Value()
 			for _, i := range fieldsWithDirective {
 				if l.ByteSliceReferenceContentsEquals(i.fieldName, field.Name) {
-					//fmt.Printf("must merge args into: %d\n", field.ArgumentSet)
 
 					argumentValue := userValues[string(i.argumentValueContextKey)]
 					if argumentValue == nil {
