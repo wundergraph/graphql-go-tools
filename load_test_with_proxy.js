@@ -10,7 +10,7 @@ export default function() {
 	let req, res;
 	req = [{
 		"method": "POST",
-		"url": "http://localhost:8888/query",
+		"url": "http://0.0.0.0:8888/query",
 		"body": "{\"operationName\":null,\"variables\":{},\"query\":\"{\\n  documents{\\n    owner\\n    sensitiveInformation\\n  }\\n}\\n\"}",
 		"params": {
 			"headers": {
