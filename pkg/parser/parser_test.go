@@ -27,7 +27,7 @@ func TestParser(t *testing.T) {
 
 func TestParser_ParseExecutableDefinition(t *testing.T) {
 	parser := NewParser()
-	input := make([]byte, 655360)
+	input := make([]byte, 1000000+1)
 	err := parser.ParseTypeSystemDefinition(input)
 	if err == nil {
 		t.Fatal("want err, got nil")
