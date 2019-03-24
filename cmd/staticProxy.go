@@ -26,14 +26,12 @@ var (
 
 // staticProxyCmd represents the staticProxy command
 var staticProxyCmd = &cobra.Command{
-	Use:   "static-proxy",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+	Use:   "staticProxy",
+	Short: "staticProxy starts a proxy that cannot be configured at runtime",
+	Long: `staticProxy is a simple graphql proxy that sits in front of a single graphql backend
+In the current version staticProxy is capable of rewriting requests with the context middleware.
+See the following docs for usage details:
+https://jens-neuse.gitbook.io/graphql-go-tools/middlewares/context-middleware`,
 	Run: func(cmd *cobra.Command, args []string) {
 		printConfig()
 		runPrintMemoryUsage()
