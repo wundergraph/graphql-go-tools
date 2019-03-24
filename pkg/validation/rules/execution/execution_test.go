@@ -18,7 +18,6 @@ func TestExecutionValidation(t *testing.T) {
 		}
 
 		l := lookup.New(p, 256)
-		l.ResetPool()
 
 		err = p.ParseExecutableDefinition([]byte(input))
 		if err != nil {
@@ -2548,7 +2547,6 @@ func BenchmarkExecutionValidation(t *testing.B) {
 		b.ResetTimer()
 
 		for i := 0; i < b.N; i++ {
-			l.ResetPool()
 			walker.SetLookup(l)
 			walker.WalkExecutable()
 			rule(l, walker)
