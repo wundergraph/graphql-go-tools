@@ -18,7 +18,7 @@ type TypeKind int
 // http://facebook.github.io/graphql/draft/#Type
 type Type struct {
 	Kind     TypeKind
-	Name     int
+	Name     ByteSliceReference
 	OfType   int
 	Position position.Position
 }
@@ -39,11 +39,11 @@ func (t Type) NodePosition() position.Position {
 	return t.Position
 }
 
-func (t Type) NodeName() int {
+func (t Type) NodeName() ByteSliceReference {
 	return t.Name
 }
 
-func (t Type) NodeAlias() int {
+func (t Type) NodeAlias() ByteSliceReference {
 	panic("implement me")
 }
 

@@ -44,11 +44,11 @@ func (t TypeSystemDefinition) NodeUnionMemberTypes() []int {
 	panic("implement me")
 }
 
-func (t TypeSystemDefinition) NodeName() int {
+func (t TypeSystemDefinition) NodeName() ByteSliceReference {
 	panic("implement me")
 }
 
-func (t TypeSystemDefinition) NodeAlias() int {
+func (t TypeSystemDefinition) NodeAlias() ByteSliceReference {
 	panic("implement me")
 }
 

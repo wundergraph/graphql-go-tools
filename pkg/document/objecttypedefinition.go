@@ -6,7 +6,7 @@ import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 // http://facebook.github.io/graphql/draft/#ObjectTypeDefinition
 type ObjectTypeDefinition struct {
 	Description          ByteSliceReference
-	Name                 int
+	Name                 ByteSliceReference
 	FieldsDefinition     []int
 	ImplementsInterfaces ImplementsInterfaces
 	DirectiveSet         int
@@ -77,11 +77,11 @@ func (o ObjectTypeDefinition) NodeImplementsInterfaces() []int {
 	return o.ImplementsInterfaces
 }
 
-func (o ObjectTypeDefinition) NodeName() int {
+func (o ObjectTypeDefinition) NodeName() ByteSliceReference {
 	return o.Name
 }
 
-func (o ObjectTypeDefinition) NodeAlias() int {
+func (o ObjectTypeDefinition) NodeAlias() ByteSliceReference {
 	panic("implement me")
 }
 

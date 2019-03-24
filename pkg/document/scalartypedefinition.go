@@ -6,7 +6,7 @@ import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 // http://facebook.github.io/graphql/draft/#sec-Scalars
 type ScalarTypeDefinition struct {
 	Description  ByteSliceReference
-	Name         int
+	Name         ByteSliceReference
 	DirectiveSet int
 	Position     position.Position
 }
@@ -71,11 +71,11 @@ func (s ScalarTypeDefinition) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (s ScalarTypeDefinition) NodeName() int {
+func (s ScalarTypeDefinition) NodeName() ByteSliceReference {
 	return s.Name
 }
 
-func (s ScalarTypeDefinition) NodeAlias() int {
+func (s ScalarTypeDefinition) NodeAlias() ByteSliceReference {
 	panic("implement me")
 }
 

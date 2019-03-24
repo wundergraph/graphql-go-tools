@@ -8,9 +8,9 @@ import (
 // SchemaDefinition as specified in:
 // http://facebook.github.io/graphql/draft/#SchemaDefinition
 type SchemaDefinition struct {
-	Query        int
-	Mutation     int
-	Subscription int
+	Query        ByteSliceReference
+	Mutation     ByteSliceReference
+	Subscription ByteSliceReference
 	DirectiveSet int
 	Position     position.Position
 }
@@ -19,11 +19,11 @@ func (s SchemaDefinition) NodeSelectionSet() int {
 	panic("implement me")
 }
 
-func (s SchemaDefinition) NodeName() int {
+func (s SchemaDefinition) NodeName() ByteSliceReference {
 	panic("implement me")
 }
 
-func (s SchemaDefinition) NodeAlias() int {
+func (s SchemaDefinition) NodeAlias() ByteSliceReference {
 	panic("implement me")
 }
 
@@ -156,27 +156,27 @@ func (s SchemaDefinition) DirectiveLocation() DirectiveLocation {
 // IsDefined returns a bool depending on whether SchemaDefinition has already
 // been defined
 func (s SchemaDefinition) IsDefined() bool {
-	return s.Query != -1 || s.Mutation != -1 || s.Subscription != -1
+	return s.Query.Length()+s.Mutation.Length()+s.Subscription.Length() != 0
 }
 
 // SetOperationType sets the operationType and operationName and will return an error in case of setting one value multiple times
-func (s *SchemaDefinition) SetOperationType(operationType ByteSlice, operationName int) error {
+func (s *SchemaDefinition) SetOperationType(operationType ByteSlice, operationName ByteSliceReference) error {
 
 	switch string(operationType) {
 	case "query":
-		if s.Query != -1 {
+		if s.Query.Length() != 0 {
 			return fmt.Errorf("setOperationType: operationName for operationType '%s' already set", operationType)
 		}
 		s.Query = operationName
 		return nil
 	case "mutation":
-		if s.Mutation != -1 {
+		if s.Mutation.Length() != 0 {
 			return fmt.Errorf("setOperationType: operationName for operationType '%s' already set", operationType)
 		}
 		s.Mutation = operationName
 		return nil
 	case "subscription":
-		if s.Subscription != -1 {
+		if s.Subscription.Length() != 0 {
 			return fmt.Errorf("setOperationType: operationName for operationType '%s' already set", operationType)
 		}
 		s.Subscription = operationName

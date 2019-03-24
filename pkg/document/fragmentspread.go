@@ -5,7 +5,7 @@ import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 // FragmentSpread as specified in:
 // http://facebook.github.io/graphql/draft/#FragmentSpread
 type FragmentSpread struct {
-	FragmentName int
+	FragmentName ByteSliceReference
 	DirectiveSet int
 	Position     position.Position
 }
@@ -86,7 +86,7 @@ func (f FragmentSpread) NodeFieldsDefinition() []int {
 	panic("implement me")
 }
 
-func (f FragmentSpread) NodeAlias() int {
+func (f FragmentSpread) NodeAlias() ByteSliceReference {
 	panic("implement me")
 }
 
@@ -98,7 +98,7 @@ func (f FragmentSpread) NodeOperationType() OperationType {
 	panic("implement me")
 }
 
-func (f FragmentSpread) NodeName() int {
+func (f FragmentSpread) NodeName() ByteSliceReference {
 	return f.FragmentName
 }
 

@@ -17,11 +17,11 @@ func (i InputFieldsDefinition) NodeInputFieldsDefinition() int {
 	panic("implement me")
 }
 
-func (i InputFieldsDefinition) NodeName() int {
+func (i InputFieldsDefinition) NodeName() ByteSliceReference {
 	panic("implement me")
 }
 
-func (i InputFieldsDefinition) NodeAlias() int {
+func (i InputFieldsDefinition) NodeAlias() ByteSliceReference {
 	panic("implement me")
 }
 

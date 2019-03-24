@@ -34,11 +34,11 @@ func (v Value) NodeValueReference() int {
 	return v.Reference
 }
 
-func (v Value) NodeName() int {
+func (v Value) NodeName() ByteSliceReference {
 	panic("implement me")
 }
 
-func (v Value) NodeAlias() int {
+func (v Value) NodeAlias() ByteSliceReference {
 	panic("implement me")
 }
 

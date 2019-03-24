@@ -5,7 +5,7 @@ import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 // FragmentDefinition as specified in
 // http://facebook.github.io/graphql/draft/#FragmentDefinition
 type FragmentDefinition struct {
-	FragmentName  int
+	FragmentName  ByteSliceReference
 	TypeCondition int
 	DirectiveSet  int
 	SelectionSet  int
@@ -92,7 +92,7 @@ func (f FragmentDefinition) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 
-func (f FragmentDefinition) NodeAlias() int {
+func (f FragmentDefinition) NodeAlias() ByteSliceReference {
 	panic("implement me")
 }
 
@@ -120,7 +120,7 @@ func (f FragmentDefinition) NodeInlineFragments() []int {
 	panic("implement me")
 }
 
-func (f FragmentDefinition) NodeName() int {
+func (f FragmentDefinition) NodeName() ByteSliceReference {
 	return f.FragmentName
 }
 
