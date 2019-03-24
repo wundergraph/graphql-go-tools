@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/middleware"
+	"github.com/jensneuse/graphql-go-tools/pkg/proxy"
 	"github.com/jensneuse/graphql-go-tools/pkg/proxy/http"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/pprofhandler"
@@ -22,16 +23,22 @@ var (
 	staticProxySchemaFile  string
 	staticProxyBackendAddr string
 	staticProxyBackendURL  string
+	staticProxyContextKeys []string
 )
 
 // staticProxyCmd represents the staticProxy command
 var staticProxyCmd = &cobra.Command{
 	Use:   "staticProxy",
-	Short: "staticProxy starts a proxy that cannot be configured at runtime",
-	Long: `staticProxy is a simple graphql proxy that sits in front of a single graphql backend
+	Short: "staticProxy starts a proxy that's configurable upfront, just like nginx",
+	Long: `staticProxy is a simple graphql proxy that sits in front of a single graphql backend.
+
 In the current version staticProxy is capable of rewriting requests with the context middleware.
 See the following docs for usage details:
-https://jens-neuse.gitbook.io/graphql-go-tools/middlewares/context-middleware`,
+https://jens-neuse.gitbook.io/graphql-go-tools/middlewares/context-middleware
+
+A dynamicProxy is in the making.
+In contrast to the staticProxy the dynamic proxy can be configured at runtime.`,
+	Example: "staticProxy --schemaFile schema.graphql --contextKeys token,user",
 	Run: func(cmd *cobra.Command, args []string) {
 		printConfig()
 		runPrintMemoryUsage()
@@ -56,8 +63,11 @@ Debug Configuration:
 - pprofAddr: %s
 - print memory: %t
 
+Headers that will be added to the context:
+%s
+
 Example usage:
-curl --data '{"operationName":null,"variables":{},"query":"{\n  documents{\n    owner\n    sensitiveInformation\n  }\n}\n"}' --header "Content-Type: application/json" -v http://0.0.0.0:8888
+curl --data '{"operationName":null,"variables":{},"query":"{documents{owner sensitiveInformation}}"}' --header 'user: "jens"' --header 'Content-Type: application/json' -v http://0.0.0.0:8888 | jq
 
 `,
 		staticProxyAddr,
@@ -66,7 +76,8 @@ curl --data '{"operationName":null,"variables":{},"query":"{\n  documents{\n    
 		staticProxySchemaFile,
 		staticProxyRunPPROF,
 		staticProxyPprofAddr,
-		staticProxyPrintMemory)
+		staticProxyPrintMemory,
+		staticProxyContextKeys)
 }
 
 func runProxyBlocking() {
@@ -76,13 +87,22 @@ func runProxyBlocking() {
 		panic(err)
 	}
 
+	addHeadersToContext := make([][]byte, len(staticProxyContextKeys))
+	for _, value := range staticProxyContextKeys {
+		addHeadersToContext = append(addHeadersToContext, []byte(value))
+	}
+
 	prox := http.NewFastStaticProxy(http.FastStaticProxyConfig{
 		MiddleWares: []middleware.GraphqlMiddleware{
+			&middleware.ValidationMiddleware{},
 			&middleware.ContextMiddleware{},
 		},
-		Schema:      schema,
-		BackendURL:  staticProxyBackendURL,
-		BackendHost: staticProxyBackendAddr,
+		RequestConfigProvider: proxy.NewStaticSchemaProvider(proxy.RequestConfig{
+			Schema:              &schema,
+			BackendAddr:         []byte(staticProxyBackendURL),
+			BackendHost:         staticProxyBackendAddr,
+			AddHeadersToContext: addHeadersToContext,
+		}),
 	})
 
 	err = prox.ListenAndServe(staticProxyAddr)
@@ -115,6 +135,7 @@ func init() {
 	staticProxyCmd.Flags().StringVar(&staticProxySchemaFile, "schemaFile", "./schema.graphql", "the file to read the schema from")
 	staticProxyCmd.Flags().StringVar(&staticProxyBackendURL, "backendURL", "http://0.0.0.0:8080/query", "the backend URL to proxy requests to")
 	staticProxyCmd.Flags().StringVar(&staticProxyBackendAddr, "backendAddr", "0.0.0.0:8080", "the backend Addr")
+	staticProxyCmd.Flags().StringSliceVar(&staticProxyContextKeys, "contextKeys", nil, "the keys that should be read from the header and set to the context")
 }
 
 func runPrintMemoryUsage() {
