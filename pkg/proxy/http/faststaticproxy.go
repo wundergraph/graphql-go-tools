@@ -1,21 +1,16 @@
 package http
 
 import (
-	"bufio"
 	"bytes"
-	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/middleware"
 	"github.com/jensneuse/graphql-go-tools/pkg/proxy"
 	"github.com/valyala/fasthttp"
-	"net/http"
 	"sync"
 )
 
 type FastStaticProxyConfig struct {
-	BackendURL  string
-	BackendHost string
-	Schema      []byte
-	MiddleWares []middleware.GraphqlMiddleware
+	MiddleWares           []middleware.GraphqlMiddleware
+	RequestConfigProvider proxy.RequestConfigProvider
 }
 
 type FastStaticProxy struct {
@@ -25,31 +20,22 @@ type FastStaticProxy struct {
 func NewFastStaticProxy(config FastStaticProxyConfig) *FastStaticProxy {
 
 	prox := &FastHttpProxy{
-		Host:           config.BackendURL,
-		SchemaProvider: proxy.NewStaticSchemaProvider(config.Schema),
-		InvokerPool:    middleware.NewInvokerPool(8, config.MiddleWares...),
-		invokeMux:      sync.Mutex{},
-		Client:         *http.DefaultClient,
-		HandleError: func(err error, w http.ResponseWriter) {
-			fmt.Println(err.Error())
-		},
-		UserValuePool: sync.Pool{
+		requestConfigProvider: config.RequestConfigProvider,
+		invokerPool:           middleware.NewInvokerPool(8, config.MiddleWares...),
+		userValuePool: sync.Pool{
 			New: func() interface{} {
 				return make(map[string][]byte)
 			},
 		},
-		BufferPool: sync.Pool{
+		bufferPool: sync.Pool{
 			New: func() interface{} {
 				return &bytes.Buffer{}
 			},
 		},
-		BufferedReaderPool: sync.Pool{
+		hostClientPool: sync.Pool{
 			New: func() interface{} {
-				return &bufio.Reader{}
+				return &fasthttp.HostClient{}
 			},
-		},
-		HostClient: &fasthttp.HostClient{
-			Addr: config.BackendHost,
 		},
 	}
 
@@ -59,6 +45,5 @@ func NewFastStaticProxy(config FastStaticProxyConfig) *FastStaticProxy {
 }
 
 func (f *FastStaticProxy) ListenAndServe(addr string) error {
-	//fmt.Printf("ListenAndServe on: %s\n", addr)
 	return fasthttp.ListenAndServe(addr, f.prox.HandleRequest)
 }
