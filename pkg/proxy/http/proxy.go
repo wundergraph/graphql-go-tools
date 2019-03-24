@@ -13,13 +13,13 @@ import (
 )
 
 type Proxy struct {
-	SchemaProvider     proxy.SchemaProvider
-	Host               string
-	InvokerPool        sync.Pool
-	Client             http.Client
-	HandleError        func(err error, w http.ResponseWriter)
-	BufferPool         sync.Pool
-	BufferedReaderPool sync.Pool
+	RequestConfigProvider proxy.RequestConfigProvider
+	Host                  string
+	InvokerPool           sync.Pool
+	Client                http.Client
+	HandleError           func(err error, w http.ResponseWriter)
+	BufferPool            sync.Pool
+	BufferedReaderPool    sync.Pool
 }
 
 type GraphqlJsonRequest struct {
@@ -29,12 +29,12 @@ type GraphqlJsonRequest struct {
 
 func (p *Proxy) AcceptRequest(userValues map[string][]byte, requestURI []byte, body io.Reader, buff *bytes.Buffer) error {
 
-	schema := p.SchemaProvider.GetSchema(requestURI)
+	config := p.RequestConfigProvider.GetRequestConfig(requestURI)
 
 	invoker := p.InvokerPool.Get().(*middleware.Invoker)
 	defer p.InvokerPool.Put(invoker)
 
-	err := invoker.SetSchema(schema)
+	err := invoker.SetSchema(*config.Schema)
 	if err != nil {
 		return err
 	}
@@ -130,10 +130,10 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	response.Body.Close()
 }
 
-func NewDefaultProxy(host string, provider proxy.SchemaProvider, middlewares ...middleware.GraphqlMiddleware) *Proxy {
+func NewDefaultProxy(host string, provider proxy.RequestConfigProvider, middlewares ...middleware.GraphqlMiddleware) *Proxy {
 	return &Proxy{
-		Host:           host,
-		SchemaProvider: provider,
+		Host:                  host,
+		RequestConfigProvider: provider,
 		InvokerPool: sync.Pool{
 			New: func() interface{} {
 				return middleware.NewInvoker(middlewares...)
