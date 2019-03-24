@@ -5,7 +5,7 @@ import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 // Argument as specified in
 // http://facebook.github.io/graphql/draft/#Argument
 type Argument struct {
-	Name     int
+	Name     ByteSliceReference
 	Value    int
 	Position position.Position
 }
@@ -90,11 +90,11 @@ func (a Argument) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 
-func (a Argument) NodeName() int {
+func (a Argument) NodeName() ByteSliceReference {
 	return a.Name
 }
 
-func (a Argument) NodeAlias() int {
+func (a Argument) NodeAlias() ByteSliceReference {
 	panic("implement me")
 }
 

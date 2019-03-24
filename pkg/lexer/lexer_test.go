@@ -62,7 +62,7 @@ func TestLexer_Peek_Read(t *testing.T) {
 		}
 	}
 
-	mustReadPosition := func(lineStart, charStart, lineEnd, charEnd uint16) checkFunc {
+	mustReadPosition := func(lineStart, charStart, lineEnd, charEnd uint32) checkFunc {
 		return func(lex *Lexer, i int) {
 			tok := lex.Read()
 
@@ -104,7 +104,7 @@ func TestLexer_Peek_Read(t *testing.T) {
 	})
 	t.Run("set too large input", func(t *testing.T) {
 		lex := NewLexer()
-		if err := lex.SetTypeSystemInput(make([]byte, 65536)); err == nil {
+		if err := lex.SetTypeSystemInput(make([]byte, 1000000+1)); err == nil {
 			panic(fmt.Errorf("must err on too large input"))
 		}
 	})

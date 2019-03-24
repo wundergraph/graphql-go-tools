@@ -28,7 +28,7 @@ func VariableUniqueness() rules.Rule {
 					if i == j {
 						continue
 					}
-					if left.Variable == right.Variable {
+					if l.ByteSliceReferenceContentsEquals(left.Variable, right.Variable) {
 						return validation.Invalid(validation.VariableUniqueness, validation.VariableMustBeUniquePerOperation, left.Position, left.Variable)
 					}
 				}
@@ -91,9 +91,9 @@ func AllVariableUsesDefined() rules.Rule {
 					operationDefinitions := w.NodeUsageInOperationsIterator(ref)
 					for operationDefinitions.Next() {
 						operationDefinition := l.OperationDefinition(operationDefinitions.Value())
-						_, isDefined := l.VariableDefinition(value.Reference, operationDefinition.VariableDefinitions)
+						_, isDefined := l.VariableDefinition(value.Raw, operationDefinition.VariableDefinitions)
 						if !isDefined {
-							return validation.Invalid(validation.AllVariableUsesDefined, validation.VariableNotDefined, value.Position, value.Reference)
+							return validation.Invalid(validation.AllVariableUsesDefined, validation.VariableNotDefined, value.Position, value.Raw)
 						}
 					}
 				}
@@ -127,7 +127,7 @@ func AllVariablesUsed() rules.Rule {
 					for arguments.Next() {
 						argument, _ := arguments.Value()
 						value := l.Value(argument.Value)
-						if isVariable(value) && value.Reference == variable.Variable {
+						if isVariable(value) && l.ByteSliceReferenceContentsEquals(value.Raw, variable.Variable) {
 							continue withNextVariable
 						}
 					}

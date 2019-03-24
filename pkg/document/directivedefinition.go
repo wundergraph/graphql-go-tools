@@ -6,7 +6,7 @@ import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 // http://facebook.github.io/graphql/draft/#DirectiveDefinition
 type DirectiveDefinition struct {
 	Description         ByteSliceReference
-	Name                int
+	Name                ByteSliceReference
 	ArgumentsDefinition int
 	DirectiveLocations  []int
 	Position            position.Position
@@ -36,11 +36,11 @@ func (d DirectiveDefinition) NodeValueReference() int {
 	panic("implement me")
 }
 
-func (d DirectiveDefinition) NodeName() int {
+func (d DirectiveDefinition) NodeName() ByteSliceReference {
 	return d.Name
 }
 
-func (d DirectiveDefinition) NodeAlias() int {
+func (d DirectiveDefinition) NodeAlias() ByteSliceReference {
 	panic("implement me")
 }
 

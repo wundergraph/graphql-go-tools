@@ -6,7 +6,7 @@ import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 // http://facebook.github.io/graphql/draft/#FieldDefinition
 type FieldDefinition struct {
 	Description         ByteSliceReference
-	Name                int
+	Name                ByteSliceReference
 	ArgumentsDefinition int
 	Type                int
 	DirectiveSet        int
@@ -93,11 +93,11 @@ func (f FieldDefinition) NodeArgumentsDefinition() int {
 	return f.ArgumentsDefinition
 }
 
-func (f FieldDefinition) NodeName() int {
+func (f FieldDefinition) NodeName() ByteSliceReference {
 	return f.Name
 }
 
-func (f FieldDefinition) NodeAlias() int {
+func (f FieldDefinition) NodeAlias() ByteSliceReference {
 	panic("implement me")
 }
 

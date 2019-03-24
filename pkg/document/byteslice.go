@@ -9,10 +9,10 @@ func (b ByteSlice) MarshalJSON() ([]byte, error) {
 }
 
 type ByteSliceReference struct {
-	Start uint16
-	End   uint16
+	Start uint32
+	End   uint32
 }
 
-func (b ByteSliceReference) Length() uint16 {
+func (b ByteSliceReference) Length() uint32 {
 	return b.End - b.Start
 }

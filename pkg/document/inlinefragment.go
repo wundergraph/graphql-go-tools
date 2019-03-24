@@ -83,7 +83,7 @@ func (i InlineFragment) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (i InlineFragment) NodeAlias() int {
+func (i InlineFragment) NodeAlias() ByteSliceReference {
 	panic("implement me")
 }
 
@@ -99,7 +99,7 @@ func (i InlineFragment) NodeOperationType() OperationType {
 	panic("implement me")
 }
 
-func (i InlineFragment) NodeName() int {
+func (i InlineFragment) NodeName() ByteSliceReference {
 	panic("implement me")
 }
 

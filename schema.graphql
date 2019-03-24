@@ -1,0 +1,19 @@
+directive @addArgumentFromContext(
+    name: String!
+    contextKey: String!
+) on FIELD_DEFINITION
+
+scalar String
+
+schema {
+    query: Query
+}
+
+type Query {
+    documents: [Document] @addArgumentFromContext(name: "user",contextKey: "user")
+}
+
+type Document {
+    owner: String
+    sensitiveInformation: String
+}

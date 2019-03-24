@@ -6,7 +6,7 @@ import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 // http://facebook.github.io/graphql/draft/#OperationDefinition
 type OperationDefinition struct {
 	OperationType       OperationType
-	Name                int
+	Name                ByteSliceReference
 	VariableDefinitions []int
 	DirectiveSet        int
 	SelectionSet        int
@@ -93,7 +93,7 @@ func (o OperationDefinition) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 
-func (o OperationDefinition) NodeAlias() int {
+func (o OperationDefinition) NodeAlias() ByteSliceReference {
 	panic("implement me")
 }
 
@@ -121,7 +121,7 @@ func (o OperationDefinition) NodeInlineFragments() []int {
 	panic("implement me")
 }
 
-func (o OperationDefinition) NodeName() int {
+func (o OperationDefinition) NodeName() ByteSliceReference {
 	return o.Name
 }
 

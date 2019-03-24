@@ -21,11 +21,11 @@ func (a ArgumentsDefinition) NodeInputValueDefinitions() []int {
 	return a.InputValueDefinitions
 }
 
-func (a ArgumentsDefinition) NodeName() int {
+func (a ArgumentsDefinition) NodeName() ByteSliceReference {
 	panic("implement me")
 }
 
-func (a ArgumentsDefinition) NodeAlias() int {
+func (a ArgumentsDefinition) NodeAlias() ByteSliceReference {
 	panic("implement me")
 }
 

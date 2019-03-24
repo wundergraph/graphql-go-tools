@@ -1,6 +1,6 @@
 .PHONY: test
 test:
-	go test ./pkg/...
+	go test ./...
 
 # updateTestFixtures will update all! golden fixtures
 .PHONY: updateTestFixtures

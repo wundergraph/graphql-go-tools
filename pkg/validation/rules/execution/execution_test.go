@@ -17,8 +17,7 @@ func TestExecutionValidation(t *testing.T) {
 			panic(err)
 		}
 
-		l := lookup.New(p, 256)
-		l.ResetPool()
+		l := lookup.New(p)
 
 		err = p.ParseExecutableDefinition([]byte(input))
 		if err != nil {
@@ -32,7 +31,7 @@ func TestExecutionValidation(t *testing.T) {
 		result := rule(l, walker)
 
 		if valid != result.Valid {
-			panic(fmt.Errorf("want valid: %t, got: %t (result: %+v, subName: %s)", valid, result.Valid, result, l.CachedName(result.Meta.SubjectNameRef)))
+			panic(fmt.Errorf("want valid: %t, got: %t (result: %+v, subName: %s)", valid, result.Valid, result, string(l.ByteSlice(result.Meta.SubjectNameRef))))
 		}
 	}
 
@@ -2535,7 +2534,7 @@ func BenchmarkExecutionValidation(t *testing.B) {
 			panic(err)
 		}
 
-		l := lookup.New(p, 256)
+		l := lookup.New(p)
 
 		err = p.ParseExecutableDefinition([]byte(input))
 		if err != nil {
@@ -2548,7 +2547,6 @@ func BenchmarkExecutionValidation(t *testing.B) {
 		b.ResetTimer()
 
 		for i := 0; i < b.N; i++ {
-			l.ResetPool()
 			walker.SetLookup(l)
 			walker.WalkExecutable()
 			rule(l, walker)
@@ -3790,6 +3788,12 @@ func BenchmarkExecutionValidation(t *testing.B) {
 			t.Run("149", func(t *testing.B) {
 				run(t, `{
 									findDog(complex: { name: "Fido", name: "Goofy"})
+								}`,
+					Values(), false)
+			})
+			t.Run("149 variant", func(t *testing.B) {
+				run(t, `{
+									findDog(complex: { name: "Fido", name1: "Goofy"})
 								}`,
 					Values(), false)
 			})

@@ -18,7 +18,7 @@ func (p *Parser) parseObjectTypeDefinition(hasDescription bool, description toke
 	}
 
 	definition := p.makeObjectTypeDefinition()
-	definition.Name = p.putByteSliceReference(objectTypeName.Literal)
+	definition.Name = objectTypeName.Literal
 
 	if hasDescription {
 		definition.Position.MergeStartIntoStart(description.TextPosition)

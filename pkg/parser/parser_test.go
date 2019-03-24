@@ -25,7 +25,7 @@ func TestParser(t *testing.T) {
 
 func TestParser_ParseExecutableDefinition(t *testing.T) {
 	parser := NewParser()
-	input := make([]byte, 65536)
+	input := make([]byte, 1000000+1)
 	err := parser.ParseTypeSystemDefinition(input)
 	if err == nil {
 		t.Fatal("want err, got nil")
@@ -96,12 +96,12 @@ func TestParser_putObjectValue(t *testing.T) {
 	parser.putValue(value2, iValue2)
 
 	field1 := parser.putObjectField(document.ObjectField{
-		Name:  iFoo.Reference,
+		Name:  iFoo.Raw,
 		Value: iValue1,
 	})
 
 	field3 := parser.putObjectField(document.ObjectField{
-		Name:  iFoo.Reference,
+		Name:  iFoo.Raw,
 		Value: iValue1,
 	})
 
@@ -110,7 +110,7 @@ func TestParser_putObjectValue(t *testing.T) {
 	}
 
 	field2 := parser.putObjectField(document.ObjectField{
-		Name:  iBar.Reference,
+		Name:  iBar.Raw,
 		Value: iValue2,
 	})
 
@@ -244,6 +244,28 @@ func BenchmarkParser(b *testing.B) {
 			b.Fatal(err)
 		}
 
+	}
+
+}
+
+func BenchmarkParserLotto(b *testing.B) {
+
+	parser := NewParser(WithMinimumSliceSize(32))
+
+	schemaData, err := ioutil.ReadFile("./testdata/lotto.graphql")
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+
+		err = parser.ParseTypeSystemDefinition(schemaData)
+		if err != nil {
+			b.Fatal(err)
+		}
 	}
 
 }

@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
-	"github.com/jensneuse/graphql-go-tools/pkg/testhelper"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -42,10 +41,11 @@ func TestProxyIntegration(t *testing.T) {
 			t.Error(err)
 		}
 
-		want := testhelper.UglifyRequestString(privateQuery)
+		want := privateQuery
+		got := string(body)
 
-		if string(body) != want {
-			t.Errorf("Expected %s, got %s", want, body)
+		if want != got {
+			t.Fatalf("Expected:\n%s\ngot\n%s\n\n", want, got)
 		}
 
 		_, err = w.Write([]byte(fakeResponse))
@@ -54,7 +54,13 @@ func TestProxyIntegration(t *testing.T) {
 	endpointServer := httptest.NewServer(endpointHandler)
 	defer endpointServer.Close()
 
-	schemaProvider := proxy.NewStaticSchemaProvider([]byte(publicSchema))
+	schema := []byte(publicSchema)
+
+	schemaProvider := proxy.NewStaticSchemaProvider(proxy.RequestConfig{
+		Schema:      &schema,
+		BackendHost: endpointServer.Listener.Addr().String(),
+		BackendAddr: []byte(endpointServer.URL),
+	})
 
 	ip := sync.Pool{
 		New: func() interface{} {
@@ -64,10 +70,10 @@ func TestProxyIntegration(t *testing.T) {
 
 	// the handler for the graphql proxy
 	proxyHandler := &Proxy{
-		Host:           endpointServer.URL,
-		SchemaProvider: schemaProvider,
-		InvokerPool:    ip,
-		Client:         *http.DefaultClient,
+		Host:                  endpointServer.URL,
+		RequestConfigProvider: schemaProvider,
+		InvokerPool:           ip,
+		Client:                *http.DefaultClient,
 		HandleError: func(err error, w http.ResponseWriter) {
 			t.Fatal(err)
 		},
@@ -82,6 +88,7 @@ func TestProxyIntegration(t *testing.T) {
 			},
 		},
 	}
+
 	proxyServer := httptest.NewServer(checkUserMiddleware(proxyHandler))
 	defer proxyServer.Close()
 
@@ -94,7 +101,7 @@ func TestProxyIntegration(t *testing.T) {
 		request.Header.Set("Content-Type", "application/graphql")
 		resp, err := http.DefaultClient.Do(request)
 		if err != nil {
-			t.Error(err)
+			t.Fatal(err)
 		}
 
 		responseBody, _ := ioutil.ReadAll(resp.Body)
@@ -147,18 +154,8 @@ type Document implements Node {
 }
 */
 
-const publicQuery = `
-query myDocuments {
-	documents {
-		sensitiveInformation
-	}
-}
+const publicQuery = `{"query":"query myDocuments {documents {sensitiveInformation}}"}
 `
 
-const privateQuery = `
-query myDocuments {
-	documents(user: "jsmith@example.org") {
-		sensitiveInformation
-	}
-}
+const privateQuery = `{"operationName":"","query":"query myDocuments {documents(user:\"jsmith\") {sensitiveInformation}}"}
 `

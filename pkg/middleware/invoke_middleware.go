@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"bytes"
-	"context"
 	"github.com/jensneuse/graphql-go-tools/pkg/lookup"
 	"github.com/jensneuse/graphql-go-tools/pkg/parser"
 	"github.com/jensneuse/graphql-go-tools/pkg/printer"
@@ -11,22 +10,22 @@ import (
 // InvokeMiddleware is a one off middleware invocation helper
 // This should only be used for testing as it's a waste of resources
 // It makes use of panics to don't use this in production!
-func InvokeMiddleware(middleware GraphqlMiddleware, context context.Context, schema, request string) string {
+func InvokeMiddleware(middleware GraphqlMiddleware, userValues map[string][]byte, schema, request string) (result string, err error) {
 	parse := parser.NewParser()
-	if err := parse.ParseTypeSystemDefinition([]byte(schema)); err != nil {
-		panic(err)
+	if err = parse.ParseTypeSystemDefinition([]byte(schema)); err != nil {
+		return
 	}
-	if err := parse.ParseExecutableDefinition([]byte(request)); err != nil {
-		panic(err)
+	if err = parse.ParseExecutableDefinition([]byte(request)); err != nil {
+		return
 	}
 	astPrint := printer.New()
-	look := lookup.New(parse, 512)
+	look := lookup.New(parse)
 	walk := lookup.NewWalker(1024, 8)
 	mod := parser.NewManualAstMod(parse)
 	walk.SetLookup(look)
 
-	if err := middleware.OnRequest(context, look, walk, parse, mod); err != nil {
-		panic(err)
+	if err = middleware.OnRequest(userValues, look, walk, parse, mod); err != nil {
+		return
 	}
 
 	walk.SetLookup(look)
@@ -34,8 +33,10 @@ func InvokeMiddleware(middleware GraphqlMiddleware, context context.Context, sch
 
 	astPrint.SetInput(parse, look, walk)
 	buff := bytes.Buffer{}
-	if err := astPrint.PrintExecutableSchema(&buff); err != nil {
-		panic(err)
+	if err = astPrint.PrintExecutableSchema(&buff); err != nil {
+		return
 	}
-	return buff.String()
+
+	result = buff.String()
+	return
 }

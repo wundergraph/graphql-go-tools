@@ -28,7 +28,7 @@ func (p *Parser) parsePeekedObjectValue(index *int) error {
 
 			identToken := p.l.Read()
 			field := document.ObjectField{
-				Name: p.putByteSliceReference(identToken.Literal),
+				Name: identToken.Literal,
 			}
 
 			_, err := p.readExpect(keyword.COLON, "parsePeekedObjectValue")

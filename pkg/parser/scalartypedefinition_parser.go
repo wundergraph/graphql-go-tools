@@ -18,7 +18,7 @@ func (p *Parser) parseScalarTypeDefinition(hasDescription bool, description toke
 	}
 
 	definition := p.makeScalarTypeDefinition()
-	definition.Name = p.putByteSliceReference(scalar.Literal)
+	definition.Name = scalar.Literal
 
 	if hasDescription {
 		definition.Position.MergeStartIntoStart(description.TextPosition)

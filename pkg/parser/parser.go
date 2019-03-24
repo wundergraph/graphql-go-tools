@@ -2,7 +2,6 @@
 package parser
 
 import (
-	"bytes"
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer"
@@ -53,6 +52,7 @@ type Parser struct {
 	indexPoolPosition int
 	options           Options
 	cacheStats        cacheStats
+	sliceIndex        map[string]int
 }
 
 // ParsedDefinitions contains all parsed definitions to avoid deeply nested data structures while parsing
@@ -222,6 +222,7 @@ func NewParser(withOptions ...Option) *Parser {
 		indexPool:         pool,
 		ParsedDefinitions: definitions,
 		options:           options,
+		sliceIndex:        make(map[string]int, 1024),
 	}
 }
 
@@ -293,7 +294,7 @@ func (p *Parser) peekExpectSwallow(expected keyword.Keyword) (tok token.Token, m
 	return
 }
 
-func (p *Parser) indexPoolGet() []int {
+func (p *Parser) IndexPoolGet() []int {
 	p.indexPoolPosition++
 
 	if len(p.indexPool)-1 <= p.indexPoolPosition {
@@ -304,13 +305,12 @@ func (p *Parser) indexPoolGet() []int {
 }
 
 func (p *Parser) initSelectionSet(set *document.SelectionSet) {
-	set.InlineFragments = p.indexPoolGet()
-	set.FragmentSpreads = p.indexPoolGet()
-	set.Fields = p.indexPoolGet()
+	set.InlineFragments = p.IndexPoolGet()
+	set.FragmentSpreads = p.IndexPoolGet()
+	set.Fields = p.IndexPoolGet()
 }
 
 func (p *Parser) initField(field *document.Field) {
-	field.Alias = -1
 	field.DirectiveSet = -1
 	field.ArgumentSet = -1
 	field.SelectionSet = -1
@@ -326,7 +326,7 @@ func (p *Parser) makeFieldDefinition() document.FieldDefinition {
 func (p *Parser) makeEnumTypeDefinition() document.EnumTypeDefinition {
 	return document.EnumTypeDefinition{
 		DirectiveSet:         -1,
-		EnumValuesDefinition: p.indexPoolGet(),
+		EnumValuesDefinition: p.IndexPoolGet(),
 	}
 }
 
@@ -344,17 +344,14 @@ func (p *Parser) makeInputObjectTypeDefinition() document.InputObjectTypeDefinit
 }
 
 func (p *Parser) initTypeSystemDefinition(definition *document.TypeSystemDefinition) {
-	definition.InputObjectTypeDefinitions = p.indexPoolGet()
-	definition.EnumTypeDefinitions = p.indexPoolGet()
-	definition.DirectiveDefinitions = p.indexPoolGet()
-	definition.InterfaceTypeDefinitions = p.indexPoolGet()
-	definition.ObjectTypeDefinitions = p.indexPoolGet()
-	definition.ScalarTypeDefinitions = p.indexPoolGet()
-	definition.UnionTypeDefinitions = p.indexPoolGet()
+	definition.InputObjectTypeDefinitions = p.IndexPoolGet()
+	definition.EnumTypeDefinitions = p.IndexPoolGet()
+	definition.DirectiveDefinitions = p.IndexPoolGet()
+	definition.InterfaceTypeDefinitions = p.IndexPoolGet()
+	definition.ObjectTypeDefinitions = p.IndexPoolGet()
+	definition.ScalarTypeDefinitions = p.IndexPoolGet()
+	definition.UnionTypeDefinitions = p.IndexPoolGet()
 	definition.SchemaDefinition = document.SchemaDefinition{
-		Query:        -1,
-		Mutation:     -1,
-		Subscription: -1,
 		DirectiveSet: -1,
 	}
 }
@@ -362,14 +359,14 @@ func (p *Parser) initTypeSystemDefinition(definition *document.TypeSystemDefinit
 func (p *Parser) makeInterfaceTypeDefinition() document.InterfaceTypeDefinition {
 	return document.InterfaceTypeDefinition{
 		DirectiveSet:     -1,
-		FieldsDefinition: p.indexPoolGet(),
+		FieldsDefinition: p.IndexPoolGet(),
 	}
 }
 
 func (p *Parser) makeObjectTypeDefinition() document.ObjectTypeDefinition {
 	return document.ObjectTypeDefinition{
 		DirectiveSet:     -1,
-		FieldsDefinition: p.indexPoolGet(),
+		FieldsDefinition: p.IndexPoolGet(),
 	}
 }
 
@@ -381,7 +378,8 @@ func (p *Parser) makeScalarTypeDefinition() document.ScalarTypeDefinition {
 
 func (p *Parser) makeUnionTypeDefinition() document.UnionTypeDefinition {
 	return document.UnionTypeDefinition{
-		DirectiveSet: -1,
+		DirectiveSet:     -1,
+		UnionMemberTypes: p.IndexPoolGet(),
 	}
 }
 
@@ -397,9 +395,8 @@ func (p *Parser) initFragmentDefinition(definition *document.FragmentDefinition)
 }
 
 func (p *Parser) initOperationDefinition(definition *document.OperationDefinition) {
-	definition.Name = -1
 	definition.DirectiveSet = -1
-	definition.VariableDefinitions = p.indexPoolGet()
+	definition.VariableDefinitions = p.IndexPoolGet()
 	definition.SelectionSet = -1
 }
 
@@ -410,7 +407,7 @@ func (p *Parser) initInlineFragment(fragment *document.InlineFragment) {
 }
 
 func (p *Parser) InitDirectiveSet(set *document.DirectiveSet) {
-	*set = p.indexPoolGet()
+	*set = p.IndexPoolGet()
 }
 
 func (p *Parser) makeFragmentSpread() document.FragmentSpread {
@@ -421,20 +418,20 @@ func (p *Parser) makeFragmentSpread() document.FragmentSpread {
 
 func (p *Parser) makeExecutableDefinition() document.ExecutableDefinition {
 	return document.ExecutableDefinition{
-		FragmentDefinitions:  p.indexPoolGet(),
-		OperationDefinitions: p.indexPoolGet(),
+		FragmentDefinitions:  p.IndexPoolGet(),
+		OperationDefinitions: p.IndexPoolGet(),
 	}
 }
 
 func (p *Parser) makeListValue(index *int) document.ListValue {
-	value := p.indexPoolGet()
+	value := p.IndexPoolGet()
 	p.ParsedDefinitions.ListValues = append(p.ParsedDefinitions.ListValues, value)
 	*index = len(p.ParsedDefinitions.ListValues) - 1
 	return value
 }
 
 func (p *Parser) makeObjectValue(index *int) document.ObjectValue {
-	value := p.indexPoolGet()
+	value := p.IndexPoolGet()
 	p.ParsedDefinitions.ObjectValues = append(p.ParsedDefinitions.ObjectValues, value)
 	*index = len(p.ParsedDefinitions.ObjectValues) - 1
 	return value
@@ -447,7 +444,7 @@ func (p *Parser) makeValue() (value document.Value, ref int) {
 }
 
 func (p *Parser) initArgumentSet(set *document.ArgumentSet) {
-	*set = p.indexPoolGet()
+	*set = p.IndexPoolGet()
 }
 
 func (p *Parser) makeType(index *int) document.Type {
@@ -460,11 +457,11 @@ func (p *Parser) makeType(index *int) document.Type {
 }
 
 func (p *Parser) initArgumentsDefinition(definition *document.ArgumentsDefinition) {
-	definition.InputValueDefinitions = p.indexPoolGet()
+	definition.InputValueDefinitions = p.IndexPoolGet()
 }
 
 func (p *Parser) initInputFieldsDefinition(definition *document.InputFieldsDefinition) {
-	definition.InputValueDefinitions = p.indexPoolGet()
+	definition.InputValueDefinitions = p.IndexPoolGet()
 }
 
 func (p *Parser) setCacheStats() {
@@ -689,21 +686,7 @@ func (p *Parser) putUnionTypeDefinition(definition document.UnionTypeDefinition)
 	return len(p.ParsedDefinitions.UnionTypeDefinitions) - 1
 }
 
-func (p *Parser) putByteSliceReference(slice document.ByteSliceReference) int {
-
-	nextSliceContents := p.ByteSlice(slice)
-	nextSliceLength := slice.End - slice.Start
-
-	for i, ref := range p.ParsedDefinitions.ByteSliceReferences {
-		refLength := ref.End - ref.Start
-		if refLength == nextSliceLength {
-			refContents := p.ByteSlice(ref)
-			if bytes.Equal(refContents, nextSliceContents) {
-				return i
-			}
-		}
-	}
-
+func (p *Parser) _putByteSliceReference(slice document.ByteSliceReference) int {
 	p.ParsedDefinitions.ByteSliceReferences = append(p.ParsedDefinitions.ByteSliceReferences, slice)
 	return len(p.ParsedDefinitions.ByteSliceReferences) - 1
 }

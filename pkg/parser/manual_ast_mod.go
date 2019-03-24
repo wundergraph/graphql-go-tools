@@ -1,7 +1,9 @@
 package parser
 
 import (
+	"bytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
 // ManualAstMod keeps functions to manually modify the parsed ast
@@ -15,23 +17,34 @@ func NewManualAstMod(p *Parser) *ManualAstMod {
 	}
 }
 
-func (m *ManualAstMod) SetQueryTypeName(name int) {
+func (m *ManualAstMod) SetQueryTypeName(name document.ByteSliceReference) {
 	m.p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition.Query = name
 }
 
-func (m *ManualAstMod) SetMutationTypeName(name int) {
+func (m *ManualAstMod) SetMutationTypeName(name document.ByteSliceReference) {
 	m.p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition.Mutation = name
 }
 
-func (m *ManualAstMod) SetSubscriptionTypeName(name int) {
+func (m *ManualAstMod) SetSubscriptionTypeName(name document.ByteSliceReference) {
 	m.p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition.Subscription = name
 }
 
-func (m *ManualAstMod) PutLiteralString(literal string) (nameRef int, byteSliceRef document.ByteSliceReference, err error) {
+func (m *ManualAstMod) PutLiteralString(literal string) (byteSliceRef document.ByteSliceReference, ref int, err error) {
 	return m.PutLiteralBytes([]byte(literal))
 }
 
-func (m *ManualAstMod) PutLiteralBytes(literal []byte) (nameRef int, byteSliceRef document.ByteSliceReference, err error) {
+// PutLiteralBytes appends a literal to the end of the lexer input storage
+// before appending the lexer will read forward until EOF
+// by doing this we make sure there's no unexpected content at the end of the input
+// this step is necessary because clients like curl end a request by appending a newline ('\n')
+// the parser does not expect a newLine at the end of the input so we have to read over it
+func (m *ManualAstMod) PutLiteralBytes(literal []byte) (byteSliceRef document.ByteSliceReference, ref int, err error) {
+
+	for {
+		if m.p.l.Read().Keyword == keyword.EOF {
+			break
+		}
+	}
 
 	err = m.p.l.AppendBytes(literal)
 	if err != nil {
@@ -41,7 +54,9 @@ func (m *ManualAstMod) PutLiteralBytes(literal []byte) (nameRef int, byteSliceRe
 	tok := m.p.l.Read()
 
 	byteSliceRef = tok.Literal
-	nameRef = m.p.putByteSliceReference(byteSliceRef)
+
+	m.p.ParsedDefinitions.ByteSliceReferences = append(m.p.ParsedDefinitions.ByteSliceReferences, byteSliceRef)
+	ref = len(m.p.ParsedDefinitions.ByteSliceReferences) - 1
 
 	return
 }
@@ -80,14 +95,14 @@ func (m *ManualAstMod) MergeArgIntoFieldArguments(argRef, fieldRef int) {
 	field := m.p.ParsedDefinitions.Fields[fieldRef]
 
 	if field.ArgumentSet == -1 {
-		set := m.p.indexPoolGet()
+		set := m.p.IndexPoolGet()
 		set = append(set, argRef)
 		field.ArgumentSet = m.PutArgumentSet(set)
 	} else {
 		var didUpdate bool
 		for i, j := range m.p.ParsedDefinitions.ArgumentSets[field.ArgumentSet] {
 			current := m.p.ParsedDefinitions.Arguments[j]
-			if current.Name == arg.Name {
+			if bytes.Equal(m.p.ByteSlice(current.Name), m.p.ByteSlice(arg.Name)) {
 				m.p.ParsedDefinitions.ArgumentSets[field.ArgumentSet][i] = argRef // update reference in place
 				didUpdate = true
 				break

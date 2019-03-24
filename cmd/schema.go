@@ -33,7 +33,7 @@ var schemaCmd = &cobra.Command{
 			return err
 		}
 
-		l := lookup.New(p, 8)
+		l := lookup.New(p)
 		w := lookup.NewWalker(1024, 8)
 		w.SetLookup(l)
 		w.WalkTypeSystemDefinition()

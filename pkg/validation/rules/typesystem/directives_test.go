@@ -16,7 +16,7 @@ func TestValidateTypeSystemDefinition_Directives(t *testing.T) {
 			panic(err)
 		}
 
-		l := lookup.New(p, 256)
+		l := lookup.New(p)
 
 		walker := lookup.NewWalker(1024, 8)
 		walker.SetLookup(l)
@@ -25,7 +25,7 @@ func TestValidateTypeSystemDefinition_Directives(t *testing.T) {
 		result := rule(l, walker)
 
 		if valid != result.Valid {
-			panic(fmt.Errorf("want valid: %t, got: %t (result: %+v, subName: %s)", valid, result.Valid, result, l.CachedName(result.Meta.SubjectNameRef)))
+			panic(fmt.Errorf("want valid: %t, got: %t (result: %+v, subName: %s)", valid, result.Valid, result, string(l.ByteSlice(result.Meta.SubjectNameRef))))
 		}
 	}
 

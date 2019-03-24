@@ -15,7 +15,7 @@ func OperationNameUniqueness() rules.Rule {
 
 		for i, first := range definitions {
 			for k, second := range definitions {
-				if i != k && first.Name == second.Name {
+				if i != k && l.ByteSliceReferenceContentsEquals(first.Name, second.Name) {
 					return validation.Invalid(validation.OperationNameUniqueness, validation.OperationNameMustBeUnique, first.Position, first.Name)
 				}
 			}

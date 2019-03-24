@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"context"
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/middleware"
 	"github.com/jensneuse/graphql-go-tools/pkg/testhelper"
@@ -12,7 +11,10 @@ func TestAssetMiddleware(t *testing.T) {
 
 	run := func(schema, queryBefore, queryAfter string) {
 
-		got := middleware.InvokeMiddleware(&AssetUrlMiddleware{}, context.Background(), schema, queryBefore)
+		got, err := middleware.InvokeMiddleware(&AssetUrlMiddleware{}, nil, schema, queryBefore)
+		if err != nil {
+			t.Fatal(err)
+		}
 		want := testhelper.UglifyRequestString(queryAfter)
 
 		if want != got {

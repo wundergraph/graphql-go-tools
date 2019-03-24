@@ -192,7 +192,7 @@ func (f *FieldsContainingDirectiveIterator) Value() (fieldDefinitionRef, objectT
 	return
 }
 
-func (w *Walker) FieldsContainingDirectiveIterator(directiveNameRef int) FieldsContainingDirectiveIterator {
+func (w *Walker) FieldsContainingDirectiveIterator(directiveNameRef document.ByteSliceReference) FieldsContainingDirectiveIterator {
 
 	fields := w.c.fieldsContainingDirectiveFields[:0]
 	objects := w.c.fieldsContainingDirectiveObjects[:0]
@@ -204,7 +204,8 @@ func (w *Walker) FieldsContainingDirectiveIterator(directiveNameRef int) FieldsC
 		directives := w.l.DirectiveIterable(set)
 		for directives.Next() {
 			directive, directiveRef := directives.Value()
-			if directive.Name != directiveNameRef {
+
+			if !w.l.ByteSliceReferenceContentsEquals(directive.Name, directiveNameRef) {
 				continue
 			}
 

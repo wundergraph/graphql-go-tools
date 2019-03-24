@@ -6,7 +6,7 @@ import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 // http://facebook.github.io/graphql/draft/#EnumValueDefinition
 type EnumValueDefinition struct {
 	Description  ByteSliceReference
-	EnumValue    int
+	EnumValue    ByteSliceReference
 	DirectiveSet int
 	Position     position.Position
 }
@@ -91,7 +91,7 @@ func (e EnumValueDefinition) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 
-func (e EnumValueDefinition) NodeAlias() int {
+func (e EnumValueDefinition) NodeAlias() ByteSliceReference {
 	panic("implement me")
 }
 
@@ -119,7 +119,7 @@ func (e EnumValueDefinition) NodeInlineFragments() []int {
 	return nil
 }
 
-func (e EnumValueDefinition) NodeName() int {
+func (e EnumValueDefinition) NodeName() ByteSliceReference {
 	return e.EnumValue
 }
 

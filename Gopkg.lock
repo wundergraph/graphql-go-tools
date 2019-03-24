@@ -61,6 +61,26 @@
   revision = "7017474a6da17986613fa5db1d9997e18bdbe854"
 
 [[projects]]
+  digest = "1:aaa8e0e7e35d92e21daed3f241832cee73d15ca1cd3302ba3843159a959a7eac"
+  name = "github.com/klauspost/compress"
+  packages = [
+    "flate",
+    "gzip",
+    "zlib",
+  ]
+  pruneopts = "UT"
+  revision = "30be6041bed523c18e269a700ebd9c2ea9328574"
+  version = "v1.4.1"
+
+[[projects]]
+  digest = "1:2d643962fac133904694fffa959bc3c5dcfdcee38c6f5ffdd99a3c93eb9c835c"
+  name = "github.com/klauspost/cpuid"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "e7e905edc00ea8827e58662220139109efea09db"
+  version = "v1.2.0"
+
+[[projects]]
   digest = "1:c568d7727aa262c32bdf8a3f7db83614f7af0ed661474b24588de635c20024c7"
   name = "github.com/magiconair/properties"
   packages = ["."]
@@ -91,6 +111,14 @@
   pruneopts = "UT"
   revision = "c01d1270ff3e442a8a57cddc1c92dc1138598194"
   version = "v1.2.0"
+
+[[projects]]
+  digest = "1:7413525ee648f20b4181be7fe8103d0cb98be9e141926a03ee082dc207061e4e"
+  name = "github.com/phayes/freeport"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "b8543db493a5ed890c5499e935e2cad7504f3a04"
+  version = "1.0.2"
 
 [[projects]]
   branch = "master"
@@ -184,6 +212,28 @@
   version = "v1.0.4"
 
 [[projects]]
+  digest = "1:c468422f334a6b46a19448ad59aaffdfc0a36b08fdcc1c749a0b29b6453d7e59"
+  name = "github.com/valyala/bytebufferpool"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "e746df99fe4a3986f4d4f79e13c1e0117ce9c2f7"
+  version = "v1.0.0"
+
+[[projects]]
+  digest = "1:fd08775cf89e024727ce5f79137d409c4460afe65176c9222e7ddf24a38c5e69"
+  name = "github.com/valyala/fasthttp"
+  packages = [
+    ".",
+    "fasthttpadaptor",
+    "fasthttputil",
+    "pprofhandler",
+    "stackless",
+  ]
+  pruneopts = "UT"
+  revision = "ed3793a1e1602989ba50bd20823e8521a4da84af"
+  version = "v1.2.0"
+
+[[projects]]
   branch = "master"
   digest = "1:7705456281a2327caef2d26e5881361effba03476bd9d09c60f3e4958d6c981c"
   name = "golang.org/x/sys"
@@ -221,11 +271,14 @@
     "github.com/golang/mock/gomock",
     "github.com/jensneuse/diffview",
     "github.com/mitchellh/go-homedir",
+    "github.com/phayes/freeport",
     "github.com/sebdah/goldie",
     "github.com/spf13/cobra",
     "github.com/spf13/viper",
     "github.com/tidwall/gjson",
     "github.com/tidwall/sjson",
+    "github.com/valyala/fasthttp",
+    "github.com/valyala/fasthttp/pprofhandler",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1

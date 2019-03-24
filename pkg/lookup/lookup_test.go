@@ -26,7 +26,7 @@ func TestLookup(t *testing.T) {
 			panic(err)
 		}
 
-		l := New(p, 256)
+		l := New(p)
 
 		err = p.ParseExecutableDefinition([]byte(input))
 		if err != nil {
@@ -50,7 +50,7 @@ func TestLookup(t *testing.T) {
 				}
 				set, _, _, parent := iter.Value()
 				typeName := walker.SelectionSetTypeName(set, parent)
-				got := string(walker.l.CachedName(typeName))
+				got := string(walker.l.ByteSlice(typeName))
 				if want != got {
 					panic(fmt.Errorf("mustHaveSelectionSetTypeNames: want type name: %s, got: %s", want, got))
 				}
@@ -79,7 +79,7 @@ func TestLookup(t *testing.T) {
 				}
 				set, _, _, parent := iter.Value()
 				typeName := walker.SelectionSetTypeName(set, parent)
-				got := string(walker.l.CachedName(typeName))
+				got := string(walker.l.ByteSlice(typeName))
 				if want.name != got {
 					panic(fmt.Errorf("mustHaveSelectionSets: want type name: %s, got: %s", want, got))
 				}
@@ -90,7 +90,7 @@ func TestLookup(t *testing.T) {
 						panic(fmt.Errorf("mustHaveSelectionSets: want next field (%s), got nothing", wantField))
 					}
 					_, gotField := fields.Value()
-					fieldName := string(walker.l.CachedName(gotField.Name))
+					fieldName := string(walker.l.ByteSlice(gotField.Name))
 					if fieldName != wantField {
 						panic(fmt.Errorf("mustHaveSelectionSets: want field: %s, got: %s", wantField, fieldName))
 					}
@@ -98,7 +98,7 @@ func TestLookup(t *testing.T) {
 
 				if fields.Next() {
 					_, value := fields.Value()
-					next := string(walker.l.CachedName(value.Name))
+					next := string(walker.l.ByteSlice(value.Name))
 					panic(fmt.Errorf("mustHaveSelectionSets: want Next() to return false, got next field: %s", next))
 				}
 			}
@@ -239,8 +239,8 @@ func TestLookup(t *testing.T) {
 		})
 		t.Run("OperationTypeName", func(t *testing.T) {
 			run("", "", func(walker *Walker) {
-				if walker.l.OperationTypeName(document.OperationDefinition{}) != -1 {
-					panic("want -1")
+				if walker.l.OperationTypeName(document.OperationDefinition{}).Length() != 0 {
+					panic("want 0")
 				}
 			})
 		})
@@ -271,7 +271,7 @@ func TestLookup(t *testing.T) {
 					if barType != stringType {
 						panic("want stringType")
 					}
-					_, ok = walker.l.FieldType(foo.Name, -1)
+					_, ok = walker.l.FieldType(foo.Name, document.ByteSliceReference{})
 					if ok {
 						panic("want !ok")
 					}
@@ -289,7 +289,7 @@ func TestLookup(t *testing.T) {
 					if barType != stringType {
 						panic("want stringType")
 					}
-					_, ok = walker.l.FieldType(foo.Name, -1)
+					_, ok = walker.l.FieldType(foo.Name, document.ByteSliceReference{})
 					if ok {
 						panic("want !ok")
 					}

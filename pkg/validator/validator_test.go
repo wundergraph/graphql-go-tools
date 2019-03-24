@@ -21,7 +21,7 @@ func TestValidator(t *testing.T) {
 			panic(err)
 		}
 
-		l := lookup.New(p, 256)
+		l := lookup.New(p)
 		l.SetParser(p)
 		w := lookup.NewWalker(1024, 8)
 		w.SetLookup(l)
@@ -30,7 +30,7 @@ func TestValidator(t *testing.T) {
 		v.SetInput(l, w)
 		result := v.ValidateExecutableDefinition(DefaultExecutionRules)
 		if wantResultValid != result.Valid {
-			panic(fmt.Errorf("want valid result: %t, got: %t (result: %+v,\n subject: %s)", wantResultValid, result.Valid, result, p.CachedByteSlice(result.Meta.SubjectNameRef)))
+			panic(fmt.Errorf("want valid result: %t, got: %t (result: %+v,\n subject: %s)", wantResultValid, result.Valid, result, string(p.ByteSlice(result.Meta.SubjectNameRef))))
 		}
 	}
 
@@ -72,7 +72,7 @@ func TestValidator(t *testing.T) {
 func BenchmarkValidator(b *testing.B) {
 
 	run := func(executable string, b *testing.B, wantResultValid bool) {
-		p := parser.NewParser()
+		p := parser.NewParser(parser.WithPoolSize(32))
 		err := p.ParseTypeSystemDefinition(testDefinition)
 		if err != nil {
 			panic(err)
@@ -83,7 +83,7 @@ func BenchmarkValidator(b *testing.B) {
 			panic(err)
 		}
 
-		l := lookup.New(p, 256)
+		l := lookup.New(p)
 		w := lookup.NewWalker(1024, 8)
 
 		v := New()
@@ -94,7 +94,6 @@ func BenchmarkValidator(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			w.SetLookup(l)
 			v.SetInput(l, w)
-			v.l.ResetPool()
 			w.WalkExecutable()
 			v.ValidateExecutableDefinition(DefaultExecutionRules)
 		}

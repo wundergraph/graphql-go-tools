@@ -21,25 +21,32 @@ func TestProxyHandler(t *testing.T) {
 	es := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
-			t.Error(err)
+			t.Fatal(err)
 		}
 		if string(body) != assetOutput {
-			t.Errorf("Expected %s, got %s", assetOutput, body)
+			t.Fatalf("Expected:\n%s\ngot\n%s", assetOutput, body)
 		}
 	}))
 	defer es.Close()
 
-	schemaProvider := proxy.NewStaticSchemaProvider([]byte(assetSchema))
+	schema := []byte(assetSchema)
+
+	requestConfigProvider := proxy.NewStaticSchemaProvider(proxy.RequestConfig{
+		Schema:      &schema,
+		BackendHost: es.Listener.Addr().String(),
+		BackendAddr: []byte(es.URL),
+	})
+
 	ip := sync.Pool{
 		New: func() interface{} {
 			return middleware.NewInvoker(&hackmiddleware.AssetUrlMiddleware{})
 		},
 	}
 	ph := &Proxy{
-		Host:           es.URL,
-		SchemaProvider: schemaProvider,
-		InvokerPool:    ip,
-		Client:         *http.DefaultClient,
+		Host:                  es.URL,
+		RequestConfigProvider: requestConfigProvider,
+		InvokerPool:           ip,
+		Client:                *http.DefaultClient,
 		HandleError: func(err error, w http.ResponseWriter) {
 			t.Fatal(err)
 		},
@@ -80,17 +87,25 @@ func BenchmarkProxyHandler(b *testing.B) {
 	}))
 	defer es.Close()
 
-	schemaProvider := proxy.NewStaticSchemaProvider([]byte(assetSchema))
+	schema := []byte(assetSchema)
+
+	requestConfigProvider := proxy.NewStaticSchemaProvider(proxy.RequestConfig{
+		Schema:      &schema,
+		BackendHost: es.Listener.Addr().String(),
+		BackendAddr: []byte(es.URL),
+	})
+
 	ip := sync.Pool{
 		New: func() interface{} {
 			return middleware.NewInvoker(&hackmiddleware.AssetUrlMiddleware{})
 		},
 	}
+
 	ph := &Proxy{
-		Host:           es.URL,
-		SchemaProvider: schemaProvider,
-		InvokerPool:    ip,
-		Client:         *http.DefaultClient,
+		Host:                  es.URL,
+		RequestConfigProvider: requestConfigProvider,
+		InvokerPool:           ip,
+		Client:                *http.DefaultClient,
 		HandleError: func(err error, w http.ResponseWriter) {
 			b.Fatal(err)
 		},
@@ -159,12 +174,7 @@ type Asset implements Node {
     url: String!
 }`
 
-const assetInput = `query testQueryWithoutHandle {
-  								assets(first: 1) {
-    							id
-    							fileName
-    							url(transformation: {image: {resize: {width: 100, height: 100}}})
-  							}
-						}`
+const assetInput = `{"query":"query testQueryWithoutHandle {assets(first: 1) { id fileName url(transformation: {image: {resize: {width: 100, height: 100}}})}}"}`
 
-const assetOutput = "query testQueryWithoutHandle {assets(first:1) {id fileName handle}}"
+const assetOutput = `{"operationName":"","query":"query testQueryWithoutHandle {assets(first:1) {id fileName handle}}"}
+`

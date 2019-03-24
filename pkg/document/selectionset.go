@@ -71,11 +71,11 @@ func (s SelectionSet) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (s SelectionSet) NodeName() int {
+func (s SelectionSet) NodeName() ByteSliceReference {
 	panic("implement me")
 }
 
-func (s SelectionSet) NodeAlias() int {
+func (s SelectionSet) NodeAlias() ByteSliceReference {
 	panic("implement me")
 }
 

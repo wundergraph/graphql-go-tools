@@ -25,7 +25,7 @@ func (p *Parser) parseInputValueDefinitions(index *[]int, closeKeyword keyword.K
 			description = quote
 			hasDescription = true
 
-		} else if next == keyword.IDENT {
+		} else if next == keyword.IDENT || next == keyword.TYPE || next == keyword.MUTATION {
 
 			ident := p.l.Read()
 			definition := p.makeInputValueDefinition()
@@ -38,7 +38,7 @@ func (p *Parser) parseInputValueDefinitions(index *[]int, closeKeyword keyword.K
 				definition.Position.MergeStartIntoStart(ident.TextPosition)
 			}
 
-			definition.Name = p.putByteSliceReference(ident.Literal)
+			definition.Name = ident.Literal
 
 			_, err := p.readExpect(keyword.COLON, "parseInputValueDefinitions")
 			if err != nil {

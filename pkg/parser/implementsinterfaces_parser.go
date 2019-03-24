@@ -17,7 +17,7 @@ func (p *Parser) parseImplementsInterfaces() (implementsInterfaces document.Impl
 			return implementsInterfaces, err
 		}
 
-		implementsInterfaces = append(implementsInterfaces, p.putByteSliceReference(next.Literal))
+		implementsInterfaces = append(implementsInterfaces, p._putByteSliceReference(next.Literal))
 
 		if another := p.peekExpect(keyword.AND, true); !another {
 			return implementsInterfaces, err

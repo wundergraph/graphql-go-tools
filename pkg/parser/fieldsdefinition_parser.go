@@ -28,7 +28,7 @@ func (p *Parser) parseFieldsDefinition(index *[]int) (err error) {
 		case keyword.CURLYBRACKETCLOSE:
 			p.l.Read()
 			return nil
-		case keyword.IDENT, keyword.TYPE:
+		case keyword.IDENT, keyword.TYPE, keyword.MUTATION:
 
 			fieldIdent := p.l.Read()
 			definition := p.makeFieldDefinition()
@@ -41,7 +41,7 @@ func (p *Parser) parseFieldsDefinition(index *[]int) (err error) {
 				definition.Position.MergeStartIntoStart(fieldIdent.TextPosition)
 			}
 
-			definition.Name = p.putByteSliceReference(fieldIdent.Literal)
+			definition.Name = fieldIdent.Literal
 
 			err = p.parseArgumentsDefinition(&definition.ArgumentsDefinition)
 			if err != nil {

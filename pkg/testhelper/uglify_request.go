@@ -17,7 +17,7 @@ func UglifyRequestBytes(request []byte) []byte {
 		panic(err)
 	}
 	astPrint := printer.New()
-	look := lookup.New(parse, 512)
+	look := lookup.New(parse)
 	walk := lookup.NewWalker(1024, 8)
 	walk.SetLookup(look)
 	walk.WalkExecutable()
@@ -27,17 +27,4 @@ func UglifyRequestBytes(request []byte) []byte {
 		panic(err)
 	}
 	return buff.Bytes()
-}
-
-func PutLiteralString(p *parser.Parser, literal string) int {
-	mod := parser.NewManualAstMod(p)
-	ref, _, err := mod.PutLiteralString(literal)
-	if err != nil {
-		panic(err)
-	}
-	return ref
-}
-
-func LiteralString(p *parser.Parser, cachedName int) string {
-	return string(p.CachedByteSlice(cachedName))
 }

@@ -13,7 +13,7 @@ func FieldSelectionMerging() rules.Rule {
 
 	return func(l *lookup.Lookup, w *lookup.Walker) validation.Result {
 
-		validateSet := func(set document.SelectionSet, typeName int) validation.Result {
+		validateSet := func(set document.SelectionSet, typeName document.ByteSliceReference) validation.Result {
 			lefts := l.SelectionSetCollectedFields(set, typeName)
 			for lefts.Next() {
 				_, left := lefts.Value()

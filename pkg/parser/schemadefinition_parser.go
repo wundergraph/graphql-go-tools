@@ -42,7 +42,7 @@ func (p *Parser) parseSchemaDefinition(definition *document.SchemaDefinition) er
 				return err
 			}
 
-			err = definition.SetOperationType(p.ByteSlice(next.Literal), p.putByteSliceReference(operationNameToken.Literal))
+			err = definition.SetOperationType(p.ByteSlice(next.Literal), operationNameToken.Literal)
 			if err != nil {
 				return err
 			}

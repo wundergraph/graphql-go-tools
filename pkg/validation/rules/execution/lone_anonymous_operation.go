@@ -17,7 +17,7 @@ func LoneAnonymousOperation() rules.Rule {
 		}
 
 		for _, definition := range definitions {
-			if definition.Name == -1 {
+			if definition.Name.Length() == 0 {
 				return validation.Invalid(validation.LoneAnonymousOperation, validation.AnonymousOperationMustBeLonePerDocument, definition.Position, definition.Name)
 			}
 		}

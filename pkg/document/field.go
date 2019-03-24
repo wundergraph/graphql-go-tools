@@ -5,8 +5,8 @@ import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 // Field as specified in:
 // http://facebook.github.io/graphql/draft/#Field
 type Field struct {
-	Alias        int
-	Name         int
+	Alias        ByteSliceReference
+	Name         ByteSliceReference
 	ArgumentSet  int
 	DirectiveSet int
 	SelectionSet int
@@ -93,7 +93,7 @@ func (f Field) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 
-func (f Field) NodeAlias() int {
+func (f Field) NodeAlias() ByteSliceReference {
 	return f.Alias
 }
 
@@ -101,7 +101,7 @@ func (f Field) NodeOperationType() OperationType {
 	panic("implement me")
 }
 
-func (f Field) NodeName() int {
+func (f Field) NodeName() ByteSliceReference {
 	return f.Name
 }
 

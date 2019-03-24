@@ -81,17 +81,17 @@ func (p *Printer) PrintSchemaDefinition() {
 	p.write(literal.SCHEMA)
 	p.write(literal.SPACE)
 	p.write(literal.CURLYBRACKETOPEN)
-	if definition.Query != -1 {
+	if definition.Query.Length() != 0 {
 		p.write(literal.LINETERMINATOR)
 		p.write(literal.TAB)
 		p.PrintSimpleField(literal.QUERY, definition.Query)
 	}
-	if definition.Mutation != -1 {
+	if definition.Mutation.Length() != 0 {
 		p.write(literal.LINETERMINATOR)
 		p.write(literal.TAB)
 		p.PrintSimpleField(literal.MUTATION, definition.Mutation)
 	}
-	if definition.Subscription != -1 {
+	if definition.Subscription.Length() != 0 {
 		p.write(literal.LINETERMINATOR)
 		p.write(literal.TAB)
 		p.PrintSimpleField(literal.SUBSCRIPTION, definition.Subscription)
@@ -100,11 +100,11 @@ func (p *Printer) PrintSchemaDefinition() {
 	p.write(literal.CURLYBRACKETCLOSE)
 }
 
-func (p *Printer) PrintSimpleField(name []byte, value int) {
+func (p *Printer) PrintSimpleField(name []byte, value document.ByteSliceReference) {
 	p.write(name)
 	p.write(literal.COLON)
 	p.write(literal.SPACE)
-	p.write(p.p.CachedByteSlice(value))
+	p.write(p.p.ByteSlice(value))
 }
 
 func (p *Printer) PrintDescription(ref document.ByteSliceReference, linePrefix ...[]byte) {
@@ -149,7 +149,7 @@ func (p *Printer) PrintFieldDefinition(ref int) {
 	definition := p.p.ParsedDefinitions.FieldDefinitions[ref]
 	p.PrintDescription(definition.Description, literal.TAB)
 	p.write(literal.TAB)
-	p.write(p.p.CachedByteSlice(definition.Name))
+	p.write(p.p.ByteSlice(definition.Name))
 	if definition.ArgumentsDefinition != -1 {
 		p.PrintArgumentsDefinitionInline(definition.ArgumentsDefinition)
 	}
@@ -191,7 +191,7 @@ func (p *Printer) PrintInputValueDefinition(ref int) {
 	definition := p.p.ParsedDefinitions.InputValueDefinitions[ref]
 	p.PrintDescription(definition.Description, literal.TAB)
 	p.write(literal.TAB)
-	p.write(p.p.CachedByteSlice(definition.Name))
+	p.write(p.p.ByteSlice(definition.Name))
 	p.write(literal.COLON)
 	p.write(literal.SPACE)
 	p.PrintType(definition.Type)
@@ -203,7 +203,7 @@ func (p *Printer) PrintInputValueDefinition(ref int) {
 
 func (p *Printer) PrintInputValueDefinitionInline(ref int) {
 	definition := p.p.ParsedDefinitions.InputValueDefinitions[ref]
-	p.write(p.p.CachedByteSlice(definition.Name))
+	p.write(p.p.ByteSlice(definition.Name))
 	p.write(literal.COLON)
 	p.write(literal.SPACE)
 	p.PrintType(definition.Type)
@@ -230,7 +230,7 @@ func (p *Printer) PrintType(ref int) {
 		p.PrintType(definition.OfType)
 		p.write(literal.SQUAREBRACKETCLOSE)
 	case document.TypeKindNAMED:
-		p.write(p.p.CachedByteSlice(definition.Name))
+		p.write(p.p.ByteSlice(definition.Name))
 	}
 }
 
@@ -239,7 +239,7 @@ func (p *Printer) PrintObjectTypeDefinition(ref int) {
 	p.PrintDescription(definition.Description)
 	p.write(literal.TYPE)
 	p.write(literal.SPACE)
-	p.write(p.p.CachedByteSlice(definition.Name))
+	p.write(p.p.ByteSlice(definition.Name))
 	if definition.DirectiveSet != -1 {
 		p.write(literal.SPACE)
 		p.printDirectiveSet(definition.DirectiveSet)
@@ -260,7 +260,7 @@ func (p *Printer) PrintEnumTypeDefinition(ref int) {
 	p.PrintDescription(definition.Description)
 	p.write(literal.ENUM)
 	p.write(literal.SPACE)
-	p.write(p.p.CachedByteSlice(definition.Name))
+	p.write(p.p.ByteSlice(definition.Name))
 	if definition.DirectiveSet != -1 {
 		p.write(literal.SPACE)
 		p.printDirectiveSet(definition.DirectiveSet)
@@ -284,7 +284,7 @@ func (p *Printer) PrintEnumValueDefinition(ref int) {
 	definition := p.p.ParsedDefinitions.EnumValuesDefinitions[ref]
 	p.PrintDescription(definition.Description, literal.TAB)
 	p.write(literal.TAB)
-	p.write(p.p.CachedByteSlice(definition.EnumValue))
+	p.write(p.p.ByteSlice(definition.EnumValue))
 }
 
 func (p *Printer) PrintDirectiveDefinition(ref int) {
@@ -293,7 +293,7 @@ func (p *Printer) PrintDirectiveDefinition(ref int) {
 	p.write(literal.DIRECTIVE)
 	p.write(literal.SPACE)
 	p.write(literal.AT)
-	p.write(p.p.CachedByteSlice(definition.Name))
+	p.write(p.p.ByteSlice(definition.Name))
 	p.write(literal.SPACE)
 	if definition.ArgumentsDefinition != -1 {
 		p.PrintArgumentsDefinition(definition.ArgumentsDefinition)
@@ -325,7 +325,7 @@ func (p *Printer) PrintInterfaceTypeDefinition(ref int) {
 	p.PrintDescription(definition.Description)
 	p.write(literal.INTERFACE)
 	p.write(literal.SPACE)
-	p.write(p.p.CachedByteSlice(definition.Name))
+	p.write(p.p.ByteSlice(definition.Name))
 	if definition.DirectiveSet != -1 {
 		p.write(literal.SPACE)
 		p.printDirectiveSet(definition.DirectiveSet)
@@ -345,7 +345,7 @@ func (p *Printer) PrintScalarTypeDefinition(ref int) {
 	p.PrintDescription(definition.Description)
 	p.write(literal.SCALAR)
 	p.write(literal.SPACE)
-	p.write(p.p.CachedByteSlice(definition.Name))
+	p.write(p.p.ByteSlice(definition.Name))
 	if definition.DirectiveSet != -1 {
 		p.write(literal.SPACE)
 		p.printDirectiveSet(definition.DirectiveSet)
@@ -357,7 +357,7 @@ func (p *Printer) PrintUnionTypeDefinition(ref int) {
 	p.PrintDescription(definition.Description)
 	p.write(literal.UNION)
 	p.write(literal.SPACE)
-	p.write(p.p.CachedByteSlice(definition.Name))
+	p.write(p.p.ByteSlice(definition.Name))
 	if definition.DirectiveSet != -1 {
 		p.write(literal.SPACE)
 		p.printDirectiveSet(definition.DirectiveSet)
@@ -382,7 +382,7 @@ func (p *Printer) PrintInputObjectTypeDefinition(ref int) {
 	p.PrintDescription(definition.Description)
 	p.write(literal.INPUT)
 	p.write(literal.SPACE)
-	p.write(p.p.CachedByteSlice(definition.Name))
+	p.write(p.p.ByteSlice(definition.Name))
 	p.write(literal.SPACE)
 	p.write(literal.CURLYBRACKETOPEN)
 	for _, inputValueDefinition := range p.p.ParsedDefinitions.InputFieldsDefinitions[definition.InputFieldsDefinition].InputValueDefinitions {
@@ -423,11 +423,11 @@ func (p *Printer) PrintExecutableSchema(out io.Writer) error {
 func (p *Printer) printFragmentDefinition(fragment document.FragmentDefinition) {
 	p.write(literal.FRAGMENT)
 	p.write(literal.SPACE)
-	p.write(p.p.CachedByteSlice(fragment.FragmentName))
+	p.write(p.p.ByteSlice(fragment.FragmentName))
 	p.write(literal.SPACE)
 	p.write(literal.ON)
 	p.write(literal.SPACE)
-	p.write(p.p.CachedByteSlice(p.l.Type(fragment.TypeCondition).Name))
+	p.write(p.p.ByteSlice(p.l.Type(fragment.TypeCondition).Name))
 	p.write(literal.SPACE)
 	if fragment.DirectiveSet != -1 {
 		p.printDirectiveSet(fragment.DirectiveSet)
@@ -437,10 +437,10 @@ func (p *Printer) printFragmentDefinition(fragment document.FragmentDefinition) 
 }
 
 func (p *Printer) printOperation(operation document.OperationDefinition) {
-	hasName := operation.Name != -1
+	hasName := operation.Name.Length() != 0
 	p.printOperationType(operation.OperationType, hasName)
 	if hasName {
-		p.write(p.p.CachedByteSlice(operation.Name))
+		p.write(p.p.ByteSlice(operation.Name))
 		p.write(literal.SPACE)
 	}
 	if operation.DirectiveSet != -1 {
@@ -468,7 +468,7 @@ func (p *Printer) printDirectiveSet(setRef int) {
 
 func (p *Printer) printDirective(directive document.Directive) {
 	p.write(literal.AT)
-	p.write(p.p.CachedByteSlice(directive.Name))
+	p.write(p.p.ByteSlice(directive.Name))
 	if directive.ArgumentSet != -1 {
 		p.printArgumentSet(directive.ArgumentSet)
 	}
@@ -521,7 +521,7 @@ func (p *Printer) printSelectionSet(ref int) {
 func (p *Printer) printField(ref int) {
 
 	field := p.l.Field(ref)
-	p.write(p.p.CachedByteSlice(field.Name))
+	p.write(p.p.ByteSlice(field.Name))
 
 	if field.ArgumentSet != -1 {
 		p.printArgumentSet(field.ArgumentSet)
@@ -541,7 +541,7 @@ func (p *Printer) printField(ref int) {
 func (p *Printer) printFragmentSpread(ref int) {
 	spread := p.l.FragmentSpread(ref)
 	p.write(literal.SPREAD)
-	p.write(p.p.CachedByteSlice(spread.FragmentName))
+	p.write(p.p.ByteSlice(spread.FragmentName))
 	if spread.DirectiveSet != -1 {
 		p.write(literal.SPACE)
 		p.printDirectiveSet(spread.DirectiveSet)
@@ -557,7 +557,7 @@ func (p *Printer) printInlineFragment(ref int) {
 		typeCondition := p.l.Type(inline.TypeCondition)
 		p.write(literal.ON)
 		p.write(literal.SPACE)
-		p.write(p.p.CachedByteSlice(typeCondition.Name))
+		p.write(p.p.ByteSlice(typeCondition.Name))
 	}
 
 	if inline.DirectiveSet != -1 {
@@ -588,7 +588,7 @@ func (p *Printer) printArgumentSet(ref int) {
 }
 
 func (p *Printer) printArgument(arg document.Argument) {
-	p.write(p.p.CachedByteSlice(arg.Name))
+	p.write(p.p.ByteSlice(arg.Name))
 	p.write(literal.COLON)
 	p.PrintValue(arg.Value)
 }
@@ -638,7 +638,7 @@ func (p *Printer) printObjectValue(ref int) {
 }
 
 func (p *Printer) printObjectField(field document.ObjectField) {
-	p.write(p.p.CachedByteSlice(field.Name))
+	p.write(p.p.ByteSlice(field.Name))
 	p.write(literal.COLON)
 	p.PrintValue(field.Value)
 }

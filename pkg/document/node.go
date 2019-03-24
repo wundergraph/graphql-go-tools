@@ -3,8 +3,8 @@ package document
 import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 
 type Node interface {
-	NodeName() int
-	NodeAlias() int
+	NodeName() ByteSliceReference
+	NodeAlias() ByteSliceReference
 	NodeDescription() ByteSliceReference
 	NodeArgumentSet() int
 	NodeArgumentsDefinition() int
