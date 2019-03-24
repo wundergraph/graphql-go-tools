@@ -11,7 +11,7 @@ export default function() {
 	req = [{
 		"method": "POST",
 		"url": "http://0.0.0.0:8888/query",
-		"body": "{\"operationName\":null,\"variables\":{},\"query\":\"{\\n  documents{\\n    owner\\n    sensitiveInformation\\n  }\\n}\\n\"}",
+		"body": "{\"operationName\":null,\"variables\":{},\"query\":\"{ documents { owner sensitiveInformation }}\"}",
 		"params": {
 			"headers": {
 				"user":"jens"
