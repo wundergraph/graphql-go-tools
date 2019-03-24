@@ -10,7 +10,6 @@ import (
 type Lookup struct {
 	p        *parser.Parser
 	refCache []int
-	refPool  refPool
 }
 
 type refPool struct {
@@ -39,12 +38,7 @@ func New(p *parser.Parser, refPoolSize int) *Lookup {
 	return &Lookup{
 		p:        p,
 		refCache: make([]int, 0, 48),
-		refPool:  pool,
 	}
-}
-
-func (l *Lookup) ResetPool() {
-	l.refPool.position = -1
 }
 
 func (l *Lookup) SetParser(p *parser.Parser) {
@@ -485,7 +479,7 @@ func (l *Lookup) SelectionSetCollectedFields(set document.SelectionSet, setTypeN
 		current:     -1,
 		setTypeName: setTypeName,
 		l:           l,
-		refs:        l.refPool.get(),
+		refs:        l.p.IndexPoolGet(),
 	}
 
 	iter.traverse(set, true)
@@ -546,8 +540,8 @@ func (l *Lookup) SelectionSetDifferingSelectionSetIterator(set document.Selectio
 		current:        -1,
 		ignoreTypeName: ignoreTypeName,
 		l:              l,
-		setRefs:        l.refPool.get(),
-		typeRefs:       l.refPool.get(),
+		setRefs:        l.p.IndexPoolGet(),
+		typeRefs:       l.p.IndexPoolGet(),
 	}
 	iter.traverse(set, true)
 	return iter
