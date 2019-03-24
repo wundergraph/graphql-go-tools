@@ -72,13 +72,8 @@ func TestValidator(t *testing.T) {
 func BenchmarkValidator(b *testing.B) {
 
 	run := func(executable string, b *testing.B, wantResultValid bool) {
-		p := parser.NewParser(parser.WithPoolSize(32))
+		p := parser.NewParser()
 		err := p.ParseTypeSystemDefinition(testDefinition)
-		if err != nil {
-			panic(err)
-		}
-
-		err = p.ParseExecutableDefinition([]byte(executable))
 		if err != nil {
 			panic(err)
 		}
@@ -92,6 +87,16 @@ func BenchmarkValidator(b *testing.B) {
 		b.ReportAllocs()
 
 		for i := 0; i < b.N; i++ {
+
+			b.StopTimer()
+
+			err = p.ParseExecutableDefinition([]byte(executable))
+			if err != nil {
+				panic(err)
+			}
+
+			b.StartTimer()
+
 			w.SetLookup(l)
 			v.SetInput(l, w)
 			w.WalkExecutable()
