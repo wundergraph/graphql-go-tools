@@ -16,7 +16,7 @@ type StaticProxy struct {
 
 func NewStaticProxy(config proxy.RequestConfig, middlewares ...middleware.GraphqlMiddleware) *StaticProxy {
 
-	provider := proxy.NewStaticSchemaProvider(config)
+	provider := proxy.NewStaticRequestConfigProvider(config)
 
 	handler := &Proxy{
 		RequestConfigProvider: provider,

@@ -20,7 +20,7 @@ func (s *StaticRequestConfigProvider) GetRequestConfig(requestURI []byte) Reques
 	return s.config
 }
 
-func NewStaticSchemaProvider(config RequestConfig) *StaticRequestConfigProvider {
+func NewStaticRequestConfigProvider(config RequestConfig) *StaticRequestConfigProvider {
 	return &StaticRequestConfigProvider{
 		config: config,
 	}

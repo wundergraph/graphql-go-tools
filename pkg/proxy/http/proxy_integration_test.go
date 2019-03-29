@@ -61,9 +61,9 @@ func TestProxyIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	schemaProvider := proxy.NewStaticSchemaProvider(proxy.RequestConfig{
-		Schema:      &schema,
-		BackendURL:  *backendURL,
+	schemaProvider := proxy.NewStaticRequestConfigProvider(proxy.RequestConfig{
+		Schema:     &schema,
+		BackendURL: *backendURL,
 	})
 
 	ip := sync.Pool{

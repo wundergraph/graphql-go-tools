@@ -100,7 +100,7 @@ func runProxyBlocking() {
 			&middleware.ValidationMiddleware{},
 			&middleware.ContextMiddleware{},
 		},
-		RequestConfigProvider: proxy.NewStaticSchemaProvider(proxy.RequestConfig{
+		RequestConfigProvider: proxy.NewStaticRequestConfigProvider(proxy.RequestConfig{
 			Schema:              &schema,
 			BackendURL:          *backendURL,
 			AddHeadersToContext: addHeadersToContext,

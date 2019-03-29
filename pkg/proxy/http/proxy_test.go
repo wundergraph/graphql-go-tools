@@ -36,9 +36,9 @@ func TestProxyHandler(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	requestConfigProvider := proxy.NewStaticSchemaProvider(proxy.RequestConfig{
-		Schema:      &schema,
-		BackendURL:  *backendURL,
+	requestConfigProvider := proxy.NewStaticRequestConfigProvider(proxy.RequestConfig{
+		Schema:     &schema,
+		BackendURL: *backendURL,
 	})
 
 	ip := sync.Pool{
@@ -96,9 +96,9 @@ func BenchmarkProxyHandler(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	requestConfigProvider := proxy.NewStaticSchemaProvider(proxy.RequestConfig{
-		Schema:      &schema,
-		BackendURL:  *backendURL,
+	requestConfigProvider := proxy.NewStaticRequestConfigProvider(proxy.RequestConfig{
+		Schema:     &schema,
+		BackendURL: *backendURL,
 	})
 
 	ip := sync.Pool{
