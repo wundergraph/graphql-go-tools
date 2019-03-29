@@ -95,17 +95,16 @@ func runProxyBlocking() {
 		panic(err)
 	}
 
-	prox := fastproxy.NewFastStaticProxy(fastproxy.FastStaticProxyConfig{
-		MiddleWares: []middleware.GraphqlMiddleware{
-			&middleware.ValidationMiddleware{},
-			&middleware.ContextMiddleware{},
-		},
-		RequestConfigProvider: proxy.NewStaticRequestConfigProvider(proxy.RequestConfig{
-			Schema:              &schema,
-			BackendURL:          *backendURL,
-			AddHeadersToContext: addHeadersToContext,
-		}),
+	requestConfigProvider := proxy.NewStaticRequestConfigProvider(proxy.RequestConfig{
+		Schema:              &schema,
+		BackendURL:          *backendURL,
+		AddHeadersToContext: addHeadersToContext,
 	})
+
+	prox := fastproxy.NewFastStaticProxy(requestConfigProvider,
+		&middleware.ValidationMiddleware{},
+		&middleware.ContextMiddleware{},
+	)
 
 	err = prox.ListenAndServe(staticProxyAddr)
 	if err != nil {
