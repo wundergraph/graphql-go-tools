@@ -34,18 +34,17 @@ func TestFastStaticProxy(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	prox := NewFastStaticProxy(FastStaticProxyConfig{
-		MiddleWares: []middleware.GraphqlMiddleware{
-			&middleware.ContextMiddleware{},
+	requestConfigProvider := proxy.NewStaticRequestConfigProvider(proxy.RequestConfig{
+		Schema:     &schema,
+		BackendURL: *backendURL,
+		AddHeadersToContext: [][]byte{
+			[]byte("user"),
 		},
-		RequestConfigProvider: proxy.NewStaticSchemaProvider(proxy.RequestConfig{
-			Schema:      &schema,
-			BackendURL:  *backendURL,
-			AddHeadersToContext: [][]byte{
-				[]byte("user"),
-			},
-		}),
 	})
+
+	prox := NewFastStaticProxy(requestConfigProvider,
+		&middleware.ContextMiddleware{},
+	)
 
 	go func() {
 		err := prox.ListenAndServe("0.0.0.0:" + proxyPort)
@@ -100,18 +99,17 @@ func BenchmarkFastStaticProxy(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	prox := NewFastStaticProxy(FastStaticProxyConfig{
-		MiddleWares: []middleware.GraphqlMiddleware{
-			&middleware.ContextMiddleware{},
+	requestConfigProvider := proxy.NewStaticRequestConfigProvider(proxy.RequestConfig{
+		Schema:     &schema,
+		BackendURL: *backendURL,
+		AddHeadersToContext: [][]byte{
+			[]byte("user"),
 		},
-		RequestConfigProvider: proxy.NewStaticSchemaProvider(proxy.RequestConfig{
-			Schema:      &schema,
-			BackendURL:  *backendURL,
-			AddHeadersToContext: [][]byte{
-				[]byte("user"),
-			},
-		}),
 	})
+
+	prox := NewFastStaticProxy(requestConfigProvider,
+		&middleware.ContextMiddleware{},
+	)
 
 	go func() {
 		err := prox.ListenAndServe("0.0.0.0:" + proxyPort)
