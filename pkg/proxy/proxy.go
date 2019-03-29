@@ -2,13 +2,12 @@ package proxy
 
 import (
 	"bytes"
-	"context"
 	"io"
 )
 
 type Proxy interface {
-	AcceptRequest(uri string, body io.ReadCloser, ctx context.Context) (*bytes.Buffer, error)
-	DispatchRequest(input []byte) ([]byte, error)
+	AcceptRequest(contextValues map[string][]byte, requestURI []byte, body io.Reader, buff *bytes.Buffer) error
+	DispatchRequest(buff *bytes.Buffer) (io.ReadCloser, error)
 	AcceptResponse()
 	DispatchResponse()
 }

@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"runtime"
 	"strings"
 	"sync"
@@ -30,11 +31,14 @@ func TestProxyHandler(t *testing.T) {
 	defer es.Close()
 
 	schema := []byte(assetSchema)
+	backendURL, err := url.Parse(es.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	requestConfigProvider := proxy.NewStaticSchemaProvider(proxy.RequestConfig{
 		Schema:      &schema,
-		BackendHost: es.Listener.Addr().String(),
-		BackendAddr: []byte(es.URL),
+		BackendURL:  *backendURL,
 	})
 
 	ip := sync.Pool{
@@ -43,7 +47,6 @@ func TestProxyHandler(t *testing.T) {
 		},
 	}
 	ph := &Proxy{
-		Host:                  es.URL,
 		RequestConfigProvider: requestConfigProvider,
 		InvokerPool:           ip,
 		Client:                *http.DefaultClient,
@@ -88,11 +91,14 @@ func BenchmarkProxyHandler(b *testing.B) {
 	defer es.Close()
 
 	schema := []byte(assetSchema)
+	backendURL, err := url.Parse(es.URL)
+	if err != nil {
+		b.Fatal(err)
+	}
 
 	requestConfigProvider := proxy.NewStaticSchemaProvider(proxy.RequestConfig{
 		Schema:      &schema,
-		BackendHost: es.Listener.Addr().String(),
-		BackendAddr: []byte(es.URL),
+		BackendURL:  *backendURL,
 	})
 
 	ip := sync.Pool{
@@ -102,7 +108,6 @@ func BenchmarkProxyHandler(b *testing.B) {
 	}
 
 	ph := &Proxy{
-		Host:                  es.URL,
 		RequestConfigProvider: requestConfigProvider,
 		InvokerPool:           ip,
 		Client:                *http.DefaultClient,

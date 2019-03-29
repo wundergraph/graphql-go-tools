@@ -1,13 +1,14 @@
 package proxy
 
+import "net/url"
+
 type RequestConfigProvider interface {
 	GetRequestConfig(requestURI []byte) RequestConfig
 }
 
 type RequestConfig struct {
 	Schema              *[]byte
-	BackendHost         string
-	BackendAddr         []byte
+	BackendURL          url.URL
 	AddHeadersToContext [][]byte
 }
 

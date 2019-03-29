@@ -7,25 +7,25 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/middleware"
 	"github.com/jensneuse/graphql-go-tools/pkg/proxy"
 	"net/http"
+	"net/url"
 	"sync"
 )
-
-type StaticProxyConfig struct {
-	MiddleWares           []middleware.GraphqlMiddleware
-	RequestConfigProvider proxy.RequestConfigProvider
-}
 
 type StaticProxy struct {
 	handler http.Handler
 }
 
-func NewStaticProxy(config StaticProxyConfig) *StaticProxy {
+func NewStaticProxy(backendURL url.URL, schema []byte, middlewares... middleware.GraphqlMiddleware) *StaticProxy {
+	provider := proxy.NewStaticSchemaProvider(proxy.RequestConfig{
+		Schema:     &schema,
+		BackendURL: backendURL,
+	})
 
 	handler := &Proxy{
-		RequestConfigProvider: config.RequestConfigProvider,
+		RequestConfigProvider: provider,
 		InvokerPool: sync.Pool{
 			New: func() interface{} {
-				return middleware.NewInvoker(config.MiddleWares...)
+				return middleware.NewInvoker(middlewares...)
 			},
 		},
 		Client: *http.DefaultClient,

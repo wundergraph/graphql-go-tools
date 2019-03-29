@@ -1,4 +1,4 @@
-package http
+package fasthttp
 
 import (
 	"bytes"
@@ -9,6 +9,7 @@ import (
 	"github.com/valyala/fasthttp"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"strconv"
 	"testing"
 	"time"
@@ -28,6 +29,10 @@ func TestFastStaticProxy(t *testing.T) {
 	go startFakeBackend(fakeBackendHost)
 
 	schema := []byte(testSchema)
+	backendURL, err := url.Parse("http://0.0.0.0:" + backendPort + "/query")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	prox := NewFastStaticProxy(FastStaticProxyConfig{
 		MiddleWares: []middleware.GraphqlMiddleware{
@@ -35,8 +40,7 @@ func TestFastStaticProxy(t *testing.T) {
 		},
 		RequestConfigProvider: proxy.NewStaticSchemaProvider(proxy.RequestConfig{
 			Schema:      &schema,
-			BackendAddr: []byte("http://0.0.0.0:" + backendPort + "/query"),
-			BackendHost: "0.0.0.0:" + backendPort,
+			BackendURL:  *backendURL,
 			AddHeadersToContext: [][]byte{
 				[]byte("user"),
 			},
@@ -91,6 +95,10 @@ func BenchmarkFastStaticProxy(b *testing.B) {
 	go startFakeBackend(fakeBackendHost)
 
 	schema := []byte(testSchema)
+	backendURL, err := url.Parse("http://0.0.0.0:" + backendPort + "/query")
+	if err != nil {
+		b.Fatal(err)
+	}
 
 	prox := NewFastStaticProxy(FastStaticProxyConfig{
 		MiddleWares: []middleware.GraphqlMiddleware{
@@ -98,8 +106,7 @@ func BenchmarkFastStaticProxy(b *testing.B) {
 		},
 		RequestConfigProvider: proxy.NewStaticSchemaProvider(proxy.RequestConfig{
 			Schema:      &schema,
-			BackendAddr: []byte("http://0.0.0.0:" + backendPort + "/query"),
-			BackendHost: "0.0.0.0:" + backendPort,
+			BackendURL:  *backendURL,
 			AddHeadersToContext: [][]byte{
 				[]byte("user"),
 			},

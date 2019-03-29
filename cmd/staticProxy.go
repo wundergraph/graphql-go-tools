@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/middleware"
 	"github.com/jensneuse/graphql-go-tools/pkg/proxy"
-	"github.com/jensneuse/graphql-go-tools/pkg/proxy/http"
+	fastproxy "github.com/jensneuse/graphql-go-tools/pkg/proxy/fasthttp"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/pprofhandler"
 	"io/ioutil"
+	"net/url"
 	"runtime"
 	"time"
 
@@ -21,7 +22,6 @@ var (
 	staticProxyAddr        string
 	staticProxyPprofAddr   string
 	staticProxySchemaFile  string
-	staticProxyBackendAddr string
 	staticProxyBackendURL  string
 	staticProxyContextKeys []string
 )
@@ -52,7 +52,6 @@ func printConfig() {
 
 Proxy Configuration:
 - proxyAddr: %s
-- backendAddr: %s
 - backendURL: %s
 
 Schema Configuration:
@@ -71,7 +70,6 @@ curl --data '{"operationName":null,"variables":{},"query":"{documents{owner sens
 
 `,
 		staticProxyAddr,
-		staticProxyBackendAddr,
 		staticProxyBackendURL,
 		staticProxySchemaFile,
 		staticProxyRunPPROF,
@@ -92,15 +90,19 @@ func runProxyBlocking() {
 		addHeadersToContext = append(addHeadersToContext, []byte(value))
 	}
 
-	prox := http.NewFastStaticProxy(http.FastStaticProxyConfig{
+	backendURL, err := url.Parse(staticProxyBackendURL)
+	if err != nil {
+		panic(err)
+	}
+
+	prox := fastproxy.NewFastStaticProxy(fastproxy.FastStaticProxyConfig{
 		MiddleWares: []middleware.GraphqlMiddleware{
 			&middleware.ValidationMiddleware{},
 			&middleware.ContextMiddleware{},
 		},
 		RequestConfigProvider: proxy.NewStaticSchemaProvider(proxy.RequestConfig{
 			Schema:              &schema,
-			BackendAddr:         []byte(staticProxyBackendURL),
-			BackendHost:         staticProxyBackendAddr,
+			BackendURL:          *backendURL,
 			AddHeadersToContext: addHeadersToContext,
 		}),
 	})
@@ -134,7 +136,6 @@ func init() {
 	staticProxyCmd.Flags().StringVar(&staticProxyPprofAddr, "pprofAddr", "0.0.0.0:8081", "host:port the pprof web server should listen on")
 	staticProxyCmd.Flags().StringVar(&staticProxySchemaFile, "schemaFile", "./schema.graphql", "the file to read the schema from")
 	staticProxyCmd.Flags().StringVar(&staticProxyBackendURL, "backendURL", "http://0.0.0.0:8080/query", "the backend URL to proxy requests to")
-	staticProxyCmd.Flags().StringVar(&staticProxyBackendAddr, "backendAddr", "0.0.0.0:8080", "the backend Addr")
 	staticProxyCmd.Flags().StringSliceVar(&staticProxyContextKeys, "contextKeys", nil, "the keys that should be read from the header and set to the context")
 }
 
