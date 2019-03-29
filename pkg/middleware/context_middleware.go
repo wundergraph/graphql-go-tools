@@ -125,7 +125,7 @@ func (a *ContextMiddleware) OnRequest(userValues map[string][]byte, l *lookup.Lo
 
 					argumentValue := userValues[string(i.argumentValueContextKey)]
 					if argumentValue == nil {
-						return fmt.Errorf("OnRequest: No value for key: %s", string(i.argumentValueContextKey))
+						return fmt.Errorf("OnRequest: No value for key: %s (did you forget to configure setting the 'contextKeys' configuration which enables loading variables from the header into the context values?)\n", string(i.argumentValueContextKey))
 					}
 
 					argByteSliceRef, argNameRef, err := mod.PutLiteralBytes(argumentValue)
