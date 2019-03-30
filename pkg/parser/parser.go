@@ -55,6 +55,10 @@ type Parser struct {
 	sliceIndex        map[string]int
 }
 
+func (p *Parser) EnumValueDefinition(ref int) document.EnumValueDefinition {
+	return p.ParsedDefinitions.EnumValuesDefinitions[ref]
+}
+
 func (p *Parser) InputValueDefinition(ref int) document.InputValueDefinition {
 	return p.ParsedDefinitions.InputValueDefinitions[ref]
 }
@@ -74,9 +78,9 @@ type ParsedDefinitions struct {
 	ArgumentSets               []document.ArgumentSet
 	Directives                 document.Directives
 	DirectiveSets              []document.DirectiveSet
-	EnumTypeDefinitions        document.EnumTypeDefinitions
+	EnumTypeDefinitions        []document.EnumTypeDefinition
 	ArgumentsDefinitions       document.ArgumentsDefinitions
-	EnumValuesDefinitions      document.EnumValueDefinitions
+	EnumValuesDefinitions      []document.EnumValueDefinition
 	FieldDefinitions           document.FieldDefinitions
 	InputValueDefinitions      []document.InputValueDefinition
 	InputObjectTypeDefinitions document.InputObjectTypeDefinitions
@@ -195,8 +199,8 @@ func NewParser(withOptions ...Option) *Parser {
 		ArgumentSets:               make([]document.ArgumentSet, 0, options.minimumSliceSize),
 		Directives:                 make(document.Directives, 0, options.minimumSliceSize),
 		DirectiveSets:              make([]document.DirectiveSet, 0, options.minimumSliceSize*2),
-		EnumTypeDefinitions:        make(document.EnumTypeDefinitions, 0, options.minimumSliceSize),
-		EnumValuesDefinitions:      make(document.EnumValueDefinitions, 0, options.minimumSliceSize*2),
+		EnumTypeDefinitions:        make([]document.EnumTypeDefinition, 0, options.minimumSliceSize),
+		EnumValuesDefinitions:      make([]document.EnumValueDefinition, 0, options.minimumSliceSize*2),
 		ArgumentsDefinitions:       make(document.ArgumentsDefinitions, 0, options.minimumSliceSize),
 		FieldDefinitions:           make(document.FieldDefinitions, 0, options.minimumSliceSize*2),
 		InputValueDefinitions:      make([]document.InputValueDefinition, 0, options.minimumSliceSize),
@@ -329,8 +333,7 @@ func (p *Parser) makeFieldDefinition() document.FieldDefinition {
 
 func (p *Parser) makeEnumTypeDefinition() document.EnumTypeDefinition {
 	return document.EnumTypeDefinition{
-		DirectiveSet:         -1,
-		EnumValuesDefinition: p.IndexPoolGet(),
+		DirectiveSet: -1,
 	}
 }
 
