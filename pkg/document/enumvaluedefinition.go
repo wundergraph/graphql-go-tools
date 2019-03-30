@@ -9,6 +9,7 @@ type EnumValueDefinition struct {
 	EnumValue    ByteSliceReference
 	DirectiveSet int
 	Position     position.Position
+	NextRef      int
 }
 
 func (e EnumValueDefinition) NodeSelectionSet() int {
@@ -135,6 +136,43 @@ func (e EnumValueDefinition) NodeDirectiveSet() int {
 	return e.DirectiveSet
 }
 
-func (e EnumValueDefinition) NodeEnumValuesDefinition() []int {
-	return nil
+func (e EnumValueDefinition) NodeEnumValuesDefinition() EnumValueDefinitions {
+	panic("implement me")
+}
+
+type EnumValueDefinitionGetter interface {
+	EnumValueDefinition(ref int) EnumValueDefinition
+}
+
+// EnumValueDefinitions as specified in:
+// http://facebook.github.io/graphql/draft/#EnumValuesDefinition
+type EnumValueDefinitions struct {
+	nextRef    int
+	currentRef int
+	current    EnumValueDefinition
+}
+
+func NewEnumValueDefinitions(nextRef int) EnumValueDefinitions {
+	return EnumValueDefinitions{
+		nextRef: nextRef,
+	}
+}
+
+func (i *EnumValueDefinitions) HasNext() bool {
+	return i.nextRef != -1
+}
+
+func (i *EnumValueDefinitions) Next(getter EnumValueDefinitionGetter) bool {
+	if i.nextRef == -1 {
+		return false
+	}
+
+	i.currentRef = i.nextRef
+	i.current = getter.EnumValueDefinition(i.nextRef)
+	i.nextRef = i.current.NextRef
+	return true
+}
+
+func (i *EnumValueDefinitions) Value() (EnumValueDefinition, int) {
+	return i.current, i.currentRef
 }
