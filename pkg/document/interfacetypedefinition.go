@@ -7,7 +7,7 @@ import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 type InterfaceTypeDefinition struct {
 	Description      ByteSliceReference
 	Name             ByteSliceReference
-	FieldsDefinition []int
+	FieldsDefinition FieldDefinitions
 	DirectiveSet     int
 	Position         position.Position
 }
