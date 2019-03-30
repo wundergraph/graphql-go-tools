@@ -145,8 +145,7 @@ func (p *Printer) PrintDescription(ref document.ByteSliceReference, linePrefix .
 	p.write(literal.LINETERMINATOR)
 }
 
-func (p *Printer) PrintFieldDefinition(ref int) {
-	definition := p.p.ParsedDefinitions.FieldDefinitions[ref]
+func (p *Printer) PrintFieldDefinition(definition document.FieldDefinition) {
 	p.PrintDescription(definition.Description, literal.TAB)
 	p.write(literal.TAB)
 	p.write(p.p.ByteSlice(definition.Name))
@@ -251,9 +250,11 @@ func (p *Printer) PrintObjectTypeDefinition(ref int) {
 	}
 	p.write(literal.SPACE)
 	p.write(literal.CURLYBRACKETOPEN)
-	for _, i := range definition.FieldsDefinition {
+	fields := definition.FieldsDefinition
+	for fields.Next(p.l) {
 		p.write(literal.LINETERMINATOR)
-		p.PrintFieldDefinition(i)
+		field, _ := fields.Value()
+		p.PrintFieldDefinition(field)
 	}
 	p.write(literal.LINETERMINATOR)
 	p.write(literal.CURLYBRACKETCLOSE)
@@ -337,8 +338,10 @@ func (p *Printer) PrintInterfaceTypeDefinition(ref int) {
 	}
 	p.write(literal.SPACE)
 	p.write(literal.CURLYBRACKETOPEN)
-	for _, field := range definition.FieldsDefinition {
+	fields := definition.FieldsDefinition
+	for fields.Next(p.l) {
 		p.write(literal.LINETERMINATOR)
+		field, _ := fields.Value()
 		p.PrintFieldDefinition(field)
 	}
 	p.write(literal.LINETERMINATOR)
