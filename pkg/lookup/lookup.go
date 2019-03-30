@@ -307,10 +307,10 @@ func (l *Lookup) FieldDefinition(ref int) document.FieldDefinition {
 	return l.p.ParsedDefinitions.FieldDefinitions[ref]
 }
 
-func (l *Lookup) FieldDefinitionByNameFromIndex(index []int, name document.ByteSliceReference) (document.FieldDefinition, bool) {
+func (l *Lookup) FieldDefinitionByNameFromDefinitions(definitions document.FieldDefinitions, name document.ByteSliceReference) (document.FieldDefinition, bool) {
 
-	for _, i := range index {
-		definition := l.p.ParsedDefinitions.FieldDefinitions[i]
+	for definitions.Next(l) {
+		definition, _ := definitions.Value()
 		if l.ByteSliceReferenceContentsEquals(name, definition.Name) {
 			return definition, true
 		}
@@ -818,26 +818,24 @@ func (l *Lookup) ObjectFieldByIndexAndName(index []int, name document.ByteSliceR
 	return document.ObjectField{}, false
 }
 
-func (l *Lookup) FieldsDefinitionFromNamedType(name document.ByteSliceReference) (fields []int) {
+func (l *Lookup) FieldsDefinitionFromNamedType(name document.ByteSliceReference) document.FieldDefinitions {
 
 	_, ok := l.UnionTypeDefinitionByName(name)
 	if ok {
-		return
+		return document.NewFieldDefinitions(-1)
 	}
 
 	objectType, ok := l.ObjectTypeDefinitionByName(name)
 	if ok {
-		fields = objectType.FieldsDefinition
-		return
+		return objectType.FieldsDefinition
 	}
 
 	interfaceType, ok := l.InterfaceTypeDefinitionByName(name)
 	if ok {
-		fields = interfaceType.FieldsDefinition
-		return
+		return interfaceType.FieldsDefinition
 	}
 
-	return
+	return document.NewFieldDefinitions(-1)
 }
 
 func (l *Lookup) TypesAreEqual(left, right document.Type) bool {
@@ -1063,7 +1061,7 @@ func (l *Lookup) PossibleSelectionTypes(typeName document.ByteSliceReference, po
 func (l *Lookup) FieldType(typeName document.ByteSliceReference, fieldName document.ByteSliceReference) (document.Type, bool) {
 	objectTypeDefinition, ok := l.ObjectTypeDefinitionByName(typeName)
 	if ok {
-		definition, ok := l.FieldDefinitionByNameFromIndex(objectTypeDefinition.FieldsDefinition, fieldName)
+		definition, ok := l.FieldDefinitionByNameFromDefinitions(objectTypeDefinition.FieldsDefinition, fieldName)
 		if !ok {
 			return document.Type{}, false
 		}
@@ -1071,7 +1069,7 @@ func (l *Lookup) FieldType(typeName document.ByteSliceReference, fieldName docum
 	}
 	interfaceTypeDefinition, ok := l.InterfaceTypeDefinitionByName(typeName)
 	if ok {
-		definition, ok := l.FieldDefinitionByNameFromIndex(interfaceTypeDefinition.FieldsDefinition, fieldName)
+		definition, ok := l.FieldDefinitionByNameFromDefinitions(interfaceTypeDefinition.FieldsDefinition, fieldName)
 		if !ok {
 			return document.Type{}, false
 		}
@@ -1092,7 +1090,7 @@ func (l *Lookup) FieldSelectionsArePossible(onTypeName document.ByteSliceReferen
 			continue
 		}
 
-		fieldDefinition, ok := l.FieldDefinitionByNameFromIndex(fieldDefinitions, field.Name)
+		fieldDefinition, ok := l.FieldDefinitionByNameFromDefinitions(fieldDefinitions, field.Name)
 		if !ok {
 			return false
 		}
