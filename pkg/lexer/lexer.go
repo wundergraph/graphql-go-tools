@@ -110,6 +110,9 @@ func (l *Lexer) Read() (tok token.Token) {
 	}
 
 	switch next {
+	case runes.HASHTAG:
+		l.readComment(&tok)
+		return
 	case runes.QUOTE:
 		l.readString(&tok)
 		return
@@ -145,6 +148,8 @@ func (l *Lexer) keywordFromRune(r byte) keyword.Keyword {
 		return keyword.EOF
 	case runes.SPACE:
 		return keyword.SPACE
+	case runes.HASHTAG:
+		return keyword.COMMENT
 	case runes.TAB:
 		return keyword.TAB
 	case runes.COMMA:
@@ -393,6 +398,29 @@ func (l *Lexer) readDotOrSpread(tok *token.Token) {
 	}
 
 	tok.SetEnd(l.inputPosition, l.textPosition)
+}
+
+func (l *Lexer) readComment(tok *token.Token) {
+
+	tok.Keyword = keyword.COMMENT
+
+	for {
+		next := l.peekRune(false)
+		switch next {
+		case runes.EOF:
+			tok.SetEnd(l.inputPosition, l.textPosition)
+			l.readRune()
+			return
+		case runes.LINETERMINATOR:
+			tok.SetEnd(l.inputPosition, l.textPosition)
+			l.readRune()
+			if l.peekRune(true) != runes.HASHTAG {
+				return
+			}
+		default:
+			l.readRune()
+		}
+	}
 }
 
 func (l *Lexer) readString(tok *token.Token) {

@@ -248,11 +248,11 @@ func BenchmarkParser(b *testing.B) {
 
 }
 
-func BenchmarkParserLotto(b *testing.B) {
+func BenchmarkParserBigSchema(b *testing.B) {
 
 	parser := NewParser(WithMinimumSliceSize(32))
 
-	schemaData, err := ioutil.ReadFile("./testdata/lotto.graphql")
+	schemaData, err := ioutil.ReadFile("./testdata/big_schema.graphql")
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -268,4 +268,12 @@ func BenchmarkParserLotto(b *testing.B) {
 		}
 	}
 
+	var empty int
+	for i := range parser.indexPool {
+		if len(parser.indexPool[i]) == 0 {
+			empty++
+		}
+	}
+
+	fmt.Printf("\npos:%d, len: %d, empty: %d\n", parser.indexPoolPosition, len(parser.indexPool), empty)
 }

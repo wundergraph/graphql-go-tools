@@ -356,6 +356,27 @@ func TestLexer_Peek_Read(t *testing.T) {
 	t.Run("read null", func(t *testing.T) {
 		run("null", mustPeekAndRead(keyword.NULL, "null"))
 	})
+	t.Run("read single line comment", func(t *testing.T) {
+		run("# A connection to a list of items.",
+			mustPeekAndRead(keyword.COMMENT, "# A connection to a list of items."))
+	})
+	t.Run("read single line comment", func(t *testing.T) {
+		run("#	A connection to a list of items.",
+			mustPeekAndRead(keyword.COMMENT, "#	A connection to a list of items."))
+	})
+	t.Run("read single line comment", func(t *testing.T) {
+		run("# A connection to a list of items.\nident",
+			mustPeekAndRead(keyword.COMMENT, "# A connection to a list of items."),
+			mustPeekAndRead(keyword.IDENT, "ident"),
+		)
+	})
+	t.Run("read multi line comment", func(t *testing.T) {
+		run(`#1
+#2
+#three`,
+			mustPeekAndRead(keyword.COMMENT, "#1\n#2\n#three"),
+		)
+	})
 	t.Run("multi read 'foo:'", func(t *testing.T) {
 		run("foo:",
 			mustPeekAndRead(keyword.IDENT, "foo"),
