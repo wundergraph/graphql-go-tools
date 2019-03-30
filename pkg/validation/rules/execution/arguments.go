@@ -91,7 +91,7 @@ func RequiredArguments() rules.Rule {
 			typeName := w.SelectionSetTypeName(l.SelectionSet(field.SelectionSet), parent)
 
 			fieldsDefinition := l.FieldsDefinitionFromNamedType(typeName)
-			definition, ok := l.FieldDefinitionByNameFromIndex(fieldsDefinition, field.Name)
+			definition, ok := l.FieldDefinitionByNameFromDefinitions(fieldsDefinition, field.Name)
 			if !ok {
 				return validation.Invalid(validation.RequiredArguments, validation.TypeNotDefined, field.Position, field.Name)
 			}
