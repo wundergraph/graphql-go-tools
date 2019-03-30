@@ -21,7 +21,7 @@ func (p *Parser) parseInputValueDefinitions(closeKeyword keyword.Keyword) (defin
 	for {
 		next := p.l.Peek(true)
 
-		if next == keyword.STRING {
+		if next == keyword.STRING || next == keyword.COMMENT {
 
 			quote := p.l.Read()
 			description = quote
