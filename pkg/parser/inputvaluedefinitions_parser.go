@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
 )
@@ -11,10 +12,11 @@ import (
 // InputValueDefinitions: http://facebook.github.io/graphql/draft/#InputFieldsDefinition
 // or ArgumentsDefinition http://facebook.github.io/graphql/draft/#ArgumentsDefinition
 
-func (p *Parser) parseInputValueDefinitions(index *[]int, closeKeyword keyword.Keyword) error {
+func (p *Parser) parseInputValueDefinitions(closeKeyword keyword.Keyword) (definitions document.InputValueDefinitions, err error) {
 
 	var hasDescription bool
 	var description token.Token
+	nextRef := -1
 
 	for {
 		next := p.l.Peek(true)
@@ -40,34 +42,36 @@ func (p *Parser) parseInputValueDefinitions(index *[]int, closeKeyword keyword.K
 
 			definition.Name = ident.Literal
 
-			_, err := p.readExpect(keyword.COLON, "parseInputValueDefinitions")
+			_, err = p.readExpect(keyword.COLON, "parseInputValueDefinitions")
 			if err != nil {
-				return err
+				return
 			}
 
 			err = p.parseType(&definition.Type)
 			if err != nil {
-				return err
+				return
 			}
 
 			definition.DefaultValue, err = p.parseDefaultValue()
 			if err != nil {
-				return err
+				return
 			}
 
 			err = p.parseDirectives(&definition.DirectiveSet)
 			if err != nil {
-				return err
+				return
 			}
 
 			definition.Position.MergeStartIntoEnd(p.TextPosition())
-			*index = append(*index, p.putInputValueDefinition(definition))
+			definition.NextRef = nextRef
+			nextRef = p.putInputValueDefinition(definition)
 
 		} else if next != closeKeyword && closeKeyword != keyword.UNDEFINED {
 			invalid := p.l.Read()
-			return newErrInvalidType(invalid.TextPosition, "parseInputValueDefinitions", "string/ident/"+closeKeyword.String(), invalid.String())
+			err = newErrInvalidType(invalid.TextPosition, "parseInputValueDefinitions", "string/ident/"+closeKeyword.String(), invalid.String())
+			return
 		} else {
-			return nil
+			return document.NewInputValueDefinitions(nextRef), err
 		}
 	}
 }
