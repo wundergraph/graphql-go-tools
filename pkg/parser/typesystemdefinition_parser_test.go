@@ -58,7 +58,7 @@ func TestParser_parseTypeSystemDefinition(t *testing.T) {
 						mutation: Mutation
 					}
 					
-					"this is a scalar"
+					#this is a scalar
 					scalar JSON
 
 					"this is a Person"
@@ -96,6 +96,7 @@ func TestParser_parseTypeSystemDefinition(t *testing.T) {
 					),
 					hasScalarTypeSystemDefinitions(
 						node(
+							hasDescription("#this is a scalar"),
 							hasName("JSON"),
 							hasPosition(position.Position{
 								LineStart: 6,
@@ -107,6 +108,7 @@ func TestParser_parseTypeSystemDefinition(t *testing.T) {
 					),
 					hasObjectTypeSystemDefinitions(
 						node(
+							hasDescription("this is a Person"),
 							hasName("Person"),
 							hasPosition(position.Position{
 								LineStart: 9,
