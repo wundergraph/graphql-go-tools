@@ -11,6 +11,7 @@ type FieldDefinition struct {
 	Type                int
 	DirectiveSet        int
 	Position            position.Position
+	NextRef             int
 }
 
 func (f FieldDefinition) NodeSelectionSet() int {
@@ -85,7 +86,7 @@ func (f FieldDefinition) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (f FieldDefinition) NodeFieldsDefinition() []int {
+func (f FieldDefinition) NodeFieldsDefinition() FieldDefinitions {
 	panic("implement me")
 }
 
@@ -139,4 +140,41 @@ func (f FieldDefinition) NodeType() int {
 
 func (f FieldDefinition) NodeOperationType() OperationType {
 	panic("implement me")
+}
+
+type FieldDefinitionGetter interface {
+	FieldDefinition(ref int) FieldDefinition
+}
+
+// FieldDefinitions as specified in:
+// http://facebook.github.io/graphql/draft/#FieldsDefinition
+type FieldDefinitions struct {
+	nextRef    int
+	currentRef int
+	current    FieldDefinition
+}
+
+func NewFieldDefinitions(nextRef int) FieldDefinitions {
+	return FieldDefinitions{
+		nextRef: nextRef,
+	}
+}
+
+func (i *FieldDefinitions) HasNext() bool {
+	return i.nextRef != -1
+}
+
+func (i *FieldDefinitions) Next(getter FieldDefinitionGetter) bool {
+	if i.nextRef == -1 {
+		return false
+	}
+
+	i.currentRef = i.nextRef
+	i.current = getter.FieldDefinition(i.nextRef)
+	i.nextRef = i.current.NextRef
+	return true
+}
+
+func (i *FieldDefinitions) Value() (FieldDefinition, int) {
+	return i.current, i.currentRef
 }
