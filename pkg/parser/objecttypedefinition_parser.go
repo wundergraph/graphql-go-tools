@@ -37,7 +37,7 @@ func (p *Parser) parseObjectTypeDefinition(hasDescription bool, description toke
 		return err
 	}
 
-	err = p.parseFieldsDefinition(&definition.FieldsDefinition)
+	definition.FieldsDefinition, err = p.parseFieldDefinitions()
 	if err != nil {
 		return err
 	}
