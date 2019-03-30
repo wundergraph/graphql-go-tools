@@ -6,7 +6,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 )
 
-func (p *Parser) parseFieldsDefinition(index *[]int) (err error) {
+func (p *Parser) parseFieldDefinitions() (fieldDefinitions document.FieldDefinitions, err error) {
 
 	if hasOpen := p.peekExpect(keyword.CURLYBRACKETOPEN, true); !hasOpen {
 		return
@@ -15,6 +15,7 @@ func (p *Parser) parseFieldsDefinition(index *[]int) (err error) {
 	var hasDescription bool
 	var description document.ByteSliceReference
 	var startPosition position.Position
+	nextRef := -1
 
 	for {
 		next := p.l.Peek(true)
@@ -27,7 +28,7 @@ func (p *Parser) parseFieldsDefinition(index *[]int) (err error) {
 			hasDescription = true
 		case keyword.CURLYBRACKETCLOSE:
 			p.l.Read()
-			return nil
+			return document.NewFieldDefinitions(nextRef), err
 		case keyword.IDENT, keyword.TYPE, keyword.MUTATION:
 
 			fieldIdent := p.l.Read()
@@ -45,31 +46,33 @@ func (p *Parser) parseFieldsDefinition(index *[]int) (err error) {
 
 			err = p.parseArgumentsDefinition(&definition.ArgumentsDefinition)
 			if err != nil {
-				return err
+				return
 			}
 
-			_, err = p.readExpect(keyword.COLON, "parseFieldsDefinition")
+			_, err = p.readExpect(keyword.COLON, "parseFieldDefinitions")
 			if err != nil {
-				return err
+				return
 			}
 
 			err = p.parseType(&definition.Type)
 			if err != nil {
-				return err
+				return
 			}
 
 			definition.Position.MergeStartIntoEnd(p.TextPosition())
 
 			err = p.parseDirectives(&definition.DirectiveSet)
 			if err != nil {
-				return err
+				return
 			}
 
-			*index = append(*index, p.putFieldDefinition(definition))
+			definition.NextRef = nextRef
+			nextRef = p.putFieldDefinition(definition)
 
 		default:
 			invalid := p.l.Read()
-			return newErrInvalidType(invalid.TextPosition, "parseFieldsDefinition", "string/curly bracket close/ident", invalid.Keyword.String())
+			err = newErrInvalidType(invalid.TextPosition, "parseFieldDefinitions", "string/curly bracket close/ident", invalid.Keyword.String())
+			return
 		}
 	}
 }
