@@ -164,10 +164,14 @@ func (p *Printer) PrintFieldDefinition(ref int) {
 
 func (p *Printer) PrintArgumentsDefinition(ref int) {
 	definition := p.p.ParsedDefinitions.ArgumentsDefinitions[ref]
+	iter := definition.InputValueDefinitions
 	p.write(literal.BRACKETOPEN)
-	for _, i := range definition.InputValueDefinitions {
+	for iter.Next(p.p) {
+
+		inputValueDefinition, _ := iter.Value()
+
 		p.write(literal.LINETERMINATOR)
-		p.PrintInputValueDefinition(i)
+		p.PrintInputValueDefinition(inputValueDefinition)
 	}
 	p.write(literal.LINETERMINATOR)
 	p.write(literal.BRACKETCLOSE)
@@ -176,19 +180,20 @@ func (p *Printer) PrintArgumentsDefinition(ref int) {
 func (p *Printer) PrintArgumentsDefinitionInline(ref int) {
 	definition := p.p.ParsedDefinitions.ArgumentsDefinitions[ref]
 	p.write(literal.BRACKETOPEN)
+	iter := definition.InputValueDefinitions
 	var addSpace bool
-	for _, i := range definition.InputValueDefinitions {
+	for iter.Next(p.p) {
 		if addSpace {
 			p.write(literal.SPACE)
 		}
-		p.PrintInputValueDefinitionInline(i)
+		inputValueDefinition, _ := iter.Value()
+		p.PrintInputValueDefinitionInline(inputValueDefinition)
 		addSpace = true
 	}
 	p.write(literal.BRACKETCLOSE)
 }
 
-func (p *Printer) PrintInputValueDefinition(ref int) {
-	definition := p.p.ParsedDefinitions.InputValueDefinitions[ref]
+func (p *Printer) PrintInputValueDefinition(definition document.InputValueDefinition) {
 	p.PrintDescription(definition.Description, literal.TAB)
 	p.write(literal.TAB)
 	p.write(p.p.ByteSlice(definition.Name))
@@ -201,8 +206,7 @@ func (p *Printer) PrintInputValueDefinition(ref int) {
 	}
 }
 
-func (p *Printer) PrintInputValueDefinitionInline(ref int) {
-	definition := p.p.ParsedDefinitions.InputValueDefinitions[ref]
+func (p *Printer) PrintInputValueDefinitionInline(definition document.InputValueDefinition) {
 	p.write(p.p.ByteSlice(definition.Name))
 	p.write(literal.COLON)
 	p.write(literal.SPACE)
@@ -385,7 +389,11 @@ func (p *Printer) PrintInputObjectTypeDefinition(ref int) {
 	p.write(p.p.ByteSlice(definition.Name))
 	p.write(literal.SPACE)
 	p.write(literal.CURLYBRACKETOPEN)
-	for _, inputValueDefinition := range p.p.ParsedDefinitions.InputFieldsDefinitions[definition.InputFieldsDefinition].InputValueDefinitions {
+	iter := p.p.ParsedDefinitions.InputFieldsDefinitions[definition.InputFieldsDefinition].InputValueDefinitions
+	for iter.Next(p.p) {
+
+		inputValueDefinition, _ := iter.Value()
+
 		p.write(literal.LINETERMINATOR)
 		p.PrintInputValueDefinition(inputValueDefinition)
 	}
