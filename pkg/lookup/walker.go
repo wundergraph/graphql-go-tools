@@ -202,10 +202,9 @@ func (w *Walker) walkFieldDefinitions(refs []int, parent int) {
 	}
 }
 
-func (w *Walker) WalkInputValueDefinitions(refs []int, parent int) {
-	iter := w.l.InputValueDefinitionIterator(refs)
-	for iter.Next() {
-		definition, ref := iter.Value()
+func (w *Walker) WalkInputValueDefinitions(definitions document.InputValueDefinitions, parent int) {
+	for definitions.Next(w.l.p) {
+		definition, ref := definitions.Value()
 		nodeRef := w.putNode(Node{
 			Kind:     INPUT_VALUE_DEFINITION,
 			Position: definition.Position,
@@ -493,11 +492,15 @@ func (w *Walker) ArgumentsDefinition(parent int) document.ArgumentsDefinition {
 		parentFields := w.l.FieldsDefinitionFromNamedType(parentTypeName)
 		fieldDefinition, ok := w.l.FieldDefinitionByNameFromIndex(parentFields, field.Name)
 		if !ok {
-			return document.ArgumentsDefinition{}
+			return document.ArgumentsDefinition{
+				InputValueDefinitions: document.NewInputValueDefinitions(-1),
+			}
 		}
 
 		if fieldDefinition.ArgumentsDefinition == -1 {
-			return document.ArgumentsDefinition{}
+			return document.ArgumentsDefinition{
+				InputValueDefinitions: document.NewInputValueDefinitions(-1),
+			}
 		}
 		return w.l.ArgumentsDefinition(fieldDefinition.ArgumentsDefinition)
 	}
@@ -511,7 +514,9 @@ func (w *Walker) ArgumentsDefinition(parent int) document.ArgumentsDefinition {
 		}
 	}
 
-	return document.ArgumentsDefinition{}
+	return document.ArgumentsDefinition{
+		InputValueDefinitions: document.NewInputValueDefinitions(-1),
+	}
 }
 
 func (w *Walker) WalkUpUntilTypeName(from Node, fieldPath *[]document.ByteSliceReference) (typeName document.ByteSliceReference, node Node) {
