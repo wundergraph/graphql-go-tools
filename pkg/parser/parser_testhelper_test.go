@@ -288,12 +288,17 @@ func hasByteSliceValue(want string) rule {
 func hasEnumValuesDefinitions(rules ...ruleSet) rule {
 	return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
-		index := node.NodeEnumValuesDefinition()
+		iter := node.NodeEnumValuesDefinition()
 
-		for j, k := range index {
-			ruleSet := rules[j]
-			subNode := parser.ParsedDefinitions.EnumValuesDefinitions[k]
-			ruleSet.eval(subNode, parser, k)
+		for i := range rules {
+
+			if !iter.Next(parser) {
+				panic("want next")
+			}
+
+			ruleSet := rules[i]
+			subNode, _ := iter.Value()
+			ruleSet.eval(subNode, parser, i)
 		}
 	}
 }
