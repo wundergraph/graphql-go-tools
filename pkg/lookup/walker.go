@@ -170,7 +170,7 @@ func (w *Walker) WalkObjectTypeDefinitions(refs []int) {
 			Position: definition.Position,
 		})
 
-		if len(definition.FieldsDefinition) != 0 {
+		if definition.FieldsDefinition.HasNext() {
 			w.walkFieldDefinitions(definition.FieldsDefinition, nodeRef)
 		}
 
@@ -180,10 +180,10 @@ func (w *Walker) WalkObjectTypeDefinitions(refs []int) {
 	}
 }
 
-func (w *Walker) walkFieldDefinitions(refs []int, parent int) {
+func (w *Walker) walkFieldDefinitions(definitions document.FieldDefinitions, parent int) {
 
-	for _, ref := range refs {
-		definition := w.l.FieldDefinition(ref)
+	for definitions.Next(w.l) {
+		definition, ref := definitions.Value()
 		nodeRef := w.putNode(Node{
 			Kind:     FIELD_DEFINITION,
 			Parent:   parent,
@@ -490,7 +490,7 @@ func (w *Walker) ArgumentsDefinition(parent int) document.ArgumentsDefinition {
 
 		parentTypeName := w.resolveTypeName(typeName, path[1:])
 		parentFields := w.l.FieldsDefinitionFromNamedType(parentTypeName)
-		fieldDefinition, ok := w.l.FieldDefinitionByNameFromIndex(parentFields, field.Name)
+		fieldDefinition, ok := w.l.FieldDefinitionByNameFromDefinitions(parentFields, field.Name)
 		if !ok {
 			return document.ArgumentsDefinition{
 				InputValueDefinitions: document.NewInputValueDefinitions(-1),
@@ -665,7 +665,7 @@ func (w *Walker) resolveTypeName(typeName document.ByteSliceReference, path []do
 
 		fieldName := path[i]
 		fieldsDefinition := w.l.FieldsDefinitionFromNamedType(typeName)
-		definition, ok := w.l.FieldDefinitionByNameFromIndex(fieldsDefinition, fieldName)
+		definition, ok := w.l.FieldDefinitionByNameFromDefinitions(fieldsDefinition, fieldName)
 		if !ok {
 			return document.ByteSliceReference{}
 		}
