@@ -33,7 +33,7 @@ func (p *Parser) parseInterfaceTypeDefinition(hasDescription bool, description t
 		return err
 	}
 
-	err = p.parseFieldsDefinition(&definition.FieldsDefinition)
+	definition.FieldsDefinition, err = p.parseFieldDefinitions()
 	if err != nil {
 		return err
 	}
