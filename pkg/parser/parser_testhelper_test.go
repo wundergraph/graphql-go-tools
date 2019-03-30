@@ -502,12 +502,17 @@ func hasInputFieldsDefinition(rules ...rule) rule {
 func hasInputValueDefinitions(rules ...ruleSet) rule {
 	return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
-		index := node.NodeInputValueDefinitions()
+		iter := node.NodeInputValueDefinitions()
 
 		for i := range rules {
 			ruleSet := rules[i]
-			subNode := parser.ParsedDefinitions.InputValueDefinitions[index[i]]
-			ruleSet.eval(subNode, parser, index[i])
+
+			if !iter.Next(parser) {
+				panic("want next")
+			}
+
+			subNode, _ := iter.Value()
+			ruleSet.eval(subNode, parser, i)
 		}
 	}
 }
@@ -847,13 +852,18 @@ func mustParseInputObjectTypeDefinition(rules ...ruleSet) checkFunc {
 
 func mustParseInputValueDefinitions(rules ...ruleSet) checkFunc {
 	return func(parser *Parser, i int) {
-		var index []int
-		if err := parser.parseInputValueDefinitions(&index, keyword.UNDEFINED); err != nil {
+		definitions, err := parser.parseInputValueDefinitions(keyword.UNDEFINED)
+		if err != nil {
 			panic(err)
 		}
 
-		for j, rule := range rules {
-			inputValueDefinition := parser.ParsedDefinitions.InputValueDefinitions[j]
+		for _, rule := range rules {
+
+			if !definitions.Next(parser) {
+				panic("want next")
+			}
+
+			inputValueDefinition, _ := definitions.Value()
 			evalRules(inputValueDefinition, parser, rule, i)
 		}
 	}
