@@ -253,7 +253,9 @@ func TestLookup(t *testing.T) {
 		})
 		t.Run("ArgumentsDefinition", func(t *testing.T) {
 			run("", "", func(walker *Walker) {
-				if len(walker.ArgumentsDefinition(-1).InputValueDefinitions) != 0 {
+
+				iter := walker.ArgumentsDefinition(-1).InputValueDefinitions
+				if iter.HasNext() {
 					panic("want empty")
 				}
 			})
