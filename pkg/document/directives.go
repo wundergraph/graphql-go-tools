@@ -82,7 +82,7 @@ func (d Directive) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (d Directive) NodeFieldsDefinition() []int {
+func (d Directive) NodeFieldsDefinition() FieldDefinitions {
 	panic("implement me")
 }
 

@@ -108,7 +108,7 @@ func (i InputObjectTypeDefinition) NodeFields() []int {
 	panic("implement me")
 }
 
-func (i InputObjectTypeDefinition) NodeFieldsDefinition() []int {
+func (i InputObjectTypeDefinition) NodeFieldsDefinition() FieldDefinitions {
 	panic("implement me")
 }
 

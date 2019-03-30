@@ -82,7 +82,7 @@ func (a Argument) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (a Argument) NodeFieldsDefinition() []int {
+func (a Argument) NodeFieldsDefinition() FieldDefinitions {
 	panic("implement me")
 }
 

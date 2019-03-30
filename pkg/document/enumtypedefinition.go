@@ -85,7 +85,7 @@ func (e EnumTypeDefinition) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (e EnumTypeDefinition) NodeFieldsDefinition() []int {
+func (e EnumTypeDefinition) NodeFieldsDefinition() FieldDefinitions {
 	panic("implement me")
 }
 

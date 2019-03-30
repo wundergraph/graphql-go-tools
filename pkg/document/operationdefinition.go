@@ -85,7 +85,7 @@ func (o OperationDefinition) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (o OperationDefinition) NodeFieldsDefinition() []int {
+func (o OperationDefinition) NodeFieldsDefinition() FieldDefinitions {
 	panic("implement me")
 }
 

@@ -84,7 +84,7 @@ func (i InterfaceTypeDefinition) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (i InterfaceTypeDefinition) NodeFieldsDefinition() []int {
+func (i InterfaceTypeDefinition) NodeFieldsDefinition() FieldDefinitions {
 	return i.FieldsDefinition
 }
 

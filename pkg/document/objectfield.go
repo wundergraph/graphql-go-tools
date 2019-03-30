@@ -62,7 +62,7 @@ func (o ObjectField) NodeFields() []int {
 	panic("implement me")
 }
 
-func (o ObjectField) NodeFieldsDefinition() []int {
+func (o ObjectField) NodeFieldsDefinition() FieldDefinitions {
 	panic("implement me")
 }
 

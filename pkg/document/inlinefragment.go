@@ -91,7 +91,7 @@ func (i InlineFragment) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 
-func (i InlineFragment) NodeFieldsDefinition() []int {
+func (i InlineFragment) NodeFieldsDefinition() FieldDefinitions {
 	panic("implement me")
 }
 

@@ -68,7 +68,7 @@ func (d DirectiveDefinition) NodeFields() []int {
 	panic("implement me")
 }
 
-func (d DirectiveDefinition) NodeFieldsDefinition() []int {
+func (d DirectiveDefinition) NodeFieldsDefinition() FieldDefinitions {
 	panic("implement me")
 }
 

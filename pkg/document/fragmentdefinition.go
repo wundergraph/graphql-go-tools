@@ -84,7 +84,7 @@ func (f FragmentDefinition) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (f FragmentDefinition) NodeFieldsDefinition() []int {
+func (f FragmentDefinition) NodeFieldsDefinition() FieldDefinitions {
 	panic("implement me")
 }
 

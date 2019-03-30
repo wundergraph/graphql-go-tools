@@ -103,7 +103,7 @@ func (s SelectionSet) NodeFields() []int {
 	return s.Fields
 }
 
-func (s SelectionSet) NodeFieldsDefinition() []int {
+func (s SelectionSet) NodeFieldsDefinition() FieldDefinitions {
 	panic("implement me")
 }
 

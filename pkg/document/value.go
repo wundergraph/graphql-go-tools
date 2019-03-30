@@ -66,7 +66,7 @@ func (v Value) NodeFields() []int {
 	panic("implement me")
 }
 
-func (v Value) NodeFieldsDefinition() []int {
+func (v Value) NodeFieldsDefinition() FieldDefinitions {
 	panic("implement me")
 }
 

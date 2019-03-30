@@ -83,7 +83,7 @@ func (v VariableDefinition) NodeDefaultValue() int {
 	return v.DefaultValue
 }
 
-func (v VariableDefinition) NodeFieldsDefinition() []int {
+func (v VariableDefinition) NodeFieldsDefinition() FieldDefinitions {
 	panic("implement me")
 }
 

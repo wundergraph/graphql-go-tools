@@ -72,7 +72,7 @@ func (u UnionTypeDefinition) NodeFields() []int {
 	panic("implement me")
 }
 
-func (u UnionTypeDefinition) NodeFieldsDefinition() []int {
+func (u UnionTypeDefinition) NodeFieldsDefinition() FieldDefinitions {
 	panic("implement me")
 }
 

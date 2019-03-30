@@ -103,7 +103,7 @@ func (s ScalarTypeDefinition) NodeFields() []int {
 	panic("implement me")
 }
 
-func (s ScalarTypeDefinition) NodeFieldsDefinition() []int {
+func (s ScalarTypeDefinition) NodeFieldsDefinition() FieldDefinitions {
 	panic("implement me")
 }
 

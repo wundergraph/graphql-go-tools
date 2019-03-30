@@ -49,7 +49,7 @@ func (i InputFieldsDefinition) NodeFields() []int {
 	panic("implement me")
 }
 
-func (i InputFieldsDefinition) NodeFieldsDefinition() []int {
+func (i InputFieldsDefinition) NodeFieldsDefinition() FieldDefinitions {
 	panic("implement me")
 }
 

@@ -12,7 +12,7 @@ type Node interface {
 	NodeEnumValuesDefinition() EnumValueDefinitions
 	NodeSelectionSet() int
 	NodeFields() []int
-	NodeFieldsDefinition() []int
+	NodeFieldsDefinition() FieldDefinitions
 	NodeFragmentSpreads() []int
 	NodeInlineFragments() []int
 	NodeVariableDefinitions() []int

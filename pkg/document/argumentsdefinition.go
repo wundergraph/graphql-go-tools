@@ -53,7 +53,7 @@ func (a ArgumentsDefinition) NodeFields() []int {
 	panic("implement me")
 }
 
-func (a ArgumentsDefinition) NodeFieldsDefinition() []int {
+func (a ArgumentsDefinition) NodeFieldsDefinition() FieldDefinitions {
 	panic("implement me")
 }
 

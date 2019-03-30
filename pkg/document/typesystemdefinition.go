@@ -76,7 +76,7 @@ func (t TypeSystemDefinition) NodeFields() []int {
 	panic("implement me")
 }
 
-func (t TypeSystemDefinition) NodeFieldsDefinition() []int {
+func (t TypeSystemDefinition) NodeFieldsDefinition() FieldDefinitions {
 	panic("implement me")
 }
 
