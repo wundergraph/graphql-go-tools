@@ -55,6 +55,10 @@ type Parser struct {
 	sliceIndex        map[string]int
 }
 
+func (p *Parser) InputValueDefinition(ref int) document.InputValueDefinition {
+	return p.ParsedDefinitions.InputValueDefinitions[ref]
+}
+
 // ParsedDefinitions contains all parsed definitions to avoid deeply nested data structures while parsing
 type ParsedDefinitions struct {
 	TypeSystemDefinition document.TypeSystemDefinition
@@ -74,14 +78,14 @@ type ParsedDefinitions struct {
 	ArgumentsDefinitions       document.ArgumentsDefinitions
 	EnumValuesDefinitions      document.EnumValueDefinitions
 	FieldDefinitions           document.FieldDefinitions
-	InputValueDefinitions      document.InputValueDefinitions
+	InputValueDefinitions      []document.InputValueDefinition
 	InputObjectTypeDefinitions document.InputObjectTypeDefinitions
 	DirectiveDefinitions       document.DirectiveDefinitions
 	InterfaceTypeDefinitions   document.InterfaceTypeDefinitions
 	ObjectTypeDefinitions      document.ObjectTypeDefinitions
 	ScalarTypeDefinitions      document.ScalarTypeDefinitions
 	UnionTypeDefinitions       document.UnionTypeDefinitions
-	InputFieldsDefinitions     document.InputFieldsDefinitions
+	InputFieldsDefinitions     []document.InputFieldsDefinition
 	Values                     []document.Value
 	ListValues                 []document.ListValue
 	ObjectValues               []document.ObjectValue
@@ -195,14 +199,14 @@ func NewParser(withOptions ...Option) *Parser {
 		EnumValuesDefinitions:      make(document.EnumValueDefinitions, 0, options.minimumSliceSize*2),
 		ArgumentsDefinitions:       make(document.ArgumentsDefinitions, 0, options.minimumSliceSize),
 		FieldDefinitions:           make(document.FieldDefinitions, 0, options.minimumSliceSize*2),
-		InputValueDefinitions:      make(document.InputValueDefinitions, 0, options.minimumSliceSize),
+		InputValueDefinitions:      make([]document.InputValueDefinition, 0, options.minimumSliceSize),
 		InputObjectTypeDefinitions: make(document.InputObjectTypeDefinitions, 0, options.minimumSliceSize),
 		DirectiveDefinitions:       make(document.DirectiveDefinitions, 0, options.minimumSliceSize),
 		InterfaceTypeDefinitions:   make(document.InterfaceTypeDefinitions, 0, options.minimumSliceSize),
 		ObjectTypeDefinitions:      make(document.ObjectTypeDefinitions, 0, options.minimumSliceSize),
 		ScalarTypeDefinitions:      make(document.ScalarTypeDefinitions, 0, options.minimumSliceSize),
 		UnionTypeDefinitions:       make(document.UnionTypeDefinitions, 0, options.minimumSliceSize),
-		InputFieldsDefinitions:     make(document.InputFieldsDefinitions, 0, options.minimumSliceSize),
+		InputFieldsDefinitions:     make([]document.InputFieldsDefinition, 0, options.minimumSliceSize),
 		Values:                     make([]document.Value, 0, options.minimumSliceSize),
 		ListValues:                 make([]document.ListValue, 0, options.minimumSliceSize),
 		ObjectValues:               make([]document.ObjectValue, 0, options.minimumSliceSize),
@@ -454,14 +458,6 @@ func (p *Parser) makeType(index *int) document.Type {
 	p.ParsedDefinitions.Types = append(p.ParsedDefinitions.Types, documentType)
 	*index = len(p.ParsedDefinitions.Types) - 1
 	return documentType
-}
-
-func (p *Parser) initArgumentsDefinition(definition *document.ArgumentsDefinition) {
-	definition.InputValueDefinitions = p.IndexPoolGet()
-}
-
-func (p *Parser) initInputFieldsDefinition(definition *document.InputFieldsDefinition) {
-	definition.InputValueDefinitions = p.IndexPoolGet()
 }
 
 func (p *Parser) setCacheStats() {
