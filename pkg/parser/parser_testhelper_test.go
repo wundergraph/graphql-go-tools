@@ -482,12 +482,17 @@ func hasFields(rules ...ruleSet) rule {
 func hasFieldsDefinitions(rules ...ruleSet) rule {
 	return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
-		index := node.NodeFieldsDefinition()
+		iter := node.NodeFieldsDefinition()
 
 		for i := range rules {
+
+			if !iter.Next(parser) {
+				panic("want next")
+			}
+
 			ruleSet := rules[i]
-			field := parser.ParsedDefinitions.FieldDefinitions[index[i]]
-			ruleSet.eval(field, parser, index[i])
+			field, _ := iter.Value()
+			ruleSet.eval(field, parser, i)
 		}
 	}
 }
@@ -736,14 +741,20 @@ func mustParseFields(rule ruleSet) checkFunc {
 
 func mustParseFieldsDefinition(rules ...ruleSet) checkFunc {
 	return func(parser *Parser, i int) {
-		var index []int
-		if err := parser.parseFieldsDefinition(&index); err != nil {
+
+		iter, err := parser.parseFieldDefinitions()
+		if err != nil {
 			panic(err)
 		}
 
-		for j, rule := range rules {
-			field := parser.ParsedDefinitions.FieldDefinitions[j]
-			evalRules(field, parser, rule, i)
+		for i := range rules {
+
+			if !iter.Next(parser) {
+				panic("want next")
+			}
+
+			field, _ := iter.Value()
+			evalRules(field, parser, rules[i], i)
 		}
 	}
 }
