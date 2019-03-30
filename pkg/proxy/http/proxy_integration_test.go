@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync"
 	"testing"
@@ -55,11 +56,14 @@ func TestProxyIntegration(t *testing.T) {
 	defer endpointServer.Close()
 
 	schema := []byte(publicSchema)
+	backendURL, err := url.Parse(endpointServer.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	schemaProvider := proxy.NewStaticSchemaProvider(proxy.RequestConfig{
-		Schema:      &schema,
-		BackendHost: endpointServer.Listener.Addr().String(),
-		BackendAddr: []byte(endpointServer.URL),
+	schemaProvider := proxy.NewStaticRequestConfigProvider(proxy.RequestConfig{
+		Schema:     &schema,
+		BackendURL: *backendURL,
 	})
 
 	ip := sync.Pool{
@@ -70,7 +74,6 @@ func TestProxyIntegration(t *testing.T) {
 
 	// the handler for the graphql proxy
 	proxyHandler := &Proxy{
-		Host:                  endpointServer.URL,
 		RequestConfigProvider: schemaProvider,
 		InvokerPool:           ip,
 		Client:                *http.DefaultClient,
