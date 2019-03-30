@@ -12,6 +12,10 @@ type Lookup struct {
 	refCache []int
 }
 
+func (l *Lookup) InputValueDefinition(ref int) document.InputValueDefinition {
+	return l.p.InputValueDefinition(ref)
+}
+
 func New(p *parser.Parser) *Lookup {
 	return &Lookup{
 		p:        p,
@@ -642,18 +646,22 @@ func (l *Lookup) ArgumentByIndexAndName(index []int, name document.ByteSliceRefe
 
 func (l *Lookup) ArgumentsDefinition(i int) document.ArgumentsDefinition {
 	if i == -1 {
-		return document.ArgumentsDefinition{}
+		return document.ArgumentsDefinition{
+			InputValueDefinitions: document.NewInputValueDefinitions(-1),
+		}
 	}
 	return l.p.ParsedDefinitions.ArgumentsDefinitions[i]
 }
 
-func (l *Lookup) InputValueDefinitionByNameAndIndex(name document.ByteSliceReference, i []int) (document.InputValueDefinition, bool) {
-	for _, j := range i {
-		definition := l.p.ParsedDefinitions.InputValueDefinitions[j]
-		if l.ByteSliceReferenceContentsEquals(name, definition.Name) {
-			return definition, true
+func (l *Lookup) InputValueDefinitionByNameFromDefinitions(name document.ByteSliceReference, definitions document.InputValueDefinitions) (document.InputValueDefinition, bool) {
+
+	for definitions.Next(l.p) {
+		next, _ := definitions.Value()
+		if l.ByteSliceReferenceContentsEquals(name, next.Name) {
+			return next, true
 		}
 	}
+
 	return document.InputValueDefinition{}, false
 }
 
@@ -1212,8 +1220,8 @@ func (l *Lookup) objectValueIsValid(value document.ObjectValue, definition docum
 
 	inputFieldsDefinition := l.p.ParsedDefinitions.InputFieldsDefinitions[definition.InputFieldsDefinition]
 
-	inputValueDefinitions := l.InputValueDefinitionIterator(inputFieldsDefinition.InputValueDefinitions)
-	for inputValueDefinitions.Next() {
+	inputValueDefinitions := inputFieldsDefinition.InputValueDefinitions
+	for inputValueDefinitions.Next(l) {
 		inputValueDefinition, _ := inputValueDefinitions.Value()
 		inputType := l.Type(inputValueDefinition.Type)
 
@@ -1236,7 +1244,10 @@ func (l *Lookup) objectValueIsValid(value document.ObjectValue, definition docum
 	leftFields := l.ObjectFieldsIterator(value)
 	for leftFields.Next() {
 		left, i := leftFields.Value()
-		_, ok := l.InputValueDefinitionByNameAndIndex(left.Name, inputFieldsDefinition.InputValueDefinitions)
+
+		inputValueDefinitions := inputFieldsDefinition.InputValueDefinitions
+
+		_, ok := l.InputValueDefinitionByNameFromDefinitions(left.Name, inputValueDefinitions)
 		if !ok {
 			//return fmt.Errorf("validateObjectValue: input field '%s' not defined", string(l.CachedName(left.Name)))
 			return false
