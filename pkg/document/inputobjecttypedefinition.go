@@ -100,7 +100,7 @@ func (i InputObjectTypeDefinition) NodeDirectiveSet() int {
 	return i.DirectiveSet
 }
 
-func (i InputObjectTypeDefinition) NodeEnumValuesDefinition() []int {
+func (i InputObjectTypeDefinition) NodeEnumValuesDefinition() EnumValueDefinitions {
 	panic("implement me")
 }
 

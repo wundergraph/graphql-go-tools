@@ -137,7 +137,7 @@ func (o OperationDefinition) NodeDirectiveSet() int {
 	return o.DirectiveSet
 }
 
-func (o OperationDefinition) NodeEnumValuesDefinition() []int {
+func (o OperationDefinition) NodeEnumValuesDefinition() EnumValueDefinitions {
 	panic("implement me")
 }
 

@@ -110,7 +110,7 @@ func (a Argument) NodeDirectiveSet() int {
 	panic("implement me")
 }
 
-func (a Argument) NodeEnumValuesDefinition() []int {
+func (a Argument) NodeEnumValuesDefinition() EnumValueDefinitions {
 	panic("implement me")
 }
 

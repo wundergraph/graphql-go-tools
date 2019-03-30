@@ -117,7 +117,7 @@ func (f Field) NodeDirectiveSet() int {
 	return f.DirectiveSet
 }
 
-func (f Field) NodeEnumValuesDefinition() []int {
+func (f Field) NodeEnumValuesDefinition() EnumValueDefinitions {
 	panic("implement me")
 }
 

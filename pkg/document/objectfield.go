@@ -54,7 +54,7 @@ func (o ObjectField) NodeDirectiveSet() int {
 	panic("implement me")
 }
 
-func (o ObjectField) NodeEnumValuesDefinition() []int {
+func (o ObjectField) NodeEnumValuesDefinition() EnumValueDefinitions {
 	panic("implement me")
 }
 

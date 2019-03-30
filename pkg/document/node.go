@@ -9,7 +9,7 @@ type Node interface {
 	NodeArgumentSet() int
 	NodeArgumentsDefinition() int
 	NodeDirectiveSet() int // Change Signature to int (DirectiveSet)
-	NodeEnumValuesDefinition() []int
+	NodeEnumValuesDefinition() EnumValueDefinitions
 	NodeSelectionSet() int
 	NodeFields() []int
 	NodeFieldsDefinition() []int

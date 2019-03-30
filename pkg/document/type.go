@@ -63,7 +63,7 @@ func (t Type) NodeDirectiveSet() int {
 	panic("implement me")
 }
 
-func (t Type) NodeEnumValuesDefinition() []int {
+func (t Type) NodeEnumValuesDefinition() EnumValueDefinitions {
 	panic("implement me")
 }
 

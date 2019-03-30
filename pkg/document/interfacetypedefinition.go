@@ -112,7 +112,7 @@ func (i InterfaceTypeDefinition) NodeDirectiveSet() int {
 	return i.DirectiveSet
 }
 
-func (i InterfaceTypeDefinition) NodeEnumValuesDefinition() []int {
+func (i InterfaceTypeDefinition) NodeEnumValuesDefinition() EnumValueDefinitions {
 	panic("implement me")
 }
 

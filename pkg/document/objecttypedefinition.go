@@ -101,7 +101,7 @@ func (o ObjectTypeDefinition) NodeDirectiveSet() int {
 	return o.DirectiveSet
 }
 
-func (o ObjectTypeDefinition) NodeEnumValuesDefinition() []int {
+func (o ObjectTypeDefinition) NodeEnumValuesDefinition() EnumValueDefinitions {
 	panic("implement me")
 }
 

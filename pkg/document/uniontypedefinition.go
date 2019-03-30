@@ -64,7 +64,7 @@ func (u UnionTypeDefinition) NodeDirectiveSet() int {
 	return u.DirectiveSet
 }
 
-func (u UnionTypeDefinition) NodeEnumValuesDefinition() []int {
+func (u UnionTypeDefinition) NodeEnumValuesDefinition() EnumValueDefinitions {
 	panic("implement me")
 }
 

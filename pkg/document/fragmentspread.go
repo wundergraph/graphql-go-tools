@@ -114,7 +114,7 @@ func (f FragmentSpread) NodeDirectiveSet() int {
 	return f.DirectiveSet
 }
 
-func (f FragmentSpread) NodeEnumValuesDefinition() []int {
+func (f FragmentSpread) NodeEnumValuesDefinition() EnumValueDefinitions {
 	panic("implement me")
 }
 

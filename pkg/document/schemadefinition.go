@@ -43,7 +43,7 @@ func (s SchemaDefinition) NodeDirectiveSet() int {
 	return s.DirectiveSet
 }
 
-func (s SchemaDefinition) NodeEnumValuesDefinition() []int {
+func (s SchemaDefinition) NodeEnumValuesDefinition() EnumValueDefinitions {
 	panic("implement me")
 }
 

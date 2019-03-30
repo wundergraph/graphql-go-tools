@@ -115,7 +115,7 @@ func (i InlineFragment) NodeDirectiveSet() int {
 	return i.DirectiveSet
 }
 
-func (i InlineFragment) NodeEnumValuesDefinition() []int {
+func (i InlineFragment) NodeEnumValuesDefinition() EnumValueDefinitions {
 	panic("implement me")
 }
 

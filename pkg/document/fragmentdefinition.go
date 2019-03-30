@@ -136,8 +136,8 @@ func (f FragmentDefinition) NodeDirectiveSet() int {
 	return f.DirectiveSet
 }
 
-func (f FragmentDefinition) NodeEnumValuesDefinition() []int {
-	return nil
+func (f FragmentDefinition) NodeEnumValuesDefinition() EnumValueDefinitions {
+	panic("implement me")
 }
 
 // FragmentDefinitions is the plural of FragmentDefinition

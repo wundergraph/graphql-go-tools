@@ -41,7 +41,7 @@ func (i InputFieldsDefinition) NodeDirectiveSet() int {
 	panic("implement me")
 }
 
-func (i InputFieldsDefinition) NodeEnumValuesDefinition() []int {
+func (i InputFieldsDefinition) NodeEnumValuesDefinition() EnumValueDefinitions {
 	panic("implement me")
 }
 

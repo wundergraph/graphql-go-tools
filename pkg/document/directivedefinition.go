@@ -60,7 +60,7 @@ func (d DirectiveDefinition) NodeDirectiveSet() int {
 	panic("implement me")
 }
 
-func (d DirectiveDefinition) NodeEnumValuesDefinition() []int {
+func (d DirectiveDefinition) NodeEnumValuesDefinition() EnumValueDefinitions {
 	panic("implement me")
 }
 

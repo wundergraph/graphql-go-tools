@@ -95,7 +95,7 @@ func (s SelectionSet) NodeDirectiveSet() int {
 	panic("implement me")
 }
 
-func (s SelectionSet) NodeEnumValuesDefinition() []int {
+func (s SelectionSet) NodeEnumValuesDefinition() EnumValueDefinitions {
 	panic("implement me")
 }
 

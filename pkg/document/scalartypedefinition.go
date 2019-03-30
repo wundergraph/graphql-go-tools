@@ -95,7 +95,7 @@ func (s ScalarTypeDefinition) NodeDirectiveSet() int {
 	return s.DirectiveSet
 }
 
-func (s ScalarTypeDefinition) NodeEnumValuesDefinition() []int {
+func (s ScalarTypeDefinition) NodeEnumValuesDefinition() EnumValueDefinitions {
 	panic("implement me")
 }
 
