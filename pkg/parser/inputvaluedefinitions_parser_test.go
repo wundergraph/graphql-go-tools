@@ -59,20 +59,6 @@ func TestParser_parseInputValueDefinitions(t *testing.T) {
 		run(`"this is a inputValue"inputValue: Int = 2, "this is a outputValue"outputValue: String = "Out"`,
 			mustParseInputValueDefinitions(
 				node(
-					hasDescription("this is a inputValue"),
-					hasName("inputValue"),
-					nodeType(
-						hasTypeKind(document.TypeKindNAMED),
-						hasTypeName("Int"),
-					),
-					hasPosition(position.Position{
-						LineStart: 1,
-						CharStart: 1,
-						LineEnd:   1,
-						CharEnd:   42,
-					}),
-				),
-				node(
 					hasDescription("this is a outputValue"),
 					hasName("outputValue"),
 					nodeType(
@@ -84,6 +70,20 @@ func TestParser_parseInputValueDefinitions(t *testing.T) {
 						CharStart: 44,
 						LineEnd:   1,
 						CharEnd:   94,
+					}),
+				),
+				node(
+					hasDescription("this is a inputValue"),
+					hasName("inputValue"),
+					nodeType(
+						hasTypeKind(document.TypeKindNAMED),
+						hasTypeName("Int"),
+					),
+					hasPosition(position.Position{
+						LineStart: 1,
+						CharStart: 1,
+						LineEnd:   1,
+						CharEnd:   42,
 					}),
 				),
 			),

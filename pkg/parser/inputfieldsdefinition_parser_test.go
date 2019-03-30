@@ -37,17 +37,17 @@ func TestParser_parseInputFieldsDefinition(t *testing.T) {
 			mustParseInputFieldsDefinition(
 				hasInputValueDefinitions(
 					node(
-						hasName("inputValue"),
-						nodeType(
-							hasTypeKind(document.TypeKindNAMED),
-							hasTypeName("Int"),
-						),
-					),
-					node(
 						hasName("outputValue"),
 						nodeType(
 							hasTypeKind(document.TypeKindNAMED),
 							hasTypeName("String"),
+						),
+					),
+					node(
+						hasName("inputValue"),
+						nodeType(
+							hasTypeKind(document.TypeKindNAMED),
+							hasTypeName("Int"),
 						),
 					),
 				),

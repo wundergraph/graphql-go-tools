@@ -41,8 +41,8 @@ func TestParser_parseInputObjectTypeDefinition(t *testing.T) {
 					hasName("Person"),
 					hasInputFieldsDefinition(
 						hasInputValueDefinitions(
-							node(hasName("name")),
 							node(hasName("age")),
+							node(hasName("name")),
 						),
 					),
 				),

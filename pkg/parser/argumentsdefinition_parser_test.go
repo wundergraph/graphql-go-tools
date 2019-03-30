@@ -34,10 +34,10 @@ func TestParser_parseArgumentsDefinition(t *testing.T) {
 				node(
 					hasInputValueDefinitions(
 						node(
-							hasName("inputValue"),
+							hasName("outputValue"),
 						),
 						node(
-							hasName("outputValue"),
+							hasName("inputValue"),
 						),
 					),
 					hasPosition(position.Position{
