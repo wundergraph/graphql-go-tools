@@ -19,7 +19,7 @@ func (s ScalarTypeDefinition) NodeInputFieldsDefinition() int {
 	panic("implement me")
 }
 
-func (s ScalarTypeDefinition) NodeInputValueDefinitions() []int {
+func (s ScalarTypeDefinition) NodeInputValueDefinitions() InputValueDefinitions {
 	panic("implement me")
 }
 

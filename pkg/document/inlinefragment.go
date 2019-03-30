@@ -19,7 +19,7 @@ func (i InlineFragment) NodeInputFieldsDefinition() int {
 	panic("implement me")
 }
 
-func (i InlineFragment) NodeInputValueDefinitions() []int {
+func (i InlineFragment) NodeInputValueDefinitions() InputValueDefinitions {
 	panic("implement me")
 }
 

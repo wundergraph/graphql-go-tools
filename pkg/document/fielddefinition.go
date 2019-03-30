@@ -21,7 +21,7 @@ func (f FieldDefinition) NodeInputFieldsDefinition() int {
 	panic("implement me")
 }
 
-func (f FieldDefinition) NodeInputValueDefinitions() []int {
+func (f FieldDefinition) NodeInputValueDefinitions() InputValueDefinitions {
 	panic("implement me")
 }
 

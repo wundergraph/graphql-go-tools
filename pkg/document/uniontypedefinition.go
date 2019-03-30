@@ -20,7 +20,7 @@ func (u UnionTypeDefinition) NodeInputFieldsDefinition() int {
 	panic("implement me")
 }
 
-func (u UnionTypeDefinition) NodeInputValueDefinitions() []int {
+func (u UnionTypeDefinition) NodeInputValueDefinitions() InputValueDefinitions {
 	panic("implement me")
 }
 

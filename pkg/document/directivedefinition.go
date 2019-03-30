@@ -20,7 +20,7 @@ func (d DirectiveDefinition) NodeInputFieldsDefinition() int {
 	panic("implement me")
 }
 
-func (d DirectiveDefinition) NodeInputValueDefinitions() []int {
+func (d DirectiveDefinition) NodeInputValueDefinitions() InputValueDefinitions {
 	panic("implement me")
 }
 

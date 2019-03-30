@@ -18,7 +18,7 @@ func (d Directive) NodeInputFieldsDefinition() int {
 	panic("implement me")
 }
 
-func (d Directive) NodeInputValueDefinitions() []int {
+func (d Directive) NodeInputValueDefinitions() InputValueDefinitions {
 	panic("implement me")
 }
 

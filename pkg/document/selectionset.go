@@ -19,7 +19,7 @@ func (s SelectionSet) NodeInputFieldsDefinition() int {
 	panic("implement me")
 }
 
-func (s SelectionSet) NodeInputValueDefinitions() []int {
+func (s SelectionSet) NodeInputValueDefinitions() InputValueDefinitions {
 	panic("implement me")
 }
 

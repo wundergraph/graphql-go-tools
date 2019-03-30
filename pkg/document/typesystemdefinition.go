@@ -24,7 +24,7 @@ func (t TypeSystemDefinition) NodeInputFieldsDefinition() int {
 	panic("implement me")
 }
 
-func (t TypeSystemDefinition) NodeInputValueDefinitions() []int {
+func (t TypeSystemDefinition) NodeInputValueDefinitions() InputValueDefinitions {
 	panic("implement me")
 }
 

@@ -18,7 +18,7 @@ func (f FragmentSpread) NodeInputFieldsDefinition() int {
 	panic("implement me")
 }
 
-func (f FragmentSpread) NodeInputValueDefinitions() []int {
+func (f FragmentSpread) NodeInputValueDefinitions() InputValueDefinitions {
 	panic("implement me")
 }
 

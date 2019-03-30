@@ -21,7 +21,7 @@ func (o ObjectTypeDefinition) NodeInputFieldsDefinition() int {
 	panic("implement me")
 }
 
-func (o ObjectTypeDefinition) NodeInputValueDefinitions() []int {
+func (o ObjectTypeDefinition) NodeInputValueDefinitions() InputValueDefinitions {
 	panic("implement me")
 }
 

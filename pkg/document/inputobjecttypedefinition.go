@@ -20,7 +20,7 @@ func (i InputObjectTypeDefinition) NodeInputFieldsDefinition() int {
 	return i.InputFieldsDefinition
 }
 
-func (i InputObjectTypeDefinition) NodeInputValueDefinitions() []int {
+func (i InputObjectTypeDefinition) NodeInputValueDefinitions() InputValueDefinitions {
 	panic("implement me")
 }
 

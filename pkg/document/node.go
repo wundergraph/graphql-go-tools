@@ -54,7 +54,7 @@ type PositionNode interface {
 }
 
 type InputValueDefinitionsNode interface {
-	NodeInputValueDefinitions() []int
+	NodeInputValueDefinitions() InputValueDefinitions
 }
 
 type InputFieldsDefinitionNode interface {

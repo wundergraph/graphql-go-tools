@@ -20,7 +20,7 @@ func (f FragmentDefinition) NodeInputFieldsDefinition() int {
 	panic("implement me")
 }
 
-func (f FragmentDefinition) NodeInputValueDefinitions() []int {
+func (f FragmentDefinition) NodeInputValueDefinitions() InputValueDefinitions {
 	panic("implement me")
 }
 

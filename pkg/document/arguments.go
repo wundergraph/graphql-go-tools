@@ -18,7 +18,7 @@ func (a Argument) NodeInputFieldsDefinition() int {
 	panic("implement me")
 }
 
-func (a Argument) NodeInputValueDefinitions() []int {
+func (a Argument) NodeInputValueDefinitions() InputValueDefinitions {
 	panic("implement me")
 }
 

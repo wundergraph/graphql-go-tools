@@ -87,7 +87,7 @@ func (s SchemaDefinition) NodeImplementsInterfaces() []int {
 	panic("implement me")
 }
 
-func (s SchemaDefinition) NodeInputValueDefinitions() []int {
+func (s SchemaDefinition) NodeInputValueDefinitions() InputValueDefinitions {
 	panic("implement me")
 }
 

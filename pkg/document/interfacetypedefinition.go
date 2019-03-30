@@ -20,7 +20,7 @@ func (i InterfaceTypeDefinition) NodeInputFieldsDefinition() int {
 	panic("implement me")
 }
 
-func (i InterfaceTypeDefinition) NodeInputValueDefinitions() []int {
+func (i InterfaceTypeDefinition) NodeInputValueDefinitions() InputValueDefinitions {
 	panic("implement me")
 }
 

@@ -31,7 +31,7 @@ func (t Type) NodeInputFieldsDefinition() int {
 	panic("implement me")
 }
 
-func (t Type) NodeInputValueDefinitions() []int {
+func (t Type) NodeInputValueDefinitions() InputValueDefinitions {
 	panic("implement me")
 }
 

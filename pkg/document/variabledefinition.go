@@ -19,7 +19,7 @@ func (v VariableDefinition) NodeInputFieldsDefinition() int {
 	panic("implement me")
 }
 
-func (v VariableDefinition) NodeInputValueDefinitions() []int {
+func (v VariableDefinition) NodeInputValueDefinitions() InputValueDefinitions {
 	panic("implement me")
 }
 

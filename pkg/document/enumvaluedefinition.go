@@ -19,7 +19,7 @@ func (e EnumValueDefinition) NodeInputFieldsDefinition() int {
 	panic("implement me")
 }
 
-func (e EnumValueDefinition) NodeInputValueDefinitions() []int {
+func (e EnumValueDefinition) NodeInputValueDefinitions() InputValueDefinitions {
 	panic("implement me")
 }
 
