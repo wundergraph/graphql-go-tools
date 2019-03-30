@@ -109,12 +109,12 @@ func DirectivesHaveRequiredArguments() rules.Rule {
 					return validation.Invalid(validation.DirectivesHaveRequiredArguments, validation.DirectiveNotDefined, directive.Position, directive.Name)
 				}
 				argumentsDefinition := l.ArgumentsDefinition(definition.ArgumentsDefinition)
-				inputValueDefinitions := l.InputValueDefinitionIterator(argumentsDefinition.InputValueDefinitions)
+				inputValueDefinitions := argumentsDefinition.InputValueDefinitions
 
 				argumentSet := l.ArgumentSet(directive.ArgumentSet)
 
 			WithNextInputValueDefinition:
-				for inputValueDefinitions.Next() {
+				for inputValueDefinitions.Next(l) {
 					inputValueDefinition, _ := inputValueDefinitions.Value()
 					hasDefaultValue := inputValueDefinition.DefaultValue != -1
 					wantType := l.Type(inputValueDefinition.Type)
@@ -161,7 +161,7 @@ func DirectiveArgumentsAreDefined() rules.Rule {
 				for args.Next() {
 					argument, _ := args.Value()
 
-					inputValueDefinition, ok := l.InputValueDefinitionByNameAndIndex(argument.Name, argumentsDefinition.InputValueDefinitions)
+					inputValueDefinition, ok := l.InputValueDefinitionByNameFromDefinitions(argument.Name, argumentsDefinition.InputValueDefinitions)
 					if !ok {
 						return validation.Invalid(validation.DirectivesArgumentsAreDefined, validation.InputValueNotDefined, argument.Position, argument.Name)
 					}
