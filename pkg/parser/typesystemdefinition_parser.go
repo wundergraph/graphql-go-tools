@@ -19,7 +19,7 @@ func (p *Parser) parseTypeSystemDefinition() (definition document.TypeSystemDefi
 		switch next {
 		case keyword.EOF:
 			return definition, err
-		case keyword.STRING:
+		case keyword.STRING, keyword.COMMENT:
 			descriptionToken := p.l.Read()
 			description = descriptionToken
 			hasDescription = true

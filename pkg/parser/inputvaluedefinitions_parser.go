@@ -19,14 +19,12 @@ func (p *Parser) parseInputValueDefinitions(index *[]int, closeKeyword keyword.K
 	for {
 		next := p.l.Peek(true)
 
-		if next == keyword.STRING {
-
+		switch next {
+		case keyword.STRING, keyword.COMMENT:
 			quote := p.l.Read()
 			description = quote
 			hasDescription = true
-
-		} else if next == keyword.IDENT || next == keyword.TYPE || next == keyword.MUTATION {
-
+		case keyword.IDENT, keyword.TYPE, keyword.MUTATION:
 			ident := p.l.Read()
 			definition := p.makeInputValueDefinition()
 
@@ -62,12 +60,13 @@ func (p *Parser) parseInputValueDefinitions(index *[]int, closeKeyword keyword.K
 
 			definition.Position.MergeStartIntoEnd(p.TextPosition())
 			*index = append(*index, p.putInputValueDefinition(definition))
-
-		} else if next != closeKeyword && closeKeyword != keyword.UNDEFINED {
-			invalid := p.l.Read()
-			return newErrInvalidType(invalid.TextPosition, "parseInputValueDefinitions", "string/ident/"+closeKeyword.String(), invalid.String())
-		} else {
-			return nil
+		default:
+			if next != closeKeyword && closeKeyword != keyword.UNDEFINED {
+				invalid := p.l.Read()
+				return newErrInvalidType(invalid.TextPosition, "parseInputValueDefinitions", "string/ident/"+closeKeyword.String(), invalid.String())
+			} else {
+				return nil
+			}
 		}
 	}
 }

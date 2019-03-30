@@ -20,7 +20,7 @@ func (p *Parser) parseFieldsDefinition(index *[]int) (err error) {
 		next := p.l.Peek(true)
 
 		switch next {
-		case keyword.STRING:
+		case keyword.STRING, keyword.COMMENT:
 			stringToken := p.l.Read()
 			description = stringToken.Literal
 			startPosition = stringToken.TextPosition
