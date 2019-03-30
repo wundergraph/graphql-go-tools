@@ -273,10 +273,12 @@ func (p *Printer) PrintEnumTypeDefinition(ref int) {
 	p.write(literal.CURLYBRACKETOPEN)
 	p.write(literal.LINETERMINATOR)
 	var addLineTerminator bool
-	for _, enumValue := range definition.EnumValuesDefinition {
+	enums := definition.EnumValuesDefinition
+	for enums.Next(p.p) {
 		if addLineTerminator {
 			p.write(literal.LINETERMINATOR)
 		}
+		enumValue, _ := enums.Value()
 		p.PrintEnumValueDefinition(enumValue)
 		addLineTerminator = true
 	}
@@ -284,8 +286,7 @@ func (p *Printer) PrintEnumTypeDefinition(ref int) {
 	p.write(literal.CURLYBRACKETCLOSE)
 }
 
-func (p *Printer) PrintEnumValueDefinition(ref int) {
-	definition := p.p.ParsedDefinitions.EnumValuesDefinitions[ref]
+func (p *Printer) PrintEnumValueDefinition(definition document.EnumValueDefinition) {
 	p.PrintDescription(definition.Description, literal.TAB)
 	p.write(literal.TAB)
 	p.write(p.p.ByteSlice(definition.EnumValue))
