@@ -55,6 +55,10 @@ type Parser struct {
 	sliceIndex        map[string]int
 }
 
+func (p *Parser) FieldDefinition(ref int) document.FieldDefinition {
+	return p.ParsedDefinitions.FieldDefinitions[ref]
+}
+
 func (p *Parser) EnumValueDefinition(ref int) document.EnumValueDefinition {
 	return p.ParsedDefinitions.EnumValuesDefinitions[ref]
 }
@@ -81,7 +85,7 @@ type ParsedDefinitions struct {
 	EnumTypeDefinitions        []document.EnumTypeDefinition
 	ArgumentsDefinitions       document.ArgumentsDefinitions
 	EnumValuesDefinitions      []document.EnumValueDefinition
-	FieldDefinitions           document.FieldDefinitions
+	FieldDefinitions           []document.FieldDefinition
 	InputValueDefinitions      []document.InputValueDefinition
 	InputObjectTypeDefinitions document.InputObjectTypeDefinitions
 	DirectiveDefinitions       document.DirectiveDefinitions
@@ -202,7 +206,7 @@ func NewParser(withOptions ...Option) *Parser {
 		EnumTypeDefinitions:        make([]document.EnumTypeDefinition, 0, options.minimumSliceSize),
 		EnumValuesDefinitions:      make([]document.EnumValueDefinition, 0, options.minimumSliceSize*2),
 		ArgumentsDefinitions:       make(document.ArgumentsDefinitions, 0, options.minimumSliceSize),
-		FieldDefinitions:           make(document.FieldDefinitions, 0, options.minimumSliceSize*2),
+		FieldDefinitions:           make([]document.FieldDefinition, 0, options.minimumSliceSize*2),
 		InputValueDefinitions:      make([]document.InputValueDefinition, 0, options.minimumSliceSize),
 		InputObjectTypeDefinitions: make(document.InputObjectTypeDefinitions, 0, options.minimumSliceSize),
 		DirectiveDefinitions:       make(document.DirectiveDefinitions, 0, options.minimumSliceSize),
@@ -365,15 +369,13 @@ func (p *Parser) initTypeSystemDefinition(definition *document.TypeSystemDefinit
 
 func (p *Parser) makeInterfaceTypeDefinition() document.InterfaceTypeDefinition {
 	return document.InterfaceTypeDefinition{
-		DirectiveSet:     -1,
-		FieldsDefinition: p.IndexPoolGet(),
+		DirectiveSet: -1,
 	}
 }
 
 func (p *Parser) makeObjectTypeDefinition() document.ObjectTypeDefinition {
 	return document.ObjectTypeDefinition{
-		DirectiveSet:     -1,
-		FieldsDefinition: p.IndexPoolGet(),
+		DirectiveSet: -1,
 	}
 }
 
