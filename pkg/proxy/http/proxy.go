@@ -14,7 +14,6 @@ import (
 
 type Proxy struct {
 	RequestConfigProvider proxy.RequestConfigProvider
-	Host                  string
 	InvokerPool           sync.Pool
 	Client                http.Client
 	HandleError           func(err error, w http.ResponseWriter)
@@ -27,7 +26,7 @@ type GraphqlJsonRequest struct {
 	Query         string `json:"query"`
 }
 
-func (p *Proxy) AcceptRequest(userValues map[string][]byte, requestURI []byte, body io.Reader, buff *bytes.Buffer) error {
+func (p *Proxy) AcceptRequest(contextValues map[string][]byte, requestURI []byte, body io.Reader, buff *bytes.Buffer) error {
 
 	config := p.RequestConfigProvider.GetRequestConfig(requestURI)
 
@@ -47,7 +46,7 @@ func (p *Proxy) AcceptRequest(userValues map[string][]byte, requestURI []byte, b
 
 	query := []byte(graphqlJsonRequest.Query)
 
-	err = invoker.InvokeMiddleWares(userValues, query) // TODO: fix nil
+	err = invoker.InvokeMiddleWares(contextValues, query) // TODO: fix nil
 	if err != nil {
 		return err
 	}
@@ -60,7 +59,7 @@ func (p *Proxy) AcceptRequest(userValues map[string][]byte, requestURI []byte, b
 	return err
 }
 
-func (p *Proxy) DispatchRequest(buff *bytes.Buffer) (*http.Response, error) {
+func (p *Proxy) DispatchRequest(buff *bytes.Buffer) (io.ReadCloser, error) {
 
 	req := GraphqlJsonRequest{
 		Query: buff.String(),
@@ -72,8 +71,12 @@ func (p *Proxy) DispatchRequest(buff *bytes.Buffer) (*http.Response, error) {
 		return nil, err
 	}
 
-	//return p.Client.Post(p.Host, "application/graphql", buff)
-	return p.Client.Post(p.Host, "application/json", &out)
+	config := p.RequestConfigProvider.GetRequestConfig(nil)
+	response, err := p.Client.Post(config.BackendURL.String(), "application/json", &out)
+	if err != nil {
+		return nil, err
+	}
+	return response.Body, nil
 }
 
 func (p *Proxy) AcceptResponse() {
@@ -102,7 +105,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response, err := p.DispatchRequest(buff)
+	responseBody, err := p.DispatchRequest(buff)
 	if err != nil {
 		p.BufferedReaderPool.Put(bufferedReader)
 		p.BufferPool.Put(buff)
@@ -112,14 +115,14 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// todo: implement the OnResponse handlers
 
-	bufferedReader.Reset(response.Body)
+	bufferedReader.Reset(responseBody)
 
 	_, err = bufferedReader.WriteTo(w)
 	if err != nil {
 		p.BufferedReaderPool.Put(bufferedReader)
 		p.BufferPool.Put(buff)
 		r.Body.Close()
-		response.Body.Close()
+		responseBody.Close()
 		p.HandleError(err, w)
 		return
 	}
@@ -127,12 +130,11 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p.BufferedReaderPool.Put(bufferedReader)
 	p.BufferPool.Put(buff)
 	r.Body.Close()
-	response.Body.Close()
+	responseBody.Close()
 }
 
-func NewDefaultProxy(host string, provider proxy.RequestConfigProvider, middlewares ...middleware.GraphqlMiddleware) *Proxy {
+func NewDefaultProxy(provider proxy.RequestConfigProvider, middlewares ...middleware.GraphqlMiddleware) *Proxy {
 	return &Proxy{
-		Host:                  host,
 		RequestConfigProvider: provider,
 		InvokerPool: sync.Pool{
 			New: func() interface{} {

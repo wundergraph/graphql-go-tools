@@ -1,4 +1,4 @@
-package http
+package fasthttp
 
 import (
 	"bytes"
@@ -83,12 +83,12 @@ func (f *FastHttpProxy) HandleRequest(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	ctx.Request.SetRequestURIBytes(config.BackendAddr)
+	ctx.Request.SetRequestURIBytes([]byte(config.BackendURL.String()))
 	ctx.Request.SetBody(body)
 
 	client := f.hostClientPool.Get().(*fasthttp.HostClient)
 	defer f.hostClientPool.Put(client)
-	client.Addr = config.BackendHost
+	client.Addr = config.BackendURL.Host
 
 	err = client.Do(&ctx.Request, &ctx.Response)
 	if err != nil {

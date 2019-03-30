@@ -1,4 +1,4 @@
-package http
+package fasthttp
 
 import (
 	"bytes"
@@ -8,20 +8,15 @@ import (
 	"sync"
 )
 
-type FastStaticProxyConfig struct {
-	MiddleWares           []middleware.GraphqlMiddleware
-	RequestConfigProvider proxy.RequestConfigProvider
-}
-
 type FastStaticProxy struct {
 	prox *FastHttpProxy
 }
 
-func NewFastStaticProxy(config FastStaticProxyConfig) *FastStaticProxy {
+func NewFastStaticProxy(requestConfigProvider proxy.RequestConfigProvider, middlewares ...middleware.GraphqlMiddleware) *FastStaticProxy {
 
 	prox := &FastHttpProxy{
-		requestConfigProvider: config.RequestConfigProvider,
-		invokerPool:           middleware.NewInvokerPool(8, config.MiddleWares...),
+		requestConfigProvider: requestConfigProvider,
+		invokerPool:           middleware.NewInvokerPool(8, middlewares...),
 		userValuePool: sync.Pool{
 			New: func() interface{} {
 				return make(map[string][]byte)

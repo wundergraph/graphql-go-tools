@@ -1,4 +1,4 @@
-package http
+package fasthttp
 
 import (
 	"bytes"
@@ -9,6 +9,7 @@ import (
 	"github.com/valyala/fasthttp"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"strconv"
 	"testing"
 	"time"
@@ -28,20 +29,22 @@ func TestFastStaticProxy(t *testing.T) {
 	go startFakeBackend(fakeBackendHost)
 
 	schema := []byte(testSchema)
+	backendURL, err := url.Parse("http://0.0.0.0:" + backendPort + "/query")
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	prox := NewFastStaticProxy(FastStaticProxyConfig{
-		MiddleWares: []middleware.GraphqlMiddleware{
-			&middleware.ContextMiddleware{},
+	requestConfigProvider := proxy.NewStaticRequestConfigProvider(proxy.RequestConfig{
+		Schema:     &schema,
+		BackendURL: *backendURL,
+		AddHeadersToContext: [][]byte{
+			[]byte("user"),
 		},
-		RequestConfigProvider: proxy.NewStaticSchemaProvider(proxy.RequestConfig{
-			Schema:      &schema,
-			BackendAddr: []byte("http://0.0.0.0:" + backendPort + "/query"),
-			BackendHost: "0.0.0.0:" + backendPort,
-			AddHeadersToContext: [][]byte{
-				[]byte("user"),
-			},
-		}),
 	})
+
+	prox := NewFastStaticProxy(requestConfigProvider,
+		&middleware.ContextMiddleware{},
+	)
 
 	go func() {
 		err := prox.ListenAndServe("0.0.0.0:" + proxyPort)
@@ -91,20 +94,22 @@ func BenchmarkFastStaticProxy(b *testing.B) {
 	go startFakeBackend(fakeBackendHost)
 
 	schema := []byte(testSchema)
+	backendURL, err := url.Parse("http://0.0.0.0:" + backendPort + "/query")
+	if err != nil {
+		b.Fatal(err)
+	}
 
-	prox := NewFastStaticProxy(FastStaticProxyConfig{
-		MiddleWares: []middleware.GraphqlMiddleware{
-			&middleware.ContextMiddleware{},
+	requestConfigProvider := proxy.NewStaticRequestConfigProvider(proxy.RequestConfig{
+		Schema:     &schema,
+		BackendURL: *backendURL,
+		AddHeadersToContext: [][]byte{
+			[]byte("user"),
 		},
-		RequestConfigProvider: proxy.NewStaticSchemaProvider(proxy.RequestConfig{
-			Schema:      &schema,
-			BackendAddr: []byte("http://0.0.0.0:" + backendPort + "/query"),
-			BackendHost: "0.0.0.0:" + backendPort,
-			AddHeadersToContext: [][]byte{
-				[]byte("user"),
-			},
-		}),
 	})
+
+	prox := NewFastStaticProxy(requestConfigProvider,
+		&middleware.ContextMiddleware{},
+	)
 
 	go func() {
 		err := prox.ListenAndServe("0.0.0.0:" + proxyPort)

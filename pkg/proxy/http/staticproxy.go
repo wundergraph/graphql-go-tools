@@ -10,22 +10,19 @@ import (
 	"sync"
 )
 
-type StaticProxyConfig struct {
-	MiddleWares           []middleware.GraphqlMiddleware
-	RequestConfigProvider proxy.RequestConfigProvider
-}
-
 type StaticProxy struct {
 	handler http.Handler
 }
 
-func NewStaticProxy(config StaticProxyConfig) *StaticProxy {
+func NewStaticProxy(config proxy.RequestConfig, middlewares ...middleware.GraphqlMiddleware) *StaticProxy {
+
+	provider := proxy.NewStaticRequestConfigProvider(config)
 
 	handler := &Proxy{
-		RequestConfigProvider: config.RequestConfigProvider,
+		RequestConfigProvider: provider,
 		InvokerPool: sync.Pool{
 			New: func() interface{} {
-				return middleware.NewInvoker(config.MiddleWares...)
+				return middleware.NewInvoker(middlewares...)
 			},
 		},
 		Client: *http.DefaultClient,
