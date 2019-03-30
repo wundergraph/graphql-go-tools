@@ -33,7 +33,7 @@ func (p *Parser) parseEnumTypeDefinition(hasDescription bool, description token.
 		return err
 	}
 
-	err = p.parseEnumValuesDefinition(&definition.EnumValuesDefinition)
+	definition.EnumValuesDefinition, err = p.parseEnumValuesDefinition()
 	if err != nil {
 		return err
 	}
