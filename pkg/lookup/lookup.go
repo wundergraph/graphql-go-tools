@@ -12,6 +12,10 @@ type Lookup struct {
 	refCache []int
 }
 
+func (l *Lookup) EnumValueDefinition(ref int) document.EnumValueDefinition {
+	return l.p.EnumValueDefinition(ref)
+}
+
 func (l *Lookup) InputValueDefinition(ref int) document.InputValueDefinition {
 	return l.p.InputValueDefinition(ref)
 }
@@ -1296,9 +1300,9 @@ func (l *Lookup) EnumTypeDefinitionContainsValue(definition document.EnumTypeDef
 		return false
 	}
 
-	iter := l.EnumValueDefinitionIterator(definition.EnumValuesDefinition)
+	iter := definition.EnumValuesDefinition
 
-	for iter.Next() {
+	for iter.Next(l) {
 		enumValueDefinition, _ := iter.Value()
 		if l.ByteSliceReferenceContentsEquals(enumValueDefinition.EnumValue, enumValue) {
 			return true
