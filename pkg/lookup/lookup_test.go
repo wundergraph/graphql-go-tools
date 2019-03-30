@@ -264,7 +264,11 @@ func TestLookup(t *testing.T) {
 			t.Run("from interface", func(t *testing.T) {
 				run(`interface foo { bar: String}`, "", func(walker *Walker) {
 					foo := walker.l.p.ParsedDefinitions.InterfaceTypeDefinitions[0]
-					bar := walker.l.p.ParsedDefinitions.FieldDefinitions[foo.FieldsDefinition[0]]
+					fooFields := foo.FieldsDefinition
+					if !fooFields.Next(walker.l) {
+						panic("want next")
+					}
+					bar, _ := fooFields.Value()
 					barType, ok := walker.l.FieldType(foo.Name, bar.Name)
 					if !ok {
 						panic("want ok")
@@ -282,7 +286,11 @@ func TestLookup(t *testing.T) {
 			t.Run("from object type", func(t *testing.T) {
 				run(`type foo { bar: String}`, "", func(walker *Walker) {
 					foo := walker.l.p.ParsedDefinitions.ObjectTypeDefinitions[0]
-					bar := walker.l.p.ParsedDefinitions.FieldDefinitions[foo.FieldsDefinition[0]]
+					fooFields := foo.FieldsDefinition
+					if !fooFields.Next(walker.l) {
+						panic("want next")
+					}
+					bar, _ := fooFields.Value()
 					barType, ok := walker.l.FieldType(foo.Name, bar.Name)
 					if !ok {
 						panic("want ok")
