@@ -177,7 +177,7 @@ func TestPrinter_Regression(t *testing.T) {
 		printer.PrintTypeSystemDefinition(out)
 	}
 
-	run := func(input, name string, parse parse, walk walk, action action) {
+	run := func(t *testing.T, input, name string, parse parse, walk walk, action action) {
 		inputBytes := []byte(input)
 
 		p := parser.NewParser()
@@ -208,10 +208,10 @@ func TestPrinter_Regression(t *testing.T) {
 	}
 
 	t.Run("introspection", func(t *testing.T) {
-		run(introspectionQuery, "introspection", parseExecutableDefinition, walkExecutable, printExecutableSchema)
+		run(t, introspectionQuery, "introspection", parseExecutableDefinition, walkExecutable, printExecutableSchema)
 	})
 	t.Run("starwars_typesystem", func(t *testing.T) {
-		run(starwarsSchema, "starwars_typesystem", parseTypeSystemDefinition, walkTypeSystemDefinition, printTypeSystemDefinition)
+		run(t, starwarsSchema, "starwars_typesystem", parseTypeSystemDefinition, walkTypeSystemDefinition, printTypeSystemDefinition)
 	})
 }
 
