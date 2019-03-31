@@ -21,7 +21,7 @@ func (o OperationDefinition) NodeInputFieldsDefinition() int {
 	panic("implement me")
 }
 
-func (o OperationDefinition) NodeInputValueDefinitions() []int {
+func (o OperationDefinition) NodeInputValueDefinitions() InputValueDefinitions {
 	panic("implement me")
 }
 
@@ -85,7 +85,7 @@ func (o OperationDefinition) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (o OperationDefinition) NodeFieldsDefinition() []int {
+func (o OperationDefinition) NodeFieldsDefinition() FieldDefinitions {
 	panic("implement me")
 }
 
@@ -137,7 +137,7 @@ func (o OperationDefinition) NodeDirectiveSet() int {
 	return o.DirectiveSet
 }
 
-func (o OperationDefinition) NodeEnumValuesDefinition() []int {
+func (o OperationDefinition) NodeEnumValuesDefinition() EnumValueDefinitions {
 	panic("implement me")
 }
 

@@ -38,49 +38,49 @@ func (p *Parser) parseTypeSystemDefinition() (definition document.TypeSystemDefi
 
 		case keyword.SCALAR:
 
-			err := p.parseScalarTypeDefinition(hasDescription, description, &definition.ScalarTypeDefinitions)
+			err := p.parseScalarTypeDefinition(hasDescription, description)
 			if err != nil {
 				return definition, err
 			}
 
 		case keyword.TYPE:
 
-			err := p.parseObjectTypeDefinition(hasDescription, description, &definition.ObjectTypeDefinitions)
+			err := p.parseObjectTypeDefinition(hasDescription, description)
 			if err != nil {
 				return definition, err
 			}
 
 		case keyword.INTERFACE:
 
-			err := p.parseInterfaceTypeDefinition(hasDescription, description, &definition.InterfaceTypeDefinitions)
+			err := p.parseInterfaceTypeDefinition(hasDescription, description)
 			if err != nil {
 				return definition, err
 			}
 
 		case keyword.UNION:
 
-			err := p.parseUnionTypeDefinition(hasDescription, description, &definition.UnionTypeDefinitions)
+			err := p.parseUnionTypeDefinition(hasDescription, description)
 			if err != nil {
 				return definition, err
 			}
 
 		case keyword.ENUM:
 
-			err := p.parseEnumTypeDefinition(hasDescription, description, &definition.EnumTypeDefinitions)
+			err := p.parseEnumTypeDefinition(hasDescription, description)
 			if err != nil {
 				return definition, err
 			}
 
 		case keyword.INPUT:
 
-			err := p.parseInputObjectTypeDefinition(hasDescription, description, &definition.InputObjectTypeDefinitions)
+			err := p.parseInputObjectTypeDefinition(hasDescription, description)
 			if err != nil {
 				return definition, err
 			}
 
 		case keyword.DIRECTIVE:
 
-			err := p.parseDirectiveDefinition(hasDescription, description, &definition.DirectiveDefinitions)
+			err := p.parseDirectiveDefinition(hasDescription, description)
 			if err != nil {
 				return definition, err
 			}

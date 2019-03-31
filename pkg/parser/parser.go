@@ -55,6 +55,18 @@ type Parser struct {
 	sliceIndex        map[string]int
 }
 
+func (p *Parser) FieldDefinition(ref int) document.FieldDefinition {
+	return p.ParsedDefinitions.FieldDefinitions[ref]
+}
+
+func (p *Parser) EnumValueDefinition(ref int) document.EnumValueDefinition {
+	return p.ParsedDefinitions.EnumValuesDefinitions[ref]
+}
+
+func (p *Parser) InputValueDefinition(ref int) document.InputValueDefinition {
+	return p.ParsedDefinitions.InputValueDefinitions[ref]
+}
+
 // ParsedDefinitions contains all parsed definitions to avoid deeply nested data structures while parsing
 type ParsedDefinitions struct {
 	TypeSystemDefinition document.TypeSystemDefinition
@@ -70,18 +82,18 @@ type ParsedDefinitions struct {
 	ArgumentSets               []document.ArgumentSet
 	Directives                 document.Directives
 	DirectiveSets              []document.DirectiveSet
-	EnumTypeDefinitions        document.EnumTypeDefinitions
+	EnumTypeDefinitions        []document.EnumTypeDefinition
 	ArgumentsDefinitions       document.ArgumentsDefinitions
-	EnumValuesDefinitions      document.EnumValueDefinitions
-	FieldDefinitions           document.FieldDefinitions
-	InputValueDefinitions      document.InputValueDefinitions
+	EnumValuesDefinitions      []document.EnumValueDefinition
+	FieldDefinitions           []document.FieldDefinition
+	InputValueDefinitions      []document.InputValueDefinition
 	InputObjectTypeDefinitions document.InputObjectTypeDefinitions
 	DirectiveDefinitions       document.DirectiveDefinitions
 	InterfaceTypeDefinitions   document.InterfaceTypeDefinitions
 	ObjectTypeDefinitions      document.ObjectTypeDefinitions
 	ScalarTypeDefinitions      document.ScalarTypeDefinitions
 	UnionTypeDefinitions       document.UnionTypeDefinitions
-	InputFieldsDefinitions     document.InputFieldsDefinitions
+	InputFieldsDefinitions     []document.InputFieldsDefinition
 	Values                     []document.Value
 	ListValues                 []document.ListValue
 	ObjectValues               []document.ObjectValue
@@ -191,18 +203,18 @@ func NewParser(withOptions ...Option) *Parser {
 		ArgumentSets:               make([]document.ArgumentSet, 0, options.minimumSliceSize),
 		Directives:                 make(document.Directives, 0, options.minimumSliceSize),
 		DirectiveSets:              make([]document.DirectiveSet, 0, options.minimumSliceSize*2),
-		EnumTypeDefinitions:        make(document.EnumTypeDefinitions, 0, options.minimumSliceSize),
-		EnumValuesDefinitions:      make(document.EnumValueDefinitions, 0, options.minimumSliceSize*2),
+		EnumTypeDefinitions:        make([]document.EnumTypeDefinition, 0, options.minimumSliceSize),
+		EnumValuesDefinitions:      make([]document.EnumValueDefinition, 0, options.minimumSliceSize*2),
 		ArgumentsDefinitions:       make(document.ArgumentsDefinitions, 0, options.minimumSliceSize),
-		FieldDefinitions:           make(document.FieldDefinitions, 0, options.minimumSliceSize*2),
-		InputValueDefinitions:      make(document.InputValueDefinitions, 0, options.minimumSliceSize),
+		FieldDefinitions:           make([]document.FieldDefinition, 0, options.minimumSliceSize*2),
+		InputValueDefinitions:      make([]document.InputValueDefinition, 0, options.minimumSliceSize),
 		InputObjectTypeDefinitions: make(document.InputObjectTypeDefinitions, 0, options.minimumSliceSize),
 		DirectiveDefinitions:       make(document.DirectiveDefinitions, 0, options.minimumSliceSize),
 		InterfaceTypeDefinitions:   make(document.InterfaceTypeDefinitions, 0, options.minimumSliceSize),
 		ObjectTypeDefinitions:      make(document.ObjectTypeDefinitions, 0, options.minimumSliceSize),
 		ScalarTypeDefinitions:      make(document.ScalarTypeDefinitions, 0, options.minimumSliceSize),
 		UnionTypeDefinitions:       make(document.UnionTypeDefinitions, 0, options.minimumSliceSize),
-		InputFieldsDefinitions:     make(document.InputFieldsDefinitions, 0, options.minimumSliceSize),
+		InputFieldsDefinitions:     make([]document.InputFieldsDefinition, 0, options.minimumSliceSize),
 		Values:                     make([]document.Value, 0, options.minimumSliceSize),
 		ListValues:                 make([]document.ListValue, 0, options.minimumSliceSize),
 		ObjectValues:               make([]document.ObjectValue, 0, options.minimumSliceSize),
@@ -325,8 +337,7 @@ func (p *Parser) makeFieldDefinition() document.FieldDefinition {
 
 func (p *Parser) makeEnumTypeDefinition() document.EnumTypeDefinition {
 	return document.EnumTypeDefinition{
-		DirectiveSet:         -1,
-		EnumValuesDefinition: p.IndexPoolGet(),
+		DirectiveSet: -1,
 	}
 }
 
@@ -344,13 +355,6 @@ func (p *Parser) makeInputObjectTypeDefinition() document.InputObjectTypeDefinit
 }
 
 func (p *Parser) initTypeSystemDefinition(definition *document.TypeSystemDefinition) {
-	definition.InputObjectTypeDefinitions = p.IndexPoolGet()
-	definition.EnumTypeDefinitions = p.IndexPoolGet()
-	definition.DirectiveDefinitions = p.IndexPoolGet()
-	definition.InterfaceTypeDefinitions = p.IndexPoolGet()
-	definition.ObjectTypeDefinitions = p.IndexPoolGet()
-	definition.ScalarTypeDefinitions = p.IndexPoolGet()
-	definition.UnionTypeDefinitions = p.IndexPoolGet()
 	definition.SchemaDefinition = document.SchemaDefinition{
 		DirectiveSet: -1,
 	}
@@ -358,15 +362,13 @@ func (p *Parser) initTypeSystemDefinition(definition *document.TypeSystemDefinit
 
 func (p *Parser) makeInterfaceTypeDefinition() document.InterfaceTypeDefinition {
 	return document.InterfaceTypeDefinition{
-		DirectiveSet:     -1,
-		FieldsDefinition: p.IndexPoolGet(),
+		DirectiveSet: -1,
 	}
 }
 
 func (p *Parser) makeObjectTypeDefinition() document.ObjectTypeDefinition {
 	return document.ObjectTypeDefinition{
-		DirectiveSet:     -1,
-		FieldsDefinition: p.IndexPoolGet(),
+		DirectiveSet: -1,
 	}
 }
 
@@ -454,14 +456,6 @@ func (p *Parser) makeType(index *int) document.Type {
 	p.ParsedDefinitions.Types = append(p.ParsedDefinitions.Types, documentType)
 	*index = len(p.ParsedDefinitions.Types) - 1
 	return documentType
-}
-
-func (p *Parser) initArgumentsDefinition(definition *document.ArgumentsDefinition) {
-	definition.InputValueDefinitions = p.IndexPoolGet()
-}
-
-func (p *Parser) initInputFieldsDefinition(definition *document.InputFieldsDefinition) {
-	definition.InputValueDefinitions = p.IndexPoolGet()
 }
 
 func (p *Parser) setCacheStats() {

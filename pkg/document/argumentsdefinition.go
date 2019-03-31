@@ -5,7 +5,7 @@ import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 // ArgumentsDefinition as specified in:
 // http://facebook.github.io/graphql/draft/#ArgumentsDefinition
 type ArgumentsDefinition struct {
-	InputValueDefinitions []int
+	InputValueDefinitions InputValueDefinitions
 	Position              position.Position
 }
 
@@ -17,7 +17,7 @@ func (a ArgumentsDefinition) NodeInputFieldsDefinition() int {
 	panic("implement me")
 }
 
-func (a ArgumentsDefinition) NodeInputValueDefinitions() []int {
+func (a ArgumentsDefinition) NodeInputValueDefinitions() InputValueDefinitions {
 	return a.InputValueDefinitions
 }
 
@@ -45,7 +45,7 @@ func (a ArgumentsDefinition) NodeDirectiveSet() int {
 	panic("implement me")
 }
 
-func (a ArgumentsDefinition) NodeEnumValuesDefinition() []int {
+func (a ArgumentsDefinition) NodeEnumValuesDefinition() EnumValueDefinitions {
 	panic("implement me")
 }
 
@@ -53,7 +53,7 @@ func (a ArgumentsDefinition) NodeFields() []int {
 	panic("implement me")
 }
 
-func (a ArgumentsDefinition) NodeFieldsDefinition() []int {
+func (a ArgumentsDefinition) NodeFieldsDefinition() FieldDefinitions {
 	panic("implement me")
 }
 

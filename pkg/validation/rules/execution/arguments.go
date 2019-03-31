@@ -24,7 +24,7 @@ func ValidArguments() rules.Rule {
 
 				for arguments.Next() {
 					argument, _ := arguments.Value()
-					inputValueDefinition, ok := l.InputValueDefinitionByNameAndIndex(argument.Name, argumentsDefinition.InputValueDefinitions)
+					inputValueDefinition, ok := l.InputValueDefinitionByNameFromDefinitions(argument.Name, argumentsDefinition.InputValueDefinitions)
 					if !ok {
 						return validation.Invalid(validation.ValidArguments, validation.InputValueNotDefined, argument.Position, argument.Name)
 					}
@@ -91,18 +91,18 @@ func RequiredArguments() rules.Rule {
 			typeName := w.SelectionSetTypeName(l.SelectionSet(field.SelectionSet), parent)
 
 			fieldsDefinition := l.FieldsDefinitionFromNamedType(typeName)
-			definition, ok := l.FieldDefinitionByNameFromIndex(fieldsDefinition, field.Name)
+			definition, ok := l.FieldDefinitionByNameFromDefinitions(fieldsDefinition, field.Name)
 			if !ok {
 				return validation.Invalid(validation.RequiredArguments, validation.TypeNotDefined, field.Position, field.Name)
 			}
 
 			argumentsDefinition := l.ArgumentsDefinition(definition.ArgumentsDefinition)
-			if len(argumentsDefinition.InputValueDefinitions) == 0 {
+			if !argumentsDefinition.InputValueDefinitions.HasNext() {
 				continue
 			}
 
-			inputValueDefinitions := l.InputValueDefinitionIterator(argumentsDefinition.InputValueDefinitions)
-			for inputValueDefinitions.Next() {
+			inputValueDefinitions := argumentsDefinition.InputValueDefinitions
+			for inputValueDefinitions.Next(l) {
 				inputValueDefinition, _ := inputValueDefinitions.Value()
 				if !l.InputValueDefinitionIsRequired(inputValueDefinition) {
 					continue

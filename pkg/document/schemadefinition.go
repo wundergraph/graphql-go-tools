@@ -43,7 +43,7 @@ func (s SchemaDefinition) NodeDirectiveSet() int {
 	return s.DirectiveSet
 }
 
-func (s SchemaDefinition) NodeEnumValuesDefinition() []int {
+func (s SchemaDefinition) NodeEnumValuesDefinition() EnumValueDefinitions {
 	panic("implement me")
 }
 
@@ -51,7 +51,7 @@ func (s SchemaDefinition) NodeFields() []int {
 	panic("implement me")
 }
 
-func (s SchemaDefinition) NodeFieldsDefinition() []int {
+func (s SchemaDefinition) NodeFieldsDefinition() FieldDefinitions {
 	panic("implement me")
 }
 
@@ -87,7 +87,7 @@ func (s SchemaDefinition) NodeImplementsInterfaces() []int {
 	panic("implement me")
 }
 
-func (s SchemaDefinition) NodeInputValueDefinitions() []int {
+func (s SchemaDefinition) NodeInputValueDefinitions() InputValueDefinitions {
 	panic("implement me")
 }
 

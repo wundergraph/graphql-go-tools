@@ -18,7 +18,7 @@ func (d Directive) NodeInputFieldsDefinition() int {
 	panic("implement me")
 }
 
-func (d Directive) NodeInputValueDefinitions() []int {
+func (d Directive) NodeInputValueDefinitions() InputValueDefinitions {
 	panic("implement me")
 }
 
@@ -82,7 +82,7 @@ func (d Directive) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (d Directive) NodeFieldsDefinition() []int {
+func (d Directive) NodeFieldsDefinition() FieldDefinitions {
 	panic("implement me")
 }
 
@@ -134,7 +134,7 @@ func (d Directive) NodeDirectiveSet() int {
 	panic("implement me")
 }
 
-func (d Directive) NodeEnumValuesDefinition() []int {
+func (d Directive) NodeEnumValuesDefinition() EnumValueDefinitions {
 	panic("implement me")
 }
 

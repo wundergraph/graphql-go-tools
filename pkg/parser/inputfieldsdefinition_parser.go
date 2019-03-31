@@ -5,7 +5,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
-func (p *Parser) parseInputFieldsDefinition(index *int) error {
+func (p *Parser) parseInputFieldsDefinition(index *int) (err error) {
 
 	if open := p.peekExpect(keyword.CURLYBRACKETOPEN, false); !open {
 		return nil
@@ -14,18 +14,19 @@ func (p *Parser) parseInputFieldsDefinition(index *int) error {
 	start := p.l.Read()
 
 	var definition document.InputFieldsDefinition
-	p.initInputFieldsDefinition(&definition)
 	definition.Position.MergeStartIntoStart(start.TextPosition)
 
-	err := p.parseInputValueDefinitions(&definition.InputValueDefinitions, keyword.CURLYBRACKETCLOSE)
+	definition.InputValueDefinitions, err = p.parseInputValueDefinitions(keyword.CURLYBRACKETCLOSE)
 	if err != nil {
-		return err
+		return
 	}
 
 	_, err = p.readExpect(keyword.CURLYBRACKETCLOSE, "parseInputFieldsDefinition")
+	if err != nil {
+		return
+	}
 
 	definition.Position.MergeStartIntoEnd(p.TextPosition())
 	*index = p.putInputFieldsDefinitions(definition)
-
-	return err
+	return
 }

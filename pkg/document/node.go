@@ -9,10 +9,10 @@ type Node interface {
 	NodeArgumentSet() int
 	NodeArgumentsDefinition() int
 	NodeDirectiveSet() int // Change Signature to int (DirectiveSet)
-	NodeEnumValuesDefinition() []int
+	NodeEnumValuesDefinition() EnumValueDefinitions
 	NodeSelectionSet() int
 	NodeFields() []int
-	NodeFieldsDefinition() []int
+	NodeFieldsDefinition() FieldDefinitions
 	NodeFragmentSpreads() []int
 	NodeInlineFragments() []int
 	NodeVariableDefinitions() []int
@@ -22,22 +22,10 @@ type Node interface {
 	NodeDefaultValue() int
 	NodeImplementsInterfaces() []int
 	InputValueDefinitionsNode
-	TypeSystemDefinitionNode
 	UnionTypeSystemDefinitionNode
 	ValueNode
 	PositionNode
 	InputFieldsDefinitionNode
-}
-
-type TypeSystemDefinitionNode interface {
-	NodeSchemaDefinition() SchemaDefinition
-	NodeScalarTypeDefinitions() []int
-	NodeObjectTypeDefinitions() []int
-	NodeInterfaceTypeDefinitions() []int
-	NodeUnionTypeDefinitions() []int
-	NodeEnumTypeDefinitions() []int
-	NodeInputObjectTypeDefinitions() []int
-	NodeDirectiveDefinitions() []int
 }
 
 type UnionTypeSystemDefinitionNode interface {
@@ -54,7 +42,7 @@ type PositionNode interface {
 }
 
 type InputValueDefinitionsNode interface {
-	NodeInputValueDefinitions() []int
+	NodeInputValueDefinitions() InputValueDefinitions
 }
 
 type InputFieldsDefinitionNode interface {

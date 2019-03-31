@@ -12,6 +12,14 @@ type Lookup struct {
 	refCache []int
 }
 
+func (l *Lookup) EnumValueDefinition(ref int) document.EnumValueDefinition {
+	return l.p.EnumValueDefinition(ref)
+}
+
+func (l *Lookup) InputValueDefinition(ref int) document.InputValueDefinition {
+	return l.p.InputValueDefinition(ref)
+}
+
 func New(p *parser.Parser) *Lookup {
 	return &Lookup{
 		p:        p,
@@ -299,10 +307,10 @@ func (l *Lookup) FieldDefinition(ref int) document.FieldDefinition {
 	return l.p.ParsedDefinitions.FieldDefinitions[ref]
 }
 
-func (l *Lookup) FieldDefinitionByNameFromIndex(index []int, name document.ByteSliceReference) (document.FieldDefinition, bool) {
+func (l *Lookup) FieldDefinitionByNameFromDefinitions(definitions document.FieldDefinitions, name document.ByteSliceReference) (document.FieldDefinition, bool) {
 
-	for _, i := range index {
-		definition := l.p.ParsedDefinitions.FieldDefinitions[i]
+	for definitions.Next(l) {
+		definition, _ := definitions.Value()
 		if l.ByteSliceReferenceContentsEquals(name, definition.Name) {
 			return definition, true
 		}
@@ -642,18 +650,22 @@ func (l *Lookup) ArgumentByIndexAndName(index []int, name document.ByteSliceRefe
 
 func (l *Lookup) ArgumentsDefinition(i int) document.ArgumentsDefinition {
 	if i == -1 {
-		return document.ArgumentsDefinition{}
+		return document.ArgumentsDefinition{
+			InputValueDefinitions: document.NewInputValueDefinitions(-1),
+		}
 	}
 	return l.p.ParsedDefinitions.ArgumentsDefinitions[i]
 }
 
-func (l *Lookup) InputValueDefinitionByNameAndIndex(name document.ByteSliceReference, i []int) (document.InputValueDefinition, bool) {
-	for _, j := range i {
-		definition := l.p.ParsedDefinitions.InputValueDefinitions[j]
-		if l.ByteSliceReferenceContentsEquals(name, definition.Name) {
-			return definition, true
+func (l *Lookup) InputValueDefinitionByNameFromDefinitions(name document.ByteSliceReference, definitions document.InputValueDefinitions) (document.InputValueDefinition, bool) {
+
+	for definitions.Next(l.p) {
+		next, _ := definitions.Value()
+		if l.ByteSliceReferenceContentsEquals(name, next.Name) {
+			return next, true
 		}
 	}
+
 	return document.InputValueDefinition{}, false
 }
 
@@ -806,26 +818,24 @@ func (l *Lookup) ObjectFieldByIndexAndName(index []int, name document.ByteSliceR
 	return document.ObjectField{}, false
 }
 
-func (l *Lookup) FieldsDefinitionFromNamedType(name document.ByteSliceReference) (fields []int) {
+func (l *Lookup) FieldsDefinitionFromNamedType(name document.ByteSliceReference) document.FieldDefinitions {
 
 	_, ok := l.UnionTypeDefinitionByName(name)
 	if ok {
-		return
+		return document.NewFieldDefinitions(-1)
 	}
 
 	objectType, ok := l.ObjectTypeDefinitionByName(name)
 	if ok {
-		fields = objectType.FieldsDefinition
-		return
+		return objectType.FieldsDefinition
 	}
 
 	interfaceType, ok := l.InterfaceTypeDefinitionByName(name)
 	if ok {
-		fields = interfaceType.FieldsDefinition
-		return
+		return interfaceType.FieldsDefinition
 	}
 
-	return
+	return document.NewFieldDefinitions(-1)
 }
 
 func (l *Lookup) TypesAreEqual(left, right document.Type) bool {
@@ -1051,7 +1061,7 @@ func (l *Lookup) PossibleSelectionTypes(typeName document.ByteSliceReference, po
 func (l *Lookup) FieldType(typeName document.ByteSliceReference, fieldName document.ByteSliceReference) (document.Type, bool) {
 	objectTypeDefinition, ok := l.ObjectTypeDefinitionByName(typeName)
 	if ok {
-		definition, ok := l.FieldDefinitionByNameFromIndex(objectTypeDefinition.FieldsDefinition, fieldName)
+		definition, ok := l.FieldDefinitionByNameFromDefinitions(objectTypeDefinition.FieldsDefinition, fieldName)
 		if !ok {
 			return document.Type{}, false
 		}
@@ -1059,7 +1069,7 @@ func (l *Lookup) FieldType(typeName document.ByteSliceReference, fieldName docum
 	}
 	interfaceTypeDefinition, ok := l.InterfaceTypeDefinitionByName(typeName)
 	if ok {
-		definition, ok := l.FieldDefinitionByNameFromIndex(interfaceTypeDefinition.FieldsDefinition, fieldName)
+		definition, ok := l.FieldDefinitionByNameFromDefinitions(interfaceTypeDefinition.FieldsDefinition, fieldName)
 		if !ok {
 			return document.Type{}, false
 		}
@@ -1080,7 +1090,7 @@ func (l *Lookup) FieldSelectionsArePossible(onTypeName document.ByteSliceReferen
 			continue
 		}
 
-		fieldDefinition, ok := l.FieldDefinitionByNameFromIndex(fieldDefinitions, field.Name)
+		fieldDefinition, ok := l.FieldDefinitionByNameFromDefinitions(fieldDefinitions, field.Name)
 		if !ok {
 			return false
 		}
@@ -1212,8 +1222,8 @@ func (l *Lookup) objectValueIsValid(value document.ObjectValue, definition docum
 
 	inputFieldsDefinition := l.p.ParsedDefinitions.InputFieldsDefinitions[definition.InputFieldsDefinition]
 
-	inputValueDefinitions := l.InputValueDefinitionIterator(inputFieldsDefinition.InputValueDefinitions)
-	for inputValueDefinitions.Next() {
+	inputValueDefinitions := inputFieldsDefinition.InputValueDefinitions
+	for inputValueDefinitions.Next(l) {
 		inputValueDefinition, _ := inputValueDefinitions.Value()
 		inputType := l.Type(inputValueDefinition.Type)
 
@@ -1236,7 +1246,10 @@ func (l *Lookup) objectValueIsValid(value document.ObjectValue, definition docum
 	leftFields := l.ObjectFieldsIterator(value)
 	for leftFields.Next() {
 		left, i := leftFields.Value()
-		_, ok := l.InputValueDefinitionByNameAndIndex(left.Name, inputFieldsDefinition.InputValueDefinitions)
+
+		inputValueDefinitions := inputFieldsDefinition.InputValueDefinitions
+
+		_, ok := l.InputValueDefinitionByNameFromDefinitions(left.Name, inputValueDefinitions)
 		if !ok {
 			//return fmt.Errorf("validateObjectValue: input field '%s' not defined", string(l.CachedName(left.Name)))
 			return false
@@ -1285,9 +1298,9 @@ func (l *Lookup) EnumTypeDefinitionContainsValue(definition document.EnumTypeDef
 		return false
 	}
 
-	iter := l.EnumValueDefinitionIterator(definition.EnumValuesDefinition)
+	iter := definition.EnumValuesDefinition
 
-	for iter.Next() {
+	for iter.Next(l) {
 		enumValueDefinition, _ := iter.Value()
 		if l.ByteSliceReferenceContentsEquals(enumValueDefinition.EnumValue, enumValue) {
 			return true

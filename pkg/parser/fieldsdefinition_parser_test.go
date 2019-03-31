@@ -32,6 +32,12 @@ func TestParser_parseFieldsDefinition(t *testing.T) {
 				}`,
 			mustParseFieldsDefinition(
 				node(
+					hasName("age"),
+					nodeType(
+						hasTypeName("Int"),
+					),
+				),
+				node(
 					hasName("name"),
 					nodeType(
 						hasTypeName("String"),
@@ -42,12 +48,6 @@ func TestParser_parseFieldsDefinition(t *testing.T) {
 						LineEnd:   2,
 						CharEnd:   18,
 					}),
-				),
-				node(
-					hasName("age"),
-					nodeType(
-						hasTypeName("Int"),
-					),
 				),
 			))
 	})
@@ -70,6 +70,9 @@ func TestParser_parseFieldsDefinition(t *testing.T) {
 				}`,
 			mustParseFieldsDefinition(
 				node(
+					hasName("age"),
+				),
+				node(
 					hasName("name"),
 					nodeType(
 						hasTypeKind(document.TypeKindNON_NULL),
@@ -83,9 +86,6 @@ func TestParser_parseFieldsDefinition(t *testing.T) {
 						LineEnd:   2,
 						CharEnd:   23,
 					}),
-				),
-				node(
-					hasName("age"),
 				),
 			))
 	})

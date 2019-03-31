@@ -5,7 +5,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
 )
 
-func (p *Parser) parseScalarTypeDefinition(hasDescription bool, description token.Token, index *[]int) error {
+func (p *Parser) parseScalarTypeDefinition(hasDescription bool, description token.Token) error {
 
 	start, err := p.readExpect(keyword.SCALAR, "parseScalarTypeDefinition")
 	if err != nil {
@@ -33,7 +33,7 @@ func (p *Parser) parseScalarTypeDefinition(hasDescription bool, description toke
 	}
 
 	definition.Position.MergeStartIntoEnd(p.TextPosition())
-	*index = append(*index, p.putScalarTypeDefinition(definition))
+	p.putScalarTypeDefinition(definition)
 
 	return nil
 }

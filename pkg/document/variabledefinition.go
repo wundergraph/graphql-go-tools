@@ -19,7 +19,7 @@ func (v VariableDefinition) NodeInputFieldsDefinition() int {
 	panic("implement me")
 }
 
-func (v VariableDefinition) NodeInputValueDefinitions() []int {
+func (v VariableDefinition) NodeInputValueDefinitions() InputValueDefinitions {
 	panic("implement me")
 }
 
@@ -83,7 +83,7 @@ func (v VariableDefinition) NodeDefaultValue() int {
 	return v.DefaultValue
 }
 
-func (v VariableDefinition) NodeFieldsDefinition() []int {
+func (v VariableDefinition) NodeFieldsDefinition() FieldDefinitions {
 	panic("implement me")
 }
 
@@ -119,7 +119,7 @@ func (v VariableDefinition) NodeDirectiveSet() int {
 	panic("implement me")
 }
 
-func (v VariableDefinition) NodeEnumValuesDefinition() []int {
+func (v VariableDefinition) NodeEnumValuesDefinition() EnumValueDefinitions {
 	panic("implement me")
 }
 

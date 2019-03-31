@@ -6,7 +6,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
 )
 
-func (p *Parser) parseDirectiveDefinition(hasDescription bool, description token.Token, index *[]int) error {
+func (p *Parser) parseDirectiveDefinition(hasDescription bool, description token.Token) error {
 
 	start, err := p.readExpect(keyword.DIRECTIVE, "parseDirectiveDefinition")
 	if err != nil {
@@ -65,7 +65,7 @@ func (p *Parser) parseDirectiveDefinition(hasDescription bool, description token
 	}
 
 	definition.Position.MergeStartIntoEnd(p.TextPosition())
-	*index = append(*index, p.putDirectiveDefinition(definition))
+	p.putDirectiveDefinition(definition)
 
 	return nil
 }

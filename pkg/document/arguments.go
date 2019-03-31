@@ -18,7 +18,7 @@ func (a Argument) NodeInputFieldsDefinition() int {
 	panic("implement me")
 }
 
-func (a Argument) NodeInputValueDefinitions() []int {
+func (a Argument) NodeInputValueDefinitions() InputValueDefinitions {
 	panic("implement me")
 }
 
@@ -82,7 +82,7 @@ func (a Argument) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (a Argument) NodeFieldsDefinition() []int {
+func (a Argument) NodeFieldsDefinition() FieldDefinitions {
 	panic("implement me")
 }
 
@@ -110,7 +110,7 @@ func (a Argument) NodeDirectiveSet() int {
 	panic("implement me")
 }
 
-func (a Argument) NodeEnumValuesDefinition() []int {
+func (a Argument) NodeEnumValuesDefinition() EnumValueDefinitions {
 	panic("implement me")
 }
 

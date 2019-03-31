@@ -11,6 +11,7 @@ type InputValueDefinition struct {
 	DefaultValue int
 	DirectiveSet int
 	Position     position.Position
+	NextRef      int
 }
 
 func (i InputValueDefinition) NodeSelectionSet() int {
@@ -21,7 +22,7 @@ func (i InputValueDefinition) NodeInputFieldsDefinition() int {
 	panic("implement me")
 }
 
-func (i InputValueDefinition) NodeInputValueDefinitions() []int {
+func (i InputValueDefinition) NodeInputValueDefinitions() InputValueDefinitions {
 	panic("implement me")
 }
 
@@ -109,7 +110,7 @@ func (i InputValueDefinition) NodeDirectiveSet() int {
 	return i.DirectiveSet
 }
 
-func (i InputValueDefinition) NodeEnumValuesDefinition() []int {
+func (i InputValueDefinition) NodeEnumValuesDefinition() EnumValueDefinitions {
 	panic("implement me")
 }
 
@@ -117,7 +118,7 @@ func (i InputValueDefinition) NodeFields() []int {
 	panic("implement me")
 }
 
-func (i InputValueDefinition) NodeFieldsDefinition() []int {
+func (i InputValueDefinition) NodeFieldsDefinition() FieldDefinitions {
 	panic("implement me")
 }
 
@@ -141,4 +142,37 @@ func (i InputValueDefinition) NodeOperationType() OperationType {
 	panic("implement me")
 }
 
-type InputValueDefinitions []InputValueDefinition
+type InputValueDefinitionGetter interface {
+	InputValueDefinition(ref int) InputValueDefinition
+}
+
+type InputValueDefinitions struct {
+	nextRef    int
+	currentRef int
+	current    InputValueDefinition
+}
+
+func NewInputValueDefinitions(nextRef int) InputValueDefinitions {
+	return InputValueDefinitions{
+		nextRef: nextRef,
+	}
+}
+
+func (i *InputValueDefinitions) HasNext() bool {
+	return i.nextRef != -1
+}
+
+func (i *InputValueDefinitions) Next(getter InputValueDefinitionGetter) bool {
+	if i.nextRef == -1 {
+		return false
+	}
+
+	i.currentRef = i.nextRef
+	i.current = getter.InputValueDefinition(i.nextRef)
+	i.nextRef = i.current.NextRef
+	return true
+}
+
+func (i *InputValueDefinitions) Value() (InputValueDefinition, int) {
+	return i.current, i.currentRef
+}

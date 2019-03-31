@@ -145,8 +145,7 @@ func (p *Printer) PrintDescription(ref document.ByteSliceReference, linePrefix .
 	p.write(literal.LINETERMINATOR)
 }
 
-func (p *Printer) PrintFieldDefinition(ref int) {
-	definition := p.p.ParsedDefinitions.FieldDefinitions[ref]
+func (p *Printer) PrintFieldDefinition(definition document.FieldDefinition) {
 	p.PrintDescription(definition.Description, literal.TAB)
 	p.write(literal.TAB)
 	p.write(p.p.ByteSlice(definition.Name))
@@ -164,10 +163,14 @@ func (p *Printer) PrintFieldDefinition(ref int) {
 
 func (p *Printer) PrintArgumentsDefinition(ref int) {
 	definition := p.p.ParsedDefinitions.ArgumentsDefinitions[ref]
+	iter := definition.InputValueDefinitions
 	p.write(literal.BRACKETOPEN)
-	for _, i := range definition.InputValueDefinitions {
+	for iter.Next(p.p) {
+
+		inputValueDefinition, _ := iter.Value()
+
 		p.write(literal.LINETERMINATOR)
-		p.PrintInputValueDefinition(i)
+		p.PrintInputValueDefinition(inputValueDefinition)
 	}
 	p.write(literal.LINETERMINATOR)
 	p.write(literal.BRACKETCLOSE)
@@ -176,19 +179,20 @@ func (p *Printer) PrintArgumentsDefinition(ref int) {
 func (p *Printer) PrintArgumentsDefinitionInline(ref int) {
 	definition := p.p.ParsedDefinitions.ArgumentsDefinitions[ref]
 	p.write(literal.BRACKETOPEN)
+	iter := definition.InputValueDefinitions
 	var addSpace bool
-	for _, i := range definition.InputValueDefinitions {
+	for iter.Next(p.p) {
 		if addSpace {
 			p.write(literal.SPACE)
 		}
-		p.PrintInputValueDefinitionInline(i)
+		inputValueDefinition, _ := iter.Value()
+		p.PrintInputValueDefinitionInline(inputValueDefinition)
 		addSpace = true
 	}
 	p.write(literal.BRACKETCLOSE)
 }
 
-func (p *Printer) PrintInputValueDefinition(ref int) {
-	definition := p.p.ParsedDefinitions.InputValueDefinitions[ref]
+func (p *Printer) PrintInputValueDefinition(definition document.InputValueDefinition) {
 	p.PrintDescription(definition.Description, literal.TAB)
 	p.write(literal.TAB)
 	p.write(p.p.ByteSlice(definition.Name))
@@ -201,8 +205,7 @@ func (p *Printer) PrintInputValueDefinition(ref int) {
 	}
 }
 
-func (p *Printer) PrintInputValueDefinitionInline(ref int) {
-	definition := p.p.ParsedDefinitions.InputValueDefinitions[ref]
+func (p *Printer) PrintInputValueDefinitionInline(definition document.InputValueDefinition) {
 	p.write(p.p.ByteSlice(definition.Name))
 	p.write(literal.COLON)
 	p.write(literal.SPACE)
@@ -247,9 +250,11 @@ func (p *Printer) PrintObjectTypeDefinition(ref int) {
 	}
 	p.write(literal.SPACE)
 	p.write(literal.CURLYBRACKETOPEN)
-	for _, i := range definition.FieldsDefinition {
+	fields := definition.FieldsDefinition
+	for fields.Next(p.l) {
 		p.write(literal.LINETERMINATOR)
-		p.PrintFieldDefinition(i)
+		field, _ := fields.Value()
+		p.PrintFieldDefinition(field)
 	}
 	p.write(literal.LINETERMINATOR)
 	p.write(literal.CURLYBRACKETCLOSE)
@@ -269,10 +274,12 @@ func (p *Printer) PrintEnumTypeDefinition(ref int) {
 	p.write(literal.CURLYBRACKETOPEN)
 	p.write(literal.LINETERMINATOR)
 	var addLineTerminator bool
-	for _, enumValue := range definition.EnumValuesDefinition {
+	enums := definition.EnumValuesDefinition
+	for enums.Next(p.p) {
 		if addLineTerminator {
 			p.write(literal.LINETERMINATOR)
 		}
+		enumValue, _ := enums.Value()
 		p.PrintEnumValueDefinition(enumValue)
 		addLineTerminator = true
 	}
@@ -280,8 +287,7 @@ func (p *Printer) PrintEnumTypeDefinition(ref int) {
 	p.write(literal.CURLYBRACKETCLOSE)
 }
 
-func (p *Printer) PrintEnumValueDefinition(ref int) {
-	definition := p.p.ParsedDefinitions.EnumValuesDefinitions[ref]
+func (p *Printer) PrintEnumValueDefinition(definition document.EnumValueDefinition) {
 	p.PrintDescription(definition.Description, literal.TAB)
 	p.write(literal.TAB)
 	p.write(p.p.ByteSlice(definition.EnumValue))
@@ -332,8 +338,10 @@ func (p *Printer) PrintInterfaceTypeDefinition(ref int) {
 	}
 	p.write(literal.SPACE)
 	p.write(literal.CURLYBRACKETOPEN)
-	for _, field := range definition.FieldsDefinition {
+	fields := definition.FieldsDefinition
+	for fields.Next(p.l) {
 		p.write(literal.LINETERMINATOR)
+		field, _ := fields.Value()
 		p.PrintFieldDefinition(field)
 	}
 	p.write(literal.LINETERMINATOR)
@@ -385,7 +393,11 @@ func (p *Printer) PrintInputObjectTypeDefinition(ref int) {
 	p.write(p.p.ByteSlice(definition.Name))
 	p.write(literal.SPACE)
 	p.write(literal.CURLYBRACKETOPEN)
-	for _, inputValueDefinition := range p.p.ParsedDefinitions.InputFieldsDefinitions[definition.InputFieldsDefinition].InputValueDefinitions {
+	iter := p.p.ParsedDefinitions.InputFieldsDefinitions[definition.InputFieldsDefinition].InputValueDefinitions
+	for iter.Next(p.p) {
+
+		inputValueDefinition, _ := iter.Value()
+
 		p.write(literal.LINETERMINATOR)
 		p.PrintInputValueDefinition(inputValueDefinition)
 	}

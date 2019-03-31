@@ -19,7 +19,7 @@ func (s ScalarTypeDefinition) NodeInputFieldsDefinition() int {
 	panic("implement me")
 }
 
-func (s ScalarTypeDefinition) NodeInputValueDefinitions() []int {
+func (s ScalarTypeDefinition) NodeInputValueDefinitions() InputValueDefinitions {
 	panic("implement me")
 }
 
@@ -95,7 +95,7 @@ func (s ScalarTypeDefinition) NodeDirectiveSet() int {
 	return s.DirectiveSet
 }
 
-func (s ScalarTypeDefinition) NodeEnumValuesDefinition() []int {
+func (s ScalarTypeDefinition) NodeEnumValuesDefinition() EnumValueDefinitions {
 	panic("implement me")
 }
 
@@ -103,7 +103,7 @@ func (s ScalarTypeDefinition) NodeFields() []int {
 	panic("implement me")
 }
 
-func (s ScalarTypeDefinition) NodeFieldsDefinition() []int {
+func (s ScalarTypeDefinition) NodeFieldsDefinition() FieldDefinitions {
 	panic("implement me")
 }
 

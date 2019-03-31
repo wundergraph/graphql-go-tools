@@ -20,7 +20,7 @@ func (u UnionTypeDefinition) NodeInputFieldsDefinition() int {
 	panic("implement me")
 }
 
-func (u UnionTypeDefinition) NodeInputValueDefinitions() []int {
+func (u UnionTypeDefinition) NodeInputValueDefinitions() InputValueDefinitions {
 	panic("implement me")
 }
 
@@ -64,7 +64,7 @@ func (u UnionTypeDefinition) NodeDirectiveSet() int {
 	return u.DirectiveSet
 }
 
-func (u UnionTypeDefinition) NodeEnumValuesDefinition() []int {
+func (u UnionTypeDefinition) NodeEnumValuesDefinition() EnumValueDefinitions {
 	panic("implement me")
 }
 
@@ -72,7 +72,7 @@ func (u UnionTypeDefinition) NodeFields() []int {
 	panic("implement me")
 }
 
-func (u UnionTypeDefinition) NodeFieldsDefinition() []int {
+func (u UnionTypeDefinition) NodeFieldsDefinition() FieldDefinitions {
 	panic("implement me")
 }
 

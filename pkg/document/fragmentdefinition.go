@@ -20,7 +20,7 @@ func (f FragmentDefinition) NodeInputFieldsDefinition() int {
 	panic("implement me")
 }
 
-func (f FragmentDefinition) NodeInputValueDefinitions() []int {
+func (f FragmentDefinition) NodeInputValueDefinitions() InputValueDefinitions {
 	panic("implement me")
 }
 
@@ -84,7 +84,7 @@ func (f FragmentDefinition) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (f FragmentDefinition) NodeFieldsDefinition() []int {
+func (f FragmentDefinition) NodeFieldsDefinition() FieldDefinitions {
 	panic("implement me")
 }
 
@@ -136,8 +136,8 @@ func (f FragmentDefinition) NodeDirectiveSet() int {
 	return f.DirectiveSet
 }
 
-func (f FragmentDefinition) NodeEnumValuesDefinition() []int {
-	return nil
+func (f FragmentDefinition) NodeEnumValuesDefinition() EnumValueDefinitions {
+	panic("implement me")
 }
 
 // FragmentDefinitions is the plural of FragmentDefinition

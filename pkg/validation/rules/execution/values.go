@@ -23,7 +23,8 @@ func Values() rules.Rule {
 
 				for arguments.Next() {
 					argument, _ := arguments.Value()
-					inputValueDefinition, ok := l.InputValueDefinitionByNameAndIndex(argument.Name, argumentsDefinition.InputValueDefinitions)
+					inputValueDefinitions := argumentsDefinition.InputValueDefinitions
+					inputValueDefinition, ok := l.InputValueDefinitionByNameFromDefinitions(argument.Name, inputValueDefinitions)
 					if !ok {
 						return validation.Invalid(validation.Values, validation.InputValueNotDefined, argument.Position, argument.Name)
 					}

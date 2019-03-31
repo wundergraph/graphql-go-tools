@@ -405,20 +405,16 @@ func (l *Lexer) readComment(tok *token.Token) {
 	tok.Keyword = keyword.COMMENT
 
 	for {
-		next := l.peekRune(false)
+		next := l.readRune()
 		switch next {
 		case runes.EOF:
-			tok.SetEnd(l.inputPosition, l.textPosition)
-			l.readRune()
 			return
 		case runes.LINETERMINATOR:
-			tok.SetEnd(l.inputPosition, l.textPosition)
-			l.readRune()
 			if l.peekRune(true) != runes.HASHTAG {
 				return
 			}
 		default:
-			l.readRune()
+			tok.SetEnd(l.inputPosition, l.textPosition)
 		}
 	}
 }

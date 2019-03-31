@@ -18,7 +18,7 @@ func (f FragmentSpread) NodeInputFieldsDefinition() int {
 	panic("implement me")
 }
 
-func (f FragmentSpread) NodeInputValueDefinitions() []int {
+func (f FragmentSpread) NodeInputValueDefinitions() InputValueDefinitions {
 	panic("implement me")
 }
 
@@ -82,7 +82,7 @@ func (f FragmentSpread) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (f FragmentSpread) NodeFieldsDefinition() []int {
+func (f FragmentSpread) NodeFieldsDefinition() FieldDefinitions {
 	panic("implement me")
 }
 
@@ -114,7 +114,7 @@ func (f FragmentSpread) NodeDirectiveSet() int {
 	return f.DirectiveSet
 }
 
-func (f FragmentSpread) NodeEnumValuesDefinition() []int {
+func (f FragmentSpread) NodeEnumValuesDefinition() EnumValueDefinitions {
 	panic("implement me")
 }
 

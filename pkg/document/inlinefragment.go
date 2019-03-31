@@ -19,7 +19,7 @@ func (i InlineFragment) NodeInputFieldsDefinition() int {
 	panic("implement me")
 }
 
-func (i InlineFragment) NodeInputValueDefinitions() []int {
+func (i InlineFragment) NodeInputValueDefinitions() InputValueDefinitions {
 	panic("implement me")
 }
 
@@ -91,7 +91,7 @@ func (i InlineFragment) NodeArgumentsDefinition() int {
 	panic("implement me")
 }
 
-func (i InlineFragment) NodeFieldsDefinition() []int {
+func (i InlineFragment) NodeFieldsDefinition() FieldDefinitions {
 	panic("implement me")
 }
 
@@ -115,7 +115,7 @@ func (i InlineFragment) NodeDirectiveSet() int {
 	return i.DirectiveSet
 }
 
-func (i InlineFragment) NodeEnumValuesDefinition() []int {
+func (i InlineFragment) NodeEnumValuesDefinition() EnumValueDefinitions {
 	panic("implement me")
 }
 

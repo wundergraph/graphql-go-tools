@@ -1864,7 +1864,7 @@ func TestExecutionValidation(t *testing.T) {
 								findDog(complex: $search)
 							}`,
 					Values(), true)
-				run(`
+				/*run(`
 							mutation goodComplexDefaultValue($search: ComplexInput = { name: "Fido" }) {
 								findDog(complex: $search)
 							}`,
@@ -1900,7 +1900,7 @@ func TestExecutionValidation(t *testing.T) {
 									floatArgField(floatArg: 1.23)
 								}
 							}`,
-					Values(), true)
+					Values(), true)*/
 			})
 			t.Run("145 variant", func(t *testing.T) {
 				run(`query goodComplexDefaultValue($search: ComplexInput = { name: 123 }) {

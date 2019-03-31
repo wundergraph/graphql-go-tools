@@ -6,7 +6,7 @@ import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 // https://facebook.github.io/graphql/draft/#InputFieldsDefinition
 type InputFieldsDefinition struct {
 	Position              position.Position
-	InputValueDefinitions []int
+	InputValueDefinitions InputValueDefinitions
 }
 
 func (i InputFieldsDefinition) NodeSelectionSet() int {
@@ -41,7 +41,7 @@ func (i InputFieldsDefinition) NodeDirectiveSet() int {
 	panic("implement me")
 }
 
-func (i InputFieldsDefinition) NodeEnumValuesDefinition() []int {
+func (i InputFieldsDefinition) NodeEnumValuesDefinition() EnumValueDefinitions {
 	panic("implement me")
 }
 
@@ -49,7 +49,7 @@ func (i InputFieldsDefinition) NodeFields() []int {
 	panic("implement me")
 }
 
-func (i InputFieldsDefinition) NodeFieldsDefinition() []int {
+func (i InputFieldsDefinition) NodeFieldsDefinition() FieldDefinitions {
 	panic("implement me")
 }
 
@@ -85,7 +85,7 @@ func (i InputFieldsDefinition) NodeImplementsInterfaces() []int {
 	panic("implement me")
 }
 
-func (i InputFieldsDefinition) NodeInputValueDefinitions() []int {
+func (i InputFieldsDefinition) NodeInputValueDefinitions() InputValueDefinitions {
 	return i.InputValueDefinitions
 }
 
@@ -136,5 +136,3 @@ func (i InputFieldsDefinition) NodeValueReference() int {
 func (i InputFieldsDefinition) NodePosition() position.Position {
 	return i.Position
 }
-
-type InputFieldsDefinitions []InputFieldsDefinition

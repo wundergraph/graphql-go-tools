@@ -38,10 +38,10 @@ func TestParser_parseObjectTypeDefinition(t *testing.T) {
 					hasName("Person"),
 					hasFieldsDefinitions(
 						node(
-							hasName("name"),
+							hasName("age"),
 						),
 						node(
-							hasName("age"),
+							hasName("name"),
 						),
 					),
 				),

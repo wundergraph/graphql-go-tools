@@ -5,14 +5,15 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
-func (p *Parser) parseEnumValuesDefinition(index *[]int) error {
+func (p *Parser) parseEnumValuesDefinition() (definitions document.EnumValueDefinitions, err error) {
 
 	if open := p.peekExpect(keyword.CURLYBRACKETOPEN, true); !open {
-		return nil
+		return document.NewEnumValueDefinitions(-1), err
 	}
 
 	var hasDescription bool
 	var description document.ByteSliceReference
+	nextRef := -1
 
 	for {
 		next := p.l.Peek(true)
@@ -33,20 +34,23 @@ func (p *Parser) parseEnumValuesDefinition(index *[]int) error {
 				hasDescription = false
 			}
 
-			err := p.parseDirectives(&definition.DirectiveSet)
+			err = p.parseDirectives(&definition.DirectiveSet)
 			if err != nil {
-				return err
+				return
 			}
 
-			*index = append(*index, p.putEnumValueDefinition(definition))
+			definition.NextRef = nextRef
+			nextRef = p.putEnumValueDefinition(definition)
+
 			continue
 
 		} else if next == keyword.CURLYBRACKETCLOSE {
 			p.l.Read()
-			return nil
+			return document.NewEnumValueDefinitions(nextRef), err
 		}
 
 		invalid := p.l.Read()
-		return newErrInvalidType(invalid.TextPosition, "parseEnumValuesDefinition", "string/ident/curlyBracketClose", invalid.Keyword.String())
+		err = newErrInvalidType(invalid.TextPosition, "parseEnumValuesDefinition", "string/ident/curlyBracketClose", invalid.Keyword.String())
+		return
 	}
 }

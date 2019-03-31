@@ -288,12 +288,17 @@ func hasByteSliceValue(want string) rule {
 func hasEnumValuesDefinitions(rules ...ruleSet) rule {
 	return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
-		index := node.NodeEnumValuesDefinition()
+		iter := node.NodeEnumValuesDefinition()
 
-		for j, k := range index {
-			ruleSet := rules[j]
-			subNode := parser.ParsedDefinitions.EnumValuesDefinitions[k]
-			ruleSet.eval(subNode, parser, k)
+		for i := range rules {
+
+			if !iter.Next(parser) {
+				panic("want next")
+			}
+
+			ruleSet := rules[i]
+			subNode, _ := iter.Value()
+			ruleSet.eval(subNode, parser, i)
 		}
 	}
 }
@@ -301,11 +306,8 @@ func hasEnumValuesDefinitions(rules ...ruleSet) rule {
 func hasUnionTypeSystemDefinitions(rules ...ruleSet) rule {
 	return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
-		typeDefinitionIndex := node.NodeUnionTypeDefinitions()
-
 		for j, ruleSet := range rules {
-			definitionIndex := typeDefinitionIndex[j]
-			subNode := parser.ParsedDefinitions.UnionTypeDefinitions[definitionIndex]
+			subNode := parser.ParsedDefinitions.UnionTypeDefinitions[j]
 			ruleSet.eval(subNode, parser, j)
 		}
 	}
@@ -314,11 +316,8 @@ func hasUnionTypeSystemDefinitions(rules ...ruleSet) rule {
 func hasScalarTypeSystemDefinitions(rules ...ruleSet) rule {
 	return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
-		typeDefinitionIndex := node.NodeScalarTypeDefinitions()
-
 		for j, ruleSet := range rules {
-			definitionIndex := typeDefinitionIndex[j]
-			subNode := parser.ParsedDefinitions.ScalarTypeDefinitions[definitionIndex]
+			subNode := parser.ParsedDefinitions.ScalarTypeDefinitions[j]
 			ruleSet.eval(subNode, parser, j)
 		}
 	}
@@ -327,11 +326,8 @@ func hasScalarTypeSystemDefinitions(rules ...ruleSet) rule {
 func hasObjectTypeSystemDefinitions(rules ...ruleSet) rule {
 	return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
-		typeDefinitionIndex := node.NodeObjectTypeDefinitions()
-
 		for j, ruleSet := range rules {
-			definitionIndex := typeDefinitionIndex[j]
-			subNode := parser.ParsedDefinitions.ObjectTypeDefinitions[definitionIndex]
+			subNode := parser.ParsedDefinitions.ObjectTypeDefinitions[j]
 			ruleSet.eval(subNode, parser, j)
 		}
 	}
@@ -340,11 +336,8 @@ func hasObjectTypeSystemDefinitions(rules ...ruleSet) rule {
 func hasInterfaceTypeSystemDefinitions(rules ...ruleSet) rule {
 	return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
-		typeDefinitionIndex := node.NodeInterfaceTypeDefinitions()
-
 		for j, ruleSet := range rules {
-			definitionIndex := typeDefinitionIndex[j]
-			subNode := parser.ParsedDefinitions.InterfaceTypeDefinitions[definitionIndex]
+			subNode := parser.ParsedDefinitions.InterfaceTypeDefinitions[j]
 			ruleSet.eval(subNode, parser, j)
 		}
 	}
@@ -353,11 +346,8 @@ func hasInterfaceTypeSystemDefinitions(rules ...ruleSet) rule {
 func hasEnumTypeSystemDefinitions(rules ...ruleSet) rule {
 	return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
-		typeDefinitionIndex := node.NodeEnumTypeDefinitions()
-
 		for j, ruleSet := range rules {
-			definitionIndex := typeDefinitionIndex[j]
-			subNode := parser.ParsedDefinitions.EnumTypeDefinitions[definitionIndex]
+			subNode := parser.ParsedDefinitions.EnumTypeDefinitions[j]
 			ruleSet.eval(subNode, parser, j)
 		}
 	}
@@ -366,11 +356,8 @@ func hasEnumTypeSystemDefinitions(rules ...ruleSet) rule {
 func hasInputObjectTypeSystemDefinitions(rules ...ruleSet) rule {
 	return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
-		typeDefinitionIndex := node.NodeInputObjectTypeDefinitions()
-
 		for j, ruleSet := range rules {
-			definitionIndex := typeDefinitionIndex[j]
-			subNode := parser.ParsedDefinitions.InputObjectTypeDefinitions[definitionIndex]
+			subNode := parser.ParsedDefinitions.InputObjectTypeDefinitions[j]
 			ruleSet.eval(subNode, parser, j)
 		}
 	}
@@ -379,11 +366,8 @@ func hasInputObjectTypeSystemDefinitions(rules ...ruleSet) rule {
 func hasDirectiveDefinitions(rules ...ruleSet) rule {
 	return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
-		typeDefinitionIndex := node.NodeDirectiveDefinitions()
-
 		for j, ruleSet := range rules {
-			definitionIndex := typeDefinitionIndex[j]
-			subNode := parser.ParsedDefinitions.DirectiveDefinitions[definitionIndex]
+			subNode := parser.ParsedDefinitions.DirectiveDefinitions[j]
 			ruleSet.eval(subNode, parser, j)
 		}
 	}
@@ -406,7 +390,7 @@ func hasUnionMemberTypes(members ...string) rule {
 func hasSchemaDefinition(rules ...rule) rule {
 	return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
-		schemaDefinition := node.NodeSchemaDefinition()
+		schemaDefinition := node.(document.TypeSystemDefinition).SchemaDefinition
 		if !schemaDefinition.IsDefined() {
 			panic(fmt.Errorf("hasSchemaDefinition: schemaDefinition is undefined [check: %d]", ruleSetIndex))
 		}
@@ -477,12 +461,17 @@ func hasFields(rules ...ruleSet) rule {
 func hasFieldsDefinitions(rules ...ruleSet) rule {
 	return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
-		index := node.NodeFieldsDefinition()
+		iter := node.NodeFieldsDefinition()
 
 		for i := range rules {
+
+			if !iter.Next(parser) {
+				panic("want next")
+			}
+
 			ruleSet := rules[i]
-			field := parser.ParsedDefinitions.FieldDefinitions[index[i]]
-			ruleSet.eval(field, parser, index[i])
+			field, _ := iter.Value()
+			ruleSet.eval(field, parser, i)
 		}
 	}
 }
@@ -502,12 +491,17 @@ func hasInputFieldsDefinition(rules ...rule) rule {
 func hasInputValueDefinitions(rules ...ruleSet) rule {
 	return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
-		index := node.NodeInputValueDefinitions()
+		iter := node.NodeInputValueDefinitions()
 
 		for i := range rules {
 			ruleSet := rules[i]
-			subNode := parser.ParsedDefinitions.InputValueDefinitions[index[i]]
-			ruleSet.eval(subNode, parser, index[i])
+
+			if !iter.Next(parser) {
+				panic("want next")
+			}
+
+			subNode, _ := iter.Value()
+			ruleSet.eval(subNode, parser, i)
 		}
 	}
 }
@@ -650,13 +644,12 @@ func mustParseDefaultValue(wantValueType document.ValueType) checkFunc {
 
 func mustParseDirectiveDefinition(rules ...ruleSet) checkFunc {
 	return func(parser *Parser, i int) {
-		var index []int
-		if err := parser.parseDirectiveDefinition(false, token.Token{}, &index); err != nil {
+		if err := parser.parseDirectiveDefinition(false, token.Token{}); err != nil {
 			panic(err)
 		}
 
 		for k, rule := range rules {
-			node := parser.ParsedDefinitions.DirectiveDefinitions[index[k]]
+			node := parser.ParsedDefinitions.DirectiveDefinitions[k]
 			rule.eval(node, parser, k)
 		}
 	}
@@ -680,8 +673,7 @@ func mustParseDirectives(directives ...ruleSet) checkFunc {
 
 func mustParseEnumTypeDefinition(rules ...rule) checkFunc {
 	return func(parser *Parser, i int) {
-		var index []int
-		if err := parser.parseEnumTypeDefinition(false, token.Token{}, &index); err != nil {
+		if err := parser.parseEnumTypeDefinition(false, token.Token{}); err != nil {
 			panic(err)
 		}
 
@@ -726,14 +718,20 @@ func mustParseFields(rule ruleSet) checkFunc {
 
 func mustParseFieldsDefinition(rules ...ruleSet) checkFunc {
 	return func(parser *Parser, i int) {
-		var index []int
-		if err := parser.parseFieldsDefinition(&index); err != nil {
+
+		iter, err := parser.parseFieldDefinitions()
+		if err != nil {
 			panic(err)
 		}
 
-		for j, rule := range rules {
-			field := parser.ParsedDefinitions.FieldDefinitions[j]
-			evalRules(field, parser, rule, i)
+		for i := range rules {
+
+			if !iter.Next(parser) {
+				panic("want next")
+			}
+
+			field, _ := iter.Value()
+			evalRules(field, parser, rules[i], i)
 		}
 	}
 }
@@ -833,8 +831,7 @@ func mustParseInputFieldsDefinition(rules ...rule) checkFunc {
 
 func mustParseInputObjectTypeDefinition(rules ...ruleSet) checkFunc {
 	return func(parser *Parser, i int) {
-		var index []int
-		if err := parser.parseInputObjectTypeDefinition(false, token.Token{}, &index); err != nil {
+		if err := parser.parseInputObjectTypeDefinition(false, token.Token{}); err != nil {
 			panic(err)
 		}
 
@@ -847,13 +844,18 @@ func mustParseInputObjectTypeDefinition(rules ...ruleSet) checkFunc {
 
 func mustParseInputValueDefinitions(rules ...ruleSet) checkFunc {
 	return func(parser *Parser, i int) {
-		var index []int
-		if err := parser.parseInputValueDefinitions(&index, keyword.UNDEFINED); err != nil {
+		definitions, err := parser.parseInputValueDefinitions(keyword.UNDEFINED)
+		if err != nil {
 			panic(err)
 		}
 
-		for j, rule := range rules {
-			inputValueDefinition := parser.ParsedDefinitions.InputValueDefinitions[j]
+		for _, rule := range rules {
+
+			if !definitions.Next(parser) {
+				panic("want next")
+			}
+
+			inputValueDefinition, _ := definitions.Value()
 			evalRules(inputValueDefinition, parser, rule, i)
 		}
 	}
@@ -861,8 +863,7 @@ func mustParseInputValueDefinitions(rules ...ruleSet) checkFunc {
 
 func mustParseInterfaceTypeDefinition(rules ...ruleSet) checkFunc {
 	return func(parser *Parser, i int) {
-		var index []int
-		if err := parser.parseInterfaceTypeDefinition(false, token.Token{}, &index); err != nil {
+		if err := parser.parseInterfaceTypeDefinition(false, token.Token{}); err != nil {
 			panic(err)
 		}
 
@@ -875,8 +876,7 @@ func mustParseInterfaceTypeDefinition(rules ...ruleSet) checkFunc {
 
 func mustParseObjectTypeDefinition(rules ...ruleSet) checkFunc {
 	return func(parser *Parser, i int) {
-		var index []int
-		if err := parser.parseObjectTypeDefinition(false, token.Token{}, &index); err != nil {
+		if err := parser.parseObjectTypeDefinition(false, token.Token{}); err != nil {
 			panic(err)
 		}
 
@@ -912,8 +912,7 @@ func mustContainOperationDefinition(rules ...ruleSet) checkFunc {
 
 func mustParseScalarTypeDefinition(rules ...ruleSet) checkFunc {
 	return func(parser *Parser, i int) {
-		var index []int
-		if err := parser.parseScalarTypeDefinition(false, token.Token{}, &index); err != nil {
+		if err := parser.parseScalarTypeDefinition(false, token.Token{}); err != nil {
 			panic(err)
 		}
 
@@ -994,8 +993,7 @@ func mustDeleteFieldFromSelectionSet(setRef, fieldRef int) checkFunc {
 
 func mustParseUnionTypeDefinition(rules ...ruleSet) checkFunc {
 	return func(parser *Parser, i int) {
-		var index []int
-		if err := parser.parseUnionTypeDefinition(false, token.Token{}, &index); err != nil {
+		if err := parser.parseUnionTypeDefinition(false, token.Token{}); err != nil {
 			panic(err)
 		}
 

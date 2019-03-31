@@ -16,10 +16,10 @@ func TestParser_parseEnumTypeDefinition(t *testing.T) {
 			mustParseEnumTypeDefinition(
 				hasName("Direction"),
 				hasEnumValuesDefinitions(
-					node(hasName("NORTH")),
-					node(hasName("EAST")),
-					node(hasName("SOUTH")),
 					node(hasName("WEST")),
+					node(hasName("SOUTH")),
+					node(hasName("EAST")),
+					node(hasName("NORTH")),
 				),
 				hasPosition(position.Position{
 					LineStart: 1,
@@ -43,10 +43,10 @@ func TestParser_parseEnumTypeDefinition(t *testing.T) {
 			mustParseEnumTypeDefinition(
 				hasName("Direction"),
 				hasEnumValuesDefinitions(
-					node(hasName("NORTH"), hasDescription("describes north")),
-					node(hasName("EAST"), hasDescription("describes east")),
-					node(hasName("SOUTH"), hasDescription("describes south")),
 					node(hasName("WEST"), hasDescription("describes west")),
+					node(hasName("SOUTH"), hasDescription("describes south")),
+					node(hasName("EAST"), hasDescription("describes east")),
+					node(hasName("NORTH"), hasDescription("describes north")),
 				),
 			))
 	})
@@ -66,10 +66,10 @@ func TestParser_parseEnumTypeDefinition(t *testing.T) {
 }`, mustParseEnumTypeDefinition(
 			hasName("Direction"),
 			hasEnumValuesDefinitions(
-				node(hasName("NORTH"), hasDescription("describes north")),
-				node(hasName("EAST"), hasDescription("describes east")),
-				node(hasName("SOUTH"), hasDescription("describes south")),
 				node(hasName("WEST"), hasDescription("describes west")),
+				node(hasName("SOUTH"), hasDescription("describes south")),
+				node(hasName("EAST"), hasDescription("describes east")),
+				node(hasName("NORTH"), hasDescription("describes north")),
 			),
 			hasPosition(position.Position{
 				LineStart: 1,

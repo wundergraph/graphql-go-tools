@@ -20,7 +20,7 @@ func (i InputObjectTypeDefinition) NodeInputFieldsDefinition() int {
 	return i.InputFieldsDefinition
 }
 
-func (i InputObjectTypeDefinition) NodeInputValueDefinitions() []int {
+func (i InputObjectTypeDefinition) NodeInputValueDefinitions() InputValueDefinitions {
 	panic("implement me")
 }
 
@@ -100,7 +100,7 @@ func (i InputObjectTypeDefinition) NodeDirectiveSet() int {
 	return i.DirectiveSet
 }
 
-func (i InputObjectTypeDefinition) NodeEnumValuesDefinition() []int {
+func (i InputObjectTypeDefinition) NodeEnumValuesDefinition() EnumValueDefinitions {
 	panic("implement me")
 }
 
@@ -108,7 +108,7 @@ func (i InputObjectTypeDefinition) NodeFields() []int {
 	panic("implement me")
 }
 
-func (i InputObjectTypeDefinition) NodeFieldsDefinition() []int {
+func (i InputObjectTypeDefinition) NodeFieldsDefinition() FieldDefinitions {
 	panic("implement me")
 }
 

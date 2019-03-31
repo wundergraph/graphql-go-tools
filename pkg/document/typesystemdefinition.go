@@ -5,15 +5,8 @@ import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 // TypeSystemDefinition as specified in:
 // http://facebook.github.io/graphql/draft/#TypeSystemDefinition
 type TypeSystemDefinition struct {
-	SchemaDefinition           SchemaDefinition
-	ScalarTypeDefinitions      []int
-	ObjectTypeDefinitions      []int
-	InterfaceTypeDefinitions   []int
-	UnionTypeDefinitions       []int
-	EnumTypeDefinitions        []int
-	InputObjectTypeDefinitions []int
-	DirectiveDefinitions       []int
-	Position                   position.Position
+	SchemaDefinition SchemaDefinition
+	Position         position.Position
 }
 
 func (t TypeSystemDefinition) NodeSelectionSet() int {
@@ -24,7 +17,7 @@ func (t TypeSystemDefinition) NodeInputFieldsDefinition() int {
 	panic("implement me")
 }
 
-func (t TypeSystemDefinition) NodeInputValueDefinitions() []int {
+func (t TypeSystemDefinition) NodeInputValueDefinitions() InputValueDefinitions {
 	panic("implement me")
 }
 
@@ -68,7 +61,7 @@ func (t TypeSystemDefinition) NodeDirectiveSet() int {
 	panic("implement me")
 }
 
-func (t TypeSystemDefinition) NodeEnumValuesDefinition() []int {
+func (t TypeSystemDefinition) NodeEnumValuesDefinition() EnumValueDefinitions {
 	panic("implement me")
 }
 
@@ -76,7 +69,7 @@ func (t TypeSystemDefinition) NodeFields() []int {
 	panic("implement me")
 }
 
-func (t TypeSystemDefinition) NodeFieldsDefinition() []int {
+func (t TypeSystemDefinition) NodeFieldsDefinition() FieldDefinitions {
 	panic("implement me")
 }
 
@@ -110,38 +103,6 @@ func (t TypeSystemDefinition) NodeDefaultValue() int {
 
 func (t TypeSystemDefinition) NodeImplementsInterfaces() []int {
 	panic("implement me")
-}
-
-func (t TypeSystemDefinition) NodeSchemaDefinition() SchemaDefinition {
-	return t.SchemaDefinition
-}
-
-func (t TypeSystemDefinition) NodeScalarTypeDefinitions() []int {
-	return t.ScalarTypeDefinitions
-}
-
-func (t TypeSystemDefinition) NodeObjectTypeDefinitions() []int {
-	return t.ObjectTypeDefinitions
-}
-
-func (t TypeSystemDefinition) NodeInterfaceTypeDefinitions() []int {
-	return t.InterfaceTypeDefinitions
-}
-
-func (t TypeSystemDefinition) NodeUnionTypeDefinitions() []int {
-	return t.UnionTypeDefinitions
-}
-
-func (t TypeSystemDefinition) NodeEnumTypeDefinitions() []int {
-	return t.EnumTypeDefinitions
-}
-
-func (t TypeSystemDefinition) NodeInputObjectTypeDefinitions() []int {
-	return t.InputObjectTypeDefinitions
-}
-
-func (t TypeSystemDefinition) NodeDirectiveDefinitions() []int {
-	return t.DirectiveDefinitions
 }
 
 type TypeSystemDefinitions []TypeSystemDefinition

@@ -31,7 +31,7 @@ func (t Type) NodeInputFieldsDefinition() int {
 	panic("implement me")
 }
 
-func (t Type) NodeInputValueDefinitions() []int {
+func (t Type) NodeInputValueDefinitions() InputValueDefinitions {
 	panic("implement me")
 }
 
@@ -63,7 +63,7 @@ func (t Type) NodeDirectiveSet() int {
 	panic("implement me")
 }
 
-func (t Type) NodeEnumValuesDefinition() []int {
+func (t Type) NodeEnumValuesDefinition() EnumValueDefinitions {
 	panic("implement me")
 }
 
@@ -71,7 +71,7 @@ func (t Type) NodeFields() []int {
 	panic("implement me")
 }
 
-func (t Type) NodeFieldsDefinition() []int {
+func (t Type) NodeFieldsDefinition() FieldDefinitions {
 	panic("implement me")
 }
 
