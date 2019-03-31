@@ -22,22 +22,10 @@ type Node interface {
 	NodeDefaultValue() int
 	NodeImplementsInterfaces() []int
 	InputValueDefinitionsNode
-	TypeSystemDefinitionNode
 	UnionTypeSystemDefinitionNode
 	ValueNode
 	PositionNode
 	InputFieldsDefinitionNode
-}
-
-type TypeSystemDefinitionNode interface {
-	NodeSchemaDefinition() SchemaDefinition
-	NodeScalarTypeDefinitions() []int
-	NodeObjectTypeDefinitions() []int
-	NodeInterfaceTypeDefinitions() []int
-	NodeUnionTypeDefinitions() []int
-	NodeEnumTypeDefinitions() []int
-	NodeInputObjectTypeDefinitions() []int
-	NodeDirectiveDefinitions() []int
 }
 
 type UnionTypeSystemDefinitionNode interface {
