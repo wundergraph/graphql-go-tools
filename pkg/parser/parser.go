@@ -355,13 +355,6 @@ func (p *Parser) makeInputObjectTypeDefinition() document.InputObjectTypeDefinit
 }
 
 func (p *Parser) initTypeSystemDefinition(definition *document.TypeSystemDefinition) {
-	definition.InputObjectTypeDefinitions = p.IndexPoolGet()
-	definition.EnumTypeDefinitions = p.IndexPoolGet()
-	definition.DirectiveDefinitions = p.IndexPoolGet()
-	definition.InterfaceTypeDefinitions = p.IndexPoolGet()
-	definition.ObjectTypeDefinitions = p.IndexPoolGet()
-	definition.ScalarTypeDefinitions = p.IndexPoolGet()
-	definition.UnionTypeDefinitions = p.IndexPoolGet()
 	definition.SchemaDefinition = document.SchemaDefinition{
 		DirectiveSet: -1,
 	}
