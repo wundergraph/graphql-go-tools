@@ -142,13 +142,13 @@ func (w *Walker) Node(ref int) Node {
 
 func (w *Walker) WalkTypeSystemDefinition() {
 	w.WalkSchemaDefinition(w.l.p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition)
-	w.WalkObjectTypeDefinitions(w.l.p.ParsedDefinitions.TypeSystemDefinition.ObjectTypeDefinitions)
-	w.WalkEnumTypeDefinitions(w.l.p.ParsedDefinitions.TypeSystemDefinition.EnumTypeDefinitions)
-	w.WalkDirectiveDefinitions(w.l.p.ParsedDefinitions.TypeSystemDefinition.DirectiveDefinitions)
-	w.WalkInterfaceTypeDefinitions(w.l.p.ParsedDefinitions.TypeSystemDefinition.InterfaceTypeDefinitions)
-	w.WalkScalarTypeDefinitions(w.l.p.ParsedDefinitions.TypeSystemDefinition.ScalarTypeDefinitions)
-	w.WalkUnionTypeDefinitions(w.l.p.ParsedDefinitions.TypeSystemDefinition.UnionTypeDefinitions)
-	w.WalkInputObjectTypeDefinitions(w.l.p.ParsedDefinitions.TypeSystemDefinition.InputObjectTypeDefinitions)
+	w.WalkObjectTypeDefinitions()
+	w.WalkEnumTypeDefinitions()
+	w.WalkDirectiveDefinitions()
+	w.WalkInterfaceTypeDefinitions()
+	w.WalkScalarTypeDefinitions()
+	w.WalkUnionTypeDefinitions()
+	w.WalkInputObjectTypeDefinitions()
 }
 
 func (w *Walker) WalkSchemaDefinition(definition document.SchemaDefinition) {
@@ -159,23 +159,21 @@ func (w *Walker) WalkSchemaDefinition(definition document.SchemaDefinition) {
 	})
 }
 
-func (w *Walker) WalkObjectTypeDefinitions(refs []int) {
-	iter := w.l.ObjectTypeDefinitionIterable(refs)
-	for iter.Next() {
-		ref, definition := iter.Value()
+func (w *Walker) WalkObjectTypeDefinitions() {
+	for ref := range w.l.p.ParsedDefinitions.ObjectTypeDefinitions {
 		nodeRef := w.putNode(Node{
 			Ref:      ref,
 			Kind:     OBJECT_TYPE_DEFINITION,
 			Parent:   -1,
-			Position: definition.Position,
+			Position: w.l.p.ParsedDefinitions.ObjectTypeDefinitions[ref].Position,
 		})
 
-		if definition.FieldsDefinition.HasNext() {
-			w.walkFieldDefinitions(definition.FieldsDefinition, nodeRef)
+		if w.l.p.ParsedDefinitions.ObjectTypeDefinitions[ref].FieldsDefinition.HasNext() {
+			w.walkFieldDefinitions(w.l.p.ParsedDefinitions.ObjectTypeDefinitions[ref].FieldsDefinition, nodeRef)
 		}
 
-		if definition.DirectiveSet != -1 {
-			w.walkDirectiveSet(definition.DirectiveSet, nodeRef)
+		if w.l.p.ParsedDefinitions.ObjectTypeDefinitions[ref].DirectiveSet != -1 {
+			w.walkDirectiveSet(w.l.p.ParsedDefinitions.ObjectTypeDefinitions[ref].DirectiveSet, nodeRef)
 		}
 	}
 }
@@ -218,76 +216,69 @@ func (w *Walker) WalkInputValueDefinitions(definitions document.InputValueDefini
 	}
 }
 
-func (w *Walker) WalkEnumTypeDefinitions(refs []int) {
-	iter := w.l.EnumTypeDefinitionIterable(refs)
-	for iter.Next() {
-		ref, definition := iter.Value()
+func (w *Walker) WalkEnumTypeDefinitions() {
+	for ref := range w.l.p.ParsedDefinitions.EnumTypeDefinitions {
 		w.putNode(Node{
 			Kind:     ENUM_TYPE_DEFINITION,
 			Ref:      ref,
-			Position: definition.Position,
+			Position: w.l.p.ParsedDefinitions.EnumTypeDefinitions[ref].Position,
 			Parent:   -1,
 		})
 	}
 }
 
-func (w *Walker) WalkDirectiveDefinitions(refs []int) {
-	for _, i := range refs {
-		definition := w.l.p.ParsedDefinitions.DirectiveDefinitions[i]
+func (w *Walker) WalkDirectiveDefinitions() {
+	for ref := range w.l.p.ParsedDefinitions.DirectiveDefinitions {
 		ref := w.putNode(Node{
 			Kind:     DIRECTIVE_DEFINITION,
 			Parent:   -1,
-			Ref:      i,
-			Position: definition.Position,
+			Ref:      ref,
+			Position: w.l.p.ParsedDefinitions.DirectiveDefinitions[ref].Position,
 		})
 		w.c.directiveDefinitions = append(w.c.directiveDefinitions, ref)
 	}
 }
 
-func (w *Walker) WalkInterfaceTypeDefinitions(refs []int) {
-	for _, i := range refs {
-		definition := w.l.p.ParsedDefinitions.InterfaceTypeDefinitions[i]
+func (w *Walker) WalkInterfaceTypeDefinitions() {
+	for ref := range w.l.p.ParsedDefinitions.InterfaceTypeDefinitions {
 		w.putNode(Node{
 			Kind:     INTERFACE_TYPE_DEFINITION,
-			Ref:      i,
+			Ref:      ref,
 			Parent:   -1,
-			Position: definition.Position,
+			Position: w.l.p.ParsedDefinitions.InterfaceTypeDefinitions[ref].Position,
 		})
 	}
 }
 
-func (w *Walker) WalkScalarTypeDefinitions(refs []int) {
-	for _, i := range refs {
-		definition := w.l.p.ParsedDefinitions.ScalarTypeDefinitions[i]
+func (w *Walker) WalkScalarTypeDefinitions() {
+	for ref := range w.l.p.ParsedDefinitions.ScalarTypeDefinitions {
 		w.putNode(Node{
 			Kind:     SCALAR_TYPE_DEFINITION,
-			Position: definition.Position,
+			Ref:      ref,
 			Parent:   -1,
-			Ref:      i,
+			Position: w.l.p.ParsedDefinitions.ScalarTypeDefinitions[ref].Position,
 		})
 	}
 }
 
-func (w *Walker) WalkUnionTypeDefinitions(refs []int) {
-	for _, i := range refs {
-		definition := w.l.p.ParsedDefinitions.UnionTypeDefinitions[i]
+func (w *Walker) WalkUnionTypeDefinitions() {
+	for ref := range w.l.p.ParsedDefinitions.UnionTypeDefinitions {
 		w.putNode(Node{
 			Kind:     UNION_TYPE_DEFINITION,
 			Parent:   -1,
-			Position: definition.Position,
-			Ref:      i,
+			Ref:      ref,
+			Position: w.l.p.ParsedDefinitions.UnionTypeDefinitions[ref].Position,
 		})
 	}
 }
 
-func (w *Walker) WalkInputObjectTypeDefinitions(refs []int) {
-	for _, i := range refs {
-		definition := w.l.p.ParsedDefinitions.InputObjectTypeDefinitions[i]
+func (w *Walker) WalkInputObjectTypeDefinitions() {
+	for ref := range w.l.p.ParsedDefinitions.InputObjectTypeDefinitions {
 		w.putNode(Node{
 			Kind:     INPUT_OBJECT_TYPE_DEFINITION,
-			Position: definition.Position,
+			Ref:      ref,
 			Parent:   -1,
-			Ref:      i,
+			Position: w.l.p.ParsedDefinitions.InputObjectTypeDefinitions[ref].Position,
 		})
 	}
 }
