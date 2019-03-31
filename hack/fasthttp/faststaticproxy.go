@@ -9,25 +9,20 @@ import (
 )
 
 type FastStaticProxy struct {
-	prox *FastHttpProxy
+	prox *Proxy
 }
 
 func NewFastStaticProxy(requestConfigProvider proxy.RequestConfigProvider, middlewares ...middleware.GraphqlMiddleware) *FastStaticProxy {
 
-	prox := &FastHttpProxy{
-		requestConfigProvider: requestConfigProvider,
-		invokerPool:           middleware.NewInvokerPool(8, middlewares...),
-		userValuePool: sync.Pool{
-			New: func() interface{} {
-				return make(map[string][]byte)
-			},
-		},
-		bufferPool: sync.Pool{
+	prox := &Proxy{
+		RequestConfigProvider: requestConfigProvider,
+		InvokerPool:           middleware.NewInvokerPool(8, middlewares...),
+		BufferPool: sync.Pool{
 			New: func() interface{} {
 				return &bytes.Buffer{}
 			},
 		},
-		hostClientPool: sync.Pool{
+		ClientPool: sync.Pool{
 			New: func() interface{} {
 				return &fasthttp.HostClient{}
 			},

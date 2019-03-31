@@ -1,11 +1,8 @@
 package http
 
 import (
-	"bufio"
-	"bytes"
 	"fmt"
 	hackmiddleware "github.com/jensneuse/graphql-go-tools/hack/middleware"
-	"github.com/jensneuse/graphql-go-tools/pkg/middleware"
 	"github.com/jensneuse/graphql-go-tools/pkg/proxy"
 	"io/ioutil"
 	"net/http"
@@ -13,7 +10,6 @@ import (
 	"net/url"
 	"runtime"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 )
@@ -41,29 +37,7 @@ func TestProxyHandler(t *testing.T) {
 		BackendURL: *backendURL,
 	})
 
-	ip := sync.Pool{
-		New: func() interface{} {
-			return middleware.NewInvoker(&hackmiddleware.AssetUrlMiddleware{})
-		},
-	}
-	ph := &Proxy{
-		RequestConfigProvider: requestConfigProvider,
-		InvokerPool:           ip,
-		Client:                *http.DefaultClient,
-		HandleError: func(err error, w http.ResponseWriter) {
-			t.Fatal(err)
-		},
-		BufferPool: sync.Pool{
-			New: func() interface{} {
-				return &bytes.Buffer{}
-			},
-		},
-		BufferedReaderPool: sync.Pool{
-			New: func() interface{} {
-				return &bufio.Reader{}
-			},
-		},
-	}
+	ph := NewDefaultProxy(requestConfigProvider, &hackmiddleware.AssetUrlMiddleware{})
 	ts := httptest.NewServer(ph)
 	defer ts.Close()
 
@@ -101,30 +75,7 @@ func BenchmarkProxyHandler(b *testing.B) {
 		BackendURL: *backendURL,
 	})
 
-	ip := sync.Pool{
-		New: func() interface{} {
-			return middleware.NewInvoker(&hackmiddleware.AssetUrlMiddleware{})
-		},
-	}
-
-	ph := &Proxy{
-		RequestConfigProvider: requestConfigProvider,
-		InvokerPool:           ip,
-		Client:                *http.DefaultClient,
-		HandleError: func(err error, w http.ResponseWriter) {
-			b.Fatal(err)
-		},
-		BufferPool: sync.Pool{
-			New: func() interface{} {
-				return &bytes.Buffer{}
-			},
-		},
-		BufferedReaderPool: sync.Pool{
-			New: func() interface{} {
-				return &bufio.Reader{}
-			},
-		},
-	}
+	ph := NewDefaultProxy(requestConfigProvider, &hackmiddleware.AssetUrlMiddleware{})
 	ts := httptest.NewServer(ph)
 	defer ts.Close()
 

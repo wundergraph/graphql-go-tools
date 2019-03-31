@@ -68,7 +68,7 @@ func TestFastStaticProxy(t *testing.T) {
 	}
 
 	if response.StatusCode != http.StatusOK {
-		t.Fatalf("want: %d, got: %d", http.StatusOK, response.StatusCode)
+		t.Fatalf("want: %d, got: %d, %v", http.StatusOK, response.StatusCode, response.Body)
 	}
 
 	body, err := ioutil.ReadAll(response.Body)

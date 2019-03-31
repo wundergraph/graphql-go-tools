@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lookup"
@@ -45,7 +46,7 @@ query myDocuments {
 type ContextMiddleware struct {
 }
 
-func (a *ContextMiddleware) OnResponse(userValues map[string][]byte, response *[]byte, l *lookup.Lookup, w *lookup.Walker, parser *parser.Parser, mod *parser.ManualAstMod) error {
+func (a *ContextMiddleware) OnResponse(ctx context.Context, response *[]byte, l *lookup.Lookup, w *lookup.Walker, parser *parser.Parser, mod *parser.ManualAstMod) (err error) {
 	return nil
 }
 
@@ -55,7 +56,7 @@ type ContextRewriteConfig struct {
 	argumentValueContextKey document.ByteSlice
 }
 
-func (a *ContextMiddleware) OnRequest(userValues map[string][]byte, l *lookup.Lookup, w *lookup.Walker, parser *parser.Parser, mod *parser.ManualAstMod) error {
+func (a *ContextMiddleware) OnRequest(ctx context.Context, l *lookup.Lookup, w *lookup.Walker, parser *parser.Parser, mod *parser.ManualAstMod) error {
 
 	w.SetLookup(l)
 	w.WalkTypeSystemDefinition()
@@ -123,12 +124,12 @@ func (a *ContextMiddleware) OnRequest(userValues map[string][]byte, l *lookup.Lo
 			for _, i := range fieldsWithDirective {
 				if l.ByteSliceReferenceContentsEquals(i.fieldName, field.Name) {
 
-					argumentValue := userValues[string(i.argumentValueContextKey)]
+					argumentValue := ctx.Value(string(i.argumentValueContextKey))
 					if argumentValue == nil {
 						return fmt.Errorf("OnRequest: No value for key: %s (did you forget to configure setting the 'contextKeys' configuration which enables loading variables from the header into the context values?)", string(i.argumentValueContextKey))
 					}
 
-					argByteSliceRef, argNameRef, err := mod.PutLiteralBytes(argumentValue)
+					argByteSliceRef, argNameRef, err := mod.PutLiteralBytes(argumentValue.([]byte))
 					if err != nil {
 						return err
 					}
