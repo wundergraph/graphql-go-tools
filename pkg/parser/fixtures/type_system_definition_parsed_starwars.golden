@@ -20,52 +20,6 @@
       "CharEnd": 2
     }
   },
-  "ScalarTypeDefinitions": [
-    0,
-    1,
-    2,
-    3,
-    4
-  ],
-  "ObjectTypeDefinitions": [
-    0,
-    1,
-    2,
-    3,
-    4,
-    5,
-    6,
-    7,
-    8,
-    9,
-    10,
-    11,
-    12,
-    13,
-    14,
-    15
-  ],
-  "InterfaceTypeDefinitions": [
-    0
-  ],
-  "UnionTypeDefinitions": [
-    0
-  ],
-  "EnumTypeDefinitions": [
-    0,
-    1,
-    2,
-    3
-  ],
-  "InputObjectTypeDefinitions": [
-    0,
-    1
-  ],
-  "DirectiveDefinitions": [
-    0,
-    1,
-    2
-  ],
   "Position": {
     "LineStart": 0,
     "LineEnd": 0,

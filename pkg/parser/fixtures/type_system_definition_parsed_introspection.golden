@@ -33,13 +33,6 @@
           "CharEnd": 0
         }
       },
-      "ScalarTypeDefinitions": null,
-      "ObjectTypeDefinitions": null,
-      "InterfaceTypeDefinitions": null,
-      "UnionTypeDefinitions": null,
-      "EnumTypeDefinitions": null,
-      "InputObjectTypeDefinitions": null,
-      "DirectiveDefinitions": null,
       "Position": {
         "LineStart": 0,
         "LineEnd": 0,
