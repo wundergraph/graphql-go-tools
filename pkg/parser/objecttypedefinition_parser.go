@@ -5,7 +5,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
 )
 
-func (p *Parser) parseObjectTypeDefinition(hasDescription bool, description token.Token, index *[]int) error {
+func (p *Parser) parseObjectTypeDefinition(hasDescription bool, description token.Token) error {
 
 	start, err := p.readExpect(keyword.TYPE, "parseObjectTypeDefinition")
 	if err != nil {
@@ -43,7 +43,7 @@ func (p *Parser) parseObjectTypeDefinition(hasDescription bool, description toke
 	}
 
 	definition.Position.MergeStartIntoEnd(p.TextPosition())
-	*index = append(*index, p.putObjectTypeDefinition(definition))
+	p.putObjectTypeDefinition(definition)
 
 	return nil
 }
