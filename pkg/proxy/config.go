@@ -1,9 +1,12 @@
 package proxy
 
-import "net/url"
+import (
+	"context"
+	"net/url"
+)
 
 type RequestConfigProvider interface {
-	GetRequestConfig(requestURI []byte) RequestConfig
+	GetRequestConfig(ctx context.Context) RequestConfig
 }
 
 type RequestConfig struct {
@@ -16,7 +19,7 @@ type StaticRequestConfigProvider struct {
 	config RequestConfig
 }
 
-func (s *StaticRequestConfigProvider) GetRequestConfig(requestURI []byte) RequestConfig {
+func (s *StaticRequestConfigProvider) GetRequestConfig(ctx context.Context) RequestConfig {
 	return s.config
 }
 
