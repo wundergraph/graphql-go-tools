@@ -268,12 +268,12 @@ func BenchmarkParserBigSchema(b *testing.B) {
 		}
 	}
 
-	var empty int
+	/*var empty int
 	for i := range parser.indexPool {
 		if len(parser.indexPool[i]) == 0 {
 			empty++
 		}
 	}
 
-	fmt.Printf("\npos:%d, len: %d, empty: %d\n", parser.indexPoolPosition, len(parser.indexPool), empty)
+	fmt.Printf("\npos:%d, len: %d, empty: %d\n", parser.indexPoolPosition, len(parser.indexPool), empty)*/
 }
