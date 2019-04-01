@@ -51,7 +51,7 @@ func TestProxyHandler(t *testing.T) {
 
 func BenchmarkProxyHandler(b *testing.B) {
 
-	go printMemUsage()
+	//go printMemUsage()
 
 	es := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := ioutil.ReadAll(r.Body)
