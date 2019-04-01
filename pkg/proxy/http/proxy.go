@@ -3,6 +3,7 @@ package http
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"github.com/jensneuse/graphql-go-tools/pkg/middleware"
 	"github.com/jensneuse/graphql-go-tools/pkg/proxy"
@@ -14,7 +15,7 @@ import (
 
 type Proxy struct {
 	proxy.Proxy
-	HandleError           func(err error, w http.ResponseWriter)
+	HandleError func(err error, w http.ResponseWriter)
 }
 
 type ProxyRequest struct {
@@ -98,8 +99,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	pr.Config = &config
 	pr.RequestURL = *r.URL
 	pr.Body = r.Body
-	pr.Context = r.Context()
-
+	pr.Context = p.SetContextValues(r.Context(), r.Header, config.AddHeadersToContext)
 
 	err := pr.AcceptRequest(buff)
 	if err != nil {
@@ -130,6 +130,14 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p.BufferPool.Put(buff)
 	r.Body.Close()
 	responseBody.Close()
+}
+
+func (f *Proxy) SetContextValues(ctx context.Context, header http.Header, addHeaders [][]byte) context.Context {
+	for i := range addHeaders {
+		key := string(addHeaders[i])
+		ctx = context.WithValue(ctx, key, header.Get(key))
+	}
+	return ctx
 }
 
 func NewDefaultProxy(provider proxy.RequestConfigProvider, middlewares ...middleware.GraphqlMiddleware) *Proxy {
