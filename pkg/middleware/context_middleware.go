@@ -139,7 +139,10 @@ func (a *ContextMiddleware) OnRequest(ctx context.Context, l *lookup.Lookup, w *
 					switch argumentValue := argumentValue.(type) {
 					case string:
 						if !strings.HasPrefix(argumentValue, "\"") {
-							argumentValue = "\"" + argumentValue + "\""
+							argumentValue = "\"" + argumentValue
+						}
+						if !strings.HasSuffix(argumentValue, "\"") {
+							argumentValue = argumentValue + "\""
 						}
 						argByteSliceRef, argNameRef, err = mod.PutLiteralString(argumentValue)
 						if err != nil {
@@ -147,7 +150,10 @@ func (a *ContextMiddleware) OnRequest(ctx context.Context, l *lookup.Lookup, w *
 						}
 					case []byte:
 						if !bytes.HasPrefix(argumentValue, literal.QUOTE) {
-							argumentValue = append(literal.QUOTE, append(argumentValue, literal.QUOTE...)...)
+							argumentValue = append(literal.QUOTE, argumentValue...)
+						}
+						if !bytes.HasSuffix(argumentValue, literal.QUOTE) {
+							argumentValue = append(argumentValue, literal.QUOTE...)
 						}
 						argByteSliceRef, argNameRef, err = mod.PutLiteralBytes(argumentValue)
 						if err != nil {
