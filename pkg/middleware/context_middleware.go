@@ -133,14 +133,14 @@ func (a *ContextMiddleware) OnRequest(ctx context.Context, l *lookup.Lookup, w *
 					var argNameRef int
 					var err error
 
-					switch argumentValue.(type) {
+					switch argumentValue := argumentValue.(type) {
 					case string:
-						argByteSliceRef, argNameRef, err = mod.PutLiteralString(argumentValue.(string))
+						argByteSliceRef, argNameRef, err = mod.PutLiteralString(argumentValue)
 						if err != nil {
 							return err
 						}
 					case []byte:
-						argByteSliceRef, argNameRef, err = mod.PutLiteralBytes(argumentValue.([]byte))
+						argByteSliceRef, argNameRef, err = mod.PutLiteralBytes(argumentValue)
 						if err != nil {
 							return err
 						}
