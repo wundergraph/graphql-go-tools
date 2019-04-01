@@ -90,7 +90,7 @@ func (f *Proxy) HandleRequest(ctx *fasthttp.RequestCtx) {
 
 func (f *Proxy) SetContextValues(ctx context.Context, header fasthttp.RequestHeader, addHeaders [][]byte) context.Context {
 	for _, key := range addHeaders {
-		ctx= context.WithValue(ctx, string(key), header.PeekBytes(key))
+		ctx = context.WithValue(ctx, string(key), header.PeekBytes(key))
 	}
 	return ctx
 }
