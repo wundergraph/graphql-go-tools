@@ -129,9 +129,21 @@ func (a *ContextMiddleware) OnRequest(ctx context.Context, l *lookup.Lookup, w *
 						return fmt.Errorf("OnRequest: No value for key: %s (did you forget to configure setting the 'contextKeys' configuration which enables loading variables from the header into the context values?)", string(i.argumentValueContextKey))
 					}
 
-					argByteSliceRef, argNameRef, err := mod.PutLiteralBytes(argumentValue.([]byte))
-					if err != nil {
-						return err
+					var argByteSliceRef document.ByteSliceReference
+					var argNameRef int
+					var err error
+
+					switch argumentValue.(type) {
+					case string:
+						argByteSliceRef, argNameRef, err = mod.PutLiteralString(argumentValue.(string))
+						if err != nil {
+							return err
+						}
+					case []byte:
+						argByteSliceRef, argNameRef, err = mod.PutLiteralBytes(argumentValue.([]byte))
+						if err != nil {
+							return err
+						}
 					}
 
 					val := document.Value{
