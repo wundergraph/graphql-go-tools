@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"github.com/jensneuse/graphql-go-tools/pkg/lookup"
 	"github.com/jensneuse/graphql-go-tools/pkg/parser"
 	"github.com/jensneuse/graphql-go-tools/pkg/printer"
@@ -36,7 +37,7 @@ func (i *Invoker) SetSchema(schema []byte) error {
 	return i.parse.ParseTypeSystemDefinition(schema)
 }
 
-func (i *Invoker) InvokeMiddleWares(userValues map[string][]byte, request []byte) (err error) {
+func (i *Invoker) InvokeMiddleWares(ctx context.Context, request []byte) (err error) {
 
 	err = i.parse.ParseExecutableDefinition(request)
 	if err != nil {
@@ -45,7 +46,7 @@ func (i *Invoker) InvokeMiddleWares(userValues map[string][]byte, request []byte
 
 	i.walk.SetLookup(i.look)
 
-	return i.invokeMiddleWares(userValues)
+	return i.invokeMiddleWares(ctx)
 }
 
 func (i *Invoker) RewriteRequest(w io.Writer) error {
@@ -54,9 +55,9 @@ func (i *Invoker) RewriteRequest(w io.Writer) error {
 	return i.astPrint.PrintExecutableSchema(w)
 }
 
-func (i *Invoker) invokeMiddleWares(userValues map[string][]byte) error {
+func (i *Invoker) invokeMiddleWares(ctx context.Context) error {
 	for j := range i.middleWares {
-		err := i.middleWares[j].OnRequest(userValues, i.look, i.walk, i.parse, i.mod)
+		err := i.middleWares[j].OnRequest(ctx, i.look, i.walk, i.parse, i.mod)
 		if err != nil {
 			return err
 		}

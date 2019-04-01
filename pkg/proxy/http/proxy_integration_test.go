@@ -1,8 +1,6 @@
 package http
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
 	"io/ioutil"
@@ -10,7 +8,6 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/middleware"
@@ -66,32 +63,8 @@ func TestProxyIntegration(t *testing.T) {
 		BackendURL: *backendURL,
 	})
 
-	ip := sync.Pool{
-		New: func() interface{} {
-			return middleware.NewInvoker(&middleware.ContextMiddleware{})
-		},
-	}
-
 	// the handler for the graphql proxy
-	proxyHandler := &Proxy{
-		RequestConfigProvider: schemaProvider,
-		InvokerPool:           ip,
-		Client:                *http.DefaultClient,
-		HandleError: func(err error, w http.ResponseWriter) {
-			t.Fatal(err)
-		},
-		BufferPool: sync.Pool{
-			New: func() interface{} {
-				return &bytes.Buffer{}
-			},
-		},
-		BufferedReaderPool: sync.Pool{
-			New: func() interface{} {
-				return &bufio.Reader{}
-			},
-		},
-	}
-
+	proxyHandler := NewDefaultProxy(schemaProvider, &middleware.ContextMiddleware{})
 	proxyServer := httptest.NewServer(checkUserMiddleware(proxyHandler))
 	defer proxyServer.Close()
 
@@ -160,5 +133,5 @@ type Document implements Node {
 const publicQuery = `{"query":"query myDocuments {documents {sensitiveInformation}}"}
 `
 
-const privateQuery = `{"operationName":"","query":"query myDocuments {documents(user:\"jsmith\") {sensitiveInformation}}"}
+const privateQuery = `{"operationName":"","query":"query myDocuments {documents(user:\"jsmith@example.org\") {sensitiveInformation}}"}
 `
