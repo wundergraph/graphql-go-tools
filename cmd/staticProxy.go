@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/middleware"
 	"github.com/jensneuse/graphql-go-tools/pkg/proxy"
-	fastproxy "github.com/jensneuse/graphql-go-tools/hack/fasthttp"
+	"github.com/jensneuse/graphql-go-tools/pkg/proxy/http"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/pprofhandler"
 	"io/ioutil"
@@ -95,13 +95,11 @@ func runProxyBlocking() {
 		panic(err)
 	}
 
-	requestConfigProvider := proxy.NewStaticRequestConfigProvider(proxy.RequestConfig{
+	prox := http.NewDefaultStaticProxy(proxy.RequestConfig{
 		Schema:              &schema,
 		BackendURL:          *backendURL,
 		AddHeadersToContext: addHeadersToContext,
-	})
-
-	prox := fastproxy.NewFastStaticProxy(requestConfigProvider,
+	},
 		&middleware.ValidationMiddleware{},
 		&middleware.ContextMiddleware{},
 	)
