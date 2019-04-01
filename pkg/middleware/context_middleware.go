@@ -1,11 +1,14 @@
 package middleware
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/lookup"
 	"github.com/jensneuse/graphql-go-tools/pkg/parser"
+	"strings"
 )
 
 /*
@@ -135,11 +138,17 @@ func (a *ContextMiddleware) OnRequest(ctx context.Context, l *lookup.Lookup, w *
 
 					switch argumentValue := argumentValue.(type) {
 					case string:
+						if !strings.HasPrefix(argumentValue, "\"") {
+							argumentValue = "\"" + argumentValue + "\""
+						}
 						argByteSliceRef, argNameRef, err = mod.PutLiteralString(argumentValue)
 						if err != nil {
 							return err
 						}
 					case []byte:
+						if !bytes.HasPrefix(argumentValue, literal.QUOTE) {
+							argumentValue = append(literal.QUOTE, append(argumentValue, literal.QUOTE...)...)
+						}
 						argByteSliceRef, argNameRef, err = mod.PutLiteralBytes(argumentValue)
 						if err != nil {
 							return err
