@@ -15,6 +15,7 @@ func NewDefaultStaticProxy(config proxy.RequestConfig, middlewares ...middleware
 
 	provider := proxy.NewStaticRequestConfigProvider(config)
 	handler := NewDefaultProxy(provider, middlewares...)
+
 	return &StaticProxy{
 		handler: handler,
 	}
