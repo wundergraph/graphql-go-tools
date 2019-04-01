@@ -1,7 +1,6 @@
 package http
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -117,8 +116,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// todo: implement the OnResponse handlers
 
-	bufferedReader := bufio.NewReader(responseBody)
-	_, err = bufferedReader.WriteTo(w)
+	_, err = io.Copy(w, responseBody)
 	if err != nil {
 		p.BufferPool.Put(buff)
 		r.Body.Close()
