@@ -63,7 +63,6 @@ func TestProxyIntegration(t *testing.T) {
 		BackendURL: *backendURL,
 	})
 
-
 	// the handler for the graphql proxy
 	proxyHandler := NewDefaultProxy(schemaProvider, &middleware.ContextMiddleware{})
 	proxyServer := httptest.NewServer(checkUserMiddleware(proxyHandler))

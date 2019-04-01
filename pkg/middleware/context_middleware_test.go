@@ -14,7 +14,6 @@ func TestContextMiddleware(t *testing.T) {
 		// we might push this including checks into the implementation
 		ctx := context.WithValue(context.Background(), "user", []byte(`"jsmith@example.org"`))
 
-
 		got, err := InvokeMiddleware(&ContextMiddleware{}, ctx, publicSchema, publicQuery)
 		if err != nil {
 			t.Fatal(err)

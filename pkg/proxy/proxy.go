@@ -20,7 +20,7 @@ type Request struct {
 	Config     *RequestConfig
 	RequestURL url.URL
 	Body       io.Reader
-	Context context.Context
+	Context    context.Context
 }
 
 type RequestInterface interface {
@@ -29,4 +29,3 @@ type RequestInterface interface {
 	AcceptResponse()
 	DispatchResponse()
 }
-
