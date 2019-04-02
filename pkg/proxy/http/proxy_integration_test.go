@@ -34,6 +34,12 @@ func TestProxyIntegration(t *testing.T) {
 
 	// the handler for the endpoint graphql system
 	endpointHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
+		if authHeader != privateAuthHeader {
+			t.Fatalf("Expected:\n%s\ngot\n%s\n\n", privateAuthHeader, authHeader)
+		}
+
+
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			t.Error(err)
@@ -58,9 +64,12 @@ func TestProxyIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	headers := make(http.Header)
+	headers.Set("Authorization", privateAuthHeader)
 	schemaProvider := proxy.NewStaticRequestConfigProvider(proxy.RequestConfig{
 		Schema:     &schema,
 		BackendURL: *backendURL,
+		BackendHeaders: headers,
 	})
 
 	// the handler for the graphql proxy
@@ -135,3 +144,4 @@ const publicQuery = `{"query":"query myDocuments {documents {sensitiveInformatio
 
 const privateQuery = `{"operationName":"","query":"query myDocuments {documents(user:\"jsmith@example.org\") {sensitiveInformation}}"}
 `
+const privateAuthHeader = "testAuth"

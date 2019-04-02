@@ -7,6 +7,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/middleware"
 	"github.com/jensneuse/graphql-go-tools/pkg/proxy"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"sync"
@@ -72,7 +73,19 @@ func (pr *ProxyRequest) DispatchRequest(buff *bytes.Buffer) (io.ReadCloser, erro
 
 	client := pr.Proxy.ClientPool.Get().(*http.Client)
 	defer pr.Proxy.ClientPool.Put(client)
-	response, err := client.Post(pr.Config.BackendURL.String(), "application/json", &out)
+	headers := make(http.Header)
+	if pr.Config.BackendHeaders != nil {
+		headers = pr.Config.BackendHeaders
+	}
+	request := http.Request{
+		Method: "POST",
+		URL: &pr.Config.BackendURL,
+		Header: headers,
+		Body: ioutil.NopCloser(bytes.NewReader(out.Bytes())),
+	}
+
+	request.Header.Set("Content-Type", "application/json")
+	response, err := client.Do(&request)
 	if err != nil {
 		return nil, err
 	}
