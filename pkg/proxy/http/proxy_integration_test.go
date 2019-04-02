@@ -142,6 +142,6 @@ type Document implements Node {
 const publicQuery = `{"query":"query myDocuments {documents {sensitiveInformation}}"}
 `
 
-const privateQuery = `{"operationName":"","query":"query myDocuments {documents(user:\"jsmith@example.org\") {sensitiveInformation}}"}
+const privateQuery = `{"query":"query myDocuments {documents(user:\"jsmith@example.org\") {sensitiveInformation}}"}
 `
 const privateAuthHeader = "testAuth"
