@@ -13,6 +13,7 @@ type RequestConfig struct {
 	Schema              *[]byte
 	BackendURL          url.URL
 	AddHeadersToContext [][]byte
+	BackendHeaders      map[string][]string
 }
 
 type StaticRequestConfigProvider struct {
