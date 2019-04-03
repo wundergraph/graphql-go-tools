@@ -24,7 +24,7 @@ type ProxyRequest struct {
 }
 
 type GraphqlJsonRequest struct {
-	OperationName string `json:"operationName"`
+	OperationName string `json:"operationName,omitempty"`
 	Query         string `json:"query"`
 }
 

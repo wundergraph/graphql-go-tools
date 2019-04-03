@@ -132,5 +132,5 @@ type Asset implements Node {
 
 const assetInput = `{"query":"query testQueryWithoutHandle {assets(first: 1) { id fileName url(transformation: {image: {resize: {width: 100, height: 100}}})}}"}`
 
-const assetOutput = `{"operationName":"","query":"query testQueryWithoutHandle {assets(first:1) {id fileName handle}}"}
+const assetOutput = `{"query":"query testQueryWithoutHandle {assets(first:1) {id fileName handle}}"}
 `
