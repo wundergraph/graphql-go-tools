@@ -290,7 +290,8 @@ func (p *Parser) ParseExecutableDefinition(input []byte) (err error) {
 		return
 	}
 
-	p.ParsedDefinitions.ExecutableDefinition, err = p.parseExecutableDefinition()
+	p.initExecutableDefinition()
+	err = p.parseExecutableDefinition()
 	return err
 }
 
@@ -369,8 +370,8 @@ func (p *Parser) makeInputObjectTypeDefinition() document.InputObjectTypeDefinit
 	}
 }
 
-func (p *Parser) initTypeSystemDefinition(definition *document.TypeSystemDefinition) {
-	definition.SchemaDefinition = document.SchemaDefinition{
+func (p *Parser) initTypeSystemDefinition() {
+	p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition = document.SchemaDefinition{
 		DirectiveSet: -1,
 	}
 }
@@ -433,11 +434,9 @@ func (p *Parser) makeFragmentSpread() document.FragmentSpread {
 	}
 }
 
-func (p *Parser) makeExecutableDefinition() document.ExecutableDefinition {
-	return document.ExecutableDefinition{
-		FragmentDefinitions:  p.IndexPoolGet(),
-		OperationDefinitions: p.IndexPoolGet(),
-	}
+func (p *Parser) initExecutableDefinition() {
+	p.ParsedDefinitions.ExecutableDefinition.OperationDefinitions = p.IndexPoolGet()
+	p.ParsedDefinitions.ExecutableDefinition.FragmentDefinitions = p.IndexPoolGet()
 }
 
 func (p *Parser) makeListValue(index *int) document.ListValue {

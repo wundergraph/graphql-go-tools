@@ -5,9 +5,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
-func (p *Parser) parseExecutableDefinition() (executableDefinition document.ExecutableDefinition, err error) {
-
-	executableDefinition = p.makeExecutableDefinition()
+func (p *Parser) parseExecutableDefinition() (err error) {
 
 	for {
 		next := p.l.Peek(true)
@@ -15,23 +13,23 @@ func (p *Parser) parseExecutableDefinition() (executableDefinition document.Exec
 		switch next {
 		case keyword.CURLYBRACKETOPEN:
 
-			err := p.parseAnonymousOperation(&executableDefinition)
+			err := p.parseAnonymousOperation(&p.ParsedDefinitions.ExecutableDefinition)
 			if err != nil {
-				return executableDefinition, err
+				return err
 			}
 
 		case keyword.FRAGMENT:
 
-			err := p.parseFragmentDefinition(&executableDefinition.FragmentDefinitions)
+			err := p.parseFragmentDefinition(&p.ParsedDefinitions.ExecutableDefinition.FragmentDefinitions)
 			if err != nil {
-				return executableDefinition, err
+				return err
 			}
 
 		case keyword.QUERY, keyword.MUTATION, keyword.SUBSCRIPTION:
 
-			err := p.parseOperationDefinition(&executableDefinition.OperationDefinitions)
+			err := p.parseOperationDefinition(&p.ParsedDefinitions.ExecutableDefinition.OperationDefinitions)
 			if err != nil {
-				return executableDefinition, err
+				return err
 			}
 
 		default:
