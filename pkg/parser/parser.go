@@ -147,6 +147,7 @@ type cacheStats struct {
 // Lexer is the interface used by the Parser to lex tokens
 type Lexer interface {
 	SetTypeSystemInput(input []byte) error
+	ExtendTypeSystemInput(input []byte) error
 	ResetTypeSystemInput()
 	SetExecutableInput(input []byte) error
 	AppendBytes(input []byte) (err error)
@@ -261,10 +262,24 @@ func (p *Parser) ParseTypeSystemDefinition(input []byte) (err error) {
 		return
 	}
 
-	p.ParsedDefinitions.TypeSystemDefinition, err = p.parseTypeSystemDefinition()
+	p.initTypeSystemDefinition()
+	err = p.parseTypeSystemDefinition()
 	p.setCacheStats()
 
 	return err
+}
+
+func (p *Parser) ExtendTypeSystemDefinition(input []byte) (err error) {
+	err = p.l.ExtendTypeSystemInput(input)
+	if err != nil {
+		return
+	}
+	err = p.parseTypeSystemDefinition()
+	if err != nil {
+		return
+	}
+	p.setCacheStats()
+	return
 }
 
 // ParseExecutableDefinition parses an ExecutableDefinition from an io.Reader
