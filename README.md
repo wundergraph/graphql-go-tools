@@ -15,7 +15,7 @@ Currently implemented:
 
 ## Go version Info
 
-This repos used go modules so make sure to use the latest version of Go.
+This repos uses go modules so make sure to use the latest version of Go.
 
 ## Docs
 
