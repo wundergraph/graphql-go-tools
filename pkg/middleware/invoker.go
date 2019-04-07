@@ -39,6 +39,11 @@ func (i *Invoker) SetSchema(schema []byte) error {
 
 func (i *Invoker) InvokeMiddleWares(ctx context.Context, request []byte) (err error) {
 
+	err = i.middlewaresPrepareSchema(ctx)
+	if err != nil {
+		return err
+	}
+
 	err = i.parse.ParseExecutableDefinition(request)
 	if err != nil {
 		return err
@@ -46,7 +51,7 @@ func (i *Invoker) InvokeMiddleWares(ctx context.Context, request []byte) (err er
 
 	i.walk.SetLookup(i.look)
 
-	return i.invokeMiddleWares(ctx)
+	return i.middlewaresOnRequest(ctx)
 }
 
 func (i *Invoker) RewriteRequest(w io.Writer) error {
@@ -55,7 +60,17 @@ func (i *Invoker) RewriteRequest(w io.Writer) error {
 	return i.astPrint.PrintExecutableSchema(w)
 }
 
-func (i *Invoker) invokeMiddleWares(ctx context.Context) error {
+func (i *Invoker) middlewaresPrepareSchema(ctx context.Context) error {
+	for j := range i.middleWares {
+		err := i.middleWares[j].PrepareSchema(ctx, i.look, i.walk, i.parse, i.mod)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (i *Invoker) middlewaresOnRequest(ctx context.Context) error {
 	for j := range i.middleWares {
 		err := i.middleWares[j].OnRequest(ctx, i.look, i.walk, i.parse, i.mod)
 		if err != nil {

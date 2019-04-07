@@ -442,6 +442,75 @@ baz
 			mustPeekAndRead(keyword.FLOAT, "13.37"),
 		)
 	})
+	t.Run("extend type system input", func(t *testing.T) {
+		t.Run("invalid flow", func(t *testing.T) {
+			l := NewLexer()
+			err := l.SetTypeSystemInput([]byte("foo"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = l.SetExecutableInput([]byte("bar"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = l.ExtendTypeSystemInput([]byte("baz"))
+			if err == nil {
+				t.Fatal("want err")
+			}
+		})
+		t.Run("valid flow", func(t *testing.T) {
+			l := NewLexer()
+			err := l.SetTypeSystemInput([]byte("foo"))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			foo := l.Read()
+			if string(l.ByteSlice(foo.Literal)) != "foo" {
+				t.Fatal("want foo")
+			}
+
+			err = l.ExtendTypeSystemInput([]byte(" bar"))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			bar := l.Read()
+			if string(l.ByteSlice(bar.Literal)) != "bar" {
+				t.Fatal("want bar")
+			}
+
+			err = l.ExtendTypeSystemInput([]byte(" baz"))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			baz := l.Read()
+			if string(l.ByteSlice(baz.Literal)) != "baz" {
+				t.Fatal("want baz")
+			}
+
+			err = l.SetExecutableInput([]byte("bal bat"))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			bal := l.Read()
+			if string(l.ByteSlice(bal.Literal)) != "bal" {
+				t.Fatal("want bal")
+			}
+
+			err = l.SetTypeSystemInput([]byte("foo2"))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			foo2 := l.Read()
+			if string(l.ByteSlice(foo2.Literal)) != "foo2" {
+				t.Fatal("want foo2")
+			}
+		})
+	})
 }
 
 var introspectionQuery = `query IntrospectionQuery {

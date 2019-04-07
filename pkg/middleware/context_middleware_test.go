@@ -107,13 +107,6 @@ func TestContextMiddleware(t *testing.T) {
 }
 
 const publicSchema = `
-directive @addArgumentFromContext(
-	name: String!
-	contextKey: String!
-) on FIELD_DEFINITION
-
-scalar String
-
 schema {
 	query: Query
 }

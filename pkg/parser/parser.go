@@ -147,6 +147,7 @@ type cacheStats struct {
 // Lexer is the interface used by the Parser to lex tokens
 type Lexer interface {
 	SetTypeSystemInput(input []byte) error
+	ExtendTypeSystemInput(input []byte) error
 	ResetTypeSystemInput()
 	SetExecutableInput(input []byte) error
 	AppendBytes(input []byte) (err error)
@@ -261,10 +262,24 @@ func (p *Parser) ParseTypeSystemDefinition(input []byte) (err error) {
 		return
 	}
 
-	p.ParsedDefinitions.TypeSystemDefinition, err = p.parseTypeSystemDefinition()
+	p.initTypeSystemDefinition()
+	err = p.parseTypeSystemDefinition()
 	p.setCacheStats()
 
 	return err
+}
+
+func (p *Parser) ExtendTypeSystemDefinition(input []byte) (err error) {
+	err = p.l.ExtendTypeSystemInput(input)
+	if err != nil {
+		return
+	}
+	err = p.parseTypeSystemDefinition()
+	if err != nil {
+		return
+	}
+	p.setCacheStats()
+	return
 }
 
 // ParseExecutableDefinition parses an ExecutableDefinition from an io.Reader
@@ -275,7 +290,8 @@ func (p *Parser) ParseExecutableDefinition(input []byte) (err error) {
 		return
 	}
 
-	p.ParsedDefinitions.ExecutableDefinition, err = p.parseExecutableDefinition()
+	p.initExecutableDefinition()
+	err = p.parseExecutableDefinition()
 	return err
 }
 
@@ -354,8 +370,8 @@ func (p *Parser) makeInputObjectTypeDefinition() document.InputObjectTypeDefinit
 	}
 }
 
-func (p *Parser) initTypeSystemDefinition(definition *document.TypeSystemDefinition) {
-	definition.SchemaDefinition = document.SchemaDefinition{
+func (p *Parser) initTypeSystemDefinition() {
+	p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition = document.SchemaDefinition{
 		DirectiveSet: -1,
 	}
 }
@@ -418,11 +434,9 @@ func (p *Parser) makeFragmentSpread() document.FragmentSpread {
 	}
 }
 
-func (p *Parser) makeExecutableDefinition() document.ExecutableDefinition {
-	return document.ExecutableDefinition{
-		FragmentDefinitions:  p.IndexPoolGet(),
-		OperationDefinitions: p.IndexPoolGet(),
-	}
+func (p *Parser) initExecutableDefinition() {
+	p.ParsedDefinitions.ExecutableDefinition.OperationDefinitions = p.IndexPoolGet()
+	p.ParsedDefinitions.ExecutableDefinition.FragmentDefinitions = p.IndexPoolGet()
 }
 
 func (p *Parser) makeListValue(index *int) document.ListValue {

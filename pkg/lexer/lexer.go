@@ -47,6 +47,23 @@ func (l *Lexer) SetTypeSystemInput(input []byte) error {
 	return nil
 }
 
+func (l *Lexer) ExtendTypeSystemInput(input []byte) error {
+
+	if len(l.input) != l.typeSystemEndPosition {
+		return fmt.Errorf("ExtendTypeSystemInput: you must not extend the type system input after setting the executable input")
+	}
+
+	actual := len(l.input) + len(input)
+	if actual > maxInput {
+		return fmt.Errorf("ExtendTypeSystemInput: input size must not be > %d, got: %d", maxInput, actual)
+	}
+
+	l.input = append(l.input, input...)
+	l.typeSystemEndPosition = len(l.input)
+
+	return nil
+}
+
 func (l *Lexer) ResetTypeSystemInput() {
 	l.input = l._storage[:0]
 	l.inputPosition = 0
