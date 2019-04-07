@@ -38,6 +38,7 @@ func (m *MockLexer) EXPECT() *MockLexerMockRecorder {
 
 // SetTypeSystemInput mocks base method
 func (m *MockLexer) SetTypeSystemInput(input []byte) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetTypeSystemInput", input)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -45,21 +46,39 @@ func (m *MockLexer) SetTypeSystemInput(input []byte) error {
 
 // SetTypeSystemInput indicates an expected call of SetTypeSystemInput
 func (mr *MockLexerMockRecorder) SetTypeSystemInput(input interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTypeSystemInput", reflect.TypeOf((*MockLexer)(nil).SetTypeSystemInput), input)
+}
+
+// ExtendTypeSystemInput mocks base method
+func (m *MockLexer) ExtendTypeSystemInput(input []byte) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ExtendTypeSystemInput", input)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ExtendTypeSystemInput indicates an expected call of ExtendTypeSystemInput
+func (mr *MockLexerMockRecorder) ExtendTypeSystemInput(input interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExtendTypeSystemInput", reflect.TypeOf((*MockLexer)(nil).ExtendTypeSystemInput), input)
 }
 
 // ResetTypeSystemInput mocks base method
 func (m *MockLexer) ResetTypeSystemInput() {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "ResetTypeSystemInput")
 }
 
 // ResetTypeSystemInput indicates an expected call of ResetTypeSystemInput
 func (mr *MockLexerMockRecorder) ResetTypeSystemInput() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResetTypeSystemInput", reflect.TypeOf((*MockLexer)(nil).ResetTypeSystemInput))
 }
 
 // SetExecutableInput mocks base method
 func (m *MockLexer) SetExecutableInput(input []byte) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetExecutableInput", input)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -67,11 +86,13 @@ func (m *MockLexer) SetExecutableInput(input []byte) error {
 
 // SetExecutableInput indicates an expected call of SetExecutableInput
 func (mr *MockLexerMockRecorder) SetExecutableInput(input interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetExecutableInput", reflect.TypeOf((*MockLexer)(nil).SetExecutableInput), input)
 }
 
 // AppendBytes mocks base method
 func (m *MockLexer) AppendBytes(input []byte) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AppendBytes", input)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -79,11 +100,13 @@ func (m *MockLexer) AppendBytes(input []byte) error {
 
 // AppendBytes indicates an expected call of AppendBytes
 func (mr *MockLexerMockRecorder) AppendBytes(input interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AppendBytes", reflect.TypeOf((*MockLexer)(nil).AppendBytes), input)
 }
 
 // Read mocks base method
 func (m *MockLexer) Read() token.Token {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Read")
 	ret0, _ := ret[0].(token.Token)
 	return ret0
@@ -91,11 +114,13 @@ func (m *MockLexer) Read() token.Token {
 
 // Read indicates an expected call of Read
 func (mr *MockLexerMockRecorder) Read() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Read", reflect.TypeOf((*MockLexer)(nil).Read))
 }
 
 // Peek mocks base method
 func (m *MockLexer) Peek(ignoreWhitespace bool) keyword.Keyword {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Peek", ignoreWhitespace)
 	ret0, _ := ret[0].(keyword.Keyword)
 	return ret0
@@ -103,11 +128,13 @@ func (m *MockLexer) Peek(ignoreWhitespace bool) keyword.Keyword {
 
 // Peek indicates an expected call of Peek
 func (mr *MockLexerMockRecorder) Peek(ignoreWhitespace interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Peek", reflect.TypeOf((*MockLexer)(nil).Peek), ignoreWhitespace)
 }
 
 // ByteSlice mocks base method
 func (m *MockLexer) ByteSlice(reference document.ByteSliceReference) document.ByteSlice {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ByteSlice", reference)
 	ret0, _ := ret[0].(document.ByteSlice)
 	return ret0
@@ -115,11 +142,13 @@ func (m *MockLexer) ByteSlice(reference document.ByteSliceReference) document.By
 
 // ByteSlice indicates an expected call of ByteSlice
 func (mr *MockLexerMockRecorder) ByteSlice(reference interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ByteSlice", reflect.TypeOf((*MockLexer)(nil).ByteSlice), reference)
 }
 
 // TextPosition mocks base method
 func (m *MockLexer) TextPosition() position.Position {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "TextPosition")
 	ret0, _ := ret[0].(position.Position)
 	return ret0
@@ -127,5 +156,6 @@ func (m *MockLexer) TextPosition() position.Position {
 
 // TextPosition indicates an expected call of TextPosition
 func (mr *MockLexerMockRecorder) TextPosition() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TextPosition", reflect.TypeOf((*MockLexer)(nil).TextPosition))
 }
