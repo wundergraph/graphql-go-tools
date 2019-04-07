@@ -3,9 +3,8 @@ module github.com/jensneuse/graphql-go-tools
 go 1.12
 
 require (
-	github.com/BurntSushi/toml v0.3.1 // indirect
 	github.com/golang/mock v1.2.0
-	github.com/inconshreveable/mousetrap v1.0.0 // indirect
+	github.com/golangci/golangci-lint v1.16.0 // indirect
 	github.com/jensneuse/diffview v0.0.0-20181202143538-7017474a6da1
 	github.com/klauspost/compress v1.4.1 // indirect
 	github.com/klauspost/cpuid v1.2.0 // indirect
@@ -21,5 +20,4 @@ require (
 	github.com/tidwall/pretty v0.0.0-20180105212114-65a9db5fad51 // indirect
 	github.com/tidwall/sjson v1.0.4
 	github.com/valyala/fasthttp v1.2.0
-	golang.org/x/sys v0.0.0-20190305064518-30e92a19ae4a // indirect
 )
