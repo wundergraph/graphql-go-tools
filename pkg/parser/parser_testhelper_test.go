@@ -682,22 +682,44 @@ func mustParseEnumTypeDefinition(rules ...rule) checkFunc {
 	}
 }
 
-func mustParseExecutableDefinition(fragments []ruleSet, operations []ruleSet) checkFunc {
+func mustParseAddedExecutableDefinition(input string, fragments []ruleSet, operations []ruleSet) checkFunc {
 	return func(parser *Parser, i int) {
 
-		definition, err := parser.parseExecutableDefinition()
+		err := parser.ParseExecutableDefinition([]byte(input))
 		if err != nil {
 			panic(err)
 		}
 
 		for i, set := range fragments {
-			fragmentIndex := definition.FragmentDefinitions[i]
+			fragmentIndex := parser.ParsedDefinitions.ExecutableDefinition.FragmentDefinitions[i]
 			fragment := parser.ParsedDefinitions.FragmentDefinitions[fragmentIndex]
 			set.eval(fragment, parser, i)
 		}
 
 		for i, set := range operations {
-			opIndex := definition.OperationDefinitions[i]
+			opIndex := parser.ParsedDefinitions.ExecutableDefinition.OperationDefinitions[i]
+			operation := parser.ParsedDefinitions.OperationDefinitions[opIndex]
+			set.eval(operation, parser, i)
+		}
+	}
+}
+
+func mustParseExecutableDefinition(fragments []ruleSet, operations []ruleSet) checkFunc {
+	return func(parser *Parser, i int) {
+
+		err := parser.parseExecutableDefinition()
+		if err != nil {
+			panic(err)
+		}
+
+		for i, set := range fragments {
+			fragmentIndex := parser.ParsedDefinitions.ExecutableDefinition.FragmentDefinitions[i]
+			fragment := parser.ParsedDefinitions.FragmentDefinitions[fragmentIndex]
+			set.eval(fragment, parser, i)
+		}
+
+		for i, set := range operations {
+			opIndex := parser.ParsedDefinitions.ExecutableDefinition.OperationDefinitions[i]
 			operation := parser.ParsedDefinitions.OperationDefinitions[opIndex]
 			set.eval(operation, parser, i)
 		}
@@ -926,26 +948,37 @@ func mustParseScalarTypeDefinition(rules ...ruleSet) checkFunc {
 func mustParseTypeSystemDefinition(rules ruleSet) checkFunc {
 	return func(parser *Parser, i int) {
 
-		definition, err := parser.parseTypeSystemDefinition()
+		err := parser.parseTypeSystemDefinition()
 		if err != nil {
 			panic(err)
 		}
 
-		evalRules(definition, parser, rules, i)
+		evalRules(parser.ParsedDefinitions.TypeSystemDefinition, parser, rules, i)
+	}
+}
+
+func mustExtendTypeSystemDefinition(extension string, rules ruleSet) checkFunc {
+	return func(parser *Parser, i int) {
+
+		err := parser.ExtendTypeSystemDefinition([]byte(extension))
+		if err != nil {
+			panic(err)
+		}
+
+		evalRules(parser.ParsedDefinitions.TypeSystemDefinition, parser, rules, i)
 	}
 }
 
 func mustParseSchemaDefinition(rules ...rule) checkFunc {
 	return func(parser *Parser, i int) {
-		var typeSystemDefinition document.TypeSystemDefinition
-		parser.initTypeSystemDefinition(&typeSystemDefinition)
-		err := parser.parseSchemaDefinition(&typeSystemDefinition.SchemaDefinition)
+		parser.initTypeSystemDefinition()
+		err := parser.parseSchemaDefinition(&parser.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition)
 		if err != nil {
 			panic(err)
 		}
 
 		for k, rule := range rules {
-			rule(typeSystemDefinition.SchemaDefinition, parser, k, i)
+			rule(parser.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition, parser, k, i)
 		}
 	}
 }
