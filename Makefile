@@ -1,3 +1,6 @@
+GOLANG_CI_VERSION = "v1.16.0"
+HAS_GOLANG_CI_LINT := $(shell command -v golangci-lint;)
+
 .PHONY: test
 test:
 	go test ./...
@@ -9,7 +12,7 @@ updateTestFixtures:
 
 .PHONY: lint
 lint:
-	gometalinter --config ./gometalinter.json ./pkg/**
+	golangci-lint run
 
 .PHONY: format
 format:
@@ -18,9 +21,8 @@ format:
 .PHONY: prepare-merge
 prepare-merge: format test lint
 
-HAS_GOMETALINTER := $(shell command -v gometalinter;)
-HAS_DEP          := $(shell command -v dep;)
-HAS_GIT          := $(shell command -v git;)
+.PHONY: ci
+ci: test lint
 
 .PHONY: generate
 generate: $(GOPATH)/bin/go-enum $(GOPATH)/bin/mockgen $(GOPATH)/bin/stringer
@@ -40,14 +42,6 @@ $(GOPATH)/bin/stringer:
 
 .PHONY: bootstrap
 bootstrap:
-ifndef HAS_GIT
-	$(error You must install git)
+ifndef HAS_GOLANG_CI_LINT
+	go get github.com/golangci/golangci-lint/cmd/golangci-lint@${GOLANG_CI_VERSION}
 endif
-ifndef HAS_DEP
-	go get -u github.com/golang/dep/cmd/dep
-endif
-ifndef HAS_GOMETALINTER
-	go get -u github.com/alecthomas/gometalinter
-	gometalinter --install
-endif
-	dep ensure

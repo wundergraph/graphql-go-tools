@@ -5,9 +5,8 @@ jobs:
     - image: circleci/golang:1.12
     steps:
     - checkout
-    - run: go test ./...
-    - run: go get github.com/golangci/golangci-lint/cmd/golangci-lint@v1.16.0
-    - run: golangci-lint run
+    - run: make bootstrap
+    - run: make ci
   release:
     docker:
     - image: circleci/golang:1.12
