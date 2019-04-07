@@ -49,6 +49,19 @@ query myDocuments {
 type ContextMiddleware struct {
 }
 
+var contextMiddlewareSchemaExtension = []byte(`
+directive @addArgumentFromContext(
+	name: String!
+	contextKey: String!
+) on FIELD_DEFINITION`)
+
+func (a *ContextMiddleware) PrepareSchema(ctx context.Context, l *lookup.Lookup, w *lookup.Walker, parser *parser.Parser, mod *parser.ManualAstMod) error {
+
+	err := parser.ExtendTypeSystemDefinition(contextMiddlewareSchemaExtension)
+
+	return err
+}
+
 func (a *ContextMiddleware) OnResponse(ctx context.Context, response *[]byte, l *lookup.Lookup, w *lookup.Walker, parser *parser.Parser, mod *parser.ManualAstMod) (err error) {
 	return nil
 }
