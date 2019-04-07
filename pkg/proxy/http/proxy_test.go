@@ -90,6 +90,7 @@ func BenchmarkProxyHandler(b *testing.B) {
 	}
 }
 
+// nolint
 func printMemUsage() {
 	for {
 		time.Sleep(time.Millisecond * time.Duration(1000))
@@ -103,6 +104,7 @@ func printMemUsage() {
 	}
 }
 
+// nolint
 func bToMb(b uint64) uint64 {
 	return b / 1024 / 1024
 }

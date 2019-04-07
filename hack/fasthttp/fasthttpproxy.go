@@ -39,7 +39,7 @@ func (f *Proxy) RewriteQuery(config proxy.RequestConfig, ctx context.Context, re
 func (f *Proxy) HandleRequest(ctx *fasthttp.RequestCtx) {
 
 	config := f.RequestConfigProvider.GetRequestConfig(ctx)
-	goctx := f.SetContextValues(ctx, ctx.Request.Header, config.AddHeadersToContext)
+	goctx := f.SetContextValues(ctx, &ctx.Request.Header, config.AddHeadersToContext)
 
 	body := ctx.Request.Body()
 
@@ -88,7 +88,7 @@ func (f *Proxy) HandleRequest(ctx *fasthttp.RequestCtx) {
 	// todo: implement the OnResponse handlers / do something with the response
 }
 
-func (f *Proxy) SetContextValues(ctx context.Context, header fasthttp.RequestHeader, addHeaders [][]byte) context.Context {
+func (f *Proxy) SetContextValues(ctx context.Context, header *fasthttp.RequestHeader, addHeaders [][]byte) context.Context {
 	for _, key := range addHeaders {
 		ctx = context.WithValue(ctx, string(key), header.PeekBytes(key))
 	}

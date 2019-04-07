@@ -2,18 +2,14 @@ version: 2
 jobs:
   test:
     docker:
-    - image: circleci/golang:1.11
-    working_directory: /go/src/github.com/jensneuse/graphql-go-tools
+    - image: circleci/golang:1.12
     steps:
     - checkout
-    - run: go get -u github.com/alecthomas/gometalinter
-    - run: gometalinter --install
-    - run: gometalinter --config ./gometalinter.json ./pkg/**
-    - run: go test ./...
+    - run: make bootstrap
+    - run: make ci
   release:
     docker:
-    - image: circleci/golang:1.11
-    working_directory: /go/src/github.com/jensneuse/graphql-go-tools
+    - image: circleci/golang:1.12
     steps:
     - checkout
     - run: curl -sL https://git.io/goreleaser | bash

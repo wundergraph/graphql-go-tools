@@ -35,9 +35,9 @@ func TestPrinter(t *testing.T) {
 
 		buff := bytes.Buffer{}
 		out := bufio.NewWriter(&buff)
-		printer.PrintExecutableSchema(out)
-		if printer.err != nil {
-			panic(printer.err)
+		err = printer.PrintExecutableSchema(out)
+		if err != nil {
+			panic(err)
 		}
 
 		err = out.Flush()
@@ -170,11 +170,17 @@ func TestPrinter_Regression(t *testing.T) {
 	}
 
 	printExecutableSchema := func(printer *Printer, out io.Writer) {
-		printer.PrintExecutableSchema(out)
+		err := printer.PrintExecutableSchema(out)
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	printTypeSystemDefinition := func(printer *Printer, out io.Writer) {
-		printer.PrintTypeSystemDefinition(out)
+		err := printer.PrintTypeSystemDefinition(out)
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	run := func(t *testing.T, input, name string, parse parse, walk walk, action action) {
@@ -242,9 +248,9 @@ func BenchmarkPrinter_PrintExecutableSchema(b *testing.B) {
 		w.WalkExecutable()
 
 		printer.SetInput(p, l, w)
-		printer.PrintExecutableSchema(bufOut)
-		if printer.err != nil {
-			panic(printer.err)
+		err := printer.PrintExecutableSchema(bufOut)
+		if err != nil {
+			panic(err)
 		}
 
 		if err := bufOut.Flush(); err != nil {

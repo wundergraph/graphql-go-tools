@@ -5,14 +5,17 @@ This repository implements useful graphql tools in the golang programming langua
 The major differentiation from other implementations is heavy use of testing to ensure high quality and maintainability.
 The code is written in a way that enables easy refactoring. Feel free to submit a PR to improve it further.
 
-Until the repository hits 1.0 the API might be subject to change!
-
 Currently implemented:
 
 - lexing
 - parsing
 - validation
 - schema formatting
+- proxying
+
+## Go version Info
+
+This repos uses go modules so make sure to use the latest version of Go.
 
 ## Docs
 
