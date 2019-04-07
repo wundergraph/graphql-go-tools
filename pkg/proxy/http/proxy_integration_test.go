@@ -39,7 +39,6 @@ func TestProxyIntegration(t *testing.T) {
 			t.Fatalf("Expected:\n%s\ngot\n%s\n\n", privateAuthHeader, authHeader)
 		}
 
-
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			t.Error(err)
@@ -67,8 +66,8 @@ func TestProxyIntegration(t *testing.T) {
 	headers := make(http.Header)
 	headers.Set("Authorization", privateAuthHeader)
 	schemaProvider := proxy.NewStaticRequestConfigProvider(proxy.RequestConfig{
-		Schema:     &schema,
-		BackendURL: *backendURL,
+		Schema:         &schema,
+		BackendURL:     *backendURL,
 		BackendHeaders: headers,
 	})
 
