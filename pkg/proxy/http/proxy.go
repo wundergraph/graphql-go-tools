@@ -79,9 +79,9 @@ func (pr *ProxyRequest) DispatchRequest(buff *bytes.Buffer) (io.ReadCloser, erro
 	}
 	request := http.Request{
 		Method: "POST",
-		URL: &pr.Config.BackendURL,
+		URL:    &pr.Config.BackendURL,
 		Header: headers,
-		Body: ioutil.NopCloser(bytes.NewReader(out.Bytes())),
+		Body:   ioutil.NopCloser(bytes.NewReader(out.Bytes())),
 	}
 
 	request.Header.Set("Content-Type", "application/json")
