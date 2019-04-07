@@ -79,7 +79,7 @@ func (p *Proxy) Request(path string, request []byte) (response []byte, err error
 	}
 
 	middleware := middleware2.AssetUrlMiddleware{}
-	err = middleware.OnRequest(nil, p.look, p.walk, p.parse, p.mod)
+	err = middleware.OnRequest(nil, p.look, p.walk, p.parse, p.mod) // nolint
 	if err != nil {
 		return
 	}
@@ -93,7 +93,7 @@ func (p *Proxy) Request(path string, request []byte) (response []byte, err error
 
 	response = prisma.Query(p.buff.Bytes())
 
-	err = middleware.OnResponse(nil, &response, p.look, p.walk, p.parse, p.mod)
+	err = middleware.OnResponse(nil, &response, p.look, p.walk, p.parse, p.mod) // nolint
 	if err != nil {
 		return
 	}

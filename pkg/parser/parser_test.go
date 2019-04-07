@@ -15,7 +15,7 @@ import (
 func TestParser(t *testing.T) {
 	t.Run("newErrInvalidType", func(t *testing.T) {
 		want := "parser:a:invalidType - expected 'b', got 'c' @ 1:3-2:4"
-		got := newErrInvalidType(position.Position{1, 2, 3, 4}, "a", "b", "c").Error()
+		got := newErrInvalidType(position.Position{1, 2, 3, 4}, "a", "b", "c").Error() // nolint
 
 		if want != got {
 			t.Fatalf("newErrInvalidType: \nwant: %s\ngot: %s", want, got)

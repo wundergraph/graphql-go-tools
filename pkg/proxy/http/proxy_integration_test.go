@@ -52,6 +52,9 @@ func TestProxyIntegration(t *testing.T) {
 		}
 
 		_, err = w.Write([]byte(fakeResponse))
+		if err != nil {
+			t.Error(err)
+		}
 	})
 
 	endpointServer := httptest.NewServer(endpointHandler)

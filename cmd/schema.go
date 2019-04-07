@@ -41,9 +41,7 @@ var schemaCmd = &cobra.Command{
 		astPrinter := printer.New()
 		astPrinter.SetInput(p, l, w)
 
-		astPrinter.PrintTypeSystemDefinition(cmd.OutOrStdout())
-
-		return nil
+		return astPrinter.PrintTypeSystemDefinition(cmd.OutOrStdout())
 	},
 }
 

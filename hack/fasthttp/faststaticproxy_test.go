@@ -46,7 +46,7 @@ func TestFastStaticProxy(t *testing.T) {
 		&middleware.ContextMiddleware{},
 	)
 
-	go func() {
+	go func() { // nolint
 		err := prox.ListenAndServe("0.0.0.0:" + proxyPort)
 		if err != nil {
 			t.Fatal(err)
@@ -111,7 +111,7 @@ func BenchmarkFastStaticProxy(b *testing.B) {
 		&middleware.ContextMiddleware{},
 	)
 
-	go func() {
+	go func() { //nolint
 		err := prox.ListenAndServe("0.0.0.0:" + proxyPort)
 		if err != nil {
 			b.Fatal(err)

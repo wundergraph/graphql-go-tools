@@ -20,7 +20,7 @@ type Proxy struct {
 
 type ProxyRequest struct {
 	proxy.Request
-	Proxy Proxy
+	Proxy *Proxy
 }
 
 type GraphqlJsonRequest struct {
@@ -106,7 +106,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	config := p.RequestConfigProvider.GetRequestConfig(r.Context())
 	pr := ProxyRequest{
-		Proxy: *p,
+		Proxy: p,
 	}
 	pr.Config = &config
 	pr.RequestURL = *r.URL
@@ -156,7 +156,7 @@ func NewDefaultProxy(provider proxy.RequestConfigProvider, middlewares ...middle
 		HandleError: func(err error, w http.ResponseWriter) {
 			log.Printf("Error: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(err.Error()))
+			_,_ = w.Write([]byte(err.Error()))
 		},
 	}
 	prx.RequestConfigProvider = provider
