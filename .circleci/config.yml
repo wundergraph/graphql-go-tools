@@ -2,8 +2,7 @@ version: 2
 jobs:
   test:
     docker:
-    - image: circleci/golang:1.11
-    working_directory: /go/src/github.com/jensneuse/graphql-go-tools
+    - image: circleci/golang:1.12
     steps:
     - checkout
     - run: go get -u github.com/alecthomas/gometalinter
