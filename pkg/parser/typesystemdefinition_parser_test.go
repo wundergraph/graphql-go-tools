@@ -214,4 +214,69 @@ func TestParser_parseTypeSystemDefinition(t *testing.T) {
 	t.Run("invalid keyword", func(t *testing.T) {
 		run(`unknown {}`, mustPanic(mustParseTypeSystemDefinition(node())))
 	})
+
+	// type system definition extension
+	t.Run("extend with scalars", func(t *testing.T) {
+		run(`schema {}`,
+			mustPanic(mustParseTypeSystemDefinition(
+				node(
+					hasScalarTypeSystemDefinitions(
+						node(
+							hasName("String"),
+						),
+					),
+				),
+			)),
+			mustExtendTypeSystemDefinition(`
+			scalar String`, node(
+				hasScalarTypeSystemDefinitions(
+					node(
+						hasName("String"),
+					),
+				),
+			)),
+			mustExtendTypeSystemDefinition(`
+			scalar JSON`, node(
+				hasScalarTypeSystemDefinitions(
+					node(
+						hasName("String"),
+					),
+					node(
+						hasName("JSON"),
+					),
+				),
+			)),
+		)
+	})
+	t.Run("extend after setting executable definition should fail", func(t *testing.T) {
+		run(`schema {}`,
+			mustParseTypeSystemDefinition(
+				node(),
+			),
+			mustParseAddedExecutableDefinition("{foo}", nil, nil),
+			mustPanic(mustExtendTypeSystemDefinition(`
+			scalar String`, node(
+				hasScalarTypeSystemDefinitions(
+					node(
+						hasName("String"),
+					),
+				),
+			))),
+		)
+	})
+	t.Run("extend after setting executable definition should fail reverse", func(t *testing.T) {
+		run(`schema {}`,
+			mustParseTypeSystemDefinition(
+				node(),
+			),
+			mustExtendTypeSystemDefinition(`
+			scalar String`, node(
+				hasScalarTypeSystemDefinitions(
+					node(
+						hasName("String"),
+					),
+				),
+			)),
+		)
+	})
 }
