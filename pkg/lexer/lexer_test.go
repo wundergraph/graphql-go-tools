@@ -466,7 +466,7 @@ baz
 			}
 
 			foo := l.Read()
-			if "foo" != string(l.ByteSlice(foo.Literal)) {
+			if string(l.ByteSlice(foo.Literal)) != "foo" {
 				t.Fatal("want foo")
 			}
 
@@ -476,7 +476,7 @@ baz
 			}
 
 			bar := l.Read()
-			if "bar" != string(l.ByteSlice(bar.Literal)) {
+			if string(l.ByteSlice(bar.Literal)) != "bar" {
 				t.Fatal("want bar")
 			}
 
@@ -486,7 +486,7 @@ baz
 			}
 
 			baz := l.Read()
-			if "baz" != string(l.ByteSlice(baz.Literal)) {
+			if string(l.ByteSlice(baz.Literal)) != "baz" {
 				t.Fatal("want baz")
 			}
 
@@ -496,7 +496,7 @@ baz
 			}
 
 			bal := l.Read()
-			if "bal" != string(l.ByteSlice(bal.Literal)) {
+			if string(l.ByteSlice(bal.Literal)) != "bal" {
 				t.Fatal("want bal")
 			}
 
@@ -506,7 +506,7 @@ baz
 			}
 
 			foo2 := l.Read()
-			if "foo2" != string(l.ByteSlice(foo2.Literal)) {
+			if string(l.ByteSlice(foo2.Literal)) != "foo2" {
 				t.Fatal("want foo2")
 			}
 		})
