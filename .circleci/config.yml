@@ -5,7 +5,6 @@ jobs:
     - image: circleci/golang:1.12
     steps:
     - checkout
-    - run: make bootstrap
     - run: make ci
   release:
     docker:
