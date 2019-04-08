@@ -72,7 +72,7 @@ func (i InterfaceTypeDefinition) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (i InterfaceTypeDefinition) NodeImplementsInterfaces() []int {
+func (i InterfaceTypeDefinition) NodeImplementsInterfaces() ByteSliceReferences {
 	panic("implement me")
 }
 

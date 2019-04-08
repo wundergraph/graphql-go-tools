@@ -20,7 +20,7 @@ type Node interface {
 	NodeOperationType() OperationType
 	NodeValue() int
 	NodeDefaultValue() int
-	NodeImplementsInterfaces() []int
+	NodeImplementsInterfaces() ByteSliceReferences
 	InputValueDefinitionsNode
 	UnionTypeSystemDefinitionNode
 	ValueNode

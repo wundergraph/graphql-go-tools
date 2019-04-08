@@ -73,7 +73,7 @@ func (f Field) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (f Field) NodeImplementsInterfaces() []int {
+func (f Field) NodeImplementsInterfaces() ByteSliceReferences {
 	panic("implement me")
 }
 

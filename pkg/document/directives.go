@@ -70,7 +70,7 @@ func (d Directive) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (d Directive) NodeImplementsInterfaces() []int {
+func (d Directive) NodeImplementsInterfaces() ByteSliceReferences {
 	panic("implement me")
 }
 

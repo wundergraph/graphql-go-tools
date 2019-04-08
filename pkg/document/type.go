@@ -103,7 +103,7 @@ func (t Type) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (t Type) NodeImplementsInterfaces() []int {
+func (t Type) NodeImplementsInterfaces() ByteSliceReferences {
 	panic("implement me")
 }
 

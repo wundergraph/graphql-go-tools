@@ -72,7 +72,7 @@ func (f FragmentDefinition) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (f FragmentDefinition) NodeImplementsInterfaces() []int {
+func (f FragmentDefinition) NodeImplementsInterfaces() ByteSliceReferences {
 	panic("implement me")
 }
 

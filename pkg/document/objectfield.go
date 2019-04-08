@@ -90,7 +90,7 @@ func (o ObjectField) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (o ObjectField) NodeImplementsInterfaces() []int {
+func (o ObjectField) NodeImplementsInterfaces() ByteSliceReferences {
 	panic("implement me")
 }
 

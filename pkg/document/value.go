@@ -98,7 +98,7 @@ func (v Value) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (v Value) NodeImplementsInterfaces() []int {
+func (v Value) NodeImplementsInterfaces() ByteSliceReferences {
 	panic("implement me")
 }
 

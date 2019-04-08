@@ -135,7 +135,7 @@ func (s SelectionSet) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (s SelectionSet) NodeImplementsInterfaces() []int {
+func (s SelectionSet) NodeImplementsInterfaces() ByteSliceReferences {
 	panic("implement me")
 }
 
