@@ -573,8 +573,9 @@ func (l *Lookup) UnionTypeDefinitionContainsType(definition document.UnionTypeDe
 }
 
 func (l *Lookup) ObjectTypeDefinitionImplementsInterface(definition document.ObjectTypeDefinition, interfaceName document.ByteSliceReference) bool {
-	for _, implements := range definition.ImplementsInterfaces {
-		if l.ByteSliceReferenceContentsEquals(l.ByteSliceReference(implements), interfaceName) {
+	for definition.ImplementsInterfaces.Next(l) {
+		implements, _ := definition.ImplementsInterfaces.Value()
+		if l.ByteSliceReferenceContentsEquals(implements, interfaceName) {
 			return true
 		}
 	}
@@ -1032,8 +1033,9 @@ func (l *Lookup) PossibleSelectionTypes(typeName document.ByteSliceReference, po
 
 	objectType, ok := l.ObjectTypeDefinitionByName(typeName)
 	if ok {
-		for _, implementsInterface := range objectType.ImplementsInterfaces {
-			*possibleTypeNames = append(*possibleTypeNames, l.ByteSliceReference(implementsInterface))
+		for objectType.ImplementsInterfaces.Next(l) {
+			implementsInterface, _ := objectType.ImplementsInterfaces.Value()
+			*possibleTypeNames = append(*possibleTypeNames, implementsInterface)
 		}
 		l.UnionTypeDefinitionNamesContainingMember(typeName, possibleTypeNames)
 		return
