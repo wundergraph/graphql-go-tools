@@ -433,7 +433,13 @@ func hasImplementsInterfaces(interfaces ...string) rule {
 
 		actual := node.NodeImplementsInterfaces()
 		for i, want := range interfaces {
-			got := string(parser.CachedByteSlice(actual[i]))
+
+			if !actual.Next(parser) {
+				panic("want next!")
+			}
+
+			next, _ := actual.Value()
+			got := string(parser.ByteSlice(next))
 
 			if want != got {
 				panic(fmt.Errorf("hasImplementsInterfaces: want(at: %d): %s, got: %s [check: %d]", i, want, got, ruleSetIndex))
@@ -793,8 +799,15 @@ func mustParseImplementsInterfaces(implements ...string) checkFunc {
 			panic(err)
 		}
 
-		for j, want := range implements {
-			got := string(parser.CachedByteSlice(interfaces[j]))
+		for _, want := range implements {
+
+			if !interfaces.Next(parser) {
+				panic("want next!")
+			}
+
+			next, _ := interfaces.Value()
+
+			got := string(parser.ByteSlice(next))
 			if want != got {
 				panic(fmt.Errorf("mustParseImplementsInterfaces: want: %s, got: %s [check: %d]", want, got, i))
 			}
