@@ -104,7 +104,7 @@ func (u UnionTypeDefinition) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (u UnionTypeDefinition) NodeImplementsInterfaces() []int {
+func (u UnionTypeDefinition) NodeImplementsInterfaces() ByteSliceReferences {
 	panic("implement me")
 }
 

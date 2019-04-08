@@ -85,7 +85,7 @@ func (a ArgumentsDefinition) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (a ArgumentsDefinition) NodeImplementsInterfaces() []int {
+func (a ArgumentsDefinition) NodeImplementsInterfaces() ByteSliceReferences {
 	panic("implement me")
 }
 

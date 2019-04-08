@@ -81,7 +81,7 @@ func (i InputFieldsDefinition) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (i InputFieldsDefinition) NodeImplementsInterfaces() []int {
+func (i InputFieldsDefinition) NodeImplementsInterfaces() ByteSliceReferences {
 	panic("implement me")
 }
 

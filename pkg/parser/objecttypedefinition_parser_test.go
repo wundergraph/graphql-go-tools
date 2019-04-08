@@ -81,7 +81,7 @@ func TestParser_parseObjectTypeDefinition(t *testing.T) {
 			mustParseObjectTypeDefinition(
 				node(
 					hasName("Person"),
-					hasImplementsInterfaces("Human", "Mammal"),
+					hasImplementsInterfaces("Mammal", "Human"),
 					hasFieldsDefinitions(
 						node(
 							hasName("name"),

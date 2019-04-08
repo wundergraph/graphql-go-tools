@@ -2,15 +2,18 @@
   "SchemaDefinition": {
     "Query": {
       "Start": 42,
-      "End": 47
+      "End": 47,
+      "NextRef": 0
     },
     "Mutation": {
       "Start": 62,
-      "End": 70
+      "End": 70,
+      "NextRef": 0
     },
     "Subscription": {
       "Start": 89,
-      "End": 101
+      "End": 101,
+      "NextRef": 0
     },
     "DirectiveSet": -1,
     "Position": {

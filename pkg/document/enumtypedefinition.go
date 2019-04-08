@@ -73,7 +73,7 @@ func (e EnumTypeDefinition) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (e EnumTypeDefinition) NodeImplementsInterfaces() []int {
+func (e EnumTypeDefinition) NodeImplementsInterfaces() ByteSliceReferences {
 	panic("implement me")
 }
 

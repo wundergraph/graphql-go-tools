@@ -83,7 +83,7 @@ func (s SchemaDefinition) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (s SchemaDefinition) NodeImplementsInterfaces() []int {
+func (s SchemaDefinition) NodeImplementsInterfaces() ByteSliceReferences {
 	panic("implement me")
 }
 

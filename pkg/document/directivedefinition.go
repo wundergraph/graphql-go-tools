@@ -100,7 +100,7 @@ func (d DirectiveDefinition) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (d DirectiveDefinition) NodeImplementsInterfaces() []int {
+func (d DirectiveDefinition) NodeImplementsInterfaces() ByteSliceReferences {
 	panic("implement me")
 }
 

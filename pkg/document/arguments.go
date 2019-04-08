@@ -70,7 +70,7 @@ func (a Argument) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (a Argument) NodeImplementsInterfaces() []int {
+func (a Argument) NodeImplementsInterfaces() ByteSliceReferences {
 	panic("implement me")
 }
 

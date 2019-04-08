@@ -71,7 +71,7 @@ func (i InlineFragment) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (i InlineFragment) NodeImplementsInterfaces() []int {
+func (i InlineFragment) NodeImplementsInterfaces() ByteSliceReferences {
 	panic("implement me")
 }
 

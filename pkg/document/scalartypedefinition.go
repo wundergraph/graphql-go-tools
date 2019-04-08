@@ -135,7 +135,7 @@ func (s ScalarTypeDefinition) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (s ScalarTypeDefinition) NodeImplementsInterfaces() []int {
+func (s ScalarTypeDefinition) NodeImplementsInterfaces() ByteSliceReferences {
 	panic("implement me")
 }
 

@@ -101,7 +101,7 @@ func (t TypeSystemDefinition) NodeDefaultValue() int {
 	panic("implement me")
 }
 
-func (t TypeSystemDefinition) NodeImplementsInterfaces() []int {
+func (t TypeSystemDefinition) NodeImplementsInterfaces() ByteSliceReferences {
 	panic("implement me")
 }
 

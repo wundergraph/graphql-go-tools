@@ -8,7 +8,7 @@ type ObjectTypeDefinition struct {
 	Description          ByteSliceReference
 	Name                 ByteSliceReference
 	FieldsDefinition     FieldDefinitions
-	ImplementsInterfaces ImplementsInterfaces
+	ImplementsInterfaces ByteSliceReferences
 	DirectiveSet         int
 	Position             position.Position
 }
@@ -73,7 +73,7 @@ func (o ObjectTypeDefinition) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (o ObjectTypeDefinition) NodeImplementsInterfaces() []int {
+func (o ObjectTypeDefinition) NodeImplementsInterfaces() ByteSliceReferences {
 	return o.ImplementsInterfaces
 }
 

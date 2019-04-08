@@ -5,11 +5,13 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
-func (p *Parser) parseImplementsInterfaces() (implementsInterfaces document.ImplementsInterfaces, err error) {
+func (p *Parser) parseImplementsInterfaces() (implementsInterfaces document.ByteSliceReferences, err error) {
 
 	if implements := p.peekExpect(keyword.IMPLEMENTS, true); !implements {
 		return
 	}
+
+	nextRef := -1
 
 	for {
 		next, err := p.readExpect(keyword.IDENT, "parseImplementsInterfaces")
@@ -17,10 +19,11 @@ func (p *Parser) parseImplementsInterfaces() (implementsInterfaces document.Impl
 			return implementsInterfaces, err
 		}
 
-		implementsInterfaces = append(implementsInterfaces, p._putByteSliceReference(next.Literal))
+		next.Literal.NextRef = nextRef
+		nextRef = p._putByteSliceReference(next.Literal)
 
 		if another := p.peekExpect(keyword.AND, true); !another {
-			return implementsInterfaces, err
+			return document.NewByteSliceReferences(nextRef), err
 		}
 	}
 }

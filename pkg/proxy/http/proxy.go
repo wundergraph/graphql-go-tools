@@ -156,7 +156,7 @@ func NewDefaultProxy(provider proxy.RequestConfigProvider, middlewares ...middle
 		HandleError: func(err error, w http.ResponseWriter) {
 			log.Printf("Error: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
-			_,_ = w.Write([]byte(err.Error()))
+			_, _ = w.Write([]byte(err.Error()))
 		},
 	}
 	prx.RequestConfigProvider = provider

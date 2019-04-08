@@ -71,7 +71,7 @@ func (v VariableDefinition) NodeDirectiveDefinitions() []int {
 	panic("implement me")
 }
 
-func (v VariableDefinition) NodeImplementsInterfaces() []int {
+func (v VariableDefinition) NodeImplementsInterfaces() ByteSliceReferences {
 	panic("implement me")
 }
 
