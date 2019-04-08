@@ -55,6 +55,10 @@ type Parser struct {
 	sliceIndex        map[string]int
 }
 
+func (p *Parser) ByteSliceReference(ref int) document.ByteSliceReference {
+	return p.ParsedDefinitions.ByteSliceReferences[ref]
+}
+
 func (p *Parser) FieldDefinition(ref int) document.FieldDefinition {
 	return p.ParsedDefinitions.FieldDefinitions[ref]
 }
