@@ -44,4 +44,5 @@ $(GOPATH)/bin/stringer:
 bootstrap:
 ifndef HAS_GOLANG_CI_LINT
 	go get github.com/golangci/golangci-lint/cmd/golangci-lint@${GOLANG_CI_VERSION}
+	go mod tidy
 endif
