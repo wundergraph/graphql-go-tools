@@ -22,7 +22,7 @@ format:
 prepare-merge: format test lint
 
 .PHONY: ci
-ci: test lint
+ci: bootstrap test lint
 
 .PHONY: generate
 generate: $(GOPATH)/bin/go-enum $(GOPATH)/bin/mockgen $(GOPATH)/bin/stringer
