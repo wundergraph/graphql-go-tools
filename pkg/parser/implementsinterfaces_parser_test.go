@@ -13,12 +13,12 @@ func TestParser_parseImplementsInterfaces(t *testing.T) {
 	})
 	t.Run("multiple", func(t *testing.T) {
 		run("implements Dogs & Cats & Mice",
-			mustParseImplementsInterfaces("Dogs", "Cats", "Mice"),
+			mustParseImplementsInterfaces("Mice", "Cats", "Dogs"),
 		)
 	})
 	t.Run("multiple without &", func(t *testing.T) {
 		run("implements Dogs & Cats Mice",
-			mustParseImplementsInterfaces("Dogs", "Cats"),
+			mustParseImplementsInterfaces("Cats", "Dogs"),
 			mustParseLiteral(keyword.IDENT, "Mice"),
 		)
 	})
