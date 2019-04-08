@@ -22,7 +22,7 @@ format:
 prepare-merge: format test lint
 
 .PHONY: ci
-ci: test lint
+ci: bootstrap test lint
 
 .PHONY: generate
 generate: $(GOPATH)/bin/go-enum $(GOPATH)/bin/mockgen $(GOPATH)/bin/stringer
@@ -44,4 +44,5 @@ $(GOPATH)/bin/stringer:
 bootstrap:
 ifndef HAS_GOLANG_CI_LINT
 	go get github.com/golangci/golangci-lint/cmd/golangci-lint@${GOLANG_CI_VERSION}
+	go mod tidy
 endif
