@@ -124,6 +124,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		p.BufferPool.Put(buff)
 		r.Body.Close()
+		p.HandleError(err, w)
 		return
 	}
 
