@@ -53,7 +53,9 @@ func TestProxyHandler(t *testing.T) {
 func TestProxyHandlerError(t *testing.T) {
 	endpointServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("induced failure"))
+		if _, err := w.Write([]byte("induced failure")); err != nil {
+			t.Fatal(err)
+		}
 	}))
 	defer endpointServer.Close()
 

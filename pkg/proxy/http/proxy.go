@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -92,7 +91,7 @@ func (pr *ProxyRequest) DispatchRequest(buff *bytes.Buffer) (io.ReadCloser, erro
 	if err != nil {
 		return nil, err
 	} else if response.StatusCode >= 400 {
-		return nil, errors.New(fmt.Sprintf("received status code %d, body %s", response.StatusCode, response.Body))
+		return nil, fmt.Errorf("received status code %d, body %s", response.StatusCode, response.Body)
 	}
 	return response.Body, nil
 }
