@@ -83,10 +83,11 @@ func TestProxyHandlerError(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
+
+		if handlerHit != true {
+			t.Error("Error handler was not hit")
+		}
 	})
-	if handlerHit != true {
-		t.Error("Error handler was not hit")
-	}
 }
 
 func BenchmarkProxyHandler(b *testing.B) {
