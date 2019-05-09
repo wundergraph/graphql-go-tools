@@ -4,13 +4,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"github.com/jensneuse/graphql-go-tools/pkg/middleware"
-	"github.com/jensneuse/graphql-go-tools/pkg/proxy"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"sync"
+
+	"github.com/jensneuse/graphql-go-tools/pkg/middleware"
+	"github.com/jensneuse/graphql-go-tools/pkg/proxy"
 )
 
 type Proxy struct {
@@ -88,6 +90,8 @@ func (pr *ProxyRequest) DispatchRequest(buff *bytes.Buffer) (io.ReadCloser, erro
 	response, err := client.Do(&request)
 	if err != nil {
 		return nil, err
+	} else if response.StatusCode >= 400 {
+		return nil, fmt.Errorf("received status code %d, body %s", response.StatusCode, response.Body)
 	}
 	return response.Body, nil
 }
@@ -124,6 +128,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		p.BufferPool.Put(buff)
 		r.Body.Close()
+		p.HandleError(err, w)
 		return
 	}
 

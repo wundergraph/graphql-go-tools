@@ -2,8 +2,6 @@ package http
 
 import (
 	"fmt"
-	hackmiddleware "github.com/jensneuse/graphql-go-tools/hack/middleware"
-	"github.com/jensneuse/graphql-go-tools/pkg/proxy"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +10,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	hackmiddleware "github.com/jensneuse/graphql-go-tools/hack/middleware"
+	"github.com/jensneuse/graphql-go-tools/pkg/proxy"
 )
 
 func TestProxyHandler(t *testing.T) {
@@ -45,6 +46,46 @@ func TestProxyHandler(t *testing.T) {
 		_, err := http.Post(ts.URL, "application/graphql", strings.NewReader(assetInput))
 		if err != nil {
 			t.Error(err)
+		}
+	})
+}
+
+func TestProxyHandlerError(t *testing.T) {
+	endpointServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		if _, err := w.Write([]byte("induced failure")); err != nil {
+			t.Fatal(err)
+		}
+	}))
+	defer endpointServer.Close()
+
+	schema := []byte(assetSchema)
+	backendURL, err := url.Parse(endpointServer.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	requestConfigProvider := proxy.NewStaticRequestConfigProvider(proxy.RequestConfig{
+		Schema:     &schema,
+		BackendURL: *backendURL,
+	})
+
+	ph := NewDefaultProxy(requestConfigProvider, &hackmiddleware.AssetUrlMiddleware{})
+	handlerHit := false
+	ph.HandleError = func(err error, w http.ResponseWriter) {
+		handlerHit = true
+	}
+	proxyServer := httptest.NewServer(ph)
+	defer proxyServer.Close()
+
+	t.Run("Test proxy handler", func(t *testing.T) {
+		_, err := http.Post(proxyServer.URL, "application/graphql", strings.NewReader(assetInput))
+		if err != nil {
+			t.Error(err)
+		}
+
+		if handlerHit != true {
+			t.Error("Error handler was not hit")
 		}
 	})
 }
