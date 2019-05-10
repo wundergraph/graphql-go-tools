@@ -356,6 +356,9 @@ func (l *Lexer) keywordFromIdent(start, end int) (k keyword.Keyword) {
 			return keyword.INPUT
 		}
 	case 6:
+		if l.input[start] == 'e' && l.input[start+1] == 'x' && l.input[start+2] == 't' && l.input[start+3] == 'e' && l.input[start+4] == 'n' && l.input[start+5] == 'd' {
+			return keyword.EXTEND
+		}
 		if l.input[start] == 's' {
 			if l.input[start+1] == 'c' && l.input[start+2] == 'h' && l.input[start+3] == 'e' && l.input[start+4] == 'm' && l.input[start+5] == 'a' {
 				return keyword.SCHEMA
@@ -363,10 +366,6 @@ func (l *Lexer) keywordFromIdent(start, end int) (k keyword.Keyword) {
 			if l.input[start+1] == 'c' && l.input[start+2] == 'a' && l.input[start+3] == 'l' && l.input[start+4] == 'a' && l.input[start+5] == 'r' {
 				return keyword.SCALAR
 			}
-		}
-	case 7:
-		if l.input[start] == 'e' && l.input[start+1] == 'x' && l.input[start+2] == 't' && l.input[start+3] == 'e' && l.input[start+4] == 'n' && l.input[start+5] == 'd' && l.input[start+6] == 's' {
-			return keyword.EXTENDS
 		}
 	case 8:
 		if l.input[start] == 'm' && l.input[start+1] == 'u' && l.input[start+2] == 't' && l.input[start+3] == 'a' && l.input[start+4] == 't' && l.input[start+5] == 'i' && l.input[start+6] == 'o' && l.input[start+7] == 'n' {

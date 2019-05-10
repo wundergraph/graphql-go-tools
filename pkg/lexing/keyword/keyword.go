@@ -6,7 +6,7 @@ type Keyword int
 const (
 	UNDEFINED Keyword = iota
 	IDENT
-	EXTENDS
+	EXTEND
 	COMMENT
 	EOF
 
