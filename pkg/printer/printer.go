@@ -453,6 +453,9 @@ func (p *Printer) printOperation(operation document.OperationDefinition) {
 	p.printOperationType(operation.OperationType, hasName)
 	if hasName {
 		p.write(p.p.ByteSlice(operation.Name))
+		if len(operation.VariableDefinitions) > 0 {
+			p.printVariableDefinitions(operation.VariableDefinitions)
+		}
 		p.write(literal.SPACE)
 	}
 	if operation.DirectiveSet != -1 {
@@ -672,4 +675,33 @@ func (p *Printer) printListValue(ref int) {
 	}
 
 	p.write(literal.SQUAREBRACKETCLOSE)
+}
+
+func (p *Printer) printVariableDefinition(definition document.VariableDefinition) {
+	p.write(literal.DOLLAR)
+	p.write(p.p.ByteSlice(definition.Variable))
+	p.write(literal.COLON)
+	p.PrintType(definition.Type)
+}
+
+func (p *Printer) printVariableDefinitions(definitions []int) {
+
+	variableDefinitions := p.l.VariableDefinitionIterator(definitions)
+
+	p.write(literal.BRACKETOPEN)
+
+	prependSpaceBeforeNext := false
+
+	for variableDefinitions.Next() {
+		if prependSpaceBeforeNext {
+			p.write(literal.SPACE)
+		}
+
+		variable, _ := variableDefinitions.Value()
+		p.printVariableDefinition(variable)
+
+		prependSpaceBeforeNext = true
+	}
+
+	p.write(literal.BRACKETCLOSE)
 }
