@@ -685,19 +685,23 @@ func (p *Printer) printVariableDefinition(definition document.VariableDefinition
 }
 
 func (p *Printer) printVariableDefinitions(definitions []int) {
+
 	variableDefinitions := p.l.VariableDefinitionIterator(definitions)
+
 	p.write(literal.BRACKETOPEN)
 
-	if variableDefinitions.Next() {
+	prependSpaceBeforeNext := false
+
+	for variableDefinitions.Next() {
+		if prependSpaceBeforeNext {
+			p.write(literal.SPACE)
+		}
+
 		variable, _ := variableDefinitions.Value()
 		p.printVariableDefinition(variable)
+
+		prependSpaceBeforeNext = true
 	}
 
-	// write all other definitions with spaces in between
-	for variableDefinitions.Next() {
-		p.write(literal.SPACE)
-		variable, _ := variableDefinitions.Value()
-		p.printVariableDefinition(variable)
-	}
 	p.write(literal.BRACKETCLOSE)
 }
