@@ -21,8 +21,8 @@ func TestProxyHandler(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if string(body) != assetOutput {
-			t.Fatalf("Expected:\n%s\ngot\n%s", assetOutput, body)
+		if strings.TrimSpace(string(body)) != assetOutput {
+			t.Fatalf("Expected:\n%s\ngot\n%s", assetOutput, string(body))
 		}
 	}))
 	defer es.Close()
@@ -86,6 +86,41 @@ func TestProxyHandlerError(t *testing.T) {
 
 		if handlerHit != true {
 			t.Error("Error handler was not hit")
+		}
+	})
+}
+
+func TestProxyHandlerVariables(t *testing.T) {
+	endpointServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.TrimSpace(string(body)) != variableAssetOutput {
+			t.Fatalf("Expected:\n%s\ngot\n%s", variableAssetOutput, body)
+		}
+	}))
+	defer endpointServer.Close()
+
+	schema := []byte(assetSchema)
+	backendURL, err := url.Parse(endpointServer.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	requestConfigProvider := proxy.NewStaticRequestConfigProvider(proxy.RequestConfig{
+		Schema:     &schema,
+		BackendURL: *backendURL,
+	})
+
+	proxyHandler := NewDefaultProxy(requestConfigProvider, &hackmiddleware.AssetUrlMiddleware{})
+	testServer := httptest.NewServer(proxyHandler)
+	defer testServer.Close()
+
+	t.Run("Test proxy handler", func(t *testing.T) {
+		_, err := http.Post(testServer.URL, "application/graphql", strings.NewReader(variableAssetInput))
+		if err != nil {
+			t.Error(err)
 		}
 	})
 }
@@ -173,7 +208,8 @@ type Asset implements Node {
     url: String!
 }`
 
-const assetInput = `{"query":"query testQueryWithoutHandle {assets(first: 1) { id fileName url(transformation: {image: {resize: {width: 100, height: 100}}})}}"}`
+const assetInput = `{"query":"query testQueryWithoutHandle {assets(first:1) { id fileName url(transformation: {image: {resize: {width: 100, height: 100}}})}}"}`
+const assetOutput = `{"query":"query testQueryWithoutHandle {assets(first:1) {id fileName handle}}"}`
 
-const assetOutput = `{"query":"query testQueryWithoutHandle {assets(first:1) {id fileName handle}}"}
-`
+const variableAssetInput = `{"query":"query testQueryWithoutHandle {assets(first: 1) { id fileName url(transformation: {image: {resize: {width: 100, height: 100}}})}}","variables":{"id":1}}`
+const variableAssetOutput = `{"query":"query testQueryWithoutHandle {assets(first:1) {id fileName handle}}","variables":{"id":1}}`
