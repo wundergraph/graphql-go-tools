@@ -681,12 +681,7 @@ func (p *Printer) printVariableDefinition(definition document.VariableDefinition
 	p.write(literal.DOLLAR)
 	p.write(p.p.ByteSlice(definition.Variable))
 	p.write(literal.COLON)
-	variableType := p.p.ParsedDefinitions.Types[definition.Type]
-	p.write(p.p.ByteSlice(variableType.Name))
-
-	if variableType.Kind == document.TypeKindNON_NULL {
-		p.write(literal.BANG)
-	}
+	p.PrintType(definition.Type)
 }
 
 func (p *Printer) printVariableDefinitions(definitions []int) {
