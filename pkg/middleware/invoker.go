@@ -8,6 +8,12 @@ import (
 	"io"
 )
 
+type GraphQLRequest struct {
+	OperationName string `json:"operationName,omitempty"`
+	Query         string `json:"query"`
+	Variables     map[string]interface{} `json:"variables,omitempty"`
+}
+
 type Invoker struct {
 	middleWares []GraphqlMiddleware
 	parse       *parser.Parser

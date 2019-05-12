@@ -25,11 +25,6 @@ type ProxyRequest struct {
 	Proxy *Proxy
 }
 
-type GraphqlJsonRequest struct {
-	OperationName string `json:"operationName,omitempty"`
-	Query         string `json:"query"`
-}
-
 func (pr *ProxyRequest) AcceptRequest(buff *bytes.Buffer) error {
 
 	idx, invoker := pr.Proxy.InvokerPool.Get()
@@ -40,15 +35,7 @@ func (pr *ProxyRequest) AcceptRequest(buff *bytes.Buffer) error {
 		return err
 	}
 
-	var graphqlJsonRequest GraphqlJsonRequest
-	err = json.NewDecoder(pr.Body).Decode(&graphqlJsonRequest)
-	if err != nil {
-		return err
-	}
-
-	query := []byte(graphqlJsonRequest.Query)
-
-	err = invoker.InvokeMiddleWares(pr.Context, query) // TODO: fix nil
+	err = invoker.InvokeMiddleWares(pr.Context, []byte(pr.GraphQLRequest.Query)) // TODO: fix nil
 	if err != nil {
 		return err
 	}
@@ -62,9 +49,10 @@ func (pr *ProxyRequest) AcceptRequest(buff *bytes.Buffer) error {
 }
 
 func (pr *ProxyRequest) DispatchRequest(buff *bytes.Buffer) (io.ReadCloser, error) {
-
-	req := GraphqlJsonRequest{
+	req := middleware.GraphQLRequest{
 		Query: buff.String(),
+		OperationName: pr.GraphQLRequest.OperationName,
+		Variables: pr.GraphQLRequest.Variables,
 	}
 
 	out := bytes.Buffer{}
@@ -117,7 +105,14 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	pr.Body = r.Body
 	pr.Context = p.SetContextValues(r.Context(), r.Header, config.AddHeadersToContext)
 
-	err := pr.AcceptRequest(buff)
+	err := json.NewDecoder(pr.Body).Decode(&pr.GraphQLRequest)
+	if err != nil {
+		p.BufferPool.Put(buff)
+		p.HandleError(err, w)
+		return
+	}
+
+	err = pr.AcceptRequest(buff)
 	if err != nil {
 		p.BufferPool.Put(buff)
 		p.HandleError(err, w)

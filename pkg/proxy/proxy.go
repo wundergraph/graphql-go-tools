@@ -21,6 +21,7 @@ type Request struct {
 	RequestURL url.URL
 	Body       io.Reader
 	Context    context.Context
+	GraphQLRequest middleware.GraphQLRequest
 }
 
 type RequestInterface interface {
