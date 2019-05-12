@@ -144,6 +144,9 @@ func TestPrinter(t *testing.T) {
 	t.Run("query with arguments", func(t *testing.T) {
 		run("query Anthem($name:String!) {name id}")
 	})
+	t.Run("query with multiple arguments", func(t *testing.T) {
+		run("query Anthem($name:String! $id:Int) {name id description}")
+	})
 }
 
 func TestPrinter_Regression(t *testing.T) {
