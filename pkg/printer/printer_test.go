@@ -141,6 +141,9 @@ func TestPrinter(t *testing.T) {
 	t.Run("multiple directive on field", func(t *testing.T) {
 		run("{foo @bar(baz:\"bat\") @foo2}")
 	})
+	t.Run("query with arguments", func(t *testing.T) {
+		run("query Anthem($name:String!) {name id}")
+	})
 }
 
 func TestPrinter_Regression(t *testing.T) {
