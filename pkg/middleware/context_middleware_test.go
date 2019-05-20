@@ -114,6 +114,7 @@ func TestContextMiddleware(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		want := testhelper.UglifyRequestString(emptyListQuery)
 
 		if want != got {
