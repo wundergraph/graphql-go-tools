@@ -4,11 +4,11 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 )
 
-func (p *Parser) parsePeekedListValue(index *int) error {
+func (p *Parser) parsePeekedListValue() (ref int, err error) {
 
 	p.l.Read()
 
-	listValue := p.makeListValue(index)
+	listValue := p.IndexPoolGet()
 
 	for {
 
@@ -16,15 +16,14 @@ func (p *Parser) parsePeekedListValue(index *int) error {
 
 		if peeked == keyword.SQUAREBRACKETCLOSE {
 			p.l.Read()
-			p.putListValue(listValue, index)
-			return nil
+			return p.putListValue(listValue), nil
 
 		} else {
 
 			var next int
 			next, err := p.parseValue()
 			if err != nil {
-				return err
+				return -1, err
 			}
 
 			listValue = append(listValue, next)

@@ -57,13 +57,13 @@ func TestParser_putListValue(t *testing.T) {
 	var listValueIndex int
 	var listValueIndex2 int
 
-	listValue := parser.makeListValue(&listValueIndex)
-	listValue2 := parser.makeListValue(&listValueIndex2)
+	listValue := parser.IndexPoolGet()
+	listValue2 := parser.IndexPoolGet()
 	listValue = append(listValue, valueIndex)
 	listValue2 = append(listValue2, valueIndex)
 
-	parser.putListValue(listValue, &listValueIndex)
-	parser.putListValue(listValue2, &listValueIndex2)
+	listValueIndex = parser.putListValue(listValue)
+	listValueIndex2 = parser.putListValue(listValue2)
 
 	if listValueIndex != listValueIndex2 {
 		panic("expect lists to be merged")

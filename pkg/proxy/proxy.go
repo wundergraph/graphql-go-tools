@@ -17,10 +17,10 @@ type Proxy struct {
 }
 
 type Request struct {
-	Config     *RequestConfig
-	RequestURL url.URL
-	Body       io.Reader
-	Context    context.Context
+	Config         *RequestConfig
+	RequestURL     url.URL
+	Body           io.Reader
+	Context        context.Context
 	GraphQLRequest middleware.GraphQLRequest
 }
 

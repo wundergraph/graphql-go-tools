@@ -104,6 +104,23 @@ func TestContextMiddleware(t *testing.T) {
 			panic(fmt.Errorf("\nwant:\n%s\ngot:\n%s", want, got))
 		}
 	})
+	t.Run("empty list as a parameter should work", func(t *testing.T) {
+
+		// it's important to quote the value so the lexer will recognize it's a string value
+		// we might push this including checks into the implementation
+		ctx := context.WithValue(context.Background(), "user", "jsmith@example.org")
+
+		got, err := InvokeMiddleware(&ContextMiddleware{}, ctx, publicSchema, emptyListQuery)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		want := testhelper.UglifyRequestString(emptyListQuery)
+
+		if want != got {
+			panic(fmt.Errorf("\nwant:\n%s\ngot:\n%s", want, got))
+		}
+	})
 }
 
 const publicSchema = `
@@ -113,11 +130,17 @@ schema {
 
 type Query {
 	documents: [Document] @addArgumentFromContext(name: "user",contextKey: "user")
+	Document: [Document]
+	Drawer: [Drawer]
 }
 
 type Document implements Node {
 	owner: String
 	sensitiveInformation: String
+}
+
+type Drawer {
+	documents(owners: [String]!): [Document]
 }
 `
 
@@ -159,6 +182,16 @@ const privateQueryWithEscapedQuote = `
 query myDocuments {
 	documents(user: "jsmith\"@example.org") {
 		sensitiveInformation
+	}
+}
+`
+
+const emptyListQuery = `
+query emptyList {
+	Drawer {
+		documents(owners: []){
+			sensitiveInformation
+		}
 	}
 }
 `
