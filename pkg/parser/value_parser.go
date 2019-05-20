@@ -41,7 +41,7 @@ func (p *Parser) parseValue() (ref int, err error) {
 		p.parsePeekedByteSlice(&value)
 	case keyword.SQUAREBRACKETOPEN:
 		value.ValueType = document.ValueTypeList
-		err = p.parsePeekedListValue(&value.Reference)
+		value.Reference, err = p.parsePeekedListValue()
 	case keyword.CURLYBRACKETOPEN:
 		value.ValueType = document.ValueTypeObject
 		err = p.parsePeekedObjectValue(&value.Reference)
