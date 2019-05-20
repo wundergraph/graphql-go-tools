@@ -50,9 +50,9 @@ func (pr *ProxyRequest) AcceptRequest(buff *bytes.Buffer) error {
 
 func (pr *ProxyRequest) DispatchRequest(buff *bytes.Buffer) (io.ReadCloser, error) {
 	req := middleware.GraphQLRequest{
-		Query: buff.String(),
+		Query:         buff.String(),
 		OperationName: pr.GraphQLRequest.OperationName,
-		Variables: pr.GraphQLRequest.Variables,
+		Variables:     pr.GraphQLRequest.Variables,
 	}
 
 	out := bytes.Buffer{}

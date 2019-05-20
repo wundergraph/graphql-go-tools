@@ -9,8 +9,8 @@ import (
 )
 
 type GraphQLRequest struct {
-	OperationName string `json:"operationName,omitempty"`
-	Query         string `json:"query"`
+	OperationName string                 `json:"operationName,omitempty"`
+	Query         string                 `json:"query"`
 	Variables     map[string]interface{} `json:"variables,omitempty"`
 }
 
