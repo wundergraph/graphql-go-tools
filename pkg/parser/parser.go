@@ -443,13 +443,6 @@ func (p *Parser) initExecutableDefinition() {
 	p.ParsedDefinitions.ExecutableDefinition.FragmentDefinitions = p.IndexPoolGet()
 }
 
-func (p *Parser) makeListValue(index *int) document.ListValue {
-	value := p.IndexPoolGet()
-	p.ParsedDefinitions.ListValues = append(p.ParsedDefinitions.ListValues, value)
-	*index = len(p.ParsedDefinitions.ListValues) - 1
-	return value
-}
-
 func (p *Parser) makeObjectValue(index *int) document.ObjectValue {
 	value := p.IndexPoolGet()
 	p.ParsedDefinitions.ObjectValues = append(p.ParsedDefinitions.ObjectValues, value)
@@ -731,16 +724,14 @@ func (p *Parser) putFloat(float float32) int {
 	return len(p.ParsedDefinitions.Floats) - 1
 }
 
-func (p *Parser) putListValue(value document.ListValue, index *int) {
+func (p *Parser) putListValue(value document.ListValue) (ref int) {
 	for i, known := range p.ParsedDefinitions.ListValues {
 		if p.integersContainSameValues(value, known) {
-			p.ParsedDefinitions.ListValues = // delete the dupe
-				append(p.ParsedDefinitions.ListValues[:*index], p.ParsedDefinitions.ListValues[*index+1:]...)
-			*index = i
-			return
+			return i
 		}
 	}
-	p.ParsedDefinitions.ListValues[*index] = value
+	p.ParsedDefinitions.ListValues = append(p.ParsedDefinitions.ListValues, value)
+	return len(p.ParsedDefinitions.ListValues) - 1
 }
 
 func (p *Parser) putObjectValue(value document.ObjectValue, index *int) {
