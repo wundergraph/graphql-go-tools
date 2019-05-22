@@ -165,6 +165,120 @@ func TestParser_parseTypeSystemDefinition(t *testing.T) {
 				),
 			))
 	})
+	t.Run("extend", func(t *testing.T) {
+		run(`	schema {
+						query: Query
+						mutation: Mutation
+					}
+					
+					#this is a scalar
+					extend scalar JSON
+
+					"this is a Person"
+					extend type Person {
+						name: String
+					}
+
+					"describes firstEntity"
+					interface firstEntity {
+						name: String
+					}
+
+					"describes direction"
+					enum Direction {
+						NORTH
+					}
+
+					"describes Person"
+					input Person {
+						name: String
+					}
+
+					"describes someway"
+					directive @ someway on SUBSCRIPTION | MUTATION`,
+			mustParseTypeSystemDefinition(
+				node(
+					hasSchemaDefinition(
+						hasPosition(position.Position{
+							LineStart: 1,
+							CharStart: 2,
+							LineEnd:   4,
+							CharEnd:   7,
+						}),
+					),
+					hasScalarTypeSystemDefinitions(
+						node(
+							hasDescription("#this is a scalar"),
+							hasName("JSON"),
+							isExtend(true),
+							hasPosition(position.Position{
+								LineStart: 6,
+								CharStart: 6,
+								LineEnd:   7,
+								CharEnd:   24,
+							}),
+						),
+					),
+					hasObjectTypeSystemDefinitions(
+						node(
+							hasDescription("this is a Person"),
+							hasName("Person"),
+							isExtend(true),
+							hasPosition(position.Position{
+								LineStart: 9,
+								CharStart: 6,
+								LineEnd:   12,
+								CharEnd:   7,
+							}),
+						),
+					),
+					hasInterfaceTypeSystemDefinitions(
+						node(
+							hasName("firstEntity"),
+							hasPosition(position.Position{
+								LineStart: 14,
+								CharStart: 6,
+								LineEnd:   17,
+								CharEnd:   7,
+							}),
+						),
+					),
+					hasEnumTypeSystemDefinitions(
+						node(
+							hasName("Direction"),
+							hasPosition(position.Position{
+								LineStart: 19,
+								CharStart: 6,
+								LineEnd:   22,
+								CharEnd:   7,
+							}),
+						),
+					),
+					hasInputObjectTypeSystemDefinitions(
+						node(
+							hasName("Person"),
+							hasPosition(position.Position{
+								LineStart: 24,
+								CharStart: 6,
+								LineEnd:   27,
+								CharEnd:   7,
+							}),
+						),
+					),
+					hasDirectiveDefinitions(
+						node(
+							hasName("someway"),
+							hasPosition(position.Position{
+								LineStart: 29,
+								CharStart: 6,
+								LineEnd:   30,
+								CharEnd:   52,
+							}),
+						),
+					),
+				),
+			))
+	})
 	t.Run("set schema multiple times", func(t *testing.T) {
 		run(`	schema {
 						query: Query
