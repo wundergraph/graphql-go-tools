@@ -8,6 +8,7 @@ import (
 func (p *Parser) parseTypeSystemDefinition() (err error) {
 
 	var hasDescription bool
+	var isExtend bool
 	var description token.Token
 
 	for {
@@ -16,11 +17,29 @@ func (p *Parser) parseTypeSystemDefinition() (err error) {
 		switch next {
 		case keyword.EOF:
 			return
+		case keyword.EXTEND:
+
+			if isExtend {
+				invalid := p.l.Read()
+				return newErrInvalidType(invalid.TextPosition, "parseTypeSystemDefinition", "one of: schema,type,scalar,union,input", "extend")
+			}
+
+			isExtend = true
+			p.l.Read()
+			continue
+
 		case keyword.STRING, keyword.COMMENT:
+
+			if isExtend {
+				invalid := p.l.Read()
+				return newErrInvalidType(invalid.TextPosition, "parseTypeSystemDefinition", "one of: schema,type,scalar,union,input", "extend")
+			}
+
 			descriptionToken := p.l.Read()
 			description = descriptionToken
 			hasDescription = true
 			continue
+
 		case keyword.SCHEMA:
 
 			if p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition.IsDefined() {
@@ -35,14 +54,14 @@ func (p *Parser) parseTypeSystemDefinition() (err error) {
 
 		case keyword.SCALAR:
 
-			err := p.parseScalarTypeDefinition(hasDescription, description)
+			err := p.parseScalarTypeDefinition(hasDescription, isExtend, description)
 			if err != nil {
 				return err
 			}
 
 		case keyword.TYPE:
 
-			err := p.parseObjectTypeDefinition(hasDescription, description)
+			err := p.parseObjectTypeDefinition(hasDescription, isExtend, description)
 			if err != nil {
 				return err
 			}
@@ -88,5 +107,6 @@ func (p *Parser) parseTypeSystemDefinition() (err error) {
 		}
 
 		hasDescription = false
+		isExtend = false
 	}
 }
