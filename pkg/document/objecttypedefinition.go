@@ -11,6 +11,7 @@ type ObjectTypeDefinition struct {
 	ImplementsInterfaces ByteSliceReferences
 	DirectiveSet         int
 	Position             position.Position
+	IsExtend             bool
 }
 
 func (o ObjectTypeDefinition) NodeSelectionSet() int {
