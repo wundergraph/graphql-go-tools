@@ -57,6 +57,31 @@ func hasName(wantName string) rule {
 	}
 }
 
+func isExtend(want bool) rule {
+	return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
+
+		isErr := false
+
+		switch docType := node.(type) {
+		case document.ObjectTypeDefinition:
+			if want != docType.IsExtend {
+				isErr = true
+			}
+		case document.ScalarTypeDefinition:
+			if want != docType.IsExtend {
+				isErr = true
+			}
+		default:
+			nodeType := reflect.TypeOf(node)
+			panic(fmt.Errorf("must implement for type: %+v", nodeType.Name()))
+		}
+
+		if isErr {
+			panic(fmt.Errorf("isExtend: want: %t, got: %t [rule: %d, node: %d]", want, !want, ruleIndex, ruleSetIndex))
+		}
+	}
+}
+
 func hasSchemaOperationTypeName(operationType document.OperationType, wantTypeName string) rule {
 	return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
@@ -911,7 +936,7 @@ func mustParseInterfaceTypeDefinition(rules ...ruleSet) checkFunc {
 
 func mustParseObjectTypeDefinition(rules ...ruleSet) checkFunc {
 	return func(parser *Parser, i int) {
-		if err := parser.parseObjectTypeDefinition(false, token.Token{}); err != nil {
+		if err := parser.parseObjectTypeDefinition(false, false, token.Token{}); err != nil {
 			panic(err)
 		}
 
@@ -947,7 +972,7 @@ func mustContainOperationDefinition(rules ...ruleSet) checkFunc {
 
 func mustParseScalarTypeDefinition(rules ...ruleSet) checkFunc {
 	return func(parser *Parser, i int) {
-		if err := parser.parseScalarTypeDefinition(false, token.Token{}); err != nil {
+		if err := parser.parseScalarTypeDefinition(false, false, token.Token{}); err != nil {
 			panic(err)
 		}
 
