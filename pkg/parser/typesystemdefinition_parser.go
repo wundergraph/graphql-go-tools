@@ -68,7 +68,7 @@ func (p *Parser) parseTypeSystemDefinition() (err error) {
 
 		case keyword.INTERFACE:
 
-			err := p.parseInterfaceTypeDefinition(hasDescription, description)
+			err := p.parseInterfaceTypeDefinition(hasDescription, isExtend, description)
 			if err != nil {
 				return err
 			}
