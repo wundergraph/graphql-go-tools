@@ -10,6 +10,7 @@ type DirectiveDefinition struct {
 	ArgumentsDefinition int
 	DirectiveLocations  []int
 	Position            position.Position
+	IsExtend            bool
 }
 
 func (d DirectiveDefinition) NodeSelectionSet() int {
