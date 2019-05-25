@@ -195,7 +195,7 @@ func TestParser_parseTypeSystemDefinition(t *testing.T) {
 					}
 
 					"describes someway"
-					directive @ someway on SUBSCRIPTION | MUTATION`,
+					extend directive @ someway on SUBSCRIPTION | MUTATION`,
 			mustParseTypeSystemDefinition(
 				node(
 					hasSchemaDefinition(
@@ -271,11 +271,12 @@ func TestParser_parseTypeSystemDefinition(t *testing.T) {
 					hasDirectiveDefinitions(
 						node(
 							hasName("someway"),
+							isExtend(true),
 							hasPosition(position.Position{
 								LineStart: 29,
 								CharStart: 6,
 								LineEnd:   30,
-								CharEnd:   52,
+								CharEnd:   59,
 							}),
 						),
 					),
