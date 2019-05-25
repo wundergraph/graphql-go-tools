@@ -82,7 +82,7 @@ func (p *Parser) parseTypeSystemDefinition() (err error) {
 
 		case keyword.ENUM:
 
-			err := p.parseEnumTypeDefinition(hasDescription, description)
+			err := p.parseEnumTypeDefinition(hasDescription, isExtend, description)
 			if err != nil {
 				return err
 			}
