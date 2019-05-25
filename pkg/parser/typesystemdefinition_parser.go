@@ -89,7 +89,7 @@ func (p *Parser) parseTypeSystemDefinition() (err error) {
 
 		case keyword.INPUT:
 
-			err := p.parseInputObjectTypeDefinition(hasDescription, description)
+			err := p.parseInputObjectTypeDefinition(hasDescription, isExtend, description)
 			if err != nil {
 				return err
 			}
