@@ -180,12 +180,12 @@ func TestParser_parseTypeSystemDefinition(t *testing.T) {
 					}
 
 					"describes firstEntity"
-					interface firstEntity {
+					extend interface firstEntity {
 						name: String
 					}
 
 					"describes direction"
-					enum Direction {
+					extend enum Direction {
 						NORTH
 					}
 
@@ -235,6 +235,7 @@ func TestParser_parseTypeSystemDefinition(t *testing.T) {
 					hasInterfaceTypeSystemDefinitions(
 						node(
 							hasName("firstEntity"),
+							isExtend(true),
 							hasPosition(position.Position{
 								LineStart: 14,
 								CharStart: 6,
