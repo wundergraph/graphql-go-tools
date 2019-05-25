@@ -5,7 +5,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
 )
 
-func (p *Parser) parseUnionTypeDefinition(hasDescription bool, description token.Token) error {
+func (p *Parser) parseUnionTypeDefinition(hasDescription, isExtend bool, description token.Token) error {
 
 	start, err := p.readExpect(keyword.UNION, "parseUnionTypeDefinition")
 	if err != nil {
@@ -19,9 +19,11 @@ func (p *Parser) parseUnionTypeDefinition(hasDescription bool, description token
 
 	definition := p.makeUnionTypeDefinition()
 	definition.Name = unionName.Literal
+	definition.IsExtend = isExtend
 
 	if hasDescription {
 		definition.Position.MergeStartIntoStart(description.TextPosition)
+		definition.Description = description.Literal
 	} else {
 		definition.Position.MergeStartIntoStart(start.TextPosition)
 	}

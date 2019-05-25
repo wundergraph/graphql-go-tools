@@ -75,7 +75,7 @@ func (p *Parser) parseTypeSystemDefinition() (err error) {
 
 		case keyword.UNION:
 
-			err := p.parseUnionTypeDefinition(hasDescription, description)
+			err := p.parseUnionTypeDefinition(hasDescription, isExtend, description)
 			if err != nil {
 				return err
 			}
