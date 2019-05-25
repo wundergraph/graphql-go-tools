@@ -195,7 +195,10 @@ func TestParser_parseTypeSystemDefinition(t *testing.T) {
 					}
 
 					"describes someway"
-					extend directive @ someway on SUBSCRIPTION | MUTATION`,
+					extend directive @ someway on SUBSCRIPTION | MUTATION
+
+					"describes union"
+					extend union Foo = Bar | Baz`,
 			mustParseTypeSystemDefinition(
 				node(
 					hasSchemaDefinition(
@@ -277,6 +280,19 @@ func TestParser_parseTypeSystemDefinition(t *testing.T) {
 								CharStart: 6,
 								LineEnd:   30,
 								CharEnd:   59,
+							}),
+						),
+					),
+					hasUnionTypeSystemDefinitions(
+						node(
+							hasName("Foo"),
+							hasDescription("describes union"),
+							isExtend(true),
+							hasPosition(position.Position{
+								LineStart: 32,
+								CharStart: 6,
+								LineEnd:   33,
+								CharEnd:   34,
 							}),
 						),
 					),
