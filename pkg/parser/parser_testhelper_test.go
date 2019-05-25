@@ -83,6 +83,10 @@ func isExtend(want bool) rule {
 			if want != docType.IsExtend {
 				isErr = true
 			}
+		case document.DirectiveDefinition:
+			if want != docType.IsExtend {
+				isErr = true
+			}
 		default:
 			nodeType := reflect.TypeOf(node)
 			panic(fmt.Errorf("must implement for type: %+v", nodeType.Name()))
@@ -687,7 +691,7 @@ func mustParseDefaultValue(wantValueType document.ValueType) checkFunc {
 
 func mustParseDirectiveDefinition(rules ...ruleSet) checkFunc {
 	return func(parser *Parser, i int) {
-		if err := parser.parseDirectiveDefinition(false, token.Token{}); err != nil {
+		if err := parser.parseDirectiveDefinition(false, false, token.Token{}); err != nil {
 			panic(err)
 		}
 
