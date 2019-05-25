@@ -247,6 +247,7 @@ func TestParser_parseTypeSystemDefinition(t *testing.T) {
 					hasEnumTypeSystemDefinitions(
 						node(
 							hasName("Direction"),
+							isExtend(true),
 							hasPosition(position.Position{
 								LineStart: 19,
 								CharStart: 6,
