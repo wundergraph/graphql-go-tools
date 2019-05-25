@@ -75,6 +75,10 @@ func isExtend(want bool) rule {
 			if want != docType.IsExtend {
 				isErr = true
 			}
+		case document.EnumTypeDefinition:
+			if want != docType.IsExtend {
+				isErr = true
+			}
 		default:
 			nodeType := reflect.TypeOf(node)
 			panic(fmt.Errorf("must implement for type: %+v", nodeType.Name()))
@@ -708,7 +712,7 @@ func mustParseDirectives(directives ...ruleSet) checkFunc {
 
 func mustParseEnumTypeDefinition(rules ...rule) checkFunc {
 	return func(parser *Parser, i int) {
-		if err := parser.parseEnumTypeDefinition(false, token.Token{}); err != nil {
+		if err := parser.parseEnumTypeDefinition(false, false, token.Token{}); err != nil {
 			panic(err)
 		}
 
