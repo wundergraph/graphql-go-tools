@@ -190,7 +190,7 @@ func TestParser_parseTypeSystemDefinition(t *testing.T) {
 					}
 
 					"describes Person"
-					input Person {
+					extend input Person {
 						name: String
 					}
 
@@ -259,6 +259,7 @@ func TestParser_parseTypeSystemDefinition(t *testing.T) {
 					hasInputObjectTypeSystemDefinitions(
 						node(
 							hasName("Person"),
+							isExtend(true),
 							hasPosition(position.Position{
 								LineStart: 24,
 								CharStart: 6,
