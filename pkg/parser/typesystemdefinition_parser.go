@@ -96,7 +96,7 @@ func (p *Parser) parseTypeSystemDefinition() (err error) {
 
 		case keyword.DIRECTIVE:
 
-			err := p.parseDirectiveDefinition(hasDescription, description)
+			err := p.parseDirectiveDefinition(hasDescription, isExtend, description)
 			if err != nil {
 				return err
 			}

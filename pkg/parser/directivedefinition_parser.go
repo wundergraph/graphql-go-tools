@@ -6,7 +6,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
 )
 
-func (p *Parser) parseDirectiveDefinition(hasDescription bool, description token.Token) error {
+func (p *Parser) parseDirectiveDefinition(hasDescription, isExtend bool, description token.Token) error {
 
 	start, err := p.readExpect(keyword.DIRECTIVE, "parseDirectiveDefinition")
 	if err != nil {
@@ -26,6 +26,7 @@ func (p *Parser) parseDirectiveDefinition(hasDescription bool, description token
 	var definition document.DirectiveDefinition
 	definition.DirectiveLocations = p.IndexPoolGet()
 	definition.Name = directiveIdent.Literal
+	definition.IsExtend = isExtend
 
 	if hasDescription {
 		definition.Position.MergeStartIntoStart(description.TextPosition)
