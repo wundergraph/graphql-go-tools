@@ -3,16 +3,27 @@ package parser
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
 )
 
-func (p *Parser) parseSchemaDefinition(definition *document.SchemaDefinition) error {
+func (p *Parser) parseSchemaDefinition(isExtend bool, extendToken token.Token) error {
 
 	start, err := p.readExpect(keyword.SCHEMA, "parseSchemaDefinition")
 	if err != nil {
 		return err
 	}
 
-	definition.Position.MergeStartIntoStart(start.TextPosition)
+	definition := document.SchemaDefinition{
+		DirectiveSet: -1,
+		IsExtend:     isExtend,
+	}
+
+	if isExtend {
+		definition.Position.MergeStartIntoStart(extendToken.TextPosition)
+	} else {
+		definition.Position.MergeStartIntoStart(start.TextPosition)
+	}
+
 	err = p.parseDirectives(&definition.DirectiveSet)
 	if err != nil {
 		return err
@@ -29,6 +40,7 @@ func (p *Parser) parseSchemaDefinition(definition *document.SchemaDefinition) er
 		switch next.Keyword {
 		case keyword.CURLYBRACKETCLOSE:
 			definition.Position.MergeEndIntoEnd(next.TextPosition)
+			p.putSchemaDefinition(definition)
 			return err
 		case keyword.QUERY, keyword.MUTATION, keyword.SUBSCRIPTION:
 
