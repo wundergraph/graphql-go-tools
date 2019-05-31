@@ -17,18 +17,6 @@ func NewManualAstMod(p *Parser) *ManualAstMod {
 	}
 }
 
-func (m *ManualAstMod) SetQueryTypeName(name document.ByteSliceReference) {
-	m.p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition.Query = name
-}
-
-func (m *ManualAstMod) SetMutationTypeName(name document.ByteSliceReference) {
-	m.p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition.Mutation = name
-}
-
-func (m *ManualAstMod) SetSubscriptionTypeName(name document.ByteSliceReference) {
-	m.p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition.Subscription = name
-}
-
 func (m *ManualAstMod) PutLiteralString(literal string) (byteSliceRef document.ByteSliceReference, ref int, err error) {
 	return m.PutLiteralBytes([]byte(literal))
 }
