@@ -529,8 +529,14 @@ func (l *Lookup) SelectionSetDifferingSelectionSetIterator(set document.Selectio
 	return iter
 }
 
+// QueryObjectTypeDefinition returns the query object type definition from the AST
 func (l *Lookup) QueryObjectTypeDefinition() (document.ObjectTypeDefinition, bool) {
-	want := l.p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition.Query
+
+	if len(l.p.ParsedDefinitions.SchemaDefinitions) == 0 {
+		return document.ObjectTypeDefinition{}, false
+	}
+
+	want := l.p.ParsedDefinitions.SchemaDefinitions[0].Query
 	for _, definition := range l.p.ParsedDefinitions.ObjectTypeDefinitions {
 		if l.ByteSliceReferenceContentsEquals(definition.Name, want) {
 			return definition, true
@@ -541,7 +547,12 @@ func (l *Lookup) QueryObjectTypeDefinition() (document.ObjectTypeDefinition, boo
 }
 
 func (l *Lookup) MutationObjectTypeDefinition() (document.ObjectTypeDefinition, bool) {
-	want := l.p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition.Mutation
+
+	if len(l.p.ParsedDefinitions.SchemaDefinitions) == 0 {
+		return document.ObjectTypeDefinition{}, false
+	}
+
+	want := l.p.ParsedDefinitions.SchemaDefinitions[0].Mutation
 	for _, definition := range l.p.ParsedDefinitions.ObjectTypeDefinitions {
 		if l.ByteSliceReferenceContentsEquals(definition.Name, want) {
 			return definition, true
@@ -552,7 +563,12 @@ func (l *Lookup) MutationObjectTypeDefinition() (document.ObjectTypeDefinition, 
 }
 
 func (l *Lookup) SubscriptionObjectTypeDefinition() (document.ObjectTypeDefinition, bool) {
-	want := l.p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition.Subscription
+
+	if len(l.p.ParsedDefinitions.SchemaDefinitions) == 0 {
+		return document.ObjectTypeDefinition{}, false
+	}
+
+	want := l.p.ParsedDefinitions.SchemaDefinitions[0].Subscription
 	for _, definition := range l.p.ParsedDefinitions.ObjectTypeDefinitions {
 		if l.ByteSliceReferenceContentsEquals(definition.Name, want) {
 			return definition, true
@@ -1470,13 +1486,18 @@ func (l *Lookup) InputValueDefinitionHasDefaultValue(definition document.InputVa
 }
 
 func (l *Lookup) OperationTypeName(definition document.OperationDefinition) document.ByteSliceReference {
+
+	if len(l.p.ParsedDefinitions.SchemaDefinitions) == 0 {
+		return document.ByteSliceReference{}
+	}
+
 	switch definition.OperationType {
 	case document.OperationTypeQuery:
-		return l.p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition.Query
+		return l.p.ParsedDefinitions.SchemaDefinitions[0].Query
 	case document.OperationTypeMutation:
-		return l.p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition.Mutation
+		return l.p.ParsedDefinitions.SchemaDefinitions[0].Mutation
 	case document.OperationTypeSubscription:
-		return l.p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition.Subscription
+		return l.p.ParsedDefinitions.SchemaDefinitions[0].Subscription
 	default:
 		return document.ByteSliceReference{}
 	}
