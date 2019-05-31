@@ -11,38 +11,6 @@
 
 {
   "ParsedDefinitions": {
-    "TypeSystemDefinition": {
-      "SchemaDefinition": {
-        "Query": {
-          "Start": 0,
-          "End": 0,
-          "NextRef": 0
-        },
-        "Mutation": {
-          "Start": 0,
-          "End": 0,
-          "NextRef": 0
-        },
-        "Subscription": {
-          "Start": 0,
-          "End": 0,
-          "NextRef": 0
-        },
-        "DirectiveSet": 0,
-        "Position": {
-          "LineStart": 0,
-          "LineEnd": 0,
-          "CharStart": 0,
-          "CharEnd": 0
-        }
-      },
-      "Position": {
-        "LineStart": 0,
-        "LineEnd": 0,
-        "CharStart": 0,
-        "CharEnd": 0
-      }
-    },
     "ExecutableDefinition": {
       "OperationDefinitions": [
         0
@@ -53,6 +21,7 @@
         2
       ]
     },
+    "SchemaDefinitions": [],
     "OperationDefinitions": [
       {
         "OperationType": 1,
