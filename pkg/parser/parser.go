@@ -73,9 +73,9 @@ func (p *Parser) InputValueDefinition(ref int) document.InputValueDefinition {
 
 // ParsedDefinitions contains all parsed definitions to avoid deeply nested data structures while parsing
 type ParsedDefinitions struct {
-	TypeSystemDefinition document.TypeSystemDefinition
 	ExecutableDefinition document.ExecutableDefinition
 
+	SchemaDefinitions          []document.SchemaDefinition
 	OperationDefinitions       document.OperationDefinitions
 	FragmentDefinitions        document.FragmentDefinitions
 	VariableDefinitions        document.VariableDefinitions
@@ -113,6 +113,7 @@ type ParsedDefinitions struct {
 
 type cacheStats struct {
 	IndexPoolPosition          int
+	SchemaDefinition           int
 	TypeSystemDefinition       int
 	ExecutableDefinition       int
 	OperationDefinitions       int
@@ -199,6 +200,7 @@ func NewParser(withOptions ...Option) *Parser {
 
 	definitions := ParsedDefinitions{
 		OperationDefinitions:       make(document.OperationDefinitions, 0, options.minimumSliceSize),
+		SchemaDefinitions:          make([]document.SchemaDefinition, 0, options.minimumSliceSize),
 		FragmentDefinitions:        make(document.FragmentDefinitions, 0, options.minimumSliceSize),
 		VariableDefinitions:        make(document.VariableDefinitions, 0, options.minimumSliceSize),
 		Fields:                     make(document.Fields, 0, options.minimumSliceSize*4),
@@ -266,7 +268,6 @@ func (p *Parser) ParseTypeSystemDefinition(input []byte) (err error) {
 		return
 	}
 
-	p.initTypeSystemDefinition()
 	err = p.parseTypeSystemDefinition()
 	p.setCacheStats()
 
@@ -374,12 +375,6 @@ func (p *Parser) makeInputObjectTypeDefinition() document.InputObjectTypeDefinit
 	}
 }
 
-func (p *Parser) initTypeSystemDefinition() {
-	p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition = document.SchemaDefinition{
-		DirectiveSet: -1,
-	}
-}
-
 func (p *Parser) makeInterfaceTypeDefinition() document.InterfaceTypeDefinition {
 	return document.InterfaceTypeDefinition{
 		DirectiveSet: -1,
@@ -471,6 +466,7 @@ func (p *Parser) makeType(index *int) document.Type {
 
 func (p *Parser) setCacheStats() {
 	p.cacheStats.IndexPoolPosition = p.indexPoolPosition
+	p.cacheStats.SchemaDefinition = len(p.ParsedDefinitions.SchemaDefinitions)
 	p.cacheStats.OperationDefinitions = len(p.ParsedDefinitions.OperationDefinitions)
 	p.cacheStats.FragmentDefinitions = len(p.ParsedDefinitions.FragmentDefinitions)
 	p.cacheStats.VariableDefinitions = len(p.ParsedDefinitions.VariableDefinitions)
@@ -509,6 +505,7 @@ func (p *Parser) resetCaches() {
 	p.indexPoolPosition = -1
 
 	p.ParsedDefinitions.OperationDefinitions = p.ParsedDefinitions.OperationDefinitions[:0]
+	p.ParsedDefinitions.SchemaDefinitions = p.ParsedDefinitions.SchemaDefinitions[:0]
 	p.ParsedDefinitions.FragmentDefinitions = p.ParsedDefinitions.FragmentDefinitions[:0]
 	p.ParsedDefinitions.VariableDefinitions = p.ParsedDefinitions.VariableDefinitions[:0]
 	p.ParsedDefinitions.Fields = p.ParsedDefinitions.Fields[:0]
@@ -547,6 +544,7 @@ func (p *Parser) resetExecutableCaches() {
 
 	p.indexPoolPosition = s.IndexPoolPosition
 	p.ParsedDefinitions.OperationDefinitions = p.ParsedDefinitions.OperationDefinitions[:s.OperationDefinitions]
+	p.ParsedDefinitions.SchemaDefinitions = p.ParsedDefinitions.SchemaDefinitions[:s.SchemaDefinition]
 	p.ParsedDefinitions.FragmentDefinitions = p.ParsedDefinitions.FragmentDefinitions[:s.FragmentDefinitions]
 	p.ParsedDefinitions.VariableDefinitions = p.ParsedDefinitions.VariableDefinitions[:s.VariableDefinitions]
 	p.ParsedDefinitions.Fields = p.ParsedDefinitions.Fields[:s.Fields]
@@ -683,6 +681,11 @@ func (p *Parser) putObjectTypeDefinition(definition document.ObjectTypeDefinitio
 
 func (p *Parser) putScalarTypeDefinition(definition document.ScalarTypeDefinition) int {
 	p.ParsedDefinitions.ScalarTypeDefinitions = append(p.ParsedDefinitions.ScalarTypeDefinitions, definition)
+	return len(p.ParsedDefinitions.ScalarTypeDefinitions) - 1
+}
+
+func (p *Parser) putSchemaDefinition(definition document.SchemaDefinition) int {
+	p.ParsedDefinitions.SchemaDefinitions = append(p.ParsedDefinitions.SchemaDefinitions, definition)
 	return len(p.ParsedDefinitions.ScalarTypeDefinitions) - 1
 }
 
