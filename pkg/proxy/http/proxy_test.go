@@ -2,6 +2,7 @@ package http
 
 import (
 	"fmt"
+	"github.com/jensneuse/graphql-go-tools/pkg/middleware"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -15,113 +16,141 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/proxy"
 )
 
-func TestProxyHandler(t *testing.T) {
-	es := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// ProxyTestCase is a human understandable proxy test
+type ProxyTestCase struct {
+	// Schema is the schema exposed to the client
+	Schema string
+	// ClientRequest is the request from the client in front of the proxy
+	ClientRequest string
+	// ExpectedProxiedRequest is the rewritten request that is proxied to the backend (origin graphql server)
+	ExpectedProxiedRequest string
+	// MiddleWares are the proxy middlewares to test
+	MiddleWares []middleware.GraphqlMiddleware
+	// BackendStatusCode is the status code returned by the backend
+	BackendStatusCode int
+	// ExpectedProxyStatusCode is the http status code we expect the proxy to return
+	ExpectedProxyStatusCode int
+	// WantProxyErrorHandlerInvocation indicates if the proxy error handler should be invoced during the test
+	WantProxyErrorHandlerInvocation bool
+}
+
+// RunTestCase starts a backend server + a proxy and tests a client request against it
+func RunTestCase(t *testing.T, testCase ProxyTestCase) {
+
+	backendGraphqlServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if strings.TrimSpace(string(body)) != assetOutput {
-			t.Fatalf("Expected:\n%s\ngot\n%s", assetOutput, string(body))
+		if strings.TrimSpace(string(body)) != testCase.ExpectedProxiedRequest {
+			t.Fatalf("Expected:\n%s\ngot\n%s", testCase.ExpectedProxiedRequest, string(body))
 		}
-	}))
-	defer es.Close()
 
-	schema := []byte(assetSchema)
-	backendURL, err := url.Parse(es.URL)
+		w.WriteHeader(testCase.BackendStatusCode)
+	}))
+
+	defer backendGraphqlServer.Close()
+
+	backendURL, err := url.Parse(backendGraphqlServer.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	requestConfigProvider := proxy.NewStaticRequestConfigProvider(proxy.RequestConfig{
+	schema := []byte(testCase.Schema)
+
+	requestConfig := proxy.RequestConfig{
 		Schema:     &schema,
 		BackendURL: *backendURL,
-	})
+	}
 
-	ph := NewDefaultProxy(requestConfigProvider, &hackmiddleware.AssetUrlMiddleware{})
-	ts := httptest.NewServer(ph)
-	defer ts.Close()
+	requestConfigProvider := proxy.NewStaticRequestConfigProvider(requestConfig)
 
-	t.Run("Test proxy handler", func(t *testing.T) {
-		_, err := http.Post(ts.URL, "application/graphql", strings.NewReader(assetInput))
-		if err != nil {
-			t.Error(err)
-		}
-	})
-}
+	graphqlProxy := NewDefaultProxy(requestConfigProvider, testCase.MiddleWares...)
 
-func TestProxyHandlerError(t *testing.T) {
-	endpointServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-		if _, err := w.Write([]byte("induced failure")); err != nil {
+	errorHandlerInvoked := false
+
+	graphqlProxy.HandleError = func(err error, w http.ResponseWriter) {
+		errorHandlerInvoked = true
+		w.WriteHeader(http.StatusOK)
+
+		if !testCase.WantProxyErrorHandlerInvocation {
 			t.Fatal(err)
 		}
-	}))
-	defer endpointServer.Close()
+	}
 
-	schema := []byte(assetSchema)
-	backendURL, err := url.Parse(endpointServer.URL)
+	graphqlProxyHttpServer := httptest.NewServer(graphqlProxy)
+	defer graphqlProxyHttpServer.Close()
+
+	res, err := http.Post(graphqlProxyHttpServer.URL, "application/graphql", strings.NewReader(testCase.ClientRequest))
 	if err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 
-	requestConfigProvider := proxy.NewStaticRequestConfigProvider(proxy.RequestConfig{
-		Schema:     &schema,
-		BackendURL: *backendURL,
-	})
-
-	ph := NewDefaultProxy(requestConfigProvider, &hackmiddleware.AssetUrlMiddleware{})
-	handlerHit := false
-	ph.HandleError = func(err error, w http.ResponseWriter) {
-		handlerHit = true
+	if testCase.WantProxyErrorHandlerInvocation != errorHandlerInvoked {
+		t.Fatalf("want proxy error handler invocation: %t, got: %t", testCase.WantProxyErrorHandlerInvocation, errorHandlerInvoked)
 	}
-	proxyServer := httptest.NewServer(ph)
-	defer proxyServer.Close()
 
-	t.Run("Test proxy handler", func(t *testing.T) {
-		_, err := http.Post(proxyServer.URL, "application/graphql", strings.NewReader(assetInput))
-		if err != nil {
-			t.Error(err)
-		}
+	if res == nil {
+		return
+	}
 
-		if handlerHit != true {
-			t.Error("Error handler was not hit")
-		}
-	})
+	if res.StatusCode != testCase.ExpectedProxyStatusCode {
+		t.Fatalf("want proxy status code: %d, got: %d", testCase.ExpectedProxyStatusCode, res.StatusCode)
+	}
 }
 
-func TestProxyHandlerVariables(t *testing.T) {
-	endpointServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if strings.TrimSpace(string(body)) != variableAssetOutput {
-			t.Fatalf("Expected:\n%s\ngot\n%s", variableAssetOutput, body)
-		}
-	}))
-	defer endpointServer.Close()
-
-	schema := []byte(assetSchema)
-	backendURL, err := url.Parse(endpointServer.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	requestConfigProvider := proxy.NewStaticRequestConfigProvider(proxy.RequestConfig{
-		Schema:     &schema,
-		BackendURL: *backendURL,
+func TestProxy(t *testing.T) {
+	t.Run("asset middleware", func(t *testing.T) {
+		RunTestCase(t, ProxyTestCase{
+			Schema: assetSchema,
+			MiddleWares: []middleware.GraphqlMiddleware{
+				&hackmiddleware.AssetUrlMiddleware{},
+			},
+			ClientRequest:                   assetInput,
+			ExpectedProxiedRequest:          assetOutput,
+			BackendStatusCode:               http.StatusOK,
+			ExpectedProxyStatusCode:         http.StatusOK,
+			WantProxyErrorHandlerInvocation: false,
+		})
 	})
-
-	proxyHandler := NewDefaultProxy(requestConfigProvider, &hackmiddleware.AssetUrlMiddleware{})
-	testServer := httptest.NewServer(proxyHandler)
-	defer testServer.Close()
-
-	t.Run("Test proxy handler", func(t *testing.T) {
-		_, err := http.Post(testServer.URL, "application/graphql", strings.NewReader(variableAssetInput))
-		if err != nil {
-			t.Error(err)
-		}
+	t.Run("handle backend error correctly", func(t *testing.T) {
+		RunTestCase(t, ProxyTestCase{
+			Schema: assetSchema,
+			MiddleWares: []middleware.GraphqlMiddleware{
+				&hackmiddleware.AssetUrlMiddleware{},
+			},
+			ClientRequest:                   assetInput,
+			ExpectedProxiedRequest:          assetOutput,
+			BackendStatusCode:               http.StatusInternalServerError,
+			ExpectedProxyStatusCode:         http.StatusOK,
+			WantProxyErrorHandlerInvocation: true,
+		})
+	})
+	t.Run("handle backend error correctly", func(t *testing.T) {
+		RunTestCase(t, ProxyTestCase{
+			Schema: assetSchema,
+			MiddleWares: []middleware.GraphqlMiddleware{
+				&hackmiddleware.AssetUrlMiddleware{},
+			},
+			ClientRequest:                   assetInput,
+			ExpectedProxiedRequest:          assetOutput,
+			BackendStatusCode:               http.StatusInternalServerError,
+			ExpectedProxyStatusCode:         http.StatusOK,
+			WantProxyErrorHandlerInvocation: true,
+		})
+	})
+	t.Run("handle request with variables", func(t *testing.T) {
+		RunTestCase(t, ProxyTestCase{
+			Schema: assetSchema,
+			MiddleWares: []middleware.GraphqlMiddleware{
+				&hackmiddleware.AssetUrlMiddleware{},
+			},
+			ClientRequest:                   variableAssetInput,
+			ExpectedProxiedRequest:          variableAssetOutput,
+			BackendStatusCode:               http.StatusOK,
+			ExpectedProxyStatusCode:         http.StatusOK,
+			WantProxyErrorHandlerInvocation: false,
+		})
 	})
 }
 
