@@ -13,6 +13,7 @@ type SchemaDefinition struct {
 	Subscription ByteSliceReference
 	DirectiveSet int
 	Position     position.Position
+	IsExtend     bool
 }
 
 func (s SchemaDefinition) NodeSelectionSet() int {

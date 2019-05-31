@@ -151,7 +151,7 @@ func TestParser_Starwars(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	jsonBytes, err := json.MarshalIndent(parser.ParsedDefinitions.TypeSystemDefinition, "", "  ")
+	jsonBytes, err := json.MarshalIndent(parser.ParsedDefinitions, "", "  ")
 	if err != nil {
 		t.Fatal(err)
 	}

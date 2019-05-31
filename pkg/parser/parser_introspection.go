@@ -4,7 +4,7 @@ import "github.com/jensneuse/graphql-go-tools/pkg/introspection"
 
 func (p *Parser) ParseIntrospectionResponse(response *introspection.Response) (err error) {
 
-	mod := NewManualAstMod(p)
+	/*mod := NewManualAstMod(p)
 
 	p.resetCaches()
 	p.l.ResetTypeSystemInput()
@@ -14,7 +14,7 @@ func (p *Parser) ParseIntrospectionResponse(response *introspection.Response) (e
 		if err != nil {
 			return err
 		}
-		mod.SetQueryTypeName(ref)
+		//mod.SetQueryTypeName(ref)
 	}
 
 	if response.Data.Schema.MutationType != nil {
@@ -22,7 +22,7 @@ func (p *Parser) ParseIntrospectionResponse(response *introspection.Response) (e
 		if err != nil {
 			return err
 		}
-		mod.SetMutationTypeName(ref)
+		//mod.SetMutationTypeName(ref)
 	}
 
 	if response.Data.Schema.SubscriptionType != nil {
@@ -31,7 +31,7 @@ func (p *Parser) ParseIntrospectionResponse(response *introspection.Response) (e
 			return err
 		}
 		mod.SetSubscriptionTypeName(ref)
-	}
+	}*/
 
 	return
 }

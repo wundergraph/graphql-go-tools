@@ -10,6 +10,7 @@ type InterfaceTypeDefinition struct {
 	FieldsDefinition FieldDefinitions
 	DirectiveSet     int
 	Position         position.Position
+	IsExtend         bool
 }
 
 func (i InterfaceTypeDefinition) NodeSelectionSet() int {

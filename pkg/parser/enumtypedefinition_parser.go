@@ -5,7 +5,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
 )
 
-func (p *Parser) parseEnumTypeDefinition(hasDescription bool, description token.Token) error {
+func (p *Parser) parseEnumTypeDefinition(hasDescription, isExtend bool, description token.Token) error {
 
 	start, err := p.readExpect(keyword.ENUM, "parseEnumTypeDefinition")
 	if err != nil {
@@ -27,6 +27,7 @@ func (p *Parser) parseEnumTypeDefinition(hasDescription bool, description token.
 	}
 
 	definition.Name = ident.Literal
+	definition.IsExtend = isExtend
 
 	err = p.parseDirectives(&definition.DirectiveSet)
 	if err != nil {

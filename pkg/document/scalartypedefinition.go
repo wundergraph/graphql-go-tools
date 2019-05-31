@@ -9,6 +9,7 @@ type ScalarTypeDefinition struct {
 	Name         ByteSliceReference
 	DirectiveSet int
 	Position     position.Position
+	IsExtend     bool
 }
 
 func (s ScalarTypeDefinition) NodeSelectionSet() int {

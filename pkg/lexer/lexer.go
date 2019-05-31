@@ -356,6 +356,9 @@ func (l *Lexer) keywordFromIdent(start, end int) (k keyword.Keyword) {
 			return keyword.INPUT
 		}
 	case 6:
+		if l.input[start] == 'e' && l.input[start+1] == 'x' && l.input[start+2] == 't' && l.input[start+3] == 'e' && l.input[start+4] == 'n' && l.input[start+5] == 'd' {
+			return keyword.EXTEND
+		}
 		if l.input[start] == 's' {
 			if l.input[start+1] == 'c' && l.input[start+2] == 'h' && l.input[start+3] == 'e' && l.input[start+4] == 'm' && l.input[start+5] == 'a' {
 				return keyword.SCHEMA

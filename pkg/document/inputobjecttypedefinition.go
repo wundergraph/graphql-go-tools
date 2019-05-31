@@ -10,6 +10,7 @@ type InputObjectTypeDefinition struct {
 	InputFieldsDefinition int
 	DirectiveSet          int
 	Position              position.Position
+	IsExtend              bool
 }
 
 func (i InputObjectTypeDefinition) NodeSelectionSet() int {

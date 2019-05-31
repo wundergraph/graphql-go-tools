@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 	"testing"
 )
@@ -86,13 +87,15 @@ func TestParser_parseTypeSystemDefinition(t *testing.T) {
 					directive @ someway on SUBSCRIPTION | MUTATION`,
 			mustParseTypeSystemDefinition(
 				node(
-					hasSchemaDefinition(
-						hasPosition(position.Position{
-							LineStart: 1,
-							CharStart: 2,
-							LineEnd:   4,
-							CharEnd:   7,
-						}),
+					hasSchemaDefinitions(
+						node(
+							hasPosition(position.Position{
+								LineStart: 1,
+								CharStart: 2,
+								LineEnd:   4,
+								CharEnd:   7,
+							}),
+						),
 					),
 					hasScalarTypeSystemDefinitions(
 						node(
@@ -165,17 +168,163 @@ func TestParser_parseTypeSystemDefinition(t *testing.T) {
 				),
 			))
 	})
-	t.Run("set schema multiple times", func(t *testing.T) {
-		run(`	schema {
+	t.Run("extend", func(t *testing.T) {
+		run(`	extend schema {
 						query: Query
 						mutation: Mutation
 					}
+					
+					#this is a scalar
+					extend scalar JSON
+
+					"this is a Person"
+					extend type Person {
+						name: String
+					}
+
+					"describes firstEntity"
+					extend interface firstEntity {
+						name: String
+					}
+
+					"describes direction"
+					extend enum Direction {
+						NORTH
+					}
+
+					"describes Person"
+					extend input Person {
+						name: String
+					}
+
+					"describes someway"
+					extend directive @ someway on SUBSCRIPTION | MUTATION
+
+					"describes union"
+					extend union Foo = Bar | Baz`,
+			mustParseTypeSystemDefinition(
+				node(
+					hasSchemaDefinitions(
+						node(
+							isExtend(true),
+							hasPosition(position.Position{
+								LineStart: 1,
+								CharStart: 2,
+								LineEnd:   4,
+								CharEnd:   7,
+							}),
+						),
+					),
+					hasScalarTypeSystemDefinitions(
+						node(
+							hasDescription("#this is a scalar"),
+							hasName("JSON"),
+							isExtend(true),
+							hasPosition(position.Position{
+								LineStart: 6,
+								CharStart: 6,
+								LineEnd:   7,
+								CharEnd:   24,
+							}),
+						),
+					),
+					hasObjectTypeSystemDefinitions(
+						node(
+							hasDescription("this is a Person"),
+							hasName("Person"),
+							isExtend(true),
+							hasPosition(position.Position{
+								LineStart: 9,
+								CharStart: 6,
+								LineEnd:   12,
+								CharEnd:   7,
+							}),
+						),
+					),
+					hasInterfaceTypeSystemDefinitions(
+						node(
+							hasName("firstEntity"),
+							isExtend(true),
+							hasPosition(position.Position{
+								LineStart: 14,
+								CharStart: 6,
+								LineEnd:   17,
+								CharEnd:   7,
+							}),
+						),
+					),
+					hasEnumTypeSystemDefinitions(
+						node(
+							hasName("Direction"),
+							isExtend(true),
+							hasPosition(position.Position{
+								LineStart: 19,
+								CharStart: 6,
+								LineEnd:   22,
+								CharEnd:   7,
+							}),
+						),
+					),
+					hasInputObjectTypeSystemDefinitions(
+						node(
+							hasName("Person"),
+							isExtend(true),
+							hasPosition(position.Position{
+								LineStart: 24,
+								CharStart: 6,
+								LineEnd:   27,
+								CharEnd:   7,
+							}),
+						),
+					),
+					hasDirectiveDefinitions(
+						node(
+							hasName("someway"),
+							isExtend(true),
+							hasPosition(position.Position{
+								LineStart: 29,
+								CharStart: 6,
+								LineEnd:   30,
+								CharEnd:   59,
+							}),
+						),
+					),
+					hasUnionTypeSystemDefinitions(
+						node(
+							hasName("Foo"),
+							hasDescription("describes union"),
+							isExtend(true),
+							hasPosition(position.Position{
+								LineStart: 32,
+								CharStart: 6,
+								LineEnd:   33,
+								CharEnd:   34,
+							}),
+						),
+					),
+				),
+			))
+	})
+	t.Run("set schema multiple times", func(t *testing.T) {
+		run(`	schema {
+						query: Query1
+					}
 
 					schema {
-						query: Query
-						mutation: Mutation
+						query: Query2
 					}`,
-			mustPanic(mustParseTypeSystemDefinition(node())))
+			mustParseTypeSystemDefinition(
+				node(
+					hasSchemaDefinitions(
+						node(
+							hasSchemaOperationTypeName(document.OperationTypeQuery, "Query1"),
+						),
+						node(
+							hasSchemaOperationTypeName(document.OperationTypeQuery, "Query2"),
+						),
+					),
+				),
+			))
 	})
 	t.Run("invalid schema", func(t *testing.T) {
 		run(`	schema {

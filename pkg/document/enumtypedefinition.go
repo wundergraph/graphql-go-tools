@@ -11,6 +11,7 @@ type EnumTypeDefinition struct {
 	DirectiveSet         int
 	Position             position.Position
 	NextRef              int
+	IsExtend             bool
 }
 
 func (e EnumTypeDefinition) NodeSelectionSet() int {

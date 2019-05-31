@@ -141,7 +141,7 @@ func (w *Walker) Node(ref int) Node {
 }
 
 func (w *Walker) WalkTypeSystemDefinition() {
-	w.WalkSchemaDefinition(w.l.p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition)
+	w.WalkSchemaDefinitions()
 	w.WalkObjectTypeDefinitions()
 	w.WalkEnumTypeDefinitions()
 	w.WalkDirectiveDefinitions()
@@ -151,12 +151,16 @@ func (w *Walker) WalkTypeSystemDefinition() {
 	w.WalkInputObjectTypeDefinitions()
 }
 
-func (w *Walker) WalkSchemaDefinition(definition document.SchemaDefinition) {
-	w.putNode(Node{
-		Kind:     SCHEMA,
-		Parent:   -1,
-		Position: definition.Position,
-	})
+func (w *Walker) WalkSchemaDefinitions() {
+
+	for ref := range w.l.p.ParsedDefinitions.SchemaDefinitions {
+		w.putNode(Node{
+			Kind:     SCHEMA,
+			Parent:   -1,
+			Position: w.l.p.ParsedDefinitions.SchemaDefinitions[ref].Position,
+			Ref:      ref,
+		})
+	}
 }
 
 func (w *Walker) WalkObjectTypeDefinitions() {
@@ -510,6 +514,8 @@ func (w *Walker) ArgumentsDefinition(parent int) document.ArgumentsDefinition {
 	}
 }
 
+// WalkUpUntilTypeName walks up from the current node until it finds the enclosing type name
+// it implicitly expects that there's a schema definition in the AST
 func (w *Walker) WalkUpUntilTypeName(from Node, fieldPath *[]document.ByteSliceReference) (typeName document.ByteSliceReference, node Node) {
 
 	node = from
@@ -531,11 +537,11 @@ func (w *Walker) WalkUpUntilTypeName(from Node, fieldPath *[]document.ByteSliceR
 			operationDefinition := w.l.OperationDefinition(node.Ref)
 			switch operationDefinition.OperationType {
 			case document.OperationTypeQuery:
-				typeName = w.l.p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition.Query
+				typeName = w.l.p.ParsedDefinitions.SchemaDefinitions[0].Query
 			case document.OperationTypeMutation:
-				typeName = w.l.p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition.Mutation
+				typeName = w.l.p.ParsedDefinitions.SchemaDefinitions[0].Mutation
 			case document.OperationTypeSubscription:
-				typeName = w.l.p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition.Subscription
+				typeName = w.l.p.ParsedDefinitions.SchemaDefinitions[0].Subscription
 			}
 			return typeName, node
 		case FIELD:

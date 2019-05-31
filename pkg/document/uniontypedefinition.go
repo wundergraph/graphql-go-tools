@@ -10,6 +10,7 @@ type UnionTypeDefinition struct {
 	UnionMemberTypes UnionMemberTypes
 	DirectiveSet     int
 	Position         position.Position
+	IsExtend         bool
 }
 
 func (u UnionTypeDefinition) NodeSelectionSet() int {

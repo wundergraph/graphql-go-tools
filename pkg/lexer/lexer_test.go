@@ -335,6 +335,9 @@ func TestLexer_Peek_Read(t *testing.T) {
 	t.Run("read inputValue", func(t *testing.T) {
 		run("inputValue", mustPeekAndRead(keyword.IDENT, "inputValue"))
 	})
+	t.Run("read extend", func(t *testing.T) {
+		run("extend", mustPeekAndRead(keyword.EXTEND, "extend"))
+	})
 	t.Run("read on", func(t *testing.T) {
 		run("on", mustPeekAndRead(keyword.ON, "on"))
 	})

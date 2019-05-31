@@ -52,7 +52,7 @@ func (p *Printer) PrintTypeSystemDefinition(out io.Writer) error {
 		ref, kind := rootNodes.Value()
 		switch kind {
 		case lookup.SCHEMA:
-			p.PrintSchemaDefinition()
+			p.PrintSchemaDefinition(ref)
 		case lookup.OBJECT_TYPE_DEFINITION:
 			p.PrintObjectTypeDefinition(ref)
 		case lookup.ENUM_TYPE_DEFINITION:
@@ -76,8 +76,8 @@ func (p *Printer) PrintTypeSystemDefinition(out io.Writer) error {
 	return p.err
 }
 
-func (p *Printer) PrintSchemaDefinition() {
-	definition := p.p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition
+func (p *Printer) PrintSchemaDefinition(index int) {
+	definition := p.p.ParsedDefinitions.SchemaDefinitions[index]
 	p.write(literal.SCHEMA)
 	p.write(literal.SPACE)
 	p.write(literal.CURLYBRACKETOPEN)
