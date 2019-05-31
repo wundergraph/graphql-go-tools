@@ -91,13 +91,17 @@ func isExtend(want bool) rule {
 			if want != docType.IsExtend {
 				isErr = true
 			}
+		case document.SchemaDefinition:
+			if want != docType.IsExtend {
+				isErr = true
+			}
 		default:
 			nodeType := reflect.TypeOf(node)
 			panic(fmt.Errorf("must implement for type: %+v", nodeType.Name()))
 		}
 
 		if isErr {
-			panic(fmt.Errorf("isExtend: want: %t, got: %t [rule: %d, node: %d]", want, !want, ruleIndex, ruleSetIndex))
+			panic(fmt.Errorf("isExtend: want: %t, got: %t [position: %s]", want, !want, node.NodePosition()))
 		}
 	}
 }
@@ -432,16 +436,13 @@ func hasUnionMemberTypes(members ...string) rule {
 	}
 }
 
-func hasSchemaDefinition(rules ...rule) rule {
+func hasSchemaDefinitions(rules ...ruleSet) rule {
 	return func(node document.Node, parser *Parser, ruleIndex, ruleSetIndex int) {
 
-		schemaDefinition := node.(document.TypeSystemDefinition).SchemaDefinition
-		if !schemaDefinition.IsDefined() {
-			panic(fmt.Errorf("hasSchemaDefinition: schemaDefinition is undefined [check: %d]", ruleSetIndex))
-		}
+		definitions := parser.ParsedDefinitions.SchemaDefinitions
 
 		for i, rule := range rules {
-			rule(schemaDefinition, parser, i, ruleSetIndex)
+			rule.eval(definitions[i], parser, i)
 		}
 	}
 }
@@ -1011,7 +1012,7 @@ func mustParseTypeSystemDefinition(rules ruleSet) checkFunc {
 			panic(err)
 		}
 
-		evalRules(parser.ParsedDefinitions.TypeSystemDefinition, parser, rules, i)
+		evalRules(nil, parser, rules, i)
 	}
 }
 
@@ -1023,20 +1024,20 @@ func mustExtendTypeSystemDefinition(extension string, rules ruleSet) checkFunc {
 			panic(err)
 		}
 
-		evalRules(parser.ParsedDefinitions.TypeSystemDefinition, parser, rules, i)
+		evalRules(nil, parser, rules, i)
 	}
 }
 
 func mustParseSchemaDefinition(rules ...rule) checkFunc {
 	return func(parser *Parser, i int) {
-		parser.initTypeSystemDefinition()
-		err := parser.parseSchemaDefinition(&parser.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition)
+
+		err := parser.parseSchemaDefinition(false, token.Token{})
 		if err != nil {
 			panic(err)
 		}
 
 		for k, rule := range rules {
-			rule(parser.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition, parser, k, i)
+			rule(parser.ParsedDefinitions.SchemaDefinitions[0], parser, k, i)
 		}
 	}
 }
