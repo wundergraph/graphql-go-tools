@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"github.com/jensneuse/graphql-go-tools/pkg/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 	"testing"
 )
@@ -86,13 +87,15 @@ func TestParser_parseTypeSystemDefinition(t *testing.T) {
 					directive @ someway on SUBSCRIPTION | MUTATION`,
 			mustParseTypeSystemDefinition(
 				node(
-					hasSchemaDefinition(
-						hasPosition(position.Position{
-							LineStart: 1,
-							CharStart: 2,
-							LineEnd:   4,
-							CharEnd:   7,
-						}),
+					hasSchemaDefinitions(
+						node(
+							hasPosition(position.Position{
+								LineStart: 1,
+								CharStart: 2,
+								LineEnd:   4,
+								CharEnd:   7,
+							}),
+						),
 					),
 					hasScalarTypeSystemDefinitions(
 						node(
@@ -166,7 +169,7 @@ func TestParser_parseTypeSystemDefinition(t *testing.T) {
 			))
 	})
 	t.Run("extend", func(t *testing.T) {
-		run(`	schema {
+		run(`	extend schema {
 						query: Query
 						mutation: Mutation
 					}
@@ -201,13 +204,16 @@ func TestParser_parseTypeSystemDefinition(t *testing.T) {
 					extend union Foo = Bar | Baz`,
 			mustParseTypeSystemDefinition(
 				node(
-					hasSchemaDefinition(
-						hasPosition(position.Position{
-							LineStart: 1,
-							CharStart: 2,
-							LineEnd:   4,
-							CharEnd:   7,
-						}),
+					hasSchemaDefinitions(
+						node(
+							isExtend(true),
+							hasPosition(position.Position{
+								LineStart: 1,
+								CharStart: 2,
+								LineEnd:   4,
+								CharEnd:   7,
+							}),
+						),
 					),
 					hasScalarTypeSystemDefinitions(
 						node(
@@ -301,15 +307,24 @@ func TestParser_parseTypeSystemDefinition(t *testing.T) {
 	})
 	t.Run("set schema multiple times", func(t *testing.T) {
 		run(`	schema {
-						query: Query
-						mutation: Mutation
+						query: Query1
 					}
 
 					schema {
-						query: Query
-						mutation: Mutation
+						query: Query2
 					}`,
-			mustPanic(mustParseTypeSystemDefinition(node())))
+			mustParseTypeSystemDefinition(
+				node(
+					hasSchemaDefinitions(
+						node(
+							hasSchemaOperationTypeName(document.OperationTypeQuery, "Query1"),
+						),
+						node(
+							hasSchemaOperationTypeName(document.OperationTypeQuery, "Query2"),
+						),
+					),
+				),
+			))
 	})
 	t.Run("invalid schema", func(t *testing.T) {
 		run(`	schema {
