@@ -10,6 +10,7 @@ func (p *Parser) parseTypeSystemDefinition() (err error) {
 	var hasDescription bool
 	var isExtend bool
 	var description token.Token
+	var extendToken token.Token
 
 	for {
 		next := p.l.Peek(true)
@@ -25,7 +26,7 @@ func (p *Parser) parseTypeSystemDefinition() (err error) {
 			}
 
 			isExtend = true
-			p.l.Read()
+			extendToken = p.l.Read()
 			continue
 
 		case keyword.STRING, keyword.COMMENT:
@@ -42,12 +43,7 @@ func (p *Parser) parseTypeSystemDefinition() (err error) {
 
 		case keyword.SCHEMA:
 
-			if p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition.IsDefined() {
-				invalid := p.l.Read()
-				return newErrInvalidType(invalid.TextPosition, "parseTypeSystemDefinition", "not a re-assignment of SchemaDefinition", "multiple SchemaDefinition assignments")
-			}
-
-			err = p.parseSchemaDefinition(&p.ParsedDefinitions.TypeSystemDefinition.SchemaDefinition)
+			err = p.parseSchemaDefinition(isExtend, extendToken)
 			if err != nil {
 				return err
 			}
