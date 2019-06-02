@@ -9,6 +9,7 @@ import (
 	"github.com/tidwall/sjson"
 	"github.com/valyala/fasthttp"
 	"io"
+	"net/http"
 )
 
 type Proxy proxy.Proxy
@@ -38,7 +39,12 @@ func (f *Proxy) RewriteQuery(config proxy.RequestConfig, ctx context.Context, re
 
 func (f *Proxy) HandleRequest(ctx *fasthttp.RequestCtx) {
 
-	config := f.RequestConfigProvider.GetRequestConfig(ctx)
+	config, err := f.RequestConfigProvider.GetRequestConfig(ctx)
+	if err != nil {
+		ctx.Error(err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	goctx := f.SetContextValues(ctx, &ctx.Request.Header, config.AddHeadersToContext)
 
 	body := ctx.Request.Body()
@@ -58,7 +64,7 @@ func (f *Proxy) HandleRequest(ctx *fasthttp.RequestCtx) {
 	buff.Reset()
 	defer f.BufferPool.Put(buff)
 
-	err := f.RewriteQuery(config, goctx, ctx.RequestURI(), query, buff)
+	err = f.RewriteQuery(*config, goctx, ctx.RequestURI(), query, buff)
 	if err != nil {
 		ctx.Error(err.Error(), fasthttp.StatusInternalServerError)
 		return

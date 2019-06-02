@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"errors"
 	hackmiddleware "github.com/jensneuse/graphql-go-tools/hack/middleware"
 	"github.com/jensneuse/graphql-go-tools/pkg/middleware"
 	"github.com/jensneuse/graphql-go-tools/pkg/proxy"
@@ -41,6 +42,8 @@ type ProxyTestCase struct {
 	BackendOnBeforeRequestMiddleware HttpMiddleware
 	// BackendHeaders are the headers that should be statically set on requests to the backend
 	BackendHeaders map[string][]string
+	// RequestConfigProviderFactory if set (optional) could override the request config provider
+	RequestConfigProviderFactory func(config proxy.RequestConfig) proxy.RequestConfigProvider
 }
 
 /* HttpMiddleware wraps a http handler to add additional logic for certain tests
@@ -105,6 +108,18 @@ func TestProxy(t *testing.T) {
 			BackendStatusCode:               http.StatusOK,
 			WantClientResponseStatusCode:    http.StatusOK,
 			WantProxyErrorHandlerInvocation: false,
+		})
+	})
+	t.Run("failing request config provider", func(t *testing.T) {
+		RunTestCase(t, ProxyTestCase{
+			Schema:                          assetSchema,
+			ClientRequest:                   variableAssetInput,
+			ExpectedProxiedRequest:          variableAssetOutput,
+			WantClientResponseStatusCode:    http.StatusOK,
+			WantProxyErrorHandlerInvocation: true,
+			RequestConfigProviderFactory: func(config proxy.RequestConfig) proxy.RequestConfigProvider {
+				return failingRequestConfigProvider{}
+			},
 		})
 	})
 	t.Run("handle request response e2e", func(t *testing.T) {
@@ -195,7 +210,12 @@ func RunTestCase(t *testing.T, testCase ProxyTestCase) {
 		BackendHeaders: testCase.BackendHeaders,
 	}
 
-	requestConfigProvider := proxy.NewStaticRequestConfigProvider(requestConfig)
+	var requestConfigProvider proxy.RequestConfigProvider
+	if testCase.RequestConfigProviderFactory != nil {
+		requestConfigProvider = testCase.RequestConfigProviderFactory(requestConfig)
+	} else {
+		requestConfigProvider = proxy.NewStaticRequestConfigProvider(requestConfig)
+	}
 
 	graphqlProxy := NewDefaultProxy(requestConfigProvider, testCase.MiddleWares...)
 
@@ -335,3 +355,11 @@ type Document implements Node {
 	userKey           = "user"
 	userValue         = "jsmith@example.org"
 )
+
+// failing request config provider
+
+type failingRequestConfigProvider struct{}
+
+func (failingRequestConfigProvider) GetRequestConfig(ctx context.Context) (*proxy.RequestConfig, error) {
+	return nil, errors.New("failing")
+}

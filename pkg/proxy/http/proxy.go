@@ -96,16 +96,22 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	buff := p.BufferPool.Get().(*bytes.Buffer)
 	buff.Reset()
 
-	config := p.RequestConfigProvider.GetRequestConfig(r.Context())
+	config, err := p.RequestConfigProvider.GetRequestConfig(r.Context())
+	if err != nil {
+		p.BufferPool.Put(buff)
+		p.HandleError(err, w)
+		return
+	}
+
 	pr := ProxyRequest{
 		Proxy: p,
 	}
-	pr.Config = &config
+	pr.Config = config
 	pr.RequestURL = *r.URL
 	pr.Body = r.Body
 	pr.Context = p.SetContextValues(r.Context(), r.Header, config.AddHeadersToContext)
 
-	err := json.NewDecoder(pr.Body).Decode(&pr.GraphQLRequest)
+	err = json.NewDecoder(pr.Body).Decode(&pr.GraphQLRequest)
 	if err != nil {
 		p.BufferPool.Put(buff)
 		p.HandleError(err, w)
