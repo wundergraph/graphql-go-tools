@@ -13,7 +13,7 @@ import (
 // After that it's up to the RequestConfigProvider implementation how to set the configuration
 // This should give the user enough flexibility
 type RequestConfigProvider interface {
-	GetRequestConfig(ctx context.Context) RequestConfig
+	GetRequestConfig(ctx context.Context) (*RequestConfig, error)
 }
 
 // RequestConfig configures how the proxy should handle a request
@@ -34,8 +34,8 @@ type StaticRequestConfigProvider struct {
 	config RequestConfig
 }
 
-func (s *StaticRequestConfigProvider) GetRequestConfig(ctx context.Context) RequestConfig {
-	return s.config
+func (s *StaticRequestConfigProvider) GetRequestConfig(ctx context.Context) (*RequestConfig, error) {
+	return &s.config, nil
 }
 
 func NewStaticRequestConfigProvider(config RequestConfig) *StaticRequestConfigProvider {
