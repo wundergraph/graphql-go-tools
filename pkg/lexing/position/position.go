@@ -13,6 +13,13 @@ func (p Position) String() string {
 	return fmt.Sprintf("%d:%d-%d:%d", p.LineStart, p.CharStart, p.LineEnd, p.CharEnd)
 }
 
+func (p *Position) Reset() {
+	p.LineStart = 1
+	p.LineEnd = 1
+	p.CharStart = 1
+	p.CharEnd = 1
+}
+
 func (p *Position) MergeStartIntoStart(position Position) {
 	p.LineStart = position.LineStart
 	p.CharStart = position.CharStart
