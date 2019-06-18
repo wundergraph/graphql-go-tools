@@ -1,0 +1,58 @@
+package input
+
+import (
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
+)
+
+// RawBytes is a raw graphql document containing the raw input + meta data
+type Input struct {
+	// RawBytes is the raw byte input
+	RawBytes []byte
+	// InputPosition is the current position in the RawBytes
+	InputPosition int
+	// TextPosition is the current position within the text (line and character information about the current token)
+	TextPosition position.Position
+	// BeforeLastLineTerminatorTextPosition is the line and character position information before the last line terminator
+	BeforeLastLineTerminatorTextPosition position.Position
+}
+
+func (i *Input) Reset() {
+	i.RawBytes = i.RawBytes[:0]
+	i.InputPosition = 0
+	i.TextPosition.Reset()
+	i.BeforeLastLineTerminatorTextPosition.Reset()
+}
+
+func (i *Input) ResetInputBytes(bytes []byte) {
+	i.Reset()
+	i.AppendInputBytes(bytes)
+}
+
+func (i *Input) AppendInputBytes(bytes []byte) {
+	i.RawBytes = append(i.RawBytes, bytes...)
+}
+
+func (i *Input) ByteSlice(reference ByteSliceReference) ByteSlice {
+	return i.RawBytes[reference.Start:reference.End]
+}
+
+func (i *Input) ByteSliceString(reference ByteSliceReference) string {
+	return string(i.ByteSlice(reference))
+}
+
+type ByteSlice []byte
+
+func (b ByteSlice) MarshalJSON() ([]byte, error) {
+	return append(append(literal.QUOTE, b...), literal.QUOTE...), nil
+}
+
+type ByteSliceReference struct {
+	Start   uint32
+	End     uint32
+	NextRef int
+}
+
+func (b ByteSliceReference) Length() uint32 {
+	return b.End - b.Start
+}
