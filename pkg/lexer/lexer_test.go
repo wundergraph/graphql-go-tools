@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/jensneuse/diffview"
+	"github.com/jensneuse/graphql-go-tools/pkg/input"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
 	"github.com/sebdah/goldie"
@@ -15,13 +16,15 @@ func TestLexer_Peek_Read(t *testing.T) {
 
 	type checkFunc func(lex *Lexer, i int)
 
-	run := func(input string, checks ...checkFunc) {
-		lex := NewLexer()
-		if err := lex.SetTypeSystemInput([]byte(input)); err != nil {
-			panic(err)
-		}
+	run := func(inStr string, checks ...checkFunc) {
+
+		in := &input.Input{}
+		in.ResetInputBytes([]byte(inStr))
+		lexer := &Lexer{}
+		lexer.SetInput(in)
+
 		for i := range checks {
-			checks[i](lex, i+1)
+			checks[i](lexer, i+1)
 		}
 	}
 
@@ -40,7 +43,7 @@ func TestLexer_Peek_Read(t *testing.T) {
 			if k != tok.Keyword {
 				panic(fmt.Errorf("mustRead: want(keyword): %s, got: %s [check: %d]", k.String(), tok.String(), i))
 			}
-			gotLiteral := string(lex.ByteSlice(tok.Literal))
+			gotLiteral := string(lex.input.ByteSlice(tok.Literal))
 			if wantLiteral != gotLiteral {
 				panic(fmt.Errorf("mustRead: want(literal): %s, got: %s [check: %d]", wantLiteral, gotLiteral, i))
 			}
@@ -56,9 +59,7 @@ func TestLexer_Peek_Read(t *testing.T) {
 
 	resetInput := func(input string) checkFunc {
 		return func(lex *Lexer, i int) {
-			if err := lex.SetTypeSystemInput([]byte(input)); err != nil {
-				panic(err)
-			}
+			lex.input.ResetInputBytes([]byte(input))
 		}
 	}
 
@@ -102,12 +103,12 @@ func TestLexer_Peek_Read(t *testing.T) {
 	t.Run("peek whitespace length with comma", func(t *testing.T) {
 		run("   ,foo", mustPeekWhitespaceLength(4))
 	})
-	t.Run("set too large input", func(t *testing.T) {
+	/*t.Run("set too large input", func(t *testing.T) {
 		lex := NewLexer()
 		if err := lex.SetTypeSystemInput(make([]byte, 1000000+1)); err == nil {
 			panic(fmt.Errorf("must err on too large input"))
 		}
-	})
+	})*/
 	t.Run("read correct when resetting input", func(t *testing.T) {
 		run("x",
 			mustRead(keyword.IDENT, "x"),
@@ -445,74 +446,32 @@ baz
 			mustPeekAndRead(keyword.FLOAT, "13.37"),
 		)
 	})
-	t.Run("extend type system input", func(t *testing.T) {
-		t.Run("invalid flow", func(t *testing.T) {
-			l := NewLexer()
-			err := l.SetTypeSystemInput([]byte("foo"))
-			if err != nil {
-				t.Fatal(err)
-			}
-			err = l.SetExecutableInput([]byte("bar"))
-			if err != nil {
-				t.Fatal(err)
-			}
-			err = l.ExtendTypeSystemInput([]byte("baz"))
-			if err == nil {
-				t.Fatal("want err")
-			}
-		})
-		t.Run("valid flow", func(t *testing.T) {
-			l := NewLexer()
-			err := l.SetTypeSystemInput([]byte("foo"))
-			if err != nil {
-				t.Fatal(err)
-			}
+	t.Run("append input", func(t *testing.T) {
 
-			foo := l.Read()
-			if string(l.ByteSlice(foo.Literal)) != "foo" {
-				t.Fatal("want foo")
-			}
+		in := &input.Input{}
+		lexer := &Lexer{}
+		lexer.SetInput(in)
 
-			err = l.ExtendTypeSystemInput([]byte(" bar"))
-			if err != nil {
-				t.Fatal(err)
-			}
+		in.ResetInputBytes([]byte("foo"))
 
-			bar := l.Read()
-			if string(l.ByteSlice(bar.Literal)) != "bar" {
-				t.Fatal("want bar")
-			}
+		foo := lexer.Read()
+		if string(in.ByteSlice(foo.Literal)) != "foo" {
+			t.Fatal("want foo")
+		}
 
-			err = l.ExtendTypeSystemInput([]byte(" baz"))
-			if err != nil {
-				t.Fatal(err)
-			}
+		in.AppendInputBytes([]byte(" bar"))
 
-			baz := l.Read()
-			if string(l.ByteSlice(baz.Literal)) != "baz" {
-				t.Fatal("want baz")
-			}
+		bar := lexer.Read()
+		if string(in.ByteSlice(bar.Literal)) != "bar" {
+			t.Fatal("want bar")
+		}
 
-			err = l.SetExecutableInput([]byte("bal bat"))
-			if err != nil {
-				t.Fatal(err)
-			}
+		in.AppendInputBytes([]byte(" baz"))
 
-			bal := l.Read()
-			if string(l.ByteSlice(bal.Literal)) != "bal" {
-				t.Fatal("want bal")
-			}
-
-			err = l.SetTypeSystemInput([]byte("foo2"))
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			foo2 := l.Read()
-			if string(l.ByteSlice(foo2.Literal)) != "foo2" {
-				t.Fatal("want foo2")
-			}
-		})
+		baz := lexer.Read()
+		if string(in.ByteSlice(baz.Literal)) != "baz" {
+			t.Fatal("want baz")
+		}
 	})
 }
 
@@ -618,10 +577,10 @@ fragment TypeRef on __Type {
 
 func TestLexerRegressions(t *testing.T) {
 
-	lexer := NewLexer()
-	if err := lexer.SetTypeSystemInput([]byte(introspectionQuery)); err != nil {
-		t.Fatal(err)
-	}
+	in := &input.Input{}
+	in.ResetInputBytes([]byte(introspectionQuery))
+	lexer := &Lexer{}
+	lexer.SetInput(in)
 
 	var total []token.Token
 	for {
@@ -652,7 +611,10 @@ func TestLexerRegressions(t *testing.T) {
 
 func BenchmarkLexer(b *testing.B) {
 
-	lexer := NewLexer()
+	in := &input.Input{}
+	lexer := &Lexer{}
+	lexer.SetInput(in)
+
 	inputBytes := []byte(introspectionQuery)
 
 	b.ReportAllocs()
@@ -660,17 +622,14 @@ func BenchmarkLexer(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 
-		if err := lexer.SetTypeSystemInput(inputBytes); err != nil {
-			b.Fatal(err)
-		}
+		in.ResetInputBytes(inputBytes)
 
 		var key keyword.Keyword
 
 		for key != keyword.EOF {
 			key = lexer.Peek(true)
 
-			tok := lexer.Read()
-			_ = tok
+			lexer.Read()
 		}
 	}
 }

@@ -1,121 +1,30 @@
 package lexer
 
 import (
-	"fmt"
-	"github.com/jensneuse/graphql-go-tools/pkg/document"
+	"github.com/jensneuse/graphql-go-tools/pkg/input"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/runes"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
 )
 
 // Lexer emits tokens from a input reader
 type Lexer struct {
-	_storage                             [maxInput]byte
-	input                                []byte
-	inputPosition                        int
-	typeSystemEndPosition                int
-	textPosition                         position.Position
-	beforeLastLineTerminatorTextPosition position.Position
+	input *input.Input
 }
 
-// NewLexer initializes a new lexer
-func NewLexer() *Lexer {
-	return &Lexer{}
+func (l *Lexer) SetInput(input *input.Input) {
+	l.input = input
 }
 
-const (
-	//maxInput = 655350
-	maxInput = 1000000
-)
-
-// SetTypeSystemInput sets the new reader as input and resets all position stats
-func (l *Lexer) SetTypeSystemInput(input []byte) error {
-
-	if len(input) > maxInput {
-		return fmt.Errorf("SetTypeSystemInput: input size must not be > %d, got: %d", maxInput, len(input))
-	}
-
-	l.input = l._storage[:0]
-	l.input = append(l.input, input...)
-
-	l.inputPosition = 0
-	l.textPosition.LineStart = 1
-	l.textPosition.CharStart = 1
-	l.typeSystemEndPosition = len(input)
-
-	return nil
-}
-
-func (l *Lexer) ExtendTypeSystemInput(input []byte) error {
-
-	if len(l.input) != l.typeSystemEndPosition {
-		return fmt.Errorf("ExtendTypeSystemInput: you must not extend the type system input after setting the executable input")
-	}
-
-	actual := len(l.input) + len(input)
-	if actual > maxInput {
-		return fmt.Errorf("ExtendTypeSystemInput: input size must not be > %d, got: %d", maxInput, actual)
-	}
-
-	l.input = append(l.input, input...)
-	l.typeSystemEndPosition = len(l.input)
-
-	return nil
-}
-
-func (l *Lexer) ResetTypeSystemInput() {
-	l.input = l._storage[:0]
-	l.inputPosition = 0
-	l.textPosition.LineStart = 1
-	l.textPosition.CharStart = 1
-	l.typeSystemEndPosition = 0
-}
-
-func (l *Lexer) AppendBytes(input []byte) (err error) {
-	currentLength := len(l.input)
-	inputLength := len(input)
-	totalLength := currentLength + inputLength
-	if totalLength > maxInput {
-		return fmt.Errorf("AppendBytes: input size must not be > %d, got: %d", maxInput, totalLength)
-	}
-
-	l.input = append(l.input, input...)
-	return
-}
-
-func (l *Lexer) SetExecutableInput(input []byte) error {
-
-	l.input = append(l.input[:l.typeSystemEndPosition], input...)
-
-	if len(input) > maxInput {
-		return fmt.Errorf("SetTypeSystemInput: input size must not be > %d, got: %d", maxInput, len(input))
-	}
-
-	l.inputPosition = l.typeSystemEndPosition
-	l.textPosition.LineStart = 1
-	l.textPosition.CharStart = 1
-
-	return nil
-}
-
-func (l *Lexer) ByteSlice(reference document.ByteSliceReference) document.ByteSlice {
-	return l.input[reference.Start:reference.End]
-}
-
-func (l *Lexer) TextPosition() position.Position {
-	return l.textPosition
-}
-
-// Read emits the next token, this cannot be undone
+// Read emits the next token
 func (l *Lexer) Read() (tok token.Token) {
 
 	var next byte
 	var inputPositionStart int
 
 	for {
-		inputPositionStart = l.inputPosition
-		tok.SetStart(l.inputPosition, l.textPosition)
+		inputPositionStart = l.input.InputPosition
+		tok.SetStart(l.input.InputPosition, l.input.TextPosition)
 		next = l.readRune()
 		if !l.byteIsWhitespace(next) {
 			break
@@ -147,8 +56,8 @@ func (l *Lexer) Read() (tok token.Token) {
 	}
 
 	l.readIdent()
-	tok.Keyword = l.keywordFromIdent(inputPositionStart, l.inputPosition)
-	tok.SetEnd(l.inputPosition, l.textPosition)
+	tok.Keyword = l.keywordFromIdent(inputPositionStart, l.input.InputPosition)
+	tok.SetEnd(l.input.InputPosition, l.input.TextPosition)
 	return
 }
 
@@ -223,11 +132,11 @@ func (l *Lexer) peekIsFloat() (isFloat bool) {
 	var hasDot bool
 	var peeked byte
 
-	start := l.inputPosition + l.peekWhitespaceLength()
+	start := l.input.InputPosition + l.peekWhitespaceLength()
 
-	for i := start; i < len(l.input); i++ {
+	for i := start; i < len(l.input.RawBytes); i++ {
 
-		peeked = l.input[i]
+		peeked = l.input.RawBytes[i]
 
 		if l.byteTerminatesSequence(peeked) {
 			return hasDot
@@ -276,7 +185,7 @@ func (l *Lexer) matchSingleRuneToken(r byte, tok *token.Token) bool {
 		return false
 	}
 
-	tok.SetEnd(l.inputPosition, l.textPosition)
+	tok.SetEnd(l.input.InputPosition, l.input.TextPosition)
 
 	return true
 }
@@ -302,14 +211,14 @@ func (l *Lexer) peekIdent() (k keyword.Keyword) {
 
 	whitespaceOffset := l.peekWhitespaceLength()
 
-	start := l.inputPosition + whitespaceOffset
+	start := l.input.InputPosition + whitespaceOffset
 	end := start + identWantRunes
-	if end > len(l.input) {
-		end = len(l.input)
+	if end > len(l.input.RawBytes) {
+		end = len(l.input.RawBytes)
 	}
 
 	for i := start; i < end; {
-		if !runeIsIdent(l.input[i]) {
+		if !runeIsIdent(l.input.RawBytes[i]) {
 			end = i
 			break
 		}
@@ -324,69 +233,69 @@ func (l *Lexer) keywordFromIdent(start, end int) (k keyword.Keyword) {
 
 	switch end - start {
 	case 2:
-		if l.input[start] == 'o' && l.input[start+1] == 'n' {
+		if l.input.RawBytes[start] == 'o' && l.input.RawBytes[start+1] == 'n' {
 			return keyword.ON
 		}
 	case 4:
-		if l.input[start] == 'n' && l.input[start+1] == 'u' && l.input[start+2] == 'l' && l.input[start+3] == 'l' {
+		if l.input.RawBytes[start] == 'n' && l.input.RawBytes[start+1] == 'u' && l.input.RawBytes[start+2] == 'l' && l.input.RawBytes[start+3] == 'l' {
 			return keyword.NULL
 		}
-		if l.input[start] == 'e' && l.input[start+1] == 'n' && l.input[start+2] == 'u' && l.input[start+3] == 'm' {
+		if l.input.RawBytes[start] == 'e' && l.input.RawBytes[start+1] == 'n' && l.input.RawBytes[start+2] == 'u' && l.input.RawBytes[start+3] == 'm' {
 			return keyword.ENUM
 		}
-		if l.input[start] == 't' {
-			if l.input[start+1] == 'r' && l.input[start+2] == 'u' && l.input[start+3] == 'e' {
+		if l.input.RawBytes[start] == 't' {
+			if l.input.RawBytes[start+1] == 'r' && l.input.RawBytes[start+2] == 'u' && l.input.RawBytes[start+3] == 'e' {
 				return keyword.TRUE
 			}
-			if l.input[start+1] == 'y' && l.input[start+2] == 'p' && l.input[start+3] == 'e' {
+			if l.input.RawBytes[start+1] == 'y' && l.input.RawBytes[start+2] == 'p' && l.input.RawBytes[start+3] == 'e' {
 				return keyword.TYPE
 			}
 		}
 	case 5:
-		if l.input[start] == 'f' && l.input[start+1] == 'a' && l.input[start+2] == 'l' && l.input[start+3] == 's' && l.input[start+4] == 'e' {
+		if l.input.RawBytes[start] == 'f' && l.input.RawBytes[start+1] == 'a' && l.input.RawBytes[start+2] == 'l' && l.input.RawBytes[start+3] == 's' && l.input.RawBytes[start+4] == 'e' {
 			return keyword.FALSE
 		}
-		if l.input[start] == 'u' && l.input[start+1] == 'n' && l.input[start+2] == 'i' && l.input[start+3] == 'o' && l.input[start+4] == 'n' {
+		if l.input.RawBytes[start] == 'u' && l.input.RawBytes[start+1] == 'n' && l.input.RawBytes[start+2] == 'i' && l.input.RawBytes[start+3] == 'o' && l.input.RawBytes[start+4] == 'n' {
 			return keyword.UNION
 		}
-		if l.input[start] == 'q' && l.input[start+1] == 'u' && l.input[start+2] == 'e' && l.input[start+3] == 'r' && l.input[start+4] == 'y' {
+		if l.input.RawBytes[start] == 'q' && l.input.RawBytes[start+1] == 'u' && l.input.RawBytes[start+2] == 'e' && l.input.RawBytes[start+3] == 'r' && l.input.RawBytes[start+4] == 'y' {
 			return keyword.QUERY
 		}
-		if l.input[start] == 'i' && l.input[start+1] == 'n' && l.input[start+2] == 'p' && l.input[start+3] == 'u' && l.input[start+4] == 't' {
+		if l.input.RawBytes[start] == 'i' && l.input.RawBytes[start+1] == 'n' && l.input.RawBytes[start+2] == 'p' && l.input.RawBytes[start+3] == 'u' && l.input.RawBytes[start+4] == 't' {
 			return keyword.INPUT
 		}
 	case 6:
-		if l.input[start] == 'e' && l.input[start+1] == 'x' && l.input[start+2] == 't' && l.input[start+3] == 'e' && l.input[start+4] == 'n' && l.input[start+5] == 'd' {
+		if l.input.RawBytes[start] == 'e' && l.input.RawBytes[start+1] == 'x' && l.input.RawBytes[start+2] == 't' && l.input.RawBytes[start+3] == 'e' && l.input.RawBytes[start+4] == 'n' && l.input.RawBytes[start+5] == 'd' {
 			return keyword.EXTEND
 		}
-		if l.input[start] == 's' {
-			if l.input[start+1] == 'c' && l.input[start+2] == 'h' && l.input[start+3] == 'e' && l.input[start+4] == 'm' && l.input[start+5] == 'a' {
+		if l.input.RawBytes[start] == 's' {
+			if l.input.RawBytes[start+1] == 'c' && l.input.RawBytes[start+2] == 'h' && l.input.RawBytes[start+3] == 'e' && l.input.RawBytes[start+4] == 'm' && l.input.RawBytes[start+5] == 'a' {
 				return keyword.SCHEMA
 			}
-			if l.input[start+1] == 'c' && l.input[start+2] == 'a' && l.input[start+3] == 'l' && l.input[start+4] == 'a' && l.input[start+5] == 'r' {
+			if l.input.RawBytes[start+1] == 'c' && l.input.RawBytes[start+2] == 'a' && l.input.RawBytes[start+3] == 'l' && l.input.RawBytes[start+4] == 'a' && l.input.RawBytes[start+5] == 'r' {
 				return keyword.SCALAR
 			}
 		}
 	case 8:
-		if l.input[start] == 'm' && l.input[start+1] == 'u' && l.input[start+2] == 't' && l.input[start+3] == 'a' && l.input[start+4] == 't' && l.input[start+5] == 'i' && l.input[start+6] == 'o' && l.input[start+7] == 'n' {
+		if l.input.RawBytes[start] == 'm' && l.input.RawBytes[start+1] == 'u' && l.input.RawBytes[start+2] == 't' && l.input.RawBytes[start+3] == 'a' && l.input.RawBytes[start+4] == 't' && l.input.RawBytes[start+5] == 'i' && l.input.RawBytes[start+6] == 'o' && l.input.RawBytes[start+7] == 'n' {
 			return keyword.MUTATION
 		}
-		if l.input[start] == 'f' && l.input[start+1] == 'r' && l.input[start+2] == 'a' && l.input[start+3] == 'g' && l.input[start+4] == 'm' && l.input[start+5] == 'e' && l.input[start+6] == 'n' && l.input[start+7] == 't' {
+		if l.input.RawBytes[start] == 'f' && l.input.RawBytes[start+1] == 'r' && l.input.RawBytes[start+2] == 'a' && l.input.RawBytes[start+3] == 'g' && l.input.RawBytes[start+4] == 'm' && l.input.RawBytes[start+5] == 'e' && l.input.RawBytes[start+6] == 'n' && l.input.RawBytes[start+7] == 't' {
 			return keyword.FRAGMENT
 		}
 	case 9:
-		if l.input[start] == 'i' && l.input[start+1] == 'n' && l.input[start+2] == 't' && l.input[start+3] == 'e' && l.input[start+4] == 'r' && l.input[start+5] == 'f' && l.input[start+6] == 'a' && l.input[start+7] == 'c' && l.input[start+8] == 'e' {
+		if l.input.RawBytes[start] == 'i' && l.input.RawBytes[start+1] == 'n' && l.input.RawBytes[start+2] == 't' && l.input.RawBytes[start+3] == 'e' && l.input.RawBytes[start+4] == 'r' && l.input.RawBytes[start+5] == 'f' && l.input.RawBytes[start+6] == 'a' && l.input.RawBytes[start+7] == 'c' && l.input.RawBytes[start+8] == 'e' {
 			return keyword.INTERFACE
 		}
-		if l.input[start] == 'd' && l.input[start+1] == 'i' && l.input[start+2] == 'r' && l.input[start+3] == 'e' && l.input[start+4] == 'c' && l.input[start+5] == 't' && l.input[start+6] == 'i' && l.input[start+7] == 'v' && l.input[start+8] == 'e' {
+		if l.input.RawBytes[start] == 'd' && l.input.RawBytes[start+1] == 'i' && l.input.RawBytes[start+2] == 'r' && l.input.RawBytes[start+3] == 'e' && l.input.RawBytes[start+4] == 'c' && l.input.RawBytes[start+5] == 't' && l.input.RawBytes[start+6] == 'i' && l.input.RawBytes[start+7] == 'v' && l.input.RawBytes[start+8] == 'e' {
 			return keyword.DIRECTIVE
 		}
 	case 10:
-		if l.input[start] == 'i' && l.input[start+1] == 'm' && l.input[start+2] == 'p' && l.input[start+3] == 'l' && l.input[start+4] == 'e' && l.input[start+5] == 'm' && l.input[start+6] == 'e' && l.input[start+7] == 'n' && l.input[start+8] == 't' && l.input[start+9] == 's' {
+		if l.input.RawBytes[start] == 'i' && l.input.RawBytes[start+1] == 'm' && l.input.RawBytes[start+2] == 'p' && l.input.RawBytes[start+3] == 'l' && l.input.RawBytes[start+4] == 'e' && l.input.RawBytes[start+5] == 'm' && l.input.RawBytes[start+6] == 'e' && l.input.RawBytes[start+7] == 'n' && l.input.RawBytes[start+8] == 't' && l.input.RawBytes[start+9] == 's' {
 			return keyword.IMPLEMENTS
 		}
 	case 12:
-		if l.input[start] == 's' && l.input[start+1] == 'u' && l.input[start+2] == 'b' && l.input[start+3] == 's' && l.input[start+4] == 'c' && l.input[start+5] == 'r' && l.input[start+6] == 'i' && l.input[start+7] == 'p' && l.input[start+8] == 't' && l.input[start+9] == 'i' && l.input[start+10] == 'o' && l.input[start+11] == 'n' {
+		if l.input.RawBytes[start] == 's' && l.input.RawBytes[start+1] == 'u' && l.input.RawBytes[start+2] == 'b' && l.input.RawBytes[start+3] == 's' && l.input.RawBytes[start+4] == 'c' && l.input.RawBytes[start+5] == 'r' && l.input.RawBytes[start+6] == 'i' && l.input.RawBytes[start+7] == 'p' && l.input.RawBytes[start+8] == 't' && l.input.RawBytes[start+9] == 'i' && l.input.RawBytes[start+10] == 'o' && l.input.RawBytes[start+11] == 'n' {
 			return keyword.SUBSCRIPTION
 		}
 	}
@@ -396,13 +305,13 @@ func (l *Lexer) keywordFromIdent(start, end int) (k keyword.Keyword) {
 
 func (l *Lexer) readVariable(tok *token.Token) {
 
-	tok.SetStart(l.inputPosition, l.textPosition)
+	tok.SetStart(l.input.InputPosition, l.input.TextPosition)
 
 	tok.Keyword = keyword.VARIABLE
 
 	l.readIdent()
 
-	tok.SetEnd(l.inputPosition, l.textPosition)
+	tok.SetEnd(l.input.InputPosition, l.input.TextPosition)
 	tok.TextPosition.CharStart -= 1
 }
 
@@ -417,7 +326,7 @@ func (l *Lexer) readDotOrSpread(tok *token.Token) {
 		tok.Keyword = keyword.DOT
 	}
 
-	tok.SetEnd(l.inputPosition, l.textPosition)
+	tok.SetEnd(l.input.InputPosition, l.input.TextPosition)
 }
 
 func (l *Lexer) readComment(tok *token.Token) {
@@ -434,7 +343,7 @@ func (l *Lexer) readComment(tok *token.Token) {
 				return
 			}
 		default:
-			tok.SetEnd(l.inputPosition, l.textPosition)
+			tok.SetEnd(l.input.InputPosition, l.input.TextPosition)
 		}
 	}
 }
@@ -467,15 +376,15 @@ func (l *Lexer) peekEquals(ignoreWhitespace bool, equals ...byte) bool {
 		whitespaceOffset = l.peekWhitespaceLength()
 	}
 
-	start := l.inputPosition + whitespaceOffset
-	end := l.inputPosition + len(equals) + whitespaceOffset
+	start := l.input.InputPosition + whitespaceOffset
+	end := l.input.InputPosition + len(equals) + whitespaceOffset
 
-	if end > len(l.input) {
+	if end > len(l.input.RawBytes) {
 		return false
 	}
 
 	for i := 0; i < len(equals); i++ {
-		if l.input[start+i] != equals[i] {
+		if l.input.RawBytes[start+i] != equals[i] {
 			return false
 		}
 	}
@@ -484,8 +393,8 @@ func (l *Lexer) peekEquals(ignoreWhitespace bool, equals ...byte) bool {
 }
 
 func (l *Lexer) peekWhitespaceLength() (amount int) {
-	for i := l.inputPosition; i < len(l.input); i++ {
-		if l.byteIsWhitespace(l.input[i]) {
+	for i := l.input.InputPosition; i < len(l.input.RawBytes); i++ {
+		if l.byteIsWhitespace(l.input.RawBytes[i]) {
 			amount++
 		} else {
 			break
@@ -518,7 +427,7 @@ func (l *Lexer) readDigit(tok *token.Token) {
 	}
 
 	tok.Keyword = keyword.INTEGER
-	tok.SetEnd(l.inputPosition, l.textPosition)
+	tok.SetEnd(l.input.InputPosition, l.input.TextPosition)
 }
 
 func (l *Lexer) readFloat(tok *token.Token) {
@@ -536,23 +445,23 @@ func (l *Lexer) readFloat(tok *token.Token) {
 	}
 
 	tok.Keyword = keyword.FLOAT
-	tok.SetEnd(l.inputPosition, l.textPosition)
+	tok.SetEnd(l.input.InputPosition, l.input.TextPosition)
 }
 
 func (l *Lexer) readRune() (r byte) {
 
-	if l.inputPosition < len(l.input) {
-		r = l.input[l.inputPosition]
+	if l.input.InputPosition < len(l.input.RawBytes) {
+		r = l.input.RawBytes[l.input.InputPosition]
 
 		if r == runes.LINETERMINATOR {
-			l.beforeLastLineTerminatorTextPosition = l.textPosition
-			l.textPosition.LineStart++
-			l.textPosition.CharStart = 1
+			l.input.BeforeLastLineTerminatorTextPosition = l.input.TextPosition
+			l.input.TextPosition.LineStart++
+			l.input.TextPosition.CharStart = 1
 		} else {
-			l.textPosition.CharStart++
+			l.input.TextPosition.CharStart++
 		}
 
-		l.inputPosition++
+		l.input.InputPosition++
 	} else {
 		r = runes.EOF
 	}
@@ -562,20 +471,20 @@ func (l *Lexer) readRune() (r byte) {
 
 func (l *Lexer) unreadRune() {
 
-	l.inputPosition--
+	l.input.InputPosition--
 
-	r := rune(l.input[l.inputPosition])
+	r := rune(l.input.RawBytes[l.input.InputPosition])
 	if r == runes.LINETERMINATOR {
-		l.textPosition = l.beforeLastLineTerminatorTextPosition
+		l.input.TextPosition = l.input.BeforeLastLineTerminatorTextPosition
 	} else {
-		l.textPosition.CharStart--
+		l.input.TextPosition.CharStart--
 	}
 }
 
 func (l *Lexer) peekRune(ignoreWhitespace bool) (r byte) {
 
-	for i := l.inputPosition; i < len(l.input); i++ {
-		r = l.input[i]
+	for i := l.input.InputPosition; i < len(l.input.RawBytes); i++ {
+		r = l.input.RawBytes[i]
 		if !ignoreWhitespace {
 			return r
 		} else if !l.byteIsWhitespace(r) {
@@ -653,7 +562,7 @@ func (l *Lexer) byteTerminatesSequence(r byte) bool {
 
 func (l *Lexer) readMultiLineString(tok *token.Token) {
 
-	tok.SetStart(l.inputPosition, l.textPosition)
+	tok.SetStart(l.input.InputPosition, l.input.TextPosition)
 
 	var escaped bool
 
@@ -674,7 +583,7 @@ func (l *Lexer) readMultiLineString(tok *token.Token) {
 					escaped = false
 					l.readRune()
 				} else {
-					tok.SetEnd(l.inputPosition, l.textPosition)
+					tok.SetEnd(l.input.InputPosition, l.input.TextPosition)
 					tok.TextPosition.CharStart -= 3
 					tok.TextPosition.CharEnd += 3
 					l.swallowAmount(3)
@@ -697,7 +606,7 @@ func (l *Lexer) readMultiLineString(tok *token.Token) {
 
 func (l *Lexer) readSingleLineString(tok *token.Token) {
 
-	tok.SetStart(l.inputPosition, l.textPosition)
+	tok.SetStart(l.input.InputPosition, l.input.TextPosition)
 
 	var escaped bool
 
@@ -711,7 +620,7 @@ func (l *Lexer) readSingleLineString(tok *token.Token) {
 				escaped = false
 				l.readRune()
 			} else {
-				tok.SetEnd(l.inputPosition, l.textPosition)
+				tok.SetEnd(l.input.InputPosition, l.input.TextPosition)
 				tok.TextPosition.CharStart -= 1
 				tok.TextPosition.CharEnd += 1
 				l.swallowAmount(1)
