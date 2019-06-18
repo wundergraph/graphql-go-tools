@@ -2,14 +2,14 @@ package token
 
 import (
 	"fmt"
-	"github.com/jensneuse/graphql-go-tools/pkg/document"
+	"github.com/jensneuse/graphql-go-tools/pkg/input"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 )
 
 type Token struct {
 	Keyword      keyword.Keyword
-	Literal      document.ByteSliceReference
+	Literal      input.ByteSliceReference
 	TextPosition position.Position
 }
 
