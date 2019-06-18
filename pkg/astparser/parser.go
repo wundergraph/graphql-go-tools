@@ -292,7 +292,7 @@ func (p *Parser) parseValue() (value ast.Value) {
 	return
 }
 
-func (p *Parser) parseObjectTypeDefinition(description ast.Description) {
+func (p *Parser) parseObjectTypeDefinition(description ...ast.Description) {
 
 	var objectTypeDefinition ast.ObjectTypeDefinition
 
@@ -331,5 +331,24 @@ func (p *Parser) parseImplementsInterfaces() (list ast.NamedTypeList) {
 }
 
 func (p *Parser) parseFieldDefinitionList() (list ast.FieldDefinitionList) {
+
+	p.mustRead(keyword.CURLYBRACKETOPEN)
+
+	for {
+		next := p.read()
+		if next.Keyword == keyword.CURLYBRACKETCLOSE {
+			break
+		}
+
+		colon := p.mustRead(keyword.COLON)
+		
+
+		field := ast.FieldDefinition{
+			Name: next.Literal,
+			Colon: colon.TextPosition,
+			Type:
+		}
+	}
+
 	return
 }
