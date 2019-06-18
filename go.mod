@@ -4,6 +4,7 @@ go 1.12
 
 require (
 	github.com/BurntSushi/toml v0.3.1 // indirect
+	github.com/cheekybits/genny v1.0.0
 	github.com/golang/mock v1.2.0
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/jensneuse/diffview v1.0.0
