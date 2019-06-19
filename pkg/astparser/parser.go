@@ -161,8 +161,9 @@ func (p *Parser) parseRootOperationTypeDefinitionList() (list ast.RootOperationT
 			rootOperationTypeDefinition := ast.RootOperationTypeDefinition{
 				OperationType: p.operationTypeFromKeyword(operationType.Keyword),
 				Colon:         colon.TextPosition,
-				NamedType: ast.NamedType{
-					Name: namedType.Literal,
+				NamedType: ast.Type{
+					TypeKind: ast.TypeKindNamed,
+					Name:     namedType.Literal,
 				},
 			}
 
@@ -306,6 +307,8 @@ func (p *Parser) parseObjectTypeDefinition(description ...ast.Description) {
 	}
 
 	objectTypeDefinition.FieldsDefinition = p.parseFieldDefinitionList()
+
+	p.document.PutObjectTypeDefinition(objectTypeDefinition)
 }
 
 func (p *Parser) parseDescription() {
@@ -326,7 +329,7 @@ func (p *Parser) parseDescription() {
 	}
 }
 
-func (p *Parser) parseImplementsInterfaces() (list ast.NamedTypeList) {
+func (p *Parser) parseImplementsInterfaces() (list ast.TypeList) {
 	return
 }
 
@@ -334,20 +337,80 @@ func (p *Parser) parseFieldDefinitionList() (list ast.FieldDefinitionList) {
 
 	p.mustRead(keyword.CURLYBRACKETOPEN)
 
+	previous := -1
+
 	for {
 		next := p.read()
 		if next.Keyword == keyword.CURLYBRACKETCLOSE {
-			break
+			return
 		}
 
 		colon := p.mustRead(keyword.COLON)
-		
 
-		field := ast.FieldDefinition{
-			Name: next.Literal,
+		fieldDefinition := ast.FieldDefinition{
+			Name:  next.Literal,
 			Colon: colon.TextPosition,
-			Type:
 		}
+
+		fieldDefinition.Type = p.parseType()
+
+		ref := p.document.PutFieldDefinition(fieldDefinition)
+
+		if !list.HasNext() {
+			list.SetFirst(ref)
+		}
+
+		if previous != -1 {
+			p.document.FieldDefinitions[previous].SetNext(ref)
+		}
+
+		previous = ref
+	}
+}
+
+func (p *Parser) parseType() (ref int) {
+
+	first := p.peek(true)
+
+	if first == keyword.IDENT {
+
+		named := p.read()
+		ref = p.document.PutType(ast.Type{
+			TypeKind: ast.TypeKindNamed,
+			Name:     named.Literal,
+		})
+
+	} else if first == keyword.SQUAREBRACKETOPEN {
+
+		openList := p.read()
+		ofType := p.parseType()
+		closeList := p.mustRead(keyword.SQUAREBRACKETCLOSE)
+
+		ref = p.document.PutType(ast.Type{
+			TypeKind: ast.TypeKindList,
+			Open:     openList.TextPosition,
+			Close:    closeList.TextPosition,
+			OfType:   ofType,
+		})
+
+	} else {
+		p.err = p.errPeekUnexpected()
+		return
+	}
+
+	next := p.peek(true)
+	if next == keyword.BANG {
+		nonNull := ast.Type{
+			TypeKind: ast.TypeKindNonNull,
+			Bang:     p.read().TextPosition,
+			OfType:   ref,
+		}
+
+		if p.peek(true) == keyword.BANG {
+			p.err = p.errPeekUnexpected()
+		}
+
+		return p.document.PutType(nonNull)
 	}
 
 	return

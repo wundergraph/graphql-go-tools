@@ -11,18 +11,34 @@ import (
 func TestParser_Parse(t *testing.T) {
 
 	type check func(in *input.Input, doc *ast.Document)
+	type action func(parser *Parser) error
 
-	run := func(inputString string, wantErr bool, checks ...check) {
+	parse := func() action {
+		return func(parser *Parser) error {
+			return parser.Parse(parser.input, parser.document)
+		}
+	}
+
+	parseType := func() action {
+		return func(parser *Parser) error {
+			parser.parseType()
+			return parser.err
+		}
+	}
+
+	run := func(inputString string, action func() action, wantErr bool, checks ...check) {
 
 		in := &input.Input{}
 		in.ResetInputBytes([]byte(inputString))
-		lexer := &lexer.Lexer{}
-		lexer.SetInput(in)
+		lex := &lexer.Lexer{}
+		lex.SetInput(in)
 		doc := &ast.Document{}
 
-		parser := NewParser(lexer)
+		parser := NewParser(lex)
+		parser.input = in
+		parser.document = doc
 
-		err := parser.Parse(in, doc)
+		err := action()(parser)
 
 		if wantErr && err == nil {
 			panic("want err, got nil")
@@ -36,7 +52,7 @@ func TestParser_Parse(t *testing.T) {
 	}
 
 	t.Run("no err on empty input", func(t *testing.T) {
-		run("", false)
+		run("", parse, false)
 	})
 	t.Run("schema", func(t *testing.T) {
 		t.Run("simple", func(t *testing.T) {
@@ -44,7 +60,7 @@ func TestParser_Parse(t *testing.T) {
 						query: Query
 						mutation: Mutation
 						subscription: Subscription 
-					}`,
+					}`, parse,
 				false,
 				func(in *input.Input, doc *ast.Document) {
 					definition := doc.Definitions[0]
@@ -102,7 +118,7 @@ func TestParser_Parse(t *testing.T) {
 		t.Run("with directives", func(t *testing.T) {
 			run(`schema @foo @bar(baz: "bal") {
 						query: Query 
-					}`, false, func(in *input.Input, doc *ast.Document) {
+					}`, parse, false, func(in *input.Input, doc *ast.Document) {
 				schema := doc.SchemaDefinitions[0]
 				if !schema.Directives.Next(doc) {
 					panic("want Next")
@@ -150,22 +166,22 @@ func TestParser_Parse(t *testing.T) {
 			})
 		})
 		t.Run("invalid body missing", func(t *testing.T) {
-			run(`schema`, true)
+			run(`schema`, parse, true)
 		})
 		t.Run("invalid body unclosed", func(t *testing.T) {
-			run(`schema {`, true)
+			run(`schema {`, parse, true)
 		})
 		t.Run("invalid directive arguments unclosed", func(t *testing.T) {
-			run(`schema @foo( {}`, true)
+			run(`schema @foo( {}`, parse, true)
 		})
 		t.Run("invalid directive without @", func(t *testing.T) {
-			run(`schema foo {}`, true)
+			run(`schema foo {}`, parse, true)
 		})
 	})
 	t.Run("object type definition", func(t *testing.T) {
 		run(`type Person {
 							name: String
-						}`, false, func(in *input.Input, doc *ast.Document) {
+						}`, parse, false, func(in *input.Input, doc *ast.Document) {
 			person := doc.ObjectTypeDefinitions[0]
 			personName := in.ByteSliceString(person.Name)
 			if personName != "Person" {
@@ -182,17 +198,163 @@ func TestParser_Parse(t *testing.T) {
 			if name != "name" {
 				panic("want name")
 			}
-			if nameString.Type.TypeKind != ast.TypeKindNamed {
+			nameStringType := doc.Types[nameString.Type]
+			if nameStringType.TypeKind != ast.TypeKindNamed {
 				panic("want TypeKindNamed")
 			}
-			if nameString.Type.Reference != 0 {
-				panic("want 0")
-			}
-			stringType := doc.NamedTypes[0]
-			stringName := in.ByteSliceString(stringType.Name)
+			stringName := in.ByteSliceString(nameStringType.Name)
 			if stringName != "String" {
 				panic("want String")
 			}
+		})
+	})
+	t.Run("type", func(t *testing.T) {
+		t.Run("named", func(t *testing.T) {
+			run("String", parseType, false, func(in *input.Input, doc *ast.Document) {
+				stringType := doc.Types[0]
+				if stringType.TypeKind != ast.TypeKindNamed {
+					panic("want TypeKindNamed")
+				}
+				if in.ByteSliceString(stringType.Name) != "String" {
+					panic("want String")
+				}
+			})
+		})
+		t.Run("non null named", func(t *testing.T) {
+			run("String!", parseType, false, func(in *input.Input, doc *ast.Document) {
+				nonNull := doc.Types[1]
+				if nonNull.TypeKind != ast.TypeKindNonNull {
+					panic("want TypeKindNonNull")
+				}
+				stringType := doc.Types[nonNull.OfType]
+				if stringType.TypeKind != ast.TypeKindNamed {
+					panic("want TypeKindNamed")
+				}
+				if in.ByteSliceString(stringType.Name) != "String" {
+					panic("want String")
+				}
+			})
+		})
+		t.Run("non null list of named", func(t *testing.T) {
+			run("[String]!", parseType, false, func(in *input.Input, doc *ast.Document) {
+				nonNull := doc.Types[2]
+				if nonNull.TypeKind != ast.TypeKindNonNull {
+					panic("want TypeKindNonNull")
+				}
+				list := doc.Types[nonNull.OfType]
+				if list.TypeKind != ast.TypeKindList {
+					panic("want TypeKindList")
+				}
+				stringType := doc.Types[list.OfType]
+				if stringType.TypeKind != ast.TypeKindNamed {
+					panic("want TypeKindNamed")
+				}
+				if in.ByteSliceString(stringType.Name) != "String" {
+					panic("want String")
+				}
+			})
+		})
+		t.Run("non null list of non null named", func(t *testing.T) {
+			run("[String!]!", parseType, false, func(in *input.Input, doc *ast.Document) {
+				nonNull := doc.Types[3]
+				if nonNull.TypeKind != ast.TypeKindNonNull {
+					panic("want TypeKindNonNull")
+				}
+				list := doc.Types[nonNull.OfType]
+				if list.TypeKind != ast.TypeKindList {
+					panic("want TypeKindList")
+				}
+				nonNull = doc.Types[list.OfType]
+				if nonNull.TypeKind != ast.TypeKindNonNull {
+					panic("want TypeKindNonNull")
+				}
+				stringType := doc.Types[nonNull.OfType]
+				if stringType.TypeKind != ast.TypeKindNamed {
+					panic("want TypeKindNamed")
+				}
+				if in.ByteSliceString(stringType.Name) != "String" {
+					panic("want String")
+				}
+			})
+		})
+		t.Run("non null list of non null list of named", func(t *testing.T) {
+			run("[[String]!]!", parseType, false, func(in *input.Input, doc *ast.Document) {
+				nonNull := doc.Types[4]
+				if nonNull.TypeKind != ast.TypeKindNonNull {
+					panic("want TypeKindNonNull")
+				}
+				list := doc.Types[nonNull.OfType]
+				if list.TypeKind != ast.TypeKindList {
+					panic("want TypeKindList")
+				}
+				nonNull = doc.Types[list.OfType]
+				if nonNull.TypeKind != ast.TypeKindNonNull {
+					panic("want TypeKindNonNull")
+				}
+				list = doc.Types[nonNull.OfType]
+				if list.TypeKind != ast.TypeKindList {
+					panic("want TypeKindList")
+				}
+				stringType := doc.Types[list.OfType]
+				if stringType.TypeKind != ast.TypeKindNamed {
+					panic("want TypeKindNamed")
+				}
+				if in.ByteSliceString(stringType.Name) != "String" {
+					panic("want String")
+				}
+			})
+		})
+		t.Run("non null list of non null list of non null named", func(t *testing.T) {
+			run("[[String!]!]!", parseType, false, func(in *input.Input, doc *ast.Document) {
+				nonNull := doc.Types[5]
+				if nonNull.TypeKind != ast.TypeKindNonNull {
+					panic("want TypeKindNonNull")
+				}
+				list := doc.Types[nonNull.OfType]
+				if list.TypeKind != ast.TypeKindList {
+					panic("want TypeKindList")
+				}
+				nonNull = doc.Types[list.OfType]
+				if nonNull.TypeKind != ast.TypeKindNonNull {
+					panic("want TypeKindNonNull")
+				}
+				list = doc.Types[nonNull.OfType]
+				if list.TypeKind != ast.TypeKindList {
+					panic("want TypeKindList")
+				}
+				nonNull = doc.Types[list.OfType]
+				if nonNull.TypeKind != ast.TypeKindNonNull {
+					panic("want TypeKindNonNull")
+				}
+				stringType := doc.Types[nonNull.OfType]
+				if stringType.TypeKind != ast.TypeKindNamed {
+					panic("want TypeKindNamed")
+				}
+				if in.ByteSliceString(stringType.Name) != "String" {
+					panic("want String")
+				}
+			})
+		})
+		t.Run("err unexpected bang", func(t *testing.T) {
+			run("!", parseType, true)
+		})
+		t.Run("err empty list", func(t *testing.T) {
+			run("[]", parseType, true)
+		})
+		t.Run("err incomplete list", func(t *testing.T) {
+			run("[", parseType, true)
+		})
+		t.Run("err unclosed list", func(t *testing.T) {
+			run("[String", parseType, true)
+		})
+		t.Run("err unclosed list with bang", func(t *testing.T) {
+			run("[String!", parseType, true)
+		})
+		t.Run("err double bang", func(t *testing.T) {
+			run("String!!", parseType, true)
+		})
+		t.Run("err list close at beginning", func(t *testing.T) {
+			run("]String", parseType, true)
 		})
 	})
 }

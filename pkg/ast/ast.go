@@ -36,7 +36,7 @@ type Document struct {
 	Arguments                    []Argument
 	ObjectTypeDefinitions        []ObjectTypeDefinition
 	FieldDefinitions             []FieldDefinition
-	NamedTypes                   []NamedType
+	Types                        []Type
 }
 
 func NewDocument() *Document {
@@ -47,7 +47,7 @@ func NewDocument() *Document {
 		Directives:                   make([]Directive, 16),
 		Arguments:                    make([]Argument, 48),
 		ObjectTypeDefinitions:        make([]ObjectTypeDefinition, 24),
-		NamedTypes:                   make([]NamedType, 48),
+		Types:                        make([]Type, 48),
 	}
 }
 
@@ -58,7 +58,7 @@ func (d *Document) Reset() {
 	d.Directives = d.Directives[:0]
 	d.Arguments = d.Arguments[:0]
 	d.ObjectTypeDefinitions = d.ObjectTypeDefinitions[:0]
-	d.NamedTypes = d.NamedTypes[:0]
+	d.Types = d.Types[:0]
 }
 
 func (d *Document) GetField(ref int) (node FieldDefinition, nextRef int) {
@@ -116,6 +116,21 @@ func (d *Document) PutArgument(argument Argument) int {
 	return len(d.Arguments) - 1
 }
 
+func (d *Document) PutType(docType Type) int {
+	d.Types = append(d.Types, docType)
+	return len(d.Types) - 1
+}
+
+func (d *Document) PutFieldDefinition(definition FieldDefinition) int {
+	d.FieldDefinitions = append(d.FieldDefinitions, definition)
+	return len(d.FieldDefinitions) - 1
+}
+
+func (d *Document) PutObjectTypeDefinition(definition ObjectTypeDefinition) int {
+	d.ObjectTypeDefinitions = append(d.ObjectTypeDefinitions, definition)
+	return len(d.ObjectTypeDefinitions) - 1
+}
+
 type Definition struct {
 	Kind DefinitionKind
 	Ref  int
@@ -151,7 +166,7 @@ type RootOperationTypeDefinition struct {
 	iterable
 	OperationType OperationType     // one of query, mutation, subscription
 	Colon         position.Position // :
-	NamedType     NamedType         // e.g. Query
+	NamedType     Type              // e.g. Query
 }
 
 type Directive struct {
@@ -167,23 +182,8 @@ type FieldDefinition struct {
 	Name                input.ByteSliceReference // e.g. foo
 	ArgumentsDefinition InputValueDefinitionList // optional
 	Colon               position.Position        // :
-	Type                Type                     // e.g. String
+	Type                int                      // e.g. String
 	Directives          DirectiveList            // e.g. @foo
-}
-
-type NamedType struct {
-	Name input.ByteSliceReference // e.g. String
-}
-
-type ListType struct {
-	Open  position.Position // [
-	Type  Type              // e.g. String or String !
-	Close position.Position // ]
-}
-
-type NonNullType struct {
-	Type Type              // e.g. String
-	Bang position.Position // !
 }
 
 type Argument struct {
@@ -208,7 +208,7 @@ type ObjectTypeDefinition struct {
 	Description          Description              // optional, e.g. "type Foo is ..."
 	TypeLiteral          position.Position        // type
 	Name                 input.ByteSliceReference // e.g. Foo
-	ImplementsInterfaces NamedTypeList            // e.g implements Bar & Baz
+	ImplementsInterfaces TypeList                 // e.g implements Bar & Baz
 	Directives           DirectiveList            // e.g. @foo
 	FieldsDefinition     FieldDefinitionList      // { foo:Bar bar(baz:String) }
 }
@@ -223,8 +223,12 @@ type InputValueDefinition struct {
 }
 
 type Type struct {
-	TypeKind  TypeKind // one of Named,List,NonNull
-	Reference int      // reference to the actual type, depending on kind
+	TypeKind TypeKind                 // one of Named,List,NonNull
+	Name     input.ByteSliceReference // e.g. String (only on NamedType)
+	Open     position.Position        // [ (only on ListType)
+	Close    position.Position        // ] (only on ListType)
+	Bang     position.Position        // ! (only on NonNullType)
+	OfType   int
 }
 
 type DefaultValue struct {
