@@ -1,4 +1,4 @@
-//go:generate genny -in=$GOFILE -out=gen-$GOFILE gen "Node=Directive,FieldDefinition,RootOperationTypeDefinition,Argument,NamedType,InputValueDefinition"
+//go:generate genny -in=$GOFILE -out=gen-$GOFILE gen "Node=Directive,FieldDefinition,RootOperationTypeDefinition,Argument,Type,InputValueDefinition"
 package ast
 
 import (

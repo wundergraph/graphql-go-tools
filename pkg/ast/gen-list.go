@@ -170,44 +170,44 @@ func (n *ArgumentList) Value() (Argument, int) {
 	return n.current, n.currentRef
 }
 
-type NamedTypeList struct {
+type TypeList struct {
 	Open          position.Position
 	Close         position.Position
-	current       NamedType
+	current       Type
 	currentRef    int
 	nextRef       int
 	isInitialized bool
 }
 
-type NamedTypeGetter interface {
-	GetNamedType(ref int) (node NamedType, nextRef int)
+type TypeGetter interface {
+	GetType(ref int) (node Type, nextRef int)
 }
 
-func NewNamedTypeList(first int) NamedTypeList {
-	nodeList := NamedTypeList{}
+func NewTypeList(first int) TypeList {
+	nodeList := TypeList{}
 	nodeList.SetFirst(first)
 	return nodeList
 }
 
-func (n *NamedTypeList) SetFirst(first int) {
+func (n *TypeList) SetFirst(first int) {
 	n.nextRef = first
 	n.isInitialized = first != -1
 }
 
-func (n *NamedTypeList) HasNext() bool {
+func (n *TypeList) HasNext() bool {
 	return n.isInitialized && n.nextRef != -1
 }
 
-func (n *NamedTypeList) Next(getter NamedTypeGetter) bool {
+func (n *TypeList) Next(getter TypeGetter) bool {
 	if !n.isInitialized || n.nextRef == -1 {
 		return false
 	}
 	n.currentRef = n.nextRef
-	n.current, n.nextRef = getter.GetNamedType(n.nextRef)
+	n.current, n.nextRef = getter.GetType(n.nextRef)
 	return true
 }
 
-func (n *NamedTypeList) Value() (NamedType, int) {
+func (n *TypeList) Value() (Type, int) {
 	return n.current, n.currentRef
 }
 
