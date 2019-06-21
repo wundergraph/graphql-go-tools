@@ -298,6 +298,39 @@ func TestParser_Parse(t *testing.T) {
 				}
 			})
 		})
+		t.Run("with directives", func(t *testing.T) {
+			run(`type Person @foo @bar {}`, parse, false, func(in *input.Input, doc *ast.Document) {
+				person := doc.ObjectTypeDefinitions[0]
+				personName := in.ByteSliceString(person.Name)
+				if personName != "Person" {
+					panic("want person")
+				}
+
+				// directives
+
+				if !person.Directives.Next(doc) {
+					panic("want next")
+				}
+				foo, fooRef := person.Directives.Value()
+				if fooRef != 0 {
+					panic("want 0")
+				}
+				if in.ByteSliceString(foo.Name) != "foo" {
+					panic("want foo")
+				}
+
+				if !person.Directives.Next(doc) {
+					panic("want next")
+				}
+				bar, barRef := person.Directives.Value()
+				if barRef != 1 {
+					panic("want 1")
+				}
+				if in.ByteSliceString(bar.Name) != "bar" {
+					panic("want bar")
+				}
+			})
+		})
 		t.Run("implements optional variant", func(t *testing.T) {
 			run(`type Person implements & Foo & Bar {}`, parse, false, func(in *input.Input, doc *ast.Document) {
 				person := doc.ObjectTypeDefinitions[0]
@@ -442,6 +475,16 @@ func TestParser_Parse(t *testing.T) {
 		})
 		t.Run("implements & without next", func(t *testing.T) {
 			run(`type Person implements Foo & {}`, parse, true)
+		})
+	})
+	t.Run("input type definition", func(t *testing.T) {
+		t.Run("complex", func(t *testing.T) {
+			run(`	input Person {
+									name: String
+								}`, parse,
+				false, func(in *input.Input, doc *ast.Document) {
+
+				})
 		})
 	})
 	t.Run("type", func(t *testing.T) {
