@@ -181,6 +181,12 @@ func TestParser_Parse(t *testing.T) {
 	t.Run("object type definition", func(t *testing.T) {
 		run(`type Person {
 							name: String
+							"age of the person"
+							age: Int
+							"""
+							date of birth
+							"""
+							dateOfBirth: Date
 						}`, parse, false, func(in *input.Input, doc *ast.Document) {
 			person := doc.ObjectTypeDefinitions[0]
 			personName := in.ByteSliceString(person.Name)
@@ -205,6 +211,57 @@ func TestParser_Parse(t *testing.T) {
 			stringName := in.ByteSliceString(nameStringType.Name)
 			if stringName != "String" {
 				panic("want String")
+			}
+			if !person.FieldsDefinition.Next(doc) {
+				panic("want netxt")
+			}
+			ageField, ageFieldRef := person.FieldsDefinition.Value()
+			if ageFieldRef != 1 {
+				panic("want 1")
+			}
+			if !ageField.Description.IsDefined {
+				panic("want true")
+			}
+			if ageField.Description.IsBlockString {
+				panic("want false	")
+			}
+			if in.ByteSliceString(ageField.Description.Body) != "age of the person" {
+				panic("want 'age of the person'")
+			}
+			if in.ByteSliceString(ageField.Name) != "age" {
+				panic("want age")
+			}
+			intType := doc.Types[ageField.Type]
+			if intType.TypeKind != ast.TypeKindNamed {
+				panic("want TypeKindNamed")
+			}
+			if in.ByteSliceString(intType.Name) != "Int" {
+				panic("want Int")
+			}
+			if !person.FieldsDefinition.Next(doc) {
+				panic("want next")
+			}
+			dateOfBirthField, dateOfBirthFieldRef := person.FieldsDefinition.Value()
+			if dateOfBirthFieldRef != 2 {
+				panic("want 2")
+			}
+			if in.ByteSliceString(dateOfBirthField.Name) != "dateOfBirth" {
+				panic("want dateOfBirth")
+			}
+			if !dateOfBirthField.Description.IsDefined {
+				panic("want true")
+			}
+			if !dateOfBirthField.Description.IsBlockString {
+				panic("want true")
+			}
+			if in.ByteSliceString(dateOfBirthField.Description.Body) != `
+							date of birth
+							` {
+				panic(fmt.Sprintf("want 'date of birth' got: '%s'", in.ByteSliceString(dateOfBirthField.Description.Body)))
+			}
+			dateType := doc.Types[dateOfBirthField.Type]
+			if in.ByteSliceString(dateType.Name) != "Date" {
+				panic("want Date")
 			}
 		})
 	})
@@ -361,11 +418,21 @@ func TestParser_Parse(t *testing.T) {
 
 func BenchmarkParse(b *testing.B) {
 
-	inputBytes := []byte(`schema @foo @bar(baz: "bal") {
-						query: Query
-						mutation: Mutation
-						subscription: Subscription 
-					}`)
+	inputBytes := []byte(`	schema @foo @bar(baz: "bal") {
+								query: Query
+								mutation: Mutation
+								subscription: Subscription 
+							}
+
+							type Person {
+								name: String
+								"age of the person"
+								age: Int
+								"""
+								date of birth
+								"""
+								dateOfBirth: Date
+							}`)
 
 	in := &input.Input{}
 	doc := ast.NewDocument()
