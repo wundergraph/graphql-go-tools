@@ -48,6 +48,7 @@ func NewDocument() *Document {
 		Arguments:                    make([]Argument, 48),
 		ObjectTypeDefinitions:        make([]ObjectTypeDefinition, 24),
 		Types:                        make([]Type, 48),
+		FieldDefinitions:             make([]FieldDefinition, 128),
 	}
 }
 
@@ -59,6 +60,7 @@ func (d *Document) Reset() {
 	d.Arguments = d.Arguments[:0]
 	d.ObjectTypeDefinitions = d.ObjectTypeDefinitions[:0]
 	d.Types = d.Types[:0]
+	d.FieldDefinitions = d.FieldDefinitions[:0]
 }
 
 func (d *Document) GetField(ref int) (node FieldDefinition, nextRef int) {
@@ -199,9 +201,10 @@ type Value struct {
 }
 
 type Description struct {
-	IsDefined bool
-	Body      input.ByteSliceReference // literal
-	Position  position.Position        // " (single line) or """ multi line
+	IsDefined     bool
+	IsBlockString bool                     // true if -> """content""" ; else "content"
+	Body          input.ByteSliceReference // literal
+	Position      position.Position
 }
 
 type ObjectTypeDefinition struct {
