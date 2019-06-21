@@ -64,6 +64,14 @@ func (l *Lexer) Read() (tok token.Token) {
 // Peek will emit the next keyword without advancing the reader position
 func (l *Lexer) Peek(ignoreWhitespace bool) keyword.Keyword {
 	next := l.peekRune(ignoreWhitespace)
+
+	if next == runes.QUOTE {
+		if l.peekEquals(true, runes.QUOTE, runes.QUOTE, runes.QUOTE) {
+			return keyword.BLOCKSTRING
+		}
+		return keyword.STRING
+	}
+
 	return l.keywordFromRune(next)
 }
 
@@ -350,13 +358,9 @@ func (l *Lexer) readComment(tok *token.Token) {
 
 func (l *Lexer) readString(tok *token.Token) {
 
-	tok.Keyword = keyword.STRING
-
-	isMultiLineString := l.peekEquals(false, runes.QUOTE, runes.QUOTE)
-
-	if isMultiLineString {
+	if l.peekEquals(false, runes.QUOTE, runes.QUOTE) {
 		l.swallowAmount(2)
-		l.readMultiLineString(tok)
+		l.readBlockString(tok)
 		return
 	}
 
@@ -560,8 +564,9 @@ func (l *Lexer) byteTerminatesSequence(r byte) bool {
 	}
 }
 
-func (l *Lexer) readMultiLineString(tok *token.Token) {
+func (l *Lexer) readBlockString(tok *token.Token) {
 
+	tok.Keyword = keyword.BLOCKSTRING
 	tok.SetStart(l.input.InputPosition, l.input.TextPosition)
 
 	var escaped bool
@@ -606,6 +611,7 @@ func (l *Lexer) readMultiLineString(tok *token.Token) {
 
 func (l *Lexer) readSingleLineString(tok *token.Token) {
 
+	tok.Keyword = keyword.STRING
 	tok.SetStart(l.input.InputPosition, l.input.TextPosition)
 
 	var escaped bool

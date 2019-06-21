@@ -191,16 +191,16 @@ func TestLexer_Peek_Read(t *testing.T) {
 		run("\"foo \\\\ bar\"", mustPeekAndRead(keyword.STRING, "foo \\\\ bar"))
 	})
 	t.Run("read multi line string with escaped quote", func(t *testing.T) {
-		run("\"\"\"foo \\\" bar\"\"\"", mustPeekAndRead(keyword.STRING, "foo \\\" bar"))
+		run("\"\"\"foo \\\" bar\"\"\"", mustPeekAndRead(keyword.BLOCKSTRING, "foo \\\" bar"))
 	})
 	t.Run("read multi line string with two escaped quotes", func(t *testing.T) {
-		run("\"\"\"foo \"\" bar\"\"\"", mustPeekAndRead(keyword.STRING, "foo \"\" bar"))
+		run("\"\"\"foo \"\" bar\"\"\"", mustPeekAndRead(keyword.BLOCKSTRING, "foo \"\" bar"))
 	})
 	t.Run("read multi line string", func(t *testing.T) {
-		run("\"\"\"\nfoo\nbar\"\"\"", mustPeekAndRead(keyword.STRING, "\nfoo\nbar"))
+		run("\"\"\"\nfoo\nbar\"\"\"", mustPeekAndRead(keyword.BLOCKSTRING, "\nfoo\nbar"))
 	})
 	t.Run("read multi line string with escaped backslash", func(t *testing.T) {
-		run("\"\"\"foo \\\\ bar\"\"\"", mustPeekAndRead(keyword.STRING, "foo \\\\ bar"))
+		run("\"\"\"foo \\\\ bar\"\"\"", mustPeekAndRead(keyword.BLOCKSTRING, "foo \\\\ bar"))
 	})
 	t.Run("read pipe", func(t *testing.T) {
 		run("|", mustPeekAndRead(keyword.PIPE, "|"))
@@ -440,9 +440,9 @@ baz
 """
 13.37`,
 			mustPeekAndRead(keyword.INTEGER, "1337"), mustPeekAndRead(keyword.INTEGER, "1338"), mustPeekAndRead(keyword.INTEGER, "1339"),
-			mustPeekAndRead(keyword.STRING, "foo"), mustPeekAndRead(keyword.STRING, "bar"), mustPeekAndRead(keyword.STRING, "foo bar"),
-			mustPeekAndRead(keyword.STRING, "foo\nbar"),
-			mustPeekAndRead(keyword.STRING, "foo\nbar\nbaz\n"),
+			mustPeekAndRead(keyword.STRING, "foo"), mustPeekAndRead(keyword.STRING, "bar"), mustPeekAndRead(keyword.BLOCKSTRING, "foo bar"),
+			mustPeekAndRead(keyword.BLOCKSTRING, "foo\nbar"),
+			mustPeekAndRead(keyword.BLOCKSTRING, "foo\nbar\nbaz\n"),
 			mustPeekAndRead(keyword.FLOAT, "13.37"),
 		)
 	})
