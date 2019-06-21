@@ -60,7 +60,7 @@ func (p *Parser) parse() {
 		case keyword.STRING, keyword.BLOCKSTRING:
 			p.parseRootDescription()
 		case keyword.TYPE:
-			p.parseObjectTypeDefinition()
+			p.parseObjectTypeDefinition(nil)
 		case keyword.EOF:
 			p.read()
 			return
@@ -286,6 +286,8 @@ func (p *Parser) parseValue() (value ast.Value) {
 	switch tok.Keyword {
 	case keyword.STRING:
 		value.Kind = ast.ValueKindString
+	default:
+		p.err = fmt.Errorf("must implement parseValue for keyword %s", tok.Keyword)
 	}
 
 	value.Raw = tok.Literal
@@ -293,9 +295,13 @@ func (p *Parser) parseValue() (value ast.Value) {
 	return
 }
 
-func (p *Parser) parseObjectTypeDefinition(description ...ast.Description) {
+func (p *Parser) parseObjectTypeDefinition(description *ast.Description) {
 
 	var objectTypeDefinition ast.ObjectTypeDefinition
+
+	if description != nil {
+		objectTypeDefinition.Description = *description
+	}
 
 	objectTypeDefinition.TypeLiteral = p.read().TextPosition
 	objectTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
@@ -318,7 +324,7 @@ func (p *Parser) parseRootDescription() {
 	next := p.peek(true)
 	switch next {
 	case keyword.TYPE:
-		p.parseObjectTypeDefinition(description)
+		p.parseObjectTypeDefinition(&description)
 		return
 	default:
 		p.errPeekUnexpected()
@@ -383,41 +389,54 @@ func (p *Parser) parseFieldDefinitionList() (list ast.FieldDefinitionList) {
 
 	for {
 
-		var fieldDefinition ast.FieldDefinition
-
 		next := p.peek(true)
 
 		switch next {
 		case keyword.CURLYBRACKETCLOSE:
 			p.read()
 			return
-		case keyword.STRING, keyword.BLOCKSTRING:
-			fieldDefinition.Description = p.parseDescription()
-		case keyword.IDENT:
+		case keyword.STRING, keyword.BLOCKSTRING, keyword.IDENT:
+			ref := p.parseFieldDefinition()
+			if !list.HasNext() {
+				list.SetFirst(ref)
+			}
+			if previous != -1 {
+				p.document.FieldDefinitions[previous].SetNext(ref)
+			}
+			previous = ref
 		default:
 			p.errPeekUnexpected()
 			return
 		}
-
-		name := p.read()
-
-		fieldDefinition.Name = name.Literal
-		fieldDefinition.Colon = p.mustRead(keyword.COLON).TextPosition
-
-		fieldDefinition.Type = p.parseType()
-
-		ref := p.document.PutFieldDefinition(fieldDefinition)
-
-		if !list.HasNext() {
-			list.SetFirst(ref)
-		}
-
-		if previous != -1 {
-			p.document.FieldDefinitions[previous].SetNext(ref)
-		}
-
-		previous = ref
 	}
+}
+
+func (p *Parser) parseFieldDefinition() int {
+
+	var fieldDefinition ast.FieldDefinition
+
+	name := p.peek(true)
+	switch name {
+	case keyword.STRING, keyword.BLOCKSTRING:
+		fieldDefinition.Description = p.parseDescription()
+	case keyword.IDENT:
+		break
+	default:
+		p.errPeekUnexpected()
+		return -1
+	}
+
+	fieldDefinition.Name = p.mustRead(keyword.IDENT).Literal
+	if p.peek(true) == keyword.BRACKETOPEN {
+		fieldDefinition.ArgumentsDefinition = p.parseInputValueDefinitionList()
+	}
+	fieldDefinition.Colon = p.mustRead(keyword.COLON).TextPosition
+	fieldDefinition.Type = p.parseType()
+	if p.peek(true) == keyword.DIRECTIVE {
+		fieldDefinition.Directives = p.parseDirectiveList()
+	}
+
+	return p.document.PutFieldDefinition(fieldDefinition)
 }
 
 func (p *Parser) parseType() (ref int) {
@@ -477,4 +496,63 @@ func (p *Parser) parseDescription() ast.Description {
 		Position:      tok.TextPosition,
 		IsBlockString: tok.Keyword == keyword.BLOCKSTRING,
 	}
+}
+
+func (p *Parser) parseInputValueDefinitionList() (list ast.InputValueDefinitionList) {
+
+	list.Open = p.read().TextPosition
+
+	previous := -1
+
+	for {
+		next := p.peek(true)
+		switch next {
+		case keyword.STRING, keyword.BLOCKSTRING, keyword.IDENT:
+			ref := p.parseInputValueDefinition()
+			if !list.HasNext() {
+				list.SetFirst(ref)
+			}
+			if previous != -1 {
+				p.document.InputValueDefinitions[previous].SetNext(ref)
+			}
+			previous = ref
+		case keyword.BRACKETCLOSE:
+			list.Close = p.read().TextPosition
+			return
+		default:
+			p.errPeekUnexpected()
+			return
+		}
+	}
+}
+
+func (p *Parser) parseInputValueDefinition() int {
+
+	var inputValueDefinition ast.InputValueDefinition
+
+	name := p.peek(true)
+	switch name {
+	case keyword.STRING, keyword.BLOCKSTRING:
+		inputValueDefinition.Description = p.parseDescription()
+	case keyword.IDENT:
+		break
+	default:
+		p.errPeekUnexpected()
+		return -1
+	}
+
+	inputValueDefinition.Name = p.mustRead(keyword.IDENT).Literal
+	inputValueDefinition.Colon = p.mustRead(keyword.COLON).TextPosition
+	inputValueDefinition.Type = p.parseType()
+	if p.peek(true) == keyword.EQUALS {
+		equals := p.read()
+		inputValueDefinition.DefaultValue.IsDefined = true
+		inputValueDefinition.DefaultValue.Equals = equals.TextPosition
+		inputValueDefinition.DefaultValue.Value = p.parseValue()
+	}
+	if p.peek(true) == keyword.AT {
+		inputValueDefinition.Directives = p.parseDirectiveList()
+	}
+
+	return p.document.PutInputValueDefinition(inputValueDefinition)
 }

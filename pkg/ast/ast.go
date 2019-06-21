@@ -37,6 +37,7 @@ type Document struct {
 	ObjectTypeDefinitions        []ObjectTypeDefinition
 	FieldDefinitions             []FieldDefinition
 	Types                        []Type
+	InputValueDefinitions        []InputValueDefinition
 }
 
 func NewDocument() *Document {
@@ -49,6 +50,7 @@ func NewDocument() *Document {
 		ObjectTypeDefinitions:        make([]ObjectTypeDefinition, 24),
 		Types:                        make([]Type, 48),
 		FieldDefinitions:             make([]FieldDefinition, 128),
+		InputValueDefinitions:        make([]InputValueDefinition, 128),
 	}
 }
 
@@ -61,6 +63,13 @@ func (d *Document) Reset() {
 	d.ObjectTypeDefinitions = d.ObjectTypeDefinitions[:0]
 	d.Types = d.Types[:0]
 	d.FieldDefinitions = d.FieldDefinitions[:0]
+	d.InputValueDefinitions = d.InputValueDefinitions[:0]
+}
+
+func (d *Document) GetInputValueDefinition(ref int) (node InputValueDefinition, nextRef int) {
+	node = d.InputValueDefinitions[ref]
+	nextRef = node.Next()
+	return
 }
 
 func (d *Document) GetType(ref int) (node Type, nextRef int) {
@@ -131,6 +140,11 @@ func (d *Document) PutFieldDefinition(definition FieldDefinition) int {
 func (d *Document) PutObjectTypeDefinition(definition ObjectTypeDefinition) int {
 	d.ObjectTypeDefinitions = append(d.ObjectTypeDefinitions, definition)
 	return len(d.ObjectTypeDefinitions) - 1
+}
+
+func (d *Document) PutInputValueDefinition(definition InputValueDefinition) int {
+	d.InputValueDefinitions = append(d.InputValueDefinitions, definition)
+	return len(d.InputValueDefinitions) - 1
 }
 
 type Definition struct {
@@ -217,11 +231,12 @@ type ObjectTypeDefinition struct {
 }
 
 type InputValueDefinition struct {
+	iterable
 	Description  Description              // optional, e.g. "input Foo is..."
 	Name         input.ByteSliceReference // e.g. Foo
 	Colon        position.Position        // :
-	Type         Type                     // e.g. String
-	DefaultValue                          // e.g. = "Bar"
+	Type         int                      // e.g. String
+	DefaultValue DefaultValue             // e.g. = "Bar"
 	Directives   DirectiveList            // e.g. @baz
 }
 
@@ -236,6 +251,7 @@ type Type struct {
 }
 
 type DefaultValue struct {
-	Equals position.Position // =
-	Value  Value             // e.g. "Foo"
+	IsDefined bool
+	Equals    position.Position // =
+	Value     Value             // e.g. "Foo"
 }

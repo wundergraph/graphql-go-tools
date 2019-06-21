@@ -336,6 +336,110 @@ func TestParser_Parse(t *testing.T) {
 				}
 			})
 		})
+		t.Run("input value definition list", func(t *testing.T) {
+			run(`	type Person { 
+									"name description"
+									name(
+										a: String!
+										"b description"
+										b: Int
+										"""
+										c description
+										"""
+										c: Float
+									): String
+								}`, parse, false, func(in *input.Input, doc *ast.Document) {
+				person := doc.ObjectTypeDefinitions[0]
+				personName := in.ByteSliceString(person.Name)
+				if personName != "Person" {
+					panic("want person")
+				}
+				if !person.FieldsDefinition.Next(doc) {
+					panic("want next")
+				}
+				name, nameRef := person.FieldsDefinition.Value()
+				if nameRef != 0 {
+					panic("want 0")
+				}
+				if !name.Description.IsDefined {
+					panic("want true")
+				}
+				if in.ByteSliceString(name.Description.Body) != "name description" {
+					panic("want 'name description'")
+				}
+
+				// a
+
+				if !name.ArgumentsDefinition.Next(doc) {
+					panic("want next")
+				}
+				a, aRef := name.ArgumentsDefinition.Value()
+				if aRef != 0 {
+					panic("want 0")
+				}
+				if in.ByteSliceString(a.Name) != "a" {
+					panic("want a")
+				}
+				if doc.Types[a.Type].TypeKind != ast.TypeKindNonNull {
+					panic("want TypeKindNamed")
+				}
+				if in.ByteSliceString(doc.Types[doc.Types[a.Type].OfType].Name) != "String" {
+					panic("want String")
+				}
+
+				// b
+
+				if !name.ArgumentsDefinition.Next(doc) {
+					panic("want next")
+				}
+				b, bRef := name.ArgumentsDefinition.Value()
+				if bRef != 1 {
+					panic("want 1")
+				}
+				if in.ByteSliceString(b.Name) != "b" {
+					panic("want b")
+				}
+				if in.ByteSliceString(b.Description.Body) != "b description" {
+					panic("want 'b description'")
+				}
+				if doc.Types[b.Type].TypeKind != ast.TypeKindNamed {
+					panic("want TypeKindNamed")
+				}
+				if in.ByteSliceString(doc.Types[b.Type].Name) != "Int" {
+					panic("want Float")
+				}
+
+				// c
+
+				if !name.ArgumentsDefinition.Next(doc) {
+					panic("want next")
+				}
+				c, cRef := name.ArgumentsDefinition.Value()
+				if cRef != 2 {
+					panic("want 2")
+				}
+				if in.ByteSliceString(c.Name) != "c" {
+					panic("want b")
+				}
+				if !c.Description.IsDefined {
+					panic("want true")
+				}
+				if !c.Description.IsBlockString {
+					panic("want true")
+				}
+				if in.ByteSliceString(c.Description.Body) != `
+										c description
+										` {
+					panic("want 'c description'")
+				}
+				if doc.Types[c.Type].TypeKind != ast.TypeKindNamed {
+					panic("want TypeKindNamed")
+				}
+				if in.ByteSliceString(doc.Types[c.Type].Name) != "Float" {
+					panic("want Float")
+				}
+			})
+		})
 		t.Run("implements & without next", func(t *testing.T) {
 			run(`type Person implements Foo & {}`, parse, true)
 		})
@@ -499,6 +603,9 @@ func BenchmarkParse(b *testing.B) {
 								subscription: Subscription 
 							}
 
+							"""
+							Person type description
+							"""
 							type Person implements Foo & Bar {
 								name: String
 								"age of the person"
@@ -507,6 +614,19 @@ func BenchmarkParse(b *testing.B) {
 								date of birth
 								"""
 								dateOfBirth: Date
+							}
+
+							type PersonWithArgs { 
+								"name description"
+								name(
+									a: String!
+									"b description"
+									b: Int
+									"""
+									c description
+									"""
+									c: Float
+								): String
 							}`)
 
 	in := &input.Input{}
