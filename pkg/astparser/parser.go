@@ -57,8 +57,8 @@ func (p *Parser) parse() {
 		switch next {
 		case keyword.SCHEMA:
 			p.parseSchema()
-		case keyword.STRING:
-			p.parseDescription()
+		case keyword.STRING, keyword.BLOCKSTRING:
+			p.parseRootDescription()
 		case keyword.TYPE:
 			p.parseObjectTypeDefinition()
 		case keyword.EOF:
@@ -311,13 +311,9 @@ func (p *Parser) parseObjectTypeDefinition(description ...ast.Description) {
 	p.document.PutObjectTypeDefinition(objectTypeDefinition)
 }
 
-func (p *Parser) parseDescription() {
-	descriptionLiteral := p.read()
-	description := ast.Description{
-		Position:  descriptionLiteral.TextPosition,
-		Body:      descriptionLiteral.Literal,
-		IsDefined: true,
-	}
+func (p *Parser) parseRootDescription() {
+
+	description := p.parseDescription()
 
 	next := p.peek(true)
 	switch next {
@@ -340,17 +336,27 @@ func (p *Parser) parseFieldDefinitionList() (list ast.FieldDefinitionList) {
 	previous := -1
 
 	for {
-		next := p.read()
-		if next.Keyword == keyword.CURLYBRACKETCLOSE {
+
+		var fieldDefinition ast.FieldDefinition
+
+		next := p.peek(true)
+
+		switch next {
+		case keyword.CURLYBRACKETCLOSE:
+			p.read()
+			return
+		case keyword.STRING, keyword.BLOCKSTRING:
+			fieldDefinition.Description = p.parseDescription()
+		case keyword.IDENT:
+		default:
+			p.err = p.errPeekUnexpected()
 			return
 		}
 
-		colon := p.mustRead(keyword.COLON)
+		name := p.read()
 
-		fieldDefinition := ast.FieldDefinition{
-			Name:  next.Literal,
-			Colon: colon.TextPosition,
-		}
+		fieldDefinition.Name = name.Literal
+		fieldDefinition.Colon = p.mustRead(keyword.COLON).TextPosition
 
 		fieldDefinition.Type = p.parseType()
 
@@ -414,4 +420,14 @@ func (p *Parser) parseType() (ref int) {
 	}
 
 	return
+}
+
+func (p *Parser) parseDescription() ast.Description {
+	tok := p.read()
+	return ast.Description{
+		IsDefined:     true,
+		Body:          tok.Literal,
+		Position:      tok.TextPosition,
+		IsBlockString: tok.Keyword == keyword.BLOCKSTRING,
+	}
 }
