@@ -61,6 +61,8 @@ func (p *Parser) parse() {
 			p.parseRootDescription()
 		case keyword.TYPE:
 			p.parseObjectTypeDefinition(nil)
+		case keyword.INPUT:
+			p.parseInputObjectTypeDefinition(nil)
 		case keyword.EOF:
 			p.read()
 			return
@@ -298,12 +300,10 @@ func (p *Parser) parseValue() (value ast.Value) {
 func (p *Parser) parseObjectTypeDefinition(description *ast.Description) {
 
 	var objectTypeDefinition ast.ObjectTypeDefinition
-
 	if description != nil {
 		objectTypeDefinition.Description = *description
 	}
-
-	objectTypeDefinition.TypeLiteral = p.read().TextPosition
+	objectTypeDefinition.TypeLiteral = p.mustRead(keyword.TYPE).TextPosition
 	objectTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
 	if p.peek(true) == keyword.IMPLEMENTS {
 		objectTypeDefinition.ImplementsInterfaces = p.parseImplementsInterfaces()
@@ -428,7 +428,7 @@ func (p *Parser) parseFieldDefinition() int {
 
 	fieldDefinition.Name = p.mustRead(keyword.IDENT).Literal
 	if p.peek(true) == keyword.BRACKETOPEN {
-		fieldDefinition.ArgumentsDefinition = p.parseInputValueDefinitionList()
+		fieldDefinition.ArgumentsDefinition = p.parseInputValueDefinitionList(keyword.BRACKETCLOSE)
 	}
 	fieldDefinition.Colon = p.mustRead(keyword.COLON).TextPosition
 	fieldDefinition.Type = p.parseType()
@@ -498,7 +498,7 @@ func (p *Parser) parseDescription() ast.Description {
 	}
 }
 
-func (p *Parser) parseInputValueDefinitionList() (list ast.InputValueDefinitionList) {
+func (p *Parser) parseInputValueDefinitionList(closingKeyword keyword.Keyword) (list ast.InputValueDefinitionList) {
 
 	list.Open = p.read().TextPosition
 
@@ -516,7 +516,7 @@ func (p *Parser) parseInputValueDefinitionList() (list ast.InputValueDefinitionL
 				p.document.InputValueDefinitions[previous].SetNext(ref)
 			}
 			previous = ref
-		case keyword.BRACKETCLOSE:
+		case closingKeyword:
 			list.Close = p.read().TextPosition
 			return
 		default:
@@ -555,4 +555,20 @@ func (p *Parser) parseInputValueDefinition() int {
 	}
 
 	return p.document.PutInputValueDefinition(inputValueDefinition)
+}
+
+func (p *Parser) parseInputObjectTypeDefinition(description *ast.Description) int {
+	var inputObjectTypeDefinition ast.InputObjectTypeDefinition
+	if description != nil {
+		inputObjectTypeDefinition.Description = *description
+	}
+	inputObjectTypeDefinition.InputLiteral = p.mustRead(keyword.INPUT).TextPosition
+	inputObjectTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
+	if p.peek(true) == keyword.AT {
+		inputObjectTypeDefinition.Directives = p.parseDirectiveList()
+	}
+	if p.peek(true) == keyword.CURLYBRACKETOPEN {
+		inputObjectTypeDefinition.InputFieldsDefinition = p.parseInputValueDefinitionList(keyword.CURLYBRACKETCLOSE)
+	}
+	return p.document.PutInputObjectTypeDefinition(inputObjectTypeDefinition)
 }

@@ -480,10 +480,33 @@ func TestParser_Parse(t *testing.T) {
 	t.Run("input type definition", func(t *testing.T) {
 		t.Run("complex", func(t *testing.T) {
 			run(`	input Person {
-									name: String
+									name: String = "Gopher"
 								}`, parse,
 				false, func(in *input.Input, doc *ast.Document) {
+					person := doc.InputObjectTypeDefinitions[0]
+					if in.ByteSliceString(person.Name) != "Person" {
+						panic("want person")
+					}
 
+					if !person.InputFieldsDefinition.Next(doc) {
+						panic("want next")
+					}
+					name, nameRef := person.InputFieldsDefinition.Value()
+					if nameRef != 0 {
+						panic("want 0")
+					}
+					if in.ByteSliceString(name.Name) != "name" {
+						panic("want name")
+					}
+					if !name.DefaultValue.IsDefined {
+						panic("want true")
+					}
+					if name.DefaultValue.Value.Kind != ast.ValueKindString {
+						panic("want ValueKindString")
+					}
+					if in.ByteSliceString(name.DefaultValue.Value.Raw) != "Gopher" {
+						panic("want Gopher")
+					}
 				})
 		})
 	})

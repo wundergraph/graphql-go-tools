@@ -38,6 +38,7 @@ type Document struct {
 	FieldDefinitions             []FieldDefinition
 	Types                        []Type
 	InputValueDefinitions        []InputValueDefinition
+	InputObjectTypeDefinitions   []InputObjectTypeDefinition
 }
 
 func NewDocument() *Document {
@@ -51,6 +52,7 @@ func NewDocument() *Document {
 		Types:                        make([]Type, 48),
 		FieldDefinitions:             make([]FieldDefinition, 128),
 		InputValueDefinitions:        make([]InputValueDefinition, 128),
+		InputObjectTypeDefinitions:   make([]InputObjectTypeDefinition, 16),
 	}
 }
 
@@ -64,6 +66,7 @@ func (d *Document) Reset() {
 	d.Types = d.Types[:0]
 	d.FieldDefinitions = d.FieldDefinitions[:0]
 	d.InputValueDefinitions = d.InputValueDefinitions[:0]
+	d.InputObjectTypeDefinitions = d.InputObjectTypeDefinitions[:0]
 }
 
 func (d *Document) GetInputValueDefinition(ref int) (node InputValueDefinition, nextRef int) {
@@ -145,6 +148,11 @@ func (d *Document) PutObjectTypeDefinition(definition ObjectTypeDefinition) int 
 func (d *Document) PutInputValueDefinition(definition InputValueDefinition) int {
 	d.InputValueDefinitions = append(d.InputValueDefinitions, definition)
 	return len(d.InputValueDefinitions) - 1
+}
+
+func (d *Document) PutInputObjectTypeDefinition(definition InputObjectTypeDefinition) int {
+	d.InputObjectTypeDefinitions = append(d.InputObjectTypeDefinitions, definition)
+	return len(d.InputObjectTypeDefinitions) - 1
 }
 
 type Definition struct {
@@ -254,4 +262,12 @@ type DefaultValue struct {
 	IsDefined bool
 	Equals    position.Position // =
 	Value     Value             // e.g. "Foo"
+}
+
+type InputObjectTypeDefinition struct {
+	Description           Description              // describes the input type
+	InputLiteral          position.Position        // input
+	Name                  input.ByteSliceReference // name of the input type
+	Directives            DirectiveList            // e.g. @foo
+	InputFieldsDefinition InputValueDefinitionList // e.g. x:Float
 }
