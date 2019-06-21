@@ -65,7 +65,7 @@ func (p *Parser) parse() {
 			p.read()
 			return
 		default:
-			p.err = p.errPeekUnexpected()
+			p.errPeekUnexpected()
 		}
 
 		if p.err != nil {
@@ -82,7 +82,7 @@ func (p *Parser) peek(ignoreWhitespace bool) keyword.Keyword {
 	return p.lexer.Peek(ignoreWhitespace)
 }
 
-func (p *Parser) errPeekUnexpected() error {
+func (p *Parser) errPeekUnexpected() {
 
 	unexpected := p.read()
 
@@ -94,7 +94,7 @@ func (p *Parser) errPeekUnexpected() error {
 	fn := runtime.FuncForPC(fpcs[0])
 	file, line := fn.FileLine(fpcs[0])
 
-	return ErrUnexpectedToken{
+	p.err = ErrUnexpectedToken{
 		keyword:  unexpected.Keyword,
 		position: unexpected.TextPosition,
 		literal:  p.input.ByteSliceString(unexpected.Literal),
@@ -180,8 +180,8 @@ func (p *Parser) parseRootOperationTypeDefinitionList() (list ast.RootOperationT
 			previous = ref
 
 		default:
-			p.err = p.errPeekUnexpected()
-			return ast.RootOperationTypeDefinitionList{}
+			p.errPeekUnexpected()
+			return
 		}
 	}
 }
@@ -321,12 +321,58 @@ func (p *Parser) parseRootDescription() {
 		p.parseObjectTypeDefinition(description)
 		return
 	default:
-		p.err = p.errPeekUnexpected()
+		p.errPeekUnexpected()
 	}
 }
 
 func (p *Parser) parseImplementsInterfaces() (list ast.TypeList) {
-	return
+
+	list.Open = p.read().TextPosition
+
+	acceptIdent := true
+	acceptAnd := true
+
+	previous := -1
+
+	for {
+		next := p.peek(true)
+		switch next {
+		case keyword.AND:
+			if acceptAnd {
+				acceptAnd = false
+				acceptIdent = true
+				p.read()
+			} else {
+				p.errPeekUnexpected()
+				return
+			}
+		case keyword.IDENT:
+			if acceptIdent {
+				acceptIdent = false
+				acceptAnd = true
+				name := p.read()
+				ref := p.document.PutType(ast.Type{
+					TypeKind: ast.TypeKindNamed,
+					Name:     name.Literal,
+				})
+				if !list.HasNext() {
+					list.SetFirst(ref)
+				}
+				if previous != -1 {
+					p.document.Types[previous].SetNext(ref)
+				}
+				previous = ref
+			} else {
+				p.errPeekUnexpected()
+				return
+			}
+		default:
+			if acceptIdent {
+				p.errPeekUnexpected()
+			}
+			return
+		}
+	}
 }
 
 func (p *Parser) parseFieldDefinitionList() (list ast.FieldDefinitionList) {
@@ -349,7 +395,7 @@ func (p *Parser) parseFieldDefinitionList() (list ast.FieldDefinitionList) {
 			fieldDefinition.Description = p.parseDescription()
 		case keyword.IDENT:
 		default:
-			p.err = p.errPeekUnexpected()
+			p.errPeekUnexpected()
 			return
 		}
 
@@ -400,7 +446,7 @@ func (p *Parser) parseType() (ref int) {
 		})
 
 	} else {
-		p.err = p.errPeekUnexpected()
+		p.errPeekUnexpected()
 		return
 	}
 
@@ -413,7 +459,8 @@ func (p *Parser) parseType() (ref int) {
 		}
 
 		if p.peek(true) == keyword.BANG {
-			p.err = p.errPeekUnexpected()
+			p.errPeekUnexpected()
+			return
 		}
 
 		return p.document.PutType(nonNull)

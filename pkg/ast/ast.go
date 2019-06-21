@@ -63,8 +63,8 @@ func (d *Document) Reset() {
 	d.FieldDefinitions = d.FieldDefinitions[:0]
 }
 
-func (d *Document) GetField(ref int) (node FieldDefinition, nextRef int) {
-	node = d.FieldDefinitions[ref]
+func (d *Document) GetType(ref int) (node Type, nextRef int) {
+	node = d.Types[ref]
 	nextRef = node.Next()
 	return
 }
@@ -226,6 +226,7 @@ type InputValueDefinition struct {
 }
 
 type Type struct {
+	iterable
 	TypeKind TypeKind                 // one of Named,List,NonNull
 	Name     input.ByteSliceReference // e.g. String (only on NamedType)
 	Open     position.Position        // [ (only on ListType)
