@@ -890,6 +890,67 @@ func TestParser_Parse(t *testing.T) {
 				})
 		})
 	})
+	t.Run("directive definition", func(t *testing.T) {
+		t.Run("simple", func(t *testing.T) {
+			run(`directive @example on FIELD`, parse, false,
+				func(in *input.Input, doc *ast.Document) {
+					example := doc.DirectiveDefinitions[0]
+					if in.ByteSliceString(example.Name) != "example" {
+						panic("want example")
+					}
+					locations := example.DirectiveLocations.Iterable()
+					if !locations.Next() {
+						panic("want next")
+					}
+					if locations.Value() != ast.ExecutableDirectiveLocationField {
+						panic("want ExecutableDirectiveLocationField")
+					}
+					if locations.Next() {
+						panic("want false")
+					}
+				})
+		})
+		t.Run("multiple directive locations", func(t *testing.T) {
+			run(`directive @example on FIELD | SCALAR | SCHEMA`, parse, false,
+				func(in *input.Input, doc *ast.Document) {
+					example := doc.DirectiveDefinitions[0]
+					if in.ByteSliceString(example.Name) != "example" {
+						panic("want example")
+					}
+					locations := example.DirectiveLocations.Iterable()
+					if !locations.Next() {
+						panic("want next")
+					}
+					if locations.Value() != ast.ExecutableDirectiveLocationField {
+						panic("want ExecutableDirectiveLocationField")
+					}
+					if !locations.Next() {
+						panic("want next")
+					}
+					if locations.Value() != ast.TypeSystemDirectiveLocationSchema {
+						panic("want TypeSystemDirectiveLocationSchema")
+					}
+					if !locations.Next() {
+						panic("want next")
+					}
+					if locations.Value() != ast.TypeSystemDirectiveLocationScalar {
+						panic("want TypeSystemDirectiveLocationScalar")
+					}
+					if locations.Next() {
+						panic("want false")
+					}
+				})
+		})
+		t.Run("err pipe at end", func(t *testing.T) {
+			run(`directive @example on FIELD | SCALAR | SCHEMA |`, parse, true)
+		})
+		t.Run("missing location", func(t *testing.T) {
+			run(`directive @example on`, parse, true)
+		})
+		t.Run("invalid location", func(t *testing.T) {
+			run(`directive @example on INVALID`, parse, true)
+		})
+	})
 }
 
 func BenchmarkParse(b *testing.B) {
@@ -948,7 +1009,10 @@ func BenchmarkParse(b *testing.B) {
 							  EAST
 							  SOUTH
 							  WEST
-							}`)
+							}
+
+							"directives"
+							directive @example on FIELD | SCALAR | SCHEMA`)
 
 	in := &input.Input{}
 	doc := ast.NewDocument()

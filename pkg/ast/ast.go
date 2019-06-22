@@ -44,6 +44,7 @@ type Document struct {
 	UnionTypeDefinitions         []UnionTypeDefinition
 	EnumTypeDefinitions          []EnumTypeDefinition
 	EnumValueDefinitions         []EnumValueDefinition
+	DirectiveDefinitions         []DirectiveDefinition
 }
 
 func NewDocument() *Document {
@@ -63,6 +64,7 @@ func NewDocument() *Document {
 		UnionTypeDefinitions:         make([]UnionTypeDefinition, 8),
 		EnumTypeDefinitions:          make([]EnumTypeDefinition, 8),
 		EnumValueDefinitions:         make([]EnumValueDefinition, 48),
+		DirectiveDefinitions:         make([]DirectiveDefinition, 8),
 	}
 }
 
@@ -82,6 +84,7 @@ func (d *Document) Reset() {
 	d.UnionTypeDefinitions = d.UnionTypeDefinitions[:0]
 	d.EnumTypeDefinitions = d.EnumTypeDefinitions[:0]
 	d.EnumValueDefinitions = d.EnumValueDefinitions[:0]
+	d.DirectiveDefinitions = d.DirectiveDefinitions[:0]
 }
 
 func (d *Document) GetEnumValueDefinition(ref int) (node EnumValueDefinition, nextRef int) {
@@ -199,6 +202,11 @@ func (d *Document) PutEnumTypeDefinition(definition EnumTypeDefinition) int {
 func (d *Document) PutEnumValueDefinition(definition EnumValueDefinition) int {
 	d.EnumValueDefinitions = append(d.EnumValueDefinitions, definition)
 	return len(d.EnumValueDefinitions) - 1
+}
+
+func (d *Document) PutDirectiveDefinition(definition DirectiveDefinition) int {
+	d.DirectiveDefinitions = append(d.DirectiveDefinitions, definition)
+	return len(d.DirectiveDefinitions) - 1
 }
 
 type Definition struct {
@@ -377,4 +385,17 @@ type EnumValueDefinition struct {
 	Description Description              // optional, describes enum value
 	EnumValue   input.ByteSliceReference // e.g. NORTH (Name but not true, false or null
 	Directives  DirectiveList            // optional, e.g. @foo
+}
+
+// DirectiveDefinition
+// example:
+// directive @example on FIELD
+type DirectiveDefinition struct {
+	Description         Description              // optional, describes the directive
+	DirectiveLiteral    position.Position        // directive
+	At                  position.Position        // @
+	Name                input.ByteSliceReference // e.g. example
+	ArgumentsDefinition InputValueDefinitionList // optional, e.g. (if: Boolean)
+	On                  position.Position        // on
+	DirectiveLocations  DirectiveLocations       // e.g. FIELD
 }

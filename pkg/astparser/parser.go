@@ -71,6 +71,8 @@ func (p *Parser) parse() {
 			p.parseUnionTypeDefinition(nil)
 		case keyword.ENUM:
 			p.parseEnumTypeDefinition(nil)
+		case keyword.DIRECTIVE:
+			p.parseDirectiveDefinition(nil)
 		case keyword.EOF:
 			p.read()
 			return
@@ -343,6 +345,8 @@ func (p *Parser) parseRootDescription() {
 		p.parseUnionTypeDefinition(&description)
 	case keyword.ENUM:
 		p.parseEnumTypeDefinition(&description)
+	case keyword.DIRECTIVE:
+		p.parseDirectiveDefinition(&description)
 	default:
 		p.errPeekUnexpected()
 	}
@@ -765,4 +769,62 @@ func (p *Parser) parseEnumValueDefinition() int {
 	}
 
 	return p.document.PutEnumValueDefinition(enumValueDefinition)
+}
+
+func (p *Parser) parseDirectiveDefinition(description *ast.Description) int {
+	var directiveDefinition ast.DirectiveDefinition
+	if description != nil {
+		directiveDefinition.Description = *description
+	}
+	directiveDefinition.DirectiveLiteral = p.mustRead(keyword.DIRECTIVE).TextPosition
+	directiveDefinition.At = p.mustRead(keyword.AT).TextPosition
+	directiveDefinition.Name = p.mustRead(keyword.IDENT).Literal
+	if p.peek(true) == keyword.BRACKETOPEN {
+		directiveDefinition.ArgumentsDefinition = p.parseInputValueDefinitionList(keyword.BRACKETCLOSE)
+	}
+	directiveDefinition.On = p.mustRead(keyword.ON).TextPosition
+	p.parseDirectiveLocations(&directiveDefinition.DirectiveLocations)
+	return p.document.PutDirectiveDefinition(directiveDefinition)
+}
+
+func (p *Parser) parseDirectiveLocations(locations *ast.DirectiveLocations) {
+	acceptPipe := true
+	acceptIdent := true
+	expectNext := true
+	for {
+		next := p.peek(true)
+		switch next {
+		case keyword.IDENT:
+			if acceptIdent {
+				acceptIdent = false
+				acceptPipe = true
+				expectNext = false
+
+				raw := p.input.ByteSlice(p.read().Literal)
+				p.err = locations.SetFromRaw(raw)
+				if p.err != nil {
+					return
+				}
+
+			} else {
+				p.errPeekUnexpected()
+				return
+			}
+		case keyword.PIPE:
+			if acceptPipe {
+				acceptPipe = false
+				acceptIdent = true
+				expectNext = true
+				p.read()
+			} else {
+				p.errPeekUnexpected()
+				return
+			}
+		default:
+			if expectNext {
+				p.errPeekUnexpected()
+			}
+			return
+		}
+	}
 }
