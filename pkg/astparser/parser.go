@@ -65,6 +65,8 @@ func (p *Parser) parse() {
 			p.parseObjectTypeDefinition(nil)
 		case keyword.INPUT:
 			p.parseInputObjectTypeDefinition(nil)
+		case keyword.INTERFACE:
+			p.parseInterfaceTypeDefinition(nil)
 		case keyword.EOF:
 			p.read()
 			return
@@ -313,9 +315,9 @@ func (p *Parser) parseObjectTypeDefinition(description *ast.Description) {
 	if p.peek(true) == keyword.AT {
 		objectTypeDefinition.Directives = p.parseDirectiveList()
 	}
-
-	objectTypeDefinition.FieldsDefinition = p.parseFieldDefinitionList()
-
+	if p.peek(true) == keyword.CURLYBRACKETOPEN {
+		objectTypeDefinition.FieldsDefinition = p.parseFieldDefinitionList()
+	}
 	p.document.PutObjectTypeDefinition(objectTypeDefinition)
 }
 
@@ -331,6 +333,8 @@ func (p *Parser) parseRootDescription() {
 		p.parseInputObjectTypeDefinition(&description)
 	case keyword.SCALAR:
 		p.parseScalarTypeDefinition(&description)
+	case keyword.INTERFACE:
+		p.parseInterfaceTypeDefinition(&description)
 	default:
 		p.errPeekUnexpected()
 	}
@@ -589,4 +593,20 @@ func (p *Parser) parseScalarTypeDefinition(description *ast.Description) int {
 		scalarTypeDefinition.Directives = p.parseDirectiveList()
 	}
 	return p.document.PutScalarTypeDefinition(scalarTypeDefinition)
+}
+
+func (p *Parser) parseInterfaceTypeDefinition(description *ast.Description) int {
+	var interfaceTypeDefinition ast.InterfaceTypeDefinition
+	if description != nil {
+		interfaceTypeDefinition.Description = *description
+	}
+	interfaceTypeDefinition.InterfaceLiteral = p.mustRead(keyword.INTERFACE).TextPosition
+	interfaceTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
+	if p.peek(true) == keyword.AT {
+		interfaceTypeDefinition.Directives = p.parseDirectiveList()
+	}
+	if p.peek(true) == keyword.CURLYBRACKETOPEN {
+		interfaceTypeDefinition.FieldsDefinition = p.parseFieldDefinitionList()
+	}
+	return p.document.PutInterfaceTypeDefinition(interfaceTypeDefinition)
 }

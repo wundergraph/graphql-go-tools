@@ -40,6 +40,7 @@ type Document struct {
 	InputValueDefinitions        []InputValueDefinition
 	InputObjectTypeDefinitions   []InputObjectTypeDefinition
 	ScalarTypeDefinitions        []ScalarTypeDefinition
+	InterfaceTypeDefinitions     []InterfaceTypeDefinition
 }
 
 func NewDocument() *Document {
@@ -55,6 +56,7 @@ func NewDocument() *Document {
 		InputValueDefinitions:        make([]InputValueDefinition, 128),
 		InputObjectTypeDefinitions:   make([]InputObjectTypeDefinition, 16),
 		ScalarTypeDefinitions:        make([]ScalarTypeDefinition, 16),
+		InterfaceTypeDefinitions:     make([]InterfaceTypeDefinition, 16),
 	}
 }
 
@@ -70,6 +72,7 @@ func (d *Document) Reset() {
 	d.InputValueDefinitions = d.InputValueDefinitions[:0]
 	d.InputObjectTypeDefinitions = d.InputObjectTypeDefinitions[:0]
 	d.ScalarTypeDefinitions = d.ScalarTypeDefinitions[:0]
+	d.InterfaceTypeDefinitions = d.InterfaceTypeDefinitions[:0]
 }
 
 func (d *Document) GetInputValueDefinition(ref int) (node InputValueDefinition, nextRef int) {
@@ -161,6 +164,11 @@ func (d *Document) PutInputObjectTypeDefinition(definition InputObjectTypeDefini
 func (d *Document) PutScalarTypeDefinition(definition ScalarTypeDefinition) int {
 	d.ScalarTypeDefinitions = append(d.ScalarTypeDefinitions, definition)
 	return len(d.ScalarTypeDefinitions) - 1
+}
+
+func (d *Document) PutInterfaceTypeDefinition(definition InterfaceTypeDefinition) int {
+	d.InterfaceTypeDefinitions = append(d.InterfaceTypeDefinitions, definition)
+	return len(d.InterfaceTypeDefinitions) - 1
 }
 
 type Definition struct {
@@ -273,18 +281,32 @@ type DefaultValue struct {
 }
 
 type InputObjectTypeDefinition struct {
-	Description           Description              // describes the input type
+	Description           Description              // optional, describes the input type
 	InputLiteral          position.Position        // input
 	Name                  input.ByteSliceReference // name of the input type
-	Directives            DirectiveList            // e.g. @foo
+	Directives            DirectiveList            // optional, e.g. @foo
 	InputFieldsDefinition InputValueDefinitionList // e.g. x:Float
 }
 
 // ScalarTypeDefinition
-// example: scalar JSON
+// example:
+// scalar JSON
 type ScalarTypeDefinition struct {
-	Description   Description              // describes the scalar
+	Description   Description              // optional, describes the scalar
 	ScalarLiteral position.Position        // scalar
 	Name          input.ByteSliceReference // e.g. JSON
-	Directives    DirectiveList            // e.g. @foo
+	Directives    DirectiveList            // optional, e.g. @foo
+}
+
+// InterfaceTypeDefinition
+// example:
+// interface NamedEntity {
+// 	name: String
+// }
+type InterfaceTypeDefinition struct {
+	Description      Description              // optional, describes the interface
+	InterfaceLiteral position.Position        // interface
+	Name             input.ByteSliceReference // e.g. NamedEntity
+	Directives       DirectiveList            // optional, e.g. @foo
+	FieldsDefinition FieldDefinitionList      // optional, e.g. { name: String }
 }

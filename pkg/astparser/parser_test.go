@@ -555,6 +555,60 @@ func TestParser_Parse(t *testing.T) {
 				})
 		})
 	})
+	t.Run("interface type definition", func(t *testing.T) {
+		t.Run("simple", func(t *testing.T) {
+			run(`interface NamedEntity @foo {
+ 								name: String
+							}`, parse, false,
+				func(in *input.Input, doc *ast.Document) {
+					namedEntity := doc.InterfaceTypeDefinitions[0]
+					if in.ByteSliceString(namedEntity.Name) != "NamedEntity" {
+						panic("want NamedEntity")
+					}
+
+					// fields
+					if !namedEntity.FieldsDefinition.Next(doc) {
+						panic("want nextx")
+					}
+					name, nameRef := namedEntity.FieldsDefinition.Value()
+					if nameRef != 0 {
+						panic("want 0")
+					}
+					if in.ByteSliceString(name.Name) != "name" {
+						panic("want name")
+					}
+
+					//directives
+					if !namedEntity.Directives.Next(doc) {
+						panic("want true")
+					}
+					foo, fooRef := namedEntity.Directives.Value()
+					if fooRef != 0 {
+						panic("want 0")
+					}
+					if in.ByteSliceString(foo.Name) != "foo" {
+						panic("want foo")
+					}
+				})
+		})
+		t.Run("with description", func(t *testing.T) {
+			run(`"describes NamedEntity" interface NamedEntity {
+ 								name: String
+							}`, parse, false,
+				func(in *input.Input, doc *ast.Document) {
+					namedEntity := doc.InterfaceTypeDefinitions[0]
+					if in.ByteSliceString(namedEntity.Name) != "NamedEntity" {
+						panic("want NamedEntity")
+					}
+					if !namedEntity.Description.IsDefined {
+						panic("want true")
+					}
+					if in.ByteSliceString(namedEntity.Description.Body) != "describes NamedEntity" {
+						panic("want 'describes NamedEntity'")
+					}
+				})
+		})
+	})
 	t.Run("type", func(t *testing.T) {
 		t.Run("named", func(t *testing.T) {
 			run("String", parseType, false, func(in *input.Input, doc *ast.Document) {
