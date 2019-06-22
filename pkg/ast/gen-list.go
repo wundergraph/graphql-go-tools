@@ -251,3 +251,44 @@ func (n *InputValueDefinitionList) Next(getter InputValueDefinitionGetter) bool 
 func (n *InputValueDefinitionList) Value() (InputValueDefinition, int) {
 	return n.current, n.currentRef
 }
+
+type EnumValueDefinitionList struct {
+	Open          position.Position
+	Close         position.Position
+	current       EnumValueDefinition
+	currentRef    int
+	nextRef       int
+	isInitialized bool
+}
+
+type EnumValueDefinitionGetter interface {
+	GetEnumValueDefinition(ref int) (node EnumValueDefinition, nextRef int)
+}
+
+func NewEnumValueDefinitionList(first int) EnumValueDefinitionList {
+	nodeList := EnumValueDefinitionList{}
+	nodeList.SetFirst(first)
+	return nodeList
+}
+
+func (n *EnumValueDefinitionList) SetFirst(first int) {
+	n.nextRef = first
+	n.isInitialized = first != -1
+}
+
+func (n *EnumValueDefinitionList) HasNext() bool {
+	return n.isInitialized && n.nextRef != -1
+}
+
+func (n *EnumValueDefinitionList) Next(getter EnumValueDefinitionGetter) bool {
+	if !n.isInitialized || n.nextRef == -1 {
+		return false
+	}
+	n.currentRef = n.nextRef
+	n.current, n.nextRef = getter.GetEnumValueDefinition(n.nextRef)
+	return true
+}
+
+func (n *EnumValueDefinitionList) Value() (EnumValueDefinition, int) {
+	return n.current, n.currentRef
+}

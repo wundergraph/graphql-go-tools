@@ -42,6 +42,8 @@ type Document struct {
 	ScalarTypeDefinitions        []ScalarTypeDefinition
 	InterfaceTypeDefinitions     []InterfaceTypeDefinition
 	UnionTypeDefinitions         []UnionTypeDefinition
+	EnumTypeDefinitions          []EnumTypeDefinition
+	EnumValueDefinitions         []EnumValueDefinition
 }
 
 func NewDocument() *Document {
@@ -59,6 +61,8 @@ func NewDocument() *Document {
 		ScalarTypeDefinitions:        make([]ScalarTypeDefinition, 16),
 		InterfaceTypeDefinitions:     make([]InterfaceTypeDefinition, 16),
 		UnionTypeDefinitions:         make([]UnionTypeDefinition, 8),
+		EnumTypeDefinitions:          make([]EnumTypeDefinition, 8),
+		EnumValueDefinitions:         make([]EnumValueDefinition, 48),
 	}
 }
 
@@ -76,6 +80,14 @@ func (d *Document) Reset() {
 	d.ScalarTypeDefinitions = d.ScalarTypeDefinitions[:0]
 	d.InterfaceTypeDefinitions = d.InterfaceTypeDefinitions[:0]
 	d.UnionTypeDefinitions = d.UnionTypeDefinitions[:0]
+	d.EnumTypeDefinitions = d.EnumTypeDefinitions[:0]
+	d.EnumValueDefinitions = d.EnumValueDefinitions[:0]
+}
+
+func (d *Document) GetEnumValueDefinition(ref int) (node EnumValueDefinition, nextRef int) {
+	node = d.EnumValueDefinitions[ref]
+	nextRef = node.Next()
+	return
 }
 
 func (d *Document) GetInputValueDefinition(ref int) (node InputValueDefinition, nextRef int) {
@@ -177,6 +189,16 @@ func (d *Document) PutInterfaceTypeDefinition(definition InterfaceTypeDefinition
 func (d *Document) PutUnionTypeDefinition(definition UnionTypeDefinition) int {
 	d.UnionTypeDefinitions = append(d.UnionTypeDefinitions, definition)
 	return len(d.UnionTypeDefinitions) - 1
+}
+
+func (d *Document) PutEnumTypeDefinition(definition EnumTypeDefinition) int {
+	d.EnumTypeDefinitions = append(d.EnumTypeDefinitions, definition)
+	return len(d.EnumTypeDefinitions) - 1
+}
+
+func (d *Document) PutEnumValueDefinition(definition EnumValueDefinition) int {
+	d.EnumValueDefinitions = append(d.EnumValueDefinitions, definition)
+	return len(d.EnumValueDefinitions) - 1
 }
 
 type Definition struct {
@@ -329,4 +351,30 @@ type UnionTypeDefinition struct {
 	Directives       DirectiveList            // optional, e.g. @foo
 	Equals           position.Position        // =
 	UnionMemberTypes TypeList                 // optional, e.g. Photo | Person
+}
+
+// EnumTypeDefinition
+// example:
+// enum Direction {
+//  NORTH
+//  EAST
+//  SOUTH
+//  WEST
+//}
+type EnumTypeDefinition struct {
+	Description          Description              // optional, describes enum
+	EnumLiteral          position.Position        // enum
+	Name                 input.ByteSliceReference // e.g. Direction
+	Directives           DirectiveList            // optional, e.g. @foo
+	EnumValuesDefinition EnumValueDefinitionList  // optional, e.g. { NORTH EAST }
+}
+
+// EnumValueDefinition
+// example:
+// "NORTH enum value" NORTH @foo
+type EnumValueDefinition struct {
+	iterable
+	Description Description              // optional, describes enum value
+	EnumValue   input.ByteSliceReference // e.g. NORTH (Name but not true, false or null
+	Directives  DirectiveList            // optional, e.g. @foo
 }

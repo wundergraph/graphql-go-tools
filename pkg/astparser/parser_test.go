@@ -822,6 +822,74 @@ func TestParser_Parse(t *testing.T) {
 			run("]String", parseType, true)
 		})
 	})
+	t.Run("enum type definition", func(t *testing.T) {
+		t.Run("simple", func(t *testing.T) {
+			run(`"enums"
+							enum Direction @bar {
+							  NORTH
+							  EAST
+							  SOUTH
+							  "describes WEST"
+							  WEST @foo
+							}`, parse, false,
+				func(in *input.Input, doc *ast.Document) {
+					direction := doc.EnumTypeDefinitions[0]
+					if in.ByteSliceString(direction.Name) != "Direction" {
+						panic("want Direction")
+					}
+					if in.ByteSliceString(direction.Description.Body) != "enums" {
+						panic("want enums")
+					}
+
+					// directives
+					if !direction.Directives.Next(doc) {
+						panic("want next")
+					}
+					bar, _ := direction.Directives.Value()
+					if in.ByteSliceString(bar.Name) != "bar" {
+						panic("want bar")
+					}
+
+					// values
+
+					wantValue := func(index int, name string) {
+						if !direction.EnumValuesDefinition.Next(doc) {
+							panic("want next")
+						}
+						enum, ref := direction.EnumValuesDefinition.Value()
+						if ref != index {
+							panic(fmt.Sprintf("want %d", index))
+						}
+						if in.ByteSliceString(enum.EnumValue) != name {
+							panic(fmt.Sprintf("want %s", name))
+						}
+					}
+
+					wantValue(0, "NORTH")
+					wantValue(1, "EAST")
+					wantValue(2, "SOUTH")
+					wantValue(3, "WEST")
+
+					west, _ := direction.EnumValuesDefinition.Value()
+					if !west.Description.IsDefined {
+						panic("want true")
+					}
+					if in.ByteSliceString(west.Description.Body) != "describes WEST" {
+						panic("want describes WEST")
+					}
+					if !west.Directives.Next(doc) {
+						panic("want next")
+					}
+					foo, _ := west.Directives.Value()
+					if in.ByteSliceString(foo.Name) != "foo" {
+						panic("want foo")
+					}
+					if direction.EnumValuesDefinition.Next(doc) {
+						panic("want false")
+					}
+				})
+		})
+	})
 }
 
 func BenchmarkParse(b *testing.B) {
@@ -872,6 +940,14 @@ func BenchmarkParse(b *testing.B) {
 							"interfaces"
 							interface NamedEntity @foo {
  								name: String
+							}
+
+							"enums"
+							enum Direction {
+							  NORTH
+							  EAST
+							  SOUTH
+							  WEST
 							}`)
 
 	in := &input.Input{}

@@ -69,6 +69,8 @@ func (p *Parser) parse() {
 			p.parseInterfaceTypeDefinition(nil)
 		case keyword.UNION:
 			p.parseUnionTypeDefinition(nil)
+		case keyword.ENUM:
+			p.parseEnumTypeDefinition(nil)
 		case keyword.EOF:
 			p.read()
 			return
@@ -339,6 +341,8 @@ func (p *Parser) parseRootDescription() {
 		p.parseInterfaceTypeDefinition(&description)
 	case keyword.UNION:
 		p.parseUnionTypeDefinition(&description)
+	case keyword.ENUM:
+		p.parseEnumTypeDefinition(&description)
 	default:
 		p.errPeekUnexpected()
 	}
@@ -696,4 +700,69 @@ func (p *Parser) parseUnionMemberTypes() (equals position.Position, members ast.
 			return
 		}
 	}
+}
+
+func (p *Parser) parseEnumTypeDefinition(description *ast.Description) int {
+	var enumTypeDefinition ast.EnumTypeDefinition
+	if description != nil {
+		enumTypeDefinition.Description = *description
+	}
+	enumTypeDefinition.EnumLiteral = p.mustRead(keyword.ENUM).TextPosition
+	enumTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
+	if p.peek(true) == keyword.AT {
+		enumTypeDefinition.Directives = p.parseDirectiveList()
+	}
+	if p.peek(true) == keyword.CURLYBRACKETOPEN {
+		enumTypeDefinition.EnumValuesDefinition = p.parseEnumValueDefinitionList()
+	}
+	return p.document.PutEnumTypeDefinition(enumTypeDefinition)
+}
+
+func (p *Parser) parseEnumValueDefinitionList() (list ast.EnumValueDefinitionList) {
+
+	list.Open = p.mustRead(keyword.CURLYBRACKETOPEN).TextPosition
+
+	previous := -1
+
+	for {
+		next := p.peek(true)
+		switch next {
+		case keyword.STRING, keyword.BLOCKSTRING, keyword.IDENT:
+			ref := p.parseEnumValueDefinition()
+			if !list.HasNext() {
+				list.SetFirst(ref)
+			}
+			if previous != -1 {
+				p.document.EnumValueDefinitions[previous].SetNext(ref)
+			}
+			previous = ref
+		case keyword.CURLYBRACKETCLOSE:
+			list.Close = p.read().TextPosition
+			return
+		default:
+			p.errPeekUnexpected()
+			return
+		}
+	}
+}
+
+func (p *Parser) parseEnumValueDefinition() int {
+	var enumValueDefinition ast.EnumValueDefinition
+	next := p.peek(true)
+	switch next {
+	case keyword.STRING, keyword.BLOCKSTRING:
+		enumValueDefinition.Description = p.parseDescription()
+	case keyword.IDENT:
+		break
+	default:
+		p.errPeekUnexpected()
+		return -1
+	}
+
+	enumValueDefinition.EnumValue = p.mustRead(keyword.IDENT).Literal
+	if p.peek(true) == keyword.AT {
+		enumValueDefinition.Directives = p.parseDirectiveList()
+	}
+
+	return p.document.PutEnumValueDefinition(enumValueDefinition)
 }
