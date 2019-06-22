@@ -41,6 +41,7 @@ type Document struct {
 	InputObjectTypeDefinitions   []InputObjectTypeDefinition
 	ScalarTypeDefinitions        []ScalarTypeDefinition
 	InterfaceTypeDefinitions     []InterfaceTypeDefinition
+	UnionTypeDefinitions         []UnionTypeDefinition
 }
 
 func NewDocument() *Document {
@@ -57,6 +58,7 @@ func NewDocument() *Document {
 		InputObjectTypeDefinitions:   make([]InputObjectTypeDefinition, 16),
 		ScalarTypeDefinitions:        make([]ScalarTypeDefinition, 16),
 		InterfaceTypeDefinitions:     make([]InterfaceTypeDefinition, 16),
+		UnionTypeDefinitions:         make([]UnionTypeDefinition, 8),
 	}
 }
 
@@ -73,6 +75,7 @@ func (d *Document) Reset() {
 	d.InputObjectTypeDefinitions = d.InputObjectTypeDefinitions[:0]
 	d.ScalarTypeDefinitions = d.ScalarTypeDefinitions[:0]
 	d.InterfaceTypeDefinitions = d.InterfaceTypeDefinitions[:0]
+	d.UnionTypeDefinitions = d.UnionTypeDefinitions[:0]
 }
 
 func (d *Document) GetInputValueDefinition(ref int) (node InputValueDefinition, nextRef int) {
@@ -169,6 +172,11 @@ func (d *Document) PutScalarTypeDefinition(definition ScalarTypeDefinition) int 
 func (d *Document) PutInterfaceTypeDefinition(definition InterfaceTypeDefinition) int {
 	d.InterfaceTypeDefinitions = append(d.InterfaceTypeDefinitions, definition)
 	return len(d.InterfaceTypeDefinitions) - 1
+}
+
+func (d *Document) PutUnionTypeDefinition(definition UnionTypeDefinition) int {
+	d.UnionTypeDefinitions = append(d.UnionTypeDefinitions, definition)
+	return len(d.UnionTypeDefinitions) - 1
 }
 
 type Definition struct {
@@ -309,4 +317,16 @@ type InterfaceTypeDefinition struct {
 	Name             input.ByteSliceReference // e.g. NamedEntity
 	Directives       DirectiveList            // optional, e.g. @foo
 	FieldsDefinition FieldDefinitionList      // optional, e.g. { name: String }
+}
+
+// UnionTypeDefinition
+// example:
+// union SearchResult = Photo | Person
+type UnionTypeDefinition struct {
+	Description      Description              // optional, describes union
+	UnionLiteral     position.Position        // union
+	Name             input.ByteSliceReference // e.g. SearchResult
+	Directives       DirectiveList            // optional, e.g. @foo
+	Equals           position.Position        // =
+	UnionMemberTypes TypeList                 // optional, e.g. Photo | Person
 }

@@ -67,6 +67,8 @@ func (p *Parser) parse() {
 			p.parseInputObjectTypeDefinition(nil)
 		case keyword.INTERFACE:
 			p.parseInterfaceTypeDefinition(nil)
+		case keyword.UNION:
+			p.parseUnionTypeDefinition(nil)
 		case keyword.EOF:
 			p.read()
 			return
@@ -335,6 +337,8 @@ func (p *Parser) parseRootDescription() {
 		p.parseScalarTypeDefinition(&description)
 	case keyword.INTERFACE:
 		p.parseInterfaceTypeDefinition(&description)
+	case keyword.UNION:
+		p.parseUnionTypeDefinition(&description)
 	default:
 		p.errPeekUnexpected()
 	}
@@ -446,6 +450,14 @@ func (p *Parser) parseFieldDefinition() int {
 	}
 
 	return p.document.PutFieldDefinition(fieldDefinition)
+}
+
+func (p *Parser) parseNamedType() (ref int) {
+	ident := p.mustRead(keyword.IDENT)
+	return p.document.PutType(ast.Type{
+		TypeKind: ast.TypeKindNamed,
+		Name:     ident.Literal,
+	})
 }
 
 func (p *Parser) parseType() (ref int) {
@@ -609,4 +621,79 @@ func (p *Parser) parseInterfaceTypeDefinition(description *ast.Description) int 
 		interfaceTypeDefinition.FieldsDefinition = p.parseFieldDefinitionList()
 	}
 	return p.document.PutInterfaceTypeDefinition(interfaceTypeDefinition)
+}
+
+func (p *Parser) parseUnionTypeDefinition(description *ast.Description) int {
+	var unionTypeDefinition ast.UnionTypeDefinition
+	if description != nil {
+		unionTypeDefinition.Description = *description
+	}
+	unionTypeDefinition.UnionLiteral = p.mustRead(keyword.UNION).TextPosition
+	unionTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
+	if p.peek(true) == keyword.AT {
+		unionTypeDefinition.Directives = p.parseDirectiveList()
+	}
+	if p.peek(true) == keyword.EQUALS {
+		unionTypeDefinition.Equals, unionTypeDefinition.UnionMemberTypes = p.parseUnionMemberTypes()
+	}
+	return p.document.PutUnionTypeDefinition(unionTypeDefinition)
+}
+
+func (p *Parser) parseUnionMemberTypes() (equals position.Position, members ast.TypeList) {
+
+	equals = p.mustRead(keyword.EQUALS).TextPosition
+
+	previous := -1
+
+	acceptPipe := true
+	acceptIdent := true
+	expectNext := true
+
+	for {
+		next := p.peek(true)
+		switch next {
+		case keyword.PIPE:
+			if acceptPipe {
+				acceptPipe = false
+				acceptIdent = true
+				expectNext = true
+				p.read()
+			} else {
+				p.errPeekUnexpected()
+				return
+			}
+		case keyword.IDENT:
+			if acceptIdent {
+				acceptPipe = true
+				acceptIdent = false
+				expectNext = false
+
+				ident := p.read()
+
+				ref := p.document.PutType(ast.Type{
+					TypeKind: ast.TypeKindNamed,
+					Name:     ident.Literal,
+				})
+
+				if !members.HasNext() {
+					members.SetFirst(ref)
+				}
+
+				if previous != -1 {
+					p.document.Types[previous].SetNext(ref)
+				}
+
+				previous = ref
+
+			} else {
+				p.errPeekUnexpected()
+				return
+			}
+		default:
+			if expectNext {
+				p.errPeekUnexpected()
+			}
+			return
+		}
+	}
 }
