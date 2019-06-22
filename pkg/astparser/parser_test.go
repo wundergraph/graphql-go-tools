@@ -178,6 +178,51 @@ func TestParser_Parse(t *testing.T) {
 			run(`schema foo {}`, parse, true)
 		})
 	})
+	t.Run("scalar type definition", func(t *testing.T) {
+		t.Run("simple", func(t *testing.T) {
+			run(`scalar JSON`, parse, false,
+				func(in *input.Input, doc *ast.Document) {
+					scalar := doc.ScalarTypeDefinitions[0]
+					if in.ByteSliceString(scalar.Name) != "JSON" {
+						panic("want JSON")
+					}
+				})
+		})
+		t.Run("with description", func(t *testing.T) {
+			run(`"JSON scalar description" scalar JSON`, parse, false,
+				func(in *input.Input, doc *ast.Document) {
+					scalar := doc.ScalarTypeDefinitions[0]
+					if in.ByteSliceString(scalar.Name) != "JSON" {
+						panic("want JSON")
+					}
+					if !scalar.Description.IsDefined {
+						panic("want true")
+					}
+					if in.ByteSliceString(scalar.Description.Body) != "JSON scalar description" {
+						panic("want 'JSON scalar description'")
+					}
+				})
+		})
+		t.Run("with directive", func(t *testing.T) {
+			run(`scalar JSON @foo`, parse, false,
+				func(in *input.Input, doc *ast.Document) {
+					scalar := doc.ScalarTypeDefinitions[0]
+					if in.ByteSliceString(scalar.Name) != "JSON" {
+						panic("want JSON")
+					}
+					if !scalar.Directives.Next(doc) {
+						panic("want next")
+					}
+					foo, fooRef := scalar.Directives.Value()
+					if fooRef != 0 {
+						panic("want 0")
+					}
+					if in.ByteSliceString(foo.Name) != "foo" {
+						panic("want foo")
+					}
+				})
+		})
+	})
 	t.Run("object type definition", func(t *testing.T) {
 		t.Run("complex", func(t *testing.T) {
 			run(`type Person implements Foo & Bar {

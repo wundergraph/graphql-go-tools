@@ -59,6 +59,8 @@ func (p *Parser) parse() {
 			p.parseSchema()
 		case keyword.STRING, keyword.BLOCKSTRING:
 			p.parseRootDescription()
+		case keyword.SCALAR:
+			p.parseScalarTypeDefinition(nil)
 		case keyword.TYPE:
 			p.parseObjectTypeDefinition(nil)
 		case keyword.INPUT:
@@ -325,7 +327,10 @@ func (p *Parser) parseRootDescription() {
 	switch next {
 	case keyword.TYPE:
 		p.parseObjectTypeDefinition(&description)
-		return
+	case keyword.INPUT:
+		p.parseInputObjectTypeDefinition(&description)
+	case keyword.SCALAR:
+		p.parseScalarTypeDefinition(&description)
 	default:
 		p.errPeekUnexpected()
 	}
@@ -571,4 +576,17 @@ func (p *Parser) parseInputObjectTypeDefinition(description *ast.Description) in
 		inputObjectTypeDefinition.InputFieldsDefinition = p.parseInputValueDefinitionList(keyword.CURLYBRACKETCLOSE)
 	}
 	return p.document.PutInputObjectTypeDefinition(inputObjectTypeDefinition)
+}
+
+func (p *Parser) parseScalarTypeDefinition(description *ast.Description) int {
+	var scalarTypeDefinition ast.ScalarTypeDefinition
+	if description != nil {
+		scalarTypeDefinition.Description = *description
+	}
+	scalarTypeDefinition.ScalarLiteral = p.mustRead(keyword.SCALAR).TextPosition
+	scalarTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
+	if p.peek(true) == keyword.AT {
+		scalarTypeDefinition.Directives = p.parseDirectiveList()
+	}
+	return p.document.PutScalarTypeDefinition(scalarTypeDefinition)
 }

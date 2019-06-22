@@ -39,6 +39,7 @@ type Document struct {
 	Types                        []Type
 	InputValueDefinitions        []InputValueDefinition
 	InputObjectTypeDefinitions   []InputObjectTypeDefinition
+	ScalarTypeDefinitions        []ScalarTypeDefinition
 }
 
 func NewDocument() *Document {
@@ -53,6 +54,7 @@ func NewDocument() *Document {
 		FieldDefinitions:             make([]FieldDefinition, 128),
 		InputValueDefinitions:        make([]InputValueDefinition, 128),
 		InputObjectTypeDefinitions:   make([]InputObjectTypeDefinition, 16),
+		ScalarTypeDefinitions:        make([]ScalarTypeDefinition, 16),
 	}
 }
 
@@ -67,6 +69,7 @@ func (d *Document) Reset() {
 	d.FieldDefinitions = d.FieldDefinitions[:0]
 	d.InputValueDefinitions = d.InputValueDefinitions[:0]
 	d.InputObjectTypeDefinitions = d.InputObjectTypeDefinitions[:0]
+	d.ScalarTypeDefinitions = d.ScalarTypeDefinitions[:0]
 }
 
 func (d *Document) GetInputValueDefinition(ref int) (node InputValueDefinition, nextRef int) {
@@ -153,6 +156,11 @@ func (d *Document) PutInputValueDefinition(definition InputValueDefinition) int 
 func (d *Document) PutInputObjectTypeDefinition(definition InputObjectTypeDefinition) int {
 	d.InputObjectTypeDefinitions = append(d.InputObjectTypeDefinitions, definition)
 	return len(d.InputObjectTypeDefinitions) - 1
+}
+
+func (d *Document) PutScalarTypeDefinition(definition ScalarTypeDefinition) int {
+	d.ScalarTypeDefinitions = append(d.ScalarTypeDefinitions, definition)
+	return len(d.ScalarTypeDefinitions) - 1
 }
 
 type Definition struct {
@@ -270,4 +278,13 @@ type InputObjectTypeDefinition struct {
 	Name                  input.ByteSliceReference // name of the input type
 	Directives            DirectiveList            // e.g. @foo
 	InputFieldsDefinition InputValueDefinitionList // e.g. x:Float
+}
+
+// ScalarTypeDefinition
+// example: scalar JSON
+type ScalarTypeDefinition struct {
+	Description   Description              // describes the scalar
+	ScalarLiteral position.Position        // scalar
+	Name          input.ByteSliceReference // e.g. JSON
+	Directives    DirectiveList            // e.g. @foo
 }
