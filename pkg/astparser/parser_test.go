@@ -856,6 +856,22 @@ func BenchmarkParse(b *testing.B) {
 									"""
 									c: Float
 								): String
+							}
+
+							"scalars"
+							scalar JSON
+
+							"inputs"
+							input Person {
+								name: String = "Gopher"
+							}
+
+							"unions"
+							union SearchResult = Photo | Person
+
+							"interfaces"
+							interface NamedEntity @foo {
+ 								name: String
 							}`)
 
 	in := &input.Input{}
