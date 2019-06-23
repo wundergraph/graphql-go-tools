@@ -5,6 +5,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/input"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer"
+	"io/ioutil"
 	"testing"
 )
 
@@ -951,6 +952,57 @@ func TestParser_Parse(t *testing.T) {
 			run(`directive @example on INVALID`, parse, true)
 		})
 	})
+}
+
+func TestParseStarwars(t *testing.T) {
+
+	inputFileName := "./testdata/starwars.schema.graphql"
+	starwarsSchema, err := ioutil.ReadFile(inputFileName)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	in := &input.Input{}
+	in.ResetInputBytes(starwarsSchema)
+	lex := &lexer.Lexer{}
+	lex.SetInput(in)
+	doc := &ast.Document{}
+
+	parser := NewParser(lex)
+
+	err = parser.Parse(in, doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func BenchmarkParseStarwars(b *testing.B) {
+
+	inputFileName := "./testdata/starwars.schema.graphql"
+	starwarsSchema, err := ioutil.ReadFile(inputFileName)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	in := &input.Input{}
+	in.ResetInputBytes(starwarsSchema)
+	lex := &lexer.Lexer{}
+	lex.SetInput(in)
+	doc := ast.NewDocument()
+
+	parser := NewParser(lex)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		in.ResetInputBytes(starwarsSchema)
+		doc.Reset()
+		err = parser.Parse(in, doc)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
 }
 
 func BenchmarkParse(b *testing.B) {
