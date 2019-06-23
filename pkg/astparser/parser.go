@@ -16,17 +16,28 @@ type Lexer interface {
 	Read() token.Token
 }
 
-type ErrUnexpectedToken struct {
-	keyword  keyword.Keyword
-	position position.Position
-	literal  string
+type origin struct {
 	file     string
 	line     int
 	funcName string
 }
 
+type ErrUnexpectedToken struct {
+	keyword  keyword.Keyword
+	expected []keyword.Keyword
+	position position.Position
+	literal  string
+	origins  []origin
+}
+
 func (e ErrUnexpectedToken) Error() string {
-	return fmt.Sprintf("unexpected token - keyword: '%s' literal: '%s' position: '%s'\n\t\t%s:%d\n\t\t%s", e.keyword, e.literal, e.position, e.file, e.line, e.funcName)
+
+	origins := ""
+	for _, origin := range e.origins {
+		origins = origins + fmt.Sprintf("\n\t\t%s:%d\n\t\t%s", origin.file, origin.line, origin.funcName)
+	}
+
+	return fmt.Sprintf("unexpected token - keyword: '%s' literal: '%s' - expected: '%s' position: '%s'%s", e.keyword, e.literal, e.expected, e.position, origins)
 }
 
 type Parser struct {
@@ -77,7 +88,7 @@ func (p *Parser) parse() {
 			p.read()
 			return
 		default:
-			p.errPeekUnexpected()
+			p.errUnexpectedToken(p.read())
 		}
 
 		if p.err != nil {
@@ -94,34 +105,48 @@ func (p *Parser) peek(ignoreWhitespace bool) keyword.Keyword {
 	return p.lexer.Peek(ignoreWhitespace)
 }
 
-func (p *Parser) errPeekUnexpected() {
+func (p *Parser) errUnexpectedToken(unexpected token.Token, expectedKeywords ...keyword.Keyword) {
 
-	unexpected := p.read()
+	origins := make([]origin, 3)
+	for i := range origins {
+		fpcs := make([]uintptr, 1)
+		callers := runtime.Callers(2+i, fpcs)
 
-	fpcs := make([]uintptr, 1)
-	// Skip 2 levels to get the caller
-	runtime.Callers(2, fpcs)
+		if callers == 0 {
+			origins = origins[:i]
+			break
+		}
 
-	//_, file, line, _ := runtime.Caller(1)
-	fn := runtime.FuncForPC(fpcs[0])
-	file, line := fn.FileLine(fpcs[0])
+		fn := runtime.FuncForPC(fpcs[0])
+		file, line := fn.FileLine(fpcs[0])
+
+		origins[i].file = file
+		origins[i].line = line
+		origins[i].funcName = fn.Name()
+	}
 
 	p.err = ErrUnexpectedToken{
 		keyword:  unexpected.Keyword,
 		position: unexpected.TextPosition,
 		literal:  p.input.ByteSliceString(unexpected.Literal),
-		file:     file,
-		line:     line,
-		funcName: fn.Name(),
+		origins:  origins,
 	}
 }
 
-func (p *Parser) mustRead(keyword keyword.Keyword) token.Token {
-	next := p.read()
-	if next.Keyword != keyword {
-		p.err = fmt.Errorf("want keyword '%s', got: '%s'", keyword.String(), next.Keyword.String())
+func (p *Parser) mustRead(oneOf ...keyword.Keyword) (next token.Token) {
+	next = p.read()
+	if len(oneOf) == 0 {
+		return
 	}
-	return next
+
+	for i := range oneOf {
+		if next.Keyword == oneOf[i] {
+			return
+		}
+	}
+
+	p.errUnexpectedToken(next, oneOf...)
+	return
 }
 
 func (p *Parser) parseSchema() {
@@ -192,7 +217,7 @@ func (p *Parser) parseRootOperationTypeDefinitionList() (list ast.RootOperationT
 			previous = ref
 
 		default:
-			p.errPeekUnexpected()
+			p.errUnexpectedToken(p.read())
 			return
 		}
 	}
@@ -298,8 +323,12 @@ func (p *Parser) parseValue() (value ast.Value) {
 	switch tok.Keyword {
 	case keyword.STRING:
 		value.Kind = ast.ValueKindString
+	case keyword.IDENT:
+		value.Kind = ast.ValueKindEnum
+	case keyword.TRUE, keyword.FALSE:
+		value.Kind = ast.ValueKindBoolean
 	default:
-		p.err = fmt.Errorf("must implement parseValue for keyword %s", tok.Keyword)
+		p.errUnexpectedToken(tok)
 	}
 
 	value.Raw = tok.Literal
@@ -348,7 +377,7 @@ func (p *Parser) parseRootDescription() {
 	case keyword.DIRECTIVE:
 		p.parseDirectiveDefinition(&description)
 	default:
-		p.errPeekUnexpected()
+		p.errUnexpectedToken(p.read())
 	}
 }
 
@@ -370,7 +399,7 @@ func (p *Parser) parseImplementsInterfaces() (list ast.TypeList) {
 				acceptIdent = true
 				p.read()
 			} else {
-				p.errPeekUnexpected()
+				p.errUnexpectedToken(p.read())
 				return
 			}
 		case keyword.IDENT:
@@ -390,12 +419,12 @@ func (p *Parser) parseImplementsInterfaces() (list ast.TypeList) {
 				}
 				previous = ref
 			} else {
-				p.errPeekUnexpected()
+				p.errUnexpectedToken(p.read())
 				return
 			}
 		default:
 			if acceptIdent {
-				p.errPeekUnexpected()
+				p.errUnexpectedToken(p.read())
 			}
 			return
 		}
@@ -416,7 +445,7 @@ func (p *Parser) parseFieldDefinitionList() (list ast.FieldDefinitionList) {
 		case keyword.CURLYBRACKETCLOSE:
 			p.read()
 			return
-		case keyword.STRING, keyword.BLOCKSTRING, keyword.IDENT:
+		case keyword.STRING, keyword.BLOCKSTRING, keyword.IDENT, keyword.TYPE:
 			ref := p.parseFieldDefinition()
 			if !list.HasNext() {
 				list.SetFirst(ref)
@@ -426,7 +455,7 @@ func (p *Parser) parseFieldDefinitionList() (list ast.FieldDefinitionList) {
 			}
 			previous = ref
 		default:
-			p.errPeekUnexpected()
+			p.errUnexpectedToken(p.read())
 			return
 		}
 	}
@@ -440,14 +469,14 @@ func (p *Parser) parseFieldDefinition() int {
 	switch name {
 	case keyword.STRING, keyword.BLOCKSTRING:
 		fieldDefinition.Description = p.parseDescription()
-	case keyword.IDENT:
+	case keyword.IDENT, keyword.TYPE:
 		break
 	default:
-		p.errPeekUnexpected()
+		p.errUnexpectedToken(p.read())
 		return -1
 	}
 
-	fieldDefinition.Name = p.mustRead(keyword.IDENT).Literal
+	fieldDefinition.Name = p.mustRead(keyword.IDENT, keyword.TYPE).Literal
 	if p.peek(true) == keyword.BRACKETOPEN {
 		fieldDefinition.ArgumentsDefinition = p.parseInputValueDefinitionList(keyword.BRACKETCLOSE)
 	}
@@ -494,7 +523,7 @@ func (p *Parser) parseType() (ref int) {
 		})
 
 	} else {
-		p.errPeekUnexpected()
+		p.errUnexpectedToken(p.read())
 		return
 	}
 
@@ -507,7 +536,7 @@ func (p *Parser) parseType() (ref int) {
 		}
 
 		if p.peek(true) == keyword.BANG {
-			p.errPeekUnexpected()
+			p.errUnexpectedToken(p.read())
 			return
 		}
 
@@ -549,7 +578,7 @@ func (p *Parser) parseInputValueDefinitionList(closingKeyword keyword.Keyword) (
 			list.Close = p.read().TextPosition
 			return
 		default:
-			p.errPeekUnexpected()
+			p.errUnexpectedToken(p.read())
 			return
 		}
 	}
@@ -566,7 +595,7 @@ func (p *Parser) parseInputValueDefinition() int {
 	case keyword.IDENT:
 		break
 	default:
-		p.errPeekUnexpected()
+		p.errUnexpectedToken(p.read())
 		return -1
 	}
 
@@ -667,7 +696,7 @@ func (p *Parser) parseUnionMemberTypes() (equals position.Position, members ast.
 				expectNext = true
 				p.read()
 			} else {
-				p.errPeekUnexpected()
+				p.errUnexpectedToken(p.read())
 				return
 			}
 		case keyword.IDENT:
@@ -694,12 +723,12 @@ func (p *Parser) parseUnionMemberTypes() (equals position.Position, members ast.
 				previous = ref
 
 			} else {
-				p.errPeekUnexpected()
+				p.errUnexpectedToken(p.read())
 				return
 			}
 		default:
 			if expectNext {
-				p.errPeekUnexpected()
+				p.errUnexpectedToken(p.read())
 			}
 			return
 		}
@@ -744,7 +773,7 @@ func (p *Parser) parseEnumValueDefinitionList() (list ast.EnumValueDefinitionLis
 			list.Close = p.read().TextPosition
 			return
 		default:
-			p.errPeekUnexpected()
+			p.errUnexpectedToken(p.read())
 			return
 		}
 	}
@@ -759,7 +788,7 @@ func (p *Parser) parseEnumValueDefinition() int {
 	case keyword.IDENT:
 		break
 	default:
-		p.errPeekUnexpected()
+		p.errUnexpectedToken(p.read())
 		return -1
 	}
 
@@ -807,7 +836,7 @@ func (p *Parser) parseDirectiveLocations(locations *ast.DirectiveLocations) {
 				}
 
 			} else {
-				p.errPeekUnexpected()
+				p.errUnexpectedToken(p.read())
 				return
 			}
 		case keyword.PIPE:
@@ -817,12 +846,12 @@ func (p *Parser) parseDirectiveLocations(locations *ast.DirectiveLocations) {
 				expectNext = true
 				p.read()
 			} else {
-				p.errPeekUnexpected()
+				p.errUnexpectedToken(p.read())
 				return
 			}
 		default:
 			if expectNext {
-				p.errPeekUnexpected()
+				p.errUnexpectedToken(p.read())
 			}
 			return
 		}
