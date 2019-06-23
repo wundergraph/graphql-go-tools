@@ -53,6 +53,10 @@ type Document struct {
 	EnumTypeDefinitions          []EnumTypeDefinition
 	EnumValueDefinitions         []EnumValueDefinition
 	DirectiveDefinitions         []DirectiveDefinition
+	VariableValues               []VariableValue
+	StringValues                 []StringValue
+	BooleanValue                 [2]BooleanValue
+	EnumValues                   []EnumValue
 }
 
 func NewDocument() *Document {
@@ -73,6 +77,10 @@ func NewDocument() *Document {
 		EnumTypeDefinitions:          make([]EnumTypeDefinition, 8),
 		EnumValueDefinitions:         make([]EnumValueDefinition, 48),
 		DirectiveDefinitions:         make([]DirectiveDefinition, 8),
+		VariableValues:               make([]VariableValue, 8),
+		StringValues:                 make([]StringValue, 24),
+		EnumValues:                   make([]EnumValue, 24),
+		BooleanValue:                 [2]BooleanValue{false, true},
 	}
 }
 
@@ -93,6 +101,9 @@ func (d *Document) Reset() {
 	d.EnumTypeDefinitions = d.EnumTypeDefinitions[:0]
 	d.EnumValueDefinitions = d.EnumValueDefinitions[:0]
 	d.DirectiveDefinitions = d.DirectiveDefinitions[:0]
+	d.VariableValues = d.VariableValues[:0]
+	d.StringValues = d.StringValues[:0]
+	d.EnumValues = d.EnumValues[:0]
 }
 
 func (d *Document) GetEnumValueDefinition(ref int) (node EnumValueDefinition, nextRef int) {
@@ -217,6 +228,21 @@ func (d *Document) PutDirectiveDefinition(definition DirectiveDefinition) int {
 	return len(d.DirectiveDefinitions) - 1
 }
 
+func (d *Document) PutStringValue(value StringValue) int {
+	d.StringValues = append(d.StringValues, value)
+	return len(d.StringValues) - 1
+}
+
+func (d *Document) PutEnumValue(value EnumValue) int {
+	d.EnumValues = append(d.EnumValues, value)
+	return len(d.EnumValues) - 1
+}
+
+func (d *Document) PutVariableValue(value VariableValue) int {
+	d.VariableValues = append(d.VariableValues, value)
+	return len(d.VariableValues) - 1
+}
+
 type Definition struct {
 	Kind DefinitionKind
 	Ref  int
@@ -280,14 +306,41 @@ type Argument struct {
 }
 
 type Value struct {
-	Kind ValueKind                // e.g. 100 or "Bar"
-	Raw  input.ByteSliceReference // raw byte reference to content
+	Kind ValueKind // e.g. 100 or "Bar"
+	Ref  int
 }
+
+// VariableValue
+// example:
+// $devicePicSize
+type VariableValue struct {
+	Dollar position.Position        // $
+	Name   input.ByteSliceReference // e.g. devicePicSize
+}
+
+// StringValue
+// example:
+// "foo"
+type StringValue struct {
+	BlockString bool                     // """foo""" = blockString, "foo" string
+	Content     input.ByteSliceReference // e.g. foo
+}
+
+// EnumValue
+// example:
+// Name but not true or false or null
+type EnumValue struct {
+	Name input.ByteSliceReference // e.g. ORIGIN
+}
+
+// BooleanValue
+// one of: true, false
+type BooleanValue bool
 
 type Description struct {
 	IsDefined     bool
 	IsBlockString bool                     // true if -> """content""" ; else "content"
-	Body          input.ByteSliceReference // literal
+	Content       input.ByteSliceReference // literal
 	Position      position.Position
 }
 

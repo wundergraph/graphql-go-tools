@@ -318,22 +318,61 @@ func (p *Parser) parseArgumentList() (arguments ast.ArgumentList) {
 
 func (p *Parser) parseValue() (value ast.Value) {
 
-	tok := p.read()
+	next := p.peek(true)
 
-	switch tok.Keyword {
-	case keyword.STRING:
+	switch next {
+	case keyword.STRING, keyword.BLOCKSTRING:
 		value.Kind = ast.ValueKindString
+		value.Ref = p.parseStringValue()
 	case keyword.IDENT:
 		value.Kind = ast.ValueKindEnum
+		value.Ref = p.parseEnumValue()
 	case keyword.TRUE, keyword.FALSE:
 		value.Kind = ast.ValueKindBoolean
+		value.Ref = p.parseBooleanValue()
+	case keyword.VARIABLE:
+		value.Kind = ast.ValueKindVariable
+		value.Ref = p.parseVariableValue()
 	default:
-		p.errUnexpectedToken(tok)
+		p.errUnexpectedToken(p.read())
 	}
 
-	value.Raw = tok.Literal
-
 	return
+}
+
+func (p *Parser) parseVariableValue() int {
+	value := p.mustRead(keyword.VARIABLE)
+	return p.document.PutVariableValue(ast.VariableValue{
+		Dollar: value.TextPosition,
+		Name:   value.Literal,
+	})
+}
+
+func (p *Parser) parseBooleanValue() int {
+	value := p.mustRead(keyword.TRUE, keyword.FALSE)
+	switch value.Keyword {
+	case keyword.FALSE:
+		return 0
+	case keyword.TRUE:
+		return 1
+	default:
+		return -1
+	}
+}
+
+func (p *Parser) parseEnumValue() int {
+	value := p.mustRead(keyword.IDENT)
+	return p.document.PutEnumValue(ast.EnumValue{
+		Name: value.Literal,
+	})
+}
+
+func (p *Parser) parseStringValue() int {
+	value := p.mustRead(keyword.STRING, keyword.BLOCKSTRING)
+	return p.document.PutStringValue(ast.StringValue{
+		Content:     value.Literal,
+		BlockString: value.Keyword == keyword.BLOCKSTRING,
+	})
 }
 
 func (p *Parser) parseObjectTypeDefinition(description *ast.Description) {
@@ -550,7 +589,7 @@ func (p *Parser) parseDescription() ast.Description {
 	tok := p.read()
 	return ast.Description{
 		IsDefined:     true,
-		Body:          tok.Literal,
+		Content:       tok.Literal,
 		Position:      tok.TextPosition,
 		IsBlockString: tok.Keyword == keyword.BLOCKSTRING,
 	}

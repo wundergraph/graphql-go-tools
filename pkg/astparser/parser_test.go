@@ -11,19 +11,26 @@ import (
 
 func TestParser_Parse(t *testing.T) {
 
-	type check func(in *input.Input, doc *ast.Document)
-	type action func(parser *Parser) error
+	type check func(in *input.Input, doc *ast.Document, extra interface{})
+	type action func(parser *Parser) (interface{}, error)
 
 	parse := func() action {
-		return func(parser *Parser) error {
-			return parser.Parse(parser.input, parser.document)
+		return func(parser *Parser) (interface{}, error) {
+			return nil, parser.Parse(parser.input, parser.document)
 		}
 	}
 
 	parseType := func() action {
-		return func(parser *Parser) error {
-			parser.parseType()
-			return parser.err
+		return func(parser *Parser) (interface{}, error) {
+			ref := parser.parseType()
+			return ref, parser.err
+		}
+	}
+
+	parseValue := func() action {
+		return func(parser *Parser) (interface{}, error) {
+			value := parser.parseValue()
+			return value, parser.err
 		}
 	}
 
@@ -39,7 +46,7 @@ func TestParser_Parse(t *testing.T) {
 		parser.input = in
 		parser.document = doc
 
-		err := action()(parser)
+		extra, err := action()(parser)
 
 		if wantErr && err == nil {
 			panic("want err, got nil")
@@ -48,7 +55,7 @@ func TestParser_Parse(t *testing.T) {
 		}
 
 		for _, check := range checks {
-			check(in, doc)
+			check(in, doc, extra)
 		}
 	}
 
@@ -63,7 +70,7 @@ func TestParser_Parse(t *testing.T) {
 						subscription: Subscription 
 					}`, parse,
 				false,
-				func(in *input.Input, doc *ast.Document) {
+				func(in *input.Input, doc *ast.Document, extra interface{}) {
 					definition := doc.Definitions[0]
 					if definition.Ref != 0 {
 						panic("want 0")
@@ -119,7 +126,7 @@ func TestParser_Parse(t *testing.T) {
 		t.Run("with directives", func(t *testing.T) {
 			run(`schema @foo @bar(baz: "bal") {
 						query: Query 
-					}`, parse, false, func(in *input.Input, doc *ast.Document) {
+					}`, parse, false, func(in *input.Input, doc *ast.Document, extra interface{}) {
 				schema := doc.SchemaDefinitions[0]
 				if !schema.Directives.Next(doc) {
 					panic("want Next")
@@ -160,7 +167,7 @@ func TestParser_Parse(t *testing.T) {
 				if baz.Value.Kind != ast.ValueKindString {
 					panic("want ValueKindString")
 				}
-				bal := in.ByteSliceString(baz.Value.Raw)
+				bal := in.ByteSliceString(doc.StringValues[baz.Value.Ref].Content)
 				if bal != "bal" {
 					panic("want bal, got: " + bal)
 				}
@@ -182,7 +189,7 @@ func TestParser_Parse(t *testing.T) {
 	t.Run("scalar type definition", func(t *testing.T) {
 		t.Run("simple", func(t *testing.T) {
 			run(`scalar JSON`, parse, false,
-				func(in *input.Input, doc *ast.Document) {
+				func(in *input.Input, doc *ast.Document, extra interface{}) {
 					scalar := doc.ScalarTypeDefinitions[0]
 					if in.ByteSliceString(scalar.Name) != "JSON" {
 						panic("want JSON")
@@ -191,7 +198,7 @@ func TestParser_Parse(t *testing.T) {
 		})
 		t.Run("with description", func(t *testing.T) {
 			run(`"JSON scalar description" scalar JSON`, parse, false,
-				func(in *input.Input, doc *ast.Document) {
+				func(in *input.Input, doc *ast.Document, extra interface{}) {
 					scalar := doc.ScalarTypeDefinitions[0]
 					if in.ByteSliceString(scalar.Name) != "JSON" {
 						panic("want JSON")
@@ -199,14 +206,14 @@ func TestParser_Parse(t *testing.T) {
 					if !scalar.Description.IsDefined {
 						panic("want true")
 					}
-					if in.ByteSliceString(scalar.Description.Body) != "JSON scalar description" {
+					if in.ByteSliceString(scalar.Description.Content) != "JSON scalar description" {
 						panic("want 'JSON scalar description'")
 					}
 				})
 		})
 		t.Run("with directive", func(t *testing.T) {
 			run(`scalar JSON @foo`, parse, false,
-				func(in *input.Input, doc *ast.Document) {
+				func(in *input.Input, doc *ast.Document, extra interface{}) {
 					scalar := doc.ScalarTypeDefinitions[0]
 					if in.ByteSliceString(scalar.Name) != "JSON" {
 						panic("want JSON")
@@ -234,7 +241,7 @@ func TestParser_Parse(t *testing.T) {
 							date of birth
 							"""
 							dateOfBirth: Date
-						}`, parse, false, func(in *input.Input, doc *ast.Document) {
+						}`, parse, false, func(in *input.Input, doc *ast.Document, extra interface{}) {
 				person := doc.ObjectTypeDefinitions[0]
 				personName := in.ByteSliceString(person.Name)
 				if personName != "Person" {
@@ -304,7 +311,7 @@ func TestParser_Parse(t *testing.T) {
 				if ageField.Description.IsBlockString {
 					panic("want false	")
 				}
-				if in.ByteSliceString(ageField.Description.Body) != "age of the person" {
+				if in.ByteSliceString(ageField.Description.Content) != "age of the person" {
 					panic("want 'age of the person'")
 				}
 				if in.ByteSliceString(ageField.Name) != "age" {
@@ -333,10 +340,10 @@ func TestParser_Parse(t *testing.T) {
 				if !dateOfBirthField.Description.IsBlockString {
 					panic("want true")
 				}
-				if in.ByteSliceString(dateOfBirthField.Description.Body) != `
+				if in.ByteSliceString(dateOfBirthField.Description.Content) != `
 							date of birth
 							` {
-					panic(fmt.Sprintf("want 'date of birth' got: '%s'", in.ByteSliceString(dateOfBirthField.Description.Body)))
+					panic(fmt.Sprintf("want 'date of birth' got: '%s'", in.ByteSliceString(dateOfBirthField.Description.Content)))
 				}
 				dateType := doc.Types[dateOfBirthField.Type]
 				if in.ByteSliceString(dateType.Name) != "Date" {
@@ -345,7 +352,7 @@ func TestParser_Parse(t *testing.T) {
 			})
 		})
 		t.Run("with directives", func(t *testing.T) {
-			run(`type Person @foo @bar {}`, parse, false, func(in *input.Input, doc *ast.Document) {
+			run(`type Person @foo @bar {}`, parse, false, func(in *input.Input, doc *ast.Document, extra interface{}) {
 				person := doc.ObjectTypeDefinitions[0]
 				personName := in.ByteSliceString(person.Name)
 				if personName != "Person" {
@@ -378,7 +385,7 @@ func TestParser_Parse(t *testing.T) {
 			})
 		})
 		t.Run("implements optional variant", func(t *testing.T) {
-			run(`type Person implements & Foo & Bar {}`, parse, false, func(in *input.Input, doc *ast.Document) {
+			run(`type Person implements & Foo & Bar {}`, parse, false, func(in *input.Input, doc *ast.Document, extra interface{}) {
 				person := doc.ObjectTypeDefinitions[0]
 				personName := in.ByteSliceString(person.Name)
 				if personName != "Person" {
@@ -427,7 +434,7 @@ func TestParser_Parse(t *testing.T) {
 										"""
 										c: Float
 									): String
-								}`, parse, false, func(in *input.Input, doc *ast.Document) {
+								}`, parse, false, func(in *input.Input, doc *ast.Document, extra interface{}) {
 				person := doc.ObjectTypeDefinitions[0]
 				personName := in.ByteSliceString(person.Name)
 				if personName != "Person" {
@@ -443,7 +450,7 @@ func TestParser_Parse(t *testing.T) {
 				if !name.Description.IsDefined {
 					panic("want true")
 				}
-				if in.ByteSliceString(name.Description.Body) != "name description" {
+				if in.ByteSliceString(name.Description.Content) != "name description" {
 					panic("want 'name description'")
 				}
 
@@ -478,7 +485,7 @@ func TestParser_Parse(t *testing.T) {
 				if in.ByteSliceString(b.Name) != "b" {
 					panic("want b")
 				}
-				if in.ByteSliceString(b.Description.Body) != "b description" {
+				if in.ByteSliceString(b.Description.Content) != "b description" {
 					panic("want 'b description'")
 				}
 				if doc.Types[b.Type].TypeKind != ast.TypeKindNamed {
@@ -506,7 +513,7 @@ func TestParser_Parse(t *testing.T) {
 				if !c.Description.IsBlockString {
 					panic("want true")
 				}
-				if in.ByteSliceString(c.Description.Body) != `
+				if in.ByteSliceString(c.Description.Content) != `
 										c description
 										` {
 					panic("want 'c description'")
@@ -528,7 +535,7 @@ func TestParser_Parse(t *testing.T) {
 			run(`	input Person {
 									name: String = "Gopher"
 								}`, parse,
-				false, func(in *input.Input, doc *ast.Document) {
+				false, func(in *input.Input, doc *ast.Document, extra interface{}) {
 					person := doc.InputObjectTypeDefinitions[0]
 					if in.ByteSliceString(person.Name) != "Person" {
 						panic("want person")
@@ -550,7 +557,7 @@ func TestParser_Parse(t *testing.T) {
 					if name.DefaultValue.Value.Kind != ast.ValueKindString {
 						panic("want ValueKindString")
 					}
-					if in.ByteSliceString(name.DefaultValue.Value.Raw) != "Gopher" {
+					if in.ByteSliceString(doc.StringValues[name.DefaultValue.Value.Ref].Content) != "Gopher" {
 						panic("want Gopher")
 					}
 				})
@@ -561,7 +568,7 @@ func TestParser_Parse(t *testing.T) {
 			run(`interface NamedEntity @foo {
  								name: String
 							}`, parse, false,
-				func(in *input.Input, doc *ast.Document) {
+				func(in *input.Input, doc *ast.Document, extra interface{}) {
 					namedEntity := doc.InterfaceTypeDefinitions[0]
 					if in.ByteSliceString(namedEntity.Name) != "NamedEntity" {
 						panic("want NamedEntity")
@@ -596,7 +603,7 @@ func TestParser_Parse(t *testing.T) {
 			run(`"describes NamedEntity" interface NamedEntity {
  								name: String
 							}`, parse, false,
-				func(in *input.Input, doc *ast.Document) {
+				func(in *input.Input, doc *ast.Document, extra interface{}) {
 					namedEntity := doc.InterfaceTypeDefinitions[0]
 					if in.ByteSliceString(namedEntity.Name) != "NamedEntity" {
 						panic("want NamedEntity")
@@ -604,7 +611,7 @@ func TestParser_Parse(t *testing.T) {
 					if !namedEntity.Description.IsDefined {
 						panic("want true")
 					}
-					if in.ByteSliceString(namedEntity.Description.Body) != "describes NamedEntity" {
+					if in.ByteSliceString(namedEntity.Description.Content) != "describes NamedEntity" {
 						panic("want 'describes NamedEntity'")
 					}
 				})
@@ -613,7 +620,7 @@ func TestParser_Parse(t *testing.T) {
 	t.Run("union type definition", func(t *testing.T) {
 		t.Run("simple", func(t *testing.T) {
 			run(`union SearchResult = Photo | Person`, parse, false,
-				func(in *input.Input, doc *ast.Document) {
+				func(in *input.Input, doc *ast.Document, extra interface{}) {
 					SearchResult := doc.UnionTypeDefinitions[0]
 
 					// union member types
@@ -656,7 +663,7 @@ func TestParser_Parse(t *testing.T) {
 		})
 		t.Run("without members", func(t *testing.T) {
 			run(`union SearchResult`, parse, false,
-				func(in *input.Input, doc *ast.Document) {
+				func(in *input.Input, doc *ast.Document, extra interface{}) {
 					SearchResult := doc.UnionTypeDefinitions[0]
 
 					// union member types
@@ -676,7 +683,7 @@ func TestParser_Parse(t *testing.T) {
 	})
 	t.Run("type", func(t *testing.T) {
 		t.Run("named", func(t *testing.T) {
-			run("String", parseType, false, func(in *input.Input, doc *ast.Document) {
+			run("String", parseType, false, func(in *input.Input, doc *ast.Document, extra interface{}) {
 				stringType := doc.Types[0]
 				if stringType.TypeKind != ast.TypeKindNamed {
 					panic("want TypeKindNamed")
@@ -687,7 +694,7 @@ func TestParser_Parse(t *testing.T) {
 			})
 		})
 		t.Run("non null named", func(t *testing.T) {
-			run("String!", parseType, false, func(in *input.Input, doc *ast.Document) {
+			run("String!", parseType, false, func(in *input.Input, doc *ast.Document, extra interface{}) {
 				nonNull := doc.Types[1]
 				if nonNull.TypeKind != ast.TypeKindNonNull {
 					panic("want TypeKindNonNull")
@@ -702,7 +709,7 @@ func TestParser_Parse(t *testing.T) {
 			})
 		})
 		t.Run("non null list of named", func(t *testing.T) {
-			run("[String]!", parseType, false, func(in *input.Input, doc *ast.Document) {
+			run("[String]!", parseType, false, func(in *input.Input, doc *ast.Document, extra interface{}) {
 				nonNull := doc.Types[2]
 				if nonNull.TypeKind != ast.TypeKindNonNull {
 					panic("want TypeKindNonNull")
@@ -721,7 +728,7 @@ func TestParser_Parse(t *testing.T) {
 			})
 		})
 		t.Run("non null list of non null named", func(t *testing.T) {
-			run("[String!]!", parseType, false, func(in *input.Input, doc *ast.Document) {
+			run("[String!]!", parseType, false, func(in *input.Input, doc *ast.Document, extra interface{}) {
 				nonNull := doc.Types[3]
 				if nonNull.TypeKind != ast.TypeKindNonNull {
 					panic("want TypeKindNonNull")
@@ -744,7 +751,7 @@ func TestParser_Parse(t *testing.T) {
 			})
 		})
 		t.Run("non null list of non null list of named", func(t *testing.T) {
-			run("[[String]!]!", parseType, false, func(in *input.Input, doc *ast.Document) {
+			run("[[String]!]!", parseType, false, func(in *input.Input, doc *ast.Document, extra interface{}) {
 				nonNull := doc.Types[4]
 				if nonNull.TypeKind != ast.TypeKindNonNull {
 					panic("want TypeKindNonNull")
@@ -771,7 +778,7 @@ func TestParser_Parse(t *testing.T) {
 			})
 		})
 		t.Run("non null list of non null list of non null named", func(t *testing.T) {
-			run("[[String!]!]!", parseType, false, func(in *input.Input, doc *ast.Document) {
+			run("[[String!]!]!", parseType, false, func(in *input.Input, doc *ast.Document, extra interface{}) {
 				nonNull := doc.Types[5]
 				if nonNull.TypeKind != ast.TypeKindNonNull {
 					panic("want TypeKindNonNull")
@@ -833,12 +840,12 @@ func TestParser_Parse(t *testing.T) {
 							  "describes WEST"
 							  WEST @foo
 							}`, parse, false,
-				func(in *input.Input, doc *ast.Document) {
+				func(in *input.Input, doc *ast.Document, extra interface{}) {
 					direction := doc.EnumTypeDefinitions[0]
 					if in.ByteSliceString(direction.Name) != "Direction" {
 						panic("want Direction")
 					}
-					if in.ByteSliceString(direction.Description.Body) != "enums" {
+					if in.ByteSliceString(direction.Description.Content) != "enums" {
 						panic("want enums")
 					}
 
@@ -875,7 +882,7 @@ func TestParser_Parse(t *testing.T) {
 					if !west.Description.IsDefined {
 						panic("want true")
 					}
-					if in.ByteSliceString(west.Description.Body) != "describes WEST" {
+					if in.ByteSliceString(west.Description.Content) != "describes WEST" {
 						panic("want describes WEST")
 					}
 					if !west.Directives.Next(doc) {
@@ -894,7 +901,7 @@ func TestParser_Parse(t *testing.T) {
 	t.Run("directive definition", func(t *testing.T) {
 		t.Run("simple", func(t *testing.T) {
 			run(`directive @example on FIELD`, parse, false,
-				func(in *input.Input, doc *ast.Document) {
+				func(in *input.Input, doc *ast.Document, extra interface{}) {
 					example := doc.DirectiveDefinitions[0]
 					if in.ByteSliceString(example.Name) != "example" {
 						panic("want example")
@@ -913,7 +920,7 @@ func TestParser_Parse(t *testing.T) {
 		})
 		t.Run("multiple directive locations", func(t *testing.T) {
 			run(`directive @example on FIELD | SCALAR | SCHEMA`, parse, false,
-				func(in *input.Input, doc *ast.Document) {
+				func(in *input.Input, doc *ast.Document, extra interface{}) {
 					example := doc.DirectiveDefinitions[0]
 					if in.ByteSliceString(example.Name) != "example" {
 						panic("want example")
@@ -950,6 +957,21 @@ func TestParser_Parse(t *testing.T) {
 		})
 		t.Run("invalid location", func(t *testing.T) {
 			run(`directive @example on INVALID`, parse, true)
+		})
+	})
+	t.Run("value", func(t *testing.T) {
+		t.Run("variable", func(t *testing.T) {
+			run(`$foo`, parseValue, false,
+				func(in *input.Input, doc *ast.Document, extra interface{}) {
+					value := extra.(ast.Value)
+					if value.Kind != ast.ValueKindVariable {
+						t.Fatal("want ValueKindVariable")
+					}
+					foo := doc.VariableValues[value.Ref]
+					if in.ByteSliceString(foo.Name) != "foo" {
+						t.Fatal("want foo")
+					}
+				})
 		})
 	})
 }
