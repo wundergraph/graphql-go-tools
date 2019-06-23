@@ -21,6 +21,14 @@ const (
 
 	ValueKindUnknown ValueKind = iota
 	ValueKindString
+	ValueKindBoolean
+	ValueKindInteger
+	ValueKindFloat
+	ValueKindVariable
+	ValueKindNull
+	ValueKindList
+	ValueKindObject
+	ValueKindEnum
 
 	TypeKindUnknown TypeKind = iota
 	TypeKindNamed
@@ -54,7 +62,7 @@ func NewDocument() *Document {
 		SchemaDefinitions:            make([]SchemaDefinition, 2),
 		Directives:                   make([]Directive, 16),
 		Arguments:                    make([]Argument, 48),
-		ObjectTypeDefinitions:        make([]ObjectTypeDefinition, 24),
+		ObjectTypeDefinitions:        make([]ObjectTypeDefinition, 48),
 		Types:                        make([]Type, 48),
 		FieldDefinitions:             make([]FieldDefinition, 128),
 		InputValueDefinitions:        make([]InputValueDefinition, 128),
