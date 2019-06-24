@@ -55,6 +55,8 @@ type Document struct {
 	DirectiveDefinitions         []DirectiveDefinition
 	VariableValues               []VariableValue
 	StringValues                 []StringValue
+	IntValues                    []IntValue
+	FloatValues                  []FloatValue
 	BooleanValue                 [2]BooleanValue
 	EnumValues                   []EnumValue
 }
@@ -80,6 +82,8 @@ func NewDocument() *Document {
 		VariableValues:               make([]VariableValue, 8),
 		StringValues:                 make([]StringValue, 24),
 		EnumValues:                   make([]EnumValue, 24),
+		IntValues:                    make([]IntValue, 128),
+		FloatValues:                  make([]FloatValue, 128),
 		BooleanValue:                 [2]BooleanValue{false, true},
 	}
 }
@@ -104,6 +108,8 @@ func (d *Document) Reset() {
 	d.VariableValues = d.VariableValues[:0]
 	d.StringValues = d.StringValues[:0]
 	d.EnumValues = d.EnumValues[:0]
+	d.IntValues = d.IntValues[:0]
+	d.FloatValues = d.FloatValues[:0]
 }
 
 func (d *Document) GetEnumValueDefinition(ref int) (node EnumValueDefinition, nextRef int) {
@@ -243,6 +249,16 @@ func (d *Document) PutVariableValue(value VariableValue) int {
 	return len(d.VariableValues) - 1
 }
 
+func (d *Document) PutIntValue(value IntValue) int {
+	d.IntValues = append(d.IntValues, value)
+	return len(d.IntValues) - 1
+}
+
+func (d *Document) PutFloatValue(value FloatValue) int {
+	d.FloatValues = append(d.FloatValues, value)
+	return len(d.FloatValues) - 1
+}
+
 type Definition struct {
 	Kind DefinitionKind
 	Ref  int
@@ -324,6 +340,24 @@ type VariableValue struct {
 type StringValue struct {
 	BlockString bool                     // """foo""" = blockString, "foo" string
 	Content     input.ByteSliceReference // e.g. foo
+}
+
+// IntValue
+// example:
+// 123 / -123
+type IntValue struct {
+	Negative     bool                     // indicates if the value is negative
+	NegativeSign position.Position        // optional -
+	Raw          input.ByteSliceReference // e.g. 123
+}
+
+// FloatValue
+// example:
+// 13.37 / -13.37
+type FloatValue struct {
+	Negative     bool                     // indicates if the value is negative
+	NegativeSign position.Position        // optional -
+	Raw          input.ByteSliceReference // e.g. 13.37
 }
 
 // EnumValue
