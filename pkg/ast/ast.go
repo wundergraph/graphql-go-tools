@@ -53,14 +53,16 @@ type Document struct {
 	EnumTypeDefinitions          []EnumTypeDefinition
 	EnumValueDefinitions         []EnumValueDefinition
 	DirectiveDefinitions         []DirectiveDefinition
-	ListValues                   []Value
+	Values                       []Value
 	VariableValues               []VariableValue
 	StringValues                 []StringValue
 	IntValues                    []IntValue
 	FloatValues                  []FloatValue
-	BooleanValue                 [2]BooleanValue
 	EnumValues                   []EnumValue
 	ValueLists                   []ValueList
+	ObjectFields                 []ObjectField
+	ObjectValues                 []ObjectValue
+	BooleanValue                 [2]BooleanValue
 }
 
 func NewDocument() *Document {
@@ -87,7 +89,9 @@ func NewDocument() *Document {
 		IntValues:                    make([]IntValue, 128),
 		FloatValues:                  make([]FloatValue, 128),
 		ValueLists:                   make([]ValueList, 16),
-		ListValues:                   make([]Value, 64),
+		Values:                       make([]Value, 64),
+		ObjectFields:                 make([]ObjectField, 64),
+		ObjectValues:                 make([]ObjectValue, 16),
 		BooleanValue:                 [2]BooleanValue{false, true},
 	}
 }
@@ -115,10 +119,18 @@ func (d *Document) Reset() {
 	d.IntValues = d.IntValues[:0]
 	d.FloatValues = d.FloatValues[:0]
 	d.ValueLists = d.ValueLists[:0]
+	d.ObjectFields = d.ObjectFields[:0]
+	d.ObjectValues = d.ObjectValues[:0]
+}
+
+func (d *Document) GetObjectField(ref int) (node ObjectField, nextRef int) {
+	node = d.ObjectFields[ref]
+	nextRef = node.Next()
+	return
 }
 
 func (d *Document) GetValue(ref int) (node Value, nextRef int) {
-	node = d.ListValues[ref]
+	node = d.Values[ref]
 	nextRef = node.Next()
 	return
 }
@@ -275,9 +287,19 @@ func (d *Document) PutValueList(list ValueList) int {
 	return len(d.ValueLists) - 1
 }
 
-func (d *Document) PutListValue(value Value) int {
-	d.ListValues = append(d.ListValues, value)
-	return len(d.ListValues) - 1
+func (d *Document) PutValue(value Value) int {
+	d.Values = append(d.Values, value)
+	return len(d.Values) - 1
+}
+
+func (d *Document) PutObjectValue(value ObjectValue) int {
+	d.ObjectValues = append(d.ObjectValues, value)
+	return len(d.ObjectValues) - 1
+}
+
+func (d *Document) PutObjectField(field ObjectField) int {
+	d.ObjectFields = append(d.ObjectFields, field)
+	return len(d.ObjectFields) - 1
 }
 
 type Definition struct {
@@ -392,6 +414,21 @@ type EnumValue struct {
 // BooleanValue
 // one of: true, false
 type BooleanValue bool
+
+// ObjectValue
+// example:
+// { lon: 12.43, lat: -53.211 }
+type ObjectValue = ObjectFieldList
+
+// ObjectField
+// example:
+// lon: 12.43
+type ObjectField struct {
+	iterable
+	Name  input.ByteSliceReference // e.g. lon
+	Colon position.Position        // :
+	Value Value                    // e.g. 12.43
+}
 
 type Description struct {
 	IsDefined     bool
