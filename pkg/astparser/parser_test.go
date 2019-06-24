@@ -960,18 +960,129 @@ func TestParser_Parse(t *testing.T) {
 		})
 	})
 	t.Run("value", func(t *testing.T) {
-		t.Run("variable", func(t *testing.T) {
-			run(`$foo`, parseValue, false,
-				func(in *input.Input, doc *ast.Document, extra interface{}) {
-					value := extra.(ast.Value)
-					if value.Kind != ast.ValueKindVariable {
-						t.Fatal("want ValueKindVariable")
-					}
-					foo := doc.VariableValues[value.Ref]
-					if in.ByteSliceString(foo.Name) != "foo" {
-						t.Fatal("want foo")
-					}
-				})
+		t.Run("variable value", func(t *testing.T) {
+			t.Run("simple", func(t *testing.T) {
+				run(`$foo`, parseValue, false,
+					func(in *input.Input, doc *ast.Document, extra interface{}) {
+						value := extra.(ast.Value)
+						if value.Kind != ast.ValueKindVariable {
+							t.Fatal("want ValueKindVariable")
+						}
+						foo := doc.VariableValues[value.Ref]
+						if in.ByteSliceString(foo.Name) != "foo" {
+							t.Fatal("want foo")
+						}
+					})
+			})
+			t.Run("with underscore", func(t *testing.T) {
+				run(`$_foo`, parseValue, false,
+					func(in *input.Input, doc *ast.Document, extra interface{}) {
+						value := extra.(ast.Value)
+						if value.Kind != ast.ValueKindVariable {
+							t.Fatal("want ValueKindVariable")
+						}
+						foo := doc.VariableValues[value.Ref]
+						if in.ByteSliceString(foo.Name) != "_foo" {
+							t.Fatal("want foo")
+						}
+					})
+			})
+			t.Run("with numbers", func(t *testing.T) {
+				run(`$foo123`, parseValue, false,
+					func(in *input.Input, doc *ast.Document, extra interface{}) {
+						value := extra.(ast.Value)
+						if value.Kind != ast.ValueKindVariable {
+							t.Fatal("want ValueKindVariable")
+						}
+						foo := doc.VariableValues[value.Ref]
+						if in.ByteSliceString(foo.Name) != "foo123" {
+							t.Fatal("want foo123")
+						}
+					})
+			})
+			t.Run("err space", func(t *testing.T) {
+				run(`$ foo`, parseValue, true)
+			})
+			t.Run("err must end with space", func(t *testing.T) {
+				run(`$foo.`, parseValue, true)
+			})
+			t.Run("err start with A-Za-z", func(t *testing.T) {
+				run(`$123`, parseValue, true)
+			})
+		})
+		t.Run("int value", func(t *testing.T) {
+			t.Run("simple", func(t *testing.T) {
+				run(`123`, parseValue, false,
+					func(in *input.Input, doc *ast.Document, extra interface{}) {
+						value := extra.(ast.Value)
+						if value.Kind != ast.ValueKindInteger {
+							panic("want ValueKindInteger")
+						}
+						intValue := doc.IntValues[value.Ref]
+						if in.ByteSliceString(intValue.Raw) != "123" {
+							panic("want 123")
+						}
+						if intValue.Negative {
+							panic("want false")
+						}
+					})
+			})
+			t.Run("negative", func(t *testing.T) {
+				run(`-123`, parseValue, false,
+					func(in *input.Input, doc *ast.Document, extra interface{}) {
+						value := extra.(ast.Value)
+						if value.Kind != ast.ValueKindInteger {
+							panic("want ValueKindInteger")
+						}
+						intValue := doc.IntValues[value.Ref]
+						if in.ByteSliceString(intValue.Raw) != "123" {
+							panic("want 123")
+						}
+						if !intValue.Negative {
+							panic("want false")
+						}
+					})
+			})
+			t.Run("err space after negative sign", func(t *testing.T) {
+				run(`- 123`, parseValue, true)
+			})
+		})
+		t.Run("float value", func(t *testing.T) {
+			t.Run("simple", func(t *testing.T) {
+				run(`13.37`, parseValue, false,
+					func(in *input.Input, doc *ast.Document, extra interface{}) {
+						value := extra.(ast.Value)
+						if value.Kind != ast.ValueKindFloat {
+							panic("want ValueKindFloat")
+						}
+						intValue := doc.FloatValues[value.Ref]
+						if in.ByteSliceString(intValue.Raw) != "13.37" {
+							panic("want 13.37")
+						}
+						if intValue.Negative {
+							panic("want false")
+						}
+					})
+			})
+			t.Run("negative", func(t *testing.T) {
+				run(`-13.37`, parseValue, false,
+					func(in *input.Input, doc *ast.Document, extra interface{}) {
+						value := extra.(ast.Value)
+						if value.Kind != ast.ValueKindFloat {
+							panic("want ValueKindFloat")
+						}
+						intValue := doc.FloatValues[value.Ref]
+						if in.ByteSliceString(intValue.Raw) != "13.37" {
+							panic("want 13.37")
+						}
+						if !intValue.Negative {
+							panic("want false")
+						}
+					})
+			})
+			t.Run("err space after negative sign", func(t *testing.T) {
+				run(`- 13.37`, parseValue, true)
+			})
 		})
 	})
 }

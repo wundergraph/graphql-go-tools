@@ -330,9 +330,17 @@ func (p *Parser) parseValue() (value ast.Value) {
 	case keyword.TRUE, keyword.FALSE:
 		value.Kind = ast.ValueKindBoolean
 		value.Ref = p.parseBooleanValue()
-	case keyword.VARIABLE:
+	case keyword.DOLLAR:
 		value.Kind = ast.ValueKindVariable
 		value.Ref = p.parseVariableValue()
+	case keyword.INTEGER:
+		value.Kind = ast.ValueKindInteger
+		value.Ref = p.parseIntegerValue(nil)
+	case keyword.FLOAT:
+		value.Kind = ast.ValueKindFloat
+		value.Ref = p.parseFloatValue(nil)
+	case keyword.NEGATIVESIGN:
+		return p.parseNegativeNumberValue()
 	default:
 		p.errUnexpectedToken(p.read())
 	}
@@ -340,10 +348,61 @@ func (p *Parser) parseValue() (value ast.Value) {
 	return
 }
 
+func (p *Parser) parseNegativeNumberValue() (value ast.Value) {
+	negativeSign := p.mustRead(keyword.NEGATIVESIGN).TextPosition
+	switch p.peek(false) {
+	case keyword.INTEGER:
+		value.Kind = ast.ValueKindInteger
+		value.Ref = p.parseIntegerValue(&negativeSign)
+	case keyword.FLOAT:
+		value.Kind = ast.ValueKindFloat
+		value.Ref = p.parseFloatValue(&negativeSign)
+	default:
+		p.errUnexpectedToken(p.read(), keyword.INTEGER, keyword.FLOAT)
+	}
+	return
+}
+
+func (p *Parser) parseFloatValue(negativeSign *position.Position) int {
+	floatValue := ast.FloatValue{
+		Raw: p.mustRead(keyword.FLOAT).Literal,
+	}
+	if negativeSign != nil {
+		floatValue.Negative = true
+		floatValue.NegativeSign = *negativeSign
+	}
+	return p.document.PutFloatValue(floatValue)
+}
+
+func (p *Parser) parseIntegerValue(negativeSign *position.Position) int {
+	intValue := ast.IntValue{
+		Raw: p.mustRead(keyword.INTEGER).Literal,
+	}
+	if negativeSign != nil {
+		intValue.Negative = true
+		intValue.NegativeSign = *negativeSign
+	}
+	return p.document.PutIntValue(intValue)
+}
+
 func (p *Parser) parseVariableValue() int {
-	value := p.mustRead(keyword.VARIABLE)
+	dollar := p.mustRead(keyword.DOLLAR)
+	var value token.Token
+	if p.peek(false) == keyword.IDENT {
+		value = p.read()
+	} else {
+		p.errUnexpectedToken(p.read(), keyword.IDENT, keyword.INTEGER)
+		return -1
+	}
+	switch p.peek(false) {
+	case keyword.TAB, keyword.SPACE, keyword.LINETERMINATOR, keyword.EOF:
+		break
+	default:
+		p.errUnexpectedToken(p.read(), keyword.TAB, keyword.SPACE, keyword.LINETERMINATOR)
+		return -1
+	}
 	return p.document.PutVariableValue(ast.VariableValue{
-		Dollar: value.TextPosition,
+		Dollar: dollar.TextPosition,
 		Name:   value.Literal,
 	})
 }
