@@ -53,12 +53,14 @@ type Document struct {
 	EnumTypeDefinitions          []EnumTypeDefinition
 	EnumValueDefinitions         []EnumValueDefinition
 	DirectiveDefinitions         []DirectiveDefinition
+	ListValues                   []Value
 	VariableValues               []VariableValue
 	StringValues                 []StringValue
 	IntValues                    []IntValue
 	FloatValues                  []FloatValue
 	BooleanValue                 [2]BooleanValue
 	EnumValues                   []EnumValue
+	ValueLists                   []ValueList
 }
 
 func NewDocument() *Document {
@@ -84,6 +86,8 @@ func NewDocument() *Document {
 		EnumValues:                   make([]EnumValue, 24),
 		IntValues:                    make([]IntValue, 128),
 		FloatValues:                  make([]FloatValue, 128),
+		ValueLists:                   make([]ValueList, 16),
+		ListValues:                   make([]Value, 64),
 		BooleanValue:                 [2]BooleanValue{false, true},
 	}
 }
@@ -110,6 +114,13 @@ func (d *Document) Reset() {
 	d.EnumValues = d.EnumValues[:0]
 	d.IntValues = d.IntValues[:0]
 	d.FloatValues = d.FloatValues[:0]
+	d.ValueLists = d.ValueLists[:0]
+}
+
+func (d *Document) GetValue(ref int) (node Value, nextRef int) {
+	node = d.ListValues[ref]
+	nextRef = node.Next()
+	return
 }
 
 func (d *Document) GetEnumValueDefinition(ref int) (node EnumValueDefinition, nextRef int) {
@@ -259,6 +270,16 @@ func (d *Document) PutFloatValue(value FloatValue) int {
 	return len(d.FloatValues) - 1
 }
 
+func (d *Document) PutValueList(list ValueList) int {
+	d.ValueLists = append(d.ValueLists, list)
+	return len(d.ValueLists) - 1
+}
+
+func (d *Document) PutListValue(value Value) int {
+	d.ListValues = append(d.ListValues, value)
+	return len(d.ListValues) - 1
+}
+
 type Definition struct {
 	Kind DefinitionKind
 	Ref  int
@@ -322,6 +343,7 @@ type Argument struct {
 }
 
 type Value struct {
+	iterable
 	Kind ValueKind // e.g. 100 or "Bar"
 	Ref  int
 }

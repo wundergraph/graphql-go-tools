@@ -1084,7 +1084,7 @@ func TestParser_Parse(t *testing.T) {
 				run(`- 13.37`, parseValue, true)
 			})
 		})
-		t.Run("null", func(t *testing.T) {
+		t.Run("null value", func(t *testing.T) {
 			run(`null`, parseValue, false,
 				func(in *input.Input, doc *ast.Document, extra interface{}) {
 					value := extra.(ast.Value)
@@ -1092,6 +1092,103 @@ func TestParser_Parse(t *testing.T) {
 						panic("want ValueKindNull")
 					}
 				})
+		})
+		t.Run("list value", func(t *testing.T) {
+			t.Run("complex", func(t *testing.T) {
+				run(`[1,2,"3",[4]]`, parseValue, false,
+					func(in *input.Input, doc *ast.Document, extra interface{}) {
+						value := extra.(ast.Value)
+						value.Kind = ast.ValueKindList
+						list := doc.ValueLists[value.Ref]
+
+						// 1
+						if !list.Next(doc) {
+							panic("want next")
+						}
+						val, ref := list.Value()
+						if ref != 0 {
+							panic("want 0")
+						}
+						if val.Kind != ast.ValueKindInteger {
+							panic("want ValueKindInteger")
+						}
+						if in.ByteSliceString(doc.IntValues[val.Ref].Raw) != "1" {
+							panic("want 1")
+						}
+
+						// 2
+						if !list.Next(doc) {
+							panic("want next")
+						}
+						val, ref = list.Value()
+						if ref != 1 {
+							panic("want 1")
+						}
+						if val.Kind != ast.ValueKindInteger {
+							panic("want ValueKindInteger")
+						}
+						if in.ByteSliceString(doc.IntValues[val.Ref].Raw) != "2" {
+							panic("want 1")
+						}
+
+						// "3"
+						if !list.Next(doc) {
+							panic("want next")
+						}
+						val, ref = list.Value()
+						if ref != 2 {
+							panic("want 2")
+						}
+						if val.Kind != ast.ValueKindString {
+							panic("want ValueKindString")
+						}
+						if in.ByteSliceString(doc.StringValues[val.Ref].Content) != "3" {
+							panic("want 3")
+						}
+
+						// [4]
+						if !list.Next(doc) {
+							panic("want next")
+						}
+						val, ref = list.Value()
+						if ref != 4 {
+							panic(fmt.Sprintf("want 4, got: %d", ref))
+						}
+						if val.Kind != ast.ValueKindList {
+							panic("want ValueKindString")
+						}
+						inner := doc.ValueLists[val.Ref]
+						if !inner.Next(doc) {
+							panic("want next")
+						}
+						four, _ := inner.Value()
+						if four.Kind != ast.ValueKindInteger {
+							panic("want ValueKindInteger")
+						}
+						if in.ByteSliceString(doc.IntValues[four.Ref].Raw) != "4" {
+							panic("want 4")
+						}
+						if inner.Next(doc) {
+							panic("want false")
+						}
+
+						// no more
+						if list.Next(doc) {
+							panic("want false")
+						}
+					})
+			})
+		})
+		t.Run("object value", func(t *testing.T) {
+			t.Run("complex", func(t *testing.T) {
+				run(`{lon: 12.43, lat: -53.211}`, parseValue, false,
+					func(in *input.Input, doc *ast.Document, extra interface{}) {
+						value := extra.(ast.Value)
+						if value.Kind != ast.ValueKindObject {
+							panic("want ValueKindObject")
+						}
+					})
+			})
 		})
 	})
 }

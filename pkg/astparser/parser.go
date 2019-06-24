@@ -344,11 +344,43 @@ func (p *Parser) parseValue() (value ast.Value) {
 	case keyword.NULL:
 		value.Kind = ast.ValueKindNull
 		p.read()
+	case keyword.SQUAREBRACKETOPEN:
+		value.Kind = ast.ValueKindList
+		value.Ref = p.parseValueList()
 	default:
 		p.errUnexpectedToken(p.read())
 	}
 
 	return
+}
+
+func (p *Parser) parseValueList() int {
+	var list ast.ValueList
+	list.Open = p.mustRead(keyword.SQUAREBRACKETOPEN).TextPosition
+
+	previous := -1
+
+	for {
+		next := p.peek(true)
+		switch next {
+		case keyword.SPACE, keyword.TAB, keyword.LINETERMINATOR, keyword.COMMA:
+			p.read()
+			continue
+		case keyword.SQUAREBRACKETCLOSE:
+			list.Close = p.read().TextPosition
+			return p.document.PutValueList(list)
+		default:
+			value := p.parseValue()
+			ref := p.document.PutListValue(value)
+			if !list.HasNext() {
+				list.SetFirst(ref)
+			}
+			if previous != -1 {
+				p.document.ListValues[previous].SetNext(ref)
+			}
+			previous = ref
+		}
+	}
 }
 
 func (p *Parser) parseNegativeNumberValue() (value ast.Value) {
