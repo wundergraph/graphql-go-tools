@@ -1181,11 +1181,81 @@ func TestParser_Parse(t *testing.T) {
 		})
 		t.Run("object value", func(t *testing.T) {
 			t.Run("complex", func(t *testing.T) {
-				run(`{lon: 12.43, lat: -53.211}`, parseValue, false,
+				run(`{lon: 12.43, lat: -53.211, list: [1] }`, parseValue, false,
 					func(in *input.Input, doc *ast.Document, extra interface{}) {
 						value := extra.(ast.Value)
 						if value.Kind != ast.ValueKindObject {
 							panic("want ValueKindObject")
+						}
+						object := doc.ObjectValues[value.Ref]
+
+						// lon
+						if !object.Next(doc) {
+							t.Fatal("want next")
+						}
+						lon, lonRef := object.Value()
+						if lonRef != 0 {
+							panic(fmt.Sprintf("want 0, got: %d", lonRef))
+						}
+						if in.ByteSliceString(lon.Name) != "lon" {
+							panic("want lon")
+						}
+						if lon.Value.Kind != ast.ValueKindFloat {
+							panic("want float")
+						}
+						if in.ByteSliceString(doc.FloatValues[lon.Value.Ref].Raw) != "12.43" {
+							panic("want 12.43")
+						}
+
+						// lat
+						if !object.Next(doc) {
+							t.Fatal("want next")
+						}
+						lat, latRef := object.Value()
+						if latRef != 1 {
+							panic(fmt.Sprintf("want 1, got: %d", lonRef))
+						}
+						if in.ByteSliceString(lat.Name) != "lat" {
+							panic("want lat")
+						}
+						if lon.Value.Kind != ast.ValueKindFloat {
+							panic("want float")
+						}
+						if !doc.FloatValues[lat.Value.Ref].Negative {
+							panic("want negative")
+						}
+						if in.ByteSliceString(doc.FloatValues[lat.Value.Ref].Raw) != "53.211" {
+							panic("want 53.211")
+						}
+
+						// list
+						if !object.Next(doc) {
+							panic("want next")
+						}
+						list, listRef := object.Value()
+						if listRef != 2 {
+							panic(fmt.Sprintf("want 2, got: %d", listRef))
+						}
+						if list.Value.Kind != ast.ValueKindList {
+							panic("want ValueKindList")
+						}
+						listValue := doc.ValueLists[list.Value.Ref]
+						if !listValue.Next(doc) {
+							panic("want next")
+						}
+						one, oneRef := listValue.Value()
+						if oneRef != 0 {
+							panic("want 0")
+						}
+						if in.ByteSliceString(doc.IntValues[one.Ref].Raw) != "1" {
+							panic("want 1")
+						}
+						if listValue.Next(doc) {
+							panic("want false")
+						}
+
+						if object.Next(doc) {
+							panic("want false")
 						}
 					})
 			})

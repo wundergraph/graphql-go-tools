@@ -347,11 +347,52 @@ func (p *Parser) parseValue() (value ast.Value) {
 	case keyword.SQUAREBRACKETOPEN:
 		value.Kind = ast.ValueKindList
 		value.Ref = p.parseValueList()
+	case keyword.CURLYBRACKETOPEN:
+		value.Kind = ast.ValueKindObject
+		value.Ref = p.parseObjectValue()
 	default:
 		p.errUnexpectedToken(p.read())
 	}
 
 	return
+}
+
+func (p *Parser) parseObjectValue() int {
+	var objectValue ast.ObjectValue
+	objectValue.Open = p.mustRead(keyword.CURLYBRACKETOPEN).TextPosition
+
+	previous := -1
+	for {
+		next := p.peek(true)
+		switch next {
+		case keyword.CURLYBRACKETCLOSE:
+			objectValue.Close = p.read().TextPosition
+			return p.document.PutObjectValue(objectValue)
+		case keyword.IDENT:
+			ref := p.parseObjectField()
+			if !objectValue.HasNext() {
+				objectValue.SetFirst(ref)
+			}
+			if previous != -1 {
+				p.document.ObjectFields[previous].SetNext(ref)
+			}
+			previous = ref
+		default:
+			p.errUnexpectedToken(p.read(), keyword.IDENT, keyword.CURLYBRACKETCLOSE)
+			return -1
+		}
+	}
+}
+
+func (p *Parser) parseObjectField() int {
+	name := p.mustRead(keyword.IDENT)
+	colon := p.mustRead(keyword.COLON)
+	value := p.parseValue()
+	return p.document.PutObjectField(ast.ObjectField{
+		Name:  name.Literal,
+		Colon: colon.TextPosition,
+		Value: value,
+	})
 }
 
 func (p *Parser) parseValueList() int {
@@ -363,20 +404,17 @@ func (p *Parser) parseValueList() int {
 	for {
 		next := p.peek(true)
 		switch next {
-		case keyword.SPACE, keyword.TAB, keyword.LINETERMINATOR, keyword.COMMA:
-			p.read()
-			continue
 		case keyword.SQUAREBRACKETCLOSE:
 			list.Close = p.read().TextPosition
 			return p.document.PutValueList(list)
 		default:
 			value := p.parseValue()
-			ref := p.document.PutListValue(value)
+			ref := p.document.PutValue(value)
 			if !list.HasNext() {
 				list.SetFirst(ref)
 			}
 			if previous != -1 {
-				p.document.ListValues[previous].SetNext(ref)
+				p.document.Values[previous].SetNext(ref)
 			}
 			previous = ref
 		}
