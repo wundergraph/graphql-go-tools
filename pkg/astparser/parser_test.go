@@ -1084,6 +1084,15 @@ func TestParser_Parse(t *testing.T) {
 				run(`- 13.37`, parseValue, true)
 			})
 		})
+		t.Run("null", func(t *testing.T) {
+			run(`null`, parseValue, false,
+				func(in *input.Input, doc *ast.Document, extra interface{}) {
+					value := extra.(ast.Value)
+					if value.Kind != ast.ValueKindNull {
+						panic("want ValueKindNull")
+					}
+				})
+		})
 	})
 }
 

@@ -341,6 +341,9 @@ func (p *Parser) parseValue() (value ast.Value) {
 		value.Ref = p.parseFloatValue(nil)
 	case keyword.NEGATIVESIGN:
 		return p.parseNegativeNumberValue()
+	case keyword.NULL:
+		value.Kind = ast.ValueKindNull
+		p.read()
 	default:
 		p.errUnexpectedToken(p.read())
 	}
