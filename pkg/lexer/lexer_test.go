@@ -148,11 +148,19 @@ func TestLexer_Peek_Read(t *testing.T) {
 	t.Run("read integer", func(t *testing.T) {
 		run("1337", mustPeekAndRead(keyword.INTEGER, "1337"))
 	})
+	t.Run("read negative integer", func(t *testing.T) {
+		run("-1337", mustPeekAndRead(keyword.NEGATIVESIGN, "-"),
+			mustPeekAndRead(keyword.INTEGER, "1337"))
+	})
 	t.Run("read integer with comma", func(t *testing.T) {
 		run("1337,", mustPeekAndRead(keyword.INTEGER, "1337"))
 	})
 	t.Run("read float", func(t *testing.T) {
 		run("13.37", mustPeekAndRead(keyword.FLOAT, "13.37"))
+	})
+	t.Run("read negative float", func(t *testing.T) {
+		run("-13.37", mustPeekAndRead(keyword.NEGATIVESIGN, "-"),
+			mustPeekAndRead(keyword.FLOAT, "13.37"))
 	})
 	t.Run("read float", func(t *testing.T) {
 		run("1.1)", mustPeekAndRead(keyword.FLOAT, "1.1"))
@@ -217,23 +225,28 @@ func TestLexer_Peek_Read(t *testing.T) {
 			mustPeekAndRead(keyword.DOT, "."))
 	})
 	t.Run("read variable", func(t *testing.T) {
-		run("$123", mustPeekAndRead(keyword.VARIABLE, "123"))
+		run("$123", mustPeekAndRead(keyword.DOLLAR, "$"),
+			mustPeekAndRead(keyword.INTEGER, "123"))
 	})
 	t.Run("read variable 2", func(t *testing.T) {
-		run("$foo", mustPeekAndRead(keyword.VARIABLE, "foo"))
+		run("$foo", mustPeekAndRead(keyword.DOLLAR, "$"),
+			mustPeekAndRead(keyword.IDENT, "foo"))
 	})
 	t.Run("read variable 3", func(t *testing.T) {
-		run("$_foo", mustPeekAndRead(keyword.VARIABLE, "_foo"))
+		run("$_foo", mustPeekAndRead(keyword.DOLLAR, "$"),
+			mustPeekAndRead(keyword.IDENT, "_foo"))
 	})
 	t.Run("read variable 3", func(t *testing.T) {
-		run("$123", mustPeekAndRead(keyword.VARIABLE, "123"))
+		run("$123", mustPeekAndRead(keyword.DOLLAR, "$"),
+			mustPeekAndRead(keyword.INTEGER, "123"))
 	})
 	t.Run("read variable 4", func(t *testing.T) {
-		run("$foo\n", mustPeekAndRead(keyword.VARIABLE, "foo"))
+		run("$foo\n", mustPeekAndRead(keyword.DOLLAR, "$"),
+			mustPeekAndRead(keyword.IDENT, "foo"))
 	})
 	t.Run("read err invalid variable", func(t *testing.T) {
 		run("$ foo",
-			mustPeekAndRead(keyword.VARIABLE, ""),
+			mustPeekAndRead(keyword.DOLLAR, "$"),
 			mustPeekAndRead(keyword.IDENT, "foo"),
 		)
 	})
@@ -411,7 +424,8 @@ $foo
 			mustReadPosition(3, 6, 4, 5),
 			mustReadPosition(5, 1, 5, 15),
 			mustReadPosition(6, 2, 6, 5),
-			mustReadPosition(7, 1, 7, 5),
+			mustReadPosition(7, 1, 7, 2),
+			mustReadPosition(7, 2, 7, 5),
 			mustReadPosition(8, 2, 8, 6),
 		)
 	})

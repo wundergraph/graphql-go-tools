@@ -45,9 +45,6 @@ func (l *Lexer) Read() (tok token.Token) {
 	case runes.DOT:
 		l.readDotOrSpread(&tok)
 		return
-	case runes.DOLLAR:
-		l.readVariable(&tok)
-		return
 	}
 
 	if runeIsDigit(next) {
@@ -93,7 +90,7 @@ func (l *Lexer) keywordFromRune(r byte) keyword.Keyword {
 	case runes.QUOTE:
 		return keyword.STRING
 	case runes.DOLLAR:
-		return keyword.VARIABLE
+		return keyword.DOLLAR
 	case runes.PIPE:
 		return keyword.PIPE
 	case runes.EQUALS:
@@ -118,6 +115,8 @@ func (l *Lexer) keywordFromRune(r byte) keyword.Keyword {
 		return keyword.SQUAREBRACKETCLOSE
 	case runes.AND:
 		return keyword.AND
+	case runes.NEGATIVESIGN:
+		return keyword.NEGATIVESIGN
 	case runes.DOT:
 		if l.peekEquals(true, runes.DOT, runes.DOT, runes.DOT) {
 			return keyword.SPREAD
@@ -189,6 +188,10 @@ func (l *Lexer) matchSingleRuneToken(r byte, tok *token.Token) bool {
 		tok.Keyword = keyword.SQUAREBRACKETCLOSE
 	case runes.AND:
 		tok.Keyword = keyword.AND
+	case runes.NEGATIVESIGN:
+		tok.Keyword = keyword.NEGATIVESIGN
+	case runes.DOLLAR:
+		tok.Keyword = keyword.DOLLAR
 	default:
 		return false
 	}
@@ -309,18 +312,6 @@ func (l *Lexer) keywordFromIdent(start, end int) (k keyword.Keyword) {
 	}
 
 	return keyword.IDENT
-}
-
-func (l *Lexer) readVariable(tok *token.Token) {
-
-	tok.SetStart(l.input.InputPosition, l.input.TextPosition)
-
-	tok.Keyword = keyword.VARIABLE
-
-	l.readIdent()
-
-	tok.SetEnd(l.input.InputPosition, l.input.TextPosition)
-	tok.TextPosition.CharStart -= 1
 }
 
 func (l *Lexer) readDotOrSpread(tok *token.Token) {
