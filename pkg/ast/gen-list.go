@@ -333,3 +333,44 @@ func (n *ValueList) Next(getter ValueGetter) bool {
 func (n *ValueList) Value() (Value, int) {
 	return n.current, n.currentRef
 }
+
+type ObjectFieldList struct {
+	Open          position.Position
+	Close         position.Position
+	current       ObjectField
+	currentRef    int
+	nextRef       int
+	isInitialized bool
+}
+
+type ObjectFieldGetter interface {
+	GetObjectField(ref int) (node ObjectField, nextRef int)
+}
+
+func NewObjectFieldList(first int) ObjectFieldList {
+	nodeList := ObjectFieldList{}
+	nodeList.SetFirst(first)
+	return nodeList
+}
+
+func (n *ObjectFieldList) SetFirst(first int) {
+	n.nextRef = first
+	n.isInitialized = first != -1
+}
+
+func (n *ObjectFieldList) HasNext() bool {
+	return n.isInitialized && n.nextRef != -1
+}
+
+func (n *ObjectFieldList) Next(getter ObjectFieldGetter) bool {
+	if !n.isInitialized || n.nextRef == -1 {
+		return false
+	}
+	n.currentRef = n.nextRef
+	n.current, n.nextRef = getter.GetObjectField(n.nextRef)
+	return true
+}
+
+func (n *ObjectFieldList) Value() (ObjectField, int) {
+	return n.current, n.currentRef
+}
