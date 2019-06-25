@@ -1,3 +1,4 @@
+//go:generate optional -type=Alias
 package ast
 
 import (
@@ -9,6 +10,7 @@ type DefinitionKind int
 type OperationType int
 type ValueKind int
 type TypeKind int
+type SelectionKind int
 
 const (
 	DefinitionKindUnknown DefinitionKind = iota
@@ -34,6 +36,11 @@ const (
 	TypeKindNamed
 	TypeKindList
 	TypeKindNonNull
+
+	SelectionKindUnknown SelectionKind = iota
+	SelectionKindField
+	SelectionKindFragmentSpread
+	SelectionKindInlineFragment
 )
 
 type Document struct {
@@ -62,6 +69,8 @@ type Document struct {
 	ValueLists                   []ValueList
 	ObjectFields                 []ObjectField
 	ObjectValues                 []ObjectValue
+	Selections                   []Selection
+	Fields                       []Field
 	BooleanValue                 [2]BooleanValue
 }
 
@@ -92,6 +101,8 @@ func NewDocument() *Document {
 		Values:                       make([]Value, 64),
 		ObjectFields:                 make([]ObjectField, 64),
 		ObjectValues:                 make([]ObjectValue, 16),
+		Selections:                   make([]Selection, 128),
+		Fields:                       make([]Field, 128),
 		BooleanValue:                 [2]BooleanValue{false, true},
 	}
 }
@@ -121,6 +132,14 @@ func (d *Document) Reset() {
 	d.ValueLists = d.ValueLists[:0]
 	d.ObjectFields = d.ObjectFields[:0]
 	d.ObjectValues = d.ObjectValues[:0]
+	d.Selections = d.Selections[:0]
+	d.Fields = d.Fields[:0]
+}
+
+func (d *Document) GetSelection(ref int) (node Selection, nextRef int) {
+	node = d.Selections[ref]
+	nextRef = node.Next()
+	return
 }
 
 func (d *Document) GetObjectField(ref int) (node ObjectField, nextRef int) {
@@ -552,4 +571,45 @@ type DirectiveDefinition struct {
 	ArgumentsDefinition InputValueDefinitionList // optional, e.g. (if: Boolean)
 	On                  position.Position        // on
 	DirectiveLocations  DirectiveLocations       // e.g. FIELD
+}
+
+type OperationDefinition struct {
+	OperationType       OperationType            // one of query, mutation, subscription
+	Name                input.ByteSliceReference // optional, user defined name of the operation
+	VariableDefinitions VariableDefinitionList   // optional, e.g. ($devicePicSize: Int)
+	Directives          DirectiveList            // optional, e.g. @foo
+	SelectionSet        SelectionSet             // e.g. {field}
+}
+
+// VariableDefinition
+// example:
+// $devicePicSize: Int = 100 @small
+type VariableDefinition struct {
+	iterable
+	Variable     VariableValue     // $ Name
+	Colon        position.Position // :
+	Type         int               // e.g. String
+	DefaultValue DefaultValue      // optional, e.g. = "Default"
+	Directives   DirectiveList     // optional, e.g. @foo
+}
+
+type SelectionSet = SelectionList
+
+type Selection struct {
+	iterable
+	Kind SelectionKind // one of Field, FragmentSpread, InlineFragment
+	Ref  int           // reference to the actual selection
+}
+
+type Field struct {
+	Alias        Alias                    // optional, e.g. renamed:
+	Name         input.ByteSliceReference // field name, e.g. id
+	Arguments    ArgumentList             // optional
+	Directives   DirectiveList            // optional
+	SelectionSet SelectionSet             // optional
+}
+
+type Alias struct {
+	Name  input.ByteSliceReference // optional, e.g. renamedField
+	Colon position.Position        // :
 }

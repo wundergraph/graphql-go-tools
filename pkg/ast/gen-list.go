@@ -374,3 +374,85 @@ func (n *ObjectFieldList) Next(getter ObjectFieldGetter) bool {
 func (n *ObjectFieldList) Value() (ObjectField, int) {
 	return n.current, n.currentRef
 }
+
+type VariableDefinitionList struct {
+	Open          position.Position
+	Close         position.Position
+	current       VariableDefinition
+	currentRef    int
+	nextRef       int
+	isInitialized bool
+}
+
+type VariableDefinitionGetter interface {
+	GetVariableDefinition(ref int) (node VariableDefinition, nextRef int)
+}
+
+func NewVariableDefinitionList(first int) VariableDefinitionList {
+	nodeList := VariableDefinitionList{}
+	nodeList.SetFirst(first)
+	return nodeList
+}
+
+func (n *VariableDefinitionList) SetFirst(first int) {
+	n.nextRef = first
+	n.isInitialized = first != -1
+}
+
+func (n *VariableDefinitionList) HasNext() bool {
+	return n.isInitialized && n.nextRef != -1
+}
+
+func (n *VariableDefinitionList) Next(getter VariableDefinitionGetter) bool {
+	if !n.isInitialized || n.nextRef == -1 {
+		return false
+	}
+	n.currentRef = n.nextRef
+	n.current, n.nextRef = getter.GetVariableDefinition(n.nextRef)
+	return true
+}
+
+func (n *VariableDefinitionList) Value() (VariableDefinition, int) {
+	return n.current, n.currentRef
+}
+
+type SelectionList struct {
+	Open          position.Position
+	Close         position.Position
+	current       Selection
+	currentRef    int
+	nextRef       int
+	isInitialized bool
+}
+
+type SelectionGetter interface {
+	GetSelection(ref int) (node Selection, nextRef int)
+}
+
+func NewSelectionList(first int) SelectionList {
+	nodeList := SelectionList{}
+	nodeList.SetFirst(first)
+	return nodeList
+}
+
+func (n *SelectionList) SetFirst(first int) {
+	n.nextRef = first
+	n.isInitialized = first != -1
+}
+
+func (n *SelectionList) HasNext() bool {
+	return n.isInitialized && n.nextRef != -1
+}
+
+func (n *SelectionList) Next(getter SelectionGetter) bool {
+	if !n.isInitialized || n.nextRef == -1 {
+		return false
+	}
+	n.currentRef = n.nextRef
+	n.current, n.nextRef = getter.GetSelection(n.nextRef)
+	return true
+}
+
+func (n *SelectionList) Value() (Selection, int) {
+	return n.current, n.currentRef
+}
