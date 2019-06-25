@@ -1028,3 +1028,7 @@ func (p *Parser) parseDirectiveLocations(locations *ast.DirectiveLocations) {
 		}
 	}
 }
+
+func (p *Parser) parseSelectionSet() (set ast.SelectionSet) {
+	return
+}

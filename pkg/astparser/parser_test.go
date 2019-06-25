@@ -34,6 +34,13 @@ func TestParser_Parse(t *testing.T) {
 		}
 	}
 
+	parseSelectionSet := func() action {
+		return func(parser *Parser) (interface{}, error) {
+			set := parser.parseSelectionSet()
+			return set, parser.err
+		}
+	}
+
 	run := func(inputString string, action func() action, wantErr bool, checks ...check) {
 
 		in := &input.Input{}
@@ -1259,6 +1266,42 @@ func TestParser_Parse(t *testing.T) {
 						}
 					})
 			})
+		})
+	})
+	t.Run("operation definition", func(t *testing.T) {
+
+	})
+	t.Run("selection set", func(t *testing.T) {
+		t.Run("No 8", func(t *testing.T) {
+			run(`{
+							  me {
+								id
+								firstName
+								lastName
+								birthday {
+								  month
+								  day
+								}
+								friends {
+								  name
+								}
+							  }
+							}`, parseSelectionSet, false,
+				func(in *input.Input, doc *ast.Document, extra interface{}) {
+					set := extra.(ast.SelectionSet)
+
+					if !set.Next(doc) {
+						panic("want next")
+					}
+					meSelection, _ := set.Value()
+					if meSelection.Kind != ast.SelectionKindField {
+						panic("want SelectionKindField")
+					}
+					me := doc.Fields[meSelection.Ref]
+					if in.ByteSliceString(me.Name) != "me" {
+						panic("want me")
+					}
+				})
 		})
 	})
 }
