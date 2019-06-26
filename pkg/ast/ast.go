@@ -321,6 +321,16 @@ func (d *Document) PutObjectField(field ObjectField) int {
 	return len(d.ObjectFields) - 1
 }
 
+func (d *Document) PutSelection(selection Selection) int {
+	d.Selections = append(d.Selections, selection)
+	return len(d.Selections) - 1
+}
+
+func (d *Document) PutField(field Field) int {
+	d.Fields = append(d.Fields, field)
+	return len(d.Fields) - 1
+}
+
 type Definition struct {
 	Kind DefinitionKind
 	Ref  int
@@ -610,6 +620,7 @@ type Field struct {
 }
 
 type Alias struct {
-	Name  input.ByteSliceReference // optional, e.g. renamedField
-	Colon position.Position        // :
+	IsDefined bool
+	Name      input.ByteSliceReference // optional, e.g. renamedField
+	Colon     position.Position        // :
 }

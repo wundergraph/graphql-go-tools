@@ -1030,5 +1030,67 @@ func (p *Parser) parseDirectiveLocations(locations *ast.DirectiveLocations) {
 }
 
 func (p *Parser) parseSelectionSet() (set ast.SelectionSet) {
-	return
+
+	set.Open = p.mustRead(keyword.CURLYBRACKETOPEN).TextPosition
+
+	previous := -1
+	for {
+		next := p.peek(true)
+		switch next {
+		case keyword.CURLYBRACKETCLOSE:
+			set.Close = p.read().TextPosition
+			return
+		default:
+			ref := p.parseSelection()
+			if !set.HasNext() {
+				set.SetFirst(ref)
+			}
+			if previous != -1 {
+				p.document.Selections[previous].SetNext(ref)
+			}
+			previous = ref
+		}
+	}
+}
+
+func (p *Parser) parseSelection() int {
+	next := p.peek(true)
+	switch next {
+	case keyword.IDENT:
+		field := p.parseField()
+		return p.document.PutSelection(ast.Selection{
+			Kind: ast.SelectionKindField,
+			Ref:  field,
+		})
+	default:
+		p.errUnexpectedToken(p.read(), keyword.IDENT)
+		return -1
+	}
+}
+
+func (p *Parser) parseField() int {
+
+	var field ast.Field
+
+	firstIdent := p.mustRead(keyword.IDENT)
+	if p.peek(true) == keyword.COLON {
+		field.Alias.IsDefined = true
+		field.Alias.Name = firstIdent.Literal
+		field.Alias.Colon = p.read().TextPosition
+		field.Name = p.mustRead(keyword.IDENT).Literal
+	} else {
+		field.Name = firstIdent.Literal
+	}
+
+	if p.peek(true) == keyword.BRACKETOPEN {
+		field.Arguments = p.parseArgumentList()
+	}
+	if p.peek(true) == keyword.AT {
+		field.Directives = p.parseDirectiveList()
+	}
+	if p.peek(true) == keyword.CURLYBRACKETOPEN {
+		field.SelectionSet = p.parseSelectionSet()
+	}
+
+	return p.document.PutField(field)
 }

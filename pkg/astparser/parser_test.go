@@ -1290,6 +1290,7 @@ func TestParser_Parse(t *testing.T) {
 				func(in *input.Input, doc *ast.Document, extra interface{}) {
 					set := extra.(ast.SelectionSet)
 
+					// me
 					if !set.Next(doc) {
 						panic("want next")
 					}
@@ -1300,6 +1301,51 @@ func TestParser_Parse(t *testing.T) {
 					me := doc.Fields[meSelection.Ref]
 					if in.ByteSliceString(me.Name) != "me" {
 						panic("want me")
+					}
+
+					// id
+					if !me.SelectionSet.Next(doc) {
+						panic("want next")
+					}
+					idSelection, _ := me.SelectionSet.Value()
+					if idSelection.Kind != ast.SelectionKindField {
+						panic("want SelectionKindField")
+					}
+					id := doc.Fields[idSelection.Ref]
+					if in.ByteSliceString(id.Name) != "id" {
+						panic("want id")
+					}
+
+					// birthday
+					if !me.SelectionSet.Next(doc) {
+						panic("want next")
+					}
+					if !me.SelectionSet.Next(doc) {
+						panic("want next")
+					}
+					if !me.SelectionSet.Next(doc) {
+						panic("want next")
+					}
+					birthdaySelection, _ := me.SelectionSet.Value()
+					if birthdaySelection.Kind != ast.SelectionKindField {
+						panic("want SelectionKindField")
+					}
+					birthday := doc.Fields[birthdaySelection.Ref]
+					if in.ByteSliceString(birthday.Name) != "birthday" {
+						panic("want birthday")
+					}
+
+					// month
+					if !birthday.SelectionSet.Next(doc) {
+						panic("want next")
+					}
+					monthSelection, _ := birthday.SelectionSet.Value()
+					if monthSelection.Kind != ast.SelectionKindField {
+						panic("want SelectionKindField")
+					}
+					month := doc.Fields[monthSelection.Ref]
+					if in.ByteSliceString(month.Name) != "month" {
+						panic("want month")
 					}
 				})
 		})
