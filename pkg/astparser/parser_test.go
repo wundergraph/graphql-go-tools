@@ -5,6 +5,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/input"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 	"io/ioutil"
 	"testing"
 )
@@ -38,6 +39,20 @@ func TestParser_Parse(t *testing.T) {
 		return func(parser *Parser) (interface{}, error) {
 			set := parser.parseSelectionSet()
 			return set, parser.err
+		}
+	}
+
+	parseFragmentSpread := func() action {
+		return func(parser *Parser) (interface{}, error) {
+			fragmentSpread := parser.parseFragmentSpread(position.Position{})
+			return fragmentSpread, parser.err
+		}
+	}
+
+	parseInlineFragment := func() action {
+		return func(parser *Parser) (interface{}, error) {
+			inlineFragment := parser.parseInlineFragment(position.Position{})
+			return inlineFragment, parser.err
 		}
 	}
 
@@ -1347,6 +1362,38 @@ func TestParser_Parse(t *testing.T) {
 					if in.ByteSliceString(month.Name) != "month" {
 						panic("want month")
 					}
+				})
+		})
+	})
+	t.Run("fragment spread", func(t *testing.T) {
+		t.Run("simple", func(t *testing.T) {
+			run(`friendFields @foo`, parseFragmentSpread, false,
+				func(in *input.Input, doc *ast.Document, extra interface{}) {
+					fragmentSpread := extra.(ast.FragmentSpread)
+					if in.ByteSliceString(fragmentSpread.FragmentName) != "friendFields" {
+						panic("want friendFields")
+					}
+					if !fragmentSpread.Directives.Next(doc) {
+						panic("want next")
+					}
+					if fragmentSpread.Directives.Next(doc) {
+						panic("want false")
+					}
+				})
+		})
+		t.Run("err fragment name must not be on", func(t *testing.T) {
+			run(`on`, parseFragmentSpread, true)
+		})
+	})
+	t.Run("inline fragment", func(t *testing.T) {
+		t.Run("simple", func(t *testing.T) {
+			run(`	on User {
+							  friends {
+								count
+							  }
+							}`, parseInlineFragment, false,
+				func(in *input.Input, doc *ast.Document, extra interface{}) {
+
 				})
 		})
 	})

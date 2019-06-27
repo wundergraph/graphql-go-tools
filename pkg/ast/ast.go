@@ -624,3 +624,34 @@ type Alias struct {
 	Name      input.ByteSliceReference // optional, e.g. renamedField
 	Colon     position.Position        // :
 }
+
+// FragmentSpread
+// example:
+// ...MyFragment
+type FragmentSpread struct {
+	Spread       position.Position        // ...
+	FragmentName input.ByteSliceReference // Name but not on, e.g. MyFragment
+	Directives   DirectiveList            // optional, e.g. @foo
+}
+
+// InlineFragment
+// example:
+// ... on User {
+//      friends {
+//        count
+//      }
+//    }
+type InlineFragment struct {
+	Spread        position.Position // ...
+	TypeCondition TypeCondition     // on NamedType, e.g. on User
+	Directives    DirectiveList     // optional, e.g. @foo
+	SelectionSet  SelectionSet      // optional, e.g. { nextField }
+}
+
+// TypeCondition
+// example:
+// on User
+type TypeCondition struct {
+	On   position.Position // on
+	Type int               // NamedType
+}

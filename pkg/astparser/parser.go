@@ -105,6 +105,10 @@ func (p *Parser) peek(ignoreWhitespace bool) keyword.Keyword {
 	return p.lexer.Peek(ignoreWhitespace)
 }
 
+func (p *Parser) peekEquals(key keyword.Keyword) bool {
+	return p.peek(true) == key
+}
+
 func (p *Parser) errUnexpectedToken(unexpected token.Token, expectedKeywords ...keyword.Keyword) {
 
 	origins := make([]origin, 3)
@@ -157,7 +161,7 @@ func (p *Parser) parseSchema() {
 		SchemaLiteral: schemaLiteral.TextPosition,
 	}
 
-	if p.peek(true) == keyword.AT {
+	if p.peekEquals(keyword.AT) {
 		schemaDefinition.Directives = p.parseDirectiveList()
 	}
 
@@ -254,7 +258,7 @@ func (p *Parser) parseDirectiveList() (directives ast.DirectiveList) {
 			Name: name.Literal,
 		}
 
-		if p.peek(true) == keyword.BRACKETOPEN {
+		if p.peekEquals(keyword.BRACKETOPEN) {
 			directive.ArgumentList = p.parseArgumentList()
 		}
 
@@ -515,13 +519,13 @@ func (p *Parser) parseObjectTypeDefinition(description *ast.Description) {
 	}
 	objectTypeDefinition.TypeLiteral = p.mustRead(keyword.TYPE).TextPosition
 	objectTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
-	if p.peek(true) == keyword.IMPLEMENTS {
+	if p.peekEquals(keyword.IMPLEMENTS) {
 		objectTypeDefinition.ImplementsInterfaces = p.parseImplementsInterfaces()
 	}
-	if p.peek(true) == keyword.AT {
+	if p.peekEquals(keyword.AT) {
 		objectTypeDefinition.Directives = p.parseDirectiveList()
 	}
-	if p.peek(true) == keyword.CURLYBRACKETOPEN {
+	if p.peekEquals(keyword.CURLYBRACKETOPEN) {
 		objectTypeDefinition.FieldsDefinition = p.parseFieldDefinitionList()
 	}
 	p.document.PutObjectTypeDefinition(objectTypeDefinition)
@@ -648,7 +652,7 @@ func (p *Parser) parseFieldDefinition() int {
 	}
 
 	fieldDefinition.Name = p.mustRead(keyword.IDENT, keyword.TYPE).Literal
-	if p.peek(true) == keyword.BRACKETOPEN {
+	if p.peekEquals(keyword.BRACKETOPEN) {
 		fieldDefinition.ArgumentsDefinition = p.parseInputValueDefinitionList(keyword.BRACKETCLOSE)
 	}
 	fieldDefinition.Colon = p.mustRead(keyword.COLON).TextPosition
@@ -773,13 +777,13 @@ func (p *Parser) parseInputValueDefinition() int {
 	inputValueDefinition.Name = p.mustRead(keyword.IDENT).Literal
 	inputValueDefinition.Colon = p.mustRead(keyword.COLON).TextPosition
 	inputValueDefinition.Type = p.parseType()
-	if p.peek(true) == keyword.EQUALS {
+	if p.peekEquals(keyword.EQUALS) {
 		equals := p.read()
 		inputValueDefinition.DefaultValue.IsDefined = true
 		inputValueDefinition.DefaultValue.Equals = equals.TextPosition
 		inputValueDefinition.DefaultValue.Value = p.parseValue()
 	}
-	if p.peek(true) == keyword.AT {
+	if p.peekEquals(keyword.AT) {
 		inputValueDefinition.Directives = p.parseDirectiveList()
 	}
 
@@ -793,10 +797,10 @@ func (p *Parser) parseInputObjectTypeDefinition(description *ast.Description) in
 	}
 	inputObjectTypeDefinition.InputLiteral = p.mustRead(keyword.INPUT).TextPosition
 	inputObjectTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
-	if p.peek(true) == keyword.AT {
+	if p.peekEquals(keyword.AT) {
 		inputObjectTypeDefinition.Directives = p.parseDirectiveList()
 	}
-	if p.peek(true) == keyword.CURLYBRACKETOPEN {
+	if p.peekEquals(keyword.CURLYBRACKETOPEN) {
 		inputObjectTypeDefinition.InputFieldsDefinition = p.parseInputValueDefinitionList(keyword.CURLYBRACKETCLOSE)
 	}
 	return p.document.PutInputObjectTypeDefinition(inputObjectTypeDefinition)
@@ -809,7 +813,7 @@ func (p *Parser) parseScalarTypeDefinition(description *ast.Description) int {
 	}
 	scalarTypeDefinition.ScalarLiteral = p.mustRead(keyword.SCALAR).TextPosition
 	scalarTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
-	if p.peek(true) == keyword.AT {
+	if p.peekEquals(keyword.AT) {
 		scalarTypeDefinition.Directives = p.parseDirectiveList()
 	}
 	return p.document.PutScalarTypeDefinition(scalarTypeDefinition)
@@ -822,10 +826,10 @@ func (p *Parser) parseInterfaceTypeDefinition(description *ast.Description) int 
 	}
 	interfaceTypeDefinition.InterfaceLiteral = p.mustRead(keyword.INTERFACE).TextPosition
 	interfaceTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
-	if p.peek(true) == keyword.AT {
+	if p.peekEquals(keyword.AT) {
 		interfaceTypeDefinition.Directives = p.parseDirectiveList()
 	}
-	if p.peek(true) == keyword.CURLYBRACKETOPEN {
+	if p.peekEquals(keyword.CURLYBRACKETOPEN) {
 		interfaceTypeDefinition.FieldsDefinition = p.parseFieldDefinitionList()
 	}
 	return p.document.PutInterfaceTypeDefinition(interfaceTypeDefinition)
@@ -838,10 +842,10 @@ func (p *Parser) parseUnionTypeDefinition(description *ast.Description) int {
 	}
 	unionTypeDefinition.UnionLiteral = p.mustRead(keyword.UNION).TextPosition
 	unionTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
-	if p.peek(true) == keyword.AT {
+	if p.peekEquals(keyword.AT) {
 		unionTypeDefinition.Directives = p.parseDirectiveList()
 	}
-	if p.peek(true) == keyword.EQUALS {
+	if p.peekEquals(keyword.EQUALS) {
 		unionTypeDefinition.Equals, unionTypeDefinition.UnionMemberTypes = p.parseUnionMemberTypes()
 	}
 	return p.document.PutUnionTypeDefinition(unionTypeDefinition)
@@ -913,10 +917,10 @@ func (p *Parser) parseEnumTypeDefinition(description *ast.Description) int {
 	}
 	enumTypeDefinition.EnumLiteral = p.mustRead(keyword.ENUM).TextPosition
 	enumTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
-	if p.peek(true) == keyword.AT {
+	if p.peekEquals(keyword.AT) {
 		enumTypeDefinition.Directives = p.parseDirectiveList()
 	}
-	if p.peek(true) == keyword.CURLYBRACKETOPEN {
+	if p.peekEquals(keyword.CURLYBRACKETOPEN) {
 		enumTypeDefinition.EnumValuesDefinition = p.parseEnumValueDefinitionList()
 	}
 	return p.document.PutEnumTypeDefinition(enumTypeDefinition)
@@ -964,7 +968,7 @@ func (p *Parser) parseEnumValueDefinition() int {
 	}
 
 	enumValueDefinition.EnumValue = p.mustRead(keyword.IDENT).Literal
-	if p.peek(true) == keyword.AT {
+	if p.peekEquals(keyword.AT) {
 		enumValueDefinition.Directives = p.parseDirectiveList()
 	}
 
@@ -979,7 +983,7 @@ func (p *Parser) parseDirectiveDefinition(description *ast.Description) int {
 	directiveDefinition.DirectiveLiteral = p.mustRead(keyword.DIRECTIVE).TextPosition
 	directiveDefinition.At = p.mustRead(keyword.AT).TextPosition
 	directiveDefinition.Name = p.mustRead(keyword.IDENT).Literal
-	if p.peek(true) == keyword.BRACKETOPEN {
+	if p.peekEquals(keyword.BRACKETOPEN) {
 		directiveDefinition.ArgumentsDefinition = p.parseInputValueDefinitionList(keyword.BRACKETCLOSE)
 	}
 	directiveDefinition.On = p.mustRead(keyword.ON).TextPosition
@@ -1082,15 +1086,42 @@ func (p *Parser) parseField() int {
 		field.Name = firstIdent.Literal
 	}
 
-	if p.peek(true) == keyword.BRACKETOPEN {
+	if p.peekEquals(keyword.BRACKETOPEN) {
 		field.Arguments = p.parseArgumentList()
 	}
-	if p.peek(true) == keyword.AT {
+	if p.peekEquals(keyword.AT) {
 		field.Directives = p.parseDirectiveList()
 	}
-	if p.peek(true) == keyword.CURLYBRACKETOPEN {
+	if p.peekEquals(keyword.CURLYBRACKETOPEN) {
 		field.SelectionSet = p.parseSelectionSet()
 	}
 
 	return p.document.PutField(field)
+}
+
+func (p *Parser) parseFragmentSpread(spread position.Position) (fragmentSpread ast.FragmentSpread) {
+	fragmentSpread.Spread = spread
+	fragmentSpread.FragmentName = p.mustRead(keyword.IDENT).Literal
+	if p.peekEquals(keyword.AT) {
+		fragmentSpread.Directives = p.parseDirectiveList()
+	}
+	return
+}
+
+func (p *Parser) parseInlineFragment(spread position.Position) (fragment ast.InlineFragment) {
+	fragment.Spread = spread
+	fragment.TypeCondition = p.parseTypeCondition()
+	if p.peekEquals(keyword.AT) {
+		fragment.Directives = p.parseDirectiveList()
+	}
+	if p.peekEquals(keyword.CURLYBRACKETOPEN) {
+		fragment.SelectionSet = p.parseSelectionSet()
+	}
+	return
+}
+
+func (p *Parser) parseTypeCondition() (typeCondition ast.TypeCondition) {
+	typeCondition.On = p.mustRead(keyword.ON).TextPosition
+	typeCondition.Type = p.parseNamedType()
+	return
 }
