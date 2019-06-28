@@ -71,6 +71,8 @@ type Document struct {
 	ObjectValues                 []ObjectValue
 	Selections                   []Selection
 	Fields                       []Field
+	InlineFragments              []InlineFragment
+	FragmentSpreads              []FragmentSpread
 	BooleanValue                 [2]BooleanValue
 }
 
@@ -103,6 +105,8 @@ func NewDocument() *Document {
 		ObjectValues:                 make([]ObjectValue, 16),
 		Selections:                   make([]Selection, 128),
 		Fields:                       make([]Field, 128),
+		InlineFragments:              make([]InlineFragment, 16),
+		FragmentSpreads:              make([]FragmentSpread, 16),
 		BooleanValue:                 [2]BooleanValue{false, true},
 	}
 }
@@ -134,6 +138,8 @@ func (d *Document) Reset() {
 	d.ObjectValues = d.ObjectValues[:0]
 	d.Selections = d.Selections[:0]
 	d.Fields = d.Fields[:0]
+	d.InlineFragments = d.InlineFragments[:0]
+	d.FragmentSpreads = d.FragmentSpreads[:0]
 }
 
 func (d *Document) GetSelection(ref int) (node Selection, nextRef int) {
@@ -329,6 +335,16 @@ func (d *Document) PutSelection(selection Selection) int {
 func (d *Document) PutField(field Field) int {
 	d.Fields = append(d.Fields, field)
 	return len(d.Fields) - 1
+}
+
+func (d *Document) PutInlineFragment(fragment InlineFragment) int {
+	d.InlineFragments = append(d.InlineFragments, fragment)
+	return len(d.InlineFragments) - 1
+}
+
+func (d *Document) PutFragmentSpread(spread FragmentSpread) int {
+	d.FragmentSpreads = append(d.FragmentSpreads, spread)
+	return len(d.FragmentSpreads) - 1
 }
 
 type Definition struct {

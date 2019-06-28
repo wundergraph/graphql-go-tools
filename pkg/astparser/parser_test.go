@@ -1290,6 +1290,10 @@ func TestParser_Parse(t *testing.T) {
 		t.Run("No 8", func(t *testing.T) {
 			run(`{
 							  me {
+								... on Person @foo {
+									personID
+								}
+								...personFragment @bar
 								id
 								firstName
 								lastName
@@ -1316,6 +1320,58 @@ func TestParser_Parse(t *testing.T) {
 					me := doc.Fields[meSelection.Ref]
 					if in.ByteSliceString(me.Name) != "me" {
 						panic("want me")
+					}
+
+					// ... on Person
+
+					if !me.SelectionSet.Next(doc) {
+						panic("want next")
+					}
+					onPersonSelection, _ := me.SelectionSet.Value()
+					if onPersonSelection.Kind != ast.SelectionKindInlineFragment {
+						panic("want SelectionKindInlineFragment")
+					}
+					onPersonFragment := doc.InlineFragments[onPersonSelection.Ref]
+					if !onPersonFragment.Directives.Next(doc) {
+						panic("want next")
+					}
+					if onPersonFragment.Directives.Next(doc) {
+						panic("want false")
+					}
+					Person := doc.Types[onPersonFragment.TypeCondition.Type]
+					if in.ByteSliceString(Person.Name) != "Person" {
+						panic("want Person")
+					}
+					if !onPersonFragment.SelectionSet.Next(doc) {
+						panic("want next")
+					}
+					personIdSelection, _ := onPersonFragment.SelectionSet.Value()
+					if personIdSelection.Kind != ast.SelectionKindField {
+						panic("want SelectionKindField")
+					}
+					personId := doc.Fields[personIdSelection.Ref]
+					if in.ByteSliceString(personId.Name) != "personID" {
+						panic("want personID")
+					}
+
+					// ...personFragment
+
+					if !me.SelectionSet.Next(doc) {
+						panic("want next")
+					}
+					personFragmentSelection, _ := me.SelectionSet.Value()
+					if personFragmentSelection.Kind != ast.SelectionKindFragmentSpread {
+						panic("want SelectionKindFragmentSpread")
+					}
+					personFragment := doc.FragmentSpreads[personFragmentSelection.Ref]
+					if in.ByteSliceString(personFragment.FragmentName) != "personFragment" {
+						panic("want personFragment")
+					}
+					if !personFragment.Directives.Next(doc) {
+						panic("want next")
+					}
+					if personFragment.Directives.Next(doc) {
+						panic("want false")
 					}
 
 					// id
@@ -1387,13 +1443,44 @@ func TestParser_Parse(t *testing.T) {
 	})
 	t.Run("inline fragment", func(t *testing.T) {
 		t.Run("simple", func(t *testing.T) {
-			run(`	on User {
+			run(`on User {
 							  friends {
 								count
 							  }
 							}`, parseInlineFragment, false,
 				func(in *input.Input, doc *ast.Document, extra interface{}) {
+					fragment := extra.(ast.InlineFragment)
+					user := doc.Types[fragment.TypeCondition.Type]
+					if user.TypeKind != ast.TypeKindNamed {
+						panic("want TypeKindNamed")
+					}
+					if in.ByteSliceString(user.Name) != "User" {
+						panic("want User")
+					}
 
+					if !fragment.SelectionSet.Next(doc) {
+						panic("want next")
+					}
+					selection, _ := fragment.SelectionSet.Value()
+					if selection.Kind != ast.SelectionKindField {
+						panic("want SelectionKindField")
+					}
+					friends := doc.Fields[selection.Ref]
+					if in.ByteSliceString(friends.Name) != "friends" {
+						panic("want friends")
+					}
+
+					if !friends.SelectionSet.Next(doc) {
+						panic("want next")
+					}
+					selection, _ = friends.SelectionSet.Value()
+					if selection.Kind != ast.SelectionKindField {
+						panic("want SelectionKindField")
+					}
+					count := doc.Fields[selection.Ref]
+					if in.ByteSliceString(count.Name) != "count" {
+						panic("want count")
+					}
 				})
 		})
 	})
@@ -1509,7 +1596,8 @@ func BenchmarkParse(b *testing.B) {
 							}
 
 							"directives"
-							directive @example on FIELD | SCALAR | SCHEMA`)
+							directive @example on FIELD | SCALAR | SCHEMA
+`)
 
 	in := &input.Input{}
 	doc := ast.NewDocument()

@@ -1066,10 +1066,31 @@ func (p *Parser) parseSelection() int {
 			Kind: ast.SelectionKindField,
 			Ref:  field,
 		})
+	case keyword.SPREAD:
+		spread := p.read()
+		selection := p.parseFragmentSelection(spread.TextPosition)
+		return p.document.PutSelection(selection)
 	default:
 		p.errUnexpectedToken(p.read(), keyword.IDENT)
 		return -1
 	}
+}
+
+func (p *Parser) parseFragmentSelection(spread position.Position) (selection ast.Selection) {
+
+	next := p.peek(true)
+	switch next {
+	case keyword.ON:
+		selection.Kind = ast.SelectionKindInlineFragment
+		selection.Ref = p.parseInlineFragment(spread)
+	case keyword.IDENT:
+		selection.Kind = ast.SelectionKindFragmentSpread
+		selection.Ref = p.parseFragmentSpread(spread)
+	default:
+		p.errUnexpectedToken(p.read(), keyword.ON, keyword.IDENT)
+	}
+
+	return
 }
 
 func (p *Parser) parseField() int {
@@ -1099,16 +1120,18 @@ func (p *Parser) parseField() int {
 	return p.document.PutField(field)
 }
 
-func (p *Parser) parseFragmentSpread(spread position.Position) (fragmentSpread ast.FragmentSpread) {
+func (p *Parser) parseFragmentSpread(spread position.Position) int {
+	var fragmentSpread ast.FragmentSpread
 	fragmentSpread.Spread = spread
 	fragmentSpread.FragmentName = p.mustRead(keyword.IDENT).Literal
 	if p.peekEquals(keyword.AT) {
 		fragmentSpread.Directives = p.parseDirectiveList()
 	}
-	return
+	return p.document.PutFragmentSpread(fragmentSpread)
 }
 
-func (p *Parser) parseInlineFragment(spread position.Position) (fragment ast.InlineFragment) {
+func (p *Parser) parseInlineFragment(spread position.Position) int {
+	var fragment ast.InlineFragment
 	fragment.Spread = spread
 	fragment.TypeCondition = p.parseTypeCondition()
 	if p.peekEquals(keyword.AT) {
@@ -1117,7 +1140,7 @@ func (p *Parser) parseInlineFragment(spread position.Position) (fragment ast.Inl
 	if p.peekEquals(keyword.CURLYBRACKETOPEN) {
 		fragment.SelectionSet = p.parseSelectionSet()
 	}
-	return
+	return p.document.PutInlineFragment(fragment)
 }
 
 func (p *Parser) parseTypeCondition() (typeCondition ast.TypeCondition) {
