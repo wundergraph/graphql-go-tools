@@ -84,6 +84,8 @@ func (p *Parser) parse() {
 			p.parseEnumTypeDefinition(nil)
 		case keyword.DIRECTIVE:
 			p.parseDirectiveDefinition(nil)
+		case keyword.QUERY, keyword.MUTATION, keyword.SUBSCRIPTION, keyword.CURLYBRACKETOPEN:
+			p.parseOperationDefinition()
 		case keyword.EOF:
 			p.read()
 			return
@@ -134,22 +136,15 @@ func (p *Parser) errUnexpectedToken(unexpected token.Token, expectedKeywords ...
 		position: unexpected.TextPosition,
 		literal:  p.input.ByteSliceString(unexpected.Literal),
 		origins:  origins,
+		expected: expectedKeywords,
 	}
 }
 
-func (p *Parser) mustRead(oneOf ...keyword.Keyword) (next token.Token) {
+func (p *Parser) mustRead(key keyword.Keyword) (next token.Token) {
 	next = p.read()
-	if len(oneOf) == 0 {
-		return
+	if next.Keyword != key {
+		p.errUnexpectedToken(next, key)
 	}
-
-	for i := range oneOf {
-		if next.Keyword == oneOf[i] {
-			return
-		}
-	}
-
-	p.errUnexpectedToken(next, oneOf...)
 	return
 }
 
@@ -471,13 +466,6 @@ func (p *Parser) parseVariableValue() int {
 		p.errUnexpectedToken(p.read(), keyword.IDENT, keyword.INTEGER)
 		return -1
 	}
-	switch p.peek(false) {
-	case keyword.TAB, keyword.SPACE, keyword.LINETERMINATOR, keyword.EOF:
-		break
-	default:
-		p.errUnexpectedToken(p.read(), keyword.TAB, keyword.SPACE, keyword.LINETERMINATOR)
-		return -1
-	}
 	return p.document.PutVariableValue(ast.VariableValue{
 		Dollar: dollar.TextPosition,
 		Name:   value.Literal,
@@ -485,13 +473,14 @@ func (p *Parser) parseVariableValue() int {
 }
 
 func (p *Parser) parseBooleanValue() int {
-	value := p.mustRead(keyword.TRUE, keyword.FALSE)
+	value := p.read()
 	switch value.Keyword {
 	case keyword.FALSE:
 		return 0
 	case keyword.TRUE:
 		return 1
 	default:
+		p.errUnexpectedToken(value, keyword.FALSE, keyword.TRUE)
 		return -1
 	}
 }
@@ -504,7 +493,11 @@ func (p *Parser) parseEnumValue() int {
 }
 
 func (p *Parser) parseStringValue() int {
-	value := p.mustRead(keyword.STRING, keyword.BLOCKSTRING)
+	value := p.read()
+	if value.Keyword != keyword.STRING && value.Keyword != keyword.BLOCKSTRING {
+		p.errUnexpectedToken(value, keyword.STRING, keyword.BLOCKSTRING)
+		return -1
+	}
 	return p.document.PutStringValue(ast.StringValue{
 		Content:     value.Literal,
 		BlockString: value.Keyword == keyword.BLOCKSTRING,
@@ -651,7 +644,13 @@ func (p *Parser) parseFieldDefinition() int {
 		return -1
 	}
 
-	fieldDefinition.Name = p.mustRead(keyword.IDENT, keyword.TYPE).Literal
+	nameToken := p.read()
+	if nameToken.Keyword != keyword.IDENT && nameToken.Keyword != keyword.TYPE {
+		p.errUnexpectedToken(nameToken, keyword.IDENT, keyword.TYPE)
+		return -1
+	}
+
+	fieldDefinition.Name = nameToken.Literal
 	if p.peekEquals(keyword.BRACKETOPEN) {
 		fieldDefinition.ArgumentsDefinition = p.parseInputValueDefinitionList(keyword.BRACKETCLOSE)
 	}
@@ -1147,4 +1146,97 @@ func (p *Parser) parseTypeCondition() (typeCondition ast.TypeCondition) {
 	typeCondition.On = p.mustRead(keyword.ON).TextPosition
 	typeCondition.Type = p.parseNamedType()
 	return
+}
+
+func (p *Parser) parseOperationDefinition() int {
+
+	var operationDefinition ast.OperationDefinition
+
+	next := p.peek(true)
+	switch next {
+	case keyword.QUERY:
+		operationDefinition.OperationTypeLiteral = p.read().TextPosition
+		operationDefinition.OperationType = ast.OperationTypeQuery
+	case keyword.MUTATION:
+		operationDefinition.OperationTypeLiteral = p.read().TextPosition
+		operationDefinition.OperationType = ast.OperationTypeMutation
+	case keyword.SUBSCRIPTION:
+		operationDefinition.OperationTypeLiteral = p.read().TextPosition
+		operationDefinition.OperationType = ast.OperationTypeSubscription
+	case keyword.CURLYBRACKETOPEN:
+		operationDefinition.OperationType = ast.OperationTypeQuery
+		operationDefinition.SelectionSet = p.parseSelectionSet()
+		return p.document.PutOperationDefinition(operationDefinition)
+	default:
+		p.errUnexpectedToken(p.read(), keyword.QUERY, keyword.MUTATION, keyword.SUBSCRIPTION, keyword.CURLYBRACKETOPEN)
+		return -1
+	}
+
+	if p.peekEquals(keyword.IDENT) {
+		operationDefinition.Name = p.read().Literal
+	}
+	if p.peekEquals(keyword.BRACKETOPEN) {
+		operationDefinition.VariableDefinitions = p.parseVariableDefinitionList()
+	}
+	if p.peekEquals(keyword.AT) {
+		operationDefinition.Directives = p.parseDirectiveList()
+	}
+
+	operationDefinition.SelectionSet = p.parseSelectionSet()
+
+	return p.document.PutOperationDefinition(operationDefinition)
+}
+
+func (p *Parser) parseVariableDefinitionList() (list ast.VariableDefinitionList) {
+
+	list.Open = p.mustRead(keyword.BRACKETOPEN).TextPosition
+
+	previous := -1
+
+	for {
+		next := p.peek(true)
+		switch next {
+		case keyword.BRACKETCLOSE:
+			list.Close = p.read().TextPosition
+			return
+		case keyword.DOLLAR:
+			ref := p.parseVariableDefinition()
+			if !list.HasNext() {
+				list.SetFirst(ref)
+			}
+			if previous != -1 {
+				p.document.VariableDefinitions[previous].SetNext(ref)
+			}
+			previous = ref
+		default:
+			p.errUnexpectedToken(p.read(), keyword.BRACKETCLOSE, keyword.DOLLAR)
+			return
+		}
+	}
+}
+
+func (p *Parser) parseVariableDefinition() int {
+
+	var variableDefinition ast.VariableDefinition
+
+	variableDefinition.Variable = p.parseVariableValue()
+	variableDefinition.Colon = p.mustRead(keyword.COLON).TextPosition
+	variableDefinition.Type = p.parseType()
+	if p.peekEquals(keyword.EQUALS) {
+		variableDefinition.DefaultValue = p.parseDefaultValue()
+	}
+	if p.peekEquals(keyword.AT) {
+		variableDefinition.Directives = p.parseDirectiveList()
+	}
+	return p.document.PutVariableDefinition(variableDefinition)
+}
+
+func (p *Parser) parseDefaultValue() ast.DefaultValue {
+	equals := p.mustRead(keyword.EQUALS).TextPosition
+	value := p.parseValue()
+	return ast.DefaultValue{
+		IsDefined: true,
+		Equals:    equals,
+		Value:     value,
+	}
 }

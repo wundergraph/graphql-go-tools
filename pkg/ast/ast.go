@@ -73,6 +73,8 @@ type Document struct {
 	Fields                       []Field
 	InlineFragments              []InlineFragment
 	FragmentSpreads              []FragmentSpread
+	OperationDefinitions         []OperationDefinition
+	VariableDefinitions          []VariableDefinition
 	BooleanValue                 [2]BooleanValue
 }
 
@@ -107,6 +109,8 @@ func NewDocument() *Document {
 		Fields:                       make([]Field, 128),
 		InlineFragments:              make([]InlineFragment, 16),
 		FragmentSpreads:              make([]FragmentSpread, 16),
+		OperationDefinitions:         make([]OperationDefinition, 8),
+		VariableDefinitions:          make([]VariableDefinition, 8),
 		BooleanValue:                 [2]BooleanValue{false, true},
 	}
 }
@@ -140,6 +144,14 @@ func (d *Document) Reset() {
 	d.Fields = d.Fields[:0]
 	d.InlineFragments = d.InlineFragments[:0]
 	d.FragmentSpreads = d.FragmentSpreads[:0]
+	d.OperationDefinitions = d.OperationDefinitions[:0]
+	d.VariableDefinitions = d.VariableDefinitions[:0]
+}
+
+func (d *Document) GetVariableDefinition(ref int) (node VariableDefinition, nextRef int) {
+	node = d.VariableDefinitions[ref]
+	nextRef = node.Next()
+	return
 }
 
 func (d *Document) GetSelection(ref int) (node Selection, nextRef int) {
@@ -345,6 +357,16 @@ func (d *Document) PutInlineFragment(fragment InlineFragment) int {
 func (d *Document) PutFragmentSpread(spread FragmentSpread) int {
 	d.FragmentSpreads = append(d.FragmentSpreads, spread)
 	return len(d.FragmentSpreads) - 1
+}
+
+func (d *Document) PutOperationDefinition(definition OperationDefinition) int {
+	d.OperationDefinitions = append(d.OperationDefinitions, definition)
+	return len(d.OperationDefinitions) - 1
+}
+
+func (d *Document) PutVariableDefinition(definition VariableDefinition) int {
+	d.VariableDefinitions = append(d.VariableDefinitions, definition)
+	return len(d.VariableDefinitions) - 1
 }
 
 type Definition struct {
@@ -600,11 +622,12 @@ type DirectiveDefinition struct {
 }
 
 type OperationDefinition struct {
-	OperationType       OperationType            // one of query, mutation, subscription
-	Name                input.ByteSliceReference // optional, user defined name of the operation
-	VariableDefinitions VariableDefinitionList   // optional, e.g. ($devicePicSize: Int)
-	Directives          DirectiveList            // optional, e.g. @foo
-	SelectionSet        SelectionSet             // e.g. {field}
+	OperationType        OperationType            // one of query, mutation, subscription
+	OperationTypeLiteral position.Position        // position of the operation type literal, if present
+	Name                 input.ByteSliceReference // optional, user defined name of the operation
+	VariableDefinitions  VariableDefinitionList   // optional, e.g. ($devicePicSize: Int)
+	Directives           DirectiveList            // optional, e.g. @foo
+	SelectionSet         SelectionSet             // e.g. {field}
 }
 
 // VariableDefinition
@@ -612,7 +635,7 @@ type OperationDefinition struct {
 // $devicePicSize: Int = 100 @small
 type VariableDefinition struct {
 	iterable
-	Variable     VariableValue     // $ Name
+	Variable     int               // $ Name
 	Colon        position.Position // :
 	Type         int               // e.g. String
 	DefaultValue DefaultValue      // optional, e.g. = "Default"

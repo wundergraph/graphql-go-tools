@@ -45,14 +45,21 @@ func TestParser_Parse(t *testing.T) {
 	parseFragmentSpread := func() action {
 		return func(parser *Parser) (interface{}, error) {
 			fragmentSpread := parser.parseFragmentSpread(position.Position{})
-			return fragmentSpread, parser.err
+			return parser.document.FragmentSpreads[fragmentSpread], parser.err
 		}
 	}
 
 	parseInlineFragment := func() action {
 		return func(parser *Parser) (interface{}, error) {
 			inlineFragment := parser.parseInlineFragment(position.Position{})
-			return inlineFragment, parser.err
+			return parser.document.InlineFragments[inlineFragment], parser.err
+		}
+	}
+
+	parseVariableDefinitionList := func() action {
+		return func(parser *Parser) (interface{}, error) {
+			variableDefinitionList := parser.parseVariableDefinitionList()
+			return variableDefinitionList, parser.err
 		}
 	}
 
@@ -1025,9 +1032,6 @@ func TestParser_Parse(t *testing.T) {
 			t.Run("err space", func(t *testing.T) {
 				run(`$ foo`, parseValue, true)
 			})
-			t.Run("err must end with space", func(t *testing.T) {
-				run(`$foo.`, parseValue, true)
-			})
 			t.Run("err start with A-Za-z", func(t *testing.T) {
 				run(`$123`, parseValue, true)
 			})
@@ -1284,7 +1288,220 @@ func TestParser_Parse(t *testing.T) {
 		})
 	})
 	t.Run("operation definition", func(t *testing.T) {
+		t.Run("unnamed query", func(t *testing.T) {
+			run(`query {field}`, parse, false,
+				func(in *input.Input, doc *ast.Document, extra interface{}) {
+					query := doc.OperationDefinitions[0]
+					if query.OperationType != ast.OperationTypeQuery {
+						panic("want OperationTypeQuery")
+					}
+					if in.ByteSliceString(query.Name) != "" {
+						panic("want empty string")
+					}
+					if !query.SelectionSet.Next(doc) {
+						panic("want next")
+					}
+					fieldSelection, _ := query.SelectionSet.Value()
+					if fieldSelection.Kind != ast.SelectionKindField {
+						panic("want SelectionKindField")
+					}
+					field := doc.Fields[fieldSelection.Ref]
+					if in.ByteSliceString(field.Name) != "field" {
+						panic("want field")
+					}
+				})
+		})
+		t.Run("shorthand query", func(t *testing.T) {
+			run(`{field}`, parse, false,
+				func(in *input.Input, doc *ast.Document, extra interface{}) {
+					query := doc.OperationDefinitions[0]
+					if query.OperationType != ast.OperationTypeQuery {
+						panic("want OperationTypeQuery")
+					}
+					if in.ByteSliceString(query.Name) != "" {
+						panic("want empty string")
+					}
+					if !query.SelectionSet.Next(doc) {
+						panic("want next")
+					}
+					fieldSelection, _ := query.SelectionSet.Value()
+					if fieldSelection.Kind != ast.SelectionKindField {
+						panic("want SelectionKindField")
+					}
+					field := doc.Fields[fieldSelection.Ref]
+					if in.ByteSliceString(field.Name) != "field" {
+						panic("want field")
+					}
+				})
+		})
+		t.Run("named query", func(t *testing.T) {
+			run(`query Query1 {field}`, parse, false,
+				func(in *input.Input, doc *ast.Document, extra interface{}) {
+					query := doc.OperationDefinitions[0]
+					if query.OperationType != ast.OperationTypeQuery {
+						panic("want OperationTypeQuery")
+					}
+					if in.ByteSliceString(query.Name) != "Query1" {
+						panic("want Query1")
+					}
+					if !query.SelectionSet.Next(doc) {
+						panic("want next")
+					}
+					fieldSelection, _ := query.SelectionSet.Value()
+					if fieldSelection.Kind != ast.SelectionKindField {
+						panic("want SelectionKindField")
+					}
+					field := doc.Fields[fieldSelection.Ref]
+					if in.ByteSliceString(field.Name) != "field" {
+						panic("want field")
+					}
+				})
+		})
+		t.Run("unnamed mutation", func(t *testing.T) {
+			run(`mutation {field}`, parse, false,
+				func(in *input.Input, doc *ast.Document, extra interface{}) {
+					mutation := doc.OperationDefinitions[0]
+					if mutation.OperationType != ast.OperationTypeMutation {
+						panic("want OperationTypeMutation")
+					}
+					if in.ByteSliceString(mutation.Name) != "" {
+						panic("want empty string")
+					}
+					if !mutation.SelectionSet.Next(doc) {
+						panic("want next")
+					}
+					fieldSelection, _ := mutation.SelectionSet.Value()
+					if fieldSelection.Kind != ast.SelectionKindField {
+						panic("want SelectionKindField")
+					}
+					field := doc.Fields[fieldSelection.Ref]
+					if in.ByteSliceString(field.Name) != "field" {
+						panic("want field")
+					}
+				})
+		})
+		t.Run("named mutation", func(t *testing.T) {
+			run(`mutation Mutation1 {field}`, parse, false,
+				func(in *input.Input, doc *ast.Document, extra interface{}) {
+					mutation := doc.OperationDefinitions[0]
+					if mutation.OperationType != ast.OperationTypeMutation {
+						panic("want OperationTypeMutation")
+					}
+					if in.ByteSliceString(mutation.Name) != "Mutation1" {
+						panic("want Mutation1")
+					}
+					if !mutation.SelectionSet.Next(doc) {
+						panic("want next")
+					}
+					fieldSelection, _ := mutation.SelectionSet.Value()
+					if fieldSelection.Kind != ast.SelectionKindField {
+						panic("want SelectionKindField")
+					}
+					field := doc.Fields[fieldSelection.Ref]
+					if in.ByteSliceString(field.Name) != "field" {
+						panic("want field")
+					}
+				})
+		})
+		t.Run("unnamed subscription", func(t *testing.T) {
+			run(`subscription {field}`, parse, false,
+				func(in *input.Input, doc *ast.Document, extra interface{}) {
+					mutation := doc.OperationDefinitions[0]
+					if mutation.OperationType != ast.OperationTypeSubscription {
+						panic("want OperationTypeSubscription")
+					}
+					if in.ByteSliceString(mutation.Name) != "" {
+						panic("want empty string")
+					}
+					if !mutation.SelectionSet.Next(doc) {
+						panic("want next")
+					}
+					fieldSelection, _ := mutation.SelectionSet.Value()
+					if fieldSelection.Kind != ast.SelectionKindField {
+						panic("want SelectionKindField")
+					}
+					field := doc.Fields[fieldSelection.Ref]
+					if in.ByteSliceString(field.Name) != "field" {
+						panic("want field")
+					}
+				})
+		})
+		t.Run("named subscription", func(t *testing.T) {
+			run(`subscription Sub1 {field}`, parse, false,
+				func(in *input.Input, doc *ast.Document, extra interface{}) {
+					mutation := doc.OperationDefinitions[0]
+					if mutation.OperationType != ast.OperationTypeSubscription {
+						panic("want OperationTypeSubscription")
+					}
+					if in.ByteSliceString(mutation.Name) != "Sub1" {
+						panic("want empty Sub1")
+					}
+					if !mutation.SelectionSet.Next(doc) {
+						panic("want next")
+					}
+					fieldSelection, _ := mutation.SelectionSet.Value()
+					if fieldSelection.Kind != ast.SelectionKindField {
+						panic("want SelectionKindField")
+					}
+					field := doc.Fields[fieldSelection.Ref]
+					if in.ByteSliceString(field.Name) != "field" {
+						panic("want field")
+					}
+				})
+		})
+	})
+	t.Run("variable definition", func(t *testing.T) {
+		t.Run("simple", func(t *testing.T) {
+			run(`($devicePicSize: Int = 1 $var2: String)`, parseVariableDefinitionList, false,
+				func(in *input.Input, doc *ast.Document, extra interface{}) {
+					list := extra.(ast.VariableDefinitionList)
+					if !list.Next(doc) {
+						panic("want next")
+					}
+					var1, _ := list.Value()
+					devicePicSize := doc.VariableValues[var1.Variable]
+					if in.ByteSliceString(devicePicSize.Name) != "devicePicSize" {
+						panic("want devicePicSize")
+					}
+					Int := doc.Types[var1.Type]
+					if Int.TypeKind != ast.TypeKindNamed {
+						panic("want TypeKindNamed")
+					}
+					if in.ByteSliceString(Int.Name) != "Int" {
+						panic("want Int")
+					}
+					if !var1.DefaultValue.IsDefined {
+						panic("want true")
+					}
+					if var1.DefaultValue.Value.Kind != ast.ValueKindInteger {
+						panic("want ValueKindInteger")
+					}
+					one := doc.IntValues[var1.DefaultValue.Value.Ref]
+					if in.ByteSliceString(one.Raw) != "1" {
+						panic("want 1")
+					}
 
+					if !list.Next(doc) {
+						panic("want next")
+					}
+					var2, _ := list.Value()
+					var2Variable := doc.VariableValues[var2.Variable]
+					if in.ByteSliceString(var2Variable.Name) != "var2" {
+						panic("want var2")
+					}
+					String := doc.Types[var2.Type]
+					if String.TypeKind != ast.TypeKindNamed {
+						panic("want TypeKindNamed")
+					}
+					if in.ByteSliceString(String.Name) != "String" {
+						panic("want String")
+					}
+
+					if list.Next(doc) {
+						panic("want false")
+					}
+				})
+		})
 	})
 	t.Run("selection set", func(t *testing.T) {
 		t.Run("No 8", func(t *testing.T) {
@@ -1597,6 +1814,25 @@ func BenchmarkParse(b *testing.B) {
 
 							"directives"
 							directive @example on FIELD | SCALAR | SCHEMA
+
+							query MyQuery {
+							  me {
+								... on Person @foo {
+									personID
+								}
+								...personFragment @bar
+								id
+								firstName
+								lastName
+								birthday {
+								  month
+								  day
+								}
+								friends {
+								  name
+								}
+							  }
+							}
 `)
 
 	in := &input.Input{}
