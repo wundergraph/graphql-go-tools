@@ -46,6 +46,7 @@ const (
 type Document struct {
 	Definitions                  []Definition
 	SchemaDefinitions            []SchemaDefinition
+	SchemaExtensions             []SchemaExtension
 	RootOperationTypeDefinitions []RootOperationTypeDefinition
 	Directives                   []Directive
 	Arguments                    []Argument
@@ -84,6 +85,7 @@ func NewDocument() *Document {
 		Definitions:                  make([]Definition, 48),
 		RootOperationTypeDefinitions: make([]RootOperationTypeDefinition, 3),
 		SchemaDefinitions:            make([]SchemaDefinition, 2),
+		SchemaExtensions:             make([]SchemaExtension, 2),
 		Directives:                   make([]Directive, 16),
 		Arguments:                    make([]Argument, 48),
 		ObjectTypeDefinitions:        make([]ObjectTypeDefinition, 48),
@@ -120,6 +122,7 @@ func NewDocument() *Document {
 func (d *Document) Reset() {
 	d.Definitions = d.Definitions[:0]
 	d.SchemaDefinitions = d.SchemaDefinitions[:0]
+	d.SchemaExtensions = d.SchemaExtensions[:0]
 	d.RootOperationTypeDefinitions = d.RootOperationTypeDefinitions[:0]
 	d.Directives = d.Directives[:0]
 	d.Arguments = d.Arguments[:0]
@@ -224,10 +227,15 @@ func (d *Document) PutRootOperationTypeDefinition(def RootOperationTypeDefinitio
 
 func (d *Document) PutSchemaDefinition(def SchemaDefinition) int {
 	d.SchemaDefinitions = append(d.SchemaDefinitions, def)
-	return len(d.SchemaDefinitions) - 1
+	ref := len(d.SchemaDefinitions) - 1
+	d.putDefinition(Definition{
+		Kind: SchemaDefinitionKind,
+		Ref:  ref,
+	})
+	return ref
 }
 
-func (d *Document) PutDefinition(def Definition) int {
+func (d *Document) putDefinition(def Definition) int {
 	d.Definitions = append(d.Definitions, def)
 	return len(d.Definitions) - 1
 }
@@ -377,6 +385,11 @@ func (d *Document) PutFragmentDefinition(definition FragmentDefinition) int {
 	return len(d.FragmentDefinitions) - 1
 }
 
+func (d *Document) PutSchemaExtension(extension SchemaExtension) int {
+	d.SchemaExtensions = append(d.SchemaExtensions, extension)
+	return len(d.SchemaExtensions) - 1
+}
+
 type Definition struct {
 	Kind DefinitionKind
 	Ref  int
@@ -386,6 +399,11 @@ type SchemaDefinition struct {
 	SchemaLiteral                position.Position
 	Directives                   DirectiveList
 	RootOperationTypeDefinitions RootOperationTypeDefinitionList
+}
+
+type SchemaExtension struct {
+	ExtendLiteral position.Position
+	SchemaDefinition
 }
 
 type iterable struct {

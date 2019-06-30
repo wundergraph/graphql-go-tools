@@ -215,6 +215,61 @@ func TestParser_Parse(t *testing.T) {
 			run(`schema foo {}`, parse, true)
 		})
 	})
+	t.Run("schema extension", func(t *testing.T) {
+		t.Run("simple", func(t *testing.T) {
+			run(`extend schema {
+						query: Query
+						mutation: Mutation
+						subscription: Subscription 
+					}`, parse, false,
+				func(in *input.Input, doc *ast.Document, extra interface{}) {
+
+					schema := doc.SchemaExtensions[0]
+					if !schema.RootOperationTypeDefinitions.Next(doc) {
+						panic("want next")
+					}
+					query, queryRef := schema.RootOperationTypeDefinitions.Value()
+					if !schema.RootOperationTypeDefinitions.Next(doc) {
+						panic("want next")
+					}
+					if queryRef != 0 {
+						panic("want 0")
+					}
+					if query.OperationType != ast.OperationTypeQuery {
+						panic("want OperationTypeQuery")
+					}
+					name := in.ByteSliceString(query.NamedType.Name)
+					if name != "Query" {
+						panic(fmt.Errorf("want 'Query', got '%s'", name))
+					}
+					mutation, mutationRef := schema.RootOperationTypeDefinitions.Value()
+					if !schema.RootOperationTypeDefinitions.Next(doc) {
+						panic("want next")
+					}
+					if mutationRef != 1 {
+						panic("want 1")
+					}
+					if mutation.OperationType != ast.OperationTypeMutation {
+						panic("want OperationTypeMutation")
+					}
+					name = in.ByteSliceString(mutation.NamedType.Name)
+					if name != "Mutation" {
+						panic(fmt.Errorf("want 'Mutation', got '%s'", name))
+					}
+					subscription, subscriptionRef := schema.RootOperationTypeDefinitions.Value()
+					if subscriptionRef != 2 {
+						panic("want 2")
+					}
+					if subscription.OperationType != ast.OperationTypeSubscription {
+						panic("want OperationTypeSubscription")
+					}
+					name = in.ByteSliceString(subscription.NamedType.Name)
+					if name != "Subscription" {
+						panic(fmt.Errorf("want 'Subscription', got '%s'", name))
+					}
+				})
+		})
+	})
 	t.Run("scalar type definition", func(t *testing.T) {
 		t.Run("simple", func(t *testing.T) {
 			run(`scalar JSON`, parse, false,

@@ -65,9 +65,10 @@ func (p *Parser) parse() {
 
 	for {
 		next := p.peek(true)
+
 		switch next {
 		case keyword.SCHEMA:
-			p.parseSchema()
+			p.document.PutSchemaDefinition(p.parseSchema())
 		case keyword.STRING, keyword.BLOCKSTRING:
 			p.parseRootDescription()
 		case keyword.SCALAR:
@@ -88,6 +89,8 @@ func (p *Parser) parse() {
 			p.parseOperationDefinition()
 		case keyword.FRAGMENT:
 			p.parseFragmentDefinition()
+		case keyword.EXTEND:
+			p.parseExtension()
 		case keyword.EOF:
 			p.read()
 			return
@@ -150,7 +153,7 @@ func (p *Parser) mustRead(key keyword.Keyword) (next token.Token) {
 	return
 }
 
-func (p *Parser) parseSchema() {
+func (p *Parser) parseSchema() ast.SchemaDefinition {
 
 	schemaLiteral := p.read()
 
@@ -164,14 +167,7 @@ func (p *Parser) parseSchema() {
 
 	schemaDefinition.RootOperationTypeDefinitions = p.parseRootOperationTypeDefinitionList()
 
-	ref := p.document.PutSchemaDefinition(schemaDefinition)
-
-	definition := ast.Definition{
-		Kind: ast.SchemaDefinitionKind,
-		Ref:  ref,
-	}
-
-	p.document.PutDefinition(definition)
+	return schemaDefinition
 }
 
 func (p *Parser) parseRootOperationTypeDefinitionList() (list ast.RootOperationTypeDefinitionList) {
@@ -1253,4 +1249,22 @@ func (p *Parser) parseFragmentDefinition() int {
 	}
 	fragmentDefinition.SelectionSet = p.parseSelectionSet()
 	return p.document.PutFragmentDefinition(fragmentDefinition)
+}
+
+func (p *Parser) parseExtension() {
+	extend := p.mustRead(keyword.EXTEND).TextPosition
+	next := p.peek(true)
+	switch next {
+	case keyword.SCHEMA:
+		p.parseSchemaExtension(extend)
+	default:
+		p.errUnexpectedToken(p.read(), keyword.SCHEMA)
+	}
+}
+
+func (p *Parser) parseSchemaExtension(extend position.Position) int {
+	var schemaExtension ast.SchemaExtension
+	schemaExtension.ExtendLiteral = extend
+	schemaExtension.SchemaDefinition = p.parseSchema()
+	return p.document.PutSchemaExtension(schemaExtension)
 }
