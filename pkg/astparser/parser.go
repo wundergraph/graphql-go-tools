@@ -86,6 +86,8 @@ func (p *Parser) parse() {
 			p.parseDirectiveDefinition(nil)
 		case keyword.QUERY, keyword.MUTATION, keyword.SUBSCRIPTION, keyword.CURLYBRACKETOPEN:
 			p.parseOperationDefinition()
+		case keyword.FRAGMENT:
+			p.parseFragmentDefinition()
 		case keyword.EOF:
 			p.read()
 			return
@@ -1239,4 +1241,16 @@ func (p *Parser) parseDefaultValue() ast.DefaultValue {
 		Equals:    equals,
 		Value:     value,
 	}
+}
+
+func (p *Parser) parseFragmentDefinition() int {
+	var fragmentDefinition ast.FragmentDefinition
+	fragmentDefinition.FragmentLiteral = p.mustRead(keyword.FRAGMENT).TextPosition
+	fragmentDefinition.Name = p.mustRead(keyword.IDENT).Literal
+	fragmentDefinition.TypeCondition = p.parseTypeCondition()
+	if p.peekEquals(keyword.AT) {
+		fragmentDefinition.Directives = p.parseDirectiveList()
+	}
+	fragmentDefinition.SelectionSet = p.parseSelectionSet()
+	return p.document.PutFragmentDefinition(fragmentDefinition)
 }

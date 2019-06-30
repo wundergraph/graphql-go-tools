@@ -75,6 +75,7 @@ type Document struct {
 	FragmentSpreads              []FragmentSpread
 	OperationDefinitions         []OperationDefinition
 	VariableDefinitions          []VariableDefinition
+	FragmentDefinitions          []FragmentDefinition
 	BooleanValue                 [2]BooleanValue
 }
 
@@ -111,6 +112,7 @@ func NewDocument() *Document {
 		FragmentSpreads:              make([]FragmentSpread, 16),
 		OperationDefinitions:         make([]OperationDefinition, 8),
 		VariableDefinitions:          make([]VariableDefinition, 8),
+		FragmentDefinitions:          make([]FragmentDefinition, 8),
 		BooleanValue:                 [2]BooleanValue{false, true},
 	}
 }
@@ -146,6 +148,7 @@ func (d *Document) Reset() {
 	d.FragmentSpreads = d.FragmentSpreads[:0]
 	d.OperationDefinitions = d.OperationDefinitions[:0]
 	d.VariableDefinitions = d.VariableDefinitions[:0]
+	d.FragmentDefinitions = d.FragmentDefinitions[:0]
 }
 
 func (d *Document) GetVariableDefinition(ref int) (node VariableDefinition, nextRef int) {
@@ -367,6 +370,11 @@ func (d *Document) PutOperationDefinition(definition OperationDefinition) int {
 func (d *Document) PutVariableDefinition(definition VariableDefinition) int {
 	d.VariableDefinitions = append(d.VariableDefinitions, definition)
 	return len(d.VariableDefinitions) - 1
+}
+
+func (d *Document) PutFragmentDefinition(definition FragmentDefinition) int {
+	d.FragmentDefinitions = append(d.FragmentDefinitions, definition)
+	return len(d.FragmentDefinitions) - 1
 }
 
 type Definition struct {
@@ -693,4 +701,19 @@ type InlineFragment struct {
 type TypeCondition struct {
 	On   position.Position // on
 	Type int               // NamedType
+}
+
+// FragmentDefinition
+// example:
+// fragment friendFields on User {
+//  id
+//  name
+//  profilePic(size: 50)
+//}
+type FragmentDefinition struct {
+	FragmentLiteral position.Position        // fragment
+	Name            input.ByteSliceReference // Name but not on, e.g. friendFields
+	TypeCondition   TypeCondition            // e.g. on User
+	Directives      DirectiveList            // optional, e.g. @foo
+	SelectionSet    SelectionSet             // e.g. { id }
 }

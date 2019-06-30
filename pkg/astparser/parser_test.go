@@ -1701,6 +1701,50 @@ func TestParser_Parse(t *testing.T) {
 				})
 		})
 	})
+	t.Run("fragment definition", func(t *testing.T) {
+		t.Run("simple", func(t *testing.T) {
+			run(`fragment friendFields on User {
+							  id
+							  name
+							  profilePic(size: 50)
+							}`, parse, false,
+				func(in *input.Input, doc *ast.Document, extra interface{}) {
+					fragment := doc.FragmentDefinitions[0]
+					if in.ByteSliceString(fragment.Name) != "friendFields" {
+						panic("want friendFields")
+					}
+					onUser := doc.Types[fragment.TypeCondition.Type]
+					if onUser.TypeKind != ast.TypeKindNamed {
+						panic("want TypeKindNamed")
+					}
+					if in.ByteSliceString(onUser.Name) != "User" {
+						panic("want User")
+					}
+
+					if !fragment.SelectionSet.Next(doc) {
+						panic("want next")
+					}
+					selection1, _ := fragment.SelectionSet.Value()
+					if selection1.Kind != ast.SelectionKindField {
+						panic("want SelectionKindField")
+					}
+					id := doc.Fields[selection1.Ref]
+					if in.ByteSliceString(id.Name) != "id" {
+						panic("want id")
+					}
+
+					if !fragment.SelectionSet.Next(doc) {
+						panic("want next")
+					}
+					if !fragment.SelectionSet.Next(doc) {
+						panic("want next")
+					}
+					if fragment.SelectionSet.Next(doc) {
+						panic("want false")
+					}
+				})
+		})
+	})
 }
 
 func TestParseStarwars(t *testing.T) {
