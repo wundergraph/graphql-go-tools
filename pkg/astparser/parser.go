@@ -91,6 +91,9 @@ func (p *Parser) parse() {
 			p.parseFragmentDefinition()
 		case keyword.EXTEND:
 			p.parseExtension()
+		case keyword.COMMENT:
+			p.read()
+			continue
 		case keyword.EOF:
 			p.read()
 			return
@@ -117,6 +120,10 @@ func (p *Parser) peekEquals(key keyword.Keyword) bool {
 }
 
 func (p *Parser) errUnexpectedToken(unexpected token.Token, expectedKeywords ...keyword.Keyword) {
+
+	if p.err != nil {
+		return
+	}
 
 	origins := make([]origin, 3)
 	for i := range origins {
@@ -277,9 +284,14 @@ func (p *Parser) parseArgumentList() (arguments ast.ArgumentList) {
 
 	previous := -1
 
+Loop:
 	for {
-		if p.peek(true) != keyword.IDENT {
-			break
+
+		next := p.peek(true)
+		switch next {
+		case keyword.IDENT, keyword.INPUT:
+		default:
+			break Loop
 		}
 
 		name := p.read()
@@ -458,12 +470,16 @@ func (p *Parser) parseIntegerValue(negativeSign *position.Position) int {
 func (p *Parser) parseVariableValue() int {
 	dollar := p.mustRead(keyword.DOLLAR)
 	var value token.Token
-	if p.peek(false) == keyword.IDENT {
+
+	next := p.peek(false)
+	switch next {
+	case keyword.IDENT, keyword.INPUT:
 		value = p.read()
-	} else {
-		p.errUnexpectedToken(p.read(), keyword.IDENT, keyword.INTEGER)
+	default:
+		p.errUnexpectedToken(p.read(), keyword.IDENT, keyword.INPUT)
 		return -1
 	}
+
 	return p.document.PutVariableValue(ast.VariableValue{
 		Dollar: dollar.TextPosition,
 		Name:   value.Literal,
@@ -1035,6 +1051,7 @@ func (p *Parser) parseSelectionSet() (set ast.SelectionSet) {
 	set.Open = p.mustRead(keyword.CURLYBRACKETOPEN).TextPosition
 
 	previous := -1
+
 	for {
 		next := p.peek(true)
 		switch next {
@@ -1057,18 +1074,15 @@ func (p *Parser) parseSelectionSet() (set ast.SelectionSet) {
 func (p *Parser) parseSelection() int {
 	next := p.peek(true)
 	switch next {
-	case keyword.IDENT:
-		field := p.parseField()
+	case keyword.IDENT, keyword.QUERY:
 		return p.document.PutSelection(ast.Selection{
 			Kind: ast.SelectionKindField,
-			Ref:  field,
+			Ref:  p.parseField(),
 		})
 	case keyword.SPREAD:
-		spread := p.read()
-		selection := p.parseFragmentSelection(spread.TextPosition)
-		return p.document.PutSelection(selection)
+		return p.document.PutSelection(p.parseFragmentSelection(p.read().TextPosition))
 	default:
-		p.errUnexpectedToken(p.read(), keyword.IDENT)
+		p.errUnexpectedToken(p.read(), keyword.IDENT, keyword.SPREAD)
 		return -1
 	}
 }
@@ -1077,7 +1091,7 @@ func (p *Parser) parseFragmentSelection(spread position.Position) (selection ast
 
 	next := p.peek(true)
 	switch next {
-	case keyword.ON:
+	case keyword.ON, keyword.CURLYBRACKETOPEN, keyword.AT:
 		selection.Kind = ast.SelectionKindInlineFragment
 		selection.Ref = p.parseInlineFragment(spread)
 	case keyword.IDENT:
@@ -1094,7 +1108,11 @@ func (p *Parser) parseField() int {
 
 	var field ast.Field
 
-	firstIdent := p.mustRead(keyword.IDENT)
+	firstIdent := p.read()
+	if firstIdent.Keyword != keyword.IDENT && firstIdent.Keyword != keyword.QUERY {
+		p.errUnexpectedToken(firstIdent, keyword.IDENT, keyword.QUERY)
+	}
+
 	if p.peek(true) == keyword.COLON {
 		field.Alias.IsDefined = true
 		field.Alias.Name = firstIdent.Literal
@@ -1130,7 +1148,9 @@ func (p *Parser) parseFragmentSpread(spread position.Position) int {
 func (p *Parser) parseInlineFragment(spread position.Position) int {
 	var fragment ast.InlineFragment
 	fragment.Spread = spread
-	fragment.TypeCondition = p.parseTypeCondition()
+	if p.peekEquals(keyword.ON) {
+		fragment.TypeCondition = p.parseTypeCondition()
+	}
 	if p.peekEquals(keyword.AT) {
 		fragment.Directives = p.parseDirectiveList()
 	}

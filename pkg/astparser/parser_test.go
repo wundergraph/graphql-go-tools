@@ -1504,6 +1504,27 @@ func TestParser_Parse(t *testing.T) {
 					}
 				})
 		})
+		t.Run("complex nested subscription", func(t *testing.T) {
+			run(`subscription StoryLikeSubscription($input: StoryLikeSubscribeInput) {
+  								storyLikeSubscribe(input: $input) {
+									story {
+									  likers {
+										count
+									  }
+									  likeSentence {
+										text
+									  }
+									}
+								  }
+							}`,
+				parse, false,
+				func(in *input.Input, doc *ast.Document, extra interface{}) {
+					subscription := doc.OperationDefinitions[0]
+					if subscription.OperationType != ast.OperationTypeSubscription {
+						panic("want OperationTypeSubscription")
+					}
+				})
+		})
 	})
 	t.Run("variable definition", func(t *testing.T) {
 		t.Run("simple", func(t *testing.T) {
@@ -1853,9 +1874,48 @@ func BenchmarkParseStarwars(b *testing.B) {
 	}
 }
 
+func BenchmarkKitchenSink(b *testing.B) {
+	in := &input.Input{}
+	doc := ast.NewDocument()
+	parser := NewParser(&lexer.Lexer{})
+
+	var err error
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		in.ResetInputBytes(kitchenSinkData)
+		doc.Reset()
+		err = parser.Parse(in, doc)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
 func BenchmarkParse(b *testing.B) {
 
-	inputBytes := []byte(`	schema @foo @bar(baz: "bal") {
+	in := &input.Input{}
+	doc := ast.NewDocument()
+	parser := NewParser(&lexer.Lexer{})
+
+	var err error
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		in.ResetInputBytes(inputBytes)
+		doc.Reset()
+		err = parser.Parse(in, doc)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+var inputBytes = []byte(`	schema @foo @bar(baz: "bal") {
 								query: Query
 								mutation: Mutation
 								subscription: Subscription 
@@ -1934,21 +1994,63 @@ func BenchmarkParse(b *testing.B) {
 							}
 `)
 
-	in := &input.Input{}
-	doc := ast.NewDocument()
-	parser := NewParser(&lexer.Lexer{})
+var kitchenSinkData = []byte(`# Copyright (c) 2015-present, Facebook, Inc.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
-	var err error
-
-	b.ReportAllocs()
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
-		in.ResetInputBytes(inputBytes)
-		doc.Reset()
-		err = parser.Parse(in, doc)
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
+query queryName($foo: ComplexType, $site: Site = MOBILE) {
+  whoever123is: node(id: [123, 456]) {
+    id ,
+    ... on User @defer {
+      field2 {
+        id ,
+        alias: field1(first:10, after:$foo,) @include(if: $foo) {
+          id,
+          ...frag
+        }
+      }
+    }
+    ... @skip(unless: $foo) {
+      id
+    }
+    ... {
+      id
+    }
+  }
 }
+
+mutation likeStory {
+  like(story: 123) @defer {
+    story {
+      id
+    }
+  }
+}
+
+subscription StoryLikeSubscription($input: StoryLikeSubscribeInput) {
+  storyLikeSubscribe(input: $input) {
+    story {
+      likers {
+        count
+      }
+      likeSentence {
+        text
+      }
+    }
+  }
+}
+
+fragment frag on Friend {
+  foo(size: $size, bar: $b, obj: {key: "value", block: """
+
+      block string uses \"""
+
+  """})
+}
+
+{
+  unnamed(truthy: true, falsey: false, nullish: null),
+  query
+}
+`)
