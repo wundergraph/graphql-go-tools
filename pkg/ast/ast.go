@@ -143,6 +143,7 @@ func (d *Document) Reset() {
 	d.IntValues = d.IntValues[:0]
 	d.FloatValues = d.FloatValues[:0]
 	d.ValueLists = d.ValueLists[:0]
+	d.Values = d.Values[:0]
 	d.ObjectFields = d.ObjectFields[:0]
 	d.ObjectValues = d.ObjectValues[:0]
 	d.Selections = d.Selections[:0]
