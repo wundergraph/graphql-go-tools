@@ -17,6 +17,7 @@ func (v *Visitor) Visit() {
 		if operation.OperationType == OperationTypeQuery {
 
 			opName := v.operationInput.ByteSlice(operation.Name)
+			_ = opName
 
 			for operation.SelectionSet.Next(v.operation) {
 				selection, _ := operation.SelectionSet.Value()
