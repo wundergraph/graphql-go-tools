@@ -1,8 +1,12 @@
 package ast
 
+import "github.com/jensneuse/graphql-go-tools/pkg/input"
+
 type Visitor struct {
+	definitionInput    *input.Input
 	definitionDocument *Document
 	operation          *Document
+	operationInput     *input.Input
 	fieldVisitor       FieldVisitor
 }
 
@@ -11,6 +15,8 @@ type FieldVisitor func(field Field)
 func (v *Visitor) Visit() {
 	for _, operation := range v.operation.OperationDefinitions {
 		if operation.OperationType == OperationTypeQuery {
+
+			opName := v.operationInput.ByteSlice(operation.Name)
 
 			for operation.SelectionSet.Next(v.operation) {
 				selection, _ := operation.SelectionSet.Value()
