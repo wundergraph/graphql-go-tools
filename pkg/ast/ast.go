@@ -6,16 +6,13 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 )
 
-type DefinitionKind int
 type OperationType int
 type ValueKind int
 type TypeKind int
 type SelectionKind int
+type NodeKind int
 
 const (
-	DefinitionKindUnknown DefinitionKind = iota
-	SchemaDefinitionKind
-
 	OperationTypeUndefined OperationType = iota
 	OperationTypeQuery
 	OperationTypeMutation
@@ -41,10 +38,15 @@ const (
 	SelectionKindField
 	SelectionKindFragmentSpread
 	SelectionKindInlineFragment
+
+	NodeKindUnknown NodeKind = iota
+	NodeKindOperation
+	NodeKindSelectionSet
+	NodeKindField
 )
 
 type Document struct {
-	Definitions                  []Definition
+	RootNodes                    []RootNode
 	SchemaDefinitions            []SchemaDefinition
 	SchemaExtensions             []SchemaExtension
 	RootOperationTypeDefinitions []RootOperationTypeDefinition
@@ -82,7 +84,7 @@ type Document struct {
 
 func NewDocument() *Document {
 	return &Document{
-		Definitions:                  make([]Definition, 48),
+		RootNodes:                    make([]RootNode, 48),
 		RootOperationTypeDefinitions: make([]RootOperationTypeDefinition, 3),
 		SchemaDefinitions:            make([]SchemaDefinition, 2),
 		SchemaExtensions:             make([]SchemaExtension, 2),
@@ -120,7 +122,7 @@ func NewDocument() *Document {
 }
 
 func (d *Document) Reset() {
-	d.Definitions = d.Definitions[:0]
+	d.RootNodes = d.RootNodes[:0]
 	d.SchemaDefinitions = d.SchemaDefinitions[:0]
 	d.SchemaExtensions = d.SchemaExtensions[:0]
 	d.RootOperationTypeDefinitions = d.RootOperationTypeDefinitions[:0]
@@ -221,6 +223,11 @@ func (d *Document) GetRootOperationTypeDefinition(ref int) (node RootOperationTy
 	return
 }
 
+func (d *Document) PutRootNode(node RootNode) int {
+	d.RootNodes = append(d.RootNodes, node)
+	return len(d.RootNodes) - 1
+}
+
 func (d *Document) PutRootOperationTypeDefinition(def RootOperationTypeDefinition) int {
 	d.RootOperationTypeDefinitions = append(d.RootOperationTypeDefinitions, def)
 	return len(d.RootOperationTypeDefinitions) - 1
@@ -229,16 +236,7 @@ func (d *Document) PutRootOperationTypeDefinition(def RootOperationTypeDefinitio
 func (d *Document) PutSchemaDefinition(def SchemaDefinition) int {
 	d.SchemaDefinitions = append(d.SchemaDefinitions, def)
 	ref := len(d.SchemaDefinitions) - 1
-	d.putDefinition(Definition{
-		Kind: SchemaDefinitionKind,
-		Ref:  ref,
-	})
 	return ref
-}
-
-func (d *Document) putDefinition(def Definition) int {
-	d.Definitions = append(d.Definitions, def)
-	return len(d.Definitions) - 1
 }
 
 func (d *Document) PutDirective(directive Directive) int {
@@ -373,7 +371,12 @@ func (d *Document) PutFragmentSpread(spread FragmentSpread) int {
 
 func (d *Document) PutOperationDefinition(definition OperationDefinition) int {
 	d.OperationDefinitions = append(d.OperationDefinitions, definition)
-	return len(d.OperationDefinitions) - 1
+	ref := len(d.OperationDefinitions) - 1
+	d.PutRootNode(RootNode{
+		Kind: NodeKindOperation,
+		Ref:  ref,
+	})
+	return ref
 }
 
 func (d *Document) PutVariableDefinition(definition VariableDefinition) int {
@@ -391,8 +394,8 @@ func (d *Document) PutSchemaExtension(extension SchemaExtension) int {
 	return len(d.SchemaExtensions) - 1
 }
 
-type Definition struct {
-	Kind DefinitionKind
+type RootNode struct {
+	Kind NodeKind
 	Ref  int
 }
 
