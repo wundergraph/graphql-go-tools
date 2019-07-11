@@ -4,22 +4,24 @@ import (
 	"fmt"
 	f "github.com/fauna/faunadb-go/faunadb"
 	"net/http"
+	"os"
 	"testing"
 	"time"
 )
 
-const (
-	key = "fnADS9sWlcACBWlQWJED54oO42ECwwFwjVUU6aMl"
-)
-
 func TestFauna(t *testing.T) {
+
+	faunaSecret := os.Getenv("FAUNA_SECRET")
+	if faunaSecret == "" {
+		t.Fatal("must set env FAUNA_SECRET")
+	}
 
 	httpClient := &http.Client{
 		Timeout:   time.Duration(5) * time.Second,
 		Transport: NewLoggingRoundTripper(),
 	}
 
-	client := f.NewFaunaClient(key, f.HTTP(httpClient))
+	client := f.NewFaunaClient(faunaSecret, f.HTTP(httpClient))
 
 	result, err := client.Query(
 		f.Let(f.Obj{
