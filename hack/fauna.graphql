@@ -1,0 +1,19 @@
+type Post {
+    description: String
+    comments: [Comment] @relation
+}
+
+type Query {
+    posts: [Post]!
+}
+
+type Comment {
+    Post: Post! @relation
+    author: Author! @relation
+    text: String!
+}
+
+type Author {
+    name: String!
+    alias: String
+}
