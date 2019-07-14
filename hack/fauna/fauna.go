@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"testing"
 )
 
 type LoggingRoundTripper struct {
@@ -68,4 +69,18 @@ func prettyPrint(value f.Value) (string, error) {
 		return "", err
 	}
 	return string(prettified), nil
+}
+
+func run(t *testing.T, client *f.FaunaClient, expr f.Expr) {
+	result, err := client.Query(expr)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := prettyPrint(result)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fmt.Printf("Response:\n\n%s", out)
 }

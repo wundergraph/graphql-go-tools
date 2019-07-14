@@ -1,7 +1,6 @@
 package fauna
 
 import (
-	"fmt"
 	f "github.com/fauna/faunadb-go/faunadb"
 	"net/http"
 	"os"
@@ -9,7 +8,7 @@ import (
 	"time"
 )
 
-func TestFauna(t *testing.T) {
+func TestFaunaFunc(t *testing.T) {
 
 	faunaSecret := os.Getenv("FAUNA_SECRET")
 	if faunaSecret == "" {
@@ -23,7 +22,27 @@ func TestFauna(t *testing.T) {
 
 	client := f.NewFaunaClient(faunaSecret, f.HTTP(httpClient))
 
-	result, err := client.Query(
+	run(t, client, f.If(f.Exists(f.Function("posts")), f.Delete(f.Function("posts")), "nothing"))
+
+	run(t, client, f.CreateFunction(f.Obj{
+		"name":        "posts",
+		"permissions": f.Obj{"call": "public"},
+		"role":        "server",
+		"body": f.Query(f.Lambda(
+			f.Arr{"fields"},
+			f.Obj{
+				"posts": f.Select("data", f.Map(
+					f.Paginate(
+						f.Match(f.Index("posts")),
+					),
+					f.Lambda("post", f.Map(
+						f.Var("fields"),
+						f.Lambda("field", f.Select(f.Arr{"name"}, f.Var("field"))))),
+				)),
+			})),
+	}))
+
+	/*	result, err := client.Query(
 		f.Obj{
 			"data": f.Obj{
 				"posts": f.Select(f.Arr{"data"}, f.Map(
@@ -53,16 +72,30 @@ func TestFauna(t *testing.T) {
 				)),
 			},
 		},
-	)
+	)*/
 
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	out, err := prettyPrint(result)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	fmt.Printf("Response:\n\n%s", out)
+	/*	run(t, client, f.Call(
+		f.Function("posts"),
+		f.Arr{f.Obj{
+			"id":          f.Obj{},
+			"description": f.Obj{},
+		}},
+		/*f.Obj{
+			"posts": f.Obj{
+				"_from": f.Obj{
+					"match": "posts",
+				},
+				"id":          f.Arr{"ref", "id"},
+				"description": f.Arr{"data", "description"},
+				"comments": f.Obj{
+					"_from": f.Obj{
+						"matchTerm": f.Obj{
+							"index": "comment_by_post",
+							"arg":   "ref",
+						},
+					},
+					"text": f.Arr{"data", "text"},
+				},
+			},
+		}))*/
 }
