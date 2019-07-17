@@ -9,28 +9,29 @@ import (
 type Input struct {
 	// RawBytes is the raw byte input
 	RawBytes []byte
+	// Length of RawBytes
+	Length int
 	// InputPosition is the current position in the RawBytes
 	InputPosition int
-	// TextPosition is the current position within the text (line and character information about the current token)
+	// TextPosition is the current position within the text (line and character information about the current Tokens)
 	TextPosition position.Position
-	// BeforeLastLineTerminatorTextPosition is the line and character position information before the last line terminator
-	BeforeLastLineTerminatorTextPosition position.Position
 }
 
 func (i *Input) Reset() {
 	i.RawBytes = i.RawBytes[:0]
 	i.InputPosition = 0
 	i.TextPosition.Reset()
-	i.BeforeLastLineTerminatorTextPosition.Reset()
 }
 
 func (i *Input) ResetInputBytes(bytes []byte) {
 	i.Reset()
 	i.AppendInputBytes(bytes)
+	i.Length = len(i.RawBytes)
 }
 
 func (i *Input) AppendInputBytes(bytes []byte) {
 	i.RawBytes = append(i.RawBytes, bytes...)
+	i.Length = len(i.RawBytes)
 }
 
 func (i *Input) ByteSlice(reference ByteSliceReference) ByteSlice {
