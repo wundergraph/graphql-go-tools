@@ -95,7 +95,7 @@ func (p *Parser) parse() {
 		case keyword.INTERFACE:
 			p.document.PutInterfaceTypeDefinition(p.parseInterfaceTypeDefinition(nil))
 		case keyword.UNION:
-			p.parseUnionTypeDefinition(nil)
+			p.document.PutUnionTypeDefinition(p.parseUnionTypeDefinition(nil))
 		case keyword.ENUM:
 			p.parseEnumTypeDefinition(nil)
 		case keyword.DIRECTIVE:
@@ -602,7 +602,7 @@ func (p *Parser) parseRootDescription() {
 	case keyword.INTERFACE:
 		p.document.PutInterfaceTypeDefinition(p.parseInterfaceTypeDefinition(&description))
 	case keyword.UNION:
-		p.parseUnionTypeDefinition(&description)
+		p.document.PutUnionTypeDefinition(p.parseUnionTypeDefinition(&description))
 	case keyword.ENUM:
 		p.parseEnumTypeDefinition(&description)
 	case keyword.DIRECTIVE:
@@ -897,7 +897,7 @@ func (p *Parser) parseInterfaceTypeDefinition(description *ast.Description) ast.
 	return interfaceTypeDefinition
 }
 
-func (p *Parser) parseUnionTypeDefinition(description *ast.Description) int {
+func (p *Parser) parseUnionTypeDefinition(description *ast.Description) ast.UnionTypeDefinition {
 	var unionTypeDefinition ast.UnionTypeDefinition
 	if description != nil {
 		unionTypeDefinition.Description = *description
@@ -910,7 +910,7 @@ func (p *Parser) parseUnionTypeDefinition(description *ast.Description) int {
 	if p.peekEquals(keyword.EQUALS) {
 		unionTypeDefinition.Equals, unionTypeDefinition.UnionMemberTypes = p.parseUnionMemberTypes()
 	}
-	return p.document.PutUnionTypeDefinition(unionTypeDefinition)
+	return unionTypeDefinition
 }
 
 func (p *Parser) parseUnionMemberTypes() (equals position.Position, members ast.TypeList) {
@@ -1332,6 +1332,8 @@ func (p *Parser) parseExtension() {
 		p.document.PutInterfaceTypeExtension(p.parseInterfaceTypeExtension(extend))
 	case keyword.SCALAR:
 		p.document.PutScalarTypeExtension(p.parseScalarTypeExtension(extend))
+	case keyword.UNION:
+		p.document.PutUnionTypeExtension(p.parseUnionTypeExtension(extend))
 	default:
 		p.errUnexpectedToken(p.read(), keyword.SCHEMA)
 	}
@@ -1362,5 +1364,12 @@ func (p *Parser) parseScalarTypeExtension(extend position.Position) ast.ScalarTy
 	return ast.ScalarTypeExtension{
 		ExtendLiteral:        extend,
 		ScalarTypeDefinition: p.parseScalarTypeDefinition(nil),
+	}
+}
+
+func (p *Parser) parseUnionTypeExtension(extend position.Position) ast.UnionTypeExtension {
+	return ast.UnionTypeExtension{
+		ExtendLiteral:       extend,
+		UnionTypeDefinition: p.parseUnionTypeDefinition(nil),
 	}
 }

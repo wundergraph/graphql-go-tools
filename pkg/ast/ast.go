@@ -46,6 +46,8 @@ const (
 	NodeKindObjectTypeExtension
 	NodeKindInterfaceTypeDefinition
 	NodeKindInterfaceTypeExtension
+	NodeKindUnionTypeDefinition
+	NodeKindUnionTypeExtension
 	NodeKindOperation
 	NodeKindSelectionSet
 	NodeKindField
@@ -69,6 +71,7 @@ type Document struct {
 	InterfaceTypeDefinitions     []InterfaceTypeDefinition
 	InterfaceTypeExtensions      []InterfaceTypeExtension
 	UnionTypeDefinitions         []UnionTypeDefinition
+	UnionTypeExtensions          []UnionTypeExtension
 	EnumTypeDefinitions          []EnumTypeDefinition
 	EnumValueDefinitions         []EnumValueDefinition
 	DirectiveDefinitions         []DirectiveDefinition
@@ -110,6 +113,7 @@ func NewDocument() *Document {
 		InterfaceTypeDefinitions:     make([]InterfaceTypeDefinition, 16),
 		InterfaceTypeExtensions:      make([]InterfaceTypeExtension, 4),
 		UnionTypeDefinitions:         make([]UnionTypeDefinition, 8),
+		UnionTypeExtensions:          make([]UnionTypeExtension, 4),
 		EnumTypeDefinitions:          make([]EnumTypeDefinition, 8),
 		EnumValueDefinitions:         make([]EnumValueDefinition, 48),
 		DirectiveDefinitions:         make([]DirectiveDefinition, 8),
@@ -151,6 +155,7 @@ func (d *Document) Reset() {
 	d.InterfaceTypeDefinitions = d.InterfaceTypeDefinitions[:0]
 	d.InterfaceTypeExtensions = d.InterfaceTypeExtensions[:0]
 	d.UnionTypeDefinitions = d.UnionTypeDefinitions[:0]
+	d.UnionTypeExtensions = d.UnionTypeExtensions[:0]
 	d.EnumTypeDefinitions = d.EnumTypeDefinitions[:0]
 	d.EnumValueDefinitions = d.EnumValueDefinitions[:0]
 	d.DirectiveDefinitions = d.DirectiveDefinitions[:0]
@@ -428,6 +433,11 @@ func (d *Document) PutScalarTypeExtension(extension ScalarTypeExtension) int {
 	return len(d.ScalarTypeExtensions) - 1
 }
 
+func (d *Document) PutUnionTypeExtension(extension UnionTypeExtension) int {
+	d.UnionTypeExtensions = append(d.UnionTypeExtensions, extension)
+	return len(d.UnionTypeExtensions) - 1
+}
+
 type RootNode struct {
 	Kind NodeKind
 	Ref  int
@@ -659,6 +669,11 @@ type UnionTypeDefinition struct {
 	Directives       DirectiveList            // optional, e.g. @foo
 	Equals           position.Position        // =
 	UnionMemberTypes TypeList                 // optional, e.g. Photo | Person
+}
+
+type UnionTypeExtension struct {
+	ExtendLiteral position.Position
+	UnionTypeDefinition
 }
 
 // EnumTypeDefinition

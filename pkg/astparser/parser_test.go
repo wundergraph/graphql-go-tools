@@ -491,6 +491,51 @@ func TestParser_Parse(t *testing.T) {
 				})
 		})
 	})
+	t.Run("union type extension", func(t *testing.T) {
+		t.Run("simple", func(t *testing.T) {
+			run(`extend union SearchResult = Photo | Person`, parse, false,
+				func(in *input.Input, doc *ast.Document, extra interface{}) {
+					SearchResult := doc.UnionTypeExtensions[0]
+
+					// union member types
+
+					// Photo
+					if !SearchResult.UnionMemberTypes.Next(doc) {
+						panic("want next")
+					}
+					Photo, PhotoRef := SearchResult.UnionMemberTypes.Value()
+					if PhotoRef != 0 {
+						panic("want 0")
+					}
+					if Photo.TypeKind != ast.TypeKindNamed {
+						panic("want TypeKindNamed")
+					}
+					if in.ByteSliceString(Photo.Name) != "Photo" {
+						panic("want Photo")
+					}
+
+					// Person
+					if !SearchResult.UnionMemberTypes.Next(doc) {
+						panic("want next")
+					}
+					Person, PersonRef := SearchResult.UnionMemberTypes.Value()
+					if PersonRef != 1 {
+						panic("want 1")
+					}
+					if Person.TypeKind != ast.TypeKindNamed {
+						panic("want TypeKindNamed")
+					}
+					if in.ByteSliceString(Person.Name) != "Person" {
+						panic("want Person")
+					}
+
+					// no more types
+					if SearchResult.UnionMemberTypes.Next(doc) {
+						panic("want false")
+					}
+				})
+		})
+	})
 	t.Run("scalar type definition", func(t *testing.T) {
 		t.Run("simple", func(t *testing.T) {
 			run(`scalar JSON`, parse, false,
