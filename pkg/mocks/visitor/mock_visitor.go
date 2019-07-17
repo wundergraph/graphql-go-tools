@@ -34,49 +34,25 @@ func (m *MockVisitor) EXPECT() *MockVisitorMockRecorder {
 }
 
 // Enter mocks base method
-func (m *MockVisitor) Enter(node ast.NodeKind, ref int) {
+func (m *MockVisitor) Enter(kind ast.NodeKind, ref int) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Enter", node, ref)
+	m.ctrl.Call(m, "Enter", kind, ref)
 }
 
 // Enter indicates an expected call of Enter
-func (mr *MockVisitorMockRecorder) Enter(node, ref interface{}) *gomock.Call {
+func (mr *MockVisitorMockRecorder) Enter(kind, ref interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Enter", reflect.TypeOf((*MockVisitor)(nil).Enter), node, ref)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Enter", reflect.TypeOf((*MockVisitor)(nil).Enter), kind, ref)
 }
 
 // Leave mocks base method
-func (m *MockVisitor) Leave(node ast.NodeKind, ref int) {
+func (m *MockVisitor) Leave(kind ast.NodeKind, ref int) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Leave", node, ref)
+	m.ctrl.Call(m, "Leave", kind, ref)
 }
 
 // Leave indicates an expected call of Leave
-func (mr *MockVisitorMockRecorder) Leave(node, ref interface{}) *gomock.Call {
+func (mr *MockVisitorMockRecorder) Leave(kind, ref interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Leave", reflect.TypeOf((*MockVisitor)(nil).Leave), node, ref)
-}
-
-// EnterField mocks base method
-func (m *MockVisitor) EnterField(field ast.Field) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "EnterField", field)
-}
-
-// EnterField indicates an expected call of EnterField
-func (mr *MockVisitorMockRecorder) EnterField(field interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnterField", reflect.TypeOf((*MockVisitor)(nil).EnterField), field)
-}
-
-// LeaveField mocks base method
-func (m *MockVisitor) LeaveField(field ast.Field) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "LeaveField", field)
-}
-
-// LeaveField indicates an expected call of LeaveField
-func (mr *MockVisitorMockRecorder) LeaveField(field interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LeaveField", reflect.TypeOf((*MockVisitor)(nil).LeaveField), field)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Leave", reflect.TypeOf((*MockVisitor)(nil).Leave), kind, ref)
 }
