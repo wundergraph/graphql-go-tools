@@ -40,6 +40,8 @@ const (
 	SelectionKindInlineFragment
 
 	NodeKindUnknown NodeKind = iota
+	NodeKindSchemaDefinition
+	NodeKindSchemaExtension
 	NodeKindOperation
 	NodeKindSelectionSet
 	NodeKindField
