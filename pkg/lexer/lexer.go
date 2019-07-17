@@ -58,20 +58,6 @@ func (l *Lexer) Read() (tok token.Token) {
 	return
 }
 
-// Peek will emit the next keyword without advancing the reader position
-func (l *Lexer) Peek(ignoreWhitespace bool) keyword.Keyword {
-	next := l.peekRune(ignoreWhitespace)
-
-	if next == runes.QUOTE {
-		if l.peekEquals(true, runes.QUOTE, runes.QUOTE, runes.QUOTE) {
-			return keyword.BLOCKSTRING
-		}
-		return keyword.STRING
-	}
-
-	return l.keywordFromRune(next)
-}
-
 func (l *Lexer) keywordFromRune(r byte) keyword.Keyword {
 
 	switch r {
@@ -141,7 +127,7 @@ func (l *Lexer) peekIsFloat() (isFloat bool) {
 
 	start := l.input.InputPosition + l.peekWhitespaceLength()
 
-	for i := start; i < len(l.input.RawBytes); i++ {
+	for i := start; i < l.input.Length; i++ {
 
 		peeked = l.input.RawBytes[i]
 
@@ -206,13 +192,11 @@ func (l *Lexer) readIdent() {
 	var r byte
 
 	for {
-		r = l.readRune()
+		r = l.peekRune(false)
 		if !runeIsIdent(r) {
-			if r != runes.EOF {
-				l.unreadRune()
-			}
 			return
 		}
+		l.readRune()
 	}
 }
 
@@ -224,8 +208,8 @@ func (l *Lexer) peekIdent() (k keyword.Keyword) {
 
 	start := l.input.InputPosition + whitespaceOffset
 	end := start + identWantRunes
-	if end > len(l.input.RawBytes) {
-		end = len(l.input.RawBytes)
+	if end > l.input.Length {
+		end = l.input.Length
 	}
 
 	for i := start; i < end; {
@@ -374,7 +358,7 @@ func (l *Lexer) peekEquals(ignoreWhitespace bool, equals ...byte) bool {
 	start := l.input.InputPosition + whitespaceOffset
 	end := l.input.InputPosition + len(equals) + whitespaceOffset
 
-	if end > len(l.input.RawBytes) {
+	if end > l.input.Length {
 		return false
 	}
 
@@ -388,7 +372,7 @@ func (l *Lexer) peekEquals(ignoreWhitespace bool, equals ...byte) bool {
 }
 
 func (l *Lexer) peekWhitespaceLength() (amount int) {
-	for i := l.input.InputPosition; i < len(l.input.RawBytes); i++ {
+	for i := l.input.InputPosition; i < l.input.Length; i++ {
 		if l.byteIsWhitespace(l.input.RawBytes[i]) {
 			amount++
 		} else {
@@ -403,10 +387,11 @@ func (l *Lexer) readDigit(tok *token.Token) {
 
 	var r byte
 	for {
-		r = l.readRune()
+		r = l.peekRune(false)
 		if !runeIsDigit(r) {
 			break
 		}
+		l.readRune()
 	}
 
 	isFloat := r == runes.DOT
@@ -417,10 +402,6 @@ func (l *Lexer) readDigit(tok *token.Token) {
 		return
 	}
 
-	if r != runes.EOF {
-		l.unreadRune()
-	}
-
 	tok.Keyword = keyword.INTEGER
 	tok.SetEnd(l.input.InputPosition, l.input.TextPosition)
 }
@@ -429,14 +410,11 @@ func (l *Lexer) readFloat(tok *token.Token) {
 
 	var r byte
 	for {
-		r = l.readRune()
+		r = l.peekRune(false)
 		if !runeIsDigit(r) {
 			break
 		}
-	}
-
-	if r != runes.EOF {
-		l.unreadRune()
+		l.readRune()
 	}
 
 	tok.Keyword = keyword.FLOAT
@@ -445,11 +423,10 @@ func (l *Lexer) readFloat(tok *token.Token) {
 
 func (l *Lexer) readRune() (r byte) {
 
-	if l.input.InputPosition < len(l.input.RawBytes) {
+	if l.input.InputPosition < l.input.Length {
 		r = l.input.RawBytes[l.input.InputPosition]
 
 		if r == runes.LINETERMINATOR {
-			l.input.BeforeLastLineTerminatorTextPosition = l.input.TextPosition
 			l.input.TextPosition.LineStart++
 			l.input.TextPosition.CharStart = 1
 		} else {
@@ -464,21 +441,9 @@ func (l *Lexer) readRune() (r byte) {
 	return
 }
 
-func (l *Lexer) unreadRune() {
-
-	l.input.InputPosition--
-
-	r := rune(l.input.RawBytes[l.input.InputPosition])
-	if r == runes.LINETERMINATOR {
-		l.input.TextPosition = l.input.BeforeLastLineTerminatorTextPosition
-	} else {
-		l.input.TextPosition.CharStart--
-	}
-}
-
 func (l *Lexer) peekRune(ignoreWhitespace bool) (r byte) {
 
-	for i := l.input.InputPosition; i < len(l.input.RawBytes); i++ {
+	for i := l.input.InputPosition; i < l.input.Length; i++ {
 		r = l.input.RawBytes[i]
 		if !ignoreWhitespace {
 			return r
