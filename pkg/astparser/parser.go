@@ -97,7 +97,7 @@ func (p *Parser) parse() {
 		case keyword.UNION:
 			p.document.PutUnionTypeDefinition(p.parseUnionTypeDefinition(nil))
 		case keyword.ENUM:
-			p.parseEnumTypeDefinition(nil)
+			p.document.PutEnumTypeDefinition(p.parseEnumTypeDefinition(nil))
 		case keyword.DIRECTIVE:
 			p.parseDirectiveDefinition(nil)
 		case keyword.QUERY, keyword.MUTATION, keyword.SUBSCRIPTION, keyword.CURLYBRACKETOPEN:
@@ -604,7 +604,7 @@ func (p *Parser) parseRootDescription() {
 	case keyword.UNION:
 		p.document.PutUnionTypeDefinition(p.parseUnionTypeDefinition(&description))
 	case keyword.ENUM:
-		p.parseEnumTypeDefinition(&description)
+		p.document.PutEnumTypeDefinition(p.parseEnumTypeDefinition(&description))
 	case keyword.DIRECTIVE:
 		p.parseDirectiveDefinition(&description)
 	default:
@@ -972,7 +972,7 @@ func (p *Parser) parseUnionMemberTypes() (equals position.Position, members ast.
 	}
 }
 
-func (p *Parser) parseEnumTypeDefinition(description *ast.Description) int {
+func (p *Parser) parseEnumTypeDefinition(description *ast.Description) ast.EnumTypeDefinition {
 	var enumTypeDefinition ast.EnumTypeDefinition
 	if description != nil {
 		enumTypeDefinition.Description = *description
@@ -985,7 +985,7 @@ func (p *Parser) parseEnumTypeDefinition(description *ast.Description) int {
 	if p.peekEquals(keyword.CURLYBRACKETOPEN) {
 		enumTypeDefinition.EnumValuesDefinition = p.parseEnumValueDefinitionList()
 	}
-	return p.document.PutEnumTypeDefinition(enumTypeDefinition)
+	return enumTypeDefinition
 }
 
 func (p *Parser) parseEnumValueDefinitionList() (list ast.EnumValueDefinitionList) {
@@ -1334,6 +1334,8 @@ func (p *Parser) parseExtension() {
 		p.document.PutScalarTypeExtension(p.parseScalarTypeExtension(extend))
 	case keyword.UNION:
 		p.document.PutUnionTypeExtension(p.parseUnionTypeExtension(extend))
+	case keyword.ENUM:
+		p.document.PutEnumTypeExtension(p.parseEnumTypeExtension(extend))
 	default:
 		p.errUnexpectedToken(p.read(), keyword.SCHEMA)
 	}
@@ -1371,5 +1373,12 @@ func (p *Parser) parseUnionTypeExtension(extend position.Position) ast.UnionType
 	return ast.UnionTypeExtension{
 		ExtendLiteral:       extend,
 		UnionTypeDefinition: p.parseUnionTypeDefinition(nil),
+	}
+}
+
+func (p *Parser) parseEnumTypeExtension(extend position.Position) ast.EnumTypeExtension {
+	return ast.EnumTypeExtension{
+		ExtendLiteral:      extend,
+		EnumTypeDefinition: p.parseEnumTypeDefinition(nil),
 	}
 }

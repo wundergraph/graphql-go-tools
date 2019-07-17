@@ -48,6 +48,8 @@ const (
 	NodeKindInterfaceTypeExtension
 	NodeKindUnionTypeDefinition
 	NodeKindUnionTypeExtension
+	NodeKindEnumTypeDefinition
+	NodeKindEnumTypeExtension
 	NodeKindOperation
 	NodeKindSelectionSet
 	NodeKindField
@@ -73,6 +75,7 @@ type Document struct {
 	UnionTypeDefinitions         []UnionTypeDefinition
 	UnionTypeExtensions          []UnionTypeExtension
 	EnumTypeDefinitions          []EnumTypeDefinition
+	EnumTypeExtensions           []EnumTypeExtension
 	EnumValueDefinitions         []EnumValueDefinition
 	DirectiveDefinitions         []DirectiveDefinition
 	Values                       []Value
@@ -115,6 +118,7 @@ func NewDocument() *Document {
 		UnionTypeDefinitions:         make([]UnionTypeDefinition, 8),
 		UnionTypeExtensions:          make([]UnionTypeExtension, 4),
 		EnumTypeDefinitions:          make([]EnumTypeDefinition, 8),
+		EnumTypeExtensions:           make([]EnumTypeExtension, 4),
 		EnumValueDefinitions:         make([]EnumValueDefinition, 48),
 		DirectiveDefinitions:         make([]DirectiveDefinition, 8),
 		VariableValues:               make([]VariableValue, 8),
@@ -157,6 +161,7 @@ func (d *Document) Reset() {
 	d.UnionTypeDefinitions = d.UnionTypeDefinitions[:0]
 	d.UnionTypeExtensions = d.UnionTypeExtensions[:0]
 	d.EnumTypeDefinitions = d.EnumTypeDefinitions[:0]
+	d.EnumTypeExtensions = d.EnumTypeExtensions[:0]
 	d.EnumValueDefinitions = d.EnumValueDefinitions[:0]
 	d.DirectiveDefinitions = d.DirectiveDefinitions[:0]
 	d.VariableValues = d.VariableValues[:0]
@@ -438,6 +443,11 @@ func (d *Document) PutUnionTypeExtension(extension UnionTypeExtension) int {
 	return len(d.UnionTypeExtensions) - 1
 }
 
+func (d *Document) PutEnumTypeExtension(extension EnumTypeExtension) int {
+	d.EnumTypeExtensions = append(d.EnumTypeExtensions, extension)
+	return len(d.EnumTypeExtensions) - 1
+}
+
 type RootNode struct {
 	Kind NodeKind
 	Ref  int
@@ -690,6 +700,11 @@ type EnumTypeDefinition struct {
 	Name                 input.ByteSliceReference // e.g. Direction
 	Directives           DirectiveList            // optional, e.g. @foo
 	EnumValuesDefinition EnumValueDefinitionList  // optional, e.g. { NORTH EAST }
+}
+
+type EnumTypeExtension struct {
+	ExtendLiteral position.Position
+	EnumTypeDefinition
 }
 
 // EnumValueDefinition

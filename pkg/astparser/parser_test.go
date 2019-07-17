@@ -536,6 +536,70 @@ func TestParser_Parse(t *testing.T) {
 				})
 		})
 	})
+	t.Run("enum type extension", func(t *testing.T) {
+		t.Run("simple", func(t *testing.T) {
+			run(`extend enum Direction @bar {
+							  NORTH
+							  EAST
+							  SOUTH
+							  "describes WEST"
+							  WEST @foo
+							}`, parse, false,
+				func(in *input.Input, doc *ast.Document, extra interface{}) {
+					direction := doc.EnumTypeExtensions[0]
+					if in.ByteSliceString(direction.Name) != "Direction" {
+						panic("want Direction")
+					}
+
+					// directives
+					if !direction.Directives.Next(doc) {
+						panic("want next")
+					}
+					bar, _ := direction.Directives.Value()
+					if in.ByteSliceString(bar.Name) != "bar" {
+						panic("want bar")
+					}
+
+					// values
+
+					wantValue := func(index int, name string) {
+						if !direction.EnumValuesDefinition.Next(doc) {
+							panic("want next")
+						}
+						enum, ref := direction.EnumValuesDefinition.Value()
+						if ref != index {
+							panic(fmt.Sprintf("want %d", index))
+						}
+						if in.ByteSliceString(enum.EnumValue) != name {
+							panic(fmt.Sprintf("want %s", name))
+						}
+					}
+
+					wantValue(0, "NORTH")
+					wantValue(1, "EAST")
+					wantValue(2, "SOUTH")
+					wantValue(3, "WEST")
+
+					west, _ := direction.EnumValuesDefinition.Value()
+					if !west.Description.IsDefined {
+						panic("want true")
+					}
+					if in.ByteSliceString(west.Description.Content) != "describes WEST" {
+						panic("want describes WEST")
+					}
+					if !west.Directives.Next(doc) {
+						panic("want next")
+					}
+					foo, _ := west.Directives.Value()
+					if in.ByteSliceString(foo.Name) != "foo" {
+						panic("want foo")
+					}
+					if direction.EnumValuesDefinition.Next(doc) {
+						panic("want false")
+					}
+				})
+		})
+	})
 	t.Run("scalar type definition", func(t *testing.T) {
 		t.Run("simple", func(t *testing.T) {
 			run(`scalar JSON`, parse, false,
