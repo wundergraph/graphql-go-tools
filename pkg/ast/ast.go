@@ -42,6 +42,7 @@ const (
 	NodeKindUnknown NodeKind = iota
 	NodeKindSchemaDefinition
 	NodeKindSchemaExtension
+	NodeKindObjectTypeExtension
 	NodeKindOperation
 	NodeKindSelectionSet
 	NodeKindField
@@ -55,6 +56,7 @@ type Document struct {
 	Directives                   []Directive
 	Arguments                    []Argument
 	ObjectTypeDefinitions        []ObjectTypeDefinition
+	ObjectTypeExtensions         []ObjectTypeExtension
 	FieldDefinitions             []FieldDefinition
 	Types                        []Type
 	InputValueDefinitions        []InputValueDefinition
@@ -93,6 +95,7 @@ func NewDocument() *Document {
 		Directives:                   make([]Directive, 16),
 		Arguments:                    make([]Argument, 48),
 		ObjectTypeDefinitions:        make([]ObjectTypeDefinition, 48),
+		ObjectTypeExtensions:         make([]ObjectTypeExtension, 4),
 		Types:                        make([]Type, 48),
 		FieldDefinitions:             make([]FieldDefinition, 128),
 		InputValueDefinitions:        make([]InputValueDefinition, 128),
@@ -131,6 +134,7 @@ func (d *Document) Reset() {
 	d.Directives = d.Directives[:0]
 	d.Arguments = d.Arguments[:0]
 	d.ObjectTypeDefinitions = d.ObjectTypeDefinitions[:0]
+	d.ObjectTypeExtensions = d.ObjectTypeExtensions[:0]
 	d.Types = d.Types[:0]
 	d.FieldDefinitions = d.FieldDefinitions[:0]
 	d.InputValueDefinitions = d.InputValueDefinitions[:0]
@@ -396,6 +400,11 @@ func (d *Document) PutSchemaExtension(extension SchemaExtension) int {
 	return len(d.SchemaExtensions) - 1
 }
 
+func (d *Document) PutObjectTypeExtension(extension ObjectTypeExtension) int {
+	d.ObjectTypeExtensions = append(d.ObjectTypeExtensions, extension)
+	return len(d.ObjectTypeExtensions) - 1
+}
+
 type RootNode struct {
 	Kind NodeKind
 	Ref  int
@@ -543,6 +552,11 @@ type ObjectTypeDefinition struct {
 	ImplementsInterfaces TypeList                 // e.g implements Bar & Baz
 	Directives           DirectiveList            // e.g. @foo
 	FieldsDefinition     FieldDefinitionList      // { foo:Bar bar(baz:String) }
+}
+
+type ObjectTypeExtension struct {
+	ExtendLiteral position.Position
+	ObjectTypeDefinition
 }
 
 type InputValueDefinition struct {
