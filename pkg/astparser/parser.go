@@ -4,17 +4,12 @@ import (
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/input"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
 	"runtime"
 )
-
-type Lexer interface {
-	SetInput(input *input.Input)
-	Peek(ignoreWhitespace bool) keyword.Keyword
-	Read() token.Token
-}
 
 type origin struct {
 	file     string
@@ -41,15 +36,19 @@ func (e ErrUnexpectedToken) Error() string {
 }
 
 type Parser struct {
-	lexer    Lexer
-	input    *input.Input
-	document *ast.Document
-	err      error
+	input        *input.Input
+	document     *ast.Document
+	err          error
+	lexer        *lexer.Lexer
+	tokens       []token.Token
+	maxTokens    int
+	currentToken int
 }
 
-func NewParser(lexer Lexer) *Parser {
+func NewParser() *Parser {
 	return &Parser{
-		lexer: lexer,
+		tokens: make([]token.Token, 256),
+		lexer:  &lexer.Lexer{},
 	}
 }
 
@@ -57,18 +56,37 @@ func (p *Parser) Parse(input *input.Input, document *ast.Document) error {
 	p.input = input
 	p.document = document
 	p.lexer.SetInput(input)
+	p.tokenize()
 	p.parse()
 	return p.err
+}
+
+func (p *Parser) tokenize() {
+
+	p.tokens = p.tokens[:0]
+
+	for {
+		next := p.lexer.Read()
+		if next.Keyword == keyword.EOF {
+			p.maxTokens = len(p.tokens)
+			p.currentToken = -1
+			return
+		}
+		p.tokens = append(p.tokens, next)
+	}
 }
 
 func (p *Parser) parse() {
 
 	for {
-		next := p.peek(true)
+		next := p.peek()
 
 		switch next {
 		case keyword.SCHEMA:
-			p.document.PutSchemaDefinition(p.parseSchema())
+			p.document.PutRootNode(ast.RootNode{
+				Kind: ast.NodeKindSchemaDefinition,
+				Ref:  p.document.PutSchemaDefinition(p.parseSchema()),
+			})
 		case keyword.STRING, keyword.BLOCKSTRING:
 			p.parseRootDescription()
 		case keyword.SCALAR:
@@ -108,15 +126,26 @@ func (p *Parser) parse() {
 }
 
 func (p *Parser) read() token.Token {
-	return p.lexer.Read()
+	p.currentToken++
+	if p.currentToken < p.maxTokens {
+		return p.tokens[p.currentToken]
+	}
+
+	return token.Token{
+		Keyword: keyword.EOF,
+	}
 }
 
-func (p *Parser) peek(ignoreWhitespace bool) keyword.Keyword {
-	return p.lexer.Peek(ignoreWhitespace)
+func (p *Parser) peek() keyword.Keyword {
+	nextIndex := p.currentToken + 1
+	if nextIndex < p.maxTokens {
+		return p.tokens[nextIndex].Keyword
+	}
+	return keyword.EOF
 }
 
 func (p *Parser) peekEquals(key keyword.Keyword) bool {
-	return p.peek(true) == key
+	return p.peek() == key
 }
 
 func (p *Parser) errUnexpectedToken(unexpected token.Token, expectedKeywords ...keyword.Keyword) {
@@ -184,7 +213,7 @@ func (p *Parser) parseRootOperationTypeDefinitionList() (list ast.RootOperationT
 	previous := -1
 
 	for {
-		next := p.peek(true)
+		next := p.peek()
 		switch next {
 		case keyword.CURLYBRACKETCLOSE:
 
@@ -246,7 +275,7 @@ func (p *Parser) parseDirectiveList() (directives ast.DirectiveList) {
 
 	for {
 
-		if p.peek(true) != keyword.AT {
+		if p.peek() != keyword.AT {
 			break
 		}
 
@@ -287,7 +316,7 @@ func (p *Parser) parseArgumentList() (arguments ast.ArgumentList) {
 Loop:
 	for {
 
-		next := p.peek(true)
+		next := p.peek()
 		switch next {
 		case keyword.IDENT, keyword.INPUT:
 		default:
@@ -327,7 +356,7 @@ Loop:
 
 func (p *Parser) parseValue() (value ast.Value) {
 
-	next := p.peek(true)
+	next := p.peek()
 
 	switch next {
 	case keyword.STRING, keyword.BLOCKSTRING:
@@ -349,7 +378,7 @@ func (p *Parser) parseValue() (value ast.Value) {
 		value.Kind = ast.ValueKindFloat
 		value.Ref = p.parseFloatValue(nil)
 	case keyword.NEGATIVESIGN:
-		return p.parseNegativeNumberValue()
+		value = p.parseNegativeNumberValue()
 	case keyword.NULL:
 		value.Kind = ast.ValueKindNull
 		p.read()
@@ -372,7 +401,7 @@ func (p *Parser) parseObjectValue() int {
 
 	previous := -1
 	for {
-		next := p.peek(true)
+		next := p.peek()
 		switch next {
 		case keyword.CURLYBRACKETCLOSE:
 			objectValue.Close = p.read().TextPosition
@@ -411,7 +440,7 @@ func (p *Parser) parseValueList() int {
 	previous := -1
 
 	for {
-		next := p.peek(true)
+		next := p.peek()
 		switch next {
 		case keyword.SQUAREBRACKETCLOSE:
 			list.Close = p.read().TextPosition
@@ -432,7 +461,7 @@ func (p *Parser) parseValueList() int {
 
 func (p *Parser) parseNegativeNumberValue() (value ast.Value) {
 	negativeSign := p.mustRead(keyword.NEGATIVESIGN).TextPosition
-	switch p.peek(false) {
+	switch p.peek() {
 	case keyword.INTEGER:
 		value.Kind = ast.ValueKindInteger
 		value.Ref = p.parseIntegerValue(&negativeSign)
@@ -442,12 +471,21 @@ func (p *Parser) parseNegativeNumberValue() (value ast.Value) {
 	default:
 		p.errUnexpectedToken(p.read(), keyword.INTEGER, keyword.FLOAT)
 	}
+
 	return
 }
 
 func (p *Parser) parseFloatValue(negativeSign *position.Position) int {
+
+	value := p.mustRead(keyword.FLOAT)
+
+	if negativeSign != nil && negativeSign.CharEnd != value.TextPosition.CharStart {
+		p.errUnexpectedToken(value)
+		return -1
+	}
+
 	floatValue := ast.FloatValue{
-		Raw: p.mustRead(keyword.FLOAT).Literal,
+		Raw: value.Literal,
 	}
 	if negativeSign != nil {
 		floatValue.Negative = true
@@ -457,8 +495,16 @@ func (p *Parser) parseFloatValue(negativeSign *position.Position) int {
 }
 
 func (p *Parser) parseIntegerValue(negativeSign *position.Position) int {
+
+	value := p.mustRead(keyword.INTEGER)
+
+	if negativeSign != nil && negativeSign.CharEnd != value.TextPosition.CharStart {
+		p.errUnexpectedToken(value)
+		return -1
+	}
+
 	intValue := ast.IntValue{
-		Raw: p.mustRead(keyword.INTEGER).Literal,
+		Raw: value.Literal,
 	}
 	if negativeSign != nil {
 		intValue.Negative = true
@@ -471,11 +517,16 @@ func (p *Parser) parseVariableValue() int {
 	dollar := p.mustRead(keyword.DOLLAR)
 	var value token.Token
 
-	next := p.peek(false)
+	next := p.peek()
 	switch next {
 	case keyword.IDENT, keyword.INPUT:
 		value = p.read()
 	default:
+		p.errUnexpectedToken(p.read(), keyword.IDENT, keyword.INPUT)
+		return -1
+	}
+
+	if dollar.TextPosition.CharEnd != value.TextPosition.CharStart {
 		p.errUnexpectedToken(p.read(), keyword.IDENT, keyword.INPUT)
 		return -1
 	}
@@ -542,7 +593,7 @@ func (p *Parser) parseRootDescription() {
 
 	description := p.parseDescription()
 
-	next := p.peek(true)
+	next := p.peek()
 	switch next {
 	case keyword.TYPE:
 		p.parseObjectTypeDefinition(&description)
@@ -573,7 +624,7 @@ func (p *Parser) parseImplementsInterfaces() (list ast.TypeList) {
 	previous := -1
 
 	for {
-		next := p.peek(true)
+		next := p.peek()
 		switch next {
 		case keyword.AND:
 			if acceptAnd {
@@ -621,7 +672,7 @@ func (p *Parser) parseFieldDefinitionList() (list ast.FieldDefinitionList) {
 
 	for {
 
-		next := p.peek(true)
+		next := p.peek()
 
 		switch next {
 		case keyword.CURLYBRACKETCLOSE:
@@ -647,7 +698,7 @@ func (p *Parser) parseFieldDefinition() int {
 
 	var fieldDefinition ast.FieldDefinition
 
-	name := p.peek(true)
+	name := p.peek()
 	switch name {
 	case keyword.STRING, keyword.BLOCKSTRING:
 		fieldDefinition.Description = p.parseDescription()
@@ -670,7 +721,7 @@ func (p *Parser) parseFieldDefinition() int {
 	}
 	fieldDefinition.Colon = p.mustRead(keyword.COLON).TextPosition
 	fieldDefinition.Type = p.parseType()
-	if p.peek(true) == keyword.DIRECTIVE {
+	if p.peek() == keyword.DIRECTIVE {
 		fieldDefinition.Directives = p.parseDirectiveList()
 	}
 
@@ -687,7 +738,7 @@ func (p *Parser) parseNamedType() (ref int) {
 
 func (p *Parser) parseType() (ref int) {
 
-	first := p.peek(true)
+	first := p.peek()
 
 	if first == keyword.IDENT {
 
@@ -711,11 +762,11 @@ func (p *Parser) parseType() (ref int) {
 		})
 
 	} else {
-		p.errUnexpectedToken(p.read())
+		p.errUnexpectedToken(p.read(), keyword.IDENT, keyword.SQUAREBRACKETOPEN)
 		return
 	}
 
-	next := p.peek(true)
+	next := p.peek()
 	if next == keyword.BANG {
 		nonNull := ast.Type{
 			TypeKind: ast.TypeKindNonNull,
@@ -723,7 +774,7 @@ func (p *Parser) parseType() (ref int) {
 			OfType:   ref,
 		}
 
-		if p.peek(true) == keyword.BANG {
+		if p.peek() == keyword.BANG {
 			p.errUnexpectedToken(p.read())
 			return
 		}
@@ -751,7 +802,7 @@ func (p *Parser) parseInputValueDefinitionList(closingKeyword keyword.Keyword) (
 	previous := -1
 
 	for {
-		next := p.peek(true)
+		next := p.peek()
 		switch next {
 		case keyword.STRING, keyword.BLOCKSTRING, keyword.IDENT:
 			ref := p.parseInputValueDefinition()
@@ -776,7 +827,7 @@ func (p *Parser) parseInputValueDefinition() int {
 
 	var inputValueDefinition ast.InputValueDefinition
 
-	name := p.peek(true)
+	name := p.peek()
 	switch name {
 	case keyword.STRING, keyword.BLOCKSTRING:
 		inputValueDefinition.Description = p.parseDescription()
@@ -875,7 +926,7 @@ func (p *Parser) parseUnionMemberTypes() (equals position.Position, members ast.
 	expectNext := true
 
 	for {
-		next := p.peek(true)
+		next := p.peek()
 		switch next {
 		case keyword.PIPE:
 			if acceptPipe {
@@ -946,7 +997,7 @@ func (p *Parser) parseEnumValueDefinitionList() (list ast.EnumValueDefinitionLis
 	previous := -1
 
 	for {
-		next := p.peek(true)
+		next := p.peek()
 		switch next {
 		case keyword.STRING, keyword.BLOCKSTRING, keyword.IDENT:
 			ref := p.parseEnumValueDefinition()
@@ -969,7 +1020,7 @@ func (p *Parser) parseEnumValueDefinitionList() (list ast.EnumValueDefinitionLis
 
 func (p *Parser) parseEnumValueDefinition() int {
 	var enumValueDefinition ast.EnumValueDefinition
-	next := p.peek(true)
+	next := p.peek()
 	switch next {
 	case keyword.STRING, keyword.BLOCKSTRING:
 		enumValueDefinition.Description = p.parseDescription()
@@ -1009,7 +1060,7 @@ func (p *Parser) parseDirectiveLocations(locations *ast.DirectiveLocations) {
 	acceptIdent := true
 	expectNext := true
 	for {
-		next := p.peek(true)
+		next := p.peek()
 		switch next {
 		case keyword.IDENT:
 			if acceptIdent {
@@ -1053,7 +1104,7 @@ func (p *Parser) parseSelectionSet() (set ast.SelectionSet) {
 	previous := -1
 
 	for {
-		next := p.peek(true)
+		next := p.peek()
 		switch next {
 		case keyword.CURLYBRACKETCLOSE:
 			set.Close = p.read().TextPosition
@@ -1072,7 +1123,7 @@ func (p *Parser) parseSelectionSet() (set ast.SelectionSet) {
 }
 
 func (p *Parser) parseSelection() int {
-	next := p.peek(true)
+	next := p.peek()
 	switch next {
 	case keyword.IDENT, keyword.QUERY:
 		return p.document.PutSelection(ast.Selection{
@@ -1089,7 +1140,7 @@ func (p *Parser) parseSelection() int {
 
 func (p *Parser) parseFragmentSelection(spread position.Position) (selection ast.Selection) {
 
-	next := p.peek(true)
+	next := p.peek()
 	switch next {
 	case keyword.ON, keyword.CURLYBRACKETOPEN, keyword.AT:
 		selection.Kind = ast.SelectionKindInlineFragment
@@ -1113,7 +1164,7 @@ func (p *Parser) parseField() int {
 		p.errUnexpectedToken(firstIdent, keyword.IDENT, keyword.QUERY)
 	}
 
-	if p.peek(true) == keyword.COLON {
+	if p.peek() == keyword.COLON {
 		field.Alias.IsDefined = true
 		field.Alias.Name = firstIdent.Literal
 		field.Alias.Colon = p.read().TextPosition
@@ -1170,7 +1221,7 @@ func (p *Parser) parseOperationDefinition() int {
 
 	var operationDefinition ast.OperationDefinition
 
-	next := p.peek(true)
+	next := p.peek()
 	switch next {
 	case keyword.QUERY:
 		operationDefinition.OperationTypeLiteral = p.read().TextPosition
@@ -1212,7 +1263,7 @@ func (p *Parser) parseVariableDefinitionList() (list ast.VariableDefinitionList)
 	previous := -1
 
 	for {
-		next := p.peek(true)
+		next := p.peek()
 		switch next {
 		case keyword.BRACKETCLOSE:
 			list.Close = p.read().TextPosition
@@ -1273,18 +1324,21 @@ func (p *Parser) parseFragmentDefinition() int {
 
 func (p *Parser) parseExtension() {
 	extend := p.mustRead(keyword.EXTEND).TextPosition
-	next := p.peek(true)
+	next := p.peek()
 	switch next {
 	case keyword.SCHEMA:
-		p.parseSchemaExtension(extend)
+		p.document.PutRootNode(ast.RootNode{
+			Kind: ast.NodeKindSchemaExtension,
+			Ref:  p.document.PutSchemaExtension(p.parseSchemaExtension(extend)),
+		})
 	default:
 		p.errUnexpectedToken(p.read(), keyword.SCHEMA)
 	}
 }
 
-func (p *Parser) parseSchemaExtension(extend position.Position) int {
+func (p *Parser) parseSchemaExtension(extend position.Position) ast.SchemaExtension {
 	var schemaExtension ast.SchemaExtension
 	schemaExtension.ExtendLiteral = extend
 	schemaExtension.SchemaDefinition = p.parseSchema()
-	return p.document.PutSchemaExtension(schemaExtension)
+	return schemaExtension
 }

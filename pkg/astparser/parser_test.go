@@ -5,6 +5,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/input"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 	"io/ioutil"
 	"testing"
@@ -23,6 +24,8 @@ func TestParser_Parse(t *testing.T) {
 
 	parseType := func() action {
 		return func(parser *Parser) (interface{}, error) {
+			parser.lexer.SetInput(parser.input)
+			parser.tokenize()
 			ref := parser.parseType()
 			return ref, parser.err
 		}
@@ -30,6 +33,8 @@ func TestParser_Parse(t *testing.T) {
 
 	parseValue := func() action {
 		return func(parser *Parser) (interface{}, error) {
+			parser.lexer.SetInput(parser.input)
+			parser.tokenize()
 			value := parser.parseValue()
 			return value, parser.err
 		}
@@ -37,6 +42,8 @@ func TestParser_Parse(t *testing.T) {
 
 	parseSelectionSet := func() action {
 		return func(parser *Parser) (interface{}, error) {
+			parser.lexer.SetInput(parser.input)
+			parser.tokenize()
 			set := parser.parseSelectionSet()
 			return set, parser.err
 		}
@@ -44,6 +51,8 @@ func TestParser_Parse(t *testing.T) {
 
 	parseFragmentSpread := func() action {
 		return func(parser *Parser) (interface{}, error) {
+			parser.lexer.SetInput(parser.input)
+			parser.tokenize()
 			fragmentSpread := parser.parseFragmentSpread(position.Position{})
 			return parser.document.FragmentSpreads[fragmentSpread], parser.err
 		}
@@ -51,6 +60,8 @@ func TestParser_Parse(t *testing.T) {
 
 	parseInlineFragment := func() action {
 		return func(parser *Parser) (interface{}, error) {
+			parser.lexer.SetInput(parser.input)
+			parser.tokenize()
 			inlineFragment := parser.parseInlineFragment(position.Position{})
 			return parser.document.InlineFragments[inlineFragment], parser.err
 		}
@@ -58,6 +69,8 @@ func TestParser_Parse(t *testing.T) {
 
 	parseVariableDefinitionList := func() action {
 		return func(parser *Parser) (interface{}, error) {
+			parser.lexer.SetInput(parser.input)
+			parser.tokenize()
 			variableDefinitionList := parser.parseVariableDefinitionList()
 			return variableDefinitionList, parser.err
 		}
@@ -67,11 +80,9 @@ func TestParser_Parse(t *testing.T) {
 
 		in := &input.Input{}
 		in.ResetInputBytes([]byte(inputString))
-		lex := &lexer.Lexer{}
-		lex.SetInput(in)
 		doc := &ast.Document{}
 
-		parser := NewParser(lex)
+		parser := NewParser()
 		parser.input = in
 		parser.document = doc
 
@@ -88,6 +99,39 @@ func TestParser_Parse(t *testing.T) {
 		}
 	}
 
+	t.Run("tokenize", func(t *testing.T) {
+		in := &input.Input{}
+		in.ResetInputBytes([]byte(
+			`schema {
+				query: Query
+				mutation: Mutation
+				subscription: Subscription 
+			}`,
+		))
+
+		doc := &ast.Document{}
+		parser := NewParser()
+		parser.input = in
+		parser.document = doc
+		parser.lexer.SetInput(in)
+
+		parser.tokenize()
+
+		for i, want := range []keyword.Keyword{
+			keyword.SCHEMA, keyword.CURLYBRACKETOPEN,
+			keyword.QUERY, keyword.COLON, keyword.IDENT,
+			keyword.MUTATION, keyword.COLON, keyword.IDENT,
+			keyword.SUBSCRIPTION, keyword.COLON, keyword.IDENT,
+			keyword.CURLYBRACKETCLOSE,
+		} {
+			parser.peek()
+			got := parser.read().Keyword
+			if got != want {
+				t.Fatalf("want keyword %s @ %d, got: %s", want, i, got)
+			}
+		}
+	})
+
 	t.Run("no err on empty input", func(t *testing.T) {
 		run("", parse, false)
 	})
@@ -100,12 +144,12 @@ func TestParser_Parse(t *testing.T) {
 					}`, parse,
 				false,
 				func(in *input.Input, doc *ast.Document, extra interface{}) {
-					definition := doc.Definitions[0]
+					definition := doc.RootNodes[0]
 					if definition.Ref != 0 {
 						panic("want 0")
 					}
-					if definition.Kind != ast.SchemaDefinitionKind {
-						panic("want SchemaDefinitionKind")
+					if definition.Kind != ast.NodeKindSchemaDefinition {
+						panic("want NodeKindSchemaDefinition")
 					}
 					schema := doc.SchemaDefinitions[0]
 					if !schema.RootOperationTypeDefinitions.Next(doc) {
@@ -1833,11 +1877,9 @@ func TestParseStarwars(t *testing.T) {
 
 	in := &input.Input{}
 	in.ResetInputBytes(starwarsSchema)
-	lex := &lexer.Lexer{}
-	lex.SetInput(in)
 	doc := &ast.Document{}
 
-	parser := NewParser(lex)
+	parser := NewParser()
 
 	err = parser.Parse(in, doc)
 	if err != nil {
@@ -1855,11 +1897,10 @@ func BenchmarkParseStarwars(b *testing.B) {
 
 	in := &input.Input{}
 	in.ResetInputBytes(starwarsSchema)
-	lex := &lexer.Lexer{}
-	lex.SetInput(in)
+
 	doc := ast.NewDocument()
 
-	parser := NewParser(lex)
+	parser := NewParser()
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -1874,10 +1915,30 @@ func BenchmarkParseStarwars(b *testing.B) {
 	}
 }
 
+func BenchmarkSelectionSet(b *testing.B) {
+	in := &input.Input{}
+	doc := ast.NewDocument()
+	parser := NewParser()
+
+	var err error
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		in.ResetInputBytes(selectionSet)
+		doc.Reset()
+		err = parser.Parse(in, doc)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
 func BenchmarkKitchenSink(b *testing.B) {
 	in := &input.Input{}
 	doc := ast.NewDocument()
-	parser := NewParser(&lexer.Lexer{})
+	parser := NewParser()
 
 	var err error
 
@@ -1894,11 +1955,27 @@ func BenchmarkKitchenSink(b *testing.B) {
 	}
 }
 
+func BenchmarkKitchenSinkFastest(b *testing.B) {
+	in := &input.Input{}
+	lex := &lexer.Lexer{}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		in.ResetInputBytes(kitchenSinkData)
+		lex.SetInput(in)
+		for i := 0; i <= 174; i++ {
+			lex.Read()
+		}
+	}
+}
+
 func BenchmarkParse(b *testing.B) {
 
 	in := &input.Input{}
 	doc := ast.NewDocument()
-	parser := NewParser(&lexer.Lexer{})
+	parser := NewParser()
 
 	var err error
 
@@ -1914,6 +1991,25 @@ func BenchmarkParse(b *testing.B) {
 		}
 	}
 }
+
+var selectionSet = []byte(`{
+							  me {
+								... on Person @foo {
+									personID
+								}
+								...personFragment @bar
+								id
+								firstName
+								lastName
+								birthday {
+								  month
+								  day
+								}
+								friends {
+								  name
+								}
+							  }
+							}`)
 
 var inputBytes = []byte(`	schema @foo @bar(baz: "bal") {
 								query: Query
