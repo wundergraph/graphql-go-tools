@@ -14,7 +14,7 @@ type Token struct {
 }
 
 func (t Token) String() string {
-	return fmt.Sprintf("Token:: Keyword: %s, Pos: %s", t.Keyword, t.TextPosition)
+	return fmt.Sprintf("token:: Keyword: %s, Pos: %s", t.Keyword, t.TextPosition)
 }
 
 func (t *Token) SetStart(inputPosition int, textPosition position.Position) {
