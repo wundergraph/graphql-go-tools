@@ -9,10 +9,8 @@ type Walker struct {
 }
 
 type Visitor interface {
-	Enter(node ast.NodeKind, ref int)
-	Leave(node ast.NodeKind, ref int)
-	EnterField(field ast.Field)
-	LeaveField(field ast.Field)
+	Enter(kind ast.NodeKind, ref int)
+	Leave(kind ast.NodeKind, ref int)
 }
 
 func Visit(document *ast.Document, visitor Visitor) {
@@ -56,11 +54,9 @@ func (w *Walker) visitField(ref int) {
 
 	field := w.document.Fields[ref]
 
-	w.visitor.EnterField(field)
 	if field.SelectionSet.HasNext() {
 		w.visitSelectionSet(field.SelectionSet)
 	}
-	w.visitor.LeaveField(field)
 
 	w.visitor.Leave(ast.NodeKindField, ref)
 }
