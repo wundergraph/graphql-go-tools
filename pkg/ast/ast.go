@@ -65,6 +65,7 @@ type Document struct {
 	InputValueDefinitions        []InputValueDefinition
 	InputObjectTypeDefinitions   []InputObjectTypeDefinition
 	ScalarTypeDefinitions        []ScalarTypeDefinition
+	ScalarTypeExtensions         []ScalarTypeExtension
 	InterfaceTypeDefinitions     []InterfaceTypeDefinition
 	InterfaceTypeExtensions      []InterfaceTypeExtension
 	UnionTypeDefinitions         []UnionTypeDefinition
@@ -105,6 +106,7 @@ func NewDocument() *Document {
 		InputValueDefinitions:        make([]InputValueDefinition, 128),
 		InputObjectTypeDefinitions:   make([]InputObjectTypeDefinition, 16),
 		ScalarTypeDefinitions:        make([]ScalarTypeDefinition, 16),
+		ScalarTypeExtensions:         make([]ScalarTypeExtension, 4),
 		InterfaceTypeDefinitions:     make([]InterfaceTypeDefinition, 16),
 		InterfaceTypeExtensions:      make([]InterfaceTypeExtension, 4),
 		UnionTypeDefinitions:         make([]UnionTypeDefinition, 8),
@@ -145,6 +147,7 @@ func (d *Document) Reset() {
 	d.InputValueDefinitions = d.InputValueDefinitions[:0]
 	d.InputObjectTypeDefinitions = d.InputObjectTypeDefinitions[:0]
 	d.ScalarTypeDefinitions = d.ScalarTypeDefinitions[:0]
+	d.ScalarTypeExtensions = d.ScalarTypeExtensions[:0]
 	d.InterfaceTypeDefinitions = d.InterfaceTypeDefinitions[:0]
 	d.InterfaceTypeExtensions = d.InterfaceTypeExtensions[:0]
 	d.UnionTypeDefinitions = d.UnionTypeDefinitions[:0]
@@ -248,6 +251,10 @@ func (d *Document) PutRootOperationTypeDefinition(def RootOperationTypeDefinitio
 func (d *Document) PutSchemaDefinition(def SchemaDefinition) int {
 	d.SchemaDefinitions = append(d.SchemaDefinitions, def)
 	ref := len(d.SchemaDefinitions) - 1
+	d.PutRootNode(RootNode{
+		Kind: NodeKindSchemaDefinition,
+		Ref:  ref,
+	})
 	return ref
 }
 
@@ -414,6 +421,11 @@ func (d *Document) PutObjectTypeExtension(extension ObjectTypeExtension) int {
 func (d *Document) PutInterfaceTypeExtension(extension InterfaceTypeExtension) int {
 	d.InterfaceTypeExtensions = append(d.InterfaceTypeExtensions, extension)
 	return len(d.InterfaceTypeExtensions) - 1
+}
+
+func (d *Document) PutScalarTypeExtension(extension ScalarTypeExtension) int {
+	d.ScalarTypeExtensions = append(d.ScalarTypeExtensions, extension)
+	return len(d.ScalarTypeExtensions) - 1
 }
 
 type RootNode struct {
@@ -612,6 +624,11 @@ type ScalarTypeDefinition struct {
 	ScalarLiteral position.Position        // scalar
 	Name          input.ByteSliceReference // e.g. JSON
 	Directives    DirectiveList            // optional, e.g. @foo
+}
+
+type ScalarTypeExtension struct {
+	ExtendLiteral position.Position
+	ScalarTypeDefinition
 }
 
 // InterfaceTypeDefinition

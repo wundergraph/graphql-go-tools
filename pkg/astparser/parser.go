@@ -83,14 +83,11 @@ func (p *Parser) parse() {
 
 		switch next {
 		case keyword.SCHEMA:
-			p.document.PutRootNode(ast.RootNode{
-				Kind: ast.NodeKindSchemaDefinition,
-				Ref:  p.document.PutSchemaDefinition(p.parseSchema()),
-			})
+			p.document.PutSchemaDefinition(p.parseSchema())
 		case keyword.STRING, keyword.BLOCKSTRING:
 			p.parseRootDescription()
 		case keyword.SCALAR:
-			p.parseScalarTypeDefinition(nil)
+			p.document.PutScalarTypeDefinition(p.parseScalarTypeDefinition(nil))
 		case keyword.TYPE:
 			p.document.PutObjectTypeDefinition(p.parseObjectTypeDefinition(nil))
 		case keyword.INPUT:
@@ -601,7 +598,7 @@ func (p *Parser) parseRootDescription() {
 	case keyword.INPUT:
 		p.parseInputObjectTypeDefinition(&description)
 	case keyword.SCALAR:
-		p.parseScalarTypeDefinition(&description)
+		p.document.PutScalarTypeDefinition(p.parseScalarTypeDefinition(&description))
 	case keyword.INTERFACE:
 		p.document.PutInterfaceTypeDefinition(p.parseInterfaceTypeDefinition(&description))
 	case keyword.UNION:
@@ -871,7 +868,7 @@ func (p *Parser) parseInputObjectTypeDefinition(description *ast.Description) in
 	return p.document.PutInputObjectTypeDefinition(inputObjectTypeDefinition)
 }
 
-func (p *Parser) parseScalarTypeDefinition(description *ast.Description) int {
+func (p *Parser) parseScalarTypeDefinition(description *ast.Description) ast.ScalarTypeDefinition {
 	var scalarTypeDefinition ast.ScalarTypeDefinition
 	if description != nil {
 		scalarTypeDefinition.Description = *description
@@ -881,7 +878,7 @@ func (p *Parser) parseScalarTypeDefinition(description *ast.Description) int {
 	if p.peekEquals(keyword.AT) {
 		scalarTypeDefinition.Directives = p.parseDirectiveList()
 	}
-	return p.document.PutScalarTypeDefinition(scalarTypeDefinition)
+	return scalarTypeDefinition
 }
 
 func (p *Parser) parseInterfaceTypeDefinition(description *ast.Description) ast.InterfaceTypeDefinition {
@@ -1328,20 +1325,13 @@ func (p *Parser) parseExtension() {
 	next := p.peek()
 	switch next {
 	case keyword.SCHEMA:
-		p.document.PutRootNode(ast.RootNode{
-			Kind: ast.NodeKindSchemaExtension,
-			Ref:  p.document.PutSchemaExtension(p.parseSchemaExtension(extend)),
-		})
+		p.document.PutSchemaExtension(p.parseSchemaExtension(extend))
 	case keyword.TYPE:
-		p.document.PutRootNode(ast.RootNode{
-			Kind: ast.NodeKindObjectTypeExtension,
-			Ref:  p.document.PutObjectTypeExtension(p.parseObjectTypeExtension(extend)),
-		})
+		p.document.PutObjectTypeExtension(p.parseObjectTypeExtension(extend))
 	case keyword.INTERFACE:
-		p.document.PutRootNode(ast.RootNode{
-			Kind: ast.NodeKindInterfaceTypeExtension,
-			Ref:  p.document.PutInterfaceTypeExtension(p.parseInterfaceTypeExtension(extend)),
-		})
+		p.document.PutInterfaceTypeExtension(p.parseInterfaceTypeExtension(extend))
+	case keyword.SCALAR:
+		p.document.PutScalarTypeExtension(p.parseScalarTypeExtension(extend))
 	default:
 		p.errUnexpectedToken(p.read(), keyword.SCHEMA)
 	}
@@ -1365,5 +1355,12 @@ func (p *Parser) parseInterfaceTypeExtension(extend position.Position) ast.Inter
 	return ast.InterfaceTypeExtension{
 		ExtendLiteral:           extend,
 		InterfaceTypeDefinition: p.parseInterfaceTypeDefinition(nil),
+	}
+}
+
+func (p *Parser) parseScalarTypeExtension(extend position.Position) ast.ScalarTypeExtension {
+	return ast.ScalarTypeExtension{
+		ExtendLiteral:        extend,
+		ScalarTypeDefinition: p.parseScalarTypeDefinition(nil),
 	}
 }

@@ -473,6 +473,24 @@ func TestParser_Parse(t *testing.T) {
 				})
 		})
 	})
+	t.Run("scalar type extension", func(t *testing.T) {
+		t.Run("simple", func(t *testing.T) {
+			run(`extend scalar JSON @foo`, parse, false,
+				func(in *input.Input, doc *ast.Document, extra interface{}) {
+					scalar := doc.ScalarTypeExtensions[0]
+					if in.ByteSliceString(scalar.Name) != "JSON" {
+						panic("want JSON")
+					}
+					if !scalar.Directives.Next(doc) {
+						panic("want next")
+					}
+					foo, _ := scalar.Directives.Value()
+					if in.ByteSliceString(foo.Name) != "foo" {
+						panic("want foo")
+					}
+				})
+		})
+	})
 	t.Run("scalar type definition", func(t *testing.T) {
 		t.Run("simple", func(t *testing.T) {
 			run(`scalar JSON`, parse, false,
