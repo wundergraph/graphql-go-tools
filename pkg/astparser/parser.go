@@ -92,7 +92,7 @@ func (p *Parser) parse() {
 		case keyword.SCALAR:
 			p.parseScalarTypeDefinition(nil)
 		case keyword.TYPE:
-			p.parseObjectTypeDefinition(nil)
+			p.document.PutObjectTypeDefinition(p.parseObjectTypeDefinition(nil))
 		case keyword.INPUT:
 			p.parseInputObjectTypeDefinition(nil)
 		case keyword.INTERFACE:
@@ -569,7 +569,7 @@ func (p *Parser) parseStringValue() int {
 	})
 }
 
-func (p *Parser) parseObjectTypeDefinition(description *ast.Description) {
+func (p *Parser) parseObjectTypeDefinition(description *ast.Description) ast.ObjectTypeDefinition {
 
 	var objectTypeDefinition ast.ObjectTypeDefinition
 	if description != nil {
@@ -586,7 +586,8 @@ func (p *Parser) parseObjectTypeDefinition(description *ast.Description) {
 	if p.peekEquals(keyword.CURLYBRACKETOPEN) {
 		objectTypeDefinition.FieldsDefinition = p.parseFieldDefinitionList()
 	}
-	p.document.PutObjectTypeDefinition(objectTypeDefinition)
+
+	return objectTypeDefinition
 }
 
 func (p *Parser) parseRootDescription() {
@@ -596,7 +597,7 @@ func (p *Parser) parseRootDescription() {
 	next := p.peek()
 	switch next {
 	case keyword.TYPE:
-		p.parseObjectTypeDefinition(&description)
+		p.document.PutObjectTypeDefinition(p.parseObjectTypeDefinition(&description))
 	case keyword.INPUT:
 		p.parseInputObjectTypeDefinition(&description)
 	case keyword.SCALAR:
@@ -1331,14 +1332,26 @@ func (p *Parser) parseExtension() {
 			Kind: ast.NodeKindSchemaExtension,
 			Ref:  p.document.PutSchemaExtension(p.parseSchemaExtension(extend)),
 		})
+	case keyword.TYPE:
+		p.document.PutRootNode(ast.RootNode{
+			Kind: ast.NodeKindObjectTypeExtension,
+			Ref:  p.document.PutObjectTypeExtension(p.parseObjectTypeExtension(extend)),
+		})
 	default:
 		p.errUnexpectedToken(p.read(), keyword.SCHEMA)
 	}
 }
 
 func (p *Parser) parseSchemaExtension(extend position.Position) ast.SchemaExtension {
-	var schemaExtension ast.SchemaExtension
-	schemaExtension.ExtendLiteral = extend
-	schemaExtension.SchemaDefinition = p.parseSchema()
-	return schemaExtension
+	return ast.SchemaExtension{
+		ExtendLiteral:    extend,
+		SchemaDefinition: p.parseSchema(),
+	}
+}
+
+func (p *Parser) parseObjectTypeExtension(extend position.Position) ast.ObjectTypeExtension {
+	return ast.ObjectTypeExtension{
+		ExtendLiteral:        extend,
+		ObjectTypeDefinition: p.parseObjectTypeDefinition(nil),
+	}
 }

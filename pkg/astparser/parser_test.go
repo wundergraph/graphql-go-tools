@@ -314,6 +314,128 @@ func TestParser_Parse(t *testing.T) {
 				})
 		})
 	})
+	t.Run("object type extension", func(t *testing.T) {
+		t.Run("complex", func(t *testing.T) {
+			run(`extend type Person implements Foo & Bar {
+							name: String
+							"age of the person"
+							age: Int
+							"""
+							date of birth
+							"""
+							dateOfBirth: Date
+						}`, parse, false, func(in *input.Input, doc *ast.Document, extra interface{}) {
+
+				person := doc.ObjectTypeExtensions[0]
+				personName := in.ByteSliceString(person.Name)
+				if personName != "Person" {
+					panic("want person")
+				}
+
+				// interfaces
+
+				if !person.ImplementsInterfaces.Next(doc) {
+					panic("want next")
+				}
+				implementsFoo, implementsFooRef := person.ImplementsInterfaces.Value()
+				if implementsFooRef != 0 {
+					panic("want 0")
+				}
+				if implementsFoo.TypeKind != ast.TypeKindNamed {
+					panic("want TypeKindNamed")
+				}
+				if in.ByteSliceString(implementsFoo.Name) != "Foo" {
+					panic("want Foo")
+				}
+
+				if !person.ImplementsInterfaces.Next(doc) {
+					panic("want next")
+				}
+				implementsBar, implementsBarRef := person.ImplementsInterfaces.Value()
+				if implementsBarRef != 1 {
+					panic("want 1")
+				}
+				if implementsBar.TypeKind != ast.TypeKindNamed {
+					panic("want TypeKindNamed")
+				}
+				if in.ByteSliceString(implementsBar.Name) != "Bar" {
+					panic("want Bar")
+				}
+
+				// field definitions
+				if !person.FieldsDefinition.Next(doc) {
+					panic("want next")
+				}
+				nameString, nameStringRef := person.FieldsDefinition.Value()
+				if nameStringRef != 0 {
+					panic("want 0")
+				}
+				name := in.ByteSliceString(nameString.Name)
+				if name != "name" {
+					panic("want name")
+				}
+				nameStringType := doc.Types[nameString.Type]
+				if nameStringType.TypeKind != ast.TypeKindNamed {
+					panic("want TypeKindNamed")
+				}
+				stringName := in.ByteSliceString(nameStringType.Name)
+				if stringName != "String" {
+					panic("want String")
+				}
+				if !person.FieldsDefinition.Next(doc) {
+					panic("want netxt")
+				}
+				ageField, ageFieldRef := person.FieldsDefinition.Value()
+				if ageFieldRef != 1 {
+					panic("want 1")
+				}
+				if !ageField.Description.IsDefined {
+					panic("want true")
+				}
+				if ageField.Description.IsBlockString {
+					panic("want false	")
+				}
+				if in.ByteSliceString(ageField.Description.Content) != "age of the person" {
+					panic("want 'age of the person'")
+				}
+				if in.ByteSliceString(ageField.Name) != "age" {
+					panic("want age")
+				}
+				intType := doc.Types[ageField.Type]
+				if intType.TypeKind != ast.TypeKindNamed {
+					panic("want TypeKindNamed")
+				}
+				if in.ByteSliceString(intType.Name) != "Int" {
+					panic("want Int")
+				}
+				if !person.FieldsDefinition.Next(doc) {
+					panic("want next")
+				}
+				dateOfBirthField, dateOfBirthFieldRef := person.FieldsDefinition.Value()
+				if dateOfBirthFieldRef != 2 {
+					panic("want 2")
+				}
+				if in.ByteSliceString(dateOfBirthField.Name) != "dateOfBirth" {
+					panic("want dateOfBirth")
+				}
+				if !dateOfBirthField.Description.IsDefined {
+					panic("want true")
+				}
+				if !dateOfBirthField.Description.IsBlockString {
+					panic("want true")
+				}
+				if in.ByteSliceString(dateOfBirthField.Description.Content) != `
+							date of birth
+							` {
+					panic(fmt.Sprintf("want 'date of birth' got: '%s'", in.ByteSliceString(dateOfBirthField.Description.Content)))
+				}
+				dateType := doc.Types[dateOfBirthField.Type]
+				if in.ByteSliceString(dateType.Name) != "Date" {
+					panic("want Date")
+				}
+			})
+		})
+	})
 	t.Run("scalar type definition", func(t *testing.T) {
 		t.Run("simple", func(t *testing.T) {
 			run(`scalar JSON`, parse, false,
