@@ -96,7 +96,7 @@ func (p *Parser) parse() {
 		case keyword.INPUT:
 			p.parseInputObjectTypeDefinition(nil)
 		case keyword.INTERFACE:
-			p.parseInterfaceTypeDefinition(nil)
+			p.document.PutInterfaceTypeDefinition(p.parseInterfaceTypeDefinition(nil))
 		case keyword.UNION:
 			p.parseUnionTypeDefinition(nil)
 		case keyword.ENUM:
@@ -603,7 +603,7 @@ func (p *Parser) parseRootDescription() {
 	case keyword.SCALAR:
 		p.parseScalarTypeDefinition(&description)
 	case keyword.INTERFACE:
-		p.parseInterfaceTypeDefinition(&description)
+		p.document.PutInterfaceTypeDefinition(p.parseInterfaceTypeDefinition(&description))
 	case keyword.UNION:
 		p.parseUnionTypeDefinition(&description)
 	case keyword.ENUM:
@@ -884,7 +884,7 @@ func (p *Parser) parseScalarTypeDefinition(description *ast.Description) int {
 	return p.document.PutScalarTypeDefinition(scalarTypeDefinition)
 }
 
-func (p *Parser) parseInterfaceTypeDefinition(description *ast.Description) int {
+func (p *Parser) parseInterfaceTypeDefinition(description *ast.Description) ast.InterfaceTypeDefinition {
 	var interfaceTypeDefinition ast.InterfaceTypeDefinition
 	if description != nil {
 		interfaceTypeDefinition.Description = *description
@@ -897,7 +897,7 @@ func (p *Parser) parseInterfaceTypeDefinition(description *ast.Description) int 
 	if p.peekEquals(keyword.CURLYBRACKETOPEN) {
 		interfaceTypeDefinition.FieldsDefinition = p.parseFieldDefinitionList()
 	}
-	return p.document.PutInterfaceTypeDefinition(interfaceTypeDefinition)
+	return interfaceTypeDefinition
 }
 
 func (p *Parser) parseUnionTypeDefinition(description *ast.Description) int {
@@ -1337,6 +1337,11 @@ func (p *Parser) parseExtension() {
 			Kind: ast.NodeKindObjectTypeExtension,
 			Ref:  p.document.PutObjectTypeExtension(p.parseObjectTypeExtension(extend)),
 		})
+	case keyword.INTERFACE:
+		p.document.PutRootNode(ast.RootNode{
+			Kind: ast.NodeKindInterfaceTypeExtension,
+			Ref:  p.document.PutInterfaceTypeExtension(p.parseInterfaceTypeExtension(extend)),
+		})
 	default:
 		p.errUnexpectedToken(p.read(), keyword.SCHEMA)
 	}
@@ -1353,5 +1358,12 @@ func (p *Parser) parseObjectTypeExtension(extend position.Position) ast.ObjectTy
 	return ast.ObjectTypeExtension{
 		ExtendLiteral:        extend,
 		ObjectTypeDefinition: p.parseObjectTypeDefinition(nil),
+	}
+}
+
+func (p *Parser) parseInterfaceTypeExtension(extend position.Position) ast.InterfaceTypeExtension {
+	return ast.InterfaceTypeExtension{
+		ExtendLiteral:           extend,
+		InterfaceTypeDefinition: p.parseInterfaceTypeDefinition(nil),
 	}
 }

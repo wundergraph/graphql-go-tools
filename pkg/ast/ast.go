@@ -42,7 +42,10 @@ const (
 	NodeKindUnknown NodeKind = iota
 	NodeKindSchemaDefinition
 	NodeKindSchemaExtension
+	NodeKindObjectTypeDefinition
 	NodeKindObjectTypeExtension
+	NodeKindInterfaceTypeDefinition
+	NodeKindInterfaceTypeExtension
 	NodeKindOperation
 	NodeKindSelectionSet
 	NodeKindField
@@ -63,6 +66,7 @@ type Document struct {
 	InputObjectTypeDefinitions   []InputObjectTypeDefinition
 	ScalarTypeDefinitions        []ScalarTypeDefinition
 	InterfaceTypeDefinitions     []InterfaceTypeDefinition
+	InterfaceTypeExtensions      []InterfaceTypeExtension
 	UnionTypeDefinitions         []UnionTypeDefinition
 	EnumTypeDefinitions          []EnumTypeDefinition
 	EnumValueDefinitions         []EnumValueDefinition
@@ -102,6 +106,7 @@ func NewDocument() *Document {
 		InputObjectTypeDefinitions:   make([]InputObjectTypeDefinition, 16),
 		ScalarTypeDefinitions:        make([]ScalarTypeDefinition, 16),
 		InterfaceTypeDefinitions:     make([]InterfaceTypeDefinition, 16),
+		InterfaceTypeExtensions:      make([]InterfaceTypeExtension, 4),
 		UnionTypeDefinitions:         make([]UnionTypeDefinition, 8),
 		EnumTypeDefinitions:          make([]EnumTypeDefinition, 8),
 		EnumValueDefinitions:         make([]EnumValueDefinition, 48),
@@ -141,6 +146,7 @@ func (d *Document) Reset() {
 	d.InputObjectTypeDefinitions = d.InputObjectTypeDefinitions[:0]
 	d.ScalarTypeDefinitions = d.ScalarTypeDefinitions[:0]
 	d.InterfaceTypeDefinitions = d.InterfaceTypeDefinitions[:0]
+	d.InterfaceTypeExtensions = d.InterfaceTypeExtensions[:0]
 	d.UnionTypeDefinitions = d.UnionTypeDefinitions[:0]
 	d.EnumTypeDefinitions = d.EnumTypeDefinitions[:0]
 	d.EnumValueDefinitions = d.EnumValueDefinitions[:0]
@@ -405,6 +411,11 @@ func (d *Document) PutObjectTypeExtension(extension ObjectTypeExtension) int {
 	return len(d.ObjectTypeExtensions) - 1
 }
 
+func (d *Document) PutInterfaceTypeExtension(extension InterfaceTypeExtension) int {
+	d.InterfaceTypeExtensions = append(d.InterfaceTypeExtensions, extension)
+	return len(d.InterfaceTypeExtensions) - 1
+}
+
 type RootNode struct {
 	Kind NodeKind
 	Ref  int
@@ -614,6 +625,11 @@ type InterfaceTypeDefinition struct {
 	Name             input.ByteSliceReference // e.g. NamedEntity
 	Directives       DirectiveList            // optional, e.g. @foo
 	FieldsDefinition FieldDefinitionList      // optional, e.g. { name: String }
+}
+
+type InterfaceTypeExtension struct {
+	ExtendLiteral position.Position
+	InterfaceTypeDefinition
 }
 
 // UnionTypeDefinition

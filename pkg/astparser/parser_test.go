@@ -436,6 +436,43 @@ func TestParser_Parse(t *testing.T) {
 			})
 		})
 	})
+	t.Run("interface type extension", func(t *testing.T) {
+		t.Run("simple", func(t *testing.T) {
+			run(`extend interface NamedEntity @foo {
+ 								name: String
+							}`, parse, false,
+				func(in *input.Input, doc *ast.Document, extra interface{}) {
+					namedEntity := doc.InterfaceTypeExtensions[0]
+					if in.ByteSliceString(namedEntity.Name) != "NamedEntity" {
+						panic("want NamedEntity")
+					}
+
+					// fields
+					if !namedEntity.FieldsDefinition.Next(doc) {
+						panic("want nextx")
+					}
+					name, nameRef := namedEntity.FieldsDefinition.Value()
+					if nameRef != 0 {
+						panic("want 0")
+					}
+					if in.ByteSliceString(name.Name) != "name" {
+						panic("want name")
+					}
+
+					//directives
+					if !namedEntity.Directives.Next(doc) {
+						panic("want true")
+					}
+					foo, fooRef := namedEntity.Directives.Value()
+					if fooRef != 0 {
+						panic("want 0")
+					}
+					if in.ByteSliceString(foo.Name) != "foo" {
+						panic("want foo")
+					}
+				})
+		})
+	})
 	t.Run("scalar type definition", func(t *testing.T) {
 		t.Run("simple", func(t *testing.T) {
 			run(`scalar JSON`, parse, false,
