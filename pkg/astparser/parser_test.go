@@ -600,6 +600,39 @@ func TestParser_Parse(t *testing.T) {
 				})
 		})
 	})
+	t.Run("input object type extension", func(t *testing.T) {
+		t.Run("complex", func(t *testing.T) {
+			run(`	extend input Person {
+									name: String = "Gopher"
+								}`, parse,
+				false, func(in *input.Input, doc *ast.Document, extra interface{}) {
+					person := doc.InputObjectTypeExtensions[0]
+					if in.ByteSliceString(person.Name) != "Person" {
+						panic("want person")
+					}
+
+					if !person.InputFieldsDefinition.Next(doc) {
+						panic("want next")
+					}
+					name, nameRef := person.InputFieldsDefinition.Value()
+					if nameRef != 0 {
+						panic("want 0")
+					}
+					if in.ByteSliceString(name.Name) != "name" {
+						panic("want name")
+					}
+					if !name.DefaultValue.IsDefined {
+						panic("want true")
+					}
+					if name.DefaultValue.Value.Kind != ast.ValueKindString {
+						panic("want ValueKindString")
+					}
+					if in.ByteSliceString(doc.StringValues[name.DefaultValue.Value.Ref].Content) != "Gopher" {
+						panic("want Gopher")
+					}
+				})
+		})
+	})
 	t.Run("scalar type definition", func(t *testing.T) {
 		t.Run("simple", func(t *testing.T) {
 			run(`scalar JSON`, parse, false,
@@ -944,7 +977,7 @@ func TestParser_Parse(t *testing.T) {
 			run(`type Person implements Foo & {}`, parse, true)
 		})
 	})
-	t.Run("input type definition", func(t *testing.T) {
+	t.Run("input object type definition", func(t *testing.T) {
 		t.Run("complex", func(t *testing.T) {
 			run(`	input Person {
 									name: String = "Gopher"

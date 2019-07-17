@@ -50,6 +50,8 @@ const (
 	NodeKindUnionTypeExtension
 	NodeKindEnumTypeDefinition
 	NodeKindEnumTypeExtension
+	NodeKindInputObjectTypeDefinition
+	NodeKindInputObjectTypeExtension
 	NodeKindOperation
 	NodeKindSelectionSet
 	NodeKindField
@@ -68,6 +70,7 @@ type Document struct {
 	Types                        []Type
 	InputValueDefinitions        []InputValueDefinition
 	InputObjectTypeDefinitions   []InputObjectTypeDefinition
+	InputObjectTypeExtensions    []InputObjectTypeExtension
 	ScalarTypeDefinitions        []ScalarTypeDefinition
 	ScalarTypeExtensions         []ScalarTypeExtension
 	InterfaceTypeDefinitions     []InterfaceTypeDefinition
@@ -111,6 +114,7 @@ func NewDocument() *Document {
 		FieldDefinitions:             make([]FieldDefinition, 128),
 		InputValueDefinitions:        make([]InputValueDefinition, 128),
 		InputObjectTypeDefinitions:   make([]InputObjectTypeDefinition, 16),
+		InputObjectTypeExtensions:    make([]InputObjectTypeExtension, 4),
 		ScalarTypeDefinitions:        make([]ScalarTypeDefinition, 16),
 		ScalarTypeExtensions:         make([]ScalarTypeExtension, 4),
 		InterfaceTypeDefinitions:     make([]InterfaceTypeDefinition, 16),
@@ -154,6 +158,7 @@ func (d *Document) Reset() {
 	d.FieldDefinitions = d.FieldDefinitions[:0]
 	d.InputValueDefinitions = d.InputValueDefinitions[:0]
 	d.InputObjectTypeDefinitions = d.InputObjectTypeDefinitions[:0]
+	d.InputObjectTypeExtensions = d.InputObjectTypeExtensions[:0]
 	d.ScalarTypeDefinitions = d.ScalarTypeDefinitions[:0]
 	d.ScalarTypeExtensions = d.ScalarTypeExtensions[:0]
 	d.InterfaceTypeDefinitions = d.InterfaceTypeDefinitions[:0]
@@ -448,6 +453,11 @@ func (d *Document) PutEnumTypeExtension(extension EnumTypeExtension) int {
 	return len(d.EnumTypeExtensions) - 1
 }
 
+func (d *Document) PutInputObjectTypeExtension(extension InputObjectTypeExtension) int {
+	d.InputObjectTypeExtensions = append(d.InputObjectTypeExtensions, extension)
+	return len(d.InputObjectTypeExtensions) - 1
+}
+
 type RootNode struct {
 	Kind NodeKind
 	Ref  int
@@ -634,6 +644,11 @@ type InputObjectTypeDefinition struct {
 	Name                  input.ByteSliceReference // name of the input type
 	Directives            DirectiveList            // optional, e.g. @foo
 	InputFieldsDefinition InputValueDefinitionList // e.g. x:Float
+}
+
+type InputObjectTypeExtension struct {
+	ExtendLiteral position.Position
+	InputObjectTypeDefinition
 }
 
 // ScalarTypeDefinition

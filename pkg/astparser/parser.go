@@ -91,7 +91,7 @@ func (p *Parser) parse() {
 		case keyword.TYPE:
 			p.document.PutObjectTypeDefinition(p.parseObjectTypeDefinition(nil))
 		case keyword.INPUT:
-			p.parseInputObjectTypeDefinition(nil)
+			p.document.PutInputObjectTypeDefinition(p.parseInputObjectTypeDefinition(nil))
 		case keyword.INTERFACE:
 			p.document.PutInterfaceTypeDefinition(p.parseInterfaceTypeDefinition(nil))
 		case keyword.UNION:
@@ -99,7 +99,7 @@ func (p *Parser) parse() {
 		case keyword.ENUM:
 			p.document.PutEnumTypeDefinition(p.parseEnumTypeDefinition(nil))
 		case keyword.DIRECTIVE:
-			p.parseDirectiveDefinition(nil)
+			p.document.PutDirectiveDefinition(p.parseDirectiveDefinition(nil))
 		case keyword.QUERY, keyword.MUTATION, keyword.SUBSCRIPTION, keyword.CURLYBRACKETOPEN:
 			p.parseOperationDefinition()
 		case keyword.FRAGMENT:
@@ -596,7 +596,7 @@ func (p *Parser) parseRootDescription() {
 	case keyword.TYPE:
 		p.document.PutObjectTypeDefinition(p.parseObjectTypeDefinition(&description))
 	case keyword.INPUT:
-		p.parseInputObjectTypeDefinition(&description)
+		p.document.PutInputObjectTypeDefinition(p.parseInputObjectTypeDefinition(&description))
 	case keyword.SCALAR:
 		p.document.PutScalarTypeDefinition(p.parseScalarTypeDefinition(&description))
 	case keyword.INTERFACE:
@@ -606,7 +606,7 @@ func (p *Parser) parseRootDescription() {
 	case keyword.ENUM:
 		p.document.PutEnumTypeDefinition(p.parseEnumTypeDefinition(&description))
 	case keyword.DIRECTIVE:
-		p.parseDirectiveDefinition(&description)
+		p.document.PutDirectiveDefinition(p.parseDirectiveDefinition(&description))
 	default:
 		p.errUnexpectedToken(p.read())
 	}
@@ -852,7 +852,7 @@ func (p *Parser) parseInputValueDefinition() int {
 	return p.document.PutInputValueDefinition(inputValueDefinition)
 }
 
-func (p *Parser) parseInputObjectTypeDefinition(description *ast.Description) int {
+func (p *Parser) parseInputObjectTypeDefinition(description *ast.Description) ast.InputObjectTypeDefinition {
 	var inputObjectTypeDefinition ast.InputObjectTypeDefinition
 	if description != nil {
 		inputObjectTypeDefinition.Description = *description
@@ -865,7 +865,7 @@ func (p *Parser) parseInputObjectTypeDefinition(description *ast.Description) in
 	if p.peekEquals(keyword.CURLYBRACKETOPEN) {
 		inputObjectTypeDefinition.InputFieldsDefinition = p.parseInputValueDefinitionList(keyword.CURLYBRACKETCLOSE)
 	}
-	return p.document.PutInputObjectTypeDefinition(inputObjectTypeDefinition)
+	return inputObjectTypeDefinition
 }
 
 func (p *Parser) parseScalarTypeDefinition(description *ast.Description) ast.ScalarTypeDefinition {
@@ -1037,7 +1037,7 @@ func (p *Parser) parseEnumValueDefinition() int {
 	return p.document.PutEnumValueDefinition(enumValueDefinition)
 }
 
-func (p *Parser) parseDirectiveDefinition(description *ast.Description) int {
+func (p *Parser) parseDirectiveDefinition(description *ast.Description) ast.DirectiveDefinition {
 	var directiveDefinition ast.DirectiveDefinition
 	if description != nil {
 		directiveDefinition.Description = *description
@@ -1050,7 +1050,7 @@ func (p *Parser) parseDirectiveDefinition(description *ast.Description) int {
 	}
 	directiveDefinition.On = p.mustRead(keyword.ON).TextPosition
 	p.parseDirectiveLocations(&directiveDefinition.DirectiveLocations)
-	return p.document.PutDirectiveDefinition(directiveDefinition)
+	return directiveDefinition
 }
 
 func (p *Parser) parseDirectiveLocations(locations *ast.DirectiveLocations) {
@@ -1336,6 +1336,8 @@ func (p *Parser) parseExtension() {
 		p.document.PutUnionTypeExtension(p.parseUnionTypeExtension(extend))
 	case keyword.ENUM:
 		p.document.PutEnumTypeExtension(p.parseEnumTypeExtension(extend))
+	case keyword.INPUT:
+		p.document.PutInputObjectTypeExtension(p.parseInputObjectTypeExtension(extend))
 	default:
 		p.errUnexpectedToken(p.read(), keyword.SCHEMA)
 	}
@@ -1380,5 +1382,12 @@ func (p *Parser) parseEnumTypeExtension(extend position.Position) ast.EnumTypeEx
 	return ast.EnumTypeExtension{
 		ExtendLiteral:      extend,
 		EnumTypeDefinition: p.parseEnumTypeDefinition(nil),
+	}
+}
+
+func (p *Parser) parseInputObjectTypeExtension(extend position.Position) ast.InputObjectTypeExtension {
+	return ast.InputObjectTypeExtension{
+		ExtendLiteral:             extend,
+		InputObjectTypeDefinition: p.parseInputObjectTypeDefinition(nil),
 	}
 }
