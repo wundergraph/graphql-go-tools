@@ -1,4 +1,3 @@
-//go:generate optional -type=Alias
 package ast
 
 import (
@@ -13,7 +12,7 @@ type SelectionKind int
 type NodeKind int
 
 const (
-	OperationTypeUndefined OperationType = iota
+	OperationTypeUnknown OperationType = iota
 	OperationTypeQuery
 	OperationTypeMutation
 	OperationTypeSubscription
@@ -52,7 +51,7 @@ const (
 	NodeKindEnumTypeExtension
 	NodeKindInputObjectTypeDefinition
 	NodeKindInputObjectTypeExtension
-	NodeKindOperation
+	NodeKindOperationDefinition
 	NodeKindSelectionSet
 	NodeKindField
 )
@@ -82,12 +81,12 @@ type Document struct {
 	EnumValueDefinitions         []EnumValueDefinition
 	DirectiveDefinitions         []DirectiveDefinition
 	Values                       []Value
+	ListValues                   []ListValue
 	VariableValues               []VariableValue
 	StringValues                 []StringValue
 	IntValues                    []IntValue
 	FloatValues                  []FloatValue
 	EnumValues                   []EnumValue
-	ValueLists                   []ValueList
 	ObjectFields                 []ObjectField
 	ObjectValues                 []ObjectValue
 	Selections                   []Selection
@@ -98,50 +97,55 @@ type Document struct {
 	VariableDefinitions          []VariableDefinition
 	FragmentDefinitions          []FragmentDefinition
 	BooleanValue                 [2]BooleanValue
+	Refs                         [][8]int
+	RefIndex                     int
 }
 
 func NewDocument() *Document {
+
 	return &Document{
-		RootNodes:                    make([]RootNode, 48),
-		RootOperationTypeDefinitions: make([]RootOperationTypeDefinition, 3),
-		SchemaDefinitions:            make([]SchemaDefinition, 2),
-		SchemaExtensions:             make([]SchemaExtension, 2),
-		Directives:                   make([]Directive, 16),
-		Arguments:                    make([]Argument, 48),
-		ObjectTypeDefinitions:        make([]ObjectTypeDefinition, 48),
-		ObjectTypeExtensions:         make([]ObjectTypeExtension, 4),
-		Types:                        make([]Type, 48),
-		FieldDefinitions:             make([]FieldDefinition, 128),
-		InputValueDefinitions:        make([]InputValueDefinition, 128),
-		InputObjectTypeDefinitions:   make([]InputObjectTypeDefinition, 16),
-		InputObjectTypeExtensions:    make([]InputObjectTypeExtension, 4),
-		ScalarTypeDefinitions:        make([]ScalarTypeDefinition, 16),
-		ScalarTypeExtensions:         make([]ScalarTypeExtension, 4),
-		InterfaceTypeDefinitions:     make([]InterfaceTypeDefinition, 16),
-		InterfaceTypeExtensions:      make([]InterfaceTypeExtension, 4),
-		UnionTypeDefinitions:         make([]UnionTypeDefinition, 8),
-		UnionTypeExtensions:          make([]UnionTypeExtension, 4),
-		EnumTypeDefinitions:          make([]EnumTypeDefinition, 8),
-		EnumTypeExtensions:           make([]EnumTypeExtension, 4),
-		EnumValueDefinitions:         make([]EnumValueDefinition, 48),
-		DirectiveDefinitions:         make([]DirectiveDefinition, 8),
-		VariableValues:               make([]VariableValue, 8),
-		StringValues:                 make([]StringValue, 24),
-		EnumValues:                   make([]EnumValue, 24),
-		IntValues:                    make([]IntValue, 128),
-		FloatValues:                  make([]FloatValue, 128),
-		ValueLists:                   make([]ValueList, 16),
-		Values:                       make([]Value, 64),
-		ObjectFields:                 make([]ObjectField, 64),
-		ObjectValues:                 make([]ObjectValue, 16),
-		Selections:                   make([]Selection, 128),
-		Fields:                       make([]Field, 128),
-		InlineFragments:              make([]InlineFragment, 16),
-		FragmentSpreads:              make([]FragmentSpread, 16),
-		OperationDefinitions:         make([]OperationDefinition, 8),
-		VariableDefinitions:          make([]VariableDefinition, 8),
-		FragmentDefinitions:          make([]FragmentDefinition, 8),
+		RootNodes:                    make([]RootNode, 48)[:0],
+		RootOperationTypeDefinitions: make([]RootOperationTypeDefinition, 3)[:0],
+		SchemaDefinitions:            make([]SchemaDefinition, 2)[:0],
+		SchemaExtensions:             make([]SchemaExtension, 2)[:0],
+		Directives:                   make([]Directive, 16)[:0],
+		Arguments:                    make([]Argument, 48)[:0],
+		ObjectTypeDefinitions:        make([]ObjectTypeDefinition, 48)[:0],
+		ObjectTypeExtensions:         make([]ObjectTypeExtension, 4)[:0],
+		Types:                        make([]Type, 48)[:0],
+		FieldDefinitions:             make([]FieldDefinition, 128)[:0],
+		InputValueDefinitions:        make([]InputValueDefinition, 128)[:0],
+		InputObjectTypeDefinitions:   make([]InputObjectTypeDefinition, 16)[:0],
+		InputObjectTypeExtensions:    make([]InputObjectTypeExtension, 4)[:0],
+		ScalarTypeDefinitions:        make([]ScalarTypeDefinition, 16)[:0],
+		ScalarTypeExtensions:         make([]ScalarTypeExtension, 4)[:0],
+		InterfaceTypeDefinitions:     make([]InterfaceTypeDefinition, 16)[:0],
+		InterfaceTypeExtensions:      make([]InterfaceTypeExtension, 4)[:0],
+		UnionTypeDefinitions:         make([]UnionTypeDefinition, 8)[:0],
+		UnionTypeExtensions:          make([]UnionTypeExtension, 4)[:0],
+		EnumTypeDefinitions:          make([]EnumTypeDefinition, 8)[:0],
+		EnumTypeExtensions:           make([]EnumTypeExtension, 4)[:0],
+		EnumValueDefinitions:         make([]EnumValueDefinition, 48)[:0],
+		DirectiveDefinitions:         make([]DirectiveDefinition, 8)[:0],
+		VariableValues:               make([]VariableValue, 8)[:0],
+		StringValues:                 make([]StringValue, 24)[:0],
+		EnumValues:                   make([]EnumValue, 24)[:0],
+		IntValues:                    make([]IntValue, 128)[:0],
+		FloatValues:                  make([]FloatValue, 128)[:0],
+		Values:                       make([]Value, 64)[:0],
+		ListValues:                   make([]ListValue, 4)[:0],
+		ObjectFields:                 make([]ObjectField, 64)[:0],
+		ObjectValues:                 make([]ObjectValue, 16)[:0],
+		Selections:                   make([]Selection, 128)[:0],
+		Fields:                       make([]Field, 128)[:0],
+		InlineFragments:              make([]InlineFragment, 16)[:0],
+		FragmentSpreads:              make([]FragmentSpread, 16)[:0],
+		OperationDefinitions:         make([]OperationDefinition, 8)[:0],
+		VariableDefinitions:          make([]VariableDefinition, 8)[:0],
+		FragmentDefinitions:          make([]FragmentDefinition, 8)[:0],
 		BooleanValue:                 [2]BooleanValue{false, true},
+		Refs:                         make([][8]int, 48),
+		RefIndex:                     -1,
 	}
 }
 
@@ -174,8 +178,8 @@ func (d *Document) Reset() {
 	d.EnumValues = d.EnumValues[:0]
 	d.IntValues = d.IntValues[:0]
 	d.FloatValues = d.FloatValues[:0]
-	d.ValueLists = d.ValueLists[:0]
 	d.Values = d.Values[:0]
+	d.ListValues = d.ListValues[:0]
 	d.ObjectFields = d.ObjectFields[:0]
 	d.ObjectValues = d.ObjectValues[:0]
 	d.Selections = d.Selections[:0]
@@ -185,277 +189,16 @@ func (d *Document) Reset() {
 	d.OperationDefinitions = d.OperationDefinitions[:0]
 	d.VariableDefinitions = d.VariableDefinitions[:0]
 	d.FragmentDefinitions = d.FragmentDefinitions[:0]
+
+	d.RefIndex = -1
 }
 
-func (d *Document) GetVariableDefinition(ref int) (node VariableDefinition, nextRef int) {
-	node = d.VariableDefinitions[ref]
-	nextRef = node.Next()
-	return
-}
-
-func (d *Document) GetSelection(ref int) (node Selection, nextRef int) {
-	node = d.Selections[ref]
-	nextRef = node.Next()
-	return
-}
-
-func (d *Document) GetObjectField(ref int) (node ObjectField, nextRef int) {
-	node = d.ObjectFields[ref]
-	nextRef = node.Next()
-	return
-}
-
-func (d *Document) GetValue(ref int) (node Value, nextRef int) {
-	node = d.Values[ref]
-	nextRef = node.Next()
-	return
-}
-
-func (d *Document) GetEnumValueDefinition(ref int) (node EnumValueDefinition, nextRef int) {
-	node = d.EnumValueDefinitions[ref]
-	nextRef = node.Next()
-	return
-}
-
-func (d *Document) GetInputValueDefinition(ref int) (node InputValueDefinition, nextRef int) {
-	node = d.InputValueDefinitions[ref]
-	nextRef = node.Next()
-	return
-}
-
-func (d *Document) GetType(ref int) (node Type, nextRef int) {
-	node = d.Types[ref]
-	nextRef = node.Next()
-	return
-}
-
-func (d *Document) GetFieldDefinition(ref int) (node FieldDefinition, nextRef int) {
-	node = d.FieldDefinitions[ref]
-	nextRef = node.Next()
-	return
-}
-
-func (d *Document) GetArgument(ref int) (node Argument, nextRef int) {
-	node = d.Arguments[ref]
-	nextRef = node.Next()
-	return
-}
-
-func (d *Document) GetDirective(ref int) (node Directive, nextRef int) {
-	node = d.Directives[ref]
-	nextRef = node.Next()
-	return
-}
-
-func (d *Document) GetRootOperationTypeDefinition(ref int) (node RootOperationTypeDefinition, nextRef int) {
-	node = d.RootOperationTypeDefinitions[ref]
-	nextRef = node.Next()
-	return
-}
-
-func (d *Document) PutRootNode(node RootNode) int {
-	d.RootNodes = append(d.RootNodes, node)
-	return len(d.RootNodes) - 1
-}
-
-func (d *Document) PutRootOperationTypeDefinition(def RootOperationTypeDefinition) int {
-	d.RootOperationTypeDefinitions = append(d.RootOperationTypeDefinitions, def)
-	return len(d.RootOperationTypeDefinitions) - 1
-}
-
-func (d *Document) PutSchemaDefinition(def SchemaDefinition) int {
-	d.SchemaDefinitions = append(d.SchemaDefinitions, def)
-	ref := len(d.SchemaDefinitions) - 1
-	d.PutRootNode(RootNode{
-		Kind: NodeKindSchemaDefinition,
-		Ref:  ref,
-	})
-	return ref
-}
-
-func (d *Document) PutDirective(directive Directive) int {
-	d.Directives = append(d.Directives, directive)
-	return len(d.Directives) - 1
-}
-
-func (d *Document) PutArgument(argument Argument) int {
-	d.Arguments = append(d.Arguments, argument)
-	return len(d.Arguments) - 1
-}
-
-func (d *Document) PutType(docType Type) int {
-	d.Types = append(d.Types, docType)
-	return len(d.Types) - 1
-}
-
-func (d *Document) PutFieldDefinition(definition FieldDefinition) int {
-	d.FieldDefinitions = append(d.FieldDefinitions, definition)
-	return len(d.FieldDefinitions) - 1
-}
-
-func (d *Document) PutObjectTypeDefinition(definition ObjectTypeDefinition) int {
-	d.ObjectTypeDefinitions = append(d.ObjectTypeDefinitions, definition)
-	return len(d.ObjectTypeDefinitions) - 1
-}
-
-func (d *Document) PutInputValueDefinition(definition InputValueDefinition) int {
-	d.InputValueDefinitions = append(d.InputValueDefinitions, definition)
-	return len(d.InputValueDefinitions) - 1
-}
-
-func (d *Document) PutInputObjectTypeDefinition(definition InputObjectTypeDefinition) int {
-	d.InputObjectTypeDefinitions = append(d.InputObjectTypeDefinitions, definition)
-	return len(d.InputObjectTypeDefinitions) - 1
-}
-
-func (d *Document) PutScalarTypeDefinition(definition ScalarTypeDefinition) int {
-	d.ScalarTypeDefinitions = append(d.ScalarTypeDefinitions, definition)
-	return len(d.ScalarTypeDefinitions) - 1
-}
-
-func (d *Document) PutInterfaceTypeDefinition(definition InterfaceTypeDefinition) int {
-	d.InterfaceTypeDefinitions = append(d.InterfaceTypeDefinitions, definition)
-	return len(d.InterfaceTypeDefinitions) - 1
-}
-
-func (d *Document) PutUnionTypeDefinition(definition UnionTypeDefinition) int {
-	d.UnionTypeDefinitions = append(d.UnionTypeDefinitions, definition)
-	return len(d.UnionTypeDefinitions) - 1
-}
-
-func (d *Document) PutEnumTypeDefinition(definition EnumTypeDefinition) int {
-	d.EnumTypeDefinitions = append(d.EnumTypeDefinitions, definition)
-	return len(d.EnumTypeDefinitions) - 1
-}
-
-func (d *Document) PutEnumValueDefinition(definition EnumValueDefinition) int {
-	d.EnumValueDefinitions = append(d.EnumValueDefinitions, definition)
-	return len(d.EnumValueDefinitions) - 1
-}
-
-func (d *Document) PutDirectiveDefinition(definition DirectiveDefinition) int {
-	d.DirectiveDefinitions = append(d.DirectiveDefinitions, definition)
-	return len(d.DirectiveDefinitions) - 1
-}
-
-func (d *Document) PutStringValue(value StringValue) int {
-	d.StringValues = append(d.StringValues, value)
-	return len(d.StringValues) - 1
-}
-
-func (d *Document) PutEnumValue(value EnumValue) int {
-	d.EnumValues = append(d.EnumValues, value)
-	return len(d.EnumValues) - 1
-}
-
-func (d *Document) PutVariableValue(value VariableValue) int {
-	d.VariableValues = append(d.VariableValues, value)
-	return len(d.VariableValues) - 1
-}
-
-func (d *Document) PutIntValue(value IntValue) int {
-	d.IntValues = append(d.IntValues, value)
-	return len(d.IntValues) - 1
-}
-
-func (d *Document) PutFloatValue(value FloatValue) int {
-	d.FloatValues = append(d.FloatValues, value)
-	return len(d.FloatValues) - 1
-}
-
-func (d *Document) PutValueList(list ValueList) int {
-	d.ValueLists = append(d.ValueLists, list)
-	return len(d.ValueLists) - 1
-}
-
-func (d *Document) PutValue(value Value) int {
-	d.Values = append(d.Values, value)
-	return len(d.Values) - 1
-}
-
-func (d *Document) PutObjectValue(value ObjectValue) int {
-	d.ObjectValues = append(d.ObjectValues, value)
-	return len(d.ObjectValues) - 1
-}
-
-func (d *Document) PutObjectField(field ObjectField) int {
-	d.ObjectFields = append(d.ObjectFields, field)
-	return len(d.ObjectFields) - 1
-}
-
-func (d *Document) PutSelection(selection Selection) int {
-	d.Selections = append(d.Selections, selection)
-	return len(d.Selections) - 1
-}
-
-func (d *Document) PutField(field Field) int {
-	d.Fields = append(d.Fields, field)
-	return len(d.Fields) - 1
-}
-
-func (d *Document) PutInlineFragment(fragment InlineFragment) int {
-	d.InlineFragments = append(d.InlineFragments, fragment)
-	return len(d.InlineFragments) - 1
-}
-
-func (d *Document) PutFragmentSpread(spread FragmentSpread) int {
-	d.FragmentSpreads = append(d.FragmentSpreads, spread)
-	return len(d.FragmentSpreads) - 1
-}
-
-func (d *Document) PutOperationDefinition(definition OperationDefinition) int {
-	d.OperationDefinitions = append(d.OperationDefinitions, definition)
-	ref := len(d.OperationDefinitions) - 1
-	d.PutRootNode(RootNode{
-		Kind: NodeKindOperation,
-		Ref:  ref,
-	})
-	return ref
-}
-
-func (d *Document) PutVariableDefinition(definition VariableDefinition) int {
-	d.VariableDefinitions = append(d.VariableDefinitions, definition)
-	return len(d.VariableDefinitions) - 1
-}
-
-func (d *Document) PutFragmentDefinition(definition FragmentDefinition) int {
-	d.FragmentDefinitions = append(d.FragmentDefinitions, definition)
-	return len(d.FragmentDefinitions) - 1
-}
-
-func (d *Document) PutSchemaExtension(extension SchemaExtension) int {
-	d.SchemaExtensions = append(d.SchemaExtensions, extension)
-	return len(d.SchemaExtensions) - 1
-}
-
-func (d *Document) PutObjectTypeExtension(extension ObjectTypeExtension) int {
-	d.ObjectTypeExtensions = append(d.ObjectTypeExtensions, extension)
-	return len(d.ObjectTypeExtensions) - 1
-}
-
-func (d *Document) PutInterfaceTypeExtension(extension InterfaceTypeExtension) int {
-	d.InterfaceTypeExtensions = append(d.InterfaceTypeExtensions, extension)
-	return len(d.InterfaceTypeExtensions) - 1
-}
-
-func (d *Document) PutScalarTypeExtension(extension ScalarTypeExtension) int {
-	d.ScalarTypeExtensions = append(d.ScalarTypeExtensions, extension)
-	return len(d.ScalarTypeExtensions) - 1
-}
-
-func (d *Document) PutUnionTypeExtension(extension UnionTypeExtension) int {
-	d.UnionTypeExtensions = append(d.UnionTypeExtensions, extension)
-	return len(d.UnionTypeExtensions) - 1
-}
-
-func (d *Document) PutEnumTypeExtension(extension EnumTypeExtension) int {
-	d.EnumTypeExtensions = append(d.EnumTypeExtensions, extension)
-	return len(d.EnumTypeExtensions) - 1
-}
-
-func (d *Document) PutInputObjectTypeExtension(extension InputObjectTypeExtension) int {
-	d.InputObjectTypeExtensions = append(d.InputObjectTypeExtensions, extension)
-	return len(d.InputObjectTypeExtensions) - 1
+func (d *Document) NextRefIndex() int {
+	d.RefIndex++
+	if d.RefIndex == len(d.Refs) {
+		d.Refs = append(d.Refs, [8]int{})
+	}
+	return d.RefIndex
 }
 
 type RootNode struct {
@@ -469,47 +212,40 @@ type SchemaDefinition struct {
 	RootOperationTypeDefinitions RootOperationTypeDefinitionList
 }
 
+type DirectiveList struct {
+	Refs []int
+}
+
+type RootOperationTypeDefinitionList struct {
+	LBrace position.Position // {
+	Refs   []int             // RootOperationTypeDefinition
+	RBrace position.Position // }
+}
+
 type SchemaExtension struct {
 	ExtendLiteral position.Position
 	SchemaDefinition
 }
 
-type iterable struct {
-	next    int
-	hasNext bool
-}
-
-func (i *iterable) SetNext(next int) {
-	if next == -1 {
-		return
-	}
-	i.hasNext = true
-	i.next = next
-}
-
-func (i iterable) Next() int {
-	if i.hasNext {
-		return i.next
-	}
-	return -1
-}
-
 type RootOperationTypeDefinition struct {
-	iterable
 	OperationType OperationType     // one of query, mutation, subscription
 	Colon         position.Position // :
 	NamedType     Type              // e.g. Query
 }
 
 type Directive struct {
-	iterable
-	At           position.Position        // @
-	Name         input.ByteSliceReference // e.g. include
-	ArgumentList ArgumentList             // e.g. (if: true)
+	At        position.Position        // @
+	Name      input.ByteSliceReference // e.g. include
+	Arguments ArgumentList             // e.g. (if: true)
+}
+
+type ArgumentList struct {
+	LPAREN position.Position
+	Refs   []int // Argument
+	RPAREN position.Position
 }
 
 type FieldDefinition struct {
-	iterable
 	Description         Description              // optional e.g. "FieldDefinition is ..."
 	Name                input.ByteSliceReference // e.g. foo
 	ArgumentsDefinition InputValueDefinitionList // optional
@@ -518,17 +254,27 @@ type FieldDefinition struct {
 	Directives          DirectiveList            // e.g. @foo
 }
 
+type InputValueDefinitionList struct {
+	LPAREN position.Position // (
+	Refs   []int             // InputValueDefinition
+	RPAREN position.Position // )
+}
+
 type Argument struct {
-	iterable
 	Name  input.ByteSliceReference // e.g. foo
 	Colon position.Position        // :
 	Value Value                    // e.g. 100 or "Bar"
 }
 
 type Value struct {
-	iterable
 	Kind ValueKind // e.g. 100 or "Bar"
 	Ref  int
+}
+
+type ListValue struct {
+	LBRACK position.Position // [
+	Refs   []int             // Value
+	RBRACK position.Position // ]
 }
 
 // VariableValue
@@ -579,13 +325,16 @@ type BooleanValue bool
 // ObjectValue
 // example:
 // { lon: 12.43, lat: -53.211 }
-type ObjectValue = ObjectFieldList
+type ObjectValue struct {
+	LBRACE position.Position
+	Refs   []int // ObjectField
+	RBRACE position.Position
+}
 
 // ObjectField
 // example:
 // lon: 12.43
 type ObjectField struct {
-	iterable
 	Name  input.ByteSliceReference // e.g. lon
 	Colon position.Position        // :
 	Value Value                    // e.g. 12.43
@@ -607,13 +356,22 @@ type ObjectTypeDefinition struct {
 	FieldsDefinition     FieldDefinitionList      // { foo:Bar bar(baz:String) }
 }
 
+type TypeList struct {
+	Refs []int // Type
+}
+
+type FieldDefinitionList struct {
+	LBRACE position.Position // {
+	Refs   []int             // FieldDefinition
+	RBRACE position.Position // }
+}
+
 type ObjectTypeExtension struct {
 	ExtendLiteral position.Position
 	ObjectTypeDefinition
 }
 
 type InputValueDefinition struct {
-	iterable
 	Description  Description              // optional, e.g. "input Foo is..."
 	Name         input.ByteSliceReference // e.g. Foo
 	Colon        position.Position        // :
@@ -623,7 +381,6 @@ type InputValueDefinition struct {
 }
 
 type Type struct {
-	iterable
 	TypeKind TypeKind                 // one of Named,List,NonNull
 	Name     input.ByteSliceReference // e.g. String (only on NamedType)
 	Open     position.Position        // [ (only on ListType)
@@ -717,6 +474,12 @@ type EnumTypeDefinition struct {
 	EnumValuesDefinition EnumValueDefinitionList  // optional, e.g. { NORTH EAST }
 }
 
+type EnumValueDefinitionList struct {
+	LBRACE position.Position // {
+	Refs   []int             //
+	RBRACE position.Position // }
+}
+
 type EnumTypeExtension struct {
 	ExtendLiteral position.Position
 	EnumTypeDefinition
@@ -726,7 +489,6 @@ type EnumTypeExtension struct {
 // example:
 // "NORTH enum value" NORTH @foo
 type EnumValueDefinition struct {
-	iterable
 	Description Description              // optional, describes enum value
 	EnumValue   input.ByteSliceReference // e.g. NORTH (Name but not true, false or null
 	Directives  DirectiveList            // optional, e.g. @foo
@@ -754,11 +516,16 @@ type OperationDefinition struct {
 	SelectionSet         SelectionSet             // e.g. {field}
 }
 
+type VariableDefinitionList struct {
+	LPAREN position.Position // (
+	Refs   []int             // VariableDefinition
+	RPAREN position.Position // )
+}
+
 // VariableDefinition
 // example:
 // $devicePicSize: Int = 100 @small
 type VariableDefinition struct {
-	iterable
 	Variable     int               // $ Name
 	Colon        position.Position // :
 	Type         int               // e.g. String
@@ -766,10 +533,13 @@ type VariableDefinition struct {
 	Directives   DirectiveList     // optional, e.g. @foo
 }
 
-type SelectionSet = SelectionList
+type SelectionSet struct {
+	LBrace        position.Position
+	RBrace        position.Position
+	SelectionRefs []int
+}
 
 type Selection struct {
-	iterable
 	Kind SelectionKind // one of Field, FragmentSpread, InlineFragment
 	Ref  int           // reference to the actual selection
 }

@@ -35,7 +35,7 @@ func TestVisit(t *testing.T) {
 	visitor := NewMockVisitor(ctrl)
 
 	// query ->
-	visitor.EXPECT().Enter(ast.NodeKindOperation, 0)
+	visitor.EXPECT().Enter(ast.NodeKindOperationDefinition, 0)
 	visitor.EXPECT().Enter(ast.NodeKindSelectionSet, -1)
 
 	// posts ->
@@ -62,7 +62,7 @@ func TestVisit(t *testing.T) {
 
 	// query <-
 	visitor.EXPECT().Leave(ast.NodeKindSelectionSet, -1)
-	visitor.EXPECT().Leave(ast.NodeKindOperation, 0)
+	visitor.EXPECT().Leave(ast.NodeKindOperationDefinition, 0)
 
 	astvisitor.Visit(doc, visitor)
 }

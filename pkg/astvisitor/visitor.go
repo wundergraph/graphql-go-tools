@@ -24,16 +24,16 @@ func Visit(document *ast.Document, visitor Visitor) {
 func (w *Walker) walk() {
 	for i := range w.document.RootNodes {
 		switch w.document.RootNodes[i].Kind {
-		case ast.NodeKindOperation:
+		case ast.NodeKindOperationDefinition:
 			w.visitOperation(w.document.RootNodes[i].Ref)
 		}
 	}
 }
 
 func (w *Walker) visitOperation(ref int) {
-	w.visitor.Enter(ast.NodeKindOperation, ref)
+	w.visitor.Enter(ast.NodeKindOperationDefinition, ref)
 	w.visitSelectionSet(w.document.OperationDefinitions[ref].SelectionSet)
-	w.visitor.Leave(ast.NodeKindOperation, ref)
+	w.visitor.Leave(ast.NodeKindOperationDefinition, ref)
 }
 
 func (w *Walker) visitSelectionSet(set ast.SelectionSet) {

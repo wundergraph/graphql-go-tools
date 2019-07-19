@@ -34,7 +34,7 @@ func TestVisit(t *testing.T) {
 	visitor := mock_astvisitor.NewMockVisitor(controller)
 
 	// query ->
-	visitor.EXPECT().Enter(ast.NodeKindOperation, gomock.Any())
+	visitor.EXPECT().Enter(ast.NodeKindOperationDefinition, gomock.Any())
 	visitor.EXPECT().Enter(ast.NodeKindSelectionSet, gomock.Any())
 
 	// posts ->
@@ -55,7 +55,7 @@ func TestVisit(t *testing.T) {
 
 	// <- query
 	visitor.EXPECT().Leave(ast.NodeKindSelectionSet, gomock.Any())
-	visitor.EXPECT().Leave(ast.NodeKindOperation, gomock.Any())
+	visitor.EXPECT().Leave(ast.NodeKindOperationDefinition, gomock.Any())
 
 	Visit(doc, visitor)
 }

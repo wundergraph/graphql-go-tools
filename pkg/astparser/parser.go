@@ -83,23 +83,23 @@ func (p *Parser) parse() {
 
 		switch next {
 		case keyword.SCHEMA:
-			p.document.PutSchemaDefinition(p.parseSchema())
+			p.parseSchema()
 		case keyword.STRING, keyword.BLOCKSTRING:
 			p.parseRootDescription()
 		case keyword.SCALAR:
-			p.document.PutScalarTypeDefinition(p.parseScalarTypeDefinition(nil))
+			p.parseScalarTypeDefinition(nil)
 		case keyword.TYPE:
-			p.document.PutObjectTypeDefinition(p.parseObjectTypeDefinition(nil))
+			p.parseObjectTypeDefinition(nil)
 		case keyword.INPUT:
-			p.document.PutInputObjectTypeDefinition(p.parseInputObjectTypeDefinition(nil))
+			p.parseInputObjectTypeDefinition(nil)
 		case keyword.INTERFACE:
-			p.document.PutInterfaceTypeDefinition(p.parseInterfaceTypeDefinition(nil))
+			p.parseInterfaceTypeDefinition(nil)
 		case keyword.UNION:
-			p.document.PutUnionTypeDefinition(p.parseUnionTypeDefinition(nil))
+			p.parseUnionTypeDefinition(nil)
 		case keyword.ENUM:
-			p.document.PutEnumTypeDefinition(p.parseEnumTypeDefinition(nil))
+			p.parseEnumTypeDefinition(nil)
 		case keyword.DIRECTIVE:
-			p.document.PutDirectiveDefinition(p.parseDirectiveDefinition(nil))
+			p.parseDirectiveDefinition(nil)
 		case keyword.QUERY, keyword.MUTATION, keyword.SUBSCRIPTION, keyword.CURLYBRACKETOPEN:
 			p.parseOperationDefinition()
 		case keyword.FRAGMENT:
@@ -186,7 +186,7 @@ func (p *Parser) mustRead(key keyword.Keyword) (next token.Token) {
 	return
 }
 
-func (p *Parser) parseSchema() ast.SchemaDefinition {
+func (p *Parser) parseSchema() {
 
 	schemaLiteral := p.read()
 
@@ -198,16 +198,20 @@ func (p *Parser) parseSchema() ast.SchemaDefinition {
 		schemaDefinition.Directives = p.parseDirectiveList()
 	}
 
-	schemaDefinition.RootOperationTypeDefinitions = p.parseRootOperationTypeDefinitionList()
+	p.parseRootOperationTypeDefinitionList(&schemaDefinition.RootOperationTypeDefinitions)
 
-	return schemaDefinition
+	p.document.SchemaDefinitions = append(p.document.SchemaDefinitions, schemaDefinition)
+	ref := len(p.document.SchemaDefinitions) - 1
+	rootNode := ast.RootNode{
+		Kind: ast.NodeKindSchemaDefinition,
+		Ref:  ref,
+	}
+	p.document.RootNodes = append(p.document.RootNodes, rootNode)
 }
 
-func (p *Parser) parseRootOperationTypeDefinitionList() (list ast.RootOperationTypeDefinitionList) {
+func (p *Parser) parseRootOperationTypeDefinitionList(list *ast.RootOperationTypeDefinitionList) {
 
 	curlyBracketOpen := p.mustRead(keyword.CURLYBRACKETOPEN)
-
-	previous := -1
 
 	for {
 		next := p.peek()
@@ -215,10 +219,9 @@ func (p *Parser) parseRootOperationTypeDefinitionList() (list ast.RootOperationT
 		case keyword.CURLYBRACKETCLOSE:
 
 			curlyBracketClose := p.read()
-			list.Open = curlyBracketOpen.TextPosition
-			list.Close = curlyBracketClose.TextPosition
-
-			return list
+			list.LBrace = curlyBracketOpen.TextPosition
+			list.RBrace = curlyBracketClose.TextPosition
+			return
 		case keyword.QUERY, keyword.MUTATION, keyword.SUBSCRIPTION:
 
 			operationType := p.read()
@@ -234,17 +237,15 @@ func (p *Parser) parseRootOperationTypeDefinitionList() (list ast.RootOperationT
 				},
 			}
 
-			ref := p.document.PutRootOperationTypeDefinition(rootOperationTypeDefinition)
+			p.document.RootOperationTypeDefinitions = append(p.document.RootOperationTypeDefinitions, rootOperationTypeDefinition)
+			ref := len(p.document.RootOperationTypeDefinitions) - 1
 
-			if !list.HasNext() {
-				list.SetFirst(ref)
+			if cap(list.Refs) == 0 {
+				list.Refs = p.document.Refs[p.document.NextRefIndex()][:0]
+				list.Refs = p.document.Refs[p.document.NextRefIndex()][:0]
 			}
 
-			if previous != -1 {
-				p.document.RootOperationTypeDefinitions[previous].SetNext(ref)
-			}
-
-			previous = ref
+			list.Refs = append(list.Refs, ref)
 
 		default:
 			p.errUnexpectedToken(p.read())
@@ -262,13 +263,11 @@ func (p *Parser) operationTypeFromKeyword(key keyword.Keyword) ast.OperationType
 	case keyword.SUBSCRIPTION:
 		return ast.OperationTypeSubscription
 	default:
-		return ast.OperationTypeUndefined
+		return ast.OperationTypeUnknown
 	}
 }
 
-func (p *Parser) parseDirectiveList() (directives ast.DirectiveList) {
-
-	previous := -1
+func (p *Parser) parseDirectiveList() (list ast.DirectiveList) {
 
 	for {
 
@@ -285,30 +284,25 @@ func (p *Parser) parseDirectiveList() (directives ast.DirectiveList) {
 		}
 
 		if p.peekEquals(keyword.BRACKETOPEN) {
-			directive.ArgumentList = p.parseArgumentList()
+			directive.Arguments = p.parseArgumentList()
 		}
 
-		ref := p.document.PutDirective(directive)
+		p.document.Directives = append(p.document.Directives, directive)
+		ref := len(p.document.Directives) - 1
 
-		if !directives.HasNext() {
-			directives.SetFirst(ref)
+		if cap(list.Refs) == 0 {
+			list.Refs = p.document.Refs[p.document.NextRefIndex()][:0]
 		}
 
-		if previous != -1 {
-			p.document.Directives[previous].SetNext(ref)
-		}
-
-		previous = ref
+		list.Refs = append(list.Refs, ref)
 	}
 
 	return
 }
 
-func (p *Parser) parseArgumentList() (arguments ast.ArgumentList) {
+func (p *Parser) parseArgumentList() (list ast.ArgumentList) {
 
 	bracketOpen := p.read()
-
-	previous := -1
 
 Loop:
 	for {
@@ -330,23 +324,20 @@ Loop:
 			Value: value,
 		}
 
-		ref := p.document.PutArgument(argument)
+		p.document.Arguments = append(p.document.Arguments, argument)
+		ref := len(p.document.Arguments) - 1
 
-		if !arguments.HasNext() {
-			arguments.SetFirst(ref)
+		if cap(list.Refs) == 0 {
+			list.Refs = p.document.Refs[p.document.NextRefIndex()][:0]
 		}
 
-		if previous != -1 {
-			p.document.Arguments[previous].SetNext(ref)
-		}
-
-		previous = ref
+		list.Refs = append(list.Refs, ref)
 	}
 
 	bracketClose := p.mustRead(keyword.BRACKETCLOSE)
 
-	arguments.Open = bracketOpen.TextPosition
-	arguments.Close = bracketClose.TextPosition
+	list.LPAREN = bracketOpen.TextPosition
+	list.RPAREN = bracketClose.TextPosition
 
 	return
 }
@@ -394,24 +385,21 @@ func (p *Parser) parseValue() (value ast.Value) {
 
 func (p *Parser) parseObjectValue() int {
 	var objectValue ast.ObjectValue
-	objectValue.Open = p.mustRead(keyword.CURLYBRACKETOPEN).TextPosition
+	objectValue.LBRACE = p.mustRead(keyword.CURLYBRACKETOPEN).TextPosition
 
-	previous := -1
 	for {
 		next := p.peek()
 		switch next {
 		case keyword.CURLYBRACKETCLOSE:
-			objectValue.Close = p.read().TextPosition
-			return p.document.PutObjectValue(objectValue)
+			objectValue.RBRACE = p.read().TextPosition
+			p.document.ObjectValues = append(p.document.ObjectValues, objectValue)
+			return len(p.document.ObjectValues) - 1
 		case keyword.IDENT:
 			ref := p.parseObjectField()
-			if !objectValue.HasNext() {
-				objectValue.SetFirst(ref)
+			if cap(objectValue.Refs) == 0 {
+				objectValue.Refs = p.document.Refs[p.document.NextRefIndex()][:0]
 			}
-			if previous != -1 {
-				p.document.ObjectFields[previous].SetNext(ref)
-			}
-			previous = ref
+			objectValue.Refs = append(objectValue.Refs, ref)
 		default:
 			p.errUnexpectedToken(p.read(), keyword.IDENT, keyword.CURLYBRACKETCLOSE)
 			return -1
@@ -420,38 +408,34 @@ func (p *Parser) parseObjectValue() int {
 }
 
 func (p *Parser) parseObjectField() int {
-	name := p.mustRead(keyword.IDENT)
-	colon := p.mustRead(keyword.COLON)
-	value := p.parseValue()
-	return p.document.PutObjectField(ast.ObjectField{
-		Name:  name.Literal,
-		Colon: colon.TextPosition,
-		Value: value,
-	})
+	objectField := ast.ObjectField{
+		Name:  p.mustRead(keyword.IDENT).Literal,
+		Colon: p.mustRead(keyword.COLON).TextPosition,
+		Value: p.parseValue(),
+	}
+	p.document.ObjectFields = append(p.document.ObjectFields, objectField)
+	return len(p.document.ObjectFields) - 1
 }
 
 func (p *Parser) parseValueList() int {
-	var list ast.ValueList
-	list.Open = p.mustRead(keyword.SQUAREBRACKETOPEN).TextPosition
-
-	previous := -1
+	var list ast.ListValue
+	list.LBRACK = p.mustRead(keyword.SQUAREBRACKETOPEN).TextPosition
 
 	for {
 		next := p.peek()
 		switch next {
 		case keyword.SQUAREBRACKETCLOSE:
-			list.Close = p.read().TextPosition
-			return p.document.PutValueList(list)
+			list.RBRACK = p.read().TextPosition
+			p.document.ListValues = append(p.document.ListValues, list)
+			return len(p.document.ListValues) - 1
 		default:
 			value := p.parseValue()
-			ref := p.document.PutValue(value)
-			if !list.HasNext() {
-				list.SetFirst(ref)
+			p.document.Values = append(p.document.Values, value)
+			ref := len(p.document.Values) - 1
+			if cap(list.Refs) == 0 {
+				list.Refs = p.document.Refs[p.document.NextRefIndex()][:0]
 			}
-			if previous != -1 {
-				p.document.Values[previous].SetNext(ref)
-			}
-			previous = ref
+			list.Refs = append(list.Refs, ref)
 		}
 	}
 }
@@ -488,7 +472,9 @@ func (p *Parser) parseFloatValue(negativeSign *position.Position) int {
 		floatValue.Negative = true
 		floatValue.NegativeSign = *negativeSign
 	}
-	return p.document.PutFloatValue(floatValue)
+
+	p.document.FloatValues = append(p.document.FloatValues, floatValue)
+	return len(p.document.FloatValues) - 1
 }
 
 func (p *Parser) parseIntegerValue(negativeSign *position.Position) int {
@@ -507,7 +493,9 @@ func (p *Parser) parseIntegerValue(negativeSign *position.Position) int {
 		intValue.Negative = true
 		intValue.NegativeSign = *negativeSign
 	}
-	return p.document.PutIntValue(intValue)
+
+	p.document.IntValues = append(p.document.IntValues, intValue)
+	return len(p.document.IntValues) - 1
 }
 
 func (p *Parser) parseVariableValue() int {
@@ -528,10 +516,13 @@ func (p *Parser) parseVariableValue() int {
 		return -1
 	}
 
-	return p.document.PutVariableValue(ast.VariableValue{
+	variable := ast.VariableValue{
 		Dollar: dollar.TextPosition,
 		Name:   value.Literal,
-	})
+	}
+
+	p.document.VariableValues = append(p.document.VariableValues, variable)
+	return len(p.document.VariableValues) - 1
 }
 
 func (p *Parser) parseBooleanValue() int {
@@ -548,10 +539,11 @@ func (p *Parser) parseBooleanValue() int {
 }
 
 func (p *Parser) parseEnumValue() int {
-	value := p.mustRead(keyword.IDENT)
-	return p.document.PutEnumValue(ast.EnumValue{
-		Name: value.Literal,
-	})
+	enum := ast.EnumValue{
+		Name: p.mustRead(keyword.IDENT).Literal,
+	}
+	p.document.EnumValues = append(p.document.EnumValues, enum)
+	return len(p.document.EnumValues) - 1
 }
 
 func (p *Parser) parseStringValue() int {
@@ -560,13 +552,15 @@ func (p *Parser) parseStringValue() int {
 		p.errUnexpectedToken(value, keyword.STRING, keyword.BLOCKSTRING)
 		return -1
 	}
-	return p.document.PutStringValue(ast.StringValue{
+	stringValue := ast.StringValue{
 		Content:     value.Literal,
 		BlockString: value.Keyword == keyword.BLOCKSTRING,
-	})
+	}
+	p.document.StringValues = append(p.document.StringValues, stringValue)
+	return len(p.document.StringValues) - 1
 }
 
-func (p *Parser) parseObjectTypeDefinition(description *ast.Description) ast.ObjectTypeDefinition {
+func (p *Parser) parseObjectTypeDefinition(description *ast.Description) {
 
 	var objectTypeDefinition ast.ObjectTypeDefinition
 	if description != nil {
@@ -584,7 +578,7 @@ func (p *Parser) parseObjectTypeDefinition(description *ast.Description) ast.Obj
 		objectTypeDefinition.FieldsDefinition = p.parseFieldDefinitionList()
 	}
 
-	return objectTypeDefinition
+	p.document.ObjectTypeDefinitions = append(p.document.ObjectTypeDefinitions, objectTypeDefinition)
 }
 
 func (p *Parser) parseRootDescription() {
@@ -594,19 +588,19 @@ func (p *Parser) parseRootDescription() {
 	next := p.peek()
 	switch next {
 	case keyword.TYPE:
-		p.document.PutObjectTypeDefinition(p.parseObjectTypeDefinition(&description))
+		p.parseObjectTypeDefinition(&description)
 	case keyword.INPUT:
-		p.document.PutInputObjectTypeDefinition(p.parseInputObjectTypeDefinition(&description))
+		p.parseInputObjectTypeDefinition(&description)
 	case keyword.SCALAR:
-		p.document.PutScalarTypeDefinition(p.parseScalarTypeDefinition(&description))
+		p.parseScalarTypeDefinition(&description)
 	case keyword.INTERFACE:
-		p.document.PutInterfaceTypeDefinition(p.parseInterfaceTypeDefinition(&description))
+		p.parseInterfaceTypeDefinition(&description)
 	case keyword.UNION:
-		p.document.PutUnionTypeDefinition(p.parseUnionTypeDefinition(&description))
+		p.parseUnionTypeDefinition(&description)
 	case keyword.ENUM:
-		p.document.PutEnumTypeDefinition(p.parseEnumTypeDefinition(&description))
+		p.parseEnumTypeDefinition(&description)
 	case keyword.DIRECTIVE:
-		p.document.PutDirectiveDefinition(p.parseDirectiveDefinition(&description))
+		p.parseDirectiveDefinition(&description)
 	default:
 		p.errUnexpectedToken(p.read())
 	}
@@ -614,12 +608,10 @@ func (p *Parser) parseRootDescription() {
 
 func (p *Parser) parseImplementsInterfaces() (list ast.TypeList) {
 
-	list.Open = p.read().TextPosition
+	p.read() // implements
 
 	acceptIdent := true
 	acceptAnd := true
-
-	previous := -1
 
 	for {
 		next := p.peek()
@@ -638,17 +630,16 @@ func (p *Parser) parseImplementsInterfaces() (list ast.TypeList) {
 				acceptIdent = false
 				acceptAnd = true
 				name := p.read()
-				ref := p.document.PutType(ast.Type{
+				astType := ast.Type{
 					TypeKind: ast.TypeKindNamed,
 					Name:     name.Literal,
-				})
-				if !list.HasNext() {
-					list.SetFirst(ref)
 				}
-				if previous != -1 {
-					p.document.Types[previous].SetNext(ref)
+				p.document.Types = append(p.document.Types, astType)
+				ref := len(p.document.Types) - 1
+				if cap(list.Refs) == 0 {
+					list.Refs = p.document.Refs[p.document.NextRefIndex()][:0]
 				}
-				previous = ref
+				list.Refs = append(list.Refs, ref)
 			} else {
 				p.errUnexpectedToken(p.read())
 				return
@@ -664,9 +655,7 @@ func (p *Parser) parseImplementsInterfaces() (list ast.TypeList) {
 
 func (p *Parser) parseFieldDefinitionList() (list ast.FieldDefinitionList) {
 
-	p.mustRead(keyword.CURLYBRACKETOPEN)
-
-	previous := -1
+	list.LBRACE = p.mustRead(keyword.CURLYBRACKETOPEN).TextPosition
 
 	for {
 
@@ -674,17 +663,14 @@ func (p *Parser) parseFieldDefinitionList() (list ast.FieldDefinitionList) {
 
 		switch next {
 		case keyword.CURLYBRACKETCLOSE:
-			p.read()
+			list.RBRACE = p.read().TextPosition
 			return
 		case keyword.STRING, keyword.BLOCKSTRING, keyword.IDENT, keyword.TYPE:
 			ref := p.parseFieldDefinition()
-			if !list.HasNext() {
-				list.SetFirst(ref)
+			if cap(list.Refs) == 0 {
+				list.Refs = p.document.Refs[p.document.NextRefIndex()][:0]
 			}
-			if previous != -1 {
-				p.document.FieldDefinitions[previous].SetNext(ref)
-			}
-			previous = ref
+			list.Refs = append(list.Refs, ref)
 		default:
 			p.errUnexpectedToken(p.read())
 			return
@@ -723,15 +709,18 @@ func (p *Parser) parseFieldDefinition() int {
 		fieldDefinition.Directives = p.parseDirectiveList()
 	}
 
-	return p.document.PutFieldDefinition(fieldDefinition)
+	p.document.FieldDefinitions = append(p.document.FieldDefinitions, fieldDefinition)
+	return len(p.document.FieldDefinitions) - 1
 }
 
 func (p *Parser) parseNamedType() (ref int) {
 	ident := p.mustRead(keyword.IDENT)
-	return p.document.PutType(ast.Type{
+	namedType := ast.Type{
 		TypeKind: ast.TypeKindNamed,
 		Name:     ident.Literal,
-	})
+	}
+	p.document.Types = append(p.document.Types, namedType)
+	return len(p.document.Types) - 1
 }
 
 func (p *Parser) parseType() (ref int) {
@@ -740,11 +729,13 @@ func (p *Parser) parseType() (ref int) {
 
 	if first == keyword.IDENT {
 
-		named := p.read()
-		ref = p.document.PutType(ast.Type{
+		namedType := ast.Type{
 			TypeKind: ast.TypeKindNamed,
-			Name:     named.Literal,
-		})
+			Name:     p.read().Literal,
+		}
+
+		p.document.Types = append(p.document.Types, namedType)
+		ref = len(p.document.Types) - 1
 
 	} else if first == keyword.SQUAREBRACKETOPEN {
 
@@ -752,12 +743,15 @@ func (p *Parser) parseType() (ref int) {
 		ofType := p.parseType()
 		closeList := p.mustRead(keyword.SQUAREBRACKETCLOSE)
 
-		ref = p.document.PutType(ast.Type{
+		listType := ast.Type{
 			TypeKind: ast.TypeKindList,
 			Open:     openList.TextPosition,
 			Close:    closeList.TextPosition,
 			OfType:   ofType,
-		})
+		}
+
+		p.document.Types = append(p.document.Types, listType)
+		ref = len(p.document.Types) - 1
 
 	} else {
 		p.errUnexpectedToken(p.read(), keyword.IDENT, keyword.SQUAREBRACKETOPEN)
@@ -777,7 +771,8 @@ func (p *Parser) parseType() (ref int) {
 			return
 		}
 
-		return p.document.PutType(nonNull)
+		p.document.Types = append(p.document.Types, nonNull)
+		ref = len(p.document.Types) - 1
 	}
 
 	return
@@ -795,25 +790,20 @@ func (p *Parser) parseDescription() ast.Description {
 
 func (p *Parser) parseInputValueDefinitionList(closingKeyword keyword.Keyword) (list ast.InputValueDefinitionList) {
 
-	list.Open = p.read().TextPosition
-
-	previous := -1
+	list.LPAREN = p.read().TextPosition
 
 	for {
 		next := p.peek()
 		switch next {
+		case closingKeyword:
+			list.RPAREN = p.read().TextPosition
+			return
 		case keyword.STRING, keyword.BLOCKSTRING, keyword.IDENT:
 			ref := p.parseInputValueDefinition()
-			if !list.HasNext() {
-				list.SetFirst(ref)
+			if cap(list.Refs) == 0 {
+				list.Refs = p.document.Refs[p.document.NextRefIndex()][:0]
 			}
-			if previous != -1 {
-				p.document.InputValueDefinitions[previous].SetNext(ref)
-			}
-			previous = ref
-		case closingKeyword:
-			list.Close = p.read().TextPosition
-			return
+			list.Refs = append(list.Refs, ref)
 		default:
 			p.errUnexpectedToken(p.read())
 			return
@@ -849,10 +839,11 @@ func (p *Parser) parseInputValueDefinition() int {
 		inputValueDefinition.Directives = p.parseDirectiveList()
 	}
 
-	return p.document.PutInputValueDefinition(inputValueDefinition)
+	p.document.InputValueDefinitions = append(p.document.InputValueDefinitions, inputValueDefinition)
+	return len(p.document.InputValueDefinitions) - 1
 }
 
-func (p *Parser) parseInputObjectTypeDefinition(description *ast.Description) ast.InputObjectTypeDefinition {
+func (p *Parser) parseInputObjectTypeDefinition(description *ast.Description) {
 	var inputObjectTypeDefinition ast.InputObjectTypeDefinition
 	if description != nil {
 		inputObjectTypeDefinition.Description = *description
@@ -865,10 +856,10 @@ func (p *Parser) parseInputObjectTypeDefinition(description *ast.Description) as
 	if p.peekEquals(keyword.CURLYBRACKETOPEN) {
 		inputObjectTypeDefinition.InputFieldsDefinition = p.parseInputValueDefinitionList(keyword.CURLYBRACKETCLOSE)
 	}
-	return inputObjectTypeDefinition
+	p.document.InputObjectTypeDefinitions = append(p.document.InputObjectTypeDefinitions, inputObjectTypeDefinition)
 }
 
-func (p *Parser) parseScalarTypeDefinition(description *ast.Description) ast.ScalarTypeDefinition {
+func (p *Parser) parseScalarTypeDefinition(description *ast.Description) {
 	var scalarTypeDefinition ast.ScalarTypeDefinition
 	if description != nil {
 		scalarTypeDefinition.Description = *description
@@ -878,10 +869,10 @@ func (p *Parser) parseScalarTypeDefinition(description *ast.Description) ast.Sca
 	if p.peekEquals(keyword.AT) {
 		scalarTypeDefinition.Directives = p.parseDirectiveList()
 	}
-	return scalarTypeDefinition
+	p.document.ScalarTypeDefinitions = append(p.document.ScalarTypeDefinitions, scalarTypeDefinition)
 }
 
-func (p *Parser) parseInterfaceTypeDefinition(description *ast.Description) ast.InterfaceTypeDefinition {
+func (p *Parser) parseInterfaceTypeDefinition(description *ast.Description) {
 	var interfaceTypeDefinition ast.InterfaceTypeDefinition
 	if description != nil {
 		interfaceTypeDefinition.Description = *description
@@ -894,10 +885,10 @@ func (p *Parser) parseInterfaceTypeDefinition(description *ast.Description) ast.
 	if p.peekEquals(keyword.CURLYBRACKETOPEN) {
 		interfaceTypeDefinition.FieldsDefinition = p.parseFieldDefinitionList()
 	}
-	return interfaceTypeDefinition
+	p.document.InterfaceTypeDefinitions = append(p.document.InterfaceTypeDefinitions, interfaceTypeDefinition)
 }
 
-func (p *Parser) parseUnionTypeDefinition(description *ast.Description) ast.UnionTypeDefinition {
+func (p *Parser) parseUnionTypeDefinition(description *ast.Description) {
 	var unionTypeDefinition ast.UnionTypeDefinition
 	if description != nil {
 		unionTypeDefinition.Description = *description
@@ -908,16 +899,13 @@ func (p *Parser) parseUnionTypeDefinition(description *ast.Description) ast.Unio
 		unionTypeDefinition.Directives = p.parseDirectiveList()
 	}
 	if p.peekEquals(keyword.EQUALS) {
-		unionTypeDefinition.Equals, unionTypeDefinition.UnionMemberTypes = p.parseUnionMemberTypes()
+		unionTypeDefinition.Equals = p.mustRead(keyword.EQUALS).TextPosition
+		unionTypeDefinition.UnionMemberTypes = p.parseUnionMemberTypes()
 	}
-	return unionTypeDefinition
+	p.document.UnionTypeDefinitions = append(p.document.UnionTypeDefinitions, unionTypeDefinition)
 }
 
-func (p *Parser) parseUnionMemberTypes() (equals position.Position, members ast.TypeList) {
-
-	equals = p.mustRead(keyword.EQUALS).TextPosition
-
-	previous := -1
+func (p *Parser) parseUnionMemberTypes() (list ast.TypeList) {
 
 	acceptPipe := true
 	acceptIdent := true
@@ -944,21 +932,17 @@ func (p *Parser) parseUnionMemberTypes() (equals position.Position, members ast.
 
 				ident := p.read()
 
-				ref := p.document.PutType(ast.Type{
+				namedType := ast.Type{
 					TypeKind: ast.TypeKindNamed,
 					Name:     ident.Literal,
-				})
-
-				if !members.HasNext() {
-					members.SetFirst(ref)
 				}
 
-				if previous != -1 {
-					p.document.Types[previous].SetNext(ref)
+				p.document.Types = append(p.document.Types, namedType)
+				ref := len(p.document.Types) - 1
+				if cap(list.Refs) == 0 {
+					list.Refs = p.document.Refs[p.document.NextRefIndex()][:0]
 				}
-
-				previous = ref
-
+				list.Refs = append(list.Refs, ref)
 			} else {
 				p.errUnexpectedToken(p.read())
 				return
@@ -972,7 +956,7 @@ func (p *Parser) parseUnionMemberTypes() (equals position.Position, members ast.
 	}
 }
 
-func (p *Parser) parseEnumTypeDefinition(description *ast.Description) ast.EnumTypeDefinition {
+func (p *Parser) parseEnumTypeDefinition(description *ast.Description) {
 	var enumTypeDefinition ast.EnumTypeDefinition
 	if description != nil {
 		enumTypeDefinition.Description = *description
@@ -985,29 +969,24 @@ func (p *Parser) parseEnumTypeDefinition(description *ast.Description) ast.EnumT
 	if p.peekEquals(keyword.CURLYBRACKETOPEN) {
 		enumTypeDefinition.EnumValuesDefinition = p.parseEnumValueDefinitionList()
 	}
-	return enumTypeDefinition
+	p.document.EnumTypeDefinitions = append(p.document.EnumTypeDefinitions, enumTypeDefinition)
 }
 
 func (p *Parser) parseEnumValueDefinitionList() (list ast.EnumValueDefinitionList) {
 
-	list.Open = p.mustRead(keyword.CURLYBRACKETOPEN).TextPosition
-
-	previous := -1
+	list.LBRACE = p.mustRead(keyword.CURLYBRACKETOPEN).TextPosition
 
 	for {
 		next := p.peek()
 		switch next {
 		case keyword.STRING, keyword.BLOCKSTRING, keyword.IDENT:
 			ref := p.parseEnumValueDefinition()
-			if !list.HasNext() {
-				list.SetFirst(ref)
+			if cap(list.Refs) == 0 {
+				list.Refs = p.document.Refs[p.document.NextRefIndex()][:0]
 			}
-			if previous != -1 {
-				p.document.EnumValueDefinitions[previous].SetNext(ref)
-			}
-			previous = ref
+			list.Refs = append(list.Refs, ref)
 		case keyword.CURLYBRACKETCLOSE:
-			list.Close = p.read().TextPosition
+			list.RBRACE = p.read().TextPosition
 			return
 		default:
 			p.errUnexpectedToken(p.read())
@@ -1034,10 +1013,11 @@ func (p *Parser) parseEnumValueDefinition() int {
 		enumValueDefinition.Directives = p.parseDirectiveList()
 	}
 
-	return p.document.PutEnumValueDefinition(enumValueDefinition)
+	p.document.EnumValueDefinitions = append(p.document.EnumValueDefinitions, enumValueDefinition)
+	return len(p.document.EnumValueDefinitions) - 1
 }
 
-func (p *Parser) parseDirectiveDefinition(description *ast.Description) ast.DirectiveDefinition {
+func (p *Parser) parseDirectiveDefinition(description *ast.Description) {
 	var directiveDefinition ast.DirectiveDefinition
 	if description != nil {
 		directiveDefinition.Description = *description
@@ -1050,7 +1030,7 @@ func (p *Parser) parseDirectiveDefinition(description *ast.Description) ast.Dire
 	}
 	directiveDefinition.On = p.mustRead(keyword.ON).TextPosition
 	p.parseDirectiveLocations(&directiveDefinition.DirectiveLocations)
-	return directiveDefinition
+	p.document.DirectiveDefinitions = append(p.document.DirectiveDefinitions, directiveDefinition)
 }
 
 func (p *Parser) parseDirectiveLocations(locations *ast.DirectiveLocations) {
@@ -1097,25 +1077,19 @@ func (p *Parser) parseDirectiveLocations(locations *ast.DirectiveLocations) {
 
 func (p *Parser) parseSelectionSet() (set ast.SelectionSet) {
 
-	set.Open = p.mustRead(keyword.CURLYBRACKETOPEN).TextPosition
-
-	previous := -1
+	set.SelectionRefs = p.document.Refs[p.document.NextRefIndex()][:0]
+	set.LBrace = p.mustRead(keyword.CURLYBRACKETOPEN).TextPosition
 
 	for {
-		next := p.peek()
-		switch next {
+		switch p.peek() {
 		case keyword.CURLYBRACKETCLOSE:
-			set.Close = p.read().TextPosition
+			set.RBrace = p.read().TextPosition
 			return
 		default:
-			ref := p.parseSelection()
-			if !set.HasNext() {
-				set.SetFirst(ref)
+			if cap(set.SelectionRefs) == 0 {
+				set.SelectionRefs = p.document.Refs[p.document.NextRefIndex()][:0]
 			}
-			if previous != -1 {
-				p.document.Selections[previous].SetNext(ref)
-			}
-			previous = ref
+			set.SelectionRefs = append(set.SelectionRefs, p.parseSelection())
 		}
 	}
 }
@@ -1123,20 +1097,23 @@ func (p *Parser) parseSelectionSet() (set ast.SelectionSet) {
 func (p *Parser) parseSelection() int {
 	next := p.peek()
 	switch next {
-	case keyword.IDENT, keyword.QUERY:
-		return p.document.PutSelection(ast.Selection{
+	case keyword.IDENT, keyword.QUERY, keyword.TYPE:
+		p.document.Selections = append(p.document.Selections, ast.Selection{
 			Kind: ast.SelectionKindField,
 			Ref:  p.parseField(),
 		})
+		return len(p.document.Selections) - 1
 	case keyword.SPREAD:
-		return p.document.PutSelection(p.parseFragmentSelection(p.read().TextPosition))
+		return p.parseFragmentSelection(p.read().TextPosition)
 	default:
 		p.errUnexpectedToken(p.read(), keyword.IDENT, keyword.SPREAD)
 		return -1
 	}
 }
 
-func (p *Parser) parseFragmentSelection(spread position.Position) (selection ast.Selection) {
+func (p *Parser) parseFragmentSelection(spread position.Position) int {
+
+	var selection ast.Selection
 
 	next := p.peek()
 	switch next {
@@ -1150,7 +1127,8 @@ func (p *Parser) parseFragmentSelection(spread position.Position) (selection ast
 		p.errUnexpectedToken(p.read(), keyword.ON, keyword.IDENT)
 	}
 
-	return
+	p.document.Selections = append(p.document.Selections, selection)
+	return len(p.document.Selections) - 1
 }
 
 func (p *Parser) parseField() int {
@@ -1158,7 +1136,7 @@ func (p *Parser) parseField() int {
 	var field ast.Field
 
 	firstIdent := p.read()
-	if firstIdent.Keyword != keyword.IDENT && firstIdent.Keyword != keyword.QUERY {
+	if firstIdent.Keyword != keyword.IDENT && firstIdent.Keyword != keyword.QUERY && firstIdent.Keyword != keyword.TYPE {
 		p.errUnexpectedToken(firstIdent, keyword.IDENT, keyword.QUERY)
 	}
 
@@ -1181,7 +1159,8 @@ func (p *Parser) parseField() int {
 		field.SelectionSet = p.parseSelectionSet()
 	}
 
-	return p.document.PutField(field)
+	p.document.Fields = append(p.document.Fields, field)
+	return len(p.document.Fields) - 1
 }
 
 func (p *Parser) parseFragmentSpread(spread position.Position) int {
@@ -1191,7 +1170,8 @@ func (p *Parser) parseFragmentSpread(spread position.Position) int {
 	if p.peekEquals(keyword.AT) {
 		fragmentSpread.Directives = p.parseDirectiveList()
 	}
-	return p.document.PutFragmentSpread(fragmentSpread)
+	p.document.FragmentSpreads = append(p.document.FragmentSpreads, fragmentSpread)
+	return len(p.document.FragmentSpreads) - 1
 }
 
 func (p *Parser) parseInlineFragment(spread position.Position) int {
@@ -1206,7 +1186,8 @@ func (p *Parser) parseInlineFragment(spread position.Position) int {
 	if p.peekEquals(keyword.CURLYBRACKETOPEN) {
 		fragment.SelectionSet = p.parseSelectionSet()
 	}
-	return p.document.PutInlineFragment(fragment)
+	p.document.InlineFragments = append(p.document.InlineFragments, fragment)
+	return len(p.document.InlineFragments) - 1
 }
 
 func (p *Parser) parseTypeCondition() (typeCondition ast.TypeCondition) {
@@ -1215,7 +1196,7 @@ func (p *Parser) parseTypeCondition() (typeCondition ast.TypeCondition) {
 	return
 }
 
-func (p *Parser) parseOperationDefinition() int {
+func (p *Parser) parseOperationDefinition() {
 
 	var operationDefinition ast.OperationDefinition
 
@@ -1233,10 +1214,11 @@ func (p *Parser) parseOperationDefinition() int {
 	case keyword.CURLYBRACKETOPEN:
 		operationDefinition.OperationType = ast.OperationTypeQuery
 		operationDefinition.SelectionSet = p.parseSelectionSet()
-		return p.document.PutOperationDefinition(operationDefinition)
+		p.document.OperationDefinitions = append(p.document.OperationDefinitions, operationDefinition)
+		return
 	default:
 		p.errUnexpectedToken(p.read(), keyword.QUERY, keyword.MUTATION, keyword.SUBSCRIPTION, keyword.CURLYBRACKETOPEN)
-		return -1
+		return
 	}
 
 	if p.peekEquals(keyword.IDENT) {
@@ -1251,30 +1233,34 @@ func (p *Parser) parseOperationDefinition() int {
 
 	operationDefinition.SelectionSet = p.parseSelectionSet()
 
-	return p.document.PutOperationDefinition(operationDefinition)
+	p.document.OperationDefinitions = append(p.document.OperationDefinitions, operationDefinition)
+	ref := len(p.document.OperationDefinitions) - 1
+	rootNode := ast.RootNode{
+		Kind: ast.NodeKindOperationDefinition,
+		Ref:  ref,
+	}
+	p.document.RootNodes = append(p.document.RootNodes, rootNode)
 }
 
 func (p *Parser) parseVariableDefinitionList() (list ast.VariableDefinitionList) {
 
-	list.Open = p.mustRead(keyword.BRACKETOPEN).TextPosition
-
-	previous := -1
+	list.LPAREN = p.mustRead(keyword.BRACKETOPEN).TextPosition
 
 	for {
 		next := p.peek()
 		switch next {
 		case keyword.BRACKETCLOSE:
-			list.Close = p.read().TextPosition
+			list.RPAREN = p.read().TextPosition
 			return
 		case keyword.DOLLAR:
+			if cap(list.Refs) == 0 {
+				list.Refs = p.document.Refs[p.document.NextRefIndex()][:0]
+			}
 			ref := p.parseVariableDefinition()
-			if !list.HasNext() {
-				list.SetFirst(ref)
+			if cap(list.Refs) == 0 {
+				list.Refs = p.document.Refs[p.document.NextRefIndex()][:0]
 			}
-			if previous != -1 {
-				p.document.VariableDefinitions[previous].SetNext(ref)
-			}
-			previous = ref
+			list.Refs = append(list.Refs, ref)
 		default:
 			p.errUnexpectedToken(p.read(), keyword.BRACKETCLOSE, keyword.DOLLAR)
 			return
@@ -1295,7 +1281,8 @@ func (p *Parser) parseVariableDefinition() int {
 	if p.peekEquals(keyword.AT) {
 		variableDefinition.Directives = p.parseDirectiveList()
 	}
-	return p.document.PutVariableDefinition(variableDefinition)
+	p.document.VariableDefinitions = append(p.document.VariableDefinitions, variableDefinition)
+	return len(p.document.VariableDefinitions) - 1
 }
 
 func (p *Parser) parseDefaultValue() ast.DefaultValue {
@@ -1308,7 +1295,7 @@ func (p *Parser) parseDefaultValue() ast.DefaultValue {
 	}
 }
 
-func (p *Parser) parseFragmentDefinition() int {
+func (p *Parser) parseFragmentDefinition() {
 	var fragmentDefinition ast.FragmentDefinition
 	fragmentDefinition.FragmentLiteral = p.mustRead(keyword.FRAGMENT).TextPosition
 	fragmentDefinition.Name = p.mustRead(keyword.IDENT).Literal
@@ -1317,7 +1304,7 @@ func (p *Parser) parseFragmentDefinition() int {
 		fragmentDefinition.Directives = p.parseDirectiveList()
 	}
 	fragmentDefinition.SelectionSet = p.parseSelectionSet()
-	return p.document.PutFragmentDefinition(fragmentDefinition)
+	p.document.FragmentDefinitions = append(p.document.FragmentDefinitions, fragmentDefinition)
 }
 
 func (p *Parser) parseExtension() {
@@ -1325,69 +1312,151 @@ func (p *Parser) parseExtension() {
 	next := p.peek()
 	switch next {
 	case keyword.SCHEMA:
-		p.document.PutSchemaExtension(p.parseSchemaExtension(extend))
+		p.parseSchemaExtension(extend)
 	case keyword.TYPE:
-		p.document.PutObjectTypeExtension(p.parseObjectTypeExtension(extend))
+		p.parseObjectTypeExtension(extend)
 	case keyword.INTERFACE:
-		p.document.PutInterfaceTypeExtension(p.parseInterfaceTypeExtension(extend))
+		p.parseInterfaceTypeExtension(extend)
 	case keyword.SCALAR:
-		p.document.PutScalarTypeExtension(p.parseScalarTypeExtension(extend))
+		p.parseScalarTypeExtension(extend)
 	case keyword.UNION:
-		p.document.PutUnionTypeExtension(p.parseUnionTypeExtension(extend))
+		p.parseUnionTypeExtension(extend)
 	case keyword.ENUM:
-		p.document.PutEnumTypeExtension(p.parseEnumTypeExtension(extend))
+		p.parseEnumTypeExtension(extend)
 	case keyword.INPUT:
-		p.document.PutInputObjectTypeExtension(p.parseInputObjectTypeExtension(extend))
+		p.parseInputObjectTypeExtension(extend)
 	default:
 		p.errUnexpectedToken(p.read(), keyword.SCHEMA)
 	}
 }
 
-func (p *Parser) parseSchemaExtension(extend position.Position) ast.SchemaExtension {
-	return ast.SchemaExtension{
+func (p *Parser) parseSchemaExtension(extend position.Position) {
+
+	schemaLiteral := p.read()
+
+	schemaDefinition := ast.SchemaDefinition{
+		SchemaLiteral: schemaLiteral.TextPosition,
+	}
+
+	if p.peekEquals(keyword.AT) {
+		schemaDefinition.Directives = p.parseDirectiveList()
+	}
+
+	p.parseRootOperationTypeDefinitionList(&schemaDefinition.RootOperationTypeDefinitions)
+
+	schemaExtension := ast.SchemaExtension{
 		ExtendLiteral:    extend,
-		SchemaDefinition: p.parseSchema(),
+		SchemaDefinition: schemaDefinition,
 	}
+
+	p.document.SchemaExtensions = append(p.document.SchemaExtensions, schemaExtension)
 }
 
-func (p *Parser) parseObjectTypeExtension(extend position.Position) ast.ObjectTypeExtension {
-	return ast.ObjectTypeExtension{
+func (p *Parser) parseObjectTypeExtension(extend position.Position) {
+
+	var objectTypeDefinition ast.ObjectTypeDefinition
+	objectTypeDefinition.TypeLiteral = p.mustRead(keyword.TYPE).TextPosition
+	objectTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
+	if p.peekEquals(keyword.IMPLEMENTS) {
+		objectTypeDefinition.ImplementsInterfaces = p.parseImplementsInterfaces()
+	}
+	if p.peekEquals(keyword.AT) {
+		objectTypeDefinition.Directives = p.parseDirectiveList()
+	}
+	if p.peekEquals(keyword.CURLYBRACKETOPEN) {
+		objectTypeDefinition.FieldsDefinition = p.parseFieldDefinitionList()
+	}
+
+	objectTypeExtension := ast.ObjectTypeExtension{
 		ExtendLiteral:        extend,
-		ObjectTypeDefinition: p.parseObjectTypeDefinition(nil),
+		ObjectTypeDefinition: objectTypeDefinition,
 	}
+
+	p.document.ObjectTypeExtensions = append(p.document.ObjectTypeExtensions, objectTypeExtension)
 }
 
-func (p *Parser) parseInterfaceTypeExtension(extend position.Position) ast.InterfaceTypeExtension {
-	return ast.InterfaceTypeExtension{
+func (p *Parser) parseInterfaceTypeExtension(extend position.Position) {
+
+	var interfaceTypeDefinition ast.InterfaceTypeDefinition
+	interfaceTypeDefinition.InterfaceLiteral = p.mustRead(keyword.INTERFACE).TextPosition
+	interfaceTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
+	if p.peekEquals(keyword.AT) {
+		interfaceTypeDefinition.Directives = p.parseDirectiveList()
+	}
+	if p.peekEquals(keyword.CURLYBRACKETOPEN) {
+		interfaceTypeDefinition.FieldsDefinition = p.parseFieldDefinitionList()
+	}
+
+	interfaceTypeExtension := ast.InterfaceTypeExtension{
 		ExtendLiteral:           extend,
-		InterfaceTypeDefinition: p.parseInterfaceTypeDefinition(nil),
+		InterfaceTypeDefinition: interfaceTypeDefinition,
 	}
+
+	p.document.InterfaceTypeExtensions = append(p.document.InterfaceTypeExtensions, interfaceTypeExtension)
 }
 
-func (p *Parser) parseScalarTypeExtension(extend position.Position) ast.ScalarTypeExtension {
-	return ast.ScalarTypeExtension{
+func (p *Parser) parseScalarTypeExtension(extend position.Position) {
+	var scalarTypeDefinition ast.ScalarTypeDefinition
+	scalarTypeDefinition.ScalarLiteral = p.mustRead(keyword.SCALAR).TextPosition
+	scalarTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
+	if p.peekEquals(keyword.AT) {
+		scalarTypeDefinition.Directives = p.parseDirectiveList()
+	}
+	scalarTypeExtension := ast.ScalarTypeExtension{
 		ExtendLiteral:        extend,
-		ScalarTypeDefinition: p.parseScalarTypeDefinition(nil),
+		ScalarTypeDefinition: scalarTypeDefinition,
 	}
+	p.document.ScalarTypeExtensions = append(p.document.ScalarTypeExtensions, scalarTypeExtension)
 }
 
-func (p *Parser) parseUnionTypeExtension(extend position.Position) ast.UnionTypeExtension {
-	return ast.UnionTypeExtension{
+func (p *Parser) parseUnionTypeExtension(extend position.Position) {
+	var unionTypeDefinition ast.UnionTypeDefinition
+	unionTypeDefinition.UnionLiteral = p.mustRead(keyword.UNION).TextPosition
+	unionTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
+	if p.peekEquals(keyword.AT) {
+		unionTypeDefinition.Directives = p.parseDirectiveList()
+	}
+	if p.peekEquals(keyword.EQUALS) {
+		unionTypeDefinition.Equals = p.mustRead(keyword.EQUALS).TextPosition
+		unionTypeDefinition.UnionMemberTypes = p.parseUnionMemberTypes()
+	}
+	unionTypeExtension := ast.UnionTypeExtension{
 		ExtendLiteral:       extend,
-		UnionTypeDefinition: p.parseUnionTypeDefinition(nil),
+		UnionTypeDefinition: unionTypeDefinition,
 	}
+	p.document.UnionTypeExtensions = append(p.document.UnionTypeExtensions, unionTypeExtension)
 }
 
-func (p *Parser) parseEnumTypeExtension(extend position.Position) ast.EnumTypeExtension {
-	return ast.EnumTypeExtension{
+func (p *Parser) parseEnumTypeExtension(extend position.Position) {
+	var enumTypeDefinition ast.EnumTypeDefinition
+	enumTypeDefinition.EnumLiteral = p.mustRead(keyword.ENUM).TextPosition
+	enumTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
+	if p.peekEquals(keyword.AT) {
+		enumTypeDefinition.Directives = p.parseDirectiveList()
+	}
+	if p.peekEquals(keyword.CURLYBRACKETOPEN) {
+		enumTypeDefinition.EnumValuesDefinition = p.parseEnumValueDefinitionList()
+	}
+	enumTypeExtension := ast.EnumTypeExtension{
 		ExtendLiteral:      extend,
-		EnumTypeDefinition: p.parseEnumTypeDefinition(nil),
+		EnumTypeDefinition: enumTypeDefinition,
 	}
+	p.document.EnumTypeExtensions = append(p.document.EnumTypeExtensions, enumTypeExtension)
 }
 
-func (p *Parser) parseInputObjectTypeExtension(extend position.Position) ast.InputObjectTypeExtension {
-	return ast.InputObjectTypeExtension{
-		ExtendLiteral:             extend,
-		InputObjectTypeDefinition: p.parseInputObjectTypeDefinition(nil),
+func (p *Parser) parseInputObjectTypeExtension(extend position.Position) {
+	var inputObjectTypeDefinition ast.InputObjectTypeDefinition
+	inputObjectTypeDefinition.InputLiteral = p.mustRead(keyword.INPUT).TextPosition
+	inputObjectTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
+	if p.peekEquals(keyword.AT) {
+		inputObjectTypeDefinition.Directives = p.parseDirectiveList()
 	}
+	if p.peekEquals(keyword.CURLYBRACKETOPEN) {
+		inputObjectTypeDefinition.InputFieldsDefinition = p.parseInputValueDefinitionList(keyword.CURLYBRACKETCLOSE)
+	}
+	inputObjectTypeExtension := ast.InputObjectTypeExtension{
+		ExtendLiteral:             extend,
+		InputObjectTypeDefinition: inputObjectTypeDefinition,
+	}
+	p.document.InputObjectTypeExtensions = append(p.document.InputObjectTypeExtensions, inputObjectTypeExtension)
 }
