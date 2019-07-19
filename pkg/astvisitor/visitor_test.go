@@ -20,7 +20,7 @@ func TestVisit(t *testing.T) {
 
 	in := &input.Input{}
 	in.ResetInputBytes(raw)
-	doc := &ast.Document{}
+	doc := ast.NewDocument()
 
 	parser := astparser.NewParser()
 	err := parser.Parse(in, doc)
@@ -71,7 +71,7 @@ func BenchmarkVisitor(b *testing.B) {
 
 	in := &input.Input{}
 	in.ResetInputBytes(raw)
-	doc := &ast.Document{}
+	doc := ast.NewDocument()
 
 	parser := astparser.NewParser()
 	err := parser.Parse(in, doc)

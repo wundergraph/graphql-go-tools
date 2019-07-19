@@ -22,28 +22,26 @@ func Visit(document *ast.Document, visitor Visitor) {
 }
 
 func (w *Walker) walk() {
-	for _, node := range w.document.RootNodes {
-		switch node.Kind {
+	for i := range w.document.RootNodes {
+		switch w.document.RootNodes[i].Kind {
 		case ast.NodeKindOperation:
-			w.visitOperation(node.Ref)
+			w.visitOperation(w.document.RootNodes[i].Ref)
 		}
 	}
 }
 
 func (w *Walker) visitOperation(ref int) {
 	w.visitor.Enter(ast.NodeKindOperation, ref)
-	op := w.document.OperationDefinitions[ref]
-	w.visitSelectionSet(op.SelectionSet)
+	w.visitSelectionSet(w.document.OperationDefinitions[ref].SelectionSet)
 	w.visitor.Leave(ast.NodeKindOperation, ref)
 }
 
 func (w *Walker) visitSelectionSet(set ast.SelectionSet) {
 	w.visitor.Enter(ast.NodeKindSelectionSet, -1)
-	for set.Next(w.document) {
-		selection, _ := set.Value()
-		switch selection.Kind {
+	for _, i := range set.SelectionRefs {
+		switch w.document.Selections[i].Kind {
 		case ast.SelectionKindField:
-			w.visitField(selection.Ref)
+			w.visitField(w.document.Selections[i].Ref)
 		}
 	}
 	w.visitor.Leave(ast.NodeKindSelectionSet, -1)
@@ -52,10 +50,8 @@ func (w *Walker) visitSelectionSet(set ast.SelectionSet) {
 func (w *Walker) visitField(ref int) {
 	w.visitor.Enter(ast.NodeKindField, ref)
 
-	field := w.document.Fields[ref]
-
-	if field.SelectionSet.HasNext() {
-		w.visitSelectionSet(field.SelectionSet)
+	if len(w.document.Fields[ref].SelectionSet.SelectionRefs) != 0 {
+		w.visitSelectionSet(w.document.Fields[ref].SelectionSet)
 	}
 
 	w.visitor.Leave(ast.NodeKindField, ref)
