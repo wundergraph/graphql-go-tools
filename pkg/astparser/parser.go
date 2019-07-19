@@ -122,6 +122,13 @@ func (p *Parser) parse() {
 	}
 }
 
+func (p *Parser) next() int {
+	if p.currentToken != p.maxTokens-1 {
+		p.currentToken++
+	}
+	return p.currentToken
+}
+
 func (p *Parser) read() token.Token {
 	p.currentToken++
 	if p.currentToken < p.maxTokens {
@@ -176,6 +183,19 @@ func (p *Parser) errUnexpectedToken(unexpected token.Token, expectedKeywords ...
 		origins:  origins,
 		expected: expectedKeywords,
 	}
+}
+
+func (p *Parser) mustNext(key keyword.Keyword) int {
+	current := p.currentToken
+	if p.next() == current {
+		p.errUnexpectedToken(p.tokens[p.currentToken], key)
+		return -1
+	}
+	if p.tokens[p.currentToken].Keyword != key {
+		p.errUnexpectedToken(p.tokens[p.currentToken], key)
+		return -1
+	}
+	return p.currentToken
 }
 
 func (p *Parser) mustRead(key keyword.Keyword) (next token.Token) {
@@ -302,7 +322,7 @@ func (p *Parser) parseDirectiveList() (list ast.DirectiveList) {
 
 func (p *Parser) parseArgumentList() (list ast.ArgumentList) {
 
-	bracketOpen := p.read()
+	bracketOpen := p.next()
 
 Loop:
 	for {
@@ -314,12 +334,12 @@ Loop:
 			break Loop
 		}
 
-		name := p.read()
+		name := p.next()
 		colon := p.mustRead(keyword.COLON)
 		value := p.parseValue()
 
 		argument := ast.Argument{
-			Name:  name.Literal,
+			Name:  p.tokens[name].Literal,
 			Colon: colon.TextPosition,
 			Value: value,
 		}
@@ -336,7 +356,7 @@ Loop:
 
 	bracketClose := p.mustRead(keyword.BRACKETCLOSE)
 
-	list.LPAREN = bracketOpen.TextPosition
+	list.LPAREN = p.tokens[bracketOpen].TextPosition
 	list.RPAREN = bracketClose.TextPosition
 
 	return
@@ -1078,18 +1098,19 @@ func (p *Parser) parseDirectiveLocations(locations *ast.DirectiveLocations) {
 func (p *Parser) parseSelectionSet() (set ast.SelectionSet) {
 
 	set.SelectionRefs = p.document.Refs[p.document.NextRefIndex()][:0]
-	set.LBrace = p.mustRead(keyword.CURLYBRACKETOPEN).TextPosition
+	set.LBrace = p.tokens[p.mustNext(keyword.CURLYBRACKETOPEN)].TextPosition
 
 	for {
 		switch p.peek() {
 		case keyword.CURLYBRACKETCLOSE:
-			set.RBrace = p.read().TextPosition
+			set.RBrace = p.tokens[p.next()].TextPosition
 			return
 		default:
 			if cap(set.SelectionRefs) == 0 {
 				set.SelectionRefs = p.document.Refs[p.document.NextRefIndex()][:0]
 			}
-			set.SelectionRefs = append(set.SelectionRefs, p.parseSelection())
+			ref := p.parseSelection()
+			set.SelectionRefs = append(set.SelectionRefs, ref)
 		}
 	}
 }
@@ -1104,9 +1125,9 @@ func (p *Parser) parseSelection() int {
 		})
 		return len(p.document.Selections) - 1
 	case keyword.SPREAD:
-		return p.parseFragmentSelection(p.read().TextPosition)
+		return p.parseFragmentSelection(p.tokens[p.next()].TextPosition)
 	default:
-		p.errUnexpectedToken(p.read(), keyword.IDENT, keyword.SPREAD)
+		p.errUnexpectedToken(p.tokens[p.next()], keyword.IDENT, keyword.SPREAD)
 		return -1
 	}
 }
@@ -1124,7 +1145,7 @@ func (p *Parser) parseFragmentSelection(spread position.Position) int {
 		selection.Kind = ast.SelectionKindFragmentSpread
 		selection.Ref = p.parseFragmentSpread(spread)
 	default:
-		p.errUnexpectedToken(p.read(), keyword.ON, keyword.IDENT)
+		p.errUnexpectedToken(p.tokens[p.next()], keyword.ON, keyword.IDENT)
 	}
 
 	p.document.Selections = append(p.document.Selections, selection)
@@ -1135,18 +1156,18 @@ func (p *Parser) parseField() int {
 
 	var field ast.Field
 
-	firstIdent := p.read()
-	if firstIdent.Keyword != keyword.IDENT && firstIdent.Keyword != keyword.QUERY && firstIdent.Keyword != keyword.TYPE {
-		p.errUnexpectedToken(firstIdent, keyword.IDENT, keyword.QUERY)
+	firstIdent := p.next()
+	if p.tokens[firstIdent].Keyword != keyword.IDENT && p.tokens[firstIdent].Keyword != keyword.QUERY && p.tokens[firstIdent].Keyword != keyword.TYPE {
+		p.errUnexpectedToken(p.tokens[firstIdent], keyword.IDENT, keyword.QUERY)
 	}
 
 	if p.peek() == keyword.COLON {
 		field.Alias.IsDefined = true
-		field.Alias.Name = firstIdent.Literal
-		field.Alias.Colon = p.read().TextPosition
-		field.Name = p.mustRead(keyword.IDENT).Literal
+		field.Alias.Name = p.tokens[firstIdent].Literal
+		field.Alias.Colon = p.tokens[p.next()].TextPosition
+		field.Name = p.tokens[p.mustNext(keyword.IDENT)].Literal
 	} else {
-		field.Name = firstIdent.Literal
+		field.Name = p.tokens[firstIdent].Literal
 	}
 
 	if p.peekEquals(keyword.BRACKETOPEN) {
