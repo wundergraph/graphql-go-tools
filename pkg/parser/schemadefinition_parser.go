@@ -29,7 +29,7 @@ func (p *Parser) parseSchemaDefinition(isExtend bool, extendToken token.Token) e
 		return err
 	}
 
-	_, err = p.readExpect(keyword.CURLYBRACKETOPEN, "parseSchemaDefinition")
+	_, err = p.readExpect(keyword.LBRACE, "parseSchemaDefinition")
 	if err != nil {
 		return err
 	}
@@ -38,7 +38,7 @@ func (p *Parser) parseSchemaDefinition(isExtend bool, extendToken token.Token) e
 		next := p.l.Read()
 
 		switch next.Keyword {
-		case keyword.CURLYBRACKETCLOSE:
+		case keyword.RBRACE:
 			definition.Position.MergeEndIntoEnd(next.TextPosition)
 			p.putSchemaDefinition(definition)
 			return err

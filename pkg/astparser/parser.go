@@ -100,7 +100,7 @@ func (p *Parser) parse() {
 			p.parseEnumTypeDefinition(nil)
 		case keyword.DIRECTIVE:
 			p.parseDirectiveDefinition(nil)
-		case keyword.QUERY, keyword.MUTATION, keyword.SUBSCRIPTION, keyword.CURLYBRACKETOPEN:
+		case keyword.QUERY, keyword.MUTATION, keyword.SUBSCRIPTION, keyword.LBRACE:
 			p.parseOperationDefinition()
 		case keyword.FRAGMENT:
 			p.parseFragmentDefinition()
@@ -231,12 +231,12 @@ func (p *Parser) parseSchema() {
 
 func (p *Parser) parseRootOperationTypeDefinitionList(list *ast.RootOperationTypeDefinitionList) {
 
-	curlyBracketOpen := p.mustRead(keyword.CURLYBRACKETOPEN)
+	curlyBracketOpen := p.mustRead(keyword.LBRACE)
 
 	for {
 		next := p.peek()
 		switch next {
-		case keyword.CURLYBRACKETCLOSE:
+		case keyword.RBRACE:
 
 			curlyBracketClose := p.read()
 			list.LBrace = curlyBracketOpen.TextPosition
@@ -303,7 +303,7 @@ func (p *Parser) parseDirectiveList() (list ast.DirectiveList) {
 			Name: name.Literal,
 		}
 
-		if p.peekEquals(keyword.BRACKETOPEN) {
+		if p.peekEquals(keyword.LPAREN) {
 			directive.Arguments = p.parseArgumentList()
 		}
 
@@ -354,7 +354,7 @@ Loop:
 		list.Refs = append(list.Refs, ref)
 	}
 
-	bracketClose := p.mustRead(keyword.BRACKETCLOSE)
+	bracketClose := p.mustRead(keyword.RPAREN)
 
 	list.LPAREN = p.tokens[bracketOpen].TextPosition
 	list.RPAREN = bracketClose.TextPosition
@@ -385,15 +385,15 @@ func (p *Parser) parseValue() (value ast.Value) {
 	case keyword.FLOAT:
 		value.Kind = ast.ValueKindFloat
 		value.Ref = p.parseFloatValue(nil)
-	case keyword.NEGATIVESIGN:
+	case keyword.SUB:
 		value = p.parseNegativeNumberValue()
 	case keyword.NULL:
 		value.Kind = ast.ValueKindNull
 		p.read()
-	case keyword.SQUAREBRACKETOPEN:
+	case keyword.LBRACK:
 		value.Kind = ast.ValueKindList
 		value.Ref = p.parseValueList()
-	case keyword.CURLYBRACKETOPEN:
+	case keyword.LBRACE:
 		value.Kind = ast.ValueKindObject
 		value.Ref = p.parseObjectValue()
 	default:
@@ -405,12 +405,12 @@ func (p *Parser) parseValue() (value ast.Value) {
 
 func (p *Parser) parseObjectValue() int {
 	var objectValue ast.ObjectValue
-	objectValue.LBRACE = p.mustRead(keyword.CURLYBRACKETOPEN).TextPosition
+	objectValue.LBRACE = p.mustRead(keyword.LBRACE).TextPosition
 
 	for {
 		next := p.peek()
 		switch next {
-		case keyword.CURLYBRACKETCLOSE:
+		case keyword.RBRACE:
 			objectValue.RBRACE = p.read().TextPosition
 			p.document.ObjectValues = append(p.document.ObjectValues, objectValue)
 			return len(p.document.ObjectValues) - 1
@@ -421,7 +421,7 @@ func (p *Parser) parseObjectValue() int {
 			}
 			objectValue.Refs = append(objectValue.Refs, ref)
 		default:
-			p.errUnexpectedToken(p.read(), keyword.IDENT, keyword.CURLYBRACKETCLOSE)
+			p.errUnexpectedToken(p.read(), keyword.IDENT, keyword.RBRACE)
 			return -1
 		}
 	}
@@ -439,12 +439,12 @@ func (p *Parser) parseObjectField() int {
 
 func (p *Parser) parseValueList() int {
 	var list ast.ListValue
-	list.LBRACK = p.mustRead(keyword.SQUAREBRACKETOPEN).TextPosition
+	list.LBRACK = p.mustRead(keyword.LBRACK).TextPosition
 
 	for {
 		next := p.peek()
 		switch next {
-		case keyword.SQUAREBRACKETCLOSE:
+		case keyword.RBRACK:
 			list.RBRACK = p.read().TextPosition
 			p.document.ListValues = append(p.document.ListValues, list)
 			return len(p.document.ListValues) - 1
@@ -461,7 +461,7 @@ func (p *Parser) parseValueList() int {
 }
 
 func (p *Parser) parseNegativeNumberValue() (value ast.Value) {
-	negativeSign := p.mustRead(keyword.NEGATIVESIGN).TextPosition
+	negativeSign := p.mustRead(keyword.SUB).TextPosition
 	switch p.peek() {
 	case keyword.INTEGER:
 		value.Kind = ast.ValueKindInteger
@@ -594,7 +594,7 @@ func (p *Parser) parseObjectTypeDefinition(description *ast.Description) {
 	if p.peekEquals(keyword.AT) {
 		objectTypeDefinition.Directives = p.parseDirectiveList()
 	}
-	if p.peekEquals(keyword.CURLYBRACKETOPEN) {
+	if p.peekEquals(keyword.LBRACE) {
 		objectTypeDefinition.FieldsDefinition = p.parseFieldDefinitionList()
 	}
 
@@ -675,14 +675,14 @@ func (p *Parser) parseImplementsInterfaces() (list ast.TypeList) {
 
 func (p *Parser) parseFieldDefinitionList() (list ast.FieldDefinitionList) {
 
-	list.LBRACE = p.mustRead(keyword.CURLYBRACKETOPEN).TextPosition
+	list.LBRACE = p.mustRead(keyword.LBRACE).TextPosition
 
 	for {
 
 		next := p.peek()
 
 		switch next {
-		case keyword.CURLYBRACKETCLOSE:
+		case keyword.RBRACE:
 			list.RBRACE = p.read().TextPosition
 			return
 		case keyword.STRING, keyword.BLOCKSTRING, keyword.IDENT, keyword.TYPE:
@@ -720,8 +720,8 @@ func (p *Parser) parseFieldDefinition() int {
 	}
 
 	fieldDefinition.Name = nameToken.Literal
-	if p.peekEquals(keyword.BRACKETOPEN) {
-		fieldDefinition.ArgumentsDefinition = p.parseInputValueDefinitionList(keyword.BRACKETCLOSE)
+	if p.peekEquals(keyword.LPAREN) {
+		fieldDefinition.ArgumentsDefinition = p.parseInputValueDefinitionList(keyword.RPAREN)
 	}
 	fieldDefinition.Colon = p.mustRead(keyword.COLON).TextPosition
 	fieldDefinition.Type = p.parseType()
@@ -757,11 +757,11 @@ func (p *Parser) parseType() (ref int) {
 		p.document.Types = append(p.document.Types, namedType)
 		ref = len(p.document.Types) - 1
 
-	} else if first == keyword.SQUAREBRACKETOPEN {
+	} else if first == keyword.LBRACK {
 
 		openList := p.read()
 		ofType := p.parseType()
-		closeList := p.mustRead(keyword.SQUAREBRACKETCLOSE)
+		closeList := p.mustRead(keyword.RBRACK)
 
 		listType := ast.Type{
 			TypeKind: ast.TypeKindList,
@@ -774,7 +774,7 @@ func (p *Parser) parseType() (ref int) {
 		ref = len(p.document.Types) - 1
 
 	} else {
-		p.errUnexpectedToken(p.read(), keyword.IDENT, keyword.SQUAREBRACKETOPEN)
+		p.errUnexpectedToken(p.read(), keyword.IDENT, keyword.LBRACK)
 		return
 	}
 
@@ -873,8 +873,8 @@ func (p *Parser) parseInputObjectTypeDefinition(description *ast.Description) {
 	if p.peekEquals(keyword.AT) {
 		inputObjectTypeDefinition.Directives = p.parseDirectiveList()
 	}
-	if p.peekEquals(keyword.CURLYBRACKETOPEN) {
-		inputObjectTypeDefinition.InputFieldsDefinition = p.parseInputValueDefinitionList(keyword.CURLYBRACKETCLOSE)
+	if p.peekEquals(keyword.LBRACE) {
+		inputObjectTypeDefinition.InputFieldsDefinition = p.parseInputValueDefinitionList(keyword.RBRACE)
 	}
 	p.document.InputObjectTypeDefinitions = append(p.document.InputObjectTypeDefinitions, inputObjectTypeDefinition)
 }
@@ -902,7 +902,7 @@ func (p *Parser) parseInterfaceTypeDefinition(description *ast.Description) {
 	if p.peekEquals(keyword.AT) {
 		interfaceTypeDefinition.Directives = p.parseDirectiveList()
 	}
-	if p.peekEquals(keyword.CURLYBRACKETOPEN) {
+	if p.peekEquals(keyword.LBRACE) {
 		interfaceTypeDefinition.FieldsDefinition = p.parseFieldDefinitionList()
 	}
 	p.document.InterfaceTypeDefinitions = append(p.document.InterfaceTypeDefinitions, interfaceTypeDefinition)
@@ -986,7 +986,7 @@ func (p *Parser) parseEnumTypeDefinition(description *ast.Description) {
 	if p.peekEquals(keyword.AT) {
 		enumTypeDefinition.Directives = p.parseDirectiveList()
 	}
-	if p.peekEquals(keyword.CURLYBRACKETOPEN) {
+	if p.peekEquals(keyword.LBRACE) {
 		enumTypeDefinition.EnumValuesDefinition = p.parseEnumValueDefinitionList()
 	}
 	p.document.EnumTypeDefinitions = append(p.document.EnumTypeDefinitions, enumTypeDefinition)
@@ -994,7 +994,7 @@ func (p *Parser) parseEnumTypeDefinition(description *ast.Description) {
 
 func (p *Parser) parseEnumValueDefinitionList() (list ast.EnumValueDefinitionList) {
 
-	list.LBRACE = p.mustRead(keyword.CURLYBRACKETOPEN).TextPosition
+	list.LBRACE = p.mustRead(keyword.LBRACE).TextPosition
 
 	for {
 		next := p.peek()
@@ -1005,7 +1005,7 @@ func (p *Parser) parseEnumValueDefinitionList() (list ast.EnumValueDefinitionLis
 				list.Refs = p.document.Refs[p.document.NextRefIndex()][:0]
 			}
 			list.Refs = append(list.Refs, ref)
-		case keyword.CURLYBRACKETCLOSE:
+		case keyword.RBRACE:
 			list.RBRACE = p.read().TextPosition
 			return
 		default:
@@ -1045,8 +1045,8 @@ func (p *Parser) parseDirectiveDefinition(description *ast.Description) {
 	directiveDefinition.DirectiveLiteral = p.mustRead(keyword.DIRECTIVE).TextPosition
 	directiveDefinition.At = p.mustRead(keyword.AT).TextPosition
 	directiveDefinition.Name = p.mustRead(keyword.IDENT).Literal
-	if p.peekEquals(keyword.BRACKETOPEN) {
-		directiveDefinition.ArgumentsDefinition = p.parseInputValueDefinitionList(keyword.BRACKETCLOSE)
+	if p.peekEquals(keyword.LPAREN) {
+		directiveDefinition.ArgumentsDefinition = p.parseInputValueDefinitionList(keyword.RPAREN)
 	}
 	directiveDefinition.On = p.mustRead(keyword.ON).TextPosition
 	p.parseDirectiveLocations(&directiveDefinition.DirectiveLocations)
@@ -1098,11 +1098,11 @@ func (p *Parser) parseDirectiveLocations(locations *ast.DirectiveLocations) {
 func (p *Parser) parseSelectionSet() (set ast.SelectionSet) {
 
 	set.SelectionRefs = p.document.Refs[p.document.NextRefIndex()][:0]
-	set.LBrace = p.tokens[p.mustNext(keyword.CURLYBRACKETOPEN)].TextPosition
+	set.LBrace = p.tokens[p.mustNext(keyword.LBRACE)].TextPosition
 
 	for {
 		switch p.peek() {
-		case keyword.CURLYBRACKETCLOSE:
+		case keyword.RBRACE:
 			set.RBrace = p.tokens[p.next()].TextPosition
 			return
 		default:
@@ -1138,7 +1138,7 @@ func (p *Parser) parseFragmentSelection(spread position.Position) int {
 
 	next := p.peek()
 	switch next {
-	case keyword.ON, keyword.CURLYBRACKETOPEN, keyword.AT:
+	case keyword.ON, keyword.LBRACE, keyword.AT:
 		selection.Kind = ast.SelectionKindInlineFragment
 		selection.Ref = p.parseInlineFragment(spread)
 	case keyword.IDENT:
@@ -1170,13 +1170,13 @@ func (p *Parser) parseField() int {
 		field.Name = p.tokens[firstIdent].Literal
 	}
 
-	if p.peekEquals(keyword.BRACKETOPEN) {
+	if p.peekEquals(keyword.LPAREN) {
 		field.Arguments = p.parseArgumentList()
 	}
 	if p.peekEquals(keyword.AT) {
 		field.Directives = p.parseDirectiveList()
 	}
-	if p.peekEquals(keyword.CURLYBRACKETOPEN) {
+	if p.peekEquals(keyword.LBRACE) {
 		field.SelectionSet = p.parseSelectionSet()
 	}
 
@@ -1204,7 +1204,7 @@ func (p *Parser) parseInlineFragment(spread position.Position) int {
 	if p.peekEquals(keyword.AT) {
 		fragment.Directives = p.parseDirectiveList()
 	}
-	if p.peekEquals(keyword.CURLYBRACKETOPEN) {
+	if p.peekEquals(keyword.LBRACE) {
 		fragment.SelectionSet = p.parseSelectionSet()
 	}
 	p.document.InlineFragments = append(p.document.InlineFragments, fragment)
@@ -1232,20 +1232,20 @@ func (p *Parser) parseOperationDefinition() {
 	case keyword.SUBSCRIPTION:
 		operationDefinition.OperationTypeLiteral = p.read().TextPosition
 		operationDefinition.OperationType = ast.OperationTypeSubscription
-	case keyword.CURLYBRACKETOPEN:
+	case keyword.LBRACE:
 		operationDefinition.OperationType = ast.OperationTypeQuery
 		operationDefinition.SelectionSet = p.parseSelectionSet()
 		p.document.OperationDefinitions = append(p.document.OperationDefinitions, operationDefinition)
 		return
 	default:
-		p.errUnexpectedToken(p.read(), keyword.QUERY, keyword.MUTATION, keyword.SUBSCRIPTION, keyword.CURLYBRACKETOPEN)
+		p.errUnexpectedToken(p.read(), keyword.QUERY, keyword.MUTATION, keyword.SUBSCRIPTION, keyword.LBRACE)
 		return
 	}
 
 	if p.peekEquals(keyword.IDENT) {
 		operationDefinition.Name = p.read().Literal
 	}
-	if p.peekEquals(keyword.BRACKETOPEN) {
+	if p.peekEquals(keyword.LPAREN) {
 		operationDefinition.VariableDefinitions = p.parseVariableDefinitionList()
 	}
 	if p.peekEquals(keyword.AT) {
@@ -1265,12 +1265,12 @@ func (p *Parser) parseOperationDefinition() {
 
 func (p *Parser) parseVariableDefinitionList() (list ast.VariableDefinitionList) {
 
-	list.LPAREN = p.mustRead(keyword.BRACKETOPEN).TextPosition
+	list.LPAREN = p.mustRead(keyword.LPAREN).TextPosition
 
 	for {
 		next := p.peek()
 		switch next {
-		case keyword.BRACKETCLOSE:
+		case keyword.RPAREN:
 			list.RPAREN = p.read().TextPosition
 			return
 		case keyword.DOLLAR:
@@ -1283,7 +1283,7 @@ func (p *Parser) parseVariableDefinitionList() (list ast.VariableDefinitionList)
 			}
 			list.Refs = append(list.Refs, ref)
 		default:
-			p.errUnexpectedToken(p.read(), keyword.BRACKETCLOSE, keyword.DOLLAR)
+			p.errUnexpectedToken(p.read(), keyword.RPAREN, keyword.DOLLAR)
 			return
 		}
 	}
@@ -1384,7 +1384,7 @@ func (p *Parser) parseObjectTypeExtension(extend position.Position) {
 	if p.peekEquals(keyword.AT) {
 		objectTypeDefinition.Directives = p.parseDirectiveList()
 	}
-	if p.peekEquals(keyword.CURLYBRACKETOPEN) {
+	if p.peekEquals(keyword.LBRACE) {
 		objectTypeDefinition.FieldsDefinition = p.parseFieldDefinitionList()
 	}
 
@@ -1404,7 +1404,7 @@ func (p *Parser) parseInterfaceTypeExtension(extend position.Position) {
 	if p.peekEquals(keyword.AT) {
 		interfaceTypeDefinition.Directives = p.parseDirectiveList()
 	}
-	if p.peekEquals(keyword.CURLYBRACKETOPEN) {
+	if p.peekEquals(keyword.LBRACE) {
 		interfaceTypeDefinition.FieldsDefinition = p.parseFieldDefinitionList()
 	}
 
@@ -1455,7 +1455,7 @@ func (p *Parser) parseEnumTypeExtension(extend position.Position) {
 	if p.peekEquals(keyword.AT) {
 		enumTypeDefinition.Directives = p.parseDirectiveList()
 	}
-	if p.peekEquals(keyword.CURLYBRACKETOPEN) {
+	if p.peekEquals(keyword.LBRACE) {
 		enumTypeDefinition.EnumValuesDefinition = p.parseEnumValueDefinitionList()
 	}
 	enumTypeExtension := ast.EnumTypeExtension{
@@ -1472,8 +1472,8 @@ func (p *Parser) parseInputObjectTypeExtension(extend position.Position) {
 	if p.peekEquals(keyword.AT) {
 		inputObjectTypeDefinition.Directives = p.parseDirectiveList()
 	}
-	if p.peekEquals(keyword.CURLYBRACKETOPEN) {
-		inputObjectTypeDefinition.InputFieldsDefinition = p.parseInputValueDefinitionList(keyword.CURLYBRACKETCLOSE)
+	if p.peekEquals(keyword.LBRACE) {
+		inputObjectTypeDefinition.InputFieldsDefinition = p.parseInputValueDefinitionList(keyword.RBRACE)
 	}
 	inputObjectTypeExtension := ast.InputObjectTypeExtension{
 		ExtendLiteral:             extend,

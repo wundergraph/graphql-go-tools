@@ -14,7 +14,7 @@ func (p *Parser) parsePeekedListValue() (ref int, err error) {
 
 		peeked := p.l.Peek(true)
 
-		if peeked == keyword.SQUAREBRACKETCLOSE {
+		if peeked == keyword.RBRACK {
 			p.l.Read()
 			return p.putListValue(listValue), nil
 

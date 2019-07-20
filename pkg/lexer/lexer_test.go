@@ -105,7 +105,7 @@ func TestLexer_Peek_Read(t *testing.T) {
 		run("1337", mustRead(keyword.INTEGER, "1337"))
 	})
 	t.Run("read negative integer", func(t *testing.T) {
-		run("-1337", mustRead(keyword.NEGATIVESIGN, "-"),
+		run("-1337", mustRead(keyword.SUB, "-"),
 			mustRead(keyword.INTEGER, "1337"))
 	})
 	t.Run("read integer with comma", func(t *testing.T) {
@@ -115,7 +115,7 @@ func TestLexer_Peek_Read(t *testing.T) {
 		run("13.37", mustRead(keyword.FLOAT, "13.37"))
 	})
 	t.Run("read negative float", func(t *testing.T) {
-		run("-13.37", mustRead(keyword.NEGATIVESIGN, "-"),
+		run("-13.37", mustRead(keyword.SUB, "-"),
 			mustRead(keyword.FLOAT, "13.37"))
 	})
 	t.Run("read float", func(t *testing.T) {
@@ -219,22 +219,22 @@ func TestLexer_Peek_Read(t *testing.T) {
 		run("!", mustRead(keyword.BANG, "!"))
 	})
 	t.Run("read bracket open", func(t *testing.T) {
-		run("(", mustRead(keyword.BRACKETOPEN, "("))
+		run("(", mustRead(keyword.LPAREN, "("))
 	})
 	t.Run("read bracket close", func(t *testing.T) {
-		run(")", mustRead(keyword.BRACKETCLOSE, ")"))
+		run(")", mustRead(keyword.RPAREN, ")"))
 	})
 	t.Run("read squared bracket open", func(t *testing.T) {
-		run("[", mustRead(keyword.SQUAREBRACKETOPEN, "["))
+		run("[", mustRead(keyword.LBRACK, "["))
 	})
 	t.Run("read squared bracket close", func(t *testing.T) {
-		run("]", mustRead(keyword.SQUAREBRACKETCLOSE, "]"))
+		run("]", mustRead(keyword.RBRACK, "]"))
 	})
 	t.Run("read curly bracket open", func(t *testing.T) {
-		run("{", mustRead(keyword.CURLYBRACKETOPEN, "{"))
+		run("{", mustRead(keyword.LBRACE, "{"))
 	})
 	t.Run("read curly bracket close", func(t *testing.T) {
-		run("}", mustRead(keyword.CURLYBRACKETCLOSE, "}"))
+		run("}", mustRead(keyword.RBRACE, "}"))
 	})
 	t.Run("read and", func(t *testing.T) {
 		run("&", mustRead(keyword.AND, "&"))
@@ -393,13 +393,13 @@ $foo
 							}
 						}
 					}`,
-			mustRead(keyword.IDENT, "Goland"), mustRead(keyword.CURLYBRACKETOPEN, "{"),
-			mustRead(keyword.SPREAD, "..."), mustRead(keyword.ON, "on"), mustRead(keyword.IDENT, "GoWater"), mustRead(keyword.CURLYBRACKETOPEN, "{"),
-			mustRead(keyword.SPREAD, "..."), mustRead(keyword.ON, "on"), mustRead(keyword.IDENT, "GoAir"), mustRead(keyword.CURLYBRACKETOPEN, "{"),
+			mustRead(keyword.IDENT, "Goland"), mustRead(keyword.LBRACE, "{"),
+			mustRead(keyword.SPREAD, "..."), mustRead(keyword.ON, "on"), mustRead(keyword.IDENT, "GoWater"), mustRead(keyword.LBRACE, "{"),
+			mustRead(keyword.SPREAD, "..."), mustRead(keyword.ON, "on"), mustRead(keyword.IDENT, "GoAir"), mustRead(keyword.LBRACE, "{"),
 			mustRead(keyword.IDENT, "go"),
-			mustRead(keyword.CURLYBRACKETCLOSE, "}"),
-			mustRead(keyword.CURLYBRACKETCLOSE, "}"),
-			mustRead(keyword.CURLYBRACKETCLOSE, "}"),
+			mustRead(keyword.RBRACE, "}"),
+			mustRead(keyword.RBRACE, "}"),
+			mustRead(keyword.RBRACE, "}"),
 		)
 	})
 	t.Run("multi read many idents and strings", func(t *testing.T) {

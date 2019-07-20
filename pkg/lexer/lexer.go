@@ -87,22 +87,22 @@ func (l *Lexer) keywordFromRune(r byte) keyword.Keyword {
 		return keyword.COLON
 	case runes.BANG:
 		return keyword.BANG
-	case runes.BRACKETOPEN:
-		return keyword.BRACKETOPEN
-	case runes.BRACKETCLOSE:
-		return keyword.BRACKETCLOSE
-	case runes.CURLYBRACKETOPEN:
-		return keyword.CURLYBRACKETOPEN
-	case runes.CURLYBRACKETCLOSE:
-		return keyword.CURLYBRACKETCLOSE
-	case runes.SQUAREBRACKETOPEN:
-		return keyword.SQUAREBRACKETOPEN
-	case runes.SQUAREBRACKETCLOSE:
-		return keyword.SQUAREBRACKETCLOSE
+	case runes.LPAREN:
+		return keyword.LPAREN
+	case runes.RPAREN:
+		return keyword.RPAREN
+	case runes.LBRACE:
+		return keyword.LBRACE
+	case runes.RBRACE:
+		return keyword.RBRACE
+	case runes.LBRACK:
+		return keyword.LBRACK
+	case runes.RBRACK:
+		return keyword.RBRACK
 	case runes.AND:
 		return keyword.AND
-	case runes.NEGATIVESIGN:
-		return keyword.NEGATIVESIGN
+	case runes.SUB:
+		return keyword.SUB
 	case runes.DOT:
 		if l.peekEquals(true, runes.DOT, runes.DOT, runes.DOT) {
 			return keyword.SPREAD
@@ -160,22 +160,22 @@ func (l *Lexer) matchSingleRuneToken(r byte, tok *token.Token) bool {
 		tok.Keyword = keyword.COLON
 	case runes.BANG:
 		tok.Keyword = keyword.BANG
-	case runes.BRACKETOPEN:
-		tok.Keyword = keyword.BRACKETOPEN
-	case runes.BRACKETCLOSE:
-		tok.Keyword = keyword.BRACKETCLOSE
-	case runes.CURLYBRACKETOPEN:
-		tok.Keyword = keyword.CURLYBRACKETOPEN
-	case runes.CURLYBRACKETCLOSE:
-		tok.Keyword = keyword.CURLYBRACKETCLOSE
-	case runes.SQUAREBRACKETOPEN:
-		tok.Keyword = keyword.SQUAREBRACKETOPEN
-	case runes.SQUAREBRACKETCLOSE:
-		tok.Keyword = keyword.SQUAREBRACKETCLOSE
+	case runes.LPAREN:
+		tok.Keyword = keyword.LPAREN
+	case runes.RPAREN:
+		tok.Keyword = keyword.RPAREN
+	case runes.LBRACE:
+		tok.Keyword = keyword.LBRACE
+	case runes.RBRACE:
+		tok.Keyword = keyword.RBRACE
+	case runes.LBRACK:
+		tok.Keyword = keyword.LBRACK
+	case runes.RBRACK:
+		tok.Keyword = keyword.RBRACK
 	case runes.AND:
 		tok.Keyword = keyword.AND
-	case runes.NEGATIVESIGN:
-		tok.Keyword = keyword.NEGATIVESIGN
+	case runes.SUB:
+		tok.Keyword = keyword.SUB
 	case runes.DOLLAR:
 		tok.Keyword = keyword.DOLLAR
 	default:
@@ -464,7 +464,7 @@ func runeIsIdent(r byte) bool {
 		return true
 	case r >= '0' && r <= '9':
 		return true
-	case r == runes.NEGATIVESIGN:
+	case r == runes.SUB:
 		return true
 	case r == runes.UNDERSCORE:
 		return true
@@ -497,12 +497,12 @@ func (l *Lexer) byteTerminatesSequence(r byte) bool {
 		runes.TAB,
 		runes.LINETERMINATOR,
 		runes.COMMA,
-		runes.BRACKETOPEN,
-		runes.BRACKETCLOSE,
-		runes.CURLYBRACKETOPEN,
-		runes.CURLYBRACKETCLOSE,
-		runes.SQUAREBRACKETOPEN,
-		runes.SQUAREBRACKETCLOSE,
+		runes.LPAREN,
+		runes.RPAREN,
+		runes.LBRACE,
+		runes.RBRACE,
+		runes.LBRACK,
+		runes.RBRACK,
 		runes.AND,
 		runes.AT,
 		runes.BANG,
@@ -510,7 +510,7 @@ func (l *Lexer) byteTerminatesSequence(r byte) bool {
 		runes.DOLLAR,
 		runes.EQUALS,
 		runes.HASHTAG,
-		runes.NEGATIVESIGN,
+		runes.SUB,
 		runes.PIPE,
 		runes.QUOTE,
 		runes.SLASH:

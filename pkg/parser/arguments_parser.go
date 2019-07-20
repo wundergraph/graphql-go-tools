@@ -10,7 +10,7 @@ func (p *Parser) parseArgumentSet(index *int) error {
 
 	key := p.l.Peek(true)
 
-	if key != keyword.BRACKETOPEN {
+	if key != keyword.LPAREN {
 		*index = -1
 		return nil
 	}
@@ -29,7 +29,7 @@ func (p *Parser) parseArgumentSet(index *int) error {
 			identToken := p.l.Read()
 			argument.Name = identToken.Literal
 			argument.Position.MergeStartIntoStart(identToken.TextPosition)
-		} else if key == keyword.BRACKETCLOSE {
+		} else if key == keyword.RPAREN {
 			_ = p.l.Read()
 			*index = p.putArgumentSet(set)
 			return nil

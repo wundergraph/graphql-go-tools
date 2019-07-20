@@ -8,7 +8,7 @@ import (
 
 func (p *Parser) parseType(index *int) error {
 
-	isListType := p.peekExpect(keyword.SQUAREBRACKETOPEN, false)
+	isListType := p.peekExpect(keyword.LBRACK, false)
 
 	var start token.Token
 	var err error
@@ -26,7 +26,7 @@ func (p *Parser) parseType(index *int) error {
 			return err
 		}
 
-		_, err = p.readExpect(keyword.SQUAREBRACKETCLOSE, "parseListType")
+		_, err = p.readExpect(keyword.RBRACK, "parseListType")
 		if err != nil {
 			return err
 		}

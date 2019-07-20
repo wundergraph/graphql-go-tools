@@ -7,7 +7,7 @@ import (
 
 func (p *Parser) parseInputFieldsDefinition(index *int) (err error) {
 
-	if open := p.peekExpect(keyword.CURLYBRACKETOPEN, false); !open {
+	if open := p.peekExpect(keyword.LBRACE, false); !open {
 		return nil
 	}
 
@@ -16,12 +16,12 @@ func (p *Parser) parseInputFieldsDefinition(index *int) (err error) {
 	var definition document.InputFieldsDefinition
 	definition.Position.MergeStartIntoStart(start.TextPosition)
 
-	definition.InputValueDefinitions, err = p.parseInputValueDefinitions(keyword.CURLYBRACKETCLOSE)
+	definition.InputValueDefinitions, err = p.parseInputValueDefinitions(keyword.RBRACE)
 	if err != nil {
 		return
 	}
 
-	_, err = p.readExpect(keyword.CURLYBRACKETCLOSE, "parseInputFieldsDefinition")
+	_, err = p.readExpect(keyword.RBRACE, "parseInputFieldsDefinition")
 	if err != nil {
 		return
 	}

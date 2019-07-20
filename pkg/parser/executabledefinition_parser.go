@@ -11,7 +11,7 @@ func (p *Parser) parseExecutableDefinition() (err error) {
 		next := p.l.Peek(true)
 
 		switch next {
-		case keyword.CURLYBRACKETOPEN:
+		case keyword.LBRACE:
 
 			err := p.parseAnonymousOperation(&p.ParsedDefinitions.ExecutableDefinition)
 			if err != nil {

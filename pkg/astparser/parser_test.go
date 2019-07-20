@@ -118,11 +118,11 @@ func TestParser_Parse(t *testing.T) {
 		parser.tokenize()
 
 		for i, want := range []keyword.Keyword{
-			keyword.SCHEMA, keyword.CURLYBRACKETOPEN,
+			keyword.SCHEMA, keyword.LBRACE,
 			keyword.QUERY, keyword.COLON, keyword.IDENT,
 			keyword.MUTATION, keyword.COLON, keyword.IDENT,
 			keyword.SUBSCRIPTION, keyword.COLON, keyword.IDENT,
-			keyword.CURLYBRACKETCLOSE,
+			keyword.RBRACE,
 		} {
 			parser.peek()
 			got := parser.read().Keyword

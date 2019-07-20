@@ -8,7 +8,7 @@ import (
 
 func (p *Parser) parseFieldDefinitions() (fieldDefinitions document.FieldDefinitions, err error) {
 
-	if hasOpen := p.peekExpect(keyword.CURLYBRACKETOPEN, true); !hasOpen {
+	if hasOpen := p.peekExpect(keyword.LBRACE, true); !hasOpen {
 		return
 	}
 
@@ -26,7 +26,7 @@ func (p *Parser) parseFieldDefinitions() (fieldDefinitions document.FieldDefinit
 			description = stringToken.Literal
 			startPosition = stringToken.TextPosition
 			hasDescription = true
-		case keyword.CURLYBRACKETCLOSE:
+		case keyword.RBRACE:
 			p.l.Read()
 			return document.NewFieldDefinitions(nextRef), err
 		case keyword.IDENT, keyword.TYPE, keyword.MUTATION:

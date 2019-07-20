@@ -18,7 +18,7 @@ func (p *Parser) parsePeekedObjectValue(index *int) error {
 		peeked = p.l.Peek(true)
 
 		switch peeked {
-		case keyword.CURLYBRACKETCLOSE:
+		case keyword.RBRACE:
 
 			p.l.Read()
 			p.putObjectValue(objectValue, index)

@@ -80,7 +80,7 @@ func (p *Printer) PrintSchemaDefinition(index int) {
 	definition := p.p.ParsedDefinitions.SchemaDefinitions[index]
 	p.write(literal.SCHEMA)
 	p.write(literal.SPACE)
-	p.write(literal.CURLYBRACKETOPEN)
+	p.write(literal.LBRACE)
 	if definition.Query.Length() != 0 {
 		p.write(literal.LINETERMINATOR)
 		p.write(literal.TAB)
@@ -97,7 +97,7 @@ func (p *Printer) PrintSchemaDefinition(index int) {
 		p.PrintSimpleField(literal.SUBSCRIPTION, definition.Subscription)
 	}
 	p.write(literal.LINETERMINATOR)
-	p.write(literal.CURLYBRACKETCLOSE)
+	p.write(literal.RBRACE)
 }
 
 func (p *Printer) PrintSimpleField(name []byte, value document.ByteSliceReference) {
@@ -164,7 +164,7 @@ func (p *Printer) PrintFieldDefinition(definition document.FieldDefinition) {
 func (p *Printer) PrintArgumentsDefinition(ref int) {
 	definition := p.p.ParsedDefinitions.ArgumentsDefinitions[ref]
 	iter := definition.InputValueDefinitions
-	p.write(literal.BRACKETOPEN)
+	p.write(literal.LPAREN)
 	for iter.Next(p.p) {
 
 		inputValueDefinition, _ := iter.Value()
@@ -173,12 +173,12 @@ func (p *Printer) PrintArgumentsDefinition(ref int) {
 		p.PrintInputValueDefinition(inputValueDefinition)
 	}
 	p.write(literal.LINETERMINATOR)
-	p.write(literal.BRACKETCLOSE)
+	p.write(literal.RPAREN)
 }
 
 func (p *Printer) PrintArgumentsDefinitionInline(ref int) {
 	definition := p.p.ParsedDefinitions.ArgumentsDefinitions[ref]
-	p.write(literal.BRACKETOPEN)
+	p.write(literal.LPAREN)
 	iter := definition.InputValueDefinitions
 	var addSpace bool
 	for iter.Next(p.p) {
@@ -189,7 +189,7 @@ func (p *Printer) PrintArgumentsDefinitionInline(ref int) {
 		p.PrintInputValueDefinitionInline(inputValueDefinition)
 		addSpace = true
 	}
-	p.write(literal.BRACKETCLOSE)
+	p.write(literal.RPAREN)
 }
 
 func (p *Printer) PrintInputValueDefinition(definition document.InputValueDefinition) {
@@ -229,9 +229,9 @@ func (p *Printer) PrintType(ref int) {
 		p.PrintType(definition.OfType)
 		p.write(literal.BANG)
 	case document.TypeKindLIST:
-		p.write(literal.SQUAREBRACKETOPEN)
+		p.write(literal.LBRACK)
 		p.PrintType(definition.OfType)
-		p.write(literal.SQUAREBRACKETCLOSE)
+		p.write(literal.RBRACK)
 	case document.TypeKindNAMED:
 		p.write(p.p.ByteSlice(definition.Name))
 	}
@@ -249,7 +249,7 @@ func (p *Printer) PrintObjectTypeDefinition(ref int) {
 
 	}
 	p.write(literal.SPACE)
-	p.write(literal.CURLYBRACKETOPEN)
+	p.write(literal.LBRACE)
 	fields := definition.FieldsDefinition
 	for fields.Next(p.l) {
 		p.write(literal.LINETERMINATOR)
@@ -257,7 +257,7 @@ func (p *Printer) PrintObjectTypeDefinition(ref int) {
 		p.PrintFieldDefinition(field)
 	}
 	p.write(literal.LINETERMINATOR)
-	p.write(literal.CURLYBRACKETCLOSE)
+	p.write(literal.RBRACE)
 }
 
 func (p *Printer) PrintEnumTypeDefinition(ref int) {
@@ -271,7 +271,7 @@ func (p *Printer) PrintEnumTypeDefinition(ref int) {
 		p.printDirectiveSet(definition.DirectiveSet)
 	}
 	p.write(literal.SPACE)
-	p.write(literal.CURLYBRACKETOPEN)
+	p.write(literal.LBRACE)
 	p.write(literal.LINETERMINATOR)
 	var addLineTerminator bool
 	enums := definition.EnumValuesDefinition
@@ -284,7 +284,7 @@ func (p *Printer) PrintEnumTypeDefinition(ref int) {
 		addLineTerminator = true
 	}
 	p.write(literal.LINETERMINATOR)
-	p.write(literal.CURLYBRACKETCLOSE)
+	p.write(literal.RBRACE)
 }
 
 func (p *Printer) PrintEnumValueDefinition(definition document.EnumValueDefinition) {
@@ -337,7 +337,7 @@ func (p *Printer) PrintInterfaceTypeDefinition(ref int) {
 		p.printDirectiveSet(definition.DirectiveSet)
 	}
 	p.write(literal.SPACE)
-	p.write(literal.CURLYBRACKETOPEN)
+	p.write(literal.LBRACE)
 	fields := definition.FieldsDefinition
 	for fields.Next(p.l) {
 		p.write(literal.LINETERMINATOR)
@@ -345,7 +345,7 @@ func (p *Printer) PrintInterfaceTypeDefinition(ref int) {
 		p.PrintFieldDefinition(field)
 	}
 	p.write(literal.LINETERMINATOR)
-	p.write(literal.CURLYBRACKETCLOSE)
+	p.write(literal.RBRACE)
 }
 
 func (p *Printer) PrintScalarTypeDefinition(ref int) {
@@ -392,7 +392,7 @@ func (p *Printer) PrintInputObjectTypeDefinition(ref int) {
 	p.write(literal.SPACE)
 	p.write(p.p.ByteSlice(definition.Name))
 	p.write(literal.SPACE)
-	p.write(literal.CURLYBRACKETOPEN)
+	p.write(literal.LBRACE)
 	iter := p.p.ParsedDefinitions.InputFieldsDefinitions[definition.InputFieldsDefinition].InputValueDefinitions
 	for iter.Next(p.p) {
 
@@ -402,7 +402,7 @@ func (p *Printer) PrintInputObjectTypeDefinition(ref int) {
 		p.PrintInputValueDefinition(inputValueDefinition)
 	}
 	p.write(literal.LINETERMINATOR)
-	p.write(literal.CURLYBRACKETCLOSE)
+	p.write(literal.RBRACE)
 }
 
 func (p *Printer) PrintExecutableSchema(out io.Writer) error {
@@ -507,7 +507,7 @@ func (p *Printer) printOperationType(operationType document.OperationType, hasNa
 
 func (p *Printer) printSelectionSet(ref int) {
 
-	p.write(literal.CURLYBRACKETOPEN)
+	p.write(literal.LBRACE)
 
 	set := p.l.SelectionSetContentsIterator(ref)
 	var addSpace bool
@@ -530,7 +530,7 @@ func (p *Printer) printSelectionSet(ref int) {
 		addSpace = true
 	}
 
-	p.write(literal.CURLYBRACKETCLOSE)
+	p.write(literal.RBRACE)
 }
 
 func (p *Printer) printField(ref int) {
@@ -585,7 +585,7 @@ func (p *Printer) printInlineFragment(ref int) {
 
 func (p *Printer) printArgumentSet(ref int) {
 
-	p.write(literal.BRACKETOPEN)
+	p.write(literal.LPAREN)
 
 	set := p.l.ArgumentSet(ref)
 	iter := p.l.ArgumentsIterable(set)
@@ -599,7 +599,7 @@ func (p *Printer) printArgumentSet(ref int) {
 		addSpace = true
 	}
 
-	p.write(literal.BRACKETCLOSE)
+	p.write(literal.RPAREN)
 }
 
 func (p *Printer) printArgument(arg document.Argument) {
@@ -633,7 +633,7 @@ func (p *Printer) PrintValue(ref int) {
 
 func (p *Printer) printObjectValue(ref int) {
 
-	p.write(literal.CURLYBRACKETOPEN)
+	p.write(literal.LBRACE)
 
 	objectValue := p.l.ObjectValue(ref)
 	fields := p.l.ObjectFieldsIterator(objectValue)
@@ -649,7 +649,7 @@ func (p *Printer) printObjectValue(ref int) {
 		addComma = true
 	}
 
-	p.write(literal.CURLYBRACKETCLOSE)
+	p.write(literal.RBRACE)
 }
 
 func (p *Printer) printObjectField(field document.ObjectField) {
@@ -660,7 +660,7 @@ func (p *Printer) printObjectField(field document.ObjectField) {
 
 func (p *Printer) printListValue(ref int) {
 
-	p.write(literal.SQUAREBRACKETOPEN)
+	p.write(literal.LBRACK)
 
 	list := p.l.ListValue(ref)
 	var addComma bool
@@ -674,7 +674,7 @@ func (p *Printer) printListValue(ref int) {
 		addComma = true
 	}
 
-	p.write(literal.SQUAREBRACKETCLOSE)
+	p.write(literal.RBRACK)
 }
 
 func (p *Printer) printVariableDefinition(definition document.VariableDefinition) {
@@ -688,7 +688,7 @@ func (p *Printer) printVariableDefinitions(definitions []int) {
 
 	variableDefinitions := p.l.VariableDefinitionIterator(definitions)
 
-	p.write(literal.BRACKETOPEN)
+	p.write(literal.LPAREN)
 
 	prependSpaceBeforeNext := false
 
@@ -703,5 +703,5 @@ func (p *Printer) printVariableDefinitions(definitions []int) {
 		prependSpaceBeforeNext = true
 	}
 
-	p.write(literal.BRACKETCLOSE)
+	p.write(literal.RPAREN)
 }

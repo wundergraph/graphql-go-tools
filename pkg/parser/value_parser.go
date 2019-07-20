@@ -7,7 +7,7 @@ import (
 )
 
 var (
-	parseValuePossibleKeywords = []keyword.Keyword{keyword.FALSE, keyword.TRUE, keyword.VARIABLE, keyword.INTEGER, keyword.FLOAT, keyword.STRING, keyword.NULL, keyword.IDENT, keyword.SQUAREBRACKETOPEN, keyword.SQUAREBRACKETCLOSE}
+	parseValuePossibleKeywords = []keyword.Keyword{keyword.FALSE, keyword.TRUE, keyword.VARIABLE, keyword.INTEGER, keyword.FLOAT, keyword.STRING, keyword.NULL, keyword.IDENT, keyword.LBRACK, keyword.RBRACK}
 )
 
 func (p *Parser) parseValue() (ref int, err error) {
@@ -39,10 +39,10 @@ func (p *Parser) parseValue() (ref int, err error) {
 	case keyword.IDENT:
 		value.ValueType = document.ValueTypeEnum
 		p.parsePeekedByteSlice(&value)
-	case keyword.SQUAREBRACKETOPEN:
+	case keyword.LBRACK:
 		value.ValueType = document.ValueTypeList
 		value.Reference, err = p.parsePeekedListValue()
-	case keyword.CURLYBRACKETOPEN:
+	case keyword.LBRACE:
 		value.ValueType = document.ValueTypeObject
 		err = p.parsePeekedObjectValue(&value.Reference)
 	default:

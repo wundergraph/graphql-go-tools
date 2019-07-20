@@ -8,7 +8,7 @@ import (
 
 func (p *Parser) parseSelectionSet(ref *int) (err error) {
 
-	if open := p.peekExpect(keyword.CURLYBRACKETOPEN, false); !open {
+	if open := p.peekExpect(keyword.LBRACE, false); !open {
 		return
 	}
 
@@ -23,7 +23,7 @@ func (p *Parser) parseSelectionSet(ref *int) (err error) {
 
 		if next == keyword.EOF {
 			return fmt.Errorf("parseSelectionSet: unexpected EOF, forgot to close bracket? ")
-		} else if next == keyword.CURLYBRACKETCLOSE {
+		} else if next == keyword.RBRACE {
 			end := p.l.Read()
 			set.Position.MergeEndIntoEnd(end.TextPosition)
 			*ref = p.putSelectionSet(set)

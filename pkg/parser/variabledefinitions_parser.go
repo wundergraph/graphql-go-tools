@@ -7,7 +7,7 @@ import (
 
 func (p *Parser) parseVariableDefinitions(index *[]int) (err error) {
 
-	if open := p.peekExpect(keyword.BRACKETOPEN, true); !open {
+	if open := p.peekExpect(keyword.LPAREN, true); !open {
 		return
 	}
 
@@ -44,7 +44,7 @@ func (p *Parser) parseVariableDefinitions(index *[]int) (err error) {
 			variableDefinition.Position.MergeStartIntoEnd(p.TextPosition())
 			*index = append(*index, p.putVariableDefinition(variableDefinition))
 
-		case keyword.BRACKETCLOSE:
+		case keyword.RPAREN:
 			p.l.Read()
 			return err
 		default:

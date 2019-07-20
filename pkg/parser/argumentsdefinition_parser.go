@@ -7,7 +7,7 @@ import (
 
 func (p *Parser) parseArgumentsDefinition(index *int) (err error) {
 
-	start, matches := p.peekExpectSwallow(keyword.BRACKETOPEN)
+	start, matches := p.peekExpectSwallow(keyword.LPAREN)
 	if !matches {
 		return nil
 	}
@@ -15,12 +15,12 @@ func (p *Parser) parseArgumentsDefinition(index *int) (err error) {
 	var definition document.ArgumentsDefinition
 	definition.Position.MergeStartIntoStart(start.TextPosition)
 
-	definition.InputValueDefinitions, err = p.parseInputValueDefinitions(keyword.BRACKETCLOSE)
+	definition.InputValueDefinitions, err = p.parseInputValueDefinitions(keyword.RPAREN)
 	if err != nil {
 		return
 	}
 
-	end, err := p.readExpect(keyword.BRACKETCLOSE, "parseArgumentsDefinition")
+	end, err := p.readExpect(keyword.RPAREN, "parseArgumentsDefinition")
 	definition.Position.MergeEndIntoEnd(end.TextPosition)
 
 	*index = p.putArgumentsDefinition(definition)

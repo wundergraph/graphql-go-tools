@@ -7,7 +7,7 @@ import (
 
 func (p *Parser) parseEnumValuesDefinition() (definitions document.EnumValueDefinitions, err error) {
 
-	if open := p.peekExpect(keyword.CURLYBRACKETOPEN, true); !open {
+	if open := p.peekExpect(keyword.LBRACE, true); !open {
 		return document.NewEnumValueDefinitions(-1), err
 	}
 
@@ -44,7 +44,7 @@ func (p *Parser) parseEnumValuesDefinition() (definitions document.EnumValueDefi
 
 			continue
 
-		} else if next == keyword.CURLYBRACKETCLOSE {
+		} else if next == keyword.RBRACE {
 			p.l.Read()
 			return document.NewEnumValueDefinitions(nextRef), err
 		}
