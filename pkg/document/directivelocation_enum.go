@@ -103,8 +103,8 @@ var _DirectiveLocationValue = map[string]DirectiveLocation{
 }
 
 // ParseDirectiveLocation attempts to convert a string to a DirectiveLocation
-func ParseDirectiveLocation(name []byte) (DirectiveLocation, error) {
-	if x, ok := _DirectiveLocationValue[string(name)]; ok {
+func ParseDirectiveLocation(name string) (DirectiveLocation, error) {
+	if x, ok := _DirectiveLocationValue[name]; ok {
 		return x, nil
 	}
 	return DirectiveLocation(0), fmt.Errorf("%s is not a valid DirectiveLocation", name)

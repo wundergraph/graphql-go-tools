@@ -49,11 +49,23 @@ func (b ByteSlice) MarshalJSON() ([]byte, error) {
 }
 
 type ByteSliceReference struct {
-	Start   uint32
-	End     uint32
-	NextRef int
+	Start uint32
+	End   uint32
 }
 
 func (b ByteSliceReference) Length() uint32 {
 	return b.End - b.Start
+}
+
+func ByteSliceEquals(left ByteSliceReference, leftInput *Input, right ByteSliceReference, rightInput *Input) bool {
+	if left.Length() != right.Length() {
+		return false
+	}
+	length := int(left.Length())
+	for i := 0; i < length; i++ {
+		if leftInput.RawBytes[int(left.Start)+i] != rightInput.RawBytes[int(right.Start)+i] {
+			return false
+		}
+	}
+	return true
 }

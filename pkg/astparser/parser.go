@@ -222,7 +222,7 @@ func (p *Parser) parseSchema() {
 
 	p.document.SchemaDefinitions = append(p.document.SchemaDefinitions, schemaDefinition)
 	ref := len(p.document.SchemaDefinitions) - 1
-	rootNode := ast.RootNode{
+	rootNode := ast.Node{
 		Kind: ast.NodeKindSchemaDefinition,
 		Ref:  ref,
 	}
@@ -1256,7 +1256,7 @@ func (p *Parser) parseOperationDefinition() {
 
 	p.document.OperationDefinitions = append(p.document.OperationDefinitions, operationDefinition)
 	ref := len(p.document.OperationDefinitions) - 1
-	rootNode := ast.RootNode{
+	rootNode := ast.Node{
 		Kind: ast.NodeKindOperationDefinition,
 		Ref:  ref,
 	}
@@ -1326,6 +1326,12 @@ func (p *Parser) parseFragmentDefinition() {
 	}
 	fragmentDefinition.SelectionSet = p.parseSelectionSet()
 	p.document.FragmentDefinitions = append(p.document.FragmentDefinitions, fragmentDefinition)
+
+	ref := len(p.document.FragmentDefinitions) - 1
+	p.document.RootNodes = append(p.document.RootNodes, ast.Node{
+		Kind: ast.NodeKindFragmentDefinition,
+		Ref:  ref,
+	})
 }
 
 func (p *Parser) parseExtension() {

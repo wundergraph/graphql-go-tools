@@ -54,10 +54,13 @@ const (
 	NodeKindOperationDefinition
 	NodeKindSelectionSet
 	NodeKindField
+	NodeKindFragmentSpread
+	NodeKindInlineFragment
+	NodeKindFragmentDefinition
 )
 
 type Document struct {
-	RootNodes                    []RootNode
+	RootNodes                    []Node
 	SchemaDefinitions            []SchemaDefinition
 	SchemaExtensions             []SchemaExtension
 	RootOperationTypeDefinitions []RootOperationTypeDefinition
@@ -104,7 +107,7 @@ type Document struct {
 func NewDocument() *Document {
 
 	return &Document{
-		RootNodes:                    make([]RootNode, 48)[:0],
+		RootNodes:                    make([]Node, 48)[:0],
 		RootOperationTypeDefinitions: make([]RootOperationTypeDefinition, 3)[:0],
 		SchemaDefinitions:            make([]SchemaDefinition, 2)[:0],
 		SchemaExtensions:             make([]SchemaExtension, 2)[:0],
@@ -201,7 +204,7 @@ func (d *Document) NextRefIndex() int {
 	return d.RefIndex
 }
 
-type RootNode struct {
+type Node struct {
 	Kind NodeKind
 	Ref  int
 }
