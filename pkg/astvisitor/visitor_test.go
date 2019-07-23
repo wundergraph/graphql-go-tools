@@ -34,30 +34,31 @@ func TestVisit(t *testing.T) {
 	visitor := mock_astvisitor.NewMockVisitor(controller)
 
 	// query ->
-	visitor.EXPECT().Enter(ast.NodeKindOperationDefinition, gomock.Any())
-	visitor.EXPECT().Enter(ast.NodeKindSelectionSet, gomock.Any())
+	visitor.EXPECT().EnterOperationDefinition(0)
+	visitor.EXPECT().EnterSelectionSet(0, gomock.Any())
 
 	// posts ->
-	visitor.EXPECT().Enter(ast.NodeKindField, gomock.Any())
-	visitor.EXPECT().Enter(ast.NodeKindSelectionSet, gomock.Any())
+	visitor.EXPECT().EnterField(1, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any())
+	visitor.EXPECT().EnterSelectionSet(gomock.Any(), gomock.Any())
 
 	// id ->
-	visitor.EXPECT().Enter(ast.NodeKindField, gomock.Any())
-	visitor.EXPECT().Leave(ast.NodeKindField, gomock.Any())
+	visitor.EXPECT().EnterField(2, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any())
+	visitor.EXPECT().LeaveField(2, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any())
 
 	// description ->
-	visitor.EXPECT().Enter(ast.NodeKindField, gomock.Any())
-	visitor.EXPECT().Leave(ast.NodeKindField, gomock.Any())
+	visitor.EXPECT().EnterField(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any())
+	visitor.EXPECT().LeaveField(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any())
 
 	// <- posts
-	visitor.EXPECT().Leave(ast.NodeKindSelectionSet, gomock.Any())
-	visitor.EXPECT().Leave(ast.NodeKindField, gomock.Any())
+	visitor.EXPECT().LeaveSelectionSet(gomock.Any())
+	visitor.EXPECT().LeaveField(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any())
 
 	// <- query
-	visitor.EXPECT().Leave(ast.NodeKindSelectionSet, gomock.Any())
-	visitor.EXPECT().Leave(ast.NodeKindOperationDefinition, gomock.Any())
+	visitor.EXPECT().LeaveSelectionSet(gomock.Any())
+	visitor.EXPECT().LeaveOperationDefinition(gomock.Any())
 
-	Visit(doc, visitor)
+	walker := Walker{}
+	walker.Visit(doc, in, visitor)
 }
 
 func BenchmarkVisitor(b *testing.B) {
@@ -81,21 +82,65 @@ func BenchmarkVisitor(b *testing.B) {
 
 	visitor := &dummyVisitor{}
 
+	walker := Walker{
+		ancestors: make([]ast.Node, 0, 48),
+	}
+
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		Visit(doc, visitor)
+		walker.Visit(doc, in, visitor)
 	}
 }
 
 type dummyVisitor struct {
 }
 
-func (_ dummyVisitor) Enter(node ast.NodeKind, ref int) {
+func (d *dummyVisitor) EnterOperationDefinition(ref int) {
 
 }
 
-func (_ dummyVisitor) Leave(node ast.NodeKind, ref int) {
+func (d *dummyVisitor) LeaveOperationDefinition(ref int) {
+
+}
+
+func (d *dummyVisitor) EnterSelectionSet(ref int, ancestors []ast.Node) {
+
+}
+
+func (d *dummyVisitor) LeaveSelectionSet(ref int) {
+
+}
+
+func (d *dummyVisitor) EnterField(ref int, ancestors []ast.Node, selectionSet int, selectionsBefore []int, selectionsAfter []int, hasSelections bool) {
+
+}
+
+func (d *dummyVisitor) LeaveField(ref int, ancestors []ast.Node, selectionSet int, selectionsBefore []int, selectionsAfter []int, hasSelections bool) {
+
+}
+
+func (d *dummyVisitor) EnterFragmentSpread(ref int, ancestors []ast.Node, selectionSet int, selectionsBefore []int, selectionsAfter []int) {
+
+}
+
+func (d *dummyVisitor) LeaveFragmentSpread(ref int) {
+
+}
+
+func (d *dummyVisitor) EnterInlineFragment(ref int, ancestors []ast.Node, selectionSet int, selectionsBefore []int, selectionsAfter []int, hasSelections bool) {
+
+}
+
+func (d *dummyVisitor) LeaveInlineFragment(ref int) {
+
+}
+
+func (d *dummyVisitor) EnterFragmentDefinition(ref int) {
+
+}
+
+func (d *dummyVisitor) LeaveFragmentDefinition(ref int) {
 
 }

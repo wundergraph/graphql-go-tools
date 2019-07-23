@@ -1,37 +1,40 @@
 //go:generate mockgen -source=visitor.go -destination=../mocks/visitor/mock_visitor.go
 package astvisitor
 
-import "github.com/jensneuse/graphql-go-tools/pkg/ast"
+import (
+	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/input"
+)
 
 type Walker struct {
 	document     *ast.Document
+	input        *input.Input
 	visitor      Visitor
 	currentDepth int
 	ancestors    []ast.Node
 }
 
 type Visitor interface {
-	EnterOperationDefinition(ref int, ancestors []ast.Node)
+	EnterOperationDefinition(ref int)
 	LeaveOperationDefinition(ref int)
-	EnterSelectionSet(set ast.SelectionSet, ancestors []ast.Node)
-	LeaveSelectionSet(set ast.SelectionSet, hasNext bool)
-	EnterField(ref int, ancestors []ast.Node, hasSelections bool)
-	LeaveField(ref int, hasNext bool)
-	EnterFragmentSpread(ref int)
-	LeaveFragmentSpread(ref int, hasNext bool)
-	EnterInlineFragment(ref int)
-	LeaveInlineFragment(ref int, hasNext bool)
+	EnterSelectionSet(ref int, ancestors []ast.Node)
+	LeaveSelectionSet(ref int)
+	EnterField(ref int, ancestors []ast.Node, selectionSet int, selectionsBefore []int, selectionsAfter []int, hasSelections bool)
+	LeaveField(ref int, ancestors []ast.Node, selectionSet int, selectionsBefore []int, selectionsAfter []int, hasSelections bool)
+	EnterFragmentSpread(ref int, ancestors []ast.Node, selectionSet int, selectionsBefore []int, selectionsAfter []int)
+	LeaveFragmentSpread(ref int)
+	EnterInlineFragment(ref int, ancestors []ast.Node, selectionSet int, selectionsBefore []int, selectionsAfter []int, hasSelections bool)
+	LeaveInlineFragment(ref int)
 	EnterFragmentDefinition(ref int)
 	LeaveFragmentDefinition(ref int)
 }
 
-func Visit(document *ast.Document, visitor Visitor) {
-	walker := Walker{
-		document:  document,
-		visitor:   visitor,
-		ancestors: make([]ast.Node, 48)[:0],
-	}
-	walker.walk()
+func (w *Walker) Visit(document *ast.Document, input *input.Input, visitor Visitor) {
+	w.ancestors = w.ancestors[:0]
+	w.document = document
+	w.input = input
+	w.visitor = visitor
+	w.walk()
 }
 
 func (w *Walker) walk() {
@@ -47,63 +50,76 @@ func (w *Walker) walk() {
 }
 
 func (w *Walker) walkOperationDefinition(ref int) {
-	w.visitor.EnterOperationDefinition(ref, w.ancestors)
+	w.visitor.EnterOperationDefinition(ref)
 	w.ancestors = append(w.ancestors, ast.Node{Kind: ast.NodeKindOperationDefinition, Ref: ref})
-	w.walkSelectionSet(w.document.OperationDefinitions[ref].SelectionSet, false)
+
+	w.walkSelectionSet(w.document.OperationDefinitions[ref].SelectionSet)
+
 	w.ancestors = w.ancestors[:len(w.ancestors)-1]
 	w.visitor.LeaveOperationDefinition(ref)
 }
 
-func (w *Walker) walkSelectionSet(set ast.SelectionSet, hasNext bool) {
-	w.visitor.EnterSelectionSet(set, w.ancestors)
-	for k, i := range set.SelectionRefs {
+func (w *Walker) walkSelectionSet(ref int) {
+	w.visitor.EnterSelectionSet(ref, w.ancestors)
+	w.ancestors = append(w.ancestors, ast.Node{Kind: ast.NodeKindSelectionSet, Ref: ref})
 
-		hasNext := k+2 <= len(set.SelectionRefs)
+	for i, j := range w.document.SelectionSets[ref].SelectionRefs {
 
-		switch w.document.Selections[i].Kind {
+		selectionsBefore := w.document.SelectionSets[ref].SelectionRefs[:i]
+		selectionsAfter := w.document.SelectionSets[ref].SelectionRefs[i+1:]
+
+		switch w.document.Selections[j].Kind {
 		case ast.SelectionKindField:
-			w.walkField(w.document.Selections[i].Ref, hasNext)
+			w.walkField(w.document.Selections[j].Ref, ref, selectionsBefore, selectionsAfter)
 		case ast.SelectionKindFragmentSpread:
-			w.walkFragmentSpread(w.document.Selections[i].Ref, hasNext)
+			w.walkFragmentSpread(w.document.Selections[j].Ref, ref, selectionsBefore, selectionsAfter)
 		case ast.SelectionKindInlineFragment:
-			w.walkInlineFragment(w.document.Selections[i].Ref, hasNext)
+			w.walkInlineFragment(w.document.Selections[j].Ref, ref, selectionsBefore, selectionsAfter)
 		}
 	}
-	w.visitor.LeaveSelectionSet(set, hasNext)
+
+	w.ancestors = w.ancestors[:len(w.ancestors)-1]
+	w.visitor.LeaveSelectionSet(ref)
 }
 
-func (w *Walker) walkField(ref int, hasNext bool) {
+func (w *Walker) walkField(ref int, selectionSet int, selectionsBefore, selectionsAfter []int) {
 
-	hasSelections := len(w.document.Fields[ref].SelectionSet.SelectionRefs) != 0
+	w.visitor.EnterField(ref, w.ancestors, selectionSet, selectionsBefore, selectionsAfter, w.document.Fields[ref].HasSelections)
+	w.ancestors = append(w.ancestors, ast.Node{Kind: ast.NodeKindField, Ref: ref})
 
-	w.visitor.EnterField(ref, w.ancestors, hasSelections)
-
-	if hasSelections {
-		w.walkSelectionSet(w.document.Fields[ref].SelectionSet, hasNext)
+	if w.document.Fields[ref].HasSelections {
+		w.walkSelectionSet(w.document.Fields[ref].SelectionSet)
 	}
 
-	w.visitor.LeaveField(ref, hasNext)
+	w.ancestors = w.ancestors[:len(w.ancestors)-1]
+	w.visitor.LeaveField(ref, w.ancestors, selectionSet, selectionsBefore, selectionsAfter, w.document.Fields[ref].HasSelections)
 }
 
-func (w *Walker) walkFragmentSpread(ref int, hasNext bool) {
-	w.visitor.EnterFragmentSpread(ref)
-	w.visitor.LeaveFragmentSpread(ref, hasNext)
+func (w *Walker) walkFragmentSpread(ref int, selectionSet int, selectionsBefore, selectionsAfter []int) {
+	w.visitor.EnterFragmentSpread(ref, w.ancestors, selectionSet, selectionsBefore, selectionsAfter)
+	w.visitor.LeaveFragmentSpread(ref)
 }
 
-func (w *Walker) walkInlineFragment(ref int, hasNext bool) {
-	w.visitor.EnterInlineFragment(ref)
-	if len(w.document.InlineFragments[ref].SelectionSet.SelectionRefs) != 0 {
-		w.walkSelectionSet(w.document.InlineFragments[ref].SelectionSet, hasNext)
+func (w *Walker) walkInlineFragment(ref int, selectionSet int, selectionsBefore, selectionsAfter []int) {
+	w.visitor.EnterInlineFragment(ref, w.ancestors, selectionSet, selectionsBefore, selectionsAfter, w.document.InlineFragments[ref].HasSelections)
+	w.ancestors = append(w.ancestors, ast.Node{Kind: ast.NodeKindInlineFragment, Ref: ref})
+
+	if w.document.InlineFragments[ref].HasSelections {
+		w.walkSelectionSet(w.document.InlineFragments[ref].SelectionSet)
 	}
-	w.visitor.LeaveInlineFragment(ref, hasNext)
+
+	w.ancestors = w.ancestors[:len(w.ancestors)-1]
+	w.visitor.LeaveInlineFragment(ref)
 }
 
 func (w *Walker) walkFragmentDefinition(ref int) {
 	w.visitor.EnterFragmentDefinition(ref)
+	w.ancestors = append(w.ancestors, ast.Node{Kind: ast.NodeKindFragmentDefinition, Ref: ref})
 
-	if len(w.document.FragmentDefinitions[ref].SelectionSet.SelectionRefs) != 0 {
-		w.walkSelectionSet(w.document.FragmentDefinitions[ref].SelectionSet, false)
+	if w.document.FragmentDefinitions[ref].HasSelections {
+		w.walkSelectionSet(w.document.FragmentDefinitions[ref].SelectionSet)
 	}
 
+	w.ancestors = w.ancestors[:len(w.ancestors)-1]
 	w.visitor.LeaveFragmentDefinition(ref)
 }
