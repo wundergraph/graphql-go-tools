@@ -33,26 +33,146 @@ func (m *MockVisitor) EXPECT() *MockVisitorMockRecorder {
 	return m.recorder
 }
 
-// Enter mocks base method
-func (m *MockVisitor) Enter(kind ast.NodeKind, ref int) {
+// EnterOperationDefinition mocks base method
+func (m *MockVisitor) EnterOperationDefinition(ref int) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Enter", kind, ref)
+	m.ctrl.Call(m, "EnterOperationDefinition", ref)
 }
 
-// Enter indicates an expected call of Enter
-func (mr *MockVisitorMockRecorder) Enter(kind, ref interface{}) *gomock.Call {
+// EnterOperationDefinition indicates an expected call of EnterOperationDefinition
+func (mr *MockVisitorMockRecorder) EnterOperationDefinition(ref interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Enter", reflect.TypeOf((*MockVisitor)(nil).Enter), kind, ref)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnterOperationDefinition", reflect.TypeOf((*MockVisitor)(nil).EnterOperationDefinition), ref)
 }
 
-// Leave mocks base method
-func (m *MockVisitor) Leave(kind ast.NodeKind, ref int) {
+// LeaveOperationDefinition mocks base method
+func (m *MockVisitor) LeaveOperationDefinition(ref int) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Leave", kind, ref)
+	m.ctrl.Call(m, "LeaveOperationDefinition", ref)
 }
 
-// Leave indicates an expected call of Leave
-func (mr *MockVisitorMockRecorder) Leave(kind, ref interface{}) *gomock.Call {
+// LeaveOperationDefinition indicates an expected call of LeaveOperationDefinition
+func (mr *MockVisitorMockRecorder) LeaveOperationDefinition(ref interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Leave", reflect.TypeOf((*MockVisitor)(nil).Leave), kind, ref)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LeaveOperationDefinition", reflect.TypeOf((*MockVisitor)(nil).LeaveOperationDefinition), ref)
+}
+
+// EnterSelectionSet mocks base method
+func (m *MockVisitor) EnterSelectionSet(ref int, ancestors []ast.Node) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "EnterSelectionSet", ref, ancestors)
+}
+
+// EnterSelectionSet indicates an expected call of EnterSelectionSet
+func (mr *MockVisitorMockRecorder) EnterSelectionSet(ref, ancestors interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnterSelectionSet", reflect.TypeOf((*MockVisitor)(nil).EnterSelectionSet), ref, ancestors)
+}
+
+// LeaveSelectionSet mocks base method
+func (m *MockVisitor) LeaveSelectionSet(ref int) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "LeaveSelectionSet", ref)
+}
+
+// LeaveSelectionSet indicates an expected call of LeaveSelectionSet
+func (mr *MockVisitorMockRecorder) LeaveSelectionSet(ref interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LeaveSelectionSet", reflect.TypeOf((*MockVisitor)(nil).LeaveSelectionSet), ref)
+}
+
+// EnterField mocks base method
+func (m *MockVisitor) EnterField(ref int, ancestors []ast.Node, selectionSet int, selectionsBefore, selectionsAfter []int, hasSelections bool) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "EnterField", ref, ancestors, selectionSet, selectionsBefore, selectionsAfter, hasSelections)
+}
+
+// EnterField indicates an expected call of EnterField
+func (mr *MockVisitorMockRecorder) EnterField(ref, ancestors, selectionSet, selectionsBefore, selectionsAfter, hasSelections interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnterField", reflect.TypeOf((*MockVisitor)(nil).EnterField), ref, ancestors, selectionSet, selectionsBefore, selectionsAfter, hasSelections)
+}
+
+// LeaveField mocks base method
+func (m *MockVisitor) LeaveField(ref int, ancestors []ast.Node, selectionSet int, selectionsBefore, selectionsAfter []int, hasSelections bool) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "LeaveField", ref, ancestors, selectionSet, selectionsBefore, selectionsAfter, hasSelections)
+}
+
+// LeaveField indicates an expected call of LeaveField
+func (mr *MockVisitorMockRecorder) LeaveField(ref, ancestors, selectionSet, selectionsBefore, selectionsAfter, hasSelections interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LeaveField", reflect.TypeOf((*MockVisitor)(nil).LeaveField), ref, ancestors, selectionSet, selectionsBefore, selectionsAfter, hasSelections)
+}
+
+// EnterFragmentSpread mocks base method
+func (m *MockVisitor) EnterFragmentSpread(ref int, ancestors []ast.Node, selectionSet int, selectionsBefore, selectionsAfter []int) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "EnterFragmentSpread", ref, ancestors, selectionSet, selectionsBefore, selectionsAfter)
+}
+
+// EnterFragmentSpread indicates an expected call of EnterFragmentSpread
+func (mr *MockVisitorMockRecorder) EnterFragmentSpread(ref, ancestors, selectionSet, selectionsBefore, selectionsAfter interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnterFragmentSpread", reflect.TypeOf((*MockVisitor)(nil).EnterFragmentSpread), ref, ancestors, selectionSet, selectionsBefore, selectionsAfter)
+}
+
+// LeaveFragmentSpread mocks base method
+func (m *MockVisitor) LeaveFragmentSpread(ref int) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "LeaveFragmentSpread", ref)
+}
+
+// LeaveFragmentSpread indicates an expected call of LeaveFragmentSpread
+func (mr *MockVisitorMockRecorder) LeaveFragmentSpread(ref interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LeaveFragmentSpread", reflect.TypeOf((*MockVisitor)(nil).LeaveFragmentSpread), ref)
+}
+
+// EnterInlineFragment mocks base method
+func (m *MockVisitor) EnterInlineFragment(ref int, ancestors []ast.Node, selectionSet int, selectionsBefore, selectionsAfter []int, hasSelections bool) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "EnterInlineFragment", ref, ancestors, selectionSet, selectionsBefore, selectionsAfter, hasSelections)
+}
+
+// EnterInlineFragment indicates an expected call of EnterInlineFragment
+func (mr *MockVisitorMockRecorder) EnterInlineFragment(ref, ancestors, selectionSet, selectionsBefore, selectionsAfter, hasSelections interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnterInlineFragment", reflect.TypeOf((*MockVisitor)(nil).EnterInlineFragment), ref, ancestors, selectionSet, selectionsBefore, selectionsAfter, hasSelections)
+}
+
+// LeaveInlineFragment mocks base method
+func (m *MockVisitor) LeaveInlineFragment(ref int) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "LeaveInlineFragment", ref)
+}
+
+// LeaveInlineFragment indicates an expected call of LeaveInlineFragment
+func (mr *MockVisitorMockRecorder) LeaveInlineFragment(ref interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LeaveInlineFragment", reflect.TypeOf((*MockVisitor)(nil).LeaveInlineFragment), ref)
+}
+
+// EnterFragmentDefinition mocks base method
+func (m *MockVisitor) EnterFragmentDefinition(ref int) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "EnterFragmentDefinition", ref)
+}
+
+// EnterFragmentDefinition indicates an expected call of EnterFragmentDefinition
+func (mr *MockVisitorMockRecorder) EnterFragmentDefinition(ref interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnterFragmentDefinition", reflect.TypeOf((*MockVisitor)(nil).EnterFragmentDefinition), ref)
+}
+
+// LeaveFragmentDefinition mocks base method
+func (m *MockVisitor) LeaveFragmentDefinition(ref int) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "LeaveFragmentDefinition", ref)
+}
+
+// LeaveFragmentDefinition indicates an expected call of LeaveFragmentDefinition
+func (mr *MockVisitorMockRecorder) LeaveFragmentDefinition(ref interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LeaveFragmentDefinition", reflect.TypeOf((*MockVisitor)(nil).LeaveFragmentDefinition), ref)
 }
