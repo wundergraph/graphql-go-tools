@@ -10,6 +10,7 @@ import (
 
 type Printer struct {
 	printer printer
+	walker  astvisitor.Walker
 }
 
 func (p *Printer) SetInput(document *ast.Document, input *input.Input) {
@@ -20,7 +21,7 @@ func (p *Printer) SetInput(document *ast.Document, input *input.Input) {
 func (p *Printer) Print(out io.Writer) error {
 	p.printer.err = nil
 	p.printer.out = out
-	astvisitor.Visit(p.printer.document, &p.printer)
+	p.walker.Visit(p.printer.document, p.printer.input, &p.printer)
 	return p.printer.err
 }
 
@@ -38,7 +39,7 @@ func (p *printer) write(data []byte) {
 	_, p.err = p.out.Write(data)
 }
 
-func (p *printer) EnterOperationDefinition(ref int, ancestors []ast.Node) {
+func (p *printer) EnterOperationDefinition(ref int) {
 	switch p.document.OperationDefinitions[ref].OperationType {
 	case ast.OperationTypeQuery:
 		p.write(literal.QUERY)
@@ -60,41 +61,41 @@ func (p *printer) LeaveOperationDefinition(ref int) {
 	p.write(literal.SPACE)
 }
 
-func (p *printer) EnterSelectionSet(set ast.SelectionSet, ancestors []ast.Node) {
+func (p *printer) EnterSelectionSet(ref int, ancestors []ast.Node) {
 	p.write(literal.LBRACE)
 }
 
-func (p *printer) LeaveSelectionSet(set ast.SelectionSet, hasNext bool) {
+func (p *printer) LeaveSelectionSet(ref int) {
 	p.write(literal.RBRACE)
 }
 
-func (p *printer) EnterField(ref int, ancestors []ast.Node, hasSelections bool) {
+func (p *printer) EnterField(ref int, ancestors []ast.Node, selectionSet int, selectionsBefore []int, selectionsAfter []int, hasSelections bool) {
 	p.write(p.input.ByteSlice(p.document.Fields[ref].Name))
 	if hasSelections {
 		p.write(literal.SPACE)
 	}
 }
 
-func (p *printer) LeaveField(ref int, hasNext bool) {
-	if hasNext {
+func (p *printer) LeaveField(ref int, ancestors []ast.Node, selectionSet int, selectionsBefore []int, selectionsAfter []int, hasSelections bool) {
+	if len(selectionsAfter) != 0 {
 		p.write(literal.SPACE)
 	}
 }
 
-func (p *printer) EnterFragmentSpread(ref int) {
+func (p *printer) EnterFragmentSpread(ref int, ancestors []ast.Node, selectionSet int, selectionsBefore []int, selectionsAfter []int) {
 	p.write(literal.SPREAD)
 	p.write(p.input.ByteSlice(p.document.FragmentSpreads[ref].FragmentName))
 }
 
-func (p *printer) LeaveFragmentSpread(ref int, hasNext bool) {
+func (p *printer) LeaveFragmentSpread(ref int) {
 
 }
 
-func (p *printer) EnterInlineFragment(ref int) {
+func (p *printer) EnterInlineFragment(ref int, ancestors []ast.Node, selectionSet int, selectionsBefore []int, selectionsAfter []int, hasSelections bool) {
 
 }
 
-func (p *printer) LeaveInlineFragment(ref int, hasNext bool) {
+func (p *printer) LeaveInlineFragment(ref int) {
 
 }
 
