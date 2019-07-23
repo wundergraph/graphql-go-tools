@@ -1095,7 +1095,9 @@ func (p *Parser) parseDirectiveLocations(locations *ast.DirectiveLocations) {
 	}
 }
 
-func (p *Parser) parseSelectionSet() (set ast.SelectionSet) {
+func (p *Parser) parseSelectionSet() (int, bool) {
+
+	var set ast.SelectionSet
 
 	set.SelectionRefs = p.document.Refs[p.document.NextRefIndex()][:0]
 	set.LBrace = p.tokens[p.mustNext(keyword.LBRACE)].TextPosition
@@ -1104,7 +1106,14 @@ func (p *Parser) parseSelectionSet() (set ast.SelectionSet) {
 		switch p.peek() {
 		case keyword.RBRACE:
 			set.RBrace = p.tokens[p.next()].TextPosition
-			return
+
+			if len(set.SelectionRefs) == 0 {
+				return 0, false
+			}
+
+			p.document.SelectionSets = append(p.document.SelectionSets, set)
+			return len(p.document.SelectionSets) - 1, true
+
 		default:
 			if cap(set.SelectionRefs) == 0 {
 				set.SelectionRefs = p.document.Refs[p.document.NextRefIndex()][:0]
@@ -1177,7 +1186,7 @@ func (p *Parser) parseField() int {
 		field.Directives = p.parseDirectiveList()
 	}
 	if p.peekEquals(keyword.LBRACE) {
-		field.SelectionSet = p.parseSelectionSet()
+		field.SelectionSet, field.HasSelections = p.parseSelectionSet()
 	}
 
 	p.document.Fields = append(p.document.Fields, field)
@@ -1205,7 +1214,7 @@ func (p *Parser) parseInlineFragment(spread position.Position) int {
 		fragment.Directives = p.parseDirectiveList()
 	}
 	if p.peekEquals(keyword.LBRACE) {
-		fragment.SelectionSet = p.parseSelectionSet()
+		fragment.SelectionSet, fragment.HasSelections = p.parseSelectionSet()
 	}
 	p.document.InlineFragments = append(p.document.InlineFragments, fragment)
 	return len(p.document.InlineFragments) - 1
@@ -1234,7 +1243,7 @@ func (p *Parser) parseOperationDefinition() {
 		operationDefinition.OperationType = ast.OperationTypeSubscription
 	case keyword.LBRACE:
 		operationDefinition.OperationType = ast.OperationTypeQuery
-		operationDefinition.SelectionSet = p.parseSelectionSet()
+		operationDefinition.SelectionSet, operationDefinition.HasSelections = p.parseSelectionSet()
 		p.document.OperationDefinitions = append(p.document.OperationDefinitions, operationDefinition)
 		return
 	default:
@@ -1252,7 +1261,7 @@ func (p *Parser) parseOperationDefinition() {
 		operationDefinition.Directives = p.parseDirectiveList()
 	}
 
-	operationDefinition.SelectionSet = p.parseSelectionSet()
+	operationDefinition.SelectionSet, operationDefinition.HasSelections = p.parseSelectionSet()
 
 	p.document.OperationDefinitions = append(p.document.OperationDefinitions, operationDefinition)
 	ref := len(p.document.OperationDefinitions) - 1
@@ -1324,7 +1333,7 @@ func (p *Parser) parseFragmentDefinition() {
 	if p.peekEquals(keyword.AT) {
 		fragmentDefinition.Directives = p.parseDirectiveList()
 	}
-	fragmentDefinition.SelectionSet = p.parseSelectionSet()
+	fragmentDefinition.SelectionSet, fragmentDefinition.HasSelections = p.parseSelectionSet()
 	p.document.FragmentDefinitions = append(p.document.FragmentDefinitions, fragmentDefinition)
 
 	ref := len(p.document.FragmentDefinitions) - 1

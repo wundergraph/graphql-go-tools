@@ -1422,7 +1422,7 @@ func TestParser_Parse(t *testing.T) {
 					if in.ByteSliceString(query.Name) != "" {
 						panic("want empty string")
 					}
-					fieldSelection := doc.Selections[query.SelectionSet.SelectionRefs[0]]
+					fieldSelection := doc.Selections[doc.SelectionSets[query.SelectionSet].SelectionRefs[0]]
 					if fieldSelection.Kind != ast.SelectionKindField {
 						panic("want SelectionKindField")
 					}
@@ -1442,7 +1442,7 @@ func TestParser_Parse(t *testing.T) {
 					if in.ByteSliceString(query.Name) != "" {
 						panic("want empty string")
 					}
-					fieldSelection := doc.Selections[query.SelectionSet.SelectionRefs[0]]
+					fieldSelection := doc.Selections[doc.SelectionSets[query.SelectionSet].SelectionRefs[0]]
 					if fieldSelection.Kind != ast.SelectionKindField {
 						panic("want SelectionKindField")
 					}
@@ -1462,7 +1462,7 @@ func TestParser_Parse(t *testing.T) {
 					if in.ByteSliceString(query.Name) != "Query1" {
 						panic("want Query1")
 					}
-					fieldSelection := doc.Selections[query.SelectionSet.SelectionRefs[0]]
+					fieldSelection := doc.Selections[doc.SelectionSets[query.SelectionSet].SelectionRefs[0]]
 					if fieldSelection.Kind != ast.SelectionKindField {
 						panic("want SelectionKindField")
 					}
@@ -1482,7 +1482,7 @@ func TestParser_Parse(t *testing.T) {
 					if in.ByteSliceString(mutation.Name) != "" {
 						panic("want empty string")
 					}
-					fieldSelection := doc.Selections[mutation.SelectionSet.SelectionRefs[0]]
+					fieldSelection := doc.Selections[doc.SelectionSets[mutation.SelectionSet].SelectionRefs[0]]
 					if fieldSelection.Kind != ast.SelectionKindField {
 						panic("want SelectionKindField")
 					}
@@ -1502,7 +1502,7 @@ func TestParser_Parse(t *testing.T) {
 					if in.ByteSliceString(mutation.Name) != "Mutation1" {
 						panic("want Mutation1")
 					}
-					fieldSelection := doc.Selections[mutation.SelectionSet.SelectionRefs[0]]
+					fieldSelection := doc.Selections[doc.SelectionSets[mutation.SelectionSet].SelectionRefs[0]]
 					if fieldSelection.Kind != ast.SelectionKindField {
 						panic("want SelectionKindField")
 					}
@@ -1522,7 +1522,7 @@ func TestParser_Parse(t *testing.T) {
 					if in.ByteSliceString(mutation.Name) != "" {
 						panic("want empty string")
 					}
-					fieldSelection := doc.Selections[mutation.SelectionSet.SelectionRefs[0]]
+					fieldSelection := doc.Selections[doc.SelectionSets[mutation.SelectionSet].SelectionRefs[0]]
 					if fieldSelection.Kind != ast.SelectionKindField {
 						panic("want SelectionKindField")
 					}
@@ -1542,7 +1542,7 @@ func TestParser_Parse(t *testing.T) {
 					if in.ByteSliceString(mutation.Name) != "Sub1" {
 						panic("want empty Sub1")
 					}
-					fieldSelection := doc.Selections[mutation.SelectionSet.SelectionRefs[0]]
+					fieldSelection := doc.Selections[doc.SelectionSets[mutation.SelectionSet].SelectionRefs[0]]
 					if fieldSelection.Kind != ast.SelectionKindField {
 						panic("want SelectionKindField")
 					}
@@ -1643,7 +1643,7 @@ func TestParser_Parse(t *testing.T) {
 							  }
 							}`, parseSelectionSet, false,
 				func(in *input.Input, doc *ast.Document, extra interface{}) {
-					set := extra.(ast.SelectionSet)
+					set := doc.SelectionSets[extra.(int)]
 
 					// me
 					meSelection := doc.Selections[set.SelectionRefs[0]]
@@ -1657,7 +1657,7 @@ func TestParser_Parse(t *testing.T) {
 
 					// ... on Person
 
-					onPersonSelection := doc.Selections[me.SelectionSet.SelectionRefs[0]]
+					onPersonSelection := doc.Selections[doc.SelectionSets[me.SelectionSet].SelectionRefs[0]]
 					if onPersonSelection.Kind != ast.SelectionKindInlineFragment {
 						panic("want SelectionKindInlineFragment")
 					}
@@ -1669,7 +1669,7 @@ func TestParser_Parse(t *testing.T) {
 					if in.ByteSliceString(Person.Name) != "Person" {
 						panic("want Person")
 					}
-					personIdSelection := doc.Selections[onPersonFragment.SelectionSet.SelectionRefs[0]]
+					personIdSelection := doc.Selections[doc.SelectionSets[onPersonFragment.SelectionSet].SelectionRefs[0]]
 					if personIdSelection.Kind != ast.SelectionKindField {
 						panic("want SelectionKindField")
 					}
@@ -1679,7 +1679,7 @@ func TestParser_Parse(t *testing.T) {
 					}
 
 					// ...personFragment
-					personFragmentSelection := doc.Selections[me.SelectionSet.SelectionRefs[1]]
+					personFragmentSelection := doc.Selections[doc.SelectionSets[me.SelectionSet].SelectionRefs[1]]
 					if personFragmentSelection.Kind != ast.SelectionKindFragmentSpread {
 						panic("want SelectionKindFragmentSpread")
 					}
@@ -1692,7 +1692,7 @@ func TestParser_Parse(t *testing.T) {
 					}
 
 					// id
-					idSelection := doc.Selections[me.SelectionSet.SelectionRefs[2]]
+					idSelection := doc.Selections[doc.SelectionSets[me.SelectionSet].SelectionRefs[2]]
 					if idSelection.Kind != ast.SelectionKindField {
 						panic("want SelectionKindField")
 					}
@@ -1702,7 +1702,7 @@ func TestParser_Parse(t *testing.T) {
 					}
 
 					// birthday
-					birthdaySelection := doc.Selections[me.SelectionSet.SelectionRefs[5]]
+					birthdaySelection := doc.Selections[doc.SelectionSets[me.SelectionSet].SelectionRefs[5]]
 					if birthdaySelection.Kind != ast.SelectionKindField {
 						panic("want SelectionKindField")
 					}
@@ -1712,7 +1712,7 @@ func TestParser_Parse(t *testing.T) {
 					}
 
 					// month
-					monthSelection := doc.Selections[birthday.SelectionSet.SelectionRefs[0]]
+					monthSelection := doc.Selections[doc.SelectionSets[birthday.SelectionSet].SelectionRefs[0]]
 					if monthSelection.Kind != ast.SelectionKindField {
 						panic("want SelectionKindField")
 					}
@@ -1757,7 +1757,7 @@ func TestParser_Parse(t *testing.T) {
 						panic("want User")
 					}
 
-					selection := doc.Selections[fragment.SelectionSet.SelectionRefs[0]]
+					selection := doc.Selections[doc.SelectionSets[fragment.SelectionSet].SelectionRefs[0]]
 					if selection.Kind != ast.SelectionKindField {
 						panic("want SelectionKindField")
 					}
@@ -1766,7 +1766,7 @@ func TestParser_Parse(t *testing.T) {
 						panic("want friends")
 					}
 
-					selection = doc.Selections[friends.SelectionSet.SelectionRefs[0]]
+					selection = doc.Selections[doc.SelectionSets[friends.SelectionSet].SelectionRefs[0]]
 					if selection.Kind != ast.SelectionKindField {
 						panic("want SelectionKindField")
 					}
@@ -1797,7 +1797,7 @@ func TestParser_Parse(t *testing.T) {
 						panic("want User")
 					}
 
-					selection1 := doc.Selections[fragment.SelectionSet.SelectionRefs[0]]
+					selection1 := doc.Selections[doc.SelectionSets[fragment.SelectionSet].SelectionRefs[0]]
 					if selection1.Kind != ast.SelectionKindField {
 						panic("want SelectionKindField")
 					}
