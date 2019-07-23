@@ -93,6 +93,7 @@ type Document struct {
 	ObjectFields                 []ObjectField
 	ObjectValues                 []ObjectValue
 	Selections                   []Selection
+	SelectionSets                []SelectionSet
 	Fields                       []Field
 	InlineFragments              []InlineFragment
 	FragmentSpreads              []FragmentSpread
@@ -140,6 +141,7 @@ func NewDocument() *Document {
 		ObjectFields:                 make([]ObjectField, 64)[:0],
 		ObjectValues:                 make([]ObjectValue, 16)[:0],
 		Selections:                   make([]Selection, 128)[:0],
+		SelectionSets:                make([]SelectionSet, 48)[:0],
 		Fields:                       make([]Field, 128)[:0],
 		InlineFragments:              make([]InlineFragment, 16)[:0],
 		FragmentSpreads:              make([]FragmentSpread, 16)[:0],
@@ -186,6 +188,7 @@ func (d *Document) Reset() {
 	d.ObjectFields = d.ObjectFields[:0]
 	d.ObjectValues = d.ObjectValues[:0]
 	d.Selections = d.Selections[:0]
+	d.SelectionSets = d.SelectionSets[:0]
 	d.Fields = d.Fields[:0]
 	d.InlineFragments = d.InlineFragments[:0]
 	d.FragmentSpreads = d.FragmentSpreads[:0]
@@ -516,7 +519,8 @@ type OperationDefinition struct {
 	Name                 input.ByteSliceReference // optional, user defined name of the operation
 	VariableDefinitions  VariableDefinitionList   // optional, e.g. ($devicePicSize: Int)
 	Directives           DirectiveList            // optional, e.g. @foo
-	SelectionSet         SelectionSet             // e.g. {field}
+	SelectionSet         int                      // e.g. {field}
+	HasSelections        bool
 }
 
 type VariableDefinitionList struct {
@@ -548,11 +552,12 @@ type Selection struct {
 }
 
 type Field struct {
-	Alias        Alias                    // optional, e.g. renamed:
-	Name         input.ByteSliceReference // field name, e.g. id
-	Arguments    ArgumentList             // optional
-	Directives   DirectiveList            // optional
-	SelectionSet SelectionSet             // optional
+	Alias         Alias                    // optional, e.g. renamed:
+	Name          input.ByteSliceReference // field name, e.g. id
+	Arguments     ArgumentList             // optional
+	Directives    DirectiveList            // optional
+	SelectionSet  int                      // optional
+	HasSelections bool
 }
 
 type Alias struct {
@@ -581,7 +586,8 @@ type InlineFragment struct {
 	Spread        position.Position // ...
 	TypeCondition TypeCondition     // on NamedType, e.g. on User
 	Directives    DirectiveList     // optional, e.g. @foo
-	SelectionSet  SelectionSet      // optional, e.g. { nextField }
+	SelectionSet  int               // optional, e.g. { nextField }
+	HasSelections bool
 }
 
 // TypeCondition
@@ -604,5 +610,6 @@ type FragmentDefinition struct {
 	Name            input.ByteSliceReference // Name but not on, e.g. friendFields
 	TypeCondition   TypeCondition            // e.g. on User
 	Directives      DirectiveList            // optional, e.g. @foo
-	SelectionSet    SelectionSet             // e.g. { id }
+	SelectionSet    int                      // e.g. { id }
+	HasSelections   bool
 }
