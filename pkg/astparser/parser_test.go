@@ -44,7 +44,7 @@ func TestParser_Parse(t *testing.T) {
 		return func(parser *Parser) (interface{}, error) {
 			parser.lexer.SetInput(parser.input)
 			parser.tokenize()
-			set := parser.parseSelectionSet()
+			set, _ := parser.parseSelectionSet()
 			return set, parser.err
 		}
 	}
