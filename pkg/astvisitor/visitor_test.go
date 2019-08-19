@@ -1,84 +1,48 @@
 package astvisitor
 
 import (
-	"github.com/golang/mock/gomock"
+	"bytes"
+	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
-	"github.com/jensneuse/graphql-go-tools/pkg/input"
-	"github.com/jensneuse/graphql-go-tools/pkg/mocks/visitor"
+	"github.com/sebdah/goldie"
+	"io"
 	"testing"
 )
 
-func TestVisit(t *testing.T) {
-	raw := []byte(`
-		query postsQuery {
-  			posts(first: 100) {
-    			id
-				description
-  			}
-		}`)
-
-	in := &input.Input{}
-	in.ResetInputBytes(raw)
-	doc := ast.NewDocument()
-
-	parser := astparser.NewParser()
-	err := parser.Parse(in, doc)
+var must = func(err error) {
 	if err != nil {
-		t.Fatal(err)
+		panic(err)
 	}
+}
 
-	controller := gomock.NewController(t)
-	defer controller.Finish()
+var mustDoc = func(doc *ast.Document, err error) *ast.Document {
+	must(err)
+	return doc
+}
 
-	visitor := mock_astvisitor.NewMockVisitor(controller)
+func TestVisit(t *testing.T) {
 
-	// query ->
-	visitor.EXPECT().EnterOperationDefinition(0)
-	visitor.EXPECT().EnterSelectionSet(0, gomock.Any())
-
-	// posts ->
-	visitor.EXPECT().EnterField(1, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any())
-	visitor.EXPECT().EnterSelectionSet(gomock.Any(), gomock.Any())
-
-	// id ->
-	visitor.EXPECT().EnterField(2, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any())
-	visitor.EXPECT().LeaveField(2, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any())
-
-	// description ->
-	visitor.EXPECT().EnterField(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any())
-	visitor.EXPECT().LeaveField(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any())
-
-	// <- posts
-	visitor.EXPECT().LeaveSelectionSet(gomock.Any())
-	visitor.EXPECT().LeaveField(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any())
-
-	// <- query
-	visitor.EXPECT().LeaveSelectionSet(gomock.Any())
-	visitor.EXPECT().LeaveOperationDefinition(gomock.Any())
+	definition := mustDoc(astparser.ParseGraphqlDocumentString(testDefinition))
+	operation := mustDoc(astparser.ParseGraphqlDocumentString(testOperation))
 
 	walker := Walker{}
-	walker.Visit(doc, in, visitor)
+	buff := &bytes.Buffer{}
+	visitor := &printingVisitor{
+		out:        buff,
+		operation:  operation,
+		definition: definition,
+	}
+
+	must(walker.Visit(operation, definition, visitor))
+
+	goldie.Assert(t, "visitor", buff.Bytes())
 }
 
 func BenchmarkVisitor(b *testing.B) {
-	raw := []byte(`
-		query posts {
-  			posts(first: 100) {
-    			id
-				description
-  			}
-		}`)
 
-	in := &input.Input{}
-	in.ResetInputBytes(raw)
-	doc := ast.NewDocument()
-
-	parser := astparser.NewParser()
-	err := parser.Parse(in, doc)
-	if err != nil {
-		b.Fatal(err)
-	}
+	definition := mustDoc(astparser.ParseGraphqlDocumentString(testDefinition))
+	operation := mustDoc(astparser.ParseGraphqlDocumentString(testOperation))
 
 	visitor := &dummyVisitor{}
 
@@ -90,57 +54,256 @@ func BenchmarkVisitor(b *testing.B) {
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		walker.Visit(doc, in, visitor)
+		walker.Visit(operation, definition, visitor)
 	}
 }
 
 type dummyVisitor struct {
 }
 
-func (d *dummyVisitor) EnterOperationDefinition(ref int) {
+func (d *dummyVisitor) EnterOperationDefinition(ref int, info Info) {
 
 }
 
-func (d *dummyVisitor) LeaveOperationDefinition(ref int) {
+func (d *dummyVisitor) LeaveOperationDefinition(ref int, info Info) {
 
 }
 
-func (d *dummyVisitor) EnterSelectionSet(ref int, ancestors []ast.Node) {
+func (d *dummyVisitor) EnterSelectionSet(ref int, info Info) Instruction {
+	return Instruction{}
+}
+
+func (d *dummyVisitor) LeaveSelectionSet(ref int, info Info) {
 
 }
 
-func (d *dummyVisitor) LeaveSelectionSet(ref int) {
+func (d *dummyVisitor) EnterField(ref int, info Info) {
 
 }
 
-func (d *dummyVisitor) EnterField(ref int, ancestors []ast.Node, selectionSet int, selectionsBefore []int, selectionsAfter []int, hasSelections bool) {
+func (d *dummyVisitor) LeaveField(ref int, info Info) {
 
 }
 
-func (d *dummyVisitor) LeaveField(ref int, ancestors []ast.Node, selectionSet int, selectionsBefore []int, selectionsAfter []int, hasSelections bool) {
+func (d *dummyVisitor) EnterArgument(ref int, definition int, info Info) {
 
 }
 
-func (d *dummyVisitor) EnterFragmentSpread(ref int, ancestors []ast.Node, selectionSet int, selectionsBefore []int, selectionsAfter []int) {
+func (d *dummyVisitor) LeaveArgument(ref int, definition int, info Info) {
 
 }
 
-func (d *dummyVisitor) LeaveFragmentSpread(ref int) {
+func (d *dummyVisitor) EnterFragmentSpread(ref int, info Info) {
 
 }
 
-func (d *dummyVisitor) EnterInlineFragment(ref int, ancestors []ast.Node, selectionSet int, selectionsBefore []int, selectionsAfter []int, hasSelections bool) {
+func (d *dummyVisitor) LeaveFragmentSpread(ref int, info Info) {
 
 }
 
-func (d *dummyVisitor) LeaveInlineFragment(ref int) {
+func (d *dummyVisitor) EnterInlineFragment(ref int, info Info) {
 
 }
 
-func (d *dummyVisitor) EnterFragmentDefinition(ref int) {
+func (d *dummyVisitor) LeaveInlineFragment(ref int, info Info) {
 
 }
 
-func (d *dummyVisitor) LeaveFragmentDefinition(ref int) {
+func (d *dummyVisitor) EnterFragmentDefinition(ref int, info Info) {
 
 }
+
+func (d *dummyVisitor) LeaveFragmentDefinition(ref int, info Info) {
+
+}
+
+type printingVisitor struct {
+	out         io.Writer
+	operation   *ast.Document
+	definition  *ast.Document
+	indentation int
+}
+
+func (p *printingVisitor) must(_ int, err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+
+func (p *printingVisitor) printIndentation() {
+	for i := 0; i < p.indentation; i++ {
+		p.must(fmt.Fprintf(p.out, " "))
+	}
+}
+
+func (p *printingVisitor) enter() {
+	p.printIndentation()
+	p.indentation += 2
+}
+func (p *printingVisitor) leave() {
+	p.indentation -= 2
+	p.printIndentation()
+}
+
+func (p *printingVisitor) printSelections(info Info) (out string) {
+	out += "SelectionsBefore: " + p.operation.PrintSelections(info.SelectionsBefore)
+	out += " SelectionsAfter: " + p.operation.PrintSelections(info.SelectionsAfter)
+	return
+}
+
+func (p *printingVisitor) EnterOperationDefinition(ref int, info Info) {
+	p.enter()
+	name := p.operation.Input.ByteSliceString(p.operation.OperationDefinitions[ref].Name)
+	if name == "" {
+		name = "anonymous!"
+	}
+	p.must(fmt.Fprintf(p.out, "EnterOperationDefinition (%s): ref: %d, info: %+v\n", name, ref, info))
+}
+
+func (p *printingVisitor) LeaveOperationDefinition(ref int, info Info) {
+	p.leave()
+	p.must(fmt.Fprintf(p.out, "LeaveOperationDefinition: ref: %d, info: %+v\n\n", ref, info))
+}
+
+func (p *printingVisitor) EnterSelectionSet(ref int, info Info) Instruction {
+	p.enter()
+	parentTypeName := p.definition.NodeTypeNameString(info.EnclosingTypeDefinition)
+	p.must(fmt.Fprintf(p.out, "EnterSelectionSet(%s): ref: %d, info: %+v\n", parentTypeName, ref, info))
+	return Instruction{}
+}
+
+func (p *printingVisitor) LeaveSelectionSet(ref int, info Info) {
+	p.leave()
+	parentTypeName := p.definition.NodeTypeNameString(info.EnclosingTypeDefinition)
+	p.must(fmt.Fprintf(p.out, "LeaveSelectionSet(%s): ref: %d, info: %+v\n", parentTypeName, ref, info))
+}
+
+func (p *printingVisitor) EnterField(ref int, info Info) {
+	p.enter()
+	fieldName := p.operation.FieldName(ref)
+	parentTypeName := p.definition.NodeTypeNameString(info.EnclosingTypeDefinition)
+	p.must(fmt.Fprintf(p.out, "EnterField(%s::%s): ref: %d, info: %+v, %s\n", fieldName, parentTypeName, ref, info, p.printSelections(info)))
+}
+
+func (p *printingVisitor) LeaveField(ref int, info Info) {
+	p.leave()
+	fieldName := p.operation.FieldNameString(ref)
+	parentTypeName := p.definition.NodeTypeNameString(info.EnclosingTypeDefinition)
+	p.must(fmt.Fprintf(p.out, "LeaveField(%s::%s): ref: %d, info: %+v\n", fieldName, parentTypeName, ref, info))
+}
+
+func (p *printingVisitor) EnterArgument(ref int, definition int, info Info) {
+	p.enter()
+	argName := p.operation.ArgumentNameString(ref)
+	parentTypeName := p.definition.NodeTypeNameString(info.EnclosingTypeDefinition)
+	def := p.definition.InputValueDefinitions[definition]
+	p.must(fmt.Fprintf(p.out, "EnterArgument(%s::%s): ref: %d, definition: %+v, info: %+v\n", argName, parentTypeName, ref, def, info))
+}
+
+func (p *printingVisitor) LeaveArgument(ref int, definition int, info Info) {
+	p.leave()
+	argName := p.operation.ArgumentNameString(ref)
+	parentTypeName := p.definition.NodeTypeNameString(info.EnclosingTypeDefinition)
+	def := p.definition.InputValueDefinitions[definition]
+	p.must(fmt.Fprintf(p.out, "LeaveArgument(%s::%s): ref: %d,definition: %+v, info: %+v\n", argName, parentTypeName, ref, def, info))
+}
+
+func (p *printingVisitor) EnterFragmentSpread(ref int, info Info) {
+	p.enter()
+	spreadName := p.operation.FragmentSpreadNameString(ref)
+	p.must(fmt.Fprintf(p.out, "EnterFragmentSpread(%s): ref: %d, info: %+v\n", spreadName, ref, info))
+}
+
+func (p *printingVisitor) LeaveFragmentSpread(ref int, info Info) {
+	p.leave()
+	spreadName := p.operation.FragmentSpreadNameString(ref)
+	p.must(fmt.Fprintf(p.out, "LeaveFragmentSpread(%s): ref: %d, info: %+v\n", spreadName, ref, info))
+}
+
+func (p *printingVisitor) EnterInlineFragment(ref int, info Info) {
+	p.enter()
+	typeConditionName := p.operation.InlineFragmentTypeConditionNameString(ref)
+	if typeConditionName == "" {
+		typeConditionName = "anonymous!"
+	}
+	p.must(fmt.Fprintf(p.out, "EnterInlineFragment(%s): ref: %d, info: %+v\n", typeConditionName, ref, info))
+}
+
+func (p *printingVisitor) LeaveInlineFragment(ref int, info Info) {
+	p.leave()
+	typeConditionName := p.operation.InlineFragmentTypeConditionNameString(ref)
+	if typeConditionName == "" {
+		typeConditionName = "anonymous!"
+	}
+	p.must(fmt.Fprintf(p.out, "LeaveInlineFragment(%s): ref: %d, info: %+v\n", typeConditionName, ref, info))
+}
+
+func (p *printingVisitor) EnterFragmentDefinition(ref int, info Info) {
+	p.enter()
+	name := p.operation.FragmentDefinitionNameString(ref)
+	p.must(fmt.Fprintf(p.out, "EnterFragmentDefinition(%s): ref: %d, info: %+v\n", name, ref, info))
+}
+
+func (p *printingVisitor) LeaveFragmentDefinition(ref int, info Info) {
+	p.leave()
+	name := p.operation.FragmentDefinitionNameString(ref)
+	p.must(fmt.Fprintf(p.out, "LeaveFragmentDefinition(%s): ref: %d, info: %+v\n\n", name, ref, info))
+}
+
+const testOperation = `
+query postsQuery {
+	posts {
+		id
+		description
+		...FirstFragment
+		... {
+			description
+			... on Post {
+				id
+			}
+		}
+	}
+}
+query PostsUserQuery {
+	posts {
+		id
+		description
+		user {
+			id
+			name
+		}
+	}
+}
+fragment FirstFragment on Post {
+	id
+}
+query ArgsQuery {
+	foo(bar: "barValue", baz: true){
+		fooField
+	}
+}
+`
+
+const testDefinition = `
+schema {
+	query: Query
+}
+type Query {
+	posts: [Post]
+	foo(bar: String!, baz: Boolean!): Foo
+}
+type User {
+	id: ID
+	name: String
+}
+type Post {
+	id: ID
+	description: String
+	user: User
+}
+type Foo {
+	fooField: String
+}
+scalar ID
+scalar String
+`
