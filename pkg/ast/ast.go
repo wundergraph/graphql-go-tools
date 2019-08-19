@@ -1,7 +1,9 @@
+//go:generate stringer -type=OperationType,ValueKind,TypeKind,SelectionKind,NodeKind -output ast_string.go
 package ast
 
 import (
-	"github.com/jensneuse/graphql-go-tools/pkg/input"
+	"bytes"
+	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 )
 
@@ -51,15 +53,20 @@ const (
 	NodeKindEnumTypeExtension
 	NodeKindInputObjectTypeDefinition
 	NodeKindInputObjectTypeExtension
+	NodeKindScalarTypeDefinition
+	NodeKindDirectiveDefinition
 	NodeKindOperationDefinition
 	NodeKindSelectionSet
 	NodeKindField
 	NodeKindFragmentSpread
 	NodeKindInlineFragment
 	NodeKindFragmentDefinition
+	NodeKindArgument
+	NodeKindDirective
 )
 
 type Document struct {
+	Input                        Input
 	RootNodes                    []Node
 	SchemaDefinitions            []SchemaDefinition
 	SchemaExtensions             []SchemaExtension
@@ -100,9 +107,55 @@ type Document struct {
 	OperationDefinitions         []OperationDefinition
 	VariableDefinitions          []VariableDefinition
 	FragmentDefinitions          []FragmentDefinition
-	BooleanValue                 [2]BooleanValue
+	BooleanValues                [2]BooleanValue
 	Refs                         [][8]int
 	RefIndex                     int
+	Index                        Index
+}
+
+func (d *Document) ReplaceFragmentSpread(selectionSet int, spreadRef int, replaceWithSelectionSet int) {
+	for i, j := range d.SelectionSets[selectionSet].SelectionRefs {
+		if d.Selections[j].Kind == SelectionKindFragmentSpread && d.Selections[j].Ref == spreadRef {
+			d.SelectionSets[selectionSet].SelectionRefs = append(d.SelectionSets[selectionSet].SelectionRefs[:i], append(d.SelectionSets[replaceWithSelectionSet].SelectionRefs, d.SelectionSets[selectionSet].SelectionRefs[i+1:]...)...)
+			return
+		}
+	}
+}
+
+func (d *Document) ReplaceFragmentSpreadWithInlineFragment(selectionSet int, spreadRef int, replaceWithSelectionSet int, typeCondition TypeCondition) {
+	d.InlineFragments = append(d.InlineFragments, InlineFragment{
+		TypeCondition: typeCondition,
+		SelectionSet:  replaceWithSelectionSet,
+		HasSelections: len(d.SelectionSets[replaceWithSelectionSet].SelectionRefs) != 0,
+	})
+	ref := len(d.InlineFragments) - 1
+	d.Selections = append(d.Selections, Selection{
+		Kind: SelectionKindInlineFragment,
+		Ref:  ref,
+	})
+	selectionRef := len(d.Selections) - 1
+	for i, j := range d.SelectionSets[selectionSet].SelectionRefs {
+		if d.Selections[j].Kind == SelectionKindFragmentSpread && d.Selections[j].Ref == spreadRef {
+			d.SelectionSets[selectionSet].SelectionRefs = append(d.SelectionSets[selectionSet].SelectionRefs[:i], append([]int{selectionRef}, d.SelectionSets[selectionSet].SelectionRefs[i+1:]...)...)
+			return
+		}
+	}
+}
+
+func (d *Document) EmptySelectionSet(ref int) {
+	d.SelectionSets[ref].SelectionRefs = d.SelectionSets[ref].SelectionRefs[:0]
+}
+
+func (d *Document) AppendSelectionSet(ref int, appendRef int) {
+	d.SelectionSets[ref].SelectionRefs = append(d.SelectionSets[ref].SelectionRefs, d.SelectionSets[appendRef].SelectionRefs...)
+}
+
+func (d *Document) ReplaceSelectionOnSelectionSet(ref, replace, with int) {
+	d.SelectionSets[ref].SelectionRefs = append(d.SelectionSets[ref].SelectionRefs[:replace], append(d.SelectionSets[with].SelectionRefs, d.SelectionSets[ref].SelectionRefs[replace+1:]...)...)
+}
+
+func (d *Document) RemoveFromSelectionSet(ref int, index int) {
+	d.SelectionSets[ref].SelectionRefs = append(d.SelectionSets[ref].SelectionRefs[:index], d.SelectionSets[ref].SelectionRefs[index+1:]...)
 }
 
 func NewDocument() *Document {
@@ -148,9 +201,12 @@ func NewDocument() *Document {
 		OperationDefinitions:         make([]OperationDefinition, 0, 8),
 		VariableDefinitions:          make([]VariableDefinition, 0, 8),
 		FragmentDefinitions:          make([]FragmentDefinition, 0, 8),
-		BooleanValue:                 [2]BooleanValue{false, true},
+		BooleanValues:                [2]BooleanValue{false, true},
 		Refs:                         make([][8]int, 48),
 		RefIndex:                     -1,
+		Index: Index{
+			Nodes: make(map[string]Node, 48),
+		},
 	}
 }
 
@@ -197,6 +253,7 @@ func (d *Document) Reset() {
 	d.FragmentDefinitions = d.FragmentDefinitions[:0]
 
 	d.RefIndex = -1
+	d.Index.Reset()
 }
 
 func (d *Document) NextRefIndex() int {
@@ -207,9 +264,515 @@ func (d *Document) NextRefIndex() int {
 	return d.RefIndex
 }
 
+func (d *Document) FragmentDefinitionRef(byName ByteSlice) (ref int, exists bool) {
+	for i := range d.FragmentDefinitions {
+		if bytes.Equal(byName, d.Input.ByteSlice(d.FragmentDefinitions[i].Name)) {
+			return i, true
+		}
+	}
+	return -1, false
+}
+
+func (d *Document) DeleteRootNodes(nodes []Node) {
+	for i := range nodes {
+		d.DeleteRootNode(nodes[i])
+	}
+}
+
+func (d *Document) DeleteRootNode(node Node) {
+	for i := range d.RootNodes {
+		if d.RootNodes[i].Kind == node.Kind && d.RootNodes[i].Ref == node.Ref {
+			d.RootNodes = append(d.RootNodes[:i], d.RootNodes[i+1:]...)
+			return
+		}
+	}
+}
+
+func (d *Document) NodeTypeName(node Node) ByteSlice {
+
+	var ref ByteSliceReference
+
+	switch node.Kind {
+	case NodeKindObjectTypeDefinition:
+		ref = d.ObjectTypeDefinitions[node.Ref].Name
+	case NodeKindInterfaceTypeDefinition:
+		ref = d.InterfaceTypeDefinitions[node.Ref].Name
+	case NodeKindInputObjectTypeDefinition:
+		ref = d.InputObjectTypeDefinitions[node.Ref].Name
+	case NodeKindUnionTypeDefinition:
+		ref = d.UnionTypeDefinitions[node.Ref].Name
+	}
+
+	return d.Input.ByteSlice(ref)
+}
+
+func (d *Document) FieldDefinitionName(ref int) ByteSlice {
+	return d.Input.ByteSlice(d.FieldDefinitions[ref].Name)
+}
+
+func (d *Document) FieldDefinitionArgumentsDefinitions(ref int) []int {
+	return d.FieldDefinitions[ref].ArgumentsDefinition.Refs
+}
+
+func (d *Document) NodeFieldDefinitionArgumentDefinitionByName(node Node, fieldName, argumentName ByteSlice) int {
+	fieldDefinition, err := d.NodeFieldDefinitionByName(node, fieldName)
+	if err != nil {
+		return -1
+	}
+	argumentDefinitions := d.FieldDefinitionArgumentsDefinitions(fieldDefinition)
+	for _, i := range argumentDefinitions {
+		if bytes.Equal(argumentName, d.Input.ByteSlice(d.InputValueDefinitions[i].Name)) {
+			return i
+		}
+	}
+	return -1
+}
+
+func (d *Document) FieldDefinitionType(ref int) int {
+	return d.FieldDefinitions[ref].Type
+}
+
+func (d *Document) FieldDefinitionTypeNodeKind(ref int) NodeKind {
+	typeName := d.ResolveTypeName(d.FieldDefinitions[ref].Type)
+	return d.Index.Nodes[string(typeName)].Kind
+}
+
+func (d *Document) NodeFieldDefinitions(node Node) []int {
+	switch node.Kind {
+	case NodeKindObjectTypeDefinition:
+		return d.ObjectTypeDefinitions[node.Ref].FieldsDefinition.Refs
+	case NodeKindInterfaceTypeDefinition:
+		return d.InterfaceTypeDefinitions[node.Ref].FieldsDefinition.Refs
+	default:
+		return nil
+	}
+}
+
+func (d *Document) NodeFieldDefinitionByName(node Node, fieldName ByteSlice) (int, error) {
+	for _, i := range d.NodeFieldDefinitions(node) {
+		if bytes.Equal(d.Input.ByteSlice(d.FieldDefinitions[i].Name), fieldName) {
+			return i, nil
+		}
+	}
+	return -1, fmt.Errorf("node field definition not found for node: %+v name: %s", node, string(fieldName))
+}
+
+func (d *Document) NodeTypeNameString(node Node) string {
+	return string(d.NodeTypeName(node))
+}
+
+func (d *Document) FieldName(ref int) ByteSlice {
+	return d.Input.ByteSlice(d.Fields[ref].Name)
+}
+
+func (d *Document) FieldAlias(ref int) ByteSlice {
+	return d.Input.ByteSlice(d.Fields[ref].Alias.Name)
+}
+
+func (d *Document) FieldAliasIsDefined(ref int) bool {
+	return d.Fields[ref].Alias.IsDefined
+}
+
+func (d *Document) FieldNameString(ref int) string {
+	return string(d.FieldName(ref))
+}
+
+func (d *Document) FragmentSpreadName(ref int) ByteSlice {
+	return d.Input.ByteSlice(d.FragmentSpreads[ref].FragmentName)
+}
+
+func (d *Document) FragmentSpreadNameString(ref int) string {
+	return string(d.FragmentSpreadName(ref))
+}
+
+func (d *Document) InlineFragmentTypeConditionName(ref int) ByteSlice {
+	if d.InlineFragments[ref].TypeCondition.Type == -1 {
+		return nil
+	}
+	return d.Input.ByteSlice(d.Types[d.InlineFragments[ref].TypeCondition.Type].Name)
+}
+
+func (d *Document) InlineFragmentTypeConditionNameString(ref int) string {
+	return string(d.InlineFragmentTypeConditionName(ref))
+}
+
+func (d *Document) FragmentDefinitionName(ref int) ByteSlice {
+	return d.Input.ByteSlice(d.FragmentDefinitions[ref].Name)
+}
+
+func (d *Document) FragmentDefinitionTypeName(ref int) ByteSlice {
+	return d.ResolveTypeName(d.FragmentDefinitions[ref].TypeCondition.Type)
+}
+
+func (d *Document) FragmentDefinitionNameString(ref int) string {
+	return string(d.FragmentDefinitionName(ref))
+}
+
+func (d *Document) ResolveTypeName(ref int) ByteSlice {
+	graphqlType := d.Types[ref]
+	for graphqlType.TypeKind != TypeKindNamed {
+		graphqlType = d.Types[graphqlType.OfType]
+	}
+	return d.Input.ByteSlice(graphqlType.Name)
+}
+
+func (d *Document) PrintSelections(selections []int) (out string) {
+	out += "["
+	for i, ref := range selections {
+		out += fmt.Sprintf("%+v", d.Selections[ref])
+		if i != len(selections)-1 {
+			out += ","
+		}
+	}
+	out += "]"
+	return
+}
+
+func (d *Document) NodeImplementsInterface(node Node, interfaceNode Node) bool {
+
+	nodeFields := d.NodeFieldDefinitions(node)
+	interfaceFields := d.NodeFieldDefinitions(interfaceNode)
+
+	for _, i := range interfaceFields {
+		interfaceFieldName := d.FieldDefinitionName(i)
+		if !d.FieldDefinitionsContainField(nodeFields, interfaceFieldName) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (d *Document) FieldDefinitionsContainField(definitions []int, field ByteSlice) bool {
+	for _, i := range definitions {
+		if bytes.Equal(field, d.FieldDefinitionName(i)) {
+			return true
+		}
+	}
+	return false
+}
+
+func (d *Document) NodeByName(name ByteSlice) (Node, bool) {
+	node, exists := d.Index.Nodes[string(name)]
+	return node, exists
+}
+
+func (d *Document) FieldHasSelections(ref int) bool {
+	return d.Fields[ref].HasSelections
+}
+
+func (d *Document) BooleanValue(ref int) BooleanValue {
+	return d.BooleanValues[ref]
+}
+
+func (d *Document) BooleanValuesAreEqual(left, right int) bool {
+	return d.BooleanValue(left) == d.BooleanValue(right)
+}
+
+func (d *Document) StringValue(ref int) StringValue {
+	return d.StringValues[ref]
+}
+
+func (d *Document) StringValueContent(ref int) ByteSlice {
+	return d.Input.ByteSlice(d.StringValues[ref].Content)
+}
+
+func (d *Document) StringValueIsBlockString(ref int) bool {
+	return d.StringValues[ref].BlockString
+}
+
+func (d *Document) StringValuesAreEquals(left, right int) bool {
+	return d.StringValueIsBlockString(left) == d.StringValueIsBlockString(right) &&
+		bytes.Equal(d.StringValueContent(left), d.StringValueContent(right))
+}
+
+func (d *Document) IntValue(ref int) IntValue {
+	return d.IntValues[ref]
+}
+
+func (d *Document) IntValueIsNegative(ref int) bool {
+	return d.IntValues[ref].Negative
+}
+
+func (d *Document) IntValueRaw(ref int) ByteSlice {
+	return d.Input.ByteSlice(d.IntValues[ref].Raw)
+}
+
+func (d *Document) IntValuesAreEquals(left, right int) bool {
+	return d.IntValueIsNegative(left) == d.IntValueIsNegative(right) &&
+		bytes.Equal(d.IntValueRaw(left), d.IntValueRaw(right))
+}
+
+func (d *Document) FloatValueIsNegative(ref int) bool {
+	return d.FloatValues[ref].Negative
+}
+
+func (d *Document) FloatValueRaw(ref int) ByteSlice {
+	return d.Input.ByteSlice(d.FloatValues[ref].Raw)
+}
+
+func (d *Document) FloatValuesAreEqual(left, right int) bool {
+	return d.FloatValueIsNegative(left) == d.FloatValueIsNegative(right) &&
+		bytes.Equal(d.FloatValueRaw(left), d.FloatValueRaw(right))
+}
+
+func (d *Document) VariableValueName(ref int) ByteSlice {
+	return d.Input.ByteSlice(d.VariableValues[ref].Name)
+}
+
+func (d *Document) VariableValuesAreEqual(left, right int) bool {
+	return bytes.Equal(d.VariableValueName(left), d.VariableValueName(right))
+}
+
+func (d *Document) Value(ref int) Value {
+	return d.Values[ref]
+}
+
+func (d *Document) ListValuesAreEqual(left, right int) bool {
+	leftValues, rightValues := d.ListValues[left].Refs, d.ListValues[right].Refs
+	if len(leftValues) != len(rightValues) {
+		return false
+	}
+	for i := 0; i < len(leftValues); i++ {
+		left, right = leftValues[i], rightValues[i]
+		leftValue, rightValue := d.Value(left), d.Value(right)
+		if !d.ValuesAreEqual(leftValue, rightValue) {
+			return false
+		}
+	}
+	return true
+}
+
+func (d *Document) ObjectField(ref int) ObjectField {
+	return d.ObjectFields[ref]
+}
+
+func (d *Document) ObjectFieldName(ref int) ByteSlice {
+	return d.Input.ByteSlice(d.ObjectFields[ref].Name)
+}
+
+func (d *Document) ObjectFieldValue(ref int) Value {
+	return d.ObjectFields[ref].Value
+}
+
+func (d *Document) ObjectFieldsAreEqual(left, right int) bool {
+	return bytes.Equal(d.ObjectFieldName(left), d.ObjectFieldName(right)) &&
+		d.ValuesAreEqual(d.ObjectFieldValue(left), d.ObjectFieldValue(right))
+}
+
+func (d *Document) ObjectValuesAreEqual(left, right int) bool {
+	leftFields, rightFields := d.ObjectValues[left].Refs, d.ObjectValues[right].Refs
+	if len(leftFields) != len(rightFields) {
+		return false
+	}
+	for i := 0; i < len(leftFields); i++ {
+		left, right = leftFields[i], rightFields[i]
+		if !d.ObjectFieldsAreEqual(left, right) {
+			return false
+		}
+	}
+	return true
+}
+
+func (d *Document) EnumValueName(ref int) ByteSliceReference {
+	return d.EnumValues[ref].Name
+}
+
+func (d *Document) EnumValuesAreEqual(left, right int) bool {
+	return d.Input.ByteSliceReferenceContentEquals(d.EnumValueName(left), d.EnumValueName(right))
+}
+
+func (d *Document) ValuesAreEqual(left, right Value) bool {
+	if left.Kind != right.Kind {
+		return false
+	}
+	switch left.Kind {
+	case ValueKindString:
+		return d.StringValuesAreEquals(left.Ref, right.Ref)
+	case ValueKindBoolean:
+		return d.BooleanValuesAreEqual(left.Ref, right.Ref)
+	case ValueKindInteger:
+		return d.IntValuesAreEquals(left.Ref, right.Ref)
+	case ValueKindFloat:
+		return d.FloatValuesAreEqual(left.Ref, right.Ref)
+	case ValueKindVariable:
+		return d.VariableValuesAreEqual(left.Ref, right.Ref)
+	case ValueKindNull:
+		return true
+	case ValueKindList:
+		return d.ListValuesAreEqual(left.Ref, right.Ref)
+	case ValueKindObject:
+		return d.ObjectValuesAreEqual(left.Ref, right.Ref)
+	case ValueKindEnum:
+		return d.EnumValuesAreEqual(left.Ref, right.Ref)
+	default:
+		return false
+	}
+}
+
+func (d *Document) ArgumentName(ref int) ByteSlice {
+	return d.Input.ByteSlice(d.Arguments[ref].Name)
+}
+
+func (d *Document) ArgumentNameString(ref int) string {
+	return string(d.ArgumentName(ref))
+}
+
+func (d *Document) ArgumentValue(ref int) Value {
+	return d.Arguments[ref].Value
+}
+
+func (d *Document) ArgumentsAreEqual(left, right int) bool {
+	return bytes.Equal(d.ArgumentName(left), d.ArgumentName(right)) &&
+		d.ValuesAreEqual(d.ArgumentValue(left), d.ArgumentValue(right))
+}
+
+func (d *Document) ArgumentSetsAreEquals(left, right []int) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := 0; i < len(left); i++ {
+		leftArgument, rightArgument := left[i], right[i]
+		if !d.ArgumentsAreEqual(leftArgument, rightArgument) {
+			return false
+		}
+	}
+	return true
+}
+
+func (d *Document) FieldArguments(ref int) []int {
+	return d.Fields[ref].Arguments.Refs
+}
+
+func (d *Document) FieldDirectiveSet(ref int) []int {
+	return d.Fields[ref].Directives.Refs
+}
+
+func (d *Document) DirectiveName(ref int) ByteSliceReference {
+	return d.Directives[ref].Name
+}
+
+func (d *Document) DirectiveArgumentSet(ref int) []int {
+	return d.Directives[ref].Arguments.Refs
+}
+
+func (d *Document) DirectivesAreEqual(left, right int) bool {
+	return d.Input.ByteSliceReferenceContentEquals(d.DirectiveName(left), d.DirectiveName(right)) &&
+		d.ArgumentSetsAreEquals(d.DirectiveArgumentSet(left), d.DirectiveArgumentSet(right))
+}
+
+func (d *Document) DirectiveSetsAreEqual(left, right []int) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := 0; i < len(left); i++ {
+		leftDirective, rightDirective := left[i], right[i]
+		if !d.DirectivesAreEqual(leftDirective, rightDirective) {
+			return false
+		}
+	}
+	return true
+}
+
+func (d *Document) FieldsAreEqualFlat(left, right int) bool {
+	return bytes.Equal(d.FieldName(left), d.FieldName(right)) && // name
+		bytes.Equal(d.FieldAlias(left), d.FieldAlias(right)) && // alias
+		!d.FieldHasSelections(left) && !d.FieldHasSelections(right) && // selections
+		d.ArgumentSetsAreEquals(d.FieldArguments(left), d.FieldArguments(right)) && // arguments
+		d.DirectiveSetsAreEqual(d.FieldDirectiveSet(left), d.FieldDirectiveSet(right)) // directives
+}
+
+func (d *Document) InlineFragmentHasTypeCondition(ref int) bool {
+	return d.InlineFragments[ref].TypeCondition.Type != -1
+}
+
+func (d *Document) InlineFragmentHasDirectives(ref int) bool {
+	return len(d.InlineFragments[ref].Directives.Refs) != 0
+}
+
+func (d *Document) TypeDefinitionContainsImplementsInterface(typeName, interfaceName ByteSlice) bool {
+	typeDefinition, exists := d.Index.Nodes[string(typeName)]
+	if !exists {
+		return false
+	}
+	if typeDefinition.Kind != NodeKindObjectTypeDefinition {
+		return false
+	}
+	for _, i := range d.ObjectTypeDefinitions[typeDefinition.Ref].ImplementsInterfaces.Refs {
+		implements := d.ResolveTypeName(i)
+		if bytes.Equal(interfaceName, implements) {
+			return true
+		}
+	}
+	return false
+}
+
+func (d *Document) RemoveFieldAlias(ref int) {
+	d.Fields[ref].Alias.IsDefined = false
+	d.Fields[ref].Alias.Name.Start = 0
+	d.Fields[ref].Alias.Name.End = 0
+}
+
+func (d *Document) InlineFragmentSelections(ref int) []int {
+	if !d.InlineFragments[ref].HasSelections {
+		return nil
+	}
+	return d.SelectionSets[d.InlineFragments[ref].SelectionSet].SelectionRefs
+}
+
+func (d *Document) TypesAreEqualDeep(left int, right int) bool {
+	for {
+		if left == -1 || right == -1 {
+			return false
+		}
+		if d.Types[left].TypeKind != d.Types[right].TypeKind {
+			return false
+		}
+		if d.Types[left].TypeKind == TypeKindNamed {
+			return d.Input.ByteSliceReferenceContentEquals(d.Types[left].Name, d.Types[right].Name)
+		}
+		left = d.Types[left].OfType
+		right = d.Types[right].OfType
+	}
+}
+
+func (d *Document) FieldsHaveSameShape(left, right int) bool {
+
+	leftAliasDefined := d.FieldAliasIsDefined(left)
+	rightAliasDefined := d.FieldAliasIsDefined(right)
+
+	switch {
+	case !leftAliasDefined && !rightAliasDefined:
+		return d.Input.ByteSliceReferenceContentEquals(d.Fields[left].Name, d.Fields[right].Name)
+	case leftAliasDefined && rightAliasDefined:
+		return d.Input.ByteSliceReferenceContentEquals(d.Fields[left].Alias.Name, d.Fields[right].Alias.Name)
+	case leftAliasDefined && !rightAliasDefined:
+		return d.Input.ByteSliceReferenceContentEquals(d.Fields[left].Alias.Name, d.Fields[right].Name)
+	case !leftAliasDefined && rightAliasDefined:
+		return d.Input.ByteSliceReferenceContentEquals(d.Fields[left].Name, d.Fields[right].Alias.Name)
+	default:
+		return false
+	}
+}
+
+func (d *Document) NodeIsUnionMember(node Node, union Node) bool {
+	nodeTypeName := d.NodeTypeName(node)
+	for _, i := range d.UnionTypeDefinitions[union.Ref].UnionMemberTypes.Refs {
+		memberName := d.ResolveTypeName(i)
+		if bytes.Equal(nodeTypeName, memberName) {
+			return true
+		}
+	}
+	return false
+}
+
 type Node struct {
 	Kind NodeKind
 	Ref  int
+}
+
+func (n Node) Name(definition *Document) string {
+	return string(definition.NodeTypeName(n))
 }
 
 type SchemaDefinition struct {
@@ -240,9 +803,9 @@ type RootOperationTypeDefinition struct {
 }
 
 type Directive struct {
-	At        position.Position        // @
-	Name      input.ByteSliceReference // e.g. include
-	Arguments ArgumentList             // e.g. (if: true)
+	At        position.Position  // @
+	Name      ByteSliceReference // e.g. include
+	Arguments ArgumentList       // e.g. (if: true)
 }
 
 type ArgumentList struct {
@@ -253,7 +816,7 @@ type ArgumentList struct {
 
 type FieldDefinition struct {
 	Description         Description              // optional e.g. "FieldDefinition is ..."
-	Name                input.ByteSliceReference // e.g. foo
+	Name                ByteSliceReference       // e.g. foo
 	ArgumentsDefinition InputValueDefinitionList // optional
 	Colon               position.Position        // :
 	Type                int                      // e.g. String
@@ -267,9 +830,9 @@ type InputValueDefinitionList struct {
 }
 
 type Argument struct {
-	Name  input.ByteSliceReference // e.g. foo
-	Colon position.Position        // :
-	Value Value                    // e.g. 100 or "Bar"
+	Name  ByteSliceReference // e.g. foo
+	Colon position.Position  // :
+	Value Value              // e.g. 100 or "Bar"
 }
 
 type Value struct {
@@ -287,44 +850,44 @@ type ListValue struct {
 // example:
 // $devicePicSize
 type VariableValue struct {
-	Dollar position.Position        // $
-	Name   input.ByteSliceReference // e.g. devicePicSize
+	Dollar position.Position  // $
+	Name   ByteSliceReference // e.g. devicePicSize
 }
 
 // StringValue
 // example:
 // "foo"
 type StringValue struct {
-	BlockString bool                     // """foo""" = blockString, "foo" string
-	Content     input.ByteSliceReference // e.g. foo
+	BlockString bool               // """foo""" = blockString, "foo" string
+	Content     ByteSliceReference // e.g. foo
 }
 
 // IntValue
 // example:
 // 123 / -123
 type IntValue struct {
-	Negative     bool                     // indicates if the value is negative
-	NegativeSign position.Position        // optional -
-	Raw          input.ByteSliceReference // e.g. 123
+	Negative     bool               // indicates if the value is negative
+	NegativeSign position.Position  // optional -
+	Raw          ByteSliceReference // e.g. 123
 }
 
 // FloatValue
 // example:
 // 13.37 / -13.37
 type FloatValue struct {
-	Negative     bool                     // indicates if the value is negative
-	NegativeSign position.Position        // optional -
-	Raw          input.ByteSliceReference // e.g. 13.37
+	Negative     bool               // indicates if the value is negative
+	NegativeSign position.Position  // optional -
+	Raw          ByteSliceReference // e.g. 13.37
 }
 
 // EnumValue
 // example:
 // Name but not true or false or null
 type EnumValue struct {
-	Name input.ByteSliceReference // e.g. ORIGIN
+	Name ByteSliceReference // e.g. ORIGIN
 }
 
-// BooleanValue
+// BooleanValues
 // one of: true, false
 type BooleanValue bool
 
@@ -341,25 +904,25 @@ type ObjectValue struct {
 // example:
 // lon: 12.43
 type ObjectField struct {
-	Name  input.ByteSliceReference // e.g. lon
-	Colon position.Position        // :
-	Value Value                    // e.g. 12.43
+	Name  ByteSliceReference // e.g. lon
+	Colon position.Position  // :
+	Value Value              // e.g. 12.43
 }
 
 type Description struct {
 	IsDefined     bool
-	IsBlockString bool                     // true if -> """content""" ; else "content"
-	Content       input.ByteSliceReference // literal
+	IsBlockString bool               // true if -> """content""" ; else "content"
+	Content       ByteSliceReference // literal
 	Position      position.Position
 }
 
 type ObjectTypeDefinition struct {
-	Description          Description              // optional, e.g. "type Foo is ..."
-	TypeLiteral          position.Position        // type
-	Name                 input.ByteSliceReference // e.g. Foo
-	ImplementsInterfaces TypeList                 // e.g implements Bar & Baz
-	Directives           DirectiveList            // e.g. @foo
-	FieldsDefinition     FieldDefinitionList      // { foo:Bar bar(baz:String) }
+	Description          Description         // optional, e.g. "type Foo is ..."
+	TypeLiteral          position.Position   // type
+	Name                 ByteSliceReference  // e.g. Foo
+	ImplementsInterfaces TypeList            // e.g implements Bar & Baz
+	Directives           DirectiveList       // e.g. @foo
+	FieldsDefinition     FieldDefinitionList // { foo:Bar bar(baz:String) }
 }
 
 type TypeList struct {
@@ -378,20 +941,20 @@ type ObjectTypeExtension struct {
 }
 
 type InputValueDefinition struct {
-	Description  Description              // optional, e.g. "input Foo is..."
-	Name         input.ByteSliceReference // e.g. Foo
-	Colon        position.Position        // :
-	Type         int                      // e.g. String
-	DefaultValue DefaultValue             // e.g. = "Bar"
-	Directives   DirectiveList            // e.g. @baz
+	Description  Description        // optional, e.g. "input Foo is..."
+	Name         ByteSliceReference // e.g. Foo
+	Colon        position.Position  // :
+	Type         int                // e.g. String
+	DefaultValue DefaultValue       // e.g. = "Bar"
+	Directives   DirectiveList      // e.g. @baz
 }
 
 type Type struct {
-	TypeKind TypeKind                 // one of Named,List,NonNull
-	Name     input.ByteSliceReference // e.g. String (only on NamedType)
-	Open     position.Position        // [ (only on ListType)
-	Close    position.Position        // ] (only on ListType)
-	Bang     position.Position        // ! (only on NonNullType)
+	TypeKind TypeKind           // one of Named,List,NonNull
+	Name     ByteSliceReference // e.g. String (only on NamedType)
+	Open     position.Position  // [ (only on ListType)
+	Close    position.Position  // ] (only on ListType)
+	Bang     position.Position  // ! (only on NonNullType)
 	OfType   int
 }
 
@@ -404,7 +967,7 @@ type DefaultValue struct {
 type InputObjectTypeDefinition struct {
 	Description           Description              // optional, describes the input type
 	InputLiteral          position.Position        // input
-	Name                  input.ByteSliceReference // name of the input type
+	Name                  ByteSliceReference       // name of the input type
 	Directives            DirectiveList            // optional, e.g. @foo
 	InputFieldsDefinition InputValueDefinitionList // e.g. x:Float
 }
@@ -418,10 +981,10 @@ type InputObjectTypeExtension struct {
 // example:
 // scalar JSON
 type ScalarTypeDefinition struct {
-	Description   Description              // optional, describes the scalar
-	ScalarLiteral position.Position        // scalar
-	Name          input.ByteSliceReference // e.g. JSON
-	Directives    DirectiveList            // optional, e.g. @foo
+	Description   Description        // optional, describes the scalar
+	ScalarLiteral position.Position  // scalar
+	Name          ByteSliceReference // e.g. JSON
+	Directives    DirectiveList      // optional, e.g. @foo
 }
 
 type ScalarTypeExtension struct {
@@ -435,11 +998,11 @@ type ScalarTypeExtension struct {
 // 	name: String
 // }
 type InterfaceTypeDefinition struct {
-	Description      Description              // optional, describes the interface
-	InterfaceLiteral position.Position        // interface
-	Name             input.ByteSliceReference // e.g. NamedEntity
-	Directives       DirectiveList            // optional, e.g. @foo
-	FieldsDefinition FieldDefinitionList      // optional, e.g. { name: String }
+	Description      Description         // optional, describes the interface
+	InterfaceLiteral position.Position   // interface
+	Name             ByteSliceReference  // e.g. NamedEntity
+	Directives       DirectiveList       // optional, e.g. @foo
+	FieldsDefinition FieldDefinitionList // optional, e.g. { name: String }
 }
 
 type InterfaceTypeExtension struct {
@@ -451,12 +1014,12 @@ type InterfaceTypeExtension struct {
 // example:
 // union SearchResult = Photo | Person
 type UnionTypeDefinition struct {
-	Description      Description              // optional, describes union
-	UnionLiteral     position.Position        // union
-	Name             input.ByteSliceReference // e.g. SearchResult
-	Directives       DirectiveList            // optional, e.g. @foo
-	Equals           position.Position        // =
-	UnionMemberTypes TypeList                 // optional, e.g. Photo | Person
+	Description      Description        // optional, describes union
+	UnionLiteral     position.Position  // union
+	Name             ByteSliceReference // e.g. SearchResult
+	Directives       DirectiveList      // optional, e.g. @foo
+	Equals           position.Position  // =
+	UnionMemberTypes TypeList           // optional, e.g. Photo | Person
 }
 
 type UnionTypeExtension struct {
@@ -473,11 +1036,11 @@ type UnionTypeExtension struct {
 //  WEST
 //}
 type EnumTypeDefinition struct {
-	Description          Description              // optional, describes enum
-	EnumLiteral          position.Position        // enum
-	Name                 input.ByteSliceReference // e.g. Direction
-	Directives           DirectiveList            // optional, e.g. @foo
-	EnumValuesDefinition EnumValueDefinitionList  // optional, e.g. { NORTH EAST }
+	Description          Description             // optional, describes enum
+	EnumLiteral          position.Position       // enum
+	Name                 ByteSliceReference      // e.g. Direction
+	Directives           DirectiveList           // optional, e.g. @foo
+	EnumValuesDefinition EnumValueDefinitionList // optional, e.g. { NORTH EAST }
 }
 
 type EnumValueDefinitionList struct {
@@ -495,9 +1058,9 @@ type EnumTypeExtension struct {
 // example:
 // "NORTH enum value" NORTH @foo
 type EnumValueDefinition struct {
-	Description Description              // optional, describes enum value
-	EnumValue   input.ByteSliceReference // e.g. NORTH (Name but not true, false or null
-	Directives  DirectiveList            // optional, e.g. @foo
+	Description Description        // optional, describes enum value
+	EnumValue   ByteSliceReference // e.g. NORTH (Name but not true, false or null
+	Directives  DirectiveList      // optional, e.g. @foo
 }
 
 // DirectiveDefinition
@@ -507,19 +1070,19 @@ type DirectiveDefinition struct {
 	Description         Description              // optional, describes the directive
 	DirectiveLiteral    position.Position        // directive
 	At                  position.Position        // @
-	Name                input.ByteSliceReference // e.g. example
+	Name                ByteSliceReference       // e.g. example
 	ArgumentsDefinition InputValueDefinitionList // optional, e.g. (if: Boolean)
 	On                  position.Position        // on
 	DirectiveLocations  DirectiveLocations       // e.g. FIELD
 }
 
 type OperationDefinition struct {
-	OperationType        OperationType            // one of query, mutation, subscription
-	OperationTypeLiteral position.Position        // position of the operation type literal, if present
-	Name                 input.ByteSliceReference // optional, user defined name of the operation
-	VariableDefinitions  VariableDefinitionList   // optional, e.g. ($devicePicSize: Int)
-	Directives           DirectiveList            // optional, e.g. @foo
-	SelectionSet         int                      // e.g. {field}
+	OperationType        OperationType          // one of query, mutation, subscription
+	OperationTypeLiteral position.Position      // position of the operation type literal, if present
+	Name                 ByteSliceReference     // optional, user defined name of the operation
+	VariableDefinitions  VariableDefinitionList // optional, e.g. ($devicePicSize: Int)
+	Directives           DirectiveList          // optional, e.g. @foo
+	SelectionSet         int                    // e.g. {field}
 	HasSelections        bool
 }
 
@@ -552,27 +1115,27 @@ type Selection struct {
 }
 
 type Field struct {
-	Alias         Alias                    // optional, e.g. renamed:
-	Name          input.ByteSliceReference // field name, e.g. id
-	Arguments     ArgumentList             // optional
-	Directives    DirectiveList            // optional
-	SelectionSet  int                      // optional
+	Alias         Alias              // optional, e.g. renamed:
+	Name          ByteSliceReference // field name, e.g. id
+	Arguments     ArgumentList       // optional
+	Directives    DirectiveList      // optional
+	SelectionSet  int                // optional
 	HasSelections bool
 }
 
 type Alias struct {
 	IsDefined bool
-	Name      input.ByteSliceReference // optional, e.g. renamedField
-	Colon     position.Position        // :
+	Name      ByteSliceReference // optional, e.g. renamedField
+	Colon     position.Position  // :
 }
 
 // FragmentSpread
 // example:
 // ...MyFragment
 type FragmentSpread struct {
-	Spread       position.Position        // ...
-	FragmentName input.ByteSliceReference // Name but not on, e.g. MyFragment
-	Directives   DirectiveList            // optional, e.g. @foo
+	Spread       position.Position  // ...
+	FragmentName ByteSliceReference // Name but not on, e.g. MyFragment
+	Directives   DirectiveList      // optional, e.g. @foo
 }
 
 // InlineFragment
@@ -606,10 +1169,10 @@ type TypeCondition struct {
 //  profilePic(size: 50)
 //}
 type FragmentDefinition struct {
-	FragmentLiteral position.Position        // fragment
-	Name            input.ByteSliceReference // Name but not on, e.g. friendFields
-	TypeCondition   TypeCondition            // e.g. on User
-	Directives      DirectiveList            // optional, e.g. @foo
-	SelectionSet    int                      // e.g. { id }
+	FragmentLiteral position.Position  // fragment
+	Name            ByteSliceReference // Name but not on, e.g. friendFields
+	TypeCondition   TypeCondition      // e.g. on User
+	Directives      DirectiveList      // optional, e.g. @foo
+	SelectionSet    int                // e.g. { id }
 	HasSelections   bool
 }
