@@ -3,7 +3,6 @@ package astvalidation
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
-	"github.com/jensneuse/graphql-go-tools/pkg/input"
 	"testing"
 )
 
@@ -11,22 +10,19 @@ func BenchmarkExecutionValidation(b *testing.B) {
 
 	run := func(b *testing.B, operation string, rule Rule, valid ValidationState) {
 
-		schemaInput := &input.Input{}
-		schemaInput.ResetInputBytes([]byte(testDefinition))
-
-		operationInput := &input.Input{}
-		operationInput.ResetInputBytes([]byte(operation))
-
 		schemaDocument := ast.NewDocument()
+		schemaDocument.Input.ResetInputBytes(testDefinition)
+
 		operationDocument := ast.NewDocument()
+		operationDocument.Input.ResetInputBytes([]byte(operation))
 
 		parse := astparser.NewParser()
 
-		err := parse.Parse(schemaInput, schemaDocument)
+		err := parse.Parse(schemaDocument)
 		if err != nil {
 			b.Fatal(err)
 		}
-		err = parse.Parse(operationInput, operationDocument)
+		err = parse.Parse(operationDocument)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -37,7 +33,7 @@ func BenchmarkExecutionValidation(b *testing.B) {
 		b.ReportAllocs()
 
 		for i := 0; i < b.N; i++ {
-			validator.Validate(operationInput, schemaInput, operationDocument, schemaDocument)
+			validator.Validate(operationDocument, schemaDocument)
 		}
 	}
 

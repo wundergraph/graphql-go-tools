@@ -3,7 +3,8 @@ package astvalidation
 import (
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/input"
+	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
+	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"strconv"
 )
 
@@ -28,7 +29,7 @@ const (
 	Invalid
 )
 
-type Rule func(operationInput, schemaInput *input.Input, operationDocument, schemaDocument *ast.Document) Result
+type Rule func(operationDocument, schemaDocument *ast.Document) Result
 
 type Result struct {
 	ValidationState ValidationState
@@ -47,19 +48,19 @@ func NewOperationValidator(rules ...Rule) *OperationValidator {
 	}
 }
 
-func (o *OperationValidator) Validate(operationInput, schemaInput *input.Input, operationDocument, schemaDocument *ast.Document) []Result {
+func (o *OperationValidator) Validate(operationDocument, schemaDocument *ast.Document) []Result {
 
 	o.results = o.results[:0]
 
 	for i := range o.rules {
-		o.results = append(o.results, o.rules[i](operationInput, schemaInput, operationDocument, schemaDocument))
+		o.results = append(o.results, o.rules[i](operationDocument, schemaDocument))
 	}
 
 	return o.results
 }
 
 func OperationNameUniqueness() Rule {
-	return func(operationInput, schemaInput *input.Input, operationDocument, schemaDocument *ast.Document) Result {
+	return func(operationDocument, schemaDocument *ast.Document) Result {
 
 		if len(operationDocument.OperationDefinitions) <= 1 {
 			return Result{
@@ -76,10 +77,10 @@ func OperationNameUniqueness() Rule {
 				left := operationDocument.OperationDefinitions[i].Name
 				right := operationDocument.OperationDefinitions[k].Name
 
-				if input.ByteSliceEquals(left, operationInput, right, operationInput) {
+				if ast.ByteSliceEquals(left, operationDocument.Input, right, operationDocument.Input) {
 					return Result{
 						ValidationState: Invalid,
-						Explanation:     fmt.Sprintf("Operation Name %s must be unique", string(operationInput.ByteSlice(operationDocument.OperationDefinitions[i].Name))),
+						Explanation:     fmt.Sprintf("Operation Name %s must be unique", string(operationDocument.Input.ByteSlice(operationDocument.OperationDefinitions[i].Name))),
 					}
 				}
 			}
@@ -92,7 +93,7 @@ func OperationNameUniqueness() Rule {
 }
 
 func LoneAnonymousOperation() Rule {
-	return func(operationInput, schemaInput *input.Input, operationDocument, schemaDocument *ast.Document) Result {
+	return func(operationDocument, schemaDocument *ast.Document) Result {
 
 		if len(operationDocument.OperationDefinitions) <= 1 {
 			return Result{
@@ -116,18 +117,33 @@ func LoneAnonymousOperation() Rule {
 }
 
 func SubscriptionSingleRootField() Rule {
-	return func(operationInput, schemaInput *input.Input, operationDocument, schemaDocument *ast.Document) Result {
+
+	merger := &astnormalization.OperationNormalizer{}
+
+	return func(originalOperation, originalSchema *ast.Document) Result {
+
+		operationDocument := &*originalOperation // create a local copy
+		schemaDocument := &*originalSchema       // create a local copy
+
+		// inline all fragments to correctly check this rule for complicated nested documents
+		err := merger.Do(operationDocument, schemaDocument)
+		if err != nil {
+			return Result{
+				ValidationState: Invalid,
+				Explanation:     err.Error(),
+			}
+		}
 
 		for i := range operationDocument.OperationDefinitions {
 			if operationDocument.OperationDefinitions[i].OperationType == ast.OperationTypeSubscription {
-				selections := len(operationDocument.OperationDefinitions[i].SelectionSet.SelectionRefs)
+				selections := len(operationDocument.SelectionSets[operationDocument.OperationDefinitions[i].SelectionSet].SelectionRefs)
 				if selections > 1 {
 					return Result{
 						ValidationState: Invalid,
 						Explanation:     "Subscription must only have one root selection",
 					}
 				} else if selections == 1 {
-					ref := operationDocument.OperationDefinitions[i].SelectionSet.SelectionRefs[0]
+					ref := operationDocument.SelectionSets[operationDocument.OperationDefinitions[i].SelectionSet].SelectionRefs[0]
 					if operationDocument.Selections[ref].Kind == ast.SelectionKindField {
 						return Result{
 							ValidationState: Valid,
@@ -144,85 +160,143 @@ func SubscriptionSingleRootField() Rule {
 }
 
 func FieldSelections() Rule {
-	return func(operationInput, schemaInput *input.Input, operationDocument, schemaDocument *ast.Document) Result {
-		return Result{}
+
+	walker := astvisitor.Walker{}
+	fieldDefined := &fieldDefined{}
+
+	return func(operationDocument, schemaDocument *ast.Document) Result {
+
+		fieldDefined.operation = operationDocument
+		fieldDefined.definition = schemaDocument
+
+		err := walker.Visit(operationDocument, schemaDocument, fieldDefined)
+		if err == nil {
+			err = fieldDefined.err
+		}
+
+		if fieldDefined.err != nil {
+			return Result{
+				ValidationState: Invalid,
+				Explanation:     err.Error(),
+			}
+		}
+
+		return Result{
+			ValidationState: Valid,
+		}
 	}
 }
 
 func FieldSelectionMerging() Rule {
-	return func(operationInput, schemaInput *input.Input, operationDocument, schemaDocument *ast.Document) Result {
-		return Result{}
+
+	normalizer := &astnormalization.OperationNormalizer{}
+	walker := &astvisitor.Walker{}
+	visitor := &FieldSelectionMergingVisitor{}
+
+	return func(originalOperation, originalSchema *ast.Document) Result {
+
+		operationDocument := &*originalOperation // create a local copy
+		schemaDocument := &*originalSchema       // create a local copy
+
+		// inline all fragments to correctly check this rule for complicated nested documents
+		err := normalizer.Do(operationDocument, schemaDocument)
+		if err != nil {
+			return Result{
+				ValidationState: Invalid,
+				Explanation:     err.Error(),
+			}
+		}
+
+		visitor.operation = operationDocument
+		visitor.definition = schemaDocument
+		visitor.err = nil
+
+		err = walker.Visit(operationDocument, schemaDocument, visitor)
+		if err == nil {
+			err = visitor.err
+		}
+
+		if err != nil {
+			return Result{
+				ValidationState: Invalid,
+				Explanation:     err.Error(),
+			}
+		}
+
+		return Result{
+			ValidationState: Valid,
+		}
 	}
 }
 
 func ValidArguments() Rule {
-	return func(operationInput, schemaInput *input.Input, operationDocument, schemaDocument *ast.Document) Result {
+	return func(operationDocument, schemaDocument *ast.Document) Result {
 		return Result{}
 	}
 }
 
 func Values() Rule {
-	return func(operationInput, schemaInput *input.Input, operationDocument, schemaDocument *ast.Document) Result {
+	return func(operationDocument, schemaDocument *ast.Document) Result {
 		return Result{}
 	}
 }
 
 func ArgumentUniqueness() Rule {
-	return func(operationInput, schemaInput *input.Input, operationDocument, schemaDocument *ast.Document) Result {
+	return func(operationDocument, schemaDocument *ast.Document) Result {
 		return Result{}
 	}
 }
 
 func RequiredArguments() Rule {
-	return func(operationInput, schemaInput *input.Input, operationDocument, schemaDocument *ast.Document) Result {
+	return func(operationDocument, schemaDocument *ast.Document) Result {
 		return Result{}
 	}
 }
 
 func Fragments() Rule {
-	return func(operationInput, schemaInput *input.Input, operationDocument, schemaDocument *ast.Document) Result {
+	return func(operationDocument, schemaDocument *ast.Document) Result {
 		return Result{}
 	}
 }
 
 func DirectivesAreDefined() Rule {
-	return func(operationInput, schemaInput *input.Input, operationDocument, schemaDocument *ast.Document) Result {
+	return func(operationDocument, schemaDocument *ast.Document) Result {
 		return Result{}
 	}
 }
 
 func DirectivesAreInValidLocations() Rule {
-	return func(operationInput, schemaInput *input.Input, operationDocument, schemaDocument *ast.Document) Result {
+	return func(operationDocument, schemaDocument *ast.Document) Result {
 		return Result{}
 	}
 }
 
 func VariableUniqueness() Rule {
-	return func(operationInput, schemaInput *input.Input, operationDocument, schemaDocument *ast.Document) Result {
+	return func(operationDocument, schemaDocument *ast.Document) Result {
 		return Result{}
 	}
 }
 
 func DirectivesAreUniquePerLocation() Rule {
-	return func(operationInput, schemaInput *input.Input, operationDocument, schemaDocument *ast.Document) Result {
+	return func(operationDocument, schemaDocument *ast.Document) Result {
 		return Result{}
 	}
 }
 
 func VariablesAreInputTypes() Rule {
-	return func(operationInput, schemaInput *input.Input, operationDocument, schemaDocument *ast.Document) Result {
+	return func(operationDocument, schemaDocument *ast.Document) Result {
 		return Result{}
 	}
 }
 
 func AllVariableUsesDefined() Rule {
-	return func(operationInput, schemaInput *input.Input, operationDocument, schemaDocument *ast.Document) Result {
+	return func(operationDocument, schemaDocument *ast.Document) Result {
 		return Result{}
 	}
 }
 
 func AllVariablesUsed() Rule {
-	return func(operationInput, schemaInput *input.Input, operationDocument, schemaDocument *ast.Document) Result {
+	return func(operationDocument, schemaDocument *ast.Document) Result {
 		return Result{}
 	}
 }

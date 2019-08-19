@@ -4,39 +4,36 @@ import (
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
-	"github.com/jensneuse/graphql-go-tools/pkg/input"
+	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
 	"testing"
 )
 
 func TestExecutionValidation(t *testing.T) {
 
-	run := func(operation string, rule Rule, valid ValidationState) {
-
-		schemaInput := &input.Input{}
-		schemaInput.ResetInputBytes([]byte(testDefinition))
-
-		operationInput := &input.Input{}
-		operationInput.ResetInputBytes([]byte(operation))
-
-		schemaDocument := ast.NewDocument()
-		operationDocument := ast.NewDocument()
-
-		parse := astparser.NewParser()
-
-		err := parse.Parse(schemaInput, schemaDocument)
+	must := func(err error) {
 		if err != nil {
-			t.Fatal(err)
+			panic(err)
 		}
-		err = parse.Parse(operationInput, operationDocument)
-		if err != nil {
-			t.Fatal(err)
-		}
+	}
+
+	mustDocument := func(doc *ast.Document, err error) *ast.Document {
+		must(err)
+		return doc
+	}
+
+	run := func(operationInput string, rule Rule, valid ValidationState) {
+
+		definition := mustDocument(astparser.ParseGraphqlDocumentBytes(testDefinition))
+		operation := mustDocument(astparser.ParseGraphqlDocumentString(operationInput))
 
 		validator := NewOperationValidator(rule)
-		result := validator.Validate(operationInput, schemaInput, operationDocument, schemaDocument)[0]
+		result := validator.Validate(operation, definition)[0]
+
+		printedOperation, err := astprinter.PrintString(operation, definition)
+		must(err)
 
 		if valid != result.ValidationState {
-			panic(fmt.Errorf("want valid: %s, got: %s", valid, result.ValidationState))
+			panic(fmt.Errorf("want valid: %s, got: %s\noperation:\n%s\n", valid, result.ValidationState, printedOperation))
 		}
 	}
 
@@ -81,7 +78,8 @@ func TestExecutionValidation(t *testing.T) {
 						OperationNameUniqueness(), Invalid)
 				})
 				t.Run("94", func(t *testing.T) {
-					run(`	query dogOperation {
+					run(`	
+								query dogOperation {
   									dog {
   										name
   									}
@@ -140,16 +138,18 @@ func TestExecutionValidation(t *testing.T) {
 		t.Run("5.2.3 Subscription Operation Definitions", func(t *testing.T) {
 			t.Run("5.2.3.1 Single root field", func(t *testing.T) {
 				t.Run("97", func(t *testing.T) {
-					run(`	subscription sub {
-  									newMessage {
-    									body
-    									sender
-  									}
-								}`,
+					run(`
+							subscription sub {
+								newMessage {
+									body
+									sender
+								}
+							}`,
 						SubscriptionSingleRootField(), Valid)
 				})
 				t.Run("97 variant", func(t *testing.T) {
-					run(`	query sub {
+					run(`	
+								query sub {
   									foo
 									bar
 								}`,
@@ -175,7 +175,8 @@ func TestExecutionValidation(t *testing.T) {
 						SubscriptionSingleRootField(), Valid)
 				})
 				t.Run("99", func(t *testing.T) {
-					run(`	subscription sub {
+					run(`	
+								subscription sub {
   									newMessage {
     									body
     									sender
@@ -199,13 +200,14 @@ func TestExecutionValidation(t *testing.T) {
 						SubscriptionSingleRootField(), Invalid)
 				})
 				t.Run("101", func(t *testing.T) {
-					run(`	subscription sub {
-  									newMessage {
-    									body
-    									sender
-  									}
-  									__typename
-								}`,
+					run(`
+							subscription sub {
+								newMessage {
+									body
+									sender
+								}
+								__typename
+							}`,
 						SubscriptionSingleRootField(), Invalid)
 				})
 			})
@@ -213,8 +215,9 @@ func TestExecutionValidation(t *testing.T) {
 	})
 	t.Run("5.3 FieldSelections", func(t *testing.T) {
 		t.Run("5.3.1 Field Selections on Objects, Interfaces, and Unions Types", func(t *testing.T) {
-			t.Run("102", func(t *testing.T) {
-				run(`	{
+			t.Run("104", func(t *testing.T) {
+				run(`
+							{
 								dog {
 									...aliasedLyingFieldTargetNotDefined
 								}
@@ -224,7 +227,7 @@ func TestExecutionValidation(t *testing.T) {
 							}`,
 					FieldSelections(), Invalid)
 			})
-			t.Run("102 variant", func(t *testing.T) {
+			t.Run("104 variant", func(t *testing.T) {
 				run(`	{
 								dog {
 									barkVolume: kawVolume
@@ -244,7 +247,8 @@ func TestExecutionValidation(t *testing.T) {
 					FieldSelections(), Valid)
 			})
 			t.Run("104", func(t *testing.T) {
-				run(`	{
+				run(`
+							{
 								dog {
 									...definedOnImplementorsButNotInterface
 								}
@@ -298,7 +302,8 @@ func TestExecutionValidation(t *testing.T) {
 					FieldSelections(), Invalid)
 			})
 			t.Run("106 variant", func(t *testing.T) {
-				run(` fragment directFieldSelectionOnUnion on Cat {
+				run(`
+							fragment directFieldSelectionOnUnion on Cat {
 								name {
 									name
 								}
@@ -308,7 +313,8 @@ func TestExecutionValidation(t *testing.T) {
 		})
 		t.Run("5.3.2 Field Selection Merging", func(t *testing.T) {
 			t.Run("107", func(t *testing.T) {
-				run(`	fragment mergeIdenticalFields on Dog {
+				run(`
+							fragment mergeIdenticalFields on Dog {
   								name
   								name
   							}
@@ -319,7 +325,8 @@ func TestExecutionValidation(t *testing.T) {
 					FieldSelectionMerging(), Valid)
 			})
 			t.Run("107 variant", func(t *testing.T) {
-				run(`	query mergeIdenticalFields {
+				run(`	
+							query mergeIdenticalFields {
   								dog {
 									name
   									name
@@ -334,14 +341,16 @@ func TestExecutionValidation(t *testing.T) {
 					FieldSelectionMerging(), Valid)
 			})
 			t.Run("108", func(t *testing.T) {
-				run(`	fragment conflictingBecauseAlias on Dog {
+				run(`
+							fragment conflictingBecauseAlias on Dog {
   								name: nickname
   								name
   							}`,
 					FieldSelectionMerging(), Invalid)
 			})
 			t.Run("108 variant", func(t *testing.T) {
-				run(`	query conflictingBecauseAlias {
+				run(`	
+							query conflictingBecauseAlias {
 								dog {
   									name: nickname
   									name
@@ -359,7 +368,8 @@ func TestExecutionValidation(t *testing.T) {
 					FieldSelectionMerging(), Valid)
 			})
 			t.Run("108 variant", func(t *testing.T) {
-				run(`	mutation conflictingBecauseAlias {
+				run(`
+							query conflictingBecauseAlias {
 								dog {
   									extra { string }
   									extra { string }
@@ -368,7 +378,8 @@ func TestExecutionValidation(t *testing.T) {
 					FieldSelectionMerging(), Valid)
 			})
 			t.Run("108 variant", func(t *testing.T) {
-				run(`	subscription conflictingBecauseAlias {
+				run(`
+							query conflictingBecauseAlias {
 								dog {
   									extra { string }
   									extra { string }
@@ -377,10 +388,21 @@ func TestExecutionValidation(t *testing.T) {
 					FieldSelectionMerging(), Valid)
 			})
 			t.Run("108 variant", func(t *testing.T) {
-				run(`	query conflictingBecauseAlias {
+				run(`	
+							query conflictingBecauseAlias {
 								dog {
   									extra { string }
   									extra { noString: string }
+								}
+  							}`,
+					FieldSelectionMerging(), Valid)
+			})
+			t.Run("108 variant", func(t *testing.T) {
+				run(`	
+							query conflictingBecauseAlias {
+								dog {
+  									extra { string }
+  									extra { string: noString }
 								}
   							}`,
 					FieldSelectionMerging(), Invalid)
@@ -404,7 +426,8 @@ func TestExecutionValidation(t *testing.T) {
 					FieldSelectionMerging(), Invalid)
 			})
 			t.Run("108 variant", func(t *testing.T) {
-				run(`	query conflictingBecauseAlias {
+				run(`	
+							query conflictingBecauseAlias {
 								dog {
   									x: extras { string }
   									x: mustExtras { string }
@@ -413,16 +436,18 @@ func TestExecutionValidation(t *testing.T) {
 					FieldSelectionMerging(), Invalid)
 			})
 			t.Run("108 variant", func(t *testing.T) {
-				run(`	query conflictingBecauseAlias {
+				run(`	
+							query conflictingBecauseAlias {
 								dog {
   									extras { string,string2: string }
   									extras { string,string3: string }
 								}
   							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Valid)
 			})
 			t.Run("108 variant", func(t *testing.T) {
-				run(`	query conflictingBecauseAlias {
+				run(`	
+							query conflictingBecauseAlias {
 								dog {
   									extras { string,string2: string }
   									extras { string,string2: string }
@@ -431,41 +456,44 @@ func TestExecutionValidation(t *testing.T) {
 					FieldSelectionMerging(), Valid)
 			})
 			t.Run("108 variant", func(t *testing.T) {
-				run(`	query conflictingBecauseAlias {
+				run(`	
+							query conflictingBecauseAlias {
 								dog {
-  									extras { string,string2: string }
+  									extras { string,string2: string2 }
   									extras { string,string2: string,string3: string }
 								}
   							}`,
 					FieldSelectionMerging(), Invalid)
 			})
 			t.Run("108 variant", func(t *testing.T) {
-				run(`	query conflictingBecauseAlias {
+				run(`	
+							query conflictingBecauseAlias {
 								dog {
   									extras { ... { string },string2: string }
   									extras { ... { string },... { string },string2: string }
 								}
   							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Valid)
 			})
 			t.Run("108 variant", func(t *testing.T) {
 				run(`	query conflictingBecauseAlias {
 								dog {
-  									extras { ... { string },string2: string }
+  									extras { ... { string },string: string1 }
   									extras { ... { string1: string },string2: string }
 								}
   							}`,
 					FieldSelectionMerging(), Invalid)
 			})
 			t.Run("108 variant", func(t *testing.T) {
-				run(`	query conflictingBecauseAlias {
+				run(`	
+							query conflictingBecauseAlias {
 								dog {
   									extras { ...frag, ...frag }
   									extras { ...frag }
 								}
   							}
 							fragment frag on Extras { string }`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Valid)
 			})
 			t.Run("108 variant", func(t *testing.T) {
 				run(`	query conflictingBecauseAlias {
@@ -485,14 +513,15 @@ func TestExecutionValidation(t *testing.T) {
 					FieldSelectionMerging(), Invalid)
 			})
 			t.Run("108 variant", func(t *testing.T) {
-				run(`	query conflictingBecauseAlias {
+				run(`	
+							query conflictingBecauseAlias {
 								dog {
   									extras { ...frag }
   									extras { ...frag2 }
 								}
   							}
-							fragment frag on Extras { string }
-							fragment frag2 on Extras { string1: string }`,
+							fragment frag on DogExtra { string1 }
+							fragment frag2 on DogExtra { string1: string }`,
 					FieldSelectionMerging(), Invalid)
 			})
 			t.Run("108 variant", func(t *testing.T) {
@@ -608,7 +637,8 @@ func TestExecutionValidation(t *testing.T) {
 					FieldSelectionMerging(), Valid)
 			})
 			t.Run("109 variant", func(t *testing.T) {
-				run(`	fragment mergeIdenticalFieldsWithIdenticalValues on Dog {
+				run(`	
+							fragment mergeIdenticalFieldsWithIdenticalValues on Dog {
   								doesKnowCommand(dogCommand: 1)
     							doesKnowCommand(dogCommand: 0)
   							}`,
@@ -685,7 +715,8 @@ func TestExecutionValidation(t *testing.T) {
 					FieldSelectionMerging(), Valid)
 			})
 			t.Run("109 variant", func(t *testing.T) {
-				run(`	fragment mergeIdenticalFieldsWithIdenticalValues on Dog {
+				run(`	
+							fragment mergeIdenticalFieldsWithIdenticalValues on Dog {
   								doesKnowCommand(dogCommand: {foo: "bar"})
     							doesKnowCommand(dogCommand: {bar: "bar"})
   							}`,
@@ -734,7 +765,8 @@ func TestExecutionValidation(t *testing.T) {
 					FieldSelectionMerging(), Invalid)
 			})
 			t.Run("111", func(t *testing.T) {
-				run(`	fragment safeDifferingFields on Pet {
+				run(`	
+							fragment safeDifferingFields on Pet {
 								... on Dog {
 									volume: barkVolume
 								}
@@ -753,7 +785,8 @@ func TestExecutionValidation(t *testing.T) {
 					FieldSelectionMerging(), Valid)
 			})
 			t.Run("112", func(t *testing.T) {
-				run(`	fragment conflictingDifferingResponses on Pet {
+				run(`
+							fragment conflictingDifferingResponses on Pet {
 								... on Dog {
 									someValue: nickname
 								}
@@ -764,7 +797,8 @@ func TestExecutionValidation(t *testing.T) {
 					FieldSelectionMerging(), Invalid)
 			})
 			t.Run("112 variant", func(t *testing.T) {
-				run(`	fragment conflictingDifferingResponses on Pet {
+				run(`	
+							fragment conflictingDifferingResponses on Pet {
 								... on Dog {
 									extra {
 										string
@@ -954,7 +988,8 @@ func TestExecutionValidation(t *testing.T) {
 					FieldSelectionMerging(), Invalid)
 			})
 			t.Run("112 variant", func(t *testing.T) {
-				run(`	fragment conflictingDifferingResponses on Pet {
+				run(`	
+							fragment conflictingDifferingResponses on Pet {
 								...dogFrag
 								...catFrag
 							}
@@ -1030,7 +1065,8 @@ func TestExecutionValidation(t *testing.T) {
 					FieldSelectionMerging(), Invalid)
 			})
 			t.Run("112 variant", func(t *testing.T) {
-				run(`	query conflictingDifferingResponses {
+				run(`	
+							query conflictingDifferingResponses {
 								catOrDog {
 									...catDogFrag
 								}
@@ -1074,20 +1110,22 @@ func TestExecutionValidation(t *testing.T) {
 					FieldSelectionMerging(), Invalid)
 			})
 			t.Run("112 variant", func(t *testing.T) {
-				run(`	fragment conflictingDifferingResponses on Pet {
+				run(`
+							fragment conflictingDifferingResponses on Pet {
 								...dogFrag
 								...catFrag
 							}
 							fragment dogFrag on Dog {
 								someValue: barkVolume
 							}
-							fragment catFrag on Cats {
+							fragment catFrag on Cat {
 								someValue: meowVolume
 							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Valid)
 			})
 			t.Run("112 variant", func(t *testing.T) {
-				run(`	fragment conflictingDifferingResponses on Pet {
+				run(`	
+							fragment conflictingDifferingResponses on Pet {
 								...dogFrag
 								... on Cat {
 									someValue: meowVolume
@@ -1167,7 +1205,8 @@ func TestExecutionValidation(t *testing.T) {
 					FieldSelections(), Invalid)
 			})
 			t.Run("116", func(t *testing.T) {
-				run(`	query directQueryOnObjectWithoutSubFields {
+				run(`	
+							query directQueryOnObjectWithoutSubFields {
 								human
 							}`,
 					FieldSelections(), Invalid)
@@ -1193,7 +1232,8 @@ func TestExecutionValidation(t *testing.T) {
 	t.Run("5.4 Arguments", func(t *testing.T) {
 		t.Run("5.4.1 Argument Names", func(t *testing.T) {
 			t.Run("117", func(t *testing.T) {
-				run(`	fragment argOnRequiredArg on Dog {
+				run(`	
+							fragment argOnRequiredArg on Dog {
 								doesKnowCommand(dogCommand: SIT)
 							}
 							fragment argOnOptional on Dog {
@@ -1238,7 +1278,8 @@ func TestExecutionValidation(t *testing.T) {
 					ValidArguments(), Valid)
 			})
 			t.Run("117 variant", func(t *testing.T) {
-				run(`query argOnRequiredArg($catCommand: CatCommand) {
+				run(`
+							query argOnRequiredArg($catCommand: CatCommand) {
 								dog {
 									doesKnowCommand(dogCommand: $catCommand)
 								}
@@ -2536,12 +2577,32 @@ func TestExecutionValidation(t *testing.T) {
 var testDefinition = []byte(`
 schema {
 	query: Query
+	mutation: Mutation
+	subscription: Subscription
+}
+
+type Message {
+	sender: String
+	body: String
+}
+
+type Subscription {
+	newMessage: Message
+	foo: String
+	bar: String
+	disallowedSecondRootField: Boolean
+}
+
+type Mutation {
+	mutateDog: Dog
 }
 
 input ComplexInput { name: String, owner: String }
 input ComplexNonOptionalInput { name: String! }
 
 type Query {
+	foo: String
+	bar: String
 	human: Human
   	pet: Pet
   	dog: Dog
@@ -2569,6 +2630,7 @@ type ValidArguments {
 enum DogCommand { SIT, DOWN, HEEL }
 
 type Dog implements Pet {
+	id: ID
 	name: String!
 	nickname: String
 	barkVolume: Int
@@ -2584,6 +2646,7 @@ type Dog implements Pet {
 
 type DogExtra {
 	string: String
+	noString: Boolean
 	strings: [String]
 	mustStrings: [String]!
 	bool: Int
