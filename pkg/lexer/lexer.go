@@ -1,7 +1,7 @@
 package lexer
 
 import (
-	"github.com/jensneuse/graphql-go-tools/pkg/input"
+	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/runes"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
@@ -9,10 +9,10 @@ import (
 
 // Lexer emits tokens from a input reader
 type Lexer struct {
-	input *input.Input
+	input ast.Input
 }
 
-func (l *Lexer) SetInput(input *input.Input) {
+func (l *Lexer) SetInput(input ast.Input) {
 	l.input = input
 }
 

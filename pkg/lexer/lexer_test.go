@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/jensneuse/diffview"
-	"github.com/jensneuse/graphql-go-tools/pkg/input"
+	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
 	"github.com/sebdah/goldie"
@@ -18,7 +18,7 @@ func TestLexer_Peek_Read(t *testing.T) {
 
 	run := func(inStr string, checks ...checkFunc) {
 
-		in := &input.Input{}
+		in := &ast.Input{}
 		in.ResetInputBytes([]byte(inStr))
 		lexer := &Lexer{}
 		lexer.SetInput(in)
@@ -418,7 +418,7 @@ baz
 	})
 	t.Run("append input", func(t *testing.T) {
 
-		in := &input.Input{}
+		in := &ast.Input{}
 		lexer := &Lexer{}
 		lexer.SetInput(in)
 
@@ -547,7 +547,7 @@ fragment TypeRef on __Type {
 
 func TestLexerRegressions(t *testing.T) {
 
-	in := &input.Input{}
+	in := &ast.Input{}
 	in.ResetInputBytes([]byte(introspectionQuery))
 	lexer := &Lexer{}
 	lexer.SetInput(in)
@@ -581,7 +581,7 @@ func TestLexerRegressions(t *testing.T) {
 
 func BenchmarkLexer(b *testing.B) {
 
-	in := &input.Input{}
+	in := &ast.Input{}
 	lexer := &Lexer{}
 	lexer.SetInput(in)
 
