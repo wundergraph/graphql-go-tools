@@ -3,8 +3,6 @@ package astparser
 import (
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/input"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexer"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 	"io/ioutil"
@@ -13,18 +11,18 @@ import (
 
 func TestParser_Parse(t *testing.T) {
 
-	type check func(in *input.Input, doc *ast.Document, extra interface{})
+	type check func(doc *ast.Document, extra interface{})
 	type action func(parser *Parser) (interface{}, error)
 
 	parse := func() action {
 		return func(parser *Parser) (interface{}, error) {
-			return nil, parser.Parse(parser.input, parser.document)
+			return nil, parser.Parse(parser.document)
 		}
 	}
 
 	parseType := func() action {
 		return func(parser *Parser) (interface{}, error) {
-			parser.lexer.SetInput(parser.input)
+			parser.lexer.SetInput(parser.document.Input)
 			parser.tokenize()
 			ref := parser.parseType()
 			return ref, parser.err
@@ -33,7 +31,7 @@ func TestParser_Parse(t *testing.T) {
 
 	parseValue := func() action {
 		return func(parser *Parser) (interface{}, error) {
-			parser.lexer.SetInput(parser.input)
+			parser.lexer.SetInput(parser.document.Input)
 			parser.tokenize()
 			value := parser.parseValue()
 			return value, parser.err
@@ -42,7 +40,7 @@ func TestParser_Parse(t *testing.T) {
 
 	parseSelectionSet := func() action {
 		return func(parser *Parser) (interface{}, error) {
-			parser.lexer.SetInput(parser.input)
+			parser.lexer.SetInput(parser.document.Input)
 			parser.tokenize()
 			set, _ := parser.parseSelectionSet()
 			return set, parser.err
@@ -51,7 +49,7 @@ func TestParser_Parse(t *testing.T) {
 
 	parseFragmentSpread := func() action {
 		return func(parser *Parser) (interface{}, error) {
-			parser.lexer.SetInput(parser.input)
+			parser.lexer.SetInput(parser.document.Input)
 			parser.tokenize()
 			fragmentSpread := parser.parseFragmentSpread(position.Position{})
 			return parser.document.FragmentSpreads[fragmentSpread], parser.err
@@ -60,7 +58,7 @@ func TestParser_Parse(t *testing.T) {
 
 	parseInlineFragment := func() action {
 		return func(parser *Parser) (interface{}, error) {
-			parser.lexer.SetInput(parser.input)
+			parser.lexer.SetInput(parser.document.Input)
 			parser.tokenize()
 			inlineFragment := parser.parseInlineFragment(position.Position{})
 			return parser.document.InlineFragments[inlineFragment], parser.err
@@ -69,21 +67,31 @@ func TestParser_Parse(t *testing.T) {
 
 	parseVariableDefinitionList := func() action {
 		return func(parser *Parser) (interface{}, error) {
-			parser.lexer.SetInput(parser.input)
+			parser.lexer.SetInput(parser.document.Input)
 			parser.tokenize()
 			variableDefinitionList := parser.parseVariableDefinitionList()
 			return variableDefinitionList, parser.err
 		}
 	}
 
+	wantIndexedNode := func(key string, kind ast.NodeKind) check {
+		return func(doc *ast.Document, extra interface{}) {
+			node, exists := doc.Index.Nodes[key]
+			if !exists {
+				panic("want true")
+			}
+			if node.Kind != kind {
+				panic(fmt.Errorf("want kind: %s, got: %s", kind, node.Kind))
+			}
+		}
+	}
+
 	run := func(inputString string, action func() action, wantErr bool, checks ...check) {
 
-		in := &input.Input{}
-		in.ResetInputBytes([]byte(inputString))
 		doc := ast.NewDocument()
+		doc.Input.ResetInputBytes([]byte(inputString))
 
 		parser := NewParser()
-		parser.input = in
 		parser.document = doc
 
 		extra, err := action()(parser)
@@ -95,13 +103,14 @@ func TestParser_Parse(t *testing.T) {
 		}
 
 		for _, check := range checks {
-			check(in, doc, extra)
+			check(doc, extra)
 		}
 	}
 
 	t.Run("tokenize", func(t *testing.T) {
-		in := &input.Input{}
-		in.ResetInputBytes([]byte(
+
+		doc := ast.NewDocument()
+		doc.Input.ResetInputBytes([]byte(
 			`schema {
 				query: Query
 				mutation: Mutation
@@ -109,11 +118,9 @@ func TestParser_Parse(t *testing.T) {
 			}`,
 		))
 
-		doc := &ast.Document{}
 		parser := NewParser()
-		parser.input = in
 		parser.document = doc
-		parser.lexer.SetInput(in)
+		parser.lexer.SetInput(doc.Input)
 
 		parser.tokenize()
 
@@ -143,7 +150,7 @@ func TestParser_Parse(t *testing.T) {
 						subscription: Subscription 
 					}`, parse,
 				false,
-				func(in *input.Input, doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra interface{}) {
 					definition := doc.RootNodes[0]
 					if definition.Ref != 0 {
 						panic("want 0")
@@ -156,7 +163,7 @@ func TestParser_Parse(t *testing.T) {
 					if query.OperationType != ast.OperationTypeQuery {
 						panic("want OperationTypeQuery")
 					}
-					name := in.ByteSliceString(query.NamedType.Name)
+					name := doc.Input.ByteSliceString(query.NamedType.Name)
 					if name != "Query" {
 						panic(fmt.Errorf("want 'Query', got '%s'", name))
 					}
@@ -164,7 +171,7 @@ func TestParser_Parse(t *testing.T) {
 					if mutation.OperationType != ast.OperationTypeMutation {
 						panic("want OperationTypeMutation")
 					}
-					name = in.ByteSliceString(mutation.NamedType.Name)
+					name = doc.Input.ByteSliceString(mutation.NamedType.Name)
 					if name != "Mutation" {
 						panic(fmt.Errorf("want 'Mutation', got '%s'", name))
 					}
@@ -172,7 +179,7 @@ func TestParser_Parse(t *testing.T) {
 					if subscription.OperationType != ast.OperationTypeSubscription {
 						panic("want OperationTypeSubscription")
 					}
-					name = in.ByteSliceString(subscription.NamedType.Name)
+					name = doc.Input.ByteSliceString(subscription.NamedType.Name)
 					if name != "Subscription" {
 						panic(fmt.Errorf("want 'Subscription', got '%s'", name))
 					}
@@ -181,10 +188,10 @@ func TestParser_Parse(t *testing.T) {
 		t.Run("with directives", func(t *testing.T) {
 			run(`schema @foo @bar(baz: "bal") {
 						query: Query 
-					}`, parse, false, func(in *input.Input, doc *ast.Document, extra interface{}) {
+					}`, parse, false, func(doc *ast.Document, extra interface{}) {
 				schema := doc.SchemaDefinitions[0]
 				foo := doc.Directives[schema.Directives.Refs[0]]
-				fooName := in.ByteSliceString(foo.Name)
+				fooName := doc.Input.ByteSliceString(foo.Name)
 				if fooName != "foo" {
 					panic("want foo, got: " + fooName)
 				}
@@ -192,19 +199,19 @@ func TestParser_Parse(t *testing.T) {
 					panic("should not HasNext")
 				}
 				bar := doc.Directives[schema.Directives.Refs[1]]
-				barName := in.ByteSliceString(bar.Name)
+				barName := doc.Input.ByteSliceString(bar.Name)
 				if barName != "bar" {
 					panic("want bar, got: " + barName)
 				}
 				baz := doc.Arguments[bar.Arguments.Refs[0]]
-				bazName := in.ByteSliceString(baz.Name)
+				bazName := doc.Input.ByteSliceString(baz.Name)
 				if bazName != "baz" {
 					panic("want baz, got: " + bazName)
 				}
 				if baz.Value.Kind != ast.ValueKindString {
 					panic("want ValueKindString")
 				}
-				bal := in.ByteSliceString(doc.StringValues[baz.Value.Ref].Content)
+				bal := doc.Input.ByteSliceString(doc.StringValues[baz.Value.Ref].Content)
 				if bal != "bal" {
 					panic("want bal, got: " + bal)
 				}
@@ -230,7 +237,7 @@ func TestParser_Parse(t *testing.T) {
 						mutation: Mutation
 						subscription: Subscription 
 					}`, parse, false,
-				func(in *input.Input, doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra interface{}) {
 
 					schema := doc.SchemaExtensions[0]
 
@@ -238,7 +245,7 @@ func TestParser_Parse(t *testing.T) {
 					if query.OperationType != ast.OperationTypeQuery {
 						panic("want OperationTypeQuery")
 					}
-					name := in.ByteSliceString(query.NamedType.Name)
+					name := doc.Input.ByteSliceString(query.NamedType.Name)
 					if name != "Query" {
 						panic(fmt.Errorf("want 'Query', got '%s'", name))
 					}
@@ -247,7 +254,7 @@ func TestParser_Parse(t *testing.T) {
 					if mutation.OperationType != ast.OperationTypeMutation {
 						panic("want OperationTypeMutation")
 					}
-					name = in.ByteSliceString(mutation.NamedType.Name)
+					name = doc.Input.ByteSliceString(mutation.NamedType.Name)
 					if name != "Mutation" {
 						panic(fmt.Errorf("want 'Mutation', got '%s'", name))
 					}
@@ -255,7 +262,7 @@ func TestParser_Parse(t *testing.T) {
 					if subscription.OperationType != ast.OperationTypeSubscription {
 						panic("want OperationTypeSubscription")
 					}
-					name = in.ByteSliceString(subscription.NamedType.Name)
+					name = doc.Input.ByteSliceString(subscription.NamedType.Name)
 					if name != "Subscription" {
 						panic(fmt.Errorf("want 'Subscription', got '%s'", name))
 					}
@@ -272,10 +279,10 @@ func TestParser_Parse(t *testing.T) {
 							date of birth
 							"""
 							dateOfBirth: Date
-						}`, parse, false, func(in *input.Input, doc *ast.Document, extra interface{}) {
+						}`, parse, false, func(doc *ast.Document, extra interface{}) {
 
 				person := doc.ObjectTypeExtensions[0]
-				personName := in.ByteSliceString(person.Name)
+				personName := doc.Input.ByteSliceString(person.Name)
 				if personName != "Person" {
 					panic("want person")
 				}
@@ -286,7 +293,7 @@ func TestParser_Parse(t *testing.T) {
 				if implementsFoo.TypeKind != ast.TypeKindNamed {
 					panic("want TypeKindNamed")
 				}
-				if in.ByteSliceString(implementsFoo.Name) != "Foo" {
+				if doc.Input.ByteSliceString(implementsFoo.Name) != "Foo" {
 					panic("want Foo")
 				}
 
@@ -294,13 +301,13 @@ func TestParser_Parse(t *testing.T) {
 				if implementsBar.TypeKind != ast.TypeKindNamed {
 					panic("want TypeKindNamed")
 				}
-				if in.ByteSliceString(implementsBar.Name) != "Bar" {
+				if doc.Input.ByteSliceString(implementsBar.Name) != "Bar" {
 					panic("want Bar")
 				}
 
 				// field definitions
 				nameString := doc.FieldDefinitions[person.FieldsDefinition.Refs[0]]
-				name := in.ByteSliceString(nameString.Name)
+				name := doc.Input.ByteSliceString(nameString.Name)
 				if name != "name" {
 					panic("want name")
 				}
@@ -308,7 +315,7 @@ func TestParser_Parse(t *testing.T) {
 				if nameStringType.TypeKind != ast.TypeKindNamed {
 					panic("want TypeKindNamed")
 				}
-				stringName := in.ByteSliceString(nameStringType.Name)
+				stringName := doc.Input.ByteSliceString(nameStringType.Name)
 				if stringName != "String" {
 					panic("want String")
 				}
@@ -320,22 +327,22 @@ func TestParser_Parse(t *testing.T) {
 				if ageField.Description.IsBlockString {
 					panic("want false	")
 				}
-				if in.ByteSliceString(ageField.Description.Content) != "age of the person" {
+				if doc.Input.ByteSliceString(ageField.Description.Content) != "age of the person" {
 					panic("want 'age of the person'")
 				}
-				if in.ByteSliceString(ageField.Name) != "age" {
+				if doc.Input.ByteSliceString(ageField.Name) != "age" {
 					panic("want age")
 				}
 				intType := doc.Types[ageField.Type]
 				if intType.TypeKind != ast.TypeKindNamed {
 					panic("want TypeKindNamed")
 				}
-				if in.ByteSliceString(intType.Name) != "Int" {
+				if doc.Input.ByteSliceString(intType.Name) != "Int" {
 					panic("want Int")
 				}
 
 				dateOfBirthField := doc.FieldDefinitions[person.FieldsDefinition.Refs[2]]
-				if in.ByteSliceString(dateOfBirthField.Name) != "dateOfBirth" {
+				if doc.Input.ByteSliceString(dateOfBirthField.Name) != "dateOfBirth" {
 					panic("want dateOfBirth")
 				}
 				if !dateOfBirthField.Description.IsDefined {
@@ -344,13 +351,13 @@ func TestParser_Parse(t *testing.T) {
 				if !dateOfBirthField.Description.IsBlockString {
 					panic("want true")
 				}
-				if in.ByteSliceString(dateOfBirthField.Description.Content) != `
+				if doc.Input.ByteSliceString(dateOfBirthField.Description.Content) != `
 							date of birth
 							` {
-					panic(fmt.Sprintf("want 'date of birth' got: '%s'", in.ByteSliceString(dateOfBirthField.Description.Content)))
+					panic(fmt.Sprintf("want 'date of birth' got: '%s'", doc.Input.ByteSliceString(dateOfBirthField.Description.Content)))
 				}
 				dateType := doc.Types[dateOfBirthField.Type]
-				if in.ByteSliceString(dateType.Name) != "Date" {
+				if doc.Input.ByteSliceString(dateType.Name) != "Date" {
 					panic("want Date")
 				}
 			})
@@ -361,21 +368,21 @@ func TestParser_Parse(t *testing.T) {
 			run(`extend interface NamedEntity @foo {
  								name: String
 							}`, parse, false,
-				func(in *input.Input, doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra interface{}) {
 					namedEntity := doc.InterfaceTypeExtensions[0]
-					if in.ByteSliceString(namedEntity.Name) != "NamedEntity" {
+					if doc.Input.ByteSliceString(namedEntity.Name) != "NamedEntity" {
 						panic("want NamedEntity")
 					}
 
 					// fields
 					name := doc.FieldDefinitions[namedEntity.FieldsDefinition.Refs[0]]
-					if in.ByteSliceString(name.Name) != "name" {
+					if doc.Input.ByteSliceString(name.Name) != "name" {
 						panic("want name")
 					}
 
 					//directives
 					foo := doc.Directives[namedEntity.Directives.Refs[0]]
-					if in.ByteSliceString(foo.Name) != "foo" {
+					if doc.Input.ByteSliceString(foo.Name) != "foo" {
 						panic("want foo")
 					}
 				})
@@ -384,13 +391,13 @@ func TestParser_Parse(t *testing.T) {
 	t.Run("scalar type extension", func(t *testing.T) {
 		t.Run("simple", func(t *testing.T) {
 			run(`extend scalar JSON @foo`, parse, false,
-				func(in *input.Input, doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra interface{}) {
 					scalar := doc.ScalarTypeExtensions[0]
-					if in.ByteSliceString(scalar.Name) != "JSON" {
+					if doc.Input.ByteSliceString(scalar.Name) != "JSON" {
 						panic("want JSON")
 					}
 					foo := doc.Directives[scalar.Directives.Refs[0]]
-					if in.ByteSliceString(foo.Name) != "foo" {
+					if doc.Input.ByteSliceString(foo.Name) != "foo" {
 						panic("want foo")
 					}
 				})
@@ -399,7 +406,7 @@ func TestParser_Parse(t *testing.T) {
 	t.Run("union type extension", func(t *testing.T) {
 		t.Run("simple", func(t *testing.T) {
 			run(`extend union SearchResult = Photo | Person`, parse, false,
-				func(in *input.Input, doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra interface{}) {
 					SearchResult := doc.UnionTypeExtensions[0]
 
 					// union member types
@@ -409,7 +416,7 @@ func TestParser_Parse(t *testing.T) {
 					if Photo.TypeKind != ast.TypeKindNamed {
 						panic("want TypeKindNamed")
 					}
-					if in.ByteSliceString(Photo.Name) != "Photo" {
+					if doc.Input.ByteSliceString(Photo.Name) != "Photo" {
 						panic("want Photo")
 					}
 
@@ -418,7 +425,7 @@ func TestParser_Parse(t *testing.T) {
 					if Person.TypeKind != ast.TypeKindNamed {
 						panic("want TypeKindNamed")
 					}
-					if in.ByteSliceString(Person.Name) != "Person" {
+					if doc.Input.ByteSliceString(Person.Name) != "Person" {
 						panic("want Person")
 					}
 
@@ -438,15 +445,15 @@ func TestParser_Parse(t *testing.T) {
 							  "describes WEST"
 							  WEST @foo
 							}`, parse, false,
-				func(in *input.Input, doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra interface{}) {
 					direction := doc.EnumTypeExtensions[0]
-					if in.ByteSliceString(direction.Name) != "Direction" {
+					if doc.Input.ByteSliceString(direction.Name) != "Direction" {
 						panic("want Direction")
 					}
 
 					// directives
 					bar := doc.Directives[direction.Directives.Refs[0]]
-					if in.ByteSliceString(bar.Name) != "bar" {
+					if doc.Input.ByteSliceString(bar.Name) != "bar" {
 						panic("want bar")
 					}
 
@@ -454,7 +461,7 @@ func TestParser_Parse(t *testing.T) {
 
 					wantValue := func(index int, name string) {
 						enum := doc.EnumValueDefinitions[direction.EnumValuesDefinition.Refs[index]]
-						if in.ByteSliceString(enum.EnumValue) != name {
+						if doc.Input.ByteSliceString(enum.EnumValue) != name {
 							panic(fmt.Sprintf("want %s", name))
 						}
 					}
@@ -468,12 +475,12 @@ func TestParser_Parse(t *testing.T) {
 					if !west.Description.IsDefined {
 						panic("want true")
 					}
-					if in.ByteSliceString(west.Description.Content) != "describes WEST" {
+					if doc.Input.ByteSliceString(west.Description.Content) != "describes WEST" {
 						panic("want describes WEST")
 					}
 
 					foo := doc.Directives[west.Directives.Refs[0]]
-					if in.ByteSliceString(foo.Name) != "foo" {
+					if doc.Input.ByteSliceString(foo.Name) != "foo" {
 						panic("want foo")
 					}
 
@@ -488,14 +495,14 @@ func TestParser_Parse(t *testing.T) {
 			run(`	extend input Person {
 									name: String = "Gopher"
 								}`, parse,
-				false, func(in *input.Input, doc *ast.Document, extra interface{}) {
+				false, func(doc *ast.Document, extra interface{}) {
 					person := doc.InputObjectTypeExtensions[0]
-					if in.ByteSliceString(person.Name) != "Person" {
+					if doc.Input.ByteSliceString(person.Name) != "Person" {
 						panic("want person")
 					}
 
 					name := doc.InputValueDefinitions[person.InputFieldsDefinition.Refs[0]]
-					if in.ByteSliceString(name.Name) != "name" {
+					if doc.Input.ByteSliceString(name.Name) != "name" {
 						panic("want name")
 					}
 					if !name.DefaultValue.IsDefined {
@@ -504,7 +511,7 @@ func TestParser_Parse(t *testing.T) {
 					if name.DefaultValue.Value.Kind != ast.ValueKindString {
 						panic("want ValueKindString")
 					}
-					if in.ByteSliceString(doc.StringValues[name.DefaultValue.Value.Ref].Content) != "Gopher" {
+					if doc.Input.ByteSliceString(doc.StringValues[name.DefaultValue.Value.Ref].Content) != "Gopher" {
 						panic("want Gopher")
 					}
 				})
@@ -513,37 +520,37 @@ func TestParser_Parse(t *testing.T) {
 	t.Run("scalar type definition", func(t *testing.T) {
 		t.Run("simple", func(t *testing.T) {
 			run(`scalar JSON`, parse, false,
-				func(in *input.Input, doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra interface{}) {
 					scalar := doc.ScalarTypeDefinitions[0]
-					if in.ByteSliceString(scalar.Name) != "JSON" {
+					if doc.Input.ByteSliceString(scalar.Name) != "JSON" {
 						panic("want JSON")
 					}
 				})
 		})
 		t.Run("with description", func(t *testing.T) {
 			run(`"JSON scalar description" scalar JSON`, parse, false,
-				func(in *input.Input, doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra interface{}) {
 					scalar := doc.ScalarTypeDefinitions[0]
-					if in.ByteSliceString(scalar.Name) != "JSON" {
+					if doc.Input.ByteSliceString(scalar.Name) != "JSON" {
 						panic("want JSON")
 					}
 					if !scalar.Description.IsDefined {
 						panic("want true")
 					}
-					if in.ByteSliceString(scalar.Description.Content) != "JSON scalar description" {
+					if doc.Input.ByteSliceString(scalar.Description.Content) != "JSON scalar description" {
 						panic("want 'JSON scalar description'")
 					}
 				})
 		})
 		t.Run("with directive", func(t *testing.T) {
 			run(`scalar JSON @foo`, parse, false,
-				func(in *input.Input, doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra interface{}) {
 					scalar := doc.ScalarTypeDefinitions[0]
-					if in.ByteSliceString(scalar.Name) != "JSON" {
+					if doc.Input.ByteSliceString(scalar.Name) != "JSON" {
 						panic("want JSON")
 					}
 					foo := doc.Directives[scalar.Directives.Refs[0]]
-					if in.ByteSliceString(foo.Name) != "foo" {
+					if doc.Input.ByteSliceString(foo.Name) != "foo" {
 						panic("want foo")
 					}
 				})
@@ -559,9 +566,9 @@ func TestParser_Parse(t *testing.T) {
 							date of birth
 							"""
 							dateOfBirth: Date
-						}`, parse, false, func(in *input.Input, doc *ast.Document, extra interface{}) {
+						}`, parse, false, func(doc *ast.Document, extra interface{}) {
 				person := doc.ObjectTypeDefinitions[0]
-				personName := in.ByteSliceString(person.Name)
+				personName := doc.Input.ByteSliceString(person.Name)
 				if personName != "Person" {
 					panic("want person")
 				}
@@ -572,7 +579,7 @@ func TestParser_Parse(t *testing.T) {
 				if implementsFoo.TypeKind != ast.TypeKindNamed {
 					panic("want TypeKindNamed")
 				}
-				if in.ByteSliceString(implementsFoo.Name) != "Foo" {
+				if doc.Input.ByteSliceString(implementsFoo.Name) != "Foo" {
 					panic("want Foo")
 				}
 
@@ -580,13 +587,13 @@ func TestParser_Parse(t *testing.T) {
 				if implementsBar.TypeKind != ast.TypeKindNamed {
 					panic("want TypeKindNamed")
 				}
-				if in.ByteSliceString(implementsBar.Name) != "Bar" {
+				if doc.Input.ByteSliceString(implementsBar.Name) != "Bar" {
 					panic("want Bar")
 				}
 
 				// field definitions
 				nameString := doc.FieldDefinitions[person.FieldsDefinition.Refs[0]]
-				name := in.ByteSliceString(nameString.Name)
+				name := doc.Input.ByteSliceString(nameString.Name)
 				if name != "name" {
 					panic("want name")
 				}
@@ -594,7 +601,7 @@ func TestParser_Parse(t *testing.T) {
 				if nameStringType.TypeKind != ast.TypeKindNamed {
 					panic("want TypeKindNamed")
 				}
-				stringName := in.ByteSliceString(nameStringType.Name)
+				stringName := doc.Input.ByteSliceString(nameStringType.Name)
 				if stringName != "String" {
 					panic("want String")
 				}
@@ -606,22 +613,22 @@ func TestParser_Parse(t *testing.T) {
 				if ageField.Description.IsBlockString {
 					panic("want false	")
 				}
-				if in.ByteSliceString(ageField.Description.Content) != "age of the person" {
+				if doc.Input.ByteSliceString(ageField.Description.Content) != "age of the person" {
 					panic("want 'age of the person'")
 				}
-				if in.ByteSliceString(ageField.Name) != "age" {
+				if doc.Input.ByteSliceString(ageField.Name) != "age" {
 					panic("want age")
 				}
 				intType := doc.Types[ageField.Type]
 				if intType.TypeKind != ast.TypeKindNamed {
 					panic("want TypeKindNamed")
 				}
-				if in.ByteSliceString(intType.Name) != "Int" {
+				if doc.Input.ByteSliceString(intType.Name) != "Int" {
 					panic("want Int")
 				}
 
 				dateOfBirthField := doc.FieldDefinitions[person.FieldsDefinition.Refs[2]]
-				if in.ByteSliceString(dateOfBirthField.Name) != "dateOfBirth" {
+				if doc.Input.ByteSliceString(dateOfBirthField.Name) != "dateOfBirth" {
 					panic("want dateOfBirth")
 				}
 				if !dateOfBirthField.Description.IsDefined {
@@ -630,21 +637,21 @@ func TestParser_Parse(t *testing.T) {
 				if !dateOfBirthField.Description.IsBlockString {
 					panic("want true")
 				}
-				if in.ByteSliceString(dateOfBirthField.Description.Content) != `
+				if doc.Input.ByteSliceString(dateOfBirthField.Description.Content) != `
 							date of birth
 							` {
-					panic(fmt.Sprintf("want 'date of birth' got: '%s'", in.ByteSliceString(dateOfBirthField.Description.Content)))
+					panic(fmt.Sprintf("want 'date of birth' got: '%s'", doc.Input.ByteSliceString(dateOfBirthField.Description.Content)))
 				}
 				dateType := doc.Types[dateOfBirthField.Type]
-				if in.ByteSliceString(dateType.Name) != "Date" {
+				if doc.Input.ByteSliceString(dateType.Name) != "Date" {
 					panic("want Date")
 				}
 			})
 		})
 		t.Run("with directives", func(t *testing.T) {
-			run(`type Person @foo @bar {}`, parse, false, func(in *input.Input, doc *ast.Document, extra interface{}) {
+			run(`type Person @foo @bar {}`, parse, false, func(doc *ast.Document, extra interface{}) {
 				person := doc.ObjectTypeDefinitions[0]
-				personName := in.ByteSliceString(person.Name)
+				personName := doc.Input.ByteSliceString(person.Name)
 				if personName != "Person" {
 					panic("want person")
 				}
@@ -652,20 +659,20 @@ func TestParser_Parse(t *testing.T) {
 				// directives
 
 				foo := doc.Directives[person.Directives.Refs[0]]
-				if in.ByteSliceString(foo.Name) != "foo" {
+				if doc.Input.ByteSliceString(foo.Name) != "foo" {
 					panic("want foo")
 				}
 
 				bar := doc.Directives[person.Directives.Refs[1]]
-				if in.ByteSliceString(bar.Name) != "bar" {
+				if doc.Input.ByteSliceString(bar.Name) != "bar" {
 					panic("want bar")
 				}
 			})
 		})
 		t.Run("implements optional variant", func(t *testing.T) {
-			run(`type Person implements & Foo & Bar {}`, parse, false, func(in *input.Input, doc *ast.Document, extra interface{}) {
+			run(`type Person implements & Foo & Bar {}`, parse, false, func(doc *ast.Document, extra interface{}) {
 				person := doc.ObjectTypeDefinitions[0]
-				personName := in.ByteSliceString(person.Name)
+				personName := doc.Input.ByteSliceString(person.Name)
 				if personName != "Person" {
 					panic("want person")
 				}
@@ -675,7 +682,7 @@ func TestParser_Parse(t *testing.T) {
 				if implementsFoo.TypeKind != ast.TypeKindNamed {
 					panic("want TypeKindNamed")
 				}
-				if in.ByteSliceString(implementsFoo.Name) != "Foo" {
+				if doc.Input.ByteSliceString(implementsFoo.Name) != "Foo" {
 					panic("want Foo")
 				}
 
@@ -683,7 +690,7 @@ func TestParser_Parse(t *testing.T) {
 				if implementsBar.TypeKind != ast.TypeKindNamed {
 					panic("want TypeKindNamed")
 				}
-				if in.ByteSliceString(implementsBar.Name) != "Bar" {
+				if doc.Input.ByteSliceString(implementsBar.Name) != "Bar" {
 					panic("want Bar")
 				}
 			})
@@ -700,9 +707,9 @@ func TestParser_Parse(t *testing.T) {
 										"""
 										c: Float
 									): String
-								}`, parse, false, func(in *input.Input, doc *ast.Document, extra interface{}) {
+								}`, parse, false, func(doc *ast.Document, extra interface{}) {
 				person := doc.ObjectTypeDefinitions[0]
-				personName := in.ByteSliceString(person.Name)
+				personName := doc.Input.ByteSliceString(person.Name)
 				if personName != "Person" {
 					panic("want person")
 				}
@@ -711,43 +718,43 @@ func TestParser_Parse(t *testing.T) {
 				if !name.Description.IsDefined {
 					panic("want true")
 				}
-				if in.ByteSliceString(name.Description.Content) != "name description" {
+				if doc.Input.ByteSliceString(name.Description.Content) != "name description" {
 					panic("want 'name description'")
 				}
 
 				// a
 
 				a := doc.InputValueDefinitions[name.ArgumentsDefinition.Refs[0]]
-				if in.ByteSliceString(a.Name) != "a" {
+				if doc.Input.ByteSliceString(a.Name) != "a" {
 					panic("want a")
 				}
 				if doc.Types[a.Type].TypeKind != ast.TypeKindNonNull {
 					panic("want TypeKindNamed")
 				}
-				if in.ByteSliceString(doc.Types[doc.Types[a.Type].OfType].Name) != "String" {
+				if doc.Input.ByteSliceString(doc.Types[doc.Types[a.Type].OfType].Name) != "String" {
 					panic("want String")
 				}
 
 				// b
 
 				b := doc.InputValueDefinitions[name.ArgumentsDefinition.Refs[1]]
-				if in.ByteSliceString(b.Name) != "b" {
+				if doc.Input.ByteSliceString(b.Name) != "b" {
 					panic("want b")
 				}
-				if in.ByteSliceString(b.Description.Content) != "b description" {
+				if doc.Input.ByteSliceString(b.Description.Content) != "b description" {
 					panic("want 'b description'")
 				}
 				if doc.Types[b.Type].TypeKind != ast.TypeKindNamed {
 					panic("want TypeKindNamed")
 				}
-				if in.ByteSliceString(doc.Types[b.Type].Name) != "Int" {
+				if doc.Input.ByteSliceString(doc.Types[b.Type].Name) != "Int" {
 					panic("want Float")
 				}
 
 				// c
 
 				c := doc.InputValueDefinitions[name.ArgumentsDefinition.Refs[2]]
-				if in.ByteSliceString(c.Name) != "c" {
+				if doc.Input.ByteSliceString(c.Name) != "c" {
 					panic("want b")
 				}
 				if !c.Description.IsDefined {
@@ -756,7 +763,7 @@ func TestParser_Parse(t *testing.T) {
 				if !c.Description.IsBlockString {
 					panic("want true")
 				}
-				if in.ByteSliceString(c.Description.Content) != `
+				if doc.Input.ByteSliceString(c.Description.Content) != `
 										c description
 										` {
 					panic("want 'c description'")
@@ -764,7 +771,7 @@ func TestParser_Parse(t *testing.T) {
 				if doc.Types[c.Type].TypeKind != ast.TypeKindNamed {
 					panic("want TypeKindNamed")
 				}
-				if in.ByteSliceString(doc.Types[c.Type].Name) != "Float" {
+				if doc.Input.ByteSliceString(doc.Types[c.Type].Name) != "Float" {
 					panic("want Float")
 				}
 			})
@@ -778,14 +785,14 @@ func TestParser_Parse(t *testing.T) {
 			run(`	input Person {
 									name: String = "Gopher"
 								}`, parse,
-				false, func(in *input.Input, doc *ast.Document, extra interface{}) {
+				false, func(doc *ast.Document, extra interface{}) {
 					person := doc.InputObjectTypeDefinitions[0]
-					if in.ByteSliceString(person.Name) != "Person" {
+					if doc.Input.ByteSliceString(person.Name) != "Person" {
 						panic("want person")
 					}
 
 					name := doc.InputValueDefinitions[person.InputFieldsDefinition.Refs[0]]
-					if in.ByteSliceString(name.Name) != "name" {
+					if doc.Input.ByteSliceString(name.Name) != "name" {
 						panic("want name")
 					}
 					if !name.DefaultValue.IsDefined {
@@ -794,7 +801,7 @@ func TestParser_Parse(t *testing.T) {
 					if name.DefaultValue.Value.Kind != ast.ValueKindString {
 						panic("want ValueKindString")
 					}
-					if in.ByteSliceString(doc.StringValues[name.DefaultValue.Value.Ref].Content) != "Gopher" {
+					if doc.Input.ByteSliceString(doc.StringValues[name.DefaultValue.Value.Ref].Content) != "Gopher" {
 						panic("want Gopher")
 					}
 				})
@@ -805,21 +812,21 @@ func TestParser_Parse(t *testing.T) {
 			run(`interface NamedEntity @foo {
  								name: String
 							}`, parse, false,
-				func(in *input.Input, doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra interface{}) {
 					namedEntity := doc.InterfaceTypeDefinitions[0]
-					if in.ByteSliceString(namedEntity.Name) != "NamedEntity" {
+					if doc.Input.ByteSliceString(namedEntity.Name) != "NamedEntity" {
 						panic("want NamedEntity")
 					}
 
 					// fields
 					name := doc.FieldDefinitions[namedEntity.FieldsDefinition.Refs[0]]
-					if in.ByteSliceString(name.Name) != "name" {
+					if doc.Input.ByteSliceString(name.Name) != "name" {
 						panic("want name")
 					}
 
 					//directives
 					foo := doc.Directives[namedEntity.Directives.Refs[0]]
-					if in.ByteSliceString(foo.Name) != "foo" {
+					if doc.Input.ByteSliceString(foo.Name) != "foo" {
 						panic("want foo")
 					}
 				})
@@ -828,15 +835,15 @@ func TestParser_Parse(t *testing.T) {
 			run(`"describes NamedEntity" interface NamedEntity {
  								name: String
 							}`, parse, false,
-				func(in *input.Input, doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra interface{}) {
 					namedEntity := doc.InterfaceTypeDefinitions[0]
-					if in.ByteSliceString(namedEntity.Name) != "NamedEntity" {
+					if doc.Input.ByteSliceString(namedEntity.Name) != "NamedEntity" {
 						panic("want NamedEntity")
 					}
 					if !namedEntity.Description.IsDefined {
 						panic("want true")
 					}
-					if in.ByteSliceString(namedEntity.Description.Content) != "describes NamedEntity" {
+					if doc.Input.ByteSliceString(namedEntity.Description.Content) != "describes NamedEntity" {
 						panic("want 'describes NamedEntity'")
 					}
 				})
@@ -845,7 +852,7 @@ func TestParser_Parse(t *testing.T) {
 	t.Run("union type definition", func(t *testing.T) {
 		t.Run("simple", func(t *testing.T) {
 			run(`union SearchResult = Photo | Person`, parse, false,
-				func(in *input.Input, doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra interface{}) {
 					SearchResult := doc.UnionTypeDefinitions[0]
 
 					// union member types
@@ -855,7 +862,7 @@ func TestParser_Parse(t *testing.T) {
 					if Photo.TypeKind != ast.TypeKindNamed {
 						panic("want TypeKindNamed")
 					}
-					if in.ByteSliceString(Photo.Name) != "Photo" {
+					if doc.Input.ByteSliceString(Photo.Name) != "Photo" {
 						panic("want Photo")
 					}
 
@@ -864,7 +871,7 @@ func TestParser_Parse(t *testing.T) {
 					if Person.TypeKind != ast.TypeKindNamed {
 						panic("want TypeKindNamed")
 					}
-					if in.ByteSliceString(Person.Name) != "Person" {
+					if doc.Input.ByteSliceString(Person.Name) != "Person" {
 						panic("want Person")
 					}
 
@@ -876,7 +883,7 @@ func TestParser_Parse(t *testing.T) {
 		})
 		t.Run("without members", func(t *testing.T) {
 			run(`union SearchResult`, parse, false,
-				func(in *input.Input, doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra interface{}) {
 					SearchResult := doc.UnionTypeDefinitions[0]
 
 					// union member types
@@ -896,18 +903,18 @@ func TestParser_Parse(t *testing.T) {
 	})
 	t.Run("type", func(t *testing.T) {
 		t.Run("named", func(t *testing.T) {
-			run("String", parseType, false, func(in *input.Input, doc *ast.Document, extra interface{}) {
+			run("String", parseType, false, func(doc *ast.Document, extra interface{}) {
 				stringType := doc.Types[0]
 				if stringType.TypeKind != ast.TypeKindNamed {
 					panic("want TypeKindNamed")
 				}
-				if in.ByteSliceString(stringType.Name) != "String" {
+				if doc.Input.ByteSliceString(stringType.Name) != "String" {
 					panic("want String")
 				}
 			})
 		})
 		t.Run("non null named", func(t *testing.T) {
-			run("String!", parseType, false, func(in *input.Input, doc *ast.Document, extra interface{}) {
+			run("String!", parseType, false, func(doc *ast.Document, extra interface{}) {
 				nonNull := doc.Types[1]
 				if nonNull.TypeKind != ast.TypeKindNonNull {
 					panic("want TypeKindNonNull")
@@ -916,13 +923,13 @@ func TestParser_Parse(t *testing.T) {
 				if stringType.TypeKind != ast.TypeKindNamed {
 					panic("want TypeKindNamed")
 				}
-				if in.ByteSliceString(stringType.Name) != "String" {
+				if doc.Input.ByteSliceString(stringType.Name) != "String" {
 					panic("want String")
 				}
 			})
 		})
 		t.Run("non null list of named", func(t *testing.T) {
-			run("[String]!", parseType, false, func(in *input.Input, doc *ast.Document, extra interface{}) {
+			run("[String]!", parseType, false, func(doc *ast.Document, extra interface{}) {
 				nonNull := doc.Types[2]
 				if nonNull.TypeKind != ast.TypeKindNonNull {
 					panic("want TypeKindNonNull")
@@ -935,13 +942,13 @@ func TestParser_Parse(t *testing.T) {
 				if stringType.TypeKind != ast.TypeKindNamed {
 					panic("want TypeKindNamed")
 				}
-				if in.ByteSliceString(stringType.Name) != "String" {
+				if doc.Input.ByteSliceString(stringType.Name) != "String" {
 					panic("want String")
 				}
 			})
 		})
 		t.Run("non null list of non null named", func(t *testing.T) {
-			run("[String!]!", parseType, false, func(in *input.Input, doc *ast.Document, extra interface{}) {
+			run("[String!]!", parseType, false, func(doc *ast.Document, extra interface{}) {
 				nonNull := doc.Types[3]
 				if nonNull.TypeKind != ast.TypeKindNonNull {
 					panic("want TypeKindNonNull")
@@ -958,13 +965,13 @@ func TestParser_Parse(t *testing.T) {
 				if stringType.TypeKind != ast.TypeKindNamed {
 					panic("want TypeKindNamed")
 				}
-				if in.ByteSliceString(stringType.Name) != "String" {
+				if doc.Input.ByteSliceString(stringType.Name) != "String" {
 					panic("want String")
 				}
 			})
 		})
 		t.Run("non null list of non null list of named", func(t *testing.T) {
-			run("[[String]!]!", parseType, false, func(in *input.Input, doc *ast.Document, extra interface{}) {
+			run("[[String]!]!", parseType, false, func(doc *ast.Document, extra interface{}) {
 				nonNull := doc.Types[4]
 				if nonNull.TypeKind != ast.TypeKindNonNull {
 					panic("want TypeKindNonNull")
@@ -985,13 +992,13 @@ func TestParser_Parse(t *testing.T) {
 				if stringType.TypeKind != ast.TypeKindNamed {
 					panic("want TypeKindNamed")
 				}
-				if in.ByteSliceString(stringType.Name) != "String" {
+				if doc.Input.ByteSliceString(stringType.Name) != "String" {
 					panic("want String")
 				}
 			})
 		})
 		t.Run("non null list of non null list of non null named", func(t *testing.T) {
-			run("[[String!]!]!", parseType, false, func(in *input.Input, doc *ast.Document, extra interface{}) {
+			run("[[String!]!]!", parseType, false, func(doc *ast.Document, extra interface{}) {
 				nonNull := doc.Types[5]
 				if nonNull.TypeKind != ast.TypeKindNonNull {
 					panic("want TypeKindNonNull")
@@ -1016,7 +1023,7 @@ func TestParser_Parse(t *testing.T) {
 				if stringType.TypeKind != ast.TypeKindNamed {
 					panic("want TypeKindNamed")
 				}
-				if in.ByteSliceString(stringType.Name) != "String" {
+				if doc.Input.ByteSliceString(stringType.Name) != "String" {
 					panic("want String")
 				}
 			})
@@ -1053,15 +1060,15 @@ func TestParser_Parse(t *testing.T) {
 							  "describes WEST"
 							  WEST @foo
 							}`, parse, false,
-				func(in *input.Input, doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra interface{}) {
 					direction := doc.EnumTypeDefinitions[0]
-					if in.ByteSliceString(direction.Name) != "Direction" {
+					if doc.Input.ByteSliceString(direction.Name) != "Direction" {
 						panic("want Direction")
 					}
 
 					// directives
 					bar := doc.Directives[direction.Directives.Refs[0]]
-					if in.ByteSliceString(bar.Name) != "bar" {
+					if doc.Input.ByteSliceString(bar.Name) != "bar" {
 						panic("want bar")
 					}
 
@@ -1069,7 +1076,7 @@ func TestParser_Parse(t *testing.T) {
 
 					wantValue := func(index int, name string) {
 						enum := doc.EnumValueDefinitions[direction.EnumValuesDefinition.Refs[index]]
-						if in.ByteSliceString(enum.EnumValue) != name {
+						if doc.Input.ByteSliceString(enum.EnumValue) != name {
 							panic(fmt.Sprintf("want %s", name))
 						}
 					}
@@ -1083,12 +1090,12 @@ func TestParser_Parse(t *testing.T) {
 					if !west.Description.IsDefined {
 						panic("want true")
 					}
-					if in.ByteSliceString(west.Description.Content) != "describes WEST" {
+					if doc.Input.ByteSliceString(west.Description.Content) != "describes WEST" {
 						panic("want describes WEST")
 					}
 
 					foo := doc.Directives[west.Directives.Refs[0]]
-					if in.ByteSliceString(foo.Name) != "foo" {
+					if doc.Input.ByteSliceString(foo.Name) != "foo" {
 						panic("want foo")
 					}
 
@@ -1101,9 +1108,9 @@ func TestParser_Parse(t *testing.T) {
 	t.Run("directive definition", func(t *testing.T) {
 		t.Run("simple", func(t *testing.T) {
 			run(`directive @example on FIELD`, parse, false,
-				func(in *input.Input, doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra interface{}) {
 					example := doc.DirectiveDefinitions[0]
-					if in.ByteSliceString(example.Name) != "example" {
+					if doc.Input.ByteSliceString(example.Name) != "example" {
 						panic("want example")
 					}
 					locations := example.DirectiveLocations.Iterable()
@@ -1120,9 +1127,9 @@ func TestParser_Parse(t *testing.T) {
 		})
 		t.Run("multiple directive locations", func(t *testing.T) {
 			run(`directive @example on FIELD | SCALAR | SCHEMA`, parse, false,
-				func(in *input.Input, doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra interface{}) {
 					example := doc.DirectiveDefinitions[0]
-					if in.ByteSliceString(example.Name) != "example" {
+					if doc.Input.ByteSliceString(example.Name) != "example" {
 						panic("want example")
 					}
 					locations := example.DirectiveLocations.Iterable()
@@ -1163,39 +1170,39 @@ func TestParser_Parse(t *testing.T) {
 		t.Run("variable value", func(t *testing.T) {
 			t.Run("simple", func(t *testing.T) {
 				run(`$foo`, parseValue, false,
-					func(in *input.Input, doc *ast.Document, extra interface{}) {
+					func(doc *ast.Document, extra interface{}) {
 						value := extra.(ast.Value)
 						if value.Kind != ast.ValueKindVariable {
 							t.Fatal("want ValueKindVariable")
 						}
 						foo := doc.VariableValues[value.Ref]
-						if in.ByteSliceString(foo.Name) != "foo" {
+						if doc.Input.ByteSliceString(foo.Name) != "foo" {
 							t.Fatal("want foo")
 						}
 					})
 			})
 			t.Run("with underscore", func(t *testing.T) {
 				run(`$_foo`, parseValue, false,
-					func(in *input.Input, doc *ast.Document, extra interface{}) {
+					func(doc *ast.Document, extra interface{}) {
 						value := extra.(ast.Value)
 						if value.Kind != ast.ValueKindVariable {
 							t.Fatal("want ValueKindVariable")
 						}
 						foo := doc.VariableValues[value.Ref]
-						if in.ByteSliceString(foo.Name) != "_foo" {
+						if doc.Input.ByteSliceString(foo.Name) != "_foo" {
 							t.Fatal("want foo")
 						}
 					})
 			})
 			t.Run("with numbers", func(t *testing.T) {
 				run(`$foo123`, parseValue, false,
-					func(in *input.Input, doc *ast.Document, extra interface{}) {
+					func(doc *ast.Document, extra interface{}) {
 						value := extra.(ast.Value)
 						if value.Kind != ast.ValueKindVariable {
 							t.Fatal("want ValueKindVariable")
 						}
 						foo := doc.VariableValues[value.Ref]
-						if in.ByteSliceString(foo.Name) != "foo123" {
+						if doc.Input.ByteSliceString(foo.Name) != "foo123" {
 							t.Fatal("want foo123")
 						}
 					})
@@ -1210,13 +1217,13 @@ func TestParser_Parse(t *testing.T) {
 		t.Run("int value", func(t *testing.T) {
 			t.Run("simple", func(t *testing.T) {
 				run(`123`, parseValue, false,
-					func(in *input.Input, doc *ast.Document, extra interface{}) {
+					func(doc *ast.Document, extra interface{}) {
 						value := extra.(ast.Value)
 						if value.Kind != ast.ValueKindInteger {
 							panic("want ValueKindInteger")
 						}
 						intValue := doc.IntValues[value.Ref]
-						if in.ByteSliceString(intValue.Raw) != "123" {
+						if doc.Input.ByteSliceString(intValue.Raw) != "123" {
 							panic("want 123")
 						}
 						if intValue.Negative {
@@ -1226,13 +1233,13 @@ func TestParser_Parse(t *testing.T) {
 			})
 			t.Run("negative", func(t *testing.T) {
 				run(`-123`, parseValue, false,
-					func(in *input.Input, doc *ast.Document, extra interface{}) {
+					func(doc *ast.Document, extra interface{}) {
 						value := extra.(ast.Value)
 						if value.Kind != ast.ValueKindInteger {
 							panic("want ValueKindInteger")
 						}
 						intValue := doc.IntValues[value.Ref]
-						if in.ByteSliceString(intValue.Raw) != "123" {
+						if doc.Input.ByteSliceString(intValue.Raw) != "123" {
 							panic("want 123")
 						}
 						if !intValue.Negative {
@@ -1247,13 +1254,13 @@ func TestParser_Parse(t *testing.T) {
 		t.Run("float value", func(t *testing.T) {
 			t.Run("simple", func(t *testing.T) {
 				run(`13.37`, parseValue, false,
-					func(in *input.Input, doc *ast.Document, extra interface{}) {
+					func(doc *ast.Document, extra interface{}) {
 						value := extra.(ast.Value)
 						if value.Kind != ast.ValueKindFloat {
 							panic("want ValueKindFloat")
 						}
 						intValue := doc.FloatValues[value.Ref]
-						if in.ByteSliceString(intValue.Raw) != "13.37" {
+						if doc.Input.ByteSliceString(intValue.Raw) != "13.37" {
 							panic("want 13.37")
 						}
 						if intValue.Negative {
@@ -1263,13 +1270,13 @@ func TestParser_Parse(t *testing.T) {
 			})
 			t.Run("negative", func(t *testing.T) {
 				run(`-13.37`, parseValue, false,
-					func(in *input.Input, doc *ast.Document, extra interface{}) {
+					func(doc *ast.Document, extra interface{}) {
 						value := extra.(ast.Value)
 						if value.Kind != ast.ValueKindFloat {
 							panic("want ValueKindFloat")
 						}
 						intValue := doc.FloatValues[value.Ref]
-						if in.ByteSliceString(intValue.Raw) != "13.37" {
+						if doc.Input.ByteSliceString(intValue.Raw) != "13.37" {
 							panic("want 13.37")
 						}
 						if !intValue.Negative {
@@ -1283,7 +1290,7 @@ func TestParser_Parse(t *testing.T) {
 		})
 		t.Run("null value", func(t *testing.T) {
 			run(`null`, parseValue, false,
-				func(in *input.Input, doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra interface{}) {
 					value := extra.(ast.Value)
 					if value.Kind != ast.ValueKindNull {
 						panic("want ValueKindNull")
@@ -1293,7 +1300,7 @@ func TestParser_Parse(t *testing.T) {
 		t.Run("list value", func(t *testing.T) {
 			t.Run("complex", func(t *testing.T) {
 				run(`[1,2,"3",[4]]`, parseValue, false,
-					func(in *input.Input, doc *ast.Document, extra interface{}) {
+					func(doc *ast.Document, extra interface{}) {
 						value := extra.(ast.Value)
 						if value.Kind != ast.ValueKindList {
 							panic("want ValueKindList")
@@ -1306,7 +1313,7 @@ func TestParser_Parse(t *testing.T) {
 						if val.Kind != ast.ValueKindInteger {
 							panic("want ValueKindInteger")
 						}
-						if in.ByteSliceString(doc.IntValues[val.Ref].Raw) != "1" {
+						if doc.Input.ByteSliceString(doc.IntValues[val.Ref].Raw) != "1" {
 							panic("want 1")
 						}
 
@@ -1315,7 +1322,7 @@ func TestParser_Parse(t *testing.T) {
 						if val.Kind != ast.ValueKindInteger {
 							panic("want ValueKindInteger")
 						}
-						if in.ByteSliceString(doc.IntValues[val.Ref].Raw) != "2" {
+						if doc.Input.ByteSliceString(doc.IntValues[val.Ref].Raw) != "2" {
 							panic("want 1")
 						}
 
@@ -1324,7 +1331,7 @@ func TestParser_Parse(t *testing.T) {
 						if val.Kind != ast.ValueKindString {
 							panic("want ValueKindString")
 						}
-						if in.ByteSliceString(doc.StringValues[val.Ref].Content) != "3" {
+						if doc.Input.ByteSliceString(doc.StringValues[val.Ref].Content) != "3" {
 							panic("want 3")
 						}
 
@@ -1339,7 +1346,7 @@ func TestParser_Parse(t *testing.T) {
 						if four.Kind != ast.ValueKindInteger {
 							panic("want ValueKindInteger")
 						}
-						if in.ByteSliceString(doc.IntValues[four.Ref].Raw) != "4" {
+						if doc.Input.ByteSliceString(doc.IntValues[four.Ref].Raw) != "4" {
 							panic("want 4")
 						}
 						if len(inner.Refs) != 1 {
@@ -1356,7 +1363,7 @@ func TestParser_Parse(t *testing.T) {
 		t.Run("object value", func(t *testing.T) {
 			t.Run("complex", func(t *testing.T) {
 				run(`{lon: 12.43, lat: -53.211, list: [1] }`, parseValue, false,
-					func(in *input.Input, doc *ast.Document, extra interface{}) {
+					func(doc *ast.Document, extra interface{}) {
 						value := extra.(ast.Value)
 						if value.Kind != ast.ValueKindObject {
 							panic("want ValueKindObject")
@@ -1365,19 +1372,19 @@ func TestParser_Parse(t *testing.T) {
 
 						// lon
 						lon := doc.ObjectFields[object.Refs[0]]
-						if in.ByteSliceString(lon.Name) != "lon" {
+						if doc.Input.ByteSliceString(lon.Name) != "lon" {
 							panic("want lon")
 						}
 						if lon.Value.Kind != ast.ValueKindFloat {
 							panic("want float")
 						}
-						if in.ByteSliceString(doc.FloatValues[lon.Value.Ref].Raw) != "12.43" {
+						if doc.Input.ByteSliceString(doc.FloatValues[lon.Value.Ref].Raw) != "12.43" {
 							panic("want 12.43")
 						}
 
 						// lat
 						lat := doc.ObjectFields[object.Refs[1]]
-						if in.ByteSliceString(lat.Name) != "lat" {
+						if doc.Input.ByteSliceString(lat.Name) != "lat" {
 							panic("want lat")
 						}
 						if lon.Value.Kind != ast.ValueKindFloat {
@@ -1386,7 +1393,7 @@ func TestParser_Parse(t *testing.T) {
 						if !doc.FloatValues[lat.Value.Ref].Negative {
 							panic("want negative")
 						}
-						if in.ByteSliceString(doc.FloatValues[lat.Value.Ref].Raw) != "53.211" {
+						if doc.Input.ByteSliceString(doc.FloatValues[lat.Value.Ref].Raw) != "53.211" {
 							panic("want 53.211")
 						}
 
@@ -1397,7 +1404,7 @@ func TestParser_Parse(t *testing.T) {
 						}
 						listValue := doc.ListValues[list.Value.Ref]
 						one := doc.Values[listValue.Refs[0]]
-						if in.ByteSliceString(doc.IntValues[one.Ref].Raw) != "1" {
+						if doc.Input.ByteSliceString(doc.IntValues[one.Ref].Raw) != "1" {
 							panic("want 1")
 						}
 						if len(listValue.Refs) != 1 {
@@ -1414,12 +1421,12 @@ func TestParser_Parse(t *testing.T) {
 	t.Run("operation definition", func(t *testing.T) {
 		t.Run("unnamed query", func(t *testing.T) {
 			run(`query {field}`, parse, false,
-				func(in *input.Input, doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra interface{}) {
 					query := doc.OperationDefinitions[0]
 					if query.OperationType != ast.OperationTypeQuery {
 						panic("want OperationTypeQuery")
 					}
-					if in.ByteSliceString(query.Name) != "" {
+					if doc.Input.ByteSliceString(query.Name) != "" {
 						panic("want empty string")
 					}
 					fieldSelection := doc.Selections[doc.SelectionSets[query.SelectionSet].SelectionRefs[0]]
@@ -1427,19 +1434,19 @@ func TestParser_Parse(t *testing.T) {
 						panic("want SelectionKindField")
 					}
 					field := doc.Fields[fieldSelection.Ref]
-					if in.ByteSliceString(field.Name) != "field" {
+					if doc.Input.ByteSliceString(field.Name) != "field" {
 						panic("want field")
 					}
 				})
 		})
 		t.Run("shorthand query", func(t *testing.T) {
 			run(`{field}`, parse, false,
-				func(in *input.Input, doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra interface{}) {
 					query := doc.OperationDefinitions[0]
 					if query.OperationType != ast.OperationTypeQuery {
 						panic("want OperationTypeQuery")
 					}
-					if in.ByteSliceString(query.Name) != "" {
+					if doc.Input.ByteSliceString(query.Name) != "" {
 						panic("want empty string")
 					}
 					fieldSelection := doc.Selections[doc.SelectionSets[query.SelectionSet].SelectionRefs[0]]
@@ -1447,19 +1454,19 @@ func TestParser_Parse(t *testing.T) {
 						panic("want SelectionKindField")
 					}
 					field := doc.Fields[fieldSelection.Ref]
-					if in.ByteSliceString(field.Name) != "field" {
+					if doc.Input.ByteSliceString(field.Name) != "field" {
 						panic("want field")
 					}
 				})
 		})
 		t.Run("named query", func(t *testing.T) {
 			run(`query Query1 {field}`, parse, false,
-				func(in *input.Input, doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra interface{}) {
 					query := doc.OperationDefinitions[0]
 					if query.OperationType != ast.OperationTypeQuery {
 						panic("want OperationTypeQuery")
 					}
-					if in.ByteSliceString(query.Name) != "Query1" {
+					if doc.Input.ByteSliceString(query.Name) != "Query1" {
 						panic("want Query1")
 					}
 					fieldSelection := doc.Selections[doc.SelectionSets[query.SelectionSet].SelectionRefs[0]]
@@ -1467,19 +1474,19 @@ func TestParser_Parse(t *testing.T) {
 						panic("want SelectionKindField")
 					}
 					field := doc.Fields[fieldSelection.Ref]
-					if in.ByteSliceString(field.Name) != "field" {
+					if doc.Input.ByteSliceString(field.Name) != "field" {
 						panic("want field")
 					}
 				})
 		})
 		t.Run("unnamed mutation", func(t *testing.T) {
 			run(`mutation {field}`, parse, false,
-				func(in *input.Input, doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra interface{}) {
 					mutation := doc.OperationDefinitions[0]
 					if mutation.OperationType != ast.OperationTypeMutation {
 						panic("want OperationTypeMutation")
 					}
-					if in.ByteSliceString(mutation.Name) != "" {
+					if doc.Input.ByteSliceString(mutation.Name) != "" {
 						panic("want empty string")
 					}
 					fieldSelection := doc.Selections[doc.SelectionSets[mutation.SelectionSet].SelectionRefs[0]]
@@ -1487,19 +1494,19 @@ func TestParser_Parse(t *testing.T) {
 						panic("want SelectionKindField")
 					}
 					field := doc.Fields[fieldSelection.Ref]
-					if in.ByteSliceString(field.Name) != "field" {
+					if doc.Input.ByteSliceString(field.Name) != "field" {
 						panic("want field")
 					}
 				})
 		})
 		t.Run("named mutation", func(t *testing.T) {
 			run(`mutation Mutation1 {field}`, parse, false,
-				func(in *input.Input, doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra interface{}) {
 					mutation := doc.OperationDefinitions[0]
 					if mutation.OperationType != ast.OperationTypeMutation {
 						panic("want OperationTypeMutation")
 					}
-					if in.ByteSliceString(mutation.Name) != "Mutation1" {
+					if doc.Input.ByteSliceString(mutation.Name) != "Mutation1" {
 						panic("want Mutation1")
 					}
 					fieldSelection := doc.Selections[doc.SelectionSets[mutation.SelectionSet].SelectionRefs[0]]
@@ -1507,19 +1514,19 @@ func TestParser_Parse(t *testing.T) {
 						panic("want SelectionKindField")
 					}
 					field := doc.Fields[fieldSelection.Ref]
-					if in.ByteSliceString(field.Name) != "field" {
+					if doc.Input.ByteSliceString(field.Name) != "field" {
 						panic("want field")
 					}
 				})
 		})
 		t.Run("unnamed subscription", func(t *testing.T) {
 			run(`subscription {field}`, parse, false,
-				func(in *input.Input, doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra interface{}) {
 					mutation := doc.OperationDefinitions[0]
 					if mutation.OperationType != ast.OperationTypeSubscription {
 						panic("want OperationTypeSubscription")
 					}
-					if in.ByteSliceString(mutation.Name) != "" {
+					if doc.Input.ByteSliceString(mutation.Name) != "" {
 						panic("want empty string")
 					}
 					fieldSelection := doc.Selections[doc.SelectionSets[mutation.SelectionSet].SelectionRefs[0]]
@@ -1527,19 +1534,19 @@ func TestParser_Parse(t *testing.T) {
 						panic("want SelectionKindField")
 					}
 					field := doc.Fields[fieldSelection.Ref]
-					if in.ByteSliceString(field.Name) != "field" {
+					if doc.Input.ByteSliceString(field.Name) != "field" {
 						panic("want field")
 					}
 				})
 		})
 		t.Run("named subscription", func(t *testing.T) {
 			run(`subscription Sub1 {field}`, parse, false,
-				func(in *input.Input, doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra interface{}) {
 					mutation := doc.OperationDefinitions[0]
 					if mutation.OperationType != ast.OperationTypeSubscription {
 						panic("want OperationTypeSubscription")
 					}
-					if in.ByteSliceString(mutation.Name) != "Sub1" {
+					if doc.Input.ByteSliceString(mutation.Name) != "Sub1" {
 						panic("want empty Sub1")
 					}
 					fieldSelection := doc.Selections[doc.SelectionSets[mutation.SelectionSet].SelectionRefs[0]]
@@ -1547,7 +1554,7 @@ func TestParser_Parse(t *testing.T) {
 						panic("want SelectionKindField")
 					}
 					field := doc.Fields[fieldSelection.Ref]
-					if in.ByteSliceString(field.Name) != "field" {
+					if doc.Input.ByteSliceString(field.Name) != "field" {
 						panic("want field")
 					}
 				})
@@ -1566,7 +1573,7 @@ func TestParser_Parse(t *testing.T) {
 								  }
 							}`,
 				parse, false,
-				func(in *input.Input, doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra interface{}) {
 					subscription := doc.OperationDefinitions[0]
 					if subscription.OperationType != ast.OperationTypeSubscription {
 						panic("want OperationTypeSubscription")
@@ -1577,19 +1584,19 @@ func TestParser_Parse(t *testing.T) {
 	t.Run("variable definition", func(t *testing.T) {
 		t.Run("simple", func(t *testing.T) {
 			run(`($devicePicSize: Int = 1 $var2: String)`, parseVariableDefinitionList, false,
-				func(in *input.Input, doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra interface{}) {
 					list := extra.(ast.VariableDefinitionList)
 
 					var1 := doc.VariableDefinitions[list.Refs[0]]
 					devicePicSize := doc.VariableValues[var1.Variable]
-					if in.ByteSliceString(devicePicSize.Name) != "devicePicSize" {
+					if doc.Input.ByteSliceString(devicePicSize.Name) != "devicePicSize" {
 						panic("want devicePicSize")
 					}
 					Int := doc.Types[var1.Type]
 					if Int.TypeKind != ast.TypeKindNamed {
 						panic("want TypeKindNamed")
 					}
-					if in.ByteSliceString(Int.Name) != "Int" {
+					if doc.Input.ByteSliceString(Int.Name) != "Int" {
 						panic("want Int")
 					}
 					if !var1.DefaultValue.IsDefined {
@@ -1599,20 +1606,20 @@ func TestParser_Parse(t *testing.T) {
 						panic("want ValueKindInteger")
 					}
 					one := doc.IntValues[var1.DefaultValue.Value.Ref]
-					if in.ByteSliceString(one.Raw) != "1" {
+					if doc.Input.ByteSliceString(one.Raw) != "1" {
 						panic("want 1")
 					}
 
 					var2 := doc.VariableDefinitions[list.Refs[1]]
 					var2Variable := doc.VariableValues[var2.Variable]
-					if in.ByteSliceString(var2Variable.Name) != "var2" {
+					if doc.Input.ByteSliceString(var2Variable.Name) != "var2" {
 						panic("want var2")
 					}
 					String := doc.Types[var2.Type]
 					if String.TypeKind != ast.TypeKindNamed {
 						panic("want TypeKindNamed")
 					}
-					if in.ByteSliceString(String.Name) != "String" {
+					if doc.Input.ByteSliceString(String.Name) != "String" {
 						panic("want String")
 					}
 
@@ -1642,7 +1649,7 @@ func TestParser_Parse(t *testing.T) {
 								}
 							  }
 							}`, parseSelectionSet, false,
-				func(in *input.Input, doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra interface{}) {
 					set := doc.SelectionSets[extra.(int)]
 
 					// me
@@ -1651,7 +1658,7 @@ func TestParser_Parse(t *testing.T) {
 						panic("want SelectionKindField")
 					}
 					me := doc.Fields[meSelection.Ref]
-					if in.ByteSliceString(me.Name) != "me" {
+					if doc.Input.ByteSliceString(me.Name) != "me" {
 						panic("want me")
 					}
 
@@ -1666,7 +1673,7 @@ func TestParser_Parse(t *testing.T) {
 						panic("want 1")
 					}
 					Person := doc.Types[onPersonFragment.TypeCondition.Type]
-					if in.ByteSliceString(Person.Name) != "Person" {
+					if doc.Input.ByteSliceString(Person.Name) != "Person" {
 						panic("want Person")
 					}
 					personIdSelection := doc.Selections[doc.SelectionSets[onPersonFragment.SelectionSet].SelectionRefs[0]]
@@ -1674,7 +1681,7 @@ func TestParser_Parse(t *testing.T) {
 						panic("want SelectionKindField")
 					}
 					personId := doc.Fields[personIdSelection.Ref]
-					if in.ByteSliceString(personId.Name) != "personID" {
+					if doc.Input.ByteSliceString(personId.Name) != "personID" {
 						panic("want personID")
 					}
 
@@ -1684,7 +1691,7 @@ func TestParser_Parse(t *testing.T) {
 						panic("want SelectionKindFragmentSpread")
 					}
 					personFragment := doc.FragmentSpreads[personFragmentSelection.Ref]
-					if in.ByteSliceString(personFragment.FragmentName) != "personFragment" {
+					if doc.Input.ByteSliceString(personFragment.FragmentName) != "personFragment" {
 						panic("want personFragment")
 					}
 					if len(personFragment.Directives.Refs) != 1 {
@@ -1697,7 +1704,7 @@ func TestParser_Parse(t *testing.T) {
 						panic("want SelectionKindField")
 					}
 					id := doc.Fields[idSelection.Ref]
-					if in.ByteSliceString(id.Name) != "id" {
+					if doc.Input.ByteSliceString(id.Name) != "id" {
 						panic("want id")
 					}
 
@@ -1707,7 +1714,7 @@ func TestParser_Parse(t *testing.T) {
 						panic("want SelectionKindField")
 					}
 					birthday := doc.Fields[birthdaySelection.Ref]
-					if in.ByteSliceString(birthday.Name) != "birthday" {
+					if doc.Input.ByteSliceString(birthday.Name) != "birthday" {
 						panic("want birthday")
 					}
 
@@ -1717,7 +1724,7 @@ func TestParser_Parse(t *testing.T) {
 						panic("want SelectionKindField")
 					}
 					month := doc.Fields[monthSelection.Ref]
-					if in.ByteSliceString(month.Name) != "month" {
+					if doc.Input.ByteSliceString(month.Name) != "month" {
 						panic("want month")
 					}
 				})
@@ -1726,9 +1733,9 @@ func TestParser_Parse(t *testing.T) {
 	t.Run("fragment spread", func(t *testing.T) {
 		t.Run("simple", func(t *testing.T) {
 			run(`friendFields @foo`, parseFragmentSpread, false,
-				func(in *input.Input, doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra interface{}) {
 					fragmentSpread := extra.(ast.FragmentSpread)
-					if in.ByteSliceString(fragmentSpread.FragmentName) != "friendFields" {
+					if doc.Input.ByteSliceString(fragmentSpread.FragmentName) != "friendFields" {
 						panic("want friendFields")
 					}
 					if len(fragmentSpread.Directives.Refs) != 1 {
@@ -1747,13 +1754,13 @@ func TestParser_Parse(t *testing.T) {
 								count
 							  }
 							}`, parseInlineFragment, false,
-				func(in *input.Input, doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra interface{}) {
 					fragment := extra.(ast.InlineFragment)
 					user := doc.Types[fragment.TypeCondition.Type]
 					if user.TypeKind != ast.TypeKindNamed {
 						panic("want TypeKindNamed")
 					}
-					if in.ByteSliceString(user.Name) != "User" {
+					if doc.Input.ByteSliceString(user.Name) != "User" {
 						panic("want User")
 					}
 
@@ -1762,7 +1769,7 @@ func TestParser_Parse(t *testing.T) {
 						panic("want SelectionKindField")
 					}
 					friends := doc.Fields[selection.Ref]
-					if in.ByteSliceString(friends.Name) != "friends" {
+					if doc.Input.ByteSliceString(friends.Name) != "friends" {
 						panic("want friends")
 					}
 
@@ -1771,7 +1778,7 @@ func TestParser_Parse(t *testing.T) {
 						panic("want SelectionKindField")
 					}
 					count := doc.Fields[selection.Ref]
-					if in.ByteSliceString(count.Name) != "count" {
+					if doc.Input.ByteSliceString(count.Name) != "count" {
 						panic("want count")
 					}
 				})
@@ -1784,16 +1791,16 @@ func TestParser_Parse(t *testing.T) {
 							  name
 							  profilePic(size: 50)
 							}`, parse, false,
-				func(in *input.Input, doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra interface{}) {
 					fragment := doc.FragmentDefinitions[0]
-					if in.ByteSliceString(fragment.Name) != "friendFields" {
+					if doc.Input.ByteSliceString(fragment.Name) != "friendFields" {
 						panic("want friendFields")
 					}
 					onUser := doc.Types[fragment.TypeCondition.Type]
 					if onUser.TypeKind != ast.TypeKindNamed {
 						panic("want TypeKindNamed")
 					}
-					if in.ByteSliceString(onUser.Name) != "User" {
+					if doc.Input.ByteSliceString(onUser.Name) != "User" {
 						panic("want User")
 					}
 
@@ -1802,11 +1809,60 @@ func TestParser_Parse(t *testing.T) {
 						panic("want SelectionKindField")
 					}
 					id := doc.Fields[selection1.Ref]
-					if in.ByteSliceString(id.Name) != "id" {
+					if doc.Input.ByteSliceString(id.Name) != "id" {
 						panic("want id")
 					}
 				})
 		})
+	})
+	t.Run("index", func(t *testing.T) {
+		run(`
+			schema {
+				query: Query
+				mutation: Mutation
+				subscription: Subscription
+			}
+			scalar Scalar1 {} 
+			scalar Scalar2 {} 
+			type Type1 {} 
+			type Type2 {}
+			interface Iface1 {}
+			interface Iface2 {}
+			input Input1 {}
+			input Input2 {}
+			union Union1
+			union Union2
+			enum Enum1 {}
+			enum Enum2 {}
+			directive @directive1 on FIELD
+			directive @directive2 on FIELD
+			`, parse, false,
+			func(doc *ast.Document, extra interface{}) {
+				if string(doc.Index.QueryTypeName) != "Query" {
+					panic("want Query")
+				}
+				if string(doc.Index.MutationTypeName) != "Mutation" {
+					panic("want mutation")
+				}
+				if string(doc.Index.SubscriptionTypeName) != "Subscription" {
+					panic("want Subscription")
+				}
+			},
+			wantIndexedNode("Scalar1", ast.NodeKindScalarTypeDefinition),
+			wantIndexedNode("Scalar2", ast.NodeKindScalarTypeDefinition),
+			wantIndexedNode("Type1", ast.NodeKindObjectTypeDefinition),
+			wantIndexedNode("Type2", ast.NodeKindObjectTypeDefinition),
+			wantIndexedNode("Iface1", ast.NodeKindInterfaceTypeDefinition),
+			wantIndexedNode("Iface2", ast.NodeKindInterfaceTypeDefinition),
+			wantIndexedNode("Input1", ast.NodeKindInputObjectTypeDefinition),
+			wantIndexedNode("Input2", ast.NodeKindInputObjectTypeDefinition),
+			wantIndexedNode("Union1", ast.NodeKindUnionTypeDefinition),
+			wantIndexedNode("Union2", ast.NodeKindUnionTypeDefinition),
+			wantIndexedNode("Enum1", ast.NodeKindEnumTypeDefinition),
+			wantIndexedNode("Enum2", ast.NodeKindEnumTypeDefinition),
+			wantIndexedNode("directive1", ast.NodeKindDirectiveDefinition),
+			wantIndexedNode("directive2", ast.NodeKindDirectiveDefinition),
+		)
 	})
 }
 
@@ -1818,13 +1874,12 @@ func TestParseStarwars(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	in := &input.Input{}
-	in.ResetInputBytes(starwarsSchema)
-	doc := &ast.Document{}
+	doc := ast.NewDocument()
+	doc.Input.ResetInputBytes(starwarsSchema)
 
 	parser := NewParser()
 
-	err = parser.Parse(in, doc)
+	err = parser.Parse(doc)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1838,20 +1893,16 @@ func BenchmarkParseStarwars(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	in := &input.Input{}
-	in.ResetInputBytes(starwarsSchema)
-
 	doc := ast.NewDocument()
-
 	parser := NewParser()
 
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		in.ResetInputBytes(starwarsSchema)
+		doc.Input.ResetInputBytes(starwarsSchema)
 		doc.Reset()
-		err = parser.Parse(in, doc)
+		err = parser.Parse(doc)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -1859,7 +1910,7 @@ func BenchmarkParseStarwars(b *testing.B) {
 }
 
 func BenchmarkSelectionSet(b *testing.B) {
-	in := &input.Input{}
+
 	doc := ast.NewDocument()
 	parser := NewParser()
 
@@ -1869,9 +1920,9 @@ func BenchmarkSelectionSet(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		in.ResetInputBytes(selectionSet)
+		doc.Input.ResetInputBytes(selectionSet)
 		doc.Reset()
-		err = parser.Parse(in, doc)
+		err = parser.Parse(doc)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -1879,7 +1930,7 @@ func BenchmarkSelectionSet(b *testing.B) {
 }
 
 func BenchmarkIntrospectionQuery(b *testing.B) {
-	in := &input.Input{}
+
 	doc := ast.NewDocument()
 	parser := NewParser()
 
@@ -1889,9 +1940,9 @@ func BenchmarkIntrospectionQuery(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		in.ResetInputBytes(introspectionQuery)
+		doc.Input.ResetInputBytes(introspectionQuery)
 		doc.Reset()
-		err = parser.Parse(in, doc)
+		err = parser.Parse(doc)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -1899,7 +1950,7 @@ func BenchmarkIntrospectionQuery(b *testing.B) {
 }
 
 func BenchmarkKitchenSink(b *testing.B) {
-	in := &input.Input{}
+
 	doc := ast.NewDocument()
 	parser := NewParser()
 
@@ -1909,34 +1960,17 @@ func BenchmarkKitchenSink(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		in.ResetInputBytes(kitchenSinkData)
+		doc.Input.ResetInputBytes(kitchenSinkData)
 		doc.Reset()
-		err = parser.Parse(in, doc)
+		err = parser.Parse(doc)
 		if err != nil {
 			b.Fatal(err)
 		}
 	}
 }
 
-func BenchmarkKitchenSinkFastest(b *testing.B) {
-	in := &input.Input{}
-	lex := &lexer.Lexer{}
-
-	b.ReportAllocs()
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
-		in.ResetInputBytes(kitchenSinkData)
-		lex.SetInput(in)
-		for i := 0; i <= 174; i++ {
-			lex.Read()
-		}
-	}
-}
-
 func BenchmarkParse(b *testing.B) {
 
-	in := &input.Input{}
 	doc := ast.NewDocument()
 	parser := NewParser()
 
@@ -1946,9 +1980,9 @@ func BenchmarkParse(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		in.ResetInputBytes(inputBytes)
+		doc.Input.ResetInputBytes(inputBytes)
 		doc.Reset()
-		err = parser.Parse(in, doc)
+		err = parser.Parse(doc)
 		if err != nil {
 			b.Fatal(err)
 		}

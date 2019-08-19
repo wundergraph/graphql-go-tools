@@ -3,13 +3,26 @@ package astparser
 import (
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/input"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
 	"runtime"
 )
+
+func ParseGraphqlDocumentString(input string) (*ast.Document, error) {
+	parser := NewParser()
+	doc := ast.NewDocument()
+	doc.Input.ResetInputString(input)
+	return doc, parser.Parse(doc)
+}
+
+func ParseGraphqlDocumentBytes(input []byte) (*ast.Document, error) {
+	parser := NewParser()
+	doc := ast.NewDocument()
+	doc.Input.ResetInputBytes(input)
+	return doc, parser.Parse(doc)
+}
 
 type origin struct {
 	file     string
@@ -36,26 +49,26 @@ func (e ErrUnexpectedToken) Error() string {
 }
 
 type Parser struct {
-	input        *input.Input
 	document     *ast.Document
 	err          error
 	lexer        *lexer.Lexer
 	tokens       []token.Token
 	maxTokens    int
 	currentToken int
+	shouldIndex  bool
 }
 
 func NewParser() *Parser {
 	return &Parser{
-		tokens: make([]token.Token, 256),
-		lexer:  &lexer.Lexer{},
+		tokens:      make([]token.Token, 256),
+		lexer:       &lexer.Lexer{},
+		shouldIndex: true,
 	}
 }
 
-func (p *Parser) Parse(input *input.Input, document *ast.Document) error {
-	p.input = input
+func (p *Parser) Parse(document *ast.Document) error {
 	p.document = document
-	p.lexer.SetInput(input)
+	p.lexer.SetInput(document.Input)
 	p.tokenize()
 	p.parse()
 	return p.err
@@ -179,7 +192,7 @@ func (p *Parser) errUnexpectedToken(unexpected token.Token, expectedKeywords ...
 	p.err = ErrUnexpectedToken{
 		keyword:  unexpected.Keyword,
 		position: unexpected.TextPosition,
-		literal:  p.input.ByteSliceString(unexpected.Literal),
+		literal:  p.document.Input.ByteSliceString(unexpected.Literal),
 		origins:  origins,
 		expected: expectedKeywords,
 	}
@@ -221,6 +234,7 @@ func (p *Parser) parseSchema() {
 	p.parseRootOperationTypeDefinitionList(&schemaDefinition.RootOperationTypeDefinitions)
 
 	p.document.SchemaDefinitions = append(p.document.SchemaDefinitions, schemaDefinition)
+
 	ref := len(p.document.SchemaDefinitions) - 1
 	rootNode := ast.Node{
 		Kind: ast.NodeKindSchemaDefinition,
@@ -262,15 +276,29 @@ func (p *Parser) parseRootOperationTypeDefinitionList(list *ast.RootOperationTyp
 
 			if cap(list.Refs) == 0 {
 				list.Refs = p.document.Refs[p.document.NextRefIndex()][:0]
-				list.Refs = p.document.Refs[p.document.NextRefIndex()][:0]
 			}
 
 			list.Refs = append(list.Refs, ref)
+
+			if p.shouldIndex {
+				p.indexRootOperationTypeDefinition(rootOperationTypeDefinition)
+			}
 
 		default:
 			p.errUnexpectedToken(p.read())
 			return
 		}
+	}
+}
+
+func (p *Parser) indexRootOperationTypeDefinition(definition ast.RootOperationTypeDefinition) {
+	switch definition.OperationType {
+	case ast.OperationTypeQuery:
+		p.document.Index.QueryTypeName = p.document.Input.ByteSlice(definition.NamedType.Name)
+	case ast.OperationTypeMutation:
+		p.document.Index.MutationTypeName = p.document.Input.ByteSlice(definition.NamedType.Name)
+	case ast.OperationTypeSubscription:
+		p.document.Index.SubscriptionTypeName = p.document.Input.ByteSlice(definition.NamedType.Name)
 	}
 }
 
@@ -599,6 +627,19 @@ func (p *Parser) parseObjectTypeDefinition(description *ast.Description) {
 	}
 
 	p.document.ObjectTypeDefinitions = append(p.document.ObjectTypeDefinitions, objectTypeDefinition)
+	ref := len(p.document.ObjectTypeDefinitions) - 1
+	node := ast.Node{
+		Kind: ast.NodeKindObjectTypeDefinition,
+		Ref:  ref,
+	}
+
+	if p.shouldIndex {
+		p.indexNode(objectTypeDefinition.Name, node)
+	}
+}
+
+func (p *Parser) indexNode(key ast.ByteSliceReference, value ast.Node) {
+	p.document.Index.Nodes[string(p.document.Input.ByteSlice(key))] = value
 }
 
 func (p *Parser) parseRootDescription() {
@@ -877,6 +918,14 @@ func (p *Parser) parseInputObjectTypeDefinition(description *ast.Description) {
 		inputObjectTypeDefinition.InputFieldsDefinition = p.parseInputValueDefinitionList(keyword.RBRACE)
 	}
 	p.document.InputObjectTypeDefinitions = append(p.document.InputObjectTypeDefinitions, inputObjectTypeDefinition)
+	ref := len(p.document.InputObjectTypeDefinitions) - 1
+	node := ast.Node{
+		Kind: ast.NodeKindInputObjectTypeDefinition,
+		Ref:  ref,
+	}
+	if p.shouldIndex {
+		p.indexNode(inputObjectTypeDefinition.Name, node)
+	}
 }
 
 func (p *Parser) parseScalarTypeDefinition(description *ast.Description) {
@@ -890,6 +939,14 @@ func (p *Parser) parseScalarTypeDefinition(description *ast.Description) {
 		scalarTypeDefinition.Directives = p.parseDirectiveList()
 	}
 	p.document.ScalarTypeDefinitions = append(p.document.ScalarTypeDefinitions, scalarTypeDefinition)
+	ref := len(p.document.ScalarTypeDefinitions) - 1
+	node := ast.Node{
+		Kind: ast.NodeKindScalarTypeDefinition,
+		Ref:  ref,
+	}
+	if p.shouldIndex {
+		p.indexNode(scalarTypeDefinition.Name, node)
+	}
 }
 
 func (p *Parser) parseInterfaceTypeDefinition(description *ast.Description) {
@@ -906,6 +963,14 @@ func (p *Parser) parseInterfaceTypeDefinition(description *ast.Description) {
 		interfaceTypeDefinition.FieldsDefinition = p.parseFieldDefinitionList()
 	}
 	p.document.InterfaceTypeDefinitions = append(p.document.InterfaceTypeDefinitions, interfaceTypeDefinition)
+	ref := len(p.document.InterfaceTypeDefinitions) - 1
+	node := ast.Node{
+		Kind: ast.NodeKindInterfaceTypeDefinition,
+		Ref:  ref,
+	}
+	if p.shouldIndex {
+		p.indexNode(interfaceTypeDefinition.Name, node)
+	}
 }
 
 func (p *Parser) parseUnionTypeDefinition(description *ast.Description) {
@@ -923,6 +988,14 @@ func (p *Parser) parseUnionTypeDefinition(description *ast.Description) {
 		unionTypeDefinition.UnionMemberTypes = p.parseUnionMemberTypes()
 	}
 	p.document.UnionTypeDefinitions = append(p.document.UnionTypeDefinitions, unionTypeDefinition)
+	ref := len(p.document.UnionTypeDefinitions) - 1
+	node := ast.Node{
+		Kind: ast.NodeKindUnionTypeDefinition,
+		Ref:  ref,
+	}
+	if p.shouldIndex {
+		p.indexNode(unionTypeDefinition.Name, node)
+	}
 }
 
 func (p *Parser) parseUnionMemberTypes() (list ast.TypeList) {
@@ -990,6 +1063,14 @@ func (p *Parser) parseEnumTypeDefinition(description *ast.Description) {
 		enumTypeDefinition.EnumValuesDefinition = p.parseEnumValueDefinitionList()
 	}
 	p.document.EnumTypeDefinitions = append(p.document.EnumTypeDefinitions, enumTypeDefinition)
+	ref := len(p.document.EnumTypeDefinitions) - 1
+	node := ast.Node{
+		Kind: ast.NodeKindEnumTypeDefinition,
+		Ref:  ref,
+	}
+	if p.shouldIndex {
+		p.indexNode(enumTypeDefinition.Name, node)
+	}
 }
 
 func (p *Parser) parseEnumValueDefinitionList() (list ast.EnumValueDefinitionList) {
@@ -1051,6 +1132,14 @@ func (p *Parser) parseDirectiveDefinition(description *ast.Description) {
 	directiveDefinition.On = p.mustRead(keyword.ON).TextPosition
 	p.parseDirectiveLocations(&directiveDefinition.DirectiveLocations)
 	p.document.DirectiveDefinitions = append(p.document.DirectiveDefinitions, directiveDefinition)
+	ref := len(p.document.DirectiveDefinitions) - 1
+	node := ast.Node{
+		Kind: ast.NodeKindDirectiveDefinition,
+		Ref:  ref,
+	}
+	if p.shouldIndex {
+		p.indexNode(directiveDefinition.Name, node)
+	}
 }
 
 func (p *Parser) parseDirectiveLocations(locations *ast.DirectiveLocations) {
@@ -1066,7 +1155,7 @@ func (p *Parser) parseDirectiveLocations(locations *ast.DirectiveLocations) {
 				acceptPipe = true
 				expectNext = false
 
-				raw := p.input.ByteSlice(p.read().Literal)
+				raw := p.document.Input.ByteSlice(p.read().Literal)
 				p.err = locations.SetFromRaw(raw)
 				if p.err != nil {
 					return
@@ -1205,7 +1294,11 @@ func (p *Parser) parseFragmentSpread(spread position.Position) int {
 }
 
 func (p *Parser) parseInlineFragment(spread position.Position) int {
-	var fragment ast.InlineFragment
+	fragment := ast.InlineFragment{
+		TypeCondition: ast.TypeCondition{
+			Type: -1,
+		},
+	}
 	fragment.Spread = spread
 	if p.peekEquals(keyword.ON) {
 		fragment.TypeCondition = p.parseTypeCondition()
@@ -1245,6 +1338,12 @@ func (p *Parser) parseOperationDefinition() {
 		operationDefinition.OperationType = ast.OperationTypeQuery
 		operationDefinition.SelectionSet, operationDefinition.HasSelections = p.parseSelectionSet()
 		p.document.OperationDefinitions = append(p.document.OperationDefinitions, operationDefinition)
+		ref := len(p.document.OperationDefinitions) - 1
+		rootNode := ast.Node{
+			Kind: ast.NodeKindOperationDefinition,
+			Ref:  ref,
+		}
+		p.document.RootNodes = append(p.document.RootNodes, rootNode)
 		return
 	default:
 		p.errUnexpectedToken(p.read(), keyword.QUERY, keyword.MUTATION, keyword.SUBSCRIPTION, keyword.LBRACE)
