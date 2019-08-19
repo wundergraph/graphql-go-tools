@@ -1,4 +1,4 @@
-package input
+package ast
 
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
@@ -29,9 +29,17 @@ func (i *Input) ResetInputBytes(bytes []byte) {
 	i.Length = len(i.RawBytes)
 }
 
+func (i *Input) ResetInputString(input string) {
+	i.ResetInputBytes([]byte(input))
+}
+
 func (i *Input) AppendInputBytes(bytes []byte) {
 	i.RawBytes = append(i.RawBytes, bytes...)
 	i.Length = len(i.RawBytes)
+}
+
+func (i *Input) AppendInputString(input string) {
+	i.AppendInputBytes([]byte(input))
 }
 
 func (i *Input) ByteSlice(reference ByteSliceReference) ByteSlice {
@@ -40,6 +48,19 @@ func (i *Input) ByteSlice(reference ByteSliceReference) ByteSlice {
 
 func (i *Input) ByteSliceString(reference ByteSliceReference) string {
 	return string(i.ByteSlice(reference))
+}
+
+func (i *Input) ByteSliceReferenceContentEquals(left, right ByteSliceReference) bool {
+	if left.Length() != right.Length() {
+		return false
+	}
+	length := int(left.Length())
+	for k := 0; k < length; k++ {
+		if i.RawBytes[int(left.Start)+k] != i.RawBytes[int(right.Start)+k] {
+			return false
+		}
+	}
+	return true
 }
 
 type ByteSlice []byte
@@ -57,7 +78,7 @@ func (b ByteSliceReference) Length() uint32 {
 	return b.End - b.Start
 }
 
-func ByteSliceEquals(left ByteSliceReference, leftInput *Input, right ByteSliceReference, rightInput *Input) bool {
+func ByteSliceEquals(left ByteSliceReference, leftInput Input, right ByteSliceReference, rightInput Input) bool {
 	if left.Length() != right.Length() {
 		return false
 	}
