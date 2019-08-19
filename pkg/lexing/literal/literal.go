@@ -41,6 +41,7 @@ var (
 	INT          = []byte("Int")
 	FLOAT        = []byte("Float")
 	TYPE         = []byte("type")
+	TYPENAME     = []byte("__typename")
 	GRAPHQLTYPE  = []byte("graphqlType")
 	INTERFACE    = []byte("interface")
 	INPUT        = []byte("input")
