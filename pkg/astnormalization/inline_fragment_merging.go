@@ -21,7 +21,7 @@ func (i *InlineFragmentResolver) Do(operation, definition *ast.Document) error {
 	i.visitor.operation = operation
 	i.visitor.definition = definition
 
-	err := i.walker.Visit(operation, definition, &i.visitor)
+	err := i.walker.Walk(operation, definition, &i.visitor)
 	if err == nil {
 		err = i.visitor.err
 	}

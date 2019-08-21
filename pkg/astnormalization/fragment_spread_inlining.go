@@ -31,7 +31,7 @@ func (a *FragmentInline) Do(operation, definition *ast.Document) error {
 		return err
 	}
 
-	err = a.walker.Visit(operation, definition, &a.visitor)
+	err = a.walker.Walk(operation, definition, &a.visitor)
 	if err != nil {
 		return err
 	}
