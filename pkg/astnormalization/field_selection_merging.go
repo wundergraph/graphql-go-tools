@@ -6,40 +6,19 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 )
 
-func MergeFieldSelections(operation, definition *ast.Document) error {
-	merger := FieldSelectionMerger{}
-	return merger.Do(operation, definition)
-}
-
-type FieldSelectionMerger struct {
-	walker  astvisitor.Walker
-	visitor fieldSelectionMergeVisitor
-}
-
-func (f *FieldSelectionMerger) Do(operation, definition *ast.Document) error {
-
-	f.visitor.operation = operation
-	f.visitor.definition = definition
-
-	err := f.walker.Visit(operation, definition, &f.visitor)
-	if err != nil {
-		return err
-	}
-
-	return nil
+func mergeFieldSelections(walker *astvisitor.Walker) {
+	visitor := fieldSelectionMergeVisitor{}
+	walker.RegisterEnterDocumentVisitor(&visitor)
+	walker.RegisterEnterSelectionSetVisitor(&visitor)
 }
 
 type fieldSelectionMergeVisitor struct {
-	operation, definition *ast.Document
-	depths                Depths
+	operation *ast.Document
 }
 
-func (f *fieldSelectionMergeVisitor) EnterArgument(ref int, definition int, info astvisitor.Info) {
-
-}
-
-func (f *fieldSelectionMergeVisitor) LeaveArgument(ref int, definition int, info astvisitor.Info) {
-
+func (f *fieldSelectionMergeVisitor) EnterDocument(operation, definition *ast.Document) astvisitor.Instruction {
+	f.operation = operation
+	return astvisitor.Instruction{}
 }
 
 func (f *fieldSelectionMergeVisitor) fieldsCanMerge(left, right int) bool {
@@ -67,14 +46,6 @@ func (f *fieldSelectionMergeVisitor) mergeFields(left, right int) {
 	rightSet := f.operation.Fields[right].SelectionSet
 	f.operation.SelectionSets[leftSet].SelectionRefs = append(f.operation.SelectionSets[leftSet].SelectionRefs, f.operation.SelectionSets[rightSet].SelectionRefs...)
 	f.operation.Fields[left].Directives.Refs = append(f.operation.Fields[left].Directives.Refs, f.operation.Fields[right].Directives.Refs...)
-}
-
-func (f *fieldSelectionMergeVisitor) EnterOperationDefinition(ref int, info astvisitor.Info) {
-
-}
-
-func (f *fieldSelectionMergeVisitor) LeaveOperationDefinition(ref int, info astvisitor.Info) {
-
 }
 
 func (f *fieldSelectionMergeVisitor) EnterSelectionSet(ref int, info astvisitor.Info) (instruction astvisitor.Instruction) {
@@ -111,40 +82,4 @@ func (f *fieldSelectionMergeVisitor) EnterSelectionSet(ref int, info astvisitor.
 	}
 
 	return
-}
-
-func (f *fieldSelectionMergeVisitor) LeaveSelectionSet(ref int, info astvisitor.Info) {
-
-}
-
-func (f *fieldSelectionMergeVisitor) EnterField(ref int, info astvisitor.Info) {
-
-}
-
-func (f *fieldSelectionMergeVisitor) LeaveField(ref int, info astvisitor.Info) {
-
-}
-
-func (f *fieldSelectionMergeVisitor) EnterFragmentSpread(ref int, info astvisitor.Info) {
-
-}
-
-func (f *fieldSelectionMergeVisitor) LeaveFragmentSpread(ref int, info astvisitor.Info) {
-
-}
-
-func (f *fieldSelectionMergeVisitor) EnterInlineFragment(ref int, info astvisitor.Info) {
-
-}
-
-func (f *fieldSelectionMergeVisitor) LeaveInlineFragment(ref int, info astvisitor.Info) {
-
-}
-
-func (f *fieldSelectionMergeVisitor) EnterFragmentDefinition(ref int, info astvisitor.Info) {
-
-}
-
-func (f *fieldSelectionMergeVisitor) LeaveFragmentDefinition(ref int, info astvisitor.Info) {
-
 }

@@ -7,9 +7,10 @@ import (
 )
 
 type FragmentSpreadDepth struct {
-	walker  astvisitor.Walker
-	visitor fragmentSpreadDepthVisitor
-	calc    NestedDepthCalc
+	walker             astvisitor.Walker
+	visitor            fragmentSpreadDepthVisitor
+	calc               NestedDepthCalc
+	visitorsRegistered bool
 }
 
 type Depth struct {
@@ -33,11 +34,16 @@ func (d Depths) ByRef(ref int) (int, bool) {
 
 func (r *FragmentSpreadDepth) Get(operation, definition *ast.Document, depths *Depths) error {
 
+	if !r.visitorsRegistered {
+		r.walker.RegisterEnterFragmentSpreadVisitor(&r.visitor)
+		r.visitorsRegistered = true
+	}
+
 	r.visitor.operation = operation
 	r.visitor.definition = definition
 	r.visitor.depths = depths
 
-	err := r.walker.Visit(operation, definition, &r.visitor)
+	err := r.walker.Walk(operation, definition)
 	if err != nil {
 		return err
 	}
@@ -82,39 +88,7 @@ type fragmentSpreadDepthVisitor struct {
 	err        error
 }
 
-func (r *fragmentSpreadDepthVisitor) EnterArgument(ref int, definition int, info astvisitor.Info) {
-
-}
-
-func (r *fragmentSpreadDepthVisitor) LeaveArgument(ref int, definition int, info astvisitor.Info) {
-
-}
-
-func (r *fragmentSpreadDepthVisitor) EnterOperationDefinition(ref int, info astvisitor.Info) {
-
-}
-
-func (r *fragmentSpreadDepthVisitor) LeaveOperationDefinition(ref int, info astvisitor.Info) {
-
-}
-
-func (r *fragmentSpreadDepthVisitor) EnterSelectionSet(ref int, info astvisitor.Info) (instruction astvisitor.Instruction) {
-	return
-}
-
-func (r *fragmentSpreadDepthVisitor) LeaveSelectionSet(ref int, info astvisitor.Info) {
-
-}
-
-func (r *fragmentSpreadDepthVisitor) EnterField(ref int, info astvisitor.Info) {
-
-}
-
-func (r *fragmentSpreadDepthVisitor) LeaveField(ref int, info astvisitor.Info) {
-
-}
-
-func (r *fragmentSpreadDepthVisitor) EnterFragmentSpread(ref int, info astvisitor.Info) {
+func (r *fragmentSpreadDepthVisitor) EnterFragmentSpread(ref int, info astvisitor.Info) astvisitor.Instruction {
 
 	depth := Depth{
 		SpreadRef:  ref,
@@ -128,24 +102,6 @@ func (r *fragmentSpreadDepthVisitor) EnterFragmentSpread(ref int, info astvisito
 	}
 
 	*r.depths = append(*r.depths, depth)
-}
 
-func (r *fragmentSpreadDepthVisitor) LeaveFragmentSpread(ref int, info astvisitor.Info) {
-
-}
-
-func (r *fragmentSpreadDepthVisitor) EnterInlineFragment(ref int, info astvisitor.Info) {
-
-}
-
-func (r *fragmentSpreadDepthVisitor) LeaveInlineFragment(ref int, info astvisitor.Info) {
-
-}
-
-func (r *fragmentSpreadDepthVisitor) EnterFragmentDefinition(ref int, info astvisitor.Info) {
-
-}
-
-func (r *fragmentSpreadDepthVisitor) LeaveFragmentDefinition(ref int, info astvisitor.Info) {
-
+	return astvisitor.Instruction{}
 }

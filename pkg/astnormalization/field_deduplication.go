@@ -5,79 +5,50 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 )
 
-func DeDuplicateFields(operation, definition *ast.Document) error {
-	fieldDeDuplicate := FieldDeduplicate{}
-	return fieldDeDuplicate.Do(operation, definition)
+func deduplicateFields(walker *astvisitor.Walker) {
+	visitor := deduplicateFieldsVisitor{}
+	walker.RegisterEnterDocumentVisitor(&visitor)
+	walker.RegisterEnterSelectionSetVisitor(&visitor)
 }
 
-type FieldDeduplicate struct {
-	walker  astvisitor.Walker
-	visitor fieldDeDuplicateVisitor
+type deduplicateFieldsVisitor struct {
+	operation *ast.Document
 }
 
-func (f *FieldDeduplicate) Do(operation, definition *ast.Document) error {
+func (d *deduplicateFieldsVisitor) EnterDocument(operation, definition *ast.Document) astvisitor.Instruction {
+	d.operation = operation
+	return astvisitor.Instruction{}
+}
 
-	f.visitor.err = nil
-	f.visitor.operation = operation
-	f.visitor.definition = definition
-
-	err := f.walker.Visit(operation, definition, &f.visitor)
-	if err == nil {
-		err = f.visitor.err
+func (d *deduplicateFieldsVisitor) EnterSelectionSet(ref int, info astvisitor.Info) astvisitor.Instruction {
+	if len(d.operation.SelectionSets[ref].SelectionRefs) < 2 {
+		return astvisitor.Instruction{}
 	}
 
-	return err
-}
-
-type fieldDeDuplicateVisitor struct {
-	operation, definition *ast.Document
-	err                   error
-}
-
-func (f *fieldDeDuplicateVisitor) EnterArgument(ref int, definition int, info astvisitor.Info) {
-
-}
-
-func (f *fieldDeDuplicateVisitor) LeaveArgument(ref int, definition int, info astvisitor.Info) {
-
-}
-
-func (f *fieldDeDuplicateVisitor) EnterOperationDefinition(ref int, info astvisitor.Info) {
-
-}
-
-func (f *fieldDeDuplicateVisitor) LeaveOperationDefinition(ref int, info astvisitor.Info) {
-
-}
-
-func (f *fieldDeDuplicateVisitor) EnterSelectionSet(ref int, info astvisitor.Info) (instruction astvisitor.Instruction) {
-	if len(f.operation.SelectionSets[ref].SelectionRefs) < 2 {
-		return
-	}
-	for a, i := range f.operation.SelectionSets[ref].SelectionRefs {
-		if f.operation.Selections[i].Kind != ast.SelectionKindField {
+	for a, i := range d.operation.SelectionSets[ref].SelectionRefs {
+		if d.operation.Selections[i].Kind != ast.SelectionKindField {
 			continue
 		}
-		left := f.operation.Selections[i].Ref
-		if f.operation.Fields[left].HasSelections {
+		left := d.operation.Selections[i].Ref
+		if d.operation.Fields[left].HasSelections {
 			continue
 		}
-		for b, j := range f.operation.SelectionSets[ref].SelectionRefs {
+		for b, j := range d.operation.SelectionSets[ref].SelectionRefs {
 			if a == b {
 				continue
 			}
 			if a > b {
 				continue
 			}
-			if f.operation.Selections[j].Kind != ast.SelectionKindField {
+			if d.operation.Selections[j].Kind != ast.SelectionKindField {
 				continue
 			}
-			right := f.operation.Selections[j].Ref
-			if f.operation.Fields[right].HasSelections {
+			right := d.operation.Selections[j].Ref
+			if d.operation.Fields[right].HasSelections {
 				continue
 			}
-			if f.operation.FieldsAreEqualFlat(left, right) {
-				f.operation.RemoveFromSelectionSet(ref, b)
+			if d.operation.FieldsAreEqualFlat(left, right) {
+				d.operation.RemoveFromSelectionSet(ref, b)
 				return astvisitor.Instruction{
 					Action: astvisitor.RevisitCurrentNode,
 				}
@@ -85,40 +56,5 @@ func (f *fieldDeDuplicateVisitor) EnterSelectionSet(ref int, info astvisitor.Inf
 		}
 	}
 
-	return
-}
-
-func (f *fieldDeDuplicateVisitor) LeaveSelectionSet(ref int, info astvisitor.Info) {
-
-}
-
-func (f *fieldDeDuplicateVisitor) EnterField(ref int, info astvisitor.Info) {
-}
-
-func (f *fieldDeDuplicateVisitor) LeaveField(ref int, info astvisitor.Info) {
-
-}
-
-func (f *fieldDeDuplicateVisitor) EnterFragmentSpread(ref int, info astvisitor.Info) {
-
-}
-
-func (f *fieldDeDuplicateVisitor) LeaveFragmentSpread(ref int, info astvisitor.Info) {
-
-}
-
-func (f *fieldDeDuplicateVisitor) EnterInlineFragment(ref int, info astvisitor.Info) {
-
-}
-
-func (f *fieldDeDuplicateVisitor) LeaveInlineFragment(ref int, info astvisitor.Info) {
-
-}
-
-func (f *fieldDeDuplicateVisitor) EnterFragmentDefinition(ref int, info astvisitor.Info) {
-
-}
-
-func (f *fieldDeDuplicateVisitor) LeaveFragmentDefinition(ref int, info astvisitor.Info) {
-
+	return astvisitor.Instruction{}
 }
