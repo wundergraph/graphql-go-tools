@@ -27,7 +27,8 @@ func BenchmarkExecutionValidation(b *testing.B) {
 			b.Fatal(err)
 		}
 
-		validator := NewOperationValidator(rule)
+		validator := OperationValidator{}
+		validator.RegisterRule(rule)
 
 		b.ResetTimer()
 		b.ReportAllocs()

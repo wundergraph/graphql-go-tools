@@ -3,6 +3,7 @@ package astvalidation
 import (
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
 	"testing"
@@ -21,19 +22,33 @@ func TestExecutionValidation(t *testing.T) {
 		return doc
 	}
 
-	run := func(operationInput string, rule Rule, valid ValidationState) {
+	mustString := func(str string, err error) string {
+		must(err)
+		return str
+	}
+
+	run := func(operationInput string, rule Rule, expectation ValidationState) {
 
 		definition := mustDocument(astparser.ParseGraphqlDocumentBytes(testDefinition))
 		operation := mustDocument(astparser.ParseGraphqlDocumentString(operationInput))
 
-		validator := NewOperationValidator(rule)
-		result := validator.Validate(operation, definition)[0]
+		err := astnormalization.NormalizeOperation(operation, definition)
+		if err != nil {
+			if expectation != Invalid {
+				panic(err)
+			}
+			return
+		}
 
-		printedOperation, err := astprinter.PrintString(operation, definition)
-		must(err)
+		validator := &OperationValidator{}
+		validator.RegisterRule(rule)
 
-		if valid != result.ValidationState {
-			panic(fmt.Errorf("want valid: %s, got: %s\noperation:\n%s\n", valid, result.ValidationState, printedOperation))
+		result := validator.Validate(operation, definition)
+
+		printedOperation := mustString(astprinter.PrintString(operation, definition))
+
+		if expectation != result.ValidationState {
+			panic(fmt.Errorf("want expectation: %s, got: %s\noperation:\n%s\n", expectation, result.ValidationState, printedOperation))
 		}
 	}
 
@@ -156,7 +171,8 @@ func TestExecutionValidation(t *testing.T) {
 						SubscriptionSingleRootField(), Valid)
 				})
 				t.Run("97 variant", func(t *testing.T) {
-					run(`	subscription sub {
+					run(`	
+								subscription sub {
   									... { foo }
   									... { bar }
 								}`,
@@ -492,7 +508,7 @@ func TestExecutionValidation(t *testing.T) {
   									extras { ...frag }
 								}
   							}
-							fragment frag on Extras { string }`,
+							fragment frag on Extra { string }`,
 					FieldSelectionMerging(), Valid)
 			})
 			t.Run("108 variant", func(t *testing.T) {
