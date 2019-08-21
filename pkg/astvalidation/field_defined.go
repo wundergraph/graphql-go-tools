@@ -11,7 +11,12 @@ import (
 type fieldDefined struct {
 	operation  *ast.Document
 	definition *ast.Document
-	err        error
+}
+
+func (f *fieldDefined) EnterDocument(operation, definition *ast.Document) astvisitor.Instruction {
+	f.operation = operation
+	f.definition = definition
+	return astvisitor.Instruction{}
 }
 
 func (f *fieldDefined) ValidateUnionField(ref int, info astvisitor.Info) error {
@@ -53,70 +58,22 @@ func (f *fieldDefined) ValidateScalarField(ref int, info astvisitor.Info) error 
 	return fmt.Errorf("cannot select field: %s on scalar type: %s", fieldName, typeName)
 }
 
-func (f *fieldDefined) EnterOperationDefinition(ref int, info astvisitor.Info) {
-
-}
-
-func (f *fieldDefined) LeaveOperationDefinition(ref int, info astvisitor.Info) {
-
-}
-
-func (f *fieldDefined) EnterSelectionSet(ref int, info astvisitor.Info) (instruction astvisitor.Instruction) {
-	return
-}
-
-func (f *fieldDefined) LeaveSelectionSet(ref int, info astvisitor.Info) {
-
-}
-
-func (f *fieldDefined) EnterField(ref int, info astvisitor.Info) {
-
-	if f.err != nil {
-		return
-	}
-
+func (f *fieldDefined) EnterField(ref int, info astvisitor.Info) astvisitor.Instruction {
+	var err error
 	switch info.EnclosingTypeDefinition.Kind {
 	case ast.NodeKindUnionTypeDefinition:
-		f.err = f.ValidateUnionField(ref, info)
+		err = f.ValidateUnionField(ref, info)
 	case ast.NodeKindInterfaceTypeDefinition, ast.NodeKindObjectTypeDefinition:
-		f.err = f.ValidateInterfaceObjectTypeField(ref, info)
+		err = f.ValidateInterfaceObjectTypeField(ref, info)
 	case ast.NodeKindScalarTypeDefinition:
-		f.err = f.ValidateScalarField(ref, info)
+		err = f.ValidateScalarField(ref, info)
 	}
-}
 
-func (f *fieldDefined) LeaveField(ref int, info astvisitor.Info) {
-
-}
-
-func (f *fieldDefined) EnterArgument(ref int, definition int, info astvisitor.Info) {
-
-}
-
-func (f *fieldDefined) LeaveArgument(ref int, definition int, info astvisitor.Info) {
-
-}
-
-func (f *fieldDefined) EnterFragmentSpread(ref int, info astvisitor.Info) {
-
-}
-
-func (f *fieldDefined) LeaveFragmentSpread(ref int, info astvisitor.Info) {
-
-}
-
-func (f *fieldDefined) EnterInlineFragment(ref int, info astvisitor.Info) {
-
-}
-
-func (f *fieldDefined) LeaveInlineFragment(ref int, info astvisitor.Info) {
-
-}
-
-func (f *fieldDefined) EnterFragmentDefinition(ref int, info astvisitor.Info) {
-
-}
-
-func (f *fieldDefined) LeaveFragmentDefinition(ref int, info astvisitor.Info) {
-
+	if err != nil {
+		return astvisitor.Instruction{
+			Action:  astvisitor.StopWithError,
+			Message: err.Error(),
+		}
+	}
+	return astvisitor.Instruction{}
 }
