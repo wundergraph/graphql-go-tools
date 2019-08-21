@@ -5,12 +5,29 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
+	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"testing"
 )
 
 func TestNormalizeOperation(t *testing.T) {
+
+	run := func(definition, operation, expectedOutput string) {
+		definitionDocument := mustDocument(astparser.ParseGraphqlDocumentString(definition))
+		operationDocument := mustDocument(astparser.ParseGraphqlDocumentString(operation))
+		expectedOutputDocument := mustDocument(astparser.ParseGraphqlDocumentString(expectedOutput))
+
+		must(NormalizeOperation(operationDocument, definitionDocument))
+
+		got := mustString(astprinter.PrintString(operationDocument, definitionDocument))
+		want := mustString(astprinter.PrintString(expectedOutputDocument, definitionDocument))
+
+		if want != got {
+			panic(fmt.Errorf("\nwant:\n%s\ngot:\n%s", want, got))
+		}
+	}
+
 	t.Run("complex", func(t *testing.T) {
-		run(NormalizeOperation, testDefinition, `	
+		run(testDefinition, `	
 				subscription sub {
 					... multipleSubscriptions
 					... on Subscription {
@@ -68,7 +85,7 @@ func TestNormalizeOperation(t *testing.T) {
 				}`)
 	})
 	t.Run("fragments", func(t *testing.T) {
-		run(NormalizeOperation, testDefinition, `
+		run(testDefinition, `
 				query conflictingBecauseAlias {
 					dog {
 						extras { ...frag }
@@ -125,13 +142,16 @@ var mustString = func(str string, err error) string {
 	return str
 }
 
-var run = func(normalizeFunc NormalizeFunc, definition, operation, expectedOutput string) {
+var run = func(normalizeFunc registerNormalizeFunc, definition, operation, expectedOutput string) {
 
 	definitionDocument := mustDocument(astparser.ParseGraphqlDocumentString(definition))
 	operationDocument := mustDocument(astparser.ParseGraphqlDocumentString(operation))
 	expectedOutputDocument := mustDocument(astparser.ParseGraphqlDocumentString(expectedOutput))
 
-	must(normalizeFunc(operationDocument, definitionDocument))
+	walker := astvisitor.NewWalker(48)
+	normalizeFunc(&walker)
+
+	must(walker.Walk(operationDocument, definitionDocument))
 
 	got := mustString(astprinter.PrintString(operationDocument, definitionDocument))
 	want := mustString(astprinter.PrintString(expectedOutputDocument, definitionDocument))
@@ -143,30 +163,41 @@ var run = func(normalizeFunc NormalizeFunc, definition, operation, expectedOutpu
 
 const testOperation = `	
 subscription sub {
-	...frag1
+	... multipleSubscriptions
+	... on Subscription {
+		newMessage {
+			body
+			sender
+		}	
+	}
 }
-fragment frag1 on Subscription {
+fragment newMessageFields on Message {
+	body: body
+	sender
+	... on Body {
+		body
+	}
+}
+fragment multipleSubscriptions on Subscription {
 	newMessage {
 		body
 		sender
-		...messageFrag
+	}
+	newMessage {
+		... newMessageFields
+	}
+	newMessage {
+		body
+		body
 		sender
-		sender
-		...nestedMessageFrag
+	}
+	... on Subscription {
+		newMessage {
+			body
+			sender
+		}	
 	}
 	disallowedSecondRootField
-	...frag2
-}
-fragment messageFrag on Message {
-	body
-	sender
-}
-fragment nestedMessageFrag on Message {
-	body
-	sender
-}
-fragment frag2 on Subscription {
-	frag2Field
 }`
 
 const testDefinition = `

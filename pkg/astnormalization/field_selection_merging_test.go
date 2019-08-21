@@ -4,7 +4,7 @@ import "testing"
 
 func TestMergeFieldSelections(t *testing.T) {
 	t.Run("depth 1", func(t *testing.T) {
-		run(MergeFieldSelections, testDefinition, `
+		run(mergeFieldSelections, testDefinition, `
 					query conflictingBecauseAlias {
 						dog {
 							extra { string }
@@ -21,7 +21,7 @@ func TestMergeFieldSelections(t *testing.T) {
 					}`)
 	})
 	t.Run("depth 2", func(t *testing.T) {
-		run(MergeFieldSelections, testDefinition, `
+		run(mergeFieldSelections, testDefinition, `
 					query conflictingBecauseAlias {
 						dog {
 							extra { string }
@@ -45,7 +45,7 @@ func TestMergeFieldSelections(t *testing.T) {
 	})
 	t.Run("aliased", func(t *testing.T) {
 		t.Run("aliased", func(t *testing.T) {
-			run(MergeFieldSelections, testDefinition, `
+			run(mergeFieldSelections, testDefinition, `
 					query conflictingBecauseAlias {
 						dog {
 							x: extras { string }

@@ -6,123 +6,61 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 )
 
-func ResolveInlineFragments(operation, definition *ast.Document) error {
-	resolver := &InlineFragmentResolver{}
-	return resolver.Do(operation, definition)
+func mergeInlineFragments(walker *astvisitor.Walker) {
+	visitor := mergeInlineFragmentsVisitor{}
+	walker.RegisterEnterDocumentVisitor(&visitor)
+	walker.RegisterEnterSelectionSetVisitor(&visitor)
 }
 
-type InlineFragmentResolver struct {
-	walker  astvisitor.Walker
-	visitor inlineFragmentResolverVisitor
-}
-
-func (i *InlineFragmentResolver) Do(operation, definition *ast.Document) error {
-	i.visitor.err = nil
-	i.visitor.operation = operation
-	i.visitor.definition = definition
-
-	err := i.walker.Walk(operation, definition, &i.visitor)
-	if err == nil {
-		err = i.visitor.err
-	}
-	return err
-}
-
-type inlineFragmentResolverVisitor struct {
-	err                   error
+type mergeInlineFragmentsVisitor struct {
 	operation, definition *ast.Document
 }
 
-func (i *inlineFragmentResolverVisitor) EnterArgument(ref int, definition int, info astvisitor.Info) {
-
+func (m *mergeInlineFragmentsVisitor) EnterDocument(operation, definition *ast.Document) astvisitor.Instruction {
+	m.operation = operation
+	m.definition = definition
+	return astvisitor.Instruction{}
 }
 
-func (i *inlineFragmentResolverVisitor) LeaveArgument(ref int, definition int, info astvisitor.Info) {
-
-}
-
-func (i *inlineFragmentResolverVisitor) couldInline(set, inlineFragment int, info astvisitor.Info) bool {
-	if i.operation.InlineFragmentHasDirectives(inlineFragment) {
+func (m *mergeInlineFragmentsVisitor) couldInline(set, inlineFragment int, info astvisitor.Info) bool {
+	if m.operation.InlineFragmentHasDirectives(inlineFragment) {
 		return false
 	}
-	if !i.operation.InlineFragmentHasTypeCondition(inlineFragment) {
+	if !m.operation.InlineFragmentHasTypeCondition(inlineFragment) {
 		return true
 	}
-	if bytes.Equal(i.operation.InlineFragmentTypeConditionName(inlineFragment), i.definition.NodeTypeName(info.EnclosingTypeDefinition)) {
+	if bytes.Equal(m.operation.InlineFragmentTypeConditionName(inlineFragment), m.definition.NodeTypeName(info.EnclosingTypeDefinition)) {
 		return true
 	}
 
-	inlineFragmentTypeName := i.operation.InlineFragmentTypeConditionName(inlineFragment)
-	enclosingTypeName := i.definition.NodeTypeName(info.EnclosingTypeDefinition)
-	if !i.definition.TypeDefinitionContainsImplementsInterface(enclosingTypeName, inlineFragmentTypeName) {
+	inlineFragmentTypeName := m.operation.InlineFragmentTypeConditionName(inlineFragment)
+	enclosingTypeName := m.definition.NodeTypeName(info.EnclosingTypeDefinition)
+	if !m.definition.TypeDefinitionContainsImplementsInterface(enclosingTypeName, inlineFragmentTypeName) {
 		return false
 	}
 
 	return true
 }
 
-func (i *inlineFragmentResolverVisitor) resolveInlineFragment(set, index, inlineFragment int) {
-	i.operation.ReplaceSelectionOnSelectionSet(set, index, i.operation.InlineFragments[inlineFragment].SelectionSet)
+func (m *mergeInlineFragmentsVisitor) resolveInlineFragment(set, index, inlineFragment int) {
+	m.operation.ReplaceSelectionOnSelectionSet(set, index, m.operation.InlineFragments[inlineFragment].SelectionSet)
 }
 
-func (i *inlineFragmentResolverVisitor) EnterOperationDefinition(ref int, info astvisitor.Info) {
+func (m *mergeInlineFragmentsVisitor) EnterSelectionSet(ref int, info astvisitor.Info) astvisitor.Instruction {
 
-}
-
-func (i *inlineFragmentResolverVisitor) LeaveOperationDefinition(ref int, info astvisitor.Info) {
-
-}
-
-func (i *inlineFragmentResolverVisitor) EnterSelectionSet(ref int, info astvisitor.Info) (instruction astvisitor.Instruction) {
-
-	for index, selection := range i.operation.SelectionSets[ref].SelectionRefs {
-		if i.operation.Selections[selection].Kind != ast.SelectionKindInlineFragment {
+	for index, selection := range m.operation.SelectionSets[ref].SelectionRefs {
+		if m.operation.Selections[selection].Kind != ast.SelectionKindInlineFragment {
 			continue
 		}
-		inlineFragment := i.operation.Selections[selection].Ref
-		if !i.couldInline(ref, inlineFragment, info) {
+		inlineFragment := m.operation.Selections[selection].Ref
+		if !m.couldInline(ref, inlineFragment, info) {
 			continue
 		}
-		i.resolveInlineFragment(ref, index, inlineFragment)
+		m.resolveInlineFragment(ref, index, inlineFragment)
 		return astvisitor.Instruction{
 			Action: astvisitor.RevisitCurrentNode,
 		}
 	}
 
-	return
-}
-
-func (i *inlineFragmentResolverVisitor) LeaveSelectionSet(ref int, info astvisitor.Info) {
-
-}
-
-func (i *inlineFragmentResolverVisitor) EnterField(ref int, info astvisitor.Info) {
-
-}
-
-func (i *inlineFragmentResolverVisitor) LeaveField(ref int, info astvisitor.Info) {
-
-}
-
-func (i *inlineFragmentResolverVisitor) EnterFragmentSpread(ref int, info astvisitor.Info) {
-
-}
-
-func (i *inlineFragmentResolverVisitor) LeaveFragmentSpread(ref int, info astvisitor.Info) {
-
-}
-
-func (i *inlineFragmentResolverVisitor) EnterInlineFragment(ref int, info astvisitor.Info) {
-}
-
-func (i *inlineFragmentResolverVisitor) LeaveInlineFragment(ref int, info astvisitor.Info) {
-
-}
-
-func (i *inlineFragmentResolverVisitor) EnterFragmentDefinition(ref int, info astvisitor.Info) {
-
-}
-
-func (i *inlineFragmentResolverVisitor) LeaveFragmentDefinition(ref int, info astvisitor.Info) {
-
+	return astvisitor.Instruction{}
 }

@@ -4,7 +4,7 @@ import "testing"
 
 func TestResolveInlineFragments(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
-		run(ResolveInlineFragments, testDefinition, `
+		run(mergeInlineFragments, testDefinition, `
 					query conflictingBecauseAlias {
 						dog {
 							... {
@@ -38,7 +38,7 @@ func TestResolveInlineFragments(t *testing.T) {
 					}`)
 	})
 	t.Run("with interface type", func(t *testing.T) {
-		run(ResolveInlineFragments, testDefinition, `
+		run(mergeInlineFragments, testDefinition, `
 					query conflictingBecauseAlias {
 						dog {
 							... on Pet {

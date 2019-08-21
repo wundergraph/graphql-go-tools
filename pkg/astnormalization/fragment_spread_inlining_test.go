@@ -4,7 +4,7 @@ import "testing"
 
 func TestInlineFragments(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
-		run(InlineFragments, testDefinition, `	
+		run(fragmentSpreadInline, testDefinition, `	
 				subscription sub {
 					...multipleSubscriptions
 				}
@@ -31,7 +31,7 @@ func TestInlineFragments(t *testing.T) {
 				}`)
 	})
 	t.Run("simple 2x", func(t *testing.T) {
-		run(InlineFragments, testDefinition, `	
+		run(fragmentSpreadInline, testDefinition, `	
 				subscription sub {
 					...multipleSubscriptions
 					...multipleSubscriptions
@@ -64,7 +64,7 @@ func TestInlineFragments(t *testing.T) {
 				}`)
 	})
 	t.Run("nested", func(t *testing.T) {
-		run(InlineFragments, testDefinition, `	
+		run(fragmentSpreadInline, testDefinition, `	
 				subscription sub {
 					...frag1
 				}
@@ -100,7 +100,7 @@ func TestInlineFragments(t *testing.T) {
 				}`)
 	})
 	t.Run("2x nested", func(t *testing.T) {
-		run(InlineFragments, testDefinition, `	
+		run(fragmentSpreadInline, testDefinition, `	
 				subscription sub {
 					...frag1
 				}
@@ -168,7 +168,7 @@ func TestInlineFragments(t *testing.T) {
 				}`)
 	})
 	t.Run("mergeFields interface fields into selection if type implements inferface", func(t *testing.T) {
-		run(InlineFragments, testDefinition, `
+		run(fragmentSpreadInline, testDefinition, `
 				{
 					dog {
 						...definedOnImplementorsButNotInterface
@@ -187,7 +187,7 @@ func TestInlineFragments(t *testing.T) {
 				}`)
 	})
 	t.Run("inline fragments if fragment type definition implements enclosing type definition", func(t *testing.T) {
-		run(InlineFragments, testDefinition, `
+		run(fragmentSpreadInline, testDefinition, `
 				fragment conflictingDifferingResponses on Pet {
 					...dogFrag
 					...catFrag
@@ -214,7 +214,7 @@ func TestInlineFragments(t *testing.T) {
 				}`)
 	})
 	t.Run("inline fragment if fragment type is member of enclosing union type", func(t *testing.T) {
-		run(InlineFragments, testDefinition, `
+		run(fragmentSpreadInline, testDefinition, `
 				query conflictingDifferingResponses {
 					catOrDog {
 						...catDogFrag

@@ -1,36 +1,48 @@
 package astnormalization
 
-import "github.com/jensneuse/graphql-go-tools/pkg/ast"
-
-type NormalizeFunc func(operation, definition *ast.Document) error
+import (
+	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
+)
 
 func NormalizeOperation(operation, definition *ast.Document) error {
 	normalizer := &OperationNormalizer{}
 	return normalizer.Do(operation, definition)
 }
 
+type registerNormalizeFunc func(walker *astvisitor.Walker)
+
 type OperationNormalizer struct {
-	err                     error
-	fieldDeduplicate        FieldDeduplicate
-	fieldSelectionMerge     FieldSelectionMerger
-	fragmentInline          FragmentInline
-	inlineFragmentResolving InlineFragmentResolver
-	selfAliasRemove         SelfAliasRemove
+	walkers []*astvisitor.Walker
+	setup   bool
+}
+
+func (o *OperationNormalizer) setupWalkers() {
+	fragmentInline := astvisitor.NewWalker(48)
+	fragmentSpreadInline(&fragmentInline)
+
+	other := astvisitor.NewWalker(48)
+	removeSelfAliasing(&other)
+	mergeInlineFragments(&other)
+	mergeFieldSelections(&other)
+	deduplicateFields(&other)
+
+	o.walkers = append(o.walkers, &fragmentInline)
+	o.walkers = append(o.walkers, &other)
 }
 
 func (o *OperationNormalizer) Do(operation, definition *ast.Document) error {
-	o.err = nil
-	o.must(o.fragmentInline.Do(operation, definition))
-	o.must(o.inlineFragmentResolving.Do(operation, definition))
-	o.must(o.fieldSelectionMerge.Do(operation, definition))
-	o.must(o.selfAliasRemove.Do(operation, definition))
-	o.must(o.fieldDeduplicate.Do(operation, definition))
-	return o.err
-}
-
-func (o *OperationNormalizer) must(err error) {
-	if o.err != nil {
-		return
+	if !o.setup {
+		o.setupWalkers()
+		o.setup = true
 	}
-	o.err = err
+
+	for i := range o.walkers {
+		err := o.walkers[i].Walk(operation, definition)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
