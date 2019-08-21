@@ -122,6 +122,16 @@ type (
 		EnterFragmentDefinitionVisitor
 		LeaveFragmentDefinitionVisitor
 	}
+	EnterVariableDefinitionVisitor interface {
+		EnterVariableDefinition(ref int, info Info) Instruction
+	}
+	LeaveVariableDefinitionVisitor interface {
+		LeaveVariableDefinition(ref int, info Info) Instruction
+	}
+	VariableDefinitionVisitor interface {
+		EnterVariableDefinitionVisitor
+		LeaveVariableDefinitionVisitor
+	}
 	AllNodesVisitor interface {
 		OperationDefinitionVisitor
 		SelectionSetVisitor
@@ -130,6 +140,7 @@ type (
 		FragmentSpreadVisitor
 		InlineFragmentVisitor
 		FragmentDefinitionVisitor
+		VariableDefinitionVisitor
 	}
 	EnterDocumentVisitor interface {
 		EnterDocument(operation, definition *ast.Document) Instruction
@@ -160,6 +171,8 @@ type visitors struct {
 	leaveFragmentDefinition []LeaveFragmentDefinitionVisitor
 	enterDocument           []EnterDocumentVisitor
 	leaveDocument           []LeaveDocumentVisitor
+	enterVariableDefinition []EnterVariableDefinitionVisitor
+	leaveVariableDefinition []LeaveVariableDefinitionVisitor
 }
 
 func (w *Walker) ResetVisitors() {
@@ -179,6 +192,8 @@ func (w *Walker) ResetVisitors() {
 	w.visitors.leaveFragmentDefinition = w.visitors.leaveFragmentDefinition[:0]
 	w.visitors.enterDocument = w.visitors.enterDocument[:0]
 	w.visitors.leaveDocument = w.visitors.leaveDocument[:0]
+	w.visitors.enterVariableDefinition = w.visitors.enterVariableDefinition[:0]
+	w.visitors.leaveVariableDefinition = w.visitors.leaveVariableDefinition[:0]
 }
 
 func (w *Walker) RegisterEnterFieldVisitor(visitor EnterFieldVisitor) {
@@ -190,8 +205,8 @@ func (w *Walker) RegisterLeaveFieldVisitor(visitor LeaveFieldVisitor) {
 }
 
 func (w *Walker) RegisterFieldVisitor(visitor FieldVisitor) {
-	w.visitors.enterField = append(w.visitors.enterField, visitor)
-	w.visitors.leaveField = append(w.visitors.leaveField, visitor)
+	w.RegisterEnterFieldVisitor(visitor)
+	w.RegisterLeaveFieldVisitor(visitor)
 }
 
 func (w *Walker) RegisterEnterSelectionSetVisitor(visitor EnterSelectionSetVisitor) {
@@ -203,8 +218,8 @@ func (w *Walker) RegisterLeaveSelectionSetVisitor(visitor LeaveSelectionSetVisit
 }
 
 func (w *Walker) RegisterSelectionSetVisitor(visitor SelectionSetVisitor) {
-	w.visitors.enterSelectionSet = append(w.visitors.enterSelectionSet, visitor)
-	w.visitors.leaveSelectionSet = append(w.visitors.leaveSelectionSet, visitor)
+	w.RegisterEnterSelectionSetVisitor(visitor)
+	w.RegisterLeaveSelectionSetVisitor(visitor)
 }
 
 func (w *Walker) RegisterEnterArgumentVisitor(visitor EnterArgumentVisitor) {
@@ -216,8 +231,8 @@ func (w *Walker) RegisterLeaveArgumentVisitor(visitor LeaveArgumentVisitor) {
 }
 
 func (w *Walker) RegisterArgumentVisitor(visitor ArgumentVisitor) {
-	w.visitors.enterArgument = append(w.visitors.enterArgument, visitor)
-	w.visitors.leaveArgument = append(w.visitors.leaveArgument, visitor)
+	w.RegisterEnterArgumentVisitor(visitor)
+	w.RegisterLeaveArgumentVisitor(visitor)
 }
 
 func (w *Walker) RegisterEnterFragmentSpreadVisitor(visitor EnterFragmentSpreadVisitor) {
@@ -229,8 +244,8 @@ func (w *Walker) RegisterLeaveFragmentSpreadVisitor(visitor LeaveFragmentSpreadV
 }
 
 func (w *Walker) RegisterFragmentSpreadVisitor(visitor FragmentSpreadVisitor) {
-	w.visitors.enterFragmentSpread = append(w.visitors.enterFragmentSpread, visitor)
-	w.visitors.leaveFragmentSpread = append(w.visitors.leaveFragmentSpread, visitor)
+	w.RegisterEnterFragmentSpreadVisitor(visitor)
+	w.RegisterLeaveFragmentSpreadVisitor(visitor)
 }
 
 func (w *Walker) RegisterEnterInlineFragmentVisitor(visitor EnterInlineFragmentVisitor) {
@@ -242,8 +257,8 @@ func (w *Walker) RegisterLeaveInlineFragmentVisitor(visitor LeaveInlineFragmentV
 }
 
 func (w *Walker) RegisterInlineFragmentVisitor(visitor InlineFragmentVisitor) {
-	w.visitors.enterInlineFragment = append(w.visitors.enterInlineFragment, visitor)
-	w.visitors.leaveInlineFragment = append(w.visitors.leaveInlineFragment, visitor)
+	w.RegisterEnterInlineFragmentVisitor(visitor)
+	w.RegisterLeaveInlineFragmentVisitor(visitor)
 }
 
 func (w *Walker) RegisterEnterFragmentDefinitionVisitor(visitor EnterFragmentDefinitionVisitor) {
@@ -255,25 +270,45 @@ func (w *Walker) RegisterLeaveFragmentDefinitionVisitor(visitor LeaveFragmentDef
 }
 
 func (w *Walker) RegisterFragmentDefinitionVisitor(visitor FragmentDefinitionVisitor) {
-	w.visitors.enterFragmentDefinition = append(w.visitors.enterFragmentDefinition, visitor)
-	w.visitors.leaveFragmentDefinition = append(w.visitors.leaveFragmentDefinition, visitor)
+	w.RegisterEnterFragmentDefinitionVisitor(visitor)
+	w.RegisterLeaveFragmentDefinitionVisitor(visitor)
+}
+
+func (w *Walker) RegisterEnterVariableDefinitionVisitor(visitor EnterVariableDefinitionVisitor) {
+	w.visitors.enterVariableDefinition = append(w.visitors.enterVariableDefinition, visitor)
+}
+
+func (w *Walker) RegisterLeaveVariableDefinitionVisitor(visitor LeaveVariableDefinitionVisitor) {
+	w.visitors.leaveVariableDefinition = append(w.visitors.leaveVariableDefinition, visitor)
+}
+
+func (w *Walker) RegisterVariableDefinitionVisitor(visitor VariableDefinitionVisitor) {
+	w.RegisterEnterVariableDefinitionVisitor(visitor)
+	w.RegisterLeaveVariableDefinitionVisitor(visitor)
+}
+
+func (w *Walker) RegisterEnterOperationVisitor(visitor EnterOperationDefinitionVisitor) {
+	w.visitors.enterOperation = append(w.visitors.enterOperation, visitor)
+}
+
+func (w *Walker) RegisterLeaveOperationVisitor(visitor LeaveOperationDefinitionVisitor) {
+	w.visitors.leaveOperation = append(w.visitors.leaveOperation, visitor)
+}
+
+func (w *Walker) RegisterOperationVisitor(visitor OperationDefinitionVisitor) {
+	w.RegisterEnterOperationVisitor(visitor)
+	w.RegisterLeaveOperationVisitor(visitor)
 }
 
 func (w *Walker) RegisterAllNodesVisitor(visitor AllNodesVisitor) {
-	w.visitors.enterOperation = append(w.visitors.enterOperation, visitor)
-	w.visitors.leaveOperation = append(w.visitors.leaveOperation, visitor)
-	w.visitors.enterSelectionSet = append(w.visitors.enterSelectionSet, visitor)
-	w.visitors.leaveSelectionSet = append(w.visitors.leaveSelectionSet, visitor)
-	w.visitors.enterField = append(w.visitors.enterField, visitor)
-	w.visitors.leaveField = append(w.visitors.leaveField, visitor)
-	w.visitors.enterArgument = append(w.visitors.enterArgument, visitor)
-	w.visitors.leaveArgument = append(w.visitors.leaveArgument, visitor)
-	w.visitors.enterFragmentSpread = append(w.visitors.enterFragmentSpread, visitor)
-	w.visitors.leaveFragmentSpread = append(w.visitors.leaveFragmentSpread, visitor)
-	w.visitors.enterInlineFragment = append(w.visitors.enterInlineFragment, visitor)
-	w.visitors.leaveInlineFragment = append(w.visitors.leaveInlineFragment, visitor)
-	w.visitors.enterFragmentDefinition = append(w.visitors.enterFragmentDefinition, visitor)
-	w.visitors.leaveFragmentDefinition = append(w.visitors.leaveFragmentDefinition, visitor)
+	w.RegisterOperationVisitor(visitor)
+	w.RegisterSelectionSetVisitor(visitor)
+	w.RegisterFieldVisitor(visitor)
+	w.RegisterArgumentVisitor(visitor)
+	w.RegisterFragmentSpreadVisitor(visitor)
+	w.RegisterInlineFragmentVisitor(visitor)
+	w.RegisterFragmentDefinitionVisitor(visitor)
+	w.RegisterVariableDefinitionVisitor(visitor)
 }
 
 func (w *Walker) RegisterEnterDocumentVisitor(visitor EnterDocumentVisitor) {
@@ -394,8 +429,15 @@ func (w *Walker) walkOperationDefinition(ref int, isLastRootNode bool) {
 
 	w.appendAncestor(ref, ast.NodeKindOperationDefinition)
 
+	if w.document.OperationDefinitions[ref].HasVariableDefinitions {
+		w.walkVariableDefinitions(w.document.OperationDefinitions[ref].VariableDefinitions.Refs, info)
+	}
+
 	if w.document.OperationDefinitions[ref].HasSelections {
 		w.walkSelectionSet(w.document.OperationDefinitions[ref].SelectionSet, info.EnclosingTypeDefinition)
+		if w.stop {
+			return
+		}
 	}
 
 	for i := range w.visitors.leaveOperation {
@@ -406,6 +448,60 @@ func (w *Walker) walkOperationDefinition(ref int, isLastRootNode bool) {
 	}
 	w.decreaseDepth()
 	w.removeLastAncestor()
+}
+
+func (w *Walker) walkVariableDefinitions(refs []int, enclosed Info) {
+	info := Info{
+		Depth:                   w.depth,
+		Ancestors:               w.ancestors,
+		SelectionSet:            -1,
+		SelectionsBefore:        nil,
+		SelectionsAfter:         nil,
+		ArgumentsBefore:         nil,
+		ArgumentsAfter:          nil,
+		HasSelections:           false,
+		FieldTypeDefinition:     enclosed.FieldTypeDefinition,
+		EnclosingTypeDefinition: enclosed.EnclosingTypeDefinition,
+		IsLastRootNode:          false,
+	}
+
+	for _, i := range refs {
+		w.walkVariableDefinition(i, info)
+	}
+}
+
+func (w *Walker) walkVariableDefinition(ref int, enclosing Info) {
+	w.increaseDepth()
+
+	info := Info{
+		Depth:                   w.depth,
+		Ancestors:               w.ancestors,
+		SelectionSet:            -1,
+		SelectionsBefore:        nil,
+		SelectionsAfter:         nil,
+		ArgumentsBefore:         nil,
+		ArgumentsAfter:          nil,
+		HasSelections:           false,
+		FieldTypeDefinition:     enclosing.FieldTypeDefinition,
+		EnclosingTypeDefinition: enclosing.EnclosingTypeDefinition,
+		IsLastRootNode:          false,
+	}
+
+	for i := range w.visitors.enterVariableDefinition {
+		w.enterVariableDefinition(i, ref, info)
+		if w.stop {
+			return
+		}
+	}
+
+	for i := range w.visitors.leaveVariableDefinition {
+		w.leaveVariableDefinition(i, ref, info)
+		if w.stop {
+			return
+		}
+	}
+
+	w.decreaseDepth()
 }
 
 func (w *Walker) operationDefinitionTypeDefinition(ref int) (typeDefinition ast.Node) {
@@ -568,6 +664,9 @@ func (w *Walker) walkArgument(ref int, enclosing Info) {
 		EnclosingTypeDefinition: enclosing.EnclosingTypeDefinition,
 	}
 
+	argName := w.document.ArgumentNameString(ref)
+	_ = argName
+
 	definition := w.argumentDefinition(ref, enclosing)
 
 	for i := range w.visitors.enterArgument {
@@ -728,6 +827,18 @@ func (w *Walker) handleInstruction(instruction Instruction) (retry bool) {
 		return false
 	default:
 		return false
+	}
+}
+
+func (w *Walker) enterVariableDefinition(visitor, ref int, info Info) {
+	for retry := true; retry; {
+		retry = w.handleInstruction(w.visitors.enterVariableDefinition[visitor].EnterVariableDefinition(ref, info))
+	}
+}
+
+func (w *Walker) leaveVariableDefinition(visitor, ref int, info Info) {
+	for retry := true; retry; {
+		retry = w.handleInstruction(w.visitors.leaveVariableDefinition[visitor].LeaveVariableDefinition(ref, info))
 	}
 }
 

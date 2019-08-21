@@ -87,6 +87,14 @@ func (m *minimalVisitor) EnterField(ref int, info Info) Instruction {
 type dummyVisitor struct {
 }
 
+func (d *dummyVisitor) EnterVariableDefinition(ref int, info Info) Instruction {
+	return Instruction{}
+}
+
+func (d *dummyVisitor) LeaveVariableDefinition(ref int, info Info) Instruction {
+	return Instruction{}
+}
+
 func (d *dummyVisitor) EnterOperationDefinition(ref int, info Info) Instruction {
 	return Instruction{}
 }
@@ -148,6 +156,20 @@ type printingVisitor struct {
 	operation   *ast.Document
 	definition  *ast.Document
 	indentation int
+}
+
+func (p *printingVisitor) EnterVariableDefinition(ref int, info Info) Instruction {
+	p.enter()
+	varName := string(p.operation.VariableValueName(p.operation.VariableDefinitions[ref].Variable))
+	p.must(fmt.Fprintf(p.out, "EnterVariableDefinition(%s): ref: %d, info: %+v\n", varName, ref, info))
+	return Instruction{}
+}
+
+func (p *printingVisitor) LeaveVariableDefinition(ref int, info Info) Instruction {
+	p.enter()
+	varName := string(p.operation.VariableValueName(p.operation.VariableDefinitions[ref].Variable))
+	p.must(fmt.Fprintf(p.out, "LeaveVariableDefinition(%s): ref: %d, info: %+v\n", varName, ref, info))
+	return Instruction{}
 }
 
 func (p *printingVisitor) must(_ int, err error) {
@@ -318,6 +340,11 @@ fragment FirstFragment on Post {
 }
 query ArgsQuery {
 	foo(bar: "barValue", baz: true){
+		fooField
+	}
+}
+query VariableQuery($bar: String, $baz: Boolean) {
+	foo(bar: $bar, baz: $baz){
 		fooField
 	}
 }
