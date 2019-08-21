@@ -22,15 +22,19 @@ func PrintString(document, definition *ast.Document) (string, error) {
 }
 
 type Printer struct {
-	printer printer
-	walker  astvisitor.Walker
+	printer    printer
+	walker     astvisitor.Walker
+	registered bool
 }
 
 func (p *Printer) Print(document, definition *ast.Document, out io.Writer) error {
 	p.printer.err = nil
 	p.printer.document = document
 	p.printer.out = out
-	return p.walker.Visit(p.printer.document, definition, &p.printer)
+	if !p.registered {
+		p.walker.RegisterAllNodesVisitor(&p.printer)
+	}
+	return p.walker.Walk(p.printer.document, definition)
 }
 
 type printer struct {
@@ -39,12 +43,12 @@ type printer struct {
 	err      error
 }
 
-func (p *printer) EnterArgument(ref int, definition int, info astvisitor.Info) {
-
+func (p *printer) EnterArgument(ref int, definition int, info astvisitor.Info) astvisitor.Instruction {
+	return astvisitor.Instruction{}
 }
 
-func (p *printer) LeaveArgument(ref int, definition int, info astvisitor.Info) {
-
+func (p *printer) LeaveArgument(ref int, definition int, info astvisitor.Info) astvisitor.Instruction {
+	return astvisitor.Instruction{}
 }
 
 func (p *printer) write(data []byte) {
@@ -54,7 +58,7 @@ func (p *printer) write(data []byte) {
 	_, p.err = p.out.Write(data)
 }
 
-func (p *printer) EnterOperationDefinition(ref int, info astvisitor.Info) {
+func (p *printer) EnterOperationDefinition(ref int, info astvisitor.Info) astvisitor.Instruction {
 
 	hasName := p.document.OperationDefinitions[ref].Name.Length() > 0
 
@@ -77,25 +81,30 @@ func (p *printer) EnterOperationDefinition(ref int, info astvisitor.Info) {
 		p.write(p.document.Input.ByteSlice(p.document.OperationDefinitions[ref].Name))
 		p.write(literal.SPACE)
 	}
+
+	return astvisitor.Instruction{}
 }
 
-func (p *printer) LeaveOperationDefinition(ref int, info astvisitor.Info) {
+func (p *printer) LeaveOperationDefinition(ref int, info astvisitor.Info) astvisitor.Instruction {
 	hasName := p.document.OperationDefinitions[ref].Name.Length() > 0
 	if hasName {
 		p.write(literal.SPACE)
 	}
+
+	return astvisitor.Instruction{}
 }
 
-func (p *printer) EnterSelectionSet(ref int, info astvisitor.Info) (instruction astvisitor.Instruction) {
+func (p *printer) EnterSelectionSet(ref int, info astvisitor.Info) astvisitor.Instruction {
 	p.write(literal.LBRACE)
-	return
+	return astvisitor.Instruction{}
 }
 
-func (p *printer) LeaveSelectionSet(ref int, info astvisitor.Info) {
+func (p *printer) LeaveSelectionSet(ref int, info astvisitor.Info) astvisitor.Instruction {
 	p.write(literal.RBRACE)
+	return astvisitor.Instruction{}
 }
 
-func (p *printer) EnterField(ref int, info astvisitor.Info) {
+func (p *printer) EnterField(ref int, info astvisitor.Info) astvisitor.Instruction {
 	if p.document.Fields[ref].Alias.IsDefined {
 		p.write(p.document.Input.ByteSlice(p.document.Fields[ref].Alias.Name))
 		p.write(literal.COLON)
@@ -105,24 +114,27 @@ func (p *printer) EnterField(ref int, info astvisitor.Info) {
 	if info.HasSelections {
 		p.write(literal.SPACE)
 	}
+	return astvisitor.Instruction{}
 }
 
-func (p *printer) LeaveField(ref int, info astvisitor.Info) {
+func (p *printer) LeaveField(ref int, info astvisitor.Info) astvisitor.Instruction {
 	if len(info.SelectionsAfter) != 0 {
 		p.write(literal.SPACE)
 	}
+	return astvisitor.Instruction{}
 }
 
-func (p *printer) EnterFragmentSpread(ref int, info astvisitor.Info) {
+func (p *printer) EnterFragmentSpread(ref int, info astvisitor.Info) astvisitor.Instruction {
 	p.write(literal.SPREAD)
 	p.write(p.document.Input.ByteSlice(p.document.FragmentSpreads[ref].FragmentName))
+	return astvisitor.Instruction{}
 }
 
-func (p *printer) LeaveFragmentSpread(ref int, info astvisitor.Info) {
-
+func (p *printer) LeaveFragmentSpread(ref int, info astvisitor.Info) astvisitor.Instruction {
+	return astvisitor.Instruction{}
 }
 
-func (p *printer) EnterInlineFragment(ref int, info astvisitor.Info) {
+func (p *printer) EnterInlineFragment(ref int, info astvisitor.Info) astvisitor.Instruction {
 	p.write(literal.SPREAD)
 	if p.document.InlineFragments[ref].TypeCondition.Type != -1 {
 		p.write(literal.SPACE)
@@ -131,15 +143,17 @@ func (p *printer) EnterInlineFragment(ref int, info astvisitor.Info) {
 		p.write(p.document.Input.ByteSlice(p.document.Types[p.document.InlineFragments[ref].TypeCondition.Type].Name))
 		p.write(literal.SPACE)
 	}
+	return astvisitor.Instruction{}
 }
 
-func (p *printer) LeaveInlineFragment(ref int, info astvisitor.Info) {
+func (p *printer) LeaveInlineFragment(ref int, info astvisitor.Info) astvisitor.Instruction {
 	if len(info.SelectionsAfter) > 0 {
 		p.write(literal.SPACE)
 	}
+	return astvisitor.Instruction{}
 }
 
-func (p *printer) EnterFragmentDefinition(ref int, info astvisitor.Info) {
+func (p *printer) EnterFragmentDefinition(ref int, info astvisitor.Info) astvisitor.Instruction {
 	p.write(literal.FRAGMENT)
 	p.write(literal.SPACE)
 	p.write(p.document.Input.ByteSlice(p.document.FragmentDefinitions[ref].Name))
@@ -148,10 +162,12 @@ func (p *printer) EnterFragmentDefinition(ref int, info astvisitor.Info) {
 	p.write(literal.SPACE)
 	p.write(p.document.Input.ByteSlice(p.document.Types[p.document.FragmentDefinitions[ref].TypeCondition.Type].Name))
 	p.write(literal.SPACE)
+	return astvisitor.Instruction{}
 }
 
-func (p *printer) LeaveFragmentDefinition(ref int, info astvisitor.Info) {
+func (p *printer) LeaveFragmentDefinition(ref int, info astvisitor.Info) astvisitor.Instruction {
 	if !info.IsLastRootNode {
 		p.write(literal.SPACE)
 	}
+	return astvisitor.Instruction{}
 }
