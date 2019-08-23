@@ -202,11 +202,11 @@ func (p *Parser) mustNext(key keyword.Keyword) int {
 	current := p.currentToken
 	if p.next() == current {
 		p.errUnexpectedToken(p.tokens[p.currentToken], key)
-		return -1
+		return p.currentToken
 	}
 	if p.tokens[p.currentToken].Keyword != key {
 		p.errUnexpectedToken(p.tokens[p.currentToken], key)
-		return -1
+		return p.currentToken
 	}
 	return p.currentToken
 }
@@ -333,6 +333,7 @@ func (p *Parser) parseDirectiveList() (list ast.DirectiveList) {
 
 		if p.peekEquals(keyword.LPAREN) {
 			directive.Arguments = p.parseArgumentList()
+			directive.HasArguments = len(directive.Arguments.Refs) > 0
 		}
 
 		p.document.Directives = append(p.document.Directives, directive)
@@ -1270,9 +1271,11 @@ func (p *Parser) parseField() int {
 
 	if p.peekEquals(keyword.LPAREN) {
 		field.Arguments = p.parseArgumentList()
+		field.HasArguments = len(field.Arguments.Refs) > 0
 	}
 	if p.peekEquals(keyword.AT) {
 		field.Directives = p.parseDirectiveList()
+		field.HasDirectives = len(field.Directives.Refs) > 0
 	}
 	if p.peekEquals(keyword.LBRACE) {
 		field.SelectionSet, field.HasSelections = p.parseSelectionSet()
@@ -1355,9 +1358,11 @@ func (p *Parser) parseOperationDefinition() {
 	}
 	if p.peekEquals(keyword.LPAREN) {
 		operationDefinition.VariableDefinitions = p.parseVariableDefinitionList()
+		operationDefinition.HasVariableDefinitions = len(operationDefinition.VariableDefinitions.Refs) > 0
 	}
 	if p.peekEquals(keyword.AT) {
 		operationDefinition.Directives = p.parseDirectiveList()
+		operationDefinition.HasDirectives = len(operationDefinition.Directives.Refs) > 0
 	}
 
 	operationDefinition.SelectionSet, operationDefinition.HasSelections = p.parseSelectionSet()
@@ -1401,7 +1406,9 @@ func (p *Parser) parseVariableDefinition() int {
 
 	var variableDefinition ast.VariableDefinition
 
-	variableDefinition.Variable = p.parseVariableValue()
+	variableDefinition.VariableValue.Kind = ast.ValueKindVariable
+	variableDefinition.VariableValue.Ref = p.parseVariableValue()
+
 	variableDefinition.Colon = p.mustRead(keyword.COLON).TextPosition
 	variableDefinition.Type = p.parseType()
 	if p.peekEquals(keyword.EQUALS) {
