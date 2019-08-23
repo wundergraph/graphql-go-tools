@@ -72,11 +72,11 @@ func TestPrint(t *testing.T) {
 	})
 	t.Run("arguments", func(t *testing.T) {
 		run(`
-				query argOnRequiredArg($catCommand: CatCommand, $complex: Boolean = true) {
+				query argOnRequiredArg($catCommand: CatCommand @include(if: true), $complex: Boolean = true) {
 					dog {
 						doesKnowCommand(dogCommand: $catCommand)
 					}
-				}`, `query argOnRequiredArg($catCommand: CatCommand $complex: Boolean = true){dog {doesKnowCommand(dogCommand: $catCommand)}}`)
+				}`, `query argOnRequiredArg($catCommand: CatCommand @include(if: true), $complex: Boolean = true){dog {doesKnowCommand(dogCommand: $catCommand)}}`)
 	})
 	t.Run("directives", func(t *testing.T) {
 		run(`
