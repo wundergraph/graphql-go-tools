@@ -1502,17 +1502,6 @@ func TestExecutionValidation(t *testing.T) {
 								}`,
 						RequiredArguments(), Invalid)
 				})
-				t.Run("124 variant", func(t *testing.T) {
-					run(`	{
-									arguments {
-										...missingRequiredArg
-									}
-								}
-								fragment missingRequiredArg on ValidArguments {
-									foo
-								}`,
-						RequiredArguments(), Invalid)
-				})
 				t.Run("125", func(t *testing.T) {
 					run(`	{
 									arguments {
@@ -1565,7 +1554,8 @@ func TestExecutionValidation(t *testing.T) {
 						Fragments(), Valid)
 				})
 				t.Run("127", func(t *testing.T) {
-					run(`	{
+					run(`	
+								{
   									dog {
     									...fragmentOne
   									}

@@ -7,6 +7,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astinspect"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
 )
 
 type ValidationState int
@@ -193,9 +194,9 @@ func (v *validArgumentsVisitor) EnterDocument(operation, definition *ast.Documen
 	return astvisitor.Instruction{}
 }
 
-func (v *validArgumentsVisitor) EnterArgument(ref int, definition int, info astvisitor.Info) astvisitor.Instruction {
+func (v *validArgumentsVisitor) EnterArgument(ref int, info astvisitor.Info) astvisitor.Instruction {
 
-	if definition == -1 {
+	if info.InputValueDefinition == -1 {
 		return astvisitor.Instruction{
 			Action:  astvisitor.StopWithError,
 			Message: fmt.Sprintf("argument: %s not defined", v.operation.ArgumentNameString(ref)),
@@ -204,8 +205,8 @@ func (v *validArgumentsVisitor) EnterArgument(ref int, definition int, info astv
 
 	value := v.operation.ArgumentValue(ref)
 
-	if !v.valueSatisfiesInputFieldDefinition(value, definition) {
-		definition := v.definition.InputValueDefinitions[definition]
+	if !v.valueSatisfiesInputFieldDefinition(value, info.InputValueDefinition) {
+		definition := v.definition.InputValueDefinitions[info.InputValueDefinition]
 		return astvisitor.Instruction{
 			Action:  astvisitor.StopWithError,
 			Message: fmt.Sprintf("invalid argument value: %+v for definition: %+v", value, definition),
@@ -226,9 +227,50 @@ func (v *validArgumentsVisitor) valueSatisfiesInputFieldDefinition(value ast.Val
 		return v.variableValueSatisfiesInputValueDefinition(value.Ref, inputValueDefinition)
 	case ast.ValueKindEnum:
 		return v.enumValueSatisfiesInputValueDefinition(value.Ref, inputValueDefinition)
+	case ast.ValueKindNull:
+		return v.nullValueSatisfiesInputValueDefinition(inputValueDefinition)
+	case ast.ValueKindBoolean:
+		return v.booleanValueSatisfiesInputValueDefinition(inputValueDefinition)
+	case ast.ValueKindInteger:
+		return v.intValueSatisfiesInputValueDefinition(inputValueDefinition)
+	default:
+		panic(fmt.Sprintf("must implement validArgumentsVisitor.valueSatisfiesInputFieldDefinition() for kind: %s", value.Kind))
 	}
 
 	return true
+}
+
+func (v *validArgumentsVisitor) intValueSatisfiesInputValueDefinition(inputValueDefinition int) bool {
+	inputType := v.definition.InputValueDefinitionType(inputValueDefinition)
+	if inputType.TypeKind == ast.TypeKindNonNull {
+		inputType = v.definition.Types[inputType.OfType]
+	}
+	if inputType.TypeKind != ast.TypeKindNamed {
+		return false
+	}
+	if !bytes.Equal(v.definition.Input.ByteSlice(inputType.Name), literal.INT) {
+		return false
+	}
+	return true
+}
+
+func (v *validArgumentsVisitor) booleanValueSatisfiesInputValueDefinition(inputValueDefinition int) bool {
+	inputType := v.definition.InputValueDefinitionType(inputValueDefinition)
+	if inputType.TypeKind == ast.TypeKindNonNull {
+		inputType = v.definition.Types[inputType.OfType]
+	}
+	if inputType.TypeKind != ast.TypeKindNamed {
+		return false
+	}
+	if !bytes.Equal(v.definition.Input.ByteSlice(inputType.Name), literal.BOOLEAN) {
+		return false
+	}
+	return true
+}
+
+func (v *validArgumentsVisitor) nullValueSatisfiesInputValueDefinition(inputValueDefinition int) bool {
+	inputType := v.definition.InputValueDefinitionType(inputValueDefinition)
+	return inputType.TypeKind != ast.TypeKindNonNull
 }
 
 func (v *validArgumentsVisitor) enumValueSatisfiesInputValueDefinition(enumValue, inputValueDefinition int) bool {
@@ -314,14 +356,81 @@ func Values() Rule {
 
 func ArgumentUniqueness() Rule {
 	return func(walker *astvisitor.Walker) {
-
+		visitor := argumentUniquenessVisitor{}
+		walker.RegisterEnterDocumentVisitor(&visitor)
+		walker.RegisterEnterArgumentVisitor(&visitor)
 	}
+}
+
+type argumentUniquenessVisitor struct {
+	operation *ast.Document
+}
+
+func (a *argumentUniquenessVisitor) EnterDocument(operation, definition *ast.Document) astvisitor.Instruction {
+	a.operation = operation
+	return astvisitor.Instruction{}
+}
+
+func (a *argumentUniquenessVisitor) EnterArgument(ref int, info astvisitor.Info) astvisitor.Instruction {
+
+	argumentName := a.operation.ArgumentName(ref)
+
+	for _, i := range info.ArgumentsAfter {
+		if bytes.Equal(argumentName, a.operation.ArgumentName(i)) {
+			return astvisitor.Instruction{
+				Action:  astvisitor.StopWithError,
+				Message: fmt.Sprintf("argument: %s must be unique", string(argumentName)),
+			}
+		}
+	}
+
+	return astvisitor.Instruction{}
 }
 
 func RequiredArguments() Rule {
 	return func(walker *astvisitor.Walker) {
-
+		visitor := requiredArgumentsVisitor{}
+		walker.RegisterEnterDocumentVisitor(&visitor)
+		walker.RegisterEnterFieldVisitor(&visitor)
 	}
+}
+
+type requiredArgumentsVisitor struct {
+	operation, definition *ast.Document
+}
+
+func (r *requiredArgumentsVisitor) EnterDocument(operation, definition *ast.Document) astvisitor.Instruction {
+	r.operation = operation
+	r.definition = definition
+	return astvisitor.Instruction{}
+}
+
+func (r *requiredArgumentsVisitor) EnterField(ref int, info astvisitor.Info) astvisitor.Instruction {
+
+	for _, i := range info.InputValueDefinitions {
+		if r.definition.InputValueDefinitionArgumentIsOptional(i) {
+			continue
+		}
+
+		name := r.definition.InputValueDefinitionName(i)
+
+		argument, exists := r.operation.FieldArgument(ref, name)
+		if !exists {
+			return astvisitor.Instruction{
+				Action:  astvisitor.StopWithError,
+				Message: fmt.Sprintf("required argument: %s on field: %s missing", string(name), r.operation.FieldNameString(ref)),
+			}
+		}
+
+		if r.operation.ArgumentValue(argument).Kind == ast.ValueKindNull {
+			return astvisitor.Instruction{
+				Action:  astvisitor.StopWithError,
+				Message: fmt.Sprintf("required argument: %s on field: %s must not be null", string(name), r.operation.FieldNameString(ref)),
+			}
+		}
+	}
+
+	return astvisitor.Instruction{}
 }
 
 func Fragments() Rule {
