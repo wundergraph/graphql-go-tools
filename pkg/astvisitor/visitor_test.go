@@ -3,10 +3,12 @@ package astvisitor
 import (
 	"bytes"
 	"fmt"
+	"github.com/jensneuse/diffview"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
 	"github.com/sebdah/goldie"
 	"io"
+	"io/ioutil"
 	"testing"
 )
 
@@ -38,7 +40,18 @@ func TestVisit(t *testing.T) {
 
 	must(walker.Walk(operation, definition))
 
-	goldie.Assert(t, "visitor", buff.Bytes())
+	out := buff.Bytes()
+	goldie.Assert(t, "visitor", out)
+
+	if t.Failed() {
+
+		fixture, err := ioutil.ReadFile("./fixtures/visitor.golden")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		diffview.NewGoland().DiffViewBytes("introspection_lexed", fixture, out)
+	}
 }
 
 func BenchmarkVisitor(b *testing.B) {
@@ -85,6 +98,14 @@ func (m *minimalVisitor) EnterField(ref int, info Info) Instruction {
 }
 
 type dummyVisitor struct {
+}
+
+func (d *dummyVisitor) EnterDirective(ref int, info Info) Instruction {
+	return Instruction{}
+}
+
+func (d *dummyVisitor) LeaveDirective(ref int, info Info) Instruction {
+	return Instruction{}
 }
 
 func (d *dummyVisitor) EnterVariableDefinition(ref int, info Info) Instruction {
@@ -158,16 +179,30 @@ type printingVisitor struct {
 	indentation int
 }
 
+func (p *printingVisitor) EnterDirective(ref int, info Info) Instruction {
+	p.enter()
+	name := p.operation.DirectiveNameString(ref)
+	p.must(fmt.Fprintf(p.out, "EnterDirective(%s): ref: %d, info: %+v\n", name, ref, info))
+	return Instruction{}
+}
+
+func (p *printingVisitor) LeaveDirective(ref int, info Info) Instruction {
+	p.leave()
+	name := p.operation.DirectiveNameString(ref)
+	p.must(fmt.Fprintf(p.out, "LeaveDirective(%s): ref: %d, info: %+v\n", name, ref, info))
+	return Instruction{}
+}
+
 func (p *printingVisitor) EnterVariableDefinition(ref int, info Info) Instruction {
 	p.enter()
-	varName := string(p.operation.VariableValueName(p.operation.VariableDefinitions[ref].Variable))
+	varName := string(p.operation.VariableValueName(p.operation.VariableDefinitions[ref].VariableValue.Ref))
 	p.must(fmt.Fprintf(p.out, "EnterVariableDefinition(%s): ref: %d, info: %+v\n", varName, ref, info))
 	return Instruction{}
 }
 
 func (p *printingVisitor) LeaveVariableDefinition(ref int, info Info) Instruction {
-	p.enter()
-	varName := string(p.operation.VariableValueName(p.operation.VariableDefinitions[ref].Variable))
+	p.leave()
+	varName := string(p.operation.VariableValueName(p.operation.VariableDefinitions[ref].VariableValue.Ref))
 	p.must(fmt.Fprintf(p.out, "LeaveVariableDefinition(%s): ref: %d, info: %+v\n", varName, ref, info))
 	return Instruction{}
 }
@@ -348,9 +383,15 @@ query VariableQuery($bar: String, $baz: Boolean) {
 		fooField
 	}
 }
+query VariableQuery {
+	posts {
+		id @include(if: true)
+	}
+}
 `
 
 const testDefinition = `
+directive @include(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
 schema {
 	query: Query
 }
