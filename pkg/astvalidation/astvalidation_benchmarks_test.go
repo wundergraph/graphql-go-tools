@@ -2235,7 +2235,7 @@ func BenchmarkExecutionValidation(b *testing.B) {
 		})
 	})
 	b.Run("5.8 Variables", func(b *testing.B) {
-		b.Run("5.8.1 Variable Uniqueness", func(b *testing.B) {
+		b.Run("5.8.1 VariableValue Uniqueness", func(b *testing.B) {
 			b.Run("153", func(b *testing.B) {
 				run(b, `query houseTrainedQuery($atOtherHomes: Boolean, $atOtherHomes: Boolean) {
 									dog {
@@ -2295,7 +2295,7 @@ func BenchmarkExecutionValidation(b *testing.B) {
 					VariablesAreInputTypes(), Valid)
 			})
 		})
-		b.Run("5.8.3 All Variable Uses Defined", func(b *testing.B) {
+		b.Run("5.8.3 All VariableValue Uses Defined", func(b *testing.B) {
 			b.Run("158", func(b *testing.B) {
 				run(b, `query variableIsDefined($atOtherHomes: Boolean) {
 									dog {
@@ -2437,7 +2437,7 @@ func BenchmarkExecutionValidation(b *testing.B) {
 					AllVariablesUsed(), Invalid)
 			})
 		})
-		b.Run("5.8.5 All Variable Usages are Allowed", func(b *testing.B) {
+		b.Run("5.8.5 All VariableValue Usages are Allowed", func(b *testing.B) {
 			b.Run("169", func(b *testing.B) {
 				run(b, `query intCannotGoIntoBoolean($intArg: Int) {
 									arguments {
