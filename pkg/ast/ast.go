@@ -4,7 +4,9 @@ package ast
 import (
 	"bytes"
 	"fmt"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
+	"io"
 )
 
 type OperationType int
@@ -652,6 +654,14 @@ func (d *Document) DirectiveName(ref int) ByteSliceReference {
 	return d.Directives[ref].Name
 }
 
+func (d *Document) DirectiveNameBytes(ref int) ByteSlice {
+	return d.Input.ByteSlice(d.Directives[ref].Name)
+}
+
+func (d *Document) DirectiveNameString(ref int) string {
+	return d.Input.ByteSliceString(d.Directives[ref].Name)
+}
+
 func (d *Document) DirectiveArgumentSet(ref int) []int {
 	return d.Directives[ref].Arguments.Refs
 }
@@ -803,9 +813,25 @@ type RootOperationTypeDefinition struct {
 }
 
 type Directive struct {
-	At        position.Position  // @
-	Name      ByteSliceReference // e.g. include
-	Arguments ArgumentList       // e.g. (if: true)
+	At           position.Position  // @
+	Name         ByteSliceReference // e.g. include
+	HasArguments bool
+	Arguments    ArgumentList // e.g. (if: true)
+}
+
+func (d *Document) PrintDirective(ref int, w io.Writer) error {
+	_, err := w.Write(literal.AT)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(d.Input.ByteSlice(d.Directives[ref].Name))
+	if err != nil {
+		return err
+	}
+	if d.Directives[ref].HasArguments {
+		err = d.PrintArguments(d.Directives[ref].Arguments.Refs, w)
+	}
+	return err
 }
 
 type ArgumentList struct {
@@ -835,9 +861,120 @@ type Argument struct {
 	Value Value              // e.g. 100 or "Bar"
 }
 
+func (d *Document) PrintArgument(ref int, w io.Writer) error {
+	_, err := w.Write(d.Input.ByteSlice(d.Arguments[ref].Name))
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(literal.COLON)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(literal.SPACE)
+	if err != nil {
+		return err
+	}
+	return d.PrintValue(d.Arguments[ref].Value, w)
+}
+
+func (d *Document) PrintArguments(refs []int, w io.Writer) (err error) {
+	_, err = w.Write(literal.LPAREN)
+	if err != nil {
+		return
+	}
+	for i, j := range refs {
+		err = d.PrintArgument(j, w)
+		if err != nil {
+			return
+		}
+		if i != len(refs)-1 {
+			_, err = w.Write(literal.COMMA)
+			if err != nil {
+				return
+			}
+			_, err = w.Write(literal.SPACE)
+			if err != nil {
+				return
+			}
+		}
+	}
+	_, err = w.Write(literal.RPAREN)
+	return
+}
+
 type Value struct {
 	Kind ValueKind // e.g. 100 or "Bar"
 	Ref  int
+}
+
+func (d *Document) PrintValue(value Value, w io.Writer) (err error) {
+	switch value.Kind {
+	case ValueKindBoolean:
+		if d.BooleanValues[value.Ref] {
+			_, err = w.Write(literal.TRUE)
+		} else {
+			_, err = w.Write(literal.FALSE)
+		}
+	case ValueKindString:
+		_, err = w.Write(d.Input.ByteSlice(d.StringValues[value.Ref].Content))
+	case ValueKindInteger:
+		if d.IntValues[value.Ref].Negative {
+			_, err = w.Write(literal.SUB)
+		}
+		_, err = w.Write(d.Input.ByteSlice(d.IntValues[value.Ref].Raw))
+	case ValueKindFloat:
+		if d.FloatValues[value.Ref].Negative {
+			_, err = w.Write(literal.SUB)
+		}
+		_, err = w.Write(d.Input.ByteSlice(d.FloatValues[value.Ref].Raw))
+	case ValueKindVariable:
+		_, err = w.Write(literal.DOLLAR)
+		_, err = w.Write(d.Input.ByteSlice(d.VariableValues[value.Ref].Name))
+	case ValueKindNull:
+		_, err = w.Write(literal.NULL)
+	case ValueKindList:
+		_, err = w.Write(literal.LBRACK)
+		for i, j := range d.ListValues[value.Ref].Refs {
+			err = d.PrintValue(d.Value(j), w)
+			if err != nil {
+				return
+			}
+			if i != len(d.ListValues[value.Ref].Refs)-1 {
+				_, err = w.Write(literal.COMMA)
+			}
+		}
+		_, err = w.Write(literal.RBRACK)
+	case ValueKindObject:
+		_, err = w.Write(literal.LBRACE)
+		for i, j := range d.ObjectValues[value.Ref].Refs {
+			_, err = w.Write(d.ObjectFieldName(j))
+			if err != nil {
+				return
+			}
+			_, err = w.Write(literal.COLON)
+			if err != nil {
+				return
+			}
+			_, err = w.Write(literal.SPACE)
+			if err != nil {
+				return
+			}
+			err = d.PrintValue(d.ObjectFieldValue(j), w)
+			if err != nil {
+				return
+			}
+			if i != len(d.ObjectValues[value.Ref].Refs)-1 {
+				_, err = w.Write(literal.COMMA)
+				if err != nil {
+					return
+				}
+			}
+		}
+		_, err = w.Write(literal.RBRACE)
+	case ValueKindEnum:
+		_, err = w.Write(d.Input.ByteSlice(d.EnumValues[value.Ref].Name))
+	}
+	return
 }
 
 type ListValue struct {
@@ -958,6 +1095,33 @@ type Type struct {
 	OfType   int
 }
 
+func (d *Document) PrintType(ref int, w io.Writer) error {
+	switch d.Types[ref].TypeKind {
+	case TypeKindNonNull:
+		err := d.PrintType(d.Types[ref].OfType, w)
+		if err != nil {
+			return err
+		}
+		_, err = w.Write(literal.BANG)
+		return err
+	case TypeKindNamed:
+		_, err := w.Write(d.Input.ByteSlice(d.Types[ref].Name))
+		return err
+	case TypeKindList:
+		_, err := w.Write(literal.LBRACK)
+		if err != nil {
+			return err
+		}
+		err = d.PrintType(d.Types[ref].OfType, w)
+		if err != nil {
+			return err
+		}
+		_, err = w.Write(literal.RBRACK)
+		return err
+	}
+	return nil
+}
+
 type DefaultValue struct {
 	IsDefined bool
 	Equals    position.Position // =
@@ -1043,6 +1207,15 @@ type EnumTypeDefinition struct {
 	EnumValuesDefinition EnumValueDefinitionList // optional, e.g. { NORTH EAST }
 }
 
+func (d *Document) EnumTypeDefinitionContainsEnumValue(enumTypeDef int, valueName ByteSlice) bool {
+	for _, i := range d.EnumTypeDefinitions[enumTypeDef].EnumValuesDefinition.Refs {
+		if bytes.Equal(valueName, d.EnumValueDefinitionEnumValue(i)) {
+			return true
+		}
+	}
+	return false
+}
+
 type EnumValueDefinitionList struct {
 	LBRACE position.Position // {
 	Refs   []int             //
@@ -1063,6 +1236,10 @@ type EnumValueDefinition struct {
 	Directives  DirectiveList      // optional, e.g. @foo
 }
 
+func (d *Document) EnumValueDefinitionEnumValue(ref int) ByteSlice {
+	return d.Input.ByteSlice(d.EnumValueDefinitions[ref].EnumValue)
+}
+
 // DirectiveDefinition
 // example:
 // directive @example on FIELD
@@ -1077,13 +1254,15 @@ type DirectiveDefinition struct {
 }
 
 type OperationDefinition struct {
-	OperationType        OperationType          // one of query, mutation, subscription
-	OperationTypeLiteral position.Position      // position of the operation type literal, if present
-	Name                 ByteSliceReference     // optional, user defined name of the operation
-	VariableDefinitions  VariableDefinitionList // optional, e.g. ($devicePicSize: Int)
-	Directives           DirectiveList          // optional, e.g. @foo
-	SelectionSet         int                    // e.g. {field}
-	HasSelections        bool
+	OperationType          OperationType      // one of query, mutation, subscription
+	OperationTypeLiteral   position.Position  // position of the operation type literal, if present
+	Name                   ByteSliceReference // optional, user defined name of the operation
+	HasVariableDefinitions bool
+	VariableDefinitions    VariableDefinitionList // optional, e.g. ($devicePicSize: Int)
+	HasDirectives          bool
+	Directives             DirectiveList // optional, e.g. @foo
+	SelectionSet           int           // e.g. {field}
+	HasSelections          bool
 }
 
 type VariableDefinitionList struct {
@@ -1096,11 +1275,34 @@ type VariableDefinitionList struct {
 // example:
 // $devicePicSize: Int = 100 @small
 type VariableDefinition struct {
-	Variable     int               // $ Name
-	Colon        position.Position // :
-	Type         int               // e.g. String
-	DefaultValue DefaultValue      // optional, e.g. = "Default"
-	Directives   DirectiveList     // optional, e.g. @foo
+	VariableValue Value             // $ Name
+	Colon         position.Position // :
+	Type          int               // e.g. String
+	DefaultValue  DefaultValue      // optional, e.g. = "Default"
+	Directives    DirectiveList     // optional, e.g. @foo
+}
+
+func (d *Document) VariableDefinitionByName(name ByteSlice) (definition int, exists bool) {
+	for i := range d.VariableDefinitions {
+		definitionName := d.VariableValueName(d.VariableDefinitions[i].VariableValue.Ref)
+		if bytes.Equal(name, definitionName) {
+			return i, true
+		}
+	}
+	return -1, false
+}
+
+func (d *Document) DirectiveArgumentInputValueDefinition(directiveName ByteSlice, argumentName ByteSlice) int {
+	for i := range d.DirectiveDefinitions {
+		if bytes.Equal(directiveName, d.Input.ByteSlice(d.DirectiveDefinitions[i].Name)) {
+			for _, j := range d.DirectiveDefinitions[i].ArgumentsDefinition.Refs {
+				if bytes.Equal(argumentName, d.Input.ByteSlice(d.InputValueDefinitions[j].Name)) {
+					return j
+				}
+			}
+		}
+	}
+	return -1
 }
 
 type SelectionSet struct {
@@ -1117,9 +1319,11 @@ type Selection struct {
 type Field struct {
 	Alias         Alias              // optional, e.g. renamed:
 	Name          ByteSliceReference // field name, e.g. id
-	Arguments     ArgumentList       // optional
-	Directives    DirectiveList      // optional
-	SelectionSet  int                // optional
+	HasArguments  bool
+	Arguments     ArgumentList // optional
+	HasDirectives bool
+	Directives    DirectiveList // optional
+	SelectionSet  int           // optional
 	HasSelections bool
 }
 
