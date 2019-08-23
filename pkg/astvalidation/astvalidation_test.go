@@ -508,7 +508,7 @@ func TestExecutionValidation(t *testing.T) {
   									extras { ...frag }
 								}
   							}
-							fragment frag on Extra { string }`,
+							fragment frag on DogExtra { string }`,
 					FieldSelectionMerging(), Valid)
 			})
 			t.Run("108 variant", func(t *testing.T) {
@@ -1537,7 +1537,8 @@ func TestExecutionValidation(t *testing.T) {
 		t.Run("5.5.1 Fragment Declarations", func(t *testing.T) {
 			t.Run("5.5.1.1 Fragment Name Uniqueness", func(t *testing.T) {
 				t.Run("126", func(t *testing.T) {
-					run(`	{
+					run(`
+								{
   									dog {
     									...fragmentOne
     									...fragmentTwo
@@ -1596,12 +1597,14 @@ func TestExecutionValidation(t *testing.T) {
 							}`, Fragments(), Valid)
 				})
 				t.Run("129", func(t *testing.T) {
-					run(`	fragment notOnExistingType on NotInSchema {
+					run(`	
+								fragment notOnExistingType on NotInSchema {
   									name
 								}`, Fragments(), Invalid)
 				})
 				t.Run("129", func(t *testing.T) {
-					run(`	fragment inlineNotExistingType on Dog {
+					run(`	
+								fragment inlineNotExistingType on Dog {
   									... on NotInSchema {
     									name
   									}
@@ -1610,7 +1613,8 @@ func TestExecutionValidation(t *testing.T) {
 			})
 			t.Run("5.5.1.3 Fragments on Composite Types", func(t *testing.T) {
 				t.Run("130", func(t *testing.T) {
-					run(` {
+					run(`
+								{
 									dog {
 										...fragOnObject
 										...fragOnInterface
@@ -1631,7 +1635,8 @@ func TestExecutionValidation(t *testing.T) {
 						Fragments(), Valid)
 				})
 				t.Run("131", func(t *testing.T) {
-					run(` fragment fragOnScalar on Int {
+					run(`
+								fragment fragOnScalar on Int {
 									something
 								}`,
 						Fragments(), Invalid)
@@ -1647,7 +1652,8 @@ func TestExecutionValidation(t *testing.T) {
 			})
 			t.Run("5.5.1.4 Fragments must be used", func(t *testing.T) {
 				t.Run("132", func(t *testing.T) {
-					run(`	fragment nameFragment on Dog {
+					run(`
+								fragment nameFragment on Dog {
 									name
 									...nameFragment2
 								}
@@ -1714,12 +1720,10 @@ func TestExecutionValidation(t *testing.T) {
 							...nameFragment
 						}
 					}
-
 					fragment nameFragment on Dog {
 						name
 						...barkVolumeFragment
 					}
-
 					fragment barkVolumeFragment on Dog {
 						barkVolume
 						...nameFragment
@@ -1727,7 +1731,8 @@ func TestExecutionValidation(t *testing.T) {
 						Fragments(), Invalid)
 				})
 				t.Run("136", func(t *testing.T) {
-					run(`	{
+					run(`
+								{
 									dog {
 										...dogFragment
 									}
@@ -1747,7 +1752,8 @@ func TestExecutionValidation(t *testing.T) {
 						Fragments(), Invalid)
 				})
 				t.Run("136 variant", func(t *testing.T) {
-					run(`	{
+					run(`
+								{
 									dog {
 										...dogFragment
 									}
@@ -1770,7 +1776,8 @@ func TestExecutionValidation(t *testing.T) {
 			t.Run("5.5.2.3 Fragment spread is possible", func(t *testing.T) {
 				t.Run("5.5.2.3.1 Object Spreads In Object Scope", func(t *testing.T) {
 					t.Run("137", func(t *testing.T) {
-						run(` {
+						run(`
+									{
 										dog {
 											...dogFragment
 										}
@@ -1783,7 +1790,8 @@ func TestExecutionValidation(t *testing.T) {
 							Fragments(), Valid)
 					})
 					t.Run("137 variant", func(t *testing.T) {
-						run(` {
+						run(`
+									{
 										dog {
 											...dogFragment
 										}
@@ -1796,7 +1804,8 @@ func TestExecutionValidation(t *testing.T) {
 							Fragments(), Invalid)
 					})
 					t.Run("138", func(t *testing.T) {
-						run(` {
+						run(`
+									{
 										dog {
 											...catInDogFragmentInvalid
 										}
@@ -1807,6 +1816,20 @@ func TestExecutionValidation(t *testing.T) {
 										}
 									}`,
 							Fragments(), Invalid)
+					})
+					t.Run("138 variant", func(t *testing.T) {
+						run(`
+									{
+										dog {
+											...catInDogFragmentInvalid
+										}
+									}
+									fragment catInDogFragmentInvalid on CatOrDog {
+										... on Cat {
+											meowVolume
+										}
+									}`,
+							Fragments(), Valid)
 					})
 				})
 				t.Run("5.5.2.3.2 Abstract Spreads in Object Scope", func(t *testing.T) {
@@ -1825,7 +1848,8 @@ func TestExecutionValidation(t *testing.T) {
 							Fragments(), Valid)
 					})
 					t.Run("140", func(t *testing.T) {
-						run(` 	{
+						run(`
+									{
 										dog {
 											...unionWithObjectFragment
 										}
@@ -1881,7 +1905,8 @@ func TestExecutionValidation(t *testing.T) {
 				})
 				t.Run("5.5.2.3.4 Abstract Spreads in Abstract Scope", func(t *testing.T) {
 					t.Run("143", func(t *testing.T) {
-						run(`	{
+						run(`
+									{
 										dog {
 											...unionWithInterface
 										}
@@ -1897,7 +1922,8 @@ func TestExecutionValidation(t *testing.T) {
 							Fragments(), Valid)
 					})
 					t.Run("144", func(t *testing.T) {
-						run(`	{
+						run(`
+									{
 										dog {
 											...nonIntersectingInterfaces
 										}

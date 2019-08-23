@@ -1588,7 +1588,7 @@ func TestParser_Parse(t *testing.T) {
 					list := extra.(ast.VariableDefinitionList)
 
 					var1 := doc.VariableDefinitions[list.Refs[0]]
-					devicePicSize := doc.VariableValues[var1.VariableValue]
+					devicePicSize := doc.VariableValues[var1.VariableValue.Ref]
 					if doc.Input.ByteSliceString(devicePicSize.Name) != "devicePicSize" {
 						panic("want devicePicSize")
 					}
@@ -1611,7 +1611,7 @@ func TestParser_Parse(t *testing.T) {
 					}
 
 					var2 := doc.VariableDefinitions[list.Refs[1]]
-					var2Variable := doc.VariableValues[var2.VariableValue]
+					var2Variable := doc.VariableValues[var2.VariableValue.Ref]
 					if doc.Input.ByteSliceString(var2Variable.Name) != "var2" {
 						panic("want var2")
 					}

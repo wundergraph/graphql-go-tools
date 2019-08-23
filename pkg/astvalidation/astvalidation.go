@@ -435,8 +435,124 @@ func (r *requiredArgumentsVisitor) EnterField(ref int, info astvisitor.Info) ast
 
 func Fragments() Rule {
 	return func(walker *astvisitor.Walker) {
-
+		visitor := fragmentsVisitor{
+			fragmentDefinitionsVisited: make([]ast.ByteSlice, 0, 8),
+		}
+		walker.RegisterEnterDocumentVisitor(&visitor)
+		walker.RegisterLeaveDocumentVisitor(&visitor)
+		walker.RegisterEnterFragmentDefinitionVisitor(&visitor)
+		walker.RegisterEnterInlineFragmentVisitor(&visitor)
+		walker.RegisterEnterFragmentSpreadVisitor(&visitor)
 	}
+}
+
+type fragmentsVisitor struct {
+	operation, definition      *ast.Document
+	fragmentDefinitionsVisited []ast.ByteSlice
+}
+
+func (f *fragmentsVisitor) EnterFragmentSpread(ref int, info astvisitor.Info) astvisitor.Instruction {
+	if info.Ancestors[0].Kind == ast.NodeKindOperationDefinition {
+		return astvisitor.Instruction{
+			Action:  astvisitor.StopWithError,
+			Message: fmt.Sprintf("fragment spread: %s forms fragment cycle", f.operation.FragmentSpreadName(ref)),
+		}
+	}
+	return astvisitor.Instruction{}
+}
+
+func (f *fragmentsVisitor) LeaveDocument(operation, definition *ast.Document) astvisitor.Instruction {
+	for i := range f.fragmentDefinitionsVisited {
+		if !f.operation.FragmentDefinitionIsUsed(f.fragmentDefinitionsVisited[i]) {
+			return astvisitor.Instruction{
+				Action:  astvisitor.StopWithError,
+				Message: fmt.Sprintf("fragment: %s is never used", string(f.fragmentDefinitionsVisited[i])),
+			}
+		}
+	}
+	return astvisitor.Instruction{}
+}
+
+func (f *fragmentsVisitor) fragmentOnNodeIsAllowed(node ast.Node) bool {
+	switch node.Kind {
+	case ast.NodeKindObjectTypeDefinition, ast.NodeKindInterfaceTypeDefinition, ast.NodeKindUnionTypeDefinition:
+		return true
+	default:
+		return false
+	}
+}
+
+func (f *fragmentsVisitor) EnterInlineFragment(ref int, info astvisitor.Info) astvisitor.Instruction {
+
+	if !f.operation.InlineFragmentHasTypeCondition(ref) {
+		return astvisitor.Instruction{}
+	}
+
+	typeName := f.operation.InlineFragmentTypeConditionName(ref)
+
+	node, exists := f.definition.Index.Nodes[string(typeName)]
+	if !exists {
+		return astvisitor.Instruction{
+			Action:  astvisitor.StopWithError,
+			Message: fmt.Sprintf("type: %s on inline framgent is not defined", string(typeName)),
+		}
+	}
+
+	if !f.fragmentOnNodeIsAllowed(node) {
+		return astvisitor.Instruction{
+			Action:  astvisitor.StopWithError,
+			Message: fmt.Sprintf("inline fragment on type: %s of kind: %s is disallowed", string(typeName), node.Kind),
+		}
+	}
+
+	if !f.definition.NodeFragmentIsAllowedOnNode(node, info.EnclosingTypeDefinition) {
+		return astvisitor.Instruction{
+			Action:  astvisitor.StopWithError,
+			Message: fmt.Sprintf("inline fragment on type: %s of kind: %s is disallowed", string(typeName), node.Kind),
+		}
+	}
+
+	return astvisitor.Instruction{}
+}
+
+func (f *fragmentsVisitor) EnterDocument(operation, definition *ast.Document) astvisitor.Instruction {
+	f.operation = operation
+	f.definition = definition
+	f.fragmentDefinitionsVisited = f.fragmentDefinitionsVisited[:0]
+	return astvisitor.Instruction{}
+}
+
+func (f *fragmentsVisitor) EnterFragmentDefinition(ref int, info astvisitor.Info) astvisitor.Instruction {
+
+	fragmentDefinitionName := f.operation.FragmentDefinitionName(ref)
+	typeName := f.operation.FragmentDefinitionTypeName(ref)
+
+	node, exists := f.definition.Index.Nodes[string(typeName)]
+	if !exists {
+		return astvisitor.Instruction{
+			Action:  astvisitor.StopWithError,
+			Message: fmt.Sprintf("type: %s on fragment: %s is not defined", string(typeName), string(fragmentDefinitionName)),
+		}
+	}
+
+	if !f.fragmentOnNodeIsAllowed(node) {
+		return astvisitor.Instruction{
+			Action:  astvisitor.StopWithError,
+			Message: fmt.Sprintf("fragment definition: %s on type: %s of kind: %s is disallowed", string(fragmentDefinitionName), string(typeName), node.Kind),
+		}
+	}
+
+	for i := range f.fragmentDefinitionsVisited {
+		if bytes.Equal(fragmentDefinitionName, f.fragmentDefinitionsVisited[i]) {
+			return astvisitor.Instruction{
+				Action:  astvisitor.StopWithError,
+				Message: fmt.Sprintf("fragment: %s must be unique", string(f.fragmentDefinitionsVisited[i])),
+			}
+		}
+	}
+
+	f.fragmentDefinitionsVisited = append(f.fragmentDefinitionsVisited, fragmentDefinitionName)
+	return astvisitor.Instruction{}
 }
 
 func DirectivesAreDefined() Rule {

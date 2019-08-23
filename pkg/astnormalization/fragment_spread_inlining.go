@@ -66,15 +66,25 @@ func (f *fragmentSpreadInlineVisitor) EnterFragmentSpread(ref int, info astvisit
 
 	fragmentTypeEqualsParentType := bytes.Equal(parentTypeName, fragmentTypeName)
 	var enclosingTypeImplementsFragmentType bool
+	var enclosingTypeIsMemberOfFragmentUnion bool
 	var fragmentTypeImplementsEnclosingType bool
 	var fragmentTypeIsMemberOfEnclosingUnionType bool
+	var fragmentUnionIntersectsEnclosingInterface bool
 
-	if fragmentNode.Kind == ast.NodeKindInterfaceTypeDefinition {
+	if fragmentNode.Kind == ast.NodeKindInterfaceTypeDefinition && info.EnclosingTypeDefinition.Kind == ast.NodeKindObjectTypeDefinition {
 		enclosingTypeImplementsFragmentType = f.definition.NodeImplementsInterface(info.EnclosingTypeDefinition, fragmentNode)
+	}
+
+	if fragmentNode.Kind == ast.NodeKindUnionTypeDefinition {
+		enclosingTypeIsMemberOfFragmentUnion = f.definition.NodeIsUnionMember(info.EnclosingTypeDefinition, fragmentNode)
 	}
 
 	if info.EnclosingTypeDefinition.Kind == ast.NodeKindInterfaceTypeDefinition {
 		fragmentTypeImplementsEnclosingType = f.definition.NodeImplementsInterface(fragmentNode, info.EnclosingTypeDefinition)
+	}
+
+	if info.EnclosingTypeDefinition.Kind == ast.NodeKindInterfaceTypeDefinition && fragmentNode.Kind == ast.NodeKindUnionTypeDefinition {
+		fragmentUnionIntersectsEnclosingInterface = f.definition.UnionNodeIntersectsInterfaceNode(fragmentNode, info.EnclosingTypeDefinition)
 	}
 
 	if info.EnclosingTypeDefinition.Kind == ast.NodeKindUnionTypeDefinition {
@@ -100,7 +110,7 @@ func (f *fragmentSpreadInlineVisitor) EnterFragmentSpread(ref int, info astvisit
 	switch {
 	case fragmentTypeEqualsParentType || enclosingTypeImplementsFragmentType:
 		f.transformer.ReplaceFragmentSpread(precedence, info.SelectionSet, ref, replaceWith)
-	case fragmentTypeImplementsEnclosingType || fragmentTypeIsMemberOfEnclosingUnionType:
+	case fragmentTypeImplementsEnclosingType || fragmentTypeIsMemberOfEnclosingUnionType || enclosingTypeIsMemberOfFragmentUnion || fragmentUnionIntersectsEnclosingInterface:
 		f.transformer.ReplaceFragmentSpreadWithInlineFragment(precedence, info.SelectionSet, ref, replaceWith, typeCondition)
 	}
 

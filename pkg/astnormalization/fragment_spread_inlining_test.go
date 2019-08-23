@@ -255,4 +255,148 @@ func TestInlineFragments(t *testing.T) {
 					someValue: name
 				}`)
 	})
+	t.Run("inline fragment of outer enclosing type inside union fragment could be inlined if enclosing type is member of union fragment", func(t *testing.T) {
+		run(fragmentSpreadInline, testDefinition, `
+				{
+					dog {
+						...fragOnObject
+						...fragOnInterface
+						...fragOnUnion
+					}
+				}
+				fragment fragOnObject on Dog {
+					name
+				}
+				fragment fragOnInterface on Pet {
+					name
+				}
+				fragment fragOnUnion on CatOrDog {
+					... on Dog {
+						name
+					}
+				}`, `
+				{
+				dog {
+						name
+						name
+						... on Dog {
+							name
+						}
+					}
+				}
+				fragment fragOnObject on Dog {
+					name
+				}
+				fragment fragOnInterface on Pet {
+					name
+				}
+				fragment fragOnUnion on CatOrDog {
+					... on Dog {
+						name
+					}
+				}`)
+	})
+	t.Run("type inside union inside type", func(t *testing.T) {
+		run(fragmentSpreadInline, testDefinition, `
+				{
+					dog {
+						...unionWithObjectFragment
+					}
+				}
+				fragment catOrDogNameFragment on CatOrDog {
+					... on Cat {
+						meowVolume
+					}
+				}
+				fragment unionWithObjectFragment on Dog {
+					...catOrDogNameFragment
+				}`, `
+				{
+					dog {
+						... on CatOrDog {
+							... on Cat {
+								meowVolume
+							}
+						}
+					}
+				}
+				fragment catOrDogNameFragment on CatOrDog {
+					... on Cat {
+						meowVolume
+					}
+				}
+				fragment unionWithObjectFragment on Dog {
+						... on CatOrDog {
+							... on Cat {
+								meowVolume
+							}
+						}
+				}`)
+	})
+	t.Run("inline fragment inside union inside interface inside type", func(t *testing.T) {
+		run(fragmentSpreadInline, testDefinition, `
+				{
+					dog {
+						...unionWithInterface
+					}
+				}
+				fragment unionWithInterface on Pet {
+					...dogOrHumanFragment
+				}
+				fragment dogOrHumanFragment on DogOrHuman {
+					... on Dog {
+						barkVolume
+					}
+				}`, `
+				{
+					dog {
+						... on DogOrHuman {
+							... on Dog {
+								barkVolume
+							}
+						}
+					}
+				}
+				fragment unionWithInterface on Pet {
+					... on DogOrHuman {
+						... on Dog {
+							barkVolume
+						}
+					}
+				}
+				fragment dogOrHumanFragment on DogOrHuman {
+					... on Dog {
+						barkVolume
+					}
+				}`)
+	})
+	t.Run("non intersecting interfaces shouldn't merge", func(t *testing.T) {
+		run(fragmentSpreadInline, testDefinition, `
+				{
+					dog {
+						...nonIntersectingInterfaces
+					}
+				}
+				fragment nonIntersectingInterfaces on Pet {
+					...sentientFragment
+				}
+				fragment sentientFragment on Sentient {
+					name
+				}`, `
+				{
+					dog {
+						... on Sentient {
+							name
+						}
+					}
+				}
+				fragment nonIntersectingInterfaces on Pet {
+					... on Sentient {
+						name
+					}
+				}
+				fragment sentientFragment on Sentient {
+					name
+				}`)
+	})
 }

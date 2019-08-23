@@ -116,10 +116,20 @@ type Document struct {
 	Index                        Index
 }
 
+func (d *Document) FragmentDefinitionIsUsed(name ByteSlice) bool {
+	for _, i := range d.Index.ReplacedFragmentSpreads {
+		if bytes.Equal(name, d.FragmentSpreadName(i)) {
+			return true
+		}
+	}
+	return false
+}
+
 func (d *Document) ReplaceFragmentSpread(selectionSet int, spreadRef int, replaceWithSelectionSet int) {
 	for i, j := range d.SelectionSets[selectionSet].SelectionRefs {
 		if d.Selections[j].Kind == SelectionKindFragmentSpread && d.Selections[j].Ref == spreadRef {
 			d.SelectionSets[selectionSet].SelectionRefs = append(d.SelectionSets[selectionSet].SelectionRefs[:i], append(d.SelectionSets[replaceWithSelectionSet].SelectionRefs, d.SelectionSets[selectionSet].SelectionRefs[i+1:]...)...)
+			d.Index.ReplacedFragmentSpreads = append(d.Index.ReplacedFragmentSpreads, spreadRef)
 			return
 		}
 	}
@@ -140,6 +150,7 @@ func (d *Document) ReplaceFragmentSpreadWithInlineFragment(selectionSet int, spr
 	for i, j := range d.SelectionSets[selectionSet].SelectionRefs {
 		if d.Selections[j].Kind == SelectionKindFragmentSpread && d.Selections[j].Ref == spreadRef {
 			d.SelectionSets[selectionSet].SelectionRefs = append(d.SelectionSets[selectionSet].SelectionRefs[:i], append([]int{selectionRef}, d.SelectionSets[selectionSet].SelectionRefs[i+1:]...)...)
+			d.Index.ReplacedFragmentSpreads = append(d.Index.ReplacedFragmentSpreads, spreadRef)
 			return
 		}
 	}
@@ -783,6 +794,75 @@ func (d *Document) FieldsHaveSameShape(left, right int) bool {
 	}
 }
 
+func (d *Document) NodeFragmentIsAllowedOnNode(fragmentNode, onNode Node) bool {
+	switch onNode.Kind {
+	case NodeKindObjectTypeDefinition:
+		return d.NodeFragmentIsAllowedOnObjectTypeDefinition(fragmentNode, onNode)
+	case NodeKindInterfaceTypeDefinition:
+		return d.NodeFragmentIsAllowedOnInterfaceTypeDefinition(fragmentNode, onNode)
+	case NodeKindUnionTypeDefinition:
+		return d.NodeFragmentIsAllowedOnUnionTypeDefinition(fragmentNode, onNode)
+	default:
+		return false
+	}
+}
+
+func (d *Document) NodeFragmentIsAllowedOnInterfaceTypeDefinition(fragmentNode, interfaceTypeNode Node) bool {
+
+	switch fragmentNode.Kind {
+	case NodeKindObjectTypeDefinition:
+		return d.NodeImplementsInterface(fragmentNode, interfaceTypeNode)
+	case NodeKindInterfaceTypeDefinition:
+		return bytes.Equal(d.InterfaceTypeDefinitionName(fragmentNode.Ref), d.InterfaceTypeDefinitionName(interfaceTypeNode.Ref))
+	case NodeKindUnionTypeDefinition:
+		return d.UnionNodeIntersectsInterfaceNode(fragmentNode, interfaceTypeNode)
+	}
+
+	return false
+}
+
+func (d *Document) NodeFragmentIsAllowedOnUnionTypeDefinition(fragmentNode, unionTypeNode Node) bool {
+
+	switch fragmentNode.Kind {
+	case NodeKindObjectTypeDefinition:
+		return d.NodeIsUnionMember(fragmentNode, unionTypeNode)
+	case NodeKindInterfaceTypeDefinition:
+		return false
+	case NodeKindUnionTypeDefinition:
+		return bytes.Equal(d.UnionTypeDefinitionName(fragmentNode.Ref), d.UnionTypeDefinitionName(unionTypeNode.Ref))
+	}
+
+	return false
+}
+
+func (d *Document) NodeFragmentIsAllowedOnObjectTypeDefinition(fragmentNode, objectTypeNode Node) bool {
+
+	switch fragmentNode.Kind {
+	case NodeKindObjectTypeDefinition:
+		return bytes.Equal(d.ObjectTypeDefinitionName(fragmentNode.Ref), d.ObjectTypeDefinitionName(objectTypeNode.Ref))
+	case NodeKindInterfaceTypeDefinition:
+		return d.NodeImplementsInterface(objectTypeNode, fragmentNode)
+	case NodeKindUnionTypeDefinition:
+		return d.NodeIsUnionMember(objectTypeNode, fragmentNode)
+	}
+
+	return false
+}
+
+func (d *Document) UnionNodeIntersectsInterfaceNode(unionNode, interfaceNode Node) bool {
+	for _, i := range d.UnionTypeDefinitions[unionNode.Ref].UnionMemberTypes.Refs {
+		memberName := d.ResolveTypeName(i)
+		node := d.Index.Nodes[string(memberName)]
+		if node.Kind != NodeKindObjectTypeDefinition {
+			continue
+		}
+		if d.NodeImplementsInterface(node, interfaceNode) {
+			return true
+		}
+	}
+	return false
+}
+
 func (d *Document) NodeIsUnionMember(node Node, union Node) bool {
 	nodeTypeName := d.NodeTypeName(node)
 	for _, i := range d.UnionTypeDefinitions[union.Ref].UnionMemberTypes.Refs {
@@ -1080,6 +1160,10 @@ type ObjectTypeDefinition struct {
 	FieldsDefinition     FieldDefinitionList // { foo:Bar bar(baz:String) }
 }
 
+func (d *Document) ObjectTypeDefinitionName(ref int) ByteSlice {
+	return d.Input.ByteSlice(d.ObjectTypeDefinitions[ref].Name)
+}
+
 type TypeList struct {
 	Refs []int // Type
 }
@@ -1201,6 +1285,10 @@ type InterfaceTypeDefinition struct {
 	FieldsDefinition FieldDefinitionList // optional, e.g. { name: String }
 }
 
+func (d *Document) InterfaceTypeDefinitionName(ref int) ByteSlice {
+	return d.Input.ByteSlice(d.InterfaceTypeDefinitions[ref].Name)
+}
+
 type InterfaceTypeExtension struct {
 	ExtendLiteral position.Position
 	InterfaceTypeDefinition
@@ -1216,6 +1304,10 @@ type UnionTypeDefinition struct {
 	Directives       DirectiveList      // optional, e.g. @foo
 	Equals           position.Position  // =
 	UnionMemberTypes TypeList           // optional, e.g. Photo | Person
+}
+
+func (d *Document) UnionTypeDefinitionName(ref int) ByteSlice {
+	return d.Input.ByteSlice(d.UnionTypeDefinitions[ref].Name)
 }
 
 type UnionTypeExtension struct {

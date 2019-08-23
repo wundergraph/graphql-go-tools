@@ -284,7 +284,7 @@ func (p *printingVisitor) EnterArgument(ref int, info Info) Instruction {
 	p.enter()
 	argName := p.operation.ArgumentNameString(ref)
 	parentTypeName := p.definition.NodeTypeNameString(info.EnclosingTypeDefinition)
-	def := p.definition.InputValueDefinitions[definition]
+	def := p.definition.InputValueDefinitions[info.InputValueDefinition]
 	p.must(fmt.Fprintf(p.out, "EnterArgument(%s::%s): ref: %d, definition: %+v, info: %+v\n", argName, parentTypeName, ref, def, info))
 	return Instruction{}
 }
@@ -293,7 +293,7 @@ func (p *printingVisitor) LeaveArgument(ref int, info Info) Instruction {
 	p.leave()
 	argName := p.operation.ArgumentNameString(ref)
 	parentTypeName := p.definition.NodeTypeNameString(info.EnclosingTypeDefinition)
-	def := p.definition.InputValueDefinitions[definition]
+	def := p.definition.InputValueDefinitions[info.InputValueDefinition]
 	p.must(fmt.Fprintf(p.out, "LeaveArgument(%s::%s): ref: %d,definition: %+v, info: %+v\n", argName, parentTypeName, ref, def, info))
 	return Instruction{}
 }
@@ -347,19 +347,6 @@ func (p *printingVisitor) LeaveFragmentDefinition(ref int, info Info) Instructio
 }
 
 const testOperation = `
-query postsQuery {
-	posts {
-		id
-		description
-		...FirstFragment
-		... {
-			description
-			... on Post {
-				id
-			}
-		}
-	}
-}
 query PostsUserQuery {
 	posts {
 		id
