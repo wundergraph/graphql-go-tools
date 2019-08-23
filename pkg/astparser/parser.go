@@ -1416,6 +1416,7 @@ func (p *Parser) parseVariableDefinition() int {
 	}
 	if p.peekEquals(keyword.AT) {
 		variableDefinition.Directives = p.parseDirectiveList()
+		variableDefinition.HasDirectives = len(variableDefinition.Directives.Refs) > 0
 	}
 	p.document.VariableDefinitions = append(p.document.VariableDefinitions, variableDefinition)
 	return len(p.document.VariableDefinitions) - 1
