@@ -2,6 +2,7 @@
 package astvalidation
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astinspect"
@@ -176,15 +177,133 @@ func (f *fieldSelectionMergingVisitor) EnterSelectionSet(ref int, info astvisito
 func ValidArguments() Rule {
 	return func(walker *astvisitor.Walker) {
 		visitor := validArgumentsVisitor{}
-		walker.RegisterEnterFieldVisitor(visitor)
+		walker.RegisterEnterDocumentVisitor(&visitor)
+		walker.RegisterEnterFieldVisitor(&visitor)
+		walker.RegisterEnterArgumentVisitor(&visitor)
 	}
 }
 
 type validArgumentsVisitor struct {
+	operation, definition *ast.Document
+}
+
+func (v *validArgumentsVisitor) EnterDocument(operation, definition *ast.Document) astvisitor.Instruction {
+	v.operation = operation
+	v.definition = definition
+	return astvisitor.Instruction{}
+}
+
+func (v *validArgumentsVisitor) EnterArgument(ref int, definition int, info astvisitor.Info) astvisitor.Instruction {
+
+	if definition == -1 {
+		return astvisitor.Instruction{
+			Action:  astvisitor.StopWithError,
+			Message: fmt.Sprintf("argument: %s not defined", v.operation.ArgumentNameString(ref)),
+		}
+	}
+
+	value := v.operation.ArgumentValue(ref)
+
+	if !v.valueSatisfiesInputFieldDefinition(value, definition) {
+		definition := v.definition.InputValueDefinitions[definition]
+		return astvisitor.Instruction{
+			Action:  astvisitor.StopWithError,
+			Message: fmt.Sprintf("invalid argument value: %+v for definition: %+v", value, definition),
+		}
+	}
+
+	return astvisitor.Instruction{}
 }
 
 func (_ validArgumentsVisitor) EnterField(ref int, info astvisitor.Info) astvisitor.Instruction {
 	return astvisitor.Instruction{}
+}
+
+func (v *validArgumentsVisitor) valueSatisfiesInputFieldDefinition(value ast.Value, inputValueDefinition int) bool {
+
+	switch value.Kind {
+	case ast.ValueKindVariable:
+		return v.variableValueSatisfiesInputValueDefinition(value.Ref, inputValueDefinition)
+	case ast.ValueKindEnum:
+		return v.enumValueSatisfiesInputValueDefinition(value.Ref, inputValueDefinition)
+	}
+
+	return true
+}
+
+func (v *validArgumentsVisitor) enumValueSatisfiesInputValueDefinition(enumValue, inputValueDefinition int) bool {
+
+	definitionTypeName := v.definition.ResolveTypeName(v.definition.InputValueDefinitions[inputValueDefinition].Type)
+	node, exists := v.definition.Index.Nodes[string(definitionTypeName)]
+	if !exists {
+		return false
+	}
+
+	if node.Kind != ast.NodeKindEnumTypeDefinition {
+		return false
+	}
+
+	enumValueName := v.operation.Input.ByteSlice(v.operation.EnumValueName(enumValue))
+
+	if !v.definition.EnumTypeDefinitionContainsEnumValue(node.Ref, enumValueName) {
+		return false
+	}
+
+	return true
+}
+
+func (v *validArgumentsVisitor) variableValueSatisfiesInputValueDefinition(variableValue, inputValueDefinition int) bool {
+	variableName := v.operation.VariableValueName(variableValue)
+	variableDefinition, exists := v.operation.VariableDefinitionByName(variableName)
+	if !exists {
+		return false
+	}
+
+	operationType := v.operation.VariableDefinitions[variableDefinition].Type
+	definitionType := v.definition.InputValueDefinitions[inputValueDefinition].Type
+	hasDefaultValue := v.operation.VariableDefinitions[variableDefinition].DefaultValue.IsDefined ||
+		v.definition.InputValueDefinitions[inputValueDefinition].DefaultValue.IsDefined
+
+	if !v.operationTypeSatisfiesDefinitionType(operationType, definitionType, hasDefaultValue) {
+		return false
+	}
+
+	return true
+}
+
+func (v *validArgumentsVisitor) operationTypeSatisfiesDefinitionType(operationType int, definitionType int, hasDefaultValue bool) bool {
+
+	if operationType == -1 || definitionType == -1 {
+		return false
+	}
+
+	if v.operation.Types[operationType].TypeKind != ast.TypeKindNonNull &&
+		v.definition.Types[definitionType].TypeKind == ast.TypeKindNonNull &&
+		hasDefaultValue &&
+		v.definition.Types[definitionType].OfType != -1 {
+		definitionType = v.definition.Types[definitionType].OfType
+	}
+
+	if v.operation.Types[operationType].TypeKind == ast.TypeKindNonNull &&
+		v.definition.Types[definitionType].TypeKind != ast.TypeKindNonNull &&
+		v.operation.Types[operationType].OfType != -1 {
+		operationType = v.operation.Types[operationType].OfType
+	}
+
+	for {
+		if operationType == -1 || definitionType == -1 {
+			return false
+		}
+		if v.operation.Types[operationType].TypeKind != v.definition.Types[definitionType].TypeKind {
+			return false
+		}
+		if v.operation.Types[operationType].TypeKind == ast.TypeKindNamed {
+			return bytes.Equal(v.operation.Input.ByteSlice(v.operation.Types[operationType].Name),
+				v.definition.Input.ByteSlice(v.definition.Types[definitionType].Name))
+		}
+		operationType = v.operation.Types[operationType].OfType
+		definitionType = v.definition.Types[definitionType].OfType
+	}
 }
 
 func Values() Rule {
