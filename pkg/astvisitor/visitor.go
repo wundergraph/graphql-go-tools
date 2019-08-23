@@ -24,17 +24,21 @@ func NewWalker(ancestorSize int) Walker {
 }
 
 type Info struct {
-	Depth                   int
-	Ancestors               []ast.Node
-	SelectionSet            int
-	SelectionsBefore        []int
-	SelectionsAfter         []int
-	ArgumentsBefore         []int
-	ArgumentsAfter          []int
-	HasSelections           bool
-	FieldTypeDefinition     ast.Node
-	EnclosingTypeDefinition ast.Node
-	IsLastRootNode          bool
+	Depth                     int
+	Ancestors                 []ast.Node
+	SelectionSet              int
+	SelectionsBefore          []int
+	SelectionsAfter           []int
+	ArgumentsBefore           []int
+	ArgumentsAfter            []int
+	VariableDefinitionsBefore []int
+	VariableDefinitionsAfter  []int
+	DirectivesBefore          []int
+	DirectivesAfter           []int
+	HasSelections             bool
+	FieldTypeDefinition       ast.Node
+	EnclosingTypeDefinition   ast.Node
+	IsLastRootNode            bool
 }
 
 type Action int
@@ -132,6 +136,16 @@ type (
 		EnterVariableDefinitionVisitor
 		LeaveVariableDefinitionVisitor
 	}
+	EnterDirectiveVisitor interface {
+		EnterDirective(ref int, info Info) Instruction
+	}
+	LeaveDirectiveVisitor interface {
+		LeaveDirective(ref int, info Info) Instruction
+	}
+	DirectiveVisitor interface {
+		EnterDirectiveVisitor
+		LeaveDirectiveVisitor
+	}
 	AllNodesVisitor interface {
 		OperationDefinitionVisitor
 		SelectionSetVisitor
@@ -141,6 +155,7 @@ type (
 		InlineFragmentVisitor
 		FragmentDefinitionVisitor
 		VariableDefinitionVisitor
+		DirectiveVisitor
 	}
 	EnterDocumentVisitor interface {
 		EnterDocument(operation, definition *ast.Document) Instruction
@@ -173,6 +188,8 @@ type visitors struct {
 	leaveDocument           []LeaveDocumentVisitor
 	enterVariableDefinition []EnterVariableDefinitionVisitor
 	leaveVariableDefinition []LeaveVariableDefinitionVisitor
+	enterDirective          []EnterDirectiveVisitor
+	leaveDirective          []LeaveDirectiveVisitor
 }
 
 func (w *Walker) ResetVisitors() {
@@ -194,6 +211,8 @@ func (w *Walker) ResetVisitors() {
 	w.visitors.leaveDocument = w.visitors.leaveDocument[:0]
 	w.visitors.enterVariableDefinition = w.visitors.enterVariableDefinition[:0]
 	w.visitors.leaveVariableDefinition = w.visitors.leaveVariableDefinition[:0]
+	w.visitors.enterDirective = w.visitors.enterDirective[:0]
+	w.visitors.leaveDirective = w.visitors.leaveDirective[:0]
 }
 
 func (w *Walker) RegisterEnterFieldVisitor(visitor EnterFieldVisitor) {
@@ -300,6 +319,19 @@ func (w *Walker) RegisterOperationVisitor(visitor OperationDefinitionVisitor) {
 	w.RegisterLeaveOperationVisitor(visitor)
 }
 
+func (w *Walker) RegisterEnterDirectiveVisitor(visitor EnterDirectiveVisitor) {
+	w.visitors.enterDirective = append(w.visitors.enterDirective, visitor)
+}
+
+func (w *Walker) RegisterLeaveDirectiveVisitor(visitor LeaveDirectiveVisitor) {
+	w.visitors.leaveDirective = append(w.visitors.leaveDirective, visitor)
+}
+
+func (w *Walker) RegisterDirectiveVisitor(visitor DirectiveVisitor) {
+	w.RegisterEnterDirectiveVisitor(visitor)
+	w.RegisterLeaveDirectiveVisitor(visitor)
+}
+
 func (w *Walker) RegisterAllNodesVisitor(visitor AllNodesVisitor) {
 	w.RegisterOperationVisitor(visitor)
 	w.RegisterSelectionSetVisitor(visitor)
@@ -309,6 +341,7 @@ func (w *Walker) RegisterAllNodesVisitor(visitor AllNodesVisitor) {
 	w.RegisterInlineFragmentVisitor(visitor)
 	w.RegisterFragmentDefinitionVisitor(visitor)
 	w.RegisterVariableDefinitionVisitor(visitor)
+	w.RegisterDirectiveVisitor(visitor)
 }
 
 func (w *Walker) RegisterEnterDocumentVisitor(visitor EnterDocumentVisitor) {
@@ -431,6 +464,16 @@ func (w *Walker) walkOperationDefinition(ref int, isLastRootNode bool) {
 
 	if w.document.OperationDefinitions[ref].HasVariableDefinitions {
 		w.walkVariableDefinitions(w.document.OperationDefinitions[ref].VariableDefinitions.Refs, info)
+		if w.stop {
+			return
+		}
+	}
+
+	if w.document.OperationDefinitions[ref].HasDirectives {
+		w.walkDirectives(w.document.OperationDefinitions[ref].Directives.Refs, info)
+		if w.stop {
+			return
+		}
 	}
 
 	if w.document.OperationDefinitions[ref].HasSelections {
@@ -440,14 +483,16 @@ func (w *Walker) walkOperationDefinition(ref int, isLastRootNode bool) {
 		}
 	}
 
+	w.removeLastAncestor()
+
 	for i := range w.visitors.leaveOperation {
 		w.leaveOperationDefinition(i, ref, info)
 		if w.stop {
 			return
 		}
 	}
+
 	w.decreaseDepth()
-	w.removeLastAncestor()
 }
 
 func (w *Walker) walkVariableDefinitions(refs []int, enclosed Info) {
@@ -466,6 +511,8 @@ func (w *Walker) walkVariableDefinitions(refs []int, enclosed Info) {
 	}
 
 	for _, i := range refs {
+		info.VariableDefinitionsBefore = refs[:i]
+		info.VariableDefinitionsAfter = refs[i+1:]
 		w.walkVariableDefinition(i, info)
 	}
 }
@@ -474,17 +521,13 @@ func (w *Walker) walkVariableDefinition(ref int, enclosing Info) {
 	w.increaseDepth()
 
 	info := Info{
-		Depth:                   w.depth,
-		Ancestors:               w.ancestors,
-		SelectionSet:            -1,
-		SelectionsBefore:        nil,
-		SelectionsAfter:         nil,
-		ArgumentsBefore:         nil,
-		ArgumentsAfter:          nil,
-		HasSelections:           false,
-		FieldTypeDefinition:     enclosing.FieldTypeDefinition,
-		EnclosingTypeDefinition: enclosing.EnclosingTypeDefinition,
-		IsLastRootNode:          false,
+		Depth:                     w.depth,
+		Ancestors:                 w.ancestors,
+		SelectionSet:              -1,
+		VariableDefinitionsBefore: enclosing.VariableDefinitionsBefore,
+		VariableDefinitionsAfter:  enclosing.VariableDefinitionsAfter,
+		FieldTypeDefinition:       enclosing.FieldTypeDefinition,
+		EnclosingTypeDefinition:   enclosing.EnclosingTypeDefinition,
 	}
 
 	for i := range w.visitors.enterVariableDefinition {
@@ -560,13 +603,15 @@ func (w *Walker) walkSelectionSet(ref int, enclosingTypeDefinition ast.Node) {
 	info.SelectionsBefore = nil
 	info.SelectionsAfter = nil
 
+	w.removeLastAncestor()
+
 	for i := range w.visitors.leaveSelectionSet {
 		w.leaveSelectionSet(i, ref, info)
 		if w.stop {
 			return
 		}
 	}
-	w.removeLastAncestor()
+
 	w.decreaseDepth()
 }
 
@@ -597,9 +642,15 @@ func (w *Walker) walkField(ref int, enclosing Info) {
 		w.walkArguments(w.document.Fields[ref].Arguments.Refs, info)
 	}
 
+	if w.document.Fields[ref].HasDirectives {
+		w.walkDirectives(w.document.Fields[ref].Directives.Refs, info)
+	}
+
 	if w.document.Fields[ref].HasSelections {
 		w.walkSelectionSet(w.document.Fields[ref].SelectionSet, info.FieldTypeDefinition)
 	}
+
+	w.removeLastAncestor()
 
 	for i := range w.visitors.leaveField {
 		w.leaveField(i, ref, info)
@@ -607,7 +658,57 @@ func (w *Walker) walkField(ref int, enclosing Info) {
 			return
 		}
 	}
+
+	w.decreaseDepth()
+}
+
+func (w *Walker) walkDirectives(refs []int, enclosing Info) {
+
+	for i, j := range refs {
+		enclosing.DirectivesBefore = refs[:i]
+		enclosing.DirectivesAfter = refs[i+1:]
+		w.walkDirective(j, enclosing)
+		if w.stop {
+			return
+		}
+	}
+}
+
+func (w *Walker) walkDirective(ref int, enclosing Info) {
+	w.increaseDepth()
+
+	info := Info{
+		Depth:                   w.depth,
+		Ancestors:               w.ancestors,
+		SelectionSet:            enclosing.SelectionSet,
+		DirectivesBefore:        enclosing.DirectivesBefore,
+		DirectivesAfter:         enclosing.DirectivesAfter,
+		FieldTypeDefinition:     enclosing.FieldTypeDefinition,
+		EnclosingTypeDefinition: enclosing.EnclosingTypeDefinition,
+	}
+
+	for i := range w.visitors.enterDirective {
+		w.enterDirective(i, ref, info)
+		if w.stop {
+			return
+		}
+	}
+
+	w.appendAncestor(ref, ast.NodeKindDirective)
+
+	if w.document.Directives[ref].HasArguments {
+		w.walkArguments(w.document.Directives[ref].Arguments.Refs, info)
+	}
+
 	w.removeLastAncestor()
+
+	for i := range w.visitors.leaveDirective {
+		w.leaveDirective(i, ref, info)
+		if w.stop {
+			return
+		}
+	}
+
 	w.decreaseDepth()
 }
 
@@ -664,9 +765,6 @@ func (w *Walker) walkArgument(ref int, enclosing Info) {
 		EnclosingTypeDefinition: enclosing.EnclosingTypeDefinition,
 	}
 
-	argName := w.document.ArgumentNameString(ref)
-	_ = argName
-
 	definition := w.argumentDefinition(ref, enclosing)
 
 	for i := range w.visitors.enterArgument {
@@ -675,6 +773,7 @@ func (w *Walker) walkArgument(ref int, enclosing Info) {
 			return
 		}
 	}
+
 	for i := range w.visitors.leaveArgument {
 		w.leaveArgument(i, ref, definition, info)
 		if w.stop {
@@ -687,11 +786,14 @@ func (w *Walker) walkArgument(ref int, enclosing Info) {
 
 func (w *Walker) argumentDefinition(argument int, enclosing Info) int {
 	ancestor := w.ancestors[len(w.ancestors)-1]
+	argName := w.document.ArgumentName(argument)
 	switch ancestor.Kind {
 	case ast.NodeKindField:
 		fieldName := w.document.FieldName(ancestor.Ref)
-		argName := w.document.ArgumentName(argument)
 		return w.definition.NodeFieldDefinitionArgumentDefinitionByName(enclosing.EnclosingTypeDefinition, fieldName, argName)
+	case ast.NodeKindDirective:
+		directiveName := w.document.DirectiveNameBytes(ancestor.Ref)
+		return w.definition.DirectiveArgumentInputValueDefinition(directiveName, argName)
 	default:
 		return -1
 	}
@@ -709,19 +811,21 @@ func (w *Walker) walkFragmentSpread(ref int, enclosing Info) {
 		HasSelections:           false,
 		EnclosingTypeDefinition: enclosing.EnclosingTypeDefinition,
 	}
+
 	for i := range w.visitors.enterFragmentSpread {
 		w.enterFragmentSpread(i, ref, info)
 		if w.stop {
 			return
 		}
 	}
-	// no need to append self to ancestors because we're not traversing any deeper
+
 	for i := range w.visitors.leaveFragmentSpread {
 		w.leaveFragmentSpread(i, ref, info)
 		if w.stop {
 			return
 		}
 	}
+
 	w.decreaseDepth()
 }
 
@@ -751,13 +855,15 @@ func (w *Walker) walkInlineFragment(ref int, enclosing Info) {
 		w.walkSelectionSet(w.document.InlineFragments[ref].SelectionSet, inlineFragmentTypeDefinition)
 	}
 
+	w.removeLastAncestor()
+
 	for i := range w.visitors.leaveInlineFragment {
 		w.leaveInlineFragment(i, ref, info)
 		if w.stop {
 			return
 		}
 	}
-	w.removeLastAncestor()
+
 	w.decreaseDepth()
 }
 
@@ -797,13 +903,15 @@ func (w *Walker) walkFragmentDefinition(ref int, isLastRootNode bool) {
 		w.walkSelectionSet(w.document.FragmentDefinitions[ref].SelectionSet, fragmentDefinitionTypeDefinition)
 	}
 
+	w.removeLastAncestor()
+
 	for i := range w.visitors.leaveFragmentDefinition {
 		w.leaveFragmentDefinition(i, ref, info)
 		if w.stop {
 			return
 		}
 	}
-	w.removeLastAncestor()
+
 	w.decreaseDepth()
 }
 
@@ -827,6 +935,18 @@ func (w *Walker) handleInstruction(instruction Instruction) (retry bool) {
 		return false
 	default:
 		return false
+	}
+}
+
+func (w *Walker) enterDirective(visitor, ref int, info Info) {
+	for retry := true; retry; {
+		retry = w.handleInstruction(w.visitors.enterDirective[visitor].EnterDirective(ref, info))
+	}
+}
+
+func (w *Walker) leaveDirective(visitor, ref int, info Info) {
+	for retry := true; retry; {
+		retry = w.handleInstruction(w.visitors.leaveDirective[visitor].LeaveDirective(ref, info))
 	}
 }
 
