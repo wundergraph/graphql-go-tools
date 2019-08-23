@@ -140,11 +140,11 @@ func (d *dummyVisitor) LeaveField(ref int, info Info) Instruction {
 	return Instruction{}
 }
 
-func (d *dummyVisitor) EnterArgument(ref int, definition int, info Info) Instruction {
+func (d *dummyVisitor) EnterArgument(ref int, info Info) Instruction {
 	return Instruction{}
 }
 
-func (d *dummyVisitor) LeaveArgument(ref int, definition int, info Info) Instruction {
+func (d *dummyVisitor) LeaveArgument(ref int, info Info) Instruction {
 	return Instruction{}
 }
 
@@ -280,7 +280,7 @@ func (p *printingVisitor) LeaveField(ref int, info Info) Instruction {
 	return Instruction{}
 }
 
-func (p *printingVisitor) EnterArgument(ref int, definition int, info Info) Instruction {
+func (p *printingVisitor) EnterArgument(ref int, info Info) Instruction {
 	p.enter()
 	argName := p.operation.ArgumentNameString(ref)
 	parentTypeName := p.definition.NodeTypeNameString(info.EnclosingTypeDefinition)
@@ -289,7 +289,7 @@ func (p *printingVisitor) EnterArgument(ref int, definition int, info Info) Inst
 	return Instruction{}
 }
 
-func (p *printingVisitor) LeaveArgument(ref int, definition int, info Info) Instruction {
+func (p *printingVisitor) LeaveArgument(ref int, info Info) Instruction {
 	p.leave()
 	argName := p.operation.ArgumentNameString(ref)
 	parentTypeName := p.definition.NodeTypeNameString(info.EnclosingTypeDefinition)
