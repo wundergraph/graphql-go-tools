@@ -35,9 +35,11 @@ type Info struct {
 	VariableDefinitionsAfter  []int
 	DirectivesBefore          []int
 	DirectivesAfter           []int
+	InputValueDefinitions     []int
 	HasSelections             bool
 	FieldTypeDefinition       ast.Node
 	EnclosingTypeDefinition   ast.Node
+	InputValueDefinition      int
 	IsLastRootNode            bool
 }
 
@@ -87,10 +89,10 @@ type (
 		LeaveFieldVisitor
 	}
 	EnterArgumentVisitor interface {
-		EnterArgument(ref int, definition int, info Info) Instruction
+		EnterArgument(ref int, info Info) Instruction
 	}
 	LeaveArgumentVisitor interface {
-		LeaveArgument(ref int, definition int, info Info) Instruction
+		LeaveArgument(ref int, info Info) Instruction
 	}
 	ArgumentVisitor interface {
 		EnterArgumentVisitor
@@ -537,6 +539,17 @@ func (w *Walker) walkVariableDefinition(ref int, enclosing Info) {
 		}
 	}
 
+	w.appendAncestor(ref, ast.NodeKindVariableDefinition)
+
+	if w.document.VariableDefinitions[ref].HasDirectives {
+		w.walkDirectives(w.document.VariableDefinitions[ref].Directives.Refs, info)
+		if w.stop {
+			return
+		}
+	}
+
+	w.removeLastAncestor()
+
 	for i := range w.visitors.leaveVariableDefinition {
 		w.leaveVariableDefinition(i, ref, info)
 		if w.stop {
@@ -618,6 +631,8 @@ func (w *Walker) walkSelectionSet(ref int, enclosingTypeDefinition ast.Node) {
 func (w *Walker) walkField(ref int, enclosing Info) {
 	w.increaseDepth()
 
+	argumentDefinitions := w.definition.NodeFieldDefinitionArgumentsDefinitions(enclosing.EnclosingTypeDefinition, w.document.FieldName(ref))
+
 	info := Info{
 		Depth:                   w.depth,
 		Ancestors:               w.ancestors,
@@ -626,6 +641,7 @@ func (w *Walker) walkField(ref int, enclosing Info) {
 		SelectionsAfter:         enclosing.SelectionsAfter,
 		HasSelections:           w.document.Fields[ref].HasSelections,
 		FieldTypeDefinition:     w.fieldTypeDefinition(ref, enclosing.EnclosingTypeDefinition),
+		InputValueDefinitions:   argumentDefinitions,
 		EnclosingTypeDefinition: enclosing.EnclosingTypeDefinition,
 	}
 
@@ -763,19 +779,18 @@ func (w *Walker) walkArgument(ref int, enclosing Info) {
 		ArgumentsAfter:          enclosing.ArgumentsAfter,
 		FieldTypeDefinition:     enclosing.FieldTypeDefinition,
 		EnclosingTypeDefinition: enclosing.EnclosingTypeDefinition,
+		InputValueDefinition:    w.inputValueDefinition(ref, enclosing),
 	}
 
-	definition := w.argumentDefinition(ref, enclosing)
-
 	for i := range w.visitors.enterArgument {
-		w.enterArgument(i, ref, definition, info)
+		w.enterArgument(i, ref, info)
 		if w.stop {
 			return
 		}
 	}
 
 	for i := range w.visitors.leaveArgument {
-		w.leaveArgument(i, ref, definition, info)
+		w.leaveArgument(i, ref, info)
 		if w.stop {
 			return
 		}
@@ -784,7 +799,7 @@ func (w *Walker) walkArgument(ref int, enclosing Info) {
 	w.decreaseDepth()
 }
 
-func (w *Walker) argumentDefinition(argument int, enclosing Info) int {
+func (w *Walker) inputValueDefinition(argument int, enclosing Info) int {
 	ancestor := w.ancestors[len(w.ancestors)-1]
 	argName := w.document.ArgumentName(argument)
 	switch ancestor.Kind {
@@ -1010,15 +1025,15 @@ func (w *Walker) leaveField(visitor, ref int, info Info) {
 	}
 }
 
-func (w *Walker) enterArgument(visitor, ref int, definition int, info Info) {
+func (w *Walker) enterArgument(visitor, ref int, info Info) {
 	for retry := true; retry; {
-		retry = w.handleInstruction(w.visitors.enterArgument[visitor].EnterArgument(ref, definition, info))
+		retry = w.handleInstruction(w.visitors.enterArgument[visitor].EnterArgument(ref, info))
 	}
 }
 
-func (w *Walker) leaveArgument(visitor, ref int, definition int, info Info) {
+func (w *Walker) leaveArgument(visitor, ref int, info Info) {
 	for retry := true; retry; {
-		retry = w.handleInstruction(w.visitors.leaveArgument[visitor].LeaveArgument(ref, definition, info))
+		retry = w.handleInstruction(w.visitors.leaveArgument[visitor].LeaveArgument(ref, info))
 	}
 }
 
