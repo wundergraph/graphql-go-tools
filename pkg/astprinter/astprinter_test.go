@@ -70,6 +70,22 @@ func TestPrint(t *testing.T) {
 						}
 					}`, "{dog {...aliasedLyingFieldTargetNotDefined}}")
 	})
+	t.Run("arguments", func(t *testing.T) {
+		run(`
+				query argOnRequiredArg($catCommand: CatCommand, $complex: Boolean = true) {
+					dog {
+						doesKnowCommand(dogCommand: $catCommand)
+					}
+				}`, `query argOnRequiredArg($catCommand: CatCommand $complex: Boolean = true){dog {doesKnowCommand(dogCommand: $catCommand)}}`)
+	})
+	t.Run("directives", func(t *testing.T) {
+		run(`
+			query directivesQuery @foo(bar: BAZ) {
+				dog @include(if: true, or: false) {
+					doesKnowCommand(dogCommand: $catCommand)
+				}
+			}`, `query directivesQuery @foo(bar: BAZ) {dog @include(if: true, or: false) {doesKnowCommand(dogCommand: $catCommand)}}`)
+	})
 }
 
 func BenchmarkPrint(b *testing.B) {
