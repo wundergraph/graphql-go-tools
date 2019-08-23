@@ -6,7 +6,7 @@ package document
 /*
 ENUM(
 DefaultNull
-Variable
+VariableValue
 Int
 Float
 String

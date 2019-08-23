@@ -10,7 +10,7 @@ import (
 const (
 	// ValueTypeDefaultNull is a ValueType of type DefaultNull
 	ValueTypeDefaultNull ValueType = iota
-	// ValueTypeVariable is a ValueType of type Variable
+	// ValueTypeVariable is a ValueType of type VariableValue
 	ValueTypeVariable
 	// ValueTypeInt is a ValueType of type Int
 	ValueTypeInt
