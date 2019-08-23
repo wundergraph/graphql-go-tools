@@ -48,7 +48,7 @@ func TestExecutionValidation(t *testing.T) {
 		printedOperation := mustString(astprinter.PrintString(operation, definition))
 
 		if expectation != result.ValidationState {
-			panic(fmt.Errorf("want expectation: %s, got: %s\noperation:\n%s\n", expectation, result.ValidationState, printedOperation))
+			panic(fmt.Errorf("want expectation: %s, got: %s\nreason: %v\noperation:\n%s\n", expectation, result.ValidationState, result.Reason, printedOperation))
 		}
 	}
 
@@ -724,7 +724,8 @@ func TestExecutionValidation(t *testing.T) {
 					FieldSelectionMerging(), Invalid)
 			})
 			t.Run("109 variant", func(t *testing.T) {
-				run(`	fragment mergeIdenticalFieldsWithIdenticalValues on Dog {
+				run(`	
+							fragment mergeIdenticalFieldsWithIdenticalValues on Dog {
   								doesKnowCommand(dogCommand: {foo: "bar"})
     							doesKnowCommand(dogCommand: {foo: "bar"})
   							}`,
@@ -1282,7 +1283,8 @@ func TestExecutionValidation(t *testing.T) {
 					ValidArguments(), Valid)
 			})
 			t.Run("117 variant", func(t *testing.T) {
-				run(`	query argOnRequiredArg($dogCommand: DogCommand = SIT) {
+				run(`	
+							query argOnRequiredArg($dogCommand: DogCommand = SIT) {
 								dog {
 									doesKnowCommand(dogCommand: $dogCommand)
 									...argOnOptional
@@ -1324,7 +1326,8 @@ func TestExecutionValidation(t *testing.T) {
 					ValidArguments(), Valid)
 			})
 			t.Run("117 variant", func(t *testing.T) {
-				run(`	query argOnRequiredArg($booleanArg: Boolean!) {
+				run(`	
+							query argOnRequiredArg($booleanArg: Boolean!) {
 								dog {
 									...argOnOptional
 								}
@@ -1335,7 +1338,8 @@ func TestExecutionValidation(t *testing.T) {
 					ValidArguments(), Valid)
 			})
 			t.Run("117 variant", func(t *testing.T) {
-				run(`	query argOnRequiredArg($booleanArg: Boolean) {
+				run(`	
+							query argOnRequiredArg($booleanArg: Boolean) {
 								dog {
 									...argOnOptional
 								}
@@ -1357,19 +1361,6 @@ func TestExecutionValidation(t *testing.T) {
 										}
 									}`,
 					ValidArguments(), Valid)
-			})
-			t.Run("117 variant", func(t *testing.T) {
-				run(`	query argOnRequiredArg($booleanArg: Boolean) {
-										dog {
-											...argOnOptional
-										}
-									}
-									fragment argOnOptional on Dog {
-										...on Dog {
-											isHousetrained(atOtherHomes: $booleanArg) @include(if: $booleanArg)
-										}
-									}`,
-					ValidArguments(), Invalid)
 			})
 			t.Run("117 variant", func(t *testing.T) {
 				run(`	query argOnRequiredArg($intArg: Integer) {
@@ -1407,11 +1398,22 @@ func TestExecutionValidation(t *testing.T) {
 					ValidArguments(), Invalid)
 			})
 			t.Run("118", func(t *testing.T) {
-				run(`	{
+				run(`	
+							{
 								dog { ...invalidArgName}
 							}
 							fragment invalidArgName on Dog {
 								doesKnowCommand(command: CLEAN_UP_HOUSE)
+							}`,
+					ValidArguments(), Invalid)
+			})
+			t.Run("118 variant", func(t *testing.T) {
+				run(`	
+							{
+								dog { ...invalidArgName}
+							}
+							fragment invalidArgName on Dog {
+								doesKnowCommand(dogCommand: CLEAN_UP_HOUSE)
 							}`,
 					ValidArguments(), Invalid)
 			})
@@ -1444,7 +1446,8 @@ func TestExecutionValidation(t *testing.T) {
 		})
 		t.Run("5.4.2 Argument Uniqueness", func(t *testing.T) {
 			t.Run("121 variant", func(t *testing.T) {
-				run(`{
+				run(`
+								{
 									arguments { ... multipleArgs }
 								}
 								fragment multipleArgs on ValidArguments {
@@ -2295,7 +2298,7 @@ func TestExecutionValidation(t *testing.T) {
 		})
 	})
 	t.Run("5.8 Variables", func(t *testing.T) {
-		t.Run("5.8.1 Variable Uniqueness", func(t *testing.T) {
+		t.Run("5.8.1 VariableValue Uniqueness", func(t *testing.T) {
 			t.Run("153", func(t *testing.T) {
 				run(`query houseTrainedQuery($atOtherHomes: Boolean, $atOtherHomes: Boolean) {
 									dog {
@@ -2355,7 +2358,7 @@ func TestExecutionValidation(t *testing.T) {
 					VariablesAreInputTypes(), Valid)
 			})
 		})
-		t.Run("5.8.3 All Variable Uses Defined", func(t *testing.T) {
+		t.Run("5.8.3 All VariableValue Uses Defined", func(t *testing.T) {
 			t.Run("158", func(t *testing.T) {
 				run(`query variableIsDefined($atOtherHomes: Boolean) {
 									dog {
@@ -2497,7 +2500,7 @@ func TestExecutionValidation(t *testing.T) {
 					AllVariablesUsed(), Invalid)
 			})
 		})
-		t.Run("5.8.5 All Variable Usages are Allowed", func(t *testing.T) {
+		t.Run("5.8.5 All VariableValue Usages are Allowed", func(t *testing.T) {
 			t.Run("169", func(t *testing.T) {
 				run(`query intCannotGoIntoBoolean($intArg: Int) {
 									arguments {
