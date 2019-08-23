@@ -65,6 +65,7 @@ const (
 	NodeKindFragmentDefinition
 	NodeKindArgument
 	NodeKindDirective
+	NodeKindVariableDefinition
 )
 
 type Document struct {
@@ -328,6 +329,14 @@ func (d *Document) NodeFieldDefinitionArgumentDefinitionByName(node Node, fieldN
 		}
 	}
 	return -1
+}
+
+func (d *Document) NodeFieldDefinitionArgumentsDefinitions(node Node, fieldName ByteSlice) []int {
+	fieldDefinition, err := d.NodeFieldDefinitionByName(node, fieldName)
+	if err != nil {
+		return nil
+	}
+	return d.FieldDefinitionArgumentsDefinitions(fieldDefinition)
 }
 
 func (d *Document) FieldDefinitionType(ref int) int {
@@ -644,6 +653,15 @@ func (d *Document) ArgumentSetsAreEquals(left, right []int) bool {
 
 func (d *Document) FieldArguments(ref int) []int {
 	return d.Fields[ref].Arguments.Refs
+}
+
+func (d *Document) FieldArgument(field int, name ByteSlice) (ref int, exists bool) {
+	for _, i := range d.Fields[field].Arguments.Refs {
+		if bytes.Equal(d.ArgumentName(i), name) {
+			return i, true
+		}
+	}
+	return -1, false
 }
 
 func (d *Document) FieldDirectiveSet(ref int) []int {
@@ -1086,6 +1104,20 @@ type InputValueDefinition struct {
 	Directives   DirectiveList      // e.g. @baz
 }
 
+func (d *Document) InputValueDefinitionName(ref int) ByteSlice {
+	return d.Input.ByteSlice(d.InputValueDefinitions[ref].Name)
+}
+
+func (d *Document) InputValueDefinitionType(ref int) Type {
+	return d.Types[d.InputValueDefinitions[ref].Type]
+}
+
+func (d *Document) InputValueDefinitionArgumentIsOptional(ref int) bool {
+	nonNull := d.Types[d.InputValueDefinitions[ref].Type].TypeKind == TypeKindNonNull
+	hasDefault := d.InputValueDefinitions[ref].DefaultValue.IsDefined
+	return !nonNull || hasDefault
+}
+
 type Type struct {
 	TypeKind TypeKind           // one of Named,List,NonNull
 	Name     ByteSliceReference // e.g. String (only on NamedType)
@@ -1279,7 +1311,8 @@ type VariableDefinition struct {
 	Colon         position.Position // :
 	Type          int               // e.g. String
 	DefaultValue  DefaultValue      // optional, e.g. = "Default"
-	Directives    DirectiveList     // optional, e.g. @foo
+	HasDirectives bool
+	Directives    DirectiveList // optional, e.g. @foo
 }
 
 func (d *Document) VariableDefinitionByName(name ByteSlice) (definition int, exists bool) {
