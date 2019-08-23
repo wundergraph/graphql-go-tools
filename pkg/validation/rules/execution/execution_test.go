@@ -2230,7 +2230,7 @@ func TestExecutionValidation(t *testing.T) {
 		})
 	})
 	t.Run("5.8 Variables", func(t *testing.T) {
-		t.Run("5.8.1 Variable Uniqueness", func(t *testing.T) {
+		t.Run("5.8.1 VariableValue Uniqueness", func(t *testing.T) {
 			t.Run("153", func(t *testing.T) {
 				run(`query houseTrainedQuery($atOtherHomes: Boolean, $atOtherHomes: Boolean) {
 									dog {
@@ -2290,7 +2290,7 @@ func TestExecutionValidation(t *testing.T) {
 					VariablesAreInputTypes(), true)
 			})
 		})
-		t.Run("5.8.3 All Variable Uses Defined", func(t *testing.T) {
+		t.Run("5.8.3 All VariableValue Uses Defined", func(t *testing.T) {
 			t.Run("158", func(t *testing.T) {
 				run(`query variableIsDefined($atOtherHomes: Boolean) {
 									dog {
@@ -2432,7 +2432,7 @@ func TestExecutionValidation(t *testing.T) {
 					AllVariablesUsed(), false)
 			})
 		})
-		t.Run("5.8.5 All Variable Usages are Allowed", func(t *testing.T) {
+		t.Run("5.8.5 All VariableValue Usages are Allowed", func(t *testing.T) {
 			t.Run("169", func(t *testing.T) {
 				run(`query intCannotGoIntoBoolean($intArg: Int) {
 									arguments {
@@ -3914,7 +3914,7 @@ func BenchmarkExecutionValidation(t *testing.B) {
 		})
 	})
 	t.Run("5.8 Variables", func(t *testing.B) {
-		t.Run("5.8.1 Variable Uniqueness", func(t *testing.B) {
+		t.Run("5.8.1 VariableValue Uniqueness", func(t *testing.B) {
 			t.Run("153", func(t *testing.B) {
 				run(t, `query houseTrainedQuery($atOtherHomes: Boolean, $atOtherHomes: Boolean) {
 									dog {
@@ -3972,7 +3972,7 @@ func BenchmarkExecutionValidation(t *testing.B) {
 					VariablesAreInputTypes(), false)
 			})
 		})
-		t.Run("5.8.3 All Variable Uses Defined", func(t *testing.B) {
+		t.Run("5.8.3 All VariableValue Uses Defined", func(t *testing.B) {
 			t.Run("158", func(t *testing.B) {
 				run(t, `query variableIsDefined($atOtherHomes: Boolean) {
 									dog {
@@ -4106,7 +4106,7 @@ func BenchmarkExecutionValidation(t *testing.B) {
 					AllVariablesUsed(), false)
 			})
 		})
-		t.Run("5.8.5 All Variable Usages are Allowed", func(t *testing.B) {
+		t.Run("5.8.5 All VariableValue Usages are Allowed", func(t *testing.B) {
 			t.Run("169", func(t *testing.B) {
 				run(t, `query intCannotGoIntoBoolean($intArg: Int) {
 									arguments {
