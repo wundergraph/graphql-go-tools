@@ -63,7 +63,10 @@ func (p *printVisitor) EnterDirective(ref int, info astvisitor.Info) astvisitor.
 }
 
 func (p *printVisitor) LeaveDirective(ref int, info astvisitor.Info) astvisitor.Instruction {
-	p.write(literal.SPACE)
+	switch info.Ancestors[len(info.Ancestors)-1].Kind {
+	case ast.NodeKindOperationDefinition, ast.NodeKindField:
+		p.write(literal.SPACE)
+	}
 	return astvisitor.Instruction{}
 }
 
@@ -85,6 +88,10 @@ func (p *printVisitor) EnterVariableDefinition(ref int, info astvisitor.Info) as
 		p.must(p.document.PrintValue(p.document.VariableDefinitions[ref].DefaultValue.Value, p.out))
 	}
 
+	if p.document.VariableDefinitions[ref].HasDirectives {
+		p.write(literal.SPACE)
+	}
+
 	return astvisitor.Instruction{}
 }
 
@@ -92,12 +99,13 @@ func (p *printVisitor) LeaveVariableDefinition(ref int, info astvisitor.Info) as
 	if len(info.VariableDefinitionsAfter) == 0 {
 		p.write(literal.RPAREN)
 	} else {
+		p.write(literal.COMMA)
 		p.write(literal.SPACE)
 	}
 	return astvisitor.Instruction{}
 }
 
-func (p *printVisitor) EnterArgument(ref int, definition int, info astvisitor.Info) astvisitor.Instruction {
+func (p *printVisitor) EnterArgument(ref int, info astvisitor.Info) astvisitor.Instruction {
 	if len(info.ArgumentsBefore) == 0 {
 		p.write(literal.LPAREN)
 	} else {
@@ -108,7 +116,7 @@ func (p *printVisitor) EnterArgument(ref int, definition int, info astvisitor.In
 	return astvisitor.Instruction{}
 }
 
-func (p *printVisitor) LeaveArgument(ref int, definition int, info astvisitor.Info) astvisitor.Instruction {
+func (p *printVisitor) LeaveArgument(ref int, info astvisitor.Info) astvisitor.Instruction {
 	if len(info.ArgumentsAfter) == 0 {
 		p.write(literal.RPAREN)
 	}
