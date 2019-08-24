@@ -241,7 +241,7 @@ func (v *validArgumentsVisitor) valueSatisfiesInputFieldDefinition(value ast.Val
 }
 
 func (v *validArgumentsVisitor) intValueSatisfiesInputValueDefinition(inputValueDefinition int) bool {
-	inputType := v.definition.InputValueDefinitionType(inputValueDefinition)
+	inputType := v.definition.Types[v.definition.InputValueDefinitionType(inputValueDefinition)]
 	if inputType.TypeKind == ast.TypeKindNonNull {
 		inputType = v.definition.Types[inputType.OfType]
 	}
@@ -255,7 +255,7 @@ func (v *validArgumentsVisitor) intValueSatisfiesInputValueDefinition(inputValue
 }
 
 func (v *validArgumentsVisitor) booleanValueSatisfiesInputValueDefinition(inputValueDefinition int) bool {
-	inputType := v.definition.InputValueDefinitionType(inputValueDefinition)
+	inputType := v.definition.Types[v.definition.InputValueDefinitionType(inputValueDefinition)]
 	if inputType.TypeKind == ast.TypeKindNonNull {
 		inputType = v.definition.Types[inputType.OfType]
 	}
@@ -269,7 +269,7 @@ func (v *validArgumentsVisitor) booleanValueSatisfiesInputValueDefinition(inputV
 }
 
 func (v *validArgumentsVisitor) nullValueSatisfiesInputValueDefinition(inputValueDefinition int) bool {
-	inputType := v.definition.InputValueDefinitionType(inputValueDefinition)
+	inputType := v.definition.Types[v.definition.InputValueDefinitionType(inputValueDefinition)]
 	return inputType.TypeKind != ast.TypeKindNonNull
 }
 
@@ -350,7 +350,194 @@ func (v *validArgumentsVisitor) operationTypeSatisfiesDefinitionType(operationTy
 
 func Values() Rule {
 	return func(walker *astvisitor.Walker) {
+		visitor := valuesVisitor{}
+		walker.RegisterEnterDocumentVisitor(&visitor)
+		walker.RegisterEnterArgumentVisitor(&visitor)
+	}
+}
 
+type valuesVisitor struct {
+	operation, definition *ast.Document
+}
+
+func (v *valuesVisitor) EnterDocument(operation, definition *ast.Document) astvisitor.Instruction {
+	v.operation = operation
+	v.definition = definition
+	return astvisitor.Instruction{}
+}
+
+func (v *valuesVisitor) EnterArgument(ref int, info astvisitor.Info) astvisitor.Instruction {
+
+	value := v.operation.ArgumentValue(ref)
+	if value.Kind == ast.ValueKindVariable {
+		variableName := v.operation.VariableValueName(value.Ref)
+		variableDefinition, exists := v.operation.VariableDefinitionByName(variableName)
+		if !exists {
+			return astvisitor.Instruction{
+				Action:  astvisitor.StopWithError,
+				Message: fmt.Sprintf("variable: %s not defined", string(variableName)),
+			}
+		}
+		if !v.operation.VariableDefinitions[variableDefinition].DefaultValue.IsDefined {
+			return astvisitor.Instruction{} // variable has no default value, deep type check not required
+		}
+		value = v.operation.VariableDefinitions[variableDefinition].DefaultValue.Value
+	}
+
+	if !v.valueSatisfiesInputValueDefinitionType(value, v.definition.InputValueDefinitions[info.InputValueDefinition].Type) {
+		return astvisitor.Instruction{
+			Action:  astvisitor.StopWithError,
+			Message: fmt.Sprintf("value for argument: %s doesn't satisfy requirements from input value definition: %s", v.operation.ArgumentNameString(ref), v.definition.InputValueDefinitionName(info.InputValueDefinition)),
+		}
+	}
+
+	return astvisitor.Instruction{}
+}
+
+func (v *valuesVisitor) valueSatisfiesInputValueDefinitionType(value ast.Value, definitionTypeRef int) bool {
+
+	switch v.definition.Types[definitionTypeRef].TypeKind {
+	case ast.TypeKindNonNull:
+		if value.Kind == ast.ValueKindNull {
+			return false
+		}
+		return v.valueSatisfiesInputValueDefinitionType(value, v.definition.Types[definitionTypeRef].OfType)
+	case ast.TypeKindNamed:
+		node, exists := v.definition.Index.Nodes[string(v.definition.ResolveTypeName(definitionTypeRef))]
+		if !exists {
+			return false
+		}
+		return v.valueSatisfiesTypeDefinitionNode(value, node)
+	case ast.TypeKindList:
+		return v.valueSatisfiesListType(value, v.definition.Types[definitionTypeRef].OfType)
+	default:
+		return false
+	}
+}
+
+func (v *valuesVisitor) valueSatisfiesListType(value ast.Value, listType int) bool {
+	if value.Kind != ast.ValueKindList {
+		return false
+	}
+
+	if v.definition.Types[listType].TypeKind == ast.TypeKindNonNull {
+		if len(v.operation.ListValues[value.Ref].Refs) == 0 {
+			return false
+		}
+		listType = v.definition.Types[listType].OfType
+	}
+
+	for _, i := range v.operation.ListValues[value.Ref].Refs {
+		listValue := v.operation.Value(i)
+		if !v.valueSatisfiesInputValueDefinitionType(listValue, listType) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (v *valuesVisitor) valueSatisfiesTypeDefinitionNode(value ast.Value, node ast.Node) bool {
+	switch node.Kind {
+	case ast.NodeKindEnumTypeDefinition:
+		return v.valueSatisfiesEnum(value, node)
+	case ast.NodeKindScalarTypeDefinition:
+		return v.valueSatisfiesScalar(value, node.Ref)
+	case ast.NodeKindInputObjectTypeDefinition:
+		return v.valueSatisfiesInputObjectTypeDefinition(value, node.Ref)
+	default:
+		return false
+	}
+}
+
+func (v *valuesVisitor) valueSatisfiesEnum(value ast.Value, node ast.Node) bool {
+	if value.Kind != ast.ValueKindEnum {
+		return false
+	}
+	enumValue := v.operation.EnumValueNameBytes(value.Ref)
+	return v.definition.EnumTypeDefinitionContainsEnumValue(node.Ref, enumValue)
+}
+
+func (v *valuesVisitor) valueSatisfiesInputObjectTypeDefinition(value ast.Value, inputObjectTypeDefinition int) bool {
+	if value.Kind != ast.ValueKindObject {
+		return false
+	}
+
+	for _, i := range v.definition.InputObjectTypeDefinitions[inputObjectTypeDefinition].InputFieldsDefinition.Refs {
+		if !v.objectValueSatisfiesInputValueDefinition(value.Ref, i) {
+			return false
+		}
+	}
+
+	for _, i := range v.operation.ObjectValues[value.Ref].Refs {
+		if !v.objectFieldDefined(i, inputObjectTypeDefinition) {
+			objectFieldName := string(v.operation.ObjectFieldName(i))
+			def := string(v.definition.Input.ByteSlice(v.definition.InputObjectTypeDefinitions[inputObjectTypeDefinition].Name))
+			_, _ = objectFieldName, def
+			return false
+		}
+	}
+
+	if v.objectValueHasDuplicateFields(value.Ref) {
+		return false
+	}
+
+	return true
+}
+
+func (v *valuesVisitor) objectValueHasDuplicateFields(objectValue int) bool {
+	for i, j := range v.operation.ObjectValues[objectValue].Refs {
+		for k, l := range v.operation.ObjectValues[objectValue].Refs {
+			if i == k || i > k {
+				continue
+			}
+			if bytes.Equal(v.operation.ObjectFieldName(j), v.operation.ObjectFieldName(l)) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (v *valuesVisitor) objectFieldDefined(objectField, inputObjectTypeDefinition int) bool {
+	name := v.operation.ObjectFieldName(objectField)
+	for _, i := range v.definition.InputObjectTypeDefinitions[inputObjectTypeDefinition].InputFieldsDefinition.Refs {
+		if bytes.Equal(name, v.definition.InputValueDefinitionName(i)) {
+			return true
+		}
+	}
+	return false
+}
+
+func (v *valuesVisitor) objectValueSatisfiesInputValueDefinition(objectValue, inputValueDefinition int) bool {
+
+	name := v.definition.InputValueDefinitionName(inputValueDefinition)
+	definitionType := v.definition.InputValueDefinitionType(inputValueDefinition)
+
+	for _, i := range v.operation.ObjectValues[objectValue].Refs {
+		if bytes.Equal(name, v.operation.ObjectFieldName(i)) {
+			value := v.operation.ObjectFieldValue(i)
+			return v.valueSatisfiesInputValueDefinitionType(value, definitionType)
+		}
+	}
+
+	// argument is not present on object value, if arg is optional it's still ok, otherwise not satisfied
+	return v.definition.InputValueDefinitionArgumentIsOptional(inputValueDefinition)
+}
+
+func (v *valuesVisitor) valueSatisfiesScalar(value ast.Value, scalar int) bool {
+	scalarName := v.definition.ScalarTypeDefinitionName(scalar)
+	switch value.Kind {
+	case ast.ValueKindString:
+		return bytes.Equal(scalarName, literal.STRING)
+	case ast.ValueKindBoolean:
+		return bytes.Equal(scalarName, literal.BOOLEAN)
+	case ast.ValueKindInteger:
+		return bytes.Equal(scalarName, literal.INT) || bytes.Equal(scalarName, literal.FLOAT)
+	case ast.ValueKindFloat:
+		return bytes.Equal(scalarName, literal.FLOAT)
+	default:
+		return false
 	}
 }
 

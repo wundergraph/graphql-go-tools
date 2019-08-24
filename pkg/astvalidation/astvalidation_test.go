@@ -1948,16 +1948,6 @@ func TestExecutionValidation(t *testing.T) {
 								findDog(complex: $search)
 							}`,
 					Values(), Valid)
-				/*run(`
-							mutation goodComplexDefaultValue($search: ComplexInput = { name: "Fido" }) {
-								findDog(complex: $search)
-							}`,
-					Values(), Invalid)
-				run(`
-							subscription goodComplexDefaultValue($search: ComplexInput = { name: "Fido" }) {
-								findDog(complex: $search)
-							}`,
-					Values(), Invalid)
 				run(`
 							query goodComplexDefaultValue($search: ComplexInput = { name: "Fido" }) {
 								...queryFragment
@@ -1984,12 +1974,13 @@ func TestExecutionValidation(t *testing.T) {
 									floatArgField(floatArg: 1.23)
 								}
 							}`,
-					Values(), Valid)*/
+					Values(), Valid)
 			})
 			t.Run("145 variant", func(t *testing.T) {
-				run(`query goodComplexDefaultValue($search: ComplexInput = { name: 123 }) {
-									findDog(complex: $search)
-								}`,
+				run(`
+							query goodComplexDefaultValue($search: ComplexInput = { name: 123 }) {
+								findDog(complex: $search)
+							}`,
 					Values(), Invalid)
 			})
 			t.Run("145 variant", func(t *testing.T) {
@@ -2052,9 +2043,6 @@ func TestExecutionValidation(t *testing.T) {
 							}`,
 					Values(), Invalid)
 				run(`
-							{
-								arguments { ...badComplexValue }
-							}
 							query badComplexValue {
 								findDog(complex: { name: 123 })
 							}`,
@@ -2062,9 +2050,6 @@ func TestExecutionValidation(t *testing.T) {
 			})
 			t.Run("146 variant", func(t *testing.T) {
 				run(`
-							{
-								arguments { ...badComplexValue }
-							}
 							query badComplexValue {
 								findDog(complex: { name: "123" })
 							}`,
@@ -2141,6 +2126,175 @@ func TestExecutionValidation(t *testing.T) {
 									findDogNonOptional(complex: { name: 123 })
 								}`,
 					Values(), Invalid)
+			})
+		})
+		t.Run("complex nested validation", func(t *testing.T) {
+			/*
+				input NestedInput {
+					requiredString: String!
+					requiredStringWithDefault: String! = "defaultString"
+					optionalListOfOptionalStrings: [String]
+					requiredListOfOptionalStrings: [String]!
+					requiredListOfOptionalStringsWithDefault: [String]! = []
+					requiredListOfRequiredStrings: [String!]!
+					optionalNestedInput: NestedInput
+					optionalListOfNestedInput: [NestedInput]
+				}
+
+				type Query { nested(input: NestedInput): Boolean }
+			*/
+			t.Run("complex nested 1", func(t *testing.T) {
+				run(`
+						{
+							nested(input: {})
+						}
+						`, Values(), Invalid)
+			})
+			t.Run("complex nested ok", func(t *testing.T) {
+				run(`
+						{
+							nested(input: {
+								requiredString: "str",
+								requiredListOfOptionalStrings: [],
+								requiredListOfRequiredStrings: ["str"]
+							})
+						}
+						`, Values(), Valid)
+			})
+			t.Run("complex nested 'notList' is not list of Strings", func(t *testing.T) {
+				run(`
+						{
+							nested(input: {
+								requiredString: "str",
+								requiredListOfOptionalStrings: "notList",
+								requiredListOfRequiredStrings: ["str"]
+							})
+						}
+						`, Values(), Invalid)
+			})
+			t.Run("complex nested ok 3", func(t *testing.T) {
+				run(`
+						{
+							nested(input: {
+								requiredString: "str",
+								requiredListOfOptionalStrings: ["str"],
+								requiredListOfRequiredStrings: ["str"],
+								requiredListOfOptionalStringsWithDefault: ["more strings"]
+							})
+						}
+						`, Values(), Valid)
+			})
+			t.Run("complex nested ok optional list of nested input", func(t *testing.T) {
+				run(`
+						{
+							nested(input: {
+								requiredString: "str",
+								requiredListOfOptionalStrings: ["str"],
+								requiredListOfRequiredStrings: ["str"],
+								requiredListOfOptionalStringsWithDefault: ["more strings"]
+								optionalListOfNestedInput: [
+									{
+										requiredString: "str",
+										requiredListOfOptionalStrings: [],
+										requiredListOfRequiredStrings: ["str"]
+									},
+									{
+										requiredString: "str",
+										requiredListOfOptionalStrings: [],
+										requiredListOfRequiredStrings: ["str"]
+									}
+								]
+							})
+						}
+						`, Values(), Valid)
+			})
+			t.Run("complex nested ok optional list of nested input, required string missing", func(t *testing.T) {
+				run(`
+						{
+							nested(input: {
+								requiredString: "str",
+								requiredListOfOptionalStrings: ["str"],
+								requiredListOfRequiredStrings: ["str"],
+								requiredListOfOptionalStringsWithDefault: ["more strings"]
+								optionalListOfNestedInput: [
+									{
+										requiredListOfOptionalStrings: [],
+										requiredListOfRequiredStrings: ["str"]
+									}
+								]
+							})
+						}
+						`, Values(), Invalid)
+			})
+			t.Run("complex nested 'str' is not String", func(t *testing.T) {
+				run(`
+						{
+							nested(input: {
+								requiredString: "str",
+								requiredListOfOptionalStrings: [str],
+								requiredListOfRequiredStrings: ["str"],
+								requiredListOfOptionalStringsWithDefault: ["more strings"]
+							})
+						}
+						`, Values(), Invalid)
+			})
+			t.Run("complex nested requiredListOfRequiredStrings must not be empty", func(t *testing.T) {
+				run(`
+						{
+							nested(input: {
+								requiredString: "str",
+								requiredListOfOptionalStrings: [],
+								requiredListOfRequiredStrings: []
+							})
+						}
+						`, Values(), Invalid)
+			})
+			t.Run("complex 2x nested", func(t *testing.T) {
+				run(`
+						{
+							nested(input: {
+								requiredString: "str",
+								requiredListOfOptionalStrings: [],
+								requiredListOfRequiredStrings: ["str"],
+								optionalNestedInput: {
+									requiredString: "str",
+									requiredListOfOptionalStrings: [],
+									requiredListOfRequiredStrings: ["str"],
+								}
+							})
+						}
+						`, Values(), Valid)
+			})
+			t.Run("complex 2x nested required string missing", func(t *testing.T) {
+				run(`
+						{
+							nested(input: {
+								requiredString: "str",
+								requiredListOfOptionalStrings: [],
+								requiredListOfRequiredStrings: ["str"],
+								optionalNestedInput: {
+									requiredListOfOptionalStrings: [],
+									requiredListOfRequiredStrings: ["str"],
+								}
+							})
+						}
+						`, Values(), Invalid)
+			})
+			t.Run("complex 2x nested '123' is no String", func(t *testing.T) {
+				run(`
+						{
+							nested(input: {
+								requiredString: "str",
+								requiredListOfOptionalStrings: [],
+								requiredListOfRequiredStrings: ["str"],
+								optionalNestedInput: {
+									requiredString: "str",
+									requiredListOfOptionalStrings: [123],
+									requiredListOfRequiredStrings: ["str"],
+								}
+							})
+						}
+						`, Values(), Invalid)
 			})
 		})
 	})
@@ -2635,6 +2789,17 @@ type Mutation {
 input ComplexInput { name: String, owner: String }
 input ComplexNonOptionalInput { name: String! }
 
+input NestedInput {
+	requiredString: String!
+	requiredStringWithDefault: String! = "defaultString"
+	optionalListOfOptionalStrings: [String]
+	requiredListOfOptionalStrings: [String]!
+	requiredListOfOptionalStringsWithDefault: [String]! = []
+	requiredListOfRequiredStrings: [String!]!
+	optionalNestedInput: NestedInput
+	optionalListOfNestedInput: [NestedInput]
+}
+
 type Query {
 	foo: String
 	bar: String
@@ -2650,6 +2815,7 @@ type Query {
 	findDogNonOptional(complex: ComplexNonOptionalInput): Dog
   	booleanList(booleanListArg: [Boolean!]): Boolean
 	extra: Extra
+	nested(input: NestedInput): Boolean
 }
 
 type ValidArguments {

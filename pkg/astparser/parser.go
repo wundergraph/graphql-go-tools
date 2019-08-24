@@ -860,7 +860,7 @@ func (p *Parser) parseInputValueDefinitionList(closingKeyword keyword.Keyword) (
 		case closingKeyword:
 			list.RPAREN = p.read().TextPosition
 			return
-		case keyword.STRING, keyword.BLOCKSTRING, keyword.IDENT:
+		case keyword.STRING, keyword.BLOCKSTRING, keyword.IDENT, keyword.INPUT:
 			ref := p.parseInputValueDefinition()
 			if cap(list.Refs) == 0 {
 				list.Refs = p.document.Refs[p.document.NextRefIndex()][:0]
@@ -881,14 +881,14 @@ func (p *Parser) parseInputValueDefinition() int {
 	switch name {
 	case keyword.STRING, keyword.BLOCKSTRING:
 		inputValueDefinition.Description = p.parseDescription()
-	case keyword.IDENT:
+	case keyword.IDENT, keyword.INPUT:
 		break
 	default:
 		p.errUnexpectedToken(p.read())
 		return -1
 	}
 
-	inputValueDefinition.Name = p.mustRead(keyword.IDENT).Literal
+	inputValueDefinition.Name = p.read().Literal
 	inputValueDefinition.Colon = p.mustRead(keyword.COLON).TextPosition
 	inputValueDefinition.Type = p.parseType()
 	if p.peekEquals(keyword.EQUALS) {

@@ -600,6 +600,10 @@ func (d *Document) EnumValueName(ref int) ByteSliceReference {
 	return d.EnumValues[ref].Name
 }
 
+func (d *Document) EnumValueNameBytes(ref int) ByteSlice {
+	return d.Input.ByteSlice(d.EnumValues[ref].Name)
+}
+
 func (d *Document) EnumValuesAreEqual(left, right int) bool {
 	return d.Input.ByteSliceReferenceContentEquals(d.EnumValueName(left), d.EnumValueName(right))
 }
@@ -1192,8 +1196,8 @@ func (d *Document) InputValueDefinitionName(ref int) ByteSlice {
 	return d.Input.ByteSlice(d.InputValueDefinitions[ref].Name)
 }
 
-func (d *Document) InputValueDefinitionType(ref int) Type {
-	return d.Types[d.InputValueDefinitions[ref].Type]
+func (d *Document) InputValueDefinitionType(ref int) int {
+	return d.InputValueDefinitions[ref].Type
 }
 
 func (d *Document) InputValueDefinitionArgumentIsOptional(ref int) bool {
@@ -1265,6 +1269,10 @@ type ScalarTypeDefinition struct {
 	ScalarLiteral position.Position  // scalar
 	Name          ByteSliceReference // e.g. JSON
 	Directives    DirectiveList      // optional, e.g. @foo
+}
+
+func (d *Document) ScalarTypeDefinitionName(ref int) ByteSlice {
+	return d.Input.ByteSlice(d.ScalarTypeDefinitions[ref].Name)
 }
 
 type ScalarTypeExtension struct {
