@@ -26,7 +26,19 @@ func (f *fieldSelectionMergeVisitor) fieldsCanMerge(left, right int) bool {
 	rightName := f.operation.FieldName(right)
 	leftAlias := f.operation.FieldAlias(left)
 	rightAlias := f.operation.FieldAlias(right)
-	return bytes.Equal(leftName, rightName) && bytes.Equal(leftAlias, rightAlias)
+
+	if !bytes.Equal(leftName, rightName) || !bytes.Equal(leftAlias, rightAlias) {
+		return false
+	}
+
+	leftDirectives := f.operation.FieldDirectives(left)
+	rightDirectives := f.operation.FieldDirectives(right)
+
+	if !f.operation.DirectiveSetsAreEqual(leftDirectives, rightDirectives) {
+		return false
+	}
+
+	return true
 }
 
 func (f *fieldSelectionMergeVisitor) isFieldSelection(ref int) bool {

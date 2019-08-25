@@ -60,4 +60,23 @@ func TestMergeFieldSelections(t *testing.T) {
 					}`)
 		})
 	})
+	t.Run("fields with directives", func(t *testing.T) {
+		run(mergeFieldSelections, testDefinition, `
+					{
+						field @skip(if: $foo) {
+							subfieldA
+						}
+						field @skip(if: $bar) {
+							subfieldB
+						}
+					}`, `
+					{
+						field @skip(if: $foo) {
+							subfieldA
+						}
+						field @skip(if: $bar) {
+							subfieldB
+						}
+					}`)
+	})
 }
