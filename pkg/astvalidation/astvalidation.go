@@ -222,6 +222,7 @@ func (_ validArgumentsVisitor) EnterField(ref int, info astvisitor.Info) astvisi
 
 func (v *validArgumentsVisitor) valueSatisfiesInputFieldDefinition(value ast.Value, inputValueDefinition int) bool {
 
+	// object- and list values are covered by Values() / valuesVisitor
 	switch value.Kind {
 	case ast.ValueKindVariable:
 		return v.variableValueSatisfiesInputValueDefinition(value.Ref, inputValueDefinition)
@@ -233,8 +234,6 @@ func (v *validArgumentsVisitor) valueSatisfiesInputFieldDefinition(value ast.Val
 		return v.booleanValueSatisfiesInputValueDefinition(inputValueDefinition)
 	case ast.ValueKindInteger:
 		return v.intValueSatisfiesInputValueDefinition(inputValueDefinition)
-	default:
-		panic(fmt.Sprintf("must implement validArgumentsVisitor.valueSatisfiesInputFieldDefinition() for kind: %s", value.Kind))
 	}
 
 	return true

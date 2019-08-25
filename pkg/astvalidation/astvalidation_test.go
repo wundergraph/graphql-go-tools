@@ -2674,7 +2674,7 @@ func TestExecutionValidation(t *testing.T) {
 										booleanArgField(booleanArg: $intArg)
 									}
 								}`,
-					Values(), Invalid)
+					ValidArguments(), Invalid)
 			})
 			t.Run("170", func(t *testing.T) {
 				run(`query booleanListCannotGoIntoBoolean($booleanListArg: [Boolean]) {
@@ -2682,7 +2682,7 @@ func TestExecutionValidation(t *testing.T) {
 										booleanArgField(booleanArg: $booleanListArg)
 									}
 								}`,
-					Values(), Invalid)
+					ValidArguments(), Invalid)
 			})
 			t.Run("171", func(t *testing.T) {
 				run(`query booleanArgQuery($booleanArg: Boolean) {
@@ -2690,7 +2690,7 @@ func TestExecutionValidation(t *testing.T) {
 										nonNullBooleanArgField(nonNullBooleanArg: $booleanArg)
 									}
 								}`,
-					Values(), Invalid)
+					ValidArguments(), Invalid)
 			})
 			t.Run("172", func(t *testing.T) {
 				run(`query nonNullListToList($nonNullBooleanList: [Boolean]!) {
@@ -2698,7 +2698,7 @@ func TestExecutionValidation(t *testing.T) {
 									booleanListArgField(booleanListArg: $nonNullBooleanList)
 								}
 							}`,
-					Values(), Valid)
+					ValidArguments(), Valid)
 			})
 			t.Run("172 variant", func(t *testing.T) {
 				run(`query nonNullListToList {
@@ -2730,7 +2730,7 @@ func TestExecutionValidation(t *testing.T) {
 										booleanListArgField(booleanListArg: $nonNullBooleanList)
 									}
 								}`,
-					Values(), Invalid)
+					ValidArguments(), Invalid)
 			})
 			t.Run("173", func(t *testing.T) {
 				run(`query listToNonNullList($booleanList: [Boolean]) {
@@ -2738,7 +2738,7 @@ func TestExecutionValidation(t *testing.T) {
 										nonNullBooleanListField(nonNullBooleanListArg: $booleanList)
 									}
 								}`,
-					Values(), Invalid)
+					ValidArguments(), Invalid)
 			})
 			t.Run("174", func(t *testing.T) {
 				run(`query booleanArgQueryWithDefault($booleanArg: Boolean) {
@@ -2746,7 +2746,7 @@ func TestExecutionValidation(t *testing.T) {
 										optionalNonNullBooleanArgField(optionalBooleanArg: $booleanArg)
 									}
 								}`,
-					Values(), Valid)
+					ValidArguments(), Valid)
 			})
 			t.Run("175", func(t *testing.T) {
 				run(`query booleanArgQueryWithDefault($booleanArg: Boolean = true) {
@@ -2754,7 +2754,7 @@ func TestExecutionValidation(t *testing.T) {
 										nonNullBooleanArgField(nonNullBooleanArg: $booleanArg)
 									}
 								}`,
-					Values(), Valid)
+					ValidArguments(), Valid)
 			})
 		})
 	})
