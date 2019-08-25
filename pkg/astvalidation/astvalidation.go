@@ -966,6 +966,60 @@ func (a *allVariableUsesDefinedVisitor) EnterArgument(ref int, info astvisitor.I
 
 func AllVariablesUsed() Rule {
 	return func(walker *astvisitor.Walker) {
-
+		visitor := allVariablesUsedVisitor{}
+		walker.RegisterEnterDocumentVisitor(&visitor)
+		walker.RegisterEnterOperationVisitor(&visitor)
+		walker.RegisterLeaveOperationVisitor(&visitor)
+		walker.RegisterEnterArgumentVisitor(&visitor)
 	}
+}
+
+type allVariablesUsedVisitor struct {
+	operation, definition *ast.Document
+	variableDefinitions   []int
+}
+
+func (a *allVariablesUsedVisitor) EnterDocument(operation, definition *ast.Document) astvisitor.Instruction {
+	a.operation = operation
+	a.definition = definition
+	return astvisitor.Instruction{}
+}
+
+func (a *allVariablesUsedVisitor) EnterOperationDefinition(ref int, info astvisitor.Info) astvisitor.Instruction {
+	a.variableDefinitions = a.operation.OperationDefinitions[ref].VariableDefinitions.Refs
+	return astvisitor.Instruction{}
+}
+
+func (a *allVariablesUsedVisitor) LeaveOperationDefinition(ref int, info astvisitor.Info) astvisitor.Instruction {
+	if len(a.variableDefinitions) != 0 {
+		variableName := string(a.operation.VariableDefinitionName(a.variableDefinitions[0]))
+		operationType := a.operation.OperationDefinitions[ref].OperationType
+		operationName := a.operation.Input.ByteSlice(a.operation.OperationDefinitions[ref].Name)
+		return astvisitor.Instruction{
+			Action:  astvisitor.StopWithError,
+			Message: fmt.Sprintf("variable: %s is defined on operation: %s with operation type: %s but never used", variableName, operationName, operationType),
+		}
+	}
+	return astvisitor.Instruction{}
+}
+
+func (a *allVariablesUsedVisitor) EnterArgument(ref int, info astvisitor.Info) astvisitor.Instruction {
+
+	if len(a.variableDefinitions) == 0 {
+		return astvisitor.Instruction{} // nothing to check, skip
+	}
+
+	if a.operation.Arguments[ref].Value.Kind != ast.ValueKindVariable {
+		return astvisitor.Instruction{} // skip non variable value
+	}
+
+	variableName := a.operation.VariableValueName(a.operation.Arguments[ref].Value.Ref)
+	for i, j := range a.variableDefinitions {
+		if bytes.Equal(variableName, a.operation.VariableDefinitionName(j)) {
+			a.variableDefinitions = append(a.variableDefinitions[:i], a.variableDefinitions[i+1:]...)
+			return astvisitor.Instruction{}
+		}
+	}
+
+	return astvisitor.Instruction{}
 }
