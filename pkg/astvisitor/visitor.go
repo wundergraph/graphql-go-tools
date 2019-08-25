@@ -513,10 +513,10 @@ func (w *Walker) walkVariableDefinitions(refs []int, enclosed Info) {
 		IsLastRootNode:          false,
 	}
 
-	for _, i := range refs {
+	for i, j := range refs {
 		info.VariableDefinitionsBefore = refs[:i]
 		info.VariableDefinitionsAfter = refs[i+1:]
-		w.walkVariableDefinition(i, info)
+		w.walkVariableDefinition(j, info)
 	}
 }
 

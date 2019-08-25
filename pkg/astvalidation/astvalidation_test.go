@@ -2490,7 +2490,8 @@ func TestExecutionValidation(t *testing.T) {
 		})
 		t.Run("5.8.2 Variables Are Input Types", func(t *testing.T) {
 			t.Run("156", func(t *testing.T) {
-				run(`query takesBoolean($atOtherHomes: Boolean) {
+				run(`
+							query takesBoolean($atOtherHomes: Boolean) {
 								dog {
 									isHousetrained(atOtherHomes: $atOtherHomes)
 								}

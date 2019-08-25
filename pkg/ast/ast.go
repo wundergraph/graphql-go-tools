@@ -1468,6 +1468,10 @@ type VariableDefinition struct {
 	Directives    DirectiveList // optional, e.g. @foo
 }
 
+func (d *Document) VariableDefinitionName(ref int) ByteSlice {
+	return d.VariableValueName(d.VariableDefinitions[ref].VariableValue.Ref)
+}
+
 func (d *Document) VariableDefinitionByName(name ByteSlice) (definition int, exists bool) {
 	for i := range d.VariableDefinitions {
 		definitionName := d.VariableValueName(d.VariableDefinitions[i].VariableValue.Ref)

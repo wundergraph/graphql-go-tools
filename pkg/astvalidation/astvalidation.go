@@ -819,8 +819,36 @@ func (d *directivesAreInValidLocationsVisitor) directiveDefinitionContainsNodeLo
 
 func VariableUniqueness() Rule {
 	return func(walker *astvisitor.Walker) {
-
+		visitor := variableUniquenessVisitor{}
+		walker.RegisterEnterDocumentVisitor(&visitor)
+		walker.RegisterEnterVariableDefinitionVisitor(&visitor)
 	}
+}
+
+type variableUniquenessVisitor struct {
+	operation, definition *ast.Document
+}
+
+func (v *variableUniquenessVisitor) EnterDocument(operation, definition *ast.Document) astvisitor.Instruction {
+	v.operation = operation
+	v.definition = definition
+	return astvisitor.Instruction{}
+}
+
+func (v *variableUniquenessVisitor) EnterVariableDefinition(ref int, info astvisitor.Info) astvisitor.Instruction {
+
+	name := v.operation.VariableDefinitionName(ref)
+
+	for _, i := range info.VariableDefinitionsAfter {
+		if bytes.Equal(name, v.operation.VariableDefinitionName(i)) {
+			return astvisitor.Instruction{
+				Action:  astvisitor.StopWithError,
+				Message: fmt.Sprintf("variable: %s must be unique", string(name)),
+			}
+		}
+	}
+
+	return astvisitor.Instruction{}
 }
 
 func DirectivesAreUniquePerLocation() Rule {
@@ -859,7 +887,34 @@ func (d *directivesAreUniquePerLocationVisitor) EnterDirective(ref int, info ast
 
 func VariablesAreInputTypes() Rule {
 	return func(walker *astvisitor.Walker) {
+		visitor := variablesAreInputTypesVisitor{}
+		walker.RegisterEnterDocumentVisitor(&visitor)
+		walker.RegisterEnterVariableDefinitionVisitor(&visitor)
+	}
+}
 
+type variablesAreInputTypesVisitor struct {
+	operation, definition *ast.Document
+}
+
+func (v *variablesAreInputTypesVisitor) EnterDocument(operation, definition *ast.Document) astvisitor.Instruction {
+	v.operation = operation
+	v.definition = definition
+	return astvisitor.Instruction{}
+}
+
+func (v *variablesAreInputTypesVisitor) EnterVariableDefinition(ref int, info astvisitor.Info) astvisitor.Instruction {
+
+	typeName := v.operation.ResolveTypeName(v.operation.VariableDefinitions[ref].Type)
+	typeDefinitionNode := v.definition.Index.Nodes[string(typeName)]
+	switch typeDefinitionNode.Kind {
+	case ast.NodeKindInputObjectTypeDefinition, ast.NodeKindScalarTypeDefinition, ast.NodeKindEnumTypeDefinition:
+		return astvisitor.Instruction{}
+	default:
+		return astvisitor.Instruction{
+			Action:  astvisitor.StopWithError,
+			Message: fmt.Sprintf("variable: %s of type: %s is no valid input type", v.operation.VariableDefinitionName(ref), string(typeName)),
+		}
 	}
 }
 
