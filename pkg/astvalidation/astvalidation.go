@@ -920,7 +920,47 @@ func (v *variablesAreInputTypesVisitor) EnterVariableDefinition(ref int, info as
 
 func AllVariableUsesDefined() Rule {
 	return func(walker *astvisitor.Walker) {
+		visitor := allVariableUsesDefinedVisitor{}
+		walker.RegisterEnterDocumentVisitor(&visitor)
+		walker.RegisterEnterArgumentVisitor(&visitor)
+	}
+}
 
+type allVariableUsesDefinedVisitor struct {
+	operation, definition *ast.Document
+}
+
+func (a *allVariableUsesDefinedVisitor) EnterDocument(operation, definition *ast.Document) astvisitor.Instruction {
+	a.operation = operation
+	a.definition = definition
+	return astvisitor.Instruction{}
+}
+
+func (a *allVariableUsesDefinedVisitor) EnterArgument(ref int, info astvisitor.Info) astvisitor.Instruction {
+
+	if a.operation.Arguments[ref].Value.Kind != ast.ValueKindVariable {
+		return astvisitor.Instruction{} // skip because no variable
+	}
+
+	if info.Ancestors[0].Kind != ast.NodeKindOperationDefinition {
+		// skip because variable is not used in operation which happens in case normalization did not merge the fragment definition
+		// this happens when a fragment is defined but not used which will itself lead to another validation error
+		// in which case we can safely skip here
+		return astvisitor.Instruction{}
+	}
+
+	variableName := a.operation.VariableValueName(a.operation.Arguments[ref].Value.Ref)
+
+	for _, i := range a.operation.OperationDefinitions[info.Ancestors[0].Ref].VariableDefinitions.Refs {
+		if bytes.Equal(variableName, a.operation.VariableDefinitionName(i)) {
+			return astvisitor.Instruction{} // return OK because variable is defined
+		}
+	}
+
+	// at this point we're safe to say this variable was not defined on the root operation of this argument
+	return astvisitor.Instruction{
+		Action:  astvisitor.StopWithError,
+		Message: fmt.Sprintf("variable: %s on argument: %s is not defined", string(variableName), a.operation.ArgumentNameString(ref)),
 	}
 }
 

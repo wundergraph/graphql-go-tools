@@ -1,7 +1,5 @@
 package ast
 
-type Key []byte
-
 // Index is a struct to easily look up objects in a document, e.g. find Nodes (type/interface/union definitions) by name
 type Index struct {
 	QueryTypeName           ByteSlice
