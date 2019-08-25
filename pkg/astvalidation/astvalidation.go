@@ -744,14 +744,77 @@ func (f *fragmentsVisitor) EnterFragmentDefinition(ref int, info astvisitor.Info
 
 func DirectivesAreDefined() Rule {
 	return func(walker *astvisitor.Walker) {
-
+		visitor := directivesAreDefinedVisitor{}
+		walker.RegisterEnterDocumentVisitor(&visitor)
+		walker.RegisterEnterDirectiveVisitor(&visitor)
 	}
+}
+
+type directivesAreDefinedVisitor struct {
+	operation, definition *ast.Document
+}
+
+func (d *directivesAreDefinedVisitor) EnterDocument(operation, definition *ast.Document) astvisitor.Instruction {
+	d.operation = operation
+	d.definition = definition
+	return astvisitor.Instruction{}
+}
+
+func (d *directivesAreDefinedVisitor) EnterDirective(ref int, info astvisitor.Info) astvisitor.Instruction {
+
+	if info.DirectiveDefinition == -1 {
+		return astvisitor.Instruction{
+			Action:  astvisitor.StopWithError,
+			Message: fmt.Sprintf("directive: %s not defined", d.operation.DirectiveNameString(ref)),
+		}
+	}
+
+	return astvisitor.Instruction{}
 }
 
 func DirectivesAreInValidLocations() Rule {
 	return func(walker *astvisitor.Walker) {
-
+		visitor := directivesAreInValidLocationsVisitor{}
+		walker.RegisterEnterDocumentVisitor(&visitor)
+		walker.RegisterEnterDirectiveVisitor(&visitor)
 	}
+}
+
+type directivesAreInValidLocationsVisitor struct {
+	operation, definition *ast.Document
+}
+
+func (d *directivesAreInValidLocationsVisitor) EnterDocument(operation, definition *ast.Document) astvisitor.Instruction {
+	d.operation = operation
+	d.definition = definition
+	return astvisitor.Instruction{}
+}
+
+func (d *directivesAreInValidLocationsVisitor) EnterDirective(ref int, info astvisitor.Info) astvisitor.Instruction {
+	if info.DirectiveDefinition == -1 {
+		return astvisitor.Instruction{} // not defined, skip
+	}
+
+	ancestor := info.Ancestors[len(info.Ancestors)-1]
+
+	if !d.directiveDefinitionContainsNodeLocation(info.DirectiveDefinition, ancestor) {
+		return astvisitor.Instruction{
+			Action:  astvisitor.StopWithError,
+			Message: fmt.Sprintf("directive: %s not allowed on node kind: %s", d.operation.DirectiveNameString(ref), ancestor.Kind),
+		}
+	}
+
+	return astvisitor.Instruction{}
+}
+
+func (d *directivesAreInValidLocationsVisitor) directiveDefinitionContainsNodeLocation(definition int, node ast.Node) bool {
+
+	nodeDirectiveLocation, err := d.operation.NodeDirectiveLocation(node)
+	if err != nil {
+		return false
+	}
+
+	return d.definition.DirectiveDefinitions[definition].DirectiveLocations.Get(nodeDirectiveLocation)
 }
 
 func VariableUniqueness() Rule {
@@ -762,8 +825,36 @@ func VariableUniqueness() Rule {
 
 func DirectivesAreUniquePerLocation() Rule {
 	return func(walker *astvisitor.Walker) {
-
+		visitor := directivesAreUniquePerLocationVisitor{}
+		walker.RegisterEnterDocumentVisitor(&visitor)
+		walker.RegisterEnterDirectiveVisitor(&visitor)
 	}
+}
+
+type directivesAreUniquePerLocationVisitor struct {
+	operation, definition *ast.Document
+}
+
+func (d *directivesAreUniquePerLocationVisitor) EnterDocument(operation, definition *ast.Document) astvisitor.Instruction {
+	d.operation = operation
+	d.definition = definition
+	return astvisitor.Instruction{}
+}
+
+func (d *directivesAreUniquePerLocationVisitor) EnterDirective(ref int, info astvisitor.Info) astvisitor.Instruction {
+
+	directiveName := d.operation.DirectiveNameBytes(ref)
+
+	for _, i := range info.DirectivesAfter {
+		if bytes.Equal(directiveName, d.operation.DirectiveNameBytes(i)) {
+			return astvisitor.Instruction{
+				Action:  astvisitor.StopWithError,
+				Message: fmt.Sprintf("directive: %s must be unique per location", string(directiveName)),
+			}
+		}
+	}
+
+	return astvisitor.Instruction{}
 }
 
 func VariablesAreInputTypes() Rule {
