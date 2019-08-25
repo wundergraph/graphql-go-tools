@@ -679,7 +679,7 @@ func (d *Document) FieldArgument(field int, name ByteSlice) (ref int, exists boo
 	return -1, false
 }
 
-func (d *Document) FieldDirectiveSet(ref int) []int {
+func (d *Document) FieldDirectives(ref int) []int {
 	return d.Fields[ref].Directives.Refs
 }
 
@@ -722,7 +722,7 @@ func (d *Document) FieldsAreEqualFlat(left, right int) bool {
 		bytes.Equal(d.FieldAlias(left), d.FieldAlias(right)) && // alias
 		!d.FieldHasSelections(left) && !d.FieldHasSelections(right) && // selections
 		d.ArgumentSetsAreEquals(d.FieldArguments(left), d.FieldArguments(right)) && // arguments
-		d.DirectiveSetsAreEqual(d.FieldDirectiveSet(left), d.FieldDirectiveSet(right)) // directives
+		d.DirectiveSetsAreEqual(d.FieldDirectives(left), d.FieldDirectives(right)) // directives
 }
 
 func (d *Document) InlineFragmentHasTypeCondition(ref int) bool {
@@ -1383,6 +1383,59 @@ type DirectiveDefinition struct {
 	ArgumentsDefinition InputValueDefinitionList // optional, e.g. (if: Boolean)
 	On                  position.Position        // on
 	DirectiveLocations  DirectiveLocations       // e.g. FIELD
+}
+
+func (d *Document) NodeDirectiveLocation(node Node) (location DirectiveLocation, err error) {
+	switch node.Kind {
+	case NodeKindSchemaDefinition:
+		location = TypeSystemDirectiveLocationSchema
+	case NodeKindSchemaExtension:
+		location = TypeSystemDirectiveLocationSchema
+	case NodeKindObjectTypeDefinition:
+		location = TypeSystemDirectiveLocationObject
+	case NodeKindObjectTypeExtension:
+		location = TypeSystemDirectiveLocationObject
+	case NodeKindInterfaceTypeDefinition:
+		location = TypeSystemDirectiveLocationInterface
+	case NodeKindInterfaceTypeExtension:
+		location = TypeSystemDirectiveLocationInterface
+	case NodeKindUnionTypeDefinition:
+		location = TypeSystemDirectiveLocationUnion
+	case NodeKindUnionTypeExtension:
+		location = TypeSystemDirectiveLocationUnion
+	case NodeKindEnumTypeDefinition:
+		location = TypeSystemDirectiveLocationEnum
+	case NodeKindEnumTypeExtension:
+		location = TypeSystemDirectiveLocationEnum
+	case NodeKindInputObjectTypeDefinition:
+		location = TypeSystemDirectiveLocationInputObject
+	case NodeKindInputObjectTypeExtension:
+		location = TypeSystemDirectiveLocationInputObject
+	case NodeKindScalarTypeDefinition:
+		location = TypeSystemDirectiveLocationScalar
+	case NodeKindOperationDefinition:
+		switch d.OperationDefinitions[node.Ref].OperationType {
+		case OperationTypeQuery:
+			location = ExecutableDirectiveLocationQuery
+		case OperationTypeMutation:
+			location = ExecutableDirectiveLocationMutation
+		case OperationTypeSubscription:
+			location = ExecutableDirectiveLocationSubscription
+		}
+	case NodeKindField:
+		location = ExecutableDirectiveLocationField
+	case NodeKindFragmentSpread:
+		location = ExecutableDirectiveLocationFragmentSpread
+	case NodeKindInlineFragment:
+		location = ExecutableDirectiveLocationInlineFragment
+	case NodeKindFragmentDefinition:
+		location = ExecutableDirectiveLocationFragmentDefinition
+	case NodeKindVariableDefinition:
+		location = ExecutableDirectiveLocationVariableDefinition
+	default:
+		err = fmt.Errorf("node kind: %s is not allowed to have directives", node.Kind)
+	}
+	return
 }
 
 type OperationDefinition struct {
