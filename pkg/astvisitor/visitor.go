@@ -40,6 +40,7 @@ type Info struct {
 	FieldTypeDefinition       ast.Node
 	EnclosingTypeDefinition   ast.Node
 	InputValueDefinition      int
+	DirectiveDefinition       int
 	IsLastRootNode            bool
 }
 
@@ -701,6 +702,13 @@ func (w *Walker) walkDirective(ref int, enclosing Info) {
 		DirectivesAfter:         enclosing.DirectivesAfter,
 		FieldTypeDefinition:     enclosing.FieldTypeDefinition,
 		EnclosingTypeDefinition: enclosing.EnclosingTypeDefinition,
+	}
+
+	definitionNode, exists := w.definition.Index.Nodes[string(w.document.DirectiveNameBytes(ref))]
+	if exists && definitionNode.Kind == ast.NodeKindDirectiveDefinition {
+		info.DirectiveDefinition = definitionNode.Ref
+	} else {
+		info.DirectiveDefinition = -1
 	}
 
 	for i := range w.visitors.enterDirective {
