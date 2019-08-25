@@ -2336,12 +2336,6 @@ func TestExecutionValidation(t *testing.T) {
 					DirectivesAreInValidLocations(), Invalid)
 			})
 			t.Run("150 variant", func(t *testing.T) {
-				run(`query @noSkip(if: true) {
-									dog
-								}`,
-					DirectivesAreInValidLocations(), Invalid)
-			})
-			t.Run("150 variant", func(t *testing.T) {
 				run(`query {
 									dog @skip(if: true)
 								}`,
@@ -2364,9 +2358,11 @@ func TestExecutionValidation(t *testing.T) {
 					DirectivesAreInValidLocations(), Invalid)
 			})
 			t.Run("150 variant", func(t *testing.T) {
-				run(`	{
+				run(`
+							{
 								...frag @spread
-							}`,
+							}
+							fragment frag on Query {}`,
 					DirectivesAreInValidLocations(), Valid)
 			})
 			t.Run("150 variant", func(t *testing.T) {
@@ -2449,13 +2445,13 @@ func TestExecutionValidation(t *testing.T) {
 		})
 		t.Run("5.7.3 Directives Are Unique Per Location", func(t *testing.T) {
 			t.Run("151", func(t *testing.T) {
-				run(`query ($foo: Boolean = true, $bar: Boolean = false) {
+				run(`query MyQuery($foo: Boolean = true, $bar: Boolean = false) {
 									field @skip(if: $foo) @skip(if: $bar)
 								}`,
 					DirectivesAreUniquePerLocation(), Invalid)
 			})
 			t.Run("152", func(t *testing.T) {
-				run(`query ($foo: Boolean = true, $bar: Boolean = false) {
+				run(`query MyQuery($foo: Boolean = true, $bar: Boolean = false) {
 									field @skip(if: $foo) {
 										subfieldA
 									}
