@@ -1885,6 +1885,22 @@ func TestParseStarwars(t *testing.T) {
 	}
 }
 
+func TestParseTodo(t *testing.T) {
+
+	inputFileName := "./testdata/todo.graphql"
+	schema, err := ioutil.ReadFile(inputFileName)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	doc, err := ParseGraphqlDocumentBytes(schema)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_ = doc
+}
+
 func BenchmarkParseStarwars(b *testing.B) {
 
 	inputFileName := "./testdata/starwars.schema.graphql"
