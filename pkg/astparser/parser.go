@@ -1291,6 +1291,7 @@ func (p *Parser) parseFragmentSpread(spread position.Position) int {
 	fragmentSpread.FragmentName = p.mustRead(keyword.IDENT).Literal
 	if p.peekEquals(keyword.AT) {
 		fragmentSpread.Directives = p.parseDirectiveList()
+		fragmentSpread.HasDirectives = len(fragmentSpread.Directives.Refs) > 0
 	}
 	p.document.FragmentSpreads = append(p.document.FragmentSpreads, fragmentSpread)
 	return len(p.document.FragmentSpreads) - 1

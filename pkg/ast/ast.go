@@ -903,16 +903,26 @@ func (d *Document) RemoveNodeFromNode(remove, from Node) {
 }
 
 func (d *Document) RemoveNodeFromSelectionSet(set int, node Node) {
+
+	var selectionKind SelectionKind
+
 	switch node.Kind {
+	case NodeKindFragmentSpread:
+		selectionKind = SelectionKindFragmentSpread
+	case NodeKindInlineFragment:
+		selectionKind = SelectionKindInlineFragment
 	case NodeKindField:
-		for i, j := range d.SelectionSets[set].SelectionRefs {
-			if d.Selections[j].Kind == SelectionKindField && d.Selections[j].Ref == node.Ref {
-				d.SelectionSets[set].SelectionRefs = append(d.SelectionSets[set].SelectionRefs[:i], d.SelectionSets[set].SelectionRefs[i+1:]...)
-				return
-			}
-		}
+		selectionKind = SelectionKindField
 	default:
 		log.Printf("RemoveNodeFromSelectionSet not implemented for node: %s", node.Kind)
+		return
+	}
+
+	for i, j := range d.SelectionSets[set].SelectionRefs {
+		if d.Selections[j].Kind == selectionKind && d.Selections[j].Ref == node.Ref {
+			d.SelectionSets[set].SelectionRefs = append(d.SelectionSets[set].SelectionRefs[:i], d.SelectionSets[set].SelectionRefs[i+1:]...)
+			return
+		}
 	}
 }
 
@@ -1420,6 +1430,11 @@ type DirectiveDefinition struct {
 
 func (d *Document) RemoveDirectiveFromNode(node Node, ref int) {
 	switch node.Kind {
+	case NodeKindFragmentSpread:
+		if i, ok := d.IndexOf(d.FragmentSpreads[node.Ref].Directives.Refs, ref); ok {
+			d.FragmentSpreads[node.Ref].Directives.Refs = append(d.FragmentSpreads[node.Ref].Directives.Refs[:i], d.FragmentSpreads[node.Ref].Directives.Refs[i+1:]...)
+			d.FragmentSpreads[node.Ref].HasDirectives = len(d.FragmentSpreads[node.Ref].Directives.Refs) > 0
+		}
 	case NodeKindInlineFragment:
 		if i, ok := d.IndexOf(d.InlineFragments[node.Ref].Directives.Refs, ref); ok {
 			d.InlineFragments[node.Ref].Directives.Refs = append(d.InlineFragments[node.Ref].Directives.Refs[:i], d.InlineFragments[node.Ref].Directives.Refs[i+1:]...)
@@ -1577,9 +1592,10 @@ type Alias struct {
 // example:
 // ...MyFragment
 type FragmentSpread struct {
-	Spread       position.Position  // ...
-	FragmentName ByteSliceReference // Name but not on, e.g. MyFragment
-	Directives   DirectiveList      // optional, e.g. @foo
+	Spread        position.Position  // ...
+	FragmentName  ByteSliceReference // Name but not on, e.g. MyFragment
+	HasDirectives bool
+	Directives    DirectiveList // optional, e.g. @foo
 }
 
 // InlineFragment
