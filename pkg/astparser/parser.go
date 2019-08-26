@@ -767,7 +767,7 @@ func (p *Parser) parseFieldDefinition() int {
 	}
 	fieldDefinition.Colon = p.mustRead(keyword.COLON).TextPosition
 	fieldDefinition.Type = p.parseType()
-	if p.peek() == keyword.DIRECTIVE {
+	if p.peek() == keyword.AT {
 		fieldDefinition.Directives = p.parseDirectiveList()
 	}
 
