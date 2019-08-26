@@ -7,6 +7,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 	"io"
+	"log"
 )
 
 type OperationType int
@@ -114,6 +115,15 @@ type Document struct {
 	Refs                         [][8]int
 	RefIndex                     int
 	Index                        Index
+}
+
+func (d *Document) IndexOf(slice []int, ref int) (int, bool) {
+	for i, j := range slice {
+		if ref == j {
+			return i, true
+		}
+	}
+	return -1, false
 }
 
 func (d *Document) FragmentDefinitionIsUsed(name ByteSlice) bool {
@@ -883,6 +893,29 @@ type Node struct {
 	Ref  int
 }
 
+func (d *Document) RemoveNodeFromNode(remove, from Node) {
+	switch from.Kind {
+	case NodeKindSelectionSet:
+		d.RemoveNodeFromSelectionSet(from.Ref, remove)
+	default:
+		log.Printf("RemoveNodeFromNode not implemented for from: %s", from.Kind)
+	}
+}
+
+func (d *Document) RemoveNodeFromSelectionSet(set int, node Node) {
+	switch node.Kind {
+	case NodeKindField:
+		for i, j := range d.SelectionSets[set].SelectionRefs {
+			if d.Selections[j].Kind == SelectionKindField && d.Selections[j].Ref == node.Ref {
+				d.SelectionSets[set].SelectionRefs = append(d.SelectionSets[set].SelectionRefs[:i], d.SelectionSets[set].SelectionRefs[i+1:]...)
+				return
+			}
+		}
+	default:
+		log.Printf("RemoveNodeFromSelectionSet not implemented for node: %s", node.Kind)
+	}
+}
+
 func (n Node) Name(definition *Document) string {
 	return string(definition.NodeTypeName(n))
 }
@@ -1385,6 +1418,23 @@ type DirectiveDefinition struct {
 	DirectiveLocations  DirectiveLocations       // e.g. FIELD
 }
 
+func (d *Document) RemoveDirectiveFromNode(node Node, ref int) {
+	switch node.Kind {
+	case NodeKindInlineFragment:
+		if i, ok := d.IndexOf(d.InlineFragments[node.Ref].Directives.Refs, ref); ok {
+			d.InlineFragments[node.Ref].Directives.Refs = append(d.InlineFragments[node.Ref].Directives.Refs[:i], d.InlineFragments[node.Ref].Directives.Refs[i+1:]...)
+			d.InlineFragments[node.Ref].HasDirectives = len(d.InlineFragments[node.Ref].Directives.Refs) > 0
+		}
+	case NodeKindField:
+		if i, ok := d.IndexOf(d.Fields[node.Ref].Directives.Refs, ref); ok {
+			d.Fields[node.Ref].Directives.Refs = append(d.Fields[node.Ref].Directives.Refs[:i], d.Fields[node.Ref].Directives.Refs[i+1:]...)
+			d.Fields[node.Ref].HasDirectives = len(d.Fields[node.Ref].Directives.Refs) > 0
+		}
+	default:
+		log.Printf("RemoveDirectiveFromNode not implemented for node kind: %s", node.Kind)
+	}
+}
+
 func (d *Document) NodeDirectiveLocation(node Node) (location DirectiveLocation, err error) {
 	switch node.Kind {
 	case NodeKindSchemaDefinition:
@@ -1542,8 +1592,9 @@ type FragmentSpread struct {
 type InlineFragment struct {
 	Spread        position.Position // ...
 	TypeCondition TypeCondition     // on NamedType, e.g. on User
-	Directives    DirectiveList     // optional, e.g. @foo
-	SelectionSet  int               // optional, e.g. { nextField }
+	HasDirectives bool
+	Directives    DirectiveList // optional, e.g. @foo
+	SelectionSet  int           // optional, e.g. { nextField }
 	HasSelections bool
 }
 

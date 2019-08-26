@@ -79,12 +79,25 @@ func TestPrint(t *testing.T) {
 				}`, `query argOnRequiredArg($catCommand: CatCommand @include(if: true), $complex: Boolean = true){dog {doesKnowCommand(dogCommand: $catCommand)}}`)
 	})
 	t.Run("directives", func(t *testing.T) {
-		run(`
+		t.Run("on field", func(t *testing.T) {
+			run(`
 			query directivesQuery @foo(bar: BAZ) {
 				dog @include(if: true, or: false) {
 					doesKnowCommand(dogCommand: $catCommand)
 				}
 			}`, `query directivesQuery @foo(bar: BAZ) {dog @include(if: true, or: false) {doesKnowCommand(dogCommand: $catCommand)}}`)
+		})
+		t.Run("on inline fragment", func(t *testing.T) {
+			run(`
+				{
+					dog {
+						name: nickname
+						... @include(if: true) {
+							name
+						}
+					}
+				}`, `{dog {name: nickname ... @include(if: true){name}}}`)
+		})
 	})
 }
 

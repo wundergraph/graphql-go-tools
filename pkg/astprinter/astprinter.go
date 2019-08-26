@@ -209,6 +209,8 @@ func (p *printVisitor) EnterInlineFragment(ref int, info astvisitor.Info) astvis
 		p.write(literal.SPACE)
 		p.write(p.document.Input.ByteSlice(p.document.Types[p.document.InlineFragments[ref].TypeCondition.Type].Name))
 		p.write(literal.SPACE)
+	} else if p.document.InlineFragments[ref].HasDirectives {
+		p.write(literal.SPACE)
 	}
 	return astvisitor.Instruction{}
 }

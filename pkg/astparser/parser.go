@@ -1308,6 +1308,7 @@ func (p *Parser) parseInlineFragment(spread position.Position) int {
 	}
 	if p.peekEquals(keyword.AT) {
 		fragment.Directives = p.parseDirectiveList()
+		fragment.HasDirectives = len(fragment.Directives.Refs) > 0
 	}
 	if p.peekEquals(keyword.LBRACE) {
 		fragment.SelectionSet, fragment.HasSelections = p.parseSelectionSet()

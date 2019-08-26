@@ -595,23 +595,32 @@ func (w *Walker) walkSelectionSet(ref int, enclosingTypeDefinition ast.Node) {
 
 	w.appendAncestor(ref, ast.NodeKindSelectionSet)
 
-	for i, j := range w.document.SelectionSets[ref].SelectionRefs {
+RefsChanged:
+	for {
+		refs := w.document.SelectionSets[ref].SelectionRefs
+		for i, j := range refs {
 
-		info.SelectionsBefore = w.document.SelectionSets[ref].SelectionRefs[:i]
-		info.SelectionsAfter = w.document.SelectionSets[ref].SelectionRefs[i+1:]
+			info.SelectionsBefore = w.document.SelectionSets[ref].SelectionRefs[:i]
+			info.SelectionsAfter = w.document.SelectionSets[ref].SelectionRefs[i+1:]
 
-		switch w.document.Selections[j].Kind {
-		case ast.SelectionKindField:
-			w.walkField(w.document.Selections[j].Ref, info)
-		case ast.SelectionKindFragmentSpread:
-			w.walkFragmentSpread(w.document.Selections[j].Ref, info)
-		case ast.SelectionKindInlineFragment:
-			w.walkInlineFragment(w.document.Selections[j].Ref, info)
+			switch w.document.Selections[j].Kind {
+			case ast.SelectionKindField:
+				w.walkField(w.document.Selections[j].Ref, info)
+			case ast.SelectionKindFragmentSpread:
+				w.walkFragmentSpread(w.document.Selections[j].Ref, info)
+			case ast.SelectionKindInlineFragment:
+				w.walkInlineFragment(w.document.Selections[j].Ref, info)
+			}
+
+			if w.stop {
+				return
+			}
+
+			if !w.refsEqual(refs, w.document.SelectionSets[ref].SelectionRefs) {
+				continue RefsChanged
+			}
 		}
-
-		if w.stop {
-			return
-		}
+		break
 	}
 
 	info.SelectionsBefore = nil
@@ -873,6 +882,10 @@ func (w *Walker) walkInlineFragment(ref int, enclosing Info) {
 
 	w.appendAncestor(ref, ast.NodeKindInlineFragment)
 
+	if w.document.InlineFragments[ref].HasDirectives {
+		w.walkDirectives(w.document.InlineFragments[ref].Directives.Refs, info)
+	}
+
 	if w.document.InlineFragments[ref].HasSelections {
 		inlineFragmentTypeDefinition := w.inlineFragmentTypeDefinition(ref, enclosing.EnclosingTypeDefinition)
 		w.walkSelectionSet(w.document.InlineFragments[ref].SelectionSet, inlineFragmentTypeDefinition)
@@ -1079,4 +1092,16 @@ func (w *Walker) leaveFragmentDefinition(visitor, ref int, info Info) {
 	for retry := true; retry; {
 		retry = w.handleInstruction(w.visitors.leaveFragmentDefinition[visitor].LeaveFragmentDefinition(ref, info))
 	}
+}
+
+func (w *Walker) refsEqual(left, right []int) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
 }

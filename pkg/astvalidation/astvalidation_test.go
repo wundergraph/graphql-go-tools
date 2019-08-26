@@ -601,8 +601,8 @@ func TestExecutionValidation(t *testing.T) {
   							}`,
 					FieldSelectionMerging(), Invalid)
 			})
-			/*t.Run("108 variant", func(t *testing.T) { TODO: uncomment and implement
-							run(`	query conflictingBecauseAlias {
+			t.Run("108 variant", func(t *testing.T) {
+				run(`	query conflictingBecauseAlias {
 											dog {
 			  									name: nickname
 			  									... @include(if: true) {
@@ -610,10 +610,10 @@ func TestExecutionValidation(t *testing.T) {
 												}
 											}
 			  							}`,
-								FieldSelectionMerging(), Invalid)
-						})
-						t.Run("108 variant", func(t *testing.T) {
-							run(`	query conflictingBecauseAlias {
+					FieldSelectionMerging(), Invalid)
+			})
+			t.Run("108 variant", func(t *testing.T) {
+				run(`	query conflictingBecauseAlias {
 											dog {
 			  									name: nickname
 			  									... @include(if: false) {
@@ -621,19 +621,8 @@ func TestExecutionValidation(t *testing.T) {
 												}
 											}
 			  							}`,
-								FieldSelectionMerging(), Valid)
-						})
-						t.Run("108 variant", func(t *testing.T) {
-							run(`	query conflictingBecauseAlias($include: false) {
-											dog {
-			  									name: nickname
-			  									... @include(if: $include) {
-													name
-												}
-											}
-			  							}`,
-								FieldSelectionMerging(), Valid)
-						})*/
+					FieldSelectionMerging(), Valid)
+			})
 			t.Run("109", func(t *testing.T) {
 				run(`	fragment mergeIdenticalFieldsWithIdenticalArgs on Dog {
   								doesKnowCommand(dogCommand: SIT)

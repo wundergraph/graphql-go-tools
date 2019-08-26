@@ -20,6 +20,7 @@ type OperationNormalizer struct {
 func (o *OperationNormalizer) setupWalkers() {
 	fragmentInline := astvisitor.NewWalker(48)
 	fragmentSpreadInline(&fragmentInline)
+	directiveIncludeSkip(&fragmentInline)
 
 	other := astvisitor.NewWalker(48)
 	removeSelfAliasing(&other)
