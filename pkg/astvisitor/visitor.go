@@ -15,6 +15,7 @@ type Walker struct {
 	ancestors        []ast.Node
 	parentDefinition ast.Node
 	stop             bool
+	skip             bool
 }
 
 func NewWalker(ancestorSize int) Walker {
@@ -51,6 +52,7 @@ const (
 	RevisitCurrentNode
 	Stop
 	StopWithError
+	Skip
 )
 
 type Instruction struct {
@@ -390,6 +392,10 @@ func (w *Walker) walk() {
 		if w.stop {
 			return
 		}
+		if w.skip {
+			w.skip = false
+			return
+		}
 	}
 
 	for i := range w.document.RootNodes {
@@ -413,11 +419,19 @@ func (w *Walker) walk() {
 		if w.stop {
 			return
 		}
+		if w.skip {
+			w.skip = false
+			return
+		}
 	}
 
 	for i := range w.visitors.leaveDocument {
 		w.leaveDocument(i)
 		if w.stop {
+			return
+		}
+		if w.skip {
+			w.skip = false
 			return
 		}
 	}
@@ -461,6 +475,11 @@ func (w *Walker) walkOperationDefinition(ref int, isLastRootNode bool) {
 		if w.stop {
 			return
 		}
+		if w.skip {
+			w.skip = false
+			w.decreaseDepth()
+			return
+		}
 	}
 
 	w.appendAncestor(ref, ast.NodeKindOperationDefinition)
@@ -491,6 +510,11 @@ func (w *Walker) walkOperationDefinition(ref int, isLastRootNode bool) {
 	for i := range w.visitors.leaveOperation {
 		w.leaveOperationDefinition(i, ref, info)
 		if w.stop {
+			return
+		}
+		if w.skip {
+			w.skip = false
+			w.decreaseDepth()
 			return
 		}
 	}
@@ -538,6 +562,11 @@ func (w *Walker) walkVariableDefinition(ref int, enclosing Info) {
 		if w.stop {
 			return
 		}
+		if w.skip {
+			w.skip = false
+			w.decreaseDepth()
+			return
+		}
 	}
 
 	w.appendAncestor(ref, ast.NodeKindVariableDefinition)
@@ -554,6 +583,11 @@ func (w *Walker) walkVariableDefinition(ref int, enclosing Info) {
 	for i := range w.visitors.leaveVariableDefinition {
 		w.leaveVariableDefinition(i, ref, info)
 		if w.stop {
+			return
+		}
+		if w.skip {
+			w.skip = false
+			w.decreaseDepth()
 			return
 		}
 	}
@@ -589,6 +623,11 @@ func (w *Walker) walkSelectionSet(ref int, enclosingTypeDefinition ast.Node) {
 	for i := range w.visitors.enterSelectionSet {
 		w.enterSelectionSet(i, ref, info)
 		if w.stop {
+			return
+		}
+		if w.skip {
+			w.skip = false
+			w.decreaseDepth()
 			return
 		}
 	}
@@ -633,6 +672,11 @@ RefsChanged:
 		if w.stop {
 			return
 		}
+		if w.skip {
+			w.skip = false
+			w.decreaseDepth()
+			return
+		}
 	}
 
 	w.decreaseDepth()
@@ -660,6 +704,11 @@ func (w *Walker) walkField(ref int, enclosing Info) {
 		if w.stop {
 			return
 		}
+		if w.skip {
+			w.skip = false
+			w.decreaseDepth()
+			return
+		}
 	}
 
 	w.appendAncestor(ref, ast.NodeKindField)
@@ -681,6 +730,11 @@ func (w *Walker) walkField(ref int, enclosing Info) {
 	for i := range w.visitors.leaveField {
 		w.leaveField(i, ref, info)
 		if w.stop {
+			return
+		}
+		if w.skip {
+			w.skip = false
+			w.decreaseDepth()
 			return
 		}
 	}
@@ -725,6 +779,11 @@ func (w *Walker) walkDirective(ref int, enclosing Info) {
 		if w.stop {
 			return
 		}
+		if w.skip {
+			w.skip = false
+			w.decreaseDepth()
+			return
+		}
 	}
 
 	w.appendAncestor(ref, ast.NodeKindDirective)
@@ -738,6 +797,11 @@ func (w *Walker) walkDirective(ref int, enclosing Info) {
 	for i := range w.visitors.leaveDirective {
 		w.leaveDirective(i, ref, info)
 		if w.stop {
+			return
+		}
+		if w.skip {
+			w.skip = false
+			w.decreaseDepth()
 			return
 		}
 	}
@@ -804,11 +868,21 @@ func (w *Walker) walkArgument(ref int, enclosing Info) {
 		if w.stop {
 			return
 		}
+		if w.skip {
+			w.skip = false
+			w.decreaseDepth()
+			return
+		}
 	}
 
 	for i := range w.visitors.leaveArgument {
 		w.leaveArgument(i, ref, info)
 		if w.stop {
+			return
+		}
+		if w.skip {
+			w.skip = false
+			w.decreaseDepth()
 			return
 		}
 	}
@@ -849,11 +923,21 @@ func (w *Walker) walkFragmentSpread(ref int, enclosing Info) {
 		if w.stop {
 			return
 		}
+		if w.skip {
+			w.skip = false
+			w.decreaseDepth()
+			return
+		}
 	}
 
 	for i := range w.visitors.leaveFragmentSpread {
 		w.leaveFragmentSpread(i, ref, info)
 		if w.stop {
+			return
+		}
+		if w.skip {
+			w.skip = false
+			w.decreaseDepth()
 			return
 		}
 	}
@@ -878,6 +962,11 @@ func (w *Walker) walkInlineFragment(ref int, enclosing Info) {
 		if w.stop {
 			return
 		}
+		if w.skip {
+			w.skip = false
+			w.decreaseDepth()
+			return
+		}
 	}
 
 	w.appendAncestor(ref, ast.NodeKindInlineFragment)
@@ -896,6 +985,11 @@ func (w *Walker) walkInlineFragment(ref int, enclosing Info) {
 	for i := range w.visitors.leaveInlineFragment {
 		w.leaveInlineFragment(i, ref, info)
 		if w.stop {
+			return
+		}
+		if w.skip {
+			w.skip = false
+			w.decreaseDepth()
 			return
 		}
 	}
@@ -931,6 +1025,11 @@ func (w *Walker) walkFragmentDefinition(ref int, isLastRootNode bool) {
 		if w.stop {
 			return
 		}
+		if w.skip {
+			w.skip = false
+			w.decreaseDepth()
+			return
+		}
 	}
 
 	w.appendAncestor(ref, ast.NodeKindFragmentDefinition)
@@ -944,6 +1043,11 @@ func (w *Walker) walkFragmentDefinition(ref int, isLastRootNode bool) {
 	for i := range w.visitors.leaveFragmentDefinition {
 		w.leaveFragmentDefinition(i, ref, info)
 		if w.stop {
+			return
+		}
+		if w.skip {
+			w.skip = false
+			w.decreaseDepth()
 			return
 		}
 	}
@@ -968,6 +1072,9 @@ func (w *Walker) handleInstruction(instruction Instruction) (retry bool) {
 		return false
 	case Stop:
 		w.stop = true
+		return false
+	case Skip:
+		w.skip = true
 		return false
 	default:
 		return false

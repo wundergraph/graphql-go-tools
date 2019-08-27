@@ -54,6 +54,70 @@ func TestVisit(t *testing.T) {
 	}
 }
 
+func TestVisitWithSkip(t *testing.T) {
+
+	definition := mustDoc(astparser.ParseGraphqlDocumentString(testDefinition))
+	operation := mustDoc(astparser.ParseGraphqlDocumentString(`
+		query PostsUserQuery {
+			posts {
+				id
+				description
+				user {
+					id
+					name
+				}
+			}
+		}`))
+
+	walker := NewWalker(48)
+	buff := &bytes.Buffer{}
+	visitor := &printingVisitor{
+		out:        buff,
+		operation:  operation,
+		definition: definition,
+	}
+
+	skipUser := skipUserVisitor{}
+
+	walker.RegisterEnterDocumentVisitor(&skipUser)
+	walker.RegisterEnterFieldVisitor(&skipUser)
+	walker.RegisterAllNodesVisitor(visitor)
+
+	must(walker.Walk(operation, definition))
+
+	out := buff.Bytes()
+	goldie.Assert(t, "visitor_skip", out)
+
+	if t.Failed() {
+
+		fixture, err := ioutil.ReadFile("./fixtures/visitor_skip.golden")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		diffview.NewGoland().DiffViewBytes("introspection_lexed", fixture, out)
+	}
+}
+
+type skipUserVisitor struct {
+	operation, definition *ast.Document
+}
+
+func (s *skipUserVisitor) EnterDocument(operation, definition *ast.Document) Instruction {
+	s.operation = operation
+	s.definition = definition
+	return Instruction{}
+}
+
+func (s *skipUserVisitor) EnterField(ref int, info Info) Instruction {
+	if bytes.Equal(s.operation.FieldName(ref), []byte("user")) {
+		return Instruction{
+			Action: Skip,
+		}
+	}
+	return Instruction{}
+}
+
 func BenchmarkVisitor(b *testing.B) {
 
 	definition := mustDoc(astparser.ParseGraphqlDocumentString(testDefinition))
