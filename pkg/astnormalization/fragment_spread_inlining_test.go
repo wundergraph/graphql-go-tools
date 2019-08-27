@@ -279,8 +279,10 @@ func TestInlineFragments(t *testing.T) {
 				dog {
 						name
 						name
-						... on Dog {
-							name
+						... on CatOrDog {
+							... on Dog {
+								name
+							}
 						}
 					}
 				}

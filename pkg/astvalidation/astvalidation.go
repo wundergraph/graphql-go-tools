@@ -196,7 +196,7 @@ func (v *validArgumentsVisitor) EnterDocument(operation, definition *ast.Documen
 
 func (v *validArgumentsVisitor) EnterArgument(ref int, info astvisitor.Info) astvisitor.Instruction {
 
-	if info.InputValueDefinition == -1 {
+	if info.Definition.Kind != ast.NodeKindInputValueDefinition {
 		return astvisitor.Instruction{
 			Action:  astvisitor.StopWithError,
 			Message: fmt.Sprintf("argument: %s not defined", v.operation.ArgumentNameString(ref)),
@@ -205,8 +205,8 @@ func (v *validArgumentsVisitor) EnterArgument(ref int, info astvisitor.Info) ast
 
 	value := v.operation.ArgumentValue(ref)
 
-	if !v.valueSatisfiesInputFieldDefinition(value, info.InputValueDefinition) {
-		definition := v.definition.InputValueDefinitions[info.InputValueDefinition]
+	if !v.valueSatisfiesInputFieldDefinition(value, info.Definition.Ref) {
+		definition := v.definition.InputValueDefinitions[info.Definition.Ref]
 		return astvisitor.Instruction{
 			Action:  astvisitor.StopWithError,
 			Message: fmt.Sprintf("invalid argument value: %+v for definition: %+v", value, definition),
@@ -367,6 +367,13 @@ func (v *valuesVisitor) EnterDocument(operation, definition *ast.Document) astvi
 
 func (v *valuesVisitor) EnterArgument(ref int, info astvisitor.Info) astvisitor.Instruction {
 
+	if info.Definition.Kind != ast.NodeKindInputValueDefinition {
+		return astvisitor.Instruction{
+			Action:  astvisitor.StopWithError,
+			Message: fmt.Sprintf("argument: %s not defined", v.operation.ArgumentNameString(ref)),
+		}
+	}
+
 	value := v.operation.ArgumentValue(ref)
 	if value.Kind == ast.ValueKindVariable {
 		variableName := v.operation.VariableValueName(value.Ref)
@@ -383,10 +390,10 @@ func (v *valuesVisitor) EnterArgument(ref int, info astvisitor.Info) astvisitor.
 		value = v.operation.VariableDefinitions[variableDefinition].DefaultValue.Value
 	}
 
-	if !v.valueSatisfiesInputValueDefinitionType(value, v.definition.InputValueDefinitions[info.InputValueDefinition].Type) {
+	if !v.valueSatisfiesInputValueDefinitionType(value, v.definition.InputValueDefinitions[info.Definition.Ref].Type) {
 		return astvisitor.Instruction{
 			Action:  astvisitor.StopWithError,
-			Message: fmt.Sprintf("value for argument: %s doesn't satisfy requirements from input value definition: %s", v.operation.ArgumentNameString(ref), v.definition.InputValueDefinitionName(info.InputValueDefinition)),
+			Message: fmt.Sprintf("value for argument: %s doesn't satisfy requirements from input value definition: %s", v.operation.ArgumentNameString(ref), v.definition.InputValueDefinitionName(info.Definition.Ref)),
 		}
 	}
 
@@ -761,7 +768,7 @@ func (d *directivesAreDefinedVisitor) EnterDocument(operation, definition *ast.D
 
 func (d *directivesAreDefinedVisitor) EnterDirective(ref int, info astvisitor.Info) astvisitor.Instruction {
 
-	if info.DirectiveDefinition == -1 {
+	if info.Definition.Kind != ast.NodeKindDirectiveDefinition {
 		return astvisitor.Instruction{
 			Action:  astvisitor.StopWithError,
 			Message: fmt.Sprintf("directive: %s not defined", d.operation.DirectiveNameString(ref)),
@@ -790,13 +797,14 @@ func (d *directivesAreInValidLocationsVisitor) EnterDocument(operation, definiti
 }
 
 func (d *directivesAreInValidLocationsVisitor) EnterDirective(ref int, info astvisitor.Info) astvisitor.Instruction {
-	if info.DirectiveDefinition == -1 {
+
+	if info.Definition.Kind != ast.NodeKindDirectiveDefinition {
 		return astvisitor.Instruction{} // not defined, skip
 	}
 
 	ancestor := info.Ancestors[len(info.Ancestors)-1]
 
-	if !d.directiveDefinitionContainsNodeLocation(info.DirectiveDefinition, ancestor) {
+	if !d.directiveDefinitionContainsNodeLocation(info.Definition.Ref, ancestor) {
 		return astvisitor.Instruction{
 			Action:  astvisitor.StopWithError,
 			Message: fmt.Sprintf("directive: %s not allowed on node kind: %s", d.operation.DirectiveNameString(ref), ancestor.Kind),

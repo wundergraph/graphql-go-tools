@@ -109,20 +109,24 @@ func _() {
 	_ = x[NodeKindEnumTypeDefinition-31]
 	_ = x[NodeKindEnumTypeExtension-32]
 	_ = x[NodeKindInputObjectTypeDefinition-33]
-	_ = x[NodeKindInputObjectTypeExtension-34]
-	_ = x[NodeKindScalarTypeDefinition-35]
-	_ = x[NodeKindDirectiveDefinition-36]
-	_ = x[NodeKindOperationDefinition-37]
-	_ = x[NodeKindSelectionSet-38]
-	_ = x[NodeKindField-39]
-	_ = x[NodeKindFragmentSpread-40]
-	_ = x[NodeKindInlineFragment-41]
-	_ = x[NodeKindFragmentDefinition-42]
+	_ = x[NodeKindInputValueDefinition-34]
+	_ = x[NodeKindInputObjectTypeExtension-35]
+	_ = x[NodeKindScalarTypeDefinition-36]
+	_ = x[NodeKindDirectiveDefinition-37]
+	_ = x[NodeKindOperationDefinition-38]
+	_ = x[NodeKindSelectionSet-39]
+	_ = x[NodeKindField-40]
+	_ = x[NodeKindFragmentSpread-41]
+	_ = x[NodeKindInlineFragment-42]
+	_ = x[NodeKindFragmentDefinition-43]
+	_ = x[NodeKindArgument-44]
+	_ = x[NodeKindDirective-45]
+	_ = x[NodeKindVariableDefinition-46]
 }
 
-const _NodeKind_name = "NodeKindUnknownNodeKindSchemaDefinitionNodeKindSchemaExtensionNodeKindObjectTypeDefinitionNodeKindObjectTypeExtensionNodeKindInterfaceTypeDefinitionNodeKindInterfaceTypeExtensionNodeKindUnionTypeDefinitionNodeKindUnionTypeExtensionNodeKindEnumTypeDefinitionNodeKindEnumTypeExtensionNodeKindInputObjectTypeDefinitionNodeKindInputObjectTypeExtensionNodeKindScalarTypeDefinitionNodeKindDirectiveDefinitionNodeKindOperationDefinitionNodeKindSelectionSetNodeKindFieldNodeKindFragmentSpreadNodeKindInlineFragmentNodeKindFragmentDefinition"
+const _NodeKind_name = "NodeKindUnknownNodeKindSchemaDefinitionNodeKindSchemaExtensionNodeKindObjectTypeDefinitionNodeKindObjectTypeExtensionNodeKindInterfaceTypeDefinitionNodeKindInterfaceTypeExtensionNodeKindUnionTypeDefinitionNodeKindUnionTypeExtensionNodeKindEnumTypeDefinitionNodeKindEnumTypeExtensionNodeKindInputObjectTypeDefinitionNodeKindInputValueDefinitionNodeKindInputObjectTypeExtensionNodeKindScalarTypeDefinitionNodeKindDirectiveDefinitionNodeKindOperationDefinitionNodeKindSelectionSetNodeKindFieldNodeKindFragmentSpreadNodeKindInlineFragmentNodeKindFragmentDefinitionNodeKindArgumentNodeKindDirectiveNodeKindVariableDefinition"
 
-var _NodeKind_index = [...]uint16{0, 15, 39, 62, 90, 117, 148, 178, 205, 231, 257, 282, 315, 347, 375, 402, 429, 449, 462, 484, 506, 532}
+var _NodeKind_index = [...]uint16{0, 15, 39, 62, 90, 117, 148, 178, 205, 231, 257, 282, 315, 343, 375, 403, 430, 457, 477, 490, 512, 534, 560, 576, 593, 619}
 
 func (i NodeKind) String() string {
 	i -= 22

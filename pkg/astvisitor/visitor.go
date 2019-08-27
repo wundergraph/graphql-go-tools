@@ -40,9 +40,8 @@ type Info struct {
 	HasSelections             bool
 	FieldTypeDefinition       ast.Node
 	EnclosingTypeDefinition   ast.Node
-	InputValueDefinition      int
-	DirectiveDefinition       int
 	IsLastRootNode            bool
+	Definition                ast.Node
 }
 
 type Action int
@@ -769,9 +768,10 @@ func (w *Walker) walkDirective(ref int, enclosing Info) {
 
 	definitionNode, exists := w.definition.Index.Nodes[string(w.document.DirectiveNameBytes(ref))]
 	if exists && definitionNode.Kind == ast.NodeKindDirectiveDefinition {
-		info.DirectiveDefinition = definitionNode.Ref
-	} else {
-		info.DirectiveDefinition = -1
+		info.Definition = ast.Node{
+			Kind: ast.NodeKindDirectiveDefinition,
+			Ref:  definitionNode.Ref,
+		}
 	}
 
 	for i := range w.visitors.enterDirective {
@@ -860,7 +860,11 @@ func (w *Walker) walkArgument(ref int, enclosing Info) {
 		ArgumentsAfter:          enclosing.ArgumentsAfter,
 		FieldTypeDefinition:     enclosing.FieldTypeDefinition,
 		EnclosingTypeDefinition: enclosing.EnclosingTypeDefinition,
-		InputValueDefinition:    w.inputValueDefinition(ref, enclosing),
+	}
+
+	if definition := w.inputValueDefinition(ref, enclosing); definition != -1 {
+		info.Definition.Ref = definition
+		info.Definition.Kind = ast.NodeKindInputValueDefinition
 	}
 
 	for i := range w.visitors.enterArgument {

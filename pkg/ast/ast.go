@@ -55,6 +55,7 @@ const (
 	NodeKindEnumTypeDefinition
 	NodeKindEnumTypeExtension
 	NodeKindInputObjectTypeDefinition
+	NodeKindInputValueDefinition
 	NodeKindInputObjectTypeExtension
 	NodeKindScalarTypeDefinition
 	NodeKindDirectiveDefinition
