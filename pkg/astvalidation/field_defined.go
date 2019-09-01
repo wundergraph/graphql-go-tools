@@ -33,7 +33,7 @@ func (f *fieldDefined) ValidateInterfaceObjectTypeField(ref int, info astvisitor
 	hasSelections := f.operation.FieldHasSelections(ref)
 	definitions := f.definition.NodeFieldDefinitions(info.EnclosingTypeDefinition)
 	for _, i := range definitions {
-		definitionName := f.definition.FieldDefinitionName(i)
+		definitionName := f.definition.FieldDefinitionNameBytes(i)
 		if bytes.Equal(fieldName, definitionName) {
 			// field is defined
 			fieldDefinitionTypeKind := f.definition.FieldDefinitionTypeNodeKind(i)
