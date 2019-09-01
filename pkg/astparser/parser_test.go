@@ -22,7 +22,7 @@ func TestParser_Parse(t *testing.T) {
 
 	parseType := func() action {
 		return func(parser *Parser) (interface{}, error) {
-			parser.lexer.SetInput(parser.document.Input)
+			parser.lexer.SetInput(&parser.document.Input)
 			parser.tokenize()
 			ref := parser.parseType()
 			return ref, parser.err
@@ -31,7 +31,7 @@ func TestParser_Parse(t *testing.T) {
 
 	parseValue := func() action {
 		return func(parser *Parser) (interface{}, error) {
-			parser.lexer.SetInput(parser.document.Input)
+			parser.lexer.SetInput(&parser.document.Input)
 			parser.tokenize()
 			value := parser.parseValue()
 			return value, parser.err
@@ -40,7 +40,7 @@ func TestParser_Parse(t *testing.T) {
 
 	parseSelectionSet := func() action {
 		return func(parser *Parser) (interface{}, error) {
-			parser.lexer.SetInput(parser.document.Input)
+			parser.lexer.SetInput(&parser.document.Input)
 			parser.tokenize()
 			set, _ := parser.parseSelectionSet()
 			return set, parser.err
@@ -49,7 +49,7 @@ func TestParser_Parse(t *testing.T) {
 
 	parseFragmentSpread := func() action {
 		return func(parser *Parser) (interface{}, error) {
-			parser.lexer.SetInput(parser.document.Input)
+			parser.lexer.SetInput(&parser.document.Input)
 			parser.tokenize()
 			fragmentSpread := parser.parseFragmentSpread(position.Position{})
 			return parser.document.FragmentSpreads[fragmentSpread], parser.err
@@ -58,7 +58,7 @@ func TestParser_Parse(t *testing.T) {
 
 	parseInlineFragment := func() action {
 		return func(parser *Parser) (interface{}, error) {
-			parser.lexer.SetInput(parser.document.Input)
+			parser.lexer.SetInput(&parser.document.Input)
 			parser.tokenize()
 			inlineFragment := parser.parseInlineFragment(position.Position{})
 			return parser.document.InlineFragments[inlineFragment], parser.err
@@ -67,7 +67,7 @@ func TestParser_Parse(t *testing.T) {
 
 	parseVariableDefinitionList := func() action {
 		return func(parser *Parser) (interface{}, error) {
-			parser.lexer.SetInput(parser.document.Input)
+			parser.lexer.SetInput(&parser.document.Input)
 			parser.tokenize()
 			variableDefinitionList := parser.parseVariableDefinitionList()
 			return variableDefinitionList, parser.err
@@ -120,7 +120,7 @@ func TestParser_Parse(t *testing.T) {
 
 		parser := NewParser()
 		parser.document = doc
-		parser.lexer.SetInput(doc.Input)
+		parser.lexer.SetInput(&doc.Input)
 
 		parser.tokenize()
 
@@ -1917,6 +1917,30 @@ func BenchmarkParseStarwars(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		doc.Input.ResetInputBytes(starwarsSchema)
+		doc.Reset()
+		err = parser.Parse(doc)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkParseGithub(b *testing.B) {
+
+	inputFileName := "./testdata/github.schema.graphql"
+	schemaFile, err := ioutil.ReadFile(inputFileName)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	doc := ast.NewDocument()
+	parser := NewParser()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		doc.Input.ResetInputBytes(schemaFile)
 		doc.Reset()
 		err = parser.Parse(doc)
 		if err != nil {
