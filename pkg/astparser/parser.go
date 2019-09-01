@@ -68,7 +68,7 @@ func NewParser() *Parser {
 
 func (p *Parser) Parse(document *ast.Document) error {
 	p.document = document
-	p.lexer.SetInput(document.Input)
+	p.lexer.SetInput(&document.Input)
 	p.tokenize()
 	p.parse()
 	return p.err
@@ -719,6 +719,8 @@ func (p *Parser) parseFieldDefinitionList() (list ast.FieldDefinitionList) {
 
 	list.LBRACE = p.mustRead(keyword.LBRACE).TextPosition
 
+	refsInitialized := false
+
 	for {
 
 		next := p.peek()
@@ -729,8 +731,9 @@ func (p *Parser) parseFieldDefinitionList() (list ast.FieldDefinitionList) {
 			return
 		case keyword.STRING, keyword.BLOCKSTRING, keyword.IDENT, keyword.TYPE:
 			ref := p.parseFieldDefinition()
-			if cap(list.Refs) == 0 {
+			if !refsInitialized {
 				list.Refs = p.document.Refs[p.document.NextRefIndex()][:0]
+				refsInitialized = true
 			}
 			list.Refs = append(list.Refs, ref)
 		default:
@@ -756,7 +759,7 @@ func (p *Parser) parseFieldDefinition() int {
 	}
 
 	nameToken := p.read()
-	if nameToken.Keyword != keyword.IDENT && nameToken.Keyword != keyword.TYPE {
+	if nameToken.Keyword != keyword.IDENT && nameToken.Keyword != keyword.TYPE && nameToken.Keyword != keyword.FRAGMENT {
 		p.errUnexpectedToken(nameToken, keyword.IDENT, keyword.TYPE)
 		return -1
 	}
