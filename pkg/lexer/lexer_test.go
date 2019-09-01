@@ -601,3 +601,22 @@ func BenchmarkLexer(b *testing.B) {
 		}
 	}
 }
+
+func BenchmarkBlockString(b *testing.B) {
+	input := []byte("\"\"\"foo \\\" bar\"\"\"")
+	in := &ast.Input{}
+	in.ResetInputBytes(input)
+	lexer := &Lexer{}
+	lexer.SetInput(in)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+
+		in.ResetInputBytes(input)
+		if lexer.Read().Keyword != keyword.BLOCKSTRING {
+			b.Fatal("want blockstring")
+		}
+	}
+}

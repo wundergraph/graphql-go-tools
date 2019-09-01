@@ -9,10 +9,10 @@ import (
 
 // Lexer emits tokens from a input reader
 type Lexer struct {
-	input ast.Input
+	input *ast.Input
 }
 
-func (l *Lexer) SetInput(input ast.Input) {
+func (l *Lexer) SetInput(input *ast.Input) {
 	l.input = input
 }
 
@@ -521,46 +521,38 @@ func (l *Lexer) byteTerminatesSequence(r byte) bool {
 }
 
 func (l *Lexer) readBlockString(tok *token.Token) {
-
 	tok.Keyword = keyword.BLOCKSTRING
-	tok.SetStart(l.input.InputPosition, l.input.TextPosition)
 
-	var escaped bool
+	tok.SetStart(l.input.InputPosition, l.input.TextPosition)
+	tok.TextPosition.CharStart -= 3
+
+	escaped := false
+	quoteCount := 0
 
 	for {
-
-		nextRune := l.peekRune(false)
-
-		switch nextRune {
-		case runes.QUOTE, runes.EOF:
+		next := l.readRune()
+		switch next {
+		case runes.EOF:
+			return
+		case runes.QUOTE:
 			if escaped {
-				escaped = false
-				l.readRune()
-			} else {
-
-				isMultiLineStringEnd := l.peekEquals(false, runes.QUOTE, runes.QUOTE, runes.QUOTE)
-
-				if !isMultiLineStringEnd {
-					escaped = false
-					l.readRune()
-				} else {
-					tok.SetEnd(l.input.InputPosition, l.input.TextPosition)
-					tok.TextPosition.CharStart -= 3
-					tok.TextPosition.CharEnd += 3
-					l.swallowAmount(3)
-					return
-				}
+				escaped = !escaped
+				continue
 			}
+
+			quoteCount++
+
+			if quoteCount == 3 {
+				tok.SetEnd(l.input.InputPosition-3, l.input.TextPosition)
+				return
+			}
+
 		case runes.BACKSLASH:
-			l.readRune()
-			if escaped {
-				escaped = false
-			} else {
-				escaped = true
-			}
+			escaped = !escaped
+			quoteCount = 0
 		default:
-			l.readRune()
 			escaped = false
+			quoteCount = 0
 		}
 	}
 }
