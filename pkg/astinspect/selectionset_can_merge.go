@@ -222,40 +222,5 @@ func (s *selectionSetCanMerge) fieldsCanMerge(left int, right int, enclosingNode
 		return false
 	}
 
-	/*
-		if s.operation.FieldHasSelections(left) != s.operation.FieldHasSelections(right) {
-			return false
-		}
-
-		if s.operation.FieldHasSelections(left) {
-			return true
-		}
-
-			leftSelectionSet := s.operation.Fields[left].SelectionSet
-			rightSelectionSet := s.operation.Fields[right].SelectionSet
-
-			leftSelections := s.operation.SelectionSets[leftSelectionSet].SelectionRefs
-			rightSelections := s.operation.SelectionSets[rightSelectionSet].SelectionRefs
-
-			if len(leftSelections) != len(rightSelections) {
-				return false
-			}
-
-			definition, err := s.definition.NodeFieldDefinitionByName(enclosingNode, leftName)
-			if err != nil {
-				return false
-			}
-
-			definitionNode := s.definition.Index.Nodes[string(s.definition.FieldDefinitionName(definition))]
-
-			for i := 0; i < len(leftSelections); i++ {
-				leftSelection := s.operation.Selections[leftSelections[i]]
-				rightSelection := s.operation.Selections[rightSelections[i]]
-
-				if !s.selectionsCanMerge(leftSelection, rightSelection, definitionNode, definitionNode) {
-					return false
-				}
-			}*/
-
 	return true
 }
