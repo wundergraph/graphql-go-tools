@@ -11,12 +11,6 @@ func FieldsCanMerge(document *ast.Document, left, right int) bool {
 	leftAlias := document.FieldAlias(left)
 	rightAlias := document.FieldAlias(right)
 
-	/*	_leftName := string(leftName)
-		_rightName := string(rightName)
-		_leftAlias := string(leftAlias)
-		_rightAlias := string(rightAlias)
-		_, _, _, _ = _leftName, _leftAlias, _rightName, _rightAlias*/
-
 	leftHasAlias := document.Fields[left].Alias.IsDefined
 	rightHasAlias := document.Fields[right].Alias.IsDefined
 	noAlias := !leftHasAlias && !rightHasAlias
