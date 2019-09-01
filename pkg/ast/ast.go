@@ -331,10 +331,6 @@ func (d *Document) NodeTypeName(node Node) ByteSlice {
 	return d.Input.ByteSlice(ref)
 }
 
-func (d *Document) FieldDefinitionName(ref int) ByteSlice {
-	return d.Input.ByteSlice(d.FieldDefinitions[ref].Name)
-}
-
 func (d *Document) FieldDefinitionArgumentsDefinitions(ref int) []int {
 	return d.FieldDefinitions[ref].ArgumentsDefinition.Refs
 }
@@ -467,7 +463,7 @@ func (d *Document) NodeImplementsInterface(node Node, interfaceNode Node) bool {
 	interfaceFields := d.NodeFieldDefinitions(interfaceNode)
 
 	for _, i := range interfaceFields {
-		interfaceFieldName := d.FieldDefinitionName(i)
+		interfaceFieldName := d.FieldDefinitionNameBytes(i)
 		if !d.FieldDefinitionsContainField(nodeFields, interfaceFieldName) {
 			return false
 		}
@@ -478,7 +474,7 @@ func (d *Document) NodeImplementsInterface(node Node, interfaceNode Node) bool {
 
 func (d *Document) FieldDefinitionsContainField(definitions []int, field ByteSlice) bool {
 	for _, i := range definitions {
-		if bytes.Equal(field, d.FieldDefinitionName(i)) {
+		if bytes.Equal(field, d.FieldDefinitionNameBytes(i)) {
 			return true
 		}
 	}
@@ -993,6 +989,23 @@ type FieldDefinition struct {
 	Colon               position.Position        // :
 	Type                int                      // e.g. String
 	Directives          DirectiveList            // e.g. @foo
+}
+
+func (d *Document) FieldDefinitionNameBytes(ref int) ByteSlice {
+	return d.Input.ByteSlice(d.FieldDefinitions[ref].Name)
+}
+
+func (d *Document) FieldDefinitionNameString(ref int) string {
+	return string(d.FieldDefinitionNameBytes(ref))
+}
+
+func (d *Document) FieldDefinitionDirectiveByName(fieldDefinition int, directiveName ByteSlice) (ref int, exists bool) {
+	for _, i := range d.FieldDefinitions[fieldDefinition].Directives.Refs {
+		if bytes.Equal(directiveName, d.DirectiveNameBytes(i)) {
+			return i, true
+		}
+	}
+	return
 }
 
 type InputValueDefinitionList struct {
