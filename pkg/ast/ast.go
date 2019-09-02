@@ -8,6 +8,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 	"io"
 	"log"
+	"strconv"
 )
 
 type OperationType int
@@ -1167,6 +1168,16 @@ type IntValue struct {
 	Raw          ByteSliceReference // e.g. 123
 }
 
+func (d *Document) IntValueAsInt(ref int) (out int) {
+	in := d.Input.ByteSliceString(d.IntValues[ref].Raw)
+	raw, _ := strconv.ParseInt(in, 10, 64)
+	if d.IntValues[ref].Negative {
+		out = -int(raw)
+	}
+	out = int(raw)
+	return
+}
+
 // FloatValue
 // example:
 // 13.37 / -13.37
@@ -1241,12 +1252,13 @@ type ObjectTypeExtension struct {
 }
 
 type InputValueDefinition struct {
-	Description  Description        // optional, e.g. "input Foo is..."
-	Name         ByteSliceReference // e.g. Foo
-	Colon        position.Position  // :
-	Type         int                // e.g. String
-	DefaultValue DefaultValue       // e.g. = "Bar"
-	Directives   DirectiveList      // e.g. @baz
+	Description   Description        // optional, e.g. "input Foo is..."
+	Name          ByteSliceReference // e.g. Foo
+	Colon         position.Position  // :
+	Type          int                // e.g. String
+	DefaultValue  DefaultValue       // e.g. = "Bar"
+	HasDirectives bool
+	Directives    DirectiveList // e.g. @baz
 }
 
 func (d *Document) InputValueDefinitionName(ref int) ByteSlice {
@@ -1261,6 +1273,18 @@ func (d *Document) InputValueDefinitionArgumentIsOptional(ref int) bool {
 	nonNull := d.Types[d.InputValueDefinitions[ref].Type].TypeKind == TypeKindNonNull
 	hasDefault := d.InputValueDefinitions[ref].DefaultValue.IsDefined
 	return !nonNull || hasDefault
+}
+
+func (d *Document) InputValueDefinitionHasDirective(ref int, directiveName ByteSlice) bool {
+	if !d.InputValueDefinitions[ref].HasDirectives {
+		return false
+	}
+	for _, i := range d.InputValueDefinitions[ref].Directives.Refs {
+		if bytes.Equal(directiveName, d.DirectiveNameBytes(i)) {
+			return true
+		}
+	}
+	return false
 }
 
 type Type struct {
