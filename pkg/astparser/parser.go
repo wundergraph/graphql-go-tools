@@ -902,6 +902,7 @@ func (p *Parser) parseInputValueDefinition() int {
 	}
 	if p.peekEquals(keyword.AT) {
 		inputValueDefinition.Directives = p.parseDirectiveList()
+		inputValueDefinition.HasDirectives = len(inputValueDefinition.Directives.Refs) > 0
 	}
 
 	p.document.InputValueDefinitions = append(p.document.InputValueDefinitions, inputValueDefinition)
