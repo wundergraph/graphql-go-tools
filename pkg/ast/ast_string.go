@@ -116,17 +116,18 @@ func _() {
 	_ = x[NodeKindOperationDefinition-38]
 	_ = x[NodeKindSelectionSet-39]
 	_ = x[NodeKindField-40]
-	_ = x[NodeKindFragmentSpread-41]
-	_ = x[NodeKindInlineFragment-42]
-	_ = x[NodeKindFragmentDefinition-43]
-	_ = x[NodeKindArgument-44]
-	_ = x[NodeKindDirective-45]
-	_ = x[NodeKindVariableDefinition-46]
+	_ = x[NodeKindFieldDefinition-41]
+	_ = x[NodeKindFragmentSpread-42]
+	_ = x[NodeKindInlineFragment-43]
+	_ = x[NodeKindFragmentDefinition-44]
+	_ = x[NodeKindArgument-45]
+	_ = x[NodeKindDirective-46]
+	_ = x[NodeKindVariableDefinition-47]
 }
 
-const _NodeKind_name = "NodeKindUnknownNodeKindSchemaDefinitionNodeKindSchemaExtensionNodeKindObjectTypeDefinitionNodeKindObjectTypeExtensionNodeKindInterfaceTypeDefinitionNodeKindInterfaceTypeExtensionNodeKindUnionTypeDefinitionNodeKindUnionTypeExtensionNodeKindEnumTypeDefinitionNodeKindEnumTypeExtensionNodeKindInputObjectTypeDefinitionNodeKindInputValueDefinitionNodeKindInputObjectTypeExtensionNodeKindScalarTypeDefinitionNodeKindDirectiveDefinitionNodeKindOperationDefinitionNodeKindSelectionSetNodeKindFieldNodeKindFragmentSpreadNodeKindInlineFragmentNodeKindFragmentDefinitionNodeKindArgumentNodeKindDirectiveNodeKindVariableDefinition"
+const _NodeKind_name = "NodeKindUnknownNodeKindSchemaDefinitionNodeKindSchemaExtensionNodeKindObjectTypeDefinitionNodeKindObjectTypeExtensionNodeKindInterfaceTypeDefinitionNodeKindInterfaceTypeExtensionNodeKindUnionTypeDefinitionNodeKindUnionTypeExtensionNodeKindEnumTypeDefinitionNodeKindEnumTypeExtensionNodeKindInputObjectTypeDefinitionNodeKindInputValueDefinitionNodeKindInputObjectTypeExtensionNodeKindScalarTypeDefinitionNodeKindDirectiveDefinitionNodeKindOperationDefinitionNodeKindSelectionSetNodeKindFieldNodeKindFieldDefinitionNodeKindFragmentSpreadNodeKindInlineFragmentNodeKindFragmentDefinitionNodeKindArgumentNodeKindDirectiveNodeKindVariableDefinition"
 
-var _NodeKind_index = [...]uint16{0, 15, 39, 62, 90, 117, 148, 178, 205, 231, 257, 282, 315, 343, 375, 403, 430, 457, 477, 490, 512, 534, 560, 576, 593, 619}
+var _NodeKind_index = [...]uint16{0, 15, 39, 62, 90, 117, 148, 178, 205, 231, 257, 282, 315, 343, 375, 403, 430, 457, 477, 490, 513, 535, 557, 583, 599, 616, 642}
 
 func (i NodeKind) String() string {
 	i -= 22
