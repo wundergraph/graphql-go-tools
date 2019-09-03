@@ -348,7 +348,7 @@ func (p *printingVisitor) EnterArgument(ref int, info Info) Instruction {
 	p.enter()
 	argName := p.operation.ArgumentNameString(ref)
 	parentTypeName := p.definition.NodeTypeNameString(info.EnclosingTypeDefinition)
-	def := p.definition.InputValueDefinitions[info.InputValueDefinition]
+	def := p.definition.InputValueDefinitions[info.Definition.Ref]
 	p.must(fmt.Fprintf(p.out, "EnterArgument(%s::%s): ref: %d, definition: %+v, info: %+v\n", argName, parentTypeName, ref, def, info))
 	return Instruction{}
 }
@@ -357,7 +357,7 @@ func (p *printingVisitor) LeaveArgument(ref int, info Info) Instruction {
 	p.leave()
 	argName := p.operation.ArgumentNameString(ref)
 	parentTypeName := p.definition.NodeTypeNameString(info.EnclosingTypeDefinition)
-	def := p.definition.InputValueDefinitions[info.InputValueDefinition]
+	def := p.definition.InputValueDefinitions[info.Definition.Ref]
 	p.must(fmt.Fprintf(p.out, "LeaveArgument(%s::%s): ref: %d,definition: %+v, info: %+v\n", argName, parentTypeName, ref, def, info))
 	return Instruction{}
 }
