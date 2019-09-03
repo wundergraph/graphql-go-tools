@@ -29,7 +29,7 @@ func TestExecutionValidation(t *testing.T) {
 
 	run := func(operationInput string, rule Rule, expectation ValidationState) {
 
-		definition := mustDocument(astparser.ParseGraphqlDocumentBytes(testDefinition))
+		definition := mustDocument(astparser.ParseGraphqlDocumentString(testDefinition))
 		operation := mustDocument(astparser.ParseGraphqlDocumentString(operationInput))
 
 		err := astnormalization.NormalizeOperation(operation, definition)
@@ -2749,7 +2749,134 @@ func TestExecutionValidation(t *testing.T) {
 	})
 }
 
-var testDefinition = []byte(`
+func BenchmarkValidation(b *testing.B) {
+
+	must := func(err error) {
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	mustDocument := func(doc *ast.Document, err error) *ast.Document {
+		must(err)
+		return doc
+	}
+
+	run := func(b *testing.B, definition, operation string, state ValidationState) {
+
+		op, def := mustDocument(astparser.ParseGraphqlDocumentString(operation)), mustDocument(astparser.ParseGraphqlDocumentString(definition))
+
+		must(astnormalization.NormalizeOperation(op, def))
+
+		validator := DefaultOperationValidator()
+
+		b.ResetTimer()
+		b.ReportAllocs()
+
+		for i := 0; i < b.N; i++ {
+			out := validator.Validate(op, def)
+			if out.ValidationState != state {
+				panic(fmt.Errorf("want state: %s, got: %s, reason: %s", state, out.ValidationState, out.Reason))
+			}
+		}
+	}
+
+	b.Run("simple query", func(b *testing.B) {
+		run(b, testDefinition, `
+				query getDogName {
+					dog {
+						name
+					}
+				}
+				query getOwnerName {
+					dog {
+						owner {
+							name
+						}
+					}
+				}`, Valid)
+	})
+	b.Run("complex", func(b *testing.B) {
+		run(b, testDefinition, `
+				query housetrainedQueryOne($atOtherHomes: Boolean) {
+					dog {
+						...isHousetrainedFragment
+					}
+				}
+				query housetrainedQueryTwo($atOtherHomes: Boolean) {
+					dog {
+						...isHousetrainedFragment
+					}
+				}
+				fragment isHousetrainedFragment on Dog {
+					isHousetrained(atOtherHomes: $atOtherHomes)
+				}`, Valid)
+	})
+	b.Run("nested", func(b *testing.B) {
+		run(b, testDefinition, `
+				{
+					nested(input: {
+						requiredString: "str",
+						requiredListOfOptionalStrings: ["str"],
+						requiredListOfRequiredStrings: ["str"],
+						requiredListOfOptionalStringsWithDefault: ["more strings"]
+						optionalListOfNestedInput: [
+							{
+								requiredString: "str",
+								requiredListOfOptionalStrings: [],
+								requiredListOfRequiredStrings: ["str"]
+							},
+							{
+								requiredString: "str",
+								requiredListOfOptionalStrings: [],
+								requiredListOfRequiredStrings: ["str"]
+							}
+						]
+					})
+				}`, Valid)
+	})
+	b.Run("args", func(b *testing.B) {
+		run(b, testDefinition, `
+				{
+					arguments { ...stringIntoInt }
+				}
+				fragment stringIntoInt on ValidArguments {
+					intArgField(intArg: "123")
+				}`, Invalid)
+	})
+	b.Run("interfaces", func(b *testing.B) {
+		run(b, testDefinition, `
+				query conflictingDifferingResponses {
+					catOrDog {
+						...catDogFrag
+					}
+				}
+				fragment catDogFrag on CatOrDog {
+					...catFrag
+					...dogFrag
+				}
+				fragment catFrag on Cat {
+					someValue: meowVolume
+				}
+				fragment dogFrag on Dog {
+					someValue: barkVolume
+				}`, Valid)
+	})
+	b.Run("union", func(b *testing.B) {
+		run(b, testDefinition, `
+				fragment inDirectFieldSelectionOnUnion on CatOrDog {
+					__typename
+					... on Pet {
+						name
+					}
+					... on Dog {
+						x
+					}
+				}`, Invalid)
+	})
+}
+
+var testDefinition = `
 schema {
 	query: Query
 	mutation: Mutation
@@ -3067,4 +3194,4 @@ enum __TypeKind {
     LIST
     "Indicates this type is a non-null. ofType is a valid field."
     NON_NULL
-}`)
+}`
