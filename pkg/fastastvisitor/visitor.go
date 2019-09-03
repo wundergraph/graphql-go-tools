@@ -160,6 +160,7 @@ type (
 		FragmentDefinitionVisitor
 		VariableDefinitionVisitor
 		DirectiveVisitor
+		DocumentVisitor
 	}
 	EnterDocumentVisitor interface {
 		EnterDocument(operation, definition *ast.Document)

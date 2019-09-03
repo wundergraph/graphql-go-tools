@@ -161,6 +161,14 @@ func (m *minimalVisitor) EnterField(ref int) {
 type dummyVisitor struct {
 }
 
+func (d *dummyVisitor) EnterDocument(operation, definition *ast.Document) {
+
+}
+
+func (d *dummyVisitor) LeaveDocument(operation, definition *ast.Document) {
+
+}
+
 func (d *dummyVisitor) EnterDirective(ref int) {
 
 }
