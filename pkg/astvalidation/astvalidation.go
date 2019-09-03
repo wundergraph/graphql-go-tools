@@ -10,6 +10,33 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
 )
 
+func DefaultOperationValidator() *OperationValidator {
+
+	validator := OperationValidator{
+		walker: astvisitor.NewWalker(48),
+	}
+
+	validator.RegisterRule(OperationNameUniqueness())
+	validator.RegisterRule(LoneAnonymousOperation())
+	validator.RegisterRule(SubscriptionSingleRootField())
+	validator.RegisterRule(FieldSelections())
+	validator.RegisterRule(FieldSelectionMerging())
+	validator.RegisterRule(ValidArguments())
+	validator.RegisterRule(Values())
+	validator.RegisterRule(ArgumentUniqueness())
+	validator.RegisterRule(RequiredArguments())
+	validator.RegisterRule(Fragments())
+	validator.RegisterRule(DirectivesAreDefined())
+	validator.RegisterRule(DirectivesAreInValidLocations())
+	validator.RegisterRule(VariableUniqueness())
+	validator.RegisterRule(DirectivesAreUniquePerLocation())
+	validator.RegisterRule(VariablesAreInputTypes())
+	validator.RegisterRule(AllVariableUsesDefined())
+	validator.RegisterRule(AllVariablesUsed())
+
+	return &validator
+}
+
 type ValidationState int
 
 const (
