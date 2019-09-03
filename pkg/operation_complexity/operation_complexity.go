@@ -118,7 +118,7 @@ func (c *complexityVisitor) EnterArgument(ref int, info astvisitor.Info) astvisi
 
 func (c *complexityVisitor) EnterField(ref int, info astvisitor.Info) astvisitor.Instruction {
 
-	if info.Definition.Kind != ast.NodeKindField {
+	if info.Definition.Kind != ast.NodeKindFieldDefinition {
 		return astvisitor.Instruction{}
 	}
 
@@ -138,6 +138,7 @@ func (c *complexityVisitor) EnterField(ref int, info astvisitor.Info) astvisitor
 }
 
 func (c *complexityVisitor) LeaveField(ref int, info astvisitor.Info) astvisitor.Instruction {
+
 	if len(c.multipliers) == 0 {
 		return astvisitor.Instruction{}
 	}

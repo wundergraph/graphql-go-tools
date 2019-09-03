@@ -114,6 +114,7 @@ var run = func(definition, operation string, expectedNodeCount, expectedComplexi
 	if err != nil {
 		panic(err)
 	}
+
 	if nodeCount != expectedNodeCount {
 		panic(fmt.Errorf("want complexity: %d, got: %d", expectedNodeCount, nodeCount))
 	}

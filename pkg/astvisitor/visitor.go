@@ -698,6 +698,11 @@ func (w *Walker) walkField(ref int, enclosing Info) {
 		EnclosingTypeDefinition: enclosing.EnclosingTypeDefinition,
 	}
 
+	if definition, err := w.definition.NodeFieldDefinitionByName(enclosing.EnclosingTypeDefinition, w.document.FieldName(ref)); err == nil {
+		info.Definition.Kind = ast.NodeKindFieldDefinition
+		info.Definition.Ref = definition
+	}
+
 	for i := range w.visitors.enterField {
 		w.enterField(i, ref, info)
 		if w.stop {
