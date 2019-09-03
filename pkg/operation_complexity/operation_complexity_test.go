@@ -3,6 +3,7 @@ package operation_complexity
 import (
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
 	"testing"
 )
@@ -87,6 +88,9 @@ func TestNodeCount(t *testing.T) {
 				  }
 				}`, 920, 221)
 	})
+	t.Run("introspection query", func(t *testing.T) {
+		run(testDefinition, introspectionQuery, 0, 0)
+	})
 }
 
 var must = func(err error) {
@@ -104,7 +108,9 @@ var run = func(definition, operation string, expectedNodeCount, expectedComplexi
 	def := mustDocument(astparser.ParseGraphqlDocumentString(definition))
 	op := mustDocument(astparser.ParseGraphqlDocumentString(operation))
 
-	nodeCount, complexity, err := NodeCount(op, def)
+	must(astnormalization.NormalizeOperation(op, def))
+
+	nodeCount, complexity, err := CalculateOperationComplexity(op, def)
 	if err != nil {
 		panic(err)
 	}
@@ -116,17 +122,17 @@ var run = func(definition, operation string, expectedNodeCount, expectedComplexi
 	}
 }
 
-func BenchmarkNodeCount(b *testing.B) {
+func BenchmarkEstimateComplexity(b *testing.B) {
 	def := mustDocument(astparser.ParseGraphqlDocumentString(testDefinition))
 	op := mustDocument(astparser.ParseGraphqlDocumentString(complexQuery))
 
-	counter := NewNodeCounter()
+	estimator := NewOperationComplexityEstimator()
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		nodeCount, complexity, err := counter.Do(op, def)
+		nodeCount, complexity, err := estimator.Do(op, def)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -227,6 +233,7 @@ input NewUserInput {
 }
 
 type Query {
+	__schema: __Schema! @nodeCountSkip
     user(id: ID!): User
     users(first: Int! @nodeCountMultiply, afterID: ID): [User]
     transactions(first: Int! @nodeCountMultiply, afterID: ID): [Transaction]
@@ -424,4 +431,105 @@ enum __TypeKind {
     LIST
     "Indicates this type is a non-null. 'ofType' is a valid field."
     NON_NULL
+}`
+
+const introspectionQuery = `
+query IntrospectionQuery {
+  __schema {
+    queryType {
+      name
+    }
+    mutationType {
+      name
+    }
+    subscriptionType {
+      name
+    }
+    types {
+      ...FullType
+    }
+    directives {
+      name
+      description
+      locations
+      args {
+        ...InputValue
+      }
+    }
+  }
+}
+
+fragment FullType on __Type {
+  kind
+  name
+  description
+  fields(includeDeprecated: true) {
+    name
+    description
+    args {
+      ...InputValue
+    }
+    type {
+      ...TypeRef
+    }
+    isDeprecated
+    deprecationReason
+  }
+  inputFields {
+    ...InputValue
+  }
+  interfaces {
+    ...TypeRef
+  }
+  enumValues(includeDeprecated: true) {
+    name
+    description
+    isDeprecated
+    deprecationReason
+  }
+  possibleTypes {
+    ...TypeRef
+  }
+}
+
+fragment InputValue on __InputValue {
+  name
+  description
+  type {
+    ...TypeRef
+  }
+  defaultValue
+}
+
+fragment TypeRef on __Type {
+  kind
+  name
+  ofType {
+    kind
+    name
+    ofType {
+      kind
+      name
+      ofType {
+        kind
+        name
+        ofType {
+          kind
+          name
+          ofType {
+            kind
+            name
+            ofType {
+              kind
+              name
+              ofType {
+                kind
+                name
+              }
+            }
+          }
+        }
+      }
+    }
+  }
 }`
