@@ -63,6 +63,7 @@ const (
 	NodeKindOperationDefinition
 	NodeKindSelectionSet
 	NodeKindField
+	NodeKindFieldDefinition
 	NodeKindFragmentSpread
 	NodeKindInlineFragment
 	NodeKindFragmentDefinition
