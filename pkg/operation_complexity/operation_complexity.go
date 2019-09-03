@@ -24,6 +24,7 @@ func NewNodeCounter() *NodeCounter {
 	walker.RegisterEnterDocumentVisitor(visitor)
 	walker.RegisterEnterArgumentVisitor(visitor)
 	walker.RegisterLeaveFieldVisitor(visitor)
+	walker.RegisterEnterFieldVisitor(visitor)
 	walker.RegisterEnterSelectionSetVisitor(visitor)
 
 	return &NodeCounter{
@@ -32,14 +33,15 @@ func NewNodeCounter() *NodeCounter {
 	}
 }
 
-func (n *NodeCounter) Do(operation, definition *ast.Document) (int, error) {
+func (n *NodeCounter) Do(operation, definition *ast.Document) (nodeCount, complexity int, err error) {
 	n.visitor.count = 0
+	n.visitor.complexity = 0
 	n.visitor.multipliers = n.visitor.multipliers[:0]
-	err := n.walker.Walk(operation, definition)
-	return n.visitor.count, err
+	err = n.walker.Walk(operation, definition)
+	return n.visitor.count, n.visitor.complexity, err
 }
 
-func NodeCount(operation, definition *ast.Document) (int, error) {
+func NodeCount(operation, definition *ast.Document) (nodeCount, complexity int, err error) {
 	counter := NewNodeCounter()
 	return counter.Do(operation, definition)
 }
@@ -47,12 +49,20 @@ func NodeCount(operation, definition *ast.Document) (int, error) {
 type nodeCountVisitor struct {
 	operation, definition *ast.Document
 	count                 int
+	complexity            int
 	multipliers           []multiplier
 }
 
 type multiplier struct {
 	fieldRef int
 	multi    int
+}
+
+func (n *nodeCountVisitor) calculateMultiplied(i int) int {
+	for _, j := range n.multipliers {
+		i = i * j.multi
+	}
+	return i
 }
 
 func (n *nodeCountVisitor) EnterDocument(operation, definition *ast.Document) astvisitor.Instruction {
@@ -83,6 +93,14 @@ func (n *nodeCountVisitor) EnterArgument(ref int, info astvisitor.Info) astvisit
 	return astvisitor.Instruction{}
 }
 
+func (n *nodeCountVisitor) EnterField(ref int, info astvisitor.Info) astvisitor.Instruction {
+	if !info.HasSelections {
+		return astvisitor.Instruction{}
+	}
+	n.complexity = n.complexity + n.calculateMultiplied(1)
+	return astvisitor.Instruction{}
+}
+
 func (n *nodeCountVisitor) LeaveField(ref int, info astvisitor.Info) astvisitor.Instruction {
 	if len(n.multipliers) == 0 {
 		return astvisitor.Instruction{}
@@ -101,12 +119,7 @@ func (n *nodeCountVisitor) EnterSelectionSet(ref int, info astvisitor.Info) astv
 		return astvisitor.Instruction{}
 	}
 
-	count := 1
-	for _, i := range n.multipliers {
-		count = count * i.multi
-	}
-
-	n.count = n.count + count
+	n.count = n.count + n.calculateMultiplied(1)
 
 	return astvisitor.Instruction{}
 }

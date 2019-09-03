@@ -10,7 +10,7 @@ import (
 func TestNodeCount(t *testing.T) {
 
 	t.Run("one user", func(t *testing.T) {
-		runNodeCount(testDefinition, `
+		run(testDefinition, `
 				{
 				  users(first: 1) {
 					id
@@ -21,10 +21,10 @@ func TestNodeCount(t *testing.T) {
 					  country
 					}
 				  }
-				}`, 2)
+				}`, 2, 2)
 	})
 	t.Run("multiple users", func(t *testing.T) {
-		runNodeCount(testDefinition, `
+		run(testDefinition, `
 				{
 				  users(first: 10) {
 					id
@@ -35,10 +35,10 @@ func TestNodeCount(t *testing.T) {
 					  country
 					}
 				  }
-				}`, 20)
+				}`, 20, 11)
 	})
 	t.Run("multiple users with multiple transactions", func(t *testing.T) {
-		runNodeCount(testDefinition, `
+		run(testDefinition, `
 				{
 				  users(first: 10) {
 					id
@@ -53,10 +53,10 @@ func TestNodeCount(t *testing.T) {
 						amount
 					}
 				  }
-				}`, 70)
+				}`, 70, 21)
 	})
 	t.Run("multiple users with multiple transactions with nested senders", func(t *testing.T) {
-		runNodeCount(testDefinition, `
+		run(testDefinition, `
 				{
 				  users(first: 10) {
 					id
@@ -85,7 +85,7 @@ func TestNodeCount(t *testing.T) {
 						}
 					}
 				  }
-				}`, 920)
+				}`, 920, 221)
 	})
 }
 
@@ -100,16 +100,19 @@ var mustDocument = func(document *ast.Document, err error) *ast.Document {
 	return document
 }
 
-var runNodeCount = func(definition, operation string, expectedNodeCount int) {
+var run = func(definition, operation string, expectedNodeCount, expectedComplexity int) {
 	def := mustDocument(astparser.ParseGraphqlDocumentString(definition))
 	op := mustDocument(astparser.ParseGraphqlDocumentString(operation))
 
-	out, err := NodeCount(op, def)
+	nodeCount, complexity, err := NodeCount(op, def)
 	if err != nil {
 		panic(err)
 	}
-	if out != expectedNodeCount {
-		panic(fmt.Errorf("want complexity: %d, got: %d", expectedNodeCount, out))
+	if nodeCount != expectedNodeCount {
+		panic(fmt.Errorf("want complexity: %d, got: %d", expectedNodeCount, nodeCount))
+	}
+	if complexity != expectedComplexity {
+		panic(fmt.Errorf("want complexity: %d, got: %d", expectedNodeCount, complexity))
 	}
 }
 
@@ -123,13 +126,16 @@ func BenchmarkNodeCount(b *testing.B) {
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		out, err := counter.Do(op, def)
+		nodeCount, complexity, err := counter.Do(op, def)
 		if err != nil {
 			b.Fatal(err)
 		}
 
-		if out != 920 {
-			b.Fatalf("want: 920, got: %d\n", out)
+		if nodeCount != 920 {
+			b.Fatalf("want nodeCount: 920, got: %d\n", nodeCount)
+		}
+		if complexity != 0 {
+			b.Fatalf("want complexity: 0, got: %d\n", complexity)
 		}
 	}
 }
