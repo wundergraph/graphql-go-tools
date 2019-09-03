@@ -492,6 +492,10 @@ func (d *Document) FieldHasSelections(ref int) bool {
 	return d.Fields[ref].HasSelections
 }
 
+func (d *Document) FieldHasDirectives(ref int) bool {
+	return d.Fields[ref].HasDirectives
+}
+
 func (d *Document) BooleanValue(ref int) BooleanValue {
 	return d.BooleanValues[ref]
 }
@@ -1022,6 +1026,42 @@ type Argument struct {
 	Value Value              // e.g. 100 or "Bar"
 }
 
+func (d *Document) ArgumentsBefore(ancestor Node, argument int) []int {
+	switch ancestor.Kind {
+	case NodeKindField:
+		for i, j := range d.Fields[ancestor.Ref].Arguments.Refs {
+			if argument == j {
+				return d.Fields[ancestor.Ref].Arguments.Refs[:i]
+			}
+		}
+	case NodeKindDirective:
+		for i, j := range d.Directives[ancestor.Ref].Arguments.Refs {
+			if argument == j {
+				return d.Directives[ancestor.Ref].Arguments.Refs[:i]
+			}
+		}
+	}
+	return nil
+}
+
+func (d *Document) ArgumentsAfter(ancestor Node, argument int) []int {
+	switch ancestor.Kind {
+	case NodeKindField:
+		for i, j := range d.Fields[ancestor.Ref].Arguments.Refs {
+			if argument == j {
+				return d.Fields[ancestor.Ref].Arguments.Refs[i+1:]
+			}
+		}
+	case NodeKindDirective:
+		for i, j := range d.Directives[ancestor.Ref].Arguments.Refs {
+			if argument == j {
+				return d.Directives[ancestor.Ref].Arguments.Refs[i+1:]
+			}
+		}
+	}
+	return nil
+}
+
 func (d *Document) PrintArgument(ref int, w io.Writer) error {
 	_, err := w.Write(d.Input.ByteSlice(d.Arguments[ref].Name))
 	if err != nil {
@@ -1077,7 +1117,9 @@ func (d *Document) PrintValue(value Value, w io.Writer) (err error) {
 			_, err = w.Write(literal.FALSE)
 		}
 	case ValueKindString:
+		_, err = w.Write(literal.QUOTE)
 		_, err = w.Write(d.Input.ByteSlice(d.StringValues[value.Ref].Content))
+		_, err = w.Write(literal.QUOTE)
 	case ValueKindInteger:
 		if d.IntValues[value.Ref].Negative {
 			_, err = w.Write(literal.SUB)
@@ -1554,6 +1596,24 @@ type OperationDefinition struct {
 	HasSelections          bool
 }
 
+func (d *Document) OperationDefinitionIsLastRootNode(ref int) bool {
+	for i := range d.RootNodes {
+		if d.RootNodes[i].Kind == NodeKindOperationDefinition && d.RootNodes[i].Ref == ref {
+			return len(d.RootNodes)-1 == i
+		}
+	}
+	return false
+}
+
+func (d *Document) FragmentDefinitionIsLastRootNode(ref int) bool {
+	for i := range d.RootNodes {
+		if d.RootNodes[i].Kind == NodeKindFragmentDefinition && d.RootNodes[i].Ref == ref {
+			return len(d.RootNodes)-1 == i
+		}
+	}
+	return false
+}
+
 type VariableDefinitionList struct {
 	LPAREN position.Position // (
 	Refs   []int             // VariableDefinition
@@ -1570,6 +1630,14 @@ type VariableDefinition struct {
 	DefaultValue  DefaultValue      // optional, e.g. = "Default"
 	HasDirectives bool
 	Directives    DirectiveList // optional, e.g. @foo
+}
+
+func (d *Document) VariableDefinitionsBefore(variableDefinition int) bool {
+	return variableDefinition != 0
+}
+
+func (d *Document) VariableDefinitionsAfter(variableDefinition int) bool {
+	return len(d.VariableDefinitions) != 1 && variableDefinition != len(d.VariableDefinitions)-1
 }
 
 func (d *Document) VariableDefinitionName(ref int) ByteSlice {
@@ -1608,6 +1676,60 @@ type SelectionSet struct {
 type Selection struct {
 	Kind SelectionKind // one of Field, FragmentSpread, InlineFragment
 	Ref  int           // reference to the actual selection
+}
+
+func (d *Document) SelectionsBeforeField(field int, selectionSet Node) bool {
+	if selectionSet.Kind != NodeKindSelectionSet {
+		return false
+	}
+
+	if len(d.SelectionSets[selectionSet.Ref].SelectionRefs) == 1 {
+		return false
+	}
+
+	for i, j := range d.SelectionSets[selectionSet.Ref].SelectionRefs {
+		if d.Selections[j].Kind == SelectionKindField && d.Selections[j].Ref == field {
+			return i != 0
+		}
+	}
+
+	return false
+}
+
+func (d *Document) SelectionsAfterField(field int, selectionSet Node) bool {
+	if selectionSet.Kind != NodeKindSelectionSet {
+		return false
+	}
+
+	if len(d.SelectionSets[selectionSet.Ref].SelectionRefs) == 1 {
+		return false
+	}
+
+	for i, j := range d.SelectionSets[selectionSet.Ref].SelectionRefs {
+		if d.Selections[j].Kind == SelectionKindField && d.Selections[j].Ref == field {
+			return i != len(d.SelectionSets[selectionSet.Ref].SelectionRefs)-1
+		}
+	}
+
+	return false
+}
+
+func (d *Document) SelectionsAfterInlineFragment(inlineFragment int, selectionSet Node) bool {
+	if selectionSet.Kind != NodeKindSelectionSet {
+		return false
+	}
+
+	if len(d.SelectionSets[selectionSet.Ref].SelectionRefs) == 1 {
+		return false
+	}
+
+	for i, j := range d.SelectionSets[selectionSet.Ref].SelectionRefs {
+		if d.Selections[j].Kind == SelectionKindInlineFragment && d.Selections[j].Ref == inlineFragment {
+			return i != len(d.SelectionSets[selectionSet.Ref].SelectionRefs)-1
+		}
+	}
+
+	return false
 }
 
 type Field struct {

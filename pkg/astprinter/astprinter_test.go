@@ -96,8 +96,15 @@ func TestPrint(t *testing.T) {
 							name
 						}
 					}
-				}`, `{dog {name: nickname ... @include(if: true){name}}}`)
+					cat {
+						name @include(if: true)
+						nickname
+					}
+				}`, `{dog {name: nickname ... @include(if: true){name}} cat {name @include(if: true) nickname}}`)
 		})
+	})
+	t.Run("complex operation", func(t *testing.T) {
+		run(benchmarkTestOperation, benchmarkTestOperationFlat)
 	})
 }
 
@@ -454,9 +461,12 @@ query VariableQuery($bar: String, $baz: Boolean) {
 query VariableQuery {
 	posts {
 		id @include(if: true)
+		user
 	}
 }
 `
+
+const benchmarkTestOperationFlat = `query PostsUserQuery {posts {id description user {id name}}} fragment FirstFragment on Post {id} query ArgsQuery {foo (bar: "barValue", baz: true){fooField}} query VariableQuery($bar: String, $baz: Boolean){foo (bar: $bar, baz: $baz){fooField}} query VariableQuery {posts {id @include(if: true) user}}`
 
 const benchmarkTestDefinition = `
 directive @include(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
