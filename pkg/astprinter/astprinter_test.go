@@ -109,45 +109,25 @@ func BenchmarkPrint(b *testing.B) {
 		}
 	}
 
-	run := func(b *testing.B, raw string, want string) {
-
-		parser := astparser.NewParser()
-
-		definition := ast.NewDocument()
-		definition.Input.ResetInputString(testDefinition)
-		must(parser.Parse(definition))
-
-		doc := ast.NewDocument()
-		doc.Input.ResetInputBytes([]byte(raw))
-		must(parser.Parse(doc))
-
-		buff := bytes.NewBuffer(make([]byte, 1024))
-
-		printer := Printer{}
-
-		b.ResetTimer()
-		b.ReportAllocs()
-
-		for i := 0; i < b.N; i++ {
-			buff.Reset()
-			printer.Print(doc, definition, buff)
-		}
+	mustDoc := func(doc *ast.Document, err error) *ast.Document {
+		must(err)
+		return doc
 	}
 
-	b.Run("complex", func(b *testing.B) {
-		run(b, `	
-				subscription sub {
-					...multipleSubscriptions
-				}
-				fragment multipleSubscriptions on Subscription {
-					newMessage {
-						body
-						sender
-					}
-					disallowedSecondRootField
-				}`,
-			"subscription sub {...multipleSubscriptions} fragment multipleSubscriptions on Subscription {newMessage {body sender} disallowedSecondRootField}")
-	})
+	def := mustDoc(astparser.ParseGraphqlDocumentString(benchmarkTestDefinition))
+	doc := mustDoc(astparser.ParseGraphqlDocumentString(benchmarkTestOperation))
+
+	buff := &bytes.Buffer{}
+
+	printer := Printer{}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		buff.Reset()
+		must(printer.Print(doc, def, buff))
+	}
 }
 
 const testDefinition = `
@@ -446,3 +426,59 @@ enum __TypeKind {
     "Indicates this type is a non-null. ofType is a valid field."
     NON_NULL
 }`
+
+const benchmarkTestOperation = `
+query PostsUserQuery {
+	posts {
+		id
+		description
+		user {
+			id
+			name
+		}
+	}
+}
+fragment FirstFragment on Post {
+	id
+}
+query ArgsQuery {
+	foo(bar: "barValue", baz: true){
+		fooField
+	}
+}
+query VariableQuery($bar: String, $baz: Boolean) {
+	foo(bar: $bar, baz: $baz){
+		fooField
+	}
+}
+query VariableQuery {
+	posts {
+		id @include(if: true)
+	}
+}
+`
+
+const benchmarkTestDefinition = `
+directive @include(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
+schema {
+	query: Query
+}
+type Query {
+	posts: [Post]
+	foo(bar: String!, baz: Boolean!): Foo
+}
+type User {
+	id: ID
+	name: String
+}
+type Post {
+	id: ID
+	description: String
+	user: User
+}
+type Foo {
+	fooField: String
+}
+scalar ID
+scalar String
+`
