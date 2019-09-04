@@ -328,6 +328,10 @@ func (d *Document) NodeTypeName(node Node) ByteSlice {
 		ref = d.InputObjectTypeDefinitions[node.Ref].Name
 	case NodeKindUnionTypeDefinition:
 		ref = d.UnionTypeDefinitions[node.Ref].Name
+	case NodeKindScalarTypeDefinition:
+		ref = d.ScalarTypeDefinitions[node.Ref].Name
+	case NodeKindDirectiveDefinition:
+		ref = d.DirectiveDefinitions[node.Ref].Name
 	}
 
 	return d.Input.ByteSlice(ref)
@@ -937,6 +941,18 @@ type SchemaDefinition struct {
 	SchemaLiteral                position.Position
 	Directives                   DirectiveList
 	RootOperationTypeDefinitions RootOperationTypeDefinitionList
+}
+
+func (d *Document) NodeDirectives(node Node) []int {
+	switch node.Kind {
+	case NodeKindField:
+		return d.Fields[node.Ref].Directives.Refs
+	case NodeKindInlineFragment:
+		return d.InlineFragments[node.Ref].Directives.Refs
+	case NodeKindFragmentSpread:
+		return d.FragmentSpreads[node.Ref].Directives.Refs
+	}
+	return nil
 }
 
 type DirectiveList struct {
