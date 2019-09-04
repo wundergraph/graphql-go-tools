@@ -1,26 +1,30 @@
 package fastastvisitor
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
 )
 
 type Walker struct {
-	err              error
-	document         *ast.Document
-	definition       *ast.Document
-	visitors         visitors
-	depth            int
-	ancestors        []ast.Node
-	parentDefinition ast.Node
-	stop             bool
-	skip             bool
-	revisit          bool
+	err                     error
+	document                *ast.Document
+	definition              *ast.Document
+	visitors                visitors
+	depth                   int
+	Ancestors               []ast.Node
+	EnclosingTypeDefinition ast.Node
+	typeDefinitions         []ast.Node
+	stop                    bool
+	skip                    bool
+	revisit                 bool
 }
 
 func NewWalker(ancestorSize int) Walker {
 	return Walker{
-		ancestors: make([]ast.Node, 0, ancestorSize),
+		Ancestors:       make([]ast.Node, 0, ancestorSize),
+		typeDefinitions: make([]ast.Node, 0, ancestorSize),
 	}
 }
 
@@ -364,7 +368,8 @@ func (w *Walker) RegisterDocumentVisitor(visitor DocumentVisitor) {
 
 func (w *Walker) Walk(document, definition *ast.Document) error {
 	w.err = nil
-	w.ancestors = w.ancestors[:0]
+	w.Ancestors = w.Ancestors[:0]
+	w.typeDefinitions = w.typeDefinitions[:0]
 	w.document = document
 	w.definition = definition
 	w.depth = 0
@@ -374,14 +379,82 @@ func (w *Walker) Walk(document, definition *ast.Document) error {
 }
 
 func (w *Walker) appendAncestor(ref int, kind ast.NodeKind) {
-	w.ancestors = append(w.ancestors, ast.Node{
+
+	w.Ancestors = append(w.Ancestors, ast.Node{
 		Kind: kind,
 		Ref:  ref,
 	})
+
+	var typeName []byte
+
+	switch kind {
+	case ast.NodeKindOperationDefinition:
+		switch w.document.OperationDefinitions[ref].OperationType {
+		case ast.OperationTypeQuery:
+			typeName = w.definition.Index.QueryTypeName
+		case ast.OperationTypeMutation:
+			typeName = w.definition.Index.MutationTypeName
+		case ast.OperationTypeSubscription:
+			typeName = w.definition.Index.SubscriptionTypeName
+		default:
+			return
+		}
+	case ast.NodeKindInlineFragment:
+		if !w.document.InlineFragmentHasTypeCondition(ref) {
+			return
+		}
+		typeName = w.document.InlineFragmentTypeConditionName(ref)
+	case ast.NodeKindFragmentDefinition:
+		typeName = w.document.FragmentDefinitionTypeName(ref)
+	case ast.NodeKindField:
+		fieldName := w.document.FieldName(ref)
+		if bytes.Equal(fieldName, literal.TYPENAME) {
+			typeName = literal.STRING
+		}
+		fields := w.definition.NodeFieldDefinitions(w.typeDefinitions[len(w.typeDefinitions)-1])
+		for _, i := range fields {
+			if bytes.Equal(fieldName, w.definition.FieldDefinitionNameBytes(i)) {
+				typeName = w.definition.ResolveTypeName(w.definition.FieldDefinitionType(i))
+				break
+			}
+		}
+		if typeName == nil {
+			w.StopWithErr(fmt.Errorf("field: '%s' not defined on type: %s", string(fieldName), w.definition.NodeTypeNameString(w.typeDefinitions[len(w.typeDefinitions)-1])))
+			return
+		}
+	default:
+		return
+	}
+
+	var exists bool
+	w.EnclosingTypeDefinition, exists = w.definition.Index.Nodes[string(typeName)]
+	if !exists {
+		w.StopWithErr(fmt.Errorf("type: '%s' not defined", string(typeName)))
+		return
+	}
+
+	w.typeDefinitions = append(w.typeDefinitions, w.EnclosingTypeDefinition)
 }
 
 func (w *Walker) removeLastAncestor() {
-	w.ancestors = w.ancestors[:len(w.ancestors)-1]
+
+	ancestor := w.Ancestors[len(w.Ancestors)-1]
+	w.Ancestors = w.Ancestors[:len(w.Ancestors)-1]
+
+	switch ancestor.Kind {
+	case ast.NodeKindOperationDefinition, ast.NodeKindFragmentDefinition:
+		w.typeDefinitions = w.typeDefinitions[:len(w.typeDefinitions)-1]
+		w.EnclosingTypeDefinition.Kind = ast.NodeKindUnknown
+		w.EnclosingTypeDefinition.Ref = -1
+	case ast.NodeKindInlineFragment:
+		if w.document.InlineFragmentHasTypeCondition(ancestor.Ref) {
+			w.typeDefinitions = w.typeDefinitions[:len(w.typeDefinitions)-1]
+			w.EnclosingTypeDefinition = w.typeDefinitions[len(w.typeDefinitions)-1]
+		}
+	case ast.NodeKindField:
+		w.typeDefinitions = w.typeDefinitions[:len(w.typeDefinitions)-1]
+		w.EnclosingTypeDefinition = w.typeDefinitions[len(w.typeDefinitions)-1]
+	}
 }
 
 func (w *Walker) increaseDepth() {
@@ -671,6 +744,9 @@ func (w *Walker) walkField(ref int) {
 	}
 
 	w.appendAncestor(ref, ast.NodeKindField)
+	if w.stop {
+		return
+	}
 
 	if len(w.document.Fields[ref].Arguments.Refs) != 0 {
 		for _, i := range w.document.Fields[ref].Arguments.Refs {
@@ -987,4 +1063,21 @@ func (w *Walker) StopWithErr(err error) {
 		return
 	}
 	w.err = err
+}
+
+func (w *Walker) ArgumentInputValueDefinition(argument int) (definition int, exits bool) {
+	argumentName := w.document.ArgumentName(argument)
+	ancestor := w.Ancestors[len(w.Ancestors)-1]
+	switch ancestor.Kind {
+	case ast.NodeKindField:
+		fieldName := w.document.FieldName(ancestor.Ref)
+		fieldTypeDef := w.typeDefinitions[len(w.typeDefinitions)-2]
+		definition = w.definition.NodeFieldDefinitionArgumentDefinitionByName(fieldTypeDef, fieldName, argumentName)
+		exits = definition != -1
+	case ast.NodeKindDirective:
+		directiveName := w.document.DirectiveNameBytes(ancestor.Ref)
+		definition = w.definition.DirectiveArgumentInputValueDefinition(directiveName, argumentName)
+		exits = definition != -1
+	}
+	return
 }
