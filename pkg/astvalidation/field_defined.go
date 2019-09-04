@@ -4,34 +4,34 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
+	"github.com/jensneuse/graphql-go-tools/pkg/fastastvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
 )
 
 type fieldDefined struct {
+	*fastastvisitor.Walker
 	operation  *ast.Document
 	definition *ast.Document
 }
 
-func (f *fieldDefined) EnterDocument(operation, definition *ast.Document) astvisitor.Instruction {
+func (f *fieldDefined) EnterDocument(operation, definition *ast.Document) {
 	f.operation = operation
 	f.definition = definition
-	return astvisitor.Instruction{}
 }
 
-func (f *fieldDefined) ValidateUnionField(ref int, info astvisitor.Info) error {
+func (f *fieldDefined) ValidateUnionField(ref int, enclosingTypeDefinition ast.Node) error {
 	if bytes.Equal(f.operation.FieldName(ref), literal.TYPENAME) {
 		return nil
 	}
 	fieldName := f.operation.FieldNameString(ref)
-	typeName := f.definition.NodeTypeNameString(info.EnclosingTypeDefinition)
+	typeName := f.definition.NodeTypeNameString(enclosingTypeDefinition)
 	return fmt.Errorf("field with name: %s not defined on union: %s", fieldName, typeName)
 }
 
-func (f *fieldDefined) ValidateInterfaceObjectTypeField(ref int, info astvisitor.Info) error {
+func (f *fieldDefined) ValidateInterfaceObjectTypeField(ref int, enclosingTypeDefinition ast.Node) error {
 	fieldName := f.operation.FieldName(ref)
 	hasSelections := f.operation.FieldHasSelections(ref)
-	definitions := f.definition.NodeFieldDefinitions(info.EnclosingTypeDefinition)
+	definitions := f.definition.NodeFieldDefinitions(enclosingTypeDefinition)
 	for _, i := range definitions {
 		definitionName := f.definition.FieldDefinitionNameBytes(i)
 		if bytes.Equal(fieldName, definitionName) {
@@ -48,32 +48,28 @@ func (f *fieldDefined) ValidateInterfaceObjectTypeField(ref int, info astvisitor
 		}
 	}
 
-	typeName := f.definition.NodeTypeNameString(info.EnclosingTypeDefinition)
+	typeName := f.definition.NodeTypeNameString(enclosingTypeDefinition)
 	return fmt.Errorf("field with name: %s not defined on type: %s", string(fieldName), typeName)
 }
 
-func (f *fieldDefined) ValidateScalarField(ref int, info astvisitor.Info) error {
+func (f *fieldDefined) ValidateScalarField(ref int, enclosingTypeDefinition ast.Node) error {
 	fieldName := f.operation.FieldNameString(ref)
-	typeName := f.operation.NodeTypeNameString(info.EnclosingTypeDefinition)
+	typeName := f.operation.NodeTypeNameString(enclosingTypeDefinition)
 	return fmt.Errorf("cannot select field: %s on scalar type: %s", fieldName, typeName)
 }
 
-func (f *fieldDefined) EnterField(ref int, info astvisitor.Info) astvisitor.Instruction {
+func (f *fieldDefined) EnterField(ref int) {
 	var err error
-	switch info.EnclosingTypeDefinition.Kind {
+	switch f.EnclosingTypeDefinition.Kind {
 	case ast.NodeKindUnionTypeDefinition:
-		err = f.ValidateUnionField(ref, info)
+		err = f.ValidateUnionField(ref, f.EnclosingTypeDefinition)
 	case ast.NodeKindInterfaceTypeDefinition, ast.NodeKindObjectTypeDefinition:
-		err = f.ValidateInterfaceObjectTypeField(ref, info)
+		err = f.ValidateInterfaceObjectTypeField(ref, f.EnclosingTypeDefinition)
 	case ast.NodeKindScalarTypeDefinition:
-		err = f.ValidateScalarField(ref, info)
+		err = f.ValidateScalarField(ref, f.EnclosingTypeDefinition)
 	}
 
 	if err != nil {
-		return astvisitor.Instruction{
-			Action:  astvisitor.StopWithError,
-			Message: err.Error(),
-		}
+		f.StopWithErr(err)
 	}
-	return astvisitor.Instruction{}
 }

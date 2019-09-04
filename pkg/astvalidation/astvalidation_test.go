@@ -1481,7 +1481,8 @@ func TestExecutionValidation(t *testing.T) {
 						ValidArguments(), Valid)
 				})
 				t.Run("124", func(t *testing.T) {
-					run(`	{
+					run(`
+								{
 									arguments {
 										...missingRequiredArg
 									}
@@ -2408,8 +2409,9 @@ func TestExecutionValidation(t *testing.T) {
 					DirectivesAreInValidLocations(), Invalid)
 			})
 			t.Run("150 variant", func(t *testing.T) {
-				run(`	mutation @onMutation {
-								dog
+				run(`
+							mutation @onMutation {
+								mutateDog
 							}`,
 					DirectivesAreInValidLocations(), Valid)
 			})
@@ -2420,14 +2422,16 @@ func TestExecutionValidation(t *testing.T) {
 					DirectivesAreInValidLocations(), Invalid)
 			})
 			t.Run("150 variant", func(t *testing.T) {
-				run(`	subscription @onMutation {
-								dog
+				run(`
+							subscription @onMutation {
+								foo
 							}`,
 					DirectivesAreInValidLocations(), Invalid)
 			})
 			t.Run("150 variant", func(t *testing.T) {
-				run(`	subscription @onSubscription {
-								dog
+				run(`
+							subscription @onSubscription {
+								foo
 							}`,
 					DirectivesAreInValidLocations(), Valid)
 			})
@@ -2463,7 +2467,8 @@ func TestExecutionValidation(t *testing.T) {
 					VariableUniqueness(), Invalid)
 			})
 			t.Run("154", func(t *testing.T) {
-				run(`query A($atOtherHomes: Boolean) {
+				run(`
+							query A($atOtherHomes: Boolean) {
 								...HouseTrainedFragment
 							}
 							query B($atOtherHomes: Boolean) {
@@ -2913,7 +2918,13 @@ input NestedInput {
 	optionalListOfNestedInput: [NestedInput]
 }
 
+type Field {
+	subfieldA: String
+	subfieldB: String
+}
+
 type Query {
+	field: Field
 	foo: String
 	bar: String
 	human: Human

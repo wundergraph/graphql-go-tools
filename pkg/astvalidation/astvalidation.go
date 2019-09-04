@@ -6,14 +6,14 @@ import (
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astinspect"
-	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
+	"github.com/jensneuse/graphql-go-tools/pkg/fastastvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
 )
 
 func DefaultOperationValidator() *OperationValidator {
 
 	validator := OperationValidator{
-		walker: astvisitor.NewWalker(48),
+		walker: fastastvisitor.NewWalker(48),
 	}
 
 	validator.RegisterRule(OperationNameUniqueness())
@@ -45,7 +45,7 @@ const (
 	Invalid
 )
 
-type Rule func(walker *astvisitor.Walker)
+type Rule func(walker *fastastvisitor.Walker)
 
 type Result struct {
 	ValidationState ValidationState
@@ -53,7 +53,7 @@ type Result struct {
 }
 
 type OperationValidator struct {
-	walker astvisitor.Walker
+	walker fastastvisitor.Walker
 }
 
 func (o *OperationValidator) RegisterRule(rule Rule) {
@@ -76,16 +76,18 @@ func (o *OperationValidator) Validate(operation, definition *ast.Document) Resul
 }
 
 func OperationNameUniqueness() Rule {
-	return func(walker *astvisitor.Walker) {
-		walker.RegisterEnterDocumentVisitor(&operationNameUniquenessVisitor{})
+	return func(walker *fastastvisitor.Walker) {
+		walker.RegisterEnterDocumentVisitor(&operationNameUniquenessVisitor{walker})
 	}
 }
 
-type operationNameUniquenessVisitor struct{}
+type operationNameUniquenessVisitor struct {
+	*fastastvisitor.Walker
+}
 
-func (_ operationNameUniquenessVisitor) EnterDocument(operation, definition *ast.Document) astvisitor.Instruction {
+func (o *operationNameUniquenessVisitor) EnterDocument(operation, definition *ast.Document) {
 	if len(operation.OperationDefinitions) <= 1 {
-		return astvisitor.Instruction{}
+		return
 	}
 
 	for i := range operation.OperationDefinitions {
@@ -98,153 +100,134 @@ func (_ operationNameUniquenessVisitor) EnterDocument(operation, definition *ast
 			right := operation.OperationDefinitions[k].Name
 
 			if ast.ByteSliceEquals(left, operation.Input, right, operation.Input) {
-				return astvisitor.Instruction{
-					Action:  astvisitor.StopWithError,
-					Message: fmt.Sprintf("Operation Name %s must be unique", string(operation.Input.ByteSlice(operation.OperationDefinitions[i].Name))),
-				}
+				o.StopWithErr(fmt.Errorf("Operation Name %s must be unique", string(operation.Input.ByteSlice(operation.OperationDefinitions[i].Name))))
+				return
 			}
 		}
 	}
-
-	return astvisitor.Instruction{}
 }
 
 func LoneAnonymousOperation() Rule {
-	return func(walker *astvisitor.Walker) {
-		walker.RegisterEnterDocumentVisitor(&loneAnonymousOperationVisitor{})
+	return func(walker *fastastvisitor.Walker) {
+		walker.RegisterEnterDocumentVisitor(&loneAnonymousOperationVisitor{walker})
 	}
 }
 
 type loneAnonymousOperationVisitor struct {
+	*fastastvisitor.Walker
 }
 
-func (_ loneAnonymousOperationVisitor) EnterDocument(operation, definition *ast.Document) astvisitor.Instruction {
+func (l *loneAnonymousOperationVisitor) EnterDocument(operation, definition *ast.Document) {
 	if len(operation.OperationDefinitions) <= 1 {
-		return astvisitor.Instruction{}
+		return
 	}
 
 	for i := range operation.OperationDefinitions {
 		if operation.OperationDefinitions[i].Name.Length() == 0 {
-			return astvisitor.Instruction{
-				Action:  astvisitor.StopWithError,
-				Message: "Anonymous Operation must be the only operation in a document.",
-			}
+			l.StopWithErr(fmt.Errorf("Anonymous Operation must be the only operation in a document."))
+			return
 		}
 	}
-
-	return astvisitor.Instruction{}
 }
 
 func SubscriptionSingleRootField() Rule {
-	return func(walker *astvisitor.Walker) {
-		visitor := subscriptionSingleRootFieldVisitor{}
-		walker.RegisterEnterDocumentVisitor(visitor)
+	return func(walker *fastastvisitor.Walker) {
+		visitor := subscriptionSingleRootFieldVisitor{walker}
+		walker.RegisterEnterDocumentVisitor(&visitor)
 	}
 }
 
 type subscriptionSingleRootFieldVisitor struct {
+	*fastastvisitor.Walker
 }
 
-func (_ subscriptionSingleRootFieldVisitor) EnterDocument(operation, definition *ast.Document) astvisitor.Instruction {
+func (s *subscriptionSingleRootFieldVisitor) EnterDocument(operation, definition *ast.Document) {
 	for i := range operation.OperationDefinitions {
 		if operation.OperationDefinitions[i].OperationType == ast.OperationTypeSubscription {
 			selections := len(operation.SelectionSets[operation.OperationDefinitions[i].SelectionSet].SelectionRefs)
 			if selections > 1 {
-				return astvisitor.Instruction{
-					Action:  astvisitor.StopWithError,
-					Message: "Subscription must only have one root selection",
-				}
+				s.StopWithErr(fmt.Errorf("Subscription must only have one root selection"))
+				return
 			} else if selections == 1 {
 				ref := operation.SelectionSets[operation.OperationDefinitions[i].SelectionSet].SelectionRefs[0]
 				if operation.Selections[ref].Kind == ast.SelectionKindField {
-					return astvisitor.Instruction{}
+					return
 				}
 			}
 		}
 	}
-
-	return astvisitor.Instruction{}
 }
 
 func FieldSelections() Rule {
-	return func(walker *astvisitor.Walker) {
-		fieldDefined := fieldDefined{}
+	return func(walker *fastastvisitor.Walker) {
+		fieldDefined := fieldDefined{
+			Walker: walker,
+		}
 		walker.RegisterEnterDocumentVisitor(&fieldDefined)
 		walker.RegisterEnterFieldVisitor(&fieldDefined)
 	}
 }
 
 func FieldSelectionMerging() Rule {
-	return func(walker *astvisitor.Walker) {
-		visitor := fieldSelectionMergingVisitor{}
+	return func(walker *fastastvisitor.Walker) {
+		visitor := fieldSelectionMergingVisitor{Walker: walker}
 		walker.RegisterEnterDocumentVisitor(&visitor)
 		walker.RegisterEnterSelectionSetVisitor(&visitor)
 	}
 }
 
 type fieldSelectionMergingVisitor struct {
+	*fastastvisitor.Walker
 	definition, operation *ast.Document
 }
 
-func (f *fieldSelectionMergingVisitor) EnterDocument(operation, definition *ast.Document) astvisitor.Instruction {
+func (f *fieldSelectionMergingVisitor) EnterDocument(operation, definition *ast.Document) {
 	f.operation = operation
 	f.definition = definition
-	return astvisitor.Instruction{}
 }
 
-func (f *fieldSelectionMergingVisitor) EnterSelectionSet(ref int, info astvisitor.Info) astvisitor.Instruction {
-	if !astinspect.SelectionSetCanMerge(ref, info.EnclosingTypeDefinition, f.operation, f.definition) {
-		return astvisitor.Instruction{
-			Action:  astvisitor.StopWithError,
-			Message: "selectionset cannot merge",
-		}
+func (f *fieldSelectionMergingVisitor) EnterSelectionSet(ref int) {
+	if !astinspect.SelectionSetCanMerge(ref, f.EnclosingTypeDefinition, f.operation, f.definition) {
+		f.StopWithErr(fmt.Errorf("selectionset cannot merge"))
 	}
-	return astvisitor.Instruction{}
 }
 
 func ValidArguments() Rule {
-	return func(walker *astvisitor.Walker) {
-		visitor := validArgumentsVisitor{}
+	return func(walker *fastastvisitor.Walker) {
+		visitor := validArgumentsVisitor{
+			Walker: walker,
+		}
 		walker.RegisterEnterDocumentVisitor(&visitor)
-		walker.RegisterEnterFieldVisitor(&visitor)
 		walker.RegisterEnterArgumentVisitor(&visitor)
 	}
 }
 
 type validArgumentsVisitor struct {
+	*fastastvisitor.Walker
 	operation, definition *ast.Document
 }
 
-func (v *validArgumentsVisitor) EnterDocument(operation, definition *ast.Document) astvisitor.Instruction {
+func (v *validArgumentsVisitor) EnterDocument(operation, definition *ast.Document) {
 	v.operation = operation
 	v.definition = definition
-	return astvisitor.Instruction{}
 }
 
-func (v *validArgumentsVisitor) EnterArgument(ref int, info astvisitor.Info) astvisitor.Instruction {
+func (v *validArgumentsVisitor) EnterArgument(ref int) {
 
-	if info.Definition.Kind != ast.NodeKindInputValueDefinition {
-		return astvisitor.Instruction{
-			Action:  astvisitor.StopWithError,
-			Message: fmt.Sprintf("argument: %s not defined", v.operation.ArgumentNameString(ref)),
-		}
+	definition, exists := v.ArgumentInputValueDefinition(ref)
+
+	if !exists {
+		v.StopWithErr(fmt.Errorf("argument: %s not defined", v.operation.ArgumentNameString(ref)))
+		return
 	}
 
 	value := v.operation.ArgumentValue(ref)
 
-	if !v.valueSatisfiesInputFieldDefinition(value, info.Definition.Ref) {
-		definition := v.definition.InputValueDefinitions[info.Definition.Ref]
-		return astvisitor.Instruction{
-			Action:  astvisitor.StopWithError,
-			Message: fmt.Sprintf("invalid argument value: %+v for definition: %+v", value, definition),
-		}
+	if !v.valueSatisfiesInputFieldDefinition(value, definition) {
+		definition := v.definition.InputValueDefinitions[definition]
+		v.StopWithErr(fmt.Errorf("invalid argument value: %+v for definition: %+v", value, definition))
+		return
 	}
-
-	return astvisitor.Instruction{}
-}
-
-func (_ validArgumentsVisitor) EnterField(ref int, info astvisitor.Info) astvisitor.Instruction {
-	return astvisitor.Instruction{}
 }
 
 func (v *validArgumentsVisitor) valueSatisfiesInputFieldDefinition(value ast.Value, inputValueDefinition int) bool {
@@ -375,30 +358,32 @@ func (v *validArgumentsVisitor) operationTypeSatisfiesDefinitionType(operationTy
 }
 
 func Values() Rule {
-	return func(walker *astvisitor.Walker) {
-		visitor := valuesVisitor{}
+	return func(walker *fastastvisitor.Walker) {
+		visitor := valuesVisitor{
+			Walker: walker,
+		}
 		walker.RegisterEnterDocumentVisitor(&visitor)
 		walker.RegisterEnterArgumentVisitor(&visitor)
 	}
 }
 
 type valuesVisitor struct {
+	*fastastvisitor.Walker
 	operation, definition *ast.Document
 }
 
-func (v *valuesVisitor) EnterDocument(operation, definition *ast.Document) astvisitor.Instruction {
+func (v *valuesVisitor) EnterDocument(operation, definition *ast.Document) {
 	v.operation = operation
 	v.definition = definition
-	return astvisitor.Instruction{}
 }
 
-func (v *valuesVisitor) EnterArgument(ref int, info astvisitor.Info) astvisitor.Instruction {
+func (v *valuesVisitor) EnterArgument(ref int) {
 
-	if info.Definition.Kind != ast.NodeKindInputValueDefinition {
-		return astvisitor.Instruction{
-			Action:  astvisitor.StopWithError,
-			Message: fmt.Sprintf("argument: %s not defined", v.operation.ArgumentNameString(ref)),
-		}
+	definition, exists := v.ArgumentInputValueDefinition(ref)
+
+	if !exists {
+		v.StopWithErr(fmt.Errorf("argument: %s not defined", v.operation.ArgumentNameString(ref)))
+		return
 	}
 
 	value := v.operation.ArgumentValue(ref)
@@ -406,25 +391,19 @@ func (v *valuesVisitor) EnterArgument(ref int, info astvisitor.Info) astvisitor.
 		variableName := v.operation.VariableValueName(value.Ref)
 		variableDefinition, exists := v.operation.VariableDefinitionByName(variableName)
 		if !exists {
-			return astvisitor.Instruction{
-				Action:  astvisitor.StopWithError,
-				Message: fmt.Sprintf("variable: %s not defined", string(variableName)),
-			}
+			v.StopWithErr(fmt.Errorf("variable: %s not defined", string(variableName)))
+			return
 		}
 		if !v.operation.VariableDefinitions[variableDefinition].DefaultValue.IsDefined {
-			return astvisitor.Instruction{} // variable has no default value, deep type check not required
+			return // variable has no default value, deep type check not required
 		}
 		value = v.operation.VariableDefinitions[variableDefinition].DefaultValue.Value
 	}
 
-	if !v.valueSatisfiesInputValueDefinitionType(value, v.definition.InputValueDefinitions[info.Definition.Ref].Type) {
-		return astvisitor.Instruction{
-			Action:  astvisitor.StopWithError,
-			Message: fmt.Sprintf("value for argument: %s doesn't satisfy requirements from input value definition: %s", v.operation.ArgumentNameString(ref), v.definition.InputValueDefinitionName(info.Definition.Ref)),
-		}
+	if !v.valueSatisfiesInputValueDefinitionType(value, v.definition.InputValueDefinitions[definition].Type) {
+		v.StopWithErr(fmt.Errorf("value for argument: %s doesn't satisfy requirements from input value definition: %s", v.operation.ArgumentNameString(ref), v.definition.InputValueDefinitionName(definition)))
+		return
 	}
-
-	return astvisitor.Instruction{}
 }
 
 func (v *valuesVisitor) valueSatisfiesInputValueDefinitionType(value ast.Value, definitionTypeRef int) bool {
@@ -575,59 +554,63 @@ func (v *valuesVisitor) valueSatisfiesScalar(value ast.Value, scalar int) bool {
 }
 
 func ArgumentUniqueness() Rule {
-	return func(walker *astvisitor.Walker) {
-		visitor := argumentUniquenessVisitor{}
+	return func(walker *fastastvisitor.Walker) {
+		visitor := argumentUniquenessVisitor{
+			Walker: walker,
+		}
 		walker.RegisterEnterDocumentVisitor(&visitor)
 		walker.RegisterEnterArgumentVisitor(&visitor)
 	}
 }
 
 type argumentUniquenessVisitor struct {
+	*fastastvisitor.Walker
 	operation *ast.Document
 }
 
-func (a *argumentUniquenessVisitor) EnterDocument(operation, definition *ast.Document) astvisitor.Instruction {
+func (a *argumentUniquenessVisitor) EnterDocument(operation, definition *ast.Document) {
 	a.operation = operation
-	return astvisitor.Instruction{}
 }
 
-func (a *argumentUniquenessVisitor) EnterArgument(ref int, info astvisitor.Info) astvisitor.Instruction {
+func (a *argumentUniquenessVisitor) EnterArgument(ref int) {
 
 	argumentName := a.operation.ArgumentName(ref)
+	argumentsAfter := a.operation.ArgumentsAfter(a.Ancestors[len(a.Ancestors)-1], ref)
 
-	for _, i := range info.ArgumentsAfter {
+	for _, i := range argumentsAfter {
 		if bytes.Equal(argumentName, a.operation.ArgumentName(i)) {
-			return astvisitor.Instruction{
-				Action:  astvisitor.StopWithError,
-				Message: fmt.Sprintf("argument: %s must be unique", string(argumentName)),
-			}
+			a.StopWithErr(fmt.Errorf("argument: %s must be unique", string(argumentName)))
+			return
 		}
 	}
-
-	return astvisitor.Instruction{}
 }
 
 func RequiredArguments() Rule {
-	return func(walker *astvisitor.Walker) {
-		visitor := requiredArgumentsVisitor{}
+	return func(walker *fastastvisitor.Walker) {
+		visitor := requiredArgumentsVisitor{
+			Walker: walker,
+		}
 		walker.RegisterEnterDocumentVisitor(&visitor)
 		walker.RegisterEnterFieldVisitor(&visitor)
 	}
 }
 
 type requiredArgumentsVisitor struct {
+	*fastastvisitor.Walker
 	operation, definition *ast.Document
 }
 
-func (r *requiredArgumentsVisitor) EnterDocument(operation, definition *ast.Document) astvisitor.Instruction {
+func (r *requiredArgumentsVisitor) EnterDocument(operation, definition *ast.Document) {
 	r.operation = operation
 	r.definition = definition
-	return astvisitor.Instruction{}
 }
 
-func (r *requiredArgumentsVisitor) EnterField(ref int, info astvisitor.Info) astvisitor.Instruction {
+func (r *requiredArgumentsVisitor) EnterField(ref int) {
 
-	for _, i := range info.InputValueDefinitions {
+	fieldName := r.operation.FieldName(ref)
+	inputValueDefinitions := r.definition.NodeFieldDefinitionArgumentsDefinitions(r.EnclosingTypeDefinition, fieldName)
+
+	for _, i := range inputValueDefinitions {
 		if r.definition.InputValueDefinitionArgumentIsOptional(i) {
 			continue
 		}
@@ -636,26 +619,21 @@ func (r *requiredArgumentsVisitor) EnterField(ref int, info astvisitor.Info) ast
 
 		argument, exists := r.operation.FieldArgument(ref, name)
 		if !exists {
-			return astvisitor.Instruction{
-				Action:  astvisitor.StopWithError,
-				Message: fmt.Sprintf("required argument: %s on field: %s missing", string(name), r.operation.FieldNameString(ref)),
-			}
+			r.StopWithErr(fmt.Errorf("required argument: %s on field: %s missing", string(name), r.operation.FieldNameString(ref)))
+			return
 		}
 
 		if r.operation.ArgumentValue(argument).Kind == ast.ValueKindNull {
-			return astvisitor.Instruction{
-				Action:  astvisitor.StopWithError,
-				Message: fmt.Sprintf("required argument: %s on field: %s must not be null", string(name), r.operation.FieldNameString(ref)),
-			}
+			r.StopWithErr(fmt.Errorf("required argument: %s on field: %s must not be null", string(name), r.operation.FieldNameString(ref)))
+			return
 		}
 	}
-
-	return astvisitor.Instruction{}
 }
 
 func Fragments() Rule {
-	return func(walker *astvisitor.Walker) {
+	return func(walker *fastastvisitor.Walker) {
 		visitor := fragmentsVisitor{
+			Walker:                     walker,
 			fragmentDefinitionsVisited: make([]ast.ByteSlice, 0, 8),
 		}
 		walker.RegisterEnterDocumentVisitor(&visitor)
@@ -667,30 +645,24 @@ func Fragments() Rule {
 }
 
 type fragmentsVisitor struct {
+	*fastastvisitor.Walker
 	operation, definition      *ast.Document
 	fragmentDefinitionsVisited []ast.ByteSlice
 }
 
-func (f *fragmentsVisitor) EnterFragmentSpread(ref int, info astvisitor.Info) astvisitor.Instruction {
-	if info.Ancestors[0].Kind == ast.NodeKindOperationDefinition {
-		return astvisitor.Instruction{
-			Action:  astvisitor.StopWithError,
-			Message: fmt.Sprintf("fragment spread: %s forms fragment cycle", f.operation.FragmentSpreadName(ref)),
-		}
+func (f *fragmentsVisitor) EnterFragmentSpread(ref int) {
+	if f.Ancestors[0].Kind == ast.NodeKindOperationDefinition {
+		f.StopWithErr(fmt.Errorf("fragment spread: %s forms fragment cycle", f.operation.FragmentSpreadName(ref)))
 	}
-	return astvisitor.Instruction{}
 }
 
-func (f *fragmentsVisitor) LeaveDocument(operation, definition *ast.Document) astvisitor.Instruction {
+func (f *fragmentsVisitor) LeaveDocument(operation, definition *ast.Document) {
 	for i := range f.fragmentDefinitionsVisited {
 		if !f.operation.FragmentDefinitionIsUsed(f.fragmentDefinitionsVisited[i]) {
-			return astvisitor.Instruction{
-				Action:  astvisitor.StopWithError,
-				Message: fmt.Sprintf("fragment: %s is never used", string(f.fragmentDefinitionsVisited[i])),
-			}
+			f.StopWithErr(fmt.Errorf("fragment: %s is never used", string(f.fragmentDefinitionsVisited[i])))
+			return
 		}
 	}
-	return astvisitor.Instruction{}
 }
 
 func (f *fragmentsVisitor) fragmentOnNodeIsAllowed(node ast.Node) bool {
@@ -702,143 +674,128 @@ func (f *fragmentsVisitor) fragmentOnNodeIsAllowed(node ast.Node) bool {
 	}
 }
 
-func (f *fragmentsVisitor) EnterInlineFragment(ref int, info astvisitor.Info) astvisitor.Instruction {
+func (f *fragmentsVisitor) EnterInlineFragment(ref int) {
 
 	if !f.operation.InlineFragmentHasTypeCondition(ref) {
-		return astvisitor.Instruction{}
+		return
 	}
 
 	typeName := f.operation.InlineFragmentTypeConditionName(ref)
 
 	node, exists := f.definition.Index.Nodes[string(typeName)]
 	if !exists {
-		return astvisitor.Instruction{
-			Action:  astvisitor.StopWithError,
-			Message: fmt.Sprintf("type: %s on inline framgent is not defined", string(typeName)),
-		}
+		f.StopWithErr(fmt.Errorf("type: %s on inline framgent is not defined", string(typeName)))
+		return
 	}
 
 	if !f.fragmentOnNodeIsAllowed(node) {
-		return astvisitor.Instruction{
-			Action:  astvisitor.StopWithError,
-			Message: fmt.Sprintf("inline fragment on type: %s of kind: %s is disallowed", string(typeName), node.Kind),
-		}
+		f.StopWithErr(fmt.Errorf("inline fragment on type: %s of kind: %s is disallowed", string(typeName), node.Kind))
+		return
 	}
 
-	if !f.definition.NodeFragmentIsAllowedOnNode(node, info.EnclosingTypeDefinition) {
-		return astvisitor.Instruction{
-			Action:  astvisitor.StopWithError,
-			Message: fmt.Sprintf("inline fragment on type: %s of kind: %s is disallowed", string(typeName), node.Kind),
-		}
+	if !f.definition.NodeFragmentIsAllowedOnNode(node, f.EnclosingTypeDefinition) {
+		f.StopWithErr(fmt.Errorf("inline fragment on type: %s of kind: %s is disallowed", string(typeName), node.Kind))
+		return
 	}
-
-	return astvisitor.Instruction{}
 }
 
-func (f *fragmentsVisitor) EnterDocument(operation, definition *ast.Document) astvisitor.Instruction {
+func (f *fragmentsVisitor) EnterDocument(operation, definition *ast.Document) {
 	f.operation = operation
 	f.definition = definition
 	f.fragmentDefinitionsVisited = f.fragmentDefinitionsVisited[:0]
-	return astvisitor.Instruction{}
 }
 
-func (f *fragmentsVisitor) EnterFragmentDefinition(ref int, info astvisitor.Info) astvisitor.Instruction {
+func (f *fragmentsVisitor) EnterFragmentDefinition(ref int) {
 
 	fragmentDefinitionName := f.operation.FragmentDefinitionName(ref)
 	typeName := f.operation.FragmentDefinitionTypeName(ref)
 
 	node, exists := f.definition.Index.Nodes[string(typeName)]
 	if !exists {
-		return astvisitor.Instruction{
-			Action:  astvisitor.StopWithError,
-			Message: fmt.Sprintf("type: %s on fragment: %s is not defined", string(typeName), string(fragmentDefinitionName)),
-		}
+		f.StopWithErr(fmt.Errorf("type: %s on fragment: %s is not defined", string(typeName), string(fragmentDefinitionName)))
+		return
 	}
 
 	if !f.fragmentOnNodeIsAllowed(node) {
-		return astvisitor.Instruction{
-			Action:  astvisitor.StopWithError,
-			Message: fmt.Sprintf("fragment definition: %s on type: %s of kind: %s is disallowed", string(fragmentDefinitionName), string(typeName), node.Kind),
-		}
+		f.StopWithErr(fmt.Errorf("fragment definition: %s on type: %s of kind: %s is disallowed", string(fragmentDefinitionName), string(typeName), node.Kind))
+		return
 	}
 
 	for i := range f.fragmentDefinitionsVisited {
 		if bytes.Equal(fragmentDefinitionName, f.fragmentDefinitionsVisited[i]) {
-			return astvisitor.Instruction{
-				Action:  astvisitor.StopWithError,
-				Message: fmt.Sprintf("fragment: %s must be unique", string(f.fragmentDefinitionsVisited[i])),
-			}
+			f.StopWithErr(fmt.Errorf("fragment: %s must be unique", string(f.fragmentDefinitionsVisited[i])))
+			return
 		}
 	}
 
 	f.fragmentDefinitionsVisited = append(f.fragmentDefinitionsVisited, fragmentDefinitionName)
-	return astvisitor.Instruction{}
 }
 
 func DirectivesAreDefined() Rule {
-	return func(walker *astvisitor.Walker) {
-		visitor := directivesAreDefinedVisitor{}
+	return func(walker *fastastvisitor.Walker) {
+		visitor := directivesAreDefinedVisitor{
+			Walker: walker,
+		}
 		walker.RegisterEnterDocumentVisitor(&visitor)
 		walker.RegisterEnterDirectiveVisitor(&visitor)
 	}
 }
 
 type directivesAreDefinedVisitor struct {
+	*fastastvisitor.Walker
 	operation, definition *ast.Document
 }
 
-func (d *directivesAreDefinedVisitor) EnterDocument(operation, definition *ast.Document) astvisitor.Instruction {
+func (d *directivesAreDefinedVisitor) EnterDocument(operation, definition *ast.Document) {
 	d.operation = operation
 	d.definition = definition
-	return astvisitor.Instruction{}
 }
 
-func (d *directivesAreDefinedVisitor) EnterDirective(ref int, info astvisitor.Info) astvisitor.Instruction {
+func (d *directivesAreDefinedVisitor) EnterDirective(ref int) {
 
-	if info.Definition.Kind != ast.NodeKindDirectiveDefinition {
-		return astvisitor.Instruction{
-			Action:  astvisitor.StopWithError,
-			Message: fmt.Sprintf("directive: %s not defined", d.operation.DirectiveNameString(ref)),
-		}
+	directiveName := d.operation.DirectiveNameBytes(ref)
+	definition, exists := d.definition.Index.Nodes[string(directiveName)]
+
+	if !exists || definition.Kind != ast.NodeKindDirectiveDefinition {
+		d.StopWithErr(fmt.Errorf("directive: %s not defined", string(directiveName)))
 	}
-
-	return astvisitor.Instruction{}
 }
 
 func DirectivesAreInValidLocations() Rule {
-	return func(walker *astvisitor.Walker) {
-		visitor := directivesAreInValidLocationsVisitor{}
+	return func(walker *fastastvisitor.Walker) {
+		visitor := directivesAreInValidLocationsVisitor{
+			Walker: walker,
+		}
 		walker.RegisterEnterDocumentVisitor(&visitor)
 		walker.RegisterEnterDirectiveVisitor(&visitor)
 	}
 }
 
 type directivesAreInValidLocationsVisitor struct {
+	*fastastvisitor.Walker
 	operation, definition *ast.Document
 }
 
-func (d *directivesAreInValidLocationsVisitor) EnterDocument(operation, definition *ast.Document) astvisitor.Instruction {
+func (d *directivesAreInValidLocationsVisitor) EnterDocument(operation, definition *ast.Document) {
 	d.operation = operation
 	d.definition = definition
-	return astvisitor.Instruction{}
 }
 
-func (d *directivesAreInValidLocationsVisitor) EnterDirective(ref int, info astvisitor.Info) astvisitor.Instruction {
+func (d *directivesAreInValidLocationsVisitor) EnterDirective(ref int) {
 
-	if info.Definition.Kind != ast.NodeKindDirectiveDefinition {
-		return astvisitor.Instruction{} // not defined, skip
+	directiveName := d.operation.DirectiveNameBytes(ref)
+	definition, exists := d.definition.Index.Nodes[string(directiveName)]
+
+	if !exists || definition.Kind != ast.NodeKindDirectiveDefinition {
+		return // not defined, skip
 	}
 
-	ancestor := info.Ancestors[len(info.Ancestors)-1]
+	ancestor := d.Ancestors[len(d.Ancestors)-1]
 
-	if !d.directiveDefinitionContainsNodeLocation(info.Definition.Ref, ancestor) {
-		return astvisitor.Instruction{
-			Action:  astvisitor.StopWithError,
-			Message: fmt.Sprintf("directive: %s not allowed on node kind: %s", d.operation.DirectiveNameString(ref), ancestor.Kind),
-		}
+	if !d.directiveDefinitionContainsNodeLocation(definition.Ref, ancestor) {
+		d.StopWithErr(fmt.Errorf("directive: %s not allowed on node kind: %s", d.operation.DirectiveNameString(ref), ancestor.Kind))
+		return
 	}
-
-	return astvisitor.Instruction{}
 }
 
 func (d *directivesAreInValidLocationsVisitor) directiveDefinitionContainsNodeLocation(definition int, node ast.Node) bool {
@@ -852,155 +809,165 @@ func (d *directivesAreInValidLocationsVisitor) directiveDefinitionContainsNodeLo
 }
 
 func VariableUniqueness() Rule {
-	return func(walker *astvisitor.Walker) {
-		visitor := variableUniquenessVisitor{}
+	return func(walker *fastastvisitor.Walker) {
+		visitor := variableUniquenessVisitor{
+			Walker: walker,
+		}
 		walker.RegisterEnterDocumentVisitor(&visitor)
 		walker.RegisterEnterVariableDefinitionVisitor(&visitor)
 	}
 }
 
 type variableUniquenessVisitor struct {
+	*fastastvisitor.Walker
 	operation, definition *ast.Document
 }
 
-func (v *variableUniquenessVisitor) EnterDocument(operation, definition *ast.Document) astvisitor.Instruction {
+func (v *variableUniquenessVisitor) EnterDocument(operation, definition *ast.Document) {
 	v.operation = operation
 	v.definition = definition
-	return astvisitor.Instruction{}
 }
 
-func (v *variableUniquenessVisitor) EnterVariableDefinition(ref int, info astvisitor.Info) astvisitor.Instruction {
+func (v *variableUniquenessVisitor) EnterVariableDefinition(ref int) {
 
 	name := v.operation.VariableDefinitionName(ref)
 
-	for _, i := range info.VariableDefinitionsAfter {
-		if bytes.Equal(name, v.operation.VariableDefinitionName(i)) {
-			return astvisitor.Instruction{
-				Action:  astvisitor.StopWithError,
-				Message: fmt.Sprintf("variable: %s must be unique", string(name)),
-			}
-		}
+	if v.Ancestors[0].Kind != ast.NodeKindOperationDefinition {
+		return
 	}
 
-	return astvisitor.Instruction{}
+	variableDefinitions := v.operation.OperationDefinitions[v.Ancestors[0].Ref].VariableDefinitions.Refs
+
+	for _, i := range variableDefinitions {
+		if i == ref {
+			continue
+		}
+		if bytes.Equal(name, v.operation.VariableDefinitionName(i)) {
+			v.StopWithErr(fmt.Errorf("variable: %s must be unique", string(name)))
+			return
+		}
+	}
 }
 
 func DirectivesAreUniquePerLocation() Rule {
-	return func(walker *astvisitor.Walker) {
-		visitor := directivesAreUniquePerLocationVisitor{}
+	return func(walker *fastastvisitor.Walker) {
+		visitor := directivesAreUniquePerLocationVisitor{
+			Walker: walker,
+		}
 		walker.RegisterEnterDocumentVisitor(&visitor)
 		walker.RegisterEnterDirectiveVisitor(&visitor)
 	}
 }
 
 type directivesAreUniquePerLocationVisitor struct {
+	*fastastvisitor.Walker
 	operation, definition *ast.Document
 }
 
-func (d *directivesAreUniquePerLocationVisitor) EnterDocument(operation, definition *ast.Document) astvisitor.Instruction {
+func (d *directivesAreUniquePerLocationVisitor) EnterDocument(operation, definition *ast.Document) {
 	d.operation = operation
 	d.definition = definition
-	return astvisitor.Instruction{}
 }
 
-func (d *directivesAreUniquePerLocationVisitor) EnterDirective(ref int, info astvisitor.Info) astvisitor.Instruction {
+func (d *directivesAreUniquePerLocationVisitor) EnterDirective(ref int) {
 
 	directiveName := d.operation.DirectiveNameBytes(ref)
+	directives := d.operation.NodeDirectives(d.Ancestors[len(d.Ancestors)-1])
 
-	for _, i := range info.DirectivesAfter {
-		if bytes.Equal(directiveName, d.operation.DirectiveNameBytes(i)) {
-			return astvisitor.Instruction{
-				Action:  astvisitor.StopWithError,
-				Message: fmt.Sprintf("directive: %s must be unique per location", string(directiveName)),
-			}
+	for _, j := range directives {
+		if j == ref {
+			continue
+		}
+		if bytes.Equal(directiveName, d.operation.DirectiveNameBytes(j)) {
+			d.StopWithErr(fmt.Errorf("directive: %s must be unique per location", string(directiveName)))
+			return
 		}
 	}
-
-	return astvisitor.Instruction{}
 }
 
 func VariablesAreInputTypes() Rule {
-	return func(walker *astvisitor.Walker) {
-		visitor := variablesAreInputTypesVisitor{}
+	return func(walker *fastastvisitor.Walker) {
+		visitor := variablesAreInputTypesVisitor{
+			Walker: walker,
+		}
 		walker.RegisterEnterDocumentVisitor(&visitor)
 		walker.RegisterEnterVariableDefinitionVisitor(&visitor)
 	}
 }
 
 type variablesAreInputTypesVisitor struct {
+	*fastastvisitor.Walker
 	operation, definition *ast.Document
 }
 
-func (v *variablesAreInputTypesVisitor) EnterDocument(operation, definition *ast.Document) astvisitor.Instruction {
+func (v *variablesAreInputTypesVisitor) EnterDocument(operation, definition *ast.Document) {
 	v.operation = operation
 	v.definition = definition
-	return astvisitor.Instruction{}
 }
 
-func (v *variablesAreInputTypesVisitor) EnterVariableDefinition(ref int, info astvisitor.Info) astvisitor.Instruction {
+func (v *variablesAreInputTypesVisitor) EnterVariableDefinition(ref int) {
 
 	typeName := v.operation.ResolveTypeName(v.operation.VariableDefinitions[ref].Type)
 	typeDefinitionNode := v.definition.Index.Nodes[string(typeName)]
 	switch typeDefinitionNode.Kind {
 	case ast.NodeKindInputObjectTypeDefinition, ast.NodeKindScalarTypeDefinition, ast.NodeKindEnumTypeDefinition:
-		return astvisitor.Instruction{}
+		return
 	default:
-		return astvisitor.Instruction{
-			Action:  astvisitor.StopWithError,
-			Message: fmt.Sprintf("variable: %s of type: %s is no valid input type", v.operation.VariableDefinitionName(ref), string(typeName)),
-		}
+		v.StopWithErr(fmt.Errorf("variable: %s of type: %s is no valid input type", v.operation.VariableDefinitionName(ref), string(typeName)))
+		return
 	}
 }
 
 func AllVariableUsesDefined() Rule {
-	return func(walker *astvisitor.Walker) {
-		visitor := allVariableUsesDefinedVisitor{}
+	return func(walker *fastastvisitor.Walker) {
+		visitor := allVariableUsesDefinedVisitor{
+			Walker: walker,
+		}
 		walker.RegisterEnterDocumentVisitor(&visitor)
 		walker.RegisterEnterArgumentVisitor(&visitor)
 	}
 }
 
 type allVariableUsesDefinedVisitor struct {
+	*fastastvisitor.Walker
 	operation, definition *ast.Document
 }
 
-func (a *allVariableUsesDefinedVisitor) EnterDocument(operation, definition *ast.Document) astvisitor.Instruction {
+func (a *allVariableUsesDefinedVisitor) EnterDocument(operation, definition *ast.Document) {
 	a.operation = operation
 	a.definition = definition
-	return astvisitor.Instruction{}
 }
 
-func (a *allVariableUsesDefinedVisitor) EnterArgument(ref int, info astvisitor.Info) astvisitor.Instruction {
+func (a *allVariableUsesDefinedVisitor) EnterArgument(ref int) {
 
 	if a.operation.Arguments[ref].Value.Kind != ast.ValueKindVariable {
-		return astvisitor.Instruction{} // skip because no variable
+		return // skip because no variable
 	}
 
-	if info.Ancestors[0].Kind != ast.NodeKindOperationDefinition {
+	if a.Ancestors[0].Kind != ast.NodeKindOperationDefinition {
 		// skip because variable is not used in operation which happens in case normalization did not merge the fragment definition
 		// this happens when a fragment is defined but not used which will itself lead to another validation error
 		// in which case we can safely skip here
-		return astvisitor.Instruction{}
+		return
 	}
 
 	variableName := a.operation.VariableValueName(a.operation.Arguments[ref].Value.Ref)
 
-	for _, i := range a.operation.OperationDefinitions[info.Ancestors[0].Ref].VariableDefinitions.Refs {
+	for _, i := range a.operation.OperationDefinitions[a.Ancestors[0].Ref].VariableDefinitions.Refs {
 		if bytes.Equal(variableName, a.operation.VariableDefinitionName(i)) {
-			return astvisitor.Instruction{} // return OK because variable is defined
+			return // return OK because variable is defined
 		}
 	}
 
 	// at this point we're safe to say this variable was not defined on the root operation of this argument
-	return astvisitor.Instruction{
-		Action:  astvisitor.StopWithError,
-		Message: fmt.Sprintf("variable: %s on argument: %s is not defined", string(variableName), a.operation.ArgumentNameString(ref)),
-	}
+	a.StopWithErr(fmt.Errorf("variable: %s on argument: %s is not defined", string(variableName), a.operation.ArgumentNameString(ref)))
 }
 
 func AllVariablesUsed() Rule {
-	return func(walker *astvisitor.Walker) {
-		visitor := allVariablesUsedVisitor{}
+	return func(walker *fastastvisitor.Walker) {
+		visitor := allVariablesUsedVisitor{
+			Walker: walker,
+		}
 		walker.RegisterEnterDocumentVisitor(&visitor)
 		walker.RegisterEnterOperationVisitor(&visitor)
 		walker.RegisterLeaveOperationVisitor(&visitor)
@@ -1009,51 +976,45 @@ func AllVariablesUsed() Rule {
 }
 
 type allVariablesUsedVisitor struct {
+	*fastastvisitor.Walker
 	operation, definition *ast.Document
 	variableDefinitions   []int
 }
 
-func (a *allVariablesUsedVisitor) EnterDocument(operation, definition *ast.Document) astvisitor.Instruction {
+func (a *allVariablesUsedVisitor) EnterDocument(operation, definition *ast.Document) {
 	a.operation = operation
 	a.definition = definition
-	return astvisitor.Instruction{}
 }
 
-func (a *allVariablesUsedVisitor) EnterOperationDefinition(ref int, info astvisitor.Info) astvisitor.Instruction {
+func (a *allVariablesUsedVisitor) EnterOperationDefinition(ref int) {
 	a.variableDefinitions = a.operation.OperationDefinitions[ref].VariableDefinitions.Refs
-	return astvisitor.Instruction{}
 }
 
-func (a *allVariablesUsedVisitor) LeaveOperationDefinition(ref int, info astvisitor.Info) astvisitor.Instruction {
+func (a *allVariablesUsedVisitor) LeaveOperationDefinition(ref int) {
 	if len(a.variableDefinitions) != 0 {
 		variableName := string(a.operation.VariableDefinitionName(a.variableDefinitions[0]))
 		operationType := a.operation.OperationDefinitions[ref].OperationType
 		operationName := a.operation.Input.ByteSlice(a.operation.OperationDefinitions[ref].Name)
-		return astvisitor.Instruction{
-			Action:  astvisitor.StopWithError,
-			Message: fmt.Sprintf("variable: %s is defined on operation: %s with operation type: %s but never used", variableName, operationName, operationType),
-		}
+		a.StopWithErr(fmt.Errorf("variable: %s is defined on operation: %s with operation type: %s but never used", variableName, operationName, operationType))
+		return
 	}
-	return astvisitor.Instruction{}
 }
 
-func (a *allVariablesUsedVisitor) EnterArgument(ref int, info astvisitor.Info) astvisitor.Instruction {
+func (a *allVariablesUsedVisitor) EnterArgument(ref int) {
 
 	if len(a.variableDefinitions) == 0 {
-		return astvisitor.Instruction{} // nothing to check, skip
+		return // nothing to check, skip
 	}
 
 	if a.operation.Arguments[ref].Value.Kind != ast.ValueKindVariable {
-		return astvisitor.Instruction{} // skip non variable value
+		return // skip non variable value
 	}
 
 	variableName := a.operation.VariableValueName(a.operation.Arguments[ref].Value.Ref)
 	for i, j := range a.variableDefinitions {
 		if bytes.Equal(variableName, a.operation.VariableDefinitionName(j)) {
 			a.variableDefinitions = append(a.variableDefinitions[:i], a.variableDefinitions[i+1:]...)
-			return astvisitor.Instruction{}
+			return
 		}
 	}
-
-	return astvisitor.Instruction{}
 }
