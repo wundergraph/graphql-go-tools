@@ -5,7 +5,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
-	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
+	"github.com/jensneuse/graphql-go-tools/pkg/fastastvisitor"
 	"testing"
 )
 
@@ -148,7 +148,7 @@ var run = func(normalizeFunc registerNormalizeFunc, definition, operation, expec
 	operationDocument := mustDocument(astparser.ParseGraphqlDocumentString(operation))
 	expectedOutputDocument := mustDocument(astparser.ParseGraphqlDocumentString(expectedOutput))
 
-	walker := astvisitor.NewWalker(48)
+	walker := fastastvisitor.NewWalker(48)
 	normalizeFunc(&walker)
 
 	must(walker.Walk(operationDocument, definitionDocument))
@@ -218,10 +218,16 @@ type Message implements Body {
 type Subscription {
 	newMessage: Message
 	disallowedSecondRootField: Boolean
+	frag2Field: String
 }
 
 input ComplexInput { name: String, owner: String }
 input ComplexNonOptionalInput { name: String! }
+
+type Field {
+	subfieldA: String
+	subfieldB: String
+}
 
 type Query {
 	human: Human
@@ -236,6 +242,7 @@ type Query {
 	findDogNonOptional(complex: ComplexNonOptionalInput): Dog
   	booleanList(booleanListArg: [Boolean!]): Boolean
 	extra: Extra
+	field: Field
 }
 
 type ValidArguments {
@@ -262,6 +269,8 @@ type Dog implements Pet {
 	mustExtra: DogExtra!
 	mustExtras: [DogExtra]!
 	mustMustExtras: [DogExtra!]!
+	doubleNested: Boolean
+	nestedDogName: String
 }
 
 type DogExtra {
@@ -270,6 +279,7 @@ type DogExtra {
 	strings: [String]
 	mustStrings: [String]!
 	bool: Int
+	noString: Boolean
 }
 
 interface Sentient {

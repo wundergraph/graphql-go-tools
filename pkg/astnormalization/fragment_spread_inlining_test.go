@@ -175,15 +175,15 @@ func TestInlineFragments(t *testing.T) {
 					}
 				}
 				fragment definedOnImplementorsButNotInterface on Pet {
-					nickname
+					name
 				}`, `
 				{
 					dog {
-						nickname
+						name
 					}
 				}
 				fragment definedOnImplementorsButNotInterface on Pet {
-					nickname
+					name
 				}`)
 	})
 	t.Run("inline fragments if fragment type definition implements enclosing type definition", func(t *testing.T) {

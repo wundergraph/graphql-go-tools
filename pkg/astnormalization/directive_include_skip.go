@@ -3,41 +3,41 @@ package astnormalization
 import (
 	"bytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
+	"github.com/jensneuse/graphql-go-tools/pkg/fastastvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
 )
 
-func directiveIncludeSkip(walker *astvisitor.Walker) {
-	visitor := directiveIncludeSkipVisitor{}
+func directiveIncludeSkip(walker *fastastvisitor.Walker) {
+	visitor := directiveIncludeSkipVisitor{
+		Walker: walker,
+	}
 	walker.RegisterEnterDocumentVisitor(&visitor)
 	walker.RegisterEnterDirectiveVisitor(&visitor)
 }
 
 type directiveIncludeSkipVisitor struct {
+	*fastastvisitor.Walker
 	operation, definition *ast.Document
 }
 
-func (d *directiveIncludeSkipVisitor) EnterDocument(operation, definition *ast.Document) astvisitor.Instruction {
+func (d *directiveIncludeSkipVisitor) EnterDocument(operation, definition *ast.Document) {
 	d.operation = operation
 	d.definition = definition
-	return astvisitor.Instruction{}
 }
 
-func (d *directiveIncludeSkipVisitor) EnterDirective(ref int, info astvisitor.Info) astvisitor.Instruction {
+func (d *directiveIncludeSkipVisitor) EnterDirective(ref int) {
 
 	name := d.operation.DirectiveNameBytes(ref)
 
 	switch {
 	case bytes.Equal(name, literal.INCLUDE):
-		d.handleInclude(ref, info)
+		d.handleInclude(ref)
 	case bytes.Equal(name, literal.SKIP):
-		d.handleSkip(ref, info)
+		d.handleSkip(ref)
 	}
-
-	return astvisitor.Instruction{}
 }
 
-func (d *directiveIncludeSkipVisitor) handleSkip(ref int, info astvisitor.Info) {
+func (d *directiveIncludeSkipVisitor) handleSkip(ref int) {
 	if len(d.operation.Directives[ref].Arguments.Refs) != 1 {
 		return
 	}
@@ -52,16 +52,16 @@ func (d *directiveIncludeSkipVisitor) handleSkip(ref int, info astvisitor.Info) 
 	include := d.operation.BooleanValue(value.Ref)
 	switch include {
 	case false:
-		d.operation.RemoveDirectiveFromNode(info.Ancestors[len(info.Ancestors)-1], ref)
+		d.operation.RemoveDirectiveFromNode(d.Ancestors[len(d.Ancestors)-1], ref)
 	case true:
-		if len(info.Ancestors) < 2 {
+		if len(d.Ancestors) < 2 {
 			return
 		}
-		d.operation.RemoveNodeFromNode(info.Ancestors[len(info.Ancestors)-1], info.Ancestors[len(info.Ancestors)-2])
+		d.operation.RemoveNodeFromNode(d.Ancestors[len(d.Ancestors)-1], d.Ancestors[len(d.Ancestors)-2])
 	}
 }
 
-func (d *directiveIncludeSkipVisitor) handleInclude(ref int, info astvisitor.Info) {
+func (d *directiveIncludeSkipVisitor) handleInclude(ref int) {
 	if len(d.operation.Directives[ref].Arguments.Refs) != 1 {
 		return
 	}
@@ -76,11 +76,11 @@ func (d *directiveIncludeSkipVisitor) handleInclude(ref int, info astvisitor.Inf
 	include := d.operation.BooleanValue(value.Ref)
 	switch include {
 	case true:
-		d.operation.RemoveDirectiveFromNode(info.Ancestors[len(info.Ancestors)-1], ref)
+		d.operation.RemoveDirectiveFromNode(d.Ancestors[len(d.Ancestors)-1], ref)
 	case false:
-		if len(info.Ancestors) < 2 {
+		if len(d.Ancestors) < 2 {
 			return
 		}
-		d.operation.RemoveNodeFromNode(info.Ancestors[len(info.Ancestors)-1], info.Ancestors[len(info.Ancestors)-2])
+		d.operation.RemoveNodeFromNode(d.Ancestors[len(d.Ancestors)-1], d.Ancestors[len(d.Ancestors)-2])
 	}
 }

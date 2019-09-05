@@ -3,22 +3,24 @@ package astnormalization
 import (
 	"bytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
+	"github.com/jensneuse/graphql-go-tools/pkg/fastastvisitor"
 )
 
-func mergeFieldSelections(walker *astvisitor.Walker) {
-	visitor := fieldSelectionMergeVisitor{}
+func mergeFieldSelections(walker *fastastvisitor.Walker) {
+	visitor := fieldSelectionMergeVisitor{
+		Walker: walker,
+	}
 	walker.RegisterEnterDocumentVisitor(&visitor)
 	walker.RegisterEnterSelectionSetVisitor(&visitor)
 }
 
 type fieldSelectionMergeVisitor struct {
+	*fastastvisitor.Walker
 	operation *ast.Document
 }
 
-func (f *fieldSelectionMergeVisitor) EnterDocument(operation, definition *ast.Document) astvisitor.Instruction {
+func (f *fieldSelectionMergeVisitor) EnterDocument(operation, definition *ast.Document) {
 	f.operation = operation
-	return astvisitor.Instruction{}
 }
 
 func (f *fieldSelectionMergeVisitor) fieldsCanMerge(left, right int) bool {
@@ -60,7 +62,7 @@ func (f *fieldSelectionMergeVisitor) mergeFields(left, right int) {
 	f.operation.Fields[left].Directives.Refs = append(f.operation.Fields[left].Directives.Refs, f.operation.Fields[right].Directives.Refs...)
 }
 
-func (f *fieldSelectionMergeVisitor) EnterSelectionSet(ref int, info astvisitor.Info) (instruction astvisitor.Instruction) {
+func (f *fieldSelectionMergeVisitor) EnterSelectionSet(ref int) {
 
 	if len(f.operation.SelectionSets[ref].SelectionRefs) < 2 {
 		return
@@ -87,11 +89,8 @@ func (f *fieldSelectionMergeVisitor) EnterSelectionSet(ref int, info astvisitor.
 			}
 			f.removeSelection(ref, i)
 			f.mergeFields(leftField, rightField)
-			return astvisitor.Instruction{
-				Action: astvisitor.RevisitCurrentNode,
-			}
+			f.RevisitNode()
+			return
 		}
 	}
-
-	return
 }

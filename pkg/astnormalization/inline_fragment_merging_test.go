@@ -11,7 +11,7 @@ func TestResolveInlineFragments(t *testing.T) {
 								name
 							}
 							... on Dog {
-								nickName
+								nickname
 							}
 							... {
 								... {
@@ -29,7 +29,7 @@ func TestResolveInlineFragments(t *testing.T) {
 					query conflictingBecauseAlias {
 						dog {
 							name
-							nickName
+							nickname
 							doubleNested
 							nestedDogName
 							extra { string }

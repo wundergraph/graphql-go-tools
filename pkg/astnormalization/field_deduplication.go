@@ -2,27 +2,29 @@ package astnormalization
 
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
+	"github.com/jensneuse/graphql-go-tools/pkg/fastastvisitor"
 )
 
-func deduplicateFields(walker *astvisitor.Walker) {
-	visitor := deduplicateFieldsVisitor{}
+func deduplicateFields(walker *fastastvisitor.Walker) {
+	visitor := deduplicateFieldsVisitor{
+		Walker: walker,
+	}
 	walker.RegisterEnterDocumentVisitor(&visitor)
 	walker.RegisterEnterSelectionSetVisitor(&visitor)
 }
 
 type deduplicateFieldsVisitor struct {
+	*fastastvisitor.Walker
 	operation *ast.Document
 }
 
-func (d *deduplicateFieldsVisitor) EnterDocument(operation, definition *ast.Document) astvisitor.Instruction {
+func (d *deduplicateFieldsVisitor) EnterDocument(operation, definition *ast.Document) {
 	d.operation = operation
-	return astvisitor.Instruction{}
 }
 
-func (d *deduplicateFieldsVisitor) EnterSelectionSet(ref int, info astvisitor.Info) astvisitor.Instruction {
+func (d *deduplicateFieldsVisitor) EnterSelectionSet(ref int) {
 	if len(d.operation.SelectionSets[ref].SelectionRefs) < 2 {
-		return astvisitor.Instruction{}
+		return
 	}
 
 	for a, i := range d.operation.SelectionSets[ref].SelectionRefs {
@@ -49,12 +51,9 @@ func (d *deduplicateFieldsVisitor) EnterSelectionSet(ref int, info astvisitor.In
 			}
 			if d.operation.FieldsAreEqualFlat(left, right) {
 				d.operation.RemoveFromSelectionSet(ref, b)
-				return astvisitor.Instruction{
-					Action: astvisitor.RevisitCurrentNode,
-				}
+				d.RevisitNode()
+				return
 			}
 		}
 	}
-
-	return astvisitor.Instruction{}
 }
