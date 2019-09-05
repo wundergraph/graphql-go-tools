@@ -3,10 +3,10 @@ package astnormalization
 import (
 	"bytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/fastastvisitor"
+	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 )
 
-func mergeInlineFragments(walker *fastastvisitor.Walker) {
+func mergeInlineFragments(walker *astvisitor.Walker) {
 	visitor := mergeInlineFragmentsVisitor{
 		Walker: walker,
 	}
@@ -15,7 +15,7 @@ func mergeInlineFragments(walker *fastastvisitor.Walker) {
 }
 
 type mergeInlineFragmentsVisitor struct {
-	*fastastvisitor.Walker
+	*astvisitor.Walker
 	operation, definition *ast.Document
 }
 

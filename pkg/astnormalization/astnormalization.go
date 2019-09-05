@@ -2,7 +2,7 @@ package astnormalization
 
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/fastastvisitor"
+	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 )
 
 func NormalizeOperation(operation, definition *ast.Document) error {
@@ -10,19 +10,19 @@ func NormalizeOperation(operation, definition *ast.Document) error {
 	return normalizer.Do(operation, definition)
 }
 
-type registerNormalizeFunc func(walker *fastastvisitor.Walker)
+type registerNormalizeFunc func(walker *astvisitor.Walker)
 
 type OperationNormalizer struct {
-	walkers []*fastastvisitor.Walker
+	walkers []*astvisitor.Walker
 	setup   bool
 }
 
 func (o *OperationNormalizer) setupWalkers() {
-	fragmentInline := fastastvisitor.NewWalker(48)
+	fragmentInline := astvisitor.NewWalker(48)
 	fragmentSpreadInline(&fragmentInline)
 	directiveIncludeSkip(&fragmentInline)
 
-	other := fastastvisitor.NewWalker(48)
+	other := astvisitor.NewWalker(48)
 	removeSelfAliasing(&other)
 	mergeInlineFragments(&other)
 	mergeFieldSelections(&other)

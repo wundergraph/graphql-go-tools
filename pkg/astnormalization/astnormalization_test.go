@@ -5,7 +5,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
-	"github.com/jensneuse/graphql-go-tools/pkg/fastastvisitor"
+	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"testing"
 )
 
@@ -148,7 +148,7 @@ var run = func(normalizeFunc registerNormalizeFunc, definition, operation, expec
 	operationDocument := mustDocument(astparser.ParseGraphqlDocumentString(operation))
 	expectedOutputDocument := mustDocument(astparser.ParseGraphqlDocumentString(expectedOutput))
 
-	walker := fastastvisitor.NewWalker(48)
+	walker := astvisitor.NewWalker(48)
 	normalizeFunc(&walker)
 
 	must(walker.Walk(operationDocument, definitionDocument))

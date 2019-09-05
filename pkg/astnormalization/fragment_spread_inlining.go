@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/asttransform"
-	"github.com/jensneuse/graphql-go-tools/pkg/fastastvisitor"
+	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 )
 
-func fragmentSpreadInline(walker *fastastvisitor.Walker) {
+func fragmentSpreadInline(walker *astvisitor.Walker) {
 	visitor := fragmentSpreadInlineVisitor{
 		Walker: walker,
 	}
@@ -17,7 +17,7 @@ func fragmentSpreadInline(walker *fastastvisitor.Walker) {
 }
 
 type fragmentSpreadInlineVisitor struct {
-	*fastastvisitor.Walker
+	*astvisitor.Walker
 	operation, definition *ast.Document
 	transformer           asttransform.Transformer
 	fragmentSpreadDepth   FragmentSpreadDepth

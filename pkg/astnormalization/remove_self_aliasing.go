@@ -3,10 +3,10 @@ package astnormalization
 import (
 	"bytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/fastastvisitor"
+	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 )
 
-func removeSelfAliasing(walker *fastastvisitor.Walker) {
+func removeSelfAliasing(walker *astvisitor.Walker) {
 	visitor := removeSelfAliasingVisitor{}
 	walker.RegisterEnterDocumentVisitor(&visitor)
 	walker.RegisterEnterFieldVisitor(&visitor)

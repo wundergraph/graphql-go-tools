@@ -1,4 +1,4 @@
-package fastastvisitor
+package astvisitor
 
 import (
 	"bytes"

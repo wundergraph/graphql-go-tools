@@ -23,7 +23,7 @@ package operation_complexity
 
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/fastastvisitor"
+	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 )
 
 var (
@@ -32,13 +32,13 @@ var (
 )
 
 type OperationComplexityEstimator struct {
-	walker  *fastastvisitor.Walker
+	walker  *astvisitor.Walker
 	visitor *complexityVisitor
 }
 
 func NewOperationComplexityEstimator() *OperationComplexityEstimator {
 
-	walker := fastastvisitor.NewWalker(48)
+	walker := astvisitor.NewWalker(48)
 	visitor := &complexityVisitor{
 		Walker:      &walker,
 		multipliers: make([]multiplier, 0, 16),
@@ -71,7 +71,7 @@ func CalculateOperationComplexity(operation, definition *ast.Document) (nodeCoun
 }
 
 type complexityVisitor struct {
-	*fastastvisitor.Walker
+	*astvisitor.Walker
 	operation, definition *ast.Document
 	count                 int
 	complexity            int

@@ -6,14 +6,14 @@ import (
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astinspect"
-	"github.com/jensneuse/graphql-go-tools/pkg/fastastvisitor"
+	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 )
 
 func DefaultOperationValidator() *OperationValidator {
 
 	validator := OperationValidator{
-		walker: fastastvisitor.NewWalker(48),
+		walker: astvisitor.NewWalker(48),
 	}
 
 	validator.RegisterRule(OperationNameUniqueness())
@@ -45,7 +45,7 @@ const (
 	Invalid
 )
 
-type Rule func(walker *fastastvisitor.Walker)
+type Rule func(walker *astvisitor.Walker)
 
 type Result struct {
 	ValidationState ValidationState
@@ -53,7 +53,7 @@ type Result struct {
 }
 
 type OperationValidator struct {
-	walker fastastvisitor.Walker
+	walker astvisitor.Walker
 }
 
 func (o *OperationValidator) RegisterRule(rule Rule) {
@@ -76,13 +76,13 @@ func (o *OperationValidator) Validate(operation, definition *ast.Document) Resul
 }
 
 func OperationNameUniqueness() Rule {
-	return func(walker *fastastvisitor.Walker) {
+	return func(walker *astvisitor.Walker) {
 		walker.RegisterEnterDocumentVisitor(&operationNameUniquenessVisitor{walker})
 	}
 }
 
 type operationNameUniquenessVisitor struct {
-	*fastastvisitor.Walker
+	*astvisitor.Walker
 }
 
 func (o *operationNameUniquenessVisitor) EnterDocument(operation, definition *ast.Document) {
@@ -108,13 +108,13 @@ func (o *operationNameUniquenessVisitor) EnterDocument(operation, definition *as
 }
 
 func LoneAnonymousOperation() Rule {
-	return func(walker *fastastvisitor.Walker) {
+	return func(walker *astvisitor.Walker) {
 		walker.RegisterEnterDocumentVisitor(&loneAnonymousOperationVisitor{walker})
 	}
 }
 
 type loneAnonymousOperationVisitor struct {
-	*fastastvisitor.Walker
+	*astvisitor.Walker
 }
 
 func (l *loneAnonymousOperationVisitor) EnterDocument(operation, definition *ast.Document) {
@@ -131,14 +131,14 @@ func (l *loneAnonymousOperationVisitor) EnterDocument(operation, definition *ast
 }
 
 func SubscriptionSingleRootField() Rule {
-	return func(walker *fastastvisitor.Walker) {
+	return func(walker *astvisitor.Walker) {
 		visitor := subscriptionSingleRootFieldVisitor{walker}
 		walker.RegisterEnterDocumentVisitor(&visitor)
 	}
 }
 
 type subscriptionSingleRootFieldVisitor struct {
-	*fastastvisitor.Walker
+	*astvisitor.Walker
 }
 
 func (s *subscriptionSingleRootFieldVisitor) EnterDocument(operation, definition *ast.Document) {
@@ -159,7 +159,7 @@ func (s *subscriptionSingleRootFieldVisitor) EnterDocument(operation, definition
 }
 
 func FieldSelections() Rule {
-	return func(walker *fastastvisitor.Walker) {
+	return func(walker *astvisitor.Walker) {
 		fieldDefined := fieldDefined{
 			Walker: walker,
 		}
@@ -169,7 +169,7 @@ func FieldSelections() Rule {
 }
 
 func FieldSelectionMerging() Rule {
-	return func(walker *fastastvisitor.Walker) {
+	return func(walker *astvisitor.Walker) {
 		visitor := fieldSelectionMergingVisitor{Walker: walker}
 		walker.RegisterEnterDocumentVisitor(&visitor)
 		walker.RegisterEnterSelectionSetVisitor(&visitor)
@@ -177,7 +177,7 @@ func FieldSelectionMerging() Rule {
 }
 
 type fieldSelectionMergingVisitor struct {
-	*fastastvisitor.Walker
+	*astvisitor.Walker
 	definition, operation *ast.Document
 }
 
@@ -193,7 +193,7 @@ func (f *fieldSelectionMergingVisitor) EnterSelectionSet(ref int) {
 }
 
 func ValidArguments() Rule {
-	return func(walker *fastastvisitor.Walker) {
+	return func(walker *astvisitor.Walker) {
 		visitor := validArgumentsVisitor{
 			Walker: walker,
 		}
@@ -203,7 +203,7 @@ func ValidArguments() Rule {
 }
 
 type validArgumentsVisitor struct {
-	*fastastvisitor.Walker
+	*astvisitor.Walker
 	operation, definition *ast.Document
 }
 
@@ -358,7 +358,7 @@ func (v *validArgumentsVisitor) operationTypeSatisfiesDefinitionType(operationTy
 }
 
 func Values() Rule {
-	return func(walker *fastastvisitor.Walker) {
+	return func(walker *astvisitor.Walker) {
 		visitor := valuesVisitor{
 			Walker: walker,
 		}
@@ -368,7 +368,7 @@ func Values() Rule {
 }
 
 type valuesVisitor struct {
-	*fastastvisitor.Walker
+	*astvisitor.Walker
 	operation, definition *ast.Document
 }
 
@@ -554,7 +554,7 @@ func (v *valuesVisitor) valueSatisfiesScalar(value ast.Value, scalar int) bool {
 }
 
 func ArgumentUniqueness() Rule {
-	return func(walker *fastastvisitor.Walker) {
+	return func(walker *astvisitor.Walker) {
 		visitor := argumentUniquenessVisitor{
 			Walker: walker,
 		}
@@ -564,7 +564,7 @@ func ArgumentUniqueness() Rule {
 }
 
 type argumentUniquenessVisitor struct {
-	*fastastvisitor.Walker
+	*astvisitor.Walker
 	operation *ast.Document
 }
 
@@ -586,7 +586,7 @@ func (a *argumentUniquenessVisitor) EnterArgument(ref int) {
 }
 
 func RequiredArguments() Rule {
-	return func(walker *fastastvisitor.Walker) {
+	return func(walker *astvisitor.Walker) {
 		visitor := requiredArgumentsVisitor{
 			Walker: walker,
 		}
@@ -596,7 +596,7 @@ func RequiredArguments() Rule {
 }
 
 type requiredArgumentsVisitor struct {
-	*fastastvisitor.Walker
+	*astvisitor.Walker
 	operation, definition *ast.Document
 }
 
@@ -631,7 +631,7 @@ func (r *requiredArgumentsVisitor) EnterField(ref int) {
 }
 
 func Fragments() Rule {
-	return func(walker *fastastvisitor.Walker) {
+	return func(walker *astvisitor.Walker) {
 		visitor := fragmentsVisitor{
 			Walker:                     walker,
 			fragmentDefinitionsVisited: make([]ast.ByteSlice, 0, 8),
@@ -645,7 +645,7 @@ func Fragments() Rule {
 }
 
 type fragmentsVisitor struct {
-	*fastastvisitor.Walker
+	*astvisitor.Walker
 	operation, definition      *ast.Document
 	fragmentDefinitionsVisited []ast.ByteSlice
 }
@@ -732,7 +732,7 @@ func (f *fragmentsVisitor) EnterFragmentDefinition(ref int) {
 }
 
 func DirectivesAreDefined() Rule {
-	return func(walker *fastastvisitor.Walker) {
+	return func(walker *astvisitor.Walker) {
 		visitor := directivesAreDefinedVisitor{
 			Walker: walker,
 		}
@@ -742,7 +742,7 @@ func DirectivesAreDefined() Rule {
 }
 
 type directivesAreDefinedVisitor struct {
-	*fastastvisitor.Walker
+	*astvisitor.Walker
 	operation, definition *ast.Document
 }
 
@@ -762,7 +762,7 @@ func (d *directivesAreDefinedVisitor) EnterDirective(ref int) {
 }
 
 func DirectivesAreInValidLocations() Rule {
-	return func(walker *fastastvisitor.Walker) {
+	return func(walker *astvisitor.Walker) {
 		visitor := directivesAreInValidLocationsVisitor{
 			Walker: walker,
 		}
@@ -772,7 +772,7 @@ func DirectivesAreInValidLocations() Rule {
 }
 
 type directivesAreInValidLocationsVisitor struct {
-	*fastastvisitor.Walker
+	*astvisitor.Walker
 	operation, definition *ast.Document
 }
 
@@ -809,7 +809,7 @@ func (d *directivesAreInValidLocationsVisitor) directiveDefinitionContainsNodeLo
 }
 
 func VariableUniqueness() Rule {
-	return func(walker *fastastvisitor.Walker) {
+	return func(walker *astvisitor.Walker) {
 		visitor := variableUniquenessVisitor{
 			Walker: walker,
 		}
@@ -819,7 +819,7 @@ func VariableUniqueness() Rule {
 }
 
 type variableUniquenessVisitor struct {
-	*fastastvisitor.Walker
+	*astvisitor.Walker
 	operation, definition *ast.Document
 }
 
@@ -850,7 +850,7 @@ func (v *variableUniquenessVisitor) EnterVariableDefinition(ref int) {
 }
 
 func DirectivesAreUniquePerLocation() Rule {
-	return func(walker *fastastvisitor.Walker) {
+	return func(walker *astvisitor.Walker) {
 		visitor := directivesAreUniquePerLocationVisitor{
 			Walker: walker,
 		}
@@ -860,7 +860,7 @@ func DirectivesAreUniquePerLocation() Rule {
 }
 
 type directivesAreUniquePerLocationVisitor struct {
-	*fastastvisitor.Walker
+	*astvisitor.Walker
 	operation, definition *ast.Document
 }
 
@@ -886,7 +886,7 @@ func (d *directivesAreUniquePerLocationVisitor) EnterDirective(ref int) {
 }
 
 func VariablesAreInputTypes() Rule {
-	return func(walker *fastastvisitor.Walker) {
+	return func(walker *astvisitor.Walker) {
 		visitor := variablesAreInputTypesVisitor{
 			Walker: walker,
 		}
@@ -896,7 +896,7 @@ func VariablesAreInputTypes() Rule {
 }
 
 type variablesAreInputTypesVisitor struct {
-	*fastastvisitor.Walker
+	*astvisitor.Walker
 	operation, definition *ast.Document
 }
 
@@ -919,7 +919,7 @@ func (v *variablesAreInputTypesVisitor) EnterVariableDefinition(ref int) {
 }
 
 func AllVariableUsesDefined() Rule {
-	return func(walker *fastastvisitor.Walker) {
+	return func(walker *astvisitor.Walker) {
 		visitor := allVariableUsesDefinedVisitor{
 			Walker: walker,
 		}
@@ -929,7 +929,7 @@ func AllVariableUsesDefined() Rule {
 }
 
 type allVariableUsesDefinedVisitor struct {
-	*fastastvisitor.Walker
+	*astvisitor.Walker
 	operation, definition *ast.Document
 }
 
@@ -964,7 +964,7 @@ func (a *allVariableUsesDefinedVisitor) EnterArgument(ref int) {
 }
 
 func AllVariablesUsed() Rule {
-	return func(walker *fastastvisitor.Walker) {
+	return func(walker *astvisitor.Walker) {
 		visitor := allVariablesUsedVisitor{
 			Walker: walker,
 		}
@@ -976,7 +976,7 @@ func AllVariablesUsed() Rule {
 }
 
 type allVariablesUsedVisitor struct {
-	*fastastvisitor.Walker
+	*astvisitor.Walker
 	operation, definition *ast.Document
 	variableDefinitions   []int
 }

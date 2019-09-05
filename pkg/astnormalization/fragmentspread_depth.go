@@ -3,11 +3,11 @@ package astnormalization
 import (
 	"bytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/fastastvisitor"
+	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 )
 
 type FragmentSpreadDepth struct {
-	walker             fastastvisitor.Walker
+	walker             astvisitor.Walker
 	visitor            fragmentSpreadDepthVisitor
 	calc               NestedDepthCalc
 	visitorsRegistered bool
@@ -83,7 +83,7 @@ func (n *NestedDepthCalc) depthForFragment(name ast.ByteSlice) int {
 }
 
 type fragmentSpreadDepthVisitor struct {
-	*fastastvisitor.Walker
+	*astvisitor.Walker
 	operation  *ast.Document
 	definition *ast.Document
 	depths     *Depths

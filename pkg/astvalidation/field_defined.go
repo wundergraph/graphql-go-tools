@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/fastastvisitor"
+	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 )
 
 type fieldDefined struct {
-	*fastastvisitor.Walker
+	*astvisitor.Walker
 	operation  *ast.Document
 	definition *ast.Document
 }

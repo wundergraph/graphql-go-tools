@@ -3,11 +3,11 @@ package astnormalization
 import (
 	"bytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/fastastvisitor"
+	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 )
 
-func directiveIncludeSkip(walker *fastastvisitor.Walker) {
+func directiveIncludeSkip(walker *astvisitor.Walker) {
 	visitor := directiveIncludeSkipVisitor{
 		Walker: walker,
 	}
@@ -16,7 +16,7 @@ func directiveIncludeSkip(walker *fastastvisitor.Walker) {
 }
 
 type directiveIncludeSkipVisitor struct {
-	*fastastvisitor.Walker
+	*astvisitor.Walker
 	operation, definition *ast.Document
 }
 

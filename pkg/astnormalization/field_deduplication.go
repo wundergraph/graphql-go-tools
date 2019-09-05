@@ -2,10 +2,10 @@ package astnormalization
 
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/fastastvisitor"
+	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 )
 
-func deduplicateFields(walker *fastastvisitor.Walker) {
+func deduplicateFields(walker *astvisitor.Walker) {
 	visitor := deduplicateFieldsVisitor{
 		Walker: walker,
 	}
@@ -14,7 +14,7 @@ func deduplicateFields(walker *fastastvisitor.Walker) {
 }
 
 type deduplicateFieldsVisitor struct {
-	*fastastvisitor.Walker
+	*astvisitor.Walker
 	operation *ast.Document
 }
 

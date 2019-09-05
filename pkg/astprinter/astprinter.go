@@ -3,7 +3,7 @@ package astprinter
 import (
 	"bytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/fastastvisitor"
+	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"io"
 )
@@ -22,7 +22,7 @@ func PrintString(document, definition *ast.Document) (string, error) {
 
 type Printer struct {
 	visitor    printVisitor
-	walker     fastastvisitor.SimpleWalker
+	walker     astvisitor.SimpleWalker
 	registered bool
 }
 
@@ -38,7 +38,7 @@ func (p *Printer) Print(document, definition *ast.Document, out io.Writer) error
 }
 
 type printVisitor struct {
-	*fastastvisitor.SimpleWalker
+	*astvisitor.SimpleWalker
 	document *ast.Document
 	out      io.Writer
 	err      error

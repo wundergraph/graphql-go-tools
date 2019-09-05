@@ -3,10 +3,10 @@ package astnormalization
 import (
 	"bytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/fastastvisitor"
+	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 )
 
-func mergeFieldSelections(walker *fastastvisitor.Walker) {
+func mergeFieldSelections(walker *astvisitor.Walker) {
 	visitor := fieldSelectionMergeVisitor{
 		Walker: walker,
 	}
@@ -15,7 +15,7 @@ func mergeFieldSelections(walker *fastastvisitor.Walker) {
 }
 
 type fieldSelectionMergeVisitor struct {
-	*fastastvisitor.Walker
+	*astvisitor.Walker
 	operation *ast.Document
 }
 
