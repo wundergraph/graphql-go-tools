@@ -30,7 +30,7 @@ func (p *Printer) Print(document, definition *ast.Document, out io.Writer) error
 	p.visitor.err = nil
 	p.visitor.document = document
 	p.visitor.out = out
-	p.visitor.w = &p.walker
+	p.visitor.SimpleWalker = &p.walker
 	if !p.registered {
 		p.walker.SetVisitor(&p.visitor)
 	}
@@ -38,8 +38,8 @@ func (p *Printer) Print(document, definition *ast.Document, out io.Writer) error
 }
 
 type printVisitor struct {
+	*fastastvisitor.SimpleWalker
 	document *ast.Document
-	w        *fastastvisitor.SimpleWalker
 	out      io.Writer
 	err      error
 }
@@ -72,10 +72,14 @@ func (p *printVisitor) EnterDirective(ref int) {
 }
 
 func (p *printVisitor) LeaveDirective(ref int) {
-	ancestor := p.w.Ancestors[len(p.w.Ancestors)-1]
+	ancestor := p.Ancestors[len(p.Ancestors)-1]
 	switch ancestor.Kind {
 	case ast.NodeKindOperationDefinition:
 		p.write(literal.SPACE)
+	case ast.NodeKindField:
+		if len(p.SelectionsAfter) > 0 || p.document.FieldHasSelections(ancestor.Ref) {
+			p.write(literal.SPACE)
+		}
 	}
 }
 
@@ -112,7 +116,7 @@ func (p *printVisitor) LeaveVariableDefinition(ref int) {
 }
 
 func (p *printVisitor) EnterArgument(ref int) {
-	if len(p.document.ArgumentsBefore(p.w.Ancestors[len(p.w.Ancestors)-1], ref)) == 0 {
+	if len(p.document.ArgumentsBefore(p.Ancestors[len(p.Ancestors)-1], ref)) == 0 {
 		p.write(literal.LPAREN)
 	} else {
 		p.write(literal.COMMA)
@@ -123,7 +127,7 @@ func (p *printVisitor) EnterArgument(ref int) {
 }
 
 func (p *printVisitor) LeaveArgument(ref int) {
-	if len(p.document.ArgumentsAfter(p.w.Ancestors[len(p.w.Ancestors)-1], ref)) == 0 {
+	if len(p.document.ArgumentsAfter(p.Ancestors[len(p.Ancestors)-1], ref)) == 0 {
 		p.write(literal.RPAREN)
 	}
 
@@ -165,12 +169,10 @@ func (p *printVisitor) LeaveOperationDefinition(ref int) {
 
 func (p *printVisitor) EnterSelectionSet(ref int) {
 	p.write(literal.LBRACE)
-
 }
 
 func (p *printVisitor) LeaveSelectionSet(ref int) {
 	p.write(literal.RBRACE)
-
 }
 
 func (p *printVisitor) EnterField(ref int) {
@@ -186,8 +188,7 @@ func (p *printVisitor) EnterField(ref int) {
 }
 
 func (p *printVisitor) LeaveField(ref int) {
-	ancestor := p.w.Ancestors[len(p.w.Ancestors)-1]
-	if p.document.SelectionsAfterField(ref, ancestor) {
+	if !p.document.FieldHasDirectives(ref) && len(p.SelectionsAfter) != 0 {
 		p.write(literal.SPACE)
 	}
 }
@@ -217,7 +218,7 @@ func (p *printVisitor) EnterInlineFragment(ref int) {
 }
 
 func (p *printVisitor) LeaveInlineFragment(ref int) {
-	ancestor := p.w.Ancestors[len(p.w.Ancestors)-1]
+	ancestor := p.Ancestors[len(p.Ancestors)-1]
 	if p.document.SelectionsAfterInlineFragment(ref, ancestor) {
 		p.write(literal.SPACE)
 	}
