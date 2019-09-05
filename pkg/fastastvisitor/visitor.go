@@ -16,7 +16,7 @@ type Walker struct {
 	document                *ast.Document
 	definition              *ast.Document
 	visitors                visitors
-	depth                   int
+	Depth                   int
 	typeDefinitions         []ast.Node
 	stop                    bool
 	skip                    bool
@@ -374,7 +374,7 @@ func (w *Walker) Walk(document, definition *ast.Document) error {
 	w.typeDefinitions = w.typeDefinitions[:0]
 	w.document = document
 	w.definition = definition
-	w.depth = 0
+	w.Depth = 0
 	w.stop = false
 	w.walk()
 	return w.err
@@ -460,11 +460,11 @@ func (w *Walker) removeLastAncestor() {
 }
 
 func (w *Walker) increaseDepth() {
-	w.depth++
+	w.Depth++
 }
 
 func (w *Walker) decreaseDepth() {
-	w.depth--
+	w.Depth--
 }
 
 func (w *Walker) walk() {
