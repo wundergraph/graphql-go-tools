@@ -3,7 +3,7 @@ package fasthttp
 import (
 	"bytes"
 	"context"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/proxy"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"

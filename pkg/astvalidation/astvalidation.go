@@ -7,7 +7,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astinspect"
 	"github.com/jensneuse/graphql-go-tools/pkg/fastastvisitor"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 )
 
 func DefaultOperationValidator() *OperationValidator {

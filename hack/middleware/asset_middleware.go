@@ -5,7 +5,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/legacy/document"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/runes"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/runes"
 	"github.com/jensneuse/graphql-go-tools/pkg/lookup"
 	"github.com/jensneuse/graphql-go-tools/pkg/parser"
 	"github.com/tidwall/gjson"

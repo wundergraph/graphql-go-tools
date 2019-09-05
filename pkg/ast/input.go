@@ -1,8 +1,8 @@
 package ast
 
 import (
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
 )
 
 // RawBytes is a raw graphql document containing the raw input + meta data

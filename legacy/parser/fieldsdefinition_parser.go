@@ -2,8 +2,8 @@ package parser
 
 import (
 	"github.com/jensneuse/graphql-go-tools/legacy/document"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/keyword"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
 )
 
 func (p *Parser) parseFieldDefinitions() (fieldDefinitions document.FieldDefinitions, err error) {

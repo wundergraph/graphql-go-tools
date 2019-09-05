@@ -2,7 +2,7 @@ package document
 
 import (
 	"fmt"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
 )
 
 // SchemaDefinition as specified in:

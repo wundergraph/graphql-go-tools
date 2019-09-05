@@ -2,8 +2,8 @@ package parser
 
 import (
 	"github.com/jensneuse/graphql-go-tools/legacy/document"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/keyword"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/token"
 )
 
 func (p *Parser) parseType(index *int) error {

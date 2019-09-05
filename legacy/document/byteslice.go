@@ -1,6 +1,6 @@
 package document
 
-import "github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
+import "github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 
 type ByteSlice []byte
 

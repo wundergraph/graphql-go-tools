@@ -1,7 +1,7 @@
 //go:generate go-enum -f=$GOFILE
 package document
 
-import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
+import "github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
 
 /*
 // TypeKind marks Types to identify them

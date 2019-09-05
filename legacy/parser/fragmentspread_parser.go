@@ -1,8 +1,8 @@
 package parser
 
 import (
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/keyword"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
 )
 
 func (p *Parser) parseFragmentSpread(startPosition position.Position) (ref int, err error) {

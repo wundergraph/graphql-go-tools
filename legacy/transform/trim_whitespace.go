@@ -2,7 +2,7 @@ package transform
 
 import (
 	"bytes"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/literal"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 )
 
 // TrimWhitespace removes all spaces,tabs,lineterminators before and after a literal

@@ -1,6 +1,6 @@
 package document
 
-import "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
+import "github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
 
 // OperationDefinition as specified in:
 // http://facebook.github.io/graphql/draft/#OperationDefinition

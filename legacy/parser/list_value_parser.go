@@ -1,7 +1,7 @@
 package parser
 
 import (
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/keyword"
 )
 
 func (p *Parser) parsePeekedListValue() (ref int, err error) {
