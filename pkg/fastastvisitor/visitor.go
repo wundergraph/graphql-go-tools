@@ -555,6 +555,9 @@ func (w *Walker) walkOperationDefinition(ref int, isLastRootNode bool) {
 	}
 
 	w.appendAncestor(ref, ast.NodeKindOperationDefinition)
+	if w.stop {
+		return
+	}
 
 	if w.document.OperationDefinitions[ref].HasVariableDefinitions {
 		for _, i := range w.document.OperationDefinitions[ref].VariableDefinitions.Refs {
@@ -624,6 +627,9 @@ func (w *Walker) walkVariableDefinition(ref int) {
 	}
 
 	w.appendAncestor(ref, ast.NodeKindVariableDefinition)
+	if w.stop {
+		return
+	}
 
 	if w.document.VariableDefinitions[ref].HasDirectives {
 		for _, i := range w.document.VariableDefinitions[ref].Directives.Refs {
@@ -677,6 +683,9 @@ func (w *Walker) walkSelectionSet(ref int) {
 	}
 
 	w.appendAncestor(ref, ast.NodeKindSelectionSet)
+	if w.stop {
+		return
+	}
 
 RefsChanged:
 	for {
@@ -823,6 +832,9 @@ func (w *Walker) walkDirective(ref int) {
 	}
 
 	w.appendAncestor(ref, ast.NodeKindDirective)
+	if w.stop {
+		return
+	}
 
 	if w.document.Directives[ref].HasArguments {
 		for _, i := range w.document.Directives[ref].Arguments.Refs {
@@ -956,6 +968,9 @@ func (w *Walker) walkInlineFragment(ref int) {
 	}
 
 	w.appendAncestor(ref, ast.NodeKindInlineFragment)
+	if w.stop {
+		return
+	}
 
 	if w.document.InlineFragments[ref].HasDirectives {
 		for _, i := range w.document.InlineFragments[ref].Directives.Refs {
@@ -965,6 +980,9 @@ func (w *Walker) walkInlineFragment(ref int) {
 
 	if w.document.InlineFragments[ref].HasSelections {
 		w.walkSelectionSet(w.document.InlineFragments[ref].SelectionSet)
+		if w.stop {
+			return
+		}
 	}
 
 	w.removeLastAncestor()
@@ -1022,6 +1040,9 @@ func (w *Walker) walkFragmentDefinition(ref int) {
 	}
 
 	w.appendAncestor(ref, ast.NodeKindFragmentDefinition)
+	if w.stop {
+		return
+	}
 
 	if w.document.FragmentDefinitions[ref].HasSelections {
 		w.walkSelectionSet(w.document.FragmentDefinitions[ref].SelectionSet)
