@@ -124,6 +124,7 @@ var run = func(definition, operation string, expectedNodeCount, expectedComplexi
 }
 
 func BenchmarkEstimateComplexity(b *testing.B) {
+
 	def := mustDocument(astparser.ParseGraphqlDocumentString(testDefinition))
 	op := mustDocument(astparser.ParseGraphqlDocumentString(complexQuery))
 
@@ -141,7 +142,7 @@ func BenchmarkEstimateComplexity(b *testing.B) {
 		if nodeCount != 920 {
 			b.Fatalf("want nodeCount: 920, got: %d\n", nodeCount)
 		}
-		if complexity != 0 {
+		if complexity != 221 {
 			b.Fatalf("want complexity: 0, got: %d\n", complexity)
 		}
 	}
