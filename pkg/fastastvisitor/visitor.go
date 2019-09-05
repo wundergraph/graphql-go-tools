@@ -8,13 +8,15 @@ import (
 )
 
 type Walker struct {
+	Ancestors               []ast.Node
+	EnclosingTypeDefinition ast.Node
+	SelectionsBefore        []int
+	SelectionsAfter         []int
 	err                     error
 	document                *ast.Document
 	definition              *ast.Document
 	visitors                visitors
 	depth                   int
-	Ancestors               []ast.Node
-	EnclosingTypeDefinition ast.Node
 	typeDefinitions         []ast.Node
 	stop                    bool
 	skip                    bool
@@ -679,7 +681,10 @@ func (w *Walker) walkSelectionSet(ref int) {
 RefsChanged:
 	for {
 		refs := w.document.SelectionSets[ref].SelectionRefs
-		for _, j := range refs {
+		for i, j := range refs {
+
+			w.SelectionsBefore = refs[:i]
+			w.SelectionsAfter = refs[i+1:]
 
 			switch w.document.Selections[j].Kind {
 			case ast.SelectionKindField:
@@ -693,7 +698,6 @@ RefsChanged:
 			if w.stop {
 				return
 			}
-
 			if !w.refsEqual(refs, w.document.SelectionSets[ref].SelectionRefs) {
 				continue RefsChanged
 			}
@@ -725,6 +729,9 @@ RefsChanged:
 
 func (w *Walker) walkField(ref int) {
 	w.increaseDepth()
+
+	selectionsBefore := w.SelectionsBefore
+	selectionsAfter := w.SelectionsAfter
 
 	for i := 0; i < len(w.visitors.enterField); {
 		w.visitors.enterField[i].EnterField(ref)
@@ -771,6 +778,9 @@ func (w *Walker) walkField(ref int) {
 	}
 
 	w.removeLastAncestor()
+
+	w.SelectionsBefore = selectionsBefore
+	w.SelectionsAfter = selectionsAfter
 
 	for i := 0; i < len(w.visitors.leaveField); {
 		w.visitors.leaveField[i].LeaveField(ref)
@@ -925,6 +935,9 @@ func (w *Walker) walkFragmentSpread(ref int) {
 func (w *Walker) walkInlineFragment(ref int) {
 	w.increaseDepth()
 
+	selectionsBefore := w.SelectionsBefore
+	selectionsAfter := w.SelectionsAfter
+
 	for i := 0; i < len(w.visitors.enterInlineFragment); {
 		w.visitors.enterInlineFragment[i].EnterInlineFragment(ref)
 		if w.revisit {
@@ -955,6 +968,9 @@ func (w *Walker) walkInlineFragment(ref int) {
 	}
 
 	w.removeLastAncestor()
+
+	w.SelectionsBefore = selectionsBefore
+	w.SelectionsAfter = selectionsAfter
 
 	for i := 0; i < len(w.visitors.leaveInlineFragment); {
 		w.visitors.leaveInlineFragment[i].LeaveInlineFragment(ref)
@@ -1009,6 +1025,9 @@ func (w *Walker) walkFragmentDefinition(ref int) {
 
 	if w.document.FragmentDefinitions[ref].HasSelections {
 		w.walkSelectionSet(w.document.FragmentDefinitions[ref].SelectionSet)
+		if w.stop {
+			return
+		}
 	}
 
 	w.removeLastAncestor()

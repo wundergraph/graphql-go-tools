@@ -13,6 +13,8 @@ type SimpleWalker struct {
 	Ancestors        []ast.Node
 	parentDefinition ast.Node
 	visitor          AllNodesVisitor
+	SelectionsBefore []int
+	SelectionsAfter  []int
 }
 
 func NewSimpleWalker(ancestorSize int) SimpleWalker {
@@ -147,7 +149,10 @@ func (w *SimpleWalker) walkSelectionSet(ref int) {
 
 	w.appendAncestor(ref, ast.NodeKindSelectionSet)
 
-	for _, j := range w.document.SelectionSets[ref].SelectionRefs {
+	for i, j := range w.document.SelectionSets[ref].SelectionRefs {
+
+		w.SelectionsBefore = w.document.SelectionSets[ref].SelectionRefs[:i]
+		w.SelectionsAfter = w.document.SelectionSets[ref].SelectionRefs[i+1:]
 
 		switch w.document.Selections[j].Kind {
 		case ast.SelectionKindField:
@@ -169,6 +174,8 @@ func (w *SimpleWalker) walkSelectionSet(ref int) {
 func (w *SimpleWalker) walkField(ref int) {
 	w.increaseDepth()
 
+	selectionsBefore := w.SelectionsBefore
+	selectionsAfter := w.SelectionsAfter
 	w.visitor.EnterField(ref)
 
 	w.appendAncestor(ref, ast.NodeKindField)
@@ -191,6 +198,8 @@ func (w *SimpleWalker) walkField(ref int) {
 
 	w.removeLastAncestor()
 
+	w.SelectionsBefore = selectionsBefore
+	w.SelectionsAfter = selectionsAfter
 	w.visitor.LeaveField(ref)
 
 	w.decreaseDepth()
@@ -237,6 +246,8 @@ func (w *SimpleWalker) walkFragmentSpread(ref int) {
 func (w *SimpleWalker) walkInlineFragment(ref int) {
 	w.increaseDepth()
 
+	selectionsBefore := w.SelectionsBefore
+	selectionsAfter := w.SelectionsAfter
 	w.visitor.EnterInlineFragment(ref)
 
 	w.appendAncestor(ref, ast.NodeKindInlineFragment)
@@ -253,6 +264,8 @@ func (w *SimpleWalker) walkInlineFragment(ref int) {
 
 	w.removeLastAncestor()
 
+	w.SelectionsBefore = selectionsBefore
+	w.SelectionsAfter = selectionsAfter
 	w.visitor.LeaveInlineFragment(ref)
 
 	w.decreaseDepth()
