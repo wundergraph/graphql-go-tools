@@ -3,7 +3,7 @@ package parser
 
 import (
 	"fmt"
-	"github.com/jensneuse/graphql-go-tools/pkg/document"
+	"github.com/jensneuse/graphql-go-tools/legacy/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"

@@ -1,7 +1,7 @@
 package lookup
 
 import (
-	"github.com/jensneuse/graphql-go-tools/pkg/document"
+	"github.com/jensneuse/graphql-go-tools/legacy/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/parser"
 	"testing"
 )

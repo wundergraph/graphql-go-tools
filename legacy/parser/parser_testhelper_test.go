@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/golang/mock/gomock"
-	"github.com/jensneuse/graphql-go-tools/pkg/document"
+	"github.com/jensneuse/graphql-go-tools/legacy/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"

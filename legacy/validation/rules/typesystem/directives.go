@@ -1,7 +1,7 @@
 package typesystem
 
 import (
-	"github.com/jensneuse/graphql-go-tools/pkg/document"
+	"github.com/jensneuse/graphql-go-tools/legacy/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lookup"
 	"github.com/jensneuse/graphql-go-tools/pkg/validation"
 	"github.com/jensneuse/graphql-go-tools/pkg/validation/rules"

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/jensneuse/diffview"
-	"github.com/jensneuse/graphql-go-tools/pkg/document"
+	"github.com/jensneuse/graphql-go-tools/legacy/document"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
 	"github.com/sebdah/goldie"
 	"io/ioutil"

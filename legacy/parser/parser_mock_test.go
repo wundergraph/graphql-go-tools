@@ -5,12 +5,12 @@
 package parser
 
 import (
-	gomock "github.com/golang/mock/gomock"
-	document "github.com/jensneuse/graphql-go-tools/pkg/document"
-	keyword "github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
-	position "github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
-	token "github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
-	reflect "reflect"
+	"github.com/golang/mock/gomock"
+	"github.com/jensneuse/graphql-go-tools/legacy/document"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
+	"reflect"
 )
 
 // MockLexer is a mock of Lexer interface
