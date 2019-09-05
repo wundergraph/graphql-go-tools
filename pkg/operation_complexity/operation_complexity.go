@@ -23,7 +23,7 @@ package operation_complexity
 
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
+	"github.com/jensneuse/graphql-go-tools/pkg/fastastvisitor"
 )
 
 var (
@@ -32,14 +32,15 @@ var (
 )
 
 type OperationComplexityEstimator struct {
-	walker  *astvisitor.Walker
+	walker  *fastastvisitor.Walker
 	visitor *complexityVisitor
 }
 
 func NewOperationComplexityEstimator() *OperationComplexityEstimator {
 
-	walker := &astvisitor.Walker{}
+	walker := fastastvisitor.NewWalker(48)
 	visitor := &complexityVisitor{
+		Walker:      &walker,
 		multipliers: make([]multiplier, 0, 16),
 	}
 
@@ -51,7 +52,7 @@ func NewOperationComplexityEstimator() *OperationComplexityEstimator {
 	walker.RegisterEnterFragmentDefinitionVisitor(visitor)
 
 	return &OperationComplexityEstimator{
-		walker:  walker,
+		walker:  &walker,
 		visitor: visitor,
 	}
 }
@@ -70,6 +71,7 @@ func CalculateOperationComplexity(operation, definition *ast.Document) (nodeCoun
 }
 
 type complexityVisitor struct {
+	*fastastvisitor.Walker
 	operation, definition *ast.Document
 	count                 int
 	complexity            int
@@ -88,81 +90,84 @@ func (c *complexityVisitor) calculateMultiplied(i int) int {
 	return i
 }
 
-func (c *complexityVisitor) EnterDocument(operation, definition *ast.Document) astvisitor.Instruction {
+func (c *complexityVisitor) EnterDocument(operation, definition *ast.Document) {
 	c.operation = operation
 	c.definition = definition
-	return astvisitor.Instruction{}
 }
 
-func (c *complexityVisitor) EnterArgument(ref int, info astvisitor.Info) astvisitor.Instruction {
+func (c *complexityVisitor) EnterArgument(ref int) {
 
-	if info.Ancestors[len(info.Ancestors)-1].Kind != ast.NodeKindField {
-		return astvisitor.Instruction{}
+	if c.Ancestors[len(c.Ancestors)-1].Kind != ast.NodeKindField {
+		return
 	}
 
-	if !c.definition.InputValueDefinitionHasDirective(info.Definition.Ref, nodeCountMultiply) {
-		return astvisitor.Instruction{}
+	definition, ok := c.ArgumentInputValueDefinition(ref)
+	if !ok {
+		return
+	}
+
+	if !c.definition.InputValueDefinitionHasDirective(definition, nodeCountMultiply) {
+		return
 	}
 
 	value := c.operation.ArgumentValue(ref)
 	if value.Kind == ast.ValueKindInteger {
 		multi := c.operation.IntValueAsInt(value.Ref)
 		c.multipliers = append(c.multipliers, multiplier{
-			fieldRef: info.Ancestors[len(info.Ancestors)-1].Ref,
+			fieldRef: c.Ancestors[len(c.Ancestors)-1].Ref,
 			multi:    multi,
 		})
 	}
 
-	return astvisitor.Instruction{}
+	return
 }
 
-func (c *complexityVisitor) EnterField(ref int, info astvisitor.Info) astvisitor.Instruction {
+func (c *complexityVisitor) EnterField(ref int) {
 
-	if info.Definition.Kind != ast.NodeKindFieldDefinition {
-		return astvisitor.Instruction{}
+	definition, exists := c.FieldDefinition(ref)
+
+	if !exists {
+		return
 	}
 
-	if _, exits := c.definition.FieldDefinitionDirectiveByName(info.Definition.Ref, nodeCountSkip); exits {
-		return astvisitor.Instruction{
-			Action: astvisitor.Skip,
-		}
+	if _, exits := c.definition.FieldDefinitionDirectiveByName(definition, nodeCountSkip); exits {
+		c.SkipNode()
+		return
 	}
 
-	if !info.HasSelections {
-		return astvisitor.Instruction{}
+	if !c.operation.FieldHasSelections(ref) {
+		return
 	}
 
 	c.complexity = c.complexity + c.calculateMultiplied(1)
 
-	return astvisitor.Instruction{}
+	return
 }
 
-func (c *complexityVisitor) LeaveField(ref int, info astvisitor.Info) astvisitor.Instruction {
+func (c *complexityVisitor) LeaveField(ref int) {
 
 	if len(c.multipliers) == 0 {
-		return astvisitor.Instruction{}
+		return
 	}
 
 	if c.multipliers[len(c.multipliers)-1].fieldRef == ref {
 		c.multipliers = c.multipliers[:len(c.multipliers)-1]
 	}
 
-	return astvisitor.Instruction{}
+	return
 }
 
-func (c *complexityVisitor) EnterSelectionSet(ref int, info astvisitor.Info) astvisitor.Instruction {
+func (c *complexityVisitor) EnterSelectionSet(ref int) {
 
-	if info.Ancestors[len(info.Ancestors)-1].Kind != ast.NodeKindField {
-		return astvisitor.Instruction{}
+	if c.Ancestors[len(c.Ancestors)-1].Kind != ast.NodeKindField {
+		return
 	}
 
 	c.count = c.count + c.calculateMultiplied(1)
 
-	return astvisitor.Instruction{}
+	return
 }
 
-func (c *complexityVisitor) EnterFragmentDefinition(ref int, info astvisitor.Info) astvisitor.Instruction {
-	return astvisitor.Instruction{
-		Action: astvisitor.Skip,
-	}
+func (c *complexityVisitor) EnterFragmentDefinition(ref int) {
+	c.SkipNode()
 }
