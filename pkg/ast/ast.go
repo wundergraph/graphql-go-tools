@@ -350,8 +350,8 @@ func (d *Document) FieldDefinitionArgumentsDefinitions(ref int) []int {
 }
 
 func (d *Document) NodeFieldDefinitionArgumentDefinitionByName(node Node, fieldName, argumentName ByteSlice) int {
-	fieldDefinition, err := d.NodeFieldDefinitionByName(node, fieldName)
-	if err != nil {
+	fieldDefinition, exists := d.NodeFieldDefinitionByName(node, fieldName)
+	if !exists {
 		return -1
 	}
 	argumentDefinitions := d.FieldDefinitionArgumentsDefinitions(fieldDefinition)
@@ -364,8 +364,8 @@ func (d *Document) NodeFieldDefinitionArgumentDefinitionByName(node Node, fieldN
 }
 
 func (d *Document) NodeFieldDefinitionArgumentsDefinitions(node Node, fieldName ByteSlice) []int {
-	fieldDefinition, err := d.NodeFieldDefinitionByName(node, fieldName)
-	if err != nil {
+	fieldDefinition, exists := d.NodeFieldDefinitionByName(node, fieldName)
+	if !exists {
 		return nil
 	}
 	return d.FieldDefinitionArgumentsDefinitions(fieldDefinition)
@@ -391,13 +391,13 @@ func (d *Document) NodeFieldDefinitions(node Node) []int {
 	}
 }
 
-func (d *Document) NodeFieldDefinitionByName(node Node, fieldName ByteSlice) (int, error) {
+func (d *Document) NodeFieldDefinitionByName(node Node, fieldName ByteSlice) (definition int, exists bool) {
 	for _, i := range d.NodeFieldDefinitions(node) {
 		if bytes.Equal(d.Input.ByteSlice(d.FieldDefinitions[i].Name), fieldName) {
-			return i, nil
+			return i, true
 		}
 	}
-	return -1, fmt.Errorf("node field definition not found for node: %+v name: %s", node, string(fieldName))
+	return
 }
 
 func (d *Document) NodeTypeNameString(node Node) string {
