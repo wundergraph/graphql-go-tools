@@ -2,13 +2,13 @@ package astnormalization
 
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
+	"github.com/jensneuse/graphql-go-tools/pkg/fastastvisitor"
 )
 
 type FragmentDefinitionRemoval struct {
 }
 
-func removeFragmentDefinitions(walker *astvisitor.Walker) {
+func removeFragmentDefinitions(walker *fastastvisitor.Walker) {
 	visitor := removeFragmentDefinitionsVisitor{}
 	walker.RegisterLeaveDocumentVisitor(visitor)
 }
@@ -16,11 +16,10 @@ func removeFragmentDefinitions(walker *astvisitor.Walker) {
 type removeFragmentDefinitionsVisitor struct {
 }
 
-func (r removeFragmentDefinitionsVisitor) LeaveDocument(operation, definition *ast.Document) astvisitor.Instruction {
+func (r removeFragmentDefinitionsVisitor) LeaveDocument(operation, definition *ast.Document) {
 	for i := range operation.RootNodes {
 		if operation.RootNodes[i].Kind == ast.NodeKindFragmentDefinition {
 			operation.RootNodes[i].Kind = ast.NodeKindUnknown
 		}
 	}
-	return astvisitor.Instruction{}
 }

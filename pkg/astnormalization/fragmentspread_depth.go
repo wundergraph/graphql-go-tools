@@ -3,11 +3,11 @@ package astnormalization
 import (
 	"bytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
+	"github.com/jensneuse/graphql-go-tools/pkg/fastastvisitor"
 )
 
 type FragmentSpreadDepth struct {
-	walker             astvisitor.Walker
+	walker             fastastvisitor.Walker
 	visitor            fragmentSpreadDepthVisitor
 	calc               NestedDepthCalc
 	visitorsRegistered bool
@@ -42,6 +42,7 @@ func (r *FragmentSpreadDepth) Get(operation, definition *ast.Document, depths *D
 	r.visitor.operation = operation
 	r.visitor.definition = definition
 	r.visitor.depths = depths
+	r.visitor.Walker = &r.walker
 
 	err := r.walker.Walk(operation, definition)
 	if err != nil {
@@ -82,26 +83,25 @@ func (n *NestedDepthCalc) depthForFragment(name ast.ByteSlice) int {
 }
 
 type fragmentSpreadDepthVisitor struct {
+	*fastastvisitor.Walker
 	operation  *ast.Document
 	definition *ast.Document
 	depths     *Depths
 	err        error
 }
 
-func (r *fragmentSpreadDepthVisitor) EnterFragmentSpread(ref int, info astvisitor.Info) astvisitor.Instruction {
+func (r *fragmentSpreadDepthVisitor) EnterFragmentSpread(ref int) {
 
 	depth := Depth{
 		SpreadRef:  ref,
-		Depth:      info.Depth,
+		Depth:      r.Depth,
 		SpreadName: r.operation.FragmentSpreadName(ref),
 	}
 
-	if info.Ancestors[0].Kind == ast.NodeKindFragmentDefinition {
+	if r.Ancestors[0].Kind == ast.NodeKindFragmentDefinition {
 		depth.isNested = true
-		depth.parentFragmentName = r.operation.FragmentDefinitionName(info.Ancestors[0].Ref)
+		depth.parentFragmentName = r.operation.FragmentDefinitionName(r.Ancestors[0].Ref)
 	}
 
 	*r.depths = append(*r.depths, depth)
-
-	return astvisitor.Instruction{}
 }
