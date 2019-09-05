@@ -125,13 +125,13 @@ func (s *selectionSetCanMerge) selectionsCanMerge(leftSelection, rightSelection 
 		left := s.operation.Fields[leftSelection.Ref]
 		right := s.operation.Fields[rightSelection.Ref]
 
-		leftDefinition, err := s.definition.NodeFieldDefinitionByName(leftDefinitionNode, s.operation.Input.ByteSlice(left.Name))
-		if err != nil {
+		leftDefinition, exists := s.definition.NodeFieldDefinitionByName(leftDefinitionNode, s.operation.Input.ByteSlice(left.Name))
+		if !exists {
 			return false
 		}
 
-		rightDefinition, err := s.definition.NodeFieldDefinitionByName(rightDefinitionNode, s.operation.Input.ByteSlice(right.Name))
-		if err != nil {
+		rightDefinition, exists := s.definition.NodeFieldDefinitionByName(rightDefinitionNode, s.operation.Input.ByteSlice(right.Name))
+		if !exists {
 			return false
 		}
 

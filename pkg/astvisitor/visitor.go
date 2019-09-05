@@ -698,7 +698,7 @@ func (w *Walker) walkField(ref int, enclosing Info) {
 		EnclosingTypeDefinition: enclosing.EnclosingTypeDefinition,
 	}
 
-	if definition, err := w.definition.NodeFieldDefinitionByName(enclosing.EnclosingTypeDefinition, w.document.FieldName(ref)); err == nil {
+	if definition, exists := w.definition.NodeFieldDefinitionByName(enclosing.EnclosingTypeDefinition, w.document.FieldName(ref)); exists {
 		info.Definition.Kind = ast.NodeKindFieldDefinition
 		info.Definition.Ref = definition
 	}
