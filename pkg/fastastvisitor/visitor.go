@@ -1121,3 +1121,9 @@ func (w *Walker) ArgumentInputValueDefinition(argument int) (definition int, exi
 	}
 	return
 }
+
+func (w *Walker) FieldDefinition(field int) (definition int, exists bool) {
+	definition, _ = w.definition.NodeFieldDefinitionByName(w.EnclosingTypeDefinition, w.document.FieldName(field))
+	exists = definition != -1
+	return
+}
