@@ -58,93 +58,6 @@ func (l *Lexer) Read() (tok token.Token) {
 	return
 }
 
-func (l *Lexer) keywordFromRune(r byte) keyword.Keyword {
-
-	switch r {
-	case runes.EOF:
-		return keyword.EOF
-	case runes.SPACE:
-		return keyword.SPACE
-	case runes.HASHTAG:
-		return keyword.COMMENT
-	case runes.TAB:
-		return keyword.TAB
-	case runes.COMMA:
-		return keyword.COMMA
-	case runes.LINETERMINATOR:
-		return keyword.LINETERMINATOR
-	case runes.QUOTE:
-		return keyword.STRING
-	case runes.DOLLAR:
-		return keyword.DOLLAR
-	case runes.PIPE:
-		return keyword.PIPE
-	case runes.EQUALS:
-		return keyword.EQUALS
-	case runes.AT:
-		return keyword.AT
-	case runes.COLON:
-		return keyword.COLON
-	case runes.BANG:
-		return keyword.BANG
-	case runes.LPAREN:
-		return keyword.LPAREN
-	case runes.RPAREN:
-		return keyword.RPAREN
-	case runes.LBRACE:
-		return keyword.LBRACE
-	case runes.RBRACE:
-		return keyword.RBRACE
-	case runes.LBRACK:
-		return keyword.LBRACK
-	case runes.RBRACK:
-		return keyword.RBRACK
-	case runes.AND:
-		return keyword.AND
-	case runes.SUB:
-		return keyword.SUB
-	case runes.DOT:
-		if l.peekEquals(true, runes.DOT, runes.DOT, runes.DOT) {
-			return keyword.SPREAD
-		}
-		return keyword.DOT
-	}
-
-	if runeIsDigit(r) {
-		if l.peekIsFloat() {
-			return keyword.FLOAT
-		}
-		return keyword.INTEGER
-	}
-
-	return l.peekIdent()
-}
-
-func (l *Lexer) peekIsFloat() (isFloat bool) {
-
-	var hasDot bool
-	var peeked byte
-
-	start := l.input.InputPosition + l.peekWhitespaceLength()
-
-	for i := start; i < l.input.Length; i++ {
-
-		peeked = l.input.RawBytes[i]
-
-		if l.byteTerminatesSequence(peeked) {
-			return hasDot
-		} else if peeked == runes.DOT && !hasDot {
-			hasDot = true
-		} else if peeked == runes.DOT && hasDot {
-			return false
-		} else if !runeIsDigit(peeked) {
-			return false
-		}
-	}
-
-	return hasDot
-}
-
 func (l *Lexer) matchSingleRuneToken(r byte, tok *token.Token) bool {
 
 	switch r {
@@ -188,40 +101,17 @@ func (l *Lexer) matchSingleRuneToken(r byte, tok *token.Token) bool {
 }
 
 func (l *Lexer) readIdent() {
-
-	var r byte
-
 	for {
-		r = l.peekRune(false)
-		if !runeIsIdent(r) {
+		if l.input.InputPosition < l.input.Length {
+			if !l.runeIsIdent(l.input.RawBytes[l.input.InputPosition]) {
+				return
+			}
+			l.input.TextPosition.CharStart++
+			l.input.InputPosition++
+		} else {
 			return
 		}
-		l.readRune()
 	}
-}
-
-const identWantRunes = 13
-
-func (l *Lexer) peekIdent() (k keyword.Keyword) {
-
-	whitespaceOffset := l.peekWhitespaceLength()
-
-	start := l.input.InputPosition + whitespaceOffset
-	end := start + identWantRunes
-	if end > l.input.Length {
-		end = l.input.Length
-	}
-
-	for i := start; i < end; {
-		if !runeIsIdent(l.input.RawBytes[i]) {
-			end = i
-			break
-		}
-
-		i++
-	}
-
-	return l.keywordFromIdent(start, end)
 }
 
 func (l *Lexer) keywordFromIdent(start, end int) (k keyword.Keyword) {
@@ -455,7 +345,7 @@ func (l *Lexer) peekRune(ignoreWhitespace bool) (r byte) {
 	return runes.EOF
 }
 
-func runeIsIdent(r byte) bool {
+func (l *Lexer) runeIsIdent(r byte) bool {
 
 	switch {
 	case r >= 'a' && r <= 'z':
