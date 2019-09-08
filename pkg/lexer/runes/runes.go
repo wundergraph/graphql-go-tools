@@ -10,7 +10,6 @@ const (
 	COMMA          = ','
 	HASHTAG        = '#'
 	QUOTE          = '"'
-	SINGLE_QUOTE   = '\''
 	BACKSLASH      = '\\'
 	DOT            = '.'
 	AT             = '@'
@@ -28,25 +27,4 @@ const (
 	RBRACK = ']'
 	LBRACE = '{'
 	RBRACE = '}'
-
-	INT0 = '0'
-	INT1 = '1'
-	INT2 = '2'
-	INT3 = '3'
-	INT4 = '4'
-	INT5 = '5'
-	INT6 = '6'
-	INT7 = '7'
-	INT8 = '8'
-	INT9 = '9'
-
-	T = 't'
-	R = 'r'
-	U = 'u'
-	E = 'e'
-
-	F = 'f'
-	A = 'a'
-	L = 'l'
-	S = 's'
 )
