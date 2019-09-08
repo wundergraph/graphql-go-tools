@@ -116,71 +116,73 @@ func (l *Lexer) readIdent() {
 
 func (l *Lexer) keywordFromIdent(start, end int) (k keyword.Keyword) {
 
-	switch end - start {
+	ident := l.input.RawBytes[start:end]
+
+	switch len(ident) {
 	case 2:
-		if l.input.RawBytes[start] == 'o' && l.input.RawBytes[start+1] == 'n' {
+		if ident[0] == 'o' && ident[1] == 'n' {
 			return keyword.ON
 		}
 	case 4:
-		if l.input.RawBytes[start] == 'n' && l.input.RawBytes[start+1] == 'u' && l.input.RawBytes[start+2] == 'l' && l.input.RawBytes[start+3] == 'l' {
+		if ident[0] == 'n' && ident[1] == 'u' && ident[2] == 'l' && ident[3] == 'l' {
 			return keyword.NULL
 		}
-		if l.input.RawBytes[start] == 'e' && l.input.RawBytes[start+1] == 'n' && l.input.RawBytes[start+2] == 'u' && l.input.RawBytes[start+3] == 'm' {
+		if ident[0] == 'e' && ident[1] == 'n' && ident[2] == 'u' && ident[3] == 'm' {
 			return keyword.ENUM
 		}
-		if l.input.RawBytes[start] == 't' {
-			if l.input.RawBytes[start+1] == 'r' && l.input.RawBytes[start+2] == 'u' && l.input.RawBytes[start+3] == 'e' {
+		if ident[0] == 't' {
+			if ident[1] == 'r' && ident[2] == 'u' && ident[3] == 'e' {
 				return keyword.TRUE
 			}
-			if l.input.RawBytes[start+1] == 'y' && l.input.RawBytes[start+2] == 'p' && l.input.RawBytes[start+3] == 'e' {
+			if ident[1] == 'y' && ident[2] == 'p' && ident[3] == 'e' {
 				return keyword.TYPE
 			}
 		}
 	case 5:
-		if l.input.RawBytes[start] == 'f' && l.input.RawBytes[start+1] == 'a' && l.input.RawBytes[start+2] == 'l' && l.input.RawBytes[start+3] == 's' && l.input.RawBytes[start+4] == 'e' {
+		if ident[0] == 'f' && ident[1] == 'a' && ident[2] == 'l' && ident[3] == 's' && ident[4] == 'e' {
 			return keyword.FALSE
 		}
-		if l.input.RawBytes[start] == 'u' && l.input.RawBytes[start+1] == 'n' && l.input.RawBytes[start+2] == 'i' && l.input.RawBytes[start+3] == 'o' && l.input.RawBytes[start+4] == 'n' {
+		if ident[0] == 'u' && ident[1] == 'n' && ident[2] == 'i' && ident[3] == 'o' && ident[4] == 'n' {
 			return keyword.UNION
 		}
-		if l.input.RawBytes[start] == 'q' && l.input.RawBytes[start+1] == 'u' && l.input.RawBytes[start+2] == 'e' && l.input.RawBytes[start+3] == 'r' && l.input.RawBytes[start+4] == 'y' {
+		if ident[0] == 'q' && ident[1] == 'u' && ident[2] == 'e' && ident[3] == 'r' && ident[4] == 'y' {
 			return keyword.QUERY
 		}
-		if l.input.RawBytes[start] == 'i' && l.input.RawBytes[start+1] == 'n' && l.input.RawBytes[start+2] == 'p' && l.input.RawBytes[start+3] == 'u' && l.input.RawBytes[start+4] == 't' {
+		if ident[0] == 'i' && ident[1] == 'n' && ident[2] == 'p' && ident[3] == 'u' && ident[4] == 't' {
 			return keyword.INPUT
 		}
 	case 6:
-		if l.input.RawBytes[start] == 'e' && l.input.RawBytes[start+1] == 'x' && l.input.RawBytes[start+2] == 't' && l.input.RawBytes[start+3] == 'e' && l.input.RawBytes[start+4] == 'n' && l.input.RawBytes[start+5] == 'd' {
+		if ident[0] == 'e' && ident[1] == 'x' && ident[2] == 't' && ident[3] == 'e' && ident[4] == 'n' && ident[5] == 'd' {
 			return keyword.EXTEND
 		}
-		if l.input.RawBytes[start] == 's' {
-			if l.input.RawBytes[start+1] == 'c' && l.input.RawBytes[start+2] == 'h' && l.input.RawBytes[start+3] == 'e' && l.input.RawBytes[start+4] == 'm' && l.input.RawBytes[start+5] == 'a' {
+		if ident[0] == 's' {
+			if ident[1] == 'c' && ident[2] == 'h' && ident[3] == 'e' && ident[4] == 'm' && ident[5] == 'a' {
 				return keyword.SCHEMA
 			}
-			if l.input.RawBytes[start+1] == 'c' && l.input.RawBytes[start+2] == 'a' && l.input.RawBytes[start+3] == 'l' && l.input.RawBytes[start+4] == 'a' && l.input.RawBytes[start+5] == 'r' {
+			if ident[1] == 'c' && ident[2] == 'a' && ident[3] == 'l' && ident[4] == 'a' && ident[5] == 'r' {
 				return keyword.SCALAR
 			}
 		}
 	case 8:
-		if l.input.RawBytes[start] == 'm' && l.input.RawBytes[start+1] == 'u' && l.input.RawBytes[start+2] == 't' && l.input.RawBytes[start+3] == 'a' && l.input.RawBytes[start+4] == 't' && l.input.RawBytes[start+5] == 'i' && l.input.RawBytes[start+6] == 'o' && l.input.RawBytes[start+7] == 'n' {
+		if ident[0] == 'm' && ident[1] == 'u' && ident[2] == 't' && ident[3] == 'a' && ident[4] == 't' && ident[5] == 'i' && ident[6] == 'o' && ident[7] == 'n' {
 			return keyword.MUTATION
 		}
-		if l.input.RawBytes[start] == 'f' && l.input.RawBytes[start+1] == 'r' && l.input.RawBytes[start+2] == 'a' && l.input.RawBytes[start+3] == 'g' && l.input.RawBytes[start+4] == 'm' && l.input.RawBytes[start+5] == 'e' && l.input.RawBytes[start+6] == 'n' && l.input.RawBytes[start+7] == 't' {
+		if ident[0] == 'f' && ident[1] == 'r' && ident[2] == 'a' && ident[3] == 'g' && ident[4] == 'm' && ident[5] == 'e' && ident[6] == 'n' && ident[7] == 't' {
 			return keyword.FRAGMENT
 		}
 	case 9:
-		if l.input.RawBytes[start] == 'i' && l.input.RawBytes[start+1] == 'n' && l.input.RawBytes[start+2] == 't' && l.input.RawBytes[start+3] == 'e' && l.input.RawBytes[start+4] == 'r' && l.input.RawBytes[start+5] == 'f' && l.input.RawBytes[start+6] == 'a' && l.input.RawBytes[start+7] == 'c' && l.input.RawBytes[start+8] == 'e' {
+		if ident[0] == 'i' && ident[1] == 'n' && ident[2] == 't' && ident[3] == 'e' && ident[4] == 'r' && ident[5] == 'f' && ident[6] == 'a' && ident[7] == 'c' && ident[8] == 'e' {
 			return keyword.INTERFACE
 		}
-		if l.input.RawBytes[start] == 'd' && l.input.RawBytes[start+1] == 'i' && l.input.RawBytes[start+2] == 'r' && l.input.RawBytes[start+3] == 'e' && l.input.RawBytes[start+4] == 'c' && l.input.RawBytes[start+5] == 't' && l.input.RawBytes[start+6] == 'i' && l.input.RawBytes[start+7] == 'v' && l.input.RawBytes[start+8] == 'e' {
+		if ident[0] == 'd' && ident[1] == 'i' && ident[2] == 'r' && ident[3] == 'e' && ident[4] == 'c' && ident[5] == 't' && ident[6] == 'i' && ident[7] == 'v' && ident[8] == 'e' {
 			return keyword.DIRECTIVE
 		}
 	case 10:
-		if l.input.RawBytes[start] == 'i' && l.input.RawBytes[start+1] == 'm' && l.input.RawBytes[start+2] == 'p' && l.input.RawBytes[start+3] == 'l' && l.input.RawBytes[start+4] == 'e' && l.input.RawBytes[start+5] == 'm' && l.input.RawBytes[start+6] == 'e' && l.input.RawBytes[start+7] == 'n' && l.input.RawBytes[start+8] == 't' && l.input.RawBytes[start+9] == 's' {
+		if ident[0] == 'i' && ident[1] == 'm' && ident[2] == 'p' && ident[3] == 'l' && ident[4] == 'e' && ident[5] == 'm' && ident[6] == 'e' && ident[7] == 'n' && ident[8] == 't' && ident[9] == 's' {
 			return keyword.IMPLEMENTS
 		}
 	case 12:
-		if l.input.RawBytes[start] == 's' && l.input.RawBytes[start+1] == 'u' && l.input.RawBytes[start+2] == 'b' && l.input.RawBytes[start+3] == 's' && l.input.RawBytes[start+4] == 'c' && l.input.RawBytes[start+5] == 'r' && l.input.RawBytes[start+6] == 'i' && l.input.RawBytes[start+7] == 'p' && l.input.RawBytes[start+8] == 't' && l.input.RawBytes[start+9] == 'i' && l.input.RawBytes[start+10] == 'o' && l.input.RawBytes[start+11] == 'n' {
+		if ident[0] == 's' && ident[1] == 'u' && ident[2] == 'b' && ident[3] == 's' && ident[4] == 'c' && ident[5] == 'r' && ident[6] == 'i' && ident[7] == 'p' && ident[8] == 't' && ident[9] == 'i' && ident[10] == 'o' && ident[11] == 'n' {
 			return keyword.SUBSCRIPTION
 		}
 	}
