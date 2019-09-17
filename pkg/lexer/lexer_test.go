@@ -274,67 +274,67 @@ func TestLexer_Peek_Read(t *testing.T) {
 		run("foo-bar", mustRead(keyword.IDENT, "foo-bar"))
 	})
 	t.Run("read true", func(t *testing.T) {
-		run("true", mustRead(keyword.TRUE, "true"))
+		run("true", mustRead(keyword.IDENT, "true"))
 	})
 	t.Run("read true with space", func(t *testing.T) {
-		run(" true ", mustRead(keyword.TRUE, "true"))
+		run(" true ", mustRead(keyword.IDENT, "true"))
 	})
 	t.Run("read false", func(t *testing.T) {
-		run("false", mustRead(keyword.FALSE, "false"))
+		run("false", mustRead(keyword.IDENT, "false"))
 	})
 	t.Run("read query", func(t *testing.T) {
-		run("query", mustRead(keyword.QUERY, "query"))
+		run("query", mustRead(keyword.IDENT, "query"))
 	})
 	t.Run("read mutation", func(t *testing.T) {
-		run("mutation", mustRead(keyword.MUTATION, "mutation"))
+		run("mutation", mustRead(keyword.IDENT, "mutation"))
 	})
 	t.Run("read subscription", func(t *testing.T) {
-		run("subscription", mustRead(keyword.SUBSCRIPTION, "subscription"))
+		run("subscription", mustRead(keyword.IDENT, "subscription"))
 	})
 	t.Run("read fragment", func(t *testing.T) {
-		run("fragment", mustRead(keyword.FRAGMENT, "fragment"))
+		run("fragment", mustRead(keyword.IDENT, "fragment"))
 	})
 	t.Run("read fragment", func(t *testing.T) {
-		run("\n\n fragment", mustRead(keyword.FRAGMENT, "fragment"))
+		run("\n\n fragment", mustRead(keyword.IDENT, "fragment"))
 	})
 	t.Run("read implements", func(t *testing.T) {
-		run("implements", mustRead(keyword.IMPLEMENTS, "implements"))
+		run("implements", mustRead(keyword.IDENT, "implements"))
 	})
 	t.Run("read schema", func(t *testing.T) {
-		run("schema", mustRead(keyword.SCHEMA, "schema"))
+		run("schema", mustRead(keyword.IDENT, "schema"))
 	})
 	t.Run("read scalar", func(t *testing.T) {
-		run("scalar", mustRead(keyword.SCALAR, "scalar"))
+		run("scalar", mustRead(keyword.IDENT, "scalar"))
 	})
 	t.Run("read type", func(t *testing.T) {
-		run("type", mustRead(keyword.TYPE, "type"))
+		run("type", mustRead(keyword.IDENT, "type"))
 	})
 	t.Run("read interface", func(t *testing.T) {
-		run("interface", mustRead(keyword.INTERFACE, "interface"))
+		run("interface", mustRead(keyword.IDENT, "interface"))
 	})
 	t.Run("read union", func(t *testing.T) {
-		run("union", mustRead(keyword.UNION, "union"))
+		run("union", mustRead(keyword.IDENT, "union"))
 	})
 	t.Run("read enum", func(t *testing.T) {
-		run("enum", mustRead(keyword.ENUM, "enum"))
+		run("enum", mustRead(keyword.IDENT, "enum"))
 	})
 	t.Run("read input", func(t *testing.T) {
-		run("input", mustRead(keyword.INPUT, "input"))
+		run("input", mustRead(keyword.IDENT, "input"))
 	})
 	t.Run("read directive", func(t *testing.T) {
-		run("directive", mustRead(keyword.DIRECTIVE, "directive"))
+		run("directive", mustRead(keyword.IDENT, "directive"))
 	})
 	t.Run("read inputValue", func(t *testing.T) {
 		run("inputValue", mustRead(keyword.IDENT, "inputValue"))
 	})
 	t.Run("read extend", func(t *testing.T) {
-		run("extend", mustRead(keyword.EXTEND, "extend"))
+		run("extend", mustRead(keyword.IDENT, "extend"))
 	})
 	t.Run("read on", func(t *testing.T) {
-		run("on", mustRead(keyword.ON, "on"))
+		run("on", mustRead(keyword.IDENT, "on"))
 	})
 	t.Run("read on with whitespace", func(t *testing.T) {
-		run("on ", mustRead(keyword.ON, "on"))
+		run("on ", mustRead(keyword.IDENT, "on"))
 	})
 	t.Run("read ignore comma", func(t *testing.T) {
 		run(",", mustRead(keyword.EOF, ""))
@@ -349,7 +349,7 @@ func TestLexer_Peek_Read(t *testing.T) {
 		run("\n", mustRead(keyword.EOF, ""))
 	})
 	t.Run("read null", func(t *testing.T) {
-		run("null", mustRead(keyword.NULL, "null"))
+		run("null", mustRead(keyword.IDENT, "null"))
 	})
 	t.Run("read single line comment", func(t *testing.T) {
 		run("# A connection to a list of items.",
@@ -416,8 +416,8 @@ $foo
 						}
 					}`,
 			mustRead(keyword.IDENT, "Goland"), mustRead(keyword.LBRACE, "{"),
-			mustRead(keyword.SPREAD, "..."), mustRead(keyword.ON, "on"), mustRead(keyword.IDENT, "GoWater"), mustRead(keyword.LBRACE, "{"),
-			mustRead(keyword.SPREAD, "..."), mustRead(keyword.ON, "on"), mustRead(keyword.IDENT, "GoAir"), mustRead(keyword.LBRACE, "{"),
+			mustRead(keyword.SPREAD, "..."), mustRead(keyword.IDENT, "on"), mustRead(keyword.IDENT, "GoWater"), mustRead(keyword.LBRACE, "{"),
+			mustRead(keyword.SPREAD, "..."), mustRead(keyword.IDENT, "on"), mustRead(keyword.IDENT, "GoAir"), mustRead(keyword.LBRACE, "{"),
 			mustRead(keyword.IDENT, "go"),
 			mustRead(keyword.RBRACE, "}"),
 			mustRead(keyword.RBRACE, "}"),
