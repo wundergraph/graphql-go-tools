@@ -20,10 +20,8 @@ func (l *Lexer) SetInput(input *ast.Input) {
 func (l *Lexer) Read() (tok token.Token) {
 
 	var next byte
-	var inputPositionStart int
 
 	for {
-		inputPositionStart = l.input.InputPosition
 		tok.SetStart(l.input.InputPosition, l.input.TextPosition)
 		next = l.readRune()
 		if !l.byteIsWhitespace(next) {
@@ -53,7 +51,7 @@ func (l *Lexer) Read() (tok token.Token) {
 	}
 
 	l.readIdent()
-	tok.Keyword = l.keywordFromIdent(inputPositionStart, l.input.InputPosition)
+	tok.Keyword = keyword.IDENT
 	tok.SetEnd(l.input.InputPosition, l.input.TextPosition)
 	return
 }
@@ -112,82 +110,6 @@ func (l *Lexer) readIdent() {
 			return
 		}
 	}
-}
-
-func (l *Lexer) keywordFromIdent(start, end int) (k keyword.Keyword) {
-
-	ident := l.input.RawBytes[start:end]
-
-	switch len(ident) {
-	case 2:
-		if ident[0] == 'o' && ident[1] == 'n' {
-			return keyword.ON
-		}
-	case 4:
-		if ident[0] == 'n' && ident[1] == 'u' && ident[2] == 'l' && ident[3] == 'l' {
-			return keyword.NULL
-		}
-		if ident[0] == 'e' && ident[1] == 'n' && ident[2] == 'u' && ident[3] == 'm' {
-			return keyword.ENUM
-		}
-		if ident[0] == 't' {
-			if ident[1] == 'r' && ident[2] == 'u' && ident[3] == 'e' {
-				return keyword.TRUE
-			}
-			if ident[1] == 'y' && ident[2] == 'p' && ident[3] == 'e' {
-				return keyword.TYPE
-			}
-		}
-	case 5:
-		if ident[0] == 'f' && ident[1] == 'a' && ident[2] == 'l' && ident[3] == 's' && ident[4] == 'e' {
-			return keyword.FALSE
-		}
-		if ident[0] == 'u' && ident[1] == 'n' && ident[2] == 'i' && ident[3] == 'o' && ident[4] == 'n' {
-			return keyword.UNION
-		}
-		if ident[0] == 'q' && ident[1] == 'u' && ident[2] == 'e' && ident[3] == 'r' && ident[4] == 'y' {
-			return keyword.QUERY
-		}
-		if ident[0] == 'i' && ident[1] == 'n' && ident[2] == 'p' && ident[3] == 'u' && ident[4] == 't' {
-			return keyword.INPUT
-		}
-	case 6:
-		if ident[0] == 'e' && ident[1] == 'x' && ident[2] == 't' && ident[3] == 'e' && ident[4] == 'n' && ident[5] == 'd' {
-			return keyword.EXTEND
-		}
-		if ident[0] == 's' {
-			if ident[1] == 'c' && ident[2] == 'h' && ident[3] == 'e' && ident[4] == 'm' && ident[5] == 'a' {
-				return keyword.SCHEMA
-			}
-			if ident[1] == 'c' && ident[2] == 'a' && ident[3] == 'l' && ident[4] == 'a' && ident[5] == 'r' {
-				return keyword.SCALAR
-			}
-		}
-	case 8:
-		if ident[0] == 'm' && ident[1] == 'u' && ident[2] == 't' && ident[3] == 'a' && ident[4] == 't' && ident[5] == 'i' && ident[6] == 'o' && ident[7] == 'n' {
-			return keyword.MUTATION
-		}
-		if ident[0] == 'f' && ident[1] == 'r' && ident[2] == 'a' && ident[3] == 'g' && ident[4] == 'm' && ident[5] == 'e' && ident[6] == 'n' && ident[7] == 't' {
-			return keyword.FRAGMENT
-		}
-	case 9:
-		if ident[0] == 'i' && ident[1] == 'n' && ident[2] == 't' && ident[3] == 'e' && ident[4] == 'r' && ident[5] == 'f' && ident[6] == 'a' && ident[7] == 'c' && ident[8] == 'e' {
-			return keyword.INTERFACE
-		}
-		if ident[0] == 'd' && ident[1] == 'i' && ident[2] == 'r' && ident[3] == 'e' && ident[4] == 'c' && ident[5] == 't' && ident[6] == 'i' && ident[7] == 'v' && ident[8] == 'e' {
-			return keyword.DIRECTIVE
-		}
-	case 10:
-		if ident[0] == 'i' && ident[1] == 'm' && ident[2] == 'p' && ident[3] == 'l' && ident[4] == 'e' && ident[5] == 'm' && ident[6] == 'e' && ident[7] == 'n' && ident[8] == 't' && ident[9] == 's' {
-			return keyword.IMPLEMENTS
-		}
-	case 12:
-		if ident[0] == 's' && ident[1] == 'u' && ident[2] == 'b' && ident[3] == 's' && ident[4] == 'c' && ident[5] == 'r' && ident[6] == 'i' && ident[7] == 'p' && ident[8] == 't' && ident[9] == 'i' && ident[10] == 'o' && ident[11] == 'n' {
-			return keyword.SUBSCRIPTION
-		}
-	}
-
-	return keyword.IDENT
 }
 
 func (l *Lexer) readDotOrSpread(tok *token.Token) {
