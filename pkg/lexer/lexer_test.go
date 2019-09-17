@@ -145,6 +145,9 @@ func TestLexer_Peek_Read(t *testing.T) {
 	t.Run("read single line string", func(t *testing.T) {
 		run("\"foo\"", mustRead(keyword.STRING, "foo"))
 	})
+	t.Run("read single line string with leading/trailing whitespace", func(t *testing.T) {
+		run("\" 	foo	 \"", mustRead(keyword.STRING, "foo"))
+	})
 	t.Run("peek incomplete string as quote", func(t *testing.T) {
 		run("\"foo", mustRead(keyword.STRING, "foo"))
 	})
@@ -161,10 +164,29 @@ func TestLexer_Peek_Read(t *testing.T) {
 		run("\"\"\"foo \"\" bar\"\"\"", mustRead(keyword.BLOCKSTRING, "foo \"\" bar"))
 	})
 	t.Run("read multi line string", func(t *testing.T) {
-		run("\"\"\"\nfoo\nbar\"\"\"", mustRead(keyword.BLOCKSTRING, "\nfoo\nbar"))
+		run("\"\"\"\nfoo\nbar\"\"\"", mustRead(keyword.BLOCKSTRING, "foo\nbar"))
 	})
 	t.Run("read multi line string with escaped backslash", func(t *testing.T) {
 		run("\"\"\"foo \\\\ bar\"\"\"", mustRead(keyword.BLOCKSTRING, "foo \\\\ bar"))
+	})
+	t.Run("read multi line string with leading/trailing space", func(t *testing.T) {
+		run(`""" foo """`, mustRead(keyword.BLOCKSTRING, "foo"))
+	})
+	t.Run("read multi line string with trailing leading/trailing tab", func(t *testing.T) {
+		run(`"""	foo	"""`, mustRead(keyword.BLOCKSTRING, "foo"))
+	})
+	t.Run("read multi line string with trailing leading/trailing LT", func(t *testing.T) {
+		run(`"""
+	  	foo 
+"""`, mustRead(keyword.BLOCKSTRING, "foo"))
+	})
+	t.Run("complex multi line string", func(t *testing.T) {
+		run("\"\"\"block string uses \\\"\"\"\n\"\"\"", mustRead(keyword.BLOCKSTRING, "block string uses \\\"\"\""))
+	})
+	t.Run("read multi line string with trailing leading/trailing whitespace combination", func(t *testing.T) {
+		run(`	"""	 	 
+						foo
+				  	"""`, mustRead(keyword.BLOCKSTRING, "foo"))
 	})
 	t.Run("read pipe", func(t *testing.T) {
 		run("|", mustRead(keyword.PIPE, "|"))
@@ -412,7 +434,7 @@ baz
 			mustRead(keyword.INTEGER, "1337"), mustRead(keyword.INTEGER, "1338"), mustRead(keyword.INTEGER, "1339"),
 			mustRead(keyword.STRING, "foo"), mustRead(keyword.STRING, "bar"), mustRead(keyword.BLOCKSTRING, "foo bar"),
 			mustRead(keyword.BLOCKSTRING, "foo\nbar"),
-			mustRead(keyword.BLOCKSTRING, "foo\nbar\nbaz\n"),
+			mustRead(keyword.BLOCKSTRING, "foo\nbar\nbaz"),
 			mustRead(keyword.FLOAT, "13.37"),
 		)
 	})
@@ -598,25 +620,6 @@ func BenchmarkLexer(b *testing.B) {
 
 		for key != keyword.EOF {
 			key = lexer.Read().Keyword
-		}
-	}
-}
-
-func BenchmarkBlockString(b *testing.B) {
-	input := []byte("\"\"\"foo \\\" bar\"\"\"")
-	in := &ast.Input{}
-	in.ResetInputBytes(input)
-	lexer := &Lexer{}
-	lexer.SetInput(in)
-
-	b.ReportAllocs()
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
-
-		in.ResetInputBytes(input)
-		if lexer.Read().Keyword != keyword.BLOCKSTRING {
-			b.Fatal("want blockstring")
 		}
 	}
 }

@@ -228,10 +228,9 @@ func (l *Lexer) readString(tok *token.Token) {
 	if l.peekEquals(false, runes.QUOTE, runes.QUOTE) {
 		l.swallowAmount(2)
 		l.readBlockString(tok)
-		return
+	} else {
+		l.readSingleLineString(tok)
 	}
-
-	l.readSingleLineString(tok)
 }
 
 func (l *Lexer) swallowAmount(amount int) {
@@ -420,10 +419,16 @@ func (l *Lexer) readBlockString(tok *token.Token) {
 
 	escaped := false
 	quoteCount := 0
+	whitespaceCount := 0
+	reachedFirstNonWhitespace := false
+	leadingWhitespaceToken := 0
 
 	for {
 		next := l.readRune()
 		switch next {
+		case runes.SPACE, runes.TAB, runes.LINETERMINATOR:
+			quoteCount = 0
+			whitespaceCount++
 		case runes.EOF:
 			return
 		case runes.QUOTE:
@@ -436,15 +441,23 @@ func (l *Lexer) readBlockString(tok *token.Token) {
 
 			if quoteCount == 3 {
 				tok.SetEnd(l.input.InputPosition-3, l.input.TextPosition)
+				tok.Literal.Start += uint32(leadingWhitespaceToken)
+				tok.Literal.End -= uint32(whitespaceCount)
 				return
 			}
 
 		case runes.BACKSLASH:
 			escaped = !escaped
 			quoteCount = 0
+			whitespaceCount = 0
 		default:
+			if !reachedFirstNonWhitespace {
+				reachedFirstNonWhitespace = true
+				leadingWhitespaceToken = whitespaceCount
+			}
 			escaped = false
 			quoteCount = 0
+			whitespaceCount = 0
 		}
 	}
 }
@@ -452,36 +465,46 @@ func (l *Lexer) readBlockString(tok *token.Token) {
 func (l *Lexer) readSingleLineString(tok *token.Token) {
 
 	tok.Keyword = keyword.STRING
-	tok.SetStart(l.input.InputPosition, l.input.TextPosition)
 
-	var escaped bool
+	tok.SetStart(l.input.InputPosition, l.input.TextPosition)
+	tok.TextPosition.CharStart -= 1
+
+	escaped := false
+	whitespaceCount := 0
+	reachedFirstNonWhitespace := false
+	leadingWhitespaceToken := 0
 
 	for {
-
-		nextRune := l.peekRune(false)
-
-		switch nextRune {
-		case runes.QUOTE, runes.EOF:
+		next := l.readRune()
+		switch next {
+		case runes.SPACE, runes.TAB:
+			whitespaceCount++
+		case runes.EOF:
+			tok.SetEnd(l.input.InputPosition, l.input.TextPosition)
+			tok.Literal.Start += uint32(leadingWhitespaceToken)
+			tok.Literal.End -= uint32(whitespaceCount)
+			return
+		case runes.QUOTE, runes.LINETERMINATOR:
 			if escaped {
-				escaped = false
-				l.readRune()
-			} else {
-				tok.SetEnd(l.input.InputPosition, l.input.TextPosition)
-				tok.TextPosition.CharStart -= 1
-				tok.TextPosition.CharEnd += 1
-				l.swallowAmount(1)
-				return
+				escaped = !escaped
+				continue
 			}
+
+			tok.SetEnd(l.input.InputPosition-1, l.input.TextPosition)
+			tok.Literal.Start += uint32(leadingWhitespaceToken)
+			tok.Literal.End -= uint32(whitespaceCount)
+			return
+
 		case runes.BACKSLASH:
-			l.readRune()
-			if escaped {
-				escaped = false
-			} else {
-				escaped = true
-			}
+			escaped = !escaped
+			whitespaceCount = 0
 		default:
-			l.readRune()
+			if !reachedFirstNonWhitespace {
+				reachedFirstNonWhitespace = true
+				leadingWhitespaceToken = whitespaceCount
+			}
 			escaped = false
+			whitespaceCount = 0
 		}
 	}
 }
