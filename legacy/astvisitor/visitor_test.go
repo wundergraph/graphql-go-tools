@@ -110,7 +110,7 @@ func (s *skipUserVisitor) EnterDocument(operation, definition *ast.Document) Ins
 }
 
 func (s *skipUserVisitor) EnterField(ref int, info Info) Instruction {
-	if bytes.Equal(s.operation.FieldName(ref), []byte("user")) {
+	if bytes.Equal(s.operation.FieldNameBytes(ref), []byte("user")) {
 		return Instruction{
 			Action: Skip,
 		}
@@ -330,7 +330,7 @@ func (p *printingVisitor) LeaveSelectionSet(ref int, info Info) Instruction {
 
 func (p *printingVisitor) EnterField(ref int, info Info) Instruction {
 	p.enter()
-	fieldName := p.operation.FieldName(ref)
+	fieldName := p.operation.FieldNameBytes(ref)
 	parentTypeName := p.definition.NodeTypeNameString(info.EnclosingTypeDefinition)
 	p.must(fmt.Fprintf(p.out, "EnterField(%s::%s): ref: %d, info: %+v, %s\n", fieldName, parentTypeName, ref, info, p.printSelections(info)))
 	return Instruction{}
