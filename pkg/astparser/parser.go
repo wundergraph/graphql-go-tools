@@ -96,7 +96,7 @@ func (p *Parser) parse() {
 
 		switch next {
 		case keyword.SCHEMA:
-			p.parseSchema()
+			p.parseSchemaDefinition()
 		case keyword.STRING, keyword.BLOCKSTRING:
 			p.parseRootDescription()
 		case keyword.SCALAR:
@@ -219,7 +219,7 @@ func (p *Parser) mustRead(key keyword.Keyword) (next token.Token) {
 	return
 }
 
-func (p *Parser) parseSchema() {
+func (p *Parser) parseSchemaDefinition() {
 
 	schemaLiteral := p.read()
 
@@ -229,6 +229,7 @@ func (p *Parser) parseSchema() {
 
 	if p.peekEquals(keyword.AT) {
 		schemaDefinition.Directives = p.parseDirectiveList()
+		schemaDefinition.HasDirectives = len(schemaDefinition.Directives.Refs) > 0
 	}
 
 	p.parseRootOperationTypeDefinitionList(&schemaDefinition.RootOperationTypeDefinitions)
@@ -610,7 +611,6 @@ func (p *Parser) parseStringValue() int {
 }
 
 func (p *Parser) parseObjectTypeDefinition(description *ast.Description) {
-
 	var objectTypeDefinition ast.ObjectTypeDefinition
 	if description != nil {
 		objectTypeDefinition.Description = *description
@@ -622,21 +622,22 @@ func (p *Parser) parseObjectTypeDefinition(description *ast.Description) {
 	}
 	if p.peekEquals(keyword.AT) {
 		objectTypeDefinition.Directives = p.parseDirectiveList()
+		objectTypeDefinition.HasDirectives = len(objectTypeDefinition.Directives.Refs) > 0
 	}
 	if p.peekEquals(keyword.LBRACE) {
 		objectTypeDefinition.FieldsDefinition = p.parseFieldDefinitionList()
+		objectTypeDefinition.HasFieldDefinitions = len(objectTypeDefinition.FieldsDefinition.Refs) > 0
 	}
-
 	p.document.ObjectTypeDefinitions = append(p.document.ObjectTypeDefinitions, objectTypeDefinition)
 	ref := len(p.document.ObjectTypeDefinitions) - 1
 	node := ast.Node{
 		Kind: ast.NodeKindObjectTypeDefinition,
 		Ref:  ref,
 	}
-
 	if p.shouldIndex {
 		p.indexNode(objectTypeDefinition.Name, node)
 	}
+	p.document.RootNodes = append(p.document.RootNodes, node)
 }
 
 func (p *Parser) indexNode(key ast.ByteSliceReference, value ast.Node) {
@@ -767,11 +768,13 @@ func (p *Parser) parseFieldDefinition() int {
 	fieldDefinition.Name = nameToken.Literal
 	if p.peekEquals(keyword.LPAREN) {
 		fieldDefinition.ArgumentsDefinition = p.parseInputValueDefinitionList(keyword.RPAREN)
+		fieldDefinition.HasArgumentsDefinitions = len(fieldDefinition.ArgumentsDefinition.Refs) > 0
 	}
 	fieldDefinition.Colon = p.mustRead(keyword.COLON).TextPosition
 	fieldDefinition.Type = p.parseType()
 	if p.peek() == keyword.AT {
 		fieldDefinition.Directives = p.parseDirectiveList()
+		fieldDefinition.HasDirectives = len(fieldDefinition.Directives.Refs) > 0
 	}
 
 	p.document.FieldDefinitions = append(p.document.FieldDefinitions, fieldDefinition)
@@ -918,9 +921,11 @@ func (p *Parser) parseInputObjectTypeDefinition(description *ast.Description) {
 	inputObjectTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
 	if p.peekEquals(keyword.AT) {
 		inputObjectTypeDefinition.Directives = p.parseDirectiveList()
+		inputObjectTypeDefinition.HasDirectives = len(inputObjectTypeDefinition.Directives.Refs) > 0
 	}
 	if p.peekEquals(keyword.LBRACE) {
 		inputObjectTypeDefinition.InputFieldsDefinition = p.parseInputValueDefinitionList(keyword.RBRACE)
+		inputObjectTypeDefinition.HasInputFieldsDefinitions = len(inputObjectTypeDefinition.InputFieldsDefinition.Refs) > 0
 	}
 	p.document.InputObjectTypeDefinitions = append(p.document.InputObjectTypeDefinitions, inputObjectTypeDefinition)
 	ref := len(p.document.InputObjectTypeDefinitions) - 1
@@ -931,6 +936,7 @@ func (p *Parser) parseInputObjectTypeDefinition(description *ast.Description) {
 	if p.shouldIndex {
 		p.indexNode(inputObjectTypeDefinition.Name, node)
 	}
+	p.document.RootNodes = append(p.document.RootNodes, node)
 }
 
 func (p *Parser) parseScalarTypeDefinition(description *ast.Description) {
@@ -942,6 +948,7 @@ func (p *Parser) parseScalarTypeDefinition(description *ast.Description) {
 	scalarTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
 	if p.peekEquals(keyword.AT) {
 		scalarTypeDefinition.Directives = p.parseDirectiveList()
+		scalarTypeDefinition.HasDirectives = len(scalarTypeDefinition.Directives.Refs) > 0
 	}
 	p.document.ScalarTypeDefinitions = append(p.document.ScalarTypeDefinitions, scalarTypeDefinition)
 	ref := len(p.document.ScalarTypeDefinitions) - 1
@@ -952,6 +959,7 @@ func (p *Parser) parseScalarTypeDefinition(description *ast.Description) {
 	if p.shouldIndex {
 		p.indexNode(scalarTypeDefinition.Name, node)
 	}
+	p.document.RootNodes = append(p.document.RootNodes, node)
 }
 
 func (p *Parser) parseInterfaceTypeDefinition(description *ast.Description) {
@@ -963,9 +971,11 @@ func (p *Parser) parseInterfaceTypeDefinition(description *ast.Description) {
 	interfaceTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
 	if p.peekEquals(keyword.AT) {
 		interfaceTypeDefinition.Directives = p.parseDirectiveList()
+		interfaceTypeDefinition.HasDirectives = len(interfaceTypeDefinition.Directives.Refs) > 0
 	}
 	if p.peekEquals(keyword.LBRACE) {
 		interfaceTypeDefinition.FieldsDefinition = p.parseFieldDefinitionList()
+		interfaceTypeDefinition.HasFieldDefinitions = len(interfaceTypeDefinition.FieldsDefinition.Refs) > 0
 	}
 	p.document.InterfaceTypeDefinitions = append(p.document.InterfaceTypeDefinitions, interfaceTypeDefinition)
 	ref := len(p.document.InterfaceTypeDefinitions) - 1
@@ -976,6 +986,7 @@ func (p *Parser) parseInterfaceTypeDefinition(description *ast.Description) {
 	if p.shouldIndex {
 		p.indexNode(interfaceTypeDefinition.Name, node)
 	}
+	p.document.RootNodes = append(p.document.RootNodes, node)
 }
 
 func (p *Parser) parseUnionTypeDefinition(description *ast.Description) {
@@ -987,10 +998,12 @@ func (p *Parser) parseUnionTypeDefinition(description *ast.Description) {
 	unionTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
 	if p.peekEquals(keyword.AT) {
 		unionTypeDefinition.Directives = p.parseDirectiveList()
+		unionTypeDefinition.HasDirectives = len(unionTypeDefinition.Directives.Refs) > 0
 	}
 	if p.peekEquals(keyword.EQUALS) {
 		unionTypeDefinition.Equals = p.mustRead(keyword.EQUALS).TextPosition
 		unionTypeDefinition.UnionMemberTypes = p.parseUnionMemberTypes()
+		unionTypeDefinition.HasUnionMemberTypes = len(unionTypeDefinition.UnionMemberTypes.Refs) > 0
 	}
 	p.document.UnionTypeDefinitions = append(p.document.UnionTypeDefinitions, unionTypeDefinition)
 	ref := len(p.document.UnionTypeDefinitions) - 1
@@ -1001,6 +1014,7 @@ func (p *Parser) parseUnionTypeDefinition(description *ast.Description) {
 	if p.shouldIndex {
 		p.indexNode(unionTypeDefinition.Name, node)
 	}
+	p.document.RootNodes = append(p.document.RootNodes, node)
 }
 
 func (p *Parser) parseUnionMemberTypes() (list ast.TypeList) {
@@ -1063,9 +1077,11 @@ func (p *Parser) parseEnumTypeDefinition(description *ast.Description) {
 	enumTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
 	if p.peekEquals(keyword.AT) {
 		enumTypeDefinition.Directives = p.parseDirectiveList()
+		enumTypeDefinition.HasDirectives = len(enumTypeDefinition.Directives.Refs) > 0
 	}
 	if p.peekEquals(keyword.LBRACE) {
 		enumTypeDefinition.EnumValuesDefinition = p.parseEnumValueDefinitionList()
+		enumTypeDefinition.HasEnumValuesDefinitions = len(enumTypeDefinition.EnumValuesDefinition.Refs) > 0
 	}
 	p.document.EnumTypeDefinitions = append(p.document.EnumTypeDefinitions, enumTypeDefinition)
 	ref := len(p.document.EnumTypeDefinitions) - 1
@@ -1076,6 +1092,7 @@ func (p *Parser) parseEnumTypeDefinition(description *ast.Description) {
 	if p.shouldIndex {
 		p.indexNode(enumTypeDefinition.Name, node)
 	}
+	p.document.RootNodes = append(p.document.RootNodes, node)
 }
 
 func (p *Parser) parseEnumValueDefinitionList() (list ast.EnumValueDefinitionList) {
@@ -1117,6 +1134,7 @@ func (p *Parser) parseEnumValueDefinition() int {
 	enumValueDefinition.EnumValue = p.mustRead(keyword.IDENT).Literal
 	if p.peekEquals(keyword.AT) {
 		enumValueDefinition.Directives = p.parseDirectiveList()
+		enumValueDefinition.HasDirectives = len(enumValueDefinition.Directives.Refs) > 0
 	}
 
 	p.document.EnumValueDefinitions = append(p.document.EnumValueDefinitions, enumValueDefinition)
@@ -1133,6 +1151,7 @@ func (p *Parser) parseDirectiveDefinition(description *ast.Description) {
 	directiveDefinition.Name = p.mustRead(keyword.IDENT).Literal
 	if p.peekEquals(keyword.LPAREN) {
 		directiveDefinition.ArgumentsDefinition = p.parseInputValueDefinitionList(keyword.RPAREN)
+		directiveDefinition.HasArgumentsDefinitions = len(directiveDefinition.ArgumentsDefinition.Refs) > 0
 	}
 	directiveDefinition.On = p.mustRead(keyword.ON).TextPosition
 	p.parseDirectiveLocations(&directiveDefinition.DirectiveLocations)
@@ -1145,6 +1164,7 @@ func (p *Parser) parseDirectiveDefinition(description *ast.Description) {
 	if p.shouldIndex {
 		p.indexNode(directiveDefinition.Name, node)
 	}
+	p.document.RootNodes = append(p.document.RootNodes, node)
 }
 
 func (p *Parser) parseDirectiveLocations(locations *ast.DirectiveLocations) {
@@ -1480,29 +1500,26 @@ func (p *Parser) parseExtension() {
 }
 
 func (p *Parser) parseSchemaExtension(extend position.Position) {
-
 	schemaLiteral := p.read()
-
 	schemaDefinition := ast.SchemaDefinition{
 		SchemaLiteral: schemaLiteral.TextPosition,
 	}
-
 	if p.peekEquals(keyword.AT) {
 		schemaDefinition.Directives = p.parseDirectiveList()
+		schemaDefinition.HasDirectives = len(schemaDefinition.Directives.Refs) > 0
 	}
-
 	p.parseRootOperationTypeDefinitionList(&schemaDefinition.RootOperationTypeDefinitions)
 
 	schemaExtension := ast.SchemaExtension{
 		ExtendLiteral:    extend,
 		SchemaDefinition: schemaDefinition,
 	}
-
 	p.document.SchemaExtensions = append(p.document.SchemaExtensions, schemaExtension)
+	ref := len(p.document.SchemaExtensions) - 1
+	p.document.RootNodes = append(p.document.RootNodes, ast.Node{Ref: ref, Kind: ast.NodeKindSchemaExtension})
 }
 
 func (p *Parser) parseObjectTypeExtension(extend position.Position) {
-
 	var objectTypeDefinition ast.ObjectTypeDefinition
 	objectTypeDefinition.TypeLiteral = p.mustRead(keyword.TYPE).TextPosition
 	objectTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
@@ -1511,37 +1528,40 @@ func (p *Parser) parseObjectTypeExtension(extend position.Position) {
 	}
 	if p.peekEquals(keyword.AT) {
 		objectTypeDefinition.Directives = p.parseDirectiveList()
+		objectTypeDefinition.HasDirectives = len(objectTypeDefinition.Directives.Refs) > 0
 	}
 	if p.peekEquals(keyword.LBRACE) {
 		objectTypeDefinition.FieldsDefinition = p.parseFieldDefinitionList()
+		objectTypeDefinition.HasFieldDefinitions = len(objectTypeDefinition.FieldsDefinition.Refs) > 0
 	}
-
 	objectTypeExtension := ast.ObjectTypeExtension{
 		ExtendLiteral:        extend,
 		ObjectTypeDefinition: objectTypeDefinition,
 	}
-
 	p.document.ObjectTypeExtensions = append(p.document.ObjectTypeExtensions, objectTypeExtension)
+	ref := len(p.document.ObjectTypeExtensions) - 1
+	p.document.RootNodes = append(p.document.RootNodes, ast.Node{Ref: ref, Kind: ast.NodeKindObjectTypeExtension})
 }
 
 func (p *Parser) parseInterfaceTypeExtension(extend position.Position) {
-
 	var interfaceTypeDefinition ast.InterfaceTypeDefinition
 	interfaceTypeDefinition.InterfaceLiteral = p.mustRead(keyword.INTERFACE).TextPosition
 	interfaceTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
 	if p.peekEquals(keyword.AT) {
 		interfaceTypeDefinition.Directives = p.parseDirectiveList()
+		interfaceTypeDefinition.HasDirectives = len(interfaceTypeDefinition.Directives.Refs) > 0
 	}
 	if p.peekEquals(keyword.LBRACE) {
 		interfaceTypeDefinition.FieldsDefinition = p.parseFieldDefinitionList()
+		interfaceTypeDefinition.HasFieldDefinitions = len(interfaceTypeDefinition.FieldsDefinition.Refs) > 0
 	}
-
 	interfaceTypeExtension := ast.InterfaceTypeExtension{
 		ExtendLiteral:           extend,
 		InterfaceTypeDefinition: interfaceTypeDefinition,
 	}
-
 	p.document.InterfaceTypeExtensions = append(p.document.InterfaceTypeExtensions, interfaceTypeExtension)
+	ref := len(p.document.InterfaceTypeExtensions) - 1
+	p.document.RootNodes = append(p.document.RootNodes, ast.Node{Ref: ref, Kind: ast.NodeKindInterfaceTypeExtension})
 }
 
 func (p *Parser) parseScalarTypeExtension(extend position.Position) {
@@ -1550,12 +1570,15 @@ func (p *Parser) parseScalarTypeExtension(extend position.Position) {
 	scalarTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
 	if p.peekEquals(keyword.AT) {
 		scalarTypeDefinition.Directives = p.parseDirectiveList()
+		scalarTypeDefinition.HasDirectives = len(scalarTypeDefinition.Directives.Refs) > 0
 	}
 	scalarTypeExtension := ast.ScalarTypeExtension{
 		ExtendLiteral:        extend,
 		ScalarTypeDefinition: scalarTypeDefinition,
 	}
 	p.document.ScalarTypeExtensions = append(p.document.ScalarTypeExtensions, scalarTypeExtension)
+	ref := len(p.document.ScalarTypeExtensions) - 1
+	p.document.RootNodes = append(p.document.RootNodes, ast.Node{Ref: ref, Kind: ast.NodeKindScalarTypeExtension})
 }
 
 func (p *Parser) parseUnionTypeExtension(extend position.Position) {
@@ -1564,16 +1587,20 @@ func (p *Parser) parseUnionTypeExtension(extend position.Position) {
 	unionTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
 	if p.peekEquals(keyword.AT) {
 		unionTypeDefinition.Directives = p.parseDirectiveList()
+		unionTypeDefinition.HasDirectives = len(unionTypeDefinition.Directives.Refs) > 0
 	}
 	if p.peekEquals(keyword.EQUALS) {
 		unionTypeDefinition.Equals = p.mustRead(keyword.EQUALS).TextPosition
 		unionTypeDefinition.UnionMemberTypes = p.parseUnionMemberTypes()
+		unionTypeDefinition.HasUnionMemberTypes = len(unionTypeDefinition.UnionMemberTypes.Refs) > 0
 	}
 	unionTypeExtension := ast.UnionTypeExtension{
 		ExtendLiteral:       extend,
 		UnionTypeDefinition: unionTypeDefinition,
 	}
 	p.document.UnionTypeExtensions = append(p.document.UnionTypeExtensions, unionTypeExtension)
+	ref := len(p.document.UnionTypeExtensions) - 1
+	p.document.RootNodes = append(p.document.RootNodes, ast.Node{Ref: ref, Kind: ast.NodeKindUnionTypeExtension})
 }
 
 func (p *Parser) parseEnumTypeExtension(extend position.Position) {
@@ -1582,15 +1609,19 @@ func (p *Parser) parseEnumTypeExtension(extend position.Position) {
 	enumTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
 	if p.peekEquals(keyword.AT) {
 		enumTypeDefinition.Directives = p.parseDirectiveList()
+		enumTypeDefinition.HasDirectives = len(enumTypeDefinition.Directives.Refs) > 0
 	}
 	if p.peekEquals(keyword.LBRACE) {
 		enumTypeDefinition.EnumValuesDefinition = p.parseEnumValueDefinitionList()
+		enumTypeDefinition.HasEnumValuesDefinitions = len(enumTypeDefinition.EnumValuesDefinition.Refs) > 0
 	}
 	enumTypeExtension := ast.EnumTypeExtension{
 		ExtendLiteral:      extend,
 		EnumTypeDefinition: enumTypeDefinition,
 	}
 	p.document.EnumTypeExtensions = append(p.document.EnumTypeExtensions, enumTypeExtension)
+	ref := len(p.document.EnumTypeExtensions) - 1
+	p.document.RootNodes = append(p.document.RootNodes, ast.Node{Ref: ref, Kind: ast.NodeKindEnumTypeExtension})
 }
 
 func (p *Parser) parseInputObjectTypeExtension(extend position.Position) {
@@ -1599,13 +1630,17 @@ func (p *Parser) parseInputObjectTypeExtension(extend position.Position) {
 	inputObjectTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
 	if p.peekEquals(keyword.AT) {
 		inputObjectTypeDefinition.Directives = p.parseDirectiveList()
+		inputObjectTypeDefinition.HasDirectives = len(inputObjectTypeDefinition.Directives.Refs) > 0
 	}
 	if p.peekEquals(keyword.LBRACE) {
 		inputObjectTypeDefinition.InputFieldsDefinition = p.parseInputValueDefinitionList(keyword.RBRACE)
+		inputObjectTypeDefinition.HasInputFieldsDefinitions = len(inputObjectTypeDefinition.InputFieldsDefinition.Refs) > 0
 	}
 	inputObjectTypeExtension := ast.InputObjectTypeExtension{
 		ExtendLiteral:             extend,
 		InputObjectTypeDefinition: inputObjectTypeDefinition,
 	}
 	p.document.InputObjectTypeExtensions = append(p.document.InputObjectTypeExtensions, inputObjectTypeExtension)
+	ref := len(p.document.InputObjectTypeExtensions) - 1
+	p.document.RootNodes = append(p.document.RootNodes, ast.Node{Ref: ref, Kind: ast.NodeKindInputObjectTypeExtension})
 }
