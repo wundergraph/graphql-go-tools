@@ -401,7 +401,7 @@ func (v *valuesVisitor) EnterArgument(ref int) {
 	}
 
 	if !v.valueSatisfiesInputValueDefinitionType(value, v.definition.InputValueDefinitions[definition].Type) {
-		v.StopWithErr(fmt.Errorf("value for argument: %s doesn't satisfy requirements from input value definition: %s", v.operation.ArgumentNameString(ref), v.definition.InputValueDefinitionName(definition)))
+		v.StopWithErr(fmt.Errorf("value for argument: %s doesn't satisfy requirements from input value definition: %s", v.operation.ArgumentNameString(ref), v.definition.InputValueDefinitionNameBytes(definition)))
 		return
 	}
 }
@@ -514,7 +514,7 @@ func (v *valuesVisitor) objectValueHasDuplicateFields(objectValue int) bool {
 func (v *valuesVisitor) objectFieldDefined(objectField, inputObjectTypeDefinition int) bool {
 	name := v.operation.ObjectFieldName(objectField)
 	for _, i := range v.definition.InputObjectTypeDefinitions[inputObjectTypeDefinition].InputFieldsDefinition.Refs {
-		if bytes.Equal(name, v.definition.InputValueDefinitionName(i)) {
+		if bytes.Equal(name, v.definition.InputValueDefinitionNameBytes(i)) {
 			return true
 		}
 	}
@@ -523,7 +523,7 @@ func (v *valuesVisitor) objectFieldDefined(objectField, inputObjectTypeDefinitio
 
 func (v *valuesVisitor) objectValueSatisfiesInputValueDefinition(objectValue, inputValueDefinition int) bool {
 
-	name := v.definition.InputValueDefinitionName(inputValueDefinition)
+	name := v.definition.InputValueDefinitionNameBytes(inputValueDefinition)
 	definitionType := v.definition.InputValueDefinitionType(inputValueDefinition)
 
 	for _, i := range v.operation.ObjectValues[objectValue].Refs {
@@ -538,7 +538,7 @@ func (v *valuesVisitor) objectValueSatisfiesInputValueDefinition(objectValue, in
 }
 
 func (v *valuesVisitor) valueSatisfiesScalar(value ast.Value, scalar int) bool {
-	scalarName := v.definition.ScalarTypeDefinitionName(scalar)
+	scalarName := v.definition.ScalarTypeDefinitionNameBytes(scalar)
 	switch value.Kind {
 	case ast.ValueKindString:
 		return bytes.Equal(scalarName, literal.STRING)
@@ -607,7 +607,7 @@ func (r *requiredArgumentsVisitor) EnterDocument(operation, definition *ast.Docu
 
 func (r *requiredArgumentsVisitor) EnterField(ref int) {
 
-	fieldName := r.operation.FieldName(ref)
+	fieldName := r.operation.FieldNameBytes(ref)
 	inputValueDefinitions := r.definition.NodeFieldDefinitionArgumentsDefinitions(r.EnclosingTypeDefinition, fieldName)
 
 	for _, i := range inputValueDefinitions {
@@ -615,7 +615,7 @@ func (r *requiredArgumentsVisitor) EnterField(ref int) {
 			continue
 		}
 
-		name := r.definition.InputValueDefinitionName(i)
+		name := r.definition.InputValueDefinitionNameBytes(i)
 
 		argument, exists := r.operation.FieldArgument(ref, name)
 		if !exists {
