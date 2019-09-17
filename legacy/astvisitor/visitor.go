@@ -684,7 +684,7 @@ RefsChanged:
 func (w *Walker) walkField(ref int, enclosing Info) {
 	w.increaseDepth()
 
-	argumentDefinitions := w.definition.NodeFieldDefinitionArgumentsDefinitions(enclosing.EnclosingTypeDefinition, w.document.FieldName(ref))
+	argumentDefinitions := w.definition.NodeFieldDefinitionArgumentsDefinitions(enclosing.EnclosingTypeDefinition, w.document.FieldNameBytes(ref))
 
 	info := Info{
 		Depth:                   w.depth,
@@ -698,7 +698,7 @@ func (w *Walker) walkField(ref int, enclosing Info) {
 		EnclosingTypeDefinition: enclosing.EnclosingTypeDefinition,
 	}
 
-	if definition, exists := w.definition.NodeFieldDefinitionByName(enclosing.EnclosingTypeDefinition, w.document.FieldName(ref)); exists {
+	if definition, exists := w.definition.NodeFieldDefinitionByName(enclosing.EnclosingTypeDefinition, w.document.FieldNameBytes(ref)); exists {
 		info.Definition.Kind = ast.NodeKindFieldDefinition
 		info.Definition.Ref = definition
 	}
@@ -904,7 +904,7 @@ func (w *Walker) inputValueDefinition(argument int, enclosing Info) int {
 	argName := w.document.ArgumentName(argument)
 	switch ancestor.Kind {
 	case ast.NodeKindField:
-		fieldName := w.document.FieldName(ancestor.Ref)
+		fieldName := w.document.FieldNameBytes(ancestor.Ref)
 		return w.definition.NodeFieldDefinitionArgumentDefinitionByName(enclosing.EnclosingTypeDefinition, fieldName, argName)
 	case ast.NodeKindDirective:
 		directiveName := w.document.DirectiveNameBytes(ancestor.Ref)
