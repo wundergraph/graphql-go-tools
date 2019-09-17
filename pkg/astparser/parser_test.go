@@ -351,9 +351,7 @@ func TestParser_Parse(t *testing.T) {
 				if !dateOfBirthField.Description.IsBlockString {
 					panic("want true")
 				}
-				if doc.Input.ByteSliceString(dateOfBirthField.Description.Content) != `
-							date of birth
-							` {
+				if doc.Input.ByteSliceString(dateOfBirthField.Description.Content) != "date of birth" {
 					panic(fmt.Sprintf("want 'date of birth' got: '%s'", doc.Input.ByteSliceString(dateOfBirthField.Description.Content)))
 				}
 				dateType := doc.Types[dateOfBirthField.Type]
@@ -637,9 +635,7 @@ func TestParser_Parse(t *testing.T) {
 				if !dateOfBirthField.Description.IsBlockString {
 					panic("want true")
 				}
-				if doc.Input.ByteSliceString(dateOfBirthField.Description.Content) != `
-							date of birth
-							` {
+				if doc.Input.ByteSliceString(dateOfBirthField.Description.Content) != "date of birth" {
 					panic(fmt.Sprintf("want 'date of birth' got: '%s'", doc.Input.ByteSliceString(dateOfBirthField.Description.Content)))
 				}
 				dateType := doc.Types[dateOfBirthField.Type]
@@ -763,9 +759,7 @@ func TestParser_Parse(t *testing.T) {
 				if !c.Description.IsBlockString {
 					panic("want true")
 				}
-				if doc.Input.ByteSliceString(c.Description.Content) != `
-										c description
-										` {
+				if doc.Input.ByteSliceString(c.Description.Content) != "c description" {
 					panic("want 'c description'")
 				}
 				if doc.Types[c.Type].TypeKind != ast.TypeKindNamed {

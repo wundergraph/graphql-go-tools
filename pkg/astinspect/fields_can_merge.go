@@ -6,10 +6,10 @@ import (
 )
 
 func FieldsCanMerge(document *ast.Document, left, right int) bool {
-	leftName := document.FieldName(left)
-	rightName := document.FieldName(right)
-	leftAlias := document.FieldAlias(left)
-	rightAlias := document.FieldAlias(right)
+	leftName := document.FieldNameBytes(left)
+	rightName := document.FieldNameBytes(right)
+	leftAlias := document.FieldAliasBytes(left)
+	rightAlias := document.FieldAliasBytes(right)
 
 	leftHasAlias := document.Fields[left].Alias.IsDefined
 	rightHasAlias := document.Fields[right].Alias.IsDefined

@@ -24,10 +24,10 @@ func (f *fieldSelectionMergeVisitor) EnterDocument(operation, definition *ast.Do
 }
 
 func (f *fieldSelectionMergeVisitor) fieldsCanMerge(left, right int) bool {
-	leftName := f.operation.FieldName(left)
-	rightName := f.operation.FieldName(right)
-	leftAlias := f.operation.FieldAlias(left)
-	rightAlias := f.operation.FieldAlias(right)
+	leftName := f.operation.FieldNameBytes(left)
+	rightName := f.operation.FieldNameBytes(right)
+	leftAlias := f.operation.FieldAliasBytes(left)
+	rightAlias := f.operation.FieldAliasBytes(right)
 
 	if !bytes.Equal(leftName, rightName) || !bytes.Equal(leftAlias, rightAlias) {
 		return false

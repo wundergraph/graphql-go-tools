@@ -20,7 +20,7 @@ func (f *fieldDefined) EnterDocument(operation, definition *ast.Document) {
 }
 
 func (f *fieldDefined) ValidateUnionField(ref int, enclosingTypeDefinition ast.Node) error {
-	if bytes.Equal(f.operation.FieldName(ref), literal.TYPENAME) {
+	if bytes.Equal(f.operation.FieldNameBytes(ref), literal.TYPENAME) {
 		return nil
 	}
 	fieldName := f.operation.FieldNameString(ref)
@@ -29,7 +29,7 @@ func (f *fieldDefined) ValidateUnionField(ref int, enclosingTypeDefinition ast.N
 }
 
 func (f *fieldDefined) ValidateInterfaceObjectTypeField(ref int, enclosingTypeDefinition ast.Node) error {
-	fieldName := f.operation.FieldName(ref)
+	fieldName := f.operation.FieldNameBytes(ref)
 	hasSelections := f.operation.FieldHasSelections(ref)
 	definitions := f.definition.NodeFieldDefinitions(enclosingTypeDefinition)
 	for _, i := range definitions {

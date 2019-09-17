@@ -197,10 +197,10 @@ func (s *selectionSetCanMerge) shouldEvaluateInlineFragment(selection ast.Select
 }
 
 func (s *selectionSetCanMerge) fieldsCanMerge(left int, right int, enclosingNode ast.Node) bool {
-	leftName := s.operation.FieldName(left)
-	rightName := s.operation.FieldName(right)
-	leftAlias := s.operation.FieldAlias(left)
-	rightAlias := s.operation.FieldAlias(right)
+	leftName := s.operation.FieldNameBytes(left)
+	rightName := s.operation.FieldNameBytes(right)
+	leftAlias := s.operation.FieldAliasBytes(left)
+	rightAlias := s.operation.FieldAliasBytes(right)
 	leftAliasDefined := s.operation.FieldAliasIsDefined(left)
 	rightAliasDefined := s.operation.FieldAliasIsDefined(right)
 

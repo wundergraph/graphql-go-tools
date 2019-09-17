@@ -24,7 +24,7 @@ func (r *removeSelfAliasingVisitor) EnterField(ref int) {
 	if !r.operation.Fields[ref].Alias.IsDefined {
 		return
 	}
-	if !bytes.Equal(r.operation.FieldName(ref), r.operation.FieldAlias(ref)) {
+	if !bytes.Equal(r.operation.FieldNameBytes(ref), r.operation.FieldAliasBytes(ref)) {
 		return
 	}
 	r.operation.RemoveFieldAlias(ref)
