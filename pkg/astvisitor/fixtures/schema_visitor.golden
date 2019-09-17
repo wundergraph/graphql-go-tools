@@ -1,0 +1,87 @@
+EnterDirectiveDefinition(awesome): ref: 0
+  EnterDirectiveLocation(TypeSystemDirectiveLocationSchema)
+  LeaveDirectiveLocation(TypeSystemDirectiveLocationSchema)
+  EnterDirectiveLocation(TypeSystemDirectiveLocationScalar)
+  LeaveDirectiveLocation(TypeSystemDirectiveLocationScalar)
+LeaveDirectiveDefinition(awesome): ref: 0
+
+EnterObjectTypeDefinition(Foo): ref: 0
+  EnterFieldDefinition(field): ref: 0
+  LeaveFieldDefinition(field): ref: 0
+LeaveObjectTypeDefinition(Foo): ref: 0
+
+EnterObjectTypeDefinition(FooBar): ref: 1
+  EnterFieldDefinition(field): ref: 1
+  LeaveFieldDefinition(field): ref: 1
+LeaveObjectTypeDefinition(FooBar): ref: 1
+
+EnterObjectTypeExtension(Foo): ref: 0
+  EnterFieldDefinition(field2): ref: 2
+  LeaveFieldDefinition(field2): ref: 2
+LeaveObjectTypeExtension(Foo): ref: 0
+
+EnterInterfaceTypeDefinition(Bar): ref: 0
+  EnterFieldDefinition(field): ref: 3
+  LeaveFieldDefinition(field): ref: 3
+LeaveInterfaceTypeDefinition(Bar): ref: 0
+
+EnterInterfaceTypeExtension(Bar): ref: 0
+  EnterFieldDefinition(field2): ref: 4
+  LeaveFieldDefinition(field2): ref: 4
+LeaveInterfaceTypeExtension(Bar): ref: 0
+
+EnterEnumTypeDefinition(Bat): ref: 0
+  EnterEnumValueDefinition(BAR): ref: 0
+  LeaveEnumValueDefinition(BAR): ref: 0
+LeaveEnumTypeDefinition(Bat): ref: 0
+
+EnterEnumTypeExtension(Bat): ref: 0
+  EnterEnumValueDefinition(BAL): ref: 1
+  LeaveEnumValueDefinition(BAL): ref: 1
+LeaveEnumTypeExtension(Bat): ref: 0
+
+EnterUnionTypeDefinition(Fooniun): ref: 0
+  EnterUnionMemberType(Foo): ref: 5
+  LeaveUnionMemberType(Foo): ref: 5
+LeaveUnionTypeDefinition(Fooniun): ref: 0
+
+EnterUnionTypeExtension(Fooniun): ref: 0
+  EnterUnionMemberType(FooBar): ref: 6
+  LeaveUnionMemberType(FooBar): ref: 6
+LeaveUnionTypeExtension(Fooniun): ref: 0
+
+EnterInputObjectTypeDefinition(Bart): ref: 0
+  EnterInputValueDefinition(field): ref: 0
+  LeaveInputValueDefinition(field): ref: 0
+LeaveInputObjectTypeDefinition(Bart): ref: 0
+
+EnterInputObjectTypeExtension(Bart): ref: 0
+  EnterInputValueDefinition(field2): ref: 1
+  LeaveInputValueDefinition(field2): ref: 1
+LeaveInputObjectTypeExtension(Bart): ref: 0
+
+EnterScalarTypeDefinition(JSON): ref: 0
+LeaveScalarTypeDefinition(JSON): ref: 0
+
+EnterScalarTypeExtension(JSON): ref: 0
+  EnterDirective(awesome): ref: 0
+  LeaveDirective(awesome): ref: 0
+LeaveScalarTypeExtension(JSON): ref: 0
+
+EnterSchemaDefinition: ref: 0
+  EnterRootOperationTypeDefinition(OperationTypeQuery): ref: 0
+  LeaveRootOperationTypeDefinition(OperationTypeQuery): ref: 0
+  EnterRootOperationTypeDefinition(OperationTypeMutation): ref: 1
+  LeaveRootOperationTypeDefinition(OperationTypeMutation): ref: 1
+LeaveSchemaDefinition: ref: 0
+
+EnterSchemaExtension: ref: 0
+  EnterDirective(awesome): ref: 1
+  LeaveDirective(awesome): ref: 1
+LeaveSchemaExtension: ref: 0
+
+EnterSchemaExtension: ref: 1
+  EnterRootOperationTypeDefinition(OperationTypeSubscription): ref: 2
+  LeaveRootOperationTypeDefinition(OperationTypeSubscription): ref: 2
+LeaveSchemaExtension: ref: 1
+
