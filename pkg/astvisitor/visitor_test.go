@@ -23,7 +23,7 @@ var mustDoc = func(doc *ast.Document, err error) *ast.Document {
 	return doc
 }
 
-func TestVisit(t *testing.T) {
+func TestVisitOperation(t *testing.T) {
 
 	definition := mustDoc(astparser.ParseGraphqlDocumentString(testDefinition))
 	operation := mustDoc(astparser.ParseGraphqlDocumentString(testOperation))
@@ -52,6 +52,36 @@ func TestVisit(t *testing.T) {
 		}
 
 		diffview.NewGoland().DiffViewBytes("introspection_lexed", fixture, out)
+	}
+}
+
+func TestVisitSchemaDefinition(t *testing.T) {
+
+	operation := mustDoc(astparser.ParseGraphqlDocumentString(testDefinitions))
+
+	walker := NewWalker(48)
+	buff := &bytes.Buffer{}
+	visitor := &printingVisitor{
+		Walker:    &walker,
+		out:       buff,
+		operation: operation,
+	}
+
+	walker.RegisterAllNodesVisitor(visitor)
+
+	must(walker.Walk(operation, nil))
+
+	out := buff.Bytes()
+	goldie.Assert(t, "schema_visitor", out)
+
+	if t.Failed() {
+
+		fixture, err := ioutil.ReadFile("./fixtures/schema_visitor.golden")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		diffview.NewGoland().DiffViewBytes("schema_visitor", fixture, out)
 	}
 }
 
@@ -114,7 +144,7 @@ func (s *skipUserVisitor) EnterDocument(operation, definition *ast.Document) {
 }
 
 func (s *skipUserVisitor) EnterField(ref int) {
-	if bytes.Equal(s.operation.FieldName(ref), []byte("user")) {
+	if bytes.Equal(s.operation.FieldNameBytes(ref), []byte("user")) {
 		s.SkipNode()
 	}
 }
@@ -163,6 +193,174 @@ func (m *minimalVisitor) EnterField(ref int) {
 }
 
 type dummyVisitor struct {
+}
+
+func (d *dummyVisitor) EnterSchemaExtension(ref int) {
+
+}
+
+func (d *dummyVisitor) LeaveSchemaExtension(ref int) {
+
+}
+
+func (d *dummyVisitor) EnterSchemaDefinition(ref int) {
+
+}
+
+func (d *dummyVisitor) LeaveSchemaDefinition(ref int) {
+
+}
+
+func (d *dummyVisitor) EnterRootOperationTypeDefinition(ref int) {
+
+}
+
+func (d *dummyVisitor) LeaveRootOperationTypeDefinition(ref int) {
+
+}
+
+func (d *dummyVisitor) LeaveDirectiveLocation(location ast.DirectiveLocation) {
+
+}
+
+func (d *dummyVisitor) EnterDirectiveDefinition(ref int) {
+
+}
+
+func (d *dummyVisitor) LeaveDirectiveDefinition(ref int) {
+
+}
+
+func (d *dummyVisitor) EnterDirectiveLocation(location ast.DirectiveLocation) {
+
+}
+
+func (d *dummyVisitor) EnterUnionMemberType(ref int) {
+
+}
+
+func (d *dummyVisitor) LeaveUnionMemberType(ref int) {
+
+}
+
+func (d *dummyVisitor) EnterObjectTypeDefinition(ref int) {
+
+}
+
+func (d *dummyVisitor) LeaveObjectTypeDefinition(ref int) {
+
+}
+
+func (d *dummyVisitor) EnterObjectTypeExtension(ref int) {
+
+}
+
+func (d *dummyVisitor) LeaveObjectTypeExtension(ref int) {
+
+}
+
+func (d *dummyVisitor) EnterFieldDefinition(ref int) {
+
+}
+
+func (d *dummyVisitor) LeaveFieldDefinition(ref int) {
+
+}
+
+func (d *dummyVisitor) EnterInputValueDefinition(ref int) {
+
+}
+
+func (d *dummyVisitor) LeaveInputValueDefinition(ref int) {
+
+}
+
+func (d *dummyVisitor) EnterInterfaceTypeDefinition(ref int) {
+
+}
+
+func (d *dummyVisitor) LeaveInterfaceTypeDefinition(ref int) {
+
+}
+
+func (d *dummyVisitor) EnterInterfaceTypeExtension(ref int) {
+
+}
+
+func (d *dummyVisitor) LeaveInterfaceTypeExtension(ref int) {
+
+}
+
+func (d *dummyVisitor) EnterScalarTypeDefinition(ref int) {
+
+}
+
+func (d *dummyVisitor) LeaveScalarTypeDefinition(ref int) {
+
+}
+
+func (d *dummyVisitor) EnterScalarTypeExtension(ref int) {
+
+}
+
+func (d *dummyVisitor) LeaveScalarTypeExtension(ref int) {
+
+}
+
+func (d *dummyVisitor) EnterUnionTypeDefinition(ref int) {
+
+}
+
+func (d *dummyVisitor) LeaveUnionTypeDefinition(ref int) {
+
+}
+
+func (d *dummyVisitor) EnterUnionTypeExtension(ref int) {
+
+}
+
+func (d *dummyVisitor) LeaveUnionTypeExtension(ref int) {
+
+}
+
+func (d *dummyVisitor) EnterEnumTypeDefinition(ref int) {
+
+}
+
+func (d *dummyVisitor) LeaveEnumTypeDefinition(ref int) {
+
+}
+
+func (d *dummyVisitor) EnterEnumTypeExtension(ref int) {
+
+}
+
+func (d *dummyVisitor) LeaveEnumTypeExtension(ref int) {
+
+}
+
+func (d *dummyVisitor) EnterEnumValueDefinition(ref int) {
+
+}
+
+func (d *dummyVisitor) LeaveEnumValueDefinition(ref int) {
+
+}
+
+func (d *dummyVisitor) EnterInputObjectTypeDefinition(ref int) {
+
+}
+
+func (d *dummyVisitor) LeaveInputObjectTypeDefinition(ref int) {
+
+}
+
+func (d *dummyVisitor) EnterInputObjectTypeExtension(ref int) {
+
+}
+
+func (d *dummyVisitor) LeaveInputObjectTypeExtension(ref int) {
+
 }
 
 func (d *dummyVisitor) EnterDocument(operation, definition *ast.Document) {
@@ -252,42 +450,6 @@ type printingVisitor struct {
 	indentation           int
 }
 
-func (p *printingVisitor) EnterDocument(operation, definition *ast.Document) {
-	p.operation, p.definition = operation, definition
-}
-
-func (p *printingVisitor) LeaveDocument(operation, definition *ast.Document) {
-
-}
-
-func (p *printingVisitor) EnterDirective(ref int) {
-	p.enter()
-	name := p.operation.DirectiveNameString(ref)
-	p.must(fmt.Fprintf(p.out, "EnterDirective(%s): ref: %d\n", name, ref))
-
-}
-
-func (p *printingVisitor) LeaveDirective(ref int) {
-	p.leave()
-	name := p.operation.DirectiveNameString(ref)
-	p.must(fmt.Fprintf(p.out, "LeaveDirective(%s): ref: %d\n", name, ref))
-
-}
-
-func (p *printingVisitor) EnterVariableDefinition(ref int) {
-	p.enter()
-	varName := string(p.operation.VariableValueName(p.operation.VariableDefinitions[ref].VariableValue.Ref))
-	p.must(fmt.Fprintf(p.out, "EnterVariableDefinition(%s): ref: %d\n", varName, ref))
-
-}
-
-func (p *printingVisitor) LeaveVariableDefinition(ref int) {
-	p.leave()
-	varName := string(p.operation.VariableValueName(p.operation.VariableDefinitions[ref].VariableValue.Ref))
-	p.must(fmt.Fprintf(p.out, "LeaveVariableDefinition(%s): ref: %d\n", varName, ref))
-
-}
-
 func (p *printingVisitor) must(_ int, err error) {
 	if err != nil {
 		panic(err)
@@ -313,6 +475,284 @@ func (p *printingVisitor) printSelections(info Info) (out string) {
 	out += "SelectionsBefore: " + p.operation.PrintSelections(info.SelectionsBefore)
 	out += " SelectionsAfter: " + p.operation.PrintSelections(info.SelectionsAfter)
 	return
+}
+
+func (p *printingVisitor) EnterSchemaDefinition(ref int) {
+	p.enter()
+	p.must(fmt.Fprintf(p.out, "EnterSchemaDefinition: ref: %d\n", ref))
+}
+
+func (p *printingVisitor) LeaveSchemaDefinition(ref int) {
+	p.leave()
+	p.must(fmt.Fprintf(p.out, "LeaveSchemaDefinition: ref: %d\n\n", ref))
+}
+
+func (p *printingVisitor) EnterSchemaExtension(ref int) {
+	p.enter()
+	p.must(fmt.Fprintf(p.out, "EnterSchemaExtension: ref: %d\n", ref))
+}
+
+func (p *printingVisitor) LeaveSchemaExtension(ref int) {
+	p.leave()
+	p.must(fmt.Fprintf(p.out, "LeaveSchemaExtension: ref: %d\n\n", ref))
+}
+
+func (p *printingVisitor) EnterRootOperationTypeDefinition(ref int) {
+	p.enter()
+	name := p.operation.RootOperationTypeDefinitionNameString(ref)
+	p.must(fmt.Fprintf(p.out, "EnterRootOperationTypeDefinition(%s): ref: %d\n", name, ref))
+}
+
+func (p *printingVisitor) LeaveRootOperationTypeDefinition(ref int) {
+	p.leave()
+	name := p.operation.RootOperationTypeDefinitionNameString(ref)
+	p.must(fmt.Fprintf(p.out, "LeaveRootOperationTypeDefinition(%s): ref: %d\n", name, ref))
+}
+
+func (p *printingVisitor) EnterDirectiveDefinition(ref int) {
+	p.enter()
+	name := p.operation.DirectiveDefinitionNameString(ref)
+	p.must(fmt.Fprintf(p.out, "EnterDirectiveDefinition(%s): ref: %d\n", name, ref))
+}
+
+func (p *printingVisitor) LeaveDirectiveDefinition(ref int) {
+	p.leave()
+	name := p.operation.DirectiveDefinitionNameString(ref)
+	p.must(fmt.Fprintf(p.out, "LeaveDirectiveDefinition(%s): ref: %d\n\n", name, ref))
+}
+
+func (p *printingVisitor) EnterDirectiveLocation(location ast.DirectiveLocation) {
+	p.enter()
+	p.must(fmt.Fprintf(p.out, "EnterDirectiveLocation(%s)\n", location))
+}
+
+func (p *printingVisitor) LeaveDirectiveLocation(location ast.DirectiveLocation) {
+	p.leave()
+	p.must(fmt.Fprintf(p.out, "LeaveDirectiveLocation(%s)\n", location))
+}
+
+func (p *printingVisitor) EnterObjectTypeDefinition(ref int) {
+	p.enter()
+	name := p.operation.ObjectTypeDefinitionNameString(ref)
+	p.must(fmt.Fprintf(p.out, "EnterObjectTypeDefinition(%s): ref: %d\n", name, ref))
+}
+
+func (p *printingVisitor) LeaveObjectTypeDefinition(ref int) {
+	p.leave()
+	name := p.operation.ObjectTypeDefinitionNameString(ref)
+	p.must(fmt.Fprintf(p.out, "LeaveObjectTypeDefinition(%s): ref: %d\n\n", name, ref))
+}
+
+func (p *printingVisitor) EnterObjectTypeExtension(ref int) {
+	p.enter()
+	name := p.operation.ObjectTypeExtensionNameString(ref)
+	p.must(fmt.Fprintf(p.out, "EnterObjectTypeExtension(%s): ref: %d\n", name, ref))
+}
+
+func (p *printingVisitor) LeaveObjectTypeExtension(ref int) {
+	p.leave()
+	name := p.operation.ObjectTypeExtensionNameString(ref)
+	p.must(fmt.Fprintf(p.out, "LeaveObjectTypeExtension(%s): ref: %d\n\n", name, ref))
+}
+
+func (p *printingVisitor) EnterFieldDefinition(ref int) {
+	p.enter()
+	name := p.operation.FieldDefinitionNameString(ref)
+	p.must(fmt.Fprintf(p.out, "EnterFieldDefinition(%s): ref: %d\n", name, ref))
+}
+
+func (p *printingVisitor) LeaveFieldDefinition(ref int) {
+	p.leave()
+	name := p.operation.FieldDefinitionNameString(ref)
+	p.must(fmt.Fprintf(p.out, "LeaveFieldDefinition(%s): ref: %d\n", name, ref))
+}
+
+func (p *printingVisitor) EnterInputValueDefinition(ref int) {
+	p.enter()
+	name := p.operation.InputValueDefinitionNameString(ref)
+	p.must(fmt.Fprintf(p.out, "EnterInputValueDefinition(%s): ref: %d\n", name, ref))
+}
+
+func (p *printingVisitor) LeaveInputValueDefinition(ref int) {
+	p.leave()
+	name := p.operation.InputValueDefinitionNameString(ref)
+	p.must(fmt.Fprintf(p.out, "LeaveInputValueDefinition(%s): ref: %d\n", name, ref))
+}
+
+func (p *printingVisitor) EnterInterfaceTypeDefinition(ref int) {
+	p.enter()
+	name := p.operation.InterfaceTypeDefinitionNameString(ref)
+	p.must(fmt.Fprintf(p.out, "EnterInterfaceTypeDefinition(%s): ref: %d\n", name, ref))
+}
+
+func (p *printingVisitor) LeaveInterfaceTypeDefinition(ref int) {
+	p.leave()
+	name := p.operation.InterfaceTypeDefinitionNameString(ref)
+	p.must(fmt.Fprintf(p.out, "LeaveInterfaceTypeDefinition(%s): ref: %d\n\n", name, ref))
+}
+
+func (p *printingVisitor) EnterInterfaceTypeExtension(ref int) {
+	p.enter()
+	name := p.operation.InterfaceTypeExtensionNameString(ref)
+	p.must(fmt.Fprintf(p.out, "EnterInterfaceTypeExtension(%s): ref: %d\n", name, ref))
+}
+
+func (p *printingVisitor) LeaveInterfaceTypeExtension(ref int) {
+	p.leave()
+	name := p.operation.InterfaceTypeExtensionNameString(ref)
+	p.must(fmt.Fprintf(p.out, "LeaveInterfaceTypeExtension(%s): ref: %d\n\n", name, ref))
+}
+
+func (p *printingVisitor) EnterScalarTypeDefinition(ref int) {
+	p.enter()
+	name := p.operation.ScalarTypeDefinitionNameString(ref)
+	p.must(fmt.Fprintf(p.out, "EnterScalarTypeDefinition(%s): ref: %d\n", name, ref))
+}
+
+func (p *printingVisitor) LeaveScalarTypeDefinition(ref int) {
+	p.leave()
+	name := p.operation.ScalarTypeDefinitionNameString(ref)
+	p.must(fmt.Fprintf(p.out, "LeaveScalarTypeDefinition(%s): ref: %d\n\n", name, ref))
+}
+
+func (p *printingVisitor) EnterScalarTypeExtension(ref int) {
+	p.enter()
+	name := p.operation.ScalarTypeExtensionNameString(ref)
+	p.must(fmt.Fprintf(p.out, "EnterScalarTypeExtension(%s): ref: %d\n", name, ref))
+}
+
+func (p *printingVisitor) LeaveScalarTypeExtension(ref int) {
+	p.leave()
+	name := p.operation.ScalarTypeExtensionNameString(ref)
+	p.must(fmt.Fprintf(p.out, "LeaveScalarTypeExtension(%s): ref: %d\n\n", name, ref))
+}
+
+func (p *printingVisitor) EnterUnionTypeDefinition(ref int) {
+	p.enter()
+	name := p.operation.UnionTypeDefinitionNameString(ref)
+	p.must(fmt.Fprintf(p.out, "EnterUnionTypeDefinition(%s): ref: %d\n", name, ref))
+}
+
+func (p *printingVisitor) LeaveUnionTypeDefinition(ref int) {
+	p.leave()
+	name := p.operation.UnionTypeDefinitionNameString(ref)
+	p.must(fmt.Fprintf(p.out, "LeaveUnionTypeDefinition(%s): ref: %d\n\n", name, ref))
+}
+
+func (p *printingVisitor) EnterUnionTypeExtension(ref int) {
+	p.enter()
+	name := p.operation.UnionTypeExtensionNameString(ref)
+	p.must(fmt.Fprintf(p.out, "EnterUnionTypeExtension(%s): ref: %d\n", name, ref))
+}
+
+func (p *printingVisitor) LeaveUnionTypeExtension(ref int) {
+	p.leave()
+	name := p.operation.UnionTypeExtensionNameString(ref)
+	p.must(fmt.Fprintf(p.out, "LeaveUnionTypeExtension(%s): ref: %d\n\n", name, ref))
+}
+
+func (p *printingVisitor) EnterUnionMemberType(ref int) {
+	p.enter()
+	name := p.operation.TypeNameString(ref)
+	p.must(fmt.Fprintf(p.out, "EnterUnionMemberType(%s): ref: %d\n", name, ref))
+}
+
+func (p *printingVisitor) LeaveUnionMemberType(ref int) {
+	p.leave()
+	name := p.operation.TypeNameString(ref)
+	p.must(fmt.Fprintf(p.out, "LeaveUnionMemberType(%s): ref: %d\n", name, ref))
+}
+
+func (p *printingVisitor) EnterEnumTypeDefinition(ref int) {
+	p.enter()
+	name := p.operation.EnumTypeDefinitionNameString(ref)
+	p.must(fmt.Fprintf(p.out, "EnterEnumTypeDefinition(%s): ref: %d\n", name, ref))
+}
+
+func (p *printingVisitor) LeaveEnumTypeDefinition(ref int) {
+	p.leave()
+	name := p.operation.EnumTypeDefinitionNameString(ref)
+	p.must(fmt.Fprintf(p.out, "LeaveEnumTypeDefinition(%s): ref: %d\n\n", name, ref))
+}
+
+func (p *printingVisitor) EnterEnumTypeExtension(ref int) {
+	p.enter()
+	name := p.operation.EnumTypeExtensionNameString(ref)
+	p.must(fmt.Fprintf(p.out, "EnterEnumTypeExtension(%s): ref: %d\n", name, ref))
+}
+
+func (p *printingVisitor) LeaveEnumTypeExtension(ref int) {
+	p.leave()
+	name := p.operation.EnumTypeExtensionNameString(ref)
+	p.must(fmt.Fprintf(p.out, "LeaveEnumTypeExtension(%s): ref: %d\n\n", name, ref))
+}
+
+func (p *printingVisitor) EnterEnumValueDefinition(ref int) {
+	p.enter()
+	name := p.operation.EnumValueDefinitionNameString(ref)
+	p.must(fmt.Fprintf(p.out, "EnterEnumValueDefinition(%s): ref: %d\n", name, ref))
+}
+
+func (p *printingVisitor) LeaveEnumValueDefinition(ref int) {
+	p.leave()
+	name := p.operation.EnumValueDefinitionNameString(ref)
+	p.must(fmt.Fprintf(p.out, "LeaveEnumValueDefinition(%s): ref: %d\n", name, ref))
+}
+
+func (p *printingVisitor) EnterInputObjectTypeDefinition(ref int) {
+	p.enter()
+	name := p.operation.InputObjectTypeDefinitionNameString(ref)
+	p.must(fmt.Fprintf(p.out, "EnterInputObjectTypeDefinition(%s): ref: %d\n", name, ref))
+}
+
+func (p *printingVisitor) LeaveInputObjectTypeDefinition(ref int) {
+	p.leave()
+	name := p.operation.InputObjectTypeDefinitionNameString(ref)
+	p.must(fmt.Fprintf(p.out, "LeaveInputObjectTypeDefinition(%s): ref: %d\n\n", name, ref))
+}
+
+func (p *printingVisitor) EnterInputObjectTypeExtension(ref int) {
+	p.enter()
+	name := p.operation.InputObjectTypeExtensionNameString(ref)
+	p.must(fmt.Fprintf(p.out, "EnterInputObjectTypeExtension(%s): ref: %d\n", name, ref))
+}
+
+func (p *printingVisitor) LeaveInputObjectTypeExtension(ref int) {
+	p.leave()
+	name := p.operation.InputObjectTypeExtensionNameString(ref)
+	p.must(fmt.Fprintf(p.out, "LeaveInputObjectTypeExtension(%s): ref: %d\n\n", name, ref))
+}
+
+func (p *printingVisitor) EnterDocument(operation, definition *ast.Document) {
+	p.operation, p.definition = operation, definition
+}
+
+func (p *printingVisitor) LeaveDocument(operation, definition *ast.Document) {
+
+}
+
+func (p *printingVisitor) EnterDirective(ref int) {
+	p.enter()
+	name := p.operation.DirectiveNameString(ref)
+	p.must(fmt.Fprintf(p.out, "EnterDirective(%s): ref: %d\n", name, ref))
+}
+
+func (p *printingVisitor) LeaveDirective(ref int) {
+	p.leave()
+	name := p.operation.DirectiveNameString(ref)
+	p.must(fmt.Fprintf(p.out, "LeaveDirective(%s): ref: %d\n", name, ref))
+}
+
+func (p *printingVisitor) EnterVariableDefinition(ref int) {
+	p.enter()
+	varName := string(p.operation.VariableValueName(p.operation.VariableDefinitions[ref].VariableValue.Ref))
+	p.must(fmt.Fprintf(p.out, "EnterVariableDefinition(%s): ref: %d\n", varName, ref))
+}
+
+func (p *printingVisitor) LeaveVariableDefinition(ref int) {
+	p.leave()
+	varName := string(p.operation.VariableValueName(p.operation.VariableDefinitions[ref].VariableValue.Ref))
+	p.must(fmt.Fprintf(p.out, "LeaveVariableDefinition(%s): ref: %d\n", varName, ref))
 }
 
 func (p *printingVisitor) EnterOperationDefinition(ref int) {
@@ -348,7 +788,7 @@ func (p *printingVisitor) LeaveSelectionSet(ref int) {
 
 func (p *printingVisitor) EnterField(ref int) {
 	p.enter()
-	fieldName := p.operation.FieldName(ref)
+	fieldName := p.operation.FieldNameBytes(ref)
 	parentTypeName := p.definition.NodeTypeNameString(p.EnclosingTypeDefinition)
 	p.must(fmt.Fprintf(p.out, "EnterField(%s::%s): ref: %d\n", fieldName, parentTypeName, ref))
 }
@@ -415,6 +855,49 @@ func (p *printingVisitor) LeaveFragmentDefinition(ref int) {
 	name := p.operation.FragmentDefinitionNameString(ref)
 	p.must(fmt.Fprintf(p.out, "LeaveFragmentDefinition(%s): ref: %d\n\n", name, ref))
 }
+
+const testDefinitions = `
+directive @awesome on SCALAR | SCHEMA
+type Foo {
+	field: String
+}
+type FooBar {
+	field: String
+}
+extend type Foo {
+	field2: Boolean
+}
+interface Bar {
+	field: String
+}
+extend interface Bar {
+	field2: Boolean
+}
+enum Bat {
+	BAR
+}
+extend enum Bat {
+	BAL
+}
+union Fooniun = Foo
+extend union Fooniun = FooBar
+input Bart {
+	field: String
+}
+extend input Bart {
+	field2: Boolean
+}
+scalar JSON
+extend scalar JSON @awesome
+schema {
+	query: Query
+	mutation: Mutation
+}
+extend schema @awesome {}
+extend schema {
+	subscription: Subscription
+}
+`
 
 const testOperation = `
 query PostsUserQuery {
