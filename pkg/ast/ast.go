@@ -6,9 +6,10 @@ import (
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/runes"
+	"github.com/jensneuse/graphql-go-tools/pkg/unsafebytes"
 	"io"
 	"log"
-	"strconv"
 )
 
 type OperationType int
@@ -54,11 +55,13 @@ const (
 	NodeKindUnionTypeDefinition
 	NodeKindUnionTypeExtension
 	NodeKindEnumTypeDefinition
+	NodeKindEnumValueDefinition
 	NodeKindEnumTypeExtension
 	NodeKindInputObjectTypeDefinition
 	NodeKindInputValueDefinition
 	NodeKindInputObjectTypeExtension
 	NodeKindScalarTypeDefinition
+	NodeKindScalarTypeExtension
 	NodeKindDirectiveDefinition
 	NodeKindOperationDefinition
 	NodeKindSelectionSet
@@ -323,6 +326,13 @@ func (d *Document) DeleteRootNode(node Node) {
 	}
 }
 
+func (d *Document) NodeIsLastRootNode(node Node) bool {
+	if len(d.RootNodes) == 0 {
+		return false
+	}
+	return d.RootNodes[len(d.RootNodes)-1] == node
+}
+
 func (d *Document) NodeTypeName(node Node) ByteSlice {
 
 	var ref ByteSliceReference
@@ -384,8 +394,12 @@ func (d *Document) NodeFieldDefinitions(node Node) []int {
 	switch node.Kind {
 	case NodeKindObjectTypeDefinition:
 		return d.ObjectTypeDefinitions[node.Ref].FieldsDefinition.Refs
+	case NodeKindObjectTypeExtension:
+		return d.ObjectTypeExtensions[node.Ref].FieldsDefinition.Refs
 	case NodeKindInterfaceTypeDefinition:
 		return d.InterfaceTypeDefinitions[node.Ref].FieldsDefinition.Refs
+	case NodeKindInterfaceTypeExtension:
+		return d.InterfaceTypeExtensions[node.Ref].FieldsDefinition.Refs
 	default:
 		return nil
 	}
@@ -401,23 +415,19 @@ func (d *Document) NodeFieldDefinitionByName(node Node, fieldName ByteSlice) (de
 }
 
 func (d *Document) NodeTypeNameString(node Node) string {
-	return string(d.NodeTypeName(node))
+	return unsafebytes.BytesToString(d.NodeTypeName(node))
 }
 
-func (d *Document) FieldName(ref int) ByteSlice {
-	return d.Input.ByteSlice(d.Fields[ref].Name)
-}
-
-func (d *Document) FieldAlias(ref int) ByteSlice {
+func (d *Document) FieldAliasBytes(ref int) ByteSlice {
 	return d.Input.ByteSlice(d.Fields[ref].Alias.Name)
+}
+
+func (d *Document) FieldAliasString(ref int) string {
+	return unsafebytes.BytesToString(d.Input.ByteSlice(d.Fields[ref].Alias.Name))
 }
 
 func (d *Document) FieldAliasIsDefined(ref int) bool {
 	return d.Fields[ref].Alias.IsDefined
-}
-
-func (d *Document) FieldNameString(ref int) string {
-	return string(d.FieldName(ref))
 }
 
 func (d *Document) FragmentSpreadName(ref int) ByteSlice {
@@ -425,7 +435,7 @@ func (d *Document) FragmentSpreadName(ref int) ByteSlice {
 }
 
 func (d *Document) FragmentSpreadNameString(ref int) string {
-	return string(d.FragmentSpreadName(ref))
+	return unsafebytes.BytesToString(d.FragmentSpreadName(ref))
 }
 
 func (d *Document) InlineFragmentTypeConditionName(ref int) ByteSlice {
@@ -436,7 +446,7 @@ func (d *Document) InlineFragmentTypeConditionName(ref int) ByteSlice {
 }
 
 func (d *Document) InlineFragmentTypeConditionNameString(ref int) string {
-	return string(d.InlineFragmentTypeConditionName(ref))
+	return unsafebytes.BytesToString(d.InlineFragmentTypeConditionName(ref))
 }
 
 func (d *Document) FragmentDefinitionName(ref int) ByteSlice {
@@ -445,10 +455,6 @@ func (d *Document) FragmentDefinitionName(ref int) ByteSlice {
 
 func (d *Document) FragmentDefinitionTypeName(ref int) ByteSlice {
 	return d.ResolveTypeName(d.FragmentDefinitions[ref].TypeCondition.Type)
-}
-
-func (d *Document) FragmentDefinitionNameString(ref int) string {
-	return string(d.FragmentDefinitionName(ref))
 }
 
 func (d *Document) ResolveTypeName(ref int) ByteSlice {
@@ -666,7 +672,7 @@ func (d *Document) ArgumentName(ref int) ByteSlice {
 }
 
 func (d *Document) ArgumentNameString(ref int) string {
-	return string(d.ArgumentName(ref))
+	return unsafebytes.BytesToString(d.ArgumentName(ref))
 }
 
 func (d *Document) ArgumentValue(ref int) Value {
@@ -716,6 +722,16 @@ func (d *Document) DirectiveNameBytes(ref int) ByteSlice {
 	return d.Input.ByteSlice(d.Directives[ref].Name)
 }
 
+func (d *Document) DirectiveIsFirst(directive int, ancestor Node) bool {
+	directives := d.NodeDirectives(ancestor)
+	return len(directives) != 0 && directives[0] == directive
+}
+
+func (d *Document) DirectiveIsLast(directive int, ancestor Node) bool {
+	directives := d.NodeDirectives(ancestor)
+	return len(directives) != 0 && directives[len(directives)-1] == directive
+}
+
 func (d *Document) DirectiveNameString(ref int) string {
 	return d.Input.ByteSliceString(d.Directives[ref].Name)
 }
@@ -743,8 +759,8 @@ func (d *Document) DirectiveSetsAreEqual(left, right []int) bool {
 }
 
 func (d *Document) FieldsAreEqualFlat(left, right int) bool {
-	return bytes.Equal(d.FieldName(left), d.FieldName(right)) && // name
-		bytes.Equal(d.FieldAlias(left), d.FieldAlias(right)) && // alias
+	return bytes.Equal(d.FieldNameBytes(left), d.FieldNameBytes(right)) && // name
+		bytes.Equal(d.FieldAliasBytes(left), d.FieldAliasBytes(right)) && // alias
 		!d.FieldHasSelections(left) && !d.FieldHasSelections(right) && // selections
 		d.ArgumentSetsAreEquals(d.FieldArguments(left), d.FieldArguments(right)) && // arguments
 		d.DirectiveSetsAreEqual(d.FieldDirectives(left), d.FieldDirectives(right)) // directives
@@ -842,7 +858,7 @@ func (d *Document) NodeFragmentIsAllowedOnInterfaceTypeDefinition(fragmentNode, 
 	case NodeKindObjectTypeDefinition:
 		return d.NodeImplementsInterface(fragmentNode, interfaceTypeNode)
 	case NodeKindInterfaceTypeDefinition:
-		return bytes.Equal(d.InterfaceTypeDefinitionName(fragmentNode.Ref), d.InterfaceTypeDefinitionName(interfaceTypeNode.Ref))
+		return bytes.Equal(d.InterfaceTypeDefinitionNameBytes(fragmentNode.Ref), d.InterfaceTypeDefinitionNameBytes(interfaceTypeNode.Ref))
 	case NodeKindUnionTypeDefinition:
 		return d.UnionNodeIntersectsInterfaceNode(fragmentNode, interfaceTypeNode)
 	}
@@ -858,7 +874,7 @@ func (d *Document) NodeFragmentIsAllowedOnUnionTypeDefinition(fragmentNode, unio
 	case NodeKindInterfaceTypeDefinition:
 		return false
 	case NodeKindUnionTypeDefinition:
-		return bytes.Equal(d.UnionTypeDefinitionName(fragmentNode.Ref), d.UnionTypeDefinitionName(unionTypeNode.Ref))
+		return bytes.Equal(d.UnionTypeDefinitionNameBytes(fragmentNode.Ref), d.UnionTypeDefinitionNameBytes(unionTypeNode.Ref))
 	}
 
 	return false
@@ -868,7 +884,7 @@ func (d *Document) NodeFragmentIsAllowedOnObjectTypeDefinition(fragmentNode, obj
 
 	switch fragmentNode.Kind {
 	case NodeKindObjectTypeDefinition:
-		return bytes.Equal(d.ObjectTypeDefinitionName(fragmentNode.Ref), d.ObjectTypeDefinitionName(objectTypeNode.Ref))
+		return bytes.Equal(d.ObjectTypeDefinitionNameBytes(fragmentNode.Ref), d.ObjectTypeDefinitionNameBytes(objectTypeNode.Ref))
 	case NodeKindInterfaceTypeDefinition:
 		return d.NodeImplementsInterface(objectTypeNode, fragmentNode)
 	case NodeKindUnionTypeDefinition:
@@ -942,13 +958,14 @@ func (d *Document) RemoveNodeFromSelectionSet(set int, node Node) {
 }
 
 func (n Node) Name(definition *Document) string {
-	return string(definition.NodeTypeName(n))
+	return unsafebytes.BytesToString(definition.NodeTypeName(n))
 }
 
 type SchemaDefinition struct {
-	SchemaLiteral                position.Position
-	Directives                   DirectiveList
-	RootOperationTypeDefinitions RootOperationTypeDefinitionList
+	SchemaLiteral                position.Position // schema
+	HasDirectives                bool
+	Directives                   DirectiveList                   // optional, e.g. @foo
+	RootOperationTypeDefinitions RootOperationTypeDefinitionList // e.g. query: Query, mutation: Mutation, subscription: Subscription
 }
 
 func (d *Document) NodeDirectives(node Node) []int {
@@ -959,8 +976,47 @@ func (d *Document) NodeDirectives(node Node) []int {
 		return d.InlineFragments[node.Ref].Directives.Refs
 	case NodeKindFragmentSpread:
 		return d.FragmentSpreads[node.Ref].Directives.Refs
+	case NodeKindSchemaDefinition:
+		return d.SchemaDefinitions[node.Ref].Directives.Refs
+	case NodeKindSchemaExtension:
+		return d.SchemaExtensions[node.Ref].Directives.Refs
+	case NodeKindObjectTypeDefinition:
+		return d.ObjectTypeDefinitions[node.Ref].Directives.Refs
+	case NodeKindObjectTypeExtension:
+		return d.ObjectTypeExtensions[node.Ref].Directives.Refs
+	case NodeKindInterfaceTypeDefinition:
+		return d.InterfaceTypeDefinitions[node.Ref].Directives.Refs
+	case NodeKindInterfaceTypeExtension:
+		return d.InterfaceTypeExtensions[node.Ref].Directives.Refs
+	case NodeKindInputObjectTypeDefinition:
+		return d.InputObjectTypeDefinitions[node.Ref].Directives.Refs
+	case NodeKindInputObjectTypeExtension:
+		return d.InputObjectTypeExtensions[node.Ref].Directives.Refs
+	case NodeKindScalarTypeDefinition:
+		return d.ScalarTypeDefinitions[node.Ref].Directives.Refs
+	case NodeKindScalarTypeExtension:
+		return d.ScalarTypeExtensions[node.Ref].Directives.Refs
+	case NodeKindUnionTypeDefinition:
+		return d.UnionTypeDefinitions[node.Ref].Directives.Refs
+	case NodeKindUnionTypeExtension:
+		return d.UnionTypeExtensions[node.Ref].Directives.Refs
+	case NodeKindEnumTypeDefinition:
+		return d.EnumTypeDefinitions[node.Ref].Directives.Refs
+	case NodeKindEnumTypeExtension:
+		return d.EnumTypeExtensions[node.Ref].Directives.Refs
+	case NodeKindFragmentDefinition:
+		return d.FragmentDefinitions[node.Ref].Directives.Refs
+	case NodeKindInputValueDefinition:
+		return d.InputValueDefinitions[node.Ref].Directives.Refs
+	case NodeKindEnumValueDefinition:
+		return d.EnumValueDefinitions[node.Ref].Directives.Refs
+	case NodeKindVariableDefinition:
+		return d.VariableDefinitions[node.Ref].Directives.Refs
+	case NodeKindOperationDefinition:
+		return d.OperationDefinitions[node.Ref].Directives.Refs
+	default:
+		return nil
 	}
-	return nil
 }
 
 type DirectiveList struct {
@@ -982,6 +1038,38 @@ type RootOperationTypeDefinition struct {
 	OperationType OperationType     // one of query, mutation, subscription
 	Colon         position.Position // :
 	NamedType     Type              // e.g. Query
+}
+
+func (d *Document) RootOperationTypeDefinitionNameString(ref int) string {
+	return d.RootOperationTypeDefinitions[ref].OperationType.String()
+}
+
+func (d *Document) RootOperationTypeDefinitionIsFirstInSchemaDefinition(ref int, ancestor Node) bool {
+	switch ancestor.Kind {
+	case NodeKindSchemaDefinition:
+		if len(d.SchemaDefinitions[ancestor.Ref].RootOperationTypeDefinitions.Refs) == 0 {
+			return false
+		}
+		return ref == d.SchemaDefinitions[ancestor.Ref].RootOperationTypeDefinitions.Refs[0]
+	case NodeKindSchemaExtension:
+		if len(d.SchemaExtensions[ancestor.Ref].RootOperationTypeDefinitions.Refs) == 0 {
+			return false
+		}
+		return ref == d.SchemaExtensions[ancestor.Ref].RootOperationTypeDefinitions.Refs[0]
+	default:
+		return false
+	}
+}
+
+func (d *Document) RootOperationTypeDefinitionIsLastInSchemaDefinition(ref int, ancestor Node) bool {
+	switch ancestor.Kind {
+	case NodeKindSchemaDefinition:
+		return d.SchemaDefinitions[ancestor.Ref].RootOperationTypeDefinitions.Refs[len(d.SchemaDefinitions[ancestor.Ref].RootOperationTypeDefinitions.Refs)-1] == ref
+	case NodeKindSchemaExtension:
+		return d.SchemaExtensions[ancestor.Ref].RootOperationTypeDefinitions.Refs[len(d.SchemaExtensions[ancestor.Ref].RootOperationTypeDefinitions.Refs)-1] == ref
+	default:
+		return false
+	}
 }
 
 type Directive struct {
@@ -1013,12 +1101,14 @@ type ArgumentList struct {
 }
 
 type FieldDefinition struct {
-	Description         Description              // optional e.g. "FieldDefinition is ..."
-	Name                ByteSliceReference       // e.g. foo
-	ArgumentsDefinition InputValueDefinitionList // optional
-	Colon               position.Position        // :
-	Type                int                      // e.g. String
-	Directives          DirectiveList            // e.g. @foo
+	Description             Description        // optional e.g. "FieldDefinition is ..."
+	Name                    ByteSliceReference // e.g. foo
+	HasArgumentsDefinitions bool
+	ArgumentsDefinition     InputValueDefinitionList // optional
+	Colon                   position.Position        // :
+	Type                    int                      // e.g. String
+	HasDirectives           bool
+	Directives              DirectiveList // e.g. @foo
 }
 
 func (d *Document) FieldDefinitionNameBytes(ref int) ByteSlice {
@@ -1026,7 +1116,17 @@ func (d *Document) FieldDefinitionNameBytes(ref int) ByteSlice {
 }
 
 func (d *Document) FieldDefinitionNameString(ref int) string {
-	return string(d.FieldDefinitionNameBytes(ref))
+	return unsafebytes.BytesToString(d.FieldDefinitionNameBytes(ref))
+}
+
+func (d *Document) FieldDefinitionIsFirst(field int, ancestor Node) bool {
+	definitions := d.NodeFieldDefinitions(ancestor)
+	return len(definitions) != 0 && definitions[0] == field
+}
+
+func (d *Document) FieldDefinitionIsLast(field int, ancestor Node) bool {
+	definitions := d.NodeFieldDefinitions(ancestor)
+	return len(definitions) != 0 && definitions[len(definitions)-1] == field
 }
 
 func (d *Document) FieldDefinitionDirectiveByName(fieldDefinition int, directiveName ByteSlice) (ref int, exists bool) {
@@ -1236,12 +1336,11 @@ type IntValue struct {
 }
 
 func (d *Document) IntValueAsInt(ref int) (out int) {
-	in := d.Input.ByteSliceString(d.IntValues[ref].Raw)
-	raw, _ := strconv.ParseInt(in, 10, 64)
+	in := d.Input.ByteSlice(d.IntValues[ref].Raw)
+	out = int(unsafebytes.BytesToInt64(in))
 	if d.IntValues[ref].Negative {
-		out = -int(raw)
+		out = -out
 	}
-	out = int(raw)
 	return
 }
 
@@ -1290,17 +1389,73 @@ type Description struct {
 	Position      position.Position
 }
 
+func (d *Document) PrintDescription(description Description, indent []byte, depth int, writer io.Writer) (err error) {
+	for i := 0; i < depth; i++ {
+		_, err = writer.Write(indent)
+	}
+	if description.IsBlockString {
+		_, err = writer.Write(literal.QUOTE)
+		_, err = writer.Write(literal.QUOTE)
+		_, err = writer.Write(literal.QUOTE)
+		_, err = writer.Write(literal.LINETERMINATOR)
+		for i := 0; i < depth; i++ {
+			_, err = writer.Write(indent)
+		}
+	} else {
+		_, err = writer.Write(literal.QUOTE)
+	}
+
+	content := d.Input.ByteSlice(description.Content)
+	skipWhitespace := false
+	for i := range content {
+		switch content[i] {
+		case runes.LINETERMINATOR:
+			skipWhitespace = true
+		case runes.TAB, runes.SPACE:
+			if skipWhitespace {
+				continue
+			}
+		default:
+			if skipWhitespace {
+				for i := 0; i < depth; i++ {
+					_, err = writer.Write(indent)
+				}
+			}
+			skipWhitespace = false
+		}
+		_, err = writer.Write(content[i : i+1])
+	}
+	if description.IsBlockString {
+		_, err = writer.Write(literal.LINETERMINATOR)
+		for i := 0; i < depth; i++ {
+			_, err = writer.Write(indent)
+		}
+		_, err = writer.Write(literal.QUOTE)
+		_, err = writer.Write(literal.QUOTE)
+		_, err = writer.Write(literal.QUOTE)
+	} else {
+		_, err = writer.Write(literal.QUOTE)
+	}
+	return nil
+}
+
 type ObjectTypeDefinition struct {
-	Description          Description         // optional, e.g. "type Foo is ..."
-	TypeLiteral          position.Position   // type
-	Name                 ByteSliceReference  // e.g. Foo
-	ImplementsInterfaces TypeList            // e.g implements Bar & Baz
-	Directives           DirectiveList       // e.g. @foo
+	Description          Description        // optional, e.g. "type Foo is ..."
+	TypeLiteral          position.Position  // type
+	Name                 ByteSliceReference // e.g. Foo
+	ImplementsInterfaces TypeList           // e.g implements Bar & Baz
+	HasDirectives        bool
+	Directives           DirectiveList // e.g. @foo
+	HasFieldDefinitions  bool
 	FieldsDefinition     FieldDefinitionList // { foo:Bar bar(baz:String) }
 }
 
-func (d *Document) ObjectTypeDefinitionName(ref int) ByteSlice {
+func (d *Document) ObjectTypeDefinitionNameBytes(ref int) ByteSlice {
 	return d.Input.ByteSlice(d.ObjectTypeDefinitions[ref].Name)
+}
+
+func (d *Document) ObjectTypeDefinitionNameString(ref int) string {
+	return unsafebytes.BytesToString(d.Input.ByteSlice(d.ObjectTypeDefinitions[ref].Name))
 }
 
 type TypeList struct {
@@ -1318,6 +1473,14 @@ type ObjectTypeExtension struct {
 	ObjectTypeDefinition
 }
 
+func (d *Document) ObjectTypeExtensionNameBytes(ref int) ByteSlice {
+	return d.Input.ByteSlice(d.ObjectTypeExtensions[ref].Name)
+}
+
+func (d *Document) ObjectTypeExtensionNameString(ref int) string {
+	return unsafebytes.BytesToString(d.Input.ByteSlice(d.ObjectTypeExtensions[ref].Name))
+}
+
 type InputValueDefinition struct {
 	Description   Description        // optional, e.g. "input Foo is..."
 	Name          ByteSliceReference // e.g. Foo
@@ -1328,12 +1491,49 @@ type InputValueDefinition struct {
 	Directives    DirectiveList // e.g. @baz
 }
 
-func (d *Document) InputValueDefinitionName(ref int) ByteSlice {
+func (d *Document) InputValueDefinitionHasDefaultValue(ref int) bool {
+	return d.InputValueDefinitions[ref].DefaultValue.IsDefined
+}
+
+func (d *Document) InputValueDefinitionDefaultValue(ref int) Value {
+	return d.InputValueDefinitions[ref].DefaultValue.Value
+}
+
+func (d *Document) InputValueDefinitionNameBytes(ref int) ByteSlice {
 	return d.Input.ByteSlice(d.InputValueDefinitions[ref].Name)
+}
+
+func (d *Document) InputValueDefinitionNameString(ref int) string {
+	return unsafebytes.BytesToString(d.Input.ByteSlice(d.InputValueDefinitions[ref].Name))
 }
 
 func (d *Document) InputValueDefinitionType(ref int) int {
 	return d.InputValueDefinitions[ref].Type
+}
+
+func (d *Document) NodeInputValueDefinitions(node Node) []int {
+	switch node.Kind {
+	case NodeKindInputObjectTypeDefinition:
+		return d.InputObjectTypeDefinitions[node.Ref].InputFieldsDefinition.Refs
+	case NodeKindInputObjectTypeExtension:
+		return d.InputObjectTypeExtensions[node.Ref].InputFieldsDefinition.Refs
+	case NodeKindFieldDefinition:
+		return d.FieldDefinitions[node.Ref].ArgumentsDefinition.Refs
+	case NodeKindDirectiveDefinition:
+		return d.DirectiveDefinitions[node.Ref].ArgumentsDefinition.Refs
+	default:
+		return nil
+	}
+}
+
+func (d *Document) InputValueDefinitionIsFirst(inputValue int, ancestor Node) bool {
+	inputValues := d.NodeInputValueDefinitions(ancestor)
+	return inputValues != nil && inputValues[0] == inputValue
+}
+
+func (d *Document) InputValueDefinitionIsLast(inputValue int, ancestor Node) bool {
+	inputValues := d.NodeInputValueDefinitions(ancestor)
+	return inputValues != nil && inputValues[len(inputValues)-1] == inputValue
 }
 
 func (d *Document) InputValueDefinitionArgumentIsOptional(ref int) bool {
@@ -1361,6 +1561,14 @@ type Type struct {
 	Close    position.Position  // ] (only on ListType)
 	Bang     position.Position  // ! (only on NonNullType)
 	OfType   int
+}
+
+func (d *Document) TypeNameBytes(ref int) ByteSlice {
+	return d.Input.ByteSlice(d.Types[ref].Name)
+}
+
+func (d *Document) TypeNameString(ref int) string {
+	return unsafebytes.BytesToString(d.Input.ByteSlice(d.Types[ref].Name))
 }
 
 func (d *Document) PrintType(ref int, w io.Writer) error {
@@ -1397,16 +1605,34 @@ type DefaultValue struct {
 }
 
 type InputObjectTypeDefinition struct {
-	Description           Description              // optional, describes the input type
-	InputLiteral          position.Position        // input
-	Name                  ByteSliceReference       // name of the input type
-	Directives            DirectiveList            // optional, e.g. @foo
-	InputFieldsDefinition InputValueDefinitionList // e.g. x:Float
+	Description               Description        // optional, describes the input type
+	InputLiteral              position.Position  // input
+	Name                      ByteSliceReference // name of the input type
+	HasDirectives             bool
+	Directives                DirectiveList // optional, e.g. @foo
+	HasInputFieldsDefinitions bool
+	InputFieldsDefinition     InputValueDefinitionList // e.g. x:Float
+}
+
+func (d *Document) InputObjectTypeDefinitionNameBytes(ref int) ByteSlice {
+	return d.Input.ByteSlice(d.InputObjectTypeDefinitions[ref].Name)
+}
+
+func (d *Document) InputObjectTypeDefinitionNameString(ref int) string {
+	return unsafebytes.BytesToString(d.Input.ByteSlice(d.InputObjectTypeDefinitions[ref].Name))
 }
 
 type InputObjectTypeExtension struct {
 	ExtendLiteral position.Position
 	InputObjectTypeDefinition
+}
+
+func (d *Document) InputObjectTypeExtensionNameBytes(ref int) ByteSlice {
+	return d.Input.ByteSlice(d.InputObjectTypeExtensions[ref].Name)
+}
+
+func (d *Document) InputObjectTypeExtensionNameString(ref int) string {
+	return unsafebytes.BytesToString(d.Input.ByteSlice(d.InputObjectTypeExtensions[ref].Name))
 }
 
 // ScalarTypeDefinition
@@ -1416,16 +1642,37 @@ type ScalarTypeDefinition struct {
 	Description   Description        // optional, describes the scalar
 	ScalarLiteral position.Position  // scalar
 	Name          ByteSliceReference // e.g. JSON
-	Directives    DirectiveList      // optional, e.g. @foo
+	HasDirectives bool
+	Directives    DirectiveList // optional, e.g. @foo
 }
 
-func (d *Document) ScalarTypeDefinitionName(ref int) ByteSlice {
+func (d *Document) ScalarTypeDefinitionHasDirectives(ref int) bool {
+	return d.ScalarTypeDefinitions[ref].HasDirectives
+}
+
+func (d *Document) ScalarTypeDefinitionNameBytes(ref int) ByteSlice {
 	return d.Input.ByteSlice(d.ScalarTypeDefinitions[ref].Name)
+}
+
+func (d *Document) ScalarTypeDefinitionNameString(ref int) string {
+	return unsafebytes.BytesToString(d.Input.ByteSlice(d.ScalarTypeDefinitions[ref].Name))
 }
 
 type ScalarTypeExtension struct {
 	ExtendLiteral position.Position
 	ScalarTypeDefinition
+}
+
+func (d *Document) ScalarTypeExtensionHasDirectives(ref int) bool {
+	return d.ScalarTypeExtensions[ref].HasDirectives
+}
+
+func (d *Document) ScalarTypeExtensionNameBytes(ref int) ByteSlice {
+	return d.Input.ByteSlice(d.ScalarTypeExtensions[ref].Name)
+}
+
+func (d *Document) ScalarTypeExtensionNameString(ref int) string {
+	return unsafebytes.BytesToString(d.Input.ByteSlice(d.ScalarTypeExtensions[ref].Name))
 }
 
 // InterfaceTypeDefinition
@@ -1434,15 +1681,21 @@ type ScalarTypeExtension struct {
 // 	name: String
 // }
 type InterfaceTypeDefinition struct {
-	Description      Description         // optional, describes the interface
-	InterfaceLiteral position.Position   // interface
-	Name             ByteSliceReference  // e.g. NamedEntity
-	Directives       DirectiveList       // optional, e.g. @foo
-	FieldsDefinition FieldDefinitionList // optional, e.g. { name: String }
+	Description         Description        // optional, describes the interface
+	InterfaceLiteral    position.Position  // interface
+	Name                ByteSliceReference // e.g. NamedEntity
+	HasDirectives       bool
+	Directives          DirectiveList // optional, e.g. @foo
+	HasFieldDefinitions bool
+	FieldsDefinition    FieldDefinitionList // optional, e.g. { name: String }
 }
 
-func (d *Document) InterfaceTypeDefinitionName(ref int) ByteSlice {
+func (d *Document) InterfaceTypeDefinitionNameBytes(ref int) ByteSlice {
 	return d.Input.ByteSlice(d.InterfaceTypeDefinitions[ref].Name)
+}
+
+func (d *Document) InterfaceTypeDefinitionNameString(ref int) string {
+	return unsafebytes.BytesToString(d.Input.ByteSlice(d.InterfaceTypeDefinitions[ref].Name))
 }
 
 type InterfaceTypeExtension struct {
@@ -1450,25 +1703,81 @@ type InterfaceTypeExtension struct {
 	InterfaceTypeDefinition
 }
 
+func (d *Document) InterfaceTypeExtensionNameBytes(ref int) ByteSlice {
+	return d.Input.ByteSlice(d.InterfaceTypeExtensions[ref].Name)
+}
+
+func (d *Document) InterfaceTypeExtensionNameString(ref int) string {
+	return unsafebytes.BytesToString(d.Input.ByteSlice(d.InterfaceTypeExtensions[ref].Name))
+}
+
 // UnionTypeDefinition
 // example:
 // union SearchResult = Photo | Person
 type UnionTypeDefinition struct {
-	Description      Description        // optional, describes union
-	UnionLiteral     position.Position  // union
-	Name             ByteSliceReference // e.g. SearchResult
-	Directives       DirectiveList      // optional, e.g. @foo
-	Equals           position.Position  // =
-	UnionMemberTypes TypeList           // optional, e.g. Photo | Person
+	Description         Description        // optional, describes union
+	UnionLiteral        position.Position  // union
+	Name                ByteSliceReference // e.g. SearchResult
+	HasDirectives       bool
+	Directives          DirectiveList     // optional, e.g. @foo
+	Equals              position.Position // =
+	HasUnionMemberTypes bool
+	UnionMemberTypes    TypeList // optional, e.g. Photo | Person
 }
 
-func (d *Document) UnionTypeDefinitionName(ref int) ByteSlice {
+func (d *Document) UnionMemberTypeIsFirst(ref int, ancestor Node) bool {
+	switch ancestor.Kind {
+	case NodeKindUnionTypeDefinition:
+		return len(d.UnionTypeDefinitions[ancestor.Ref].UnionMemberTypes.Refs) != 0 &&
+			d.UnionTypeDefinitions[ancestor.Ref].UnionMemberTypes.Refs[0] == ref
+	case NodeKindUnionTypeExtension:
+		return len(d.UnionTypeExtensions[ancestor.Ref].UnionMemberTypes.Refs) != 0 &&
+			d.UnionTypeExtensions[ancestor.Ref].UnionMemberTypes.Refs[0] == ref
+	default:
+		return false
+	}
+}
+
+func (d *Document) UnionMemberTypeIsLast(ref int, ancestor Node) bool {
+	switch ancestor.Kind {
+	case NodeKindUnionTypeDefinition:
+		return len(d.UnionTypeDefinitions[ancestor.Ref].UnionMemberTypes.Refs) != 0 &&
+			d.UnionTypeDefinitions[ancestor.Ref].UnionMemberTypes.Refs[len(d.UnionTypeDefinitions[ancestor.Ref].UnionMemberTypes.Refs)-1] == ref
+	case NodeKindUnionTypeExtension:
+		return len(d.UnionTypeExtensions[ancestor.Ref].UnionMemberTypes.Refs) != 0 &&
+			d.UnionTypeExtensions[ancestor.Ref].UnionMemberTypes.Refs[len(d.UnionTypeExtensions[ancestor.Ref].UnionMemberTypes.Refs)-1] == ref
+	default:
+		return false
+	}
+}
+
+func (d *Document) UnionTypeDefinitionHasDirectives(ref int) bool {
+	return d.UnionTypeDefinitions[ref].HasDirectives
+}
+
+func (d *Document) UnionTypeDefinitionNameBytes(ref int) ByteSlice {
 	return d.Input.ByteSlice(d.UnionTypeDefinitions[ref].Name)
+}
+
+func (d *Document) UnionTypeDefinitionNameString(ref int) string {
+	return unsafebytes.BytesToString(d.Input.ByteSlice(d.UnionTypeDefinitions[ref].Name))
 }
 
 type UnionTypeExtension struct {
 	ExtendLiteral position.Position
 	UnionTypeDefinition
+}
+
+func (d *Document) UnionTypeExtensionHasDirectives(ref int) bool {
+	return d.UnionTypeExtensions[ref].HasDirectives
+}
+
+func (d *Document) UnionTypeExtensionNameBytes(ref int) ByteSlice {
+	return d.Input.ByteSlice(d.UnionTypeExtensions[ref].Name)
+}
+
+func (d *Document) UnionTypeExtensionNameString(ref int) string {
+	return unsafebytes.BytesToString(d.Input.ByteSlice(d.UnionTypeExtensions[ref].Name))
 }
 
 // EnumTypeDefinition
@@ -1480,16 +1789,30 @@ type UnionTypeExtension struct {
 //  WEST
 //}
 type EnumTypeDefinition struct {
-	Description          Description             // optional, describes enum
-	EnumLiteral          position.Position       // enum
-	Name                 ByteSliceReference      // e.g. Direction
-	Directives           DirectiveList           // optional, e.g. @foo
-	EnumValuesDefinition EnumValueDefinitionList // optional, e.g. { NORTH EAST }
+	Description              Description        // optional, describes enum
+	EnumLiteral              position.Position  // enum
+	Name                     ByteSliceReference // e.g. Direction
+	HasDirectives            bool
+	Directives               DirectiveList // optional, e.g. @foo
+	HasEnumValuesDefinitions bool
+	EnumValuesDefinition     EnumValueDefinitionList // optional, e.g. { NORTH EAST }
+}
+
+func (d *Document) EnumTypeDefinitionHasDirectives(ref int) bool {
+	return d.EnumTypeDefinitions[ref].HasDirectives
+}
+
+func (d *Document) EnumTypeDefinitionNameBytes(ref int) ByteSlice {
+	return d.Input.ByteSlice(d.EnumTypeDefinitions[ref].Name)
+}
+
+func (d *Document) EnumTypeDefinitionNameString(ref int) string {
+	return unsafebytes.BytesToString(d.Input.ByteSlice(d.EnumTypeDefinitions[ref].Name))
 }
 
 func (d *Document) EnumTypeDefinitionContainsEnumValue(enumTypeDef int, valueName ByteSlice) bool {
 	for _, i := range d.EnumTypeDefinitions[enumTypeDef].EnumValuesDefinition.Refs {
-		if bytes.Equal(valueName, d.EnumValueDefinitionEnumValue(i)) {
+		if bytes.Equal(valueName, d.EnumValueDefinitionNameBytes(i)) {
 			return true
 		}
 	}
@@ -1507,30 +1830,82 @@ type EnumTypeExtension struct {
 	EnumTypeDefinition
 }
 
+func (d *Document) EnumTypeExtensionHasDirectives(ref int) bool {
+	return d.EnumTypeExtensions[ref].HasDirectives
+}
+
+func (d *Document) EnumTypeExtensionNameBytes(ref int) ByteSlice {
+	return d.Input.ByteSlice(d.EnumTypeExtensions[ref].Name)
+}
+
+func (d *Document) EnumTypeExtensionNameString(ref int) string {
+	return unsafebytes.BytesToString(d.Input.ByteSlice(d.EnumTypeExtensions[ref].Name))
+}
+
 // EnumValueDefinition
 // example:
 // "NORTH enum value" NORTH @foo
 type EnumValueDefinition struct {
-	Description Description        // optional, describes enum value
-	EnumValue   ByteSliceReference // e.g. NORTH (Name but not true, false or null
-	Directives  DirectiveList      // optional, e.g. @foo
+	Description   Description        // optional, describes enum value
+	EnumValue     ByteSliceReference // e.g. NORTH (Name but not true, false or null
+	HasDirectives bool
+	Directives    DirectiveList // optional, e.g. @foo
 }
 
-func (d *Document) EnumValueDefinitionEnumValue(ref int) ByteSlice {
+func (d *Document) EnumValueDefinitionIsFirst(ref int, ancestor Node) bool {
+	switch ancestor.Kind {
+	case NodeKindEnumTypeDefinition:
+		return d.EnumTypeDefinitions[ancestor.Ref].EnumValuesDefinition.Refs != nil &&
+			d.EnumTypeDefinitions[ancestor.Ref].EnumValuesDefinition.Refs[0] == ref
+	case NodeKindEnumTypeExtension:
+		return d.EnumTypeExtensions[ancestor.Ref].EnumValuesDefinition.Refs != nil &&
+			d.EnumTypeExtensions[ancestor.Ref].EnumValuesDefinition.Refs[0] == ref
+	default:
+		return false
+	}
+}
+
+func (d *Document) EnumValueDefinitionIsLast(ref int, ancestor Node) bool {
+	switch ancestor.Kind {
+	case NodeKindEnumTypeDefinition:
+		return d.EnumTypeDefinitions[ancestor.Ref].EnumValuesDefinition.Refs != nil &&
+			d.EnumTypeDefinitions[ancestor.Ref].EnumValuesDefinition.Refs[len(d.EnumTypeDefinitions[ancestor.Ref].EnumValuesDefinition.Refs)-1] == ref
+	case NodeKindEnumTypeExtension:
+		return d.EnumTypeExtensions[ancestor.Ref].EnumValuesDefinition.Refs != nil &&
+			d.EnumTypeExtensions[ancestor.Ref].EnumValuesDefinition.Refs[len(d.EnumTypeExtensions[ancestor.Ref].EnumValuesDefinition.Refs)-1] == ref
+	default:
+		return false
+	}
+}
+
+func (d *Document) EnumValueDefinitionNameBytes(ref int) ByteSlice {
 	return d.Input.ByteSlice(d.EnumValueDefinitions[ref].EnumValue)
+}
+
+func (d *Document) EnumValueDefinitionNameString(ref int) string {
+	return unsafebytes.BytesToString(d.Input.ByteSlice(d.EnumValueDefinitions[ref].EnumValue))
 }
 
 // DirectiveDefinition
 // example:
 // directive @example on FIELD
 type DirectiveDefinition struct {
-	Description         Description              // optional, describes the directive
-	DirectiveLiteral    position.Position        // directive
-	At                  position.Position        // @
-	Name                ByteSliceReference       // e.g. example
-	ArgumentsDefinition InputValueDefinitionList // optional, e.g. (if: Boolean)
-	On                  position.Position        // on
-	DirectiveLocations  DirectiveLocations       // e.g. FIELD
+	Description             Description        // optional, describes the directive
+	DirectiveLiteral        position.Position  // directive
+	At                      position.Position  // @
+	Name                    ByteSliceReference // e.g. example
+	HasArgumentsDefinitions bool
+	ArgumentsDefinition     InputValueDefinitionList // optional, e.g. (if: Boolean)
+	On                      position.Position        // on
+	DirectiveLocations      DirectiveLocations       // e.g. FIELD
+}
+
+func (d *Document) DirectiveDefinitionNameBytes(ref int) ByteSlice {
+	return d.Input.ByteSlice(d.DirectiveDefinitions[ref].Name)
+}
+
+func (d *Document) DirectiveDefinitionNameString(ref int) string {
+	return unsafebytes.BytesToString(d.Input.ByteSlice(d.DirectiveDefinitions[ref].Name))
 }
 
 func (d *Document) RemoveDirectiveFromNode(node Node, ref int) {
@@ -1618,6 +1993,14 @@ type OperationDefinition struct {
 	Directives             DirectiveList // optional, e.g. @foo
 	SelectionSet           int           // e.g. {field}
 	HasSelections          bool
+}
+
+func (d *Document) OperationDefinitionNameBytes(ref int) ByteSlice {
+	return d.Input.ByteSlice(d.OperationDefinitions[ref].Name)
+}
+
+func (d *Document) OperationDefinitionNameString(ref int) string {
+	return unsafebytes.BytesToString(d.Input.ByteSlice(d.OperationDefinitions[ref].Name))
 }
 
 func (d *Document) OperationDefinitionIsLastRootNode(ref int) bool {
@@ -1767,6 +2150,14 @@ type Field struct {
 	HasSelections bool
 }
 
+func (d *Document) FieldNameBytes(ref int) ByteSlice {
+	return d.Input.ByteSlice(d.Fields[ref].Name)
+}
+
+func (d *Document) FieldNameString(ref int) string {
+	return unsafebytes.BytesToString(d.Input.ByteSlice(d.Fields[ref].Name))
+}
+
 type Alias struct {
 	IsDefined bool
 	Name      ByteSliceReference // optional, e.g. renamedField
@@ -1821,4 +2212,12 @@ type FragmentDefinition struct {
 	Directives      DirectiveList      // optional, e.g. @foo
 	SelectionSet    int                // e.g. { id }
 	HasSelections   bool
+}
+
+func (d *Document) FragmentDefinitionNameBytes(ref int) ByteSlice {
+	return d.Input.ByteSlice(d.FragmentDefinitions[ref].Name)
+}
+
+func (d *Document) FragmentDefinitionNameString(ref int) string {
+	return unsafebytes.BytesToString(d.Input.ByteSlice(d.FragmentDefinitions[ref].Name))
 }
