@@ -49,6 +49,7 @@ var (
 	IF           = []byte("if")
 	SKIP         = []byte("skip")
 	SCHEMA       = []byte("schema")
+	EXTEND       = []byte("extend")
 	SCALAR       = []byte("scalar")
 	UNION        = []byte("union")
 	ENUM         = []byte("enum")
@@ -63,6 +64,27 @@ var (
 
 	TRUE  = []byte("true")
 	FALSE = []byte("false")
+
+	LocationQuery              = []byte("QUERY")
+	LocationMutation           = []byte("MUTATION")
+	LocationSubscription       = []byte("SUBSCRIPTION")
+	LocationField              = []byte("FIELD")
+	LocationFragmentDefinition = []byte("FRAGMENT_DEFINITION")
+	LocationFragmentSpread     = []byte("FRAGMENT_SPREAD")
+	LocationInlineFragment     = []byte("INLINE_FRAGMENT")
+	LocationVariableDefinition = []byte("VARIABLE_DEFINITION")
+
+	LocationSchema               = []byte("SCHEMA")
+	LocationScalar               = []byte("SCALAR")
+	LocationObject               = []byte("OBJECT")
+	LocationFieldDefinition      = []byte("FIELD_DEFINITION")
+	LocationArgumentDefinition   = []byte("ARGUMENT_DEFINITION")
+	LocationInterface            = []byte("INTERFACE")
+	LocationUnion                = []byte("UNION")
+	LocationEnum                 = []byte("ENUM")
+	LocationEnumValue            = []byte("ENUM_VALUE")
+	LocationInputObject          = []byte("INPUT_OBJECT")
+	LocationInputFieldDefinition = []byte("INPUT_FIELD_DEFINITION")
 )
 
 type Literal []byte
