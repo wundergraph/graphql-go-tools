@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/identkeyword"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/keyword"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/token"
@@ -39,6 +40,24 @@ type ErrUnexpectedToken struct {
 }
 
 func (e ErrUnexpectedToken) Error() string {
+
+	origins := ""
+	for _, origin := range e.origins {
+		origins = origins + fmt.Sprintf("\n\t\t%s:%d\n\t\t%s", origin.file, origin.line, origin.funcName)
+	}
+
+	return fmt.Sprintf("unexpected token - keyword: '%s' literal: '%s' - expected: '%s' position: '%s'%s", e.keyword, e.literal, e.expected, e.position, origins)
+}
+
+type ErrUnexpectedIdentKey struct {
+	keyword  identkeyword.IdentKeyword
+	expected []identkeyword.IdentKeyword
+	position position.Position
+	literal  string
+	origins  []origin
+}
+
+func (e ErrUnexpectedIdentKey) Error() string {
 
 	origins := ""
 	for _, origin := range e.origins {
@@ -90,43 +109,49 @@ func (p *Parser) tokenize() {
 }
 
 func (p *Parser) parse() {
-
 	for {
-		next := p.peek()
+		key, literalReference := p.peekLiteral()
 
-		switch next {
-		case keyword.SCHEMA:
-			p.parseSchemaDefinition()
-		case keyword.STRING, keyword.BLOCKSTRING:
-			p.parseRootDescription()
-		case keyword.SCALAR:
-			p.parseScalarTypeDefinition(nil)
-		case keyword.TYPE:
-			p.parseObjectTypeDefinition(nil)
-		case keyword.INPUT:
-			p.parseInputObjectTypeDefinition(nil)
-		case keyword.INTERFACE:
-			p.parseInterfaceTypeDefinition(nil)
-		case keyword.UNION:
-			p.parseUnionTypeDefinition(nil)
-		case keyword.ENUM:
-			p.parseEnumTypeDefinition(nil)
-		case keyword.DIRECTIVE:
-			p.parseDirectiveDefinition(nil)
-		case keyword.QUERY, keyword.MUTATION, keyword.SUBSCRIPTION, keyword.LBRACE:
-			p.parseOperationDefinition()
-		case keyword.FRAGMENT:
-			p.parseFragmentDefinition()
-		case keyword.EXTEND:
-			p.parseExtension()
-		case keyword.COMMENT:
-			p.read()
-			continue
+		switch key {
 		case keyword.EOF:
 			p.read()
 			return
+		case keyword.LBRACE:
+			p.parseOperationDefinition()
+		case keyword.COMMENT:
+			p.read()
+		case keyword.STRING, keyword.BLOCKSTRING:
+			p.parseRootDescription()
+		case keyword.IDENT:
+			keyIdent := p.identKeywordSliceRef(literalReference)
+			switch keyIdent {
+			case identkeyword.ENUM:
+				p.parseEnumTypeDefinition(nil)
+			case identkeyword.TYPE:
+				p.parseObjectTypeDefinition(nil)
+			case identkeyword.UNION:
+				p.parseUnionTypeDefinition(nil)
+			case identkeyword.QUERY, identkeyword.MUTATION, identkeyword.SUBSCRIPTION:
+				p.parseOperationDefinition()
+			case identkeyword.INPUT:
+				p.parseInputObjectTypeDefinition(nil)
+			case identkeyword.EXTEND:
+				p.parseExtension()
+			case identkeyword.SCHEMA:
+				p.parseSchemaDefinition()
+			case identkeyword.SCALAR:
+				p.parseScalarTypeDefinition(nil)
+			case identkeyword.FRAGMENT:
+				p.parseFragmentDefinition()
+			case identkeyword.INTERFACE:
+				p.parseInterfaceTypeDefinition(nil)
+			case identkeyword.DIRECTIVE:
+				p.parseDirectiveDefinition(nil)
+			default:
+				p.errUnexpectedIdentKey(p.read(), keyIdent, identkeyword.ENUM, identkeyword.TYPE, identkeyword.UNION, identkeyword.QUERY, identkeyword.INPUT, identkeyword.EXTEND, identkeyword.SCHEMA, identkeyword.SCALAR, identkeyword.FRAGMENT, identkeyword.INTERFACE, identkeyword.DIRECTIVE)
+			}
 		default:
-			p.errUnexpectedToken(p.read())
+			p.errUnexpectedToken(p.read(), keyword.EOF, keyword.LBRACE, keyword.COMMENT, keyword.STRING, keyword.BLOCKSTRING, keyword.IDENT)
 		}
 
 		if p.err != nil {
@@ -153,6 +178,37 @@ func (p *Parser) read() token.Token {
 	}
 }
 
+func (p *Parser) identKeywordToken(token token.Token) identkeyword.IdentKeyword {
+	return identkeyword.KeywordFromLiteral(p.document.Input.ByteSlice(token.Literal))
+}
+
+func (p *Parser) identKeywordSlice(slice ast.ByteSlice) identkeyword.IdentKeyword {
+	return identkeyword.KeywordFromLiteral(slice)
+}
+
+func (p *Parser) identKeywordSliceRef(ref ast.ByteSliceReference) identkeyword.IdentKeyword {
+	return identkeyword.KeywordFromLiteral(p.document.Input.ByteSlice(ref))
+}
+
+func (p *Parser) readExpectLiteral(expect ...identkeyword.IdentKeyword) (token.Token, identkeyword.IdentKeyword) {
+	p.currentToken++
+	if p.currentToken < p.maxTokens {
+		out := p.tokens[p.currentToken]
+		identKey := p.identKeywordToken(out)
+		for _, expectation := range expect {
+			if identKey == expectation {
+				return out, identKey
+			}
+		}
+		p.errUnexpectedToken(out)
+		return out, identKey
+	}
+
+	return token.Token{
+		Keyword: keyword.EOF,
+	}, identkeyword.UNDEFINED
+}
+
 func (p *Parser) peek() keyword.Keyword {
 	nextIndex := p.currentToken + 1
 	if nextIndex < p.maxTokens {
@@ -161,8 +217,58 @@ func (p *Parser) peek() keyword.Keyword {
 	return keyword.EOF
 }
 
+func (p *Parser) peekLiteral() (keyword.Keyword, ast.ByteSliceReference) {
+	nextIndex := p.currentToken + 1
+	if nextIndex < p.maxTokens {
+		return p.tokens[nextIndex].Keyword, p.tokens[nextIndex].Literal
+	}
+	return keyword.EOF, ast.ByteSliceReference{}
+}
+
 func (p *Parser) peekEquals(key keyword.Keyword) bool {
 	return p.peek() == key
+}
+
+func (p *Parser) peekEqualsIdentKey(identKey identkeyword.IdentKeyword) bool {
+	key, literal := p.peekLiteral()
+	if key != keyword.IDENT {
+		return false
+	}
+	actualKey := p.identKeywordSliceRef(literal)
+	return actualKey == identKey
+}
+
+func (p *Parser) errUnexpectedIdentKey(unexpected token.Token, unexpectedKey identkeyword.IdentKeyword, expectedKeywords ...identkeyword.IdentKeyword) {
+
+	if p.err != nil {
+		return
+	}
+
+	origins := make([]origin, 3)
+	for i := range origins {
+		fpcs := make([]uintptr, 1)
+		callers := runtime.Callers(2+i, fpcs)
+
+		if callers == 0 {
+			origins = origins[:i]
+			break
+		}
+
+		fn := runtime.FuncForPC(fpcs[0])
+		file, line := fn.FileLine(fpcs[0])
+
+		origins[i].file = file
+		origins[i].line = line
+		origins[i].funcName = fn.Name()
+	}
+
+	p.err = ErrUnexpectedIdentKey{
+		keyword:  unexpectedKey,
+		position: unexpected.TextPosition,
+		literal:  p.document.Input.ByteSliceString(unexpected.Literal),
+		origins:  origins,
+		expected: expectedKeywords,
+	}
 }
 
 func (p *Parser) errUnexpectedToken(unexpected token.Token, expectedKeywords ...keyword.Keyword) {
@@ -219,6 +325,30 @@ func (p *Parser) mustRead(key keyword.Keyword) (next token.Token) {
 	return
 }
 
+func (p *Parser) mustReadIdentKey(key identkeyword.IdentKeyword) (next token.Token) {
+	next = p.read()
+	if next.Keyword != keyword.IDENT {
+		p.errUnexpectedToken(next, keyword.IDENT)
+	}
+	identKey := p.identKeywordToken(next)
+	if identKey != key {
+		p.errUnexpectedIdentKey(next, identKey, key)
+	}
+	return
+}
+
+func (p *Parser) mustReadExceptIdentKey(key identkeyword.IdentKeyword) (next token.Token) {
+	next = p.read()
+	if next.Keyword != keyword.IDENT {
+		p.errUnexpectedToken(next, keyword.IDENT)
+	}
+	identKey := p.identKeywordToken(next)
+	if identKey == key {
+		p.errUnexpectedIdentKey(next, identKey, key)
+	}
+	return
+}
+
 func (p *Parser) parseSchemaDefinition() {
 
 	schemaLiteral := p.read()
@@ -257,14 +387,14 @@ func (p *Parser) parseRootOperationTypeDefinitionList(list *ast.RootOperationTyp
 			list.LBrace = curlyBracketOpen.TextPosition
 			list.RBrace = curlyBracketClose.TextPosition
 			return
-		case keyword.QUERY, keyword.MUTATION, keyword.SUBSCRIPTION:
+		case keyword.IDENT:
 
-			operationType := p.read()
+			_, operationType := p.readExpectLiteral(identkeyword.QUERY, identkeyword.MUTATION, identkeyword.SUBSCRIPTION)
 			colon := p.mustRead(keyword.COLON)
 			namedType := p.mustRead(keyword.IDENT)
 
 			rootOperationTypeDefinition := ast.RootOperationTypeDefinition{
-				OperationType: p.operationTypeFromKeyword(operationType.Keyword),
+				OperationType: p.operationTypeFromIdentKeyword(operationType),
 				Colon:         colon.TextPosition,
 				NamedType: ast.Type{
 					TypeKind: ast.TypeKindNamed,
@@ -303,13 +433,13 @@ func (p *Parser) indexRootOperationTypeDefinition(definition ast.RootOperationTy
 	}
 }
 
-func (p *Parser) operationTypeFromKeyword(key keyword.Keyword) ast.OperationType {
+func (p *Parser) operationTypeFromIdentKeyword(key identkeyword.IdentKeyword) ast.OperationType {
 	switch key {
-	case keyword.QUERY:
+	case identkeyword.QUERY:
 		return ast.OperationTypeQuery
-	case keyword.MUTATION:
+	case identkeyword.MUTATION:
 		return ast.OperationTypeMutation
-	case keyword.SUBSCRIPTION:
+	case identkeyword.SUBSCRIPTION:
 		return ast.OperationTypeSubscription
 	default:
 		return ast.OperationTypeUnknown
@@ -359,7 +489,7 @@ Loop:
 
 		next := p.peek()
 		switch next {
-		case keyword.IDENT, keyword.INPUT:
+		case keyword.IDENT:
 		default:
 			break Loop
 		}
@@ -394,18 +524,25 @@ Loop:
 
 func (p *Parser) parseValue() (value ast.Value) {
 
-	next := p.peek()
+	next, literal := p.peekLiteral()
 
 	switch next {
 	case keyword.STRING, keyword.BLOCKSTRING:
 		value.Kind = ast.ValueKindString
 		value.Ref = p.parseStringValue()
 	case keyword.IDENT:
-		value.Kind = ast.ValueKindEnum
-		value.Ref = p.parseEnumValue()
-	case keyword.TRUE, keyword.FALSE:
-		value.Kind = ast.ValueKindBoolean
-		value.Ref = p.parseBooleanValue()
+		key := p.identKeywordSliceRef(literal)
+		switch key {
+		case identkeyword.TRUE, identkeyword.FALSE:
+			value.Kind = ast.ValueKindBoolean
+			value.Ref = p.parseBooleanValue()
+		case identkeyword.NULL:
+			value.Kind = ast.ValueKindNull
+			p.read()
+		default:
+			value.Kind = ast.ValueKindEnum
+			value.Ref = p.parseEnumValue()
+		}
 	case keyword.DOLLAR:
 		value.Kind = ast.ValueKindVariable
 		value.Ref = p.parseVariableValue()
@@ -417,9 +554,6 @@ func (p *Parser) parseValue() (value ast.Value) {
 		value.Ref = p.parseFloatValue(nil)
 	case keyword.SUB:
 		value = p.parseNegativeNumberValue()
-	case keyword.NULL:
-		value.Kind = ast.ValueKindNull
-		p.read()
 	case keyword.LBRACK:
 		value.Kind = ast.ValueKindList
 		value.Ref = p.parseValueList()
@@ -554,15 +688,15 @@ func (p *Parser) parseVariableValue() int {
 
 	next := p.peek()
 	switch next {
-	case keyword.IDENT, keyword.INPUT:
+	case keyword.IDENT:
 		value = p.read()
 	default:
-		p.errUnexpectedToken(p.read(), keyword.IDENT, keyword.INPUT)
+		p.errUnexpectedToken(p.read(), keyword.IDENT)
 		return -1
 	}
 
 	if dollar.TextPosition.CharEnd != value.TextPosition.CharStart {
-		p.errUnexpectedToken(p.read(), keyword.IDENT, keyword.INPUT)
+		p.errUnexpectedToken(p.read(), keyword.IDENT)
 		return -1
 	}
 
@@ -577,13 +711,14 @@ func (p *Parser) parseVariableValue() int {
 
 func (p *Parser) parseBooleanValue() int {
 	value := p.read()
-	switch value.Keyword {
-	case keyword.FALSE:
+	identKey := p.identKeywordToken(value)
+	switch identKey {
+	case identkeyword.FALSE:
 		return 0
-	case keyword.TRUE:
+	case identkeyword.TRUE:
 		return 1
 	default:
-		p.errUnexpectedToken(value, keyword.FALSE, keyword.TRUE)
+		p.errUnexpectedIdentKey(value, identKey, identkeyword.TRUE, identkeyword.FALSE)
 		return -1
 	}
 }
@@ -615,9 +750,9 @@ func (p *Parser) parseObjectTypeDefinition(description *ast.Description) {
 	if description != nil {
 		objectTypeDefinition.Description = *description
 	}
-	objectTypeDefinition.TypeLiteral = p.mustRead(keyword.TYPE).TextPosition
+	objectTypeDefinition.TypeLiteral = p.mustReadIdentKey(identkeyword.TYPE).TextPosition
 	objectTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
-	if p.peekEquals(keyword.IMPLEMENTS) {
+	if p.peekEqualsIdentKey(identkeyword.IMPLEMENTS) {
 		objectTypeDefinition.ImplementsInterfaces = p.parseImplementsInterfaces()
 	}
 	if p.peekEquals(keyword.AT) {
@@ -648,24 +783,31 @@ func (p *Parser) parseRootDescription() {
 
 	description := p.parseDescription()
 
-	next := p.peek()
+	key, literal := p.peekLiteral()
+	if key != keyword.IDENT {
+		p.errUnexpectedToken(p.read(), keyword.IDENT)
+		return
+	}
+
+	next := p.identKeywordSliceRef(literal)
+
 	switch next {
-	case keyword.TYPE:
+	case identkeyword.TYPE:
 		p.parseObjectTypeDefinition(&description)
-	case keyword.INPUT:
+	case identkeyword.INPUT:
 		p.parseInputObjectTypeDefinition(&description)
-	case keyword.SCALAR:
+	case identkeyword.SCALAR:
 		p.parseScalarTypeDefinition(&description)
-	case keyword.INTERFACE:
+	case identkeyword.INTERFACE:
 		p.parseInterfaceTypeDefinition(&description)
-	case keyword.UNION:
+	case identkeyword.UNION:
 		p.parseUnionTypeDefinition(&description)
-	case keyword.ENUM:
+	case identkeyword.ENUM:
 		p.parseEnumTypeDefinition(&description)
-	case keyword.DIRECTIVE:
+	case identkeyword.DIRECTIVE:
 		p.parseDirectiveDefinition(&description)
 	default:
-		p.errUnexpectedToken(p.read())
+		p.errUnexpectedIdentKey(p.read(), next, identkeyword.TYPE, identkeyword.INPUT, identkeyword.SCALAR, identkeyword.INTERFACE, identkeyword.UNION, identkeyword.ENUM, identkeyword.DIRECTIVE)
 	}
 }
 
@@ -730,7 +872,7 @@ func (p *Parser) parseFieldDefinitionList() (list ast.FieldDefinitionList) {
 		case keyword.RBRACE:
 			list.RBRACE = p.read().TextPosition
 			return
-		case keyword.STRING, keyword.BLOCKSTRING, keyword.IDENT, keyword.TYPE:
+		case keyword.STRING, keyword.BLOCKSTRING, keyword.IDENT:
 			ref := p.parseFieldDefinition()
 			if !refsInitialized {
 				list.Refs = p.document.Refs[p.document.NextRefIndex()][:0]
@@ -752,7 +894,7 @@ func (p *Parser) parseFieldDefinition() int {
 	switch name {
 	case keyword.STRING, keyword.BLOCKSTRING:
 		fieldDefinition.Description = p.parseDescription()
-	case keyword.IDENT, keyword.TYPE:
+	case keyword.IDENT:
 		break
 	default:
 		p.errUnexpectedToken(p.read())
@@ -760,8 +902,8 @@ func (p *Parser) parseFieldDefinition() int {
 	}
 
 	nameToken := p.read()
-	if nameToken.Keyword != keyword.IDENT && nameToken.Keyword != keyword.TYPE && nameToken.Keyword != keyword.FRAGMENT {
-		p.errUnexpectedToken(nameToken, keyword.IDENT, keyword.TYPE)
+	if nameToken.Keyword != keyword.IDENT {
+		p.errUnexpectedToken(nameToken, keyword.IDENT)
 		return -1
 	}
 
@@ -866,7 +1008,7 @@ func (p *Parser) parseInputValueDefinitionList(closingKeyword keyword.Keyword) (
 		case closingKeyword:
 			list.RPAREN = p.read().TextPosition
 			return
-		case keyword.STRING, keyword.BLOCKSTRING, keyword.IDENT, keyword.INPUT:
+		case keyword.STRING, keyword.BLOCKSTRING, keyword.IDENT:
 			ref := p.parseInputValueDefinition()
 			if cap(list.Refs) == 0 {
 				list.Refs = p.document.Refs[p.document.NextRefIndex()][:0]
@@ -887,7 +1029,7 @@ func (p *Parser) parseInputValueDefinition() int {
 	switch name {
 	case keyword.STRING, keyword.BLOCKSTRING:
 		inputValueDefinition.Description = p.parseDescription()
-	case keyword.IDENT, keyword.INPUT:
+	case keyword.IDENT:
 		break
 	default:
 		p.errUnexpectedToken(p.read())
@@ -917,7 +1059,7 @@ func (p *Parser) parseInputObjectTypeDefinition(description *ast.Description) {
 	if description != nil {
 		inputObjectTypeDefinition.Description = *description
 	}
-	inputObjectTypeDefinition.InputLiteral = p.mustRead(keyword.INPUT).TextPosition
+	inputObjectTypeDefinition.InputLiteral = p.mustReadIdentKey(identkeyword.INPUT).TextPosition
 	inputObjectTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
 	if p.peekEquals(keyword.AT) {
 		inputObjectTypeDefinition.Directives = p.parseDirectiveList()
@@ -944,7 +1086,7 @@ func (p *Parser) parseScalarTypeDefinition(description *ast.Description) {
 	if description != nil {
 		scalarTypeDefinition.Description = *description
 	}
-	scalarTypeDefinition.ScalarLiteral = p.mustRead(keyword.SCALAR).TextPosition
+	scalarTypeDefinition.ScalarLiteral = p.mustReadIdentKey(identkeyword.SCALAR).TextPosition
 	scalarTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
 	if p.peekEquals(keyword.AT) {
 		scalarTypeDefinition.Directives = p.parseDirectiveList()
@@ -967,7 +1109,7 @@ func (p *Parser) parseInterfaceTypeDefinition(description *ast.Description) {
 	if description != nil {
 		interfaceTypeDefinition.Description = *description
 	}
-	interfaceTypeDefinition.InterfaceLiteral = p.mustRead(keyword.INTERFACE).TextPosition
+	interfaceTypeDefinition.InterfaceLiteral = p.mustReadIdentKey(identkeyword.INTERFACE).TextPosition
 	interfaceTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
 	if p.peekEquals(keyword.AT) {
 		interfaceTypeDefinition.Directives = p.parseDirectiveList()
@@ -994,7 +1136,7 @@ func (p *Parser) parseUnionTypeDefinition(description *ast.Description) {
 	if description != nil {
 		unionTypeDefinition.Description = *description
 	}
-	unionTypeDefinition.UnionLiteral = p.mustRead(keyword.UNION).TextPosition
+	unionTypeDefinition.UnionLiteral = p.mustReadIdentKey(identkeyword.UNION).TextPosition
 	unionTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
 	if p.peekEquals(keyword.AT) {
 		unionTypeDefinition.Directives = p.parseDirectiveList()
@@ -1056,7 +1198,6 @@ func (p *Parser) parseUnionMemberTypes() (list ast.TypeList) {
 				}
 				list.Refs = append(list.Refs, ref)
 			} else {
-				p.errUnexpectedToken(p.read())
 				return
 			}
 		default:
@@ -1073,7 +1214,7 @@ func (p *Parser) parseEnumTypeDefinition(description *ast.Description) {
 	if description != nil {
 		enumTypeDefinition.Description = *description
 	}
-	enumTypeDefinition.EnumLiteral = p.mustRead(keyword.ENUM).TextPosition
+	enumTypeDefinition.EnumLiteral = p.mustReadIdentKey(identkeyword.ENUM).TextPosition
 	enumTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
 	if p.peekEquals(keyword.AT) {
 		enumTypeDefinition.Directives = p.parseDirectiveList()
@@ -1146,14 +1287,14 @@ func (p *Parser) parseDirectiveDefinition(description *ast.Description) {
 	if description != nil {
 		directiveDefinition.Description = *description
 	}
-	directiveDefinition.DirectiveLiteral = p.mustRead(keyword.DIRECTIVE).TextPosition
+	directiveDefinition.DirectiveLiteral = p.mustReadIdentKey(identkeyword.DIRECTIVE).TextPosition
 	directiveDefinition.At = p.mustRead(keyword.AT).TextPosition
 	directiveDefinition.Name = p.mustRead(keyword.IDENT).Literal
 	if p.peekEquals(keyword.LPAREN) {
 		directiveDefinition.ArgumentsDefinition = p.parseInputValueDefinitionList(keyword.RPAREN)
 		directiveDefinition.HasArgumentsDefinitions = len(directiveDefinition.ArgumentsDefinition.Refs) > 0
 	}
-	directiveDefinition.On = p.mustRead(keyword.ON).TextPosition
+	directiveDefinition.On = p.mustReadIdentKey(identkeyword.ON).TextPosition
 	p.parseDirectiveLocations(&directiveDefinition.DirectiveLocations)
 	p.document.DirectiveDefinitions = append(p.document.DirectiveDefinitions, directiveDefinition)
 	ref := len(p.document.DirectiveDefinitions) - 1
@@ -1187,7 +1328,6 @@ func (p *Parser) parseDirectiveLocations(locations *ast.DirectiveLocations) {
 				}
 
 			} else {
-				p.errUnexpectedToken(p.read())
 				return
 			}
 		case keyword.PIPE:
@@ -1241,7 +1381,7 @@ func (p *Parser) parseSelectionSet() (int, bool) {
 func (p *Parser) parseSelection() int {
 	next := p.peek()
 	switch next {
-	case keyword.IDENT, keyword.QUERY, keyword.TYPE:
+	case keyword.IDENT:
 		p.document.Selections = append(p.document.Selections, ast.Selection{
 			Kind: ast.SelectionKindField,
 			Ref:  p.parseField(),
@@ -1259,16 +1399,23 @@ func (p *Parser) parseFragmentSelection(spread position.Position) int {
 
 	var selection ast.Selection
 
-	next := p.peek()
+	next, literal := p.peekLiteral()
 	switch next {
-	case keyword.ON, keyword.LBRACE, keyword.AT:
+	case keyword.LBRACE, keyword.AT:
 		selection.Kind = ast.SelectionKindInlineFragment
 		selection.Ref = p.parseInlineFragment(spread)
 	case keyword.IDENT:
-		selection.Kind = ast.SelectionKindFragmentSpread
-		selection.Ref = p.parseFragmentSpread(spread)
+		key := p.identKeywordSliceRef(literal)
+		switch key {
+		case identkeyword.ON:
+			selection.Kind = ast.SelectionKindInlineFragment
+			selection.Ref = p.parseInlineFragment(spread)
+		default:
+			selection.Kind = ast.SelectionKindFragmentSpread
+			selection.Ref = p.parseFragmentSpread(spread)
+		}
 	default:
-		p.errUnexpectedToken(p.tokens[p.next()], keyword.ON, keyword.IDENT)
+		p.errUnexpectedToken(p.tokens[p.next()], keyword.IDENT)
 	}
 
 	p.document.Selections = append(p.document.Selections, selection)
@@ -1280,8 +1427,8 @@ func (p *Parser) parseField() int {
 	var field ast.Field
 
 	firstIdent := p.next()
-	if p.tokens[firstIdent].Keyword != keyword.IDENT && p.tokens[firstIdent].Keyword != keyword.QUERY && p.tokens[firstIdent].Keyword != keyword.TYPE {
-		p.errUnexpectedToken(p.tokens[firstIdent], keyword.IDENT, keyword.QUERY)
+	if p.tokens[firstIdent].Keyword != keyword.IDENT {
+		p.errUnexpectedToken(p.tokens[firstIdent], keyword.IDENT)
 	}
 
 	if p.peek() == keyword.COLON {
@@ -1312,7 +1459,7 @@ func (p *Parser) parseField() int {
 func (p *Parser) parseFragmentSpread(spread position.Position) int {
 	var fragmentSpread ast.FragmentSpread
 	fragmentSpread.Spread = spread
-	fragmentSpread.FragmentName = p.mustRead(keyword.IDENT).Literal
+	fragmentSpread.FragmentName = p.mustReadExceptIdentKey(identkeyword.ON).Literal
 	if p.peekEquals(keyword.AT) {
 		fragmentSpread.Directives = p.parseDirectiveList()
 		fragmentSpread.HasDirectives = len(fragmentSpread.Directives.Refs) > 0
@@ -1328,7 +1475,7 @@ func (p *Parser) parseInlineFragment(spread position.Position) int {
 		},
 	}
 	fragment.Spread = spread
-	if p.peekEquals(keyword.ON) {
+	if p.peekEqualsIdentKey(identkeyword.ON) {
 		fragment.TypeCondition = p.parseTypeCondition()
 	}
 	if p.peekEquals(keyword.AT) {
@@ -1343,7 +1490,7 @@ func (p *Parser) parseInlineFragment(spread position.Position) int {
 }
 
 func (p *Parser) parseTypeCondition() (typeCondition ast.TypeCondition) {
-	typeCondition.On = p.mustRead(keyword.ON).TextPosition
+	typeCondition.On = p.mustReadIdentKey(identkeyword.ON).TextPosition
 	typeCondition.Type = p.parseNamedType()
 	return
 }
@@ -1352,17 +1499,24 @@ func (p *Parser) parseOperationDefinition() {
 
 	var operationDefinition ast.OperationDefinition
 
-	next := p.peek()
+	next, literal := p.peekLiteral()
 	switch next {
-	case keyword.QUERY:
-		operationDefinition.OperationTypeLiteral = p.read().TextPosition
-		operationDefinition.OperationType = ast.OperationTypeQuery
-	case keyword.MUTATION:
-		operationDefinition.OperationTypeLiteral = p.read().TextPosition
-		operationDefinition.OperationType = ast.OperationTypeMutation
-	case keyword.SUBSCRIPTION:
-		operationDefinition.OperationTypeLiteral = p.read().TextPosition
-		operationDefinition.OperationType = ast.OperationTypeSubscription
+	case keyword.IDENT:
+		key := p.identKeywordSliceRef(literal)
+		switch key {
+		case identkeyword.QUERY:
+			operationDefinition.OperationTypeLiteral = p.read().TextPosition
+			operationDefinition.OperationType = ast.OperationTypeQuery
+		case identkeyword.MUTATION:
+			operationDefinition.OperationTypeLiteral = p.read().TextPosition
+			operationDefinition.OperationType = ast.OperationTypeMutation
+		case identkeyword.SUBSCRIPTION:
+			operationDefinition.OperationTypeLiteral = p.read().TextPosition
+			operationDefinition.OperationType = ast.OperationTypeSubscription
+		default:
+			p.errUnexpectedIdentKey(p.read(), key, identkeyword.QUERY, identkeyword.MUTATION, identkeyword.SUBSCRIPTION)
+			return
+		}
 	case keyword.LBRACE:
 		operationDefinition.OperationType = ast.OperationTypeQuery
 		operationDefinition.SelectionSet, operationDefinition.HasSelections = p.parseSelectionSet()
@@ -1375,7 +1529,7 @@ func (p *Parser) parseOperationDefinition() {
 		p.document.RootNodes = append(p.document.RootNodes, rootNode)
 		return
 	default:
-		p.errUnexpectedToken(p.read(), keyword.QUERY, keyword.MUTATION, keyword.SUBSCRIPTION, keyword.LBRACE)
+		p.errUnexpectedToken(p.read(), keyword.IDENT, keyword.LBRACE)
 		return
 	}
 
@@ -1460,7 +1614,7 @@ func (p *Parser) parseDefaultValue() ast.DefaultValue {
 
 func (p *Parser) parseFragmentDefinition() {
 	var fragmentDefinition ast.FragmentDefinition
-	fragmentDefinition.FragmentLiteral = p.mustRead(keyword.FRAGMENT).TextPosition
+	fragmentDefinition.FragmentLiteral = p.mustReadIdentKey(identkeyword.FRAGMENT).TextPosition
 	fragmentDefinition.Name = p.mustRead(keyword.IDENT).Literal
 	fragmentDefinition.TypeCondition = p.parseTypeCondition()
 	if p.peekEquals(keyword.AT) {
@@ -1477,25 +1631,33 @@ func (p *Parser) parseFragmentDefinition() {
 }
 
 func (p *Parser) parseExtension() {
-	extend := p.mustRead(keyword.EXTEND).TextPosition
-	next := p.peek()
-	switch next {
-	case keyword.SCHEMA:
+	extend := p.mustReadIdentKey(identkeyword.EXTEND).TextPosition
+	next, literal := p.peekLiteral()
+
+	if next != keyword.IDENT {
+		p.errUnexpectedToken(p.read(), keyword.IDENT)
+		return
+	}
+
+	key := p.identKeywordSliceRef(literal)
+
+	switch key {
+	case identkeyword.SCHEMA:
 		p.parseSchemaExtension(extend)
-	case keyword.TYPE:
+	case identkeyword.TYPE:
 		p.parseObjectTypeExtension(extend)
-	case keyword.INTERFACE:
+	case identkeyword.INTERFACE:
 		p.parseInterfaceTypeExtension(extend)
-	case keyword.SCALAR:
+	case identkeyword.SCALAR:
 		p.parseScalarTypeExtension(extend)
-	case keyword.UNION:
+	case identkeyword.UNION:
 		p.parseUnionTypeExtension(extend)
-	case keyword.ENUM:
+	case identkeyword.ENUM:
 		p.parseEnumTypeExtension(extend)
-	case keyword.INPUT:
+	case identkeyword.INPUT:
 		p.parseInputObjectTypeExtension(extend)
 	default:
-		p.errUnexpectedToken(p.read(), keyword.SCHEMA)
+		p.errUnexpectedIdentKey(p.read(), key, identkeyword.SCHEMA, identkeyword.TYPE, identkeyword.INTERFACE, identkeyword.SCALAR, identkeyword.UNION, identkeyword.ENUM, identkeyword.INPUT)
 	}
 }
 
@@ -1521,9 +1683,9 @@ func (p *Parser) parseSchemaExtension(extend position.Position) {
 
 func (p *Parser) parseObjectTypeExtension(extend position.Position) {
 	var objectTypeDefinition ast.ObjectTypeDefinition
-	objectTypeDefinition.TypeLiteral = p.mustRead(keyword.TYPE).TextPosition
+	objectTypeDefinition.TypeLiteral = p.mustReadIdentKey(identkeyword.TYPE).TextPosition
 	objectTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
-	if p.peekEquals(keyword.IMPLEMENTS) {
+	if p.peekEqualsIdentKey(identkeyword.IMPLEMENTS) {
 		objectTypeDefinition.ImplementsInterfaces = p.parseImplementsInterfaces()
 	}
 	if p.peekEquals(keyword.AT) {
@@ -1545,7 +1707,7 @@ func (p *Parser) parseObjectTypeExtension(extend position.Position) {
 
 func (p *Parser) parseInterfaceTypeExtension(extend position.Position) {
 	var interfaceTypeDefinition ast.InterfaceTypeDefinition
-	interfaceTypeDefinition.InterfaceLiteral = p.mustRead(keyword.INTERFACE).TextPosition
+	interfaceTypeDefinition.InterfaceLiteral = p.mustReadIdentKey(identkeyword.INTERFACE).TextPosition
 	interfaceTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
 	if p.peekEquals(keyword.AT) {
 		interfaceTypeDefinition.Directives = p.parseDirectiveList()
@@ -1566,7 +1728,7 @@ func (p *Parser) parseInterfaceTypeExtension(extend position.Position) {
 
 func (p *Parser) parseScalarTypeExtension(extend position.Position) {
 	var scalarTypeDefinition ast.ScalarTypeDefinition
-	scalarTypeDefinition.ScalarLiteral = p.mustRead(keyword.SCALAR).TextPosition
+	scalarTypeDefinition.ScalarLiteral = p.mustReadIdentKey(identkeyword.SCALAR).TextPosition
 	scalarTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
 	if p.peekEquals(keyword.AT) {
 		scalarTypeDefinition.Directives = p.parseDirectiveList()
@@ -1583,7 +1745,7 @@ func (p *Parser) parseScalarTypeExtension(extend position.Position) {
 
 func (p *Parser) parseUnionTypeExtension(extend position.Position) {
 	var unionTypeDefinition ast.UnionTypeDefinition
-	unionTypeDefinition.UnionLiteral = p.mustRead(keyword.UNION).TextPosition
+	unionTypeDefinition.UnionLiteral = p.mustReadIdentKey(identkeyword.UNION).TextPosition
 	unionTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
 	if p.peekEquals(keyword.AT) {
 		unionTypeDefinition.Directives = p.parseDirectiveList()
@@ -1605,7 +1767,7 @@ func (p *Parser) parseUnionTypeExtension(extend position.Position) {
 
 func (p *Parser) parseEnumTypeExtension(extend position.Position) {
 	var enumTypeDefinition ast.EnumTypeDefinition
-	enumTypeDefinition.EnumLiteral = p.mustRead(keyword.ENUM).TextPosition
+	enumTypeDefinition.EnumLiteral = p.mustReadIdentKey(identkeyword.ENUM).TextPosition
 	enumTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
 	if p.peekEquals(keyword.AT) {
 		enumTypeDefinition.Directives = p.parseDirectiveList()
@@ -1626,7 +1788,7 @@ func (p *Parser) parseEnumTypeExtension(extend position.Position) {
 
 func (p *Parser) parseInputObjectTypeExtension(extend position.Position) {
 	var inputObjectTypeDefinition ast.InputObjectTypeDefinition
-	inputObjectTypeDefinition.InputLiteral = p.mustRead(keyword.INPUT).TextPosition
+	inputObjectTypeDefinition.InputLiteral = p.mustReadIdentKey(identkeyword.INPUT).TextPosition
 	inputObjectTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
 	if p.peekEquals(keyword.AT) {
 		inputObjectTypeDefinition.Directives = p.parseDirectiveList()
