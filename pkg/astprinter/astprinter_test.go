@@ -3,8 +3,11 @@ package astprinter
 import (
 	"bytes"
 	"fmt"
+	"github.com/jensneuse/diffview"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
+	"github.com/sebdah/goldie"
+	"io/ioutil"
 	"testing"
 )
 
@@ -106,6 +109,148 @@ func TestPrint(t *testing.T) {
 	t.Run("complex operation", func(t *testing.T) {
 		run(benchmarkTestOperation, benchmarkTestOperationFlat)
 	})
+	t.Run("schema definition", func(t *testing.T) {
+		run(`
+				schema {
+					query: Query
+					mutation: Mutation
+					subscription: Subscription
+				}`, `schema {query: Query mutation: Mutation subscription: Subscription}`)
+	})
+	t.Run("schema extension", func(t *testing.T) {
+		run(`
+				extend schema @foo {
+					query: Query
+					mutation: Mutation
+					subscription: Subscription
+				}`, `extend schema @foo {query: Query mutation: Mutation subscription: Subscription}`)
+	})
+	t.Run("object type definition", func(t *testing.T) {
+		run(`
+				type Foo {
+					field: String
+				}`, `type Foo {field: String}`)
+	})
+	t.Run("object type extension", func(t *testing.T) {
+		run(`
+				extend type Foo @foo {
+					field: String
+				}`, `extend type Foo @foo {field: String}`)
+	})
+	t.Run("input object type definition", func(t *testing.T) {
+		run(`
+				input Foo {
+					field: String
+					field2: Boolean = true
+				}`, `input Foo {field: String field2: Boolean = true}`)
+	})
+	t.Run("input object type extension", func(t *testing.T) {
+		run(`
+				extend input Foo @foo {
+					field: String
+				}`, `extend input Foo @foo {field: String}`)
+	})
+	t.Run("interface type definition", func(t *testing.T) {
+		run(`
+				interface Foo {
+					field: String
+					field2: Boolean
+				}`, `interface Foo {field: String field2: Boolean}`)
+	})
+	t.Run("interface type extension", func(t *testing.T) {
+		run(`
+				extend interface Foo @foo {
+					field: String
+				}`, `extend interface Foo @foo {field: String}`)
+	})
+	t.Run("scalar type definition", func(t *testing.T) {
+		run(`scalar JSON`, `scalar JSON`)
+	})
+	t.Run("scalar type extension", func(t *testing.T) {
+		run(`extend scalar JSON @foo`, `extend scalar JSON @foo`)
+	})
+	t.Run("union type definition", func(t *testing.T) {
+		run(`union Foo = BAR | BAZ`, `union Foo = BAR | BAZ`)
+	})
+	t.Run("union type extension", func(t *testing.T) {
+		run(`extend union Foo @foo = BAR | BAZ`, `extend union Foo @foo = BAR | BAZ`)
+	})
+	t.Run("enum type definition", func(t *testing.T) {
+		run(`
+				enum Foo {
+					BAR
+					BAZ
+				}`, `enum Foo {BAR BAZ}`)
+	})
+	t.Run("enum type extension", func(t *testing.T) {
+		run(`
+				extend enum Foo @foo {
+					BAR
+					BAZ
+				}`, `extend enum Foo @foo {BAR BAZ}`)
+	})
+}
+
+func TestPrintSchemaDefinition(t *testing.T) {
+	schemaBytes, err := ioutil.ReadFile("./testdata/starwars.schema.graphql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err := astparser.ParseGraphqlDocumentBytes(schemaBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	buff := bytes.Buffer{}
+	err = PrintIndent(doc, nil, []byte("  "), &buff)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out := buff.Bytes()
+
+	goldie.Assert(t, "starwars_schema_definition", out)
+	if t.Failed() {
+		fixture, err := ioutil.ReadFile("./fixtures/starwars_schema_definition.golden")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		diffview.NewGoland().DiffViewBytes("starwars_schema_definition", fixture, out)
+	}
+}
+
+func TestPrintOperationDefinition(t *testing.T) {
+	schema, err := astparser.ParseGraphqlDocumentString(testDefinition)
+	if err != nil {
+		t.Fatal(err)
+	}
+	operationBytes, err := ioutil.ReadFile("./testdata/introspectionquery.graphql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	operation, err := astparser.ParseGraphqlDocumentBytes(operationBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	buff := bytes.Buffer{}
+	err = PrintIndent(operation, schema, []byte("  "), &buff)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out := buff.Bytes()
+
+	goldie.Assert(t, "introspectionquery", out)
+	if t.Failed() {
+		fixture, err := ioutil.ReadFile("./fixtures/introspectionquery.golden")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		diffview.NewGoland().DiffViewBytes("introspectionquery", fixture, out)
+	}
 }
 
 func BenchmarkPrint(b *testing.B) {
