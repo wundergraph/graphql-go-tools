@@ -4,7 +4,7 @@ go 1.12
 
 require (
 	github.com/BurntSushi/toml v0.3.1 // indirect
-	github.com/cheekybits/genny v1.0.0
+	github.com/cheekybits/genny v1.0.0 // indirect
 	github.com/fauna/faunadb-go v2.0.1-0.20190528212028-db401cd29d12+incompatible
 	github.com/golang/mock v1.2.0
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
@@ -14,6 +14,7 @@ require (
 	github.com/kr/pretty v0.1.0 // indirect
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/phayes/freeport v0.0.0-20171002181615-b8543db493a5
+	github.com/pkg/errors v0.8.1 // indirect
 	github.com/sebdah/goldie v0.0.0-20180424091453-8784dd1ab561
 	github.com/spf13/afero v1.2.1 // indirect
 	github.com/spf13/cobra v0.0.3
