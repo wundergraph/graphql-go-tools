@@ -9,9 +9,9 @@ import (
 func TestFieldsCanMerge(t *testing.T) {
 
 	run := func(testOperation string, wantCanMerge bool) {
-		operation, err := astparser.ParseGraphqlDocumentString(testOperation)
-		if err != nil {
-			panic(err)
+		operation, report := astparser.ParseGraphqlDocumentString(testOperation)
+		if report.HasErrors() {
+			panic(report)
 		}
 
 		got := FieldsCanMerge(operation, 0, 1)
