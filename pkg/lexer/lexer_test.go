@@ -133,12 +133,17 @@ func TestLexer_Peek_Read(t *testing.T) {
 	t.Run("read float with comma", func(t *testing.T) {
 		run("13.37,", mustRead(keyword.FLOAT, "13.37"))
 	})
-	/*	t.Run("peek invalid float as integer", func(t *testing.T) {
-			run("1.3.3", mustPeek(keyword.INTEGER, true))
-		})
-		t.Run("peek invalid float as integer 2", func(t *testing.T) {
-			run("1.3x", mustPeek(keyword.INTEGER, true))
-		})*/
+	t.Run("read float + . + int", func(t *testing.T) {
+		run("1.3.3", mustRead(keyword.FLOAT, "1.3"),
+			mustRead(keyword.DOT, "."),
+			mustRead(keyword.INTEGER, "3"),
+		)
+	})
+	t.Run("read float + ident", func(t *testing.T) {
+		run("1.3x", mustRead(keyword.FLOAT, "1.3"),
+			mustRead(keyword.IDENT, "x"),
+		)
+	})
 	t.Run("fail reading incomplete float", func(t *testing.T) {
 		run("13.", mustRead(keyword.FLOAT, "13."))
 	})
