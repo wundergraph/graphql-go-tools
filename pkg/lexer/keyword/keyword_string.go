@@ -4,9 +4,45 @@ package keyword
 
 import "strconv"
 
-const _Keyword_name = "UNDEFINEDIDENTEXTENDCOMMENTEOFCOLONBANGLINETERMINATORTABSPACECOMMAATDOTSPREADPIPESLASHEQUALSSUBANDONQUOTEIMPLEMENTSSCHEMASCALARTYPEINTERFACEUNIONENUMINPUTDIRECTIVEDOLLARSTRINGBLOCKSTRINGINTEGERFLOATTRUEFALSENULLQUERYMUTATIONSUBSCRIPTIONFRAGMENTLPARENRPARENLBRACKRBRACKLBRACERBRACE"
+func _() {
+	// An "invalid array index" compiler error signifies that the constant values have changed.
+	// Re-run the stringer command to generate them again.
+	var x [1]struct{}
+	_ = x[UNDEFINED-0]
+	_ = x[IDENT-1]
+	_ = x[COMMENT-2]
+	_ = x[EOF-3]
+	_ = x[COLON-4]
+	_ = x[BANG-5]
+	_ = x[LT-6]
+	_ = x[TAB-7]
+	_ = x[SPACE-8]
+	_ = x[COMMA-9]
+	_ = x[AT-10]
+	_ = x[DOT-11]
+	_ = x[SPREAD-12]
+	_ = x[PIPE-13]
+	_ = x[SLASH-14]
+	_ = x[EQUALS-15]
+	_ = x[SUB-16]
+	_ = x[AND-17]
+	_ = x[QUOTE-18]
+	_ = x[DOLLAR-19]
+	_ = x[STRING-20]
+	_ = x[BLOCKSTRING-21]
+	_ = x[INTEGER-22]
+	_ = x[FLOAT-23]
+	_ = x[LPAREN-24]
+	_ = x[RPAREN-25]
+	_ = x[LBRACK-26]
+	_ = x[RBRACK-27]
+	_ = x[LBRACE-28]
+	_ = x[RBRACE-29]
+}
 
-var _Keyword_index = [...]uint16{0, 9, 14, 20, 27, 30, 35, 39, 53, 56, 61, 66, 68, 71, 77, 81, 86, 92, 95, 98, 100, 105, 115, 121, 127, 131, 140, 145, 149, 154, 163, 169, 175, 186, 193, 198, 202, 207, 211, 216, 224, 236, 244, 250, 256, 262, 268, 274, 280}
+const _Keyword_name = "UNDEFINEDIDENTCOMMENTEOFCOLONBANGLTTABSPACECOMMAATDOTSPREADPIPESLASHEQUALSSUBANDQUOTEDOLLARSTRINGBLOCKSTRINGINTEGERFLOATLPARENRPARENLBRACKRBRACKLBRACERBRACE"
+
+var _Keyword_index = [...]uint8{0, 9, 14, 21, 24, 29, 33, 35, 38, 43, 48, 50, 53, 59, 63, 68, 74, 77, 80, 85, 91, 97, 108, 115, 120, 126, 132, 138, 144, 150, 156}
 
 func (i Keyword) String() string {
 	if i < 0 || i >= Keyword(len(_Keyword_index)-1) {
