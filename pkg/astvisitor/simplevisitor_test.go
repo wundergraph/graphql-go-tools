@@ -1,14 +1,14 @@
 package astvisitor
 
 import (
-	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
+	"github.com/jensneuse/graphql-go-tools/pkg/unsafeparser"
 	"testing"
 )
 
 func BenchmarkSimpleVisitor(b *testing.B) {
 
-	definition := mustDoc(astparser.ParseGraphqlDocumentString(testDefinition))
-	operation := mustDoc(astparser.ParseGraphqlDocumentString(testOperation))
+	definition := unsafeparser.ParseGraphqlDocumentString(testDefinition)
+	operation := unsafeparser.ParseGraphqlDocumentString(testOperation)
 
 	visitor := &dummyVisitor{}
 
@@ -19,6 +19,6 @@ func BenchmarkSimpleVisitor(b *testing.B) {
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		must(walker.Walk(operation, definition))
+		must(walker.Walk(&operation, &definition))
 	}
 }
