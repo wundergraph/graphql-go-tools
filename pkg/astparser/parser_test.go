@@ -3,6 +3,7 @@ package astparser
 import (
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/graphqlerror"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/keyword"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
 	"io/ioutil"
@@ -12,65 +13,79 @@ import (
 func TestParser_Parse(t *testing.T) {
 
 	type check func(doc *ast.Document, extra interface{})
-	type action func(parser *Parser) (interface{}, error)
+	type action func(parser *Parser) (interface{}, graphqlerror.Report)
 
 	parse := func() action {
-		return func(parser *Parser) (interface{}, error) {
-			return nil, parser.Parse(parser.document)
+		return func(parser *Parser) (interface{}, graphqlerror.Report) {
+			report := graphqlerror.Report{}
+			parser.Parse(parser.document, &report)
+			return nil, report
 		}
 	}
 
 	parseType := func() action {
-		return func(parser *Parser) (interface{}, error) {
+		return func(parser *Parser) (interface{}, graphqlerror.Report) {
+			report := graphqlerror.Report{}
+			parser.report = &report
 			parser.lexer.SetInput(&parser.document.Input)
 			parser.tokenize()
 			ref := parser.parseType()
-			return ref, parser.err
+			return ref, report
 		}
 	}
 
 	parseValue := func() action {
-		return func(parser *Parser) (interface{}, error) {
+		return func(parser *Parser) (interface{}, graphqlerror.Report) {
+			report := graphqlerror.Report{}
+			parser.report = &report
 			parser.lexer.SetInput(&parser.document.Input)
 			parser.tokenize()
 			value := parser.parseValue()
-			return value, parser.err
+			return value, report
 		}
 	}
 
 	parseSelectionSet := func() action {
-		return func(parser *Parser) (interface{}, error) {
+		return func(parser *Parser) (interface{}, graphqlerror.Report) {
+			report := graphqlerror.Report{}
+			parser.report = &report
 			parser.lexer.SetInput(&parser.document.Input)
 			parser.tokenize()
 			set, _ := parser.parseSelectionSet()
-			return set, parser.err
+			return set, report
 		}
 	}
 
 	parseFragmentSpread := func() action {
-		return func(parser *Parser) (interface{}, error) {
+		return func(parser *Parser) (interface{}, graphqlerror.Report) {
+			report := graphqlerror.Report{}
+			parser.report = &report
 			parser.lexer.SetInput(&parser.document.Input)
 			parser.tokenize()
 			fragmentSpread := parser.parseFragmentSpread(position.Position{})
-			return parser.document.FragmentSpreads[fragmentSpread], parser.err
+			return parser.document.FragmentSpreads[fragmentSpread], report
 		}
 	}
 
 	parseInlineFragment := func() action {
-		return func(parser *Parser) (interface{}, error) {
+		return func(parser *Parser) (interface{}, graphqlerror.Report) {
+			report := graphqlerror.Report{}
+			parser.report = &report
 			parser.lexer.SetInput(&parser.document.Input)
 			parser.tokenize()
 			inlineFragment := parser.parseInlineFragment(position.Position{})
-			return parser.document.InlineFragments[inlineFragment], parser.err
+			return parser.document.InlineFragments[inlineFragment], report
 		}
 	}
 
 	parseVariableDefinitionList := func() action {
-		return func(parser *Parser) (interface{}, error) {
+		return func(parser *Parser) (interface{}, graphqlerror.Report) {
+			report := graphqlerror.Report{}
+			parser.report = &report
 			parser.lexer.SetInput(&parser.document.Input)
 			parser.tokenize()
 			variableDefinitionList := parser.parseVariableDefinitionList()
-			return variableDefinitionList, parser.err
+			return variableDefinitionList, report
 		}
 	}
 
@@ -96,10 +111,10 @@ func TestParser_Parse(t *testing.T) {
 
 		extra, err := action()(parser)
 
-		if wantErr && err == nil {
-			panic("want err, got nil")
-		} else if !wantErr && err != nil {
-			panic(fmt.Errorf("want nil, got err: %s", err.Error()))
+		if wantErr && !err.HasErrors() {
+			panic("want report, got nil")
+		} else if !wantErr && err.HasErrors() {
+			panic(fmt.Errorf("want nil, got report: %s", err.Error()))
 		}
 
 		for _, check := range checks {
@@ -139,7 +154,7 @@ func TestParser_Parse(t *testing.T) {
 		}
 	})
 
-	t.Run("no err on empty input", func(t *testing.T) {
+	t.Run("no report on empty input", func(t *testing.T) {
 		run("", parse, false)
 	})
 	t.Run("schema", func(t *testing.T) {
@@ -1022,25 +1037,25 @@ func TestParser_Parse(t *testing.T) {
 				}
 			})
 		})
-		t.Run("err unexpected bang", func(t *testing.T) {
+		t.Run("report unexpected bang", func(t *testing.T) {
 			run("!", parseType, true)
 		})
-		t.Run("err empty list", func(t *testing.T) {
+		t.Run("report empty list", func(t *testing.T) {
 			run("[]", parseType, true)
 		})
-		t.Run("err incomplete list", func(t *testing.T) {
+		t.Run("report incomplete list", func(t *testing.T) {
 			run("[", parseType, true)
 		})
-		t.Run("err unclosed list", func(t *testing.T) {
+		t.Run("report unclosed list", func(t *testing.T) {
 			run("[String", parseType, true)
 		})
-		t.Run("err unclosed list with bang", func(t *testing.T) {
+		t.Run("report unclosed list with bang", func(t *testing.T) {
 			run("[String!", parseType, true)
 		})
-		t.Run("err double bang", func(t *testing.T) {
+		t.Run("report double bang", func(t *testing.T) {
 			run("String!!", parseType, true)
 		})
-		t.Run("err list close at beginning", func(t *testing.T) {
+		t.Run("report list close at beginning", func(t *testing.T) {
 			run("]String", parseType, true)
 		})
 	})
@@ -1150,7 +1165,7 @@ func TestParser_Parse(t *testing.T) {
 					}
 				})
 		})
-		t.Run("err pipe at end", func(t *testing.T) {
+		t.Run("report pipe at end", func(t *testing.T) {
 			run(`directive @example on FIELD | SCALAR | SCHEMA |`, parse, true)
 		})
 		t.Run("missing location", func(t *testing.T) {
@@ -1201,10 +1216,10 @@ func TestParser_Parse(t *testing.T) {
 						}
 					})
 			})
-			t.Run("err space", func(t *testing.T) {
+			t.Run("report space", func(t *testing.T) {
 				run(`$ foo`, parseValue, true)
 			})
-			t.Run("err start with A-Za-z", func(t *testing.T) {
+			t.Run("report start with A-Za-z", func(t *testing.T) {
 				run(`$123`, parseValue, true)
 			})
 		})
@@ -1241,7 +1256,7 @@ func TestParser_Parse(t *testing.T) {
 						}
 					})
 			})
-			t.Run("err space after negative sign", func(t *testing.T) {
+			t.Run("report space after negative sign", func(t *testing.T) {
 				run(`- 123`, parseValue, true)
 			})
 		})
@@ -1278,7 +1293,7 @@ func TestParser_Parse(t *testing.T) {
 						}
 					})
 			})
-			t.Run("err space after negative sign", func(t *testing.T) {
+			t.Run("report space after negative sign", func(t *testing.T) {
 				run(`- 13.37`, parseValue, true)
 			})
 		})
@@ -1737,7 +1752,7 @@ func TestParser_Parse(t *testing.T) {
 					}
 				})
 		})
-		t.Run("err fragment name must not be on", func(t *testing.T) {
+		t.Run("report fragment name must not be on", func(t *testing.T) {
 			run(`on`, parseFragmentSpread, true)
 		})
 	})
@@ -1860,22 +1875,59 @@ func TestParser_Parse(t *testing.T) {
 	})
 }
 
+func TestErrorReport(t *testing.T) {
+	t.Run("missing ident", func(t *testing.T) {
+		_, report := ParseGraphqlDocumentString(`
+			{
+		  		me {
+					... on Person @foo {
+						personID:
+					}
+				}
+			}
+		`)
+
+		if !report.HasErrors() {
+			t.Fatalf("want err, got nil")
+		}
+
+		want := "external: unexpected token - got: RBRACE want one of: [IDENT], locations: [{Line:6 Column:6}], path: []"
+		if report.Error() != want {
+			t.Fatalf("want:\n%s\ngot:\n%s\n", want, report.Error())
+		}
+	})
+	t.Run("at instead of on", func(t *testing.T) {
+		_, report := ParseGraphqlDocumentString(`
+			{
+		  		me {
+					... on @Person @foo {
+						personID
+					}
+				}
+			}
+		`)
+
+		if !report.HasErrors() {
+			t.Fatalf("want err, got nil")
+		}
+
+		want := "external: unexpected token - got: AT want one of: [IDENT], locations: [{Line:4 Column:13}], path: []"
+		if report.Error() != want {
+			t.Fatalf("want:\n%s\ngot:\n%s\n", want, report.Error())
+		}
+	})
+}
+
 func TestParseStarwars(t *testing.T) {
 
-	inputFileName := "./testdata/starwars.schema.graphql"
-	starwarsSchema, err := ioutil.ReadFile(inputFileName)
+	starWarsSchema, err := ioutil.ReadFile("./testdata/starwars.schema.graphql")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	doc := ast.NewDocument()
-	doc.Input.ResetInputBytes(starwarsSchema)
-
-	parser := NewParser()
-
-	err = parser.Parse(doc)
-	if err != nil {
-		t.Fatal(err)
+	_, report := ParseGraphqlDocumentBytes(starWarsSchema)
+	if report.HasErrors() {
+		t.Fatal(report)
 	}
 }
 
@@ -1887,9 +1939,9 @@ func TestParseTodo(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	doc, err := ParseGraphqlDocumentBytes(schema)
-	if err != nil {
-		t.Fatal(err)
+	doc, report := ParseGraphqlDocumentBytes(schema)
+	if report.HasErrors() {
+		t.Fatal(report)
 	}
 
 	_ = doc
@@ -1904,6 +1956,7 @@ func BenchmarkParseStarwars(b *testing.B) {
 	}
 
 	doc := ast.NewDocument()
+	report := graphqlerror.Report{}
 	parser := NewParser()
 
 	b.ReportAllocs()
@@ -1912,9 +1965,10 @@ func BenchmarkParseStarwars(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		doc.Input.ResetInputBytes(starwarsSchema)
 		doc.Reset()
-		err = parser.Parse(doc)
-		if err != nil {
-			b.Fatal(err)
+		report.Reset()
+		parser.Parse(doc, &report)
+		if report.HasErrors() {
+			b.Fatal(report.Error())
 		}
 	}
 }
@@ -1928,6 +1982,7 @@ func BenchmarkParseGithub(b *testing.B) {
 	}
 
 	doc := ast.NewDocument()
+	report := graphqlerror.Report{}
 	parser := NewParser()
 
 	b.ReportAllocs()
@@ -1936,9 +1991,9 @@ func BenchmarkParseGithub(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		doc.Input.ResetInputBytes(schemaFile)
 		doc.Reset()
-		err = parser.Parse(doc)
-		if err != nil {
-			b.Fatal(err)
+		parser.Parse(doc, &report)
+		if report.HasErrors() {
+			b.Fatal(report.Error())
 		}
 	}
 }
@@ -1947,8 +2002,7 @@ func BenchmarkSelectionSet(b *testing.B) {
 
 	doc := ast.NewDocument()
 	parser := NewParser()
-
-	var err error
+	report := graphqlerror.Report{}
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -1956,9 +2010,10 @@ func BenchmarkSelectionSet(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		doc.Input.ResetInputBytes(selectionSet)
 		doc.Reset()
-		err = parser.Parse(doc)
-		if err != nil {
-			b.Fatal(err)
+		report.Reset()
+		parser.Parse(doc, &report)
+		if report.HasErrors() {
+			b.Fatal(report.Error())
 		}
 	}
 }
@@ -1967,8 +2022,7 @@ func BenchmarkIntrospectionQuery(b *testing.B) {
 
 	doc := ast.NewDocument()
 	parser := NewParser()
-
-	var err error
+	report := graphqlerror.Report{}
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -1976,9 +2030,9 @@ func BenchmarkIntrospectionQuery(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		doc.Input.ResetInputBytes(introspectionQuery)
 		doc.Reset()
-		err = parser.Parse(doc)
-		if err != nil {
-			b.Fatal(err)
+		parser.Parse(doc, &report)
+		if report.HasErrors() {
+			b.Fatal(report.Error())
 		}
 	}
 }
@@ -1987,8 +2041,7 @@ func BenchmarkKitchenSink(b *testing.B) {
 
 	doc := ast.NewDocument()
 	parser := NewParser()
-
-	var err error
+	report := graphqlerror.Report{}
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -1996,10 +2049,8 @@ func BenchmarkKitchenSink(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		doc.Input.ResetInputBytes(kitchenSinkData)
 		doc.Reset()
-		err = parser.Parse(doc)
-		if err != nil {
-			b.Fatal(err)
-		}
+		report.Reset()
+		parser.Parse(doc, &report)
 	}
 }
 
@@ -2007,8 +2058,7 @@ func BenchmarkParse(b *testing.B) {
 
 	doc := ast.NewDocument()
 	parser := NewParser()
-
-	var err error
+	report := graphqlerror.Report{}
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -2016,9 +2066,9 @@ func BenchmarkParse(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		doc.Input.ResetInputBytes(inputBytes)
 		doc.Reset()
-		err = parser.Parse(doc)
-		if err != nil {
-			b.Fatal(err)
+		parser.Parse(doc, &report)
+		if report.HasErrors() {
+			b.Fatal(report.Error())
 		}
 	}
 }

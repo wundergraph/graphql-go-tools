@@ -2,24 +2,18 @@ package astnormalization
 
 import (
 	"fmt"
-	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
+	"github.com/jensneuse/graphql-go-tools/pkg/unsafeparser"
 	"testing"
 )
 
 func TestRealDepthCalculator_CalculateDepthForFragmentSpread(t *testing.T) {
 	run := func(operation, definition, spreadName string, wantDepth int) {
-		op, err := astparser.ParseGraphqlDocumentString(operation)
-		if err != nil {
-			panic(err)
-		}
-		def, err := astparser.ParseGraphqlDocumentString(definition)
-		if err != nil {
-			panic(err)
-		}
+		op := unsafeparser.ParseGraphqlDocumentString(operation)
+		def := unsafeparser.ParseGraphqlDocumentString(definition)
 
 		calc := FragmentSpreadDepth{}
 		var depths Depths
-		err = calc.Get(op, def, &depths)
+		err := calc.Get(&op, &def, &depths)
 		if err != nil {
 			panic(err)
 		}
@@ -90,14 +84,8 @@ func BenchmarkFragmentSpreadDepthCalc_Get(b *testing.B) {
 					frag2Field
 				}`
 
-	op, err := astparser.ParseGraphqlDocumentString(nested)
-	if err != nil {
-		panic(err)
-	}
-	def, err := astparser.ParseGraphqlDocumentString(testDefinition)
-	if err != nil {
-		panic(err)
-	}
+	op := unsafeparser.ParseGraphqlDocumentString(nested)
+	def := unsafeparser.ParseGraphqlDocumentString(testDefinition)
 
 	calc := &FragmentSpreadDepth{}
 	depths := make(Depths, 0, 8)
@@ -107,6 +95,6 @@ func BenchmarkFragmentSpreadDepthCalc_Get(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		depths = depths[:0]
-		calc.Get(op, def, &depths)
+		calc.Get(&op, &def, &depths)
 	}
 }

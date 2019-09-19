@@ -6,19 +6,28 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
+	"github.com/jensneuse/graphql-go-tools/pkg/graphqlerror"
 	"testing"
 )
 
 func TestExecutionValidation(t *testing.T) {
 
 	must := func(err error) {
+		if report, ok := err.(graphqlerror.Report); ok {
+			if report.HasErrors() {
+				panic(report.Error())
+			}
+			return
+		}
 		if err != nil {
 			panic(err)
 		}
 	}
 
-	mustDocument := func(doc *ast.Document, err error) *ast.Document {
-		must(err)
+	mustDocument := func(doc ast.Document, report graphqlerror.Report) ast.Document {
+		if report.HasErrors() {
+			must(report)
+		}
 		return doc
 	}
 
@@ -32,7 +41,7 @@ func TestExecutionValidation(t *testing.T) {
 		definition := mustDocument(astparser.ParseGraphqlDocumentString(testDefinition))
 		operation := mustDocument(astparser.ParseGraphqlDocumentString(operationInput))
 
-		err := astnormalization.NormalizeOperation(operation, definition)
+		err := astnormalization.NormalizeOperation(&operation, &definition)
 		if err != nil {
 			if expectation != Invalid {
 				panic(err)
@@ -43,9 +52,9 @@ func TestExecutionValidation(t *testing.T) {
 		validator := &OperationValidator{}
 		validator.RegisterRule(rule)
 
-		result := validator.Validate(operation, definition)
+		result := validator.Validate(&operation, &definition)
 
-		printedOperation := mustString(astprinter.PrintString(operation, definition))
+		printedOperation := mustString(astprinter.PrintString(&operation, &definition))
 
 		if expectation != result.ValidationState {
 			panic(fmt.Errorf("want expectation: %s, got: %s\nreason: %v\noperation:\n%s\n", expectation, result.ValidationState, result.Reason, printedOperation))
@@ -2762,8 +2771,10 @@ func BenchmarkValidation(b *testing.B) {
 		}
 	}
 
-	mustDocument := func(doc *ast.Document, err error) *ast.Document {
-		must(err)
+	mustDocument := func(doc ast.Document, report graphqlerror.Report) ast.Document {
+		if report.HasErrors() {
+			must(report)
+		}
 		return doc
 	}
 
@@ -2771,7 +2782,7 @@ func BenchmarkValidation(b *testing.B) {
 
 		op, def := mustDocument(astparser.ParseGraphqlDocumentString(operation)), mustDocument(astparser.ParseGraphqlDocumentString(definition))
 
-		must(astnormalization.NormalizeOperation(op, def))
+		must(astnormalization.NormalizeOperation(&op, &def))
 
 		validator := DefaultOperationValidator()
 
@@ -2779,7 +2790,7 @@ func BenchmarkValidation(b *testing.B) {
 		b.ReportAllocs()
 
 		for i := 0; i < b.N; i++ {
-			out := validator.Validate(op, def)
+			out := validator.Validate(&op, &def)
 			if out.ValidationState != state {
 				panic(fmt.Errorf("want state: %s, got: %s, reason: %s", state, out.ValidationState, out.Reason))
 			}
@@ -2875,7 +2886,7 @@ func BenchmarkValidation(b *testing.B) {
 						name
 					}
 					... on Dog {
-						x
+						nickname
 					}
 				}`, Invalid)
 	})

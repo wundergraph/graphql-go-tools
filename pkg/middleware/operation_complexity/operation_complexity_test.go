@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
-	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
+	"github.com/jensneuse/graphql-go-tools/pkg/graphqlerror"
+	"github.com/jensneuse/graphql-go-tools/pkg/unsafeparser"
 	"testing"
 )
 
@@ -94,6 +95,12 @@ func TestNodeCount(t *testing.T) {
 }
 
 var must = func(err error) {
+	if report, ok := err.(graphqlerror.Report); ok {
+		if report.HasErrors() {
+			panic(report.Error())
+		}
+		return
+	}
 	if err != nil {
 		panic(err)
 	}
@@ -105,12 +112,12 @@ var mustDocument = func(document *ast.Document, err error) *ast.Document {
 }
 
 var run = func(definition, operation string, expectedNodeCount, expectedComplexity int) {
-	def := mustDocument(astparser.ParseGraphqlDocumentString(definition))
-	op := mustDocument(astparser.ParseGraphqlDocumentString(operation))
+	def := unsafeparser.ParseGraphqlDocumentString(definition)
+	op := unsafeparser.ParseGraphqlDocumentString(operation)
 
-	must(astnormalization.NormalizeOperation(op, def))
+	must(astnormalization.NormalizeOperation(&op, &def))
 
-	nodeCount, complexity, err := CalculateOperationComplexity(op, def)
+	nodeCount, complexity, err := CalculateOperationComplexity(&op, &def)
 	if err != nil {
 		panic(err)
 	}
@@ -125,8 +132,8 @@ var run = func(definition, operation string, expectedNodeCount, expectedComplexi
 
 func BenchmarkEstimateComplexity(b *testing.B) {
 
-	def := mustDocument(astparser.ParseGraphqlDocumentString(testDefinition))
-	op := mustDocument(astparser.ParseGraphqlDocumentString(complexQuery))
+	def := unsafeparser.ParseGraphqlDocumentString(testDefinition)
+	op := unsafeparser.ParseGraphqlDocumentString(complexQuery)
 
 	estimator := NewOperationComplexityEstimator()
 
@@ -134,7 +141,7 @@ func BenchmarkEstimateComplexity(b *testing.B) {
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		nodeCount, complexity, err := estimator.Do(op, def)
+		nodeCount, complexity, err := estimator.Do(&op, &def)
 		if err != nil {
 			b.Fatal(err)
 		}

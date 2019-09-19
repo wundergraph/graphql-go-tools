@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/jensneuse/diffview"
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
+	"github.com/jensneuse/graphql-go-tools/pkg/graphqlerror"
+	"github.com/jensneuse/graphql-go-tools/pkg/unsafeparser"
 	"github.com/sebdah/goldie"
 	"io/ioutil"
 	"testing"
@@ -14,6 +14,12 @@ import (
 func TestPrint(t *testing.T) {
 
 	must := func(err error) {
+		if report, ok := err.(graphqlerror.Report); ok {
+			if report.HasErrors() {
+				panic(report.Error())
+			}
+			return
+		}
 		if err != nil {
 			panic(err)
 		}
@@ -21,21 +27,13 @@ func TestPrint(t *testing.T) {
 
 	run := func(raw string, want string) {
 
-		parser := astparser.NewParser()
-
-		definition := ast.NewDocument()
-		definition.Input.ResetInputString(testDefinition)
-		must(parser.Parse(definition))
-
-		doc := ast.NewDocument()
-		doc.Input.ResetInputBytes([]byte(raw))
-		must(parser.Parse(doc))
+		definition := unsafeparser.ParseGraphqlDocumentString(testDefinition)
+		doc := unsafeparser.ParseGraphqlDocumentString(raw)
 
 		buff := &bytes.Buffer{}
-
 		printer := Printer{}
 
-		must(printer.Print(doc, definition, buff))
+		must(printer.Print(&doc, &definition, buff))
 
 		got := buff.String()
 
@@ -192,17 +190,11 @@ func TestPrint(t *testing.T) {
 }
 
 func TestPrintSchemaDefinition(t *testing.T) {
-	schemaBytes, err := ioutil.ReadFile("./testdata/starwars.schema.graphql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	doc, err := astparser.ParseGraphqlDocumentBytes(schemaBytes)
-	if err != nil {
-		t.Fatal(err)
-	}
+
+	doc := unsafeparser.ParseGraphqlDocumentFile("./testdata/starwars.schema.graphql")
 
 	buff := bytes.Buffer{}
-	err = PrintIndent(doc, nil, []byte("  "), &buff)
+	err := PrintIndent(&doc, nil, []byte("  "), &buff)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -221,21 +213,12 @@ func TestPrintSchemaDefinition(t *testing.T) {
 }
 
 func TestPrintOperationDefinition(t *testing.T) {
-	schema, err := astparser.ParseGraphqlDocumentString(testDefinition)
-	if err != nil {
-		t.Fatal(err)
-	}
-	operationBytes, err := ioutil.ReadFile("./testdata/introspectionquery.graphql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	operation, err := astparser.ParseGraphqlDocumentBytes(operationBytes)
-	if err != nil {
-		t.Fatal(err)
-	}
+
+	schema := unsafeparser.ParseGraphqlDocumentString(testDefinition)
+	operation := unsafeparser.ParseGraphqlDocumentFile("./testdata/introspectionquery.graphql")
 
 	buff := bytes.Buffer{}
-	err = PrintIndent(operation, schema, []byte("  "), &buff)
+	err := PrintIndent(&operation, &schema, []byte("  "), &buff)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -261,13 +244,8 @@ func BenchmarkPrint(b *testing.B) {
 		}
 	}
 
-	mustDoc := func(doc *ast.Document, err error) *ast.Document {
-		must(err)
-		return doc
-	}
-
-	def := mustDoc(astparser.ParseGraphqlDocumentString(benchmarkTestDefinition))
-	doc := mustDoc(astparser.ParseGraphqlDocumentString(benchmarkTestOperation))
+	def := unsafeparser.ParseGraphqlDocumentString(benchmarkTestDefinition)
+	doc := unsafeparser.ParseGraphqlDocumentString(benchmarkTestOperation)
 
 	buff := &bytes.Buffer{}
 
@@ -278,7 +256,7 @@ func BenchmarkPrint(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		buff.Reset()
-		must(printer.Print(doc, def, buff))
+		must(printer.Print(&doc, &def, buff))
 	}
 }
 

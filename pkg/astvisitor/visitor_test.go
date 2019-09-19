@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"github.com/jensneuse/diffview"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
+	"github.com/jensneuse/graphql-go-tools/pkg/graphqlerror"
+	"github.com/jensneuse/graphql-go-tools/pkg/unsafeparser"
 	"github.com/sebdah/goldie"
 	"io"
 	"io/ioutil"
@@ -13,6 +14,12 @@ import (
 )
 
 var must = func(err error) {
+	if report, ok := err.(graphqlerror.Report); ok {
+		if report.HasErrors() {
+			panic(report.Error())
+		}
+		return
+	}
 	if err != nil {
 		panic(err)
 	}
@@ -25,21 +32,21 @@ var mustDoc = func(doc *ast.Document, err error) *ast.Document {
 
 func TestVisitOperation(t *testing.T) {
 
-	definition := mustDoc(astparser.ParseGraphqlDocumentString(testDefinition))
-	operation := mustDoc(astparser.ParseGraphqlDocumentString(testOperation))
+	definition := unsafeparser.ParseGraphqlDocumentString(testDefinition)
+	operation := unsafeparser.ParseGraphqlDocumentString(testOperation)
 
 	walker := NewWalker(48)
 	buff := &bytes.Buffer{}
 	visitor := &printingVisitor{
 		Walker:     &walker,
 		out:        buff,
-		operation:  operation,
-		definition: definition,
+		operation:  &operation,
+		definition: &definition,
 	}
 
 	walker.RegisterAllNodesVisitor(visitor)
 
-	must(walker.Walk(operation, definition))
+	must(walker.Walk(&operation, &definition))
 
 	out := buff.Bytes()
 	goldie.Assert(t, "visitor", out)
@@ -57,19 +64,19 @@ func TestVisitOperation(t *testing.T) {
 
 func TestVisitSchemaDefinition(t *testing.T) {
 
-	operation := mustDoc(astparser.ParseGraphqlDocumentString(testDefinitions))
+	operation := unsafeparser.ParseGraphqlDocumentString(testDefinitions)
 
 	walker := NewWalker(48)
 	buff := &bytes.Buffer{}
 	visitor := &printingVisitor{
 		Walker:    &walker,
 		out:       buff,
-		operation: operation,
+		operation: &operation,
 	}
 
 	walker.RegisterAllNodesVisitor(visitor)
 
-	must(walker.Walk(operation, nil))
+	must(walker.Walk(&operation, nil))
 
 	out := buff.Bytes()
 	goldie.Assert(t, "schema_visitor", out)
@@ -87,8 +94,8 @@ func TestVisitSchemaDefinition(t *testing.T) {
 
 func TestVisitWithSkip(t *testing.T) {
 
-	definition := mustDoc(astparser.ParseGraphqlDocumentString(testDefinition))
-	operation := mustDoc(astparser.ParseGraphqlDocumentString(`
+	definition := unsafeparser.ParseGraphqlDocumentString(testDefinition)
+	operation := unsafeparser.ParseGraphqlDocumentString(`
 		query PostsUserQuery {
 			posts {
 				id
@@ -98,15 +105,15 @@ func TestVisitWithSkip(t *testing.T) {
 					name
 				}
 			}
-		}`))
+		}`)
 
 	walker := NewWalker(48)
 	buff := &bytes.Buffer{}
 	visitor := &printingVisitor{
 		Walker:     &walker,
 		out:        buff,
-		operation:  operation,
-		definition: definition,
+		operation:  &operation,
+		definition: &definition,
 	}
 
 	skipUser := skipUserVisitor{
@@ -117,7 +124,7 @@ func TestVisitWithSkip(t *testing.T) {
 	walker.RegisterEnterFieldVisitor(&skipUser)
 	walker.RegisterAllNodesVisitor(visitor)
 
-	must(walker.Walk(operation, definition))
+	must(walker.Walk(&operation, &definition))
 
 	out := buff.Bytes()
 	goldie.Assert(t, "visitor_skip", out)
@@ -151,8 +158,8 @@ func (s *skipUserVisitor) EnterField(ref int) {
 
 func BenchmarkVisitor(b *testing.B) {
 
-	definition := mustDoc(astparser.ParseGraphqlDocumentString(testDefinition))
-	operation := mustDoc(astparser.ParseGraphqlDocumentString(testOperation))
+	definition := unsafeparser.ParseGraphqlDocumentString(testDefinition)
+	operation := unsafeparser.ParseGraphqlDocumentString(testOperation)
 
 	visitor := &dummyVisitor{}
 
@@ -163,14 +170,14 @@ func BenchmarkVisitor(b *testing.B) {
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		walker.Walk(operation, definition)
+		walker.Walk(&operation, &definition)
 	}
 }
 
 func BenchmarkMinimalVisitor(b *testing.B) {
 
-	definition := mustDoc(astparser.ParseGraphqlDocumentString(testDefinition))
-	operation := mustDoc(astparser.ParseGraphqlDocumentString(testOperation))
+	definition := unsafeparser.ParseGraphqlDocumentString(testDefinition)
+	operation := unsafeparser.ParseGraphqlDocumentString(testOperation)
 
 	visitor := &minimalVisitor{}
 
@@ -181,7 +188,7 @@ func BenchmarkMinimalVisitor(b *testing.B) {
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		walker.Walk(operation, definition)
+		walker.Walk(&operation, &definition)
 	}
 }
 

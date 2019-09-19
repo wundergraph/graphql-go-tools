@@ -3,26 +3,32 @@ package astparser
 import (
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/graphqlerror"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/identkeyword"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/keyword"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/token"
+	"github.com/jensneuse/graphql-go-tools/pkg/unsafebytes"
 	"runtime"
 )
 
-func ParseGraphqlDocumentString(input string) (*ast.Document, error) {
+func ParseGraphqlDocumentString(input string) (ast.Document, graphqlerror.Report) {
 	parser := NewParser()
-	doc := ast.NewDocument()
+	doc := *ast.NewDocument()
 	doc.Input.ResetInputString(input)
-	return doc, parser.Parse(doc)
+	report := graphqlerror.Report{}
+	parser.Parse(&doc, &report)
+	return doc, report
 }
 
-func ParseGraphqlDocumentBytes(input []byte) (*ast.Document, error) {
+func ParseGraphqlDocumentBytes(input []byte) (ast.Document, graphqlerror.Report) {
 	parser := NewParser()
-	doc := ast.NewDocument()
+	doc := *ast.NewDocument()
 	doc.Input.ResetInputBytes(input)
-	return doc, parser.Parse(doc)
+	report := graphqlerror.Report{}
+	parser.Parse(&doc, &report)
+	return doc, report
 }
 
 type origin struct {
@@ -64,33 +70,35 @@ func (e ErrUnexpectedIdentKey) Error() string {
 		origins = origins + fmt.Sprintf("\n\t\t%s:%d\n\t\t%s", origin.file, origin.line, origin.funcName)
 	}
 
-	return fmt.Sprintf("unexpected token - keyword: '%s' literal: '%s' - expected: '%s' position: '%s'%s", e.keyword, e.literal, e.expected, e.position, origins)
+	return fmt.Sprintf("unexpected ident - keyword: '%s' literal: '%s' - expected: '%s' position: '%s'%s", e.keyword, e.literal, e.expected, e.position, origins)
 }
 
 type Parser struct {
-	document     *ast.Document
-	err          error
-	lexer        *lexer.Lexer
-	tokens       []token.Token
-	maxTokens    int
-	currentToken int
-	shouldIndex  bool
+	document             *ast.Document
+	report               *graphqlerror.Report
+	lexer                *lexer.Lexer
+	tokens               []token.Token
+	maxTokens            int
+	currentToken         int
+	shouldIndex          bool
+	reportInternalErrors bool
 }
 
 func NewParser() *Parser {
 	return &Parser{
-		tokens:      make([]token.Token, 256),
-		lexer:       &lexer.Lexer{},
-		shouldIndex: true,
+		tokens:               make([]token.Token, 256),
+		lexer:                &lexer.Lexer{},
+		shouldIndex:          true,
+		reportInternalErrors: false,
 	}
 }
 
-func (p *Parser) Parse(document *ast.Document) error {
+func (p *Parser) Parse(document *ast.Document, report *graphqlerror.Report) {
 	p.document = document
+	p.report = report
 	p.lexer.SetInput(&document.Input)
 	p.tokenize()
 	p.parse()
-	return p.err
 }
 
 func (p *Parser) tokenize() {
@@ -154,7 +162,7 @@ func (p *Parser) parse() {
 			p.errUnexpectedToken(p.read(), keyword.EOF, keyword.LBRACE, keyword.COMMENT, keyword.STRING, keyword.BLOCKSTRING, keyword.IDENT)
 		}
 
-		if p.err != nil {
+		if p.report.HasErrors() {
 			return
 		}
 	}
@@ -240,7 +248,21 @@ func (p *Parser) peekEqualsIdentKey(identKey identkeyword.IdentKeyword) bool {
 
 func (p *Parser) errUnexpectedIdentKey(unexpected token.Token, unexpectedKey identkeyword.IdentKeyword, expectedKeywords ...identkeyword.IdentKeyword) {
 
-	if p.err != nil {
+	if p.report.HasErrors() {
+		return
+	}
+
+	p.report.AddExternalError(graphqlerror.ExternalError{
+		Message: fmt.Sprintf("unexpected literal - got: %s want one of: %v", unexpectedKey, expectedKeywords),
+		Locations: []graphqlerror.Location{
+			{
+				Line:   unexpected.TextPosition.LineStart,
+				Column: unexpected.TextPosition.CharStart,
+			},
+		},
+	})
+
+	if !p.reportInternalErrors {
 		return
 	}
 
@@ -262,18 +284,32 @@ func (p *Parser) errUnexpectedIdentKey(unexpected token.Token, unexpectedKey ide
 		origins[i].funcName = fn.Name()
 	}
 
-	p.err = ErrUnexpectedIdentKey{
+	p.report.AddInternalError(ErrUnexpectedIdentKey{
 		keyword:  unexpectedKey,
 		position: unexpected.TextPosition,
 		literal:  p.document.Input.ByteSliceString(unexpected.Literal),
 		origins:  origins,
 		expected: expectedKeywords,
-	}
+	})
 }
 
 func (p *Parser) errUnexpectedToken(unexpected token.Token, expectedKeywords ...keyword.Keyword) {
 
-	if p.err != nil {
+	if p.report.HasErrors() {
+		return
+	}
+
+	p.report.AddExternalError(graphqlerror.ExternalError{
+		Message: fmt.Sprintf("unexpected token - got: %s want one of: %v", unexpected.Keyword, expectedKeywords),
+		Locations: []graphqlerror.Location{
+			{
+				Line:   unexpected.TextPosition.LineStart,
+				Column: unexpected.TextPosition.CharStart,
+			},
+		},
+	})
+
+	if !p.reportInternalErrors {
 		return
 	}
 
@@ -295,13 +331,13 @@ func (p *Parser) errUnexpectedToken(unexpected token.Token, expectedKeywords ...
 		origins[i].funcName = fn.Name()
 	}
 
-	p.err = ErrUnexpectedToken{
+	p.report.AddInternalError(ErrUnexpectedToken{
 		keyword:  unexpected.Keyword,
 		position: unexpected.TextPosition,
 		literal:  p.document.Input.ByteSliceString(unexpected.Literal),
 		origins:  origins,
 		expected: expectedKeywords,
-	}
+	})
 }
 
 func (p *Parser) mustNext(key keyword.Keyword) int {
@@ -419,6 +455,10 @@ func (p *Parser) parseRootOperationTypeDefinitionList(list *ast.RootOperationTyp
 			p.errUnexpectedToken(p.read())
 			return
 		}
+
+		if p.report.HasErrors() {
+			return
+		}
 	}
 }
 
@@ -475,6 +515,10 @@ func (p *Parser) parseDirectiveList() (list ast.DirectiveList) {
 		}
 
 		list.Refs = append(list.Refs, ref)
+
+		if p.report.HasErrors() {
+			return
+		}
 	}
 
 	return
@@ -512,6 +556,10 @@ Loop:
 		}
 
 		list.Refs = append(list.Refs, ref)
+
+		if p.report.HasErrors() {
+			return
+		}
 	}
 
 	bracketClose := p.mustRead(keyword.RPAREN)
@@ -588,6 +636,10 @@ func (p *Parser) parseObjectValue() int {
 			p.errUnexpectedToken(p.read(), keyword.IDENT, keyword.RBRACE)
 			return -1
 		}
+
+		if p.report.HasErrors() {
+			return -1
+		}
 	}
 }
 
@@ -620,6 +672,10 @@ func (p *Parser) parseValueList() int {
 				list.Refs = p.document.Refs[p.document.NextRefIndex()][:0]
 			}
 			list.Refs = append(list.Refs, ref)
+		}
+
+		if p.report.HasErrors() {
+			return -1
 		}
 	}
 }
@@ -855,6 +911,10 @@ func (p *Parser) parseImplementsInterfaces() (list ast.TypeList) {
 			}
 			return
 		}
+
+		if p.report.HasErrors() {
+			return
+		}
 	}
 }
 
@@ -881,6 +941,10 @@ func (p *Parser) parseFieldDefinitionList() (list ast.FieldDefinitionList) {
 			list.Refs = append(list.Refs, ref)
 		default:
 			p.errUnexpectedToken(p.read())
+			return
+		}
+
+		if p.report.HasErrors() {
 			return
 		}
 	}
@@ -942,6 +1006,7 @@ func (p *Parser) parseType() (ref int) {
 		namedType := ast.Type{
 			TypeKind: ast.TypeKindNamed,
 			Name:     p.read().Literal,
+			OfType:   -1,
 		}
 
 		p.document.Types = append(p.document.Types, namedType)
@@ -1016,6 +1081,10 @@ func (p *Parser) parseInputValueDefinitionList(closingKeyword keyword.Keyword) (
 			list.Refs = append(list.Refs, ref)
 		default:
 			p.errUnexpectedToken(p.read())
+			return
+		}
+
+		if p.report.HasErrors() {
 			return
 		}
 	}
@@ -1206,6 +1275,10 @@ func (p *Parser) parseUnionMemberTypes() (list ast.TypeList) {
 			}
 			return
 		}
+
+		if p.report.HasErrors() {
+			return
+		}
 	}
 }
 
@@ -1254,6 +1327,10 @@ func (p *Parser) parseEnumValueDefinitionList() (list ast.EnumValueDefinitionLis
 			return
 		default:
 			p.errUnexpectedToken(p.read())
+			return
+		}
+
+		if p.report.HasErrors() {
 			return
 		}
 	}
@@ -1321,9 +1398,22 @@ func (p *Parser) parseDirectiveLocations(locations *ast.DirectiveLocations) {
 				acceptPipe = true
 				expectNext = false
 
-				raw := p.document.Input.ByteSlice(p.read().Literal)
-				p.err = locations.SetFromRaw(raw)
-				if p.err != nil {
+				ident := p.read()
+				raw := p.document.Input.ByteSlice(ident.Literal)
+				err := locations.SetFromRaw(raw)
+				if err != nil {
+					p.report.AddExternalError(graphqlerror.ExternalError{
+						Message: fmt.Sprintf("invalid directive location: %s", unsafebytes.BytesToString(raw)),
+						Locations: []graphqlerror.Location{
+							{
+								Line:   ident.TextPosition.LineStart,
+								Column: ident.TextPosition.CharStart,
+							},
+						},
+					})
+					if p.reportInternalErrors {
+						p.report.AddInternalError(err)
+					}
 					return
 				}
 
@@ -1344,6 +1434,10 @@ func (p *Parser) parseDirectiveLocations(locations *ast.DirectiveLocations) {
 			if expectNext {
 				p.errUnexpectedToken(p.read())
 			}
+			return
+		}
+
+		if p.report.HasErrors() {
 			return
 		}
 	}
@@ -1368,12 +1462,18 @@ func (p *Parser) parseSelectionSet() (int, bool) {
 			p.document.SelectionSets = append(p.document.SelectionSets, set)
 			return len(p.document.SelectionSets) - 1, true
 
-		default:
+		case keyword.IDENT, keyword.SPREAD:
 			if cap(set.SelectionRefs) == 0 {
 				set.SelectionRefs = p.document.Refs[p.document.NextRefIndex()][:0]
 			}
 			ref := p.parseSelection()
 			set.SelectionRefs = append(set.SelectionRefs, ref)
+		default:
+			p.errUnexpectedToken(p.read(), keyword.RBRACE, keyword.IDENT, keyword.SPREAD)
+		}
+
+		if p.report.HasErrors() {
+			return -1, false
 		}
 	}
 }
@@ -1577,6 +1677,10 @@ func (p *Parser) parseVariableDefinitionList() (list ast.VariableDefinitionList)
 			list.Refs = append(list.Refs, ref)
 		default:
 			p.errUnexpectedToken(p.read(), keyword.RPAREN, keyword.DOLLAR)
+			return
+		}
+
+		if p.report.HasErrors() {
 			return
 		}
 	}
