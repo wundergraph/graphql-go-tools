@@ -3,23 +3,24 @@ package astnormalization
 import (
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
+	"github.com/jensneuse/graphql-go-tools/pkg/graphqlerror"
+	"github.com/jensneuse/graphql-go-tools/pkg/unsafeparser"
 	"testing"
 )
 
 func TestNormalizeOperation(t *testing.T) {
 
 	run := func(definition, operation, expectedOutput string) {
-		definitionDocument := mustDocument(astparser.ParseGraphqlDocumentString(definition))
-		operationDocument := mustDocument(astparser.ParseGraphqlDocumentString(operation))
-		expectedOutputDocument := mustDocument(astparser.ParseGraphqlDocumentString(expectedOutput))
+		definitionDocument := unsafeparser.ParseGraphqlDocumentString(definition)
+		operationDocument := unsafeparser.ParseGraphqlDocumentString(operation)
+		expectedOutputDocument := unsafeparser.ParseGraphqlDocumentString(expectedOutput)
 
-		must(NormalizeOperation(operationDocument, definitionDocument))
+		must(NormalizeOperation(&operationDocument, &definitionDocument))
 
-		got := mustString(astprinter.PrintString(operationDocument, definitionDocument))
-		want := mustString(astprinter.PrintString(expectedOutputDocument, definitionDocument))
+		got := mustString(astprinter.PrintString(&operationDocument, &definitionDocument))
+		want := mustString(astprinter.PrintString(&expectedOutputDocument, &definitionDocument))
 
 		if want != got {
 			panic(fmt.Errorf("\nwant:\n%s\ngot:\n%s", want, got))
@@ -109,8 +110,8 @@ func TestNormalizeOperation(t *testing.T) {
 
 func BenchmarkAstNormalization(b *testing.B) {
 
-	definition := mustDocument(astparser.ParseGraphqlDocumentString(testDefinition))
-	operation := mustDocument(astparser.ParseGraphqlDocumentString(testOperation))
+	definition := unsafeparser.ParseGraphqlDocumentString(testDefinition)
+	operation := unsafeparser.ParseGraphqlDocumentString(testOperation)
 
 	normalizer := &OperationNormalizer{}
 
@@ -118,7 +119,7 @@ func BenchmarkAstNormalization(b *testing.B) {
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		normalizer.Do(operation, definition)
+		normalizer.Do(&operation, &definition)
 	}
 }
 
@@ -129,6 +130,12 @@ var must = func(err error) {
 }
 
 var mustDocument = func(doc *ast.Document, err error) *ast.Document {
+	if report, ok := err.(graphqlerror.Report); ok {
+		if report.HasErrors() {
+			panic(report.Error())
+		}
+		return doc
+	}
 	if err != nil {
 		panic(err)
 	}
@@ -144,17 +151,17 @@ var mustString = func(str string, err error) string {
 
 var run = func(normalizeFunc registerNormalizeFunc, definition, operation, expectedOutput string) {
 
-	definitionDocument := mustDocument(astparser.ParseGraphqlDocumentString(definition))
-	operationDocument := mustDocument(astparser.ParseGraphqlDocumentString(operation))
-	expectedOutputDocument := mustDocument(astparser.ParseGraphqlDocumentString(expectedOutput))
+	definitionDocument := unsafeparser.ParseGraphqlDocumentString(definition)
+	operationDocument := unsafeparser.ParseGraphqlDocumentString(operation)
+	expectedOutputDocument := unsafeparser.ParseGraphqlDocumentString(expectedOutput)
 
 	walker := astvisitor.NewWalker(48)
 	normalizeFunc(&walker)
 
-	must(walker.Walk(operationDocument, definitionDocument))
+	must(walker.Walk(&operationDocument, &definitionDocument))
 
-	got := mustString(astprinter.PrintString(operationDocument, definitionDocument))
-	want := mustString(astprinter.PrintString(expectedOutputDocument, definitionDocument))
+	got := mustString(astprinter.PrintString(&operationDocument, &definitionDocument))
+	want := mustString(astprinter.PrintString(&expectedOutputDocument, &definitionDocument))
 
 	if want != got {
 		panic(fmt.Errorf("\nwant:\n%s\ngot:\n%s", want, got))

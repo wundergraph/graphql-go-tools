@@ -2,19 +2,17 @@ package astinspect
 
 import (
 	"fmt"
-	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
+	"github.com/jensneuse/graphql-go-tools/pkg/unsafeparser"
 	"testing"
 )
 
 func TestFieldsCanMerge(t *testing.T) {
 
 	run := func(testOperation string, wantCanMerge bool) {
-		operation, report := astparser.ParseGraphqlDocumentString(testOperation)
-		if report.HasErrors() {
-			panic(report)
-		}
 
-		got := FieldsCanMerge(operation, 0, 1)
+		operation := unsafeparser.ParseGraphqlDocumentString(testOperation)
+
+		got := FieldsCanMerge(&operation, 0, 1)
 		if wantCanMerge != got {
 			panic(fmt.Errorf("want: %t, got: %t for: %s", wantCanMerge, got, testOperation))
 		}

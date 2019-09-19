@@ -3,25 +3,18 @@ package astinspect
 import (
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
+	"github.com/jensneuse/graphql-go-tools/pkg/unsafeparser"
 	"testing"
 )
 
 func TestSelectionSetCanMerge(t *testing.T) {
 
-	mustDoc := func(doc *ast.Document, err error) *ast.Document {
-		if err != nil {
-			panic(err)
-		}
-		return doc
-	}
-
 	run := func(testOperation string, wantCanMerge bool) {
 
-		operation := mustDoc(astparser.ParseGraphqlDocumentString(testOperation))
-		definition := mustDoc(astparser.ParseGraphqlDocumentString(testDefinition))
+		operation := unsafeparser.ParseGraphqlDocumentString(testOperation)
+		definition := unsafeparser.ParseGraphqlDocumentString(testDefinition)
 
-		got := SelectionSetCanMerge(2, ast.Node{}, operation, definition)
+		got := SelectionSetCanMerge(2, ast.Node{}, &operation, &definition)
 		if wantCanMerge != got {
 			panic(fmt.Errorf("want: %t, got: %t for: %s", wantCanMerge, got, testOperation))
 		}
