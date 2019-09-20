@@ -3,6 +3,7 @@ package ast
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
+	"github.com/jensneuse/graphql-go-tools/pkg/unsafebytes"
 )
 
 // RawBytes is a raw graphql document containing the raw input + meta data
@@ -47,7 +48,7 @@ func (i *Input) ByteSlice(reference ByteSliceReference) ByteSlice {
 }
 
 func (i *Input) ByteSliceString(reference ByteSliceReference) string {
-	return string(i.ByteSlice(reference))
+	return unsafebytes.BytesToString(i.ByteSlice(reference))
 }
 
 func (i *Input) ByteSliceReferenceContentEquals(left, right ByteSliceReference) bool {
@@ -67,6 +68,20 @@ type ByteSlice []byte
 
 func (b ByteSlice) MarshalJSON() ([]byte, error) {
 	return append(append(literal.QUOTE, b...), literal.QUOTE...), nil
+}
+
+type ByteSlices []ByteSlice
+
+func (b ByteSlices) String() string {
+	out := "["
+	for i := range b {
+		if i != 0 {
+			out += ","
+		}
+		out += string(b[i])
+	}
+	out += "]"
+	return out
 }
 
 type ByteSliceReference struct {
@@ -89,4 +104,22 @@ func ByteSliceEquals(left ByteSliceReference, leftInput Input, right ByteSliceRe
 		}
 	}
 	return true
+}
+
+type ByteSliceReferences []ByteSliceReference
+
+func (b ByteSliceReferences) String(input *Input) string {
+	out := "["
+	for i := range b {
+		if i != 0 {
+			out += ","
+		}
+		if b[i].Length() == 0 {
+			out += "query"
+		} else {
+			out += input.ByteSliceString(b[i])
+		}
+	}
+	out += "]"
+	return out
 }
