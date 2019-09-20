@@ -449,10 +449,6 @@ func (d *Document) InlineFragmentTypeConditionNameString(ref int) string {
 	return unsafebytes.BytesToString(d.InlineFragmentTypeConditionName(ref))
 }
 
-func (d *Document) FragmentDefinitionName(ref int) ByteSlice {
-	return d.Input.ByteSlice(d.FragmentDefinitions[ref].Name)
-}
-
 func (d *Document) FragmentDefinitionTypeName(ref int) ByteSlice {
 	return d.ResolveTypeName(d.FragmentDefinitions[ref].TypeCondition.Type)
 }
