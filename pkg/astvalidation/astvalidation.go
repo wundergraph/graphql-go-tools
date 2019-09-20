@@ -707,7 +707,7 @@ func (f *fragmentsVisitor) EnterDocument(operation, definition *ast.Document) {
 
 func (f *fragmentsVisitor) EnterFragmentDefinition(ref int) {
 
-	fragmentDefinitionName := f.operation.FragmentDefinitionName(ref)
+	fragmentDefinitionName := f.operation.FragmentDefinitionNameBytes(ref)
 	typeName := f.operation.FragmentDefinitionTypeName(ref)
 
 	node, exists := f.definition.Index.Nodes[string(typeName)]

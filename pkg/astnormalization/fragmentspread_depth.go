@@ -100,7 +100,7 @@ func (r *fragmentSpreadDepthVisitor) EnterFragmentSpread(ref int) {
 
 	if r.Ancestors[0].Kind == ast.NodeKindFragmentDefinition {
 		depth.isNested = true
-		depth.parentFragmentName = r.operation.FragmentDefinitionName(r.Ancestors[0].Ref)
+		depth.parentFragmentName = r.operation.FragmentDefinitionNameBytes(r.Ancestors[0].Ref)
 	}
 
 	*r.depths = append(*r.depths, depth)
