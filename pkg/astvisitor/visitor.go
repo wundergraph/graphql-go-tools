@@ -9,6 +9,7 @@ import (
 
 type Walker struct {
 	Ancestors               []ast.Node
+	Path                    ast.ByteSliceReferences
 	EnclosingTypeDefinition ast.Node
 	SelectionsBefore        []int
 	SelectionsAfter         []int
@@ -26,6 +27,7 @@ type Walker struct {
 func NewWalker(ancestorSize int) Walker {
 	return Walker{
 		Ancestors:       make([]ast.Node, 0, ancestorSize),
+		Path:            make([]ast.ByteSliceReference, 0, ancestorSize),
 		typeDefinitions: make([]ast.Node, 0, ancestorSize),
 	}
 }
@@ -1000,6 +1002,9 @@ func (w *Walker) appendAncestor(ref int, kind ast.NodeKind) {
 
 	switch kind {
 	case ast.NodeKindOperationDefinition:
+
+		w.Path = append(w.Path, w.document.OperationDefinitions[ref].Name)
+
 		switch w.document.OperationDefinitions[ref].OperationType {
 		case ast.OperationTypeQuery:
 			typeName = w.definition.Index.QueryTypeName
@@ -1016,8 +1021,10 @@ func (w *Walker) appendAncestor(ref int, kind ast.NodeKind) {
 		}
 		typeName = w.document.InlineFragmentTypeConditionName(ref)
 	case ast.NodeKindFragmentDefinition:
+		w.Path = append(w.Path, w.document.FragmentDefinitions[ref].Name)
 		typeName = w.document.FragmentDefinitionTypeName(ref)
 	case ast.NodeKindField:
+		w.Path = append(w.Path, w.document.Fields[ref].Name)
 		fieldName := w.document.FieldNameBytes(ref)
 		if bytes.Equal(fieldName, literal.TYPENAME) {
 			typeName = literal.STRING
@@ -1054,6 +1061,7 @@ func (w *Walker) removeLastAncestor() {
 
 	switch ancestor.Kind {
 	case ast.NodeKindOperationDefinition, ast.NodeKindFragmentDefinition:
+		w.Path = w.Path[:len(w.Path)-1]
 		w.typeDefinitions = w.typeDefinitions[:len(w.typeDefinitions)-1]
 		w.EnclosingTypeDefinition.Kind = ast.NodeKindUnknown
 		w.EnclosingTypeDefinition.Ref = -1
@@ -1063,6 +1071,7 @@ func (w *Walker) removeLastAncestor() {
 			w.EnclosingTypeDefinition = w.typeDefinitions[len(w.typeDefinitions)-1]
 		}
 	case ast.NodeKindField:
+		w.Path = w.Path[:len(w.Path)-1]
 		w.typeDefinitions = w.typeDefinitions[:len(w.typeDefinitions)-1]
 		w.EnclosingTypeDefinition = w.typeDefinitions[len(w.typeDefinitions)-1]
 	default:

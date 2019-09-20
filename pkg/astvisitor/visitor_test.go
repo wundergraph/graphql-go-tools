@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/jensneuse/diffview"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/graphqlerror"
 	"github.com/jensneuse/graphql-go-tools/pkg/unsafeparser"
 	"github.com/sebdah/goldie"
 	"io"
@@ -14,20 +13,9 @@ import (
 )
 
 var must = func(err error) {
-	if report, ok := err.(graphqlerror.Report); ok {
-		if report.HasErrors() {
-			panic(report.Error())
-		}
-		return
-	}
 	if err != nil {
 		panic(err)
 	}
-}
-
-var mustDoc = func(doc *ast.Document, err error) *ast.Document {
-	must(err)
-	return doc
 }
 
 func TestVisitOperation(t *testing.T) {
@@ -90,6 +78,76 @@ func TestVisitSchemaDefinition(t *testing.T) {
 
 		diffview.NewGoland().DiffViewBytes("schema_visitor", fixture, out)
 	}
+}
+
+func TestWalker_Path(t *testing.T) {
+
+	definition := unsafeparser.ParseGraphqlDocumentString(testDefinition)
+	operation := unsafeparser.ParseGraphqlDocumentString(`
+		query {
+			posts {
+				id
+				description
+				user {
+					id
+					name
+				}
+			}
+		}
+
+		query MyQuery {
+			posts {
+				id
+				description
+				user {
+					id
+					name
+					posts {
+						id
+					}
+				}
+			}
+		}`)
+
+	walker := NewWalker(48)
+	buff := &bytes.Buffer{}
+
+	pathVisitor := pathVisitor{
+		Walker: &walker,
+		out:    buff,
+	}
+
+	walker.RegisterEnterDocumentVisitor(&pathVisitor)
+	walker.RegisterEnterFieldVisitor(&pathVisitor)
+
+	must(walker.Walk(&operation, &definition))
+
+	out := buff.Bytes()
+	goldie.Assert(t, "path", out)
+
+	if t.Failed() {
+
+		fixture, err := ioutil.ReadFile("./fixtures/path.golden")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		diffview.NewGoland().DiffViewBytes("path", fixture, out)
+	}
+}
+
+type pathVisitor struct {
+	*Walker
+	out     *bytes.Buffer
+	op, def *ast.Document
+}
+
+func (p *pathVisitor) EnterDocument(operation, definition *ast.Document) {
+	p.op, p.def = operation, definition
+}
+
+func (p *pathVisitor) EnterField(ref int) {
+	p.out.Write([]byte(fmt.Sprintf("EnterField: %s, path: %s\n", p.op.FieldNameString(ref), p.Path.String(&p.document.Input))))
 }
 
 func TestVisitWithSkip(t *testing.T) {
@@ -949,6 +1007,7 @@ type Query {
 type User {
 	id: ID
 	name: String
+	posts: [Post]
 }
 type Post {
 	id: ID
