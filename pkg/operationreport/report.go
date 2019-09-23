@@ -1,4 +1,4 @@
-package graphqlerror
+package operationreport
 
 import "fmt"
 

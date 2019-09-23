@@ -1,4 +1,4 @@
-package graphqlerror
+package operationreport
 
 import (
 	"bytes"
@@ -7,7 +7,7 @@ import (
 )
 
 func TestPath_MarshalJSON(t *testing.T) {
-	p1 := Path{
+	p1 := PathItem{
 		Kind:       ArrayIndex,
 		ArrayIndex: 1,
 	}
@@ -21,7 +21,7 @@ func TestPath_MarshalJSON(t *testing.T) {
 		t.Fatalf("want 1, got: %s", string(data))
 	}
 
-	var p2 Path
+	var p2 PathItem
 	err = json.Unmarshal([]byte("1"), &p2)
 	if err != nil {
 		t.Fatal(err)
@@ -34,7 +34,7 @@ func TestPath_MarshalJSON(t *testing.T) {
 		t.Fatalf("want 1, got: %d", p2.ArrayIndex)
 	}
 
-	var p3 Path
+	var p3 PathItem
 	err = json.Unmarshal([]byte("\"field\""), &p3)
 	if err != nil {
 		t.Fatal(err)
@@ -47,7 +47,7 @@ func TestPath_MarshalJSON(t *testing.T) {
 		t.Fatalf("want field, got: %s", p3.FieldName)
 	}
 
-	p4 := Path{
+	p4 := PathItem{
 		Kind:      FieldName,
 		FieldName: []byte("field"),
 	}
@@ -61,7 +61,7 @@ func TestPath_MarshalJSON(t *testing.T) {
 		t.Fatalf("want \"field\", got: %s", string(data))
 	}
 
-	var p5 Path
+	var p5 PathItem
 	err = json.Unmarshal([]byte("\"field"), &p5)
 	if err == nil {
 		t.Fatalf("want err, got nil")

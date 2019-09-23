@@ -1,4 +1,4 @@
-package graphqlerror
+package operationreport
 
 import (
 	"fmt"
@@ -10,7 +10,7 @@ import (
 
 type ExternalError struct {
 	Message   string     `json:"message"`
-	Path      []Path     `json:"path"`
+	Path      []PathItem `json:"path"`
 	Locations []Location `json:"locations"`
 }
 
@@ -27,15 +27,15 @@ const (
 	FieldName
 )
 
-type Path struct {
+type PathItem struct {
 	Kind       PathKind
 	ArrayIndex int
 	FieldName  ast.ByteSlice
 }
 
-type Paths []Path
+type Path []PathItem
 
-func (p Paths) String() string {
+func (p Path) String() string {
 	out := "["
 	for i := range p {
 		if i != 0 {
@@ -207,7 +207,7 @@ func ErrDirectiveMustBeUniquePerLocation(directiveName ast.ByteSlice) (err Exter
 	return err
 }
 
-func (p *Path) UnmarshalJSON(data []byte) error {
+func (p *PathItem) UnmarshalJSON(data []byte) error {
 	if data == nil {
 		return fmt.Errorf("data must not be nil")
 	}
@@ -225,7 +225,7 @@ func (p *Path) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (p Path) MarshalJSON() ([]byte, error) {
+func (p PathItem) MarshalJSON() ([]byte, error) {
 	switch p.Kind {
 	case ArrayIndex:
 		return strconv.AppendInt(nil, int64(p.ArrayIndex), 10), nil
