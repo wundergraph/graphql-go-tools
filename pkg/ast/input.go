@@ -66,6 +66,10 @@ func (i *Input) ByteSliceReferenceContentEquals(left, right ByteSliceReference) 
 
 type ByteSlice []byte
 
+func (b ByteSlice) String() string {
+	return unsafebytes.BytesToString(b)
+}
+
 func (b ByteSlice) MarshalJSON() ([]byte, error) {
 	return append(append(literal.QUOTE, b...), literal.QUOTE...), nil
 }
