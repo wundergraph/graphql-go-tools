@@ -1,6 +1,7 @@
 package graphqlerror
 
 import (
+	"bytes"
 	"encoding/json"
 	"testing"
 )
@@ -9,7 +10,6 @@ func TestPath_MarshalJSON(t *testing.T) {
 	p1 := Path{
 		Kind:       ArrayIndex,
 		ArrayIndex: 1,
-		FieldName:  "",
 	}
 
 	data, err := json.Marshal(p1)
@@ -43,13 +43,13 @@ func TestPath_MarshalJSON(t *testing.T) {
 	if p3.Kind != FieldName {
 		t.Fatalf("want FieldName, got: %d", p3.Kind)
 	}
-	if p3.FieldName != "field" {
+	if !bytes.Equal(p3.FieldName, []byte("field")) {
 		t.Fatalf("want field, got: %s", p3.FieldName)
 	}
 
 	p4 := Path{
 		Kind:      FieldName,
-		FieldName: "field",
+		FieldName: []byte("field"),
 	}
 
 	data, err = json.Marshal(p4)
