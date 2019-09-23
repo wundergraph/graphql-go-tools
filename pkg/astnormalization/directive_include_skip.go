@@ -42,7 +42,7 @@ func (d *directiveIncludeSkipVisitor) handleSkip(ref int) {
 		return
 	}
 	arg := d.operation.Directives[ref].Arguments.Refs[0]
-	if !bytes.Equal(d.operation.ArgumentName(arg), literal.IF) {
+	if !bytes.Equal(d.operation.ArgumentNameBytes(arg), literal.IF) {
 		return
 	}
 	value := d.operation.ArgumentValue(arg)
@@ -66,7 +66,7 @@ func (d *directiveIncludeSkipVisitor) handleInclude(ref int) {
 		return
 	}
 	arg := d.operation.Directives[ref].Arguments.Refs[0]
-	if !bytes.Equal(d.operation.ArgumentName(arg), literal.IF) {
+	if !bytes.Equal(d.operation.ArgumentNameBytes(arg), literal.IF) {
 		return
 	}
 	value := d.operation.ArgumentValue(arg)
