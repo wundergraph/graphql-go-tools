@@ -901,7 +901,7 @@ func (w *Walker) walkArgument(ref int, enclosing Info) {
 
 func (w *Walker) inputValueDefinition(argument int, enclosing Info) int {
 	ancestor := w.ancestors[len(w.ancestors)-1]
-	argName := w.document.ArgumentName(argument)
+	argName := w.document.ArgumentNameBytes(argument)
 	switch ancestor.Kind {
 	case ast.NodeKindField:
 		fieldName := w.document.FieldNameBytes(ancestor.Ref)
