@@ -3,30 +3,30 @@ package astparser
 import (
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/graphqlerror"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/identkeyword"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/keyword"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/token"
+	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 	"github.com/jensneuse/graphql-go-tools/pkg/unsafebytes"
 	"runtime"
 )
 
-func ParseGraphqlDocumentString(input string) (ast.Document, graphqlerror.Report) {
+func ParseGraphqlDocumentString(input string) (ast.Document, operationreport.Report) {
 	parser := NewParser()
 	doc := *ast.NewDocument()
 	doc.Input.ResetInputString(input)
-	report := graphqlerror.Report{}
+	report := operationreport.Report{}
 	parser.Parse(&doc, &report)
 	return doc, report
 }
 
-func ParseGraphqlDocumentBytes(input []byte) (ast.Document, graphqlerror.Report) {
+func ParseGraphqlDocumentBytes(input []byte) (ast.Document, operationreport.Report) {
 	parser := NewParser()
 	doc := *ast.NewDocument()
 	doc.Input.ResetInputBytes(input)
-	report := graphqlerror.Report{}
+	report := operationreport.Report{}
 	parser.Parse(&doc, &report)
 	return doc, report
 }
@@ -75,7 +75,7 @@ func (e ErrUnexpectedIdentKey) Error() string {
 
 type Parser struct {
 	document             *ast.Document
-	report               *graphqlerror.Report
+	report               *operationreport.Report
 	lexer                *lexer.Lexer
 	tokens               []token.Token
 	maxTokens            int
@@ -93,7 +93,7 @@ func NewParser() *Parser {
 	}
 }
 
-func (p *Parser) Parse(document *ast.Document, report *graphqlerror.Report) {
+func (p *Parser) Parse(document *ast.Document, report *operationreport.Report) {
 	p.document = document
 	p.report = report
 	p.lexer.SetInput(&document.Input)
@@ -252,9 +252,9 @@ func (p *Parser) errUnexpectedIdentKey(unexpected token.Token, unexpectedKey ide
 		return
 	}
 
-	p.report.AddExternalError(graphqlerror.ExternalError{
+	p.report.AddExternalError(operationreport.ExternalError{
 		Message: fmt.Sprintf("unexpected literal - got: %s want one of: %v", unexpectedKey, expectedKeywords),
-		Locations: []graphqlerror.Location{
+		Locations: []operationreport.Location{
 			{
 				Line:   unexpected.TextPosition.LineStart,
 				Column: unexpected.TextPosition.CharStart,
@@ -299,9 +299,9 @@ func (p *Parser) errUnexpectedToken(unexpected token.Token, expectedKeywords ...
 		return
 	}
 
-	p.report.AddExternalError(graphqlerror.ExternalError{
+	p.report.AddExternalError(operationreport.ExternalError{
 		Message: fmt.Sprintf("unexpected token - got: %s want one of: %v", unexpected.Keyword, expectedKeywords),
-		Locations: []graphqlerror.Location{
+		Locations: []operationreport.Location{
 			{
 				Line:   unexpected.TextPosition.LineStart,
 				Column: unexpected.TextPosition.CharStart,
@@ -1402,9 +1402,9 @@ func (p *Parser) parseDirectiveLocations(locations *ast.DirectiveLocations) {
 				raw := p.document.Input.ByteSlice(ident.Literal)
 				err := locations.SetFromRaw(raw)
 				if err != nil {
-					p.report.AddExternalError(graphqlerror.ExternalError{
+					p.report.AddExternalError(operationreport.ExternalError{
 						Message: fmt.Sprintf("invalid directive location: %s", unsafebytes.BytesToString(raw)),
-						Locations: []graphqlerror.Location{
+						Locations: []operationreport.Location{
 							{
 								Line:   ident.TextPosition.LineStart,
 								Column: ident.TextPosition.CharStart,

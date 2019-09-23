@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/graphqlerror"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
+	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
 var (
@@ -15,11 +15,11 @@ var (
 
 type Walker struct {
 	Ancestors               []ast.Node
-	Path                    graphqlerror.Paths
+	Path                    operationreport.Path
 	EnclosingTypeDefinition ast.Node
 	SelectionsBefore        []int
 	SelectionsAfter         []int
-	Report                  *graphqlerror.Report
+	Report                  *operationreport.Report
 	document                *ast.Document
 	definition              *ast.Document
 	visitors                visitors
@@ -33,7 +33,7 @@ type Walker struct {
 func NewWalker(ancestorSize int) Walker {
 	return Walker{
 		Ancestors:       make([]ast.Node, 0, ancestorSize),
-		Path:            make([]graphqlerror.Path, 0, ancestorSize),
+		Path:            make([]operationreport.PathItem, 0, ancestorSize),
 		typeDefinitions: make([]ast.Node, 0, ancestorSize),
 	}
 }
@@ -985,9 +985,9 @@ func (w *Walker) RegisterDocumentVisitor(visitor DocumentVisitor) {
 	w.RegisterLeaveDocumentVisitor(visitor)
 }
 
-func (w *Walker) Walk(document, definition *ast.Document, report *graphqlerror.Report) {
+func (w *Walker) Walk(document, definition *ast.Document, report *operationreport.Report) {
 	if report == nil {
-		w.Report = &graphqlerror.Report{}
+		w.Report = &operationreport.Report{}
 	} else {
 		w.Report = report
 	}
@@ -1013,8 +1013,8 @@ func (w *Walker) appendAncestor(ref int, kind ast.NodeKind) {
 	switch kind {
 	case ast.NodeKindOperationDefinition:
 
-		w.Path = append(w.Path, graphqlerror.Path{
-			Kind:       graphqlerror.FieldName,
+		w.Path = append(w.Path, operationreport.PathItem{
+			Kind:       operationreport.FieldName,
 			ArrayIndex: 0,
 			FieldName:  w.document.OperationDefinitionNameBytes(ref),
 		})
@@ -1036,15 +1036,15 @@ func (w *Walker) appendAncestor(ref int, kind ast.NodeKind) {
 		typeName = w.document.InlineFragmentTypeConditionName(ref)
 	case ast.NodeKindFragmentDefinition:
 		typeName = w.document.FragmentDefinitionTypeName(ref)
-		w.Path = append(w.Path, graphqlerror.Path{
-			Kind:       graphqlerror.FieldName,
+		w.Path = append(w.Path, operationreport.PathItem{
+			Kind:       operationreport.FieldName,
 			ArrayIndex: 0,
 			FieldName:  typeName,
 		})
 	case ast.NodeKindField:
 		fieldName := w.document.FieldNameBytes(ref)
-		w.Path = append(w.Path, graphqlerror.Path{
-			Kind:       graphqlerror.FieldName,
+		w.Path = append(w.Path, operationreport.PathItem{
+			Kind:       operationreport.FieldName,
 			ArrayIndex: 0,
 			FieldName:  fieldName,
 		})
@@ -1060,7 +1060,7 @@ func (w *Walker) appendAncestor(ref int, kind ast.NodeKind) {
 		}
 		if typeName == nil {
 			typeName := w.definition.NodeNameBytes(w.typeDefinitions[len(w.typeDefinitions)-1])
-			w.StopWithExternalErr(graphqlerror.ErrFieldUndefinedOnType(fieldName, typeName))
+			w.StopWithExternalErr(operationreport.ErrFieldUndefinedOnType(fieldName, typeName))
 			return
 		}
 	default:
@@ -1070,7 +1070,7 @@ func (w *Walker) appendAncestor(ref int, kind ast.NodeKind) {
 	var exists bool
 	w.EnclosingTypeDefinition, exists = w.definition.Index.Nodes[string(typeName)]
 	if !exists {
-		w.StopWithExternalErr(graphqlerror.ErrTypeUndefined(typeName))
+		w.StopWithExternalErr(operationreport.ErrTypeUndefined(typeName))
 		return
 	}
 
@@ -3028,13 +3028,13 @@ func (w *Walker) HandleInternalErr(err error) bool {
 	return false
 }
 
-func (w *Walker) StopWithExternalErr(err graphqlerror.ExternalError) {
+func (w *Walker) StopWithExternalErr(err operationreport.ExternalError) {
 	w.stop = true
 	err.Path = w.Path
 	w.Report.AddExternalError(err)
 }
 
-func (w *Walker) StopWithErr(internal error, external graphqlerror.ExternalError) {
+func (w *Walker) StopWithErr(internal error, external operationreport.ExternalError) {
 	w.stop = true
 	external.Path = w.Path
 	w.Report.AddInternalError(internal)

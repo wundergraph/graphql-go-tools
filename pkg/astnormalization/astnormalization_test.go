@@ -5,7 +5,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
-	"github.com/jensneuse/graphql-go-tools/pkg/graphqlerror"
+	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 	"github.com/jensneuse/graphql-go-tools/pkg/unsafeparser"
 	"testing"
 )
@@ -16,7 +16,7 @@ func TestNormalizeOperation(t *testing.T) {
 		definitionDocument := unsafeparser.ParseGraphqlDocumentString(definition)
 		operationDocument := unsafeparser.ParseGraphqlDocumentString(operation)
 		expectedOutputDocument := unsafeparser.ParseGraphqlDocumentString(expectedOutput)
-		report := graphqlerror.Report{}
+		report := operationreport.Report{}
 
 		NormalizeOperation(&operationDocument, &definitionDocument, &report)
 
@@ -117,7 +117,7 @@ func BenchmarkAstNormalization(b *testing.B) {
 
 	definition := unsafeparser.ParseGraphqlDocumentString(testDefinition)
 	operation := unsafeparser.ParseGraphqlDocumentString(testOperation)
-	report := graphqlerror.Report{}
+	report := operationreport.Report{}
 
 	normalizer := &OperationNormalizer{}
 
@@ -137,7 +137,7 @@ var must = func(err error) {
 }
 
 var mustDocument = func(doc *ast.Document, err error) *ast.Document {
-	if report, ok := err.(graphqlerror.Report); ok {
+	if report, ok := err.(operationreport.Report); ok {
 		if report.HasErrors() {
 			panic(report.Error())
 		}
@@ -161,7 +161,7 @@ var run = func(normalizeFunc registerNormalizeFunc, definition, operation, expec
 	definitionDocument := unsafeparser.ParseGraphqlDocumentString(definition)
 	operationDocument := unsafeparser.ParseGraphqlDocumentString(operation)
 	expectedOutputDocument := unsafeparser.ParseGraphqlDocumentString(expectedOutput)
-	report := graphqlerror.Report{}
+	report := operationreport.Report{}
 	walker := astvisitor.NewWalker(48)
 	normalizeFunc(&walker)
 

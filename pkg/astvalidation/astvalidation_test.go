@@ -6,14 +6,14 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
-	"github.com/jensneuse/graphql-go-tools/pkg/graphqlerror"
+	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 	"testing"
 )
 
 func TestExecutionValidation(t *testing.T) {
 
 	must := func(err error) {
-		if report, ok := err.(graphqlerror.Report); ok {
+		if report, ok := err.(operationreport.Report); ok {
 			if report.HasErrors() {
 				panic(report.Error())
 			}
@@ -24,7 +24,7 @@ func TestExecutionValidation(t *testing.T) {
 		}
 	}
 
-	mustDocument := func(doc ast.Document, report graphqlerror.Report) ast.Document {
+	mustDocument := func(doc ast.Document, report operationreport.Report) ast.Document {
 		if report.HasErrors() {
 			must(report)
 		}
@@ -40,7 +40,7 @@ func TestExecutionValidation(t *testing.T) {
 
 		definition := mustDocument(astparser.ParseGraphqlDocumentString(testDefinition))
 		operation := mustDocument(astparser.ParseGraphqlDocumentString(operationInput))
-		report := graphqlerror.Report{}
+		report := operationreport.Report{}
 
 		astnormalization.NormalizeOperation(&operation, &definition, &report)
 		if report.HasErrors() {
@@ -2772,7 +2772,7 @@ func BenchmarkValidation(b *testing.B) {
 		}
 	}
 
-	mustDocument := func(doc ast.Document, report graphqlerror.Report) ast.Document {
+	mustDocument := func(doc ast.Document, report operationreport.Report) ast.Document {
 		if report.HasErrors() {
 			must(report)
 		}
@@ -2782,7 +2782,7 @@ func BenchmarkValidation(b *testing.B) {
 	run := func(b *testing.B, definition, operation string, state ValidationState) {
 
 		op, def := mustDocument(astparser.ParseGraphqlDocumentString(operation)), mustDocument(astparser.ParseGraphqlDocumentString(definition))
-		report := graphqlerror.Report{}
+		report := operationreport.Report{}
 		astnormalization.NormalizeOperation(&op, &def, &report)
 		if report.HasErrors() {
 			panic(report.Error())

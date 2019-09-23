@@ -2,7 +2,7 @@ package astnormalization
 
 import (
 	"fmt"
-	"github.com/jensneuse/graphql-go-tools/pkg/graphqlerror"
+	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 	"github.com/jensneuse/graphql-go-tools/pkg/unsafeparser"
 	"testing"
 )
@@ -11,7 +11,7 @@ func TestRealDepthCalculator_CalculateDepthForFragmentSpread(t *testing.T) {
 	run := func(operation, definition, spreadName string, wantDepth int) {
 		op := unsafeparser.ParseGraphqlDocumentString(operation)
 		def := unsafeparser.ParseGraphqlDocumentString(definition)
-		report := graphqlerror.Report{}
+		report := operationreport.Report{}
 		calc := FragmentSpreadDepth{}
 		var depths Depths
 		calc.Get(&op, &def, &report, &depths)
@@ -90,7 +90,7 @@ func BenchmarkFragmentSpreadDepthCalc_Get(b *testing.B) {
 
 	calc := &FragmentSpreadDepth{}
 	depths := make(Depths, 0, 8)
-	report := graphqlerror.Report{}
+	report := operationreport.Report{}
 
 	b.ResetTimer()
 	b.ReportAllocs()

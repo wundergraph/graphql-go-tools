@@ -3,10 +3,10 @@ package astnormalization
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
-	"github.com/jensneuse/graphql-go-tools/pkg/graphqlerror"
+	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
-func NormalizeOperation(operation, definition *ast.Document, report *graphqlerror.Report) {
+func NormalizeOperation(operation, definition *ast.Document, report *operationreport.Report) {
 	normalizer := &OperationNormalizer{}
 	normalizer.Do(operation, definition, report)
 }
@@ -32,7 +32,7 @@ func (o *OperationNormalizer) setupWalkers() {
 	o.walkers = append(o.walkers, &fragmentInline, &other)
 }
 
-func (o *OperationNormalizer) Do(operation, definition *ast.Document, report *graphqlerror.Report) {
+func (o *OperationNormalizer) Do(operation, definition *ast.Document, report *operationreport.Report) {
 	if !o.setup {
 		o.setupWalkers()
 		o.setup = true

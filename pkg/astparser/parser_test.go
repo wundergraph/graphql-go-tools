@@ -3,9 +3,9 @@ package astparser
 import (
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/graphqlerror"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/keyword"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
+	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 	"io/ioutil"
 	"testing"
 )
@@ -13,19 +13,19 @@ import (
 func TestParser_Parse(t *testing.T) {
 
 	type check func(doc *ast.Document, extra interface{})
-	type action func(parser *Parser) (interface{}, graphqlerror.Report)
+	type action func(parser *Parser) (interface{}, operationreport.Report)
 
 	parse := func() action {
-		return func(parser *Parser) (interface{}, graphqlerror.Report) {
-			report := graphqlerror.Report{}
+		return func(parser *Parser) (interface{}, operationreport.Report) {
+			report := operationreport.Report{}
 			parser.Parse(parser.document, &report)
 			return nil, report
 		}
 	}
 
 	parseType := func() action {
-		return func(parser *Parser) (interface{}, graphqlerror.Report) {
-			report := graphqlerror.Report{}
+		return func(parser *Parser) (interface{}, operationreport.Report) {
+			report := operationreport.Report{}
 			parser.report = &report
 			parser.lexer.SetInput(&parser.document.Input)
 			parser.tokenize()
@@ -35,8 +35,8 @@ func TestParser_Parse(t *testing.T) {
 	}
 
 	parseValue := func() action {
-		return func(parser *Parser) (interface{}, graphqlerror.Report) {
-			report := graphqlerror.Report{}
+		return func(parser *Parser) (interface{}, operationreport.Report) {
+			report := operationreport.Report{}
 			parser.report = &report
 			parser.lexer.SetInput(&parser.document.Input)
 			parser.tokenize()
@@ -46,8 +46,8 @@ func TestParser_Parse(t *testing.T) {
 	}
 
 	parseSelectionSet := func() action {
-		return func(parser *Parser) (interface{}, graphqlerror.Report) {
-			report := graphqlerror.Report{}
+		return func(parser *Parser) (interface{}, operationreport.Report) {
+			report := operationreport.Report{}
 			parser.report = &report
 			parser.lexer.SetInput(&parser.document.Input)
 			parser.tokenize()
@@ -57,8 +57,8 @@ func TestParser_Parse(t *testing.T) {
 	}
 
 	parseFragmentSpread := func() action {
-		return func(parser *Parser) (interface{}, graphqlerror.Report) {
-			report := graphqlerror.Report{}
+		return func(parser *Parser) (interface{}, operationreport.Report) {
+			report := operationreport.Report{}
 			parser.report = &report
 			parser.lexer.SetInput(&parser.document.Input)
 			parser.tokenize()
@@ -68,8 +68,8 @@ func TestParser_Parse(t *testing.T) {
 	}
 
 	parseInlineFragment := func() action {
-		return func(parser *Parser) (interface{}, graphqlerror.Report) {
-			report := graphqlerror.Report{}
+		return func(parser *Parser) (interface{}, operationreport.Report) {
+			report := operationreport.Report{}
 			parser.report = &report
 			parser.lexer.SetInput(&parser.document.Input)
 			parser.tokenize()
@@ -79,8 +79,8 @@ func TestParser_Parse(t *testing.T) {
 	}
 
 	parseVariableDefinitionList := func() action {
-		return func(parser *Parser) (interface{}, graphqlerror.Report) {
-			report := graphqlerror.Report{}
+		return func(parser *Parser) (interface{}, operationreport.Report) {
+			report := operationreport.Report{}
 			parser.report = &report
 			parser.lexer.SetInput(&parser.document.Input)
 			parser.tokenize()
@@ -1956,7 +1956,7 @@ func BenchmarkParseStarwars(b *testing.B) {
 	}
 
 	doc := ast.NewDocument()
-	report := graphqlerror.Report{}
+	report := operationreport.Report{}
 	parser := NewParser()
 
 	b.ReportAllocs()
@@ -1982,7 +1982,7 @@ func BenchmarkParseGithub(b *testing.B) {
 	}
 
 	doc := ast.NewDocument()
-	report := graphqlerror.Report{}
+	report := operationreport.Report{}
 	parser := NewParser()
 
 	b.ReportAllocs()
@@ -2002,7 +2002,7 @@ func BenchmarkSelectionSet(b *testing.B) {
 
 	doc := ast.NewDocument()
 	parser := NewParser()
-	report := graphqlerror.Report{}
+	report := operationreport.Report{}
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -2022,7 +2022,7 @@ func BenchmarkIntrospectionQuery(b *testing.B) {
 
 	doc := ast.NewDocument()
 	parser := NewParser()
-	report := graphqlerror.Report{}
+	report := operationreport.Report{}
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -2041,7 +2041,7 @@ func BenchmarkKitchenSink(b *testing.B) {
 
 	doc := ast.NewDocument()
 	parser := NewParser()
-	report := graphqlerror.Report{}
+	report := operationreport.Report{}
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -2058,7 +2058,7 @@ func BenchmarkParse(b *testing.B) {
 
 	doc := ast.NewDocument()
 	parser := NewParser()
-	report := graphqlerror.Report{}
+	report := operationreport.Report{}
 
 	b.ReportAllocs()
 	b.ResetTimer()

@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
-	"github.com/jensneuse/graphql-go-tools/pkg/graphqlerror"
+	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
 type FragmentSpreadDepth struct {
@@ -33,7 +33,7 @@ func (d Depths) ByRef(ref int) (int, bool) {
 	return -1, false
 }
 
-func (r *FragmentSpreadDepth) Get(operation, definition *ast.Document, report *graphqlerror.Report, depths *Depths) {
+func (r *FragmentSpreadDepth) Get(operation, definition *ast.Document, report *operationreport.Report, depths *Depths) {
 
 	if !r.visitorsRegistered {
 		r.walker.RegisterEnterFragmentSpreadVisitor(&r.visitor)

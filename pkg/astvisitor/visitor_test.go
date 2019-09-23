@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/jensneuse/diffview"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/graphqlerror"
+	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 	"github.com/jensneuse/graphql-go-tools/pkg/unsafeparser"
 	"github.com/sebdah/goldie"
 	"io"
@@ -23,7 +23,7 @@ func TestVisitOperation(t *testing.T) {
 
 	definition := unsafeparser.ParseGraphqlDocumentString(testDefinition)
 	operation := unsafeparser.ParseGraphqlDocumentString(testOperation)
-	report := graphqlerror.Report{}
+	report := operationreport.Report{}
 
 	walker := NewWalker(48)
 	buff := &bytes.Buffer{}
@@ -55,7 +55,7 @@ func TestVisitOperation(t *testing.T) {
 func TestVisitSchemaDefinition(t *testing.T) {
 
 	operation := unsafeparser.ParseGraphqlDocumentString(testDefinitions)
-	report := graphqlerror.Report{}
+	report := operationreport.Report{}
 	walker := NewWalker(48)
 	buff := &bytes.Buffer{}
 	visitor := &printingVisitor{
@@ -116,7 +116,7 @@ func TestWalker_Path(t *testing.T) {
 
 	walker := NewWalker(48)
 	buff := &bytes.Buffer{}
-	report := graphqlerror.Report{}
+	report := operationreport.Report{}
 	pathVisitor := pathVisitor{
 		Walker: &walker,
 		out:    buff,
@@ -182,7 +182,7 @@ func TestVisitWithSkip(t *testing.T) {
 		operation:  &operation,
 		definition: &definition,
 	}
-	report := graphqlerror.Report{}
+	report := operationreport.Report{}
 
 	skipUser := skipUserVisitor{
 		Walker: &walker,
@@ -233,7 +233,7 @@ func BenchmarkVisitor(b *testing.B) {
 
 	walker := NewWalker(48)
 	walker.RegisterAllNodesVisitor(visitor)
-	report := graphqlerror.Report{}
+	report := operationreport.Report{}
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -253,7 +253,7 @@ func BenchmarkMinimalVisitor(b *testing.B) {
 
 	walker := NewWalker(48)
 	walker.RegisterEnterFieldVisitor(visitor)
-	report := graphqlerror.Report{}
+	report := operationreport.Report{}
 
 	b.ResetTimer()
 	b.ReportAllocs()

@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/jensneuse/diffview"
-	"github.com/jensneuse/graphql-go-tools/pkg/graphqlerror"
+	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 	"github.com/jensneuse/graphql-go-tools/pkg/unsafeparser"
 	"github.com/sebdah/goldie"
 	"io/ioutil"
@@ -14,7 +14,7 @@ import (
 func TestPrint(t *testing.T) {
 
 	must := func(err error) {
-		if report, ok := err.(graphqlerror.Report); ok {
+		if report, ok := err.(operationreport.Report); ok {
 			if report.HasErrors() {
 				panic(report.Error())
 			}

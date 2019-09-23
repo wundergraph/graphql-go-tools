@@ -7,8 +7,8 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astinspect"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
-	"github.com/jensneuse/graphql-go-tools/pkg/graphqlerror"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
+	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
 func DefaultOperationValidator() *OperationValidator {
@@ -56,10 +56,10 @@ func (o *OperationValidator) RegisterRule(rule Rule) {
 	rule(&o.walker)
 }
 
-func (o *OperationValidator) Validate(operation, definition *ast.Document, report *graphqlerror.Report) ValidationState {
+func (o *OperationValidator) Validate(operation, definition *ast.Document, report *operationreport.Report) ValidationState {
 
 	if report == nil {
-		report = &graphqlerror.Report{}
+		report = &operationreport.Report{}
 	}
 
 	o.walker.Walk(operation, definition, report)
@@ -96,7 +96,7 @@ func (o *operationNameUniquenessVisitor) EnterDocument(operation, definition *as
 
 			if ast.ByteSliceEquals(left, operation.Input, right, operation.Input) {
 				operationName := operation.Input.ByteSlice(operation.OperationDefinitions[i].Name)
-				o.StopWithExternalErr(graphqlerror.ErrOperationNameMustBeUnique(operationName))
+				o.StopWithExternalErr(operationreport.ErrOperationNameMustBeUnique(operationName))
 				return
 			}
 		}
@@ -120,7 +120,7 @@ func (l *loneAnonymousOperationVisitor) EnterDocument(operation, definition *ast
 
 	for i := range operation.OperationDefinitions {
 		if operation.OperationDefinitions[i].Name.Length() == 0 {
-			l.StopWithExternalErr(graphqlerror.ErrAnonymousOperationMustBeTheOnlyOperationInDocument())
+			l.StopWithExternalErr(operationreport.ErrAnonymousOperationMustBeTheOnlyOperationInDocument())
 			return
 		}
 	}
@@ -143,7 +143,7 @@ func (s *subscriptionSingleRootFieldVisitor) EnterDocument(operation, definition
 			selections := len(operation.SelectionSets[operation.OperationDefinitions[i].SelectionSet].SelectionRefs)
 			if selections > 1 {
 				subscriptionName := operation.Input.ByteSlice(operation.OperationDefinitions[i].Name)
-				s.StopWithExternalErr(graphqlerror.ErrSubscriptionMustOnlyHaveOneRootSelection(subscriptionName))
+				s.StopWithExternalErr(operationreport.ErrSubscriptionMustOnlyHaveOneRootSelection(subscriptionName))
 				return
 			} else if selections == 1 {
 				ref := operation.SelectionSets[operation.OperationDefinitions[i].SelectionSet].SelectionRefs[0]
@@ -182,7 +182,7 @@ func (f *fieldDefined) ValidateUnionField(ref int, enclosingTypeDefinition ast.N
 	}
 	fieldName := f.operation.FieldNameBytes(ref)
 	unionName := f.definition.NodeNameBytes(enclosingTypeDefinition)
-	f.StopWithExternalErr(graphqlerror.ErrFieldSelectionOnUnion(fieldName, unionName))
+	f.StopWithExternalErr(operationreport.ErrFieldSelectionOnUnion(fieldName, unionName))
 }
 
 func (f *fieldDefined) ValidateInterfaceObjectTypeField(ref int, enclosingTypeDefinition ast.Node) {
@@ -197,21 +197,21 @@ func (f *fieldDefined) ValidateInterfaceObjectTypeField(ref int, enclosingTypeDe
 			fieldDefinitionTypeKind := f.definition.FieldDefinitionTypeNodeKind(i)
 			switch {
 			case hasSelections && fieldDefinitionTypeKind == ast.NodeKindScalarTypeDefinition:
-				f.StopWithExternalErr(graphqlerror.ErrFieldSelectionOnScalar(fieldName, definitionName))
+				f.StopWithExternalErr(operationreport.ErrFieldSelectionOnScalar(fieldName, definitionName))
 			case !hasSelections && fieldDefinitionTypeKind != ast.NodeKindScalarTypeDefinition:
-				f.StopWithExternalErr(graphqlerror.ErrMissingFieldSelectionOnNonScalar(fieldName, typeName))
+				f.StopWithExternalErr(operationreport.ErrMissingFieldSelectionOnNonScalar(fieldName, typeName))
 			}
 			return
 		}
 	}
 
-	f.StopWithExternalErr(graphqlerror.ErrFieldUndefinedOnType(fieldName, typeName))
+	f.StopWithExternalErr(operationreport.ErrFieldUndefinedOnType(fieldName, typeName))
 }
 
 func (f *fieldDefined) ValidateScalarField(ref int, enclosingTypeDefinition ast.Node) {
 	fieldName := f.operation.FieldNameBytes(ref)
 	scalarTypeName := f.operation.NodeNameBytes(enclosingTypeDefinition)
-	f.StopWithExternalErr(graphqlerror.ErrFieldSelectionOnScalar(fieldName, scalarTypeName))
+	f.StopWithExternalErr(operationreport.ErrFieldSelectionOnScalar(fieldName, scalarTypeName))
 }
 
 func (f *fieldDefined) EnterField(ref int) {
@@ -249,7 +249,7 @@ func (f *fieldSelectionMergingVisitor) EnterDocument(operation, definition *ast.
 
 func (f *fieldSelectionMergingVisitor) EnterSelectionSet(ref int) {
 	if !astinspect.SelectionSetCanMerge(ref, f.EnclosingTypeDefinition, f.operation, f.definition) {
-		f.StopWithExternalErr(graphqlerror.ErrCannotMergeSelectionSet())
+		f.StopWithExternalErr(operationreport.ErrCannotMergeSelectionSet())
 	}
 }
 
@@ -280,7 +280,7 @@ func (v *validArgumentsVisitor) EnterArgument(ref int) {
 	if !exists {
 		argumentName := v.operation.ArgumentNameBytes(ref)
 		ancestorName := v.AncestorNameBytes()
-		v.StopWithExternalErr(graphqlerror.ErrArgumentNotDefinedOnNode(argumentName, ancestorName))
+		v.StopWithExternalErr(operationreport.ErrArgumentNotDefinedOnNode(argumentName, ancestorName))
 		return
 	}
 
@@ -327,7 +327,7 @@ func (v *validArgumentsVisitor) validateIfValueSatisfiesInputFieldDefinition(val
 		return
 	}
 
-	v.StopWithExternalErr(graphqlerror.ErrValueDoesntSatisfyInputValueDefinition(printedValue, printedType))
+	v.StopWithExternalErr(operationreport.ErrValueDoesntSatisfyInputValueDefinition(printedValue, printedType))
 }
 
 func (v *validArgumentsVisitor) intValueSatisfiesInputValueDefinition(value ast.Value, inputValueDefinition int) bool {
@@ -465,7 +465,7 @@ func (v *valuesVisitor) EnterArgument(ref int) {
 	if !exists {
 		argName := v.operation.ArgumentNameBytes(ref)
 		nodeName := v.operation.NodeNameBytes(v.Ancestors[len(v.Ancestors)-1])
-		v.StopWithExternalErr(graphqlerror.ErrArgumentNotDefinedOnNode(argName, nodeName))
+		v.StopWithExternalErr(operationreport.ErrArgumentNotDefinedOnNode(argName, nodeName))
 		return
 	}
 
@@ -475,7 +475,7 @@ func (v *valuesVisitor) EnterArgument(ref int) {
 		variableDefinition, exists := v.operation.VariableDefinitionByName(variableName)
 		if !exists {
 			operationName := v.operation.NodeNameBytes(v.Ancestors[0])
-			v.StopWithExternalErr(graphqlerror.ErrVariableNotDefinedOnOperation(variableName, operationName))
+			v.StopWithExternalErr(operationreport.ErrVariableNotDefinedOnOperation(variableName, operationName))
 			return
 		}
 		if !v.operation.VariableDefinitions[variableDefinition].DefaultValue.IsDefined {
@@ -496,7 +496,7 @@ func (v *valuesVisitor) EnterArgument(ref int) {
 			return
 		}
 
-		v.StopWithExternalErr(graphqlerror.ErrValueDoesntSatisfyInputValueDefinition(printedValue, printedType))
+		v.StopWithExternalErr(operationreport.ErrValueDoesntSatisfyInputValueDefinition(printedValue, printedType))
 		return
 	}
 }
@@ -674,7 +674,7 @@ func (a *argumentUniquenessVisitor) EnterArgument(ref int) {
 
 	for _, i := range argumentsAfter {
 		if bytes.Equal(argumentName, a.operation.ArgumentNameBytes(i)) {
-			a.StopWithExternalErr(graphqlerror.ErrArgumentMustBeUnique(argumentName))
+			a.StopWithExternalErr(operationreport.ErrArgumentMustBeUnique(argumentName))
 			return
 		}
 	}
@@ -714,12 +714,12 @@ func (r *requiredArgumentsVisitor) EnterField(ref int) {
 
 		argument, exists := r.operation.FieldArgument(ref, name)
 		if !exists {
-			r.StopWithExternalErr(graphqlerror.ErrArgumentRequiredOnField(name, fieldName))
+			r.StopWithExternalErr(operationreport.ErrArgumentRequiredOnField(name, fieldName))
 			return
 		}
 
 		if r.operation.ArgumentValue(argument).Kind == ast.ValueKindNull {
-			r.StopWithExternalErr(graphqlerror.ErrArgumentOnFieldMustNotBeNull(name, fieldName))
+			r.StopWithExternalErr(operationreport.ErrArgumentOnFieldMustNotBeNull(name, fieldName))
 			return
 		}
 	}
@@ -748,7 +748,7 @@ type fragmentsVisitor struct {
 func (f *fragmentsVisitor) EnterFragmentSpread(ref int) {
 	if f.Ancestors[0].Kind == ast.NodeKindOperationDefinition {
 		spreadName := f.operation.FragmentSpreadNameBytes(ref)
-		f.StopWithExternalErr(graphqlerror.ErrFragmentSpreadFormsCycle(spreadName))
+		f.StopWithExternalErr(operationreport.ErrFragmentSpreadFormsCycle(spreadName))
 	}
 }
 
@@ -756,7 +756,7 @@ func (f *fragmentsVisitor) LeaveDocument(operation, definition *ast.Document) {
 	for i := range f.fragmentDefinitionsVisited {
 		if !f.operation.FragmentDefinitionIsUsed(f.fragmentDefinitionsVisited[i]) {
 			fragmentName := f.fragmentDefinitionsVisited[i]
-			f.StopWithExternalErr(graphqlerror.ErrFragmentDefinedButNotUsed(fragmentName))
+			f.StopWithExternalErr(operationreport.ErrFragmentDefinedButNotUsed(fragmentName))
 			return
 		}
 	}
@@ -781,18 +781,18 @@ func (f *fragmentsVisitor) EnterInlineFragment(ref int) {
 
 	node, exists := f.definition.Index.Nodes[string(typeName)]
 	if !exists {
-		f.StopWithExternalErr(graphqlerror.ErrTypeUndefined(typeName))
+		f.StopWithExternalErr(operationreport.ErrTypeUndefined(typeName))
 		return
 	}
 
 	if !f.fragmentOnNodeIsAllowed(node) {
-		f.StopWithExternalErr(graphqlerror.ErrInlineFragmentOnTypeDisallowed(typeName))
+		f.StopWithExternalErr(operationreport.ErrInlineFragmentOnTypeDisallowed(typeName))
 		return
 	}
 
 	if !f.definition.NodeFragmentIsAllowedOnNode(node, f.EnclosingTypeDefinition) {
 		enclosingTypeName := f.definition.NodeNameBytes(f.EnclosingTypeDefinition)
-		f.StopWithExternalErr(graphqlerror.ErrInlineFragmentOnTypeMismatchEnclosingType(typeName, enclosingTypeName))
+		f.StopWithExternalErr(operationreport.ErrInlineFragmentOnTypeMismatchEnclosingType(typeName, enclosingTypeName))
 		return
 	}
 }
@@ -810,18 +810,18 @@ func (f *fragmentsVisitor) EnterFragmentDefinition(ref int) {
 
 	node, exists := f.definition.Index.Nodes[string(typeName)]
 	if !exists {
-		f.StopWithExternalErr(graphqlerror.ErrTypeUndefined(typeName))
+		f.StopWithExternalErr(operationreport.ErrTypeUndefined(typeName))
 		return
 	}
 
 	if !f.fragmentOnNodeIsAllowed(node) {
-		f.StopWithExternalErr(graphqlerror.ErrFragmentDefinitionOnTypeDisallowed(fragmentDefinitionName, typeName))
+		f.StopWithExternalErr(operationreport.ErrFragmentDefinitionOnTypeDisallowed(fragmentDefinitionName, typeName))
 		return
 	}
 
 	for i := range f.fragmentDefinitionsVisited {
 		if bytes.Equal(fragmentDefinitionName, f.fragmentDefinitionsVisited[i]) {
-			f.StopWithExternalErr(graphqlerror.ErrFragmentDefinitionMustBeUnique(fragmentDefinitionName))
+			f.StopWithExternalErr(operationreport.ErrFragmentDefinitionMustBeUnique(fragmentDefinitionName))
 			return
 		}
 	}
@@ -855,7 +855,7 @@ func (d *directivesAreDefinedVisitor) EnterDirective(ref int) {
 	definition, exists := d.definition.Index.Nodes[string(directiveName)]
 
 	if !exists || definition.Kind != ast.NodeKindDirectiveDefinition {
-		d.StopWithExternalErr(graphqlerror.ErrDirectiveUndefined(directiveName))
+		d.StopWithExternalErr(operationreport.ErrDirectiveUndefined(directiveName))
 		return
 	}
 }
@@ -893,7 +893,7 @@ func (d *directivesAreInValidLocationsVisitor) EnterDirective(ref int) {
 
 	if !d.directiveDefinitionContainsNodeLocation(definition.Ref, ancestor) {
 		ancestorKindName := d.operation.NodeKindNameBytes(ancestor)
-		d.StopWithExternalErr(graphqlerror.ErrDirectiveNotAllowedOnNode(directiveName, ancestorKindName))
+		d.StopWithExternalErr(operationreport.ErrDirectiveNotAllowedOnNode(directiveName, ancestorKindName))
 		return
 	}
 }
@@ -948,7 +948,7 @@ func (v *variableUniquenessVisitor) EnterVariableDefinition(ref int) {
 				return
 			}
 			operationName := v.operation.Input.ByteSlice(v.operation.OperationDefinitions[v.Ancestors[0].Ref].Name)
-			v.StopWithExternalErr(graphqlerror.ErrVariableMustBeUnique(name, operationName))
+			v.StopWithExternalErr(operationreport.ErrVariableMustBeUnique(name, operationName))
 			return
 		}
 	}
@@ -984,7 +984,7 @@ func (d *directivesAreUniquePerLocationVisitor) EnterDirective(ref int) {
 			continue
 		}
 		if bytes.Equal(directiveName, d.operation.DirectiveNameBytes(j)) {
-			d.StopWithExternalErr(graphqlerror.ErrDirectiveMustBeUniquePerLocation(directiveName))
+			d.StopWithExternalErr(operationreport.ErrDirectiveMustBeUniquePerLocation(directiveName))
 			return
 		}
 	}
@@ -1019,7 +1019,7 @@ func (v *variablesAreInputTypesVisitor) EnterVariableDefinition(ref int) {
 		return
 	default:
 		variableName := v.operation.VariableDefinitionNameBytes(ref)
-		v.StopWithExternalErr(graphqlerror.ErrVariableOfTypeIsNoValidInputValue(variableName, typeName))
+		v.StopWithExternalErr(operationreport.ErrVariableOfTypeIsNoValidInputValue(variableName, typeName))
 		return
 	}
 }
@@ -1067,7 +1067,7 @@ func (a *allVariableUsesDefinedVisitor) EnterArgument(ref int) {
 
 	// at this point we're safe to say this variable was not defined on the root operation of this argument
 	argumentName := a.operation.ArgumentNameBytes(ref)
-	a.StopWithExternalErr(graphqlerror.ErrVariableNotDefinedOnArgument(variableName, argumentName))
+	a.StopWithExternalErr(operationreport.ErrVariableNotDefinedOnArgument(variableName, argumentName))
 }
 
 func AllVariablesUsed() Rule {
@@ -1099,10 +1099,12 @@ func (a *allVariablesUsedVisitor) EnterOperationDefinition(ref int) {
 
 func (a *allVariablesUsedVisitor) LeaveOperationDefinition(ref int) {
 	if len(a.variableDefinitions) != 0 {
-		variableName := a.operation.VariableDefinitionNameBytes(a.variableDefinitions[0])
 		operationName := a.operation.Input.ByteSlice(a.operation.OperationDefinitions[ref].Name)
-		a.StopWithExternalErr(graphqlerror.ErrVariableNotDefinedOnOperation(variableName, operationName))
-		return
+		for _, i := range a.variableDefinitions {
+			variableName := a.operation.VariableDefinitionNameBytes(i)
+			a.Report.AddExternalError(operationreport.ErrVariableDefinedButNeverUsed(variableName, operationName))
+		}
+		a.Stop()
 	}
 }
 

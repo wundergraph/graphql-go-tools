@@ -6,7 +6,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/asttransform"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
-	"github.com/jensneuse/graphql-go-tools/pkg/graphqlerror"
+	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
 func fragmentSpreadInline(walker *astvisitor.Walker) {
@@ -48,14 +48,14 @@ func (f *fragmentSpreadInlineVisitor) EnterFragmentSpread(ref int) {
 	fragmentDefinitionRef, exists := f.operation.FragmentDefinitionRef(f.operation.FragmentSpreadNameBytes(ref))
 	if !exists {
 		fragmentName := f.operation.FragmentSpreadNameBytes(ref)
-		f.StopWithExternalErr(graphqlerror.ErrFragmentUndefined(fragmentName))
+		f.StopWithExternalErr(operationreport.ErrFragmentUndefined(fragmentName))
 		return
 	}
 
 	fragmentTypeName := f.operation.FragmentDefinitionTypeName(fragmentDefinitionRef)
 	fragmentNode, exists := f.definition.NodeByName(fragmentTypeName)
 	if !exists {
-		f.StopWithExternalErr(graphqlerror.ErrTypeUndefined(fragmentTypeName))
+		f.StopWithExternalErr(operationreport.ErrTypeUndefined(fragmentTypeName))
 		return
 	}
 

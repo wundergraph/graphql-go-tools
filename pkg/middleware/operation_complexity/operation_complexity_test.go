@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
-	"github.com/jensneuse/graphql-go-tools/pkg/graphqlerror"
+	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 	"github.com/jensneuse/graphql-go-tools/pkg/unsafeparser"
 	"testing"
 )
@@ -95,7 +95,7 @@ func TestNodeCount(t *testing.T) {
 }
 
 var must = func(err error) {
-	if report, ok := err.(graphqlerror.Report); ok {
+	if report, ok := err.(operationreport.Report); ok {
 		if report.HasErrors() {
 			panic(report.Error())
 		}
@@ -114,7 +114,7 @@ var mustDocument = func(document *ast.Document, err error) *ast.Document {
 var run = func(definition, operation string, expectedNodeCount, expectedComplexity int) {
 	def := unsafeparser.ParseGraphqlDocumentString(definition)
 	op := unsafeparser.ParseGraphqlDocumentString(operation)
-	report := graphqlerror.Report{}
+	report := operationreport.Report{}
 
 	astnormalization.NormalizeOperation(&op, &def, &report)
 
@@ -137,7 +137,7 @@ func BenchmarkEstimateComplexity(b *testing.B) {
 	op := unsafeparser.ParseGraphqlDocumentString(complexQuery)
 
 	estimator := NewOperationComplexityEstimator()
-	report := graphqlerror.Report{}
+	report := operationreport.Report{}
 
 	b.ResetTimer()
 	b.ReportAllocs()
