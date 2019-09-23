@@ -31,12 +31,12 @@ func (m *mergeInlineFragmentsVisitor) couldInline(set, inlineFragment int) bool 
 	if !m.operation.InlineFragmentHasTypeCondition(inlineFragment) {
 		return true
 	}
-	if bytes.Equal(m.operation.InlineFragmentTypeConditionName(inlineFragment), m.definition.NodeTypeName(m.EnclosingTypeDefinition)) {
+	if bytes.Equal(m.operation.InlineFragmentTypeConditionName(inlineFragment), m.definition.NodeNameBytes(m.EnclosingTypeDefinition)) {
 		return true
 	}
 
 	inlineFragmentTypeName := m.operation.InlineFragmentTypeConditionName(inlineFragment)
-	enclosingTypeName := m.definition.NodeTypeName(m.EnclosingTypeDefinition)
+	enclosingTypeName := m.definition.NodeNameBytes(m.EnclosingTypeDefinition)
 	if !m.definition.TypeDefinitionContainsImplementsInterface(enclosingTypeName, inlineFragmentTypeName) {
 		return false
 	}
