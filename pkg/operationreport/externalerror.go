@@ -2,8 +2,8 @@ package operationreport
 
 import (
 	"fmt"
+	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/unsafebytes"
 	"strconv"
 	"unsafe"
 )

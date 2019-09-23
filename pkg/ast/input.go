@@ -1,9 +1,9 @@
 package ast
 
 import (
+	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
-	"github.com/jensneuse/graphql-go-tools/pkg/unsafebytes"
 )
 
 // RawBytes is a raw graphql document containing the raw input + meta data

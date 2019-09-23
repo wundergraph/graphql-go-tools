@@ -2,6 +2,7 @@ package astparser
 
 import (
 	"fmt"
+	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/identkeyword"
@@ -9,7 +10,6 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/token"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
-	"github.com/jensneuse/graphql-go-tools/pkg/unsafebytes"
 	"runtime"
 )
 

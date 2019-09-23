@@ -2,8 +2,8 @@ package astnormalization
 
 import (
 	"fmt"
+	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
-	"github.com/jensneuse/graphql-go-tools/pkg/unsafeparser"
 	"testing"
 )
 
