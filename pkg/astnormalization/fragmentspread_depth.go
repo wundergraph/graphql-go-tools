@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
+	"github.com/jensneuse/graphql-go-tools/pkg/graphqlerror"
 )
 
 type FragmentSpreadDepth struct {
@@ -32,7 +33,7 @@ func (d Depths) ByRef(ref int) (int, bool) {
 	return -1, false
 }
 
-func (r *FragmentSpreadDepth) Get(operation, definition *ast.Document, depths *Depths) error {
+func (r *FragmentSpreadDepth) Get(operation, definition *ast.Document, report *graphqlerror.Report, depths *Depths) {
 
 	if !r.visitorsRegistered {
 		r.walker.RegisterEnterFragmentSpreadVisitor(&r.visitor)
@@ -44,14 +45,8 @@ func (r *FragmentSpreadDepth) Get(operation, definition *ast.Document, depths *D
 	r.visitor.depths = depths
 	r.visitor.Walker = &r.walker
 
-	err := r.walker.Walk(operation, definition)
-	if err != nil {
-		return err
-	}
-
+	r.walker.Walk(operation, definition, report)
 	r.calc.calculatedNestedDepths(depths)
-
-	return r.visitor.err
 }
 
 type NestedDepthCalc struct {
@@ -87,7 +82,6 @@ type fragmentSpreadDepthVisitor struct {
 	operation  *ast.Document
 	definition *ast.Document
 	depths     *Depths
-	err        error
 }
 
 func (r *fragmentSpreadDepthVisitor) EnterFragmentSpread(ref int) {
@@ -95,7 +89,7 @@ func (r *fragmentSpreadDepthVisitor) EnterFragmentSpread(ref int) {
 	depth := Depth{
 		SpreadRef:  ref,
 		Depth:      r.Depth,
-		SpreadName: r.operation.FragmentSpreadName(ref),
+		SpreadName: r.operation.FragmentSpreadNameBytes(ref),
 	}
 
 	if r.Ancestors[0].Kind == ast.NodeKindFragmentDefinition {

@@ -6,6 +6,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/asttransform"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
+	"github.com/jensneuse/graphql-go-tools/pkg/graphqlerror"
 )
 
 func fragmentSpreadInline(walker *astvisitor.Walker) {
@@ -30,10 +31,9 @@ func (f *fragmentSpreadInlineVisitor) EnterDocument(operation, definition *ast.D
 	f.operation = operation
 	f.definition = definition
 
-	err := f.fragmentSpreadDepth.Get(operation, definition, &f.depths)
-	if err != nil {
-		f.StopWithErr(err)
-		return
+	f.fragmentSpreadDepth.Get(operation, definition, f.Report, &f.depths)
+	if f.Report.HasErrors() {
+		f.Stop()
 	}
 }
 
@@ -43,18 +43,19 @@ func (f *fragmentSpreadInlineVisitor) LeaveDocument(operation, definition *ast.D
 
 func (f *fragmentSpreadInlineVisitor) EnterFragmentSpread(ref int) {
 
-	parentTypeName := f.definition.NodeTypeName(f.EnclosingTypeDefinition)
+	parentTypeName := f.definition.NodeNameBytes(f.EnclosingTypeDefinition)
 
-	fragmentDefinitionRef, exists := f.operation.FragmentDefinitionRef(f.operation.FragmentSpreadName(ref))
+	fragmentDefinitionRef, exists := f.operation.FragmentDefinitionRef(f.operation.FragmentSpreadNameBytes(ref))
 	if !exists {
-		f.StopWithErr(fmt.Errorf("FragmentDefinition not found for FragmentSpread: %s", f.operation.FragmentSpreadNameString(ref)))
+		fragmentName := f.operation.FragmentSpreadNameBytes(ref)
+		f.StopWithExternalErr(graphqlerror.ErrFragmentUndefined(fragmentName))
 		return
 	}
 
 	fragmentTypeName := f.operation.FragmentDefinitionTypeName(fragmentDefinitionRef)
 	fragmentNode, exists := f.definition.NodeByName(fragmentTypeName)
 	if !exists {
-		f.StopWithErr(fmt.Errorf("node not indexed with name: %s", string(fragmentTypeName)))
+		f.StopWithExternalErr(graphqlerror.ErrTypeUndefined(fragmentTypeName))
 		return
 	}
 
@@ -87,7 +88,7 @@ func (f *fragmentSpreadInlineVisitor) EnterFragmentSpread(ref int) {
 
 	nestedDepth, ok := f.depths.ByRef(ref)
 	if !ok {
-		f.StopWithErr(fmt.Errorf("nested depth missing on depths for FragmentSpread: %s", f.operation.FragmentSpreadNameString(ref)))
+		f.StopWithInternalErr(fmt.Errorf("nested depth missing on depths for FragmentSpread: %s", f.operation.FragmentSpreadNameString(ref)))
 		return
 	}
 

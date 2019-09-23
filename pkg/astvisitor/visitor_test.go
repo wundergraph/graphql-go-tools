@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/jensneuse/diffview"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/graphqlerror"
 	"github.com/jensneuse/graphql-go-tools/pkg/unsafeparser"
 	"github.com/sebdah/goldie"
 	"io"
@@ -22,6 +23,7 @@ func TestVisitOperation(t *testing.T) {
 
 	definition := unsafeparser.ParseGraphqlDocumentString(testDefinition)
 	operation := unsafeparser.ParseGraphqlDocumentString(testOperation)
+	report := graphqlerror.Report{}
 
 	walker := NewWalker(48)
 	buff := &bytes.Buffer{}
@@ -34,7 +36,7 @@ func TestVisitOperation(t *testing.T) {
 
 	walker.RegisterAllNodesVisitor(visitor)
 
-	must(walker.Walk(&operation, &definition))
+	walker.Walk(&operation, &definition, &report)
 
 	out := buff.Bytes()
 	goldie.Assert(t, "visitor", out)
@@ -53,7 +55,7 @@ func TestVisitOperation(t *testing.T) {
 func TestVisitSchemaDefinition(t *testing.T) {
 
 	operation := unsafeparser.ParseGraphqlDocumentString(testDefinitions)
-
+	report := graphqlerror.Report{}
 	walker := NewWalker(48)
 	buff := &bytes.Buffer{}
 	visitor := &printingVisitor{
@@ -64,7 +66,10 @@ func TestVisitSchemaDefinition(t *testing.T) {
 
 	walker.RegisterAllNodesVisitor(visitor)
 
-	must(walker.Walk(&operation, nil))
+	walker.Walk(&operation, nil, &report)
+	if report.HasErrors() {
+		t.Fatal(report.Error())
+	}
 
 	out := buff.Bytes()
 	goldie.Assert(t, "schema_visitor", out)
@@ -111,7 +116,7 @@ func TestWalker_Path(t *testing.T) {
 
 	walker := NewWalker(48)
 	buff := &bytes.Buffer{}
-
+	report := graphqlerror.Report{}
 	pathVisitor := pathVisitor{
 		Walker: &walker,
 		out:    buff,
@@ -120,7 +125,11 @@ func TestWalker_Path(t *testing.T) {
 	walker.RegisterEnterDocumentVisitor(&pathVisitor)
 	walker.RegisterEnterFieldVisitor(&pathVisitor)
 
-	must(walker.Walk(&operation, &definition))
+	walker.Walk(&operation, &definition, &report)
+
+	if report.HasErrors() {
+		t.Fatal(report.Error())
+	}
 
 	out := buff.Bytes()
 	goldie.Assert(t, "path", out)
@@ -147,7 +156,7 @@ func (p *pathVisitor) EnterDocument(operation, definition *ast.Document) {
 }
 
 func (p *pathVisitor) EnterField(ref int) {
-	p.out.Write([]byte(fmt.Sprintf("EnterField: %s, path: %s\n", p.op.FieldNameString(ref), p.Path.String(&p.document.Input))))
+	p.out.Write([]byte(fmt.Sprintf("EnterField: %s, path: %s\n", p.op.FieldNameString(ref), p.Path)))
 }
 
 func TestVisitWithSkip(t *testing.T) {
@@ -173,6 +182,7 @@ func TestVisitWithSkip(t *testing.T) {
 		operation:  &operation,
 		definition: &definition,
 	}
+	report := graphqlerror.Report{}
 
 	skipUser := skipUserVisitor{
 		Walker: &walker,
@@ -182,7 +192,7 @@ func TestVisitWithSkip(t *testing.T) {
 	walker.RegisterEnterFieldVisitor(&skipUser)
 	walker.RegisterAllNodesVisitor(visitor)
 
-	must(walker.Walk(&operation, &definition))
+	walker.Walk(&operation, &definition, &report)
 
 	out := buff.Bytes()
 	goldie.Assert(t, "visitor_skip", out)
@@ -223,12 +233,14 @@ func BenchmarkVisitor(b *testing.B) {
 
 	walker := NewWalker(48)
 	walker.RegisterAllNodesVisitor(visitor)
+	report := graphqlerror.Report{}
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		walker.Walk(&operation, &definition)
+		report.Reset()
+		walker.Walk(&operation, &definition, &report)
 	}
 }
 
@@ -241,12 +253,14 @@ func BenchmarkMinimalVisitor(b *testing.B) {
 
 	walker := NewWalker(48)
 	walker.RegisterEnterFieldVisitor(visitor)
+	report := graphqlerror.Report{}
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		walker.Walk(&operation, &definition)
+		report.Reset()
+		walker.Walk(&operation, &definition, &report)
 	}
 }
 
@@ -810,13 +824,13 @@ func (p *printingVisitor) LeaveDirective(ref int) {
 
 func (p *printingVisitor) EnterVariableDefinition(ref int) {
 	p.enter()
-	varName := string(p.operation.VariableValueName(p.operation.VariableDefinitions[ref].VariableValue.Ref))
+	varName := string(p.operation.VariableValueNameBytes(p.operation.VariableDefinitions[ref].VariableValue.Ref))
 	p.must(fmt.Fprintf(p.out, "EnterVariableDefinition(%s): ref: %d\n", varName, ref))
 }
 
 func (p *printingVisitor) LeaveVariableDefinition(ref int) {
 	p.leave()
-	varName := string(p.operation.VariableValueName(p.operation.VariableDefinitions[ref].VariableValue.Ref))
+	varName := string(p.operation.VariableValueNameBytes(p.operation.VariableDefinitions[ref].VariableValue.Ref))
 	p.must(fmt.Fprintf(p.out, "LeaveVariableDefinition(%s): ref: %d\n", varName, ref))
 }
 

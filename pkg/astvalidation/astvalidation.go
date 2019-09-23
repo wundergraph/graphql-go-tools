@@ -7,6 +7,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astinspect"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
+	"github.com/jensneuse/graphql-go-tools/pkg/graphqlerror"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 )
 
@@ -47,11 +48,6 @@ const (
 
 type Rule func(walker *astvisitor.Walker)
 
-type Result struct {
-	ValidationState ValidationState
-	Reason          string
-}
-
 type OperationValidator struct {
 	walker astvisitor.Walker
 }
@@ -60,19 +56,18 @@ func (o *OperationValidator) RegisterRule(rule Rule) {
 	rule(&o.walker)
 }
 
-func (o *OperationValidator) Validate(operation, definition *ast.Document) Result {
+func (o *OperationValidator) Validate(operation, definition *ast.Document, report *graphqlerror.Report) ValidationState {
 
-	err := o.walker.Walk(operation, definition)
-	if err != nil {
-		return Result{
-			ValidationState: Invalid,
-			Reason:          err.Error(),
-		}
+	if report == nil {
+		report = &graphqlerror.Report{}
 	}
 
-	return Result{
-		ValidationState: Valid,
+	o.walker.Walk(operation, definition, report)
+
+	if report.HasErrors() {
+		return Invalid
 	}
+	return Valid
 }
 
 func OperationNameUniqueness() Rule {
@@ -100,7 +95,8 @@ func (o *operationNameUniquenessVisitor) EnterDocument(operation, definition *as
 			right := operation.OperationDefinitions[k].Name
 
 			if ast.ByteSliceEquals(left, operation.Input, right, operation.Input) {
-				o.StopWithErr(fmt.Errorf("Operation Name %s must be unique", string(operation.Input.ByteSlice(operation.OperationDefinitions[i].Name))))
+				operationName := operation.Input.ByteSlice(operation.OperationDefinitions[i].Name)
+				o.StopWithExternalErr(graphqlerror.ErrOperationNameMustBeUnique(operationName))
 				return
 			}
 		}
@@ -124,7 +120,7 @@ func (l *loneAnonymousOperationVisitor) EnterDocument(operation, definition *ast
 
 	for i := range operation.OperationDefinitions {
 		if operation.OperationDefinitions[i].Name.Length() == 0 {
-			l.StopWithErr(fmt.Errorf("Anonymous Operation must be the only operation in a document."))
+			l.StopWithExternalErr(graphqlerror.ErrAnonymousOperationMustBeTheOnlyOperationInDocument())
 			return
 		}
 	}
@@ -146,7 +142,8 @@ func (s *subscriptionSingleRootFieldVisitor) EnterDocument(operation, definition
 		if operation.OperationDefinitions[i].OperationType == ast.OperationTypeSubscription {
 			selections := len(operation.SelectionSets[operation.OperationDefinitions[i].SelectionSet].SelectionRefs)
 			if selections > 1 {
-				s.StopWithErr(fmt.Errorf("Subscription must only have one root selection"))
+				subscriptionName := operation.Input.ByteSlice(operation.OperationDefinitions[i].Name)
+				s.StopWithExternalErr(graphqlerror.ErrSubscriptionMustOnlyHaveOneRootSelection(subscriptionName))
 				return
 			} else if selections == 1 {
 				ref := operation.SelectionSets[operation.OperationDefinitions[i].SelectionSet].SelectionRefs[0]
@@ -165,6 +162,70 @@ func FieldSelections() Rule {
 		}
 		walker.RegisterEnterDocumentVisitor(&fieldDefined)
 		walker.RegisterEnterFieldVisitor(&fieldDefined)
+	}
+}
+
+type fieldDefined struct {
+	*astvisitor.Walker
+	operation  *ast.Document
+	definition *ast.Document
+}
+
+func (f *fieldDefined) EnterDocument(operation, definition *ast.Document) {
+	f.operation = operation
+	f.definition = definition
+}
+
+func (f *fieldDefined) ValidateUnionField(ref int, enclosingTypeDefinition ast.Node) {
+	if bytes.Equal(f.operation.FieldNameBytes(ref), literal.TYPENAME) {
+		return
+	}
+	fieldName := f.operation.FieldNameBytes(ref)
+	unionName := f.definition.NodeNameBytes(enclosingTypeDefinition)
+	f.StopWithExternalErr(graphqlerror.ErrFieldSelectionOnUnion(fieldName, unionName))
+}
+
+func (f *fieldDefined) ValidateInterfaceObjectTypeField(ref int, enclosingTypeDefinition ast.Node) {
+	fieldName := f.operation.FieldNameBytes(ref)
+	typeName := f.definition.NodeNameBytes(enclosingTypeDefinition)
+	hasSelections := f.operation.FieldHasSelections(ref)
+	definitions := f.definition.NodeFieldDefinitions(enclosingTypeDefinition)
+	for _, i := range definitions {
+		definitionName := f.definition.FieldDefinitionNameBytes(i)
+		if bytes.Equal(fieldName, definitionName) {
+			// field is defined
+			fieldDefinitionTypeKind := f.definition.FieldDefinitionTypeNodeKind(i)
+			switch {
+			case hasSelections && fieldDefinitionTypeKind == ast.NodeKindScalarTypeDefinition:
+				f.StopWithExternalErr(graphqlerror.ErrFieldSelectionOnScalar(fieldName, definitionName))
+			case !hasSelections && fieldDefinitionTypeKind != ast.NodeKindScalarTypeDefinition:
+				f.StopWithExternalErr(graphqlerror.ErrMissingFieldSelectionOnNonScalar(fieldName, typeName))
+			}
+			return
+		}
+	}
+
+	f.StopWithExternalErr(graphqlerror.ErrFieldUndefinedOnType(fieldName, typeName))
+}
+
+func (f *fieldDefined) ValidateScalarField(ref int, enclosingTypeDefinition ast.Node) {
+	fieldName := f.operation.FieldNameBytes(ref)
+	scalarTypeName := f.operation.NodeNameBytes(enclosingTypeDefinition)
+	f.StopWithExternalErr(graphqlerror.ErrFieldSelectionOnScalar(fieldName, scalarTypeName))
+}
+
+func (f *fieldDefined) EnterField(ref int) {
+	switch f.EnclosingTypeDefinition.Kind {
+	case ast.NodeKindUnionTypeDefinition:
+		f.ValidateUnionField(ref, f.EnclosingTypeDefinition)
+	case ast.NodeKindInterfaceTypeDefinition, ast.NodeKindObjectTypeDefinition:
+		f.ValidateInterfaceObjectTypeField(ref, f.EnclosingTypeDefinition)
+	case ast.NodeKindScalarTypeDefinition:
+		f.ValidateScalarField(ref, f.EnclosingTypeDefinition)
+	default:
+		fieldName := f.operation.FieldNameBytes(ref)
+		typeName := f.operation.NodeNameBytes(f.EnclosingTypeDefinition)
+		f.StopWithInternalErr(fmt.Errorf("astvalidation/fieldDefined/EnterField: field: %s selection on type: %s unhandled", fieldName, typeName))
 	}
 }
 
@@ -188,7 +249,7 @@ func (f *fieldSelectionMergingVisitor) EnterDocument(operation, definition *ast.
 
 func (f *fieldSelectionMergingVisitor) EnterSelectionSet(ref int) {
 	if !astinspect.SelectionSetCanMerge(ref, f.EnclosingTypeDefinition, f.operation, f.definition) {
-		f.StopWithErr(fmt.Errorf("selectionset cannot merge"))
+		f.StopWithExternalErr(graphqlerror.ErrCannotMergeSelectionSet())
 	}
 }
 
@@ -217,39 +278,59 @@ func (v *validArgumentsVisitor) EnterArgument(ref int) {
 	definition, exists := v.ArgumentInputValueDefinition(ref)
 
 	if !exists {
-		v.StopWithErr(fmt.Errorf("argument: %s not defined", v.operation.ArgumentNameString(ref)))
+		argumentName := v.operation.ArgumentNameBytes(ref)
+		ancestorName := v.AncestorNameBytes()
+		v.StopWithExternalErr(graphqlerror.ErrArgumentNotDefinedOnNode(argumentName, ancestorName))
 		return
 	}
 
 	value := v.operation.ArgumentValue(ref)
-
-	if !v.valueSatisfiesInputFieldDefinition(value, definition) {
-		definition := v.definition.InputValueDefinitions[definition]
-		v.StopWithErr(fmt.Errorf("invalid argument value: %+v for definition: %+v", value, definition))
-		return
-	}
+	v.validateIfValueSatisfiesInputFieldDefinition(value, definition)
 }
 
-func (v *validArgumentsVisitor) valueSatisfiesInputFieldDefinition(value ast.Value, inputValueDefinition int) bool {
+func (v *validArgumentsVisitor) validateIfValueSatisfiesInputFieldDefinition(value ast.Value, inputValueDefinition int) {
 
-	// object- and list values are covered by Values() / valuesVisitor
+	var satisfied bool
+
 	switch value.Kind {
 	case ast.ValueKindVariable:
-		return v.variableValueSatisfiesInputValueDefinition(value.Ref, inputValueDefinition)
+		satisfied = v.variableValueSatisfiesInputValueDefinition(value.Ref, inputValueDefinition)
 	case ast.ValueKindEnum:
-		return v.enumValueSatisfiesInputValueDefinition(value.Ref, inputValueDefinition)
+		satisfied = v.enumValueSatisfiesInputValueDefinition(value.Ref, inputValueDefinition)
 	case ast.ValueKindNull:
-		return v.nullValueSatisfiesInputValueDefinition(inputValueDefinition)
+		satisfied = v.nullValueSatisfiesInputValueDefinition(inputValueDefinition)
 	case ast.ValueKindBoolean:
-		return v.booleanValueSatisfiesInputValueDefinition(inputValueDefinition)
+		satisfied = v.booleanValueSatisfiesInputValueDefinition(inputValueDefinition)
 	case ast.ValueKindInteger:
-		return v.intValueSatisfiesInputValueDefinition(inputValueDefinition)
+		satisfied = v.intValueSatisfiesInputValueDefinition(value, inputValueDefinition)
+	case ast.ValueKindObject, ast.ValueKindList:
+		// object- and list values are covered by Values() / valuesVisitor
+		return
+	default:
+		v.StopWithInternalErr(fmt.Errorf("validateIfValueSatisfiesInputFieldDefinition: not implemented for value.Kind: %s", value.Kind))
+		return
 	}
 
-	return true
+	if satisfied {
+		return
+	}
+
+	printedValue, err := v.operation.PrintValueBytes(value, nil)
+	if v.HandleInternalErr(err) {
+		return
+	}
+
+	typeRef := v.definition.InputValueDefinitionType(inputValueDefinition)
+
+	printedType, err := v.definition.PrintTypeBytes(typeRef, nil)
+	if v.HandleInternalErr(err) {
+		return
+	}
+
+	v.StopWithExternalErr(graphqlerror.ErrValueDoesntSatisfyInputValueDefinition(printedValue, printedType))
 }
 
-func (v *validArgumentsVisitor) intValueSatisfiesInputValueDefinition(inputValueDefinition int) bool {
+func (v *validArgumentsVisitor) intValueSatisfiesInputValueDefinition(value ast.Value, inputValueDefinition int) bool {
 	inputType := v.definition.Types[v.definition.InputValueDefinitionType(inputValueDefinition)]
 	if inputType.TypeKind == ast.TypeKindNonNull {
 		inputType = v.definition.Types[inputType.OfType]
@@ -304,7 +385,7 @@ func (v *validArgumentsVisitor) enumValueSatisfiesInputValueDefinition(enumValue
 }
 
 func (v *validArgumentsVisitor) variableValueSatisfiesInputValueDefinition(variableValue, inputValueDefinition int) bool {
-	variableName := v.operation.VariableValueName(variableValue)
+	variableName := v.operation.VariableValueNameBytes(variableValue)
 	variableDefinition, exists := v.operation.VariableDefinitionByName(variableName)
 	if !exists {
 		return false
@@ -382,16 +463,19 @@ func (v *valuesVisitor) EnterArgument(ref int) {
 	definition, exists := v.ArgumentInputValueDefinition(ref)
 
 	if !exists {
-		v.StopWithErr(fmt.Errorf("argument: %s not defined", v.operation.ArgumentNameString(ref)))
+		argName := v.operation.ArgumentNameBytes(ref)
+		nodeName := v.operation.NodeNameBytes(v.Ancestors[len(v.Ancestors)-1])
+		v.StopWithExternalErr(graphqlerror.ErrArgumentNotDefinedOnNode(argName, nodeName))
 		return
 	}
 
 	value := v.operation.ArgumentValue(ref)
 	if value.Kind == ast.ValueKindVariable {
-		variableName := v.operation.VariableValueName(value.Ref)
+		variableName := v.operation.VariableValueNameBytes(value.Ref)
 		variableDefinition, exists := v.operation.VariableDefinitionByName(variableName)
 		if !exists {
-			v.StopWithErr(fmt.Errorf("variable: %s not defined", string(variableName)))
+			operationName := v.operation.NodeNameBytes(v.Ancestors[0])
+			v.StopWithExternalErr(graphqlerror.ErrVariableNotDefinedOnOperation(variableName, operationName))
 			return
 		}
 		if !v.operation.VariableDefinitions[variableDefinition].DefaultValue.IsDefined {
@@ -401,7 +485,18 @@ func (v *valuesVisitor) EnterArgument(ref int) {
 	}
 
 	if !v.valueSatisfiesInputValueDefinitionType(value, v.definition.InputValueDefinitions[definition].Type) {
-		v.StopWithErr(fmt.Errorf("value for argument: %s doesn't satisfy requirements from input value definition: %s", v.operation.ArgumentNameString(ref), v.definition.InputValueDefinitionNameBytes(definition)))
+
+		printedValue, err := v.operation.PrintValueBytes(value, nil)
+		if v.HandleInternalErr(err) {
+			return
+		}
+
+		printedType, err := v.definition.PrintTypeBytes(v.definition.InputValueDefinitions[definition].Type, nil)
+		if v.HandleInternalErr(err) {
+			return
+		}
+
+		v.StopWithExternalErr(graphqlerror.ErrValueDoesntSatisfyInputValueDefinition(printedValue, printedType))
 		return
 	}
 }
@@ -574,12 +669,12 @@ func (a *argumentUniquenessVisitor) EnterDocument(operation, definition *ast.Doc
 
 func (a *argumentUniquenessVisitor) EnterArgument(ref int) {
 
-	argumentName := a.operation.ArgumentName(ref)
+	argumentName := a.operation.ArgumentNameBytes(ref)
 	argumentsAfter := a.operation.ArgumentsAfter(a.Ancestors[len(a.Ancestors)-1], ref)
 
 	for _, i := range argumentsAfter {
-		if bytes.Equal(argumentName, a.operation.ArgumentName(i)) {
-			a.StopWithErr(fmt.Errorf("argument: %s must be unique", string(argumentName)))
+		if bytes.Equal(argumentName, a.operation.ArgumentNameBytes(i)) {
+			a.StopWithExternalErr(graphqlerror.ErrArgumentMustBeUnique(argumentName))
 			return
 		}
 	}
@@ -619,12 +714,12 @@ func (r *requiredArgumentsVisitor) EnterField(ref int) {
 
 		argument, exists := r.operation.FieldArgument(ref, name)
 		if !exists {
-			r.StopWithErr(fmt.Errorf("required argument: %s on field: %s missing", string(name), r.operation.FieldNameString(ref)))
+			r.StopWithExternalErr(graphqlerror.ErrArgumentRequiredOnField(name, fieldName))
 			return
 		}
 
 		if r.operation.ArgumentValue(argument).Kind == ast.ValueKindNull {
-			r.StopWithErr(fmt.Errorf("required argument: %s on field: %s must not be null", string(name), r.operation.FieldNameString(ref)))
+			r.StopWithExternalErr(graphqlerror.ErrArgumentOnFieldMustNotBeNull(name, fieldName))
 			return
 		}
 	}
@@ -652,14 +747,16 @@ type fragmentsVisitor struct {
 
 func (f *fragmentsVisitor) EnterFragmentSpread(ref int) {
 	if f.Ancestors[0].Kind == ast.NodeKindOperationDefinition {
-		f.StopWithErr(fmt.Errorf("fragment spread: %s forms fragment cycle", f.operation.FragmentSpreadName(ref)))
+		spreadName := f.operation.FragmentSpreadNameBytes(ref)
+		f.StopWithExternalErr(graphqlerror.ErrFragmentSpreadFormsCycle(spreadName))
 	}
 }
 
 func (f *fragmentsVisitor) LeaveDocument(operation, definition *ast.Document) {
 	for i := range f.fragmentDefinitionsVisited {
 		if !f.operation.FragmentDefinitionIsUsed(f.fragmentDefinitionsVisited[i]) {
-			f.StopWithErr(fmt.Errorf("fragment: %s is never used", string(f.fragmentDefinitionsVisited[i])))
+			fragmentName := f.fragmentDefinitionsVisited[i]
+			f.StopWithExternalErr(graphqlerror.ErrFragmentDefinedButNotUsed(fragmentName))
 			return
 		}
 	}
@@ -684,17 +781,18 @@ func (f *fragmentsVisitor) EnterInlineFragment(ref int) {
 
 	node, exists := f.definition.Index.Nodes[string(typeName)]
 	if !exists {
-		f.StopWithErr(fmt.Errorf("type: %s on inline framgent is not defined", string(typeName)))
+		f.StopWithExternalErr(graphqlerror.ErrTypeUndefined(typeName))
 		return
 	}
 
 	if !f.fragmentOnNodeIsAllowed(node) {
-		f.StopWithErr(fmt.Errorf("inline fragment on type: %s of kind: %s is disallowed", string(typeName), node.Kind))
+		f.StopWithExternalErr(graphqlerror.ErrInlineFragmentOnTypeDisallowed(typeName))
 		return
 	}
 
 	if !f.definition.NodeFragmentIsAllowedOnNode(node, f.EnclosingTypeDefinition) {
-		f.StopWithErr(fmt.Errorf("inline fragment on type: %s of kind: %s is disallowed", string(typeName), node.Kind))
+		enclosingTypeName := f.definition.NodeNameBytes(f.EnclosingTypeDefinition)
+		f.StopWithExternalErr(graphqlerror.ErrInlineFragmentOnTypeMismatchEnclosingType(typeName, enclosingTypeName))
 		return
 	}
 }
@@ -712,18 +810,18 @@ func (f *fragmentsVisitor) EnterFragmentDefinition(ref int) {
 
 	node, exists := f.definition.Index.Nodes[string(typeName)]
 	if !exists {
-		f.StopWithErr(fmt.Errorf("type: %s on fragment: %s is not defined", string(typeName), string(fragmentDefinitionName)))
+		f.StopWithExternalErr(graphqlerror.ErrTypeUndefined(typeName))
 		return
 	}
 
 	if !f.fragmentOnNodeIsAllowed(node) {
-		f.StopWithErr(fmt.Errorf("fragment definition: %s on type: %s of kind: %s is disallowed", string(fragmentDefinitionName), string(typeName), node.Kind))
+		f.StopWithExternalErr(graphqlerror.ErrFragmentDefinitionOnTypeDisallowed(fragmentDefinitionName, typeName))
 		return
 	}
 
 	for i := range f.fragmentDefinitionsVisited {
 		if bytes.Equal(fragmentDefinitionName, f.fragmentDefinitionsVisited[i]) {
-			f.StopWithErr(fmt.Errorf("fragment: %s must be unique", string(f.fragmentDefinitionsVisited[i])))
+			f.StopWithExternalErr(graphqlerror.ErrFragmentDefinitionMustBeUnique(fragmentDefinitionName))
 			return
 		}
 	}
@@ -757,7 +855,8 @@ func (d *directivesAreDefinedVisitor) EnterDirective(ref int) {
 	definition, exists := d.definition.Index.Nodes[string(directiveName)]
 
 	if !exists || definition.Kind != ast.NodeKindDirectiveDefinition {
-		d.StopWithErr(fmt.Errorf("directive: %s not defined", string(directiveName)))
+		d.StopWithExternalErr(graphqlerror.ErrDirectiveUndefined(directiveName))
+		return
 	}
 }
 
@@ -793,7 +892,8 @@ func (d *directivesAreInValidLocationsVisitor) EnterDirective(ref int) {
 	ancestor := d.Ancestors[len(d.Ancestors)-1]
 
 	if !d.directiveDefinitionContainsNodeLocation(definition.Ref, ancestor) {
-		d.StopWithErr(fmt.Errorf("directive: %s not allowed on node kind: %s", d.operation.DirectiveNameString(ref), ancestor.Kind))
+		ancestorKindName := d.operation.NodeKindNameBytes(ancestor)
+		d.StopWithExternalErr(graphqlerror.ErrDirectiveNotAllowedOnNode(directiveName, ancestorKindName))
 		return
 	}
 }
@@ -830,7 +930,7 @@ func (v *variableUniquenessVisitor) EnterDocument(operation, definition *ast.Doc
 
 func (v *variableUniquenessVisitor) EnterVariableDefinition(ref int) {
 
-	name := v.operation.VariableDefinitionName(ref)
+	name := v.operation.VariableDefinitionNameBytes(ref)
 
 	if v.Ancestors[0].Kind != ast.NodeKindOperationDefinition {
 		return
@@ -842,8 +942,13 @@ func (v *variableUniquenessVisitor) EnterVariableDefinition(ref int) {
 		if i == ref {
 			continue
 		}
-		if bytes.Equal(name, v.operation.VariableDefinitionName(i)) {
-			v.StopWithErr(fmt.Errorf("variable: %s must be unique", string(name)))
+		if bytes.Equal(name, v.operation.VariableDefinitionNameBytes(i)) {
+			if v.Ancestors[0].Kind != ast.NodeKindOperationDefinition {
+				v.StopWithInternalErr(fmt.Errorf("variable definition must have Operation Definition as root ancestor, got: %s", v.Ancestors[0].Kind))
+				return
+			}
+			operationName := v.operation.Input.ByteSlice(v.operation.OperationDefinitions[v.Ancestors[0].Ref].Name)
+			v.StopWithExternalErr(graphqlerror.ErrVariableMustBeUnique(name, operationName))
 			return
 		}
 	}
@@ -879,7 +984,7 @@ func (d *directivesAreUniquePerLocationVisitor) EnterDirective(ref int) {
 			continue
 		}
 		if bytes.Equal(directiveName, d.operation.DirectiveNameBytes(j)) {
-			d.StopWithErr(fmt.Errorf("directive: %s must be unique per location", string(directiveName)))
+			d.StopWithExternalErr(graphqlerror.ErrDirectiveMustBeUniquePerLocation(directiveName))
 			return
 		}
 	}
@@ -913,7 +1018,8 @@ func (v *variablesAreInputTypesVisitor) EnterVariableDefinition(ref int) {
 	case ast.NodeKindInputObjectTypeDefinition, ast.NodeKindScalarTypeDefinition, ast.NodeKindEnumTypeDefinition:
 		return
 	default:
-		v.StopWithErr(fmt.Errorf("variable: %s of type: %s is no valid input type", v.operation.VariableDefinitionName(ref), string(typeName)))
+		variableName := v.operation.VariableDefinitionNameBytes(ref)
+		v.StopWithExternalErr(graphqlerror.ErrVariableOfTypeIsNoValidInputValue(variableName, typeName))
 		return
 	}
 }
@@ -951,16 +1057,17 @@ func (a *allVariableUsesDefinedVisitor) EnterArgument(ref int) {
 		return
 	}
 
-	variableName := a.operation.VariableValueName(a.operation.Arguments[ref].Value.Ref)
+	variableName := a.operation.VariableValueNameBytes(a.operation.Arguments[ref].Value.Ref)
 
 	for _, i := range a.operation.OperationDefinitions[a.Ancestors[0].Ref].VariableDefinitions.Refs {
-		if bytes.Equal(variableName, a.operation.VariableDefinitionName(i)) {
+		if bytes.Equal(variableName, a.operation.VariableDefinitionNameBytes(i)) {
 			return // return OK because variable is defined
 		}
 	}
 
 	// at this point we're safe to say this variable was not defined on the root operation of this argument
-	a.StopWithErr(fmt.Errorf("variable: %s on argument: %s is not defined", string(variableName), a.operation.ArgumentNameString(ref)))
+	argumentName := a.operation.ArgumentNameBytes(ref)
+	a.StopWithExternalErr(graphqlerror.ErrVariableNotDefinedOnArgument(variableName, argumentName))
 }
 
 func AllVariablesUsed() Rule {
@@ -992,10 +1099,9 @@ func (a *allVariablesUsedVisitor) EnterOperationDefinition(ref int) {
 
 func (a *allVariablesUsedVisitor) LeaveOperationDefinition(ref int) {
 	if len(a.variableDefinitions) != 0 {
-		variableName := string(a.operation.VariableDefinitionName(a.variableDefinitions[0]))
-		operationType := a.operation.OperationDefinitions[ref].OperationType
+		variableName := a.operation.VariableDefinitionNameBytes(a.variableDefinitions[0])
 		operationName := a.operation.Input.ByteSlice(a.operation.OperationDefinitions[ref].Name)
-		a.StopWithErr(fmt.Errorf("variable: %s is defined on operation: %s with operation type: %s but never used", variableName, operationName, operationType))
+		a.StopWithExternalErr(graphqlerror.ErrVariableNotDefinedOnOperation(variableName, operationName))
 		return
 	}
 }
@@ -1010,9 +1116,9 @@ func (a *allVariablesUsedVisitor) EnterArgument(ref int) {
 		return // skip non variable value
 	}
 
-	variableName := a.operation.VariableValueName(a.operation.Arguments[ref].Value.Ref)
+	variableName := a.operation.VariableValueNameBytes(a.operation.Arguments[ref].Value.Ref)
 	for i, j := range a.variableDefinitions {
-		if bytes.Equal(variableName, a.operation.VariableDefinitionName(j)) {
+		if bytes.Equal(variableName, a.operation.VariableDefinitionNameBytes(j)) {
 			a.variableDefinitions = append(a.variableDefinitions[:i], a.variableDefinitions[i+1:]...)
 			return
 		}

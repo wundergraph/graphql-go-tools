@@ -24,6 +24,7 @@ package operation_complexity
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
+	"github.com/jensneuse/graphql-go-tools/pkg/graphqlerror"
 )
 
 var (
@@ -57,17 +58,17 @@ func NewOperationComplexityEstimator() *OperationComplexityEstimator {
 	}
 }
 
-func (n *OperationComplexityEstimator) Do(operation, definition *ast.Document) (nodeCount, complexity int, err error) {
+func (n *OperationComplexityEstimator) Do(operation, definition *ast.Document, report *graphqlerror.Report) (nodeCount, complexity int) {
 	n.visitor.count = 0
 	n.visitor.complexity = 0
 	n.visitor.multipliers = n.visitor.multipliers[:0]
-	err = n.walker.Walk(operation, definition)
-	return n.visitor.count, n.visitor.complexity, err
+	n.walker.Walk(operation, definition, report)
+	return n.visitor.count, n.visitor.complexity
 }
 
-func CalculateOperationComplexity(operation, definition *ast.Document) (nodeCount, complexity int, err error) {
+func CalculateOperationComplexity(operation, definition *ast.Document, report *graphqlerror.Report) (nodeCount, complexity int) {
 	estimator := NewOperationComplexityEstimator()
-	return estimator.Do(operation, definition)
+	return estimator.Do(operation, definition, report)
 }
 
 type complexityVisitor struct {

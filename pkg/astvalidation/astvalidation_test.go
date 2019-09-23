@@ -40,11 +40,12 @@ func TestExecutionValidation(t *testing.T) {
 
 		definition := mustDocument(astparser.ParseGraphqlDocumentString(testDefinition))
 		operation := mustDocument(astparser.ParseGraphqlDocumentString(operationInput))
+		report := graphqlerror.Report{}
 
-		err := astnormalization.NormalizeOperation(&operation, &definition)
-		if err != nil {
+		astnormalization.NormalizeOperation(&operation, &definition, &report)
+		if report.HasErrors() {
 			if expectation != Invalid {
-				panic(err)
+				panic(report.Error())
 			}
 			return
 		}
@@ -52,12 +53,12 @@ func TestExecutionValidation(t *testing.T) {
 		validator := &OperationValidator{}
 		validator.RegisterRule(rule)
 
-		result := validator.Validate(&operation, &definition)
+		result := validator.Validate(&operation, &definition, &report)
 
 		printedOperation := mustString(astprinter.PrintString(&operation, &definition))
 
-		if expectation != result.ValidationState {
-			panic(fmt.Errorf("want expectation: %s, got: %s\nreason: %v\noperation:\n%s\n", expectation, result.ValidationState, result.Reason, printedOperation))
+		if expectation != result {
+			panic(fmt.Errorf("want expectation: %s, got: %s\nreason: %v\noperation:\n%s\n", expectation, result, report.Error(), printedOperation))
 		}
 	}
 
@@ -2781,8 +2782,11 @@ func BenchmarkValidation(b *testing.B) {
 	run := func(b *testing.B, definition, operation string, state ValidationState) {
 
 		op, def := mustDocument(astparser.ParseGraphqlDocumentString(operation)), mustDocument(astparser.ParseGraphqlDocumentString(definition))
-
-		must(astnormalization.NormalizeOperation(&op, &def))
+		report := graphqlerror.Report{}
+		astnormalization.NormalizeOperation(&op, &def, &report)
+		if report.HasErrors() {
+			panic(report.Error())
+		}
 
 		validator := DefaultOperationValidator()
 
@@ -2790,9 +2794,10 @@ func BenchmarkValidation(b *testing.B) {
 		b.ReportAllocs()
 
 		for i := 0; i < b.N; i++ {
-			out := validator.Validate(&op, &def)
-			if out.ValidationState != state {
-				panic(fmt.Errorf("want state: %s, got: %s, reason: %s", state, out.ValidationState, out.Reason))
+			report.Reset()
+			out := validator.Validate(&op, &def, &report)
+			if out != state {
+				panic(fmt.Errorf("want state: %s, got: %s, reason: %s", state, out, report.Error()))
 			}
 		}
 	}

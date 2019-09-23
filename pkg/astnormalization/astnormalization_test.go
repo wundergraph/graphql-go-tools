@@ -16,8 +16,13 @@ func TestNormalizeOperation(t *testing.T) {
 		definitionDocument := unsafeparser.ParseGraphqlDocumentString(definition)
 		operationDocument := unsafeparser.ParseGraphqlDocumentString(operation)
 		expectedOutputDocument := unsafeparser.ParseGraphqlDocumentString(expectedOutput)
+		report := graphqlerror.Report{}
 
-		must(NormalizeOperation(&operationDocument, &definitionDocument))
+		NormalizeOperation(&operationDocument, &definitionDocument, &report)
+
+		if report.HasErrors() {
+			t.Fatal(report.Error())
+		}
 
 		got := mustString(astprinter.PrintString(&operationDocument, &definitionDocument))
 		want := mustString(astprinter.PrintString(&expectedOutputDocument, &definitionDocument))
@@ -112,6 +117,7 @@ func BenchmarkAstNormalization(b *testing.B) {
 
 	definition := unsafeparser.ParseGraphqlDocumentString(testDefinition)
 	operation := unsafeparser.ParseGraphqlDocumentString(testOperation)
+	report := graphqlerror.Report{}
 
 	normalizer := &OperationNormalizer{}
 
@@ -119,7 +125,8 @@ func BenchmarkAstNormalization(b *testing.B) {
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		normalizer.Do(&operation, &definition)
+		report.Reset()
+		normalizer.Do(&operation, &definition, &report)
 	}
 }
 
@@ -154,11 +161,15 @@ var run = func(normalizeFunc registerNormalizeFunc, definition, operation, expec
 	definitionDocument := unsafeparser.ParseGraphqlDocumentString(definition)
 	operationDocument := unsafeparser.ParseGraphqlDocumentString(operation)
 	expectedOutputDocument := unsafeparser.ParseGraphqlDocumentString(expectedOutput)
-
+	report := graphqlerror.Report{}
 	walker := astvisitor.NewWalker(48)
 	normalizeFunc(&walker)
 
-	must(walker.Walk(&operationDocument, &definitionDocument))
+	walker.Walk(&operationDocument, &definitionDocument, &report)
+
+	if report.HasErrors() {
+		panic(report.Error())
+	}
 
 	got := mustString(astprinter.PrintString(&operationDocument, &definitionDocument))
 	want := mustString(astprinter.PrintString(&expectedOutputDocument, &definitionDocument))

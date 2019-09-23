@@ -114,12 +114,13 @@ var mustDocument = func(document *ast.Document, err error) *ast.Document {
 var run = func(definition, operation string, expectedNodeCount, expectedComplexity int) {
 	def := unsafeparser.ParseGraphqlDocumentString(definition)
 	op := unsafeparser.ParseGraphqlDocumentString(operation)
+	report := graphqlerror.Report{}
 
-	must(astnormalization.NormalizeOperation(&op, &def))
+	astnormalization.NormalizeOperation(&op, &def, &report)
 
-	nodeCount, complexity, err := CalculateOperationComplexity(&op, &def)
-	if err != nil {
-		panic(err)
+	nodeCount, complexity := CalculateOperationComplexity(&op, &def, &report)
+	if report.HasErrors() {
+		panic(report)
 	}
 
 	if nodeCount != expectedNodeCount {
@@ -136,14 +137,15 @@ func BenchmarkEstimateComplexity(b *testing.B) {
 	op := unsafeparser.ParseGraphqlDocumentString(complexQuery)
 
 	estimator := NewOperationComplexityEstimator()
+	report := graphqlerror.Report{}
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		nodeCount, complexity, err := estimator.Do(&op, &def)
-		if err != nil {
-			b.Fatal(err)
+		nodeCount, complexity := estimator.Do(&op, &def, &report)
+		if report.HasErrors() {
+			b.Fatal(report)
 		}
 
 		if nodeCount != 920 {
