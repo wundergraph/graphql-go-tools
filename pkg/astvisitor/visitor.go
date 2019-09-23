@@ -4,16 +4,22 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/graphqlerror"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
+)
+
+var (
+	ErrDocumentMustNotBeNil   = fmt.Errorf("document must not be nil")
+	ErrDefinitionMustNotBeNil = fmt.Errorf("definition must not be nil when walking operations")
 )
 
 type Walker struct {
 	Ancestors               []ast.Node
-	Path                    ast.ByteSliceReferences
+	Path                    graphqlerror.Paths
 	EnclosingTypeDefinition ast.Node
 	SelectionsBefore        []int
 	SelectionsAfter         []int
-	err                     error
+	Report                  *graphqlerror.Report
 	document                *ast.Document
 	definition              *ast.Document
 	visitors                visitors
@@ -27,7 +33,7 @@ type Walker struct {
 func NewWalker(ancestorSize int) Walker {
 	return Walker{
 		Ancestors:       make([]ast.Node, 0, ancestorSize),
-		Path:            make([]ast.ByteSliceReference, 0, ancestorSize),
+		Path:            make([]graphqlerror.Path, 0, ancestorSize),
 		typeDefinitions: make([]ast.Node, 0, ancestorSize),
 	}
 }
@@ -979,16 +985,20 @@ func (w *Walker) RegisterDocumentVisitor(visitor DocumentVisitor) {
 	w.RegisterLeaveDocumentVisitor(visitor)
 }
 
-func (w *Walker) Walk(document, definition *ast.Document) error {
-	w.err = nil
+func (w *Walker) Walk(document, definition *ast.Document, report *graphqlerror.Report) {
+	if report == nil {
+		w.Report = &graphqlerror.Report{}
+	} else {
+		w.Report = report
+	}
 	w.Ancestors = w.Ancestors[:0]
+	w.Path = w.Path[:0]
 	w.typeDefinitions = w.typeDefinitions[:0]
 	w.document = document
 	w.definition = definition
 	w.Depth = 0
 	w.stop = false
 	w.walk()
-	return w.err
 }
 
 func (w *Walker) appendAncestor(ref int, kind ast.NodeKind) {
@@ -998,12 +1008,16 @@ func (w *Walker) appendAncestor(ref int, kind ast.NodeKind) {
 		Ref:  ref,
 	})
 
-	var typeName []byte
+	var typeName ast.ByteSlice
 
 	switch kind {
 	case ast.NodeKindOperationDefinition:
 
-		w.Path = append(w.Path, w.document.OperationDefinitions[ref].Name)
+		w.Path = append(w.Path, graphqlerror.Path{
+			Kind:       graphqlerror.FieldName,
+			ArrayIndex: 0,
+			FieldName:  w.document.OperationDefinitionNameBytes(ref),
+		})
 
 		switch w.document.OperationDefinitions[ref].OperationType {
 		case ast.OperationTypeQuery:
@@ -1021,11 +1035,19 @@ func (w *Walker) appendAncestor(ref int, kind ast.NodeKind) {
 		}
 		typeName = w.document.InlineFragmentTypeConditionName(ref)
 	case ast.NodeKindFragmentDefinition:
-		w.Path = append(w.Path, w.document.FragmentDefinitions[ref].Name)
 		typeName = w.document.FragmentDefinitionTypeName(ref)
+		w.Path = append(w.Path, graphqlerror.Path{
+			Kind:       graphqlerror.FieldName,
+			ArrayIndex: 0,
+			FieldName:  typeName,
+		})
 	case ast.NodeKindField:
-		w.Path = append(w.Path, w.document.Fields[ref].Name)
 		fieldName := w.document.FieldNameBytes(ref)
+		w.Path = append(w.Path, graphqlerror.Path{
+			Kind:       graphqlerror.FieldName,
+			ArrayIndex: 0,
+			FieldName:  fieldName,
+		})
 		if bytes.Equal(fieldName, literal.TYPENAME) {
 			typeName = literal.STRING
 		}
@@ -1037,7 +1059,8 @@ func (w *Walker) appendAncestor(ref int, kind ast.NodeKind) {
 			}
 		}
 		if typeName == nil {
-			w.StopWithErr(fmt.Errorf("field: '%s' not defined on type: %s", string(fieldName), w.definition.NodeTypeNameString(w.typeDefinitions[len(w.typeDefinitions)-1])))
+			typeName := w.definition.NodeNameBytes(w.typeDefinitions[len(w.typeDefinitions)-1])
+			w.StopWithExternalErr(graphqlerror.ErrFieldUndefinedOnType(fieldName, typeName))
 			return
 		}
 	default:
@@ -1047,7 +1070,7 @@ func (w *Walker) appendAncestor(ref int, kind ast.NodeKind) {
 	var exists bool
 	w.EnclosingTypeDefinition, exists = w.definition.Index.Nodes[string(typeName)]
 	if !exists {
-		w.StopWithErr(fmt.Errorf("type: '%s' not defined", string(typeName)))
+		w.StopWithExternalErr(graphqlerror.ErrTypeUndefined(typeName))
 		return
 	}
 
@@ -1090,7 +1113,7 @@ func (w *Walker) decreaseDepth() {
 func (w *Walker) walk() {
 
 	if w.document == nil {
-		w.err = fmt.Errorf("document must not be nil")
+		w.Report.AddInternalError(ErrDocumentMustNotBeNil)
 		return
 	}
 
@@ -1115,13 +1138,13 @@ func (w *Walker) walk() {
 		switch w.document.RootNodes[i].Kind {
 		case ast.NodeKindOperationDefinition:
 			if w.definition == nil {
-				w.err = fmt.Errorf("definition must not be nil when walking operations")
+				w.Report.AddInternalError(ErrDefinitionMustNotBeNil)
 				return
 			}
 			w.walkOperationDefinition(w.document.RootNodes[i].Ref, isLast)
 		case ast.NodeKindFragmentDefinition:
 			if w.definition == nil {
-				w.err = fmt.Errorf("definition must not be nil when walking operations")
+				w.Report.AddInternalError(ErrDefinitionMustNotBeNil)
 				return
 			}
 			w.walkFragmentDefinition(w.document.RootNodes[i].Ref)
@@ -2992,16 +3015,34 @@ func (w *Walker) RevisitNode() {
 	w.revisit = true
 }
 
-func (w *Walker) StopWithErr(err error) {
+func (w *Walker) StopWithInternalErr(err error) {
 	w.stop = true
-	if w.err != nil {
-		return
+	w.Report.AddInternalError(err)
+}
+
+func (w *Walker) HandleInternalErr(err error) bool {
+	if err != nil {
+		w.StopWithInternalErr(err)
+		return true
 	}
-	w.err = err
+	return false
+}
+
+func (w *Walker) StopWithExternalErr(err graphqlerror.ExternalError) {
+	w.stop = true
+	err.Path = w.Path
+	w.Report.AddExternalError(err)
+}
+
+func (w *Walker) StopWithErr(internal error, external graphqlerror.ExternalError) {
+	w.stop = true
+	external.Path = w.Path
+	w.Report.AddInternalError(internal)
+	w.Report.AddExternalError(external)
 }
 
 func (w *Walker) ArgumentInputValueDefinition(argument int) (definition int, exits bool) {
-	argumentName := w.document.ArgumentName(argument)
+	argumentName := w.document.ArgumentNameBytes(argument)
 	ancestor := w.Ancestors[len(w.Ancestors)-1]
 	switch ancestor.Kind {
 	case ast.NodeKindField:
@@ -3021,4 +3062,11 @@ func (w *Walker) FieldDefinition(field int) (definition int, exists bool) {
 	definition, _ = w.definition.NodeFieldDefinitionByName(w.EnclosingTypeDefinition, w.document.FieldNameBytes(field))
 	exists = definition != -1
 	return
+}
+
+func (w *Walker) AncestorNameBytes() ast.ByteSlice {
+	if len(w.Ancestors) == 0 {
+		return nil
+	}
+	return w.document.NodeNameBytes(w.Ancestors[len(w.Ancestors)-1])
 }
