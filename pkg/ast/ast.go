@@ -134,7 +134,7 @@ func (d *Document) IndexOf(slice []int, ref int) (int, bool) {
 
 func (d *Document) FragmentDefinitionIsUsed(name ByteSlice) bool {
 	for _, i := range d.Index.ReplacedFragmentSpreads {
-		if bytes.Equal(name, d.FragmentSpreadName(i)) {
+		if bytes.Equal(name, d.FragmentSpreadNameBytes(i)) {
 			return true
 		}
 	}
@@ -333,7 +333,7 @@ func (d *Document) NodeIsLastRootNode(node Node) bool {
 	return d.RootNodes[len(d.RootNodes)-1] == node
 }
 
-func (d *Document) NodeTypeName(node Node) ByteSlice {
+func (d *Document) NodeNameBytes(node Node) ByteSlice {
 
 	var ref ByteSliceReference
 
@@ -350,9 +350,59 @@ func (d *Document) NodeTypeName(node Node) ByteSlice {
 		ref = d.ScalarTypeDefinitions[node.Ref].Name
 	case NodeKindDirectiveDefinition:
 		ref = d.DirectiveDefinitions[node.Ref].Name
+	case NodeKindField:
+		ref = d.Fields[node.Ref].Name
+	case NodeKindDirective:
+		ref = d.Directives[node.Ref].Name
 	}
 
 	return d.Input.ByteSlice(ref)
+}
+
+func (d *Document) NodeKindNameBytes(node Node) ByteSlice {
+	switch node.Kind {
+	case NodeKindOperationDefinition:
+		switch d.OperationDefinitions[node.Ref].OperationType {
+		case OperationTypeQuery:
+			return literal.LocationQuery
+		case OperationTypeMutation:
+			return literal.LocationMutation
+		case OperationTypeSubscription:
+			return literal.LocationSubscription
+		}
+	case NodeKindField:
+		return literal.LocationField
+	case NodeKindFragmentDefinition:
+		return literal.LocationFragmentDefinition
+	case NodeKindFragmentSpread:
+		return literal.LocationFragmentSpread
+	case NodeKindInlineFragment:
+		return literal.LocationInlineFragment
+	case NodeKindVariableDefinition:
+		return literal.LocationVariableDefinition
+	case NodeKindSchemaDefinition:
+		return literal.LocationSchema
+	case NodeKindScalarTypeDefinition:
+		return literal.LocationScalar
+	case NodeKindObjectTypeDefinition:
+		return literal.LocationObject
+	case NodeKindFieldDefinition:
+		return literal.LocationFieldDefinition
+	case NodeKindInterfaceTypeDefinition:
+		return literal.LocationInterface
+	case NodeKindUnionTypeDefinition:
+		return literal.LocationUnion
+	case NodeKindEnumTypeDefinition:
+		return literal.LocationEnum
+	case NodeKindEnumValueDefinition:
+		return literal.LocationEnumValue
+	case NodeKindInputObjectTypeDefinition:
+		return literal.LocationInputObject
+	case NodeKindInputValueDefinition:
+		return literal.LocationInputFieldDefinition
+	}
+
+	return unsafebytes.StringToBytes(node.Kind.String())
 }
 
 func (d *Document) FieldDefinitionArgumentsDefinitions(ref int) []int {
@@ -415,7 +465,7 @@ func (d *Document) NodeFieldDefinitionByName(node Node, fieldName ByteSlice) (de
 }
 
 func (d *Document) NodeTypeNameString(node Node) string {
-	return unsafebytes.BytesToString(d.NodeTypeName(node))
+	return unsafebytes.BytesToString(d.NodeNameBytes(node))
 }
 
 func (d *Document) FieldAliasBytes(ref int) ByteSlice {
@@ -430,12 +480,12 @@ func (d *Document) FieldAliasIsDefined(ref int) bool {
 	return d.Fields[ref].Alias.IsDefined
 }
 
-func (d *Document) FragmentSpreadName(ref int) ByteSlice {
+func (d *Document) FragmentSpreadNameBytes(ref int) ByteSlice {
 	return d.Input.ByteSlice(d.FragmentSpreads[ref].FragmentName)
 }
 
 func (d *Document) FragmentSpreadNameString(ref int) string {
-	return unsafebytes.BytesToString(d.FragmentSpreadName(ref))
+	return unsafebytes.BytesToString(d.FragmentSpreadNameBytes(ref))
 }
 
 func (d *Document) InlineFragmentTypeConditionName(ref int) ByteSlice {
@@ -565,12 +615,12 @@ func (d *Document) FloatValuesAreEqual(left, right int) bool {
 		bytes.Equal(d.FloatValueRaw(left), d.FloatValueRaw(right))
 }
 
-func (d *Document) VariableValueName(ref int) ByteSlice {
+func (d *Document) VariableValueNameBytes(ref int) ByteSlice {
 	return d.Input.ByteSlice(d.VariableValues[ref].Name)
 }
 
 func (d *Document) VariableValuesAreEqual(left, right int) bool {
-	return bytes.Equal(d.VariableValueName(left), d.VariableValueName(right))
+	return bytes.Equal(d.VariableValueNameBytes(left), d.VariableValueNameBytes(right))
 }
 
 func (d *Document) Value(ref int) Value {
@@ -663,12 +713,12 @@ func (d *Document) ValuesAreEqual(left, right Value) bool {
 	}
 }
 
-func (d *Document) ArgumentName(ref int) ByteSlice {
+func (d *Document) ArgumentNameBytes(ref int) ByteSlice {
 	return d.Input.ByteSlice(d.Arguments[ref].Name)
 }
 
 func (d *Document) ArgumentNameString(ref int) string {
-	return unsafebytes.BytesToString(d.ArgumentName(ref))
+	return unsafebytes.BytesToString(d.ArgumentNameBytes(ref))
 }
 
 func (d *Document) ArgumentValue(ref int) Value {
@@ -676,7 +726,7 @@ func (d *Document) ArgumentValue(ref int) Value {
 }
 
 func (d *Document) ArgumentsAreEqual(left, right int) bool {
-	return bytes.Equal(d.ArgumentName(left), d.ArgumentName(right)) &&
+	return bytes.Equal(d.ArgumentNameBytes(left), d.ArgumentNameBytes(right)) &&
 		d.ValuesAreEqual(d.ArgumentValue(left), d.ArgumentValue(right))
 }
 
@@ -699,7 +749,7 @@ func (d *Document) FieldArguments(ref int) []int {
 
 func (d *Document) FieldArgument(field int, name ByteSlice) (ref int, exists bool) {
 	for _, i := range d.Fields[field].Arguments.Refs {
-		if bytes.Equal(d.ArgumentName(i), name) {
+		if bytes.Equal(d.ArgumentNameBytes(i), name) {
 			return i, true
 		}
 	}
@@ -905,7 +955,7 @@ func (d *Document) UnionNodeIntersectsInterfaceNode(unionNode, interfaceNode Nod
 }
 
 func (d *Document) NodeIsUnionMember(node Node, union Node) bool {
-	nodeTypeName := d.NodeTypeName(node)
+	nodeTypeName := d.NodeNameBytes(node)
 	for _, i := range d.UnionTypeDefinitions[union.Ref].UnionMemberTypes.Refs {
 		memberName := d.ResolveTypeName(i)
 		if bytes.Equal(nodeTypeName, memberName) {
@@ -954,7 +1004,7 @@ func (d *Document) RemoveNodeFromSelectionSet(set int, node Node) {
 }
 
 func (n Node) Name(definition *Document) string {
-	return unsafebytes.BytesToString(definition.NodeTypeName(n))
+	return unsafebytes.BytesToString(definition.NodeNameBytes(n))
 }
 
 type SchemaDefinition struct {
@@ -1300,6 +1350,15 @@ func (d *Document) PrintValue(value Value, w io.Writer) (err error) {
 	return
 }
 
+func (d *Document) PrintValueBytes(value Value, buf []byte) ([]byte, error) {
+	if buf == nil {
+		buf = make([]byte, 24)
+	}
+	b := bytes.NewBuffer(buf)
+	err := d.PrintValue(value, b)
+	return b.Bytes(), err
+}
+
 type ListValue struct {
 	LBRACK position.Position // [
 	Refs   []int             // Value
@@ -1592,6 +1651,15 @@ func (d *Document) PrintType(ref int, w io.Writer) error {
 		return err
 	}
 	return nil
+}
+
+func (d *Document) PrintTypeBytes(ref int, buf []byte) ([]byte, error) {
+	if buf == nil {
+		buf = make([]byte, 24)
+	}
+	b := bytes.NewBuffer(buf)
+	err := d.PrintType(ref, b)
+	return b.Bytes(), err
 }
 
 type DefaultValue struct {
@@ -2043,13 +2111,13 @@ func (d *Document) VariableDefinitionsAfter(variableDefinition int) bool {
 	return len(d.VariableDefinitions) != 1 && variableDefinition != len(d.VariableDefinitions)-1
 }
 
-func (d *Document) VariableDefinitionName(ref int) ByteSlice {
-	return d.VariableValueName(d.VariableDefinitions[ref].VariableValue.Ref)
+func (d *Document) VariableDefinitionNameBytes(ref int) ByteSlice {
+	return d.VariableValueNameBytes(d.VariableDefinitions[ref].VariableValue.Ref)
 }
 
 func (d *Document) VariableDefinitionByName(name ByteSlice) (definition int, exists bool) {
 	for i := range d.VariableDefinitions {
-		definitionName := d.VariableValueName(d.VariableDefinitions[i].VariableValue.Ref)
+		definitionName := d.VariableValueNameBytes(d.VariableDefinitions[i].VariableValue.Ref)
 		if bytes.Equal(name, definitionName) {
 			return i, true
 		}
