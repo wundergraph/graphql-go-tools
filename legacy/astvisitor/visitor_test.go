@@ -259,14 +259,14 @@ func (p *printingVisitor) LeaveDirective(ref int, info Info) Instruction {
 
 func (p *printingVisitor) EnterVariableDefinition(ref int, info Info) Instruction {
 	p.enter()
-	varName := string(p.operation.VariableValueName(p.operation.VariableDefinitions[ref].VariableValue.Ref))
+	varName := string(p.operation.VariableValueNameBytes(p.operation.VariableDefinitions[ref].VariableValue.Ref))
 	p.must(fmt.Fprintf(p.out, "EnterVariableDefinition(%s): ref: %d, info: %+v\n", varName, ref, info))
 	return Instruction{}
 }
 
 func (p *printingVisitor) LeaveVariableDefinition(ref int, info Info) Instruction {
 	p.leave()
-	varName := string(p.operation.VariableValueName(p.operation.VariableDefinitions[ref].VariableValue.Ref))
+	varName := string(p.operation.VariableValueNameBytes(p.operation.VariableDefinitions[ref].VariableValue.Ref))
 	p.must(fmt.Fprintf(p.out, "LeaveVariableDefinition(%s): ref: %d, info: %+v\n", varName, ref, info))
 	return Instruction{}
 }
