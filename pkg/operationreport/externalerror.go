@@ -1,6 +1,8 @@
+//go:generate stringer -type PathKind -output externalerror_string.go
 package operationreport
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
@@ -10,7 +12,7 @@ import (
 
 type ExternalError struct {
 	Message   string     `json:"message"`
-	Path      []PathItem `json:"path"`
+	Path      Path       `json:"path"`
 	Locations []Location `json:"locations"`
 }
 
@@ -34,6 +36,23 @@ type PathItem struct {
 }
 
 type Path []PathItem
+
+func (p Path) Equals(another Path) bool {
+	if len(p) != len(another) {
+		return false
+	}
+	for i := range p {
+		if p[i].Kind != another[i].Kind {
+			return false
+		}
+		if p[i].Kind == ArrayIndex && p[i].ArrayIndex != another[i].ArrayIndex {
+			return false
+		} else if !bytes.Equal(p[i].FieldName, another[i].FieldName) {
+			return false
+		}
+	}
+	return true
+}
 
 func (p Path) String() string {
 	out := "["
@@ -89,6 +108,26 @@ func ErrSubscriptionMustOnlyHaveOneRootSelection(subscriptionName ast.ByteSlice)
 func ErrFieldSelectionOnUnion(fieldName, unionName ast.ByteSlice) (err ExternalError) {
 
 	err.Message = fmt.Sprintf("cannot select field: %s on union: %s", fieldName, unionName)
+	return err
+}
+
+func ErrFieldsConflict(objectName, leftType, rightType ast.ByteSlice) (err ExternalError) {
+	err.Message = fmt.Sprintf("fields '%s' conflict because they return conflicting types '%s' and '%s'", objectName, leftType, rightType)
+	return err
+}
+
+func ErrTypesForFieldMismatch(objectName, leftType, rightType ast.ByteSlice) (err ExternalError) {
+	err.Message = fmt.Sprintf("differing types '%s' and '%s' for objectName '%s'", leftType, rightType, objectName)
+	return err
+}
+
+func ErrResponseOfDifferingTypesMustBeOfSameShape(leftObjectName, rightObjectName ast.ByteSlice) (err ExternalError) {
+	err.Message = fmt.Sprintf("objects '%s' and '%s' on differing response types must be of same response shape", leftObjectName, rightObjectName)
+	return err
+}
+
+func ErrDifferingFieldsOnPotentiallySameType(objectName ast.ByteSlice) (err ExternalError) {
+	err.Message = fmt.Sprintf("differing fields for objectName '%s' on (potentially) same type", objectName)
 	return err
 }
 
