@@ -1,16 +1,13 @@
 package astnormalization
 
 import (
-	"bytes"
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
-	"strconv"
 	"testing"
-	"text/template"
 )
 
 func TestNormalizeOperation(t *testing.T) {
@@ -532,102 +529,3 @@ enum __TypeKind {
     "Indicates this type is a non-null. ofType is a valid field."
     NON_NULL
 }`
-
-// inspired by: https://tech.xing.com/graphql-overlapping-fields-can-be-merged-fast-ea6e92e0a01
-func TestXINGExample(t *testing.T) {
-
-	op := XINGOperation(5)
-
-	definitionDocument := unsafeparser.ParseGraphqlDocumentString(XINGDefinition)
-	operationDocument := unsafeparser.ParseGraphqlDocumentBytes(op)
-	expectedOutputDocument := unsafeparser.ParseGraphqlDocumentString(XINGExpectedOperation)
-	report := operationreport.Report{}
-
-	normalizer := OperationNormalizer{}
-	normalizer.setupWalkers()
-	removeFragmentDefinitions(normalizer.walkers[1])
-
-	normalizer.Do(&operationDocument, &definitionDocument, &report)
-
-	if report.HasErrors() {
-		t.Fatal(report.Error())
-	}
-
-	got := mustString(astprinter.PrintString(&operationDocument, &definitionDocument))
-	want := mustString(astprinter.PrintString(&expectedOutputDocument, &definitionDocument))
-
-	if want != got {
-		panic(fmt.Errorf("\nwant:\n%s\ngot:\n%s", want, got))
-	}
-}
-
-func BenchmarkXINGExample(b *testing.B) {
-
-	definitionDocument := unsafeparser.ParseGraphqlDocumentString(XINGDefinition)
-	report := operationreport.Report{}
-
-	normalizer := OperationNormalizer{}
-	normalizer.setupWalkers()
-	removeFragmentDefinitions(normalizer.walkers[1])
-
-	for i := 1; i < 13; i++ {
-		i := i * 10
-		b.Run(strconv.Itoa(i), func(b *testing.B) {
-
-			operationDocument := unsafeparser.ParseGraphqlDocumentBytes(XINGOperation(i))
-			b.ReportAllocs()
-			b.ResetTimer()
-
-			for j := 0; j < b.N; j++ {
-				op := operationDocument
-				normalizer.Do(&op, &definitionDocument, &report)
-			}
-		})
-	}
-}
-
-func XINGOperation(multiplier int) []byte {
-	t := template.Must(template.New("tmpl").Parse(xingOperationTemplate))
-	data := make([]int, 0, multiplier)
-	for i := 0; i < multiplier; i++ {
-		data = append(data, i+1)
-	}
-	buff := bytes.Buffer{}
-	err := t.Execute(&buff, data)
-	if err != nil {
-		panic(err)
-	}
-	return buff.Bytes()
-}
-
-const xingOperationTemplate = `
-{{ range $i := . }}fragment mergeIdenticalFields{{ $i }} on Query {
-	viewer { xingId { firstName lastName } }
-}
-{{ end }}
-query MultipleFragmentsSameNames {
-{{ range $i := . }}{{ if ne $i 1}}
-{{ end }}	...mergeIdenticalFields{{ $i }}{{ end }}
-}`
-
-const XINGExpectedOperation = `
-query MultipleFragmentsSameNames {
-   viewer { xingId { firstName lastName } }
-}`
-
-const XINGDefinition = `
-scalar String
-schema {
-	query: Query	
-}
-type Query {
-	viewer: Viewer
-}
-type Viewer {
-	xingId: XingId
-}
-type XingId {
-	firstName: String
-	lastName: String
-}
-`
