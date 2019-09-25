@@ -590,6 +590,22 @@ func TestExecutionValidation(t *testing.T) {
 									}
 								}`, FieldSelectionMerging(), Invalid)
 					})
+					t.Run("disallows differing return types despite no overlap", func(t *testing.T) {
+						runWithDefinition(boxDefinition, `
+								{
+									someBox {
+										... on IntBox {
+											b: unrelatedField
+								  		}
+										... on SomeBox {
+											b: unrelatedField
+								  		}
+										... on StringBox {
+											b: scalar
+								  		}
+									}
+								}`, FieldSelectionMerging(), Invalid)
+					})
 					t.Run("deeply nested", func(t *testing.T) {
 						// reports correctly when a non-exclusive follows an exclusive
 						runWithDefinition(boxDefinition, `
