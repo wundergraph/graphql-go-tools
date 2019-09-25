@@ -36,18 +36,17 @@ func TestExecutionValidation(t *testing.T) {
 		return str
 	}
 
-	run := func(operationInput string, rule Rule, expectation ValidationState) {
+	runWithDefinition := func(definitionInput, operationInput string, rule Rule, expectation ValidationState, expectFailedNormalization ...bool) {
 
-		definition := mustDocument(astparser.ParseGraphqlDocumentString(testDefinition))
+		definition := mustDocument(astparser.ParseGraphqlDocumentString(definitionInput))
 		operation := mustDocument(astparser.ParseGraphqlDocumentString(operationInput))
 		report := operationreport.Report{}
 
 		astnormalization.NormalizeOperation(&operation, &definition, &report)
 		if report.HasErrors() {
-			if expectation != Invalid {
+			if len(expectFailedNormalization) == 1 && !expectFailedNormalization[0] {
 				panic(report.Error())
 			}
-			return
 		}
 
 		validator := &OperationValidator{}
@@ -60,6 +59,10 @@ func TestExecutionValidation(t *testing.T) {
 		if expectation != result {
 			panic(fmt.Errorf("want expectation: %s, got: %s\nreason: %v\noperation:\n%s\n", expectation, result, report.Error(), printedOperation))
 		}
+	}
+
+	run := func(operationInput string, rule Rule, expectation ValidationState, expectFailedNormalization ...bool) {
+		runWithDefinition(testDefinition, operationInput, rule, expectation, expectFailedNormalization...)
 	}
 
 	// 5.1 Documents
@@ -251,7 +254,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment aliasedLyingFieldTargetNotDefined on Dog {
 								barkVolume: kawVolume
 							}`,
-					FieldSelections(), Invalid)
+					FieldSelections(), Invalid, true)
 			})
 			t.Run("104 variant", func(t *testing.T) {
 				run(`	{
@@ -338,6 +341,434 @@ func TestExecutionValidation(t *testing.T) {
 			})
 		})
 		t.Run("5.3.2 Field Selection Merging", func(t *testing.T) {
+			t.Run("reference implementation tests", func(t *testing.T) {
+				t.Run("Same aliases allowed on non-overlapping fields", func(t *testing.T) {
+					run(`
+							fragment sameAliasesWithDifferentFieldTargets on Pet {
+								... on Dog {
+								  name
+								}
+								... on Cat {
+								  name: nickname
+								}
+						  	}`, FieldSelectionMerging(), Valid)
+				})
+				t.Run("allows different args where no conflict is possible", func(t *testing.T) {
+					run(`
+							fragment conflictingArgs on Pet {
+								... on Dog {
+								  name(surname: true)
+								}
+								... on Cat {
+								  name
+								}
+						 	 }`, FieldSelectionMerging(), Valid)
+				})
+				t.Run("encounters conflict in fragments", func(t *testing.T) {
+					run(`
+							{
+								...A
+								...B
+							}
+							fragment A on Type {
+								x: a
+							}
+							fragment B on Type {
+								x: b
+							}`, FieldSelectionMerging(), Invalid)
+				})
+				t.Run("reports each conflict once", func(t *testing.T) {
+					run(`
+							{
+								f1 {
+								  ...A
+								  ...B
+								}
+								f2 {
+								  ...B
+								  ...A
+								}
+								f3 {
+								  ...A
+								  ...B
+								  x: c
+								}
+							  }
+							  fragment A on Type {
+								x: a
+							  }
+							  fragment B on Type {
+								x: b
+							  }`, FieldSelectionMerging(), Invalid)
+				})
+				t.Run("deep conflict", func(t *testing.T) {
+					run(`
+							{
+								field {
+								  x: a
+								},
+								field {
+								  x: b
+								}
+						 	 }`, FieldSelectionMerging(), Invalid)
+				})
+				t.Run("deep conflict with multiple issues", func(t *testing.T) {
+					run(`
+							{
+								field {
+								  x: a
+								  y: c
+								},
+								field {
+								  x: b
+								  y: d
+								}
+						 	}`, FieldSelectionMerging(), Invalid)
+				})
+				t.Run("very deep conflict", func(t *testing.T) {
+					run(`
+							{
+								field {
+								  deepField {
+									x: a
+								  }
+								},
+								field {
+								  deepField {
+									x: b
+								  }
+								}
+						 	 }`, FieldSelectionMerging(), Invalid)
+				})
+				t.Run("reports deep conflict to nearest common ancestor", func(t *testing.T) {
+					run(`
+						{
+							field {
+							  deepField {
+								x: a
+							  }
+							  deepField {
+								x: b
+							  }
+							},
+							field {
+							  deepField {
+								y
+							  }
+							}
+						}`, FieldSelectionMerging(), Invalid)
+				})
+				t.Run("reports deep conflict to nearest common ancestor in fragments", func(t *testing.T) {
+					run(`
+						{
+							field {
+							  ...F
+							}
+							field {
+							  ...F
+							}
+						  }
+						  fragment F on T {
+							deepField {
+							  deeperField {
+								x: a
+							  }
+							  deeperField {
+								x: b
+							  }
+							},
+							deepField {
+							  deeperField {
+								y
+							  }
+							}
+					  	}`, FieldSelectionMerging(), Invalid)
+				})
+				t.Run("reports deep conflict in nested fragments", func(t *testing.T) {
+					run(`
+							{
+								field {
+								  ...F
+								}
+								field {
+								  ...I
+								}
+							  }
+							  fragment F on T {
+								x: a
+								...G
+							  }
+							  fragment G on T {
+								y: c
+							  }
+							  fragment I on T {
+								y: d
+								...J
+							  }
+							  fragment J on T {
+								x: b
+						 	 }`, FieldSelectionMerging(), Invalid)
+				})
+				/*
+					Why ignore when this still will result in an error because T is undefined?
+					t.Run("ignores unknown fragments", func(t *testing.T) {
+						run(`
+								{
+									field
+									...Unknown
+									...Known
+							 	 }
+							 	 fragment Known on T {
+									field
+									...OtherUnknown
+							 	 }`, FieldSelectionMerging(), Valid)
+					})*/
+				t.Run("return types must be unambiguous", func(t *testing.T) {
+					t.Run("conflicting return types which potentially overlap", func(t *testing.T) {
+						/*This is invalid since an object could potentially be both the Object
+						type IntBox and the interface type NonNullStringBox1. While that
+						condition does not exist in the current schema, the schema could
+						expand in the future to allow this. Thus it is invalid.*/
+						runWithDefinition(boxDefinition, `
+							{
+								someBox {
+							  		...on IntBox {
+										scalar
+									}
+									...on NonNullStringBox1 {
+										scalar
+									}
+								}
+							}`, FieldSelectionMerging(), Invalid)
+					})
+					t.Run("compatible return shapes on different return types", func(t *testing.T) {
+						runWithDefinition(boxDefinition, `
+							{
+								someBox {
+						  			... on SomeBox {
+										deepBox {
+								  			unrelatedField
+										}
+									}
+						 	 		... on StringBox {
+										deepBox {
+								  			unrelatedField
+										}
+							  		}
+								}
+							}`, FieldSelectionMerging(), Valid)
+					})
+					t.Run("disallows differing return types despite no overlap", func(t *testing.T) {
+						runWithDefinition(boxDefinition, `
+								{
+									someBox {
+								  		... on IntBox {
+											scalar
+								  		}
+								  		... on StringBox {
+											scalar
+								  		}
+									}
+								}`, FieldSelectionMerging(), Invalid)
+					})
+					t.Run("deeply nested", func(t *testing.T) {
+						// reports correctly when a non-exclusive follows an exclusive
+						runWithDefinition(boxDefinition, `
+								{
+									someBox {
+								  		... on IntBox {
+											deepBox {
+									  			...X
+											}
+								  		}
+									}
+									someBox {
+								  		... on StringBox {
+											deepBox {
+									  			...Y
+											}
+								  		}
+									}
+									memoed: someBox {
+								  		... on IntBox {
+											deepBox {
+									  			...X
+											}
+								  		}
+									}
+									memoed: someBox {
+								  		... on StringBox {
+											deepBox {
+									  			...Y
+											}
+								  		}
+									}
+									other: someBox {
+								  		...X
+									}
+									other: someBox {
+								  		...Y
+									}
+								}
+								fragment X on SomeBox {
+									scalar
+								}
+								fragment Y on SomeBox {
+									scalar: unrelatedField
+								}`, FieldSelectionMerging(), Invalid)
+					})
+					t.Run("disallows differing return type nullability despite no overlap", func(t *testing.T) {
+						runWithDefinition(boxDefinition, `
+								{
+									someBox {
+								  		... on NonNullStringBox1 {
+											scalar
+								  		}
+								  		... on StringBox {
+											scalar
+								  		}
+									}
+								}`, FieldSelectionMerging(), Invalid)
+					})
+					t.Run("disallows differing return type list despite no overlap", func(t *testing.T) {
+						runWithDefinition(boxDefinition, `
+								{
+									someBox {
+									  ... on IntBox {
+										box: listStringBox {
+										  scalar
+										}
+									  }
+									  ... on StringBox {
+										box: stringBox {
+										  scalar
+										}
+									  }
+									}
+							 	}`, FieldSelectionMerging(), Invalid)
+						runWithDefinition(boxDefinition, `
+								{
+									someBox {
+									  ... on IntBox {
+										box: stringBox {
+										  scalar
+										}
+									  }
+									  ... on StringBox {
+										box: listStringBox {
+										  scalar
+										}
+									  }
+									}
+								  }`, FieldSelectionMerging(), Invalid)
+					})
+					t.Run("disallows differing subfields", func(t *testing.T) {
+						runWithDefinition(boxDefinition, `
+								{
+									someBox {
+									  ... on IntBox {
+										box: stringBox {
+										  val: scalar
+										  val: unrelatedField
+										}
+									  }
+									  ... on StringBox {
+										box: stringBox {
+										  val: scalar
+										}
+									  }
+									}
+								}`, FieldSelectionMerging(), Invalid)
+					})
+					t.Run("disallows differing deep return types despite no overlap", func(t *testing.T) {
+						runWithDefinition(boxDefinition, `
+								{
+								someBox {
+								  ... on IntBox {
+									box: stringBox {
+									  scalar
+									}
+								  }
+								  ... on StringBox {
+									box: intBox {
+									  scalar
+									}
+								  }
+								}
+							}`, FieldSelectionMerging(), Invalid)
+					})
+					t.Run("allows non-conflicting overlapping types", func(t *testing.T) {
+						runWithDefinition(boxDefinition, `
+							{
+								someBox {
+								  ... on IntBox {
+									scalar: unrelatedField
+								  }
+								  ... on StringBox {
+									scalar
+								  }
+								}
+							}`, FieldSelectionMerging(), Valid)
+					})
+					t.Run("same wrapped scalar return types", func(t *testing.T) {
+						runWithDefinition(boxDefinition, `
+							{
+								someBox {
+								  ...on NonNullStringBox1 {
+									scalar
+								  }
+								  ...on NonNullStringBox2 {
+									scalar
+								  }
+								}
+							}`, FieldSelectionMerging(), Valid)
+					})
+					t.Run("allows inline typeless fragments", func(t *testing.T) {
+						run(`
+							{
+								a
+								... {
+								  a
+								}
+							  }`, FieldSelectionMerging(), Valid)
+					})
+					t.Run("compares deep types including list", func(t *testing.T) {
+						runWithDefinition(boxDefinition, `
+							{
+							connection {
+							  ...edgeID
+							  edges {
+								node {
+								  id: name
+								}
+							  }
+							}
+							}
+							fragment edgeID on Connection {
+							edges {
+							  node {
+								id
+							  }
+								}
+							}`, FieldSelectionMerging(), Invalid)
+					})
+					/*
+						Why ignore?
+						t.Run("ignores unknown types", func(t *testing.T) {
+							runWithDefinition(boxDefinition, `
+								{
+								someBox {
+								  ...on UnknownType {
+									scalar
+								  }
+								  ...on NonNullStringBox2 {
+									scalar
+								  }
+								}
+								}`, FieldSelectionMerging(), Valid)
+						})*/
+				})
+			})
 			t.Run("107", func(t *testing.T) {
 				run(`
 							fragment mergeIdenticalFields on Dog {
@@ -634,7 +1065,8 @@ func TestExecutionValidation(t *testing.T) {
 					FieldSelectionMerging(), Valid)
 			})
 			t.Run("109", func(t *testing.T) {
-				run(`	fragment mergeIdenticalFieldsWithIdenticalArgs on Dog {
+				run(`
+							fragment mergeIdenticalFieldsWithIdenticalArgs on Dog {
   								doesKnowCommand(dogCommand: SIT)
   								doesKnowCommand(dogCommand: SIT)
   							}
@@ -829,7 +1261,8 @@ func TestExecutionValidation(t *testing.T) {
 					FieldSelectionMerging(), Valid)
 			})
 			t.Run("112 variant", func(t *testing.T) {
-				run(`	fragment conflictingDifferingResponses on Pet {
+				run(`
+							fragment conflictingDifferingResponses on Pet {
 								... on Dog {
 									extra {
 										string
@@ -841,7 +1274,7 @@ func TestExecutionValidation(t *testing.T) {
 									}
 								}
 							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Valid)
 			})
 			t.Run("112 variant", func(t *testing.T) {
 				run(`	fragment conflictingDifferingResponses on Pet {
@@ -889,7 +1322,8 @@ func TestExecutionValidation(t *testing.T) {
 					FieldSelectionMerging(), Valid)
 			})
 			t.Run("112 variant", func(t *testing.T) {
-				run(`	fragment conflictingDifferingResponses on Pet {
+				run(`
+							fragment conflictingDifferingResponses on Pet {
 								... on Dog {
 									extra {
 										string
@@ -901,7 +1335,7 @@ func TestExecutionValidation(t *testing.T) {
 									}
 								}
 							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Valid)
 			})
 			t.Run("112 variant", func(t *testing.T) {
 				run(`	fragment conflictingDifferingResponses on Pet {
@@ -987,7 +1421,8 @@ func TestExecutionValidation(t *testing.T) {
 					FieldSelectionMerging(), Invalid)
 			})
 			t.Run("112 variant", func(t *testing.T) {
-				run(`	fragment conflictingDifferingResponses on Pet {
+				run(`
+							fragment conflictingDifferingResponses on Pet {
 								... on Dog {
 									extra {
 										string
@@ -1001,7 +1436,7 @@ func TestExecutionValidation(t *testing.T) {
 									}
 								}
 							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Valid)
 			})
 			t.Run("112 variant", func(t *testing.T) {
 				run(`	
@@ -2940,6 +3375,7 @@ type Field {
 }
 
 type Query {
+	a: String!
 	field: Field
 	foo: String
 	bar: String
@@ -2973,7 +3409,7 @@ enum DogCommand { SIT, DOWN, HEEL }
 type Dog implements Pet {
 	id: ID
 	name: String!
-	nickname: String
+	nickname: String!
 	barkVolume: Int
 	doesKnowCommand(dogCommand: DogCommand!): Boolean!
 	isHousetrained(atOtherHomes: Boolean): Boolean!
@@ -3014,7 +3450,7 @@ enum CatCommand { JUMP }
 
 type Cat implements Pet {
 	name: String!
-	nickname: String
+	nickname: String!
 	doesKnowCommand(catCommand: CatCommand!): Boolean!
 	meowVolume: Int
 	extra: CatExtra
@@ -3221,4 +3657,63 @@ enum __TypeKind {
     LIST
     "Indicates this type is a non-null. ofType is a valid field."
     NON_NULL
+}`
+
+const boxDefinition = `
+scalar String
+scalar ID
+scalar Int
+interface SomeBox {
+	scalar: String
+	deepBox: SomeBox
+	unrelatedField: String
+}
+type StringBox implements SomeBox {
+	scalar: String
+	deepBox: StringBox
+	unrelatedField: String
+	listStringBox: [StringBox]
+	stringBox: StringBox
+	intBox: IntBox
+}
+type IntBox implements SomeBox {
+	scalar: Int
+	deepBox: IntBox
+	unrelatedField: String
+	listStringBox: [StringBox]
+	stringBox: StringBox
+	intBox: IntBox
+}
+interface NonNullStringBox1 {
+	scalar: String!
+}
+type NonNullStringBox1Impl implements SomeBox & NonNullStringBox1 {
+	scalar: String!
+	unrelatedField: String
+	deepBox: SomeBox
+}
+interface NonNullStringBox2 {
+	scalar: String!
+}
+type NonNullStringBox2Impl implements SomeBox & NonNullStringBox2 {
+	scalar: String!
+	unrelatedField: String
+	deepBox: SomeBox
+}
+type Connection {
+	edges: [Edge]
+}
+type Edge {
+	node: Node
+}
+type Node {
+	id: ID
+	name: String
+}
+type Query {
+	someBox: SomeBox
+	connection: Connection
+}
+schema {
+	query: Query
 }`
