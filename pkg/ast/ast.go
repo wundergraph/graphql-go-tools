@@ -435,9 +435,9 @@ func (d *Document) FieldDefinitionType(ref int) int {
 	return d.FieldDefinitions[ref].Type
 }
 
-func (d *Document) FieldDefinitionTypeNodeKind(ref int) NodeKind {
+func (d *Document) FieldDefinitionTypeNode(ref int) Node {
 	typeName := d.ResolveTypeName(d.FieldDefinitions[ref].Type)
-	return d.Index.Nodes[string(typeName)].Kind
+	return d.Index.Nodes[string(typeName)]
 }
 
 func (d *Document) NodeFieldDefinitions(node Node) []int {
@@ -859,7 +859,47 @@ func (d *Document) TypesAreEqualDeep(left int, right int) bool {
 			return false
 		}
 		if d.Types[left].TypeKind == TypeKindNamed {
-			return d.Input.ByteSliceReferenceContentEquals(d.Types[left].Name, d.Types[right].Name)
+			leftName := d.TypeNameBytes(left)
+			rightName := d.TypeNameBytes(right)
+			return bytes.Equal(leftName, rightName)
+		}
+		left = d.Types[left].OfType
+		right = d.Types[right].OfType
+	}
+}
+
+func (d *Document) TypesAreCompatibleDeep(left int, right int) bool {
+	for {
+		if left == -1 || right == -1 {
+			return false
+		}
+		if d.Types[left].TypeKind != d.Types[right].TypeKind {
+			return false
+		}
+		if d.Types[left].TypeKind == TypeKindNamed {
+			leftName := d.TypeNameBytes(left)
+			rightName := d.TypeNameBytes(right)
+			if bytes.Equal(leftName, rightName) {
+				return true
+			}
+			leftNode := d.Index.Nodes[string(leftName)]
+			rightNode := d.Index.Nodes[string(rightName)]
+			if leftNode.Kind == rightNode.Kind {
+				return false
+			}
+			if leftNode.Kind == NodeKindInterfaceTypeDefinition && rightNode.Kind == NodeKindObjectTypeDefinition {
+				return d.NodeImplementsInterface(rightNode, leftNode)
+			}
+			if leftNode.Kind == NodeKindObjectTypeDefinition && rightNode.Kind == NodeKindInterfaceTypeDefinition {
+				return d.NodeImplementsInterface(leftNode, rightNode)
+			}
+			if leftNode.Kind == NodeKindUnionTypeDefinition && rightNode.Kind == NodeKindObjectTypeDefinition {
+				return d.NodeIsUnionMember(rightNode, leftNode)
+			}
+			if leftNode.Kind == NodeKindObjectTypeDefinition && rightNode.Kind == NodeKindUnionTypeDefinition {
+				return d.NodeIsUnionMember(leftNode, rightNode)
+			}
+			return false
 		}
 		left = d.Types[left].OfType
 		right = d.Types[right].OfType
@@ -2212,6 +2252,17 @@ type Field struct {
 	Directives    DirectiveList // optional
 	SelectionSet  int           // optional
 	HasSelections bool
+}
+
+func (d *Document) FieldObjectNameString(ref int) string {
+	return unsafebytes.BytesToString(d.FieldObjectNameBytes(ref))
+}
+
+func (d *Document) FieldObjectNameBytes(ref int) ByteSlice {
+	if d.Fields[ref].Alias.IsDefined {
+		return d.FieldAliasBytes(ref)
+	}
+	return d.FieldNameBytes(ref)
 }
 
 func (d *Document) FieldNameBytes(ref int) ByteSlice {
