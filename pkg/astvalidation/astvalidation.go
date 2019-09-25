@@ -243,7 +243,7 @@ type fieldSelectionMergingVisitor struct {
 	*astvisitor.Walker
 	definition, operation *ast.Document
 	scalarRequirements    scalarRequirements
-	nonScalarRequirement  nonScalarRequirements
+	nonScalarRequirements nonScalarRequirements
 	refs                  []int
 	enclosingTypeRef      int
 }
@@ -258,8 +258,8 @@ type nonScalarRequirements []nonScalarRequirement
 
 func (f *fieldSelectionMergingVisitor) NonScalarRequirementsByPathField(path operationreport.Path, objectName ast.ByteSlice) []int {
 	f.refs = f.refs[:0]
-	for i := range f.nonScalarRequirement {
-		if f.nonScalarRequirement[i].path.Equals(path) && f.nonScalarRequirement[i].objectName.Equals(objectName) {
+	for i := range f.nonScalarRequirements {
+		if f.nonScalarRequirements[i].path.Equals(path) && f.nonScalarRequirements[i].objectName.Equals(objectName) {
 			f.refs = append(f.refs, i)
 		}
 	}
@@ -272,6 +272,7 @@ type scalarRequirement struct {
 	fieldRef                int
 	fieldType               int
 	enclosingTypeDefinition ast.Node
+	fieldTypeDefinitionNode ast.Node
 }
 
 type scalarRequirements []scalarRequirement
@@ -288,7 +289,7 @@ func (f *fieldSelectionMergingVisitor) ScalarRequirementsByPathField(path operat
 
 func (f *fieldSelectionMergingVisitor) resetRequirements() {
 	f.scalarRequirements = f.scalarRequirements[:0]
-	f.nonScalarRequirement = f.nonScalarRequirement[:0]
+	f.nonScalarRequirements = f.nonScalarRequirements[:0]
 }
 
 func (f *fieldSelectionMergingVisitor) EnterDocument(operation, definition *ast.Document) {
@@ -320,15 +321,16 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 	if fieldDefinitionTypeNode.Kind != ast.NodeKindScalarTypeDefinition {
 
 		matchedRequirements := f.NonScalarRequirementsByPathField(f.Path, objectName)
+		fieldDefinitionTypeKindPresentInRequirements := false
 		for _, i := range matchedRequirements {
 
-			if !f.potentiallySameObject(fieldDefinitionTypeNode, f.nonScalarRequirement[i].fieldTypeDefinitionNode) {
-				if !objectName.Equals(f.nonScalarRequirement[i].objectName) {
-					f.StopWithExternalErr(operationreport.ErrResponseOfDifferingTypesMustBeOfSameShape(objectName, f.nonScalarRequirement[i].objectName))
+			if !f.potentiallySameObject(fieldDefinitionTypeNode, f.nonScalarRequirements[i].fieldTypeDefinitionNode) {
+				if !objectName.Equals(f.nonScalarRequirements[i].objectName) {
+					f.StopWithExternalErr(operationreport.ErrResponseOfDifferingTypesMustBeOfSameShape(objectName, f.nonScalarRequirements[i].objectName))
 					return
 				}
-			} else if !f.definition.TypesAreCompatibleDeep(f.nonScalarRequirement[i].fieldTypeRef, fieldType) {
-				left, err := f.definition.PrintTypeBytes(f.nonScalarRequirement[i].fieldTypeRef, nil)
+			} else if !f.definition.TypesAreCompatibleDeep(f.nonScalarRequirements[i].fieldTypeRef, fieldType) {
+				left, err := f.definition.PrintTypeBytes(f.nonScalarRequirements[i].fieldTypeRef, nil)
 				if err != nil {
 					f.StopWithInternalErr(err)
 					return
@@ -341,13 +343,17 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 				f.StopWithExternalErr(operationreport.ErrTypesForFieldMismatch(objectName, left, right))
 				return
 			}
+
+			if fieldDefinitionTypeNode.Kind != f.nonScalarRequirements[i].fieldTypeDefinitionNode.Kind {
+				fieldDefinitionTypeKindPresentInRequirements = true
+			}
 		}
 
-		if len(matchedRequirements) != 0 {
+		if len(matchedRequirements) != 0 && fieldDefinitionTypeKindPresentInRequirements {
 			return
 		}
 
-		f.nonScalarRequirement = append(f.nonScalarRequirement, nonScalarRequirement{
+		f.nonScalarRequirements = append(f.nonScalarRequirements, nonScalarRequirement{
 			path:                    f.Path,
 			objectName:              objectName,
 			fieldTypeRef:            fieldType,
@@ -358,6 +364,7 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 	}
 
 	matchedRequirements := f.ScalarRequirementsByPathField(f.Path, objectName)
+	fieldDefinitionTypeKindPresentInRequirements := false
 
 	for _, i := range matchedRequirements {
 		if f.potentiallySameObject(f.scalarRequirements[i].enclosingTypeDefinition, f.EnclosingTypeDefinition) {
@@ -380,9 +387,13 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 			f.StopWithExternalErr(operationreport.ErrFieldsConflict(objectName, left, right))
 			return
 		}
+
+		if fieldDefinitionTypeNode.Kind != f.scalarRequirements[i].fieldTypeDefinitionNode.Kind {
+			fieldDefinitionTypeKindPresentInRequirements = true
+		}
 	}
 
-	if len(matchedRequirements) != 0 {
+	if len(matchedRequirements) != 0 && fieldDefinitionTypeKindPresentInRequirements {
 		return
 	}
 
@@ -392,6 +403,7 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 		fieldRef:                ref,
 		fieldType:               fieldType,
 		enclosingTypeDefinition: f.EnclosingTypeDefinition,
+		fieldTypeDefinitionNode: fieldDefinitionTypeNode,
 	})
 }
 
