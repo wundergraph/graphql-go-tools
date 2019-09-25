@@ -44,7 +44,7 @@ func TestExecutionValidation(t *testing.T) {
 
 		astnormalization.NormalizeOperation(&operation, &definition, &report)
 		if report.HasErrors() {
-			if len(expectFailedNormalization) == 1 && !expectFailedNormalization[0] {
+			if (len(expectFailedNormalization) == 1 && !expectFailedNormalization[0]) || len(expectFailedNormalization) == 0 {
 				panic(report.Error())
 			}
 		}
@@ -257,12 +257,13 @@ func TestExecutionValidation(t *testing.T) {
 					FieldSelections(), Invalid, true)
 			})
 			t.Run("104 variant", func(t *testing.T) {
-				run(`	{
+				run(`
+							{
 								dog {
 									barkVolume: kawVolume
 								}
 							}`,
-					FieldSelections(), Invalid)
+					FieldSelections(), Invalid, true)
 			})
 			t.Run("103", func(t *testing.T) {
 				run(`	{
@@ -285,7 +286,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment definedOnImplementorsButNotInterface on Pet {
 								nickname
 							}`,
-					FieldSelections(), Invalid)
+					FieldSelections(), Invalid, true)
 			})
 			t.Run("105", func(t *testing.T) {
 				run(`	fragment inDirectFieldSelectionOnUnion on CatOrDog {
@@ -300,19 +301,21 @@ func TestExecutionValidation(t *testing.T) {
 					FieldSelections(), Valid)
 			})
 			t.Run("105 variant", func(t *testing.T) {
-				run(`	fragment inDirectFieldSelectionOnUnion on CatOrDog {
+				run(`
+							fragment inDirectFieldSelectionOnUnion on CatOrDog {
 								__typename
 	  							... on Pet {
 	    							name
 	  							}
 	  							... on Dog {
-	    							x
+	    							name
 	  							}
 							}`,
-					FieldSelections(), Invalid)
+					FieldSelections(), Valid)
 			})
 			t.Run("105 variant", func(t *testing.T) {
-				run(`	fragment inDirectFieldSelectionOnUnion on CatOrDog {
+				run(`
+							fragment inDirectFieldSelectionOnUnion on CatOrDog {
 								__typename
 	  							... on Pet {
 	    							name
@@ -321,14 +324,15 @@ func TestExecutionValidation(t *testing.T) {
 	    							x
 	  							}
 							}`,
-					FieldSelections(), Invalid)
+					FieldSelections(), Invalid, true)
 			})
 			t.Run("106", func(t *testing.T) {
-				run(` fragment directFieldSelectionOnUnion on CatOrDog {
+				run(`
+							fragment directFieldSelectionOnUnion on CatOrDog {
 								name
 								barkVolume
 							}`,
-					FieldSelections(), Invalid)
+					FieldSelections(), Invalid, true)
 			})
 			t.Run("106 variant", func(t *testing.T) {
 				run(`
@@ -337,7 +341,7 @@ func TestExecutionValidation(t *testing.T) {
 									name
 								}
 							}`,
-					FieldSelections(), Invalid)
+					FieldSelections(), Invalid, true)
 			})
 		})
 		t.Run("5.3.2 Field Selection Merging", func(t *testing.T) {
@@ -370,10 +374,10 @@ func TestExecutionValidation(t *testing.T) {
 								...A
 								...B
 							}
-							fragment A on Type {
+							fragment A on Query {
 								x: a
 							}
-							fragment B on Type {
+							fragment B on Query {
 								x: b
 							}`, FieldSelectionMerging(), Invalid)
 				})
@@ -394,10 +398,10 @@ func TestExecutionValidation(t *testing.T) {
 								  x: c
 								}
 							  }
-							  fragment A on Type {
+							  fragment A on Field {
 								x: a
 							  }
-							  fragment B on Type {
+							  fragment B on Field {
 								x: b
 							  }`, FieldSelectionMerging(), Invalid)
 				})
@@ -439,6 +443,21 @@ func TestExecutionValidation(t *testing.T) {
 								  }
 								}
 						 	 }`, FieldSelectionMerging(), Invalid)
+				})
+				t.Run("very deep conflict validated", func(t *testing.T) {
+					run(`
+							{
+								field {
+								  deepField {
+									x: a
+								  }
+								},
+								field {
+								  deepField {
+									x: a
+								  }
+								}
+						 	 }`, FieldSelectionMerging(), Valid)
 				})
 				t.Run("reports deep conflict to nearest common ancestor", func(t *testing.T) {
 					run(`
@@ -494,18 +513,18 @@ func TestExecutionValidation(t *testing.T) {
 								  ...I
 								}
 							  }
-							  fragment F on T {
+							  fragment F on Field {
 								x: a
 								...G
 							  }
-							  fragment G on T {
+							  fragment G on Field {
 								y: c
 							  }
-							  fragment I on T {
+							  fragment I on Field {
 								y: d
 								...J
 							  }
-							  fragment J on T {
+							  fragment J on Field {
 								x: b
 						 	 }`, FieldSelectionMerging(), Invalid)
 				})
@@ -1418,7 +1437,7 @@ func TestExecutionValidation(t *testing.T) {
 									}
 								}
 							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Invalid, true)
 			})
 			t.Run("112 variant", func(t *testing.T) {
 				run(`
@@ -1513,7 +1532,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment pet2 on Pet {
 								name1: nickname
 							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Invalid, true)
 			})
 			t.Run("112 variant", func(t *testing.T) {
 				run(`	
@@ -1617,7 +1636,8 @@ func TestExecutionValidation(t *testing.T) {
 					FieldSelectionMerging(), Valid)
 			})
 			t.Run("112 variant", func(t *testing.T) {
-				run(`	query conflictingDifferingResponses {
+				run(`
+							query conflictingDifferingResponses {
 								pet {
 									...dogFrag
 									... on Cat {
@@ -1628,7 +1648,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment dogFrag on Dog {
 								someValue: barkVolume
 							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Invalid, true)
 			})
 			t.Run("112 variant", func(t *testing.T) {
 				run(`	query conflictingDifferingResponses {
@@ -1648,12 +1668,13 @@ func TestExecutionValidation(t *testing.T) {
 					FieldSelections(), Valid)
 			})
 			t.Run("114", func(t *testing.T) {
-				run(`	fragment scalarSelectionsNotAllowedOnInt on Dog {
+				run(`
+							fragment scalarSelectionsNotAllowedOnInt on Dog {
 								barkVolume {
 									sinceWhen
 								}
 							}`,
-					FieldSelections(), Invalid)
+					FieldSelections(), Invalid, true)
 			})
 			t.Run("116", func(t *testing.T) {
 				run(`	
@@ -1669,14 +1690,16 @@ func TestExecutionValidation(t *testing.T) {
 								catOrDog
 							}`,
 					FieldSelections(), Invalid)
-				run(`	mutation directQueryOnUnionWithoutSubFields {
+				run(`
+							mutation directQueryOnUnionWithoutSubFields {
 								catOrDog
 							}`,
-					FieldSelections(), Invalid)
-				run(`	subscription directQueryOnUnionWithoutSubFields {
+					FieldSelections(), Invalid, true)
+				run(`
+							subscription directQueryOnUnionWithoutSubFields {
 								catOrDog
 							}`,
-					FieldSelections(), Invalid)
+					FieldSelections(), Invalid, true)
 			})
 		})
 	})
@@ -2035,7 +2058,7 @@ func TestExecutionValidation(t *testing.T) {
 					run(`	
 								fragment notOnExistingType on NotInSchema {
   									name
-								}`, Fragments(), Invalid)
+								}`, Fragments(), Invalid, true)
 				})
 				t.Run("129", func(t *testing.T) {
 					run(`	
@@ -2043,7 +2066,7 @@ func TestExecutionValidation(t *testing.T) {
   									... on NotInSchema {
     									name
   									}
-								}`, Fragments(), Invalid)
+								}`, Fragments(), Invalid, true)
 				})
 			})
 			t.Run("5.5.1.3 Fragments on Composite Types", func(t *testing.T) {
@@ -2074,15 +2097,16 @@ func TestExecutionValidation(t *testing.T) {
 								fragment fragOnScalar on Int {
 									something
 								}`,
-						Fragments(), Invalid)
+						Fragments(), Invalid, true)
 				})
 				t.Run("131", func(t *testing.T) {
-					run(` fragment inlineFragOnScalar on Dog {
+					run(`
+								fragment inlineFragOnScalar on Dog {
 									... on Boolean {
 										somethingElse
 									}
 								}`,
-						Fragments(), Invalid)
+						Fragments(), Invalid, true)
 				})
 			})
 			t.Run("5.5.1.4 Fragments must be used", func(t *testing.T) {
@@ -2108,7 +2132,8 @@ func TestExecutionValidation(t *testing.T) {
 						Fragments(), Invalid)
 				})
 				t.Run("132 variant", func(t *testing.T) {
-					run(`	fragment dogNames on Query {
+					run(`
+								fragment dogNames on Query {
 									dog { name }
 								}
 								{
@@ -2117,13 +2142,14 @@ func TestExecutionValidation(t *testing.T) {
 						Fragments(), Valid)
 				})
 				t.Run("132 variant", func(t *testing.T) {
-					run(`	fragment catNames on Query {
+					run(`
+								fragment catNames on Query {
 									dog { name }
 								}
 								{
 									...dogNames
 								}`,
-						Fragments(), Invalid)
+						Fragments(), Invalid, true)
 				})
 				t.Run("132 variant", func(t *testing.T) {
 					run(`	fragment dogNames on Query {
@@ -2139,12 +2165,13 @@ func TestExecutionValidation(t *testing.T) {
 		t.Run("5.5.2 Fragment Spreads", func(t *testing.T) {
 			t.Run("5.5.2.1 Fragment spread target defined", func(t *testing.T) {
 				t.Run("133", func(t *testing.T) {
-					run(`	{
+					run(`
+								{
 									dog {
 										...undefinedFragment
 									}
 								}`,
-						Fragments(), Invalid)
+						Fragments(), Invalid, true)
 				})
 			})
 			t.Run("5.5.2.2 Fragment spreads must not form cycles", func(t *testing.T) {
@@ -2184,7 +2211,7 @@ func TestExecutionValidation(t *testing.T) {
 										...dogFragment
 									}
 								}`,
-						Fragments(), Invalid)
+						Fragments(), Invalid, true)
 				})
 				t.Run("136 variant", func(t *testing.T) {
 					run(`
@@ -2205,7 +2232,7 @@ func TestExecutionValidation(t *testing.T) {
 										... { ...dogFragment }
 									}
 								}`,
-						Fragments(), Invalid)
+						Fragments(), Invalid, true)
 				})
 			})
 			t.Run("5.5.2.3 Fragment spread is possible", func(t *testing.T) {
@@ -2236,7 +2263,7 @@ func TestExecutionValidation(t *testing.T) {
 											barkVolume
 										}
 									}`,
-							Fragments(), Invalid)
+							Fragments(), Invalid, true)
 					})
 					t.Run("138", func(t *testing.T) {
 						run(`
@@ -2564,20 +2591,6 @@ func TestExecutionValidation(t *testing.T) {
 			})
 		})
 		t.Run("complex nested validation", func(t *testing.T) {
-			/*
-				input NestedInput {
-					requiredString: String!
-					requiredStringWithDefault: String! = "defaultString"
-					optionalListOfOptionalStrings: [String]
-					requiredListOfOptionalStrings: [String]!
-					requiredListOfOptionalStringsWithDefault: [String]! = []
-					requiredListOfRequiredStrings: [String!]!
-					optionalNestedInput: NestedInput
-					optionalListOfNestedInput: [NestedInput]
-				}
-
-				type Query { nested(input: NestedInput): Boolean }
-			*/
 			t.Run("complex nested 1", func(t *testing.T) {
 				run(`
 						{
@@ -2842,14 +2855,16 @@ func TestExecutionValidation(t *testing.T) {
 					DirectivesAreInValidLocations(), Invalid)
 			})
 			t.Run("150 variant", func(t *testing.T) {
-				run(`	mutation @onQuery {
-								dog
+				run(`
+							mutation @onQuery {
+								mutateDog
 							}`,
 					DirectivesAreInValidLocations(), Invalid)
 			})
 			t.Run("150 variant", func(t *testing.T) {
-				run(`	mutation @onSubscription {
-								dog
+				run(`
+							mutation @onSubscription {
+								mutateDog
 							}`,
 					DirectivesAreInValidLocations(), Invalid)
 			})
@@ -2861,8 +2876,9 @@ func TestExecutionValidation(t *testing.T) {
 					DirectivesAreInValidLocations(), Valid)
 			})
 			t.Run("150 variant", func(t *testing.T) {
-				run(`	subscription @onQuery {
-								dog
+				run(`
+							subscription @onQuery {
+								subscribeDog
 							}`,
 					DirectivesAreInValidLocations(), Invalid)
 			})
@@ -3345,6 +3361,7 @@ type Message {
 }
 
 type Subscription {
+	subscribeDog: Dog
 	newMessage: Message
 	foo: String
 	bar: String
@@ -3372,10 +3389,34 @@ input NestedInput {
 type Field {
 	subfieldA: String
 	subfieldB: String
+	deepField: DeepField
+	a: String
+	b: String
+	c: String
+	d: String
+}
+
+type DeepField {
+	a: String
+	b: String
+	y: String
+	deeperField: DeepField
+}
+
+type T {
+	deepField: DeepField
+	a: String
+	b: String
+	c: String
+	d: String
 }
 
 type Query {
+	f1: Field
+	f2: Field
+	f3: Field
 	a: String!
+	b: String!
 	field: Field
 	foo: String
 	bar: String
@@ -3400,6 +3441,7 @@ type ValidArguments {
 	floatArgField(floatArg: Float): Float
 	intArgField(intArg: Int): Int
 	nonNullBooleanArgField(nonNullBooleanArg: Boolean!): Boolean!
+	nonNullBooleanListField(nonNullBooleanListArg: [Boolean]!): Boolean!
 	booleanListArgField(booleanListArg: [Boolean]!): [Boolean]
 	optionalNonNullBooleanArgField(optionalBooleanArg: Boolean! = false): Boolean!
 }
@@ -3423,6 +3465,9 @@ type Dog implements Pet {
 
 type DogExtra {
 	string: String
+	string1: String
+	string2: String
+	string3: String
 	noString: Boolean
 	strings: [String]
 	mustStrings: [String]!
