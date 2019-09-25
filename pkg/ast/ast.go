@@ -1695,7 +1695,7 @@ func (d *Document) PrintType(ref int, w io.Writer) error {
 
 func (d *Document) PrintTypeBytes(ref int, buf []byte) ([]byte, error) {
 	if buf == nil {
-		buf = make([]byte, 24)
+		buf = make([]byte, 0, 24)
 	}
 	b := bytes.NewBuffer(buf)
 	err := d.PrintType(ref, b)
