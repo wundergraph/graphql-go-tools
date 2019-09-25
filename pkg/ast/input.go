@@ -1,6 +1,7 @@
 package ast
 
 import (
+	"bytes"
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
@@ -65,6 +66,13 @@ func (i *Input) ByteSliceReferenceContentEquals(left, right ByteSliceReference) 
 }
 
 type ByteSlice []byte
+
+func (b ByteSlice) Equals(another ByteSlice) bool {
+	if len(b) != len(another) {
+		return false
+	}
+	return bytes.Equal(b, another)
+}
 
 func (b ByteSlice) String() string {
 	return unsafebytes.BytesToString(b)
