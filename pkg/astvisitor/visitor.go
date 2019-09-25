@@ -1046,7 +1046,7 @@ func (w *Walker) appendAncestor(ref int, kind ast.NodeKind) {
 		w.Path = append(w.Path, operationreport.PathItem{
 			Kind:       operationreport.FieldName,
 			ArrayIndex: 0,
-			FieldName:  fieldName,
+			FieldName:  w.document.FieldObjectNameBytes(ref),
 		})
 		if bytes.Equal(fieldName, literal.TYPENAME) {
 			typeName = literal.STRING
