@@ -60,7 +60,6 @@ func TestOverlappingFieldsCanBeMerged(t *testing.T) {
 
 func BenchmarkOverlappingFieldsCanBeMerged(b *testing.B) {
 	multipliers := []int{1, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 200}
-	//multipliers := []int{1, 2, 3, 4, 5}
 	for _, multiplier := range multipliers {
 		multiplier := multiplier
 		b.Run("valid"+strconv.Itoa(multiplier), func(b *testing.B) {
