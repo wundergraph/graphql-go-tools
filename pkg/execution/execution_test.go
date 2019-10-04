@@ -2,6 +2,7 @@ package execution
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"github.com/cespare/xxhash"
 	"testing"
@@ -19,46 +20,200 @@ func TestExecution(t *testing.T) {
 	object := &Object{
 		Fields: []Field{
 			{
-				Name: []byte("__type"),
-				Resolve: &Resolve{
-					Args: []Argument{
-						{
-							Name:         []byte("name"),
-							VariableName: []byte("name"),
-						},
-					},
-					Resolver: &TypeResolver{},
-				},
+				Name: []byte("data"),
 				Value: &Object{
-					Path: []byte("__type"),
 					Fields: []Field{
 						{
-							Name: []byte("name"),
-							Value: &Value{
-								Path: []byte("name"),
+							Name: []byte("__type"),
+							Resolve: &Resolve{
+								Args: []Argument{
+									&ContextVariableArgument{
+										Name:         []byte("name"),
+										VariableName: []byte("name"),
+									},
+								},
+								Resolver: &TypeResolver{},
 							},
-						},
-						{
-							Name: []byte("fields"),
-							Value: &List{
-								Path: []byte("fields"),
-								Value: &Object{
-									Fields: []Field{
-										{
-											Name: []byte("name"),
-											Value: &Value{
-												Path: []byte("name"),
-											},
+							Value: &Object{
+								Path: []string{"__type"},
+								Fields: []Field{
+									{
+										Name: []byte("name"),
+										Value: &Value{
+											Path: []string{"name"},
 										},
-										{
-											Name: []byte("type"),
+									},
+									{
+										Name: []byte("fields"),
+										Value: &List{
+											Path: []string{"fields"},
 											Value: &Object{
-												Path: []byte("type"),
 												Fields: []Field{
 													{
 														Name: []byte("name"),
 														Value: &Value{
-															Path: []byte("name"),
+															Path: []string{"name"},
+														},
+													},
+													{
+														Name: []byte("type"),
+														Value: &Object{
+															Path: []string{"type"},
+															Fields: []Field{
+																{
+																	Name: []byte("name"),
+																	Value: &Value{
+																		Path: []string{"name"},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+						{
+							Name: []byte("user"),
+							Resolve: &Resolve{
+								Args: []Argument{
+									&ContextVariableArgument{
+										Name:         []byte("id"),
+										VariableName: []byte("id"),
+									},
+								},
+								Resolver: &GraphQLResolver{
+									Query:    []byte("query q1($id: String!){user{id name birthday}}"),
+									Upstream: "localhost:8001",
+									URL:      "/graphql",
+								},
+							},
+							Value: &Object{
+								Path: []string{"data", "user"},
+								Fields: []Field{
+									{
+										Name: []byte("id"),
+										Value: &Value{
+											Path: []string{"id"},
+										},
+									},
+									{
+										Name: []byte("name"),
+										Value: &Value{
+											Path: []string{"name"},
+										},
+									},
+									{
+										Name: []byte("birthday"),
+										Value: &Value{
+											Path: []string{"birthday"},
+										},
+									},
+									{
+										Name: []byte("friends"),
+										Resolve: &Resolve{
+											Args: []Argument{
+												&ObjectVariableArgument{
+													Name: []byte("id"),
+													Path: []string{"id"},
+												},
+											},
+											Resolver: &RESTResolver{
+												Upstream: "localhost:9000",
+												URL:      "/user/:id/friends",
+											},
+										},
+										Value: &List{
+											Value: &Object{
+												Fields: []Field{
+													{
+														Name: []byte("id"),
+														Value: &Value{
+															Path: []string{"id"},
+														},
+													},
+													{
+														Name: []byte("name"),
+														Value: &Value{
+															Path: []string{"name"},
+														},
+													},
+													{
+														Name: []byte("birthday"),
+														Value: &Value{
+															Path: []string{"birthday"},
+														},
+													},
+												},
+											},
+										},
+									},
+									{
+										Name: []byte("pets"),
+										Resolve: &Resolve{
+											Args: []Argument{
+												&ObjectVariableArgument{
+													Name: []byte("id"),
+													Path: []string{"id"},
+												},
+											},
+											Resolver: &GraphQLResolver{
+												Upstream: "localhost:8002",
+												URL:      "/graphql",
+												Query: []byte(`query q1($id: String!){userPets(id: $id){	__typename name nickname... on Dog {woof} ... on Cat {meow}}}`),
+											},
+										},
+										Value: &List{
+											Path: []string{"data", "userPets"},
+											Value: &Object{
+												Fields: []Field{
+													{
+														Name: []byte("__typename"),
+														Value: &Value{
+															Path: []string{"__typename"},
+														},
+													},
+													{
+														Name: []byte("name"),
+														Value: &Value{
+															Path: []string{"name"},
+														},
+													},
+													{
+														Name: []byte("nickname"),
+														Value: &Value{
+															Path: []string{"nickname"},
+														},
+													},
+													{
+														Name: []byte("woof"),
+														Value: &Value{
+															Path: []string{"woof"},
+														},
+														Skip: &IfNotEqual{
+															Left: &ObjectVariableArgument{
+																Path: []string{"__typename"},
+															},
+															Right: &StaticVariableArgument{
+																Value: []byte("Dog"),
+															},
+														},
+													},
+													{
+														Name: []byte("meow"),
+														Value: &Value{
+															Path: []string{"meow"},
+														},
+														Skip: &IfNotEqual{
+															Left: &ObjectVariableArgument{
+																Path: []string{"__typename"},
+															},
+															Right: &StaticVariableArgument{
+																Value: []byte("Cat"),
+															},
 														},
 													},
 												},
@@ -81,7 +236,19 @@ func TestExecution(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	fmt.Printf("Result:\n%s\n", out.String())
+	data := map[string]interface{}{}
+	err = json.Unmarshal(out.Bytes(), &data)
+	if err != nil {
+		fmt.Println(out.String())
+		t.Fatal(err)
+	}
+
+	pretty, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fmt.Printf("Result:\nUgly:\n%s\nPretty:\n%s\n", out.String(), string(pretty))
 }
 
 func BenchmarkExecution(b *testing.B) {
@@ -99,7 +266,7 @@ func BenchmarkExecution(b *testing.B) {
 	sizes := []int{1, 5, 10, 20, 50, 100}
 
 	for _, size := range sizes {
-		b.Run(fmt.Sprintf("size: %d", size), func(b *testing.B) {
+		b.Run(fmt.Sprintf("size:%d", size), func(b *testing.B) {
 			fields := make([]Field, 0, size)
 			for i := 0; i < size; i++ {
 				fields = append(fields, genField())
@@ -124,46 +291,131 @@ func BenchmarkExecution(b *testing.B) {
 
 func genField() Field {
 	return Field{
-		Name: []byte("__type"),
-		Resolve: &Resolve{
-			Args: []Argument{
-				{
-					Name:         []byte("name"),
-					VariableName: []byte("name"),
-				},
-			},
-			Resolver: &TypeResolver{},
-		},
+		Name: []byte("data"),
 		Value: &Object{
-			Path: []byte("__type"),
 			Fields: []Field{
 				{
-					Name: []byte("name"),
-					Value: &Value{
-						Path: []byte("name"),
+					Name: []byte("__type"),
+					Resolve: &Resolve{
+						Args: []Argument{
+							&ContextVariableArgument{
+								Name:         []byte("name"),
+								VariableName: []byte("name"),
+							},
+						},
+						Resolver: &TypeResolver{},
 					},
-				},
-				{
-					Name: []byte("fields"),
-					Value: &List{
-						Path: []byte("fields"),
-						Value: &Object{
-							Fields: []Field{
-								{
-									Name: []byte("name"),
-									Value: &Value{
-										Path: []byte("name"),
-									},
+					Value: &Object{
+						Path: []string{"__type"},
+						Fields: []Field{
+							{
+								Name: []byte("name"),
+								Value: &Value{
+									Path: []string{"name"},
 								},
-								{
-									Name: []byte("type"),
+							},
+							{
+								Name: []byte("fields"),
+								Value: &List{
+									Path: []string{"fields"},
 									Value: &Object{
-										Path: []byte("type"),
 										Fields: []Field{
 											{
 												Name: []byte("name"),
 												Value: &Value{
-													Path: []byte("name"),
+													Path: []string{"name"},
+												},
+											},
+											{
+												Name: []byte("type"),
+												Value: &Object{
+													Path: []string{"type"},
+													Fields: []Field{
+														{
+															Name: []byte("name"),
+															Value: &Value{
+																Path: []string{"name"},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					Name: []byte("user"),
+					Resolve: &Resolve{
+						Args: []Argument{
+							&ContextVariableArgument{
+								Name:         []byte("id"),
+								VariableName: []byte("id"),
+							},
+						},
+						Resolver: &GraphQLResolver{
+							Query:    []byte("query q1($id: String!){user{id name birthday}}"),
+							Upstream: "localhost:8001",
+							URL:      "/graphql",
+						},
+					},
+					Value: &Object{
+						Path: []string{"data", "user"},
+						Fields: []Field{
+							{
+								Name: []byte("id"),
+								Value: &Value{
+									Path: []string{"id"},
+								},
+							},
+							{
+								Name: []byte("name"),
+								Value: &Value{
+									Path: []string{"name"},
+								},
+							},
+							{
+								Name: []byte("birthday"),
+								Value: &Value{
+									Path: []string{"birthday"},
+								},
+							},
+							{
+								Name: []byte("friends"),
+								Resolve: &Resolve{
+									Args: []Argument{
+										&ObjectVariableArgument{
+											Name: []byte("id"),
+											Path: []string{"id"},
+										},
+									},
+									Resolver: &RESTResolver{
+										Upstream: "localhost:7001",
+										URL:      "/user/:id/friends",
+									},
+								},
+								Value: &List{
+									Value: &Object{
+										Fields: []Field{
+											{
+												Name: []byte("id"),
+												Value: &Value{
+													Path: []string{"id"},
+												},
+											},
+											{
+												Name: []byte("name"),
+												Value: &Value{
+													Path: []string{"name"},
+												},
+											},
+											{
+												Name: []byte("birthday"),
+												Value: &Value{
+													Path: []string{"birthday"},
 												},
 											},
 										},

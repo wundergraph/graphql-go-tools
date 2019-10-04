@@ -2,7 +2,6 @@ package execution
 
 import (
 	"github.com/buger/jsonparser"
-	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"io"
 )
@@ -31,11 +30,16 @@ func (e *Executor) write(data []byte) {
 func (e *Executor) resolveNode(node Node, data []byte) {
 	switch node := node.(type) {
 	case *Object:
-		if data != nil && len(node.Path) != 0 {
-			data, _, _, e.err = jsonparser.Get(data, unsafebytes.BytesToString(node.Path))
+		if data != nil && node.Path != nil {
+			data, _, _, e.err = jsonparser.Get(data, node.Path...)
 		}
 		e.write(literal.LBRACE)
 		for i := 0; i < len(node.Fields); i++ {
+			if node.Fields[i].Skip != nil {
+				if node.Fields[i].Skip.Evaluate(e.Context, data) {
+					continue
+				}
+			}
 			if i != 0 {
 				e.write(literal.COMMA)
 			}
@@ -53,7 +57,7 @@ func (e *Executor) resolveNode(node Node, data []byte) {
 		e.resolveNode(node.Value, data)
 	case *Value:
 		var dataType jsonparser.ValueType
-		data, dataType, _, e.err = jsonparser.Get(data, unsafebytes.BytesToString(node.Path))
+		data, dataType, _, e.err = jsonparser.Get(data, node.Path...)
 		quote := dataType != jsonparser.Boolean && dataType != jsonparser.Number
 		if quote {
 			e.write(literal.QUOTE)
@@ -63,6 +67,10 @@ func (e *Executor) resolveNode(node Node, data []byte) {
 			e.write(literal.QUOTE)
 		}
 	case *List:
+		if len(data) == 0 {
+			e.write(literal.NULL)
+			return
+		}
 		e.write(literal.LBRACK)
 		first := true
 		_, e.err = jsonparser.ArrayEach(data, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
@@ -72,7 +80,7 @@ func (e *Executor) resolveNode(node Node, data []byte) {
 				e.write(literal.COMMA)
 			}
 			e.resolveNode(node.Value, value)
-		}, unsafebytes.BytesToString(node.Path))
+		}, node.Path...)
 		e.write(literal.RBRACK)
 	}
 }
