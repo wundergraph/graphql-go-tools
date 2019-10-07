@@ -3,68 +3,217 @@ package execution
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/davecgh/go-spew/spew"
+	"github.com/jensneuse/diffview"
+	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
+	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 	"github.com/pkg/errors"
+	"math/rand"
+	"reflect"
 	"testing"
+	"time"
 )
 
-type TestOperation struct {
-	RawDocument string
-	Variables   map[string]interface{}
+func init() {
+	rand.Seed(time.Now().Unix())
 }
 
 func TestExecutor_Execute(t *testing.T) {
-	run := func(definition string, operation TestOperation, want string) func(t *testing.T) {
+	run := func(definition string, operation string, resolverDefinitions ResolverDefinitions, want Node) func(t *testing.T) {
 		return func(t *testing.T) {
-			/*def := unsafeparser.ParseGraphqlDocumentString(definition)
-			op := unsafeparser.ParseGraphqlDocumentString(operation.RawDocument)
+			def := unsafeparser.ParseGraphqlDocumentString(definition)
+			op := unsafeparser.ParseGraphqlDocumentString(operation)
 
-			executableOperation := Operation{
-				definition: &def,
-				operation:  &op,
-			}
-
-			if operation.Variables == nil {
-				executableOperation.Variables = make(map[string]interface{}, 0)
-			} else {
-				executableOperation.Variables = operation.Variables
-			}
-
-			planner := NewPlanner()
+			planner := NewPlanner(resolverDefinitions)
 			var report operationreport.Report
-			plan, err := planner.Plan(executableOperation, &report)
-			if err != nil {
-				t.Fatal(err)
+			got := planner.Plan(&op, &def, &report)
+			if report.HasErrors() {
+				t.Fatal(report)
 			}
 
-			executor := Executor{}
-			buff := bytes.Buffer{}
-			err = executor.Execute(plan, &buff)
-			if err != nil {
-				t.Fatal(err)
+			if !reflect.DeepEqual(want, got) {
+				diffview.NewGoland().DiffViewAny("diff", want, got)
+				t.Fatalf("want:\n%s\ngot:\n%s\n", spew.Sdump(want), spew.Sdump(got))
 			}
-
-			got := buff.String()
-			ensureJsonEqualsPretty(want, got)
-			*/
 		}
 	}
 
-	t.Run("introspection type query", run(withBaseSchema(`
+	t.Run("introspection type query", run(withBaseSchema(complexSchema), `
+				query TypeQuery($name: String! = "User") {
+					__type(name: $name) {
+						name
+						fields {
+							name
+							type {
+								name
+							}
+						}
+					}
+				}
+`, ResolverDefinitions{
+		{
+			TypeName:  literal.QUERY,
+			FieldName: literal.UNDERSCORETYPE,
+			Resolver:  &TypeResolver{},
+		},
+	}, &Object{
+		Fields: []Field{
+			{
+				Name: []byte("data"),
+				Value: &Object{
+					Fields: []Field{
+						{
+							Name: []byte("__type"),
+							Resolve: &Resolve{
+								Args: []Argument{
+									&ContextVariableArgument{
+										Name:         []byte("name"),
+										VariableName: []byte("name"),
+									},
+								},
+								Resolver: &TypeResolver{},
+							},
+							Value: &Object{
+								Path: []string{"__type"},
+								Fields: []Field{
+									{
+										Name: []byte("name"),
+										Value: &Value{
+											Path: []string{"name"},
+										},
+									},
+									{
+										Name: []byte("fields"),
+										Value: &List{
+											Path: []string{"fields"},
+											Value: &Object{
+												Fields: []Field{
+													{
+														Name: []byte("name"),
+														Value: &Value{
+															Path: []string{"name"},
+														},
+													},
+													{
+														Name: []byte("type"),
+														Value: &Object{
+															Path: []string{"type"},
+															Fields: []Field{
+																{
+																	Name: []byte("name"),
+																	Value: &Value{
+																		Path: []string{"name"},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}))
+}
 
-@directive resolveGraphQL (
+func BenchmarkPlanner_Plan(b *testing.B) {
+	def := unsafeparser.ParseGraphqlDocumentString(withBaseSchema(complexSchema))
+	op := unsafeparser.ParseGraphqlDocumentString(`query TypeQuery($name: String! = "User") {
+					__type(name: $name) {
+						name
+						fields {
+							name
+							type {
+								name
+							}
+						}
+					}
+				}`)
+
+	resolverDefinitions := ResolverDefinitions{
+		{
+			TypeName:  literal.QUERY,
+			FieldName: literal.UNDERSCORETYPE,
+			Resolver:  &TypeResolver{},
+		},
+	}
+
+	planner := NewPlanner(resolverDefinitions)
+	var report operationreport.Report
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		plan := planner.Plan(&op, &def, &report)
+		if plan.Kind() != ObjectKind {
+			b.Errorf("plan.Kind() != ObjectKind")
+		}
+	}
+}
+
+const complexExample = `
+query TypeQuery($name: String! = "User", $id: String!) {
+	__type(name: $name) {
+		name
+		fields {
+			name
+			type {
+				name
+			}
+		}
+	}
+	user(id: $id) {
+		id
+		name
+		birthday
+		friends {
+			id
+			name
+			birthday
+		}
+		pets {
+			...petsFragment
+		}
+	}
+	pets {
+		...petsFragment
+	}
+}
+fragment petsFragment on Pet {
+	__typename
+	name
+	nickname
+	... on Dog {
+		woof
+	}
+	... on Cat {
+		meow
+	}
+}`
+
+const complexSchema = `
+directive @resolveGraphQL (
 	upstream: String!
 	url: String!
 	field: String!
 	params: [Parameter]
-) ON FIELD_DEFINITION
+) on FIELD_DEFINITION
 
-@directive resolveREST (
+directive @resolveREST (
 	upstream: String!
 	url: String!
 	method: HTTP_METHOD = GET
 	params: [Parameter]
 	mappings: [Mapping]
-) ON FIELD_DEFINITION
+) on FIELD_DEFINITION
 
 input Mapping {
 	from: String!
@@ -161,82 +310,7 @@ type Cat implements Pet {
 	nickname: String!
 	meow: String!
 }
-`),
-		TestOperation{
-			RawDocument: `
-				query TypeQuery($name: String! = "User", $id: String!) {
-					__type(name: $name) {
-						name
-						fields {
-							name
-							type {
-								name
-							}
-						}
-					}
-				}
-`,
-		}, `
-			{
-			  "__type": {
-				"name": "User",
-				"fields": [
-				  {
-					"name": "id",
-					"type": { "name": "String" }
-				  },
-				  {
-					"name": "name",
-					"type": { "name": "String" }
-				  },
-				  {
-					"name": "birthday",
-					"type": { "name": "Date" }
-				  }
-				]
-			  }
-			}`))
-}
-
-const complexExample = `
-query TypeQuery($name: String! = "User", $id: String!) {
-	__type(name: $name) {
-		name
-		fields {
-			name
-			type {
-				name
-			}
-		}
-	}
-	user(id: $id) {
-		id
-		name
-		birthday
-		friends {
-			id
-			name
-			birthday
-		}
-		pets {
-			...petsFragment
-		}
-	}
-	pets {
-		...petsFragment
-	}
-}
-fragment petsFragment on Pet {
-	__typename
-	name
-	nickname
-	... on Dog {
-		woof
-	}
-	... on Cat {
-		meow
-	}
-}`
+`
 
 func ensureJsonEqualsPretty(want, got string) {
 	wantPretty := pretty(want)
@@ -451,4 +525,14 @@ enum __TypeKind {
     NON_NULL
 }
 `
+}
+
+var letterRunes = []byte("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+func randBytes(n int) []byte {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+	}
+	return b
 }

@@ -2,246 +2,172 @@ package execution
 
 import (
 	"bytes"
-	"github.com/buger/jsonparser"
-	"github.com/cespare/xxhash"
+	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
+	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
-const (
-	ObjectKind NodeKind = iota + 1
-	FieldKind
-	ListKind
-	ValueKind
-)
-
-type NodeKind int
-
-type Node interface {
-	Kind() NodeKind
+type Planner struct {
+	walker  *astvisitor.Walker
+	visitor *planningVisitor
 }
 
-type Context struct {
-	Variables Variables
+type ResolverDefinition struct {
+	TypeName  []byte
+	FieldName []byte
+	Resolver  Resolver
 }
 
-type Variables map[uint64][]byte
+type ResolverDefinitions []ResolverDefinition
 
-type Argument interface {
-	ArgName() []byte
+func (r ResolverDefinitions) DefinitionForTypeField(typeName, fieldName []byte, definition *ResolverDefinition) (exists bool) {
+	for i := 0; i < len(r); i++ {
+		if bytes.Equal(typeName, r[i].TypeName) && bytes.Equal(fieldName, r[i].FieldName) {
+			*definition = r[i]
+			return true
+		}
+	}
+	return false
 }
 
-type ContextVariableArgument struct {
-	Name         []byte
-	VariableName []byte
-}
-
-func (c *ContextVariableArgument) ArgName() []byte {
-	return c.Name
-}
-
-type ObjectVariableArgument struct {
-	Name []byte
-	Path []string
-}
-
-func (o *ObjectVariableArgument) ArgName() []byte {
-	return o.Name
-}
-
-type StaticVariableArgument struct {
-	Name  []byte
-	Value []byte
-}
-
-func (s *StaticVariableArgument) ArgName() []byte {
-	return s.Name
-}
-
-type Object struct {
-	Fields []Field
-	Path   []string
-}
-
-func (*Object) Kind() NodeKind {
-	return ObjectKind
-}
-
-type BooleanCondition interface {
-	Evaluate(ctx Context, data []byte) bool
-}
-
-type Field struct {
-	Name    []byte
-	Value   Node
-	Resolve *Resolve
-	Skip    BooleanCondition
-}
-
-type IfEqual struct {
-	Left, Right Argument
-}
-
-func (i *IfEqual) Evaluate(ctx Context, data []byte) bool {
-	var left []byte
-	var right []byte
-
-	switch value := i.Left.(type) {
-	case *ContextVariableArgument:
-		left = ctx.Variables[xxhash.Sum64(value.VariableName)]
-	case *ObjectVariableArgument:
-		left, _, _, _ = jsonparser.Get(data, value.Path...)
-	case *StaticVariableArgument:
-		left = value.Value
+func NewPlanner(resolverDefinitions ResolverDefinitions) *Planner {
+	walker := astvisitor.NewWalker(48)
+	visitor := planningVisitor{
+		Walker:              &walker,
+		resolverDefinitions: resolverDefinitions,
 	}
 
-	switch value := i.Right.(type) {
-	case *ContextVariableArgument:
-		right = ctx.Variables[xxhash.Sum64(value.VariableName)]
-	case *ObjectVariableArgument:
-		right, _, _, _ = jsonparser.Get(data, value.Path...)
-	case *StaticVariableArgument:
-		right = value.Value
+	walker.RegisterEnterDocumentVisitor(&visitor)
+	walker.RegisterEnterFieldVisitor(&visitor)
+	walker.RegisterLeaveFieldVisitor(&visitor)
+	walker.RegisterEnterOperationVisitor(&visitor)
+	walker.RegisterEnterArgumentVisitor(&visitor)
+
+	return &Planner{
+		walker:  &walker,
+		visitor: &visitor,
+	}
+}
+
+func (p *Planner) Plan(operation, definition *ast.Document, report *operationreport.Report) Node {
+	p.walker.Walk(operation, definition, report)
+	return p.visitor.rootNode
+}
+
+type planningVisitor struct {
+	*astvisitor.Walker
+	resolverDefinitions   ResolverDefinitions
+	operation, definition *ast.Document
+	rootNode              Node
+	currentNode           []Node
+	currentResolve        *Resolve
+}
+
+func (p *planningVisitor) EnterDocument(operation, definition *ast.Document) {
+	p.operation, p.definition = operation, definition
+	obj := &Object{}
+	p.rootNode = &Object{
+		Fields: []Field{
+			{
+				Name:  literal.DATA,
+				Value: obj,
+			},
+		},
+	}
+	p.currentNode = p.currentNode[:0]
+	p.currentNode = append(p.currentNode, obj)
+}
+
+func (p *planningVisitor) EnterOperationDefinition(ref int) {
+
+}
+
+func (p *planningVisitor) EnterField(ref int) {
+
+	definition, exists := p.FieldDefinition(ref)
+	if !exists {
+		return
 	}
 
-	return bytes.Equal(left, right)
-}
+	resolverTypeName := p.definition.NodeResolverTypeName(p.EnclosingTypeDefinition, p.Path)
 
-type IfNotEqual struct {
-	Left, Right Argument
-}
-
-func (i *IfNotEqual) Evaluate(ctx Context, data []byte) bool {
-	equal := IfEqual{
-		Left:  i.Left,
-		Right: i.Right,
+	var resolverDefinition ResolverDefinition
+	hasResolverDefinition := p.resolverDefinitions.DefinitionForTypeField(resolverTypeName, p.operation.FieldNameBytes(ref), &resolverDefinition)
+	if hasResolverDefinition {
+		p.currentResolve = &Resolve{
+			Resolver: resolverDefinition.Resolver,
+		}
+	} else {
+		p.currentResolve = nil
 	}
-	return !equal.Evaluate(ctx, data)
-}
 
-func (*Field) Kind() NodeKind {
-	return FieldKind
-}
+	switch parent := p.currentNode[len(p.currentNode)-1].(type) {
+	case *Object:
 
-type Value struct {
-	Path []string
-}
-
-func (*Value) Kind() NodeKind {
-	return ValueKind
-}
-
-type List struct {
-	Path  []string
-	Value Node
-}
-
-func (*List) Kind() NodeKind {
-	return ListKind
-}
-
-type Resolve struct {
-	Args     []Argument
-	Resolver Resolver
-}
-
-type Resolver interface {
-	Resolve(ctx Context, args []Argument) []byte
-}
-
-type TypeResolver struct {
-}
-
-var userType = []byte(`{
-			  "__type": {
-				"name": "User",
-				"fields": [
-				  {
-					"name": "id",
-					"type": { "name": "String" }
-				  },
-				  {
-					"name": "name",
-					"type": { "name": "String" }
-				  },
-				  {
-					"name": "birthday",
-					"type": { "name": "Date" }
-				  }
-				]
-			  }
-			}`)
-
-var userData = []byte(`
-		{
-			"data":	{
-				"user":	{
-					"id":1,
-					"name":"Jens",
-					"birthday":"08.02.1988"
-				}
+		var value Node
+		if p.definition.TypeIsList(p.definition.FieldDefinitionType(definition)) {
+			obj := &Object{}
+			list := &List{
+				Path: []string{
+					p.operation.FieldNameString(ref),
+				},
+				Value: obj,
 			}
-		}`)
 
-var friendsData = []byte(`[
-   {
-      "id":2,
-      "name":"Yaara",
-      "birthday":"1990 I guess? ;-)"
-   },
-   {
-      "id":3,
-      "name":"Ahmet",
-      "birthday":"1980"
-   }]`)
+			parent.Fields = append(parent.Fields, Field{
+				Name:    p.operation.FieldNameBytes(ref),
+				Value:   list,
+				Resolve: p.currentResolve,
+			})
 
-var petsData = []byte(`{
-   "data":{
-      "userPets":[{
-            "__typename":"Dog",
-            "name":"Paw",
-            "nickname":"Pawie",
-            "woof":"Woof! Woof!"
-         },
-         {
-            "__typename":"Cat",
-            "name":"Mietz",
-            "nickname":"Mietzie",
-            "meow":"Meow meow!"
-         }]}
-}`)
+			p.currentNode = append(p.currentNode, obj)
+			return
+		}
 
-func (t *TypeResolver) Resolve(ctx Context, args []Argument) []byte {
-	return userType
+		if !p.operation.FieldHasSelections(ref) {
+			value = &Value{
+				Path: []string{
+					p.operation.FieldNameString(ref),
+				},
+			}
+		} else {
+			value = &Object{
+				Path: []string{
+					p.operation.FieldNameString(ref),
+				},
+			}
+		}
+
+		parent.Fields = append(parent.Fields, Field{
+			Name:    p.operation.FieldNameBytes(ref),
+			Value:   value,
+			Resolve: p.currentResolve,
+		})
+
+		p.currentNode = append(p.currentNode, value)
+	}
 }
 
-type GraphQLResolver struct {
-	Upstream string
-	URL      string
-	Query    []byte
+func (p *planningVisitor) LeaveField(ref int) {
+	p.currentNode = p.currentNode[:len(p.currentNode)-1]
 }
 
-func (g *GraphQLResolver) Resolve(ctx Context, args []Argument) []byte {
-
-	if bytes.Equal(g.Query, []byte("query q1($id: String!){user{id name birthday}}")) {
-		return userData
+func (p *planningVisitor) EnterArgument(ref int) {
+	if p.Ancestors[len(p.Ancestors)-1].Kind != ast.NodeKindField {
+		return
+	}
+	if p.currentResolve == nil {
+		return
 	}
 
-	if bytes.Equal(g.Query, []byte("query q1($id: String!){userPets(id: $id){	__typename name nickname... on Dog {woof} ... on Cat {meow}}}")) {
-		return petsData
+	name := p.operation.ArgumentNameBytes(ref)
+	value := p.operation.ArgumentValue(ref)
+
+	if value.Kind == ast.ValueKindVariable {
+		p.currentResolve.Args = append(p.currentResolve.Args, &ContextVariableArgument{
+			Name:         name,
+			VariableName: p.operation.VariableValueNameBytes(value.Ref),
+		})
 	}
-
-	return []byte("query mismatch")
-}
-
-type RESTResolver struct {
-	Upstream string
-	URL      string
-}
-
-func (r *RESTResolver) Resolve(ctx Context, args []Argument) []byte {
-
-	if r.URL == "/user/:id/friends" {
-		return friendsData
-	}
-
-	return nil
 }
