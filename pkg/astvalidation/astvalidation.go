@@ -248,7 +248,7 @@ type fieldSelectionMergingVisitor struct {
 	enclosingTypeRef      int
 }
 type nonScalarRequirement struct {
-	path                    operationreport.Path
+	path                    ast.Path
 	objectName              ast.ByteSlice
 	fieldTypeRef            int
 	fieldTypeDefinitionNode ast.Node
@@ -256,7 +256,7 @@ type nonScalarRequirement struct {
 
 type nonScalarRequirements []nonScalarRequirement
 
-func (f *fieldSelectionMergingVisitor) NonScalarRequirementsByPathField(path operationreport.Path, objectName ast.ByteSlice) []int {
+func (f *fieldSelectionMergingVisitor) NonScalarRequirementsByPathField(path ast.Path, objectName ast.ByteSlice) []int {
 	f.refs = f.refs[:0]
 	for i := range f.nonScalarRequirements {
 		if f.nonScalarRequirements[i].path.Equals(path) && f.nonScalarRequirements[i].objectName.Equals(objectName) {
@@ -267,7 +267,7 @@ func (f *fieldSelectionMergingVisitor) NonScalarRequirementsByPathField(path ope
 }
 
 type scalarRequirement struct {
-	path                    operationreport.Path
+	path                    ast.Path
 	objectName              ast.ByteSlice
 	fieldRef                int
 	fieldType               int
@@ -277,7 +277,7 @@ type scalarRequirement struct {
 
 type scalarRequirements []scalarRequirement
 
-func (f *fieldSelectionMergingVisitor) ScalarRequirementsByPathField(path operationreport.Path, objectName ast.ByteSlice) []int {
+func (f *fieldSelectionMergingVisitor) ScalarRequirementsByPathField(path ast.Path, objectName ast.ByteSlice) []int {
 	f.refs = f.refs[:0]
 	for i := range f.scalarRequirements {
 		if f.scalarRequirements[i].path.Equals(path) && f.scalarRequirements[i].objectName.Equals(objectName) {
