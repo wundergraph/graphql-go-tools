@@ -393,7 +393,7 @@ func genField() Field {
 										},
 									},
 									Resolver: &RESTResolver{
-										Upstream: "localhost:7001",
+										Upstream: "localhost:9000",
 										URL:      "/user/:id/friends",
 									},
 								},
@@ -416,6 +416,75 @@ func genField() Field {
 												Name: []byte("birthday"),
 												Value: &Value{
 													Path: []string{"birthday"},
+												},
+											},
+										},
+									},
+								},
+							},
+							{
+								Name: []byte("pets"),
+								Resolve: &Resolve{
+									Args: []Argument{
+										&ObjectVariableArgument{
+											Name: []byte("id"),
+											Path: []string{"id"},
+										},
+									},
+									Resolver: &GraphQLResolver{
+										Upstream: "localhost:8002",
+										URL:      "/graphql",
+										Query: []byte(`query q1($id: String!){userPets(id: $id){	__typename name nickname... on Dog {woof} ... on Cat {meow}}}`),
+									},
+								},
+								Value: &List{
+									Path: []string{"data", "userPets"},
+									Value: &Object{
+										Fields: []Field{
+											{
+												Name: []byte("__typename"),
+												Value: &Value{
+													Path: []string{"__typename"},
+												},
+											},
+											{
+												Name: []byte("name"),
+												Value: &Value{
+													Path: []string{"name"},
+												},
+											},
+											{
+												Name: []byte("nickname"),
+												Value: &Value{
+													Path: []string{"nickname"},
+												},
+											},
+											{
+												Name: []byte("woof"),
+												Value: &Value{
+													Path: []string{"woof"},
+												},
+												Skip: &IfNotEqual{
+													Left: &ObjectVariableArgument{
+														Path: []string{"__typename"},
+													},
+													Right: &StaticVariableArgument{
+														Value: []byte("Dog"),
+													},
+												},
+											},
+											{
+												Name: []byte("meow"),
+												Value: &Value{
+													Path: []string{"meow"},
+												},
+												Skip: &IfNotEqual{
+													Left: &ObjectVariableArgument{
+														Path: []string{"__typename"},
+													},
+													Right: &StaticVariableArgument{
+														Value: []byte("Cat"),
+													},
 												},
 											},
 										},
