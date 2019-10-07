@@ -15,7 +15,7 @@ var (
 
 type Walker struct {
 	Ancestors               []ast.Node
-	Path                    operationreport.Path
+	Path                    ast.Path
 	EnclosingTypeDefinition ast.Node
 	SelectionsBefore        []int
 	SelectionsAfter         []int
@@ -33,7 +33,7 @@ type Walker struct {
 func NewWalker(ancestorSize int) Walker {
 	return Walker{
 		Ancestors:       make([]ast.Node, 0, ancestorSize),
-		Path:            make([]operationreport.PathItem, 0, ancestorSize),
+		Path:            make([]ast.PathItem, 0, ancestorSize),
 		typeDefinitions: make([]ast.Node, 0, ancestorSize),
 	}
 }
@@ -1012,20 +1012,25 @@ func (w *Walker) appendAncestor(ref int, kind ast.NodeKind) {
 
 	switch kind {
 	case ast.NodeKindOperationDefinition:
-
-		w.Path = append(w.Path, operationreport.PathItem{
-			Kind:       operationreport.FieldName,
-			ArrayIndex: 0,
-			FieldName:  w.document.OperationDefinitionNameBytes(ref),
-		})
-
 		switch w.document.OperationDefinitions[ref].OperationType {
 		case ast.OperationTypeQuery:
 			typeName = w.definition.Index.QueryTypeName
+			w.Path = append(w.Path, ast.PathItem{
+				Kind:      ast.FieldName,
+				FieldName: literal.QUERY,
+			})
 		case ast.OperationTypeMutation:
 			typeName = w.definition.Index.MutationTypeName
+			w.Path = append(w.Path, ast.PathItem{
+				Kind:      ast.FieldName,
+				FieldName: literal.MUTATION,
+			})
 		case ast.OperationTypeSubscription:
 			typeName = w.definition.Index.SubscriptionTypeName
+			w.Path = append(w.Path, ast.PathItem{
+				Kind:      ast.FieldName,
+				FieldName: literal.SUBSCRIPTION,
+			})
 		default:
 			return
 		}
@@ -1036,15 +1041,15 @@ func (w *Walker) appendAncestor(ref int, kind ast.NodeKind) {
 		typeName = w.document.InlineFragmentTypeConditionName(ref)
 	case ast.NodeKindFragmentDefinition:
 		typeName = w.document.FragmentDefinitionTypeName(ref)
-		w.Path = append(w.Path, operationreport.PathItem{
-			Kind:       operationreport.FieldName,
+		w.Path = append(w.Path, ast.PathItem{
+			Kind:       ast.FieldName,
 			ArrayIndex: 0,
 			FieldName:  typeName,
 		})
 	case ast.NodeKindField:
 		fieldName := w.document.FieldNameBytes(ref)
-		w.Path = append(w.Path, operationreport.PathItem{
-			Kind:       operationreport.FieldName,
+		w.Path = append(w.Path, ast.PathItem{
+			Kind:       ast.FieldName,
 			ArrayIndex: 0,
 			FieldName:  w.document.FieldObjectNameBytes(ref),
 		})
