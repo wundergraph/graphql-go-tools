@@ -7,7 +7,9 @@ require (
 	github.com/buger/jsonparser v0.0.0-20181115193947-bf1c66bbce23
 	github.com/cespare/xxhash v1.1.0
 	github.com/cheekybits/genny v1.0.0 // indirect
+	github.com/davecgh/go-spew v1.1.1
 	github.com/fauna/faunadb-go v2.0.1-0.20190528212028-db401cd29d12+incompatible
+	github.com/go-test/deep v1.0.4 // indirect
 	github.com/golang/mock v1.2.0
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/jensneuse/diffview v1.0.0
