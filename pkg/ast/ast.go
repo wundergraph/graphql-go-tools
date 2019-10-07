@@ -1,4 +1,4 @@
-//go:generate stringer -type=OperationType,ValueKind,TypeKind,SelectionKind,NodeKind -output ast_string.go
+//go:generate stringer -type=OperationType,ValueKind,TypeKind,SelectionKind,NodeKind,PathKind -output ast_string.go
 package ast
 
 import (
@@ -10,6 +10,8 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/runes"
 	"io"
 	"log"
+	"strconv"
+	"unsafe"
 )
 
 type OperationType int
@@ -331,6 +333,19 @@ func (d *Document) NodeIsLastRootNode(node Node) bool {
 		return false
 	}
 	return d.RootNodes[len(d.RootNodes)-1] == node
+}
+
+func (d *Document) NodeResolverTypeName(node Node, path Path) ByteSlice {
+	if len(path) == 1 && path[0].Kind == FieldName {
+		return path[0].FieldName
+	}
+	switch node.Kind {
+	case NodeKindObjectTypeDefinition:
+		return d.ObjectTypeDefinitionNameBytes(node.Ref)
+	case NodeKindInterfaceTypeDefinition:
+		return d.InterfaceTypeDefinitionNameBytes(node.Ref)
+	}
+	return nil
 }
 
 func (d *Document) NodeNameBytes(node Node) ByteSlice {
@@ -868,6 +883,17 @@ func (d *Document) TypesAreEqualDeep(left int, right int) bool {
 	}
 }
 
+func (d *Document) TypeIsList(ref int) bool {
+	switch d.Types[ref].TypeKind {
+	case TypeKindList:
+		return true
+	case TypeKindNonNull:
+		return d.TypeIsList(d.Types[ref].OfType)
+	default:
+		return false
+	}
+}
+
 func (d *Document) TypesAreCompatibleDeep(left int, right int) bool {
 	for {
 		if left == -1 || right == -1 {
@@ -1213,6 +1239,10 @@ func (d *Document) FieldDefinitionIsFirst(field int, ancestor Node) bool {
 func (d *Document) FieldDefinitionIsLast(field int, ancestor Node) bool {
 	definitions := d.NodeFieldDefinitions(ancestor)
 	return len(definitions) != 0 && definitions[len(definitions)-1] == field
+}
+
+func (d *Document) FieldDefinitionDirectives(fieldDefinition int) (refs []int) {
+	return d.FieldDefinitions[fieldDefinition].Directives.Refs
 }
 
 func (d *Document) FieldDefinitionDirectiveByName(fieldDefinition int, directiveName ByteSlice) (ref int, exists bool) {
@@ -2335,4 +2365,87 @@ func (d *Document) FragmentDefinitionNameBytes(ref int) ByteSlice {
 
 func (d *Document) FragmentDefinitionNameString(ref int) string {
 	return unsafebytes.BytesToString(d.Input.ByteSlice(d.FragmentDefinitions[ref].Name))
+}
+
+type PathKind int
+
+const (
+	UnknownPathKind PathKind = iota
+	ArrayIndex
+	FieldName
+)
+
+type PathItem struct {
+	Kind       PathKind
+	ArrayIndex int
+	FieldName  ByteSlice
+}
+
+type Path []PathItem
+
+func (p Path) Equals(another Path) bool {
+	if len(p) != len(another) {
+		return false
+	}
+	for i := range p {
+		if p[i].Kind != another[i].Kind {
+			return false
+		}
+		if p[i].Kind == ArrayIndex && p[i].ArrayIndex != another[i].ArrayIndex {
+			return false
+		} else if !bytes.Equal(p[i].FieldName, another[i].FieldName) {
+			return false
+		}
+	}
+	return true
+}
+
+func (p Path) String() string {
+	out := "["
+	for i := range p {
+		if i != 0 {
+			out += ","
+		}
+		switch p[i].Kind {
+		case ArrayIndex:
+			out += strconv.Itoa(p[i].ArrayIndex)
+		case FieldName:
+			if len(p[i].FieldName) == 0 {
+				out += "query"
+			} else {
+				out += unsafebytes.BytesToString(p[i].FieldName)
+			}
+		}
+	}
+	out += "]"
+	return out
+}
+
+func (p *PathItem) UnmarshalJSON(data []byte) error {
+	if data == nil {
+		return fmt.Errorf("data must not be nil")
+	}
+	if data[0] == '"' && data[len(data)-1] == '"' {
+		p.Kind = FieldName
+		p.FieldName = data[1 : len(data)-1]
+		return nil
+	}
+	out, err := strconv.ParseInt(*(*string)(unsafe.Pointer(&data)), 10, 64)
+	if err != nil {
+		return err
+	}
+	p.Kind = ArrayIndex
+	p.ArrayIndex = int(out)
+	return nil
+}
+
+func (p PathItem) MarshalJSON() ([]byte, error) {
+	switch p.Kind {
+	case ArrayIndex:
+		return strconv.AppendInt(nil, int64(p.ArrayIndex), 10), nil
+	case FieldName:
+		return append([]byte("\""), append(p.FieldName, []byte("\"")...)...), nil
+	default:
+		return nil, fmt.Errorf("cannot marshal unknown PathKind")
+	}
 }
