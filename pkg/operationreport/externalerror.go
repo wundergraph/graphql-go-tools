@@ -1,78 +1,19 @@
-//go:generate stringer -type PathKind -output externalerror_string.go
 package operationreport
 
 import (
-	"bytes"
 	"fmt"
-	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"strconv"
-	"unsafe"
 )
 
 type ExternalError struct {
 	Message   string     `json:"message"`
-	Path      Path       `json:"path"`
+	Path      ast.Path   `json:"path"`
 	Locations []Location `json:"locations"`
 }
 
 type Location struct {
 	Line   uint32 `json:"line"`
 	Column uint32 `json:"column"`
-}
-
-type PathKind int
-
-const (
-	UnknownPathKind PathKind = iota
-	ArrayIndex
-	FieldName
-)
-
-type PathItem struct {
-	Kind       PathKind
-	ArrayIndex int
-	FieldName  ast.ByteSlice
-}
-
-type Path []PathItem
-
-func (p Path) Equals(another Path) bool {
-	if len(p) != len(another) {
-		return false
-	}
-	for i := range p {
-		if p[i].Kind != another[i].Kind {
-			return false
-		}
-		if p[i].Kind == ArrayIndex && p[i].ArrayIndex != another[i].ArrayIndex {
-			return false
-		} else if !bytes.Equal(p[i].FieldName, another[i].FieldName) {
-			return false
-		}
-	}
-	return true
-}
-
-func (p Path) String() string {
-	out := "["
-	for i := range p {
-		if i != 0 {
-			out += ","
-		}
-		switch p[i].Kind {
-		case ArrayIndex:
-			out += strconv.Itoa(p[i].ArrayIndex)
-		case FieldName:
-			if len(p[i].FieldName) == 0 {
-				out += "query"
-			} else {
-				out += unsafebytes.BytesToString(p[i].FieldName)
-			}
-		}
-	}
-	out += "]"
-	return out
 }
 
 func ErrFieldUndefinedOnType(fieldName, typeName ast.ByteSlice) (err ExternalError) {
@@ -244,33 +185,4 @@ func ErrDirectiveNotAllowedOnNode(directiveName, nodeKindName ast.ByteSlice) (er
 func ErrDirectiveMustBeUniquePerLocation(directiveName ast.ByteSlice) (err ExternalError) {
 	err.Message = fmt.Sprintf("directive: %s must be unique per location", directiveName)
 	return err
-}
-
-func (p *PathItem) UnmarshalJSON(data []byte) error {
-	if data == nil {
-		return fmt.Errorf("data must not be nil")
-	}
-	if data[0] == '"' && data[len(data)-1] == '"' {
-		p.Kind = FieldName
-		p.FieldName = data[1 : len(data)-1]
-		return nil
-	}
-	out, err := strconv.ParseInt(*(*string)(unsafe.Pointer(&data)), 10, 64)
-	if err != nil {
-		return err
-	}
-	p.Kind = ArrayIndex
-	p.ArrayIndex = int(out)
-	return nil
-}
-
-func (p PathItem) MarshalJSON() ([]byte, error) {
-	switch p.Kind {
-	case ArrayIndex:
-		return strconv.AppendInt(nil, int64(p.ArrayIndex), 10), nil
-	case FieldName:
-		return append([]byte("\""), append(p.FieldName, []byte("\"")...)...), nil
-	default:
-		return nil, fmt.Errorf("cannot marshal unknown PathKind")
-	}
 }
