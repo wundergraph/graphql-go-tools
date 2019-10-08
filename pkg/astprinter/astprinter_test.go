@@ -42,6 +42,10 @@ func TestPrint(t *testing.T) {
 		}
 	}
 
+	t.Run("simple", func(t *testing.T) {
+		run("query o($id: String!){user(id: $id){id name birthday}}",
+			"query o($id: String!){user(id: $id){id name birthday}}")
+	})
 	t.Run("complex", func(t *testing.T) {
 		run(`	
 				subscription sub {
@@ -589,7 +593,7 @@ query VariableQuery {
 }
 `
 
-const benchmarkTestOperationFlat = `query PostsUserQuery {posts {id description user {id name}}} fragment FirstFragment on Post {id} query ArgsQuery {foo (bar: "barValue", baz: true){fooField}} query VariableQuery($bar: String, $baz: Boolean){foo (bar: $bar, baz: $baz){fooField}} query VariableQuery {posts {id @include(if: true) user}}`
+const benchmarkTestOperationFlat = `query PostsUserQuery {posts {id description user {id name}}} fragment FirstFragment on Post {id} query ArgsQuery {foo(bar: "barValue", baz: true){fooField}} query VariableQuery($bar: String, $baz: Boolean){foo(bar: $bar, baz: $baz){fooField}} query VariableQuery {posts {id @include(if: true) user}}`
 
 const benchmarkTestDefinition = `
 directive @include(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT

@@ -266,7 +266,7 @@ func (p *printVisitor) EnterField(ref int) {
 	} else {
 		p.writeIndented(p.document.Input.ByteSlice(p.document.Fields[ref].Name))
 	}
-	if p.document.FieldHasSelections(ref) || p.document.FieldHasDirectives(ref) {
+	if !p.document.FieldHasArguments(ref) && (p.document.FieldHasSelections(ref) || p.document.FieldHasDirectives(ref)) {
 		p.write(literal.SPACE)
 	}
 }
