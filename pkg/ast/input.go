@@ -35,9 +35,12 @@ func (i *Input) ResetInputString(input string) {
 	i.ResetInputBytes([]byte(input))
 }
 
-func (i *Input) AppendInputBytes(bytes []byte) {
+func (i *Input) AppendInputBytes(bytes []byte) (ref ByteSliceReference) {
+	ref.Start = uint32(len(i.RawBytes))
 	i.RawBytes = append(i.RawBytes, bytes...)
 	i.Length = len(i.RawBytes)
+	ref.End = uint32(len(i.RawBytes))
+	return
 }
 
 func (i *Input) AppendInputString(input string) {
