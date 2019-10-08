@@ -8,7 +8,6 @@ import (
 type SimpleWalker struct {
 	err              error
 	document         *ast.Document
-	definition       *ast.Document
 	Depth            int
 	Ancestors        []ast.Node
 	parentDefinition ast.Node
@@ -28,6 +27,10 @@ func (w *SimpleWalker) SetVisitor(visitor AllNodesVisitor) {
 }
 
 func (w *SimpleWalker) Walk(document, definition *ast.Document) error {
+	return w.WalkDocument(document)
+}
+
+func (w *SimpleWalker) WalkDocument(document *ast.Document) error {
 
 	if w.visitor == nil {
 		return fmt.Errorf("visitor must not be nil, use SetVisitor()")
@@ -36,7 +39,6 @@ func (w *SimpleWalker) Walk(document, definition *ast.Document) error {
 	w.err = nil
 	w.Ancestors = w.Ancestors[:0]
 	w.document = document
-	w.definition = definition
 	w.Depth = 0
 	w.walk()
 	return w.err
@@ -68,22 +70,14 @@ func (w *SimpleWalker) walk() {
 		return
 	}
 
-	w.visitor.EnterDocument(w.document, w.definition)
+	w.visitor.EnterDocument(w.document, nil)
 
 	for i := range w.document.RootNodes {
 		isLast := i == len(w.document.RootNodes)-1
 		switch w.document.RootNodes[i].Kind {
 		case ast.NodeKindOperationDefinition:
-			if w.definition == nil {
-				w.err = fmt.Errorf("definition must not be nil when walking operations")
-				return
-			}
 			w.walkOperationDefinition(w.document.RootNodes[i].Ref, isLast)
 		case ast.NodeKindFragmentDefinition:
-			if w.definition == nil {
-				w.err = fmt.Errorf("definition must not be nil when walking operations")
-				return
-			}
 			w.walkFragmentDefinition(w.document.RootNodes[i].Ref)
 		case ast.NodeKindSchemaDefinition:
 			w.walkSchemaDefinition(w.document.RootNodes[i].Ref)
@@ -118,7 +112,7 @@ func (w *SimpleWalker) walk() {
 		}
 	}
 
-	w.visitor.LeaveDocument(w.document, w.definition)
+	w.visitor.LeaveDocument(w.document, nil)
 }
 
 func (w *SimpleWalker) walkOperationDefinition(ref int, isLastRootNode bool) {
@@ -298,15 +292,6 @@ func (w *SimpleWalker) walkInlineFragment(ref int) {
 	w.visitor.LeaveInlineFragment(ref)
 
 	w.decreaseDepth()
-}
-
-func (w *SimpleWalker) inlineFragmentTypeDefinition(ref int, enclosingTypeDefinition ast.Node) ast.Node {
-	typeRef := w.document.InlineFragments[ref].TypeCondition.Type
-	if typeRef == -1 {
-		return enclosingTypeDefinition
-	}
-	typeCondition := w.document.Types[w.document.InlineFragments[ref].TypeCondition.Type]
-	return w.definition.Index.Nodes[string(w.document.Input.ByteSlice(typeCondition.Name))]
 }
 
 func (w *SimpleWalker) walkFragmentDefinition(ref int) {
@@ -638,7 +623,7 @@ func (w *SimpleWalker) walkEnumValueDefinition(ref int) {
 	w.appendAncestor(ref, ast.NodeKindEnumValueDefinition)
 
 	if w.document.EnumValueDefinitions[ref].HasDirectives {
-		for _, i := range w.definition.EnumValueDefinitions[ref].Directives.Refs {
+		for _, i := range w.document.EnumValueDefinitions[ref].Directives.Refs {
 			w.walkDirective(i)
 		}
 	}
