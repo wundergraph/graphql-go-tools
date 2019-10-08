@@ -19,7 +19,7 @@ func init() {
 	rand.Seed(time.Now().Unix())
 }
 
-func TestExecutor_Execute(t *testing.T) {
+func TestPlanner_Plan(t *testing.T) {
 	run := func(definition string, operation string, resolverDefinitions ResolverDefinitions, want Node) func(t *testing.T) {
 		return func(t *testing.T) {
 			def := unsafeparser.ParseGraphqlDocumentString(definition)
@@ -121,6 +121,77 @@ func TestExecutor_Execute(t *testing.T) {
 			},
 		},
 	}))
+	t.Run("graphql resolver", run(withBaseSchema(complexSchema), `
+			query TypeQuery($id: String!) {
+				user(id: $id) {
+					id
+					name
+					birthday
+				}
+			}`,
+		ResolverDefinitions{
+			{
+				TypeName:  literal.QUERY,
+				FieldName: []byte("user"),
+				Resolver: &GraphQLResolver{
+					Upstream: "localhost:8001",
+					URL:      "/graphql",
+				},
+			},
+		},
+		&Object{
+			Fields: []Field{
+				{
+					Name: []byte("data"),
+					Value: &Object{
+						Fields: []Field{
+							{
+								Name: []byte("user"),
+								Resolve: &Resolve{
+									Args: []Argument{
+										&StaticVariableArgument{
+											Name:  literal.QUERY,
+											Value: []byte("query o($id: String!){user(id: $id){id name birthday}}"),
+										},
+										&ContextVariableArgument{
+											Name:         []byte("id"),
+											VariableName: []byte("id"),
+										},
+									},
+									Resolver: &GraphQLResolver{
+										Upstream: "localhost:8001",
+										URL:      "/graphql",
+									},
+								},
+								Value: &Object{
+									Path: []string{"user"},
+									Fields: []Field{
+										{
+											Name: []byte("id"),
+											Value: &Value{
+												Path: []string{"id"},
+											},
+										},
+										{
+											Name: []byte("name"),
+											Value: &Value{
+												Path: []string{"name"},
+											},
+										},
+										{
+											Name: []byte("birthday"),
+											Value: &Value{
+												Path: []string{"birthday"},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}))
 }
 
 func BenchmarkPlanner_Plan(b *testing.B) {
