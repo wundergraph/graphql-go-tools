@@ -297,16 +297,25 @@ func (t *TypeResolver) Resolve(ctx Context, args []Argument) []byte {
 type GraphQLResolver struct {
 	Upstream string
 	URL      string
-	Query    []byte
 }
 
 func (g *GraphQLResolver) Resolve(ctx Context, args []Argument) []byte {
 
-	if bytes.Equal(g.Query, []byte("query q1($id: String!){user{id name birthday}}")) {
+	if len(args) < 1 {
+		return []byte("len(args) != 1")
+	}
+
+	if !bytes.Equal(args[0].ArgName(), literal.QUERY) {
+		return []byte("args[0].ArgName() != query")
+	}
+
+	queryValue := args[0].(*StaticVariableArgument).Value
+
+	if bytes.Equal(queryValue, []byte("query q1($id: String!){user{id name birthday}}")) {
 		return userData
 	}
 
-	if bytes.Equal(g.Query, []byte("query q1($id: String!){userPets(id: $id){	__typename name nickname... on Dog {woof} ... on Cat {meow}}}")) {
+	if bytes.Equal(queryValue, []byte("query q1($id: String!){userPets(id: $id){	__typename name nickname... on Dog {woof} ... on Cat {meow}}}")) {
 		return petsData
 	}
 

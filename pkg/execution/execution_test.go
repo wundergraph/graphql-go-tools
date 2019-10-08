@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/cespare/xxhash"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"testing"
 )
 
@@ -80,13 +81,16 @@ func TestExecution(t *testing.T) {
 							Name: []byte("user"),
 							Resolve: &Resolve{
 								Args: []Argument{
+									&StaticVariableArgument{
+										Name:  literal.QUERY,
+										Value: []byte("query q1($id: String!){user{id name birthday}}"),
+									},
 									&ContextVariableArgument{
 										Name:         []byte("id"),
 										VariableName: []byte("id"),
 									},
 								},
 								Resolver: &GraphQLResolver{
-									Query:    []byte("query q1($id: String!){user{id name birthday}}"),
 									Upstream: "localhost:8001",
 									URL:      "/graphql",
 								},
@@ -155,6 +159,10 @@ func TestExecution(t *testing.T) {
 										Name: []byte("pets"),
 										Resolve: &Resolve{
 											Args: []Argument{
+												&StaticVariableArgument{
+													Name: literal.QUERY,
+													Value: []byte(`query q1($id: String!){userPets(id: $id){	__typename name nickname... on Dog {woof} ... on Cat {meow}}}`),
+												},
 												&ObjectVariableArgument{
 													Name: []byte("id"),
 													Path: []string{"id"},
@@ -163,7 +171,6 @@ func TestExecution(t *testing.T) {
 											Resolver: &GraphQLResolver{
 												Upstream: "localhost:8002",
 												URL:      "/graphql",
-												Query: []byte(`query q1($id: String!){userPets(id: $id){	__typename name nickname... on Dog {woof} ... on Cat {meow}}}`),
 											},
 										},
 										Value: &List{
@@ -351,13 +358,16 @@ func genField() Field {
 					Name: []byte("user"),
 					Resolve: &Resolve{
 						Args: []Argument{
+							&StaticVariableArgument{
+								Name:  literal.QUERY,
+								Value: []byte("query q1($id: String!){user{id name birthday}}"),
+							},
 							&ContextVariableArgument{
 								Name:         []byte("id"),
 								VariableName: []byte("id"),
 							},
 						},
 						Resolver: &GraphQLResolver{
-							Query:    []byte("query q1($id: String!){user{id name birthday}}"),
 							Upstream: "localhost:8001",
 							URL:      "/graphql",
 						},
@@ -426,6 +436,10 @@ func genField() Field {
 								Name: []byte("pets"),
 								Resolve: &Resolve{
 									Args: []Argument{
+										&StaticVariableArgument{
+											Name: literal.QUERY,
+											Value: []byte(`query q1($id: String!){userPets(id: $id){	__typename name nickname... on Dog {woof} ... on Cat {meow}}}`),
+										},
 										&ObjectVariableArgument{
 											Name: []byte("id"),
 											Path: []string{"id"},
@@ -434,7 +448,6 @@ func genField() Field {
 									Resolver: &GraphQLResolver{
 										Upstream: "localhost:8002",
 										URL:      "/graphql",
-										Query: []byte(`query q1($id: String!){userPets(id: $id){	__typename name nickname... on Dog {woof} ... on Cat {meow}}}`),
 									},
 								},
 								Value: &List{
