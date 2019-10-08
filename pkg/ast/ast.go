@@ -567,6 +567,10 @@ func (d *Document) NodeByName(name ByteSlice) (Node, bool) {
 	return node, exists
 }
 
+func (d *Document) FieldHasArguments(ref int) bool {
+	return d.Fields[ref].HasArguments
+}
+
 func (d *Document) FieldHasSelections(ref int) bool {
 	return d.Fields[ref].HasSelections
 }
@@ -2448,4 +2452,20 @@ func (p PathItem) MarshalJSON() ([]byte, error) {
 	default:
 		return nil, fmt.Errorf("cannot marshal unknown PathKind")
 	}
+}
+
+func (d *Document) ImportType(otherTypeRef int, sourceDocument *Document) int {
+	sourceType := sourceDocument.Types[otherTypeRef]
+	importType := Type{
+		TypeKind: sourceType.TypeKind,
+		OfType:   -1,
+	}
+	if sourceType.OfType != -1 {
+		importType.OfType = d.ImportType(sourceType.OfType, sourceDocument)
+	}
+	if sourceType.TypeKind == TypeKindNamed {
+		importType.Name = d.Input.AppendInputBytes(sourceDocument.Input.ByteSlice(sourceType.Name))
+	}
+	d.Types = append(d.Types, importType)
+	return len(d.Types) - 1
 }
