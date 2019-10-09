@@ -63,6 +63,8 @@ var (
 	FRAGMENT       = []byte("fragment")
 	NULL           = []byte("null")
 	DATA           = []byte("data")
+	URL            = []byte("url")
+	PARAMS         = []byte("params")
 
 	TRUE  = []byte("true")
 	FALSE = []byte("false")
