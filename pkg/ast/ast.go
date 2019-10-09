@@ -665,7 +665,7 @@ func (d *Document) ObjectField(ref int) ObjectField {
 	return d.ObjectFields[ref]
 }
 
-func (d *Document) ObjectFieldName(ref int) ByteSlice {
+func (d *Document) ObjectFieldNameBytes(ref int) ByteSlice {
 	return d.Input.ByteSlice(d.ObjectFields[ref].Name)
 }
 
@@ -674,7 +674,7 @@ func (d *Document) ObjectFieldValue(ref int) Value {
 }
 
 func (d *Document) ObjectFieldsAreEqual(left, right int) bool {
-	return bytes.Equal(d.ObjectFieldName(left), d.ObjectFieldName(right)) &&
+	return bytes.Equal(d.ObjectFieldNameBytes(left), d.ObjectFieldNameBytes(right)) &&
 		d.ValuesAreEqual(d.ObjectFieldValue(left), d.ObjectFieldValue(right))
 }
 
@@ -803,6 +803,16 @@ func (d *Document) DirectiveNameString(ref int) string {
 
 func (d *Document) DirectiveArgumentSet(ref int) []int {
 	return d.Directives[ref].Arguments.Refs
+}
+
+func (d *Document) DirectiveArgumentValueByName(ref int, name ByteSlice) (Value, bool) {
+	for i := 0; i < len(d.Directives[ref].Arguments.Refs); i++ {
+		arg := d.Directives[ref].Arguments.Refs[i]
+		if bytes.Equal(d.ArgumentNameBytes(arg), name) {
+			return d.ArgumentValue(arg), true
+		}
+	}
+	return Value{}, false
 }
 
 func (d *Document) DirectivesAreEqual(left, right int) bool {
@@ -1394,7 +1404,7 @@ func (d *Document) PrintValue(value Value, w io.Writer) (err error) {
 	case ValueKindObject:
 		_, err = w.Write(literal.LBRACE)
 		for i, j := range d.ObjectValues[value.Ref].Refs {
-			_, err = w.Write(d.ObjectFieldName(j))
+			_, err = w.Write(d.ObjectFieldNameBytes(j))
 			if err != nil {
 				return
 			}
