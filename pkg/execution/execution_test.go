@@ -120,6 +120,10 @@ func TestExecution(t *testing.T) {
 										Name: []byte("friends"),
 										Resolve: &Resolve{
 											Args: []Argument{
+												&StaticVariableArgument{
+													Name:  literal.URL,
+													Value: []byte("/user/:id/friends"),
+												},
 												&ObjectVariableArgument{
 													Name: []byte("id"),
 													Path: []string{"id"},
@@ -127,7 +131,6 @@ func TestExecution(t *testing.T) {
 											},
 											Resolver: &RESTResolver{
 												Upstream: "localhost:9000",
-												URL:      "/user/:id/friends",
 											},
 										},
 										Value: &List{
@@ -397,6 +400,10 @@ func genField() Field {
 								Name: []byte("friends"),
 								Resolve: &Resolve{
 									Args: []Argument{
+										&StaticVariableArgument{
+											Name:  literal.URL,
+											Value: []byte("/user/:id/friends"),
+										},
 										&ObjectVariableArgument{
 											Name: []byte("id"),
 											Path: []string{"id"},
@@ -404,7 +411,6 @@ func genField() Field {
 									},
 									Resolver: &RESTResolver{
 										Upstream: "localhost:9000",
-										URL:      "/user/:id/friends",
 									},
 								},
 								Value: &List{

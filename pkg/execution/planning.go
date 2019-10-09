@@ -108,9 +108,88 @@ func (p *planningVisitor) EnterField(ref int) {
 	var resolverDefinition ResolverDefinition
 	hasResolverDefinition := p.resolverDefinitions.DefinitionForTypeField(resolverTypeName, p.operation.FieldNameBytes(ref), &resolverDefinition)
 	if hasResolverDefinition {
+
 		doc := ast.NewDocument()
+		params := p.resolverDirectiveParamObjectValues(ref, resolverDefinition)
+		args := make([]int, len(params))
+		variableDefinitions := make([]int, len(params))
+		resolveArgs := make([]Argument, 0, len(params))
+		for i := 0; i < len(params); i++ {
+			doc.VariableValues = append(doc.VariableValues, ast.VariableValue{
+				Name: doc.Input.AppendInputBytes(params[i].sourceName),
+			})
+			variableRef := len(doc.VariableValues) - 1
+			variableValue := ast.Value{
+				Kind: ast.ValueKindVariable,
+				Ref:  variableRef,
+			}
+			doc.Arguments = append(doc.Arguments, ast.Argument{
+				Name:  doc.Input.AppendInputBytes(params[i].name),
+				Value: variableValue,
+			})
+			args[i] = len(doc.Arguments) - 1
+
+			doc.Types = append(doc.Types, ast.Type{
+				TypeKind: ast.TypeKindNamed,
+				Name:     doc.Input.AppendInputBytes([]byte("String")),
+				OfType:   -1,
+			})
+
+			stringTypeRef := len(doc.Types) - 1
+			doc.Types = append(doc.Types, ast.Type{
+				TypeKind: ast.TypeKindNonNull,
+				OfType:   stringTypeRef,
+			})
+
+			nonNullTypeRef := len(doc.Types) - 1
+
+			doc.VariableDefinitions = append(doc.VariableDefinitions, ast.VariableDefinition{
+				VariableValue: variableValue,
+				Type:          nonNullTypeRef,
+			})
+			variableDefinitions[i] = len(doc.VariableDefinitions) - 1
+
+			/*
+				CONTEXT_VARIABLE
+				OBJECT_VARIABLE_ARGUMENT
+				FIELD_ARGUMENTS
+			*/
+
+			switch {
+			case bytes.Equal(params[i].sourceKind, []byte("CONTEXT_VARIABLE")):
+				resolveArgs = append(resolveArgs, &ContextVariableArgument{
+					Name:         params[i].name,
+					VariableName: params[i].sourceName,
+				})
+			case bytes.Equal(params[i].sourceKind, []byte("OBJECT_VARIABLE_ARGUMENT")):
+				resolveArgs = append(resolveArgs, &ObjectVariableArgument{
+					Name: params[i].sourceName,
+					Path: []string{string(params[i].sourceName)},
+				})
+			case bytes.Equal(params[i].sourceKind, []byte("FIELD_ARGUMENTS")):
+				arg, exists := p.operation.FieldArgument(ref, params[i].sourceName)
+				if !exists {
+					return
+				}
+				value := p.operation.ArgumentValue(arg)
+				if value.Kind != ast.ValueKindVariable {
+					return
+				}
+				variableName := p.operation.VariableValueNameBytes(value.Ref)
+				resolveArgs = append(resolveArgs, &ContextVariableArgument{
+					Name:         params[i].sourceName,
+					VariableName: variableName,
+				})
+			}
+		}
+
 		field := ast.Field{
-			Name: doc.Input.AppendInputBytes(p.operation.FieldNameBytes(ref)),
+			//Name: doc.Input.AppendInputBytes(p.operation.FieldNameBytes(ref)),
+			Name: doc.Input.AppendInputBytes(p.resolverDirectiveFieldName(ref, resolverDefinition)),
+			Arguments: ast.ArgumentList{
+				Refs: args,
+			},
+			HasArguments: len(args) != 0,
 		}
 		doc.Fields = append(doc.Fields, field)
 		fieldRef := len(doc.Fields) - 1
@@ -130,6 +209,10 @@ func (p *planningVisitor) EnterField(ref int) {
 			OperationType: p.operation.OperationDefinitions[p.Ancestors[0].Ref].OperationType,
 			SelectionSet:  setRef,
 			HasSelections: true,
+			VariableDefinitions: ast.VariableDefinitionList{
+				Refs: variableDefinitions,
+			},
+			HasVariableDefinitions: len(variableDefinitions) != 0,
 		}
 		doc.OperationDefinitions = append(doc.OperationDefinitions, operationDefinition)
 		operationDefinitionRef := len(doc.OperationDefinitions) - 1
@@ -140,6 +223,7 @@ func (p *planningVisitor) EnterField(ref int) {
 		resolve := &resolveRef{
 			resolve: &Resolve{
 				Resolver: resolverDefinition.Resolver,
+				Args:     resolveArgs,
 			},
 			path:     p.Path,
 			fieldRef: ref,
@@ -182,13 +266,33 @@ func (p *planningVisitor) EnterField(ref int) {
 	switch parent := p.currentNode[len(p.currentNode)-1].(type) {
 	case *Object:
 
+		var resolve *Resolve
+		resolveRef := p.currentResolve[len(p.currentResolve)-1]
+		if resolveRef.path.Equals(p.Path) && resolveRef.fieldRef == ref {
+			resolve = resolveRef.resolve
+		}
+
+		path := []string{
+			p.operation.FieldNameString(ref),
+		}
+		if hasResolverDefinition {
+			fieldName := p.resolverDirectiveFieldName(ref, resolverDefinition)
+			if len(fieldName) != 0 {
+				path[0] = string(fieldName)
+			}
+		}
+		if resolve != nil {
+			switch resolve.Resolver.(type) {
+			case *RESTResolver:
+				path = nil
+			}
+		}
+
 		var value Node
 		if p.definition.TypeIsList(p.definition.FieldDefinitionType(definition)) {
 			obj := &Object{}
 			list := &List{
-				Path: []string{
-					p.operation.FieldNameString(ref),
-				},
+				Path:  path,
 				Value: obj,
 			}
 
@@ -210,22 +314,12 @@ func (p *planningVisitor) EnterField(ref int) {
 
 		if !p.operation.FieldHasSelections(ref) {
 			value = &Value{
-				Path: []string{
-					p.operation.FieldNameString(ref),
-				},
+				Path: path,
 			}
 		} else {
 			value = &Object{
-				Path: []string{
-					p.operation.FieldNameString(ref),
-				},
+				Path: path,
 			}
-		}
-
-		var resolve *Resolve
-		resolveRef := p.currentResolve[len(p.currentResolve)-1]
-		if resolveRef.path.Equals(p.Path) && resolveRef.fieldRef == ref {
-			resolve = resolveRef.resolve
 		}
 
 		parent.Fields = append(parent.Fields, Field{
@@ -242,6 +336,26 @@ func (p *planningVisitor) LeaveField(ref int) {
 	resolve := p.currentResolve[len(p.currentResolve)-1]
 	if resolve.path.Equals(p.Path) && resolve.fieldRef == ref {
 		switch resolve.resolve.Resolver.(type) {
+		case *RESTResolver:
+			definition, exists := p.FieldDefinition(ref)
+			if !exists {
+				return
+			}
+			directive, exists := p.definition.FieldDefinitionDirectiveByName(definition, []byte("resolveREST"))
+			if !exists {
+				return
+			}
+			value, exists := p.definition.DirectiveArgumentValueByName(directive, literal.URL)
+			if !exists {
+				return
+			}
+			urlValue := p.definition.StringValueContent(value.Ref)
+			arg := &StaticVariableArgument{
+				Name:  literal.URL,
+				Value: urlValue,
+			}
+			resolve.resolve.Args = append([]Argument{arg}, resolve.resolve.Args...)
+
 		case *GraphQLResolver:
 			buff := bytes.Buffer{}
 			err := astprinter.Print(resolve.document, nil, &buff)
@@ -264,7 +378,7 @@ func (p *planningVisitor) LeaveField(ref int) {
 
 func (p *planningVisitor) EnterArgument(ref int) {
 
-	resolve := p.currentResolve[len(p.currentResolve)-1]
+	/*resolve := p.currentResolve[len(p.currentResolve)-1]
 
 	name := p.operation.ArgumentNameBytes(ref)
 	value := p.operation.ArgumentValue(ref)
@@ -313,7 +427,7 @@ func (p *planningVisitor) EnterArgument(ref int) {
 		operationRef := resolve.document.RootNodes[0].Ref
 		resolve.document.OperationDefinitions[operationRef].HasVariableDefinitions = true
 		resolve.document.OperationDefinitions[operationRef].VariableDefinitions.Refs = append(resolve.document.OperationDefinitions[operationRef].VariableDefinitions.Refs, variableDefinitionRef)
-	}
+	}*/
 }
 
 func (p *planningVisitor) EnterSelectionSet(ref int) {
@@ -343,4 +457,80 @@ func (p *planningVisitor) LeaveSelectionSet(ref int) {
 	}
 	resolve := p.currentResolve[len(p.currentResolve)-1]
 	resolve.currentNode = resolve.currentNode[:len(resolve.currentNode)-1]
+}
+
+func (p *planningVisitor) resolverDirectiveParamObjectValues(field int, resolverDefinition ResolverDefinition) []ResolverParameter {
+	definition, exists := p.FieldDefinition(field)
+	if !exists {
+		return nil
+	}
+
+	directive, exists := p.definition.FieldDefinitionDirectiveByName(definition, resolverDefinition.Resolver.DirectiveName())
+	if !exists {
+		return nil
+	}
+
+	paramsList, exists := p.definition.DirectiveArgumentValueByName(directive, []byte("params"))
+	if !exists {
+		return nil
+	}
+
+	if paramsList.Kind != ast.ValueKindList {
+		return nil
+	}
+
+	objectValues := p.definition.ListValues[paramsList.Ref].Refs
+	params := make([]ResolverParameter, len(objectValues))
+	for i := 0; i < len(objectValues); i++ {
+		value := p.definition.Value(objectValues[i])
+		if value.Kind != ast.ValueKindObject {
+			return nil
+		}
+		objectValue := p.definition.ObjectValues[value.Ref]
+		for j := 0; j < len(objectValue.Refs); j++ {
+			objectField := objectValue.Refs[j]
+			fieldName := p.definition.ObjectFieldNameBytes(objectField)
+			switch {
+			case bytes.Equal(fieldName, []byte("name")):
+				params[i].name = p.definition.StringValueContent(p.definition.ObjectFieldValue(objectField).Ref)
+			case bytes.Equal(fieldName, []byte("sourceKind")):
+				params[i].sourceKind = p.definition.EnumValueNameBytes(p.definition.ObjectFieldValue(objectField).Ref)
+			case bytes.Equal(fieldName, []byte("sourceName")):
+				params[i].sourceName = p.definition.StringValueContent(p.definition.ObjectFieldValue(objectField).Ref)
+			case bytes.Equal(fieldName, []byte("variableType")):
+				params[i].variableType = p.definition.StringValueContent(p.definition.ObjectFieldValue(objectField).Ref)
+			}
+		}
+	}
+	return params
+}
+
+type ResolverParameter struct {
+	name         []byte
+	sourceKind   []byte
+	sourceName   []byte
+	variableType []byte
+}
+
+func (p *planningVisitor) resolverDirectiveFieldName(field int, resolverDefinition ResolverDefinition) []byte {
+	definition, exists := p.FieldDefinition(field)
+	if !exists {
+		return nil
+	}
+
+	directive, exists := p.definition.FieldDefinitionDirectiveByName(definition, resolverDefinition.Resolver.DirectiveName())
+	if !exists {
+		return nil
+	}
+
+	value, exists := p.definition.DirectiveArgumentValueByName(directive, []byte("field"))
+	if !exists {
+		return nil
+	}
+
+	if value.Kind != ast.ValueKindString {
+		return nil
+	}
+
+	return p.definition.StringValueContent(value.Ref)
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/davecgh/go-spew/spew"
+	"github.com/go-test/deep"
 	"github.com/jensneuse/diffview"
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
@@ -33,6 +34,7 @@ func TestPlanner_Plan(t *testing.T) {
 			}
 
 			if !reflect.DeepEqual(want, got) {
+				fmt.Println(deep.Equal(want, got))
 				diffview.NewGoland().DiffViewAny("diff", want, got)
 				t.Fatalf("want:\n%s\ngot:\n%s\n", spew.Sdump(want), spew.Sdump(got))
 			}
@@ -122,7 +124,7 @@ func TestPlanner_Plan(t *testing.T) {
 		},
 	}))
 	t.Run("graphql resolver", run(withBaseSchema(complexSchema), `
-			query TypeQuery($id: String!) {
+			query UserQuery($id: String!) {
 				user(id: $id) {
 					id
 					name
@@ -182,6 +184,382 @@ func TestPlanner_Plan(t *testing.T) {
 											Name: []byte("birthday"),
 											Value: &Value{
 												Path: []string{"birthday"},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}))
+	t.Run("rest resolver", run(withBaseSchema(complexSchema), `
+				query UserQuery($id: String!) {
+					restUser(id: $id) {
+						id
+						name
+						birthday
+					}
+				}`,
+		ResolverDefinitions{
+			{
+				Resolver: &RESTResolver{
+					Upstream: "localhost:9001",
+				},
+				TypeName:  literal.QUERY,
+				FieldName: []byte("restUser"),
+			},
+		},
+		&Object{
+			Fields: []Field{
+				{
+					Name: []byte("data"),
+					Value: &Object{
+						Fields: []Field{
+							{
+								Name: []byte("restUser"),
+								Resolve: &Resolve{
+									Args: []Argument{
+										&StaticVariableArgument{
+											Name:  literal.URL,
+											Value: []byte("/user/:id"),
+										},
+										&ContextVariableArgument{
+											Name:         []byte("id"),
+											VariableName: []byte("id"),
+										},
+									},
+									Resolver: &RESTResolver{
+										Upstream: "localhost:9001",
+									},
+								},
+								Value: &Object{
+									Fields: []Field{
+										{
+											Name: []byte("id"),
+											Value: &Value{
+												Path: []string{"id"},
+											},
+										},
+										{
+											Name: []byte("name"),
+											Value: &Value{
+												Path: []string{"name"},
+											},
+										},
+										{
+											Name: []byte("birthday"),
+											Value: &Value{
+												Path: []string{"birthday"},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	))
+	t.Run("graphql resolver with nested rest resolver", run(withBaseSchema(complexSchema), `
+			query UserQuery($id: String!) {
+				user(id: $id) {
+					id
+					name
+					birthday
+					friends {
+						id
+						name
+						birthday
+					}
+				}
+			}`,
+		ResolverDefinitions{
+			{
+				TypeName:  literal.QUERY,
+				FieldName: []byte("user"),
+				Resolver: &GraphQLResolver{
+					Upstream: "localhost:8001",
+					URL:      "/graphql",
+				},
+			},
+			{
+				TypeName:  []byte("User"),
+				FieldName: []byte("friends"),
+				Resolver: &RESTResolver{
+					Upstream: "localhost:9000",
+				},
+			},
+		},
+		&Object{
+			Fields: []Field{
+				{
+					Name: []byte("data"),
+					Value: &Object{
+						Fields: []Field{
+							{
+								Name: []byte("user"),
+								Resolve: &Resolve{
+									Args: []Argument{
+										&StaticVariableArgument{
+											Name:  literal.QUERY,
+											Value: []byte("query o($id: String!){user(id: $id){id name birthday}}"),
+										},
+										&ContextVariableArgument{
+											Name:         []byte("id"),
+											VariableName: []byte("id"),
+										},
+									},
+									Resolver: &GraphQLResolver{
+										Upstream: "localhost:8001",
+										URL:      "/graphql",
+									},
+								},
+								Value: &Object{
+									Path: []string{"user"},
+									Fields: []Field{
+										{
+											Name: []byte("id"),
+											Value: &Value{
+												Path: []string{"id"},
+											},
+										},
+										{
+											Name: []byte("name"),
+											Value: &Value{
+												Path: []string{"name"},
+											},
+										},
+										{
+											Name: []byte("birthday"),
+											Value: &Value{
+												Path: []string{"birthday"},
+											},
+										},
+										{
+											Name: []byte("friends"),
+											Resolve: &Resolve{
+												Args: []Argument{
+													&StaticVariableArgument{
+														Name:  literal.URL,
+														Value: []byte("/user/:id/friends"),
+													},
+													&ObjectVariableArgument{
+														Name: []byte("id"),
+														Path: []string{"id"},
+													},
+												},
+												Resolver: &RESTResolver{
+													Upstream: "localhost:9000",
+												},
+											},
+											Value: &List{
+												Value: &Object{
+													Fields: []Field{
+														{
+															Name: []byte("id"),
+															Value: &Value{
+																Path: []string{"id"},
+															},
+														},
+														{
+															Name: []byte("name"),
+															Value: &Value{
+																Path: []string{"name"},
+															},
+														},
+														{
+															Name: []byte("birthday"),
+															Value: &Value{
+																Path: []string{"birthday"},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}))
+	/*
+		__typename
+		name
+		nickname
+		... on Dog {
+			woof
+		}
+		... on Cat {
+			meow
+		}
+	*/
+
+	//Value: []byte("query o($userId: String!){userPets(userId: $userId){__typename name nickname ... on Dog {woof} ... on Cat {meow}}}"),
+
+	t.Run("nested rest and graphql resolver", run(withBaseSchema(complexSchema), `
+			query UserQuery($id: String!) {
+				user(id: $id) {
+					id
+					name
+					birthday
+					friends {
+						id
+						name
+						birthday
+					}
+					pets {
+						nickname
+					}
+				}
+			}`,
+		ResolverDefinitions{
+			{
+				TypeName:  literal.QUERY,
+				FieldName: []byte("user"),
+				Resolver: &GraphQLResolver{
+					Upstream: "localhost:8001",
+					URL:      "/graphql",
+				},
+			},
+			{
+				TypeName:  []byte("User"),
+				FieldName: []byte("friends"),
+				Resolver: &RESTResolver{
+					Upstream: "localhost:9000",
+				},
+			},
+			{
+				TypeName:  []byte("User"),
+				FieldName: []byte("pets"),
+				Resolver: &GraphQLResolver{
+					Upstream: "localhost:8002",
+					URL:      "/graphql",
+				},
+			},
+		},
+		&Object{
+			Fields: []Field{
+				{
+					Name: []byte("data"),
+					Value: &Object{
+						Fields: []Field{
+							{
+								Name: []byte("user"),
+								Resolve: &Resolve{
+									Args: []Argument{
+										&StaticVariableArgument{
+											Name:  literal.QUERY,
+											Value: []byte("query o($id: String!){user(id: $id){id name birthday}}"),
+										},
+										&ContextVariableArgument{
+											Name:         []byte("id"),
+											VariableName: []byte("id"),
+										},
+									},
+									Resolver: &GraphQLResolver{
+										Upstream: "localhost:8001",
+										URL:      "/graphql",
+									},
+								},
+								Value: &Object{
+									Path: []string{"user"},
+									Fields: []Field{
+										{
+											Name: []byte("id"),
+											Value: &Value{
+												Path: []string{"id"},
+											},
+										},
+										{
+											Name: []byte("name"),
+											Value: &Value{
+												Path: []string{"name"},
+											},
+										},
+										{
+											Name: []byte("birthday"),
+											Value: &Value{
+												Path: []string{"birthday"},
+											},
+										},
+										{
+											Name: []byte("friends"),
+											Resolve: &Resolve{
+												Args: []Argument{
+													&StaticVariableArgument{
+														Name:  literal.URL,
+														Value: []byte("/user/:id/friends"),
+													},
+													&ObjectVariableArgument{
+														Name: []byte("id"),
+														Path: []string{"id"},
+													},
+												},
+												Resolver: &RESTResolver{
+													Upstream: "localhost:9000",
+												},
+											},
+											Value: &List{
+												Value: &Object{
+													Fields: []Field{
+														{
+															Name: []byte("id"),
+															Value: &Value{
+																Path: []string{"id"},
+															},
+														},
+														{
+															Name: []byte("name"),
+															Value: &Value{
+																Path: []string{"name"},
+															},
+														},
+														{
+															Name: []byte("birthday"),
+															Value: &Value{
+																Path: []string{"birthday"},
+															},
+														},
+													},
+												},
+											},
+										},
+										{
+											Name: []byte("pets"),
+											Resolve: &Resolve{
+												Args: []Argument{
+													&StaticVariableArgument{
+														Name:  literal.QUERY,
+														Value: []byte("query o($id: String!){userPets(userId: $id){nickname}}"),
+													},
+													&ObjectVariableArgument{
+														Name: []byte("id"),
+														Path: []string{"id"},
+													},
+												},
+												Resolver: &GraphQLResolver{
+													Upstream: "localhost:8002",
+													URL:      "/graphql",
+												},
+											},
+											Value: &List{
+												Path: []string{"userPets"},
+												Value: &Object{
+													Fields: []Field{
+														{
+															Name: []byte("nickname"),
+															Value: &Value{
+																Path: []string{"nickname"},
+															},
+														},
+													},
+												},
 											},
 										},
 									},
@@ -300,13 +678,14 @@ enum HTTP_METHOD {
 
 input Parameter {
 	name: String!
-	source: PARAMETER_SOURCE
+	sourceKind: PARAMETER_SOURCE
 	sourceName: String!
+	variableType: String!
 }
 
 enum PARAMETER_SOURCE {
 	CONTEXT_VARIABLE
-	PARENT_FIELD_VALUE
+	OBJECT_VARIABLE_ARGUMENT
 	FIELD_ARGUMENTS
 }
 
@@ -327,9 +706,28 @@ type Query {
 			params: [
 				{
 					name: "id"
-					source: FIELD_ARGUMENTS
+					sourceKind: FIELD_ARGUMENTS
 					sourceName: "id"
+					variableType: "String!"
 				}
+			]
+		)
+	restUser(id: String!): User
+		@resolveREST (
+			upstream: "localhost:9001"
+			url: "/user/:id"
+			params: [
+				{
+					name: "id"
+					sourceKind: FIELD_ARGUMENTS
+					sourceName: "id"
+					variableType: "String!"
+				}
+			]
+			mappings: [
+				{from: "id" to: "id"},
+				{from: "name" to: "name"},
+				{from: "birthday" to: "birthday"}
 			]
 		)
 }
@@ -344,8 +742,9 @@ type User {
 			params: [
 				{
 					name: "id"
-					source: PARENT_FIELD_VALUE
+					sourceKind: OBJECT_VARIABLE_ARGUMENT
 					sourceName: "id"
+					variableType: "String!"
 				}
 			]
 			mappings: [
@@ -362,8 +761,9 @@ type User {
 			params: [
 				{
 					name: "userId"
-					source: PARENT_FIELD_VALUE
+					sourceKind: OBJECT_VARIABLE_ARGUMENT
 					sourceName: "id"
+					variableType: "String!"
 				}
 			]
 		)

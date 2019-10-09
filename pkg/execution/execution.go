@@ -226,9 +226,14 @@ type Resolve struct {
 
 type Resolver interface {
 	Resolve(ctx Context, args []Argument) []byte
+	DirectiveName() []byte
 }
 
 type TypeResolver struct {
+}
+
+func (t *TypeResolver) DirectiveName() []byte {
+	return []byte("resolveType")
 }
 
 var userType = []byte(`{
@@ -261,6 +266,13 @@ var userData = []byte(`
 				}
 			}
 		}`)
+
+var userRestData = []byte(`
+{
+	"id":1,
+	"name":"Jens",
+	"birthday":"08.02.1988"
+}`)
 
 var friendsData = []byte(`[
    {
@@ -299,6 +311,10 @@ type GraphQLResolver struct {
 	URL      string
 }
 
+func (g *GraphQLResolver) DirectiveName() []byte {
+	return []byte("resolveGraphQL")
+}
+
 func (g *GraphQLResolver) Resolve(ctx Context, args []Argument) []byte {
 
 	if len(args) < 1 {
@@ -324,12 +340,27 @@ func (g *GraphQLResolver) Resolve(ctx Context, args []Argument) []byte {
 
 type RESTResolver struct {
 	Upstream string
-	URL      string
+}
+
+func (r *RESTResolver) DirectiveName() []byte {
+	return []byte("resolveREST")
 }
 
 func (r *RESTResolver) Resolve(ctx Context, args []Argument) []byte {
 
-	if r.URL == "/user/:id/friends" {
+	if len(args) < 1 {
+		return []byte("expect arg 1: url")
+	}
+
+	if !bytes.Equal(args[0].ArgName(), literal.URL) {
+		return []byte("first arg must be named url")
+	}
+
+	if bytes.Equal(args[0].(*StaticVariableArgument).Value, []byte("/user/:id")) {
+		return userRestData
+	}
+
+	if bytes.Equal(args[0].(*StaticVariableArgument).Value, []byte("/user/:id/friends")) {
 		return friendsData
 	}
 
