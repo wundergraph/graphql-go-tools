@@ -747,7 +747,7 @@ func (v *valuesVisitor) valueSatisfiesInputObjectTypeDefinition(value ast.Value,
 
 	for _, i := range v.operation.ObjectValues[value.Ref].Refs {
 		if !v.objectFieldDefined(i, inputObjectTypeDefinition) {
-			objectFieldName := string(v.operation.ObjectFieldName(i))
+			objectFieldName := string(v.operation.ObjectFieldNameBytes(i))
 			def := string(v.definition.Input.ByteSlice(v.definition.InputObjectTypeDefinitions[inputObjectTypeDefinition].Name))
 			_, _ = objectFieldName, def
 			return false
@@ -767,7 +767,7 @@ func (v *valuesVisitor) objectValueHasDuplicateFields(objectValue int) bool {
 			if i == k || i > k {
 				continue
 			}
-			if bytes.Equal(v.operation.ObjectFieldName(j), v.operation.ObjectFieldName(l)) {
+			if bytes.Equal(v.operation.ObjectFieldNameBytes(j), v.operation.ObjectFieldNameBytes(l)) {
 				return true
 			}
 		}
@@ -776,7 +776,7 @@ func (v *valuesVisitor) objectValueHasDuplicateFields(objectValue int) bool {
 }
 
 func (v *valuesVisitor) objectFieldDefined(objectField, inputObjectTypeDefinition int) bool {
-	name := v.operation.ObjectFieldName(objectField)
+	name := v.operation.ObjectFieldNameBytes(objectField)
 	for _, i := range v.definition.InputObjectTypeDefinitions[inputObjectTypeDefinition].InputFieldsDefinition.Refs {
 		if bytes.Equal(name, v.definition.InputValueDefinitionNameBytes(i)) {
 			return true
@@ -791,7 +791,7 @@ func (v *valuesVisitor) objectValueSatisfiesInputValueDefinition(objectValue, in
 	definitionType := v.definition.InputValueDefinitionType(inputValueDefinition)
 
 	for _, i := range v.operation.ObjectValues[objectValue].Refs {
-		if bytes.Equal(name, v.operation.ObjectFieldName(i)) {
+		if bytes.Equal(name, v.operation.ObjectFieldNameBytes(i)) {
 			value := v.operation.ObjectFieldValue(i)
 			return v.valueSatisfiesInputValueDefinitionType(value, definitionType)
 		}
