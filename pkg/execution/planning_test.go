@@ -7,6 +7,7 @@ import (
 	"github.com/go-test/deep"
 	"github.com/jensneuse/diffview"
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
+	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 	"github.com/pkg/errors"
@@ -26,17 +27,30 @@ func TestPlanner_Plan(t *testing.T) {
 			def := unsafeparser.ParseGraphqlDocumentString(definition)
 			op := unsafeparser.ParseGraphqlDocumentString(operation)
 
-			planner := NewPlanner(resolverDefinitions)
 			var report operationreport.Report
+			normalizer := astnormalization.NewNormalizer(true)
+			normalizer.NormalizeOperation(&op, &def, &report)
+			if report.HasErrors() {
+				t.Error(report)
+			}
+
+			/*prettyOperation, err := astprinter.PrintStringIndent(&op, &def, "  ")
+			if err != nil {
+				t.Error(err)
+			}
+
+			fmt.Println(prettyOperation)*/
+
+			planner := NewPlanner(resolverDefinitions)
 			got := planner.Plan(&op, &def, &report)
 			if report.HasErrors() {
-				t.Fatal(report)
+				t.Error(report)
 			}
 
 			if !reflect.DeepEqual(want, got) {
 				fmt.Println(deep.Equal(want, got))
 				diffview.NewGoland().DiffViewAny("diff", want, got)
-				t.Fatalf("want:\n%s\ngot:\n%s\n", spew.Sdump(want), spew.Sdump(got))
+				t.Errorf("want:\n%s\ngot:\n%s\n", spew.Sdump(want), spew.Sdump(got))
 			}
 		}
 	}
@@ -388,34 +402,41 @@ func TestPlanner_Plan(t *testing.T) {
 				},
 			},
 		}))
-	/*
-		__typename
-		name
-		nickname
-		... on Dog {
-			woof
-		}
-		... on Cat {
-			meow
-		}
-	*/
-
-	//Value: []byte("query o($userId: String!){userPets(userId: $userId){__typename name nickname ... on Dog {woof} ... on Cat {meow}}}"),
-
 	t.Run("nested rest and graphql resolver", run(withBaseSchema(complexSchema), `
 			query UserQuery($id: String!) {
 				user(id: $id) {
 					id
 					name
-					birthday
 					friends {
 						id
 						name
 						birthday
+						pets {
+							__typename
+							nickname
+							... on Dog {
+								name
+								woof
+							}
+							... on Cat {
+								name
+								meow
+							}
+						}
 					}
 					pets {
+						__typename
 						nickname
+						... on Dog {
+							name
+							woof
+						}
+						... on Cat {
+							name
+							meow
+						}
 					}
+					birthday
 				}
 			}`,
 		ResolverDefinitions{
@@ -483,12 +504,6 @@ func TestPlanner_Plan(t *testing.T) {
 											},
 										},
 										{
-											Name: []byte("birthday"),
-											Value: &Value{
-												Path: []string{"birthday"},
-											},
-										},
-										{
 											Name: []byte("friends"),
 											Resolve: &Resolve{
 												Args: []Argument{
@@ -526,6 +541,100 @@ func TestPlanner_Plan(t *testing.T) {
 																Path: []string{"birthday"},
 															},
 														},
+														{
+															Name: []byte("pets"),
+															Resolve: &Resolve{
+																Args: []Argument{
+																	&StaticVariableArgument{
+																		Name:  literal.QUERY,
+																		Value: []byte("query o($id: String!){userPets(userId: $id){__typename nickname ... on Dog {name woof} ... on Cat {name meow}}}"),
+																	},
+																	&ObjectVariableArgument{
+																		Name: []byte("id"),
+																		Path: []string{"id"},
+																	},
+																},
+																Resolver: &GraphQLResolver{
+																	Upstream: "localhost:8002",
+																	URL:      "/graphql",
+																},
+															},
+															Value: &List{
+																Path: []string{"userPets"},
+																Value: &Object{
+																	Fields: []Field{
+																		{
+																			Name: []byte("__typename"),
+																			Value: &Value{
+																				Path: []string{"__typename"},
+																			},
+																		},
+																		{
+																			Name: []byte("nickname"),
+																			Value: &Value{
+																				Path: []string{"nickname"},
+																			},
+																		},
+																		{
+																			Name: []byte("name"),
+																			Value: &Value{
+																				Path: []string{"name"},
+																			},
+																			Skip: &IfNotEqual{
+																				Left: &ObjectVariableArgument{
+																					Path: []string{"__typename"},
+																				},
+																				Right: &StaticVariableArgument{
+																					Value: []byte("Dog"),
+																				},
+																			},
+																		},
+																		{
+																			Name: []byte("woof"),
+																			Value: &Value{
+																				Path: []string{"woof"},
+																			},
+																			Skip: &IfNotEqual{
+																				Left: &ObjectVariableArgument{
+																					Path: []string{"__typename"},
+																				},
+																				Right: &StaticVariableArgument{
+																					Value: []byte("Dog"),
+																				},
+																			},
+																		},
+																		{
+																			Name: []byte("name"),
+																			Value: &Value{
+																				Path: []string{"name"},
+																			},
+																			Skip: &IfNotEqual{
+																				Left: &ObjectVariableArgument{
+																					Path: []string{"__typename"},
+																				},
+																				Right: &StaticVariableArgument{
+																					Value: []byte("Cat"),
+																				},
+																			},
+																		},
+																		{
+																			Name: []byte("meow"),
+																			Value: &Value{
+																				Path: []string{"meow"},
+																			},
+																			Skip: &IfNotEqual{
+																				Left: &ObjectVariableArgument{
+																					Path: []string{"__typename"},
+																				},
+																				Right: &StaticVariableArgument{
+																					Value: []byte("Cat"),
+																				},
+																			},
+																		},
+																	},
+																},
+															},
+														},
 													},
 												},
 											},
@@ -536,7 +645,7 @@ func TestPlanner_Plan(t *testing.T) {
 												Args: []Argument{
 													&StaticVariableArgument{
 														Name:  literal.QUERY,
-														Value: []byte("query o($id: String!){userPets(userId: $id){nickname}}"),
+														Value: []byte("query o($id: String!){userPets(userId: $id){__typename nickname ... on Dog {name woof} ... on Cat {name meow}}}"),
 													},
 													&ObjectVariableArgument{
 														Name: []byte("id"),
@@ -553,9 +662,503 @@ func TestPlanner_Plan(t *testing.T) {
 												Value: &Object{
 													Fields: []Field{
 														{
+															Name: []byte("__typename"),
+															Value: &Value{
+																Path: []string{"__typename"},
+															},
+														},
+														{
 															Name: []byte("nickname"),
 															Value: &Value{
 																Path: []string{"nickname"},
+															},
+														},
+														{
+															Name: []byte("name"),
+															Value: &Value{
+																Path: []string{"name"},
+															},
+															Skip: &IfNotEqual{
+																Left: &ObjectVariableArgument{
+																	Path: []string{"__typename"},
+																},
+																Right: &StaticVariableArgument{
+																	Value: []byte("Dog"),
+																},
+															},
+														},
+														{
+															Name: []byte("woof"),
+															Value: &Value{
+																Path: []string{"woof"},
+															},
+															Skip: &IfNotEqual{
+																Left: &ObjectVariableArgument{
+																	Path: []string{"__typename"},
+																},
+																Right: &StaticVariableArgument{
+																	Value: []byte("Dog"),
+																},
+															},
+														},
+														{
+															Name: []byte("name"),
+															Value: &Value{
+																Path: []string{"name"},
+															},
+															Skip: &IfNotEqual{
+																Left: &ObjectVariableArgument{
+																	Path: []string{"__typename"},
+																},
+																Right: &StaticVariableArgument{
+																	Value: []byte("Cat"),
+																},
+															},
+														},
+														{
+															Name: []byte("meow"),
+															Value: &Value{
+																Path: []string{"meow"},
+															},
+															Skip: &IfNotEqual{
+																Left: &ObjectVariableArgument{
+																	Path: []string{"__typename"},
+																},
+																Right: &StaticVariableArgument{
+																	Value: []byte("Cat"),
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+										{
+											Name: []byte("birthday"),
+											Value: &Value{
+												Path: []string{"birthday"},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}))
+	t.Run("introspection", run(withBaseSchema(complexSchema), `
+			query IntrospectionQuery {
+			  __schema {
+				queryType {
+				  name
+				}
+				mutationType {
+				  name
+				}
+				subscriptionType {
+				  name
+				}
+				types {
+				  ...FullType
+				}
+				directives {
+				  name
+				  description
+				  locations
+				  args {
+					...InputValue
+				  }
+				}
+			  }
+			}
+			
+			fragment FullType on __Type {
+			  kind
+			  name
+			  description
+			  fields(includeDeprecated: true) {
+				name
+				description
+				args {
+				  ...InputValue
+				}
+				type {
+				  ...TypeRef
+				}
+				isDeprecated
+				deprecationReason
+			  }
+			  inputFields {
+				...InputValue
+			  }
+			  interfaces {
+				...TypeRef
+			  }
+			  enumValues(includeDeprecated: true) {
+				name
+				description
+				isDeprecated
+				deprecationReason
+			  }
+			  possibleTypes {
+				...TypeRef
+			  }
+			}
+			
+			fragment InputValue on __InputValue {
+			  name
+			  description
+			  type {
+				...TypeRef
+			  }
+			  defaultValue
+			}
+			
+			fragment TypeRef on __Type {
+			  kind
+			  name
+			  ofType {
+				kind
+				name
+				ofType {
+				  kind
+				  name
+				  ofType {
+					kind
+					name
+					ofType {
+					  kind
+					  name
+					  ofType {
+						kind
+						name
+						ofType {
+						  kind
+						  name
+						  ofType {
+							kind
+							name
+						  }
+						}
+					  }
+					}
+				  }
+				}
+			  }
+			}`,
+		ResolverDefinitions{
+			{
+				TypeName:  literal.QUERY,
+				FieldName: literal.UNDERSCORESCHEMA,
+				Resolver:  &SchemaResolver{},
+			},
+		},
+		&Object{
+			Fields: []Field{
+				{
+					Name: []byte("data"),
+					Value: &Object{
+						Fields: []Field{
+							{
+								Name: []byte("__schema"),
+								Resolve: &Resolve{
+									Resolver: &SchemaResolver{},
+								},
+								Value: &Object{
+									Path: []string{"__schema"},
+									Fields: []Field{
+										{
+											Name: []byte("queryType"),
+											Value: &Object{
+												Path: []string{"queryType"},
+												Fields: []Field{
+													{
+														Name: []byte("name"),
+														Value: &Value{
+															Path: []string{"name"},
+														},
+													},
+												},
+											},
+										},
+										{
+											Name: []byte("mutationType"),
+											Value: &Object{
+												Path: []string{"mutationType"},
+												Fields: []Field{
+													{
+														Name: []byte("name"),
+														Value: &Value{
+															Path: []string{"name"},
+														},
+													},
+												},
+											},
+										},
+										{
+											Name: []byte("subscriptionType"),
+											Value: &Object{
+												Path: []string{"subscriptionType"},
+												Fields: []Field{
+													{
+														Name: []byte("name"),
+														Value: &Value{
+															Path: []string{"name"},
+														},
+													},
+												},
+											},
+										},
+										{
+											Name: []byte("types"),
+											Value: &List{
+												Path: []string{"types"},
+												Value: &Object{
+													Fields: []Field{
+														{
+															Name: []byte("kind"),
+															Value: &Value{
+																Path: []string{"kind"},
+															},
+														},
+														{
+															Name: []byte("name"),
+															Value: &Value{
+																Path: []string{"name"},
+															},
+														},
+														{
+															Name: []byte("description"),
+															Value: &Value{
+																Path: []string{"description"},
+															},
+														},
+														{
+															Name: []byte("fields"),
+															Value: &List{
+																Path: []string{"fields"},
+																Value: &Object{
+																	Fields: []Field{
+																		{
+																			Name: []byte("name"),
+																			Value: &Value{
+																				Path: []string{"name"},
+																			},
+																		},
+																		{
+																			Name: []byte("description"),
+																			Value: &Value{
+																				Path: []string{"description"},
+																			},
+																		},
+																		{
+																			Name: []byte("args"),
+																			Value: &List{
+																				Path: []string{"args"},
+																				Value: &Object{
+																					Fields: []Field{
+																						{
+																							Name: []byte("name"),
+																							Value: &Value{
+																								Path: []string{"name"},
+																							},
+																						},
+																						{
+																							Name: []byte("description"),
+																							Value: &Value{
+																								Path: []string{"description"},
+																							},
+																						},
+																						{
+																							Name: []byte("type"),
+																							Value: &Object{
+																								Path:   []string{"type"},
+																								Fields: kindNameDeepFields,
+																							},
+																						},
+																						{
+																							Name: []byte("defaultValue"),
+																							Value: &Value{
+																								Path: []string{"defaultValue"},
+																							},
+																						},
+																					},
+																				},
+																			},
+																		},
+																		{
+																			Name: []byte("type"),
+																			Value: &Object{
+																				Path:   []string{"type"},
+																				Fields: kindNameDeepFields,
+																			},
+																		},
+																		{
+																			Name: []byte("isDeprecated"),
+																			Value: &Value{
+																				Path: []string{"isDeprecated"},
+																			},
+																		},
+																		{
+																			Name: []byte("deprecationReason"),
+																			Value: &Value{
+																				Path: []string{"deprecationReason"},
+																			},
+																		},
+																	},
+																},
+															},
+														},
+														{
+															Name: []byte("inputFields"),
+															Value: &List{
+																Path: []string{"inputFields"},
+																Value: &Object{
+																	Fields: []Field{
+																		{
+																			Name: []byte("name"),
+																			Value: &Value{
+																				Path: []string{"name"},
+																			},
+																		},
+																		{
+																			Name: []byte("description"),
+																			Value: &Value{
+																				Path: []string{"description"},
+																			},
+																		},
+																		{
+																			Name: []byte("type"),
+																			Value: &Object{
+																				Path:   []string{"type"},
+																				Fields: kindNameDeepFields,
+																			},
+																		},
+																		{
+																			Name: []byte("defaultValue"),
+																			Value: &Value{
+																				Path: []string{"defaultValue"},
+																			},
+																		},
+																	},
+																},
+															},
+														},
+														{
+															Name: []byte("interfaces"),
+															Value: &List{
+																Path: []string{"interfaces"},
+																Value: &Object{
+																	Fields: kindNameDeepFields,
+																},
+															},
+														},
+														{
+															Name: []byte("enumValues"),
+															Value: &List{
+																Path: []string{"enumValues"},
+																Value: &Object{
+																	Fields: []Field{
+																		{
+																			Name: []byte("name"),
+																			Value: &Value{
+																				Path: []string{"name"},
+																			},
+																		},
+																		{
+																			Name: []byte("description"),
+																			Value: &Value{
+																				Path: []string{"description"},
+																			},
+																		},
+																		{
+																			Name: []byte("isDeprecated"),
+																			Value: &Value{
+																				Path: []string{"isDeprecated"},
+																			},
+																		},
+																		{
+																			Name: []byte("deprecationReason"),
+																			Value: &Value{
+																				Path: []string{"deprecationReason"},
+																			},
+																		},
+																	},
+																},
+															},
+														},
+														{
+															Name: []byte("possibleTypes"),
+															Value: &List{
+																Path: []string{"possibleTypes"},
+																Value: &Object{
+																	Fields: kindNameDeepFields,
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+										{
+											Name: []byte("directives"),
+											Value: &List{
+												Path: []string{"directives"},
+												Value: &Object{
+													Fields: []Field{
+														{
+															Name: []byte("name"),
+															Value: &Value{
+																Path: []string{"name"},
+															},
+														},
+														{
+															Name: []byte("description"),
+															Value: &Value{
+																Path: []string{"description"},
+															},
+														},
+														{
+															Name: []byte("locations"),
+															Value: &List{
+																Path:  []string{"locations"},
+																Value: &Object{},
+															},
+														},
+														{
+															Name: []byte("args"),
+															Value: &List{
+																Path: []string{"args"},
+																Value: &Object{
+																	Fields: []Field{
+																		{
+																			Name: []byte("name"),
+																			Value: &Value{
+																				Path: []string{"name"},
+																			},
+																		},
+																		{
+																			Name: []byte("description"),
+																			Value: &Value{
+																				Path: []string{"description"},
+																			},
+																		},
+																		{
+																			Name: []byte("type"),
+																			Value: &Object{
+																				Path:   []string{"type"},
+																				Fields: kindNameDeepFields,
+																			},
+																		},
+																		{
+																			Name: []byte("defaultValue"),
+																			Value: &Value{
+																				Path: []string{"defaultValue"},
+																			},
+																		},
+																	},
+																},
 															},
 														},
 													},
@@ -569,7 +1172,8 @@ func TestPlanner_Plan(t *testing.T) {
 					},
 				},
 			},
-		}))
+		},
+	))
 }
 
 func BenchmarkPlanner_Plan(b *testing.B) {
@@ -664,6 +1268,12 @@ directive @resolveREST (
 	mappings: [Mapping]
 ) on FIELD_DEFINITION
 
+directive @resolveType (
+	params: [Parameter]
+) on FIELD_DEFINITION
+
+directive @resolveSchema on FIELD_DEFINITION
+
 input Mapping {
 	from: String!
 	to: String!
@@ -697,6 +1307,16 @@ schema {
 
 type Query {
 	__type(name: String!): __Type!
+		@resolveType(
+			params: [
+				{
+					name: "name"
+					sourceKind: FIELD_ARGUMENTS
+					sourceName: "name"
+					variableType: "String!"
+				}
+			]
+		)
 	__schema: __Schema!
 	user(id: String!): User
 		@resolveGraphQL(
@@ -1007,3 +1627,157 @@ func randBytes(n int) []byte {
 	}
 	return b
 }
+
+var kindNameDeepFields = []Field{
+	{
+		Name: []byte("kind"),
+		Value: &Value{
+			Path: []string{"kind"},
+		},
+	},
+	{
+		Name: []byte("name"),
+		Value: &Value{
+			Path: []string{"name"},
+		},
+	},
+	{
+		Name: []byte("ofType"),
+		Value: &Object{
+			Path: []string{"ofType"},
+			Fields: []Field{
+				{
+					Name: []byte("kind"),
+					Value: &Value{
+						Path: []string{"kind"},
+					},
+				},
+				{
+					Name: []byte("name"),
+					Value: &Value{
+						Path: []string{"name"},
+					},
+				},
+				{
+					Name: []byte("ofType"),
+					Value: &Object{
+						Path: []string{"ofType"},
+						Fields: []Field{
+							{
+								Name: []byte("kind"),
+								Value: &Value{
+									Path: []string{"kind"},
+								},
+							},
+							{
+								Name: []byte("name"),
+								Value: &Value{
+									Path: []string{"name"},
+								},
+							},
+							{
+								Name: []byte("ofType"),
+								Value: &Object{
+									Path: []string{"ofType"},
+									Fields: []Field{
+										{
+											Name: []byte("kind"),
+											Value: &Value{
+												Path: []string{"kind"},
+											},
+										},
+										{
+											Name: []byte("name"),
+											Value: &Value{
+												Path: []string{"name"},
+											},
+										},
+										{
+											Name: []byte("ofType"),
+											Value: &Object{
+												Path: []string{"ofType"},
+												Fields: []Field{
+													{
+														Name: []byte("kind"),
+														Value: &Value{
+															Path: []string{"kind"},
+														},
+													},
+													{
+														Name: []byte("name"),
+														Value: &Value{
+															Path: []string{"name"},
+														},
+													},
+													{
+														Name: []byte("ofType"),
+														Value: &Object{
+															Path: []string{"ofType"},
+															Fields: []Field{
+																{
+																	Name: []byte("kind"),
+																	Value: &Value{
+																		Path: []string{"kind"},
+																	},
+																},
+																{
+																	Name: []byte("name"),
+																	Value: &Value{
+																		Path: []string{"name"},
+																	},
+																},
+																{
+																	Name: []byte("ofType"),
+																	Value: &Object{
+																		Path: []string{"ofType"},
+																		Fields: []Field{
+																			{
+																				Name: []byte("kind"),
+																				Value: &Value{
+																					Path: []string{"kind"},
+																				},
+																			},
+																			{
+																				Name: []byte("name"),
+																				Value: &Value{
+																					Path: []string{"name"},
+																				},
+																			},
+																			{
+																				Name: []byte("ofType"),
+																				Value: &Object{
+																					Path: []string{"ofType"},
+																					Fields: []Field{
+																						{
+																							Name: []byte("kind"),
+																							Value: &Value{
+																								Path: []string{"kind"},
+																							},
+																						},
+																						{
+																							Name: []byte("name"),
+																							Value: &Value{
+																								Path: []string{"name"},
+																							},
+																						},
+																					},
+																				},
+																			},
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}}

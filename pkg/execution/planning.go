@@ -42,10 +42,11 @@ func NewPlanner(resolverDefinitions ResolverDefinitions) *Planner {
 	walker.RegisterEnterDocumentVisitor(&visitor)
 	walker.RegisterEnterFieldVisitor(&visitor)
 	walker.RegisterLeaveFieldVisitor(&visitor)
-	walker.RegisterEnterOperationVisitor(&visitor)
 	walker.RegisterEnterArgumentVisitor(&visitor)
 	walker.RegisterEnterSelectionSetVisitor(&visitor)
 	walker.RegisterLeaveSelectionSetVisitor(&visitor)
+	walker.RegisterEnterInlineFragmentVisitor(&visitor)
+	walker.RegisterLeaveInlineFragmentVisitor(&visitor)
 
 	return &Planner{
 		walker:  &walker,
@@ -92,8 +93,41 @@ func (p *planningVisitor) EnterDocument(operation, definition *ast.Document) {
 	p.currentNode = append(p.currentNode, obj)
 }
 
-func (p *planningVisitor) EnterOperationDefinition(ref int) {
+func (p *planningVisitor) EnterInlineFragment(ref int) {
+	resolve := p.currentResolve[len(p.currentResolve)-1]
+	switch resolve.resolve.Resolver.(type) {
+	case *GraphQLResolver:
+		current := resolve.currentNode[len(resolve.currentNode)-1]
+		if current.Kind != ast.NodeKindSelectionSet {
+			return
+		}
+		inlineFragmentType := resolve.document.ImportType(p.operation.InlineFragments[ref].TypeCondition.Type, p.operation)
+		resolve.document.InlineFragments = append(resolve.document.InlineFragments, ast.InlineFragment{
+			TypeCondition: ast.TypeCondition{
+				Type: inlineFragmentType,
+			},
+			SelectionSet: -1,
+		})
+		inlineFragmentRef := len(resolve.document.InlineFragments) - 1
+		resolve.document.Selections = append(resolve.document.Selections, ast.Selection{
+			Kind: ast.SelectionKindInlineFragment,
+			Ref:  inlineFragmentRef,
+		})
+		selectionRef := len(resolve.document.Selections) - 1
+		resolve.document.SelectionSets[current.Ref].SelectionRefs = append(resolve.document.SelectionSets[current.Ref].SelectionRefs, selectionRef)
+		resolve.currentNode = append(resolve.currentNode, ast.Node{
+			Kind: ast.NodeKindInlineFragment,
+			Ref:  inlineFragmentRef,
+		})
+	}
+}
 
+func (p *planningVisitor) LeaveInlineFragment(ref int) {
+	resolve := p.currentResolve[len(p.currentResolve)-1]
+	switch resolve.resolve.Resolver.(type) {
+	case *GraphQLResolver:
+		resolve.currentNode = resolve.currentNode[:len(resolve.currentNode)-1]
+	}
 }
 
 func (p *planningVisitor) EnterField(ref int) {
@@ -113,7 +147,10 @@ func (p *planningVisitor) EnterField(ref int) {
 		params := p.resolverDirectiveParamObjectValues(ref, resolverDefinition)
 		args := make([]int, len(params))
 		variableDefinitions := make([]int, len(params))
-		resolveArgs := make([]Argument, 0, len(params))
+		var resolveArgs []Argument
+		if len(params) != 0 {
+			resolveArgs = make([]Argument, 0, len(params))
+		}
 		for i := 0; i < len(params); i++ {
 			doc.VariableValues = append(doc.VariableValues, ast.VariableValue{
 				Name: doc.Input.AppendInputBytes(params[i].sourceName),
@@ -148,12 +185,6 @@ func (p *planningVisitor) EnterField(ref int) {
 				Type:          nonNullTypeRef,
 			})
 			variableDefinitions[i] = len(doc.VariableDefinitions) - 1
-
-			/*
-				CONTEXT_VARIABLE
-				OBJECT_VARIABLE_ARGUMENT
-				FIELD_ARGUMENTS
-			*/
 
 			switch {
 			case bytes.Equal(params[i].sourceKind, []byte("CONTEXT_VARIABLE")):
@@ -322,10 +353,25 @@ func (p *planningVisitor) EnterField(ref int) {
 			}
 		}
 
+		var skipCondition BooleanCondition
+		ancestor := p.Ancestors[len(p.Ancestors)-2]
+		if ancestor.Kind == ast.NodeKindInlineFragment {
+			typeConditionName := p.operation.InlineFragmentTypeConditionName(ancestor.Ref)
+			skipCondition = &IfNotEqual{
+				Left: &ObjectVariableArgument{
+					Path: []string{"__typename"},
+				},
+				Right: &StaticVariableArgument{
+					Value: typeConditionName,
+				},
+			}
+		}
+
 		parent.Fields = append(parent.Fields, Field{
 			Name:    p.operation.FieldNameBytes(ref),
 			Value:   value,
 			Resolve: resolve,
+			Skip:    skipCondition,
 		})
 
 		p.currentNode = append(p.currentNode, value)
@@ -434,16 +480,22 @@ func (p *planningVisitor) EnterSelectionSet(ref int) {
 	if len(p.currentResolve) == 0 {
 		return
 	}
-	resolve := p.currentResolve[len(p.currentResolve)-1]
 
-	field := resolve.currentNode[len(resolve.currentNode)-1]
+	resolve := p.currentResolve[len(p.currentResolve)-1]
+	fieldOrInlineFragment := resolve.currentNode[len(resolve.currentNode)-1]
 
 	set := ast.SelectionSet{}
 	resolve.document.SelectionSets = append(resolve.document.SelectionSets, set)
 	setRef := len(resolve.document.SelectionSets) - 1
 
-	resolve.document.Fields[field.Ref].HasSelections = true
-	resolve.document.Fields[field.Ref].SelectionSet = setRef
+	switch fieldOrInlineFragment.Kind {
+	case ast.NodeKindField:
+		resolve.document.Fields[fieldOrInlineFragment.Ref].HasSelections = true
+		resolve.document.Fields[fieldOrInlineFragment.Ref].SelectionSet = setRef
+	case ast.NodeKindInlineFragment:
+		resolve.document.InlineFragments[fieldOrInlineFragment.Ref].HasSelections = true
+		resolve.document.InlineFragments[fieldOrInlineFragment.Ref].SelectionSet = setRef
+	}
 
 	resolve.currentNode = append(resolve.currentNode, ast.Node{
 		Kind: ast.NodeKindSelectionSet,
