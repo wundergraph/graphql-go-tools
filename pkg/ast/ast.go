@@ -1245,6 +1245,17 @@ func (d *Document) FieldDefinitionNameString(ref int) string {
 	return unsafebytes.BytesToString(d.FieldDefinitionNameBytes(ref))
 }
 
+func (d *Document) FieldDefinitionDescriptionBytes(ref int) ByteSlice {
+	if !d.FieldDefinitions[ref].Description.IsDefined {
+		return nil
+	}
+	return d.Input.ByteSlice(d.FieldDefinitions[ref].Description.Content)
+}
+
+func (d *Document) FieldDefinitionDescriptionString(ref int) string {
+	return unsafebytes.BytesToString(d.FieldDefinitionDescriptionBytes(ref))
+}
+
 func (d *Document) FieldDefinitionIsFirst(field int, ancestor Node) bool {
 	definitions := d.NodeFieldDefinitions(ancestor)
 	return len(definitions) != 0 && definitions[0] == field
@@ -1436,7 +1447,7 @@ func (d *Document) PrintValue(value Value, w io.Writer) (err error) {
 
 func (d *Document) PrintValueBytes(value Value, buf []byte) ([]byte, error) {
 	if buf == nil {
-		buf = make([]byte, 24)
+		buf = make([]byte, 0, 24)
 	}
 	b := bytes.NewBuffer(buf)
 	err := d.PrintValue(value, b)
@@ -1597,6 +1608,17 @@ func (d *Document) ObjectTypeDefinitionNameString(ref int) string {
 	return unsafebytes.BytesToString(d.Input.ByteSlice(d.ObjectTypeDefinitions[ref].Name))
 }
 
+func (d *Document) ObjectTypeDescriptionNameBytes(ref int) ByteSlice {
+	if !d.ObjectTypeDefinitions[ref].Description.IsDefined {
+		return nil
+	}
+	return d.Input.ByteSlice(d.ObjectTypeDefinitions[ref].Description.Content)
+}
+
+func (d *Document) ObjectTypeDescriptionNameString(ref int) string {
+	return unsafebytes.BytesToString(d.ObjectTypeDescriptionNameBytes(ref))
+}
+
 type TypeList struct {
 	Refs []int // Type
 }
@@ -1644,6 +1666,17 @@ func (d *Document) InputValueDefinitionNameBytes(ref int) ByteSlice {
 
 func (d *Document) InputValueDefinitionNameString(ref int) string {
 	return unsafebytes.BytesToString(d.Input.ByteSlice(d.InputValueDefinitions[ref].Name))
+}
+
+func (d *Document) InputValueDefinitionDescriptionBytes(ref int) ByteSlice {
+	if !d.InputValueDefinitions[ref].Description.IsDefined {
+		return nil
+	}
+	return d.Input.ByteSlice(d.InputValueDefinitions[ref].Description.Content)
+}
+
+func (d *Document) InputValueDefinitionDescriptionString(ref int) string {
+	return unsafebytes.BytesToString(d.InputValueDefinitionDescriptionBytes(ref))
 }
 
 func (d *Document) InputValueDefinitionType(ref int) int {
@@ -1770,6 +1803,17 @@ func (d *Document) InputObjectTypeDefinitionNameString(ref int) string {
 	return unsafebytes.BytesToString(d.Input.ByteSlice(d.InputObjectTypeDefinitions[ref].Name))
 }
 
+func (d *Document) InputObjectTypeDefinitionDescriptionBytes(ref int) ByteSlice {
+	if !d.InputObjectTypeDefinitions[ref].Description.IsDefined {
+		return nil
+	}
+	return d.Input.ByteSlice(d.InputObjectTypeDefinitions[ref].Description.Content)
+}
+
+func (d *Document) InputObjectTypeDefinitionDescriptionString(ref int) string {
+	return unsafebytes.BytesToString(d.InputObjectTypeDefinitionNameBytes(ref))
+}
+
 type InputObjectTypeExtension struct {
 	ExtendLiteral position.Position
 	InputObjectTypeDefinition
@@ -1846,6 +1890,17 @@ func (d *Document) InterfaceTypeDefinitionNameString(ref int) string {
 	return unsafebytes.BytesToString(d.Input.ByteSlice(d.InterfaceTypeDefinitions[ref].Name))
 }
 
+func (d *Document) InterfaceTypeDefinitionDescriptionBytes(ref int) ByteSlice {
+	if !d.InterfaceTypeDefinitions[ref].Description.IsDefined {
+		return nil
+	}
+	return d.Input.ByteSlice(d.InterfaceTypeDefinitions[ref].Description.Content)
+}
+
+func (d *Document) InterfaceTypeDefinitionDescriptionString(ref int) string {
+	return unsafebytes.BytesToString(d.InterfaceTypeDefinitionDescriptionBytes(ref))
+}
+
 type InterfaceTypeExtension struct {
 	ExtendLiteral position.Position
 	InterfaceTypeDefinition
@@ -1911,6 +1966,17 @@ func (d *Document) UnionTypeDefinitionNameString(ref int) string {
 	return unsafebytes.BytesToString(d.Input.ByteSlice(d.UnionTypeDefinitions[ref].Name))
 }
 
+func (d *Document) UnionTypeDefinitionDescriptionBytes(ref int) ByteSlice {
+	if !d.UnionTypeDefinitions[ref].Description.IsDefined {
+		return nil
+	}
+	return d.Input.ByteSlice(d.UnionTypeDefinitions[ref].Description.Content)
+}
+
+func (d *Document) UnionTypeDefinitionDescriptionString(ref int) string {
+	return unsafebytes.BytesToString(d.UnionTypeDefinitionDescriptionBytes(ref))
+}
+
 type UnionTypeExtension struct {
 	ExtendLiteral position.Position
 	UnionTypeDefinition
@@ -1956,6 +2022,17 @@ func (d *Document) EnumTypeDefinitionNameBytes(ref int) ByteSlice {
 
 func (d *Document) EnumTypeDefinitionNameString(ref int) string {
 	return unsafebytes.BytesToString(d.Input.ByteSlice(d.EnumTypeDefinitions[ref].Name))
+}
+
+func (d *Document) EnumTypeDefinitionDescriptionBytes(ref int) ByteSlice {
+	if !d.EnumTypeDefinitions[ref].Description.IsDefined {
+		return nil
+	}
+	return d.Input.ByteSlice(d.EnumTypeDefinitions[ref].Description.Content)
+}
+
+func (d *Document) EnumTypeDefinitionDescriptionString(ref int) string {
+	return unsafebytes.BytesToString(d.EnumTypeDefinitionDescriptionBytes(ref))
 }
 
 func (d *Document) EnumTypeDefinitionContainsEnumValue(enumTypeDef int, valueName ByteSlice) bool {
@@ -2034,6 +2111,17 @@ func (d *Document) EnumValueDefinitionNameString(ref int) string {
 	return unsafebytes.BytesToString(d.Input.ByteSlice(d.EnumValueDefinitions[ref].EnumValue))
 }
 
+func (d *Document) EnumValueDefinitionDescriptionBytes(ref int) ByteSlice {
+	if !d.EnumValueDefinitions[ref].Description.IsDefined {
+		return nil
+	}
+	return d.Input.ByteSlice(d.EnumValueDefinitions[ref].Description.Content)
+}
+
+func (d *Document) EnumValueDefinitionDescriptionString(ref int) string {
+	return unsafebytes.BytesToString(d.EnumValueDefinitionDescriptionBytes(ref))
+}
+
 // DirectiveDefinition
 // example:
 // directive @example on FIELD
@@ -2054,6 +2142,17 @@ func (d *Document) DirectiveDefinitionNameBytes(ref int) ByteSlice {
 
 func (d *Document) DirectiveDefinitionNameString(ref int) string {
 	return unsafebytes.BytesToString(d.Input.ByteSlice(d.DirectiveDefinitions[ref].Name))
+}
+
+func (d *Document) DirectiveDefinitionDescriptionBytes(ref int) ByteSlice {
+	if !d.DirectiveDefinitions[ref].Description.IsDefined {
+		return nil
+	}
+	return d.Input.ByteSlice(d.DirectiveDefinitions[ref].Description.Content)
+}
+
+func (d *Document) DirectiveDefinitionDescriptionString(ref int) string {
+	return unsafebytes.BytesToString(d.DirectiveDefinitionDescriptionBytes(ref))
 }
 
 func (d *Document) RemoveDirectiveFromNode(node Node, ref int) {
@@ -2129,6 +2228,55 @@ func (d *Document) NodeDirectiveLocation(node Node) (location DirectiveLocation,
 		err = fmt.Errorf("node kind: %s is not allowed to have directives", node.Kind)
 	}
 	return
+}
+
+func (d *Document) DirectiveLocationBytes(location DirectiveLocation) ByteSlice {
+	switch location {
+	case ExecutableDirectiveLocationQuery:
+		return literal.LocationQuery
+	case ExecutableDirectiveLocationMutation:
+		return literal.LocationMutation
+	case ExecutableDirectiveLocationSubscription:
+		return literal.LocationSubscription
+	case ExecutableDirectiveLocationField:
+		return literal.LocationField
+	case ExecutableDirectiveLocationFragmentDefinition:
+		return literal.LocationFragmentDefinition
+	case ExecutableDirectiveLocationFragmentSpread:
+		return literal.LocationFragmentSpread
+	case ExecutableDirectiveLocationInlineFragment:
+		return literal.LocationInlineFragment
+	case ExecutableDirectiveLocationVariableDefinition:
+		return literal.LocationVariableDefinition
+	case TypeSystemDirectiveLocationSchema:
+		return literal.LocationSchema
+	case TypeSystemDirectiveLocationScalar:
+		return literal.LocationScalar
+	case TypeSystemDirectiveLocationObject:
+		return literal.LocationObject
+	case TypeSystemDirectiveLocationFieldDefinition:
+		return literal.LocationFieldDefinition
+	case TypeSystemDirectiveLocationArgumentDefinition:
+		return literal.LocationArgumentDefinition
+	case TypeSystemDirectiveLocationInterface:
+		return literal.LocationInterface
+	case TypeSystemDirectiveLocationUnion:
+		return literal.LocationUnion
+	case TypeSystemDirectiveLocationEnum:
+		return literal.LocationEnum
+	case TypeSystemDirectiveLocationEnumValue:
+		return literal.LocationEnumValue
+	case TypeSystemDirectiveLocationInputObject:
+		return literal.LocationInputObject
+	case TypeSystemDirectiveLocationInputFieldDefinition:
+		return literal.LocationInputFieldDefinition
+	default:
+		return nil
+	}
+}
+
+func (d *Document) DirectiveLocationString(location DirectiveLocation) string {
+	return unsafebytes.BytesToString(d.DirectiveLocationBytes(location))
 }
 
 type OperationDefinition struct {
