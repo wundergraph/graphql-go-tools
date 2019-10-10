@@ -236,6 +236,17 @@ func (t *TypeResolver) DirectiveName() []byte {
 	return []byte("resolveType")
 }
 
+type SchemaResolver struct {
+}
+
+func (s *SchemaResolver) Resolve(ctx Context, args []Argument) []byte {
+	return nil
+}
+
+func (s *SchemaResolver) DirectiveName() []byte {
+	return []byte("resolveSchema")
+}
+
 var userType = []byte(`{
 			  "__type": {
 				"name": "User",
