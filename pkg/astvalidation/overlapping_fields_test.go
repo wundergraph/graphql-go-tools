@@ -23,10 +23,10 @@ func TestOverlappingFieldsCanBeMerged(t *testing.T) {
 		definition := unsafeparser.ParseGraphqlDocumentBytes(definitionBytes)
 		operation := unsafeparser.ParseGraphqlDocumentBytes(operationBytes)
 		report := operationreport.Report{}
-		normalizer := astnormalization.OperationNormalizer{}
+		normalizer := astnormalization.NewNormalizer(false)
 		validator := DefaultOperationValidator()
 
-		normalizer.Do(&operation, &definition, &report)
+		normalizer.NormalizeOperation(&operation, &definition, &report)
 		if report.HasErrors() {
 			panic(report.Error())
 		}
@@ -44,10 +44,10 @@ func TestOverlappingFieldsCanBeMerged(t *testing.T) {
 		definition := unsafeparser.ParseGraphqlDocumentBytes(definitionBytes)
 		operation := unsafeparser.ParseGraphqlDocumentBytes(operationBytes)
 		report := operationreport.Report{}
-		normalizer := astnormalization.OperationNormalizer{}
+		normalizer := astnormalization.NewNormalizer(false)
 		validator := DefaultOperationValidator()
 
-		normalizer.Do(&operation, &definition, &report)
+		normalizer.NormalizeOperation(&operation, &definition, &report)
 		if report.HasErrors() {
 			panic(report.Error())
 		}
@@ -69,7 +69,7 @@ func BenchmarkOverlappingFieldsCanBeMerged(b *testing.B) {
 			definition := unsafeparser.ParseGraphqlDocumentBytes(definitionBytes)
 			operation := unsafeparser.ParseGraphqlDocumentBytes(operationBytes)
 			report := operationreport.Report{}
-			normalizer := astnormalization.OperationNormalizer{}
+			normalizer := astnormalization.NewNormalizer(false)
 			validator := DefaultOperationValidator()
 
 			b.ResetTimer()
@@ -77,7 +77,7 @@ func BenchmarkOverlappingFieldsCanBeMerged(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				report.Reset()
 				definition := definition
-				normalizer.Do(&operation, &definition, &report)
+				normalizer.NormalizeOperation(&operation, &definition, &report)
 				if report.HasErrors() {
 					panic(report.Error())
 				}
@@ -94,7 +94,7 @@ func BenchmarkOverlappingFieldsCanBeMerged(b *testing.B) {
 			definition := unsafeparser.ParseGraphqlDocumentBytes(definitionBytes)
 			operation := unsafeparser.ParseGraphqlDocumentBytes(operationBytes)
 			report := operationreport.Report{}
-			normalizer := astnormalization.OperationNormalizer{}
+			normalizer := astnormalization.NewNormalizer(false)
 			validator := DefaultOperationValidator()
 
 			b.ResetTimer()
@@ -102,7 +102,7 @@ func BenchmarkOverlappingFieldsCanBeMerged(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				report.Reset()
 				definition := definition
-				normalizer.Do(&operation, &definition, &report)
+				normalizer.NormalizeOperation(&operation, &definition, &report)
 				if report.HasErrors() {
 					panic(report.Error())
 				}

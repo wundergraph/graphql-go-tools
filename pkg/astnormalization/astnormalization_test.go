@@ -119,14 +119,14 @@ func BenchmarkAstNormalization(b *testing.B) {
 	operation := unsafeparser.ParseGraphqlDocumentString(testOperation)
 	report := operationreport.Report{}
 
-	normalizer := &OperationNormalizer{}
+	normalizer := NewNormalizer(false)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
 		report.Reset()
-		normalizer.Do(&operation, &definition, &report)
+		normalizer.NormalizeOperation(&operation, &definition, &report)
 	}
 }
 

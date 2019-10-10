@@ -7,15 +7,23 @@ import (
 )
 
 func NormalizeOperation(operation, definition *ast.Document, report *operationreport.Report) {
-	normalizer := &OperationNormalizer{}
-	normalizer.Do(operation, definition, report)
+	normalizer := NewNormalizer(false)
+	normalizer.NormalizeOperation(operation, definition, report)
 }
 
 type registerNormalizeFunc func(walker *astvisitor.Walker)
 
 type OperationNormalizer struct {
-	walkers []*astvisitor.Walker
-	setup   bool
+	walkers                   []*astvisitor.Walker
+	removeFragmentDefinitions bool
+}
+
+func NewNormalizer(removeFragmentDefinitions bool) *OperationNormalizer {
+	normalizer := &OperationNormalizer{
+		removeFragmentDefinitions: removeFragmentDefinitions,
+	}
+	normalizer.setupWalkers()
+	return normalizer
 }
 
 func (o *OperationNormalizer) setupWalkers() {
@@ -28,16 +36,14 @@ func (o *OperationNormalizer) setupWalkers() {
 	mergeInlineFragments(&other)
 	mergeFieldSelections(&other)
 	deduplicateFields(&other)
+	if o.removeFragmentDefinitions {
+		removeFragmentDefinitions(&other)
+	}
 
 	o.walkers = append(o.walkers, &fragmentInline, &other)
 }
 
-func (o *OperationNormalizer) Do(operation, definition *ast.Document, report *operationreport.Report) {
-	if !o.setup {
-		o.setupWalkers()
-		o.setup = true
-	}
-
+func (o *OperationNormalizer) NormalizeOperation(operation, definition *ast.Document, report *operationreport.Report) {
 	for i := range o.walkers {
 		o.walkers[i].Walk(operation, definition, report)
 	}
