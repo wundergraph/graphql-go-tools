@@ -6,10 +6,6 @@ import (
 	"bytes"
 )
 
-type Response struct {
-	Data Data `json:"data"`
-}
-
 type Data struct {
 	Schema Schema `json:"__schema"`
 }
