@@ -5,7 +5,7 @@ type Index struct {
 	QueryTypeName           ByteSlice
 	MutationTypeName        ByteSlice
 	SubscriptionTypeName    ByteSlice
-	Nodes                   map[string]Node
+	Nodes                   map[uint64]Node
 	ReplacedFragmentSpreads []int
 }
 

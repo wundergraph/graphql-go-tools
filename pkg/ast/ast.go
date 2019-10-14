@@ -4,6 +4,7 @@ package ast
 import (
 	"bytes"
 	"fmt"
+	"github.com/cespare/xxhash"
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
@@ -245,7 +246,7 @@ func NewDocument() *Document {
 		Refs:                         make([][8]int, 48),
 		RefIndex:                     -1,
 		Index: Index{
-			Nodes: make(map[string]Node, 48),
+			Nodes: make(map[uint64]Node, 48),
 		},
 	}
 }
@@ -452,7 +453,7 @@ func (d *Document) FieldDefinitionType(ref int) int {
 
 func (d *Document) FieldDefinitionTypeNode(ref int) Node {
 	typeName := d.ResolveTypeName(d.FieldDefinitions[ref].Type)
-	return d.Index.Nodes[string(typeName)]
+	return d.Index.Nodes[xxhash.Sum64(typeName)]
 }
 
 func (d *Document) NodeFieldDefinitions(node Node) []int {
@@ -563,7 +564,7 @@ func (d *Document) FieldDefinitionsContainField(definitions []int, field ByteSli
 }
 
 func (d *Document) NodeByName(name ByteSlice) (Node, bool) {
-	node, exists := d.Index.Nodes[string(name)]
+	node, exists := d.Index.Nodes[xxhash.Sum64(name)]
 	return node, exists
 }
 
@@ -854,7 +855,7 @@ func (d *Document) InlineFragmentHasDirectives(ref int) bool {
 }
 
 func (d *Document) TypeDefinitionContainsImplementsInterface(typeName, interfaceName ByteSlice) bool {
-	typeDefinition, exists := d.Index.Nodes[string(typeName)]
+	typeDefinition, exists := d.Index.Nodes[xxhash.Sum64(typeName)]
 	if !exists {
 		return false
 	}
@@ -926,8 +927,8 @@ func (d *Document) TypesAreCompatibleDeep(left int, right int) bool {
 			if bytes.Equal(leftName, rightName) {
 				return true
 			}
-			leftNode := d.Index.Nodes[string(leftName)]
-			rightNode := d.Index.Nodes[string(rightName)]
+			leftNode := d.Index.Nodes[xxhash.Sum64(leftName)]
+			rightNode := d.Index.Nodes[xxhash.Sum64(rightName)]
 			if leftNode.Kind == rightNode.Kind {
 				return false
 			}
@@ -1027,7 +1028,7 @@ func (d *Document) NodeFragmentIsAllowedOnObjectTypeDefinition(fragmentNode, obj
 func (d *Document) UnionNodeIntersectsInterfaceNode(unionNode, interfaceNode Node) bool {
 	for _, i := range d.UnionTypeDefinitions[unionNode.Ref].UnionMemberTypes.Refs {
 		memberName := d.ResolveTypeName(i)
-		node := d.Index.Nodes[string(memberName)]
+		node := d.Index.Nodes[xxhash.Sum64(memberName)]
 		if node.Kind != NodeKindObjectTypeDefinition {
 			continue
 		}

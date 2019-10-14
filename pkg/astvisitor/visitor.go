@@ -3,6 +3,7 @@ package astvisitor
 import (
 	"bytes"
 	"fmt"
+	"github.com/cespare/xxhash"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
@@ -1079,7 +1080,7 @@ func (w *Walker) appendAncestor(ref int, kind ast.NodeKind) {
 	}
 
 	var exists bool
-	w.EnclosingTypeDefinition, exists = w.definition.Index.Nodes[string(typeName)]
+	w.EnclosingTypeDefinition, exists = w.definition.Index.Nodes[xxhash.Sum64(typeName)]
 	if !exists {
 		w.StopWithExternalErr(operationreport.ErrTypeUndefined(typeName))
 		return
@@ -1702,7 +1703,7 @@ func (w *Walker) inlineFragmentTypeDefinition(ref int, enclosingTypeDefinition a
 		return enclosingTypeDefinition
 	}
 	typeCondition := w.document.Types[w.document.InlineFragments[ref].TypeCondition.Type]
-	return w.definition.Index.Nodes[string(w.document.Input.ByteSlice(typeCondition.Name))]
+	return w.definition.Index.Nodes[xxhash.Sum64(w.document.Input.ByteSlice(typeCondition.Name))]
 }
 
 func (w *Walker) walkFragmentDefinition(ref int) {

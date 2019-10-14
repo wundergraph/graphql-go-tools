@@ -4,6 +4,7 @@ package astvalidation
 import (
 	"bytes"
 	"fmt"
+	"github.com/cespare/xxhash"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
@@ -561,7 +562,7 @@ func (v *validArgumentsVisitor) nullValueSatisfiesInputValueDefinition(inputValu
 func (v *validArgumentsVisitor) enumValueSatisfiesInputValueDefinition(enumValue, inputValueDefinition int) bool {
 
 	definitionTypeName := v.definition.ResolveTypeName(v.definition.InputValueDefinitions[inputValueDefinition].Type)
-	node, exists := v.definition.Index.Nodes[string(definitionTypeName)]
+	node, exists := v.definition.Index.Nodes[xxhash.Sum64(definitionTypeName)]
 	if !exists {
 		return false
 	}
@@ -705,7 +706,7 @@ func (v *valuesVisitor) valueSatisfiesInputValueDefinitionType(value ast.Value, 
 		}
 		return v.valueSatisfiesInputValueDefinitionType(value, v.definition.Types[definitionTypeRef].OfType)
 	case ast.TypeKindNamed:
-		node, exists := v.definition.Index.Nodes[string(v.definition.ResolveTypeName(definitionTypeRef))]
+		node, exists := v.definition.Index.Nodes[xxhash.Sum64(v.definition.ResolveTypeName(definitionTypeRef))]
 		if !exists {
 			return false
 		}
@@ -974,7 +975,7 @@ func (f *fragmentsVisitor) EnterInlineFragment(ref int) {
 
 	typeName := f.operation.InlineFragmentTypeConditionName(ref)
 
-	node, exists := f.definition.Index.Nodes[string(typeName)]
+	node, exists := f.definition.Index.Nodes[xxhash.Sum64(typeName)]
 	if !exists {
 		f.StopWithExternalErr(operationreport.ErrTypeUndefined(typeName))
 		return
@@ -1003,7 +1004,7 @@ func (f *fragmentsVisitor) EnterFragmentDefinition(ref int) {
 	fragmentDefinitionName := f.operation.FragmentDefinitionNameBytes(ref)
 	typeName := f.operation.FragmentDefinitionTypeName(ref)
 
-	node, exists := f.definition.Index.Nodes[string(typeName)]
+	node, exists := f.definition.Index.Nodes[xxhash.Sum64(typeName)]
 	if !exists {
 		f.StopWithExternalErr(operationreport.ErrTypeUndefined(typeName))
 		return
@@ -1047,7 +1048,7 @@ func (d *directivesAreDefinedVisitor) EnterDocument(operation, definition *ast.D
 func (d *directivesAreDefinedVisitor) EnterDirective(ref int) {
 
 	directiveName := d.operation.DirectiveNameBytes(ref)
-	definition, exists := d.definition.Index.Nodes[string(directiveName)]
+	definition, exists := d.definition.Index.Nodes[xxhash.Sum64(directiveName)]
 
 	if !exists || definition.Kind != ast.NodeKindDirectiveDefinition {
 		d.StopWithExternalErr(operationreport.ErrDirectiveUndefined(directiveName))
@@ -1078,7 +1079,7 @@ func (d *directivesAreInValidLocationsVisitor) EnterDocument(operation, definiti
 func (d *directivesAreInValidLocationsVisitor) EnterDirective(ref int) {
 
 	directiveName := d.operation.DirectiveNameBytes(ref)
-	definition, exists := d.definition.Index.Nodes[string(directiveName)]
+	definition, exists := d.definition.Index.Nodes[xxhash.Sum64(directiveName)]
 
 	if !exists || definition.Kind != ast.NodeKindDirectiveDefinition {
 		return // not defined, skip
@@ -1208,7 +1209,7 @@ func (v *variablesAreInputTypesVisitor) EnterDocument(operation, definition *ast
 func (v *variablesAreInputTypesVisitor) EnterVariableDefinition(ref int) {
 
 	typeName := v.operation.ResolveTypeName(v.operation.VariableDefinitions[ref].Type)
-	typeDefinitionNode := v.definition.Index.Nodes[string(typeName)]
+	typeDefinitionNode := v.definition.Index.Nodes[xxhash.Sum64(typeName)]
 	switch typeDefinitionNode.Kind {
 	case ast.NodeKindInputObjectTypeDefinition, ast.NodeKindScalarTypeDefinition, ast.NodeKindEnumTypeDefinition:
 		return
