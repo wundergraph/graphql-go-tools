@@ -101,7 +101,7 @@ func (h *Handler) Handle(requestBody io.Reader, responseWriter io.Writer) error 
 /*{
 	TypeName:  literal.QUERY,
 	FieldName: []byte("user"),
-	Resolver: &GraphQLResolver{
+	DataSource: &GraphQLDataSource{
 		Upstream: "localhost:8001",
 		URL:      "/graphql",
 	},
@@ -109,14 +109,14 @@ func (h *Handler) Handle(requestBody io.Reader, responseWriter io.Writer) error 
 {
 	TypeName:  []byte("User"),
 	FieldName: []byte("friends"),
-	Resolver: &RESTResolver{
+	DataSource: &HTTPJSONDataSource{
 		Upstream: "localhost:9000",
 	},
 },
 {
 	TypeName:  []byte("User"),
 	FieldName: []byte("pets"),
-	Resolver: &GraphQLResolver{
+	DataSource: &GraphQLDataSource{
 		Upstream: "localhost:8002",
 		URL:      "/graphql",
 	},
@@ -124,7 +124,7 @@ func (h *Handler) Handle(requestBody io.Reader, responseWriter io.Writer) error 
 {
 	TypeName:  literal.QUERY,
 	FieldName: []byte("hello"),
-	Resolver: &StaticDataSource{
+	DataSource: &StaticDataSource{
 		data: []byte("World!"),
 	},
 },*/
@@ -144,10 +144,10 @@ func (h *Handler) resolverDefinitions(report *operationreport.Report) ResolverDe
 		Walker:     &walker,
 		definition: &h.definition,
 		resolvers:  &definitions,
-		possibleResolvers: []Resolver{
+		possibleResolvers: []DataSource{
 			&StaticDataSource{},
-			&RESTResolver{},
-			&GraphQLResolver{},
+			&HTTPJSONDataSource{},
+			&GraphQLDataSource{},
 		},
 	}
 	walker.RegisterEnterFieldDefinitionVisitor(&visitor)
@@ -160,7 +160,7 @@ type resolverDefinitionsVisitor struct {
 	*astvisitor.Walker
 	definition        *ast.Document
 	resolvers         *ResolverDefinitions
-	possibleResolvers []Resolver
+	possibleResolvers []DataSource
 }
 
 func (r *resolverDefinitionsVisitor) EnterFieldDefinition(ref int) {

@@ -76,7 +76,7 @@ func TestExecution(t *testing.T) {
 										VariableName: []byte("name"),
 									},
 								},
-								Resolver: &TypeResolver{},
+								DataSource: &TypeResolver{},
 							},
 							Value: &Object{
 								Path: []string{"__type"},
@@ -144,7 +144,7 @@ func TestExecution(t *testing.T) {
 										VariableName: []byte("id"),
 									},
 								},
-								Resolver: &GraphQLResolver{},
+								DataSource: &GraphQLDataSource{},
 							},
 							Value: &Object{
 								Path: []string{"user"},
@@ -186,7 +186,7 @@ func TestExecution(t *testing.T) {
 													Path: []string{"id"},
 												},
 											},
-											Resolver: &RESTResolver{},
+											DataSource: &HTTPJSONDataSource{},
 										},
 										Value: &List{
 											Value: &Object{
@@ -236,7 +236,7 @@ func TestExecution(t *testing.T) {
 													Path: []string{"id"},
 												},
 											},
-											Resolver: &GraphQLResolver{},
+											DataSource: &GraphQLDataSource{},
 										},
 										Value: &List{
 											Path: []string{"userPets"},
@@ -382,7 +382,7 @@ func genField() Field {
 								VariableName: []byte("name"),
 							},
 						},
-						Resolver: &TypeResolver{},
+						DataSource: &TypeResolver{},
 					},
 					Value: &Object{
 						Path: []string{"__type"},
@@ -447,7 +447,7 @@ func genField() Field {
 								VariableName: []byte("id"),
 							},
 						},
-						Resolver: &GraphQLResolver{},
+						DataSource: &GraphQLDataSource{},
 					},
 					Value: &Object{
 						Path: []string{"data", "user"},
@@ -484,7 +484,7 @@ func genField() Field {
 											Path: []string{"id"},
 										},
 									},
-									Resolver: &RESTResolver{},
+									DataSource: &HTTPJSONDataSource{},
 								},
 								Value: &List{
 									Value: &Object{
@@ -533,7 +533,7 @@ func genField() Field {
 											Path: []string{"id"},
 										},
 									},
-									Resolver: &GraphQLResolver{},
+									DataSource: &GraphQLDataSource{},
 								},
 								Value: &List{
 									Path: []string{"data", "userPets"},

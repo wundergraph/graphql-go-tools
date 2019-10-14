@@ -18,7 +18,7 @@ type Planner struct {
 type ResolverDefinition struct {
 	TypeName  []byte
 	FieldName []byte
-	Resolver  Resolver
+	Resolver  DataSource
 }
 
 type ResolverDefinitions []ResolverDefinition
@@ -95,8 +95,8 @@ func (p *planningVisitor) EnterDocument(operation, definition *ast.Document) {
 
 func (p *planningVisitor) EnterInlineFragment(ref int) {
 	resolve := p.currentResolve[len(p.currentResolve)-1]
-	switch resolve.resolve.Resolver.(type) {
-	case *GraphQLResolver:
+	switch resolve.resolve.DataSource.(type) {
+	case *GraphQLDataSource:
 		current := resolve.currentNode[len(resolve.currentNode)-1]
 		if current.Kind != ast.NodeKindSelectionSet {
 			return
@@ -124,8 +124,8 @@ func (p *planningVisitor) EnterInlineFragment(ref int) {
 
 func (p *planningVisitor) LeaveInlineFragment(ref int) {
 	resolve := p.currentResolve[len(p.currentResolve)-1]
-	switch resolve.resolve.Resolver.(type) {
-	case *GraphQLResolver:
+	switch resolve.resolve.DataSource.(type) {
+	case *GraphQLDataSource:
 		resolve.currentNode = resolve.currentNode[:len(resolve.currentNode)-1]
 	}
 }
@@ -275,8 +275,8 @@ func (p *planningVisitor) EnterField(ref int) {
 		})
 		resolve := &resolveRef{
 			resolve: &Resolve{
-				Resolver: resolverDefinition.Resolver,
-				Args:     resolveArgs,
+				DataSource: resolverDefinition.Resolver,
+				Args:       resolveArgs,
 			},
 			path:     p.Path,
 			fieldRef: ref,
@@ -337,8 +337,8 @@ func (p *planningVisitor) EnterField(ref int) {
 			}
 		}
 		if resolve != nil {
-			switch resolve.Resolver.(type) {
-			case *RESTResolver:
+			switch resolve.DataSource.(type) {
+			case *HTTPJSONDataSource:
 				path = nil
 			case *StaticDataSource:
 				path = nil
@@ -417,13 +417,13 @@ func (p *planningVisitor) EnterField(ref int) {
 func (p *planningVisitor) LeaveField(ref int) {
 	resolve := p.currentResolve[len(p.currentResolve)-1]
 	if resolve.path.Equals(p.Path) && resolve.fieldRef == ref {
-		switch resolve.resolve.Resolver.(type) {
-		case *RESTResolver:
+		switch resolve.resolve.DataSource.(type) {
+		case *HTTPJSONDataSource:
 			definition, exists := p.FieldDefinition(ref)
 			if !exists {
 				return
 			}
-			directive, exists := p.definition.FieldDefinitionDirectiveByName(definition, []byte("RESTDataSource"))
+			directive, exists := p.definition.FieldDefinitionDirectiveByName(definition, []byte("HTTPJSONDataSource"))
 			if !exists {
 				return
 			}
@@ -448,7 +448,7 @@ func (p *planningVisitor) LeaveField(ref int) {
 			}
 			resolve.resolve.Args = append([]Argument{arg}, resolve.resolve.Args...)
 
-		case *GraphQLResolver:
+		case *GraphQLDataSource:
 			buff := bytes.Buffer{}
 			err := astprinter.Print(resolve.document, nil, &buff)
 			if err != nil {

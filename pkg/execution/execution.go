@@ -69,7 +69,7 @@ func (e *Executor) resolveNode(node Node, data []byte) {
 		e.write(literal.RBRACE)
 	case *Field:
 		if node.Resolve != nil {
-			data = node.Resolve.Resolver.Resolve(e.context, e.resolveArgs(node.Resolve.Args, data))
+			data = node.Resolve.DataSource.Resolve(e.context, e.resolveArgs(node.Resolve.Args, data))
 		}
 		e.write(literal.QUOTE)
 		e.write(node.Name)
@@ -324,11 +324,11 @@ func (*List) Kind() NodeKind {
 }
 
 type Resolve struct {
-	Args     []Argument
-	Resolver Resolver
+	Args       []Argument
+	DataSource DataSource
 }
 
-type Resolver interface {
+type DataSource interface {
 	Resolve(ctx Context, args ResolvedArgs) []byte
 	DirectiveName() []byte
 }
@@ -369,13 +369,13 @@ func (t *TypeResolver) Resolve(ctx Context, args ResolvedArgs) []byte {
 	return nil
 }
 
-type GraphQLResolver struct{}
+type GraphQLDataSource struct{}
 
-func (g *GraphQLResolver) DirectiveName() []byte {
+func (g *GraphQLDataSource) DirectiveName() []byte {
 	return []byte("GraphQLDataSource")
 }
 
-func (g *GraphQLResolver) Resolve(ctx Context, args ResolvedArgs) []byte {
+func (g *GraphQLDataSource) Resolve(ctx Context, args ResolvedArgs) []byte {
 
 	hostArg := args.ByKey(literal.HOST)
 	urlArg := args.ByKey(literal.URL)
@@ -447,13 +447,13 @@ func (g *GraphQLResolver) Resolve(ctx Context, args ResolvedArgs) []byte {
 	return data
 }
 
-type RESTResolver struct{}
+type HTTPJSONDataSource struct{}
 
-func (r *RESTResolver) DirectiveName() []byte {
-	return []byte("RESTDataSource")
+func (r *HTTPJSONDataSource) DirectiveName() []byte {
+	return []byte("HTTPJSONDataSource")
 }
 
-func (r *RESTResolver) Resolve(ctx Context, args ResolvedArgs) []byte {
+func (r *HTTPJSONDataSource) Resolve(ctx Context, args ResolvedArgs) []byte {
 
 	hostArg := args.ByKey(literal.HOST)
 	urlArg := args.ByKey(literal.URL)

@@ -68,7 +68,7 @@ func TestPlanner_Plan(t *testing.T) {
 			{
 				TypeName:  literal.QUERY,
 				FieldName: []byte("country"),
-				Resolver:  &GraphQLResolver{},
+				Resolver:  &GraphQLDataSource{},
 			},
 		},
 		&Object{
@@ -98,7 +98,7 @@ func TestPlanner_Plan(t *testing.T) {
 											VariableName: []byte("code"),
 										},
 									},
-									Resolver: &GraphQLResolver{},
+									DataSource: &GraphQLDataSource{},
 								},
 								Value: &Object{
 									Path: []string{"country"},
@@ -133,7 +133,7 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		},
 	))
-	t.Run("RESTDataSource", run(withBaseSchema(RESTDataSourceSchema), `
+	t.Run("HTTPJSONDataSource", run(withBaseSchema(HTTPJSONDataSourceSchema), `
 					query RESTQuery($id: Int!){
 						httpBinGet {
 							header {
@@ -153,17 +153,17 @@ func TestPlanner_Plan(t *testing.T) {
 			{
 				TypeName:  literal.QUERY,
 				FieldName: []byte("httpBinGet"),
-				Resolver:  &RESTResolver{},
+				Resolver:  &HTTPJSONDataSource{},
 			},
 			{
 				TypeName:  literal.QUERY,
 				FieldName: []byte("post"),
-				Resolver:  &RESTResolver{},
+				Resolver:  &HTTPJSONDataSource{},
 			},
 			{
 				TypeName:  []byte("JSONPlaceholderPost"),
 				FieldName: []byte("comments"),
-				Resolver:  &RESTResolver{},
+				Resolver:  &HTTPJSONDataSource{},
 			},
 		},
 		&Object{
@@ -175,7 +175,7 @@ func TestPlanner_Plan(t *testing.T) {
 							{
 								Name: []byte("httpBinGet"),
 								Resolve: &Resolve{
-									Resolver: &RESTResolver{},
+									DataSource: &HTTPJSONDataSource{},
 									Args: []Argument{
 										&StaticVariableArgument{
 											Name:  []byte("host"),
@@ -238,7 +238,7 @@ func TestPlanner_Plan(t *testing.T) {
 											VariableName: []byte("id"),
 										},
 									},
-									Resolver: &RESTResolver{},
+									DataSource: &HTTPJSONDataSource{},
 								},
 								Value: &Object{
 									Fields: []Field{
@@ -266,7 +266,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: []string{"id"},
 													},
 												},
-												Resolver: &RESTResolver{},
+												DataSource: &HTTPJSONDataSource{},
 											},
 											Value: &List{
 												Value: &Object{
@@ -330,7 +330,7 @@ func TestPlanner_Plan(t *testing.T) {
 											Value: []byte("World!"),
 										},
 									},
-									Resolver: &StaticDataSource{},
+									DataSource: &StaticDataSource{},
 								},
 								Value: &Value{
 									QuoteValue: true,
@@ -344,7 +344,7 @@ func TestPlanner_Plan(t *testing.T) {
 											Value: []byte("null"),
 										},
 									},
-									Resolver: &StaticDataSource{},
+									DataSource: &StaticDataSource{},
 								},
 								Value: &Value{
 									QuoteValue: false,
@@ -358,7 +358,7 @@ func TestPlanner_Plan(t *testing.T) {
 											Value: []byte("{\"bar\":\"baz\"}"),
 										},
 									},
-									Resolver: &StaticDataSource{},
+									DataSource: &StaticDataSource{},
 								},
 								Value: &Object{
 									Fields: []Field{
@@ -411,7 +411,7 @@ func TestPlanner_Plan(t *testing.T) {
 										VariableName: []byte("name"),
 									},
 								},
-								Resolver: &TypeResolver{},
+								DataSource: &TypeResolver{},
 							},
 							Value: &Object{
 								Path: []string{"__type"},
@@ -475,7 +475,7 @@ func TestPlanner_Plan(t *testing.T) {
 			{
 				TypeName:  literal.QUERY,
 				FieldName: []byte("user"),
-				Resolver:  &GraphQLResolver{},
+				Resolver:  &GraphQLDataSource{},
 			},
 		},
 		&Object{
@@ -505,7 +505,7 @@ func TestPlanner_Plan(t *testing.T) {
 											VariableName: []byte("id"),
 										},
 									},
-									Resolver: &GraphQLResolver{},
+									DataSource: &GraphQLDataSource{},
 								},
 								Value: &Object{
 									Path: []string{"user"},
@@ -549,7 +549,7 @@ func TestPlanner_Plan(t *testing.T) {
 				}`,
 		ResolverDefinitions{
 			{
-				Resolver:  &RESTResolver{},
+				Resolver:  &HTTPJSONDataSource{},
 				TypeName:  literal.QUERY,
 				FieldName: []byte("restUser"),
 			},
@@ -577,7 +577,7 @@ func TestPlanner_Plan(t *testing.T) {
 											VariableName: []byte("id"),
 										},
 									},
-									Resolver: &RESTResolver{},
+									DataSource: &HTTPJSONDataSource{},
 								},
 								Value: &Object{
 									Fields: []Field{
@@ -628,12 +628,12 @@ func TestPlanner_Plan(t *testing.T) {
 			{
 				TypeName:  literal.QUERY,
 				FieldName: []byte("user"),
-				Resolver:  &GraphQLResolver{},
+				Resolver:  &GraphQLDataSource{},
 			},
 			{
 				TypeName:  []byte("User"),
 				FieldName: []byte("friends"),
-				Resolver:  &RESTResolver{},
+				Resolver:  &HTTPJSONDataSource{},
 			},
 		},
 		&Object{
@@ -663,7 +663,7 @@ func TestPlanner_Plan(t *testing.T) {
 											VariableName: []byte("id"),
 										},
 									},
-									Resolver: &GraphQLResolver{},
+									DataSource: &GraphQLDataSource{},
 								},
 								Value: &Object{
 									Path: []string{"user"},
@@ -706,7 +706,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: []string{"id"},
 													},
 												},
-												Resolver: &RESTResolver{},
+												DataSource: &HTTPJSONDataSource{},
 											},
 											Value: &List{
 												Value: &Object{
@@ -785,17 +785,17 @@ func TestPlanner_Plan(t *testing.T) {
 			{
 				TypeName:  literal.QUERY,
 				FieldName: []byte("user"),
-				Resolver:  &GraphQLResolver{},
+				Resolver:  &GraphQLDataSource{},
 			},
 			{
 				TypeName:  []byte("User"),
 				FieldName: []byte("friends"),
-				Resolver:  &RESTResolver{},
+				Resolver:  &HTTPJSONDataSource{},
 			},
 			{
 				TypeName:  []byte("User"),
 				FieldName: []byte("pets"),
-				Resolver:  &GraphQLResolver{},
+				Resolver:  &GraphQLDataSource{},
 			},
 		},
 		&Object{
@@ -825,7 +825,7 @@ func TestPlanner_Plan(t *testing.T) {
 											VariableName: []byte("id"),
 										},
 									},
-									Resolver: &GraphQLResolver{},
+									DataSource: &GraphQLDataSource{},
 								},
 								Value: &Object{
 									Path: []string{"user"},
@@ -861,7 +861,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: []string{"id"},
 													},
 												},
-												Resolver: &RESTResolver{},
+												DataSource: &HTTPJSONDataSource{},
 											},
 											Value: &List{
 												Value: &Object{
@@ -908,7 +908,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		Path: []string{"id"},
 																	},
 																},
-																Resolver: &GraphQLResolver{},
+																DataSource: &GraphQLDataSource{},
 															},
 															Value: &List{
 																Path: []string{"userPets"},
@@ -1017,7 +1017,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: []string{"id"},
 													},
 												},
-												Resolver: &GraphQLResolver{},
+												DataSource: &GraphQLDataSource{},
 											},
 											Value: &List{
 												Path: []string{"userPets"},
@@ -1232,7 +1232,7 @@ func TestPlanner_Plan(t *testing.T) {
 							{
 								Name: []byte("__schema"),
 								Resolve: &Resolve{
-									Resolver: &SchemaResolver{},
+									DataSource: &SchemaResolver{},
 								},
 								Value: &Object{
 									Path: []string{"__schema"},
@@ -1728,8 +1728,8 @@ type Query {
 }
 `
 
-const RESTDataSourceSchema = `
-directive @RESTDataSource (
+const HTTPJSONDataSourceSchema = `
+directive @HTTPJSONDataSource (
     host: String!
     url: String!
     method: HTTP_METHOD = GET
@@ -1784,7 +1784,7 @@ type JSONPlaceholderPost {
     title: String!
     body: String!
     comments: [JSONPlaceholderComment]
-        @RESTDataSource(
+        @HTTPJSONDataSource(
             host: "jsonplaceholder.typicode.com"
             url: "/comments?postId={{ .postId }}"
             params: [
@@ -1809,12 +1809,12 @@ type JSONPlaceholderComment {
 "The query type, represents all of the entry points into our object graph"
 type Query {
     httpBinGet: HttpBinGet
-        @RESTDataSource(
+        @HTTPJSONDataSource(
             host: "httpbin.org"
             url: "/get"
         )
 	post(id: Int!): JSONPlaceholderPost
-        @RESTDataSource(
+        @HTTPJSONDataSource(
             host: "jsonplaceholder.typicode.com"
             url: "/posts/{{ .id }}"
 			params: [
@@ -1856,7 +1856,7 @@ type Query {
 }`
 
 const complexSchema = `
-directive @RESTDataSource (
+directive @HTTPJSONDataSource (
     host: String!
     url: String!
     method: HTTP_METHOD = GET
@@ -1955,7 +1955,7 @@ type Query {
 			]
 		)
 	restUser(id: String!): User
-		@RESTDataSource (
+		@HTTPJSONDataSource (
 			host: "localhost:9001"
 			url: "/user/{{ .id }}"
 			params: [
@@ -1973,7 +1973,7 @@ type User {
 	name: String
 	birthday: Date
 	friends: [User]
-		@RESTDataSource(
+		@HTTPJSONDataSource(
 			host: "localhost:9000"
 			url: "/user/:id/friends"
 			params: [
