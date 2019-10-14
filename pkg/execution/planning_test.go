@@ -475,10 +475,7 @@ func TestPlanner_Plan(t *testing.T) {
 			{
 				TypeName:  literal.QUERY,
 				FieldName: []byte("user"),
-				Resolver: &GraphQLResolver{
-					Upstream: "localhost:8001",
-					URL:      "/graphql",
-				},
+				Resolver:  &GraphQLResolver{},
 			},
 		},
 		&Object{
@@ -492,6 +489,14 @@ func TestPlanner_Plan(t *testing.T) {
 								Resolve: &Resolve{
 									Args: []Argument{
 										&StaticVariableArgument{
+											Name:  literal.HOST,
+											Value: []byte("localhost:8001"),
+										},
+										&StaticVariableArgument{
+											Name:  literal.URL,
+											Value: []byte("/graphql"),
+										},
+										&StaticVariableArgument{
 											Name:  literal.QUERY,
 											Value: []byte("query o($id: String!){user(id: $id){id name birthday}}"),
 										},
@@ -499,10 +504,6 @@ func TestPlanner_Plan(t *testing.T) {
 											Name:         []byte("id"),
 											VariableName: []byte("id"),
 										},
-									},
-									Resolver: &GraphQLResolver{
-										Upstream: "localhost:8001",
-										URL:      "/graphql",
 									},
 								},
 								Value: &Object{
@@ -622,10 +623,7 @@ func TestPlanner_Plan(t *testing.T) {
 			{
 				TypeName:  literal.QUERY,
 				FieldName: []byte("user"),
-				Resolver: &GraphQLResolver{
-					Upstream: "localhost:8001",
-					URL:      "/graphql",
-				},
+				Resolver:  &GraphQLResolver{},
 			},
 			{
 				TypeName:  []byte("User"),
@@ -644,6 +642,14 @@ func TestPlanner_Plan(t *testing.T) {
 								Resolve: &Resolve{
 									Args: []Argument{
 										&StaticVariableArgument{
+											Name:  literal.HOST,
+											Value: []byte("localhost:8001"),
+										},
+										&StaticVariableArgument{
+											Name:  literal.URL,
+											Value: []byte("/graphql"),
+										},
+										&StaticVariableArgument{
 											Name:  literal.QUERY,
 											Value: []byte("query o($id: String!){user(id: $id){id name birthday}}"),
 										},
@@ -652,10 +658,7 @@ func TestPlanner_Plan(t *testing.T) {
 											VariableName: []byte("id"),
 										},
 									},
-									Resolver: &GraphQLResolver{
-										Upstream: "localhost:8001",
-										URL:      "/graphql",
-									},
+									Resolver: &GraphQLResolver{},
 								},
 								Value: &Object{
 									Path: []string{"user"},
@@ -773,10 +776,7 @@ func TestPlanner_Plan(t *testing.T) {
 			{
 				TypeName:  literal.QUERY,
 				FieldName: []byte("user"),
-				Resolver: &GraphQLResolver{
-					Upstream: "localhost:8001",
-					URL:      "/graphql",
-				},
+				Resolver:  &GraphQLResolver{},
 			},
 			{
 				TypeName:  []byte("User"),
@@ -786,10 +786,7 @@ func TestPlanner_Plan(t *testing.T) {
 			{
 				TypeName:  []byte("User"),
 				FieldName: []byte("pets"),
-				Resolver: &GraphQLResolver{
-					Upstream: "localhost:8002",
-					URL:      "/graphql",
-				},
+				Resolver:  &GraphQLResolver{},
 			},
 		},
 		&Object{
@@ -811,10 +808,7 @@ func TestPlanner_Plan(t *testing.T) {
 											VariableName: []byte("id"),
 										},
 									},
-									Resolver: &GraphQLResolver{
-										Upstream: "localhost:8001",
-										URL:      "/graphql",
-									},
+									Resolver: &GraphQLResolver{},
 								},
 								Value: &Object{
 									Path: []string{"user"},
@@ -877,6 +871,14 @@ func TestPlanner_Plan(t *testing.T) {
 															Resolve: &Resolve{
 																Args: []Argument{
 																	&StaticVariableArgument{
+																		Name:  literal.HOST,
+																		Value: []byte("localhost:8002"),
+																	},
+																	&StaticVariableArgument{
+																		Name:  literal.URL,
+																		Value: []byte("/graphql"),
+																	},
+																	&StaticVariableArgument{
 																		Name:  literal.QUERY,
 																		Value: []byte("query o($id: String!){userPets(userId: $id){__typename nickname ... on Dog {name woof} ... on Cat {name meow}}}"),
 																	},
@@ -885,10 +887,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		Path: []string{"id"},
 																	},
 																},
-																Resolver: &GraphQLResolver{
-																	Upstream: "localhost:8002",
-																	URL:      "/graphql",
-																},
+																Resolver: &GraphQLResolver{},
 															},
 															Value: &List{
 																Path: []string{"userPets"},
@@ -981,6 +980,14 @@ func TestPlanner_Plan(t *testing.T) {
 											Resolve: &Resolve{
 												Args: []Argument{
 													&StaticVariableArgument{
+														Name:  literal.HOST,
+														Value: []byte("localhost:8002"),
+													},
+													&StaticVariableArgument{
+														Name:  literal.URL,
+														Value: []byte("/graphql"),
+													},
+													&StaticVariableArgument{
 														Name:  literal.QUERY,
 														Value: []byte("query o($id: String!){userPets(userId: $id){__typename nickname ... on Dog {name woof} ... on Cat {name meow}}}"),
 													},
@@ -989,10 +996,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: []string{"id"},
 													},
 												},
-												Resolver: &GraphQLResolver{
-													Upstream: "localhost:8002",
-													URL:      "/graphql",
-												},
+												Resolver: &GraphQLResolver{},
 											},
 											Value: &List{
 												Path: []string{"userPets"},
