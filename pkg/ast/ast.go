@@ -591,8 +591,12 @@ func (d *Document) StringValue(ref int) StringValue {
 	return d.StringValues[ref]
 }
 
-func (d *Document) StringValueContent(ref int) ByteSlice {
+func (d *Document) StringValueContentBytes(ref int) ByteSlice {
 	return d.Input.ByteSlice(d.StringValues[ref].Content)
+}
+
+func (d *Document) StringValueContentString(ref int) string {
+	return unsafebytes.BytesToString(d.StringValueContentBytes(ref))
 }
 
 func (d *Document) StringValueIsBlockString(ref int) bool {
@@ -601,7 +605,7 @@ func (d *Document) StringValueIsBlockString(ref int) bool {
 
 func (d *Document) StringValuesAreEquals(left, right int) bool {
 	return d.StringValueIsBlockString(left) == d.StringValueIsBlockString(right) &&
-		bytes.Equal(d.StringValueContent(left), d.StringValueContent(right))
+		bytes.Equal(d.StringValueContentBytes(left), d.StringValueContentBytes(right))
 }
 
 func (d *Document) IntValue(ref int) IntValue {
@@ -1277,6 +1281,22 @@ func (d *Document) FieldDefinitionDirectiveByName(fieldDefinition int, directive
 		}
 	}
 	return
+}
+
+func (d *Document) FieldDefinitionResolverTypeName(enclosingType Node) ByteSlice {
+	switch enclosingType.Kind {
+	case NodeKindObjectTypeDefinition:
+		name := d.ObjectTypeDefinitionNameBytes(enclosingType.Ref)
+		switch {
+		case bytes.Equal(name, d.Index.QueryTypeName):
+			return literal.QUERY
+		case bytes.Equal(name, d.Index.MutationTypeName):
+			return literal.MUTATION
+		case bytes.Equal(name, d.Index.SubscriptionTypeName):
+			return literal.SUBSCRIPTION
+		}
+	}
+	return d.NodeNameBytes(enclosingType)
 }
 
 type InputValueDefinitionList struct {
