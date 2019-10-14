@@ -197,7 +197,7 @@ func (f *fieldDefined) ValidateInterfaceObjectTypeField(ref int, enclosingTypeDe
 			switch {
 			case hasSelections && fieldDefinitionTypeKind == ast.NodeKindScalarTypeDefinition:
 				f.StopWithExternalErr(operationreport.ErrFieldSelectionOnScalar(fieldName, definitionName))
-			case !hasSelections && fieldDefinitionTypeKind != ast.NodeKindScalarTypeDefinition:
+			case !hasSelections && (fieldDefinitionTypeKind != ast.NodeKindScalarTypeDefinition && fieldDefinitionTypeKind != ast.NodeKindEnumTypeDefinition):
 				f.StopWithExternalErr(operationreport.ErrMissingFieldSelectionOnNonScalar(fieldName, typeName))
 			}
 			return
@@ -353,13 +353,15 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 			return
 		}
 
+		path := make(ast.Path, len(f.Path))
+		copy(path, f.Path)
+
 		f.nonScalarRequirements = append(f.nonScalarRequirements, nonScalarRequirement{
-			path:                    f.Path,
+			path:                    path,
 			objectName:              objectName,
 			fieldTypeRef:            fieldType,
 			fieldTypeDefinitionNode: fieldDefinitionTypeNode,
 		})
-
 		return
 	}
 
@@ -397,8 +399,11 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 		return
 	}
 
+	path := make(ast.Path, len(f.Path))
+	copy(path, f.Path)
+
 	f.scalarRequirements = append(f.scalarRequirements, scalarRequirement{
-		path:                    f.Path,
+		path:                    path,
 		objectName:              objectName,
 		fieldRef:                ref,
 		fieldType:               fieldType,
