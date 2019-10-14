@@ -1068,6 +1068,12 @@ func (w *Walker) appendAncestor(ref int, kind ast.NodeKind) {
 			w.StopWithExternalErr(operationreport.ErrFieldUndefinedOnType(fieldName, typeName))
 			return
 		}
+	case ast.NodeKindObjectTypeDefinition, ast.NodeKindInterfaceTypeDefinition:
+		w.EnclosingTypeDefinition = ast.Node{
+			Kind: kind,
+			Ref:  ref,
+		}
+		return
 	default:
 		return
 	}
@@ -1102,6 +1108,9 @@ func (w *Walker) removeLastAncestor() {
 		w.Path = w.Path[:len(w.Path)-1]
 		w.typeDefinitions = w.typeDefinitions[:len(w.typeDefinitions)-1]
 		w.EnclosingTypeDefinition = w.typeDefinitions[len(w.typeDefinitions)-1]
+	case ast.NodeKindObjectTypeDefinition, ast.NodeKindInterfaceTypeDefinition:
+		w.EnclosingTypeDefinition.Ref = -1
+		w.EnclosingTypeDefinition.Kind = ast.NodeKindUnknown
 	default:
 		return
 	}
