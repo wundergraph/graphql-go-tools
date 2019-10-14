@@ -5,6 +5,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
+	"strings"
 )
 
 type Generator struct {
@@ -67,6 +68,9 @@ func (i *introspectionVisitor) EnterObjectTypeDefinition(ref int) {
 }
 
 func (i *introspectionVisitor) LeaveObjectTypeDefinition(ref int) {
+	if strings.HasPrefix(i.currentType.Name, "__") {
+		return
+	}
 	i.data.Schema.Types = append(i.data.Schema.Types, i.currentType)
 }
 
@@ -86,6 +90,9 @@ func (i *introspectionVisitor) EnterFieldDefinition(ref int) {
 }
 
 func (i *introspectionVisitor) LeaveFieldDefinition(ref int) {
+	if strings.HasPrefix(i.currentField.Name, "__") {
+		return
+	}
 	i.currentType.Fields = append(i.currentType.Fields, i.currentField)
 }
 
@@ -132,6 +139,9 @@ func (i *introspectionVisitor) EnterInterfaceTypeDefinition(ref int) {
 }
 
 func (i *introspectionVisitor) LeaveInterfaceTypeDefinition(ref int) {
+	if strings.HasPrefix(i.currentType.Name, "__") {
+		return
+	}
 	i.data.Schema.Types = append(i.data.Schema.Types, i.currentType)
 }
 
@@ -170,6 +180,9 @@ func (i *introspectionVisitor) EnterUnionTypeDefinition(ref int) {
 }
 
 func (i *introspectionVisitor) LeaveUnionTypeDefinition(ref int) {
+	if strings.HasPrefix(i.currentType.Name, "__") {
+		return
+	}
 	i.data.Schema.Types = append(i.data.Schema.Types, i.currentType)
 }
 
@@ -201,6 +214,9 @@ func (i *introspectionVisitor) EnterEnumTypeDefinition(ref int) {
 }
 
 func (i *introspectionVisitor) LeaveEnumTypeDefinition(ref int) {
+	if strings.HasPrefix(i.currentType.Name, "__") {
+		return
+	}
 	i.data.Schema.Types = append(i.data.Schema.Types, i.currentType)
 }
 
