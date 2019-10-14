@@ -345,6 +345,250 @@ func TestExecutionValidation(t *testing.T) {
 			})
 		})
 		t.Run("5.3.2 Field Selection Merging", func(t *testing.T) {
+			t.Run("introspection query", func(t *testing.T) {
+				run(`query IntrospectionQuery {
+						__schema {
+							queryType {
+								name
+							}
+							mutationType {
+								name
+							}
+							subscriptionType {
+								name
+							}
+							types {
+								kind
+								name
+								description
+								fields(includeDeprecated: true){
+									name
+									description
+									args {
+										name
+										description
+										type {
+											kind
+											name
+											ofType {
+												kind
+												name
+												ofType {
+													kind
+													name
+													ofType {
+														kind
+														name
+														ofType {
+															kind
+															name
+															ofType {
+																kind
+																name
+																ofType {
+																	kind
+																	name
+																	ofType {
+																		kind
+																		name
+																	}
+																}
+															}
+														}
+													}
+												}
+											}
+										}
+										defaultValue
+									}
+									type {
+										kind
+										name
+										ofType {
+											kind
+											name
+											ofType {
+												kind
+												name
+												ofType {
+													kind
+													name
+													ofType {
+														kind
+														name
+														ofType {
+															kind
+															name
+															ofType {
+																kind
+																name
+																ofType {
+																	kind
+																	name
+																}
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+									isDeprecated
+									deprecationReason
+								}
+								inputFields {
+									name
+									description
+									type {
+										kind
+										name
+										ofType {
+											kind
+											name
+											ofType {
+												kind
+												name
+												ofType {
+													kind
+													name
+													ofType {
+														kind
+														name
+														ofType {
+															kind
+															name
+															ofType {
+																kind
+																name
+																ofType {
+																	kind
+																	name
+																}
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+									defaultValue
+								}
+								interfaces {
+									kind
+									name
+									ofType {
+										kind
+										name
+										ofType {
+											kind
+											name
+											ofType {
+												kind
+												name
+												ofType {
+													kind
+													name
+													ofType {
+														kind
+														name
+														ofType {
+															kind
+															name
+															ofType {
+																kind
+																name
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+								enumValues(includeDeprecated: true){
+									name
+									description
+									isDeprecated
+									deprecationReason
+								}
+								possibleTypes {
+									kind
+									name
+									ofType {
+										kind
+										name
+										ofType {
+											kind
+											name
+											ofType {
+												kind
+												name
+												ofType {
+													kind
+													name
+													ofType {
+														kind
+														name
+														ofType {
+															kind
+															name
+															ofType {
+																kind
+																name
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+							directives {
+								name
+								description
+								locations
+								args {
+									name
+									description
+									type {
+										kind
+										name
+										ofType {
+											kind
+											name
+											ofType {
+												kind
+												name
+												ofType {
+													kind
+													name
+													ofType {
+														kind
+														name
+														ofType {
+															kind
+															name
+															ofType {
+																kind
+																name
+																ofType {
+																	kind
+																	name
+																}
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+									defaultValue
+								}
+							}
+						}
+					}`, FieldSelectionMerging(), Valid)
+			})
 			t.Run("reference implementation tests", func(t *testing.T) {
 				t.Run("Same aliases allowed on non-overlapping fields", func(t *testing.T) {
 					run(`
@@ -3362,6 +3606,250 @@ func BenchmarkValidation(b *testing.B) {
 					}
 				}`, Invalid)
 	})
+	b.Run("introspection", func(b *testing.B) {
+		run(b, testDefinition, `query IntrospectionQuery {
+						__schema {
+							queryType {
+								name
+							}
+							mutationType {
+								name
+							}
+							subscriptionType {
+								name
+							}
+							types {
+								kind
+								name
+								description
+								fields(includeDeprecated: true){
+									name
+									description
+									args {
+										name
+										description
+										type {
+											kind
+											name
+											ofType {
+												kind
+												name
+												ofType {
+													kind
+													name
+													ofType {
+														kind
+														name
+														ofType {
+															kind
+															name
+															ofType {
+																kind
+																name
+																ofType {
+																	kind
+																	name
+																	ofType {
+																		kind
+																		name
+																	}
+																}
+															}
+														}
+													}
+												}
+											}
+										}
+										defaultValue
+									}
+									type {
+										kind
+										name
+										ofType {
+											kind
+											name
+											ofType {
+												kind
+												name
+												ofType {
+													kind
+													name
+													ofType {
+														kind
+														name
+														ofType {
+															kind
+															name
+															ofType {
+																kind
+																name
+																ofType {
+																	kind
+																	name
+																}
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+									isDeprecated
+									deprecationReason
+								}
+								inputFields {
+									name
+									description
+									type {
+										kind
+										name
+										ofType {
+											kind
+											name
+											ofType {
+												kind
+												name
+												ofType {
+													kind
+													name
+													ofType {
+														kind
+														name
+														ofType {
+															kind
+															name
+															ofType {
+																kind
+																name
+																ofType {
+																	kind
+																	name
+																}
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+									defaultValue
+								}
+								interfaces {
+									kind
+									name
+									ofType {
+										kind
+										name
+										ofType {
+											kind
+											name
+											ofType {
+												kind
+												name
+												ofType {
+													kind
+													name
+													ofType {
+														kind
+														name
+														ofType {
+															kind
+															name
+															ofType {
+																kind
+																name
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+								enumValues(includeDeprecated: true){
+									name
+									description
+									isDeprecated
+									deprecationReason
+								}
+								possibleTypes {
+									kind
+									name
+									ofType {
+										kind
+										name
+										ofType {
+											kind
+											name
+											ofType {
+												kind
+												name
+												ofType {
+													kind
+													name
+													ofType {
+														kind
+														name
+														ofType {
+															kind
+															name
+															ofType {
+																kind
+																name
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+							directives {
+								name
+								description
+								locations
+								args {
+									name
+									description
+									type {
+										kind
+										name
+										ofType {
+											kind
+											name
+											ofType {
+												kind
+												name
+												ofType {
+													kind
+													name
+													ofType {
+														kind
+														name
+														ofType {
+															kind
+															name
+															ofType {
+																kind
+																name
+																ofType {
+																	kind
+																	name
+																}
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+									defaultValue
+								}
+							}
+						}
+					}`, Valid)
+	})
 }
 
 var testDefinition = `
@@ -3428,6 +3916,7 @@ type T {
 }
 
 type Query {
+	__schema: __Schema!
 	f1: Field
 	f2: Field
 	f3: Field
