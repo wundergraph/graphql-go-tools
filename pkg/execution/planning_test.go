@@ -55,6 +55,329 @@ func TestPlanner_Plan(t *testing.T) {
 		}
 	}
 
+	t.Run("GraphQLDataSource", run(withBaseSchema(GraphQLDataSourceSchema), `
+				query GraphQLQuery($code: String!) {
+					country(code: $code) {
+						code
+						name
+						aliased: native
+					}
+				}
+`,
+		ResolverDefinitions{
+			{
+				TypeName:  literal.QUERY,
+				FieldName: []byte("country"),
+				Resolver:  &GraphQLResolver{},
+			},
+		},
+		&Object{
+			Fields: []Field{
+				{
+					Name: []byte("data"),
+					Value: &Object{
+						Fields: []Field{
+							{
+								Name: []byte("country"),
+								Resolve: &Resolve{
+									Args: []Argument{
+										&StaticVariableArgument{
+											Name:  []byte("host"),
+											Value: []byte("countries.trevorblades.com"),
+										},
+										&StaticVariableArgument{
+											Name:  []byte("url"),
+											Value: []byte("/"),
+										},
+										&StaticVariableArgument{
+											Name:  []byte("query"),
+											Value: []byte("query o($code: String!){country(code: $code){code name native}}"),
+										},
+										&ContextVariableArgument{
+											Name:         []byte("code"),
+											VariableName: []byte("code"),
+										},
+									},
+									Resolver: &GraphQLResolver{},
+								},
+								Value: &Object{
+									Path: []string{"country"},
+									Fields: []Field{
+										{
+											Name: []byte("code"),
+											Value: &Value{
+												Path:       []string{"code"},
+												QuoteValue: true,
+											},
+										},
+										{
+											Name: []byte("name"),
+											Value: &Value{
+												Path:       []string{"name"},
+												QuoteValue: true,
+											},
+										},
+										{
+											Name: []byte("aliased"),
+											Value: &Value{
+												Path:       []string{"native"},
+												QuoteValue: true,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	))
+	t.Run("RESTDataSource", run(withBaseSchema(RESTDataSourceSchema), `
+					query RESTQuery($id: Int!){
+						httpBinGet {
+							header {
+								Accept
+								Host
+								acceptEncoding
+							}
+						}
+						post(id: $id) {
+							id
+							comments {
+								id
+							}
+						}
+					}`,
+		ResolverDefinitions{
+			{
+				TypeName:  literal.QUERY,
+				FieldName: []byte("httpBinGet"),
+				Resolver:  &RESTResolver{},
+			},
+			{
+				TypeName:  literal.QUERY,
+				FieldName: []byte("post"),
+				Resolver:  &RESTResolver{},
+			},
+			{
+				TypeName:  []byte("JSONPlaceholderPost"),
+				FieldName: []byte("comments"),
+				Resolver:  &RESTResolver{},
+			},
+		},
+		&Object{
+			Fields: []Field{
+				{
+					Name: []byte("data"),
+					Value: &Object{
+						Fields: []Field{
+							{
+								Name: []byte("httpBinGet"),
+								Resolve: &Resolve{
+									Resolver: &RESTResolver{},
+									Args: []Argument{
+										&StaticVariableArgument{
+											Name:  []byte("host"),
+											Value: []byte("httpbin.org"),
+										},
+										&StaticVariableArgument{
+											Name:  []byte("url"),
+											Value: []byte("/get"),
+										},
+									},
+								},
+								Value: &Object{
+									Fields: []Field{
+										{
+											Name: []byte("header"),
+											Value: &Object{
+												Path: []string{"headers"},
+												Fields: []Field{
+													{
+														Name: []byte("Accept"),
+														Value: &Value{
+															Path:       []string{"Accept"},
+															QuoteValue: true,
+														},
+													},
+													{
+														Name: []byte("Host"),
+														Value: &Value{
+															Path:       []string{"Host"},
+															QuoteValue: true,
+														},
+													},
+													{
+														Name: []byte("acceptEncoding"),
+														Value: &Value{
+															Path:       []string{"Accept-Encoding"},
+															QuoteValue: true,
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+							{
+								Name: []byte("post"),
+								Resolve: &Resolve{
+									Args: []Argument{
+										&StaticVariableArgument{
+											Name:  []byte("host"),
+											Value: []byte("jsonplaceholder.typicode.com"),
+										},
+										&StaticVariableArgument{
+											Name:  []byte("url"),
+											Value: []byte("/posts/{{ .id }}"),
+										},
+										&ContextVariableArgument{
+											Name:         []byte("id"),
+											VariableName: []byte("id"),
+										},
+									},
+									Resolver: &RESTResolver{},
+								},
+								Value: &Object{
+									Fields: []Field{
+										{
+											Name: []byte("id"),
+											Value: &Value{
+												Path:       []string{"id"},
+												QuoteValue: false,
+											},
+										},
+										{
+											Name: []byte("comments"),
+											Resolve: &Resolve{
+												Args: []Argument{
+													&StaticVariableArgument{
+														Name:  []byte("host"),
+														Value: []byte("jsonplaceholder.typicode.com"),
+													},
+													&StaticVariableArgument{
+														Name:  []byte("url"),
+														Value: []byte("/comments?postId={{ .postId }}"),
+													},
+													&ObjectVariableArgument{
+														Name: []byte("postId"),
+														Path: []string{"id"},
+													},
+												},
+												Resolver: &RESTResolver{},
+											},
+											Value: &List{
+												Value: &Object{
+													Fields: []Field{
+														{
+															Name: []byte("id"),
+															Value: &Value{
+																Path:       []string{"id"},
+																QuoteValue: false,
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	))
+	t.Run("StaticDataSource", run(withBaseSchema(staticDataSourceSchema), `
+					{
+						hello
+						nullableInt
+						foo {
+							bar
+						}
+					}`,
+		ResolverDefinitions{
+			{
+				TypeName:  literal.QUERY,
+				FieldName: []byte("hello"),
+				Resolver:  &StaticDataSource{},
+			},
+			{
+				TypeName:  literal.QUERY,
+				FieldName: []byte("nullableInt"),
+				Resolver:  &StaticDataSource{},
+			},
+			{
+				TypeName:  literal.QUERY,
+				FieldName: []byte("foo"),
+				Resolver:  &StaticDataSource{},
+			},
+		},
+		&Object{
+			Fields: []Field{
+				{
+					Name: []byte("data"),
+					Value: &Object{
+						Fields: []Field{
+							{
+								Name: []byte("hello"),
+								Resolve: &Resolve{
+									Args: []Argument{
+										&StaticVariableArgument{
+											Value: []byte("World!"),
+										},
+									},
+									Resolver: &StaticDataSource{},
+								},
+								Value: &Value{
+									QuoteValue: true,
+								},
+							},
+							{
+								Name: []byte("nullableInt"),
+								Resolve: &Resolve{
+									Args: []Argument{
+										&StaticVariableArgument{
+											Value: []byte("null"),
+										},
+									},
+									Resolver: &StaticDataSource{},
+								},
+								Value: &Value{
+									QuoteValue: false,
+								},
+							},
+							{
+								Name: []byte("foo"),
+								Resolve: &Resolve{
+									Args: []Argument{
+										&StaticVariableArgument{
+											Value: []byte("{\"bar\":\"baz\"}"),
+										},
+									},
+									Resolver: &StaticDataSource{},
+								},
+								Value: &Object{
+									Fields: []Field{
+										{
+											Name: []byte("bar"),
+											Value: &Value{
+												Path:       []string{"bar"},
+												QuoteValue: true,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	))
 	t.Run("introspection type query", run(withBaseSchema(complexSchema), `
 				query TypeQuery($name: String! = "User") {
 					__type(name: $name) {
@@ -96,7 +419,8 @@ func TestPlanner_Plan(t *testing.T) {
 									{
 										Name: []byte("name"),
 										Value: &Value{
-											Path: []string{"name"},
+											Path:       []string{"name"},
+											QuoteValue: true,
 										},
 									},
 									{
@@ -108,7 +432,8 @@ func TestPlanner_Plan(t *testing.T) {
 													{
 														Name: []byte("name"),
 														Value: &Value{
-															Path: []string{"name"},
+															Path:       []string{"name"},
+															QuoteValue: true,
 														},
 													},
 													{
@@ -119,7 +444,8 @@ func TestPlanner_Plan(t *testing.T) {
 																{
 																	Name: []byte("name"),
 																	Value: &Value{
-																		Path: []string{"name"},
+																		Path:       []string{"name"},
+																		QuoteValue: true,
 																	},
 																},
 															},
@@ -185,19 +511,22 @@ func TestPlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("id"),
 											Value: &Value{
-												Path: []string{"id"},
+												Path:       []string{"id"},
+												QuoteValue: true,
 											},
 										},
 										{
 											Name: []byte("name"),
 											Value: &Value{
-												Path: []string{"name"},
+												Path:       []string{"name"},
+												QuoteValue: true,
 											},
 										},
 										{
 											Name: []byte("birthday"),
 											Value: &Value{
-												Path: []string{"birthday"},
+												Path:       []string{"birthday"},
+												QuoteValue: true,
 											},
 										},
 									},
@@ -218,9 +547,7 @@ func TestPlanner_Plan(t *testing.T) {
 				}`,
 		ResolverDefinitions{
 			{
-				Resolver: &RESTResolver{
-					Upstream: "localhost:9001",
-				},
+				Resolver:  &RESTResolver{},
 				TypeName:  literal.QUERY,
 				FieldName: []byte("restUser"),
 			},
@@ -244,28 +571,29 @@ func TestPlanner_Plan(t *testing.T) {
 											VariableName: []byte("id"),
 										},
 									},
-									Resolver: &RESTResolver{
-										Upstream: "localhost:9001",
-									},
+									Resolver: &RESTResolver{},
 								},
 								Value: &Object{
 									Fields: []Field{
 										{
 											Name: []byte("id"),
 											Value: &Value{
-												Path: []string{"id"},
+												Path:       []string{"id"},
+												QuoteValue: true,
 											},
 										},
 										{
 											Name: []byte("name"),
 											Value: &Value{
-												Path: []string{"name"},
+												Path:       []string{"name"},
+												QuoteValue: true,
 											},
 										},
 										{
 											Name: []byte("birthday"),
 											Value: &Value{
-												Path: []string{"birthday"},
+												Path:       []string{"birthday"},
+												QuoteValue: true,
 											},
 										},
 									},
@@ -302,9 +630,7 @@ func TestPlanner_Plan(t *testing.T) {
 			{
 				TypeName:  []byte("User"),
 				FieldName: []byte("friends"),
-				Resolver: &RESTResolver{
-					Upstream: "localhost:9000",
-				},
+				Resolver:  &RESTResolver{},
 			},
 		},
 		&Object{
@@ -337,19 +663,22 @@ func TestPlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("id"),
 											Value: &Value{
-												Path: []string{"id"},
+												Path:       []string{"id"},
+												QuoteValue: true,
 											},
 										},
 										{
 											Name: []byte("name"),
 											Value: &Value{
-												Path: []string{"name"},
+												Path:       []string{"name"},
+												QuoteValue: true,
 											},
 										},
 										{
 											Name: []byte("birthday"),
 											Value: &Value{
-												Path: []string{"birthday"},
+												Path:       []string{"birthday"},
+												QuoteValue: true,
 											},
 										},
 										{
@@ -365,9 +694,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: []string{"id"},
 													},
 												},
-												Resolver: &RESTResolver{
-													Upstream: "localhost:9000",
-												},
+												Resolver: &RESTResolver{},
 											},
 											Value: &List{
 												Value: &Object{
@@ -375,19 +702,22 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("id"),
 															Value: &Value{
-																Path: []string{"id"},
+																Path:       []string{"id"},
+																QuoteValue: true,
 															},
 														},
 														{
 															Name: []byte("name"),
 															Value: &Value{
-																Path: []string{"name"},
+																Path:       []string{"name"},
+																QuoteValue: true,
 															},
 														},
 														{
 															Name: []byte("birthday"),
 															Value: &Value{
-																Path: []string{"birthday"},
+																Path:       []string{"birthday"},
+																QuoteValue: true,
 															},
 														},
 													},
@@ -451,9 +781,7 @@ func TestPlanner_Plan(t *testing.T) {
 			{
 				TypeName:  []byte("User"),
 				FieldName: []byte("friends"),
-				Resolver: &RESTResolver{
-					Upstream: "localhost:9000",
-				},
+				Resolver:  &RESTResolver{},
 			},
 			{
 				TypeName:  []byte("User"),
@@ -494,13 +822,15 @@ func TestPlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("id"),
 											Value: &Value{
-												Path: []string{"id"},
+												Path:       []string{"id"},
+												QuoteValue: true,
 											},
 										},
 										{
 											Name: []byte("name"),
 											Value: &Value{
-												Path: []string{"name"},
+												Path:       []string{"name"},
+												QuoteValue: true,
 											},
 										},
 										{
@@ -516,9 +846,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: []string{"id"},
 													},
 												},
-												Resolver: &RESTResolver{
-													Upstream: "localhost:9000",
-												},
+												Resolver: &RESTResolver{},
 											},
 											Value: &List{
 												Value: &Object{
@@ -526,19 +854,22 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("id"),
 															Value: &Value{
-																Path: []string{"id"},
+																Path:       []string{"id"},
+																QuoteValue: true,
 															},
 														},
 														{
 															Name: []byte("name"),
 															Value: &Value{
-																Path: []string{"name"},
+																Path:       []string{"name"},
+																QuoteValue: true,
 															},
 														},
 														{
 															Name: []byte("birthday"),
 															Value: &Value{
-																Path: []string{"birthday"},
+																Path:       []string{"birthday"},
+																QuoteValue: true,
 															},
 														},
 														{
@@ -566,19 +897,22 @@ func TestPlanner_Plan(t *testing.T) {
 																		{
 																			Name: []byte("__typename"),
 																			Value: &Value{
-																				Path: []string{"__typename"},
+																				Path:       []string{"__typename"},
+																				QuoteValue: true,
 																			},
 																		},
 																		{
 																			Name: []byte("nickname"),
 																			Value: &Value{
-																				Path: []string{"nickname"},
+																				Path:       []string{"nickname"},
+																				QuoteValue: true,
 																			},
 																		},
 																		{
 																			Name: []byte("name"),
 																			Value: &Value{
-																				Path: []string{"name"},
+																				Path:       []string{"name"},
+																				QuoteValue: true,
 																			},
 																			Skip: &IfNotEqual{
 																				Left: &ObjectVariableArgument{
@@ -592,7 +926,8 @@ func TestPlanner_Plan(t *testing.T) {
 																		{
 																			Name: []byte("woof"),
 																			Value: &Value{
-																				Path: []string{"woof"},
+																				Path:       []string{"woof"},
+																				QuoteValue: true,
 																			},
 																			Skip: &IfNotEqual{
 																				Left: &ObjectVariableArgument{
@@ -606,7 +941,8 @@ func TestPlanner_Plan(t *testing.T) {
 																		{
 																			Name: []byte("name"),
 																			Value: &Value{
-																				Path: []string{"name"},
+																				Path:       []string{"name"},
+																				QuoteValue: true,
 																			},
 																			Skip: &IfNotEqual{
 																				Left: &ObjectVariableArgument{
@@ -620,7 +956,8 @@ func TestPlanner_Plan(t *testing.T) {
 																		{
 																			Name: []byte("meow"),
 																			Value: &Value{
-																				Path: []string{"meow"},
+																				Path:       []string{"meow"},
+																				QuoteValue: true,
 																			},
 																			Skip: &IfNotEqual{
 																				Left: &ObjectVariableArgument{
@@ -664,19 +1001,22 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("__typename"),
 															Value: &Value{
-																Path: []string{"__typename"},
+																Path:       []string{"__typename"},
+																QuoteValue: true,
 															},
 														},
 														{
 															Name: []byte("nickname"),
 															Value: &Value{
-																Path: []string{"nickname"},
+																Path:       []string{"nickname"},
+																QuoteValue: true,
 															},
 														},
 														{
 															Name: []byte("name"),
 															Value: &Value{
-																Path: []string{"name"},
+																Path:       []string{"name"},
+																QuoteValue: true,
 															},
 															Skip: &IfNotEqual{
 																Left: &ObjectVariableArgument{
@@ -690,7 +1030,8 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("woof"),
 															Value: &Value{
-																Path: []string{"woof"},
+																Path:       []string{"woof"},
+																QuoteValue: true,
 															},
 															Skip: &IfNotEqual{
 																Left: &ObjectVariableArgument{
@@ -704,7 +1045,8 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("name"),
 															Value: &Value{
-																Path: []string{"name"},
+																Path:       []string{"name"},
+																QuoteValue: true,
 															},
 															Skip: &IfNotEqual{
 																Left: &ObjectVariableArgument{
@@ -718,7 +1060,8 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("meow"),
 															Value: &Value{
-																Path: []string{"meow"},
+																Path:       []string{"meow"},
+																QuoteValue: true,
 															},
 															Skip: &IfNotEqual{
 																Left: &ObjectVariableArgument{
@@ -736,7 +1079,8 @@ func TestPlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("birthday"),
 											Value: &Value{
-												Path: []string{"birthday"},
+												Path:       []string{"birthday"},
+												QuoteValue: true,
 											},
 										},
 									},
@@ -876,7 +1220,8 @@ func TestPlanner_Plan(t *testing.T) {
 													{
 														Name: []byte("name"),
 														Value: &Value{
-															Path: []string{"name"},
+															Path:       []string{"name"},
+															QuoteValue: true,
 														},
 													},
 												},
@@ -890,7 +1235,8 @@ func TestPlanner_Plan(t *testing.T) {
 													{
 														Name: []byte("name"),
 														Value: &Value{
-															Path: []string{"name"},
+															Path:       []string{"name"},
+															QuoteValue: true,
 														},
 													},
 												},
@@ -904,7 +1250,8 @@ func TestPlanner_Plan(t *testing.T) {
 													{
 														Name: []byte("name"),
 														Value: &Value{
-															Path: []string{"name"},
+															Path:       []string{"name"},
+															QuoteValue: true,
 														},
 													},
 												},
@@ -919,19 +1266,22 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("kind"),
 															Value: &Value{
-																Path: []string{"kind"},
+																Path:       []string{"kind"},
+																QuoteValue: true,
 															},
 														},
 														{
 															Name: []byte("name"),
 															Value: &Value{
-																Path: []string{"name"},
+																Path:       []string{"name"},
+																QuoteValue: true,
 															},
 														},
 														{
 															Name: []byte("description"),
 															Value: &Value{
-																Path: []string{"description"},
+																Path:       []string{"description"},
+																QuoteValue: true,
 															},
 														},
 														{
@@ -943,13 +1293,15 @@ func TestPlanner_Plan(t *testing.T) {
 																		{
 																			Name: []byte("name"),
 																			Value: &Value{
-																				Path: []string{"name"},
+																				Path:       []string{"name"},
+																				QuoteValue: true,
 																			},
 																		},
 																		{
 																			Name: []byte("description"),
 																			Value: &Value{
-																				Path: []string{"description"},
+																				Path:       []string{"description"},
+																				QuoteValue: true,
 																			},
 																		},
 																		{
@@ -961,13 +1313,15 @@ func TestPlanner_Plan(t *testing.T) {
 																						{
 																							Name: []byte("name"),
 																							Value: &Value{
-																								Path: []string{"name"},
+																								Path:       []string{"name"},
+																								QuoteValue: true,
 																							},
 																						},
 																						{
 																							Name: []byte("description"),
 																							Value: &Value{
-																								Path: []string{"description"},
+																								Path:       []string{"description"},
+																								QuoteValue: true,
 																							},
 																						},
 																						{
@@ -980,7 +1334,8 @@ func TestPlanner_Plan(t *testing.T) {
 																						{
 																							Name: []byte("defaultValue"),
 																							Value: &Value{
-																								Path: []string{"defaultValue"},
+																								Path:       []string{"defaultValue"},
+																								QuoteValue: true,
 																							},
 																						},
 																					},
@@ -997,13 +1352,15 @@ func TestPlanner_Plan(t *testing.T) {
 																		{
 																			Name: []byte("isDeprecated"),
 																			Value: &Value{
-																				Path: []string{"isDeprecated"},
+																				Path:       []string{"isDeprecated"},
+																				QuoteValue: false,
 																			},
 																		},
 																		{
 																			Name: []byte("deprecationReason"),
 																			Value: &Value{
-																				Path: []string{"deprecationReason"},
+																				Path:       []string{"deprecationReason"},
+																				QuoteValue: true,
 																			},
 																		},
 																	},
@@ -1019,13 +1376,15 @@ func TestPlanner_Plan(t *testing.T) {
 																		{
 																			Name: []byte("name"),
 																			Value: &Value{
-																				Path: []string{"name"},
+																				Path:       []string{"name"},
+																				QuoteValue: true,
 																			},
 																		},
 																		{
 																			Name: []byte("description"),
 																			Value: &Value{
-																				Path: []string{"description"},
+																				Path:       []string{"description"},
+																				QuoteValue: true,
 																			},
 																		},
 																		{
@@ -1038,7 +1397,8 @@ func TestPlanner_Plan(t *testing.T) {
 																		{
 																			Name: []byte("defaultValue"),
 																			Value: &Value{
-																				Path: []string{"defaultValue"},
+																				Path:       []string{"defaultValue"},
+																				QuoteValue: true,
 																			},
 																		},
 																	},
@@ -1063,25 +1423,29 @@ func TestPlanner_Plan(t *testing.T) {
 																		{
 																			Name: []byte("name"),
 																			Value: &Value{
-																				Path: []string{"name"},
+																				Path:       []string{"name"},
+																				QuoteValue: true,
 																			},
 																		},
 																		{
 																			Name: []byte("description"),
 																			Value: &Value{
-																				Path: []string{"description"},
+																				Path:       []string{"description"},
+																				QuoteValue: true,
 																			},
 																		},
 																		{
 																			Name: []byte("isDeprecated"),
 																			Value: &Value{
-																				Path: []string{"isDeprecated"},
+																				Path:       []string{"isDeprecated"},
+																				QuoteValue: false,
 																			},
 																		},
 																		{
 																			Name: []byte("deprecationReason"),
 																			Value: &Value{
-																				Path: []string{"deprecationReason"},
+																				Path:       []string{"deprecationReason"},
+																				QuoteValue: true,
 																			},
 																		},
 																	},
@@ -1110,20 +1474,24 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("name"),
 															Value: &Value{
-																Path: []string{"name"},
+																Path:       []string{"name"},
+																QuoteValue: true,
 															},
 														},
 														{
 															Name: []byte("description"),
 															Value: &Value{
-																Path: []string{"description"},
+																Path:       []string{"description"},
+																QuoteValue: true,
 															},
 														},
 														{
 															Name: []byte("locations"),
 															Value: &List{
-																Path:  []string{"locations"},
-																Value: &Object{},
+																Path: []string{"locations"},
+																Value: &Value{
+																	QuoteValue: true,
+																},
 															},
 														},
 														{
@@ -1135,13 +1503,15 @@ func TestPlanner_Plan(t *testing.T) {
 																		{
 																			Name: []byte("name"),
 																			Value: &Value{
-																				Path: []string{"name"},
+																				Path:       []string{"name"},
+																				QuoteValue: true,
 																			},
 																		},
 																		{
 																			Name: []byte("description"),
 																			Value: &Value{
-																				Path: []string{"description"},
+																				Path:       []string{"description"},
+																				QuoteValue: true,
 																			},
 																		},
 																		{
@@ -1154,7 +1524,8 @@ func TestPlanner_Plan(t *testing.T) {
 																		{
 																			Name: []byte("defaultValue"),
 																			Value: &Value{
-																				Path: []string{"defaultValue"},
+																				Path:       []string{"defaultValue"},
+																				QuoteValue: true,
 																			},
 																		},
 																	},
@@ -1252,6 +1623,214 @@ fragment petsFragment on Pet {
 	}
 }`
 
+const GraphQLDataSourceSchema = `
+directive @GraphQLDataSource (
+    host: String!
+    url: String!
+	field: String
+    method: HTTP_METHOD = POST
+    params: [Parameter]
+) on FIELD_DEFINITION
+
+enum HTTP_METHOD {
+    GET
+    POST
+    UPDATE
+    DELETE
+}
+
+input Parameter {
+    name: String!
+    sourceKind: PARAMETER_SOURCE!
+    sourceName: String!
+    variableType: String!
+}
+
+enum PARAMETER_SOURCE {
+    CONTEXT_VARIABLE
+    OBJECT_VARIABLE_ARGUMENT
+    FIELD_ARGUMENTS
+}
+
+schema {
+	query: Query
+}
+
+type Country {
+  code: String
+  name: String
+  native: String
+  phone: String
+  continent: Continent
+  currency: String
+  languages: [Language]
+  emoji: String
+  emojiU: String
+}
+
+type Continent {
+  code: String
+  name: String
+  countries: [Country]
+}
+
+type Language {
+  code: String
+  name: String
+  native: String
+  rtl: Int
+}
+
+type Query {
+	country(code: String!): Country
+		@GraphQLDataSource(
+			host: "countries.trevorblades.com"
+			url: "/"
+			field: "country"
+			params: [
+				{
+					name: "code"
+					sourceKind: FIELD_ARGUMENTS
+					sourceName: "code"
+					variableType: "String!"
+				}
+			]
+		)
+}
+`
+
+const RESTDataSourceSchema = `
+directive @RESTDataSource (
+    host: String!
+    url: String!
+    method: HTTP_METHOD = GET
+    params: [Parameter]
+) on FIELD_DEFINITION
+
+directive @mapTo(
+	objectField: String!
+) on FIELD_DEFINITION
+
+enum HTTP_METHOD {
+    GET
+    POST
+    UPDATE
+    DELETE
+}
+
+input Parameter {
+    name: String!
+    sourceKind: PARAMETER_SOURCE!
+    sourceName: String!
+    variableType: String!
+}
+
+enum PARAMETER_SOURCE {
+    CONTEXT_VARIABLE
+    OBJECT_VARIABLE_ARGUMENT
+    FIELD_ARGUMENTS
+}
+
+input Mapping {
+    from: String!
+    to: String!
+}
+
+schema {
+    query: Query
+}
+
+type Foo {
+    bar: String!
+}
+
+type Headers {
+    Accept: String!
+    Host: String!
+	acceptEncoding: String @mapTo(objectField: "Accept-Encoding")
+}
+
+type HttpBinGet {
+	header: Headers! @mapTo(objectField: "headers")
+}
+
+type JSONPlaceholderPost {
+    userId: Int!
+    id: Int!
+    title: String!
+    body: String!
+    comments: [JSONPlaceholderComment]
+        @RESTDataSource(
+            host: "jsonplaceholder.typicode.com"
+            url: "/comments?postId={{ .postId }}"
+            params: [
+                {
+                    name: "postId"
+                    sourceKind: OBJECT_VARIABLE_ARGUMENT
+                    sourceName: "id"
+                    variableType: "String"
+                }
+            ]
+        )
+}
+
+type JSONPlaceholderComment {
+    postId: Int!
+    id: Int!
+    name: String!
+    email: String!
+    body: String!
+}
+
+"The query type, represents all of the entry points into our object graph"
+type Query {
+    httpBinGet: HttpBinGet
+        @RESTDataSource(
+            host: "httpbin.org"
+            url: "/get"
+        )
+	post(id: Int!): JSONPlaceholderPost
+        @RESTDataSource(
+            host: "jsonplaceholder.typicode.com"
+            url: "/posts/{{ .id }}"
+			params: [
+				{
+					name: "id"
+					sourceKind: FIELD_ARGUMENTS
+					sourceName: "id"
+					variableType: "Int!"
+				}
+			]
+        )
+    __schema: __Schema!
+    __type(name: String!): __Type
+}`
+
+const staticDataSourceSchema = `
+schema {
+    query: Query
+}
+
+type Foo {
+	bar: String!
+}
+
+"The query type, represents all of the entry points into our object graph"
+type Query {
+    hello: String!
+		@StaticDataSource(
+            data: "World!"
+        )
+	nullableInt: Int
+        @StaticDataSource(
+            data: null
+        )
+	foo: Foo!
+        @StaticDataSource(
+            data: "{\"bar\":\"baz\"}"
+        )
+}`
+
 const complexSchema = `
 directive @resolveGraphQL (
 	upstream: String!
@@ -1265,7 +1844,6 @@ directive @resolveREST (
 	url: String!
 	method: HTTP_METHOD = GET
 	params: [Parameter]
-	mappings: [Mapping]
 ) on FIELD_DEFINITION
 
 directive @resolveType (
@@ -1287,16 +1865,16 @@ enum HTTP_METHOD {
 }
 
 input Parameter {
-	name: String!
-	sourceKind: PARAMETER_SOURCE
-	sourceName: String!
-	variableType: String!
+    name: String!
+    sourceKind: PARAMETER_SOURCE!
+    sourceName: String!
+    variableType: String!
 }
 
 enum PARAMETER_SOURCE {
-	CONTEXT_VARIABLE
-	OBJECT_VARIABLE_ARGUMENT
-	FIELD_ARGUMENTS
+    CONTEXT_VARIABLE
+    OBJECT_VARIABLE_ARGUMENT
+    FIELD_ARGUMENTS
 }
 
 scalar Date
@@ -1344,11 +1922,6 @@ type Query {
 					variableType: "String!"
 				}
 			]
-			mappings: [
-				{from: "id" to: "id"},
-				{from: "name" to: "name"},
-				{from: "birthday" to: "birthday"}
-			]
 		)
 }
 type User {
@@ -1366,11 +1939,6 @@ type User {
 					sourceName: "id"
 					variableType: "String!"
 				}
-			]
-			mappings: [
-				{from: "id" to: "id"},
-				{from: "name" to: "name"},
-				{from: "birthday" to: "birthday"}
 			]
 		)
 	pets: [Pet]
@@ -1632,13 +2200,15 @@ var kindNameDeepFields = []Field{
 	{
 		Name: []byte("kind"),
 		Value: &Value{
-			Path: []string{"kind"},
+			Path:       []string{"kind"},
+			QuoteValue: true,
 		},
 	},
 	{
 		Name: []byte("name"),
 		Value: &Value{
-			Path: []string{"name"},
+			Path:       []string{"name"},
+			QuoteValue: true,
 		},
 	},
 	{
@@ -1649,13 +2219,15 @@ var kindNameDeepFields = []Field{
 				{
 					Name: []byte("kind"),
 					Value: &Value{
-						Path: []string{"kind"},
+						Path:       []string{"kind"},
+						QuoteValue: true,
 					},
 				},
 				{
 					Name: []byte("name"),
 					Value: &Value{
-						Path: []string{"name"},
+						Path:       []string{"name"},
+						QuoteValue: true,
 					},
 				},
 				{
@@ -1666,13 +2238,15 @@ var kindNameDeepFields = []Field{
 							{
 								Name: []byte("kind"),
 								Value: &Value{
-									Path: []string{"kind"},
+									Path:       []string{"kind"},
+									QuoteValue: true,
 								},
 							},
 							{
 								Name: []byte("name"),
 								Value: &Value{
-									Path: []string{"name"},
+									Path:       []string{"name"},
+									QuoteValue: true,
 								},
 							},
 							{
@@ -1683,13 +2257,15 @@ var kindNameDeepFields = []Field{
 										{
 											Name: []byte("kind"),
 											Value: &Value{
-												Path: []string{"kind"},
+												Path:       []string{"kind"},
+												QuoteValue: true,
 											},
 										},
 										{
 											Name: []byte("name"),
 											Value: &Value{
-												Path: []string{"name"},
+												Path:       []string{"name"},
+												QuoteValue: true,
 											},
 										},
 										{
@@ -1700,13 +2276,15 @@ var kindNameDeepFields = []Field{
 													{
 														Name: []byte("kind"),
 														Value: &Value{
-															Path: []string{"kind"},
+															Path:       []string{"kind"},
+															QuoteValue: true,
 														},
 													},
 													{
 														Name: []byte("name"),
 														Value: &Value{
-															Path: []string{"name"},
+															Path:       []string{"name"},
+															QuoteValue: true,
 														},
 													},
 													{
@@ -1717,13 +2295,15 @@ var kindNameDeepFields = []Field{
 																{
 																	Name: []byte("kind"),
 																	Value: &Value{
-																		Path: []string{"kind"},
+																		Path:       []string{"kind"},
+																		QuoteValue: true,
 																	},
 																},
 																{
 																	Name: []byte("name"),
 																	Value: &Value{
-																		Path: []string{"name"},
+																		Path:       []string{"name"},
+																		QuoteValue: true,
 																	},
 																},
 																{
@@ -1734,13 +2314,15 @@ var kindNameDeepFields = []Field{
 																			{
 																				Name: []byte("kind"),
 																				Value: &Value{
-																					Path: []string{"kind"},
+																					Path:       []string{"kind"},
+																					QuoteValue: true,
 																				},
 																			},
 																			{
 																				Name: []byte("name"),
 																				Value: &Value{
-																					Path: []string{"name"},
+																					Path:       []string{"name"},
+																					QuoteValue: true,
 																				},
 																			},
 																			{
@@ -1751,13 +2333,15 @@ var kindNameDeepFields = []Field{
 																						{
 																							Name: []byte("kind"),
 																							Value: &Value{
-																								Path: []string{"kind"},
+																								Path:       []string{"kind"},
+																								QuoteValue: true,
 																							},
 																						},
 																						{
 																							Name: []byte("name"),
 																							Value: &Value{
-																								Path: []string{"name"},
+																								Path:       []string{"name"},
+																								QuoteValue: true,
 																							},
 																						},
 																					},
