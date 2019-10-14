@@ -82,11 +82,6 @@ func ErrMissingFieldSelectionOnNonScalar(fieldName, enclosingTypeName ast.ByteSl
 	return err
 }
 
-func ErrCannotMergeSelectionSet() (err ExternalError) {
-	err.Message = "cannot merge selection set"
-	return err
-}
-
 func ErrArgumentNotDefinedOnNode(argName, node ast.ByteSlice) (err ExternalError) {
 	err.Message = fmt.Sprintf("argument: %s not defined on node: %s", argName, node)
 	return err
