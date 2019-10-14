@@ -23,9 +23,7 @@
               "kind": "OBJECT",
               "name": "Film",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "planetsPlanet",
@@ -35,9 +33,7 @@
               "kind": "OBJECT",
               "name": "Planet",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -58,9 +54,7 @@
               "kind": "OBJECT",
               "name": "Film",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "speciesSpecies",
@@ -70,9 +64,7 @@
               "kind": "OBJECT",
               "name": "Species",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -93,9 +85,7 @@
               "kind": "OBJECT",
               "name": "Film",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "starshipsStarship",
@@ -105,9 +95,7 @@
               "kind": "OBJECT",
               "name": "Starship",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -128,9 +116,7 @@
               "kind": "OBJECT",
               "name": "Film",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "vehiclesVehicle",
@@ -140,9 +126,7 @@
               "kind": "OBJECT",
               "name": "Vehicle",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -163,9 +147,7 @@
               "kind": "OBJECT",
               "name": "Person",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "filmsFilm",
@@ -175,9 +157,7 @@
               "kind": "OBJECT",
               "name": "Film",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -198,9 +178,7 @@
               "kind": "OBJECT",
               "name": "Person",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "homeworldPlanet",
@@ -210,9 +188,7 @@
               "kind": "OBJECT",
               "name": "Planet",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -233,9 +209,7 @@
               "kind": "OBJECT",
               "name": "Person",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "speciesSpecies",
@@ -245,9 +219,7 @@
               "kind": "OBJECT",
               "name": "Species",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -268,9 +240,7 @@
               "kind": "OBJECT",
               "name": "Person",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "starshipsStarship",
@@ -280,9 +250,7 @@
               "kind": "OBJECT",
               "name": "Starship",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -303,9 +271,7 @@
               "kind": "OBJECT",
               "name": "Person",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "vehiclesVehicle",
@@ -315,9 +281,7 @@
               "kind": "OBJECT",
               "name": "Vehicle",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -342,9 +306,7 @@
                 "name": "DateTime",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "fileName",
@@ -358,9 +320,7 @@
                 "name": "String",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "handle",
@@ -374,9 +334,7 @@
                 "name": "String",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "height",
@@ -386,9 +344,7 @@
               "kind": "SCALAR",
               "name": "Float",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "id",
@@ -402,9 +358,7 @@
                 "name": "ID",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "mimeType",
@@ -414,9 +368,7 @@
               "kind": "SCALAR",
               "name": "String",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "size",
@@ -430,9 +382,7 @@
                 "name": "Float",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "updatedAt",
@@ -446,9 +396,7 @@
                 "name": "DateTime",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "url",
@@ -462,9 +410,7 @@
                 "name": "String",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "width",
@@ -474,9 +420,7 @@
               "kind": "SCALAR",
               "name": "Float",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -1893,9 +1837,7 @@
                 "name": "_ModelMutationType",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "node",
@@ -1905,9 +1847,7 @@
               "kind": "OBJECT",
               "name": "Asset",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "updatedFields",
@@ -1925,9 +1865,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "previousValues",
@@ -1937,9 +1875,7 @@
               "kind": "OBJECT",
               "name": "AssetPreviousValues",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -3485,9 +3421,7 @@
                 "name": "DateTime",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "director",
@@ -3497,9 +3431,7 @@
               "kind": "SCALAR",
               "name": "String",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "episodeId",
@@ -3513,9 +3445,7 @@
                 "name": "Int",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "id",
@@ -3529,9 +3459,7 @@
                 "name": "ID",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "isPublished",
@@ -3545,9 +3473,7 @@
                 "name": "Boolean",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "openingCrawl",
@@ -3557,9 +3483,7 @@
               "kind": "SCALAR",
               "name": "String",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "producers",
@@ -3577,9 +3501,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "releaseDate",
@@ -3589,9 +3511,7 @@
               "kind": "SCALAR",
               "name": "DateTime",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "title",
@@ -3605,9 +3525,7 @@
                 "name": "String",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "updatedAt",
@@ -3621,9 +3539,7 @@
                 "name": "DateTime",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -4958,9 +4874,7 @@
                 "name": "_ModelMutationType",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "node",
@@ -4970,9 +4884,7 @@
               "kind": "OBJECT",
               "name": "Film",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "updatedFields",
@@ -4990,9 +4902,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "previousValues",
@@ -5002,9 +4912,7 @@
               "kind": "OBJECT",
               "name": "FilmPreviousValues",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -6225,9 +6133,7 @@
                 "name": "String",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "clientMutationId",
@@ -6237,9 +6143,7 @@
               "kind": "SCALAR",
               "name": "String",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -6347,9 +6251,7 @@
               "kind": "OBJECT",
               "name": "Asset",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "createFilm",
@@ -6626,9 +6528,7 @@
               "kind": "OBJECT",
               "name": "Film",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "createPerson",
@@ -6921,9 +6821,7 @@
               "kind": "OBJECT",
               "name": "Person",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "createPlanet",
@@ -7126,9 +7024,7 @@
               "kind": "OBJECT",
               "name": "Planet",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "createSpecies",
@@ -7339,9 +7235,7 @@
               "kind": "OBJECT",
               "name": "Species",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "createStarship",
@@ -7566,9 +7460,7 @@
               "kind": "OBJECT",
               "name": "Starship",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "createVehicle",
@@ -7783,9 +7675,7 @@
               "kind": "OBJECT",
               "name": "Vehicle",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "updateAsset",
@@ -7880,9 +7770,7 @@
               "kind": "OBJECT",
               "name": "Asset",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "updateFilm",
@@ -8165,9 +8053,7 @@
               "kind": "OBJECT",
               "name": "Film",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "updatePerson",
@@ -8470,9 +8356,7 @@
               "kind": "OBJECT",
               "name": "Person",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "updatePlanet",
@@ -8685,9 +8569,7 @@
               "kind": "OBJECT",
               "name": "Planet",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "updateSpecies",
@@ -8908,9 +8790,7 @@
               "kind": "OBJECT",
               "name": "Species",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "updateStarship",
@@ -9145,9 +9025,7 @@
               "kind": "OBJECT",
               "name": "Starship",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "updateVehicle",
@@ -9372,9 +9250,7 @@
               "kind": "OBJECT",
               "name": "Vehicle",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "updateOrCreateAsset",
@@ -9413,9 +9289,7 @@
               "kind": "OBJECT",
               "name": "Asset",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "updateOrCreateFilm",
@@ -9454,9 +9328,7 @@
               "kind": "OBJECT",
               "name": "Film",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "updateOrCreatePerson",
@@ -9495,9 +9367,7 @@
               "kind": "OBJECT",
               "name": "Person",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "updateOrCreatePlanet",
@@ -9536,9 +9406,7 @@
               "kind": "OBJECT",
               "name": "Planet",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "updateOrCreateSpecies",
@@ -9577,9 +9445,7 @@
               "kind": "OBJECT",
               "name": "Species",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "updateOrCreateStarship",
@@ -9618,9 +9484,7 @@
               "kind": "OBJECT",
               "name": "Starship",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "updateOrCreateVehicle",
@@ -9659,9 +9523,7 @@
               "kind": "OBJECT",
               "name": "Vehicle",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "deleteAsset",
@@ -9686,9 +9548,7 @@
               "kind": "OBJECT",
               "name": "Asset",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "deleteFilm",
@@ -9713,9 +9573,7 @@
               "kind": "OBJECT",
               "name": "Film",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "deletePerson",
@@ -9740,9 +9598,7 @@
               "kind": "OBJECT",
               "name": "Person",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "deletePlanet",
@@ -9767,9 +9623,7 @@
               "kind": "OBJECT",
               "name": "Planet",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "deleteSpecies",
@@ -9794,9 +9648,7 @@
               "kind": "OBJECT",
               "name": "Species",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "deleteStarship",
@@ -9821,9 +9673,7 @@
               "kind": "OBJECT",
               "name": "Starship",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "deleteVehicle",
@@ -9848,9 +9698,7 @@
               "kind": "OBJECT",
               "name": "Vehicle",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "addToFilmPlanets",
@@ -9889,9 +9737,7 @@
               "kind": "OBJECT",
               "name": "AddToFilmPlanetsPayload",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "addToFilmSpecies",
@@ -9930,9 +9776,7 @@
               "kind": "OBJECT",
               "name": "AddToFilmSpeciesPayload",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "addToFilmStarships",
@@ -9971,9 +9815,7 @@
               "kind": "OBJECT",
               "name": "AddToFilmStarshipsPayload",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "addToFilmVehicles",
@@ -10012,9 +9854,7 @@
               "kind": "OBJECT",
               "name": "AddToFilmVehiclesPayload",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "addToPeopleFilm",
@@ -10053,9 +9893,7 @@
               "kind": "OBJECT",
               "name": "AddToPeopleFilmPayload",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "addToPeoplePlanet",
@@ -10094,9 +9932,7 @@
               "kind": "OBJECT",
               "name": "AddToPeoplePlanetPayload",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "addToPeopleSpecies",
@@ -10135,9 +9971,7 @@
               "kind": "OBJECT",
               "name": "AddToPeopleSpeciesPayload",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "addToPeopleStarships",
@@ -10176,9 +10010,7 @@
               "kind": "OBJECT",
               "name": "AddToPeopleStarshipsPayload",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "addToPeopleVehicles",
@@ -10217,9 +10049,7 @@
               "kind": "OBJECT",
               "name": "AddToPeopleVehiclesPayload",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "removeFromFilmPlanets",
@@ -10258,9 +10088,7 @@
               "kind": "OBJECT",
               "name": "RemoveFromFilmPlanetsPayload",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "removeFromFilmSpecies",
@@ -10299,9 +10127,7 @@
               "kind": "OBJECT",
               "name": "RemoveFromFilmSpeciesPayload",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "removeFromFilmStarships",
@@ -10340,9 +10166,7 @@
               "kind": "OBJECT",
               "name": "RemoveFromFilmStarshipsPayload",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "removeFromFilmVehicles",
@@ -10381,9 +10205,7 @@
               "kind": "OBJECT",
               "name": "RemoveFromFilmVehiclesPayload",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "removeFromPeopleFilm",
@@ -10422,9 +10244,7 @@
               "kind": "OBJECT",
               "name": "RemoveFromPeopleFilmPayload",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "removeFromPeoplePlanet",
@@ -10463,9 +10283,7 @@
               "kind": "OBJECT",
               "name": "RemoveFromPeoplePlanetPayload",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "removeFromPeopleSpecies",
@@ -10504,9 +10322,7 @@
               "kind": "OBJECT",
               "name": "RemoveFromPeopleSpeciesPayload",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "removeFromPeopleStarships",
@@ -10545,9 +10361,7 @@
               "kind": "OBJECT",
               "name": "RemoveFromPeopleStarshipsPayload",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "removeFromPeopleVehicles",
@@ -10586,9 +10400,7 @@
               "kind": "OBJECT",
               "name": "RemoveFromPeopleVehiclesPayload",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "invokeFunction",
@@ -10613,9 +10425,7 @@
               "kind": "OBJECT",
               "name": "InvokeFunctionPayload",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -10636,9 +10446,7 @@
               "kind": "SCALAR",
               "name": "String",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "createdAt",
@@ -10652,9 +10460,7 @@
                 "name": "DateTime",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "eyeColor",
@@ -10672,9 +10478,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "gender",
@@ -10684,9 +10488,7 @@
               "kind": "ENUM",
               "name": "PERSON_GENDER",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "hairColor",
@@ -10704,9 +10506,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "height",
@@ -10716,9 +10516,7 @@
               "kind": "SCALAR",
               "name": "Int",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "id",
@@ -10732,9 +10530,7 @@
                 "name": "ID",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "isPublished",
@@ -10748,9 +10544,7 @@
                 "name": "Boolean",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "mass",
@@ -10760,9 +10554,7 @@
               "kind": "SCALAR",
               "name": "Float",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "name",
@@ -10776,9 +10568,7 @@
                 "name": "String",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "skinColor",
@@ -10796,9 +10586,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "updatedAt",
@@ -10812,9 +10600,7 @@
                 "name": "DateTime",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -12029,9 +11815,7 @@
                 "name": "_ModelMutationType",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "node",
@@ -12041,9 +11825,7 @@
               "kind": "OBJECT",
               "name": "Person",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "updatedFields",
@@ -12061,9 +11843,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "previousValues",
@@ -12073,9 +11853,7 @@
               "kind": "OBJECT",
               "name": "PersonPreviousValues",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -13235,9 +13013,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "createdAt",
@@ -13251,9 +13027,7 @@
                 "name": "DateTime",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "diameter",
@@ -13263,9 +13037,7 @@
               "kind": "SCALAR",
               "name": "Int",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "gravity",
@@ -13275,9 +13047,7 @@
               "kind": "SCALAR",
               "name": "String",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "id",
@@ -13291,9 +13061,7 @@
                 "name": "ID",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "isPublished",
@@ -13307,9 +13075,7 @@
                 "name": "Boolean",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "name",
@@ -13323,9 +13089,7 @@
                 "name": "String",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "orbitalPeriod",
@@ -13335,9 +13099,7 @@
               "kind": "SCALAR",
               "name": "Int",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "population",
@@ -13347,9 +13109,7 @@
               "kind": "SCALAR",
               "name": "Float",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "rotationPeriod",
@@ -13359,9 +13119,7 @@
               "kind": "SCALAR",
               "name": "Int",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "surfaceWater",
@@ -13371,9 +13129,7 @@
               "kind": "SCALAR",
               "name": "Float",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "terrain",
@@ -13391,9 +13147,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "updatedAt",
@@ -13407,9 +13161,7 @@
                 "name": "DateTime",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -14786,9 +14538,7 @@
                 "name": "_ModelMutationType",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "node",
@@ -14798,9 +14548,7 @@
               "kind": "OBJECT",
               "name": "Planet",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "updatedFields",
@@ -14818,9 +14566,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "previousValues",
@@ -14830,9 +14576,7 @@
               "kind": "OBJECT",
               "name": "PlanetPreviousValues",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -15403,9 +15147,7 @@
               "kind": "OBJECT",
               "name": "Film",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "planetsPlanet",
@@ -15415,9 +15157,7 @@
               "kind": "OBJECT",
               "name": "Planet",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -15438,9 +15178,7 @@
               "kind": "OBJECT",
               "name": "Film",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "speciesSpecies",
@@ -15450,9 +15188,7 @@
               "kind": "OBJECT",
               "name": "Species",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -15473,9 +15209,7 @@
               "kind": "OBJECT",
               "name": "Film",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "starshipsStarship",
@@ -15485,9 +15219,7 @@
               "kind": "OBJECT",
               "name": "Starship",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -15508,9 +15240,7 @@
               "kind": "OBJECT",
               "name": "Film",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "vehiclesVehicle",
@@ -15520,9 +15250,7 @@
               "kind": "OBJECT",
               "name": "Vehicle",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -15543,9 +15271,7 @@
               "kind": "OBJECT",
               "name": "Person",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "filmsFilm",
@@ -15555,9 +15281,7 @@
               "kind": "OBJECT",
               "name": "Film",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -15578,9 +15302,7 @@
               "kind": "OBJECT",
               "name": "Person",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "homeworldPlanet",
@@ -15590,9 +15312,7 @@
               "kind": "OBJECT",
               "name": "Planet",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -15613,9 +15333,7 @@
               "kind": "OBJECT",
               "name": "Person",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "speciesSpecies",
@@ -15625,9 +15343,7 @@
               "kind": "OBJECT",
               "name": "Species",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -15648,9 +15364,7 @@
               "kind": "OBJECT",
               "name": "Person",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "starshipsStarship",
@@ -15660,9 +15374,7 @@
               "kind": "OBJECT",
               "name": "Starship",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -15683,9 +15395,7 @@
               "kind": "OBJECT",
               "name": "Person",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "vehiclesVehicle",
@@ -15695,9 +15405,7 @@
               "kind": "OBJECT",
               "name": "Vehicle",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -15718,9 +15426,7 @@
               "kind": "SCALAR",
               "name": "Int",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "averageLifespan",
@@ -15730,9 +15436,7 @@
               "kind": "SCALAR",
               "name": "Int",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "classification",
@@ -15742,9 +15446,7 @@
               "kind": "SCALAR",
               "name": "String",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "createdAt",
@@ -15758,9 +15460,7 @@
                 "name": "DateTime",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "designation",
@@ -15770,9 +15470,7 @@
               "kind": "SCALAR",
               "name": "String",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "eyeColor",
@@ -15790,9 +15488,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "hairColor",
@@ -15810,9 +15506,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "id",
@@ -15826,9 +15520,7 @@
                 "name": "ID",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "isPublished",
@@ -15842,9 +15534,7 @@
                 "name": "Boolean",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "language",
@@ -15854,9 +15544,7 @@
               "kind": "SCALAR",
               "name": "String",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "name",
@@ -15870,9 +15558,7 @@
                 "name": "String",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "skinColor",
@@ -15890,9 +15576,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "updatedAt",
@@ -15906,9 +15590,7 @@
                 "name": "DateTime",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -17309,9 +16991,7 @@
                 "name": "_ModelMutationType",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "node",
@@ -17321,9 +17001,7 @@
               "kind": "OBJECT",
               "name": "Species",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "updatedFields",
@@ -17341,9 +17019,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "previousValues",
@@ -17353,9 +17029,7 @@
               "kind": "OBJECT",
               "name": "SpeciesPreviousValues",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -17946,9 +17620,7 @@
               "kind": "SCALAR",
               "name": "Float",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "class",
@@ -17958,9 +17630,7 @@
               "kind": "SCALAR",
               "name": "String",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "consumables",
@@ -17970,9 +17640,7 @@
               "kind": "SCALAR",
               "name": "String",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "costInCredits",
@@ -17982,9 +17650,7 @@
               "kind": "SCALAR",
               "name": "Float",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "createdAt",
@@ -17998,9 +17664,7 @@
                 "name": "DateTime",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "crew",
@@ -18010,9 +17674,7 @@
               "kind": "SCALAR",
               "name": "Int",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "hyperdriveRating",
@@ -18022,9 +17684,7 @@
               "kind": "SCALAR",
               "name": "Float",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "id",
@@ -18038,9 +17698,7 @@
                 "name": "ID",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "isPublished",
@@ -18054,9 +17712,7 @@
                 "name": "Boolean",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "length",
@@ -18066,9 +17722,7 @@
               "kind": "SCALAR",
               "name": "Float",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "manufacturer",
@@ -18086,9 +17740,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "maxAtmospheringSpeed",
@@ -18098,9 +17750,7 @@
               "kind": "SCALAR",
               "name": "Int",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "mglt",
@@ -18110,9 +17760,7 @@
               "kind": "SCALAR",
               "name": "Int",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "name",
@@ -18126,9 +17774,7 @@
                 "name": "String",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "passengers",
@@ -18138,9 +17784,7 @@
               "kind": "SCALAR",
               "name": "Int",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "updatedAt",
@@ -18154,9 +17798,7 @@
                 "name": "DateTime",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -19977,9 +19619,7 @@
                 "name": "_ModelMutationType",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "node",
@@ -19989,9 +19629,7 @@
               "kind": "OBJECT",
               "name": "Starship",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "updatedFields",
@@ -20009,9 +19647,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "previousValues",
@@ -20021,9 +19657,7 @@
               "kind": "OBJECT",
               "name": "StarshipPreviousValues",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -20625,9 +20259,7 @@
               "kind": "OBJECT",
               "name": "AssetSubscriptionPayload",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "Film",
@@ -20648,9 +20280,7 @@
               "kind": "OBJECT",
               "name": "FilmSubscriptionPayload",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "Person",
@@ -20671,9 +20301,7 @@
               "kind": "OBJECT",
               "name": "PersonSubscriptionPayload",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "Planet",
@@ -20694,9 +20322,7 @@
               "kind": "OBJECT",
               "name": "PlanetSubscriptionPayload",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "Species",
@@ -20717,9 +20343,7 @@
               "kind": "OBJECT",
               "name": "SpeciesSubscriptionPayload",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "Starship",
@@ -20740,9 +20364,7 @@
               "kind": "OBJECT",
               "name": "StarshipSubscriptionPayload",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "Vehicle",
@@ -20763,9 +20385,7 @@
               "kind": "OBJECT",
               "name": "VehicleSubscriptionPayload",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -22361,9 +21981,7 @@
               "kind": "SCALAR",
               "name": "Int",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "class",
@@ -22373,9 +21991,7 @@
               "kind": "SCALAR",
               "name": "String",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "consumables",
@@ -22385,9 +22001,7 @@
               "kind": "SCALAR",
               "name": "String",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "costInCredits",
@@ -22397,9 +22011,7 @@
               "kind": "SCALAR",
               "name": "Int",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "createdAt",
@@ -22413,9 +22025,7 @@
                 "name": "DateTime",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "crew",
@@ -22425,9 +22035,7 @@
               "kind": "SCALAR",
               "name": "Int",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "id",
@@ -22441,9 +22049,7 @@
                 "name": "ID",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "isPublished",
@@ -22457,9 +22063,7 @@
                 "name": "Boolean",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "length",
@@ -22469,9 +22073,7 @@
               "kind": "SCALAR",
               "name": "Float",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "manufacturer",
@@ -22489,9 +22091,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "maxAtmospheringSpeed",
@@ -22501,9 +22101,7 @@
               "kind": "SCALAR",
               "name": "Int",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "model",
@@ -22513,9 +22111,7 @@
               "kind": "SCALAR",
               "name": "String",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "name",
@@ -22529,9 +22125,7 @@
                 "name": "String",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "passengers",
@@ -22541,9 +22135,7 @@
               "kind": "SCALAR",
               "name": "Int",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "updatedAt",
@@ -22557,9 +22149,7 @@
                 "name": "DateTime",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -24344,9 +23934,7 @@
                 "name": "_ModelMutationType",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "node",
@@ -24356,9 +23944,7 @@
               "kind": "OBJECT",
               "name": "Vehicle",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "updatedFields",
@@ -24376,9 +23962,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "previousValues",
@@ -24388,9 +23972,7 @@
               "kind": "OBJECT",
               "name": "VehiclePreviousValues",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -24978,21 +24560,15 @@
         "enumValues": [
           {
             "name": "CREATED",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "UPDATED",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "DELETED",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           }
         ],
         "possibleTypes": null
@@ -25014,9 +24590,7 @@
                 "name": "DateTime",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "fileName",
@@ -25030,9 +24604,7 @@
                 "name": "String",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "handle",
@@ -25046,9 +24618,7 @@
                 "name": "String",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "height",
@@ -25058,9 +24628,7 @@
               "kind": "SCALAR",
               "name": "Float",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "id",
@@ -25074,9 +24642,7 @@
                 "name": "ID",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "mimeType",
@@ -25086,9 +24652,7 @@
               "kind": "SCALAR",
               "name": "String",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "size",
@@ -25102,9 +24666,7 @@
                 "name": "Float",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "updatedAt",
@@ -25118,9 +24680,7 @@
                 "name": "DateTime",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "url",
@@ -25134,9 +24694,7 @@
                 "name": "String",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "width",
@@ -25146,9 +24704,7 @@
               "kind": "SCALAR",
               "name": "Float",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -26479,123 +26035,83 @@
         "enumValues": [
           {
             "name": "createdAt_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "createdAt_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "fileName_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "fileName_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "handle_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "handle_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "height_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "height_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "id_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "id_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "mimeType_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "mimeType_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "size_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "size_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "updatedAt_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "updatedAt_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "url_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "url_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "width_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "width_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           }
         ],
         "possibleTypes": null
@@ -26702,9 +26218,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "createdAt",
@@ -26718,9 +26232,7 @@
                 "name": "DateTime",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "director",
@@ -26730,9 +26242,7 @@
               "kind": "SCALAR",
               "name": "String",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "episodeId",
@@ -26746,9 +26256,7 @@
                 "name": "Int",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "id",
@@ -26762,9 +26270,7 @@
                 "name": "ID",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "isPublished",
@@ -26778,9 +26284,7 @@
                 "name": "Boolean",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "openingCrawl",
@@ -26790,9 +26294,7 @@
               "kind": "SCALAR",
               "name": "String",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "planets",
@@ -26881,9 +26383,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "producers",
@@ -26901,9 +26401,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "releaseDate",
@@ -26913,9 +26411,7 @@
               "kind": "SCALAR",
               "name": "DateTime",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "species",
@@ -27004,9 +26500,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "starships",
@@ -27095,9 +26589,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "title",
@@ -27111,9 +26603,7 @@
                 "name": "String",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "updatedAt",
@@ -27127,9 +26617,7 @@
                 "name": "DateTime",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "vehicles",
@@ -27218,9 +26706,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "_charactersMeta",
@@ -27305,9 +26791,7 @@
                 "name": "_QueryMeta",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "_planetsMeta",
@@ -27392,9 +26876,7 @@
                 "name": "_QueryMeta",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "_speciesMeta",
@@ -27479,9 +26961,7 @@
                 "name": "_QueryMeta",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "_starshipsMeta",
@@ -27566,9 +27046,7 @@
                 "name": "_QueryMeta",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "_vehiclesMeta",
@@ -27653,9 +27131,7 @@
                 "name": "_QueryMeta",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -28904,111 +28380,75 @@
         "enumValues": [
           {
             "name": "createdAt_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "createdAt_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "director_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "director_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "episodeId_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "episodeId_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "id_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "id_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "isPublished_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "isPublished_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "openingCrawl_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "openingCrawl_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "releaseDate_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "releaseDate_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "title_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "title_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "updatedAt_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "updatedAt_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           }
         ],
         "possibleTypes": null
@@ -29030,9 +28470,7 @@
                 "name": "ID",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -29086,87 +28524,59 @@
         "enumValues": [
           {
             "name": "UNKNOWN",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "BLUE",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "YELLOW",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "RED",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "BROWN",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "BLUEGREY",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "BLACK",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "ORANGE",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "HAZEL",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "PINK",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "GOLD",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "GREEN",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "WHITE",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "DARK",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           }
         ],
         "possibleTypes": null
@@ -29181,27 +28591,19 @@
         "enumValues": [
           {
             "name": "UNKNOWN",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "MALE",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "FEMALE",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "HERMAPHRODITE",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           }
         ],
         "possibleTypes": null
@@ -29216,45 +28618,31 @@
         "enumValues": [
           {
             "name": "AUBURN",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "BLACK",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "BLONDE",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "BROWN",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "GREY",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "UNKNOWN",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "WHITE",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           }
         ],
         "possibleTypes": null
@@ -29269,123 +28657,83 @@
         "enumValues": [
           {
             "name": "UNKNOWN",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "FAIR",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "GOLD",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "WHITE",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "LIGHT",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "GREEN",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "GREENTAN",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "PALE",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "METAL",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "DARK",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "BROWNMOTTLE",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "BROWN",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "GREY",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "MOTTLEDGREEN",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "ORANGE",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "BLUE",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "RED",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "YELLOW",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "TAN",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "SILVER",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           }
         ],
         "possibleTypes": null
@@ -29403,9 +28751,7 @@
               "kind": "SCALAR",
               "name": "String",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "createdAt",
@@ -29419,9 +28765,7 @@
                 "name": "DateTime",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "eyeColor",
@@ -29439,9 +28783,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "films",
@@ -29530,9 +28872,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "gender",
@@ -29542,9 +28882,7 @@
               "kind": "ENUM",
               "name": "PERSON_GENDER",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "hairColor",
@@ -29562,9 +28900,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "height",
@@ -29574,9 +28910,7 @@
               "kind": "SCALAR",
               "name": "Int",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "homeworld",
@@ -29597,9 +28931,7 @@
               "kind": "OBJECT",
               "name": "Planet",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "id",
@@ -29613,9 +28945,7 @@
                 "name": "ID",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "isPublished",
@@ -29629,9 +28959,7 @@
                 "name": "Boolean",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "mass",
@@ -29641,9 +28969,7 @@
               "kind": "SCALAR",
               "name": "Float",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "name",
@@ -29657,9 +28983,7 @@
                 "name": "String",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "skinColor",
@@ -29677,9 +29001,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "species",
@@ -29768,9 +29090,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "starships",
@@ -29859,9 +29179,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "updatedAt",
@@ -29875,9 +29193,7 @@
                 "name": "DateTime",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "vehicles",
@@ -29966,9 +29282,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "_filmsMeta",
@@ -30053,9 +29367,7 @@
                 "name": "_QueryMeta",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "_speciesMeta",
@@ -30140,9 +29452,7 @@
                 "name": "_QueryMeta",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "_starshipsMeta",
@@ -30227,9 +29537,7 @@
                 "name": "_QueryMeta",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "_vehiclesMeta",
@@ -30314,9 +29622,7 @@
                 "name": "_QueryMeta",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -31445,111 +30751,75 @@
         "enumValues": [
           {
             "name": "birthYear_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "birthYear_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "createdAt_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "createdAt_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "gender_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "gender_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "height_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "height_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "id_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "id_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "isPublished_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "isPublished_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "mass_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "mass_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "name_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "name_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "updatedAt_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "updatedAt_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           }
         ],
         "possibleTypes": null
@@ -31575,9 +30845,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "createdAt",
@@ -31591,9 +30859,7 @@
                 "name": "DateTime",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "diameter",
@@ -31603,9 +30869,7 @@
               "kind": "SCALAR",
               "name": "Int",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "films",
@@ -31694,9 +30958,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "gravity",
@@ -31706,9 +30968,7 @@
               "kind": "SCALAR",
               "name": "String",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "id",
@@ -31722,9 +30982,7 @@
                 "name": "ID",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "isPublished",
@@ -31738,9 +30996,7 @@
                 "name": "Boolean",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "name",
@@ -31754,9 +31010,7 @@
                 "name": "String",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "orbitalPeriod",
@@ -31766,9 +31020,7 @@
               "kind": "SCALAR",
               "name": "Int",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "population",
@@ -31778,9 +31030,7 @@
               "kind": "SCALAR",
               "name": "Float",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "residents",
@@ -31869,9 +31119,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "rotationPeriod",
@@ -31881,9 +31129,7 @@
               "kind": "SCALAR",
               "name": "Int",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "surfaceWater",
@@ -31893,9 +31139,7 @@
               "kind": "SCALAR",
               "name": "Float",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "terrain",
@@ -31913,9 +31157,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "updatedAt",
@@ -31929,9 +31171,7 @@
                 "name": "DateTime",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "_filmsMeta",
@@ -32016,9 +31256,7 @@
                 "name": "_QueryMeta",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "_residentsMeta",
@@ -32103,9 +31341,7 @@
                 "name": "_QueryMeta",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -33396,135 +32632,91 @@
         "enumValues": [
           {
             "name": "createdAt_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "createdAt_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "diameter_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "diameter_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "gravity_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "gravity_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "id_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "id_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "isPublished_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "isPublished_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "name_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "name_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "orbitalPeriod_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "orbitalPeriod_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "population_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "population_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "rotationPeriod_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "rotationPeriod_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "surfaceWater_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "surfaceWater_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "updatedAt_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "updatedAt_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           }
         ],
         "possibleTypes": null
@@ -33625,9 +32817,7 @@
                   }
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "allFilms",
@@ -33720,9 +32910,7 @@
                   }
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "allPersons",
@@ -33815,9 +33003,7 @@
                   }
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "allPlanets",
@@ -33910,9 +33096,7 @@
                   }
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "allSpecies",
@@ -34005,9 +33189,7 @@
                   }
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "allStarships",
@@ -34100,9 +33282,7 @@
                   }
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "allVehicles",
@@ -34195,9 +33375,7 @@
                   }
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "_allAssetsMeta",
@@ -34282,9 +33460,7 @@
                 "name": "_QueryMeta",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "_allFilmsMeta",
@@ -34369,9 +33545,7 @@
                 "name": "_QueryMeta",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "_allPersonsMeta",
@@ -34456,9 +33630,7 @@
                 "name": "_QueryMeta",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "_allPlanetsMeta",
@@ -34543,9 +33715,7 @@
                 "name": "_QueryMeta",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "_allSpeciesMeta",
@@ -34630,9 +33800,7 @@
                 "name": "_QueryMeta",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "_allStarshipsMeta",
@@ -34717,9 +33885,7 @@
                 "name": "_QueryMeta",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "_allVehiclesMeta",
@@ -34804,9 +33970,7 @@
                 "name": "_QueryMeta",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "Asset",
@@ -34827,9 +33991,7 @@
               "kind": "OBJECT",
               "name": "Asset",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "Film",
@@ -34860,9 +34022,7 @@
               "kind": "OBJECT",
               "name": "Film",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "Person",
@@ -34893,9 +34053,7 @@
               "kind": "OBJECT",
               "name": "Person",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "Planet",
@@ -34926,9 +34084,7 @@
               "kind": "OBJECT",
               "name": "Planet",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "Species",
@@ -34959,9 +34115,7 @@
               "kind": "OBJECT",
               "name": "Species",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "Starship",
@@ -34992,9 +34146,7 @@
               "kind": "OBJECT",
               "name": "Starship",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "Vehicle",
@@ -35025,9 +34177,7 @@
               "kind": "OBJECT",
               "name": "Vehicle",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "node",
@@ -35052,9 +34202,7 @@
               "kind": "INTERFACE",
               "name": "Node",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -35072,99 +34220,67 @@
         "enumValues": [
           {
             "name": "AMBER",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "BLACK",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "BLUE",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "BROWN",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "GOLD",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "GREEN",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "GREY",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "HAZEL",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "INDIGO",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "ORANGE",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "PINK",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "RED",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "SILVER",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "UNKNOWN",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "YELLOW",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "GOLDEN",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           }
         ],
         "possibleTypes": null
@@ -35179,39 +34295,27 @@
         "enumValues": [
           {
             "name": "UNKNOWN",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "BROWN",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "WHITE",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "RED",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "BLACK",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "BLONDE",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           }
         ],
         "possibleTypes": null
@@ -35226,129 +34330,87 @@
         "enumValues": [
           {
             "name": "BLUE",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "BROWN",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "CAUCASIAN",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "DARK",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "GREEN",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "GREY",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "MAGENTA",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "ORANGE",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "PALE",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "PALEPINK",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "PEACH",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "PINK",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "PURPLE",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "RED",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "TAN",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "UNKNOWN",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "WHITE",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "YELLOW",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "BLACK",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "ASIAN",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "HISPANIC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           }
         ],
         "possibleTypes": null
@@ -35366,9 +34428,7 @@
               "kind": "SCALAR",
               "name": "Int",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "averageLifespan",
@@ -35378,9 +34438,7 @@
               "kind": "SCALAR",
               "name": "Int",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "classification",
@@ -35390,9 +34448,7 @@
               "kind": "SCALAR",
               "name": "String",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "createdAt",
@@ -35406,9 +34462,7 @@
                 "name": "DateTime",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "designation",
@@ -35418,9 +34472,7 @@
               "kind": "SCALAR",
               "name": "String",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "eyeColor",
@@ -35438,9 +34490,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "films",
@@ -35529,9 +34579,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "hairColor",
@@ -35549,9 +34597,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "id",
@@ -35565,9 +34611,7 @@
                 "name": "ID",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "isPublished",
@@ -35581,9 +34625,7 @@
                 "name": "Boolean",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "language",
@@ -35593,9 +34635,7 @@
               "kind": "SCALAR",
               "name": "String",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "name",
@@ -35609,9 +34649,7 @@
                 "name": "String",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "people",
@@ -35700,9 +34738,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "skinColor",
@@ -35720,9 +34756,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "updatedAt",
@@ -35736,9 +34770,7 @@
                 "name": "DateTime",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "_filmsMeta",
@@ -35823,9 +34855,7 @@
                 "name": "_QueryMeta",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "_peopleMeta",
@@ -35910,9 +34940,7 @@
                 "name": "_QueryMeta",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -37227,123 +36255,83 @@
         "enumValues": [
           {
             "name": "averageHeight_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "averageHeight_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "averageLifespan_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "averageLifespan_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "classification_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "classification_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "createdAt_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "createdAt_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "designation_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "designation_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "id_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "id_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "isPublished_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "isPublished_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "language_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "language_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "name_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "name_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "updatedAt_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "updatedAt_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           }
         ],
         "possibleTypes": null
@@ -37361,9 +36349,7 @@
               "kind": "SCALAR",
               "name": "Float",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "class",
@@ -37373,9 +36359,7 @@
               "kind": "SCALAR",
               "name": "String",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "consumables",
@@ -37385,9 +36369,7 @@
               "kind": "SCALAR",
               "name": "String",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "costInCredits",
@@ -37397,9 +36379,7 @@
               "kind": "SCALAR",
               "name": "Float",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "createdAt",
@@ -37413,9 +36393,7 @@
                 "name": "DateTime",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "crew",
@@ -37425,9 +36403,7 @@
               "kind": "SCALAR",
               "name": "Int",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "films",
@@ -37516,9 +36492,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "hyperdriveRating",
@@ -37528,9 +36502,7 @@
               "kind": "SCALAR",
               "name": "Float",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "id",
@@ -37544,9 +36516,7 @@
                 "name": "ID",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "isPublished",
@@ -37560,9 +36530,7 @@
                 "name": "Boolean",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "length",
@@ -37572,9 +36540,7 @@
               "kind": "SCALAR",
               "name": "Float",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "manufacturer",
@@ -37592,9 +36558,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "maxAtmospheringSpeed",
@@ -37604,9 +36568,7 @@
               "kind": "SCALAR",
               "name": "Int",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "mglt",
@@ -37616,9 +36578,7 @@
               "kind": "SCALAR",
               "name": "Int",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "name",
@@ -37632,9 +36592,7 @@
                 "name": "String",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "passengers",
@@ -37644,9 +36602,7 @@
               "kind": "SCALAR",
               "name": "Int",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "pilots",
@@ -37735,9 +36691,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "updatedAt",
@@ -37751,9 +36705,7 @@
                 "name": "DateTime",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "_filmsMeta",
@@ -37838,9 +36790,7 @@
                 "name": "_QueryMeta",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "_pilotsMeta",
@@ -37925,9 +36875,7 @@
                 "name": "_QueryMeta",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -39662,183 +38610,123 @@
         "enumValues": [
           {
             "name": "cargoCapacity_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "cargoCapacity_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "class_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "class_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "consumables_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "consumables_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "costInCredits_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "costInCredits_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "createdAt_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "createdAt_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "crew_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "crew_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "hyperdriveRating_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "hyperdriveRating_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "id_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "id_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "isPublished_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "isPublished_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "length_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "length_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "maxAtmospheringSpeed_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "maxAtmospheringSpeed_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "mglt_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "mglt_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "name_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "name_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "passengers_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "passengers_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "updatedAt_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "updatedAt_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           }
         ],
         "possibleTypes": null
@@ -39856,9 +38744,7 @@
               "kind": "SCALAR",
               "name": "Int",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "class",
@@ -39868,9 +38754,7 @@
               "kind": "SCALAR",
               "name": "String",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "consumables",
@@ -39880,9 +38764,7 @@
               "kind": "SCALAR",
               "name": "String",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "costInCredits",
@@ -39892,9 +38774,7 @@
               "kind": "SCALAR",
               "name": "Int",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "createdAt",
@@ -39908,9 +38788,7 @@
                 "name": "DateTime",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "crew",
@@ -39920,9 +38798,7 @@
               "kind": "SCALAR",
               "name": "Int",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "films",
@@ -40011,9 +38887,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "id",
@@ -40027,9 +38901,7 @@
                 "name": "ID",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "isPublished",
@@ -40043,9 +38915,7 @@
                 "name": "Boolean",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "length",
@@ -40055,9 +38925,7 @@
               "kind": "SCALAR",
               "name": "Float",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "manufacturer",
@@ -40075,9 +38943,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "maxAtmospheringSpeed",
@@ -40087,9 +38953,7 @@
               "kind": "SCALAR",
               "name": "Int",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "model",
@@ -40099,9 +38963,7 @@
               "kind": "SCALAR",
               "name": "String",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "name",
@@ -40115,9 +38977,7 @@
                 "name": "String",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "passengers",
@@ -40127,9 +38987,7 @@
               "kind": "SCALAR",
               "name": "Int",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "pilots",
@@ -40218,9 +39076,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "updatedAt",
@@ -40234,9 +39090,7 @@
                 "name": "DateTime",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "_filmsMeta",
@@ -40321,9 +39175,7 @@
                 "name": "_QueryMeta",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "_pilotsMeta",
@@ -40408,9 +39260,7 @@
                 "name": "_QueryMeta",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -42109,171 +40959,115 @@
         "enumValues": [
           {
             "name": "cargoCapacity_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "cargoCapacity_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "class_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "class_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "consumables_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "consumables_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "costInCredits_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "costInCredits_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "createdAt_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "createdAt_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "crew_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "crew_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "id_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "id_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "isPublished_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "isPublished_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "length_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "length_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "maxAtmospheringSpeed_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "maxAtmospheringSpeed_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "model_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "model_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "name_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "name_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "passengers_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "passengers_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "updatedAt_ASC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           },
           {
             "name": "updatedAt_DESC",
-            "description": "",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": ""
           }
         ],
         "possibleTypes": null
@@ -42295,9 +41089,7 @@
                 "name": "Int",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -42322,9 +41114,7 @@
                 "name": "String",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "description",
@@ -42334,9 +41124,7 @@
               "kind": "SCALAR",
               "name": "String",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "locations",
@@ -42358,9 +41146,7 @@
                   }
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "args",
@@ -42382,9 +41168,7 @@
                   }
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "onOperation",
@@ -42398,9 +41182,7 @@
                 "name": "Boolean",
                 "ofType": null
               }
-            },
-            "isDeprecated": true,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "onFragment",
@@ -42414,9 +41196,7 @@
                 "name": "Boolean",
                 "ofType": null
               }
-            },
-            "isDeprecated": true,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "onField",
@@ -42430,9 +41210,7 @@
                 "name": "Boolean",
                 "ofType": null
               }
-            },
-            "isDeprecated": true,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -42450,111 +41228,75 @@
         "enumValues": [
           {
             "name": "QUERY",
-            "description": "Location adjacent to a query operation.",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": "Location adjacent to a query operation."
           },
           {
             "name": "MUTATION",
-            "description": "Location adjacent to a mutation operation.",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": "Location adjacent to a mutation operation."
           },
           {
             "name": "SUBSCRIPTION",
-            "description": "Location adjacent to a subscription operation.",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": "Location adjacent to a subscription operation."
           },
           {
             "name": "FIELD",
-            "description": "Location adjacent to a field.",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": "Location adjacent to a field."
           },
           {
             "name": "FRAGMENT_DEFINITION",
-            "description": "Location adjacent to a fragment definition.",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": "Location adjacent to a fragment definition."
           },
           {
             "name": "FRAGMENT_SPREAD",
-            "description": "Location adjacent to a fragment spread.",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": "Location adjacent to a fragment spread."
           },
           {
             "name": "INLINE_FRAGMENT",
-            "description": "Location adjacent to an inline fragment.",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": "Location adjacent to an inline fragment."
           },
           {
             "name": "SCHEMA",
-            "description": "Location adjacent to a schema definition.",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": "Location adjacent to a schema definition."
           },
           {
             "name": "SCALAR",
-            "description": "Location adjacent to a scalar definition.",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": "Location adjacent to a scalar definition."
           },
           {
             "name": "OBJECT",
-            "description": "Location adjacent to an object type definition.",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": "Location adjacent to an object type definition."
           },
           {
             "name": "FIELD_DEFINITION",
-            "description": "Location adjacent to a field definition.",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": "Location adjacent to a field definition."
           },
           {
             "name": "ARGUMENT_DEFINITION",
-            "description": "Location adjacent to an argument definition.",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": "Location adjacent to an argument definition."
           },
           {
             "name": "INTERFACE",
-            "description": "Location adjacent to an interface definition.",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": "Location adjacent to an interface definition."
           },
           {
             "name": "UNION",
-            "description": "Location adjacent to a union definition.",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": "Location adjacent to a union definition."
           },
           {
             "name": "ENUM",
-            "description": "Location adjacent to an enum definition.",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": "Location adjacent to an enum definition."
           },
           {
             "name": "ENUM_VALUE",
-            "description": "Location adjacent to an enum value definition.",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": "Location adjacent to an enum value definition."
           },
           {
             "name": "INPUT_OBJECT",
-            "description": "INPUT_OBJECT",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": "INPUT_OBJECT"
           },
           {
             "name": "INPUT_FIELD_DEFINITION",
-            "description": "Location adjacent to an input object field definition.",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": "Location adjacent to an input object field definition."
           }
         ],
         "possibleTypes": null
@@ -42576,9 +41318,7 @@
                 "name": "String",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "description",
@@ -42588,9 +41328,7 @@
               "kind": "SCALAR",
               "name": "String",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "isDeprecated",
@@ -42604,9 +41342,7 @@
                 "name": "Boolean",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "deprecationReason",
@@ -42616,9 +41352,7 @@
               "kind": "SCALAR",
               "name": "String",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -42643,9 +41377,7 @@
                 "name": "String",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "description",
@@ -42655,9 +41387,7 @@
               "kind": "SCALAR",
               "name": "String",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "args",
@@ -42679,9 +41409,7 @@
                   }
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "type",
@@ -42695,9 +41423,7 @@
                 "name": "__Type",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "isDeprecated",
@@ -42711,9 +41437,7 @@
                 "name": "Boolean",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "deprecationReason",
@@ -42723,9 +41447,7 @@
               "kind": "SCALAR",
               "name": "String",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -42750,9 +41472,7 @@
                 "name": "String",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "description",
@@ -42762,9 +41482,7 @@
               "kind": "SCALAR",
               "name": "String",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "type",
@@ -42778,9 +41496,7 @@
                 "name": "__Type",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "defaultValue",
@@ -42790,9 +41506,7 @@
               "kind": "SCALAR",
               "name": "String",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -42825,9 +41539,7 @@
                   }
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "queryType",
@@ -42841,9 +41553,7 @@
                 "name": "__Type",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "mutationType",
@@ -42853,9 +41563,7 @@
               "kind": "OBJECT",
               "name": "__Type",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "subscriptionType",
@@ -42865,9 +41573,7 @@
               "kind": "OBJECT",
               "name": "__Type",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "directives",
@@ -42889,9 +41595,7 @@
                   }
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -42916,9 +41620,7 @@
                 "name": "__TypeKind",
                 "ofType": null
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "name",
@@ -42928,9 +41630,7 @@
               "kind": "SCALAR",
               "name": "String",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "description",
@@ -42940,9 +41640,7 @@
               "kind": "SCALAR",
               "name": "String",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "fields",
@@ -42971,9 +41669,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "interfaces",
@@ -42991,9 +41687,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "possibleTypes",
@@ -43011,9 +41705,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "enumValues",
@@ -43042,9 +41734,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "inputFields",
@@ -43062,9 +41752,7 @@
                   "ofType": null
                 }
               }
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           },
           {
             "name": "ofType",
@@ -43074,9 +41762,7 @@
               "kind": "OBJECT",
               "name": "__Type",
               "ofType": null
-            },
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            }
           }
         ],
         "inputFields": null,
@@ -43094,51 +41780,35 @@
         "enumValues": [
           {
             "name": "SCALAR",
-            "description": "Indicates this type is a scalar.",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": "Indicates this type is a scalar."
           },
           {
             "name": "OBJECT",
-            "description": "Indicates this type is an object. `fields` and `interfaces` are valid fields.",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": "Indicates this type is an object. `fields` and `interfaces` are valid fields."
           },
           {
             "name": "INTERFACE",
-            "description": "Indicates this type is an interface. `fields` and `possibleTypes` are valid fields.",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": "Indicates this type is an interface. `fields` and `possibleTypes` are valid fields."
           },
           {
             "name": "UNION",
-            "description": "Indicates this type is a union. `possibleTypes` is a valid field.",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": "Indicates this type is a union. `possibleTypes` is a valid field."
           },
           {
             "name": "ENUM",
-            "description": "Indicates this type is an enum. `enumValues` is a valid field.",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": "Indicates this type is an enum. `enumValues` is a valid field."
           },
           {
             "name": "INPUT_OBJECT",
-            "description": "Indicates this type is an input object. `inputFields` is a valid field.",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": "Indicates this type is an input object. `inputFields` is a valid field."
           },
           {
             "name": "LIST",
-            "description": "Indicates this type is a list. `ofType` is a valid field.",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": "Indicates this type is a list. `ofType` is a valid field."
           },
           {
             "name": "NON_NULL",
-            "description": "Indicates this type is a non-null. `ofType` is a valid field.",
-            "isDeprecated": false,
-            "depreciacionReason": ""
+            "description": "Indicates this type is a non-null. `ofType` is a valid field."
           }
         ],
         "possibleTypes": null

@@ -2,6 +2,7 @@ package introspection
 
 import (
 	"encoding/json"
+	"github.com/jensneuse/diffview"
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
 	"github.com/sebdah/goldie"
 	"io/ioutil"
@@ -32,4 +33,12 @@ func TestGenerator_Generate(t *testing.T) {
 	}
 
 	goldie.Assert(t, "startwars_introspected", outputPretty)
+	if t.Failed() {
+		fixture, err := ioutil.ReadFile("./fixtures/startwars_introspected.golden")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		diffview.NewGoland().DiffViewBytes("startwars_introspected", fixture, outputPretty)
+	}
 }
