@@ -246,6 +246,8 @@ type fieldSelectionMergingVisitor struct {
 	nonScalarRequirements nonScalarRequirements
 	refs                  []int
 	enclosingTypeRef      int
+	pathCache             [256][32]ast.PathItem
+	pathCacheIndex        int
 }
 type nonScalarRequirement struct {
 	path                    ast.Path
@@ -295,6 +297,7 @@ func (f *fieldSelectionMergingVisitor) resetRequirements() {
 func (f *fieldSelectionMergingVisitor) EnterDocument(operation, definition *ast.Document) {
 	f.operation = operation
 	f.definition = definition
+	f.pathCacheIndex = 0
 }
 
 func (f *fieldSelectionMergingVisitor) EnterFragmentDefinition(ref int) {
@@ -353,8 +356,17 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 			return
 		}
 
-		path := make(ast.Path, len(f.Path))
-		copy(path, f.Path)
+		var path ast.Path
+		if f.pathCacheIndex != len(f.pathCache)-1 {
+			path = f.pathCache[f.pathCacheIndex][:len(f.Path)]
+			f.pathCacheIndex++
+			for i := 0; i < len(f.Path); i++ {
+				path[i] = f.Path[i]
+			}
+		} else {
+			path = make(ast.Path, len(f.Path))
+			copy(path, f.Path)
+		}
 
 		f.nonScalarRequirements = append(f.nonScalarRequirements, nonScalarRequirement{
 			path:                    path,
@@ -399,8 +411,17 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 		return
 	}
 
-	path := make(ast.Path, len(f.Path))
-	copy(path, f.Path)
+	var path ast.Path
+	if f.pathCacheIndex != len(f.pathCache)-1 {
+		path = f.pathCache[f.pathCacheIndex][:len(f.Path)]
+		f.pathCacheIndex++
+		for i := 0; i < len(f.Path); i++ {
+			path[i] = f.Path[i]
+		}
+	} else {
+		path = make(ast.Path, len(f.Path))
+		copy(path, f.Path)
+	}
 
 	f.scalarRequirements = append(f.scalarRequirements, scalarRequirement{
 		path:                    path,
