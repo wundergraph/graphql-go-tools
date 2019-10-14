@@ -153,7 +153,7 @@ func (p *planningVisitor) EnterField(ref int) {
 		}
 		for i := 0; i < len(params); i++ {
 			doc.VariableValues = append(doc.VariableValues, ast.VariableValue{
-				Name: doc.Input.AppendInputBytes(params[i].sourceName),
+				Name: doc.Input.AppendInputBytes(params[i].name),
 			})
 			variableRef := len(doc.VariableValues) - 1
 			variableValue := ast.Value{

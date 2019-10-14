@@ -505,6 +505,7 @@ func TestPlanner_Plan(t *testing.T) {
 											VariableName: []byte("id"),
 										},
 									},
+									Resolver: &GraphQLResolver{},
 								},
 								Value: &Object{
 									Path: []string{"user"},
@@ -564,8 +565,12 @@ func TestPlanner_Plan(t *testing.T) {
 								Resolve: &Resolve{
 									Args: []Argument{
 										&StaticVariableArgument{
+											Name:  literal.HOST,
+											Value: []byte("localhost:9001"),
+										},
+										&StaticVariableArgument{
 											Name:  literal.URL,
-											Value: []byte("/user/:id"),
+											Value: []byte("/user/{{ .id }}"),
 										},
 										&ContextVariableArgument{
 											Name:         []byte("id"),
@@ -689,6 +694,10 @@ func TestPlanner_Plan(t *testing.T) {
 											Resolve: &Resolve{
 												Args: []Argument{
 													&StaticVariableArgument{
+														Name:  literal.HOST,
+														Value: []byte("localhost:9000"),
+													},
+													&StaticVariableArgument{
 														Name:  literal.URL,
 														Value: []byte("/user/:id/friends"),
 													},
@@ -800,6 +809,14 @@ func TestPlanner_Plan(t *testing.T) {
 								Resolve: &Resolve{
 									Args: []Argument{
 										&StaticVariableArgument{
+											Name:  literal.HOST,
+											Value: []byte("localhost:8001"),
+										},
+										&StaticVariableArgument{
+											Name:  literal.URL,
+											Value: []byte("/graphql"),
+										},
+										&StaticVariableArgument{
 											Name:  literal.QUERY,
 											Value: []byte("query o($id: String!){user(id: $id){id name birthday}}"),
 										},
@@ -831,6 +848,10 @@ func TestPlanner_Plan(t *testing.T) {
 											Name: []byte("friends"),
 											Resolve: &Resolve{
 												Args: []Argument{
+													&StaticVariableArgument{
+														Name:  literal.HOST,
+														Value: []byte("localhost:9000"),
+													},
 													&StaticVariableArgument{
 														Name:  literal.URL,
 														Value: []byte("/user/:id/friends"),
@@ -880,10 +901,10 @@ func TestPlanner_Plan(t *testing.T) {
 																	},
 																	&StaticVariableArgument{
 																		Name:  literal.QUERY,
-																		Value: []byte("query o($id: String!){userPets(userId: $id){__typename nickname ... on Dog {name woof} ... on Cat {name meow}}}"),
+																		Value: []byte("query o($userId: String!){userPets(userId: $userId){__typename nickname ... on Dog {name woof} ... on Cat {name meow}}}"),
 																	},
 																	&ObjectVariableArgument{
-																		Name: []byte("id"),
+																		Name: []byte("userId"),
 																		Path: []string{"id"},
 																	},
 																},
@@ -989,10 +1010,10 @@ func TestPlanner_Plan(t *testing.T) {
 													},
 													&StaticVariableArgument{
 														Name:  literal.QUERY,
-														Value: []byte("query o($id: String!){userPets(userId: $id){__typename nickname ... on Dog {name woof} ... on Cat {name meow}}}"),
+														Value: []byte("query o($userId: String!){userPets(userId: $userId){__typename nickname ... on Dog {name woof} ... on Cat {name meow}}}"),
 													},
 													&ObjectVariableArgument{
-														Name: []byte("id"),
+														Name: []byte("userId"),
 														Path: []string{"id"},
 													},
 												},
@@ -1636,6 +1657,10 @@ directive @GraphQLDataSource (
     params: [Parameter]
 ) on FIELD_DEFINITION
 
+directive @mapTo(
+	objectField: String!
+) on FIELD_DEFINITION
+
 enum HTTP_METHOD {
     GET
     POST
@@ -1735,11 +1760,6 @@ enum PARAMETER_SOURCE {
     FIELD_ARGUMENTS
 }
 
-input Mapping {
-    from: String!
-    to: String!
-}
-
 schema {
     query: Query
 }
@@ -1836,30 +1856,50 @@ type Query {
 }`
 
 const complexSchema = `
-directive @resolveGraphQL (
-	upstream: String!
-	url: String!
-	field: String!
-	params: [Parameter]
+directive @RESTDataSource (
+    host: String!
+    url: String!
+    method: HTTP_METHOD = GET
+    params: [Parameter]
 ) on FIELD_DEFINITION
 
-directive @resolveREST (
-	upstream: String!
-	url: String!
-	method: HTTP_METHOD = GET
-	params: [Parameter]
+directive @GraphQLDataSource (
+    host: String!
+    url: String!
+	field: String
+    method: HTTP_METHOD = POST
+    params: [Parameter]
 ) on FIELD_DEFINITION
+
+directive @mapTo(
+	objectField: String!
+) on FIELD_DEFINITION
+
+enum HTTP_METHOD {
+    GET
+    POST
+    UPDATE
+    DELETE
+}
+
+input Parameter {
+    name: String!
+    sourceKind: PARAMETER_SOURCE!
+    sourceName: String!
+    variableType: String!
+}
+
+enum PARAMETER_SOURCE {
+    CONTEXT_VARIABLE
+    OBJECT_VARIABLE_ARGUMENT
+    FIELD_ARGUMENTS
+}
 
 directive @resolveType (
 	params: [Parameter]
 ) on FIELD_DEFINITION
 
 directive @resolveSchema on FIELD_DEFINITION
-
-input Mapping {
-	from: String!
-	to: String!
-}
 
 enum HTTP_METHOD {
 	GET
@@ -1901,8 +1941,8 @@ type Query {
 		)
 	__schema: __Schema!
 	user(id: String!): User
-		@resolveGraphQL(
-			upstream: "localhost:8001"
+		@GraphQLDataSource(
+			host: "localhost:8001"
 			url: "/graphql"
 			field: "user"
 			params: [
@@ -1915,9 +1955,9 @@ type Query {
 			]
 		)
 	restUser(id: String!): User
-		@resolveREST (
-			upstream: "localhost:9001"
-			url: "/user/:id"
+		@RESTDataSource (
+			host: "localhost:9001"
+			url: "/user/{{ .id }}"
 			params: [
 				{
 					name: "id"
@@ -1933,8 +1973,8 @@ type User {
 	name: String
 	birthday: Date
 	friends: [User]
-		@resolveREST(
-			upstream: "localhost:9000"
+		@RESTDataSource(
+			host: "localhost:9000"
 			url: "/user/:id/friends"
 			params: [
 				{
@@ -1946,8 +1986,8 @@ type User {
 			]
 		)
 	pets: [Pet]
-		@resolveGraphQL(
-			upstream: "localhost:8002"
+		@GraphQLDataSource(
+			host: "localhost:8002"
 			url: "/graphql"
 			field: "userPets"
 			params: [
