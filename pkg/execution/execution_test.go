@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"github.com/cespare/xxhash"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
+	"github.com/sebdah/goldie"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
@@ -17,6 +20,46 @@ func TestExecution(t *testing.T) {
 			xxhash.Sum64String("id"):   []byte("1"),
 		},
 	}
+
+	graphQL1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		/*dump, err := httputil.DumpRequest(r, true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fmt.Printf("graphQL1 dump: %s\n", string(dump))*/
+		_, err := w.Write(userData)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}))
+
+	graphQL2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		/*dump, err := httputil.DumpRequest(r, true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fmt.Printf("graphQL2 dump: %s\n", string(dump))*/
+		_, err := w.Write(petsData)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}))
+
+	REST1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		/*dump, err := httputil.DumpRequest(r, true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fmt.Printf("REST1 dump: %s\n", string(dump))*/
+		_, err := w.Write(friendsData)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}))
+
+	defer graphQL1.Close()
+	defer graphQL2.Close()
+	defer REST1.Close()
 
 	object := &Object{
 		Fields: []Field{
@@ -41,7 +84,8 @@ func TestExecution(t *testing.T) {
 									{
 										Name: []byte("name"),
 										Value: &Value{
-											Path: []string{"name"},
+											Path:       []string{"name"},
+											QuoteValue: true,
 										},
 									},
 									{
@@ -53,7 +97,8 @@ func TestExecution(t *testing.T) {
 													{
 														Name: []byte("name"),
 														Value: &Value{
-															Path: []string{"name"},
+															Path:       []string{"name"},
+															QuoteValue: true,
 														},
 													},
 													{
@@ -64,7 +109,8 @@ func TestExecution(t *testing.T) {
 																{
 																	Name: []byte("name"),
 																	Value: &Value{
-																		Path: []string{"name"},
+																		Path:       []string{"name"},
+																		QuoteValue: true,
 																	},
 																},
 															},
@@ -82,6 +128,14 @@ func TestExecution(t *testing.T) {
 							Resolve: &Resolve{
 								Args: []Argument{
 									&StaticVariableArgument{
+										Name:  literal.HOST,
+										Value: []byte(graphQL1.URL),
+									},
+									&StaticVariableArgument{
+										Name:  literal.URL,
+										Value: []byte("/graphql"),
+									},
+									&StaticVariableArgument{
 										Name:  literal.QUERY,
 										Value: []byte("query q1($id: String!){user{id name birthday}}"),
 									},
@@ -90,13 +144,10 @@ func TestExecution(t *testing.T) {
 										VariableName: []byte("id"),
 									},
 								},
-								Resolver: &GraphQLResolver{
-									Upstream: "localhost:8001",
-									URL:      "/graphql",
-								},
+								Resolver: &GraphQLResolver{},
 							},
 							Value: &Object{
-								Path: []string{"data", "user"},
+								Path: []string{"user"},
 								Fields: []Field{
 									{
 										Name: []byte("id"),
@@ -107,13 +158,15 @@ func TestExecution(t *testing.T) {
 									{
 										Name: []byte("name"),
 										Value: &Value{
-											Path: []string{"name"},
+											Path:       []string{"name"},
+											QuoteValue: true,
 										},
 									},
 									{
 										Name: []byte("birthday"),
 										Value: &Value{
-											Path: []string{"birthday"},
+											Path:       []string{"birthday"},
+											QuoteValue: true,
 										},
 									},
 									{
@@ -121,8 +174,12 @@ func TestExecution(t *testing.T) {
 										Resolve: &Resolve{
 											Args: []Argument{
 												&StaticVariableArgument{
+													Name:  literal.HOST,
+													Value: []byte(REST1.URL),
+												},
+												&StaticVariableArgument{
 													Name:  literal.URL,
-													Value: []byte("/user/:id/friends"),
+													Value: []byte("/user/{{ .id }}/friends"),
 												},
 												&ObjectVariableArgument{
 													Name: []byte("id"),
@@ -143,13 +200,15 @@ func TestExecution(t *testing.T) {
 													{
 														Name: []byte("name"),
 														Value: &Value{
-															Path: []string{"name"},
+															Path:       []string{"name"},
+															QuoteValue: true,
 														},
 													},
 													{
 														Name: []byte("birthday"),
 														Value: &Value{
-															Path: []string{"birthday"},
+															Path:       []string{"birthday"},
+															QuoteValue: true,
 														},
 													},
 												},
@@ -161,6 +220,14 @@ func TestExecution(t *testing.T) {
 										Resolve: &Resolve{
 											Args: []Argument{
 												&StaticVariableArgument{
+													Name:  literal.HOST,
+													Value: []byte(graphQL2.URL),
+												},
+												&StaticVariableArgument{
+													Name:  literal.URL,
+													Value: []byte("/graphql"),
+												},
+												&StaticVariableArgument{
 													Name: literal.QUERY,
 													Value: []byte(`query q1($id: String!){userPets(id: $id){	__typename name nickname... on Dog {woof} ... on Cat {meow}}}`),
 												},
@@ -169,37 +236,38 @@ func TestExecution(t *testing.T) {
 													Path: []string{"id"},
 												},
 											},
-											Resolver: &GraphQLResolver{
-												Upstream: "localhost:8002",
-												URL:      "/graphql",
-											},
+											Resolver: &GraphQLResolver{},
 										},
 										Value: &List{
-											Path: []string{"data", "userPets"},
+											Path: []string{"userPets"},
 											Value: &Object{
 												Fields: []Field{
 													{
 														Name: []byte("__typename"),
 														Value: &Value{
-															Path: []string{"__typename"},
+															Path:       []string{"__typename"},
+															QuoteValue: true,
 														},
 													},
 													{
 														Name: []byte("name"),
 														Value: &Value{
-															Path: []string{"name"},
+															Path:       []string{"name"},
+															QuoteValue: true,
 														},
 													},
 													{
 														Name: []byte("nickname"),
 														Value: &Value{
-															Path: []string{"nickname"},
+															Path:       []string{"nickname"},
+															QuoteValue: true,
 														},
 													},
 													{
 														Name: []byte("woof"),
 														Value: &Value{
-															Path: []string{"woof"},
+															Path:       []string{"woof"},
+															QuoteValue: true,
 														},
 														Skip: &IfNotEqual{
 															Left: &ObjectVariableArgument{
@@ -213,7 +281,8 @@ func TestExecution(t *testing.T) {
 													{
 														Name: []byte("meow"),
 														Value: &Value{
-															Path: []string{"meow"},
+															Path:       []string{"meow"},
+															QuoteValue: true,
 														},
 														Skip: &IfNotEqual{
 															Left: &ObjectVariableArgument{
@@ -256,7 +325,9 @@ func TestExecution(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	fmt.Printf("Result:\nUgly:\n%s\nPretty:\n%s\n", out.String(), string(pretty))
+	goldie.Assert(t, "execution", pretty)
+
+	//fmt.Printf("Result:\nUgly:\n%s\nPretty:\n%s\n", out.String(), string(pretty))
 }
 
 func BenchmarkExecution(b *testing.B) {
@@ -360,6 +431,14 @@ func genField() Field {
 					Resolve: &Resolve{
 						Args: []Argument{
 							&StaticVariableArgument{
+								Name:  literal.HOST,
+								Value: []byte("localhost:8001"),
+							},
+							&StaticVariableArgument{
+								Name:  literal.URL,
+								Value: []byte("/graphql"),
+							},
+							&StaticVariableArgument{
 								Name:  literal.QUERY,
 								Value: []byte("query q1($id: String!){user{id name birthday}}"),
 							},
@@ -368,10 +447,7 @@ func genField() Field {
 								VariableName: []byte("id"),
 							},
 						},
-						Resolver: &GraphQLResolver{
-							Upstream: "localhost:8001",
-							URL:      "/graphql",
-						},
+						Resolver: &GraphQLResolver{},
 					},
 					Value: &Object{
 						Path: []string{"data", "user"},
@@ -385,7 +461,8 @@ func genField() Field {
 							{
 								Name: []byte("name"),
 								Value: &Value{
-									Path: []string{"name"},
+									Path:       []string{"name"},
+									QuoteValue: true,
 								},
 							},
 							{
@@ -421,7 +498,8 @@ func genField() Field {
 											{
 												Name: []byte("name"),
 												Value: &Value{
-													Path: []string{"name"},
+													Path:       []string{"name"},
+													QuoteValue: true,
 												},
 											},
 											{
@@ -439,6 +517,14 @@ func genField() Field {
 								Resolve: &Resolve{
 									Args: []Argument{
 										&StaticVariableArgument{
+											Name:  literal.HOST,
+											Value: []byte("localhost:8002"),
+										},
+										&StaticVariableArgument{
+											Name:  literal.URL,
+											Value: []byte("/graphql"),
+										},
+										&StaticVariableArgument{
 											Name: literal.QUERY,
 											Value: []byte(`query q1($id: String!){userPets(id: $id){	__typename name nickname... on Dog {woof} ... on Cat {meow}}}`),
 										},
@@ -447,10 +533,7 @@ func genField() Field {
 											Path: []string{"id"},
 										},
 									},
-									Resolver: &GraphQLResolver{
-										Upstream: "localhost:8002",
-										URL:      "/graphql",
-									},
+									Resolver: &GraphQLResolver{},
 								},
 								Value: &List{
 									Path: []string{"data", "userPets"},
@@ -513,3 +596,69 @@ func genField() Field {
 		},
 	}
 }
+
+var userType = []byte(`{
+			  "__type": {
+				"name": "User",
+				"fields": [
+				  {
+					"name": "id",
+					"type": { "name": "String" }
+				  },
+				  {
+					"name": "name",
+					"type": { "name": "String" }
+				  },
+				  {
+					"name": "birthday",
+					"type": { "name": "Date" }
+				  }
+				]
+			  }
+			}`)
+
+var userData = []byte(`
+		{
+			"data":	{
+				"user":	{
+					"id":1,
+					"name":"Jens",
+					"birthday":"08.02.1988"
+				}
+			}
+		}`)
+
+var userRestData = []byte(`
+{
+	"id":1,
+	"name":"Jens",
+	"birthday":"08.02.1988"
+}`)
+
+var friendsData = []byte(`[
+   {
+      "id":2,
+      "name":"Yaara",
+      "birthday":"1990 I guess? ;-)"
+   },
+   {
+      "id":3,
+      "name":"Ahmet",
+      "birthday":"1980"
+   }]`)
+
+var petsData = []byte(`{
+   "data":{
+      "userPets":[{
+            "__typename":"Dog",
+            "name":"Paw",
+            "nickname":"Pawie",
+            "woof":"Woof! Woof!"
+         },
+         {
+            "__typename":"Cat",
+            "name":"Mietz",
+            "nickname":"Mietzie",
+            "meow":"Meow meow!"
+         }]}
+}`)

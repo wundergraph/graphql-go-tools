@@ -3,7 +3,6 @@ package execution
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
@@ -366,80 +365,11 @@ func (s *SchemaResolver) DirectiveName() []byte {
 	return []byte("resolveSchema")
 }
 
-var userType = []byte(`{
-			  "__type": {
-				"name": "User",
-				"fields": [
-				  {
-					"name": "id",
-					"type": { "name": "String" }
-				  },
-				  {
-					"name": "name",
-					"type": { "name": "String" }
-				  },
-				  {
-					"name": "birthday",
-					"type": { "name": "Date" }
-				  }
-				]
-			  }
-			}`)
-
-var userData = []byte(`
-		{
-			"data":	{
-				"user":	{
-					"id":1,
-					"name":"Jens",
-					"birthday":"08.02.1988"
-				}
-			}
-		}`)
-
-var userRestData = []byte(`
-{
-	"id":1,
-	"name":"Jens",
-	"birthday":"08.02.1988"
-}`)
-
-var friendsData = []byte(`[
-   {
-      "id":2,
-      "name":"Yaara",
-      "birthday":"1990 I guess? ;-)"
-   },
-   {
-      "id":3,
-      "name":"Ahmet",
-      "birthday":"1980"
-   }]`)
-
-var petsData = []byte(`{
-   "data":{
-      "userPets":[{
-            "__typename":"Dog",
-            "name":"Paw",
-            "nickname":"Pawie",
-            "woof":"Woof! Woof!"
-         },
-         {
-            "__typename":"Cat",
-            "name":"Mietz",
-            "nickname":"Mietzie",
-            "meow":"Meow meow!"
-         }]}
-}`)
-
 func (t *TypeResolver) Resolve(ctx Context, args ResolvedArgs) []byte {
-	return userType
+	return nil
 }
 
-type GraphQLResolver struct {
-	Upstream string
-	URL      string
-}
+type GraphQLResolver struct{}
 
 func (g *GraphQLResolver) DirectiveName() []byte {
 	return []byte("GraphQLDataSource")
@@ -456,9 +386,10 @@ func (g *GraphQLResolver) Resolve(ctx Context, args ResolvedArgs) []byte {
 		return nil
 	}
 
-	url := "https://" + string(hostArg) + string(urlArg)
-
-	fmt.Printf("GraphQLDataSource - url: %s\n", url)
+	url := string(hostArg) + string(urlArg)
+	if !strings.HasPrefix(url, "https://") && !strings.HasPrefix(url, "http://") {
+		url = "https://" + url
+	}
 
 	variables := map[string]json.RawMessage{}
 	for i := 0; i < len(args); i++ {
@@ -482,8 +413,6 @@ func (g *GraphQLResolver) Resolve(ctx Context, args ResolvedArgs) []byte {
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	fmt.Printf("GraphQLDataSource - request:\n%s\n", string(gqlRequestData))
 
 	client := http.Client{
 		Timeout: time.Second * 10,
@@ -510,8 +439,6 @@ func (g *GraphQLResolver) Resolve(ctx Context, args ResolvedArgs) []byte {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("GraphQLDataSource - response:\n%s\n", string(data))
-
 	data = bytes.ReplaceAll(data, literal.BACKSLASH, nil)
 	data, _, _, err = jsonparser.Get(data, "data")
 	if err != nil {
@@ -535,7 +462,10 @@ func (r *RESTResolver) Resolve(ctx Context, args ResolvedArgs) []byte {
 		return nil
 	}
 
-	url := "https://" + string(hostArg) + string(urlArg)
+	url := string(hostArg) + string(urlArg)
+	if !strings.HasPrefix(url, "https://") && !strings.HasPrefix(url, "http://") {
+		url = "https://" + url
+	}
 
 	if strings.Contains(url, "{{") {
 		tmpl, err := template.New("url").Parse(url)
@@ -553,8 +483,6 @@ func (r *RESTResolver) Resolve(ctx Context, args ResolvedArgs) []byte {
 		}
 		url = out.String()
 	}
-
-	fmt.Printf("RESTDataSource - url: %s\n", url)
 
 	client := http.Client{
 		Timeout: time.Second * 10,
@@ -581,24 +509,6 @@ func (r *RESTResolver) Resolve(ctx Context, args ResolvedArgs) []byte {
 		return []byte(err.Error())
 	}
 	return bytes.ReplaceAll(data, literal.BACKSLASH, nil)
-
-	/*if len(args) < 1 {
-		return []byte("expect arg 1: url")
-	}
-
-	if !bytes.Equal(args[0].ArgName(), literal.URL) {
-		return []byte("first arg must be named url")
-	}
-
-	if bytes.Equal(args[0].(*StaticVariableArgument).Value, []byte("/user/:id")) {
-		return userRestData
-	}
-
-	if bytes.Equal(args[0].(*StaticVariableArgument).Value, []byte("/user/:id/friends")) {
-		return friendsData
-	}
-
-	return nil*/
 }
 
 type StaticDataSource struct {
