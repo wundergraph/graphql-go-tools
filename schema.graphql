@@ -94,9 +94,52 @@ type JSONPlaceholderComment {
     body: String!
 }
 
+type Observation {
+    description: String
+    skyDescription: String
+    temperature: Float
+    temperatureDesc: String
+    highTemperature: Float
+    lowTemperature: Float
+}
+
+type Location {
+    country: String
+    state: String
+    city: String
+    observation: [Observation]
+}
+
+type Observations {
+    location: [Location]
+}
+
+type Weather {
+    observations: Observations
+}
+
 type Coordinates {
-    latt: Float
-    longt: Float
+    lat: Float @mapTo(objectField: "latt")
+    lon: Float @mapTo(objectField: "longt")
+    weather: Weather
+        @RESTDataSource(
+            host: "https://weather.cit.api.here.com"
+            url: "/weather/1.0/report.json?product=observation&latitude={{ .lat }}&longitude={{ .lon }}&oneobservation=true&app_id=DemoAppId01082013GAL&app_code=AJKnXv84fjrb0KIHawS0Tg"
+            params: [
+                {
+                    name: "lat"
+                    sourceKind: OBJECT_VARIABLE_ARGUMENT
+                    sourceName: "latt"
+                    variableType: "Float"
+                },
+                {
+                    name: "lon"
+                    sourceKind: OBJECT_VARIABLE_ARGUMENT
+                    sourceName: "longt"
+                    variableType: "Float"
+                }
+            ]
+        )
 }
 
 type Country {
