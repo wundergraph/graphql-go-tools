@@ -129,9 +129,7 @@ func TestExecution(t *testing.T) {
 													Path: []string{"id"},
 												},
 											},
-											Resolver: &RESTResolver{
-												Upstream: "localhost:9000",
-											},
+											Resolver: &RESTResolver{},
 										},
 										Value: &List{
 											Value: &Object{
@@ -409,9 +407,7 @@ func genField() Field {
 											Path: []string{"id"},
 										},
 									},
-									Resolver: &RESTResolver{
-										Upstream: "localhost:9000",
-									},
+									Resolver: &RESTResolver{},
 								},
 								Value: &List{
 									Value: &Object{
