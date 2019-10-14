@@ -65,6 +65,7 @@ var (
 	NULL             = []byte("null")
 	DATA             = []byte("data")
 	URL              = []byte("url")
+	HOST             = []byte("host")
 	PARAMS           = []byte("params")
 
 	TRUE  = []byte("true")
