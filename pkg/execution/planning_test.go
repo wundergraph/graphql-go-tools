@@ -1574,23 +1574,59 @@ func TestPlanner_Plan(t *testing.T) {
 
 func BenchmarkPlanner_Plan(b *testing.B) {
 	def := unsafeparser.ParseGraphqlDocumentString(withBaseSchema(complexSchema))
-	op := unsafeparser.ParseGraphqlDocumentString(`query TypeQuery($name: String! = "User") {
-					__type(name: $name) {
+	op := unsafeparser.ParseGraphqlDocumentString(`
+			query UserQuery($id: String!) {
+				user(id: $id) {
+					id
+					name
+					friends {
+						id
 						name
-						fields {
-							name
-							type {
+						birthday
+						pets {
+							__typename
+							nickname
+							... on Dog {
 								name
+								woof
+							}
+							... on Cat {
+								name
+								meow
 							}
 						}
 					}
-				}`)
+					pets {
+						__typename
+						nickname
+						... on Dog {
+							name
+							woof
+						}
+						... on Cat {
+							name
+							meow
+						}
+					}
+					birthday
+				}
+			}`)
 
 	resolverDefinitions := ResolverDefinitions{
 		{
 			TypeName:  literal.QUERY,
-			FieldName: literal.UNDERSCORETYPE,
-			Resolver:  &TypeResolver{},
+			FieldName: []byte("user"),
+			Resolver:  &GraphQLDataSource{},
+		},
+		{
+			TypeName:  []byte("User"),
+			FieldName: []byte("friends"),
+			Resolver:  &HTTPJSONDataSource{},
+		},
+		{
+			TypeName:  []byte("User"),
+			FieldName: []byte("pets"),
+			Resolver:  &GraphQLDataSource{},
 		},
 	}
 
@@ -1601,9 +1637,9 @@ func BenchmarkPlanner_Plan(b *testing.B) {
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		plan := planner.Plan(&op, &def, &report)
-		if plan.Kind() != ObjectKind {
-			b.Errorf("plan.Kind() != ObjectKind")
+		planner.Plan(&op, &def, &report)
+		if report.HasErrors() {
+			b.Fatal(report)
 		}
 	}
 }
