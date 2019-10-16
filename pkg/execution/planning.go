@@ -143,7 +143,7 @@ func (p *planningVisitor) EnterField(ref int) {
 	hasResolverDefinition := p.resolverDefinitions.DefinitionForTypeField(resolverTypeName, p.operation.FieldNameBytes(ref), &resolverDefinition)
 	if hasResolverDefinition {
 
-		doc := ast.NewDocument()
+		doc := &ast.Document{}
 		params := p.resolverDirectiveParamObjectValues(ref, resolverDefinition)
 		args := make([]int, len(params))
 		variableDefinitions := make([]int, len(params))

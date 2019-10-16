@@ -22,6 +22,7 @@ type Executor struct {
 	context Context
 	out     io.Writer
 	err     error
+	args    [48]ResolvedArgument
 }
 
 func (e *Executor) Execute(ctx Context, node Node, w io.Writer) error {
@@ -132,7 +133,12 @@ func (e *Executor) resolveNode(node Node, data []byte) {
 }
 
 func (e *Executor) resolveArgs(args []Argument, data []byte) ResolvedArgs {
-	resolved := make(ResolvedArgs, len(args))
+	var resolved ResolvedArgs
+	if len(e.args) >= len(args) {
+		resolved = e.args[:len(args)]
+	} else {
+		resolved = make(ResolvedArgs, len(args))
+	}
 	for i := 0; i < len(args); i++ {
 		switch arg := args[i].(type) {
 		case *StaticVariableArgument:

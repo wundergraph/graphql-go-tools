@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/cespare/xxhash"
+	"github.com/jensneuse/diffview"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/sebdah/goldie"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
@@ -193,7 +195,8 @@ func TestExecution(t *testing.T) {
 													{
 														Name: []byte("id"),
 														Value: &Value{
-															Path: []string{"id"},
+															Path:       []string{"id"},
+															QuoteValue: false,
 														},
 													},
 													{
@@ -325,8 +328,15 @@ func TestExecution(t *testing.T) {
 	}
 
 	goldie.Assert(t, "execution", pretty)
+	if t.Failed() {
 
-	//fmt.Printf("Result:\nUgly:\n%s\nPretty:\n%s\n", out.String(), string(pretty))
+		fixture, err := ioutil.ReadFile("./fixtures/execution.golden")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		diffview.NewGoland().DiffViewBytes("execution", fixture, pretty)
+	}
 }
 
 func BenchmarkExecution(b *testing.B) {
@@ -365,6 +375,18 @@ func BenchmarkExecution(b *testing.B) {
 			}
 		})
 	}
+}
+
+type FakeDataSource struct {
+	data []byte
+}
+
+func (f FakeDataSource) Resolve(ctx Context, args ResolvedArgs) []byte {
+	return f.data
+}
+
+func (f FakeDataSource) DirectiveName() []byte {
+	return nil
 }
 
 func genField() Field {
@@ -446,7 +468,9 @@ func genField() Field {
 								VariableName: []byte("id"),
 							},
 						},
-						DataSource: &GraphQLDataSource{},
+						DataSource: &FakeDataSource{
+							data: userData,
+						},
 					},
 					Value: &Object{
 						Path: []string{"data", "user"},
@@ -483,7 +507,9 @@ func genField() Field {
 											Path: []string{"id"},
 										},
 									},
-									DataSource: &HTTPJSONDataSource{},
+									DataSource: &FakeDataSource{
+										friendsData,
+									},
 								},
 								Value: &List{
 									Value: &Object{
@@ -532,7 +558,9 @@ func genField() Field {
 											Path: []string{"id"},
 										},
 									},
-									DataSource: &GraphQLDataSource{},
+									DataSource: &FakeDataSource{
+										data: petsData,
+									},
 								},
 								Value: &List{
 									Path: []string{"data", "userPets"},
@@ -559,7 +587,8 @@ func genField() Field {
 											{
 												Name: []byte("woof"),
 												Value: &Value{
-													Path: []string{"woof"},
+													Path:       []string{"woof"},
+													QuoteValue: true,
 												},
 												Skip: &IfNotEqual{
 													Left: &ObjectVariableArgument{
@@ -573,7 +602,8 @@ func genField() Field {
 											{
 												Name: []byte("meow"),
 												Value: &Value{
-													Path: []string{"meow"},
+													Path:       []string{"meow"},
+													QuoteValue: true,
 												},
 												Skip: &IfNotEqual{
 													Left: &ObjectVariableArgument{
