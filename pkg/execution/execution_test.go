@@ -9,11 +9,19 @@ import (
 	"github.com/sebdah/goldie"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httputil"
 	"testing"
 )
 
-func TestExecution(t *testing.T) {
+func dumpRequest(t *testing.T, r *http.Request, name string) {
+	dump, err := httputil.DumpRequest(r, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Printf("%s dump: \n%s\n", name, string(dump))
+}
 
+func TestExecution(t *testing.T) {
 	exampleContext := Context{
 		Variables: map[uint64][]byte{
 			xxhash.Sum64String("name"): []byte("User"),
@@ -22,11 +30,8 @@ func TestExecution(t *testing.T) {
 	}
 
 	graphQL1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		/*dump, err := httputil.DumpRequest(r, true)
-		if err != nil {
-			t.Fatal(err)
-		}
-		fmt.Printf("graphQL1 dump: %s\n", string(dump))*/
+		//dumpRequest(t, r, "graphQL1")
+
 		_, err := w.Write(userData)
 		if err != nil {
 			t.Fatal(err)
@@ -34,11 +39,8 @@ func TestExecution(t *testing.T) {
 	}))
 
 	graphQL2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		/*dump, err := httputil.DumpRequest(r, true)
-		if err != nil {
-			t.Fatal(err)
-		}
-		fmt.Printf("graphQL2 dump: %s\n", string(dump))*/
+		//dumpRequest(t, r, "graphQL2")
+
 		_, err := w.Write(petsData)
 		if err != nil {
 			t.Fatal(err)
@@ -46,11 +48,8 @@ func TestExecution(t *testing.T) {
 	}))
 
 	REST1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		/*dump, err := httputil.DumpRequest(r, true)
-		if err != nil {
-			t.Fatal(err)
-		}
-		fmt.Printf("REST1 dump: %s\n", string(dump))*/
+		//dumpRequest(t, r, "rest1")
+
 		_, err := w.Write(friendsData)
 		if err != nil {
 			t.Fatal(err)
