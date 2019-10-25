@@ -16,9 +16,9 @@ type Planner struct {
 }
 
 type ResolverDefinition struct {
-	TypeName  []byte
-	FieldName []byte
-	Resolver  DataSource
+	TypeName      []byte
+	FieldName     []byte
+	SourcePlanner DataSourcePlanner
 }
 
 type ResolverDefinitions []ResolverDefinition
@@ -71,7 +71,7 @@ type planningVisitor struct {
 type resolveRef struct {
 	path        ast.Path
 	fieldRef    int
-	resolve     *Resolve
+	resolve     *DataSourceInvocation
 	document    *ast.Document
 	currentNode []ast.Node
 }
@@ -214,8 +214,8 @@ func (p *planningVisitor) EnterField(ref int) {
 			}
 		}
 
-		switch dataSource := resolverDefinition.Resolver.(type) {
-		case *StaticDataSource:
+		switch dataSource := resolverDefinition.SourcePlanner.(type) {
+		case *StaticDataSourcePlanner:
 			fieldDefinition, ok := p.FieldDefinition(ref)
 			if !ok {
 				return
@@ -273,9 +273,10 @@ func (p *planningVisitor) EnterField(ref int) {
 			Kind: ast.NodeKindOperationDefinition,
 			Ref:  operationDefinitionRef,
 		})
+		dataSource, _ := resolverDefinition.SourcePlanner.Plan()
 		resolve := &resolveRef{
-			resolve: &Resolve{
-				DataSource: resolverDefinition.Resolver,
+			resolve: &DataSourceInvocation{
+				DataSource: dataSource,
 				Args:       resolveArgs,
 			},
 			path:     p.Path,
@@ -323,7 +324,7 @@ func (p *planningVisitor) EnterField(ref int) {
 	switch parent := p.currentNode[len(p.currentNode)-1].(type) {
 	case *Object:
 
-		var resolve *Resolve
+		var resolve *DataSourceInvocation
 		resolveRef := p.currentResolve[len(p.currentResolve)-1]
 		if resolveRef.path.Equals(p.Path) && resolveRef.fieldRef == ref {
 			resolve = resolveRef.resolve
@@ -338,7 +339,7 @@ func (p *planningVisitor) EnterField(ref int) {
 		}
 		if resolve != nil {
 			switch resolve.DataSource.(type) {
-			case *HTTPJSONDataSource:
+			case *HttpJsonDataSource:
 				path = nil
 			case *StaticDataSource:
 				path = nil
@@ -362,7 +363,7 @@ func (p *planningVisitor) EnterField(ref int) {
 				Value: value,
 			}
 
-			var resolve *Resolve
+			var resolve *DataSourceInvocation
 			resolveRef := p.currentResolve[len(p.currentResolve)-1]
 			if resolveRef.path.Equals(p.Path) && resolveRef.fieldRef == ref {
 				resolve = resolveRef.resolve
@@ -418,12 +419,12 @@ func (p *planningVisitor) LeaveField(ref int) {
 	resolve := p.currentResolve[len(p.currentResolve)-1]
 	if resolve.path.Equals(p.Path) && resolve.fieldRef == ref {
 		switch resolve.resolve.DataSource.(type) {
-		case *HTTPJSONDataSource:
+		case *HttpJsonDataSource:
 			definition, exists := p.FieldDefinition(ref)
 			if !exists {
 				return
 			}
-			directive, exists := p.definition.FieldDefinitionDirectiveByName(definition, []byte("HTTPJSONDataSource"))
+			directive, exists := p.definition.FieldDefinitionDirectiveByName(definition, []byte("HttpJsonDataSource"))
 			if !exists {
 				return
 			}
@@ -538,7 +539,7 @@ func (p *planningVisitor) resolverDirectiveParamObjectValues(field int, resolver
 		return nil
 	}
 
-	directive, exists := p.definition.FieldDefinitionDirectiveByName(definition, resolverDefinition.Resolver.DirectiveName())
+	directive, exists := p.definition.FieldDefinitionDirectiveByName(definition, resolverDefinition.SourcePlanner.DirectiveName())
 	if !exists {
 		return nil
 	}
@@ -591,7 +592,7 @@ func (p *planningVisitor) resolverDirectiveFieldName(field int, resolverDefiniti
 		return nil
 	}
 
-	directive, exists := p.definition.FieldDefinitionDirectiveByName(definition, resolverDefinition.Resolver.DirectiveName())
+	directive, exists := p.definition.FieldDefinitionDirectiveByName(definition, resolverDefinition.SourcePlanner.DirectiveName())
 	if !exists {
 		return nil
 	}

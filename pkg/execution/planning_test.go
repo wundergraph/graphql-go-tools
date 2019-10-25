@@ -66,9 +66,9 @@ func TestPlanner_Plan(t *testing.T) {
 `,
 		ResolverDefinitions{
 			{
-				TypeName:  literal.QUERY,
-				FieldName: []byte("country"),
-				Resolver:  &GraphQLDataSource{},
+				TypeName:      literal.QUERY,
+				FieldName:     []byte("country"),
+				SourcePlanner: &GraphQLDataSourcePlanner{},
 			},
 		},
 		&Object{
@@ -79,7 +79,7 @@ func TestPlanner_Plan(t *testing.T) {
 						Fields: []Field{
 							{
 								Name: []byte("country"),
-								Resolve: &Resolve{
+								Resolve: &DataSourceInvocation{
 									Args: []Argument{
 										&StaticVariableArgument{
 											Name:  []byte("host"),
@@ -151,19 +151,19 @@ func TestPlanner_Plan(t *testing.T) {
 					}`,
 		ResolverDefinitions{
 			{
-				TypeName:  literal.QUERY,
-				FieldName: []byte("httpBinGet"),
-				Resolver:  &HTTPJSONDataSource{},
+				TypeName:      literal.QUERY,
+				FieldName:     []byte("httpBinGet"),
+				SourcePlanner: &HttpJsonDataSourcePlanner{},
 			},
 			{
-				TypeName:  literal.QUERY,
-				FieldName: []byte("post"),
-				Resolver:  &HTTPJSONDataSource{},
+				TypeName:      literal.QUERY,
+				FieldName:     []byte("post"),
+				SourcePlanner: &HttpJsonDataSourcePlanner{},
 			},
 			{
-				TypeName:  []byte("JSONPlaceholderPost"),
-				FieldName: []byte("comments"),
-				Resolver:  &HTTPJSONDataSource{},
+				TypeName:      []byte("JSONPlaceholderPost"),
+				FieldName:     []byte("comments"),
+				SourcePlanner: &HttpJsonDataSourcePlanner{},
 			},
 		},
 		&Object{
@@ -174,8 +174,8 @@ func TestPlanner_Plan(t *testing.T) {
 						Fields: []Field{
 							{
 								Name: []byte("httpBinGet"),
-								Resolve: &Resolve{
-									DataSource: &HTTPJSONDataSource{},
+								Resolve: &DataSourceInvocation{
+									DataSource: &HttpJsonDataSource{},
 									Args: []Argument{
 										&StaticVariableArgument{
 											Name:  []byte("host"),
@@ -223,7 +223,7 @@ func TestPlanner_Plan(t *testing.T) {
 							},
 							{
 								Name: []byte("post"),
-								Resolve: &Resolve{
+								Resolve: &DataSourceInvocation{
 									Args: []Argument{
 										&StaticVariableArgument{
 											Name:  []byte("host"),
@@ -238,7 +238,7 @@ func TestPlanner_Plan(t *testing.T) {
 											VariableName: []byte("id"),
 										},
 									},
-									DataSource: &HTTPJSONDataSource{},
+									DataSource: &HttpJsonDataSource{},
 								},
 								Value: &Object{
 									Fields: []Field{
@@ -251,7 +251,7 @@ func TestPlanner_Plan(t *testing.T) {
 										},
 										{
 											Name: []byte("comments"),
-											Resolve: &Resolve{
+											Resolve: &DataSourceInvocation{
 												Args: []Argument{
 													&StaticVariableArgument{
 														Name:  []byte("host"),
@@ -266,7 +266,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: []string{"id"},
 													},
 												},
-												DataSource: &HTTPJSONDataSource{},
+												DataSource: &HttpJsonDataSource{},
 											},
 											Value: &List{
 												Value: &Object{
@@ -301,19 +301,19 @@ func TestPlanner_Plan(t *testing.T) {
 					}`,
 		ResolverDefinitions{
 			{
-				TypeName:  literal.QUERY,
-				FieldName: []byte("hello"),
-				Resolver:  &StaticDataSource{},
+				TypeName:      literal.QUERY,
+				FieldName:     []byte("hello"),
+				SourcePlanner: &StaticDataSourcePlanner{},
 			},
 			{
-				TypeName:  literal.QUERY,
-				FieldName: []byte("nullableInt"),
-				Resolver:  &StaticDataSource{},
+				TypeName:      literal.QUERY,
+				FieldName:     []byte("nullableInt"),
+				SourcePlanner: &StaticDataSourcePlanner{},
 			},
 			{
-				TypeName:  literal.QUERY,
-				FieldName: []byte("foo"),
-				Resolver:  &StaticDataSource{},
+				TypeName:      literal.QUERY,
+				FieldName:     []byte("foo"),
+				SourcePlanner: &StaticDataSourcePlanner{},
 			},
 		},
 		&Object{
@@ -324,7 +324,7 @@ func TestPlanner_Plan(t *testing.T) {
 						Fields: []Field{
 							{
 								Name: []byte("hello"),
-								Resolve: &Resolve{
+								Resolve: &DataSourceInvocation{
 									Args: []Argument{
 										&StaticVariableArgument{
 											Value: []byte("World!"),
@@ -338,7 +338,7 @@ func TestPlanner_Plan(t *testing.T) {
 							},
 							{
 								Name: []byte("nullableInt"),
-								Resolve: &Resolve{
+								Resolve: &DataSourceInvocation{
 									Args: []Argument{
 										&StaticVariableArgument{
 											Value: []byte("null"),
@@ -352,7 +352,7 @@ func TestPlanner_Plan(t *testing.T) {
 							},
 							{
 								Name: []byte("foo"),
-								Resolve: &Resolve{
+								Resolve: &DataSourceInvocation{
 									Args: []Argument{
 										&StaticVariableArgument{
 											Value: []byte("{\"bar\":\"baz\"}"),
@@ -392,9 +392,9 @@ func TestPlanner_Plan(t *testing.T) {
 				}
 `, ResolverDefinitions{
 		{
-			TypeName:  literal.QUERY,
-			FieldName: literal.UNDERSCORETYPE,
-			Resolver:  &TypeResolver{},
+			TypeName:      literal.QUERY,
+			FieldName:     literal.UNDERSCORETYPE,
+			SourcePlanner: &TypeDataSourcePlanner{},
 		},
 	}, &Object{
 		Fields: []Field{
@@ -404,14 +404,14 @@ func TestPlanner_Plan(t *testing.T) {
 					Fields: []Field{
 						{
 							Name: []byte("__type"),
-							Resolve: &Resolve{
+							Resolve: &DataSourceInvocation{
 								Args: []Argument{
 									&ContextVariableArgument{
 										Name:         []byte("name"),
 										VariableName: []byte("name"),
 									},
 								},
-								DataSource: &TypeResolver{},
+								DataSource: &TypeDataSource{},
 							},
 							Value: &Object{
 								Path: []string{"__type"},
@@ -473,9 +473,9 @@ func TestPlanner_Plan(t *testing.T) {
 			}`,
 		ResolverDefinitions{
 			{
-				TypeName:  literal.QUERY,
-				FieldName: []byte("user"),
-				Resolver:  &GraphQLDataSource{},
+				TypeName:      literal.QUERY,
+				FieldName:     []byte("user"),
+				SourcePlanner: &GraphQLDataSourcePlanner{},
 			},
 		},
 		&Object{
@@ -486,7 +486,7 @@ func TestPlanner_Plan(t *testing.T) {
 						Fields: []Field{
 							{
 								Name: []byte("user"),
-								Resolve: &Resolve{
+								Resolve: &DataSourceInvocation{
 									Args: []Argument{
 										&StaticVariableArgument{
 											Name:  literal.HOST,
@@ -549,9 +549,9 @@ func TestPlanner_Plan(t *testing.T) {
 				}`,
 		ResolverDefinitions{
 			{
-				Resolver:  &HTTPJSONDataSource{},
-				TypeName:  literal.QUERY,
-				FieldName: []byte("restUser"),
+				SourcePlanner: &HttpJsonDataSourcePlanner{},
+				TypeName:      literal.QUERY,
+				FieldName:     []byte("restUser"),
 			},
 		},
 		&Object{
@@ -562,7 +562,7 @@ func TestPlanner_Plan(t *testing.T) {
 						Fields: []Field{
 							{
 								Name: []byte("restUser"),
-								Resolve: &Resolve{
+								Resolve: &DataSourceInvocation{
 									Args: []Argument{
 										&StaticVariableArgument{
 											Name:  literal.HOST,
@@ -577,7 +577,7 @@ func TestPlanner_Plan(t *testing.T) {
 											VariableName: []byte("id"),
 										},
 									},
-									DataSource: &HTTPJSONDataSource{},
+									DataSource: &HttpJsonDataSource{},
 								},
 								Value: &Object{
 									Fields: []Field{
@@ -626,14 +626,14 @@ func TestPlanner_Plan(t *testing.T) {
 			}`,
 		ResolverDefinitions{
 			{
-				TypeName:  literal.QUERY,
-				FieldName: []byte("user"),
-				Resolver:  &GraphQLDataSource{},
+				TypeName:      literal.QUERY,
+				FieldName:     []byte("user"),
+				SourcePlanner: &GraphQLDataSourcePlanner{},
 			},
 			{
-				TypeName:  []byte("User"),
-				FieldName: []byte("friends"),
-				Resolver:  &HTTPJSONDataSource{},
+				TypeName:      []byte("User"),
+				FieldName:     []byte("friends"),
+				SourcePlanner: &HttpJsonDataSourcePlanner{},
 			},
 		},
 		&Object{
@@ -644,7 +644,7 @@ func TestPlanner_Plan(t *testing.T) {
 						Fields: []Field{
 							{
 								Name: []byte("user"),
-								Resolve: &Resolve{
+								Resolve: &DataSourceInvocation{
 									Args: []Argument{
 										&StaticVariableArgument{
 											Name:  literal.HOST,
@@ -691,7 +691,7 @@ func TestPlanner_Plan(t *testing.T) {
 										},
 										{
 											Name: []byte("friends"),
-											Resolve: &Resolve{
+											Resolve: &DataSourceInvocation{
 												Args: []Argument{
 													&StaticVariableArgument{
 														Name:  literal.HOST,
@@ -706,7 +706,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: []string{"id"},
 													},
 												},
-												DataSource: &HTTPJSONDataSource{},
+												DataSource: &HttpJsonDataSource{},
 											},
 											Value: &List{
 												Value: &Object{
@@ -783,19 +783,19 @@ func TestPlanner_Plan(t *testing.T) {
 			}`,
 		ResolverDefinitions{
 			{
-				TypeName:  literal.QUERY,
-				FieldName: []byte("user"),
-				Resolver:  &GraphQLDataSource{},
+				TypeName:      literal.QUERY,
+				FieldName:     []byte("user"),
+				SourcePlanner: &GraphQLDataSourcePlanner{},
 			},
 			{
-				TypeName:  []byte("User"),
-				FieldName: []byte("friends"),
-				Resolver:  &HTTPJSONDataSource{},
+				TypeName:      []byte("User"),
+				FieldName:     []byte("friends"),
+				SourcePlanner: &HttpJsonDataSourcePlanner{},
 			},
 			{
-				TypeName:  []byte("User"),
-				FieldName: []byte("pets"),
-				Resolver:  &GraphQLDataSource{},
+				TypeName:      []byte("User"),
+				FieldName:     []byte("pets"),
+				SourcePlanner: &GraphQLDataSourcePlanner{},
 			},
 		},
 		&Object{
@@ -806,7 +806,7 @@ func TestPlanner_Plan(t *testing.T) {
 						Fields: []Field{
 							{
 								Name: []byte("user"),
-								Resolve: &Resolve{
+								Resolve: &DataSourceInvocation{
 									Args: []Argument{
 										&StaticVariableArgument{
 											Name:  literal.HOST,
@@ -846,7 +846,7 @@ func TestPlanner_Plan(t *testing.T) {
 										},
 										{
 											Name: []byte("friends"),
-											Resolve: &Resolve{
+											Resolve: &DataSourceInvocation{
 												Args: []Argument{
 													&StaticVariableArgument{
 														Name:  literal.HOST,
@@ -861,7 +861,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: []string{"id"},
 													},
 												},
-												DataSource: &HTTPJSONDataSource{},
+												DataSource: &HttpJsonDataSource{},
 											},
 											Value: &List{
 												Value: &Object{
@@ -889,7 +889,7 @@ func TestPlanner_Plan(t *testing.T) {
 														},
 														{
 															Name: []byte("pets"),
-															Resolve: &Resolve{
+															Resolve: &DataSourceInvocation{
 																Args: []Argument{
 																	&StaticVariableArgument{
 																		Name:  literal.HOST,
@@ -998,7 +998,7 @@ func TestPlanner_Plan(t *testing.T) {
 										},
 										{
 											Name: []byte("pets"),
-											Resolve: &Resolve{
+											Resolve: &DataSourceInvocation{
 												Args: []Argument{
 													&StaticVariableArgument{
 														Name:  literal.HOST,
@@ -1218,9 +1218,9 @@ func TestPlanner_Plan(t *testing.T) {
 			}`,
 		ResolverDefinitions{
 			{
-				TypeName:  literal.QUERY,
-				FieldName: literal.UNDERSCORESCHEMA,
-				Resolver:  &SchemaResolver{},
+				TypeName:      literal.QUERY,
+				FieldName:     literal.UNDERSCORESCHEMA,
+				SourcePlanner: &SchemaDataSourcePlanner{},
 			},
 		},
 		&Object{
@@ -1231,8 +1231,8 @@ func TestPlanner_Plan(t *testing.T) {
 						Fields: []Field{
 							{
 								Name: []byte("__schema"),
-								Resolve: &Resolve{
-									DataSource: &SchemaResolver{},
+								Resolve: &DataSourceInvocation{
+									DataSource: &SchemaDataSource{},
 								},
 								Value: &Object{
 									Path: []string{"__schema"},
@@ -1614,19 +1614,19 @@ func BenchmarkPlanner_Plan(b *testing.B) {
 
 	resolverDefinitions := ResolverDefinitions{
 		{
-			TypeName:  literal.QUERY,
-			FieldName: []byte("user"),
-			Resolver:  &GraphQLDataSource{},
+			TypeName:      literal.QUERY,
+			FieldName:     []byte("user"),
+			SourcePlanner: &GraphQLDataSourcePlanner{},
 		},
 		{
-			TypeName:  []byte("User"),
-			FieldName: []byte("friends"),
-			Resolver:  &HTTPJSONDataSource{},
+			TypeName:      []byte("User"),
+			FieldName:     []byte("friends"),
+			SourcePlanner: &HttpJsonDataSourcePlanner{},
 		},
 		{
-			TypeName:  []byte("User"),
-			FieldName: []byte("pets"),
-			Resolver:  &GraphQLDataSource{},
+			TypeName:      []byte("User"),
+			FieldName:     []byte("pets"),
+			SourcePlanner: &GraphQLDataSourcePlanner{},
 		},
 	}
 
@@ -1765,7 +1765,7 @@ type Query {
 `
 
 const HTTPJSONDataSourceSchema = `
-directive @HTTPJSONDataSource (
+directive @HttpJsonDataSource (
     host: String!
     url: String!
     method: HTTP_METHOD = GET
@@ -1820,7 +1820,7 @@ type JSONPlaceholderPost {
     title: String!
     body: String!
     comments: [JSONPlaceholderComment]
-        @HTTPJSONDataSource(
+        @HttpJsonDataSource(
             host: "jsonplaceholder.typicode.com"
             url: "/comments?postId={{ .postId }}"
             params: [
@@ -1845,12 +1845,12 @@ type JSONPlaceholderComment {
 "The query type, represents all of the entry points into our object graph"
 type Query {
     httpBinGet: HttpBinGet
-        @HTTPJSONDataSource(
+        @HttpJsonDataSource(
             host: "httpbin.org"
             url: "/get"
         )
 	post(id: Int!): JSONPlaceholderPost
-        @HTTPJSONDataSource(
+        @HttpJsonDataSource(
             host: "jsonplaceholder.typicode.com"
             url: "/posts/{{ .id }}"
 			params: [
@@ -1892,7 +1892,7 @@ type Query {
 }`
 
 const complexSchema = `
-directive @HTTPJSONDataSource (
+directive @HttpJsonDataSource (
     host: String!
     url: String!
     method: HTTP_METHOD = GET
@@ -1991,7 +1991,7 @@ type Query {
 			]
 		)
 	restUser(id: String!): User
-		@HTTPJSONDataSource (
+		@HttpJsonDataSource (
 			host: "localhost:9001"
 			url: "/user/{{ .id }}"
 			params: [
@@ -2009,7 +2009,7 @@ type User {
 	name: String
 	birthday: Date
 	friends: [User]
-		@HTTPJSONDataSource(
+		@HttpJsonDataSource(
 			host: "localhost:9000"
 			url: "/user/:id/friends"
 			params: [

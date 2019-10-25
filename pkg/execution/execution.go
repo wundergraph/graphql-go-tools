@@ -2,20 +2,10 @@ package execution
 
 import (
 	"bytes"
-	"encoding/json"
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash"
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/introspection"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
-	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
-	"html/template"
 	"io"
-	"io/ioutil"
-	"log"
-	"net/http"
-	"strings"
-	"time"
 )
 
 type Executor struct {
@@ -247,7 +237,7 @@ type BooleanCondition interface {
 type Field struct {
 	Name    []byte
 	Value   Node
-	Resolve *Resolve
+	Resolve *DataSourceInvocation
 	Skip    BooleanCondition
 }
 
@@ -329,201 +319,7 @@ func (*List) Kind() NodeKind {
 	return ListKind
 }
 
-type Resolve struct {
+type DataSourceInvocation struct {
 	Args       []Argument
 	DataSource DataSource
-}
-
-type DataSource interface {
-	Resolve(ctx Context, args ResolvedArgs) []byte
-	DirectiveName() []byte
-}
-
-type TypeResolver struct {
-}
-
-func (t *TypeResolver) DirectiveName() []byte {
-	return []byte("resolveType")
-}
-
-type SchemaResolver struct {
-	schemaBytes []byte
-}
-
-func NewSchemaResolver(definition *ast.Document, report *operationreport.Report) *SchemaResolver {
-	gen := introspection.NewGenerator()
-	var data introspection.Data
-	gen.Generate(definition, report, &data)
-	schemaBytes, err := json.Marshal(data)
-	if err != nil {
-		report.AddInternalError(err)
-	}
-	return &SchemaResolver{
-		schemaBytes: schemaBytes,
-	}
-}
-
-func (s *SchemaResolver) Resolve(ctx Context, args ResolvedArgs) []byte {
-	return s.schemaBytes
-}
-
-func (s *SchemaResolver) DirectiveName() []byte {
-	return []byte("resolveSchema")
-}
-
-func (t *TypeResolver) Resolve(ctx Context, args ResolvedArgs) []byte {
-	return nil
-}
-
-type GraphQLDataSource struct{}
-
-func (g *GraphQLDataSource) DirectiveName() []byte {
-	return []byte("GraphQLDataSource")
-}
-
-func (g *GraphQLDataSource) Resolve(ctx Context, args ResolvedArgs) []byte {
-
-	hostArg := args.ByKey(literal.HOST)
-	urlArg := args.ByKey(literal.URL)
-	queryArg := args.ByKey(literal.QUERY)
-
-	if hostArg == nil || urlArg == nil || queryArg == nil {
-		log.Fatal("one of host,url,query arg nil")
-		return nil
-	}
-
-	url := string(hostArg) + string(urlArg)
-	if !strings.HasPrefix(url, "https://") && !strings.HasPrefix(url, "http://") {
-		url = "https://" + url
-	}
-
-	variables := map[string]json.RawMessage{}
-	for i := 0; i < len(args); i++ {
-		key := args[i].Key
-		switch {
-		case bytes.Equal(key, literal.HOST):
-		case bytes.Equal(key, literal.URL):
-		case bytes.Equal(key, literal.QUERY):
-		default:
-			variables[string(key)] = args[i].Value
-		}
-	}
-
-	gqlRequest := GraphqlRequest{
-		OperationName: "o",
-		Variables:     variables,
-		Query:         string(queryArg),
-	}
-
-	gqlRequestData, err := json.MarshalIndent(gqlRequest, "", "  ")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	client := http.Client{
-		Timeout: time.Second * 10,
-		Transport: &http.Transport{
-			MaxIdleConnsPerHost: 1024,
-			TLSHandshakeTimeout: 0 * time.Second,
-		},
-	}
-
-	request, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(gqlRequestData))
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	request.Header.Add("Content-Type", "application/json")
-	request.Header.Add("Accept", "application/json")
-
-	res, err := client.Do(request)
-	if err != nil {
-		log.Fatal(err)
-	}
-	data, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	data = bytes.ReplaceAll(data, literal.BACKSLASH, nil)
-	data, _, _, err = jsonparser.Get(data, "data")
-	if err != nil {
-		log.Fatal(err)
-	}
-	return data
-}
-
-type HTTPJSONDataSource struct{}
-
-func (r *HTTPJSONDataSource) DirectiveName() []byte {
-	return []byte("HTTPJSONDataSource")
-}
-
-func (r *HTTPJSONDataSource) Resolve(ctx Context, args ResolvedArgs) []byte {
-
-	hostArg := args.ByKey(literal.HOST)
-	urlArg := args.ByKey(literal.URL)
-
-	if hostArg == nil || urlArg == nil {
-		return nil
-	}
-
-	url := string(hostArg) + string(urlArg)
-	if !strings.HasPrefix(url, "https://") && !strings.HasPrefix(url, "http://") {
-		url = "https://" + url
-	}
-
-	if strings.Contains(url, "{{") {
-		tmpl, err := template.New("url").Parse(url)
-		if err != nil {
-			log.Fatal(err)
-		}
-		out := bytes.Buffer{}
-		data := make(map[string]string, len(args))
-		for i := 0; i < len(args); i++ {
-			data[string(args[i].Key)] = string(args[i].Value)
-		}
-		err = tmpl.Execute(&out, data)
-		if err != nil {
-			log.Fatal(err)
-		}
-		url = out.String()
-	}
-
-	client := http.Client{
-		Timeout: time.Second * 10,
-		Transport: &http.Transport{
-			MaxIdleConnsPerHost: 1024,
-			TLSHandshakeTimeout: 0 * time.Second,
-		},
-	}
-
-	request, err := http.NewRequest(http.MethodGet, url, nil)
-	if err != nil {
-		return []byte(err.Error())
-	}
-
-	request.Header.Add("Accept", "application/json")
-
-	res, err := client.Do(request)
-	if err != nil {
-		return []byte(err.Error())
-	}
-
-	data, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		return []byte(err.Error())
-	}
-	return bytes.ReplaceAll(data, literal.BACKSLASH, nil)
-}
-
-type StaticDataSource struct {
-}
-
-func (s StaticDataSource) Resolve(ctx Context, args ResolvedArgs) []byte {
-	return args[0].Value
-}
-
-func (s StaticDataSource) DirectiveName() []byte {
-	return []byte("StaticDataSource")
 }

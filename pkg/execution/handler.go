@@ -98,44 +98,13 @@ func (h *Handler) Handle(requestBody io.Reader, responseWriter io.Writer) error 
 	return executor.Execute(ctx, plan, responseWriter)
 }
 
-/*{
-	TypeName:  literal.QUERY,
-	FieldName: []byte("user"),
-	DataSource: &GraphQLDataSource{
-		Upstream: "localhost:8001",
-		URL:      "/graphql",
-	},
-},
-{
-	TypeName:  []byte("User"),
-	FieldName: []byte("friends"),
-	DataSource: &HTTPJSONDataSource{
-		Upstream: "localhost:9000",
-	},
-},
-{
-	TypeName:  []byte("User"),
-	FieldName: []byte("pets"),
-	DataSource: &GraphQLDataSource{
-		Upstream: "localhost:8002",
-		URL:      "/graphql",
-	},
-},
-{
-	TypeName:  literal.QUERY,
-	FieldName: []byte("hello"),
-	DataSource: &StaticDataSource{
-		data: []byte("World!"),
-	},
-},*/
-
 func (h *Handler) resolverDefinitions(report *operationreport.Report) ResolverDefinitions {
 
 	definitions := ResolverDefinitions{
 		{
-			TypeName:  literal.QUERY,
-			FieldName: literal.UNDERSCORESCHEMA,
-			Resolver:  NewSchemaResolver(&h.definition, report),
+			TypeName:      literal.QUERY,
+			FieldName:     literal.UNDERSCORESCHEMA,
+			SourcePlanner: NewSchemaDataSourcePlanner(&h.definition, report),
 		},
 	}
 
@@ -144,10 +113,11 @@ func (h *Handler) resolverDefinitions(report *operationreport.Report) ResolverDe
 		Walker:     &walker,
 		definition: &h.definition,
 		resolvers:  &definitions,
-		possibleResolvers: []DataSource{
-			&StaticDataSource{},
-			&HTTPJSONDataSource{},
-			&GraphQLDataSource{},
+		dataSourcePlanners: []DataSourcePlanner{
+			&GraphQLDataSourcePlanner{},
+			&HttpJsonDataSourcePlanner{},
+			&StaticDataSourcePlanner{},
+			&TypeDataSourcePlanner{},
 		},
 	}
 	walker.RegisterEnterFieldDefinitionVisitor(&visitor)
@@ -158,23 +128,23 @@ func (h *Handler) resolverDefinitions(report *operationreport.Report) ResolverDe
 
 type resolverDefinitionsVisitor struct {
 	*astvisitor.Walker
-	definition        *ast.Document
-	resolvers         *ResolverDefinitions
-	possibleResolvers []DataSource
+	definition         *ast.Document
+	resolvers          *ResolverDefinitions
+	dataSourcePlanners []DataSourcePlanner
 }
 
 func (r *resolverDefinitionsVisitor) EnterFieldDefinition(ref int) {
-	for i := 0; i < len(r.possibleResolvers); i++ {
-		resolver := r.possibleResolvers[i]
+	for i := 0; i < len(r.dataSourcePlanners); i++ {
+		resolver := r.dataSourcePlanners[i]
 		directiveName := resolver.DirectiveName()
 		_, exists := r.definition.FieldDefinitionDirectiveByName(ref, directiveName)
 		if !exists {
 			continue
 		}
 		*r.resolvers = append(*r.resolvers, ResolverDefinition{
-			TypeName:  r.definition.FieldDefinitionResolverTypeName(r.EnclosingTypeDefinition),
-			FieldName: r.definition.FieldDefinitionNameBytes(ref),
-			Resolver:  resolver,
+			TypeName:      r.definition.FieldDefinitionResolverTypeName(r.EnclosingTypeDefinition),
+			FieldName:     r.definition.FieldDefinitionNameBytes(ref),
+			SourcePlanner: resolver,
 		})
 	}
 }

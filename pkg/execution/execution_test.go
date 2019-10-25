@@ -70,14 +70,14 @@ func TestExecution(t *testing.T) {
 					Fields: []Field{
 						{
 							Name: []byte("__type"),
-							Resolve: &Resolve{
+							Resolve: &DataSourceInvocation{
 								Args: []Argument{
 									&ContextVariableArgument{
 										Name:         []byte("name"),
 										VariableName: []byte("name"),
 									},
 								},
-								DataSource: &TypeResolver{},
+								DataSource: &TypeDataSource{},
 							},
 							Value: &Object{
 								Path: []string{"__type"},
@@ -126,7 +126,7 @@ func TestExecution(t *testing.T) {
 						},
 						{
 							Name: []byte("user"),
-							Resolve: &Resolve{
+							Resolve: &DataSourceInvocation{
 								Args: []Argument{
 									&StaticVariableArgument{
 										Name:  literal.HOST,
@@ -172,7 +172,7 @@ func TestExecution(t *testing.T) {
 									},
 									{
 										Name: []byte("friends"),
-										Resolve: &Resolve{
+										Resolve: &DataSourceInvocation{
 											Args: []Argument{
 												&StaticVariableArgument{
 													Name:  literal.HOST,
@@ -187,7 +187,7 @@ func TestExecution(t *testing.T) {
 													Path: []string{"id"},
 												},
 											},
-											DataSource: &HTTPJSONDataSource{},
+											DataSource: &HttpJsonDataSource{},
 										},
 										Value: &List{
 											Value: &Object{
@@ -219,7 +219,7 @@ func TestExecution(t *testing.T) {
 									},
 									{
 										Name: []byte("pets"),
-										Resolve: &Resolve{
+										Resolve: &DataSourceInvocation{
 											Args: []Argument{
 												&StaticVariableArgument{
 													Name:  literal.HOST,
@@ -385,10 +385,6 @@ func (f FakeDataSource) Resolve(ctx Context, args ResolvedArgs) []byte {
 	return f.data
 }
 
-func (f FakeDataSource) DirectiveName() []byte {
-	return nil
-}
-
 func genField() Field {
 	return Field{
 		Name: []byte("data"),
@@ -396,14 +392,14 @@ func genField() Field {
 			Fields: []Field{
 				{
 					Name: []byte("__type"),
-					Resolve: &Resolve{
+					Resolve: &DataSourceInvocation{
 						Args: []Argument{
 							&ContextVariableArgument{
 								Name:         []byte("name"),
 								VariableName: []byte("name"),
 							},
 						},
-						DataSource: &TypeResolver{},
+						DataSource: &TypeDataSource{},
 					},
 					Value: &Object{
 						Path: []string{"__type"},
@@ -449,7 +445,7 @@ func genField() Field {
 				},
 				{
 					Name: []byte("user"),
-					Resolve: &Resolve{
+					Resolve: &DataSourceInvocation{
 						Args: []Argument{
 							&StaticVariableArgument{
 								Name:  literal.HOST,
@@ -496,7 +492,7 @@ func genField() Field {
 							},
 							{
 								Name: []byte("friends"),
-								Resolve: &Resolve{
+								Resolve: &DataSourceInvocation{
 									Args: []Argument{
 										&StaticVariableArgument{
 											Name:  literal.URL,
@@ -539,7 +535,7 @@ func genField() Field {
 							},
 							{
 								Name: []byte("pets"),
-								Resolve: &Resolve{
+								Resolve: &DataSourceInvocation{
 									Args: []Argument{
 										&StaticVariableArgument{
 											Name:  literal.HOST,
