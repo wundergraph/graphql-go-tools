@@ -65,13 +65,6 @@ func (h *Handler) Handle(requestBody io.Reader, responseWriter io.Writer) error 
 		return report
 	}
 
-	/*prettyNormalized, err := astprinter.PrintStringIndent(&operationDocument, nil, "  ")
-	if err != nil {
-		return err
-	}
-
-	fmt.Println(prettyNormalized)*/
-
 	validator := astvalidation.DefaultOperationValidator()
 	if report.HasErrors() {
 		return report
@@ -102,9 +95,11 @@ func (h *Handler) resolverDefinitions(report *operationreport.Report) ResolverDe
 
 	definitions := ResolverDefinitions{
 		{
-			TypeName:      literal.QUERY,
-			FieldName:     literal.UNDERSCORESCHEMA,
-			SourcePlanner: NewSchemaDataSourcePlanner(&h.definition, report),
+			TypeName:  literal.QUERY,
+			FieldName: literal.UNDERSCORESCHEMA,
+			SourcePlanner: func() DataSourcePlanner {
+				return NewSchemaDataSourcePlanner(&h.definition, report)
+			},
 		},
 	}
 
@@ -113,11 +108,19 @@ func (h *Handler) resolverDefinitions(report *operationreport.Report) ResolverDe
 		Walker:     &walker,
 		definition: &h.definition,
 		resolvers:  &definitions,
-		dataSourcePlanners: []DataSourcePlanner{
-			&GraphQLDataSourcePlanner{},
-			&HttpJsonDataSourcePlanner{},
-			&StaticDataSourcePlanner{},
-			&TypeDataSourcePlanner{},
+		dataSourcePlannerFactories: []func() DataSourcePlanner{
+			func() DataSourcePlanner {
+				return &GraphQLDataSourcePlanner{}
+			},
+			func() DataSourcePlanner {
+				return &HttpJsonDataSourcePlanner{}
+			},
+			func() DataSourcePlanner {
+				return &StaticDataSourcePlanner{}
+			},
+			func() DataSourcePlanner {
+				return &TypeDataSourcePlanner{}
+			},
 		},
 	}
 	walker.RegisterEnterFieldDefinitionVisitor(&visitor)
@@ -128,15 +131,15 @@ func (h *Handler) resolverDefinitions(report *operationreport.Report) ResolverDe
 
 type resolverDefinitionsVisitor struct {
 	*astvisitor.Walker
-	definition         *ast.Document
-	resolvers          *ResolverDefinitions
-	dataSourcePlanners []DataSourcePlanner
+	definition                 *ast.Document
+	resolvers                  *ResolverDefinitions
+	dataSourcePlannerFactories []func() DataSourcePlanner
 }
 
 func (r *resolverDefinitionsVisitor) EnterFieldDefinition(ref int) {
-	for i := 0; i < len(r.dataSourcePlanners); i++ {
-		resolver := r.dataSourcePlanners[i]
-		directiveName := resolver.DirectiveName()
+	for i := 0; i < len(r.dataSourcePlannerFactories); i++ {
+		factory := r.dataSourcePlannerFactories[i]
+		directiveName := factory().DirectiveName()
 		_, exists := r.definition.FieldDefinitionDirectiveByName(ref, directiveName)
 		if !exists {
 			continue
@@ -144,7 +147,7 @@ func (r *resolverDefinitionsVisitor) EnterFieldDefinition(ref int) {
 		*r.resolvers = append(*r.resolvers, ResolverDefinition{
 			TypeName:      r.definition.FieldDefinitionResolverTypeName(r.EnclosingTypeDefinition),
 			FieldName:     r.definition.FieldDefinitionNameBytes(ref),
-			SourcePlanner: resolver,
+			SourcePlanner: factory,
 		})
 	}
 }
