@@ -135,7 +135,7 @@ func (l *Lexer) readComment(tok *token.Token) {
 		switch next {
 		case runes.EOF:
 			return
-		case runes.LINETERMINATOR:
+		case runes.CARRIAGERETURN, runes.LINETERMINATOR:
 			if l.peekRune(true) != runes.HASHTAG {
 				return
 			}
@@ -297,7 +297,7 @@ func runeIsDigit(r byte) bool {
 
 func (l *Lexer) byteIsWhitespace(r byte) bool {
 	switch r {
-	case runes.SPACE, runes.TAB, runes.LINETERMINATOR, runes.COMMA:
+	case runes.SPACE, runes.TAB, runes.CARRIAGERETURN, runes.LINETERMINATOR, runes.COMMA:
 		return true
 	default:
 		return false
@@ -308,6 +308,7 @@ func (l *Lexer) byteTerminatesSequence(r byte) bool {
 	switch r {
 	case runes.SPACE,
 		runes.TAB,
+		runes.CARRIAGERETURN,
 		runes.LINETERMINATOR,
 		runes.COMMA,
 		runes.LPAREN,
@@ -348,7 +349,7 @@ func (l *Lexer) readBlockString(tok *token.Token) {
 	for {
 		next := l.readRune()
 		switch next {
-		case runes.SPACE, runes.TAB, runes.LINETERMINATOR:
+		case runes.SPACE, runes.TAB, runes.CARRIAGERETURN, runes.LINETERMINATOR:
 			quoteCount = 0
 			whitespaceCount++
 		case runes.EOF:
@@ -406,7 +407,7 @@ func (l *Lexer) readSingleLineString(tok *token.Token) {
 			tok.Literal.Start += uint32(leadingWhitespaceToken)
 			tok.Literal.End -= uint32(whitespaceCount)
 			return
-		case runes.QUOTE, runes.LINETERMINATOR:
+		case runes.QUOTE, runes.CARRIAGERETURN, runes.LINETERMINATOR:
 			if escaped {
 				escaped = !escaped
 				continue
@@ -416,7 +417,6 @@ func (l *Lexer) readSingleLineString(tok *token.Token) {
 			tok.Literal.Start += uint32(leadingWhitespaceToken)
 			tok.Literal.End -= uint32(whitespaceCount)
 			return
-
 		case runes.BACKSLASH:
 			escaped = !escaped
 			whitespaceCount = 0

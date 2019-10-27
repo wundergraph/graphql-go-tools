@@ -4,6 +4,7 @@ const (
 	EOF            = 0
 	COLON          = ':'
 	BANG           = '!'
+	CARRIAGERETURN = '\r'
 	LINETERMINATOR = '\n'
 	TAB            = '\t'
 	SPACE          = ' '

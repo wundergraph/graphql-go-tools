@@ -84,6 +84,9 @@ func TestLexer_Peek_Read(t *testing.T) {
 	t.Run("peek whitespace length with linebreak", func(t *testing.T) {
 		run("   \nfoo", mustPeekWhitespaceLength(4))
 	})
+	t.Run("peek whitespace length with carriage return", func(t *testing.T) {
+		run("   \rfoo", mustPeekWhitespaceLength(4))
+	})
 	t.Run("peek whitespace length with comma", func(t *testing.T) {
 		run("   ,foo", mustPeekWhitespaceLength(4))
 	})
@@ -127,8 +130,11 @@ func TestLexer_Peek_Read(t *testing.T) {
 	t.Run("read float with tab", func(t *testing.T) {
 		run("13.37	", mustRead(keyword.FLOAT, "13.37"))
 	})
-	t.Run("read with with lineTerminator", func(t *testing.T) {
+	t.Run("read with lineTerminator", func(t *testing.T) {
 		run("13.37\n", mustRead(keyword.FLOAT, "13.37"))
+	})
+	t.Run("read with carriage return and line feed", func(t *testing.T) {
+		run("13.37\r\n", mustRead(keyword.FLOAT, "13.37"))
 	})
 	t.Run("read float with comma", func(t *testing.T) {
 		run("13.37,", mustRead(keyword.FLOAT, "13.37"))
@@ -171,6 +177,9 @@ func TestLexer_Peek_Read(t *testing.T) {
 	t.Run("read multi line string", func(t *testing.T) {
 		run("\"\"\"\nfoo\nbar\"\"\"", mustRead(keyword.BLOCKSTRING, "foo\nbar"))
 	})
+	t.Run("read multi line string with carriage return", func(t *testing.T) {
+		run("\"\"\"\r\nfoo\r\nbar\"\"\"", mustRead(keyword.BLOCKSTRING, "foo\r\nbar"))
+	})
 	t.Run("read multi line string with escaped backslash", func(t *testing.T) {
 		run("\"\"\"foo \\\\ bar\"\"\"", mustRead(keyword.BLOCKSTRING, "foo \\\\ bar"))
 	})
@@ -187,6 +196,9 @@ func TestLexer_Peek_Read(t *testing.T) {
 	})
 	t.Run("complex multi line string", func(t *testing.T) {
 		run("\"\"\"block string uses \\\"\"\"\n\"\"\"", mustRead(keyword.BLOCKSTRING, "block string uses \\\"\"\""))
+	})
+	t.Run("complex multi line string with carriage return", func(t *testing.T) {
+		run("\"\"\"block string uses \\\"\"\"\r\n\"\"\"", mustRead(keyword.BLOCKSTRING, "block string uses \\\"\"\""))
 	})
 	t.Run("read multi line string with trailing leading/trailing whitespace combination", func(t *testing.T) {
 		run(`	"""	 	 
@@ -225,6 +237,10 @@ func TestLexer_Peek_Read(t *testing.T) {
 	})
 	t.Run("read variable 4", func(t *testing.T) {
 		run("$foo\n", mustRead(keyword.DOLLAR, "$"),
+			mustRead(keyword.IDENT, "foo"))
+	})
+	t.Run("read variable 4 with carriage return", func(t *testing.T) {
+		run("$foo\r\n", mustRead(keyword.DOLLAR, "$"),
 			mustRead(keyword.IDENT, "foo"))
 	})
 	t.Run("read err invalid variable", func(t *testing.T) {
@@ -302,6 +318,9 @@ func TestLexer_Peek_Read(t *testing.T) {
 	t.Run("read fragment", func(t *testing.T) {
 		run("\n\n fragment", mustRead(keyword.IDENT, "fragment"))
 	})
+	t.Run("read fragment with carriage return", func(t *testing.T) {
+		run("\r\n\r\n fragment", mustRead(keyword.IDENT, "fragment"))
+	})
 	t.Run("read implements", func(t *testing.T) {
 		run("implements", mustRead(keyword.IDENT, "implements"))
 	})
@@ -353,6 +372,9 @@ func TestLexer_Peek_Read(t *testing.T) {
 	t.Run("read ignore lineTerminator", func(t *testing.T) {
 		run("\n", mustRead(keyword.EOF, ""))
 	})
+	t.Run("read ignore lineTerminator with carriage return", func(t *testing.T) {
+		run("\r\n", mustRead(keyword.EOF, ""))
+	})
 	t.Run("read null", func(t *testing.T) {
 		run("null", mustRead(keyword.IDENT, "null"))
 	})
@@ -366,6 +388,12 @@ func TestLexer_Peek_Read(t *testing.T) {
 	})
 	t.Run("read single line comment", func(t *testing.T) {
 		run("# A connection to a list of items.\nident",
+			mustRead(keyword.COMMENT, "# A connection to a list of items."),
+			mustRead(keyword.IDENT, "ident"),
+		)
+	})
+	t.Run("read single line comment with carriage return", func(t *testing.T) {
+		run("# A connection to a list of items.\r\nident",
 			mustRead(keyword.COMMENT, "# A connection to a list of items."),
 			mustRead(keyword.IDENT, "ident"),
 		)
