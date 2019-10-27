@@ -66,9 +66,11 @@ func TestPlanner_Plan(t *testing.T) {
 `,
 		ResolverDefinitions{
 			{
-				TypeName:      literal.QUERY,
-				FieldName:     []byte("country"),
-				SourcePlanner: &GraphQLDataSourcePlanner{},
+				TypeName:  literal.QUERY,
+				FieldName: []byte("country"),
+				SourcePlanner: func() DataSourcePlanner {
+					return &GraphQLDataSourcePlanner{}
+				},
 			},
 		},
 		&Object{
@@ -151,19 +153,25 @@ func TestPlanner_Plan(t *testing.T) {
 					}`,
 		ResolverDefinitions{
 			{
-				TypeName:      literal.QUERY,
-				FieldName:     []byte("httpBinGet"),
-				SourcePlanner: &HttpJsonDataSourcePlanner{},
+				TypeName:  literal.QUERY,
+				FieldName: []byte("httpBinGet"),
+				SourcePlanner: func() DataSourcePlanner {
+					return &HttpJsonDataSourcePlanner{}
+				},
 			},
 			{
-				TypeName:      literal.QUERY,
-				FieldName:     []byte("post"),
-				SourcePlanner: &HttpJsonDataSourcePlanner{},
+				TypeName:  literal.QUERY,
+				FieldName: []byte("post"),
+				SourcePlanner: func() DataSourcePlanner {
+					return &HttpJsonDataSourcePlanner{}
+				},
 			},
 			{
-				TypeName:      []byte("JSONPlaceholderPost"),
-				FieldName:     []byte("comments"),
-				SourcePlanner: &HttpJsonDataSourcePlanner{},
+				TypeName:  []byte("JSONPlaceholderPost"),
+				FieldName: []byte("comments"),
+				SourcePlanner: func() DataSourcePlanner {
+					return &HttpJsonDataSourcePlanner{}
+				},
 			},
 		},
 		&Object{
@@ -301,19 +309,25 @@ func TestPlanner_Plan(t *testing.T) {
 					}`,
 		ResolverDefinitions{
 			{
-				TypeName:      literal.QUERY,
-				FieldName:     []byte("hello"),
-				SourcePlanner: &StaticDataSourcePlanner{},
+				TypeName:  literal.QUERY,
+				FieldName: []byte("hello"),
+				SourcePlanner: func() DataSourcePlanner {
+					return &StaticDataSourcePlanner{}
+				},
 			},
 			{
-				TypeName:      literal.QUERY,
-				FieldName:     []byte("nullableInt"),
-				SourcePlanner: &StaticDataSourcePlanner{},
+				TypeName:  literal.QUERY,
+				FieldName: []byte("nullableInt"),
+				SourcePlanner: func() DataSourcePlanner {
+					return &StaticDataSourcePlanner{}
+				},
 			},
 			{
-				TypeName:      literal.QUERY,
-				FieldName:     []byte("foo"),
-				SourcePlanner: &StaticDataSourcePlanner{},
+				TypeName:  literal.QUERY,
+				FieldName: []byte("foo"),
+				SourcePlanner: func() DataSourcePlanner {
+					return &StaticDataSourcePlanner{}
+				},
 			},
 		},
 		&Object{
@@ -392,9 +406,11 @@ func TestPlanner_Plan(t *testing.T) {
 				}
 `, ResolverDefinitions{
 		{
-			TypeName:      literal.QUERY,
-			FieldName:     literal.UNDERSCORETYPE,
-			SourcePlanner: &TypeDataSourcePlanner{},
+			TypeName:  literal.QUERY,
+			FieldName: literal.UNDERSCORETYPE,
+			SourcePlanner: func() DataSourcePlanner {
+				return &TypeDataSourcePlanner{}
+			},
 		},
 	}, &Object{
 		Fields: []Field{
@@ -473,9 +489,11 @@ func TestPlanner_Plan(t *testing.T) {
 			}`,
 		ResolverDefinitions{
 			{
-				TypeName:      literal.QUERY,
-				FieldName:     []byte("user"),
-				SourcePlanner: &GraphQLDataSourcePlanner{},
+				TypeName:  literal.QUERY,
+				FieldName: []byte("user"),
+				SourcePlanner: func() DataSourcePlanner {
+					return &GraphQLDataSourcePlanner{}
+				},
 			},
 		},
 		&Object{
@@ -549,9 +567,11 @@ func TestPlanner_Plan(t *testing.T) {
 				}`,
 		ResolverDefinitions{
 			{
-				SourcePlanner: &HttpJsonDataSourcePlanner{},
-				TypeName:      literal.QUERY,
-				FieldName:     []byte("restUser"),
+				TypeName:  literal.QUERY,
+				FieldName: []byte("restUser"),
+				SourcePlanner: func() DataSourcePlanner {
+					return &HttpJsonDataSourcePlanner{}
+				},
 			},
 		},
 		&Object{
@@ -626,14 +646,18 @@ func TestPlanner_Plan(t *testing.T) {
 			}`,
 		ResolverDefinitions{
 			{
-				TypeName:      literal.QUERY,
-				FieldName:     []byte("user"),
-				SourcePlanner: &GraphQLDataSourcePlanner{},
+				TypeName:  literal.QUERY,
+				FieldName: []byte("user"),
+				SourcePlanner: func() DataSourcePlanner {
+					return &GraphQLDataSourcePlanner{}
+				},
 			},
 			{
-				TypeName:      []byte("User"),
-				FieldName:     []byte("friends"),
-				SourcePlanner: &HttpJsonDataSourcePlanner{},
+				TypeName:  []byte("User"),
+				FieldName: []byte("friends"),
+				SourcePlanner: func() DataSourcePlanner {
+					return &HttpJsonDataSourcePlanner{}
+				},
 			},
 		},
 		&Object{
@@ -783,19 +807,25 @@ func TestPlanner_Plan(t *testing.T) {
 			}`,
 		ResolverDefinitions{
 			{
-				TypeName:      literal.QUERY,
-				FieldName:     []byte("user"),
-				SourcePlanner: &GraphQLDataSourcePlanner{},
+				TypeName:  literal.QUERY,
+				FieldName: []byte("user"),
+				SourcePlanner: func() DataSourcePlanner {
+					return &GraphQLDataSourcePlanner{}
+				},
 			},
 			{
-				TypeName:      []byte("User"),
-				FieldName:     []byte("friends"),
-				SourcePlanner: &HttpJsonDataSourcePlanner{},
+				TypeName:  []byte("User"),
+				FieldName: []byte("friends"),
+				SourcePlanner: func() DataSourcePlanner {
+					return &HttpJsonDataSourcePlanner{}
+				},
 			},
 			{
-				TypeName:      []byte("User"),
-				FieldName:     []byte("pets"),
-				SourcePlanner: &GraphQLDataSourcePlanner{},
+				TypeName:  []byte("User"),
+				FieldName: []byte("pets"),
+				SourcePlanner: func() DataSourcePlanner {
+					return &GraphQLDataSourcePlanner{}
+				},
 			},
 		},
 		&Object{
@@ -1218,9 +1248,11 @@ func TestPlanner_Plan(t *testing.T) {
 			}`,
 		ResolverDefinitions{
 			{
-				TypeName:      literal.QUERY,
-				FieldName:     literal.UNDERSCORESCHEMA,
-				SourcePlanner: &SchemaDataSourcePlanner{},
+				TypeName:  literal.QUERY,
+				FieldName: literal.UNDERSCORESCHEMA,
+				SourcePlanner: func() DataSourcePlanner {
+					return &SchemaDataSourcePlanner{}
+				},
 			},
 		},
 		&Object{
@@ -1614,19 +1646,25 @@ func BenchmarkPlanner_Plan(b *testing.B) {
 
 	resolverDefinitions := ResolverDefinitions{
 		{
-			TypeName:      literal.QUERY,
-			FieldName:     []byte("user"),
-			SourcePlanner: &GraphQLDataSourcePlanner{},
+			TypeName:  literal.QUERY,
+			FieldName: []byte("user"),
+			SourcePlanner: func() DataSourcePlanner {
+				return &GraphQLDataSourcePlanner{}
+			},
 		},
 		{
-			TypeName:      []byte("User"),
-			FieldName:     []byte("friends"),
-			SourcePlanner: &HttpJsonDataSourcePlanner{},
+			TypeName:  []byte("User"),
+			FieldName: []byte("friends"),
+			SourcePlanner: func() DataSourcePlanner {
+				return &HttpJsonDataSourcePlanner{}
+			},
 		},
 		{
-			TypeName:      []byte("User"),
-			FieldName:     []byte("pets"),
-			SourcePlanner: &GraphQLDataSourcePlanner{},
+			TypeName:  []byte("User"),
+			FieldName: []byte("pets"),
+			SourcePlanner: func() DataSourcePlanner {
+				return &GraphQLDataSourcePlanner{}
+			},
 		},
 	}
 
