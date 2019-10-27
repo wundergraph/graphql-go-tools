@@ -3085,3 +3085,17 @@ func (w *Walker) AncestorNameBytes() ast.ByteSlice {
 	}
 	return w.document.NodeNameBytes(w.Ancestors[len(w.Ancestors)-1])
 }
+
+func (w *Walker) FieldDefinitionDirectiveArgumentValueByName(field int, directiveName, argumentName ast.ByteSlice) (ast.Value, bool) {
+	definition, exists := w.FieldDefinition(field)
+	if !exists {
+		return ast.Value{}, false
+	}
+
+	directive, exists := w.definition.FieldDefinitionDirectiveByName(definition, directiveName)
+	if !exists {
+		return ast.Value{}, false
+	}
+
+	return w.definition.DirectiveArgumentValueByName(directive, argumentName)
+}
