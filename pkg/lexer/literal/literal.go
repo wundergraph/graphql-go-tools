@@ -67,6 +67,7 @@ var (
 	URL              = []byte("url")
 	HOST             = []byte("host")
 	PARAMS           = []byte("params")
+	FIELD            = []byte("field")
 
 	TRUE  = []byte("true")
 	FALSE = []byte("false")
