@@ -3,6 +3,7 @@ package execution
 import (
 	"encoding/json"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/introspection"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
@@ -22,10 +23,15 @@ func NewSchemaDataSourcePlanner(definition *ast.Document, report *operationrepor
 
 type SchemaDataSourcePlanner struct {
 	schemaBytes []byte
+	args        []Argument
 }
 
 func (s *SchemaDataSourcePlanner) DirectiveName() []byte {
 	return []byte("resolveSchema")
+}
+
+func (s *SchemaDataSourcePlanner) Initialize(walker *astvisitor.Walker, operation, definition *ast.Document, args []Argument, resolverParameters []ResolverParameter) {
+	s.args = args
 }
 
 func (s *SchemaDataSourcePlanner) EnterInlineFragment(ref int) {
@@ -55,7 +61,7 @@ func (s *SchemaDataSourcePlanner) LeaveField(ref int) {
 func (s *SchemaDataSourcePlanner) Plan() (DataSource, []Argument) {
 	return &SchemaDataSource{
 		schemaBytes: s.schemaBytes,
-	}, nil
+	}, s.args
 }
 
 type SchemaDataSource struct {
