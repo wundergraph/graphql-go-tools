@@ -417,7 +417,6 @@ func (l *Lexer) readSingleLineString(tok *token.Token) {
 			tok.Literal.Start += uint32(leadingWhitespaceToken)
 			tok.Literal.End -= uint32(whitespaceCount)
 			return
-
 		case runes.BACKSLASH:
 			escaped = !escaped
 			whitespaceCount = 0
