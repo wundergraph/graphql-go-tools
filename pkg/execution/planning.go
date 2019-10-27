@@ -13,15 +13,18 @@ type Planner struct {
 	visitor *planningVisitor
 }
 
-type ResolverDefinition struct {
-	TypeName      []byte
-	FieldName     []byte
-	SourcePlanner func() DataSourcePlanner
+type DataSourceDefinition struct {
+	// the type name to which the data source is attached
+	TypeName []byte
+	// the field on the type to which the data source is attached
+	FieldName []byte
+	// a factory method to return a new planner
+	DataSourcePlannerFactory func() DataSourcePlanner
 }
 
-type ResolverDefinitions []ResolverDefinition
+type ResolverDefinitions []DataSourceDefinition
 
-func (r ResolverDefinitions) DefinitionForTypeField(typeName, fieldName []byte, definition *ResolverDefinition) (exists bool) {
+func (r ResolverDefinitions) DefinitionForTypeField(typeName, fieldName []byte, definition *DataSourceDefinition) (exists bool) {
 	for i := 0; i < len(r); i++ {
 		if bytes.Equal(typeName, r[i].TypeName) && bytes.Equal(fieldName, r[i].FieldName) {
 			*definition = r[i]
@@ -119,14 +122,14 @@ func (p *planningVisitor) EnterField(ref int) {
 
 	resolverTypeName := p.definition.NodeResolverTypeName(p.EnclosingTypeDefinition, p.Path)
 
-	var resolverDefinition ResolverDefinition
+	var resolverDefinition DataSourceDefinition
 	hasResolverDefinition := p.resolverDefinitions.DefinitionForTypeField(resolverTypeName, p.operation.FieldNameBytes(ref), &resolverDefinition)
 	if hasResolverDefinition {
 
 		p.planners = append(p.planners, dataSourcePlannerRef{
 			path:     p.Path,
 			fieldRef: ref,
-			planner:  resolverDefinition.SourcePlanner(),
+			planner:  resolverDefinition.DataSourcePlannerFactory(),
 		})
 
 		params := p.resolverDirectiveParamObjectValues(ref, p.planners[len(p.planners)-1].planner)
@@ -183,9 +186,9 @@ func (p *planningVisitor) EnterField(ref int) {
 
 		path := p.fieldPath(ref)
 		if hasResolverDefinition {
-			fieldName := p.resolverDirectiveFieldName(ref, p.planners[len(p.planners)-1].planner)
-			if len(fieldName) != 0 {
-				path[0] = string(fieldName)
+			value, ok := p.FieldDefinitionDirectiveArgumentValueByName(ref, p.planners[len(p.planners)-1].planner.DirectiveName(), literal.FIELD)
+			if ok && value.Kind == ast.ValueKindString {
+				path[0] = p.definition.StringValueContentString(value.Ref)
 			}
 		}
 
@@ -353,29 +356,6 @@ type ResolverParameter struct {
 	sourceKind   []byte
 	sourceName   []byte
 	variableType []byte
-}
-
-func (p *planningVisitor) resolverDirectiveFieldName(field int, sourcePlanner DataSourcePlanner) []byte {
-	definition, exists := p.FieldDefinition(field)
-	if !exists {
-		return nil
-	}
-
-	directive, exists := p.definition.FieldDefinitionDirectiveByName(definition, sourcePlanner.DirectiveName())
-	if !exists {
-		return nil
-	}
-
-	value, exists := p.definition.DirectiveArgumentValueByName(directive, []byte("field"))
-	if !exists {
-		return nil
-	}
-
-	if value.Kind != ast.ValueKindString {
-		return nil
-	}
-
-	return p.definition.StringValueContentBytes(value.Ref)
 }
 
 func (p *planningVisitor) quoteValue(valueType int) bool {

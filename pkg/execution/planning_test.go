@@ -68,7 +68,7 @@ func TestPlanner_Plan(t *testing.T) {
 			{
 				TypeName:  literal.QUERY,
 				FieldName: []byte("country"),
-				SourcePlanner: func() DataSourcePlanner {
+				DataSourcePlannerFactory: func() DataSourcePlanner {
 					return &GraphQLDataSourcePlanner{}
 				},
 			},
@@ -155,21 +155,21 @@ func TestPlanner_Plan(t *testing.T) {
 			{
 				TypeName:  literal.QUERY,
 				FieldName: []byte("httpBinGet"),
-				SourcePlanner: func() DataSourcePlanner {
+				DataSourcePlannerFactory: func() DataSourcePlanner {
 					return &HttpJsonDataSourcePlanner{}
 				},
 			},
 			{
 				TypeName:  literal.QUERY,
 				FieldName: []byte("post"),
-				SourcePlanner: func() DataSourcePlanner {
+				DataSourcePlannerFactory: func() DataSourcePlanner {
 					return &HttpJsonDataSourcePlanner{}
 				},
 			},
 			{
 				TypeName:  []byte("JSONPlaceholderPost"),
 				FieldName: []byte("comments"),
-				SourcePlanner: func() DataSourcePlanner {
+				DataSourcePlannerFactory: func() DataSourcePlanner {
 					return &HttpJsonDataSourcePlanner{}
 				},
 			},
@@ -311,21 +311,21 @@ func TestPlanner_Plan(t *testing.T) {
 			{
 				TypeName:  literal.QUERY,
 				FieldName: []byte("hello"),
-				SourcePlanner: func() DataSourcePlanner {
+				DataSourcePlannerFactory: func() DataSourcePlanner {
 					return &StaticDataSourcePlanner{}
 				},
 			},
 			{
 				TypeName:  literal.QUERY,
 				FieldName: []byte("nullableInt"),
-				SourcePlanner: func() DataSourcePlanner {
+				DataSourcePlannerFactory: func() DataSourcePlanner {
 					return &StaticDataSourcePlanner{}
 				},
 			},
 			{
 				TypeName:  literal.QUERY,
 				FieldName: []byte("foo"),
-				SourcePlanner: func() DataSourcePlanner {
+				DataSourcePlannerFactory: func() DataSourcePlanner {
 					return &StaticDataSourcePlanner{}
 				},
 			},
@@ -408,7 +408,7 @@ func TestPlanner_Plan(t *testing.T) {
 		{
 			TypeName:  literal.QUERY,
 			FieldName: literal.UNDERSCORETYPE,
-			SourcePlanner: func() DataSourcePlanner {
+			DataSourcePlannerFactory: func() DataSourcePlanner {
 				return &TypeDataSourcePlanner{}
 			},
 		},
@@ -491,7 +491,7 @@ func TestPlanner_Plan(t *testing.T) {
 			{
 				TypeName:  literal.QUERY,
 				FieldName: []byte("user"),
-				SourcePlanner: func() DataSourcePlanner {
+				DataSourcePlannerFactory: func() DataSourcePlanner {
 					return &GraphQLDataSourcePlanner{}
 				},
 			},
@@ -569,7 +569,7 @@ func TestPlanner_Plan(t *testing.T) {
 			{
 				TypeName:  literal.QUERY,
 				FieldName: []byte("restUser"),
-				SourcePlanner: func() DataSourcePlanner {
+				DataSourcePlannerFactory: func() DataSourcePlanner {
 					return &HttpJsonDataSourcePlanner{}
 				},
 			},
@@ -648,14 +648,14 @@ func TestPlanner_Plan(t *testing.T) {
 			{
 				TypeName:  literal.QUERY,
 				FieldName: []byte("user"),
-				SourcePlanner: func() DataSourcePlanner {
+				DataSourcePlannerFactory: func() DataSourcePlanner {
 					return &GraphQLDataSourcePlanner{}
 				},
 			},
 			{
 				TypeName:  []byte("User"),
 				FieldName: []byte("friends"),
-				SourcePlanner: func() DataSourcePlanner {
+				DataSourcePlannerFactory: func() DataSourcePlanner {
 					return &HttpJsonDataSourcePlanner{}
 				},
 			},
@@ -809,21 +809,21 @@ func TestPlanner_Plan(t *testing.T) {
 			{
 				TypeName:  literal.QUERY,
 				FieldName: []byte("user"),
-				SourcePlanner: func() DataSourcePlanner {
+				DataSourcePlannerFactory: func() DataSourcePlanner {
 					return &GraphQLDataSourcePlanner{}
 				},
 			},
 			{
 				TypeName:  []byte("User"),
 				FieldName: []byte("friends"),
-				SourcePlanner: func() DataSourcePlanner {
+				DataSourcePlannerFactory: func() DataSourcePlanner {
 					return &HttpJsonDataSourcePlanner{}
 				},
 			},
 			{
 				TypeName:  []byte("User"),
 				FieldName: []byte("pets"),
-				SourcePlanner: func() DataSourcePlanner {
+				DataSourcePlannerFactory: func() DataSourcePlanner {
 					return &GraphQLDataSourcePlanner{}
 				},
 			},
@@ -1250,7 +1250,7 @@ func TestPlanner_Plan(t *testing.T) {
 			{
 				TypeName:  literal.QUERY,
 				FieldName: literal.UNDERSCORESCHEMA,
-				SourcePlanner: func() DataSourcePlanner {
+				DataSourcePlannerFactory: func() DataSourcePlanner {
 					return &SchemaDataSourcePlanner{}
 				},
 			},
@@ -1648,21 +1648,21 @@ func BenchmarkPlanner_Plan(b *testing.B) {
 		{
 			TypeName:  literal.QUERY,
 			FieldName: []byte("user"),
-			SourcePlanner: func() DataSourcePlanner {
+			DataSourcePlannerFactory: func() DataSourcePlanner {
 				return &GraphQLDataSourcePlanner{}
 			},
 		},
 		{
 			TypeName:  []byte("User"),
 			FieldName: []byte("friends"),
-			SourcePlanner: func() DataSourcePlanner {
+			DataSourcePlannerFactory: func() DataSourcePlanner {
 				return &HttpJsonDataSourcePlanner{}
 			},
 		},
 		{
 			TypeName:  []byte("User"),
 			FieldName: []byte("pets"),
-			SourcePlanner: func() DataSourcePlanner {
+			DataSourcePlannerFactory: func() DataSourcePlanner {
 				return &GraphQLDataSourcePlanner{}
 			},
 		},

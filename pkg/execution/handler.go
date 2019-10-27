@@ -97,7 +97,7 @@ func (h *Handler) resolverDefinitions(report *operationreport.Report) ResolverDe
 		{
 			TypeName:  literal.QUERY,
 			FieldName: literal.UNDERSCORESCHEMA,
-			SourcePlanner: func() DataSourcePlanner {
+			DataSourcePlannerFactory: func() DataSourcePlanner {
 				return NewSchemaDataSourcePlanner(&h.definition, report)
 			},
 		},
@@ -144,10 +144,10 @@ func (r *resolverDefinitionsVisitor) EnterFieldDefinition(ref int) {
 		if !exists {
 			continue
 		}
-		*r.resolvers = append(*r.resolvers, ResolverDefinition{
-			TypeName:      r.definition.FieldDefinitionResolverTypeName(r.EnclosingTypeDefinition),
-			FieldName:     r.definition.FieldDefinitionNameBytes(ref),
-			SourcePlanner: factory,
+		*r.resolvers = append(*r.resolvers, DataSourceDefinition{
+			TypeName:                 r.definition.FieldDefinitionResolverTypeName(r.EnclosingTypeDefinition),
+			FieldName:                r.definition.FieldDefinitionNameBytes(ref),
+			DataSourcePlannerFactory: factory,
 		})
 	}
 }
