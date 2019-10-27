@@ -2,7 +2,6 @@ package execution
 
 import (
 	"bytes"
-	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
@@ -124,8 +123,6 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs) []byte {
 		},
 	}
 
-	fmt.Printf("Making Request: %s\n", url)
-
 	request, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return []byte(err.Error())
@@ -142,8 +139,6 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs) []byte {
 	if err != nil {
 		return []byte(err.Error())
 	}
-
-	fmt.Printf("Response:\n%s\n", string(data))
 
 	return bytes.ReplaceAll(data, literal.BACKSLASH, nil)
 }
