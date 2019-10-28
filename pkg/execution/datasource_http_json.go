@@ -5,6 +5,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
+	"go.uber.org/zap"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -13,7 +14,14 @@ import (
 	"time"
 )
 
+func NewHttpJsonDataSourcePlanner(logger *zap.Logger) *HttpJsonDataSourcePlanner {
+	return &HttpJsonDataSourcePlanner{
+		log: logger,
+	}
+}
+
 type HttpJsonDataSourcePlanner struct {
+	log                   *zap.Logger
 	walker                *astvisitor.Walker
 	definition, operation *ast.Document
 	args                  []Argument
@@ -28,7 +36,9 @@ func (h *HttpJsonDataSourcePlanner) Initialize(walker *astvisitor.Walker, operat
 }
 
 func (h *HttpJsonDataSourcePlanner) Plan() (DataSource, []Argument) {
-	return &HttpJsonDataSource{}, h.args
+	return &HttpJsonDataSource{
+		log: h.log,
+	}, h.args
 }
 
 func (h *HttpJsonDataSourcePlanner) EnterInlineFragment(ref int) {
@@ -82,7 +92,9 @@ func (h *HttpJsonDataSourcePlanner) LeaveField(ref int) {
 	h.args = append([]Argument{arg}, h.args...)
 }
 
-type HttpJsonDataSource struct{}
+type HttpJsonDataSource struct {
+	log *zap.Logger
+}
 
 func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs) []byte {
 
@@ -115,6 +127,10 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs) []byte {
 		url = out.String()
 	}
 
+	r.log.Debug("HttpJsonDataSource.Resolve",
+		zap.String("url", url),
+	)
+
 	client := http.Client{
 		Timeout: time.Second * 10,
 		Transport: &http.Transport{
@@ -125,6 +141,9 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs) []byte {
 
 	request, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
+		r.log.Error("HttpJsonDataSource.Resolve",
+			zap.Error(err),
+		)
 		return []byte(err.Error())
 	}
 
@@ -137,8 +156,15 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs) []byte {
 
 	data, err := ioutil.ReadAll(res.Body)
 	if err != nil {
+		r.log.Error("HttpJsonDataSource.Resolve",
+			zap.Error(err),
+		)
 		return []byte(err.Error())
 	}
+
+	r.log.Debug("HttpJsonDataSource.Resolve",
+		zap.ByteString("response", data),
+	)
 
 	return bytes.ReplaceAll(data, literal.BACKSLASH, nil)
 }

@@ -23,6 +23,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/playground"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -55,7 +56,14 @@ func startTestServer() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	handler, err := execution.NewHandler(schemaData)
+
+	logger, err := zap.NewProduction()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer logger.Sync()
+
+	handler, err := execution.NewHandler(schemaData, logger)
 	if err != nil {
 		log.Fatal(err)
 	}

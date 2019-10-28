@@ -10,14 +10,16 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
+	"go.uber.org/zap"
 	"io"
 )
 
 type Handler struct {
+	log        *zap.Logger
 	definition ast.Document
 }
 
-func NewHandler(schema []byte) (*Handler, error) {
+func NewHandler(schema []byte, logger *zap.Logger) (*Handler, error) {
 
 	schema = append(schema, graphqlDefinitionBoilerplate...)
 
@@ -27,6 +29,7 @@ func NewHandler(schema []byte) (*Handler, error) {
 	}
 
 	return &Handler{
+		log:        logger,
 		definition: definition,
 	}, nil
 }
@@ -113,7 +116,7 @@ func (h *Handler) resolverDefinitions(report *operationreport.Report) ResolverDe
 				return &GraphQLDataSourcePlanner{}
 			},
 			func() DataSourcePlanner {
-				return &HttpJsonDataSourcePlanner{}
+				return NewHttpJsonDataSourcePlanner(h.log)
 			},
 			func() DataSourcePlanner {
 				return &StaticDataSourcePlanner{}
