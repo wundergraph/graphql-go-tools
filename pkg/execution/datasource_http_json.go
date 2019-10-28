@@ -162,9 +162,5 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs) []byte {
 		return []byte(err.Error())
 	}
 
-	r.log.Debug("HttpJsonDataSource.Resolve",
-		zap.ByteString("response", data),
-	)
-
 	return bytes.ReplaceAll(data, literal.BACKSLASH, nil)
 }
