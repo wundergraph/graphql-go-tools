@@ -46,4 +46,6 @@ $(GOPATH)/bin/stringer:
 	go install golang.org/x/tools/cmd/stringer
 
 bootstrap:
+ifndef HAS_GOLANG_CI_LINT
 	curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh| sh -s -- -b /tmp/ci ${GOLANG_CI_VERSION}
+endif
