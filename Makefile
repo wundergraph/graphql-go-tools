@@ -4,6 +4,8 @@ HAS_GOLANG_CI_LINT := $(shell command -v /tmp/ci/golangci-lint;)
 INSTALLED_VERSION := $(shell command -v /tmp/ci/golangci-lint version;)
 HAS_CORRECT_VERSION := $(shell command -v if [[ $(INSTALLED_VERSION) == *$(GOLANG_CI_VERSION_SHORT)* ]]; echo "Version OK!" fi)
 
+.PHONY: bootstrap
+
 .PHONY: test
 test:
 	go test ./...
@@ -43,8 +45,5 @@ $(GOPATH)/bin/stringer:
 	go get -u -a golang.org/x/tools/cmd/stringer
 	go install golang.org/x/tools/cmd/stringer
 
-.PHONY: bootstrap
 bootstrap:
-ifndef HAS_GOLANG_CI_LINT
-    curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh| sh -s -- -b /tmp/ci ${GOLANG_CI_VERSION}
-endif
+	curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh| sh -s -- -b /tmp/ci ${GOLANG_CI_VERSION}
