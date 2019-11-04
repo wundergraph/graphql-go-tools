@@ -5,6 +5,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
+	"io"
 )
 
 type StaticDataSourcePlanner struct {
@@ -70,6 +71,6 @@ func (s *StaticDataSourcePlanner) Plan() (DataSource, []Argument) {
 type StaticDataSource struct {
 }
 
-func (s StaticDataSource) Resolve(ctx Context, args ResolvedArgs) []byte {
-	return args[0].Value
+func (s StaticDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) {
+	out.Write(args[0].Value)
 }

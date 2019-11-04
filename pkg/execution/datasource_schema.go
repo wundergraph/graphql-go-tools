@@ -6,6 +6,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/introspection"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
+	"io"
 )
 
 func NewSchemaDataSourcePlanner(definition *ast.Document, report *operationreport.Report) *SchemaDataSourcePlanner {
@@ -68,6 +69,6 @@ type SchemaDataSource struct {
 	schemaBytes []byte
 }
 
-func (s *SchemaDataSource) Resolve(ctx Context, args ResolvedArgs) []byte {
-	return s.schemaBytes
+func (s *SchemaDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) {
+	out.Write(s.schemaBytes)
 }

@@ -40,17 +40,17 @@ type GraphqlRequest struct {
 	Query         string                     `json:"query"`
 }
 
-func (h *Handler) Handle(requestBody io.Reader, responseWriter io.Writer) error {
+func (h *Handler) Handle(requestBody io.Reader, responseWriter io.Writer) (instruction Instruction, err error) {
 
 	var graphqlRequest GraphqlRequest
-	err := json.NewDecoder(requestBody).Decode(&graphqlRequest)
+	err = json.NewDecoder(requestBody).Decode(&graphqlRequest)
 	if err != nil {
-		return err
+		return instruction, err
 	}
 
 	operationDocument, report := astparser.ParseGraphqlDocumentString(graphqlRequest.Query)
 	if report.HasErrors() {
-		return report
+		return instruction, report
 	}
 
 	variables := make(Variables, len(graphqlRequest.Variables))
@@ -60,33 +60,33 @@ func (h *Handler) Handle(requestBody io.Reader, responseWriter io.Writer) error 
 
 	planner := NewPlanner(h.resolverDefinitions(&report))
 	if report.HasErrors() {
-		return report
+		return instruction, report
 	}
 
 	astnormalization.NormalizeOperation(&operationDocument, &h.definition, &report)
 	if report.HasErrors() {
-		return report
+		return instruction, report
 	}
 
 	validator := astvalidation.DefaultOperationValidator()
 	if report.HasErrors() {
-		return report
+		return instruction, report
 	}
 	validator.Validate(&operationDocument, &h.definition, &report)
 	if report.HasErrors() {
-		return report
+		return instruction, report
 	}
 	normalizer := astnormalization.NewNormalizer(true)
 	normalizer.NormalizeOperation(&operationDocument, &h.definition, &report)
 	if report.HasErrors() {
-		return report
+		return instruction, report
 	}
 	plan := planner.Plan(&operationDocument, &h.definition, &report)
 	if report.HasErrors() {
-		return report
+		return instruction, report
 	}
 
-	executor := Executor{}
+	executor := NewExecutor()
 	ctx := Context{
 		Variables: variables,
 	}

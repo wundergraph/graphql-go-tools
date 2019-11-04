@@ -6,6 +6,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"go.uber.org/zap"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -96,13 +97,13 @@ type HttpJsonDataSource struct {
 	log *zap.Logger
 }
 
-func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs) []byte {
+func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) {
 
 	hostArg := args.ByKey(literal.HOST)
 	urlArg := args.ByKey(literal.URL)
 
 	if hostArg == nil || urlArg == nil {
-		return nil
+		return
 	}
 
 	url := string(hostArg) + string(urlArg)
@@ -144,14 +145,14 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs) []byte {
 		r.log.Error("HttpJsonDataSource.Resolve",
 			zap.Error(err),
 		)
-		return []byte(err.Error())
+		return
 	}
 
 	request.Header.Add("Accept", "application/json")
 
 	res, err := client.Do(request)
 	if err != nil {
-		return []byte(err.Error())
+		return
 	}
 
 	data, err := ioutil.ReadAll(res.Body)
@@ -159,8 +160,7 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs) []byte {
 		r.log.Error("HttpJsonDataSource.Resolve",
 			zap.Error(err),
 		)
-		return []byte(err.Error())
+		return
 	}
-
-	return bytes.ReplaceAll(data, literal.BACKSLASH, nil)
+	out.Write(data)
 }

@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"github.com/buger/jsonparser"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -272,15 +274,16 @@ func (g *GraphQLDataSourcePlanner) Plan() (DataSource, []Argument) {
 
 type GraphQLDataSource struct{}
 
-func (g *GraphQLDataSource) Resolve(ctx Context, args ResolvedArgs) []byte {
+func (g *GraphQLDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) {
 
 	hostArg := args.ByKey(literal.HOST)
 	urlArg := args.ByKey(literal.URL)
 	queryArg := args.ByKey(literal.QUERY)
 
 	if hostArg == nil || urlArg == nil || queryArg == nil {
+		spew.Dump(args)
 		log.Fatal("one of host,url,query arg nil")
-		return nil
+		return
 	}
 
 	url := string(hostArg) + string(urlArg)
@@ -341,5 +344,5 @@ func (g *GraphQLDataSource) Resolve(ctx Context, args ResolvedArgs) []byte {
 	if err != nil {
 		log.Fatal(err)
 	}
-	return data
+	out.Write(data)
 }
