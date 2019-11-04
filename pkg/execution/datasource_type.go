@@ -3,6 +3,7 @@ package execution
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
+	"io"
 )
 
 type TypeDataSourcePlanner struct {
@@ -50,6 +51,6 @@ func (t *TypeDataSourcePlanner) Plan() (DataSource, []Argument) {
 type TypeDataSource struct {
 }
 
-func (t *TypeDataSource) Resolve(ctx Context, args ResolvedArgs) []byte {
-	return nil
+func (t *TypeDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) {
+
 }

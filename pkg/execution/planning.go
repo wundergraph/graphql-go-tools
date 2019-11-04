@@ -268,9 +268,37 @@ func (p *planningVisitor) LeaveField(ref int) {
 					for i := 0; i < len(parent.Fields); i++ {
 						if bytes.Equal(p.operation.FieldObjectNameBytes(ref), parent.Fields[i].Name) {
 
-							parent.Fields[i].Resolve = &DataSourceInvocation{
-								Args:       plannedArgs,
-								DataSource: plannedDataSource,
+							// define destination buffer (pointer)
+
+							pathName := p.operation.FieldObjectNameString(ref)
+							parent.Fields[i].BufferName = pathName
+
+							singleFetch := &SingleFetch{
+								Source: &DataSourceInvocation{
+									Args:       plannedArgs,
+									DataSource: plannedDataSource,
+								},
+								// set destination buffer pointer to fetch
+								BufferName: pathName,
+							}
+
+							if parent.Fetch == nil {
+								parent.Fetch = singleFetch
+							} else {
+								switch fetch := parent.Fetch.(type) {
+								case *ParallelFetch:
+									fetch.Fetches = append(fetch.Fetches, singleFetch)
+								case *SerialFetch:
+									fetch.Fetches = append(fetch.Fetches, singleFetch)
+								case *SingleFetch:
+									first := *fetch
+									parent.Fetch = &ParallelFetch{
+										Fetches: []Fetch{
+											&first,
+											singleFetch,
+										},
+									}
+								}
 							}
 						}
 					}

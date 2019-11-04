@@ -3,10 +3,11 @@ package execution
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
+	"io"
 )
 
 type DataSource interface {
-	Resolve(ctx Context, args ResolvedArgs) []byte
+	Resolve(ctx Context, args ResolvedArgs, out io.Writer)
 }
 
 type DataSourcePlanner interface {

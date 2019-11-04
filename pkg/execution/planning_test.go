@@ -76,30 +76,34 @@ func TestPlanner_Plan(t *testing.T) {
 				{
 					Name: []byte("data"),
 					Value: &Object{
+						Fetch: &SingleFetch{
+							Source: &DataSourceInvocation{
+								Args: []Argument{
+									&StaticVariableArgument{
+										Name:  []byte("host"),
+										Value: []byte("countries.trevorblades.com"),
+									},
+									&StaticVariableArgument{
+										Name:  []byte("url"),
+										Value: []byte("/"),
+									},
+									&StaticVariableArgument{
+										Name:  []byte("query"),
+										Value: []byte("query o($code: String!){country(code: $code){code name native}}"),
+									},
+									&ContextVariableArgument{
+										Name:         []byte("code"),
+										VariableName: []byte("code"),
+									},
+								},
+								DataSource: &GraphQLDataSource{},
+							},
+							BufferName: "query.country",
+						},
 						Fields: []Field{
 							{
-								Name: []byte("country"),
-								Resolve: &DataSourceInvocation{
-									Args: []Argument{
-										&StaticVariableArgument{
-											Name:  []byte("host"),
-											Value: []byte("countries.trevorblades.com"),
-										},
-										&StaticVariableArgument{
-											Name:  []byte("url"),
-											Value: []byte("/"),
-										},
-										&StaticVariableArgument{
-											Name:  []byte("query"),
-											Value: []byte("query o($code: String!){country(code: $code){code name native}}"),
-										},
-										&ContextVariableArgument{
-											Name:         []byte("code"),
-											VariableName: []byte("code"),
-										},
-									},
-									DataSource: &GraphQLDataSource{},
-								},
+								Name:       []byte("country"),
+								BufferName: "query.country",
 								Value: &Object{
 									Path: []string{"country"},
 									Fields: []Field{
@@ -177,22 +181,50 @@ func TestPlanner_Plan(t *testing.T) {
 				{
 					Name: []byte("data"),
 					Value: &Object{
-						Fields: []Field{
-							{
-								Name: []byte("httpBinGet"),
-								Resolve: &DataSourceInvocation{
-									DataSource: &HttpJsonDataSource{},
-									Args: []Argument{
-										&StaticVariableArgument{
-											Name:  []byte("host"),
-											Value: []byte("httpbin.org"),
-										},
-										&StaticVariableArgument{
-											Name:  []byte("url"),
-											Value: []byte("/get"),
+						Fetch: &ParallelFetch{
+							Fetches: []Fetch{
+								&SingleFetch{
+									Source: &DataSourceInvocation{
+										DataSource: &HttpJsonDataSource{},
+										Args: []Argument{
+											&StaticVariableArgument{
+												Name:  []byte("host"),
+												Value: []byte("httpbin.org"),
+											},
+											&StaticVariableArgument{
+												Name:  []byte("url"),
+												Value: []byte("/get"),
+											},
 										},
 									},
+									BufferName: "query.httpBinGet",
 								},
+								&SingleFetch{
+									Source: &DataSourceInvocation{
+										Args: []Argument{
+											&StaticVariableArgument{
+												Name:  []byte("host"),
+												Value: []byte("jsonplaceholder.typicode.com"),
+											},
+											&StaticVariableArgument{
+												Name:  []byte("url"),
+												Value: []byte("/posts/{{ .id }}"),
+											},
+											&ContextVariableArgument{
+												Name:         []byte("id"),
+												VariableName: []byte("id"),
+											},
+										},
+										DataSource: &HttpJsonDataSource{},
+									},
+									BufferName: "query.post",
+								},
+							},
+						},
+						Fields: []Field{
+							{
+								Name:       []byte("httpBinGet"),
+								BufferName: "query.httpBinGet",
 								Value: &Object{
 									Fields: []Field{
 										{
@@ -228,25 +260,29 @@ func TestPlanner_Plan(t *testing.T) {
 								},
 							},
 							{
-								Name: []byte("post"),
-								Resolve: &DataSourceInvocation{
-									Args: []Argument{
-										&StaticVariableArgument{
-											Name:  []byte("host"),
-											Value: []byte("jsonplaceholder.typicode.com"),
-										},
-										&StaticVariableArgument{
-											Name:  []byte("url"),
-											Value: []byte("/posts/{{ .id }}"),
-										},
-										&ContextVariableArgument{
-											Name:         []byte("id"),
-											VariableName: []byte("id"),
-										},
-									},
-									DataSource: &HttpJsonDataSource{},
-								},
+								Name:       []byte("post"),
+								BufferName: "query.post",
 								Value: &Object{
+									Fetch: &SingleFetch{
+										Source: &DataSourceInvocation{
+											Args: []Argument{
+												&StaticVariableArgument{
+													Name:  []byte("host"),
+													Value: []byte("jsonplaceholder.typicode.com"),
+												},
+												&StaticVariableArgument{
+													Name:  []byte("url"),
+													Value: []byte("/comments?postId={{ .postId }}"),
+												},
+												&ObjectVariableArgument{
+													Name: []byte("postId"),
+													Path: []string{"id"},
+												},
+											},
+											DataSource: &HttpJsonDataSource{},
+										},
+										BufferName: "query.post.comments",
+									},
 									Fields: []Field{
 										{
 											Name: []byte("id"),
@@ -256,24 +292,8 @@ func TestPlanner_Plan(t *testing.T) {
 											},
 										},
 										{
-											Name: []byte("comments"),
-											Resolve: &DataSourceInvocation{
-												Args: []Argument{
-													&StaticVariableArgument{
-														Name:  []byte("host"),
-														Value: []byte("jsonplaceholder.typicode.com"),
-													},
-													&StaticVariableArgument{
-														Name:  []byte("url"),
-														Value: []byte("/comments?postId={{ .postId }}"),
-													},
-													&ObjectVariableArgument{
-														Name: []byte("postId"),
-														Path: []string{"id"},
-													},
-												},
-												DataSource: &HttpJsonDataSource{},
-											},
+											Name:       []byte("comments"),
+											BufferName: "query.post.comments",
 											Value: &List{
 												Value: &Object{
 													Fields: []Field{
@@ -333,45 +353,61 @@ func TestPlanner_Plan(t *testing.T) {
 				{
 					Name: []byte("data"),
 					Value: &Object{
+						Fetch: &ParallelFetch{
+							Fetches: []Fetch{
+								&SingleFetch{
+									Source: &DataSourceInvocation{
+										Args: []Argument{
+											&StaticVariableArgument{
+												Value: []byte("World!"),
+											},
+										},
+										DataSource: &StaticDataSource{},
+									},
+									BufferName: "query.hello",
+								},
+								&SingleFetch{
+									Source: &DataSourceInvocation{
+										Args: []Argument{
+											&StaticVariableArgument{
+												Value: []byte("null"),
+											},
+										},
+										DataSource: &StaticDataSource{},
+									},
+									BufferName: "query.nullableInt",
+								},
+								&SingleFetch{
+									Source: &DataSourceInvocation{
+										Args: []Argument{
+											&StaticVariableArgument{
+												Value: []byte("{\"bar\":\"baz\"}"),
+											},
+										},
+										DataSource: &StaticDataSource{},
+									},
+									BufferName: "query.foo",
+								},
+							},
+						},
 						Fields: []Field{
 							{
-								Name: []byte("hello"),
-								Resolve: &DataSourceInvocation{
-									Args: []Argument{
-										&StaticVariableArgument{
-											Value: []byte("World!"),
-										},
-									},
-									DataSource: &StaticDataSource{},
-								},
+								Name:       []byte("hello"),
+								BufferName: "query.hello",
 								Value: &Value{
 									QuoteValue: true,
 								},
 							},
 							{
-								Name: []byte("nullableInt"),
-								Resolve: &DataSourceInvocation{
-									Args: []Argument{
-										&StaticVariableArgument{
-											Value: []byte("null"),
-										},
-									},
-									DataSource: &StaticDataSource{},
-								},
+								Name:       []byte("nullableInt"),
+								BufferName: "query.nullableInt",
 								Value: &Value{
 									QuoteValue: false,
 								},
 							},
 							{
-								Name: []byte("foo"),
-								Resolve: &DataSourceInvocation{
-									Args: []Argument{
-										&StaticVariableArgument{
-											Value: []byte("{\"bar\":\"baz\"}"),
-										},
-									},
-									DataSource: &StaticDataSource{},
-								},
+								Name:       []byte("foo"),
+								BufferName: "query.foo",
 								Value: &Object{
 									Fields: []Field{
 										{
@@ -415,18 +451,22 @@ func TestPlanner_Plan(t *testing.T) {
 			{
 				Name: []byte("data"),
 				Value: &Object{
+					Fetch: &SingleFetch{
+						Source: &DataSourceInvocation{
+							Args: []Argument{
+								&ContextVariableArgument{
+									Name:         []byte("name"),
+									VariableName: []byte("name"),
+								},
+							},
+							DataSource: &TypeDataSource{},
+						},
+						BufferName: "query.__type",
+					},
 					Fields: []Field{
 						{
-							Name: []byte("__type"),
-							Resolve: &DataSourceInvocation{
-								Args: []Argument{
-									&ContextVariableArgument{
-										Name:         []byte("name"),
-										VariableName: []byte("name"),
-									},
-								},
-								DataSource: &TypeDataSource{},
-							},
+							Name:       []byte("__type"),
+							BufferName: "query.__type",
 							Value: &Object{
 								Path: []string{"__type"},
 								Fields: []Field{
@@ -499,30 +539,34 @@ func TestPlanner_Plan(t *testing.T) {
 				{
 					Name: []byte("data"),
 					Value: &Object{
+						Fetch: &SingleFetch{
+							Source: &DataSourceInvocation{
+								Args: []Argument{
+									&StaticVariableArgument{
+										Name:  literal.HOST,
+										Value: []byte("localhost:8001"),
+									},
+									&StaticVariableArgument{
+										Name:  literal.URL,
+										Value: []byte("/graphql"),
+									},
+									&StaticVariableArgument{
+										Name:  literal.QUERY,
+										Value: []byte("query o($id: String!){user(id: $id){id name birthday}}"),
+									},
+									&ContextVariableArgument{
+										Name:         []byte("id"),
+										VariableName: []byte("id"),
+									},
+								},
+								DataSource: &GraphQLDataSource{},
+							},
+							BufferName: "query.user",
+						},
 						Fields: []Field{
 							{
-								Name: []byte("user"),
-								Resolve: &DataSourceInvocation{
-									Args: []Argument{
-										&StaticVariableArgument{
-											Name:  literal.HOST,
-											Value: []byte("localhost:8001"),
-										},
-										&StaticVariableArgument{
-											Name:  literal.URL,
-											Value: []byte("/graphql"),
-										},
-										&StaticVariableArgument{
-											Name:  literal.QUERY,
-											Value: []byte("query o($id: String!){user(id: $id){id name birthday}}"),
-										},
-										&ContextVariableArgument{
-											Name:         []byte("id"),
-											VariableName: []byte("id"),
-										},
-									},
-									DataSource: &GraphQLDataSource{},
-								},
+								Name:       []byte("user"),
+								BufferName: "query.user",
 								Value: &Object{
 									Path: []string{"user"},
 									Fields: []Field{
@@ -577,26 +621,30 @@ func TestPlanner_Plan(t *testing.T) {
 				{
 					Name: []byte("data"),
 					Value: &Object{
+						Fetch: &SingleFetch{
+							Source: &DataSourceInvocation{
+								Args: []Argument{
+									&StaticVariableArgument{
+										Name:  literal.HOST,
+										Value: []byte("localhost:9001"),
+									},
+									&StaticVariableArgument{
+										Name:  literal.URL,
+										Value: []byte("/user/{{ .id }}"),
+									},
+									&ContextVariableArgument{
+										Name:         []byte("id"),
+										VariableName: []byte("id"),
+									},
+								},
+								DataSource: &HttpJsonDataSource{},
+							},
+							BufferName: "query.restUser",
+						},
 						Fields: []Field{
 							{
-								Name: []byte("restUser"),
-								Resolve: &DataSourceInvocation{
-									Args: []Argument{
-										&StaticVariableArgument{
-											Name:  literal.HOST,
-											Value: []byte("localhost:9001"),
-										},
-										&StaticVariableArgument{
-											Name:  literal.URL,
-											Value: []byte("/user/{{ .id }}"),
-										},
-										&ContextVariableArgument{
-											Name:         []byte("id"),
-											VariableName: []byte("id"),
-										},
-									},
-									DataSource: &HttpJsonDataSource{},
-								},
+								Name:       []byte("restUser"),
+								BufferName: "query.restUser",
 								Value: &Object{
 									Fields: []Field{
 										{
@@ -663,32 +711,56 @@ func TestPlanner_Plan(t *testing.T) {
 				{
 					Name: []byte("data"),
 					Value: &Object{
+						Fetch: &SingleFetch{
+							Source: &DataSourceInvocation{
+								Args: []Argument{
+									&StaticVariableArgument{
+										Name:  literal.HOST,
+										Value: []byte("localhost:8001"),
+									},
+									&StaticVariableArgument{
+										Name:  literal.URL,
+										Value: []byte("/graphql"),
+									},
+									&StaticVariableArgument{
+										Name:  literal.QUERY,
+										Value: []byte("query o($id: String!){user(id: $id){id name birthday}}"),
+									},
+									&ContextVariableArgument{
+										Name:         []byte("id"),
+										VariableName: []byte("id"),
+									},
+								},
+								DataSource: &GraphQLDataSource{},
+							},
+							BufferName: "query.user",
+						},
 						Fields: []Field{
 							{
-								Name: []byte("user"),
-								Resolve: &DataSourceInvocation{
-									Args: []Argument{
-										&StaticVariableArgument{
-											Name:  literal.HOST,
-											Value: []byte("localhost:8001"),
-										},
-										&StaticVariableArgument{
-											Name:  literal.URL,
-											Value: []byte("/graphql"),
-										},
-										&StaticVariableArgument{
-											Name:  literal.QUERY,
-											Value: []byte("query o($id: String!){user(id: $id){id name birthday}}"),
-										},
-										&ContextVariableArgument{
-											Name:         []byte("id"),
-											VariableName: []byte("id"),
-										},
-									},
-									DataSource: &GraphQLDataSource{},
-								},
+								Name:       []byte("user"),
+								BufferName: "query.user",
 								Value: &Object{
 									Path: []string{"user"},
+									Fetch: &SingleFetch{
+										Source: &DataSourceInvocation{
+											Args: []Argument{
+												&StaticVariableArgument{
+													Name:  literal.HOST,
+													Value: []byte("localhost:9000"),
+												},
+												&StaticVariableArgument{
+													Name:  literal.URL,
+													Value: []byte("/user/:id/friends"),
+												},
+												&ObjectVariableArgument{
+													Name: []byte("id"),
+													Path: []string{"id"},
+												},
+											},
+											DataSource: &HttpJsonDataSource{},
+										},
+										BufferName: "query.user.friends",
+									},
 									Fields: []Field{
 										{
 											Name: []byte("id"),
@@ -712,24 +784,8 @@ func TestPlanner_Plan(t *testing.T) {
 											},
 										},
 										{
-											Name: []byte("friends"),
-											Resolve: &DataSourceInvocation{
-												Args: []Argument{
-													&StaticVariableArgument{
-														Name:  literal.HOST,
-														Value: []byte("localhost:9000"),
-													},
-													&StaticVariableArgument{
-														Name:  literal.URL,
-														Value: []byte("/user/:id/friends"),
-													},
-													&ObjectVariableArgument{
-														Name: []byte("id"),
-														Path: []string{"id"},
-													},
-												},
-												DataSource: &HttpJsonDataSource{},
-											},
+											Name:       []byte("friends"),
+											BufferName: "query.user.friends",
 											Value: &List{
 												Value: &Object{
 													Fields: []Field{
@@ -831,32 +887,84 @@ func TestPlanner_Plan(t *testing.T) {
 				{
 					Name: []byte("data"),
 					Value: &Object{
+						Fetch: &SingleFetch{
+							Source: &DataSourceInvocation{
+								Args: []Argument{
+									&StaticVariableArgument{
+										Name:  literal.HOST,
+										Value: []byte("localhost:8001"),
+									},
+									&StaticVariableArgument{
+										Name:  literal.URL,
+										Value: []byte("/graphql"),
+									},
+									&StaticVariableArgument{
+										Name:  literal.QUERY,
+										Value: []byte("query o($id: String!){user(id: $id){id name birthday}}"),
+									},
+									&ContextVariableArgument{
+										Name:         []byte("id"),
+										VariableName: []byte("id"),
+									},
+								},
+								DataSource: &GraphQLDataSource{},
+							},
+							BufferName: "query.user",
+						},
 						Fields: []Field{
 							{
-								Name: []byte("user"),
-								Resolve: &DataSourceInvocation{
-									Args: []Argument{
-										&StaticVariableArgument{
-											Name:  literal.HOST,
-											Value: []byte("localhost:8001"),
-										},
-										&StaticVariableArgument{
-											Name:  literal.URL,
-											Value: []byte("/graphql"),
-										},
-										&StaticVariableArgument{
-											Name:  literal.QUERY,
-											Value: []byte("query o($id: String!){user(id: $id){id name birthday}}"),
-										},
-										&ContextVariableArgument{
-											Name:         []byte("id"),
-											VariableName: []byte("id"),
-										},
-									},
-									DataSource: &GraphQLDataSource{},
-								},
+								Name:       []byte("user"),
+								BufferName: "query.user",
 								Value: &Object{
 									Path: []string{"user"},
+									Fetch: &ParallelFetch{
+										Fetches: []Fetch{
+											&SingleFetch{
+												Source: &DataSourceInvocation{
+													Args: []Argument{
+														&StaticVariableArgument{
+															Name:  literal.HOST,
+															Value: []byte("localhost:9000"),
+														},
+														&StaticVariableArgument{
+															Name:  literal.URL,
+															Value: []byte("/user/:id/friends"),
+														},
+														&ObjectVariableArgument{
+															Name: []byte("id"),
+															Path: []string{"id"},
+														},
+													},
+													DataSource: &HttpJsonDataSource{},
+												},
+												BufferName: "query.user.friends",
+											},
+											&SingleFetch{
+												Source: &DataSourceInvocation{
+													Args: []Argument{
+														&StaticVariableArgument{
+															Name:  literal.HOST,
+															Value: []byte("localhost:8002"),
+														},
+														&StaticVariableArgument{
+															Name:  literal.URL,
+															Value: []byte("/graphql"),
+														},
+														&StaticVariableArgument{
+															Name:  literal.QUERY,
+															Value: []byte("query o($userId: String!){userPets(userId: $userId){__typename nickname ... on Dog {name woof} ... on Cat {name meow}}}"),
+														},
+														&ObjectVariableArgument{
+															Name: []byte("userId"),
+															Path: []string{"id"},
+														},
+													},
+													DataSource: &GraphQLDataSource{},
+												},
+												BufferName: "query.user.pets",
+											},
+										},
+									},
 									Fields: []Field{
 										{
 											Name: []byte("id"),
@@ -873,26 +981,34 @@ func TestPlanner_Plan(t *testing.T) {
 											},
 										},
 										{
-											Name: []byte("friends"),
-											Resolve: &DataSourceInvocation{
-												Args: []Argument{
-													&StaticVariableArgument{
-														Name:  literal.HOST,
-														Value: []byte("localhost:9000"),
-													},
-													&StaticVariableArgument{
-														Name:  literal.URL,
-														Value: []byte("/user/:id/friends"),
-													},
-													&ObjectVariableArgument{
-														Name: []byte("id"),
-														Path: []string{"id"},
-													},
-												},
-												DataSource: &HttpJsonDataSource{},
-											},
+											Name:       []byte("friends"),
+											BufferName: "query.user.friends",
 											Value: &List{
 												Value: &Object{
+													Fetch: &SingleFetch{
+														Source: &DataSourceInvocation{
+															Args: []Argument{
+																&StaticVariableArgument{
+																	Name:  literal.HOST,
+																	Value: []byte("localhost:8002"),
+																},
+																&StaticVariableArgument{
+																	Name:  literal.URL,
+																	Value: []byte("/graphql"),
+																},
+																&StaticVariableArgument{
+																	Name:  literal.QUERY,
+																	Value: []byte("query o($userId: String!){userPets(userId: $userId){__typename nickname ... on Dog {name woof} ... on Cat {name meow}}}"),
+																},
+																&ObjectVariableArgument{
+																	Name: []byte("userId"),
+																	Path: []string{"id"},
+																},
+															},
+															DataSource: &GraphQLDataSource{},
+														},
+														BufferName: "query.user.friends.pets",
+													},
 													Fields: []Field{
 														{
 															Name: []byte("id"),
@@ -916,28 +1032,8 @@ func TestPlanner_Plan(t *testing.T) {
 															},
 														},
 														{
-															Name: []byte("pets"),
-															Resolve: &DataSourceInvocation{
-																Args: []Argument{
-																	&StaticVariableArgument{
-																		Name:  literal.HOST,
-																		Value: []byte("localhost:8002"),
-																	},
-																	&StaticVariableArgument{
-																		Name:  literal.URL,
-																		Value: []byte("/graphql"),
-																	},
-																	&StaticVariableArgument{
-																		Name:  literal.QUERY,
-																		Value: []byte("query o($userId: String!){userPets(userId: $userId){__typename nickname ... on Dog {name woof} ... on Cat {name meow}}}"),
-																	},
-																	&ObjectVariableArgument{
-																		Name: []byte("userId"),
-																		Path: []string{"id"},
-																	},
-																},
-																DataSource: &GraphQLDataSource{},
-															},
+															Name:       []byte("pets"),
+															BufferName: "query.user.friends.pets",
 															Value: &List{
 																Path: []string{"userPets"},
 																Value: &Object{
@@ -1025,28 +1121,8 @@ func TestPlanner_Plan(t *testing.T) {
 											},
 										},
 										{
-											Name: []byte("pets"),
-											Resolve: &DataSourceInvocation{
-												Args: []Argument{
-													&StaticVariableArgument{
-														Name:  literal.HOST,
-														Value: []byte("localhost:8002"),
-													},
-													&StaticVariableArgument{
-														Name:  literal.URL,
-														Value: []byte("/graphql"),
-													},
-													&StaticVariableArgument{
-														Name:  literal.QUERY,
-														Value: []byte("query o($userId: String!){userPets(userId: $userId){__typename nickname ... on Dog {name woof} ... on Cat {name meow}}}"),
-													},
-													&ObjectVariableArgument{
-														Name: []byte("userId"),
-														Path: []string{"id"},
-													},
-												},
-												DataSource: &GraphQLDataSource{},
-											},
+											Name:       []byte("pets"),
+											BufferName: "query.user.pets",
 											Value: &List{
 												Path: []string{"userPets"},
 												Value: &Object{
@@ -1258,12 +1334,16 @@ func TestPlanner_Plan(t *testing.T) {
 				{
 					Name: []byte("data"),
 					Value: &Object{
+						Fetch: &SingleFetch{
+							Source: &DataSourceInvocation{
+								DataSource: &SchemaDataSource{},
+							},
+							BufferName: "query.__schema",
+						},
 						Fields: []Field{
 							{
-								Name: []byte("__schema"),
-								Resolve: &DataSourceInvocation{
-									DataSource: &SchemaDataSource{},
-								},
+								Name:       []byte("__schema"),
+								BufferName: "query.__schema",
 								Value: &Object{
 									Path: []string{"__schema"},
 									Fields: []Field{
