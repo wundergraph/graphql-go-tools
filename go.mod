@@ -5,29 +5,23 @@ go 1.12
 require (
 	github.com/buger/jsonparser v0.0.0-20181115193947-bf1c66bbce23
 	github.com/cespare/xxhash v1.1.0
-	github.com/cheekybits/genny v1.0.0 // indirect
 	github.com/davecgh/go-spew v1.1.1
-	github.com/fauna/faunadb-go v2.0.1-0.20190528212028-db401cd29d12+incompatible
 	github.com/go-test/deep v1.0.4
 	github.com/gobuffalo/packr v1.30.1
-	github.com/golang/mock v1.2.0
 	github.com/jensneuse/diffview v1.0.0
-	github.com/klauspost/compress v1.4.1 // indirect
-	github.com/klauspost/cpuid v1.2.0 // indirect
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/phayes/freeport v0.0.0-20171002181615-b8543db493a5
-	github.com/pkg/errors v0.8.1
+	github.com/pkg/errors v0.8.1 // indirect
 	github.com/sebdah/goldie v0.0.0-20180424091453-8784dd1ab561
 	github.com/spf13/afero v1.2.1 // indirect
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
-	github.com/spf13/viper v1.3.2
-	github.com/tidwall/gjson v1.2.1
-	github.com/tidwall/match v1.0.1 // indirect
-	github.com/tidwall/pretty v0.0.0-20180105212114-65a9db5fad51 // indirect
-	github.com/tidwall/sjson v1.0.4
-	github.com/valyala/fasthttp v1.2.0
-	go.uber.org/atomic v1.4.0 // indirect
+	github.com/spf13/pflag v1.0.5 // indirect
+	github.com/spf13/viper v1.4.0
+	github.com/stretchr/testify v1.4.0 // indirect
 	go.uber.org/multierr v1.2.0 // indirect
 	go.uber.org/zap v1.11.0
+	golang.org/x/sys v0.0.0-20190922100055-0a153f010e69 // indirect
+	golang.org/x/text v0.3.2 // indirect
+	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
+	gopkg.in/yaml.v2 v2.2.4 // indirect
 )
