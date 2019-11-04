@@ -2,16 +2,17 @@
 # graphql-go-tools
 
 Looking for a ready to use GraphQL Server/Gateway?
+
 Have a look at: https://github.com/jensneuse/graphql-gateway
 
 This repository implements low level building blocks to write graphql services in Go.
 
 With this library you could build tools like:
-    - proxies
-    - caches
-    - server/client implementations
-    - a WAF
-    - be creative! =)
+- proxies
+- caches
+- server/client implementations
+- a WAF
+- be creative! =)
 
 Currently implemented:
 
