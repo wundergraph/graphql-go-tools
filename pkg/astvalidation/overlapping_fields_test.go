@@ -72,6 +72,7 @@ func BenchmarkOverlappingFieldsCanBeMerged(b *testing.B) {
 			normalizer := astnormalization.NewNormalizer(false)
 			validator := DefaultOperationValidator()
 
+			b.ReportAllocs()
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
@@ -97,6 +98,7 @@ func BenchmarkOverlappingFieldsCanBeMerged(b *testing.B) {
 			normalizer := astnormalization.NewNormalizer(false)
 			validator := DefaultOperationValidator()
 
+			b.ReportAllocs()
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
