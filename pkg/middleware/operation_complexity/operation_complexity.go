@@ -119,8 +119,6 @@ func (c *complexityVisitor) EnterArgument(ref int) {
 			multi:    multi,
 		})
 	}
-
-	return
 }
 
 func (c *complexityVisitor) EnterField(ref int) {
@@ -141,8 +139,6 @@ func (c *complexityVisitor) EnterField(ref int) {
 	}
 
 	c.complexity = c.complexity + c.calculateMultiplied(1)
-
-	return
 }
 
 func (c *complexityVisitor) LeaveField(ref int) {
@@ -154,8 +150,6 @@ func (c *complexityVisitor) LeaveField(ref int) {
 	if c.multipliers[len(c.multipliers)-1].fieldRef == ref {
 		c.multipliers = c.multipliers[:len(c.multipliers)-1]
 	}
-
-	return
 }
 
 func (c *complexityVisitor) EnterSelectionSet(ref int) {
@@ -165,8 +159,6 @@ func (c *complexityVisitor) EnterSelectionSet(ref int) {
 	}
 
 	c.count = c.count + c.calculateMultiplied(1)
-
-	return
 }
 
 func (c *complexityVisitor) EnterFragmentDefinition(ref int) {

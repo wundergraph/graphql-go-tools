@@ -246,7 +246,6 @@ type fieldSelectionMergingVisitor struct {
 	scalarRequirements    scalarRequirements
 	nonScalarRequirements nonScalarRequirements
 	refs                  []int
-	enclosingTypeRef      int
 	pathCache             [256][32]ast.PathItem
 	pathCacheIndex        int
 }
@@ -572,12 +571,7 @@ func (v *validArgumentsVisitor) enumValueSatisfiesInputValueDefinition(enumValue
 	}
 
 	enumValueName := v.operation.Input.ByteSlice(v.operation.EnumValueName(enumValue))
-
-	if !v.definition.EnumTypeDefinitionContainsEnumValue(node.Ref, enumValueName) {
-		return false
-	}
-
-	return true
+	return v.definition.EnumTypeDefinitionContainsEnumValue(node.Ref, enumValueName)
 }
 
 func (v *validArgumentsVisitor) variableValueSatisfiesInputValueDefinition(variableValue, inputValueDefinition int) bool {
@@ -592,11 +586,7 @@ func (v *validArgumentsVisitor) variableValueSatisfiesInputValueDefinition(varia
 	hasDefaultValue := v.operation.VariableDefinitions[variableDefinition].DefaultValue.IsDefined ||
 		v.definition.InputValueDefinitions[inputValueDefinition].DefaultValue.IsDefined
 
-	if !v.operationTypeSatisfiesDefinitionType(operationType, definitionType, hasDefaultValue) {
-		return false
-	}
-
-	return true
+	return v.operationTypeSatisfiesDefinitionType(operationType, definitionType, hasDefaultValue)
 }
 
 func (v *validArgumentsVisitor) operationTypeSatisfiesDefinitionType(operationType int, definitionType int, hasDefaultValue bool) bool {
@@ -781,11 +771,7 @@ func (v *valuesVisitor) valueSatisfiesInputObjectTypeDefinition(value ast.Value,
 		}
 	}
 
-	if v.objectValueHasDuplicateFields(value.Ref) {
-		return false
-	}
-
-	return true
+	return !v.objectValueHasDuplicateFields(value.Ref)
 }
 
 func (v *valuesVisitor) objectValueHasDuplicateFields(objectValue int) bool {

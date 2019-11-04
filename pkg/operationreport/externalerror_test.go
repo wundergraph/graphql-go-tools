@@ -67,5 +67,4 @@ func TestPath_MarshalJSON(t *testing.T) {
 	if err == nil {
 		t.Fatalf("want err, got nil")
 	}
-	err = nil
 }

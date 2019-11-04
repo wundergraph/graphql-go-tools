@@ -3,7 +3,6 @@ package operation_complexity
 import (
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 	"testing"
@@ -92,23 +91,6 @@ func TestNodeCount(t *testing.T) {
 	t.Run("introspection query", func(t *testing.T) {
 		run(testDefinition, introspectionQuery, 0, 0)
 	})
-}
-
-var must = func(err error) {
-	if report, ok := err.(operationreport.Report); ok {
-		if report.HasErrors() {
-			panic(report.Error())
-		}
-		return
-	}
-	if err != nil {
-		panic(err)
-	}
-}
-
-var mustDocument = func(document *ast.Document, err error) *ast.Document {
-	must(err)
-	return document
 }
 
 var run = func(definition, operation string, expectedNodeCount, expectedComplexity int) {

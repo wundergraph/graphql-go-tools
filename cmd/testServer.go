@@ -61,7 +61,7 @@ func startTestServer() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer logger.Sync()
+	defer logger.Sync() // nolint
 
 	handler, err := execution.NewHandler(schemaData, logger)
 	if err != nil {

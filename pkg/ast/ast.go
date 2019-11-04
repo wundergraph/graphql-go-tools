@@ -1394,6 +1394,7 @@ type Value struct {
 	Ref  int
 }
 
+// nolint
 func (d *Document) PrintValue(value Value, w io.Writer) (err error) {
 	switch value.Kind {
 	case ValueKindBoolean:
@@ -1560,6 +1561,7 @@ type Description struct {
 	Position      position.Position
 }
 
+// nolint
 func (d *Document) PrintDescription(description Description, indent []byte, depth int, writer io.Writer) (err error) {
 	for i := 0; i < depth; i++ {
 		_, err = writer.Write(indent)

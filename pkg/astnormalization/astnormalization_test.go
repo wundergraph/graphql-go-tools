@@ -3,7 +3,6 @@ package astnormalization
 import (
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
@@ -128,25 +127,6 @@ func BenchmarkAstNormalization(b *testing.B) {
 		report.Reset()
 		normalizer.NormalizeOperation(&operation, &definition, &report)
 	}
-}
-
-var must = func(err error) {
-	if err != nil {
-		panic(err)
-	}
-}
-
-var mustDocument = func(doc *ast.Document, err error) *ast.Document {
-	if report, ok := err.(operationreport.Report); ok {
-		if report.HasErrors() {
-			panic(report.Error())
-		}
-		return doc
-	}
-	if err != nil {
-		panic(err)
-	}
-	return doc
 }
 
 var mustString = func(str string, err error) string {

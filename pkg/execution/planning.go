@@ -66,7 +66,6 @@ type planningVisitor struct {
 	operation, definition *ast.Document
 	rootNode              Node
 	currentNode           []Node
-	currentResolve        currentResolve
 	planners              []dataSourcePlannerRef
 }
 
@@ -75,16 +74,6 @@ type dataSourcePlannerRef struct {
 	fieldRef int
 	planner  DataSourcePlanner
 }
-
-type resolveRef struct {
-	path        ast.Path
-	fieldRef    int
-	resolve     *DataSourceInvocation
-	document    *ast.Document
-	currentNode []ast.Node
-}
-
-type currentResolve []*resolveRef
 
 func (p *planningVisitor) EnterDocument(operation, definition *ast.Document) {
 	p.operation, p.definition = operation, definition

@@ -550,12 +550,6 @@ func (p *printingVisitor) leave() {
 	p.printIndentation()
 }
 
-func (p *printingVisitor) printSelections(info Info) (out string) {
-	out += "SelectionsBefore: " + p.operation.PrintSelections(info.SelectionsBefore)
-	out += " SelectionsAfter: " + p.operation.PrintSelections(info.SelectionsAfter)
-	return
-}
-
 func (p *printingVisitor) EnterSchemaDefinition(ref int) {
 	p.enter()
 	p.must(fmt.Fprintf(p.out, "EnterSchemaDefinition: ref: %d\n", ref))

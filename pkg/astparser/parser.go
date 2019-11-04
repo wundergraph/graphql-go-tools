@@ -191,10 +191,6 @@ func (p *Parser) identKeywordToken(token token.Token) identkeyword.IdentKeyword 
 	return identkeyword.KeywordFromLiteral(p.document.Input.ByteSlice(token.Literal))
 }
 
-func (p *Parser) identKeywordSlice(slice ast.ByteSlice) identkeyword.IdentKeyword {
-	return identkeyword.KeywordFromLiteral(slice)
-}
-
 func (p *Parser) identKeywordSliceRef(ref ast.ByteSliceReference) identkeyword.IdentKeyword {
 	return identkeyword.KeywordFromLiteral(p.document.Input.ByteSlice(ref))
 }

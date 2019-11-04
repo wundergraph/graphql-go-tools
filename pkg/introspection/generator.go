@@ -10,10 +10,9 @@ import (
 )
 
 type Generator struct {
-	Data       *Data
-	definition *ast.Document
-	walker     *astvisitor.Walker
-	visitor    *introspectionVisitor
+	Data    *Data
+	walker  *astvisitor.Walker
+	visitor *introspectionVisitor
 }
 
 func NewGenerator() *Generator {
@@ -42,7 +41,6 @@ type introspectionVisitor struct {
 	data             *Data
 	currentType      FullType
 	currentField     Field
-	currentArgs      []InputValue
 	currentDirective Directive
 }
 

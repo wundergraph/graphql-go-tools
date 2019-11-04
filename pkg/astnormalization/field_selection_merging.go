@@ -36,11 +36,7 @@ func (f *fieldSelectionMergeVisitor) fieldsCanMerge(left, right int) bool {
 	leftDirectives := f.operation.FieldDirectives(left)
 	rightDirectives := f.operation.FieldDirectives(right)
 
-	if !f.operation.DirectiveSetsAreEqual(leftDirectives, rightDirectives) {
-		return false
-	}
-
-	return true
+	return f.operation.DirectiveSetsAreEqual(leftDirectives, rightDirectives)
 }
 
 func (f *fieldSelectionMergeVisitor) isFieldSelection(ref int) bool {

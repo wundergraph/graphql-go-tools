@@ -1697,15 +1697,6 @@ func (w *Walker) walkInlineFragment(ref int) {
 	w.decreaseDepth()
 }
 
-func (w *Walker) inlineFragmentTypeDefinition(ref int, enclosingTypeDefinition ast.Node) ast.Node {
-	typeRef := w.document.InlineFragments[ref].TypeCondition.Type
-	if typeRef == -1 {
-		return enclosingTypeDefinition
-	}
-	typeCondition := w.document.Types[w.document.InlineFragments[ref].TypeCondition.Type]
-	return w.definition.Index.Nodes[xxhash.Sum64(w.document.Input.ByteSlice(typeCondition.Name))]
-}
-
 func (w *Walker) walkFragmentDefinition(ref int) {
 	w.increaseDepth()
 

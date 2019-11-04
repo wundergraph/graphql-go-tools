@@ -304,36 +304,6 @@ func (l *Lexer) byteIsWhitespace(r byte) bool {
 	}
 }
 
-func (l *Lexer) byteTerminatesSequence(r byte) bool {
-	switch r {
-	case runes.SPACE,
-		runes.TAB,
-		runes.CARRIAGERETURN,
-		runes.LINETERMINATOR,
-		runes.COMMA,
-		runes.LPAREN,
-		runes.RPAREN,
-		runes.LBRACE,
-		runes.RBRACE,
-		runes.LBRACK,
-		runes.RBRACK,
-		runes.AND,
-		runes.AT,
-		runes.BANG,
-		runes.COLON,
-		runes.DOLLAR,
-		runes.EQUALS,
-		runes.HASHTAG,
-		runes.SUB,
-		runes.PIPE,
-		runes.QUOTE,
-		runes.SLASH:
-		return true
-	default:
-		return false
-	}
-}
-
 func (l *Lexer) readBlockString(tok *token.Token) {
 	tok.Keyword = keyword.BLOCKSTRING
 

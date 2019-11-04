@@ -10,7 +10,6 @@ type SimpleWalker struct {
 	document         *ast.Document
 	Depth            int
 	Ancestors        []ast.Node
-	parentDefinition ast.Node
 	visitor          AllNodesVisitor
 	SelectionsBefore []int
 	SelectionsAfter  []int
@@ -778,16 +777,4 @@ func (w *SimpleWalker) walkRootOperationTypeDefinition(ref int) {
 	w.visitor.LeaveRootOperationTypeDefinition(ref)
 
 	w.decreaseDepth()
-}
-
-func (w *SimpleWalker) refsEqual(left, right []int) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for i := range left {
-		if left[i] != right[i] {
-			return false
-		}
-	}
-	return true
 }

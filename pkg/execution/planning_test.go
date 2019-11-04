@@ -1,7 +1,6 @@
 package execution
 
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/go-test/deep"
@@ -10,7 +9,6 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
-	"github.com/pkg/errors"
 	"math/rand"
 	"reflect"
 	"testing"
@@ -1682,46 +1680,6 @@ func BenchmarkPlanner_Plan(b *testing.B) {
 	}
 }
 
-const complexExample = `
-query TypeQuery($name: String! = "User", $id: String!) {
-	__type(name: $name) {
-		name
-		fields {
-			name
-			type {
-				name
-			}
-		}
-	}
-	user(id: $id) {
-		id
-		name
-		birthday
-		friends {
-			id
-			name
-			birthday
-		}
-		pets {
-			...petsFragment
-		}
-	}
-	pets {
-		...petsFragment
-	}
-}
-fragment petsFragment on Pet {
-	__typename
-	name
-	nickname
-	... on Dog {
-		woof
-	}
-	... on Cat {
-		meow
-	}
-}`
-
 const GraphQLDataSourceSchema = `
 directive @GraphQLDataSource (
     host: String!
@@ -2089,34 +2047,6 @@ type Cat implements Pet {
 }
 `
 
-func ensureJsonEqualsPretty(want, got string) {
-	wantPretty := pretty(want)
-	gotPretty := pretty(got)
-	if wantPretty != gotPretty {
-		panic(fmt.Errorf(`ensureJsonEqualsPretty:
-want:
-%s
-
-got:
-%s
-`, wantPretty, gotPretty))
-	}
-}
-
-func pretty(input string) string {
-	data := map[string]interface{}{}
-	err := json.Unmarshal([]byte(input), &data)
-	if err != nil {
-		panic(errors.WithMessage(err, fmt.Sprintf("input: %s", input)))
-	}
-
-	pretty, err := json.MarshalIndent(data, "", "  ")
-	if err != nil {
-		panic(err)
-	}
-	return string(pretty)
-}
-
 func withBaseSchema(input string) string {
 	return input + `
 "The 'Int' scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1."
@@ -2302,16 +2232,6 @@ enum __TypeKind {
     NON_NULL
 }
 `
-}
-
-var letterRunes = []byte("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-
-func randBytes(n int) []byte {
-	b := make([]byte, n)
-	for i := range b {
-		b[i] = letterRunes[rand.Intn(len(letterRunes))]
-	}
-	return b
 }
 
 var kindNameDeepFields = []Field{

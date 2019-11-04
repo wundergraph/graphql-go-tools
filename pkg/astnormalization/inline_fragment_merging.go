@@ -37,11 +37,8 @@ func (m *mergeInlineFragmentsVisitor) couldInline(set, inlineFragment int) bool 
 
 	inlineFragmentTypeName := m.operation.InlineFragmentTypeConditionName(inlineFragment)
 	enclosingTypeName := m.definition.NodeNameBytes(m.EnclosingTypeDefinition)
-	if !m.definition.TypeDefinitionContainsImplementsInterface(enclosingTypeName, inlineFragmentTypeName) {
-		return false
-	}
 
-	return true
+	return m.definition.TypeDefinitionContainsImplementsInterface(enclosingTypeName, inlineFragmentTypeName)
 }
 
 func (m *mergeInlineFragmentsVisitor) resolveInlineFragment(set, index, inlineFragment int) {

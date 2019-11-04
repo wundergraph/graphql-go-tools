@@ -8,6 +8,7 @@ import (
 	"github.com/jensneuse/diffview"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/sebdah/goldie"
+	"go.uber.org/zap"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -15,6 +16,7 @@ import (
 	"testing"
 )
 
+// nolint
 func dumpRequest(t *testing.T, r *http.Request, name string) {
 	dump, err := httputil.DumpRequest(r, true)
 	if err != nil {
@@ -187,7 +189,9 @@ func TestExecution(t *testing.T) {
 													Path: []string{"id"},
 												},
 											},
-											DataSource: &HttpJsonDataSource{},
+											DataSource: &HttpJsonDataSource{
+												log: zap.NewNop(),
+											},
 										},
 										Value: &List{
 											Value: &Object{
@@ -622,26 +626,6 @@ func genField() Field {
 	}
 }
 
-var userType = []byte(`{
-			  "__type": {
-				"name": "User",
-				"fields": [
-				  {
-					"name": "id",
-					"type": { "name": "String" }
-				  },
-				  {
-					"name": "name",
-					"type": { "name": "String" }
-				  },
-				  {
-					"name": "birthday",
-					"type": { "name": "Date" }
-				  }
-				]
-			  }
-			}`)
-
 var userData = []byte(`
 		{
 			"data":	{
@@ -652,13 +636,6 @@ var userData = []byte(`
 				}
 			}
 		}`)
-
-var userRestData = []byte(`
-{
-	"id":1,
-	"name":"Jens",
-	"birthday":"08.02.1988"
-}`)
 
 var friendsData = []byte(`[
    {
