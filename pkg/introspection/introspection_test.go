@@ -13,14 +13,14 @@ func TestIntrospectionSerialization(t *testing.T) {
 		panic(err)
 	}
 
-	var res Response
+	var data Data
 
-	err = json.Unmarshal(inputData, &res)
+	err = json.Unmarshal(inputData, &data)
 	if err != nil {
 		panic(err)
 	}
 
-	outputData, err := json.MarshalIndent(res, "", "  ")
+	outputData, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
 		panic(err)
 	}

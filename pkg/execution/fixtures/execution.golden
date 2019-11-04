@@ -1,0 +1,36 @@
+{
+  "data": {
+    "__type": null,
+    "user": {
+      "birthday": "08.02.1988",
+      "friends": [
+        {
+          "birthday": "1990 I guess? ;-)",
+          "id": 2,
+          "name": "Yaara"
+        },
+        {
+          "birthday": "1980",
+          "id": 3,
+          "name": "Ahmet"
+        }
+      ],
+      "id": 1,
+      "name": "Jens",
+      "pets": [
+        {
+          "__typename": "Dog",
+          "name": "Paw",
+          "nickname": "Pawie",
+          "woof": "Woof! Woof!"
+        },
+        {
+          "__typename": "Cat",
+          "meow": "Meow meow!",
+          "name": "Mietz",
+          "nickname": "Mietzie"
+        }
+      ]
+    }
+  }
+}

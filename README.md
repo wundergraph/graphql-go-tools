@@ -1,4 +1,4 @@
-[![CircleCI](https://circleci.com/gh/jensneuse/graphql-go-tools.svg?style=svg)](https://circleci.com/gh/jensneuse/graphql-go-tools)
+[![CI](https://github.com/jensneuse/graphql-go-tools/workflows/ci/badge.svg)](https://github.com/jensneuse/graphql-go-tools/workflows/ci/badge.svg)
 # graphql-go-tools
 
 This repository implements useful graphql tools in the golang programming language.
@@ -80,12 +80,17 @@ By fixing this issue validation time for the introspection query dropped from ~ 
 ## Contributors
 
 - [Jens Neuse][jens-neuse-github] (Project Lead & Active Maintainer)
-- [Mantas Vidutis][mantas-vidutis-github] (Contributions to the http proxy & the Context Middleware)
-- [Jonas Bergner][jonas-bergner-github] (Contributions to the initial version of the parser, contributions to the tests)
+- [Mantas Vidutis][mantas-vidutis-github]
+    - Contributions to the http proxy & the Context Middleware
+- [Jonas Bergner][jonas-bergner-github]
+    - Contributions to the initial version of the parser, contributions to the tests
+- [Patric Vormstein][patric-vormstein-github]
+    - Fixed lexer on windows [#92](https://github.com/jensneuse/graphql-go-tools/pull/92)
 
 [jens-neuse-github]: https://github.com/jensneuse
 [mantas-vidutis-github]: https://github.com/mvid
 [jonas-bergner-github]: https://github.com/java-jonas
+[patric-vormstein-github]: https://github.com/pvormste
 
 ## Contributions
 
@@ -93,5 +98,6 @@ Feel free to file an issue in case of bugs.
 We're open to your ideas to enhance the repository.
 
 You are open to contribute via PR's.
+Please open an issue to discuss your idea before implementing it so we can have a discussion.
 Make sure to comply with the linting rules.
 You must not add untested code.

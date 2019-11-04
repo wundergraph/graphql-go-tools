@@ -1,121 +1,28 @@
 package lexer
 
 import (
-	"fmt"
-	"github.com/jensneuse/graphql-go-tools/pkg/document"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/keyword"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/position"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/runes"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexing/token"
+	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/keyword"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/runes"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/token"
 )
 
 // Lexer emits tokens from a input reader
 type Lexer struct {
-	_storage                             [maxInput]byte
-	input                                []byte
-	inputPosition                        int
-	typeSystemEndPosition                int
-	textPosition                         position.Position
-	beforeLastLineTerminatorTextPosition position.Position
+	input *ast.Input
 }
 
-// NewLexer initializes a new lexer
-func NewLexer() *Lexer {
-	return &Lexer{}
+func (l *Lexer) SetInput(input *ast.Input) {
+	l.input = input
 }
 
-const (
-	//maxInput = 655350
-	maxInput = 1000000
-)
-
-// SetTypeSystemInput sets the new reader as input and resets all position stats
-func (l *Lexer) SetTypeSystemInput(input []byte) error {
-
-	if len(input) > maxInput {
-		return fmt.Errorf("SetTypeSystemInput: input size must not be > %d, got: %d", maxInput, len(input))
-	}
-
-	l.input = l._storage[:0]
-	l.input = append(l.input, input...)
-
-	l.inputPosition = 0
-	l.textPosition.LineStart = 1
-	l.textPosition.CharStart = 1
-	l.typeSystemEndPosition = len(input)
-
-	return nil
-}
-
-func (l *Lexer) ExtendTypeSystemInput(input []byte) error {
-
-	if len(l.input) != l.typeSystemEndPosition {
-		return fmt.Errorf("ExtendTypeSystemInput: you must not extend the type system input after setting the executable input")
-	}
-
-	actual := len(l.input) + len(input)
-	if actual > maxInput {
-		return fmt.Errorf("ExtendTypeSystemInput: input size must not be > %d, got: %d", maxInput, actual)
-	}
-
-	l.input = append(l.input, input...)
-	l.typeSystemEndPosition = len(l.input)
-
-	return nil
-}
-
-func (l *Lexer) ResetTypeSystemInput() {
-	l.input = l._storage[:0]
-	l.inputPosition = 0
-	l.textPosition.LineStart = 1
-	l.textPosition.CharStart = 1
-	l.typeSystemEndPosition = 0
-}
-
-func (l *Lexer) AppendBytes(input []byte) (err error) {
-	currentLength := len(l.input)
-	inputLength := len(input)
-	totalLength := currentLength + inputLength
-	if totalLength > maxInput {
-		return fmt.Errorf("AppendBytes: input size must not be > %d, got: %d", maxInput, totalLength)
-	}
-
-	l.input = append(l.input, input...)
-	return
-}
-
-func (l *Lexer) SetExecutableInput(input []byte) error {
-
-	l.input = append(l.input[:l.typeSystemEndPosition], input...)
-
-	if len(input) > maxInput {
-		return fmt.Errorf("SetTypeSystemInput: input size must not be > %d, got: %d", maxInput, len(input))
-	}
-
-	l.inputPosition = l.typeSystemEndPosition
-	l.textPosition.LineStart = 1
-	l.textPosition.CharStart = 1
-
-	return nil
-}
-
-func (l *Lexer) ByteSlice(reference document.ByteSliceReference) document.ByteSlice {
-	return l.input[reference.Start:reference.End]
-}
-
-func (l *Lexer) TextPosition() position.Position {
-	return l.textPosition
-}
-
-// Read emits the next token, this cannot be undone
+// Read emits the next token
 func (l *Lexer) Read() (tok token.Token) {
 
 	var next byte
-	var inputPositionStart int
 
 	for {
-		inputPositionStart = l.inputPosition
-		tok.SetStart(l.inputPosition, l.textPosition)
+		tok.SetStart(l.input.InputPosition, l.input.TextPosition)
 		next = l.readRune()
 		if !l.byteIsWhitespace(next) {
 			break
@@ -136,9 +43,6 @@ func (l *Lexer) Read() (tok token.Token) {
 	case runes.DOT:
 		l.readDotOrSpread(&tok)
 		return
-	case runes.DOLLAR:
-		l.readVariable(&tok)
-		return
 	}
 
 	if runeIsDigit(next) {
@@ -147,100 +51,9 @@ func (l *Lexer) Read() (tok token.Token) {
 	}
 
 	l.readIdent()
-	tok.Keyword = l.keywordFromIdent(inputPositionStart, l.inputPosition)
-	tok.SetEnd(l.inputPosition, l.textPosition)
+	tok.Keyword = keyword.IDENT
+	tok.SetEnd(l.input.InputPosition, l.input.TextPosition)
 	return
-}
-
-// Peek will emit the next keyword without advancing the reader position
-func (l *Lexer) Peek(ignoreWhitespace bool) keyword.Keyword {
-	next := l.peekRune(ignoreWhitespace)
-	return l.keywordFromRune(next)
-}
-
-func (l *Lexer) keywordFromRune(r byte) keyword.Keyword {
-
-	switch r {
-	case runes.EOF:
-		return keyword.EOF
-	case runes.SPACE:
-		return keyword.SPACE
-	case runes.HASHTAG:
-		return keyword.COMMENT
-	case runes.TAB:
-		return keyword.TAB
-	case runes.COMMA:
-		return keyword.COMMA
-	case runes.LINETERMINATOR:
-		return keyword.LINETERMINATOR
-	case runes.QUOTE:
-		return keyword.STRING
-	case runes.DOLLAR:
-		return keyword.VARIABLE
-	case runes.PIPE:
-		return keyword.PIPE
-	case runes.EQUALS:
-		return keyword.EQUALS
-	case runes.AT:
-		return keyword.AT
-	case runes.COLON:
-		return keyword.COLON
-	case runes.BANG:
-		return keyword.BANG
-	case runes.BRACKETOPEN:
-		return keyword.BRACKETOPEN
-	case runes.BRACKETCLOSE:
-		return keyword.BRACKETCLOSE
-	case runes.CURLYBRACKETOPEN:
-		return keyword.CURLYBRACKETOPEN
-	case runes.CURLYBRACKETCLOSE:
-		return keyword.CURLYBRACKETCLOSE
-	case runes.SQUAREBRACKETOPEN:
-		return keyword.SQUAREBRACKETOPEN
-	case runes.SQUAREBRACKETCLOSE:
-		return keyword.SQUAREBRACKETCLOSE
-	case runes.AND:
-		return keyword.AND
-	case runes.DOT:
-		if l.peekEquals(true, runes.DOT, runes.DOT, runes.DOT) {
-			return keyword.SPREAD
-		}
-		return keyword.DOT
-	}
-
-	if runeIsDigit(r) {
-		if l.peekIsFloat() {
-			return keyword.FLOAT
-		}
-		return keyword.INTEGER
-	}
-
-	return l.peekIdent()
-}
-
-func (l *Lexer) peekIsFloat() (isFloat bool) {
-
-	var hasDot bool
-	var peeked byte
-
-	start := l.inputPosition + l.peekWhitespaceLength()
-
-	for i := start; i < len(l.input); i++ {
-
-		peeked = l.input[i]
-
-		if l.byteTerminatesSequence(peeked) {
-			return hasDot
-		} else if peeked == runes.DOT && !hasDot {
-			hasDot = true
-		} else if peeked == runes.DOT && hasDot {
-			return false
-		} else if !runeIsDigit(peeked) {
-			return false
-		}
-	}
-
-	return hasDot
 }
 
 func (l *Lexer) matchSingleRuneToken(r byte, tok *token.Token) bool {
@@ -258,152 +71,45 @@ func (l *Lexer) matchSingleRuneToken(r byte, tok *token.Token) bool {
 		tok.Keyword = keyword.COLON
 	case runes.BANG:
 		tok.Keyword = keyword.BANG
-	case runes.BRACKETOPEN:
-		tok.Keyword = keyword.BRACKETOPEN
-	case runes.BRACKETCLOSE:
-		tok.Keyword = keyword.BRACKETCLOSE
-	case runes.CURLYBRACKETOPEN:
-		tok.Keyword = keyword.CURLYBRACKETOPEN
-	case runes.CURLYBRACKETCLOSE:
-		tok.Keyword = keyword.CURLYBRACKETCLOSE
-	case runes.SQUAREBRACKETOPEN:
-		tok.Keyword = keyword.SQUAREBRACKETOPEN
-	case runes.SQUAREBRACKETCLOSE:
-		tok.Keyword = keyword.SQUAREBRACKETCLOSE
+	case runes.LPAREN:
+		tok.Keyword = keyword.LPAREN
+	case runes.RPAREN:
+		tok.Keyword = keyword.RPAREN
+	case runes.LBRACE:
+		tok.Keyword = keyword.LBRACE
+	case runes.RBRACE:
+		tok.Keyword = keyword.RBRACE
+	case runes.LBRACK:
+		tok.Keyword = keyword.LBRACK
+	case runes.RBRACK:
+		tok.Keyword = keyword.RBRACK
 	case runes.AND:
 		tok.Keyword = keyword.AND
+	case runes.SUB:
+		tok.Keyword = keyword.SUB
+	case runes.DOLLAR:
+		tok.Keyword = keyword.DOLLAR
 	default:
 		return false
 	}
 
-	tok.SetEnd(l.inputPosition, l.textPosition)
+	tok.SetEnd(l.input.InputPosition, l.input.TextPosition)
 
 	return true
 }
 
 func (l *Lexer) readIdent() {
-
-	var r byte
-
 	for {
-		r = l.readRune()
-		if !runeIsIdent(r) {
-			if r != runes.EOF {
-				l.unreadRune()
+		if l.input.InputPosition < l.input.Length {
+			if !l.runeIsIdent(l.input.RawBytes[l.input.InputPosition]) {
+				return
 			}
+			l.input.TextPosition.CharStart++
+			l.input.InputPosition++
+		} else {
 			return
 		}
 	}
-}
-
-const identWantRunes = 13
-
-func (l *Lexer) peekIdent() (k keyword.Keyword) {
-
-	whitespaceOffset := l.peekWhitespaceLength()
-
-	start := l.inputPosition + whitespaceOffset
-	end := start + identWantRunes
-	if end > len(l.input) {
-		end = len(l.input)
-	}
-
-	for i := start; i < end; {
-		if !runeIsIdent(l.input[i]) {
-			end = i
-			break
-		}
-
-		i++
-	}
-
-	return l.keywordFromIdent(start, end)
-}
-
-func (l *Lexer) keywordFromIdent(start, end int) (k keyword.Keyword) {
-
-	switch end - start {
-	case 2:
-		if l.input[start] == 'o' && l.input[start+1] == 'n' {
-			return keyword.ON
-		}
-	case 4:
-		if l.input[start] == 'n' && l.input[start+1] == 'u' && l.input[start+2] == 'l' && l.input[start+3] == 'l' {
-			return keyword.NULL
-		}
-		if l.input[start] == 'e' && l.input[start+1] == 'n' && l.input[start+2] == 'u' && l.input[start+3] == 'm' {
-			return keyword.ENUM
-		}
-		if l.input[start] == 't' {
-			if l.input[start+1] == 'r' && l.input[start+2] == 'u' && l.input[start+3] == 'e' {
-				return keyword.TRUE
-			}
-			if l.input[start+1] == 'y' && l.input[start+2] == 'p' && l.input[start+3] == 'e' {
-				return keyword.TYPE
-			}
-		}
-	case 5:
-		if l.input[start] == 'f' && l.input[start+1] == 'a' && l.input[start+2] == 'l' && l.input[start+3] == 's' && l.input[start+4] == 'e' {
-			return keyword.FALSE
-		}
-		if l.input[start] == 'u' && l.input[start+1] == 'n' && l.input[start+2] == 'i' && l.input[start+3] == 'o' && l.input[start+4] == 'n' {
-			return keyword.UNION
-		}
-		if l.input[start] == 'q' && l.input[start+1] == 'u' && l.input[start+2] == 'e' && l.input[start+3] == 'r' && l.input[start+4] == 'y' {
-			return keyword.QUERY
-		}
-		if l.input[start] == 'i' && l.input[start+1] == 'n' && l.input[start+2] == 'p' && l.input[start+3] == 'u' && l.input[start+4] == 't' {
-			return keyword.INPUT
-		}
-	case 6:
-		if l.input[start] == 'e' && l.input[start+1] == 'x' && l.input[start+2] == 't' && l.input[start+3] == 'e' && l.input[start+4] == 'n' && l.input[start+5] == 'd' {
-			return keyword.EXTEND
-		}
-		if l.input[start] == 's' {
-			if l.input[start+1] == 'c' && l.input[start+2] == 'h' && l.input[start+3] == 'e' && l.input[start+4] == 'm' && l.input[start+5] == 'a' {
-				return keyword.SCHEMA
-			}
-			if l.input[start+1] == 'c' && l.input[start+2] == 'a' && l.input[start+3] == 'l' && l.input[start+4] == 'a' && l.input[start+5] == 'r' {
-				return keyword.SCALAR
-			}
-		}
-	case 8:
-		if l.input[start] == 'm' && l.input[start+1] == 'u' && l.input[start+2] == 't' && l.input[start+3] == 'a' && l.input[start+4] == 't' && l.input[start+5] == 'i' && l.input[start+6] == 'o' && l.input[start+7] == 'n' {
-			return keyword.MUTATION
-		}
-		if l.input[start] == 'f' && l.input[start+1] == 'r' && l.input[start+2] == 'a' && l.input[start+3] == 'g' && l.input[start+4] == 'm' && l.input[start+5] == 'e' && l.input[start+6] == 'n' && l.input[start+7] == 't' {
-			return keyword.FRAGMENT
-		}
-	case 9:
-		if l.input[start] == 'i' && l.input[start+1] == 'n' && l.input[start+2] == 't' && l.input[start+3] == 'e' && l.input[start+4] == 'r' && l.input[start+5] == 'f' && l.input[start+6] == 'a' && l.input[start+7] == 'c' && l.input[start+8] == 'e' {
-			return keyword.INTERFACE
-		}
-		if l.input[start] == 'd' && l.input[start+1] == 'i' && l.input[start+2] == 'r' && l.input[start+3] == 'e' && l.input[start+4] == 'c' && l.input[start+5] == 't' && l.input[start+6] == 'i' && l.input[start+7] == 'v' && l.input[start+8] == 'e' {
-			return keyword.DIRECTIVE
-		}
-	case 10:
-		if l.input[start] == 'i' && l.input[start+1] == 'm' && l.input[start+2] == 'p' && l.input[start+3] == 'l' && l.input[start+4] == 'e' && l.input[start+5] == 'm' && l.input[start+6] == 'e' && l.input[start+7] == 'n' && l.input[start+8] == 't' && l.input[start+9] == 's' {
-			return keyword.IMPLEMENTS
-		}
-	case 12:
-		if l.input[start] == 's' && l.input[start+1] == 'u' && l.input[start+2] == 'b' && l.input[start+3] == 's' && l.input[start+4] == 'c' && l.input[start+5] == 'r' && l.input[start+6] == 'i' && l.input[start+7] == 'p' && l.input[start+8] == 't' && l.input[start+9] == 'i' && l.input[start+10] == 'o' && l.input[start+11] == 'n' {
-			return keyword.SUBSCRIPTION
-		}
-	}
-
-	return keyword.IDENT
-}
-
-func (l *Lexer) readVariable(tok *token.Token) {
-
-	tok.SetStart(l.inputPosition, l.textPosition)
-
-	tok.Keyword = keyword.VARIABLE
-
-	l.readIdent()
-
-	tok.SetEnd(l.inputPosition, l.textPosition)
-	tok.TextPosition.CharStart -= 1
 }
 
 func (l *Lexer) readDotOrSpread(tok *token.Token) {
@@ -417,7 +123,7 @@ func (l *Lexer) readDotOrSpread(tok *token.Token) {
 		tok.Keyword = keyword.DOT
 	}
 
-	tok.SetEnd(l.inputPosition, l.textPosition)
+	tok.SetEnd(l.input.InputPosition, l.input.TextPosition)
 }
 
 func (l *Lexer) readComment(tok *token.Token) {
@@ -429,29 +135,24 @@ func (l *Lexer) readComment(tok *token.Token) {
 		switch next {
 		case runes.EOF:
 			return
-		case runes.LINETERMINATOR:
+		case runes.CARRIAGERETURN, runes.LINETERMINATOR:
 			if l.peekRune(true) != runes.HASHTAG {
 				return
 			}
 		default:
-			tok.SetEnd(l.inputPosition, l.textPosition)
+			tok.SetEnd(l.input.InputPosition, l.input.TextPosition)
 		}
 	}
 }
 
 func (l *Lexer) readString(tok *token.Token) {
 
-	tok.Keyword = keyword.STRING
-
-	isMultiLineString := l.peekEquals(false, runes.QUOTE, runes.QUOTE)
-
-	if isMultiLineString {
+	if l.peekEquals(false, runes.QUOTE, runes.QUOTE) {
 		l.swallowAmount(2)
-		l.readMultiLineString(tok)
-		return
+		l.readBlockString(tok)
+	} else {
+		l.readSingleLineString(tok)
 	}
-
-	l.readSingleLineString(tok)
 }
 
 func (l *Lexer) swallowAmount(amount int) {
@@ -467,15 +168,15 @@ func (l *Lexer) peekEquals(ignoreWhitespace bool, equals ...byte) bool {
 		whitespaceOffset = l.peekWhitespaceLength()
 	}
 
-	start := l.inputPosition + whitespaceOffset
-	end := l.inputPosition + len(equals) + whitespaceOffset
+	start := l.input.InputPosition + whitespaceOffset
+	end := l.input.InputPosition + len(equals) + whitespaceOffset
 
-	if end > len(l.input) {
+	if end > l.input.Length {
 		return false
 	}
 
 	for i := 0; i < len(equals); i++ {
-		if l.input[start+i] != equals[i] {
+		if l.input.RawBytes[start+i] != equals[i] {
 			return false
 		}
 	}
@@ -484,8 +185,8 @@ func (l *Lexer) peekEquals(ignoreWhitespace bool, equals ...byte) bool {
 }
 
 func (l *Lexer) peekWhitespaceLength() (amount int) {
-	for i := l.inputPosition; i < len(l.input); i++ {
-		if l.byteIsWhitespace(l.input[i]) {
+	for i := l.input.InputPosition; i < l.input.Length; i++ {
+		if l.byteIsWhitespace(l.input.RawBytes[i]) {
 			amount++
 		} else {
 			break
@@ -499,10 +200,11 @@ func (l *Lexer) readDigit(tok *token.Token) {
 
 	var r byte
 	for {
-		r = l.readRune()
+		r = l.peekRune(false)
 		if !runeIsDigit(r) {
 			break
 		}
+		l.readRune()
 	}
 
 	isFloat := r == runes.DOT
@@ -513,46 +215,38 @@ func (l *Lexer) readDigit(tok *token.Token) {
 		return
 	}
 
-	if r != runes.EOF {
-		l.unreadRune()
-	}
-
 	tok.Keyword = keyword.INTEGER
-	tok.SetEnd(l.inputPosition, l.textPosition)
+	tok.SetEnd(l.input.InputPosition, l.input.TextPosition)
 }
 
 func (l *Lexer) readFloat(tok *token.Token) {
 
 	var r byte
 	for {
-		r = l.readRune()
+		r = l.peekRune(false)
 		if !runeIsDigit(r) {
 			break
 		}
-	}
-
-	if r != runes.EOF {
-		l.unreadRune()
+		l.readRune()
 	}
 
 	tok.Keyword = keyword.FLOAT
-	tok.SetEnd(l.inputPosition, l.textPosition)
+	tok.SetEnd(l.input.InputPosition, l.input.TextPosition)
 }
 
 func (l *Lexer) readRune() (r byte) {
 
-	if l.inputPosition < len(l.input) {
-		r = l.input[l.inputPosition]
+	if l.input.InputPosition < l.input.Length {
+		r = l.input.RawBytes[l.input.InputPosition]
 
 		if r == runes.LINETERMINATOR {
-			l.beforeLastLineTerminatorTextPosition = l.textPosition
-			l.textPosition.LineStart++
-			l.textPosition.CharStart = 1
+			l.input.TextPosition.LineStart++
+			l.input.TextPosition.CharStart = 1
 		} else {
-			l.textPosition.CharStart++
+			l.input.TextPosition.CharStart++
 		}
 
-		l.inputPosition++
+		l.input.InputPosition++
 	} else {
 		r = runes.EOF
 	}
@@ -560,22 +254,10 @@ func (l *Lexer) readRune() (r byte) {
 	return
 }
 
-func (l *Lexer) unreadRune() {
-
-	l.inputPosition--
-
-	r := rune(l.input[l.inputPosition])
-	if r == runes.LINETERMINATOR {
-		l.textPosition = l.beforeLastLineTerminatorTextPosition
-	} else {
-		l.textPosition.CharStart--
-	}
-}
-
 func (l *Lexer) peekRune(ignoreWhitespace bool) (r byte) {
 
-	for i := l.inputPosition; i < len(l.input); i++ {
-		r = l.input[i]
+	for i := l.input.InputPosition; i < l.input.Length; i++ {
+		r = l.input.RawBytes[i]
 		if !ignoreWhitespace {
 			return r
 		} else if !l.byteIsWhitespace(r) {
@@ -586,7 +268,7 @@ func (l *Lexer) peekRune(ignoreWhitespace bool) (r byte) {
 	return runes.EOF
 }
 
-func runeIsIdent(r byte) bool {
+func (l *Lexer) runeIsIdent(r byte) bool {
 
 	switch {
 	case r >= 'a' && r <= 'z':
@@ -595,7 +277,7 @@ func runeIsIdent(r byte) bool {
 		return true
 	case r >= '0' && r <= '9':
 		return true
-	case r == runes.NEGATIVESIGN:
+	case r == runes.SUB:
 		return true
 	case r == runes.UNDERSCORE:
 		return true
@@ -615,118 +297,106 @@ func runeIsDigit(r byte) bool {
 
 func (l *Lexer) byteIsWhitespace(r byte) bool {
 	switch r {
-	case runes.SPACE, runes.TAB, runes.LINETERMINATOR, runes.COMMA:
+	case runes.SPACE, runes.TAB, runes.CARRIAGERETURN, runes.LINETERMINATOR, runes.COMMA:
 		return true
 	default:
 		return false
 	}
 }
 
-func (l *Lexer) byteTerminatesSequence(r byte) bool {
-	switch r {
-	case runes.SPACE,
-		runes.TAB,
-		runes.LINETERMINATOR,
-		runes.COMMA,
-		runes.BRACKETOPEN,
-		runes.BRACKETCLOSE,
-		runes.CURLYBRACKETOPEN,
-		runes.CURLYBRACKETCLOSE,
-		runes.SQUAREBRACKETOPEN,
-		runes.SQUAREBRACKETCLOSE,
-		runes.AND,
-		runes.AT,
-		runes.BANG,
-		runes.COLON,
-		runes.DOLLAR,
-		runes.EQUALS,
-		runes.HASHTAG,
-		runes.NEGATIVESIGN,
-		runes.PIPE,
-		runes.QUOTE,
-		runes.SLASH:
-		return true
-	default:
-		return false
-	}
-}
+func (l *Lexer) readBlockString(tok *token.Token) {
+	tok.Keyword = keyword.BLOCKSTRING
 
-func (l *Lexer) readMultiLineString(tok *token.Token) {
+	tok.SetStart(l.input.InputPosition, l.input.TextPosition)
+	tok.TextPosition.CharStart -= 3
 
-	tok.SetStart(l.inputPosition, l.textPosition)
-
-	var escaped bool
+	escaped := false
+	quoteCount := 0
+	whitespaceCount := 0
+	reachedFirstNonWhitespace := false
+	leadingWhitespaceToken := 0
 
 	for {
-
-		nextRune := l.peekRune(false)
-
-		switch nextRune {
-		case runes.QUOTE, runes.EOF:
+		next := l.readRune()
+		switch next {
+		case runes.SPACE, runes.TAB, runes.CARRIAGERETURN, runes.LINETERMINATOR:
+			quoteCount = 0
+			whitespaceCount++
+		case runes.EOF:
+			return
+		case runes.QUOTE:
 			if escaped {
-				escaped = false
-				l.readRune()
-			} else {
-
-				isMultiLineStringEnd := l.peekEquals(false, runes.QUOTE, runes.QUOTE, runes.QUOTE)
-
-				if !isMultiLineStringEnd {
-					escaped = false
-					l.readRune()
-				} else {
-					tok.SetEnd(l.inputPosition, l.textPosition)
-					tok.TextPosition.CharStart -= 3
-					tok.TextPosition.CharEnd += 3
-					l.swallowAmount(3)
-					return
-				}
+				escaped = !escaped
+				continue
 			}
+
+			quoteCount++
+
+			if quoteCount == 3 {
+				tok.SetEnd(l.input.InputPosition-3, l.input.TextPosition)
+				tok.Literal.Start += uint32(leadingWhitespaceToken)
+				tok.Literal.End -= uint32(whitespaceCount)
+				return
+			}
+
 		case runes.BACKSLASH:
-			l.readRune()
-			if escaped {
-				escaped = false
-			} else {
-				escaped = true
-			}
+			escaped = !escaped
+			quoteCount = 0
+			whitespaceCount = 0
 		default:
-			l.readRune()
+			if !reachedFirstNonWhitespace {
+				reachedFirstNonWhitespace = true
+				leadingWhitespaceToken = whitespaceCount
+			}
 			escaped = false
+			quoteCount = 0
+			whitespaceCount = 0
 		}
 	}
 }
 
 func (l *Lexer) readSingleLineString(tok *token.Token) {
 
-	tok.SetStart(l.inputPosition, l.textPosition)
+	tok.Keyword = keyword.STRING
 
-	var escaped bool
+	tok.SetStart(l.input.InputPosition, l.input.TextPosition)
+	tok.TextPosition.CharStart -= 1
+
+	escaped := false
+	whitespaceCount := 0
+	reachedFirstNonWhitespace := false
+	leadingWhitespaceToken := 0
 
 	for {
-
-		nextRune := l.peekRune(false)
-
-		switch nextRune {
-		case runes.QUOTE, runes.EOF:
+		next := l.readRune()
+		switch next {
+		case runes.SPACE, runes.TAB:
+			whitespaceCount++
+		case runes.EOF:
+			tok.SetEnd(l.input.InputPosition, l.input.TextPosition)
+			tok.Literal.Start += uint32(leadingWhitespaceToken)
+			tok.Literal.End -= uint32(whitespaceCount)
+			return
+		case runes.QUOTE, runes.CARRIAGERETURN, runes.LINETERMINATOR:
 			if escaped {
-				escaped = false
-				l.readRune()
-			} else {
-				tok.SetEnd(l.inputPosition, l.textPosition)
-				tok.TextPosition.CharStart -= 1
-				tok.TextPosition.CharEnd += 1
-				l.swallowAmount(1)
-				return
+				escaped = !escaped
+				continue
 			}
+
+			tok.SetEnd(l.input.InputPosition-1, l.input.TextPosition)
+			tok.Literal.Start += uint32(leadingWhitespaceToken)
+			tok.Literal.End -= uint32(whitespaceCount)
+			return
 		case runes.BACKSLASH:
-			l.readRune()
-			if escaped {
-				escaped = false
-			} else {
-				escaped = true
-			}
+			escaped = !escaped
+			whitespaceCount = 0
 		default:
-			l.readRune()
+			if !reachedFirstNonWhitespace {
+				reachedFirstNonWhitespace = true
+				leadingWhitespaceToken = whitespaceCount
+			}
 			escaped = false
+			whitespaceCount = 0
 		}
 	}
 }
