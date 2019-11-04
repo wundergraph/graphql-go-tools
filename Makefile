@@ -1,4 +1,4 @@
-GOLANG_CI_VERSION = "v1.16.0"
+GOLANG_CI_VERSION = "v1.21.0"
 HAS_GOLANG_CI_LINT := $(shell command -v golangci-lint;)
 
 .PHONY: test
