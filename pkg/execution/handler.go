@@ -113,7 +113,7 @@ func (h *Handler) resolverDefinitions(report *operationreport.Report) ResolverDe
 		resolvers:  &definitions,
 		dataSourcePlannerFactories: []func() DataSourcePlanner{
 			func() DataSourcePlanner {
-				return &GraphQLDataSourcePlanner{}
+				return NewGraphQLDataSourcePlanner(h.log)
 			},
 			func() DataSourcePlanner {
 				return NewHttpJsonDataSourcePlanner(h.log)

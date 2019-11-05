@@ -8,7 +8,6 @@ import (
 	"go.uber.org/zap"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"strings"
 	"text/template"
@@ -102,7 +101,12 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 	hostArg := args.ByKey(literal.HOST)
 	urlArg := args.ByKey(literal.URL)
 
+	r.log.Debug("HttpJsonDataSource.Resolve.args",
+		zap.Strings("resolvedArgs", args.Dump()),
+	)
+
 	if hostArg == nil || urlArg == nil {
+		r.log.Error("HttpJsonDataSource.args invalid")
 		return
 	}
 
@@ -114,7 +118,10 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 	if strings.Contains(url, "{{") {
 		tmpl, err := template.New("url").Parse(url)
 		if err != nil {
-			log.Fatal(err)
+			r.log.Error("HttpJsonDataSource.template.New",
+				zap.Error(err),
+			)
+			return
 		}
 		out := bytes.Buffer{}
 		data := make(map[string]string, len(args))
@@ -123,7 +130,10 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 		}
 		err = tmpl.Execute(&out, data)
 		if err != nil {
-			log.Fatal(err)
+			r.log.Error("HttpJsonDataSource.tmpl.Execute",
+				zap.Error(err),
+			)
+			return
 		}
 		url = out.String()
 	}
@@ -142,7 +152,7 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 
 	request, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
-		r.log.Error("HttpJsonDataSource.Resolve",
+		r.log.Error("HttpJsonDataSource.Resolve.NewRequest",
 			zap.Error(err),
 		)
 		return
@@ -152,15 +162,24 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 
 	res, err := client.Do(request)
 	if err != nil {
+		r.log.Error("HttpJsonDataSource.Resolve.client.Do",
+			zap.Error(err),
+		)
 		return
 	}
 
 	data, err := ioutil.ReadAll(res.Body)
 	if err != nil {
-		r.log.Error("HttpJsonDataSource.Resolve",
+		r.log.Error("HttpJsonDataSource.Resolve.ioutil.ReadAll",
 			zap.Error(err),
 		)
 		return
 	}
-	out.Write(data)
+	_, err = out.Write(data)
+	if err != nil {
+		r.log.Error("HttpJsonDataSource.Resolve.out.Write",
+			zap.Error(err),
+		)
+		return
+	}
 }

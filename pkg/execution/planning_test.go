@@ -98,12 +98,12 @@ func TestPlanner_Plan(t *testing.T) {
 								},
 								DataSource: &GraphQLDataSource{},
 							},
-							BufferName: "query.country",
+							BufferName: "country",
 						},
 						Fields: []Field{
 							{
-								Name:       []byte("country"),
-								BufferName: "query.country",
+								Name:        []byte("country"),
+								HasResolver: true,
 								Value: &Object{
 									Path: []string{"country"},
 									Fields: []Field{
@@ -197,7 +197,7 @@ func TestPlanner_Plan(t *testing.T) {
 											},
 										},
 									},
-									BufferName: "query.httpBinGet",
+									BufferName: "httpBinGet",
 								},
 								&SingleFetch{
 									Source: &DataSourceInvocation{
@@ -217,14 +217,14 @@ func TestPlanner_Plan(t *testing.T) {
 										},
 										DataSource: &HttpJsonDataSource{},
 									},
-									BufferName: "query.post",
+									BufferName: "post",
 								},
 							},
 						},
 						Fields: []Field{
 							{
-								Name:       []byte("httpBinGet"),
-								BufferName: "query.httpBinGet",
+								Name:        []byte("httpBinGet"),
+								HasResolver: true,
 								Value: &Object{
 									Fields: []Field{
 										{
@@ -260,8 +260,8 @@ func TestPlanner_Plan(t *testing.T) {
 								},
 							},
 							{
-								Name:       []byte("post"),
-								BufferName: "query.post",
+								Name:        []byte("post"),
+								HasResolver: true,
 								Value: &Object{
 									Fetch: &SingleFetch{
 										Source: &DataSourceInvocation{
@@ -281,7 +281,7 @@ func TestPlanner_Plan(t *testing.T) {
 											},
 											DataSource: &HttpJsonDataSource{},
 										},
-										BufferName: "query.post.comments",
+										BufferName: "comments",
 									},
 									Fields: []Field{
 										{
@@ -292,8 +292,8 @@ func TestPlanner_Plan(t *testing.T) {
 											},
 										},
 										{
-											Name:       []byte("comments"),
-											BufferName: "query.post.comments",
+											Name:        []byte("comments"),
+											HasResolver: true,
 											Value: &List{
 												Value: &Object{
 													Fields: []Field{
@@ -364,7 +364,7 @@ func TestPlanner_Plan(t *testing.T) {
 										},
 										DataSource: &StaticDataSource{},
 									},
-									BufferName: "query.hello",
+									BufferName: "hello",
 								},
 								&SingleFetch{
 									Source: &DataSourceInvocation{
@@ -375,7 +375,7 @@ func TestPlanner_Plan(t *testing.T) {
 										},
 										DataSource: &StaticDataSource{},
 									},
-									BufferName: "query.nullableInt",
+									BufferName: "nullableInt",
 								},
 								&SingleFetch{
 									Source: &DataSourceInvocation{
@@ -386,28 +386,28 @@ func TestPlanner_Plan(t *testing.T) {
 										},
 										DataSource: &StaticDataSource{},
 									},
-									BufferName: "query.foo",
+									BufferName: "foo",
 								},
 							},
 						},
 						Fields: []Field{
 							{
-								Name:       []byte("hello"),
-								BufferName: "query.hello",
+								Name:        []byte("hello"),
+								HasResolver: true,
 								Value: &Value{
 									QuoteValue: true,
 								},
 							},
 							{
-								Name:       []byte("nullableInt"),
-								BufferName: "query.nullableInt",
+								Name:        []byte("nullableInt"),
+								HasResolver: true,
 								Value: &Value{
 									QuoteValue: false,
 								},
 							},
 							{
-								Name:       []byte("foo"),
-								BufferName: "query.foo",
+								Name:        []byte("foo"),
+								HasResolver: true,
 								Value: &Object{
 									Fields: []Field{
 										{
@@ -461,12 +461,12 @@ func TestPlanner_Plan(t *testing.T) {
 							},
 							DataSource: &TypeDataSource{},
 						},
-						BufferName: "query.__type",
+						BufferName: "__type",
 					},
 					Fields: []Field{
 						{
-							Name:       []byte("__type"),
-							BufferName: "query.__type",
+							Name:        []byte("__type"),
+							HasResolver: true,
 							Value: &Object{
 								Path: []string{"__type"},
 								Fields: []Field{
@@ -561,12 +561,12 @@ func TestPlanner_Plan(t *testing.T) {
 								},
 								DataSource: &GraphQLDataSource{},
 							},
-							BufferName: "query.user",
+							BufferName: "user",
 						},
 						Fields: []Field{
 							{
-								Name:       []byte("user"),
-								BufferName: "query.user",
+								Name:        []byte("user"),
+								HasResolver: true,
 								Value: &Object{
 									Path: []string{"user"},
 									Fields: []Field{
@@ -639,12 +639,12 @@ func TestPlanner_Plan(t *testing.T) {
 								},
 								DataSource: &HttpJsonDataSource{},
 							},
-							BufferName: "query.restUser",
+							BufferName: "restUser",
 						},
 						Fields: []Field{
 							{
-								Name:       []byte("restUser"),
-								BufferName: "query.restUser",
+								Name:        []byte("restUser"),
+								HasResolver: true,
 								Value: &Object{
 									Fields: []Field{
 										{
@@ -733,12 +733,12 @@ func TestPlanner_Plan(t *testing.T) {
 								},
 								DataSource: &GraphQLDataSource{},
 							},
-							BufferName: "query.user",
+							BufferName: "user",
 						},
 						Fields: []Field{
 							{
-								Name:       []byte("user"),
-								BufferName: "query.user",
+								Name:        []byte("user"),
+								HasResolver: true,
 								Value: &Object{
 									Path: []string{"user"},
 									Fetch: &SingleFetch{
@@ -759,7 +759,7 @@ func TestPlanner_Plan(t *testing.T) {
 											},
 											DataSource: &HttpJsonDataSource{},
 										},
-										BufferName: "query.user.friends",
+										BufferName: "friends",
 									},
 									Fields: []Field{
 										{
@@ -784,8 +784,8 @@ func TestPlanner_Plan(t *testing.T) {
 											},
 										},
 										{
-											Name:       []byte("friends"),
-											BufferName: "query.user.friends",
+											Name:        []byte("friends"),
+											HasResolver: true,
 											Value: &List{
 												Value: &Object{
 													Fields: []Field{
@@ -909,12 +909,12 @@ func TestPlanner_Plan(t *testing.T) {
 								},
 								DataSource: &GraphQLDataSource{},
 							},
-							BufferName: "query.user",
+							BufferName: "user",
 						},
 						Fields: []Field{
 							{
-								Name:       []byte("user"),
-								BufferName: "query.user",
+								Name:        []byte("user"),
+								HasResolver: true,
 								Value: &Object{
 									Path: []string{"user"},
 									Fetch: &ParallelFetch{
@@ -937,7 +937,7 @@ func TestPlanner_Plan(t *testing.T) {
 													},
 													DataSource: &HttpJsonDataSource{},
 												},
-												BufferName: "query.user.friends",
+												BufferName: "friends",
 											},
 											&SingleFetch{
 												Source: &DataSourceInvocation{
@@ -961,7 +961,7 @@ func TestPlanner_Plan(t *testing.T) {
 													},
 													DataSource: &GraphQLDataSource{},
 												},
-												BufferName: "query.user.pets",
+												BufferName: "pets",
 											},
 										},
 									},
@@ -981,8 +981,8 @@ func TestPlanner_Plan(t *testing.T) {
 											},
 										},
 										{
-											Name:       []byte("friends"),
-											BufferName: "query.user.friends",
+											Name:        []byte("friends"),
+											HasResolver: true,
 											Value: &List{
 												Value: &Object{
 													Fetch: &SingleFetch{
@@ -1007,7 +1007,7 @@ func TestPlanner_Plan(t *testing.T) {
 															},
 															DataSource: &GraphQLDataSource{},
 														},
-														BufferName: "query.user.friends.pets",
+														BufferName: "pets",
 													},
 													Fields: []Field{
 														{
@@ -1032,8 +1032,8 @@ func TestPlanner_Plan(t *testing.T) {
 															},
 														},
 														{
-															Name:       []byte("pets"),
-															BufferName: "query.user.friends.pets",
+															Name:        []byte("pets"),
+															HasResolver: true,
 															Value: &List{
 																Path: []string{"userPets"},
 																Value: &Object{
@@ -1121,8 +1121,8 @@ func TestPlanner_Plan(t *testing.T) {
 											},
 										},
 										{
-											Name:       []byte("pets"),
-											BufferName: "query.user.pets",
+											Name:        []byte("pets"),
+											HasResolver: true,
 											Value: &List{
 												Path: []string{"userPets"},
 												Value: &Object{
@@ -1338,12 +1338,12 @@ func TestPlanner_Plan(t *testing.T) {
 							Source: &DataSourceInvocation{
 								DataSource: &SchemaDataSource{},
 							},
-							BufferName: "query.__schema",
+							BufferName: "__schema",
 						},
 						Fields: []Field{
 							{
-								Name:       []byte("__schema"),
-								BufferName: "query.__schema",
+								Name:        []byte("__schema"),
+								HasResolver: true,
 								Value: &Object{
 									Path: []string{"__schema"},
 									Fields: []Field{

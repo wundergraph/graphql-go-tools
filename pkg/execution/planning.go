@@ -268,17 +268,14 @@ func (p *planningVisitor) LeaveField(ref int) {
 					for i := 0; i < len(parent.Fields); i++ {
 						if bytes.Equal(p.operation.FieldObjectNameBytes(ref), parent.Fields[i].Name) {
 
-							// define destination buffer (pointer)
-
 							pathName := p.operation.FieldObjectNameString(ref)
-							parent.Fields[i].BufferName = pathName
+							parent.Fields[i].HasResolver = true
 
 							singleFetch := &SingleFetch{
 								Source: &DataSourceInvocation{
 									Args:       plannedArgs,
 									DataSource: plannedDataSource,
 								},
-								// set destination buffer pointer to fetch
 								BufferName: pathName,
 							}
 

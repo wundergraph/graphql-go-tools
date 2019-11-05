@@ -61,9 +61,30 @@ func TestExecution(t *testing.T) {
 		}
 	}))
 
+	REST2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		//dumpRequest(t, r, "rest1")
+
+		var data []byte
+
+		switch r.RequestURI {
+		case "/friends/3/pets":
+			data = ahmetsPets
+		case "/friends/2/pets":
+			data = yaarasPets
+		default:
+			panic("invalid request")
+		}
+
+		_, err := w.Write(data)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}))
+
 	defer graphQL1.Close()
 	defer graphQL2.Close()
 	defer REST1.Close()
+	defer REST2.Close()
 
 	object := &Object{
 		Fields: []Field{
@@ -104,7 +125,9 @@ func TestExecution(t *testing.T) {
 											VariableName: []byte("id"),
 										},
 									},
-									DataSource: &GraphQLDataSource{},
+									DataSource: &GraphQLDataSource{
+										log: zap.NewNop(),
+									},
 								},
 								BufferName: "user",
 							},
@@ -112,8 +135,8 @@ func TestExecution(t *testing.T) {
 					},
 					Fields: []Field{
 						{
-							Name:       []byte("__type"),
-							BufferName: "query.__type",
+							Name:        []byte("__type"),
+							HasResolver: true,
 							Value: &Object{
 								Path: []string{"__type"},
 								Fields: []Field{
@@ -160,8 +183,8 @@ func TestExecution(t *testing.T) {
 							},
 						},
 						{
-							Name:       []byte("user"),
-							BufferName: "query.user",
+							Name:        []byte("user"),
+							HasResolver: true,
 							Value: &Object{
 								Path: []string{"user"},
 								Fetch: &ParallelFetch{
@@ -208,7 +231,9 @@ func TestExecution(t *testing.T) {
 														Path: []string{"id"},
 													},
 												},
-												DataSource: &GraphQLDataSource{},
+												DataSource: &GraphQLDataSource{
+													log: zap.NewNop(),
+												},
 											},
 											BufferName: "pets",
 										},
@@ -236,10 +261,32 @@ func TestExecution(t *testing.T) {
 										},
 									},
 									{
-										Name:       []byte("friends"),
-										BufferName: "query.user.friends",
+										Name:        []byte("friends"),
+										HasResolver: true,
 										Value: &List{
 											Value: &Object{
+												Fetch: &SingleFetch{
+													Source: &DataSourceInvocation{
+														Args: []Argument{
+															&StaticVariableArgument{
+																Name:  literal.HOST,
+																Value: []byte(REST2.URL),
+															},
+															&StaticVariableArgument{
+																Name:  literal.URL,
+																Value: []byte("/friends/{{ .id }}/pets"),
+															},
+															&ObjectVariableArgument{
+																Name: []byte("id"),
+																Path: []string{"id"},
+															},
+														},
+														DataSource: &HttpJsonDataSource{
+															log: zap.NewNop(),
+														},
+													},
+													BufferName: "pets",
+												},
 												Fields: []Field{
 													{
 														Name: []byte("id"),
@@ -262,13 +309,74 @@ func TestExecution(t *testing.T) {
 															QuoteValue: true,
 														},
 													},
+													{
+														Name:        []byte("pets"),
+														HasResolver: true,
+														Value: &List{
+															Value: &Object{
+																Fields: []Field{
+																	{
+																		Name: []byte("__typename"),
+																		Value: &Value{
+																			Path:       []string{"__typename"},
+																			QuoteValue: true,
+																		},
+																	},
+																	{
+																		Name: []byte("name"),
+																		Value: &Value{
+																			Path:       []string{"name"},
+																			QuoteValue: true,
+																		},
+																	},
+																	{
+																		Name: []byte("nickname"),
+																		Value: &Value{
+																			Path:       []string{"nickname"},
+																			QuoteValue: true,
+																		},
+																	},
+																	{
+																		Name: []byte("woof"),
+																		Value: &Value{
+																			Path:       []string{"woof"},
+																			QuoteValue: true,
+																		},
+																		Skip: &IfNotEqual{
+																			Left: &ObjectVariableArgument{
+																				Path: []string{"__typename"},
+																			},
+																			Right: &StaticVariableArgument{
+																				Value: []byte("Dog"),
+																			},
+																		},
+																	},
+																	{
+																		Name: []byte("meow"),
+																		Value: &Value{
+																			Path:       []string{"meow"},
+																			QuoteValue: true,
+																		},
+																		Skip: &IfNotEqual{
+																			Left: &ObjectVariableArgument{
+																				Path: []string{"__typename"},
+																			},
+																			Right: &StaticVariableArgument{
+																				Value: []byte("Cat"),
+																			},
+																		},
+																	},
+																},
+															},
+														},
+													},
 												},
 											},
 										},
 									},
 									{
-										Name:       []byte("pets"),
-										BufferName: "query.user.pets",
+										Name:        []byte("pets"),
+										HasResolver: true,
 										Value: &List{
 											Path: []string{"userPets"},
 											Value: &Object{
@@ -411,6 +519,7 @@ type FakeDataSource struct {
 }
 
 func (f FakeDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) {
+	out.Write(f.data)
 	return
 }
 
@@ -431,7 +540,7 @@ func genField() Field {
 							},
 							DataSource: &TypeDataSource{},
 						},
-						BufferName: "query.__type",
+						BufferName: "__type",
 					},
 					&SingleFetch{
 						Source: &DataSourceInvocation{
@@ -457,14 +566,14 @@ func genField() Field {
 								data: userData,
 							},
 						},
-						BufferName: "query.user",
+						BufferName: "user",
 					},
 				},
 			},
 			Fields: []Field{
 				{
-					Name:       []byte("__type"),
-					BufferName: "query.__type",
+					Name:        []byte("__type"),
+					HasResolver: true,
 					Value: &Object{
 						Path: []string{"__type"},
 						Fields: []Field{
@@ -508,8 +617,8 @@ func genField() Field {
 					},
 				},
 				{
-					Name:       []byte("user"),
-					BufferName: "query.user",
+					Name:        []byte("user"),
+					HasResolver: true,
 					Value: &Object{
 						Fetch: &ParallelFetch{
 							Fetches: []Fetch{
@@ -529,7 +638,7 @@ func genField() Field {
 											friendsData,
 										},
 									},
-									BufferName: "query.user.friends",
+									BufferName: "friends",
 								},
 								&SingleFetch{
 									Source: &DataSourceInvocation{
@@ -555,7 +664,7 @@ func genField() Field {
 											data: petsData,
 										},
 									},
-									BufferName: "query.user.pets",
+									BufferName: "pets",
 								},
 							},
 						},
@@ -581,8 +690,8 @@ func genField() Field {
 								},
 							},
 							{
-								Name:       []byte("friends"),
-								BufferName: "query.user.friends",
+								Name:        []byte("friends"),
+								HasResolver: true,
 								Value: &List{
 									Value: &Object{
 										Fields: []Field{
@@ -610,8 +719,8 @@ func genField() Field {
 								},
 							},
 							{
-								Name:       []byte("pets"),
-								BufferName: "query.user.pets",
+								Name:        []byte("pets"),
+								HasResolver: true,
 								Value: &List{
 									Path: []string{"data", "userPets"},
 									Value: &Object{
@@ -698,6 +807,24 @@ var friendsData = []byte(`[
       "name":"Ahmet",
       "birthday":"1980"
    }]`)
+
+var yaarasPets = []byte(`[
+{
+	"__typename":"Dog",
+	"name":"Woof",
+	"nickname":"Woofie",
+	"woof":"Woof! Woof!"
+ }
+]`)
+
+var ahmetsPets = []byte(`[
+{
+	"__typename":"Cat",
+	"name":"KitCat",
+	"nickname":"Kitty",
+	"meow":"Meow meow!"
+ }
+]`)
 
 var petsData = []byte(`{
    "data":{

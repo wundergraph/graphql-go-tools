@@ -7,12 +7,28 @@
         {
           "birthday": "1990 I guess? ;-)",
           "id": 2,
-          "name": "Yaara"
+          "name": "Yaara",
+          "pets": [
+            {
+              "__typename": "Dog",
+              "name": "Woof",
+              "nickname": "Woofie",
+              "woof": "Woof! Woof!"
+            }
+          ]
         },
         {
           "birthday": "1980",
           "id": 3,
-          "name": "Ahmet"
+          "name": "Ahmet",
+          "pets": [
+            {
+              "__typename": "Cat",
+              "meow": "Meow meow!",
+              "name": "KitCat",
+              "nickname": "Kitty"
+            }
+          ]
         }
       ],
       "id": 1,
