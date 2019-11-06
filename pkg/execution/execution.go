@@ -2,9 +2,11 @@ package execution
 
 import (
 	"bytes"
+	"context"
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash"
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
+	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"io"
 	"strconv"
@@ -12,10 +14,12 @@ import (
 )
 
 type Executor struct {
-	context Context
-	out     io.Writer
-	err     error
-	buffers LockableBufferMap
+	context      Context
+	out          io.Writer
+	err          error
+	buffers      LockableBufferMap
+	instruction  Instruction
+	streamBuffer bytes.Buffer
 }
 
 type LockableBufferMap struct {
@@ -34,16 +38,28 @@ func NewExecutor() *Executor {
 type Instruction int
 
 const (
-	KeepStream Instruction = iota + 1
+	KeepStreamAlive Instruction = iota + 1
 	CloseConnection
 )
 
-func (e *Executor) Execute(ctx Context, node Node, w io.Writer) (instruction Instruction, err error) {
+func (e *Executor) Execute(ctx Context, node RootNode, w io.Writer) (instruction Instruction, err error) {
 	e.context = ctx
 	e.out = w
 	e.err = nil
-	e.resolveNode(node, nil, "query", nil, true)
-	return instruction, e.err
+	var path string
+	switch node.OperationType() {
+	case ast.OperationTypeQuery:
+		path = "query"
+		e.instruction = CloseConnection
+	case ast.OperationTypeMutation:
+		path = "mutation"
+		e.instruction = CloseConnection
+	case ast.OperationTypeSubscription:
+		path = "subscription"
+		e.instruction = KeepStreamAlive
+	}
+	e.resolveNode(node, nil, path, nil, true)
+	return e.instruction, e.err
 }
 
 func (e *Executor) write(data []byte) {
@@ -56,12 +72,13 @@ func (e *Executor) write(data []byte) {
 func (e *Executor) resolveNode(node Node, data []byte, path string, prefetch *sync.WaitGroup, shouldFetch bool) {
 	switch node := node.(type) {
 	case *Stream:
-		for {
-			buf := bytes.Buffer{}
-			node.SourceInvocation.DataSource.Resolve(e.context, e.ResolveArgs(node.SourceInvocation.Args, data, ""), &buf)
-			data = buf.Bytes()
-			e.resolveNode(node.Value, data, path, nil, true)
+		e.streamBuffer.Reset()
+		e.instruction = node.SourceInvocation.DataSource.Resolve(e.context, e.ResolveArgs(node.SourceInvocation.Args, data, ""), &e.streamBuffer)
+		if e.instruction == CloseConnection {
+			return
 		}
+		data = e.streamBuffer.Bytes()
+		e.resolveNode(node.Value, data, path, nil, true)
 	case *Object:
 
 		if data != nil && node.Path != nil {
@@ -238,7 +255,13 @@ type Node interface {
 	HasResolvers() bool
 }
 
+type RootNode interface {
+	Node
+	OperationType() ast.OperationType
+}
+
 type Context struct {
+	context.Context
 	Variables Variables
 }
 
@@ -300,9 +323,14 @@ func (s *StaticVariableArgument) ArgName() []byte {
 }
 
 type Object struct {
-	Fields []Field
-	Path   []string
-	Fetch  Fetch
+	Fields        []Field
+	Path          []string
+	Fetch         Fetch
+	operationType ast.OperationType
+}
+
+func (o *Object) OperationType() ast.OperationType {
+	return o.operationType
 }
 
 type ArgsResolver interface {
@@ -374,6 +402,11 @@ func (*Object) Kind() NodeKind {
 type Stream struct {
 	SourceInvocation *DataSourceInvocation
 	Value            Node
+	operationType    ast.OperationType
+}
+
+func (s *Stream) OperationType() ast.OperationType {
+	return s.operationType
 }
 
 func (s *Stream) Kind() NodeKind {

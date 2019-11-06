@@ -66,7 +66,7 @@ func (h *HttpJsonDataSourcePlanner) LeaveField(ref int) {
 	if !exists {
 		return
 	}
-	directive, exists := h.definition.FieldDefinitionDirectiveByName(definition, []byte("HttpJsonDataSource"))
+	directive, exists := h.definition.FieldDefinitionDirectiveByName(definition, h.DirectiveName())
 	if !exists {
 		return
 	}
@@ -96,7 +96,7 @@ type HttpJsonDataSource struct {
 	log *zap.Logger
 }
 
-func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) {
+func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) Instruction {
 
 	hostArg := args.ByKey(literal.HOST)
 	urlArg := args.ByKey(literal.URL)
@@ -107,7 +107,7 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 
 	if hostArg == nil || urlArg == nil {
 		r.log.Error("HttpJsonDataSource.args invalid")
-		return
+		return CloseConnection
 	}
 
 	url := string(hostArg) + string(urlArg)
@@ -121,7 +121,7 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 			r.log.Error("HttpJsonDataSource.template.New",
 				zap.Error(err),
 			)
-			return
+			return CloseConnection
 		}
 		out := bytes.Buffer{}
 		data := make(map[string]string, len(args))
@@ -133,7 +133,7 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 			r.log.Error("HttpJsonDataSource.tmpl.Execute",
 				zap.Error(err),
 			)
-			return
+			return CloseConnection
 		}
 		url = out.String()
 	}
@@ -155,7 +155,7 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 		r.log.Error("HttpJsonDataSource.Resolve.NewRequest",
 			zap.Error(err),
 		)
-		return
+		return CloseConnection
 	}
 
 	request.Header.Add("Accept", "application/json")
@@ -165,7 +165,7 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 		r.log.Error("HttpJsonDataSource.Resolve.client.Do",
 			zap.Error(err),
 		)
-		return
+		return CloseConnection
 	}
 
 	data, err := ioutil.ReadAll(res.Body)
@@ -173,13 +173,14 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 		r.log.Error("HttpJsonDataSource.Resolve.ioutil.ReadAll",
 			zap.Error(err),
 		)
-		return
+		return CloseConnection
 	}
 	_, err = out.Write(data)
 	if err != nil {
 		r.log.Error("HttpJsonDataSource.Resolve.out.Write",
 			zap.Error(err),
 		)
-		return
+		return CloseConnection
 	}
+	return CloseConnection
 }

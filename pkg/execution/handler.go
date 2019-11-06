@@ -40,17 +40,18 @@ type GraphqlRequest struct {
 	Query         string                     `json:"query"`
 }
 
-func (h *Handler) Handle(requestBody io.Reader, responseWriter io.Writer) (instruction Instruction, err error) {
+func (h *Handler) Handle(requestBody io.Reader) (executor *Executor, node RootNode, ctx Context, err error) {
 
 	var graphqlRequest GraphqlRequest
 	err = json.NewDecoder(requestBody).Decode(&graphqlRequest)
 	if err != nil {
-		return instruction, err
+		return
 	}
 
 	operationDocument, report := astparser.ParseGraphqlDocumentString(graphqlRequest.Query)
 	if report.HasErrors() {
-		return instruction, report
+		err = report
+		return
 	}
 
 	variables := make(Variables, len(graphqlRequest.Variables))
@@ -60,38 +61,44 @@ func (h *Handler) Handle(requestBody io.Reader, responseWriter io.Writer) (instr
 
 	planner := NewPlanner(h.resolverDefinitions(&report))
 	if report.HasErrors() {
-		return instruction, report
+		err = report
+		return
 	}
 
 	astnormalization.NormalizeOperation(&operationDocument, &h.definition, &report)
 	if report.HasErrors() {
-		return instruction, report
+		err = report
+		return
 	}
 
 	validator := astvalidation.DefaultOperationValidator()
 	if report.HasErrors() {
-		return instruction, report
+		err = report
+		return
 	}
 	validator.Validate(&operationDocument, &h.definition, &report)
 	if report.HasErrors() {
-		return instruction, report
+		err = report
+		return
 	}
 	normalizer := astnormalization.NewNormalizer(true)
 	normalizer.NormalizeOperation(&operationDocument, &h.definition, &report)
 	if report.HasErrors() {
-		return instruction, report
+		err = report
+		return
 	}
 	plan := planner.Plan(&operationDocument, &h.definition, &report)
 	if report.HasErrors() {
-		return instruction, report
+		err = report
+		return
 	}
 
-	executor := NewExecutor()
-	ctx := Context{
+	executor = NewExecutor()
+	ctx = Context{
 		Variables: variables,
 	}
 
-	return executor.Execute(ctx, plan, responseWriter)
+	return executor, plan, ctx, err
 }
 
 func (h *Handler) resolverDefinitions(report *operationreport.Report) ResolverDefinitions {
@@ -123,6 +130,9 @@ func (h *Handler) resolverDefinitions(report *operationreport.Report) ResolverDe
 			},
 			func() DataSourcePlanner {
 				return &TypeDataSourcePlanner{}
+			},
+			func() DataSourcePlanner {
+				return NewHttpPollingStreamDataSourcePlanner(h.log)
 			},
 		},
 	}

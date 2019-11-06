@@ -6,6 +6,7 @@ import (
 	"github.com/go-test/deep"
 	"github.com/jensneuse/diffview"
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
+	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
@@ -72,6 +73,7 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		},
 		&Object{
+			operationType: ast.OperationTypeQuery,
 			Fields: []Field{
 				{
 					Name: []byte("data"),
@@ -177,6 +179,7 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		},
 		&Object{
+			operationType: ast.OperationTypeQuery,
 			Fields: []Field{
 				{
 					Name: []byte("data"),
@@ -349,6 +352,7 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		},
 		&Object{
+			operationType: ast.OperationTypeQuery,
 			Fields: []Field{
 				{
 					Name: []byte("data"),
@@ -447,6 +451,7 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		},
 	}, &Object{
+		operationType: ast.OperationTypeQuery,
 		Fields: []Field{
 			{
 				Name: []byte("data"),
@@ -535,6 +540,7 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		},
 		&Object{
+			operationType: ast.OperationTypeQuery,
 			Fields: []Field{
 				{
 					Name: []byte("data"),
@@ -617,6 +623,7 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		},
 		&Object{
+			operationType: ast.OperationTypeQuery,
 			Fields: []Field{
 				{
 					Name: []byte("data"),
@@ -707,6 +714,7 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		},
 		&Object{
+			operationType: ast.OperationTypeQuery,
 			Fields: []Field{
 				{
 					Name: []byte("data"),
@@ -883,6 +891,7 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		},
 		&Object{
+			operationType: ast.OperationTypeQuery,
 			Fields: []Field{
 				{
 					Name: []byte("data"),
@@ -1330,6 +1339,7 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		},
 		&Object{
+			operationType: ast.OperationTypeQuery,
 			Fields: []Field{
 				{
 					Name: []byte("data"),

@@ -285,7 +285,7 @@ type GraphQLDataSource struct {
 	log *zap.Logger
 }
 
-func (g *GraphQLDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) {
+func (g *GraphQLDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) Instruction {
 
 	hostArg := args.ByKey(literal.HOST)
 	urlArg := args.ByKey(literal.URL)
@@ -297,7 +297,7 @@ func (g *GraphQLDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Write
 
 	if hostArg == nil || urlArg == nil || queryArg == nil {
 		g.log.Error("GraphQLDataSource.args invalid")
-		return
+		return CloseConnection
 	}
 
 	url := string(hostArg) + string(urlArg)
@@ -328,7 +328,7 @@ func (g *GraphQLDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Write
 		g.log.Error("GraphQLDataSource.json.MarshalIndent",
 			zap.Error(err),
 		)
-		return
+		return CloseConnection
 	}
 
 	g.log.Error("GraphQLDataSource.request",
@@ -349,7 +349,7 @@ func (g *GraphQLDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Write
 		g.log.Error("GraphQLDataSource.http.NewRequest",
 			zap.Error(err),
 		)
-		return
+		return CloseConnection
 	}
 
 	request.Header.Add("Content-Type", "application/json")
@@ -360,14 +360,14 @@ func (g *GraphQLDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Write
 		g.log.Error("GraphQLDataSource.client.Do",
 			zap.Error(err),
 		)
-		return
+		return CloseConnection
 	}
 	data, err := ioutil.ReadAll(res.Body)
 	if err != nil {
 		g.log.Error("GraphQLDataSource.ioutil.ReadAll",
 			zap.Error(err),
 		)
-		return
+		return CloseConnection
 	}
 
 	data = bytes.ReplaceAll(data, literal.BACKSLASH, nil)
@@ -376,13 +376,14 @@ func (g *GraphQLDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Write
 		g.log.Error("GraphQLDataSource.jsonparser.Get",
 			zap.Error(err),
 		)
-		return
+		return CloseConnection
 	}
 	_, err = out.Write(data)
 	if err != nil {
 		g.log.Error("GraphQLDataSource.out.Write",
 			zap.Error(err),
 		)
-		return
+		return CloseConnection
 	}
+	return CloseConnection
 }

@@ -69,6 +69,7 @@ type SchemaDataSource struct {
 	schemaBytes []byte
 }
 
-func (s *SchemaDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) {
+func (s *SchemaDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) Instruction {
 	out.Write(s.schemaBytes)
+	return CloseConnection
 }

@@ -55,7 +55,7 @@ func NewPlanner(resolverDefinitions ResolverDefinitions) *Planner {
 	}
 }
 
-func (p *Planner) Plan(operation, definition *ast.Document, report *operationreport.Report) Node {
+func (p *Planner) Plan(operation, definition *ast.Document, report *operationreport.Report) RootNode {
 	p.walker.Walk(operation, definition, report)
 	return p.visitor.rootNode
 }
@@ -64,7 +64,7 @@ type planningVisitor struct {
 	*astvisitor.Walker
 	resolverDefinitions   ResolverDefinitions
 	operation, definition *ast.Document
-	rootNode              Node
+	rootNode              RootNode
 	currentNode           []Node
 	planners              []dataSourcePlannerRef
 }
@@ -78,13 +78,29 @@ type dataSourcePlannerRef struct {
 func (p *planningVisitor) EnterDocument(operation, definition *ast.Document) {
 	p.operation, p.definition = operation, definition
 	obj := &Object{}
-	p.rootNode = &Object{
-		Fields: []Field{
-			{
-				Name:  literal.DATA,
-				Value: obj,
+	switch operation.OperationDefinitions[0].OperationType {
+	case ast.OperationTypeSubscription:
+		p.rootNode = &Stream{
+			Value: &Object{
+				Fields: []Field{
+					{
+						Name:  literal.DATA,
+						Value: obj,
+					},
+				},
 			},
-		},
+			operationType: operation.OperationDefinitions[0].OperationType,
+		}
+	case ast.OperationTypeQuery, ast.OperationTypeMutation:
+		p.rootNode = &Object{
+			operationType: operation.OperationDefinitions[0].OperationType,
+			Fields: []Field{
+				{
+					Name:  literal.DATA,
+					Value: obj,
+				},
+			},
+		}
 	}
 	p.currentNode = p.currentNode[:0]
 	p.currentNode = append(p.currentNode, obj)

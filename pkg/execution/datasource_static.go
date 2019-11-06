@@ -71,6 +71,7 @@ func (s *StaticDataSourcePlanner) Plan() (DataSource, []Argument) {
 type StaticDataSource struct {
 }
 
-func (s StaticDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) {
+func (s StaticDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) Instruction {
 	out.Write(args[0].Value)
+	return CloseConnection
 }

@@ -51,6 +51,7 @@ func (t *TypeDataSourcePlanner) Plan() (DataSource, []Argument) {
 type TypeDataSource struct {
 }
 
-func (t *TypeDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) {
+func (t *TypeDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) Instruction {
 
+	return CloseConnection
 }

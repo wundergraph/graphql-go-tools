@@ -2,10 +2,12 @@ package execution
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/cespare/xxhash"
 	"github.com/jensneuse/diffview"
+	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/sebdah/goldie"
 	"go.uber.org/zap"
@@ -14,7 +16,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
+	"sync"
 	"testing"
+	"time"
 )
 
 // nolint
@@ -518,9 +522,9 @@ type FakeDataSource struct {
 	data []byte
 }
 
-func (f FakeDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) {
+func (f FakeDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) Instruction {
 	out.Write(f.data)
-	return
+	return 0
 }
 
 func genField() Field {
@@ -841,3 +845,99 @@ var petsData = []byte(`{
             "meow":"Meow meow!"
          }]}
 }`)
+
+func TestStreamExecution(t *testing.T) {
+	out := bytes.Buffer{}
+	ex := NewExecutor()
+	c, cancel := context.WithCancel(context.Background())
+	ctx := Context{
+		Context: c,
+	}
+
+	want := `{"data":{"staticStream":{"foo":"bar","bar":"baz"}}}`
+
+	var err error
+	count := 0
+	for instruction := KeepStreamAlive; instruction == KeepStreamAlive; {
+		out.Reset()
+		instruction, err = ex.Execute(ctx, streamPlan, &out)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if instruction == CloseConnection {
+			break
+		}
+		got := out.String()
+		if want != got {
+			t.Fatalf("want: %s\ngot: %s\n", want, got)
+		}
+		count++
+		if count == 2 {
+			cancel()
+		}
+		if count == 3 {
+			t.Fatalf("should never reach 3")
+		}
+	}
+
+	out.Reset()
+	_, err = ex.Execute(ctx, streamPlan, &out)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if out.Len() != 0 {
+		t.Fatalf("want 0, got: %d\n", out.Len())
+	}
+}
+
+var streamPlan = &Stream{
+	operationType: ast.OperationTypeSubscription,
+	SourceInvocation: &DataSourceInvocation{
+		DataSource: &HttpPollingStreamDataSource{
+			log:   zap.NewNop(),
+			once:  sync.Once{},
+			delay: time.Millisecond,
+		},
+		Args: []Argument{
+			&StaticVariableArgument{
+				Name:  []byte("data"),
+				Value: []byte(`{"data":{"staticStream":{"foo":"bar","bar":"baz"}}}`),
+			},
+		},
+	},
+	Value: &Object{
+		Fields: []Field{
+			{
+				Name: []byte("data"),
+				Value: &Object{
+					Path: []string{"data"},
+					Fields: []Field{
+						{
+							Name: []byte("staticStream"),
+							Value: &Object{
+								Path: []string{"staticStream"},
+								Fields: []Field{
+									{
+										Name: []byte("foo"),
+										Value: &Value{
+											Path:       []string{"foo"},
+											QuoteValue: true,
+										},
+									},
+									{
+										Name: []byte("bar"),
+										Value: &Value{
+											Path:       []string{"bar"},
+											QuoteValue: true,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+}
