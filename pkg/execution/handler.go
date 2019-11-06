@@ -126,13 +126,13 @@ func (h *Handler) resolverDefinitions(report *operationreport.Report) ResolverDe
 				return NewHttpJsonDataSourcePlanner(h.log)
 			},
 			func() DataSourcePlanner {
+				return NewHttpPollingStreamDataSourcePlanner(h.log)
+			},
+			func() DataSourcePlanner {
 				return &StaticDataSourcePlanner{}
 			},
 			func() DataSourcePlanner {
 				return &TypeDataSourcePlanner{}
-			},
-			func() DataSourcePlanner {
-				return NewHttpPollingStreamDataSourcePlanner(h.log)
 			},
 		},
 	}

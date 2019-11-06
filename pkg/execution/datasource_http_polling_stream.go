@@ -7,7 +7,11 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"go.uber.org/zap"
 	"io"
+	"io/ioutil"
+	"net/http"
+	"strings"
 	"sync"
+	"text/template"
 	"time"
 )
 
@@ -16,6 +20,7 @@ type HttpPollingStreamDataSourcePlanner struct {
 	operation, definition *ast.Document
 	log                   *zap.Logger
 	args                  []Argument
+	rootField             int
 }
 
 func NewHttpPollingStreamDataSourcePlanner(logger *zap.Logger) *HttpPollingStreamDataSourcePlanner {
@@ -36,6 +41,7 @@ func (h *HttpPollingStreamDataSourcePlanner) Plan() (DataSource, []Argument) {
 
 func (h *HttpPollingStreamDataSourcePlanner) Initialize(walker *astvisitor.Walker, operation, definition *ast.Document, args []Argument, resolverParameters []ResolverParameter) {
 	h.walker, h.operation, h.definition, h.args = walker, operation, definition, args
+	h.rootField = -1
 }
 
 func (h *HttpPollingStreamDataSourcePlanner) EnterInlineFragment(ref int) {
@@ -55,10 +61,19 @@ func (h *HttpPollingStreamDataSourcePlanner) LeaveSelectionSet(ref int) {
 }
 
 func (h *HttpPollingStreamDataSourcePlanner) EnterField(ref int) {
-
+	if h.rootField == -1 {
+		h.rootField = ref
+	}
 }
 
 func (h *HttpPollingStreamDataSourcePlanner) LeaveField(ref int) {
+	if h.rootField != ref {
+		return
+	}
+
+	fieldName := h.operation.FieldNameString(ref)
+	_ = fieldName
+
 	definition, exists := h.walker.FieldDefinition(ref)
 	if !exists {
 		return
@@ -87,33 +102,34 @@ func (h *HttpPollingStreamDataSourcePlanner) LeaveField(ref int) {
 		Value: variableValue,
 	}
 	h.args = append([]Argument{arg}, h.args...)
-
-	var staticValue []byte
-	value, ok := h.definition.DirectiveArgumentValueByName(directive, []byte("data"))
-	if !ok || value.Kind != ast.ValueKindString {
-		staticValue = literal.NULL
-	} else {
-		staticValue = h.definition.StringValueContentBytes(value.Ref)
-	}
-	staticValue = bytes.ReplaceAll(staticValue, literal.BACKSLASH, nil)
-	h.args = append(h.args, &StaticVariableArgument{
-		Value: staticValue,
-	})
 }
 
 type HttpPollingStreamDataSource struct {
-	log    *zap.Logger
-	once   sync.Once
-	ch     chan []byte
-	closed bool
-	delay  time.Duration
+	log      *zap.Logger
+	once     sync.Once
+	ch       chan []byte
+	closed   bool
+	delay    time.Duration
+	client   *http.Client
+	request  *http.Request
+	lastData []byte
 }
 
 func (h *HttpPollingStreamDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) Instruction {
-	data := args.ByKey([]byte("data"))
 	h.once.Do(func() {
-		h.ch = make(chan []byte, 1)
-		go h.startStream(ctx, data)
+		if h.delay == 0 {
+			h.delay = time.Second * time.Duration(2)
+		}
+		h.ch = make(chan []byte)
+		h.request = h.generateRequest(args)
+		h.client = &http.Client{
+			Timeout: time.Second * 5,
+			Transport: &http.Transport{
+				MaxIdleConnsPerHost: 1024,
+				TLSHandshakeTimeout: 0 * time.Second,
+			},
+		}
+		go h.startPolling(ctx)
 	})
 	if h.closed {
 		return CloseConnection
@@ -133,14 +149,96 @@ func (h *HttpPollingStreamDataSource) Resolve(ctx Context, args ResolvedArgs, ou
 	return KeepStreamAlive
 }
 
-func (h *HttpPollingStreamDataSource) startStream(ctx Context, data []byte) {
+func (h *HttpPollingStreamDataSource) startPolling(ctx Context) {
 	for {
 		time.Sleep(h.delay)
+		var data []byte
 		select {
 		case <-ctx.Done():
+			h.closed = true
+			return
+		default:
+			response, err := h.client.Do(h.request)
+			if err != nil {
+				h.log.Error("HttpPollingStreamDataSource.startPolling.client.Do",
+					zap.Error(err),
+				)
+				return
+			}
+			data, err = ioutil.ReadAll(response.Body)
+			if err != nil {
+				h.log.Error("HttpPollingStreamDataSource.startPolling.ioutil.ReadAll",
+					zap.Error(err),
+				)
+				return
+			}
+		}
+		if bytes.Equal(data, h.lastData) {
+			continue
+		}
+		h.lastData = data
+		select {
+		case <-ctx.Done():
+			h.closed = true
 			return
 		case h.ch <- data:
 			continue
 		}
 	}
+}
+
+func (h *HttpPollingStreamDataSource) generateRequest(args ResolvedArgs) *http.Request {
+	hostArg := args.ByKey(literal.HOST)
+	urlArg := args.ByKey(literal.URL)
+
+	h.log.Debug("HttpPollingStreamDataSource.generateRequest.Resolve.args",
+		zap.Strings("resolvedArgs", args.Dump()),
+	)
+
+	if hostArg == nil || urlArg == nil {
+		h.log.Error("HttpPollingStreamDataSource.generateRequest.args invalid")
+		return nil
+	}
+
+	url := string(hostArg) + string(urlArg)
+	if !strings.HasPrefix(url, "https://") && !strings.HasPrefix(url, "http://") {
+		url = "https://" + url
+	}
+
+	if strings.Contains(url, "{{") {
+		tmpl, err := template.New("url").Parse(url)
+		if err != nil {
+			h.log.Error("HttpPollingStreamDataSource.generateRequest.template.New",
+				zap.Error(err),
+			)
+			return nil
+		}
+		out := bytes.Buffer{}
+		data := make(map[string]string, len(args))
+		for i := 0; i < len(args); i++ {
+			data[string(args[i].Key)] = string(args[i].Value)
+		}
+		err = tmpl.Execute(&out, data)
+		if err != nil {
+			h.log.Error("HttpPollingStreamDataSource.generateRequest.tmpl.Execute",
+				zap.Error(err),
+			)
+			return nil
+		}
+		url = out.String()
+	}
+
+	h.log.Debug("HttpPollingStreamDataSource.generateRequest.Resolve",
+		zap.String("url", url),
+	)
+
+	request, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		h.log.Error("HttpPollingStreamDataSource.generateRequest.Resolve.NewRequest",
+			zap.Error(err),
+		)
+		return nil
+	}
+	request.Header.Add("Accept", "application/json")
+	return request
 }

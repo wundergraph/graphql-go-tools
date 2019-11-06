@@ -71,14 +71,14 @@ func (e *Executor) write(data []byte) {
 
 func (e *Executor) resolveNode(node Node, data []byte, path string, prefetch *sync.WaitGroup, shouldFetch bool) {
 	switch node := node.(type) {
-	case *Stream:
-		e.streamBuffer.Reset()
-		e.instruction = node.SourceInvocation.DataSource.Resolve(e.context, e.ResolveArgs(node.SourceInvocation.Args, data, ""), &e.streamBuffer)
-		if e.instruction == CloseConnection {
-			return
-		}
-		data = e.streamBuffer.Bytes()
-		e.resolveNode(node.Value, data, path, nil, true)
+	/*case *Stream:
+	e.streamBuffer.Reset()
+	e.instruction = node.SourceInvocation.DataSource.Resolve(e.context, e.ResolveArgs(node.SourceInvocation.Args, data, ""), &e.streamBuffer)
+	if e.instruction == CloseConnection {
+		return
+	}
+	data = e.streamBuffer.Bytes()
+	e.resolveNode(node.Value, data, path, nil, true)*/
 	case *Object:
 
 		if data != nil && node.Path != nil {
@@ -91,7 +91,7 @@ func (e *Executor) resolveNode(node Node, data []byte, path string, prefetch *sy
 		}
 
 		if shouldFetch && node.Fetch != nil {
-			node.Fetch.Fetch(e.context, data, e, path, &e.buffers)
+			e.instruction = node.Fetch.Fetch(e.context, data, e, path, &e.buffers)
 		}
 
 		if prefetch != nil {
@@ -338,7 +338,7 @@ type ArgsResolver interface {
 }
 
 type Fetch interface {
-	Fetch(ctx Context, data []byte, argsResolver ArgsResolver, suffix string, buffers *LockableBufferMap)
+	Fetch(ctx Context, data []byte, argsResolver ArgsResolver, suffix string, buffers *LockableBufferMap) Instruction
 }
 
 type SingleFetch struct {
@@ -347,7 +347,7 @@ type SingleFetch struct {
 	mu         sync.Mutex
 }
 
-func (s *SingleFetch) Fetch(ctx Context, data []byte, argsResolver ArgsResolver, path string, buffers *LockableBufferMap) {
+func (s *SingleFetch) Fetch(ctx Context, data []byte, argsResolver ArgsResolver, path string, buffers *LockableBufferMap) Instruction {
 	bufferName := path + "." + s.BufferName
 	hash := xxhash.Sum64String(bufferName)
 	buffer, exists := buffers.Buffers[hash]
@@ -356,18 +356,21 @@ func (s *SingleFetch) Fetch(ctx Context, data []byte, argsResolver ArgsResolver,
 		buffers.Lock()
 		buffers.Buffers[hash] = buffer
 		buffers.Unlock()
+	} else {
+		buffer.Reset()
 	}
-	s.Source.DataSource.Resolve(ctx, argsResolver.ResolveArgs(s.Source.Args, data, s.BufferName), buffer)
+	return s.Source.DataSource.Resolve(ctx, argsResolver.ResolveArgs(s.Source.Args, data, s.BufferName), buffer)
 }
 
 type SerialFetch struct {
 	Fetches []Fetch
 }
 
-func (s *SerialFetch) Fetch(ctx Context, data []byte, argsResolver ArgsResolver, suffix string, buffers *LockableBufferMap) {
+func (s *SerialFetch) Fetch(ctx Context, data []byte, argsResolver ArgsResolver, suffix string, buffers *LockableBufferMap) Instruction {
 	for i := 0; i < len(s.Fetches); i++ {
 		s.Fetches[i].Fetch(ctx, data, argsResolver, suffix, buffers)
 	}
+	return CloseConnection
 }
 
 type ParallelFetch struct {
@@ -375,7 +378,7 @@ type ParallelFetch struct {
 	Fetches []Fetch
 }
 
-func (p *ParallelFetch) Fetch(ctx Context, data []byte, argsResolver ArgsResolver, suffix string, buffers *LockableBufferMap) {
+func (p *ParallelFetch) Fetch(ctx Context, data []byte, argsResolver ArgsResolver, suffix string, buffers *LockableBufferMap) Instruction {
 	for i := 0; i < len(p.Fetches); i++ {
 		p.wg.Add(1)
 		go func(fetch Fetch, ctx Context, data []byte, argsResolver ArgsResolver) {
@@ -384,6 +387,7 @@ func (p *ParallelFetch) Fetch(ctx Context, data []byte, argsResolver ArgsResolve
 		}(p.Fetches[i], ctx, data, argsResolver)
 	}
 	p.wg.Wait()
+	return CloseConnection
 }
 
 func (o *Object) HasResolvers() bool {

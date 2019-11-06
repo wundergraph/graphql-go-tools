@@ -25,6 +25,7 @@ type HttpJsonDataSourcePlanner struct {
 	walker                *astvisitor.Walker
 	definition, operation *ast.Document
 	args                  []Argument
+	rootField             int
 }
 
 func (h *HttpJsonDataSourcePlanner) DirectiveName() []byte {
@@ -33,6 +34,7 @@ func (h *HttpJsonDataSourcePlanner) DirectiveName() []byte {
 
 func (h *HttpJsonDataSourcePlanner) Initialize(walker *astvisitor.Walker, operation, definition *ast.Document, args []Argument, resolverParameters []ResolverParameter) {
 	h.walker, h.operation, h.definition, h.args = walker, operation, definition, args
+	h.rootField = -1
 }
 
 func (h *HttpJsonDataSourcePlanner) Plan() (DataSource, []Argument) {
@@ -58,10 +60,15 @@ func (h *HttpJsonDataSourcePlanner) LeaveSelectionSet(ref int) {
 }
 
 func (h *HttpJsonDataSourcePlanner) EnterField(ref int) {
-
+	if h.rootField == -1 {
+		h.rootField = ref
+	}
 }
 
 func (h *HttpJsonDataSourcePlanner) LeaveField(ref int) {
+	if h.rootField != ref {
+		return
+	}
 	definition, exists := h.walker.FieldDefinition(ref)
 	if !exists {
 		return

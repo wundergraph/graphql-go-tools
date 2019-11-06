@@ -78,29 +78,14 @@ type dataSourcePlannerRef struct {
 func (p *planningVisitor) EnterDocument(operation, definition *ast.Document) {
 	p.operation, p.definition = operation, definition
 	obj := &Object{}
-	switch operation.OperationDefinitions[0].OperationType {
-	case ast.OperationTypeSubscription:
-		p.rootNode = &Stream{
-			Value: &Object{
-				Fields: []Field{
-					{
-						Name:  literal.DATA,
-						Value: obj,
-					},
-				},
+	p.rootNode = &Object{
+		operationType: operation.OperationDefinitions[0].OperationType,
+		Fields: []Field{
+			{
+				Name:  literal.DATA,
+				Value: obj,
 			},
-			operationType: operation.OperationDefinitions[0].OperationType,
-		}
-	case ast.OperationTypeQuery, ast.OperationTypeMutation:
-		p.rootNode = &Object{
-			operationType: operation.OperationDefinitions[0].OperationType,
-			Fields: []Field{
-				{
-					Name:  literal.DATA,
-					Value: obj,
-				},
-			},
-		}
+		},
 	}
 	p.currentNode = p.currentNode[:0]
 	p.currentNode = append(p.currentNode, obj)
@@ -199,7 +184,7 @@ func (p *planningVisitor) EnterField(ref int) {
 
 		if planner != nil {
 			switch planner.(type) {
-			case *HttpJsonDataSourcePlanner, *StaticDataSourcePlanner:
+			case *HttpJsonDataSourcePlanner, *StaticDataSourcePlanner, *HttpPollingStreamDataSourcePlanner:
 				path = nil
 			}
 		}

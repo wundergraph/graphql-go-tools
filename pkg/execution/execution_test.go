@@ -16,7 +16,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
-	"sync"
 	"testing"
 	"time"
 )
@@ -854,82 +853,86 @@ func TestStreamExecution(t *testing.T) {
 		Context: c,
 	}
 
-	want := `{"data":{"staticStream":{"foo":"bar","bar":"baz"}}}`
+	want1 := `{"data":{"stream":{"bar":"bal","baz":1}}}`
+	want2 := `{"data":{"stream":{"bar":"bal","baz":2}}}`
+	want3 := `{"data":{"stream":{"bar":"bal","baz":3}}}`
 
-	var err error
-	count := 0
-	for instruction := KeepStreamAlive; instruction == KeepStreamAlive; {
-		out.Reset()
-		instruction, err = ex.Execute(ctx, streamPlan, &out)
+	response1 := []byte(`{"bar":"bal","baz":1}`)
+	response2 := []byte(`{"bar":"bal","baz":2}`)
+	response3 := []byte(`{"bar":"bal","baz":3}`)
+
+	resCount := 0
+
+	REST1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		resCount++
+
+		if r.RequestURI != "/bal" {
+			t.Fatalf("want: /bal, got: %s\n", r.RequestURI)
+		}
+
+		var data []byte
+		switch resCount {
+		case 1:
+			data = response1
+		case 2:
+			data = response2
+		case 3:
+			data = response2
+		case 4:
+			data = response3
+		}
+
+		_, err := w.Write(data)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if instruction == CloseConnection {
-			break
-		}
-		got := out.String()
-		if want != got {
-			t.Fatalf("want: %s\ngot: %s\n", want, got)
-		}
-		count++
-		if count == 2 {
-			cancel()
-		}
-		if count == 3 {
-			t.Fatalf("should never reach 3")
-		}
-	}
+	}))
+	defer REST1.Close()
 
-	out.Reset()
-	_, err = ex.Execute(ctx, streamPlan, &out)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if out.Len() != 0 {
-		t.Fatalf("want 0, got: %d\n", out.Len())
-	}
-}
-
-var streamPlan = &Stream{
-	operationType: ast.OperationTypeSubscription,
-	SourceInvocation: &DataSourceInvocation{
-		DataSource: &HttpPollingStreamDataSource{
-			log:   zap.NewNop(),
-			once:  sync.Once{},
-			delay: time.Millisecond,
-		},
-		Args: []Argument{
-			&StaticVariableArgument{
-				Name:  []byte("data"),
-				Value: []byte(`{"data":{"staticStream":{"foo":"bar","bar":"baz"}}}`),
-			},
-		},
-	},
-	Value: &Object{
+	streamPlan := &Object{
+		operationType: ast.OperationTypeSubscription,
 		Fields: []Field{
 			{
 				Name: []byte("data"),
 				Value: &Object{
-					Path: []string{"data"},
+					Fetch: &SingleFetch{
+						Source: &DataSourceInvocation{
+							Args: []Argument{
+								&StaticVariableArgument{
+									Name:  literal.HOST,
+									Value: []byte(REST1.URL),
+								},
+								&StaticVariableArgument{
+									Name:  literal.URL,
+									Value: []byte("/bal"),
+								},
+							},
+							DataSource: &HttpPollingStreamDataSource{
+								delay: time.Millisecond,
+								log:   zap.NewNop(),
+							},
+						},
+						BufferName: "stream",
+					},
 					Fields: []Field{
 						{
-							Name: []byte("staticStream"),
+							Name:        []byte("stream"),
+							HasResolver: true,
 							Value: &Object{
-								Path: []string{"staticStream"},
 								Fields: []Field{
-									{
-										Name: []byte("foo"),
-										Value: &Value{
-											Path:       []string{"foo"},
-											QuoteValue: true,
-										},
-									},
 									{
 										Name: []byte("bar"),
 										Value: &Value{
 											Path:       []string{"bar"},
 											QuoteValue: true,
+										},
+									},
+									{
+										Name: []byte("baz"),
+										Value: &Value{
+											Path:       []string{"baz"},
+											QuoteValue: false,
 										},
 									},
 								},
@@ -939,5 +942,41 @@ var streamPlan = &Stream{
 				},
 			},
 		},
-	},
+	}
+
+	var instruction Instruction
+	var err error
+	for i := 1; i < 4; i++ {
+		out.Reset()
+		instruction, err = ex.Execute(ctx, streamPlan, &out)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var want string
+		switch i {
+		case 1:
+			want = want1
+		case 2:
+			want = want2
+		case 3:
+			want = want3
+		default:
+			t.Fatalf("unexpected")
+		}
+
+		got := out.String()
+		if want != got {
+			t.Fatalf("want(%d): %s\ngot: %s\n", i, want, got)
+		}
+	}
+
+	cancel()
+	instruction, err = ex.Execute(ctx, streamPlan, &out)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if instruction != CloseConnection {
+		t.Fatalf("want CloseConnection, got: %d\n", instruction)
+	}
 }

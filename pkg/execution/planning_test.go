@@ -10,6 +10,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
+	"go.uber.org/zap"
 	"math/rand"
 	"reflect"
 	"testing"
@@ -1690,6 +1691,76 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		},
 	))
+
+	t.Run("http polling stream", run(withBaseSchema(HttpPollingStreamSchema), `
+					subscription {
+						stream {
+							bar
+							baz
+						}
+					}
+`, []DataSourceDefinition{
+		{
+			TypeName:  literal.SUBSCRIPTION,
+			FieldName: []byte("stream"),
+			DataSourcePlannerFactory: func() DataSourcePlanner {
+				return &HttpPollingStreamDataSourcePlanner{
+					log: zap.NewNop(),
+				}
+			},
+		},
+	}, &Object{
+		operationType: ast.OperationTypeSubscription,
+		Fields: []Field{
+			{
+				Name: []byte("data"),
+				Value: &Object{
+					Fetch: &SingleFetch{
+						Source: &DataSourceInvocation{
+							Args: []Argument{
+								&StaticVariableArgument{
+									Name:  literal.HOST,
+									Value: []byte("foo.bar.baz"),
+								},
+								&StaticVariableArgument{
+									Name:  literal.URL,
+									Value: []byte("/bal"),
+								},
+							},
+							DataSource: &HttpPollingStreamDataSource{
+								log: zap.NewNop(),
+							},
+						},
+						BufferName: "stream",
+					},
+					Fields: []Field{
+						{
+							Name:        []byte("stream"),
+							HasResolver: true,
+							Value: &Object{
+								Fields: []Field{
+									{
+										Name: []byte("bar"),
+										Value: &Value{
+											Path:       []string{"bar"},
+											QuoteValue: true,
+										},
+									},
+									{
+										Name: []byte("baz"),
+										Value: &Value{
+											Path:       []string{"baz"},
+											QuoteValue: false,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}))
 }
 
 func BenchmarkPlanner_Plan(b *testing.B) {
@@ -1769,6 +1840,53 @@ func BenchmarkPlanner_Plan(b *testing.B) {
 		}
 	}
 }
+
+const HttpPollingStreamSchema = `
+directive @HttpPollingStreamDataSource (
+    host: String!
+    url: String!
+    method: HTTP_METHOD = GET
+    params: [Parameter]
+) on FIELD_DEFINITION
+
+schema {
+	subscription: Subscription
+}
+
+type Subscription {
+	stream: Foo
+		@HttpPollingStreamDataSource(
+			host: "foo.bar.baz"
+			url: "/bal"
+		)
+}
+
+type Foo {
+	bar: String
+	baz: Int
+}
+
+enum HTTP_METHOD {
+    GET
+    POST
+    UPDATE
+    DELETE
+}
+
+input Parameter {
+    name: String!
+    sourceKind: PARAMETER_SOURCE!
+    sourceName: String!
+    variableType: String!
+}
+
+enum PARAMETER_SOURCE {
+    CONTEXT_VARIABLE
+    OBJECT_VARIABLE_ARGUMENT
+    FIELD_ARGUMENTS
+}
+
+`
 
 const GraphQLDataSourceSchema = `
 directive @GraphQLDataSource (
