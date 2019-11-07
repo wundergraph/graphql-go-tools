@@ -2,7 +2,6 @@ package http
 
 import (
 	"bytes"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
 	"github.com/jensneuse/graphql-go-tools/pkg/execution"
@@ -12,16 +11,18 @@ import (
 	"net/http"
 )
 
-func NewGraphqlHTTPHandlerFunc(executionHandler *execution.Handler, logger *zap.Logger) http.Handler {
+func NewGraphqlHTTPHandlerFunc(executionHandler *execution.Handler, logger *zap.Logger, upgrader *ws.HTTPUpgrader) http.Handler {
 	return &GraphQLHTTPRequestHandler{
 		log:              logger,
 		executionHandler: executionHandler,
+		wsUpgrader:       upgrader,
 	}
 }
 
 type GraphQLHTTPRequestHandler struct {
 	log              *zap.Logger
 	executionHandler *execution.Handler
+	wsUpgrader       *ws.HTTPUpgrader
 }
 
 func (g *GraphQLHTTPRequestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -76,10 +77,16 @@ func (g *GraphQLHTTPRequestHandler) handleWebsocket(conn net.Conn) {
 	for {
 		msg, op, err := wsutil.ReadClientData(conn)
 		if err != nil {
-			spew.Dump(err)
+			g.log.Error("GraphQLHTTPRequestHandler.handleWebsocket",
+				zap.Error(err),
+				zap.ByteString("message", msg),
+			)
 			return
 		}
-		spew.Dump(msg, op)
+		g.log.Debug("GraphQLHTTPRequestHandler.handleWebsocket",
+			zap.ByteString("message", msg),
+			zap.String("opCode", string(op)),
+		)
 		/*err = wsutil.WriteServerMessage(conn, op, msg)
 		if err != nil {
 			// handle error
@@ -88,7 +95,7 @@ func (g *GraphQLHTTPRequestHandler) handleWebsocket(conn net.Conn) {
 }
 
 func (g *GraphQLHTTPRequestHandler) upgradeWithNewGoroutine(w http.ResponseWriter, r *http.Request) error {
-	conn, _, _, err := ws.UpgradeHTTP(r, w)
+	conn, _, _, err := g.wsUpgrader.Upgrade(r, w)
 	if err != nil {
 		return err
 	}
