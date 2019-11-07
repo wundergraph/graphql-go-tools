@@ -30,7 +30,7 @@ type WebsocketMessage struct {
 	Payload json.RawMessage `json:"payload"`
 }
 
-func (g *GraphQLHTTPRequestHandler) handleWebsocket(conn net.Conn) {
+func (g *GraphQLHTTPRequestHandler) handleWebsocket(ctx context.Context, conn net.Conn) {
 	defer conn.Close()
 
 	subscriptions := map[string]context.CancelFunc{}
@@ -69,7 +69,7 @@ func (g *GraphQLHTTPRequestHandler) handleWebsocket(conn net.Conn) {
 				return
 			}
 		case START:
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(ctx)
 			subscriptions[message.Id] = cancel
 			go g.startSubscription(ctx, message.Payload, conn, op, message.Id)
 		case STOP:
@@ -102,6 +102,8 @@ func (g *GraphQLHTTPRequestHandler) startSubscription(ctx context.Context, data 
 		)
 		return
 	}
+
+	executionContext.Context = ctx
 
 	buf := bytes.NewBuffer(make([]byte, 0, 1024))
 
