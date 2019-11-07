@@ -150,8 +150,13 @@ func (h *HttpPollingStreamDataSource) Resolve(ctx Context, args ResolvedArgs, ou
 }
 
 func (h *HttpPollingStreamDataSource) startPolling(ctx Context) {
+	first := true
 	for {
-		time.Sleep(h.delay)
+		if first {
+			first = !first
+		} else {
+			time.Sleep(h.delay)
+		}
 		var data []byte
 		select {
 		case <-ctx.Done():
