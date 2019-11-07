@@ -136,6 +136,9 @@ func (h *HttpPollingStreamDataSource) Resolve(ctx Context, args ResolvedArgs, ou
 	}
 	select {
 	case data := <-h.ch:
+		h.log.Debug("HttpPollingStreamDataSource.Resolve.out.Write",
+			zap.ByteString("data", data),
+		)
 		_, err := out.Write(data)
 		if err != nil {
 			h.log.Error("HttpPollingStreamDataSource.Resolve",

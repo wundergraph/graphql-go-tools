@@ -127,13 +127,17 @@ func (g *GraphQLHTTPRequestHandler) startSubscription(ctx context.Context, data 
 				)
 			}
 
+			g.log.Debug("GraphQLHTTPRequestHandler.startSubscription",
+				zap.ByteString("execution_result", buf.Bytes()),
+			)
+
 			response := WebsocketMessage{
 				Type:    DATA,
 				Id:      id,
 				Payload: buf.Bytes(),
 			}
 
-			data, err := json.Marshal(response)
+			responseData, err := json.Marshal(response)
 			if err != nil {
 				g.log.Error("GraphQLHTTPRequestHandler.startSubscription.json.Marshal",
 					zap.Error(err),
@@ -141,7 +145,7 @@ func (g *GraphQLHTTPRequestHandler) startSubscription(ctx context.Context, data 
 				return
 			}
 
-			err = wsutil.WriteServerMessage(conn, op, data)
+			err = wsutil.WriteServerMessage(conn, op, responseData)
 			if err != nil {
 				g.log.Error("GraphQLHTTPRequestHandler.startSubscription.wsutil.WriteServerMessage",
 					zap.Error(err),
