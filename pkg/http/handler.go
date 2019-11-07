@@ -1,13 +1,9 @@
 package http
 
 import (
-	"bytes"
 	"github.com/gobwas/ws"
-	"github.com/gobwas/ws/wsutil"
 	"github.com/jensneuse/graphql-go-tools/pkg/execution"
 	"go.uber.org/zap"
-	"io/ioutil"
-	"net"
 	"net/http"
 )
 
@@ -38,60 +34,6 @@ func (g *GraphQLHTTPRequestHandler) ServeHTTP(w http.ResponseWriter, r *http.Req
 		return
 	}
 	g.handleHTTP(w, r)
-}
-
-func (g *GraphQLHTTPRequestHandler) handleHTTP(w http.ResponseWriter, r *http.Request) {
-	data, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		g.log.Error("GraphQLHTTPRequestHandler.handleHTTP",
-			zap.Error(err),
-		)
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	executor, rootNode, ctx, err := g.executionHandler.Handle(data)
-	if err != nil {
-		g.log.Error("executionHandler.Handle",
-			zap.Error(err),
-		)
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	buf := bytes.NewBuffer(make([]byte, 0, 4096))
-	_, err = executor.Execute(ctx, rootNode, buf)
-	if err != nil {
-		g.log.Error("executor.Execute",
-			zap.Error(err),
-		)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	w.WriteHeader(http.StatusOK)
-	w.Header().Add("Content-Type", "application/json")
-	_, _ = buf.WriteTo(w)
-}
-
-func (g *GraphQLHTTPRequestHandler) handleWebsocket(conn net.Conn) {
-	defer conn.Close()
-
-	for {
-		msg, op, err := wsutil.ReadClientData(conn)
-		if err != nil {
-			g.log.Error("GraphQLHTTPRequestHandler.handleWebsocket",
-				zap.Error(err),
-				zap.ByteString("message", msg),
-			)
-			return
-		}
-		g.log.Debug("GraphQLHTTPRequestHandler.handleWebsocket",
-			zap.ByteString("message", msg),
-			zap.String("opCode", string(op)),
-		)
-		/*err = wsutil.WriteServerMessage(conn, op, msg)
-		if err != nil {
-			// handle error
-		}*/
-	}
 }
 
 func (g *GraphQLHTTPRequestHandler) upgradeWithNewGoroutine(w http.ResponseWriter, r *http.Request) error {
