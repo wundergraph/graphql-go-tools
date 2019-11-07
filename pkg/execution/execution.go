@@ -71,14 +71,6 @@ func (e *Executor) write(data []byte) {
 
 func (e *Executor) resolveNode(node Node, data []byte, path string, prefetch *sync.WaitGroup, shouldFetch bool) {
 	switch node := node.(type) {
-	/*case *Stream:
-	e.streamBuffer.Reset()
-	e.instruction = node.SourceInvocation.DataSource.Resolve(e.context, e.ResolveArgs(node.SourceInvocation.Args, data, ""), &e.streamBuffer)
-	if e.instruction == CloseConnection {
-		return
-	}
-	data = e.streamBuffer.Bytes()
-	e.resolveNode(node.Value, data, path, nil, true)*/
 	case *Object:
 
 		if data != nil && node.Path != nil {
@@ -245,7 +237,6 @@ const (
 	FieldKind
 	ListKind
 	ValueKind
-	StreamKind
 )
 
 type NodeKind int
@@ -401,27 +392,6 @@ func (o *Object) HasResolvers() bool {
 
 func (*Object) Kind() NodeKind {
 	return ObjectKind
-}
-
-type Stream struct {
-	SourceInvocation *DataSourceInvocation
-	Value            Node
-	operationType    ast.OperationType
-}
-
-func (s *Stream) OperationType() ast.OperationType {
-	return s.operationType
-}
-
-func (s *Stream) Kind() NodeKind {
-	return StreamKind
-}
-
-func (s *Stream) HasResolvers() bool {
-	if s.SourceInvocation != nil {
-		return true
-	}
-	return s.Value.HasResolvers()
 }
 
 type BooleanCondition interface {
