@@ -1,3 +1,4 @@
+//go:generate packr
 package playground
 
 import (
@@ -20,17 +21,19 @@ const (
 )
 
 type Config struct {
-	URLPrefix       string
-	PlaygroundURL   string
-	GraphqlEndpoint string
+	URLPrefix                   string
+	PlaygroundURL               string
+	GraphqlEndpoint             string
+	GraphQLSubscriptionEndpoint string
 }
 
 type playgroundTemplateData struct {
-	CssURL      string
-	JsURL       string
-	FavIconURL  string
-	LogoURL     string
-	EndpointURL string
+	CssURL                  string
+	JsURL                   string
+	FavIconURL              string
+	LogoURL                 string
+	EndpointURL             string
+	SubscriptionEndpointURL string
 }
 
 type fileConfig struct {
@@ -52,11 +55,12 @@ func ConfigureHandlers(mux *http.ServeMux, config Config) error {
 
 	playgroundURL := path.Join(config.URLPrefix, config.PlaygroundURL)
 	data := playgroundTemplateData{
-		CssURL:      path.Join(config.URLPrefix, "playground.css"),
-		JsURL:       path.Join(config.URLPrefix, "playground.js"),
-		FavIconURL:  path.Join(config.URLPrefix, "favicon.png"),
-		LogoURL:     path.Join(config.URLPrefix, "logo.png"),
-		EndpointURL: config.GraphqlEndpoint,
+		CssURL:                  path.Join(config.URLPrefix, "playground.css"),
+		JsURL:                   path.Join(config.URLPrefix, "playground.js"),
+		FavIconURL:              path.Join(config.URLPrefix, "favicon.png"),
+		LogoURL:                 path.Join(config.URLPrefix, "logo.png"),
+		EndpointURL:             config.GraphqlEndpoint,
+		SubscriptionEndpointURL: config.GraphQLSubscriptionEndpoint,
 	}
 
 	mux.HandleFunc(playgroundURL, func(writer http.ResponseWriter, request *http.Request) {
