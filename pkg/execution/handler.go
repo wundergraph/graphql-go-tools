@@ -11,7 +11,6 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 	"go.uber.org/zap"
-	"io"
 )
 
 type Handler struct {
@@ -40,10 +39,10 @@ type GraphqlRequest struct {
 	Query         string                     `json:"query"`
 }
 
-func (h *Handler) Handle(requestBody io.Reader) (executor *Executor, node RootNode, ctx Context, err error) {
+func (h *Handler) Handle(data []byte) (executor *Executor, node RootNode, ctx Context, err error) {
 
 	var graphqlRequest GraphqlRequest
-	err = json.NewDecoder(requestBody).Decode(&graphqlRequest)
+	err = json.Unmarshal(data, &graphqlRequest)
 	if err != nil {
 		return
 	}
