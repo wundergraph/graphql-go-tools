@@ -339,7 +339,9 @@ type SingleFetch struct {
 func (s *SingleFetch) Fetch(ctx Context, data []byte, argsResolver ArgsResolver, path string, buffers *LockableBufferMap) Instruction {
 	bufferName := path + "." + s.BufferName
 	hash := xxhash.Sum64String(bufferName)
+	buffers.Lock()
 	buffer, exists := buffers.Buffers[hash]
+	buffers.Unlock()
 	if !exists {
 		buffer = bytes.NewBuffer(make([]byte, 0, 1024))
 		buffers.Lock()
