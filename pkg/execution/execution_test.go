@@ -522,7 +522,7 @@ type FakeDataSource struct {
 }
 
 func (f FakeDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) Instruction {
-	out.Write(f.data)
+	_, _ = out.Write(f.data)
 	return 0
 }
 
@@ -948,7 +948,7 @@ func TestStreamExecution(t *testing.T) {
 	var err error
 	for i := 1; i < 4; i++ {
 		out.Reset()
-		instruction, err = ex.Execute(ctx, streamPlan, &out)
+		instruction, err = ex.Execute(ctx, streamPlan, &out) // nolint
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -960,8 +960,6 @@ func TestStreamExecution(t *testing.T) {
 			want = want2
 		case 3:
 			want = want3
-		default:
-			t.Fatalf("unexpected")
 		}
 
 		got := out.String()

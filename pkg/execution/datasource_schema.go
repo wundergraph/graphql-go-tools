@@ -70,6 +70,6 @@ type SchemaDataSource struct {
 }
 
 func (s *SchemaDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) Instruction {
-	out.Write(s.schemaBytes)
+	_, _ = out.Write(s.schemaBytes)
 	return CloseConnection
 }

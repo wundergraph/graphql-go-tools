@@ -14,12 +14,11 @@ import (
 )
 
 type Executor struct {
-	context      Context
-	out          io.Writer
-	err          error
-	buffers      LockableBufferMap
-	instruction  Instruction
-	streamBuffer bytes.Buffer
+	context     Context
+	out         io.Writer
+	err         error
+	buffers     LockableBufferMap
+	instruction Instruction
 }
 
 type LockableBufferMap struct {
@@ -335,7 +334,6 @@ type Fetch interface {
 type SingleFetch struct {
 	Source     *DataSourceInvocation
 	BufferName string
-	mu         sync.Mutex
 }
 
 func (s *SingleFetch) Fetch(ctx Context, data []byte, argsResolver ArgsResolver, path string, buffers *LockableBufferMap) Instruction {
