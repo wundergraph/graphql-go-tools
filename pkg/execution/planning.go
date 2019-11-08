@@ -183,10 +183,7 @@ func (p *planningVisitor) EnterField(ref int) {
 		}
 
 		if planner != nil {
-			switch planner.(type) {
-			case *HttpJsonDataSourcePlanner, *StaticDataSourcePlanner, *HttpPollingStreamDataSourcePlanner:
-				path = nil
-			}
+			path = planner.OverrideRootFieldPath(path)
 		}
 
 		var value Node

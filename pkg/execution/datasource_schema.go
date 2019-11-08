@@ -27,6 +27,10 @@ type SchemaDataSourcePlanner struct {
 	args        []Argument
 }
 
+func (s *SchemaDataSourcePlanner) OverrideRootFieldPath(path []string) []string {
+	return path
+}
+
 func (s *SchemaDataSourcePlanner) DirectiveName() []byte {
 	return []byte("resolveSchema")
 }

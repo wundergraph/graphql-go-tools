@@ -30,6 +30,10 @@ type GraphQLDataSourcePlanner struct {
 	variableDefinitions   []int
 }
 
+func (g *GraphQLDataSourcePlanner) OverrideRootFieldPath(path []string) []string {
+	return path
+}
+
 func NewGraphQLDataSourcePlanner(logger *zap.Logger) *GraphQLDataSourcePlanner {
 	return &GraphQLDataSourcePlanner{
 		log: logger,

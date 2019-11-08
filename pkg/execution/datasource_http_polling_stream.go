@@ -23,6 +23,10 @@ type HttpPollingStreamDataSourcePlanner struct {
 	rootField             int
 }
 
+func (h *HttpPollingStreamDataSourcePlanner) OverrideRootFieldPath(path []string) []string {
+	return nil
+}
+
 func NewHttpPollingStreamDataSourcePlanner(logger *zap.Logger) *HttpPollingStreamDataSourcePlanner {
 	return &HttpPollingStreamDataSourcePlanner{
 		log: logger,

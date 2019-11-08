@@ -14,6 +14,10 @@ type StaticDataSourcePlanner struct {
 	args                  []Argument
 }
 
+func (s *StaticDataSourcePlanner) OverrideRootFieldPath(path []string) []string {
+	return nil
+}
+
 func (s *StaticDataSourcePlanner) DirectiveName() []byte {
 	return []byte("StaticDataSource")
 }

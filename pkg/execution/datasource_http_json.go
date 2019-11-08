@@ -28,6 +28,10 @@ type HttpJsonDataSourcePlanner struct {
 	rootField             int
 }
 
+func (h *HttpJsonDataSourcePlanner) OverrideRootFieldPath(path []string) []string {
+	return nil
+}
+
 func (h *HttpJsonDataSourcePlanner) DirectiveName() []byte {
 	return []byte("HttpJsonDataSource")
 }
