@@ -1730,7 +1730,80 @@ func TestPlanner_Plan(t *testing.T) {
 								},
 							},
 							DataSource: &HttpPollingStreamDataSource{
-								log: zap.NewNop(),
+								log:   zap.NewNop(),
+								delay: time.Second * 5,
+							},
+						},
+						BufferName: "stream",
+					},
+					Fields: []Field{
+						{
+							Name:        []byte("stream"),
+							HasResolver: true,
+							Value: &Object{
+								Fields: []Field{
+									{
+										Name: []byte("bar"),
+										Value: &Value{
+											Path:       []string{"bar"},
+											QuoteValue: true,
+										},
+									},
+									{
+										Name: []byte("baz"),
+										Value: &Value{
+											Path:       []string{"baz"},
+											QuoteValue: false,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}))
+	t.Run("http polling stream inline delay", run(withBaseSchema(HttpPollingStreamSchemaInlineDelay), `
+					subscription {
+						stream {
+							bar
+							baz
+						}
+					}
+`, []DataSourceDefinition{
+		{
+			TypeName:  literal.SUBSCRIPTION,
+			FieldName: []byte("stream"),
+			DataSourcePlannerFactory: func() DataSourcePlanner {
+				return &HttpPollingStreamDataSourcePlanner{
+					BaseDataSourcePlanner: BaseDataSourcePlanner{
+						log: zap.NewNop(),
+					},
+				}
+			},
+		},
+	}, &Object{
+		operationType: ast.OperationTypeSubscription,
+		Fields: []Field{
+			{
+				Name: []byte("data"),
+				Value: &Object{
+					Fetch: &SingleFetch{
+						Source: &DataSourceInvocation{
+							Args: []Argument{
+								&StaticVariableArgument{
+									Name:  literal.HOST,
+									Value: []byte("foo.bar.baz"),
+								},
+								&StaticVariableArgument{
+									Name:  literal.URL,
+									Value: []byte("/bal"),
+								},
+							},
+							DataSource: &HttpPollingStreamDataSource{
+								log:   zap.NewNop(),
+								delay: time.Second * 3,
 							},
 						},
 						BufferName: "stream",
@@ -1929,6 +2002,7 @@ directive @HttpPollingStreamDataSource (
     host: String!
     url: String!
     method: HTTP_METHOD = GET
+    delaySeconds: Int = 5
     params: [Parameter]
 ) on FIELD_DEFINITION
 
@@ -1948,27 +2022,34 @@ type Foo {
 	bar: String
 	baz: Int
 }
+`
 
-enum HTTP_METHOD {
-    GET
-    POST
-    UPDATE
-    DELETE
+const HttpPollingStreamSchemaInlineDelay = `
+directive @HttpPollingStreamDataSource (
+    host: String!
+    url: String!
+    method: HTTP_METHOD = GET
+    delaySeconds: Int = 5
+    params: [Parameter]
+) on FIELD_DEFINITION
+
+schema {
+	subscription: Subscription
 }
 
-input Parameter {
-    name: String!
-    sourceKind: PARAMETER_SOURCE!
-    sourceName: String!
-    variableType: String!
+type Subscription {
+	stream: Foo
+		@HttpPollingStreamDataSource(
+			host: "foo.bar.baz"
+			url: "/bal"
+			delaySeconds: 3
+		)
 }
 
-enum PARAMETER_SOURCE {
-    CONTEXT_VARIABLE
-    OBJECT_VARIABLE_ARGUMENT
-    FIELD_ARGUMENTS
+type Foo {
+	bar: String
+	baz: Int
 }
-
 `
 
 const GraphQLDataSourceSchema = `

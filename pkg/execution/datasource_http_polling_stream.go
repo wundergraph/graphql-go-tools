@@ -18,6 +18,7 @@ import (
 type HttpPollingStreamDataSourcePlanner struct {
 	BaseDataSourcePlanner
 	rootField int
+	delay     time.Duration
 }
 
 func (h *HttpPollingStreamDataSourcePlanner) OverrideRootFieldPath(path []string) []string {
@@ -38,13 +39,15 @@ func (h *HttpPollingStreamDataSourcePlanner) DirectiveName() []byte {
 
 func (h *HttpPollingStreamDataSourcePlanner) Plan() (DataSource, []Argument) {
 	return &HttpPollingStreamDataSource{
-		log: h.log,
+		log:   h.log,
+		delay: h.delay,
 	}, h.args
 }
 
 func (h *HttpPollingStreamDataSourcePlanner) Initialize(walker *astvisitor.Walker, operation, definition *ast.Document, args []Argument, resolverParameters []ResolverParameter) {
 	h.walker, h.operation, h.definition, h.args = walker, operation, definition, args
 	h.rootField = -1
+	h.delay = time.Second * 1
 }
 
 func (h *HttpPollingStreamDataSourcePlanner) EnterInlineFragment(ref int) {
@@ -74,9 +77,6 @@ func (h *HttpPollingStreamDataSourcePlanner) LeaveField(ref int) {
 		return
 	}
 
-	fieldName := h.operation.FieldNameString(ref)
-	_ = fieldName
-
 	definition, exists := h.walker.FieldDefinition(ref)
 	if !exists {
 		return
@@ -105,6 +105,33 @@ func (h *HttpPollingStreamDataSourcePlanner) LeaveField(ref int) {
 		Value: variableValue,
 	}
 	h.args = append([]Argument{arg}, h.args...)
+	h.setDelayFromDirective(ref, directive)
+}
+
+func (h *HttpPollingStreamDataSourcePlanner) setDelayFromDirective(field, directive int) {
+	value, exists := h.definition.DirectiveArgumentValueByName(directive, []byte("delaySeconds"))
+	if !exists || value.Kind != ast.ValueKindInteger {
+		h.setDefaultDelay()
+		return
+	}
+	delaySeconds := h.definition.IntValueAsInt(value.Ref)
+	h.delay = time.Second * time.Duration(delaySeconds)
+}
+
+func (h *HttpPollingStreamDataSourcePlanner) setDefaultDelay() {
+	inputValueDefinition := h.definition.DirectiveArgumentInputValueDefinition([]byte("HttpPollingStreamDataSource"), []byte("delaySeconds"))
+	if inputValueDefinition == -1 {
+		return
+	}
+	if !h.definition.InputValueDefinitionHasDefaultValue(inputValueDefinition) {
+		return
+	}
+	value := h.definition.InputValueDefinitionDefaultValue(inputValueDefinition)
+	if value.Kind != ast.ValueKindInteger {
+		return
+	}
+	delaySeconds := h.definition.IntValueAsInt(value.Ref)
+	h.delay = time.Second * time.Duration(delaySeconds)
 }
 
 type HttpPollingStreamDataSource struct {
@@ -120,9 +147,6 @@ type HttpPollingStreamDataSource struct {
 
 func (h *HttpPollingStreamDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) Instruction {
 	h.once.Do(func() {
-		if h.delay == 0 {
-			h.delay = time.Second * time.Duration(2)
-		}
 		h.ch = make(chan []byte)
 		h.request = h.generateRequest(args)
 		h.client = &http.Client{
