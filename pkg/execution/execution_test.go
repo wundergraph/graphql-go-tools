@@ -978,3 +978,68 @@ func TestStreamExecution(t *testing.T) {
 		t.Fatalf("want CloseConnection, got: %d\n", instructions[0])
 	}
 }
+
+func TestExecutor_ListFilterFirstN(t *testing.T) {
+
+	plan := &Object{
+		operationType: ast.OperationTypeQuery,
+		Fields: []Field{
+			{
+				Name: []byte("data"),
+				Value: &Object{
+					Fetch: &SingleFetch{
+						Source: &DataSourceInvocation{
+							Args: []Argument{
+								&StaticVariableArgument{
+									Value: []byte("[{\"bar\":\"1\"},{\"bar\":\"2\"},{\"bar\":\"3\"}]"),
+								},
+							},
+							DataSource: &StaticDataSource{},
+						},
+						BufferName: "foos",
+					},
+					Fields: []Field{
+						{
+							Name:        []byte("foos"),
+							HasResolver: true,
+							Value: &List{
+								Filter: &ListFilterFirstN{
+									FirstN: 2,
+								},
+								Value: &Object{
+									Fields: []Field{
+										{
+											Name: []byte("bar"),
+											Value: &Value{
+												Path:       []string{"bar"},
+												QuoteValue: true,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	out := &bytes.Buffer{}
+	ex := NewExecutor()
+	ctx := Context{
+		Context: context.Background(),
+	}
+
+	_, err := ex.Execute(ctx, plan, out)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := `{"data":{"foos":[{"bar":"1"},{"bar":"2"}]}}`
+	got := out.String()
+
+	if got != want {
+		t.Fatalf("want: %s\ngot: %s\n", want, got)
+	}
+}

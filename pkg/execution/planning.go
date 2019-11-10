@@ -203,6 +203,16 @@ func (p *planningVisitor) EnterField(ref int) {
 				Value: value,
 			}
 
+			firstNValue, ok := p.FieldDefinitionDirectiveArgumentValueByName(ref, []byte("ListFilterFirstN"), []byte("n"))
+			if ok {
+				if firstNValue.Kind == ast.ValueKindInteger {
+					firstN := p.definition.IntValueAsInt(firstNValue.Ref)
+					list.Filter = &ListFilterFirstN{
+						FirstN: firstN,
+					}
+				}
+			}
+
 			parent.Fields = append(parent.Fields, Field{
 				Name:  p.operation.FieldNameBytes(ref),
 				Value: list,

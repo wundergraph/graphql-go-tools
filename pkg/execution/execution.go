@@ -177,16 +177,26 @@ func (e *Executor) resolveNode(node Node, data []byte, path string, prefetch *sy
 
 		path = path + "."
 
+		maxItems := len(listItems)
+		if node.Filter != nil {
+			switch filter := node.Filter.(type) {
+			case *ListFilterFirstN:
+				if maxItems > filter.FirstN {
+					maxItems = filter.FirstN
+				}
+			}
+		}
+
 		if shouldPrefetch {
 			wg := &sync.WaitGroup{}
-			for i := 0; i < len(listItems); i++ {
+			for i := 0; i < maxItems; i++ {
 				wg.Add(1)
 				go e.resolveNode(node.Value, listItems[i], path+strconv.Itoa(i), wg, true)
 			}
 			wg.Wait()
 		}
 		i := 0
-		for i = 0; i < len(listItems); i++ {
+		for i = 0; i < maxItems; i++ {
 			if i == 0 {
 				e.write(literal.LBRACK)
 			} else {
@@ -467,8 +477,9 @@ func (*Value) Kind() NodeKind {
 }
 
 type List struct {
-	Path  []string
-	Value Node
+	Path   []string
+	Value  Node
+	Filter ListFilter
 }
 
 func (l *List) HasResolvers() bool {
@@ -477,6 +488,24 @@ func (l *List) HasResolvers() bool {
 
 func (*List) Kind() NodeKind {
 	return ListKind
+}
+
+type ListFilter interface {
+	Kind() ListFilterKind
+}
+
+type ListFilterKind int
+
+const (
+	ListFilterKindFirstN ListFilterKind = iota + 1
+)
+
+type ListFilterFirstN struct {
+	FirstN int
+}
+
+func (_ ListFilterFirstN) Kind() ListFilterKind {
+	return ListFilterKindFirstN
 }
 
 type DataSourceInvocation struct {

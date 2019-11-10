@@ -1763,6 +1763,66 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		},
 	}))
+	t.Run("list filter first N", run(withBaseSchema(ListFilterFirstNSchema), `
+			query {
+				foos {
+					bar
+				}
+			}
+		`,
+		ResolverDefinitions{
+			{
+				TypeName:  literal.QUERY,
+				FieldName: []byte("foos"),
+				DataSourcePlannerFactory: func() DataSourcePlanner {
+					return &StaticDataSourcePlanner{}
+				},
+			},
+		},
+		&Object{
+			operationType: ast.OperationTypeQuery,
+			Fields: []Field{
+				{
+					Name: []byte("data"),
+					Value: &Object{
+						Fetch: &SingleFetch{
+							Source: &DataSourceInvocation{
+								Args: []Argument{
+									&StaticVariableArgument{
+										Value: []byte("[{\"bar\":\"baz\"},{\"bar\":\"bal\"},{\"bar\":\"bat\"}]"),
+									},
+								},
+								DataSource: &StaticDataSource{},
+							},
+							BufferName: "foos",
+						},
+						Fields: []Field{
+							{
+								Name:        []byte("foos"),
+								HasResolver: true,
+								Value: &List{
+									Filter: &ListFilterFirstN{
+										FirstN: 2,
+									},
+									Value: &Object{
+										Fields: []Field{
+											{
+												Name: []byte("bar"),
+												Value: &Value{
+													Path:       []string{"bar"},
+													QuoteValue: true,
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	))
 }
 
 func BenchmarkPlanner_Plan(b *testing.B) {
@@ -1842,6 +1902,27 @@ func BenchmarkPlanner_Plan(b *testing.B) {
 		}
 	}
 }
+
+const ListFilterFirstNSchema = `
+directive @ListFilterFirstN(n: Int!) on FIELD_DEFINITION
+
+schema {
+	query: Query
+}
+
+type Query {
+	foos: [Foo]
+		@ListFilterFirstN(n: 2)
+		@StaticDataSource(
+            data: "[{\"bar\":\"baz\"},{\"bar\":\"bal\"},{\"bar\":\"bat\"}]"
+        )
+}
+
+type Foo {
+	bar: String
+}
+
+`
 
 const HttpPollingStreamSchema = `
 directive @HttpPollingStreamDataSource (
