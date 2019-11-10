@@ -119,7 +119,7 @@ func (g *GraphQLHTTPRequestHandler) startSubscription(ctx context.Context, data 
 		case <-ctx.Done():
 			return
 		default:
-			instruction, err := executor.Execute(executionContext, node, buf)
+			instructions, err := executor.Execute(executionContext, node, buf)
 			if err != nil {
 				g.log.Error("GraphQLHTTPRequestHandler.startSubscription.executor.Execute",
 					zap.Error(err),
@@ -154,12 +154,12 @@ func (g *GraphQLHTTPRequestHandler) startSubscription(ctx context.Context, data 
 				return
 			}
 
-			switch instruction {
-			case execution.KeepStreamAlive:
-				continue
-			case execution.CloseConnection:
-				_ = conn.Close()
-				return
+			for i := 0; i < len(instructions); i++ {
+				switch instructions[i] {
+				case execution.CloseConnection:
+					_ = conn.Close()
+					return
+				}
 			}
 		}
 	}
