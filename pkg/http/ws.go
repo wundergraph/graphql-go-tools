@@ -157,10 +157,26 @@ func (g *GraphQLHTTPRequestHandler) startSubscription(ctx context.Context, data 
 			for i := 0; i < len(instructions); i++ {
 				switch instructions[i] {
 				case execution.CloseConnection:
-					_ = conn.Close()
+					err = g.sendCloseMessage(id, conn, op)
+					if err != nil {
+						g.log.Error("GraphQLHTTPRequestHandler.startSubscription.sendCloseMessage",
+							zap.Error(err),
+						)
+					}
 					return
 				}
 			}
 		}
 	}
+}
+
+func (g *GraphQLHTTPRequestHandler) sendCloseMessage(id string, conn net.Conn, op ws.OpCode) error {
+	data, err := json.Marshal(WebsocketMessage{
+		Id:   id,
+		Type: STOP,
+	})
+	if err != nil {
+		return err
+	}
+	return wsutil.WriteServerMessage(conn, op, data)
 }
