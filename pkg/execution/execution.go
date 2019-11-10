@@ -14,11 +14,11 @@ import (
 )
 
 type Executor struct {
-	context     Context
-	out         io.Writer
-	err         error
-	buffers     LockableBufferMap
-	instruction Instruction
+	context      Context
+	out          io.Writer
+	err          error
+	buffers      LockableBufferMap
+	instructions []Instruction
 }
 
 type LockableBufferMap struct {
@@ -39,26 +39,25 @@ type Instruction int
 const (
 	KeepStreamAlive Instruction = iota + 1
 	CloseConnection
+	CloseConnectionIfNotStream
 )
 
-func (e *Executor) Execute(ctx Context, node RootNode, w io.Writer) (instruction Instruction, err error) {
+func (e *Executor) Execute(ctx Context, node RootNode, w io.Writer) (instruction []Instruction, err error) {
 	e.context = ctx
 	e.out = w
 	e.err = nil
+	e.instructions = e.instructions[:0]
 	var path string
 	switch node.OperationType() {
 	case ast.OperationTypeQuery:
 		path = "query"
-		e.instruction = CloseConnection
 	case ast.OperationTypeMutation:
 		path = "mutation"
-		e.instruction = CloseConnection
 	case ast.OperationTypeSubscription:
 		path = "subscription"
-		e.instruction = KeepStreamAlive
 	}
 	e.resolveNode(node, nil, path, nil, true)
-	return e.instruction, e.err
+	return e.instructions, e.err
 }
 
 func (e *Executor) write(data []byte) {
@@ -82,7 +81,7 @@ func (e *Executor) resolveNode(node Node, data []byte, path string, prefetch *sy
 		}
 
 		if shouldFetch && node.Fetch != nil {
-			e.instruction = node.Fetch.Fetch(e.context, data, e, path, &e.buffers)
+			e.instructions = append(e.instructions, node.Fetch.Fetch(e.context, data, e, path, &e.buffers))
 		}
 
 		if prefetch != nil {

@@ -944,11 +944,11 @@ func TestStreamExecution(t *testing.T) {
 		},
 	}
 
-	var instruction Instruction
+	var instructions []Instruction
 	var err error
 	for i := 1; i < 4; i++ {
 		out.Reset()
-		instruction, err = ex.Execute(ctx, streamPlan, &out) // nolint
+		instructions, err = ex.Execute(ctx, streamPlan, &out) // nolint
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -969,12 +969,12 @@ func TestStreamExecution(t *testing.T) {
 	}
 
 	cancel()
-	instruction, err = ex.Execute(ctx, streamPlan, &out)
+	instructions, err = ex.Execute(ctx, streamPlan, &out)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if instruction != CloseConnection {
-		t.Fatalf("want CloseConnection, got: %d\n", instruction)
+	if instructions[0] != CloseConnection {
+		t.Fatalf("want CloseConnection, got: %d\n", instructions[0])
 	}
 }

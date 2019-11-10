@@ -107,7 +107,7 @@ func (h *Handler) resolverDefinitions(report *operationreport.Report) ResolverDe
 			TypeName:  literal.QUERY,
 			FieldName: literal.UNDERSCORESCHEMA,
 			DataSourcePlannerFactory: func() DataSourcePlanner {
-				return NewSchemaDataSourcePlanner(&h.definition, report)
+				return NewSchemaDataSourcePlanner(&h.definition, report, h.log)
 			},
 		},
 	}
@@ -128,10 +128,10 @@ func (h *Handler) resolverDefinitions(report *operationreport.Report) ResolverDe
 				return NewHttpPollingStreamDataSourcePlanner(h.log)
 			},
 			func() DataSourcePlanner {
-				return &StaticDataSourcePlanner{}
+				return NewStaticDataSourcePlanner(h.log)
 			},
 			func() DataSourcePlanner {
-				return &TypeDataSourcePlanner{}
+				return NewTypeDataSourcePlanner(h.log)
 			},
 		},
 	}
