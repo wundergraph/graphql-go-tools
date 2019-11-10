@@ -17,13 +17,10 @@ import (
 )
 
 type GraphQLDataSourcePlanner struct {
-	log *zap.Logger
+	BaseDataSourcePlanner
 
-	walker                *astvisitor.Walker
-	operation, definition *ast.Document
-	args                  []Argument
-	nodes                 []ast.Node
-	resolveDocument       *ast.Document
+	nodes           []ast.Node
+	resolveDocument *ast.Document
 
 	rootFieldRef          int
 	rootFieldArgumentRefs []int
@@ -34,9 +31,11 @@ func (g *GraphQLDataSourcePlanner) OverrideRootFieldPath(path []string) []string
 	return path
 }
 
-func NewGraphQLDataSourcePlanner(logger *zap.Logger) *GraphQLDataSourcePlanner {
+func NewGraphQLDataSourcePlanner(log *zap.Logger) *GraphQLDataSourcePlanner {
 	return &GraphQLDataSourcePlanner{
-		log: logger,
+		BaseDataSourcePlanner: BaseDataSourcePlanner{
+			log: log,
+		},
 	}
 }
 
@@ -301,7 +300,7 @@ func (g *GraphQLDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Write
 
 	if hostArg == nil || urlArg == nil || queryArg == nil {
 		g.log.Error("GraphQLDataSource.args invalid")
-		return CloseConnection
+		return CloseConnectionIfNotStream
 	}
 
 	url := string(hostArg) + string(urlArg)
@@ -332,7 +331,7 @@ func (g *GraphQLDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Write
 		g.log.Error("GraphQLDataSource.json.MarshalIndent",
 			zap.Error(err),
 		)
-		return CloseConnection
+		return CloseConnectionIfNotStream
 	}
 
 	g.log.Error("GraphQLDataSource.request",
@@ -353,7 +352,7 @@ func (g *GraphQLDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Write
 		g.log.Error("GraphQLDataSource.http.NewRequest",
 			zap.Error(err),
 		)
-		return CloseConnection
+		return CloseConnectionIfNotStream
 	}
 
 	request.Header.Add("Content-Type", "application/json")
@@ -364,14 +363,14 @@ func (g *GraphQLDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Write
 		g.log.Error("GraphQLDataSource.client.Do",
 			zap.Error(err),
 		)
-		return CloseConnection
+		return CloseConnectionIfNotStream
 	}
 	data, err := ioutil.ReadAll(res.Body)
 	if err != nil {
 		g.log.Error("GraphQLDataSource.ioutil.ReadAll",
 			zap.Error(err),
 		)
-		return CloseConnection
+		return CloseConnectionIfNotStream
 	}
 
 	data = bytes.ReplaceAll(data, literal.BACKSLASH, nil)
@@ -380,14 +379,14 @@ func (g *GraphQLDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Write
 		g.log.Error("GraphQLDataSource.jsonparser.Get",
 			zap.Error(err),
 		)
-		return CloseConnection
+		return CloseConnectionIfNotStream
 	}
 	_, err = out.Write(data)
 	if err != nil {
 		g.log.Error("GraphQLDataSource.out.Write",
 			zap.Error(err),
 		)
-		return CloseConnection
+		return CloseConnectionIfNotStream
 	}
-	return CloseConnection
+	return CloseConnectionIfNotStream
 }

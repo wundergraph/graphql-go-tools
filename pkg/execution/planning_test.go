@@ -1705,7 +1705,9 @@ func TestPlanner_Plan(t *testing.T) {
 			FieldName: []byte("stream"),
 			DataSourcePlannerFactory: func() DataSourcePlanner {
 				return &HttpPollingStreamDataSourcePlanner{
-					log: zap.NewNop(),
+					BaseDataSourcePlanner: BaseDataSourcePlanner{
+						log: zap.NewNop(),
+					},
 				}
 			},
 		},

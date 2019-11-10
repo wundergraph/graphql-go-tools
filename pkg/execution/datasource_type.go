@@ -3,13 +3,20 @@ package execution
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
+	"go.uber.org/zap"
 	"io"
 )
 
+func NewTypeDataSourcePlanner(log *zap.Logger) *TypeDataSourcePlanner {
+	return &TypeDataSourcePlanner{
+		BaseDataSourcePlanner: BaseDataSourcePlanner{
+			log: log,
+		},
+	}
+}
+
 type TypeDataSourcePlanner struct {
-	walker                *astvisitor.Walker
-	operation, definition *ast.Document
-	args                  []Argument
+	BaseDataSourcePlanner
 }
 
 func (t *TypeDataSourcePlanner) OverrideRootFieldPath(path []string) []string {

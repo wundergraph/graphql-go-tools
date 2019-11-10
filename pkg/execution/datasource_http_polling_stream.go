@@ -16,20 +16,19 @@ import (
 )
 
 type HttpPollingStreamDataSourcePlanner struct {
-	walker                *astvisitor.Walker
-	operation, definition *ast.Document
-	log                   *zap.Logger
-	args                  []Argument
-	rootField             int
+	BaseDataSourcePlanner
+	rootField int
 }
 
 func (h *HttpPollingStreamDataSourcePlanner) OverrideRootFieldPath(path []string) []string {
 	return nil
 }
 
-func NewHttpPollingStreamDataSourcePlanner(logger *zap.Logger) *HttpPollingStreamDataSourcePlanner {
+func NewHttpPollingStreamDataSourcePlanner(log *zap.Logger) *HttpPollingStreamDataSourcePlanner {
 	return &HttpPollingStreamDataSourcePlanner{
-		log: logger,
+		BaseDataSourcePlanner: BaseDataSourcePlanner{
+			log: log,
+		},
 	}
 }
 

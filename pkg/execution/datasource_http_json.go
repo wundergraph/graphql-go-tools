@@ -14,18 +14,17 @@ import (
 	"time"
 )
 
-func NewHttpJsonDataSourcePlanner(logger *zap.Logger) *HttpJsonDataSourcePlanner {
+func NewHttpJsonDataSourcePlanner(log *zap.Logger) *HttpJsonDataSourcePlanner {
 	return &HttpJsonDataSourcePlanner{
-		log: logger,
+		BaseDataSourcePlanner: BaseDataSourcePlanner{
+			log: log,
+		},
 	}
 }
 
 type HttpJsonDataSourcePlanner struct {
-	log                   *zap.Logger
-	walker                *astvisitor.Walker
-	definition, operation *ast.Document
-	args                  []Argument
-	rootField             int
+	BaseDataSourcePlanner
+	rootField int
 }
 
 func (h *HttpJsonDataSourcePlanner) OverrideRootFieldPath(path []string) []string {
@@ -118,7 +117,7 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 
 	if hostArg == nil || urlArg == nil {
 		r.log.Error("HttpJsonDataSource.args invalid")
-		return CloseConnection
+		return CloseConnectionIfNotStream
 	}
 
 	url := string(hostArg) + string(urlArg)
@@ -132,7 +131,7 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 			r.log.Error("HttpJsonDataSource.template.New",
 				zap.Error(err),
 			)
-			return CloseConnection
+			return CloseConnectionIfNotStream
 		}
 		out := bytes.Buffer{}
 		data := make(map[string]string, len(args))
@@ -144,7 +143,7 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 			r.log.Error("HttpJsonDataSource.tmpl.Execute",
 				zap.Error(err),
 			)
-			return CloseConnection
+			return CloseConnectionIfNotStream
 		}
 		url = out.String()
 	}
@@ -166,7 +165,7 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 		r.log.Error("HttpJsonDataSource.Resolve.NewRequest",
 			zap.Error(err),
 		)
-		return CloseConnection
+		return CloseConnectionIfNotStream
 	}
 
 	request.Header.Add("Accept", "application/json")
@@ -176,7 +175,7 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 		r.log.Error("HttpJsonDataSource.Resolve.client.Do",
 			zap.Error(err),
 		)
-		return CloseConnection
+		return CloseConnectionIfNotStream
 	}
 
 	data, err := ioutil.ReadAll(res.Body)
@@ -184,14 +183,14 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 		r.log.Error("HttpJsonDataSource.Resolve.ioutil.ReadAll",
 			zap.Error(err),
 		)
-		return CloseConnection
+		return CloseConnectionIfNotStream
 	}
 	_, err = out.Write(data)
 	if err != nil {
 		r.log.Error("HttpJsonDataSource.Resolve.out.Write",
 			zap.Error(err),
 		)
-		return CloseConnection
+		return CloseConnectionIfNotStream
 	}
-	return CloseConnection
+	return CloseConnectionIfNotStream
 }

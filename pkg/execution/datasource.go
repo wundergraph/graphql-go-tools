@@ -3,6 +3,7 @@ package execution
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
+	"go.uber.org/zap"
 	"io"
 )
 
@@ -51,4 +52,11 @@ type DataSourcePlanner interface {
 	astvisitor.LeaveSelectionSetVisitor
 	astvisitor.EnterFieldVisitor
 	astvisitor.LeaveFieldVisitor
+}
+
+type BaseDataSourcePlanner struct {
+	log                   *zap.Logger
+	walker                *astvisitor.Walker
+	definition, operation *ast.Document
+	args                  []Argument
 }
