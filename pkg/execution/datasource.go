@@ -56,7 +56,7 @@ type DataSourcePlanner interface {
 
 type BaseDataSourcePlanner struct {
 	log                   *zap.Logger
-	walker                *astvisitor.Walker
-	definition, operation *ast.Document
-	args                  []Argument
+	walker                *astvisitor.Walker // nolint
+	definition, operation *ast.Document      // nolint
+	args                  []Argument         // nolint
 }
