@@ -8,23 +8,35 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
+	"go.uber.org/zap"
+	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"strings"
 	"time"
 )
 
 type GraphQLDataSourcePlanner struct {
-	walker                *astvisitor.Walker
-	operation, definition *ast.Document
-	args                  []Argument
-	nodes                 []ast.Node
-	resolveDocument       *ast.Document
+	BaseDataSourcePlanner
+
+	nodes           []ast.Node
+	resolveDocument *ast.Document
 
 	rootFieldRef          int
 	rootFieldArgumentRefs []int
 	variableDefinitions   []int
+}
+
+func (g *GraphQLDataSourcePlanner) OverrideRootFieldPath(path []string) []string {
+	return path
+}
+
+func NewGraphQLDataSourcePlanner(log *zap.Logger) *GraphQLDataSourcePlanner {
+	return &GraphQLDataSourcePlanner{
+		BaseDataSourcePlanner: BaseDataSourcePlanner{
+			log: log,
+		},
+	}
 }
 
 func (g *GraphQLDataSourcePlanner) DirectiveName() []byte {
@@ -267,20 +279,28 @@ func (g *GraphQLDataSourcePlanner) LeaveField(ref int) {
 }
 
 func (g *GraphQLDataSourcePlanner) Plan() (DataSource, []Argument) {
-	return &GraphQLDataSource{}, g.args
+	return &GraphQLDataSource{
+		log: g.log,
+	}, g.args
 }
 
-type GraphQLDataSource struct{}
+type GraphQLDataSource struct {
+	log *zap.Logger
+}
 
-func (g *GraphQLDataSource) Resolve(ctx Context, args ResolvedArgs) []byte {
+func (g *GraphQLDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) Instruction {
 
 	hostArg := args.ByKey(literal.HOST)
 	urlArg := args.ByKey(literal.URL)
 	queryArg := args.ByKey(literal.QUERY)
 
+	g.log.Debug("GraphQLDataSource.Resolve.args",
+		zap.Strings("resolvedArgs", args.Dump()),
+	)
+
 	if hostArg == nil || urlArg == nil || queryArg == nil {
-		log.Fatal("one of host,url,query arg nil")
-		return nil
+		g.log.Error("GraphQLDataSource.args invalid")
+		return CloseConnectionIfNotStream
 	}
 
 	url := string(hostArg) + string(urlArg)
@@ -308,8 +328,16 @@ func (g *GraphQLDataSource) Resolve(ctx Context, args ResolvedArgs) []byte {
 
 	gqlRequestData, err := json.MarshalIndent(gqlRequest, "", "  ")
 	if err != nil {
-		log.Fatal(err)
+		g.log.Error("GraphQLDataSource.json.MarshalIndent",
+			zap.Error(err),
+		)
+		return CloseConnectionIfNotStream
 	}
+
+	g.log.Error("GraphQLDataSource.request",
+		zap.String("url", url),
+		zap.String("data", string(gqlRequestData)),
+	)
 
 	client := http.Client{
 		Timeout: time.Second * 10,
@@ -321,7 +349,10 @@ func (g *GraphQLDataSource) Resolve(ctx Context, args ResolvedArgs) []byte {
 
 	request, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(gqlRequestData))
 	if err != nil {
-		log.Fatal(err)
+		g.log.Error("GraphQLDataSource.http.NewRequest",
+			zap.Error(err),
+		)
+		return CloseConnectionIfNotStream
 	}
 
 	request.Header.Add("Content-Type", "application/json")
@@ -329,17 +360,33 @@ func (g *GraphQLDataSource) Resolve(ctx Context, args ResolvedArgs) []byte {
 
 	res, err := client.Do(request)
 	if err != nil {
-		log.Fatal(err)
+		g.log.Error("GraphQLDataSource.client.Do",
+			zap.Error(err),
+		)
+		return CloseConnectionIfNotStream
 	}
 	data, err := ioutil.ReadAll(res.Body)
 	if err != nil {
-		log.Fatal(err)
+		g.log.Error("GraphQLDataSource.ioutil.ReadAll",
+			zap.Error(err),
+		)
+		return CloseConnectionIfNotStream
 	}
 
 	data = bytes.ReplaceAll(data, literal.BACKSLASH, nil)
 	data, _, _, err = jsonparser.Get(data, "data")
 	if err != nil {
-		log.Fatal(err)
+		g.log.Error("GraphQLDataSource.jsonparser.Get",
+			zap.Error(err),
+		)
+		return CloseConnectionIfNotStream
 	}
-	return data
+	_, err = out.Write(data)
+	if err != nil {
+		g.log.Error("GraphQLDataSource.out.Write",
+			zap.Error(err),
+		)
+		return CloseConnectionIfNotStream
+	}
+	return CloseConnectionIfNotStream
 }

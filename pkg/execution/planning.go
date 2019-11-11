@@ -55,7 +55,7 @@ func NewPlanner(resolverDefinitions ResolverDefinitions) *Planner {
 	}
 }
 
-func (p *Planner) Plan(operation, definition *ast.Document, report *operationreport.Report) Node {
+func (p *Planner) Plan(operation, definition *ast.Document, report *operationreport.Report) RootNode {
 	p.walker.Walk(operation, definition, report)
 	return p.visitor.rootNode
 }
@@ -64,7 +64,7 @@ type planningVisitor struct {
 	*astvisitor.Walker
 	resolverDefinitions   ResolverDefinitions
 	operation, definition *ast.Document
-	rootNode              Node
+	rootNode              RootNode
 	currentNode           []Node
 	planners              []dataSourcePlannerRef
 }
@@ -79,6 +79,7 @@ func (p *planningVisitor) EnterDocument(operation, definition *ast.Document) {
 	p.operation, p.definition = operation, definition
 	obj := &Object{}
 	p.rootNode = &Object{
+		operationType: operation.OperationDefinitions[0].OperationType,
 		Fields: []Field{
 			{
 				Name:  literal.DATA,
@@ -182,10 +183,7 @@ func (p *planningVisitor) EnterField(ref int) {
 		}
 
 		if planner != nil {
-			switch planner.(type) {
-			case *HttpJsonDataSourcePlanner, *StaticDataSourcePlanner:
-				path = nil
-			}
+			path = planner.OverrideRootFieldPath(path)
 		}
 
 		var value Node
@@ -203,6 +201,16 @@ func (p *planningVisitor) EnterField(ref int) {
 			list := &List{
 				Path:  path,
 				Value: value,
+			}
+
+			firstNValue, ok := p.FieldDefinitionDirectiveArgumentValueByName(ref, []byte("ListFilterFirstN"), []byte("n"))
+			if ok {
+				if firstNValue.Kind == ast.ValueKindInteger {
+					firstN := p.definition.IntValueAsInt(firstNValue.Ref)
+					list.Filter = &ListFilterFirstN{
+						FirstN: firstN,
+					}
+				}
 			}
 
 			parent.Fields = append(parent.Fields, Field{
@@ -268,9 +276,34 @@ func (p *planningVisitor) LeaveField(ref int) {
 					for i := 0; i < len(parent.Fields); i++ {
 						if bytes.Equal(p.operation.FieldObjectNameBytes(ref), parent.Fields[i].Name) {
 
-							parent.Fields[i].Resolve = &DataSourceInvocation{
-								Args:       plannedArgs,
-								DataSource: plannedDataSource,
+							pathName := p.operation.FieldObjectNameString(ref)
+							parent.Fields[i].HasResolver = true
+
+							singleFetch := &SingleFetch{
+								Source: &DataSourceInvocation{
+									Args:       plannedArgs,
+									DataSource: plannedDataSource,
+								},
+								BufferName: pathName,
+							}
+
+							if parent.Fetch == nil {
+								parent.Fetch = singleFetch
+							} else {
+								switch fetch := parent.Fetch.(type) {
+								case *ParallelFetch:
+									fetch.Fetches = append(fetch.Fetches, singleFetch)
+								case *SerialFetch:
+									fetch.Fetches = append(fetch.Fetches, singleFetch)
+								case *SingleFetch:
+									first := *fetch
+									parent.Fetch = &ParallelFetch{
+										Fetches: []Fetch{
+											&first,
+											singleFetch,
+										},
+									}
+								}
 							}
 						}
 					}

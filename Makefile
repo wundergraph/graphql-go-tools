@@ -32,6 +32,7 @@ ci: bootstrap test lint
 .PHONY: generate
 generate: $(GOPATH)/bin/go-enum $(GOPATH)/bin/mockgen $(GOPATH)/bin/stringer
 	go generate ./...
+	go mod tidy
 
 $(GOPATH)/bin/go-enum:
 	go get -u github.com/abice/go-enum

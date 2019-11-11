@@ -5,12 +5,24 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
+	"go.uber.org/zap"
+	"io"
 )
 
+func NewStaticDataSourcePlanner(log *zap.Logger) *StaticDataSourcePlanner {
+	return &StaticDataSourcePlanner{
+		BaseDataSourcePlanner: BaseDataSourcePlanner{
+			log: log,
+		},
+	}
+}
+
 type StaticDataSourcePlanner struct {
-	walker                *astvisitor.Walker
-	definition, operation *ast.Document
-	args                  []Argument
+	BaseDataSourcePlanner
+}
+
+func (s *StaticDataSourcePlanner) OverrideRootFieldPath(path []string) []string {
+	return nil
 }
 
 func (s *StaticDataSourcePlanner) DirectiveName() []byte {
@@ -70,6 +82,7 @@ func (s *StaticDataSourcePlanner) Plan() (DataSource, []Argument) {
 type StaticDataSource struct {
 }
 
-func (s StaticDataSource) Resolve(ctx Context, args ResolvedArgs) []byte {
-	return args[0].Value
+func (s StaticDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) Instruction {
+	_, _ = out.Write(args[0].Value)
+	return CloseConnectionIfNotStream
 }

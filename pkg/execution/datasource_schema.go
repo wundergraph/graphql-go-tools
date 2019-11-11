@@ -6,9 +6,11 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/introspection"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
+	"go.uber.org/zap"
+	"io"
 )
 
-func NewSchemaDataSourcePlanner(definition *ast.Document, report *operationreport.Report) *SchemaDataSourcePlanner {
+func NewSchemaDataSourcePlanner(definition *ast.Document, report *operationreport.Report, log *zap.Logger) *SchemaDataSourcePlanner {
 	gen := introspection.NewGenerator()
 	var data introspection.Data
 	gen.Generate(definition, report, &data)
@@ -18,12 +20,19 @@ func NewSchemaDataSourcePlanner(definition *ast.Document, report *operationrepor
 	}
 	return &SchemaDataSourcePlanner{
 		schemaBytes: schemaBytes,
+		BaseDataSourcePlanner: BaseDataSourcePlanner{
+			log: log,
+		},
 	}
 }
 
 type SchemaDataSourcePlanner struct {
+	BaseDataSourcePlanner
 	schemaBytes []byte
-	args        []Argument
+}
+
+func (s *SchemaDataSourcePlanner) OverrideRootFieldPath(path []string) []string {
+	return path
 }
 
 func (s *SchemaDataSourcePlanner) DirectiveName() []byte {
@@ -68,6 +77,7 @@ type SchemaDataSource struct {
 	schemaBytes []byte
 }
 
-func (s *SchemaDataSource) Resolve(ctx Context, args ResolvedArgs) []byte {
-	return s.schemaBytes
+func (s *SchemaDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) Instruction {
+	_, _ = out.Write(s.schemaBytes)
+	return CloseConnectionIfNotStream
 }

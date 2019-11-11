@@ -11,7 +11,6 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 	"go.uber.org/zap"
-	"io"
 )
 
 type Handler struct {
@@ -40,17 +39,18 @@ type GraphqlRequest struct {
 	Query         string                     `json:"query"`
 }
 
-func (h *Handler) Handle(requestBody io.Reader, responseWriter io.Writer) error {
+func (h *Handler) Handle(data []byte) (executor *Executor, node RootNode, ctx Context, err error) {
 
 	var graphqlRequest GraphqlRequest
-	err := json.NewDecoder(requestBody).Decode(&graphqlRequest)
+	err = json.Unmarshal(data, &graphqlRequest)
 	if err != nil {
-		return err
+		return
 	}
 
 	operationDocument, report := astparser.ParseGraphqlDocumentString(graphqlRequest.Query)
 	if report.HasErrors() {
-		return report
+		err = report
+		return
 	}
 
 	variables := make(Variables, len(graphqlRequest.Variables))
@@ -60,38 +60,44 @@ func (h *Handler) Handle(requestBody io.Reader, responseWriter io.Writer) error 
 
 	planner := NewPlanner(h.resolverDefinitions(&report))
 	if report.HasErrors() {
-		return report
+		err = report
+		return
 	}
 
 	astnormalization.NormalizeOperation(&operationDocument, &h.definition, &report)
 	if report.HasErrors() {
-		return report
+		err = report
+		return
 	}
 
 	validator := astvalidation.DefaultOperationValidator()
 	if report.HasErrors() {
-		return report
+		err = report
+		return
 	}
 	validator.Validate(&operationDocument, &h.definition, &report)
 	if report.HasErrors() {
-		return report
+		err = report
+		return
 	}
 	normalizer := astnormalization.NewNormalizer(true)
 	normalizer.NormalizeOperation(&operationDocument, &h.definition, &report)
 	if report.HasErrors() {
-		return report
+		err = report
+		return
 	}
 	plan := planner.Plan(&operationDocument, &h.definition, &report)
 	if report.HasErrors() {
-		return report
+		err = report
+		return
 	}
 
-	executor := Executor{}
-	ctx := Context{
+	executor = NewExecutor()
+	ctx = Context{
 		Variables: variables,
 	}
 
-	return executor.Execute(ctx, plan, responseWriter)
+	return executor, plan, ctx, err
 }
 
 func (h *Handler) resolverDefinitions(report *operationreport.Report) ResolverDefinitions {
@@ -101,7 +107,7 @@ func (h *Handler) resolverDefinitions(report *operationreport.Report) ResolverDe
 			TypeName:  literal.QUERY,
 			FieldName: literal.UNDERSCORESCHEMA,
 			DataSourcePlannerFactory: func() DataSourcePlanner {
-				return NewSchemaDataSourcePlanner(&h.definition, report)
+				return NewSchemaDataSourcePlanner(&h.definition, report, h.log)
 			},
 		},
 	}
@@ -113,16 +119,19 @@ func (h *Handler) resolverDefinitions(report *operationreport.Report) ResolverDe
 		resolvers:  &definitions,
 		dataSourcePlannerFactories: []func() DataSourcePlanner{
 			func() DataSourcePlanner {
-				return &GraphQLDataSourcePlanner{}
+				return NewGraphQLDataSourcePlanner(h.log)
 			},
 			func() DataSourcePlanner {
 				return NewHttpJsonDataSourcePlanner(h.log)
 			},
 			func() DataSourcePlanner {
-				return &StaticDataSourcePlanner{}
+				return NewHttpPollingStreamDataSourcePlanner(h.log)
 			},
 			func() DataSourcePlanner {
-				return &TypeDataSourcePlanner{}
+				return NewStaticDataSourcePlanner(h.log)
+			},
+			func() DataSourcePlanner {
+				return NewTypeDataSourcePlanner(h.log)
 			},
 		},
 	}

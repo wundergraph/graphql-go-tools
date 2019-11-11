@@ -6,25 +6,29 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"go.uber.org/zap"
+	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"strings"
 	"text/template"
 	"time"
 )
 
-func NewHttpJsonDataSourcePlanner(logger *zap.Logger) *HttpJsonDataSourcePlanner {
+func NewHttpJsonDataSourcePlanner(log *zap.Logger) *HttpJsonDataSourcePlanner {
 	return &HttpJsonDataSourcePlanner{
-		log: logger,
+		BaseDataSourcePlanner: BaseDataSourcePlanner{
+			log: log,
+		},
 	}
 }
 
 type HttpJsonDataSourcePlanner struct {
-	log                   *zap.Logger
-	walker                *astvisitor.Walker
-	definition, operation *ast.Document
-	args                  []Argument
+	BaseDataSourcePlanner
+	rootField int
+}
+
+func (h *HttpJsonDataSourcePlanner) OverrideRootFieldPath(path []string) []string {
+	return nil
 }
 
 func (h *HttpJsonDataSourcePlanner) DirectiveName() []byte {
@@ -33,6 +37,7 @@ func (h *HttpJsonDataSourcePlanner) DirectiveName() []byte {
 
 func (h *HttpJsonDataSourcePlanner) Initialize(walker *astvisitor.Walker, operation, definition *ast.Document, args []Argument, resolverParameters []ResolverParameter) {
 	h.walker, h.operation, h.definition, h.args = walker, operation, definition, args
+	h.rootField = -1
 }
 
 func (h *HttpJsonDataSourcePlanner) Plan() (DataSource, []Argument) {
@@ -58,15 +63,20 @@ func (h *HttpJsonDataSourcePlanner) LeaveSelectionSet(ref int) {
 }
 
 func (h *HttpJsonDataSourcePlanner) EnterField(ref int) {
-
+	if h.rootField == -1 {
+		h.rootField = ref
+	}
 }
 
 func (h *HttpJsonDataSourcePlanner) LeaveField(ref int) {
+	if h.rootField != ref {
+		return
+	}
 	definition, exists := h.walker.FieldDefinition(ref)
 	if !exists {
 		return
 	}
-	directive, exists := h.definition.FieldDefinitionDirectiveByName(definition, []byte("HttpJsonDataSource"))
+	directive, exists := h.definition.FieldDefinitionDirectiveByName(definition, h.DirectiveName())
 	if !exists {
 		return
 	}
@@ -96,13 +106,18 @@ type HttpJsonDataSource struct {
 	log *zap.Logger
 }
 
-func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs) []byte {
+func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) Instruction {
 
 	hostArg := args.ByKey(literal.HOST)
 	urlArg := args.ByKey(literal.URL)
 
+	r.log.Debug("HttpJsonDataSource.Resolve.args",
+		zap.Strings("resolvedArgs", args.Dump()),
+	)
+
 	if hostArg == nil || urlArg == nil {
-		return nil
+		r.log.Error("HttpJsonDataSource.args invalid")
+		return CloseConnectionIfNotStream
 	}
 
 	url := string(hostArg) + string(urlArg)
@@ -113,7 +128,10 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs) []byte {
 	if strings.Contains(url, "{{") {
 		tmpl, err := template.New("url").Parse(url)
 		if err != nil {
-			log.Fatal(err)
+			r.log.Error("HttpJsonDataSource.template.New",
+				zap.Error(err),
+			)
+			return CloseConnectionIfNotStream
 		}
 		out := bytes.Buffer{}
 		data := make(map[string]string, len(args))
@@ -122,7 +140,10 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs) []byte {
 		}
 		err = tmpl.Execute(&out, data)
 		if err != nil {
-			log.Fatal(err)
+			r.log.Error("HttpJsonDataSource.tmpl.Execute",
+				zap.Error(err),
+			)
+			return CloseConnectionIfNotStream
 		}
 		url = out.String()
 	}
@@ -141,26 +162,35 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs) []byte {
 
 	request, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
-		r.log.Error("HttpJsonDataSource.Resolve",
+		r.log.Error("HttpJsonDataSource.Resolve.NewRequest",
 			zap.Error(err),
 		)
-		return []byte(err.Error())
+		return CloseConnectionIfNotStream
 	}
 
 	request.Header.Add("Accept", "application/json")
 
 	res, err := client.Do(request)
 	if err != nil {
-		return []byte(err.Error())
+		r.log.Error("HttpJsonDataSource.Resolve.client.Do",
+			zap.Error(err),
+		)
+		return CloseConnectionIfNotStream
 	}
 
 	data, err := ioutil.ReadAll(res.Body)
 	if err != nil {
-		r.log.Error("HttpJsonDataSource.Resolve",
+		r.log.Error("HttpJsonDataSource.Resolve.ioutil.ReadAll",
 			zap.Error(err),
 		)
-		return []byte(err.Error())
+		return CloseConnectionIfNotStream
 	}
-
-	return bytes.ReplaceAll(data, literal.BACKSLASH, nil)
+	_, err = out.Write(data)
+	if err != nil {
+		r.log.Error("HttpJsonDataSource.Resolve.out.Write",
+			zap.Error(err),
+		)
+		return CloseConnectionIfNotStream
+	}
+	return CloseConnectionIfNotStream
 }

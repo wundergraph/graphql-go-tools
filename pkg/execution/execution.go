@@ -2,25 +2,62 @@ package execution
 
 import (
 	"bytes"
+	"context"
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash"
+	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
+	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"io"
+	"strconv"
+	"sync"
 )
 
 type Executor struct {
-	context Context
-	out     io.Writer
-	err     error
-	args    [48]ResolvedArgument
+	context      Context
+	out          io.Writer
+	err          error
+	buffers      LockableBufferMap
+	instructions []Instruction
 }
 
-func (e *Executor) Execute(ctx Context, node Node, w io.Writer) error {
+type LockableBufferMap struct {
+	sync.Mutex
+	Buffers map[uint64]*bytes.Buffer
+}
+
+func NewExecutor() *Executor {
+	return &Executor{
+		buffers: LockableBufferMap{
+			Buffers: map[uint64]*bytes.Buffer{},
+		},
+	}
+}
+
+type Instruction int
+
+const (
+	KeepStreamAlive Instruction = iota + 1
+	CloseConnection
+	CloseConnectionIfNotStream
+)
+
+func (e *Executor) Execute(ctx Context, node RootNode, w io.Writer) (instruction []Instruction, err error) {
 	e.context = ctx
 	e.out = w
 	e.err = nil
-	e.resolveNode(node, nil)
-	return e.err
+	e.instructions = e.instructions[:0]
+	var path string
+	switch node.OperationType() {
+	case ast.OperationTypeQuery:
+		path = "query"
+	case ast.OperationTypeMutation:
+		path = "mutation"
+	case ast.OperationTypeSubscription:
+		path = "subscription"
+	}
+	e.resolveNode(node, nil, path, nil, true)
+	return e.instructions, e.err
 }
 
 func (e *Executor) write(data []byte) {
@@ -30,9 +67,10 @@ func (e *Executor) write(data []byte) {
 	_, e.err = e.out.Write(data)
 }
 
-func (e *Executor) resolveNode(node Node, data []byte) {
+func (e *Executor) resolveNode(node Node, data []byte, path string, prefetch *sync.WaitGroup, shouldFetch bool) {
 	switch node := node.(type) {
 	case *Object:
+
 		if data != nil && node.Path != nil {
 			data, _, _, e.err = jsonparser.Get(data, node.Path...)
 			if e.err == jsonparser.KeyPathNotFoundError {
@@ -41,11 +79,22 @@ func (e *Executor) resolveNode(node Node, data []byte) {
 				return
 			}
 		}
+
+		if shouldFetch && node.Fetch != nil {
+			e.instructions = append(e.instructions, node.Fetch.Fetch(e.context, data, e, path, &e.buffers))
+		}
+
+		if prefetch != nil {
+			prefetch.Done()
+			return
+		}
+
 		if bytes.Equal(data, literal.NULL) {
 			e.write(literal.NULL)
 			return
 		}
 		e.write(literal.LBRACE)
+
 		for i := 0; i < len(node.Fields); i++ {
 			if node.Fields[i].Skip != nil {
 				if node.Fields[i].Skip.Evaluate(e.context, data) {
@@ -55,12 +104,22 @@ func (e *Executor) resolveNode(node Node, data []byte) {
 			if i != 0 {
 				e.write(literal.COMMA)
 			}
-			e.resolveNode(&node.Fields[i], data)
+			e.resolveNode(&node.Fields[i], data, path, nil, true)
 		}
 		e.write(literal.RBRACE)
 	case *Field:
-		if node.Resolve != nil {
-			data = node.Resolve.DataSource.Resolve(e.context, e.resolveArgs(node.Resolve.Args, data))
+		path = path + "." + unsafebytes.BytesToString(node.Name)
+		if node.HasResolver {
+			buffer, ok := e.buffers.Buffers[xxhash.Sum64String(path)]
+			if !ok {
+				e.write(literal.QUOTE)
+				e.write(node.Name)
+				e.write(literal.QUOTE)
+				e.write(literal.COLON)
+				e.write(literal.NULL)
+				return
+			}
+			data = buffer.Bytes()
 		}
 		e.write(literal.QUOTE)
 		e.write(node.Name)
@@ -70,7 +129,7 @@ func (e *Executor) resolveNode(node Node, data []byte) {
 			e.write(literal.NULL)
 			return
 		}
-		e.resolveNode(node.Value, data)
+		e.resolveNode(node.Value, data, path, nil, true)
 	case *Value:
 		if bytes.Equal(data, literal.NULL) {
 			e.write(literal.NULL)
@@ -104,17 +163,48 @@ func (e *Executor) resolveNode(node Node, data []byte) {
 			e.write(literal.NULL)
 			return
 		}
-		first := true
+		shouldPrefetch := false
+		switch object := node.Value.(type) {
+		case *Object:
+			if object.Fetch != nil {
+				shouldPrefetch = true
+			}
+		}
+		var listItems [][]byte
 		_, e.err = jsonparser.ArrayEach(data, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
-			if first {
+			listItems = append(listItems, value)
+		}, node.Path...)
+
+		path = path + "."
+
+		maxItems := len(listItems)
+		if node.Filter != nil {
+			switch filter := node.Filter.(type) {
+			case *ListFilterFirstN:
+				if maxItems > filter.FirstN {
+					maxItems = filter.FirstN
+				}
+			}
+		}
+
+		if shouldPrefetch {
+			wg := &sync.WaitGroup{}
+			for i := 0; i < maxItems; i++ {
+				wg.Add(1)
+				go e.resolveNode(node.Value, listItems[i], path+strconv.Itoa(i), wg, true)
+			}
+			wg.Wait()
+		}
+		i := 0
+		for i = 0; i < maxItems; i++ {
+			if i == 0 {
 				e.write(literal.LBRACK)
-				first = !first
 			} else {
 				e.write(literal.COMMA)
 			}
-			e.resolveNode(node.Value, value)
-		}, node.Path...)
-		if first || e.err == jsonparser.KeyPathNotFoundError {
+			e.resolveNode(node.Value, listItems[i], path+strconv.Itoa(i), nil, false)
+		}
+		if i == 0 || e.err == jsonparser.KeyPathNotFoundError {
 			e.err = nil
 			e.write(literal.LBRACK)
 		}
@@ -122,13 +212,18 @@ func (e *Executor) resolveNode(node Node, data []byte) {
 	}
 }
 
-func (e *Executor) resolveArgs(args []Argument, data []byte) ResolvedArgs {
-	var resolved ResolvedArgs
-	if len(e.args) >= len(args) {
-		resolved = e.args[:len(args)]
-	} else {
-		resolved = make(ResolvedArgs, len(args))
-	}
+func (e *Executor) ResolveArgs(args []Argument, data []byte, prefix string) ResolvedArgs {
+	/*
+		TODO: optimize later
+		var resolved ResolvedArgs
+		if len(e.args) >= len(args) {
+			resolved = e.args[:len(args)]
+		} else {
+			resolved = make(ResolvedArgs, len(args))
+		}
+	*/
+
+	resolved := make(ResolvedArgs, len(args))
 	for i := 0; i < len(args); i++ {
 		switch arg := args[i].(type) {
 		case *StaticVariableArgument:
@@ -159,7 +254,13 @@ type Node interface {
 	HasResolvers() bool
 }
 
+type RootNode interface {
+	Node
+	OperationType() ast.OperationType
+}
+
 type Context struct {
+	context.Context
 	Variables Variables
 }
 
@@ -176,13 +277,21 @@ type ResolvedArgument struct {
 
 type ResolvedArgs []ResolvedArgument
 
-func (a ResolvedArgs) ByKey(key []byte) []byte {
-	for i := 0; i < len(a); i++ {
-		if bytes.Equal(a[i].Key, key) {
-			return a[i].Value
+func (r ResolvedArgs) ByKey(key []byte) []byte {
+	for i := 0; i < len(r); i++ {
+		if bytes.Equal(r[i].Key, key) {
+			return r[i].Value
 		}
 	}
 	return nil
+}
+
+func (r ResolvedArgs) Dump() []string {
+	out := make([]string, len(r))
+	for i := range r {
+		out[i] = string(r[i].Key) + "=" + string(r[i].Value)
+	}
+	return out
 }
 
 type ContextVariableArgument struct {
@@ -213,8 +322,72 @@ func (s *StaticVariableArgument) ArgName() []byte {
 }
 
 type Object struct {
-	Fields []Field
-	Path   []string
+	Fields        []Field
+	Path          []string
+	Fetch         Fetch
+	operationType ast.OperationType
+}
+
+func (o *Object) OperationType() ast.OperationType {
+	return o.operationType
+}
+
+type ArgsResolver interface {
+	ResolveArgs(args []Argument, data []byte, prefix string) ResolvedArgs
+}
+
+type Fetch interface {
+	Fetch(ctx Context, data []byte, argsResolver ArgsResolver, suffix string, buffers *LockableBufferMap) Instruction
+}
+
+type SingleFetch struct {
+	Source     *DataSourceInvocation
+	BufferName string
+}
+
+func (s *SingleFetch) Fetch(ctx Context, data []byte, argsResolver ArgsResolver, path string, buffers *LockableBufferMap) Instruction {
+	bufferName := path + "." + s.BufferName
+	hash := xxhash.Sum64String(bufferName)
+	buffers.Lock()
+	buffer, exists := buffers.Buffers[hash]
+	buffers.Unlock()
+	if !exists {
+		buffer = bytes.NewBuffer(make([]byte, 0, 1024))
+		buffers.Lock()
+		buffers.Buffers[hash] = buffer
+		buffers.Unlock()
+	} else {
+		buffer.Reset()
+	}
+	return s.Source.DataSource.Resolve(ctx, argsResolver.ResolveArgs(s.Source.Args, data, s.BufferName), buffer)
+}
+
+type SerialFetch struct {
+	Fetches []Fetch
+}
+
+func (s *SerialFetch) Fetch(ctx Context, data []byte, argsResolver ArgsResolver, suffix string, buffers *LockableBufferMap) Instruction {
+	for i := 0; i < len(s.Fetches); i++ {
+		s.Fetches[i].Fetch(ctx, data, argsResolver, suffix, buffers)
+	}
+	return CloseConnection
+}
+
+type ParallelFetch struct {
+	wg      sync.WaitGroup
+	Fetches []Fetch
+}
+
+func (p *ParallelFetch) Fetch(ctx Context, data []byte, argsResolver ArgsResolver, suffix string, buffers *LockableBufferMap) Instruction {
+	for i := 0; i < len(p.Fetches); i++ {
+		p.wg.Add(1)
+		go func(fetch Fetch, ctx Context, data []byte, argsResolver ArgsResolver) {
+			fetch.Fetch(ctx, data, argsResolver, suffix, buffers)
+			p.wg.Done()
+		}(p.Fetches[i], ctx, data, argsResolver)
+	}
+	p.wg.Wait()
+	return CloseConnection
 }
 
 func (o *Object) HasResolvers() bool {
@@ -235,17 +408,14 @@ type BooleanCondition interface {
 }
 
 type Field struct {
-	Name    []byte
-	Value   Node
-	Resolve *DataSourceInvocation
-	Skip    BooleanCondition
+	Name        []byte
+	Value       Node
+	Skip        BooleanCondition
+	HasResolver bool
 }
 
 func (f *Field) HasResolvers() bool {
-	if f.Resolve != nil {
-		return true
-	}
-	return f.Value.HasResolvers()
+	return f.HasResolver || f.Value.HasResolvers()
 }
 
 type IfEqual struct {
@@ -307,8 +477,9 @@ func (*Value) Kind() NodeKind {
 }
 
 type List struct {
-	Path  []string
-	Value Node
+	Path   []string
+	Value  Node
+	Filter ListFilter
 }
 
 func (l *List) HasResolvers() bool {
@@ -317,6 +488,24 @@ func (l *List) HasResolvers() bool {
 
 func (*List) Kind() NodeKind {
 	return ListKind
+}
+
+type ListFilter interface {
+	Kind() ListFilterKind
+}
+
+type ListFilterKind int
+
+const (
+	ListFilterKindFirstN ListFilterKind = iota + 1
+)
+
+type ListFilterFirstN struct {
+	FirstN int
+}
+
+func (_ ListFilterFirstN) Kind() ListFilterKind {
+	return ListFilterKindFirstN
 }
 
 type DataSourceInvocation struct {

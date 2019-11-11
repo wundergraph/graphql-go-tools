@@ -2606,6 +2606,26 @@ func (p Path) String() string {
 	return out
 }
 
+func (p Path) DotDelimitedString() string {
+	out := ""
+	for i := range p {
+		if i != 0 {
+			out += "."
+		}
+		switch p[i].Kind {
+		case ArrayIndex:
+			out += strconv.Itoa(p[i].ArrayIndex)
+		case FieldName:
+			if len(p[i].FieldName) == 0 {
+				out += "query"
+			} else {
+				out += unsafebytes.BytesToString(p[i].FieldName)
+			}
+		}
+	}
+	return out
+}
+
 func (p *PathItem) UnmarshalJSON(data []byte) error {
 	if data == nil {
 		return fmt.Errorf("data must not be nil")
