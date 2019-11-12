@@ -23,5 +23,20 @@ func (e *extendObjectTypeDefinitionVisitor) EnterDocument(operation, definition 
 }
 
 func (e *extendObjectTypeDefinitionVisitor) EnterObjectTypeExtension(ref int) {
+
+	extension := e.operation.ObjectTypeExtensions[ref]
+
+	if extension.HasFieldDefinitions {
+		for fieldDefinitionRef, _ := range extension.FieldsDefinition.Refs {
+			e.operation.ExtendObjectTypeDefinitionByFieldDefinition(extension.ObjectTypeDefinition, fieldDefinitionRef)
+		}
+	}
+
+	if extension.HasDirectives {
+		for directiveRef, _ := range extension.Directives.Refs {
+			e.operation.ExtendObjectTypeDefinitionByDirective(extension.ObjectTypeDefinition, directiveRef)
+		}
+	}
+
 	return
 }
