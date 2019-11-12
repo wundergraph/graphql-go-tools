@@ -461,6 +461,11 @@ func (d *Document) ExtendObjectTypeByField(objectTypeRef, fieldRef int) {
 	return
 }
 
+func (d *Document) ExtendObjectTypeByDirective(objectTypeRef, directiveRef int) {
+	// TODO: implement
+	return
+}
+
 func (d *Document) NodeFieldDefinitions(node Node) []int {
 	switch node.Kind {
 	case NodeKindObjectTypeDefinition:
