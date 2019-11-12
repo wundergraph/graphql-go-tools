@@ -456,12 +456,12 @@ func (d *Document) FieldDefinitionTypeNode(ref int) Node {
 	return d.Index.Nodes[xxhash.Sum64(typeName)]
 }
 
-func (d *Document) ExtendObjectTypeByField(objectTypeRef, fieldRef int) {
+func (d *Document) ExtendObjectTypeDefinitionByField(objectTypeRef, fieldRef int) {
 	// TODO: implement
 	return
 }
 
-func (d *Document) ExtendObjectTypeByDirective(objectTypeRef, directiveRef int) {
+func (d *Document) ExtendObjectTypeDefinitionByDirective(objectTypeRef, directiveRef int) {
 	// TODO: implement
 	return
 }
