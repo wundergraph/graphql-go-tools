@@ -15,6 +15,10 @@ func TestExtendObjectType(t *testing.T) {
 					type Dog {
 						name: String
 						favoriteToy: string
-					}`)
+					}
+					extend type Dog {
+						favoriteToy: String
+					}
+					`)
 	})
 }

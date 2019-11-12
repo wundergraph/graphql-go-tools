@@ -456,7 +456,7 @@ func (d *Document) FieldDefinitionTypeNode(ref int) Node {
 	return d.Index.Nodes[xxhash.Sum64(typeName)]
 }
 
-func (d *Document) ExtendTypeByField(ref int) {
+func (d *Document) ExtendObjectTypeByField(objectTypeRef, fieldRef int) {
 	// TODO: implement
 	return
 }
