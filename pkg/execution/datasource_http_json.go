@@ -14,17 +14,20 @@ import (
 	"time"
 )
 
-func NewHttpJsonDataSourcePlanner(log *zap.Logger) *HttpJsonDataSourcePlanner {
+func NewHttpJsonDataSourcePlanner(baseDataSourcePlanner BaseDataSourcePlanner) *HttpJsonDataSourcePlanner {
 	return &HttpJsonDataSourcePlanner{
-		BaseDataSourcePlanner: BaseDataSourcePlanner{
-			log: log,
-		},
+		BaseDataSourcePlanner: baseDataSourcePlanner,
 	}
 }
 
 type HttpJsonDataSourcePlanner struct {
 	BaseDataSourcePlanner
 	rootField int
+}
+
+func (h *HttpJsonDataSourcePlanner) DirectiveDefinition() []byte {
+	data, _ := h.graphqlDefinitions.Find("directives/http_json_datasource.graphql")
+	return data
 }
 
 func (h *HttpJsonDataSourcePlanner) OverrideRootFieldPath(path []string) []string {

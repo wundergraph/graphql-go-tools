@@ -1,6 +1,7 @@
 package execution
 
 import (
+	"github.com/gobuffalo/packr"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"go.uber.org/zap"
@@ -16,6 +17,21 @@ type DataSourcePlanner interface {
 	// This value is important to tie the directive to the DataSourcePlanner
 	// The value is case sensitive
 	DirectiveName() []byte
+	/*
+		DirectiveDefinition defines the specific directive for the DataSource in GraphQL SDL language
+		Example:
+
+		"""
+		HttpDataSource
+		"""
+		directive @HttpDataSource (
+			"""
+			host is the host name of the data source, e.g. example.com
+			"""
+			host: String!
+		) on FIELD_DEFINITION
+	*/
+	DirectiveDefinition() []byte
 	// Plan should return the instantiated DataSource and the Arguments accordingly
 	// You usually want to take the prepared Arguments from Initialize(...), append or prepend your custom args and then return it in Plan(...)
 	// Keep in mind that not returning the Arguments from Initialize(...) will probably break something
@@ -59,4 +75,5 @@ type BaseDataSourcePlanner struct {
 	walker                *astvisitor.Walker // nolint
 	definition, operation *ast.Document      // nolint
 	args                  []Argument         // nolint
+	graphqlDefinitions    *packr.Box         // nolint
 }

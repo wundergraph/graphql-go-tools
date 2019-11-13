@@ -6,11 +6,10 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/introspection"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
-	"go.uber.org/zap"
 	"io"
 )
 
-func NewSchemaDataSourcePlanner(definition *ast.Document, report *operationreport.Report, log *zap.Logger) *SchemaDataSourcePlanner {
+func NewSchemaDataSourcePlanner(definition *ast.Document, report *operationreport.Report, baseDataSourcePlanner BaseDataSourcePlanner) *SchemaDataSourcePlanner {
 	gen := introspection.NewGenerator()
 	var data introspection.Data
 	gen.Generate(definition, report, &data)
@@ -19,16 +18,18 @@ func NewSchemaDataSourcePlanner(definition *ast.Document, report *operationrepor
 		report.AddInternalError(err)
 	}
 	return &SchemaDataSourcePlanner{
-		schemaBytes: schemaBytes,
-		BaseDataSourcePlanner: BaseDataSourcePlanner{
-			log: log,
-		},
+		schemaBytes:           schemaBytes,
+		BaseDataSourcePlanner: baseDataSourcePlanner,
 	}
 }
 
 type SchemaDataSourcePlanner struct {
 	BaseDataSourcePlanner
 	schemaBytes []byte
+}
+
+func (s *SchemaDataSourcePlanner) DirectiveDefinition() []byte {
+	return nil
 }
 
 func (s *SchemaDataSourcePlanner) OverrideRootFieldPath(path []string) []string {

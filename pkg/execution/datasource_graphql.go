@@ -27,16 +27,19 @@ type GraphQLDataSourcePlanner struct {
 	variableDefinitions   []int
 }
 
-func (g *GraphQLDataSourcePlanner) OverrideRootFieldPath(path []string) []string {
-	return path
+func NewGraphQLDataSourcePlanner(baseDataSourcePlanner BaseDataSourcePlanner) *GraphQLDataSourcePlanner {
+	return &GraphQLDataSourcePlanner{
+		BaseDataSourcePlanner: baseDataSourcePlanner,
+	}
 }
 
-func NewGraphQLDataSourcePlanner(log *zap.Logger) *GraphQLDataSourcePlanner {
-	return &GraphQLDataSourcePlanner{
-		BaseDataSourcePlanner: BaseDataSourcePlanner{
-			log: log,
-		},
-	}
+func (g *GraphQLDataSourcePlanner) DirectiveDefinition() []byte {
+	data, _ := g.graphqlDefinitions.Find("directives/graphql_datasource.graphql")
+	return data
+}
+
+func (g *GraphQLDataSourcePlanner) OverrideRootFieldPath(path []string) []string {
+	return path
 }
 
 func (g *GraphQLDataSourcePlanner) DirectiveName() []byte {

@@ -1,0 +1,22 @@
+"""
+Parameter is useful to map variables from various sources into the data source executor.
+"""
+input Parameter {
+    """
+    this is the name by which the execution engine will access the variable
+    """
+    name: String!
+    """
+    the kind of the parameter source
+    currently sources: the context, the enclosing object (at execution time), field variables
+    """
+    sourceKind: PARAMETER_SOURCE!
+    """
+    name of the parameter on the source
+    """
+    sourceName: String!
+    """
+    type name of the variable, used to generate a valid GraphQL query for the upstream
+    """
+    variableType: String!
+}

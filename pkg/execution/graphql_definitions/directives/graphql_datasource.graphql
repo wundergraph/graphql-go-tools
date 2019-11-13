@@ -1,0 +1,22 @@
+directive @GraphQLDataSource (
+    """
+    the host of the origin
+    """
+    host: String!
+    """
+    the url of the origin
+    """
+    url: String!
+    """
+    the HTTP method the client should use for the request, defaults to GET
+    """
+    method: HTTP_METHOD = POST
+    """
+    the field/entry point on the remote schema
+    """
+    field: String
+    """
+    parameters
+    """
+    params: [Parameter]
+) on FIELD_DEFINITION
