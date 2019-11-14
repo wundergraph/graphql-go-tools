@@ -143,7 +143,34 @@ var run = func(normalizeFunc registerNormalizeFunc, definition, operation, expec
 	expectedOutputDocument := unsafeparser.ParseGraphqlDocumentString(expectedOutput)
 	report := operationreport.Report{}
 	walker := astvisitor.NewWalker(48)
+
 	normalizeFunc(&walker)
+
+	walker.Walk(&operationDocument, &definitionDocument, &report)
+
+	if report.HasErrors() {
+		panic(report.Error())
+	}
+
+	got := mustString(astprinter.PrintString(&operationDocument, &definitionDocument))
+	want := mustString(astprinter.PrintString(&expectedOutputDocument, &definitionDocument))
+
+	if want != got {
+		panic(fmt.Errorf("\nwant:\n%s\ngot:\n%s", want, got))
+	}
+}
+
+func runMany(definition, operation, expectedOutput string, normalizeFuncs ...registerNormalizeFunc) {
+
+	definitionDocument := unsafeparser.ParseGraphqlDocumentString(definition)
+	operationDocument := unsafeparser.ParseGraphqlDocumentString(operation)
+	expectedOutputDocument := unsafeparser.ParseGraphqlDocumentString(expectedOutput)
+	report := operationreport.Report{}
+	walker := astvisitor.NewWalker(48)
+
+	for _, normalizeFunc := range normalizeFuncs {
+		normalizeFunc(&walker)
+	}
 
 	walker.Walk(&operationDocument, &definitionDocument, &report)
 

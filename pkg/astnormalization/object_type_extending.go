@@ -1,6 +1,7 @@
 package astnormalization
 
 import (
+	"github.com/cespare/xxhash"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 )
@@ -9,8 +10,8 @@ func extendObjectTypeDefinition(walker *astvisitor.Walker) {
 	visitor := extendObjectTypeDefinitionVisitor{
 		Walker: walker,
 	}
+	walker.RegisterEnterDocumentVisitor(&visitor)
 	walker.RegisterEnterObjectTypeExtensionVisitor(&visitor)
-	return
 }
 
 type extendObjectTypeDefinitionVisitor struct {
@@ -24,19 +25,14 @@ func (e *extendObjectTypeDefinitionVisitor) EnterDocument(operation, definition 
 
 func (e *extendObjectTypeDefinitionVisitor) EnterObjectTypeExtension(ref int) {
 
-	extension := e.operation.ObjectTypeExtensions[ref]
-
-	if extension.HasFieldDefinitions {
-		for fieldDefinitionRef, _ := range extension.FieldsDefinition.Refs {
-			e.operation.ExtendObjectTypeDefinitionByFieldDefinition(extension.ObjectTypeDefinition, fieldDefinitionRef)
-		}
+	baseNode, exists := e.operation.Index.Nodes[xxhash.Sum64(e.operation.ObjectTypeExtensionNameBytes(ref))]
+	if !exists {
+		return
 	}
 
-	if extension.HasDirectives {
-		for directiveRef, _ := range extension.Directives.Refs {
-			e.operation.ExtendObjectTypeDefinitionByDirective(extension.ObjectTypeDefinition, directiveRef)
-		}
+	if baseNode.Kind != ast.NodeKindObjectTypeDefinition {
+		return
 	}
 
-	return
+	e.operation.ExtendObjectTypeDefinitionByObjectTypeExtension(baseNode.Ref, ref)
 }

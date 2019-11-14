@@ -7,6 +7,7 @@ type Index struct {
 	SubscriptionTypeName    ByteSlice
 	Nodes                   map[uint64]Node
 	ReplacedFragmentSpreads []int
+	MergedTypeExtensions []Node
 }
 
 func (i *Index) Reset() {
