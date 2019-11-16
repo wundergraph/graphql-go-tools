@@ -2,17 +2,21 @@
 package execution
 
 import (
+	"bytes"
 	"encoding/json"
 	"github.com/cespare/xxhash"
 	"github.com/gobuffalo/packr"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
+	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 	"go.uber.org/zap"
+	"io"
+	"sort"
 )
 
 type Handler struct {
@@ -37,6 +41,27 @@ func NewHandler(schema []byte, logger *zap.Logger) (*Handler, error) {
 		definition:         definition,
 		graphqlDefinitions: &box,
 	}, nil
+}
+
+func (h *Handler) RenderGraphQLDefinitions(out io.Writer) error {
+	buf := bytes.Buffer{}
+	files := h.graphqlDefinitions.List()
+	sort.Strings(files)
+	for i := 0; i < len(files); i++ {
+		data, _ := h.graphqlDefinitions.Find(files[i])
+		if len(data) == 0 {
+			continue
+		}
+		_, err := buf.Write(append(data, literal.LINETERMINATOR...))
+		if err != nil {
+			return err
+		}
+	}
+	doc, report := astparser.ParseGraphqlDocumentBytes(buf.Bytes())
+	if report.HasErrors() {
+		return report
+	}
+	return astprinter.PrintIndent(&doc, nil, []byte("  "), out)
 }
 
 type GraphqlRequest struct {
