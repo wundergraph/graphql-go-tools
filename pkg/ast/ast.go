@@ -470,14 +470,14 @@ func (d *Document) ExtendObjectTypeDefinitionByObjectTypeExtension(objectTypeDef
 	d.Index.MergedTypeExtensions = append(d.Index.MergedTypeExtensions, Node{Ref: objectTypeExtensionRef, Kind: NodeKindObjectTypeExtension})
 }
 
-func (d *Document) RemoveMergedTypeExtensions () {
+func (d *Document) RemoveMergedTypeExtensions() {
 	for _, node := range d.Index.MergedTypeExtensions {
 		d.RemoveRootNode(node)
 	}
 }
 
 func (d *Document) RemoveRootNode(node Node) {
-	for i, _ := range d.RootNodes {
+	for i := range d.RootNodes {
 		if d.RootNodes[i] == node {
 			d.RootNodes = append(d.RootNodes[:i], d.RootNodes[i+1:]...)
 			return
