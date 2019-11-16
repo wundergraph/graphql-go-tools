@@ -456,6 +456,35 @@ func (d *Document) FieldDefinitionTypeNode(ref int) Node {
 	return d.Index.Nodes[xxhash.Sum64(typeName)]
 }
 
+func (d *Document) ExtendObjectTypeDefinitionByObjectTypeExtension(objectTypeDefinitionRef, objectTypeExtensionRef int) {
+	if d.ObjectTypeExtensionHasFieldDefinitions(objectTypeExtensionRef) {
+		d.ObjectTypeDefinitions[objectTypeDefinitionRef].FieldsDefinition.Refs = append(d.ObjectTypeDefinitions[objectTypeDefinitionRef].FieldsDefinition.Refs, d.ObjectTypeExtensions[objectTypeExtensionRef].FieldsDefinition.Refs...)
+		d.ObjectTypeDefinitions[objectTypeDefinitionRef].HasFieldDefinitions = true
+	}
+
+	if d.ObjectTypeExtensionHasDirectives(objectTypeExtensionRef) {
+		d.ObjectTypeDefinitions[objectTypeDefinitionRef].Directives.Refs = append(d.ObjectTypeDefinitions[objectTypeDefinitionRef].Directives.Refs, d.ObjectTypeExtensions[objectTypeExtensionRef].Directives.Refs...)
+		d.ObjectTypeDefinitions[objectTypeDefinitionRef].HasDirectives = true
+	}
+
+	d.Index.MergedTypeExtensions = append(d.Index.MergedTypeExtensions, Node{Ref: objectTypeExtensionRef, Kind: NodeKindObjectTypeExtension})
+}
+
+func (d *Document) RemoveMergedTypeExtensions() {
+	for _, node := range d.Index.MergedTypeExtensions {
+		d.RemoveRootNode(node)
+	}
+}
+
+func (d *Document) RemoveRootNode(node Node) {
+	for i := range d.RootNodes {
+		if d.RootNodes[i] == node {
+			d.RootNodes = append(d.RootNodes[:i], d.RootNodes[i+1:]...)
+			return
+		}
+	}
+}
+
 func (d *Document) NodeFieldDefinitions(node Node) []int {
 	switch node.Kind {
 	case NodeKindObjectTypeDefinition:
@@ -1663,6 +1692,14 @@ func (d *Document) ObjectTypeExtensionNameBytes(ref int) ByteSlice {
 
 func (d *Document) ObjectTypeExtensionNameString(ref int) string {
 	return unsafebytes.BytesToString(d.Input.ByteSlice(d.ObjectTypeExtensions[ref].Name))
+}
+
+func (d *Document) ObjectTypeExtensionHasFieldDefinitions(ref int) bool {
+	return d.ObjectTypeExtensions[ref].HasFieldDefinitions
+}
+
+func (d *Document) ObjectTypeExtensionHasDirectives(ref int) bool {
+	return d.ObjectTypeExtensions[ref].HasDirectives
 }
 
 type InputValueDefinition struct {

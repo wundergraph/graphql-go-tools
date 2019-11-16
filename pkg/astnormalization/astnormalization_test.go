@@ -143,6 +143,7 @@ var run = func(normalizeFunc registerNormalizeFunc, definition, operation, expec
 	expectedOutputDocument := unsafeparser.ParseGraphqlDocumentString(expectedOutput)
 	report := operationreport.Report{}
 	walker := astvisitor.NewWalker(48)
+
 	normalizeFunc(&walker)
 
 	walker.Walk(&operationDocument, &definitionDocument, &report)
@@ -157,6 +158,16 @@ var run = func(normalizeFunc registerNormalizeFunc, definition, operation, expec
 	if want != got {
 		panic(fmt.Errorf("\nwant:\n%s\ngot:\n%s", want, got))
 	}
+}
+
+func runMany(definition, operation, expectedOutput string, normalizeFuncs ...registerNormalizeFunc) {
+	var runManyNormalizers = func(walker *astvisitor.Walker) {
+		for _, normalizeFunc := range normalizeFuncs {
+			normalizeFunc(walker)
+		}
+	}
+
+	run(runManyNormalizers, definition, operation, expectedOutput)
 }
 
 const testOperation = `	
