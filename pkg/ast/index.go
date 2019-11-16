@@ -7,6 +7,7 @@ type Index struct {
 	SubscriptionTypeName    ByteSlice
 	Nodes                   map[uint64]Node
 	ReplacedFragmentSpreads []int
+	MergedTypeExtensions    []Node
 }
 
 func (i *Index) Reset() {
@@ -14,6 +15,7 @@ func (i *Index) Reset() {
 	i.MutationTypeName = i.MutationTypeName[:0]
 	i.SubscriptionTypeName = i.SubscriptionTypeName[:0]
 	i.ReplacedFragmentSpreads = i.ReplacedFragmentSpreads[:0]
+	i.MergedTypeExtensions = i.MergedTypeExtensions[:0]
 	for j := range i.Nodes {
 		delete(i.Nodes, j)
 	}
