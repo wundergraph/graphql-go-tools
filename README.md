@@ -46,6 +46,7 @@ Currently implemented:
     - Operation Complexity: Calculates the complexity of an operation based on the GitHub algorithm
 - OperationReport: Makes it easy to collect errors during all phases of a request and enables easy error printing according to the GraphQL spec
 - Playground: Easy hosting of GraphQL Playground (no external dependencies, simple middleware) 
+- Import Statements: combine multiple GraphQL files into one single schema using #import statements
 
 ## Go version Info
 
