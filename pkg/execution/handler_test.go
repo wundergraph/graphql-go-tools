@@ -24,7 +24,15 @@ func TestHandler_RenderGraphQLDefinitions(t *testing.T) {
 
 	got := buf.Bytes()
 
-	goldie.Assert(t, "render_graphql_definitions", got)
+	/*
+		This is necessary because goldie Assert uses AssertWithTemplate internally.
+		That is, goldie uses go templating and because the text contains templating syntax itself the assertion will fail without showing an error.
+	*/
+	goldie.AssertWithTemplate(t, "render_graphql_definitions", struct {
+		Id string
+	}{
+		Id: "{{ .Id }}",
+	}, got)
 
 	if t.Failed() {
 		want, err := ioutil.ReadFile("./fixtures/render_graphql_definitions.golden")

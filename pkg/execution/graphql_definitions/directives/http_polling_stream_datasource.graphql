@@ -9,7 +9,7 @@ directive @HttpPollingStreamDataSource (
     """
     url is the URL from which the data source should poll data from
     you could use golang templating syntax, e.g.:
-    '/users/{{ .id }}' + parameter named id with value 1 (see below) will render to URL '/users/1'
+    '/users/{{ .Id }}' + parameter named id with value 1 (see below) will render to URL '/users/1'
     """
     url: String!
     "method is the HTTP method the data source should use to fetch data from the upstream"
