@@ -34,13 +34,6 @@ func TestPlanner_Plan(t *testing.T) {
 				t.Error(report)
 			}
 
-			/*prettyOperation, err := astprinter.PrintStringIndent(&op, &def, "  ")
-			if err != nil {
-				t.Error(err)
-			}
-
-			fmt.Println(prettyOperation)*/
-
 			planner := NewPlanner(resolverDefinitions)
 			got := planner.Plan(&op, &def, &report)
 			if report.HasErrors() {
