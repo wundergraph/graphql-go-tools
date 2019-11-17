@@ -39,4 +39,13 @@ func TestExtendUnionType(t *testing.T) {
 					extend union Mammal @deprecated(reason: "some reason") @skip(if: false) = Cat | Dog
 					`)
 	})
+	t.Run("extend union type which already has union member", func(t *testing.T) {
+		run(extendUnionTypeDefinition, testDefinition, `
+					union Mammal = Cat
+					extend union Mammal @deprecated(reason: "some reason") = Dog
+					 `, `
+					union Mammal @deprecated(reason: "some reason") = Cat | Dog
+					extend union Mammal @deprecated(reason: "some reason") = Dog
+					`)
+	})
 }
