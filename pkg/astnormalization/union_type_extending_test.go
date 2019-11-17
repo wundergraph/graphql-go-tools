@@ -21,6 +21,15 @@ func TestExtendUnionType(t *testing.T) {
 					extend union Mammal = Cat
 					`)
 	})
+	t.Run("extend union type by multiple UnionMemberTypes", func(t *testing.T) {
+		run(extendUnionTypeDefinition, testDefinition, `
+					union Mammal
+					extend union Mammal = Cat | Dog
+					 `, `
+					union Mammal = Cat | Dog
+					extend union Mammal = Cat | Dog
+					`)
+	})
 	t.Run("extend union by multiple directives and union members", func(t *testing.T) {
 		run(extendUnionTypeDefinition, testDefinition, `
 					union Mammal
