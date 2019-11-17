@@ -515,7 +515,7 @@ func (d *Document) ExtendEnumTypeDefinitionByEnumTypeExtension(enumTypeDefinitio
 
 	if d.EnumTypeDefinitionHasEnumValueDefinition(enumTypeExtensionRef) {
 		d.EnumTypeDefinitions[enumTypeDefinitionRef].EnumValuesDefinition.Refs = append(d.EnumTypeDefinitions[enumTypeDefinitionRef].EnumValuesDefinition.Refs, d.EnumTypeExtensions[enumTypeExtensionRef].EnumValuesDefinition.Refs...)
-		d.EnumTypeDefinitions[enumTypeDefinitionRef].HasEnumValuesDefinitions = true
+		d.EnumTypeDefinitions[enumTypeDefinitionRef].HasEnumValuesDefinition = true
 	}
 
 	d.Index.MergedTypeExtensions = append(d.Index.MergedTypeExtensions, Node{Ref: enumTypeExtensionRef, Kind: NodeKindEnumTypeExtension})
@@ -529,7 +529,7 @@ func (d *Document) ExtendInputObjectTypeDefinitionByInputObjectTypeExtension(inp
 
 	if d.InputObjectTypeExtensionHasInputFieldsDefinition(inputObjectTypeExtensionRef) {
 		d.InputObjectTypeDefinitions[inputObjectTypeDefinitionRef].InputFieldsDefinition.Refs = append(d.InputObjectTypeDefinitions[inputObjectTypeDefinitionRef].InputFieldsDefinition.Refs, d.InputObjectTypeExtensions[inputObjectTypeExtensionRef].InputFieldsDefinition.Refs...)
-		d.InputObjectTypeDefinitions[inputObjectTypeDefinitionRef].HasInputFieldsDefinitions = true
+		d.InputObjectTypeDefinitions[inputObjectTypeDefinitionRef].HasInputFieldsDefinition = true
 	}
 
 	d.Index.MergedTypeExtensions = append(d.Index.MergedTypeExtensions, Node{Ref: inputObjectTypeExtensionRef, Kind: NodeKindInputObjectTypeExtension})
@@ -1911,13 +1911,13 @@ type DefaultValue struct {
 }
 
 type InputObjectTypeDefinition struct {
-	Description               Description        // optional, describes the input type
-	InputLiteral              position.Position  // input
-	Name                      ByteSliceReference // name of the input type
-	HasDirectives             bool
-	Directives                DirectiveList // optional, e.g. @foo
-	HasInputFieldsDefinitions bool
-	InputFieldsDefinition     InputValueDefinitionList // e.g. x:Float
+	Description              Description        // optional, describes the input type
+	InputLiteral             position.Position  // input
+	Name                     ByteSliceReference // name of the input type
+	HasDirectives            bool
+	Directives               DirectiveList // optional, e.g. @foo
+	HasInputFieldsDefinition bool
+	InputFieldsDefinition    InputValueDefinitionList // e.g. x:Float
 }
 
 func (d *Document) InputObjectTypeExtensionHasDirectives(ref int) bool {
@@ -1925,7 +1925,7 @@ func (d *Document) InputObjectTypeExtensionHasDirectives(ref int) bool {
 }
 
 func (d *Document) InputObjectTypeExtensionHasInputFieldsDefinition(ref int) bool {
-	return d.InputObjectTypeDefinitions[ref].HasInputFieldsDefinitions
+	return d.InputObjectTypeDefinitions[ref].HasInputFieldsDefinition
 }
 
 func (d *Document) InputObjectTypeDefinitionNameBytes(ref int) ByteSlice {
@@ -2148,13 +2148,13 @@ func (d *Document) UnionTypeExtensionNameString(ref int) string {
 //  WEST
 //}
 type EnumTypeDefinition struct {
-	Description              Description        // optional, describes enum
-	EnumLiteral              position.Position  // enum
-	Name                     ByteSliceReference // e.g. Direction
-	HasDirectives            bool
-	Directives               DirectiveList // optional, e.g. @foo
-	HasEnumValuesDefinitions bool
-	EnumValuesDefinition     EnumValueDefinitionList // optional, e.g. { NORTH EAST }
+	Description             Description        // optional, describes enum
+	EnumLiteral             position.Position  // enum
+	Name                    ByteSliceReference // e.g. Direction
+	HasDirectives           bool
+	Directives              DirectiveList // optional, e.g. @foo
+	HasEnumValuesDefinition bool
+	EnumValuesDefinition    EnumValueDefinitionList // optional, e.g. { NORTH EAST }
 }
 
 func (d *Document) EnumTypeDefinitionHasDirectives(ref int) bool {
@@ -2162,7 +2162,7 @@ func (d *Document) EnumTypeDefinitionHasDirectives(ref int) bool {
 }
 
 func (d *Document) EnumTypeDefinitionHasEnumValueDefinition(ref int) bool {
-	return d.EnumTypeDefinitions[ref].HasEnumValuesDefinitions
+	return d.EnumTypeDefinitions[ref].HasEnumValuesDefinition
 }
 
 func (d *Document) EnumTypeDefinitionNameBytes(ref int) ByteSlice {
