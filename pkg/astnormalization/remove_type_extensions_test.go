@@ -64,12 +64,12 @@ func TestRemoveTypeExtensions(t *testing.T) {
 	})
 	t.Run("remove multiple scalar type extensions", func(t *testing.T) {
 		runMany(testDefinition, `
-					union Mammal
-					extend union Mammal @deprecated(reason: "some reason") @skip(if: false) = Cat | Dog
+					enum Countries {DE ES NL}
+					extend enum Countries @deprecated(reason: "some reason") @skip(if: false) {EN IT}
 					 `, `
-					union Mammal @deprecated(reason: "some reason") @skip(if: false) = Cat | Dog
+					enum Countries @deprecated(reason: "some reason") @skip(if: false) {DE ES NL EN IT}
 					`,
-			extendUnionTypeDefinition,
+			extendEnumTypeDefinition,
 			removeMergedTypeExtensions)
 	})
 }
