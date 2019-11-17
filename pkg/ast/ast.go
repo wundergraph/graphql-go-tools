@@ -456,6 +456,20 @@ func (d *Document) FieldDefinitionTypeNode(ref int) Node {
 	return d.Index.Nodes[xxhash.Sum64(typeName)]
 }
 
+func (d *Document) ExtendInterfaceTypeDefinitionByInterfaceTypeExtension(interfaceTypeDefinitionRef, interfaceTypeExtensionRef int) {
+	if d.InterfaceTypeExtensionHasFieldDefinitions(interfaceTypeExtensionRef) {
+		d.InterfaceTypeDefinitions[interfaceTypeDefinitionRef].FieldsDefinition.Refs = append(d.InterfaceTypeDefinitions[interfaceTypeDefinitionRef].FieldsDefinition.Refs, d.InterfaceTypeExtensions[interfaceTypeExtensionRef].FieldsDefinition.Refs...)
+		d.InterfaceTypeDefinitions[interfaceTypeDefinitionRef].HasFieldDefinitions = true
+	}
+
+	if d.InterfaceTypeExtensionHasDirectives(interfaceTypeExtensionRef) {
+		d.InterfaceTypeDefinitions[interfaceTypeDefinitionRef].Directives.Refs = append(d.InterfaceTypeDefinitions[interfaceTypeDefinitionRef].Directives.Refs, d.InterfaceTypeExtensions[interfaceTypeExtensionRef].Directives.Refs...)
+		d.InterfaceTypeDefinitions[interfaceTypeDefinitionRef].HasDirectives = true
+	}
+
+	d.Index.MergedTypeExtensions = append(d.Index.MergedTypeExtensions, Node{Ref: interfaceTypeExtensionRef, Kind: NodeKindInterfaceTypeExtension})
+}
+
 func (d *Document) ExtendObjectTypeDefinitionByObjectTypeExtension(objectTypeDefinitionRef, objectTypeExtensionRef int) {
 	if d.ObjectTypeExtensionHasFieldDefinitions(objectTypeExtensionRef) {
 		d.ObjectTypeDefinitions[objectTypeDefinitionRef].FieldsDefinition.Refs = append(d.ObjectTypeDefinitions[objectTypeDefinitionRef].FieldsDefinition.Refs, d.ObjectTypeExtensions[objectTypeExtensionRef].FieldsDefinition.Refs...)
@@ -1999,6 +2013,14 @@ type InterfaceTypeDefinition struct {
 	Directives          DirectiveList // optional, e.g. @foo
 	HasFieldDefinitions bool
 	FieldsDefinition    FieldDefinitionList // optional, e.g. { name: String }
+}
+
+func (d *Document) InterfaceTypeExtensionHasDirectives(ref int) bool {
+	return d.InterfaceTypeExtensions[ref].HasDirectives
+}
+
+func (d *Document) InterfaceTypeExtensionHasFieldDefinitions(ref int) bool {
+	return d.InterfaceTypeExtensions[ref].HasFieldDefinitions
 }
 
 func (d *Document) InterfaceTypeDefinitionNameBytes(ref int) ByteSlice {
