@@ -3,7 +3,7 @@ package astnormalization
 import "testing"
 
 func TestExtendInputObjectType(t *testing.T) {
-	t.Run("extend simple input object type by directive", func(t *testing.T) {
+	t.Run("extend input object type by directive", func(t *testing.T) {
 		run(extendInputObjectTypeDefinition, testDefinition, `
 					input DogSize {width: Float height: Float}
 					extend input DogSize @deprecated(reason: "some reason")
@@ -12,7 +12,7 @@ func TestExtendInputObjectType(t *testing.T) {
 					extend input DogSize @deprecated(reason: "some reason")
 					`)
 	})
-	t.Run("extend simple input object type by input fields definition", func(t *testing.T) {
+	t.Run("extend input object type by input fields definition", func(t *testing.T) {
 		run(extendInputObjectTypeDefinition, testDefinition, `
 					input DogSize {width: Float height: Float}
 					extend input DogSize {breadth: Float}

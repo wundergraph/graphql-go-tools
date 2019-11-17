@@ -3,7 +3,7 @@ package astnormalization
 import "testing"
 
 func TestExtendEnumType(t *testing.T) {
-	t.Run("extend simple enum type by directive", func(t *testing.T) {
+	t.Run("extend enum type by directive", func(t *testing.T) {
 		run(extendEnumTypeDefinition, testDefinition, `
 					enum Countries {DE ES NL}
 					extend enum Countries @deprecated(reason: "some reason")
@@ -12,7 +12,7 @@ func TestExtendEnumType(t *testing.T) {
 					extend enum Countries @deprecated(reason: "some reason")
 					`)
 	})
-	t.Run("extend simple enum type by enum values", func(t *testing.T) {
+	t.Run("extend enum type by enum values", func(t *testing.T) {
 		run(extendEnumTypeDefinition, testDefinition, `
 					enum Countries {DE ES NL}
 					extend enum Countries {EN}
@@ -21,7 +21,7 @@ func TestExtendEnumType(t *testing.T) {
 					extend enum Countries {EN}
 					`)
 	})
-	t.Run("extend enum type by numtiple enum values and directives", func(t *testing.T) {
+	t.Run("extend enum type by multiple enum values and directives", func(t *testing.T) {
 		run(extendEnumTypeDefinition, testDefinition, `
 					enum Countries {DE ES NL}
 					extend enum Countries @deprecated(reason: "some reason") @skip(if: false) {EN IT}

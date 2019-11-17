@@ -52,7 +52,7 @@ func TestRemoveTypeExtensions(t *testing.T) {
 			extendObjectTypeDefinition,
 			removeMergedTypeExtensions)
 	})
-	t.Run("remove multiple scalar type extensions", func(t *testing.T) {
+	t.Run("remove scalar type extensions", func(t *testing.T) {
 		runMany(testDefinition, `
 					scalar Coordinates
 					extend scalar Coordinates @deprecated(reason: "some reason") @skip(if: false)
@@ -62,7 +62,7 @@ func TestRemoveTypeExtensions(t *testing.T) {
 			extendScalarTypeDefinition,
 			removeMergedTypeExtensions)
 	})
-	t.Run("remove multiple scalar type extensions", func(t *testing.T) {
+	t.Run("remove enum type extensions", func(t *testing.T) {
 		runMany(testDefinition, `
 					enum Countries {DE ES NL}
 					extend enum Countries @deprecated(reason: "some reason") @skip(if: false) {EN IT}
@@ -72,7 +72,27 @@ func TestRemoveTypeExtensions(t *testing.T) {
 			extendEnumTypeDefinition,
 			removeMergedTypeExtensions)
 	})
-	t.Run("remove multiple scalar type extensions", func(t *testing.T) {
+	t.Run("remove union type extensions", func(t *testing.T) {
+		runMany(testDefinition, `
+					union Mammal
+					extend union Mammal @deprecated(reason: "some reason") @skip(if: false) = Cat | Dog
+					 `, `
+					union Mammal @deprecated(reason: "some reason") @skip(if: false) = Cat | Dog
+					`,
+			extendUnionTypeDefinition,
+			removeMergedTypeExtensions)
+	})
+	t.Run("remove input object type extensions", func(t *testing.T) {
+		runMany(testDefinition, `
+					input DogSize {width: Float height: Float}
+					extend input DogSize @deprecated(reason: "some reason") @skip(if: false) {breadth: Float weight: Float}
+					 `, `
+					input DogSize @deprecated(reason: "some reason") @skip(if: false) {width: Float height: Float breadth: Float weight: Float}
+					`,
+			extendInputObjectTypeDefinition,
+			removeMergedTypeExtensions)
+	})
+	t.Run("remove interface type extensions", func(t *testing.T) {
 		runMany(testDefinition, `
 					interface Mammal {
 						name: String

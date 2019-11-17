@@ -3,7 +3,7 @@ package astnormalization
 import "testing"
 
 func TestExtendUnionType(t *testing.T) {
-	t.Run("extend simple union type by directive", func(t *testing.T) {
+	t.Run("extend union type by directive", func(t *testing.T) {
 		run(extendUnionTypeDefinition, testDefinition, `
 					union Mammal
 					extend union Mammal @deprecated(reason: "some reason")
@@ -12,7 +12,7 @@ func TestExtendUnionType(t *testing.T) {
 					extend union Mammal @deprecated(reason: "some reason")
 					`)
 	})
-	t.Run("extend simple union type by UnionMemberType", func(t *testing.T) {
+	t.Run("extend union type by UnionMemberType", func(t *testing.T) {
 		run(extendUnionTypeDefinition, testDefinition, `
 					union Mammal
 					extend union Mammal = Cat
