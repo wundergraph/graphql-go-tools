@@ -493,6 +493,20 @@ func (d *Document) ExtendUnionTypeDefinitionByUnionTypeExtension(unionTypeDefini
 	d.Index.MergedTypeExtensions = append(d.Index.MergedTypeExtensions, Node{Ref: unionTypeExtensionRef, Kind: NodeKindUnionTypeExtension})
 }
 
+func (d *Document) ExtendEnumTypeDefinitionByEnumTypeExtension(enumTypeDefinitionRef, enumTypeExtensionRef int) {
+	if d.EnumTypeExtensionHasDirectives(enumTypeExtensionRef) {
+		d.EnumTypeDefinitions[enumTypeDefinitionRef].Directives.Refs = append(d.EnumTypeDefinitions[enumTypeDefinitionRef].Directives.Refs, d.EnumTypeExtensions[enumTypeExtensionRef].Directives.Refs...)
+		d.EnumTypeDefinitions[enumTypeDefinitionRef].HasDirectives = true
+	}
+
+	if d.EnumTypeDefinitionHasEnumValueDefinition(enumTypeExtensionRef) {
+		d.EnumTypeDefinitions[enumTypeDefinitionRef].EnumValuesDefinition.Refs = append(d.EnumTypeDefinitions[enumTypeDefinitionRef].EnumValuesDefinition.Refs, d.EnumTypeExtensions[enumTypeExtensionRef].EnumValuesDefinition.Refs...)
+		d.EnumTypeDefinitions[enumTypeDefinitionRef].HasEnumValuesDefinitions = true
+	}
+
+	d.Index.MergedTypeExtensions = append(d.Index.MergedTypeExtensions, Node{Ref: enumTypeExtensionRef, Kind: NodeKindEnumTypeExtension})
+}
+
 func (d *Document) RemoveMergedTypeExtensions() {
 	for _, node := range d.Index.MergedTypeExtensions {
 		d.RemoveRootNode(node)
@@ -2101,6 +2115,10 @@ type EnumTypeDefinition struct {
 
 func (d *Document) EnumTypeDefinitionHasDirectives(ref int) bool {
 	return d.EnumTypeDefinitions[ref].HasDirectives
+}
+
+func (d *Document) EnumTypeDefinitionHasEnumValueDefinition(ref int) bool {
+	return d.EnumTypeDefinitions[ref].HasEnumValuesDefinitions
 }
 
 func (d *Document) EnumTypeDefinitionNameBytes(ref int) ByteSlice {
