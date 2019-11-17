@@ -507,6 +507,20 @@ func (d *Document) ExtendEnumTypeDefinitionByEnumTypeExtension(enumTypeDefinitio
 	d.Index.MergedTypeExtensions = append(d.Index.MergedTypeExtensions, Node{Ref: enumTypeExtensionRef, Kind: NodeKindEnumTypeExtension})
 }
 
+func (d *Document) ExtendInputObjectTypeDefinitionByInputObjectTypeExtension(inputObjectTypeDefinitionRef, inputObjectTypeExtensionRef int) {
+	if d.InputObjectTypeExtensionHasDirectives(inputObjectTypeExtensionRef) {
+		d.InputObjectTypeDefinitions[inputObjectTypeDefinitionRef].Directives.Refs = append(d.InputObjectTypeDefinitions[inputObjectTypeDefinitionRef].Directives.Refs, d.InputObjectTypeExtensions[inputObjectTypeExtensionRef].Directives.Refs...)
+		d.InputObjectTypeDefinitions[inputObjectTypeDefinitionRef].HasDirectives = true
+	}
+
+	if d.InputObjectTypeExtensionHasInputFieldsDefinition(inputObjectTypeExtensionRef) {
+		d.InputObjectTypeDefinitions[inputObjectTypeDefinitionRef].InputFieldsDefinition.Refs = append(d.InputObjectTypeDefinitions[inputObjectTypeDefinitionRef].InputFieldsDefinition.Refs, d.InputObjectTypeExtensions[inputObjectTypeExtensionRef].InputFieldsDefinition.Refs...)
+		d.InputObjectTypeDefinitions[inputObjectTypeDefinitionRef].HasInputFieldsDefinitions = true
+	}
+
+	d.Index.MergedTypeExtensions = append(d.Index.MergedTypeExtensions, Node{Ref: inputObjectTypeExtensionRef, Kind: NodeKindInputObjectTypeExtension})
+}
+
 func (d *Document) RemoveMergedTypeExtensions() {
 	for _, node := range d.Index.MergedTypeExtensions {
 		d.RemoveRootNode(node)
@@ -1890,6 +1904,14 @@ type InputObjectTypeDefinition struct {
 	Directives                DirectiveList // optional, e.g. @foo
 	HasInputFieldsDefinitions bool
 	InputFieldsDefinition     InputValueDefinitionList // e.g. x:Float
+}
+
+func (d *Document) InputObjectTypeExtensionHasDirectives(ref int) bool {
+	return d.InputObjectTypeExtensions[ref].HasDirectives
+}
+
+func (d *Document) InputObjectTypeExtensionHasInputFieldsDefinition(ref int) bool {
+	return d.InputObjectTypeDefinitions[ref].HasInputFieldsDefinitions
 }
 
 func (d *Document) InputObjectTypeDefinitionNameBytes(ref int) ByteSlice {
