@@ -470,6 +470,15 @@ func (d *Document) ExtendObjectTypeDefinitionByObjectTypeExtension(objectTypeDef
 	d.Index.MergedTypeExtensions = append(d.Index.MergedTypeExtensions, Node{Ref: objectTypeExtensionRef, Kind: NodeKindObjectTypeExtension})
 }
 
+func (d *Document) ExtendScalarTypeDefinitionByScalarTypeExtension(scalarTypeDefinitionRef, scalarTypeExtensionRef int) {
+	if d.ScalarTypeExtensionHasDirectives(scalarTypeExtensionRef) {
+		d.ScalarTypeDefinitions[scalarTypeDefinitionRef].Directives.Refs = append(d.ScalarTypeDefinitions[scalarTypeDefinitionRef].Directives.Refs, d.ScalarTypeExtensions[scalarTypeExtensionRef].Directives.Refs...)
+		d.ScalarTypeDefinitions[scalarTypeDefinitionRef].HasDirectives = true
+	}
+
+	d.Index.MergedTypeExtensions = append(d.Index.MergedTypeExtensions, Node{Ref: scalarTypeExtensionRef, Kind: NodeKindScalarTypeExtension})
+}
+
 func (d *Document) RemoveMergedTypeExtensions() {
 	for _, node := range d.Index.MergedTypeExtensions {
 		d.RemoveRootNode(node)
