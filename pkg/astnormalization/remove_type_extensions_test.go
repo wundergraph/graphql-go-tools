@@ -62,4 +62,14 @@ func TestRemoveTypeExtensions(t *testing.T) {
 			extendScalarTypeDefinition,
 			removeMergedTypeExtensions)
 	})
+	t.Run("remove multiple scalar type extensions", func(t *testing.T) {
+		runMany(testDefinition, `
+					union Mammal
+					extend union Mammal @deprecated(reason: "some reason") @skip(if: false) = Cat | Dog
+					 `, `
+					union Mammal @deprecated(reason: "some reason") @skip(if: false) = Cat | Dog
+					`,
+			extendUnionTypeDefinition,
+			removeMergedTypeExtensions)
+	})
 }
