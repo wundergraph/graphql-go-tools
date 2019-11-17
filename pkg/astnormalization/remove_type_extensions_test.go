@@ -72,4 +72,14 @@ func TestRemoveTypeExtensions(t *testing.T) {
 			extendEnumTypeDefinition,
 			removeMergedTypeExtensions)
 	})
+	t.Run("remove multiple scalar type extensions", func(t *testing.T) {
+		runMany(testDefinition, `
+					input DogSize {width: Float height: Float}
+					extend input DogSize @deprecated(reason: "some reason") @skip(if: false) {breadth: Float weight: Float}
+					 `, `
+					input DogSize @deprecated(reason: "some reason") @skip(if: false) {width: Float height: Float breadth: Float weight: Float}
+					`,
+			extendInputObjectTypeDefinition,
+			removeMergedTypeExtensions)
+	})
 }
