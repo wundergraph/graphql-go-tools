@@ -52,4 +52,14 @@ func TestRemoveTypeExtensions(t *testing.T) {
 			extendObjectTypeDefinition,
 			removeMergedTypeExtensions)
 	})
+	t.Run("remove multiple scalar type extensions", func(t *testing.T) {
+		runMany(testDefinition, `
+					scalar Coordinates
+					extend scalar Coordinates @deprecated(reason: "some reason") @skip(if: false)
+					 `, `
+					scalar Coordinates @deprecated(reason: "some reason") @skip(if: false)
+					`,
+			extendScalarTypeDefinition,
+			removeMergedTypeExtensions)
+	})
 }
