@@ -479,6 +479,20 @@ func (d *Document) ExtendScalarTypeDefinitionByScalarTypeExtension(scalarTypeDef
 	d.Index.MergedTypeExtensions = append(d.Index.MergedTypeExtensions, Node{Ref: scalarTypeExtensionRef, Kind: NodeKindScalarTypeExtension})
 }
 
+func (d *Document) ExtendUnionTypeDefinitionByUnionTypeExtension(unionTypeDefinitionRef, unionTypeExtensionRef int) {
+	if d.UnionTypeExtensionHasDirectives(unionTypeExtensionRef) {
+		d.UnionTypeDefinitions[unionTypeDefinitionRef].Directives.Refs = append(d.UnionTypeDefinitions[unionTypeDefinitionRef].Directives.Refs, d.UnionTypeExtensions[unionTypeExtensionRef].Directives.Refs...)
+		d.UnionTypeDefinitions[unionTypeDefinitionRef].HasDirectives = true
+	}
+
+	if d.UnionTypeExtensionHasUnionMemberTypes(unionTypeExtensionRef) {
+		d.UnionTypeDefinitions[unionTypeDefinitionRef].UnionMemberTypes.Refs = append(d.UnionTypeDefinitions[unionTypeDefinitionRef].UnionMemberTypes.Refs, d.UnionTypeExtensions[unionTypeExtensionRef].UnionMemberTypes.Refs...)
+		d.UnionTypeDefinitions[unionTypeDefinitionRef].HasUnionMemberTypes = true
+	}
+
+	d.Index.MergedTypeExtensions = append(d.Index.MergedTypeExtensions, Node{Ref: unionTypeExtensionRef, Kind: NodeKindUnionTypeExtension})
+}
+
 func (d *Document) RemoveMergedTypeExtensions() {
 	for _, node := range d.Index.MergedTypeExtensions {
 		d.RemoveRootNode(node)
@@ -2053,6 +2067,10 @@ type UnionTypeExtension struct {
 
 func (d *Document) UnionTypeExtensionHasDirectives(ref int) bool {
 	return d.UnionTypeExtensions[ref].HasDirectives
+}
+
+func (d *Document) UnionTypeExtensionHasUnionMemberTypes(ref int) bool {
+	return d.UnionTypeExtensions[ref].HasUnionMemberTypes
 }
 
 func (d *Document) UnionTypeExtensionNameBytes(ref int) ByteSlice {
