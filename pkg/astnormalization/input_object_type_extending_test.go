@@ -12,6 +12,15 @@ func TestExtendInputObjectType(t *testing.T) {
 					extend input DogSize @deprecated(reason: "some reason")
 					`)
 	})
+	t.Run("extend simple input object type by input fields definition", func(t *testing.T) {
+		run(extendInputObjectTypeDefinition, testDefinition, `
+					input DogSize {width: Float height: Float}
+					extend input DogSize {breadth: Float}
+					 `, `
+input DogSize {width: Float height: Float, breadth: Float}
+					extend input DogSize {breadth: Float}
+					`)
+	})
 	t.Run("extend input object type by multiple input fields definition and directives", func(t *testing.T) {
 		run(extendInputObjectTypeDefinition, testDefinition, `
 					input DogSize {width: Float height: Float}
