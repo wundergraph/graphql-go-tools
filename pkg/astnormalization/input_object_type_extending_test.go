@@ -17,7 +17,7 @@ func TestExtendInputObjectType(t *testing.T) {
 					input DogSize {width: Float height: Float}
 					extend input DogSize {breadth: Float}
 					 `, `
-input DogSize {width: Float height: Float, breadth: Float}
+					input DogSize {width: Float height: Float, breadth: Float}
 					extend input DogSize {breadth: Float}
 					`)
 	})
