@@ -12,4 +12,13 @@ func TestExtendScalarType(t *testing.T) {
 					extend scalar Coordinates @deprecated(reason: "some reason")
 					`)
 	})
+	t.Run("extend scalar type by multiple directives", func(t *testing.T) {
+		run(extendScalarTypeDefinition, testDefinition, `
+					scalar Coordinates
+					extend scalar Coordinates @deprecated(reason: "some reason") @skip(if: false)
+					 `, `
+					scalar Coordinates @deprecated(reason: "some reason") @skip(if: false)
+					extend scalar Coordinates @deprecated(reason: "some reason") @skip(if: false)
+					`)
+	})
 }
