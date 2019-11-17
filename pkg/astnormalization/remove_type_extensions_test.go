@@ -74,12 +74,21 @@ func TestRemoveTypeExtensions(t *testing.T) {
 	})
 	t.Run("remove multiple scalar type extensions", func(t *testing.T) {
 		runMany(testDefinition, `
-					input DogSize {width: Float height: Float}
-					extend input DogSize @deprecated(reason: "some reason") @skip(if: false) {breadth: Float weight: Float}
+					interface Mammal {
+						name: String
+					}
+					extend interface Mammal @deprecated(reason: "some reason") @skip(if: false) {
+						furType: String
+						age: Int
+					}
 					 `, `
-					input DogSize @deprecated(reason: "some reason") @skip(if: false) {width: Float height: Float breadth: Float weight: Float}
+					interface Mammal @deprecated(reason: "some reason") @skip(if: false) {
+						name: String
+						furType: String
+						age: Int
+					}
 					`,
-			extendInputObjectTypeDefinition,
+			extendInterfaceTypeDefinition,
 			removeMergedTypeExtensions)
 	})
 }
