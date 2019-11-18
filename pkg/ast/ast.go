@@ -456,6 +456,20 @@ func (d *Document) FieldDefinitionTypeNode(ref int) Node {
 	return d.Index.Nodes[xxhash.Sum64(typeName)]
 }
 
+func (d *Document) ExtendInterfaceTypeDefinitionByInterfaceTypeExtension(interfaceTypeDefinitionRef, interfaceTypeExtensionRef int) {
+	if d.InterfaceTypeExtensionHasFieldDefinitions(interfaceTypeExtensionRef) {
+		d.InterfaceTypeDefinitions[interfaceTypeDefinitionRef].FieldsDefinition.Refs = append(d.InterfaceTypeDefinitions[interfaceTypeDefinitionRef].FieldsDefinition.Refs, d.InterfaceTypeExtensions[interfaceTypeExtensionRef].FieldsDefinition.Refs...)
+		d.InterfaceTypeDefinitions[interfaceTypeDefinitionRef].HasFieldDefinitions = true
+	}
+
+	if d.InterfaceTypeExtensionHasDirectives(interfaceTypeExtensionRef) {
+		d.InterfaceTypeDefinitions[interfaceTypeDefinitionRef].Directives.Refs = append(d.InterfaceTypeDefinitions[interfaceTypeDefinitionRef].Directives.Refs, d.InterfaceTypeExtensions[interfaceTypeExtensionRef].Directives.Refs...)
+		d.InterfaceTypeDefinitions[interfaceTypeDefinitionRef].HasDirectives = true
+	}
+
+	d.Index.MergedTypeExtensions = append(d.Index.MergedTypeExtensions, Node{Ref: interfaceTypeExtensionRef, Kind: NodeKindInterfaceTypeExtension})
+}
+
 func (d *Document) ExtendObjectTypeDefinitionByObjectTypeExtension(objectTypeDefinitionRef, objectTypeExtensionRef int) {
 	if d.ObjectTypeExtensionHasFieldDefinitions(objectTypeExtensionRef) {
 		d.ObjectTypeDefinitions[objectTypeDefinitionRef].FieldsDefinition.Refs = append(d.ObjectTypeDefinitions[objectTypeDefinitionRef].FieldsDefinition.Refs, d.ObjectTypeExtensions[objectTypeExtensionRef].FieldsDefinition.Refs...)
@@ -468,6 +482,57 @@ func (d *Document) ExtendObjectTypeDefinitionByObjectTypeExtension(objectTypeDef
 	}
 
 	d.Index.MergedTypeExtensions = append(d.Index.MergedTypeExtensions, Node{Ref: objectTypeExtensionRef, Kind: NodeKindObjectTypeExtension})
+}
+
+func (d *Document) ExtendScalarTypeDefinitionByScalarTypeExtension(scalarTypeDefinitionRef, scalarTypeExtensionRef int) {
+	if d.ScalarTypeExtensionHasDirectives(scalarTypeExtensionRef) {
+		d.ScalarTypeDefinitions[scalarTypeDefinitionRef].Directives.Refs = append(d.ScalarTypeDefinitions[scalarTypeDefinitionRef].Directives.Refs, d.ScalarTypeExtensions[scalarTypeExtensionRef].Directives.Refs...)
+		d.ScalarTypeDefinitions[scalarTypeDefinitionRef].HasDirectives = true
+	}
+
+	d.Index.MergedTypeExtensions = append(d.Index.MergedTypeExtensions, Node{Ref: scalarTypeExtensionRef, Kind: NodeKindScalarTypeExtension})
+}
+
+func (d *Document) ExtendUnionTypeDefinitionByUnionTypeExtension(unionTypeDefinitionRef, unionTypeExtensionRef int) {
+	if d.UnionTypeExtensionHasDirectives(unionTypeExtensionRef) {
+		d.UnionTypeDefinitions[unionTypeDefinitionRef].Directives.Refs = append(d.UnionTypeDefinitions[unionTypeDefinitionRef].Directives.Refs, d.UnionTypeExtensions[unionTypeExtensionRef].Directives.Refs...)
+		d.UnionTypeDefinitions[unionTypeDefinitionRef].HasDirectives = true
+	}
+
+	if d.UnionTypeExtensionHasUnionMemberTypes(unionTypeExtensionRef) {
+		d.UnionTypeDefinitions[unionTypeDefinitionRef].UnionMemberTypes.Refs = append(d.UnionTypeDefinitions[unionTypeDefinitionRef].UnionMemberTypes.Refs, d.UnionTypeExtensions[unionTypeExtensionRef].UnionMemberTypes.Refs...)
+		d.UnionTypeDefinitions[unionTypeDefinitionRef].HasUnionMemberTypes = true
+	}
+
+	d.Index.MergedTypeExtensions = append(d.Index.MergedTypeExtensions, Node{Ref: unionTypeExtensionRef, Kind: NodeKindUnionTypeExtension})
+}
+
+func (d *Document) ExtendEnumTypeDefinitionByEnumTypeExtension(enumTypeDefinitionRef, enumTypeExtensionRef int) {
+	if d.EnumTypeExtensionHasDirectives(enumTypeExtensionRef) {
+		d.EnumTypeDefinitions[enumTypeDefinitionRef].Directives.Refs = append(d.EnumTypeDefinitions[enumTypeDefinitionRef].Directives.Refs, d.EnumTypeExtensions[enumTypeExtensionRef].Directives.Refs...)
+		d.EnumTypeDefinitions[enumTypeDefinitionRef].HasDirectives = true
+	}
+
+	if d.EnumTypeDefinitionHasEnumValueDefinition(enumTypeExtensionRef) {
+		d.EnumTypeDefinitions[enumTypeDefinitionRef].EnumValuesDefinition.Refs = append(d.EnumTypeDefinitions[enumTypeDefinitionRef].EnumValuesDefinition.Refs, d.EnumTypeExtensions[enumTypeExtensionRef].EnumValuesDefinition.Refs...)
+		d.EnumTypeDefinitions[enumTypeDefinitionRef].HasEnumValuesDefinition = true
+	}
+
+	d.Index.MergedTypeExtensions = append(d.Index.MergedTypeExtensions, Node{Ref: enumTypeExtensionRef, Kind: NodeKindEnumTypeExtension})
+}
+
+func (d *Document) ExtendInputObjectTypeDefinitionByInputObjectTypeExtension(inputObjectTypeDefinitionRef, inputObjectTypeExtensionRef int) {
+	if d.InputObjectTypeExtensionHasDirectives(inputObjectTypeExtensionRef) {
+		d.InputObjectTypeDefinitions[inputObjectTypeDefinitionRef].Directives.Refs = append(d.InputObjectTypeDefinitions[inputObjectTypeDefinitionRef].Directives.Refs, d.InputObjectTypeExtensions[inputObjectTypeExtensionRef].Directives.Refs...)
+		d.InputObjectTypeDefinitions[inputObjectTypeDefinitionRef].HasDirectives = true
+	}
+
+	if d.InputObjectTypeExtensionHasInputFieldsDefinition(inputObjectTypeExtensionRef) {
+		d.InputObjectTypeDefinitions[inputObjectTypeDefinitionRef].InputFieldsDefinition.Refs = append(d.InputObjectTypeDefinitions[inputObjectTypeDefinitionRef].InputFieldsDefinition.Refs, d.InputObjectTypeExtensions[inputObjectTypeExtensionRef].InputFieldsDefinition.Refs...)
+		d.InputObjectTypeDefinitions[inputObjectTypeDefinitionRef].HasInputFieldsDefinition = true
+	}
+
+	d.Index.MergedTypeExtensions = append(d.Index.MergedTypeExtensions, Node{Ref: inputObjectTypeExtensionRef, Kind: NodeKindInputObjectTypeExtension})
 }
 
 func (d *Document) RemoveMergedTypeExtensions() {
@@ -1846,13 +1911,21 @@ type DefaultValue struct {
 }
 
 type InputObjectTypeDefinition struct {
-	Description               Description        // optional, describes the input type
-	InputLiteral              position.Position  // input
-	Name                      ByteSliceReference // name of the input type
-	HasDirectives             bool
-	Directives                DirectiveList // optional, e.g. @foo
-	HasInputFieldsDefinitions bool
-	InputFieldsDefinition     InputValueDefinitionList // e.g. x:Float
+	Description              Description        // optional, describes the input type
+	InputLiteral             position.Position  // input
+	Name                     ByteSliceReference // name of the input type
+	HasDirectives            bool
+	Directives               DirectiveList // optional, e.g. @foo
+	HasInputFieldsDefinition bool
+	InputFieldsDefinition    InputValueDefinitionList // e.g. x:Float
+}
+
+func (d *Document) InputObjectTypeExtensionHasDirectives(ref int) bool {
+	return d.InputObjectTypeExtensions[ref].HasDirectives
+}
+
+func (d *Document) InputObjectTypeExtensionHasInputFieldsDefinition(ref int) bool {
+	return d.InputObjectTypeDefinitions[ref].HasInputFieldsDefinition
 }
 
 func (d *Document) InputObjectTypeDefinitionNameBytes(ref int) ByteSlice {
@@ -1940,6 +2013,14 @@ type InterfaceTypeDefinition struct {
 	Directives          DirectiveList // optional, e.g. @foo
 	HasFieldDefinitions bool
 	FieldsDefinition    FieldDefinitionList // optional, e.g. { name: String }
+}
+
+func (d *Document) InterfaceTypeExtensionHasDirectives(ref int) bool {
+	return d.InterfaceTypeExtensions[ref].HasDirectives
+}
+
+func (d *Document) InterfaceTypeExtensionHasFieldDefinitions(ref int) bool {
+	return d.InterfaceTypeExtensions[ref].HasFieldDefinitions
 }
 
 func (d *Document) InterfaceTypeDefinitionNameBytes(ref int) ByteSlice {
@@ -2046,6 +2127,10 @@ func (d *Document) UnionTypeExtensionHasDirectives(ref int) bool {
 	return d.UnionTypeExtensions[ref].HasDirectives
 }
 
+func (d *Document) UnionTypeExtensionHasUnionMemberTypes(ref int) bool {
+	return d.UnionTypeExtensions[ref].HasUnionMemberTypes
+}
+
 func (d *Document) UnionTypeExtensionNameBytes(ref int) ByteSlice {
 	return d.Input.ByteSlice(d.UnionTypeExtensions[ref].Name)
 }
@@ -2063,17 +2148,21 @@ func (d *Document) UnionTypeExtensionNameString(ref int) string {
 //  WEST
 //}
 type EnumTypeDefinition struct {
-	Description              Description        // optional, describes enum
-	EnumLiteral              position.Position  // enum
-	Name                     ByteSliceReference // e.g. Direction
-	HasDirectives            bool
-	Directives               DirectiveList // optional, e.g. @foo
-	HasEnumValuesDefinitions bool
-	EnumValuesDefinition     EnumValueDefinitionList // optional, e.g. { NORTH EAST }
+	Description             Description        // optional, describes enum
+	EnumLiteral             position.Position  // enum
+	Name                    ByteSliceReference // e.g. Direction
+	HasDirectives           bool
+	Directives              DirectiveList // optional, e.g. @foo
+	HasEnumValuesDefinition bool
+	EnumValuesDefinition    EnumValueDefinitionList // optional, e.g. { NORTH EAST }
 }
 
 func (d *Document) EnumTypeDefinitionHasDirectives(ref int) bool {
 	return d.EnumTypeDefinitions[ref].HasDirectives
+}
+
+func (d *Document) EnumTypeDefinitionHasEnumValueDefinition(ref int) bool {
+	return d.EnumTypeDefinitions[ref].HasEnumValuesDefinition
 }
 
 func (d *Document) EnumTypeDefinitionNameBytes(ref int) ByteSlice {

@@ -1133,7 +1133,7 @@ func (p *Parser) parseInputObjectTypeDefinition(description *ast.Description) {
 	}
 	if p.peekEquals(keyword.LBRACE) {
 		inputObjectTypeDefinition.InputFieldsDefinition = p.parseInputValueDefinitionList(keyword.RBRACE)
-		inputObjectTypeDefinition.HasInputFieldsDefinitions = len(inputObjectTypeDefinition.InputFieldsDefinition.Refs) > 0
+		inputObjectTypeDefinition.HasInputFieldsDefinition = len(inputObjectTypeDefinition.InputFieldsDefinition.Refs) > 0
 	}
 	p.document.InputObjectTypeDefinitions = append(p.document.InputObjectTypeDefinitions, inputObjectTypeDefinition)
 	ref := len(p.document.InputObjectTypeDefinitions) - 1
@@ -1292,7 +1292,7 @@ func (p *Parser) parseEnumTypeDefinition(description *ast.Description) {
 	}
 	if p.peekEquals(keyword.LBRACE) {
 		enumTypeDefinition.EnumValuesDefinition = p.parseEnumValueDefinitionList()
-		enumTypeDefinition.HasEnumValuesDefinitions = len(enumTypeDefinition.EnumValuesDefinition.Refs) > 0
+		enumTypeDefinition.HasEnumValuesDefinition = len(enumTypeDefinition.EnumValuesDefinition.Refs) > 0
 	}
 	p.document.EnumTypeDefinitions = append(p.document.EnumTypeDefinitions, enumTypeDefinition)
 	ref := len(p.document.EnumTypeDefinitions) - 1
@@ -1876,7 +1876,7 @@ func (p *Parser) parseEnumTypeExtension(extend position.Position) {
 	}
 	if p.peekEquals(keyword.LBRACE) {
 		enumTypeDefinition.EnumValuesDefinition = p.parseEnumValueDefinitionList()
-		enumTypeDefinition.HasEnumValuesDefinitions = len(enumTypeDefinition.EnumValuesDefinition.Refs) > 0
+		enumTypeDefinition.HasEnumValuesDefinition = len(enumTypeDefinition.EnumValuesDefinition.Refs) > 0
 	}
 	enumTypeExtension := ast.EnumTypeExtension{
 		ExtendLiteral:      extend,
@@ -1897,7 +1897,7 @@ func (p *Parser) parseInputObjectTypeExtension(extend position.Position) {
 	}
 	if p.peekEquals(keyword.LBRACE) {
 		inputObjectTypeDefinition.InputFieldsDefinition = p.parseInputValueDefinitionList(keyword.RBRACE)
-		inputObjectTypeDefinition.HasInputFieldsDefinitions = len(inputObjectTypeDefinition.InputFieldsDefinition.Refs) > 0
+		inputObjectTypeDefinition.HasInputFieldsDefinition = len(inputObjectTypeDefinition.InputFieldsDefinition.Refs) > 0
 	}
 	inputObjectTypeExtension := ast.InputObjectTypeExtension{
 		ExtendLiteral:             extend,

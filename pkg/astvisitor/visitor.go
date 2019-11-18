@@ -2448,7 +2448,7 @@ func (w *Walker) walkEnumTypeDefinition(ref int) {
 		}
 	}
 
-	if w.document.EnumTypeDefinitions[ref].HasEnumValuesDefinitions {
+	if w.document.EnumTypeDefinitions[ref].HasEnumValuesDefinition {
 		for _, i := range w.document.EnumTypeDefinitions[ref].EnumValuesDefinition.Refs {
 			w.walkEnumValueDefinition(i)
 			if w.stop {
@@ -2513,7 +2513,7 @@ func (w *Walker) walkEnumTypeExtension(ref int) {
 		}
 	}
 
-	if w.document.EnumTypeExtensions[ref].HasEnumValuesDefinitions {
+	if w.document.EnumTypeExtensions[ref].HasEnumValuesDefinition {
 		for _, i := range w.document.EnumTypeExtensions[ref].EnumValuesDefinition.Refs {
 			w.walkEnumValueDefinition(i)
 			if w.stop {
@@ -2634,7 +2634,7 @@ func (w *Walker) walkInputObjectTypeDefinition(ref int) {
 		}
 	}
 
-	if w.document.InputObjectTypeDefinitions[ref].HasInputFieldsDefinitions {
+	if w.document.InputObjectTypeDefinitions[ref].HasInputFieldsDefinition {
 		for _, i := range w.document.InputObjectTypeDefinitions[ref].InputFieldsDefinition.Refs {
 			w.walkInputValueDefinition(i)
 			if w.stop {
@@ -2699,7 +2699,7 @@ func (w *Walker) walkInputObjectTypeExtension(ref int) {
 		}
 	}
 
-	if w.document.InputObjectTypeExtensions[ref].HasInputFieldsDefinitions {
+	if w.document.InputObjectTypeExtensions[ref].HasInputFieldsDefinition {
 		for _, i := range w.document.InputObjectTypeExtensions[ref].InputFieldsDefinition.Refs {
 			w.walkInputValueDefinition(i)
 			if w.stop {
