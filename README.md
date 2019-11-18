@@ -34,6 +34,8 @@ Currently implemented:
     - fragment spread inlining
     - inline fragment merging
     - remove self aliasing
+    - type extension merging
+    - remove type extensions
 - Introspection: transforms a graphql schema into a resolvable Data Source
 - AST execution
     - query planning: turns a Query AST into a cacheable execution plan
