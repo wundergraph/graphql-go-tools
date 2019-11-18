@@ -141,6 +141,7 @@ Complex validation grows linearly, not exponentially.
     - Contributions to the initial version of the parser, contributions to the tests
 - [Patric Vormstein][patric-vormstein-github]
     - Fixed lexer on windows [#92](https://github.com/jensneuse/graphql-go-tools/pull/92)
+    - Implemented Type Extension merging [#108](https://github.com/jensneuse/graphql-go-tools/pull/108)
 
 [jens-neuse-github]: https://github.com/jensneuse
 [mantas-vidutis-github]: https://github.com/mvid
