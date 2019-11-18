@@ -1721,6 +1721,10 @@ func (d *Document) ObjectTypeDefinitionNameBytes(ref int) ByteSlice {
 	return d.Input.ByteSlice(d.ObjectTypeDefinitions[ref].Name)
 }
 
+func (d *Document) ObjectTypeDefinitionNameRef(ref int) ByteSliceReference {
+	return d.ObjectTypeDefinitions[ref].Name
+}
+
 func (d *Document) ObjectTypeDefinitionNameString(ref int) string {
 	return unsafebytes.BytesToString(d.Input.ByteSlice(d.ObjectTypeDefinitions[ref].Name))
 }
