@@ -68,6 +68,13 @@ var (
 	HOST             = []byte("host")
 	PARAMS           = []byte("params")
 	FIELD            = []byte("field")
+	BODY             = []byte("body")
+	METHOD           = []byte("method")
+	HTTP_METHOD_GET           = []byte("GET")
+	HTTP_METHOD_POST           = []byte("POST")
+	HTTP_METHOD_PUT           = []byte("PUT")
+	HTTP_METHOD_DELETE           = []byte("DELETE")
+	HTTP_METHOD_PATCH           = []byte("PATCH")
 
 	TRUE  = []byte("true")
 	FALSE = []byte("false")
