@@ -2,6 +2,7 @@ package execution
 
 import (
 	"bytes"
+	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
@@ -103,6 +104,62 @@ func (h *HttpJsonDataSourcePlanner) LeaveField(ref int) {
 		Value: variableValue,
 	}
 	h.args = append([]Argument{arg}, h.args...)
+
+	// method
+	value, exists = h.definition.DirectiveArgumentValueByName(directive, literal.METHOD)
+	if exists {
+		variableValue = h.definition.EnumValueNameBytes(value.Ref)
+		arg = &StaticVariableArgument{
+			Name:  literal.METHOD,
+			Value: variableValue,
+		}
+		h.args = append(h.args, arg)
+	} else { // must refactor into functions!
+		inputValueDefinition := h.definition.DirectiveArgumentInputValueDefinition(h.definition.DirectiveNameBytes(directive), literal.METHOD)
+		if inputValueDefinition != -1 {
+			if h.definition.InputValueDefinitionHasDefaultValue(inputValueDefinition) {
+				defaultValue := h.definition.InputValueDefinitionDefaultValue(inputValueDefinition)
+				if defaultValue.Kind == ast.ValueKindEnum {
+					arg = &StaticVariableArgument{
+						Name:  literal.METHOD,
+						Value: h.definition.EnumValueNameBytes(defaultValue.Ref),
+					}
+					h.args = append(h.args, arg)
+				}
+			}
+		}
+	}
+
+	// body
+	value, exists = h.definition.DirectiveArgumentValueByName(directive, literal.BODY)
+	if !exists {
+		return
+	}
+	variableValue = h.definition.StringValueContentBytes(value.Ref)
+	arg = &StaticVariableArgument{
+		Name:  literal.BODY,
+		Value: variableValue,
+	}
+	h.args = append(h.args, arg)
+
+	// args
+	if !h.operation.FieldHasArguments(ref) {
+		return
+	}
+	args := h.operation.FieldArguments(ref)
+	for _, i := range args {
+		argName := h.operation.ArgumentNameBytes(i)
+		value := h.operation.ArgumentValue(i)
+		if value.Kind != ast.ValueKindVariable {
+			continue
+		}
+		variableName := h.operation.VariableValueNameBytes(value.Ref)
+		arg := &ContextVariableArgument{
+			Name:         append([]byte(".arguments."),argName...),
+			VariableName: variableName,
+		}
+		h.args = append(h.args, arg)
+	}
 }
 
 type HttpJsonDataSource struct {
