@@ -10,6 +10,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"io"
 	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -212,7 +213,7 @@ func (e *Executor) resolveNode(node Node, data []byte, path string, prefetch *sy
 	}
 }
 
-func (e *Executor) ResolveArgs(args []Argument, data []byte, prefix string) ResolvedArgs {
+func (e *Executor) ResolveArgs(args []Argument, data []byte) ResolvedArgs {
 	/*
 		TODO: optimize later
 		var resolved ResolvedArgs
@@ -237,6 +238,49 @@ func (e *Executor) ResolveArgs(args []Argument, data []byte, prefix string) Reso
 			resolved[i].Value = e.context.Variables[xxhash.Sum64(arg.VariableName)]
 		}
 	}
+
+	var offset int
+	for i := 0; i < len(resolved)-offset; i++ {
+		if bytes.Contains(resolved[i].Key, literal.DOT) {
+			for j := 0; j < len(resolved); j++ {
+				start := bytes.Index(resolved[j].Value, resolved[i].Key)
+				if start == -1 {
+					continue
+				}
+
+				end := start + bytes.Index(resolved[j].Value[start:], literal.SPACE)
+				key := resolved.NextKey()
+				selector := bytes.TrimPrefix(resolved[j].Value[start:end], resolved[i].Key)
+				resolved[j].Value = append(resolved[j].Value[:start], append(append(literal.DOT, key...), resolved[j].Value[end:]...)...)
+
+				if len(selector) == 0 {
+					resolved = append(resolved, ResolvedArgument{
+						Key:   key,
+						Value: resolved[i].Value,
+					})
+				} else {
+					selector = bytes.TrimPrefix(selector, literal.DOT)
+					keys := strings.Split(string(selector), ".")
+					value, _, _, err := jsonparser.Get(resolved[i].Value, keys...)
+					if err != nil {
+						value = []byte(err.Error())
+					}
+					resolved = append(resolved, ResolvedArgument{
+						Key:   key,
+						Value: value,
+					})
+				}
+				offset++
+			}
+		}
+	}
+
+	for i := 0; i < len(resolved); i++ {
+		if bytes.Contains(resolved[i].Key, literal.DOT) {
+			resolved = append(resolved[:i], resolved[i+1:]...)
+		}
+	}
+
 	return resolved
 }
 
@@ -276,6 +320,19 @@ type ResolvedArgument struct {
 }
 
 type ResolvedArgs []ResolvedArgument
+
+var (
+	keys = []byte("abcdefghijklmnopqrstuvwxyz")
+)
+
+func (r ResolvedArgs) NextKey() []byte {
+	for i := 0; i < len(keys); i++ {
+		if r.ByKey(keys[i:i+1]) == nil {
+			return keys[i : i+1]
+		}
+	}
+	return nil
+}
 
 func (r ResolvedArgs) ByKey(key []byte) []byte {
 	for i := 0; i < len(r); i++ {
@@ -333,7 +390,7 @@ func (o *Object) OperationType() ast.OperationType {
 }
 
 type ArgsResolver interface {
-	ResolveArgs(args []Argument, data []byte, prefix string) ResolvedArgs
+	ResolveArgs(args []Argument, data []byte) ResolvedArgs
 }
 
 type Fetch interface {
@@ -359,7 +416,7 @@ func (s *SingleFetch) Fetch(ctx Context, data []byte, argsResolver ArgsResolver,
 	} else {
 		buffer.Reset()
 	}
-	return s.Source.DataSource.Resolve(ctx, argsResolver.ResolveArgs(s.Source.Args, data, s.BufferName), buffer)
+	return s.Source.DataSource.Resolve(ctx, argsResolver.ResolveArgs(s.Source.Args, data), buffer)
 }
 
 type SerialFetch struct {
