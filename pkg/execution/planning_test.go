@@ -192,6 +192,10 @@ func TestPlanner_Plan(t *testing.T) {
 												Name:  []byte("url"),
 												Value: []byte("/get"),
 											},
+											&StaticVariableArgument{
+												Name:  []byte("method"),
+												Value: []byte("GET"),
+											},
 										},
 									},
 									BufferName: "httpBinGet",
@@ -210,6 +214,10 @@ func TestPlanner_Plan(t *testing.T) {
 											&ContextVariableArgument{
 												Name:         []byte("id"),
 												VariableName: []byte("id"),
+											},
+											&StaticVariableArgument{
+												Name:  []byte("method"),
+												Value: []byte("GET"),
 											},
 										},
 										DataSource: &HttpJsonDataSource{},
@@ -275,6 +283,10 @@ func TestPlanner_Plan(t *testing.T) {
 													Name: []byte("postId"),
 													Path: []string{"id"},
 												},
+												&StaticVariableArgument{
+													Name:  []byte("method"),
+													Value: []byte("GET"),
+												},
 											},
 											DataSource: &HttpJsonDataSource{},
 										},
@@ -314,6 +326,67 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		},
 	))
+	t.Run("HTTPJSONDataSource withBody", run(withBaseSchema(HTTPJSONDataSourceSchema), `
+					query WithBody($input: WithBodyInput) {
+						withBody(input: $input)
+					}
+					`,
+		ResolverDefinitions{
+			{
+				TypeName:literal.QUERY,
+				FieldName:[]byte("withBody"),
+				DataSourcePlannerFactory: func() DataSourcePlanner {
+					return &HttpJsonDataSourcePlanner{}
+				},
+			},
+		},
+		&Object{
+			operationType:ast.OperationTypeQuery,
+			Fields: []Field{
+				{
+					Name: []byte("data"),
+					Value: &Object{
+						Fetch: &SingleFetch{
+							BufferName: "withBody",
+							Source: &DataSourceInvocation{
+								DataSource:&HttpJsonDataSource{},
+								Args: []Argument{
+									&StaticVariableArgument{
+										Name:  []byte("host"),
+										Value: []byte("httpbin.org"),
+									},
+									&StaticVariableArgument{
+										Name:  []byte("url"),
+										Value: []byte("/anything"),
+									},
+									&StaticVariableArgument{
+										Name:  []byte("method"),
+										Value: []byte("POST"),
+									},
+									&StaticVariableArgument{
+										Name: []byte("body"),
+										Value: []byte("{\\\"key\\\":\\\"{{ .arguments.input.foo }}\\\"}"),
+									},
+									&ContextVariableArgument{
+										Name: []byte(".arguments.input"),
+										VariableName: []byte("input"),
+									},
+								},
+							},
+						},
+						Fields: []Field{
+							{
+								Name: []byte("withBody"),
+								HasResolver:true,
+								Value: &Value{
+									QuoteValue:true,
+								},
+							},
+						},
+					},
+				},
+			},
+		}))
 	t.Run("StaticDataSource", run(withBaseSchema(staticDataSourceSchema), `
 					{
 						hello
@@ -637,6 +710,10 @@ func TestPlanner_Plan(t *testing.T) {
 										Name:         []byte("id"),
 										VariableName: []byte("id"),
 									},
+									&StaticVariableArgument{
+										Name:  []byte("method"),
+										Value: []byte("GET"),
+									},
 								},
 								DataSource: &HttpJsonDataSource{},
 							},
@@ -757,6 +834,10 @@ func TestPlanner_Plan(t *testing.T) {
 												&ObjectVariableArgument{
 													Name: []byte("id"),
 													Path: []string{"id"},
+												},
+												&StaticVariableArgument{
+													Name:  []byte("method"),
+													Value: []byte("GET"),
 												},
 											},
 											DataSource: &HttpJsonDataSource{},
@@ -936,6 +1017,10 @@ func TestPlanner_Plan(t *testing.T) {
 														&ObjectVariableArgument{
 															Name: []byte("id"),
 															Path: []string{"id"},
+														},
+														&StaticVariableArgument{
+															Name:  []byte("method"),
+															Value: []byte("GET"),
 														},
 													},
 													DataSource: &HttpJsonDataSource{},
@@ -2131,6 +2216,7 @@ directive @HttpJsonDataSource (
     url: String!
     method: HTTP_METHOD = GET
     params: [Parameter]
+	body: String
 ) on FIELD_DEFINITION
 
 directive @mapTo(
@@ -2223,9 +2309,21 @@ type Query {
 				}
 			]
         )
+	withBody(input: WithBodyInput!): String!
+        @HttpJsonDataSource(
+            host: "httpbin.org"
+            url: "/anything"
+            method: POST
+            body: 	"{\"key\":\"{{ .arguments.input.foo }}\"}"
+        )
     __schema: __Schema!
     __type(name: String!): __Type
-}`
+}
+
+input WithBodyInput {
+	foo: String!
+}
+`
 
 const staticDataSourceSchema = `
 schema {
