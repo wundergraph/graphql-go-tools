@@ -15,4 +15,9 @@ directive @HttpJsonDataSource (
     parameters
     """
     params: [Parameter]
+    """
+    body is the optional definition of the http body to be sent to the upstream
+    golang templating syntax might be used to create the body
+    """
+    body: String
 ) on FIELD_DEFINITION
