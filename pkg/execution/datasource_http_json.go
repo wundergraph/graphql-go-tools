@@ -113,14 +113,37 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 
 	hostArg := args.ByKey(literal.HOST)
 	urlArg := args.ByKey(literal.URL)
+	methodArg := args.ByKey(literal.METHOD)
+	bodyArg := args.ByKey(literal.BODY)
 
 	r.log.Debug("HttpJsonDataSource.Resolve.args",
 		zap.Strings("resolvedArgs", args.Dump()),
 	)
 
-	if hostArg == nil || urlArg == nil {
-		r.log.Error("HttpJsonDataSource.args invalid")
+	switch {
+	case hostArg == nil:
+		r.log.Error(fmt.Sprintf("arg '%s' must not be nil",string(literal.HOST)))
 		return CloseConnectionIfNotStream
+	case urlArg == nil:
+		r.log.Error(fmt.Sprintf("arg '%s' must not be nil",string(literal.URL)))
+		return CloseConnectionIfNotStream
+	case methodArg == nil:
+		r.log.Error(fmt.Sprintf("arg '%s' must not be nil",string(literal.METHOD)))
+		return CloseConnectionIfNotStream
+	}
+
+	httpMethod := http.MethodGet
+	switch {
+	case bytes.Equal(methodArg, literal.HTTP_METHOD_GET):
+		httpMethod = http.MethodGet
+	case bytes.Equal(methodArg, literal.HTTP_METHOD_POST):
+		httpMethod = http.MethodPost
+	case bytes.Equal(methodArg, literal.HTTP_METHOD_PUT):
+		httpMethod = http.MethodPut
+	case bytes.Equal(methodArg, literal.HTTP_METHOD_DELETE):
+		httpMethod = http.MethodDelete
+	case bytes.Equal(methodArg, literal.HTTP_METHOD_PATCH):
+		httpMethod = http.MethodPatch
 	}
 
 	url := string(hostArg) + string(urlArg)
@@ -151,6 +174,31 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 		url = out.String()
 	}
 
+	var body string
+
+	if bytes.Contains(bodyArg, []byte("{{")) {
+		tmpl, err := template.New("url").Parse(string(bodyArg))
+		if err != nil {
+			r.log.Error("HttpJsonDataSource.template.New",
+				zap.Error(err),
+			)
+			return CloseConnectionIfNotStream
+		}
+		out := bytes.Buffer{}
+		data := make(map[string]string, len(args))
+		for i := 0; i < len(args); i++ {
+			data[string(args[i].Key)] = string(args[i].Value)
+		}
+		err = tmpl.Execute(&out, data)
+		if err != nil {
+			r.log.Error("HttpJsonDataSource.tmpl.Execute",
+				zap.Error(err),
+			)
+			return CloseConnectionIfNotStream
+		}
+		body = out.String()
+	}
+
 	r.log.Debug("HttpJsonDataSource.Resolve",
 		zap.String("url", url),
 	)
@@ -163,7 +211,13 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 		},
 	}
 
-	request, err := http.NewRequest(http.MethodGet, url, nil)
+	var bodyReader io.Reader
+	if body != "" {
+		body = strings.ReplaceAll(body,"\\","")
+		bodyReader = strings.NewReader(body)
+	}
+
+	request, err := http.NewRequest(httpMethod, url, bodyReader)
 	if err != nil {
 		r.log.Error("HttpJsonDataSource.Resolve.NewRequest",
 			zap.Error(err),
