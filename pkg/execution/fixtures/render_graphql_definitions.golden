@@ -42,7 +42,11 @@ directive @HttpJsonDataSource
     body is the optional definition of the http body to be sent to the upstream
     golang templating syntax might be used to create the body
     """
-    body: String
+    body: String 
+    """
+    headers are the key value pairs to be set on the upstream request
+    """
+    headers: [Header]
  on FIELD_DEFINITION
 
 """
@@ -113,6 +117,11 @@ enum PARAMETER_SOURCE {
     This way you can render the ressource url for /user/:id to /user/1 at runtime dynamically.
     """
     FIELD_ARGUMENTS
+}
+
+input Header {
+    key: String! 
+    value: String!
 }
 
 """
