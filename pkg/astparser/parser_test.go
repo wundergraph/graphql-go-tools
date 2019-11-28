@@ -30,7 +30,7 @@ func TestParser_Parse(t *testing.T) {
 			parser.report = &report
 			parser.lexer.SetInput(&parser.document.Input)
 			parser.tokenize()
-			ref := parser.parseType()
+			ref := parser.ParseType()
 			return ref, report
 		}
 	}

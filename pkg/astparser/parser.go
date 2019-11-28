@@ -94,6 +94,13 @@ func NewParser() *Parser {
 	}
 }
 
+func (p *Parser) Prepare (document *ast.Document, report *operationreport.Report) {
+	p.document = document
+	p.report = report
+	p.lexer.SetInput(&document.Input)
+	p.tokenize()
+}
+
 func (p *Parser) Parse(document *ast.Document, report *operationreport.Report) {
 	p.document = document
 	p.report = report
@@ -974,7 +981,7 @@ func (p *Parser) parseFieldDefinition() int {
 		fieldDefinition.HasArgumentsDefinitions = len(fieldDefinition.ArgumentsDefinition.Refs) > 0
 	}
 	fieldDefinition.Colon = p.mustRead(keyword.COLON).TextPosition
-	fieldDefinition.Type = p.parseType()
+	fieldDefinition.Type = p.ParseType()
 	if p.peek() == keyword.AT {
 		fieldDefinition.Directives = p.parseDirectiveList()
 		fieldDefinition.HasDirectives = len(fieldDefinition.Directives.Refs) > 0
@@ -994,7 +1001,7 @@ func (p *Parser) parseNamedType() (ref int) {
 	return len(p.document.Types) - 1
 }
 
-func (p *Parser) parseType() (ref int) {
+func (p *Parser) ParseType() (ref int) {
 
 	first := p.peek()
 
@@ -1012,7 +1019,7 @@ func (p *Parser) parseType() (ref int) {
 	} else if first == keyword.LBRACK {
 
 		openList := p.read()
-		ofType := p.parseType()
+		ofType := p.ParseType()
 		closeList := p.mustRead(keyword.RBRACK)
 
 		listType := ast.Type{
@@ -1104,7 +1111,7 @@ func (p *Parser) parseInputValueDefinition() int {
 
 	inputValueDefinition.Name = p.read().Literal
 	inputValueDefinition.Colon = p.mustRead(keyword.COLON).TextPosition
-	inputValueDefinition.Type = p.parseType()
+	inputValueDefinition.Type = p.ParseType()
 	if p.peekEquals(keyword.EQUALS) {
 		equals := p.read()
 		inputValueDefinition.DefaultValue.IsDefined = true
@@ -1691,7 +1698,7 @@ func (p *Parser) parseVariableDefinition() int {
 	variableDefinition.VariableValue.Ref = p.parseVariableValue()
 
 	variableDefinition.Colon = p.mustRead(keyword.COLON).TextPosition
-	variableDefinition.Type = p.parseType()
+	variableDefinition.Type = p.ParseType()
 	if p.peekEquals(keyword.EQUALS) {
 		variableDefinition.DefaultValue = p.parseDefaultValue()
 	}
