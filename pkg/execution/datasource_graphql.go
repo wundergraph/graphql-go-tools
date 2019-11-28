@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"github.com/buger/jsonparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/astimport"
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
@@ -19,6 +20,8 @@ import (
 type GraphQLDataSourcePlanner struct {
 	BaseDataSourcePlanner
 
+	importer *astimport.Importer
+
 	nodes           []ast.Node
 	resolveDocument *ast.Document
 
@@ -30,6 +33,7 @@ type GraphQLDataSourcePlanner struct {
 func NewGraphQLDataSourcePlanner(baseDataSourcePlanner BaseDataSourcePlanner) *GraphQLDataSourcePlanner {
 	return &GraphQLDataSourcePlanner{
 		BaseDataSourcePlanner: baseDataSourcePlanner,
+		importer:              astimport.NewImporter(),
 	}
 }
 
@@ -68,7 +72,9 @@ func (g *GraphQLDataSourcePlanner) Initialize(walker *astvisitor.Walker, operati
 		})
 		g.rootFieldArgumentRefs[i] = len(g.resolveDocument.Arguments) - 1
 
-		g.resolveDocument.Types = append(g.resolveDocument.Types, ast.Type{
+		typeRef := g.importer.ImportType(resolverParameters[i].variableType,g.resolveDocument)
+
+		/*g.resolveDocument.Types = append(g.resolveDocument.Types, ast.Type{
 			TypeKind: ast.TypeKindNamed,
 			Name:     g.resolveDocument.Input.AppendInputBytes([]byte("String")),
 			OfType:   -1,
@@ -80,11 +86,11 @@ func (g *GraphQLDataSourcePlanner) Initialize(walker *astvisitor.Walker, operati
 			OfType:   stringTypeRef,
 		})
 
-		nonNullTypeRef := len(g.resolveDocument.Types) - 1
+		nonNullTypeRef := len(g.resolveDocument.Types) - 1*/
 
 		g.resolveDocument.VariableDefinitions = append(g.resolveDocument.VariableDefinitions, ast.VariableDefinition{
 			VariableValue: variableValue,
-			Type:          nonNullTypeRef,
+			Type:          typeRef,
 		})
 		g.variableDefinitions[i] = len(g.resolveDocument.VariableDefinitions) - 1
 	}
