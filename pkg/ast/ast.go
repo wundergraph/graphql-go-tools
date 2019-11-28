@@ -1488,6 +1488,20 @@ type Value struct {
 	Ref  int
 }
 
+func (d *Document) ValueContentBytes(value Value) ByteSlice {
+	switch value.Kind {
+	case ValueKindEnum:
+		return d.EnumValueNameBytes(value.Ref)
+	case ValueKindString:
+		d.StringValueContentBytes(value.Ref)
+	case ValueKindInteger:
+		return d.IntValueRaw(value.Ref)
+	case ValueKindFloat:
+		return d.FloatValueRaw(value.Ref)
+	}
+	panic(fmt.Errorf("ValueContentBytes not implemented for ValueKind: %s", value.Kind))
+}
+
 // nolint
 func (d *Document) PrintValue(value Value, w io.Writer) (err error) {
 	switch value.Kind {

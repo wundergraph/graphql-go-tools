@@ -1,0 +1,25 @@
+"""
+HttpPollingStreamDataSource
+"""
+directive @HttpPollingStreamDataSource (
+    """
+    host is the host name of the data source, e.g. example.com
+    """
+    host: String!
+    """
+    url is the URL from which the data source should poll data from
+    you could use golang templating syntax, e.g.:
+    '/users/{{ .Id }}' + parameter named id with value 1 (see below) will render to URL '/users/1'
+    """
+    url: String!
+    "method is the HTTP method the data source should use to fetch data from the upstream"
+    method: HTTP_METHOD = GET
+    "the delay in seconds between each polling"
+    delaySeconds: Int = 5
+    """
+    params are the parameters that should get passed to the data source
+    you could use this function to pass variables from field variables, the context or parent object to the data source
+    thse could be used to 'render' the url dynamically
+    """
+    params: [Parameter]
+) on FIELD_DEFINITION

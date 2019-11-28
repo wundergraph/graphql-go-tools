@@ -1,0 +1,27 @@
+directive @HttpJsonDataSource (
+    """
+    the host of the origin
+    """
+    host: String!
+    """
+    the url of the origin
+    """
+    url: String!
+    """
+    the HTTP method the client should use for the request, defaults to GET
+    """
+    method: HTTP_METHOD = GET
+    """
+    parameters
+    """
+    params: [Parameter]
+    """
+    body is the optional definition of the http body to be sent to the upstream
+    golang templating syntax might be used to create the body
+    """
+    body: String
+    """
+    headers are the key value pairs to be set on the upstream request
+    """
+    headers: [Header]
+) on FIELD_DEFINITION

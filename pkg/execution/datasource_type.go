@@ -3,20 +3,21 @@ package execution
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
-	"go.uber.org/zap"
 	"io"
 )
 
-func NewTypeDataSourcePlanner(log *zap.Logger) *TypeDataSourcePlanner {
+func NewTypeDataSourcePlanner(baseDataSourcePlanner BaseDataSourcePlanner) *TypeDataSourcePlanner {
 	return &TypeDataSourcePlanner{
-		BaseDataSourcePlanner: BaseDataSourcePlanner{
-			log: log,
-		},
+		BaseDataSourcePlanner: baseDataSourcePlanner,
 	}
 }
 
 type TypeDataSourcePlanner struct {
 	BaseDataSourcePlanner
+}
+
+func (t *TypeDataSourcePlanner) DirectiveDefinition() []byte {
+	return nil
 }
 
 func (t *TypeDataSourcePlanner) OverrideRootFieldPath(path []string) []string {

@@ -1,0 +1,32 @@
+"PARAMETER_SOURCE defines the source of a dyanmic parameter"
+enum PARAMETER_SOURCE {
+    "parameter from the context object which could be pupulated by the http wrapper"
+    CONTEXT_VARIABLE
+    """
+    parameter from the parent object
+    example:
+    consider the following query:
+    {
+        user(id: 1) {
+            userID
+            friends
+        }
+    }
+    Using the PARAMETER_SOURCE 'OBJECT_VARIABLE_ARGUMENT' with sourceName 'userID' returns the userID for user with id 1 at runtime.
+    This way you can dynamically build a query to the friends ressource using the userID at runtime and inject it into the second query.
+    """
+    OBJECT_VARIABLE_ARGUMENT
+    """
+    parameter from the field arguments
+    example:
+    consider the following query:
+    {
+        user(id: 1) {
+            friends
+        }
+    }
+    Using the PARAMETER_SOURCE 'FIELD_ARGUMENTS' with sourceName 'id' returns 1 at runtime.
+    This way you can render the ressource url for /user/:id to /user/1 at runtime dynamically.
+    """
+    FIELD_ARGUMENTS
+}

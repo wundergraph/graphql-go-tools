@@ -21,15 +21,18 @@ type HttpPollingStreamDataSourcePlanner struct {
 	delay     time.Duration
 }
 
+func (h *HttpPollingStreamDataSourcePlanner) DirectiveDefinition() []byte {
+	data, _ := h.graphqlDefinitions.Find("directives/http_polling_stream_datasource.graphql")
+	return data
+}
+
 func (h *HttpPollingStreamDataSourcePlanner) OverrideRootFieldPath(path []string) []string {
 	return nil
 }
 
-func NewHttpPollingStreamDataSourcePlanner(log *zap.Logger) *HttpPollingStreamDataSourcePlanner {
+func NewHttpPollingStreamDataSourcePlanner(baseDataSourcePlanner BaseDataSourcePlanner) *HttpPollingStreamDataSourcePlanner {
 	return &HttpPollingStreamDataSourcePlanner{
-		BaseDataSourcePlanner: BaseDataSourcePlanner{
-			log: log,
-		},
+		BaseDataSourcePlanner: baseDataSourcePlanner,
 	}
 }
 

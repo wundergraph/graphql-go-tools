@@ -1,21 +1,28 @@
+//go:generate packr
 package execution
 
 import (
+	"bytes"
 	"encoding/json"
 	"github.com/cespare/xxhash"
+	"github.com/gobuffalo/packr"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
+	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 	"go.uber.org/zap"
+	"io"
+	"sort"
 )
 
 type Handler struct {
-	log        *zap.Logger
-	definition ast.Document
+	log                *zap.Logger
+	definition         ast.Document
+	graphqlDefinitions *packr.Box
 }
 
 func NewHandler(schema []byte, logger *zap.Logger) (*Handler, error) {
@@ -27,10 +34,34 @@ func NewHandler(schema []byte, logger *zap.Logger) (*Handler, error) {
 		return nil, report
 	}
 
+	box := packr.NewBox("./graphql_definitions")
+
 	return &Handler{
-		log:        logger,
-		definition: definition,
+		log:                logger,
+		definition:         definition,
+		graphqlDefinitions: &box,
 	}, nil
+}
+
+func (h *Handler) RenderGraphQLDefinitions(out io.Writer) error {
+	buf := bytes.Buffer{}
+	files := h.graphqlDefinitions.List()
+	sort.Strings(files)
+	for i := 0; i < len(files); i++ {
+		data, _ := h.graphqlDefinitions.Find(files[i])
+		if len(data) == 0 {
+			continue
+		}
+		_, err := buf.Write(append(data, literal.LINETERMINATOR...))
+		if err != nil {
+			return err
+		}
+	}
+	doc, report := astparser.ParseGraphqlDocumentBytes(buf.Bytes())
+	if report.HasErrors() {
+		return report
+	}
+	return astprinter.PrintIndent(&doc, nil, []byte("  "), out)
 }
 
 type GraphqlRequest struct {
@@ -102,12 +133,17 @@ func (h *Handler) Handle(data []byte) (executor *Executor, node RootNode, ctx Co
 
 func (h *Handler) resolverDefinitions(report *operationreport.Report) ResolverDefinitions {
 
+	baseDataSourcePlanner := BaseDataSourcePlanner{
+		log:                h.log,
+		graphqlDefinitions: h.graphqlDefinitions,
+	}
+
 	definitions := ResolverDefinitions{
 		{
 			TypeName:  literal.QUERY,
 			FieldName: literal.UNDERSCORESCHEMA,
 			DataSourcePlannerFactory: func() DataSourcePlanner {
-				return NewSchemaDataSourcePlanner(&h.definition, report, h.log)
+				return NewSchemaDataSourcePlanner(&h.definition, report, baseDataSourcePlanner)
 			},
 		},
 	}
@@ -119,19 +155,19 @@ func (h *Handler) resolverDefinitions(report *operationreport.Report) ResolverDe
 		resolvers:  &definitions,
 		dataSourcePlannerFactories: []func() DataSourcePlanner{
 			func() DataSourcePlanner {
-				return NewGraphQLDataSourcePlanner(h.log)
+				return NewGraphQLDataSourcePlanner(baseDataSourcePlanner)
 			},
 			func() DataSourcePlanner {
-				return NewHttpJsonDataSourcePlanner(h.log)
+				return NewHttpJsonDataSourcePlanner(baseDataSourcePlanner)
 			},
 			func() DataSourcePlanner {
-				return NewHttpPollingStreamDataSourcePlanner(h.log)
+				return NewHttpPollingStreamDataSourcePlanner(baseDataSourcePlanner)
 			},
 			func() DataSourcePlanner {
-				return NewStaticDataSourcePlanner(h.log)
+				return NewStaticDataSourcePlanner(baseDataSourcePlanner)
 			},
 			func() DataSourcePlanner {
-				return NewTypeDataSourcePlanner(h.log)
+				return NewTypeDataSourcePlanner(baseDataSourcePlanner)
 			},
 		},
 	}
