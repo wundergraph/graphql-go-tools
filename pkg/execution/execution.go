@@ -299,6 +299,9 @@ func (e *Executor) ResolveArgs(args []Argument, data []byte) ResolvedArgs {
 		}
 		buf := bytes.Buffer{}
 		err = tmpl.Execute(&buf,vars)
+		if err != nil {
+			continue
+		}
 		resolved[i].Value = buf.Bytes()
 	}
 
