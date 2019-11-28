@@ -62,7 +62,7 @@ func TestPlanner_Plan(t *testing.T) {
 				TypeName:  literal.QUERY,
 				FieldName: []byte("country"),
 				DataSourcePlannerFactory: func() DataSourcePlanner {
-					return &GraphQLDataSourcePlanner{}
+					return NewGraphQLDataSourcePlanner(BaseDataSourcePlanner{})
 				},
 			},
 		},
@@ -133,6 +133,84 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		},
 	))
+	t.Run("GraphQLDataSource mutation", run(withBaseSchema(GraphQLDataSourceSchema), `
+				mutation LikePost($id: ID!) {
+					likePost(id: $id) {
+						id
+						likes
+					}
+				}
+`,
+		ResolverDefinitions{
+			{
+				TypeName:  literal.MUTATION,
+				FieldName: []byte("likePost"),
+				DataSourcePlannerFactory: func() DataSourcePlanner {
+					return NewGraphQLDataSourcePlanner(BaseDataSourcePlanner{})
+				},
+			},
+		},
+		&Object{
+			operationType: ast.OperationTypeMutation,
+			Fields: []Field{
+				{
+					Name: []byte("data"),
+					Value: &Object{
+						Fetch: &SingleFetch{
+							Source: &DataSourceInvocation{
+								Args: []Argument{
+									&StaticVariableArgument{
+										Name:  []byte("host"),
+										Value: []byte("fakebook.com"),
+									},
+									&StaticVariableArgument{
+										Name:  []byte("url"),
+										Value: []byte("/"),
+									},
+									&StaticVariableArgument{
+										Name:  []byte("query"),
+										Value: []byte("mutation o($id: ID!){likePost(id: $id){id likes}}"),
+									},
+									&ContextVariableArgument{
+										Name:         []byte("id"),
+										VariableName: []byte("id"),
+									},
+								},
+								DataSource: &GraphQLDataSource{},
+							},
+							BufferName: "likePost",
+						},
+						Fields: []Field{
+							{
+								Name:        []byte("likePost"),
+								HasResolver: true,
+								Value: &Object{
+									Path: []string{"likePost"},
+									Fields: []Field{
+										{
+											Name: []byte("id"),
+											Value: &Value{
+												Path:       []string{"id"},
+												QuoteValue: true,
+											},
+										},
+										{
+											Name: []byte("likes"),
+											Value: &Value{
+												Path:       []string{"likes"},
+												QuoteValue: false,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	))
+
 	t.Run("HTTPJSONDataSource", run(withBaseSchema(HTTPJSONDataSourceSchema), `
 					query RESTQuery($id: Int!){
 						httpBinGet {
@@ -668,7 +746,7 @@ func TestPlanner_Plan(t *testing.T) {
 				TypeName:  literal.QUERY,
 				FieldName: []byte("user"),
 				DataSourcePlannerFactory: func() DataSourcePlanner {
-					return &GraphQLDataSourcePlanner{}
+					return NewGraphQLDataSourcePlanner(BaseDataSourcePlanner{})
 				},
 			},
 		},
@@ -839,7 +917,7 @@ func TestPlanner_Plan(t *testing.T) {
 				TypeName:  literal.QUERY,
 				FieldName: []byte("user"),
 				DataSourcePlannerFactory: func() DataSourcePlanner {
-					return &GraphQLDataSourcePlanner{}
+					return NewGraphQLDataSourcePlanner(BaseDataSourcePlanner{})
 				},
 			},
 			{
@@ -1013,7 +1091,7 @@ func TestPlanner_Plan(t *testing.T) {
 				TypeName:  literal.QUERY,
 				FieldName: []byte("user"),
 				DataSourcePlannerFactory: func() DataSourcePlanner {
-					return &GraphQLDataSourcePlanner{}
+					return NewGraphQLDataSourcePlanner(BaseDataSourcePlanner{})
 				},
 			},
 			{
@@ -1027,7 +1105,7 @@ func TestPlanner_Plan(t *testing.T) {
 				TypeName:  []byte("User"),
 				FieldName: []byte("pets"),
 				DataSourcePlannerFactory: func() DataSourcePlanner {
-					return &GraphQLDataSourcePlanner{}
+					return NewGraphQLDataSourcePlanner(BaseDataSourcePlanner{})
 				},
 			},
 		},
@@ -2087,7 +2165,7 @@ func BenchmarkPlanner_Plan(b *testing.B) {
 			TypeName:  literal.QUERY,
 			FieldName: []byte("user"),
 			DataSourcePlannerFactory: func() DataSourcePlanner {
-				return &GraphQLDataSourcePlanner{}
+				return NewGraphQLDataSourcePlanner(BaseDataSourcePlanner{})
 			},
 		},
 		{
@@ -2101,7 +2179,7 @@ func BenchmarkPlanner_Plan(b *testing.B) {
 			TypeName:  []byte("User"),
 			FieldName: []byte("pets"),
 			DataSourcePlannerFactory: func() DataSourcePlanner {
-				return &GraphQLDataSourcePlanner{}
+				return NewGraphQLDataSourcePlanner(BaseDataSourcePlanner{})
 			},
 		},
 	}
@@ -2231,6 +2309,7 @@ enum PARAMETER_SOURCE {
 
 schema {
 	query: Query
+	mutation: Mutation
 }
 
 type Country {
@@ -2273,6 +2352,28 @@ type Query {
 				}
 			]
 		)
+}
+
+type Mutation {
+	likePost(id: ID!): Post
+		@GraphQLDataSource(
+			host: "fakebook.com"
+			url: "/"
+			field: "likePost"
+			params: [
+				{
+					name: "id"
+					sourceKind: FIELD_ARGUMENTS
+					sourceName: "id"
+					variableType: "ID!"
+				}
+			]
+		)
+}
+
+type Post {
+	id: ID!
+	likes: Int!
 }
 `
 
