@@ -216,7 +216,7 @@ func (e *Executor) resolveNode(node Node, data []byte, path string, prefetch *sy
 }
 
 func (e *Executor) ResolveArgs(args []Argument, data []byte) ResolvedArgs {
-	
+
 	resolved := make(ResolvedArgs, len(args))
 	for i := 0; i < len(args); i++ {
 		switch arg := args[i].(type) {
