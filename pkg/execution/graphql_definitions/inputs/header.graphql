@@ -1,0 +1,4 @@
+input Header {
+    key: String!
+    value: String!
+}

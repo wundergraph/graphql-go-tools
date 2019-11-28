@@ -20,4 +20,8 @@ directive @HttpJsonDataSource (
     golang templating syntax might be used to create the body
     """
     body: String
+    """
+    headers are the key value pairs to be set on the upstream request
+    """
+    headers: [Header]
 ) on FIELD_DEFINITION
