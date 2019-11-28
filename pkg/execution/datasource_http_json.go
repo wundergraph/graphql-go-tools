@@ -3,6 +3,7 @@ package execution
 import (
 	"bytes"
 	"fmt"
+	"github.com/buger/jsonparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
@@ -11,7 +12,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
-	"text/template"
 	"time"
 )
 
@@ -132,33 +132,71 @@ func (h *HttpJsonDataSourcePlanner) LeaveField(ref int) {
 
 	// body
 	value, exists = h.definition.DirectiveArgumentValueByName(directive, literal.BODY)
-	if !exists {
-		return
-	}
-	variableValue = h.definition.StringValueContentBytes(value.Ref)
-	arg = &StaticVariableArgument{
-		Name:  literal.BODY,
-		Value: variableValue,
-	}
-	h.args = append(h.args, arg)
-
-	// args
-	if !h.operation.FieldHasArguments(ref) {
-		return
-	}
-	args := h.operation.FieldArguments(ref)
-	for _, i := range args {
-		argName := h.operation.ArgumentNameBytes(i)
-		value := h.operation.ArgumentValue(i)
-		if value.Kind != ast.ValueKindVariable {
-			continue
-		}
-		variableName := h.operation.VariableValueNameBytes(value.Ref)
-		arg := &ContextVariableArgument{
-			Name:         append([]byte(".arguments."),argName...),
-			VariableName: variableName,
+	if exists {
+		variableValue = h.definition.StringValueContentBytes(value.Ref)
+		arg = &StaticVariableArgument{
+			Name:  literal.BODY,
+			Value: variableValue,
 		}
 		h.args = append(h.args, arg)
+	}
+
+	// args
+	if h.operation.FieldHasArguments(ref) {
+		args := h.operation.FieldArguments(ref)
+		for _, i := range args {
+			argName := h.operation.ArgumentNameBytes(i)
+			value := h.operation.ArgumentValue(i)
+			if value.Kind != ast.ValueKindVariable {
+				continue
+			}
+			variableName := h.operation.VariableValueNameBytes(value.Ref)
+			arg := &ContextVariableArgument{
+				Name:         append([]byte(".arguments."),argName...),
+				VariableName: variableName,
+			}
+			h.args = append(h.args, arg)
+		}
+	}
+
+	// headers
+	value, exists = h.definition.DirectiveArgumentValueByName(directive, literal.HEADERS)
+	if exists && value.Kind == ast.ValueKindList {
+		listArg := &ListArgument{
+			Name: literal.HEADERS,
+		}
+		for _,i := range h.definition.ListValues[value.Ref].Refs {
+			listValue := h.definition.Values[i]
+			if listValue.Kind != ast.ValueKindObject {
+				continue
+			}
+			fields := h.definition.ObjectValues[listValue.Ref].Refs
+			var key ast.ByteSlice
+			var value ast.ByteSlice
+			if len(fields) != 2 {
+				continue
+			}
+			for _,j := range fields {
+				fieldName := h.definition.ObjectFieldNameBytes(j)
+				switch {
+				case bytes.Equal(fieldName,literal.KEY):
+					key = h.definition.StringValueContentBytes(h.definition.ObjectFieldValue(j).Ref)
+				case bytes.Equal(fieldName,literal.VALUE):
+					value = h.definition.StringValueContentBytes(h.definition.ObjectFieldValue(j).Ref)
+				}
+			}
+			if key == nil || value == nil {
+				continue
+			}
+			listArg.Arguments = append(listArg.Arguments,&StaticVariableArgument{
+				Name:  key,
+				Value: value,
+			})
+		}
+
+		if len(listArg.Arguments) != 0 {
+			h.args = append(h.args, listArg)
+		}
 	}
 }
 
@@ -172,6 +210,7 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 	urlArg := args.ByKey(literal.URL)
 	methodArg := args.ByKey(literal.METHOD)
 	bodyArg := args.ByKey(literal.BODY)
+	headersArg := args.ByKey(literal.HEADERS)
 
 	r.log.Debug("HttpJsonDataSource.Resolve.args",
 		zap.Strings("resolvedArgs", args.Dump()),
@@ -208,52 +247,15 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 		url = "https://" + url
 	}
 
-	if strings.Contains(url, "{{") {
-		tmpl, err := template.New("url").Parse(url)
+	header := make(http.Header)
+	if len(headersArg) != 0 {
+		err := jsonparser.ObjectEach(headersArg, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
+			header.Set(string(key),string(value))
+			return nil
+		})
 		if err != nil {
-			r.log.Error("HttpJsonDataSource.template.New",
-				zap.Error(err),
-			)
-			return CloseConnectionIfNotStream
+			r.log.Error("accessing headers",zap.Error(err))
 		}
-		out := bytes.Buffer{}
-		data := make(map[string]string, len(args))
-		for i := 0; i < len(args); i++ {
-			data[string(args[i].Key)] = string(args[i].Value)
-		}
-		err = tmpl.Execute(&out, data)
-		if err != nil {
-			r.log.Error("HttpJsonDataSource.tmpl.Execute",
-				zap.Error(err),
-			)
-			return CloseConnectionIfNotStream
-		}
-		url = out.String()
-	}
-
-	var body string
-
-	if bytes.Contains(bodyArg, []byte("{{")) {
-		tmpl, err := template.New("url").Parse(string(bodyArg))
-		if err != nil {
-			r.log.Error("HttpJsonDataSource.template.New",
-				zap.Error(err),
-			)
-			return CloseConnectionIfNotStream
-		}
-		out := bytes.Buffer{}
-		data := make(map[string]string, len(args))
-		for i := 0; i < len(args); i++ {
-			data[string(args[i].Key)] = string(args[i].Value)
-		}
-		err = tmpl.Execute(&out, data)
-		if err != nil {
-			r.log.Error("HttpJsonDataSource.tmpl.Execute",
-				zap.Error(err),
-			)
-			return CloseConnectionIfNotStream
-		}
-		body = out.String()
 	}
 
 	r.log.Debug("HttpJsonDataSource.Resolve",
@@ -269,9 +271,9 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 	}
 
 	var bodyReader io.Reader
-	if body != "" {
-		body = strings.ReplaceAll(body,"\\","")
-		bodyReader = strings.NewReader(body)
+	if len(bodyArg) != 0 {
+		bodyArg = bytes.ReplaceAll(bodyArg,literal.BACKSLASH,nil)
+		bodyReader = bytes.NewReader(bodyArg)
 	}
 
 	request, err := http.NewRequest(httpMethod, url, bodyReader)
@@ -282,7 +284,7 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 		return CloseConnectionIfNotStream
 	}
 
-	request.Header.Add("Accept", "application/json")
+	request.Header = header
 
 	res, err := client.Do(request)
 	if err != nil {

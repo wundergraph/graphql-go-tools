@@ -75,7 +75,7 @@ func TestExecution(t *testing.T) {
 		case "/friends/2/pets":
 			data = yaarasPets
 		default:
-			panic("invalid request")
+			panic(fmt.Errorf("unexpected URI: %s",r.RequestURI))
 		}
 
 		_, err := w.Write(data)
@@ -1073,15 +1073,13 @@ func TestExecutor_ResolveArgs(t *testing.T) {
 	}
 
 	resolved := e.ResolveArgs(args,nil)
-	if len(resolved) != 2 {
-		t.Fatalf("want 2, got: %d\n",len(resolved))
+	if len(resolved) != 1 {
+		t.Fatalf("want 1, got: %d\n",len(resolved))
 		return
 	}
-	if !bytes.Equal(resolved.ByKey([]byte("a")),[]byte("fooValue")){
-		t.Fatalf("want key 'a' with value: '%s'","fooValue")
-	}
-	if !bytes.Equal(resolved.ByKey([]byte("body")),[]byte("{\\\"key\\\":\\\"{{ .a }}\\\"}")){
-		t.Fatalf("want key 'body' with value: '%s'","{\\\"key\\\":\\\"{{ .a }}\\\"}")
+	want := []byte("{\\\"key\\\":\\\"fooValue\\\"}")
+	if !bytes.Equal(resolved.ByKey([]byte("body")),want){
+		t.Fatalf("want key 'body' with value: '%s'\ndump: %s",string(want),resolved.Dump())
 	}
 }
 
@@ -1106,17 +1104,14 @@ func TestExecutor_ResolveArgsComplexPayload(t *testing.T) {
 	}
 
 	resolved := e.ResolveArgs(args,nil)
-	if len(resolved) != 2 {
-		t.Fatalf("want 2, got: %d\n",len(resolved))
+	if len(resolved) != 1 {
+		t.Fatalf("want 1, got: %d\n",len(resolved))
 		return
 	}
-	wantA := "{\"foo\": \"fooValue\", \"bar\": {\"bal\": \"baz\"}}"
-	gotA := string(resolved.ByKey([]byte("a")))
-	if wantA != gotA {
-		t.Fatalf("want key 'a' with value: '%s', got: '%s'",wantA,gotA)
-	}
-	if !bytes.Equal(resolved.ByKey([]byte("body")),[]byte("{{ .a }}")){
-		t.Fatalf("want key 'body' with value: '%s'","{\\\"key\\\":\\\"{{ .a }}\\\"}")
+	want := `{"foo": "fooValue", "bar": {"bal": "baz"}}`
+	got := resolved.ByKey([]byte("body"))
+	if !bytes.Equal(got,[]byte(want)){
+		t.Fatalf("want key 'body' with value:\n%s\ngot:\n%s\n",want,string(got))
 	}
 }
 
@@ -1141,17 +1136,47 @@ func TestExecutor_ResolveArgsComplexPayloadWithSelector(t *testing.T) {
 	}
 
 	resolved := e.ResolveArgs(args,nil)
-	if len(resolved) != 2 {
-		t.Fatalf("want 2, got: %d\n",len(resolved))
+	if len(resolved) != 1 {
+		t.Fatalf("want 1, got: %d\n",len(resolved))
 		return
 	}
-	wantA := "{\"bal\": \"baz\"}"
-	gotA := string(resolved.ByKey([]byte("a")))
-	if wantA != gotA {
-		t.Fatalf("want key 'a' with value: '%s', got: '%s'",wantA,gotA)
+	want := `{"bal": "baz"}`
+	if !bytes.Equal(resolved.ByKey([]byte("body")),[]byte(want)){
+		t.Fatalf("want key 'body' with value: '%s'",want)
 	}
-	if !bytes.Equal(resolved.ByKey([]byte("body")),[]byte("{{ .a }}")){
-		t.Fatalf("want key 'body' with value: '%s'","{\\\"key\\\":\\\"{{ .a }}\\\"}")
+}
+
+func TestExecutor_ResolveArgsWithListArguments(t *testing.T) {
+	e := NewExecutor()
+	e.context = Context{
+		Context: context.Background(),
+	}
+
+	args := []Argument{
+		&ListArgument{
+			Name: []byte("headers"),
+			Arguments: []Argument{
+				&StaticVariableArgument{
+					Name: []byte("foo"),
+					Value: []byte("fooVal"),
+				},
+				&StaticVariableArgument{
+					Name: []byte("bar"),
+					Value: []byte("barVal"),
+				},
+			},
+		},
+	}
+
+	resolved := e.ResolveArgs(args,nil)
+	if len(resolved) != 1 {
+		t.Fatalf("want 1, got: %d\n",len(resolved))
+		return
+	}
+	want := "{\"bar\":\"barVal\",\"foo\":\"fooVal\"}"
+	got := string(resolved.ByKey([]byte("headers")))
+	if want != got {
+		t.Fatalf("want key 'headers' with value:\n%s, got:\n%s\ndump:\n%s\n",want,got,resolved.Dump())
 	}
 }
 
@@ -1181,6 +1206,9 @@ func TestExecutor_HTTPJSONDataSourceWithBody(t *testing.T){
 			return
 		}
 		defer r.Body.Close()
+
+		strData := string(data)
+		_ = strData
 
 		gotString := prettyJSON(bytes.NewReader(data))
 
@@ -1386,6 +1414,110 @@ func TestExecutor_HTTPJSONDataSourceWithBodyComplexPlayload(t *testing.T){
 	expected := map[string]interface{}{
 		"data": map[string]interface{}{
 			"withBody": "bar",
+		},
+	}
+
+	wantResult,err := json.MarshalIndent(expected,"","  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := string(wantResult)
+	got := prettyJSON(out)
+
+	if want != got {
+		t.Fatalf("want: %s\ngot: %s\n",want,got)
+		return
+	}
+}
+
+func TestExecutor_HTTPJSONDataSourceWithHeaders(t *testing.T){
+
+	REST1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		for k,v := range map[string]string{
+			"foo": "fooVal",
+			"bar": "barVal",
+		}{
+			got := r.Header.Get(k)
+			if got != v {
+				t.Fatalf("want header with key '%s' and value '%s', got: '%s'",k,v,got)
+			}
+		}
+
+		w.WriteHeader(http.StatusOK)
+		_,_ = w.Write([]byte("bar"))
+	}))
+
+	plan := &Object{
+		operationType:ast.OperationTypeQuery,
+		Fields: []Field{
+			{
+				Name: []byte("data"),
+				Value: &Object{
+					Fetch: &SingleFetch{
+						BufferName: "withHeaders",
+						Source: &DataSourceInvocation{
+							DataSource:&HttpJsonDataSource{
+								log:zap.NewNop(),
+							},
+							Args: []Argument{
+								&StaticVariableArgument{
+									Name:  []byte("host"),
+									Value: []byte(REST1.URL),
+								},
+								&StaticVariableArgument{
+									Name:  []byte("url"),
+									Value: []byte("/"),
+								},
+								&StaticVariableArgument{
+									Name:  []byte("method"),
+									Value: []byte("GET"),
+								},
+								&ListArgument{
+									Name:      []byte("headers"),
+									Arguments: []Argument{
+										&StaticVariableArgument{
+											Name:  []byte("foo"),
+											Value: []byte("fooVal"),
+										},
+										&StaticVariableArgument{
+											Name:  []byte("bar"),
+											Value: []byte("barVal"),
+										},
+									},
+								},
+							},
+						},
+					},
+					Fields: []Field{
+						{
+							Name: []byte("withHeaders"),
+							HasResolver:true,
+							Value: &Value{
+								QuoteValue:true,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	out := &bytes.Buffer{}
+	ex := NewExecutor()
+	ctx := Context{
+		Context: context.Background(),
+	}
+
+	_, err := ex.Execute(ctx, plan, out)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected := map[string]interface{}{
+		"data": map[string]interface{}{
+			"withHeaders": "bar",
 		},
 	}
 

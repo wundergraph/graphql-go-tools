@@ -3,6 +3,7 @@ package execution
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash"
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
@@ -12,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"text/template"
 )
 
 type Executor struct {
@@ -214,16 +216,7 @@ func (e *Executor) resolveNode(node Node, data []byte, path string, prefetch *sy
 }
 
 func (e *Executor) ResolveArgs(args []Argument, data []byte) ResolvedArgs {
-	/*
-		TODO: optimize later
-		var resolved ResolvedArgs
-		if len(e.args) >= len(args) {
-			resolved = e.args[:len(args)]
-		} else {
-			resolved = make(ResolvedArgs, len(args))
-		}
-	*/
-
+	
 	resolved := make(ResolvedArgs, len(args))
 	for i := 0; i < len(args); i++ {
 		switch arg := args[i].(type) {
@@ -236,6 +229,14 @@ func (e *Executor) ResolveArgs(args []Argument, data []byte) ResolvedArgs {
 		case *ContextVariableArgument:
 			resolved[i].Key = arg.Name
 			resolved[i].Value = e.context.Variables[xxhash.Sum64(arg.VariableName)]
+		case *ListArgument:
+			resolved[i].Key = arg.Name
+			listArgs := e.ResolveArgs(arg.Arguments,data)
+			listValues := make(map[string]string,len(listArgs))
+			for j := range listArgs {
+				listValues[string(listArgs[j].Key)] = string(listArgs[j].Value)
+			}
+			resolved[i].Value, _ = json.Marshal(listValues)
 		}
 	}
 
@@ -249,9 +250,9 @@ func (e *Executor) ResolveArgs(args []Argument, data []byte) ResolvedArgs {
 				}
 
 				end := start + bytes.Index(resolved[j].Value[start:], literal.SPACE)
-				key := resolved.NextKey()
+				key := append(literal.DOT,resolved.NextKey()...)
 				selector := bytes.TrimPrefix(resolved[j].Value[start:end], resolved[i].Key)
-				resolved[j].Value = append(resolved[j].Value[:start], append(append(literal.DOT, key...), resolved[j].Value[end:]...)...)
+				resolved[j].Value = append(resolved[j].Value[:start], append(key, resolved[j].Value[end:]...)...)
 
 				if len(selector) == 0 {
 					resolved = append(resolved, ResolvedArgument{
@@ -275,11 +276,35 @@ func (e *Executor) ResolveArgs(args []Argument, data []byte) ResolvedArgs {
 		}
 	}
 
-	for i := 0; i < len(resolved); i++ {
-		if bytes.Contains(resolved[i].Key, literal.DOT) {
-			resolved = append(resolved[:i], resolved[i+1:]...)
+	vars := make(map[string]string, len(resolved))
+	for i := range resolved {
+		if !bytes.HasPrefix(resolved[i].Key,literal.DOT){
+			vars[string(resolved[i].Key)] = string(resolved[i].Value)
+			continue
 		}
+		key := resolved[i].Key[1:]
+		if bytes.Contains(key,literal.DOT){
+			continue
+		}
+		vars[string(key)] = string(resolved[i].Value)
 	}
+
+	for i := range resolved {
+		if !bytes.Contains(resolved[i].Value,[]byte("{{")){
+			continue
+		}
+		tmpl,err := template.New("tmpl").Parse(string(resolved[i].Value))
+		if err != nil {
+			continue
+		}
+		buf := bytes.Buffer{}
+		err = tmpl.Execute(&buf,vars)
+		resolved[i].Value = buf.Bytes()
+	}
+
+	resolved.Filter(func(i int) (keep bool) {
+		return !bytes.HasPrefix(resolved[i].Key,literal.DOT)
+	})
 
 	return resolved
 }
@@ -320,6 +345,17 @@ type ResolvedArgument struct {
 }
 
 type ResolvedArgs []ResolvedArgument
+
+func (r *ResolvedArgs) Filter (condition func(i int) (keep bool)){
+	n := 0
+	for i := range *r {
+		if condition(i){
+			(*r)[n] = (*r)[i]
+			n++
+		}
+	}
+	*r = (*r)[:n]
+}
 
 var (
 	keys = []byte("abcdefghijklmnopqrstuvwxyz")
@@ -376,6 +412,15 @@ type StaticVariableArgument struct {
 
 func (s *StaticVariableArgument) ArgName() []byte {
 	return s.Name
+}
+
+type ListArgument struct {
+	Name []byte
+	Arguments []Argument
+}
+
+func (l ListArgument) ArgName() []byte {
+	return l.Name
 }
 
 type Object struct {

@@ -209,15 +209,15 @@ func TestPlanner_Plan(t *testing.T) {
 											},
 											&StaticVariableArgument{
 												Name:  []byte("url"),
-												Value: []byte("/posts/{{ .id }}"),
-											},
-											&ContextVariableArgument{
-												Name:         []byte("id"),
-												VariableName: []byte("id"),
+												Value: []byte("/posts/{{ .arguments.id }}"),
 											},
 											&StaticVariableArgument{
 												Name:  []byte("method"),
 												Value: []byte("GET"),
+											},
+											&ContextVariableArgument{
+												Name:         []byte(".arguments.id"),
+												VariableName: []byte("id"),
 											},
 										},
 										DataSource: &HttpJsonDataSource{},
@@ -377,6 +377,72 @@ func TestPlanner_Plan(t *testing.T) {
 						Fields: []Field{
 							{
 								Name: []byte("withBody"),
+								HasResolver:true,
+								Value: &Value{
+									QuoteValue:true,
+								},
+							},
+						},
+					},
+				},
+			},
+		}))
+	t.Run("HTTPJSONDataSource withHeaders", run(withBaseSchema(HTTPJSONDataSourceSchema), `
+					query WithHeader {
+						withHeaders
+					}
+					`,
+		ResolverDefinitions{
+			{
+				TypeName:literal.QUERY,
+				FieldName:[]byte("withHeaders"),
+				DataSourcePlannerFactory: func() DataSourcePlanner {
+					return &HttpJsonDataSourcePlanner{}
+				},
+			},
+		},
+		&Object{
+			operationType:ast.OperationTypeQuery,
+			Fields: []Field{
+				{
+					Name: []byte("data"),
+					Value: &Object{
+						Fetch: &SingleFetch{
+							BufferName: "withHeaders",
+							Source: &DataSourceInvocation{
+								DataSource:&HttpJsonDataSource{},
+								Args: []Argument{
+									&StaticVariableArgument{
+										Name:  []byte("host"),
+										Value: []byte("httpbin.org"),
+									},
+									&StaticVariableArgument{
+										Name:  []byte("url"),
+										Value: []byte("/anything"),
+									},
+									&StaticVariableArgument{
+										Name:  []byte("method"),
+										Value: []byte("GET"),
+									},
+									&ListArgument{
+										Name: []byte("headers"),
+										Arguments: []Argument{
+											&StaticVariableArgument{
+												Name:  []byte("Authorization"),
+												Value: []byte("123"),
+											},
+											&StaticVariableArgument{
+												Name:  []byte("Accept-Encoding"),
+												Value: []byte("application/json"),
+											},
+										},
+									},
+								},
+							},
+						},
+						Fields: []Field{
+							{
+								Name: []byte("withHeaders"),
 								HasResolver:true,
 								Value: &Value{
 									QuoteValue:true,
@@ -704,15 +770,15 @@ func TestPlanner_Plan(t *testing.T) {
 									},
 									&StaticVariableArgument{
 										Name:  literal.URL,
-										Value: []byte("/user/{{ .id }}"),
-									},
-									&ContextVariableArgument{
-										Name:         []byte("id"),
-										VariableName: []byte("id"),
+										Value: []byte("/user/{{ .arguments.id }}"),
 									},
 									&StaticVariableArgument{
 										Name:  []byte("method"),
 										Value: []byte("GET"),
+									},
+									&ContextVariableArgument{
+										Name:         []byte(".arguments.id"),
+										VariableName: []byte("id"),
 									},
 								},
 								DataSource: &HttpJsonDataSource{},
@@ -2299,15 +2365,7 @@ type Query {
 	post(id: Int!): JSONPlaceholderPost
         @HttpJsonDataSource(
             host: "jsonplaceholder.typicode.com"
-            url: "/posts/{{ .id }}"
-			params: [
-				{
-					name: "id"
-					sourceKind: FIELD_ARGUMENTS
-					sourceName: "id"
-					variableType: "Int!"
-				}
-			]
+            url: "/posts/{{ .arguments.id }}"
         )
 	withBody(input: WithBodyInput!): String!
         @HttpJsonDataSource(
@@ -2315,6 +2373,21 @@ type Query {
             url: "/anything"
             method: POST
             body: 	"{\"key\":\"{{ .arguments.input.foo }}\"}"
+        )
+	withHeaders: String!
+        @HttpJsonDataSource(
+            host: "httpbin.org"
+            url: "/anything"
+            headers: [
+				{
+					key: "Authorization",
+					value: "123",
+				},
+				{
+					key: "Accept-Encoding",
+					value: "application/json",
+				}
+			]
         )
     __schema: __Schema!
     __type(name: String!): __Type
@@ -2452,15 +2525,7 @@ type Query {
 	restUser(id: String!): User
 		@HttpJsonDataSource (
 			host: "localhost:9001"
-			url: "/user/{{ .id }}"
-			params: [
-				{
-					name: "id"
-					sourceKind: FIELD_ARGUMENTS
-					sourceName: "id"
-					variableType: "String!"
-				}
-			]
+			url: "/user/{{ .arguments.id }}"
 		)
 }
 type User {
