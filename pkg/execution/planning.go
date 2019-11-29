@@ -175,12 +175,12 @@ func (p *planningVisitor) EnterField(ref int) {
 		}
 
 		path := p.fieldPath(ref)
-		if hasResolverDefinition {
+		/*if hasResolverDefinition {
 			value, ok := p.FieldDefinitionDirectiveArgumentValueByName(ref, p.planners[len(p.planners)-1].planner.DirectiveName(), literal.FIELD)
 			if ok && value.Kind == ast.ValueKindString {
-				path[0] = p.definition.StringValueContentString(value.Ref)
+				path[len(path)-1] = p.definition.StringValueContentString(value.Ref)
 			}
-		}
+		}*/
 
 		if planner != nil {
 			path = planner.OverrideRootFieldPath(path)
