@@ -1,0 +1,3 @@
+directive @mapTo(
+    objectField: String!
+) on FIELD_DEFINITION
