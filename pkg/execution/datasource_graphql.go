@@ -159,17 +159,16 @@ func (g *GraphQLDataSourcePlanner) EnterField(ref int) {
 	if g.rootFieldRef == -1 {
 		g.rootFieldRef = ref
 
-		fieldNameValue, ok := g.walker.FieldDefinitionDirectiveArgumentValueByName(ref, g.DirectiveName(), []byte("field"))
-		if !ok {
-			return
-		}
-
-		if fieldNameValue.Kind != ast.ValueKindString {
-			return
+		var fieldName []byte
+		objectName, ok := g.walker.FieldDefinitionDirectiveArgumentValueByName(ref, []byte("mapTo"), []byte("objectField"))
+		if ok && objectName.Kind == ast.ValueKindString {
+			fieldName = g.definition.StringValueContentBytes(objectName.Ref)
+		} else {
+			fieldName = g.operation.FieldNameBytes(ref)
 		}
 
 		field := ast.Field{
-			Name: g.resolveDocument.Input.AppendInputBytes(g.definition.StringValueContentBytes(fieldNameValue.Ref)),
+			Name: g.resolveDocument.Input.AppendInputBytes(fieldName),
 			Arguments: ast.ArgumentList{
 				Refs: g.rootFieldArgumentRefs,
 			},
