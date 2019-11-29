@@ -75,7 +75,7 @@ func TestExecution(t *testing.T) {
 		case "/friends/2/pets":
 			data = yaarasPets
 		default:
-			panic(fmt.Errorf("unexpected URI: %s",r.RequestURI))
+			panic(fmt.Errorf("unexpected URI: %s", r.RequestURI))
 		}
 
 		_, err := w.Write(data)
@@ -230,7 +230,7 @@ func TestExecution(t *testing.T) {
 														Value: []byte("/graphql"),
 													},
 													&StaticVariableArgument{
-														Name: literal.QUERY,
+														Name:  literal.QUERY,
 														Value: []byte(`query q1($id: String!){userPets(id: $id){	__typename name nickname... on Dog {woof} ... on Cat {meow}}}`),
 													},
 													&ObjectVariableArgument{
@@ -293,7 +293,7 @@ func TestExecution(t *testing.T) {
 															},
 														},
 														DataSource: &HttpJsonDataSource{
-															log:zap.NewNop(),
+															log: zap.NewNop(),
 														},
 													},
 													BufferName: "pets",
@@ -663,7 +663,7 @@ func genField() Field {
 												Value: []byte("/graphql"),
 											},
 											&StaticVariableArgument{
-												Name: literal.QUERY,
+												Name:  literal.QUERY,
 												Value: []byte(`query q1($id: String!){userPets(id: $id){	__typename name nickname... on Dog {woof} ... on Cat {meow}}}`),
 											},
 											&ObjectVariableArgument{
@@ -1052,6 +1052,122 @@ func TestExecutor_ListFilterFirstN(t *testing.T) {
 	}
 }
 
+func TestExecutor_ListWithPath(t *testing.T) {
+
+	plan := &Object{
+		operationType: ast.OperationTypeQuery,
+		Fields: []Field{
+			{
+				Name: []byte("data"),
+				Value: &Object{
+					Fetch: &SingleFetch{
+						Source: &DataSourceInvocation{
+							Args: []Argument{
+								&StaticVariableArgument{
+									Value: []byte(`{"apis": [{"id": 1},{"id":2}]}`),
+								},
+							},
+							DataSource: &StaticDataSource{},
+						},
+						BufferName: "apis",
+					},
+					Fields: []Field{
+						{
+							Name:        []byte("apis"),
+							HasResolver: true,
+							Value: &List{
+								Path: []string{"apis"},
+								Value: &Object{
+									Fields: []Field{
+										{
+											Name: []byte("id"),
+											Value: &Value{
+												Path:       []string{"id"},
+												QuoteValue: false,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	out := &bytes.Buffer{}
+	ex := NewExecutor()
+	ctx := Context{
+		Context: context.Background(),
+	}
+
+	_, err := ex.Execute(ctx, plan, out)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := `{"data":{"apis":[{"id":1},{"id":2}]}}`
+	got := out.String()
+
+	if got != want {
+		t.Fatalf("want: %s\ngot: %s\n", want, got)
+	}
+}
+
+func TestExecutor_ObjectWithPath(t *testing.T) {
+
+	plan := &Object{
+		operationType: ast.OperationTypeQuery,
+		Fields: []Field{
+			{
+				Name: []byte("data"),
+				Value: &Object{
+					Fetch: &SingleFetch{
+						Source: &DataSourceInvocation{
+							Args: []Argument{
+								&StaticVariableArgument{
+									Value: []byte(`{"api": {"id": 1}`),
+								},
+							},
+							DataSource: &StaticDataSource{},
+						},
+						BufferName: "id",
+					},
+					Fields: []Field{
+						{
+							Name:        []byte("id"),
+							HasResolver: true,
+							Value: &Value{
+								Path:       []string{"api","id"},
+								QuoteValue: false,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	out := &bytes.Buffer{}
+	ex := NewExecutor()
+	ctx := Context{
+		Context: context.Background(),
+	}
+
+	_, err := ex.Execute(ctx, plan, out)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := `{"data":{"id":1}}`
+	got := out.String()
+
+	if got != want {
+		t.Fatalf("want: %s\ngot: %s\n", want, got)
+	}
+}
+
 func TestExecutor_ResolveArgs(t *testing.T) {
 	e := NewExecutor()
 	e.context = Context{
@@ -1063,23 +1179,23 @@ func TestExecutor_ResolveArgs(t *testing.T) {
 
 	args := []Argument{
 		&StaticVariableArgument{
-			Name: []byte("body"),
+			Name:  []byte("body"),
 			Value: []byte("{\\\"key\\\":\\\"{{ .arguments.input.foo }}\\\"}"),
 		},
 		&ContextVariableArgument{
-			Name: []byte(".arguments.input"),
+			Name:         []byte(".arguments.input"),
 			VariableName: []byte("input"),
 		},
 	}
 
-	resolved := e.ResolveArgs(args,nil)
+	resolved := e.ResolveArgs(args, nil)
 	if len(resolved) != 1 {
-		t.Fatalf("want 1, got: %d\n",len(resolved))
+		t.Fatalf("want 1, got: %d\n", len(resolved))
 		return
 	}
 	want := []byte("{\\\"key\\\":\\\"fooValue\\\"}")
-	if !bytes.Equal(resolved.ByKey([]byte("body")),want){
-		t.Fatalf("want key 'body' with value: '%s'\ndump: %s",string(want),resolved.Dump())
+	if !bytes.Equal(resolved.ByKey([]byte("body")), want) {
+		t.Fatalf("want key 'body' with value: '%s'\ndump: %s", string(want), resolved.Dump())
 	}
 }
 
@@ -1094,24 +1210,24 @@ func TestExecutor_ResolveArgsComplexPayload(t *testing.T) {
 
 	args := []Argument{
 		&StaticVariableArgument{
-			Name: []byte("body"),
+			Name:  []byte("body"),
 			Value: []byte("{{ .arguments.input }}"),
 		},
 		&ContextVariableArgument{
-			Name: []byte(".arguments.input"),
+			Name:         []byte(".arguments.input"),
 			VariableName: []byte("input"),
 		},
 	}
 
-	resolved := e.ResolveArgs(args,nil)
+	resolved := e.ResolveArgs(args, nil)
 	if len(resolved) != 1 {
-		t.Fatalf("want 1, got: %d\n",len(resolved))
+		t.Fatalf("want 1, got: %d\n", len(resolved))
 		return
 	}
 	want := `{"foo": "fooValue", "bar": {"bal": "baz"}}`
 	got := resolved.ByKey([]byte("body"))
-	if !bytes.Equal(got,[]byte(want)){
-		t.Fatalf("want key 'body' with value:\n%s\ngot:\n%s\n",want,string(got))
+	if !bytes.Equal(got, []byte(want)) {
+		t.Fatalf("want key 'body' with value:\n%s\ngot:\n%s\n", want, string(got))
 	}
 }
 
@@ -1126,23 +1242,23 @@ func TestExecutor_ResolveArgsComplexPayloadWithSelector(t *testing.T) {
 
 	args := []Argument{
 		&StaticVariableArgument{
-			Name: []byte("body"),
+			Name:  []byte("body"),
 			Value: []byte("{{ .arguments.input.bar }}"),
 		},
 		&ContextVariableArgument{
-			Name: []byte(".arguments.input"),
+			Name:         []byte(".arguments.input"),
 			VariableName: []byte("input"),
 		},
 	}
 
-	resolved := e.ResolveArgs(args,nil)
+	resolved := e.ResolveArgs(args, nil)
 	if len(resolved) != 1 {
-		t.Fatalf("want 1, got: %d\n",len(resolved))
+		t.Fatalf("want 1, got: %d\n", len(resolved))
 		return
 	}
 	want := `{"bal": "baz"}`
-	if !bytes.Equal(resolved.ByKey([]byte("body")),[]byte(want)){
-		t.Fatalf("want key 'body' with value: '%s'",want)
+	if !bytes.Equal(resolved.ByKey([]byte("body")), []byte(want)) {
+		t.Fatalf("want key 'body' with value: '%s'", want)
 	}
 }
 
@@ -1157,35 +1273,35 @@ func TestExecutor_ResolveArgsWithListArguments(t *testing.T) {
 			Name: []byte("headers"),
 			Arguments: []Argument{
 				&StaticVariableArgument{
-					Name: []byte("foo"),
+					Name:  []byte("foo"),
 					Value: []byte("fooVal"),
 				},
 				&StaticVariableArgument{
-					Name: []byte("bar"),
+					Name:  []byte("bar"),
 					Value: []byte("barVal"),
 				},
 			},
 		},
 	}
 
-	resolved := e.ResolveArgs(args,nil)
+	resolved := e.ResolveArgs(args, nil)
 	if len(resolved) != 1 {
-		t.Fatalf("want 1, got: %d\n",len(resolved))
+		t.Fatalf("want 1, got: %d\n", len(resolved))
 		return
 	}
 	want := "{\"bar\":\"barVal\",\"foo\":\"fooVal\"}"
 	got := string(resolved.ByKey([]byte("headers")))
 	if want != got {
-		t.Fatalf("want key 'headers' with value:\n%s, got:\n%s\ndump:\n%s\n",want,got,resolved.Dump())
+		t.Fatalf("want key 'headers' with value:\n%s, got:\n%s\ndump:\n%s\n", want, got, resolved.Dump())
 	}
 }
 
-func TestExecutor_HTTPJSONDataSourceWithBody(t *testing.T){
+func TestExecutor_HTTPJSONDataSourceWithBody(t *testing.T) {
 
 	wantUpstream := map[string]interface{}{
 		"key": "fooValue",
 	}
-	wantBytes,err := json.MarshalIndent(wantUpstream,"","  ")
+	wantBytes, err := json.MarshalIndent(wantUpstream, "", "  ")
 	if err != nil {
 		t.Fatal(err)
 		return
@@ -1196,11 +1312,11 @@ func TestExecutor_HTTPJSONDataSourceWithBody(t *testing.T){
 	REST1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		if r.Method != http.MethodPost {
-			t.Fatalf("wantUpstream: %s, got: %s\n",http.MethodPost,r.Method)
+			t.Fatalf("wantUpstream: %s, got: %s\n", http.MethodPost, r.Method)
 			return
 		}
 
-		data,err := ioutil.ReadAll(r.Body)
+		data, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			t.Fatal(err)
 			return
@@ -1213,16 +1329,16 @@ func TestExecutor_HTTPJSONDataSourceWithBody(t *testing.T){
 		gotString := prettyJSON(bytes.NewReader(data))
 
 		if wantString != gotString {
-			t.Fatalf("wantUpstream: %s\ngot: %s\n",wantString,gotString)
+			t.Fatalf("wantUpstream: %s\ngot: %s\n", wantString, gotString)
 			return
 		}
 
 		w.WriteHeader(http.StatusOK)
-		_,_ = w.Write([]byte("bar"))
+		_, _ = w.Write([]byte("bar"))
 	}))
 
 	plan := &Object{
-		operationType:ast.OperationTypeQuery,
+		operationType: ast.OperationTypeQuery,
 		Fields: []Field{
 			{
 				Name: []byte("data"),
@@ -1230,8 +1346,8 @@ func TestExecutor_HTTPJSONDataSourceWithBody(t *testing.T){
 					Fetch: &SingleFetch{
 						BufferName: "withBody",
 						Source: &DataSourceInvocation{
-							DataSource:&HttpJsonDataSource{
-								log:zap.NewNop(),
+							DataSource: &HttpJsonDataSource{
+								log: zap.NewNop(),
 							},
 							Args: []Argument{
 								&StaticVariableArgument{
@@ -1247,11 +1363,11 @@ func TestExecutor_HTTPJSONDataSourceWithBody(t *testing.T){
 									Value: []byte("POST"),
 								},
 								&StaticVariableArgument{
-									Name: []byte("body"),
+									Name:  []byte("body"),
 									Value: []byte("{\\\"key\\\":\\\"{{ .arguments.input.foo }}\\\"}"),
 								},
 								&ContextVariableArgument{
-									Name: []byte(".arguments.input"),
+									Name:         []byte(".arguments.input"),
 									VariableName: []byte("input"),
 								},
 							},
@@ -1259,10 +1375,10 @@ func TestExecutor_HTTPJSONDataSourceWithBody(t *testing.T){
 					},
 					Fields: []Field{
 						{
-							Name: []byte("withBody"),
-							HasResolver:true,
+							Name:        []byte("withBody"),
+							HasResolver: true,
 							Value: &Value{
-								QuoteValue:true,
+								QuoteValue: true,
 							},
 						},
 					},
@@ -1291,7 +1407,7 @@ func TestExecutor_HTTPJSONDataSourceWithBody(t *testing.T){
 		},
 	}
 
-	wantResult,err := json.MarshalIndent(expected,"","  ")
+	wantResult, err := json.MarshalIndent(expected, "", "  ")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1300,12 +1416,12 @@ func TestExecutor_HTTPJSONDataSourceWithBody(t *testing.T){
 	got := prettyJSON(out)
 
 	if want != got {
-		t.Fatalf("want: %s\ngot: %s\n",want,got)
+		t.Fatalf("want: %s\ngot: %s\n", want, got)
 		return
 	}
 }
 
-func TestExecutor_HTTPJSONDataSourceWithBodyComplexPlayload(t *testing.T){
+func TestExecutor_HTTPJSONDataSourceWithBodyComplexPlayload(t *testing.T) {
 
 	wantUpstream := map[string]interface{}{
 		"foo": "fooValue",
@@ -1314,7 +1430,7 @@ func TestExecutor_HTTPJSONDataSourceWithBodyComplexPlayload(t *testing.T){
 		},
 	}
 
-	wantBytes,err := json.MarshalIndent(wantUpstream,"","  ")
+	wantBytes, err := json.MarshalIndent(wantUpstream, "", "  ")
 	if err != nil {
 		t.Fatal(err)
 		return
@@ -1325,11 +1441,11 @@ func TestExecutor_HTTPJSONDataSourceWithBodyComplexPlayload(t *testing.T){
 	REST1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		if r.Method != http.MethodPost {
-			t.Fatalf("wantUpstream: %s, got: %s\n",http.MethodPost,r.Method)
+			t.Fatalf("wantUpstream: %s, got: %s\n", http.MethodPost, r.Method)
 			return
 		}
 
-		data,err := ioutil.ReadAll(r.Body)
+		data, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			t.Fatal(err)
 			return
@@ -1339,16 +1455,16 @@ func TestExecutor_HTTPJSONDataSourceWithBodyComplexPlayload(t *testing.T){
 		gotString := prettyJSON(bytes.NewReader(data))
 
 		if wantString != gotString {
-			t.Fatalf("wantUpstream: %s\ngot: %s\n",wantString,gotString)
+			t.Fatalf("wantUpstream: %s\ngot: %s\n", wantString, gotString)
 			return
 		}
 
 		w.WriteHeader(http.StatusOK)
-		_,_ = w.Write([]byte("bar"))
+		_, _ = w.Write([]byte("bar"))
 	}))
 
 	plan := &Object{
-		operationType:ast.OperationTypeQuery,
+		operationType: ast.OperationTypeQuery,
 		Fields: []Field{
 			{
 				Name: []byte("data"),
@@ -1356,8 +1472,8 @@ func TestExecutor_HTTPJSONDataSourceWithBodyComplexPlayload(t *testing.T){
 					Fetch: &SingleFetch{
 						BufferName: "withBody",
 						Source: &DataSourceInvocation{
-							DataSource:&HttpJsonDataSource{
-								log:zap.NewNop(),
+							DataSource: &HttpJsonDataSource{
+								log: zap.NewNop(),
 							},
 							Args: []Argument{
 								&StaticVariableArgument{
@@ -1373,11 +1489,11 @@ func TestExecutor_HTTPJSONDataSourceWithBodyComplexPlayload(t *testing.T){
 									Value: []byte("POST"),
 								},
 								&StaticVariableArgument{
-									Name: []byte("body"),
+									Name:  []byte("body"),
 									Value: []byte("{{ .arguments.input }}"),
 								},
 								&ContextVariableArgument{
-									Name: []byte(".arguments.input"),
+									Name:         []byte(".arguments.input"),
 									VariableName: []byte("input"),
 								},
 							},
@@ -1385,10 +1501,10 @@ func TestExecutor_HTTPJSONDataSourceWithBodyComplexPlayload(t *testing.T){
 					},
 					Fields: []Field{
 						{
-							Name: []byte("withBody"),
-							HasResolver:true,
+							Name:        []byte("withBody"),
+							HasResolver: true,
 							Value: &Value{
-								QuoteValue:true,
+								QuoteValue: true,
 							},
 						},
 					},
@@ -1417,7 +1533,7 @@ func TestExecutor_HTTPJSONDataSourceWithBodyComplexPlayload(t *testing.T){
 		},
 	}
 
-	wantResult,err := json.MarshalIndent(expected,"","  ")
+	wantResult, err := json.MarshalIndent(expected, "", "  ")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1426,31 +1542,31 @@ func TestExecutor_HTTPJSONDataSourceWithBodyComplexPlayload(t *testing.T){
 	got := prettyJSON(out)
 
 	if want != got {
-		t.Fatalf("want: %s\ngot: %s\n",want,got)
+		t.Fatalf("want: %s\ngot: %s\n", want, got)
 		return
 	}
 }
 
-func TestExecutor_HTTPJSONDataSourceWithHeaders(t *testing.T){
+func TestExecutor_HTTPJSONDataSourceWithHeaders(t *testing.T) {
 
 	REST1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-		for k,v := range map[string]string{
+		for k, v := range map[string]string{
 			"foo": "fooVal",
 			"bar": "barVal",
-		}{
+		} {
 			got := r.Header.Get(k)
 			if got != v {
-				t.Fatalf("want header with key '%s' and value '%s', got: '%s'",k,v,got)
+				t.Fatalf("want header with key '%s' and value '%s', got: '%s'", k, v, got)
 			}
 		}
 
 		w.WriteHeader(http.StatusOK)
-		_,_ = w.Write([]byte("bar"))
+		_, _ = w.Write([]byte("bar"))
 	}))
 
 	plan := &Object{
-		operationType:ast.OperationTypeQuery,
+		operationType: ast.OperationTypeQuery,
 		Fields: []Field{
 			{
 				Name: []byte("data"),
@@ -1458,8 +1574,8 @@ func TestExecutor_HTTPJSONDataSourceWithHeaders(t *testing.T){
 					Fetch: &SingleFetch{
 						BufferName: "withHeaders",
 						Source: &DataSourceInvocation{
-							DataSource:&HttpJsonDataSource{
-								log:zap.NewNop(),
+							DataSource: &HttpJsonDataSource{
+								log: zap.NewNop(),
 							},
 							Args: []Argument{
 								&StaticVariableArgument{
@@ -1475,7 +1591,7 @@ func TestExecutor_HTTPJSONDataSourceWithHeaders(t *testing.T){
 									Value: []byte("GET"),
 								},
 								&ListArgument{
-									Name:      []byte("headers"),
+									Name: []byte("headers"),
 									Arguments: []Argument{
 										&StaticVariableArgument{
 											Name:  []byte("foo"),
@@ -1492,10 +1608,10 @@ func TestExecutor_HTTPJSONDataSourceWithHeaders(t *testing.T){
 					},
 					Fields: []Field{
 						{
-							Name: []byte("withHeaders"),
-							HasResolver:true,
+							Name:        []byte("withHeaders"),
+							HasResolver: true,
 							Value: &Value{
-								QuoteValue:true,
+								QuoteValue: true,
 							},
 						},
 					},
@@ -1521,7 +1637,7 @@ func TestExecutor_HTTPJSONDataSourceWithHeaders(t *testing.T){
 		},
 	}
 
-	wantResult,err := json.MarshalIndent(expected,"","  ")
+	wantResult, err := json.MarshalIndent(expected, "", "  ")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1530,7 +1646,7 @@ func TestExecutor_HTTPJSONDataSourceWithHeaders(t *testing.T){
 	got := prettyJSON(out)
 
 	if want != got {
-		t.Fatalf("want: %s\ngot: %s\n",want,got)
+		t.Fatalf("want: %s\ngot: %s\n", want, got)
 		return
 	}
 }
@@ -1541,7 +1657,7 @@ func prettyJSON(r io.Reader) string {
 	if err != nil {
 		panic(err)
 	}
-	out,err := json.MarshalIndent(data,"","  ")
+	out, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
 		panic(err)
 	}
