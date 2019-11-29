@@ -12,10 +12,6 @@ directive @GraphQLDataSource (
     """
     method: HTTP_METHOD = POST
     """
-    the field/entry point on the remote schema
-    """
-    field: String
-    """
     parameters
     """
     params: [Parameter]
