@@ -410,36 +410,32 @@ func (p *planningVisitor) fieldPath(ref int) []string {
 		}
 	}
 
-	fields = append(fields,ref)
-
-	for _,i := range fields {
-		def, ok := p.FieldDefinition(i)
-		if !ok {
-			continue
-		}
-		pathDirective, ok := p.definition.FieldDefinitionDirectiveByName(def, []byte("path"))
-		if !ok {
-			continue
-		}
-		appendValue, ok := p.definition.DirectiveArgumentValueByName(pathDirective, []byte("append"))
-		if ok && appendValue.Kind == ast.ValueKindList {
-			for _, j := range p.definition.ListValues[appendValue.Ref].Refs {
-				listValue := p.definition.Values[j]
-				if listValue.Kind != ast.ValueKindString {
-					continue
-				}
-				path = append(path, p.definition.StringValueContentString(listValue.Ref))
+	def, ok := p.FieldDefinition(ref)
+	if !ok {
+		return path
+	}
+	pathDirective, ok := p.definition.FieldDefinitionDirectiveByName(def, []byte("path"))
+	if !ok {
+		return path
+	}
+	appendValue, ok := p.definition.DirectiveArgumentValueByName(pathDirective, []byte("append"))
+	if ok && appendValue.Kind == ast.ValueKindList {
+		for _, j := range p.definition.ListValues[appendValue.Ref].Refs {
+			listValue := p.definition.Values[j]
+			if listValue.Kind != ast.ValueKindString {
+				continue
 			}
+			path = append(path, p.definition.StringValueContentString(listValue.Ref))
 		}
-		prependValue, ok := p.definition.DirectiveArgumentValueByName(pathDirective, []byte("prepend"))
-		if ok {
-			for _, j := range p.definition.ListValues[prependValue.Ref].Refs {
-				listValue := p.definition.Values[j]
-				if listValue.Kind != ast.ValueKindString {
-					continue
-				}
-				path = append([]string{p.definition.StringValueContentString(listValue.Ref)}, path...)
+	}
+	prependValue, ok := p.definition.DirectiveArgumentValueByName(pathDirective, []byte("prepend"))
+	if ok {
+		for _, j := range p.definition.ListValues[prependValue.Ref].Refs {
+			listValue := p.definition.Values[j]
+			if listValue.Kind != ast.ValueKindString {
+				continue
 			}
+			path = append([]string{p.definition.StringValueContentString(listValue.Ref)}, path...)
 		}
 	}
 
