@@ -94,8 +94,9 @@ func (h *HttpJsonDataSourcePlanner) LeaveField(ref int) {
 	variableValue := h.definition.StringValueContentBytes(value.Ref)
 	arg := &StaticVariableArgument{
 		Name:  literal.URL,
-		Value: variableValue,
+		Value: make([]byte,len(variableValue)),
 	}
+	copy(arg.Value,variableValue)
 	h.args = append([]Argument{arg}, h.args...)
 	value, exists = h.definition.DirectiveArgumentValueByName(directive, literal.HOST)
 	if !exists {
@@ -104,8 +105,9 @@ func (h *HttpJsonDataSourcePlanner) LeaveField(ref int) {
 	variableValue = h.definition.StringValueContentBytes(value.Ref)
 	arg = &StaticVariableArgument{
 		Name:  literal.HOST,
-		Value: variableValue,
+		Value: make([]byte,len(variableValue)),
 	}
+	copy(arg.Value,variableValue)
 	h.args = append([]Argument{arg}, h.args...)
 
 	// method
@@ -114,8 +116,9 @@ func (h *HttpJsonDataSourcePlanner) LeaveField(ref int) {
 		variableValue = h.definition.EnumValueNameBytes(value.Ref)
 		arg = &StaticVariableArgument{
 			Name:  literal.METHOD,
-			Value: variableValue,
+			Value: make([]byte,len(variableValue)),
 		}
+		copy(arg.Value,variableValue)
 		h.args = append(h.args, arg)
 	} else { // must refactor into functions!
 		inputValueDefinition := h.definition.DirectiveArgumentInputValueDefinition(h.definition.DirectiveNameBytes(directive), literal.METHOD)
@@ -123,10 +126,12 @@ func (h *HttpJsonDataSourcePlanner) LeaveField(ref int) {
 			if h.definition.InputValueDefinitionHasDefaultValue(inputValueDefinition) {
 				defaultValue := h.definition.InputValueDefinitionDefaultValue(inputValueDefinition)
 				if defaultValue.Kind == ast.ValueKindEnum {
+					value := h.definition.EnumValueNameBytes(defaultValue.Ref)
 					arg = &StaticVariableArgument{
 						Name:  literal.METHOD,
-						Value: h.definition.EnumValueNameBytes(defaultValue.Ref),
+						Value: make([]byte,len(value)),
 					}
+					copy(arg.Value,value)
 					h.args = append(h.args, arg)
 				}
 			}
@@ -139,8 +144,9 @@ func (h *HttpJsonDataSourcePlanner) LeaveField(ref int) {
 		variableValue = h.definition.StringValueContentBytes(value.Ref)
 		arg = &StaticVariableArgument{
 			Name:  literal.BODY,
-			Value: variableValue,
+			Value: make([]byte,len(variableValue)),
 		}
+		copy(arg.Value,variableValue)
 		h.args = append(h.args, arg)
 	}
 
@@ -154,10 +160,12 @@ func (h *HttpJsonDataSourcePlanner) LeaveField(ref int) {
 				continue
 			}
 			variableName := h.operation.VariableValueNameBytes(value.Ref)
+			name := append([]byte(".arguments."),argName...)
 			arg := &ContextVariableArgument{
-				Name:         append([]byte(".arguments."),argName...),
 				VariableName: variableName,
+				Name: make([]byte,len(name)),
 			}
+			copy(arg.Name,name)
 			h.args = append(h.args, arg)
 		}
 	}
@@ -191,10 +199,13 @@ func (h *HttpJsonDataSourcePlanner) LeaveField(ref int) {
 			if key == nil || value == nil {
 				continue
 			}
-			listArg.Arguments = append(listArg.Arguments,&StaticVariableArgument{
-				Name:  key,
-				Value: value,
-			})
+			arg := &StaticVariableArgument{
+				Name:  make([]byte,len(key)),
+				Value: make([]byte,len(value)),
+			}
+			copy(arg.Name,key)
+			copy(arg.Value,value)
+			listArg.Arguments = append(listArg.Arguments,arg)
 		}
 
 		if len(listArg.Arguments) != 0 {
