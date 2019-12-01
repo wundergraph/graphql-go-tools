@@ -403,13 +403,6 @@ func (p *planningVisitor) fieldPath(ref int) []string {
 		}
 	}
 
-	var fields []int
-	for i := 0;i<len(p.Ancestors);i++{
-		if p.Ancestors[i].Kind == ast.NodeKindField {
-			fields = append(fields,p.Ancestors[i].Ref)
-		}
-	}
-
 	def, ok := p.FieldDefinition(ref)
 	if !ok {
 		return path
