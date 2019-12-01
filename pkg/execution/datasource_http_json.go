@@ -32,7 +32,10 @@ func (h *HttpJsonDataSourcePlanner) DirectiveDefinition() []byte {
 }
 
 func (h *HttpJsonDataSourcePlanner) OverrideRootFieldPath(path []string) []string {
-	return nil
+	if len(path) == 1 {
+		return nil
+	}
+	return path
 }
 
 func (h *HttpJsonDataSourcePlanner) DirectiveName() []byte {

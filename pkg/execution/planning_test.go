@@ -411,15 +411,15 @@ func TestPlanner_Plan(t *testing.T) {
 					`,
 		ResolverDefinitions{
 			{
-				TypeName:literal.QUERY,
-				FieldName:[]byte("withBody"),
+				TypeName:  literal.QUERY,
+				FieldName: []byte("withBody"),
 				DataSourcePlannerFactory: func() DataSourcePlanner {
 					return &HttpJsonDataSourcePlanner{}
 				},
 			},
 		},
 		&Object{
-			operationType:ast.OperationTypeQuery,
+			operationType: ast.OperationTypeQuery,
 			Fields: []Field{
 				{
 					Name: []byte("data"),
@@ -427,7 +427,7 @@ func TestPlanner_Plan(t *testing.T) {
 						Fetch: &SingleFetch{
 							BufferName: "withBody",
 							Source: &DataSourceInvocation{
-								DataSource:&HttpJsonDataSource{},
+								DataSource: &HttpJsonDataSource{},
 								Args: []Argument{
 									&StaticVariableArgument{
 										Name:  []byte("host"),
@@ -442,11 +442,11 @@ func TestPlanner_Plan(t *testing.T) {
 										Value: []byte("POST"),
 									},
 									&StaticVariableArgument{
-										Name: []byte("body"),
+										Name:  []byte("body"),
 										Value: []byte("{\\\"key\\\":\\\"{{ .arguments.input.foo }}\\\"}"),
 									},
 									&ContextVariableArgument{
-										Name: []byte(".arguments.input"),
+										Name:         []byte(".arguments.input"),
 										VariableName: []byte("input"),
 									},
 								},
@@ -454,10 +454,64 @@ func TestPlanner_Plan(t *testing.T) {
 						},
 						Fields: []Field{
 							{
-								Name: []byte("withBody"),
-								HasResolver:true,
+								Name:        []byte("withBody"),
+								HasResolver: true,
 								Value: &Value{
-									QuoteValue:true,
+									QuoteValue: true,
+								},
+							},
+						},
+					},
+				},
+			},
+		}))
+	t.Run("HTTPJSONDataSource withPath", run(withBaseSchema(HTTPJSONDataSourceSchema), `
+					query WithPath {
+						withPath
+					}
+					`,
+		ResolverDefinitions{
+			{
+				TypeName:  literal.QUERY,
+				FieldName: []byte("withPath"),
+				DataSourcePlannerFactory: func() DataSourcePlanner {
+					return &HttpJsonDataSourcePlanner{}
+				},
+			},
+		},
+		&Object{
+			operationType: ast.OperationTypeQuery,
+			Fields: []Field{
+				{
+					Name: []byte("data"),
+					Value: &Object{
+						Fetch: &SingleFetch{
+							BufferName: "withPath",
+							Source: &DataSourceInvocation{
+								DataSource: &HttpJsonDataSource{},
+								Args: []Argument{
+									&StaticVariableArgument{
+										Name:  []byte("host"),
+										Value: []byte("httpbin.org"),
+									},
+									&StaticVariableArgument{
+										Name:  []byte("url"),
+										Value: []byte("/anything"),
+									},
+									&StaticVariableArgument{
+										Name:  []byte("method"),
+										Value: []byte("GET"),
+									},
+								},
+							},
+						},
+						Fields: []Field{
+							{
+								Name: []byte("withPath"),
+								HasResolver: true,
+								Value: &Value{
+									Path:       []string{"subObject","withPath"},
+									QuoteValue: true,
 								},
 							},
 						},
@@ -472,15 +526,15 @@ func TestPlanner_Plan(t *testing.T) {
 					`,
 		ResolverDefinitions{
 			{
-				TypeName:literal.QUERY,
-				FieldName:[]byte("withHeaders"),
+				TypeName:  literal.QUERY,
+				FieldName: []byte("withHeaders"),
 				DataSourcePlannerFactory: func() DataSourcePlanner {
 					return &HttpJsonDataSourcePlanner{}
 				},
 			},
 		},
 		&Object{
-			operationType:ast.OperationTypeQuery,
+			operationType: ast.OperationTypeQuery,
 			Fields: []Field{
 				{
 					Name: []byte("data"),
@@ -488,7 +542,7 @@ func TestPlanner_Plan(t *testing.T) {
 						Fetch: &SingleFetch{
 							BufferName: "withHeaders",
 							Source: &DataSourceInvocation{
-								DataSource:&HttpJsonDataSource{},
+								DataSource: &HttpJsonDataSource{},
 								Args: []Argument{
 									&StaticVariableArgument{
 										Name:  []byte("host"),
@@ -520,10 +574,10 @@ func TestPlanner_Plan(t *testing.T) {
 						},
 						Fields: []Field{
 							{
-								Name: []byte("withHeaders"),
-								HasResolver:true,
+								Name:        []byte("withHeaders"),
+								HasResolver: true,
 								Value: &Value{
-									QuoteValue:true,
+									QuoteValue: true,
 								},
 							},
 						},
@@ -2278,8 +2332,7 @@ const GraphQLDataSourceSchema = `
 directive @GraphQLDataSource (
     host: String!
     url: String!
-	field: String
-    method: HTTP_METHOD = POST
+	method: HTTP_METHOD = POST
     params: [Parameter]
 ) on FIELD_DEFINITION
 
@@ -2342,7 +2395,6 @@ type Query {
 		@GraphQLDataSource(
 			host: "countries.trevorblades.com"
 			url: "/"
-			field: "country"
 			params: [
 				{
 					name: "code"
@@ -2359,7 +2411,6 @@ type Mutation {
 		@GraphQLDataSource(
 			host: "fakebook.com"
 			url: "/"
-			field: "likePost"
 			params: [
 				{
 					name: "id"
@@ -2389,6 +2440,8 @@ directive @HttpJsonDataSource (
 directive @mapTo(
 	objectField: String!
 ) on FIELD_DEFINITION
+
+directive @path(append: [String!], prepend: [String!]) on FIELD_DEFINITION
 
 enum HTTP_METHOD {
     GET
@@ -2490,6 +2543,12 @@ type Query {
 				}
 			]
         )
+	withPath: String!
+		@path(prepend: ["subObject"])
+		@HttpJsonDataSource(
+            host: "httpbin.org"
+            url: "/anything"
+        )
     __schema: __Schema!
     __type(name: String!): __Type
 }
@@ -2535,8 +2594,7 @@ directive @HttpJsonDataSource (
 directive @GraphQLDataSource (
     host: String!
     url: String!
-	field: String
-    method: HTTP_METHOD = POST
+	method: HTTP_METHOD = POST
     params: [Parameter]
 ) on FIELD_DEFINITION
 
@@ -2613,7 +2671,6 @@ type Query {
 		@GraphQLDataSource(
 			host: "localhost:8001"
 			url: "/graphql"
-			field: "user"
 			params: [
 				{
 					name: "id"
@@ -2647,10 +2704,12 @@ type User {
 			]
 		)
 	pets: [Pet]
+		@mapTo(
+			objectField: "userPets"
+		)
 		@GraphQLDataSource(
 			host: "localhost:8002"
 			url: "/graphql"
-			field: "userPets"
 			params: [
 				{
 					name: "userId"
