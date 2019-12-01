@@ -412,7 +412,6 @@ func (p *planningVisitor) fieldPath(ref int) []string {
 
 	fields = append(fields,ref)
 
-	var basePath []string
 	for _,i := range fields {
 		def, ok := p.FieldDefinition(i)
 		if !ok {
@@ -429,7 +428,7 @@ func (p *planningVisitor) fieldPath(ref int) []string {
 				if listValue.Kind != ast.ValueKindString {
 					continue
 				}
-				basePath = append(basePath, p.definition.StringValueContentString(listValue.Ref))
+				path = append(path, p.definition.StringValueContentString(listValue.Ref))
 			}
 		}
 		prependValue, ok := p.definition.DirectiveArgumentValueByName(pathDirective, []byte("prepend"))
@@ -439,13 +438,9 @@ func (p *planningVisitor) fieldPath(ref int) []string {
 				if listValue.Kind != ast.ValueKindString {
 					continue
 				}
-				basePath = append([]string{p.definition.StringValueContentString(listValue.Ref)}, basePath...)
+				path = append([]string{p.definition.StringValueContentString(listValue.Ref)}, path...)
 			}
 		}
-	}
-
-	if len(basePath) != 0 {
-		path = append(basePath, path...)
 	}
 
 	return path
