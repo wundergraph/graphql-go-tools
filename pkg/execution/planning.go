@@ -403,49 +403,33 @@ func (p *planningVisitor) fieldPath(ref int) []string {
 		}
 	}
 
-	var fields []int
-	for i := 0;i<len(p.Ancestors);i++{
-		if p.Ancestors[i].Kind == ast.NodeKindField {
-			fields = append(fields,p.Ancestors[i].Ref)
+	def, ok := p.FieldDefinition(ref)
+	if !ok {
+		return path
+	}
+	pathDirective, ok := p.definition.FieldDefinitionDirectiveByName(def, []byte("path"))
+	if !ok {
+		return path
+	}
+	appendValue, ok := p.definition.DirectiveArgumentValueByName(pathDirective, []byte("append"))
+	if ok && appendValue.Kind == ast.ValueKindList {
+		for _, j := range p.definition.ListValues[appendValue.Ref].Refs {
+			listValue := p.definition.Values[j]
+			if listValue.Kind != ast.ValueKindString {
+				continue
+			}
+			path = append(path, p.definition.StringValueContentString(listValue.Ref))
 		}
 	}
-
-	fields = append(fields,ref)
-
-	var basePath []string
-	for _,i := range fields {
-		def, ok := p.FieldDefinition(i)
-		if !ok {
-			continue
-		}
-		pathDirective, ok := p.definition.FieldDefinitionDirectiveByName(def, []byte("path"))
-		if !ok {
-			continue
-		}
-		appendValue, ok := p.definition.DirectiveArgumentValueByName(pathDirective, []byte("append"))
-		if ok && appendValue.Kind == ast.ValueKindList {
-			for _, j := range p.definition.ListValues[appendValue.Ref].Refs {
-				listValue := p.definition.Values[j]
-				if listValue.Kind != ast.ValueKindString {
-					continue
-				}
-				basePath = append(basePath, p.definition.StringValueContentString(listValue.Ref))
+	prependValue, ok := p.definition.DirectiveArgumentValueByName(pathDirective, []byte("prepend"))
+	if ok {
+		for _, j := range p.definition.ListValues[prependValue.Ref].Refs {
+			listValue := p.definition.Values[j]
+			if listValue.Kind != ast.ValueKindString {
+				continue
 			}
+			path = append([]string{p.definition.StringValueContentString(listValue.Ref)}, path...)
 		}
-		prependValue, ok := p.definition.DirectiveArgumentValueByName(pathDirective, []byte("prepend"))
-		if ok {
-			for _, j := range p.definition.ListValues[prependValue.Ref].Refs {
-				listValue := p.definition.Values[j]
-				if listValue.Kind != ast.ValueKindString {
-					continue
-				}
-				basePath = append([]string{p.definition.StringValueContentString(listValue.Ref)}, basePath...)
-			}
-		}
-	}
-
-	if len(basePath) != 0 {
-		path = append(basePath, path...)
 	}
 
 	return path

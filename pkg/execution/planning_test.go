@@ -507,11 +507,142 @@ func TestPlanner_Plan(t *testing.T) {
 						},
 						Fields: []Field{
 							{
-								Name: []byte("withPath"),
+								Name:        []byte("withPath"),
 								HasResolver: true,
 								Value: &Value{
-									Path:       []string{"subObject","withPath"},
+									Path:       []string{"subObject"},
 									QuoteValue: true,
+								},
+							},
+						},
+					},
+				},
+			},
+		}))
+	t.Run("HTTPJSONDataSource list withoutPath", run(withBaseSchema(HTTPJSONDataSourceSchema), `
+					query ListWithoutPath {
+						listItems {
+							id
+						}
+					}
+					`,
+		ResolverDefinitions{
+			{
+				TypeName:  literal.QUERY,
+				FieldName: []byte("listItems"),
+				DataSourcePlannerFactory: func() DataSourcePlanner {
+					return &HttpJsonDataSourcePlanner{}
+				},
+			},
+		},
+		&Object{
+			operationType: ast.OperationTypeQuery,
+			Fields: []Field{
+				{
+					Name: []byte("data"),
+					Value: &Object{
+						Fetch: &SingleFetch{
+							BufferName: "listItems",
+							Source: &DataSourceInvocation{
+								DataSource: &HttpJsonDataSource{},
+								Args: []Argument{
+									&StaticVariableArgument{
+										Name:  []byte("host"),
+										Value: []byte("httpbin.org"),
+									},
+									&StaticVariableArgument{
+										Name:  []byte("url"),
+										Value: []byte("/anything"),
+									},
+									&StaticVariableArgument{
+										Name:  []byte("method"),
+										Value: []byte("GET"),
+									},
+								},
+							},
+						},
+						Fields: []Field{
+							{
+								Name:        []byte("listItems"),
+								HasResolver: true,
+								Value: &List{
+									Value: &Object{
+										Fields: []Field{
+											{
+												Name: []byte("id"),
+												Value: &Value{
+													Path:       []string{"id"},
+													QuoteValue: true,
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}))
+	t.Run("HTTPJSONDataSource list withPath", run(withBaseSchema(HTTPJSONDataSourceSchema), `
+					query ListWithPath {
+						listWithPath {
+							id
+						}
+					}
+					`,
+		ResolverDefinitions{
+			{
+				TypeName:  literal.QUERY,
+				FieldName: []byte("listWithPath"),
+				DataSourcePlannerFactory: func() DataSourcePlanner {
+					return &HttpJsonDataSourcePlanner{}
+				},
+			},
+		},
+		&Object{
+			operationType: ast.OperationTypeQuery,
+			Fields: []Field{
+				{
+					Name: []byte("data"),
+					Value: &Object{
+						Fetch: &SingleFetch{
+							BufferName: "listWithPath",
+							Source: &DataSourceInvocation{
+								DataSource: &HttpJsonDataSource{},
+								Args: []Argument{
+									&StaticVariableArgument{
+										Name:  []byte("host"),
+										Value: []byte("httpbin.org"),
+									},
+									&StaticVariableArgument{
+										Name:  []byte("url"),
+										Value: []byte("/anything"),
+									},
+									&StaticVariableArgument{
+										Name:  []byte("method"),
+										Value: []byte("GET"),
+									},
+								},
+							},
+						},
+						Fields: []Field{
+							{
+								Name:        []byte("listWithPath"),
+								HasResolver: true,
+								Value: &List{
+									Path: []string{"items"},
+									Value: &Object{
+										Fields: []Field{
+											{
+												Name: []byte("id"),
+												Value: &Value{
+													Path:       []string{"id"},
+													QuoteValue: true,
+												},
+											},
+										},
+									},
 								},
 							},
 						},
@@ -2544,13 +2675,28 @@ type Query {
 			]
         )
 	withPath: String!
-		@path(prepend: ["subObject"])
+		@path(append: ["subObject"])
+		@HttpJsonDataSource(
+            host: "httpbin.org"
+            url: "/anything"
+        )
+	listItems: [ListItem]
+		@HttpJsonDataSource(
+            host: "httpbin.org"
+            url: "/anything"
+        )
+	listWithPath: [ListItem]
+		@path(append: ["items"])
 		@HttpJsonDataSource(
             host: "httpbin.org"
             url: "/anything"
         )
     __schema: __Schema!
     __type(name: String!): __Type
+}
+
+type ListItem {
+	id: String!
 }
 
 input WithBodyInput {
