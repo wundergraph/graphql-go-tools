@@ -1139,7 +1139,7 @@ func TestExecutor_ObjectWithPath(t *testing.T) {
 							Name:        []byte("id"),
 							HasResolver: true,
 							Value: &Value{
-								Path:       []string{"api","id"},
+								Path:       []string{"api", "id"},
 								QuoteValue: false,
 							},
 						},
@@ -1235,9 +1235,9 @@ func TestExecutor_ResolveArgs_MultipleNested(t *testing.T) {
 	e.context = Context{
 		Context: context.Background(),
 		Variables: map[uint64][]byte{
-			xxhash.Sum64String("from"): []byte(`{"year":2019,"month":11,"day":1}`),
+			xxhash.Sum64String("from"):  []byte(`{"year":2019,"month":11,"day":1}`),
 			xxhash.Sum64String("until"): []byte(`{"year":2019,"month":12,"day":31}`),
-			xxhash.Sum64String("page"): []byte(`0`),
+			xxhash.Sum64String("page"):  []byte(`0`),
 		},
 	}
 
@@ -1272,7 +1272,7 @@ func TestExecutor_ResolveArgs_MultipleNested(t *testing.T) {
 	want := []byte("/api/usage/apis/1/1/11/2019/31/12/2019?by=Hits&sort=1&p=0")
 	got := resolved.ByKey([]byte("url"))
 	if !bytes.Equal(got, want) {
-		t.Fatalf("want key 'body' with value: '%s'\ngot: '%s'\ndump: %s", string(want),string(got), resolved.Dump())
+		t.Fatalf("want key 'body' with value: '%s'\ngot: '%s'\ndump: %s", string(want), string(got), resolved.Dump())
 	}
 }
 
@@ -1336,6 +1336,38 @@ func TestExecutor_ResolveArgsComplexPayloadWithSelector(t *testing.T) {
 	want := `{"bal": "baz"}`
 	if !bytes.Equal(resolved.ByKey([]byte("body")), []byte(want)) {
 		t.Fatalf("want key 'body' with value: '%s'", want)
+	}
+}
+
+func TestExecutor_ResolveArgsFlatObjectContainingJSON(t *testing.T) {
+	e := NewExecutor()
+	e.context = Context{
+		Context: context.Background(),
+		Variables: map[uint64][]byte{
+			xxhash.Sum64String("request"): []byte(`{"headers":{"Authorization":"foo"}}`),
+		},
+	}
+
+	args := []Argument{
+		&StaticVariableArgument{
+			Name:  []byte("header"),
+			Value: []byte("{{ .request.headers.Authorization }}"),
+		},
+		&ContextVariableArgument{
+			Name:         []byte("request"),
+			VariableName: []byte("request"),
+		},
+	}
+
+	resolved := e.ResolveArgs(args, nil)
+	if len(resolved) != 2 {
+		t.Fatalf("want 2, got: %d\n", len(resolved))
+		return
+	}
+	want := "foo"
+	got := resolved.ByKey([]byte("header"))
+	if !bytes.Equal(got, []byte(want)) {
+		t.Fatalf("want key 'request' with value: '%s', got: '%s'", want, string(got))
 	}
 }
 

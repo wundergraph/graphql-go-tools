@@ -266,6 +266,9 @@ func (e *Executor) ResolveArgs(args []Argument, data []byte) ResolvedArgs {
 			}
 			for j := range resolved {
 				key := string(resolved[j].Key)
+				if strings.HasPrefix(tag,".") && !strings.HasPrefix(key,"."){
+					key = "." + key
+				}
 				if !strings.HasPrefix(tag, key) {
 					continue
 				}
