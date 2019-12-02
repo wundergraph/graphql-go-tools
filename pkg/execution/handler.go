@@ -66,15 +66,15 @@ func (h *Handler) RenderGraphQLDefinitions(out io.Writer) error {
 }
 
 type GraphqlRequest struct {
-	OperationName string                     `json:"operation_name"`
+	OperationName string          `json:"operation_name"`
 	Variables     json.RawMessage `json:"variables"`
-	Query         string                     `json:"query"`
+	Query         string          `json:"query"`
 }
 
-func (h *Handler) Handle(data []byte) (executor *Executor, node RootNode, ctx Context, err error) {
+func (h *Handler) Handle(requestData, extraVariables []byte) (executor *Executor, node RootNode, ctx Context, err error) {
 
 	var graphqlRequest GraphqlRequest
-	err = json.Unmarshal(data, &graphqlRequest)
+	err = json.Unmarshal(requestData, &graphqlRequest)
 	if err != nil {
 		return
 	}
@@ -85,7 +85,7 @@ func (h *Handler) Handle(data []byte) (executor *Executor, node RootNode, ctx Co
 		return
 	}
 
-	variables := h.VariablesFromRequest(graphqlRequest)
+	variables := h.VariablesFromJson(graphqlRequest.Variables, extraVariables)
 
 	planner := NewPlanner(h.resolverDefinitions(&report))
 	if report.HasErrors() {
@@ -129,12 +129,14 @@ func (h *Handler) Handle(data []byte) (executor *Executor, node RootNode, ctx Co
 	return executor, plan, ctx, err
 }
 
-func (h *Handler) VariablesFromRequest(request GraphqlRequest) Variables {
-	variables := make(Variables, 4)
-	_ = jsonparser.ObjectEach(request.Variables, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
-		variables[xxhash.Sum64(key)] = value
-		return nil
-	})
+func (h *Handler) VariablesFromJson(inputJson ...[]byte) Variables {
+	variables := map[uint64][]byte{}
+	for i := range inputJson {
+		_ = jsonparser.ObjectEach(inputJson[i], func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
+			variables[xxhash.Sum64(key)] = value
+			return nil
+		})
+	}
 	return variables
 }
 

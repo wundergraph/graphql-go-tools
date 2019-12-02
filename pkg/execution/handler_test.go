@@ -52,10 +52,14 @@ func TestHandler_VariablesFromRequest(t *testing.T) {
 	request := GraphqlRequest{
 		Variables: []byte(`{"foo":"bar"}`),
 	}
-	variables := handler.VariablesFromRequest(request)
+
+	extra := []byte(`{"request":{"headers":{"Authorization":"Bearer foo123"}}}`)
+
+	variables := handler.VariablesFromJson(request.Variables,extra)
 
 	for key,value := range map[string]string{
 		"foo": "bar",
+		"request": `{"headers":{"Authorization":"Bearer foo123"}}`,
 	}{
 		got := string(variables[xxhash.Sum64String(key)])
 		want := value
