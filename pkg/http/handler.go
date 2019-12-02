@@ -1,9 +1,11 @@
 package http
 
 import (
+	"encoding/json"
 	"github.com/gobwas/ws"
 	"github.com/jensneuse/graphql-go-tools/pkg/execution"
 	"go.uber.org/zap"
+	"io"
 	"net/http"
 )
 
@@ -41,7 +43,7 @@ func (g *GraphQLHTTPRequestHandler) upgradeWithNewGoroutine(w http.ResponseWrite
 	if err != nil {
 		return err
 	}
-	go g.handleWebsocket(conn)
+	go g.handleWebsocket(r, conn)
 	return nil
 }
 
@@ -52,4 +54,22 @@ func (g *GraphQLHTTPRequestHandler) isWebsocketUpgrade(r *http.Request) bool {
 		}
 	}
 	return false
+}
+
+func (g *GraphQLHTTPRequestHandler) extraVariables(r *http.Request, out io.Writer) error {
+	headers := map[string]string{}
+	for key := range r.Header {
+		headers[key] = r.Header.Get(key)
+	}
+
+	extra := map[string]interface{}{
+		"request": map[string]interface{}{
+			"uri":     r.RequestURI,
+			"method":  r.Method,
+			"host":    r.Host,
+			"headers": headers,
+		},
+	}
+
+	return json.NewEncoder(out).Encode(extra)
 }

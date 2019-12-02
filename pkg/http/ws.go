@@ -9,6 +9,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/execution"
 	"go.uber.org/zap"
 	"net"
+	"net/http"
 )
 
 const (
@@ -30,7 +31,7 @@ type WebsocketMessage struct {
 	Payload json.RawMessage `json:"payload"`
 }
 
-func (g *GraphQLHTTPRequestHandler) handleWebsocket(conn net.Conn) {
+func (g *GraphQLHTTPRequestHandler) handleWebsocket(r *http.Request, conn net.Conn) {
 	defer conn.Close()
 
 	subscriptions := map[string]context.CancelFunc{}
@@ -77,7 +78,7 @@ func (g *GraphQLHTTPRequestHandler) handleWebsocket(conn net.Conn) {
 		case START:
 			ctx, cancel := context.WithCancel(context.Background())
 			subscriptions[message.Id] = cancel
-			go g.startSubscription(ctx, message.Payload, conn, op, message.Id)
+			go g.startSubscription(r, ctx, message.Payload, conn, op, message.Id)
 		case STOP:
 			cancel, ok := subscriptions[message.Id]
 			if !ok {
@@ -99,8 +100,12 @@ func (g *GraphQLHTTPRequestHandler) sendAck(conn net.Conn, op ws.OpCode) error {
 	return wsutil.WriteServerMessage(conn, op, data)
 }
 
-func (g *GraphQLHTTPRequestHandler) startSubscription(ctx context.Context, data []byte, conn net.Conn, op ws.OpCode, id string) {
-	executor, node, executionContext, err := g.executionHandler.Handle(data)
+func (g *GraphQLHTTPRequestHandler) startSubscription(r *http.Request, ctx context.Context, data []byte, conn net.Conn, op ws.OpCode, id string) {
+
+	extra := &bytes.Buffer{}
+	_ = g.extraVariables(r, extra)
+
+	executor, node, executionContext, err := g.executionHandler.Handle(data, extra.Bytes())
 	if err != nil {
 		g.log.Error("GraphQLHTTPRequestHandler.startSubscription.executionHandler.Handle",
 			zap.Error(err),
