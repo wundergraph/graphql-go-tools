@@ -85,7 +85,7 @@ func (h *Handler) Handle(requestData, extraVariables []byte) (executor *Executor
 		return
 	}
 
-	variables := h.VariablesFromJson(graphqlRequest.Variables, extraVariables)
+	variables, extraArguments := h.VariablesFromJson(graphqlRequest.Variables, extraVariables)
 
 	planner := NewPlanner(h.resolverDefinitions(&report))
 	if report.HasErrors() {
@@ -124,20 +124,27 @@ func (h *Handler) Handle(requestData, extraVariables []byte) (executor *Executor
 	executor = NewExecutor()
 	ctx = Context{
 		Variables: variables,
+		ExtraArguments: extraArguments,
 	}
 
 	return executor, plan, ctx, err
 }
 
-func (h *Handler) VariablesFromJson(inputJson ...[]byte) Variables {
-	variables := map[uint64][]byte{}
-	for i := range inputJson {
-		_ = jsonparser.ObjectEach(inputJson[i], func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
-			variables[xxhash.Sum64(key)] = value
-			return nil
+func (h *Handler) VariablesFromJson(requestVariables, extraVariables []byte) (variables Variables, extraArguments []Argument) {
+	variables = map[uint64][]byte{}
+	_ = jsonparser.ObjectEach(requestVariables, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
+		variables[xxhash.Sum64(key)] = value
+		return nil
+	})
+	_ = jsonparser.ObjectEach(extraVariables, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
+		variables[xxhash.Sum64(key)] = value
+		extraArguments = append(extraArguments, &ContextVariableArgument{
+			Name:         key,
+			VariableName: key,
 		})
-	}
-	return variables
+		return nil
+	})
+	return
 }
 
 func (h *Handler) resolverDefinitions(report *operationreport.Report) ResolverDefinitions {

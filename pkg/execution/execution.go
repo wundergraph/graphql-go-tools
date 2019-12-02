@@ -218,6 +218,8 @@ func (e *Executor) resolveNode(node Node, data []byte, path string, prefetch *sy
 
 func (e *Executor) ResolveArgs(args []Argument, data []byte) ResolvedArgs {
 
+	args = append(args, e.context.ExtraArguments...)
+
 	resolved := make(ResolvedArgs, len(args))
 	for i := 0; i < len(args); i++ {
 		switch arg := args[i].(type) {
@@ -232,8 +234,8 @@ func (e *Executor) ResolveArgs(args []Argument, data []byte) ResolvedArgs {
 			resolved[i].Value = e.context.Variables[xxhash.Sum64(arg.VariableName)]
 		case *ListArgument:
 			resolved[i].Key = arg.Name
-			listArgs := e.ResolveArgs(arg.Arguments,data)
-			listValues := make(map[string]string,len(listArgs))
+			listArgs := e.ResolveArgs(arg.Arguments, data)
+			listValues := make(map[string]string, len(listArgs))
 			for j := range listArgs {
 				listValues[string(listArgs[j].Key)] = string(listArgs[j].Value)
 			}
@@ -242,7 +244,7 @@ func (e *Executor) ResolveArgs(args []Argument, data []byte) ResolvedArgs {
 	}
 
 	for i := range resolved {
-		if !bytes.Contains(resolved[i].Value,literal.DOUBLE_LBRACE){
+		if !bytes.Contains(resolved[i].Value, literal.DOUBLE_LBRACE) {
 			continue
 		}
 		t, err := fasttemplate.NewTemplate(string(resolved[i].Value), literal.DOUBLE_LBRACE_STR, literal.DOUBLE_RBRACE_STR)
@@ -253,27 +255,27 @@ func (e *Executor) ResolveArgs(args []Argument, data []byte) ResolvedArgs {
 			tag = strings.TrimFunc(tag, func(r rune) bool {
 				return r == runes.SPACE || r == runes.TAB || r == runes.LINETERMINATOR
 			})
-			if strings.Count(tag,".") == 1 {
-				tag = strings.TrimPrefix(tag,".")
+			if strings.Count(tag, ".") == 1 {
+				tag = strings.TrimPrefix(tag, ".")
 				tagBytes := []byte(tag)
 				for j := range resolved {
-					if bytes.Equal(resolved[j].Key,tagBytes){
+					if bytes.Equal(resolved[j].Key, tagBytes) {
 						return w.Write(resolved[j].Value)
 					}
 				}
 			}
 			for j := range resolved {
 				key := string(resolved[j].Key)
-				if !strings.HasPrefix(tag,key){
+				if !strings.HasPrefix(tag, key) {
 					continue
 				}
-				key = strings.TrimPrefix(tag,key)
+				key = strings.TrimPrefix(tag, key)
 				if key == "" {
 					return w.Write(resolved[j].Value)
 				}
-				key = strings.TrimPrefix(key,".")
-				keys := strings.Split(key,".")
-				value,_,_,_ := jsonparser.Get(resolved[j].Value,keys...)
+				key = strings.TrimPrefix(key, ".")
+				keys := strings.Split(key, ".")
+				value, _, _, _ := jsonparser.Get(resolved[j].Value, keys...)
 				return w.Write(value)
 			}
 			return w.Write([]byte("{{ " + tag + " }}"))
@@ -282,7 +284,7 @@ func (e *Executor) ResolveArgs(args []Argument, data []byte) ResolvedArgs {
 	}
 
 	resolved.Filter(func(i int) (keep bool) {
-		return !bytes.HasPrefix(resolved[i].Key,literal.DOT)
+		return !bytes.HasPrefix(resolved[i].Key, literal.DOT)
 	})
 
 	return resolved
@@ -309,7 +311,8 @@ type RootNode interface {
 
 type Context struct {
 	context.Context
-	Variables Variables
+	Variables      Variables
+	ExtraArguments []Argument
 }
 
 type Variables map[uint64][]byte
@@ -325,10 +328,10 @@ type ResolvedArgument struct {
 
 type ResolvedArgs []ResolvedArgument
 
-func (r *ResolvedArgs) Filter (condition func(i int) (keep bool)){
+func (r *ResolvedArgs) Filter(condition func(i int) (keep bool)) {
 	n := 0
 	for i := range *r {
-		if condition(i){
+		if condition(i) {
 			(*r)[n] = (*r)[i]
 			n++
 		}
@@ -394,7 +397,7 @@ func (s *StaticVariableArgument) ArgName() []byte {
 }
 
 type ListArgument struct {
-	Name []byte
+	Name      []byte
 	Arguments []Argument
 }
 
