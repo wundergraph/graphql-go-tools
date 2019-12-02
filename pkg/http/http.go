@@ -16,7 +16,18 @@ func (g *GraphQLHTTPRequestHandler) handleHTTP(w http.ResponseWriter, r *http.Re
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	executor, rootNode, ctx, err := g.executionHandler.Handle(data)
+
+	extra := &bytes.Buffer{}
+	err = g.extraVariables(r,extra)
+	if err != nil {
+		g.log.Error("executionHandler.Handle.json.Marshal(extra)",
+			zap.Error(err),
+		)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	executor, rootNode, ctx, err := g.executionHandler.Handle(data, extra.Bytes())
 	if err != nil {
 		g.log.Error("executionHandler.Handle",
 			zap.Error(err),
