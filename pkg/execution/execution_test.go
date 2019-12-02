@@ -1230,6 +1230,52 @@ func TestExecutor_ResolveArgsString(t *testing.T) {
 	}
 }
 
+func TestExecutor_ResolveArgs_MultipleNested(t *testing.T) {
+	e := NewExecutor()
+	e.context = Context{
+		Context: context.Background(),
+		Variables: map[uint64][]byte{
+			xxhash.Sum64String("from"): []byte(`{"year":2019,"month":11,"day":1}`),
+			xxhash.Sum64String("until"): []byte(`{"year":2019,"month":12,"day":31}`),
+			xxhash.Sum64String("page"): []byte(`0`),
+		},
+	}
+
+	args := []Argument{
+		&StaticVariableArgument{
+			Name:  []byte("url"),
+			Value: []byte("/api/usage/apis/{{ .id }}/{{ .arguments.from.day }}/{{ .arguments.from.month }}/{{ .arguments.from.year }}/{{ .arguments.until.day }}/{{ .arguments.until.month }}/{{ .arguments.until.year }}?by=Hits&sort=1&p={{ .arguments.page }}"),
+		},
+		&StaticVariableArgument{
+			Name:  []byte("id"),
+			Value: []byte("1"),
+		},
+		&ContextVariableArgument{
+			Name:         []byte(".arguments.from"),
+			VariableName: []byte("from"),
+		},
+		&ContextVariableArgument{
+			Name:         []byte(".arguments.until"),
+			VariableName: []byte("until"),
+		},
+		&ContextVariableArgument{
+			Name:         []byte(".arguments.page"),
+			VariableName: []byte("page"),
+		},
+	}
+
+	resolved := e.ResolveArgs(args, nil)
+	if len(resolved) != 2 {
+		t.Fatalf("want 1, got: %d\n", len(resolved))
+		return
+	}
+	want := []byte("/api/usage/apis/1/1/11/2019/31/12/2019?by=Hits&sort=1&p=0")
+	got := resolved.ByKey([]byte("url"))
+	if !bytes.Equal(got, want) {
+		t.Fatalf("want key 'body' with value: '%s'\ngot: '%s'\ndump: %s", string(want),string(got), resolved.Dump())
+	}
+}
+
 func TestExecutor_ResolveArgsComplexPayload(t *testing.T) {
 	e := NewExecutor()
 	e.context = Context{

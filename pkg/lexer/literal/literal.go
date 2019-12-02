@@ -27,6 +27,7 @@ var (
 	RBRACK = []byte("]")
 	LBRACE = []byte("{")
 	DOUBLE_LBRACE = []byte("{{")
+	DOUBLE_RBRACE = []byte("}}")
 	RBRACE = []byte("}")
 
 	GOBOOL    = []byte("bool")
@@ -103,6 +104,11 @@ var (
 	LocationEnumValue            = []byte("ENUM_VALUE")
 	LocationInputObject          = []byte("INPUT_OBJECT")
 	LocationInputFieldDefinition = []byte("INPUT_FIELD_DEFINITION")
+)
+
+const (
+	DOUBLE_LBRACE_STR = "{{"
+	DOUBLE_RBRACE_STR = "}}"
 )
 
 type Literal []byte

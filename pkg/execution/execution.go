@@ -9,11 +9,12 @@ import (
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/runes"
+	"github.com/valyala/fasttemplate"
 	"io"
 	"strconv"
 	"strings"
 	"sync"
-	"text/template"
 )
 
 type Executor struct {
@@ -240,69 +241,44 @@ func (e *Executor) ResolveArgs(args []Argument, data []byte) ResolvedArgs {
 		}
 	}
 
-	var offset int
-	for i := 0; i < len(resolved)-offset; i++ {
-		if bytes.Contains(resolved[i].Key, literal.DOT) {
-			for j := 0; j < len(resolved); j++ {
-				start := bytes.Index(resolved[j].Value, resolved[i].Key)
-				if start == -1 {
+	for i := range resolved {
+		if !bytes.Contains(resolved[i].Value,literal.DOUBLE_LBRACE){
+			continue
+		}
+		t, err := fasttemplate.NewTemplate(string(resolved[i].Value), literal.DOUBLE_LBRACE_STR, literal.DOUBLE_RBRACE_STR)
+		if err != nil {
+			continue
+		}
+		value := t.ExecuteFuncString(func(w io.Writer, tag string) (i int, e error) {
+			tag = strings.TrimFunc(tag, func(r rune) bool {
+				return r == runes.SPACE || r == runes.TAB || r == runes.LINETERMINATOR
+			})
+			if strings.Count(tag,".") == 1 {
+				tag = strings.TrimPrefix(tag,".")
+				tagBytes := []byte(tag)
+				for j := range resolved {
+					if bytes.Equal(resolved[j].Key,tagBytes){
+						return w.Write(resolved[j].Value)
+					}
+				}
+			}
+			for j := range resolved {
+				key := string(resolved[j].Key)
+				if !strings.HasPrefix(tag,key){
 					continue
 				}
-
-				end := start + bytes.Index(resolved[j].Value[start:], literal.SPACE)
-				key := append(literal.DOT,resolved.NextKey()...)
-				selector := bytes.TrimPrefix(resolved[j].Value[start:end], resolved[i].Key)
-				resolved[j].Value = append(resolved[j].Value[:start], append(key, resolved[j].Value[end:]...)...)
-
-				if len(selector) == 0 {
-					resolved = append(resolved, ResolvedArgument{
-						Key:   key,
-						Value: resolved[i].Value,
-					})
-				} else {
-					selector = bytes.TrimPrefix(selector, literal.DOT)
-					keys := strings.Split(string(selector), ".")
-					value, _, _, err := jsonparser.Get(resolved[i].Value, keys...)
-					if err != nil {
-						value = []byte(err.Error())
-					}
-					resolved = append(resolved, ResolvedArgument{
-						Key:   key,
-						Value: value,
-					})
+				key = strings.TrimPrefix(tag,key)
+				if key == "" {
+					return w.Write(resolved[j].Value)
 				}
-				offset++
+				key = strings.TrimPrefix(key,".")
+				keys := strings.Split(key,".")
+				value,_,_,_ := jsonparser.Get(resolved[j].Value,keys...)
+				return w.Write(value)
 			}
-		}
-	}
-
-	vars := make(map[string]string, len(resolved))
-	for i := range resolved {
-		if !bytes.HasPrefix(resolved[i].Key,literal.DOT){
-			vars[string(resolved[i].Key)] = string(resolved[i].Value)
-			continue
-		}
-		key := resolved[i].Key[1:]
-		if bytes.Contains(key,literal.DOT){
-			continue
-		}
-		vars[string(key)] = string(resolved[i].Value)
-	}
-
-	for i := range resolved {
-		if !bytes.Contains(resolved[i].Value,[]byte("{{")){
-			continue
-		}
-		tmpl,err := template.New("tmpl").Parse(string(resolved[i].Value))
-		if err != nil {
-			continue
-		}
-		buf := bytes.Buffer{}
-		err = tmpl.Execute(&buf,vars)
-		if err != nil {
-			continue
-		}
-		resolved[i].Value = buf.Bytes()
+			return w.Write([]byte("{{ " + tag + " }}"))
+		})
+		resolved[i].Value = []byte(value)
 	}
 
 	resolved.Filter(func(i int) (keep bool) {
