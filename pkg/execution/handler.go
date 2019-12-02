@@ -4,6 +4,7 @@ package execution
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash"
 	"github.com/gobuffalo/packr"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
@@ -66,7 +67,7 @@ func (h *Handler) RenderGraphQLDefinitions(out io.Writer) error {
 
 type GraphqlRequest struct {
 	OperationName string                     `json:"operation_name"`
-	Variables     map[string]json.RawMessage `json:"variables"`
+	Variables     json.RawMessage `json:"variables"`
 	Query         string                     `json:"query"`
 }
 
@@ -84,10 +85,7 @@ func (h *Handler) Handle(data []byte) (executor *Executor, node RootNode, ctx Co
 		return
 	}
 
-	variables := make(Variables, len(graphqlRequest.Variables))
-	for key := range graphqlRequest.Variables {
-		variables[xxhash.Sum64String(key)] = graphqlRequest.Variables[key]
-	}
+	variables := h.VariablesFromRequest(graphqlRequest)
 
 	planner := NewPlanner(h.resolverDefinitions(&report))
 	if report.HasErrors() {
@@ -129,6 +127,15 @@ func (h *Handler) Handle(data []byte) (executor *Executor, node RootNode, ctx Co
 	}
 
 	return executor, plan, ctx, err
+}
+
+func (h *Handler) VariablesFromRequest(request GraphqlRequest) Variables {
+	variables := make(Variables, 4)
+	_ = jsonparser.ObjectEach(request.Variables, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
+		variables[xxhash.Sum64(key)] = value
+		return nil
+	})
+	return variables
 }
 
 func (h *Handler) resolverDefinitions(report *operationreport.Report) ResolverDefinitions {
