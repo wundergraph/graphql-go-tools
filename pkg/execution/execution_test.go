@@ -1199,6 +1199,37 @@ func TestExecutor_ResolveArgs(t *testing.T) {
 	}
 }
 
+func TestExecutor_ResolveArgsString(t *testing.T) {
+	e := NewExecutor()
+	e.context = Context{
+		Context: context.Background(),
+		Variables: map[uint64][]byte{
+			xxhash.Sum64String("id"): []byte("foo123"),
+		},
+	}
+
+	args := []Argument{
+		&StaticVariableArgument{
+			Name:  []byte("url"),
+			Value: []byte("/apis/{{ .arguments.id }}"),
+		},
+		&ContextVariableArgument{
+			Name:         []byte(".arguments.id"),
+			VariableName: []byte("id"),
+		},
+	}
+
+	resolved := e.ResolveArgs(args, nil)
+	if len(resolved) != 1 {
+		t.Fatalf("want 1, got: %d\n", len(resolved))
+		return
+	}
+	want := []byte("/apis/foo123")
+	if !bytes.Equal(resolved.ByKey([]byte("url")), want) {
+		t.Fatalf("want key 'body' with value: '%s'\ndump: %s", string(want), resolved.Dump())
+	}
+}
+
 func TestExecutor_ResolveArgsComplexPayload(t *testing.T) {
 	e := NewExecutor()
 	e.context = Context{

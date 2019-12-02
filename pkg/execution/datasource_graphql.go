@@ -328,9 +328,17 @@ func (g *GraphQLDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Write
 		}
 	}
 
+	variablesJson,err := json.Marshal(variables)
+	if err != nil {
+		g.log.Error("GraphQLDataSource.json.Marshal(variables)",
+			zap.Error(err),
+		)
+		return CloseConnectionIfNotStream
+	}
+
 	gqlRequest := GraphqlRequest{
 		OperationName: "o",
-		Variables:     variables,
+		Variables:     variablesJson,
 		Query:         string(queryArg),
 	}
 

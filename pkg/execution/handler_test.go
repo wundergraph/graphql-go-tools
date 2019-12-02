@@ -2,6 +2,7 @@ package execution
 
 import (
 	"bytes"
+	"github.com/cespare/xxhash"
 	"github.com/jensneuse/diffview"
 	"github.com/sebdah/goldie"
 	"go.uber.org/zap"
@@ -40,5 +41,26 @@ func TestHandler_RenderGraphQLDefinitions(t *testing.T) {
 			panic(err)
 		}
 		diffview.NewGoland().DiffViewBytes("render_graphql_definitions", want, got)
+	}
+}
+
+func TestHandler_VariablesFromRequest(t *testing.T) {
+	handler, err := NewHandler(nil, zap.NewNop())
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := GraphqlRequest{
+		Variables: []byte(`{"foo":"bar"}`),
+	}
+	variables := handler.VariablesFromRequest(request)
+
+	for key,value := range map[string]string{
+		"foo": "bar",
+	}{
+		got := string(variables[xxhash.Sum64String(key)])
+		want := value
+		if got != want{
+			t.Errorf("want {{ %s }}, got: {{ %s }}'",want,got)
+		}
 	}
 }
