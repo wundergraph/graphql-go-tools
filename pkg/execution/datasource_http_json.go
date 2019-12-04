@@ -31,13 +31,6 @@ func (h *HttpJsonDataSourcePlanner) DirectiveDefinition() []byte {
 	return data
 }
 
-func (h *HttpJsonDataSourcePlanner) OverrideRootFieldPath(path []string) []string {
-	if len(path) <= 1 {
-		return nil
-	}
-	return path[1:]
-}
-
 func (h *HttpJsonDataSourcePlanner) DirectiveName() []byte {
 	return []byte("HttpJsonDataSource")
 }
@@ -94,9 +87,9 @@ func (h *HttpJsonDataSourcePlanner) LeaveField(ref int) {
 	variableValue := h.definition.StringValueContentBytes(value.Ref)
 	arg := &StaticVariableArgument{
 		Name:  literal.URL,
-		Value: make([]byte,len(variableValue)),
+		Value: make([]byte, len(variableValue)),
 	}
-	copy(arg.Value,variableValue)
+	copy(arg.Value, variableValue)
 	h.args = append([]Argument{arg}, h.args...)
 	value, exists = h.definition.DirectiveArgumentValueByName(directive, literal.HOST)
 	if !exists {
@@ -105,9 +98,9 @@ func (h *HttpJsonDataSourcePlanner) LeaveField(ref int) {
 	variableValue = h.definition.StringValueContentBytes(value.Ref)
 	arg = &StaticVariableArgument{
 		Name:  literal.HOST,
-		Value: make([]byte,len(variableValue)),
+		Value: make([]byte, len(variableValue)),
 	}
-	copy(arg.Value,variableValue)
+	copy(arg.Value, variableValue)
 	h.args = append([]Argument{arg}, h.args...)
 
 	// method
@@ -116,9 +109,9 @@ func (h *HttpJsonDataSourcePlanner) LeaveField(ref int) {
 		variableValue = h.definition.EnumValueNameBytes(value.Ref)
 		arg = &StaticVariableArgument{
 			Name:  literal.METHOD,
-			Value: make([]byte,len(variableValue)),
+			Value: make([]byte, len(variableValue)),
 		}
-		copy(arg.Value,variableValue)
+		copy(arg.Value, variableValue)
 		h.args = append(h.args, arg)
 	} else { // must refactor into functions!
 		inputValueDefinition := h.definition.DirectiveArgumentInputValueDefinition(h.definition.DirectiveNameBytes(directive), literal.METHOD)
@@ -129,9 +122,9 @@ func (h *HttpJsonDataSourcePlanner) LeaveField(ref int) {
 					value := h.definition.EnumValueNameBytes(defaultValue.Ref)
 					arg = &StaticVariableArgument{
 						Name:  literal.METHOD,
-						Value: make([]byte,len(value)),
+						Value: make([]byte, len(value)),
 					}
-					copy(arg.Value,value)
+					copy(arg.Value, value)
 					h.args = append(h.args, arg)
 				}
 			}
@@ -144,9 +137,9 @@ func (h *HttpJsonDataSourcePlanner) LeaveField(ref int) {
 		variableValue = h.definition.StringValueContentBytes(value.Ref)
 		arg = &StaticVariableArgument{
 			Name:  literal.BODY,
-			Value: make([]byte,len(variableValue)),
+			Value: make([]byte, len(variableValue)),
 		}
-		copy(arg.Value,variableValue)
+		copy(arg.Value, variableValue)
 		h.args = append(h.args, arg)
 	}
 
@@ -160,12 +153,12 @@ func (h *HttpJsonDataSourcePlanner) LeaveField(ref int) {
 				continue
 			}
 			variableName := h.operation.VariableValueNameBytes(value.Ref)
-			name := append([]byte(".arguments."),argName...)
+			name := append([]byte(".arguments."), argName...)
 			arg := &ContextVariableArgument{
 				VariableName: variableName,
-				Name: make([]byte,len(name)),
+				Name:         make([]byte, len(name)),
 			}
-			copy(arg.Name,name)
+			copy(arg.Name, name)
 			h.args = append(h.args, arg)
 		}
 	}
@@ -176,7 +169,7 @@ func (h *HttpJsonDataSourcePlanner) LeaveField(ref int) {
 		listArg := &ListArgument{
 			Name: literal.HEADERS,
 		}
-		for _,i := range h.definition.ListValues[value.Ref].Refs {
+		for _, i := range h.definition.ListValues[value.Ref].Refs {
 			listValue := h.definition.Values[i]
 			if listValue.Kind != ast.ValueKindObject {
 				continue
@@ -187,12 +180,12 @@ func (h *HttpJsonDataSourcePlanner) LeaveField(ref int) {
 			if len(fields) != 2 {
 				continue
 			}
-			for _,j := range fields {
+			for _, j := range fields {
 				fieldName := h.definition.ObjectFieldNameBytes(j)
 				switch {
-				case bytes.Equal(fieldName,literal.KEY):
+				case bytes.Equal(fieldName, literal.KEY):
 					key = h.definition.StringValueContentBytes(h.definition.ObjectFieldValue(j).Ref)
-				case bytes.Equal(fieldName,literal.VALUE):
+				case bytes.Equal(fieldName, literal.VALUE):
 					value = h.definition.StringValueContentBytes(h.definition.ObjectFieldValue(j).Ref)
 				}
 			}
@@ -200,12 +193,12 @@ func (h *HttpJsonDataSourcePlanner) LeaveField(ref int) {
 				continue
 			}
 			arg := &StaticVariableArgument{
-				Name:  make([]byte,len(key)),
-				Value: make([]byte,len(value)),
+				Name:  make([]byte, len(key)),
+				Value: make([]byte, len(value)),
 			}
-			copy(arg.Name,key)
-			copy(arg.Value,value)
-			listArg.Arguments = append(listArg.Arguments,arg)
+			copy(arg.Name, key)
+			copy(arg.Value, value)
+			listArg.Arguments = append(listArg.Arguments, arg)
 		}
 
 		if len(listArg.Arguments) != 0 {
@@ -232,13 +225,13 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 
 	switch {
 	case hostArg == nil:
-		r.log.Error(fmt.Sprintf("arg '%s' must not be nil",string(literal.HOST)))
+		r.log.Error(fmt.Sprintf("arg '%s' must not be nil", string(literal.HOST)))
 		return CloseConnectionIfNotStream
 	case urlArg == nil:
-		r.log.Error(fmt.Sprintf("arg '%s' must not be nil",string(literal.URL)))
+		r.log.Error(fmt.Sprintf("arg '%s' must not be nil", string(literal.URL)))
 		return CloseConnectionIfNotStream
 	case methodArg == nil:
-		r.log.Error(fmt.Sprintf("arg '%s' must not be nil",string(literal.METHOD)))
+		r.log.Error(fmt.Sprintf("arg '%s' must not be nil", string(literal.METHOD)))
 		return CloseConnectionIfNotStream
 	}
 
@@ -264,11 +257,11 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 	header := make(http.Header)
 	if len(headersArg) != 0 {
 		err := jsonparser.ObjectEach(headersArg, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
-			header.Set(string(key),string(value))
+			header.Set(string(key), string(value))
 			return nil
 		})
 		if err != nil {
-			r.log.Error("accessing headers",zap.Error(err))
+			r.log.Error("accessing headers", zap.Error(err))
 		}
 	}
 
@@ -286,7 +279,7 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 
 	var bodyReader io.Reader
 	if len(bodyArg) != 0 {
-		bodyArg = bytes.ReplaceAll(bodyArg,literal.BACKSLASH,nil)
+		bodyArg = bytes.ReplaceAll(bodyArg, literal.BACKSLASH, nil)
 		bodyReader = bytes.NewReader(bodyArg)
 	}
 

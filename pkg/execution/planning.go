@@ -2,6 +2,7 @@ package execution
 
 import (
 	"bytes"
+	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
@@ -139,7 +140,9 @@ func (p *planningVisitor) EnterField(ref int) {
 			case bytes.Equal(params[i].sourceKind, []byte("OBJECT_VARIABLE_ARGUMENT")):
 				resolveArgs = append(resolveArgs, &ObjectVariableArgument{
 					Name: params[i].name,
-					Path: []string{string(params[i].sourceName)},
+					PathSelector: PathSelector{
+						Path: unsafebytes.BytesToString(params[i].sourceName),
+					},
 				})
 			case bytes.Equal(params[i].sourceKind, []byte("FIELD_ARGUMENTS")):
 				arg, exists := p.operation.FieldArgument(ref, params[i].sourceName)
@@ -168,16 +171,20 @@ func (p *planningVisitor) EnterField(ref int) {
 	switch parent := p.currentNode[len(p.currentNode)-1].(type) {
 	case *Object:
 
-		var planner DataSourcePlanner
+		/*var planner DataSourcePlanner
 		resolveRef := p.planners[len(p.planners)-1]
 		if resolveRef.path.Equals(p.Path) && resolveRef.fieldRef == ref {
 			planner = resolveRef.planner
 		}
 
-		path := p.fieldPath(ref)
 		if planner != nil {
-			path = planner.OverrideRootFieldPath(path)
-		}
+			pathSelector = planner.OverrideRootPathSelector(pathSelector)
+		}*/
+
+		fieldName := p.operation.FieldNameString(ref)
+		_ = fieldName
+
+		pathSelector := p.fieldPathSelector(ref)
 
 		var value Node
 		fieldDefinitionType := p.definition.FieldDefinitionType(definition)
@@ -192,7 +199,7 @@ func (p *planningVisitor) EnterField(ref int) {
 			}
 
 			list := &List{
-				Path:  path,
+				PathSelector:  pathSelector,
 				Value: value,
 			}
 
@@ -217,12 +224,12 @@ func (p *planningVisitor) EnterField(ref int) {
 
 		if !p.operation.FieldHasSelections(ref) {
 			value = &Value{
-				Path:       path,
+				PathSelector:  pathSelector,
 				QuoteValue: p.quoteValue(fieldDefinitionType),
 			}
 		} else {
 			value = &Object{
-				Path: path,
+				PathSelector:  pathSelector,
 			}
 		}
 
@@ -232,7 +239,9 @@ func (p *planningVisitor) EnterField(ref int) {
 			typeConditionName := p.operation.InlineFragmentTypeConditionName(ancestor.Ref)
 			skipCondition = &IfNotEqual{
 				Left: &ObjectVariableArgument{
-					Path: []string{"__typename"},
+					PathSelector: PathSelector{
+						Path: "__typename",
+					},
 				},
 				Right: &StaticVariableArgument{
 					Value: typeConditionName,
@@ -387,29 +396,48 @@ func (p *planningVisitor) quoteValue(valueType int) bool {
 	}
 }
 
-func (p *planningVisitor) fieldPath(ref int) []string {
-	path := []string{
-		p.operation.FieldNameString(ref),
-	}
+func (p *planningVisitor) fieldPathSelector(ref int) (selector PathSelector) {
+	selector.Path = p.operation.FieldNameString(ref)
 	definition, ok := p.FieldDefinition(ref)
 	if !ok {
-		return path
+		return
 	}
-	directive, ok := p.definition.FieldDefinitionDirectiveByName(definition, []byte("mapTo"))
+	fieldName := p.operation.FieldNameString(ref)
+	_ = fieldName
+	directive, ok := p.definition.FieldDefinitionDirectiveByName(definition, []byte("mapping"))
 	if ok {
-		value, ok := p.definition.DirectiveArgumentValueByName(directive, []byte("objectField"))
-		if ok && value.Kind == ast.ValueKindString {
-			path[0] = p.definition.StringValueContentString(value.Ref)
+		value, ok := p.definition.DirectiveArgumentValueByName(directive, []byte("mode"))
+		if !ok {
+			def := p.definition.DirectiveArgumentInputValueDefinition([]byte("mapping"),[]byte("mode"))
+			if def == -1 {
+				return
+			}
+			ok = p.definition.InputValueDefinitionHasDefaultValue(def)
+			value = p.definition.InputValueDefinitionDefaultValue(def)
+		}
+		if ok && value.Kind == ast.ValueKindEnum {
+			mode := p.definition.EnumValueNameString(value.Ref)
+			switch mode {
+			case "NONE":
+				selector.Path = ""
+				return
+			case "PATH_SELECTOR":
+				value, ok = p.definition.DirectiveArgumentValueByName(directive, []byte("pathSelector"))
+				if ok && value.Kind == ast.ValueKindString {
+					selector.Path = p.definition.StringValueContentString(value.Ref)
+					return
+				}
+			}
 		}
 	}
 
-	def, ok := p.FieldDefinition(ref)
+/*	def, ok := p.FieldDefinition(ref)
 	if !ok {
-		return path
+		return
 	}
 	pathDirective, ok := p.definition.FieldDefinitionDirectiveByName(def, []byte("path"))
 	if !ok {
-		return path
+		return
 	}
 	appendValue, ok := p.definition.DirectiveArgumentValueByName(pathDirective, []byte("append"))
 	if ok && appendValue.Kind == ast.ValueKindList {
@@ -418,7 +446,7 @@ func (p *planningVisitor) fieldPath(ref int) []string {
 			if listValue.Kind != ast.ValueKindString {
 				continue
 			}
-			path = append(path, p.definition.StringValueContentString(listValue.Ref))
+			selector.Path += "." + p.definition.StringValueContentString(listValue.Ref)
 		}
 	}
 	prependValue, ok := p.definition.DirectiveArgumentValueByName(pathDirective, []byte("prepend"))
@@ -428,9 +456,8 @@ func (p *planningVisitor) fieldPath(ref int) []string {
 			if listValue.Kind != ast.ValueKindString {
 				continue
 			}
-			path = append([]string{p.definition.StringValueContentString(listValue.Ref)}, path...)
+			selector.Path += "." + p.definition.StringValueContentString(listValue.Ref)
 		}
-	}
-
-	return path
+	}*/
+	return
 }

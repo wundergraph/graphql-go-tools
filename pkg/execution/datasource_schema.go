@@ -32,10 +32,6 @@ func (s *SchemaDataSourcePlanner) DirectiveDefinition() []byte {
 	return nil
 }
 
-func (s *SchemaDataSourcePlanner) OverrideRootFieldPath(path []string) []string {
-	return path
-}
-
 func (s *SchemaDataSourcePlanner) DirectiveName() []byte {
 	return []byte("resolveSchema")
 }

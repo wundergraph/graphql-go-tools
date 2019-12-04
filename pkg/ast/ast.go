@@ -799,6 +799,10 @@ func (d *Document) EnumValueNameBytes(ref int) ByteSlice {
 	return d.Input.ByteSlice(d.EnumValues[ref].Name)
 }
 
+func (d *Document) EnumValueNameString(ref int) string {
+	return unsafebytes.BytesToString(d.Input.ByteSlice(d.EnumValues[ref].Name))
+}
+
 func (d *Document) EnumValuesAreEqual(left, right int) bool {
 	return d.Input.ByteSliceReferenceContentEquals(d.EnumValueName(left), d.EnumValueName(right))
 }

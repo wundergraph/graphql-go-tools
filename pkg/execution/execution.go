@@ -10,6 +10,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/runes"
+	"github.com/tidwall/gjson"
 	"github.com/valyala/fasttemplate"
 	"io"
 	"strconv"
@@ -75,9 +76,10 @@ func (e *Executor) resolveNode(node Node, data []byte, path string, prefetch *sy
 	switch node := node.(type) {
 	case *Object:
 
-		if data != nil && node.Path != nil {
-			data, _, _, e.err = jsonparser.Get(data, node.Path...)
-			if e.err == jsonparser.KeyPathNotFoundError {
+		if data != nil && node.PathSelector.Path != "" {
+			result := gjson.GetBytes(data, node.PathSelector.Path)
+			data = unsafebytes.StringToBytes(result.Raw)
+			if len(data) == 0 {
 				e.err = nil
 				e.write(literal.NULL)
 				return
@@ -139,7 +141,7 @@ func (e *Executor) resolveNode(node Node, data []byte, path string, prefetch *sy
 			e.write(literal.NULL)
 			return
 		}
-		if len(node.Path) == 0 {
+		if node.PathSelector.Path == "" {
 			if node.QuoteValue {
 				e.write(literal.QUOTE)
 			}
@@ -149,7 +151,13 @@ func (e *Executor) resolveNode(node Node, data []byte, path string, prefetch *sy
 			}
 			return
 		}
-		data, _, _, e.err = jsonparser.Get(data, node.Path...)
+		result := gjson.GetBytes(data, node.PathSelector.Path)
+		if result.Type == gjson.String {
+			data = unsafebytes.StringToBytes(result.Str)
+		} else {
+			data = unsafebytes.StringToBytes(result.Raw)
+		}
+
 		if e.err == jsonparser.KeyPathNotFoundError {
 			e.err = nil
 			e.write(literal.NULL)
@@ -174,10 +182,26 @@ func (e *Executor) resolveNode(node Node, data []byte, path string, prefetch *sy
 				shouldPrefetch = true
 			}
 		}
-		var listItems [][]byte
-		_, e.err = jsonparser.ArrayEach(data, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+
+		/*_, e.err = jsonparser.ArrayEach(data, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
 			listItems = append(listItems, value)
-		}, node.Path...)
+		}, node.Path...)*/
+
+		var result []gjson.Result
+		if node.PathSelector.Path == "" {
+			result = gjson.ParseBytes(data).Array()
+		} else {
+			result = gjson.GetBytes(data, node.PathSelector.Path).Array()
+		}
+
+		listItems := make([][]byte, len(result))
+		for i := range result {
+			if result[i].Type == gjson.String {
+				listItems[i] = unsafebytes.StringToBytes(result[i].Str)
+			} else {
+				listItems[i] = unsafebytes.StringToBytes(result[i].Raw)
+			}
+		}
 
 		path = path + "."
 
@@ -228,7 +252,8 @@ func (e *Executor) ResolveArgs(args []Argument, data []byte) ResolvedArgs {
 			resolved[i].Value = arg.Value
 		case *ObjectVariableArgument:
 			resolved[i].Key = arg.Name
-			resolved[i].Value, _, _, _ = jsonparser.Get(data, arg.Path...)
+			result := gjson.GetBytes(data, arg.PathSelector.Path)
+			resolved[i].Value = unsafebytes.StringToBytes(result.Raw)
 		case *ContextVariableArgument:
 			resolved[i].Key = arg.Name
 			resolved[i].Value = e.context.Variables[xxhash.Sum64(arg.VariableName)]
@@ -266,7 +291,7 @@ func (e *Executor) ResolveArgs(args []Argument, data []byte) ResolvedArgs {
 			}
 			for j := range resolved {
 				key := string(resolved[j].Key)
-				if strings.HasPrefix(tag,".") && !strings.HasPrefix(key,"."){
+				if strings.HasPrefix(tag, ".") && !strings.HasPrefix(key, ".") {
 					key = "." + key
 				}
 				if !strings.HasPrefix(tag, key) {
@@ -381,9 +406,13 @@ func (c *ContextVariableArgument) ArgName() []byte {
 	return c.Name
 }
 
+type PathSelector struct {
+	Path string
+}
+
 type ObjectVariableArgument struct {
-	Name []byte
-	Path []string
+	Name         []byte
+	PathSelector PathSelector
 }
 
 func (o *ObjectVariableArgument) ArgName() []byte {
@@ -410,7 +439,7 @@ func (l ListArgument) ArgName() []byte {
 
 type Object struct {
 	Fields        []Field
-	Path          []string
+	PathSelector  PathSelector
 	Fetch         Fetch
 	operationType ast.OperationType
 }
@@ -517,7 +546,12 @@ func (i *IfEqual) Evaluate(ctx Context, data []byte) bool {
 	case *ContextVariableArgument:
 		left = ctx.Variables[xxhash.Sum64(value.VariableName)]
 	case *ObjectVariableArgument:
-		left, _, _, _ = jsonparser.Get(data, value.Path...)
+		result := gjson.GetBytes(data, value.PathSelector.Path)
+		if result.Type == gjson.String {
+			left = unsafebytes.StringToBytes(result.Str)
+		} else {
+			left = unsafebytes.StringToBytes(result.Raw)
+		}
 	case *StaticVariableArgument:
 		left = value.Value
 	}
@@ -526,7 +560,12 @@ func (i *IfEqual) Evaluate(ctx Context, data []byte) bool {
 	case *ContextVariableArgument:
 		right = ctx.Variables[xxhash.Sum64(value.VariableName)]
 	case *ObjectVariableArgument:
-		right, _, _, _ = jsonparser.Get(data, value.Path...)
+		result := gjson.GetBytes(data, value.PathSelector.Path)
+		if result.Type == gjson.String {
+			right = unsafebytes.StringToBytes(result.Str)
+		} else {
+			right = unsafebytes.StringToBytes(result.Raw)
+		}
 	case *StaticVariableArgument:
 		right = value.Value
 	}
@@ -551,8 +590,8 @@ func (*Field) Kind() NodeKind {
 }
 
 type Value struct {
-	Path       []string
-	QuoteValue bool
+	PathSelector PathSelector
+	QuoteValue   bool
 }
 
 func (value *Value) HasResolvers() bool {
@@ -564,9 +603,9 @@ func (*Value) Kind() NodeKind {
 }
 
 type List struct {
-	Path   []string
-	Value  Node
-	Filter ListFilter
+	PathSelector PathSelector
+	Value        Node
+	Filter       ListFilter
 }
 
 func (l *List) HasResolvers() bool {
