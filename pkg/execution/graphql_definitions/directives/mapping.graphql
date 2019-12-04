@@ -1,0 +1,14 @@
+"""
+mapping is the directive to define mappings from response objects to GraphQL fields
+"""
+directive @mapping(
+    """
+    mode defines the operating mode of the mapping
+    """
+    mode: MAPPING_MODE! = PATH_SELECTOR
+    """
+    pathSelector is the optional selector String to customize the mappings
+    see https://github.com/tidwall/gjson for more information on what syntax is possible
+    """
+    pathSelector: String
+) on FIELD_DEFINITION
