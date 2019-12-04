@@ -312,7 +312,7 @@ func (g *GraphQLDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Write
 		url = "https://" + url
 	}
 
-	variables := map[string]json.RawMessage{}
+	variables := map[string]interface{}{}
 	for i := 0; i < len(args); i++ {
 		key := args[i].Key
 		switch {
@@ -320,7 +320,7 @@ func (g *GraphQLDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Write
 		case bytes.Equal(key, literal.URL):
 		case bytes.Equal(key, literal.QUERY):
 		default:
-			variables[string(key)] = args[i].Value
+			variables[string(key)] = string(args[i].Value)
 		}
 	}
 
@@ -346,7 +346,7 @@ func (g *GraphQLDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Write
 		return CloseConnectionIfNotStream
 	}
 
-	g.log.Error("GraphQLDataSource.request",
+	g.log.Debug("GraphQLDataSource.request",
 		zap.String("url", url),
 		zap.String("data", string(gqlRequestData)),
 	)

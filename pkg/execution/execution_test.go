@@ -1234,6 +1234,112 @@ func TestExecutor_ListWithPath(t *testing.T) {
 	}
 }
 
+func TestExecutor_GraphqlDataSourceWithParams(t *testing.T) {
+
+	graphQL1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		body,err := httputil.DumpRequest(r,true)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		fmt.Println(string(body))
+
+		_, err = w.Write([]byte(`{
+			"data": {
+				"countries": [
+					{"id":1},{"id":2}
+				]
+			}
+		}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+	}))
+
+	plan := &Object{
+		operationType: ast.OperationTypeQuery,
+		Fields: []Field{
+			{
+				Name: []byte("data"),
+				Value: &Object{
+					Fetch: &SingleFetch{
+						Source: &DataSourceInvocation{
+							Args: []Argument{
+								&StaticVariableArgument{
+									Name:  literal.HOST,
+									Value: []byte(graphQL1.URL),
+								},
+								&StaticVariableArgument{
+									Name:  literal.URL,
+									Value: []byte("/graphql"),
+								},
+								&StaticVariableArgument{
+									Name:  literal.QUERY,
+									Value: []byte("query q1($code: String!){countries(code: $code){id}}"),
+								},
+								&ContextVariableArgument{
+									Name:         []byte("code"),
+									VariableName: []byte("code"),
+								},
+							},
+							DataSource: &GraphQLDataSource{
+								log:zap.NewNop(),
+							},
+						},
+						BufferName: "countries",
+					},
+					Fields: []Field{
+						{
+							Name:        []byte("countries"),
+							HasResolver: true,
+							Value: &List{
+								PathSelector: PathSelector{
+									Path: "countries",
+								},
+								Value: &Object{
+									Fields: []Field{
+										{
+											Name: []byte("id"),
+											Value: &Value{
+												PathSelector: PathSelector{
+													Path: "id",
+												},
+												QuoteValue: false,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	out := &bytes.Buffer{}
+	ex := NewExecutor()
+	ctx := Context{
+		Context: context.Background(),
+		Variables: map[uint64][]byte{
+			xxhash.Sum64String("code"): []byte("DE"),
+		},
+	}
+
+	_, err := ex.Execute(ctx, plan, out)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := `{"data":{"countries":[{"id":1},{"id":2}]}}`
+	got := out.String()
+
+	if got != want {
+		t.Fatalf("want: %s\ngot: %s\n", want, got)
+	}
+}
+
 func TestExecutor_ObjectWithPath(t *testing.T) {
 
 	plan := &Object{
