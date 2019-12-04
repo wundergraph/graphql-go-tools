@@ -158,8 +158,7 @@ func (e *Executor) resolveNode(node Node, data []byte, path string, prefetch *sy
 			data = unsafebytes.StringToBytes(result.Raw)
 		}
 
-		if e.err == jsonparser.KeyPathNotFoundError {
-			e.err = nil
+		if len(data) == 0 || bytes.Equal(data,literal.NULL) {
 			e.write(literal.NULL)
 			return
 		}
