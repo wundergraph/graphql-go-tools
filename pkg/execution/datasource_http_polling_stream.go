@@ -26,10 +26,6 @@ func (h *HttpPollingStreamDataSourcePlanner) DirectiveDefinition() []byte {
 	return data
 }
 
-func (h *HttpPollingStreamDataSourcePlanner) OverrideRootFieldPath(path []string) []string {
-	return nil
-}
-
 func NewHttpPollingStreamDataSourcePlanner(baseDataSourcePlanner BaseDataSourcePlanner) *HttpPollingStreamDataSourcePlanner {
 	return &HttpPollingStreamDataSourcePlanner{
 		BaseDataSourcePlanner: baseDataSourcePlanner,

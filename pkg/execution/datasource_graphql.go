@@ -42,10 +42,6 @@ func (g *GraphQLDataSourcePlanner) DirectiveDefinition() []byte {
 	return data
 }
 
-func (g *GraphQLDataSourcePlanner) OverrideRootFieldPath(path []string) []string {
-	return path
-}
-
 func (g *GraphQLDataSourcePlanner) DirectiveName() []byte {
 	return []byte("GraphQLDataSource")
 }
@@ -160,7 +156,7 @@ func (g *GraphQLDataSourcePlanner) EnterField(ref int) {
 		g.rootFieldRef = ref
 
 		var fieldName []byte
-		objectName, ok := g.walker.FieldDefinitionDirectiveArgumentValueByName(ref, []byte("mapTo"), []byte("objectField"))
+		objectName, ok := g.walker.FieldDefinitionDirectiveArgumentValueByName(ref, []byte("mapping"), []byte("pathSelector"))
 		if ok && objectName.Kind == ast.ValueKindString {
 			fieldName = g.definition.StringValueContentBytes(objectName.Ref)
 		} else {

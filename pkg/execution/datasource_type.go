@@ -20,10 +20,6 @@ func (t *TypeDataSourcePlanner) DirectiveDefinition() []byte {
 	return nil
 }
 
-func (t *TypeDataSourcePlanner) OverrideRootFieldPath(path []string) []string {
-	return path
-}
-
 func (t *TypeDataSourcePlanner) DirectiveName() []byte {
 	return []byte("resolveType")
 }
