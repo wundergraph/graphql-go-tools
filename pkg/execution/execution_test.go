@@ -10,6 +10,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/sebdah/goldie"
+	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
 	"io"
 	"io/ioutil"
@@ -141,37 +142,49 @@ func TestExecution(t *testing.T) {
 							Name:        []byte("__type"),
 							HasResolver: true,
 							Value: &Object{
-								Path: []string{"__type"},
+								PathSelector: PathSelector{
+									Path: "__type",
+								},
 								Fields: []Field{
 									{
 										Name: []byte("name"),
 										Value: &Value{
-											Path:       []string{"name"},
+											PathSelector: PathSelector{
+												Path: "name",
+											},
 											QuoteValue: true,
 										},
 									},
 									{
 										Name: []byte("fields"),
 										Value: &List{
-											Path: []string{"fields"},
+											PathSelector: PathSelector{
+												Path: "fields",
+											},
 											Value: &Object{
 												Fields: []Field{
 													{
 														Name: []byte("name"),
 														Value: &Value{
-															Path:       []string{"name"},
+															PathSelector: PathSelector{
+																Path: "name",
+															},
 															QuoteValue: true,
 														},
 													},
 													{
 														Name: []byte("type"),
 														Value: &Object{
-															Path: []string{"type"},
+															PathSelector: PathSelector{
+																Path: "type",
+															},
 															Fields: []Field{
 																{
 																	Name: []byte("name"),
 																	Value: &Value{
-																		Path:       []string{"name"},
+																		PathSelector: PathSelector{
+																			Path: "name",
+																		},
 																		QuoteValue: true,
 																	},
 																},
@@ -189,7 +202,9 @@ func TestExecution(t *testing.T) {
 							Name:        []byte("user"),
 							HasResolver: true,
 							Value: &Object{
-								Path: []string{"user"},
+								PathSelector: PathSelector{
+									Path: "user",
+								},
 								Fetch: &ParallelFetch{
 									Fetches: []Fetch{
 										&SingleFetch{
@@ -209,7 +224,9 @@ func TestExecution(t *testing.T) {
 													},
 													&ObjectVariableArgument{
 														Name: []byte("id"),
-														Path: []string{"id"},
+														PathSelector: PathSelector{
+															Path: "id",
+														},
 													},
 												},
 												DataSource: &HttpJsonDataSource{
@@ -235,7 +252,9 @@ func TestExecution(t *testing.T) {
 													},
 													&ObjectVariableArgument{
 														Name: []byte("id"),
-														Path: []string{"id"},
+														PathSelector: PathSelector{
+															Path: "id",
+														},
 													},
 												},
 												DataSource: &GraphQLDataSource{
@@ -250,20 +269,26 @@ func TestExecution(t *testing.T) {
 									{
 										Name: []byte("id"),
 										Value: &Value{
-											Path: []string{"id"},
+											PathSelector: PathSelector{
+												Path: "id",
+											},
 										},
 									},
 									{
 										Name: []byte("name"),
 										Value: &Value{
-											Path:       []string{"name"},
+											PathSelector: PathSelector{
+												Path: "name",
+											},
 											QuoteValue: true,
 										},
 									},
 									{
 										Name: []byte("birthday"),
 										Value: &Value{
-											Path:       []string{"birthday"},
+											PathSelector: PathSelector{
+												Path: "birthday",
+											},
 											QuoteValue: true,
 										},
 									},
@@ -289,7 +314,9 @@ func TestExecution(t *testing.T) {
 															},
 															&ObjectVariableArgument{
 																Name: []byte("id"),
-																Path: []string{"id"},
+																PathSelector: PathSelector{
+																	Path: "id",
+																},
 															},
 														},
 														DataSource: &HttpJsonDataSource{
@@ -302,21 +329,27 @@ func TestExecution(t *testing.T) {
 													{
 														Name: []byte("id"),
 														Value: &Value{
-															Path:       []string{"id"},
+															PathSelector: PathSelector{
+																Path: "id",
+															},
 															QuoteValue: false,
 														},
 													},
 													{
 														Name: []byte("name"),
 														Value: &Value{
-															Path:       []string{"name"},
+															PathSelector: PathSelector{
+																Path: "name",
+															},
 															QuoteValue: true,
 														},
 													},
 													{
 														Name: []byte("birthday"),
 														Value: &Value{
-															Path:       []string{"birthday"},
+															PathSelector: PathSelector{
+																Path: "birthday",
+															},
 															QuoteValue: true,
 														},
 													},
@@ -329,33 +362,43 @@ func TestExecution(t *testing.T) {
 																	{
 																		Name: []byte("__typename"),
 																		Value: &Value{
-																			Path:       []string{"__typename"},
+																			PathSelector: PathSelector{
+																				Path: "__typename",
+																			},
 																			QuoteValue: true,
 																		},
 																	},
 																	{
 																		Name: []byte("name"),
 																		Value: &Value{
-																			Path:       []string{"name"},
+																			PathSelector: PathSelector{
+																				Path: "name",
+																			},
 																			QuoteValue: true,
 																		},
 																	},
 																	{
 																		Name: []byte("nickname"),
 																		Value: &Value{
-																			Path:       []string{"nickname"},
+																			PathSelector: PathSelector{
+																				Path: "nickname",
+																			},
 																			QuoteValue: true,
 																		},
 																	},
 																	{
 																		Name: []byte("woof"),
 																		Value: &Value{
-																			Path:       []string{"woof"},
+																			PathSelector: PathSelector{
+																				Path: "woof",
+																			},
 																			QuoteValue: true,
 																		},
 																		Skip: &IfNotEqual{
 																			Left: &ObjectVariableArgument{
-																				Path: []string{"__typename"},
+																				PathSelector: PathSelector{
+																					Path: "__typename",
+																				},
 																			},
 																			Right: &StaticVariableArgument{
 																				Value: []byte("Dog"),
@@ -365,12 +408,16 @@ func TestExecution(t *testing.T) {
 																	{
 																		Name: []byte("meow"),
 																		Value: &Value{
-																			Path:       []string{"meow"},
+																			PathSelector: PathSelector{
+																				Path: "meow",
+																			},
 																			QuoteValue: true,
 																		},
 																		Skip: &IfNotEqual{
 																			Left: &ObjectVariableArgument{
-																				Path: []string{"__typename"},
+																				PathSelector: PathSelector{
+																					Path: "__typename",
+																				},
 																			},
 																			Right: &StaticVariableArgument{
 																				Value: []byte("Cat"),
@@ -389,39 +436,51 @@ func TestExecution(t *testing.T) {
 										Name:        []byte("pets"),
 										HasResolver: true,
 										Value: &List{
-											Path: []string{"userPets"},
+											PathSelector: PathSelector{
+												Path: "userPets",
+											},
 											Value: &Object{
 												Fields: []Field{
 													{
 														Name: []byte("__typename"),
 														Value: &Value{
-															Path:       []string{"__typename"},
+															PathSelector: PathSelector{
+																Path: "__typename",
+															},
 															QuoteValue: true,
 														},
 													},
 													{
 														Name: []byte("name"),
 														Value: &Value{
-															Path:       []string{"name"},
+															PathSelector: PathSelector{
+																Path: "name",
+															},
 															QuoteValue: true,
 														},
 													},
 													{
 														Name: []byte("nickname"),
 														Value: &Value{
-															Path:       []string{"nickname"},
+															PathSelector: PathSelector{
+																Path: "nickname",
+															},
 															QuoteValue: true,
 														},
 													},
 													{
 														Name: []byte("woof"),
 														Value: &Value{
-															Path:       []string{"woof"},
+															PathSelector: PathSelector{
+																Path: "woof",
+															},
 															QuoteValue: true,
 														},
 														Skip: &IfNotEqual{
 															Left: &ObjectVariableArgument{
-																Path: []string{"__typename"},
+																PathSelector: PathSelector{
+																	Path: "__typename",
+																},
 															},
 															Right: &StaticVariableArgument{
 																Value: []byte("Dog"),
@@ -431,12 +490,16 @@ func TestExecution(t *testing.T) {
 													{
 														Name: []byte("meow"),
 														Value: &Value{
-															Path:       []string{"meow"},
+															PathSelector: PathSelector{
+																Path: "meow",
+															},
 															QuoteValue: true,
 														},
 														Skip: &IfNotEqual{
 															Left: &ObjectVariableArgument{
-																Path: []string{"__typename"},
+																PathSelector: PathSelector{
+																	Path: "__typename",
+																},
 															},
 															Right: &StaticVariableArgument{
 																Value: []byte("Cat"),
@@ -586,35 +649,47 @@ func genField() Field {
 					Name:        []byte("__type"),
 					HasResolver: true,
 					Value: &Object{
-						Path: []string{"__type"},
+						PathSelector: PathSelector{
+							Path: "__type",
+						},
 						Fields: []Field{
 							{
 								Name: []byte("name"),
 								Value: &Value{
-									Path: []string{"name"},
+									PathSelector: PathSelector{
+										Path: "name",
+									},
 								},
 							},
 							{
 								Name: []byte("fields"),
 								Value: &List{
-									Path: []string{"fields"},
+									PathSelector: PathSelector{
+										Path: "fields",
+									},
 									Value: &Object{
 										Fields: []Field{
 											{
 												Name: []byte("name"),
 												Value: &Value{
-													Path: []string{"name"},
+													PathSelector: PathSelector{
+														Path: "name",
+													},
 												},
 											},
 											{
 												Name: []byte("type"),
 												Value: &Object{
-													Path: []string{"type"},
+													PathSelector: PathSelector{
+														Path: "type",
+													},
 													Fields: []Field{
 														{
 															Name: []byte("name"),
 															Value: &Value{
-																Path: []string{"name"},
+																PathSelector: PathSelector{
+																	Path: "name",
+																},
 															},
 														},
 													},
@@ -642,7 +717,9 @@ func genField() Field {
 											},
 											&ObjectVariableArgument{
 												Name: []byte("id"),
-												Path: []string{"id"},
+												PathSelector: PathSelector{
+													Path: "id",
+												},
 											},
 										},
 										DataSource: &FakeDataSource{
@@ -668,7 +745,9 @@ func genField() Field {
 											},
 											&ObjectVariableArgument{
 												Name: []byte("id"),
-												Path: []string{"id"},
+												PathSelector: PathSelector{
+													Path: "id",
+												},
 											},
 										},
 										DataSource: &FakeDataSource{
@@ -679,25 +758,33 @@ func genField() Field {
 								},
 							},
 						},
-						Path: []string{"data", "user"},
+						PathSelector: PathSelector{
+							Path: "data.user",
+						},
 						Fields: []Field{
 							{
 								Name: []byte("id"),
 								Value: &Value{
-									Path: []string{"id"},
+									PathSelector: PathSelector{
+										Path: "id",
+									},
 								},
 							},
 							{
 								Name: []byte("name"),
 								Value: &Value{
-									Path:       []string{"name"},
+									PathSelector: PathSelector{
+										Path: "name",
+									},
 									QuoteValue: true,
 								},
 							},
 							{
 								Name: []byte("birthday"),
 								Value: &Value{
-									Path: []string{"birthday"},
+									PathSelector: PathSelector{
+										Path: "birthday",
+									},
 								},
 							},
 							{
@@ -709,20 +796,26 @@ func genField() Field {
 											{
 												Name: []byte("id"),
 												Value: &Value{
-													Path: []string{"id"},
+													PathSelector: PathSelector{
+														Path: "id",
+													},
 												},
 											},
 											{
 												Name: []byte("name"),
 												Value: &Value{
-													Path:       []string{"name"},
+													PathSelector: PathSelector{
+														Path: "name",
+													},
 													QuoteValue: true,
 												},
 											},
 											{
 												Name: []byte("birthday"),
 												Value: &Value{
-													Path: []string{"birthday"},
+													PathSelector: PathSelector{
+														Path: "birthday",
+													},
 												},
 											},
 										},
@@ -733,36 +826,48 @@ func genField() Field {
 								Name:        []byte("pets"),
 								HasResolver: true,
 								Value: &List{
-									Path: []string{"data", "userPets"},
+									PathSelector: PathSelector{
+										Path: "data.userPets",
+									},
 									Value: &Object{
 										Fields: []Field{
 											{
 												Name: []byte("__typename"),
 												Value: &Value{
-													Path: []string{"__typename"},
+													PathSelector: PathSelector{
+														Path: "__typename",
+													},
 												},
 											},
 											{
 												Name: []byte("name"),
 												Value: &Value{
-													Path: []string{"name"},
+													PathSelector: PathSelector{
+														Path: "name",
+													},
 												},
 											},
 											{
 												Name: []byte("nickname"),
 												Value: &Value{
-													Path: []string{"nickname"},
+													PathSelector: PathSelector{
+														Path: "nickname",
+													},
 												},
 											},
 											{
 												Name: []byte("woof"),
 												Value: &Value{
-													Path:       []string{"woof"},
+													PathSelector: PathSelector{
+														Path: "woof",
+													},
 													QuoteValue: true,
 												},
 												Skip: &IfNotEqual{
 													Left: &ObjectVariableArgument{
-														Path: []string{"__typename"},
+														PathSelector: PathSelector{
+															Path: "__typename",
+														},
 													},
 													Right: &StaticVariableArgument{
 														Value: []byte("Dog"),
@@ -772,12 +877,16 @@ func genField() Field {
 											{
 												Name: []byte("meow"),
 												Value: &Value{
-													Path:       []string{"meow"},
+													PathSelector: PathSelector{
+														Path: "meow",
+													},
 													QuoteValue: true,
 												},
 												Skip: &IfNotEqual{
 													Left: &ObjectVariableArgument{
-														Path: []string{"__typename"},
+														PathSelector: PathSelector{
+															Path: "__typename",
+														},
 													},
 													Right: &StaticVariableArgument{
 														Value: []byte("Cat"),
@@ -932,14 +1041,18 @@ func TestStreamExecution(t *testing.T) {
 									{
 										Name: []byte("bar"),
 										Value: &Value{
-											Path:       []string{"bar"},
+											PathSelector: PathSelector{
+												Path: "bar",
+											},
 											QuoteValue: true,
 										},
 									},
 									{
 										Name: []byte("baz"),
 										Value: &Value{
-											Path:       []string{"baz"},
+											PathSelector: PathSelector{
+												Path: "baz",
+											},
 											QuoteValue: false,
 										},
 									},
@@ -1019,7 +1132,9 @@ func TestExecutor_ListFilterFirstN(t *testing.T) {
 										{
 											Name: []byte("bar"),
 											Value: &Value{
-												Path:       []string{"bar"},
+												PathSelector: PathSelector{
+													Path: "bar",
+												},
 												QuoteValue: true,
 											},
 										},
@@ -1076,13 +1191,17 @@ func TestExecutor_ListWithPath(t *testing.T) {
 							Name:        []byte("apis"),
 							HasResolver: true,
 							Value: &List{
-								Path: []string{"apis"},
+								PathSelector: PathSelector{
+									Path: "apis",
+								},
 								Value: &Object{
 									Fields: []Field{
 										{
 											Name: []byte("id"),
 											Value: &Value{
-												Path:       []string{"id"},
+												PathSelector: PathSelector{
+													Path: "id",
+												},
 												QuoteValue: false,
 											},
 										},
@@ -1139,7 +1258,9 @@ func TestExecutor_ObjectWithPath(t *testing.T) {
 							Name:        []byte("id"),
 							HasResolver: true,
 							Value: &Value{
-								Path:       []string{"api", "id"},
+								PathSelector: PathSelector{
+									Path: "api.id",
+								},
 								QuoteValue: false,
 							},
 						},
@@ -1760,6 +1881,112 @@ func TestExecutor_HTTPJSONDataSourceWithHeaders(t *testing.T) {
 	}
 }
 
+func TestExecutor_HTTPJSONDataSourceWithPathSelector(t *testing.T) {
+
+	response := []byte(`
+{
+	"name": {"first": "Tom", "last": "Anderson"},
+	"age":37,
+	"children": ["Sara","Alex","Jack"],
+	"fav.movie": "Deer Hunter",
+	"friends": [
+		{"first": "Dale", "last": "Murphy", "age": 44, "nets": ["ig", "fb", "tw"]},
+		{"first": "Roger", "last": "Craig", "age": 68, "nets": ["fb", "tw"]},
+		{"first": "Jane", "last": "Murphy", "age": 47, "nets": ["ig", "tw"]}
+	]
+}`)
+
+	REST1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(response)
+	}))
+
+	plan := &Object{
+		operationType: ast.OperationTypeQuery,
+		Fields: []Field{
+			{
+				Name: []byte("data"),
+				Value: &Object{
+					Fetch: &SingleFetch{
+						BufferName: "friends",
+						Source: &DataSourceInvocation{
+							DataSource: &HttpJsonDataSource{
+								log: zap.NewNop(),
+							},
+							Args: []Argument{
+								&StaticVariableArgument{
+									Name:  []byte("host"),
+									Value: []byte(REST1.URL),
+								},
+								&StaticVariableArgument{
+									Name:  []byte("url"),
+									Value: []byte("/"),
+								},
+								&StaticVariableArgument{
+									Name:  []byte("method"),
+									Value: []byte("GET"),
+								},
+							},
+						},
+					},
+					Fields: []Field{
+						{
+							Name:        []byte("friends"),
+							HasResolver: true,
+							Value: &Object{
+								Fields: []Field{
+									{
+										Name: []byte("firstNames"),
+										Value: &List{
+											PathSelector:PathSelector{
+												Path: "friends.#.first",
+											},
+											Value: &Value{
+												QuoteValue: true,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	out := &bytes.Buffer{}
+	ex := NewExecutor()
+	ctx := Context{
+		Context: context.Background(),
+	}
+
+	_, err := ex.Execute(ctx, plan, out)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected := map[string]interface{}{
+		"data": map[string]interface{}{
+			"friends": map[string]interface{}{
+				"firstNames": []string{"Dale", "Roger", "Jane"},
+			},
+		},
+	}
+
+	wantResult, err := json.MarshalIndent(expected, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := string(wantResult)
+	got := prettyJSON(out)
+
+	if want != got {
+		t.Fatalf("want: %s\ngot: %s\n", want, got)
+		return
+	}
+}
+
 func prettyJSON(r io.Reader) string {
 	data := map[string]interface{}{}
 	err := json.NewDecoder(r).Decode(&data)
@@ -1771,4 +1998,24 @@ func prettyJSON(r io.Reader) string {
 		panic(err)
 	}
 	return string(out)
+}
+
+func TestSelectList(t *testing.T){
+	data := []byte(`
+[
+   {
+      "id":2,
+      "name":"Yaara",
+      "birthday":"1990 I guess? ;-)"
+   },
+   {
+      "id":3,
+      "name":"Ahmet",
+      "birthday":"1980"
+   }
+]
+`)
+
+	result := gjson.ParseBytes(data)
+	_ = result
 }

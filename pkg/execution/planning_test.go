@@ -101,26 +101,34 @@ func TestPlanner_Plan(t *testing.T) {
 								Name:        []byte("country"),
 								HasResolver: true,
 								Value: &Object{
-									Path: []string{"country"},
+									PathSelector: PathSelector{
+										Path: "country",
+									},
 									Fields: []Field{
 										{
 											Name: []byte("code"),
 											Value: &Value{
-												Path:       []string{"code"},
+												PathSelector: PathSelector{
+													Path: "code",
+												},
 												QuoteValue: true,
 											},
 										},
 										{
 											Name: []byte("name"),
 											Value: &Value{
-												Path:       []string{"name"},
+												PathSelector: PathSelector{
+													Path: "name",
+												},
 												QuoteValue: true,
 											},
 										},
 										{
 											Name: []byte("aliased"),
 											Value: &Value{
-												Path:       []string{"native"},
+												PathSelector: PathSelector{
+													Path: "native",
+												},
 												QuoteValue: true,
 											},
 										},
@@ -185,19 +193,25 @@ func TestPlanner_Plan(t *testing.T) {
 								Name:        []byte("likePost"),
 								HasResolver: true,
 								Value: &Object{
-									Path: []string{"likePost"},
+									PathSelector: PathSelector{
+										Path: "likePost",
+									},
 									Fields: []Field{
 										{
 											Name: []byte("id"),
 											Value: &Value{
-												Path:       []string{"id"},
+												PathSelector: PathSelector{
+													Path: "id",
+												},
 												QuoteValue: true,
 											},
 										},
 										{
 											Name: []byte("likes"),
 											Value: &Value{
-												Path:       []string{"likes"},
+												PathSelector: PathSelector{
+													Path: "likes",
+												},
 												QuoteValue: false,
 											},
 										},
@@ -313,26 +327,34 @@ func TestPlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("header"),
 											Value: &Object{
-												Path: []string{"headers"},
+												PathSelector: PathSelector{
+													Path: "headers",
+												},
 												Fields: []Field{
 													{
 														Name: []byte("Accept"),
 														Value: &Value{
-															Path:       []string{"Accept"},
+															PathSelector: PathSelector{
+																Path: "Accept",
+															},
 															QuoteValue: true,
 														},
 													},
 													{
 														Name: []byte("Host"),
 														Value: &Value{
-															Path:       []string{"Host"},
+															PathSelector: PathSelector{
+																Path: "Host",
+															},
 															QuoteValue: true,
 														},
 													},
 													{
 														Name: []byte("acceptEncoding"),
 														Value: &Value{
-															Path:       []string{"Accept-Encoding"},
+															PathSelector: PathSelector{
+																Path: "Accept-Encoding",
+															},
 															QuoteValue: true,
 														},
 													},
@@ -359,7 +381,9 @@ func TestPlanner_Plan(t *testing.T) {
 												},
 												&ObjectVariableArgument{
 													Name: []byte("postId"),
-													Path: []string{"id"},
+													PathSelector: PathSelector{
+														Path: "id",
+													},
 												},
 												&StaticVariableArgument{
 													Name:  []byte("method"),
@@ -374,7 +398,9 @@ func TestPlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("id"),
 											Value: &Value{
-												Path:       []string{"id"},
+												PathSelector: PathSelector{
+													Path: "id",
+												},
 												QuoteValue: false,
 											},
 										},
@@ -387,7 +413,9 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("id"),
 															Value: &Value{
-																Path:       []string{"id"},
+																PathSelector: PathSelector{
+																	Path: "id",
+																},
 																QuoteValue: false,
 															},
 														},
@@ -510,7 +538,9 @@ func TestPlanner_Plan(t *testing.T) {
 								Name:        []byte("withPath"),
 								HasResolver: true,
 								Value: &Value{
-									Path:       []string{"subObject"},
+									PathSelector: PathSelector{
+										Path: "subObject",
+									},
 									QuoteValue: true,
 								},
 							},
@@ -571,7 +601,9 @@ func TestPlanner_Plan(t *testing.T) {
 											{
 												Name: []byte("id"),
 												Value: &Value{
-													Path:       []string{"id"},
+													PathSelector: PathSelector{
+														Path: "id",
+													},
 													QuoteValue: true,
 												},
 											},
@@ -631,13 +663,17 @@ func TestPlanner_Plan(t *testing.T) {
 								Name:        []byte("listWithPath"),
 								HasResolver: true,
 								Value: &List{
-									Path: []string{"items"},
+									PathSelector: PathSelector{
+										Path: "items",
+									},
 									Value: &Object{
 										Fields: []Field{
 											{
 												Name: []byte("id"),
 												Value: &Value{
-													Path:       []string{"id"},
+													PathSelector: PathSelector{
+														Path: "id",
+													},
 													QuoteValue: true,
 												},
 											},
@@ -813,7 +849,9 @@ func TestPlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("bar"),
 											Value: &Value{
-												Path:       []string{"bar"},
+												PathSelector: PathSelector{
+													Path: "bar",
+												},
 												QuoteValue: true,
 											},
 										},
@@ -869,37 +907,49 @@ func TestPlanner_Plan(t *testing.T) {
 							Name:        []byte("__type"),
 							HasResolver: true,
 							Value: &Object{
-								Path: []string{"__type"},
+								PathSelector: PathSelector{
+									Path: "__type",
+								},
 								Fields: []Field{
 									{
 										Name: []byte("name"),
 										Value: &Value{
-											Path:       []string{"name"},
+											PathSelector: PathSelector{
+												Path: "name",
+											},
 											QuoteValue: true,
 										},
 									},
 									{
 										Name: []byte("fields"),
 										Value: &List{
-											Path: []string{"fields"},
+											PathSelector: PathSelector{
+												Path: "fields",
+											},
 											Value: &Object{
 												Fields: []Field{
 													{
 														Name: []byte("name"),
 														Value: &Value{
-															Path:       []string{"name"},
+															PathSelector: PathSelector{
+																Path: "name",
+															},
 															QuoteValue: true,
 														},
 													},
 													{
 														Name: []byte("type"),
 														Value: &Object{
-															Path: []string{"type"},
+															PathSelector: PathSelector{
+																Path: "type",
+															},
 															Fields: []Field{
 																{
 																	Name: []byte("name"),
 																	Value: &Value{
-																		Path:       []string{"name"},
+																		PathSelector: PathSelector{
+																			Path: "name",
+																		},
 																		QuoteValue: true,
 																	},
 																},
@@ -970,26 +1020,34 @@ func TestPlanner_Plan(t *testing.T) {
 								Name:        []byte("user"),
 								HasResolver: true,
 								Value: &Object{
-									Path: []string{"user"},
+									PathSelector: PathSelector{
+										Path: "user",
+									},
 									Fields: []Field{
 										{
 											Name: []byte("id"),
 											Value: &Value{
-												Path:       []string{"id"},
+												PathSelector: PathSelector{
+													Path: "id",
+												},
 												QuoteValue: true,
 											},
 										},
 										{
 											Name: []byte("name"),
 											Value: &Value{
-												Path:       []string{"name"},
+												PathSelector: PathSelector{
+													Path: "name",
+												},
 												QuoteValue: true,
 											},
 										},
 										{
 											Name: []byte("birthday"),
 											Value: &Value{
-												Path:       []string{"birthday"},
+												PathSelector: PathSelector{
+													Path: "birthday",
+												},
 												QuoteValue: true,
 											},
 										},
@@ -1057,21 +1115,27 @@ func TestPlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("id"),
 											Value: &Value{
-												Path:       []string{"id"},
+												PathSelector: PathSelector{
+													Path: "id",
+												},
 												QuoteValue: true,
 											},
 										},
 										{
 											Name: []byte("name"),
 											Value: &Value{
-												Path:       []string{"name"},
+												PathSelector: PathSelector{
+													Path: "name",
+												},
 												QuoteValue: true,
 											},
 										},
 										{
 											Name: []byte("birthday"),
 											Value: &Value{
-												Path:       []string{"birthday"},
+												PathSelector: PathSelector{
+													Path: "birthday",
+												},
 												QuoteValue: true,
 											},
 										},
@@ -1148,7 +1212,9 @@ func TestPlanner_Plan(t *testing.T) {
 								Name:        []byte("user"),
 								HasResolver: true,
 								Value: &Object{
-									Path: []string{"user"},
+									PathSelector: PathSelector{
+										Path: "user",
+									},
 									Fetch: &SingleFetch{
 										Source: &DataSourceInvocation{
 											Args: []Argument{
@@ -1162,7 +1228,9 @@ func TestPlanner_Plan(t *testing.T) {
 												},
 												&ObjectVariableArgument{
 													Name: []byte("id"),
-													Path: []string{"id"},
+													PathSelector: PathSelector{
+														Path: "id",
+													},
 												},
 												&StaticVariableArgument{
 													Name:  []byte("method"),
@@ -1177,21 +1245,27 @@ func TestPlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("id"),
 											Value: &Value{
-												Path:       []string{"id"},
+												PathSelector: PathSelector{
+													Path: "id",
+												},
 												QuoteValue: true,
 											},
 										},
 										{
 											Name: []byte("name"),
 											Value: &Value{
-												Path:       []string{"name"},
+												PathSelector: PathSelector{
+													Path: "name",
+												},
 												QuoteValue: true,
 											},
 										},
 										{
 											Name: []byte("birthday"),
 											Value: &Value{
-												Path:       []string{"birthday"},
+												PathSelector: PathSelector{
+													Path: "birthday",
+												},
 												QuoteValue: true,
 											},
 										},
@@ -1204,21 +1278,27 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("id"),
 															Value: &Value{
-																Path:       []string{"id"},
+																PathSelector: PathSelector{
+																	Path: "id",
+																},
 																QuoteValue: true,
 															},
 														},
 														{
 															Name: []byte("name"),
 															Value: &Value{
-																Path:       []string{"name"},
+																PathSelector: PathSelector{
+																	Path: "name",
+																},
 																QuoteValue: true,
 															},
 														},
 														{
 															Name: []byte("birthday"),
 															Value: &Value{
-																Path:       []string{"birthday"},
+																PathSelector: PathSelector{
+																	Path: "birthday",
+																},
 																QuoteValue: true,
 															},
 														},
@@ -1329,7 +1409,9 @@ func TestPlanner_Plan(t *testing.T) {
 								Name:        []byte("user"),
 								HasResolver: true,
 								Value: &Object{
-									Path: []string{"user"},
+									PathSelector: PathSelector{
+										Path: "user",
+									},
 									Fetch: &ParallelFetch{
 										Fetches: []Fetch{
 											&SingleFetch{
@@ -1345,7 +1427,9 @@ func TestPlanner_Plan(t *testing.T) {
 														},
 														&ObjectVariableArgument{
 															Name: []byte("id"),
-															Path: []string{"id"},
+															PathSelector: PathSelector{
+																Path: "id",
+															},
 														},
 														&StaticVariableArgument{
 															Name:  []byte("method"),
@@ -1373,7 +1457,9 @@ func TestPlanner_Plan(t *testing.T) {
 														},
 														&ObjectVariableArgument{
 															Name: []byte("userId"),
-															Path: []string{"id"},
+															PathSelector: PathSelector{
+																Path: "id",
+															},
 														},
 													},
 													DataSource: &GraphQLDataSource{},
@@ -1386,14 +1472,18 @@ func TestPlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("id"),
 											Value: &Value{
-												Path:       []string{"id"},
+												PathSelector: PathSelector{
+													Path: "id",
+												},
 												QuoteValue: true,
 											},
 										},
 										{
 											Name: []byte("name"),
 											Value: &Value{
-												Path:       []string{"name"},
+												PathSelector: PathSelector{
+													Path: "name",
+												},
 												QuoteValue: true,
 											},
 										},
@@ -1419,7 +1509,9 @@ func TestPlanner_Plan(t *testing.T) {
 																},
 																&ObjectVariableArgument{
 																	Name: []byte("userId"),
-																	Path: []string{"id"},
+																	PathSelector: PathSelector{
+																		Path: "id",
+																	},
 																},
 															},
 															DataSource: &GraphQLDataSource{},
@@ -1430,21 +1522,27 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("id"),
 															Value: &Value{
-																Path:       []string{"id"},
+																PathSelector: PathSelector{
+																	Path: "id",
+																},
 																QuoteValue: true,
 															},
 														},
 														{
 															Name: []byte("name"),
 															Value: &Value{
-																Path:       []string{"name"},
+																PathSelector: PathSelector{
+																	Path: "name",
+																},
 																QuoteValue: true,
 															},
 														},
 														{
 															Name: []byte("birthday"),
 															Value: &Value{
-																Path:       []string{"birthday"},
+																PathSelector: PathSelector{
+																	Path: "birthday",
+																},
 																QuoteValue: true,
 															},
 														},
@@ -1452,32 +1550,42 @@ func TestPlanner_Plan(t *testing.T) {
 															Name:        []byte("pets"),
 															HasResolver: true,
 															Value: &List{
-																Path: []string{"userPets"},
+																PathSelector: PathSelector{
+																	Path: "userPets",
+																},
 																Value: &Object{
 																	Fields: []Field{
 																		{
 																			Name: []byte("__typename"),
 																			Value: &Value{
-																				Path:       []string{"__typename"},
+																				PathSelector: PathSelector{
+																					Path: "__typename",
+																				},
 																				QuoteValue: true,
 																			},
 																		},
 																		{
 																			Name: []byte("nickname"),
 																			Value: &Value{
-																				Path:       []string{"nickname"},
+																				PathSelector: PathSelector{
+																					Path: "nickname",
+																				},
 																				QuoteValue: true,
 																			},
 																		},
 																		{
 																			Name: []byte("name"),
 																			Value: &Value{
-																				Path:       []string{"name"},
+																				PathSelector: PathSelector{
+																					Path: "name",
+																				},
 																				QuoteValue: true,
 																			},
 																			Skip: &IfNotEqual{
 																				Left: &ObjectVariableArgument{
-																					Path: []string{"__typename"},
+																					PathSelector: PathSelector{
+																						Path: "__typename",
+																					},
 																				},
 																				Right: &StaticVariableArgument{
 																					Value: []byte("Dog"),
@@ -1487,12 +1595,16 @@ func TestPlanner_Plan(t *testing.T) {
 																		{
 																			Name: []byte("woof"),
 																			Value: &Value{
-																				Path:       []string{"woof"},
+																				PathSelector: PathSelector{
+																					Path: "woof",
+																				},
 																				QuoteValue: true,
 																			},
 																			Skip: &IfNotEqual{
 																				Left: &ObjectVariableArgument{
-																					Path: []string{"__typename"},
+																					PathSelector: PathSelector{
+																						Path: "__typename",
+																					},
 																				},
 																				Right: &StaticVariableArgument{
 																					Value: []byte("Dog"),
@@ -1502,12 +1614,16 @@ func TestPlanner_Plan(t *testing.T) {
 																		{
 																			Name: []byte("name"),
 																			Value: &Value{
-																				Path:       []string{"name"},
+																				PathSelector: PathSelector{
+																					Path: "name",
+																				},
 																				QuoteValue: true,
 																			},
 																			Skip: &IfNotEqual{
 																				Left: &ObjectVariableArgument{
-																					Path: []string{"__typename"},
+																					PathSelector: PathSelector{
+																						Path: "__typename",
+																					},
 																				},
 																				Right: &StaticVariableArgument{
 																					Value: []byte("Cat"),
@@ -1517,12 +1633,16 @@ func TestPlanner_Plan(t *testing.T) {
 																		{
 																			Name: []byte("meow"),
 																			Value: &Value{
-																				Path:       []string{"meow"},
+																				PathSelector: PathSelector{
+																					Path: "meow",
+																				},
 																				QuoteValue: true,
 																			},
 																			Skip: &IfNotEqual{
 																				Left: &ObjectVariableArgument{
-																					Path: []string{"__typename"},
+																					PathSelector: PathSelector{
+																						Path: "__typename",
+																					},
 																				},
 																				Right: &StaticVariableArgument{
 																					Value: []byte("Cat"),
@@ -1541,32 +1661,42 @@ func TestPlanner_Plan(t *testing.T) {
 											Name:        []byte("pets"),
 											HasResolver: true,
 											Value: &List{
-												Path: []string{"userPets"},
+												PathSelector: PathSelector{
+													Path: "userPets",
+												},
 												Value: &Object{
 													Fields: []Field{
 														{
 															Name: []byte("__typename"),
 															Value: &Value{
-																Path:       []string{"__typename"},
+																PathSelector: PathSelector{
+																	Path: "__typename",
+																},
 																QuoteValue: true,
 															},
 														},
 														{
 															Name: []byte("nickname"),
 															Value: &Value{
-																Path:       []string{"nickname"},
+																PathSelector: PathSelector{
+																	Path: "nickname",
+																},
 																QuoteValue: true,
 															},
 														},
 														{
 															Name: []byte("name"),
 															Value: &Value{
-																Path:       []string{"name"},
+																PathSelector: PathSelector{
+																	Path: "name",
+																},
 																QuoteValue: true,
 															},
 															Skip: &IfNotEqual{
 																Left: &ObjectVariableArgument{
-																	Path: []string{"__typename"},
+																	PathSelector: PathSelector{
+																		Path: "__typename",
+																	},
 																},
 																Right: &StaticVariableArgument{
 																	Value: []byte("Dog"),
@@ -1576,12 +1706,16 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("woof"),
 															Value: &Value{
-																Path:       []string{"woof"},
+																PathSelector: PathSelector{
+																	Path: "woof",
+																},
 																QuoteValue: true,
 															},
 															Skip: &IfNotEqual{
 																Left: &ObjectVariableArgument{
-																	Path: []string{"__typename"},
+																	PathSelector: PathSelector{
+																		Path: "__typename",
+																	},
 																},
 																Right: &StaticVariableArgument{
 																	Value: []byte("Dog"),
@@ -1591,12 +1725,16 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("name"),
 															Value: &Value{
-																Path:       []string{"name"},
+																PathSelector: PathSelector{
+																	Path: "name",
+																},
 																QuoteValue: true,
 															},
 															Skip: &IfNotEqual{
 																Left: &ObjectVariableArgument{
-																	Path: []string{"__typename"},
+																	PathSelector: PathSelector{
+																		Path: "__typename",
+																	},
 																},
 																Right: &StaticVariableArgument{
 																	Value: []byte("Cat"),
@@ -1606,12 +1744,16 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("meow"),
 															Value: &Value{
-																Path:       []string{"meow"},
+																PathSelector: PathSelector{
+																	Path: "meow",
+																},
 																QuoteValue: true,
 															},
 															Skip: &IfNotEqual{
 																Left: &ObjectVariableArgument{
-																	Path: []string{"__typename"},
+																	PathSelector: PathSelector{
+																		Path: "__typename",
+																	},
 																},
 																Right: &StaticVariableArgument{
 																	Value: []byte("Cat"),
@@ -1625,7 +1767,9 @@ func TestPlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("birthday"),
 											Value: &Value{
-												Path:       []string{"birthday"},
+												PathSelector: PathSelector{
+													Path: "birthday",
+												},
 												QuoteValue: true,
 											},
 										},
@@ -1763,17 +1907,23 @@ func TestPlanner_Plan(t *testing.T) {
 								Name:        []byte("__schema"),
 								HasResolver: true,
 								Value: &Object{
-									Path: []string{"__schema"},
+									PathSelector: PathSelector{
+										Path: "__schema",
+									},
 									Fields: []Field{
 										{
 											Name: []byte("queryType"),
 											Value: &Object{
-												Path: []string{"queryType"},
+												PathSelector: PathSelector{
+													Path: "queryType",
+												},
 												Fields: []Field{
 													{
 														Name: []byte("name"),
 														Value: &Value{
-															Path:       []string{"name"},
+															PathSelector: PathSelector{
+																Path: "name",
+															},
 															QuoteValue: true,
 														},
 													},
@@ -1783,12 +1933,16 @@ func TestPlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("mutationType"),
 											Value: &Object{
-												Path: []string{"mutationType"},
+												PathSelector: PathSelector{
+													Path: "mutationType",
+												},
 												Fields: []Field{
 													{
 														Name: []byte("name"),
 														Value: &Value{
-															Path:       []string{"name"},
+															PathSelector: PathSelector{
+																Path: "name",
+															},
 															QuoteValue: true,
 														},
 													},
@@ -1798,12 +1952,16 @@ func TestPlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("subscriptionType"),
 											Value: &Object{
-												Path: []string{"subscriptionType"},
+												PathSelector: PathSelector{
+													Path: "subscriptionType",
+												},
 												Fields: []Field{
 													{
 														Name: []byte("name"),
 														Value: &Value{
-															Path:       []string{"name"},
+															PathSelector: PathSelector{
+																Path: "name",
+															},
 															QuoteValue: true,
 														},
 													},
@@ -1813,81 +1971,105 @@ func TestPlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("types"),
 											Value: &List{
-												Path: []string{"types"},
+												PathSelector: PathSelector{
+													Path: "types",
+												},
 												Value: &Object{
 													Fields: []Field{
 														{
 															Name: []byte("kind"),
 															Value: &Value{
-																Path:       []string{"kind"},
+																PathSelector: PathSelector{
+																	Path: "kind",
+																},
 																QuoteValue: true,
 															},
 														},
 														{
 															Name: []byte("name"),
 															Value: &Value{
-																Path:       []string{"name"},
+																PathSelector: PathSelector{
+																	Path: "name",
+																},
 																QuoteValue: true,
 															},
 														},
 														{
 															Name: []byte("description"),
 															Value: &Value{
-																Path:       []string{"description"},
+																PathSelector: PathSelector{
+																	Path: "description",
+																},
 																QuoteValue: true,
 															},
 														},
 														{
 															Name: []byte("fields"),
 															Value: &List{
-																Path: []string{"fields"},
+																PathSelector: PathSelector{
+																	Path: "fields",
+																},
 																Value: &Object{
 																	Fields: []Field{
 																		{
 																			Name: []byte("name"),
 																			Value: &Value{
-																				Path:       []string{"name"},
+																				PathSelector: PathSelector{
+																					Path: "name",
+																				},
 																				QuoteValue: true,
 																			},
 																		},
 																		{
 																			Name: []byte("description"),
 																			Value: &Value{
-																				Path:       []string{"description"},
+																				PathSelector: PathSelector{
+																					Path: "description",
+																				},
 																				QuoteValue: true,
 																			},
 																		},
 																		{
 																			Name: []byte("args"),
 																			Value: &List{
-																				Path: []string{"args"},
+																				PathSelector: PathSelector{
+																					Path: "args",
+																				},
 																				Value: &Object{
 																					Fields: []Field{
 																						{
 																							Name: []byte("name"),
 																							Value: &Value{
-																								Path:       []string{"name"},
+																								PathSelector: PathSelector{
+																									Path: "name",
+																								},
 																								QuoteValue: true,
 																							},
 																						},
 																						{
 																							Name: []byte("description"),
 																							Value: &Value{
-																								Path:       []string{"description"},
+																								PathSelector: PathSelector{
+																									Path: "description",
+																								},
 																								QuoteValue: true,
 																							},
 																						},
 																						{
 																							Name: []byte("type"),
 																							Value: &Object{
-																								Path:   []string{"type"},
+																								PathSelector: PathSelector{
+																									Path: "type",
+																								},
 																								Fields: kindNameDeepFields,
 																							},
 																						},
 																						{
 																							Name: []byte("defaultValue"),
 																							Value: &Value{
-																								Path:       []string{"defaultValue"},
+																								PathSelector: PathSelector{
+																									Path: "defaultValue",
+																								},
 																								QuoteValue: true,
 																							},
 																						},
@@ -1898,21 +2080,27 @@ func TestPlanner_Plan(t *testing.T) {
 																		{
 																			Name: []byte("type"),
 																			Value: &Object{
-																				Path:   []string{"type"},
+																				PathSelector: PathSelector{
+																					Path: "type",
+																				},
 																				Fields: kindNameDeepFields,
 																			},
 																		},
 																		{
 																			Name: []byte("isDeprecated"),
 																			Value: &Value{
-																				Path:       []string{"isDeprecated"},
+																				PathSelector: PathSelector{
+																					Path: "isDeprecated",
+																				},
 																				QuoteValue: false,
 																			},
 																		},
 																		{
 																			Name: []byte("deprecationReason"),
 																			Value: &Value{
-																				Path:       []string{"deprecationReason"},
+																				PathSelector: PathSelector{
+																					Path: "deprecationReason",
+																				},
 																				QuoteValue: true,
 																			},
 																		},
@@ -1923,34 +2111,44 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("inputFields"),
 															Value: &List{
-																Path: []string{"inputFields"},
+																PathSelector: PathSelector{
+																	Path: "inputFields",
+																},
 																Value: &Object{
 																	Fields: []Field{
 																		{
 																			Name: []byte("name"),
 																			Value: &Value{
-																				Path:       []string{"name"},
+																				PathSelector: PathSelector{
+																					Path: "name",
+																				},
 																				QuoteValue: true,
 																			},
 																		},
 																		{
 																			Name: []byte("description"),
 																			Value: &Value{
-																				Path:       []string{"description"},
+																				PathSelector: PathSelector{
+																					Path: "description",
+																				},
 																				QuoteValue: true,
 																			},
 																		},
 																		{
 																			Name: []byte("type"),
 																			Value: &Object{
-																				Path:   []string{"type"},
+																				PathSelector: PathSelector{
+																					Path: "type",
+																				},
 																				Fields: kindNameDeepFields,
 																			},
 																		},
 																		{
 																			Name: []byte("defaultValue"),
 																			Value: &Value{
-																				Path:       []string{"defaultValue"},
+																				PathSelector: PathSelector{
+																					Path: "defaultValue",
+																				},
 																				QuoteValue: true,
 																			},
 																		},
@@ -1961,7 +2159,9 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("interfaces"),
 															Value: &List{
-																Path: []string{"interfaces"},
+																PathSelector: PathSelector{
+																	Path: "interfaces",
+																},
 																Value: &Object{
 																	Fields: kindNameDeepFields,
 																},
@@ -1970,34 +2170,44 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("enumValues"),
 															Value: &List{
-																Path: []string{"enumValues"},
+																PathSelector: PathSelector{
+																	Path: "enumValues",
+																},
 																Value: &Object{
 																	Fields: []Field{
 																		{
 																			Name: []byte("name"),
 																			Value: &Value{
-																				Path:       []string{"name"},
+																				PathSelector: PathSelector{
+																					Path: "name",
+																				},
 																				QuoteValue: true,
 																			},
 																		},
 																		{
 																			Name: []byte("description"),
 																			Value: &Value{
-																				Path:       []string{"description"},
+																				PathSelector: PathSelector{
+																					Path: "description",
+																				},
 																				QuoteValue: true,
 																			},
 																		},
 																		{
 																			Name: []byte("isDeprecated"),
 																			Value: &Value{
-																				Path:       []string{"isDeprecated"},
+																				PathSelector: PathSelector{
+																					Path: "isDeprecated",
+																				},
 																				QuoteValue: false,
 																			},
 																		},
 																		{
 																			Name: []byte("deprecationReason"),
 																			Value: &Value{
-																				Path:       []string{"deprecationReason"},
+																				PathSelector: PathSelector{
+																					Path: "deprecationReason",
+																				},
 																				QuoteValue: true,
 																			},
 																		},
@@ -2008,7 +2218,9 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("possibleTypes"),
 															Value: &List{
-																Path: []string{"possibleTypes"},
+																PathSelector: PathSelector{
+																	Path: "possibleTypes",
+																},
 																Value: &Object{
 																	Fields: kindNameDeepFields,
 																},
@@ -2021,27 +2233,35 @@ func TestPlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("directives"),
 											Value: &List{
-												Path: []string{"directives"},
+												PathSelector: PathSelector{
+													Path: "directives",
+												},
 												Value: &Object{
 													Fields: []Field{
 														{
 															Name: []byte("name"),
 															Value: &Value{
-																Path:       []string{"name"},
+																PathSelector: PathSelector{
+																	Path: "name",
+																},
 																QuoteValue: true,
 															},
 														},
 														{
 															Name: []byte("description"),
 															Value: &Value{
-																Path:       []string{"description"},
+																PathSelector: PathSelector{
+																	Path: "description",
+																},
 																QuoteValue: true,
 															},
 														},
 														{
 															Name: []byte("locations"),
 															Value: &List{
-																Path: []string{"locations"},
+																PathSelector: PathSelector{
+																	Path: "locations",
+																},
 																Value: &Value{
 																	QuoteValue: true,
 																},
@@ -2050,34 +2270,44 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("args"),
 															Value: &List{
-																Path: []string{"args"},
+																PathSelector: PathSelector{
+																	Path: "args",
+																},
 																Value: &Object{
 																	Fields: []Field{
 																		{
 																			Name: []byte("name"),
 																			Value: &Value{
-																				Path:       []string{"name"},
+																				PathSelector: PathSelector{
+																					Path: "name",
+																				},
 																				QuoteValue: true,
 																			},
 																		},
 																		{
 																			Name: []byte("description"),
 																			Value: &Value{
-																				Path:       []string{"description"},
+																				PathSelector: PathSelector{
+																					Path: "description",
+																				},
 																				QuoteValue: true,
 																			},
 																		},
 																		{
 																			Name: []byte("type"),
 																			Value: &Object{
-																				Path:   []string{"type"},
+																				PathSelector: PathSelector{
+																					Path: "type",
+																				},
 																				Fields: kindNameDeepFields,
 																			},
 																		},
 																		{
 																			Name: []byte("defaultValue"),
 																			Value: &Value{
-																				Path:       []string{"defaultValue"},
+																				PathSelector: PathSelector{
+																					Path: "defaultValue",
+																				},
 																				QuoteValue: true,
 																			},
 																		},
@@ -2152,14 +2382,18 @@ func TestPlanner_Plan(t *testing.T) {
 									{
 										Name: []byte("bar"),
 										Value: &Value{
-											Path:       []string{"bar"},
+											PathSelector: PathSelector{
+												Path: "bar",
+											},
 											QuoteValue: true,
 										},
 									},
 									{
 										Name: []byte("baz"),
 										Value: &Value{
-											Path:       []string{"baz"},
+											PathSelector: PathSelector{
+												Path: "baz",
+											},
 											QuoteValue: false,
 										},
 									},
@@ -2224,14 +2458,18 @@ func TestPlanner_Plan(t *testing.T) {
 									{
 										Name: []byte("bar"),
 										Value: &Value{
-											Path:       []string{"bar"},
+											PathSelector: PathSelector{
+												Path: "bar",
+											},
 											QuoteValue: true,
 										},
 									},
 									{
 										Name: []byte("baz"),
 										Value: &Value{
-											Path:       []string{"baz"},
+											PathSelector: PathSelector{
+												Path: "baz",
+											},
 											QuoteValue: false,
 										},
 									},
@@ -2289,7 +2527,9 @@ func TestPlanner_Plan(t *testing.T) {
 											{
 												Name: []byte("bar"),
 												Value: &Value{
-													Path:       []string{"bar"},
+													PathSelector: PathSelector{
+														Path: "bar",
+													},
 													QuoteValue: true,
 												},
 											},
@@ -2396,6 +2636,7 @@ type Query {
 		@StaticDataSource(
             data: "[{\"bar\":\"baz\"},{\"bar\":\"bal\"},{\"bar\":\"bat\"}]"
         )
+		@mapping(mode: NONE)
 }
 
 type Foo {
@@ -2423,6 +2664,7 @@ type Subscription {
 			host: "foo.bar.baz"
 			url: "/bal"
 		)
+		@mapping(mode: NONE)
 }
 
 type Foo {
@@ -2451,6 +2693,7 @@ type Subscription {
 			url: "/bal"
 			delaySeconds: 3
 		)
+		@mapping(mode: NONE)
 }
 
 type Foo {
@@ -2467,9 +2710,15 @@ directive @GraphQLDataSource (
     params: [Parameter]
 ) on FIELD_DEFINITION
 
-directive @mapTo(
-	objectField: String!
+directive @mapping(
+    mode: MAPPING_MODE! = PATH_SELECTOR
+    pathSelector: String
 ) on FIELD_DEFINITION
+
+enum MAPPING_MODE {
+    NONE
+    PATH_SELECTOR
+}
 
 enum HTTP_METHOD {
     GET
@@ -2568,11 +2817,15 @@ directive @HttpJsonDataSource (
 	body: String
 ) on FIELD_DEFINITION
 
-directive @mapTo(
-	objectField: String!
+directive @mapping(
+    mode: MAPPING_MODE! = PATH_SELECTOR
+    pathSelector: String
 ) on FIELD_DEFINITION
 
-directive @path(append: [String!], prepend: [String!]) on FIELD_DEFINITION
+enum MAPPING_MODE {
+    NONE
+    PATH_SELECTOR
+}
 
 enum HTTP_METHOD {
     GET
@@ -2605,11 +2858,11 @@ type Foo {
 type Headers {
     Accept: String!
     Host: String!
-	acceptEncoding: String @mapTo(objectField: "Accept-Encoding")
+	acceptEncoding: String @mapping(pathSelector: "Accept-Encoding")
 }
 
 type HttpBinGet {
-	header: Headers! @mapTo(objectField: "headers")
+	header: Headers! @mapping(pathSelector: "headers")
 }
 
 type JSONPlaceholderPost {
@@ -2630,6 +2883,7 @@ type JSONPlaceholderPost {
                 }
             ]
         )
+		@mapping(mode: NONE)
 }
 
 type JSONPlaceholderComment {
@@ -2647,11 +2901,13 @@ type Query {
             host: "httpbin.org"
             url: "/get"
         )
+		@mapping(mode: NONE)
 	post(id: Int!): JSONPlaceholderPost
         @HttpJsonDataSource(
             host: "jsonplaceholder.typicode.com"
             url: "/posts/{{ .arguments.id }}"
         )
+		@mapping(mode: NONE)
 	withBody(input: WithBodyInput!): String!
         @HttpJsonDataSource(
             host: "httpbin.org"
@@ -2659,6 +2915,7 @@ type Query {
             method: POST
             body: 	"{\"key\":\"{{ .arguments.input.foo }}\"}"
         )
+		@mapping(mode: NONE)
 	withHeaders: String!
         @HttpJsonDataSource(
             host: "httpbin.org"
@@ -2674,23 +2931,25 @@ type Query {
 				}
 			]
         )
+		@mapping(mode: NONE)
 	withPath: String!
-		@path(append: ["subObject"])
 		@HttpJsonDataSource(
             host: "httpbin.org"
             url: "/anything"
         )
+		@mapping(pathSelector: "subObject")
 	listItems: [ListItem]
 		@HttpJsonDataSource(
             host: "httpbin.org"
             url: "/anything"
         )
+		@mapping(mode: NONE)
 	listWithPath: [ListItem]
-		@path(append: ["items"])
 		@HttpJsonDataSource(
             host: "httpbin.org"
             url: "/anything"
         )
+		@mapping(pathSelector: "items")
     __schema: __Schema!
     __type(name: String!): __Type
 }
@@ -2719,14 +2978,17 @@ type Query {
 		@StaticDataSource(
             data: "World!"
         )
+		@mapping(mode: NONE)
 	nullableInt: Int
         @StaticDataSource(
             data: null
         )
+		@mapping(mode: NONE)
 	foo: Foo!
         @StaticDataSource(
             data: "{\"bar\":\"baz\"}"
         )
+		@mapping(mode: NONE)
 }`
 
 const complexSchema = `
@@ -2744,9 +3006,15 @@ directive @GraphQLDataSource (
     params: [Parameter]
 ) on FIELD_DEFINITION
 
-directive @mapTo(
-	objectField: String!
+directive @mapping(
+    mode: MAPPING_MODE! = PATH_SELECTOR
+    pathSelector: String
 ) on FIELD_DEFINITION
+
+enum MAPPING_MODE {
+    NONE
+    PATH_SELECTOR
+}
 
 enum HTTP_METHOD {
     GET
@@ -2831,6 +3099,7 @@ type Query {
 			host: "localhost:9001"
 			url: "/user/{{ .arguments.id }}"
 		)
+		@mapping(mode: NONE)
 }
 type User {
 	id: String
@@ -2849,10 +3118,8 @@ type User {
 				}
 			]
 		)
+		@mapping(mode: NONE)
 	pets: [Pet]
-		@mapTo(
-			objectField: "userPets"
-		)
 		@GraphQLDataSource(
 			host: "localhost:8002"
 			url: "/graphql"
@@ -2865,6 +3132,7 @@ type User {
 				}
 			]
 		)
+		@mapping(pathSelector: "userPets")
 }
 interface Pet {
 	nickname: String!
@@ -3072,147 +3340,193 @@ var kindNameDeepFields = []Field{
 	{
 		Name: []byte("kind"),
 		Value: &Value{
-			Path:       []string{"kind"},
+			PathSelector: PathSelector{
+				Path: "kind",
+			},
 			QuoteValue: true,
 		},
 	},
 	{
 		Name: []byte("name"),
 		Value: &Value{
-			Path:       []string{"name"},
+			PathSelector: PathSelector{
+				Path: "name",
+			},
 			QuoteValue: true,
 		},
 	},
 	{
 		Name: []byte("ofType"),
 		Value: &Object{
-			Path: []string{"ofType"},
+			PathSelector: PathSelector{
+				Path: "ofType",
+			},
 			Fields: []Field{
 				{
 					Name: []byte("kind"),
 					Value: &Value{
-						Path:       []string{"kind"},
+						PathSelector: PathSelector{
+							Path: "kind",
+						},
 						QuoteValue: true,
 					},
 				},
 				{
 					Name: []byte("name"),
 					Value: &Value{
-						Path:       []string{"name"},
+						PathSelector: PathSelector{
+							Path: "name",
+						},
 						QuoteValue: true,
 					},
 				},
 				{
 					Name: []byte("ofType"),
 					Value: &Object{
-						Path: []string{"ofType"},
+						PathSelector: PathSelector{
+							Path: "ofType",
+						},
 						Fields: []Field{
 							{
 								Name: []byte("kind"),
 								Value: &Value{
-									Path:       []string{"kind"},
+									PathSelector: PathSelector{
+										Path: "kind",
+									},
 									QuoteValue: true,
 								},
 							},
 							{
 								Name: []byte("name"),
 								Value: &Value{
-									Path:       []string{"name"},
+									PathSelector: PathSelector{
+										Path: "name",
+									},
 									QuoteValue: true,
 								},
 							},
 							{
 								Name: []byte("ofType"),
 								Value: &Object{
-									Path: []string{"ofType"},
+									PathSelector: PathSelector{
+										Path: "ofType",
+									},
 									Fields: []Field{
 										{
 											Name: []byte("kind"),
 											Value: &Value{
-												Path:       []string{"kind"},
+												PathSelector: PathSelector{
+													Path: "kind",
+												},
 												QuoteValue: true,
 											},
 										},
 										{
 											Name: []byte("name"),
 											Value: &Value{
-												Path:       []string{"name"},
+												PathSelector: PathSelector{
+													Path: "name",
+												},
 												QuoteValue: true,
 											},
 										},
 										{
 											Name: []byte("ofType"),
 											Value: &Object{
-												Path: []string{"ofType"},
+												PathSelector: PathSelector{
+													Path: "ofType",
+												},
 												Fields: []Field{
 													{
 														Name: []byte("kind"),
 														Value: &Value{
-															Path:       []string{"kind"},
+															PathSelector: PathSelector{
+																Path: "kind",
+															},
 															QuoteValue: true,
 														},
 													},
 													{
 														Name: []byte("name"),
 														Value: &Value{
-															Path:       []string{"name"},
+															PathSelector: PathSelector{
+																Path: "name",
+															},
 															QuoteValue: true,
 														},
 													},
 													{
 														Name: []byte("ofType"),
 														Value: &Object{
-															Path: []string{"ofType"},
+															PathSelector: PathSelector{
+																Path: "ofType",
+															},
 															Fields: []Field{
 																{
 																	Name: []byte("kind"),
 																	Value: &Value{
-																		Path:       []string{"kind"},
+																		PathSelector: PathSelector{
+																			Path: "kind",
+																		},
 																		QuoteValue: true,
 																	},
 																},
 																{
 																	Name: []byte("name"),
 																	Value: &Value{
-																		Path:       []string{"name"},
+																		PathSelector: PathSelector{
+																			Path: "name",
+																		},
 																		QuoteValue: true,
 																	},
 																},
 																{
 																	Name: []byte("ofType"),
 																	Value: &Object{
-																		Path: []string{"ofType"},
+																		PathSelector: PathSelector{
+																			Path: "ofType",
+																		},
 																		Fields: []Field{
 																			{
 																				Name: []byte("kind"),
 																				Value: &Value{
-																					Path:       []string{"kind"},
+																					PathSelector: PathSelector{
+																						Path: "kind",
+																					},
 																					QuoteValue: true,
 																				},
 																			},
 																			{
 																				Name: []byte("name"),
 																				Value: &Value{
-																					Path:       []string{"name"},
+																					PathSelector: PathSelector{
+																						Path: "name",
+																					},
 																					QuoteValue: true,
 																				},
 																			},
 																			{
 																				Name: []byte("ofType"),
 																				Value: &Object{
-																					Path: []string{"ofType"},
+																					PathSelector: PathSelector{
+																						Path: "ofType",
+																					},
 																					Fields: []Field{
 																						{
 																							Name: []byte("kind"),
 																							Value: &Value{
-																								Path:       []string{"kind"},
+																								PathSelector: PathSelector{
+																									Path: "kind",
+																								},
 																								QuoteValue: true,
 																							},
 																						},
 																						{
 																							Name: []byte("name"),
 																							Value: &Value{
-																								Path:       []string{"name"},
+																								PathSelector: PathSelector{
+																									Path: "name",
+																								},
 																								QuoteValue: true,
 																							},
 																						},
