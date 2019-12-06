@@ -81,7 +81,7 @@ func (n *NatsDataSourcePlanner) LeaveField(ref int) {
 		Name:  literal.ADDR,
 		Value: make([]byte, len(variableValue)),
 	}
-	copy(arg.Value,variableValue)
+	copy(arg.Value, variableValue)
 	n.args = append(n.args, arg)
 
 	value, exists = n.definition.DirectiveArgumentValueByName(directive, literal.TOPIC)
@@ -93,7 +93,7 @@ func (n *NatsDataSourcePlanner) LeaveField(ref int) {
 		Name:  literal.TOPIC,
 		Value: make([]byte, len(variableValue)),
 	}
-	copy(arg.Value,variableValue)
+	copy(arg.Value, variableValue)
 	n.args = append(n.args, arg)
 }
 
@@ -118,7 +118,26 @@ func (n *NatsDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) 
 			addr = string(addrArg)
 		}
 
-		n.log.Debug("NatsDataSource subscribing",
+		go func() {
+			<-ctx.Done()
+			if n.sub != nil {
+				n.log.Debug("NatsDataSource.unsubscribing",
+					zap.String("addr", addr),
+					zap.String("topic", topic),
+				)
+				err := n.sub.Unsubscribe()
+				n.log.Error("Unsubscribe", zap.Error(err))
+			}
+			if n.conn != nil {
+				n.log.Debug("NatsDataSource.closing",
+					zap.String("addr", addr),
+					zap.String("topic", topic),
+				)
+				n.conn.Close()
+			}
+		}()
+
+		n.log.Debug("NatsDataSource.connecting",
 			zap.String("addr", addr),
 			zap.String("topic", topic),
 		)
@@ -127,6 +146,12 @@ func (n *NatsDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) 
 		if err != nil {
 			panic(err)
 		}
+
+		n.log.Debug("NatsDataSource.subscribing",
+			zap.String("addr", addr),
+			zap.String("topic", topic),
+		)
+
 		n.sub, err = n.conn.SubscribeSync(topic)
 		if err != nil {
 			panic(err)
