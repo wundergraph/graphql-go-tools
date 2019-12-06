@@ -81,6 +81,7 @@ func (n *NatsDataSourcePlanner) LeaveField(ref int) {
 		Name:  literal.ADDR,
 		Value: make([]byte, len(variableValue)),
 	}
+	copy(arg.Value,variableValue)
 	n.args = append(n.args, arg)
 
 	value, exists = n.definition.DirectiveArgumentValueByName(directive, literal.TOPIC)
@@ -92,6 +93,7 @@ func (n *NatsDataSourcePlanner) LeaveField(ref int) {
 		Name:  literal.TOPIC,
 		Value: make([]byte, len(variableValue)),
 	}
+	copy(arg.Value,variableValue)
 	n.args = append(n.args, arg)
 }
 
