@@ -3,6 +3,7 @@ package execution
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/nats-io/nats.go"
 	"io"
 	"sync"
@@ -29,11 +30,11 @@ func (n *NatsDataSourcePlanner) DirectiveDefinition() []byte {
 }
 
 func (n *NatsDataSourcePlanner) Plan() (DataSource, []Argument) {
-	return &NatsDataSource{}, []Argument{}
+	return &NatsDataSource{}, n.args
 }
 
 func (n *NatsDataSourcePlanner) Initialize(walker *astvisitor.Walker, operation, definition *ast.Document, args []Argument, resolverParameters []ResolverParameter) {
-
+	n.args = args
 }
 
 func (n *NatsDataSourcePlanner) EnterInlineFragment(ref int) {
@@ -53,11 +54,42 @@ func (n *NatsDataSourcePlanner) LeaveSelectionSet(ref int) {
 }
 
 func (n *NatsDataSourcePlanner) EnterField(ref int) {
-
+	n.rootField.setIfNotDefined(ref)
 }
 
 func (n *NatsDataSourcePlanner) LeaveField(ref int) {
+	if !n.rootField.isDefinedAndEquals(ref) {
+		return
+	}
+	definition, exists := n.walker.FieldDefinition(ref)
+	if !exists {
+		return
+	}
+	directive, exists := n.definition.FieldDefinitionDirectiveByName(definition, n.DirectiveName())
+	if !exists {
+		return
+	}
+	value, exists := n.definition.DirectiveArgumentValueByName(directive, literal.ADDR)
+	if !exists {
+		return
+	}
+	variableValue := n.definition.StringValueContentBytes(value.Ref)
+	arg := &StaticVariableArgument{
+		Name:  literal.ADDR,
+		Value: make([]byte, len(variableValue)),
+	}
+	n.args = append(n.args, arg)
 
+	value, exists = n.definition.DirectiveArgumentValueByName(directive, literal.TOPIC)
+	if !exists {
+		return
+	}
+	variableValue = n.definition.StringValueContentBytes(value.Ref)
+	arg = &StaticVariableArgument{
+		Name:  literal.TOPIC,
+		Value: make([]byte, len(variableValue)),
+	}
+	n.args = append(n.args, arg)
 }
 
 type NatsDataSource struct {
@@ -69,11 +101,22 @@ type NatsDataSource struct {
 func (n *NatsDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) Instruction {
 	var err error
 	n.once.Do(func() {
-		n.conn, err = nats.Connect(nats.DefaultURL)
+
+		addrArg := args.ByKey(literal.ADDR)
+		topicArg := args.ByKey(literal.TOPIC)
+
+		addr := nats.DefaultURL
+		topic := string(topicArg)
+
+		if len(addrArg) != 0 {
+			addr = string(addrArg)
+		}
+
+		n.conn, err = nats.Connect(addr)
 		if err != nil {
 			panic(err)
 		}
-		n.sub, err = n.conn.SubscribeSync("time")
+		n.sub, err = n.conn.SubscribeSync(topic)
 		if err != nil {
 			panic(err)
 		}
