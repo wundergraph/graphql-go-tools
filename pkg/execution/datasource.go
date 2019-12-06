@@ -75,4 +75,22 @@ type BaseDataSourcePlanner struct {
 	definition, operation *ast.Document      // nolint
 	args                  []Argument         // nolint
 	graphqlDefinitions    *packr.Box         // nolint
+	rootField             rootField          // nolint
+}
+
+type rootField struct {
+	isDefined bool
+	ref       int
+}
+
+func (r *rootField) setIfNotDefined(ref int){
+	if r.isDefined {
+		return
+	}
+	r.isDefined = true
+	r.ref = ref
+}
+
+func (r *rootField) isDefinedAndEquals(ref int) bool {
+	return r.isDefined && r.ref == ref
 }

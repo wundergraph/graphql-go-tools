@@ -8,9 +8,10 @@ import (
 	"github.com/cespare/xxhash"
 	"github.com/jensneuse/diffview"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/introspection"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
+	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 	"github.com/sebdah/goldie"
-	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
 	"io"
 	"io/ioutil"
@@ -1238,7 +1239,7 @@ func TestExecutor_GraphqlDataSourceWithParams(t *testing.T) {
 
 	graphQL1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-		body,err := httputil.DumpRequest(r,true)
+		body, err := httputil.DumpRequest(r, true)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1284,7 +1285,7 @@ func TestExecutor_GraphqlDataSourceWithParams(t *testing.T) {
 								},
 							},
 							DataSource: &GraphQLDataSource{
-								log:zap.NewNop(),
+								log: zap.NewNop(),
 							},
 						},
 						BufferName: "countries",
@@ -2043,7 +2044,7 @@ func TestExecutor_HTTPJSONDataSourceWithPathSelector(t *testing.T) {
 									{
 										Name: []byte("firstNames"),
 										Value: &List{
-											PathSelector:PathSelector{
+											PathSelector: PathSelector{
 												Path: "friends.#.first",
 											},
 											Value: &Value{
@@ -2106,22 +2107,57 @@ func prettyJSON(r io.Reader) string {
 	return string(out)
 }
 
-func TestSelectList(t *testing.T){
-	data := []byte(`
-[
-   {
-      "id":2,
-      "name":"Yaara",
-      "birthday":"1990 I guess? ;-)"
-   },
-   {
-      "id":3,
-      "name":"Ahmet",
-      "birthday":"1980"
-   }
-]
-`)
+func TestExecutor_Introspection(t *testing.T) {
+	executor := NewExecutor()
+	ctx := Context{
+		Context: context.Background(),
+	}
 
-	result := gjson.ParseBytes(data)
-	_ = result
+	schema := []byte(`
+		schema {
+			query: Query
+		}
+		type Query {
+			"""
+			multiline
+			description
+			"""
+			foo: String
+			__schema: __Schema!
+		}
+	`)
+
+	handler, err := NewHandler(schema, zap.NewNop())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	gen := introspection.NewGenerator()
+	report := operationreport.Report{}
+	data := introspection.Data{}
+	gen.Generate(&handler.definition, &report, &data)
+
+	introspectionData, err := json.Marshal(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out := bytes.Buffer{}
+	_, err = executor.Execute(ctx, introspectionQuery(introspectionData), &out)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	response := out.Bytes()
+
+	goldie.Assert(t,"introspection_execution",response)
+	if t.Failed() {
+
+		fixture, err := ioutil.ReadFile("./fixtures/introspection_execution.golden")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		diffview.NewGoland().DiffViewBytes("execution", fixture, response)
+	}
 }

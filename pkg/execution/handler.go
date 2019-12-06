@@ -123,7 +123,7 @@ func (h *Handler) Handle(requestData, extraVariables []byte) (executor *Executor
 
 	executor = NewExecutor()
 	ctx = Context{
-		Variables: variables,
+		Variables:      variables,
 		ExtraArguments: extraArguments,
 	}
 
@@ -184,6 +184,9 @@ func (h *Handler) resolverDefinitions(report *operationreport.Report) ResolverDe
 			},
 			func() DataSourcePlanner {
 				return NewTypeDataSourcePlanner(baseDataSourcePlanner)
+			},
+			func() DataSourcePlanner {
+				return NewNatsDataSourcePlanner(baseDataSourcePlanner)
 			},
 		},
 	}

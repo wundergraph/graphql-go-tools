@@ -86,6 +86,14 @@ directive @mapping
     pathSelector: String
  on FIELD_DEFINITION
 
+"""
+NatsDataSource
+"""
+directive @NatsDataSource
+    addr: String! 
+    topic: String!
+ on FIELD_DEFINITION
+
 directive @StaticDataSource
     data: String
  on FIELD_DEFINITION

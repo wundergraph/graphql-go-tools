@@ -158,15 +158,14 @@ func (e *Executor) resolveNode(node Node, data []byte, path string, prefetch *sy
 			data = unsafebytes.StringToBytes(result.Raw)
 		}
 
-		if e.err == jsonparser.KeyPathNotFoundError {
-			e.err = nil
+		if len(data) == 0 || bytes.Equal(data, literal.NULL) {
 			e.write(literal.NULL)
 			return
 		}
 		if node.QuoteValue {
 			e.write(literal.QUOTE)
 		}
-		e.write(data)
+		e.write(e.escape(data))
 		if node.QuoteValue {
 			e.write(literal.QUOTE)
 		}
@@ -182,10 +181,6 @@ func (e *Executor) resolveNode(node Node, data []byte, path string, prefetch *sy
 				shouldPrefetch = true
 			}
 		}
-
-		/*_, e.err = jsonparser.ArrayEach(data, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
-			listItems = append(listItems, value)
-		}, node.Path...)*/
 
 		var result []gjson.Result
 		if node.PathSelector.Path == "" {
@@ -238,6 +233,28 @@ func (e *Executor) resolveNode(node Node, data []byte, path string, prefetch *sy
 		}
 		e.write(literal.RBRACK)
 	}
+}
+
+func (e *Executor) escape(data []byte) []byte {
+	if !e.dataNeedsEscaping(data) {
+		return data
+	}
+	out, err := json.Marshal(unsafebytes.BytesToString(data))
+	if err != nil {
+		panic(err)
+	}
+	out = out[1 : len(out)-1]
+	return out
+}
+
+func (e *Executor) dataNeedsEscaping(data []byte) bool {
+	for i := range data {
+		switch data[i] {
+		case runes.BACKSLASH, runes.TAB, runes.SPACE, runes.LINETERMINATOR:
+			return true
+		}
+	}
+	return false
 }
 
 func (e *Executor) ResolveArgs(args []Argument, data []byte) ResolvedArgs {
