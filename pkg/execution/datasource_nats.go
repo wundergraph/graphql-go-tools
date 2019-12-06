@@ -5,6 +5,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/nats-io/nats.go"
+	"go.uber.org/zap"
 	"io"
 	"sync"
 	"time"
@@ -30,7 +31,9 @@ func (n *NatsDataSourcePlanner) DirectiveDefinition() []byte {
 }
 
 func (n *NatsDataSourcePlanner) Plan() (DataSource, []Argument) {
-	return &NatsDataSource{}, n.args
+	return &NatsDataSource{
+		log: n.log,
+	}, n.args
 }
 
 func (n *NatsDataSourcePlanner) Initialize(walker *astvisitor.Walker, operation, definition *ast.Document, args []Argument, resolverParameters []ResolverParameter) {
@@ -93,6 +96,7 @@ func (n *NatsDataSourcePlanner) LeaveField(ref int) {
 }
 
 type NatsDataSource struct {
+	log  *zap.Logger
 	conn *nats.Conn
 	sub  *nats.Subscription
 	once sync.Once
@@ -111,6 +115,11 @@ func (n *NatsDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) 
 		if len(addrArg) != 0 {
 			addr = string(addrArg)
 		}
+
+		n.log.Debug("NatsDataSource subscribing",
+			zap.String("addr", addr),
+			zap.String("topic", topic),
+		)
 
 		n.conn, err = nats.Connect(addr)
 		if err != nil {
