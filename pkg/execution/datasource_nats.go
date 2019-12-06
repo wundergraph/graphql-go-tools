@@ -37,7 +37,7 @@ func (n *NatsDataSourcePlanner) Plan() (DataSource, []Argument) {
 }
 
 func (n *NatsDataSourcePlanner) Initialize(walker *astvisitor.Walker, operation, definition *ast.Document, args []Argument, resolverParameters []ResolverParameter) {
-	n.args = args
+	n.walker, n.operation, n.definition, n.args = walker, operation, definition, args
 }
 
 func (n *NatsDataSourcePlanner) EnterInlineFragment(ref int) {
