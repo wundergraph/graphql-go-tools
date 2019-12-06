@@ -3336,6 +3336,448 @@ enum __TypeKind {
 `
 }
 
+func introspectionQuery(schema []byte) RootNode {
+	return &Object{
+		operationType: ast.OperationTypeQuery,
+		Fields: []Field{
+			{
+				Name: []byte("data"),
+				Value: &Object{
+					Fetch: &SingleFetch{
+						Source: &DataSourceInvocation{
+							DataSource: &SchemaDataSource{
+								schemaBytes: schema,
+							},
+						},
+						BufferName: "__schema",
+					},
+					Fields: []Field{
+						{
+							Name:        []byte("__schema"),
+							HasResolver: true,
+							Value: &Object{
+								PathSelector: PathSelector{
+									Path: "__schema",
+								},
+								Fields: []Field{
+									{
+										Name: []byte("queryType"),
+										Value: &Object{
+											PathSelector: PathSelector{
+												Path: "queryType",
+											},
+											Fields: []Field{
+												{
+													Name: []byte("name"),
+													Value: &Value{
+														PathSelector: PathSelector{
+															Path: "name",
+														},
+														QuoteValue: true,
+													},
+												},
+											},
+										},
+									},
+									{
+										Name: []byte("mutationType"),
+										Value: &Object{
+											PathSelector: PathSelector{
+												Path: "mutationType",
+											},
+											Fields: []Field{
+												{
+													Name: []byte("name"),
+													Value: &Value{
+														PathSelector: PathSelector{
+															Path: "name",
+														},
+														QuoteValue: true,
+													},
+												},
+											},
+										},
+									},
+									{
+										Name: []byte("subscriptionType"),
+										Value: &Object{
+											PathSelector: PathSelector{
+												Path: "subscriptionType",
+											},
+											Fields: []Field{
+												{
+													Name: []byte("name"),
+													Value: &Value{
+														PathSelector: PathSelector{
+															Path: "name",
+														},
+														QuoteValue: true,
+													},
+												},
+											},
+										},
+									},
+									{
+										Name: []byte("types"),
+										Value: &List{
+											PathSelector: PathSelector{
+												Path: "types",
+											},
+											Value: &Object{
+												Fields: []Field{
+													{
+														Name: []byte("kind"),
+														Value: &Value{
+															PathSelector: PathSelector{
+																Path: "kind",
+															},
+															QuoteValue: true,
+														},
+													},
+													{
+														Name: []byte("name"),
+														Value: &Value{
+															PathSelector: PathSelector{
+																Path: "name",
+															},
+															QuoteValue: true,
+														},
+													},
+													{
+														Name: []byte("description"),
+														Value: &Value{
+															PathSelector: PathSelector{
+																Path: "description",
+															},
+															QuoteValue: true,
+														},
+													},
+													{
+														Name: []byte("fields"),
+														Value: &List{
+															PathSelector: PathSelector{
+																Path: "fields",
+															},
+															Value: &Object{
+																Fields: []Field{
+																	{
+																		Name: []byte("name"),
+																		Value: &Value{
+																			PathSelector: PathSelector{
+																				Path: "name",
+																			},
+																			QuoteValue: true,
+																		},
+																	},
+																	{
+																		Name: []byte("description"),
+																		Value: &Value{
+																			PathSelector: PathSelector{
+																				Path: "description",
+																			},
+																			QuoteValue: true,
+																		},
+																	},
+																	{
+																		Name: []byte("args"),
+																		Value: &List{
+																			PathSelector: PathSelector{
+																				Path: "args",
+																			},
+																			Value: &Object{
+																				Fields: []Field{
+																					{
+																						Name: []byte("name"),
+																						Value: &Value{
+																							PathSelector: PathSelector{
+																								Path: "name",
+																							},
+																							QuoteValue: true,
+																						},
+																					},
+																					{
+																						Name: []byte("description"),
+																						Value: &Value{
+																							PathSelector: PathSelector{
+																								Path: "description",
+																							},
+																							QuoteValue: true,
+																						},
+																					},
+																					{
+																						Name: []byte("type"),
+																						Value: &Object{
+																							PathSelector: PathSelector{
+																								Path: "type",
+																							},
+																							Fields: kindNameDeepFields,
+																						},
+																					},
+																					{
+																						Name: []byte("defaultValue"),
+																						Value: &Value{
+																							PathSelector: PathSelector{
+																								Path: "defaultValue",
+																							},
+																							QuoteValue: true,
+																						},
+																					},
+																				},
+																			},
+																		},
+																	},
+																	{
+																		Name: []byte("type"),
+																		Value: &Object{
+																			PathSelector: PathSelector{
+																				Path: "type",
+																			},
+																			Fields: kindNameDeepFields,
+																		},
+																	},
+																	{
+																		Name: []byte("isDeprecated"),
+																		Value: &Value{
+																			PathSelector: PathSelector{
+																				Path: "isDeprecated",
+																			},
+																			QuoteValue: false,
+																		},
+																	},
+																	{
+																		Name: []byte("deprecationReason"),
+																		Value: &Value{
+																			PathSelector: PathSelector{
+																				Path: "deprecationReason",
+																			},
+																			QuoteValue: true,
+																		},
+																	},
+																},
+															},
+														},
+													},
+													{
+														Name: []byte("inputFields"),
+														Value: &List{
+															PathSelector: PathSelector{
+																Path: "inputFields",
+															},
+															Value: &Object{
+																Fields: []Field{
+																	{
+																		Name: []byte("name"),
+																		Value: &Value{
+																			PathSelector: PathSelector{
+																				Path: "name",
+																			},
+																			QuoteValue: true,
+																		},
+																	},
+																	{
+																		Name: []byte("description"),
+																		Value: &Value{
+																			PathSelector: PathSelector{
+																				Path: "description",
+																			},
+																			QuoteValue: true,
+																		},
+																	},
+																	{
+																		Name: []byte("type"),
+																		Value: &Object{
+																			PathSelector: PathSelector{
+																				Path: "type",
+																			},
+																			Fields: kindNameDeepFields,
+																		},
+																	},
+																	{
+																		Name: []byte("defaultValue"),
+																		Value: &Value{
+																			PathSelector: PathSelector{
+																				Path: "defaultValue",
+																			},
+																			QuoteValue: true,
+																		},
+																	},
+																},
+															},
+														},
+													},
+													{
+														Name: []byte("interfaces"),
+														Value: &List{
+															PathSelector: PathSelector{
+																Path: "interfaces",
+															},
+															Value: &Object{
+																Fields: kindNameDeepFields,
+															},
+														},
+													},
+													{
+														Name: []byte("enumValues"),
+														Value: &List{
+															PathSelector: PathSelector{
+																Path: "enumValues",
+															},
+															Value: &Object{
+																Fields: []Field{
+																	{
+																		Name: []byte("name"),
+																		Value: &Value{
+																			PathSelector: PathSelector{
+																				Path: "name",
+																			},
+																			QuoteValue: true,
+																		},
+																	},
+																	{
+																		Name: []byte("description"),
+																		Value: &Value{
+																			PathSelector: PathSelector{
+																				Path: "description",
+																			},
+																			QuoteValue: true,
+																		},
+																	},
+																	{
+																		Name: []byte("isDeprecated"),
+																		Value: &Value{
+																			PathSelector: PathSelector{
+																				Path: "isDeprecated",
+																			},
+																			QuoteValue: false,
+																		},
+																	},
+																	{
+																		Name: []byte("deprecationReason"),
+																		Value: &Value{
+																			PathSelector: PathSelector{
+																				Path: "deprecationReason",
+																			},
+																			QuoteValue: true,
+																		},
+																	},
+																},
+															},
+														},
+													},
+													{
+														Name: []byte("possibleTypes"),
+														Value: &List{
+															PathSelector: PathSelector{
+																Path: "possibleTypes",
+															},
+															Value: &Object{
+																Fields: kindNameDeepFields,
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+									{
+										Name: []byte("directives"),
+										Value: &List{
+											PathSelector: PathSelector{
+												Path: "directives",
+											},
+											Value: &Object{
+												Fields: []Field{
+													{
+														Name: []byte("name"),
+														Value: &Value{
+															PathSelector: PathSelector{
+																Path: "name",
+															},
+															QuoteValue: true,
+														},
+													},
+													{
+														Name: []byte("description"),
+														Value: &Value{
+															PathSelector: PathSelector{
+																Path: "description",
+															},
+															QuoteValue: true,
+														},
+													},
+													{
+														Name: []byte("locations"),
+														Value: &List{
+															PathSelector: PathSelector{
+																Path: "locations",
+															},
+															Value: &Value{
+																QuoteValue: true,
+															},
+														},
+													},
+													{
+														Name: []byte("args"),
+														Value: &List{
+															PathSelector: PathSelector{
+																Path: "args",
+															},
+															Value: &Object{
+																Fields: []Field{
+																	{
+																		Name: []byte("name"),
+																		Value: &Value{
+																			PathSelector: PathSelector{
+																				Path: "name",
+																			},
+																			QuoteValue: true,
+																		},
+																	},
+																	{
+																		Name: []byte("description"),
+																		Value: &Value{
+																			PathSelector: PathSelector{
+																				Path: "description",
+																			},
+																			QuoteValue: true,
+																		},
+																	},
+																	{
+																		Name: []byte("type"),
+																		Value: &Object{
+																			PathSelector: PathSelector{
+																				Path: "type",
+																			},
+																			Fields: kindNameDeepFields,
+																		},
+																	},
+																	{
+																		Name: []byte("defaultValue"),
+																		Value: &Value{
+																			PathSelector: PathSelector{
+																				Path: "defaultValue",
+																			},
+																			QuoteValue: true,
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
 var kindNameDeepFields = []Field{
 	{
 		Name: []byte("kind"),
