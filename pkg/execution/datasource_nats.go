@@ -126,7 +126,9 @@ func (n *NatsDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) 
 					zap.String("topic", topic),
 				)
 				err := n.sub.Unsubscribe()
-				n.log.Error("Unsubscribe", zap.Error(err))
+				if err != nil {
+					n.log.Error("Unsubscribe", zap.Error(err))
+				}
 			}
 			if n.conn != nil {
 				n.log.Debug("NatsDataSource.closing",
