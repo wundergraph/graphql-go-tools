@@ -8,6 +8,7 @@ import (
 	"github.com/cespare/xxhash"
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/escape"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/runes"
 	"github.com/tidwall/gjson"
@@ -24,6 +25,7 @@ type Executor struct {
 	err          error
 	buffers      LockableBufferMap
 	instructions []Instruction
+	escapeBuf    [48]byte
 }
 
 type LockableBufferMap struct {
@@ -165,7 +167,8 @@ func (e *Executor) resolveNode(node Node, data []byte, path string, prefetch *sy
 		if node.QuoteValue {
 			e.write(literal.QUOTE)
 		}
-		e.write(e.escape(data))
+		data = escape.Bytes(data,e.escapeBuf[:0])
+		e.write(data)
 		if node.QuoteValue {
 			e.write(literal.QUOTE)
 		}
@@ -233,28 +236,6 @@ func (e *Executor) resolveNode(node Node, data []byte, path string, prefetch *sy
 		}
 		e.write(literal.RBRACK)
 	}
-}
-
-func (e *Executor) escape(data []byte) []byte {
-	if !e.dataNeedsEscaping(data) {
-		return data
-	}
-	out, err := json.Marshal(unsafebytes.BytesToString(data))
-	if err != nil {
-		panic(err)
-	}
-	out = out[1 : len(out)-1]
-	return out
-}
-
-func (e *Executor) dataNeedsEscaping(data []byte) bool {
-	for i := range data {
-		switch data[i] {
-		case runes.BACKSLASH, runes.TAB, runes.SPACE, runes.LINETERMINATOR:
-			return true
-		}
-	}
-	return false
 }
 
 func (e *Executor) ResolveArgs(args []Argument, data []byte) ResolvedArgs {
