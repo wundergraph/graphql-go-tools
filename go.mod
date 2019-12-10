@@ -6,6 +6,7 @@ require (
 	github.com/buger/jsonparser v0.0.0-20181115193947-bf1c66bbce23
 	github.com/cespare/xxhash v1.1.0
 	github.com/davecgh/go-spew v1.1.1
+	github.com/eclipse/paho.mqtt.golang v1.2.0
 	github.com/go-test/deep v1.0.4
 	github.com/gobuffalo/packr v1.30.1
 	github.com/gobwas/httphead v0.0.0-20180130184737-2c6c146eadee // indirect

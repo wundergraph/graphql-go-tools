@@ -87,6 +87,15 @@ directive @mapping
  on FIELD_DEFINITION
 
 """
+MQTTDataSource
+"""
+directive @MQTTDataSource
+    brokerAddr: String! 
+    clientID: String! 
+    topic: String!
+ on FIELD_DEFINITION
+
+"""
 NatsDataSource
 """
 directive @NatsDataSource

@@ -1,0 +1,8 @@
+"""
+MQTTDataSource
+"""
+directive @MQTTDataSource (
+    brokerAddr: String!
+    clientID: String!
+    topic: String!
+) on FIELD_DEFINITION

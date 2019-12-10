@@ -68,6 +68,8 @@ var (
 	DATA               = []byte("data")
 	URL                = []byte("url")
 	ADDR               = []byte("addr")
+	BROKERADDR         = []byte("brokerAddr")
+	CLIENTID           = []byte("clientID")
 	TOPIC              = []byte("topic")
 	HOST               = []byte("host")
 	PARAMS             = []byte("params")
