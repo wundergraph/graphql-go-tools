@@ -188,6 +188,9 @@ func (h *Handler) resolverDefinitions(report *operationreport.Report) ResolverDe
 			func() DataSourcePlanner {
 				return NewNatsDataSourcePlanner(baseDataSourcePlanner)
 			},
+			func() DataSourcePlanner {
+				return NewMQTTDataSourcePlanner(baseDataSourcePlanner)
+			},
 		},
 	}
 	walker.RegisterEnterFieldDefinitionVisitor(&visitor)
