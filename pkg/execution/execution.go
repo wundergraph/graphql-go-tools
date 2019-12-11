@@ -287,6 +287,14 @@ func (e *Executor) ResolveArgs(args []Argument, data []byte) ResolvedArgs {
 					}
 				}
 			}
+			if strings.HasPrefix(tag,".object."){
+				tag = strings.TrimPrefix(tag,".object.")
+				result := gjson.GetBytes(data,tag)
+				if result.Type == gjson.String {
+					return w.Write(unsafebytes.StringToBytes(result.Str))
+				}
+				return w.Write(unsafebytes.StringToBytes(result.Raw))
+			}
 			for j := range resolved {
 				key := string(resolved[j].Key)
 				if strings.HasPrefix(tag, ".") && !strings.HasPrefix(key, ".") {
@@ -300,9 +308,11 @@ func (e *Executor) ResolveArgs(args []Argument, data []byte) ResolvedArgs {
 					return w.Write(resolved[j].Value)
 				}
 				key = strings.TrimPrefix(key, ".")
-				keys := strings.Split(key, ".")
-				value, _, _, _ := jsonparser.Get(resolved[j].Value, keys...)
-				return w.Write(value)
+				result := gjson.GetBytes(resolved[j].Value,key)
+				if result.Type == gjson.String {
+					return w.Write(unsafebytes.StringToBytes(result.Str))
+				}
+				return w.Write(unsafebytes.StringToBytes(result.Raw))
 			}
 			return w.Write([]byte("{{ " + tag + " }}"))
 		})

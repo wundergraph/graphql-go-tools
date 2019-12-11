@@ -65,6 +65,7 @@ var (
 	ON                 = []byte("on")
 	FRAGMENT           = []byte("fragment")
 	NULL               = []byte("null")
+	OBJECT             = []byte("object")
 	DATA               = []byte("data")
 	URL                = []byte("url")
 	ADDR               = []byte("addr")

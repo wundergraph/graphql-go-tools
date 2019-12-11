@@ -1168,6 +1168,155 @@ func TestExecutor_ListFilterFirstN(t *testing.T) {
 	}
 }
 
+func TestExecutor_ObjectVariables(t *testing.T) {
+
+	REST1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		if r.Method != http.MethodPost {
+			t.Fatalf("want method POST, got: %s", r.Method)
+			return
+		}
+
+		got, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		want := []byte(`{"id":1}`)
+
+		if !bytes.Equal(want, got) {
+			t.Fatalf("want: '%s', got: '%s'", string(want), string(got))
+		}
+
+		response := []byte(`{"name":"Woof","age":3}`)
+
+		_, err = w.Write(response)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}))
+
+	plan := &Object{
+		operationType: ast.OperationTypeQuery,
+		Fields: []Field{
+			{
+				Name: []byte("data"),
+				Value: &Object{
+					Fetch: &SingleFetch{
+						Source: &DataSourceInvocation{
+							Args: []Argument{
+								&StaticVariableArgument{
+									Value: []byte(`{"name": "Jens","id":1}`),
+								},
+							},
+							DataSource: &StaticDataSource{},
+						},
+						BufferName: "user",
+					},
+					Fields: []Field{
+						{
+							Name:        []byte("user"),
+							HasResolver: true,
+							Value: &Object{
+								Fetch: &SingleFetch{
+									BufferName: "pet",
+									Source: &DataSourceInvocation{
+										Args: []Argument{
+											&StaticVariableArgument{
+												Name:  literal.HOST,
+												Value: []byte(REST1.URL),
+											},
+											&StaticVariableArgument{
+												Name:  literal.URL,
+												Value: []byte("/"),
+											},
+											&StaticVariableArgument{
+												Name:  literal.METHOD,
+												Value: []byte("POST"),
+											},
+											&StaticVariableArgument{
+												Name:  literal.BODY,
+												Value: []byte(`{"id":{{ .object.id }}}`),
+											},
+										},
+										DataSource: &HttpJsonDataSource{
+											log: zap.NewNop(),
+										},
+									},
+								},
+								Fields: []Field{
+									{
+										Name: []byte("name"),
+										Value: &Value{
+											PathSelector: PathSelector{
+												Path: "name",
+											},
+											QuoteValue: true,
+										},
+									},
+									{
+										Name: []byte("id"),
+										Value: &Value{
+											PathSelector: PathSelector{
+												Path: "id",
+											},
+											QuoteValue: false,
+										},
+									},
+									{
+										Name:        []byte("pet"),
+										HasResolver: true,
+										Value: &Object{
+											Fields: []Field{
+												{
+													Name: []byte("name"),
+													Value: &Value{
+														PathSelector: PathSelector{
+															Path: "name",
+														},
+														QuoteValue: true,
+													},
+												},
+												{
+													Name: []byte("age"),
+													Value: &Value{
+														PathSelector: PathSelector{
+															Path: "age",
+														},
+														QuoteValue: false,
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	out := &bytes.Buffer{}
+	ex := NewExecutor()
+	ctx := Context{
+		Context: context.Background(),
+	}
+
+	_, err := ex.Execute(ctx, plan, out)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := `{"data":{"user":{"name":"Jens","id":1,"pet":{"name":"Woof","age":3}}}}`
+	got := out.String()
+
+	if got != want {
+		t.Fatalf("want: %s\ngot: %s\n", want, got)
+	}
+}
+
 func TestExecutor_ListWithPath(t *testing.T) {
 
 	plan := &Object{
@@ -2150,7 +2299,7 @@ func TestExecutor_Introspection(t *testing.T) {
 
 	response := out.Bytes()
 
-	goldie.Assert(t,"introspection_execution",response)
+	goldie.Assert(t, "introspection_execution", response)
 	if t.Failed() {
 
 		fixture, err := ioutil.ReadFile("./fixtures/introspection_execution.golden")
