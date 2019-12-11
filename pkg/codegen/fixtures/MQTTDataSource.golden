@@ -1,0 +1,14 @@
+package main
+
+type DataSource struct {
+	BrokerAddr                   string
+	ClientID                     string
+	Topic                        string
+	IntField                     int64
+	BoolField                    bool
+	NullableBool                 *bool
+	NullableListOfNullableString *[]*string
+	NonNullListOfNullableString  []*string
+	NonNullListOfNonNullString   []string
+	NonNullListOfNullableCustom  []*CustomStruct
+}
