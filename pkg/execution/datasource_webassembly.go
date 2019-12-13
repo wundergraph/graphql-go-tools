@@ -101,6 +101,11 @@ func (s *WasmDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) 
 	input := args.ByKey(literal.INPUT)
 	wasmFile := args.ByKey(literal.WASMFILE)
 
+	s.log.Debug("WasmDataSource.Resolve.args",
+		zap.ByteString("input",input),
+		zap.ByteString("wasmFile",wasmFile),
+	)
+
 	s.once.Do(func() {
 		wasmData, err := wasm.ReadBytes(string(wasmFile))
 		if err != nil {
@@ -115,6 +120,8 @@ func (s *WasmDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) 
 				zap.Error(err),
 			)
 		}
+
+		s.log.Debug("WasmDataSource.wasm.NewInstance OK")
 	})
 
 	inputLen := len(input)

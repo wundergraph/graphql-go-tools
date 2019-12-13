@@ -7,6 +7,7 @@ import (
 	"testing"
 )
 
+// nolint
 func TestWasm(t *testing.T){
 	bytes, _ := wasm.ReadBytes("./testdata/memory.wasm")
 	instance, _ := wasm.NewInstance(bytes)
@@ -58,6 +59,7 @@ func TestWasm(t *testing.T){
 	deallocate(start, stop-start)
 }
 
+// nolint
 func BenchmarkWasm(b *testing.B) {
 	bytes, _ := wasm.ReadBytes("./testdata/memory.wasm")
 	instance, _ := wasm.NewInstance(bytes)

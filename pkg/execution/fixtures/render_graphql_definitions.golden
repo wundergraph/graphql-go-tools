@@ -107,6 +107,11 @@ directive @StaticDataSource
     data: String
  on FIELD_DEFINITION
 
+directive @WasmDataSource
+    input: String! 
+    wasmFile: String!
+ on FIELD_DEFINITION
+
 enum HTTP_METHOD {
     GET
     POST
