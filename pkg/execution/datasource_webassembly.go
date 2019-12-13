@@ -1,6 +1,7 @@
 package execution
 
 import (
+	"bytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
@@ -74,6 +75,7 @@ func (w *WasmDataSourcePlanner) EnterField(ref int) {
 		return
 	}
 	staticValue = w.definition.StringValueContentBytes(value.Ref)
+	staticValue = bytes.ReplaceAll(staticValue, literal.BACKSLASH, nil)
 	w.args = append(w.args, &StaticVariableArgument{
 		Name:  literal.INPUT,
 		Value: staticValue,
