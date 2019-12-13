@@ -80,6 +80,26 @@ func (w *WasmDataSourcePlanner) EnterField(ref int) {
 		Name:  literal.INPUT,
 		Value: staticValue,
 	})
+
+	// args
+	if w.operation.FieldHasArguments(ref) {
+		args := w.operation.FieldArguments(ref)
+		for _, i := range args {
+			argName := w.operation.ArgumentNameBytes(i)
+			value := w.operation.ArgumentValue(i)
+			if value.Kind != ast.ValueKindVariable {
+				continue
+			}
+			variableName := w.operation.VariableValueNameBytes(value.Ref)
+			name := append([]byte(".arguments."), argName...)
+			arg := &ContextVariableArgument{
+				VariableName: variableName,
+				Name:         make([]byte, len(name)),
+			}
+			copy(arg.Name, name)
+			w.args = append(w.args, arg)
+		}
+	}
 }
 
 func (w *WasmDataSourcePlanner) LeaveField(ref int) {
