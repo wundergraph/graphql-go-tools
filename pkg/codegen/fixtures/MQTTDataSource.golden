@@ -1,14 +1,44 @@
 package main
 
 type DataSource struct {
-	BrokerAddr                   string
-	ClientID                     string
-	Topic                        string
-	IntField                     int64
-	BoolField                    bool
-	NullableBool                 *bool
-	NullableListOfNullableString *[]*string
-	NonNullListOfNullableString  []*string
-	NonNullListOfNonNullString   []string
-	NonNullListOfNullableCustom  []*CustomStruct
+	BrokerAddr                    string
+	ClientID                      string
+	Topic                         string
+	IntField                      int64
+	BoolField                     bool
+	NullableBool                  *bool
+	NullableListOfNullableString  *[]*string
+	NonNullListOfNullableString   []*string
+	NonNullListOfNonNullString    []string
+	NullableListOfNullableHeader  *[]*Header
+	NonNullListOfNullableHeader   []*Header
+	NonNullListOfNonNullParameter []Parameter
 }
+type Header struct {
+	Key   string
+	Value string
+}
+type Parameter struct {
+	Name         string
+	SourceKind   PARAMETER_SOURCE
+	SourceName   string
+	VariableType string
+}
+type HTTP_METHOD int
+
+const (
+	UNDEFINED_HTTP_METHOD HTTP_METHOD = iota
+	HTTP_METHOD_GET
+	HTTP_METHOD_POST
+	HTTP_METHOD_UPDATE
+	HTTP_METHOD_DELETE
+)
+
+type PARAMETER_SOURCE int
+
+const (
+	UNDEFINED_PARAMETER_SOURCE PARAMETER_SOURCE = iota
+	PARAMETER_SOURCE_CONTEXT_VARIABLE
+	PARAMETER_SOURCE_OBJECT_VARIABLE_ARGUMENT
+	PARAMETER_SOURCE_FIELD_ARGUMENTS
+)

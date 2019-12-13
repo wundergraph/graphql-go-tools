@@ -1619,9 +1619,9 @@ type IntValue struct {
 	Raw          ByteSliceReference // e.g. 123
 }
 
-func (d *Document) IntValueAsInt(ref int) (out int) {
+func (d *Document) IntValueAsInt(ref int) (out int64) {
 	in := d.Input.ByteSlice(d.IntValues[ref].Raw)
-	out = int(unsafebytes.BytesToInt64(in))
+	out = unsafebytes.BytesToInt64(in)
 	if d.IntValues[ref].Negative {
 		out = -out
 	}

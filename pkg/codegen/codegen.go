@@ -54,7 +54,7 @@ func (g *genVisitor) camelCase(in string) string {
 	return strcase.ToCamel(in)
 }
 
-func (g *genVisitor) renderType(stmt *Statement,ref int, nullable bool){
+func (g *genVisitor) renderType(stmt *Statement, ref int, nullable bool) {
 	graphqlType := g.doc.Types[ref]
 	switch graphqlType.TypeKind {
 	case ast.TypeKindNamed:
@@ -75,12 +75,12 @@ func (g *genVisitor) renderType(stmt *Statement,ref int, nullable bool){
 			stmt.Id(typeName)
 		}
 	case ast.TypeKindNonNull:
-		g.renderType(stmt,graphqlType.OfType,false)
+		g.renderType(stmt, graphqlType.OfType, false)
 	case ast.TypeKindList:
 		if nullable {
 			stmt.Id("*")
 		}
-		g.renderType(stmt.Id("[]"),graphqlType.OfType,true)
+		g.renderType(stmt.Id("[]"), graphqlType.OfType, true)
 	}
 }
 
@@ -185,7 +185,19 @@ func (g *genVisitor) EnterEnumTypeDefinition(ref int) {
 }
 
 func (g *genVisitor) LeaveEnumTypeDefinition(ref int) {
-
+	name := g.doc.EnumTypeDefinitionNameString(ref)
+	g.file.Type().Id(name).Int()
+	refs := g.doc.EnumTypeDefinitions[ref].EnumValuesDefinition.Refs
+	if len(refs) == 0 {
+		return
+	}
+	g.file.Const().DefsFunc(func(group *Group) {
+		group.Id("UNDEFINED_" + name).Id(name).Op("=").Id("iota")
+		for _, i := range refs {
+			valueName := g.doc.EnumValueDefinitionNameString(i)
+			group.Id(name + "_" + valueName)
+		}
+	})
 }
 
 func (g *genVisitor) EnterEnumTypeExtension(ref int) {
@@ -205,6 +217,14 @@ func (g *genVisitor) LeaveEnumValueDefinition(ref int) {
 }
 
 func (g *genVisitor) EnterInputObjectTypeDefinition(ref int) {
+	structName := g.doc.InputObjectTypeDefinitionNameString(ref)
+	g.file.Type().Id(structName).StructFunc(func(group *Group) {
+		for _, i := range g.doc.InputObjectTypeDefinitions[ref].InputFieldsDefinition.Refs {
+			name := g.camelCase(g.doc.InputValueDefinitionNameString(i))
+			stmt := group.Id(name)
+			g.renderType(stmt, g.doc.InputValueDefinitionType(i), true)
+		}
+	})
 
 }
 
@@ -226,7 +246,7 @@ func (g *genVisitor) EnterDirectiveDefinition(ref int) {
 		for _, i := range g.doc.DirectiveDefinitions[ref].ArgumentsDefinition.Refs {
 			name := g.camelCase(g.doc.InputValueDefinitionNameString(i))
 			stmt := group.Id(name)
-			g.renderType(stmt,g.doc.InputValueDefinitionType(i),true)
+			g.renderType(stmt, g.doc.InputValueDefinitionType(i), true)
 		}
 	})
 }

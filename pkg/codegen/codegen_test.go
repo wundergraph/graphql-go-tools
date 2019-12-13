@@ -22,8 +22,36 @@ func TestCodeGen_GenerateDirectiveDefinitionStruct(t *testing.T) {
 			nullableListOfNullableString: [String]
 			nonNullListOfNullableString: [String]!
 			nonNullListOfNonNullString: [String!]!
-			nonNullListOfNullableCustom: [CustomStruct]!
-		) on FIELD_DEFINITION`)
+			nullableListOfNullableHeader: [Header]
+			nonNullListOfNullableHeader: [Header]!
+			nonNullListOfNonNullParameter: [Parameter!]!
+		) on FIELD_DEFINITION
+
+		input Header {
+			key: String!
+			value: String!
+		}
+
+		input Parameter {
+			name: String!
+			sourceKind: PARAMETER_SOURCE!
+			sourceName: String!
+			variableType: String!
+		}
+
+		enum HTTP_METHOD {
+			GET
+			POST
+			UPDATE
+			DELETE
+		}
+
+		enum PARAMETER_SOURCE {
+			CONTEXT_VARIABLE
+			OBJECT_VARIABLE_ARGUMENT
+			FIELD_ARGUMENTS
+		}
+	`)
 
 	gen := NewCodeGen(&doc, "main")
 	out := bytes.Buffer{}
