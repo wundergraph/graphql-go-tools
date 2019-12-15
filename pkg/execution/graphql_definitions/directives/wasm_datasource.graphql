@@ -1,0 +1,4 @@
+directive @WasmDataSource (
+    input: String!
+    wasmFile: String!
+) on FIELD_DEFINITION

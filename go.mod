@@ -19,6 +19,7 @@ require (
 	github.com/stretchr/testify v1.4.0 // indirect
 	github.com/tidwall/gjson v1.3.5
 	github.com/valyala/fasttemplate v1.1.0
+	github.com/wasmerio/go-ext-wasm v0.0.0-20191213132134-adcef605ea8e
 	go.uber.org/atomic v1.4.0 // indirect
 	go.uber.org/multierr v1.2.0 // indirect
 	go.uber.org/zap v1.11.0
