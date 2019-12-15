@@ -19,7 +19,7 @@ func TestWASMDataSource_Resolve(t *testing.T) {
 		Id: "1",
 	}
 
-	input,_ := json.Marshal(person)
+	input := []byte("{\"id\":\"1\"}")
 
 	planner := NewWasmDataSourcePlanner(BaseDataSourcePlanner{
 		log:zap.NewNop(),
