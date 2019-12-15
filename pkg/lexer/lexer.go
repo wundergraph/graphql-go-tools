@@ -1,3 +1,4 @@
+// Package lexer takes an ast.Input and generates tokens from it.
 package lexer
 
 import (

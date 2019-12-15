@@ -1,3 +1,6 @@
+// Package asttransform contains a set of helper methods to make recursive ast transformations possible.
+//
+// This is especially useful for ast normalization for nested fragment inlining.
 package asttransform
 
 import (

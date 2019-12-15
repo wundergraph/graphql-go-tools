@@ -1,3 +1,4 @@
+// Package astnormalization helps to transform parsed GraphQL AST's into a easier to use structure.
 package astnormalization
 
 import (

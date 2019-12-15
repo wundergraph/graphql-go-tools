@@ -1,3 +1,4 @@
+// Package astparser takes a raw input and parses it into a GraphQL document.
 package astparser
 
 import (

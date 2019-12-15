@@ -1,3 +1,4 @@
+// Package astprinter takes a GraphQL document and prints it as a String with optional indentation.
 package astprinter
 
 import (

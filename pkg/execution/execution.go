@@ -1,3 +1,5 @@
+// Package execution is a complete GraphQL runtime.
+// It contains a Handler to orchestrate the execution, a Query Planner to generate a Query Plan from an AST as well as the Executor to execute a Query Plan.
 package execution
 
 import (

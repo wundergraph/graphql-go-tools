@@ -1,3 +1,6 @@
+// Package astimport can be used to import Nodes from one ast into another.
+//
+// This is useful in situations where new ast's should be created from existing ast's.
 package astimport
 
 import (
