@@ -37,7 +37,6 @@ type (
 	Precedence struct {
 		Depth int
 		Order int
-		last  int
 	}
 	action struct {
 		precedence     Precedence
