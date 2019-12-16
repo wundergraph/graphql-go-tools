@@ -2,6 +2,7 @@ package astimport
 
 import (
 	"bytes"
+	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"testing"
 )
@@ -29,4 +30,22 @@ func TestImporter_ImportType(t *testing.T) {
 			t.Fatalf("want: {{%s}}\ngot: {{%s}}'",string(typeBytes),string(out))
 		}
 	}
+}
+
+func ExampleImporter_ImportType() {
+	typeBytes := []byte("String!")
+	doc := ast.Document{}
+	importer := NewImporter()
+
+	ref := importer.ImportType(typeBytes,&doc)
+	// reference to the type
+	fmt.Println(ref)
+	// reference to the nested type
+	fmt.Println(doc.Types[ref].OfType)
+	// name of the nested type
+	fmt.Println(doc.TypeNameString(doc.Types[ref].OfType))
+	// Output:
+	// 1
+	// 0
+	// String
 }
