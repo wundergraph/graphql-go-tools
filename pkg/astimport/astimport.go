@@ -30,7 +30,7 @@ func (i *Importer) prepare (inputBytes []byte) {
 	i.doc.Reset()
 	i.report.Reset()
 	i.doc.Input.ResetInputBytes(inputBytes)
-	i.parser.Prepare(i.doc, i.report)
+	i.parser.PrepareImport(i.doc, i.report)
 }
 
 // ImportType imports a Type in GraphQL format into the provided AST.
