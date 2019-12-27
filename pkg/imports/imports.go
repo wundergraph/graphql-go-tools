@@ -1,3 +1,4 @@
+// Package imports helps combining multiple GraphQL documents into one document using import comments.
 package imports
 
 import (

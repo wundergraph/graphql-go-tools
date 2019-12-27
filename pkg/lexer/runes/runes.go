@@ -1,3 +1,4 @@
+// Package runes contains all possible 'special' runes in a GraphQL document
 package runes
 
 const (

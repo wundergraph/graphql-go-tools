@@ -1,4 +1,6 @@
 //go:generate stringer -type=ValidationState -output astvalidation_string.go
+
+// Package astvalidation implements the validation rules specified in the GraphQL specification.
 package astvalidation
 
 import (
@@ -11,6 +13,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
+// DefaultOperationValidator returns a fully initialized OperationValidator with all default rules registered
 func DefaultOperationValidator() *OperationValidator {
 
 	validator := OperationValidator{
@@ -38,6 +41,7 @@ func DefaultOperationValidator() *OperationValidator {
 	return &validator
 }
 
+// ValidationState is the outcome of a validation
 type ValidationState int
 
 const (
@@ -46,16 +50,20 @@ const (
 	Invalid
 )
 
+// Rule is hook to register callback functions on the Walker
 type Rule func(walker *astvisitor.Walker)
 
+// OperationValidator orchestrates the validation process of Operations
 type OperationValidator struct {
 	walker astvisitor.Walker
 }
 
+// RegisterRule registers a rule to the OperationValidator
 func (o *OperationValidator) RegisterRule(rule Rule) {
 	rule(&o.walker)
 }
 
+// Validate validates the operation against the definition using the registered ruleset.
 func (o *OperationValidator) Validate(operation, definition *ast.Document, report *operationreport.Report) ValidationState {
 
 	if report == nil {
@@ -70,6 +78,7 @@ func (o *OperationValidator) Validate(operation, definition *ast.Document, repor
 	return Valid
 }
 
+// OperationNameUniqueness validates if all operation names are unique
 func OperationNameUniqueness() Rule {
 	return func(walker *astvisitor.Walker) {
 		walker.RegisterEnterDocumentVisitor(&operationNameUniquenessVisitor{walker})
@@ -103,6 +112,7 @@ func (o *operationNameUniquenessVisitor) EnterDocument(operation, definition *as
 	}
 }
 
+// LoneAnonymousOperation validates if anonymous operations are alone in a given document.
 func LoneAnonymousOperation() Rule {
 	return func(walker *astvisitor.Walker) {
 		walker.RegisterEnterDocumentVisitor(&loneAnonymousOperationVisitor{walker})
@@ -126,6 +136,7 @@ func (l *loneAnonymousOperationVisitor) EnterDocument(operation, definition *ast
 	}
 }
 
+// SubscriptionSingleRootField validates if subscriptions have a single root field
 func SubscriptionSingleRootField() Rule {
 	return func(walker *astvisitor.Walker) {
 		visitor := subscriptionSingleRootFieldVisitor{walker}
@@ -155,6 +166,7 @@ func (s *subscriptionSingleRootFieldVisitor) EnterDocument(operation, definition
 	}
 }
 
+// FieldSelections validates if all FieldSelections are possible and valid
 func FieldSelections() Rule {
 	return func(walker *astvisitor.Walker) {
 		fieldDefined := fieldDefined{
@@ -229,6 +241,7 @@ func (f *fieldDefined) EnterField(ref int) {
 	}
 }
 
+// FieldSelectionMerging validates if field selections can be merged
 func FieldSelectionMerging() Rule {
 	return func(walker *astvisitor.Walker) {
 		visitor := fieldSelectionMergingVisitor{Walker: walker}
@@ -448,6 +461,7 @@ func (f *fieldSelectionMergingVisitor) EnterSelectionSet(ref int) {
 
 }
 
+// ValidArguments validates if arguments are valid
 func ValidArguments() Rule {
 	return func(walker *astvisitor.Walker) {
 		visitor := validArgumentsVisitor{
@@ -624,6 +638,7 @@ func (v *validArgumentsVisitor) operationTypeSatisfiesDefinitionType(operationTy
 	}
 }
 
+// Values validates if values are used properly
 func Values() Rule {
 	return func(walker *astvisitor.Walker) {
 		visitor := valuesVisitor{
@@ -830,6 +845,7 @@ func (v *valuesVisitor) valueSatisfiesScalar(value ast.Value, scalar int) bool {
 	}
 }
 
+// ArgumentUniqueness validates if arguments are unique
 func ArgumentUniqueness() Rule {
 	return func(walker *astvisitor.Walker) {
 		visitor := argumentUniquenessVisitor{
@@ -862,6 +878,7 @@ func (a *argumentUniquenessVisitor) EnterArgument(ref int) {
 	}
 }
 
+// RequiredArguments validates if all required arguments are present
 func RequiredArguments() Rule {
 	return func(walker *astvisitor.Walker) {
 		visitor := requiredArgumentsVisitor{
@@ -907,6 +924,7 @@ func (r *requiredArgumentsVisitor) EnterField(ref int) {
 	}
 }
 
+// Fragments validates if the use of fragments in a given document is correct
 func Fragments() Rule {
 	return func(walker *astvisitor.Walker) {
 		visitor := fragmentsVisitor{
@@ -1011,6 +1029,7 @@ func (f *fragmentsVisitor) EnterFragmentDefinition(ref int) {
 	f.fragmentDefinitionsVisited = append(f.fragmentDefinitionsVisited, fragmentDefinitionName)
 }
 
+// DirectivesAreDefined validates if used directives are defined
 func DirectivesAreDefined() Rule {
 	return func(walker *astvisitor.Walker) {
 		visitor := directivesAreDefinedVisitor{
@@ -1042,6 +1061,7 @@ func (d *directivesAreDefinedVisitor) EnterDirective(ref int) {
 	}
 }
 
+// DirectivesAreInValidLocations validates if directives are used in the right place
 func DirectivesAreInValidLocations() Rule {
 	return func(walker *astvisitor.Walker) {
 		visitor := directivesAreInValidLocationsVisitor{
@@ -1090,6 +1110,7 @@ func (d *directivesAreInValidLocationsVisitor) directiveDefinitionContainsNodeLo
 	return d.definition.DirectiveDefinitions[definition].DirectiveLocations.Get(nodeDirectiveLocation)
 }
 
+// VariableUniqueness validates if variables are unique in a given document
 func VariableUniqueness() Rule {
 	return func(walker *astvisitor.Walker) {
 		visitor := variableUniquenessVisitor{
@@ -1136,6 +1157,7 @@ func (v *variableUniquenessVisitor) EnterVariableDefinition(ref int) {
 	}
 }
 
+// DirectivesAreUniquePerLocation validates if directives are unique per location
 func DirectivesAreUniquePerLocation() Rule {
 	return func(walker *astvisitor.Walker) {
 		visitor := directivesAreUniquePerLocationVisitor{
@@ -1172,6 +1194,7 @@ func (d *directivesAreUniquePerLocationVisitor) EnterDirective(ref int) {
 	}
 }
 
+// VariablesAreInputTypes validates if variables are correct input types
 func VariablesAreInputTypes() Rule {
 	return func(walker *astvisitor.Walker) {
 		visitor := variablesAreInputTypesVisitor{
@@ -1206,6 +1229,7 @@ func (v *variablesAreInputTypesVisitor) EnterVariableDefinition(ref int) {
 	}
 }
 
+// AllVariableUsesDefined validates if used variables are defined within the operation
 func AllVariableUsesDefined() Rule {
 	return func(walker *astvisitor.Walker) {
 		visitor := allVariableUsesDefinedVisitor{
@@ -1252,6 +1276,7 @@ func (a *allVariableUsesDefinedVisitor) EnterArgument(ref int) {
 	a.StopWithExternalErr(operationreport.ErrVariableNotDefinedOnArgument(variableName, argumentName))
 }
 
+// AllVariablesUsed validates if all defined variables are used
 func AllVariablesUsed() Rule {
 	return func(walker *astvisitor.Walker) {
 		visitor := allVariablesUsedVisitor{

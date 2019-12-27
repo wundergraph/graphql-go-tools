@@ -1,3 +1,4 @@
+// Package literal contains a selection of frequently used literals with GraphQL APIs
 package literal
 
 import "bytes"

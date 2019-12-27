@@ -1,4 +1,6 @@
 //go:generate stringer -type=Keyword
+
+// Package keyword contains all possible GraphQL keywords
 package keyword
 
 type Keyword int

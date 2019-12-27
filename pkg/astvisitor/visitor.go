@@ -14,12 +14,25 @@ var (
 	ErrDefinitionMustNotBeNil = fmt.Errorf("definition must not be nil when walking operations")
 )
 
+// Walker orchestrates the process of walking an AST and calling all registered callbacks
+// Always use NewWalker to instantiate a new Walker
 type Walker struct {
+	// Ancestors is the slice of Nodes to the current Node in a callback
+	// don't keep a reference to this slice, always copy it if you want to work with it after the callback returned
 	Ancestors               []ast.Node
+	// Path is the slice of PathItems leading to the current Node
+	// don't keep a reference to this slice, always copy it if you want to work with it after the callback returned
 	Path                    ast.Path
+	// EnclosingTypeDefinition is the TypeDefinition Node of the parent object of the current callback
+	// e.g. if the current callback is a Field the EnclosingTypeDefinition will be the TypeDefinition of the parent object of such Field
 	EnclosingTypeDefinition ast.Node
+	// SelectionsBefore is the slice of references to selections before the current selection
+	// This is only valid when inside a SelectionSet
 	SelectionsBefore        []int
+	// SelectionsAfter is the slice of references to selections before the current selection
+	// This is only valid when inside a SelectionSet
 	SelectionsAfter         []int
+	// Report is the object to collect errors when walking the AST
 	Report                  *operationreport.Report
 	document                *ast.Document
 	definition              *ast.Document
@@ -31,6 +44,7 @@ type Walker struct {
 	revisit                 bool
 }
 
+// NewWalker returns a fully initialized Walker
 func NewWalker(ancestorSize int) Walker {
 	return Walker{
 		Ancestors:       make([]ast.Node, 0, ancestorSize),
@@ -39,327 +53,518 @@ func NewWalker(ancestorSize int) Walker {
 	}
 }
 
-type Info struct {
-	Depth                     int
-	Ancestors                 []ast.Node
-	SelectionSet              int
-	SelectionsBefore          []int
-	SelectionsAfter           []int
-	ArgumentsBefore           []int
-	ArgumentsAfter            []int
-	VariableDefinitionsBefore []int
-	VariableDefinitionsAfter  []int
-	DirectivesBefore          []int
-	DirectivesAfter           []int
-	InputValueDefinitions     []int
-	HasSelections             bool
-	FieldTypeDefinition       ast.Node
-	EnclosingTypeDefinition   ast.Node
-	IsLastRootNode            bool
-	Definition                ast.Node
-}
-
 type (
+	// EnterOperationDefinitionVisitor is the callback when the walker enters an operation definition
 	EnterOperationDefinitionVisitor interface {
+		// EnterOperationDefinition gets called when the walker enters an operation definition
+		// ref is the reference to the operation definition on the AST
 		EnterOperationDefinition(ref int)
 	}
+	// LeaveOperationDefinitionVisitor is the callback when the walker leaves an operation definition
 	LeaveOperationDefinitionVisitor interface {
+		// LeaveOperationDefinition gets called when the walker leaves an operation definition
+		// ref is the reference to the operation definition on the AST
 		LeaveOperationDefinition(ref int)
 	}
+	// OperationDefinitionVisitor is the callback when the walker enters or leaves an operation
 	OperationDefinitionVisitor interface {
 		EnterOperationDefinitionVisitor
 		LeaveOperationDefinitionVisitor
 	}
+	// EnterSelectionSetVisitor is the callback when the walker enters a selection set
 	EnterSelectionSetVisitor interface {
+		// EnterSelectionSet gets called when the walker enters a selection set
+		// ref is the reference to the selection set on the AST
 		EnterSelectionSet(ref int)
 	}
+	// LeaveSelectionSetVisitor is the callback when the walker leaves a selection set visitor
 	LeaveSelectionSetVisitor interface {
+		// LeaveSelectionSet gets called when the walker leaves a selection set
+		// ref is the reference to the selection set on the AST
 		LeaveSelectionSet(ref int)
 	}
+	// SelectionSetVisitor is the callback when the walker enters or leaves a selection set
 	SelectionSetVisitor interface {
 		EnterSelectionSetVisitor
 		LeaveSelectionSetVisitor
 	}
+	// EnterFieldVisitor is the callback when the walker enters a field
 	EnterFieldVisitor interface {
+		// EnterField gets called when the walker enters a field
+		// ref is the reference to the selection set on the AST
 		EnterField(ref int)
 	}
+	// LeaveFieldVisitor is the callback when the walker leaves a field
 	LeaveFieldVisitor interface {
+		// LeaveField gets called when the walker leaves a field
+		// ref is the reference to the selection set on the AST
 		LeaveField(ref int)
 	}
+	// FieldVisitor is the callback when the walker enters or leaves a field
 	FieldVisitor interface {
 		EnterFieldVisitor
 		LeaveFieldVisitor
 	}
+	// EnterArgumentVisitor is the callback when the walker enters an argument
 	EnterArgumentVisitor interface {
+		// EnterArgument gets called when the walker enters an argument
+		// ref is the reference to the selection set on the AST
 		EnterArgument(ref int)
 	}
+	// LeaveArgumentVisitor is the callback when the walker leaves an argument
 	LeaveArgumentVisitor interface {
+		// LeaveArgument gets called when the walker leaves an argument
+		// ref is the reference to the selection set on the AST
 		LeaveArgument(ref int)
 	}
+	// ArgumentVisitor is the callback when the walker enters or leaves an argument
 	ArgumentVisitor interface {
 		EnterArgumentVisitor
 		LeaveArgumentVisitor
 	}
+	// EnterFragmentSpreadVisitor is the callback when the walker enters a fragment spread
 	EnterFragmentSpreadVisitor interface {
+		// EnterFragmentSpread gets called when the walker enters a fragment spread
+		// ref is the reference to the selection set on the AST
 		EnterFragmentSpread(ref int)
 	}
+	// LeaveFragmentSpreadVisitor is the callback when the walker leaves a fragment spread
 	LeaveFragmentSpreadVisitor interface {
+		// LeaveFragmentSpread gets called when the walker leaves a fragment spread
+		// ref is the reference to the selection set on the AST
 		LeaveFragmentSpread(ref int)
 	}
+	// FragmentSpreadVisitor is the callback when the walker enters or leaves a fragment spread
 	FragmentSpreadVisitor interface {
 		EnterFragmentSpreadVisitor
 		LeaveFragmentSpreadVisitor
 	}
+	// EnterFragmentSpreadVisitor is the callback when the walker enters an inline framgnet
 	EnterInlineFragmentVisitor interface {
+		// EnterInlineFragment gets called when the walker enters an inline fragment
+		// ref is the reference to the selection set on the AST
 		EnterInlineFragment(ref int)
 	}
+	// LeaveInlineFragmentVisitor is the callback when the walker leaves an inline fragment
 	LeaveInlineFragmentVisitor interface {
+		// LeaveInlineFragment gets called when the walker leaves an inline fragment
+		// ref is the reference to the selection set on the AST
 		LeaveInlineFragment(ref int)
 	}
+	// InlineFragmentVisitor is the callback when the walker enters or leaves an inline fragment
 	InlineFragmentVisitor interface {
 		EnterInlineFragmentVisitor
 		LeaveInlineFragmentVisitor
 	}
+	// EnterFragmentDefinitionVisitor is the callback when the walker enters a fragment definition
 	EnterFragmentDefinitionVisitor interface {
+		// EnterFragmentDefinition gets called when the walker enters a fragment definition
+		// ref is the reference to the selection set on the AST
 		EnterFragmentDefinition(ref int)
 	}
+	// LeaveFragmentDefinitionVisitor is the callback when the walker leaves a fragment definition
 	LeaveFragmentDefinitionVisitor interface {
+		// LeaveFragmentDefinition gets called when the walker leaves a fragment definition
+		// ref is the reference to the selection set on the AST
 		LeaveFragmentDefinition(ref int)
 	}
+	// FragmentDefinitionVisitor is the callback when the walker enters or leaves a fragment definition
 	FragmentDefinitionVisitor interface {
 		EnterFragmentDefinitionVisitor
 		LeaveFragmentDefinitionVisitor
 	}
+	// EnterFragmentDefinitionVisitor is the callback when the walker enters a variable definition
 	EnterVariableDefinitionVisitor interface {
+		// EnterVariableDefinition gets called when the walker enters a variable definition
+		// ref is the reference to the selection set on the AST
 		EnterVariableDefinition(ref int)
 	}
+	// LeaveVariableDefinitionVisitor is the callback when the walker leaves a variable definition
 	LeaveVariableDefinitionVisitor interface {
+		// LeaveVariableDefinition gets called when the walker leaves a variable definition
+		// ref is the reference to the selection set on the AST
 		LeaveVariableDefinition(ref int)
 	}
+	// VariableDefinitionVisitor is the callback when the walker enters or leaves a variable definition
 	VariableDefinitionVisitor interface {
 		EnterVariableDefinitionVisitor
 		LeaveVariableDefinitionVisitor
 	}
+	// EnterDirectiveVisitor is the callback when the walker enters a directive
 	EnterDirectiveVisitor interface {
+		// EnterDirective gets called when the walker enters a directive
+		// ref is the reference to the selection set on the AST
 		EnterDirective(ref int)
 	}
+	// LeaveDirectiveVisitor is the callback when the walker leaves a directive
 	LeaveDirectiveVisitor interface {
+		// LeaveDirective gets called when the walker leaves a directive
+		// ref is the reference to the selection set on the AST
 		LeaveDirective(ref int)
 	}
+	// DirectiveVisitor is the callback when the walker enters or leaves a directive
 	DirectiveVisitor interface {
 		EnterDirectiveVisitor
 		LeaveDirectiveVisitor
 	}
+	// EnterObjectTypeDefinitionVisitor is the callback when the walker enters an object type definition
 	EnterObjectTypeDefinitionVisitor interface {
+		// EnterObjectTypeDefinition gets called when the walker enters an object type definition
+		// ref is the reference to the selection set on the AST
 		EnterObjectTypeDefinition(ref int)
 	}
+	// LeaveObjectTypeDefinitionVisitor is the callback when the walker leaves an object type definition
 	LeaveObjectTypeDefinitionVisitor interface {
+		// LeaveObjectTypeDefinition gets called when the walker leaves an object type definition
+		// ref is the reference to the selection set on the AST
 		LeaveObjectTypeDefinition(ref int)
 	}
+	// ObjectTypeDefinitionVisitor is the callback when the walker enters or leaves an object type definition
 	ObjectTypeDefinitionVisitor interface {
 		EnterObjectTypeDefinitionVisitor
 		LeaveObjectTypeDefinitionVisitor
 	}
+	// EnterObjectTypeExtensionVisitor is the callback when the walker enters an object type extension
 	EnterObjectTypeExtensionVisitor interface {
+		// EnterObjectTypeExtension gets called when the walker enters an object type extension
+		// ref is the reference to the selection set on the AST
 		EnterObjectTypeExtension(ref int)
 	}
+	// LeaveObjectTypeExtensionVisitor is the callback when the walker leaves an object type extension
 	LeaveObjectTypeExtensionVisitor interface {
+		// LeaveObjectTypeExtension gets called when the walker leaves an object type extension
+		// ref is the reference to the selection set on the AST
 		LeaveObjectTypeExtension(ref int)
 	}
+	// ObjectTypeExtensionVisitor is the callback when the walker enters or leaves an object type extension
 	ObjectTypeExtensionVisitor interface {
 		EnterObjectTypeExtensionVisitor
 		LeaveObjectTypeExtensionVisitor
 	}
+	// EnterFieldDefinitionVisitor is the callback when the walker enters a field definition
 	EnterFieldDefinitionVisitor interface {
+		// EnterFieldDefinition gets called when the walker enters a field definition
+		// ref is the reference to the selection set on the AST
 		EnterFieldDefinition(ref int)
 	}
+	// LeaveFieldDefinitionVisitor is the callback when the walker leaves a field definition
 	LeaveFieldDefinitionVisitor interface {
+		// LeaveFieldDefinition gets called when the walker leaves a field definition
+		// ref is the reference to the selection set on the AST
 		LeaveFieldDefinition(ref int)
 	}
+	// FieldDefinitionVisitor is the callback when the walker enters or leaves a field definition
 	FieldDefinitionVisitor interface {
 		EnterFieldDefinitionVisitor
 		LeaveFieldDefinitionVisitor
 	}
+	// EnterInputValueDefinitionVisitor is the callback when the walker enters an input value definition
 	EnterInputValueDefinitionVisitor interface {
+		// EnterInputValueDefinition gets called when the walker enters an input value definition
+		// ref is the reference to the selection set on the AST
 		EnterInputValueDefinition(ref int)
 	}
+	// LeaveInputValueDefinitionVisitor is the callback when the walker leaves an input value definition
 	LeaveInputValueDefinitionVisitor interface {
+		// LeaveInputValueDefinition gets called when the walker leaves an input value definition
+		// ref is the reference to the selection set on the AST
 		LeaveInputValueDefinition(ref int)
 	}
+	// InputValueDefinitionVisitor is the callback when the walker enters or leaves an input value definition
 	InputValueDefinitionVisitor interface {
 		EnterInputValueDefinitionVisitor
 		LeaveInputValueDefinitionVisitor
 	}
+	// EnterInterfaceTypeDefinitionVisitor is the callback when the walker enters an interface type definition
 	EnterInterfaceTypeDefinitionVisitor interface {
+		// EnterInterfaceTypeDefinition gets called when the walker enters an interface type definition
+		// ref is the reference to the selection set on the AST
 		EnterInterfaceTypeDefinition(ref int)
 	}
+	// LeaveInterfaceTypeDefinitionVisitor is the callback when the walker leaves an interface type definition
 	LeaveInterfaceTypeDefinitionVisitor interface {
+		// LeaveInterfaceTypeDefinition gets called when the walker leaves an interface type definition
+		// ref is the reference to the selection set on the AST
 		LeaveInterfaceTypeDefinition(ref int)
 	}
+	// InterfaceTypeDefinitionVisitor is the callback when the walker enters or leaves an interface type definition
 	InterfaceTypeDefinitionVisitor interface {
 		EnterInterfaceTypeDefinitionVisitor
 		LeaveInterfaceTypeDefinitionVisitor
 	}
+	// EnterInterfaceTypeExtensionVisitor is the callback when the walker enters an interface type extension
 	EnterInterfaceTypeExtensionVisitor interface {
+		// EnterInterfaceTypeExtension gets called when the walker enters an interface type extension
+		// ref is the reference to the selection set on the AST
 		EnterInterfaceTypeExtension(ref int)
 	}
+	// LeaveInterfaceTypeExtensionVisitor is the callback when the walker leaves an interface type extension
 	LeaveInterfaceTypeExtensionVisitor interface {
+		// LeaveInterfaceTypeExtension gets called when the walker leaves an interface type extension
+		// ref is the reference to the selection set on the AST
 		LeaveInterfaceTypeExtension(ref int)
 	}
+	// InterfaceTypeExtensionVisitor is the callback when the walker enters or leaves an interface type extension
 	InterfaceTypeExtensionVisitor interface {
 		EnterInterfaceTypeExtensionVisitor
 		LeaveInterfaceTypeExtensionVisitor
 	}
+	// EnterScalarTypeDefinitionVisitor is the callback when the walker enters a scalar type definition
 	EnterScalarTypeDefinitionVisitor interface {
+		// EnterScalarTypeDefinition gets called when the walker enters a scalar type definition
+		// ref is the reference to the selection set on the AST
 		EnterScalarTypeDefinition(ref int)
 	}
+	// LeaveScalarTypeDefinitionVisitor is the callback when the walker leaves a scalar type definition
 	LeaveScalarTypeDefinitionVisitor interface {
+		// LeaveScalarTypeDefinition gets called when the walker leaves a scalar type definition
+		// ref is the reference to the selection set on the AST
 		LeaveScalarTypeDefinition(ref int)
 	}
+	// ScalarTypeDefinitionVisitor is the callback when the walker enters or leaves a scalar type definition
 	ScalarTypeDefinitionVisitor interface {
 		EnterScalarTypeDefinitionVisitor
 		LeaveScalarTypeDefinitionVisitor
 	}
+	// EnterScalarTypeExtensionVisitor is the callback when the walker enters a scalar type extension
 	EnterScalarTypeExtensionVisitor interface {
+		// EnterScalarTypeExtension gets called when the walker enters a scalar type extension
+		// ref is the reference to the selection set on the AST
 		EnterScalarTypeExtension(ref int)
 	}
+	// LeaveScalarTypeExtensionVisitor is the callback when the walker leaves a scalar type extension
 	LeaveScalarTypeExtensionVisitor interface {
+		// LeaveScalarTypeExtension gets called when the walker leaves a scalar type extension
+		// ref is the reference to the selection set on the AST
 		LeaveScalarTypeExtension(ref int)
 	}
+	// ScalarTypeExtensionVisitor is the callback when the walker enters or leaves a scalar type extension
 	ScalarTypeExtensionVisitor interface {
 		EnterScalarTypeExtensionVisitor
 		LeaveScalarTypeExtensionVisitor
 	}
+	// EnterUnionTypeDefinitionVisitor is the callback when the walker enters a union type definition
 	EnterUnionTypeDefinitionVisitor interface {
+		// EnterUnionTypeDefinition gets called when the walker enters a union type definition
+		// ref is the reference to the selection set on the AST
 		EnterUnionTypeDefinition(ref int)
 	}
+	// LeaveUnionTypeDefinitionVisitor is the callback when the walker leaves a union type definition
 	LeaveUnionTypeDefinitionVisitor interface {
+		// LeaveUnionTypeDefinition gets called when the walker leaves a union type definition
+		// ref is the reference to the selection set on the AST
 		LeaveUnionTypeDefinition(ref int)
 	}
+	// UnionTypeDefinitionVisitor is the callback when the walker enters or leaves a union type definition
 	UnionTypeDefinitionVisitor interface {
 		EnterUnionTypeDefinitionVisitor
 		LeaveUnionTypeDefinitionVisitor
 	}
+	// EnterUnionTypeExtensionVisitor is the callback when the walker enters a union type extension
 	EnterUnionTypeExtensionVisitor interface {
+		// EnterUnionTypeExtension gets called when the walker enters a union type extension
+		// ref is the reference to the selection set on the AST
 		EnterUnionTypeExtension(ref int)
 	}
+	// LeaveUnionTypeExtensionVisitor is the callback when the walker leaves a union type extension
 	LeaveUnionTypeExtensionVisitor interface {
+		// LeaveUnionTypeExtension gets called when the walker leaves a union type extension
+		// ref is the reference to the selection set on the AST
 		LeaveUnionTypeExtension(ref int)
 	}
+	// UnionTypeExtensionVisitor is the callback when the walker enters or leaves a union type extension
 	UnionTypeExtensionVisitor interface {
 		EnterUnionTypeExtensionVisitor
 		LeaveUnionTypeExtensionVisitor
 	}
+	// EnterUnionMemberTypeVisitor is the callback when the walker enters a union member type
 	EnterUnionMemberTypeVisitor interface {
+		// EnterUnionMemberType gets called when the walker enters a union member type
+		// ref is the reference to the selection set on the AST
 		EnterUnionMemberType(ref int)
 	}
+	// LeaveUnionMemberTypeVisitor is the callback when the walker leaves a union member type
 	LeaveUnionMemberTypeVisitor interface {
+		// LeaveUnionMemberType gets called when the walker leaves a union member type
+		// ref is the reference to the selection set on the AST
 		LeaveUnionMemberType(ref int)
 	}
+	// UnionMemberTypeVisitor is the callback when the walker enters or leaves a union member type
 	UnionMemberTypeVisitor interface {
 		EnterUnionMemberTypeVisitor
 		LeaveUnionMemberTypeVisitor
 	}
+	// EnterEnumTypeDefinitionVisitor is the callback when the walker enters an enum type definition
 	EnterEnumTypeDefinitionVisitor interface {
+		// EnterEnumTypeDefinition gets called when the walker enters an enum type definition
+		// ref is the reference to the selection set on the AST
 		EnterEnumTypeDefinition(ref int)
 	}
+	// LeaveEnumTypeDefinitionVisitor is the callback when the walker leaves an enum type definition
 	LeaveEnumTypeDefinitionVisitor interface {
+		// LeaveEnumTypeDefinition gets called when the walker leaves an enum type definition
+		// ref is the reference to the selection set on the AST
 		LeaveEnumTypeDefinition(ref int)
 	}
+	// EnumTypeDefinitionVisitor is the callback when the walker enters or leaves an enum type definition
 	EnumTypeDefinitionVisitor interface {
 		EnterEnumTypeDefinitionVisitor
 		LeaveEnumTypeDefinitionVisitor
 	}
+	// EnterEnumTypeExtensionVisitor is the callback when the walker enters an enum type extension
 	EnterEnumTypeExtensionVisitor interface {
+		// EnterEnumTypeExtension gets called when the walker enters an enum type extension
+		// ref is the reference to the selection set on the AST
 		EnterEnumTypeExtension(ref int)
 	}
+	// LeaveEnumTypeExtensionVisitor is the callback when the walker leaves an enum type extension
 	LeaveEnumTypeExtensionVisitor interface {
+		// LeaveEnumTypeExtension gets called when the walker leaves an enum type extension
+		// ref is the reference to the selection set on the AST
 		LeaveEnumTypeExtension(ref int)
 	}
+	// EnumTypeExtensionVisitor is the callback when the walker enters or leaves an enum type extension
 	EnumTypeExtensionVisitor interface {
 		EnterEnumTypeExtensionVisitor
 		LeaveEnumTypeExtensionVisitor
 	}
+	// EnterEnumValueDefinitionVisitor is the callback when the walker enters an enum value definition
 	EnterEnumValueDefinitionVisitor interface {
+		// EnterEnumValueDefinition gets called when the walker enters an enum value definition
+		// ref is the reference to the selection set on the AST
 		EnterEnumValueDefinition(ref int)
 	}
+	// LeaveEnumValueDefinitionVisitor is the callback when the walker leaves an enum value definition
 	LeaveEnumValueDefinitionVisitor interface {
+		// LeaveEnumValueDefinition gets called when the walker leaves an enum value definition
+		// ref is the reference to the selection set on the AST
 		LeaveEnumValueDefinition(ref int)
 	}
+	// EnumValueDefinitionVisitor is the callback when the walker enters or leaves an enum value definition
 	EnumValueDefinitionVisitor interface {
 		EnterEnumValueDefinitionVisitor
 		LeaveEnumValueDefinitionVisitor
 	}
+	// EnterInputObjectTypeDefinitionVisitor is the callback when the walker enters an input object type definition
 	EnterInputObjectTypeDefinitionVisitor interface {
+		// EnterInputObjectTypeDefinition gets called when the walker enters an input object type definition
+		// ref is the reference to the selection set on the AST
 		EnterInputObjectTypeDefinition(ref int)
 	}
+	// LeaveInputObjectTypeDefinitionVisitor is the callback when the walker leaves an input object type definition
 	LeaveInputObjectTypeDefinitionVisitor interface {
+		// LeaveInputObjectTypeDefinition gets called when the walker leaves an input object type definition
+		// ref is the reference to the selection set on the AST
 		LeaveInputObjectTypeDefinition(ref int)
 	}
+	// InputObjectTypeDefinitionVisitor is the callback when the walker enters or leaves an input object type definition
 	InputObjectTypeDefinitionVisitor interface {
 		EnterInputObjectTypeDefinitionVisitor
 		LeaveInputObjectTypeDefinitionVisitor
 	}
+	// EnterInputObjectTypeExtensionVisitor is the callback when the walker enters an input object type extension
 	EnterInputObjectTypeExtensionVisitor interface {
+		// EnterInputObjectTypeExtension gets called when the walker enters an input object type extension
+		// ref is the reference to the selection set on the AST
 		EnterInputObjectTypeExtension(ref int)
 	}
+	// LeaveInputObjectTypeExtensionVisitor is the callback when the walker leaves an input object type extension
 	LeaveInputObjectTypeExtensionVisitor interface {
+		// LeaveInputObjectTypeExtension gets called when the walker leaves an input object type extension
+		// ref is the reference to the selection set on the AST
 		LeaveInputObjectTypeExtension(ref int)
 	}
+	// InputObjectTypeExtensionVisitor is the callback when the walker enters or leaves an input object type extension
 	InputObjectTypeExtensionVisitor interface {
 		EnterInputObjectTypeExtensionVisitor
 		LeaveInputObjectTypeExtensionVisitor
 	}
+	// EnterDirectiveDefinitionVisitor is the callback when the walker enters a directive definition
 	EnterDirectiveDefinitionVisitor interface {
+		// EnterDirectiveDefinition gets called when the walker enters a directive definition
+		// ref is the reference to the selection set on the AST
 		EnterDirectiveDefinition(ref int)
 	}
+	// LeaveDirectiveDefinitionVisitor is the callback when the walker leaves a directive definition
 	LeaveDirectiveDefinitionVisitor interface {
+		// LeaveDirectiveDefinition gets called when the walker leaves a directive definition
+		// ref is the reference to the selection set on the AST
 		LeaveDirectiveDefinition(ref int)
 	}
+	// DirectiveDefinitionVisitor is the callback when the walker enters or leaves a directive definition
 	DirectiveDefinitionVisitor interface {
 		EnterDirectiveDefinitionVisitor
 		LeaveDirectiveDefinitionVisitor
 	}
+	// EnterDirectiveLocationVisitor is the callback when the walker enters a directive location
 	EnterDirectiveLocationVisitor interface {
+		// EnterDirectiveLocation gets called when the walker enters a directive location
+		// ref is the reference to the selection set on the AST
 		EnterDirectiveLocation(location ast.DirectiveLocation)
 	}
+	// LeaveDirectiveLocationVisitor is the callback when the walker leaves a directive location
 	LeaveDirectiveLocationVisitor interface {
+		// LeaveDirectiveLocation gets called when the walker leaves a directive location
+		// ref is the reference to the selection set on the AST
 		LeaveDirectiveLocation(location ast.DirectiveLocation)
 	}
+	// DirectiveLocationVisitor is the callback when the walker enters or leaves a directive location
 	DirectiveLocationVisitor interface {
 		EnterDirectiveLocationVisitor
 		LeaveDirectiveLocationVisitor
 	}
+	// EnterSchemaDefinitionVisitor is the callback when the walker enters a schema definition
 	EnterSchemaDefinitionVisitor interface {
+		// EnterSchemaDefinition gets called when the walker enters a schema definition
+		// ref is the reference to the selection set on the AST
 		EnterSchemaDefinition(ref int)
 	}
+	// LeaveSchemaDefinitionVisitor is the callback when the walker leaves a schema definition
 	LeaveSchemaDefinitionVisitor interface {
+		// LeaveSchemaDefinition gets called when the walker leaves a schema definition
+		// ref is the reference to the selection set on the AST
 		LeaveSchemaDefinition(ref int)
 	}
+	// SchemaDefinitionVisitor is the callback when the walker enters or leaves a schema definition
 	SchemaDefinitionVisitor interface {
 		EnterSchemaDefinitionVisitor
 		LeaveSchemaDefinitionVisitor
 	}
+	// EnterSchemaExtensionVisitor is the callback when the walker enters a schema extension
 	EnterSchemaExtensionVisitor interface {
+		// EnterSchemaExtension gets called when the walker enters a schema extension
+		// ref is the reference to the selection set on the AST
 		EnterSchemaExtension(ref int)
 	}
+	// LeaveSchemaExtensionVisitor is the callback when the walker leaves a schema extension
 	LeaveSchemaExtensionVisitor interface {
+		// LeaveSchemaExtension gets called when the walker leaves a schema extension
+		// ref is the reference to the selection set on the AST
 		LeaveSchemaExtension(ref int)
 	}
+	// SchemaExtensionVisitor is the callback when the walker enters or leaves a schema extension
 	SchemaExtensionVisitor interface {
 		EnterSchemaExtensionVisitor
 		LeaveSchemaExtensionVisitor
 	}
+	// EnterRootOperationTypeDefinitionVisitor is the callback when the walker enters a root operation type definition
 	EnterRootOperationTypeDefinitionVisitor interface {
+		// EnterRootOperationTypeDefinition gets called when the walker enters a root operation type definition
+		// ref is the reference to the selection set on the AST
 		EnterRootOperationTypeDefinition(ref int)
 	}
+	// LeaveRootOperationTypeDefinitionVisitor is the callback when the walker leaves a root operation type definition
 	LeaveRootOperationTypeDefinitionVisitor interface {
+		// LeaveRootOperationTypeDefinition gets called when the walker leaves a root operation type definition
+		// ref is the reference to the selection set on the AST
 		LeaveRootOperationTypeDefinition(ref int)
 	}
+	// RootOperationTypeDefinitionVisitor is the callback when the walker enters or leaves a root operation type definition
 	RootOperationTypeDefinitionVisitor interface {
 		EnterRootOperationTypeDefinitionVisitor
 		LeaveRootOperationTypeDefinitionVisitor
 	}
+	// TypeSystemVisitor is the callback when the walker enters or leaves any of the type definitions
 	TypeSystemVisitor interface {
 		ObjectTypeDefinitionVisitor
 		ObjectTypeExtensionVisitor
@@ -383,6 +588,7 @@ type (
 		SchemaExtensionVisitor
 		RootOperationTypeDefinitionVisitor
 	}
+	// ExecutableVisitor is the callback when the walker enters or leaves any of the executable definitions
 	ExecutableVisitor interface {
 		OperationDefinitionVisitor
 		SelectionSetVisitor
@@ -394,16 +600,21 @@ type (
 		VariableDefinitionVisitor
 		DirectiveVisitor
 	}
+	// EnterDocumentVisitor is the callback when the walker enters a document
 	EnterDocumentVisitor interface {
+		// EnterDocument gets called when the walker enters a document
 		EnterDocument(operation, definition *ast.Document)
 	}
 	LeaveDocumentVisitor interface {
+		// LeaveDocument gets called when the walker leaves a document
 		LeaveDocument(operation, definition *ast.Document)
 	}
+	// DocumentVisitor is the callback when the walker enters or leaves a document
 	DocumentVisitor interface {
 		EnterDocumentVisitor
 		LeaveDocumentVisitor
 	}
+	// AllNodesVisitor is the callback when the walker enters or leaves any Node
 	AllNodesVisitor interface {
 		DocumentVisitor
 		TypeSystemVisitor
@@ -476,6 +687,7 @@ type visitors struct {
 	leaveRootOperationTypeDefinition []LeaveRootOperationTypeDefinitionVisitor
 }
 
+// ResetVisitors empties all registered visitors / unregisters all callbacks
 func (w *Walker) ResetVisitors() {
 	w.visitors.enterOperation = w.visitors.enterOperation[:0]
 	w.visitors.leaveOperation = w.visitors.leaveOperation[:0]
@@ -986,6 +1198,7 @@ func (w *Walker) RegisterDocumentVisitor(visitor DocumentVisitor) {
 	w.RegisterLeaveDocumentVisitor(visitor)
 }
 
+// Walk initiates the walker to start walking the AST from the top root Node
 func (w *Walker) Walk(document, definition *ast.Document, report *operationreport.Report) {
 	if report == nil {
 		w.Report = &operationreport.Report{}

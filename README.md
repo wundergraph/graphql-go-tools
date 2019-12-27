@@ -56,7 +56,7 @@ This repos uses go modules so make sure to use the latest version of Go.
 
 ## Docs
 
-https://jens-neuse.gitbook.io/graphql-go-tools
+https://godoc.org/github.com/jensneuse/graphql-go-tools
 
 ## Usage
 

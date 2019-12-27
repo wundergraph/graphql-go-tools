@@ -1,3 +1,4 @@
+// Package token contains the object and logic needed to describe a lexed token in a GraphQL document
 package token
 
 import (
