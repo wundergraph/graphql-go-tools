@@ -2042,6 +2042,54 @@ func TestExecutionValidation(t *testing.T) {
 							}`,
 					ValidArguments(), Valid)
 			})
+			t.Run("required String", func(t *testing.T) {
+				run(`	query requiredString {
+										args {
+											requiredString(s: "foo")
+										}
+									}`,
+					ValidArguments(), Valid)
+			})
+			t.Run("required String", func(t *testing.T) {
+				run(`	query requiredString {
+										args {
+											requiredString(s: foo)
+										}
+									}`,
+					ValidArguments(), Invalid)
+			})
+			t.Run("required String", func(t *testing.T) {
+				run(`	query requiredString {
+										args {
+											requiredString(s: null)
+										}
+									}`,
+					ValidArguments(), Invalid)
+			})
+			t.Run("required String", func(t *testing.T) {
+				run(`	query requiredFloat {
+										args {
+											requiredFloat(f: 1.1)
+										}
+									}`,
+					ValidArguments(), Valid)
+			})
+			t.Run("required String", func(t *testing.T) {
+				run(`	query requiredFloat {
+										args {
+											requiredFloat(f: "1.1")
+										}
+									}`,
+					ValidArguments(), Invalid)
+			})
+			t.Run("required String", func(t *testing.T) {
+				run(`	query requiredFloat {
+										args {
+											requiredFloat(f: null)
+										}
+									}`,
+					ValidArguments(), Invalid)
+			})
 			t.Run("117 variant", func(t *testing.T) {
 				run(`	
 							query argOnRequiredArg($booleanArg: Boolean!) {
@@ -3938,6 +3986,12 @@ type Query {
   	booleanList(booleanListArg: [Boolean!]): Boolean
 	extra: Extra
 	nested(input: NestedInput): Boolean
+	args: Arguments
+}
+
+type Arguments {
+	requiredString(s: String!): String!
+	requiredFloat(f: Float!): Float!
 }
 
 type ValidArguments {

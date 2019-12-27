@@ -512,6 +512,10 @@ func (v *validArgumentsVisitor) validateIfValueSatisfiesInputFieldDefinition(val
 		satisfied = v.booleanValueSatisfiesInputValueDefinition(inputValueDefinition)
 	case ast.ValueKindInteger:
 		satisfied = v.intValueSatisfiesInputValueDefinition(value, inputValueDefinition)
+	case ast.ValueKindString:
+		satisfied = v.stringValueSatisfiesInputValueDefinition(value, inputValueDefinition)
+	case ast.ValueKindFloat:
+		satisfied = v.floatValueSatisfiesInputValueDefinition(value, inputValueDefinition)
 	case ast.ValueKindObject, ast.ValueKindList:
 		// object- and list values are covered by Values() / valuesVisitor
 		return
@@ -537,6 +541,34 @@ func (v *validArgumentsVisitor) validateIfValueSatisfiesInputFieldDefinition(val
 	}
 
 	v.StopWithExternalErr(operationreport.ErrValueDoesntSatisfyInputValueDefinition(printedValue, printedType))
+}
+
+func (v *validArgumentsVisitor) floatValueSatisfiesInputValueDefinition(value ast.Value, inputValueDefinition int) bool {
+	inputType := v.definition.Types[v.definition.InputValueDefinitionType(inputValueDefinition)]
+	if inputType.TypeKind == ast.TypeKindNonNull {
+		inputType = v.definition.Types[inputType.OfType]
+	}
+	if inputType.TypeKind != ast.TypeKindNamed {
+		return false
+	}
+	if !bytes.Equal(v.definition.Input.ByteSlice(inputType.Name), literal.FLOAT) {
+		return false
+	}
+	return true
+}
+
+func (v *validArgumentsVisitor) stringValueSatisfiesInputValueDefinition(value ast.Value, inputValueDefinition int) bool {
+	inputType := v.definition.Types[v.definition.InputValueDefinitionType(inputValueDefinition)]
+	if inputType.TypeKind == ast.TypeKindNonNull {
+		inputType = v.definition.Types[inputType.OfType]
+	}
+	if inputType.TypeKind != ast.TypeKindNamed {
+		return false
+	}
+	if !bytes.Equal(v.definition.Input.ByteSlice(inputType.Name), literal.STRING) {
+		return false
+	}
+	return true
 }
 
 func (v *validArgumentsVisitor) intValueSatisfiesInputValueDefinition(value ast.Value, inputValueDefinition int) bool {
