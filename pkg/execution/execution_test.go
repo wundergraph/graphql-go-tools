@@ -12,7 +12,6 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 	"github.com/sebdah/goldie"
-	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
 	"io"
 	"io/ioutil"
@@ -2309,67 +2308,5 @@ func TestExecutor_Introspection(t *testing.T) {
 		}
 
 		diffview.NewGoland().DiffViewBytes("execution", fixture, response)
-	}
-}
-
-func TestJsonMap(t *testing.T){
-	input := `	{
-					"rights": {
-						"foo": {
-							"someProperty": "a"
-						},
-						"bar": {
-							"someProperty": "b"
-						}
-					}
-				}`
-
-	gjson.AddModifier("jsonMap", func(input, fieldName string) string {
-
-		type KeyValue struct {
-			Key string `json:"key"`
-			Value json.RawMessage `json:"value"`
-		}
-
-		out := map[string][]KeyValue{}
-
-		parsed := gjson.Get(input,fieldName)
-		parsed.ForEach(func(key, value gjson.Result) bool {
-			val := gjson.Get(value.Raw,"@ugly").Raw
-			item := KeyValue{Key: key.String(), Value: []byte(val)}
-			out[fieldName] = append(out[fieldName], item)
-			return true
-		})
-
-		data,err := json.Marshal(out)
-		if err != nil {
-			return input
-		}
-
-		return string(data)
-	})
-
-	result := gjson.Get(input,"@jsonMap:rights|@ugly")
-
-	expected := `{ "rights": [
-								{
-									"key": "foo",
-									"value": {
-										"someProperty": "a"
-									}
-								},
-								{
-									"key": "bar",
-									"value": {
-										"someProperty": "b"
-									}
-								}
-							]
-					}`
-
-	expectation := gjson.Get(expected,"@ugly")
-
-	if result.Raw != expectation.Raw {
-		t.Fatalf("want:\n%s\n\ngot:\n%s\n",expectation.Raw,result.Raw)
 	}
 }
