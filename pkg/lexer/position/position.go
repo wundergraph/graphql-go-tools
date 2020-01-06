@@ -1,3 +1,4 @@
+// Package position contains the objects and logic to properly describe the position of a token in a GraphQL document
 package position
 
 import "fmt"

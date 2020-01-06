@@ -7,13 +7,15 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
+// FragmentSpreadDepth is a helper for nested Fragments to calculate the actual depth of a Fragment Node
 type FragmentSpreadDepth struct {
 	walker             astvisitor.Walker
 	visitor            fragmentSpreadDepthVisitor
-	calc               NestedDepthCalc
+	calc               nestedDepthCalc
 	visitorsRegistered bool
 }
 
+// Depth holds all necessary information to understand the Depth of a Fragment Node
 type Depth struct {
 	SpreadRef          int
 	Depth              int
@@ -33,6 +35,7 @@ func (d Depths) ByRef(ref int) (int, bool) {
 	return -1, false
 }
 
+// Get returns all FragmentSpread Depths for a given AST
 func (r *FragmentSpreadDepth) Get(operation, definition *ast.Document, report *operationreport.Report, depths *Depths) {
 
 	if !r.visitorsRegistered {
@@ -49,11 +52,11 @@ func (r *FragmentSpreadDepth) Get(operation, definition *ast.Document, report *o
 	r.calc.calculatedNestedDepths(depths)
 }
 
-type NestedDepthCalc struct {
+type nestedDepthCalc struct {
 	depths *Depths
 }
 
-func (n *NestedDepthCalc) calculatedNestedDepths(depths *Depths) {
+func (n *nestedDepthCalc) calculatedNestedDepths(depths *Depths) {
 	n.depths = depths
 
 	for i := range *depths {
@@ -61,14 +64,14 @@ func (n *NestedDepthCalc) calculatedNestedDepths(depths *Depths) {
 	}
 }
 
-func (n *NestedDepthCalc) calculateNestedDepth(i int) int {
+func (n *nestedDepthCalc) calculateNestedDepth(i int) int {
 	if !(*n.depths)[i].isNested {
 		return (*n.depths)[i].Depth
 	}
 	return (*n.depths)[i].Depth + n.depthForFragment((*n.depths)[i].parentFragmentName)
 }
 
-func (n *NestedDepthCalc) depthForFragment(name ast.ByteSlice) int {
+func (n *nestedDepthCalc) depthForFragment(name ast.ByteSlice) int {
 	for i := range *n.depths {
 		if bytes.Equal(name, (*n.depths)[i].SpreadName) {
 			return n.calculateNestedDepth(i)

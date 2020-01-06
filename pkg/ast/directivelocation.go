@@ -1,4 +1,5 @@
 //go:generate stringer -type=DirectiveLocation
+
 package ast
 
 import "fmt"

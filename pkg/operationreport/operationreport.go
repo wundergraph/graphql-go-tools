@@ -1,3 +1,4 @@
+// Package operationreport helps generating the errors object for a GraphQL Operation.
 package operationreport
 
 import "fmt"

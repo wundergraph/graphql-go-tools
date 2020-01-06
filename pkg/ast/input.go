@@ -7,7 +7,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
 )
 
-// RawBytes is a raw graphql document containing the raw input + meta data
+// Input is a raw graphql document containing the raw input + meta data
 type Input struct {
 	// RawBytes is the raw byte input
 	RawBytes []byte
@@ -19,22 +19,26 @@ type Input struct {
 	TextPosition position.Position
 }
 
+// Reset empties the Input
 func (i *Input) Reset() {
 	i.RawBytes = i.RawBytes[:0]
 	i.InputPosition = 0
 	i.TextPosition.Reset()
 }
 
+// ResetInputBytes empties the input and sets it to bytes argument
 func (i *Input) ResetInputBytes(bytes []byte) {
 	i.Reset()
 	i.AppendInputBytes(bytes)
 	i.Length = len(i.RawBytes)
 }
 
+// ResetInputString empties the input and sets it to input string.
 func (i *Input) ResetInputString(input string) {
 	i.ResetInputBytes([]byte(input))
 }
 
+// AppendInputBytes appends a byte slice to the current input and returns the ByteSliceReference
 func (i *Input) AppendInputBytes(bytes []byte) (ref ByteSliceReference) {
 	ref.Start = uint32(len(i.RawBytes))
 	i.RawBytes = append(i.RawBytes, bytes...)
@@ -43,18 +47,22 @@ func (i *Input) AppendInputBytes(bytes []byte) (ref ByteSliceReference) {
 	return
 }
 
-func (i *Input) AppendInputString(input string) {
-	i.AppendInputBytes([]byte(input))
+// AppendInputString appends a string to the current input and returns the ByteSliceReference
+func (i *Input) AppendInputString(input string) ByteSliceReference {
+	return i.AppendInputBytes([]byte(input))
 }
 
+// ByteSlice returns the byte slice for a given byte ByteSliceReference
 func (i *Input) ByteSlice(reference ByteSliceReference) ByteSlice {
 	return i.RawBytes[reference.Start:reference.End]
 }
 
+// ByteSliceString returns a string for a given ByteSliceReference
 func (i *Input) ByteSliceString(reference ByteSliceReference) string {
 	return unsafebytes.BytesToString(i.ByteSlice(reference))
 }
 
+// ByteSliceReferenceContentEquals compares the content of two byte slices and returns true if they are the same
 func (i *Input) ByteSliceReferenceContentEquals(left, right ByteSliceReference) bool {
 	if left.Length() != right.Length() {
 		return false
@@ -68,8 +76,10 @@ func (i *Input) ByteSliceReferenceContentEquals(left, right ByteSliceReference) 
 	return true
 }
 
+// ByteSlice is an alias for []byte
 type ByteSlice []byte
 
+// Equals compares a ByteSlice to another
 func (b ByteSlice) Equals(another ByteSlice) bool {
 	if len(b) != len(another) {
 		return false
@@ -108,6 +118,7 @@ func (b ByteSliceReference) Length() uint32 {
 	return b.End - b.Start
 }
 
+// ByteSliceEquals compares two ByteSliceReferences from different Inputs
 func ByteSliceEquals(left ByteSliceReference, leftInput Input, right ByteSliceReference, rightInput Input) bool {
 	if left.Length() != right.Length() {
 		return false

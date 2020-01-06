@@ -1,4 +1,8 @@
 //go:generate stringer -type=OperationType,ValueKind,TypeKind,SelectionKind,NodeKind,PathKind -output ast_string.go
+
+// Package ast defines the GraphQL AST and offers helper methods to interact with the AST, mostly to get the necessary information from the ast.
+//
+// The document struct is designed in a way to enable performant parsing while keeping the ast easy to use with helper methods.
 package ast
 
 import (

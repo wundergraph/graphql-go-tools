@@ -1,3 +1,4 @@
+[![GoDoc](https://godoc.org/github.com/jensneuse/graphql-go-tools?status.svg)](https://godoc.org/github.com/jensneuse/graphql-go-tools)
 [![CI](https://github.com/jensneuse/graphql-go-tools/workflows/ci/badge.svg)](https://github.com/jensneuse/graphql-go-tools/workflows/ci/badge.svg)
 # graphql-go-tools
 
@@ -56,7 +57,7 @@ This repos uses go modules so make sure to use the latest version of Go.
 
 ## Docs
 
-https://jens-neuse.gitbook.io/graphql-go-tools
+https://godoc.org/github.com/jensneuse/graphql-go-tools
 
 ## Usage
 
