@@ -1,3 +1,4 @@
+// Package astprinter takes a GraphQL document and prints it as a String with optional indentation.
 package astprinter
 
 import (
@@ -8,11 +9,14 @@ import (
 	"io"
 )
 
+// Print takes a document as well as a definition (optional) and prints it to the io.Writer.
+// The definition is only necessary in case a GraphQL Operation should be printed.
 func Print(document, definition *ast.Document, out io.Writer) error {
 	printer := Printer{}
 	return printer.Print(document, definition, out)
 }
 
+// PrintIndent is the same as Print but accepts an additional indent parameter to set indentation.
 func PrintIndent(document, definition *ast.Document, indent []byte, out io.Writer) error {
 	printer := Printer{
 		indent: indent,
@@ -20,6 +24,7 @@ func PrintIndent(document, definition *ast.Document, indent []byte, out io.Write
 	return printer.Print(document, definition, out)
 }
 
+// PrintString is the same as Print but returns a string instead of writing to an io.Writer
 func PrintString(document, definition *ast.Document) (string, error) {
 	buff := &bytes.Buffer{}
 	err := Print(document, definition, buff)
@@ -27,6 +32,7 @@ func PrintString(document, definition *ast.Document) (string, error) {
 	return out, err
 }
 
+// PrintStringIndent is the same as PrintIndent but returns a string instead of writing to an io.Writer
 func PrintStringIndent(document, definition *ast.Document, indent string) (string, error) {
 	buff := &bytes.Buffer{}
 	err := PrintIndent(document, definition, []byte(indent), buff)
@@ -34,6 +40,7 @@ func PrintStringIndent(document, definition *ast.Document, indent string) (strin
 	return out, err
 }
 
+// Printer walks a GraphQL document and prints it as a string
 type Printer struct {
 	indent     []byte
 	visitor    printVisitor
@@ -41,6 +48,8 @@ type Printer struct {
 	registered bool
 }
 
+// Print starts the actual AST printing
+// Keep a printer and re-use it in case you'd like to print ASTs in the hot path.
 func (p *Printer) Print(document, definition *ast.Document, out io.Writer) error {
 	p.visitor.indent = p.indent
 	p.visitor.err = nil

@@ -1,3 +1,4 @@
+// Package astparser is used to turn raw GraphQL documents into an AST.
 package astparser
 
 import (
@@ -14,15 +15,18 @@ import (
 	"runtime"
 )
 
+// ParseGraphqlDocumentString takes a raw GraphQL document in string format and parses it into an AST.
+// This function creates a new parser as well as a new AST for every call.
+// Therefore you shouldn't use this function in a hot path.
+// Instead create a parser as well as AST objects and re-use them.
 func ParseGraphqlDocumentString(input string) (ast.Document, operationreport.Report) {
-	parser := NewParser()
-	doc := *ast.NewDocument()
-	doc.Input.ResetInputString(input)
-	report := operationreport.Report{}
-	parser.Parse(&doc, &report)
-	return doc, report
+	return ParseGraphqlDocumentBytes([]byte(input))
 }
 
+// ParseGraphqlDocumentBytes takes a raw GraphQL document in byte slice format and parses it into an AST.
+// This function creates a new parser as well as a new AST for every call.
+// Therefore you shouldn't use this function in a hot path.
+// Instead create a parser as well as AST objects and re-use them.
 func ParseGraphqlDocumentBytes(input []byte) (ast.Document, operationreport.Report) {
 	parser := NewParser()
 	doc := *ast.NewDocument()
@@ -38,6 +42,7 @@ type origin struct {
 	funcName string
 }
 
+// ErrUnexpectedToken is a custom error object containing all necessary information to properly render an unexpected token error
 type ErrUnexpectedToken struct {
 	keyword  keyword.Keyword
 	expected []keyword.Keyword
@@ -56,6 +61,7 @@ func (e ErrUnexpectedToken) Error() string {
 	return fmt.Sprintf("unexpected token - keyword: '%s' literal: '%s' - expected: '%s' position: '%s'%s", e.keyword, e.literal, e.expected, e.position, origins)
 }
 
+// ErrUnexpectedIdentKey is a custom error object to properly render an unexpected ident key error
 type ErrUnexpectedIdentKey struct {
 	keyword  identkeyword.IdentKeyword
 	expected []identkeyword.IdentKeyword
@@ -74,6 +80,9 @@ func (e ErrUnexpectedIdentKey) Error() string {
 	return fmt.Sprintf("unexpected ident - keyword: '%s' literal: '%s' - expected: '%s' position: '%s'%s", e.keyword, e.literal, e.expected, e.position, origins)
 }
 
+// Parser takes a raw input and turns it into an AST
+// use NewParser() to create a parser
+// Don't create new parsers in the hot path, re-use them.
 type Parser struct {
 	document             *ast.Document
 	report               *operationreport.Report
@@ -85,6 +94,7 @@ type Parser struct {
 	reportInternalErrors bool
 }
 
+// NewParser returns a new parser with all values properly initialized
 func NewParser() *Parser {
 	return &Parser{
 		tokens:               make([]token.Token, 256),
@@ -94,13 +104,15 @@ func NewParser() *Parser {
 	}
 }
 
-func (p *Parser) Prepare (document *ast.Document, report *operationreport.Report) {
+// PrepareImport prepares the Parser for importing new Nodes into an AST without directly parsing the content
+func (p *Parser) PrepareImport(document *ast.Document, report *operationreport.Report) {
 	p.document = document
 	p.report = report
 	p.lexer.SetInput(&document.Input)
 	p.tokenize()
 }
 
+// Parse parses all input in a Document.Input into the Document
 func (p *Parser) Parse(document *ast.Document, report *operationreport.Report) {
 	p.document = document
 	p.report = report

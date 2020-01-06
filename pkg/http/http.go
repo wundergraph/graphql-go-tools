@@ -1,3 +1,4 @@
+// Package http handles GraphQL HTTP Requests including WebSocket Upgrades.
 package http
 
 import (

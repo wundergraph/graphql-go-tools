@@ -1,4 +1,6 @@
 //go:generate packr
+
+// Package playground is a http.Handler hosting the GraphQL Playground application.
 package playground
 
 import (
