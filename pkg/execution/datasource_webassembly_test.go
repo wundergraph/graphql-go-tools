@@ -58,3 +58,39 @@ func TestWASMDataSource_Resolve(t *testing.T) {
 		t.Fatalf("want 31, got: %d",person.Age)
 	}
 }
+
+func BenchmarkWASMDataSource_Resolve(t *testing.B) {
+
+	input := []byte("{\"id\":\"1\"}")
+
+	planner := NewWasmDataSourcePlanner(BaseDataSourcePlanner{
+		log:zap.NewNop(),
+	})
+
+	dataSource, _ := planner.Plan()
+	wasmDataSource := dataSource.(*WasmDataSource)
+
+	args := ResolvedArgs{
+		ResolvedArgument{
+			Key: []byte("input"),
+			Value:input,
+		},
+		ResolvedArgument{
+			Key: []byte("wasmFile"),
+			Value: []byte("./testdata/memory.wasm"),
+		},
+	}
+
+	out := bytes.Buffer{}
+
+	t.ResetTimer()
+	t.ReportAllocs()
+
+	for i := 0;i<t.N;i++ {
+		out.Reset()
+		wasmDataSource.Resolve(Context{}, args, &out)
+		if out.Len() == 0 {
+			t.Fatalf("must not be 0")
+		}
+	}
+}
