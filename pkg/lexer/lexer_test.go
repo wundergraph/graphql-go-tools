@@ -644,6 +644,7 @@ func BenchmarkLexer(b *testing.B) {
 
 	b.ReportAllocs()
 	b.ResetTimer()
+	b.SetBytes(int64(len(inputBytes)))
 
 	for i := 0; i < b.N; i++ {
 
