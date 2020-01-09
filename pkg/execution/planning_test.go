@@ -10,9 +10,11 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
+	"github.com/jensneuse/pipeline/pkg/pipeline"
 	"go.uber.org/zap"
 	"math/rand"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -2543,6 +2545,141 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		},
 	))
+	t.Run("stringPipeline", run(withBaseSchema(pipelineSchema), `
+			query PipelineQuery($foo: String!) {
+				stringPipeline(foo: $foo)
+			}
+		`,
+		ResolverDefinitions{
+			{
+				TypeName:  literal.QUERY,
+				FieldName: []byte("stringPipeline"),
+				DataSourcePlannerFactory: func() DataSourcePlanner {
+					return &PipelineDataSourcePlanner{}
+				},
+			},
+		},
+		&Object{
+			operationType: ast.OperationTypeQuery,
+			Fields: []Field{
+				{
+					Name: []byte("data"),
+					Value: &Object{
+						Fetch: &SingleFetch{
+							Source: &DataSourceInvocation{
+								Args: []Argument{
+									&StaticVariableArgument{
+										Name:  literal.INPUT_JSON,
+										Value: []byte("{\\\"foo\\\":\\\"{{ .arguments.foo }}\\\"}"),
+									},
+									&ContextVariableArgument{
+										Name:         []byte(".arguments.foo"),
+										VariableName: []byte("foo"),
+									},
+								},
+								DataSource: &PipelineDataSource{
+									pipe: func() pipeline.Pipeline {
+										config := `{
+														"steps": [
+															{
+																"kind": "NOOP",
+																"config": {
+																	"template": "{\"result\":\"{{ .foo }}\"}"
+																}
+															}
+														]
+													}`
+										var pipe pipeline.Pipeline
+										err := pipe.FromConfig(strings.NewReader(config))
+										if err != nil {
+											t.Fatal(err)
+										}
+										return pipe
+									}(),
+								},
+							},
+							BufferName: "stringPipeline",
+						},
+						Fields: []Field{
+							{
+								Name:        []byte("stringPipeline"),
+								HasResolver: true,
+								Value: &Value{
+									QuoteValue: true,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	))
+	t.Run("filePipeline", run(withBaseSchema(pipelineSchema), `
+			query PipelineQuery($foo: String!) {
+				filePipeline(foo: $foo)
+			}
+		`,
+		ResolverDefinitions{
+			{
+				TypeName:  literal.QUERY,
+				FieldName: []byte("filePipeline"),
+				DataSourcePlannerFactory: func() DataSourcePlanner {
+					return &PipelineDataSourcePlanner{}
+				},
+			},
+		},
+		&Object{
+			operationType: ast.OperationTypeQuery,
+			Fields: []Field{
+				{
+					Name: []byte("data"),
+					Value: &Object{
+						Fetch: &SingleFetch{
+							Source: &DataSourceInvocation{
+								Args: []Argument{
+									&StaticVariableArgument{
+										Name:  literal.INPUT_JSON,
+										Value: []byte("{\\\"foo\\\":\\\"{{ .arguments.foo }}\\\"}"),
+									},
+									&ContextVariableArgument{
+										Name:         []byte(".arguments.foo"),
+										VariableName: []byte("foo"),
+									},
+								},
+								DataSource: &PipelineDataSource{
+									pipe: func() pipeline.Pipeline {
+										config := `{
+														"steps": [
+															{
+																"kind": "NOOP"
+															}
+														]
+													}`
+										var pipe pipeline.Pipeline
+										err := pipe.FromConfig(strings.NewReader(config))
+										if err != nil {
+											t.Fatal(err)
+										}
+										return pipe
+									}(),
+								},
+							},
+							BufferName: "filePipeline",
+						},
+						Fields: []Field{
+							{
+								Name:        []byte("filePipeline"),
+								HasResolver: true,
+								Value: &Value{
+									QuoteValue: true,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	))
 }
 
 func BenchmarkPlanner_Plan(b *testing.B) {
@@ -3146,6 +3283,41 @@ type Cat implements Pet {
 	name: String!
 	nickname: String!
 	meow: String!
+}
+`
+
+const pipelineSchema = `
+directive @PipelineDataSource (
+    configFilePath: String
+    configString: String
+    inputJSON: String!
+) on FIELD_DEFINITION
+
+schema {
+	query: Query
+}
+
+type Query {
+	stringPipeline(foo: String!): String
+		@PipelineDataSource(
+			configString: """
+				{
+					"steps": [
+						{
+							"kind": "NOOP"
+						}
+					]
+				}
+			"""
+    		inputJSON: "{\"foo\":\"{{ .arguments.foo }}\"}"
+		)
+		@mapping(mode: NONE)
+	filePipeline(foo: String!): String
+		@PipelineDataSource(
+			configFilePath: "./testdata/simple_pipeline.json"
+    		inputJSON: "{\"foo\":\"{{ .arguments.foo }}\"}"
+		)
+		@mapping(mode: NONE)
 }
 `
 
