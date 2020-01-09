@@ -1,0 +1,20 @@
+directive @PipelineDataSource (
+    """
+    configFilePath is the path where the pipeline configuration file can be found
+    it needs to be in the json format according to the pipeline json schema
+    see this url for more info: https://github.com/jensneuse/pipeline
+    """
+    configFilePath: String
+    """
+    configString is a string to configure the pipeline
+    it needs to be in the json format according to the pipeline json schema
+    see this url for more info: https://github.com/jensneuse/pipeline
+
+    The PipelinDataSourcePlanner will always choose the configString over the configFilePath in case both are defined.
+    """
+    configString: String
+    """
+    inputJSON is the template to define a JSON object based on the request, parameters etc. which gets passed to the first pipeline step
+    """
+    inputJSON: String!
+) on FIELD_DEFINITION
