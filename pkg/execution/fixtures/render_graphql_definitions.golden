@@ -103,6 +103,23 @@ directive @NatsDataSource
     topic: String!
  on FIELD_DEFINITION
 
+directive @PipelineDataSource
+    """
+    configFilePath is the path where the pipeline configuration file can be found
+    it needs to be in the json format according to the pipeline json schema
+    see this url for more info: https://github.com/jensneuse/pipeline
+    """
+    configFilePath: String 
+    """
+    configString is a string to configure the pipeline
+    it needs to be in the json format according to the pipeline json schema
+    see this url for more info: https://github.com/jensneuse/pipeline
+
+    The PipelinDataSourcePlanner will always choose the configString over the configFilePath in case both are defined.
+    """
+    configString: String
+ on FIELD_DEFINITION
+
 directive @StaticDataSource
     data: String
  on FIELD_DEFINITION
