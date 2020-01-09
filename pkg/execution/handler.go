@@ -194,6 +194,9 @@ func (h *Handler) resolverDefinitions(report *operationreport.Report) ResolverDe
 			func() DataSourcePlanner {
 				return NewWasmDataSourcePlanner(baseDataSourcePlanner)
 			},
+			func() DataSourcePlanner {
+				return NewPipelineDataSourcePlanner(baseDataSourcePlanner)
+			},
 		},
 	}
 	walker.RegisterEnterFieldDefinitionVisitor(&visitor)
