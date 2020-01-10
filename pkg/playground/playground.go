@@ -44,7 +44,11 @@ type fileConfig struct {
 	fileContentType string
 }
 
-func ConfigureHandlers(mux *http.ServeMux, config Config) error {
+type HttpServeMux interface {
+	HandleFunc(pattern string, handler func(http.ResponseWriter, *http.Request))
+}
+
+func ConfigureHandlers(mux HttpServeMux, config Config) error {
 	box := packr.NewBox("./files")
 	playgroundHTML, err := box.FindString("playground.html")
 	if err != nil {
@@ -106,7 +110,7 @@ func ConfigureHandlers(mux *http.ServeMux, config Config) error {
 	return nil
 }
 
-func configureFileHandler(mux *http.ServeMux, box packr.Box, fileName, fileURL, contentType string) error {
+func configureFileHandler(mux HttpServeMux, box packr.Box, fileName, fileURL, contentType string) error {
 
 	data, err := box.Find(fileName)
 	if err != nil {
