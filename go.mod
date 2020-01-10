@@ -13,7 +13,7 @@ require (
 	github.com/gobwas/pool v0.2.0 // indirect
 	github.com/gobwas/ws v1.0.2
 	github.com/jensneuse/diffview v1.0.0
-	github.com/jensneuse/pipeline v0.0.0-20200109160550-f4ca9aef3017
+	github.com/jensneuse/pipeline v0.0.0-20200110090712-e40ec448f28d
 	github.com/nats-io/nats-server/v2 v2.1.2 // indirect
 	github.com/nats-io/nats.go v1.9.1
 	github.com/pkg/errors v0.8.1 // indirect

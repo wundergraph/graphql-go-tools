@@ -3,7 +3,7 @@ package execution
 import (
 	"bytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
-	"github.com/jensneuse/pipeline/pkg/pipeline"
+	"github.com/jensneuse/pipeline/pkg/pipe"
 	"go.uber.org/zap"
 	"os"
 	"testing"
@@ -11,22 +11,22 @@ import (
 
 func TestPipelineDataSource_Resolve(t *testing.T) {
 
-	configFile,err := os.Open("./testdata/simple_pipeline.json")
+	configFile, err := os.Open("./testdata/simple_pipeline.json")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	defer configFile.Close()
 
-	var pipe pipeline.Pipeline
-	err = pipe.FromConfig(configFile)
+	var pipeline pipe.Pipeline
+	err = pipeline.FromConfig(configFile)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	source := PipelineDataSource{
-		log:zap.NewNop(),
-		pipe: pipe,
+		log:      zap.NewNop(),
+		pipeline: pipeline,
 	}
 
 	args := []ResolvedArgument{
@@ -37,12 +37,12 @@ func TestPipelineDataSource_Resolve(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	source.Resolve(Context{},args,&out)
+	source.Resolve(Context{}, args, &out)
 
 	got := out.String()
 	want := `{"foo":"bar"}`
 
 	if want != got {
-		t.Fatalf("want: %s\ngot: %s\n",want,got)
+		t.Fatalf("want: %s\ngot: %s\n", want, got)
 	}
 }

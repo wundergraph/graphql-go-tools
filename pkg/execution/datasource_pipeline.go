@@ -5,7 +5,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
-	"github.com/jensneuse/pipeline/pkg/pipeline"
+	"github.com/jensneuse/pipeline/pkg/pipe"
 	"go.uber.org/zap"
 	"io"
 	"io/ioutil"
@@ -43,7 +43,7 @@ func (h *PipelineDataSourcePlanner) Plan() (DataSource, []Argument) {
 		log: h.log,
 	}
 
-	err := source.pipe.FromConfig(bytes.NewReader(h.rawPipelineConfig))
+	err := source.pipeline.FromConfig(bytes.NewReader(h.rawPipelineConfig))
 	if err != nil {
 		h.log.Error("PipelineDataSourcePlanner.pipe.FromConfig", zap.Error(err))
 	}
@@ -136,14 +136,14 @@ func (h *PipelineDataSourcePlanner) LeaveField(ref int) {
 
 type PipelineDataSource struct {
 	log  *zap.Logger
-	pipe pipeline.Pipeline
+	pipeline pipe.Pipeline
 }
 
 func (r *PipelineDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) Instruction {
 
 	inputJSON := args.ByKey(literal.INPUT_JSON)
 
-	err := r.pipe.Run(bytes.NewReader(inputJSON), out)
+	err := r.pipeline.Run(bytes.NewReader(inputJSON), out)
 	if err != nil {
 		r.log.Error("PipelineDataSource.pipe.Run", zap.Error(err))
 	}
