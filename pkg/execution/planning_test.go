@@ -10,7 +10,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
-	"github.com/jensneuse/pipeline/pkg/pipeline"
+	"github.com/jensneuse/pipeline/pkg/pipe"
 	"go.uber.org/zap"
 	"math/rand"
 	"reflect"
@@ -2578,7 +2578,7 @@ func TestPlanner_Plan(t *testing.T) {
 									},
 								},
 								DataSource: &PipelineDataSource{
-									pipe: func() pipeline.Pipeline {
+									pipeline: func() pipe.Pipeline {
 										config := `{
 														"steps": [
 															{
@@ -2589,12 +2589,12 @@ func TestPlanner_Plan(t *testing.T) {
 															}
 														]
 													}`
-										var pipe pipeline.Pipeline
-										err := pipe.FromConfig(strings.NewReader(config))
+										var pipeline pipe.Pipeline
+										err := pipeline.FromConfig(strings.NewReader(config))
 										if err != nil {
 											t.Fatal(err)
 										}
-										return pipe
+										return pipeline
 									}(),
 								},
 							},
@@ -2647,7 +2647,7 @@ func TestPlanner_Plan(t *testing.T) {
 									},
 								},
 								DataSource: &PipelineDataSource{
-									pipe: func() pipeline.Pipeline {
+									pipeline: func() pipe.Pipeline {
 										config := `{
 														"steps": [
 															{
@@ -2655,12 +2655,12 @@ func TestPlanner_Plan(t *testing.T) {
 															}
 														]
 													}`
-										var pipe pipeline.Pipeline
-										err := pipe.FromConfig(strings.NewReader(config))
+										var pipeline pipe.Pipeline
+										err := pipeline.FromConfig(strings.NewReader(config))
 										if err != nil {
 											t.Fatal(err)
 										}
-										return pipe
+										return pipeline
 									}(),
 								},
 							},
@@ -3304,7 +3304,7 @@ type Query {
 				{
 					"steps": [
 						{
-							"kind": "NOOP"
+							"kind": "NOOP"	
 						}
 					]
 				}

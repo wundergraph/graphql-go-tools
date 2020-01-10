@@ -60,6 +60,8 @@ github.com/jensneuse/pipeline v0.0.0-20200108143702-8479af6e58b2 h1:Zr/bdCvBa+VE
 github.com/jensneuse/pipeline v0.0.0-20200108143702-8479af6e58b2/go.mod h1:UsfzaMt+keVOxa007GcCJMFeTHr6voRfBGMQEW7DkdM=
 github.com/jensneuse/pipeline v0.0.0-20200109160550-f4ca9aef3017 h1:Y7IKk+A9QWsLdG0crjrD8RU32fRk0U0a7tEPh8kOoIM=
 github.com/jensneuse/pipeline v0.0.0-20200109160550-f4ca9aef3017/go.mod h1:UsfzaMt+keVOxa007GcCJMFeTHr6voRfBGMQEW7DkdM=
+github.com/jensneuse/pipeline v0.0.0-20200110090712-e40ec448f28d h1:WhhY2ZdyCvYSb1S2aP91fK9gqlnK2mM3uzcrSu8sfLo=
+github.com/jensneuse/pipeline v0.0.0-20200110090712-e40ec448f28d/go.mod h1:UsfzaMt+keVOxa007GcCJMFeTHr6voRfBGMQEW7DkdM=
 github.com/joho/godotenv v1.3.0 h1:Zjp+RcGpHhGlrMbJzXTrZZPrWj+1vfm90La1wgB6Bhc=
 github.com/joho/godotenv v1.3.0/go.mod h1:7hK45KPybAkOC6peb+G5yklZfMxEjkZhHbwpqxOKXbg=
 github.com/karrick/godirwalk v1.10.12/go.mod h1:RoGL9dQei4vP9ilrpETWE8CLOZ1kiN0LhBygSwrAsHA=
