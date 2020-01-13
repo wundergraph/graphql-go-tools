@@ -208,11 +208,12 @@ func (l *Lexer) readDigit(tok *token.Token) {
 		l.readRune()
 	}
 
-	isFloat := r == runes.DOT
+	hasExponent := r == runes.EXPONENT_LOWER || r == runes.EXPONENT_UPPER
+	isFloat := r == runes.DOT || hasExponent
 
 	if isFloat {
-		l.swallowAmount(1)
-		l.readFloat(tok)
+		l.readRune()
+		l.readFloat(hasExponent,tok)
 		return
 	}
 
@@ -220,7 +221,7 @@ func (l *Lexer) readDigit(tok *token.Token) {
 	tok.SetEnd(l.input.InputPosition, l.input.TextPosition)
 }
 
-func (l *Lexer) readFloat(tok *token.Token) {
+func (l *Lexer) readFloat(hasReadExponentAlready bool,tok *token.Token) {
 
 	var r byte
 	for {
@@ -231,7 +232,33 @@ func (l *Lexer) readFloat(tok *token.Token) {
 		l.readRune()
 	}
 
-	tok.Keyword = keyword.FLOAT
+	if hasReadExponentAlready {
+		float := keyword.FLOAT
+		tok.Keyword = float
+		tok.SetEnd(l.input.InputPosition, l.input.TextPosition)
+		return
+	}
+
+	optionalExponent := l.peekRune(false)
+	if optionalExponent  == runes.EXPONENT_LOWER || optionalExponent == runes.EXPONENT_UPPER {
+		l.readRune()
+	}
+
+	optionalPlusMinus := l.peekRune(false)
+	if optionalPlusMinus == runes.SUB || optionalPlusMinus == runes.ADD {
+		l.readRune()
+	}
+
+	for {
+		r = l.peekRune(false)
+		if !runeIsDigit(r) {
+			break
+		}
+		l.readRune()
+	}
+
+	float := keyword.FLOAT
+	tok.Keyword = float
 	tok.SetEnd(l.input.InputPosition, l.input.TextPosition)
 }
 
