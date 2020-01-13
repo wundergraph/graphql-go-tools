@@ -153,6 +153,25 @@ func TestLexer_Peek_Read(t *testing.T) {
 	t.Run("fail reading incomplete float", func(t *testing.T) {
 		run("13.", mustRead(keyword.FLOAT, "13."))
 	})
+	t.Run("read plancks constant", func(t *testing.T) {
+		run("6.63E-34", mustRead(keyword.FLOAT, "6.63E-34"))
+	})
+	t.Run("read electron mass kg", func(t *testing.T) {
+		run("9.10938356e-3", mustRead(keyword.FLOAT, "9.10938356e-3"))
+	})
+	t.Run("read earth mass kg", func(t *testing.T) {
+		run("5.9724e24", mustRead(keyword.FLOAT, "5.9724e24"))
+	})
+	t.Run("read earth circumference m", func(t *testing.T) {
+		run("4E7", mustRead(keyword.FLOAT, "4E7"))
+	})
+	t.Run("read an inch in mm", func(t *testing.T) {
+		run("2.54E+1", mustRead(keyword.FLOAT, "2.54E+1"))
+	})
+	t.Run("read electron charge/mass ratio", func(t *testing.T) {
+		run("-1.758E11",mustRead(keyword.SUB, "-"),
+			mustRead(keyword.FLOAT, "1.758E11"))
+	})
 	t.Run("read single line string", func(t *testing.T) {
 		run("\"foo\"", mustRead(keyword.STRING, "foo"))
 	})
