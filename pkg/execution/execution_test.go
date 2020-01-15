@@ -12,7 +12,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 	"github.com/sebdah/goldie"
-	"go.uber.org/zap"
+	log "github.com/jensneuse/abstractlogger"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -131,7 +131,7 @@ func TestExecution(t *testing.T) {
 										},
 									},
 									DataSource: &GraphQLDataSource{
-										log: zap.NewNop(),
+										log: log.NoopLogger,
 									},
 								},
 								BufferName: "user",
@@ -231,7 +231,7 @@ func TestExecution(t *testing.T) {
 													},
 												},
 												DataSource: &HttpJsonDataSource{
-													log: zap.NewNop(),
+													log: log.NoopLogger,
 												},
 											},
 											BufferName: "friends",
@@ -259,7 +259,7 @@ func TestExecution(t *testing.T) {
 													},
 												},
 												DataSource: &GraphQLDataSource{
-													log: zap.NewNop(),
+													log: log.NoopLogger,
 												},
 											},
 											BufferName: "pets",
@@ -321,7 +321,7 @@ func TestExecution(t *testing.T) {
 															},
 														},
 														DataSource: &HttpJsonDataSource{
-															log: zap.NewNop(),
+															log: log.NoopLogger,
 														},
 													},
 													BufferName: "pets",
@@ -1028,7 +1028,7 @@ func TestStreamExecution(t *testing.T) {
 							},
 							DataSource: &HttpPollingStreamDataSource{
 								delay: time.Millisecond,
-								log:   zap.NewNop(),
+								log:   log.NoopLogger,
 							},
 						},
 						BufferName: "stream",
@@ -1240,7 +1240,7 @@ func TestExecutor_ObjectVariables(t *testing.T) {
 											},
 										},
 										DataSource: &HttpJsonDataSource{
-											log: zap.NewNop(),
+											log: log.NoopLogger,
 										},
 									},
 								},
@@ -1434,7 +1434,7 @@ func TestExecutor_GraphqlDataSourceWithParams(t *testing.T) {
 								},
 							},
 							DataSource: &GraphQLDataSource{
-								log: zap.NewNop(),
+								log: log.NoopLogger,
 							},
 						},
 						BufferName: "countries",
@@ -1833,7 +1833,7 @@ func TestExecutor_HTTPJSONDataSourceWithBody(t *testing.T) {
 						BufferName: "withBody",
 						Source: &DataSourceInvocation{
 							DataSource: &HttpJsonDataSource{
-								log: zap.NewNop(),
+								log: log.NoopLogger,
 							},
 							Args: []Argument{
 								&StaticVariableArgument{
@@ -1959,7 +1959,7 @@ func TestExecutor_HTTPJSONDataSourceWithBodyComplexPlayload(t *testing.T) {
 						BufferName: "withBody",
 						Source: &DataSourceInvocation{
 							DataSource: &HttpJsonDataSource{
-								log: zap.NewNop(),
+								log: log.NoopLogger,
 							},
 							Args: []Argument{
 								&StaticVariableArgument{
@@ -2061,7 +2061,7 @@ func TestExecutor_HTTPJSONDataSourceWithHeaders(t *testing.T) {
 						BufferName: "withHeaders",
 						Source: &DataSourceInvocation{
 							DataSource: &HttpJsonDataSource{
-								log: zap.NewNop(),
+								log: log.NoopLogger,
 							},
 							Args: []Argument{
 								&StaticVariableArgument{
@@ -2166,7 +2166,7 @@ func TestExecutor_HTTPJSONDataSourceWithPathSelector(t *testing.T) {
 						BufferName: "friends",
 						Source: &DataSourceInvocation{
 							DataSource: &HttpJsonDataSource{
-								log: zap.NewNop(),
+								log: log.NoopLogger,
 							},
 							Args: []Argument{
 								&StaticVariableArgument{
@@ -2276,7 +2276,7 @@ func TestExecutor_Introspection(t *testing.T) {
 		}
 	`)
 
-	handler, err := NewHandler(schema, zap.NewNop())
+	handler, err := NewHandler(schema, log.NoopLogger)
 	if err != nil {
 		t.Fatal(err)
 	}

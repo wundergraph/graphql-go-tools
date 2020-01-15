@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
+	log "github.com/jensneuse/abstractlogger"
 	"github.com/jensneuse/graphql-go-tools/pkg/execution"
-	"go.uber.org/zap"
 	"net"
 	"net/http"
 )
@@ -46,21 +46,21 @@ func (g *GraphQLHTTPRequestHandler) handleWebsocket(r *http.Request, conn net.Co
 		data, op, err := wsutil.ReadClientData(conn)
 		if err != nil {
 			g.log.Error("GraphQLHTTPRequestHandler.handleWebsocket",
-				zap.Error(err),
-				zap.ByteString("message", data),
+				log.Error(err),
+				log.ByteString("message", data),
 			)
 			return
 		}
 		g.log.Debug("GraphQLHTTPRequestHandler.handleWebsocket",
-			zap.ByteString("message", data),
-			zap.String("opCode", string(op)),
+			log.ByteString("message", data),
+			log.String("opCode", string(op)),
 		)
 		var message WebsocketMessage
 		err = json.Unmarshal(data, &message)
 		if err != nil {
 			g.log.Debug("GraphQLHTTPRequestHandler.handleClientMessage",
-				zap.ByteString("message", data),
-				zap.String("opCode", string(op)),
+				log.ByteString("message", data),
+				log.String("opCode", string(op)),
 			)
 			return
 		}
@@ -70,8 +70,8 @@ func (g *GraphQLHTTPRequestHandler) handleWebsocket(r *http.Request, conn net.Co
 			err = g.sendAck(conn, op)
 			if err != nil {
 				g.log.Debug("GraphQLHTTPRequestHandler.sendAck",
-					zap.ByteString("message", data),
-					zap.String("opCode", string(op)),
+					log.ByteString("message", data),
+					log.String("opCode", string(op)),
 				)
 				return
 			}
@@ -108,8 +108,8 @@ func (g *GraphQLHTTPRequestHandler) startSubscription(r *http.Request, ctx conte
 	executor, node, executionContext, err := g.executionHandler.Handle(data, extra.Bytes())
 	if err != nil {
 		g.log.Error("GraphQLHTTPRequestHandler.startSubscription.executionHandler.Handle",
-			zap.Error(err),
-			zap.ByteString("data", data),
+			log.Error(err),
+			log.ByteString("data", data),
 		)
 		return
 	}
@@ -127,13 +127,13 @@ func (g *GraphQLHTTPRequestHandler) startSubscription(r *http.Request, ctx conte
 			instructions, err := executor.Execute(executionContext, node, buf)
 			if err != nil {
 				g.log.Error("GraphQLHTTPRequestHandler.startSubscription.executor.Execute",
-					zap.Error(err),
-					zap.ByteString("data", data),
+					log.Error(err),
+					log.ByteString("data", data),
 				)
 			}
 
 			g.log.Debug("GraphQLHTTPRequestHandler.startSubscription",
-				zap.ByteString("execution_result", buf.Bytes()),
+				log.ByteString("execution_result", buf.Bytes()),
 			)
 
 			response := WebsocketMessage{
@@ -145,7 +145,7 @@ func (g *GraphQLHTTPRequestHandler) startSubscription(r *http.Request, ctx conte
 			responseData, err := json.Marshal(response)
 			if err != nil {
 				g.log.Error("GraphQLHTTPRequestHandler.startSubscription.json.Marshal",
-					zap.Error(err),
+					log.Error(err),
 				)
 				return
 			}
@@ -153,8 +153,8 @@ func (g *GraphQLHTTPRequestHandler) startSubscription(r *http.Request, ctx conte
 			err = wsutil.WriteServerMessage(conn, op, responseData)
 			if err != nil {
 				g.log.Error("GraphQLHTTPRequestHandler.startSubscription.wsutil.WriteServerMessage",
-					zap.Error(err),
-					zap.ByteString("data", data),
+					log.Error(err),
+					log.ByteString("data", data),
 				)
 				return
 			}
@@ -165,7 +165,7 @@ func (g *GraphQLHTTPRequestHandler) startSubscription(r *http.Request, ctx conte
 					err = g.sendCloseMessage(id, conn, op)
 					if err != nil {
 						g.log.Error("GraphQLHTTPRequestHandler.startSubscription.sendCloseMessage",
-							zap.Error(err),
+							log.Error(err),
 						)
 					}
 					return

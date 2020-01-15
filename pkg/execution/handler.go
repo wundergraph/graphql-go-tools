@@ -7,6 +7,7 @@ import (
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash"
 	"github.com/gobuffalo/packr"
+	"github.com/jensneuse/abstractlogger"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
@@ -15,18 +16,17 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
-	"go.uber.org/zap"
 	"io"
 	"sort"
 )
 
 type Handler struct {
-	log                *zap.Logger
+	log                abstractlogger.Logger
 	definition         ast.Document
 	graphqlDefinitions *packr.Box
 }
 
-func NewHandler(schema []byte, logger *zap.Logger) (*Handler, error) {
+func NewHandler(schema []byte, logger abstractlogger.Logger) (*Handler, error) {
 
 	schema = append(schema, graphqlDefinitionBoilerplate...)
 

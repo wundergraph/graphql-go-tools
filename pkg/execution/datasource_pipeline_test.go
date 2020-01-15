@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/pipeline/pkg/pipe"
-	"go.uber.org/zap"
+	log "github.com/jensneuse/abstractlogger"
 	"os"
 	"testing"
 )
@@ -25,7 +25,7 @@ func TestPipelineDataSource_Resolve(t *testing.T) {
 	}
 
 	source := PipelineDataSource{
-		log:      zap.NewNop(),
+		log:      log.NoopLogger,
 		pipeline: pipeline,
 	}
 

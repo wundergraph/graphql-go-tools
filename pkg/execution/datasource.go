@@ -2,9 +2,9 @@ package execution
 
 import (
 	"github.com/gobuffalo/packr"
+	"github.com/jensneuse/abstractlogger"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
-	"go.uber.org/zap"
 	"io"
 )
 
@@ -70,7 +70,7 @@ type DataSourcePlanner interface {
 }
 
 type BaseDataSourcePlanner struct {
-	log                   *zap.Logger
+	log                   abstractlogger.Logger
 	walker                *astvisitor.Walker // nolint
 	definition, operation *ast.Document      // nolint
 	args                  []Argument         // nolint
