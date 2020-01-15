@@ -3,7 +3,7 @@ package execution
 import (
 	"bytes"
 	"encoding/json"
-	"go.uber.org/zap"
+	log "github.com/jensneuse/abstractlogger"
 	"testing"
 )
 
@@ -22,7 +22,7 @@ func TestWASMDataSource_Resolve(t *testing.T) {
 	input := []byte("{\"id\":\"1\"}")
 
 	planner := NewWasmDataSourcePlanner(BaseDataSourcePlanner{
-		log:zap.NewNop(),
+		log:log.NoopLogger,
 	})
 
 	dataSource, _ := planner.Plan()
@@ -64,7 +64,7 @@ func BenchmarkWASMDataSource_Resolve(t *testing.B) {
 	input := []byte("{\"id\":\"1\"}")
 
 	planner := NewWasmDataSourcePlanner(BaseDataSourcePlanner{
-		log:zap.NewNop(),
+		log:log.NoopLogger,
 	})
 
 	dataSource, _ := planner.Plan()

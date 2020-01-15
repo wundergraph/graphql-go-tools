@@ -6,7 +6,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	wasm "github.com/wasmerio/go-ext-wasm/wasmer"
-	"go.uber.org/zap"
+	log "github.com/jensneuse/abstractlogger"
 	"io"
 	"sync"
 )
@@ -113,7 +113,7 @@ func (w *WasmDataSourcePlanner) Plan() (DataSource, []Argument) {
 }
 
 type WasmDataSource struct {
-	log      *zap.Logger
+	log      log.Logger
 	instance wasm.Instance
 	once     sync.Once
 }
@@ -124,22 +124,22 @@ func (s *WasmDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) 
 	wasmFile := args.ByKey(literal.WASMFILE)
 
 	s.log.Debug("WasmDataSource.Resolve.args",
-		zap.ByteString("input",input),
-		zap.ByteString("wasmFile",wasmFile),
+		log.ByteString("input",input),
+		log.ByteString("wasmFile",wasmFile),
 	)
 
 	s.once.Do(func() {
 		wasmData, err := wasm.ReadBytes(string(wasmFile))
 		if err != nil {
 			s.log.Error("WasmDataSource.wasm.ReadBytes(string(wasmFile))",
-				zap.Error(err),
+				log.Error(err),
 			)
 			return
 		}
 		s.instance, err = wasm.NewInstance(wasmData)
 		if err != nil {
 			s.log.Error("WasmDataSource.wasm.NewInstance(wasmData)",
-				zap.Error(err),
+				log.Error(err),
 			)
 		}
 
@@ -151,7 +151,7 @@ func (s *WasmDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) 
 	allocateInputResult, err := s.instance.Exports["allocate"](inputLen)
 	if err != nil {
 		s.log.Error("WasmDataSource.instance.Exports[\"allocate\"](inputLen)",
-			zap.Error(err),
+			log.Error(err),
 		)
 		return CloseConnectionIfNotStream
 	}
@@ -169,7 +169,7 @@ func (s *WasmDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) 
 	result, err := s.instance.Exports["invoke"](inputPointer)
 	if err != nil {
 		s.log.Error("WasmDataSource.instance.Exports[\"invoke\"](inputPointer)",
-			zap.Error(err),
+			log.Error(err),
 		)
 		return CloseConnectionIfNotStream
 	}
@@ -189,7 +189,7 @@ func (s *WasmDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) 
 	_,err = out.Write(memory[start:stop])
 	if err != nil {
 		s.log.Error("WasmDataSource.out.Write(memory[start:stop])",
-			zap.Error(err),
+			log.Error(err),
 		)
 		return CloseConnectionIfNotStream
 	}
@@ -198,7 +198,7 @@ func (s *WasmDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) 
 	_, err = deallocate(inputPointer, inputLen)
 	if err != nil {
 		s.log.Error("WasmDataSource.deallocate(inputPointer, inputLen)",
-			zap.Error(err),
+			log.Error(err),
 		)
 		return CloseConnectionIfNotStream
 	}
@@ -206,7 +206,7 @@ func (s *WasmDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) 
 	_, err = deallocate(start, stop-start)
 	if err != nil {
 		s.log.Error("WasmDataSource.deallocate(start, stop-start)",
-			zap.Error(err),
+			log.Error(err),
 		)
 		return CloseConnectionIfNotStream
 	}

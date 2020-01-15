@@ -11,7 +11,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 	"github.com/jensneuse/pipeline/pkg/pipe"
-	"go.uber.org/zap"
+	log "github.com/jensneuse/abstractlogger"
 	"math/rand"
 	"reflect"
 	"strings"
@@ -2345,7 +2345,7 @@ func TestPlanner_Plan(t *testing.T) {
 			DataSourcePlannerFactory: func() DataSourcePlanner {
 				return &HttpPollingStreamDataSourcePlanner{
 					BaseDataSourcePlanner: BaseDataSourcePlanner{
-						log: zap.NewNop(),
+						log: log.NoopLogger,
 					},
 				}
 			},
@@ -2369,7 +2369,7 @@ func TestPlanner_Plan(t *testing.T) {
 								},
 							},
 							DataSource: &HttpPollingStreamDataSource{
-								log:   zap.NewNop(),
+								log:   log.NoopLogger,
 								delay: time.Second * 5,
 							},
 						},
@@ -2421,7 +2421,7 @@ func TestPlanner_Plan(t *testing.T) {
 			DataSourcePlannerFactory: func() DataSourcePlanner {
 				return &HttpPollingStreamDataSourcePlanner{
 					BaseDataSourcePlanner: BaseDataSourcePlanner{
-						log: zap.NewNop(),
+						log: log.NoopLogger,
 					},
 				}
 			},
@@ -2445,7 +2445,7 @@ func TestPlanner_Plan(t *testing.T) {
 								},
 							},
 							DataSource: &HttpPollingStreamDataSource{
-								log:   zap.NewNop(),
+								log:   log.NoopLogger,
 								delay: time.Second * 3,
 							},
 						},

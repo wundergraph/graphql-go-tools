@@ -5,7 +5,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/nats-io/nats.go"
-	"go.uber.org/zap"
+	log "github.com/jensneuse/abstractlogger"
 	"io"
 	"sync"
 	"time"
@@ -98,7 +98,7 @@ func (n *NatsDataSourcePlanner) LeaveField(ref int) {
 }
 
 type NatsDataSource struct {
-	log  *zap.Logger
+	log  log.Logger
 	conn *nats.Conn
 	sub  *nats.Subscription
 	once sync.Once
@@ -122,26 +122,26 @@ func (n *NatsDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) 
 			<-ctx.Done()
 			if n.sub != nil {
 				n.log.Debug("NatsDataSource.unsubscribing",
-					zap.String("addr", addr),
-					zap.String("topic", topic),
+					log.String("addr", addr),
+					log.String("topic", topic),
 				)
 				err := n.sub.Unsubscribe()
 				if err != nil {
-					n.log.Error("Unsubscribe", zap.Error(err))
+					n.log.Error("Unsubscribe", log.Error(err))
 				}
 			}
 			if n.conn != nil {
 				n.log.Debug("NatsDataSource.closing",
-					zap.String("addr", addr),
-					zap.String("topic", topic),
+					log.String("addr", addr),
+					log.String("topic", topic),
 				)
 				n.conn.Close()
 			}
 		}()
 
 		n.log.Debug("NatsDataSource.connecting",
-			zap.String("addr", addr),
-			zap.String("topic", topic),
+			log.String("addr", addr),
+			log.String("topic", topic),
 		)
 
 		n.conn, err = nats.Connect(addr)
@@ -150,8 +150,8 @@ func (n *NatsDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) 
 		}
 
 		n.log.Debug("NatsDataSource.subscribing",
-			zap.String("addr", addr),
-			zap.String("topic", topic),
+			log.String("addr", addr),
+			log.String("topic", topic),
 		)
 
 		n.sub, err = n.conn.SubscribeSync(topic)

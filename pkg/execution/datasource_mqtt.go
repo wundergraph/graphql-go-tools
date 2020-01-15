@@ -2,13 +2,11 @@ package execution
 
 import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
+	log "github.com/jensneuse/abstractlogger"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
-	"go.uber.org/zap"
 	"io"
-	"log"
-	"os"
 	"sync"
 	"time"
 )
@@ -112,7 +110,7 @@ func (n *MQTTDataSourcePlanner) LeaveField(ref int) {
 }
 
 type MQTTDataSource struct {
-	log    *zap.Logger
+	log    log.Logger
 	once   sync.Once
 	ch     chan mqtt.Message
 	client mqtt.Client
@@ -136,9 +134,9 @@ func (m *MQTTDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) 
 		topicArg := args.ByKey(literal.TOPIC)
 
 		m.log.Debug("MQTTDataSource.Resolve.init",
-			zap.String("broker", string(brokerArg)),
-			zap.String("clientID", string(clientIDArg)),
-			zap.String("topic", string(topicArg)),
+			log.String("broker", string(brokerArg)),
+			log.String("clientID", string(clientIDArg)),
+			log.String("topic", string(topicArg)),
 		)
 
 		m.ch = make(chan mqtt.Message)
@@ -161,8 +159,8 @@ func (m *MQTTDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) 
 }
 
 func (m *MQTTDataSource) start(brokerAddr, clientID, topic string) {
-	mqtt.DEBUG = log.New(os.Stdout,"mqtt",0)
-	mqtt.ERROR = log.New(os.Stderr,"mqtt",0)
+	mqtt.ERROR = m.log.LevelLogger(log.ErrorLevel)
+	mqtt.DEBUG = m.log.LevelLogger(log.DebugLevel)
 	opts := mqtt.NewClientOptions().AddBroker(brokerAddr).SetClientID(clientID)
 	opts.SetKeepAlive(5 * time.Second)
 	opts.SetResumeSubs(true)
@@ -176,7 +174,7 @@ func (m *MQTTDataSource) start(brokerAddr, clientID, topic string) {
 	m.client = mqtt.NewClient(opts)
 	if token := m.client.Connect(); token.Wait() && token.Error() != nil {
 		m.log.Error("MQTTDataSource.start.Connect",
-			zap.Error(token.Error()),
+			log.Error(token.Error()),
 		)
 		close(m.ch)
 		return
@@ -184,7 +182,7 @@ func (m *MQTTDataSource) start(brokerAddr, clientID, topic string) {
 
 	if token := m.client.Subscribe(topic, 0, nil); token.Wait() && token.Error() != nil {
 		m.log.Error("MQTTDataSource.start.Subscribe",
-			zap.Error(token.Error()),
+			log.Error(token.Error()),
 		)
 		close(m.ch)
 		return

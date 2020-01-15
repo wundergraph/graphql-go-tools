@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/buger/jsonparser"
+	log "github.com/jensneuse/abstractlogger"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
-	"go.uber.org/zap"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -208,7 +208,7 @@ func (h *HttpJsonDataSourcePlanner) LeaveField(ref int) {
 }
 
 type HttpJsonDataSource struct {
-	log *zap.Logger
+	log log.Logger
 }
 
 func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) Instruction {
@@ -220,7 +220,7 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 	headersArg := args.ByKey(literal.HEADERS)
 
 	r.log.Debug("HttpJsonDataSource.Resolve.args",
-		zap.Strings("resolvedArgs", args.Dump()),
+		log.Strings("resolvedArgs", args.Dump()),
 	)
 
 	switch {
@@ -261,12 +261,12 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 			return nil
 		})
 		if err != nil {
-			r.log.Error("accessing headers", zap.Error(err))
+			r.log.Error("accessing headers", log.Error(err))
 		}
 	}
 
 	r.log.Debug("HttpJsonDataSource.Resolve",
-		zap.String("url", url),
+		log.String("url", url),
 	)
 
 	client := http.Client{
@@ -286,7 +286,7 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 	request, err := http.NewRequest(httpMethod, url, bodyReader)
 	if err != nil {
 		r.log.Error("HttpJsonDataSource.Resolve.NewRequest",
-			zap.Error(err),
+			log.Error(err),
 		)
 		return CloseConnectionIfNotStream
 	}
@@ -296,7 +296,7 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 	res, err := client.Do(request)
 	if err != nil {
 		r.log.Error("HttpJsonDataSource.Resolve.client.Do",
-			zap.Error(err),
+			log.Error(err),
 		)
 		return CloseConnectionIfNotStream
 	}
@@ -304,14 +304,14 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 	data, err := ioutil.ReadAll(res.Body)
 	if err != nil {
 		r.log.Error("HttpJsonDataSource.Resolve.ioutil.ReadAll",
-			zap.Error(err),
+			log.Error(err),
 		)
 		return CloseConnectionIfNotStream
 	}
 	_, err = out.Write(data)
 	if err != nil {
 		r.log.Error("HttpJsonDataSource.Resolve.out.Write",
-			zap.Error(err),
+			log.Error(err),
 		)
 		return CloseConnectionIfNotStream
 	}

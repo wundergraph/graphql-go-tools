@@ -3,7 +3,7 @@ package http
 
 import (
 	"bytes"
-	"go.uber.org/zap"
+	log "github.com/jensneuse/abstractlogger"
 	"io/ioutil"
 	"net/http"
 )
@@ -12,17 +12,17 @@ func (g *GraphQLHTTPRequestHandler) handleHTTP(w http.ResponseWriter, r *http.Re
 	data, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		g.log.Error("GraphQLHTTPRequestHandler.handleHTTP",
-			zap.Error(err),
+			log.Error(err),
 		)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	extra := &bytes.Buffer{}
-	err = g.extraVariables(r,extra)
+	err = g.extraVariables(r, extra)
 	if err != nil {
 		g.log.Error("executionHandler.Handle.json.Marshal(extra)",
-			zap.Error(err),
+			log.Error(err),
 		)
 		w.WriteHeader(http.StatusBadRequest)
 		return
@@ -31,7 +31,7 @@ func (g *GraphQLHTTPRequestHandler) handleHTTP(w http.ResponseWriter, r *http.Re
 	executor, rootNode, ctx, err := g.executionHandler.Handle(data, extra.Bytes())
 	if err != nil {
 		g.log.Error("executionHandler.Handle",
-			zap.Error(err),
+			log.Error(err),
 		)
 		w.WriteHeader(http.StatusBadRequest)
 		return
@@ -41,7 +41,7 @@ func (g *GraphQLHTTPRequestHandler) handleHTTP(w http.ResponseWriter, r *http.Re
 	_, err = executor.Execute(ctx, rootNode, buf)
 	if err != nil {
 		g.log.Error("executor.Execute",
-			zap.Error(err),
+			log.Error(err),
 		)
 		w.WriteHeader(http.StatusInternalServerError)
 		return

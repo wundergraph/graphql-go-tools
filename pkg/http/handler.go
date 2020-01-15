@@ -3,13 +3,13 @@ package http
 import (
 	"encoding/json"
 	"github.com/gobwas/ws"
+	log "github.com/jensneuse/abstractlogger"
 	"github.com/jensneuse/graphql-go-tools/pkg/execution"
-	"go.uber.org/zap"
 	"io"
 	"net/http"
 )
 
-func NewGraphqlHTTPHandlerFunc(executionHandler *execution.Handler, logger *zap.Logger, upgrader *ws.HTTPUpgrader) http.Handler {
+func NewGraphqlHTTPHandlerFunc(executionHandler *execution.Handler, logger log.Logger, upgrader *ws.HTTPUpgrader) http.Handler {
 	return &GraphQLHTTPRequestHandler{
 		log:              logger,
 		executionHandler: executionHandler,
@@ -18,7 +18,7 @@ func NewGraphqlHTTPHandlerFunc(executionHandler *execution.Handler, logger *zap.
 }
 
 type GraphQLHTTPRequestHandler struct {
-	log              *zap.Logger
+	log              log.Logger
 	executionHandler *execution.Handler
 	wsUpgrader       *ws.HTTPUpgrader
 }
@@ -29,7 +29,7 @@ func (g *GraphQLHTTPRequestHandler) ServeHTTP(w http.ResponseWriter, r *http.Req
 		err := g.upgradeWithNewGoroutine(w, r)
 		if err != nil {
 			g.log.Error("GraphQLHTTPRequestHandler.ServeHTTP",
-				zap.Error(err),
+				log.Error(err),
 			)
 			w.WriteHeader(http.StatusBadRequest)
 		}

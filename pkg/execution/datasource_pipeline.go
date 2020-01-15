@@ -6,7 +6,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/pipeline/pkg/pipe"
-	"go.uber.org/zap"
+	log "github.com/jensneuse/abstractlogger"
 	"io"
 	"io/ioutil"
 )
@@ -45,7 +45,7 @@ func (h *PipelineDataSourcePlanner) Plan() (DataSource, []Argument) {
 
 	err := source.pipeline.FromConfig(bytes.NewReader(h.rawPipelineConfig))
 	if err != nil {
-		h.log.Error("PipelineDataSourcePlanner.pipe.FromConfig", zap.Error(err))
+		h.log.Error("PipelineDataSourcePlanner.pipe.FromConfig", log.Error(err))
 	}
 
 	return &source, h.args
@@ -98,7 +98,7 @@ func (h *PipelineDataSourcePlanner) LeaveField(ref int) {
 		var err error
 		h.rawPipelineConfig, err = ioutil.ReadFile(variableValue.String())
 		if err != nil {
-			h.log.Error("PipelineDataSourcePlanner.readConfigFile", zap.Error(err))
+			h.log.Error("PipelineDataSourcePlanner.readConfigFile", log.Error(err))
 		}
 	}
 
@@ -135,7 +135,7 @@ func (h *PipelineDataSourcePlanner) LeaveField(ref int) {
 }
 
 type PipelineDataSource struct {
-	log  *zap.Logger
+	log  log.Logger
 	pipeline pipe.Pipeline
 }
 
@@ -145,7 +145,7 @@ func (r *PipelineDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 
 	err := r.pipeline.Run(bytes.NewReader(inputJSON), out)
 	if err != nil {
-		r.log.Error("PipelineDataSource.pipe.Run", zap.Error(err))
+		r.log.Error("PipelineDataSource.pipe.Run", log.Error(err))
 	}
 
 	return CloseConnectionIfNotStream
