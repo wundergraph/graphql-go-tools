@@ -140,8 +140,8 @@ func TestExecution(t *testing.T) {
 					},
 					Fields: []Field{
 						{
-							Name:        []byte("__type"),
-							HasResolver: true,
+							Name:            []byte("__type"),
+							HasResolvedData: true,
 							Value: &Object{
 								PathSelector: PathSelector{
 									Path: "__type",
@@ -200,8 +200,8 @@ func TestExecution(t *testing.T) {
 							},
 						},
 						{
-							Name:        []byte("user"),
-							HasResolver: true,
+							Name:            []byte("user"),
+							HasResolvedData: true,
 							Value: &Object{
 								PathSelector: PathSelector{
 									Path: "user",
@@ -294,8 +294,8 @@ func TestExecution(t *testing.T) {
 										},
 									},
 									{
-										Name:        []byte("friends"),
-										HasResolver: true,
+										Name:            []byte("friends"),
+										HasResolvedData: true,
 										Value: &List{
 											Value: &Object{
 												Fetch: &SingleFetch{
@@ -355,8 +355,8 @@ func TestExecution(t *testing.T) {
 														},
 													},
 													{
-														Name:        []byte("pets"),
-														HasResolver: true,
+														Name:            []byte("pets"),
+														HasResolvedData: true,
 														Value: &List{
 															Value: &Object{
 																Fields: []Field{
@@ -434,8 +434,8 @@ func TestExecution(t *testing.T) {
 										},
 									},
 									{
-										Name:        []byte("pets"),
-										HasResolver: true,
+										Name:            []byte("pets"),
+										HasResolvedData: true,
 										Value: &List{
 											PathSelector: PathSelector{
 												Path: "userPets",
@@ -647,8 +647,8 @@ func genField() Field {
 			},
 			Fields: []Field{
 				{
-					Name:        []byte("__type"),
-					HasResolver: true,
+					Name:            []byte("__type"),
+					HasResolvedData: true,
 					Value: &Object{
 						PathSelector: PathSelector{
 							Path: "__type",
@@ -704,8 +704,8 @@ func genField() Field {
 					},
 				},
 				{
-					Name:        []byte("user"),
-					HasResolver: true,
+					Name:            []byte("user"),
+					HasResolvedData: true,
 					Value: &Object{
 						Fetch: &ParallelFetch{
 							Fetches: []Fetch{
@@ -789,8 +789,8 @@ func genField() Field {
 								},
 							},
 							{
-								Name:        []byte("friends"),
-								HasResolver: true,
+								Name:            []byte("friends"),
+								HasResolvedData: true,
 								Value: &List{
 									Value: &Object{
 										Fields: []Field{
@@ -824,8 +824,8 @@ func genField() Field {
 								},
 							},
 							{
-								Name:        []byte("pets"),
-								HasResolver: true,
+								Name:            []byte("pets"),
+								HasResolvedData: true,
 								Value: &List{
 									PathSelector: PathSelector{
 										Path: "data.userPets",
@@ -1035,8 +1035,8 @@ func TestStreamExecution(t *testing.T) {
 					},
 					Fields: []Field{
 						{
-							Name:        []byte("stream"),
-							HasResolver: true,
+							Name:            []byte("stream"),
+							HasResolvedData: true,
 							Value: &Object{
 								Fields: []Field{
 									{
@@ -1122,8 +1122,8 @@ func TestExecutor_ListFilterFirstN(t *testing.T) {
 					},
 					Fields: []Field{
 						{
-							Name:        []byte("foos"),
-							HasResolver: true,
+							Name:            []byte("foos"),
+							HasResolvedData: true,
 							Value: &List{
 								Filter: &ListFilterFirstN{
 									FirstN: 2,
@@ -1215,8 +1215,8 @@ func TestExecutor_ObjectVariables(t *testing.T) {
 					},
 					Fields: []Field{
 						{
-							Name:        []byte("user"),
-							HasResolver: true,
+							Name:            []byte("user"),
+							HasResolvedData: true,
 							Value: &Object{
 								Fetch: &SingleFetch{
 									BufferName: "pet",
@@ -1264,8 +1264,8 @@ func TestExecutor_ObjectVariables(t *testing.T) {
 										},
 									},
 									{
-										Name:        []byte("pet"),
-										HasResolver: true,
+										Name:            []byte("pet"),
+										HasResolvedData: true,
 										Value: &Object{
 											Fields: []Field{
 												{
@@ -1338,8 +1338,8 @@ func TestExecutor_ListWithPath(t *testing.T) {
 					},
 					Fields: []Field{
 						{
-							Name:        []byte("apis"),
-							HasResolver: true,
+							Name:            []byte("apis"),
+							HasResolvedData: true,
 							Value: &List{
 								PathSelector: PathSelector{
 									Path: "apis",
@@ -1441,8 +1441,8 @@ func TestExecutor_GraphqlDataSourceWithParams(t *testing.T) {
 					},
 					Fields: []Field{
 						{
-							Name:        []byte("countries"),
-							HasResolver: true,
+							Name:            []byte("countries"),
+							HasResolvedData: true,
 							Value: &List{
 								PathSelector: PathSelector{
 									Path: "countries",
@@ -1511,8 +1511,8 @@ func TestExecutor_ObjectWithPath(t *testing.T) {
 					},
 					Fields: []Field{
 						{
-							Name:        []byte("id"),
-							HasResolver: true,
+							Name:            []byte("id"),
+							HasResolvedData: true,
 							Value: &Value{
 								PathSelector: PathSelector{
 									Path: "api.id",
@@ -1861,8 +1861,8 @@ func TestExecutor_HTTPJSONDataSourceWithBody(t *testing.T) {
 					},
 					Fields: []Field{
 						{
-							Name:        []byte("withBody"),
-							HasResolver: true,
+							Name:            []byte("withBody"),
+							HasResolvedData: true,
 							Value: &Value{
 								QuoteValue: true,
 							},
@@ -1987,8 +1987,8 @@ func TestExecutor_HTTPJSONDataSourceWithBodyComplexPlayload(t *testing.T) {
 					},
 					Fields: []Field{
 						{
-							Name:        []byte("withBody"),
-							HasResolver: true,
+							Name:            []byte("withBody"),
+							HasResolvedData: true,
 							Value: &Value{
 								QuoteValue: true,
 							},
@@ -2094,8 +2094,8 @@ func TestExecutor_HTTPJSONDataSourceWithHeaders(t *testing.T) {
 					},
 					Fields: []Field{
 						{
-							Name:        []byte("withHeaders"),
-							HasResolver: true,
+							Name:            []byte("withHeaders"),
+							HasResolvedData: true,
 							Value: &Value{
 								QuoteValue: true,
 							},
@@ -2186,8 +2186,8 @@ func TestExecutor_HTTPJSONDataSourceWithPathSelector(t *testing.T) {
 					},
 					Fields: []Field{
 						{
-							Name:        []byte("friends"),
-							HasResolver: true,
+							Name:            []byte("friends"),
+							HasResolvedData: true,
 							Value: &Object{
 								Fields: []Field{
 									{

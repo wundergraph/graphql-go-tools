@@ -100,8 +100,8 @@ func TestPlanner_Plan(t *testing.T) {
 						},
 						Fields: []Field{
 							{
-								Name:        []byte("country"),
-								HasResolver: true,
+								Name:            []byte("country"),
+								HasResolvedData: true,
 								Value: &Object{
 									PathSelector: PathSelector{
 										Path: "country",
@@ -192,8 +192,8 @@ func TestPlanner_Plan(t *testing.T) {
 						},
 						Fields: []Field{
 							{
-								Name:        []byte("likePost"),
-								HasResolver: true,
+								Name:            []byte("likePost"),
+								HasResolvedData: true,
 								Value: &Object{
 									PathSelector: PathSelector{
 										Path: "likePost",
@@ -322,8 +322,8 @@ func TestPlanner_Plan(t *testing.T) {
 						},
 						Fields: []Field{
 							{
-								Name:        []byte("httpBinGet"),
-								HasResolver: true,
+								Name:            []byte("httpBinGet"),
+								HasResolvedData: true,
 								Value: &Object{
 									Fields: []Field{
 										{
@@ -367,8 +367,8 @@ func TestPlanner_Plan(t *testing.T) {
 								},
 							},
 							{
-								Name:        []byte("post"),
-								HasResolver: true,
+								Name:            []byte("post"),
+								HasResolvedData: true,
 								Value: &Object{
 									Fetch: &SingleFetch{
 										Source: &DataSourceInvocation{
@@ -407,8 +407,8 @@ func TestPlanner_Plan(t *testing.T) {
 											},
 										},
 										{
-											Name:        []byte("comments"),
-											HasResolver: true,
+											Name:            []byte("comments"),
+											HasResolvedData: true,
 											Value: &List{
 												Value: &Object{
 													Fields: []Field{
@@ -484,8 +484,8 @@ func TestPlanner_Plan(t *testing.T) {
 						},
 						Fields: []Field{
 							{
-								Name:        []byte("withBody"),
-								HasResolver: true,
+								Name:            []byte("withBody"),
+								HasResolvedData: true,
 								Value: &Value{
 									QuoteValue: true,
 								},
@@ -537,8 +537,8 @@ func TestPlanner_Plan(t *testing.T) {
 						},
 						Fields: []Field{
 							{
-								Name:        []byte("withPath"),
-								HasResolver: true,
+								Name:            []byte("withPath"),
+								HasResolvedData: true,
 								Value: &Value{
 									PathSelector: PathSelector{
 										Path: "subObject",
@@ -595,8 +595,8 @@ func TestPlanner_Plan(t *testing.T) {
 						},
 						Fields: []Field{
 							{
-								Name:        []byte("listItems"),
-								HasResolver: true,
+								Name:            []byte("listItems"),
+								HasResolvedData: true,
 								Value: &List{
 									Value: &Object{
 										Fields: []Field{
@@ -662,8 +662,8 @@ func TestPlanner_Plan(t *testing.T) {
 						},
 						Fields: []Field{
 							{
-								Name:        []byte("listWithPath"),
-								HasResolver: true,
+								Name:            []byte("listWithPath"),
+								HasResolvedData: true,
 								Value: &List{
 									PathSelector: PathSelector{
 										Path: "items",
@@ -743,8 +743,8 @@ func TestPlanner_Plan(t *testing.T) {
 						},
 						Fields: []Field{
 							{
-								Name:        []byte("withHeaders"),
-								HasResolver: true,
+								Name:            []byte("withHeaders"),
+								HasResolvedData: true,
 								Value: &Value{
 									QuoteValue: true,
 								},
@@ -830,22 +830,22 @@ func TestPlanner_Plan(t *testing.T) {
 						},
 						Fields: []Field{
 							{
-								Name:        []byte("hello"),
-								HasResolver: true,
+								Name:            []byte("hello"),
+								HasResolvedData: true,
 								Value: &Value{
 									QuoteValue: true,
 								},
 							},
 							{
-								Name:        []byte("nullableInt"),
-								HasResolver: true,
+								Name:            []byte("nullableInt"),
+								HasResolvedData: true,
 								Value: &Value{
 									QuoteValue: false,
 								},
 							},
 							{
-								Name:        []byte("foo"),
-								HasResolver: true,
+								Name:            []byte("foo"),
+								HasResolvedData: true,
 								Value: &Object{
 									Fields: []Field{
 										{
@@ -906,8 +906,8 @@ func TestPlanner_Plan(t *testing.T) {
 					},
 					Fields: []Field{
 						{
-							Name:        []byte("__type"),
-							HasResolver: true,
+							Name:            []byte("__type"),
+							HasResolvedData: true,
 							Value: &Object{
 								PathSelector: PathSelector{
 									Path: "__type",
@@ -1019,8 +1019,8 @@ func TestPlanner_Plan(t *testing.T) {
 						},
 						Fields: []Field{
 							{
-								Name:        []byte("user"),
-								HasResolver: true,
+								Name:            []byte("user"),
+								HasResolvedData: true,
 								Value: &Object{
 									PathSelector: PathSelector{
 										Path: "user",
@@ -1110,8 +1110,8 @@ func TestPlanner_Plan(t *testing.T) {
 						},
 						Fields: []Field{
 							{
-								Name:        []byte("restUser"),
-								HasResolver: true,
+								Name:            []byte("restUser"),
+								HasResolvedData: true,
 								Value: &Object{
 									Fields: []Field{
 										{
@@ -1211,8 +1211,8 @@ func TestPlanner_Plan(t *testing.T) {
 						},
 						Fields: []Field{
 							{
-								Name:        []byte("user"),
-								HasResolver: true,
+								Name:            []byte("user"),
+								HasResolvedData: true,
 								Value: &Object{
 									PathSelector: PathSelector{
 										Path: "user",
@@ -1272,8 +1272,8 @@ func TestPlanner_Plan(t *testing.T) {
 											},
 										},
 										{
-											Name:        []byte("friends"),
-											HasResolver: true,
+											Name:            []byte("friends"),
+											HasResolvedData: true,
 											Value: &List{
 												Value: &Object{
 													Fields: []Field{
@@ -1408,8 +1408,8 @@ func TestPlanner_Plan(t *testing.T) {
 						},
 						Fields: []Field{
 							{
-								Name:        []byte("user"),
-								HasResolver: true,
+								Name:            []byte("user"),
+								HasResolvedData: true,
 								Value: &Object{
 									PathSelector: PathSelector{
 										Path: "user",
@@ -1490,8 +1490,8 @@ func TestPlanner_Plan(t *testing.T) {
 											},
 										},
 										{
-											Name:        []byte("friends"),
-											HasResolver: true,
+											Name:            []byte("friends"),
+											HasResolvedData: true,
 											Value: &List{
 												Value: &Object{
 													Fetch: &SingleFetch{
@@ -1549,8 +1549,8 @@ func TestPlanner_Plan(t *testing.T) {
 															},
 														},
 														{
-															Name:        []byte("pets"),
-															HasResolver: true,
+															Name:            []byte("pets"),
+															HasResolvedData: true,
 															Value: &List{
 																PathSelector: PathSelector{
 																	Path: "userPets",
@@ -1660,8 +1660,8 @@ func TestPlanner_Plan(t *testing.T) {
 											},
 										},
 										{
-											Name:        []byte("pets"),
-											HasResolver: true,
+											Name:            []byte("pets"),
+											HasResolvedData: true,
 											Value: &List{
 												PathSelector: PathSelector{
 													Path: "userPets",
@@ -1906,8 +1906,8 @@ func TestPlanner_Plan(t *testing.T) {
 						},
 						Fields: []Field{
 							{
-								Name:        []byte("__schema"),
-								HasResolver: true,
+								Name:            []byte("__schema"),
+								HasResolvedData: true,
 								Value: &Object{
 									PathSelector: PathSelector{
 										Path: "__schema",
@@ -2377,8 +2377,8 @@ func TestPlanner_Plan(t *testing.T) {
 					},
 					Fields: []Field{
 						{
-							Name:        []byte("stream"),
-							HasResolver: true,
+							Name:            []byte("stream"),
+							HasResolvedData: true,
 							Value: &Object{
 								Fields: []Field{
 									{
@@ -2453,8 +2453,8 @@ func TestPlanner_Plan(t *testing.T) {
 					},
 					Fields: []Field{
 						{
-							Name:        []byte("stream"),
-							HasResolver: true,
+							Name:            []byte("stream"),
+							HasResolvedData: true,
 							Value: &Object{
 								Fields: []Field{
 									{
@@ -2518,8 +2518,8 @@ func TestPlanner_Plan(t *testing.T) {
 						},
 						Fields: []Field{
 							{
-								Name:        []byte("foos"),
-								HasResolver: true,
+								Name:            []byte("foos"),
+								HasResolvedData: true,
 								Value: &List{
 									Filter: &ListFilterFirstN{
 										FirstN: 2,
@@ -2602,8 +2602,8 @@ func TestPlanner_Plan(t *testing.T) {
 						},
 						Fields: []Field{
 							{
-								Name:        []byte("stringPipeline"),
-								HasResolver: true,
+								Name:            []byte("stringPipeline"),
+								HasResolvedData: true,
 								Value: &Value{
 									QuoteValue: true,
 								},
@@ -2668,8 +2668,8 @@ func TestPlanner_Plan(t *testing.T) {
 						},
 						Fields: []Field{
 							{
-								Name:        []byte("filePipeline"),
-								HasResolver: true,
+								Name:            []byte("filePipeline"),
+								HasResolvedData: true,
 								Value: &Value{
 									QuoteValue: true,
 								},
@@ -3525,8 +3525,8 @@ func introspectionQuery(schema []byte) RootNode {
 					},
 					Fields: []Field{
 						{
-							Name:        []byte("__schema"),
-							HasResolver: true,
+							Name:            []byte("__schema"),
+							HasResolvedData: true,
 							Value: &Object{
 								PathSelector: PathSelector{
 									Path: "__schema",

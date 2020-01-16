@@ -181,8 +181,6 @@ func (p *planningVisitor) EnterField(ref int) {
 			pathSelector = planner.OverrideRootPathSelector(pathSelector)
 		}*/
 
-		fieldName := p.operation.FieldNameString(ref)
-		_ = fieldName
 
 		pathSelector := p.fieldPathSelector(ref)
 
@@ -279,7 +277,7 @@ func (p *planningVisitor) LeaveField(ref int) {
 						if bytes.Equal(p.operation.FieldObjectNameBytes(ref), parent.Fields[i].Name) {
 
 							pathName := p.operation.FieldObjectNameString(ref)
-							parent.Fields[i].HasResolver = true
+							parent.Fields[i].HasResolvedData = true
 
 							singleFetch := &SingleFetch{
 								Source: &DataSourceInvocation{
@@ -402,8 +400,6 @@ func (p *planningVisitor) fieldPathSelector(ref int) (selector PathSelector) {
 	if !ok {
 		return
 	}
-	fieldName := p.operation.FieldNameString(ref)
-	_ = fieldName
 	directive, ok := p.definition.FieldDefinitionDirectiveByName(definition, []byte("mapping"))
 	if ok {
 		value, ok := p.definition.DirectiveArgumentValueByName(directive, []byte("mode"))
@@ -430,34 +426,5 @@ func (p *planningVisitor) fieldPathSelector(ref int) (selector PathSelector) {
 			}
 		}
 	}
-
-/*	def, ok := p.FieldDefinition(ref)
-	if !ok {
-		return
-	}
-	pathDirective, ok := p.definition.FieldDefinitionDirectiveByName(def, []byte("path"))
-	if !ok {
-		return
-	}
-	appendValue, ok := p.definition.DirectiveArgumentValueByName(pathDirective, []byte("append"))
-	if ok && appendValue.Kind == ast.ValueKindList {
-		for _, j := range p.definition.ListValues[appendValue.Ref].Refs {
-			listValue := p.definition.Values[j]
-			if listValue.Kind != ast.ValueKindString {
-				continue
-			}
-			selector.Path += "." + p.definition.StringValueContentString(listValue.Ref)
-		}
-	}
-	prependValue, ok := p.definition.DirectiveArgumentValueByName(pathDirective, []byte("prepend"))
-	if ok {
-		for _, j := range p.definition.ListValues[prependValue.Ref].Refs {
-			listValue := p.definition.Values[j]
-			if listValue.Kind != ast.ValueKindString {
-				continue
-			}
-			selector.Path += "." + p.definition.StringValueContentString(listValue.Ref)
-		}
-	}*/
 	return
 }
