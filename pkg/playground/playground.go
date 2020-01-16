@@ -44,19 +44,19 @@ type fileConfig struct {
 	fileContentType string
 }
 
-type HttpServeMux interface {
-	HandleFunc(pattern string, handler func(http.ResponseWriter, *http.Request))
-}
+type HandlersMap map[string]http.HandlerFunc
 
-func ConfigureHandlers(mux HttpServeMux, config Config) error {
+func ConfigureHandlers(config Config) (handlers HandlersMap, err error) {
+	handlers = make(HandlersMap)
+
 	box := packr.NewBox("./files")
 	playgroundHTML, err := box.FindString("playground.html")
 	if err != nil {
-		return err
+		return
 	}
 	templates, err := template.New(playgroundTemplate).Parse(playgroundHTML)
 	if err != nil {
-		return err
+		return
 	}
 
 	playgroundURL := path.Join(config.URLPrefix, config.PlaygroundURL)
@@ -69,14 +69,14 @@ func ConfigureHandlers(mux HttpServeMux, config Config) error {
 		SubscriptionEndpointURL: config.GraphQLSubscriptionEndpoint,
 	}
 
-	mux.HandleFunc(playgroundURL, func(writer http.ResponseWriter, request *http.Request) {
+	handlers[playgroundURL] = func(writer http.ResponseWriter, request *http.Request) {
 		writer.Header().Add(contentTypeHeader, contentTypeTextHTML)
 		err := templates.ExecuteTemplate(writer, playgroundTemplate, data)
 		if err != nil {
 			writer.WriteHeader(http.StatusInternalServerError)
 			_, _ = writer.Write([]byte(err.Error()))
 		}
-	})
+	}
 
 	files := []fileConfig{
 		{
@@ -102,25 +102,25 @@ func ConfigureHandlers(mux HttpServeMux, config Config) error {
 	}
 
 	for i := 0; i < len(files); i++ {
-		if err := configureFileHandler(mux, box, files[i].fileName, files[i].fileURL, files[i].fileContentType); err != nil {
-			return err
+		handlers, err = configureFileHandler(handlers, box, files[i].fileName, files[i].fileURL, files[i].fileContentType)
+		if err != nil {
+			return nil, err
 		}
 	}
 
-	return nil
+	return handlers, nil
 }
 
-func configureFileHandler(mux HttpServeMux, box packr.Box, fileName, fileURL, contentType string) error {
-
+func configureFileHandler(handlers HandlersMap, box packr.Box, fileName, fileURL, contentType string) (HandlersMap, error) {
 	data, err := box.Find(fileName)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	mux.HandleFunc(fileURL, func(writer http.ResponseWriter, request *http.Request) {
+	handlers[fileURL] = func(writer http.ResponseWriter, request *http.Request) {
 		writer.Header().Add(contentTypeHeader, contentType)
 		_, _ = writer.Write(data)
-	})
+	}
 
-	return nil
+	return handlers, nil
 }
