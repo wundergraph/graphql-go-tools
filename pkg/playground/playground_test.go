@@ -18,9 +18,9 @@ func TestConfigureHandlers(t *testing.T) {
 		GraphQLSubscriptionEndpointPath: "/graphqlws",
 	}
 
-	p := NewPlayground(config)
+	p := New(config)
 
-	handlers, err := p.GetHandlers()
+	handlers, err := p.Handlers()
 	if err != nil {
 		t.Fatal(err)
 	}

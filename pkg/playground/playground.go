@@ -72,7 +72,7 @@ func (h *Handlers) add(path string, handler http.HandlerFunc) {
 	})
 }
 
-// Playground is an object responsible for configuring Handlers
+// Playground manages the configuration of all HTTP handlers responsible for serving the GraphQL Playground
 type Playground struct {
 	cfg   Config
 	box   packr.Box
@@ -80,8 +80,9 @@ type Playground struct {
 	data  playgroundTemplateData
 }
 
-// NewPlayground creates Playground with given Config
-func NewPlayground(config Config) *Playground {
+// New creates a Playground for given Config
+func New(config Config) *Playground {
+
 	data := playgroundTemplateData{
 		CssURL:                  path.Join(config.PathPrefix, cssFile),
 		JsURL:                   path.Join(config.PathPrefix, jsFile),
@@ -122,8 +123,8 @@ func NewPlayground(config Config) *Playground {
 	}
 }
 
-// GetHandlers setups all handlers
-func (p *Playground) GetHandlers() (handlers Handlers, err error) {
+// Handlers configures and returns all Handlers for the Playground
+func (p *Playground) Handlers() (handlers Handlers, err error) {
 	handlers = make(Handlers, 0, len(p.files)+1)
 
 	if err = p.configurePlaygroundHandler(&handlers); err != nil {
