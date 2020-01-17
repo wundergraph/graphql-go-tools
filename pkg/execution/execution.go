@@ -96,7 +96,7 @@ func (e *Executor) resolveNode(node Node, data []byte, path string, prefetch *sy
 			}
 		}
 		if data != nil { // in case data is not nil apply any path selection/transformation and return early if there is no data
-			data = e.resolveData(node.PathSelector, data)
+			data = e.resolveData(node.DataResolvingConfig, data)
 			if data == nil || bytes.Equal(data, literal.NULL) {
 				e.write(literal.NULL)
 				return
@@ -119,7 +119,7 @@ func (e *Executor) resolveNode(node Node, data []byte, path string, prefetch *sy
 		e.write(literal.RBRACE) // end writing the object
 	case *Field:
 		path = path + "." + unsafebytes.BytesToString(node.Name) // add the node name to the path using a "." as separator
-		if node.HasResolvedData { // in case this field has associated resolved data we have to fetch it from the buffer
+		if node.HasResolvedData {                                // in case this field has associated resolved data we have to fetch it from the buffer
 			if buf := e.buffers.Buffers[xxhash.Sum64String(path)]; buf != nil {
 				data = buf.Bytes()
 			}
@@ -132,11 +132,11 @@ func (e *Executor) resolveNode(node Node, data []byte, path string, prefetch *sy
 		}
 		e.resolveNode(node.Value, data, path, nil, true)
 	case *Value:
-		data = e.resolveData(node.PathSelector, data)
+		data = e.resolveData(node.DataResolvingConfig, data)
 		e.writeValue(data, node.QuoteValue)
 		return
 	case *List:
-		data = e.resolveData(node.PathSelector, data)
+		data = e.resolveData(node.DataResolvingConfig, data)
 		if len(data) == 0 {
 			e.write(literal.NULL)
 			return
@@ -207,19 +207,23 @@ func (e *Executor) writeValue(data []byte, quoteValue bool) {
 	e.write(data)
 }
 
-func (e *Executor) resolveData(pathSelector PathSelector, data []byte) []byte {
+func (e *Executor) resolveData(config DataResolvingConfig, data []byte) []byte {
 	if len(data) == 0 {
 		return nil
 	}
-	if pathSelector.Path == "" {
+	if config.PathSelector.Path == "" {
 		return data
 	}
-	result := gjson.GetBytes(data, pathSelector.Path)
+	result := gjson.GetBytes(data, config.PathSelector.Path)
 	if result.Type == gjson.String {
-		return unsafebytes.StringToBytes(result.Str)
+		data = unsafebytes.StringToBytes(result.Str)
 	} else {
-		return unsafebytes.StringToBytes(result.Raw)
+		data = unsafebytes.StringToBytes(result.Raw)
 	}
+	if config.Transformation == nil {
+		return data
+	}
+	return config.Transformation.Transform(data)
 }
 
 func (e *Executor) ResolveArgs(args []Argument, data []byte) ResolvedArgs {
@@ -431,11 +435,16 @@ func (l ListArgument) ArgName() []byte {
 	return l.Name
 }
 
+type DataResolvingConfig struct {
+	PathSelector   PathSelector
+	Transformation Transformation
+}
+
 type Object struct {
-	PathSelector  PathSelector
-	Fields        []Field
-	Fetch         Fetch
-	operationType ast.OperationType
+	DataResolvingConfig DataResolvingConfig
+	Fields              []Field
+	Fetch               Fetch
+	operationType       ast.OperationType
 }
 
 func (o *Object) OperationType() ast.OperationType {
@@ -584,8 +593,8 @@ func (*Field) Kind() NodeKind {
 }
 
 type Value struct {
-	PathSelector PathSelector
-	QuoteValue   bool
+	DataResolvingConfig DataResolvingConfig
+	QuoteValue          bool
 }
 
 func (value *Value) HasResolversRecursively() bool {
@@ -597,9 +606,9 @@ func (*Value) Kind() NodeKind {
 }
 
 type List struct {
-	PathSelector PathSelector
-	Value        Node
-	Filter       ListFilter
+	DataResolvingConfig DataResolvingConfig
+	Value               Node
+	Filter              ListFilter
 }
 
 func (l *List) HasResolversRecursively() bool {

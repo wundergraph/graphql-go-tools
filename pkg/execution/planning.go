@@ -171,17 +171,6 @@ func (p *planningVisitor) EnterField(ref int) {
 	switch parent := p.currentNode[len(p.currentNode)-1].(type) {
 	case *Object:
 
-		/*var planner DataSourcePlanner
-		resolveRef := p.planners[len(p.planners)-1]
-		if resolveRef.path.Equals(p.Path) && resolveRef.fieldRef == ref {
-			planner = resolveRef.planner
-		}
-
-		if planner != nil {
-			pathSelector = planner.OverrideRootPathSelector(pathSelector)
-		}*/
-
-
 		pathSelector := p.fieldPathSelector(ref)
 
 		var value Node
@@ -197,7 +186,9 @@ func (p *planningVisitor) EnterField(ref int) {
 			}
 
 			list := &List{
-				PathSelector:  pathSelector,
+				DataResolvingConfig:DataResolvingConfig{
+					PathSelector:  pathSelector,
+				},
 				Value: value,
 			}
 
@@ -222,12 +213,16 @@ func (p *planningVisitor) EnterField(ref int) {
 
 		if !p.operation.FieldHasSelections(ref) {
 			value = &Value{
-				PathSelector:  pathSelector,
+				DataResolvingConfig:DataResolvingConfig{
+					PathSelector:  pathSelector,
+				},
 				QuoteValue: p.quoteValue(fieldDefinitionType),
 			}
 		} else {
 			value = &Object{
-				PathSelector:  pathSelector,
+				DataResolvingConfig:DataResolvingConfig{
+					PathSelector:  pathSelector,
+				},
 			}
 		}
 
