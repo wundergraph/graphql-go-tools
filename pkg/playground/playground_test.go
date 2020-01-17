@@ -25,6 +25,10 @@ func TestConfigureHandlers(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	for i := range handlers {
+		handlers[i].Handler = nil
+	}
+
 	var out bytes.Buffer
 	spew.Fdump(&out,handlers)
 
