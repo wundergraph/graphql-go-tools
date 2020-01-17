@@ -39,7 +39,7 @@ func TestExecution_With_Transformation(t *testing.T) {
 										pipeline: pipe.Pipeline{
 											Steps: []pipe.Step{
 												func() pipe.Step {
-													s,_ := step.NewJSON("{{ upper . }}")
+													s,_ := step.NewJSON("{{ upper . }}") // simple example using the sprig function upper
 													return s
 												}(),
 											},
@@ -68,7 +68,7 @@ func TestExecution_With_Transformation(t *testing.T) {
 
 	expected := map[string]interface{}{
 		"data": map[string]interface{}{
-			"foo": "bar",
+			"foo": "BAR",
 		},
 	}
 
@@ -85,3 +85,46 @@ func TestExecution_With_Transformation(t *testing.T) {
 		return
 	}
 }
+
+func TestPlanner_WithTransformation(t *testing.T){
+	t.Run("",run(withBaseSchema(transformationSchema),`
+	`,ResolverDefinitions{},&Object{}))
+}
+
+const transformationSchema = `
+schema {
+    query: Query
+}
+
+directive @transformation(
+	mode: TRANSFORMATION_MODE = PIPELINE
+	pipelineConfigFile: String
+	pipelineConfigString: String
+)
+
+enum TRANSFORMATION_MODE (
+	PIPELINE
+)
+
+type Query {
+	foo: Foo!
+        @StaticDataSource(
+            data: "{\"bar\":\"baz\"}"
+        )
+		@mapping(mode: NONE)
+		@transformation(
+			mode: PIPELINE
+			pipelineConfigString: """
+			{
+				"steps": [
+					{
+						"kind": "JSON",
+						"config": {
+							"template": "{{ upper . }}"
+						}
+					}
+				]
+			}
+			"""
+		)
+}`

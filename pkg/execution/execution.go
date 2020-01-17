@@ -215,7 +215,7 @@ func (e *Executor) resolveData(config DataResolvingConfig, data []byte) []byte {
 		return data
 	}
 	result := gjson.GetBytes(data, config.PathSelector.Path)
-	if result.Type == gjson.String {
+	if config.Transformation == nil && result.Type == gjson.String {
 		data = unsafebytes.StringToBytes(result.Str)
 	} else {
 		data = unsafebytes.StringToBytes(result.Raw)

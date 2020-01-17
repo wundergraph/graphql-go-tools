@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/go-test/deep"
+	log "github.com/jensneuse/abstractlogger"
 	"github.com/jensneuse/diffview"
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
@@ -11,7 +12,6 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 	"github.com/jensneuse/pipeline/pkg/pipe"
-	log "github.com/jensneuse/abstractlogger"
 	"math/rand"
 	"reflect"
 	"strings"
@@ -23,32 +23,33 @@ func init() {
 	rand.Seed(time.Now().Unix())
 }
 
-func TestPlanner_Plan(t *testing.T) {
-	run := func(definition string, operation string, resolverDefinitions ResolverDefinitions, want Node) func(t *testing.T) {
-		return func(t *testing.T) {
-			def := unsafeparser.ParseGraphqlDocumentString(definition)
-			op := unsafeparser.ParseGraphqlDocumentString(operation)
+func run(definition string, operation string, resolverDefinitions ResolverDefinitions, want Node) func(t *testing.T) {
+	return func(t *testing.T) {
+		def := unsafeparser.ParseGraphqlDocumentString(definition)
+		op := unsafeparser.ParseGraphqlDocumentString(operation)
 
-			var report operationreport.Report
-			normalizer := astnormalization.NewNormalizer(true)
-			normalizer.NormalizeOperation(&op, &def, &report)
-			if report.HasErrors() {
-				t.Error(report)
-			}
+		var report operationreport.Report
+		normalizer := astnormalization.NewNormalizer(true)
+		normalizer.NormalizeOperation(&op, &def, &report)
+		if report.HasErrors() {
+			t.Error(report)
+		}
 
-			planner := NewPlanner(resolverDefinitions)
-			got := planner.Plan(&op, &def, &report)
-			if report.HasErrors() {
-				t.Error(report)
-			}
+		planner := NewPlanner(resolverDefinitions)
+		got := planner.Plan(&op, &def, &report)
+		if report.HasErrors() {
+			t.Error(report)
+		}
 
-			if !reflect.DeepEqual(want, got) {
-				fmt.Println(deep.Equal(want, got))
-				diffview.NewGoland().DiffViewAny("diff", want, got)
-				t.Errorf("want:\n%s\ngot:\n%s\n", spew.Sdump(want), spew.Sdump(got))
-			}
+		if !reflect.DeepEqual(want, got) {
+			fmt.Println(deep.Equal(want, got))
+			diffview.NewGoland().DiffViewAny("diff", want, got)
+			t.Errorf("want:\n%s\ngot:\n%s\n", spew.Sdump(want), spew.Sdump(got))
 		}
 	}
+}
+
+func TestPlanner_Plan(t *testing.T) {
 
 	t.Run("GraphQLDataSource", run(withBaseSchema(GraphQLDataSourceSchema), `
 				query GraphQLQuery($code: String!) {
@@ -103,7 +104,7 @@ func TestPlanner_Plan(t *testing.T) {
 								Name:            []byte("country"),
 								HasResolvedData: true,
 								Value: &Object{
-									DataResolvingConfig:DataResolvingConfig{
+									DataResolvingConfig: DataResolvingConfig{
 										PathSelector: PathSelector{
 											Path: "country",
 										},
@@ -112,7 +113,7 @@ func TestPlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("code"),
 											Value: &Value{
-												DataResolvingConfig:DataResolvingConfig{
+												DataResolvingConfig: DataResolvingConfig{
 													PathSelector: PathSelector{
 														Path: "code",
 													},
@@ -123,7 +124,7 @@ func TestPlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("name"),
 											Value: &Value{
-												DataResolvingConfig:DataResolvingConfig{
+												DataResolvingConfig: DataResolvingConfig{
 													PathSelector: PathSelector{
 														Path: "name",
 													},
@@ -134,7 +135,7 @@ func TestPlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("aliased"),
 											Value: &Value{
-												DataResolvingConfig:DataResolvingConfig{
+												DataResolvingConfig: DataResolvingConfig{
 													PathSelector: PathSelector{
 														Path: "native",
 													},
@@ -203,7 +204,7 @@ func TestPlanner_Plan(t *testing.T) {
 								Name:            []byte("likePost"),
 								HasResolvedData: true,
 								Value: &Object{
-									DataResolvingConfig:DataResolvingConfig{
+									DataResolvingConfig: DataResolvingConfig{
 										PathSelector: PathSelector{
 											Path: "likePost",
 										},
@@ -212,7 +213,7 @@ func TestPlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("id"),
 											Value: &Value{
-												DataResolvingConfig:DataResolvingConfig{
+												DataResolvingConfig: DataResolvingConfig{
 													PathSelector: PathSelector{
 														Path: "id",
 													},
@@ -223,7 +224,7 @@ func TestPlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("likes"),
 											Value: &Value{
-												DataResolvingConfig:DataResolvingConfig{
+												DataResolvingConfig: DataResolvingConfig{
 													PathSelector: PathSelector{
 														Path: "likes",
 													},
@@ -343,7 +344,7 @@ func TestPlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("header"),
 											Value: &Object{
-												DataResolvingConfig:DataResolvingConfig{
+												DataResolvingConfig: DataResolvingConfig{
 													PathSelector: PathSelector{
 														Path: "headers",
 													},
@@ -352,7 +353,7 @@ func TestPlanner_Plan(t *testing.T) {
 													{
 														Name: []byte("Accept"),
 														Value: &Value{
-															DataResolvingConfig:DataResolvingConfig{
+															DataResolvingConfig: DataResolvingConfig{
 																PathSelector: PathSelector{
 																	Path: "Accept",
 																},
@@ -363,7 +364,7 @@ func TestPlanner_Plan(t *testing.T) {
 													{
 														Name: []byte("Host"),
 														Value: &Value{
-															DataResolvingConfig:DataResolvingConfig{
+															DataResolvingConfig: DataResolvingConfig{
 																PathSelector: PathSelector{
 																	Path: "Host",
 																},
@@ -374,7 +375,7 @@ func TestPlanner_Plan(t *testing.T) {
 													{
 														Name: []byte("acceptEncoding"),
 														Value: &Value{
-															DataResolvingConfig:DataResolvingConfig{
+															DataResolvingConfig: DataResolvingConfig{
 																PathSelector: PathSelector{
 																	Path: "Accept-Encoding",
 																},
@@ -422,7 +423,7 @@ func TestPlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("id"),
 											Value: &Value{
-												DataResolvingConfig:DataResolvingConfig{
+												DataResolvingConfig: DataResolvingConfig{
 													PathSelector: PathSelector{
 														Path: "id",
 													},
@@ -439,7 +440,7 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("id"),
 															Value: &Value{
-																DataResolvingConfig:DataResolvingConfig{
+																DataResolvingConfig: DataResolvingConfig{
 																	PathSelector: PathSelector{
 																		Path: "id",
 																	},
@@ -566,7 +567,7 @@ func TestPlanner_Plan(t *testing.T) {
 								Name:            []byte("withPath"),
 								HasResolvedData: true,
 								Value: &Value{
-									DataResolvingConfig:DataResolvingConfig{
+									DataResolvingConfig: DataResolvingConfig{
 										PathSelector: PathSelector{
 											Path: "subObject",
 										},
@@ -631,7 +632,7 @@ func TestPlanner_Plan(t *testing.T) {
 											{
 												Name: []byte("id"),
 												Value: &Value{
-													DataResolvingConfig:DataResolvingConfig{
+													DataResolvingConfig: DataResolvingConfig{
 														PathSelector: PathSelector{
 															Path: "id",
 														},
@@ -695,7 +696,7 @@ func TestPlanner_Plan(t *testing.T) {
 								Name:            []byte("listWithPath"),
 								HasResolvedData: true,
 								Value: &List{
-									DataResolvingConfig:DataResolvingConfig{
+									DataResolvingConfig: DataResolvingConfig{
 										PathSelector: PathSelector{
 											Path: "items",
 										},
@@ -705,7 +706,7 @@ func TestPlanner_Plan(t *testing.T) {
 											{
 												Name: []byte("id"),
 												Value: &Value{
-													DataResolvingConfig:DataResolvingConfig{
+													DataResolvingConfig: DataResolvingConfig{
 														PathSelector: PathSelector{
 															Path: "id",
 														},
@@ -885,7 +886,7 @@ func TestPlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("bar"),
 											Value: &Value{
-												DataResolvingConfig:DataResolvingConfig{
+												DataResolvingConfig: DataResolvingConfig{
 													PathSelector: PathSelector{
 														Path: "bar",
 													},
@@ -945,7 +946,7 @@ func TestPlanner_Plan(t *testing.T) {
 							Name:            []byte("__type"),
 							HasResolvedData: true,
 							Value: &Object{
-								DataResolvingConfig:DataResolvingConfig{
+								DataResolvingConfig: DataResolvingConfig{
 									PathSelector: PathSelector{
 										Path: "__type",
 									},
@@ -954,7 +955,7 @@ func TestPlanner_Plan(t *testing.T) {
 									{
 										Name: []byte("name"),
 										Value: &Value{
-											DataResolvingConfig:DataResolvingConfig{
+											DataResolvingConfig: DataResolvingConfig{
 												PathSelector: PathSelector{
 													Path: "name",
 												},
@@ -965,7 +966,7 @@ func TestPlanner_Plan(t *testing.T) {
 									{
 										Name: []byte("fields"),
 										Value: &List{
-											DataResolvingConfig:DataResolvingConfig{
+											DataResolvingConfig: DataResolvingConfig{
 												PathSelector: PathSelector{
 													Path: "fields",
 												},
@@ -975,7 +976,7 @@ func TestPlanner_Plan(t *testing.T) {
 													{
 														Name: []byte("name"),
 														Value: &Value{
-															DataResolvingConfig:DataResolvingConfig{
+															DataResolvingConfig: DataResolvingConfig{
 																PathSelector: PathSelector{
 																	Path: "name",
 																},
@@ -986,7 +987,7 @@ func TestPlanner_Plan(t *testing.T) {
 													{
 														Name: []byte("type"),
 														Value: &Object{
-															DataResolvingConfig:DataResolvingConfig{
+															DataResolvingConfig: DataResolvingConfig{
 																PathSelector: PathSelector{
 																	Path: "type",
 																},
@@ -995,7 +996,7 @@ func TestPlanner_Plan(t *testing.T) {
 																{
 																	Name: []byte("name"),
 																	Value: &Value{
-																		DataResolvingConfig:DataResolvingConfig{
+																		DataResolvingConfig: DataResolvingConfig{
 																			PathSelector: PathSelector{
 																				Path: "name",
 																			},
@@ -1070,7 +1071,7 @@ func TestPlanner_Plan(t *testing.T) {
 								Name:            []byte("user"),
 								HasResolvedData: true,
 								Value: &Object{
-									DataResolvingConfig:DataResolvingConfig{
+									DataResolvingConfig: DataResolvingConfig{
 										PathSelector: PathSelector{
 											Path: "user",
 										},
@@ -1079,7 +1080,7 @@ func TestPlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("id"),
 											Value: &Value{
-												DataResolvingConfig:DataResolvingConfig{
+												DataResolvingConfig: DataResolvingConfig{
 													PathSelector: PathSelector{
 														Path: "id",
 													},
@@ -1090,7 +1091,7 @@ func TestPlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("name"),
 											Value: &Value{
-												DataResolvingConfig:DataResolvingConfig{
+												DataResolvingConfig: DataResolvingConfig{
 													PathSelector: PathSelector{
 														Path: "name",
 													},
@@ -1101,7 +1102,7 @@ func TestPlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("birthday"),
 											Value: &Value{
-												DataResolvingConfig:DataResolvingConfig{
+												DataResolvingConfig: DataResolvingConfig{
 													PathSelector: PathSelector{
 														Path: "birthday",
 													},
@@ -1173,7 +1174,7 @@ func TestPlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("id"),
 											Value: &Value{
-												DataResolvingConfig:DataResolvingConfig{
+												DataResolvingConfig: DataResolvingConfig{
 													PathSelector: PathSelector{
 														Path: "id",
 													},
@@ -1184,7 +1185,7 @@ func TestPlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("name"),
 											Value: &Value{
-												DataResolvingConfig:DataResolvingConfig{
+												DataResolvingConfig: DataResolvingConfig{
 													PathSelector: PathSelector{
 														Path: "name",
 													},
@@ -1195,7 +1196,7 @@ func TestPlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("birthday"),
 											Value: &Value{
-												DataResolvingConfig:DataResolvingConfig{
+												DataResolvingConfig: DataResolvingConfig{
 													PathSelector: PathSelector{
 														Path: "birthday",
 													},
@@ -1276,7 +1277,7 @@ func TestPlanner_Plan(t *testing.T) {
 								Name:            []byte("user"),
 								HasResolvedData: true,
 								Value: &Object{
-									DataResolvingConfig:DataResolvingConfig{
+									DataResolvingConfig: DataResolvingConfig{
 										PathSelector: PathSelector{
 											Path: "user",
 										},
@@ -1311,7 +1312,7 @@ func TestPlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("id"),
 											Value: &Value{
-												DataResolvingConfig:DataResolvingConfig{
+												DataResolvingConfig: DataResolvingConfig{
 													PathSelector: PathSelector{
 														Path: "id",
 													},
@@ -1322,7 +1323,7 @@ func TestPlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("name"),
 											Value: &Value{
-												DataResolvingConfig:DataResolvingConfig{
+												DataResolvingConfig: DataResolvingConfig{
 													PathSelector: PathSelector{
 														Path: "name",
 													},
@@ -1333,7 +1334,7 @@ func TestPlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("birthday"),
 											Value: &Value{
-												DataResolvingConfig:DataResolvingConfig{
+												DataResolvingConfig: DataResolvingConfig{
 													PathSelector: PathSelector{
 														Path: "birthday",
 													},
@@ -1350,7 +1351,7 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("id"),
 															Value: &Value{
-																DataResolvingConfig:DataResolvingConfig{
+																DataResolvingConfig: DataResolvingConfig{
 																	PathSelector: PathSelector{
 																		Path: "id",
 																	},
@@ -1361,7 +1362,7 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("name"),
 															Value: &Value{
-																DataResolvingConfig:DataResolvingConfig{
+																DataResolvingConfig: DataResolvingConfig{
 																	PathSelector: PathSelector{
 																		Path: "name",
 																	},
@@ -1372,7 +1373,7 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("birthday"),
 															Value: &Value{
-																DataResolvingConfig:DataResolvingConfig{
+																DataResolvingConfig: DataResolvingConfig{
 																	PathSelector: PathSelector{
 																		Path: "birthday",
 																	},
@@ -1487,7 +1488,7 @@ func TestPlanner_Plan(t *testing.T) {
 								Name:            []byte("user"),
 								HasResolvedData: true,
 								Value: &Object{
-									DataResolvingConfig:DataResolvingConfig{
+									DataResolvingConfig: DataResolvingConfig{
 										PathSelector: PathSelector{
 											Path: "user",
 										},
@@ -1552,7 +1553,7 @@ func TestPlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("id"),
 											Value: &Value{
-												DataResolvingConfig:DataResolvingConfig{
+												DataResolvingConfig: DataResolvingConfig{
 													PathSelector: PathSelector{
 														Path: "id",
 													},
@@ -1563,7 +1564,7 @@ func TestPlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("name"),
 											Value: &Value{
-												DataResolvingConfig:DataResolvingConfig{
+												DataResolvingConfig: DataResolvingConfig{
 													PathSelector: PathSelector{
 														Path: "name",
 													},
@@ -1606,7 +1607,7 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("id"),
 															Value: &Value{
-																DataResolvingConfig:DataResolvingConfig{
+																DataResolvingConfig: DataResolvingConfig{
 																	PathSelector: PathSelector{
 																		Path: "id",
 																	},
@@ -1617,7 +1618,7 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("name"),
 															Value: &Value{
-																DataResolvingConfig:DataResolvingConfig{
+																DataResolvingConfig: DataResolvingConfig{
 																	PathSelector: PathSelector{
 																		Path: "name",
 																	},
@@ -1628,7 +1629,7 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("birthday"),
 															Value: &Value{
-																DataResolvingConfig:DataResolvingConfig{
+																DataResolvingConfig: DataResolvingConfig{
 																	PathSelector: PathSelector{
 																		Path: "birthday",
 																	},
@@ -1640,7 +1641,7 @@ func TestPlanner_Plan(t *testing.T) {
 															Name:            []byte("pets"),
 															HasResolvedData: true,
 															Value: &List{
-																DataResolvingConfig:DataResolvingConfig{
+																DataResolvingConfig: DataResolvingConfig{
 																	PathSelector: PathSelector{
 																		Path: "userPets",
 																	},
@@ -1650,7 +1651,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		{
 																			Name: []byte("__typename"),
 																			Value: &Value{
-																				DataResolvingConfig:DataResolvingConfig{
+																				DataResolvingConfig: DataResolvingConfig{
 																					PathSelector: PathSelector{
 																						Path: "__typename",
 																					},
@@ -1661,7 +1662,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		{
 																			Name: []byte("nickname"),
 																			Value: &Value{
-																				DataResolvingConfig:DataResolvingConfig{
+																				DataResolvingConfig: DataResolvingConfig{
 																					PathSelector: PathSelector{
 																						Path: "nickname",
 																					},
@@ -1672,7 +1673,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		{
 																			Name: []byte("name"),
 																			Value: &Value{
-																				DataResolvingConfig:DataResolvingConfig{
+																				DataResolvingConfig: DataResolvingConfig{
 																					PathSelector: PathSelector{
 																						Path: "name",
 																					},
@@ -1693,7 +1694,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		{
 																			Name: []byte("woof"),
 																			Value: &Value{
-																				DataResolvingConfig:DataResolvingConfig{
+																				DataResolvingConfig: DataResolvingConfig{
 																					PathSelector: PathSelector{
 																						Path: "woof",
 																					},
@@ -1714,7 +1715,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		{
 																			Name: []byte("name"),
 																			Value: &Value{
-																				DataResolvingConfig:DataResolvingConfig{
+																				DataResolvingConfig: DataResolvingConfig{
 																					PathSelector: PathSelector{
 																						Path: "name",
 																					},
@@ -1735,7 +1736,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		{
 																			Name: []byte("meow"),
 																			Value: &Value{
-																				DataResolvingConfig:DataResolvingConfig{
+																				DataResolvingConfig: DataResolvingConfig{
 																					PathSelector: PathSelector{
 																						Path: "meow",
 																					},
@@ -1765,7 +1766,7 @@ func TestPlanner_Plan(t *testing.T) {
 											Name:            []byte("pets"),
 											HasResolvedData: true,
 											Value: &List{
-												DataResolvingConfig:DataResolvingConfig{
+												DataResolvingConfig: DataResolvingConfig{
 													PathSelector: PathSelector{
 														Path: "userPets",
 													},
@@ -1775,7 +1776,7 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("__typename"),
 															Value: &Value{
-																DataResolvingConfig:DataResolvingConfig{
+																DataResolvingConfig: DataResolvingConfig{
 																	PathSelector: PathSelector{
 																		Path: "__typename",
 																	},
@@ -1786,7 +1787,7 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("nickname"),
 															Value: &Value{
-																DataResolvingConfig:DataResolvingConfig{
+																DataResolvingConfig: DataResolvingConfig{
 																	PathSelector: PathSelector{
 																		Path: "nickname",
 																	},
@@ -1797,7 +1798,7 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("name"),
 															Value: &Value{
-																DataResolvingConfig:DataResolvingConfig{
+																DataResolvingConfig: DataResolvingConfig{
 																	PathSelector: PathSelector{
 																		Path: "name",
 																	},
@@ -1818,7 +1819,7 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("woof"),
 															Value: &Value{
-																DataResolvingConfig:DataResolvingConfig{
+																DataResolvingConfig: DataResolvingConfig{
 																	PathSelector: PathSelector{
 																		Path: "woof",
 																	},
@@ -1839,7 +1840,7 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("name"),
 															Value: &Value{
-																DataResolvingConfig:DataResolvingConfig{
+																DataResolvingConfig: DataResolvingConfig{
 																	PathSelector: PathSelector{
 																		Path: "name",
 																	},
@@ -1860,7 +1861,7 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("meow"),
 															Value: &Value{
-																DataResolvingConfig:DataResolvingConfig{
+																DataResolvingConfig: DataResolvingConfig{
 																	PathSelector: PathSelector{
 																		Path: "meow",
 																	},
@@ -1885,7 +1886,7 @@ func TestPlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("birthday"),
 											Value: &Value{
-												DataResolvingConfig:DataResolvingConfig{
+												DataResolvingConfig: DataResolvingConfig{
 													PathSelector: PathSelector{
 														Path: "birthday",
 													},
@@ -2027,7 +2028,7 @@ func TestPlanner_Plan(t *testing.T) {
 								Name:            []byte("__schema"),
 								HasResolvedData: true,
 								Value: &Object{
-									DataResolvingConfig:DataResolvingConfig{
+									DataResolvingConfig: DataResolvingConfig{
 										PathSelector: PathSelector{
 											Path: "__schema",
 										},
@@ -2036,7 +2037,7 @@ func TestPlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("queryType"),
 											Value: &Object{
-												DataResolvingConfig:DataResolvingConfig{
+												DataResolvingConfig: DataResolvingConfig{
 													PathSelector: PathSelector{
 														Path: "queryType",
 													},
@@ -2045,7 +2046,7 @@ func TestPlanner_Plan(t *testing.T) {
 													{
 														Name: []byte("name"),
 														Value: &Value{
-															DataResolvingConfig:DataResolvingConfig{
+															DataResolvingConfig: DataResolvingConfig{
 																PathSelector: PathSelector{
 																	Path: "name",
 																},
@@ -2059,7 +2060,7 @@ func TestPlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("mutationType"),
 											Value: &Object{
-												DataResolvingConfig:DataResolvingConfig{
+												DataResolvingConfig: DataResolvingConfig{
 													PathSelector: PathSelector{
 														Path: "mutationType",
 													},
@@ -2068,7 +2069,7 @@ func TestPlanner_Plan(t *testing.T) {
 													{
 														Name: []byte("name"),
 														Value: &Value{
-															DataResolvingConfig:DataResolvingConfig{
+															DataResolvingConfig: DataResolvingConfig{
 																PathSelector: PathSelector{
 																	Path: "name",
 																},
@@ -2082,7 +2083,7 @@ func TestPlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("subscriptionType"),
 											Value: &Object{
-												DataResolvingConfig:DataResolvingConfig{
+												DataResolvingConfig: DataResolvingConfig{
 													PathSelector: PathSelector{
 														Path: "subscriptionType",
 													},
@@ -2091,7 +2092,7 @@ func TestPlanner_Plan(t *testing.T) {
 													{
 														Name: []byte("name"),
 														Value: &Value{
-															DataResolvingConfig:DataResolvingConfig{
+															DataResolvingConfig: DataResolvingConfig{
 																PathSelector: PathSelector{
 																	Path: "name",
 																},
@@ -2105,7 +2106,7 @@ func TestPlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("types"),
 											Value: &List{
-												DataResolvingConfig:DataResolvingConfig{
+												DataResolvingConfig: DataResolvingConfig{
 													PathSelector: PathSelector{
 														Path: "types",
 													},
@@ -2115,7 +2116,7 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("kind"),
 															Value: &Value{
-																DataResolvingConfig:DataResolvingConfig{
+																DataResolvingConfig: DataResolvingConfig{
 																	PathSelector: PathSelector{
 																		Path: "kind",
 																	},
@@ -2126,7 +2127,7 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("name"),
 															Value: &Value{
-																DataResolvingConfig:DataResolvingConfig{
+																DataResolvingConfig: DataResolvingConfig{
 																	PathSelector: PathSelector{
 																		Path: "name",
 																	},
@@ -2137,7 +2138,7 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("description"),
 															Value: &Value{
-																DataResolvingConfig:DataResolvingConfig{
+																DataResolvingConfig: DataResolvingConfig{
 																	PathSelector: PathSelector{
 																		Path: "description",
 																	},
@@ -2148,7 +2149,7 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("fields"),
 															Value: &List{
-																DataResolvingConfig:DataResolvingConfig{
+																DataResolvingConfig: DataResolvingConfig{
 																	PathSelector: PathSelector{
 																		Path: "fields",
 																	},
@@ -2158,7 +2159,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		{
 																			Name: []byte("name"),
 																			Value: &Value{
-																				DataResolvingConfig:DataResolvingConfig{
+																				DataResolvingConfig: DataResolvingConfig{
 																					PathSelector: PathSelector{
 																						Path: "name",
 																					},
@@ -2169,7 +2170,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		{
 																			Name: []byte("description"),
 																			Value: &Value{
-																				DataResolvingConfig:DataResolvingConfig{
+																				DataResolvingConfig: DataResolvingConfig{
 																					PathSelector: PathSelector{
 																						Path: "description",
 																					},
@@ -2180,7 +2181,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		{
 																			Name: []byte("args"),
 																			Value: &List{
-																				DataResolvingConfig:DataResolvingConfig{
+																				DataResolvingConfig: DataResolvingConfig{
 																					PathSelector: PathSelector{
 																						Path: "args",
 																					},
@@ -2190,7 +2191,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						{
 																							Name: []byte("name"),
 																							Value: &Value{
-																								DataResolvingConfig:DataResolvingConfig{
+																								DataResolvingConfig: DataResolvingConfig{
 																									PathSelector: PathSelector{
 																										Path: "name",
 																									},
@@ -2201,7 +2202,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						{
 																							Name: []byte("description"),
 																							Value: &Value{
-																								DataResolvingConfig:DataResolvingConfig{
+																								DataResolvingConfig: DataResolvingConfig{
 																									PathSelector: PathSelector{
 																										Path: "description",
 																									},
@@ -2212,7 +2213,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						{
 																							Name: []byte("type"),
 																							Value: &Object{
-																								DataResolvingConfig:DataResolvingConfig{
+																								DataResolvingConfig: DataResolvingConfig{
 																									PathSelector: PathSelector{
 																										Path: "type",
 																									},
@@ -2223,7 +2224,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						{
 																							Name: []byte("defaultValue"),
 																							Value: &Value{
-																								DataResolvingConfig:DataResolvingConfig{
+																								DataResolvingConfig: DataResolvingConfig{
 																									PathSelector: PathSelector{
 																										Path: "defaultValue",
 																									},
@@ -2238,7 +2239,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		{
 																			Name: []byte("type"),
 																			Value: &Object{
-																				DataResolvingConfig:DataResolvingConfig{
+																				DataResolvingConfig: DataResolvingConfig{
 																					PathSelector: PathSelector{
 																						Path: "type",
 																					},
@@ -2249,7 +2250,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		{
 																			Name: []byte("isDeprecated"),
 																			Value: &Value{
-																				DataResolvingConfig:DataResolvingConfig{
+																				DataResolvingConfig: DataResolvingConfig{
 																					PathSelector: PathSelector{
 																						Path: "isDeprecated",
 																					},
@@ -2260,7 +2261,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		{
 																			Name: []byte("deprecationReason"),
 																			Value: &Value{
-																				DataResolvingConfig:DataResolvingConfig{
+																				DataResolvingConfig: DataResolvingConfig{
 																					PathSelector: PathSelector{
 																						Path: "deprecationReason",
 																					},
@@ -2275,7 +2276,7 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("inputFields"),
 															Value: &List{
-																DataResolvingConfig:DataResolvingConfig{
+																DataResolvingConfig: DataResolvingConfig{
 																	PathSelector: PathSelector{
 																		Path: "inputFields",
 																	},
@@ -2285,7 +2286,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		{
 																			Name: []byte("name"),
 																			Value: &Value{
-																				DataResolvingConfig:DataResolvingConfig{
+																				DataResolvingConfig: DataResolvingConfig{
 																					PathSelector: PathSelector{
 																						Path: "name",
 																					},
@@ -2296,7 +2297,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		{
 																			Name: []byte("description"),
 																			Value: &Value{
-																				DataResolvingConfig:DataResolvingConfig{
+																				DataResolvingConfig: DataResolvingConfig{
 																					PathSelector: PathSelector{
 																						Path: "description",
 																					},
@@ -2307,7 +2308,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		{
 																			Name: []byte("type"),
 																			Value: &Object{
-																				DataResolvingConfig:DataResolvingConfig{
+																				DataResolvingConfig: DataResolvingConfig{
 																					PathSelector: PathSelector{
 																						Path: "type",
 																					},
@@ -2318,7 +2319,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		{
 																			Name: []byte("defaultValue"),
 																			Value: &Value{
-																				DataResolvingConfig:DataResolvingConfig{
+																				DataResolvingConfig: DataResolvingConfig{
 																					PathSelector: PathSelector{
 																						Path: "defaultValue",
 																					},
@@ -2333,7 +2334,7 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("interfaces"),
 															Value: &List{
-																DataResolvingConfig:DataResolvingConfig{
+																DataResolvingConfig: DataResolvingConfig{
 																	PathSelector: PathSelector{
 																		Path: "interfaces",
 																	},
@@ -2346,7 +2347,7 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("enumValues"),
 															Value: &List{
-																DataResolvingConfig:DataResolvingConfig{
+																DataResolvingConfig: DataResolvingConfig{
 																	PathSelector: PathSelector{
 																		Path: "enumValues",
 																	},
@@ -2356,7 +2357,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		{
 																			Name: []byte("name"),
 																			Value: &Value{
-																				DataResolvingConfig:DataResolvingConfig{
+																				DataResolvingConfig: DataResolvingConfig{
 																					PathSelector: PathSelector{
 																						Path: "name",
 																					},
@@ -2367,7 +2368,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		{
 																			Name: []byte("description"),
 																			Value: &Value{
-																				DataResolvingConfig:DataResolvingConfig{
+																				DataResolvingConfig: DataResolvingConfig{
 																					PathSelector: PathSelector{
 																						Path: "description",
 																					},
@@ -2378,7 +2379,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		{
 																			Name: []byte("isDeprecated"),
 																			Value: &Value{
-																				DataResolvingConfig:DataResolvingConfig{
+																				DataResolvingConfig: DataResolvingConfig{
 																					PathSelector: PathSelector{
 																						Path: "isDeprecated",
 																					},
@@ -2389,7 +2390,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		{
 																			Name: []byte("deprecationReason"),
 																			Value: &Value{
-																				DataResolvingConfig:DataResolvingConfig{
+																				DataResolvingConfig: DataResolvingConfig{
 																					PathSelector: PathSelector{
 																						Path: "deprecationReason",
 																					},
@@ -2404,7 +2405,7 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("possibleTypes"),
 															Value: &List{
-																DataResolvingConfig:DataResolvingConfig{
+																DataResolvingConfig: DataResolvingConfig{
 																	PathSelector: PathSelector{
 																		Path: "possibleTypes",
 																	},
@@ -2421,7 +2422,7 @@ func TestPlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("directives"),
 											Value: &List{
-												DataResolvingConfig:DataResolvingConfig{
+												DataResolvingConfig: DataResolvingConfig{
 													PathSelector: PathSelector{
 														Path: "directives",
 													},
@@ -2431,7 +2432,7 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("name"),
 															Value: &Value{
-																DataResolvingConfig:DataResolvingConfig{
+																DataResolvingConfig: DataResolvingConfig{
 																	PathSelector: PathSelector{
 																		Path: "name",
 																	},
@@ -2442,7 +2443,7 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("description"),
 															Value: &Value{
-																DataResolvingConfig:DataResolvingConfig{
+																DataResolvingConfig: DataResolvingConfig{
 																	PathSelector: PathSelector{
 																		Path: "description",
 																	},
@@ -2453,7 +2454,7 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("locations"),
 															Value: &List{
-																DataResolvingConfig:DataResolvingConfig{
+																DataResolvingConfig: DataResolvingConfig{
 																	PathSelector: PathSelector{
 																		Path: "locations",
 																	},
@@ -2466,7 +2467,7 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name: []byte("args"),
 															Value: &List{
-																DataResolvingConfig:DataResolvingConfig{
+																DataResolvingConfig: DataResolvingConfig{
 																	PathSelector: PathSelector{
 																		Path: "args",
 																	},
@@ -2476,7 +2477,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		{
 																			Name: []byte("name"),
 																			Value: &Value{
-																				DataResolvingConfig:DataResolvingConfig{
+																				DataResolvingConfig: DataResolvingConfig{
 																					PathSelector: PathSelector{
 																						Path: "name",
 																					},
@@ -2487,7 +2488,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		{
 																			Name: []byte("description"),
 																			Value: &Value{
-																				DataResolvingConfig:DataResolvingConfig{
+																				DataResolvingConfig: DataResolvingConfig{
 																					PathSelector: PathSelector{
 																						Path: "description",
 																					},
@@ -2498,7 +2499,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		{
 																			Name: []byte("type"),
 																			Value: &Object{
-																				DataResolvingConfig:DataResolvingConfig{
+																				DataResolvingConfig: DataResolvingConfig{
 																					PathSelector: PathSelector{
 																						Path: "type",
 																					},
@@ -2509,7 +2510,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		{
 																			Name: []byte("defaultValue"),
 																			Value: &Value{
-																				DataResolvingConfig:DataResolvingConfig{
+																				DataResolvingConfig: DataResolvingConfig{
 																					PathSelector: PathSelector{
 																						Path: "defaultValue",
 																					},
@@ -2588,7 +2589,7 @@ func TestPlanner_Plan(t *testing.T) {
 									{
 										Name: []byte("bar"),
 										Value: &Value{
-											DataResolvingConfig:DataResolvingConfig{
+											DataResolvingConfig: DataResolvingConfig{
 												PathSelector: PathSelector{
 													Path: "bar",
 												},
@@ -2599,7 +2600,7 @@ func TestPlanner_Plan(t *testing.T) {
 									{
 										Name: []byte("baz"),
 										Value: &Value{
-											DataResolvingConfig:DataResolvingConfig{
+											DataResolvingConfig: DataResolvingConfig{
 												PathSelector: PathSelector{
 													Path: "baz",
 												},
@@ -2668,7 +2669,7 @@ func TestPlanner_Plan(t *testing.T) {
 									{
 										Name: []byte("bar"),
 										Value: &Value{
-											DataResolvingConfig:DataResolvingConfig{
+											DataResolvingConfig: DataResolvingConfig{
 												PathSelector: PathSelector{
 													Path: "bar",
 												},
@@ -2679,7 +2680,7 @@ func TestPlanner_Plan(t *testing.T) {
 									{
 										Name: []byte("baz"),
 										Value: &Value{
-											DataResolvingConfig:DataResolvingConfig{
+											DataResolvingConfig: DataResolvingConfig{
 												PathSelector: PathSelector{
 													Path: "baz",
 												},
@@ -2741,7 +2742,7 @@ func TestPlanner_Plan(t *testing.T) {
 											{
 												Name: []byte("bar"),
 												Value: &Value{
-													DataResolvingConfig:DataResolvingConfig{
+													DataResolvingConfig: DataResolvingConfig{
 														PathSelector: PathSelector{
 															Path: "bar",
 														},
@@ -3742,7 +3743,7 @@ func introspectionQuery(schema []byte) RootNode {
 							Name:            []byte("__schema"),
 							HasResolvedData: true,
 							Value: &Object{
-								DataResolvingConfig:DataResolvingConfig{
+								DataResolvingConfig: DataResolvingConfig{
 									PathSelector: PathSelector{
 										Path: "__schema",
 									},
@@ -3751,7 +3752,7 @@ func introspectionQuery(schema []byte) RootNode {
 									{
 										Name: []byte("queryType"),
 										Value: &Object{
-											DataResolvingConfig:DataResolvingConfig{
+											DataResolvingConfig: DataResolvingConfig{
 												PathSelector: PathSelector{
 													Path: "queryType",
 												},
@@ -3760,7 +3761,7 @@ func introspectionQuery(schema []byte) RootNode {
 												{
 													Name: []byte("name"),
 													Value: &Value{
-														DataResolvingConfig:DataResolvingConfig{
+														DataResolvingConfig: DataResolvingConfig{
 															PathSelector: PathSelector{
 																Path: "name",
 															},
@@ -3774,7 +3775,7 @@ func introspectionQuery(schema []byte) RootNode {
 									{
 										Name: []byte("mutationType"),
 										Value: &Object{
-											DataResolvingConfig:DataResolvingConfig{
+											DataResolvingConfig: DataResolvingConfig{
 												PathSelector: PathSelector{
 													Path: "mutationType",
 												},
@@ -3783,7 +3784,7 @@ func introspectionQuery(schema []byte) RootNode {
 												{
 													Name: []byte("name"),
 													Value: &Value{
-														DataResolvingConfig:DataResolvingConfig{
+														DataResolvingConfig: DataResolvingConfig{
 															PathSelector: PathSelector{
 																Path: "name",
 															},
@@ -3797,7 +3798,7 @@ func introspectionQuery(schema []byte) RootNode {
 									{
 										Name: []byte("subscriptionType"),
 										Value: &Object{
-											DataResolvingConfig:DataResolvingConfig{
+											DataResolvingConfig: DataResolvingConfig{
 												PathSelector: PathSelector{
 													Path: "subscriptionType",
 												},
@@ -3806,7 +3807,7 @@ func introspectionQuery(schema []byte) RootNode {
 												{
 													Name: []byte("name"),
 													Value: &Value{
-														DataResolvingConfig:DataResolvingConfig{
+														DataResolvingConfig: DataResolvingConfig{
 															PathSelector: PathSelector{
 																Path: "name",
 															},
@@ -3820,7 +3821,7 @@ func introspectionQuery(schema []byte) RootNode {
 									{
 										Name: []byte("types"),
 										Value: &List{
-											DataResolvingConfig:DataResolvingConfig{
+											DataResolvingConfig: DataResolvingConfig{
 												PathSelector: PathSelector{
 													Path: "types",
 												},
@@ -3830,7 +3831,7 @@ func introspectionQuery(schema []byte) RootNode {
 													{
 														Name: []byte("kind"),
 														Value: &Value{
-															DataResolvingConfig:DataResolvingConfig{
+															DataResolvingConfig: DataResolvingConfig{
 																PathSelector: PathSelector{
 																	Path: "kind",
 																},
@@ -3841,7 +3842,7 @@ func introspectionQuery(schema []byte) RootNode {
 													{
 														Name: []byte("name"),
 														Value: &Value{
-															DataResolvingConfig:DataResolvingConfig{
+															DataResolvingConfig: DataResolvingConfig{
 																PathSelector: PathSelector{
 																	Path: "name",
 																},
@@ -3852,7 +3853,7 @@ func introspectionQuery(schema []byte) RootNode {
 													{
 														Name: []byte("description"),
 														Value: &Value{
-															DataResolvingConfig:DataResolvingConfig{
+															DataResolvingConfig: DataResolvingConfig{
 																PathSelector: PathSelector{
 																	Path: "description",
 																},
@@ -3863,7 +3864,7 @@ func introspectionQuery(schema []byte) RootNode {
 													{
 														Name: []byte("fields"),
 														Value: &List{
-															DataResolvingConfig:DataResolvingConfig{
+															DataResolvingConfig: DataResolvingConfig{
 																PathSelector: PathSelector{
 																	Path: "fields",
 																},
@@ -3873,7 +3874,7 @@ func introspectionQuery(schema []byte) RootNode {
 																	{
 																		Name: []byte("name"),
 																		Value: &Value{
-																			DataResolvingConfig:DataResolvingConfig{
+																			DataResolvingConfig: DataResolvingConfig{
 																				PathSelector: PathSelector{
 																					Path: "name",
 																				},
@@ -3884,7 +3885,7 @@ func introspectionQuery(schema []byte) RootNode {
 																	{
 																		Name: []byte("description"),
 																		Value: &Value{
-																			DataResolvingConfig:DataResolvingConfig{
+																			DataResolvingConfig: DataResolvingConfig{
 																				PathSelector: PathSelector{
 																					Path: "description",
 																				},
@@ -3895,7 +3896,7 @@ func introspectionQuery(schema []byte) RootNode {
 																	{
 																		Name: []byte("args"),
 																		Value: &List{
-																			DataResolvingConfig:DataResolvingConfig{
+																			DataResolvingConfig: DataResolvingConfig{
 																				PathSelector: PathSelector{
 																					Path: "args",
 																				},
@@ -3905,7 +3906,7 @@ func introspectionQuery(schema []byte) RootNode {
 																					{
 																						Name: []byte("name"),
 																						Value: &Value{
-																							DataResolvingConfig:DataResolvingConfig{
+																							DataResolvingConfig: DataResolvingConfig{
 																								PathSelector: PathSelector{
 																									Path: "name",
 																								},
@@ -3916,7 +3917,7 @@ func introspectionQuery(schema []byte) RootNode {
 																					{
 																						Name: []byte("description"),
 																						Value: &Value{
-																							DataResolvingConfig:DataResolvingConfig{
+																							DataResolvingConfig: DataResolvingConfig{
 																								PathSelector: PathSelector{
 																									Path: "description",
 																								},
@@ -3927,7 +3928,7 @@ func introspectionQuery(schema []byte) RootNode {
 																					{
 																						Name: []byte("type"),
 																						Value: &Object{
-																							DataResolvingConfig:DataResolvingConfig{
+																							DataResolvingConfig: DataResolvingConfig{
 																								PathSelector: PathSelector{
 																									Path: "type",
 																								},
@@ -3938,7 +3939,7 @@ func introspectionQuery(schema []byte) RootNode {
 																					{
 																						Name: []byte("defaultValue"),
 																						Value: &Value{
-																							DataResolvingConfig:DataResolvingConfig{
+																							DataResolvingConfig: DataResolvingConfig{
 																								PathSelector: PathSelector{
 																									Path: "defaultValue",
 																								},
@@ -3953,7 +3954,7 @@ func introspectionQuery(schema []byte) RootNode {
 																	{
 																		Name: []byte("type"),
 																		Value: &Object{
-																			DataResolvingConfig:DataResolvingConfig{
+																			DataResolvingConfig: DataResolvingConfig{
 																				PathSelector: PathSelector{
 																					Path: "type",
 																				},
@@ -3964,7 +3965,7 @@ func introspectionQuery(schema []byte) RootNode {
 																	{
 																		Name: []byte("isDeprecated"),
 																		Value: &Value{
-																			DataResolvingConfig:DataResolvingConfig{
+																			DataResolvingConfig: DataResolvingConfig{
 																				PathSelector: PathSelector{
 																					Path: "isDeprecated",
 																				},
@@ -3975,7 +3976,7 @@ func introspectionQuery(schema []byte) RootNode {
 																	{
 																		Name: []byte("deprecationReason"),
 																		Value: &Value{
-																			DataResolvingConfig:DataResolvingConfig{
+																			DataResolvingConfig: DataResolvingConfig{
 																				PathSelector: PathSelector{
 																					Path: "deprecationReason",
 																				},
@@ -3990,7 +3991,7 @@ func introspectionQuery(schema []byte) RootNode {
 													{
 														Name: []byte("inputFields"),
 														Value: &List{
-															DataResolvingConfig:DataResolvingConfig{
+															DataResolvingConfig: DataResolvingConfig{
 																PathSelector: PathSelector{
 																	Path: "inputFields",
 																},
@@ -4000,7 +4001,7 @@ func introspectionQuery(schema []byte) RootNode {
 																	{
 																		Name: []byte("name"),
 																		Value: &Value{
-																			DataResolvingConfig:DataResolvingConfig{
+																			DataResolvingConfig: DataResolvingConfig{
 																				PathSelector: PathSelector{
 																					Path: "name",
 																				},
@@ -4011,7 +4012,7 @@ func introspectionQuery(schema []byte) RootNode {
 																	{
 																		Name: []byte("description"),
 																		Value: &Value{
-																			DataResolvingConfig:DataResolvingConfig{
+																			DataResolvingConfig: DataResolvingConfig{
 																				PathSelector: PathSelector{
 																					Path: "description",
 																				},
@@ -4022,7 +4023,7 @@ func introspectionQuery(schema []byte) RootNode {
 																	{
 																		Name: []byte("type"),
 																		Value: &Object{
-																			DataResolvingConfig:DataResolvingConfig{
+																			DataResolvingConfig: DataResolvingConfig{
 																				PathSelector: PathSelector{
 																					Path: "type",
 																				},
@@ -4033,7 +4034,7 @@ func introspectionQuery(schema []byte) RootNode {
 																	{
 																		Name: []byte("defaultValue"),
 																		Value: &Value{
-																			DataResolvingConfig:DataResolvingConfig{
+																			DataResolvingConfig: DataResolvingConfig{
 																				PathSelector: PathSelector{
 																					Path: "defaultValue",
 																				},
@@ -4048,7 +4049,7 @@ func introspectionQuery(schema []byte) RootNode {
 													{
 														Name: []byte("interfaces"),
 														Value: &List{
-															DataResolvingConfig:DataResolvingConfig{
+															DataResolvingConfig: DataResolvingConfig{
 																PathSelector: PathSelector{
 																	Path: "interfaces",
 																},
@@ -4061,7 +4062,7 @@ func introspectionQuery(schema []byte) RootNode {
 													{
 														Name: []byte("enumValues"),
 														Value: &List{
-															DataResolvingConfig:DataResolvingConfig{
+															DataResolvingConfig: DataResolvingConfig{
 																PathSelector: PathSelector{
 																	Path: "enumValues",
 																},
@@ -4071,7 +4072,7 @@ func introspectionQuery(schema []byte) RootNode {
 																	{
 																		Name: []byte("name"),
 																		Value: &Value{
-																			DataResolvingConfig:DataResolvingConfig{
+																			DataResolvingConfig: DataResolvingConfig{
 																				PathSelector: PathSelector{
 																					Path: "name",
 																				},
@@ -4082,7 +4083,7 @@ func introspectionQuery(schema []byte) RootNode {
 																	{
 																		Name: []byte("description"),
 																		Value: &Value{
-																			DataResolvingConfig:DataResolvingConfig{
+																			DataResolvingConfig: DataResolvingConfig{
 																				PathSelector: PathSelector{
 																					Path: "description",
 																				},
@@ -4093,7 +4094,7 @@ func introspectionQuery(schema []byte) RootNode {
 																	{
 																		Name: []byte("isDeprecated"),
 																		Value: &Value{
-																			DataResolvingConfig:DataResolvingConfig{
+																			DataResolvingConfig: DataResolvingConfig{
 																				PathSelector: PathSelector{
 																					Path: "isDeprecated",
 																				},
@@ -4104,7 +4105,7 @@ func introspectionQuery(schema []byte) RootNode {
 																	{
 																		Name: []byte("deprecationReason"),
 																		Value: &Value{
-																			DataResolvingConfig:DataResolvingConfig{
+																			DataResolvingConfig: DataResolvingConfig{
 																				PathSelector: PathSelector{
 																					Path: "deprecationReason",
 																				},
@@ -4119,7 +4120,7 @@ func introspectionQuery(schema []byte) RootNode {
 													{
 														Name: []byte("possibleTypes"),
 														Value: &List{
-															DataResolvingConfig:DataResolvingConfig{
+															DataResolvingConfig: DataResolvingConfig{
 																PathSelector: PathSelector{
 																	Path: "possibleTypes",
 																},
@@ -4136,7 +4137,7 @@ func introspectionQuery(schema []byte) RootNode {
 									{
 										Name: []byte("directives"),
 										Value: &List{
-											DataResolvingConfig:DataResolvingConfig{
+											DataResolvingConfig: DataResolvingConfig{
 												PathSelector: PathSelector{
 													Path: "directives",
 												},
@@ -4146,7 +4147,7 @@ func introspectionQuery(schema []byte) RootNode {
 													{
 														Name: []byte("name"),
 														Value: &Value{
-															DataResolvingConfig:DataResolvingConfig{
+															DataResolvingConfig: DataResolvingConfig{
 																PathSelector: PathSelector{
 																	Path: "name",
 																},
@@ -4157,7 +4158,7 @@ func introspectionQuery(schema []byte) RootNode {
 													{
 														Name: []byte("description"),
 														Value: &Value{
-															DataResolvingConfig:DataResolvingConfig{
+															DataResolvingConfig: DataResolvingConfig{
 																PathSelector: PathSelector{
 																	Path: "description",
 																},
@@ -4168,7 +4169,7 @@ func introspectionQuery(schema []byte) RootNode {
 													{
 														Name: []byte("locations"),
 														Value: &List{
-															DataResolvingConfig:DataResolvingConfig{
+															DataResolvingConfig: DataResolvingConfig{
 																PathSelector: PathSelector{
 																	Path: "locations",
 																},
@@ -4181,7 +4182,7 @@ func introspectionQuery(schema []byte) RootNode {
 													{
 														Name: []byte("args"),
 														Value: &List{
-															DataResolvingConfig:DataResolvingConfig{
+															DataResolvingConfig: DataResolvingConfig{
 																PathSelector: PathSelector{
 																	Path: "args",
 																},
@@ -4191,7 +4192,7 @@ func introspectionQuery(schema []byte) RootNode {
 																	{
 																		Name: []byte("name"),
 																		Value: &Value{
-																			DataResolvingConfig:DataResolvingConfig{
+																			DataResolvingConfig: DataResolvingConfig{
 																				PathSelector: PathSelector{
 																					Path: "name",
 																				},
@@ -4202,7 +4203,7 @@ func introspectionQuery(schema []byte) RootNode {
 																	{
 																		Name: []byte("description"),
 																		Value: &Value{
-																			DataResolvingConfig:DataResolvingConfig{
+																			DataResolvingConfig: DataResolvingConfig{
 																				PathSelector: PathSelector{
 																					Path: "description",
 																				},
@@ -4213,7 +4214,7 @@ func introspectionQuery(schema []byte) RootNode {
 																	{
 																		Name: []byte("type"),
 																		Value: &Object{
-																			DataResolvingConfig:DataResolvingConfig{
+																			DataResolvingConfig: DataResolvingConfig{
 																				PathSelector: PathSelector{
 																					Path: "type",
 																				},
@@ -4224,7 +4225,7 @@ func introspectionQuery(schema []byte) RootNode {
 																	{
 																		Name: []byte("defaultValue"),
 																		Value: &Value{
-																			DataResolvingConfig:DataResolvingConfig{
+																			DataResolvingConfig: DataResolvingConfig{
 																				PathSelector: PathSelector{
 																					Path: "defaultValue",
 																				},
@@ -4254,7 +4255,7 @@ var kindNameDeepFields = []Field{
 	{
 		Name: []byte("kind"),
 		Value: &Value{
-			DataResolvingConfig:DataResolvingConfig{
+			DataResolvingConfig: DataResolvingConfig{
 				PathSelector: PathSelector{
 					Path: "kind",
 				},
@@ -4265,7 +4266,7 @@ var kindNameDeepFields = []Field{
 	{
 		Name: []byte("name"),
 		Value: &Value{
-			DataResolvingConfig:DataResolvingConfig{
+			DataResolvingConfig: DataResolvingConfig{
 				PathSelector: PathSelector{
 					Path: "name",
 				},
@@ -4276,7 +4277,7 @@ var kindNameDeepFields = []Field{
 	{
 		Name: []byte("ofType"),
 		Value: &Object{
-			DataResolvingConfig:DataResolvingConfig{
+			DataResolvingConfig: DataResolvingConfig{
 				PathSelector: PathSelector{
 					Path: "ofType",
 				},
@@ -4285,7 +4286,7 @@ var kindNameDeepFields = []Field{
 				{
 					Name: []byte("kind"),
 					Value: &Value{
-						DataResolvingConfig:DataResolvingConfig{
+						DataResolvingConfig: DataResolvingConfig{
 							PathSelector: PathSelector{
 								Path: "kind",
 							},
@@ -4296,7 +4297,7 @@ var kindNameDeepFields = []Field{
 				{
 					Name: []byte("name"),
 					Value: &Value{
-						DataResolvingConfig:DataResolvingConfig{
+						DataResolvingConfig: DataResolvingConfig{
 							PathSelector: PathSelector{
 								Path: "name",
 							},
@@ -4307,7 +4308,7 @@ var kindNameDeepFields = []Field{
 				{
 					Name: []byte("ofType"),
 					Value: &Object{
-						DataResolvingConfig:DataResolvingConfig{
+						DataResolvingConfig: DataResolvingConfig{
 							PathSelector: PathSelector{
 								Path: "ofType",
 							},
@@ -4316,7 +4317,7 @@ var kindNameDeepFields = []Field{
 							{
 								Name: []byte("kind"),
 								Value: &Value{
-									DataResolvingConfig:DataResolvingConfig{
+									DataResolvingConfig: DataResolvingConfig{
 										PathSelector: PathSelector{
 											Path: "kind",
 										},
@@ -4327,7 +4328,7 @@ var kindNameDeepFields = []Field{
 							{
 								Name: []byte("name"),
 								Value: &Value{
-									DataResolvingConfig:DataResolvingConfig{
+									DataResolvingConfig: DataResolvingConfig{
 										PathSelector: PathSelector{
 											Path: "name",
 										},
@@ -4338,7 +4339,7 @@ var kindNameDeepFields = []Field{
 							{
 								Name: []byte("ofType"),
 								Value: &Object{
-									DataResolvingConfig:DataResolvingConfig{
+									DataResolvingConfig: DataResolvingConfig{
 										PathSelector: PathSelector{
 											Path: "ofType",
 										},
@@ -4347,7 +4348,7 @@ var kindNameDeepFields = []Field{
 										{
 											Name: []byte("kind"),
 											Value: &Value{
-												DataResolvingConfig:DataResolvingConfig{
+												DataResolvingConfig: DataResolvingConfig{
 													PathSelector: PathSelector{
 														Path: "kind",
 													},
@@ -4358,7 +4359,7 @@ var kindNameDeepFields = []Field{
 										{
 											Name: []byte("name"),
 											Value: &Value{
-												DataResolvingConfig:DataResolvingConfig{
+												DataResolvingConfig: DataResolvingConfig{
 													PathSelector: PathSelector{
 														Path: "name",
 													},
@@ -4369,7 +4370,7 @@ var kindNameDeepFields = []Field{
 										{
 											Name: []byte("ofType"),
 											Value: &Object{
-												DataResolvingConfig:DataResolvingConfig{
+												DataResolvingConfig: DataResolvingConfig{
 													PathSelector: PathSelector{
 														Path: "ofType",
 													},
@@ -4378,7 +4379,7 @@ var kindNameDeepFields = []Field{
 													{
 														Name: []byte("kind"),
 														Value: &Value{
-															DataResolvingConfig:DataResolvingConfig{
+															DataResolvingConfig: DataResolvingConfig{
 																PathSelector: PathSelector{
 																	Path: "kind",
 																},
@@ -4389,7 +4390,7 @@ var kindNameDeepFields = []Field{
 													{
 														Name: []byte("name"),
 														Value: &Value{
-															DataResolvingConfig:DataResolvingConfig{
+															DataResolvingConfig: DataResolvingConfig{
 																PathSelector: PathSelector{
 																	Path: "name",
 																},
@@ -4400,7 +4401,7 @@ var kindNameDeepFields = []Field{
 													{
 														Name: []byte("ofType"),
 														Value: &Object{
-															DataResolvingConfig:DataResolvingConfig{
+															DataResolvingConfig: DataResolvingConfig{
 																PathSelector: PathSelector{
 																	Path: "ofType",
 																},
@@ -4409,7 +4410,7 @@ var kindNameDeepFields = []Field{
 																{
 																	Name: []byte("kind"),
 																	Value: &Value{
-																		DataResolvingConfig:DataResolvingConfig{
+																		DataResolvingConfig: DataResolvingConfig{
 																			PathSelector: PathSelector{
 																				Path: "kind",
 																			},
@@ -4420,7 +4421,7 @@ var kindNameDeepFields = []Field{
 																{
 																	Name: []byte("name"),
 																	Value: &Value{
-																		DataResolvingConfig:DataResolvingConfig{
+																		DataResolvingConfig: DataResolvingConfig{
 																			PathSelector: PathSelector{
 																				Path: "name",
 																			},
@@ -4431,7 +4432,7 @@ var kindNameDeepFields = []Field{
 																{
 																	Name: []byte("ofType"),
 																	Value: &Object{
-																		DataResolvingConfig:DataResolvingConfig{
+																		DataResolvingConfig: DataResolvingConfig{
 																			PathSelector: PathSelector{
 																				Path: "ofType",
 																			},
@@ -4440,7 +4441,7 @@ var kindNameDeepFields = []Field{
 																			{
 																				Name: []byte("kind"),
 																				Value: &Value{
-																					DataResolvingConfig:DataResolvingConfig{
+																					DataResolvingConfig: DataResolvingConfig{
 																						PathSelector: PathSelector{
 																							Path: "kind",
 																						},
@@ -4451,7 +4452,7 @@ var kindNameDeepFields = []Field{
 																			{
 																				Name: []byte("name"),
 																				Value: &Value{
-																					DataResolvingConfig:DataResolvingConfig{
+																					DataResolvingConfig: DataResolvingConfig{
 																						PathSelector: PathSelector{
 																							Path: "name",
 																						},
@@ -4462,7 +4463,7 @@ var kindNameDeepFields = []Field{
 																			{
 																				Name: []byte("ofType"),
 																				Value: &Object{
-																					DataResolvingConfig:DataResolvingConfig{
+																					DataResolvingConfig: DataResolvingConfig{
 																						PathSelector: PathSelector{
 																							Path: "ofType",
 																						},
@@ -4471,7 +4472,7 @@ var kindNameDeepFields = []Field{
 																						{
 																							Name: []byte("kind"),
 																							Value: &Value{
-																								DataResolvingConfig:DataResolvingConfig{
+																								DataResolvingConfig: DataResolvingConfig{
 																									PathSelector: PathSelector{
 																										Path: "kind",
 																									},
@@ -4482,7 +4483,7 @@ var kindNameDeepFields = []Field{
 																						{
 																							Name: []byte("name"),
 																							Value: &Value{
-																								DataResolvingConfig:DataResolvingConfig{
+																								DataResolvingConfig: DataResolvingConfig{
 																									PathSelector: PathSelector{
 																										Path: "name",
 																									},
