@@ -22,11 +22,16 @@ const (
 	contentTypeTextJavascript = "text/javascript"
 )
 
+// Config is the configuration Object to instruct ConfigureHandlers on how to setup all the http Handlers for the playground
 type Config struct {
+	// URLPrefix is a prefix you intend to put in front of all handlers
 	URLPrefix                   string
+	// PlaygroundURL is the URL where the playground website should be hosted
 	PlaygroundURL               string
-	GraphqlEndpoint             string
-	GraphQLSubscriptionEndpoint string
+	// GraphqlEndpointURL is the URL where the http Handler for synchronous (Query,Mutation) GraphQL requests should be hosted
+	GraphqlEndpointURL             string
+	// GraphqlEndpointURL is the URL where the http Handler for asynchronous (Subscription) GraphQL requests should be hosted
+	GraphQLSubscriptionEndpointURL string
 }
 
 type playgroundTemplateData struct {
@@ -44,10 +49,25 @@ type fileConfig struct {
 	fileContentType string
 }
 
-type HandlersMap map[string]http.HandlerFunc
+// HandlerConfig is the configuration Object for all playground http Handlers
+type HandlerConfig struct {
+	URL     string
+	Handler http.HandlerFunc
+}
 
-func ConfigureHandlers(config Config) (handlers HandlersMap, err error) {
-	handlers = make(HandlersMap)
+// Handlers is an array of HandlerConfig
+// The playground expects that you make all assigned Handlers available on the corresponding URL
+type Handlers []HandlerConfig
+
+func (h *Handlers) add(url string, handler http.HandlerFunc) {
+	*h = append(*h, HandlerConfig{
+		URL:     url,
+		Handler: handler,
+	})
+}
+
+// ConfigureHandlers takes your Config and sets up all handlers to the supplied Handlers slice
+func ConfigureHandlers(config Config, handlers *Handlers) (err error) {
 
 	box := packr.NewBox("./files")
 	playgroundHTML, err := box.FindString("playground.html")
@@ -65,18 +85,18 @@ func ConfigureHandlers(config Config) (handlers HandlersMap, err error) {
 		JsURL:                   path.Join(config.URLPrefix, "playground.js"),
 		FavIconURL:              path.Join(config.URLPrefix, "favicon.png"),
 		LogoURL:                 path.Join(config.URLPrefix, "logo.png"),
-		EndpointURL:             config.GraphqlEndpoint,
-		SubscriptionEndpointURL: config.GraphQLSubscriptionEndpoint,
+		EndpointURL:             config.GraphqlEndpointURL,
+		SubscriptionEndpointURL: config.GraphQLSubscriptionEndpointURL,
 	}
 
-	handlers[playgroundURL] = func(writer http.ResponseWriter, request *http.Request) {
+	handlers.add(playgroundURL, func(writer http.ResponseWriter, request *http.Request) {
 		writer.Header().Add(contentTypeHeader, contentTypeTextHTML)
 		err := templates.ExecuteTemplate(writer, playgroundTemplate, data)
 		if err != nil {
 			writer.WriteHeader(http.StatusInternalServerError)
 			_, _ = writer.Write([]byte(err.Error()))
 		}
-	}
+	})
 
 	files := []fileConfig{
 		{
@@ -102,25 +122,25 @@ func ConfigureHandlers(config Config) (handlers HandlersMap, err error) {
 	}
 
 	for i := 0; i < len(files); i++ {
-		handlers, err = configureFileHandler(handlers, box, files[i].fileName, files[i].fileURL, files[i].fileContentType)
+		err = configureFileHandler(handlers, box, files[i].fileName, files[i].fileURL, files[i].fileContentType)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 
-	return handlers, nil
+	return nil
 }
 
-func configureFileHandler(handlers HandlersMap, box packr.Box, fileName, fileURL, contentType string) (HandlersMap, error) {
+func configureFileHandler(handlers *Handlers, box packr.Box, fileName, fileURL, contentType string) error {
 	data, err := box.Find(fileName)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	handlers[fileURL] = func(writer http.ResponseWriter, request *http.Request) {
+	handlers.add(fileURL,func(writer http.ResponseWriter, request *http.Request) {
 		writer.Header().Add(contentTypeHeader, contentType)
 		_, _ = writer.Write(data)
-	}
+	})
 
-	return handlers, nil
+	return nil
 }
