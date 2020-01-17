@@ -51,7 +51,9 @@ type fileConfig struct {
 
 // HandlerConfig is the configuration Object for all playground http Handlers
 type HandlerConfig struct {
+	// URL is where the handler should be hosted
 	URL     string
+	// Handler is the http.HandlerFunc that should be hosted on the corresponding URL
 	Handler http.HandlerFunc
 }
 
