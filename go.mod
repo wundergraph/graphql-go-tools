@@ -14,7 +14,7 @@ require (
 	github.com/gobwas/ws v1.0.2
 	github.com/jensneuse/abstractlogger v0.0.4
 	github.com/jensneuse/diffview v1.0.0
-	github.com/jensneuse/pipeline v0.0.0-20200110090712-e40ec448f28d
+	github.com/jensneuse/pipeline v0.0.0-20200117120358-9fb4de085cd6
 	github.com/nats-io/nats-server/v2 v2.1.2 // indirect
 	github.com/nats-io/nats.go v1.9.1
 	github.com/sebdah/goldie v0.0.0-20180424091453-8784dd1ab561

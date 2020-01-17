@@ -223,7 +223,8 @@ func (e *Executor) resolveData(config DataResolvingConfig, data []byte) []byte {
 	if config.Transformation == nil {
 		return data
 	}
-	return config.Transformation.Transform(data)
+	data, e.err = config.Transformation.Transform(data)
+	return data
 }
 
 func (e *Executor) ResolveArgs(args []Argument, data []byte) ResolvedArgs {
