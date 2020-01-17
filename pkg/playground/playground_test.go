@@ -2,25 +2,25 @@ package playground
 
 import (
 	"bytes"
+	"io/ioutil"
+	"testing"
+
 	"github.com/davecgh/go-spew/spew"
 	"github.com/jensneuse/diffview"
 	"github.com/sebdah/goldie"
-	"io/ioutil"
-	"testing"
 )
 
 func TestConfigureHandlers(t *testing.T) {
-
 	config := Config{
-		URLPrefix:                      "",
-		PlaygroundURL:                  "/playground",
-		GraphqlEndpointURL:             "/graphql",
-		GraphQLSubscriptionEndpointURL: "/graphqlws",
+		PathPrefix:                      "",
+		PlaygroundPath:                  "/playground",
+		GraphqlEndpointPath:             "/graphql",
+		GraphQLSubscriptionEndpointPath: "/graphqlws",
 	}
 
-	var handlers Handlers
+	p := NewPlayground(config)
 
-	err := ConfigureHandlers(config,&handlers)
+	handlers, err := p.GetHandlers()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,9 +30,9 @@ func TestConfigureHandlers(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	spew.Fdump(&out,handlers)
+	spew.Fdump(&out, handlers)
 
-	goldie.Assert(t,"handlers",out.Bytes())
+	goldie.Assert(t, "handlers", out.Bytes())
 	if t.Failed() {
 		fixture, err := ioutil.ReadFile("./fixtures/handlers.golden")
 		if err != nil {
