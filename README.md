@@ -145,11 +145,14 @@ Complex validation grows linearly, not exponentially.
     - Implemented Type Extension merging [#108](https://github.com/jensneuse/graphql-go-tools/pull/108)
 - [Patric Vormstein][patric-vormstein-github]
     - Fixed lexer on windows [#92](https://github.com/jensneuse/graphql-go-tools/pull/92)
+- [Sergey Petrunin][sergey-petrunin-github]
+    - Helped cleaning up the API of the pipeline package [#166](https://github.com/jensneuse/graphql-go-tools/pull/166)
 
 [jens-neuse-github]: https://github.com/jensneuse
 [mantas-vidutis-github]: https://github.com/mvid
 [jonas-bergner-github]: https://github.com/java-jonas
 [patric-vormstein-github]: https://github.com/pvormste
+[sergey-petrunin-github]: https://github.com/spetrunin
 
 ## Contributions
 
