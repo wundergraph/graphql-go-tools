@@ -7,6 +7,9 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
+	"github.com/jensneuse/pipeline/pkg/pipe"
+	"io"
+	"os"
 )
 
 type Planner struct {
@@ -171,20 +174,7 @@ func (p *planningVisitor) EnterField(ref int) {
 	switch parent := p.currentNode[len(p.currentNode)-1].(type) {
 	case *Object:
 
-		/*var planner DataSourcePlanner
-		resolveRef := p.planners[len(p.planners)-1]
-		if resolveRef.path.Equals(p.Path) && resolveRef.fieldRef == ref {
-			planner = resolveRef.planner
-		}
-
-		if planner != nil {
-			pathSelector = planner.OverrideRootPathSelector(pathSelector)
-		}*/
-
-		fieldName := p.operation.FieldNameString(ref)
-		_ = fieldName
-
-		pathSelector := p.fieldPathSelector(ref)
+		dataResolvingConfig := p.fieldDataResolvingConfig(ref)
 
 		var value Node
 		fieldDefinitionType := p.definition.FieldDefinitionType(definition)
@@ -199,8 +189,8 @@ func (p *planningVisitor) EnterField(ref int) {
 			}
 
 			list := &List{
-				PathSelector:  pathSelector,
-				Value: value,
+				DataResolvingConfig: dataResolvingConfig,
+				Value:               value,
 			}
 
 			firstNValue, ok := p.FieldDefinitionDirectiveArgumentValueByName(ref, []byte("ListFilterFirstN"), []byte("n"))
@@ -224,12 +214,12 @@ func (p *planningVisitor) EnterField(ref int) {
 
 		if !p.operation.FieldHasSelections(ref) {
 			value = &Value{
-				PathSelector:  pathSelector,
-				QuoteValue: p.quoteValue(fieldDefinitionType),
+				DataResolvingConfig: dataResolvingConfig,
+				QuoteValue:          p.quoteValue(fieldDefinitionType),
 			}
 		} else {
 			value = &Object{
-				PathSelector:  pathSelector,
+				DataResolvingConfig: dataResolvingConfig,
 			}
 		}
 
@@ -279,7 +269,7 @@ func (p *planningVisitor) LeaveField(ref int) {
 						if bytes.Equal(p.operation.FieldObjectNameBytes(ref), parent.Fields[i].Name) {
 
 							pathName := p.operation.FieldObjectNameString(ref)
-							parent.Fields[i].HasResolver = true
+							parent.Fields[i].HasResolvedData = true
 
 							singleFetch := &SingleFetch{
 								Source: &DataSourceInvocation{
@@ -396,19 +386,24 @@ func (p *planningVisitor) quoteValue(valueType int) bool {
 	}
 }
 
+func (p *planningVisitor) fieldDataResolvingConfig(ref int) DataResolvingConfig {
+	return DataResolvingConfig{
+		PathSelector:   p.fieldPathSelector(ref),
+		Transformation: p.fieldTransformation(ref),
+	}
+}
+
 func (p *planningVisitor) fieldPathSelector(ref int) (selector PathSelector) {
 	selector.Path = p.operation.FieldNameString(ref)
 	definition, ok := p.FieldDefinition(ref)
 	if !ok {
 		return
 	}
-	fieldName := p.operation.FieldNameString(ref)
-	_ = fieldName
 	directive, ok := p.definition.FieldDefinitionDirectiveByName(definition, []byte("mapping"))
 	if ok {
 		value, ok := p.definition.DirectiveArgumentValueByName(directive, []byte("mode"))
 		if !ok {
-			def := p.definition.DirectiveArgumentInputValueDefinition([]byte("mapping"),[]byte("mode"))
+			def := p.definition.DirectiveArgumentInputValueDefinition([]byte("mapping"), []byte("mode"))
 			if def == -1 {
 				return
 			}
@@ -430,34 +425,55 @@ func (p *planningVisitor) fieldPathSelector(ref int) (selector PathSelector) {
 			}
 		}
 	}
-
-/*	def, ok := p.FieldDefinition(ref)
-	if !ok {
-		return
-	}
-	pathDirective, ok := p.definition.FieldDefinitionDirectiveByName(def, []byte("path"))
-	if !ok {
-		return
-	}
-	appendValue, ok := p.definition.DirectiveArgumentValueByName(pathDirective, []byte("append"))
-	if ok && appendValue.Kind == ast.ValueKindList {
-		for _, j := range p.definition.ListValues[appendValue.Ref].Refs {
-			listValue := p.definition.Values[j]
-			if listValue.Kind != ast.ValueKindString {
-				continue
-			}
-			selector.Path += "." + p.definition.StringValueContentString(listValue.Ref)
-		}
-	}
-	prependValue, ok := p.definition.DirectiveArgumentValueByName(pathDirective, []byte("prepend"))
-	if ok {
-		for _, j := range p.definition.ListValues[prependValue.Ref].Refs {
-			listValue := p.definition.Values[j]
-			if listValue.Kind != ast.ValueKindString {
-				continue
-			}
-			selector.Path += "." + p.definition.StringValueContentString(listValue.Ref)
-		}
-	}*/
 	return
+}
+
+func (p *planningVisitor) fieldTransformation(ref int) Transformation {
+	definition, ok := p.FieldDefinition(ref)
+	if !ok {
+		return nil
+	}
+	transformationDirective, ok := p.definition.FieldDefinitionDirectiveByName(definition, literal.TRANSFORMATION)
+	if !ok {
+		return nil
+	}
+	modeValue, ok := p.definition.DirectiveArgumentValueByName(transformationDirective, literal.MODE)
+	if !ok || modeValue.Kind != ast.ValueKindEnum {
+		return nil
+	}
+	mode := unsafebytes.BytesToString(p.definition.EnumValueNameBytes(modeValue.Ref))
+	switch mode {
+	case "PIPELINE":
+		return p.pipelineTransformation(transformationDirective)
+	default:
+		return nil
+	}
+}
+
+func (p *planningVisitor) pipelineTransformation(directive int) *PipelineTransformation {
+	var configReader io.Reader
+	configFileStringValue, ok := p.definition.DirectiveArgumentValueByName(directive, literal.PIPELINE_CONFIG_FILE)
+	if ok && configFileStringValue.Kind == ast.ValueKindString {
+		reader, err := os.Open(p.definition.StringValueContentString(configFileStringValue.Ref))
+		if err != nil {
+			return nil
+		}
+		defer reader.Close()
+		configReader = reader
+	}
+	configStringValue, ok := p.definition.DirectiveArgumentValueByName(directive, literal.PIPELINE_CONFIG_STRING)
+	if ok && configStringValue.Kind == ast.ValueKindString {
+		configReader = bytes.NewReader(p.definition.StringValueContentBytes(configStringValue.Ref))
+	}
+	if configReader == nil {
+		return nil
+	}
+	var pipeline pipe.Pipeline
+	err := pipeline.FromConfig(configReader)
+	if err != nil {
+		return nil
+	}
+	return &PipelineTransformation{
+		pipeline: pipeline,
+	}
 }

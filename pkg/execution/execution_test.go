@@ -6,13 +6,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/cespare/xxhash"
+	log "github.com/jensneuse/abstractlogger"
 	"github.com/jensneuse/diffview"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/introspection"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 	"github.com/sebdah/goldie"
-	log "github.com/jensneuse/abstractlogger"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -140,18 +140,22 @@ func TestExecution(t *testing.T) {
 					},
 					Fields: []Field{
 						{
-							Name:        []byte("__type"),
-							HasResolver: true,
+							Name:            []byte("__type"),
+							HasResolvedData: true,
 							Value: &Object{
-								PathSelector: PathSelector{
-									Path: "__type",
+								DataResolvingConfig: DataResolvingConfig{
+									PathSelector: PathSelector{
+										Path: "__type",
+									},
 								},
 								Fields: []Field{
 									{
 										Name: []byte("name"),
 										Value: &Value{
-											PathSelector: PathSelector{
-												Path: "name",
+											DataResolvingConfig: DataResolvingConfig{
+												PathSelector: PathSelector{
+													Path: "name",
+												},
 											},
 											QuoteValue: true,
 										},
@@ -159,16 +163,20 @@ func TestExecution(t *testing.T) {
 									{
 										Name: []byte("fields"),
 										Value: &List{
-											PathSelector: PathSelector{
-												Path: "fields",
+											DataResolvingConfig: DataResolvingConfig{
+												PathSelector: PathSelector{
+													Path: "fields",
+												},
 											},
 											Value: &Object{
 												Fields: []Field{
 													{
 														Name: []byte("name"),
 														Value: &Value{
-															PathSelector: PathSelector{
-																Path: "name",
+															DataResolvingConfig: DataResolvingConfig{
+																PathSelector: PathSelector{
+																	Path: "name",
+																},
 															},
 															QuoteValue: true,
 														},
@@ -176,15 +184,19 @@ func TestExecution(t *testing.T) {
 													{
 														Name: []byte("type"),
 														Value: &Object{
-															PathSelector: PathSelector{
-																Path: "type",
+															DataResolvingConfig: DataResolvingConfig{
+																PathSelector: PathSelector{
+																	Path: "type",
+																},
 															},
 															Fields: []Field{
 																{
 																	Name: []byte("name"),
 																	Value: &Value{
-																		PathSelector: PathSelector{
-																			Path: "name",
+																		DataResolvingConfig: DataResolvingConfig{
+																			PathSelector: PathSelector{
+																				Path: "name",
+																			},
 																		},
 																		QuoteValue: true,
 																	},
@@ -200,11 +212,13 @@ func TestExecution(t *testing.T) {
 							},
 						},
 						{
-							Name:        []byte("user"),
-							HasResolver: true,
+							Name:            []byte("user"),
+							HasResolvedData: true,
 							Value: &Object{
-								PathSelector: PathSelector{
-									Path: "user",
+								DataResolvingConfig: DataResolvingConfig{
+									PathSelector: PathSelector{
+										Path: "user",
+									},
 								},
 								Fetch: &ParallelFetch{
 									Fetches: []Fetch{
@@ -270,16 +284,20 @@ func TestExecution(t *testing.T) {
 									{
 										Name: []byte("id"),
 										Value: &Value{
-											PathSelector: PathSelector{
-												Path: "id",
+											DataResolvingConfig: DataResolvingConfig{
+												PathSelector: PathSelector{
+													Path: "id",
+												},
 											},
 										},
 									},
 									{
 										Name: []byte("name"),
 										Value: &Value{
-											PathSelector: PathSelector{
-												Path: "name",
+											DataResolvingConfig: DataResolvingConfig{
+												PathSelector: PathSelector{
+													Path: "name",
+												},
 											},
 											QuoteValue: true,
 										},
@@ -287,15 +305,17 @@ func TestExecution(t *testing.T) {
 									{
 										Name: []byte("birthday"),
 										Value: &Value{
-											PathSelector: PathSelector{
-												Path: "birthday",
+											DataResolvingConfig: DataResolvingConfig{
+												PathSelector: PathSelector{
+													Path: "birthday",
+												},
 											},
 											QuoteValue: true,
 										},
 									},
 									{
-										Name:        []byte("friends"),
-										HasResolver: true,
+										Name:            []byte("friends"),
+										HasResolvedData: true,
 										Value: &List{
 											Value: &Object{
 												Fetch: &SingleFetch{
@@ -330,8 +350,10 @@ func TestExecution(t *testing.T) {
 													{
 														Name: []byte("id"),
 														Value: &Value{
-															PathSelector: PathSelector{
-																Path: "id",
+															DataResolvingConfig: DataResolvingConfig{
+																PathSelector: PathSelector{
+																	Path: "id",
+																},
 															},
 															QuoteValue: false,
 														},
@@ -339,8 +361,10 @@ func TestExecution(t *testing.T) {
 													{
 														Name: []byte("name"),
 														Value: &Value{
-															PathSelector: PathSelector{
-																Path: "name",
+															DataResolvingConfig: DataResolvingConfig{
+																PathSelector: PathSelector{
+																	Path: "name",
+																},
 															},
 															QuoteValue: true,
 														},
@@ -348,23 +372,27 @@ func TestExecution(t *testing.T) {
 													{
 														Name: []byte("birthday"),
 														Value: &Value{
-															PathSelector: PathSelector{
-																Path: "birthday",
+															DataResolvingConfig: DataResolvingConfig{
+																PathSelector: PathSelector{
+																	Path: "birthday",
+																},
 															},
 															QuoteValue: true,
 														},
 													},
 													{
-														Name:        []byte("pets"),
-														HasResolver: true,
+														Name:            []byte("pets"),
+														HasResolvedData: true,
 														Value: &List{
 															Value: &Object{
 																Fields: []Field{
 																	{
 																		Name: []byte("__typename"),
 																		Value: &Value{
-																			PathSelector: PathSelector{
-																				Path: "__typename",
+																			DataResolvingConfig: DataResolvingConfig{
+																				PathSelector: PathSelector{
+																					Path: "__typename",
+																				},
 																			},
 																			QuoteValue: true,
 																		},
@@ -372,8 +400,10 @@ func TestExecution(t *testing.T) {
 																	{
 																		Name: []byte("name"),
 																		Value: &Value{
-																			PathSelector: PathSelector{
-																				Path: "name",
+																			DataResolvingConfig: DataResolvingConfig{
+																				PathSelector: PathSelector{
+																					Path: "name",
+																				},
 																			},
 																			QuoteValue: true,
 																		},
@@ -381,8 +411,10 @@ func TestExecution(t *testing.T) {
 																	{
 																		Name: []byte("nickname"),
 																		Value: &Value{
-																			PathSelector: PathSelector{
-																				Path: "nickname",
+																			DataResolvingConfig: DataResolvingConfig{
+																				PathSelector: PathSelector{
+																					Path: "nickname",
+																				},
 																			},
 																			QuoteValue: true,
 																		},
@@ -390,8 +422,10 @@ func TestExecution(t *testing.T) {
 																	{
 																		Name: []byte("woof"),
 																		Value: &Value{
-																			PathSelector: PathSelector{
-																				Path: "woof",
+																			DataResolvingConfig: DataResolvingConfig{
+																				PathSelector: PathSelector{
+																					Path: "woof",
+																				},
 																			},
 																			QuoteValue: true,
 																		},
@@ -409,8 +443,10 @@ func TestExecution(t *testing.T) {
 																	{
 																		Name: []byte("meow"),
 																		Value: &Value{
-																			PathSelector: PathSelector{
-																				Path: "meow",
+																			DataResolvingConfig: DataResolvingConfig{
+																				PathSelector: PathSelector{
+																					Path: "meow",
+																				},
 																			},
 																			QuoteValue: true,
 																		},
@@ -434,19 +470,23 @@ func TestExecution(t *testing.T) {
 										},
 									},
 									{
-										Name:        []byte("pets"),
-										HasResolver: true,
+										Name:            []byte("pets"),
+										HasResolvedData: true,
 										Value: &List{
-											PathSelector: PathSelector{
-												Path: "userPets",
+											DataResolvingConfig: DataResolvingConfig{
+												PathSelector: PathSelector{
+													Path: "userPets",
+												},
 											},
 											Value: &Object{
 												Fields: []Field{
 													{
 														Name: []byte("__typename"),
 														Value: &Value{
-															PathSelector: PathSelector{
-																Path: "__typename",
+															DataResolvingConfig: DataResolvingConfig{
+																PathSelector: PathSelector{
+																	Path: "__typename",
+																},
 															},
 															QuoteValue: true,
 														},
@@ -454,8 +494,10 @@ func TestExecution(t *testing.T) {
 													{
 														Name: []byte("name"),
 														Value: &Value{
-															PathSelector: PathSelector{
-																Path: "name",
+															DataResolvingConfig: DataResolvingConfig{
+																PathSelector: PathSelector{
+																	Path: "name",
+																},
 															},
 															QuoteValue: true,
 														},
@@ -463,8 +505,10 @@ func TestExecution(t *testing.T) {
 													{
 														Name: []byte("nickname"),
 														Value: &Value{
-															PathSelector: PathSelector{
-																Path: "nickname",
+															DataResolvingConfig: DataResolvingConfig{
+																PathSelector: PathSelector{
+																	Path: "nickname",
+																},
 															},
 															QuoteValue: true,
 														},
@@ -472,8 +516,10 @@ func TestExecution(t *testing.T) {
 													{
 														Name: []byte("woof"),
 														Value: &Value{
-															PathSelector: PathSelector{
-																Path: "woof",
+															DataResolvingConfig: DataResolvingConfig{
+																PathSelector: PathSelector{
+																	Path: "woof",
+																},
 															},
 															QuoteValue: true,
 														},
@@ -491,8 +537,10 @@ func TestExecution(t *testing.T) {
 													{
 														Name: []byte("meow"),
 														Value: &Value{
-															PathSelector: PathSelector{
-																Path: "meow",
+															DataResolvingConfig: DataResolvingConfig{
+																PathSelector: PathSelector{
+																	Path: "meow",
+																},
 															},
 															QuoteValue: true,
 														},
@@ -647,49 +695,61 @@ func genField() Field {
 			},
 			Fields: []Field{
 				{
-					Name:        []byte("__type"),
-					HasResolver: true,
+					Name:            []byte("__type"),
+					HasResolvedData: true,
 					Value: &Object{
-						PathSelector: PathSelector{
-							Path: "__type",
+						DataResolvingConfig: DataResolvingConfig{
+							PathSelector: PathSelector{
+								Path: "__type",
+							},
 						},
 						Fields: []Field{
 							{
 								Name: []byte("name"),
 								Value: &Value{
-									PathSelector: PathSelector{
-										Path: "name",
+									DataResolvingConfig: DataResolvingConfig{
+										PathSelector: PathSelector{
+											Path: "name",
+										},
 									},
 								},
 							},
 							{
 								Name: []byte("fields"),
 								Value: &List{
-									PathSelector: PathSelector{
-										Path: "fields",
+									DataResolvingConfig: DataResolvingConfig{
+										PathSelector: PathSelector{
+											Path: "fields",
+										},
 									},
 									Value: &Object{
 										Fields: []Field{
 											{
 												Name: []byte("name"),
 												Value: &Value{
-													PathSelector: PathSelector{
-														Path: "name",
+													DataResolvingConfig: DataResolvingConfig{
+														PathSelector: PathSelector{
+															Path: "name",
+														},
 													},
 												},
 											},
 											{
 												Name: []byte("type"),
 												Value: &Object{
-													PathSelector: PathSelector{
-														Path: "type",
+													DataResolvingConfig: DataResolvingConfig{
+														PathSelector: PathSelector{
+															Path: "type",
+														},
 													},
 													Fields: []Field{
 														{
 															Name: []byte("name"),
 															Value: &Value{
-																PathSelector: PathSelector{
-																	Path: "name",
+																DataResolvingConfig: DataResolvingConfig{
+																	PathSelector: PathSelector{
+																		Path: "name",
+																	},
 																},
 															},
 														},
@@ -704,8 +764,8 @@ func genField() Field {
 					},
 				},
 				{
-					Name:        []byte("user"),
-					HasResolver: true,
+					Name:            []byte("user"),
+					HasResolvedData: true,
 					Value: &Object{
 						Fetch: &ParallelFetch{
 							Fetches: []Fetch{
@@ -759,23 +819,29 @@ func genField() Field {
 								},
 							},
 						},
-						PathSelector: PathSelector{
-							Path: "data.user",
+						DataResolvingConfig: DataResolvingConfig{
+							PathSelector: PathSelector{
+								Path: "data.user",
+							},
 						},
 						Fields: []Field{
 							{
 								Name: []byte("id"),
 								Value: &Value{
-									PathSelector: PathSelector{
-										Path: "id",
+									DataResolvingConfig: DataResolvingConfig{
+										PathSelector: PathSelector{
+											Path: "id",
+										},
 									},
 								},
 							},
 							{
 								Name: []byte("name"),
 								Value: &Value{
-									PathSelector: PathSelector{
-										Path: "name",
+									DataResolvingConfig: DataResolvingConfig{
+										PathSelector: PathSelector{
+											Path: "name",
+										},
 									},
 									QuoteValue: true,
 								},
@@ -783,30 +849,36 @@ func genField() Field {
 							{
 								Name: []byte("birthday"),
 								Value: &Value{
-									PathSelector: PathSelector{
-										Path: "birthday",
+									DataResolvingConfig: DataResolvingConfig{
+										PathSelector: PathSelector{
+											Path: "birthday",
+										},
 									},
 								},
 							},
 							{
-								Name:        []byte("friends"),
-								HasResolver: true,
+								Name:            []byte("friends"),
+								HasResolvedData: true,
 								Value: &List{
 									Value: &Object{
 										Fields: []Field{
 											{
 												Name: []byte("id"),
 												Value: &Value{
-													PathSelector: PathSelector{
-														Path: "id",
+													DataResolvingConfig: DataResolvingConfig{
+														PathSelector: PathSelector{
+															Path: "id",
+														},
 													},
 												},
 											},
 											{
 												Name: []byte("name"),
 												Value: &Value{
-													PathSelector: PathSelector{
-														Path: "name",
+													DataResolvingConfig: DataResolvingConfig{
+														PathSelector: PathSelector{
+															Path: "name",
+														},
 													},
 													QuoteValue: true,
 												},
@@ -814,8 +886,10 @@ func genField() Field {
 											{
 												Name: []byte("birthday"),
 												Value: &Value{
-													PathSelector: PathSelector{
-														Path: "birthday",
+													DataResolvingConfig: DataResolvingConfig{
+														PathSelector: PathSelector{
+															Path: "birthday",
+														},
 													},
 												},
 											},
@@ -824,43 +898,53 @@ func genField() Field {
 								},
 							},
 							{
-								Name:        []byte("pets"),
-								HasResolver: true,
+								Name:            []byte("pets"),
+								HasResolvedData: true,
 								Value: &List{
-									PathSelector: PathSelector{
-										Path: "data.userPets",
+									DataResolvingConfig: DataResolvingConfig{
+										PathSelector: PathSelector{
+											Path: "data.userPets",
+										},
 									},
 									Value: &Object{
 										Fields: []Field{
 											{
 												Name: []byte("__typename"),
 												Value: &Value{
-													PathSelector: PathSelector{
-														Path: "__typename",
+													DataResolvingConfig: DataResolvingConfig{
+														PathSelector: PathSelector{
+															Path: "__typename",
+														},
 													},
 												},
 											},
 											{
 												Name: []byte("name"),
 												Value: &Value{
-													PathSelector: PathSelector{
-														Path: "name",
+													DataResolvingConfig: DataResolvingConfig{
+														PathSelector: PathSelector{
+															Path: "name",
+														},
 													},
 												},
 											},
 											{
 												Name: []byte("nickname"),
 												Value: &Value{
-													PathSelector: PathSelector{
-														Path: "nickname",
+													DataResolvingConfig: DataResolvingConfig{
+														PathSelector: PathSelector{
+															Path: "nickname",
+														},
 													},
 												},
 											},
 											{
 												Name: []byte("woof"),
 												Value: &Value{
-													PathSelector: PathSelector{
-														Path: "woof",
+													DataResolvingConfig: DataResolvingConfig{
+														PathSelector: PathSelector{
+															Path: "woof",
+														},
 													},
 													QuoteValue: true,
 												},
@@ -878,8 +962,10 @@ func genField() Field {
 											{
 												Name: []byte("meow"),
 												Value: &Value{
-													PathSelector: PathSelector{
-														Path: "meow",
+													DataResolvingConfig: DataResolvingConfig{
+														PathSelector: PathSelector{
+															Path: "meow",
+														},
 													},
 													QuoteValue: true,
 												},
@@ -1035,15 +1121,17 @@ func TestStreamExecution(t *testing.T) {
 					},
 					Fields: []Field{
 						{
-							Name:        []byte("stream"),
-							HasResolver: true,
+							Name:            []byte("stream"),
+							HasResolvedData: true,
 							Value: &Object{
 								Fields: []Field{
 									{
 										Name: []byte("bar"),
 										Value: &Value{
-											PathSelector: PathSelector{
-												Path: "bar",
+											DataResolvingConfig: DataResolvingConfig{
+												PathSelector: PathSelector{
+													Path: "bar",
+												},
 											},
 											QuoteValue: true,
 										},
@@ -1051,8 +1139,10 @@ func TestStreamExecution(t *testing.T) {
 									{
 										Name: []byte("baz"),
 										Value: &Value{
-											PathSelector: PathSelector{
-												Path: "baz",
+											DataResolvingConfig: DataResolvingConfig{
+												PathSelector: PathSelector{
+													Path: "baz",
+												},
 											},
 											QuoteValue: false,
 										},
@@ -1122,8 +1212,8 @@ func TestExecutor_ListFilterFirstN(t *testing.T) {
 					},
 					Fields: []Field{
 						{
-							Name:        []byte("foos"),
-							HasResolver: true,
+							Name:            []byte("foos"),
+							HasResolvedData: true,
 							Value: &List{
 								Filter: &ListFilterFirstN{
 									FirstN: 2,
@@ -1133,8 +1223,10 @@ func TestExecutor_ListFilterFirstN(t *testing.T) {
 										{
 											Name: []byte("bar"),
 											Value: &Value{
-												PathSelector: PathSelector{
-													Path: "bar",
+												DataResolvingConfig: DataResolvingConfig{
+													PathSelector: PathSelector{
+														Path: "bar",
+													},
 												},
 												QuoteValue: true,
 											},
@@ -1215,8 +1307,8 @@ func TestExecutor_ObjectVariables(t *testing.T) {
 					},
 					Fields: []Field{
 						{
-							Name:        []byte("user"),
-							HasResolver: true,
+							Name:            []byte("user"),
+							HasResolvedData: true,
 							Value: &Object{
 								Fetch: &SingleFetch{
 									BufferName: "pet",
@@ -1248,8 +1340,10 @@ func TestExecutor_ObjectVariables(t *testing.T) {
 									{
 										Name: []byte("name"),
 										Value: &Value{
-											PathSelector: PathSelector{
-												Path: "name",
+											DataResolvingConfig: DataResolvingConfig{
+												PathSelector: PathSelector{
+													Path: "name",
+												},
 											},
 											QuoteValue: true,
 										},
@@ -1257,22 +1351,26 @@ func TestExecutor_ObjectVariables(t *testing.T) {
 									{
 										Name: []byte("id"),
 										Value: &Value{
-											PathSelector: PathSelector{
-												Path: "id",
+											DataResolvingConfig: DataResolvingConfig{
+												PathSelector: PathSelector{
+													Path: "id",
+												},
 											},
 											QuoteValue: false,
 										},
 									},
 									{
-										Name:        []byte("pet"),
-										HasResolver: true,
+										Name:            []byte("pet"),
+										HasResolvedData: true,
 										Value: &Object{
 											Fields: []Field{
 												{
 													Name: []byte("name"),
 													Value: &Value{
-														PathSelector: PathSelector{
-															Path: "name",
+														DataResolvingConfig: DataResolvingConfig{
+															PathSelector: PathSelector{
+																Path: "name",
+															},
 														},
 														QuoteValue: true,
 													},
@@ -1280,8 +1378,10 @@ func TestExecutor_ObjectVariables(t *testing.T) {
 												{
 													Name: []byte("age"),
 													Value: &Value{
-														PathSelector: PathSelector{
-															Path: "age",
+														DataResolvingConfig: DataResolvingConfig{
+															PathSelector: PathSelector{
+																Path: "age",
+															},
 														},
 														QuoteValue: false,
 													},
@@ -1338,19 +1438,23 @@ func TestExecutor_ListWithPath(t *testing.T) {
 					},
 					Fields: []Field{
 						{
-							Name:        []byte("apis"),
-							HasResolver: true,
+							Name:            []byte("apis"),
+							HasResolvedData: true,
 							Value: &List{
-								PathSelector: PathSelector{
-									Path: "apis",
+								DataResolvingConfig: DataResolvingConfig{
+									PathSelector: PathSelector{
+										Path: "apis",
+									},
 								},
 								Value: &Object{
 									Fields: []Field{
 										{
 											Name: []byte("id"),
 											Value: &Value{
-												PathSelector: PathSelector{
-													Path: "id",
+												DataResolvingConfig: DataResolvingConfig{
+													PathSelector: PathSelector{
+														Path: "id",
+													},
 												},
 												QuoteValue: false,
 											},
@@ -1441,19 +1545,23 @@ func TestExecutor_GraphqlDataSourceWithParams(t *testing.T) {
 					},
 					Fields: []Field{
 						{
-							Name:        []byte("countries"),
-							HasResolver: true,
+							Name:            []byte("countries"),
+							HasResolvedData: true,
 							Value: &List{
-								PathSelector: PathSelector{
-									Path: "countries",
+								DataResolvingConfig: DataResolvingConfig{
+									PathSelector: PathSelector{
+										Path: "countries",
+									},
 								},
 								Value: &Object{
 									Fields: []Field{
 										{
 											Name: []byte("id"),
 											Value: &Value{
-												PathSelector: PathSelector{
-													Path: "id",
+												DataResolvingConfig: DataResolvingConfig{
+													PathSelector: PathSelector{
+														Path: "id",
+													},
 												},
 												QuoteValue: false,
 											},
@@ -1511,11 +1619,13 @@ func TestExecutor_ObjectWithPath(t *testing.T) {
 					},
 					Fields: []Field{
 						{
-							Name:        []byte("id"),
-							HasResolver: true,
+							Name:            []byte("id"),
+							HasResolvedData: true,
 							Value: &Value{
-								PathSelector: PathSelector{
-									Path: "api.id",
+								DataResolvingConfig: DataResolvingConfig{
+									PathSelector: PathSelector{
+										Path: "api.id",
+									},
 								},
 								QuoteValue: false,
 							},
@@ -1861,8 +1971,8 @@ func TestExecutor_HTTPJSONDataSourceWithBody(t *testing.T) {
 					},
 					Fields: []Field{
 						{
-							Name:        []byte("withBody"),
-							HasResolver: true,
+							Name:            []byte("withBody"),
+							HasResolvedData: true,
 							Value: &Value{
 								QuoteValue: true,
 							},
@@ -1987,8 +2097,8 @@ func TestExecutor_HTTPJSONDataSourceWithBodyComplexPlayload(t *testing.T) {
 					},
 					Fields: []Field{
 						{
-							Name:        []byte("withBody"),
-							HasResolver: true,
+							Name:            []byte("withBody"),
+							HasResolvedData: true,
 							Value: &Value{
 								QuoteValue: true,
 							},
@@ -2094,8 +2204,8 @@ func TestExecutor_HTTPJSONDataSourceWithHeaders(t *testing.T) {
 					},
 					Fields: []Field{
 						{
-							Name:        []byte("withHeaders"),
-							HasResolver: true,
+							Name:            []byte("withHeaders"),
+							HasResolvedData: true,
 							Value: &Value{
 								QuoteValue: true,
 							},
@@ -2186,15 +2296,17 @@ func TestExecutor_HTTPJSONDataSourceWithPathSelector(t *testing.T) {
 					},
 					Fields: []Field{
 						{
-							Name:        []byte("friends"),
-							HasResolver: true,
+							Name:            []byte("friends"),
+							HasResolvedData: true,
 							Value: &Object{
 								Fields: []Field{
 									{
 										Name: []byte("firstNames"),
 										Value: &List{
-											PathSelector: PathSelector{
-												Path: "friends.#.first",
+											DataResolvingConfig: DataResolvingConfig{
+												PathSelector: PathSelector{
+													Path: "friends.#.first",
+												},
 											},
 											Value: &Value{
 												QuoteValue: true,
