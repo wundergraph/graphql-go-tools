@@ -41,9 +41,13 @@ Currently implemented:
 - AST execution
     - query planning: turns a Query AST into a cacheable execution plan
         - supported DataSources:
-            - static
+            - GraphQL (multiple GraphQL services can be combined)
+            - static (static embedded data)
             - HTTP JSON
-            - GraphQL
+            - HTTP JSON Streaming (uses polling to create a stream)
+            - MQTT
+            - Nats
+            - Webassembly (resolve a Request using WASI compliant modules)
     - query execution: takes a context object and executes an execution plan
 - Middleware:
     - Operation Complexity: Calculates the complexity of an operation based on the GitHub algorithm
