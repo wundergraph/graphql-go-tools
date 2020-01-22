@@ -15,11 +15,7 @@ func MergeDefinitionWithBaseSchema(definition *ast.Document) error {
 	if report.HasErrors() {
 		return report
 	}
-	err := handleSchema(definition)
-	if err != nil {
-		return err
-	}
-	return nil
+	return handleSchema(definition)
 }
 
 func handleSchema(definition *ast.Document) error {
