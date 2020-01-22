@@ -199,6 +199,9 @@ func (f *fieldDefined) ValidateUnionField(ref int, enclosingTypeDefinition ast.N
 
 func (f *fieldDefined) ValidateInterfaceObjectTypeField(ref int, enclosingTypeDefinition ast.Node) {
 	fieldName := f.operation.FieldNameBytes(ref)
+	if bytes.Equal(fieldName,literal.TYPENAME){
+		return
+	}
 	typeName := f.definition.NodeNameBytes(enclosingTypeDefinition)
 	hasSelections := f.operation.FieldHasSelections(ref)
 	definitions := f.definition.NodeFieldDefinitions(enclosingTypeDefinition)
@@ -322,8 +325,10 @@ func (f *fieldSelectionMergingVisitor) EnterOperationDefinition(ref int) {
 }
 
 func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
-
 	fieldName := f.operation.FieldNameBytes(ref)
+	if bytes.Equal(fieldName,literal.TYPENAME){
+		return
+	}
 	objectName := f.operation.FieldObjectNameBytes(ref)
 	definition, ok := f.definition.NodeFieldDefinitionByName(f.EnclosingTypeDefinition, fieldName)
 	if !ok {

@@ -52,6 +52,52 @@ func TestVisitOperation(t *testing.T) {
 	}
 }
 
+func TestVisitWithTypeName(t *testing.T){
+	operation := `
+		query getApi($id: String!) {
+		  api(id: $id) {
+			__typename
+			... on Api {
+			  __typename
+			  id
+			  name
+			}
+			... on RequestResult {
+			  __typename
+			  status
+			  message
+			}  
+		  }
+		}`
+	definition := `
+		schema {
+			query: Query
+		}
+		type Query {
+			api(id: String): ApiResult
+		}
+		union ApiResult = Api | RequestResult
+		type Api {
+			id: String
+			name: String
+		}
+		type RequestResult {
+			status: String
+			message: String
+		}
+		scalar String
+	`
+
+	walker := NewWalker(8)
+	op := unsafeparser.ParseGraphqlDocumentString(operation)
+	def := unsafeparser.ParseGraphqlDocumentString(definition)
+	var report operationreport.Report
+	walker.Walk(&op,&def,&report)
+	if report.HasErrors() {
+		t.Fatal(report.Error())
+	}
+}
+
 func TestVisitSchemaDefinition(t *testing.T) {
 
 	operation := unsafeparser.ParseGraphqlDocumentString(testDefinitions)
