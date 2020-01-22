@@ -2895,6 +2895,79 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		},
 	))
+	t.Run("unions", func(t *testing.T) {
+		/*
+					... on RequestResult {
+			  status
+			  message
+			}
+		*/
+		t.Run("getApis", run(UnionsSchema, `
+			query getApis {
+			  apis {   
+				... on ApisResultSuccess {
+				  apis {
+					name
+				  }
+				}
+			  }
+			}`,
+			ResolverDefinitions{},
+			&Object{
+				operationType: ast.OperationTypeQuery,
+				Fields: []Field{
+					{
+						Name: []byte("data"),
+						Value: &Object{
+							Fields: []Field{
+								{
+									Name: []byte("apis"),
+									Value: &Object{
+										Fields: []Field{
+											{
+												Name: []byte("apis"),
+												Skip: &IfNotEqual{
+													Left: &ObjectVariableArgument{
+														PathSelector: PathSelector{
+															Path: "__typename",
+														},
+													},
+													Right: &StaticVariableArgument{
+														Value: []byte("ApisResultSuccess"),
+													},
+												},
+												Value: &List{
+													DataResolvingConfig: DataResolvingConfig{
+														PathSelector: PathSelector{
+															Path: "apis",
+														},
+													},
+													Value: &Object{
+														Fields: []Field{
+															{
+																Name: []byte("name"),
+																Value: &Value{
+																	DataResolvingConfig: DataResolvingConfig{
+																		PathSelector: PathSelector{
+																			Path: "name",
+																		},
+																	},
+																	QuoteValue: true,
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}, ))
+	})
 }
 
 func BenchmarkPlanner_Plan(b *testing.B) {
@@ -2974,6 +3047,34 @@ func BenchmarkPlanner_Plan(b *testing.B) {
 		}
 	}
 }
+
+const UnionsSchema = `
+schema {
+	query: Query
+}
+type Query {
+	api: ApiResult
+		@mapping(mode: NONE)
+	apis: ApisResult
+		@mapping(mode: NONE)
+}
+type Api {
+  id: String
+  name: String
+}
+type RequestResult {
+  message: String
+  	@mapping(pathSelector: "Message")
+  status: String
+  	@mapping(pathSelector: "Status")
+}
+type ApisResultSuccess {
+    apis: [Api!]
+}
+union ApisResult = ApisResultSuccess | RequestResult
+union ApiResult = Api | RequestResult
+scalar String
+`
 
 const ListFilterFirstNSchema = `
 directive @ListFilterFirstN(n: Int!) on FIELD_DEFINITION
