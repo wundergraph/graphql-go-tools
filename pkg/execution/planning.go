@@ -174,6 +174,22 @@ func (p *planningVisitor) EnterField(ref int) {
 	switch parent := p.currentNode[len(p.currentNode)-1].(type) {
 	case *Object:
 
+		var skipCondition BooleanCondition
+		ancestor := p.Ancestors[len(p.Ancestors)-2]
+		if ancestor.Kind == ast.NodeKindInlineFragment {
+			typeConditionName := p.operation.InlineFragmentTypeConditionName(ancestor.Ref)
+			skipCondition = &IfNotEqual{
+				Left: &ObjectVariableArgument{
+					PathSelector: PathSelector{
+						Path: "__typename",
+					},
+				},
+				Right: &StaticVariableArgument{
+					Value: typeConditionName,
+				},
+			}
+		}
+
 		dataResolvingConfig := p.fieldDataResolvingConfig(ref)
 
 		var value Node
@@ -206,6 +222,7 @@ func (p *planningVisitor) EnterField(ref int) {
 			parent.Fields = append(parent.Fields, Field{
 				Name:  p.operation.FieldNameBytes(ref),
 				Value: list,
+				Skip:skipCondition,
 			})
 
 			p.currentNode = append(p.currentNode, value)
@@ -220,22 +237,6 @@ func (p *planningVisitor) EnterField(ref int) {
 		} else {
 			value = &Object{
 				DataResolvingConfig: dataResolvingConfig,
-			}
-		}
-
-		var skipCondition BooleanCondition
-		ancestor := p.Ancestors[len(p.Ancestors)-2]
-		if ancestor.Kind == ast.NodeKindInlineFragment {
-			typeConditionName := p.operation.InlineFragmentTypeConditionName(ancestor.Ref)
-			skipCondition = &IfNotEqual{
-				Left: &ObjectVariableArgument{
-					PathSelector: PathSelector{
-						Path: "__typename",
-					},
-				},
-				Right: &StaticVariableArgument{
-					Value: typeConditionName,
-				},
 			}
 		}
 

@@ -2017,6 +2017,299 @@ func TestExecutor_HTTPJSONDataSourceWithBody(t *testing.T) {
 	}
 }
 
+func TestExecutor_Execute_WithUnions(t *testing.T) {
+
+	planApi := func(apiResponse string, succesFirst bool) *Object {
+
+		successFields := []Field{
+			{
+				Name: []byte("id"),
+				Skip: &IfNotEqual{
+					Left: &ObjectVariableArgument{
+						PathSelector: PathSelector{
+							Path: "__typename",
+						},
+					},
+					Right: &StaticVariableArgument{
+						Value: []byte("Api"),
+					},
+				},
+				Value: &Value{
+					QuoteValue: true,
+					DataResolvingConfig: DataResolvingConfig{
+						PathSelector: PathSelector{
+							Path: "id",
+						},
+					},
+				},
+			},
+			{
+				Name: []byte("name"),
+				Skip: &IfNotEqual{
+					Left: &ObjectVariableArgument{
+						PathSelector: PathSelector{
+							Path: "__typename",
+						},
+					},
+					Right: &StaticVariableArgument{
+						Value: []byte("Api"),
+					},
+				},
+				Value: &Value{
+					QuoteValue: true,
+					DataResolvingConfig: DataResolvingConfig{
+						PathSelector: PathSelector{
+							Path: "name",
+						},
+					},
+				},
+			},
+		}
+
+		errorFields := []Field{
+			{
+				Name: []byte("status"),
+				Skip: &IfNotEqual{
+					Left: &ObjectVariableArgument{
+						PathSelector: PathSelector{
+							Path: "__typename",
+						},
+					},
+					Right: &StaticVariableArgument{
+						Value: []byte("RequestResult"),
+					},
+				},
+				Value: &Value{
+					QuoteValue: true,
+					DataResolvingConfig: DataResolvingConfig{
+						PathSelector: PathSelector{
+							Path: "Status",
+						},
+					},
+				},
+			},
+			{
+				Name: []byte("message"),
+				Skip: &IfNotEqual{
+					Left: &ObjectVariableArgument{
+						PathSelector: PathSelector{
+							Path: "__typename",
+						},
+					},
+					Right: &StaticVariableArgument{
+						Value: []byte("RequestResult"),
+					},
+				},
+				Value: &Value{
+					QuoteValue: true,
+					DataResolvingConfig: DataResolvingConfig{
+						PathSelector: PathSelector{
+							Path: "Message",
+						},
+					},
+				},
+			},
+		}
+
+		var fields []Field
+		if succesFirst {
+			fields = append(successFields,errorFields...)
+		} else {
+			fields = append(errorFields,successFields...)
+		}
+
+		return &Object{
+			operationType: ast.OperationTypeQuery,
+			Fields: []Field{
+				{
+					Name: []byte("data"),
+					Value: &Object{
+						Fetch: &SingleFetch{
+							Source: &DataSourceInvocation{
+								DataSource: FakeDataSource{
+									data: []byte(apiResponse),
+								},
+							},
+							BufferName: "api",
+						},
+						Fields: []Field{
+							{
+								Name:            []byte("api"),
+								HasResolvedData: true,
+								Value: &Object{
+									Fields: fields,
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+	}
+
+	planApis := func(apiResponse string, succesFirst bool) *Object {
+		successField := Field{
+			Name: []byte("apis"),
+			Skip: &IfNotEqual{
+				Left: &ObjectVariableArgument{
+					PathSelector: PathSelector{
+						Path: "__typename",
+					},
+				},
+				Right: &StaticVariableArgument{
+					Value: []byte("ApisResultSuccess"),
+				},
+			},
+			Value: &List{
+				DataResolvingConfig: DataResolvingConfig{
+					PathSelector: PathSelector{
+						Path: "apis",
+					},
+				},
+				Value: &Object{
+					Fields: []Field{
+						{
+							Name: []byte("name"),
+							Value: &Value{
+								DataResolvingConfig: DataResolvingConfig{
+									PathSelector: PathSelector{
+										Path: "name",
+									},
+								},
+								QuoteValue: true,
+							},
+						},
+					},
+				},
+			},
+		}
+
+		errorFields := []Field{
+			{
+				Name: []byte("status"),
+				Skip: &IfNotEqual{
+					Left: &ObjectVariableArgument{
+						PathSelector: PathSelector{
+							Path: "__typename",
+						},
+					},
+					Right: &StaticVariableArgument{
+						Value: []byte("RequestResult"),
+					},
+				},
+				Value: &Value{
+					QuoteValue: true,
+					DataResolvingConfig: DataResolvingConfig{
+						PathSelector: PathSelector{
+							Path: "Status",
+						},
+					},
+				},
+			},
+			{
+				Name: []byte("message"),
+				Skip: &IfNotEqual{
+					Left: &ObjectVariableArgument{
+						PathSelector: PathSelector{
+							Path: "__typename",
+						},
+					},
+					Right: &StaticVariableArgument{
+						Value: []byte("RequestResult"),
+					},
+				},
+				Value: &Value{
+					QuoteValue: true,
+					DataResolvingConfig: DataResolvingConfig{
+						PathSelector: PathSelector{
+							Path: "Message",
+						},
+					},
+				},
+			},
+		}
+
+		var fields []Field
+		if succesFirst {
+			fields = append(fields, successField, errorFields[0], errorFields[1])
+		} else {
+			fields = append(fields, errorFields[0], errorFields[1], successField)
+		}
+
+		return &Object{
+			operationType: ast.OperationTypeQuery,
+			Fields: []Field{
+				{
+					Name: []byte("data"),
+					Value: &Object{
+						Fetch: &SingleFetch{
+							Source: &DataSourceInvocation{
+								DataSource: FakeDataSource{
+									data: []byte(apiResponse),
+								},
+							},
+							BufferName: "apis",
+						},
+						Fields: []Field{
+							{
+								Name:            []byte("apis"),
+								HasResolvedData: true,
+								Value: &Object{
+									Fields: fields,
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+	}
+
+	makeTest := func(apiResponse, wantResult string, planner func(apiResponse string, successFirst bool) *Object) func(t *testing.T) {
+		return func(t *testing.T) {
+			out := &bytes.Buffer{}
+			ex := NewExecutor()
+			ctx := Context{
+				Context: context.Background(),
+			}
+			_, err := ex.Execute(ctx, planner(apiResponse, true), out)
+			if err != nil {
+				panic(err)
+			}
+
+			successFirst := out.String()
+			out.Reset()
+			_, err = ex.Execute(ctx, planner(apiResponse, false), out)
+			if err != nil {
+				panic(err)
+			}
+			errorFirst := out.String()
+			if successFirst != errorFirst {
+				panic(fmt.Errorf("successFirst: %s\nerrorFirst: %s\n", successFirst, errorFirst))
+			}
+			if wantResult != successFirst {
+				panic(fmt.Errorf("want: %s\n got: %s\n", wantResult, successFirst))
+			}
+		}
+	}
+
+	t.Run("list response error case", makeTest(
+		`{"__typename":"RequestResult","Status":"Error","Message":"Could not retrieve Apis details"}`,
+		`{"data":{"apis":{"status":"Error","message":"Could not retrieve Apis details"}}}`, planApis),
+	)
+	t.Run("list response valid response", makeTest(
+		`{"__typename":"ApisResultSuccess","apis":[{"id":"1","name":"a", "__typename":"Api"},{"id":"2","name":"b", "__typename":"Api"}]}`,
+		`{"data":{"apis":{"apis":[{"name":"a"},{"name":"b"}]}}}`, planApis),
+	)
+	t.Run("object response valid response", makeTest(
+		`{"id":"1","name":"a", "__typename":"Api"}}`,
+		`{"data":{"api":{"id":"1","name":"a"}}}`, planApi),
+	)
+	t.Run("object response error response",makeTest(
+		`{"__typename":"RequestResult","Status":"Error","Message":"Could not retrieve Api detail","Meta":null}`,
+		`{"data":{"api":{"status":"Error","message":"Could not retrieve Api detail"}}}`,planApi))
+}
+
 func TestExecutor_HTTPJSONDataSourceWithBodyComplexPlayload(t *testing.T) {
 
 	wantUpstream := map[string]interface{}{
