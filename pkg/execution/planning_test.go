@@ -2896,21 +2896,19 @@ func TestPlanner_Plan(t *testing.T) {
 		},
 	))
 	t.Run("unions", func(t *testing.T) {
-		/*
-					... on RequestResult {
-			  status
-			  message
-			}
-		*/
 		t.Run("getApis", run(UnionsSchema, `
 			query getApis {
-			  apis {   
-				... on ApisResultSuccess {
-				  apis {
-					name
-				  }
-				}
-			  }
+				apis {   
+					... on ApisResultSuccess {
+				  		apis {
+							name
+				  		}
+					}
+					... on RequestResult {
+						status
+						message
+					}
+			  	}
 			}`,
 			ResolverDefinitions{},
 			&Object{
@@ -2959,6 +2957,48 @@ func TestPlanner_Plan(t *testing.T) {
 													},
 												},
 											},
+											{
+												Name: []byte("status"),
+												Skip: &IfNotEqual{
+													Left: &ObjectVariableArgument{
+														PathSelector: PathSelector{
+															Path: "__typename",
+														},
+													},
+													Right: &StaticVariableArgument{
+														Value: []byte("RequestResult"),
+													},
+												},
+												Value: &Value{
+													QuoteValue: true,
+													DataResolvingConfig: DataResolvingConfig{
+														PathSelector: PathSelector{
+															Path: "status",
+														},
+													},
+												},
+											},
+											{
+												Name: []byte("message"),
+												Skip: &IfNotEqual{
+													Left: &ObjectVariableArgument{
+														PathSelector: PathSelector{
+															Path: "__typename",
+														},
+													},
+													Right: &StaticVariableArgument{
+														Value: []byte("RequestResult"),
+													},
+												},
+												Value: &Value{
+													QuoteValue: true,
+													DataResolvingConfig: DataResolvingConfig{
+														PathSelector: PathSelector{
+															Path: "message",
+														},
+													},
+												},
+											},
 										},
 									},
 								},
@@ -2966,7 +3006,8 @@ func TestPlanner_Plan(t *testing.T) {
 						},
 					},
 				},
-			}, ))
+			},
+		))
 	})
 }
 
