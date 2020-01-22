@@ -94,50 +94,7 @@ BenchmarkKitchenSink 	  199924	      5553 ns/op	       0 B/op	       0 allocs/op
 BenchmarkKitchenSink 	  212695	      5804 ns/op	       0 B/op	       0 allocs/op
 ```
 
-Lexing & Parsing is neglectable, even for larger queries.
-
-Overlapping Fields can merge Validation Benchmark:
-```shell script
-pkg: github.com/jensneuse/graphql-go-tools/pkg/astvalidation
-BenchmarkOverlappingFieldsCanBeMerged/valid1         	  403772	      2950 ns/op	    1280 B/op	       1 allocs/op
-BenchmarkOverlappingFieldsCanBeMerged/invalid1       	  282883	      3986 ns/op	    1424 B/op	       4 allocs/op
-BenchmarkOverlappingFieldsCanBeMerged/valid5         	  167020	      6652 ns/op	    1280 B/op	       1 allocs/op
-BenchmarkOverlappingFieldsCanBeMerged/invalid5       	  152618	      7768 ns/op	    1424 B/op	       4 allocs/op
-BenchmarkOverlappingFieldsCanBeMerged/valid10        	   97315	     12127 ns/op	    1280 B/op	       1 allocs/op
-BenchmarkOverlappingFieldsCanBeMerged/invalid10      	   84303	     13523 ns/op	    1424 B/op	       4 allocs/op
-BenchmarkOverlappingFieldsCanBeMerged/valid20        	   45145	     26941 ns/op	    1280 B/op	       1 allocs/op
-BenchmarkOverlappingFieldsCanBeMerged/invalid20      	   43556	     27883 ns/op	    1424 B/op	       4 allocs/op
-BenchmarkOverlappingFieldsCanBeMerged/valid30        	   27928	     44090 ns/op	    1280 B/op	       1 allocs/op
-BenchmarkOverlappingFieldsCanBeMerged/invalid30      	   26857	     45379 ns/op	    1424 B/op	       4 allocs/op
-BenchmarkOverlappingFieldsCanBeMerged/valid40        	   18298	     64951 ns/op	    1280 B/op	       1 allocs/op
-BenchmarkOverlappingFieldsCanBeMerged/invalid40      	   18244	     66808 ns/op	    1424 B/op	       4 allocs/op
-BenchmarkOverlappingFieldsCanBeMerged/valid50        	   13846	     87803 ns/op	    1281 B/op	       1 allocs/op
-BenchmarkOverlappingFieldsCanBeMerged/invalid50      	   13272	     88558 ns/op	    1425 B/op	       4 allocs/op
-BenchmarkOverlappingFieldsCanBeMerged/valid60        	   10000	    114803 ns/op	    1281 B/op	       1 allocs/op
-BenchmarkOverlappingFieldsCanBeMerged/invalid60      	   10000	    115831 ns/op	    1425 B/op	       4 allocs/op
-BenchmarkOverlappingFieldsCanBeMerged/valid70        	    8439	    144624 ns/op	    1283 B/op	       1 allocs/op
-BenchmarkOverlappingFieldsCanBeMerged/invalid70      	    7879	    147608 ns/op	    1427 B/op	       4 allocs/op
-BenchmarkOverlappingFieldsCanBeMerged/valid80        	    6108	    182149 ns/op	    1284 B/op	       1 allocs/op
-BenchmarkOverlappingFieldsCanBeMerged/invalid80      	    6740	    184045 ns/op	    1428 B/op	       4 allocs/op
-BenchmarkOverlappingFieldsCanBeMerged/valid90        	    5209	    218830 ns/op	    1285 B/op	       1 allocs/op
-BenchmarkOverlappingFieldsCanBeMerged/invalid90      	    5452	    223565 ns/op	    1429 B/op	       4 allocs/op
-BenchmarkOverlappingFieldsCanBeMerged/valid100       	    4058	    272589 ns/op	    1286 B/op	       1 allocs/op
-BenchmarkOverlappingFieldsCanBeMerged/invalid100     	    4449	    273063 ns/op	    1430 B/op	       4 allocs/op
-BenchmarkOverlappingFieldsCanBeMerged/valid110       	    3837	    308023 ns/op	    1287 B/op	       1 allocs/op
-BenchmarkOverlappingFieldsCanBeMerged/invalid110     	    3842	    325062 ns/op	    1431 B/op	       4 allocs/op
-BenchmarkOverlappingFieldsCanBeMerged/valid120       	    3322	    356372 ns/op	    1288 B/op	       1 allocs/op
-BenchmarkOverlappingFieldsCanBeMerged/invalid120     	    3334	    353856 ns/op	    1432 B/op	       4 allocs/op
-BenchmarkOverlappingFieldsCanBeMerged/valid130       	    2853	    411152 ns/op	    1298 B/op	       1 allocs/op
-BenchmarkOverlappingFieldsCanBeMerged/invalid130     	    2904	    424221 ns/op	    1442 B/op	       4 allocs/op
-BenchmarkOverlappingFieldsCanBeMerged/valid140       	    2486	    462372 ns/op	    1301 B/op	       1 allocs/op
-BenchmarkOverlappingFieldsCanBeMerged/invalid140     	    2509	    461915 ns/op	    1445 B/op	       4 allocs/op
-BenchmarkOverlappingFieldsCanBeMerged/valid150       	    2260	    530658 ns/op	    1303 B/op	       1 allocs/op
-BenchmarkOverlappingFieldsCanBeMerged/invalid150     	    2250	    530150 ns/op	    1448 B/op	       4 allocs/op
-BenchmarkOverlappingFieldsCanBeMerged/valid200       	    1333	    877854 ns/op	    1320 B/op	       1 allocs/op
-BenchmarkOverlappingFieldsCanBeMerged/invalid200     	    1316	    876438 ns/op	    1465 B/op	       4 allocs/op
-```
-
-Complex validation grows linearly, not exponentially.
+CPU and Memory consumption for lexing, parsing as well as most other operations is neglectable, even for larger queries.
 
 ## Contributors
 
