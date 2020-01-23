@@ -1,8 +1,15 @@
 package execution
 
 import (
+	"bytes"
+	"context"
+	"fmt"
+	"github.com/jensneuse/abstractlogger"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
+	"github.com/tidwall/gjson"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
@@ -412,6 +419,63 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 			},
 		},
 	))
+}
+
+func TestHttpJsonDataSource_Resolve(t *testing.T) {
+
+	test := func(serverStatusCode int, typeNameDefinition, wantTypeName string) func(t *testing.T) {
+		return func(t *testing.T) {
+			fakeServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(serverStatusCode)
+				_, _ = w.Write([]byte(`{"foo":"bar"}`))
+			}))
+			defer fakeServer.Close()
+			ctx := Context{
+				Context: context.Background(),
+			}
+			buf := bytes.Buffer{}
+			source := &HttpJsonDataSource{
+				log: abstractlogger.Noop{},
+			}
+			args := ResolvedArgs{
+				{
+					Key:   []byte("host"),
+					Value: []byte(fakeServer.URL),
+				},
+				{
+					Key:   []byte("url"),
+					Value: []byte("/"),
+				},
+				{
+					Key:   []byte("method"),
+					Value: []byte("GET"),
+				},
+				{
+					Key:   []byte("__typename"),
+					Value: []byte(typeNameDefinition),
+				},
+			}
+			source.Resolve(ctx, args, &buf)
+			result := gjson.GetBytes(buf.Bytes(), "__typename")
+			gotTypeName := result.Str
+			if gotTypeName != wantTypeName {
+				panic(fmt.Errorf("want: %s, got: %s\n", wantTypeName, gotTypeName))
+			}
+		}
+	}
+
+	t.Run("typename selection on err", test(
+		500,
+		`{"500":"ErrorInterface","defaultTypeName":"SuccessInterface"}`,
+		"ErrorInterface"))
+	t.Run("typename selection on success using default", test(
+		200,
+		`{"500":"ErrorInterface","defaultTypeName":"SuccessInterface"}`,
+		"SuccessInterface"))
+	t.Run("typename selection on success using select", test(
+		200,
+		`{"500":"ErrorInterface","200":"AnotherSuccess","defaultTypeName":"SuccessInterface"}`,
+		"AnotherSuccess"))
 }
 
 const httpJsonDataSourceBaseSchema = `

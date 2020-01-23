@@ -9,10 +9,12 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
+	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 	"io"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -287,6 +289,7 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 	methodArg := args.ByKey(literal.METHOD)
 	bodyArg := args.ByKey(literal.BODY)
 	headersArg := args.ByKey(literal.HEADERS)
+	typeNameArg := args.ByKey(literal.TYPENAME)
 
 	r.log.Debug("HttpJsonDataSource.Resolve.args",
 		log.Strings("resolvedArgs", args.Dump()),
@@ -377,6 +380,30 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 		)
 		return CloseConnectionIfNotStream
 	}
+
+	statusCode := strconv.Itoa(res.StatusCode)
+	statusCodeTypeName := gjson.GetBytes(typeNameArg,statusCode)
+	if statusCodeTypeName.Exists() {
+		data,err = sjson.SetRawBytes(data,"__typename",[]byte(statusCodeTypeName.Raw))
+		if err != nil {
+			r.log.Error("HttpJsonDataSource.Resolve.setStatusCodeTypeName",
+				log.Error(err),
+			)
+			return CloseConnectionIfNotStream
+		}
+	} else {
+		defaultTypeName := gjson.GetBytes(typeNameArg,"defaultTypeName")
+		if defaultTypeName.Exists() {
+			data,err = sjson.SetRawBytes(data,"__typename",[]byte(defaultTypeName.Raw))
+			if err != nil {
+				r.log.Error("HttpJsonDataSource.Resolve.setDefaultTypeName",
+					log.Error(err),
+				)
+				return CloseConnectionIfNotStream
+			}
+		}
+	}
+
 	_, err = out.Write(data)
 	if err != nil {
 		r.log.Error("HttpJsonDataSource.Resolve.out.Write",
