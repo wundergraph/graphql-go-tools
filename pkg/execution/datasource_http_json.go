@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"github.com/buger/jsonparser"
 	log "github.com/jensneuse/abstractlogger"
+	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
+	"github.com/tidwall/sjson"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -205,6 +207,73 @@ func (h *HttpJsonDataSourcePlanner) LeaveField(ref int) {
 			h.args = append(h.args, listArg)
 		}
 	}
+
+	// __typename
+	var typeNameValue []byte
+	var err error
+	fieldDefinitionTypeNode := h.definition.FieldDefinitionTypeNode(definition)
+	fieldDefinitionType := h.definition.FieldDefinitionType(definition)
+	fieldDefinitionTypeName := h.definition.ResolveTypeName(fieldDefinitionType)
+	quotedFieldDefinitionTypeName := append(literal.QUOTE, append(fieldDefinitionTypeName, literal.QUOTE...)...)
+	switch fieldDefinitionTypeNode.Kind {
+	case ast.NodeKindScalarTypeDefinition:
+		return
+	case ast.NodeKindUnionTypeDefinition, ast.NodeKindInterfaceTypeDefinition:
+		value, exists = h.definition.DirectiveArgumentValueByName(directive, literal.DEFAULT_TYPENAME)
+		if exists && value.Kind == ast.ValueKindString {
+			defaultTypeName := h.definition.StringValueContentBytes(value.Ref)
+			quotedDefaultTypeName := append(literal.QUOTE, append(defaultTypeName, literal.QUOTE...)...)
+			typeNameValue, err = sjson.SetRawBytes(typeNameValue, "defaultTypeName", quotedDefaultTypeName)
+			if err != nil {
+				h.log.Error("HttpJsonDataSourcePlanner set defaultTypeName (switch case union/interface)", log.Error(err))
+				return
+			}
+		}
+		value, exists = h.definition.DirectiveArgumentValueByName(directive, literal.STATUS_CODE_TYPENAME_MAPPINGS)
+		if exists && value.Kind == ast.ValueKindList {
+			for _, i := range h.definition.ListValues[value.Ref].Refs {
+				var statusCode []byte
+				var typeName []byte
+				listItem := h.definition.Value(i)
+				if listItem.Kind != ast.ValueKindObject {
+					continue
+				}
+				for _, j := range h.definition.ObjectValues[listItem.Ref].Refs {
+					fieldName := h.definition.ObjectFieldNameBytes(j)
+					fieldValue := h.definition.ObjectFieldValue(j)
+					switch unsafebytes.BytesToString(fieldName) {
+					case "statusCode":
+						if fieldValue.Kind != ast.ValueKindInteger {
+							continue
+						}
+						statusCode = h.definition.IntValueRaw(fieldValue.Ref)
+					case "typeName":
+						if fieldValue.Kind != ast.ValueKindString {
+							continue
+						}
+						typeName = append(literal.QUOTE, append(h.definition.StringValueContentBytes(fieldValue.Ref), literal.QUOTE...)...)
+					}
+				}
+				if statusCode != nil && typeName != nil {
+					typeNameValue, err = sjson.SetRawBytes(typeNameValue, unsafebytes.BytesToString(statusCode), typeName)
+					if err != nil {
+						h.log.Error("HttpJsonDataSourcePlanner set statusCodeTypeMapping", log.Error(err))
+						return
+					}
+				}
+			}
+		}
+	default:
+		typeNameValue, err = sjson.SetRawBytes(typeNameValue, "defaultTypeName", quotedFieldDefinitionTypeName)
+		if err != nil {
+			h.log.Error("HttpJsonDataSourcePlanner set defaultTypeName (switch case default)", log.Error(err))
+			return
+		}
+	}
+	h.args = append(h.args, &StaticVariableArgument{
+		Name:  literal.TYPENAME,
+		Value: typeNameValue,
+	})
 }
 
 type HttpJsonDataSource struct {
