@@ -59,8 +59,6 @@ github.com/jensneuse/diffview v1.0.0 h1:4b6FQJ7y3295JUHU3tRko6euyEboL825ZsXeZZM4
 github.com/jensneuse/diffview v1.0.0/go.mod h1:i6IacuD8LnEaPuiyzMHA+Wfz5mAuycMOf3R/orUY9y4=
 github.com/jensneuse/gjson v1.3.6-0.20200106141904-7ea619137b22 h1:zb7Yt0GH8yWZ4+IXROIvVl6UncFwhW3mLDkXPitVXSQ=
 github.com/jensneuse/gjson v1.3.6-0.20200106141904-7ea619137b22/go.mod h1:P256ACg0Mn+j1RXIDXoss50DeIABTYK1PULOJHhxOls=
-github.com/jensneuse/pipeline v0.0.0-20200110090712-e40ec448f28d h1:WhhY2ZdyCvYSb1S2aP91fK9gqlnK2mM3uzcrSu8sfLo=
-github.com/jensneuse/pipeline v0.0.0-20200110090712-e40ec448f28d/go.mod h1:UsfzaMt+keVOxa007GcCJMFeTHr6voRfBGMQEW7DkdM=
 github.com/jensneuse/pipeline v0.0.0-20200117120358-9fb4de085cd6 h1:y8hvuqbuVGFNpEos+vB5I5X+QxWm0uyTk+5oeOinMjY=
 github.com/jensneuse/pipeline v0.0.0-20200117120358-9fb4de085cd6/go.mod h1:UsfzaMt+keVOxa007GcCJMFeTHr6voRfBGMQEW7DkdM=
 github.com/joho/godotenv v1.3.0 h1:Zjp+RcGpHhGlrMbJzXTrZZPrWj+1vfm90La1wgB6Bhc=
@@ -137,6 +135,8 @@ github.com/tidwall/match v1.0.1 h1:PnKP62LPNxHKTwvHHZZzdOAOCtsJTjo6dZLCwpKm5xc=
 github.com/tidwall/match v1.0.1/go.mod h1:LujAq0jyVjBy028G1WhWfIzbpQfMO8bBZ6Tyb0+pL9E=
 github.com/tidwall/pretty v1.0.0 h1:HsD+QiTn7sK6flMKIvNmpqz1qrpP3Ps6jOKIKMooyg4=
 github.com/tidwall/pretty v1.0.0/go.mod h1:XNkn88O1ChpSDQmQeStsy+sBenx6DDtFZJxhVysOjyk=
+github.com/tidwall/sjson v1.0.4 h1:UcdIRXff12Lpnu3OLtZvnc03g4vH2suXDXhBwBqmzYg=
+github.com/tidwall/sjson v1.0.4/go.mod h1:bURseu1nuBkFpIES5cz6zBtjmYeOQmEESshn7VpF15Y=
 github.com/ugorji/go/codec v0.0.0-20181204163529-d75b2dcb6bc8/go.mod h1:VFNgLljTbGfSG7qAOspJ7OScBnGdDN/yBr0sguwnwf0=
 github.com/urfave/cli v1.20.0/go.mod h1:70zkFmudgCuE/ngEzBv17Jvp/497gISqfk5gWijbERA=
 github.com/valyala/bytebufferpool v1.0.0 h1:GqA5TC/0021Y/b9FG4Oi9Mr3q7XYx6KllzawFIhcdPw=

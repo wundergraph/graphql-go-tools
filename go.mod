@@ -19,6 +19,7 @@ require (
 	github.com/nats-io/nats.go v1.9.1
 	github.com/sebdah/goldie v0.0.0-20180424091453-8784dd1ab561
 	github.com/tidwall/gjson v1.3.5
+	github.com/tidwall/sjson v1.0.4
 	github.com/valyala/fasttemplate v1.1.0
 	github.com/wasmerio/go-ext-wasm v0.0.0-20191213132134-adcef605ea8e
 	go.uber.org/atomic v1.5.1 // indirect
