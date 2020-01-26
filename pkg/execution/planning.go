@@ -397,7 +397,10 @@ func (p *planningVisitor) fieldDataResolvingConfig(ref int) DataResolvingConfig 
 func (p *planningVisitor) fieldPathSelector(ref int) (selector PathSelector) {
 	selector.Path = p.operation.FieldNameString(ref)
 	definition, ok := p.FieldDefinition(ref)
-	if !ok {
+	switch {
+	case !ok: // field not defined
+		return
+	case selector.Path == "__typename": // __typename field is static
 		return
 	}
 	directive, ok := p.definition.FieldDefinitionDirectiveByName(definition, []byte("mapping"))

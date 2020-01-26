@@ -241,7 +241,6 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		},
 	))
-
 	t.Run("HTTPJSONDataSource", run(withBaseSchema(HTTPJSONDataSourceSchema), `
 					query RESTQuery($id: Int!){
 						httpBinGet {
@@ -305,6 +304,10 @@ func TestPlanner_Plan(t *testing.T) {
 												Name:  []byte("method"),
 												Value: []byte("GET"),
 											},
+											&StaticVariableArgument{
+												Name:  []byte("__typename"),
+												Value: []byte(`{"defaultTypeName":"HttpBinGet"}`),
+											},
 										},
 									},
 									BufferName: "httpBinGet",
@@ -327,6 +330,10 @@ func TestPlanner_Plan(t *testing.T) {
 											&ContextVariableArgument{
 												Name:         []byte(".arguments.id"),
 												VariableName: []byte("id"),
+											},
+											&StaticVariableArgument{
+												Name:  []byte("__typename"),
+												Value: []byte(`{"defaultTypeName":"JSONPlaceholderPost"}`),
 											},
 										},
 										DataSource: &HttpJsonDataSource{},
@@ -413,6 +420,10 @@ func TestPlanner_Plan(t *testing.T) {
 												&StaticVariableArgument{
 													Name:  []byte("method"),
 													Value: []byte("GET"),
+												},
+												&StaticVariableArgument{
+													Name:  []byte("__typename"),
+													Value: []byte(`{"defaultTypeName":"JSONPlaceholderComment"}`),
 												},
 											},
 											DataSource: &HttpJsonDataSource{},
@@ -619,6 +630,10 @@ func TestPlanner_Plan(t *testing.T) {
 										Name:  []byte("method"),
 										Value: []byte("GET"),
 									},
+									&StaticVariableArgument{
+										Name:  []byte("__typename"),
+										Value: []byte(`{"defaultTypeName":"ListItem"}`),
+									},
 								},
 							},
 						},
@@ -687,6 +702,10 @@ func TestPlanner_Plan(t *testing.T) {
 									&StaticVariableArgument{
 										Name:  []byte("method"),
 										Value: []byte("GET"),
+									},
+									&StaticVariableArgument{
+										Name:  []byte("__typename"),
+										Value: []byte(`{"defaultTypeName":"ListItem"}`),
 									},
 								},
 							},
@@ -1160,6 +1179,10 @@ func TestPlanner_Plan(t *testing.T) {
 										Name:         []byte(".arguments.id"),
 										VariableName: []byte("id"),
 									},
+									&StaticVariableArgument{
+										Name:  []byte("__typename"),
+										Value: []byte(`{"defaultTypeName":"User"}`),
+									},
 								},
 								DataSource: &HttpJsonDataSource{},
 							},
@@ -1302,6 +1325,10 @@ func TestPlanner_Plan(t *testing.T) {
 												&StaticVariableArgument{
 													Name:  []byte("method"),
 													Value: []byte("GET"),
+												},
+												&StaticVariableArgument{
+													Name:  []byte("__typename"),
+													Value: []byte(`{"defaultTypeName":"User"}`),
 												},
 											},
 											DataSource: &HttpJsonDataSource{},
@@ -1515,6 +1542,10 @@ func TestPlanner_Plan(t *testing.T) {
 														&StaticVariableArgument{
 															Name:  []byte("method"),
 															Value: []byte("GET"),
+														},
+														&StaticVariableArgument{
+															Name:  []byte("__typename"),
+															Value: []byte(`{"defaultTypeName":"User"}`),
 														},
 													},
 													DataSource: &HttpJsonDataSource{},
