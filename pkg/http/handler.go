@@ -62,12 +62,18 @@ func (g *GraphQLHTTPRequestHandler) extraVariables(r *http.Request, out io.Write
 		headers[key] = r.Header.Get(key)
 	}
 
+	cookies := map[string]string{}
+	for _,cookie := range r.Cookies() {
+		cookies[cookie.Name] = cookie.Value
+	}
+
 	extra := map[string]interface{}{
 		"request": map[string]interface{}{
 			"uri":     r.RequestURI,
 			"method":  r.Method,
 			"host":    r.Host,
 			"headers": headers,
+			"cookies": cookies,
 		},
 	}
 
