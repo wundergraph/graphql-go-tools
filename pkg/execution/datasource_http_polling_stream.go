@@ -2,10 +2,10 @@ package execution
 
 import (
 	"bytes"
+	log "github.com/jensneuse/abstractlogger"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
-	"go.uber.org/zap"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -134,7 +134,7 @@ func (h *HttpPollingStreamDataSourcePlanner) setDefaultDelay() {
 }
 
 type HttpPollingStreamDataSource struct {
-	log      *zap.Logger
+	log      log.Logger
 	once     sync.Once
 	ch       chan []byte
 	closed   bool
@@ -163,12 +163,12 @@ func (h *HttpPollingStreamDataSource) Resolve(ctx Context, args ResolvedArgs, ou
 	select {
 	case data := <-h.ch:
 		h.log.Debug("HttpPollingStreamDataSource.Resolve.out.Write",
-			zap.ByteString("data", data),
+			log.ByteString("data", data),
 		)
 		_, err := out.Write(data)
 		if err != nil {
 			h.log.Error("HttpPollingStreamDataSource.Resolve",
-				zap.Error(err),
+				log.Error(err),
 			)
 		}
 	case <-ctx.Done():
@@ -195,14 +195,14 @@ func (h *HttpPollingStreamDataSource) startPolling(ctx Context) {
 			response, err := h.client.Do(h.request)
 			if err != nil {
 				h.log.Error("HttpPollingStreamDataSource.startPolling.client.Do",
-					zap.Error(err),
+					log.Error(err),
 				)
 				return
 			}
 			data, err = ioutil.ReadAll(response.Body)
 			if err != nil {
 				h.log.Error("HttpPollingStreamDataSource.startPolling.ioutil.ReadAll",
-					zap.Error(err),
+					log.Error(err),
 				)
 				return
 			}
@@ -226,7 +226,7 @@ func (h *HttpPollingStreamDataSource) generateRequest(args ResolvedArgs) *http.R
 	urlArg := args.ByKey(literal.URL)
 
 	h.log.Debug("HttpPollingStreamDataSource.generateRequest.Resolve.args",
-		zap.Strings("resolvedArgs", args.Dump()),
+		log.Strings("resolvedArgs", args.Dump()),
 	)
 
 	if hostArg == nil || urlArg == nil {
@@ -243,7 +243,7 @@ func (h *HttpPollingStreamDataSource) generateRequest(args ResolvedArgs) *http.R
 		tmpl, err := template.New("url").Parse(url)
 		if err != nil {
 			h.log.Error("HttpPollingStreamDataSource.generateRequest.template.New",
-				zap.Error(err),
+				log.Error(err),
 			)
 			return nil
 		}
@@ -255,7 +255,7 @@ func (h *HttpPollingStreamDataSource) generateRequest(args ResolvedArgs) *http.R
 		err = tmpl.Execute(&out, data)
 		if err != nil {
 			h.log.Error("HttpPollingStreamDataSource.generateRequest.tmpl.Execute",
-				zap.Error(err),
+				log.Error(err),
 			)
 			return nil
 		}
@@ -263,13 +263,13 @@ func (h *HttpPollingStreamDataSource) generateRequest(args ResolvedArgs) *http.R
 	}
 
 	h.log.Debug("HttpPollingStreamDataSource.generateRequest.Resolve",
-		zap.String("url", url),
+		log.String("url", url),
 	)
 
 	request, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		h.log.Error("HttpPollingStreamDataSource.generateRequest.Resolve.NewRequest",
-			zap.Error(err),
+			log.Error(err),
 		)
 		return nil
 	}

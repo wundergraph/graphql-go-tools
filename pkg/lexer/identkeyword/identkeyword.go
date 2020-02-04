@@ -1,4 +1,6 @@
 //go:generate stringer -type=IdentKeyword
+
+// Package identkeyword contains all possible keywords for GraphQL identifiers
 package identkeyword
 
 type IdentKeyword int

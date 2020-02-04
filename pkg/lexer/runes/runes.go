@@ -1,3 +1,4 @@
+// Package runes contains all possible 'special' runes in a GraphQL document
 package runes
 
 const (
@@ -13,12 +14,15 @@ const (
 	QUOTE          = '"'
 	BACKSLASH      = '\\'
 	DOT            = '.'
+	EXPONENT_LOWER = 'e'
+	EXPONENT_UPPER = 'E'
 	AT             = '@'
 	DOLLAR         = '$'
 	PIPE           = '|'
 	SLASH          = '/'
 	EQUALS         = '='
 	SUB            = '-'
+	ADD            = '+'
 	AND            = '&'
 	UNDERSCORE     = '_'
 

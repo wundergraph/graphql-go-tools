@@ -24,4 +24,18 @@ directive @HttpJsonDataSource (
     headers are the key value pairs to be set on the upstream request
     """
     headers: [Header]
+    """
+    defaultTypeName is an optional argument to set the default __typename
+    in case there is only one possible __typename this arg can be omitted
+    if there are multiple options in the statusCodeTypeNameMappings but none matches the defaultTypeName will be chosen
+    """
+    defaultTypeName: String
+    """
+    statusCodeTypeNameMappings is a mapping table to map from exact status codes to a __typename
+    example:
+    200 -> OperationSuccessType
+    500 -> OperationFailedType
+    This gives the user the opportunity to map the JSON response from the upstream to different union/interface definitions
+    """
+    statusCodeTypeNameMappings: [StatusCodeTypeNameMapping]
 ) on FIELD_DEFINITION

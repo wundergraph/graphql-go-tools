@@ -1962,6 +1962,7 @@ func BenchmarkParseStarwars(b *testing.B) {
 
 	b.ReportAllocs()
 	b.ResetTimer()
+	b.SetBytes(int64(len(starwarsSchema)))
 
 	for i := 0; i < b.N; i++ {
 		doc.Input.ResetInputBytes(starwarsSchema)
@@ -1988,6 +1989,7 @@ func BenchmarkParseGithub(b *testing.B) {
 
 	b.ReportAllocs()
 	b.ResetTimer()
+	b.SetBytes(int64(len(schemaFile)))
 
 	for i := 0; i < b.N; i++ {
 		doc.Input.ResetInputBytes(schemaFile)
@@ -2007,6 +2009,7 @@ func BenchmarkSelectionSet(b *testing.B) {
 
 	b.ReportAllocs()
 	b.ResetTimer()
+	b.SetBytes(int64(len(selectionSet)))
 
 	for i := 0; i < b.N; i++ {
 		doc.Input.ResetInputBytes(selectionSet)
@@ -2027,6 +2030,7 @@ func BenchmarkIntrospectionQuery(b *testing.B) {
 
 	b.ReportAllocs()
 	b.ResetTimer()
+	b.SetBytes(int64(len(introspectionQuery)))
 
 	for i := 0; i < b.N; i++ {
 		doc.Input.ResetInputBytes(introspectionQuery)
@@ -2046,6 +2050,7 @@ func BenchmarkKitchenSink(b *testing.B) {
 
 	b.ReportAllocs()
 	b.ResetTimer()
+	b.SetBytes(int64(len(kitchenSinkData)))
 
 	for i := 0; i < b.N; i++ {
 		doc.Input.ResetInputBytes(kitchenSinkData)
@@ -2063,6 +2068,7 @@ func BenchmarkParse(b *testing.B) {
 
 	b.ReportAllocs()
 	b.ResetTimer()
+	b.SetBytes(int64(len(inputBytes)))
 
 	for i := 0; i < b.N; i++ {
 		doc.Input.ResetInputBytes(inputBytes)

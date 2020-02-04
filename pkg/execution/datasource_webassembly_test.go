@@ -3,7 +3,7 @@ package execution
 import (
 	"bytes"
 	"encoding/json"
-	"go.uber.org/zap"
+	log "github.com/jensneuse/abstractlogger"
 	"testing"
 )
 
@@ -22,7 +22,7 @@ func TestWASMDataSource_Resolve(t *testing.T) {
 	input := []byte("{\"id\":\"1\"}")
 
 	planner := NewWasmDataSourcePlanner(BaseDataSourcePlanner{
-		log:zap.NewNop(),
+		log:log.NoopLogger,
 	})
 
 	dataSource, _ := planner.Plan()
@@ -56,5 +56,41 @@ func TestWASMDataSource_Resolve(t *testing.T) {
 	}
 	if person.Age != 31 {
 		t.Fatalf("want 31, got: %d",person.Age)
+	}
+}
+
+func BenchmarkWASMDataSource_Resolve(t *testing.B) {
+
+	input := []byte("{\"id\":\"1\"}")
+
+	planner := NewWasmDataSourcePlanner(BaseDataSourcePlanner{
+		log:log.NoopLogger,
+	})
+
+	dataSource, _ := planner.Plan()
+	wasmDataSource := dataSource.(*WasmDataSource)
+
+	args := ResolvedArgs{
+		ResolvedArgument{
+			Key: []byte("input"),
+			Value:input,
+		},
+		ResolvedArgument{
+			Key: []byte("wasmFile"),
+			Value: []byte("./testdata/memory.wasm"),
+		},
+	}
+
+	out := bytes.Buffer{}
+
+	t.ResetTimer()
+	t.ReportAllocs()
+
+	for i := 0;i<t.N;i++ {
+		out.Reset()
+		wasmDataSource.Resolve(Context{}, args, &out)
+		if out.Len() == 0 {
+			t.Fatalf("must not be 0")
+		}
 	}
 }

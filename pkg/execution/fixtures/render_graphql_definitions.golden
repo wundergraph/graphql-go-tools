@@ -42,7 +42,21 @@ directive @HttpJsonDataSource
     """
     headers are the key value pairs to be set on the upstream request
     """
-    headers: [Header]
+    headers: [Header] 
+    """
+    defaultTypeName is an optional argument to set the default __typename
+    in case there is only one possible __typename this arg can be omitted
+    if there are multiple options in the statusCodeTypeNameMappings but none matches the defaultTypeName will be chosen
+    """
+    defaultTypeName: String 
+    """
+    statusCodeTypeNameMappings is a mapping table to map from exact status codes to a __typename
+    example:
+    200 -> OperationSuccessType
+    500 -> OperationFailedType
+    This gives the user the opportunity to map the JSON response from the upstream to different union/interface definitions
+    """
+    statusCodeTypeNameMappings: [StatusCodeTypeNameMapping]
  on FIELD_DEFINITION
 
 """
@@ -103,8 +117,35 @@ directive @NatsDataSource
     topic: String!
  on FIELD_DEFINITION
 
+directive @PipelineDataSource
+    """
+    configFilePath is the path where the pipeline configuration file can be found
+    it needs to be in the json format according to the pipeline json schema
+    see this url for more info: https://github.com/jensneuse/pipeline
+    """
+    configFilePath: String 
+    """
+    configString is a string to configure the pipeline
+    it needs to be in the json format according to the pipeline json schema
+    see this url for more info: https://github.com/jensneuse/pipeline
+
+    The PipelinDataSourcePlanner will always choose the configString over the configFilePath in case both are defined.
+    """
+    configString: String 
+    """
+    inputJSON is the template to define a JSON object based on the request, parameters etc. which gets passed to the first pipeline step
+    """
+    inputJSON: String!
+ on FIELD_DEFINITION
+
 directive @StaticDataSource
     data: String
+ on FIELD_DEFINITION
+
+directive @transformation
+    mode: TRANSFORMATION_MODE = PIPELINE 
+    pipelineConfigFile: String 
+    pipelineConfigString: String
  on FIELD_DEFINITION
 
 directive @WasmDataSource
@@ -167,6 +208,10 @@ enum PARAMETER_SOURCE {
     FIELD_ARGUMENTS
 }
 
+enum TRANSFORMATION_MODE {
+    PIPELINE
+}
+
 input Header {
     key: String! 
     value: String!
@@ -193,4 +238,9 @@ input Parameter {
     type name of the variable, used to generate a valid GraphQL query for the upstream
     """
     variableType: String!
+}
+
+input StatusCodeTypeNameMapping {
+    statusCode: Int! 
+    typeName: String!
 }

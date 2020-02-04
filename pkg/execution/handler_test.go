@@ -5,13 +5,13 @@ import (
 	"github.com/cespare/xxhash"
 	"github.com/jensneuse/diffview"
 	"github.com/sebdah/goldie"
-	"go.uber.org/zap"
+	log "github.com/jensneuse/abstractlogger"
 	"io/ioutil"
 	"testing"
 )
 
 func TestHandler_RenderGraphQLDefinitions(t *testing.T) {
-	handler, err := NewHandler(nil, zap.NewNop())
+	handler, err := NewHandler(nil, log.NoopLogger)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +45,7 @@ func TestHandler_RenderGraphQLDefinitions(t *testing.T) {
 }
 
 func TestHandler_VariablesFromRequest(t *testing.T) {
-	handler, err := NewHandler(nil, zap.NewNop())
+	handler, err := NewHandler(nil, log.NoopLogger)
 	if err != nil {
 		t.Fatal(err)
 	}
