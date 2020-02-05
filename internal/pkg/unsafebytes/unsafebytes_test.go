@@ -22,15 +22,15 @@ func TestByteSliceToInt(t *testing.T) {
 }
 
 func TestByteSliceToFloat(t *testing.T) {
-	got := BytesToFloat64([]byte("10.24"))
+	got := BytesToFloat32([]byte("10.24"))
 	if got != 10.24 {
 		t.Fatalf("want 10.24, got: %f", got)
 	}
-	got = BytesToFloat64([]byte("0"))
+	got = BytesToFloat32([]byte("0"))
 	if got != 0 {
 		t.Fatalf("want 0, got: %f", got)
 	}
-	got = BytesToFloat64([]byte("001"))
+	got = BytesToFloat32([]byte("001"))
 	if got != 1 {
 		t.Fatalf("want 1, got: %f", got)
 	}
@@ -66,7 +66,7 @@ func BenchmarkByteSliceToFloat(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		out := BytesToFloat64(in)
+		out := BytesToFloat32(in)
 		if out != 10.24 {
 			b.Fatalf("want 1024, got: %f", out)
 		}

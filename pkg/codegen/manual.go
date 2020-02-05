@@ -3,6 +3,7 @@ package codegen
 import "github.com/jensneuse/graphql-go-tools/pkg/ast"
 
 type DataSource struct {
+	NonNullFloat                  float32
 	BrokerAddr                    string
 	IntField                      int64
 	BoolField                     bool
@@ -19,6 +20,8 @@ func (d *DataSource) Unmarshal(doc *ast.Document, ref int) {
 	for _, i := range doc.Directives[ref].Arguments.Refs {
 		name := doc.ArgumentNameString(i)
 		switch name {
+		case "nonNullFloat":
+			d.NonNullFloat = doc.FloatValueAsFloat32(ref)
 		case "brokerAddr":
 			d.BrokerAddr = doc.StringValueContentString(doc.ArgumentValue(i).Ref)
 		case "intField":
@@ -92,14 +95,14 @@ type Parameter struct {
 	VariableType string
 }
 
-func (p *Parameter) Unmarshal(doc *ast.Document,ref int){
+func (p *Parameter) Unmarshal(doc *ast.Document, ref int) {
 	for _, i := range doc.ObjectValues[ref].Refs {
 		name := string(doc.ObjectFieldNameBytes(i))
 		switch name {
 		case "name":
 			p.Name = doc.StringValueContentString(doc.ObjectFieldValue(i).Ref)
 		case "sourceKind":
-			p.SourceKind.Unmarshal(doc,i)
+			p.SourceKind.Unmarshal(doc, i)
 		case "sourceName":
 			p.SourceName = doc.StringValueContentString(doc.ObjectFieldValue(i).Ref)
 		case "variableType":
@@ -120,7 +123,7 @@ const (
 
 type PARAMETER_SOURCE int
 
-func (p *PARAMETER_SOURCE) Unmarshal(doc *ast.Document,ref int){
+func (p *PARAMETER_SOURCE) Unmarshal(doc *ast.Document, ref int) {
 
 }
 

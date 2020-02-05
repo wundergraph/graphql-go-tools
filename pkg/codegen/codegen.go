@@ -8,6 +8,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 	"io"
+	"strings"
 )
 
 type CodeGen struct {
@@ -50,10 +51,6 @@ type genVisitor struct {
 	file *File
 }
 
-func (g *genVisitor) camelCase(in string) string {
-	return strcase.ToCamel(in)
-}
-
 func (g *genVisitor) renderType(stmt *Statement, ref int, nullable bool) {
 	graphqlType := g.doc.Types[ref]
 	switch graphqlType.TypeKind {
@@ -70,7 +67,7 @@ func (g *genVisitor) renderType(stmt *Statement, ref int, nullable bool) {
 		case "Int":
 			stmt.Int64()
 		case "Float":
-			stmt.Int32()
+			stmt.Float32()
 		default:
 			stmt.Id(typeName)
 		}
@@ -81,6 +78,39 @@ func (g *genVisitor) renderType(stmt *Statement, ref int, nullable bool) {
 			stmt.Id("*")
 		}
 		g.renderType(stmt.Id("[]"), graphqlType.OfType, true)
+	}
+}
+
+func (g *genVisitor) renderInputValueDefinitionSwitchCase(group *Group, ref int) {
+	valueName := g.doc.InputValueDefinitionNameString(ref)
+	fieldName := strcase.ToCamel(g.doc.InputValueDefinitionNameString(ref))
+	valueTypeRef := g.doc.InputValueDefinitionType(ref)
+	valueType := g.doc.Types[valueTypeRef]
+	switch valueType.TypeKind {
+	case ast.TypeKindNamed:
+		typeName := g.doc.TypeNameString(valueTypeRef)
+		g.renderScalarAssignment(typeName, valueName, fieldName, group)
+	}
+}
+
+func (g *genVisitor) renderScalarAssignment(scalarName, valueName, fieldName string, group *Group) {
+	switch scalarName {
+	case "String":
+		group.Case(Lit(valueName)).Block(
+			Id("val").Op(":=").Id("doc").Dot("StringValueContentString").Call(Id("doc").Dot("ArgumentValue").Call(Id("i")).Dot("Ref")),
+		)
+	case "Boolean":
+		group.Case(Lit(valueName)).Block(
+			Id("val").Op(":=").Id("bool").Call(Id("doc").Dot("BooleanValue").Call(Id("doc").Dot("ArgumentValue").Call(Id("i")).Dot("Ref"))),
+		)
+	case "Float":
+		group.Case(Lit(valueName)).Block(
+			Id("val").Op(":=").Id("doc").Dot("FloatValueAsFloat32").Call(Id("ref")),
+		)
+	case "Int":
+		group.Case(Lit(valueName)).Block(
+			Id("val").Op(":=").Id("doc").Dot("IntValueAsInt").Call(Id("doc").Dot("ArgumentValue").Call(Id("i")).Dot("Ref")),
+		)
 	}
 }
 
@@ -220,7 +250,7 @@ func (g *genVisitor) EnterInputObjectTypeDefinition(ref int) {
 	structName := g.doc.InputObjectTypeDefinitionNameString(ref)
 	g.file.Type().Id(structName).StructFunc(func(group *Group) {
 		for _, i := range g.doc.InputObjectTypeDefinitions[ref].InputFieldsDefinition.Refs {
-			name := g.camelCase(g.doc.InputValueDefinitionNameString(i))
+			name := strcase.ToCamel(g.doc.InputValueDefinitionNameString(i))
 			stmt := group.Id(name)
 			g.renderType(stmt, g.doc.InputValueDefinitionType(i), true)
 		}
@@ -241,14 +271,30 @@ func (g *genVisitor) LeaveInputObjectTypeExtension(ref int) {
 }
 
 func (g *genVisitor) EnterDirectiveDefinition(ref int) {
-	structName := g.camelCase(g.doc.DirectiveDefinitionNameString(ref))
+	structName := strcase.ToCamel(g.doc.DirectiveDefinitionNameString(ref))
 	g.file.Type().Id(structName).StructFunc(func(group *Group) {
 		for _, i := range g.doc.DirectiveDefinitions[ref].ArgumentsDefinition.Refs {
-			name := g.camelCase(g.doc.InputValueDefinitionNameString(i))
+			name := strcase.ToCamel(g.doc.InputValueDefinitionNameString(i))
 			stmt := group.Id(name)
 			g.renderType(stmt, g.doc.InputValueDefinitionType(i), true)
 		}
 	})
+	g.file.Func().Params(Id(strings.ToLower(structName)[0:1]).Id("*").Id(structName)).
+		Id("Unmarshal").Params(
+		Id("doc").Id("*").Qual("github.com/jensneuse/graphql-go-tools/pkg/ast", "Document"),
+		Id("ref").Int()).
+		BlockFunc(func(group *Group) {
+			group.For(
+				Id("_").Op(",").Id("i").Op(":=").Range().Id("doc").Dot("Directives").Index(Id("ref")).Dot("Arguments").Dot("Refs"),
+			).BlockFunc(func(group *Group) {
+				group.Id("name").Op(":=").Id("doc").Dot("ArgumentNameString").Call(Id("i"))
+				group.Switch(Id("name")).BlockFunc(func(group *Group) {
+					for _, i := range g.doc.DirectiveDefinitions[ref].ArgumentsDefinition.Refs {
+						g.renderInputValueDefinitionSwitchCase(group, i)
+					}
+				})
+			})
+		})
 }
 
 func (g *genVisitor) LeaveDirectiveDefinition(ref int) {

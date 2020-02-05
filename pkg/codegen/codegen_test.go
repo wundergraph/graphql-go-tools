@@ -13,12 +13,14 @@ func TestCodeGen_GenerateDirectiveDefinitionStruct(t *testing.T) {
 
 	doc := unsafeparser.ParseGraphqlDocumentString(`
 		directive @DataSource (
-			brokerAddr: String!
-			clientID: String!
-			topic: String!
-			intField: Int!
-			boolField: Boolean!
-			nullableBool: Boolean
+			nonNullString: String!
+			nullableString: String
+			nonNullInt: Int!
+			nullableInt: Int
+			nonNullBoolean: Boolean!
+			nullableBoolean: Boolean
+			nonNullFloat: Float!
+			nullableFloat: Float
 			nullableListOfNullableString: [String]
 			nonNullListOfNullableString: [String]!
 			nonNullListOfNonNullString: [String!]!

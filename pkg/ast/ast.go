@@ -1641,6 +1641,15 @@ type FloatValue struct {
 	Raw          ByteSliceReference // e.g. 13.37
 }
 
+func (d *Document) FloatValueAsFloat32(ref int) (out float32) {
+	in := d.Input.ByteSlice(d.IntValues[ref].Raw)
+	out = unsafebytes.BytesToFloat32(in)
+	if d.IntValues[ref].Negative {
+		out = -out
+	}
+	return
+}
+
 // EnumValue
 // example:
 // Name but not true or false or null

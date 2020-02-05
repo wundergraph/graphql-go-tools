@@ -1,12 +1,16 @@
 package main
 
+import ast "github.com/jensneuse/graphql-go-tools/pkg/ast"
+
 type DataSource struct {
-	BrokerAddr                    string
-	ClientID                      string
-	Topic                         string
-	IntField                      int64
-	BoolField                     bool
-	NullableBool                  *bool
+	NonNullString                 string
+	NullableString                *string
+	NonNullInt                    int64
+	NullableInt                   *int64
+	NonNullBoolean                bool
+	NullableBoolean               *bool
+	NonNullFloat                  float32
+	NullableFloat                 *float32
 	NullableListOfNullableString  *[]*string
 	NonNullListOfNullableString   []*string
 	NonNullListOfNonNullString    []string
@@ -14,6 +18,23 @@ type DataSource struct {
 	NonNullListOfNullableHeader   []*Header
 	NonNullListOfNonNullParameter []Parameter
 }
+
+func (d *DataSource) Unmarshal(doc *ast.Document, ref int) {
+	for _, i := range doc.Directives[ref].Arguments.Refs {
+		name := doc.ArgumentNameString(i)
+		switch name {
+		case "nullableString":
+			val := doc.StringValueContentString(doc.ArgumentValue(i).Ref)
+		case "nullableInt":
+			val := doc.IntValueAsInt(doc.ArgumentValue(i).Ref)
+		case "nullableBoolean":
+			val := bool(doc.BooleanValue(doc.ArgumentValue(i).Ref))
+		case "nullableFloat":
+			val := doc.FloatValueAsFloat32(ref)
+		}
+	}
+}
+
 type Header struct {
 	Key   string
 	Value string
