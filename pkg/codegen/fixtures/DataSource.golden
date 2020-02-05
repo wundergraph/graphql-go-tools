@@ -23,14 +23,30 @@ func (d *DataSource) Unmarshal(doc *ast.Document, ref int) {
 	for _, i := range doc.Directives[ref].Arguments.Refs {
 		name := doc.ArgumentNameString(i)
 		switch name {
+		case "nonNullString":
+			val := doc.StringValueContentString(doc.ArgumentValue(i).Ref)
+			d.NonNullString = &val
 		case "nullableString":
 			val := doc.StringValueContentString(doc.ArgumentValue(i).Ref)
+			d.NullableString = val
+		case "nonNullInt":
+			val := doc.IntValueAsInt(doc.ArgumentValue(i).Ref)
+			d.NonNullInt = &val
 		case "nullableInt":
 			val := doc.IntValueAsInt(doc.ArgumentValue(i).Ref)
+			d.NullableInt = val
+		case "nonNullBoolean":
+			val := bool(doc.BooleanValue(doc.ArgumentValue(i).Ref))
+			d.NonNullBoolean = &val
 		case "nullableBoolean":
 			val := bool(doc.BooleanValue(doc.ArgumentValue(i).Ref))
+			d.NullableBoolean = val
+		case "nonNullFloat":
+			val := doc.FloatValueAsFloat32(ref)
+			d.NonNullFloat = &val
 		case "nullableFloat":
 			val := doc.FloatValueAsFloat32(ref)
+			d.NullableFloat = val
 		}
 	}
 }
