@@ -1,17 +1,59 @@
-[![CircleCI](https://circleci.com/gh/jensneuse/graphql-go-tools.svg?style=svg)](https://circleci.com/gh/jensneuse/graphql-go-tools)
+[![GoDoc](https://godoc.org/github.com/jensneuse/graphql-go-tools?status.svg)](https://godoc.org/github.com/jensneuse/graphql-go-tools)
+[![CI](https://github.com/jensneuse/graphql-go-tools/workflows/ci/badge.svg)](https://github.com/jensneuse/graphql-go-tools/workflows/ci/badge.svg)
 # graphql-go-tools
 
-This repository implements useful graphql tools in the golang programming language.
-The major differentiation from other implementations is heavy use of testing to ensure high quality and maintainability.
-The code is written in a way that enables easy refactoring. Feel free to submit a PR to improve it further.
+Looking for a ready to use GraphQL Server/Gateway?
+
+Have a look at: https://github.com/jensneuse/graphql-gateway
+
+This repository implements low level building blocks to write graphql services in Go.
+
+With this library you could build tools like:
+- proxies
+- caches
+- server/client implementations
+- a WAF
+- be creative! =)
 
 Currently implemented:
 
-- lexing
-- parsing
-- validation
-- schema formatting
-- proxying
+- GraphQL AST as of https://graphql.github.io/graphql-spec/June2018
+- Token lexing
+- AST parsing: parse bytes/string into AST
+- AST printing: print an AST to an io.Writer
+    - supports indentation
+- AST validation:
+    - all rules from the spec implemented
+- AST visitor:
+    - simple visitor: fastest implementation, without field type definition information
+    - visitor: a bit more overhead but has field type definitions and other quirks
+- AST normalization
+    - remove unnecessary include/skip directives
+    - field deduplication
+    - field selection merging
+    - fragment definition removal
+    - fragment spread inlining
+    - inline fragment merging
+    - remove self aliasing
+    - type extension merging
+    - remove type extensions
+- Introspection: transforms a graphql schema into a resolvable Data Source
+- AST execution
+    - query planning: turns a Query AST into a cacheable execution plan
+        - supported DataSources:
+            - GraphQL (multiple GraphQL services can be combined)
+            - static (static embedded data)
+            - HTTP JSON
+            - HTTP JSON Streaming (uses polling to create a stream)
+            - MQTT
+            - Nats
+            - Webassembly (resolve a Request using WASI compliant modules)
+    - query execution: takes a context object and executes an execution plan
+- Middleware:
+    - Operation Complexity: Calculates the complexity of an operation based on the GitHub algorithm
+- OperationReport: Makes it easy to collect errors during all phases of a request and enables easy error printing according to the GraphQL spec
+- Playground: Easy hosting of GraphQL Playground (no external dependencies, simple middleware) 
+- Import Statements: combine multiple GraphQL files into one single schema using #import statements
 
 ## Go version Info
 
@@ -19,23 +61,12 @@ This repos uses go modules so make sure to use the latest version of Go.
 
 ## Docs
 
-https://jens-neuse.gitbook.io/graphql-go-tools
-
-## WIP
-
-- (remote) schema introspection
-- graphql proxy
+https://godoc.org/github.com/jensneuse/graphql-go-tools
 
 ## Usage
 
-Please see the tests to understand the library.
-
-## CMD usage
-
-pretty print/format a graphql schema:
-```bash
-graphql-go-tools fmt schema starwars.schema.graphql > formatted.graphql
-```
+Look into the docs.
+Other than that, tests definitely help understanding this library.
 
 ## Testing
 
@@ -45,47 +76,44 @@ graphql-go-tools fmt schema starwars.schema.graphql > formatted.graphql
 
 `make lint`
 
+## Performance
+
+Most hot path operations have 0 allocations.
+You should expect this library to exceed all alternatives in terms of performance.
+I've compared my implementation vs. others but why trust my numbers?
+Feel free to add comparisons via PR.
+
 ## Benchmarks
 
-```
-pkg: github.com/jensneuse/graphql-go-tools/pkg/parser
-BenchmarkParser-4   	   50000	     29490 ns/op	       0 B/op	       0 allocs/op
-BenchmarkParser-4   	   50000	     29931 ns/op	       0 B/op	       0 allocs/op
-BenchmarkParser-4   	   50000	     28779 ns/op	       1 B/op	       0 allocs/op
-BenchmarkParser-4   	   50000	     29176 ns/op	       0 B/op	       0 allocs/op
-```
-
-```
-pkg: github.com/jensneuse/graphql-go-tools/pkg/validator
-BenchmarkValidator/test_valid_schema-4         	  200000	      6091 ns/op	       0 B/op	       0 allocs/op
-BenchmarkValidator/test_valid_schema-4         	  200000	      6174 ns/op	       0 B/op	       0 allocs/op
-BenchmarkValidator/test_valid_schema-4         	  200000	      6119 ns/op	       0 B/op	       0 allocs/op
-BenchmarkValidator/test_valid_schema-4         	  200000	      5975 ns/op	       0 B/op	       0 allocs/op
-BenchmarkValidator/introspection_query-4       	   20000	     86069 ns/op	       2 B/op	       0 allocs/op
-BenchmarkValidator/introspection_query-4       	   20000	     88226 ns/op	       4 B/op	       0 allocs/op
-BenchmarkValidator/introspection_query-4       	   20000	     88185 ns/op	       2 B/op	       0 allocs/op
-BenchmarkValidator/introspection_query-4       	   20000	     88447 ns/op	       2 B/op	       0 allocs/op
+Parse Kitchen Sink (1020 chars, example from Facebook):
+```shell script
+pkg: github.com/jensneuse/graphql-go-tools/pkg/astparser
+BenchmarkKitchenSink 	  189426	      5652 ns/op	       0 B/op	       0 allocs/op
+BenchmarkKitchenSink 	  198253	      5526 ns/op	       0 B/op	       0 allocs/op
+BenchmarkKitchenSink 	  199924	      5553 ns/op	       0 B/op	       0 allocs/op
+BenchmarkKitchenSink 	  212695	      5804 ns/op	       0 B/op	       0 allocs/op
 ```
 
-To put these numbers into perspective. Parsing + validating the (quite complex) introspection query is ~ 0.1ms (on my 2013 MacBook) which should be acceptable for web applications.
-
-It's important to note that gc is kept at a minimum which should enable applications built on top of this library to have almost zero deviation regarding latency.
-
-You'll probably add bottlenecks at another layer, e.g. invoking a database.
-
-While adding the ast printing feature I found a severe logical error that made the walker walk way too many times the same values.
-I've refactored the validator to properly handle fragment spreads which also helped to easily find the operation definitions a fragment is used by.
-By fixing this issue validation time for the introspection query dropped from ~ 407k ns to ~ 88k ns. 
+CPU and Memory consumption for lexing, parsing as well as most other operations is neglectable, even for larger queries.
 
 ## Contributors
 
 - [Jens Neuse][jens-neuse-github] (Project Lead & Active Maintainer)
-- [Mantas Vidutis][mantas-vidutis-github](Contributions to the http proxy & the Context Middleware)
-- [Jonas Bergner][jonas-bergner-github] (Contributions to the initial version of the parser, contributions to the tests)
+- [Mantas Vidutis][mantas-vidutis-github]
+    - Contributions to the http proxy & the Context Middleware
+- [Jonas Bergner][jonas-bergner-github]
+    - Contributions to the initial version of the parser, contributions to the tests
+    - Implemented Type Extension merging [#108](https://github.com/jensneuse/graphql-go-tools/pull/108)
+- [Patric Vormstein][patric-vormstein-github]
+    - Fixed lexer on windows [#92](https://github.com/jensneuse/graphql-go-tools/pull/92)
+- [Sergey Petrunin][sergey-petrunin-github]
+    - Helped cleaning up the API of the pipeline package [#166](https://github.com/jensneuse/graphql-go-tools/pull/166)
 
 [jens-neuse-github]: https://github.com/jensneuse
 [mantas-vidutis-github]: https://github.com/mvid
 [jonas-bergner-github]: https://github.com/java-jonas
+[patric-vormstein-github]: https://github.com/pvormste
+[sergey-petrunin-github]: https://github.com/spetrunin
 
 ## Contributions
 
@@ -93,5 +121,6 @@ Feel free to file an issue in case of bugs.
 We're open to your ideas to enhance the repository.
 
 You are open to contribute via PR's.
+Please open an issue to discuss your idea before implementing it so we can have a discussion.
 Make sure to comply with the linting rules.
 You must not add untested code.

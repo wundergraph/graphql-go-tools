@@ -1,0 +1,14 @@
+"""
+MAPPING_MODE is the enum to define the different mapper modes
+"""
+enum MAPPING_MODE {
+    """
+    NONE is the mode to skip mappings at all, therefore the parent object will directly get passed to the child
+    """
+    NONE
+    """
+    PATH_SELECTOR is the mode which applies a path selector string on the parent object before passing it to the child
+    see https://github.com/tidwall/gjson for more information on what syntax is possible
+    """
+    PATH_SELECTOR
+}

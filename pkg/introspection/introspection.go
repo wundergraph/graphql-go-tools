@@ -1,14 +1,11 @@
 //go:generate go-enum -f=$GOFILE --noprefix --marshal
 
+// Package introspection takes a GraphQL Schema and provides the introspection JSON to fulfill introspection queries.
 package introspection
 
 import (
 	"bytes"
 )
-
-type Response struct {
-	Data Data `json:"data"`
-}
 
 type Data struct {
 	Schema Schema `json:"__schema"`
@@ -96,12 +93,12 @@ type TypeRef struct {
 }
 
 type Field struct {
-	Name               string       `json:"name"`
-	Description        string       `json:"description"`
-	Args               []InputValue `json:"args"`
-	Type               TypeRef      `json:"type"`
-	IsDeprecated       bool         `json:"isDeprecated"`
-	DepreciationReason string       `json:"depreciacionReason"`
+	Name        string       `json:"name"`
+	Description string       `json:"description"`
+	Args        []InputValue `json:"args"`
+	Type        TypeRef      `json:"type"`
+	//IsDeprecated      *bool        `json:"isDeprecated"`
+	//DeprecationReason string       `json:"deprecationReason"`
 }
 
 func NewField() Field {
@@ -111,10 +108,10 @@ func NewField() Field {
 }
 
 type EnumValue struct {
-	Name               string `json:"name"`
-	Description        string `json:"description"`
-	IsDeprecated       bool   `json:"isDeprecated"`
-	DepreciationReason string `json:"depreciacionReason"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	//IsDeprecated      *bool   `json:"isDeprecated"`
+	//DeprecationReason *string `json:"deprecationReason"`
 }
 
 type InputValue struct {

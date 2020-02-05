@@ -1,0 +1,3 @@
+directive @StaticDataSource (
+    data: String
+) on FIELD_DEFINITION

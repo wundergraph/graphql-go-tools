@@ -1,0 +1,5 @@
+directive @transformation(
+    mode: TRANSFORMATION_MODE = PIPELINE
+    pipelineConfigFile: String
+    pipelineConfigString: String
+) on FIELD_DEFINITION

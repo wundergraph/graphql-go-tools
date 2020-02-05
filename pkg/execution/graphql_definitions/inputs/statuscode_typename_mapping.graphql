@@ -1,0 +1,4 @@
+input StatusCodeTypeNameMapping {
+    statusCode: Int!
+    typeName: String!
+}

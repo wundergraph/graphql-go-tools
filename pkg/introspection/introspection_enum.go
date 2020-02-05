@@ -12,8 +12,8 @@ const (
 	SCALAR __TypeKind = iota
 	// LIST is a __TypeKind of type LIST
 	LIST
-	// NON_NULL is a __TypeKind of type NON_NULL
-	NON_NULL
+	// NONNULL is a __TypeKind of type NON_NULL
+	NONNULL
 	// OBJECT is a __TypeKind of type OBJECT
 	OBJECT
 	// ENUM is a __TypeKind of type ENUM
@@ -22,8 +22,8 @@ const (
 	INTERFACE
 	// UNION is a __TypeKind of type UNION
 	UNION
-	// INPUT_OBJECT is a __TypeKind of type INPUT_OBJECT
-	INPUT_OBJECT
+	// INPUTOBJECT is a __TypeKind of type INPUT_OBJECT
+	INPUTOBJECT
 )
 
 const ___TypeKindName = "SCALARLISTNON_NULLOBJECTENUMINTERFACEUNIONINPUT_OBJECT"

@@ -1,0 +1,77 @@
+EnterOperationDefinition (PostsUserQuery): ref: 0
+  EnterSelectionSet(Query): ref: 2
+    EnterField(posts::Query): ref: 5
+      EnterSelectionSet(Post): ref: 1
+        EnterField(id::Post): ref: 0
+        LeaveField(id::Post): ref: 0
+        EnterField(description::Post): ref: 1
+        LeaveField(description::Post): ref: 1
+        EnterField(user::Post): ref: 4
+          EnterSelectionSet(User): ref: 0
+            EnterField(id::User): ref: 2
+            LeaveField(id::User): ref: 2
+            EnterField(name::User): ref: 3
+            LeaveField(name::User): ref: 3
+          LeaveSelectionSet(User): ref: 0
+        LeaveField(user::Post): ref: 4
+      LeaveSelectionSet(Post): ref: 1
+    LeaveField(posts::Query): ref: 5
+  LeaveSelectionSet(Query): ref: 2
+LeaveOperationDefinition(PostsUserQuery): ref: 0
+
+EnterFragmentDefinition(FirstFragment): ref: 0
+  EnterSelectionSet(Post): ref: 3
+    EnterField(id::Post): ref: 6
+    LeaveField(id::Post): ref: 6
+  LeaveSelectionSet(Post): ref: 3
+LeaveFragmentDefinition(FirstFragment): ref: 0
+
+EnterOperationDefinition (ArgsQuery): ref: 1
+  EnterSelectionSet(Query): ref: 5
+    EnterField(foo::Query): ref: 8
+      EnterArgument(bar::Foo): ref: 0
+      LeaveArgument(bar::Foo): ref: 0
+      EnterArgument(baz::Foo): ref: 1
+      LeaveArgument(baz::Foo): ref: 1
+      EnterSelectionSet(Foo): ref: 4
+        EnterField(fooField::Foo): ref: 7
+        LeaveField(fooField::Foo): ref: 7
+      LeaveSelectionSet(Foo): ref: 4
+    LeaveField(foo::Query): ref: 8
+  LeaveSelectionSet(Query): ref: 5
+LeaveOperationDefinition(ArgsQuery): ref: 1
+
+EnterOperationDefinition (VariableQuery): ref: 2
+  EnterVariableDefinition(bar): ref: 0
+  LeaveVariableDefinition(bar): ref: 0
+  EnterVariableDefinition(baz): ref: 1
+  LeaveVariableDefinition(baz): ref: 1
+  EnterSelectionSet(Query): ref: 7
+    EnterField(foo::Query): ref: 10
+      EnterArgument(bar::Foo): ref: 2
+      LeaveArgument(bar::Foo): ref: 2
+      EnterArgument(baz::Foo): ref: 3
+      LeaveArgument(baz::Foo): ref: 3
+      EnterSelectionSet(Foo): ref: 6
+        EnterField(fooField::Foo): ref: 9
+        LeaveField(fooField::Foo): ref: 9
+      LeaveSelectionSet(Foo): ref: 6
+    LeaveField(foo::Query): ref: 10
+  LeaveSelectionSet(Query): ref: 7
+LeaveOperationDefinition(VariableQuery): ref: 2
+
+EnterOperationDefinition (VariableQuery): ref: 3
+  EnterSelectionSet(Query): ref: 9
+    EnterField(posts::Query): ref: 12
+      EnterSelectionSet(Post): ref: 8
+        EnterField(id::Post): ref: 11
+          EnterDirective(include): ref: 0
+            EnterArgument(if::ID): ref: 4
+            LeaveArgument(if::ID): ref: 4
+          LeaveDirective(include): ref: 0
+        LeaveField(id::Post): ref: 11
+      LeaveSelectionSet(Post): ref: 8
+    LeaveField(posts::Query): ref: 12
+  LeaveSelectionSet(Query): ref: 9
+LeaveOperationDefinition(VariableQuery): ref: 3
+

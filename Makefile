@@ -1,9 +1,14 @@
-GOLANG_CI_VERSION = "v1.16.0"
-HAS_GOLANG_CI_LINT := $(shell command -v golangci-lint;)
+GOLANG_CI_VERSION = "v1.21.0"
+GOLANG_CI_VERSION_SHORT = "1.21.0"
+HAS_GOLANG_CI_LINT := $(shell command -v /tmp/ci/golangci-lint;)
+INSTALLED_VERSION := $(shell command -v /tmp/ci/golangci-lint version;)
+HAS_CORRECT_VERSION := $(shell command -v if [[ $(INSTALLED_VERSION) == *$(GOLANG_CI_VERSION_SHORT)* ]]; echo "Version OK!" fi)
+
+.PHONY: bootstrap
 
 .PHONY: test
 test:
-	go test ./...
+	go test -count=1 ./...
 
 # updateTestFixtures will update all! golden fixtures
 .PHONY: updateTestFixtures
@@ -12,7 +17,7 @@ updateTestFixtures:
 
 .PHONY: lint
 lint:
-	golangci-lint run
+	/tmp/ci/golangci-lint run
 
 .PHONY: format
 format:
@@ -27,6 +32,7 @@ ci: bootstrap test lint
 .PHONY: generate
 generate: $(GOPATH)/bin/go-enum $(GOPATH)/bin/mockgen $(GOPATH)/bin/stringer
 	go generate ./...
+	go mod tidy
 
 $(GOPATH)/bin/go-enum:
 	go get -u github.com/abice/go-enum
@@ -40,9 +46,7 @@ $(GOPATH)/bin/stringer:
 	go get -u -a golang.org/x/tools/cmd/stringer
 	go install golang.org/x/tools/cmd/stringer
 
-.PHONY: bootstrap
 bootstrap:
 ifndef HAS_GOLANG_CI_LINT
-	go get github.com/golangci/golangci-lint/cmd/golangci-lint@${GOLANG_CI_VERSION}
-	go mod tidy
+	curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh| sh -s -- -b /tmp/ci ${GOLANG_CI_VERSION}
 endif
