@@ -83,76 +83,154 @@ func (g *genVisitor) renderType(stmt *Statement, ref int, nullable bool) {
 
 func (g *genVisitor) renderUnmarshal(structName string, ref ast.Node) {
 
-	var refs []int
 	switch ref.Kind {
 	case ast.NodeKindDirectiveDefinition:
-		refs = g.doc.DirectiveDefinitions[ref.Ref].ArgumentsDefinition.Refs
-	case ast.NodeKindInputObjectTypeDefinition:
-		refs = g.doc.InputObjectTypeDefinitions[ref.Ref].InputFieldsDefinition.Refs
-	}
-
-	g.file.Func().Params(Id(strings.ToLower(structName)[0:1]).Id("*").Id(structName)).
-		Id("Unmarshal").Params(
-		Id("doc").Id("*").Qual("github.com/jensneuse/graphql-go-tools/pkg/ast", "Document"),
-		Id("ref").Int()).
-		BlockFunc(func(group *Group) {
-			group.For(
-				Id("_").Op(",").Id("i").Op(":=").Range().Id("doc").Dot("Directives").Index(Id("ref")).Dot("Arguments").Dot("Refs"),
-			).BlockFunc(func(group *Group) {
-				group.Id("name").Op(":=").Id("doc").Dot("ArgumentNameString").Call(Id("i"))
-				group.Switch(Id("name")).BlockFunc(func(group *Group) {
-					for _, i := range refs {
-						g.renderInputValueDefinitionSwitchCase(group,structName, i)
-					}
+		g.file.Func().Params(Id(strings.ToLower(structName)[0:1]).Id("*").Id(structName)).
+			Id("Unmarshal").Params(
+			Id("doc").Id("*").Qual("github.com/jensneuse/graphql-go-tools/pkg/ast", "Document"),
+			Id("ref").Int()).
+			BlockFunc(func(group *Group) {
+				group.For(
+					Id("_").Op(",").Id("i").Op(":=").Range().Id("doc").Dot("Directives").Index(Id("ref")).Dot("Arguments").Dot("Refs"),
+				).BlockFunc(func(group *Group) {
+					group.Id("name").Op(":=").Id("doc").Dot("ArgumentNameString").Call(Id("i"))
+					group.Switch(Id("name")).BlockFunc(func(group *Group) {
+						for _, i := range g.doc.DirectiveDefinitions[ref.Ref].ArgumentsDefinition.Refs {
+							g.renderInputValueDefinitionSwitchCase(group, structName, i, "ArgumentValue")
+						}
+					})
 				})
 			})
-		})
+	case ast.NodeKindInputObjectTypeDefinition:
+		g.file.Func().Params(Id(strings.ToLower(structName)[0:1]).Id("*").Id(structName)).
+			Id("Unmarshal").Params(
+			Id("doc").Id("*").Qual("github.com/jensneuse/graphql-go-tools/pkg/ast", "Document"),
+			Id("ref").Int()).
+			BlockFunc(func(group *Group) {
+				group.For(
+					Id("_").Op(",").Id("i").Op(":=").Range().Id("doc").Dot("ObjectValues").Index(Id("ref")).Dot("Refs"),
+				).BlockFunc(func(group *Group) {
+					group.Id("name").Op(":=").String().Call(Id("doc").Dot("ObjectFieldNameBytes").Call(Id("i")))
+					group.Switch(Id("name")).BlockFunc(func(group *Group) {
+						for _, i := range g.doc.InputObjectTypeDefinitions[ref.Ref].InputFieldsDefinition.Refs {
+							g.renderInputValueDefinitionSwitchCase(group, structName, i, "ObjectFieldValue")
+						}
+					})
+				})
+			})
+	}
 }
 
-func (g *genVisitor) renderInputValueDefinitionSwitchCase(group *Group,structName string, ref int) {
+func (g *genVisitor) renderInputValueDefinitionSwitchCase(group *Group, structName string, ref int, valueSourceName string) {
 	valueName := g.doc.InputValueDefinitionNameString(ref)
 	fieldName := strcase.ToCamel(g.doc.InputValueDefinitionNameString(ref))
 	valueTypeRef := g.doc.InputValueDefinitionType(ref)
-	g.renderInputValueDefinitionType(group, valueName, fieldName,structName, valueTypeRef, ast.TypeKindUnknown)
+	g.renderInputValueDefinitionType(group, valueName, fieldName, structName, valueTypeRef, valueSourceName, ast.TypeKindUnknown)
 }
 
-func (g *genVisitor) renderInputValueDefinitionType(group *Group, valueName, fieldName,structName string, ref int, parentTypeKind ast.TypeKind) {
+func (g *genVisitor) renderInputValueDefinitionType(group *Group, valueName, fieldName, structName string, ref int, valueSourceName string, parentTypeKind ast.TypeKind) {
 	typeKind := g.doc.Types[ref].TypeKind
 	switch typeKind {
 	case ast.TypeKindNamed:
 		typeName := g.doc.TypeNameString(ref)
-		g.renderScalarAssignment(typeName, valueName, fieldName, structName,parentTypeKind, group)
+		valueAssignment := g.valueAssingmentStatement(typeName, valueSourceName, false)
+		if valueAssignment == nil {
+			return
+		}
+		switch parentTypeKind {
+		case ast.TypeKindNonNull:
+			group.Case(Lit(valueName)).Block(
+				valueAssignment,
+				Id(strings.ToLower(structName[0:1])).Dot(fieldName).Op("=").Id("val"),
+			)
+		default:
+			group.Case(Lit(valueName)).Block(
+				valueAssignment,
+				Id(strings.ToLower(structName[0:1])).Dot(fieldName).Op("=").Id("&").Id("val"),
+			)
+		}
 	case ast.TypeKindNonNull:
-		g.renderInputValueDefinitionType(group, valueName, fieldName,structName, g.doc.Types[ref].OfType, typeKind)
+		g.renderInputValueDefinitionType(group, valueName, fieldName, structName, g.doc.Types[ref].OfType, valueSourceName, typeKind)
+	case ast.TypeKindList:
+		listType := &Statement{}
+		g.renderType(listType, ref, false)
+		listDefinition := Id("list").Op(":=").Make(listType, Id("0"), Len(Id("doc").Dot("ListValues").Index(Id("doc").Dot(valueSourceName).Call(Id("i")).Dot("Ref")).Dot("Refs")))
+		switch parentTypeKind {
+		case ast.TypeKindNonNull:
+			switch g.doc.Types[g.doc.Types[ref].OfType].TypeKind {
+			case ast.TypeKindNonNull:
+				// non null list of non null type
+				typeName := g.doc.TypeNameString(g.doc.Types[g.doc.Types[ref].OfType].OfType)
+				group.Case(Lit(valueName)).Block(
+					listDefinition,
+					For(Id("_").Op(",").Id("i").Op(":=").Range().Id("doc").Dot("ListValues").Index(Id("doc").Dot(valueSourceName).Call(Id("i")).Dot("Ref")).Dot("Refs")).Block(
+						g.valueAssingmentStatement(typeName, valueSourceName, true),
+						Id("list").Op("=").Append(Id("list").Op(",").Id("val")),
+					),
+					Id(strings.ToLower(structName[0:1])).Dot(fieldName).Op("=").Id("list"),
+				)
+			case ast.TypeKindNamed:
+				// non null list of nullable type
+				typeName := g.doc.TypeNameString(g.doc.Types[ref].OfType)
+				group.Case(Lit(valueName)).Block(
+					listDefinition,
+					For(Id("_").Op(",").Id("i").Op(":=").Range().Id("doc").Dot("ListValues").Index(Id("doc").Dot(valueSourceName).Call(Id("i")).Dot("Ref")).Dot("Refs")).Block(
+						g.valueAssingmentStatement(typeName, valueSourceName, true),
+						Id("list").Op("=").Append(Id("list").Op(",").Id("&").Id("val")),
+					),
+					Id(strings.ToLower(structName[0:1])).Dot(fieldName).Op("=").Id("list"),
+				)
+			}
+		default:
+			switch g.doc.Types[g.doc.Types[ref].OfType].TypeKind {
+			case ast.TypeKindNonNull:
+				// nullable list of non null type
+				typeName := g.doc.TypeNameString(g.doc.Types[g.doc.Types[ref].OfType].OfType)
+				group.Case(Lit(valueName)).Block(
+					listDefinition,
+					For(Id("_").Op(",").Id("i").Op(":=").Range().Id("doc").Dot("ListValues").Index(Id("doc").Dot(valueSourceName).Call(Id("i")).Dot("Ref")).Dot("Refs")).Block(
+						g.valueAssingmentStatement(typeName, valueSourceName, true),
+						Id("list").Op("=").Append(Id("list").Op(",").Id("val")),
+					),
+					Id(strings.ToLower(structName[0:1])).Dot(fieldName).Op("=").Id("&").Id("list"),
+				)
+			default:
+				// nullable list of nullable type
+				typeName := g.doc.TypeNameString(g.doc.Types[ref].OfType)
+				group.Case(Lit(valueName)).Block(
+					listDefinition,
+					For(Id("_").Op(",").Id("i").Op(":=").Range().Id("doc").Dot("ListValues").Index(Id("doc").Dot(valueSourceName).Call(Id("i")).Dot("Ref")).Dot("Refs")).Block(
+						g.valueAssingmentStatement(typeName, valueSourceName, true),
+						Id("list").Op("=").Append(Id("list").Op(",").Id("&").Id("val")),
+					),
+					Id(strings.ToLower(structName[0:1])).Dot(fieldName).Op("=").Id("&").Id("list"),
+				)
+			}
+		}
 	}
 }
 
-func (g *genVisitor) renderScalarAssignment(scalarName, valueName, fieldName,structName string, parentTypeKind ast.TypeKind, group *Group) {
-	var valueAssignment *Statement
+func (g *genVisitor) valueAssingmentStatement(scalarName, valueSourceName string, insideList bool) *Statement {
+
+	var caller *Statement
+	if insideList {
+		caller = Id("doc").Dot("Value").Call(Id("i")).Dot("Ref")
+	} else {
+		caller = Id("doc").Dot(valueSourceName).Call(Id("i")).Dot("Ref")
+	}
+
 	switch scalarName {
 	case "String":
-		valueAssignment = Id("val").Op(":=").Id("doc").Dot("StringValueContentString").Call(Id("doc").Dot("ArgumentValue").Call(Id("i")).Dot("Ref"))
+		return Id("val").Op(":=").Id("doc").Dot("StringValueContentString").Call(caller)
 	case "Boolean":
-		valueAssignment = Id("val").Op(":=").Id("bool").Call(Id("doc").Dot("BooleanValue").Call(Id("doc").Dot("ArgumentValue").Call(Id("i")).Dot("Ref")))
+		return Id("val").Op(":=").Id("bool").Call(Id("doc").Dot("BooleanValue").Call(caller))
 	case "Float":
-		valueAssignment = Id("val").Op(":=").Id("doc").Dot("FloatValueAsFloat32").Call(Id("ref"))
+		return Id("val").Op(":=").Id("doc").Dot("FloatValueAsFloat32").Call(caller)
 	case "Int":
-		valueAssignment = Id("val").Op(":=").Id("doc").Dot("IntValueAsInt").Call(Id("doc").Dot("ArgumentValue").Call(Id("i")).Dot("Ref"))
-	}
-	if valueAssignment == nil {
-		return
-	}
-	switch parentTypeKind {
-	case ast.TypeKindUnknown:
-		group.Case(Lit(valueName)).Block(
-			valueAssignment,
-			Id(strings.ToLower(structName[0:1])).Dot(fieldName).Op("=").Id("val"),
-		)
-	case ast.TypeKindNonNull:
-		group.Case(Lit(valueName)).Block(
-			valueAssignment,
-			Id(strings.ToLower(structName[0:1])).Dot(fieldName).Op("=").Id("&").Id("val"),
-		)
+		return Id("val").Op(":=").Id("doc").Dot("IntValueAsInt").Call(caller)
+	default:
+		def := Var().Id("val").Id(scalarName).Line().Id("val").Dot("Unmarshal").Call(Id("doc"), caller)
+		return def
 	}
 }
 
@@ -258,8 +336,21 @@ func (g *genVisitor) EnterEnumTypeDefinition(ref int) {
 
 func (g *genVisitor) LeaveEnumTypeDefinition(ref int) {
 	name := g.doc.EnumTypeDefinitionNameString(ref)
+	shortHandle := strings.ToLower(name)[0:1]
 	g.file.Type().Id(name).Int()
 	refs := g.doc.EnumTypeDefinitions[ref].EnumValuesDefinition.Refs
+
+	g.file.Func().Params(Id(shortHandle).Id("*").Id(name)).Id("Unmarshal").Params(Id("doc").Id("*").Qual("github.com/jensneuse/graphql-go-tools/pkg/ast", "Document"), Id("ref").Int()).Block(
+		Switch(Id("doc").Dot("EnumValueNameString").Call(Id("ref"))).BlockFunc(func(group *Group) {
+			for _, i := range refs {
+				valueName := g.doc.EnumValueDefinitionNameString(i)
+				group.Case(Lit(valueName)).Block(
+					Id("*").Id(shortHandle).Op("=").Id(name + "_" + valueName),
+				)
+			}
+		}),
+	)
+
 	if len(refs) == 0 {
 		return
 	}
@@ -297,7 +388,7 @@ func (g *genVisitor) EnterInputObjectTypeDefinition(ref int) {
 			g.renderType(stmt, g.doc.InputValueDefinitionType(i), true)
 		}
 	})
-
+	g.renderUnmarshal(structName, ast.Node{Kind: ast.NodeKindInputObjectTypeDefinition, Ref: ref})
 }
 
 func (g *genVisitor) LeaveInputObjectTypeDefinition(ref int) {

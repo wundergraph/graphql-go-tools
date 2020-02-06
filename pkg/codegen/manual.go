@@ -3,70 +3,120 @@ package codegen
 import "github.com/jensneuse/graphql-go-tools/pkg/ast"
 
 type DataSource struct {
+	NonNullString                 string
+	NullableString                *string
+	NonNullInt                    int64
+	NullableInt                   *int64
+	NonNullBoolean                bool
+	NullableBoolean               *bool
 	NonNullFloat                  float32
-	BrokerAddr                    string
-	IntField                      int64
-	BoolField                     bool
-	NullableBool                  *bool
+	NullableFloat                 *float32
 	NullableListOfNullableString  *[]*string
 	NonNullListOfNullableString   []*string
 	NonNullListOfNonNullString    []string
 	NullableListOfNullableHeader  *[]*Header
 	NonNullListOfNullableHeader   []*Header
 	NonNullListOfNonNullParameter []Parameter
+	Methods                       Methods
 }
 
 func (d *DataSource) Unmarshal(doc *ast.Document, ref int) {
 	for _, i := range doc.Directives[ref].Arguments.Refs {
 		name := doc.ArgumentNameString(i)
 		switch name {
+		case "nonNullString":
+			val := doc.StringValueContentString(doc.ArgumentValue(i).Ref)
+			d.NonNullString = val
+		case "nullableString":
+			val := doc.StringValueContentString(doc.ArgumentValue(i).Ref)
+			d.NullableString = &val
+		case "nonNullInt":
+			val := doc.IntValueAsInt(doc.ArgumentValue(i).Ref)
+			d.NonNullInt = val
+		case "nullableInt":
+			val := doc.IntValueAsInt(doc.ArgumentValue(i).Ref)
+			d.NullableInt = &val
+		case "nonNullBoolean":
+			val := bool(doc.BooleanValue(doc.ArgumentValue(i).Ref))
+			d.NonNullBoolean = val
+		case "nullableBoolean":
+			val := bool(doc.BooleanValue(doc.ArgumentValue(i).Ref))
+			d.NullableBoolean = &val
 		case "nonNullFloat":
-			d.NonNullFloat = doc.FloatValueAsFloat32(ref)
-		case "brokerAddr":
-			d.BrokerAddr = doc.StringValueContentString(doc.ArgumentValue(i).Ref)
-		case "intField":
-			d.IntField = doc.IntValueAsInt(doc.ArgumentValue(i).Ref)
-		case "boolField":
-			d.BoolField = bool(doc.BooleanValue(doc.ArgumentValue(i).Ref))
-		case "nullableBool":
-			value := bool(doc.BooleanValue(doc.ArgumentValue(i).Ref))
-			d.NullableBool = &value
+			val := doc.FloatValueAsFloat32(doc.ArgumentValue(i).Ref)
+			d.NonNullFloat = val
+		case "nullableFloat":
+			val := doc.FloatValueAsFloat32(doc.ArgumentValue(i).Ref)
+			d.NullableFloat = &val
 		case "nullableListOfNullableString":
-			var list []*string
+			list := make([]*string, 0, len(doc.ListValues[doc.ArgumentValue(i).Ref].Refs))
 			for _, i := range doc.ListValues[doc.ArgumentValue(i).Ref].Refs {
-				value := doc.StringValueContentString(i)
-				list = append(list, &value)
+				val := doc.StringValueContentString(doc.Value(i).Ref)
+				list = append(list, &val)
 			}
 			d.NullableListOfNullableString = &list
 		case "nonNullListOfNullableString":
+			list := make([]*string, 0, len(doc.ListValues[doc.ArgumentValue(i).Ref].Refs))
 			for _, i := range doc.ListValues[doc.ArgumentValue(i).Ref].Refs {
-				value := doc.StringValueContentString(i)
-				d.NonNullListOfNullableString = append(d.NonNullListOfNullableString, &value)
+				val := doc.StringValueContentString(doc.Value(i).Ref)
+				list = append(list, &val)
 			}
+			d.NonNullListOfNullableString = list
 		case "nonNullListOfNonNullString":
+			list := make([]string, 0, len(doc.ListValues[doc.ArgumentValue(i).Ref].Refs))
 			for _, i := range doc.ListValues[doc.ArgumentValue(i).Ref].Refs {
-				d.NonNullListOfNonNullString = append(d.NonNullListOfNonNullString, doc.StringValueContentString(i))
+				val := doc.StringValueContentString(doc.Value(i).Ref)
+				list = append(list, val)
 			}
+			d.NonNullListOfNonNullString = list
 		case "nullableListOfNullableHeader":
-			var value []*Header
+			list := make([]*Header, 0, len(doc.ListValues[doc.ArgumentValue(i).Ref].Refs))
 			for _, i := range doc.ListValues[doc.ArgumentValue(i).Ref].Refs {
-				var header Header
-				header.Unmarshal(doc, i)
-				value = append(value, &header)
+				var val Header
+				val.Unmarshal(doc, doc.Value(i).Ref)
+				list = append(list, &val)
 			}
-			d.NullableListOfNullableHeader = &value
+			d.NullableListOfNullableHeader = &list
 		case "nonNullListOfNullableHeader":
+			list := make([]*Header, 0, len(doc.ListValues[doc.ArgumentValue(i).Ref].Refs))
 			for _, i := range doc.ListValues[doc.ArgumentValue(i).Ref].Refs {
-				var header Header
-				header.Unmarshal(doc, i)
-				d.NonNullListOfNullableHeader = append(d.NonNullListOfNullableHeader, &header)
+				var val Header
+				val.Unmarshal(doc, doc.Value(i).Ref)
+				list = append(list, &val)
 			}
+			d.NonNullListOfNullableHeader = list
 		case "nonNullListOfNonNullParameter":
+			list := make([]Parameter, 0, len(doc.ListValues[doc.ArgumentValue(i).Ref].Refs))
 			for _, i := range doc.ListValues[doc.ArgumentValue(i).Ref].Refs {
-				var parameter Parameter
-				parameter.Unmarshal(doc, i)
-				d.NonNullListOfNonNullParameter = append(d.NonNullListOfNonNullParameter, parameter)
+				var val Parameter
+				val.Unmarshal(doc, doc.Value(i).Ref)
+				list = append(list, val)
 			}
+			d.NonNullListOfNonNullParameter = list
+		case "methods":
+			var val Methods
+			val.Unmarshal(doc, doc.ArgumentValue(i).Ref)
+			d.Methods = val
+		}
+	}
+}
+
+type Methods struct {
+	List []HTTP_METHOD
+}
+
+func (m *Methods) Unmarshal(doc *ast.Document, ref int) {
+	for _, i := range doc.ObjectValues[ref].Refs {
+		name := string(doc.ObjectFieldNameBytes(i))
+		switch name {
+		case "list":
+			list := make([]HTTP_METHOD, 0, len(doc.ListValues[doc.ObjectFieldValue(i).Ref].Refs))
+			for _, i := range doc.ListValues[doc.ObjectFieldValue(i).Ref].Refs {
+				var val HTTP_METHOD
+				val.Unmarshal(doc, doc.Value(i).Ref)
+				list = append(list, val)
+			}
+			m.List = list
 		}
 	}
 }
@@ -81,9 +131,11 @@ func (h *Header) Unmarshal(doc *ast.Document, ref int) {
 		name := string(doc.ObjectFieldNameBytes(i))
 		switch name {
 		case "key":
-			h.Key = doc.StringValueContentString(doc.ObjectFieldValue(i).Ref)
+			val := doc.StringValueContentString(doc.ObjectFieldValue(i).Ref)
+			h.Key = val
 		case "value":
-			h.Value = doc.StringValueContentString(doc.ObjectFieldValue(i).Ref)
+			val := doc.StringValueContentString(doc.ObjectFieldValue(i).Ref)
+			h.Value = val
 		}
 	}
 }
@@ -92,7 +144,7 @@ type Parameter struct {
 	Name         string
 	SourceKind   PARAMETER_SOURCE
 	SourceName   string
-	VariableType string
+	VariableName string
 }
 
 func (p *Parameter) Unmarshal(doc *ast.Document, ref int) {
@@ -100,18 +152,36 @@ func (p *Parameter) Unmarshal(doc *ast.Document, ref int) {
 		name := string(doc.ObjectFieldNameBytes(i))
 		switch name {
 		case "name":
-			p.Name = doc.StringValueContentString(doc.ObjectFieldValue(i).Ref)
+			val := doc.StringValueContentString(doc.ObjectFieldValue(i).Ref)
+			p.Name = val
 		case "sourceKind":
-			p.SourceKind.Unmarshal(doc, i)
+			var val PARAMETER_SOURCE
+			val.Unmarshal(doc, doc.ObjectFieldValue(i).Ref)
+			p.SourceKind = val
 		case "sourceName":
-			p.SourceName = doc.StringValueContentString(doc.ObjectFieldValue(i).Ref)
-		case "variableType":
-			p.VariableType = doc.StringValueContentString(doc.ObjectFieldValue(i).Ref)
+			val := doc.StringValueContentString(doc.ObjectFieldValue(i).Ref)
+			p.SourceName = val
+		case "variableName":
+			val := doc.StringValueContentString(doc.ObjectFieldValue(i).Ref)
+			p.VariableName = val
 		}
 	}
 }
 
 type HTTP_METHOD int
+
+func (h *HTTP_METHOD) Unmarshal(doc *ast.Document, ref int) {
+	switch doc.EnumValueNameString(ref) {
+	case "GET":
+		*h = HTTP_METHOD_GET
+	case "POST":
+		*h = HTTP_METHOD_POST
+	case "UPDATE":
+		*h = HTTP_METHOD_UPDATE
+	case "DELETE":
+		*h = HTTP_METHOD_DELETE
+	}
+}
 
 const (
 	UNDEFINED_HTTP_METHOD HTTP_METHOD = iota
@@ -124,7 +194,14 @@ const (
 type PARAMETER_SOURCE int
 
 func (p *PARAMETER_SOURCE) Unmarshal(doc *ast.Document, ref int) {
-
+	switch doc.EnumValueNameString(ref) {
+	case "CONTEXT_VARIABLE":
+		*p = PARAMETER_SOURCE_CONTEXT_VARIABLE
+	case "OBJECT_VARIABLE_ARGUMENT":
+		*p = PARAMETER_SOURCE_OBJECT_VARIABLE_ARGUMENT
+	case "FIELD_ARGUMENTS":
+		*p = PARAMETER_SOURCE_FIELD_ARGUMENTS
+	}
 }
 
 const (

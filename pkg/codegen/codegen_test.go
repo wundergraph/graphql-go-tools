@@ -27,7 +27,12 @@ func TestCodeGen_GenerateDirectiveDefinitionStruct(t *testing.T) {
 			nullableListOfNullableHeader: [Header]
 			nonNullListOfNullableHeader: [Header]!
 			nonNullListOfNonNullParameter: [Parameter!]!
+			methods: Methods!
 		) on FIELD_DEFINITION
+
+		input Methods {
+			list: [HTTP_METHOD!]!
+		}
 
 		input Header {
 			key: String!
@@ -38,7 +43,7 @@ func TestCodeGen_GenerateDirectiveDefinitionStruct(t *testing.T) {
 			name: String!
 			sourceKind: PARAMETER_SOURCE!
 			sourceName: String!
-			variableType: String!
+			variableName: String!
 		}
 
 		enum HTTP_METHOD {
