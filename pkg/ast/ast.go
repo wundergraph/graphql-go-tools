@@ -1642,9 +1642,9 @@ type FloatValue struct {
 }
 
 func (d *Document) FloatValueAsFloat32(ref int) (out float32) {
-	in := d.Input.ByteSlice(d.IntValues[ref].Raw)
+	in := d.Input.ByteSlice(d.FloatValues[ref].Raw)
 	out = unsafebytes.BytesToFloat32(in)
-	if d.IntValues[ref].Negative {
+	if d.FloatValues[ref].Negative {
 		out = -out
 	}
 	return
