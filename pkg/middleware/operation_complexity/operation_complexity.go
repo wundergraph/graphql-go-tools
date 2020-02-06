@@ -116,7 +116,7 @@ func (c *complexityVisitor) EnterArgument(ref int) {
 		multi := c.operation.IntValueAsInt(value.Ref)
 		c.multipliers = append(c.multipliers, multiplier{
 			fieldRef: c.Ancestors[len(c.Ancestors)-1].Ref,
-			multi:    multi,
+			multi:    int(multi),
 		})
 	}
 }
