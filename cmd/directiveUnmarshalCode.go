@@ -76,10 +76,10 @@ func init() {
 	genCmd.AddCommand(directiveUnmarshalCodeCmd)
 
 	directiveUnmarshalCodeCmd.Flags().StringVarP(&filesRegex, "filesRegex", "f", "", "filesRegex is a regex to specify all the files the generator should use (required)")
-	directiveUnmarshalCodeCmd.MarkFlagRequired("filesRegex")
+	_ = directiveUnmarshalCodeCmd.MarkFlagRequired("filesRegex")
 
 	directiveUnmarshalCodeCmd.Flags().StringVarP(&packageName, "packageName", "p", "", "packageName is the package for the generated code (required)")
-	directiveUnmarshalCodeCmd.MarkFlagRequired("packageName")
+	_ = directiveUnmarshalCodeCmd.MarkFlagRequired("packageName")
 
 	directiveUnmarshalCodeCmd.Flags().StringVarP(&directiveStructSuffix, "directiveStructSuffix", "s", "", "directiveStructSuffix is the suffix which gets appended to all directive struct names to avoid naming collisions (optional)")
 
