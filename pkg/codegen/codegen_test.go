@@ -28,6 +28,7 @@ func TestCodeGen_GenerateDirectiveDefinitionStruct(t *testing.T) {
 			nonNullListOfNullableHeader: [Header]!
 			nonNullListOfNonNullParameter: [Parameter!]!
 			methods: Methods!
+			nullableStringWithDefault: String = "defaultValue"
 		) on FIELD_DEFINITION
 
 		input Methods {

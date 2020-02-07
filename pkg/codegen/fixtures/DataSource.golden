@@ -19,6 +19,7 @@ type DataSourceConfig struct {
 	NonNullListOfNullableHeader   []*Header
 	NonNullListOfNonNullParameter []Parameter
 	Methods                       Methods
+	NullableStringWithDefault     string
 }
 
 func (d *DataSourceConfig) Unmarshal(doc *ast.Document, ref int) {
@@ -98,6 +99,9 @@ func (d *DataSourceConfig) Unmarshal(doc *ast.Document, ref int) {
 			var val Methods
 			val.Unmarshal(doc, doc.ArgumentValue(i).Ref)
 			d.Methods = val
+		case "nullableStringWithDefault":
+			val := doc.StringValueContentString(doc.ArgumentValue(i).Ref)
+			d.NullableStringWithDefault = val
 		}
 	}
 }

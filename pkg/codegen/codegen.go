@@ -135,10 +135,11 @@ func (g *genVisitor) renderInputValueDefinitionSwitchCase(group *jen.Group, stru
 	valueName := g.doc.InputValueDefinitionNameString(ref)
 	fieldName := strcase.ToCamel(g.doc.InputValueDefinitionNameString(ref))
 	valueTypeRef := g.doc.InputValueDefinitionType(ref)
-	g.renderInputValueDefinitionType(group, valueName, fieldName, structName, valueTypeRef, valueSourceName, ast.TypeKindUnknown)
+	hasDefaultValue := g.doc.InputValueDefinitionHasDefaultValue(ref)
+	g.renderInputValueDefinitionType(group, valueName, fieldName, structName, hasDefaultValue,valueTypeRef, valueSourceName, ast.TypeKindUnknown)
 }
 
-func (g *genVisitor) renderInputValueDefinitionType(group *jen.Group, valueName, fieldName, structName string, ref int, valueSourceName string, parentTypeKind ast.TypeKind) {
+func (g *genVisitor) renderInputValueDefinitionType(group *jen.Group, valueName, fieldName, structName string,hasDefaultValue bool, ref int, valueSourceName string, parentTypeKind ast.TypeKind) {
 	typeKind := g.doc.Types[ref].TypeKind
 	switch typeKind {
 	case ast.TypeKindNamed:
@@ -147,20 +148,19 @@ func (g *genVisitor) renderInputValueDefinitionType(group *jen.Group, valueName,
 		if valueAssignment == nil {
 			return
 		}
-		switch parentTypeKind {
-		case ast.TypeKindNonNull:
+		if hasDefaultValue || parentTypeKind == ast.TypeKindNonNull {
 			group.Case(jen.Lit(valueName)).Block(
 				valueAssignment,
 				jen.Id(strings.ToLower(structName[0:1])).Dot(fieldName).Op("=").Id("val"),
 			)
-		default:
+		} else {
 			group.Case(jen.Lit(valueName)).Block(
 				valueAssignment,
 				jen.Id(strings.ToLower(structName[0:1])).Dot(fieldName).Op("=").Id("&").Id("val"),
 			)
 		}
 	case ast.TypeKindNonNull:
-		g.renderInputValueDefinitionType(group, valueName, fieldName, structName, g.doc.Types[ref].OfType, valueSourceName, typeKind)
+		g.renderInputValueDefinitionType(group, valueName, fieldName, structName, hasDefaultValue,g.doc.Types[ref].OfType, valueSourceName, typeKind)
 	case ast.TypeKindList:
 		listType := &jen.Statement{}
 		g.renderType(listType, ref, false)
@@ -419,7 +419,8 @@ func (g *genVisitor) EnterDirectiveDefinition(ref int) {
 		for _, i := range g.doc.DirectiveDefinitions[ref].ArgumentsDefinition.Refs {
 			name := strcase.ToCamel(g.doc.InputValueDefinitionNameString(i))
 			stmt := group.Id(name)
-			g.renderType(stmt, g.doc.InputValueDefinitionType(i), true)
+			hasDefaultValue := g.doc.InputValueDefinitionHasDefaultValue(i)
+			g.renderType(stmt, g.doc.InputValueDefinitionType(i), !hasDefaultValue)
 		}
 	})
 	g.renderUnmarshal(structName, ast.Node{Kind: ast.NodeKindDirectiveDefinition, Ref: ref})
