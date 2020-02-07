@@ -2554,6 +2554,54 @@ func (d *Document) DirectiveArgumentInputValueDefinition(directiveName ByteSlice
 	return -1
 }
 
+func (d *Document) DirectiveDefinitionArgumentDefaultValueString(directiveName, argumentName string) string {
+	inputValueDefinition := d.DirectiveArgumentInputValueDefinition(unsafebytes.StringToBytes(directiveName), unsafebytes.StringToBytes(argumentName))
+	if inputValueDefinition == -1 {
+		return ""
+	}
+	defaultValue := d.InputValueDefinitionDefaultValue(inputValueDefinition)
+	if defaultValue.Kind != ValueKindString {
+		return ""
+	}
+	return d.StringValueContentString(defaultValue.Ref)
+}
+
+func (d *Document) DirectiveDefinitionArgumentDefaultValueBool(directiveName, argumentName string) bool {
+	inputValueDefinition := d.DirectiveArgumentInputValueDefinition(unsafebytes.StringToBytes(directiveName), unsafebytes.StringToBytes(argumentName))
+	if inputValueDefinition == -1 {
+		return false
+	}
+	defaultValue := d.InputValueDefinitionDefaultValue(inputValueDefinition)
+	if defaultValue.Kind != ValueKindBoolean {
+		return false
+	}
+	return bool(d.BooleanValue(defaultValue.Ref))
+}
+
+func (d *Document) DirectiveDefinitionArgumentDefaultValueInt64(directiveName, argumentName string) int64 {
+	inputValueDefinition := d.DirectiveArgumentInputValueDefinition(unsafebytes.StringToBytes(directiveName), unsafebytes.StringToBytes(argumentName))
+	if inputValueDefinition == -1 {
+		return -1
+	}
+	defaultValue := d.InputValueDefinitionDefaultValue(inputValueDefinition)
+	if defaultValue.Kind != ValueKindInteger {
+		return -1
+	}
+	return d.IntValueAsInt(defaultValue.Ref)
+}
+
+func (d *Document) DirectiveDefinitionArgumentDefaultValueFloat32(directiveName, argumentName string) float32 {
+	inputValueDefinition := d.DirectiveArgumentInputValueDefinition(unsafebytes.StringToBytes(directiveName), unsafebytes.StringToBytes(argumentName))
+	if inputValueDefinition == -1 {
+		return -1
+	}
+	defaultValue := d.InputValueDefinitionDefaultValue(inputValueDefinition)
+	if defaultValue.Kind != ValueKindFloat {
+		return -1
+	}
+	return d.FloatValueAsFloat32(defaultValue.Ref)
+}
+
 type SelectionSet struct {
 	LBrace        position.Position
 	RBrace        position.Position

@@ -29,6 +29,11 @@ func TestCodeGen_GenerateDirectiveDefinitionStruct(t *testing.T) {
 			nonNullListOfNonNullParameter: [Parameter!]!
 			methods: Methods!
 			nullableStringWithDefault: String = "defaultValue"
+			nonNullStringWithDefault: String! = "defaultValue"
+			intWithDefault: Int = 123
+			floatWithDefault: Float = 1.23
+			booleanWithDefault: Boolean = true
+			stringWithDefaultOverride: String = "foo"
 		) on FIELD_DEFINITION
 
 		input Methods {

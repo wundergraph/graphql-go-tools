@@ -5,7 +5,7 @@ package codegen
 
 import (
 	"fmt"
-	 "github.com/dave/jennifer/jen"
+	"github.com/dave/jennifer/jen"
 	"github.com/iancoleman/strcase"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
@@ -91,7 +91,9 @@ func (g *genVisitor) renderType(stmt *jen.Statement, ref int, nullable bool) {
 	}
 }
 
-func (g *genVisitor) renderUnmarshal(structName string, ref ast.Node) {
+func (g *genVisitor) renderUnmarshal(structName, graphqlObjectName string, ref ast.Node) {
+
+	shortHandle := strings.ToLower(structName[0:1])
 
 	switch ref.Kind {
 	case ast.NodeKindDirectiveDefinition:
@@ -100,6 +102,16 @@ func (g *genVisitor) renderUnmarshal(structName string, ref ast.Node) {
 			jen.Id("doc").Id("*").Qual("github.com/jensneuse/graphql-go-tools/pkg/ast", "Document"),
 			jen.Id("ref").Int()).
 			BlockFunc(func(group *jen.Group) {
+				for _, i := range g.doc.DirectiveDefinitions[ref.Ref].ArgumentsDefinition.Refs {
+					if !g.doc.InputValueDefinitionHasDefaultValue(i) {
+						continue
+					}
+					defaultValueKind := g.doc.InputValueDefinitionDefaultValue(i).Kind
+					argumentName := g.doc.InputValueDefinitionNameString(i)
+					directiveName := graphqlObjectName
+					fieldName := strcase.ToCamel(argumentName)
+					g.renderDefaultValueAssignment(group, defaultValueKind, shortHandle, fieldName, directiveName, argumentName)
+				}
 				group.For(
 					jen.Id("_").Op(",").Id("i").Op(":=").Range().Id("doc").Dot("Directives").Index(jen.Id("ref")).Dot("Arguments").Dot("Refs"),
 				).BlockFunc(func(group *jen.Group) {
@@ -131,15 +143,32 @@ func (g *genVisitor) renderUnmarshal(structName string, ref ast.Node) {
 	}
 }
 
+func (g *genVisitor) renderDefaultValueAssignment(group *jen.Group, defaultValueKind ast.ValueKind, shortHandle, fieldName, directiveName, argumentName string) {
+	var valueResolverName string
+	switch defaultValueKind {
+	case ast.ValueKindString:
+		valueResolverName = "DirectiveDefinitionArgumentDefaultValueString"
+	case ast.ValueKindBoolean:
+		valueResolverName = "DirectiveDefinitionArgumentDefaultValueBool"
+	case ast.ValueKindFloat:
+		valueResolverName = "DirectiveDefinitionArgumentDefaultValueFloat32"
+	case ast.ValueKindInteger:
+		valueResolverName = "DirectiveDefinitionArgumentDefaultValueInt64"
+	default:
+		return
+	}
+	group.Id(shortHandle).Dot(fieldName).Op("=").Id("doc").Dot(valueResolverName).Call(jen.Lit(directiveName), jen.Lit(argumentName))
+}
+
 func (g *genVisitor) renderInputValueDefinitionSwitchCase(group *jen.Group, structName string, ref int, valueSourceName string) {
 	valueName := g.doc.InputValueDefinitionNameString(ref)
 	fieldName := strcase.ToCamel(g.doc.InputValueDefinitionNameString(ref))
 	valueTypeRef := g.doc.InputValueDefinitionType(ref)
 	hasDefaultValue := g.doc.InputValueDefinitionHasDefaultValue(ref)
-	g.renderInputValueDefinitionType(group, valueName, fieldName, structName, hasDefaultValue,valueTypeRef, valueSourceName, ast.TypeKindUnknown)
+	g.renderInputValueDefinitionType(group, valueName, fieldName, structName, hasDefaultValue, valueTypeRef, valueSourceName, ast.TypeKindUnknown)
 }
 
-func (g *genVisitor) renderInputValueDefinitionType(group *jen.Group, valueName, fieldName, structName string,hasDefaultValue bool, ref int, valueSourceName string, parentTypeKind ast.TypeKind) {
+func (g *genVisitor) renderInputValueDefinitionType(group *jen.Group, valueName, fieldName, structName string, hasDefaultValue bool, ref int, valueSourceName string, parentTypeKind ast.TypeKind) {
 	typeKind := g.doc.Types[ref].TypeKind
 	switch typeKind {
 	case ast.TypeKindNamed:
@@ -160,7 +189,7 @@ func (g *genVisitor) renderInputValueDefinitionType(group *jen.Group, valueName,
 			)
 		}
 	case ast.TypeKindNonNull:
-		g.renderInputValueDefinitionType(group, valueName, fieldName, structName, hasDefaultValue,g.doc.Types[ref].OfType, valueSourceName, typeKind)
+		g.renderInputValueDefinitionType(group, valueName, fieldName, structName, hasDefaultValue, g.doc.Types[ref].OfType, valueSourceName, typeKind)
 	case ast.TypeKindList:
 		listType := &jen.Statement{}
 		g.renderType(listType, ref, false)
@@ -390,6 +419,7 @@ func (g *genVisitor) LeaveEnumValueDefinition(ref int) {
 }
 
 func (g *genVisitor) EnterInputObjectTypeDefinition(ref int) {
+	inputObjectTypeDefinitionName := g.doc.InputObjectTypeDefinitionNameString(ref)
 	structName := g.doc.InputObjectTypeDefinitionNameString(ref)
 	g.file.Type().Id(structName).StructFunc(func(group *jen.Group) {
 		for _, i := range g.doc.InputObjectTypeDefinitions[ref].InputFieldsDefinition.Refs {
@@ -398,7 +428,7 @@ func (g *genVisitor) EnterInputObjectTypeDefinition(ref int) {
 			g.renderType(stmt, g.doc.InputValueDefinitionType(i), true)
 		}
 	})
-	g.renderUnmarshal(structName, ast.Node{Kind: ast.NodeKindInputObjectTypeDefinition, Ref: ref})
+	g.renderUnmarshal(structName, inputObjectTypeDefinitionName, ast.Node{Kind: ast.NodeKindInputObjectTypeDefinition, Ref: ref})
 }
 
 func (g *genVisitor) LeaveInputObjectTypeDefinition(ref int) {
@@ -414,7 +444,8 @@ func (g *genVisitor) LeaveInputObjectTypeExtension(ref int) {
 }
 
 func (g *genVisitor) EnterDirectiveDefinition(ref int) {
-	structName := strcase.ToCamel(g.doc.DirectiveDefinitionNameString(ref)) + g.config.DirectiveStructSuffix
+	directiveName := g.doc.DirectiveDefinitionNameString(ref)
+	structName := strcase.ToCamel(directiveName) + g.config.DirectiveStructSuffix
 	g.file.Type().Id(structName).StructFunc(func(group *jen.Group) {
 		for _, i := range g.doc.DirectiveDefinitions[ref].ArgumentsDefinition.Refs {
 			name := strcase.ToCamel(g.doc.InputValueDefinitionNameString(i))
@@ -423,7 +454,7 @@ func (g *genVisitor) EnterDirectiveDefinition(ref int) {
 			g.renderType(stmt, g.doc.InputValueDefinitionType(i), !hasDefaultValue)
 		}
 	})
-	g.renderUnmarshal(structName, ast.Node{Kind: ast.NodeKindDirectiveDefinition, Ref: ref})
+	g.renderUnmarshal(structName, directiveName, ast.Node{Kind: ast.NodeKindDirectiveDefinition, Ref: ref})
 }
 
 func (g *genVisitor) LeaveDirectiveDefinition(ref int) {

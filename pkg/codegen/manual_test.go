@@ -7,6 +7,58 @@ import (
 
 func TestManual(t *testing.T) {
 	schema := `
+directive @DataSource (
+			nonNullString: String!
+			nullableString: String
+			nonNullInt: Int!
+			nullableInt: Int
+			nonNullBoolean: Boolean!
+			nullableBoolean: Boolean
+			nonNullFloat: Float!
+			nullableFloat: Float
+			nullableListOfNullableString: [String]
+			nonNullListOfNullableString: [String]!
+			nonNullListOfNonNullString: [String!]!
+			nullableListOfNullableHeader: [Header]
+			nonNullListOfNullableHeader: [Header]!
+			nonNullListOfNonNullParameter: [Parameter!]!
+			methods: Methods!
+			nullableStringWithDefault: String = "defaultValue"
+			nonNullStringWithDefault: String! = "defaultValue"
+			intWithDefault: Int = 123
+			floatWithDefault: Float = 1.23
+			booleanWithDefault: Boolean = true
+			stringWithDefaultOverride: String = "foo"
+		) on FIELD_DEFINITION
+
+		input Methods {
+			list: [HTTP_METHOD!]!
+		}
+
+		input Header {
+			key: String!
+			value: String!
+		}
+
+		input Parameter {
+			name: String!
+			sourceKind: PARAMETER_SOURCE!
+			sourceName: String!
+			variableName: String!
+		}
+
+		enum HTTP_METHOD {
+			GET
+			POST
+			UPDATE
+			DELETE
+		}
+
+		enum PARAMETER_SOURCE {
+			CONTEXT_VARIABLE
+			OBJECT_VARIABLE_ARGUMENT
+			FIELD_ARGUMENTS
+		}
 		type Query {
 			rootField: String
 				@DataSource (
@@ -42,6 +94,7 @@ func TestManual(t *testing.T) {
 					methods: {
 						list: [GET,POST]
 					}
+					stringWithDefaultOverride: "bar"
 				)
 		}
 	`
@@ -137,5 +190,23 @@ func TestManual(t *testing.T) {
 	}
 	if d.Methods.List[1] != HTTP_METHOD_POST {
 		t.Fatal("want HTTP_METHOD_POST")
+	}
+	if d.NonNullStringWithDefault != "defaultValue" {
+		t.Fatalf("want defaultValue, got: %s",d.NonNullStringWithDefault)
+	}
+	if d.NullableStringWithDefault != "defaultValue" {
+		t.Fatal("want defaultValue")
+	}
+	if d.IntWithDefault != 123 {
+		t.Fatalf("want 123, got: %d",d.IntWithDefault)
+	}
+	if d.FloatWithDefault != 1.23 {
+		t.Fatal("want 1.23")
+	}
+	if d.BooleanWithDefault != true {
+		t.Fatal("want true")
+	}
+	if d.StringWithDefaultOverride != "bar" {
+		t.Fatalf("want bar, got: %s",d.StringWithDefaultOverride)
 	}
 }

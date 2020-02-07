@@ -19,9 +19,20 @@ type DataSourceConfig struct {
 	NonNullListOfNonNullParameter []Parameter
 	Methods                       Methods
 	NullableStringWithDefault     string
+	NonNullStringWithDefault      string
+	IntWithDefault                int64
+	FloatWithDefault              float32
+	BooleanWithDefault            bool
+	StringWithDefaultOverride     string
 }
 
 func (d *DataSourceConfig) Unmarshal(doc *ast.Document, ref int) {
+	d.NullableStringWithDefault = doc.DirectiveDefinitionArgumentDefaultValueString("DataSource", "nullableStringWithDefault")
+	d.NonNullStringWithDefault = doc.DirectiveDefinitionArgumentDefaultValueString("DataSource", "nonNullStringWithDefault")
+	d.IntWithDefault = doc.DirectiveDefinitionArgumentDefaultValueInt64("DataSource", "intWithDefault")
+	d.FloatWithDefault = doc.DirectiveDefinitionArgumentDefaultValueFloat32("DataSource", "floatWithDefault")
+	d.BooleanWithDefault = doc.DirectiveDefinitionArgumentDefaultValueBool("DataSource", "booleanWithDefault")
+	d.StringWithDefaultOverride = doc.DirectiveDefinitionArgumentDefaultValueString("DataSource", "stringWithDefaultOverride")
 	for _, i := range doc.Directives[ref].Arguments.Refs {
 		name := doc.ArgumentNameString(i)
 		switch name {
@@ -101,6 +112,21 @@ func (d *DataSourceConfig) Unmarshal(doc *ast.Document, ref int) {
 		case "nullableStringWithDefault":
 			val := doc.StringValueContentString(doc.ArgumentValue(i).Ref)
 			d.NullableStringWithDefault = val
+		case "nonNullStringWithDefault":
+			val := doc.StringValueContentString(doc.ArgumentValue(i).Ref)
+			d.NonNullStringWithDefault = val
+		case "intWithDefault":
+			val := doc.IntValueAsInt(doc.ArgumentValue(i).Ref)
+			d.IntWithDefault = val
+		case "floatWithDefault":
+			val := doc.FloatValueAsFloat32(doc.ArgumentValue(i).Ref)
+			d.FloatWithDefault = val
+		case "booleanWithDefault":
+			val := bool(doc.BooleanValue(doc.ArgumentValue(i).Ref))
+			d.BooleanWithDefault = val
+		case "stringWithDefaultOverride":
+			val := doc.StringValueContentString(doc.ArgumentValue(i).Ref)
+			d.StringWithDefaultOverride = val
 		}
 	}
 }
