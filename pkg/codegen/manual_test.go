@@ -48,7 +48,7 @@ func TestManual(t *testing.T) {
 
 	doc := unsafeparser.ParseGraphqlDocumentString(schema)
 
-	var d DataSource
+	var d DataSourceConfig
 	d.Unmarshal(&doc, doc.FieldDefinitionDirectives(0)[0])
 
 	if d.NonNullString != "nonNullString" {

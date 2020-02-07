@@ -60,7 +60,12 @@ func TestCodeGen_GenerateDirectiveDefinitionStruct(t *testing.T) {
 		}
 	`)
 
-	gen := NewCodeGen(&doc, "main")
+	config := Config{
+		PackageName:           "codegen",
+		DirectiveStructSuffix: "Config",
+	}
+
+	gen := New(&doc, config)
 	out := bytes.Buffer{}
 	_, err := gen.Generate(&out)
 	if err != nil {
