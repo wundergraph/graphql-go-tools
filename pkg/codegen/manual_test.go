@@ -29,7 +29,16 @@ directive @DataSource (
 			floatWithDefault: Float = 1.23
 			booleanWithDefault: Boolean = true
 			stringWithDefaultOverride: String = "foo"
+			inputWithDefaultChildField: InputWithDefault!
 		) on FIELD_DEFINITION
+
+		input InputWithDefault {
+			nullableString: String
+			stringWithDefault: String = "defaultValue"
+			intWithDefault: Int = 123
+			booleanWithDefault: Boolean = true
+			floatWithDefault: Float = 1.23
+		}
 
 		input Methods {
 			list: [HTTP_METHOD!]!
@@ -95,6 +104,9 @@ directive @DataSource (
 						list: [GET,POST]
 					}
 					stringWithDefaultOverride: "bar"
+					inputWithDefaultChildField: {
+						nullableString: "foo"
+					}
 				)
 		}
 	`
@@ -208,5 +220,20 @@ directive @DataSource (
 	}
 	if d.StringWithDefaultOverride != "bar" {
 		t.Fatalf("want bar, got: %s",d.StringWithDefaultOverride)
+	}
+	if *d.InputWithDefaultChildField.NullableString != "foo" {
+		t.Fatal("want foo")
+	}
+	if d.InputWithDefaultChildField.StringWithDefault != "defaultValue" {
+		t.Fatal("want defaultValue")
+	}
+	if d.InputWithDefaultChildField.IntWithDefault != 123 {
+		t.Fatal("want 123")
+	}
+	if d.InputWithDefaultChildField.BooleanWithDefault != true {
+		t.Fatal("want true")
+	}
+	if d.InputWithDefaultChildField.FloatWithDefault != 1.23 {
+		t.Fatal("want 1.23")
 	}
 }

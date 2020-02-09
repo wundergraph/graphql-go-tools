@@ -24,6 +24,7 @@ type DataSourceConfig struct {
 	FloatWithDefault              float32
 	BooleanWithDefault            bool
 	StringWithDefaultOverride     string
+	InputWithDefaultChildField    InputWithDefault
 }
 
 func (d *DataSourceConfig) Unmarshal(doc *ast.Document, ref int) {
@@ -33,100 +34,139 @@ func (d *DataSourceConfig) Unmarshal(doc *ast.Document, ref int) {
 	d.FloatWithDefault = doc.DirectiveDefinitionArgumentDefaultValueFloat32("DataSource", "floatWithDefault")
 	d.BooleanWithDefault = doc.DirectiveDefinitionArgumentDefaultValueBool("DataSource", "booleanWithDefault")
 	d.StringWithDefaultOverride = doc.DirectiveDefinitionArgumentDefaultValueString("DataSource", "stringWithDefaultOverride")
-	for _, i := range doc.Directives[ref].Arguments.Refs {
-		name := doc.ArgumentNameString(i)
+	for _, ii := range doc.Directives[ref].Arguments.Refs {
+		name := doc.ArgumentNameString(ii)
 		switch name {
 		case "nonNullString":
-			val := doc.StringValueContentString(doc.ArgumentValue(i).Ref)
+			val := doc.StringValueContentString(doc.ArgumentValue(ii).Ref)
 			d.NonNullString = val
 		case "nullableString":
-			val := doc.StringValueContentString(doc.ArgumentValue(i).Ref)
+			val := doc.StringValueContentString(doc.ArgumentValue(ii).Ref)
 			d.NullableString = &val
 		case "nonNullInt":
-			val := doc.IntValueAsInt(doc.ArgumentValue(i).Ref)
+			val := doc.IntValueAsInt(doc.ArgumentValue(ii).Ref)
 			d.NonNullInt = val
 		case "nullableInt":
-			val := doc.IntValueAsInt(doc.ArgumentValue(i).Ref)
+			val := doc.IntValueAsInt(doc.ArgumentValue(ii).Ref)
 			d.NullableInt = &val
 		case "nonNullBoolean":
-			val := bool(doc.BooleanValue(doc.ArgumentValue(i).Ref))
+			val := bool(doc.BooleanValue(doc.ArgumentValue(ii).Ref))
 			d.NonNullBoolean = val
 		case "nullableBoolean":
-			val := bool(doc.BooleanValue(doc.ArgumentValue(i).Ref))
+			val := bool(doc.BooleanValue(doc.ArgumentValue(ii).Ref))
 			d.NullableBoolean = &val
 		case "nonNullFloat":
-			val := doc.FloatValueAsFloat32(doc.ArgumentValue(i).Ref)
+			val := doc.FloatValueAsFloat32(doc.ArgumentValue(ii).Ref)
 			d.NonNullFloat = val
 		case "nullableFloat":
-			val := doc.FloatValueAsFloat32(doc.ArgumentValue(i).Ref)
+			val := doc.FloatValueAsFloat32(doc.ArgumentValue(ii).Ref)
 			d.NullableFloat = &val
 		case "nullableListOfNullableString":
-			list := make([]*string, 0, len(doc.ListValues[doc.ArgumentValue(i).Ref].Refs))
-			for _, i := range doc.ListValues[doc.ArgumentValue(i).Ref].Refs {
-				val := doc.StringValueContentString(doc.Value(i).Ref)
+			list := make([]*string, 0, len(doc.ListValues[doc.ArgumentValue(ii).Ref].Refs))
+			for _, ii := range doc.ListValues[doc.ArgumentValue(ii).Ref].Refs {
+				val := doc.StringValueContentString(doc.Value(ii).Ref)
 				list = append(list, &val)
 			}
 			d.NullableListOfNullableString = &list
 		case "nonNullListOfNullableString":
-			list := make([]*string, 0, len(doc.ListValues[doc.ArgumentValue(i).Ref].Refs))
-			for _, i := range doc.ListValues[doc.ArgumentValue(i).Ref].Refs {
-				val := doc.StringValueContentString(doc.Value(i).Ref)
+			list := make([]*string, 0, len(doc.ListValues[doc.ArgumentValue(ii).Ref].Refs))
+			for _, ii := range doc.ListValues[doc.ArgumentValue(ii).Ref].Refs {
+				val := doc.StringValueContentString(doc.Value(ii).Ref)
 				list = append(list, &val)
 			}
 			d.NonNullListOfNullableString = list
 		case "nonNullListOfNonNullString":
-			list := make([]string, 0, len(doc.ListValues[doc.ArgumentValue(i).Ref].Refs))
-			for _, i := range doc.ListValues[doc.ArgumentValue(i).Ref].Refs {
-				val := doc.StringValueContentString(doc.Value(i).Ref)
+			list := make([]string, 0, len(doc.ListValues[doc.ArgumentValue(ii).Ref].Refs))
+			for _, ii := range doc.ListValues[doc.ArgumentValue(ii).Ref].Refs {
+				val := doc.StringValueContentString(doc.Value(ii).Ref)
 				list = append(list, val)
 			}
 			d.NonNullListOfNonNullString = list
 		case "nullableListOfNullableHeader":
-			list := make([]*Header, 0, len(doc.ListValues[doc.ArgumentValue(i).Ref].Refs))
-			for _, i := range doc.ListValues[doc.ArgumentValue(i).Ref].Refs {
+			list := make([]*Header, 0, len(doc.ListValues[doc.ArgumentValue(ii).Ref].Refs))
+			for _, ii := range doc.ListValues[doc.ArgumentValue(ii).Ref].Refs {
 				var val Header
-				val.Unmarshal(doc, doc.Value(i).Ref)
+				val.Unmarshal(doc, doc.Value(ii).Ref)
 				list = append(list, &val)
 			}
 			d.NullableListOfNullableHeader = &list
 		case "nonNullListOfNullableHeader":
-			list := make([]*Header, 0, len(doc.ListValues[doc.ArgumentValue(i).Ref].Refs))
-			for _, i := range doc.ListValues[doc.ArgumentValue(i).Ref].Refs {
+			list := make([]*Header, 0, len(doc.ListValues[doc.ArgumentValue(ii).Ref].Refs))
+			for _, ii := range doc.ListValues[doc.ArgumentValue(ii).Ref].Refs {
 				var val Header
-				val.Unmarshal(doc, doc.Value(i).Ref)
+				val.Unmarshal(doc, doc.Value(ii).Ref)
 				list = append(list, &val)
 			}
 			d.NonNullListOfNullableHeader = list
 		case "nonNullListOfNonNullParameter":
-			list := make([]Parameter, 0, len(doc.ListValues[doc.ArgumentValue(i).Ref].Refs))
-			for _, i := range doc.ListValues[doc.ArgumentValue(i).Ref].Refs {
+			list := make([]Parameter, 0, len(doc.ListValues[doc.ArgumentValue(ii).Ref].Refs))
+			for _, ii := range doc.ListValues[doc.ArgumentValue(ii).Ref].Refs {
 				var val Parameter
-				val.Unmarshal(doc, doc.Value(i).Ref)
+				val.Unmarshal(doc, doc.Value(ii).Ref)
 				list = append(list, val)
 			}
 			d.NonNullListOfNonNullParameter = list
 		case "methods":
 			var val Methods
-			val.Unmarshal(doc, doc.ArgumentValue(i).Ref)
+			val.Unmarshal(doc, doc.ArgumentValue(ii).Ref)
 			d.Methods = val
 		case "nullableStringWithDefault":
-			val := doc.StringValueContentString(doc.ArgumentValue(i).Ref)
+			val := doc.StringValueContentString(doc.ArgumentValue(ii).Ref)
 			d.NullableStringWithDefault = val
 		case "nonNullStringWithDefault":
-			val := doc.StringValueContentString(doc.ArgumentValue(i).Ref)
+			val := doc.StringValueContentString(doc.ArgumentValue(ii).Ref)
 			d.NonNullStringWithDefault = val
 		case "intWithDefault":
-			val := doc.IntValueAsInt(doc.ArgumentValue(i).Ref)
+			val := doc.IntValueAsInt(doc.ArgumentValue(ii).Ref)
 			d.IntWithDefault = val
 		case "floatWithDefault":
-			val := doc.FloatValueAsFloat32(doc.ArgumentValue(i).Ref)
+			val := doc.FloatValueAsFloat32(doc.ArgumentValue(ii).Ref)
 			d.FloatWithDefault = val
 		case "booleanWithDefault":
-			val := bool(doc.BooleanValue(doc.ArgumentValue(i).Ref))
+			val := bool(doc.BooleanValue(doc.ArgumentValue(ii).Ref))
 			d.BooleanWithDefault = val
 		case "stringWithDefaultOverride":
-			val := doc.StringValueContentString(doc.ArgumentValue(i).Ref)
+			val := doc.StringValueContentString(doc.ArgumentValue(ii).Ref)
 			d.StringWithDefaultOverride = val
+		case "inputWithDefaultChildField":
+			var val InputWithDefault
+			val.Unmarshal(doc, doc.ArgumentValue(ii).Ref)
+			d.InputWithDefaultChildField = val
+		}
+	}
+}
+
+type InputWithDefault struct {
+	NullableString     *string
+	StringWithDefault  string
+	IntWithDefault     int64
+	BooleanWithDefault bool
+	FloatWithDefault   float32
+}
+
+func (i *InputWithDefault) Unmarshal(doc *ast.Document, ref int) {
+	i.StringWithDefault = doc.InputObjectTypeDefinitionInputValueDefinitionDefaultValueString("InputWithDefault", "stringWithDefault")
+	i.IntWithDefault = doc.InputObjectTypeDefinitionInputValueDefinitionDefaultValueInt64("InputWithDefault", "intWithDefault")
+	i.BooleanWithDefault = doc.InputObjectTypeDefinitionInputValueDefinitionDefaultValueBool("InputWithDefault", "booleanWithDefault")
+	i.FloatWithDefault = doc.InputObjectTypeDefinitionInputValueDefinitionDefaultValueFloat32("InputWithDefault", "floatWithDefault")
+	for _, ii := range doc.ObjectValues[ref].Refs {
+		name := string(doc.ObjectFieldNameBytes(ii))
+		switch name {
+		case "nullableString":
+			val := doc.StringValueContentString(doc.ObjectFieldValue(ii).Ref)
+			i.NullableString = &val
+		case "stringWithDefault":
+			val := doc.StringValueContentString(doc.ObjectFieldValue(ii).Ref)
+			i.StringWithDefault = val
+		case "intWithDefault":
+			val := doc.IntValueAsInt(doc.ObjectFieldValue(ii).Ref)
+			i.IntWithDefault = val
+		case "booleanWithDefault":
+			val := bool(doc.BooleanValue(doc.ObjectFieldValue(ii).Ref))
+			i.BooleanWithDefault = val
+		case "floatWithDefault":
+			val := doc.FloatValueAsFloat32(doc.ObjectFieldValue(ii).Ref)
+			i.FloatWithDefault = val
 		}
 	}
 }
@@ -136,14 +176,14 @@ type Methods struct {
 }
 
 func (m *Methods) Unmarshal(doc *ast.Document, ref int) {
-	for _, i := range doc.ObjectValues[ref].Refs {
-		name := string(doc.ObjectFieldNameBytes(i))
+	for _, ii := range doc.ObjectValues[ref].Refs {
+		name := string(doc.ObjectFieldNameBytes(ii))
 		switch name {
 		case "list":
-			list := make([]HTTP_METHOD, 0, len(doc.ListValues[doc.ObjectFieldValue(i).Ref].Refs))
-			for _, i := range doc.ListValues[doc.ObjectFieldValue(i).Ref].Refs {
+			list := make([]HTTP_METHOD, 0, len(doc.ListValues[doc.ObjectFieldValue(ii).Ref].Refs))
+			for _, ii := range doc.ListValues[doc.ObjectFieldValue(ii).Ref].Refs {
 				var val HTTP_METHOD
-				val.Unmarshal(doc, doc.Value(i).Ref)
+				val.Unmarshal(doc, doc.Value(ii).Ref)
 				list = append(list, val)
 			}
 			m.List = list
@@ -157,14 +197,14 @@ type Header struct {
 }
 
 func (h *Header) Unmarshal(doc *ast.Document, ref int) {
-	for _, i := range doc.ObjectValues[ref].Refs {
-		name := string(doc.ObjectFieldNameBytes(i))
+	for _, ii := range doc.ObjectValues[ref].Refs {
+		name := string(doc.ObjectFieldNameBytes(ii))
 		switch name {
 		case "key":
-			val := doc.StringValueContentString(doc.ObjectFieldValue(i).Ref)
+			val := doc.StringValueContentString(doc.ObjectFieldValue(ii).Ref)
 			h.Key = val
 		case "value":
-			val := doc.StringValueContentString(doc.ObjectFieldValue(i).Ref)
+			val := doc.StringValueContentString(doc.ObjectFieldValue(ii).Ref)
 			h.Value = val
 		}
 	}
@@ -178,21 +218,21 @@ type Parameter struct {
 }
 
 func (p *Parameter) Unmarshal(doc *ast.Document, ref int) {
-	for _, i := range doc.ObjectValues[ref].Refs {
-		name := string(doc.ObjectFieldNameBytes(i))
+	for _, ii := range doc.ObjectValues[ref].Refs {
+		name := string(doc.ObjectFieldNameBytes(ii))
 		switch name {
 		case "name":
-			val := doc.StringValueContentString(doc.ObjectFieldValue(i).Ref)
+			val := doc.StringValueContentString(doc.ObjectFieldValue(ii).Ref)
 			p.Name = val
 		case "sourceKind":
 			var val PARAMETER_SOURCE
-			val.Unmarshal(doc, doc.ObjectFieldValue(i).Ref)
+			val.Unmarshal(doc, doc.ObjectFieldValue(ii).Ref)
 			p.SourceKind = val
 		case "sourceName":
-			val := doc.StringValueContentString(doc.ObjectFieldValue(i).Ref)
+			val := doc.StringValueContentString(doc.ObjectFieldValue(ii).Ref)
 			p.SourceName = val
 		case "variableName":
-			val := doc.StringValueContentString(doc.ObjectFieldValue(i).Ref)
+			val := doc.StringValueContentString(doc.ObjectFieldValue(ii).Ref)
 			p.VariableName = val
 		}
 	}

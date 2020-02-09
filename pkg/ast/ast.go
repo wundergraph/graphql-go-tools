@@ -1955,6 +1955,59 @@ type InputObjectTypeDefinition struct {
 	InputFieldsDefinition    InputValueDefinitionList // e.g. x:Float
 }
 
+func (d *Document) InputObjectTypeDefinitionInputValueDefinitionDefaultValueString(inputObjectTypeDefinitionName, inputValueDefinitionName string) string {
+	defaultValue := d.InputObjectTypeDefinitionInputValueDefinitionDefaultValue(inputObjectTypeDefinitionName, inputValueDefinitionName)
+	if defaultValue.Kind != ValueKindString {
+		return ""
+	}
+	return d.StringValueContentString(defaultValue.Ref)
+}
+
+func (d *Document) InputObjectTypeDefinitionInputValueDefinitionDefaultValueBool(inputObjectTypeDefinitionName, inputValueDefinitionName string) bool {
+	defaultValue := d.InputObjectTypeDefinitionInputValueDefinitionDefaultValue(inputObjectTypeDefinitionName, inputValueDefinitionName)
+	if defaultValue.Kind != ValueKindBoolean {
+		return false
+	}
+	return bool(d.BooleanValue(defaultValue.Ref))
+}
+
+func (d *Document) InputObjectTypeDefinitionInputValueDefinitionDefaultValueInt64(inputObjectTypeDefinitionName, inputValueDefinitionName string) int64 {
+	defaultValue := d.InputObjectTypeDefinitionInputValueDefinitionDefaultValue(inputObjectTypeDefinitionName, inputValueDefinitionName)
+	if defaultValue.Kind != ValueKindInteger {
+		return -1
+	}
+	return d.IntValueAsInt(defaultValue.Ref)
+}
+
+func (d *Document) InputObjectTypeDefinitionInputValueDefinitionDefaultValueFloat32(inputObjectTypeDefinitionName, inputValueDefinitionName string) float32 {
+	defaultValue := d.InputObjectTypeDefinitionInputValueDefinitionDefaultValue(inputObjectTypeDefinitionName, inputValueDefinitionName)
+	if defaultValue.Kind != ValueKindFloat {
+		return -1
+	}
+	return d.FloatValueAsFloat32(defaultValue.Ref)
+}
+
+func (d *Document) InputObjectTypeDefinitionInputValueDefinitionDefaultValue(inputObjectTypeDefinitionName, inputValueDefinitionName string) Value {
+	inputObjectTypeDefinition := d.Index.Nodes[xxhash.Sum64String(inputObjectTypeDefinitionName)]
+	if inputObjectTypeDefinition.Kind != NodeKindInputObjectTypeDefinition {
+		return Value{}
+	}
+	inputValueDefinition := d.InputObjectTypeDefinitionInputValueDefinitionByName(inputObjectTypeDefinition.Ref, unsafebytes.StringToBytes(inputValueDefinitionName))
+	if inputValueDefinition == -1 {
+		return Value{}
+	}
+	return d.InputValueDefinitionDefaultValue(inputValueDefinition)
+}
+
+func (d *Document) InputObjectTypeDefinitionInputValueDefinitionByName(definition int, inputValueDefinitionName ByteSlice) int {
+	for _, i := range d.InputObjectTypeDefinitions[definition].InputFieldsDefinition.Refs {
+		if bytes.Equal(inputValueDefinitionName, d.InputValueDefinitionNameBytes(i)) {
+			return i
+		}
+	}
+	return -1
+}
+
 func (d *Document) InputObjectTypeExtensionHasDirectives(ref int) bool {
 	return d.InputObjectTypeExtensions[ref].HasDirectives
 }

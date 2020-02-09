@@ -34,7 +34,16 @@ func TestCodeGen_GenerateDirectiveDefinitionStruct(t *testing.T) {
 			floatWithDefault: Float = 1.23
 			booleanWithDefault: Boolean = true
 			stringWithDefaultOverride: String = "foo"
+			inputWithDefaultChildField: InputWithDefault!
 		) on FIELD_DEFINITION
+
+		input InputWithDefault {
+			nullableString: String
+			stringWithDefault: String = "defaultValue"
+			intWithDefault: Int = 123
+			booleanWithDefault: Boolean = true
+			floatWithDefault: Float = 1.23
+		}
 
 		input Methods {
 			list: [HTTP_METHOD!]!
