@@ -6,29 +6,29 @@ import ast "github.com/jensneuse/graphql-go-tools/pkg/ast"
 type GraphQLDataSourceConfig struct {
 	Host   string
 	Url    string
-	Method *HTTP_METHOD
+	Method HTTP_METHOD
 	Params *[]*Parameter
 }
 
 func (g *GraphQLDataSourceConfig) Unmarshal(doc *ast.Document, ref int) {
-	for _, i := range doc.Directives[ref].Arguments.Refs {
-		name := doc.ArgumentNameString(i)
+	for _, ii := range doc.Directives[ref].Arguments.Refs {
+		name := doc.ArgumentNameString(ii)
 		switch name {
 		case "host":
-			val := doc.StringValueContentString(doc.ArgumentValue(i).Ref)
+			val := doc.StringValueContentString(doc.ArgumentValue(ii).Ref)
 			g.Host = val
 		case "url":
-			val := doc.StringValueContentString(doc.ArgumentValue(i).Ref)
+			val := doc.StringValueContentString(doc.ArgumentValue(ii).Ref)
 			g.Url = val
 		case "method":
 			var val HTTP_METHOD
-			val.Unmarshal(doc, doc.ArgumentValue(i).Ref)
-			g.Method = &val
+			val.Unmarshal(doc, doc.ArgumentValue(ii).Ref)
+			g.Method = val
 		case "params":
-			list := make([]*Parameter, 0, len(doc.ListValues[doc.ArgumentValue(i).Ref].Refs))
-			for _, i := range doc.ListValues[doc.ArgumentValue(i).Ref].Refs {
+			list := make([]*Parameter, 0, len(doc.ListValues[doc.ArgumentValue(ii).Ref].Refs))
+			for _, ii := range doc.ListValues[doc.ArgumentValue(ii).Ref].Refs {
 				var val Parameter
-				val.Unmarshal(doc, doc.Value(i).Ref)
+				val.Unmarshal(doc, doc.Value(ii).Ref)
 				list = append(list, &val)
 			}
 			g.Params = &list
@@ -39,7 +39,7 @@ func (g *GraphQLDataSourceConfig) Unmarshal(doc *ast.Document, ref int) {
 type HttpJsonDataSourceConfig struct {
 	Host                       string
 	Url                        string
-	Method                     *HTTP_METHOD
+	Method                     HTTP_METHOD
 	Params                     *[]*Parameter
 	Body                       *string
 	Headers                    *[]*Header
@@ -48,46 +48,46 @@ type HttpJsonDataSourceConfig struct {
 }
 
 func (h *HttpJsonDataSourceConfig) Unmarshal(doc *ast.Document, ref int) {
-	for _, i := range doc.Directives[ref].Arguments.Refs {
-		name := doc.ArgumentNameString(i)
+	for _, ii := range doc.Directives[ref].Arguments.Refs {
+		name := doc.ArgumentNameString(ii)
 		switch name {
 		case "host":
-			val := doc.StringValueContentString(doc.ArgumentValue(i).Ref)
+			val := doc.StringValueContentString(doc.ArgumentValue(ii).Ref)
 			h.Host = val
 		case "url":
-			val := doc.StringValueContentString(doc.ArgumentValue(i).Ref)
+			val := doc.StringValueContentString(doc.ArgumentValue(ii).Ref)
 			h.Url = val
 		case "method":
 			var val HTTP_METHOD
-			val.Unmarshal(doc, doc.ArgumentValue(i).Ref)
-			h.Method = &val
+			val.Unmarshal(doc, doc.ArgumentValue(ii).Ref)
+			h.Method = val
 		case "params":
-			list := make([]*Parameter, 0, len(doc.ListValues[doc.ArgumentValue(i).Ref].Refs))
-			for _, i := range doc.ListValues[doc.ArgumentValue(i).Ref].Refs {
+			list := make([]*Parameter, 0, len(doc.ListValues[doc.ArgumentValue(ii).Ref].Refs))
+			for _, ii := range doc.ListValues[doc.ArgumentValue(ii).Ref].Refs {
 				var val Parameter
-				val.Unmarshal(doc, doc.Value(i).Ref)
+				val.Unmarshal(doc, doc.Value(ii).Ref)
 				list = append(list, &val)
 			}
 			h.Params = &list
 		case "body":
-			val := doc.StringValueContentString(doc.ArgumentValue(i).Ref)
+			val := doc.StringValueContentString(doc.ArgumentValue(ii).Ref)
 			h.Body = &val
 		case "headers":
-			list := make([]*Header, 0, len(doc.ListValues[doc.ArgumentValue(i).Ref].Refs))
-			for _, i := range doc.ListValues[doc.ArgumentValue(i).Ref].Refs {
+			list := make([]*Header, 0, len(doc.ListValues[doc.ArgumentValue(ii).Ref].Refs))
+			for _, ii := range doc.ListValues[doc.ArgumentValue(ii).Ref].Refs {
 				var val Header
-				val.Unmarshal(doc, doc.Value(i).Ref)
+				val.Unmarshal(doc, doc.Value(ii).Ref)
 				list = append(list, &val)
 			}
 			h.Headers = &list
 		case "defaultTypeName":
-			val := doc.StringValueContentString(doc.ArgumentValue(i).Ref)
+			val := doc.StringValueContentString(doc.ArgumentValue(ii).Ref)
 			h.DefaultTypeName = &val
 		case "statusCodeTypeNameMappings":
-			list := make([]*StatusCodeTypeNameMapping, 0, len(doc.ListValues[doc.ArgumentValue(i).Ref].Refs))
-			for _, i := range doc.ListValues[doc.ArgumentValue(i).Ref].Refs {
+			list := make([]*StatusCodeTypeNameMapping, 0, len(doc.ListValues[doc.ArgumentValue(ii).Ref].Refs))
+			for _, ii := range doc.ListValues[doc.ArgumentValue(ii).Ref].Refs {
 				var val StatusCodeTypeNameMapping
-				val.Unmarshal(doc, doc.Value(i).Ref)
+				val.Unmarshal(doc, doc.Value(ii).Ref)
 				list = append(list, &val)
 			}
 			h.StatusCodeTypeNameMappings = &list
@@ -98,33 +98,34 @@ func (h *HttpJsonDataSourceConfig) Unmarshal(doc *ast.Document, ref int) {
 type HttpPollingStreamDataSourceConfig struct {
 	Host         string
 	Url          string
-	Method       *HTTP_METHOD
-	DelaySeconds *int64
+	Method       HTTP_METHOD
+	DelaySeconds int64
 	Params       *[]*Parameter
 }
 
 func (h *HttpPollingStreamDataSourceConfig) Unmarshal(doc *ast.Document, ref int) {
-	for _, i := range doc.Directives[ref].Arguments.Refs {
-		name := doc.ArgumentNameString(i)
+	h.DelaySeconds = doc.DirectiveDefinitionArgumentDefaultValueInt64("HttpPollingStreamDataSource", "delaySeconds")
+	for _, ii := range doc.Directives[ref].Arguments.Refs {
+		name := doc.ArgumentNameString(ii)
 		switch name {
 		case "host":
-			val := doc.StringValueContentString(doc.ArgumentValue(i).Ref)
+			val := doc.StringValueContentString(doc.ArgumentValue(ii).Ref)
 			h.Host = val
 		case "url":
-			val := doc.StringValueContentString(doc.ArgumentValue(i).Ref)
+			val := doc.StringValueContentString(doc.ArgumentValue(ii).Ref)
 			h.Url = val
 		case "method":
 			var val HTTP_METHOD
-			val.Unmarshal(doc, doc.ArgumentValue(i).Ref)
-			h.Method = &val
+			val.Unmarshal(doc, doc.ArgumentValue(ii).Ref)
+			h.Method = val
 		case "delaySeconds":
-			val := doc.IntValueAsInt(doc.ArgumentValue(i).Ref)
-			h.DelaySeconds = &val
+			val := doc.IntValueAsInt(doc.ArgumentValue(ii).Ref)
+			h.DelaySeconds = val
 		case "params":
-			list := make([]*Parameter, 0, len(doc.ListValues[doc.ArgumentValue(i).Ref].Refs))
-			for _, i := range doc.ListValues[doc.ArgumentValue(i).Ref].Refs {
+			list := make([]*Parameter, 0, len(doc.ListValues[doc.ArgumentValue(ii).Ref].Refs))
+			for _, ii := range doc.ListValues[doc.ArgumentValue(ii).Ref].Refs {
 				var val Parameter
-				val.Unmarshal(doc, doc.Value(i).Ref)
+				val.Unmarshal(doc, doc.Value(ii).Ref)
 				list = append(list, &val)
 			}
 			h.Params = &list
@@ -138,15 +139,15 @@ type MappingConfig struct {
 }
 
 func (m *MappingConfig) Unmarshal(doc *ast.Document, ref int) {
-	for _, i := range doc.Directives[ref].Arguments.Refs {
-		name := doc.ArgumentNameString(i)
+	for _, ii := range doc.Directives[ref].Arguments.Refs {
+		name := doc.ArgumentNameString(ii)
 		switch name {
 		case "mode":
 			var val MAPPING_MODE
-			val.Unmarshal(doc, doc.ArgumentValue(i).Ref)
+			val.Unmarshal(doc, doc.ArgumentValue(ii).Ref)
 			m.Mode = val
 		case "pathSelector":
-			val := doc.StringValueContentString(doc.ArgumentValue(i).Ref)
+			val := doc.StringValueContentString(doc.ArgumentValue(ii).Ref)
 			m.PathSelector = &val
 		}
 	}
@@ -159,17 +160,17 @@ type MQTTDataSourceConfig struct {
 }
 
 func (m *MQTTDataSourceConfig) Unmarshal(doc *ast.Document, ref int) {
-	for _, i := range doc.Directives[ref].Arguments.Refs {
-		name := doc.ArgumentNameString(i)
+	for _, ii := range doc.Directives[ref].Arguments.Refs {
+		name := doc.ArgumentNameString(ii)
 		switch name {
 		case "brokerAddr":
-			val := doc.StringValueContentString(doc.ArgumentValue(i).Ref)
+			val := doc.StringValueContentString(doc.ArgumentValue(ii).Ref)
 			m.BrokerAddr = val
 		case "clientID":
-			val := doc.StringValueContentString(doc.ArgumentValue(i).Ref)
+			val := doc.StringValueContentString(doc.ArgumentValue(ii).Ref)
 			m.ClientID = val
 		case "topic":
-			val := doc.StringValueContentString(doc.ArgumentValue(i).Ref)
+			val := doc.StringValueContentString(doc.ArgumentValue(ii).Ref)
 			m.Topic = val
 		}
 	}
@@ -181,14 +182,14 @@ type NatsDataSourceConfig struct {
 }
 
 func (n *NatsDataSourceConfig) Unmarshal(doc *ast.Document, ref int) {
-	for _, i := range doc.Directives[ref].Arguments.Refs {
-		name := doc.ArgumentNameString(i)
+	for _, ii := range doc.Directives[ref].Arguments.Refs {
+		name := doc.ArgumentNameString(ii)
 		switch name {
 		case "addr":
-			val := doc.StringValueContentString(doc.ArgumentValue(i).Ref)
+			val := doc.StringValueContentString(doc.ArgumentValue(ii).Ref)
 			n.Addr = val
 		case "topic":
-			val := doc.StringValueContentString(doc.ArgumentValue(i).Ref)
+			val := doc.StringValueContentString(doc.ArgumentValue(ii).Ref)
 			n.Topic = val
 		}
 	}
@@ -201,17 +202,17 @@ type PipelineDataSourceConfig struct {
 }
 
 func (p *PipelineDataSourceConfig) Unmarshal(doc *ast.Document, ref int) {
-	for _, i := range doc.Directives[ref].Arguments.Refs {
-		name := doc.ArgumentNameString(i)
+	for _, ii := range doc.Directives[ref].Arguments.Refs {
+		name := doc.ArgumentNameString(ii)
 		switch name {
 		case "configFilePath":
-			val := doc.StringValueContentString(doc.ArgumentValue(i).Ref)
+			val := doc.StringValueContentString(doc.ArgumentValue(ii).Ref)
 			p.ConfigFilePath = &val
 		case "configString":
-			val := doc.StringValueContentString(doc.ArgumentValue(i).Ref)
+			val := doc.StringValueContentString(doc.ArgumentValue(ii).Ref)
 			p.ConfigString = &val
 		case "inputJSON":
-			val := doc.StringValueContentString(doc.ArgumentValue(i).Ref)
+			val := doc.StringValueContentString(doc.ArgumentValue(ii).Ref)
 			p.InputJSON = val
 		}
 	}
@@ -222,35 +223,35 @@ type StaticDataSourceConfig struct {
 }
 
 func (s *StaticDataSourceConfig) Unmarshal(doc *ast.Document, ref int) {
-	for _, i := range doc.Directives[ref].Arguments.Refs {
-		name := doc.ArgumentNameString(i)
+	for _, ii := range doc.Directives[ref].Arguments.Refs {
+		name := doc.ArgumentNameString(ii)
 		switch name {
 		case "data":
-			val := doc.StringValueContentString(doc.ArgumentValue(i).Ref)
+			val := doc.StringValueContentString(doc.ArgumentValue(ii).Ref)
 			s.Data = &val
 		}
 	}
 }
 
 type TransformationConfig struct {
-	Mode                 *TRANSFORMATION_MODE
+	Mode                 TRANSFORMATION_MODE
 	PipelineConfigFile   *string
 	PipelineConfigString *string
 }
 
 func (t *TransformationConfig) Unmarshal(doc *ast.Document, ref int) {
-	for _, i := range doc.Directives[ref].Arguments.Refs {
-		name := doc.ArgumentNameString(i)
+	for _, ii := range doc.Directives[ref].Arguments.Refs {
+		name := doc.ArgumentNameString(ii)
 		switch name {
 		case "mode":
 			var val TRANSFORMATION_MODE
-			val.Unmarshal(doc, doc.ArgumentValue(i).Ref)
-			t.Mode = &val
+			val.Unmarshal(doc, doc.ArgumentValue(ii).Ref)
+			t.Mode = val
 		case "pipelineConfigFile":
-			val := doc.StringValueContentString(doc.ArgumentValue(i).Ref)
+			val := doc.StringValueContentString(doc.ArgumentValue(ii).Ref)
 			t.PipelineConfigFile = &val
 		case "pipelineConfigString":
-			val := doc.StringValueContentString(doc.ArgumentValue(i).Ref)
+			val := doc.StringValueContentString(doc.ArgumentValue(ii).Ref)
 			t.PipelineConfigString = &val
 		}
 	}
@@ -262,14 +263,14 @@ type WasmDataSourceConfig struct {
 }
 
 func (w *WasmDataSourceConfig) Unmarshal(doc *ast.Document, ref int) {
-	for _, i := range doc.Directives[ref].Arguments.Refs {
-		name := doc.ArgumentNameString(i)
+	for _, ii := range doc.Directives[ref].Arguments.Refs {
+		name := doc.ArgumentNameString(ii)
 		switch name {
 		case "input":
-			val := doc.StringValueContentString(doc.ArgumentValue(i).Ref)
+			val := doc.StringValueContentString(doc.ArgumentValue(ii).Ref)
 			w.Input = val
 		case "wasmFile":
-			val := doc.StringValueContentString(doc.ArgumentValue(i).Ref)
+			val := doc.StringValueContentString(doc.ArgumentValue(ii).Ref)
 			w.WasmFile = val
 		}
 	}
@@ -355,14 +356,14 @@ type Header struct {
 }
 
 func (h *Header) Unmarshal(doc *ast.Document, ref int) {
-	for _, i := range doc.ObjectValues[ref].Refs {
-		name := string(doc.ObjectFieldNameBytes(i))
+	for _, ii := range doc.ObjectValues[ref].Refs {
+		name := string(doc.ObjectFieldNameBytes(ii))
 		switch name {
 		case "key":
-			val := doc.StringValueContentString(doc.ObjectFieldValue(i).Ref)
+			val := doc.StringValueContentString(doc.ObjectFieldValue(ii).Ref)
 			h.Key = val
 		case "value":
-			val := doc.StringValueContentString(doc.ObjectFieldValue(i).Ref)
+			val := doc.StringValueContentString(doc.ObjectFieldValue(ii).Ref)
 			h.Value = val
 		}
 	}
@@ -376,21 +377,21 @@ type Parameter struct {
 }
 
 func (p *Parameter) Unmarshal(doc *ast.Document, ref int) {
-	for _, i := range doc.ObjectValues[ref].Refs {
-		name := string(doc.ObjectFieldNameBytes(i))
+	for _, ii := range doc.ObjectValues[ref].Refs {
+		name := string(doc.ObjectFieldNameBytes(ii))
 		switch name {
 		case "name":
-			val := doc.StringValueContentString(doc.ObjectFieldValue(i).Ref)
+			val := doc.StringValueContentString(doc.ObjectFieldValue(ii).Ref)
 			p.Name = val
 		case "sourceKind":
 			var val PARAMETER_SOURCE
-			val.Unmarshal(doc, doc.ObjectFieldValue(i).Ref)
+			val.Unmarshal(doc, doc.ObjectFieldValue(ii).Ref)
 			p.SourceKind = val
 		case "sourceName":
-			val := doc.StringValueContentString(doc.ObjectFieldValue(i).Ref)
+			val := doc.StringValueContentString(doc.ObjectFieldValue(ii).Ref)
 			p.SourceName = val
 		case "variableType":
-			val := doc.StringValueContentString(doc.ObjectFieldValue(i).Ref)
+			val := doc.StringValueContentString(doc.ObjectFieldValue(ii).Ref)
 			p.VariableType = val
 		}
 	}
@@ -402,14 +403,14 @@ type StatusCodeTypeNameMapping struct {
 }
 
 func (s *StatusCodeTypeNameMapping) Unmarshal(doc *ast.Document, ref int) {
-	for _, i := range doc.ObjectValues[ref].Refs {
-		name := string(doc.ObjectFieldNameBytes(i))
+	for _, ii := range doc.ObjectValues[ref].Refs {
+		name := string(doc.ObjectFieldNameBytes(ii))
 		switch name {
 		case "statusCode":
-			val := doc.IntValueAsInt(doc.ObjectFieldValue(i).Ref)
+			val := doc.IntValueAsInt(doc.ObjectFieldValue(ii).Ref)
 			s.StatusCode = val
 		case "typeName":
-			val := doc.StringValueContentString(doc.ObjectFieldValue(i).Ref)
+			val := doc.StringValueContentString(doc.ObjectFieldValue(ii).Ref)
 			s.TypeName = val
 		}
 	}
