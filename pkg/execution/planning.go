@@ -214,7 +214,7 @@ func (p *planningVisitor) EnterField(ref int) {
 				if firstNValue.Kind == ast.ValueKindInteger {
 					firstN := p.definition.IntValueAsInt(firstNValue.Ref)
 					list.Filter = &ListFilterFirstN{
-						FirstN: firstN,
+						FirstN: int(firstN),
 					}
 				}
 			}

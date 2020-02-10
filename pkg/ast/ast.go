@@ -1623,9 +1623,9 @@ type IntValue struct {
 	Raw          ByteSliceReference // e.g. 123
 }
 
-func (d *Document) IntValueAsInt(ref int) (out int) {
+func (d *Document) IntValueAsInt(ref int) (out int64) {
 	in := d.Input.ByteSlice(d.IntValues[ref].Raw)
-	out = int(unsafebytes.BytesToInt64(in))
+	out = unsafebytes.BytesToInt64(in)
 	if d.IntValues[ref].Negative {
 		out = -out
 	}
@@ -1639,6 +1639,15 @@ type FloatValue struct {
 	Negative     bool               // indicates if the value is negative
 	NegativeSign position.Position  // optional -
 	Raw          ByteSliceReference // e.g. 13.37
+}
+
+func (d *Document) FloatValueAsFloat32(ref int) (out float32) {
+	in := d.Input.ByteSlice(d.FloatValues[ref].Raw)
+	out = unsafebytes.BytesToFloat32(in)
+	if d.FloatValues[ref].Negative {
+		out = -out
+	}
+	return
 }
 
 // EnumValue
@@ -1944,6 +1953,59 @@ type InputObjectTypeDefinition struct {
 	Directives               DirectiveList // optional, e.g. @foo
 	HasInputFieldsDefinition bool
 	InputFieldsDefinition    InputValueDefinitionList // e.g. x:Float
+}
+
+func (d *Document) InputObjectTypeDefinitionInputValueDefinitionDefaultValueString(inputObjectTypeDefinitionName, inputValueDefinitionName string) string {
+	defaultValue := d.InputObjectTypeDefinitionInputValueDefinitionDefaultValue(inputObjectTypeDefinitionName, inputValueDefinitionName)
+	if defaultValue.Kind != ValueKindString {
+		return ""
+	}
+	return d.StringValueContentString(defaultValue.Ref)
+}
+
+func (d *Document) InputObjectTypeDefinitionInputValueDefinitionDefaultValueBool(inputObjectTypeDefinitionName, inputValueDefinitionName string) bool {
+	defaultValue := d.InputObjectTypeDefinitionInputValueDefinitionDefaultValue(inputObjectTypeDefinitionName, inputValueDefinitionName)
+	if defaultValue.Kind != ValueKindBoolean {
+		return false
+	}
+	return bool(d.BooleanValue(defaultValue.Ref))
+}
+
+func (d *Document) InputObjectTypeDefinitionInputValueDefinitionDefaultValueInt64(inputObjectTypeDefinitionName, inputValueDefinitionName string) int64 {
+	defaultValue := d.InputObjectTypeDefinitionInputValueDefinitionDefaultValue(inputObjectTypeDefinitionName, inputValueDefinitionName)
+	if defaultValue.Kind != ValueKindInteger {
+		return -1
+	}
+	return d.IntValueAsInt(defaultValue.Ref)
+}
+
+func (d *Document) InputObjectTypeDefinitionInputValueDefinitionDefaultValueFloat32(inputObjectTypeDefinitionName, inputValueDefinitionName string) float32 {
+	defaultValue := d.InputObjectTypeDefinitionInputValueDefinitionDefaultValue(inputObjectTypeDefinitionName, inputValueDefinitionName)
+	if defaultValue.Kind != ValueKindFloat {
+		return -1
+	}
+	return d.FloatValueAsFloat32(defaultValue.Ref)
+}
+
+func (d *Document) InputObjectTypeDefinitionInputValueDefinitionDefaultValue(inputObjectTypeDefinitionName, inputValueDefinitionName string) Value {
+	inputObjectTypeDefinition := d.Index.Nodes[xxhash.Sum64String(inputObjectTypeDefinitionName)]
+	if inputObjectTypeDefinition.Kind != NodeKindInputObjectTypeDefinition {
+		return Value{}
+	}
+	inputValueDefinition := d.InputObjectTypeDefinitionInputValueDefinitionByName(inputObjectTypeDefinition.Ref, unsafebytes.StringToBytes(inputValueDefinitionName))
+	if inputValueDefinition == -1 {
+		return Value{}
+	}
+	return d.InputValueDefinitionDefaultValue(inputValueDefinition)
+}
+
+func (d *Document) InputObjectTypeDefinitionInputValueDefinitionByName(definition int, inputValueDefinitionName ByteSlice) int {
+	for _, i := range d.InputObjectTypeDefinitions[definition].InputFieldsDefinition.Refs {
+		if bytes.Equal(inputValueDefinitionName, d.InputValueDefinitionNameBytes(i)) {
+			return i
+		}
+	}
+	return -1
 }
 
 func (d *Document) InputObjectTypeExtensionHasDirectives(ref int) bool {
@@ -2543,6 +2605,54 @@ func (d *Document) DirectiveArgumentInputValueDefinition(directiveName ByteSlice
 		}
 	}
 	return -1
+}
+
+func (d *Document) DirectiveDefinitionArgumentDefaultValueString(directiveName, argumentName string) string {
+	inputValueDefinition := d.DirectiveArgumentInputValueDefinition(unsafebytes.StringToBytes(directiveName), unsafebytes.StringToBytes(argumentName))
+	if inputValueDefinition == -1 {
+		return ""
+	}
+	defaultValue := d.InputValueDefinitionDefaultValue(inputValueDefinition)
+	if defaultValue.Kind != ValueKindString {
+		return ""
+	}
+	return d.StringValueContentString(defaultValue.Ref)
+}
+
+func (d *Document) DirectiveDefinitionArgumentDefaultValueBool(directiveName, argumentName string) bool {
+	inputValueDefinition := d.DirectiveArgumentInputValueDefinition(unsafebytes.StringToBytes(directiveName), unsafebytes.StringToBytes(argumentName))
+	if inputValueDefinition == -1 {
+		return false
+	}
+	defaultValue := d.InputValueDefinitionDefaultValue(inputValueDefinition)
+	if defaultValue.Kind != ValueKindBoolean {
+		return false
+	}
+	return bool(d.BooleanValue(defaultValue.Ref))
+}
+
+func (d *Document) DirectiveDefinitionArgumentDefaultValueInt64(directiveName, argumentName string) int64 {
+	inputValueDefinition := d.DirectiveArgumentInputValueDefinition(unsafebytes.StringToBytes(directiveName), unsafebytes.StringToBytes(argumentName))
+	if inputValueDefinition == -1 {
+		return -1
+	}
+	defaultValue := d.InputValueDefinitionDefaultValue(inputValueDefinition)
+	if defaultValue.Kind != ValueKindInteger {
+		return -1
+	}
+	return d.IntValueAsInt(defaultValue.Ref)
+}
+
+func (d *Document) DirectiveDefinitionArgumentDefaultValueFloat32(directiveName, argumentName string) float32 {
+	inputValueDefinition := d.DirectiveArgumentInputValueDefinition(unsafebytes.StringToBytes(directiveName), unsafebytes.StringToBytes(argumentName))
+	if inputValueDefinition == -1 {
+		return -1
+	}
+	defaultValue := d.InputValueDefinitionDefaultValue(inputValueDefinition)
+	if defaultValue.Kind != ValueKindFloat {
+		return -1
+	}
+	return d.FloatValueAsFloat32(defaultValue.Ref)
 }
 
 type SelectionSet struct {

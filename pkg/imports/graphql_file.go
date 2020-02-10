@@ -17,6 +17,36 @@ func (g GraphQLFile) Render(printFilePath bool, out io.Writer) error {
 }
 
 func (g GraphQLFile) render(printFilePath bool, out io.Writer) error {
+
+	var err error
+	if g.RelativePath != "" {
+		err = g.renderSelf(printFilePath, out)
+		if err != nil {
+			return err
+		}
+	}
+
+	for _, importFile := range g.Imports {
+		if printFilePath {
+			_, err = out.Write(literal.LINETERMINATOR)
+			if err != nil {
+				return err
+			}
+			_, err = out.Write(literal.LINETERMINATOR)
+			if err != nil {
+				return err
+			}
+		}
+		err = importFile.render(printFilePath, out)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (g GraphQLFile) renderSelf(printFilePath bool, out io.Writer) error {
 	file, err := os.Open(g.RelativePath)
 	if err != nil {
 		return err
@@ -47,21 +77,6 @@ func (g GraphQLFile) render(printFilePath bool, out io.Writer) error {
 		}
 
 		_, err = out.Write(literal.LINETERMINATOR)
-		if err != nil {
-			return err
-		}
-	}
-
-	for _, importFile := range g.Imports {
-		_, err = out.Write(literal.LINETERMINATOR)
-		if err != nil {
-			return err
-		}
-		_, err = out.Write(literal.LINETERMINATOR)
-		if err != nil {
-			return err
-		}
-		err = importFile.render(printFilePath, out)
 		if err != nil {
 			return err
 		}

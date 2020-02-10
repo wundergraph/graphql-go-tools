@@ -1,0 +1,46 @@
+directive @DataSource (
+    nonNullString: String!
+    nullableString: String
+    nonNullInt: Int!
+    nullableInt: Int
+    nonNullBoolean: Boolean!
+    nullableBoolean: Boolean
+    nonNullFloat: Float!
+    nullableFloat: Float
+    nullableListOfNullableString: [String]
+    nonNullListOfNullableString: [String]!
+    nonNullListOfNonNullString: [String!]!
+    nullableListOfNullableHeader: [Header]
+    nonNullListOfNullableHeader: [Header]!
+    nonNullListOfNonNullParameter: [Parameter!]!
+    methods: Methods!
+) on FIELD_DEFINITION
+
+input Methods {
+    list: [HTTP_METHOD!]!
+}
+
+input Header {
+    key: String!
+    value: String!
+}
+
+input Parameter {
+    name: String!
+    sourceKind: PARAMETER_SOURCE!
+    sourceName: String!
+    variableName: String!
+}
+
+enum HTTP_METHOD {
+    GET
+    POST
+    UPDATE
+    DELETE
+}
+
+enum PARAMETER_SOURCE {
+    CONTEXT_VARIABLE
+    OBJECT_VARIABLE_ARGUMENT
+    FIELD_ARGUMENTS
+}

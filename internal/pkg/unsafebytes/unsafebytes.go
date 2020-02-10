@@ -11,9 +11,9 @@ func BytesToInt64(byteSlice []byte) int64 {
 	return out
 }
 
-func BytesToFloat64(byteSlice []byte) float64 {
+func BytesToFloat32(byteSlice []byte) float32 {
 	out, _ := strconv.ParseFloat(*(*string)(unsafe.Pointer(&byteSlice)), 64)
-	return out
+	return float32(out)
 }
 
 func BytesToString(bytes []byte) string {

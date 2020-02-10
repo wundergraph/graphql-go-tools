@@ -1,4 +1,5 @@
 //go:generate packr
+//go:generate graphql-go-tools gen directiveUnmarshalCode -f ./graphql_definitions/**/*.graphql -p execution -o ./datasource_config.go -s Config
 package execution
 
 import (

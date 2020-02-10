@@ -25,6 +25,14 @@ func (s *Scanner) ScanFile(inputFilePath string) (*GraphQLFile, error) {
 	return s.scanFile(inputFilePath)
 }
 
+func (s *Scanner) ScanRegex(filesRegex string) (*GraphQLFile, error) {
+	s.knownFiles = map[string]struct{}{}
+	file := &GraphQLFile{}
+	var err error
+	file.Imports, err = s.fileImportsForPattern(filesRegex)
+	return file, err
+}
+
 func (s *Scanner) scanFile(inputFilePath string) (*GraphQLFile, error) {
 
 	basePath, err := os.Getwd()
