@@ -133,7 +133,7 @@ func (e *Executor) resolveNode(node Node, data []byte, path string, prefetch *sy
 		e.resolveNode(node.Value, data, path, nil, true)
 	case *Value:
 		data = e.resolveData(node.DataResolvingConfig, data)
-		e.writeValue(data, node.QuoteValue)
+		e.writeValue(data, node.ValueType)
 		return
 	case *List:
 		data = e.resolveData(node.DataResolvingConfig, data)
@@ -194,13 +194,13 @@ func (e *Executor) resolveNode(node Node, data []byte, path string, prefetch *sy
 
 // writeValue escapes and writes the value from data into the executors io.Writer including quotes if specified
 // if data is nil or "null" a proper JSON value "null" will be written
-func (e *Executor) writeValue(data []byte, quoteValue bool) {
+func (e *Executor) writeValue(data []byte, valueType JSONValueType) {
 	if data == nil || bytes.Equal(data, literal.NULL) {
 		e.write(literal.NULL)
 		return
 	}
 	data = escape.Bytes(data, e.escapeBuf[:0])
-	if quoteValue {
+	if valueType == StringValueType {
 		e.writeQuoted(data)
 		return
 	}
@@ -595,8 +595,18 @@ func (*Field) Kind() NodeKind {
 
 type Value struct {
 	DataResolvingConfig DataResolvingConfig
-	QuoteValue          bool
+	ValueType           JSONValueType
 }
+
+type JSONValueType int
+
+const (
+	UnknownValueType JSONValueType = iota
+	StringValueType
+	IntegerValueType
+	FloatValueType
+	BooleanValueType
+)
 
 func (value *Value) HasResolversRecursively() bool {
 	return false
