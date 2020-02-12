@@ -289,6 +289,7 @@ func TestExecution(t *testing.T) {
 													Path: "id",
 												},
 											},
+											ValueType:IntegerValueType,
 										},
 									},
 									{
@@ -1492,14 +1493,7 @@ func TestExecutor_GraphqlDataSourceWithParams(t *testing.T) {
 
 	graphQL1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-		body, err := httputil.DumpRequest(r, true)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		fmt.Println(string(body))
-
-		_, err = w.Write([]byte(`{
+		_, err := w.Write([]byte(`{
 			"data": {
 				"countries": [
 					{"id":1},{"id":2}
