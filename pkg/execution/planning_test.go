@@ -2286,7 +2286,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						Path: "isDeprecated",
 																					},
 																				},
-																				ValueType:IntegerValueType,
+																				ValueType:BooleanValueType,
 																			},
 																		},
 																		{
@@ -2415,7 +2415,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						Path: "isDeprecated",
 																					},
 																				},
-																				ValueType:IntegerValueType,
+																				ValueType:BooleanValueType,
 																			},
 																		},
 																		{
@@ -4143,7 +4143,7 @@ func introspectionQuery(schema []byte) RootNode {
 																					Path: "isDeprecated",
 																				},
 																			},
-																			ValueType:IntegerValueType,
+																			ValueType:BooleanValueType,
 																		},
 																	},
 																	{
@@ -4272,7 +4272,7 @@ func introspectionQuery(schema []byte) RootNode {
 																					Path: "isDeprecated",
 																				},
 																			},
-																			ValueType:IntegerValueType,
+																			ValueType:BooleanValueType,
 																		},
 																	},
 																	{
