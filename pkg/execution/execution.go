@@ -12,7 +12,6 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/runes"
-	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 	"github.com/tidwall/gjson"
 	"github.com/valyala/fasttemplate"
 	"io"
@@ -28,7 +27,6 @@ type Executor struct {
 	buffers      LockableBufferMap
 	instructions []Instruction
 	escapeBuf    [48]byte
-	report       operationreport.Report
 }
 
 type LockableBufferMap struct {

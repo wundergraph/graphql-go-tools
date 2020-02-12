@@ -198,7 +198,7 @@ func (p *planningVisitor) EnterField(ref int) {
 
 			if !p.operation.FieldHasSelections(ref) {
 				value = &Value{
-					ValueType: p.jsonValueType(ref, fieldDefinitionType),
+					ValueType: p.jsonValueType(fieldDefinitionType),
 				}
 			} else {
 				value = &Object{}
@@ -232,7 +232,7 @@ func (p *planningVisitor) EnterField(ref int) {
 		if !p.operation.FieldHasSelections(ref) {
 			value = &Value{
 				DataResolvingConfig: dataResolvingConfig,
-				ValueType:           p.jsonValueType(ref, fieldDefinitionType),
+				ValueType:           p.jsonValueType(fieldDefinitionType),
 			}
 		} else {
 			value = &Object{
@@ -373,7 +373,7 @@ type ResolverParameter struct {
 	variableType []byte
 }
 
-func (p *planningVisitor) jsonValueType(fieldRef, valueType int) JSONValueType {
+func (p *planningVisitor) jsonValueType(valueType int) JSONValueType {
 	typeName := p.definition.ResolveTypeName(valueType)
 	switch {
 	case bytes.Equal(typeName, literal.INT):
@@ -382,15 +382,8 @@ func (p *planningVisitor) jsonValueType(fieldRef, valueType int) JSONValueType {
 		return BooleanValueType
 	case bytes.Equal(typeName, literal.FLOAT):
 		return FloatValueType
-	case
-		bytes.Equal(typeName, literal.ID),
-		bytes.Equal(typeName, literal.STRING):
-		return StringValueType
 	default:
-		if bytes.Equal(p.operation.FieldNameBytes(fieldRef), literal.TYPENAME) {
-			return StringValueType
-		}
-		return UnknownValueType
+		return StringValueType
 	}
 }
 
