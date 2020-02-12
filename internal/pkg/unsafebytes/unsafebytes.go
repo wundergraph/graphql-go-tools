@@ -22,6 +22,11 @@ func BytesToString(bytes []byte) string {
 	return *(*string)(unsafe.Pointer(&stringHeader))
 }
 
+func BytesToBool(byteSlice []byte) bool {
+	out, _ := strconv.ParseBool(*(*string)(unsafe.Pointer(&byteSlice)))
+	return out
+}
+
 func StringToBytes(str string) []byte {
 	hdr := *(*reflect.StringHeader)(unsafe.Pointer(&str))
 	return *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
@@ -29,4 +34,19 @@ func StringToBytes(str string) []byte {
 		Len:  hdr.Len,
 		Cap:  hdr.Len,
 	}))
+}
+
+func BytesIsValidFloat32(byteSlice []byte) bool {
+	_, err := strconv.ParseFloat(*(*string)(unsafe.Pointer(&byteSlice)), 64)
+	return err == nil
+}
+
+func BytesIsValidInt64(byteSlice []byte) bool {
+	_, err := strconv.ParseInt(*(*string)(unsafe.Pointer(&byteSlice)), 10, 64)
+	return err == nil
+}
+
+func BytesIsValidBool(byteSlice []byte) bool {
+	_, err := strconv.ParseBool(*(*string)(unsafe.Pointer(&byteSlice)))
+	return err == nil
 }

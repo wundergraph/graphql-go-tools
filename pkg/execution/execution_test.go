@@ -157,7 +157,7 @@ func TestExecution(t *testing.T) {
 													Path: "name",
 												},
 											},
-											QuoteValue: true,
+											ValueType:StringValueType,
 										},
 									},
 									{
@@ -178,7 +178,7 @@ func TestExecution(t *testing.T) {
 																	Path: "name",
 																},
 															},
-															QuoteValue: true,
+															ValueType:StringValueType,
 														},
 													},
 													{
@@ -198,7 +198,7 @@ func TestExecution(t *testing.T) {
 																				Path: "name",
 																			},
 																		},
-																		QuoteValue: true,
+																		ValueType:StringValueType,
 																	},
 																},
 															},
@@ -289,6 +289,7 @@ func TestExecution(t *testing.T) {
 													Path: "id",
 												},
 											},
+											ValueType:IntegerValueType,
 										},
 									},
 									{
@@ -299,7 +300,7 @@ func TestExecution(t *testing.T) {
 													Path: "name",
 												},
 											},
-											QuoteValue: true,
+											ValueType:StringValueType,
 										},
 									},
 									{
@@ -310,7 +311,7 @@ func TestExecution(t *testing.T) {
 													Path: "birthday",
 												},
 											},
-											QuoteValue: true,
+											ValueType:StringValueType,
 										},
 									},
 									{
@@ -355,7 +356,7 @@ func TestExecution(t *testing.T) {
 																	Path: "id",
 																},
 															},
-															QuoteValue: false,
+															ValueType:IntegerValueType,
 														},
 													},
 													{
@@ -366,7 +367,7 @@ func TestExecution(t *testing.T) {
 																	Path: "name",
 																},
 															},
-															QuoteValue: true,
+															ValueType:StringValueType,
 														},
 													},
 													{
@@ -377,7 +378,7 @@ func TestExecution(t *testing.T) {
 																	Path: "birthday",
 																},
 															},
-															QuoteValue: true,
+															ValueType:StringValueType,
 														},
 													},
 													{
@@ -394,7 +395,7 @@ func TestExecution(t *testing.T) {
 																					Path: "__typename",
 																				},
 																			},
-																			QuoteValue: true,
+																			ValueType:StringValueType,
 																		},
 																	},
 																	{
@@ -405,7 +406,7 @@ func TestExecution(t *testing.T) {
 																					Path: "name",
 																				},
 																			},
-																			QuoteValue: true,
+																			ValueType:StringValueType,
 																		},
 																	},
 																	{
@@ -416,7 +417,7 @@ func TestExecution(t *testing.T) {
 																					Path: "nickname",
 																				},
 																			},
-																			QuoteValue: true,
+																			ValueType:StringValueType,
 																		},
 																	},
 																	{
@@ -427,7 +428,7 @@ func TestExecution(t *testing.T) {
 																					Path: "woof",
 																				},
 																			},
-																			QuoteValue: true,
+																			ValueType:StringValueType,
 																		},
 																		Skip: &IfNotEqual{
 																			Left: &ObjectVariableArgument{
@@ -448,7 +449,7 @@ func TestExecution(t *testing.T) {
 																					Path: "meow",
 																				},
 																			},
-																			QuoteValue: true,
+																			ValueType:StringValueType,
 																		},
 																		Skip: &IfNotEqual{
 																			Left: &ObjectVariableArgument{
@@ -488,7 +489,7 @@ func TestExecution(t *testing.T) {
 																	Path: "__typename",
 																},
 															},
-															QuoteValue: true,
+															ValueType:StringValueType,
 														},
 													},
 													{
@@ -499,7 +500,7 @@ func TestExecution(t *testing.T) {
 																	Path: "name",
 																},
 															},
-															QuoteValue: true,
+															ValueType:StringValueType,
 														},
 													},
 													{
@@ -510,7 +511,7 @@ func TestExecution(t *testing.T) {
 																	Path: "nickname",
 																},
 															},
-															QuoteValue: true,
+															ValueType:StringValueType,
 														},
 													},
 													{
@@ -521,7 +522,7 @@ func TestExecution(t *testing.T) {
 																	Path: "woof",
 																},
 															},
-															QuoteValue: true,
+															ValueType:StringValueType,
 														},
 														Skip: &IfNotEqual{
 															Left: &ObjectVariableArgument{
@@ -542,7 +543,7 @@ func TestExecution(t *testing.T) {
 																	Path: "meow",
 																},
 															},
-															QuoteValue: true,
+															ValueType:StringValueType,
 														},
 														Skip: &IfNotEqual{
 															Left: &ObjectVariableArgument{
@@ -843,7 +844,7 @@ func genField() Field {
 											Path: "name",
 										},
 									},
-									QuoteValue: true,
+									ValueType:StringValueType,
 								},
 							},
 							{
@@ -880,7 +881,7 @@ func genField() Field {
 															Path: "name",
 														},
 													},
-													QuoteValue: true,
+													ValueType:StringValueType,
 												},
 											},
 											{
@@ -946,7 +947,7 @@ func genField() Field {
 															Path: "woof",
 														},
 													},
-													QuoteValue: true,
+													ValueType:StringValueType,
 												},
 												Skip: &IfNotEqual{
 													Left: &ObjectVariableArgument{
@@ -967,7 +968,7 @@ func genField() Field {
 															Path: "meow",
 														},
 													},
-													QuoteValue: true,
+													ValueType:StringValueType,
 												},
 												Skip: &IfNotEqual{
 													Left: &ObjectVariableArgument{
@@ -1133,7 +1134,7 @@ func TestStreamExecution(t *testing.T) {
 													Path: "bar",
 												},
 											},
-											QuoteValue: true,
+											ValueType:StringValueType,
 										},
 									},
 									{
@@ -1144,7 +1145,7 @@ func TestStreamExecution(t *testing.T) {
 													Path: "baz",
 												},
 											},
-											QuoteValue: false,
+											ValueType:IntegerValueType,
 										},
 									},
 								},
@@ -1228,7 +1229,7 @@ func TestExecutor_ListFilterFirstN(t *testing.T) {
 														Path: "bar",
 													},
 												},
-												QuoteValue: true,
+												ValueType:StringValueType,
 											},
 										},
 									},
@@ -1345,7 +1346,7 @@ func TestExecutor_ObjectVariables(t *testing.T) {
 													Path: "name",
 												},
 											},
-											QuoteValue: true,
+											ValueType:StringValueType,
 										},
 									},
 									{
@@ -1356,7 +1357,7 @@ func TestExecutor_ObjectVariables(t *testing.T) {
 													Path: "id",
 												},
 											},
-											QuoteValue: false,
+											ValueType:IntegerValueType,
 										},
 									},
 									{
@@ -1372,7 +1373,7 @@ func TestExecutor_ObjectVariables(t *testing.T) {
 																Path: "name",
 															},
 														},
-														QuoteValue: true,
+														ValueType:StringValueType,
 													},
 												},
 												{
@@ -1383,7 +1384,7 @@ func TestExecutor_ObjectVariables(t *testing.T) {
 																Path: "age",
 															},
 														},
-														QuoteValue: false,
+														ValueType:IntegerValueType,
 													},
 												},
 											},
@@ -1456,7 +1457,7 @@ func TestExecutor_ListWithPath(t *testing.T) {
 														Path: "id",
 													},
 												},
-												QuoteValue: false,
+												ValueType:IntegerValueType,
 											},
 										},
 									},
@@ -1492,14 +1493,7 @@ func TestExecutor_GraphqlDataSourceWithParams(t *testing.T) {
 
 	graphQL1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-		body, err := httputil.DumpRequest(r, true)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		fmt.Println(string(body))
-
-		_, err = w.Write([]byte(`{
+		_, err := w.Write([]byte(`{
 			"data": {
 				"countries": [
 					{"id":1},{"id":2}
@@ -1563,7 +1557,7 @@ func TestExecutor_GraphqlDataSourceWithParams(t *testing.T) {
 														Path: "id",
 													},
 												},
-												QuoteValue: false,
+												ValueType:IntegerValueType,
 											},
 										},
 									},
@@ -1627,7 +1621,7 @@ func TestExecutor_ObjectWithPath(t *testing.T) {
 										Path: "api.id",
 									},
 								},
-								QuoteValue: false,
+								ValueType:IntegerValueType,
 							},
 						},
 					},
@@ -1974,7 +1968,7 @@ func TestExecutor_HTTPJSONDataSourceWithBody(t *testing.T) {
 							Name:            []byte("withBody"),
 							HasResolvedData: true,
 							Value: &Value{
-								QuoteValue: true,
+								ValueType:StringValueType,
 							},
 						},
 					},
@@ -2035,7 +2029,7 @@ func TestExecutor_Execute_WithUnions(t *testing.T) {
 					},
 				},
 				Value: &Value{
-					QuoteValue: true,
+					ValueType:StringValueType,
 					DataResolvingConfig: DataResolvingConfig{
 						PathSelector: PathSelector{
 							Path: "id",
@@ -2056,7 +2050,7 @@ func TestExecutor_Execute_WithUnions(t *testing.T) {
 					},
 				},
 				Value: &Value{
-					QuoteValue: true,
+					ValueType:StringValueType,
 					DataResolvingConfig: DataResolvingConfig{
 						PathSelector: PathSelector{
 							Path: "name",
@@ -2080,7 +2074,7 @@ func TestExecutor_Execute_WithUnions(t *testing.T) {
 					},
 				},
 				Value: &Value{
-					QuoteValue: true,
+					ValueType:StringValueType,
 					DataResolvingConfig: DataResolvingConfig{
 						PathSelector: PathSelector{
 							Path: "Status",
@@ -2101,7 +2095,7 @@ func TestExecutor_Execute_WithUnions(t *testing.T) {
 					},
 				},
 				Value: &Value{
-					QuoteValue: true,
+					ValueType:StringValueType,
 					DataResolvingConfig: DataResolvingConfig{
 						PathSelector: PathSelector{
 							Path: "Message",
@@ -2176,7 +2170,7 @@ func TestExecutor_Execute_WithUnions(t *testing.T) {
 										Path: "name",
 									},
 								},
-								QuoteValue: true,
+								ValueType:StringValueType,
 							},
 						},
 					},
@@ -2198,7 +2192,7 @@ func TestExecutor_Execute_WithUnions(t *testing.T) {
 					},
 				},
 				Value: &Value{
-					QuoteValue: true,
+					ValueType:StringValueType,
 					DataResolvingConfig: DataResolvingConfig{
 						PathSelector: PathSelector{
 							Path: "Status",
@@ -2219,7 +2213,7 @@ func TestExecutor_Execute_WithUnions(t *testing.T) {
 					},
 				},
 				Value: &Value{
-					QuoteValue: true,
+					ValueType:StringValueType,
 					DataResolvingConfig: DataResolvingConfig{
 						PathSelector: PathSelector{
 							Path: "Message",
@@ -2393,7 +2387,7 @@ func TestExecutor_HTTPJSONDataSourceWithBodyComplexPlayload(t *testing.T) {
 							Name:            []byte("withBody"),
 							HasResolvedData: true,
 							Value: &Value{
-								QuoteValue: true,
+								ValueType:StringValueType,
 							},
 						},
 					},
@@ -2500,7 +2494,7 @@ func TestExecutor_HTTPJSONDataSourceWithHeaders(t *testing.T) {
 							Name:            []byte("withHeaders"),
 							HasResolvedData: true,
 							Value: &Value{
-								QuoteValue: true,
+								ValueType:StringValueType,
 							},
 						},
 					},
@@ -2602,7 +2596,7 @@ func TestExecutor_HTTPJSONDataSourceWithPathSelector(t *testing.T) {
 												},
 											},
 											Value: &Value{
-												QuoteValue: true,
+												ValueType:StringValueType,
 											},
 										},
 									},

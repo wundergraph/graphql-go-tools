@@ -39,6 +39,7 @@ var (
 
 	EOF                           = []byte("eof")
 	ID                            = []byte("ID")
+	Date                          = []byte("Date")
 	BOOLEAN                       = []byte("Boolean")
 	STRING                        = []byte("String")
 	INT                           = []byte("Int")

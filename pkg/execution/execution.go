@@ -10,7 +10,6 @@ import (
 	"github.com/cespare/xxhash"
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/escape"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/runes"
 	"github.com/tidwall/gjson"
@@ -133,7 +132,7 @@ func (e *Executor) resolveNode(node Node, data []byte, path string, prefetch *sy
 		e.resolveNode(node.Value, data, path, nil, true)
 	case *Value:
 		data = e.resolveData(node.DataResolvingConfig, data)
-		e.writeValue(data, node.QuoteValue)
+		_, e.err = node.ValueType.writeValue(data,e.escapeBuf[:], e.out)
 		return
 	case *List:
 		data = e.resolveData(node.DataResolvingConfig, data)
@@ -190,21 +189,6 @@ func (e *Executor) resolveNode(node Node, data []byte, path string, prefetch *sy
 		}
 		e.write(literal.RBRACK)
 	}
-}
-
-// writeValue escapes and writes the value from data into the executors io.Writer including quotes if specified
-// if data is nil or "null" a proper JSON value "null" will be written
-func (e *Executor) writeValue(data []byte, quoteValue bool) {
-	if data == nil || bytes.Equal(data, literal.NULL) {
-		e.write(literal.NULL)
-		return
-	}
-	data = escape.Bytes(data, e.escapeBuf[:0])
-	if quoteValue {
-		e.writeQuoted(data)
-		return
-	}
-	e.write(data)
 }
 
 func (e *Executor) resolveData(config DataResolvingConfig, data []byte) []byte {
@@ -595,7 +579,7 @@ func (*Field) Kind() NodeKind {
 
 type Value struct {
 	DataResolvingConfig DataResolvingConfig
-	QuoteValue          bool
+	ValueType           JSONValueType
 }
 
 func (value *Value) HasResolversRecursively() bool {

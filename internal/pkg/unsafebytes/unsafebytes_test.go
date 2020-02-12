@@ -43,6 +43,56 @@ func TestBytesToString(t *testing.T) {
 	}
 }
 
+func TestBytesToBool(t *testing.T) {
+	if !BytesToBool([]byte("true")){
+		t.Fatal("want true")
+	}
+	if BytesToBool([]byte("false")){
+		t.Fatal("want false")
+	}
+	if !BytesToBool([]byte("1")){
+		t.Fatal("want true")
+	}
+	if BytesToBool([]byte("0")){
+		t.Fatal("want false")
+	}
+	if BytesToBool([]byte("2")){
+		t.Fatal("want false")
+	}
+}
+
+func testValidation(validationFunc func([]byte) bool, value []byte, expectation bool) func(t *testing.T) {
+	return func(t *testing.T) {
+		if expectation != validationFunc(value) {
+			t.Fatalf("want: %t, got: %t", expectation, !expectation)
+		}
+	}
+}
+
+func TestBytesIsValidFloat32(t *testing.T) {
+	t.Run("valid float", testValidation(BytesIsValidFloat32, []byte("1.23"), true))
+	t.Run("valid float", testValidation(BytesIsValidFloat32, []byte("123"), true))
+	t.Run("invalid float", testValidation(BytesIsValidFloat32, []byte("1.2.3"), false))
+	t.Run("invalid float", testValidation(BytesIsValidFloat32, []byte("true"), false))
+	t.Run("invalid float", testValidation(BytesIsValidFloat32, []byte("\"1.23\""), false))
+}
+
+func TestBytesIsValidInt64(t *testing.T) {
+	t.Run("valid int", testValidation(BytesIsValidInt64, []byte("123"), true))
+	t.Run("invalid int", testValidation(BytesIsValidInt64, []byte("1.23"), false))
+	t.Run("invalid int", testValidation(BytesIsValidInt64, []byte("true"), false))
+	t.Run("invalid int", testValidation(BytesIsValidInt64, []byte("\"123\""), false))
+}
+
+func TestBytesIsValidBool(t *testing.T) {
+	t.Run("valid bool", testValidation(BytesIsValidBool, []byte("true"), true))
+	t.Run("valid bool", testValidation(BytesIsValidBool, []byte("false"), true))
+	t.Run("invalid bool", testValidation(BytesIsValidBool, []byte("0"), true))
+	t.Run("invalid bool", testValidation(BytesIsValidBool, []byte("1"), true))
+	t.Run("invalid bool", testValidation(BytesIsValidBool, []byte("\"false\""), false))
+	t.Run("invalid bool", testValidation(BytesIsValidBool, []byte("2"), false))
+}
+
 func BenchmarkByteSliceToInt(b *testing.B) {
 
 	in := []byte("1024")
