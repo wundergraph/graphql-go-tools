@@ -10,9 +10,9 @@ import (
 	"github.com/cespare/xxhash"
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/escape"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/runes"
+	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 	"github.com/tidwall/gjson"
 	"github.com/valyala/fasttemplate"
 	"io"
@@ -28,6 +28,7 @@ type Executor struct {
 	buffers      LockableBufferMap
 	instructions []Instruction
 	escapeBuf    [48]byte
+	report       operationreport.Report
 }
 
 type LockableBufferMap struct {
@@ -133,7 +134,7 @@ func (e *Executor) resolveNode(node Node, data []byte, path string, prefetch *sy
 		e.resolveNode(node.Value, data, path, nil, true)
 	case *Value:
 		data = e.resolveData(node.DataResolvingConfig, data)
-		e.writeValue(data, node.ValueType)
+		_, e.err = node.ValueType.writeValue(data,e.escapeBuf[:], e.out)
 		return
 	case *List:
 		data = e.resolveData(node.DataResolvingConfig, data)
@@ -190,21 +191,6 @@ func (e *Executor) resolveNode(node Node, data []byte, path string, prefetch *sy
 		}
 		e.write(literal.RBRACK)
 	}
-}
-
-// writeValue escapes and writes the value from data into the executors io.Writer including quotes if specified
-// if data is nil or "null" a proper JSON value "null" will be written
-func (e *Executor) writeValue(data []byte, valueType JSONValueType) {
-	if data == nil || bytes.Equal(data, literal.NULL) {
-		e.write(literal.NULL)
-		return
-	}
-	data = escape.Bytes(data, e.escapeBuf[:0])
-	if valueType == StringValueType {
-		e.writeQuoted(data)
-		return
-	}
-	e.write(data)
 }
 
 func (e *Executor) resolveData(config DataResolvingConfig, data []byte) []byte {
@@ -597,16 +583,6 @@ type Value struct {
 	DataResolvingConfig DataResolvingConfig
 	ValueType           JSONValueType
 }
-
-type JSONValueType int
-
-const (
-	UnknownValueType JSONValueType = iota
-	StringValueType
-	IntegerValueType
-	FloatValueType
-	BooleanValueType
-)
 
 func (value *Value) HasResolversRecursively() bool {
 	return false
