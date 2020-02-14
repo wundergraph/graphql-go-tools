@@ -87,17 +87,17 @@ func (e *Executor) resolveNode(node Node, data []byte, path string, prefetch *sy
 
 	switch node := node.(type) {
 	case *Object:
-		if shouldFetch && node.Fetch != nil { // execute the fetch on the object
-			e.instructions = append(e.instructions, node.Fetch.Fetch(e.context, data, e, path, &e.buffers))
-			if prefetch != nil { // in case this was a prefetch we can immediately return
-				prefetch.Done()
-				return
-			}
-		}
 		if data != nil { // in case data is not nil apply any path selection/transformation and return early if there is no data
 			data = e.resolveData(node.DataResolvingConfig, data)
 			if data == nil || bytes.Equal(data, literal.NULL) {
 				e.write(literal.NULL)
+				return
+			}
+		}
+		if shouldFetch && node.Fetch != nil { // execute the fetch on the object
+			e.instructions = append(e.instructions, node.Fetch.Fetch(e.context, data, e, path, &e.buffers))
+			if prefetch != nil { // in case this was a prefetch we can immediately return
+				prefetch.Done()
 				return
 			}
 		}

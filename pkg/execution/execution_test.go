@@ -157,7 +157,7 @@ func TestExecution(t *testing.T) {
 													Path: "name",
 												},
 											},
-											ValueType:StringValueType,
+											ValueType: StringValueType,
 										},
 									},
 									{
@@ -178,7 +178,7 @@ func TestExecution(t *testing.T) {
 																	Path: "name",
 																},
 															},
-															ValueType:StringValueType,
+															ValueType: StringValueType,
 														},
 													},
 													{
@@ -198,7 +198,7 @@ func TestExecution(t *testing.T) {
 																				Path: "name",
 																			},
 																		},
-																		ValueType:StringValueType,
+																		ValueType: StringValueType,
 																	},
 																},
 															},
@@ -289,7 +289,7 @@ func TestExecution(t *testing.T) {
 													Path: "id",
 												},
 											},
-											ValueType:IntegerValueType,
+											ValueType: IntegerValueType,
 										},
 									},
 									{
@@ -300,7 +300,7 @@ func TestExecution(t *testing.T) {
 													Path: "name",
 												},
 											},
-											ValueType:StringValueType,
+											ValueType: StringValueType,
 										},
 									},
 									{
@@ -311,7 +311,7 @@ func TestExecution(t *testing.T) {
 													Path: "birthday",
 												},
 											},
-											ValueType:StringValueType,
+											ValueType: StringValueType,
 										},
 									},
 									{
@@ -356,7 +356,7 @@ func TestExecution(t *testing.T) {
 																	Path: "id",
 																},
 															},
-															ValueType:IntegerValueType,
+															ValueType: IntegerValueType,
 														},
 													},
 													{
@@ -367,7 +367,7 @@ func TestExecution(t *testing.T) {
 																	Path: "name",
 																},
 															},
-															ValueType:StringValueType,
+															ValueType: StringValueType,
 														},
 													},
 													{
@@ -378,7 +378,7 @@ func TestExecution(t *testing.T) {
 																	Path: "birthday",
 																},
 															},
-															ValueType:StringValueType,
+															ValueType: StringValueType,
 														},
 													},
 													{
@@ -395,7 +395,7 @@ func TestExecution(t *testing.T) {
 																					Path: "__typename",
 																				},
 																			},
-																			ValueType:StringValueType,
+																			ValueType: StringValueType,
 																		},
 																	},
 																	{
@@ -406,7 +406,7 @@ func TestExecution(t *testing.T) {
 																					Path: "name",
 																				},
 																			},
-																			ValueType:StringValueType,
+																			ValueType: StringValueType,
 																		},
 																	},
 																	{
@@ -417,7 +417,7 @@ func TestExecution(t *testing.T) {
 																					Path: "nickname",
 																				},
 																			},
-																			ValueType:StringValueType,
+																			ValueType: StringValueType,
 																		},
 																	},
 																	{
@@ -428,7 +428,7 @@ func TestExecution(t *testing.T) {
 																					Path: "woof",
 																				},
 																			},
-																			ValueType:StringValueType,
+																			ValueType: StringValueType,
 																		},
 																		Skip: &IfNotEqual{
 																			Left: &ObjectVariableArgument{
@@ -449,7 +449,7 @@ func TestExecution(t *testing.T) {
 																					Path: "meow",
 																				},
 																			},
-																			ValueType:StringValueType,
+																			ValueType: StringValueType,
 																		},
 																		Skip: &IfNotEqual{
 																			Left: &ObjectVariableArgument{
@@ -489,7 +489,7 @@ func TestExecution(t *testing.T) {
 																	Path: "__typename",
 																},
 															},
-															ValueType:StringValueType,
+															ValueType: StringValueType,
 														},
 													},
 													{
@@ -500,7 +500,7 @@ func TestExecution(t *testing.T) {
 																	Path: "name",
 																},
 															},
-															ValueType:StringValueType,
+															ValueType: StringValueType,
 														},
 													},
 													{
@@ -511,7 +511,7 @@ func TestExecution(t *testing.T) {
 																	Path: "nickname",
 																},
 															},
-															ValueType:StringValueType,
+															ValueType: StringValueType,
 														},
 													},
 													{
@@ -522,7 +522,7 @@ func TestExecution(t *testing.T) {
 																	Path: "woof",
 																},
 															},
-															ValueType:StringValueType,
+															ValueType: StringValueType,
 														},
 														Skip: &IfNotEqual{
 															Left: &ObjectVariableArgument{
@@ -543,7 +543,7 @@ func TestExecution(t *testing.T) {
 																	Path: "meow",
 																},
 															},
-															ValueType:StringValueType,
+															ValueType: StringValueType,
 														},
 														Skip: &IfNotEqual{
 															Left: &ObjectVariableArgument{
@@ -844,7 +844,7 @@ func genField() Field {
 											Path: "name",
 										},
 									},
-									ValueType:StringValueType,
+									ValueType: StringValueType,
 								},
 							},
 							{
@@ -881,7 +881,7 @@ func genField() Field {
 															Path: "name",
 														},
 													},
-													ValueType:StringValueType,
+													ValueType: StringValueType,
 												},
 											},
 											{
@@ -947,7 +947,7 @@ func genField() Field {
 															Path: "woof",
 														},
 													},
-													ValueType:StringValueType,
+													ValueType: StringValueType,
 												},
 												Skip: &IfNotEqual{
 													Left: &ObjectVariableArgument{
@@ -968,7 +968,7 @@ func genField() Field {
 															Path: "meow",
 														},
 													},
-													ValueType:StringValueType,
+													ValueType: StringValueType,
 												},
 												Skip: &IfNotEqual{
 													Left: &ObjectVariableArgument{
@@ -1134,7 +1134,7 @@ func TestStreamExecution(t *testing.T) {
 													Path: "bar",
 												},
 											},
-											ValueType:StringValueType,
+											ValueType: StringValueType,
 										},
 									},
 									{
@@ -1145,7 +1145,7 @@ func TestStreamExecution(t *testing.T) {
 													Path: "baz",
 												},
 											},
-											ValueType:IntegerValueType,
+											ValueType: IntegerValueType,
 										},
 									},
 								},
@@ -1229,7 +1229,7 @@ func TestExecutor_ListFilterFirstN(t *testing.T) {
 														Path: "bar",
 													},
 												},
-												ValueType:StringValueType,
+												ValueType: StringValueType,
 											},
 										},
 									},
@@ -1346,7 +1346,7 @@ func TestExecutor_ObjectVariables(t *testing.T) {
 													Path: "name",
 												},
 											},
-											ValueType:StringValueType,
+											ValueType: StringValueType,
 										},
 									},
 									{
@@ -1357,7 +1357,7 @@ func TestExecutor_ObjectVariables(t *testing.T) {
 													Path: "id",
 												},
 											},
-											ValueType:IntegerValueType,
+											ValueType: IntegerValueType,
 										},
 									},
 									{
@@ -1373,7 +1373,7 @@ func TestExecutor_ObjectVariables(t *testing.T) {
 																Path: "name",
 															},
 														},
-														ValueType:StringValueType,
+														ValueType: StringValueType,
 													},
 												},
 												{
@@ -1384,7 +1384,7 @@ func TestExecutor_ObjectVariables(t *testing.T) {
 																Path: "age",
 															},
 														},
-														ValueType:IntegerValueType,
+														ValueType: IntegerValueType,
 													},
 												},
 											},
@@ -1411,6 +1411,150 @@ func TestExecutor_ObjectVariables(t *testing.T) {
 	}
 
 	want := `{"data":{"user":{"name":"Jens","id":1,"pet":{"name":"Woof","age":3}}}}`
+	got := out.String()
+
+	if got != want {
+		t.Fatalf("want: %s\ngot: %s\n", want, got)
+	}
+}
+
+func TestExecutor_NestedObjectVariables(t *testing.T) {
+
+	previewService := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"data":{"id":1}}`))
+	}))
+
+	defer previewService.Close()
+
+	additionalDataService := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		want := "/api/additional_data?data_ids=1"
+		if r.RequestURI != want {
+			t.Fatalf("want uri: %s, got: %s", want, r.RequestURI)
+		}
+		_, _ = w.Write([]byte(`{"name":"foo"}`))
+	}))
+
+	defer additionalDataService.Close()
+
+	plan := &Object{
+		operationType: ast.OperationTypeQuery,
+		Fields: []Field{
+			{
+				Name: []byte("data"),
+				Value: &Object{
+					Fetch: &SingleFetch{
+						BufferName: "preview",
+						Source: &DataSourceInvocation{
+							Args: []Argument{
+								&StaticVariableArgument{
+									Name:  literal.HOST,
+									Value: []byte(previewService.URL),
+								},
+								&StaticVariableArgument{
+									Name:  literal.URL,
+									Value: []byte("/"),
+								},
+								&StaticVariableArgument{
+									Name:  literal.METHOD,
+									Value: []byte("GET"),
+								},
+							},
+							DataSource: &HttpJsonDataSource{
+								log: log.NoopLogger,
+							},
+						},
+					},
+					Fields: []Field{
+						{
+							Name:            []byte("preview"),
+							HasResolvedData: true,
+							Value: &Object{
+								Fields: []Field{
+									{
+										Name: []byte("data"),
+										Value: &Object{
+											DataResolvingConfig: DataResolvingConfig{
+												PathSelector: PathSelector{
+													Path: "data",
+												},
+											},
+											Fetch: &SingleFetch{
+												BufferName: "additional_data_for_id",
+												Source: &DataSourceInvocation{
+													Args: []Argument{
+														&StaticVariableArgument{
+															Name:  literal.HOST,
+															Value: []byte(additionalDataService.URL),
+														},
+														&StaticVariableArgument{
+															Name:  literal.URL,
+															Value: []byte("/api/additional_data?data_ids={{ .object.id }}"),
+														},
+														&StaticVariableArgument{
+															Name:  literal.METHOD,
+															Value: []byte("GET"),
+														},
+													},
+													DataSource: &HttpJsonDataSource{
+														log: log.NoopLogger,
+													},
+												},
+											},
+											Fields: []Field{
+												{
+													Name: []byte("id"),
+													Value: &Value{
+														DataResolvingConfig: DataResolvingConfig{
+															PathSelector: PathSelector{
+																Path: "id",
+															},
+														},
+														ValueType: IntegerValueType,
+													},
+												},
+												{
+													Name:            []byte("additional_data_for_id"),
+													HasResolvedData: true,
+													Value: &Object{
+														Fields: []Field{
+															{
+																Name: []byte("name"),
+																Value: &Value{
+																	ValueType: StringValueType,
+																	DataResolvingConfig: DataResolvingConfig{
+																		PathSelector: PathSelector{
+																			Path: "name",
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	out := &bytes.Buffer{}
+	ex := NewExecutor()
+	ctx := Context{
+		Context: context.Background(),
+	}
+
+	_, err := ex.Execute(ctx, plan, out)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := `{"data":{"preview":{"data":{"id":1,"additional_data_for_id":{"name":"foo"}}}}}`
 	got := out.String()
 
 	if got != want {
@@ -1457,7 +1601,7 @@ func TestExecutor_ListWithPath(t *testing.T) {
 														Path: "id",
 													},
 												},
-												ValueType:IntegerValueType,
+												ValueType: IntegerValueType,
 											},
 										},
 									},
@@ -1557,7 +1701,7 @@ func TestExecutor_GraphqlDataSourceWithParams(t *testing.T) {
 														Path: "id",
 													},
 												},
-												ValueType:IntegerValueType,
+												ValueType: IntegerValueType,
 											},
 										},
 									},
@@ -1621,7 +1765,7 @@ func TestExecutor_ObjectWithPath(t *testing.T) {
 										Path: "api.id",
 									},
 								},
-								ValueType:IntegerValueType,
+								ValueType: IntegerValueType,
 							},
 						},
 					},
@@ -1968,7 +2112,7 @@ func TestExecutor_HTTPJSONDataSourceWithBody(t *testing.T) {
 							Name:            []byte("withBody"),
 							HasResolvedData: true,
 							Value: &Value{
-								ValueType:StringValueType,
+								ValueType: StringValueType,
 							},
 						},
 					},
@@ -2029,7 +2173,7 @@ func TestExecutor_Execute_WithUnions(t *testing.T) {
 					},
 				},
 				Value: &Value{
-					ValueType:StringValueType,
+					ValueType: StringValueType,
 					DataResolvingConfig: DataResolvingConfig{
 						PathSelector: PathSelector{
 							Path: "id",
@@ -2050,7 +2194,7 @@ func TestExecutor_Execute_WithUnions(t *testing.T) {
 					},
 				},
 				Value: &Value{
-					ValueType:StringValueType,
+					ValueType: StringValueType,
 					DataResolvingConfig: DataResolvingConfig{
 						PathSelector: PathSelector{
 							Path: "name",
@@ -2074,7 +2218,7 @@ func TestExecutor_Execute_WithUnions(t *testing.T) {
 					},
 				},
 				Value: &Value{
-					ValueType:StringValueType,
+					ValueType: StringValueType,
 					DataResolvingConfig: DataResolvingConfig{
 						PathSelector: PathSelector{
 							Path: "Status",
@@ -2095,7 +2239,7 @@ func TestExecutor_Execute_WithUnions(t *testing.T) {
 					},
 				},
 				Value: &Value{
-					ValueType:StringValueType,
+					ValueType: StringValueType,
 					DataResolvingConfig: DataResolvingConfig{
 						PathSelector: PathSelector{
 							Path: "Message",
@@ -2107,9 +2251,9 @@ func TestExecutor_Execute_WithUnions(t *testing.T) {
 
 		var fields []Field
 		if succesFirst {
-			fields = append(successFields,errorFields...)
+			fields = append(successFields, errorFields...)
 		} else {
-			fields = append(errorFields,successFields...)
+			fields = append(errorFields, successFields...)
 		}
 
 		return &Object{
@@ -2170,7 +2314,7 @@ func TestExecutor_Execute_WithUnions(t *testing.T) {
 										Path: "name",
 									},
 								},
-								ValueType:StringValueType,
+								ValueType: StringValueType,
 							},
 						},
 					},
@@ -2192,7 +2336,7 @@ func TestExecutor_Execute_WithUnions(t *testing.T) {
 					},
 				},
 				Value: &Value{
-					ValueType:StringValueType,
+					ValueType: StringValueType,
 					DataResolvingConfig: DataResolvingConfig{
 						PathSelector: PathSelector{
 							Path: "Status",
@@ -2213,7 +2357,7 @@ func TestExecutor_Execute_WithUnions(t *testing.T) {
 					},
 				},
 				Value: &Value{
-					ValueType:StringValueType,
+					ValueType: StringValueType,
 					DataResolvingConfig: DataResolvingConfig{
 						PathSelector: PathSelector{
 							Path: "Message",
@@ -2299,9 +2443,9 @@ func TestExecutor_Execute_WithUnions(t *testing.T) {
 		`{"id":"1","name":"a", "__typename":"Api"}}`,
 		`{"data":{"api":{"id":"1","name":"a"}}}`, planApi),
 	)
-	t.Run("object response error response",makeTest(
+	t.Run("object response error response", makeTest(
 		`{"__typename":"RequestResult","Status":"Error","Message":"Could not retrieve Api detail","Meta":null}`,
-		`{"data":{"api":{"status":"Error","message":"Could not retrieve Api detail"}}}`,planApi))
+		`{"data":{"api":{"status":"Error","message":"Could not retrieve Api detail"}}}`, planApi))
 }
 
 func TestExecutor_HTTPJSONDataSourceWithBodyComplexPlayload(t *testing.T) {
@@ -2387,7 +2531,7 @@ func TestExecutor_HTTPJSONDataSourceWithBodyComplexPlayload(t *testing.T) {
 							Name:            []byte("withBody"),
 							HasResolvedData: true,
 							Value: &Value{
-								ValueType:StringValueType,
+								ValueType: StringValueType,
 							},
 						},
 					},
@@ -2494,7 +2638,7 @@ func TestExecutor_HTTPJSONDataSourceWithHeaders(t *testing.T) {
 							Name:            []byte("withHeaders"),
 							HasResolvedData: true,
 							Value: &Value{
-								ValueType:StringValueType,
+								ValueType: StringValueType,
 							},
 						},
 					},
@@ -2596,7 +2740,7 @@ func TestExecutor_HTTPJSONDataSourceWithPathSelector(t *testing.T) {
 												},
 											},
 											Value: &Value{
-												ValueType:StringValueType,
+												ValueType: StringValueType,
 											},
 										},
 									},
