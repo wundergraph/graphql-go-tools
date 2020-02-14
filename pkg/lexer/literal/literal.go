@@ -80,6 +80,7 @@ var (
 	INPUT_JSON                    = []byte("inputJSON")
 	DEFAULT_TYPENAME              = []byte("defaultTypeName")
 	STATUS_CODE_TYPENAME_MAPPINGS = []byte("statusCodeTypeNameMappings")
+	DOT_OBJECT_DOT                = []byte(".object.")
 	ADDR                          = []byte("addr")
 	BROKERADDR                    = []byte("brokerAddr")
 	CLIENTID                      = []byte("clientID")

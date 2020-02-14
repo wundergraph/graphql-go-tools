@@ -570,7 +570,7 @@ func TestExecution(t *testing.T) {
 	}
 
 	out := bytes.Buffer{}
-	ex := NewExecutor()
+	ex := NewExecutor(nil)
 	_, err := ex.Execute(exampleContext, object, &out)
 	if err != nil {
 		t.Fatal(err)
@@ -610,7 +610,7 @@ func BenchmarkExecution(b *testing.B) {
 	}
 
 	out := bytes.Buffer{}
-	ex := NewExecutor()
+	ex := NewExecutor(nil)
 
 	sizes := []int{1, 5, 10, 20, 50, 100}
 
@@ -1052,7 +1052,7 @@ var petsData = []byte(`{
 
 func TestStreamExecution(t *testing.T) {
 	out := bytes.Buffer{}
-	ex := NewExecutor()
+	ex := NewExecutor(nil)
 	c, cancel := context.WithCancel(context.Background())
 	ctx := Context{
 		Context: c,
@@ -1243,7 +1243,7 @@ func TestExecutor_ListFilterFirstN(t *testing.T) {
 	}
 
 	out := &bytes.Buffer{}
-	ex := NewExecutor()
+	ex := NewExecutor(nil)
 	ctx := Context{
 		Context: context.Background(),
 	}
@@ -1400,7 +1400,7 @@ func TestExecutor_ObjectVariables(t *testing.T) {
 	}
 
 	out := &bytes.Buffer{}
-	ex := NewExecutor()
+	ex := NewExecutor(nil)
 	ctx := Context{
 		Context: context.Background(),
 	}
@@ -1544,7 +1544,7 @@ func TestExecutor_NestedObjectVariables(t *testing.T) {
 	}
 
 	out := &bytes.Buffer{}
-	ex := NewExecutor()
+	ex := NewExecutor(nil)
 	ctx := Context{
 		Context: context.Background(),
 	}
@@ -1615,7 +1615,7 @@ func TestExecutor_ListWithPath(t *testing.T) {
 	}
 
 	out := &bytes.Buffer{}
-	ex := NewExecutor()
+	ex := NewExecutor(nil)
 	ctx := Context{
 		Context: context.Background(),
 	}
@@ -1715,7 +1715,7 @@ func TestExecutor_GraphqlDataSourceWithParams(t *testing.T) {
 	}
 
 	out := &bytes.Buffer{}
-	ex := NewExecutor()
+	ex := NewExecutor(nil)
 	ctx := Context{
 		Context: context.Background(),
 		Variables: map[uint64][]byte{
@@ -1775,7 +1775,7 @@ func TestExecutor_ObjectWithPath(t *testing.T) {
 	}
 
 	out := &bytes.Buffer{}
-	ex := NewExecutor()
+	ex := NewExecutor(nil)
 	ctx := Context{
 		Context: context.Background(),
 	}
@@ -1794,7 +1794,7 @@ func TestExecutor_ObjectWithPath(t *testing.T) {
 }
 
 func TestExecutor_ResolveArgs(t *testing.T) {
-	e := NewExecutor()
+	e := NewExecutor(nil)
 	e.context = Context{
 		Context: context.Background(),
 		Variables: map[uint64][]byte{
@@ -1825,7 +1825,7 @@ func TestExecutor_ResolveArgs(t *testing.T) {
 }
 
 func TestExecutor_ResolveArgsString(t *testing.T) {
-	e := NewExecutor()
+	e := NewExecutor(nil)
 	e.context = Context{
 		Context: context.Background(),
 		Variables: map[uint64][]byte{
@@ -1856,7 +1856,7 @@ func TestExecutor_ResolveArgsString(t *testing.T) {
 }
 
 func TestExecutor_ResolveArgs_MultipleNested(t *testing.T) {
-	e := NewExecutor()
+	e := NewExecutor(nil)
 	e.context = Context{
 		Context: context.Background(),
 		Variables: map[uint64][]byte{
@@ -1902,7 +1902,7 @@ func TestExecutor_ResolveArgs_MultipleNested(t *testing.T) {
 }
 
 func TestExecutor_ResolveArgsComplexPayload(t *testing.T) {
-	e := NewExecutor()
+	e := NewExecutor(nil)
 	e.context = Context{
 		Context: context.Background(),
 		Variables: map[uint64][]byte{
@@ -1934,7 +1934,7 @@ func TestExecutor_ResolveArgsComplexPayload(t *testing.T) {
 }
 
 func TestExecutor_ResolveArgsComplexPayloadWithSelector(t *testing.T) {
-	e := NewExecutor()
+	e := NewExecutor(nil)
 	e.context = Context{
 		Context: context.Background(),
 		Variables: map[uint64][]byte{
@@ -1965,7 +1965,7 @@ func TestExecutor_ResolveArgsComplexPayloadWithSelector(t *testing.T) {
 }
 
 func TestExecutor_ResolveArgsFlatObjectContainingJSON(t *testing.T) {
-	e := NewExecutor()
+	e := NewExecutor(nil)
 	e.context = Context{
 		Context: context.Background(),
 		Variables: map[uint64][]byte{
@@ -1997,7 +1997,7 @@ func TestExecutor_ResolveArgsFlatObjectContainingJSON(t *testing.T) {
 }
 
 func TestExecutor_ResolveArgsWithListArguments(t *testing.T) {
-	e := NewExecutor()
+	e := NewExecutor(nil)
 	e.context = Context{
 		Context: context.Background(),
 	}
@@ -2122,7 +2122,7 @@ func TestExecutor_HTTPJSONDataSourceWithBody(t *testing.T) {
 	}
 
 	out := &bytes.Buffer{}
-	ex := NewExecutor()
+	ex := NewExecutor(nil)
 	ctx := Context{
 		Context: context.Background(),
 		Variables: map[uint64][]byte{
@@ -2406,7 +2406,7 @@ func TestExecutor_Execute_WithUnions(t *testing.T) {
 	makeTest := func(apiResponse, wantResult string, planner func(apiResponse string, successFirst bool) *Object) func(t *testing.T) {
 		return func(t *testing.T) {
 			out := &bytes.Buffer{}
-			ex := NewExecutor()
+			ex := NewExecutor(nil)
 			ctx := Context{
 				Context: context.Background(),
 			}
@@ -2541,7 +2541,7 @@ func TestExecutor_HTTPJSONDataSourceWithBodyComplexPlayload(t *testing.T) {
 	}
 
 	out := &bytes.Buffer{}
-	ex := NewExecutor()
+	ex := NewExecutor(nil)
 	ctx := Context{
 		Context: context.Background(),
 		Variables: map[uint64][]byte{
@@ -2648,7 +2648,7 @@ func TestExecutor_HTTPJSONDataSourceWithHeaders(t *testing.T) {
 	}
 
 	out := &bytes.Buffer{}
-	ex := NewExecutor()
+	ex := NewExecutor(nil)
 	ctx := Context{
 		Context: context.Background(),
 	}
@@ -2754,7 +2754,7 @@ func TestExecutor_HTTPJSONDataSourceWithPathSelector(t *testing.T) {
 	}
 
 	out := &bytes.Buffer{}
-	ex := NewExecutor()
+	ex := NewExecutor(nil)
 	ctx := Context{
 		Context: context.Background(),
 	}
@@ -2800,7 +2800,7 @@ func prettyJSON(r io.Reader) string {
 }
 
 func TestExecutor_Introspection(t *testing.T) {
-	executor := NewExecutor()
+	executor := NewExecutor(nil)
 	ctx := Context{
 		Context: context.Background(),
 	}
@@ -2819,7 +2819,7 @@ func TestExecutor_Introspection(t *testing.T) {
 		}
 	`)
 
-	handler, err := NewHandler(schema, log.NoopLogger)
+	handler, err := NewHandler(schema, nil, log.NoopLogger)
 	if err != nil {
 		t.Fatal(err)
 	}

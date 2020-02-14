@@ -47,7 +47,7 @@ func TestExecution_With_Transformation(t *testing.T) {
 										},
 									},
 								},
-								ValueType:StringValueType,
+								ValueType: StringValueType,
 							},
 						},
 					},
@@ -57,7 +57,7 @@ func TestExecution_With_Transformation(t *testing.T) {
 	}
 
 	out := &bytes.Buffer{}
-	ex := NewExecutor()
+	ex := NewExecutor(nil)
 	ctx := Context{
 		Context: context.Background(),
 	}
@@ -131,7 +131,7 @@ func TestPlanner_WithTransformation(t *testing.T) {
 										},
 									},
 								},
-								ValueType:StringValueType,
+								ValueType: StringValueType,
 							},
 						},
 					},
@@ -182,7 +182,7 @@ func TestPlanner_WithTransformation(t *testing.T) {
 										},
 									},
 								},
-								ValueType:StringValueType,
+								ValueType: StringValueType,
 							},
 						},
 					},

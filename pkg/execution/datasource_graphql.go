@@ -70,20 +70,6 @@ func (g *GraphQLDataSourcePlanner) Initialize(walker *astvisitor.Walker, operati
 
 		typeRef := g.importer.ImportType(resolverParameters[i].variableType,g.resolveDocument)
 
-		/*g.resolveDocument.Types = append(g.resolveDocument.Types, ast.Type{
-			TypeKind: ast.TypeKindNamed,
-			Name:     g.resolveDocument.Input.AppendInputBytes([]byte("String")),
-			OfType:   -1,
-		})
-
-		stringTypeRef := len(g.resolveDocument.Types) - 1
-		g.resolveDocument.Types = append(g.resolveDocument.Types, ast.Type{
-			TypeKind: ast.TypeKindNonNull,
-			OfType:   stringTypeRef,
-		})
-
-		nonNullTypeRef := len(g.resolveDocument.Types) - 1*/
-
 		g.resolveDocument.VariableDefinitions = append(g.resolveDocument.VariableDefinitions, ast.VariableDefinition{
 			VariableValue: variableValue,
 			Type:          typeRef,
