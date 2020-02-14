@@ -15,6 +15,7 @@ require (
 	github.com/gobwas/ws v1.0.2
 	github.com/iancoleman/strcase v0.0.0-20191112232945-16388991a334
 	github.com/jensneuse/abstractlogger v0.0.4
+	github.com/jensneuse/byte-template v0.0.0-20200214152254-4f3cf06e5c68
 	github.com/jensneuse/diffview v1.0.0
 	github.com/jensneuse/pipeline v0.0.0-20200117120358-9fb4de085cd6
 	github.com/mitchellh/go-homedir v1.1.0

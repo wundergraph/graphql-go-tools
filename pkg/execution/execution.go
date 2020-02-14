@@ -8,25 +8,25 @@ import (
 	"encoding/json"
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash"
+	"github.com/jensneuse/byte-template"
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/runes"
 	"github.com/tidwall/gjson"
-	"github.com/valyala/fasttemplate"
 	"io"
 	"strconv"
-	"strings"
 	"sync"
 )
 
 type Executor struct {
-	context      Context
-	out          io.Writer
-	err          error
-	buffers      LockableBufferMap
-	instructions []Instruction
-	escapeBuf    [48]byte
+	context            Context
+	out                io.Writer
+	err                error
+	buffers            LockableBufferMap
+	instructions       []Instruction
+	escapeBuf          [48]byte
+	templateDirectives []byte_template.DirectiveDefinition
 }
 
 type LockableBufferMap struct {
@@ -34,11 +34,12 @@ type LockableBufferMap struct {
 	Buffers map[uint64]*bytes.Buffer
 }
 
-func NewExecutor() *Executor {
+func NewExecutor(templateDirectives []byte_template.DirectiveDefinition) *Executor {
 	return &Executor{
 		buffers: LockableBufferMap{
 			Buffers: map[uint64]*bytes.Buffer{},
 		},
+		templateDirectives: templateDirectives,
 	}
 }
 
@@ -132,7 +133,7 @@ func (e *Executor) resolveNode(node Node, data []byte, path string, prefetch *sy
 		e.resolveNode(node.Value, data, path, nil, true)
 	case *Value:
 		data = e.resolveData(node.DataResolvingConfig, data)
-		_, e.err = node.ValueType.writeValue(data,e.escapeBuf[:], e.out)
+		_, e.err = node.ValueType.writeValue(data, e.escapeBuf[:], e.out)
 		return
 	case *List:
 		data = e.resolveData(node.DataResolvingConfig, data)
@@ -239,57 +240,66 @@ func (e *Executor) ResolveArgs(args []Argument, data []byte) ResolvedArgs {
 		}
 	}
 
+	buf := bytes.Buffer{}
+	tmpl := byte_template.New(e.templateDirectives...)
+
 	for i := range resolved {
 		if !bytes.Contains(resolved[i].Value, literal.DOUBLE_LBRACE) {
 			continue
 		}
-		t, err := fasttemplate.NewTemplate(string(resolved[i].Value), literal.DOUBLE_LBRACE_STR, literal.DOUBLE_RBRACE_STR)
-		if err != nil {
-			continue
-		}
-		value := t.ExecuteFuncString(func(w io.Writer, tag string) (i int, e error) {
-			tag = strings.TrimFunc(tag, func(r rune) bool {
+		_, err := tmpl.Execute(&buf, resolved[i].Value, func(w io.Writer, path []byte) (n int, err error) {
+			path = bytes.TrimFunc(path, func(r rune) bool {
 				return r == runes.SPACE || r == runes.TAB || r == runes.LINETERMINATOR
 			})
-			if strings.Count(tag, ".") == 1 {
-				tag = strings.TrimPrefix(tag, ".")
-				tagBytes := []byte(tag)
+			if bytes.Count(path, literal.DOT) == 1 {
+				path = bytes.TrimPrefix(path, literal.DOT)
 				for j := range resolved {
-					if bytes.Equal(resolved[j].Key, tagBytes) {
+					if bytes.Equal(resolved[j].Key, path) {
 						return w.Write(resolved[j].Value)
 					}
 				}
 			}
-			if strings.HasPrefix(tag, ".object.") {
-				tag = strings.TrimPrefix(tag, ".object.")
-				result := gjson.GetBytes(data, tag)
+			if bytes.HasPrefix(path, literal.DOT_OBJECT_DOT) {
+				path = bytes.TrimPrefix(path, literal.DOT_OBJECT_DOT)
+				result := gjson.GetBytes(data, unsafebytes.BytesToString(path))
 				if result.Type == gjson.String {
 					return w.Write(unsafebytes.StringToBytes(result.Str))
 				}
 				return w.Write(unsafebytes.StringToBytes(result.Raw))
 			}
 			for j := range resolved {
-				key := string(resolved[j].Key)
-				if strings.HasPrefix(tag, ".") && !strings.HasPrefix(key, ".") {
-					key = "." + key
+				key := resolved[j].Key
+				if bytes.HasPrefix(path, literal.DOT) && !bytes.HasPrefix(key, literal.DOT) {
+					key = append(literal.DOT, key...)
 				}
-				if !strings.HasPrefix(tag, key) {
+				if !bytes.HasPrefix(path, key) {
 					continue
 				}
-				key = strings.TrimPrefix(tag, key)
-				if key == "" {
+				key = bytes.TrimPrefix(path, key)
+				if len(key) == 0 {
 					return w.Write(resolved[j].Value)
 				}
-				key = strings.TrimPrefix(key, ".")
-				result := gjson.GetBytes(resolved[j].Value, key)
+				key = bytes.TrimPrefix(key, literal.DOT)
+				result := gjson.GetBytes(resolved[j].Value, unsafebytes.BytesToString(key))
 				if result.Type == gjson.String {
 					return w.Write(unsafebytes.StringToBytes(result.Str))
 				}
 				return w.Write(unsafebytes.StringToBytes(result.Raw))
 			}
-			return w.Write([]byte("{{ " + tag + " }}"))
+			_, _ = w.Write(literal.LBRACE)
+			_, _ = w.Write(literal.LBRACE)
+			_, _ = w.Write(literal.SPACE)
+			_, _ = w.Write(path)
+			_, _ = w.Write(literal.SPACE)
+			_, _ = w.Write(literal.RBRACE)
+			return w.Write(literal.RBRACE)
 		})
-		resolved[i].Value = []byte(value)
+		if err == nil {
+			value := buf.Bytes()
+			resolved[i].Value = make([]byte, len(value))
+			copy(resolved[i].Value, value)
+			buf.Reset()
+		}
 	}
 
 	resolved.Filter(func(i int) (keep bool) {

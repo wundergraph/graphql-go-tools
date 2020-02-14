@@ -9,6 +9,7 @@ import (
 	"github.com/cespare/xxhash"
 	"github.com/gobuffalo/packr"
 	"github.com/jensneuse/abstractlogger"
+	"github.com/jensneuse/byte-template"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
@@ -25,9 +26,10 @@ type Handler struct {
 	log                abstractlogger.Logger
 	definition         ast.Document
 	graphqlDefinitions *packr.Box
+	templateDirectives []byte_template.DirectiveDefinition
 }
 
-func NewHandler(schema []byte, logger abstractlogger.Logger) (*Handler, error) {
+func NewHandler(schema []byte, templateDirectives []byte_template.DirectiveDefinition, logger abstractlogger.Logger) (*Handler, error) {
 
 	schema = append(schema, graphqlDefinitionBoilerplate...)
 
@@ -42,6 +44,7 @@ func NewHandler(schema []byte, logger abstractlogger.Logger) (*Handler, error) {
 		log:                logger,
 		definition:         definition,
 		graphqlDefinitions: &box,
+		templateDirectives: templateDirectives,
 	}, nil
 }
 
@@ -122,7 +125,7 @@ func (h *Handler) Handle(requestData, extraVariables []byte) (executor *Executor
 		return
 	}
 
-	executor = NewExecutor()
+	executor = NewExecutor(h.templateDirectives)
 	ctx = Context{
 		Variables:      variables,
 		ExtraArguments: extraArguments,
