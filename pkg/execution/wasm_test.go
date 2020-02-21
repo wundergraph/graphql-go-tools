@@ -2,7 +2,6 @@ package execution
 
 import (
 	"encoding/json"
-	"fmt"
 	wasm "github.com/wasmerio/go-ext-wasm/wasmer"
 	"testing"
 )
@@ -52,7 +51,7 @@ func TestWasm(t *testing.T){
 		}
 	}
 
-	fmt.Printf("out: %s\n",string(memory[start:stop]))
+	//fmt.Printf("out: %s\n",string(memory[start:stop]))
 
 	deallocate := instance.Exports["deallocate"]
 	deallocate(inputPointer, inputLen)

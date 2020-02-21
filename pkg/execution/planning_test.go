@@ -118,7 +118,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: "code",
 													},
 												},
-												QuoteValue: true,
+												ValueType:StringValueType,
 											},
 										},
 										{
@@ -129,7 +129,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: "name",
 													},
 												},
-												QuoteValue: true,
+												ValueType:StringValueType,
 											},
 										},
 										{
@@ -140,7 +140,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: "native",
 													},
 												},
-												QuoteValue: true,
+												ValueType:StringValueType,
 											},
 										},
 									},
@@ -218,7 +218,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: "id",
 													},
 												},
-												QuoteValue: true,
+												ValueType:StringValueType,
 											},
 										},
 										{
@@ -229,7 +229,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: "likes",
 													},
 												},
-												QuoteValue: false,
+												ValueType:IntegerValueType,
 											},
 										},
 									},
@@ -365,7 +365,7 @@ func TestPlanner_Plan(t *testing.T) {
 																	Path: "Accept",
 																},
 															},
-															QuoteValue: true,
+															ValueType:StringValueType,
 														},
 													},
 													{
@@ -376,7 +376,7 @@ func TestPlanner_Plan(t *testing.T) {
 																	Path: "Host",
 																},
 															},
-															QuoteValue: true,
+															ValueType:StringValueType,
 														},
 													},
 													{
@@ -387,7 +387,7 @@ func TestPlanner_Plan(t *testing.T) {
 																	Path: "Accept-Encoding",
 																},
 															},
-															QuoteValue: true,
+															ValueType:StringValueType,
 														},
 													},
 												},
@@ -439,7 +439,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: "id",
 													},
 												},
-												QuoteValue: false,
+												ValueType:IntegerValueType,
 											},
 										},
 										{
@@ -456,7 +456,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		Path: "id",
 																	},
 																},
-																QuoteValue: false,
+																ValueType:IntegerValueType,
 															},
 														},
 													},
@@ -525,7 +525,7 @@ func TestPlanner_Plan(t *testing.T) {
 								Name:            []byte("withBody"),
 								HasResolvedData: true,
 								Value: &Value{
-									QuoteValue: true,
+									ValueType:StringValueType,
 								},
 							},
 						},
@@ -583,7 +583,7 @@ func TestPlanner_Plan(t *testing.T) {
 											Path: "subObject",
 										},
 									},
-									QuoteValue: true,
+									ValueType:StringValueType,
 								},
 							},
 						},
@@ -652,7 +652,7 @@ func TestPlanner_Plan(t *testing.T) {
 															Path: "id",
 														},
 													},
-													QuoteValue: true,
+													ValueType:StringValueType,
 												},
 											},
 										},
@@ -730,7 +730,7 @@ func TestPlanner_Plan(t *testing.T) {
 															Path: "id",
 														},
 													},
-													QuoteValue: true,
+													ValueType:StringValueType,
 												},
 											},
 										},
@@ -800,7 +800,7 @@ func TestPlanner_Plan(t *testing.T) {
 								Name:            []byte("withHeaders"),
 								HasResolvedData: true,
 								Value: &Value{
-									QuoteValue: true,
+									ValueType:StringValueType,
 								},
 							},
 						},
@@ -887,14 +887,14 @@ func TestPlanner_Plan(t *testing.T) {
 								Name:            []byte("hello"),
 								HasResolvedData: true,
 								Value: &Value{
-									QuoteValue: true,
+									ValueType:StringValueType,
 								},
 							},
 							{
 								Name:            []byte("nullableInt"),
 								HasResolvedData: true,
 								Value: &Value{
-									QuoteValue: false,
+									ValueType:IntegerValueType,
 								},
 							},
 							{
@@ -910,7 +910,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: "bar",
 													},
 												},
-												QuoteValue: true,
+												ValueType:StringValueType,
 											},
 										},
 									},
@@ -979,7 +979,7 @@ func TestPlanner_Plan(t *testing.T) {
 													Path: "name",
 												},
 											},
-											QuoteValue: true,
+											ValueType:StringValueType,
 										},
 									},
 									{
@@ -1000,7 +1000,7 @@ func TestPlanner_Plan(t *testing.T) {
 																	Path: "name",
 																},
 															},
-															QuoteValue: true,
+															ValueType:StringValueType,
 														},
 													},
 													{
@@ -1020,7 +1020,7 @@ func TestPlanner_Plan(t *testing.T) {
 																				Path: "name",
 																			},
 																		},
-																		QuoteValue: true,
+																		ValueType:StringValueType,
 																	},
 																},
 															},
@@ -1104,7 +1104,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: "id",
 													},
 												},
-												QuoteValue: true,
+												ValueType:StringValueType,
 											},
 										},
 										{
@@ -1115,7 +1115,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: "name",
 													},
 												},
-												QuoteValue: true,
+												ValueType:StringValueType,
 											},
 										},
 										{
@@ -1126,7 +1126,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: "birthday",
 													},
 												},
-												QuoteValue: true,
+												ValueType:StringValueType,
 											},
 										},
 									},
@@ -1202,7 +1202,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: "id",
 													},
 												},
-												QuoteValue: true,
+												ValueType:StringValueType,
 											},
 										},
 										{
@@ -1213,7 +1213,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: "name",
 													},
 												},
-												QuoteValue: true,
+												ValueType:StringValueType,
 											},
 										},
 										{
@@ -1224,7 +1224,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: "birthday",
 													},
 												},
-												QuoteValue: true,
+												ValueType:StringValueType,
 											},
 										},
 									},
@@ -1344,7 +1344,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: "id",
 													},
 												},
-												QuoteValue: true,
+												ValueType:StringValueType,
 											},
 										},
 										{
@@ -1355,7 +1355,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: "name",
 													},
 												},
-												QuoteValue: true,
+												ValueType:StringValueType,
 											},
 										},
 										{
@@ -1366,7 +1366,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: "birthday",
 													},
 												},
-												QuoteValue: true,
+												ValueType:StringValueType,
 											},
 										},
 										{
@@ -1383,7 +1383,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		Path: "id",
 																	},
 																},
-																QuoteValue: true,
+																ValueType:StringValueType,
 															},
 														},
 														{
@@ -1394,7 +1394,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		Path: "name",
 																	},
 																},
-																QuoteValue: true,
+																ValueType:StringValueType,
 															},
 														},
 														{
@@ -1405,7 +1405,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		Path: "birthday",
 																	},
 																},
-																QuoteValue: true,
+																ValueType:StringValueType,
 															},
 														},
 													},
@@ -1589,7 +1589,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: "id",
 													},
 												},
-												QuoteValue: true,
+												ValueType:StringValueType,
 											},
 										},
 										{
@@ -1600,7 +1600,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: "name",
 													},
 												},
-												QuoteValue: true,
+												ValueType:StringValueType,
 											},
 										},
 										{
@@ -1643,7 +1643,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		Path: "id",
 																	},
 																},
-																QuoteValue: true,
+																ValueType:StringValueType,
 															},
 														},
 														{
@@ -1654,7 +1654,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		Path: "name",
 																	},
 																},
-																QuoteValue: true,
+																ValueType:StringValueType,
 															},
 														},
 														{
@@ -1665,7 +1665,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		Path: "birthday",
 																	},
 																},
-																QuoteValue: true,
+																ValueType:StringValueType,
 															},
 														},
 														{
@@ -1687,7 +1687,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						Path: "__typename",
 																					},
 																				},
-																				QuoteValue: true,
+																				ValueType:StringValueType,
 																			},
 																		},
 																		{
@@ -1698,7 +1698,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						Path: "nickname",
 																					},
 																				},
-																				QuoteValue: true,
+																				ValueType:StringValueType,
 																			},
 																		},
 																		{
@@ -1709,7 +1709,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						Path: "name",
 																					},
 																				},
-																				QuoteValue: true,
+																				ValueType:StringValueType,
 																			},
 																			Skip: &IfNotEqual{
 																				Left: &ObjectVariableArgument{
@@ -1730,7 +1730,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						Path: "woof",
 																					},
 																				},
-																				QuoteValue: true,
+																				ValueType:StringValueType,
 																			},
 																			Skip: &IfNotEqual{
 																				Left: &ObjectVariableArgument{
@@ -1751,7 +1751,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						Path: "name",
 																					},
 																				},
-																				QuoteValue: true,
+																				ValueType:StringValueType,
 																			},
 																			Skip: &IfNotEqual{
 																				Left: &ObjectVariableArgument{
@@ -1772,7 +1772,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						Path: "meow",
 																					},
 																				},
-																				QuoteValue: true,
+																				ValueType:StringValueType,
 																			},
 																			Skip: &IfNotEqual{
 																				Left: &ObjectVariableArgument{
@@ -1812,7 +1812,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		Path: "__typename",
 																	},
 																},
-																QuoteValue: true,
+																ValueType:StringValueType,
 															},
 														},
 														{
@@ -1823,7 +1823,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		Path: "nickname",
 																	},
 																},
-																QuoteValue: true,
+																ValueType:StringValueType,
 															},
 														},
 														{
@@ -1834,7 +1834,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		Path: "name",
 																	},
 																},
-																QuoteValue: true,
+																ValueType:StringValueType,
 															},
 															Skip: &IfNotEqual{
 																Left: &ObjectVariableArgument{
@@ -1855,7 +1855,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		Path: "woof",
 																	},
 																},
-																QuoteValue: true,
+																ValueType:StringValueType,
 															},
 															Skip: &IfNotEqual{
 																Left: &ObjectVariableArgument{
@@ -1876,7 +1876,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		Path: "name",
 																	},
 																},
-																QuoteValue: true,
+																ValueType:StringValueType,
 															},
 															Skip: &IfNotEqual{
 																Left: &ObjectVariableArgument{
@@ -1897,7 +1897,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		Path: "meow",
 																	},
 																},
-																QuoteValue: true,
+																ValueType:StringValueType,
 															},
 															Skip: &IfNotEqual{
 																Left: &ObjectVariableArgument{
@@ -1922,7 +1922,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: "birthday",
 													},
 												},
-												QuoteValue: true,
+												ValueType:StringValueType,
 											},
 										},
 									},
@@ -2082,7 +2082,7 @@ func TestPlanner_Plan(t *testing.T) {
 																	Path: "name",
 																},
 															},
-															QuoteValue: true,
+															ValueType:StringValueType,
 														},
 													},
 												},
@@ -2105,7 +2105,7 @@ func TestPlanner_Plan(t *testing.T) {
 																	Path: "name",
 																},
 															},
-															QuoteValue: true,
+															ValueType:StringValueType,
 														},
 													},
 												},
@@ -2128,7 +2128,7 @@ func TestPlanner_Plan(t *testing.T) {
 																	Path: "name",
 																},
 															},
-															QuoteValue: true,
+															ValueType:StringValueType,
 														},
 													},
 												},
@@ -2152,7 +2152,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		Path: "kind",
 																	},
 																},
-																QuoteValue: true,
+																ValueType:StringValueType,
 															},
 														},
 														{
@@ -2163,7 +2163,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		Path: "name",
 																	},
 																},
-																QuoteValue: true,
+																ValueType:StringValueType,
 															},
 														},
 														{
@@ -2174,7 +2174,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		Path: "description",
 																	},
 																},
-																QuoteValue: true,
+																ValueType:StringValueType,
 															},
 														},
 														{
@@ -2195,7 +2195,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						Path: "name",
 																					},
 																				},
-																				QuoteValue: true,
+																				ValueType:StringValueType,
 																			},
 																		},
 																		{
@@ -2206,7 +2206,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						Path: "description",
 																					},
 																				},
-																				QuoteValue: true,
+																				ValueType:StringValueType,
 																			},
 																		},
 																		{
@@ -2227,7 +2227,7 @@ func TestPlanner_Plan(t *testing.T) {
 																										Path: "name",
 																									},
 																								},
-																								QuoteValue: true,
+																								ValueType:StringValueType,
 																							},
 																						},
 																						{
@@ -2238,7 +2238,7 @@ func TestPlanner_Plan(t *testing.T) {
 																										Path: "description",
 																									},
 																								},
-																								QuoteValue: true,
+																								ValueType:StringValueType,
 																							},
 																						},
 																						{
@@ -2260,7 +2260,7 @@ func TestPlanner_Plan(t *testing.T) {
 																										Path: "defaultValue",
 																									},
 																								},
-																								QuoteValue: true,
+																								ValueType:StringValueType,
 																							},
 																						},
 																					},
@@ -2286,7 +2286,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						Path: "isDeprecated",
 																					},
 																				},
-																				QuoteValue: false,
+																				ValueType:BooleanValueType,
 																			},
 																		},
 																		{
@@ -2297,7 +2297,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						Path: "deprecationReason",
 																					},
 																				},
-																				QuoteValue: true,
+																				ValueType:StringValueType,
 																			},
 																		},
 																	},
@@ -2322,7 +2322,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						Path: "name",
 																					},
 																				},
-																				QuoteValue: true,
+																				ValueType:StringValueType,
 																			},
 																		},
 																		{
@@ -2333,7 +2333,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						Path: "description",
 																					},
 																				},
-																				QuoteValue: true,
+																				ValueType:StringValueType,
 																			},
 																		},
 																		{
@@ -2355,7 +2355,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						Path: "defaultValue",
 																					},
 																				},
-																				QuoteValue: true,
+																				ValueType:StringValueType,
 																			},
 																		},
 																	},
@@ -2393,7 +2393,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						Path: "name",
 																					},
 																				},
-																				QuoteValue: true,
+																				ValueType:StringValueType,
 																			},
 																		},
 																		{
@@ -2404,7 +2404,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						Path: "description",
 																					},
 																				},
-																				QuoteValue: true,
+																				ValueType:StringValueType,
 																			},
 																		},
 																		{
@@ -2415,7 +2415,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						Path: "isDeprecated",
 																					},
 																				},
-																				QuoteValue: false,
+																				ValueType:BooleanValueType,
 																			},
 																		},
 																		{
@@ -2426,7 +2426,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						Path: "deprecationReason",
 																					},
 																				},
-																				QuoteValue: true,
+																				ValueType:StringValueType,
 																			},
 																		},
 																	},
@@ -2468,7 +2468,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		Path: "name",
 																	},
 																},
-																QuoteValue: true,
+																ValueType:StringValueType,
 															},
 														},
 														{
@@ -2479,7 +2479,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		Path: "description",
 																	},
 																},
-																QuoteValue: true,
+																ValueType:StringValueType,
 															},
 														},
 														{
@@ -2491,7 +2491,7 @@ func TestPlanner_Plan(t *testing.T) {
 																	},
 																},
 																Value: &Value{
-																	QuoteValue: true,
+																	ValueType:StringValueType,
 																},
 															},
 														},
@@ -2513,7 +2513,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						Path: "name",
 																					},
 																				},
-																				QuoteValue: true,
+																				ValueType:StringValueType,
 																			},
 																		},
 																		{
@@ -2524,7 +2524,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						Path: "description",
 																					},
 																				},
-																				QuoteValue: true,
+																				ValueType:StringValueType,
 																			},
 																		},
 																		{
@@ -2546,7 +2546,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						Path: "defaultValue",
 																					},
 																				},
-																				QuoteValue: true,
+																				ValueType:StringValueType,
 																			},
 																		},
 																	},
@@ -2625,7 +2625,7 @@ func TestPlanner_Plan(t *testing.T) {
 													Path: "bar",
 												},
 											},
-											QuoteValue: true,
+											ValueType:StringValueType,
 										},
 									},
 									{
@@ -2636,7 +2636,7 @@ func TestPlanner_Plan(t *testing.T) {
 													Path: "baz",
 												},
 											},
-											QuoteValue: false,
+											ValueType:IntegerValueType,
 										},
 									},
 								},
@@ -2705,7 +2705,7 @@ func TestPlanner_Plan(t *testing.T) {
 													Path: "bar",
 												},
 											},
-											QuoteValue: true,
+											ValueType:StringValueType,
 										},
 									},
 									{
@@ -2716,7 +2716,7 @@ func TestPlanner_Plan(t *testing.T) {
 													Path: "baz",
 												},
 											},
-											QuoteValue: false,
+											ValueType:IntegerValueType,
 										},
 									},
 								},
@@ -2778,7 +2778,7 @@ func TestPlanner_Plan(t *testing.T) {
 															Path: "bar",
 														},
 													},
-													QuoteValue: true,
+													ValueType:StringValueType,
 												},
 											},
 										},
@@ -2851,7 +2851,7 @@ func TestPlanner_Plan(t *testing.T) {
 								Name:            []byte("stringPipeline"),
 								HasResolvedData: true,
 								Value: &Value{
-									QuoteValue: true,
+									ValueType:StringValueType,
 								},
 							},
 						},
@@ -2917,7 +2917,7 @@ func TestPlanner_Plan(t *testing.T) {
 								Name:            []byte("filePipeline"),
 								HasResolvedData: true,
 								Value: &Value{
-									QuoteValue: true,
+									ValueType:StringValueType,
 								},
 							},
 						},
@@ -2981,7 +2981,7 @@ func TestPlanner_Plan(t *testing.T) {
 																			Path: "name",
 																		},
 																	},
-																	QuoteValue: true,
+																	ValueType:StringValueType,
 																},
 															},
 														},
@@ -3001,7 +3001,7 @@ func TestPlanner_Plan(t *testing.T) {
 													},
 												},
 												Value: &Value{
-													QuoteValue: true,
+													ValueType:StringValueType,
 													DataResolvingConfig: DataResolvingConfig{
 														PathSelector: PathSelector{
 															Path: "status",
@@ -3022,7 +3022,7 @@ func TestPlanner_Plan(t *testing.T) {
 													},
 												},
 												Value: &Value{
-													QuoteValue: true,
+													ValueType:StringValueType,
 													DataResolvingConfig: DataResolvingConfig{
 														PathSelector: PathSelector{
 															Path: "message",
@@ -3939,7 +3939,7 @@ func introspectionQuery(schema []byte) RootNode {
 																Path: "name",
 															},
 														},
-														QuoteValue: true,
+														ValueType:StringValueType,
 													},
 												},
 											},
@@ -3962,7 +3962,7 @@ func introspectionQuery(schema []byte) RootNode {
 																Path: "name",
 															},
 														},
-														QuoteValue: true,
+														ValueType:StringValueType,
 													},
 												},
 											},
@@ -3985,7 +3985,7 @@ func introspectionQuery(schema []byte) RootNode {
 																Path: "name",
 															},
 														},
-														QuoteValue: true,
+														ValueType:StringValueType,
 													},
 												},
 											},
@@ -4009,7 +4009,7 @@ func introspectionQuery(schema []byte) RootNode {
 																	Path: "kind",
 																},
 															},
-															QuoteValue: true,
+															ValueType:StringValueType,
 														},
 													},
 													{
@@ -4020,7 +4020,7 @@ func introspectionQuery(schema []byte) RootNode {
 																	Path: "name",
 																},
 															},
-															QuoteValue: true,
+															ValueType:StringValueType,
 														},
 													},
 													{
@@ -4031,7 +4031,7 @@ func introspectionQuery(schema []byte) RootNode {
 																	Path: "description",
 																},
 															},
-															QuoteValue: true,
+															ValueType:StringValueType,
 														},
 													},
 													{
@@ -4052,7 +4052,7 @@ func introspectionQuery(schema []byte) RootNode {
 																					Path: "name",
 																				},
 																			},
-																			QuoteValue: true,
+																			ValueType:StringValueType,
 																		},
 																	},
 																	{
@@ -4063,7 +4063,7 @@ func introspectionQuery(schema []byte) RootNode {
 																					Path: "description",
 																				},
 																			},
-																			QuoteValue: true,
+																			ValueType:StringValueType,
 																		},
 																	},
 																	{
@@ -4084,7 +4084,7 @@ func introspectionQuery(schema []byte) RootNode {
 																									Path: "name",
 																								},
 																							},
-																							QuoteValue: true,
+																							ValueType:StringValueType,
 																						},
 																					},
 																					{
@@ -4095,7 +4095,7 @@ func introspectionQuery(schema []byte) RootNode {
 																									Path: "description",
 																								},
 																							},
-																							QuoteValue: true,
+																							ValueType:StringValueType,
 																						},
 																					},
 																					{
@@ -4117,7 +4117,7 @@ func introspectionQuery(schema []byte) RootNode {
 																									Path: "defaultValue",
 																								},
 																							},
-																							QuoteValue: true,
+																							ValueType:StringValueType,
 																						},
 																					},
 																				},
@@ -4143,7 +4143,7 @@ func introspectionQuery(schema []byte) RootNode {
 																					Path: "isDeprecated",
 																				},
 																			},
-																			QuoteValue: false,
+																			ValueType:BooleanValueType,
 																		},
 																	},
 																	{
@@ -4154,7 +4154,7 @@ func introspectionQuery(schema []byte) RootNode {
 																					Path: "deprecationReason",
 																				},
 																			},
-																			QuoteValue: true,
+																			ValueType:StringValueType,
 																		},
 																	},
 																},
@@ -4179,7 +4179,7 @@ func introspectionQuery(schema []byte) RootNode {
 																					Path: "name",
 																				},
 																			},
-																			QuoteValue: true,
+																			ValueType:StringValueType,
 																		},
 																	},
 																	{
@@ -4190,7 +4190,7 @@ func introspectionQuery(schema []byte) RootNode {
 																					Path: "description",
 																				},
 																			},
-																			QuoteValue: true,
+																			ValueType:StringValueType,
 																		},
 																	},
 																	{
@@ -4212,7 +4212,7 @@ func introspectionQuery(schema []byte) RootNode {
 																					Path: "defaultValue",
 																				},
 																			},
-																			QuoteValue: true,
+																			ValueType:StringValueType,
 																		},
 																	},
 																},
@@ -4250,7 +4250,7 @@ func introspectionQuery(schema []byte) RootNode {
 																					Path: "name",
 																				},
 																			},
-																			QuoteValue: true,
+																			ValueType:StringValueType,
 																		},
 																	},
 																	{
@@ -4261,7 +4261,7 @@ func introspectionQuery(schema []byte) RootNode {
 																					Path: "description",
 																				},
 																			},
-																			QuoteValue: true,
+																			ValueType:StringValueType,
 																		},
 																	},
 																	{
@@ -4272,7 +4272,7 @@ func introspectionQuery(schema []byte) RootNode {
 																					Path: "isDeprecated",
 																				},
 																			},
-																			QuoteValue: false,
+																			ValueType:BooleanValueType,
 																		},
 																	},
 																	{
@@ -4283,7 +4283,7 @@ func introspectionQuery(schema []byte) RootNode {
 																					Path: "deprecationReason",
 																				},
 																			},
-																			QuoteValue: true,
+																			ValueType:StringValueType,
 																		},
 																	},
 																},
@@ -4325,7 +4325,7 @@ func introspectionQuery(schema []byte) RootNode {
 																	Path: "name",
 																},
 															},
-															QuoteValue: true,
+															ValueType:StringValueType,
 														},
 													},
 													{
@@ -4336,7 +4336,7 @@ func introspectionQuery(schema []byte) RootNode {
 																	Path: "description",
 																},
 															},
-															QuoteValue: true,
+															ValueType:StringValueType,
 														},
 													},
 													{
@@ -4348,7 +4348,7 @@ func introspectionQuery(schema []byte) RootNode {
 																},
 															},
 															Value: &Value{
-																QuoteValue: true,
+																ValueType:StringValueType,
 															},
 														},
 													},
@@ -4370,7 +4370,7 @@ func introspectionQuery(schema []byte) RootNode {
 																					Path: "name",
 																				},
 																			},
-																			QuoteValue: true,
+																			ValueType:StringValueType,
 																		},
 																	},
 																	{
@@ -4381,7 +4381,7 @@ func introspectionQuery(schema []byte) RootNode {
 																					Path: "description",
 																				},
 																			},
-																			QuoteValue: true,
+																			ValueType:StringValueType,
 																		},
 																	},
 																	{
@@ -4403,7 +4403,7 @@ func introspectionQuery(schema []byte) RootNode {
 																					Path: "defaultValue",
 																				},
 																			},
-																			QuoteValue: true,
+																			ValueType:StringValueType,
 																		},
 																	},
 																},
@@ -4433,7 +4433,7 @@ var kindNameDeepFields = []Field{
 					Path: "kind",
 				},
 			},
-			QuoteValue: true,
+			ValueType:StringValueType,
 		},
 	},
 	{
@@ -4444,7 +4444,7 @@ var kindNameDeepFields = []Field{
 					Path: "name",
 				},
 			},
-			QuoteValue: true,
+			ValueType:StringValueType,
 		},
 	},
 	{
@@ -4464,7 +4464,7 @@ var kindNameDeepFields = []Field{
 								Path: "kind",
 							},
 						},
-						QuoteValue: true,
+						ValueType:StringValueType,
 					},
 				},
 				{
@@ -4475,7 +4475,7 @@ var kindNameDeepFields = []Field{
 								Path: "name",
 							},
 						},
-						QuoteValue: true,
+						ValueType:StringValueType,
 					},
 				},
 				{
@@ -4495,7 +4495,7 @@ var kindNameDeepFields = []Field{
 											Path: "kind",
 										},
 									},
-									QuoteValue: true,
+									ValueType:StringValueType,
 								},
 							},
 							{
@@ -4506,7 +4506,7 @@ var kindNameDeepFields = []Field{
 											Path: "name",
 										},
 									},
-									QuoteValue: true,
+									ValueType:StringValueType,
 								},
 							},
 							{
@@ -4526,7 +4526,7 @@ var kindNameDeepFields = []Field{
 														Path: "kind",
 													},
 												},
-												QuoteValue: true,
+												ValueType:StringValueType,
 											},
 										},
 										{
@@ -4537,7 +4537,7 @@ var kindNameDeepFields = []Field{
 														Path: "name",
 													},
 												},
-												QuoteValue: true,
+												ValueType:StringValueType,
 											},
 										},
 										{
@@ -4557,7 +4557,7 @@ var kindNameDeepFields = []Field{
 																	Path: "kind",
 																},
 															},
-															QuoteValue: true,
+															ValueType:StringValueType,
 														},
 													},
 													{
@@ -4568,7 +4568,7 @@ var kindNameDeepFields = []Field{
 																	Path: "name",
 																},
 															},
-															QuoteValue: true,
+															ValueType:StringValueType,
 														},
 													},
 													{
@@ -4588,7 +4588,7 @@ var kindNameDeepFields = []Field{
 																				Path: "kind",
 																			},
 																		},
-																		QuoteValue: true,
+																		ValueType:StringValueType,
 																	},
 																},
 																{
@@ -4599,7 +4599,7 @@ var kindNameDeepFields = []Field{
 																				Path: "name",
 																			},
 																		},
-																		QuoteValue: true,
+																		ValueType:StringValueType,
 																	},
 																},
 																{
@@ -4619,7 +4619,7 @@ var kindNameDeepFields = []Field{
 																							Path: "kind",
 																						},
 																					},
-																					QuoteValue: true,
+																					ValueType:StringValueType,
 																				},
 																			},
 																			{
@@ -4630,7 +4630,7 @@ var kindNameDeepFields = []Field{
 																							Path: "name",
 																						},
 																					},
-																					QuoteValue: true,
+																					ValueType:StringValueType,
 																				},
 																			},
 																			{
@@ -4650,7 +4650,7 @@ var kindNameDeepFields = []Field{
 																										Path: "kind",
 																									},
 																								},
-																								QuoteValue: true,
+																								ValueType:StringValueType,
 																							},
 																						},
 																						{
@@ -4661,7 +4661,7 @@ var kindNameDeepFields = []Field{
 																										Path: "name",
 																									},
 																								},
-																								QuoteValue: true,
+																								ValueType:StringValueType,
 																							},
 																						},
 																					},

@@ -3,15 +3,15 @@ package execution
 import (
 	"bytes"
 	"github.com/cespare/xxhash"
+	log "github.com/jensneuse/abstractlogger"
 	"github.com/jensneuse/diffview"
 	"github.com/sebdah/goldie"
-	log "github.com/jensneuse/abstractlogger"
 	"io/ioutil"
 	"testing"
 )
 
 func TestHandler_RenderGraphQLDefinitions(t *testing.T) {
-	handler, err := NewHandler(nil, log.NoopLogger)
+	handler, err := NewHandler(nil, nil, log.NoopLogger)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +45,7 @@ func TestHandler_RenderGraphQLDefinitions(t *testing.T) {
 }
 
 func TestHandler_VariablesFromRequest(t *testing.T) {
-	handler, err := NewHandler(nil, log.NoopLogger)
+	handler, err := NewHandler(nil, nil, log.NoopLogger)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,16 +55,16 @@ func TestHandler_VariablesFromRequest(t *testing.T) {
 
 	extra := []byte(`{"request":{"headers":{"Authorization":"Bearer foo123"}}}`)
 
-	variables,extraArguments := handler.VariablesFromJson(request.Variables,extra)
+	variables, extraArguments := handler.VariablesFromJson(request.Variables, extra)
 
-	for key,value := range map[string]string{
-		"foo": "bar",
+	for key, value := range map[string]string{
+		"foo":     "bar",
 		"request": `{"headers":{"Authorization":"Bearer foo123"}}`,
-	}{
+	} {
 		got := string(variables[xxhash.Sum64String(key)])
 		want := value
-		if got != want{
-			t.Errorf("want {{ %s }}, got: {{ %s }}'",want,got)
+		if got != want {
+			t.Errorf("want {{ %s }}, got: {{ %s }}'", want, got)
 		}
 	}
 
@@ -72,10 +72,10 @@ func TestHandler_VariablesFromRequest(t *testing.T) {
 		t.Fatalf("want 1")
 	}
 
-	if !bytes.Equal(extraArguments[0].(*ContextVariableArgument).Name,[]byte("request")){
+	if !bytes.Equal(extraArguments[0].(*ContextVariableArgument).Name, []byte("request")) {
 		t.Fatalf("unexpected")
 	}
-	if !bytes.Equal(extraArguments[0].(*ContextVariableArgument).VariableName,[]byte("request")){
+	if !bytes.Equal(extraArguments[0].(*ContextVariableArgument).VariableName, []byte("request")) {
 		t.Fatalf("unexpected")
 	}
 }

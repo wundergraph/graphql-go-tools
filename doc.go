@@ -25,4 +25,4 @@
 // If you're looking for a ready to use solution that has all this functionality packaged as a Gateway have a look at: https://github.com/jensneuse/graphql-gateway
 //
 // Created by Jens Neuse
-package graphql_go_tools
+package main

@@ -17,31 +17,26 @@ type Location struct {
 }
 
 func ErrFieldUndefinedOnType(fieldName, typeName ast.ByteSlice) (err ExternalError) {
-
 	err.Message = fmt.Sprintf("field: %s not defined on type: %s", fieldName, typeName)
 	return err
 }
 
 func ErrTypeUndefined(typeName ast.ByteSlice) (err ExternalError) {
-
 	err.Message = fmt.Sprintf("type not defined: %s", typeName)
 	return err
 }
 
 func ErrOperationNameMustBeUnique(operationName ast.ByteSlice) (err ExternalError) {
-
 	err.Message = fmt.Sprintf("operation name must be unique: %s", operationName)
 	return err
 }
 
 func ErrAnonymousOperationMustBeTheOnlyOperationInDocument() (err ExternalError) {
-
 	err.Message = fmt.Sprintf("anonymous operation name the only operation in a graphql document")
 	return err
 }
 
 func ErrSubscriptionMustOnlyHaveOneRootSelection(subscriptionName ast.ByteSlice) (err ExternalError) {
-
 	err.Message = fmt.Sprintf("subscription: %s must only have one root selection", subscriptionName)
 	return err
 }

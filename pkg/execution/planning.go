@@ -198,7 +198,7 @@ func (p *planningVisitor) EnterField(ref int) {
 
 			if !p.operation.FieldHasSelections(ref) {
 				value = &Value{
-					QuoteValue: p.quoteValue(fieldDefinitionType),
+					ValueType: p.jsonValueType(fieldDefinitionType),
 				}
 			} else {
 				value = &Object{}
@@ -214,7 +214,7 @@ func (p *planningVisitor) EnterField(ref int) {
 				if firstNValue.Kind == ast.ValueKindInteger {
 					firstN := p.definition.IntValueAsInt(firstNValue.Ref)
 					list.Filter = &ListFilterFirstN{
-						FirstN: firstN,
+						FirstN: int(firstN),
 					}
 				}
 			}
@@ -222,7 +222,7 @@ func (p *planningVisitor) EnterField(ref int) {
 			parent.Fields = append(parent.Fields, Field{
 				Name:  p.operation.FieldNameBytes(ref),
 				Value: list,
-				Skip:skipCondition,
+				Skip:  skipCondition,
 			})
 
 			p.currentNode = append(p.currentNode, value)
@@ -232,7 +232,7 @@ func (p *planningVisitor) EnterField(ref int) {
 		if !p.operation.FieldHasSelections(ref) {
 			value = &Value{
 				DataResolvingConfig: dataResolvingConfig,
-				QuoteValue:          p.quoteValue(fieldDefinitionType),
+				ValueType:           p.jsonValueType(fieldDefinitionType),
 			}
 		} else {
 			value = &Object{
@@ -373,17 +373,17 @@ type ResolverParameter struct {
 	variableType []byte
 }
 
-func (p *planningVisitor) quoteValue(valueType int) bool {
+func (p *planningVisitor) jsonValueType(valueType int) JSONValueType {
 	typeName := p.definition.ResolveTypeName(valueType)
 	switch {
 	case bytes.Equal(typeName, literal.INT):
-		return false
+		return IntegerValueType
 	case bytes.Equal(typeName, literal.BOOLEAN):
-		return false
+		return BooleanValueType
 	case bytes.Equal(typeName, literal.FLOAT):
-		return false
+		return FloatValueType
 	default:
-		return true
+		return StringValueType
 	}
 }
 
