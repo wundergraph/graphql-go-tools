@@ -91,7 +91,7 @@ func (h *Handler) Handle(requestData, extraVariables []byte) (executor *Executor
 
 	variables, extraArguments := h.VariablesFromJson(graphqlRequest.Variables, extraVariables)
 
-	planner := NewPlanner(h.resolverDefinitions(&report))
+	planner := NewPlanner(h.resolverDefinitions(&report),PlannerConfiguration{})
 	if report.HasErrors() {
 		err = report
 		return

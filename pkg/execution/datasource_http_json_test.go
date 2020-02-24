@@ -97,6 +97,17 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 				},
 			},
 		},
+		PlannerConfiguration{
+			TypeFieldConfigurations: []TypeFieldConfiguration{
+				{
+					TypeName:  "Query",
+					FieldName: "simpleType",
+					Mapping: MappingConfiguration{
+						Disabled: true,
+					},
+				},
+			},
+		},
 		&Object{
 			operationType: ast.OperationTypeQuery,
 			Fields: []Field{
@@ -142,7 +153,7 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 														Path: "__typename",
 													},
 												},
-												ValueType:StringValueType,
+												ValueType: StringValueType,
 											},
 										},
 										{
@@ -153,7 +164,7 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 														Path: "scalarField",
 													},
 												},
-												ValueType:StringValueType,
+												ValueType: StringValueType,
 											},
 										},
 									},
@@ -184,6 +195,17 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 				FieldName: []byte("unionType"),
 				DataSourcePlannerFactory: func() DataSourcePlanner {
 					return &HttpJsonDataSourcePlanner{}
+				},
+			},
+		},
+		PlannerConfiguration{
+			TypeFieldConfigurations: []TypeFieldConfiguration{
+				{
+					TypeName:  "Query",
+					FieldName: "unionType",
+					Mapping: MappingConfiguration{
+						Disabled: true,
+					},
 				},
 			},
 		},
@@ -232,7 +254,7 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 														Path: "__typename",
 													},
 												},
-												ValueType:StringValueType,
+												ValueType: StringValueType,
 											},
 										},
 										{
@@ -253,7 +275,7 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 														Path: "result",
 													},
 												},
-												ValueType:StringValueType,
+												ValueType: StringValueType,
 											},
 										},
 										{
@@ -274,7 +296,7 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 														Path: "message",
 													},
 												},
-												ValueType:StringValueType,
+												ValueType: StringValueType,
 											},
 										},
 									},
@@ -306,6 +328,17 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 				FieldName: []byte("interfaceType"),
 				DataSourcePlannerFactory: func() DataSourcePlanner {
 					return &HttpJsonDataSourcePlanner{}
+				},
+			},
+		},
+		PlannerConfiguration{
+			TypeFieldConfigurations: []TypeFieldConfiguration{
+				{
+					TypeName:  "Query",
+					FieldName: "interfaceType",
+					Mapping: MappingConfiguration{
+						Disabled: true,
+					},
 				},
 			},
 		},
@@ -354,7 +387,7 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 														Path: "__typename",
 													},
 												},
-												ValueType:StringValueType,
+												ValueType: StringValueType,
 											},
 										},
 										{
@@ -365,7 +398,7 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 														Path: "name",
 													},
 												},
-												ValueType:StringValueType,
+												ValueType: StringValueType,
 											},
 										},
 										{
@@ -386,7 +419,7 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 														Path: "successField",
 													},
 												},
-												ValueType:StringValueType,
+												ValueType: StringValueType,
 											},
 										},
 										{
@@ -407,7 +440,7 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 														Path: "errorField",
 													},
 												},
-												ValueType:StringValueType,
+												ValueType: StringValueType,
 											},
 										},
 									},
