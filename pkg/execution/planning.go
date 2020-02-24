@@ -26,6 +26,10 @@ type DataSourceDefinition struct {
 	DataSourcePlannerFactory func() DataSourcePlanner
 }
 
+type TypeFieldConfiguration struct {
+	
+}
+
 type ResolverDefinitions []DataSourceDefinition
 
 func (r ResolverDefinitions) DefinitionForTypeField(typeName, fieldName []byte, definition *DataSourceDefinition) (exists bool) {
