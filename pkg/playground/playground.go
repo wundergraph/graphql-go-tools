@@ -84,10 +84,10 @@ type Playground struct {
 func New(config Config) *Playground {
 
 	data := playgroundTemplateData{
-		CssURL:                  path.Join(config.PathPrefix, cssFile),
-		JsURL:                   path.Join(config.PathPrefix, jsFile),
-		FavIconURL:              path.Join(config.PathPrefix, faviconFile),
-		LogoURL:                 path.Join(config.PathPrefix, logoFile),
+		CssURL:                  path.Join("/", config.PathPrefix, cssFile),
+		JsURL:                   path.Join("/", config.PathPrefix, jsFile),
+		FavIconURL:              path.Join("/", config.PathPrefix, faviconFile),
+		LogoURL:                 path.Join("/", config.PathPrefix, logoFile),
 		EndpointURL:             config.GraphqlEndpointPath,
 		SubscriptionEndpointURL: config.GraphQLSubscriptionEndpointPath,
 	}
