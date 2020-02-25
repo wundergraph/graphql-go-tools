@@ -23,13 +23,14 @@ import (
 )
 
 type Handler struct {
-	log                abstractlogger.Logger
-	definition         ast.Document
-	graphqlDefinitions *packr.Box
-	templateDirectives []byte_template.DirectiveDefinition
+	log                  abstractlogger.Logger
+	definition           ast.Document
+	graphqlDefinitions   *packr.Box
+	templateDirectives   []byte_template.DirectiveDefinition
+	plannerConfiguration PlannerConfiguration
 }
 
-func NewHandler(schema []byte, templateDirectives []byte_template.DirectiveDefinition, logger abstractlogger.Logger) (*Handler, error) {
+func NewHandler(schema []byte, plannerConfiguration PlannerConfiguration, templateDirectives []byte_template.DirectiveDefinition, logger abstractlogger.Logger) (*Handler, error) {
 
 	schema = append(schema, graphqlDefinitionBoilerplate...)
 
@@ -41,10 +42,11 @@ func NewHandler(schema []byte, templateDirectives []byte_template.DirectiveDefin
 	box := packr.NewBox("./graphql_definitions")
 
 	return &Handler{
-		log:                logger,
-		definition:         definition,
-		graphqlDefinitions: &box,
-		templateDirectives: templateDirectives,
+		log:                  logger,
+		definition:           definition,
+		graphqlDefinitions:   &box,
+		templateDirectives:   templateDirectives,
+		plannerConfiguration: plannerConfiguration,
 	}, nil
 }
 
@@ -91,7 +93,7 @@ func (h *Handler) Handle(requestData, extraVariables []byte) (executor *Executor
 
 	variables, extraArguments := h.VariablesFromJson(graphqlRequest.Variables, extraVariables)
 
-	planner := NewPlanner(h.resolverDefinitions(&report),PlannerConfiguration{})
+	planner := NewPlanner(h.resolverDefinitions(&report), h.plannerConfiguration)
 	if report.HasErrors() {
 		err = report
 		return
@@ -156,6 +158,7 @@ func (h *Handler) resolverDefinitions(report *operationreport.Report) ResolverDe
 	baseDataSourcePlanner := BaseDataSourcePlanner{
 		log:                h.log,
 		graphqlDefinitions: h.graphqlDefinitions,
+		config:             h.plannerConfiguration,
 	}
 
 	definitions := ResolverDefinitions{
