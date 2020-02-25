@@ -100,6 +100,16 @@ func TestPlanner_WithTransformation(t *testing.T) {
 				return &StaticDataSourcePlanner{}
 			},
 		},
+	}, PlannerConfiguration{
+		TypeFieldConfigurations: []TypeFieldConfiguration{
+			{
+				TypeName: "Query",
+				FieldName: "foo",
+				Mapping:MappingConfiguration{
+					Disabled:true,
+				},
+			},
+		},
 	}, &Object{
 		operationType: ast.OperationTypeQuery,
 		Fields: []Field{
@@ -149,6 +159,16 @@ func TestPlanner_WithTransformation(t *testing.T) {
 			FieldName: []byte("bar"),
 			DataSourcePlannerFactory: func() DataSourcePlanner {
 				return &StaticDataSourcePlanner{}
+			},
+		},
+	}, PlannerConfiguration{
+		TypeFieldConfigurations: []TypeFieldConfiguration{
+			{
+				TypeName: "Query",
+				FieldName: "bar",
+				Mapping:MappingConfiguration{
+					Disabled:true,
+				},
 			},
 		},
 	}, &Object{
@@ -212,7 +232,6 @@ type Query {
         @StaticDataSource(
             data: "{\"bar\":\"baz\"}"
         )
-		@mapping(mode: NONE)
 		@transformation(
 			mode: PIPELINE
 			pipelineConfigString: """
@@ -229,7 +248,6 @@ type Query {
         @StaticDataSource(
             data: "{\"bar\":\"baz\"}"
         )
-		@mapping(mode: NONE)
 		@transformation(
 			mode: PIPELINE
 			pipelineConfigFile: "./testdata/simple_pipeline.json"

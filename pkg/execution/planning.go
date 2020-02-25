@@ -26,6 +26,30 @@ type DataSourceDefinition struct {
 	DataSourcePlannerFactory func() DataSourcePlanner
 }
 
+type TypeFieldConfiguration struct {
+	TypeName  string
+	FieldName string
+	Mapping   MappingConfiguration
+}
+
+type MappingConfiguration struct {
+	Disabled bool
+	Path     string
+}
+
+type PlannerConfiguration struct {
+	TypeFieldConfigurations []TypeFieldConfiguration
+}
+
+func (p PlannerConfiguration) mappingForTypeField(typeName, fieldName string) (config MappingConfiguration, exists bool) {
+	for i := range p.TypeFieldConfigurations {
+		if p.TypeFieldConfigurations[i].TypeName == typeName && p.TypeFieldConfigurations[i].FieldName == fieldName {
+			return p.TypeFieldConfigurations[i].Mapping, true
+		}
+	}
+	return
+}
+
 type ResolverDefinitions []DataSourceDefinition
 
 func (r ResolverDefinitions) DefinitionForTypeField(typeName, fieldName []byte, definition *DataSourceDefinition) (exists bool) {
@@ -38,11 +62,12 @@ func (r ResolverDefinitions) DefinitionForTypeField(typeName, fieldName []byte, 
 	return false
 }
 
-func NewPlanner(resolverDefinitions ResolverDefinitions) *Planner {
+func NewPlanner(resolverDefinitions ResolverDefinitions, config PlannerConfiguration) *Planner {
 	walker := astvisitor.NewWalker(48)
 	visitor := planningVisitor{
 		Walker:              &walker,
 		resolverDefinitions: resolverDefinitions,
+		config:              config,
 	}
 
 	walker.RegisterEnterDocumentVisitor(&visitor)
@@ -66,6 +91,7 @@ func (p *Planner) Plan(operation, definition *ast.Document, report *operationrep
 
 type planningVisitor struct {
 	*astvisitor.Walker
+	config                PlannerConfiguration
 	resolverDefinitions   ResolverDefinitions
 	operation, definition *ast.Document
 	rootNode              RootNode
@@ -395,40 +421,17 @@ func (p *planningVisitor) fieldDataResolvingConfig(ref int) DataResolvingConfig 
 }
 
 func (p *planningVisitor) fieldPathSelector(ref int) (selector PathSelector) {
-	selector.Path = p.operation.FieldNameString(ref)
-	definition, ok := p.FieldDefinition(ref)
-	switch {
-	case !ok: // field not defined
-		return
-	case selector.Path == "__typename": // __typename field is static
+	fieldName := p.operation.FieldNameString(ref)
+	typeName := p.definition.NodeNameString(p.EnclosingTypeDefinition)
+	mapping, exists := p.config.mappingForTypeField(typeName, fieldName)
+	if !exists {
+		selector.Path = fieldName
 		return
 	}
-	directive, ok := p.definition.FieldDefinitionDirectiveByName(definition, []byte("mapping"))
-	if ok {
-		value, ok := p.definition.DirectiveArgumentValueByName(directive, []byte("mode"))
-		if !ok {
-			def := p.definition.DirectiveArgumentInputValueDefinition([]byte("mapping"), []byte("mode"))
-			if def == -1 {
-				return
-			}
-			ok = p.definition.InputValueDefinitionHasDefaultValue(def)
-			value = p.definition.InputValueDefinitionDefaultValue(def)
-		}
-		if ok && value.Kind == ast.ValueKindEnum {
-			mode := p.definition.EnumValueNameString(value.Ref)
-			switch mode {
-			case "NONE":
-				selector.Path = ""
-				return
-			case "PATH_SELECTOR":
-				value, ok = p.definition.DirectiveArgumentValueByName(directive, []byte("pathSelector"))
-				if ok && value.Kind == ast.ValueKindString {
-					selector.Path = p.definition.StringValueContentString(value.Ref)
-					return
-				}
-			}
-		}
+	if mapping.Disabled {
+		return
 	}
+	selector.Path = mapping.Path
 	return
 }
 

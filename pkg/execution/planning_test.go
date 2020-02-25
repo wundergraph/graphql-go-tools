@@ -23,7 +23,7 @@ func init() {
 	rand.Seed(time.Now().Unix())
 }
 
-func run(definition string, operation string, resolverDefinitions ResolverDefinitions, want Node) func(t *testing.T) {
+func run(definition string, operation string, resolverDefinitions ResolverDefinitions, config PlannerConfiguration, want Node) func(t *testing.T) {
 	return func(t *testing.T) {
 		def := unsafeparser.ParseGraphqlDocumentString(definition)
 		op := unsafeparser.ParseGraphqlDocumentString(operation)
@@ -35,7 +35,7 @@ func run(definition string, operation string, resolverDefinitions ResolverDefini
 			t.Error(report)
 		}
 
-		planner := NewPlanner(resolverDefinitions)
+		planner := NewPlanner(resolverDefinitions, config)
 		got := planner.Plan(&op, &def, &report)
 		if report.HasErrors() {
 			t.Error(report)
@@ -68,6 +68,9 @@ func TestPlanner_Plan(t *testing.T) {
 					return NewGraphQLDataSourcePlanner(BaseDataSourcePlanner{})
 				},
 			},
+		},
+		PlannerConfiguration{
+			TypeFieldConfigurations: []TypeFieldConfiguration{},
 		},
 		&Object{
 			operationType: ast.OperationTypeQuery,
@@ -118,7 +121,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: "code",
 													},
 												},
-												ValueType:StringValueType,
+												ValueType: StringValueType,
 											},
 										},
 										{
@@ -129,7 +132,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: "name",
 													},
 												},
-												ValueType:StringValueType,
+												ValueType: StringValueType,
 											},
 										},
 										{
@@ -140,7 +143,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: "native",
 													},
 												},
-												ValueType:StringValueType,
+												ValueType: StringValueType,
 											},
 										},
 									},
@@ -168,6 +171,9 @@ func TestPlanner_Plan(t *testing.T) {
 					return NewGraphQLDataSourcePlanner(BaseDataSourcePlanner{})
 				},
 			},
+		},
+		PlannerConfiguration{
+			TypeFieldConfigurations: []TypeFieldConfiguration{},
 		},
 		&Object{
 			operationType: ast.OperationTypeMutation,
@@ -218,7 +224,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: "id",
 													},
 												},
-												ValueType:StringValueType,
+												ValueType: StringValueType,
 											},
 										},
 										{
@@ -229,7 +235,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: "likes",
 													},
 												},
-												ValueType:IntegerValueType,
+												ValueType: IntegerValueType,
 											},
 										},
 									},
@@ -277,6 +283,45 @@ func TestPlanner_Plan(t *testing.T) {
 				FieldName: []byte("comments"),
 				DataSourcePlannerFactory: func() DataSourcePlanner {
 					return &HttpJsonDataSourcePlanner{}
+				},
+			},
+		},
+		PlannerConfiguration{
+			TypeFieldConfigurations: []TypeFieldConfiguration{
+				{
+					TypeName:  "JSONPlaceholderPost",
+					FieldName: "comments",
+					Mapping: MappingConfiguration{
+						Disabled: true,
+					},
+				},
+				{
+					TypeName:  "Query",
+					FieldName: "httpBinGet",
+					Mapping: MappingConfiguration{
+						Disabled: true,
+					},
+				},
+				{
+					TypeName:  "Query",
+					FieldName: "post",
+					Mapping: MappingConfiguration{
+						Disabled: true,
+					},
+				},
+				{
+					TypeName:  "HttpBinGet",
+					FieldName: "header",
+					Mapping: MappingConfiguration{
+						Path: "headers",
+					},
+				},
+				{
+					TypeName:  "Headers",
+					FieldName: "acceptEncoding",
+					Mapping: MappingConfiguration{
+						Path: "Accept-Encoding",
+					},
 				},
 			},
 		},
@@ -365,7 +410,7 @@ func TestPlanner_Plan(t *testing.T) {
 																	Path: "Accept",
 																},
 															},
-															ValueType:StringValueType,
+															ValueType: StringValueType,
 														},
 													},
 													{
@@ -376,7 +421,7 @@ func TestPlanner_Plan(t *testing.T) {
 																	Path: "Host",
 																},
 															},
-															ValueType:StringValueType,
+															ValueType: StringValueType,
 														},
 													},
 													{
@@ -387,7 +432,7 @@ func TestPlanner_Plan(t *testing.T) {
 																	Path: "Accept-Encoding",
 																},
 															},
-															ValueType:StringValueType,
+															ValueType: StringValueType,
 														},
 													},
 												},
@@ -439,7 +484,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: "id",
 													},
 												},
-												ValueType:IntegerValueType,
+												ValueType: IntegerValueType,
 											},
 										},
 										{
@@ -456,7 +501,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		Path: "id",
 																	},
 																},
-																ValueType:IntegerValueType,
+																ValueType: IntegerValueType,
 															},
 														},
 													},
@@ -483,6 +528,17 @@ func TestPlanner_Plan(t *testing.T) {
 				FieldName: []byte("withBody"),
 				DataSourcePlannerFactory: func() DataSourcePlanner {
 					return &HttpJsonDataSourcePlanner{}
+				},
+			},
+		},
+		PlannerConfiguration{
+			TypeFieldConfigurations: []TypeFieldConfiguration{
+				{
+					TypeName:  "Query",
+					FieldName: "withBody",
+					Mapping: MappingConfiguration{
+						Disabled: true,
+					},
 				},
 			},
 		},
@@ -525,7 +581,7 @@ func TestPlanner_Plan(t *testing.T) {
 								Name:            []byte("withBody"),
 								HasResolvedData: true,
 								Value: &Value{
-									ValueType:StringValueType,
+									ValueType: StringValueType,
 								},
 							},
 						},
@@ -544,6 +600,17 @@ func TestPlanner_Plan(t *testing.T) {
 				FieldName: []byte("withPath"),
 				DataSourcePlannerFactory: func() DataSourcePlanner {
 					return &HttpJsonDataSourcePlanner{}
+				},
+			},
+		},
+		PlannerConfiguration{
+			TypeFieldConfigurations: []TypeFieldConfiguration{
+				{
+					TypeName:  "Query",
+					FieldName: "withPath",
+					Mapping: MappingConfiguration{
+						Path: "subObject",
+					},
 				},
 			},
 		},
@@ -583,7 +650,7 @@ func TestPlanner_Plan(t *testing.T) {
 											Path: "subObject",
 										},
 									},
-									ValueType:StringValueType,
+									ValueType: StringValueType,
 								},
 							},
 						},
@@ -604,6 +671,17 @@ func TestPlanner_Plan(t *testing.T) {
 				FieldName: []byte("listItems"),
 				DataSourcePlannerFactory: func() DataSourcePlanner {
 					return &HttpJsonDataSourcePlanner{}
+				},
+			},
+		},
+		PlannerConfiguration{
+			TypeFieldConfigurations: []TypeFieldConfiguration{
+				{
+					TypeName:  "Query",
+					FieldName: "listItems",
+					Mapping: MappingConfiguration{
+						Disabled: true,
+					},
 				},
 			},
 		},
@@ -652,7 +730,7 @@ func TestPlanner_Plan(t *testing.T) {
 															Path: "id",
 														},
 													},
-													ValueType:StringValueType,
+													ValueType: StringValueType,
 												},
 											},
 										},
@@ -677,6 +755,17 @@ func TestPlanner_Plan(t *testing.T) {
 				FieldName: []byte("listWithPath"),
 				DataSourcePlannerFactory: func() DataSourcePlanner {
 					return &HttpJsonDataSourcePlanner{}
+				},
+			},
+		},
+		PlannerConfiguration{
+			TypeFieldConfigurations: []TypeFieldConfiguration{
+				{
+					TypeName:  "Query",
+					FieldName: "listWithPath",
+					Mapping: MappingConfiguration{
+						Path: "items",
+					},
 				},
 			},
 		},
@@ -730,7 +819,7 @@ func TestPlanner_Plan(t *testing.T) {
 															Path: "id",
 														},
 													},
-													ValueType:StringValueType,
+													ValueType: StringValueType,
 												},
 											},
 										},
@@ -753,6 +842,17 @@ func TestPlanner_Plan(t *testing.T) {
 				FieldName: []byte("withHeaders"),
 				DataSourcePlannerFactory: func() DataSourcePlanner {
 					return &HttpJsonDataSourcePlanner{}
+				},
+			},
+		},
+		PlannerConfiguration{
+			TypeFieldConfigurations: []TypeFieldConfiguration{
+				{
+					TypeName:  "Query",
+					FieldName: "withHeaders",
+					Mapping: MappingConfiguration{
+						Disabled: true,
+					},
 				},
 			},
 		},
@@ -800,7 +900,7 @@ func TestPlanner_Plan(t *testing.T) {
 								Name:            []byte("withHeaders"),
 								HasResolvedData: true,
 								Value: &Value{
-									ValueType:StringValueType,
+									ValueType: StringValueType,
 								},
 							},
 						},
@@ -836,6 +936,31 @@ func TestPlanner_Plan(t *testing.T) {
 				FieldName: []byte("foo"),
 				DataSourcePlannerFactory: func() DataSourcePlanner {
 					return &StaticDataSourcePlanner{}
+				},
+			},
+		},
+		PlannerConfiguration{
+			TypeFieldConfigurations: []TypeFieldConfiguration{
+				{
+					TypeName:  "Query",
+					FieldName: "hello",
+					Mapping: MappingConfiguration{
+						Disabled: true,
+					},
+				},
+				{
+					TypeName:  "Query",
+					FieldName: "foo",
+					Mapping: MappingConfiguration{
+						Disabled: true,
+					},
+				},
+				{
+					TypeName:  "Query",
+					FieldName: "nullableInt",
+					Mapping: MappingConfiguration{
+						Disabled: true,
+					},
 				},
 			},
 		},
@@ -887,14 +1012,14 @@ func TestPlanner_Plan(t *testing.T) {
 								Name:            []byte("hello"),
 								HasResolvedData: true,
 								Value: &Value{
-									ValueType:StringValueType,
+									ValueType: StringValueType,
 								},
 							},
 							{
 								Name:            []byte("nullableInt"),
 								HasResolvedData: true,
 								Value: &Value{
-									ValueType:IntegerValueType,
+									ValueType: IntegerValueType,
 								},
 							},
 							{
@@ -910,7 +1035,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: "bar",
 													},
 												},
-												ValueType:StringValueType,
+												ValueType: StringValueType,
 											},
 										},
 									},
@@ -934,93 +1059,99 @@ func TestPlanner_Plan(t *testing.T) {
 						}
 					}
 				}
-`, ResolverDefinitions{
-		{
-			TypeName:  literal.QUERY,
-			FieldName: literal.UNDERSCORETYPE,
-			DataSourcePlannerFactory: func() DataSourcePlanner {
-				return &TypeDataSourcePlanner{}
+`,
+		ResolverDefinitions{
+			{
+				TypeName:  literal.QUERY,
+				FieldName: literal.UNDERSCORETYPE,
+				DataSourcePlannerFactory: func() DataSourcePlanner {
+					return &TypeDataSourcePlanner{}
+				},
 			},
 		},
-	}, &Object{
-		operationType: ast.OperationTypeQuery,
-		Fields: []Field{
-			{
-				Name: []byte("data"),
-				Value: &Object{
-					Fetch: &SingleFetch{
-						Source: &DataSourceInvocation{
-							Args: []Argument{
-								&ContextVariableArgument{
-									Name:         []byte("name"),
-									VariableName: []byte("name"),
-								},
-							},
-							DataSource: &TypeDataSource{},
-						},
-						BufferName: "__type",
-					},
-					Fields: []Field{
-						{
-							Name:            []byte("__type"),
-							HasResolvedData: true,
-							Value: &Object{
-								DataResolvingConfig: DataResolvingConfig{
-									PathSelector: PathSelector{
-										Path: "__type",
+		PlannerConfiguration{
+			TypeFieldConfigurations: []TypeFieldConfiguration{},
+		},
+		&Object{
+			operationType: ast.OperationTypeQuery,
+			Fields: []Field{
+				{
+					Name: []byte("data"),
+					Value: &Object{
+						Fetch: &SingleFetch{
+							Source: &DataSourceInvocation{
+								Args: []Argument{
+									&ContextVariableArgument{
+										Name:         []byte("name"),
+										VariableName: []byte("name"),
 									},
 								},
-								Fields: []Field{
-									{
-										Name: []byte("name"),
-										Value: &Value{
-											DataResolvingConfig: DataResolvingConfig{
-												PathSelector: PathSelector{
-													Path: "name",
-												},
-											},
-											ValueType:StringValueType,
+								DataSource: &TypeDataSource{},
+							},
+							BufferName: "__type",
+						},
+						Fields: []Field{
+							{
+								Name:            []byte("__type"),
+								HasResolvedData: true,
+								Value: &Object{
+									DataResolvingConfig: DataResolvingConfig{
+										PathSelector: PathSelector{
+											Path: "__type",
 										},
 									},
-									{
-										Name: []byte("fields"),
-										Value: &List{
-											DataResolvingConfig: DataResolvingConfig{
-												PathSelector: PathSelector{
-													Path: "fields",
-												},
-											},
-											Value: &Object{
-												Fields: []Field{
-													{
-														Name: []byte("name"),
-														Value: &Value{
-															DataResolvingConfig: DataResolvingConfig{
-																PathSelector: PathSelector{
-																	Path: "name",
-																},
-															},
-															ValueType:StringValueType,
-														},
+									Fields: []Field{
+										{
+											Name: []byte("name"),
+											Value: &Value{
+												DataResolvingConfig: DataResolvingConfig{
+													PathSelector: PathSelector{
+														Path: "name",
 													},
-													{
-														Name: []byte("type"),
-														Value: &Object{
-															DataResolvingConfig: DataResolvingConfig{
-																PathSelector: PathSelector{
-																	Path: "type",
+												},
+												ValueType: StringValueType,
+											},
+										},
+										{
+											Name: []byte("fields"),
+											Value: &List{
+												DataResolvingConfig: DataResolvingConfig{
+													PathSelector: PathSelector{
+														Path: "fields",
+													},
+												},
+												Value: &Object{
+													Fields: []Field{
+														{
+															Name: []byte("name"),
+															Value: &Value{
+																DataResolvingConfig: DataResolvingConfig{
+																	PathSelector: PathSelector{
+																		Path: "name",
+																	},
 																},
+																ValueType: StringValueType,
 															},
-															Fields: []Field{
-																{
-																	Name: []byte("name"),
-																	Value: &Value{
-																		DataResolvingConfig: DataResolvingConfig{
-																			PathSelector: PathSelector{
-																				Path: "name",
+														},
+														{
+															Name: []byte("type"),
+															Value: &Object{
+																DataResolvingConfig: DataResolvingConfig{
+																	PathSelector: PathSelector{
+																		Path: "type",
+																	},
+																},
+																Fields: []Field{
+																	{
+																		Name: []byte("name"),
+																		Value: &Value{
+																			DataResolvingConfig: DataResolvingConfig{
+																				PathSelector: PathSelector{
+																					Path: "name",
+																				},
 																			},
+																			ValueType: StringValueType,
 																		},
-																		ValueType:StringValueType,
 																	},
 																},
 															},
@@ -1036,8 +1167,7 @@ func TestPlanner_Plan(t *testing.T) {
 					},
 				},
 			},
-		},
-	}))
+		}))
 	t.Run("graphql resolver", run(withBaseSchema(complexSchema), `
 			query UserQuery($id: String!) {
 				user(id: $id) {
@@ -1054,6 +1184,9 @@ func TestPlanner_Plan(t *testing.T) {
 					return NewGraphQLDataSourcePlanner(BaseDataSourcePlanner{})
 				},
 			},
+		},
+		PlannerConfiguration{
+			TypeFieldConfigurations: []TypeFieldConfiguration{},
 		},
 		&Object{
 			operationType: ast.OperationTypeQuery,
@@ -1104,7 +1237,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: "id",
 													},
 												},
-												ValueType:StringValueType,
+												ValueType: StringValueType,
 											},
 										},
 										{
@@ -1115,7 +1248,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: "name",
 													},
 												},
-												ValueType:StringValueType,
+												ValueType: StringValueType,
 											},
 										},
 										{
@@ -1126,7 +1259,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: "birthday",
 													},
 												},
-												ValueType:StringValueType,
+												ValueType: StringValueType,
 											},
 										},
 									},
@@ -1151,6 +1284,17 @@ func TestPlanner_Plan(t *testing.T) {
 				FieldName: []byte("restUser"),
 				DataSourcePlannerFactory: func() DataSourcePlanner {
 					return &HttpJsonDataSourcePlanner{}
+				},
+			},
+		},
+		PlannerConfiguration{
+			TypeFieldConfigurations: []TypeFieldConfiguration{
+				{
+					TypeName:  "Query",
+					FieldName: "restUser",
+					Mapping: MappingConfiguration{
+						Disabled: true,
+					},
 				},
 			},
 		},
@@ -1202,7 +1346,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: "id",
 													},
 												},
-												ValueType:StringValueType,
+												ValueType: StringValueType,
 											},
 										},
 										{
@@ -1213,7 +1357,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: "name",
 													},
 												},
-												ValueType:StringValueType,
+												ValueType: StringValueType,
 											},
 										},
 										{
@@ -1224,7 +1368,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: "birthday",
 													},
 												},
-												ValueType:StringValueType,
+												ValueType: StringValueType,
 											},
 										},
 									},
@@ -1262,6 +1406,17 @@ func TestPlanner_Plan(t *testing.T) {
 				FieldName: []byte("friends"),
 				DataSourcePlannerFactory: func() DataSourcePlanner {
 					return &HttpJsonDataSourcePlanner{}
+				},
+			},
+		},
+		PlannerConfiguration{
+			TypeFieldConfigurations: []TypeFieldConfiguration{
+				{
+					TypeName:  "User",
+					FieldName: "friends",
+					Mapping: MappingConfiguration{
+						Disabled: true,
+					},
 				},
 			},
 		},
@@ -1344,7 +1499,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: "id",
 													},
 												},
-												ValueType:StringValueType,
+												ValueType: StringValueType,
 											},
 										},
 										{
@@ -1355,7 +1510,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: "name",
 													},
 												},
-												ValueType:StringValueType,
+												ValueType: StringValueType,
 											},
 										},
 										{
@@ -1366,7 +1521,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: "birthday",
 													},
 												},
-												ValueType:StringValueType,
+												ValueType: StringValueType,
 											},
 										},
 										{
@@ -1383,7 +1538,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		Path: "id",
 																	},
 																},
-																ValueType:StringValueType,
+																ValueType: StringValueType,
 															},
 														},
 														{
@@ -1394,7 +1549,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		Path: "name",
 																	},
 																},
-																ValueType:StringValueType,
+																ValueType: StringValueType,
 															},
 														},
 														{
@@ -1405,7 +1560,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		Path: "birthday",
 																	},
 																},
-																ValueType:StringValueType,
+																ValueType: StringValueType,
 															},
 														},
 													},
@@ -1476,7 +1631,37 @@ func TestPlanner_Plan(t *testing.T) {
 				TypeName:  []byte("User"),
 				FieldName: []byte("pets"),
 				DataSourcePlannerFactory: func() DataSourcePlanner {
-					return NewGraphQLDataSourcePlanner(BaseDataSourcePlanner{})
+					return NewGraphQLDataSourcePlanner(BaseDataSourcePlanner{
+						config: PlannerConfiguration{
+							TypeFieldConfigurations: []TypeFieldConfiguration{
+								{
+									TypeName:  "User",
+									FieldName: "pets",
+									Mapping: MappingConfiguration{
+										Path: "userPets",
+									},
+								},
+							},
+						},
+					})
+				},
+			},
+		},
+		PlannerConfiguration{
+			TypeFieldConfigurations: []TypeFieldConfiguration{
+				{
+					TypeName:  "User",
+					FieldName: "friends",
+					Mapping: MappingConfiguration{
+						Disabled: true,
+					},
+				},
+				{
+					TypeName:  "User",
+					FieldName: "pets",
+					Mapping: MappingConfiguration{
+						Path: "userPets",
+					},
 				},
 			},
 		},
@@ -1589,7 +1774,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: "id",
 													},
 												},
-												ValueType:StringValueType,
+												ValueType: StringValueType,
 											},
 										},
 										{
@@ -1600,7 +1785,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: "name",
 													},
 												},
-												ValueType:StringValueType,
+												ValueType: StringValueType,
 											},
 										},
 										{
@@ -1643,7 +1828,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		Path: "id",
 																	},
 																},
-																ValueType:StringValueType,
+																ValueType: StringValueType,
 															},
 														},
 														{
@@ -1654,7 +1839,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		Path: "name",
 																	},
 																},
-																ValueType:StringValueType,
+																ValueType: StringValueType,
 															},
 														},
 														{
@@ -1665,7 +1850,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		Path: "birthday",
 																	},
 																},
-																ValueType:StringValueType,
+																ValueType: StringValueType,
 															},
 														},
 														{
@@ -1687,7 +1872,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						Path: "__typename",
 																					},
 																				},
-																				ValueType:StringValueType,
+																				ValueType: StringValueType,
 																			},
 																		},
 																		{
@@ -1698,7 +1883,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						Path: "nickname",
 																					},
 																				},
-																				ValueType:StringValueType,
+																				ValueType: StringValueType,
 																			},
 																		},
 																		{
@@ -1709,7 +1894,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						Path: "name",
 																					},
 																				},
-																				ValueType:StringValueType,
+																				ValueType: StringValueType,
 																			},
 																			Skip: &IfNotEqual{
 																				Left: &ObjectVariableArgument{
@@ -1730,7 +1915,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						Path: "woof",
 																					},
 																				},
-																				ValueType:StringValueType,
+																				ValueType: StringValueType,
 																			},
 																			Skip: &IfNotEqual{
 																				Left: &ObjectVariableArgument{
@@ -1751,7 +1936,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						Path: "name",
 																					},
 																				},
-																				ValueType:StringValueType,
+																				ValueType: StringValueType,
 																			},
 																			Skip: &IfNotEqual{
 																				Left: &ObjectVariableArgument{
@@ -1772,7 +1957,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						Path: "meow",
 																					},
 																				},
-																				ValueType:StringValueType,
+																				ValueType: StringValueType,
 																			},
 																			Skip: &IfNotEqual{
 																				Left: &ObjectVariableArgument{
@@ -1812,7 +1997,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		Path: "__typename",
 																	},
 																},
-																ValueType:StringValueType,
+																ValueType: StringValueType,
 															},
 														},
 														{
@@ -1823,7 +2008,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		Path: "nickname",
 																	},
 																},
-																ValueType:StringValueType,
+																ValueType: StringValueType,
 															},
 														},
 														{
@@ -1834,7 +2019,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		Path: "name",
 																	},
 																},
-																ValueType:StringValueType,
+																ValueType: StringValueType,
 															},
 															Skip: &IfNotEqual{
 																Left: &ObjectVariableArgument{
@@ -1855,7 +2040,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		Path: "woof",
 																	},
 																},
-																ValueType:StringValueType,
+																ValueType: StringValueType,
 															},
 															Skip: &IfNotEqual{
 																Left: &ObjectVariableArgument{
@@ -1876,7 +2061,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		Path: "name",
 																	},
 																},
-																ValueType:StringValueType,
+																ValueType: StringValueType,
 															},
 															Skip: &IfNotEqual{
 																Left: &ObjectVariableArgument{
@@ -1897,7 +2082,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		Path: "meow",
 																	},
 																},
-																ValueType:StringValueType,
+																ValueType: StringValueType,
 															},
 															Skip: &IfNotEqual{
 																Left: &ObjectVariableArgument{
@@ -1922,7 +2107,7 @@ func TestPlanner_Plan(t *testing.T) {
 														Path: "birthday",
 													},
 												},
-												ValueType:StringValueType,
+												ValueType: StringValueType,
 											},
 										},
 									},
@@ -2042,6 +2227,9 @@ func TestPlanner_Plan(t *testing.T) {
 				},
 			},
 		},
+		PlannerConfiguration{
+			TypeFieldConfigurations: []TypeFieldConfiguration{},
+		},
 		&Object{
 			operationType: ast.OperationTypeQuery,
 			Fields: []Field{
@@ -2082,7 +2270,7 @@ func TestPlanner_Plan(t *testing.T) {
 																	Path: "name",
 																},
 															},
-															ValueType:StringValueType,
+															ValueType: StringValueType,
 														},
 													},
 												},
@@ -2105,7 +2293,7 @@ func TestPlanner_Plan(t *testing.T) {
 																	Path: "name",
 																},
 															},
-															ValueType:StringValueType,
+															ValueType: StringValueType,
 														},
 													},
 												},
@@ -2128,7 +2316,7 @@ func TestPlanner_Plan(t *testing.T) {
 																	Path: "name",
 																},
 															},
-															ValueType:StringValueType,
+															ValueType: StringValueType,
 														},
 													},
 												},
@@ -2152,7 +2340,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		Path: "kind",
 																	},
 																},
-																ValueType:StringValueType,
+																ValueType: StringValueType,
 															},
 														},
 														{
@@ -2163,7 +2351,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		Path: "name",
 																	},
 																},
-																ValueType:StringValueType,
+																ValueType: StringValueType,
 															},
 														},
 														{
@@ -2174,7 +2362,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		Path: "description",
 																	},
 																},
-																ValueType:StringValueType,
+																ValueType: StringValueType,
 															},
 														},
 														{
@@ -2195,7 +2383,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						Path: "name",
 																					},
 																				},
-																				ValueType:StringValueType,
+																				ValueType: StringValueType,
 																			},
 																		},
 																		{
@@ -2206,7 +2394,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						Path: "description",
 																					},
 																				},
-																				ValueType:StringValueType,
+																				ValueType: StringValueType,
 																			},
 																		},
 																		{
@@ -2227,7 +2415,7 @@ func TestPlanner_Plan(t *testing.T) {
 																										Path: "name",
 																									},
 																								},
-																								ValueType:StringValueType,
+																								ValueType: StringValueType,
 																							},
 																						},
 																						{
@@ -2238,7 +2426,7 @@ func TestPlanner_Plan(t *testing.T) {
 																										Path: "description",
 																									},
 																								},
-																								ValueType:StringValueType,
+																								ValueType: StringValueType,
 																							},
 																						},
 																						{
@@ -2260,7 +2448,7 @@ func TestPlanner_Plan(t *testing.T) {
 																										Path: "defaultValue",
 																									},
 																								},
-																								ValueType:StringValueType,
+																								ValueType: StringValueType,
 																							},
 																						},
 																					},
@@ -2286,7 +2474,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						Path: "isDeprecated",
 																					},
 																				},
-																				ValueType:BooleanValueType,
+																				ValueType: BooleanValueType,
 																			},
 																		},
 																		{
@@ -2297,7 +2485,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						Path: "deprecationReason",
 																					},
 																				},
-																				ValueType:StringValueType,
+																				ValueType: StringValueType,
 																			},
 																		},
 																	},
@@ -2322,7 +2510,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						Path: "name",
 																					},
 																				},
-																				ValueType:StringValueType,
+																				ValueType: StringValueType,
 																			},
 																		},
 																		{
@@ -2333,7 +2521,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						Path: "description",
 																					},
 																				},
-																				ValueType:StringValueType,
+																				ValueType: StringValueType,
 																			},
 																		},
 																		{
@@ -2355,7 +2543,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						Path: "defaultValue",
 																					},
 																				},
-																				ValueType:StringValueType,
+																				ValueType: StringValueType,
 																			},
 																		},
 																	},
@@ -2393,7 +2581,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						Path: "name",
 																					},
 																				},
-																				ValueType:StringValueType,
+																				ValueType: StringValueType,
 																			},
 																		},
 																		{
@@ -2404,7 +2592,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						Path: "description",
 																					},
 																				},
-																				ValueType:StringValueType,
+																				ValueType: StringValueType,
 																			},
 																		},
 																		{
@@ -2415,7 +2603,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						Path: "isDeprecated",
 																					},
 																				},
-																				ValueType:BooleanValueType,
+																				ValueType: BooleanValueType,
 																			},
 																		},
 																		{
@@ -2426,7 +2614,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						Path: "deprecationReason",
 																					},
 																				},
-																				ValueType:StringValueType,
+																				ValueType: StringValueType,
 																			},
 																		},
 																	},
@@ -2468,7 +2656,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		Path: "name",
 																	},
 																},
-																ValueType:StringValueType,
+																ValueType: StringValueType,
 															},
 														},
 														{
@@ -2479,7 +2667,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		Path: "description",
 																	},
 																},
-																ValueType:StringValueType,
+																ValueType: StringValueType,
 															},
 														},
 														{
@@ -2491,7 +2679,7 @@ func TestPlanner_Plan(t *testing.T) {
 																	},
 																},
 																Value: &Value{
-																	ValueType:StringValueType,
+																	ValueType: StringValueType,
 																},
 															},
 														},
@@ -2513,7 +2701,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						Path: "name",
 																					},
 																				},
-																				ValueType:StringValueType,
+																				ValueType: StringValueType,
 																			},
 																		},
 																		{
@@ -2524,7 +2712,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						Path: "description",
 																					},
 																				},
-																				ValueType:StringValueType,
+																				ValueType: StringValueType,
 																			},
 																		},
 																		{
@@ -2546,7 +2734,7 @@ func TestPlanner_Plan(t *testing.T) {
 																						Path: "defaultValue",
 																					},
 																				},
-																				ValueType:StringValueType,
+																				ValueType: StringValueType,
 																			},
 																		},
 																	},
@@ -2574,69 +2762,83 @@ func TestPlanner_Plan(t *testing.T) {
 							baz
 						}
 					}
-`, []DataSourceDefinition{
-		{
-			TypeName:  literal.SUBSCRIPTION,
-			FieldName: []byte("stream"),
-			DataSourcePlannerFactory: func() DataSourcePlanner {
-				return &HttpPollingStreamDataSourcePlanner{
-					BaseDataSourcePlanner: BaseDataSourcePlanner{
-						log: log.NoopLogger,
-					},
-				}
+`,
+		[]DataSourceDefinition{
+			{
+				TypeName:  literal.SUBSCRIPTION,
+				FieldName: []byte("stream"),
+				DataSourcePlannerFactory: func() DataSourcePlanner {
+					return &HttpPollingStreamDataSourcePlanner{
+						BaseDataSourcePlanner: BaseDataSourcePlanner{
+							log: log.NoopLogger,
+						},
+					}
+				},
 			},
 		},
-	}, &Object{
-		operationType: ast.OperationTypeSubscription,
-		Fields: []Field{
-			{
-				Name: []byte("data"),
-				Value: &Object{
-					Fetch: &SingleFetch{
-						Source: &DataSourceInvocation{
-							Args: []Argument{
-								&StaticVariableArgument{
-									Name:  literal.HOST,
-									Value: []byte("foo.bar.baz"),
-								},
-								&StaticVariableArgument{
-									Name:  literal.URL,
-									Value: []byte("/bal"),
-								},
-							},
-							DataSource: &HttpPollingStreamDataSource{
-								log:   log.NoopLogger,
-								delay: time.Second * 5,
-							},
-						},
-						BufferName: "stream",
+		PlannerConfiguration{
+			TypeFieldConfigurations: []TypeFieldConfiguration{
+				{
+					TypeName:  "Subscription",
+					FieldName: "stream",
+					Mapping: MappingConfiguration{
+						Disabled: true,
 					},
-					Fields: []Field{
-						{
-							Name:            []byte("stream"),
-							HasResolvedData: true,
-							Value: &Object{
-								Fields: []Field{
-									{
-										Name: []byte("bar"),
-										Value: &Value{
-											DataResolvingConfig: DataResolvingConfig{
-												PathSelector: PathSelector{
-													Path: "bar",
-												},
-											},
-											ValueType:StringValueType,
-										},
+				},
+			},
+		},
+		&Object{
+			operationType: ast.OperationTypeSubscription,
+			Fields: []Field{
+				{
+					Name: []byte("data"),
+					Value: &Object{
+						Fetch: &SingleFetch{
+							Source: &DataSourceInvocation{
+								Args: []Argument{
+									&StaticVariableArgument{
+										Name:  literal.HOST,
+										Value: []byte("foo.bar.baz"),
 									},
-									{
-										Name: []byte("baz"),
-										Value: &Value{
-											DataResolvingConfig: DataResolvingConfig{
-												PathSelector: PathSelector{
-													Path: "baz",
+									&StaticVariableArgument{
+										Name:  literal.URL,
+										Value: []byte("/bal"),
+									},
+								},
+								DataSource: &HttpPollingStreamDataSource{
+									log:   log.NoopLogger,
+									delay: time.Second * 5,
+								},
+							},
+							BufferName: "stream",
+						},
+						Fields: []Field{
+							{
+								Name:            []byte("stream"),
+								HasResolvedData: true,
+								Value: &Object{
+									Fields: []Field{
+										{
+											Name: []byte("bar"),
+											Value: &Value{
+												DataResolvingConfig: DataResolvingConfig{
+													PathSelector: PathSelector{
+														Path: "bar",
+													},
 												},
+												ValueType: StringValueType,
 											},
-											ValueType:IntegerValueType,
+										},
+										{
+											Name: []byte("baz"),
+											Value: &Value{
+												DataResolvingConfig: DataResolvingConfig{
+													PathSelector: PathSelector{
+														Path: "baz",
+													},
+												},
+												ValueType: IntegerValueType,
+											},
 										},
 									},
 								},
@@ -2645,8 +2847,7 @@ func TestPlanner_Plan(t *testing.T) {
 					},
 				},
 			},
-		},
-	}))
+		}))
 	t.Run("http polling stream inline delay", run(withBaseSchema(HttpPollingStreamSchemaInlineDelay), `
 					subscription {
 						stream {
@@ -2654,69 +2855,83 @@ func TestPlanner_Plan(t *testing.T) {
 							baz
 						}
 					}
-`, []DataSourceDefinition{
-		{
-			TypeName:  literal.SUBSCRIPTION,
-			FieldName: []byte("stream"),
-			DataSourcePlannerFactory: func() DataSourcePlanner {
-				return &HttpPollingStreamDataSourcePlanner{
-					BaseDataSourcePlanner: BaseDataSourcePlanner{
-						log: log.NoopLogger,
-					},
-				}
+`,
+		[]DataSourceDefinition{
+			{
+				TypeName:  literal.SUBSCRIPTION,
+				FieldName: []byte("stream"),
+				DataSourcePlannerFactory: func() DataSourcePlanner {
+					return &HttpPollingStreamDataSourcePlanner{
+						BaseDataSourcePlanner: BaseDataSourcePlanner{
+							log: log.NoopLogger,
+						},
+					}
+				},
 			},
 		},
-	}, &Object{
-		operationType: ast.OperationTypeSubscription,
-		Fields: []Field{
-			{
-				Name: []byte("data"),
-				Value: &Object{
-					Fetch: &SingleFetch{
-						Source: &DataSourceInvocation{
-							Args: []Argument{
-								&StaticVariableArgument{
-									Name:  literal.HOST,
-									Value: []byte("foo.bar.baz"),
-								},
-								&StaticVariableArgument{
-									Name:  literal.URL,
-									Value: []byte("/bal"),
-								},
-							},
-							DataSource: &HttpPollingStreamDataSource{
-								log:   log.NoopLogger,
-								delay: time.Second * 3,
-							},
-						},
-						BufferName: "stream",
+		PlannerConfiguration{
+			TypeFieldConfigurations: []TypeFieldConfiguration{
+				{
+					TypeName:  "Subscription",
+					FieldName: "stream",
+					Mapping: MappingConfiguration{
+						Disabled: true,
 					},
-					Fields: []Field{
-						{
-							Name:            []byte("stream"),
-							HasResolvedData: true,
-							Value: &Object{
-								Fields: []Field{
-									{
-										Name: []byte("bar"),
-										Value: &Value{
-											DataResolvingConfig: DataResolvingConfig{
-												PathSelector: PathSelector{
-													Path: "bar",
-												},
-											},
-											ValueType:StringValueType,
-										},
+				},
+			},
+		},
+		&Object{
+			operationType: ast.OperationTypeSubscription,
+			Fields: []Field{
+				{
+					Name: []byte("data"),
+					Value: &Object{
+						Fetch: &SingleFetch{
+							Source: &DataSourceInvocation{
+								Args: []Argument{
+									&StaticVariableArgument{
+										Name:  literal.HOST,
+										Value: []byte("foo.bar.baz"),
 									},
-									{
-										Name: []byte("baz"),
-										Value: &Value{
-											DataResolvingConfig: DataResolvingConfig{
-												PathSelector: PathSelector{
-													Path: "baz",
+									&StaticVariableArgument{
+										Name:  literal.URL,
+										Value: []byte("/bal"),
+									},
+								},
+								DataSource: &HttpPollingStreamDataSource{
+									log:   log.NoopLogger,
+									delay: time.Second * 3,
+								},
+							},
+							BufferName: "stream",
+						},
+						Fields: []Field{
+							{
+								Name:            []byte("stream"),
+								HasResolvedData: true,
+								Value: &Object{
+									Fields: []Field{
+										{
+											Name: []byte("bar"),
+											Value: &Value{
+												DataResolvingConfig: DataResolvingConfig{
+													PathSelector: PathSelector{
+														Path: "bar",
+													},
 												},
+												ValueType: StringValueType,
 											},
-											ValueType:IntegerValueType,
+										},
+										{
+											Name: []byte("baz"),
+											Value: &Value{
+												DataResolvingConfig: DataResolvingConfig{
+													PathSelector: PathSelector{
+														Path: "baz",
+													},
+												},
+												ValueType: IntegerValueType,
+											},
 										},
 									},
 								},
@@ -2725,8 +2940,7 @@ func TestPlanner_Plan(t *testing.T) {
 					},
 				},
 			},
-		},
-	}))
+		}))
 	t.Run("list filter first N", run(withBaseSchema(ListFilterFirstNSchema), `
 			query {
 				foos {
@@ -2740,6 +2954,17 @@ func TestPlanner_Plan(t *testing.T) {
 				FieldName: []byte("foos"),
 				DataSourcePlannerFactory: func() DataSourcePlanner {
 					return &StaticDataSourcePlanner{}
+				},
+			},
+		},
+		PlannerConfiguration{
+			TypeFieldConfigurations: []TypeFieldConfiguration{
+				{
+					TypeName:  "Query",
+					FieldName: "foos",
+					Mapping: MappingConfiguration{
+						Disabled: true,
+					},
 				},
 			},
 		},
@@ -2778,7 +3003,7 @@ func TestPlanner_Plan(t *testing.T) {
 															Path: "bar",
 														},
 													},
-													ValueType:StringValueType,
+													ValueType: StringValueType,
 												},
 											},
 										},
@@ -2802,6 +3027,17 @@ func TestPlanner_Plan(t *testing.T) {
 				FieldName: []byte("stringPipeline"),
 				DataSourcePlannerFactory: func() DataSourcePlanner {
 					return &PipelineDataSourcePlanner{}
+				},
+			},
+		},
+		PlannerConfiguration{
+			TypeFieldConfigurations: []TypeFieldConfiguration{
+				{
+					TypeName:  "Query",
+					FieldName: "stringPipeline",
+					Mapping: MappingConfiguration{
+						Disabled: true,
+					},
 				},
 			},
 		},
@@ -2851,7 +3087,7 @@ func TestPlanner_Plan(t *testing.T) {
 								Name:            []byte("stringPipeline"),
 								HasResolvedData: true,
 								Value: &Value{
-									ValueType:StringValueType,
+									ValueType: StringValueType,
 								},
 							},
 						},
@@ -2871,6 +3107,17 @@ func TestPlanner_Plan(t *testing.T) {
 				FieldName: []byte("filePipeline"),
 				DataSourcePlannerFactory: func() DataSourcePlanner {
 					return &PipelineDataSourcePlanner{}
+				},
+			},
+		},
+		PlannerConfiguration{
+			TypeFieldConfigurations: []TypeFieldConfiguration{
+				{
+					TypeName:  "Query",
+					FieldName: "filePipeline",
+					Mapping: MappingConfiguration{
+						Disabled: true,
+					},
 				},
 			},
 		},
@@ -2917,7 +3164,7 @@ func TestPlanner_Plan(t *testing.T) {
 								Name:            []byte("filePipeline"),
 								HasResolvedData: true,
 								Value: &Value{
-									ValueType:StringValueType,
+									ValueType: StringValueType,
 								},
 							},
 						},
@@ -2942,6 +3189,17 @@ func TestPlanner_Plan(t *testing.T) {
 			  	}
 			}`,
 			ResolverDefinitions{},
+			PlannerConfiguration{
+				TypeFieldConfigurations: []TypeFieldConfiguration{
+					{
+						TypeName:  "Query",
+						FieldName: "apis",
+						Mapping: MappingConfiguration{
+							Disabled: true,
+						},
+					},
+				},
+			},
 			&Object{
 				operationType: ast.OperationTypeQuery,
 				Fields: []Field{
@@ -2981,7 +3239,7 @@ func TestPlanner_Plan(t *testing.T) {
 																			Path: "name",
 																		},
 																	},
-																	ValueType:StringValueType,
+																	ValueType: StringValueType,
 																},
 															},
 														},
@@ -3001,7 +3259,7 @@ func TestPlanner_Plan(t *testing.T) {
 													},
 												},
 												Value: &Value{
-													ValueType:StringValueType,
+													ValueType: StringValueType,
 													DataResolvingConfig: DataResolvingConfig{
 														PathSelector: PathSelector{
 															Path: "status",
@@ -3022,7 +3280,7 @@ func TestPlanner_Plan(t *testing.T) {
 													},
 												},
 												Value: &Value{
-													ValueType:StringValueType,
+													ValueType: StringValueType,
 													DataResolvingConfig: DataResolvingConfig{
 														PathSelector: PathSelector{
 															Path: "message",
@@ -3106,7 +3364,11 @@ func BenchmarkPlanner_Plan(b *testing.B) {
 		},
 	}
 
-	planner := NewPlanner(resolverDefinitions)
+	config := PlannerConfiguration{
+		TypeFieldConfigurations: []TypeFieldConfiguration{},
+	}
+
+	planner := NewPlanner(resolverDefinitions, config)
 	var report operationreport.Report
 
 	b.ResetTimer()
@@ -3126,9 +3388,7 @@ schema {
 }
 type Query {
 	api: ApiResult
-		@mapping(mode: NONE)
 	apis: ApisResult
-		@mapping(mode: NONE)
 }
 type Api {
   id: String
@@ -3136,9 +3396,7 @@ type Api {
 }
 type RequestResult {
   message: String
-  	@mapping(pathSelector: "Message")
   status: String
-  	@mapping(pathSelector: "Status")
 }
 type ApisResultSuccess {
     apis: [Api!]
@@ -3161,7 +3419,6 @@ type Query {
 		@StaticDataSource(
             data: "[{\"bar\":\"baz\"},{\"bar\":\"bal\"},{\"bar\":\"bat\"}]"
         )
-		@mapping(mode: NONE)
 }
 
 type Foo {
@@ -3189,7 +3446,6 @@ type Subscription {
 			host: "foo.bar.baz"
 			url: "/bal"
 		)
-		@mapping(mode: NONE)
 }
 
 type Foo {
@@ -3218,7 +3474,6 @@ type Subscription {
 			url: "/bal"
 			delaySeconds: 3
 		)
-		@mapping(mode: NONE)
 }
 
 type Foo {
@@ -3233,11 +3488,6 @@ directive @GraphQLDataSource (
     url: String!
 	method: HTTP_METHOD = POST
     params: [Parameter]
-) on FIELD_DEFINITION
-
-directive @mapping(
-    mode: MAPPING_MODE! = PATH_SELECTOR
-    pathSelector: String
 ) on FIELD_DEFINITION
 
 enum MAPPING_MODE {
@@ -3342,34 +3592,11 @@ directive @HttpJsonDataSource (
 	body: String
 ) on FIELD_DEFINITION
 
-directive @mapping(
-    mode: MAPPING_MODE! = PATH_SELECTOR
-    pathSelector: String
-) on FIELD_DEFINITION
-
-enum MAPPING_MODE {
-    NONE
-    PATH_SELECTOR
-}
-
 enum HTTP_METHOD {
     GET
     POST
     UPDATE
     DELETE
-}
-
-input Parameter {
-    name: String!
-    sourceKind: PARAMETER_SOURCE!
-    sourceName: String!
-    variableType: String!
-}
-
-enum PARAMETER_SOURCE {
-    CONTEXT_VARIABLE
-    OBJECT_VARIABLE_ARGUMENT
-    FIELD_ARGUMENTS
 }
 
 schema {
@@ -3383,11 +3610,11 @@ type Foo {
 type Headers {
     Accept: String!
     Host: String!
-	acceptEncoding: String @mapping(pathSelector: "Accept-Encoding")
+	acceptEncoding: String
 }
 
 type HttpBinGet {
-	header: Headers! @mapping(pathSelector: "headers")
+	header: Headers!
 }
 
 type JSONPlaceholderPost {
@@ -3408,7 +3635,6 @@ type JSONPlaceholderPost {
                 }
             ]
         )
-		@mapping(mode: NONE)
 }
 
 type JSONPlaceholderComment {
@@ -3426,13 +3652,11 @@ type Query {
             host: "httpbin.org"
             url: "/get"
         )
-		@mapping(mode: NONE)
 	post(id: Int!): JSONPlaceholderPost
         @HttpJsonDataSource(
             host: "jsonplaceholder.typicode.com"
             url: "/posts/{{ .arguments.id }}"
         )
-		@mapping(mode: NONE)
 	withBody(input: WithBodyInput!): String!
         @HttpJsonDataSource(
             host: "httpbin.org"
@@ -3440,7 +3664,6 @@ type Query {
             method: POST
             body: 	"{\"key\":\"{{ .arguments.input.foo }}\"}"
         )
-		@mapping(mode: NONE)
 	withHeaders: String!
         @HttpJsonDataSource(
             host: "httpbin.org"
@@ -3456,25 +3679,21 @@ type Query {
 				}
 			]
         )
-		@mapping(mode: NONE)
 	withPath: String!
 		@HttpJsonDataSource(
             host: "httpbin.org"
             url: "/anything"
         )
-		@mapping(pathSelector: "subObject")
 	listItems: [ListItem]
 		@HttpJsonDataSource(
             host: "httpbin.org"
             url: "/anything"
         )
-		@mapping(mode: NONE)
 	listWithPath: [ListItem]
 		@HttpJsonDataSource(
             host: "httpbin.org"
             url: "/anything"
         )
-		@mapping(pathSelector: "items")
     __schema: __Schema!
     __type(name: String!): __Type
 }
@@ -3503,17 +3722,14 @@ type Query {
 		@StaticDataSource(
             data: "World!"
         )
-		@mapping(mode: NONE)
 	nullableInt: Int
         @StaticDataSource(
             data: null
         )
-		@mapping(mode: NONE)
 	foo: Foo!
         @StaticDataSource(
             data: "{\"bar\":\"baz\"}"
         )
-		@mapping(mode: NONE)
 }`
 
 const complexSchema = `
@@ -3529,11 +3745,6 @@ directive @GraphQLDataSource (
     url: String!
 	method: HTTP_METHOD = POST
     params: [Parameter]
-) on FIELD_DEFINITION
-
-directive @mapping(
-    mode: MAPPING_MODE! = PATH_SELECTOR
-    pathSelector: String
 ) on FIELD_DEFINITION
 
 enum MAPPING_MODE {
@@ -3624,7 +3835,6 @@ type Query {
 			host: "localhost:9001"
 			url: "/user/{{ .arguments.id }}"
 		)
-		@mapping(mode: NONE)
 }
 type User {
 	id: String
@@ -3643,7 +3853,6 @@ type User {
 				}
 			]
 		)
-		@mapping(mode: NONE)
 	pets: [Pet]
 		@GraphQLDataSource(
 			host: "localhost:8002"
@@ -3657,7 +3866,6 @@ type User {
 				}
 			]
 		)
-		@mapping(pathSelector: "userPets")
 }
 interface Pet {
 	nickname: String!
@@ -3699,13 +3907,11 @@ type Query {
 			"""
     		inputJSON: "{\"foo\":\"{{ .arguments.foo }}\"}"
 		)
-		@mapping(mode: NONE)
 	filePipeline(foo: String!): String
 		@PipelineDataSource(
 			configFilePath: "./testdata/simple_pipeline.json"
     		inputJSON: "{\"foo\":\"{{ .arguments.foo }}\"}"
 		)
-		@mapping(mode: NONE)
 }
 `
 
@@ -3939,7 +4145,7 @@ func introspectionQuery(schema []byte) RootNode {
 																Path: "name",
 															},
 														},
-														ValueType:StringValueType,
+														ValueType: StringValueType,
 													},
 												},
 											},
@@ -3962,7 +4168,7 @@ func introspectionQuery(schema []byte) RootNode {
 																Path: "name",
 															},
 														},
-														ValueType:StringValueType,
+														ValueType: StringValueType,
 													},
 												},
 											},
@@ -3985,7 +4191,7 @@ func introspectionQuery(schema []byte) RootNode {
 																Path: "name",
 															},
 														},
-														ValueType:StringValueType,
+														ValueType: StringValueType,
 													},
 												},
 											},
@@ -4009,7 +4215,7 @@ func introspectionQuery(schema []byte) RootNode {
 																	Path: "kind",
 																},
 															},
-															ValueType:StringValueType,
+															ValueType: StringValueType,
 														},
 													},
 													{
@@ -4020,7 +4226,7 @@ func introspectionQuery(schema []byte) RootNode {
 																	Path: "name",
 																},
 															},
-															ValueType:StringValueType,
+															ValueType: StringValueType,
 														},
 													},
 													{
@@ -4031,7 +4237,7 @@ func introspectionQuery(schema []byte) RootNode {
 																	Path: "description",
 																},
 															},
-															ValueType:StringValueType,
+															ValueType: StringValueType,
 														},
 													},
 													{
@@ -4052,7 +4258,7 @@ func introspectionQuery(schema []byte) RootNode {
 																					Path: "name",
 																				},
 																			},
-																			ValueType:StringValueType,
+																			ValueType: StringValueType,
 																		},
 																	},
 																	{
@@ -4063,7 +4269,7 @@ func introspectionQuery(schema []byte) RootNode {
 																					Path: "description",
 																				},
 																			},
-																			ValueType:StringValueType,
+																			ValueType: StringValueType,
 																		},
 																	},
 																	{
@@ -4084,7 +4290,7 @@ func introspectionQuery(schema []byte) RootNode {
 																									Path: "name",
 																								},
 																							},
-																							ValueType:StringValueType,
+																							ValueType: StringValueType,
 																						},
 																					},
 																					{
@@ -4095,7 +4301,7 @@ func introspectionQuery(schema []byte) RootNode {
 																									Path: "description",
 																								},
 																							},
-																							ValueType:StringValueType,
+																							ValueType: StringValueType,
 																						},
 																					},
 																					{
@@ -4117,7 +4323,7 @@ func introspectionQuery(schema []byte) RootNode {
 																									Path: "defaultValue",
 																								},
 																							},
-																							ValueType:StringValueType,
+																							ValueType: StringValueType,
 																						},
 																					},
 																				},
@@ -4143,7 +4349,7 @@ func introspectionQuery(schema []byte) RootNode {
 																					Path: "isDeprecated",
 																				},
 																			},
-																			ValueType:BooleanValueType,
+																			ValueType: BooleanValueType,
 																		},
 																	},
 																	{
@@ -4154,7 +4360,7 @@ func introspectionQuery(schema []byte) RootNode {
 																					Path: "deprecationReason",
 																				},
 																			},
-																			ValueType:StringValueType,
+																			ValueType: StringValueType,
 																		},
 																	},
 																},
@@ -4179,7 +4385,7 @@ func introspectionQuery(schema []byte) RootNode {
 																					Path: "name",
 																				},
 																			},
-																			ValueType:StringValueType,
+																			ValueType: StringValueType,
 																		},
 																	},
 																	{
@@ -4190,7 +4396,7 @@ func introspectionQuery(schema []byte) RootNode {
 																					Path: "description",
 																				},
 																			},
-																			ValueType:StringValueType,
+																			ValueType: StringValueType,
 																		},
 																	},
 																	{
@@ -4212,7 +4418,7 @@ func introspectionQuery(schema []byte) RootNode {
 																					Path: "defaultValue",
 																				},
 																			},
-																			ValueType:StringValueType,
+																			ValueType: StringValueType,
 																		},
 																	},
 																},
@@ -4250,7 +4456,7 @@ func introspectionQuery(schema []byte) RootNode {
 																					Path: "name",
 																				},
 																			},
-																			ValueType:StringValueType,
+																			ValueType: StringValueType,
 																		},
 																	},
 																	{
@@ -4261,7 +4467,7 @@ func introspectionQuery(schema []byte) RootNode {
 																					Path: "description",
 																				},
 																			},
-																			ValueType:StringValueType,
+																			ValueType: StringValueType,
 																		},
 																	},
 																	{
@@ -4272,7 +4478,7 @@ func introspectionQuery(schema []byte) RootNode {
 																					Path: "isDeprecated",
 																				},
 																			},
-																			ValueType:BooleanValueType,
+																			ValueType: BooleanValueType,
 																		},
 																	},
 																	{
@@ -4283,7 +4489,7 @@ func introspectionQuery(schema []byte) RootNode {
 																					Path: "deprecationReason",
 																				},
 																			},
-																			ValueType:StringValueType,
+																			ValueType: StringValueType,
 																		},
 																	},
 																},
@@ -4325,7 +4531,7 @@ func introspectionQuery(schema []byte) RootNode {
 																	Path: "name",
 																},
 															},
-															ValueType:StringValueType,
+															ValueType: StringValueType,
 														},
 													},
 													{
@@ -4336,7 +4542,7 @@ func introspectionQuery(schema []byte) RootNode {
 																	Path: "description",
 																},
 															},
-															ValueType:StringValueType,
+															ValueType: StringValueType,
 														},
 													},
 													{
@@ -4348,7 +4554,7 @@ func introspectionQuery(schema []byte) RootNode {
 																},
 															},
 															Value: &Value{
-																ValueType:StringValueType,
+																ValueType: StringValueType,
 															},
 														},
 													},
@@ -4370,7 +4576,7 @@ func introspectionQuery(schema []byte) RootNode {
 																					Path: "name",
 																				},
 																			},
-																			ValueType:StringValueType,
+																			ValueType: StringValueType,
 																		},
 																	},
 																	{
@@ -4381,7 +4587,7 @@ func introspectionQuery(schema []byte) RootNode {
 																					Path: "description",
 																				},
 																			},
-																			ValueType:StringValueType,
+																			ValueType: StringValueType,
 																		},
 																	},
 																	{
@@ -4403,7 +4609,7 @@ func introspectionQuery(schema []byte) RootNode {
 																					Path: "defaultValue",
 																				},
 																			},
-																			ValueType:StringValueType,
+																			ValueType: StringValueType,
 																		},
 																	},
 																},
@@ -4433,7 +4639,7 @@ var kindNameDeepFields = []Field{
 					Path: "kind",
 				},
 			},
-			ValueType:StringValueType,
+			ValueType: StringValueType,
 		},
 	},
 	{
@@ -4444,7 +4650,7 @@ var kindNameDeepFields = []Field{
 					Path: "name",
 				},
 			},
-			ValueType:StringValueType,
+			ValueType: StringValueType,
 		},
 	},
 	{
@@ -4464,7 +4670,7 @@ var kindNameDeepFields = []Field{
 								Path: "kind",
 							},
 						},
-						ValueType:StringValueType,
+						ValueType: StringValueType,
 					},
 				},
 				{
@@ -4475,7 +4681,7 @@ var kindNameDeepFields = []Field{
 								Path: "name",
 							},
 						},
-						ValueType:StringValueType,
+						ValueType: StringValueType,
 					},
 				},
 				{
@@ -4495,7 +4701,7 @@ var kindNameDeepFields = []Field{
 											Path: "kind",
 										},
 									},
-									ValueType:StringValueType,
+									ValueType: StringValueType,
 								},
 							},
 							{
@@ -4506,7 +4712,7 @@ var kindNameDeepFields = []Field{
 											Path: "name",
 										},
 									},
-									ValueType:StringValueType,
+									ValueType: StringValueType,
 								},
 							},
 							{
@@ -4526,7 +4732,7 @@ var kindNameDeepFields = []Field{
 														Path: "kind",
 													},
 												},
-												ValueType:StringValueType,
+												ValueType: StringValueType,
 											},
 										},
 										{
@@ -4537,7 +4743,7 @@ var kindNameDeepFields = []Field{
 														Path: "name",
 													},
 												},
-												ValueType:StringValueType,
+												ValueType: StringValueType,
 											},
 										},
 										{
@@ -4557,7 +4763,7 @@ var kindNameDeepFields = []Field{
 																	Path: "kind",
 																},
 															},
-															ValueType:StringValueType,
+															ValueType: StringValueType,
 														},
 													},
 													{
@@ -4568,7 +4774,7 @@ var kindNameDeepFields = []Field{
 																	Path: "name",
 																},
 															},
-															ValueType:StringValueType,
+															ValueType: StringValueType,
 														},
 													},
 													{
@@ -4588,7 +4794,7 @@ var kindNameDeepFields = []Field{
 																				Path: "kind",
 																			},
 																		},
-																		ValueType:StringValueType,
+																		ValueType: StringValueType,
 																	},
 																},
 																{
@@ -4599,7 +4805,7 @@ var kindNameDeepFields = []Field{
 																				Path: "name",
 																			},
 																		},
-																		ValueType:StringValueType,
+																		ValueType: StringValueType,
 																	},
 																},
 																{
@@ -4619,7 +4825,7 @@ var kindNameDeepFields = []Field{
 																							Path: "kind",
 																						},
 																					},
-																					ValueType:StringValueType,
+																					ValueType: StringValueType,
 																				},
 																			},
 																			{
@@ -4630,7 +4836,7 @@ var kindNameDeepFields = []Field{
 																							Path: "name",
 																						},
 																					},
-																					ValueType:StringValueType,
+																					ValueType: StringValueType,
 																				},
 																			},
 																			{
@@ -4650,7 +4856,7 @@ var kindNameDeepFields = []Field{
 																										Path: "kind",
 																									},
 																								},
-																								ValueType:StringValueType,
+																								ValueType: StringValueType,
 																							},
 																						},
 																						{
@@ -4661,7 +4867,7 @@ var kindNameDeepFields = []Field{
 																										Path: "name",
 																									},
 																								},
-																								ValueType:StringValueType,
+																								ValueType: StringValueType,
 																							},
 																						},
 																					},
