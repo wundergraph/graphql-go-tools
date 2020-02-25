@@ -46,7 +46,7 @@ func TestNew(t *testing.T) {
 
 func TestConfigureHandlers(t *testing.T) {
 	config := Config{
-		PathPrefix:                      "",
+		PathPrefix:                      "/",
 		PlaygroundPath:                  "/playground",
 		GraphqlEndpointPath:             "/graphql",
 		GraphQLSubscriptionEndpointPath: "/graphqlws",
