@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"github.com/buger/jsonparser"
+	log "github.com/jensneuse/abstractlogger"
+	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astimport"
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
-	log "github.com/jensneuse/abstractlogger"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -68,7 +69,7 @@ func (g *GraphQLDataSourcePlanner) Initialize(walker *astvisitor.Walker, operati
 		})
 		g.rootFieldArgumentRefs[i] = len(g.resolveDocument.Arguments) - 1
 
-		typeRef := g.importer.ImportType(resolverParameters[i].variableType,g.resolveDocument)
+		typeRef := g.importer.ImportType(resolverParameters[i].variableType, g.resolveDocument)
 
 		g.resolveDocument.VariableDefinitions = append(g.resolveDocument.VariableDefinitions, ast.VariableDefinition{
 			VariableValue: variableValue,
@@ -141,12 +142,12 @@ func (g *GraphQLDataSourcePlanner) EnterField(ref int) {
 	if g.rootFieldRef == -1 {
 		g.rootFieldRef = ref
 
-		var fieldName []byte
-		objectName, ok := g.walker.FieldDefinitionDirectiveArgumentValueByName(ref, []byte("mapping"), []byte("pathSelector"))
-		if ok && objectName.Kind == ast.ValueKindString {
-			fieldName = g.definition.StringValueContentBytes(objectName.Ref)
-		} else {
-			fieldName = g.operation.FieldNameBytes(ref)
+		typeName := g.definition.NodeNameString(g.walker.EnclosingTypeDefinition)
+		fieldNameStr := g.operation.FieldNameString(ref)
+		fieldName := g.operation.FieldNameBytes(ref)
+		mapping, ok := g.config.mappingForTypeField(typeName, fieldNameStr)
+		if ok && !mapping.Disabled {
+			fieldName = unsafebytes.StringToBytes(mapping.Path)
 		}
 
 		field := ast.Field{
@@ -310,7 +311,7 @@ func (g *GraphQLDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Write
 		}
 	}
 
-	variablesJson,err := json.Marshal(variables)
+	variablesJson, err := json.Marshal(variables)
 	if err != nil {
 		g.log.Error("GraphQLDataSource.json.Marshal(variables)",
 			log.Error(err),

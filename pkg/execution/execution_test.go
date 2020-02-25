@@ -2819,7 +2819,7 @@ func TestExecutor_Introspection(t *testing.T) {
 		}
 	`)
 
-	handler, err := NewHandler(schema, nil, log.NoopLogger)
+	handler, err := NewHandler(schema, PlannerConfiguration{},nil, log.NoopLogger)
 	if err != nil {
 		t.Fatal(err)
 	}

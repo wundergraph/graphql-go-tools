@@ -71,11 +71,12 @@ type DataSourcePlanner interface {
 
 type BaseDataSourcePlanner struct {
 	log                   abstractlogger.Logger
-	walker                *astvisitor.Walker // nolint
-	definition, operation *ast.Document      // nolint
-	args                  []Argument         // nolint
-	graphqlDefinitions    *packr.Box         // nolint
-	rootField             rootField          // nolint
+	walker                *astvisitor.Walker   // nolint
+	definition, operation *ast.Document        // nolint
+	args                  []Argument           // nolint
+	graphqlDefinitions    *packr.Box           // nolint
+	rootField             rootField            // nolint
+	config                PlannerConfiguration // nolint
 }
 
 type rootField struct {
@@ -83,7 +84,7 @@ type rootField struct {
 	ref       int
 }
 
-func (r *rootField) setIfNotDefined(ref int){
+func (r *rootField) setIfNotDefined(ref int) {
 	if r.isDefined {
 		return
 	}

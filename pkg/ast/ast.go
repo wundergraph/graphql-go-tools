@@ -578,7 +578,7 @@ func (d *Document) NodeFieldDefinitionByName(node Node, fieldName ByteSlice) (de
 	return
 }
 
-func (d *Document) NodeTypeNameString(node Node) string {
+func (d *Document) NodeNameString(node Node) string {
 	return unsafebytes.BytesToString(d.NodeNameBytes(node))
 }
 

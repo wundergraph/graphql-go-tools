@@ -11,7 +11,7 @@ import (
 )
 
 func TestHandler_RenderGraphQLDefinitions(t *testing.T) {
-	handler, err := NewHandler(nil, nil, log.NoopLogger)
+	handler, err := NewHandler(nil, PlannerConfiguration{}, nil, log.NoopLogger)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +45,7 @@ func TestHandler_RenderGraphQLDefinitions(t *testing.T) {
 }
 
 func TestHandler_VariablesFromRequest(t *testing.T) {
-	handler, err := NewHandler(nil, nil, log.NoopLogger)
+	handler, err := NewHandler(nil, PlannerConfiguration{}, nil, log.NoopLogger)
 	if err != nil {
 		t.Fatal(err)
 	}
