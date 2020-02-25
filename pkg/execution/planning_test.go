@@ -761,9 +761,9 @@ func TestPlanner_Plan(t *testing.T) {
 		PlannerConfiguration{
 			TypeFieldConfigurations: []TypeFieldConfiguration{
 				{
-					TypeName: "Query",
+					TypeName:  "Query",
 					FieldName: "listWithPath",
-					Mapping:MappingConfiguration{
+					Mapping: MappingConfiguration{
 						Path: "items",
 					},
 				},
@@ -848,10 +848,10 @@ func TestPlanner_Plan(t *testing.T) {
 		PlannerConfiguration{
 			TypeFieldConfigurations: []TypeFieldConfiguration{
 				{
-					TypeName: "Query",
+					TypeName:  "Query",
 					FieldName: "withHeaders",
-					Mapping:MappingConfiguration{
-						Disabled:true,
+					Mapping: MappingConfiguration{
+						Disabled: true,
 					},
 				},
 			},
@@ -942,24 +942,24 @@ func TestPlanner_Plan(t *testing.T) {
 		PlannerConfiguration{
 			TypeFieldConfigurations: []TypeFieldConfiguration{
 				{
-					TypeName: "Query",
+					TypeName:  "Query",
 					FieldName: "hello",
-					Mapping:MappingConfiguration{
-						Disabled:true,
+					Mapping: MappingConfiguration{
+						Disabled: true,
 					},
 				},
 				{
-					TypeName: "Query",
+					TypeName:  "Query",
 					FieldName: "foo",
-					Mapping:MappingConfiguration{
-						Disabled:true,
+					Mapping: MappingConfiguration{
+						Disabled: true,
 					},
 				},
 				{
-					TypeName: "Query",
+					TypeName:  "Query",
 					FieldName: "nullableInt",
-					Mapping:MappingConfiguration{
-						Disabled:true,
+					Mapping: MappingConfiguration{
+						Disabled: true,
 					},
 				},
 			},
@@ -1290,10 +1290,10 @@ func TestPlanner_Plan(t *testing.T) {
 		PlannerConfiguration{
 			TypeFieldConfigurations: []TypeFieldConfiguration{
 				{
-					TypeName: "Query",
+					TypeName:  "Query",
 					FieldName: "restUser",
-					Mapping:MappingConfiguration{
-						Disabled:true,
+					Mapping: MappingConfiguration{
+						Disabled: true,
 					},
 				},
 			},
@@ -1412,10 +1412,10 @@ func TestPlanner_Plan(t *testing.T) {
 		PlannerConfiguration{
 			TypeFieldConfigurations: []TypeFieldConfiguration{
 				{
-					TypeName: "User",
+					TypeName:  "User",
 					FieldName: "friends",
-					Mapping:MappingConfiguration{
-						Disabled:true,
+					Mapping: MappingConfiguration{
+						Disabled: true,
 					},
 				},
 			},
@@ -1631,23 +1631,35 @@ func TestPlanner_Plan(t *testing.T) {
 				TypeName:  []byte("User"),
 				FieldName: []byte("pets"),
 				DataSourcePlannerFactory: func() DataSourcePlanner {
-					return NewGraphQLDataSourcePlanner(BaseDataSourcePlanner{})
+					return NewGraphQLDataSourcePlanner(BaseDataSourcePlanner{
+						config: PlannerConfiguration{
+							TypeFieldConfigurations: []TypeFieldConfiguration{
+								{
+									TypeName:  "User",
+									FieldName: "pets",
+									Mapping: MappingConfiguration{
+										Path: "userPets",
+									},
+								},
+							},
+						},
+					})
 				},
 			},
 		},
 		PlannerConfiguration{
 			TypeFieldConfigurations: []TypeFieldConfiguration{
 				{
-					TypeName: "User",
+					TypeName:  "User",
 					FieldName: "friends",
-					Mapping:MappingConfiguration{
-						Disabled:true,
+					Mapping: MappingConfiguration{
+						Disabled: true,
 					},
 				},
 				{
-					TypeName: "User",
+					TypeName:  "User",
 					FieldName: "pets",
-					Mapping:MappingConfiguration{
+					Mapping: MappingConfiguration{
 						Path: "userPets",
 					},
 				},
@@ -2767,10 +2779,10 @@ func TestPlanner_Plan(t *testing.T) {
 		PlannerConfiguration{
 			TypeFieldConfigurations: []TypeFieldConfiguration{
 				{
-					TypeName: "Subscription",
+					TypeName:  "Subscription",
 					FieldName: "stream",
-					Mapping:MappingConfiguration{
-						Disabled:true,
+					Mapping: MappingConfiguration{
+						Disabled: true,
 					},
 				},
 			},
@@ -2860,10 +2872,10 @@ func TestPlanner_Plan(t *testing.T) {
 		PlannerConfiguration{
 			TypeFieldConfigurations: []TypeFieldConfiguration{
 				{
-					TypeName: "Subscription",
+					TypeName:  "Subscription",
 					FieldName: "stream",
-					Mapping:MappingConfiguration{
-						Disabled:true,
+					Mapping: MappingConfiguration{
+						Disabled: true,
 					},
 				},
 			},
@@ -2948,10 +2960,10 @@ func TestPlanner_Plan(t *testing.T) {
 		PlannerConfiguration{
 			TypeFieldConfigurations: []TypeFieldConfiguration{
 				{
-					TypeName: "Query",
+					TypeName:  "Query",
 					FieldName: "foos",
-					Mapping:MappingConfiguration{
-						Disabled:true,
+					Mapping: MappingConfiguration{
+						Disabled: true,
 					},
 				},
 			},
@@ -3021,10 +3033,10 @@ func TestPlanner_Plan(t *testing.T) {
 		PlannerConfiguration{
 			TypeFieldConfigurations: []TypeFieldConfiguration{
 				{
-					TypeName: "Query",
+					TypeName:  "Query",
 					FieldName: "stringPipeline",
-					Mapping:MappingConfiguration{
-						Disabled:true,
+					Mapping: MappingConfiguration{
+						Disabled: true,
 					},
 				},
 			},
@@ -3101,10 +3113,10 @@ func TestPlanner_Plan(t *testing.T) {
 		PlannerConfiguration{
 			TypeFieldConfigurations: []TypeFieldConfiguration{
 				{
-					TypeName: "Query",
+					TypeName:  "Query",
 					FieldName: "filePipeline",
-					Mapping:MappingConfiguration{
-						Disabled:true,
+					Mapping: MappingConfiguration{
+						Disabled: true,
 					},
 				},
 			},
@@ -3180,10 +3192,10 @@ func TestPlanner_Plan(t *testing.T) {
 			PlannerConfiguration{
 				TypeFieldConfigurations: []TypeFieldConfiguration{
 					{
-						TypeName: "Query",
+						TypeName:  "Query",
 						FieldName: "apis",
-						Mapping:MappingConfiguration{
-							Disabled:true,
+						Mapping: MappingConfiguration{
+							Disabled: true,
 						},
 					},
 				},
@@ -3376,9 +3388,7 @@ schema {
 }
 type Query {
 	api: ApiResult
-		@mapping(mode: NONE)
 	apis: ApisResult
-		@mapping(mode: NONE)
 }
 type Api {
   id: String
@@ -3386,9 +3396,7 @@ type Api {
 }
 type RequestResult {
   message: String
-  	@mapping(pathSelector: "Message")
   status: String
-  	@mapping(pathSelector: "Status")
 }
 type ApisResultSuccess {
     apis: [Api!]
@@ -3411,7 +3419,6 @@ type Query {
 		@StaticDataSource(
             data: "[{\"bar\":\"baz\"},{\"bar\":\"bal\"},{\"bar\":\"bat\"}]"
         )
-		@mapping(mode: NONE)
 }
 
 type Foo {
@@ -3439,7 +3446,6 @@ type Subscription {
 			host: "foo.bar.baz"
 			url: "/bal"
 		)
-		@mapping(mode: NONE)
 }
 
 type Foo {
@@ -3468,7 +3474,6 @@ type Subscription {
 			url: "/bal"
 			delaySeconds: 3
 		)
-		@mapping(mode: NONE)
 }
 
 type Foo {
@@ -3483,11 +3488,6 @@ directive @GraphQLDataSource (
     url: String!
 	method: HTTP_METHOD = POST
     params: [Parameter]
-) on FIELD_DEFINITION
-
-directive @mapping(
-    mode: MAPPING_MODE! = PATH_SELECTOR
-    pathSelector: String
 ) on FIELD_DEFINITION
 
 enum MAPPING_MODE {
@@ -3722,17 +3722,14 @@ type Query {
 		@StaticDataSource(
             data: "World!"
         )
-		@mapping(mode: NONE)
 	nullableInt: Int
         @StaticDataSource(
             data: null
         )
-		@mapping(mode: NONE)
 	foo: Foo!
         @StaticDataSource(
             data: "{\"bar\":\"baz\"}"
         )
-		@mapping(mode: NONE)
 }`
 
 const complexSchema = `
@@ -3748,11 +3745,6 @@ directive @GraphQLDataSource (
     url: String!
 	method: HTTP_METHOD = POST
     params: [Parameter]
-) on FIELD_DEFINITION
-
-directive @mapping(
-    mode: MAPPING_MODE! = PATH_SELECTOR
-    pathSelector: String
 ) on FIELD_DEFINITION
 
 enum MAPPING_MODE {
@@ -3843,7 +3835,6 @@ type Query {
 			host: "localhost:9001"
 			url: "/user/{{ .arguments.id }}"
 		)
-		@mapping(mode: NONE)
 }
 type User {
 	id: String
@@ -3862,7 +3853,6 @@ type User {
 				}
 			]
 		)
-		@mapping(mode: NONE)
 	pets: [Pet]
 		@GraphQLDataSource(
 			host: "localhost:8002"
@@ -3876,7 +3866,6 @@ type User {
 				}
 			]
 		)
-		@mapping(pathSelector: "userPets")
 }
 interface Pet {
 	nickname: String!
@@ -3918,13 +3907,11 @@ type Query {
 			"""
     		inputJSON: "{\"foo\":\"{{ .arguments.foo }}\"}"
 		)
-		@mapping(mode: NONE)
 	filePipeline(foo: String!): String
 		@PipelineDataSource(
 			configFilePath: "./testdata/simple_pipeline.json"
     		inputJSON: "{\"foo\":\"{{ .arguments.foo }}\"}"
 		)
-		@mapping(mode: NONE)
 }
 `
 
