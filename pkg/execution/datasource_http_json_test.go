@@ -24,7 +24,6 @@ type Query {
             host: "example.com"
             url: "/"
         )
-		@mapping(mode: NONE)
 	unionType: UnionType
         @HttpJsonDataSource(
             host: "example.com"
@@ -37,7 +36,6 @@ type Query {
 				}
 			]
         )
-		@mapping(mode: NONE)
 	interfaceType: InterfaceType
         @HttpJsonDataSource(
             host: "example.com"
@@ -50,7 +48,6 @@ type Query {
 				}
 			]
         )
-		@mapping(mode: NONE)
 }
 type SimpleType {
 	scalarField: String
@@ -526,11 +523,6 @@ input StatusCodeTypeNameMapping {
     statusCode: Int!
     typeName: String!
 }
-
-directive @mapping(
-    mode: MAPPING_MODE! = PATH_SELECTOR
-    pathSelector: String
-) on FIELD_DEFINITION
 
 enum MAPPING_MODE {
     NONE

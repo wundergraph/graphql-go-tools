@@ -232,7 +232,6 @@ type Query {
         @StaticDataSource(
             data: "{\"bar\":\"baz\"}"
         )
-		@mapping(mode: NONE)
 		@transformation(
 			mode: PIPELINE
 			pipelineConfigString: """
@@ -249,7 +248,6 @@ type Query {
         @StaticDataSource(
             data: "{\"bar\":\"baz\"}"
         )
-		@mapping(mode: NONE)
 		@transformation(
 			mode: PIPELINE
 			pipelineConfigFile: "./testdata/simple_pipeline.json"
