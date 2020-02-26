@@ -8,6 +8,7 @@ import (
 	"github.com/gobwas/ws/wsutil"
 	log "github.com/jensneuse/abstractlogger"
 	"github.com/jensneuse/graphql-go-tools/pkg/execution"
+	"github.com/jensneuse/graphql-go-tools/pkg/subscriptionhandler"
 	"net"
 	"net/http"
 )
@@ -31,7 +32,24 @@ type WebsocketMessage struct {
 	Payload json.RawMessage `json:"payload"`
 }
 
+type WebsocketClientSubscription struct {
+	conn net.Conn
+}
+
+func (w *WebsocketClientSubscription) ReadFromClient() (subscriptionhandler.SubscriptionMessage, error) {
+	data, op, err := wsutil.ReadClientData(w.conn)
+}
+
+func (w *WebsocketClientSubscription) WriteToClient(message subscriptionhandler.SubscriptionMessage) error {
+	panic("implement me")
+}
+
 func (g *GraphQLHTTPRequestHandler) handleWebsocket(r *http.Request, conn net.Conn) {
+
+	g.subscriptionHandler.Handle(&WebsocketClientSubscription{
+		conn:conn,
+	})
+
 	defer conn.Close()
 
 	subscriptions := map[string]context.CancelFunc{}

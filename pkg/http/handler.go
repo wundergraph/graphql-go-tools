@@ -5,6 +5,7 @@ import (
 	"github.com/gobwas/ws"
 	log "github.com/jensneuse/abstractlogger"
 	"github.com/jensneuse/graphql-go-tools/pkg/execution"
+	"github.com/jensneuse/graphql-go-tools/pkg/subscriptionhandler"
 	"io"
 	"net/http"
 )
@@ -22,9 +23,10 @@ func NewGraphqlHTTPHandlerFunc(executionHandler *execution.Handler, logger log.L
 }
 
 type GraphQLHTTPRequestHandler struct {
-	log              log.Logger
-	executionHandler *execution.Handler
-	wsUpgrader       *ws.HTTPUpgrader
+	log                 log.Logger
+	executionHandler    *execution.Handler
+	wsUpgrader          *ws.HTTPUpgrader
+	subscriptionHandler subscriptionhandler.SubscriptionHandler
 }
 
 func (g *GraphQLHTTPRequestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
