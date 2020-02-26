@@ -8,6 +8,12 @@ import (
 	"net/http"
 )
 
+const (
+	httpHeaderContentType string = "Content-Type"
+
+	httpContentTypeApplicationJson string = "application/json"
+)
+
 func (g *GraphQLHTTPRequestHandler) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	data, err := ioutil.ReadAll(r.Body)
 	if err != nil {
