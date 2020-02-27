@@ -73,6 +73,7 @@ var (
 	URL                           = []byte("url")
 	CONFIG_FILE_PATH              = []byte("configFilePath")
 	CONFIG_STRING                 = []byte("configString")
+	DELAY_SECONDS                 = []byte("delaySeconds")
 	PIPELINE_CONFIG               = []byte("pipelineConfig")
 	PIPELINE_CONFIG_STRING        = []byte("pipelineConfigString")
 	PIPELINE_CONFIG_FILE          = []byte("pipelineConfigFile")
