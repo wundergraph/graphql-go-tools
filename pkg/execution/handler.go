@@ -10,6 +10,7 @@ import (
 	"github.com/gobuffalo/packr"
 	"github.com/jensneuse/abstractlogger"
 	"github.com/jensneuse/byte-template"
+	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
@@ -173,9 +174,10 @@ func (h *Handler) resolverDefinitions(report *operationreport.Report) ResolverDe
 
 	walker := astvisitor.NewWalker(8)
 	visitor := resolverDefinitionsVisitor{
-		Walker:     &walker,
-		definition: &h.definition,
-		resolvers:  &definitions,
+		Walker:               &walker,
+		definition:           &h.definition,
+		resolvers:            &definitions,
+		plannerConfiguration: h.plannerConfiguration,
 		dataSourcePlannerFactories: []func() DataSourcePlanner{
 			func() DataSourcePlanner {
 				return NewGraphQLDataSourcePlanner(baseDataSourcePlanner)
@@ -217,14 +219,21 @@ type resolverDefinitionsVisitor struct {
 	definition                 *ast.Document
 	resolvers                  *ResolverDefinitions
 	dataSourcePlannerFactories []func() DataSourcePlanner
+	plannerConfiguration       PlannerConfiguration
 }
 
 func (r *resolverDefinitionsVisitor) EnterFieldDefinition(ref int) {
+
+	typeName := r.definition.FieldDefinitionResolverTypeName(r.EnclosingTypeDefinition)
+	fieldName := r.definition.FieldDefinitionNameBytes(ref)
+	dataSourceName := r.plannerConfiguration.dataSourceNameForTypeField(unsafebytes.BytesToString(typeName), unsafebytes.BytesToString(fieldName))
+	if dataSourceName == nil {
+		return
+	}
+
 	for i := 0; i < len(r.dataSourcePlannerFactories); i++ {
 		factory := r.dataSourcePlannerFactories[i]
-		directiveName := factory().DirectiveName()
-		_, exists := r.definition.FieldDefinitionDirectiveByName(ref, directiveName)
-		if !exists {
+		if factory().DataSourceName() != *dataSourceName {
 			continue
 		}
 		*r.resolvers = append(*r.resolvers, DataSourceDefinition{
@@ -232,6 +241,7 @@ func (r *resolverDefinitionsVisitor) EnterFieldDefinition(ref int) {
 			FieldName:                r.definition.FieldDefinitionNameBytes(ref),
 			DataSourcePlannerFactory: factory,
 		})
+		return
 	}
 }
 
