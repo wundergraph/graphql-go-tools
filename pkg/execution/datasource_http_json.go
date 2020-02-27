@@ -2,12 +2,11 @@ package execution
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"github.com/buger/jsonparser"
 	log "github.com/jensneuse/abstractlogger"
-	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -19,6 +18,38 @@ import (
 	"time"
 )
 
+// HttpJsonDataSourceConfig is the configuration object for the HttpJsonDataSource
+type HttpJsonDataSourceConfig struct {
+	// Host is the hostname of the upstream
+	Host string
+	// URL is the url of the upstream
+	URL string
+	// Method is the http.Method, e.g. GET, POST, UPDATE, DELETE
+	// default is GET
+	Method *string
+	// Body is the http body to send
+	// default is null/nil (no body)
+	Body *string
+	// Headers defines the header mappings
+	Headers []HttpJsonDataSourceConfigHeader
+	// DefaultTypeName is the optional variable to define a default type name for the response object
+	// This is useful in case the response might be a Union or Interface type which uses StatusCodeTypeNameMappings
+	DefaultTypeName *string
+	// StatusCodeTypeNameMappings is a slice of mappings from http.StatusCode to GraphQL TypeName
+	// This can be used when the TypeName depends on the http.StatusCode
+	StatusCodeTypeNameMappings []StatusCodeTypeNameMapping
+}
+
+type StatusCodeTypeNameMapping struct {
+	StatusCode int
+	TypeName   string
+}
+
+type HttpJsonDataSourceConfigHeader struct {
+	Key   string
+	Value string
+}
+
 func NewHttpJsonDataSourcePlanner(baseDataSourcePlanner BaseDataSourcePlanner) *HttpJsonDataSourcePlanner {
 	return &HttpJsonDataSourcePlanner{
 		BaseDataSourcePlanner: baseDataSourcePlanner,
@@ -28,20 +59,17 @@ func NewHttpJsonDataSourcePlanner(baseDataSourcePlanner BaseDataSourcePlanner) *
 type HttpJsonDataSourcePlanner struct {
 	BaseDataSourcePlanner
 	rootField int
+	config    HttpJsonDataSourceConfig
 }
 
-func (h *HttpJsonDataSourcePlanner) DirectiveDefinition() []byte {
-	data, _ := h.graphqlDefinitions.Find("directives/http_json_datasource.graphql")
-	return data
+func (h *HttpJsonDataSourcePlanner) DataSourceName() string {
+	return "HttpJsonDataSource"
 }
 
-func (h *HttpJsonDataSourcePlanner) DirectiveName() []byte {
-	return []byte("HttpJsonDataSource")
-}
-
-func (h *HttpJsonDataSourcePlanner) Initialize(walker *astvisitor.Walker, operation, definition *ast.Document, args []Argument, resolverParameters []ResolverParameter) {
-	h.walker, h.operation, h.definition, h.args = walker, operation, definition, args
+func (h *HttpJsonDataSourcePlanner) Initialize(config DataSourcePlannerConfiguration) (err error) {
+	h.walker, h.operation, h.definition = config.walker, config.operation, config.definition
 	h.rootField = -1
+	return json.NewDecoder(config.dataSourceConfiguration).Decode(&h.config)
 }
 
 func (h *HttpJsonDataSourcePlanner) Plan() (DataSource, []Argument) {
@@ -80,71 +108,30 @@ func (h *HttpJsonDataSourcePlanner) LeaveField(ref int) {
 	if !exists {
 		return
 	}
-	directive, exists := h.definition.FieldDefinitionDirectiveByName(definition, h.DirectiveName())
-	if !exists {
-		return
-	}
-	value, exists := h.definition.DirectiveArgumentValueByName(directive, literal.URL)
-	if !exists {
-		return
-	}
-	variableValue := h.definition.StringValueContentBytes(value.Ref)
-	arg := &StaticVariableArgument{
-		Name:  literal.URL,
-		Value: make([]byte, len(variableValue)),
-	}
-	copy(arg.Value, variableValue)
-	h.args = append([]Argument{arg}, h.args...)
-	value, exists = h.definition.DirectiveArgumentValueByName(directive, literal.HOST)
-	if !exists {
-		return
-	}
-	variableValue = h.definition.StringValueContentBytes(value.Ref)
-	arg = &StaticVariableArgument{
+	h.args = append(h.args, &StaticVariableArgument{
 		Name:  literal.HOST,
-		Value: make([]byte, len(variableValue)),
-	}
-	copy(arg.Value, variableValue)
-	h.args = append([]Argument{arg}, h.args...)
-
-	// method
-	value, exists = h.definition.DirectiveArgumentValueByName(directive, literal.METHOD)
-	if exists {
-		variableValue = h.definition.EnumValueNameBytes(value.Ref)
-		arg = &StaticVariableArgument{
+		Value: []byte(h.config.Host),
+	})
+	h.args = append(h.args, &StaticVariableArgument{
+		Name:  literal.URL,
+		Value: []byte(h.config.URL),
+	})
+	if h.config.Method == nil {
+		h.args = append(h.args, &StaticVariableArgument{
 			Name:  literal.METHOD,
-			Value: make([]byte, len(variableValue)),
-		}
-		copy(arg.Value, variableValue)
-		h.args = append(h.args, arg)
-	} else { // must refactor into functions!
-		inputValueDefinition := h.definition.DirectiveArgumentInputValueDefinition(h.definition.DirectiveNameBytes(directive), literal.METHOD)
-		if inputValueDefinition != -1 {
-			if h.definition.InputValueDefinitionHasDefaultValue(inputValueDefinition) {
-				defaultValue := h.definition.InputValueDefinitionDefaultValue(inputValueDefinition)
-				if defaultValue.Kind == ast.ValueKindEnum {
-					value := h.definition.EnumValueNameBytes(defaultValue.Ref)
-					arg = &StaticVariableArgument{
-						Name:  literal.METHOD,
-						Value: make([]byte, len(value)),
-					}
-					copy(arg.Value, value)
-					h.args = append(h.args, arg)
-				}
-			}
-		}
+			Value: literal.HTTP_METHOD_GET,
+		})
+	} else {
+		h.args = append(h.args, &StaticVariableArgument{
+			Name:  literal.METHOD,
+			Value: []byte(*h.config.Method),
+		})
 	}
-
-	// body
-	value, exists = h.definition.DirectiveArgumentValueByName(directive, literal.BODY)
-	if exists {
-		variableValue = h.definition.StringValueContentBytes(value.Ref)
-		arg = &StaticVariableArgument{
+	if h.config.Body != nil {
+		h.args = append(h.args, &StaticVariableArgument{
 			Name:  literal.BODY,
-			Value: make([]byte, len(variableValue)),
-		}
-		copy(arg.Value, variableValue)
-		h.args = append(h.args, arg)
+			Value: []byte(*h.config.Body),
+		})
 	}
 
 	// args
@@ -167,47 +154,17 @@ func (h *HttpJsonDataSourcePlanner) LeaveField(ref int) {
 		}
 	}
 
-	// headers
-	value, exists = h.definition.DirectiveArgumentValueByName(directive, literal.HEADERS)
-	if exists && value.Kind == ast.ValueKindList {
+	if len(h.config.Headers) != 0 {
 		listArg := &ListArgument{
 			Name: literal.HEADERS,
 		}
-		for _, i := range h.definition.ListValues[value.Ref].Refs {
-			listValue := h.definition.Values[i]
-			if listValue.Kind != ast.ValueKindObject {
-				continue
-			}
-			fields := h.definition.ObjectValues[listValue.Ref].Refs
-			var key ast.ByteSlice
-			var value ast.ByteSlice
-			if len(fields) != 2 {
-				continue
-			}
-			for _, j := range fields {
-				fieldName := h.definition.ObjectFieldNameBytes(j)
-				switch {
-				case bytes.Equal(fieldName, literal.KEY):
-					key = h.definition.StringValueContentBytes(h.definition.ObjectFieldValue(j).Ref)
-				case bytes.Equal(fieldName, literal.VALUE):
-					value = h.definition.StringValueContentBytes(h.definition.ObjectFieldValue(j).Ref)
-				}
-			}
-			if key == nil || value == nil {
-				continue
-			}
-			arg := &StaticVariableArgument{
-				Name:  make([]byte, len(key)),
-				Value: make([]byte, len(value)),
-			}
-			copy(arg.Name, key)
-			copy(arg.Value, value)
-			listArg.Arguments = append(listArg.Arguments, arg)
+		for i := range h.config.Headers {
+			listArg.Arguments = append(listArg.Arguments, &StaticVariableArgument{
+				Name:  []byte(h.config.Headers[i].Key),
+				Value: []byte(h.config.Headers[i].Value),
+			})
 		}
-
-		if len(listArg.Arguments) != 0 {
-			h.args = append(h.args, listArg)
-		}
+		h.args = append(h.args, listArg)
 	}
 
 	// __typename
@@ -221,48 +178,18 @@ func (h *HttpJsonDataSourcePlanner) LeaveField(ref int) {
 	case ast.NodeKindScalarTypeDefinition:
 		return
 	case ast.NodeKindUnionTypeDefinition, ast.NodeKindInterfaceTypeDefinition:
-		value, exists = h.definition.DirectiveArgumentValueByName(directive, literal.DEFAULT_TYPENAME)
-		if exists && value.Kind == ast.ValueKindString {
-			defaultTypeName := h.definition.StringValueContentBytes(value.Ref)
-			quotedDefaultTypeName := append(literal.QUOTE, append(defaultTypeName, literal.QUOTE...)...)
-			typeNameValue, err = sjson.SetRawBytes(typeNameValue, "defaultTypeName", quotedDefaultTypeName)
+		if h.config.DefaultTypeName != nil {
+			typeNameValue, err = sjson.SetRawBytes(typeNameValue, "defaultTypeName", []byte("\""+*h.config.DefaultTypeName+"\""))
 			if err != nil {
 				h.log.Error("HttpJsonDataSourcePlanner set defaultTypeName (switch case union/interface)", log.Error(err))
 				return
 			}
 		}
-		value, exists = h.definition.DirectiveArgumentValueByName(directive, literal.STATUS_CODE_TYPENAME_MAPPINGS)
-		if exists && value.Kind == ast.ValueKindList {
-			for _, i := range h.definition.ListValues[value.Ref].Refs {
-				var statusCode []byte
-				var typeName []byte
-				listItem := h.definition.Value(i)
-				if listItem.Kind != ast.ValueKindObject {
-					continue
-				}
-				for _, j := range h.definition.ObjectValues[listItem.Ref].Refs {
-					fieldName := h.definition.ObjectFieldNameBytes(j)
-					fieldValue := h.definition.ObjectFieldValue(j)
-					switch unsafebytes.BytesToString(fieldName) {
-					case "statusCode":
-						if fieldValue.Kind != ast.ValueKindInteger {
-							continue
-						}
-						statusCode = h.definition.IntValueRaw(fieldValue.Ref)
-					case "typeName":
-						if fieldValue.Kind != ast.ValueKindString {
-							continue
-						}
-						typeName = append(literal.QUOTE, append(h.definition.StringValueContentBytes(fieldValue.Ref), literal.QUOTE...)...)
-					}
-				}
-				if statusCode != nil && typeName != nil {
-					typeNameValue, err = sjson.SetRawBytes(typeNameValue, unsafebytes.BytesToString(statusCode), typeName)
-					if err != nil {
-						h.log.Error("HttpJsonDataSourcePlanner set statusCodeTypeMapping", log.Error(err))
-						return
-					}
-				}
+		for i := range h.config.StatusCodeTypeNameMappings {
+			typeNameValue, err = sjson.SetRawBytes(typeNameValue, strconv.Itoa(h.config.StatusCodeTypeNameMappings[i].StatusCode), []byte("\""+h.config.StatusCodeTypeNameMappings[i].TypeName+"\""))
+			if err != nil {
+				h.log.Error("HttpJsonDataSourcePlanner set statusCodeTypeMapping", log.Error(err))
+				return
 			}
 		}
 	default:
@@ -382,9 +309,9 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 	}
 
 	statusCode := strconv.Itoa(res.StatusCode)
-	statusCodeTypeName := gjson.GetBytes(typeNameArg,statusCode)
+	statusCodeTypeName := gjson.GetBytes(typeNameArg, statusCode)
 	if statusCodeTypeName.Exists() {
-		data,err = sjson.SetRawBytes(data,"__typename",[]byte(statusCodeTypeName.Raw))
+		data, err = sjson.SetRawBytes(data, "__typename", []byte(statusCodeTypeName.Raw))
 		if err != nil {
 			r.log.Error("HttpJsonDataSource.Resolve.setStatusCodeTypeName",
 				log.Error(err),
@@ -392,9 +319,9 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 			return CloseConnectionIfNotStream
 		}
 	} else {
-		defaultTypeName := gjson.GetBytes(typeNameArg,"defaultTypeName")
+		defaultTypeName := gjson.GetBytes(typeNameArg, "defaultTypeName")
 		if defaultTypeName.Exists() {
-			data,err = sjson.SetRawBytes(data,"__typename",[]byte(defaultTypeName.Raw))
+			data, err = sjson.SetRawBytes(data, "__typename", []byte(defaultTypeName.Raw))
 			if err != nil {
 				r.log.Error("HttpJsonDataSource.Resolve.setDefaultTypeName",
 					log.Error(err),

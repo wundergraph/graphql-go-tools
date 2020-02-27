@@ -1,18 +1,23 @@
 package execution
 
 import (
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
+	"encoding/json"
+	log "github.com/jensneuse/abstractlogger"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/nats-io/nats.go"
-	log "github.com/jensneuse/abstractlogger"
 	"io"
 	"sync"
 	"time"
 )
 
+type NatsDataSourceConfig struct {
+	Addr  string
+	Topic string
+}
+
 type NatsDataSourcePlanner struct {
 	BaseDataSourcePlanner
+	dataSourceConfig NatsDataSourceConfig
 }
 
 func NewNatsDataSourcePlanner(baseDataSourcePlanner BaseDataSourcePlanner) *NatsDataSourcePlanner {
@@ -21,13 +26,8 @@ func NewNatsDataSourcePlanner(baseDataSourcePlanner BaseDataSourcePlanner) *Nats
 	}
 }
 
-func (n *NatsDataSourcePlanner) DirectiveName() []byte {
-	return []byte("NatsDataSource")
-}
-
-func (n *NatsDataSourcePlanner) DirectiveDefinition() []byte {
-	data, _ := n.graphqlDefinitions.Find("directives/nats_datasource.graphql")
-	return data
+func (n *NatsDataSourcePlanner) DataSourceName() string {
+	return "NatsDataSource"
 }
 
 func (n *NatsDataSourcePlanner) Plan() (DataSource, []Argument) {
@@ -36,8 +36,9 @@ func (n *NatsDataSourcePlanner) Plan() (DataSource, []Argument) {
 	}, n.args
 }
 
-func (n *NatsDataSourcePlanner) Initialize(walker *astvisitor.Walker, operation, definition *ast.Document, args []Argument, resolverParameters []ResolverParameter) {
-	n.walker, n.operation, n.definition, n.args = walker, operation, definition, args
+func (n *NatsDataSourcePlanner) Initialize(config DataSourcePlannerConfiguration) (err error) {
+	n.walker, n.operation, n.definition = config.walker, config.operation, config.definition
+	return json.NewDecoder(config.dataSourceConfiguration).Decode(&n.dataSourceConfig)
 }
 
 func (n *NatsDataSourcePlanner) EnterInlineFragment(ref int) {
@@ -64,37 +65,14 @@ func (n *NatsDataSourcePlanner) LeaveField(ref int) {
 	if !n.rootField.isDefinedAndEquals(ref) {
 		return
 	}
-	definition, exists := n.walker.FieldDefinition(ref)
-	if !exists {
-		return
-	}
-	directive, exists := n.definition.FieldDefinitionDirectiveByName(definition, n.DirectiveName())
-	if !exists {
-		return
-	}
-	value, exists := n.definition.DirectiveArgumentValueByName(directive, literal.ADDR)
-	if !exists {
-		return
-	}
-	variableValue := n.definition.StringValueContentBytes(value.Ref)
-	arg := &StaticVariableArgument{
+	n.args = append(n.args, &StaticVariableArgument{
 		Name:  literal.ADDR,
-		Value: make([]byte, len(variableValue)),
-	}
-	copy(arg.Value, variableValue)
-	n.args = append(n.args, arg)
-
-	value, exists = n.definition.DirectiveArgumentValueByName(directive, literal.TOPIC)
-	if !exists {
-		return
-	}
-	variableValue = n.definition.StringValueContentBytes(value.Ref)
-	arg = &StaticVariableArgument{
+		Value: []byte(n.dataSourceConfig.Addr),
+	})
+	n.args = append(n.args, &StaticVariableArgument{
 		Name:  literal.TOPIC,
-		Value: make([]byte, len(variableValue)),
-	}
-	copy(arg.Value, variableValue)
-	n.args = append(n.args, arg)
+		Value: []byte(n.dataSourceConfig.Topic),
+	})
 }
 
 type NatsDataSource struct {

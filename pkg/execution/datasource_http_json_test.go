@@ -3,6 +3,7 @@ package execution
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/jensneuse/abstractlogger"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
@@ -20,34 +21,8 @@ schema {
 
 type Query {
 	simpleType: SimpleType
-        @HttpJsonDataSource(
-            host: "example.com"
-            url: "/"
-        )
 	unionType: UnionType
-        @HttpJsonDataSource(
-            host: "example.com"
-            url: "/"
-			defaultTypeName: "SuccessType"
-			statusCodeTypeNameMappings: [
-				{
-					statusCode: 500
-					typeName: "ErrorType"
-				}
-			]
-        )
 	interfaceType: InterfaceType
-        @HttpJsonDataSource(
-            host: "example.com"
-            url: "/"
-			defaultTypeName: "SuccessInterface"
-			statusCodeTypeNameMappings: [
-				{
-					statusCode: 500
-					typeName: "ErrorInterface"
-				}
-			]
-        )
 }
 type SimpleType {
 	scalarField: String
@@ -99,8 +74,26 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 				{
 					TypeName:  "Query",
 					FieldName: "simpleType",
-					Mapping: MappingConfiguration{
+					Mapping: &MappingConfiguration{
 						Disabled: true,
+					},
+					DataSource: DataSourceConfig{
+						Name: "HttpJsonDataSource",
+						Config: func() []byte {
+							data, _ := json.Marshal(HttpJsonDataSourceConfig{
+								Host: "example.com",
+								URL:  "/",
+								Method: func() *string {
+									method := "GET"
+									return &method
+								}(),
+								DefaultTypeName: func() *string {
+									typeName := "SimpleType"
+									return &typeName
+								}(),
+							})
+							return data
+						}(),
 					},
 				},
 			},
@@ -200,8 +193,26 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 				{
 					TypeName:  "Query",
 					FieldName: "unionType",
-					Mapping: MappingConfiguration{
+					Mapping: &MappingConfiguration{
 						Disabled: true,
+					},
+					DataSource: DataSourceConfig{
+						Name: "HttpJsonDataSource",
+						Config: func() []byte {
+							defaultTypeName := "SuccessType"
+							data, _ := json.Marshal(HttpJsonDataSourceConfig{
+								Host:            "example.com",
+								URL:             "/",
+								DefaultTypeName: &defaultTypeName,
+								StatusCodeTypeNameMappings: []StatusCodeTypeNameMapping{
+									{
+										StatusCode: 500,
+										TypeName:   "ErrorType",
+									},
+								},
+							})
+							return data
+						}(),
 					},
 				},
 			},
@@ -333,8 +344,26 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 				{
 					TypeName:  "Query",
 					FieldName: "interfaceType",
-					Mapping: MappingConfiguration{
+					Mapping: &MappingConfiguration{
 						Disabled: true,
+					},
+					DataSource: DataSourceConfig{
+						Name: "HttpJsonDataSource",
+						Config: func() []byte {
+							defaultTypeName := "SuccessInterface"
+							data, _ := json.Marshal(HttpJsonDataSourceConfig{
+								Host:            "example.com",
+								URL:             "/",
+								DefaultTypeName: &defaultTypeName,
+								StatusCodeTypeNameMappings: []StatusCodeTypeNameMapping{
+									{
+										StatusCode: 500,
+										TypeName:   "ErrorInterface",
+									},
+								},
+							})
+							return data
+						}(),
 					},
 				},
 			},

@@ -2,14 +2,32 @@ package execution
 
 import (
 	"bytes"
+	"encoding/json"
+	log "github.com/jensneuse/abstractlogger"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/pipeline/pkg/pipe"
-	log "github.com/jensneuse/abstractlogger"
 	"io"
 	"io/ioutil"
 )
+
+type PipelineDataSourceConfig struct {
+	/*
+		ConfigFilePath is the path where the pipeline configuration file can be found
+		it needs to be in the json format according to the pipeline json schema
+		see this url for more info: https://github.com/jensneuse/pipeline
+	*/
+	ConfigFilePath *string
+	/*
+			ConfigString is a string to configure the pipeline
+			it needs to be in the json format according to the pipeline json schema
+		   	see this url for more info: https://github.com/jensneuse/pipeline
+			The PipelinDataSourcePlanner will always choose the configString over the configFilePath in case both are defined.
+	*/
+	ConfigString *string
+	// InputJSON is the template to define a JSON object based on the request, parameters etc. which gets passed to the first pipeline step
+	InputJSON string
+}
 
 func NewPipelineDataSourcePlanner(baseDataSourcePlanner BaseDataSourcePlanner) *PipelineDataSourcePlanner {
 	return &PipelineDataSourcePlanner{
@@ -19,22 +37,19 @@ func NewPipelineDataSourcePlanner(baseDataSourcePlanner BaseDataSourcePlanner) *
 
 type PipelineDataSourcePlanner struct {
 	BaseDataSourcePlanner
+	dataSourceConfig  PipelineDataSourceConfig
 	rootField         int
 	rawPipelineConfig []byte
 }
 
-func (h *PipelineDataSourcePlanner) DirectiveDefinition() []byte {
-	data, _ := h.graphqlDefinitions.Find("directives/pipeline_datasource.graphql")
-	return data
+func (h *PipelineDataSourcePlanner) DataSourceName() string {
+	return "PipelineDataSource"
 }
 
-func (h *PipelineDataSourcePlanner) DirectiveName() []byte {
-	return []byte("PipelineDataSource")
-}
-
-func (h *PipelineDataSourcePlanner) Initialize(walker *astvisitor.Walker, operation, definition *ast.Document, args []Argument, resolverParameters []ResolverParameter) {
-	h.walker, h.operation, h.definition, h.args = walker, operation, definition, args
+func (h *PipelineDataSourcePlanner) Initialize(config DataSourcePlannerConfiguration) (err error) {
+	h.walker, h.operation, h.definition = config.walker, config.operation, config.definition
 	h.rootField = -1
+	return json.NewDecoder(config.dataSourceConfiguration).Decode(&h.dataSourceConfig)
 }
 
 func (h *PipelineDataSourcePlanner) Plan() (DataSource, []Argument) {
@@ -77,41 +92,22 @@ func (h *PipelineDataSourcePlanner) LeaveField(ref int) {
 	if h.rootField != ref {
 		return
 	}
-	definition, exists := h.walker.FieldDefinition(ref)
-	if !exists {
-		return
-	}
-	directive, exists := h.definition.FieldDefinitionDirectiveByName(definition, h.DirectiveName())
-	if !exists {
-		return
-	}
-	value, exists := h.definition.DirectiveArgumentValueByName(directive, literal.CONFIG_STRING)
-	if exists {
-		variableValue := h.definition.StringValueContentBytes(value.Ref)
-		h.rawPipelineConfig = make([]byte, len(variableValue))
-		copy(h.rawPipelineConfig, variableValue)
-	}
 
-	value, exists = h.definition.DirectiveArgumentValueByName(directive, literal.CONFIG_FILE_PATH)
-	if exists {
-		variableValue := h.definition.StringValueContentBytes(value.Ref)
+	if h.dataSourceConfig.ConfigString != nil {
+		h.rawPipelineConfig = []byte(*h.dataSourceConfig.ConfigString)
+	}
+	if h.dataSourceConfig.ConfigFilePath != nil {
 		var err error
-		h.rawPipelineConfig, err = ioutil.ReadFile(variableValue.String())
+		h.rawPipelineConfig, err = ioutil.ReadFile(*h.dataSourceConfig.ConfigFilePath)
 		if err != nil {
 			h.log.Error("PipelineDataSourcePlanner.readConfigFile", log.Error(err))
 		}
 	}
 
-	value, exists = h.definition.DirectiveArgumentValueByName(directive, literal.INPUT_JSON)
-	if exists {
-		variableValue := h.definition.StringValueContentBytes(value.Ref)
-		arg := &StaticVariableArgument{
-			Name:  literal.INPUT_JSON,
-			Value: make([]byte, len(variableValue)),
-		}
-		copy(arg.Value, variableValue)
-		h.args = append([]Argument{arg}, h.args...)
-	}
+	h.args = append(h.args, &StaticVariableArgument{
+		Name:  literal.INPUT_JSON,
+		Value: []byte(h.dataSourceConfig.InputJSON),
+	})
 
 	// args
 	if h.operation.FieldHasArguments(ref) {
@@ -135,7 +131,7 @@ func (h *PipelineDataSourcePlanner) LeaveField(ref int) {
 }
 
 type PipelineDataSource struct {
-	log  log.Logger
+	log      log.Logger
 	pipeline pipe.Pipeline
 }
 

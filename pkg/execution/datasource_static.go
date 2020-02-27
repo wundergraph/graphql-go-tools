@@ -1,12 +1,14 @@
 package execution
 
 import (
-	"bytes"
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
+	"encoding/json"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"io"
 )
+
+type StaticDataSourceConfig struct {
+	Data string
+}
 
 func NewStaticDataSourcePlanner(baseDataSourcePlanner BaseDataSourcePlanner) *StaticDataSourcePlanner {
 	return &StaticDataSourcePlanner{
@@ -16,19 +18,17 @@ func NewStaticDataSourcePlanner(baseDataSourcePlanner BaseDataSourcePlanner) *St
 
 type StaticDataSourcePlanner struct {
 	BaseDataSourcePlanner
+	dataSourceConfig StaticDataSourceConfig
 }
 
-func (s *StaticDataSourcePlanner) DirectiveDefinition() []byte {
-	data, _ := s.graphqlDefinitions.Find("directives/static_datasource.graphql")
-	return data
+func (s *StaticDataSourcePlanner) DataSourceName() string {
+	return "StaticDataSource"
 }
 
-func (s *StaticDataSourcePlanner) DirectiveName() []byte {
-	return []byte("StaticDataSource")
-}
-
-func (s *StaticDataSourcePlanner) Initialize(walker *astvisitor.Walker, operation, definition *ast.Document, args []Argument, resolverParameters []ResolverParameter) {
-	s.walker, s.operation, s.definition, s.args = walker, operation, definition, args
+func (s *StaticDataSourcePlanner) Initialize(config DataSourcePlannerConfiguration) (err error) {
+	s.walker, s.operation, s.definition = config.walker, config.operation, config.definition
+	s.args = nil
+	return json.NewDecoder(config.dataSourceConfiguration).Decode(&s.dataSourceConfig)
 }
 
 func (s *StaticDataSourcePlanner) EnterInlineFragment(ref int) {
@@ -48,24 +48,13 @@ func (s *StaticDataSourcePlanner) LeaveSelectionSet(ref int) {
 }
 
 func (s *StaticDataSourcePlanner) EnterField(ref int) {
-	fieldDefinition, ok := s.walker.FieldDefinition(ref)
-	if !ok {
+	if s.rootField.isDefined {
 		return
 	}
-	directive, ok := s.definition.FieldDefinitionDirectiveByName(fieldDefinition, s.DirectiveName())
-	if !ok {
-		return
-	}
-	var staticValue []byte
-	value, ok := s.definition.DirectiveArgumentValueByName(directive, []byte("data"))
-	if !ok || value.Kind != ast.ValueKindString {
-		staticValue = literal.NULL
-	} else {
-		staticValue = s.definition.StringValueContentBytes(value.Ref)
-	}
-	staticValue = bytes.ReplaceAll(staticValue, literal.BACKSLASH, nil)
+	s.rootField.setIfNotDefined(ref)
 	s.args = append(s.args, &StaticVariableArgument{
-		Value: staticValue,
+		Name:  literal.DATA,
+		Value: []byte(s.dataSourceConfig.Data),
 	})
 }
 
@@ -81,6 +70,6 @@ type StaticDataSource struct {
 }
 
 func (s StaticDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) Instruction {
-	_, _ = out.Write(args[0].Value)
+	_, _ = out.Write(args.ByKey(literal.DATA))
 	return CloseConnectionIfNotStream
 }

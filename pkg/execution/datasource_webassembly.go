@@ -1,15 +1,19 @@
 package execution
 
 import (
-	"bytes"
+	"encoding/json"
+	log "github.com/jensneuse/abstractlogger"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	wasm "github.com/wasmerio/go-ext-wasm/wasmer"
-	log "github.com/jensneuse/abstractlogger"
 	"io"
 	"sync"
 )
+
+type WasmDataSourceConfig struct {
+	WasmFile string
+	Input    string
+}
 
 func NewWasmDataSourcePlanner(baseDataSourcePlanner BaseDataSourcePlanner) *WasmDataSourcePlanner {
 	return &WasmDataSourcePlanner{
@@ -19,19 +23,16 @@ func NewWasmDataSourcePlanner(baseDataSourcePlanner BaseDataSourcePlanner) *Wasm
 
 type WasmDataSourcePlanner struct {
 	BaseDataSourcePlanner
+	dataSourceConfig WasmDataSourceConfig
 }
 
-func (w *WasmDataSourcePlanner) DirectiveDefinition() []byte {
-	data, _ := w.graphqlDefinitions.Find("directives/wasm_datasource.graphql")
-	return data
+func (w *WasmDataSourcePlanner) DataSourceName() string {
+	return "WasmDataSource"
 }
 
-func (w *WasmDataSourcePlanner) DirectiveName() []byte {
-	return []byte("WasmDataSource")
-}
-
-func (w *WasmDataSourcePlanner) Initialize(walker *astvisitor.Walker, operation, definition *ast.Document, args []Argument, resolverParameters []ResolverParameter) {
-	w.walker, w.operation, w.definition, w.args = walker, operation, definition, args
+func (w *WasmDataSourcePlanner) Initialize(config DataSourcePlannerConfiguration) (err error) {
+	w.walker, w.operation, w.definition = config.walker, config.operation, config.definition
+	return json.NewDecoder(config.dataSourceConfiguration).Decode(&w.dataSourceConfig)
 }
 
 func (w *WasmDataSourcePlanner) EnterInlineFragment(ref int) {
@@ -51,36 +52,14 @@ func (w *WasmDataSourcePlanner) LeaveSelectionSet(ref int) {
 }
 
 func (w *WasmDataSourcePlanner) EnterField(ref int) {
-	fieldDefinition, ok := w.walker.FieldDefinition(ref)
-	if !ok {
-		return
-	}
-	directive, ok := w.definition.FieldDefinitionDirectiveByName(fieldDefinition, w.DirectiveName())
-	if !ok {
-		return
-	}
-
-	value, ok := w.definition.DirectiveArgumentValueByName(directive, literal.WASMFILE)
-	if !ok {
-		return
-	}
-	staticValue := w.definition.StringValueContentBytes(value.Ref)
-	w.args = append(w.args, &StaticVariableArgument{
-		Name:  literal.WASMFILE,
-		Value: staticValue,
+	w.args = append(w.args,&StaticVariableArgument{
+		Name: literal.WASMFILE,
+		Value: []byte(w.dataSourceConfig.WasmFile),
 	})
-
-	value, ok = w.definition.DirectiveArgumentValueByName(directive, literal.INPUT)
-	if !ok {
-		return
-	}
-	staticValue = w.definition.StringValueContentBytes(value.Ref)
-	staticValue = bytes.ReplaceAll(staticValue, literal.BACKSLASH, nil)
-	w.args = append(w.args, &StaticVariableArgument{
-		Name:  literal.INPUT,
-		Value: staticValue,
+	w.args = append(w.args,&StaticVariableArgument{
+		Name: literal.INPUT,
+		Value: []byte(w.dataSourceConfig.Input),
 	})
-
 	// args
 	if w.operation.FieldHasArguments(ref) {
 		args := w.operation.FieldArguments(ref)
@@ -108,7 +87,7 @@ func (w *WasmDataSourcePlanner) LeaveField(ref int) {
 
 func (w *WasmDataSourcePlanner) Plan() (DataSource, []Argument) {
 	return &WasmDataSource{
-		log:w.log,
+		log: w.log,
 	}, w.args
 }
 
@@ -124,8 +103,8 @@ func (s *WasmDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) 
 	wasmFile := args.ByKey(literal.WASMFILE)
 
 	s.log.Debug("WasmDataSource.Resolve.args",
-		log.ByteString("input",input),
-		log.ByteString("wasmFile",wasmFile),
+		log.ByteString("input", input),
+		log.ByteString("wasmFile", wasmFile),
 	)
 
 	s.once.Do(func() {
@@ -186,7 +165,7 @@ func (s *WasmDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) 
 		}
 	}
 
-	_,err = out.Write(memory[start:stop])
+	_, err = out.Write(memory[start:stop])
 	if err != nil {
 		s.log.Error("WasmDataSource.out.Write(memory[start:stop])",
 			log.Error(err),

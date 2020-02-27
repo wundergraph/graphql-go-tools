@@ -2,9 +2,8 @@ package execution
 
 import (
 	"bytes"
+	"encoding/json"
 	log "github.com/jensneuse/abstractlogger"
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"io"
 	"io/ioutil"
@@ -15,15 +14,17 @@ import (
 	"time"
 )
 
-type HttpPollingStreamDataSourcePlanner struct {
-	BaseDataSourcePlanner
-	rootField int
-	delay     time.Duration
+type HttpPollingStreamDataSourceConfiguration struct {
+	Host         string
+	URL          string
+	DelaySeconds *int
 }
 
-func (h *HttpPollingStreamDataSourcePlanner) DirectiveDefinition() []byte {
-	data, _ := h.graphqlDefinitions.Find("directives/http_polling_stream_datasource.graphql")
-	return data
+type HttpPollingStreamDataSourcePlanner struct {
+	BaseDataSourcePlanner
+	dataSourceConfig HttpPollingStreamDataSourceConfiguration
+	rootField        int
+	delay            time.Duration
 }
 
 func NewHttpPollingStreamDataSourcePlanner(baseDataSourcePlanner BaseDataSourcePlanner) *HttpPollingStreamDataSourcePlanner {
@@ -32,8 +33,8 @@ func NewHttpPollingStreamDataSourcePlanner(baseDataSourcePlanner BaseDataSourceP
 	}
 }
 
-func (h *HttpPollingStreamDataSourcePlanner) DirectiveName() []byte {
-	return []byte("HttpPollingStreamDataSource")
+func (h *HttpPollingStreamDataSourcePlanner) DataSourceName() string {
+	return "HttpPollingStreamDataSource"
 }
 
 func (h *HttpPollingStreamDataSourcePlanner) Plan() (DataSource, []Argument) {
@@ -43,10 +44,10 @@ func (h *HttpPollingStreamDataSourcePlanner) Plan() (DataSource, []Argument) {
 	}, h.args
 }
 
-func (h *HttpPollingStreamDataSourcePlanner) Initialize(walker *astvisitor.Walker, operation, definition *ast.Document, args []Argument, resolverParameters []ResolverParameter) {
-	h.walker, h.operation, h.definition, h.args = walker, operation, definition, args
+func (h *HttpPollingStreamDataSourcePlanner) Initialize(config DataSourcePlannerConfiguration) (err error) {
+	h.walker, h.operation, h.definition = config.walker, config.operation, config.definition
 	h.rootField = -1
-	h.delay = time.Second * 1
+	return json.NewDecoder(config.dataSourceConfiguration).Decode(&h.dataSourceConfig)
 }
 
 func (h *HttpPollingStreamDataSourcePlanner) EnterInlineFragment(ref int) {
@@ -75,62 +76,19 @@ func (h *HttpPollingStreamDataSourcePlanner) LeaveField(ref int) {
 	if h.rootField != ref {
 		return
 	}
-
-	definition, exists := h.walker.FieldDefinition(ref)
-	if !exists {
-		return
-	}
-	directive, exists := h.definition.FieldDefinitionDirectiveByName(definition, h.DirectiveName())
-	if !exists {
-		return
-	}
-	value, exists := h.definition.DirectiveArgumentValueByName(directive, literal.URL)
-	if !exists {
-		return
-	}
-	variableValue := h.definition.StringValueContentBytes(value.Ref)
-	arg := &StaticVariableArgument{
-		Name:  literal.URL,
-		Value: variableValue,
-	}
-	h.args = append([]Argument{arg}, h.args...)
-	value, exists = h.definition.DirectiveArgumentValueByName(directive, literal.HOST)
-	if !exists {
-		return
-	}
-	variableValue = h.definition.StringValueContentBytes(value.Ref)
-	arg = &StaticVariableArgument{
+	h.args = append(h.args, &StaticVariableArgument{
 		Name:  literal.HOST,
-		Value: variableValue,
+		Value: []byte(h.dataSourceConfig.Host),
+	})
+	h.args = append(h.args, &StaticVariableArgument{
+		Name:  literal.URL,
+		Value: []byte(h.dataSourceConfig.URL),
+	})
+	if h.dataSourceConfig.DelaySeconds == nil {
+		h.delay = time.Second * time.Duration(1)
+	} else {
+		h.delay = time.Second * time.Duration(*h.dataSourceConfig.DelaySeconds)
 	}
-	h.args = append([]Argument{arg}, h.args...)
-	h.setDelayFromDirective(ref, directive)
-}
-
-func (h *HttpPollingStreamDataSourcePlanner) setDelayFromDirective(field, directive int) {
-	value, exists := h.definition.DirectiveArgumentValueByName(directive, []byte("delaySeconds"))
-	if !exists || value.Kind != ast.ValueKindInteger {
-		h.setDefaultDelay()
-		return
-	}
-	delaySeconds := h.definition.IntValueAsInt(value.Ref)
-	h.delay = time.Second * time.Duration(delaySeconds)
-}
-
-func (h *HttpPollingStreamDataSourcePlanner) setDefaultDelay() {
-	inputValueDefinition := h.definition.DirectiveArgumentInputValueDefinition([]byte("HttpPollingStreamDataSource"), []byte("delaySeconds"))
-	if inputValueDefinition == -1 {
-		return
-	}
-	if !h.definition.InputValueDefinitionHasDefaultValue(inputValueDefinition) {
-		return
-	}
-	value := h.definition.InputValueDefinitionDefaultValue(inputValueDefinition)
-	if value.Kind != ast.ValueKindInteger {
-		return
-	}
-	delaySeconds := h.definition.IntValueAsInt(value.Ref)
-	h.delay = time.Second * time.Duration(delaySeconds)
 }
 
 type HttpPollingStreamDataSource struct {

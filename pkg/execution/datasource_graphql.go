@@ -9,7 +9,6 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astimport"
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
-	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"io"
 	"io/ioutil"
@@ -18,65 +17,42 @@ import (
 	"time"
 )
 
+// GraphQLDataSourceConfig is the configuration for the GraphQL DataSource
+type GraphQLDataSourceConfig struct {
+	// Host is the hostname of the upstream
+	Host string
+	// URL is the url of the upstream
+	URL string
+	// Method is the http.Method of the upstream, defaults to POST (optional)
+	Method *string
+}
+
 type GraphQLDataSourcePlanner struct {
 	BaseDataSourcePlanner
-
-	importer *astimport.Importer
-
-	nodes           []ast.Node
-	resolveDocument *ast.Document
-
-	rootFieldRef          int
-	rootFieldArgumentRefs []int
-	variableDefinitions   []int
+	importer                *astimport.Importer
+	nodes                   []ast.Node
+	resolveDocument         *ast.Document
+	dataSourceConfiguration GraphQLDataSourceConfig
 }
 
 func NewGraphQLDataSourcePlanner(baseDataSourcePlanner BaseDataSourcePlanner) *GraphQLDataSourcePlanner {
 	return &GraphQLDataSourcePlanner{
 		BaseDataSourcePlanner: baseDataSourcePlanner,
-		importer:              astimport.NewImporter(),
+		importer:              &astimport.Importer{},
 	}
 }
 
-func (g *GraphQLDataSourcePlanner) DirectiveDefinition() []byte {
-	data, _ := g.graphqlDefinitions.Find("directives/graphql_datasource.graphql")
-	return data
+func (g *GraphQLDataSourcePlanner) DataSourceName() string {
+	return "GraphQLDataSource"
 }
 
-func (g *GraphQLDataSourcePlanner) DirectiveName() []byte {
-	return []byte("GraphQLDataSource")
-}
-
-func (g *GraphQLDataSourcePlanner) Initialize(walker *astvisitor.Walker, operation, definition *ast.Document, args []Argument, resolverParameters []ResolverParameter) {
-	g.walker, g.operation, g.definition, g.args = walker, operation, definition, args
-
+func (g *GraphQLDataSourcePlanner) Initialize(config DataSourcePlannerConfiguration) (err error) {
+	g.walker, g.operation, g.definition = config.walker, config.operation, config.definition
 	g.resolveDocument = &ast.Document{}
-	g.rootFieldArgumentRefs = make([]int, len(resolverParameters))
-	g.variableDefinitions = make([]int, len(resolverParameters))
-	g.rootFieldRef = -1
-	for i := 0; i < len(resolverParameters); i++ {
-		g.resolveDocument.VariableValues = append(g.resolveDocument.VariableValues, ast.VariableValue{
-			Name: g.resolveDocument.Input.AppendInputBytes(resolverParameters[i].name),
-		})
-		variableRef := len(g.resolveDocument.VariableValues) - 1
-		variableValue := ast.Value{
-			Kind: ast.ValueKindVariable,
-			Ref:  variableRef,
-		}
-		g.resolveDocument.Arguments = append(g.resolveDocument.Arguments, ast.Argument{
-			Name:  g.resolveDocument.Input.AppendInputBytes(resolverParameters[i].name),
-			Value: variableValue,
-		})
-		g.rootFieldArgumentRefs[i] = len(g.resolveDocument.Arguments) - 1
-
-		typeRef := g.importer.ImportType(resolverParameters[i].variableType, g.resolveDocument)
-
-		g.resolveDocument.VariableDefinitions = append(g.resolveDocument.VariableDefinitions, ast.VariableDefinition{
-			VariableValue: variableValue,
-			Type:          typeRef,
-		})
-		g.variableDefinitions[i] = len(g.resolveDocument.VariableDefinitions) - 1
+	if config.dataSourceConfiguration == nil {
+		return nil
 	}
+	return json.NewDecoder(config.dataSourceConfiguration).Decode(&g.dataSourceConfiguration)
 }
 
 func (g *GraphQLDataSourcePlanner) EnterInlineFragment(ref int) {
@@ -87,7 +63,7 @@ func (g *GraphQLDataSourcePlanner) EnterInlineFragment(ref int) {
 	if current.Kind != ast.NodeKindSelectionSet {
 		return
 	}
-	inlineFragmentType := g.resolveDocument.ImportType(g.operation.InlineFragments[ref].TypeCondition.Type, g.operation)
+	inlineFragmentType := g.importer.ImportType(g.operation.InlineFragments[ref].TypeCondition.Type, g.operation, g.resolveDocument)
 	g.resolveDocument.InlineFragments = append(g.resolveDocument.InlineFragments, ast.InlineFragment{
 		TypeCondition: ast.TypeCondition{
 			Type: inlineFragmentType,
@@ -139,23 +115,29 @@ func (g *GraphQLDataSourcePlanner) LeaveSelectionSet(ref int) {
 }
 
 func (g *GraphQLDataSourcePlanner) EnterField(ref int) {
-	if g.rootFieldRef == -1 {
-		g.rootFieldRef = ref
+	if !g.rootField.isDefined {
+		g.rootField.setIfNotDefined(ref)
 
 		typeName := g.definition.NodeNameString(g.walker.EnclosingTypeDefinition)
 		fieldNameStr := g.operation.FieldNameString(ref)
 		fieldName := g.operation.FieldNameBytes(ref)
-		mapping, ok := g.config.mappingForTypeField(typeName, fieldNameStr)
-		if ok && !mapping.Disabled {
+		mapping := g.config.mappingForTypeField(typeName, fieldNameStr)
+		if mapping != nil && !mapping.Disabled {
 			fieldName = unsafebytes.StringToBytes(mapping.Path)
+		}
+
+		hasArguments := g.operation.FieldHasArguments(ref)
+		var argumentRefs []int
+		if hasArguments {
+			argumentRefs = g.importer.ImportArguments(g.operation.FieldArguments(ref), g.operation, g.resolveDocument)
 		}
 
 		field := ast.Field{
 			Name: g.resolveDocument.Input.AppendInputBytes(fieldName),
 			Arguments: ast.ArgumentList{
-				Refs: g.rootFieldArgumentRefs,
+				Refs: argumentRefs,
 			},
-			HasArguments: len(g.rootFieldArgumentRefs) != 0,
+			HasArguments: hasArguments,
 		}
 		g.resolveDocument.Fields = append(g.resolveDocument.Fields, field)
 		fieldRef := len(g.resolveDocument.Fields) - 1
@@ -170,15 +152,27 @@ func (g *GraphQLDataSourcePlanner) EnterField(ref int) {
 		}
 		g.resolveDocument.SelectionSets = append(g.resolveDocument.SelectionSets, set)
 		setRef := len(g.resolveDocument.SelectionSets) - 1
+		hasVariableDefinitions := len(g.operation.OperationDefinitions[g.walker.Ancestors[0].Ref].VariableDefinitions.Refs) != 0
+		var variableDefinitionsRefs []int
+		if hasVariableDefinitions {
+			variableDefinitionsRefs = g.importer.ImportVariableDefinitions(g.operation.OperationDefinitions[g.walker.Ancestors[0].Ref].VariableDefinitions.Refs, g.operation, g.resolveDocument)
+			for _, i := range variableDefinitionsRefs {
+				name := g.resolveDocument.VariableDefinitionNameBytes(i)
+				g.args = append(g.args, &ContextVariableArgument{
+					Name:         name,
+					VariableName: name,
+				})
+			}
+		}
 		operationDefinition := ast.OperationDefinition{
 			Name:          g.resolveDocument.Input.AppendInputBytes([]byte("o")),
 			OperationType: g.operation.OperationDefinitions[g.walker.Ancestors[0].Ref].OperationType,
 			SelectionSet:  setRef,
 			HasSelections: true,
 			VariableDefinitions: ast.VariableDefinitionList{
-				Refs: g.variableDefinitions,
+				Refs: variableDefinitionsRefs,
 			},
-			HasVariableDefinitions: len(g.variableDefinitions) != 0,
+			HasVariableDefinitions: hasVariableDefinitions,
 		}
 		g.resolveDocument.OperationDefinitions = append(g.resolveDocument.OperationDefinitions, operationDefinition)
 		operationDefinitionRef := len(g.resolveDocument.OperationDefinitions) - 1
@@ -186,7 +180,6 @@ func (g *GraphQLDataSourcePlanner) EnterField(ref int) {
 			Kind: ast.NodeKindOperationDefinition,
 			Ref:  operationDefinitionRef,
 		})
-
 		g.nodes = append(g.nodes, ast.Node{
 			Kind: ast.NodeKindOperationDefinition,
 			Ref:  operationDefinitionRef,
@@ -221,52 +214,41 @@ func (g *GraphQLDataSourcePlanner) EnterField(ref int) {
 }
 
 func (g *GraphQLDataSourcePlanner) LeaveField(ref int) {
-
-	if g.rootFieldRef == ref {
-
-		buff := bytes.Buffer{}
-		err := astprinter.Print(g.resolveDocument, nil, &buff)
-		if err != nil {
-			g.walker.StopWithInternalErr(err)
-			return
-		}
-		arg := &StaticVariableArgument{
-			Name:  literal.QUERY,
-			Value: buff.Bytes(),
-		}
-		g.args = append([]Argument{arg}, g.args...)
-
-		definition, exists := g.walker.FieldDefinition(ref)
-		if !exists {
-			return
-		}
-		directive, exists := g.definition.FieldDefinitionDirectiveByName(definition, []byte("GraphQLDataSource"))
-		if !exists {
-			return
-		}
-		value, exists := g.definition.DirectiveArgumentValueByName(directive, literal.URL)
-		if !exists {
-			return
-		}
-		variableValue := g.definition.StringValueContentBytes(value.Ref)
-		arg = &StaticVariableArgument{
-			Name:  literal.URL,
-			Value: variableValue,
-		}
-		g.args = append([]Argument{arg}, g.args...)
-		value, exists = g.definition.DirectiveArgumentValueByName(directive, literal.HOST)
-		if !exists {
-			return
-		}
-		variableValue = g.definition.StringValueContentBytes(value.Ref)
-		arg = &StaticVariableArgument{
-			Name:  literal.HOST,
-			Value: variableValue,
-		}
-		g.args = append([]Argument{arg}, g.args...)
+	defer func() {
+		g.nodes = g.nodes[:len(g.nodes)-1]
+	}()
+	if g.rootField.ref != ref {
+		return
 	}
-
-	g.nodes = g.nodes[:len(g.nodes)-1]
+	buff := bytes.Buffer{}
+	err := astprinter.Print(g.resolveDocument, nil, &buff)
+	if err != nil {
+		g.walker.StopWithInternalErr(err)
+		return
+	}
+	g.args = append(g.args, &StaticVariableArgument{
+		Name:  literal.HOST,
+		Value: []byte(g.dataSourceConfiguration.Host),
+	})
+	g.args = append(g.args, &StaticVariableArgument{
+		Name:  literal.URL,
+		Value: []byte(g.dataSourceConfiguration.URL),
+	})
+	g.args = append(g.args, &StaticVariableArgument{
+		Name:  literal.QUERY,
+		Value: buff.Bytes(),
+	})
+	if g.dataSourceConfiguration.Method == nil {
+		g.args = append(g.args, &StaticVariableArgument{
+			Name:  literal.METHOD,
+			Value: literal.HTTP_METHOD_POST,
+		})
+	} else {
+		g.args = append(g.args, &StaticVariableArgument{
+			Name:  literal.URL,
+			Value: []byte(*g.dataSourceConfiguration.Method),
+		})
+	}
 }
 
 func (g *GraphQLDataSourcePlanner) Plan() (DataSource, []Argument) {

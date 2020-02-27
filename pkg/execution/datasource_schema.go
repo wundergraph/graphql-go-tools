@@ -3,7 +3,6 @@ package execution
 import (
 	"encoding/json"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/introspection"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 	"io"
@@ -32,12 +31,12 @@ func (s *SchemaDataSourcePlanner) DirectiveDefinition() []byte {
 	return nil
 }
 
-func (s *SchemaDataSourcePlanner) DirectiveName() []byte {
-	return []byte("resolveSchema")
+func (s *SchemaDataSourcePlanner) DataSourceName() string {
+	return "resolveSchema"
 }
 
-func (s *SchemaDataSourcePlanner) Initialize(walker *astvisitor.Walker, operation, definition *ast.Document, args []Argument, resolverParameters []ResolverParameter) {
-	s.args = args
+func (s *SchemaDataSourcePlanner) Initialize(config DataSourcePlannerConfiguration) (err error) {
+	return nil
 }
 
 func (s *SchemaDataSourcePlanner) EnterInlineFragment(ref int) {

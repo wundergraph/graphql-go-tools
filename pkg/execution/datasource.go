@@ -12,29 +12,15 @@ type DataSource interface {
 	Resolve(ctx Context, args ResolvedArgs, out io.Writer) Instruction
 }
 
-type DataSourcePlanner interface {
-	// DirectiveName is the @directive associated with this DataSource
-	// This value is important to tie the directive to the DataSourcePlanner
-	// The value is case sensitive
-	DirectiveName() []byte
-	/*
-		DirectiveDefinition defines the specific directive for the DataSource in GraphQL SDL language
-		Example:
+type DataSourcePlannerConfiguration struct {
+	walker                  *astvisitor.Walker
+	operation, definition   *ast.Document
+	dataSourceConfiguration io.Reader
+}
 
-		"""
-		HttpDataSource
-		"""
-		directive @HttpDataSource (
-			"""
-			host is the host name of the data source, e.g. example.com
-			"""
-			host: String!
-		) on FIELD_DEFINITION
-	*/
-	DirectiveDefinition() []byte
-	// Plan should return the instantiated DataSource and the Arguments accordingly
-	// You usually want to take the prepared Arguments from Initialize(...), append or prepend your custom args and then return it in Plan(...)
-	// Keep in mind that not returning the Arguments from Initialize(...) will probably break something
+type DataSourcePlanner interface {
+	// DataSourceName is the unique identifier for each data source
+	DataSourceName() string
 	Plan() (DataSource, []Argument)
 	// Initialize is the function to initialize all important values for the DataSourcePlanner to function correctly
 	// You probably need access to the walker, operation and definition to use the DataSourcePlanner to its full power
@@ -43,7 +29,7 @@ type DataSourcePlanner interface {
 	// definition is the AST of the GraphQL schema definition
 	// args are the pre-calculated Arguments from the planner
 	// resolverParameters are the parameters from the @directive params field
-	Initialize(walker *astvisitor.Walker, operation, definition *ast.Document, args []Argument, resolverParameters []ResolverParameter)
+	Initialize(config DataSourcePlannerConfiguration) (err error)
 	/*
 		OverrideRootPathSelector gives the DataSourcePlanner the capability to change the path of the root field
 		Example:

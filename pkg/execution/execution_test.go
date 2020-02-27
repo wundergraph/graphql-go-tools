@@ -1205,6 +1205,7 @@ func TestExecutor_ListFilterFirstN(t *testing.T) {
 							Args: []Argument{
 								&StaticVariableArgument{
 									Value: []byte("[{\"bar\":\"1\"},{\"bar\":\"2\"},{\"bar\":\"3\"}]"),
+									Name: literal.DATA,
 								},
 							},
 							DataSource: &StaticDataSource{},
@@ -1300,6 +1301,7 @@ func TestExecutor_ObjectVariables(t *testing.T) {
 							Args: []Argument{
 								&StaticVariableArgument{
 									Value: []byte(`{"name": "Jens","id":1}`),
+									Name: literal.DATA,
 								},
 							},
 							DataSource: &StaticDataSource{},
@@ -1575,6 +1577,7 @@ func TestExecutor_ListWithPath(t *testing.T) {
 							Args: []Argument{
 								&StaticVariableArgument{
 									Value: []byte(`{"apis": [{"id": 1},{"id":2}]}`),
+									Name: literal.DATA,
 								},
 							},
 							DataSource: &StaticDataSource{},
@@ -1749,6 +1752,7 @@ func TestExecutor_ObjectWithPath(t *testing.T) {
 							Args: []Argument{
 								&StaticVariableArgument{
 									Value: []byte(`{"api": {"id": 1}`),
+									Name: literal.DATA,
 								},
 							},
 							DataSource: &StaticDataSource{},
