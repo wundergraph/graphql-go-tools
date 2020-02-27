@@ -1,6 +1,7 @@
 package execution
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/go-test/deep"
@@ -21,6 +22,19 @@ import (
 
 func init() {
 	rand.Seed(time.Now().Unix())
+}
+
+func toJSON(any interface{}) []byte {
+	data, _ := json.Marshal(any)
+	return data
+}
+
+func stringPtr(str string) *string {
+	return &str
+}
+
+func intPtr(i int) *int {
+	return &i
 }
 
 func run(definition string, operation string, resolverDefinitions ResolverDefinitions, config PlannerConfiguration, want Node) func(t *testing.T) {
@@ -70,7 +84,22 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		},
 		PlannerConfiguration{
-			TypeFieldConfigurations: []TypeFieldConfiguration{},
+			TypeFieldConfigurations: []TypeFieldConfiguration{
+				{
+					TypeName:  "Query",
+					FieldName: "country",
+					DataSource: DataSourceConfig{
+						Name: "GraphQLDataSource",
+						Config: func() []byte {
+							data, _ := json.Marshal(GraphQLDataSourceConfig{
+								Host: "countries.trevorblades.com",
+								URL:  "/",
+							})
+							return data
+						}(),
+					},
+				},
+			},
 		},
 		&Object{
 			operationType: ast.OperationTypeQuery,
@@ -81,6 +110,10 @@ func TestPlanner_Plan(t *testing.T) {
 						Fetch: &SingleFetch{
 							Source: &DataSourceInvocation{
 								Args: []Argument{
+									&ContextVariableArgument{
+										Name:         []byte("code"),
+										VariableName: []byte("code"),
+									},
 									&StaticVariableArgument{
 										Name:  []byte("host"),
 										Value: []byte("countries.trevorblades.com"),
@@ -93,9 +126,9 @@ func TestPlanner_Plan(t *testing.T) {
 										Name:  []byte("query"),
 										Value: []byte("query o($code: String!){country(code: $code){code name native}}"),
 									},
-									&ContextVariableArgument{
-										Name:         []byte("code"),
-										VariableName: []byte("code"),
+									&StaticVariableArgument{
+										Name:  []byte("method"),
+										Value: []byte("POST"),
 									},
 								},
 								DataSource: &GraphQLDataSource{},
@@ -173,7 +206,22 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		},
 		PlannerConfiguration{
-			TypeFieldConfigurations: []TypeFieldConfiguration{},
+			TypeFieldConfigurations: []TypeFieldConfiguration{
+				{
+					TypeName:  "Mutation",
+					FieldName: "likePost",
+					DataSource: DataSourceConfig{
+						Name: "GraphQLDataSource",
+						Config: func() []byte {
+							data, _ := json.Marshal(GraphQLDataSourceConfig{
+								Host: "fakebook.com",
+								URL:  "/",
+							})
+							return data
+						}(),
+					},
+				},
+			},
 		},
 		&Object{
 			operationType: ast.OperationTypeMutation,
@@ -184,6 +232,10 @@ func TestPlanner_Plan(t *testing.T) {
 						Fetch: &SingleFetch{
 							Source: &DataSourceInvocation{
 								Args: []Argument{
+									&ContextVariableArgument{
+										Name:         []byte("id"),
+										VariableName: []byte("id"),
+									},
 									&StaticVariableArgument{
 										Name:  []byte("host"),
 										Value: []byte("fakebook.com"),
@@ -196,9 +248,9 @@ func TestPlanner_Plan(t *testing.T) {
 										Name:  []byte("query"),
 										Value: []byte("mutation o($id: ID!){likePost(id: $id){id likes}}"),
 									},
-									&ContextVariableArgument{
-										Name:         []byte("id"),
-										VariableName: []byte("id"),
+									&StaticVariableArgument{
+										Name:  []byte("method"),
+										Value: []byte("POST"),
 									},
 								},
 								DataSource: &GraphQLDataSource{},
@@ -290,36 +342,64 @@ func TestPlanner_Plan(t *testing.T) {
 			TypeFieldConfigurations: []TypeFieldConfiguration{
 				{
 					TypeName:  "JSONPlaceholderPost",
+					FieldName: "id",
+					Mapping: &MappingConfiguration{
+						Path: "postId",
+					},
+				},
+				{
+					TypeName:  "JSONPlaceholderPost",
 					FieldName: "comments",
-					Mapping: MappingConfiguration{
+					Mapping: &MappingConfiguration{
 						Disabled: true,
+					},
+					DataSource: DataSourceConfig{
+						Name: "HttpJsonDataSource",
+						Config: toJSON(HttpJsonDataSourceConfig{
+							Host: "jsonplaceholder.typicode.com",
+							URL:  "/comments?postId={{ .object.id }}",
+						}),
 					},
 				},
 				{
 					TypeName:  "Query",
 					FieldName: "httpBinGet",
-					Mapping: MappingConfiguration{
+					Mapping: &MappingConfiguration{
 						Disabled: true,
+					},
+					DataSource: DataSourceConfig{
+						Name: "HttpJsonDataSource",
+						Config: toJSON(HttpJsonDataSourceConfig{
+							Host: "httpbin.org",
+							URL:  "/get",
+						}),
 					},
 				},
 				{
 					TypeName:  "Query",
 					FieldName: "post",
-					Mapping: MappingConfiguration{
+					Mapping: &MappingConfiguration{
 						Disabled: true,
+					},
+					DataSource: DataSourceConfig{
+						Name: "HttpJsonDataSource",
+						Config: toJSON(HttpJsonDataSourceConfig{
+							Host: "jsonplaceholder.typicode.com",
+							URL:  "/posts/{{ .arguments.id }}",
+						}),
 					},
 				},
 				{
 					TypeName:  "HttpBinGet",
 					FieldName: "header",
-					Mapping: MappingConfiguration{
+					Mapping: &MappingConfiguration{
 						Path: "headers",
 					},
 				},
 				{
 					TypeName:  "Headers",
 					FieldName: "acceptEncoding",
-					Mapping: MappingConfiguration{
+					Mapping: &MappingConfiguration{
 						Path: "Accept-Encoding",
 					},
 				},
@@ -454,13 +534,7 @@ func TestPlanner_Plan(t *testing.T) {
 												},
 												&StaticVariableArgument{
 													Name:  []byte("url"),
-													Value: []byte("/comments?postId={{ .postId }}"),
-												},
-												&ObjectVariableArgument{
-													Name: []byte("postId"),
-													PathSelector: PathSelector{
-														Path: "id",
-													},
+													Value: []byte("/comments?postId={{ .object.id }}"),
 												},
 												&StaticVariableArgument{
 													Name:  []byte("method"),
@@ -481,7 +555,7 @@ func TestPlanner_Plan(t *testing.T) {
 											Value: &Value{
 												DataResolvingConfig: DataResolvingConfig{
 													PathSelector: PathSelector{
-														Path: "id",
+														Path: "postId",
 													},
 												},
 												ValueType: IntegerValueType,
@@ -536,8 +610,17 @@ func TestPlanner_Plan(t *testing.T) {
 				{
 					TypeName:  "Query",
 					FieldName: "withBody",
-					Mapping: MappingConfiguration{
+					Mapping: &MappingConfiguration{
 						Disabled: true,
+					},
+					DataSource: DataSourceConfig{
+						Name: "HttpJsonDataSource",
+						Config: toJSON(HttpJsonDataSourceConfig{
+							Host:   "httpbin.org",
+							URL:    "/anything",
+							Method: stringPtr("POST"),
+							Body:   stringPtr(`{\"key\":\"{{ .arguments.input.foo }}\"}`),
+						}),
 					},
 				},
 			},
@@ -608,8 +691,15 @@ func TestPlanner_Plan(t *testing.T) {
 				{
 					TypeName:  "Query",
 					FieldName: "withPath",
-					Mapping: MappingConfiguration{
+					Mapping: &MappingConfiguration{
 						Path: "subObject",
+					},
+					DataSource: DataSourceConfig{
+						Name: "HttpJsonDataSource",
+						Config: toJSON(HttpJsonDataSourceConfig{
+							Host: "httpbin.org",
+							URL:  "/anything",
+						}),
 					},
 				},
 			},
@@ -679,8 +769,15 @@ func TestPlanner_Plan(t *testing.T) {
 				{
 					TypeName:  "Query",
 					FieldName: "listItems",
-					Mapping: MappingConfiguration{
+					Mapping: &MappingConfiguration{
 						Disabled: true,
+					},
+					DataSource: DataSourceConfig{
+						Name: "HttpJsonDataSource",
+						Config: toJSON(HttpJsonDataSourceConfig{
+							Host: "httpbin.org",
+							URL:  "/anything",
+						}),
 					},
 				},
 			},
@@ -763,8 +860,15 @@ func TestPlanner_Plan(t *testing.T) {
 				{
 					TypeName:  "Query",
 					FieldName: "listWithPath",
-					Mapping: MappingConfiguration{
+					Mapping: &MappingConfiguration{
 						Path: "items",
+					},
+					DataSource: DataSourceConfig{
+						Name: "HttpJsonDataSource",
+						Config: toJSON(HttpJsonDataSourceConfig{
+							Host: "httpbin.org",
+							URL:  "/anything",
+						}),
 					},
 				},
 			},
@@ -850,8 +954,25 @@ func TestPlanner_Plan(t *testing.T) {
 				{
 					TypeName:  "Query",
 					FieldName: "withHeaders",
-					Mapping: MappingConfiguration{
+					Mapping: &MappingConfiguration{
 						Disabled: true,
+					},
+					DataSource: DataSourceConfig{
+						Name: "HttpJsonDataSource",
+						Config: toJSON(HttpJsonDataSourceConfig{
+							Host: "httpbin.org",
+							URL:  "/anything",
+							Headers: []HttpJsonDataSourceConfigHeader{
+								{
+									Key:   "Authorization",
+									Value: "123",
+								},
+								{
+									Key:   "Accept-Encoding",
+									Value: "application/json",
+								},
+							},
+						}),
 					},
 				},
 			},
@@ -944,22 +1065,40 @@ func TestPlanner_Plan(t *testing.T) {
 				{
 					TypeName:  "Query",
 					FieldName: "hello",
-					Mapping: MappingConfiguration{
+					Mapping: &MappingConfiguration{
 						Disabled: true,
+					},
+					DataSource: DataSourceConfig{
+						Name: "StaticDataSource",
+						Config: toJSON(StaticDataSourceConfig{
+							Data: "World!",
+						}),
 					},
 				},
 				{
 					TypeName:  "Query",
 					FieldName: "foo",
-					Mapping: MappingConfiguration{
+					Mapping: &MappingConfiguration{
 						Disabled: true,
+					},
+					DataSource: DataSourceConfig{
+						Name: "StaticDataSource",
+						Config: toJSON(StaticDataSourceConfig{
+							Data: "{\"bar\":\"baz\"}",
+						}),
 					},
 				},
 				{
 					TypeName:  "Query",
 					FieldName: "nullableInt",
-					Mapping: MappingConfiguration{
+					Mapping: &MappingConfiguration{
 						Disabled: true,
+					},
+					DataSource: DataSourceConfig{
+						Name: "StaticDataSource",
+						Config: toJSON(StaticDataSourceConfig{
+							Data: "null",
+						}),
 					},
 				},
 			},
@@ -976,6 +1115,7 @@ func TestPlanner_Plan(t *testing.T) {
 									Source: &DataSourceInvocation{
 										Args: []Argument{
 											&StaticVariableArgument{
+												Name:  literal.DATA,
 												Value: []byte("World!"),
 											},
 										},
@@ -987,6 +1127,7 @@ func TestPlanner_Plan(t *testing.T) {
 									Source: &DataSourceInvocation{
 										Args: []Argument{
 											&StaticVariableArgument{
+												Name:  literal.DATA,
 												Value: []byte("null"),
 											},
 										},
@@ -998,6 +1139,7 @@ func TestPlanner_Plan(t *testing.T) {
 									Source: &DataSourceInvocation{
 										Args: []Argument{
 											&StaticVariableArgument{
+												Name:  literal.DATA,
 												Value: []byte("{\"bar\":\"baz\"}"),
 											},
 										},
@@ -1070,7 +1212,15 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		},
 		PlannerConfiguration{
-			TypeFieldConfigurations: []TypeFieldConfiguration{},
+			TypeFieldConfigurations: []TypeFieldConfiguration{
+				{
+					TypeName:  "Query",
+					FieldName: "__type",
+					DataSource: DataSourceConfig{
+						Name: "TypeDataSource",
+					},
+				},
+			},
 		},
 		&Object{
 			operationType: ast.OperationTypeQuery,
@@ -1186,7 +1336,19 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		},
 		PlannerConfiguration{
-			TypeFieldConfigurations: []TypeFieldConfiguration{},
+			TypeFieldConfigurations: []TypeFieldConfiguration{
+				{
+					TypeName:  "Query",
+					FieldName: "user",
+					DataSource: DataSourceConfig{
+						Name: "GraphQLDataSource",
+						Config: toJSON(GraphQLDataSourceConfig{
+							Host: "localhost:8001",
+							URL:  "/graphql",
+						}),
+					},
+				},
+			},
 		},
 		&Object{
 			operationType: ast.OperationTypeQuery,
@@ -1197,6 +1359,10 @@ func TestPlanner_Plan(t *testing.T) {
 						Fetch: &SingleFetch{
 							Source: &DataSourceInvocation{
 								Args: []Argument{
+									&ContextVariableArgument{
+										Name:         []byte("id"),
+										VariableName: []byte("id"),
+									},
 									&StaticVariableArgument{
 										Name:  literal.HOST,
 										Value: []byte("localhost:8001"),
@@ -1209,9 +1375,9 @@ func TestPlanner_Plan(t *testing.T) {
 										Name:  literal.QUERY,
 										Value: []byte("query o($id: String!){user(id: $id){id name birthday}}"),
 									},
-									&ContextVariableArgument{
-										Name:         []byte("id"),
-										VariableName: []byte("id"),
+									&StaticVariableArgument{
+										Name:  literal.METHOD,
+										Value: []byte("POST"),
 									},
 								},
 								DataSource: &GraphQLDataSource{},
@@ -1292,8 +1458,15 @@ func TestPlanner_Plan(t *testing.T) {
 				{
 					TypeName:  "Query",
 					FieldName: "restUser",
-					Mapping: MappingConfiguration{
+					Mapping: &MappingConfiguration{
 						Disabled: true,
+					},
+					DataSource: DataSourceConfig{
+						Name: "HttpJsonDataSource",
+						Config: toJSON(HttpJsonDataSourceConfig{
+							Host: "localhost:9001",
+							URL:  "/user/{{ .arguments.id }}",
+						}),
 					},
 				},
 			},
@@ -1412,10 +1585,28 @@ func TestPlanner_Plan(t *testing.T) {
 		PlannerConfiguration{
 			TypeFieldConfigurations: []TypeFieldConfiguration{
 				{
+					TypeName:  "Query",
+					FieldName: "user",
+					DataSource: DataSourceConfig{
+						Name: "GraphQLDataSource",
+						Config: toJSON(GraphQLDataSourceConfig{
+							Host: "localhost:8001",
+							URL:  "/graphql",
+						}),
+					},
+				},
+				{
 					TypeName:  "User",
 					FieldName: "friends",
-					Mapping: MappingConfiguration{
+					Mapping: &MappingConfiguration{
 						Disabled: true,
+					},
+					DataSource: DataSourceConfig{
+						Name: "HttpJsonDataSource",
+						Config: toJSON(HttpJsonDataSourceConfig{
+							Host: "localhost:9001",
+							URL:  "/user/{{ .object.id }}/friends",
+						}),
 					},
 				},
 			},
@@ -1429,6 +1620,10 @@ func TestPlanner_Plan(t *testing.T) {
 						Fetch: &SingleFetch{
 							Source: &DataSourceInvocation{
 								Args: []Argument{
+									&ContextVariableArgument{
+										Name:         []byte("id"),
+										VariableName: []byte("id"),
+									},
 									&StaticVariableArgument{
 										Name:  literal.HOST,
 										Value: []byte("localhost:8001"),
@@ -1441,9 +1636,9 @@ func TestPlanner_Plan(t *testing.T) {
 										Name:  literal.QUERY,
 										Value: []byte("query o($id: String!){user(id: $id){id name birthday}}"),
 									},
-									&ContextVariableArgument{
-										Name:         []byte("id"),
-										VariableName: []byte("id"),
+									&StaticVariableArgument{
+										Name:  literal.METHOD,
+										Value: []byte("POST"),
 									},
 								},
 								DataSource: &GraphQLDataSource{},
@@ -1465,17 +1660,11 @@ func TestPlanner_Plan(t *testing.T) {
 											Args: []Argument{
 												&StaticVariableArgument{
 													Name:  literal.HOST,
-													Value: []byte("localhost:9000"),
+													Value: []byte("localhost:9001"),
 												},
 												&StaticVariableArgument{
 													Name:  literal.URL,
-													Value: []byte("/user/:id/friends"),
-												},
-												&ObjectVariableArgument{
-													Name: []byte("id"),
-													PathSelector: PathSelector{
-														Path: "id",
-													},
+													Value: []byte("/user/{{ .object.id }}/friends"),
 												},
 												&StaticVariableArgument{
 													Name:  []byte("method"),
@@ -1575,7 +1764,7 @@ func TestPlanner_Plan(t *testing.T) {
 				},
 			},
 		}))
-	t.Run("nested rest and graphql resolver", run(withBaseSchema(complexSchema), `
+	/*	t.Run("nested rest and graphql resolver", run(withBaseSchema(complexSchema), ` //TODO: enable & implement #193
 			query UserQuery($id: String!) {
 				user(id: $id) {
 					id
@@ -1637,7 +1826,7 @@ func TestPlanner_Plan(t *testing.T) {
 								{
 									TypeName:  "User",
 									FieldName: "pets",
-									Mapping: MappingConfiguration{
+									Mapping: &MappingConfiguration{
 										Path: "userPets",
 									},
 								},
@@ -1651,16 +1840,53 @@ func TestPlanner_Plan(t *testing.T) {
 			TypeFieldConfigurations: []TypeFieldConfiguration{
 				{
 					TypeName:  "User",
-					FieldName: "friends",
-					Mapping: MappingConfiguration{
-						Disabled: true,
+					FieldName: "pets",
+					Mapping: &MappingConfiguration{
+						Path: "userPets",
+					},
+					DataSource: DataSourceConfig{
+						Name: "GraphQLDataSource",
+						Config: toJSON(GraphQLDataSourceConfig{
+							Host: "localhost:8002",
+							URL:  "/graphql",
+						}),
+					},
+					@GraphQLDataSource(
+							host: "localhost:8002"
+							url: "/graphql"
+							params: [
+								{
+									name: "userId"
+									sourceKind: OBJECT_VARIABLE_ARGUMENT
+									sourceName: "id"
+									variableType: "String!"
+								}
+							]
+						)
+				},
+				{
+					TypeName:  "Query",
+					FieldName: "user",
+					DataSource: DataSourceConfig{
+						Name: "GraphQLDataSource",
+						Config: toJSON(GraphQLDataSourceConfig{
+							Host: "localhost:8001",
+							URL:  "/graphql",
+						}),
 					},
 				},
 				{
 					TypeName:  "User",
-					FieldName: "pets",
-					Mapping: MappingConfiguration{
-						Path: "userPets",
+					FieldName: "friends",
+					Mapping: &MappingConfiguration{
+						Disabled: true,
+					},
+					DataSource: DataSourceConfig{
+						Name: "HttpJsonDataSource",
+						Config: toJSON(HttpJsonDataSourceConfig{
+							Host: "localhost:9001",
+							URL:  "/user/{{ .object.id }}/friends",
+						}),
 					},
 				},
 			},
@@ -2117,7 +2343,7 @@ func TestPlanner_Plan(t *testing.T) {
 					},
 				},
 			},
-		}))
+		}))*/
 	t.Run("introspection", run(withBaseSchema(complexSchema), `
 			query IntrospectionQuery {
 			  __schema {
@@ -2143,7 +2369,7 @@ func TestPlanner_Plan(t *testing.T) {
 				}
 			  }
 			}
-			
+
 			fragment FullType on __Type {
 			  kind
 			  name
@@ -2176,7 +2402,7 @@ func TestPlanner_Plan(t *testing.T) {
 				...TypeRef
 			  }
 			}
-			
+
 			fragment InputValue on __InputValue {
 			  name
 			  description
@@ -2185,7 +2411,7 @@ func TestPlanner_Plan(t *testing.T) {
 			  }
 			  defaultValue
 			}
-			
+
 			fragment TypeRef on __Type {
 			  kind
 			  name
@@ -2781,8 +3007,16 @@ func TestPlanner_Plan(t *testing.T) {
 				{
 					TypeName:  "Subscription",
 					FieldName: "stream",
-					Mapping: MappingConfiguration{
+					Mapping: &MappingConfiguration{
 						Disabled: true,
+					},
+					DataSource: DataSourceConfig{
+						Name: "HttpPollingStreamDataSource",
+						Config: toJSON(HttpPollingStreamDataSourceConfiguration{
+							Host:         "foo.bar.baz",
+							URL:          "/bal",
+							DelaySeconds: intPtr(5),
+						}),
 					},
 				},
 			},
@@ -2848,99 +3082,6 @@ func TestPlanner_Plan(t *testing.T) {
 				},
 			},
 		}))
-	t.Run("http polling stream inline delay", run(withBaseSchema(HttpPollingStreamSchemaInlineDelay), `
-					subscription {
-						stream {
-							bar
-							baz
-						}
-					}
-`,
-		[]DataSourceDefinition{
-			{
-				TypeName:  literal.SUBSCRIPTION,
-				FieldName: []byte("stream"),
-				DataSourcePlannerFactory: func() DataSourcePlanner {
-					return &HttpPollingStreamDataSourcePlanner{
-						BaseDataSourcePlanner: BaseDataSourcePlanner{
-							log: log.NoopLogger,
-						},
-					}
-				},
-			},
-		},
-		PlannerConfiguration{
-			TypeFieldConfigurations: []TypeFieldConfiguration{
-				{
-					TypeName:  "Subscription",
-					FieldName: "stream",
-					Mapping: MappingConfiguration{
-						Disabled: true,
-					},
-				},
-			},
-		},
-		&Object{
-			operationType: ast.OperationTypeSubscription,
-			Fields: []Field{
-				{
-					Name: []byte("data"),
-					Value: &Object{
-						Fetch: &SingleFetch{
-							Source: &DataSourceInvocation{
-								Args: []Argument{
-									&StaticVariableArgument{
-										Name:  literal.HOST,
-										Value: []byte("foo.bar.baz"),
-									},
-									&StaticVariableArgument{
-										Name:  literal.URL,
-										Value: []byte("/bal"),
-									},
-								},
-								DataSource: &HttpPollingStreamDataSource{
-									log:   log.NoopLogger,
-									delay: time.Second * 3,
-								},
-							},
-							BufferName: "stream",
-						},
-						Fields: []Field{
-							{
-								Name:            []byte("stream"),
-								HasResolvedData: true,
-								Value: &Object{
-									Fields: []Field{
-										{
-											Name: []byte("bar"),
-											Value: &Value{
-												DataResolvingConfig: DataResolvingConfig{
-													PathSelector: PathSelector{
-														Path: "bar",
-													},
-												},
-												ValueType: StringValueType,
-											},
-										},
-										{
-											Name: []byte("baz"),
-											Value: &Value{
-												DataResolvingConfig: DataResolvingConfig{
-													PathSelector: PathSelector{
-														Path: "baz",
-													},
-												},
-												ValueType: IntegerValueType,
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		}))
 	t.Run("list filter first N", run(withBaseSchema(ListFilterFirstNSchema), `
 			query {
 				foos {
@@ -2962,8 +3103,14 @@ func TestPlanner_Plan(t *testing.T) {
 				{
 					TypeName:  "Query",
 					FieldName: "foos",
-					Mapping: MappingConfiguration{
+					Mapping: &MappingConfiguration{
 						Disabled: true,
+					},
+					DataSource: DataSourceConfig{
+						Name: "StaticDataSource",
+						Config: toJSON(StaticDataSourceConfig{
+							Data: "[{\"bar\":\"baz\"},{\"bar\":\"bal\"},{\"bar\":\"bat\"}]",
+						}),
 					},
 				},
 			},
@@ -2978,6 +3125,7 @@ func TestPlanner_Plan(t *testing.T) {
 							Source: &DataSourceInvocation{
 								Args: []Argument{
 									&StaticVariableArgument{
+										Name:  literal.DATA,
 										Value: []byte("[{\"bar\":\"baz\"},{\"bar\":\"bal\"},{\"bar\":\"bat\"}]"),
 									},
 								},
@@ -3035,8 +3183,21 @@ func TestPlanner_Plan(t *testing.T) {
 				{
 					TypeName:  "Query",
 					FieldName: "stringPipeline",
-					Mapping: MappingConfiguration{
+					Mapping: &MappingConfiguration{
 						Disabled: true,
+					},
+					DataSource: DataSourceConfig{
+						Name: "PipelineDataSource",
+						Config: toJSON(PipelineDataSourceConfig{
+							ConfigString: stringPtr(`{
+											"steps": [
+												{
+													"kind": "NOOP"
+												}
+											]
+										}`),
+							InputJSON: `{\"foo\":\"{{ .arguments.foo }}\"}`,
+						}),
 					},
 				},
 			},
@@ -3115,8 +3276,15 @@ func TestPlanner_Plan(t *testing.T) {
 				{
 					TypeName:  "Query",
 					FieldName: "filePipeline",
-					Mapping: MappingConfiguration{
+					Mapping: &MappingConfiguration{
 						Disabled: true,
+					},
+					DataSource: DataSourceConfig{
+						Name: "PipelineDataSource",
+						Config: toJSON(PipelineDataSourceConfig{
+							ConfigFilePath: stringPtr("./testdata/simple_pipeline.json"),
+							InputJSON:      `{\"foo\":\"{{ .arguments.foo }}\"}`,
+						}),
 					},
 				},
 			},
@@ -3194,7 +3362,7 @@ func TestPlanner_Plan(t *testing.T) {
 					{
 						TypeName:  "Query",
 						FieldName: "apis",
-						Mapping: MappingConfiguration{
+						Mapping: &MappingConfiguration{
 							Disabled: true,
 						},
 					},
@@ -3428,52 +3596,12 @@ type Foo {
 `
 
 const HttpPollingStreamSchema = `
-directive @HttpPollingStreamDataSource (
-    host: String!
-    url: String!
-    method: HTTP_METHOD = GET
-    delaySeconds: Int = 5
-    params: [Parameter]
-) on FIELD_DEFINITION
-
 schema {
 	subscription: Subscription
 }
 
 type Subscription {
 	stream: Foo
-		@HttpPollingStreamDataSource(
-			host: "foo.bar.baz"
-			url: "/bal"
-		)
-}
-
-type Foo {
-	bar: String
-	baz: Int
-}
-`
-
-const HttpPollingStreamSchemaInlineDelay = `
-directive @HttpPollingStreamDataSource (
-    host: String!
-    url: String!
-    method: HTTP_METHOD = GET
-    delaySeconds: Int = 5
-    params: [Parameter]
-) on FIELD_DEFINITION
-
-schema {
-	subscription: Subscription
-}
-
-type Subscription {
-	stream: Foo
-		@HttpPollingStreamDataSource(
-			host: "foo.bar.baz"
-			url: "/bal"
-			delaySeconds: 3
-		)
 }
 
 type Foo {
@@ -3547,34 +3675,10 @@ type Language {
 
 type Query {
 	country(code: String!): Country
-		@GraphQLDataSource(
-			host: "countries.trevorblades.com"
-			url: "/"
-			params: [
-				{
-					name: "code"
-					sourceKind: FIELD_ARGUMENTS
-					sourceName: "code"
-					variableType: "String!"
-				}
-			]
-		)
 }
 
 type Mutation {
 	likePost(id: ID!): Post
-		@GraphQLDataSource(
-			host: "fakebook.com"
-			url: "/"
-			params: [
-				{
-					name: "id"
-					sourceKind: FIELD_ARGUMENTS
-					sourceName: "id"
-					variableType: "ID!"
-				}
-			]
-		)
 }
 
 type Post {
@@ -3584,14 +3688,6 @@ type Post {
 `
 
 const HTTPJSONDataSourceSchema = `
-directive @HttpJsonDataSource (
-    host: String!
-    url: String!
-    method: HTTP_METHOD = GET
-    params: [Parameter]
-	body: String
-) on FIELD_DEFINITION
-
 enum HTTP_METHOD {
     GET
     POST
@@ -3623,18 +3719,6 @@ type JSONPlaceholderPost {
     title: String!
     body: String!
     comments: [JSONPlaceholderComment]
-        @HttpJsonDataSource(
-            host: "jsonplaceholder.typicode.com"
-            url: "/comments?postId={{ .postId }}"
-            params: [
-                {
-                    name: "postId"
-                    sourceKind: OBJECT_VARIABLE_ARGUMENT
-                    sourceName: "id"
-                    variableType: "String"
-                }
-            ]
-        )
 }
 
 type JSONPlaceholderComment {
@@ -3648,52 +3732,12 @@ type JSONPlaceholderComment {
 "The query type, represents all of the entry points into our object graph"
 type Query {
     httpBinGet: HttpBinGet
-        @HttpJsonDataSource(
-            host: "httpbin.org"
-            url: "/get"
-        )
 	post(id: Int!): JSONPlaceholderPost
-        @HttpJsonDataSource(
-            host: "jsonplaceholder.typicode.com"
-            url: "/posts/{{ .arguments.id }}"
-        )
 	withBody(input: WithBodyInput!): String!
-        @HttpJsonDataSource(
-            host: "httpbin.org"
-            url: "/anything"
-            method: POST
-            body: 	"{\"key\":\"{{ .arguments.input.foo }}\"}"
-        )
 	withHeaders: String!
-        @HttpJsonDataSource(
-            host: "httpbin.org"
-            url: "/anything"
-            headers: [
-				{
-					key: "Authorization",
-					value: "123",
-				},
-				{
-					key: "Accept-Encoding",
-					value: "application/json",
-				}
-			]
-        )
 	withPath: String!
-		@HttpJsonDataSource(
-            host: "httpbin.org"
-            url: "/anything"
-        )
 	listItems: [ListItem]
-		@HttpJsonDataSource(
-            host: "httpbin.org"
-            url: "/anything"
-        )
 	listWithPath: [ListItem]
-		@HttpJsonDataSource(
-            host: "httpbin.org"
-            url: "/anything"
-        )
     __schema: __Schema!
     __type(name: String!): __Type
 }
@@ -3719,85 +3763,11 @@ type Foo {
 "The query type, represents all of the entry points into our object graph"
 type Query {
     hello: String!
-		@StaticDataSource(
-            data: "World!"
-        )
 	nullableInt: Int
-        @StaticDataSource(
-            data: null
-        )
 	foo: Foo!
-        @StaticDataSource(
-            data: "{\"bar\":\"baz\"}"
-        )
 }`
 
 const complexSchema = `
-directive @HttpJsonDataSource (
-    host: String!
-    url: String!
-    method: HTTP_METHOD = GET
-    params: [Parameter]
-) on FIELD_DEFINITION
-
-directive @GraphQLDataSource (
-    host: String!
-    url: String!
-	method: HTTP_METHOD = POST
-    params: [Parameter]
-) on FIELD_DEFINITION
-
-enum MAPPING_MODE {
-    NONE
-    PATH_SELECTOR
-}
-
-enum HTTP_METHOD {
-    GET
-    POST
-    UPDATE
-    DELETE
-}
-
-input Parameter {
-    name: String!
-    sourceKind: PARAMETER_SOURCE!
-    sourceName: String!
-    variableType: String!
-}
-
-enum PARAMETER_SOURCE {
-    CONTEXT_VARIABLE
-    OBJECT_VARIABLE_ARGUMENT
-    FIELD_ARGUMENTS
-}
-
-directive @resolveType (
-	params: [Parameter]
-) on FIELD_DEFINITION
-
-directive @resolveSchema on FIELD_DEFINITION
-
-enum HTTP_METHOD {
-	GET
-	POST
-	UPDATE
-	DELETE
-}
-
-input Parameter {
-    name: String!
-    sourceKind: PARAMETER_SOURCE!
-    sourceName: String!
-    variableType: String!
-}
-
-enum PARAMETER_SOURCE {
-    CONTEXT_VARIABLE
-    OBJECT_VARIABLE_ARGUMENT
-    FIELD_ARGUMENTS
-}
-
 scalar Date
 
 schema {
@@ -3818,54 +3788,14 @@ type Query {
 		)
 	__schema: __Schema!
 	user(id: String!): User
-		@GraphQLDataSource(
-			host: "localhost:8001"
-			url: "/graphql"
-			params: [
-				{
-					name: "id"
-					sourceKind: FIELD_ARGUMENTS
-					sourceName: "id"
-					variableType: "String!"
-				}
-			]
-		)
 	restUser(id: String!): User
-		@HttpJsonDataSource (
-			host: "localhost:9001"
-			url: "/user/{{ .arguments.id }}"
-		)
 }
 type User {
 	id: String
 	name: String
 	birthday: Date
 	friends: [User]
-		@HttpJsonDataSource(
-			host: "localhost:9000"
-			url: "/user/:id/friends"
-			params: [
-				{
-					name: "id"
-					sourceKind: OBJECT_VARIABLE_ARGUMENT
-					sourceName: "id"
-					variableType: "String!"
-				}
-			]
-		)
 	pets: [Pet]
-		@GraphQLDataSource(
-			host: "localhost:8002"
-			url: "/graphql"
-			params: [
-				{
-					name: "userId"
-					sourceKind: OBJECT_VARIABLE_ARGUMENT
-					sourceName: "id"
-					variableType: "String!"
-				}
-			]
-		)
 }
 interface Pet {
 	nickname: String!
@@ -3895,23 +3825,7 @@ schema {
 
 type Query {
 	stringPipeline(foo: String!): String
-		@PipelineDataSource(
-			configString: """
-				{
-					"steps": [
-						{
-							"kind": "NOOP"	
-						}
-					]
-				}
-			"""
-    		inputJSON: "{\"foo\":\"{{ .arguments.foo }}\"}"
-		)
 	filePipeline(foo: String!): String
-		@PipelineDataSource(
-			configFilePath: "./testdata/simple_pipeline.json"
-    		inputJSON: "{\"foo\":\"{{ .arguments.foo }}\"}"
-		)
 }
 `
 

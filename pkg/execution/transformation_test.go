@@ -103,10 +103,16 @@ func TestPlanner_WithTransformation(t *testing.T) {
 	}, PlannerConfiguration{
 		TypeFieldConfigurations: []TypeFieldConfiguration{
 			{
-				TypeName: "Query",
+				TypeName:  "Query",
 				FieldName: "foo",
-				Mapping:MappingConfiguration{
-					Disabled:true,
+				Mapping: &MappingConfiguration{
+					Disabled: true,
+				},
+				DataSource: DataSourceConfig{
+					Name: "StaticDataSource",
+					Config: toJSON(StaticDataSourceConfig{
+						Data: "{\"bar\":\"baz\"}",
+					}),
 				},
 			},
 		},
@@ -120,6 +126,7 @@ func TestPlanner_WithTransformation(t *testing.T) {
 						Source: &DataSourceInvocation{
 							Args: []Argument{
 								&StaticVariableArgument{
+									Name:  literal.DATA,
 									Value: []byte("{\"bar\":\"baz\"}"),
 								},
 							},
@@ -164,10 +171,16 @@ func TestPlanner_WithTransformation(t *testing.T) {
 	}, PlannerConfiguration{
 		TypeFieldConfigurations: []TypeFieldConfiguration{
 			{
-				TypeName: "Query",
+				TypeName:  "Query",
 				FieldName: "bar",
-				Mapping:MappingConfiguration{
-					Disabled:true,
+				Mapping: &MappingConfiguration{
+					Disabled: true,
+				},
+				DataSource: DataSourceConfig{
+					Name: "StaticDataSource",
+					Config: toJSON(StaticDataSourceConfig{
+						Data: "{\"bar\":\"baz\"}",
+					}),
 				},
 			},
 		},
@@ -181,6 +194,7 @@ func TestPlanner_WithTransformation(t *testing.T) {
 						Source: &DataSourceInvocation{
 							Args: []Argument{
 								&StaticVariableArgument{
+									Name: literal.DATA,
 									Value: []byte("{\"bar\":\"baz\"}"),
 								},
 							},
