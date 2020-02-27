@@ -2916,19 +2916,3 @@ func (p PathItem) MarshalJSON() ([]byte, error) {
 		return nil, fmt.Errorf("cannot marshal unknown PathKind")
 	}
 }
-
-func (d *Document) ImportType(otherTypeRef int, sourceDocument *Document) int {
-	sourceType := sourceDocument.Types[otherTypeRef]
-	importType := Type{
-		TypeKind: sourceType.TypeKind,
-		OfType:   -1,
-	}
-	if sourceType.OfType != -1 {
-		importType.OfType = d.ImportType(sourceType.OfType, sourceDocument)
-	}
-	if sourceType.TypeKind == TypeKindNamed {
-		importType.Name = d.Input.AppendInputBytes(sourceDocument.Input.ByteSlice(sourceType.Name))
-	}
-	d.Types = append(d.Types, importType)
-	return len(d.Types) - 1
-}
