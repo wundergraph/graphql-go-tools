@@ -2,19 +2,133 @@ package http
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/gobwas/ws"
+	"github.com/gobwas/ws/wsutil"
 	"github.com/jensneuse/abstractlogger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/jensneuse/graphql-go-tools/pkg/execution"
 )
 
 func TestGraphQLHTTPRequestHandler_ServeHTTP(t *testing.T) {
+	handler := NewGraphqlHTTPHandlerFunc(newStarWarsExecutionHandler(t), abstractlogger.NoopLogger, &ws.DefaultHTTPUpgrader)
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	addr := server.Listener.Addr().String()
+	httpAddr := fmt.Sprintf("http://%s", addr)
+	wsAddr := fmt.Sprintf("ws://%s", addr)
+
+	t.Run("http", func(t *testing.T) {
+		t.Run("should return 400 Bad Request when query does not fit to schema", func(t *testing.T) {
+			requestBodyBytes := invalidQueryRequestBody(t)
+			req, err := http.NewRequest(http.MethodPost, httpAddr, bytes.NewBuffer(requestBodyBytes))
+			require.NoError(t, err)
+
+			client := http.Client{}
+			resp, err := client.Do(req)
+			require.NoError(t, err)
+
+			assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		})
+
+		t.Run("should successfully handle query and return 200 OK", func(t *testing.T) {
+			starWarsCases := []starWarsTestCase{
+				{
+					name:        "simple hero query",
+					requestBody: starWarsLoadQuery(t, fileSimpleHeroQuery, nil),
+				},
+				{
+					name:        "droid query with argument and variable",
+					requestBody: starWarsLoadQuery(t, fileDroidWithArgAndVarQuery, queryVariables{"droidID": "2000"}),
+				},
+				{
+					name:        "hero with aliases query",
+					requestBody: starWarsLoadQuery(t, fileHeroWithAliasesQuery, nil),
+				},
+				{
+					name:        "fragments query",
+					requestBody: starWarsLoadQuery(t, fileFragmentsQuery, queryVariables{"droidID": "2000"}),
+				},
+				{
+					name:        "hero with operation name query",
+					requestBody: starWarsLoadQuery(t, fileHeroWithOperationNameQuery, nil),
+				},
+				{
+					name:        "directives include query",
+					requestBody: starWarsLoadQuery(t, fileDirectivesIncludeQuery, queryVariables{"withFriends": true}),
+				},
+				{
+					name:        "directives skip query",
+					requestBody: starWarsLoadQuery(t, fileDirectivesSkipQuery, queryVariables{"skipFriends": true}),
+				},
+				{
+					name:        "create review mutation",
+					requestBody: starWarsLoadQuery(t, fileCreateReviewutation, queryVariables{"ep": "JEDI", "review": starWarsReviewInput()}),
+				},
+				{
+					name:        "inline fragments query",
+					requestBody: starWarsLoadQuery(t, fileInlineFragmentsQuery, nil),
+				},
+			}
+
+			for _, testCase := range starWarsCases {
+				testCase := testCase
+
+				t.Run(testCase.name, func(t *testing.T) {
+					requestBodyBytes := testCase.requestBody
+					req, err := http.NewRequest(http.MethodPost, httpAddr, bytes.NewBuffer(requestBodyBytes))
+					require.NoError(t, err)
+
+					client := http.Client{}
+					resp, err := client.Do(req)
+					require.NoError(t, err)
+
+					responseBodyBytes, err := ioutil.ReadAll(resp.Body)
+					require.NoError(t, err)
+
+					assert.Equal(t, http.StatusOK, resp.StatusCode)
+					assert.Contains(t, resp.Header.Get(httpHeaderContentType), httpContentTypeApplicationJson)
+					assert.Equal(t, `{"data":null}`, string(responseBodyBytes))
+				})
+			}
+
+		})
+	})
+
+	t.Run("websockets", func(t *testing.T) {
+		var clientConn net.Conn
+		defer func() {
+			err := clientConn.Close()
+			require.NoError(t, err)
+		}()
+
+		ctx, _ := context.WithCancel(context.Background())
+
+		t.Run("should upgrade to websocket and establish connection successfully", func(t *testing.T) {
+			var err error
+			clientConn, _, _, err = ws.Dial(ctx, wsAddr)
+			assert.NoError(t, err)
+
+			initialClientMessage := WebsocketMessage{
+				Id:      "",
+				Type:    CONNECTION_INIT,
+				Payload: nil,
+			}
+			sendMessageToServer(t, clientConn, initialClientMessage)
+
+			serverMessage := readMessageFromServer(t, clientConn)
+			assert.Equal(t, "fgd", string(serverMessage))
+		})
+	})
 
 }
 
@@ -77,42 +191,19 @@ func TestGraphQLHTTPRequestHandler_ExtraVariables(t *testing.T) {
 	})
 }
 
-func starWarsSchema() []byte {
-	schema := "schema { query: Query } type Query { hero: Hero } type Hero { name: String }"
-	return []byte(schema)
-}
-
-func starWarsHeroQueryRequestBody(t *testing.T) []byte {
-	return starWarsRequestBody(t, "query { hero { name } }", nil)
-}
-
-func invalidQueryRequestBody(t *testing.T) []byte {
-	return starWarsRequestBody(t, "query { trap { meme } }", nil)
-}
-
-func starWarsRequestBody(t *testing.T, query string, variables map[string]interface{}) []byte {
-	var variableJsonBytes []byte
-	if len(variables) > 0 {
-		var err error
-		variableJsonBytes, err = json.Marshal(variables)
-		require.NoError(t, err)
-	}
-
-	body := execution.GraphqlRequest{
-		OperationName: "",
-		Variables:     variableJsonBytes,
-		Query:         query,
-	}
-
-	jsonBytes, err := json.Marshal(body)
+func sendMessageToServer(t *testing.T, clientConn net.Conn, message WebsocketMessage) {
+	messageBytes, err := json.Marshal(message)
 	require.NoError(t, err)
 
-	return jsonBytes
+	//_, err = clientConn.Write(messageBytes)
+	err = wsutil.WriteClientMessage(clientConn, ws.OpText, messageBytes)
+	require.NoError(t, err)
 }
 
-func newStarWarsExecutionHandler(t *testing.T) *execution.Handler {
-	executionHandler, err := execution.NewHandler(starWarsSchema(), execution.PlannerConfiguration{}, nil, abstractlogger.NoopLogger)
+func readMessageFromServer(t *testing.T, clientConn net.Conn) []byte {
+	response := []byte("")
+	_, err := clientConn.Read(response)
 	require.NoError(t, err)
 
-	return executionHandler
+	return response
 }
