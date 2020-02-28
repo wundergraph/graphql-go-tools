@@ -33,10 +33,6 @@ type WebsocketMessage struct {
 	Payload json.RawMessage `json:"payload"`
 }
 
-type WebsocketClientSubscription struct {
-	conn net.Conn
-}
-
 func (g *GraphQLHTTPRequestHandler) handleWebsocket(r *http.Request, conn net.Conn) {
 	defer conn.Close()
 
