@@ -21,21 +21,6 @@ func TestNew(t *testing.T) {
 		}
 
 		playground := New(config)
-		if playground.data.CssURL != "/playground.css" {
-			t.Fatalf("%s != /playground.css", playground.data.CssURL)
-		}
-
-		if playground.data.JsURL != "/playground.js" {
-			t.Fatalf("%s != /playground.js", playground.data.JsURL)
-		}
-
-		if playground.data.FavIconURL != "/favicon.png" {
-			t.Fatalf("%s != /favicon.png", playground.data.FavIconURL)
-		}
-
-		if playground.data.LogoURL != "/logo.png" {
-			t.Fatalf("%s != /logo.png", playground.data.LogoURL)
-		}
 
 		assert.Equal(t, playground.data.CssURL, "/playground.css")
 		assert.Equal(t, playground.data.JsURL, "/playground.js")
