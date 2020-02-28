@@ -37,22 +37,7 @@ type WebsocketClientSubscription struct {
 	conn net.Conn
 }
 
-/*
-func (w *WebsocketClientSubscription) ReadFromClient() (subscriptionhandler.SubscriptionMessage, error) {
-	data, op, err := wsutil.ReadClientData(w.conn)
-}
-
-func (w *WebsocketClientSubscription) WriteToClient(message subscriptionhandler.SubscriptionMessage) error {
-	panic("implement me")
-}
-*/
 func (g *GraphQLHTTPRequestHandler) handleWebsocket(r *http.Request, conn net.Conn) {
-
-	/*
-		g.subscriptionHandler.Handle(&WebsocketClientSubscription{
-			conn:conn,
-		})
-	*/
 	defer conn.Close()
 
 	subscriptions := map[string]context.CancelFunc{}
