@@ -72,11 +72,15 @@ func TestGraphQLHTTPRequestHandler_ServeHTTP(t *testing.T) {
 				},
 				{
 					name:        "create review mutation",
-					requestBody: starWarsLoadQuery(t, fileCreateReviewutation, queryVariables{"ep": "JEDI", "review": starWarsReviewInput()}),
+					requestBody: starWarsLoadQuery(t, fileCreateReviewMutation, queryVariables{"ep": "JEDI", "review": starWarsReviewInput()}),
 				},
 				{
 					name:        "inline fragments query",
 					requestBody: starWarsLoadQuery(t, fileInlineFragmentsQuery, nil),
+				},
+				{
+					name:        "union query",
+					requestBody: starWarsLoadQuery(t, fileUnionQuery, queryVariables{"name": "Han Solo"}),
 				},
 			}
 
@@ -126,7 +130,19 @@ func TestGraphQLHTTPRequestHandler_ServeHTTP(t *testing.T) {
 			sendMessageToServer(t, clientConn, initialClientMessage)
 
 			serverMessage := readMessageFromServer(t, clientConn)
-			assert.Equal(t, "fgd", string(serverMessage))
+			assert.Equal(t, `{"id":"","type":"connection_ack","payload":null}`, string(serverMessage))
+		})
+
+		t.Run("should successfully start a subscription", func(t *testing.T) {
+			startSubscriptionMessage := WebsocketMessage{
+				Id:      "1",
+				Type:    START,
+				Payload: starWarsLoadQuery(t, fileRemainingJedisSubscription, nil),
+			}
+			sendMessageToServer(t, clientConn, startSubscriptionMessage)
+
+			serverMessage := readMessageFromServer(t, clientConn)
+			assert.Equal(t, `{"id":"1","type":"data","payload":{"data":null}}`, string(serverMessage))
 		})
 	})
 
@@ -195,15 +211,13 @@ func sendMessageToServer(t *testing.T, clientConn net.Conn, message WebsocketMes
 	messageBytes, err := json.Marshal(message)
 	require.NoError(t, err)
 
-	//_, err = clientConn.Write(messageBytes)
-	err = wsutil.WriteClientMessage(clientConn, ws.OpText, messageBytes)
+	err = wsutil.WriteClientText(clientConn, messageBytes)
 	require.NoError(t, err)
 }
 
 func readMessageFromServer(t *testing.T, clientConn net.Conn) []byte {
-	response := []byte("")
-	_, err := clientConn.Read(response)
+	msgBytes, _, err := wsutil.ReadServerData(clientConn)
 	require.NoError(t, err)
 
-	return response
+	return msgBytes
 }

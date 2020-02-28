@@ -1,15 +1,23 @@
+union SearchResult = Human | Droid | Starship
+
 schema {
     query: Query
     mutation: Mutation
+    subscription: Subscription
 }
 
 type Query {
     hero: Character
     droid(id: ID!): Droid
+    search(name: String!): SearchResult
 }
 
 type Mutation {
     createReview(episode: Episode!, review: ReviewInput!): Review
+}
+
+type Subscription {
+    remainingJedis: Int!
 }
 
 input ReviewInput {
@@ -44,4 +52,9 @@ type Droid implements Character {
     name: String!
     primaryFunction: String!
     friends: [Character]
+}
+
+type Startship {
+    name: String!
+    length: Float!
 }

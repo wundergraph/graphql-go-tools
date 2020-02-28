@@ -21,8 +21,10 @@ const (
 	fileFragmentsQuery             = "./testdata/queries/fragments.query"
 	fileDirectivesIncludeQuery     = "./testdata/queries/directives_include.query"
 	fileDirectivesSkipQuery        = "./testdata/queries/directives_skip.query"
-	fileCreateReviewutation        = "./testdata/queries/create_review.mutation"
+	fileCreateReviewMutation       = "./testdata/mutations/create_review.mutation"
 	fileInlineFragmentsQuery       = "./testdata/queries/inline_fragments.query"
+	fileUnionQuery                 = "./testdata/queries/inline_fragments.query"
+	fileRemainingJedisSubscription = "./testdata/subscriptions/remaining_jedis.subscription"
 )
 
 type starWarsTestCase struct {
