@@ -33,16 +33,15 @@ type starWarsTestCase struct {
 }
 
 func newStarWarsExecutionHandler(t *testing.T) *execution.Handler {
-	executionHandler, err := execution.NewHandler(starWarsSchema(t), execution.PlannerConfiguration{}, nil, abstractlogger.NoopLogger)
+	base, err := execution.NewBaseDataSourcePlanner(starWarsSchema(t), execution.PlannerConfiguration{}, abstractlogger.NoopLogger)
 	require.NoError(t, err)
-
+	executionHandler := execution.NewHandler(base, nil)
 	return executionHandler
 }
 
 func starWarsSchema(t *testing.T) []byte {
 	schema, err := ioutil.ReadFile("./testdata/star_wars.graphql")
 	require.NoError(t, err)
-
 	return schema
 }
 
