@@ -40,7 +40,7 @@ func TestExecution(t *testing.T) {
 	}
 
 	graphQL1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		dumpRequest(t, r, "graphQL1")
+		//dumpRequest(t, r, "graphQL1")
 
 		_, err := w.Write(userData)
 		if err != nil {
@@ -49,7 +49,7 @@ func TestExecution(t *testing.T) {
 	}))
 
 	graphQL2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		dumpRequest(t, r, "graphQL2")
+		//dumpRequest(t, r, "graphQL2")
 
 		_, err := w.Write(petsData)
 		if err != nil {
