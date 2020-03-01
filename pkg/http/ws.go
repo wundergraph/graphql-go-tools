@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net"
+	"net/http"
+
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
 	log "github.com/jensneuse/abstractlogger"
+
 	"github.com/jensneuse/graphql-go-tools/pkg/execution"
-	"net"
-	"net/http"
 )
 
 const (

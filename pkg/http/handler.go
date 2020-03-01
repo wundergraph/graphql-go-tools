@@ -9,6 +9,10 @@ import (
 	"net/http"
 )
 
+const (
+	httpHeaderUpgrade string = "Upgrade"
+)
+
 func NewGraphqlHTTPHandlerFunc(executionHandler *execution.Handler, logger log.Logger, upgrader *ws.HTTPUpgrader) http.Handler {
 	return &GraphQLHTTPRequestHandler{
 		log:              logger,
@@ -48,7 +52,7 @@ func (g *GraphQLHTTPRequestHandler) upgradeWithNewGoroutine(w http.ResponseWrite
 }
 
 func (g *GraphQLHTTPRequestHandler) isWebsocketUpgrade(r *http.Request) bool {
-	for _, header := range r.Header["Upgrade"] {
+	for _, header := range r.Header[httpHeaderUpgrade] {
 		if header == "websocket" {
 			return true
 		}
@@ -63,7 +67,7 @@ func (g *GraphQLHTTPRequestHandler) extraVariables(r *http.Request, out io.Write
 	}
 
 	cookies := map[string]string{}
-	for _,cookie := range r.Cookies() {
+	for _, cookie := range r.Cookies() {
 		cookies[cookie.Name] = cookie.Value
 	}
 
