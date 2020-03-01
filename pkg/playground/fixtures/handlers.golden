@@ -4,19 +4,19 @@
   Handler: (http.HandlerFunc) <nil>
  },
  (playground.HandlerConfig) {
-  Path: (string) (len=14) "playground.css",
+  Path: (string) (len=15) "/playground.css",
   Handler: (http.HandlerFunc) <nil>
  },
  (playground.HandlerConfig) {
-  Path: (string) (len=13) "playground.js",
+  Path: (string) (len=14) "/playground.js",
   Handler: (http.HandlerFunc) <nil>
  },
  (playground.HandlerConfig) {
-  Path: (string) (len=11) "favicon.png",
+  Path: (string) (len=12) "/favicon.png",
   Handler: (http.HandlerFunc) <nil>
  },
  (playground.HandlerConfig) {
-  Path: (string) (len=8) "logo.png",
+  Path: (string) (len=9) "/logo.png",
   Handler: (http.HandlerFunc) <nil>
  }
 }

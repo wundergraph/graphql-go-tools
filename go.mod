@@ -24,6 +24,7 @@ require (
 	github.com/sebdah/goldie v0.0.0-20180424091453-8784dd1ab561
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/viper v1.3.2
+	github.com/stretchr/testify v1.4.0
 	github.com/tidwall/gjson v1.3.5
 	github.com/tidwall/sjson v1.0.4
 	github.com/valyala/fasttemplate v1.1.0
