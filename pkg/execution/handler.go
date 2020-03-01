@@ -3,72 +3,25 @@
 package execution
 
 import (
-	"bytes"
 	"encoding/json"
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash"
-	"github.com/gobuffalo/packr"
-	"github.com/jensneuse/abstractlogger"
 	"github.com/jensneuse/byte-template"
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
-	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation"
-	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
-	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
-	"io"
-	"sort"
 )
 
 type Handler struct {
-	log                  abstractlogger.Logger
-	definition           ast.Document
-	graphqlDefinitions   *packr.Box
-	templateDirectives   []byte_template.DirectiveDefinition
-	plannerConfiguration PlannerConfiguration
+	templateDirectives []byte_template.DirectiveDefinition
+	base               *BaseDataSourcePlanner
 }
 
-func NewHandler(schema []byte, plannerConfiguration PlannerConfiguration, templateDirectives []byte_template.DirectiveDefinition, logger abstractlogger.Logger) (*Handler, error) {
-
-	schema = append(schema, graphqlDefinitionBoilerplate...)
-
-	definition, report := astparser.ParseGraphqlDocumentBytes(schema)
-	if report.HasErrors() {
-		return nil, report
-	}
-
-	box := packr.NewBox("./graphql_definitions")
-
+func NewHandler(base *BaseDataSourcePlanner, templateDirectives []byte_template.DirectiveDefinition) *Handler {
 	return &Handler{
-		log:                  logger,
-		definition:           definition,
-		graphqlDefinitions:   &box,
-		templateDirectives:   templateDirectives,
-		plannerConfiguration: plannerConfiguration,
-	}, nil
-}
-
-func (h *Handler) RenderGraphQLDefinitions(out io.Writer) error {
-	buf := bytes.Buffer{}
-	files := h.graphqlDefinitions.List()
-	sort.Strings(files)
-	for i := 0; i < len(files); i++ {
-		data, _ := h.graphqlDefinitions.Find(files[i])
-		if len(data) == 0 {
-			continue
-		}
-		_, err := buf.Write(append(data, literal.LINETERMINATOR...))
-		if err != nil {
-			return err
-		}
+		templateDirectives: templateDirectives,
+		base:               base,
 	}
-	doc, report := astparser.ParseGraphqlDocumentBytes(buf.Bytes())
-	if report.HasErrors() {
-		return report
-	}
-	return astprinter.PrintIndent(&doc, nil, []byte("  "), out)
 }
 
 type GraphqlRequest struct {
@@ -93,13 +46,13 @@ func (h *Handler) Handle(requestData, extraVariables []byte) (executor *Executor
 
 	variables, extraArguments := h.VariablesFromJson(graphqlRequest.Variables, extraVariables)
 
-	planner := NewPlanner(h.resolverDefinitions(&report), h.plannerConfiguration)
+	planner := NewPlanner(h.base)
 	if report.HasErrors() {
 		err = report
 		return
 	}
 
-	astnormalization.NormalizeOperation(&operationDocument, &h.definition, &report)
+	astnormalization.NormalizeOperation(&operationDocument, h.base.definition, &report)
 	if report.HasErrors() {
 		err = report
 		return
@@ -110,18 +63,18 @@ func (h *Handler) Handle(requestData, extraVariables []byte) (executor *Executor
 		err = report
 		return
 	}
-	validator.Validate(&operationDocument, &h.definition, &report)
+	validator.Validate(&operationDocument, h.base.definition, &report)
 	if report.HasErrors() {
 		err = report
 		return
 	}
 	normalizer := astnormalization.NewNormalizer(true)
-	normalizer.NormalizeOperation(&operationDocument, &h.definition, &report)
+	normalizer.NormalizeOperation(&operationDocument, h.base.definition, &report)
 	if report.HasErrors() {
 		err = report
 		return
 	}
-	plan := planner.Plan(&operationDocument, &h.definition, &report)
+	plan := planner.Plan(&operationDocument, h.base.definition, &report)
 	if report.HasErrors() {
 		err = report
 		return
@@ -151,88 +104,6 @@ func (h *Handler) VariablesFromJson(requestVariables, extraVariables []byte) (va
 		return nil
 	})
 	return
-}
-
-func (h *Handler) resolverDefinitions(report *operationreport.Report) ResolverDefinitions {
-
-	baseDataSourcePlanner := BaseDataSourcePlanner{
-		log:                h.log,
-		graphqlDefinitions: h.graphqlDefinitions,
-		config:             h.plannerConfiguration,
-	}
-
-	definitions := ResolverDefinitions{
-		{
-			TypeName:  literal.QUERY,
-			FieldName: literal.UNDERSCORESCHEMA,
-			DataSourcePlannerFactory: func() DataSourcePlanner {
-				return NewSchemaDataSourcePlanner(&h.definition, report, baseDataSourcePlanner)
-			},
-		},
-	}
-
-	walker := astvisitor.NewWalker(8)
-	visitor := resolverDefinitionsVisitor{
-		Walker:     &walker,
-		definition: &h.definition,
-		resolvers:  &definitions,
-		dataSourcePlannerFactories: []func() DataSourcePlanner{
-			func() DataSourcePlanner {
-				return NewGraphQLDataSourcePlanner(baseDataSourcePlanner)
-			},
-			func() DataSourcePlanner {
-				return NewHttpJsonDataSourcePlanner(baseDataSourcePlanner)
-			},
-			func() DataSourcePlanner {
-				return NewHttpPollingStreamDataSourcePlanner(baseDataSourcePlanner)
-			},
-			func() DataSourcePlanner {
-				return NewStaticDataSourcePlanner(baseDataSourcePlanner)
-			},
-			func() DataSourcePlanner {
-				return NewTypeDataSourcePlanner(baseDataSourcePlanner)
-			},
-			func() DataSourcePlanner {
-				return NewNatsDataSourcePlanner(baseDataSourcePlanner)
-			},
-			func() DataSourcePlanner {
-				return NewMQTTDataSourcePlanner(baseDataSourcePlanner)
-			},
-			func() DataSourcePlanner {
-				return NewWasmDataSourcePlanner(baseDataSourcePlanner)
-			},
-			func() DataSourcePlanner {
-				return NewPipelineDataSourcePlanner(baseDataSourcePlanner)
-			},
-		},
-	}
-	walker.RegisterEnterFieldDefinitionVisitor(&visitor)
-	walker.Walk(&h.definition, nil, report)
-
-	return definitions
-}
-
-type resolverDefinitionsVisitor struct {
-	*astvisitor.Walker
-	definition                 *ast.Document
-	resolvers                  *ResolverDefinitions
-	dataSourcePlannerFactories []func() DataSourcePlanner
-}
-
-func (r *resolverDefinitionsVisitor) EnterFieldDefinition(ref int) {
-	for i := 0; i < len(r.dataSourcePlannerFactories); i++ {
-		factory := r.dataSourcePlannerFactories[i]
-		directiveName := factory().DirectiveName()
-		_, exists := r.definition.FieldDefinitionDirectiveByName(ref, directiveName)
-		if !exists {
-			continue
-		}
-		*r.resolvers = append(*r.resolvers, DataSourceDefinition{
-			TypeName:                 r.definition.FieldDefinitionResolverTypeName(r.EnclosingTypeDefinition),
-			FieldName:                r.definition.FieldDefinitionNameBytes(ref),
-			DataSourcePlannerFactory: factory,
-		})
-	}
 }
 
 var graphqlDefinitionBoilerplate = []byte(`

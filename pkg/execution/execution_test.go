@@ -1202,12 +1202,9 @@ func TestExecutor_ListFilterFirstN(t *testing.T) {
 				Value: &Object{
 					Fetch: &SingleFetch{
 						Source: &DataSourceInvocation{
-							Args: []Argument{
-								&StaticVariableArgument{
-									Value: []byte("[{\"bar\":\"1\"},{\"bar\":\"2\"},{\"bar\":\"3\"}]"),
-								},
+							DataSource: &StaticDataSource{
+								data: []byte("[{\"bar\":\"1\"},{\"bar\":\"2\"},{\"bar\":\"3\"}]"),
 							},
-							DataSource: &StaticDataSource{},
 						},
 						BufferName: "foos",
 					},
@@ -1297,12 +1294,9 @@ func TestExecutor_ObjectVariables(t *testing.T) {
 				Value: &Object{
 					Fetch: &SingleFetch{
 						Source: &DataSourceInvocation{
-							Args: []Argument{
-								&StaticVariableArgument{
-									Value: []byte(`{"name": "Jens","id":1}`),
-								},
+							DataSource: &StaticDataSource{
+								data: []byte(`{"name": "Jens","id":1}`),
 							},
-							DataSource: &StaticDataSource{},
 						},
 						BufferName: "user",
 					},
@@ -1572,12 +1566,9 @@ func TestExecutor_ListWithPath(t *testing.T) {
 				Value: &Object{
 					Fetch: &SingleFetch{
 						Source: &DataSourceInvocation{
-							Args: []Argument{
-								&StaticVariableArgument{
-									Value: []byte(`{"apis": [{"id": 1},{"id":2}]}`),
-								},
+							DataSource: &StaticDataSource{
+								data: []byte(`{"apis": [{"id": 1},{"id":2}]}`),
 							},
-							DataSource: &StaticDataSource{},
 						},
 						BufferName: "apis",
 					},
@@ -1746,12 +1737,9 @@ func TestExecutor_ObjectWithPath(t *testing.T) {
 				Value: &Object{
 					Fetch: &SingleFetch{
 						Source: &DataSourceInvocation{
-							Args: []Argument{
-								&StaticVariableArgument{
-									Value: []byte(`{"api": {"id": 1}`),
-								},
+							DataSource: &StaticDataSource{
+								data: []byte(`{"api": {"id": 1}`),
 							},
-							DataSource: &StaticDataSource{},
 						},
 						BufferName: "id",
 					},
@@ -2819,15 +2807,35 @@ func TestExecutor_Introspection(t *testing.T) {
 		}
 	`)
 
-	handler, err := NewHandler(schema, PlannerConfiguration{},nil, log.NoopLogger)
+	config := PlannerConfiguration{
+		TypeFieldConfigurations: []TypeFieldConfiguration{
+			{
+				TypeName:  "query",
+				FieldName: "__schema",
+				DataSource: DataSourceConfig{
+					Name:   "SchemaDataSource",
+					Config: toJSON(SchemaDataSourcePlannerConfig{}),
+				},
+			},
+		},
+	}
+
+	base, err := NewBaseDataSourcePlanner(schema, config, log.NoopLogger)
 	if err != nil {
 		t.Fatal(err)
 	}
 
+	err = base.RegisterDataSourcePlannerFactory("SchemaDataSource", SchemaDataSourcePlannerFactoryFactory{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	handler := NewHandler(base, nil)
+
 	gen := introspection.NewGenerator()
 	report := operationreport.Report{}
 	data := introspection.Data{}
-	gen.Generate(&handler.definition, &report, &data)
+	gen.Generate(handler.base.definition, &report, &data)
 
 	introspectionData, err := json.Marshal(data)
 	if err != nil {

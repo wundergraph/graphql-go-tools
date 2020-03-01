@@ -1,43 +1,52 @@
 package execution
 
 import (
+	"encoding/json"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	log "github.com/jensneuse/abstractlogger"
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"io"
 	"sync"
 	"time"
 )
 
-type MQTTDataSourcePlanner struct {
-	BaseDataSourcePlanner
+type MQTTDataSourceConfig struct {
+	BrokerAddr string
+	ClientID   string
+	Topic      string
 }
 
-func NewMQTTDataSourcePlanner(baseDataSourcePlanner BaseDataSourcePlanner) *MQTTDataSourcePlanner {
+type MQTTDataSourcePlannerFactoryFactory struct {
+}
+
+func (M MQTTDataSourcePlannerFactoryFactory) Initialize(base BaseDataSourcePlanner, configReader io.Reader) (DataSourcePlannerFactory, error) {
+	factory := &MQTTDataSourcePlannerFactory{
+		base: base,
+	}
+	return factory, json.NewDecoder(configReader).Decode(&factory.config)
+}
+
+type MQTTDataSourcePlannerFactory struct {
+	base   BaseDataSourcePlanner
+	config MQTTDataSourceConfig
+}
+
+func (m MQTTDataSourcePlannerFactory) DataSourcePlanner() DataSourcePlanner {
 	return &MQTTDataSourcePlanner{
-		BaseDataSourcePlanner: baseDataSourcePlanner,
+		BaseDataSourcePlanner: m.base,
+		dataSourceConfig:      m.config,
 	}
 }
 
-func (n *MQTTDataSourcePlanner) DirectiveName() []byte {
-	return []byte("MQTTDataSource")
+type MQTTDataSourcePlanner struct {
+	BaseDataSourcePlanner
+	dataSourceConfig MQTTDataSourceConfig
 }
 
-func (n *MQTTDataSourcePlanner) DirectiveDefinition() []byte {
-	data, _ := n.graphqlDefinitions.Find("directives/mqtt_datasource.graphql")
-	return data
-}
-
-func (n *MQTTDataSourcePlanner) Plan() (DataSource, []Argument) {
+func (n *MQTTDataSourcePlanner) Plan(args []Argument) (DataSource, []Argument) {
 	return &MQTTDataSource{
 		log: n.log,
-	}, n.args
-}
-
-func (n *MQTTDataSourcePlanner) Initialize(walker *astvisitor.Walker, operation, definition *ast.Document, args []Argument, resolverParameters []ResolverParameter) {
-	n.walker, n.operation, n.definition, n.args = walker, operation, definition, args
+	}, append(n.args, args...)
 }
 
 func (n *MQTTDataSourcePlanner) EnterInlineFragment(ref int) {
@@ -64,49 +73,18 @@ func (n *MQTTDataSourcePlanner) LeaveField(ref int) {
 	if !n.rootField.isDefinedAndEquals(ref) {
 		return
 	}
-	definition, exists := n.walker.FieldDefinition(ref)
-	if !exists {
-		return
-	}
-	directive, exists := n.definition.FieldDefinitionDirectiveByName(definition, n.DirectiveName())
-	if !exists {
-		return
-	}
-	value, exists := n.definition.DirectiveArgumentValueByName(directive, literal.BROKERADDR)
-	if !exists {
-		return
-	}
-	variableValue := n.definition.StringValueContentBytes(value.Ref)
-	arg := &StaticVariableArgument{
+	n.args = append(n.args, &StaticVariableArgument{
 		Name:  literal.BROKERADDR,
-		Value: make([]byte, len(variableValue)),
-	}
-	copy(arg.Value, variableValue)
-	n.args = append(n.args, arg)
-
-	value, exists = n.definition.DirectiveArgumentValueByName(directive, literal.CLIENTID)
-	if !exists {
-		return
-	}
-	variableValue = n.definition.StringValueContentBytes(value.Ref)
-	arg = &StaticVariableArgument{
+		Value: []byte(n.dataSourceConfig.BrokerAddr),
+	})
+	n.args = append(n.args, &StaticVariableArgument{
 		Name:  literal.CLIENTID,
-		Value: make([]byte, len(variableValue)),
-	}
-	copy(arg.Value, variableValue)
-	n.args = append(n.args, arg)
-
-	value, exists = n.definition.DirectiveArgumentValueByName(directive, literal.TOPIC)
-	if !exists {
-		return
-	}
-	variableValue = n.definition.StringValueContentBytes(value.Ref)
-	arg = &StaticVariableArgument{
+		Value: []byte(n.dataSourceConfig.ClientID),
+	})
+	n.args = append(n.args, &StaticVariableArgument{
 		Name:  literal.TOPIC,
-		Value: make([]byte, len(variableValue)),
-	}
-	copy(arg.Value, variableValue)
-	n.args = append(n.args, arg)
+		Value: []byte(n.dataSourceConfig.Topic),
+	})
 }
 
 type MQTTDataSource struct {
