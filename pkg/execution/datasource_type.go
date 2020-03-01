@@ -1,65 +1,47 @@
 package execution
 
 import (
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
+	"encoding/json"
 	"io"
 )
 
-func NewTypeDataSourcePlanner(baseDataSourcePlanner BaseDataSourcePlanner) *TypeDataSourcePlanner {
-	return &TypeDataSourcePlanner{
-		BaseDataSourcePlanner: baseDataSourcePlanner,
+type TypeDataSourcePlannerConfig struct {
+}
+
+type TypeDataSourcePlannerFactoryFactory struct {
+}
+
+func (t TypeDataSourcePlannerFactoryFactory) Initialize(base BaseDataSourcePlanner, configReader io.Reader) (DataSourcePlannerFactory, error) {
+	factory := TypeDataSourcePlannerFactory{
+		base: base,
 	}
+	return factory, json.NewDecoder(configReader).Decode(&factory.config)
+}
+
+type TypeDataSourcePlannerFactory struct {
+	base   BaseDataSourcePlanner
+	config TypeDataSourcePlannerConfig
+}
+
+func (t TypeDataSourcePlannerFactory) DataSourcePlanner() DataSourcePlanner {
+	return SimpleDataSourcePlanner(&TypeDataSourcePlanner{
+		BaseDataSourcePlanner: t.base,
+		dataSourceConfig:      t.config,
+	})
 }
 
 type TypeDataSourcePlanner struct {
 	BaseDataSourcePlanner
+	dataSourceConfig TypeDataSourcePlannerConfig
 }
 
-func (t *TypeDataSourcePlanner) DirectiveDefinition() []byte {
-	return nil
-}
-
-func (t *TypeDataSourcePlanner) DirectiveName() []byte {
-	return []byte("resolveType")
-}
-
-func (t *TypeDataSourcePlanner) Initialize(walker *astvisitor.Walker, operation, definition *ast.Document, args []Argument, resolverParameters []ResolverParameter) {
-	t.walker, t.operation, t.definition, t.args = walker, operation, definition, args
-}
-
-func (t *TypeDataSourcePlanner) EnterInlineFragment(ref int) {
-
-}
-
-func (t *TypeDataSourcePlanner) LeaveInlineFragment(ref int) {
-
-}
-
-func (t *TypeDataSourcePlanner) EnterSelectionSet(ref int) {
-
-}
-
-func (t *TypeDataSourcePlanner) LeaveSelectionSet(ref int) {
-
-}
-
-func (t *TypeDataSourcePlanner) EnterField(ref int) {
-
-}
-
-func (t *TypeDataSourcePlanner) LeaveField(ref int) {
-
-}
-
-func (t *TypeDataSourcePlanner) Plan() (DataSource, []Argument) {
-	return &TypeDataSource{}, t.args
+func (t *TypeDataSourcePlanner) Plan(args []Argument) (DataSource, []Argument) {
+	return &TypeDataSource{}, append(t.args,args...)
 }
 
 type TypeDataSource struct {
 }
 
 func (t *TypeDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) Instruction {
-
 	return CloseConnection
 }

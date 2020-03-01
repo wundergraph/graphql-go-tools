@@ -340,7 +340,9 @@ func (d *Document) NodeIsLastRootNode(node Node) bool {
 	return d.RootNodes[len(d.RootNodes)-1] == node
 }
 
-func (d *Document) NodeResolverTypeName(node Node, path Path) ByteSlice {
+// NodeResolverTypeNameBytes returns lowercase query/mutation/subscription for Query/Mutation/Subscription
+// for other type definitions it returns the default type name
+func (d *Document) NodeResolverTypeNameBytes(node Node, path Path) ByteSlice {
 	if len(path) == 1 && path[0].Kind == FieldName {
 		return path[0].FieldName
 	}
@@ -349,8 +351,14 @@ func (d *Document) NodeResolverTypeName(node Node, path Path) ByteSlice {
 		return d.ObjectTypeDefinitionNameBytes(node.Ref)
 	case NodeKindInterfaceTypeDefinition:
 		return d.InterfaceTypeDefinitionNameBytes(node.Ref)
+	case NodeKindUnionTypeDefinition:
+		return d.UnionTypeDefinitionNameBytes(node.Ref)
 	}
 	return nil
+}
+
+func (d *Document) NodeResolverTypeNameString(node Node, path Path) string {
+	return unsafebytes.BytesToString(d.NodeResolverTypeNameBytes(node, path))
 }
 
 func (d *Document) NodeNameBytes(node Node) ByteSlice {
@@ -2915,20 +2923,4 @@ func (p PathItem) MarshalJSON() ([]byte, error) {
 	default:
 		return nil, fmt.Errorf("cannot marshal unknown PathKind")
 	}
-}
-
-func (d *Document) ImportType(otherTypeRef int, sourceDocument *Document) int {
-	sourceType := sourceDocument.Types[otherTypeRef]
-	importType := Type{
-		TypeKind: sourceType.TypeKind,
-		OfType:   -1,
-	}
-	if sourceType.OfType != -1 {
-		importType.OfType = d.ImportType(sourceType.OfType, sourceDocument)
-	}
-	if sourceType.TypeKind == TypeKindNamed {
-		importType.Name = d.Input.AppendInputBytes(sourceDocument.Input.ByteSlice(sourceType.Name))
-	}
-	d.Types = append(d.Types, importType)
-	return len(d.Types) - 1
 }

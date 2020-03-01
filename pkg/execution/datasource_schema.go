@@ -2,72 +2,57 @@ package execution
 
 import (
 	"encoding/json"
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/introspection"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 	"io"
 )
 
-func NewSchemaDataSourcePlanner(definition *ast.Document, report *operationreport.Report, baseDataSourcePlanner BaseDataSourcePlanner) *SchemaDataSourcePlanner {
+type SchemaDataSourcePlannerConfig struct {
+}
+
+type SchemaDataSourcePlannerFactoryFactory struct {
+}
+
+func (s SchemaDataSourcePlannerFactoryFactory) Initialize(base BaseDataSourcePlanner, configReader io.Reader) (DataSourcePlannerFactory, error) {
+	factory := &SchemaDataSourcePlannerFactory{
+		base: base,
+	}
+	err := json.NewDecoder(configReader).Decode(&factory.config)
+	if err != nil {
+		return factory, err
+	}
 	gen := introspection.NewGenerator()
 	var data introspection.Data
-	gen.Generate(definition, report, &data)
-	schemaBytes, err := json.Marshal(data)
-	if err != nil {
-		report.AddInternalError(err)
-	}
-	return &SchemaDataSourcePlanner{
-		schemaBytes:           schemaBytes,
-		BaseDataSourcePlanner: baseDataSourcePlanner,
-	}
+	var report operationreport.Report
+	gen.Generate(base.definition, &report, &data)
+	factory.schemaBytes, err = json.Marshal(data)
+	return factory, err
+}
+
+type SchemaDataSourcePlannerFactory struct {
+	base        BaseDataSourcePlanner
+	config      SchemaDataSourcePlannerConfig
+	schemaBytes []byte
+}
+
+func (s SchemaDataSourcePlannerFactory) DataSourcePlanner() DataSourcePlanner {
+	return SimpleDataSourcePlanner(&SchemaDataSourcePlanner{
+		BaseDataSourcePlanner: s.base,
+		dataSourceConfig:      s.config,
+		schemaBytes:           s.schemaBytes,
+	})
 }
 
 type SchemaDataSourcePlanner struct {
 	BaseDataSourcePlanner
-	schemaBytes []byte
+	dataSourceConfig SchemaDataSourcePlannerConfig
+	schemaBytes      []byte
 }
 
-func (s *SchemaDataSourcePlanner) DirectiveDefinition() []byte {
-	return nil
-}
-
-func (s *SchemaDataSourcePlanner) DirectiveName() []byte {
-	return []byte("resolveSchema")
-}
-
-func (s *SchemaDataSourcePlanner) Initialize(walker *astvisitor.Walker, operation, definition *ast.Document, args []Argument, resolverParameters []ResolverParameter) {
-	s.args = args
-}
-
-func (s *SchemaDataSourcePlanner) EnterInlineFragment(ref int) {
-
-}
-
-func (s *SchemaDataSourcePlanner) LeaveInlineFragment(ref int) {
-
-}
-
-func (s *SchemaDataSourcePlanner) EnterSelectionSet(ref int) {
-
-}
-
-func (s *SchemaDataSourcePlanner) LeaveSelectionSet(ref int) {
-
-}
-
-func (s *SchemaDataSourcePlanner) EnterField(ref int) {
-
-}
-
-func (s *SchemaDataSourcePlanner) LeaveField(ref int) {
-
-}
-
-func (s *SchemaDataSourcePlanner) Plan() (DataSource, []Argument) {
+func (s *SchemaDataSourcePlanner) Plan(args []Argument) (DataSource, []Argument) {
 	return &SchemaDataSource{
 		schemaBytes: s.schemaBytes,
-	}, s.args
+	}, append(s.args,args...)
 }
 
 type SchemaDataSource struct {

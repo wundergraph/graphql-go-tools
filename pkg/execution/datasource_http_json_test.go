@@ -3,6 +3,7 @@ package execution
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/jensneuse/abstractlogger"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
@@ -20,34 +21,8 @@ schema {
 
 type Query {
 	simpleType: SimpleType
-        @HttpJsonDataSource(
-            host: "example.com"
-            url: "/"
-        )
 	unionType: UnionType
-        @HttpJsonDataSource(
-            host: "example.com"
-            url: "/"
-			defaultTypeName: "SuccessType"
-			statusCodeTypeNameMappings: [
-				{
-					statusCode: 500
-					typeName: "ErrorType"
-				}
-			]
-        )
 	interfaceType: InterfaceType
-        @HttpJsonDataSource(
-            host: "example.com"
-            url: "/"
-			defaultTypeName: "SuccessInterface"
-			statusCodeTypeNameMappings: [
-				{
-					statusCode: 500
-					typeName: "ErrorInterface"
-				}
-			]
-        )
 }
 type SimpleType {
 	scalarField: String
@@ -72,12 +47,8 @@ type ErrorInterface implements InterfaceType {
 }
 `
 
-func makeHttpJsonDataSourceSchema() string {
-	return withBaseSchema(httpJsonDataSourceSchema + httpJsonDataSourceBaseSchema)
-}
-
 func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
-	t.Run("simpleType", run(makeHttpJsonDataSourceSchema(), `
+	t.Run("simpleType", run(withBaseSchema(httpJsonDataSourceSchema), `
 		query SimpleTypeQuery {
 			simpleType {
 				__typename
@@ -85,25 +56,37 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 			}
 		}
 		`,
-		ResolverDefinitions{
-			{
-				TypeName:  literal.QUERY,
-				FieldName: []byte("simpleType"),
-				DataSourcePlannerFactory: func() DataSourcePlanner {
-					return &HttpJsonDataSourcePlanner{}
-				},
-			},
-		},
-		PlannerConfiguration{
-			TypeFieldConfigurations: []TypeFieldConfiguration{
-				{
-					TypeName:  "Query",
-					FieldName: "simpleType",
-					Mapping: MappingConfiguration{
-						Disabled: true,
+		func(base *BaseDataSourcePlanner) {
+			base.config = PlannerConfiguration{
+				TypeFieldConfigurations: []TypeFieldConfiguration{
+					{
+						TypeName:  "query",
+						FieldName: "simpleType",
+						Mapping: &MappingConfiguration{
+							Disabled: true,
+						},
+						DataSource: DataSourceConfig{
+							Name: "HttpJsonDataSource",
+							Config: func() []byte {
+								data, _ := json.Marshal(HttpJsonDataSourceConfig{
+									Host: "example.com",
+									URL:  "/",
+									Method: func() *string {
+										method := "GET"
+										return &method
+									}(),
+									DefaultTypeName: func() *string {
+										typeName := "SimpleType"
+										return &typeName
+									}(),
+								})
+								return data
+							}(),
+						},
 					},
 				},
-			},
+			}
+			panicOnErr(base.RegisterDataSourcePlannerFactory("HttpJsonDataSource", HttpJsonDataSourcePlannerFactoryFactory{}))
 		},
 		&Object{
 			operationType: ast.OperationTypeQuery,
@@ -115,6 +98,7 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 							BufferName: "simpleType",
 							Source: &DataSourceInvocation{
 								DataSource: &HttpJsonDataSource{
+									log: abstractlogger.Noop{},
 								},
 								Args: []Argument{
 									&StaticVariableArgument{
@@ -173,7 +157,7 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 			},
 		},
 	))
-	t.Run("unionType", run(makeHttpJsonDataSourceSchema(), `
+	t.Run("unionType", run(withBaseSchema(httpJsonDataSourceSchema), `
 		query UnionTypeQuery {
 			unionType {
 				__typename
@@ -186,25 +170,37 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 			}
 		}
 		`,
-		ResolverDefinitions{
-			{
-				TypeName:  literal.QUERY,
-				FieldName: []byte("unionType"),
-				DataSourcePlannerFactory: func() DataSourcePlanner {
-					return &HttpJsonDataSourcePlanner{}
-				},
-			},
-		},
-		PlannerConfiguration{
-			TypeFieldConfigurations: []TypeFieldConfiguration{
-				{
-					TypeName:  "Query",
-					FieldName: "unionType",
-					Mapping: MappingConfiguration{
-						Disabled: true,
+		func(base *BaseDataSourcePlanner) {
+			base.config = PlannerConfiguration{
+				TypeFieldConfigurations: []TypeFieldConfiguration{
+					{
+						TypeName:  "query",
+						FieldName: "unionType",
+						Mapping: &MappingConfiguration{
+							Disabled: true,
+						},
+						DataSource: DataSourceConfig{
+							Name: "HttpJsonDataSource",
+							Config: func() []byte {
+								defaultTypeName := "SuccessType"
+								data, _ := json.Marshal(HttpJsonDataSourceConfig{
+									Host:            "example.com",
+									URL:             "/",
+									DefaultTypeName: &defaultTypeName,
+									StatusCodeTypeNameMappings: []StatusCodeTypeNameMapping{
+										{
+											StatusCode: 500,
+											TypeName:   "ErrorType",
+										},
+									},
+								})
+								return data
+							}(),
+						},
 					},
 				},
-			},
+			}
+			panicOnErr(base.RegisterDataSourcePlannerFactory("HttpJsonDataSource", HttpJsonDataSourcePlannerFactoryFactory{}))
 		},
 		&Object{
 			operationType: ast.OperationTypeQuery,
@@ -216,6 +212,7 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 							BufferName: "unionType",
 							Source: &DataSourceInvocation{
 								DataSource: &HttpJsonDataSource{
+									log: abstractlogger.Noop{},
 								},
 								Args: []Argument{
 									&StaticVariableArgument{
@@ -305,7 +302,7 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 			},
 		},
 	))
-	t.Run("interfaceType", run(makeHttpJsonDataSourceSchema(), `
+	t.Run("interfaceType", run(withBaseSchema(httpJsonDataSourceSchema), `
 		query InterfaceTypeQuery {
 			interfaceType {
 				__typename
@@ -319,25 +316,37 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 			}
 		}
 		`,
-		ResolverDefinitions{
-			{
-				TypeName:  literal.QUERY,
-				FieldName: []byte("interfaceType"),
-				DataSourcePlannerFactory: func() DataSourcePlanner {
-					return &HttpJsonDataSourcePlanner{}
-				},
-			},
-		},
-		PlannerConfiguration{
-			TypeFieldConfigurations: []TypeFieldConfiguration{
-				{
-					TypeName:  "Query",
-					FieldName: "interfaceType",
-					Mapping: MappingConfiguration{
-						Disabled: true,
+		func(base *BaseDataSourcePlanner) {
+			base.config = PlannerConfiguration{
+				TypeFieldConfigurations: []TypeFieldConfiguration{
+					{
+						TypeName:  "query",
+						FieldName: "interfaceType",
+						Mapping: &MappingConfiguration{
+							Disabled: true,
+						},
+						DataSource: DataSourceConfig{
+							Name: "HttpJsonDataSource",
+							Config: func() []byte {
+								defaultTypeName := "SuccessInterface"
+								data, _ := json.Marshal(HttpJsonDataSourceConfig{
+									Host:            "example.com",
+									URL:             "/",
+									DefaultTypeName: &defaultTypeName,
+									StatusCodeTypeNameMappings: []StatusCodeTypeNameMapping{
+										{
+											StatusCode: 500,
+											TypeName:   "ErrorInterface",
+										},
+									},
+								})
+								return data
+							}(),
+						},
 					},
 				},
-			},
+			}
+			panicOnErr(base.RegisterDataSourcePlannerFactory("HttpJsonDataSource", HttpJsonDataSourcePlannerFactoryFactory{}))
 		},
 		&Object{
 			operationType: ast.OperationTypeQuery,
@@ -349,6 +358,7 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 							BufferName: "interfaceType",
 							Source: &DataSourceInvocation{
 								DataSource: &HttpJsonDataSource{
+									log: abstractlogger.Noop{},
 								},
 								Args: []Argument{
 									&StaticVariableArgument{
@@ -507,44 +517,3 @@ func TestHttpJsonDataSource_Resolve(t *testing.T) {
 		`{"500":"ErrorInterface","200":"AnotherSuccess","defaultTypeName":"SuccessInterface"}`,
 		"AnotherSuccess"))
 }
-
-const httpJsonDataSourceBaseSchema = `
-directive @HttpJsonDataSource (
-    host: String!
-    url: String!
-    method: HTTP_METHOD = GET
-    params: [Parameter]
-	body: String
-    defaultTypeName: String
-    statusCodeTypeNameMappings: [StatusCodeTypeNameMapping]
-) on FIELD_DEFINITION
-
-input StatusCodeTypeNameMapping {
-    statusCode: Int!
-    typeName: String!
-}
-
-enum MAPPING_MODE {
-    NONE
-    PATH_SELECTOR
-}
-
-enum HTTP_METHOD {
-    GET
-    POST
-    UPDATE
-    DELETE
-}
-
-input Parameter {
-    name: String!
-    sourceKind: PARAMETER_SOURCE!
-    sourceName: String!
-    variableType: String!
-}
-
-enum PARAMETER_SOURCE {
-    CONTEXT_VARIABLE
-    OBJECT_VARIABLE_ARGUMENT
-    FIELD_ARGUMENTS
-}`
