@@ -8,10 +8,14 @@ import (
 )
 
 func TestHandler_VariablesFromRequest(t *testing.T) {
-	handler, err := NewHandler(nil, PlannerConfiguration{}, nil, log.NoopLogger)
+
+	base, err := NewBaseDataSourcePlanner(nil, PlannerConfiguration{}, log.NoopLogger)
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	handler := NewHandler(base, nil)
+
 	request := GraphqlRequest{
 		Variables: []byte(`{"foo":"bar"}`),
 	}

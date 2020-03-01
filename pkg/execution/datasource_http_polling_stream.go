@@ -20,34 +20,39 @@ type HttpPollingStreamDataSourceConfiguration struct {
 	DelaySeconds *int
 }
 
-type HttpPollingStreamDataSourcePlanner struct {
-	BaseDataSourcePlanner
-	dataSourceConfig HttpPollingStreamDataSourceConfiguration
-	rootField        int
-	delay            time.Duration
+type HttpPollingStreamDataSourcePlannerFactoryFactory struct {
 }
 
-func NewHttpPollingStreamDataSourcePlanner(baseDataSourcePlanner BaseDataSourcePlanner) *HttpPollingStreamDataSourcePlanner {
+func (h HttpPollingStreamDataSourcePlannerFactoryFactory) Initialize(base BaseDataSourcePlanner, configReader io.Reader) (DataSourcePlannerFactory, error) {
+	factory := &HttpPollingStreamDataSourcePlannerFactory{
+		base: base,
+	}
+	return factory, json.NewDecoder(configReader).Decode(&factory.config)
+}
+
+type HttpPollingStreamDataSourcePlannerFactory struct {
+	base   BaseDataSourcePlanner
+	config HttpPollingStreamDataSourceConfiguration
+}
+
+func (h HttpPollingStreamDataSourcePlannerFactory) DataSourcePlanner() DataSourcePlanner {
 	return &HttpPollingStreamDataSourcePlanner{
-		BaseDataSourcePlanner: baseDataSourcePlanner,
+		BaseDataSourcePlanner: h.base,
+		dataSourceConfig:      h.config,
 	}
 }
 
-func (h *HttpPollingStreamDataSourcePlanner) DataSourceName() string {
-	return "HttpPollingStreamDataSource"
+type HttpPollingStreamDataSourcePlanner struct {
+	BaseDataSourcePlanner
+	dataSourceConfig HttpPollingStreamDataSourceConfiguration
+	delay            time.Duration
 }
 
-func (h *HttpPollingStreamDataSourcePlanner) Plan() (DataSource, []Argument) {
+func (h *HttpPollingStreamDataSourcePlanner) Plan(args []Argument) (DataSource, []Argument) {
 	return &HttpPollingStreamDataSource{
 		log:   h.log,
 		delay: h.delay,
-	}, h.args
-}
-
-func (h *HttpPollingStreamDataSourcePlanner) Initialize(config DataSourcePlannerConfiguration) (err error) {
-	h.walker, h.operation, h.definition = config.walker, config.operation, config.definition
-	h.rootField = -1
-	return json.NewDecoder(config.dataSourceConfiguration).Decode(&h.dataSourceConfig)
+	}, append(h.args, args...)
 }
 
 func (h *HttpPollingStreamDataSourcePlanner) EnterInlineFragment(ref int) {
@@ -67,13 +72,11 @@ func (h *HttpPollingStreamDataSourcePlanner) LeaveSelectionSet(ref int) {
 }
 
 func (h *HttpPollingStreamDataSourcePlanner) EnterField(ref int) {
-	if h.rootField == -1 {
-		h.rootField = ref
-	}
+	h.rootField.setIfNotDefined(ref)
 }
 
 func (h *HttpPollingStreamDataSourcePlanner) LeaveField(ref int) {
-	if h.rootField != ref {
+	if !h.rootField.isDefinedAndEquals(ref) {
 		return
 	}
 	h.args = append(h.args, &StaticVariableArgument{

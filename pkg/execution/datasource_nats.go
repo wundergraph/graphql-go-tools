@@ -15,56 +15,34 @@ type NatsDataSourceConfig struct {
 	Topic string
 }
 
+type NatsDataSourcePlannerFactoryFactory struct {
+}
+
+func (n NatsDataSourcePlannerFactoryFactory) Initialize(base BaseDataSourcePlanner, configReader io.Reader) (DataSourcePlannerFactory, error) {
+	factory := &NatsDataSourcePlannerFactory{
+		base: base,
+	}
+	return factory, json.NewDecoder(configReader).Decode(&factory.config)
+}
+
+type NatsDataSourcePlannerFactory struct {
+	base   BaseDataSourcePlanner
+	config NatsDataSourceConfig
+}
+
+func (n NatsDataSourcePlannerFactory) DataSourcePlanner() DataSourcePlanner {
+	return SimpleDataSourcePlanner(&NatsDataSourcePlanner{
+		BaseDataSourcePlanner: n.base,
+		dataSourceConfig:      n.config,
+	})
+}
+
 type NatsDataSourcePlanner struct {
 	BaseDataSourcePlanner
 	dataSourceConfig NatsDataSourceConfig
 }
 
-func NewNatsDataSourcePlanner(baseDataSourcePlanner BaseDataSourcePlanner) *NatsDataSourcePlanner {
-	return &NatsDataSourcePlanner{
-		BaseDataSourcePlanner: baseDataSourcePlanner,
-	}
-}
-
-func (n *NatsDataSourcePlanner) DataSourceName() string {
-	return "NatsDataSource"
-}
-
-func (n *NatsDataSourcePlanner) Plan() (DataSource, []Argument) {
-	return &NatsDataSource{
-		log: n.log,
-	}, n.args
-}
-
-func (n *NatsDataSourcePlanner) Initialize(config DataSourcePlannerConfiguration) (err error) {
-	n.walker, n.operation, n.definition = config.walker, config.operation, config.definition
-	return json.NewDecoder(config.dataSourceConfiguration).Decode(&n.dataSourceConfig)
-}
-
-func (n *NatsDataSourcePlanner) EnterInlineFragment(ref int) {
-
-}
-
-func (n *NatsDataSourcePlanner) LeaveInlineFragment(ref int) {
-
-}
-
-func (n *NatsDataSourcePlanner) EnterSelectionSet(ref int) {
-
-}
-
-func (n *NatsDataSourcePlanner) LeaveSelectionSet(ref int) {
-
-}
-
-func (n *NatsDataSourcePlanner) EnterField(ref int) {
-	n.rootField.setIfNotDefined(ref)
-}
-
-func (n *NatsDataSourcePlanner) LeaveField(ref int) {
-	if !n.rootField.isDefinedAndEquals(ref) {
-		return
-	}
+func (n *NatsDataSourcePlanner) Plan([]Argument) (DataSource, []Argument) {
 	n.args = append(n.args, &StaticVariableArgument{
 		Name:  literal.ADDR,
 		Value: []byte(n.dataSourceConfig.Addr),
@@ -73,6 +51,9 @@ func (n *NatsDataSourcePlanner) LeaveField(ref int) {
 		Name:  literal.TOPIC,
 		Value: []byte(n.dataSourceConfig.Topic),
 	})
+	return &NatsDataSource{
+		log: n.log,
+	}, n.args
 }
 
 type NatsDataSource struct {

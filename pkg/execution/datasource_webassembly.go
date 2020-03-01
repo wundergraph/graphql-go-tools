@@ -15,24 +15,31 @@ type WasmDataSourceConfig struct {
 	Input    string
 }
 
-func NewWasmDataSourcePlanner(baseDataSourcePlanner BaseDataSourcePlanner) *WasmDataSourcePlanner {
+type WasmDataSourcePlannerFactoryFactory struct {
+}
+
+func (w WasmDataSourcePlannerFactoryFactory) Initialize(base BaseDataSourcePlanner, configReader io.Reader) (DataSourcePlannerFactory, error) {
+	factory := &WasmDataSourcePlannerFactory{
+		base: base,
+	}
+	return factory, json.NewDecoder(configReader).Decode(&factory.config)
+}
+
+type WasmDataSourcePlannerFactory struct {
+	base   BaseDataSourcePlanner
+	config WasmDataSourceConfig
+}
+
+func (w WasmDataSourcePlannerFactory) DataSourcePlanner() DataSourcePlanner {
 	return &WasmDataSourcePlanner{
-		BaseDataSourcePlanner: baseDataSourcePlanner,
+		BaseDataSourcePlanner: w.base,
+		dataSourceConfig:      w.config,
 	}
 }
 
 type WasmDataSourcePlanner struct {
 	BaseDataSourcePlanner
 	dataSourceConfig WasmDataSourceConfig
-}
-
-func (w *WasmDataSourcePlanner) DataSourceName() string {
-	return "WasmDataSource"
-}
-
-func (w *WasmDataSourcePlanner) Initialize(config DataSourcePlannerConfiguration) (err error) {
-	w.walker, w.operation, w.definition = config.walker, config.operation, config.definition
-	return json.NewDecoder(config.dataSourceConfiguration).Decode(&w.dataSourceConfig)
 }
 
 func (w *WasmDataSourcePlanner) EnterInlineFragment(ref int) {
@@ -52,12 +59,12 @@ func (w *WasmDataSourcePlanner) LeaveSelectionSet(ref int) {
 }
 
 func (w *WasmDataSourcePlanner) EnterField(ref int) {
-	w.args = append(w.args,&StaticVariableArgument{
-		Name: literal.WASMFILE,
+	w.args = append(w.args, &StaticVariableArgument{
+		Name:  literal.WASMFILE,
 		Value: []byte(w.dataSourceConfig.WasmFile),
 	})
-	w.args = append(w.args,&StaticVariableArgument{
-		Name: literal.INPUT,
+	w.args = append(w.args, &StaticVariableArgument{
+		Name:  literal.INPUT,
 		Value: []byte(w.dataSourceConfig.Input),
 	})
 	// args
@@ -85,10 +92,10 @@ func (w *WasmDataSourcePlanner) LeaveField(ref int) {
 
 }
 
-func (w *WasmDataSourcePlanner) Plan() (DataSource, []Argument) {
+func (w *WasmDataSourcePlanner) Plan(args []Argument) (DataSource, []Argument) {
 	return &WasmDataSource{
 		log: w.log,
-	}, w.args
+	}, append(w.args, args...)
 }
 
 type WasmDataSource struct {

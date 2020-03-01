@@ -21,12 +21,9 @@ func TestWASMDataSource_Resolve(t *testing.T) {
 
 	input := []byte("{\"id\":\"1\"}")
 
-	planner := NewWasmDataSourcePlanner(BaseDataSourcePlanner{
+	wasmDataSource := &WasmDataSource{
 		log:log.NoopLogger,
-	})
-
-	dataSource, _ := planner.Plan()
-	wasmDataSource := dataSource.(*WasmDataSource)
+	}
 
 	args := ResolvedArgs{
 		ResolvedArgument{
@@ -63,12 +60,9 @@ func BenchmarkWASMDataSource_Resolve(t *testing.B) {
 
 	input := []byte("{\"id\":\"1\"}")
 
-	planner := NewWasmDataSourcePlanner(BaseDataSourcePlanner{
+	wasmDataSource := &WasmDataSource{
 		log:log.NoopLogger,
-	})
-
-	dataSource, _ := planner.Plan()
-	wasmDataSource := dataSource.(*WasmDataSource)
+	}
 
 	args := ResolvedArgs{
 		ResolvedArgument{

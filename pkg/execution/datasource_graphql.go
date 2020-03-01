@@ -35,24 +35,28 @@ type GraphQLDataSourcePlanner struct {
 	dataSourceConfiguration GraphQLDataSourceConfig
 }
 
-func NewGraphQLDataSourcePlanner(baseDataSourcePlanner BaseDataSourcePlanner) *GraphQLDataSourcePlanner {
+type GraphQLDataSourcePlannerFactoryFactory struct{}
+
+func (g GraphQLDataSourcePlannerFactoryFactory) Initialize(base BaseDataSourcePlanner, configReader io.Reader) (DataSourcePlannerFactory, error) {
+	factory := &GraphQLDataSourcePlannerFactory{
+		base: base,
+	}
+	err := json.NewDecoder(configReader).Decode(&factory.config)
+	return factory, err
+}
+
+type GraphQLDataSourcePlannerFactory struct {
+	base   BaseDataSourcePlanner
+	config GraphQLDataSourceConfig
+}
+
+func (g *GraphQLDataSourcePlannerFactory) DataSourcePlanner() DataSourcePlanner {
 	return &GraphQLDataSourcePlanner{
-		BaseDataSourcePlanner: baseDataSourcePlanner,
-		importer:              &astimport.Importer{},
+		BaseDataSourcePlanner:   g.base,
+		importer:                &astimport.Importer{},
+		dataSourceConfiguration: g.config,
+		resolveDocument:         &ast.Document{},
 	}
-}
-
-func (g *GraphQLDataSourcePlanner) DataSourceName() string {
-	return "GraphQLDataSource"
-}
-
-func (g *GraphQLDataSourcePlanner) Initialize(config DataSourcePlannerConfiguration) (err error) {
-	g.walker, g.operation, g.definition = config.walker, config.operation, config.definition
-	g.resolveDocument = &ast.Document{}
-	if config.dataSourceConfiguration == nil {
-		return nil
-	}
-	return json.NewDecoder(config.dataSourceConfiguration).Decode(&g.dataSourceConfiguration)
 }
 
 func (g *GraphQLDataSourcePlanner) EnterInlineFragment(ref int) {
@@ -156,13 +160,6 @@ func (g *GraphQLDataSourcePlanner) EnterField(ref int) {
 		var variableDefinitionsRefs []int
 		if hasVariableDefinitions {
 			variableDefinitionsRefs = g.importer.ImportVariableDefinitions(g.operation.OperationDefinitions[g.walker.Ancestors[0].Ref].VariableDefinitions.Refs, g.operation, g.resolveDocument)
-			for _, i := range variableDefinitionsRefs {
-				name := g.resolveDocument.VariableDefinitionNameBytes(i)
-				g.args = append(g.args, &ContextVariableArgument{
-					Name:         name,
-					VariableName: name,
-				})
-			}
 		}
 		operationDefinition := ast.OperationDefinition{
 			Name:          g.resolveDocument.Input.AppendInputBytes([]byte("o")),
@@ -251,7 +248,15 @@ func (g *GraphQLDataSourcePlanner) LeaveField(ref int) {
 	}
 }
 
-func (g *GraphQLDataSourcePlanner) Plan() (DataSource, []Argument) {
+func (g *GraphQLDataSourcePlanner) Plan(args []Argument) (DataSource, []Argument) {
+	for i := range args {
+		if arg, ok := args[i].(*ContextVariableArgument); ok {
+			if bytes.HasPrefix(arg.Name, literal.DOT_ARGUMENTS_DOT) {
+				arg.Name = bytes.TrimPrefix(arg.Name, literal.DOT_ARGUMENTS_DOT)
+				g.args = append(g.args, arg)
+			}
+		}
+	}
 	return &GraphQLDataSource{
 		log: g.log,
 	}, g.args

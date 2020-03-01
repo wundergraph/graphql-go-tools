@@ -16,30 +16,37 @@ type MQTTDataSourceConfig struct {
 	Topic      string
 }
 
+type MQTTDataSourcePlannerFactoryFactory struct {
+}
+
+func (M MQTTDataSourcePlannerFactoryFactory) Initialize(base BaseDataSourcePlanner, configReader io.Reader) (DataSourcePlannerFactory, error) {
+	factory := &MQTTDataSourcePlannerFactory{
+		base: base,
+	}
+	return factory, json.NewDecoder(configReader).Decode(&factory.config)
+}
+
+type MQTTDataSourcePlannerFactory struct {
+	base   BaseDataSourcePlanner
+	config MQTTDataSourceConfig
+}
+
+func (m MQTTDataSourcePlannerFactory) DataSourcePlanner() DataSourcePlanner {
+	return &MQTTDataSourcePlanner{
+		BaseDataSourcePlanner: m.base,
+		dataSourceConfig:      m.config,
+	}
+}
+
 type MQTTDataSourcePlanner struct {
 	BaseDataSourcePlanner
 	dataSourceConfig MQTTDataSourceConfig
 }
 
-func NewMQTTDataSourcePlanner(baseDataSourcePlanner BaseDataSourcePlanner) *MQTTDataSourcePlanner {
-	return &MQTTDataSourcePlanner{
-		BaseDataSourcePlanner: baseDataSourcePlanner,
-	}
-}
-
-func (n *MQTTDataSourcePlanner) DataSourceName() string {
-	return "MQTTDataSource"
-}
-
-func (n *MQTTDataSourcePlanner) Plan() (DataSource, []Argument) {
+func (n *MQTTDataSourcePlanner) Plan(args []Argument) (DataSource, []Argument) {
 	return &MQTTDataSource{
 		log: n.log,
-	}, n.args
-}
-
-func (n *MQTTDataSourcePlanner) Initialize(config DataSourcePlannerConfiguration) (err error) {
-	n.walker, n.operation, n.definition = config.walker, config.operation, config.definition
-	return json.NewDecoder(config.dataSourceConfiguration).Decode(&n.dataSourceConfig)
+	}, append(n.args, args...)
 }
 
 func (n *MQTTDataSourcePlanner) EnterInlineFragment(ref int) {

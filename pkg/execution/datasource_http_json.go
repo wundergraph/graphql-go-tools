@@ -50,32 +50,38 @@ type HttpJsonDataSourceConfigHeader struct {
 	Value string
 }
 
-func NewHttpJsonDataSourcePlanner(baseDataSourcePlanner BaseDataSourcePlanner) *HttpJsonDataSourcePlanner {
+type HttpJsonDataSourcePlannerFactoryFactory struct {
+}
+
+func (h HttpJsonDataSourcePlannerFactoryFactory) Initialize(base BaseDataSourcePlanner, configReader io.Reader) (DataSourcePlannerFactory, error) {
+	factory := HttpJsonDataSourcePlannerFactory{
+		base: base,
+	}
+	err := json.NewDecoder(configReader).Decode(&factory.config)
+	return factory, err
+}
+
+type HttpJsonDataSourcePlannerFactory struct {
+	base   BaseDataSourcePlanner
+	config HttpJsonDataSourceConfig
+}
+
+func (h HttpJsonDataSourcePlannerFactory) DataSourcePlanner() DataSourcePlanner {
 	return &HttpJsonDataSourcePlanner{
-		BaseDataSourcePlanner: baseDataSourcePlanner,
+		BaseDataSourcePlanner: h.base,
+		dataSourceConfig:      h.config,
 	}
 }
 
 type HttpJsonDataSourcePlanner struct {
 	BaseDataSourcePlanner
-	rootField int
-	config    HttpJsonDataSourceConfig
+	dataSourceConfig HttpJsonDataSourceConfig
 }
 
-func (h *HttpJsonDataSourcePlanner) DataSourceName() string {
-	return "HttpJsonDataSource"
-}
-
-func (h *HttpJsonDataSourcePlanner) Initialize(config DataSourcePlannerConfiguration) (err error) {
-	h.walker, h.operation, h.definition = config.walker, config.operation, config.definition
-	h.rootField = -1
-	return json.NewDecoder(config.dataSourceConfiguration).Decode(&h.config)
-}
-
-func (h *HttpJsonDataSourcePlanner) Plan() (DataSource, []Argument) {
+func (h *HttpJsonDataSourcePlanner) Plan(args []Argument) (DataSource, []Argument) {
 	return &HttpJsonDataSource{
 		log: h.log,
-	}, h.args
+	}, append(h.args, args...)
 }
 
 func (h *HttpJsonDataSourcePlanner) EnterInlineFragment(ref int) {
@@ -95,13 +101,11 @@ func (h *HttpJsonDataSourcePlanner) LeaveSelectionSet(ref int) {
 }
 
 func (h *HttpJsonDataSourcePlanner) EnterField(ref int) {
-	if h.rootField == -1 {
-		h.rootField = ref
-	}
+	h.rootField.setIfNotDefined(ref)
 }
 
 func (h *HttpJsonDataSourcePlanner) LeaveField(ref int) {
-	if h.rootField != ref {
+	if !h.rootField.isDefinedAndEquals(ref) {
 		return
 	}
 	definition, exists := h.walker.FieldDefinition(ref)
@@ -110,13 +114,13 @@ func (h *HttpJsonDataSourcePlanner) LeaveField(ref int) {
 	}
 	h.args = append(h.args, &StaticVariableArgument{
 		Name:  literal.HOST,
-		Value: []byte(h.config.Host),
+		Value: []byte(h.dataSourceConfig.Host),
 	})
 	h.args = append(h.args, &StaticVariableArgument{
 		Name:  literal.URL,
-		Value: []byte(h.config.URL),
+		Value: []byte(h.dataSourceConfig.URL),
 	})
-	if h.config.Method == nil {
+	if h.dataSourceConfig.Method == nil {
 		h.args = append(h.args, &StaticVariableArgument{
 			Name:  literal.METHOD,
 			Value: literal.HTTP_METHOD_GET,
@@ -124,44 +128,24 @@ func (h *HttpJsonDataSourcePlanner) LeaveField(ref int) {
 	} else {
 		h.args = append(h.args, &StaticVariableArgument{
 			Name:  literal.METHOD,
-			Value: []byte(*h.config.Method),
+			Value: []byte(*h.dataSourceConfig.Method),
 		})
 	}
-	if h.config.Body != nil {
+	if h.dataSourceConfig.Body != nil {
 		h.args = append(h.args, &StaticVariableArgument{
 			Name:  literal.BODY,
-			Value: []byte(*h.config.Body),
+			Value: []byte(*h.dataSourceConfig.Body),
 		})
 	}
 
-	// args
-	if h.operation.FieldHasArguments(ref) {
-		args := h.operation.FieldArguments(ref)
-		for _, i := range args {
-			argName := h.operation.ArgumentNameBytes(i)
-			value := h.operation.ArgumentValue(i)
-			if value.Kind != ast.ValueKindVariable {
-				continue
-			}
-			variableName := h.operation.VariableValueNameBytes(value.Ref)
-			name := append([]byte(".arguments."), argName...)
-			arg := &ContextVariableArgument{
-				VariableName: variableName,
-				Name:         make([]byte, len(name)),
-			}
-			copy(arg.Name, name)
-			h.args = append(h.args, arg)
-		}
-	}
-
-	if len(h.config.Headers) != 0 {
+	if len(h.dataSourceConfig.Headers) != 0 {
 		listArg := &ListArgument{
 			Name: literal.HEADERS,
 		}
-		for i := range h.config.Headers {
+		for i := range h.dataSourceConfig.Headers {
 			listArg.Arguments = append(listArg.Arguments, &StaticVariableArgument{
-				Name:  []byte(h.config.Headers[i].Key),
-				Value: []byte(h.config.Headers[i].Value),
+				Name:  []byte(h.dataSourceConfig.Headers[i].Key),
+				Value: []byte(h.dataSourceConfig.Headers[i].Value),
 			})
 		}
 		h.args = append(h.args, listArg)
@@ -178,15 +162,15 @@ func (h *HttpJsonDataSourcePlanner) LeaveField(ref int) {
 	case ast.NodeKindScalarTypeDefinition:
 		return
 	case ast.NodeKindUnionTypeDefinition, ast.NodeKindInterfaceTypeDefinition:
-		if h.config.DefaultTypeName != nil {
-			typeNameValue, err = sjson.SetRawBytes(typeNameValue, "defaultTypeName", []byte("\""+*h.config.DefaultTypeName+"\""))
+		if h.dataSourceConfig.DefaultTypeName != nil {
+			typeNameValue, err = sjson.SetRawBytes(typeNameValue, "defaultTypeName", []byte("\""+*h.dataSourceConfig.DefaultTypeName+"\""))
 			if err != nil {
 				h.log.Error("HttpJsonDataSourcePlanner set defaultTypeName (switch case union/interface)", log.Error(err))
 				return
 			}
 		}
-		for i := range h.config.StatusCodeTypeNameMappings {
-			typeNameValue, err = sjson.SetRawBytes(typeNameValue, strconv.Itoa(h.config.StatusCodeTypeNameMappings[i].StatusCode), []byte("\""+h.config.StatusCodeTypeNameMappings[i].TypeName+"\""))
+		for i := range h.dataSourceConfig.StatusCodeTypeNameMappings {
+			typeNameValue, err = sjson.SetRawBytes(typeNameValue, strconv.Itoa(h.dataSourceConfig.StatusCodeTypeNameMappings[i].StatusCode), []byte("\""+h.dataSourceConfig.StatusCodeTypeNameMappings[i].TypeName+"\""))
 			if err != nil {
 				h.log.Error("HttpJsonDataSourcePlanner set statusCodeTypeMapping", log.Error(err))
 				return

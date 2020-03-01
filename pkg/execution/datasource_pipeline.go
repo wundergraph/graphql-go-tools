@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	log "github.com/jensneuse/abstractlogger"
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/pipeline/pkg/pipe"
 	"io"
@@ -29,30 +28,35 @@ type PipelineDataSourceConfig struct {
 	InputJSON string
 }
 
-func NewPipelineDataSourcePlanner(baseDataSourcePlanner BaseDataSourcePlanner) *PipelineDataSourcePlanner {
+type PipelineDataSourcePlannerFactoryFactory struct {
+}
+
+func (p PipelineDataSourcePlannerFactoryFactory) Initialize(base BaseDataSourcePlanner, configReader io.Reader) (DataSourcePlannerFactory, error) {
+	factory := &PipelineDataSourcePlannerFactory{
+		base: base,
+	}
+	return factory, json.NewDecoder(configReader).Decode(&factory.config)
+}
+
+type PipelineDataSourcePlannerFactory struct {
+	base   BaseDataSourcePlanner
+	config PipelineDataSourceConfig
+}
+
+func (p PipelineDataSourcePlannerFactory) DataSourcePlanner() DataSourcePlanner {
 	return &PipelineDataSourcePlanner{
-		BaseDataSourcePlanner: baseDataSourcePlanner,
+		BaseDataSourcePlanner: p.base,
+		dataSourceConfig:      p.config,
 	}
 }
 
 type PipelineDataSourcePlanner struct {
 	BaseDataSourcePlanner
 	dataSourceConfig  PipelineDataSourceConfig
-	rootField         int
 	rawPipelineConfig []byte
 }
 
-func (h *PipelineDataSourcePlanner) DataSourceName() string {
-	return "PipelineDataSource"
-}
-
-func (h *PipelineDataSourcePlanner) Initialize(config DataSourcePlannerConfiguration) (err error) {
-	h.walker, h.operation, h.definition = config.walker, config.operation, config.definition
-	h.rootField = -1
-	return json.NewDecoder(config.dataSourceConfiguration).Decode(&h.dataSourceConfig)
-}
-
-func (h *PipelineDataSourcePlanner) Plan() (DataSource, []Argument) {
+func (h *PipelineDataSourcePlanner) Plan(args []Argument) (DataSource, []Argument) {
 
 	source := PipelineDataSource{
 		log: h.log,
@@ -63,7 +67,7 @@ func (h *PipelineDataSourcePlanner) Plan() (DataSource, []Argument) {
 		h.log.Error("PipelineDataSourcePlanner.pipe.FromConfig", log.Error(err))
 	}
 
-	return &source, h.args
+	return &source, append(h.args,args...)
 }
 
 func (h *PipelineDataSourcePlanner) EnterInlineFragment(ref int) {
@@ -83,13 +87,11 @@ func (h *PipelineDataSourcePlanner) LeaveSelectionSet(ref int) {
 }
 
 func (h *PipelineDataSourcePlanner) EnterField(ref int) {
-	if h.rootField == -1 {
-		h.rootField = ref
-	}
+	h.rootField.setIfNotDefined(ref)
 }
 
 func (h *PipelineDataSourcePlanner) LeaveField(ref int) {
-	if h.rootField != ref {
+	if !h.rootField.isDefinedAndEquals(ref) {
 		return
 	}
 
@@ -108,26 +110,6 @@ func (h *PipelineDataSourcePlanner) LeaveField(ref int) {
 		Name:  literal.INPUT_JSON,
 		Value: []byte(h.dataSourceConfig.InputJSON),
 	})
-
-	// args
-	if h.operation.FieldHasArguments(ref) {
-		args := h.operation.FieldArguments(ref)
-		for _, i := range args {
-			argName := h.operation.ArgumentNameBytes(i)
-			value := h.operation.ArgumentValue(i)
-			if value.Kind != ast.ValueKindVariable {
-				continue
-			}
-			variableName := h.operation.VariableValueNameBytes(value.Ref)
-			name := append([]byte(".arguments."), argName...)
-			arg := &ContextVariableArgument{
-				VariableName: variableName,
-				Name:         make([]byte, len(name)),
-			}
-			copy(arg.Name, name)
-			h.args = append(h.args, arg)
-		}
-	}
 }
 
 type PipelineDataSource struct {
