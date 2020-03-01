@@ -1,0 +1,60 @@
+union SearchResult = Human | Droid | Starship
+
+schema {
+    query: Query
+    mutation: Mutation
+    subscription: Subscription
+}
+
+type Query {
+    hero: Character
+    droid(id: ID!): Droid
+    search(name: String!): SearchResult
+}
+
+type Mutation {
+    createReview(episode: Episode!, review: ReviewInput!): Review
+}
+
+type Subscription {
+    remainingJedis: Int!
+}
+
+input ReviewInput {
+    stars: Int!
+    commentary: String
+}
+
+type Review {
+    id: ID!
+    stars: Int!
+    commentary: String
+}
+
+enum Episode {
+    NEWHOPE
+    EMPIRE
+    JEDI
+}
+
+interface Character {
+    name: String!
+    friends: [Character]
+}
+
+type Human implements Character {
+    name: String!
+    height: String!
+    friends: [Character]
+}
+
+type Droid implements Character {
+    name: String!
+    primaryFunction: String!
+    friends: [Character]
+}
+
+type Startship {
+    name: String!
+    length: Float!
+}

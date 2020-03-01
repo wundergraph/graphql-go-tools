@@ -8,6 +8,12 @@ import (
 	"net/http"
 )
 
+const (
+	httpHeaderContentType string = "Content-Type"
+
+	httpContentTypeApplicationJson string = "application/json"
+)
+
 func (g *GraphQLHTTPRequestHandler) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	data, err := ioutil.ReadAll(r.Body)
 	if err != nil {
@@ -46,7 +52,8 @@ func (g *GraphQLHTTPRequestHandler) handleHTTP(w http.ResponseWriter, r *http.Re
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	w.WriteHeader(http.StatusOK)
+
 	w.Header().Add("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
 	_, _ = buf.WriteTo(w)
 }
