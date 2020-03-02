@@ -571,7 +571,7 @@ func TestExecution(t *testing.T) {
 
 	out := bytes.Buffer{}
 	ex := NewExecutor(nil)
-	_, err := ex.Execute(exampleContext, object, &out)
+	err := ex.Execute(exampleContext, object, &out)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -629,7 +629,7 @@ func BenchmarkExecution(b *testing.B) {
 
 			for i := 0; i < b.N; i++ {
 				out.Reset()
-				_, err := ex.Execute(exampleContext, object, &out)
+				err := ex.Execute(exampleContext, object, &out)
 				if err != nil {
 					b.Fatal(err)
 				}
@@ -642,9 +642,8 @@ type FakeDataSource struct {
 	data []byte
 }
 
-func (f FakeDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) Instruction {
-	_, _ = out.Write(f.data)
-	return 0
+func (f FakeDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) (n int, err error) {
+	return out.Write(f.data)
 }
 
 func genField() Field {
@@ -1157,11 +1156,10 @@ func TestStreamExecution(t *testing.T) {
 		},
 	}
 
-	var instructions []Instruction
 	var err error
 	for i := 1; i < 4; i++ {
 		out.Reset()
-		instructions, err = ex.Execute(ctx, streamPlan, &out) // nolint
+		err = ex.Execute(ctx, streamPlan, &out) // nolint
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1182,13 +1180,16 @@ func TestStreamExecution(t *testing.T) {
 	}
 
 	cancel()
-	instructions, err = ex.Execute(ctx, streamPlan, &out)
+	err = ex.Execute(ctx, streamPlan, &out)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if instructions[0] != CloseConnection {
-		t.Fatalf("want CloseConnection, got: %d\n", instructions[0])
+	select {
+	case <-ctx.Done():
+		return
+	default:
+		t.Fatalf("expected context.Context to be cancelled")
 	}
 }
 
@@ -1245,7 +1246,7 @@ func TestExecutor_ListFilterFirstN(t *testing.T) {
 		Context: context.Background(),
 	}
 
-	_, err := ex.Execute(ctx, plan, out)
+	err := ex.Execute(ctx, plan, out)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1399,7 +1400,7 @@ func TestExecutor_ObjectVariables(t *testing.T) {
 		Context: context.Background(),
 	}
 
-	_, err := ex.Execute(ctx, plan, out)
+	err := ex.Execute(ctx, plan, out)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1543,7 +1544,7 @@ func TestExecutor_NestedObjectVariables(t *testing.T) {
 		Context: context.Background(),
 	}
 
-	_, err := ex.Execute(ctx, plan, out)
+	err := ex.Execute(ctx, plan, out)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1611,7 +1612,7 @@ func TestExecutor_ListWithPath(t *testing.T) {
 		Context: context.Background(),
 	}
 
-	_, err := ex.Execute(ctx, plan, out)
+	err := ex.Execute(ctx, plan, out)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1714,7 +1715,7 @@ func TestExecutor_GraphqlDataSourceWithParams(t *testing.T) {
 		},
 	}
 
-	_, err := ex.Execute(ctx, plan, out)
+	err := ex.Execute(ctx, plan, out)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1768,7 +1769,7 @@ func TestExecutor_ObjectWithPath(t *testing.T) {
 		Context: context.Background(),
 	}
 
-	_, err := ex.Execute(ctx, plan, out)
+	err := ex.Execute(ctx, plan, out)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2118,7 +2119,7 @@ func TestExecutor_HTTPJSONDataSourceWithBody(t *testing.T) {
 		},
 	}
 
-	_, err = ex.Execute(ctx, plan, out)
+	err = ex.Execute(ctx, plan, out)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2398,14 +2399,14 @@ func TestExecutor_Execute_WithUnions(t *testing.T) {
 			ctx := Context{
 				Context: context.Background(),
 			}
-			_, err := ex.Execute(ctx, planner(apiResponse, true), out)
+			err := ex.Execute(ctx, planner(apiResponse, true), out)
 			if err != nil {
 				panic(err)
 			}
 
 			successFirst := out.String()
 			out.Reset()
-			_, err = ex.Execute(ctx, planner(apiResponse, false), out)
+			err = ex.Execute(ctx, planner(apiResponse, false), out)
 			if err != nil {
 				panic(err)
 			}
@@ -2537,7 +2538,7 @@ func TestExecutor_HTTPJSONDataSourceWithBodyComplexPlayload(t *testing.T) {
 		},
 	}
 
-	_, err = ex.Execute(ctx, plan, out)
+	err = ex.Execute(ctx, plan, out)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2641,7 +2642,7 @@ func TestExecutor_HTTPJSONDataSourceWithHeaders(t *testing.T) {
 		Context: context.Background(),
 	}
 
-	_, err := ex.Execute(ctx, plan, out)
+	err := ex.Execute(ctx, plan, out)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2747,7 +2748,7 @@ func TestExecutor_HTTPJSONDataSourceWithPathSelector(t *testing.T) {
 		Context: context.Background(),
 	}
 
-	_, err := ex.Execute(ctx, plan, out)
+	err := ex.Execute(ctx, plan, out)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2843,7 +2844,7 @@ func TestExecutor_Introspection(t *testing.T) {
 	}
 
 	out := bytes.Buffer{}
-	_, err = executor.Execute(ctx, introspectionQuery(introspectionData), &out)
+	err = executor.Execute(ctx, introspectionQuery(introspectionData), &out)
 	if err != nil {
 		t.Fatal(err)
 	}

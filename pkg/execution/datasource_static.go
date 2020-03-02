@@ -39,14 +39,13 @@ type StaticDataSourcePlanner struct {
 func (s *StaticDataSourcePlanner) Plan(args []Argument) (DataSource, []Argument) {
 	return &StaticDataSource{
 		data: []byte(s.dataSourceConfig.Data),
-	}, append(s.args,args...)
+	}, append(s.args, args...)
 }
 
 type StaticDataSource struct {
 	data []byte
 }
 
-func (s StaticDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) Instruction {
-	_, _ = out.Write(s.data)
-	return CloseConnectionIfNotStream
+func (s StaticDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) (n int, err error) {
+	return out.Write(s.data)
 }

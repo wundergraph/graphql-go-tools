@@ -61,7 +61,7 @@ func TestExecution_With_Transformation(t *testing.T) {
 		Context: context.Background(),
 	}
 
-	_, err := ex.Execute(ctx, plan, out)
+	err := ex.Execute(ctx, plan, out)
 	if err != nil {
 		t.Fatal(err)
 	}

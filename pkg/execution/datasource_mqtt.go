@@ -94,15 +94,17 @@ type MQTTDataSource struct {
 	client mqtt.Client
 }
 
-func (m *MQTTDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) (ins Instruction) {
+func (m *MQTTDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) (n int, err error) {
 
 	defer func() {
-		if ins != CloseConnection {
+		select {
+		case <-ctx.Done():
+			m.log.Debug("MQTTDataSource.Resolve.client.Disconnect")
+			m.client.Disconnect(250)
+			m.log.Debug("MQTTDataSource.Resolve.client.Disconnect.disconnected")
+		default:
 			return
 		}
-		m.log.Debug("MQTTDataSource.Resolve.client.Disconnect")
-		m.client.Disconnect(250)
-		m.log.Debug("MQTTDataSource.Resolve.client.Disconnect.disconnected")
 	}()
 
 	m.once.Do(func() {
@@ -123,16 +125,12 @@ func (m *MQTTDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) 
 
 	select {
 	case <-ctx.Done():
-		return CloseConnection
+		return
 	case msg, ok := <-m.ch:
 		if !ok {
-			return CloseConnection
+			return
 		}
-		_, err := out.Write(msg.Payload())
-		if err != nil {
-			return CloseConnection
-		}
-		return KeepStreamAlive
+		return out.Write(msg.Payload())
 	}
 }
 

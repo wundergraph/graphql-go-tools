@@ -10,8 +10,6 @@ import (
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
 	log "github.com/jensneuse/abstractlogger"
-
-	"github.com/jensneuse/graphql-go-tools/pkg/execution"
 )
 
 const (
@@ -126,7 +124,7 @@ func (g *GraphQLHTTPRequestHandler) startSubscription(r *http.Request, ctx conte
 		case <-ctx.Done():
 			return
 		default:
-			instructions, err := executor.Execute(executionContext, node, buf)
+			err := executor.Execute(executionContext, node, buf)
 			if err != nil {
 				g.log.Error("GraphQLHTTPRequestHandler.startSubscription.executor.Execute",
 					log.Error(err),
@@ -159,19 +157,6 @@ func (g *GraphQLHTTPRequestHandler) startSubscription(r *http.Request, ctx conte
 					log.ByteString("data", data),
 				)
 				return
-			}
-
-			for i := 0; i < len(instructions); i++ {
-				switch instructions[i] {
-				case execution.CloseConnection:
-					err = g.sendCloseMessage(id, conn, op)
-					if err != nil {
-						g.log.Error("GraphQLHTTPRequestHandler.startSubscription.sendCloseMessage",
-							log.Error(err),
-						)
-					}
-					return
-				}
 			}
 		}
 	}

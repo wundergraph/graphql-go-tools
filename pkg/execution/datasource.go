@@ -10,7 +10,7 @@ import (
 )
 
 type DataSource interface {
-	Resolve(ctx Context, args ResolvedArgs, out io.Writer) Instruction
+	Resolve(ctx Context, args ResolvedArgs, out io.Writer) (n int, err error)
 }
 
 type DataSourcePlanner interface {

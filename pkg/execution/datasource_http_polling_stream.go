@@ -105,7 +105,7 @@ type HttpPollingStreamDataSource struct {
 	lastData []byte
 }
 
-func (h *HttpPollingStreamDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) Instruction {
+func (h *HttpPollingStreamDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) (n int, err error) {
 	h.once.Do(func() {
 		h.ch = make(chan []byte)
 		h.request = h.generateRequest(args)
@@ -119,7 +119,7 @@ func (h *HttpPollingStreamDataSource) Resolve(ctx Context, args ResolvedArgs, ou
 		go h.startPolling(ctx)
 	})
 	if h.closed {
-		return CloseConnection
+		return
 	}
 	select {
 	case data := <-h.ch:
@@ -134,9 +134,9 @@ func (h *HttpPollingStreamDataSource) Resolve(ctx Context, args ResolvedArgs, ou
 		}
 	case <-ctx.Done():
 		h.closed = true
-		return CloseConnection
+		return
 	}
-	return KeepStreamAlive
+	return
 }
 
 func (h *HttpPollingStreamDataSource) startPolling(ctx Context) {

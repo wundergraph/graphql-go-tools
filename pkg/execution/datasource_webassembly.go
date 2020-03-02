@@ -104,7 +104,7 @@ type WasmDataSource struct {
 	once     sync.Once
 }
 
-func (s *WasmDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) Instruction {
+func (s *WasmDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) (n int, err error) {
 
 	input := args.ByKey(literal.INPUT)
 	wasmFile := args.ByKey(literal.WASMFILE)
@@ -139,7 +139,7 @@ func (s *WasmDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) 
 		s.log.Error("WasmDataSource.instance.Exports[\"allocate\"](inputLen)",
 			log.Error(err),
 		)
-		return CloseConnectionIfNotStream
+		return n, err
 	}
 
 	inputPointer := allocateInputResult.ToI32()
@@ -157,7 +157,7 @@ func (s *WasmDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) 
 		s.log.Error("WasmDataSource.instance.Exports[\"invoke\"](inputPointer)",
 			log.Error(err),
 		)
-		return CloseConnectionIfNotStream
+		return n,err
 	}
 
 	start := result.ToI32()
@@ -177,7 +177,7 @@ func (s *WasmDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) 
 		s.log.Error("WasmDataSource.out.Write(memory[start:stop])",
 			log.Error(err),
 		)
-		return CloseConnectionIfNotStream
+		return n,err
 	}
 
 	deallocate := s.instance.Exports["deallocate"]
@@ -186,7 +186,7 @@ func (s *WasmDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) 
 		s.log.Error("WasmDataSource.deallocate(inputPointer, inputLen)",
 			log.Error(err),
 		)
-		return CloseConnectionIfNotStream
+		return n,err
 	}
 
 	_, err = deallocate(start, stop-start)
@@ -194,8 +194,8 @@ func (s *WasmDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) 
 		s.log.Error("WasmDataSource.deallocate(start, stop-start)",
 			log.Error(err),
 		)
-		return CloseConnectionIfNotStream
+		return n,err
 	}
 
-	return CloseConnectionIfNotStream
+	return n,err
 }

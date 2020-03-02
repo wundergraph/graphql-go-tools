@@ -117,14 +117,14 @@ type PipelineDataSource struct {
 	pipeline pipe.Pipeline
 }
 
-func (r *PipelineDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) Instruction {
+func (r *PipelineDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) (n int,err error) {
 
 	inputJSON := args.ByKey(literal.INPUT_JSON)
 
-	err := r.pipeline.Run(bytes.NewReader(inputJSON), out)
+	err = r.pipeline.Run(bytes.NewReader(inputJSON), out)
 	if err != nil {
 		r.log.Error("PipelineDataSource.pipe.Run", log.Error(err))
 	}
 
-	return CloseConnectionIfNotStream
+	return
 }

@@ -24,7 +24,6 @@ type Executor struct {
 	out                io.Writer
 	err                error
 	buffers            LockableBufferMap
-	instructions       []Instruction
 	escapeBuf          [48]byte
 	templateDirectives []byte_template.DirectiveDefinition
 }
@@ -43,19 +42,10 @@ func NewExecutor(templateDirectives []byte_template.DirectiveDefinition) *Execut
 	}
 }
 
-type Instruction int
-
-const (
-	KeepStreamAlive Instruction = iota + 1
-	CloseConnection
-	CloseConnectionIfNotStream
-)
-
-func (e *Executor) Execute(ctx Context, node RootNode, w io.Writer) (instruction []Instruction, err error) {
+func (e *Executor) Execute(ctx Context, node RootNode, w io.Writer) error {
 	e.context = ctx
 	e.out = w
 	e.err = nil
-	e.instructions = e.instructions[:0]
 	var path string
 	switch node.OperationType() {
 	case ast.OperationTypeQuery:
@@ -66,7 +56,7 @@ func (e *Executor) Execute(ctx Context, node RootNode, w io.Writer) (instruction
 		path = "subscription"
 	}
 	e.resolveNode(node, nil, path, nil, true)
-	return e.instructions, e.err
+	return e.err
 }
 
 // write writes the data to the out io.Writer if there is no error previously captured
@@ -96,7 +86,7 @@ func (e *Executor) resolveNode(node Node, data []byte, path string, prefetch *sy
 			}
 		}
 		if shouldFetch && node.Fetch != nil { // execute the fetch on the object
-			e.instructions = append(e.instructions, node.Fetch.Fetch(e.context, data, e, path, &e.buffers))
+			node.Fetch.Fetch(e.context, data, e, path, &e.buffers)
 			if prefetch != nil { // in case this was a prefetch we can immediately return
 				prefetch.Done()
 				return
@@ -451,7 +441,7 @@ type ArgsResolver interface {
 }
 
 type Fetch interface {
-	Fetch(ctx Context, data []byte, argsResolver ArgsResolver, suffix string, buffers *LockableBufferMap) Instruction
+	Fetch(ctx Context, data []byte, argsResolver ArgsResolver, suffix string, buffers *LockableBufferMap) (n int, err error)
 }
 
 type SingleFetch struct {
@@ -459,7 +449,7 @@ type SingleFetch struct {
 	BufferName string
 }
 
-func (s *SingleFetch) Fetch(ctx Context, data []byte, argsResolver ArgsResolver, path string, buffers *LockableBufferMap) Instruction {
+func (s *SingleFetch) Fetch(ctx Context, data []byte, argsResolver ArgsResolver, path string, buffers *LockableBufferMap) (int, error) {
 	bufferName := path + "." + s.BufferName
 	hash := xxhash.Sum64String(bufferName)
 	buffers.Lock()
@@ -480,11 +470,15 @@ type SerialFetch struct {
 	Fetches []Fetch
 }
 
-func (s *SerialFetch) Fetch(ctx Context, data []byte, argsResolver ArgsResolver, suffix string, buffers *LockableBufferMap) Instruction {
+func (s *SerialFetch) Fetch(ctx Context, data []byte, argsResolver ArgsResolver, suffix string, buffers *LockableBufferMap) (n int, err error) {
 	for i := 0; i < len(s.Fetches); i++ {
-		s.Fetches[i].Fetch(ctx, data, argsResolver, suffix, buffers)
+		nextN, nextErr := s.Fetches[i].Fetch(ctx, data, argsResolver, suffix, buffers)
+		if nextErr != nil {
+			return n, nextErr
+		}
+		n = n + nextN
 	}
-	return CloseConnection
+	return
 }
 
 type ParallelFetch struct {
@@ -492,16 +486,16 @@ type ParallelFetch struct {
 	Fetches []Fetch
 }
 
-func (p *ParallelFetch) Fetch(ctx Context, data []byte, argsResolver ArgsResolver, suffix string, buffers *LockableBufferMap) Instruction {
+func (p *ParallelFetch) Fetch(ctx Context, data []byte, argsResolver ArgsResolver, suffix string, buffers *LockableBufferMap) (n int, err error) {
 	for i := 0; i < len(p.Fetches); i++ {
 		p.wg.Add(1)
 		go func(fetch Fetch, ctx Context, data []byte, argsResolver ArgsResolver) {
-			fetch.Fetch(ctx, data, argsResolver, suffix, buffers)
+			fetch.Fetch(ctx, data, argsResolver, suffix, buffers) // TODO: handle results
 			p.wg.Done()
 		}(p.Fetches[i], ctx, data, argsResolver)
 	}
 	p.wg.Wait()
-	return CloseConnection
+	return
 }
 
 func (o *Object) HasResolversRecursively() bool {

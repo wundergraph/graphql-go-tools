@@ -52,14 +52,13 @@ type SchemaDataSourcePlanner struct {
 func (s *SchemaDataSourcePlanner) Plan(args []Argument) (DataSource, []Argument) {
 	return &SchemaDataSource{
 		schemaBytes: s.schemaBytes,
-	}, append(s.args,args...)
+	}, append(s.args, args...)
 }
 
 type SchemaDataSource struct {
 	schemaBytes []byte
 }
 
-func (s *SchemaDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) Instruction {
-	_, _ = out.Write(s.schemaBytes)
-	return CloseConnectionIfNotStream
+func (s *SchemaDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) (n int, err error) {
+	return out.Write(s.schemaBytes)
 }

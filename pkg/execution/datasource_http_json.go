@@ -193,7 +193,7 @@ type HttpJsonDataSource struct {
 	log log.Logger
 }
 
-func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) Instruction {
+func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) (n int, err error) {
 
 	hostArg := args.ByKey(literal.HOST)
 	urlArg := args.ByKey(literal.URL)
@@ -209,13 +209,13 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 	switch {
 	case hostArg == nil:
 		r.log.Error(fmt.Sprintf("arg '%s' must not be nil", string(literal.HOST)))
-		return CloseConnectionIfNotStream
+		return
 	case urlArg == nil:
 		r.log.Error(fmt.Sprintf("arg '%s' must not be nil", string(literal.URL)))
-		return CloseConnectionIfNotStream
+		return
 	case methodArg == nil:
 		r.log.Error(fmt.Sprintf("arg '%s' must not be nil", string(literal.METHOD)))
-		return CloseConnectionIfNotStream
+		return
 	}
 
 	httpMethod := http.MethodGet
@@ -271,7 +271,7 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 		r.log.Error("HttpJsonDataSource.Resolve.NewRequest",
 			log.Error(err),
 		)
-		return CloseConnectionIfNotStream
+		return
 	}
 
 	request.Header = header
@@ -281,7 +281,7 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 		r.log.Error("HttpJsonDataSource.Resolve.client.Do",
 			log.Error(err),
 		)
-		return CloseConnectionIfNotStream
+		return
 	}
 
 	data, err := ioutil.ReadAll(res.Body)
@@ -289,7 +289,7 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 		r.log.Error("HttpJsonDataSource.Resolve.ioutil.ReadAll",
 			log.Error(err),
 		)
-		return CloseConnectionIfNotStream
+		return
 	}
 
 	statusCode := strconv.Itoa(res.StatusCode)
@@ -300,7 +300,7 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 			r.log.Error("HttpJsonDataSource.Resolve.setStatusCodeTypeName",
 				log.Error(err),
 			)
-			return CloseConnectionIfNotStream
+			return
 		}
 	} else {
 		defaultTypeName := gjson.GetBytes(typeNameArg, "defaultTypeName")
@@ -310,17 +310,10 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 				r.log.Error("HttpJsonDataSource.Resolve.setDefaultTypeName",
 					log.Error(err),
 				)
-				return CloseConnectionIfNotStream
+				return
 			}
 		}
 	}
 
-	_, err = out.Write(data)
-	if err != nil {
-		r.log.Error("HttpJsonDataSource.Resolve.out.Write",
-			log.Error(err),
-		)
-		return CloseConnectionIfNotStream
-	}
-	return CloseConnectionIfNotStream
+	return out.Write(data)
 }

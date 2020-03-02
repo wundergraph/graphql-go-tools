@@ -266,7 +266,7 @@ type GraphQLDataSource struct {
 	log log.Logger
 }
 
-func (g *GraphQLDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) Instruction {
+func (g *GraphQLDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) (n int, err error) {
 
 	hostArg := args.ByKey(literal.HOST)
 	urlArg := args.ByKey(literal.URL)
@@ -278,7 +278,7 @@ func (g *GraphQLDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Write
 
 	if hostArg == nil || urlArg == nil || queryArg == nil {
 		g.log.Error("GraphQLDataSource.args invalid")
-		return CloseConnectionIfNotStream
+		return
 	}
 
 	url := string(hostArg) + string(urlArg)
@@ -303,7 +303,7 @@ func (g *GraphQLDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Write
 		g.log.Error("GraphQLDataSource.json.Marshal(variables)",
 			log.Error(err),
 		)
-		return CloseConnectionIfNotStream
+		return n, err
 	}
 
 	gqlRequest := GraphqlRequest{
@@ -317,7 +317,7 @@ func (g *GraphQLDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Write
 		g.log.Error("GraphQLDataSource.json.MarshalIndent",
 			log.Error(err),
 		)
-		return CloseConnectionIfNotStream
+		return n, err
 	}
 
 	g.log.Debug("GraphQLDataSource.request",
@@ -338,7 +338,7 @@ func (g *GraphQLDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Write
 		g.log.Error("GraphQLDataSource.http.NewRequest",
 			log.Error(err),
 		)
-		return CloseConnectionIfNotStream
+		return n, err
 	}
 
 	request.Header.Add("Content-Type", "application/json")
@@ -349,14 +349,14 @@ func (g *GraphQLDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Write
 		g.log.Error("GraphQLDataSource.client.Do",
 			log.Error(err),
 		)
-		return CloseConnectionIfNotStream
+		return n, err
 	}
 	data, err := ioutil.ReadAll(res.Body)
 	if err != nil {
 		g.log.Error("GraphQLDataSource.ioutil.ReadAll",
 			log.Error(err),
 		)
-		return CloseConnectionIfNotStream
+		return n, err
 	}
 
 	data = bytes.ReplaceAll(data, literal.BACKSLASH, nil)
@@ -365,14 +365,7 @@ func (g *GraphQLDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Write
 		g.log.Error("GraphQLDataSource.jsonparser.Get",
 			log.Error(err),
 		)
-		return CloseConnectionIfNotStream
+		return n, err
 	}
-	_, err = out.Write(data)
-	if err != nil {
-		g.log.Error("GraphQLDataSource.out.Write",
-			log.Error(err),
-		)
-		return CloseConnectionIfNotStream
-	}
-	return CloseConnectionIfNotStream
+	return out.Write(data)
 }
