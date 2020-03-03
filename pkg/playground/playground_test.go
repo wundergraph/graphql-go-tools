@@ -8,11 +8,30 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/jensneuse/diffview"
 	"github.com/sebdah/goldie"
+	"github.com/stretchr/testify/assert"
 )
+
+func TestNew(t *testing.T) {
+	t.Run("should prefix asset paths with slash (/) even when prefix path is empty", func(t *testing.T) {
+		config := Config{
+			PathPrefix:                      "",
+			PlaygroundPath:                  "/playground",
+			GraphqlEndpointPath:             "/graphql",
+			GraphQLSubscriptionEndpointPath: "/graphqlws",
+		}
+
+		playground := New(config)
+
+		assert.Equal(t, playground.data.CssURL, "/playground.css")
+		assert.Equal(t, playground.data.JsURL, "/playground.js")
+		assert.Equal(t, playground.data.FavIconURL, "/favicon.png")
+		assert.Equal(t, playground.data.LogoURL, "/logo.png")
+	})
+}
 
 func TestConfigureHandlers(t *testing.T) {
 	config := Config{
-		PathPrefix:                      "",
+		PathPrefix:                      "/",
 		PlaygroundPath:                  "/playground",
 		GraphqlEndpointPath:             "/graphql",
 		GraphQLSubscriptionEndpointPath: "/graphqlws",

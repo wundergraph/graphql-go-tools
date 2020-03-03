@@ -2,42 +2,62 @@ package astimport
 
 import (
 	"bytes"
-	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
+	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 	"testing"
 )
 
 func TestImporter_ImportType(t *testing.T) {
 
-	for _,typeDef := range []string{
+	for _, typeDef := range []string{
 		"ID!",
 		"[String]!",
 		"[String!]!",
 		"FooType",
-	}{
+	} {
 		typeBytes := []byte(typeDef)
-		doc := ast.Document{}
-		importer := NewImporter()
+		from := &ast.Document{}
+		from.Input.AppendInputBytes(typeBytes)
+		report := &operationreport.Report{}
+		parser := astparser.NewParser()
+		parser.PrepareImport(from, report)
+		ref := parser.ParseType()
 
-		ref := importer.ImportType(typeBytes,&doc)
+		if report.HasErrors() {
+			t.Fatal(report)
+		}
 
-		out,err := doc.PrintTypeBytes(ref,nil)
+		out, err := from.PrintTypeBytes(ref, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		if !bytes.Equal(out,typeBytes) {
-			t.Fatalf("want: {{%s}}\ngot: {{%s}}'",string(typeBytes),string(out))
+		if !bytes.Equal(out, typeBytes) {
+			t.Fatalf("want: {{%s}}\ngot: {{%s}}'", string(typeBytes), string(out))
+		}
+
+		to := &ast.Document{}
+		importer := &Importer{}
+
+		ref = importer.ImportType(ref, from, to)
+		out, err = to.PrintTypeBytes(ref, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if !bytes.Equal(out, typeBytes) {
+			t.Fatalf("want: {{%s}}\ngot: {{%s}}'", string(typeBytes), string(out))
 		}
 	}
 }
 
-func ExampleImporter_ImportType() {
+/*func ExampleImporter_ImportType() {
 	typeBytes := []byte("String!")
 	doc := ast.Document{}
 	importer := NewImporter()
 
-	ref := importer.ImportType(typeBytes,&doc)
+	ref := importer.ImportTypeBytes(typeBytes,&doc)
 	// reference to the type
 	fmt.Println(ref)
 	// reference to the nested type
@@ -48,4 +68,4 @@ func ExampleImporter_ImportType() {
 	// 1
 	// 0
 	// String
-}
+}*/

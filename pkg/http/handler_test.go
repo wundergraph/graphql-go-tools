@@ -115,7 +115,7 @@ func TestGraphQLHTTPRequestHandler_ServeHTTP(t *testing.T) {
 			require.NoError(t, err)
 		}()
 
-		ctx, _ := context.WithCancel(context.Background())
+		ctx, cancelFunc := context.WithCancel(context.Background())
 
 		t.Run("should upgrade to websocket and establish connection successfully", func(t *testing.T) {
 			var err error
@@ -144,6 +144,8 @@ func TestGraphQLHTTPRequestHandler_ServeHTTP(t *testing.T) {
 			serverMessage := readMessageFromServer(t, clientConn)
 			assert.Equal(t, `{"id":"1","type":"data","payload":{"data":null}}`, string(serverMessage))
 		})
+
+		cancelFunc()
 	})
 
 }

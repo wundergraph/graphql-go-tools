@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/pipeline/pkg/pipe"
 	"github.com/jensneuse/pipeline/pkg/step"
 	"testing"
@@ -88,128 +87,127 @@ func TestExecution_With_Transformation(t *testing.T) {
 }
 
 func TestPlanner_WithTransformation(t *testing.T) {
-	t.Run("pipeline transformation string config", run(withBaseSchema(transformationSchema), `
+	t.Run("pipeline transformation string dataSourceConfig", run(withBaseSchema(transformationSchema), `
 		query TransformationQuery {
 			foo
 		}
-	`, ResolverDefinitions{
-		{
-			TypeName:  literal.QUERY,
-			FieldName: []byte("foo"),
-			DataSourcePlannerFactory: func() DataSourcePlanner {
-				return &StaticDataSourcePlanner{}
-			},
-		},
-	}, PlannerConfiguration{
-		TypeFieldConfigurations: []TypeFieldConfiguration{
-			{
-				TypeName: "Query",
-				FieldName: "foo",
-				Mapping:MappingConfiguration{
-					Disabled:true,
+	`, func(base *BaseDataSourcePlanner) {
+		base.config = PlannerConfiguration{
+			TypeFieldConfigurations: []TypeFieldConfiguration{
+				{
+					TypeName:  "query",
+					FieldName: "foo",
+					Mapping: &MappingConfiguration{
+						Disabled: true,
+					},
+					DataSource: DataSourceConfig{
+						Name: "StaticDataSource",
+						Config: toJSON(StaticDataSourceConfig{
+							Data: "{\"bar\":\"baz\"}",
+						}),
+					},
 				},
 			},
-		},
-	}, &Object{
-		operationType: ast.OperationTypeQuery,
-		Fields: []Field{
-			{
-				Name: []byte("data"),
-				Value: &Object{
-					Fetch: &SingleFetch{
-						Source: &DataSourceInvocation{
-							Args: []Argument{
-								&StaticVariableArgument{
-									Value: []byte("{\"bar\":\"baz\"}"),
+		}
+		panicOnErr(base.RegisterDataSourcePlannerFactory("StaticDataSource", StaticDataSourcePlannerFactoryFactory{}))
+	},
+		&Object{
+			operationType: ast.OperationTypeQuery,
+			Fields: []Field{
+				{
+					Name: []byte("data"),
+					Value: &Object{
+						Fetch: &SingleFetch{
+							Source: &DataSourceInvocation{
+								DataSource: &StaticDataSource{
+									data: []byte("{\"bar\":\"baz\"}"),
 								},
 							},
-							DataSource: &StaticDataSource{},
+							BufferName: "foo",
 						},
-						BufferName: "foo",
-					},
-					Fields: []Field{
-						{
-							Name:            []byte("foo"),
-							HasResolvedData: true,
-							Value: &Value{
-								DataResolvingConfig: DataResolvingConfig{
-									Transformation: &PipelineTransformation{
-										pipeline: pipe.Pipeline{
-											Steps: []pipe.Step{
-												step.NoOpStep{},
+						Fields: []Field{
+							{
+								Name:            []byte("foo"),
+								HasResolvedData: true,
+								Value: &Value{
+									DataResolvingConfig: DataResolvingConfig{
+										Transformation: &PipelineTransformation{
+											pipeline: pipe.Pipeline{
+												Steps: []pipe.Step{
+													step.NoOpStep{},
+												},
 											},
 										},
 									},
+									ValueType: StringValueType,
 								},
-								ValueType: StringValueType,
 							},
 						},
 					},
 				},
 			},
-		},
-	}))
-	t.Run("pipeline transformation file config", run(withBaseSchema(transformationSchema), `
+		}))
+	t.Run("pipeline transformation file dataSourceConfig", run(withBaseSchema(transformationSchema), `
 		query TransformationQuery {
 			bar
 		}
-	`, ResolverDefinitions{
-		{
-			TypeName:  literal.QUERY,
-			FieldName: []byte("bar"),
-			DataSourcePlannerFactory: func() DataSourcePlanner {
-				return &StaticDataSourcePlanner{}
-			},
-		},
-	}, PlannerConfiguration{
-		TypeFieldConfigurations: []TypeFieldConfiguration{
-			{
-				TypeName: "Query",
-				FieldName: "bar",
-				Mapping:MappingConfiguration{
-					Disabled:true,
+	`,
+		func(base *BaseDataSourcePlanner) {
+			base.config = PlannerConfiguration{
+				TypeFieldConfigurations: []TypeFieldConfiguration{
+					{
+						TypeName:  "query",
+						FieldName: "bar",
+						Mapping: &MappingConfiguration{
+							Disabled: true,
+						},
+						DataSource: DataSourceConfig{
+							Name: "StaticDataSource",
+							Config: toJSON(StaticDataSourceConfig{
+								Data: "{\"bar\":\"baz\"}",
+							}),
+						},
+					},
 				},
-			},
+			}
+			panicOnErr(base.RegisterDataSourcePlannerFactory("StaticDataSource", StaticDataSourcePlannerFactoryFactory{}))
 		},
-	}, &Object{
-		operationType: ast.OperationTypeQuery,
-		Fields: []Field{
-			{
-				Name: []byte("data"),
-				Value: &Object{
-					Fetch: &SingleFetch{
-						Source: &DataSourceInvocation{
-							Args: []Argument{
-								&StaticVariableArgument{
-									Value: []byte("{\"bar\":\"baz\"}"),
+		&Object{
+			operationType: ast.OperationTypeQuery,
+			Fields: []Field{
+				{
+					Name: []byte("data"),
+					Value: &Object{
+						Fetch: &SingleFetch{
+							Source: &DataSourceInvocation{
+								DataSource: &StaticDataSource{
+									data: []byte("{\"bar\":\"baz\"}"),
 								},
 							},
-							DataSource: &StaticDataSource{},
+							BufferName: "bar",
 						},
-						BufferName: "bar",
-					},
-					Fields: []Field{
-						{
-							Name:            []byte("bar"),
-							HasResolvedData: true,
-							Value: &Value{
-								DataResolvingConfig: DataResolvingConfig{
-									Transformation: &PipelineTransformation{
-										pipeline: pipe.Pipeline{
-											Steps: []pipe.Step{
-												step.NoOpStep{},
+						Fields: []Field{
+							{
+								Name:            []byte("bar"),
+								HasResolvedData: true,
+								Value: &Value{
+									DataResolvingConfig: DataResolvingConfig{
+										Transformation: &PipelineTransformation{
+											pipeline: pipe.Pipeline{
+												Steps: []pipe.Step{
+													step.NoOpStep{},
+												},
 											},
 										},
 									},
+									ValueType: StringValueType,
 								},
-								ValueType: StringValueType,
 							},
 						},
 					},
 				},
 			},
-		},
-	}))
+		}))
 }
 
 const transformationSchema = `
