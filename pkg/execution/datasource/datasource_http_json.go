@@ -1,7 +1,8 @@
-package execution
+package datasource
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/buger/jsonparser"
@@ -53,7 +54,7 @@ type HttpJsonDataSourceConfigHeader struct {
 type HttpJsonDataSourcePlannerFactoryFactory struct {
 }
 
-func (h HttpJsonDataSourcePlannerFactoryFactory) Initialize(base BaseDataSourcePlanner, configReader io.Reader) (DataSourcePlannerFactory, error) {
+func (h HttpJsonDataSourcePlannerFactoryFactory) Initialize(base BasePlanner, configReader io.Reader) (PlannerFactory, error) {
 	factory := HttpJsonDataSourcePlannerFactory{
 		base: base,
 	}
@@ -62,26 +63,26 @@ func (h HttpJsonDataSourcePlannerFactoryFactory) Initialize(base BaseDataSourceP
 }
 
 type HttpJsonDataSourcePlannerFactory struct {
-	base   BaseDataSourcePlanner
+	base   BasePlanner
 	config HttpJsonDataSourceConfig
 }
 
-func (h HttpJsonDataSourcePlannerFactory) DataSourcePlanner() DataSourcePlanner {
+func (h HttpJsonDataSourcePlannerFactory) DataSourcePlanner() Planner {
 	return &HttpJsonDataSourcePlanner{
-		BaseDataSourcePlanner: h.base,
-		dataSourceConfig:      h.config,
+		BasePlanner:      h.base,
+		dataSourceConfig: h.config,
 	}
 }
 
 type HttpJsonDataSourcePlanner struct {
-	BaseDataSourcePlanner
+	BasePlanner
 	dataSourceConfig HttpJsonDataSourceConfig
 }
 
 func (h *HttpJsonDataSourcePlanner) Plan(args []Argument) (DataSource, []Argument) {
 	return &HttpJsonDataSource{
-		log: h.log,
-	}, append(h.args, args...)
+		Log: h.Log,
+	}, append(h.Args, args...)
 }
 
 func (h *HttpJsonDataSourcePlanner) EnterInlineFragment(ref int) {
@@ -101,38 +102,38 @@ func (h *HttpJsonDataSourcePlanner) LeaveSelectionSet(ref int) {
 }
 
 func (h *HttpJsonDataSourcePlanner) EnterField(ref int) {
-	h.rootField.setIfNotDefined(ref)
+	h.RootField.setIfNotDefined(ref)
 }
 
 func (h *HttpJsonDataSourcePlanner) LeaveField(ref int) {
-	if !h.rootField.isDefinedAndEquals(ref) {
+	if !h.RootField.isDefinedAndEquals(ref) {
 		return
 	}
-	definition, exists := h.walker.FieldDefinition(ref)
+	definition, exists := h.Walker.FieldDefinition(ref)
 	if !exists {
 		return
 	}
-	h.args = append(h.args, &StaticVariableArgument{
+	h.Args = append(h.Args, &StaticVariableArgument{
 		Name:  literal.HOST,
 		Value: []byte(h.dataSourceConfig.Host),
 	})
-	h.args = append(h.args, &StaticVariableArgument{
+	h.Args = append(h.Args, &StaticVariableArgument{
 		Name:  literal.URL,
 		Value: []byte(h.dataSourceConfig.URL),
 	})
 	if h.dataSourceConfig.Method == nil {
-		h.args = append(h.args, &StaticVariableArgument{
+		h.Args = append(h.Args, &StaticVariableArgument{
 			Name:  literal.METHOD,
 			Value: literal.HTTP_METHOD_GET,
 		})
 	} else {
-		h.args = append(h.args, &StaticVariableArgument{
+		h.Args = append(h.Args, &StaticVariableArgument{
 			Name:  literal.METHOD,
 			Value: []byte(*h.dataSourceConfig.Method),
 		})
 	}
 	if h.dataSourceConfig.Body != nil {
-		h.args = append(h.args, &StaticVariableArgument{
+		h.Args = append(h.Args, &StaticVariableArgument{
 			Name:  literal.BODY,
 			Value: []byte(*h.dataSourceConfig.Body),
 		})
@@ -148,15 +149,15 @@ func (h *HttpJsonDataSourcePlanner) LeaveField(ref int) {
 				Value: []byte(h.dataSourceConfig.Headers[i].Value),
 			})
 		}
-		h.args = append(h.args, listArg)
+		h.Args = append(h.Args, listArg)
 	}
 
 	// __typename
 	var typeNameValue []byte
 	var err error
-	fieldDefinitionTypeNode := h.definition.FieldDefinitionTypeNode(definition)
-	fieldDefinitionType := h.definition.FieldDefinitionType(definition)
-	fieldDefinitionTypeName := h.definition.ResolveTypeName(fieldDefinitionType)
+	fieldDefinitionTypeNode := h.Definition.FieldDefinitionTypeNode(definition)
+	fieldDefinitionType := h.Definition.FieldDefinitionType(definition)
+	fieldDefinitionTypeName := h.Definition.ResolveTypeName(fieldDefinitionType)
 	quotedFieldDefinitionTypeName := append(literal.QUOTE, append(fieldDefinitionTypeName, literal.QUOTE...)...)
 	switch fieldDefinitionTypeNode.Kind {
 	case ast.NodeKindScalarTypeDefinition:
@@ -165,35 +166,35 @@ func (h *HttpJsonDataSourcePlanner) LeaveField(ref int) {
 		if h.dataSourceConfig.DefaultTypeName != nil {
 			typeNameValue, err = sjson.SetRawBytes(typeNameValue, "defaultTypeName", []byte("\""+*h.dataSourceConfig.DefaultTypeName+"\""))
 			if err != nil {
-				h.log.Error("HttpJsonDataSourcePlanner set defaultTypeName (switch case union/interface)", log.Error(err))
+				h.Log.Error("HttpJsonDataSourcePlanner set defaultTypeName (switch case union/interface)", log.Error(err))
 				return
 			}
 		}
 		for i := range h.dataSourceConfig.StatusCodeTypeNameMappings {
 			typeNameValue, err = sjson.SetRawBytes(typeNameValue, strconv.Itoa(h.dataSourceConfig.StatusCodeTypeNameMappings[i].StatusCode), []byte("\""+h.dataSourceConfig.StatusCodeTypeNameMappings[i].TypeName+"\""))
 			if err != nil {
-				h.log.Error("HttpJsonDataSourcePlanner set statusCodeTypeMapping", log.Error(err))
+				h.Log.Error("HttpJsonDataSourcePlanner set statusCodeTypeMapping", log.Error(err))
 				return
 			}
 		}
 	default:
 		typeNameValue, err = sjson.SetRawBytes(typeNameValue, "defaultTypeName", quotedFieldDefinitionTypeName)
 		if err != nil {
-			h.log.Error("HttpJsonDataSourcePlanner set defaultTypeName (switch case default)", log.Error(err))
+			h.Log.Error("HttpJsonDataSourcePlanner set defaultTypeName (switch case default)", log.Error(err))
 			return
 		}
 	}
-	h.args = append(h.args, &StaticVariableArgument{
+	h.Args = append(h.Args, &StaticVariableArgument{
 		Name:  literal.TYPENAME,
 		Value: typeNameValue,
 	})
 }
 
 type HttpJsonDataSource struct {
-	log log.Logger
+	Log log.Logger
 }
 
-func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) Instruction {
+func (r *HttpJsonDataSource) Resolve(ctx context.Context, args ResolverArgs, out io.Writer) (n int, err error) {
 
 	hostArg := args.ByKey(literal.HOST)
 	urlArg := args.ByKey(literal.URL)
@@ -202,20 +203,20 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 	headersArg := args.ByKey(literal.HEADERS)
 	typeNameArg := args.ByKey(literal.TYPENAME)
 
-	r.log.Debug("HttpJsonDataSource.Resolve.args",
+	r.Log.Debug("HttpJsonDataSource.Resolve.Args",
 		log.Strings("resolvedArgs", args.Dump()),
 	)
 
 	switch {
 	case hostArg == nil:
-		r.log.Error(fmt.Sprintf("arg '%s' must not be nil", string(literal.HOST)))
-		return CloseConnectionIfNotStream
+		r.Log.Error(fmt.Sprintf("arg '%s' must not be nil", string(literal.HOST)))
+		return
 	case urlArg == nil:
-		r.log.Error(fmt.Sprintf("arg '%s' must not be nil", string(literal.URL)))
-		return CloseConnectionIfNotStream
+		r.Log.Error(fmt.Sprintf("arg '%s' must not be nil", string(literal.URL)))
+		return
 	case methodArg == nil:
-		r.log.Error(fmt.Sprintf("arg '%s' must not be nil", string(literal.METHOD)))
-		return CloseConnectionIfNotStream
+		r.Log.Error(fmt.Sprintf("arg '%s' must not be nil", string(literal.METHOD)))
+		return
 	}
 
 	httpMethod := http.MethodGet
@@ -244,11 +245,11 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 			return nil
 		})
 		if err != nil {
-			r.log.Error("accessing headers", log.Error(err))
+			r.Log.Error("accessing headers", log.Error(err))
 		}
 	}
 
-	r.log.Debug("HttpJsonDataSource.Resolve",
+	r.Log.Debug("HttpJsonDataSource.Resolve",
 		log.String("url", url),
 	)
 
@@ -268,28 +269,28 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 
 	request, err := http.NewRequest(httpMethod, url, bodyReader)
 	if err != nil {
-		r.log.Error("HttpJsonDataSource.Resolve.NewRequest",
+		r.Log.Error("HttpJsonDataSource.Resolve.NewRequest",
 			log.Error(err),
 		)
-		return CloseConnectionIfNotStream
+		return
 	}
 
 	request.Header = header
 
 	res, err := client.Do(request)
 	if err != nil {
-		r.log.Error("HttpJsonDataSource.Resolve.client.Do",
+		r.Log.Error("HttpJsonDataSource.Resolve.client.Do",
 			log.Error(err),
 		)
-		return CloseConnectionIfNotStream
+		return
 	}
 
 	data, err := ioutil.ReadAll(res.Body)
 	if err != nil {
-		r.log.Error("HttpJsonDataSource.Resolve.ioutil.ReadAll",
+		r.Log.Error("HttpJsonDataSource.Resolve.ioutil.ReadAll",
 			log.Error(err),
 		)
-		return CloseConnectionIfNotStream
+		return
 	}
 
 	statusCode := strconv.Itoa(res.StatusCode)
@@ -297,30 +298,23 @@ func (r *HttpJsonDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writ
 	if statusCodeTypeName.Exists() {
 		data, err = sjson.SetRawBytes(data, "__typename", []byte(statusCodeTypeName.Raw))
 		if err != nil {
-			r.log.Error("HttpJsonDataSource.Resolve.setStatusCodeTypeName",
+			r.Log.Error("HttpJsonDataSource.Resolve.setStatusCodeTypeName",
 				log.Error(err),
 			)
-			return CloseConnectionIfNotStream
+			return
 		}
 	} else {
 		defaultTypeName := gjson.GetBytes(typeNameArg, "defaultTypeName")
 		if defaultTypeName.Exists() {
 			data, err = sjson.SetRawBytes(data, "__typename", []byte(defaultTypeName.Raw))
 			if err != nil {
-				r.log.Error("HttpJsonDataSource.Resolve.setDefaultTypeName",
+				r.Log.Error("HttpJsonDataSource.Resolve.setDefaultTypeName",
 					log.Error(err),
 				)
-				return CloseConnectionIfNotStream
+				return
 			}
 		}
 	}
 
-	_, err = out.Write(data)
-	if err != nil {
-		r.log.Error("HttpJsonDataSource.Resolve.out.Write",
-			log.Error(err),
-		)
-		return CloseConnectionIfNotStream
-	}
-	return CloseConnectionIfNotStream
+	return out.Write(data)
 }

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	log "github.com/jensneuse/abstractlogger"
+	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
 	"testing"
 )
 
@@ -21,8 +22,8 @@ func TestWASMDataSource_Resolve(t *testing.T) {
 
 	input := []byte("{\"id\":\"1\"}")
 
-	wasmDataSource := &WasmDataSource{
-		log:log.NoopLogger,
+	wasmDataSource := &datasource.WasmDataSource{
+		Log: log.NoopLogger,
 	}
 
 	args := ResolvedArgs{
@@ -38,9 +39,12 @@ func TestWASMDataSource_Resolve(t *testing.T) {
 
 	out := bytes.Buffer{}
 
-	wasmDataSource.Resolve(Context{},args,&out)
+	_,err := wasmDataSource.Resolve(Context{},args,&out)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	err := json.Unmarshal(out.Bytes(),&person)
+	err = json.Unmarshal(out.Bytes(),&person)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,8 +64,8 @@ func BenchmarkWASMDataSource_Resolve(t *testing.B) {
 
 	input := []byte("{\"id\":\"1\"}")
 
-	wasmDataSource := &WasmDataSource{
-		log:log.NoopLogger,
+	wasmDataSource := &datasource.WasmDataSource{
+		Log: log.NoopLogger,
 	}
 
 	args := ResolvedArgs{
@@ -82,7 +86,10 @@ func BenchmarkWASMDataSource_Resolve(t *testing.B) {
 
 	for i := 0;i<t.N;i++ {
 		out.Reset()
-		wasmDataSource.Resolve(Context{}, args, &out)
+		_,err := wasmDataSource.Resolve(Context{}, args, &out)
+		if err != nil {
+			t.Fatal(err)
+		}
 		if out.Len() == 0 {
 			t.Fatalf("must not be 0")
 		}

@@ -1,6 +1,7 @@
-package execution
+package datasource
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 )
@@ -12,7 +13,7 @@ type StaticDataSourceConfig struct {
 type StaticDataSourcePlannerFactoryFactory struct {
 }
 
-func (s StaticDataSourcePlannerFactoryFactory) Initialize(base BaseDataSourcePlanner, configReader io.Reader) (DataSourcePlannerFactory, error) {
+func (s StaticDataSourcePlannerFactoryFactory) Initialize(base BasePlanner, configReader io.Reader) (PlannerFactory, error) {
 	factory := &StaticDataSourcePlannerFactory{
 		base: base,
 	}
@@ -20,33 +21,32 @@ func (s StaticDataSourcePlannerFactoryFactory) Initialize(base BaseDataSourcePla
 }
 
 type StaticDataSourcePlannerFactory struct {
-	base   BaseDataSourcePlanner
+	base   BasePlanner
 	config StaticDataSourceConfig
 }
 
-func (s StaticDataSourcePlannerFactory) DataSourcePlanner() DataSourcePlanner {
+func (s StaticDataSourcePlannerFactory) DataSourcePlanner() Planner {
 	return SimpleDataSourcePlanner(&StaticDataSourcePlanner{
-		BaseDataSourcePlanner: s.base,
-		dataSourceConfig:      s.config,
+		BasePlanner:      s.base,
+		dataSourceConfig: s.config,
 	})
 }
 
 type StaticDataSourcePlanner struct {
-	BaseDataSourcePlanner
+	BasePlanner
 	dataSourceConfig StaticDataSourceConfig
 }
 
 func (s *StaticDataSourcePlanner) Plan(args []Argument) (DataSource, []Argument) {
 	return &StaticDataSource{
-		data: []byte(s.dataSourceConfig.Data),
-	}, append(s.args,args...)
+		Data: []byte(s.dataSourceConfig.Data),
+	}, append(s.Args, args...)
 }
 
 type StaticDataSource struct {
-	data []byte
+	Data []byte
 }
 
-func (s StaticDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) Instruction {
-	_, _ = out.Write(s.data)
-	return CloseConnectionIfNotStream
+func (s StaticDataSource) Resolve(ctx context.Context, args ResolverArgs, out io.Writer) (n int, err error) {
+	return out.Write(s.Data)
 }
