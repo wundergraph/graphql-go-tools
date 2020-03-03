@@ -1,10 +1,10 @@
-package execution
+package datasource
 
 import (
+	"context"
 	"encoding/json"
 	log "github.com/jensneuse/abstractlogger"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	wasm "github.com/wasmerio/go-ext-wasm/wasmer"
 	"io"
@@ -19,7 +19,7 @@ type WasmDataSourceConfig struct {
 type WasmDataSourcePlannerFactoryFactory struct {
 }
 
-func (w WasmDataSourcePlannerFactoryFactory) Initialize(base datasource.BasePlanner, configReader io.Reader) (datasource.PlannerFactory, error) {
+func (w WasmDataSourcePlannerFactoryFactory) Initialize(base BasePlanner, configReader io.Reader) (PlannerFactory, error) {
 	factory := &WasmDataSourcePlannerFactory{
 		base: base,
 	}
@@ -27,11 +27,11 @@ func (w WasmDataSourcePlannerFactoryFactory) Initialize(base datasource.BasePlan
 }
 
 type WasmDataSourcePlannerFactory struct {
-	base   datasource.BasePlanner
+	base   BasePlanner
 	config WasmDataSourceConfig
 }
 
-func (w WasmDataSourcePlannerFactory) DataSourcePlanner() datasource.Planner {
+func (w WasmDataSourcePlannerFactory) DataSourcePlanner() Planner {
 	return &WasmDataSourcePlanner{
 		BasePlanner:      w.base,
 		dataSourceConfig: w.config,
@@ -39,7 +39,7 @@ func (w WasmDataSourcePlannerFactory) DataSourcePlanner() datasource.Planner {
 }
 
 type WasmDataSourcePlanner struct {
-	datasource.BasePlanner
+	BasePlanner
 	dataSourceConfig WasmDataSourceConfig
 }
 
@@ -60,31 +60,31 @@ func (w *WasmDataSourcePlanner) LeaveSelectionSet(ref int) {
 }
 
 func (w *WasmDataSourcePlanner) EnterField(ref int) {
-	w.args = append(w.args, &StaticVariableArgument{
+	w.Args = append(w.Args, &StaticVariableArgument{
 		Name:  literal.WASMFILE,
 		Value: []byte(w.dataSourceConfig.WasmFile),
 	})
-	w.args = append(w.args, &StaticVariableArgument{
+	w.Args = append(w.Args, &StaticVariableArgument{
 		Name:  literal.INPUT,
 		Value: []byte(w.dataSourceConfig.Input),
 	})
-	// args
-	if w.operation.FieldHasArguments(ref) {
-		args := w.operation.FieldArguments(ref)
+	// Args
+	if w.Operation.FieldHasArguments(ref) {
+		args := w.Operation.FieldArguments(ref)
 		for _, i := range args {
-			argName := w.operation.ArgumentNameBytes(i)
-			value := w.operation.ArgumentValue(i)
+			argName := w.Operation.ArgumentNameBytes(i)
+			value := w.Operation.ArgumentValue(i)
 			if value.Kind != ast.ValueKindVariable {
 				continue
 			}
-			variableName := w.operation.VariableValueNameBytes(value.Ref)
+			variableName := w.Operation.VariableValueNameBytes(value.Ref)
 			name := append([]byte(".arguments."), argName...)
 			arg := &ContextVariableArgument{
 				VariableName: variableName,
 				Name:         make([]byte, len(name)),
 			}
 			copy(arg.Name, name)
-			w.args = append(w.args, arg)
+			w.Args = append(w.Args, arg)
 		}
 	}
 }
@@ -93,24 +93,24 @@ func (w *WasmDataSourcePlanner) LeaveField(ref int) {
 
 }
 
-func (w *WasmDataSourcePlanner) Plan(args []Argument) (datasource.DataSource, []Argument) {
+func (w *WasmDataSourcePlanner) Plan(args []Argument) (DataSource, []Argument) {
 	return &WasmDataSource{
-		log: w.log,
-	}, append(w.args, args...)
+		Log: w.Log,
+	}, append(w.Args, args...)
 }
 
 type WasmDataSource struct {
-	log      log.Logger
+	Log      log.Logger
 	instance wasm.Instance
 	once     sync.Once
 }
 
-func (s *WasmDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) (n int, err error) {
+func (s *WasmDataSource) Resolve(ctx context.Context, args ResolverArgs, out io.Writer) (n int, err error) {
 
 	input := args.ByKey(literal.INPUT)
 	wasmFile := args.ByKey(literal.WASMFILE)
 
-	s.log.Debug("WasmDataSource.Resolve.args",
+	s.Log.Debug("WasmDataSource.Resolve.Args",
 		log.ByteString("input", input),
 		log.ByteString("wasmFile", wasmFile),
 	)
@@ -118,26 +118,26 @@ func (s *WasmDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) 
 	s.once.Do(func() {
 		wasmData, err := wasm.ReadBytes(string(wasmFile))
 		if err != nil {
-			s.log.Error("WasmDataSource.wasm.ReadBytes(string(wasmFile))",
+			s.Log.Error("WasmDataSource.wasm.ReadBytes(string(wasmFile))",
 				log.Error(err),
 			)
 			return
 		}
 		s.instance, err = wasm.NewInstance(wasmData)
 		if err != nil {
-			s.log.Error("WasmDataSource.wasm.NewInstance(wasmData)",
+			s.Log.Error("WasmDataSource.wasm.NewInstance(wasmData)",
 				log.Error(err),
 			)
 		}
 
-		s.log.Debug("WasmDataSource.wasm.NewInstance OK")
+		s.Log.Debug("WasmDataSource.wasm.NewInstance OK")
 	})
 
 	inputLen := len(input)
 
 	allocateInputResult, err := s.instance.Exports["allocate"](inputLen)
 	if err != nil {
-		s.log.Error("WasmDataSource.instance.Exports[\"allocate\"](inputLen)",
+		s.Log.Error("WasmDataSource.instance.Exports[\"allocate\"](inputLen)",
 			log.Error(err),
 		)
 		return n, err
@@ -155,7 +155,7 @@ func (s *WasmDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) 
 
 	result, err := s.instance.Exports["invoke"](inputPointer)
 	if err != nil {
-		s.log.Error("WasmDataSource.instance.Exports[\"invoke\"](inputPointer)",
+		s.Log.Error("WasmDataSource.instance.Exports[\"invoke\"](inputPointer)",
 			log.Error(err),
 		)
 		return n,err
@@ -175,7 +175,7 @@ func (s *WasmDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) 
 
 	_, err = out.Write(memory[start:stop])
 	if err != nil {
-		s.log.Error("WasmDataSource.out.Write(memory[start:stop])",
+		s.Log.Error("WasmDataSource.out.Write(memory[start:stop])",
 			log.Error(err),
 		)
 		return n,err
@@ -184,7 +184,7 @@ func (s *WasmDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) 
 	deallocate := s.instance.Exports["deallocate"]
 	_, err = deallocate(inputPointer, inputLen)
 	if err != nil {
-		s.log.Error("WasmDataSource.deallocate(inputPointer, inputLen)",
+		s.Log.Error("WasmDataSource.deallocate(inputPointer, inputLen)",
 			log.Error(err),
 		)
 		return n,err
@@ -192,7 +192,7 @@ func (s *WasmDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) 
 
 	_, err = deallocate(start, stop-start)
 	if err != nil {
-		s.log.Error("WasmDataSource.deallocate(start, stop-start)",
+		s.Log.Error("WasmDataSource.deallocate(start, stop-start)",
 			log.Error(err),
 		)
 		return n,err

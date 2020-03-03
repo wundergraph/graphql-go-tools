@@ -1,10 +1,10 @@
-package execution
+package datasource
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	log "github.com/jensneuse/abstractlogger"
-	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"io"
 	"io/ioutil"
@@ -24,7 +24,7 @@ type HttpPollingStreamDataSourceConfiguration struct {
 type HttpPollingStreamDataSourcePlannerFactoryFactory struct {
 }
 
-func (h HttpPollingStreamDataSourcePlannerFactoryFactory) Initialize(base datasource.BasePlanner, configReader io.Reader) (datasource.PlannerFactory, error) {
+func (h HttpPollingStreamDataSourcePlannerFactoryFactory) Initialize(base BasePlanner, configReader io.Reader) (PlannerFactory, error) {
 	factory := &HttpPollingStreamDataSourcePlannerFactory{
 		base: base,
 	}
@@ -32,11 +32,11 @@ func (h HttpPollingStreamDataSourcePlannerFactoryFactory) Initialize(base dataso
 }
 
 type HttpPollingStreamDataSourcePlannerFactory struct {
-	base   datasource.BasePlanner
+	base   BasePlanner
 	config HttpPollingStreamDataSourceConfiguration
 }
 
-func (h HttpPollingStreamDataSourcePlannerFactory) DataSourcePlanner() datasource.Planner {
+func (h HttpPollingStreamDataSourcePlannerFactory) DataSourcePlanner() Planner {
 	return &HttpPollingStreamDataSourcePlanner{
 		BasePlanner:      h.base,
 		dataSourceConfig: h.config,
@@ -44,16 +44,16 @@ func (h HttpPollingStreamDataSourcePlannerFactory) DataSourcePlanner() datasourc
 }
 
 type HttpPollingStreamDataSourcePlanner struct {
-	datasource.BasePlanner
+	BasePlanner
 	dataSourceConfig HttpPollingStreamDataSourceConfiguration
 	delay            time.Duration
 }
 
-func (h *HttpPollingStreamDataSourcePlanner) Plan(args []Argument) (datasource.DataSource, []Argument) {
+func (h *HttpPollingStreamDataSourcePlanner) Plan(args []Argument) (DataSource, []Argument) {
 	return &HttpPollingStreamDataSource{
-		log:   h.log,
-		delay: h.delay,
-	}, append(h.args, args...)
+		Log:   h.Log,
+		Delay: h.delay,
+	}, append(h.Args, args...)
 }
 
 func (h *HttpPollingStreamDataSourcePlanner) EnterInlineFragment(ref int) {
@@ -73,18 +73,18 @@ func (h *HttpPollingStreamDataSourcePlanner) LeaveSelectionSet(ref int) {
 }
 
 func (h *HttpPollingStreamDataSourcePlanner) EnterField(ref int) {
-	h.rootField.setIfNotDefined(ref)
+	h.RootField.setIfNotDefined(ref)
 }
 
 func (h *HttpPollingStreamDataSourcePlanner) LeaveField(ref int) {
-	if !h.rootField.isDefinedAndEquals(ref) {
+	if !h.RootField.isDefinedAndEquals(ref) {
 		return
 	}
-	h.args = append(h.args, &StaticVariableArgument{
+	h.Args = append(h.Args, &StaticVariableArgument{
 		Name:  literal.HOST,
 		Value: []byte(h.dataSourceConfig.Host),
 	})
-	h.args = append(h.args, &StaticVariableArgument{
+	h.Args = append(h.Args, &StaticVariableArgument{
 		Name:  literal.URL,
 		Value: []byte(h.dataSourceConfig.URL),
 	})
@@ -96,17 +96,17 @@ func (h *HttpPollingStreamDataSourcePlanner) LeaveField(ref int) {
 }
 
 type HttpPollingStreamDataSource struct {
-	log      log.Logger
+	Log      log.Logger
 	once     sync.Once
 	ch       chan []byte
 	closed   bool
-	delay    time.Duration
+	Delay    time.Duration
 	client   *http.Client
 	request  *http.Request
 	lastData []byte
 }
 
-func (h *HttpPollingStreamDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) (n int, err error) {
+func (h *HttpPollingStreamDataSource) Resolve(ctx context.Context, args ResolverArgs, out io.Writer) (n int, err error) {
 	h.once.Do(func() {
 		h.ch = make(chan []byte)
 		h.request = h.generateRequest(args)
@@ -124,12 +124,12 @@ func (h *HttpPollingStreamDataSource) Resolve(ctx Context, args ResolvedArgs, ou
 	}
 	select {
 	case data := <-h.ch:
-		h.log.Debug("HttpPollingStreamDataSource.Resolve.out.Write",
+		h.Log.Debug("HttpPollingStreamDataSource.Resolve.out.Write",
 			log.ByteString("data", data),
 		)
 		_, err := out.Write(data)
 		if err != nil {
-			h.log.Error("HttpPollingStreamDataSource.Resolve",
+			h.Log.Error("HttpPollingStreamDataSource.Resolve",
 				log.Error(err),
 			)
 		}
@@ -140,13 +140,13 @@ func (h *HttpPollingStreamDataSource) Resolve(ctx Context, args ResolvedArgs, ou
 	return
 }
 
-func (h *HttpPollingStreamDataSource) startPolling(ctx Context) {
+func (h *HttpPollingStreamDataSource) startPolling(ctx context.Context) {
 	first := true
 	for {
 		if first {
 			first = !first
 		} else {
-			time.Sleep(h.delay)
+			time.Sleep(h.Delay)
 		}
 		var data []byte
 		select {
@@ -156,14 +156,14 @@ func (h *HttpPollingStreamDataSource) startPolling(ctx Context) {
 		default:
 			response, err := h.client.Do(h.request)
 			if err != nil {
-				h.log.Error("HttpPollingStreamDataSource.startPolling.client.Do",
+				h.Log.Error("HttpPollingStreamDataSource.startPolling.client.Do",
 					log.Error(err),
 				)
 				return
 			}
 			data, err = ioutil.ReadAll(response.Body)
 			if err != nil {
-				h.log.Error("HttpPollingStreamDataSource.startPolling.ioutil.ReadAll",
+				h.Log.Error("HttpPollingStreamDataSource.startPolling.ioutil.ReadAll",
 					log.Error(err),
 				)
 				return
@@ -183,16 +183,16 @@ func (h *HttpPollingStreamDataSource) startPolling(ctx Context) {
 	}
 }
 
-func (h *HttpPollingStreamDataSource) generateRequest(args ResolvedArgs) *http.Request {
+func (h *HttpPollingStreamDataSource) generateRequest(args ResolverArgs) *http.Request {
 	hostArg := args.ByKey(literal.HOST)
 	urlArg := args.ByKey(literal.URL)
 
-	h.log.Debug("HttpPollingStreamDataSource.generateRequest.Resolve.args",
+	h.Log.Debug("HttpPollingStreamDataSource.generateRequest.Resolve.Args",
 		log.Strings("resolvedArgs", args.Dump()),
 	)
 
 	if hostArg == nil || urlArg == nil {
-		h.log.Error("HttpPollingStreamDataSource.generateRequest.args invalid")
+		h.Log.Error("HttpPollingStreamDataSource.generateRequest.Args invalid")
 		return nil
 	}
 
@@ -204,19 +204,20 @@ func (h *HttpPollingStreamDataSource) generateRequest(args ResolvedArgs) *http.R
 	if strings.Contains(url, "{{") {
 		tmpl, err := template.New("url").Parse(url)
 		if err != nil {
-			h.log.Error("HttpPollingStreamDataSource.generateRequest.template.New",
+			h.Log.Error("HttpPollingStreamDataSource.generateRequest.template.New",
 				log.Error(err),
 			)
 			return nil
 		}
 		out := bytes.Buffer{}
-		data := make(map[string]string, len(args))
-		for i := 0; i < len(args); i++ {
-			data[string(args[i].Key)] = string(args[i].Value)
+		keys := args.Keys()
+		data := make(map[string]string, len(keys))
+		for i := 0; i < len(keys); i++ {
+			data[string(keys[i])] = string(args.ByKey(keys[i]))
 		}
 		err = tmpl.Execute(&out, data)
 		if err != nil {
-			h.log.Error("HttpPollingStreamDataSource.generateRequest.tmpl.Execute",
+			h.Log.Error("HttpPollingStreamDataSource.generateRequest.tmpl.Execute",
 				log.Error(err),
 			)
 			return nil
@@ -224,13 +225,13 @@ func (h *HttpPollingStreamDataSource) generateRequest(args ResolvedArgs) *http.R
 		url = out.String()
 	}
 
-	h.log.Debug("HttpPollingStreamDataSource.generateRequest.Resolve",
+	h.Log.Debug("HttpPollingStreamDataSource.generateRequest.Resolve",
 		log.String("url", url),
 	)
 
 	request, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
-		h.log.Error("HttpPollingStreamDataSource.generateRequest.Resolve.NewRequest",
+		h.Log.Error("HttpPollingStreamDataSource.generateRequest.Resolve.NewRequest",
 			log.Error(err),
 		)
 		return nil

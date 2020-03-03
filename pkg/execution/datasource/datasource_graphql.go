@@ -1,7 +1,8 @@
-package execution
+package datasource
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"github.com/buger/jsonparser"
 	log "github.com/jensneuse/abstractlogger"
@@ -9,7 +10,6 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astimport"
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
-	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"io"
 	"io/ioutil"
@@ -17,6 +17,12 @@ import (
 	"strings"
 	"time"
 )
+
+type GraphqlRequest struct {
+	OperationName string          `json:"operation_name"`
+	Variables     json.RawMessage `json:"variables"`
+	Query         string          `json:"query"`
+}
 
 // GraphQLDataSourceConfig is the configuration for the GraphQL DataSource
 type GraphQLDataSourceConfig struct {
@@ -29,7 +35,7 @@ type GraphQLDataSourceConfig struct {
 }
 
 type GraphQLDataSourcePlanner struct {
-	datasource.BasePlanner
+	BasePlanner
 	importer                *astimport.Importer
 	nodes                   []ast.Node
 	resolveDocument         *ast.Document
@@ -38,7 +44,7 @@ type GraphQLDataSourcePlanner struct {
 
 type GraphQLDataSourcePlannerFactoryFactory struct{}
 
-func (g GraphQLDataSourcePlannerFactoryFactory) Initialize(base datasource.BasePlanner, configReader io.Reader) (datasource.PlannerFactory, error) {
+func (g GraphQLDataSourcePlannerFactoryFactory) Initialize(base BasePlanner, configReader io.Reader) (PlannerFactory, error) {
 	factory := &GraphQLDataSourcePlannerFactory{
 		base: base,
 	}
@@ -47,11 +53,11 @@ func (g GraphQLDataSourcePlannerFactoryFactory) Initialize(base datasource.BaseP
 }
 
 type GraphQLDataSourcePlannerFactory struct {
-	base   datasource.BasePlanner
+	base   BasePlanner
 	config GraphQLDataSourceConfig
 }
 
-func (g *GraphQLDataSourcePlannerFactory) DataSourcePlanner() datasource.Planner {
+func (g *GraphQLDataSourcePlannerFactory) DataSourcePlanner() Planner {
 	return &GraphQLDataSourcePlanner{
 		BasePlanner:             g.base,
 		importer:                &astimport.Importer{},
@@ -68,7 +74,7 @@ func (g *GraphQLDataSourcePlanner) EnterInlineFragment(ref int) {
 	if current.Kind != ast.NodeKindSelectionSet {
 		return
 	}
-	inlineFragmentType := g.importer.ImportType(g.operation.InlineFragments[ref].TypeCondition.Type, g.operation, g.resolveDocument)
+	inlineFragmentType := g.importer.ImportType(g.Operation.InlineFragments[ref].TypeCondition.Type, g.Operation, g.resolveDocument)
 	g.resolveDocument.InlineFragments = append(g.resolveDocument.InlineFragments, ast.InlineFragment{
 		TypeCondition: ast.TypeCondition{
 			Type: inlineFragmentType,
@@ -120,21 +126,21 @@ func (g *GraphQLDataSourcePlanner) LeaveSelectionSet(ref int) {
 }
 
 func (g *GraphQLDataSourcePlanner) EnterField(ref int) {
-	if !g.rootField.isDefined {
-		g.rootField.setIfNotDefined(ref)
+	if !g.RootField.isDefined {
+		g.RootField.setIfNotDefined(ref)
 
-		typeName := g.definition.NodeNameString(g.walker.EnclosingTypeDefinition)
-		fieldNameStr := g.operation.FieldNameString(ref)
-		fieldName := g.operation.FieldNameBytes(ref)
-		mapping := g.config.mappingForTypeField(typeName, fieldNameStr)
+		typeName := g.Definition.NodeNameString(g.Walker.EnclosingTypeDefinition)
+		fieldNameStr := g.Operation.FieldNameString(ref)
+		fieldName := g.Operation.FieldNameBytes(ref)
+		mapping := g.Config.MappingForTypeField(typeName, fieldNameStr)
 		if mapping != nil && !mapping.Disabled {
 			fieldName = unsafebytes.StringToBytes(mapping.Path)
 		}
 
-		hasArguments := g.operation.FieldHasArguments(ref)
+		hasArguments := g.Operation.FieldHasArguments(ref)
 		var argumentRefs []int
 		if hasArguments {
-			argumentRefs = g.importer.ImportArguments(g.operation.FieldArguments(ref), g.operation, g.resolveDocument)
+			argumentRefs = g.importer.ImportArguments(g.Operation.FieldArguments(ref), g.Operation, g.resolveDocument)
 		}
 
 		field := ast.Field{
@@ -157,14 +163,14 @@ func (g *GraphQLDataSourcePlanner) EnterField(ref int) {
 		}
 		g.resolveDocument.SelectionSets = append(g.resolveDocument.SelectionSets, set)
 		setRef := len(g.resolveDocument.SelectionSets) - 1
-		hasVariableDefinitions := len(g.operation.OperationDefinitions[g.walker.Ancestors[0].Ref].VariableDefinitions.Refs) != 0
+		hasVariableDefinitions := len(g.Operation.OperationDefinitions[g.Walker.Ancestors[0].Ref].VariableDefinitions.Refs) != 0
 		var variableDefinitionsRefs []int
 		if hasVariableDefinitions {
-			variableDefinitionsRefs = g.importer.ImportVariableDefinitions(g.operation.OperationDefinitions[g.walker.Ancestors[0].Ref].VariableDefinitions.Refs, g.operation, g.resolveDocument)
+			variableDefinitionsRefs = g.importer.ImportVariableDefinitions(g.Operation.OperationDefinitions[g.Walker.Ancestors[0].Ref].VariableDefinitions.Refs, g.Operation, g.resolveDocument)
 		}
 		operationDefinition := ast.OperationDefinition{
 			Name:          g.resolveDocument.Input.AppendInputBytes([]byte("o")),
-			OperationType: g.operation.OperationDefinitions[g.walker.Ancestors[0].Ref].OperationType,
+			OperationType: g.Operation.OperationDefinitions[g.Walker.Ancestors[0].Ref].OperationType,
 			SelectionSet:  setRef,
 			HasSelections: true,
 			VariableDefinitions: ast.VariableDefinitionList{
@@ -192,7 +198,7 @@ func (g *GraphQLDataSourcePlanner) EnterField(ref int) {
 		})
 	} else {
 		field := ast.Field{
-			Name: g.resolveDocument.Input.AppendInputBytes(g.operation.FieldNameBytes(ref)),
+			Name: g.resolveDocument.Input.AppendInputBytes(g.Operation.FieldNameBytes(ref)),
 		}
 		g.resolveDocument.Fields = append(g.resolveDocument.Fields, field)
 		fieldRef := len(g.resolveDocument.Fields) - 1
@@ -215,70 +221,70 @@ func (g *GraphQLDataSourcePlanner) LeaveField(ref int) {
 	defer func() {
 		g.nodes = g.nodes[:len(g.nodes)-1]
 	}()
-	if g.rootField.ref != ref {
+	if g.RootField.ref != ref {
 		return
 	}
 	buff := bytes.Buffer{}
 	err := astprinter.Print(g.resolveDocument, nil, &buff)
 	if err != nil {
-		g.walker.StopWithInternalErr(err)
+		g.Walker.StopWithInternalErr(err)
 		return
 	}
-	g.args = append(g.args, &StaticVariableArgument{
+	g.Args = append(g.Args, &StaticVariableArgument{
 		Name:  literal.HOST,
 		Value: []byte(g.dataSourceConfiguration.Host),
 	})
-	g.args = append(g.args, &StaticVariableArgument{
+	g.Args = append(g.Args, &StaticVariableArgument{
 		Name:  literal.URL,
 		Value: []byte(g.dataSourceConfiguration.URL),
 	})
-	g.args = append(g.args, &StaticVariableArgument{
+	g.Args = append(g.Args, &StaticVariableArgument{
 		Name:  literal.QUERY,
 		Value: buff.Bytes(),
 	})
 	if g.dataSourceConfiguration.Method == nil {
-		g.args = append(g.args, &StaticVariableArgument{
+		g.Args = append(g.Args, &StaticVariableArgument{
 			Name:  literal.METHOD,
 			Value: literal.HTTP_METHOD_POST,
 		})
 	} else {
-		g.args = append(g.args, &StaticVariableArgument{
+		g.Args = append(g.Args, &StaticVariableArgument{
 			Name:  literal.URL,
 			Value: []byte(*g.dataSourceConfiguration.Method),
 		})
 	}
 }
 
-func (g *GraphQLDataSourcePlanner) Plan(args []Argument) (datasource.DataSource, []Argument) {
+func (g *GraphQLDataSourcePlanner) Plan(args []Argument) (DataSource, []Argument) {
 	for i := range args {
 		if arg, ok := args[i].(*ContextVariableArgument); ok {
 			if bytes.HasPrefix(arg.Name, literal.DOT_ARGUMENTS_DOT) {
 				arg.Name = bytes.TrimPrefix(arg.Name, literal.DOT_ARGUMENTS_DOT)
-				g.args = append(g.args, arg)
+				g.Args = append(g.Args, arg)
 			}
 		}
 	}
 	return &GraphQLDataSource{
-		log: g.log,
-	}, g.args
+		Log: g.Log,
+	}, g.Args
 }
 
 type GraphQLDataSource struct {
-	log log.Logger
+	Log log.Logger
 }
 
-func (g *GraphQLDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) (n int, err error) {
+func (g *GraphQLDataSource) Resolve(ctx context.Context, args ResolverArgs, out io.Writer) (n int, err error) {
 
 	hostArg := args.ByKey(literal.HOST)
 	urlArg := args.ByKey(literal.URL)
 	queryArg := args.ByKey(literal.QUERY)
 
-	g.log.Debug("GraphQLDataSource.Resolve.args",
+	g.Log.Debug("GraphQLDataSource.Resolve.Args",
 		log.Strings("resolvedArgs", args.Dump()),
 	)
 
 	if hostArg == nil || urlArg == nil || queryArg == nil {
-		g.log.Error("GraphQLDataSource.args invalid")
+		g.Log.Error("GraphQLDataSource.Args invalid")
 		return
 	}
 
@@ -288,20 +294,20 @@ func (g *GraphQLDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Write
 	}
 
 	variables := map[string]interface{}{}
-	for i := 0; i < len(args); i++ {
-		key := args[i].Key
+	keys := args.Keys()
+	for i := 0; i < len(keys); i++ {
 		switch {
-		case bytes.Equal(key, literal.HOST):
-		case bytes.Equal(key, literal.URL):
-		case bytes.Equal(key, literal.QUERY):
+		case bytes.Equal(keys[i], literal.HOST):
+		case bytes.Equal(keys[i], literal.URL):
+		case bytes.Equal(keys[i], literal.QUERY):
 		default:
-			variables[string(key)] = string(args[i].Value)
+			variables[string(keys[i])] = string(args.ByKey(keys[i]))
 		}
 	}
 
 	variablesJson, err := json.Marshal(variables)
 	if err != nil {
-		g.log.Error("GraphQLDataSource.json.Marshal(variables)",
+		g.Log.Error("GraphQLDataSource.json.Marshal(variables)",
 			log.Error(err),
 		)
 		return n, err
@@ -315,13 +321,13 @@ func (g *GraphQLDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Write
 
 	gqlRequestData, err := json.MarshalIndent(gqlRequest, "", "  ")
 	if err != nil {
-		g.log.Error("GraphQLDataSource.json.MarshalIndent",
+		g.Log.Error("GraphQLDataSource.json.MarshalIndent",
 			log.Error(err),
 		)
 		return n, err
 	}
 
-	g.log.Debug("GraphQLDataSource.request",
+	g.Log.Debug("GraphQLDataSource.request",
 		log.String("url", url),
 		log.ByteString("data", gqlRequestData),
 	)
@@ -336,7 +342,7 @@ func (g *GraphQLDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Write
 
 	request, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(gqlRequestData))
 	if err != nil {
-		g.log.Error("GraphQLDataSource.http.NewRequest",
+		g.Log.Error("GraphQLDataSource.http.NewRequest",
 			log.Error(err),
 		)
 		return n, err
@@ -347,14 +353,14 @@ func (g *GraphQLDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Write
 
 	res, err := client.Do(request)
 	if err != nil {
-		g.log.Error("GraphQLDataSource.client.Do",
+		g.Log.Error("GraphQLDataSource.client.Do",
 			log.Error(err),
 		)
 		return n, err
 	}
 	data, err := ioutil.ReadAll(res.Body)
 	if err != nil {
-		g.log.Error("GraphQLDataSource.ioutil.ReadAll",
+		g.Log.Error("GraphQLDataSource.ioutil.ReadAll",
 			log.Error(err),
 		)
 		return n, err
@@ -363,7 +369,7 @@ func (g *GraphQLDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Write
 	data = bytes.ReplaceAll(data, literal.BACKSLASH, nil)
 	data, _, _, err = jsonparser.Get(data, "data")
 	if err != nil {
-		g.log.Error("GraphQLDataSource.jsonparser.Get",
+		g.Log.Error("GraphQLDataSource.jsonparser.Get",
 			log.Error(err),
 		)
 		return n, err

@@ -11,6 +11,7 @@ import (
 	"github.com/jensneuse/byte-template"
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/runes"
 	"github.com/tidwall/gjson"
@@ -86,7 +87,10 @@ func (e *Executor) resolveNode(node Node, data []byte, path string, prefetch *sy
 			}
 		}
 		if shouldFetch && node.Fetch != nil { // execute the fetch on the object
-			node.Fetch.Fetch(e.context, data, e, path, &e.buffers)
+			_,err := node.Fetch.Fetch(e.context, data, e, path, &e.buffers)
+			if err != nil {
+				e.err = err
+			}
 			if prefetch != nil { // in case this was a prefetch we can immediately return
 				prefetch.Done()
 				return
@@ -202,24 +206,24 @@ func (e *Executor) resolveData(config DataResolvingConfig, data []byte) []byte {
 	return data
 }
 
-func (e *Executor) ResolveArgs(args []Argument, data []byte) ResolvedArgs {
+func (e *Executor) ResolveArgs(args []datasource.Argument, data []byte) ResolvedArgs {
 
 	args = append(args, e.context.ExtraArguments...)
 
 	resolved := make(ResolvedArgs, len(args))
 	for i := 0; i < len(args); i++ {
 		switch arg := args[i].(type) {
-		case *StaticVariableArgument:
+		case *datasource.StaticVariableArgument:
 			resolved[i].Key = arg.Name
 			resolved[i].Value = arg.Value
-		case *ObjectVariableArgument:
+		case *datasource.ObjectVariableArgument:
 			resolved[i].Key = arg.Name
 			result := gjson.GetBytes(data, arg.PathSelector.Path)
 			resolved[i].Value = unsafebytes.StringToBytes(result.Raw)
-		case *ContextVariableArgument:
+		case *datasource.ContextVariableArgument:
 			resolved[i].Key = arg.Name
 			resolved[i].Value = e.context.Variables[xxhash.Sum64(arg.VariableName)]
-		case *ListArgument:
+		case *datasource.ListArgument:
 			resolved[i].Key = arg.Name
 			listArgs := e.ResolveArgs(arg.Arguments, data)
 			listValues := make(map[string]string, len(listArgs))
@@ -323,14 +327,10 @@ type RootNode interface {
 type Context struct {
 	context.Context
 	Variables      Variables
-	ExtraArguments []Argument
+	ExtraArguments []datasource.Argument
 }
 
 type Variables map[uint64][]byte
-
-type Argument interface {
-	ArgName() []byte
-}
 
 type ResolvedArgument struct {
 	Key   []byte
@@ -338,6 +338,14 @@ type ResolvedArgument struct {
 }
 
 type ResolvedArgs []ResolvedArgument
+
+func (r ResolvedArgs) Keys() [][]byte {
+	keys := make([][]byte, len(r))
+	for i := range r {
+		keys[i] = (r)[i].Key
+	}
+	return keys
+}
 
 func (r *ResolvedArgs) Filter(condition func(i int) (keep bool)) {
 	n := 0
@@ -348,19 +356,6 @@ func (r *ResolvedArgs) Filter(condition func(i int) (keep bool)) {
 		}
 	}
 	*r = (*r)[:n]
-}
-
-var (
-	keys = []byte("abcdefghijklmnopqrstuvwxyz")
-)
-
-func (r ResolvedArgs) NextKey() []byte {
-	for i := 0; i < len(keys); i++ {
-		if r.ByKey(keys[i:i+1]) == nil {
-			return keys[i : i+1]
-		}
-	}
-	return nil
 }
 
 func (r ResolvedArgs) ByKey(key []byte) []byte {
@@ -380,48 +375,8 @@ func (r ResolvedArgs) Dump() []string {
 	return out
 }
 
-type ContextVariableArgument struct {
-	Name         []byte
-	VariableName []byte
-}
-
-func (c *ContextVariableArgument) ArgName() []byte {
-	return c.Name
-}
-
-type PathSelector struct {
-	Path string
-}
-
-type ObjectVariableArgument struct {
-	Name         []byte
-	PathSelector PathSelector
-}
-
-func (o *ObjectVariableArgument) ArgName() []byte {
-	return o.Name
-}
-
-type StaticVariableArgument struct {
-	Name  []byte
-	Value []byte
-}
-
-func (s *StaticVariableArgument) ArgName() []byte {
-	return s.Name
-}
-
-type ListArgument struct {
-	Name      []byte
-	Arguments []Argument
-}
-
-func (l ListArgument) ArgName() []byte {
-	return l.Name
-}
-
 type DataResolvingConfig struct {
-	PathSelector   PathSelector
+	PathSelector   datasource.PathSelector
 	Transformation Transformation
 }
 
@@ -437,7 +392,7 @@ func (o *Object) OperationType() ast.OperationType {
 }
 
 type ArgsResolver interface {
-	ResolveArgs(args []Argument, data []byte) ResolvedArgs
+	ResolveArgs(args []datasource.Argument, data []byte) ResolvedArgs
 }
 
 type Fetch interface {
@@ -490,7 +445,7 @@ func (p *ParallelFetch) Fetch(ctx Context, data []byte, argsResolver ArgsResolve
 	for i := 0; i < len(p.Fetches); i++ {
 		p.wg.Add(1)
 		go func(fetch Fetch, ctx Context, data []byte, argsResolver ArgsResolver) {
-			fetch.Fetch(ctx, data, argsResolver, suffix, buffers) // TODO: handle results
+			_,_ = fetch.Fetch(ctx, data, argsResolver, suffix, buffers) // TODO: handle results
 			p.wg.Done()
 		}(p.Fetches[i], ctx, data, argsResolver)
 	}
@@ -527,7 +482,7 @@ func (f *Field) HasResolversRecursively() bool {
 }
 
 type IfEqual struct {
-	Left, Right Argument
+	Left, Right datasource.Argument
 }
 
 func (i *IfEqual) Evaluate(ctx Context, data []byte) bool {
@@ -535,30 +490,30 @@ func (i *IfEqual) Evaluate(ctx Context, data []byte) bool {
 	var right []byte
 
 	switch value := i.Left.(type) {
-	case *ContextVariableArgument:
+	case *datasource.ContextVariableArgument:
 		left = ctx.Variables[xxhash.Sum64(value.VariableName)]
-	case *ObjectVariableArgument:
+	case *datasource.ObjectVariableArgument:
 		result := gjson.GetBytes(data, value.PathSelector.Path)
 		if result.Type == gjson.String {
 			left = unsafebytes.StringToBytes(result.Str)
 		} else {
 			left = unsafebytes.StringToBytes(result.Raw)
 		}
-	case *StaticVariableArgument:
+	case *datasource.StaticVariableArgument:
 		left = value.Value
 	}
 
 	switch value := i.Right.(type) {
-	case *ContextVariableArgument:
+	case *datasource.ContextVariableArgument:
 		right = ctx.Variables[xxhash.Sum64(value.VariableName)]
-	case *ObjectVariableArgument:
+	case *datasource.ObjectVariableArgument:
 		result := gjson.GetBytes(data, value.PathSelector.Path)
 		if result.Type == gjson.String {
 			right = unsafebytes.StringToBytes(result.Str)
 		} else {
 			right = unsafebytes.StringToBytes(result.Raw)
 		}
-	case *StaticVariableArgument:
+	case *datasource.StaticVariableArgument:
 		right = value.Value
 	}
 
@@ -566,7 +521,7 @@ func (i *IfEqual) Evaluate(ctx Context, data []byte) bool {
 }
 
 type IfNotEqual struct {
-	Left, Right Argument
+	Left, Right datasource.Argument
 }
 
 func (i *IfNotEqual) Evaluate(ctx Context, data []byte) bool {
@@ -627,6 +582,6 @@ func (_ ListFilterFirstN) Kind() ListFilterKind {
 }
 
 type DataSourceInvocation struct {
-	Args       []Argument
-	DataSource DataSource
+	Args       []datasource.Argument
+	DataSource datasource.DataSource
 }

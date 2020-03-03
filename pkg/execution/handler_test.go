@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"github.com/cespare/xxhash"
 	log "github.com/jensneuse/abstractlogger"
+	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
 	"testing"
 )
 
 func TestHandler_VariablesFromRequest(t *testing.T) {
 
-	base, err := NewBaseDataSourcePlanner(nil, PlannerConfiguration{}, log.NoopLogger)
+	base, err := datasource.NewBaseDataSourcePlanner(nil, datasource.PlannerConfiguration{}, log.NoopLogger)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,10 +40,10 @@ func TestHandler_VariablesFromRequest(t *testing.T) {
 		t.Fatalf("want 1")
 	}
 
-	if !bytes.Equal(extraArguments[0].(*ContextVariableArgument).Name, []byte("request")) {
+	if !bytes.Equal(extraArguments[0].(*datasource.ContextVariableArgument).Name, []byte("request")) {
 		t.Fatalf("unexpected")
 	}
-	if !bytes.Equal(extraArguments[0].(*ContextVariableArgument).VariableName, []byte("request")) {
+	if !bytes.Equal(extraArguments[0].(*datasource.ContextVariableArgument).VariableName, []byte("request")) {
 		t.Fatalf("unexpected")
 	}
 }

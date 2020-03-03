@@ -1,9 +1,9 @@
-package execution
+package datasource
 
 import (
+	"context"
 	"encoding/json"
 	log "github.com/jensneuse/abstractlogger"
-	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/nats-io/nats.go"
 	"io"
@@ -19,7 +19,7 @@ type NatsDataSourceConfig struct {
 type NatsDataSourcePlannerFactoryFactory struct {
 }
 
-func (n NatsDataSourcePlannerFactoryFactory) Initialize(base datasource.BasePlanner, configReader io.Reader) (datasource.PlannerFactory, error) {
+func (n NatsDataSourcePlannerFactoryFactory) Initialize(base BasePlanner, configReader io.Reader) (PlannerFactory, error) {
 	factory := &NatsDataSourcePlannerFactory{
 		base: base,
 	}
@@ -27,34 +27,34 @@ func (n NatsDataSourcePlannerFactoryFactory) Initialize(base datasource.BasePlan
 }
 
 type NatsDataSourcePlannerFactory struct {
-	base   datasource.BasePlanner
+	base   BasePlanner
 	config NatsDataSourceConfig
 }
 
-func (n NatsDataSourcePlannerFactory) DataSourcePlanner() datasource.Planner {
-	return datasource.SimpleDataSourcePlanner(&NatsDataSourcePlanner{
+func (n NatsDataSourcePlannerFactory) DataSourcePlanner() Planner {
+	return SimpleDataSourcePlanner(&NatsDataSourcePlanner{
 		BasePlanner:      n.base,
 		dataSourceConfig: n.config,
 	})
 }
 
 type NatsDataSourcePlanner struct {
-	datasource.BasePlanner
+	BasePlanner
 	dataSourceConfig NatsDataSourceConfig
 }
 
-func (n *NatsDataSourcePlanner) Plan([]Argument) (datasource.DataSource, []Argument) {
-	n.args = append(n.args, &StaticVariableArgument{
+func (n *NatsDataSourcePlanner) Plan([]Argument) (DataSource, []Argument) {
+	n.Args = append(n.Args, &StaticVariableArgument{
 		Name:  literal.ADDR,
 		Value: []byte(n.dataSourceConfig.Addr),
 	})
-	n.args = append(n.args, &StaticVariableArgument{
+	n.Args = append(n.Args, &StaticVariableArgument{
 		Name:  literal.TOPIC,
 		Value: []byte(n.dataSourceConfig.Topic),
 	})
 	return &NatsDataSource{
-		log: n.log,
-	}, n.args
+		log: n.Log,
+	}, n.Args
 }
 
 type NatsDataSource struct {
@@ -64,7 +64,7 @@ type NatsDataSource struct {
 	once sync.Once
 }
 
-func (d *NatsDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) (n int, err error) {
+func (d *NatsDataSource) Resolve(ctx context.Context, args ResolverArgs, out io.Writer) (n int, err error) {
 	d.once.Do(func() {
 
 		addrArg := args.ByKey(literal.ADDR)

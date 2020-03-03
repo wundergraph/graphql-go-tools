@@ -58,18 +58,18 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 		}
 		`,
 		func(base *datasource.BasePlanner) {
-			base.config = PlannerConfiguration{
-				TypeFieldConfigurations: []TypeFieldConfiguration{
+			base.Config = datasource.PlannerConfiguration{
+				TypeFieldConfigurations: []datasource.TypeFieldConfiguration{
 					{
 						TypeName:  "query",
 						FieldName: "simpleType",
-						Mapping: &MappingConfiguration{
+						Mapping: &datasource.MappingConfiguration{
 							Disabled: true,
 						},
-						DataSource: DataSourceConfig{
+						DataSource: datasource.SourceConfig{
 							Name: "HttpJsonDataSource",
 							Config: func() []byte {
-								data, _ := json.Marshal(HttpJsonDataSourceConfig{
+								data, _ := json.Marshal(datasource.HttpJsonDataSourceConfig{
 									Host: "example.com",
 									URL:  "/",
 									Method: func() *string {
@@ -87,7 +87,7 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 					},
 				},
 			}
-			panicOnErr(base.RegisterDataSourcePlannerFactory("HttpJsonDataSource", HttpJsonDataSourcePlannerFactoryFactory{}))
+			panicOnErr(base.RegisterDataSourcePlannerFactory("HttpJsonDataSource", datasource.HttpJsonDataSourcePlannerFactoryFactory{}))
 		},
 		&Object{
 			operationType: ast.OperationTypeQuery,
@@ -98,23 +98,23 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 						Fetch: &SingleFetch{
 							BufferName: "simpleType",
 							Source: &DataSourceInvocation{
-								DataSource: &HttpJsonDataSource{
-									log: abstractlogger.Noop{},
+								DataSource: &datasource.HttpJsonDataSource{
+									Log: abstractlogger.Noop{},
 								},
-								Args: []Argument{
-									&StaticVariableArgument{
+								Args: []datasource.Argument{
+									&datasource.StaticVariableArgument{
 										Name:  []byte("host"),
 										Value: []byte("example.com"),
 									},
-									&StaticVariableArgument{
+									&datasource.StaticVariableArgument{
 										Name:  []byte("url"),
 										Value: []byte("/"),
 									},
-									&StaticVariableArgument{
+									&datasource.StaticVariableArgument{
 										Name:  []byte("method"),
 										Value: []byte("GET"),
 									},
-									&StaticVariableArgument{
+									&datasource.StaticVariableArgument{
 										Name:  []byte("__typename"),
 										Value: []byte(`{"defaultTypeName":"SimpleType"}`),
 									},
@@ -131,7 +131,7 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 											Name: []byte("__typename"),
 											Value: &Value{
 												DataResolvingConfig: DataResolvingConfig{
-													PathSelector: PathSelector{
+													PathSelector: datasource.PathSelector{
 														Path: "__typename",
 													},
 												},
@@ -142,7 +142,7 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 											Name: []byte("scalarField"),
 											Value: &Value{
 												DataResolvingConfig: DataResolvingConfig{
-													PathSelector: PathSelector{
+													PathSelector: datasource.PathSelector{
 														Path: "scalarField",
 													},
 												},
@@ -172,23 +172,23 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 		}
 		`,
 		func(base *datasource.BasePlanner) {
-			base.config = PlannerConfiguration{
-				TypeFieldConfigurations: []TypeFieldConfiguration{
+			base.Config = datasource.PlannerConfiguration{
+				TypeFieldConfigurations: []datasource.TypeFieldConfiguration{
 					{
 						TypeName:  "query",
 						FieldName: "unionType",
-						Mapping: &MappingConfiguration{
+						Mapping: &datasource.MappingConfiguration{
 							Disabled: true,
 						},
-						DataSource: DataSourceConfig{
+						DataSource: datasource.SourceConfig{
 							Name: "HttpJsonDataSource",
 							Config: func() []byte {
 								defaultTypeName := "SuccessType"
-								data, _ := json.Marshal(HttpJsonDataSourceConfig{
+								data, _ := json.Marshal(datasource.HttpJsonDataSourceConfig{
 									Host:            "example.com",
 									URL:             "/",
 									DefaultTypeName: &defaultTypeName,
-									StatusCodeTypeNameMappings: []StatusCodeTypeNameMapping{
+									StatusCodeTypeNameMappings: []datasource.StatusCodeTypeNameMapping{
 										{
 											StatusCode: 500,
 											TypeName:   "ErrorType",
@@ -201,7 +201,7 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 					},
 				},
 			}
-			panicOnErr(base.RegisterDataSourcePlannerFactory("HttpJsonDataSource", HttpJsonDataSourcePlannerFactoryFactory{}))
+			panicOnErr(base.RegisterDataSourcePlannerFactory("HttpJsonDataSource", datasource.HttpJsonDataSourcePlannerFactoryFactory{}))
 		},
 		&Object{
 			operationType: ast.OperationTypeQuery,
@@ -212,23 +212,23 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 						Fetch: &SingleFetch{
 							BufferName: "unionType",
 							Source: &DataSourceInvocation{
-								DataSource: &HttpJsonDataSource{
-									log: abstractlogger.Noop{},
+								DataSource: &datasource.HttpJsonDataSource{
+									Log: abstractlogger.Noop{},
 								},
-								Args: []Argument{
-									&StaticVariableArgument{
+								Args: []datasource.Argument{
+									&datasource.StaticVariableArgument{
 										Name:  []byte("host"),
 										Value: []byte("example.com"),
 									},
-									&StaticVariableArgument{
+									&datasource.StaticVariableArgument{
 										Name:  []byte("url"),
 										Value: []byte("/"),
 									},
-									&StaticVariableArgument{
+									&datasource.StaticVariableArgument{
 										Name:  []byte("method"),
 										Value: []byte("GET"),
 									},
-									&StaticVariableArgument{
+									&datasource.StaticVariableArgument{
 										Name:  []byte("__typename"),
 										Value: []byte(`{"500":"ErrorType","defaultTypeName":"SuccessType"}`),
 									},
@@ -245,7 +245,7 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 											Name: []byte("__typename"),
 											Value: &Value{
 												DataResolvingConfig: DataResolvingConfig{
-													PathSelector: PathSelector{
+													PathSelector: datasource.PathSelector{
 														Path: "__typename",
 													},
 												},
@@ -255,18 +255,18 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("result"),
 											Skip: &IfNotEqual{
-												Left: &ObjectVariableArgument{
-													PathSelector: PathSelector{
+												Left: &datasource.ObjectVariableArgument{
+													PathSelector: datasource.PathSelector{
 														Path: "__typename",
 													},
 												},
-												Right: &StaticVariableArgument{
+												Right: &datasource.StaticVariableArgument{
 													Value: []byte("SuccessType"),
 												},
 											},
 											Value: &Value{
 												DataResolvingConfig: DataResolvingConfig{
-													PathSelector: PathSelector{
+													PathSelector: datasource.PathSelector{
 														Path: "result",
 													},
 												},
@@ -276,18 +276,18 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("message"),
 											Skip: &IfNotEqual{
-												Left: &ObjectVariableArgument{
-													PathSelector: PathSelector{
+												Left: &datasource.ObjectVariableArgument{
+													PathSelector: datasource.PathSelector{
 														Path: "__typename",
 													},
 												},
-												Right: &StaticVariableArgument{
+												Right: &datasource.StaticVariableArgument{
 													Value: []byte("ErrorType"),
 												},
 											},
 											Value: &Value{
 												DataResolvingConfig: DataResolvingConfig{
-													PathSelector: PathSelector{
+													PathSelector: datasource.PathSelector{
 														Path: "message",
 													},
 												},
@@ -318,23 +318,23 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 		}
 		`,
 		func(base *datasource.BasePlanner) {
-			base.config = PlannerConfiguration{
-				TypeFieldConfigurations: []TypeFieldConfiguration{
+			base.Config = datasource.PlannerConfiguration{
+				TypeFieldConfigurations: []datasource.TypeFieldConfiguration{
 					{
 						TypeName:  "query",
 						FieldName: "interfaceType",
-						Mapping: &MappingConfiguration{
+						Mapping: &datasource.MappingConfiguration{
 							Disabled: true,
 						},
-						DataSource: DataSourceConfig{
+						DataSource: datasource.SourceConfig{
 							Name: "HttpJsonDataSource",
 							Config: func() []byte {
 								defaultTypeName := "SuccessInterface"
-								data, _ := json.Marshal(HttpJsonDataSourceConfig{
+								data, _ := json.Marshal(datasource.HttpJsonDataSourceConfig{
 									Host:            "example.com",
 									URL:             "/",
 									DefaultTypeName: &defaultTypeName,
-									StatusCodeTypeNameMappings: []StatusCodeTypeNameMapping{
+									StatusCodeTypeNameMappings: []datasource.StatusCodeTypeNameMapping{
 										{
 											StatusCode: 500,
 											TypeName:   "ErrorInterface",
@@ -347,7 +347,7 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 					},
 				},
 			}
-			panicOnErr(base.RegisterDataSourcePlannerFactory("HttpJsonDataSource", HttpJsonDataSourcePlannerFactoryFactory{}))
+			panicOnErr(base.RegisterDataSourcePlannerFactory("HttpJsonDataSource", datasource.HttpJsonDataSourcePlannerFactoryFactory{}))
 		},
 		&Object{
 			operationType: ast.OperationTypeQuery,
@@ -358,23 +358,23 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 						Fetch: &SingleFetch{
 							BufferName: "interfaceType",
 							Source: &DataSourceInvocation{
-								DataSource: &HttpJsonDataSource{
-									log: abstractlogger.Noop{},
+								DataSource: &datasource.HttpJsonDataSource{
+									Log: abstractlogger.Noop{},
 								},
-								Args: []Argument{
-									&StaticVariableArgument{
+								Args: []datasource.Argument{
+									&datasource.StaticVariableArgument{
 										Name:  []byte("host"),
 										Value: []byte("example.com"),
 									},
-									&StaticVariableArgument{
+									&datasource.StaticVariableArgument{
 										Name:  []byte("url"),
 										Value: []byte("/"),
 									},
-									&StaticVariableArgument{
+									&datasource.StaticVariableArgument{
 										Name:  []byte("method"),
 										Value: []byte("GET"),
 									},
-									&StaticVariableArgument{
+									&datasource.StaticVariableArgument{
 										Name:  []byte("__typename"),
 										Value: []byte(`{"500":"ErrorInterface","defaultTypeName":"SuccessInterface"}`),
 									},
@@ -391,7 +391,7 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 											Name: []byte("__typename"),
 											Value: &Value{
 												DataResolvingConfig: DataResolvingConfig{
-													PathSelector: PathSelector{
+													PathSelector: datasource.PathSelector{
 														Path: "__typename",
 													},
 												},
@@ -402,7 +402,7 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 											Name: []byte("name"),
 											Value: &Value{
 												DataResolvingConfig: DataResolvingConfig{
-													PathSelector: PathSelector{
+													PathSelector: datasource.PathSelector{
 														Path: "name",
 													},
 												},
@@ -412,18 +412,18 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("successField"),
 											Skip: &IfNotEqual{
-												Left: &ObjectVariableArgument{
-													PathSelector: PathSelector{
+												Left: &datasource.ObjectVariableArgument{
+													PathSelector: datasource.PathSelector{
 														Path: "__typename",
 													},
 												},
-												Right: &StaticVariableArgument{
+												Right: &datasource.StaticVariableArgument{
 													Value: []byte("SuccessInterface"),
 												},
 											},
 											Value: &Value{
 												DataResolvingConfig: DataResolvingConfig{
-													PathSelector: PathSelector{
+													PathSelector: datasource.PathSelector{
 														Path: "successField",
 													},
 												},
@@ -433,18 +433,18 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 										{
 											Name: []byte("errorField"),
 											Skip: &IfNotEqual{
-												Left: &ObjectVariableArgument{
-													PathSelector: PathSelector{
+												Left: &datasource.ObjectVariableArgument{
+													PathSelector: datasource.PathSelector{
 														Path: "__typename",
 													},
 												},
-												Right: &StaticVariableArgument{
+												Right: &datasource.StaticVariableArgument{
 													Value: []byte("ErrorInterface"),
 												},
 											},
 											Value: &Value{
 												DataResolvingConfig: DataResolvingConfig{
-													PathSelector: PathSelector{
+													PathSelector: datasource.PathSelector{
 														Path: "errorField",
 													},
 												},
@@ -475,8 +475,8 @@ func TestHttpJsonDataSource_Resolve(t *testing.T) {
 				Context: context.Background(),
 			}
 			buf := bytes.Buffer{}
-			source := &HttpJsonDataSource{
-				log: abstractlogger.Noop{},
+			source := &datasource.HttpJsonDataSource{
+				Log: abstractlogger.Noop{},
 			}
 			args := ResolvedArgs{
 				{
@@ -496,7 +496,10 @@ func TestHttpJsonDataSource_Resolve(t *testing.T) {
 					Value: []byte(typeNameDefinition),
 				},
 			}
-			source.Resolve(ctx, args, &buf)
+			_, err := source.Resolve(ctx, args, &buf)
+			if err != nil {
+				t.Fatal(err)
+			}
 			result := gjson.GetBytes(buf.Bytes(), "__typename")
 			gotTypeName := result.Str
 			if gotTypeName != wantTypeName {

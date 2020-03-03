@@ -2,10 +2,10 @@ package execution
 
 import (
 	"bytes"
-	"encoding/json"
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
+	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 	"github.com/jensneuse/pipeline/pkg/pipe"
@@ -24,54 +24,10 @@ type DataSourceDefinition struct {
 	// the field on the type to which the data source is attached
 	FieldName []byte
 	// a factory method to return a new planner
-	DataSourcePlannerFactory func() DataSourcePlanner
+	DataSourcePlannerFactory func() datasource.Planner
 }
 
-type TypeFieldConfiguration struct {
-	TypeName                 string
-	FieldName                string
-	Mapping                  *MappingConfiguration
-	DataSource               DataSourceConfig `json:"data_source"`
-	DataSourcePlannerFactory DataSourcePlannerFactory
-}
-
-type DataSourceConfig struct {
-	// Kind defines the unique identifier of the DataSource
-	// Kind needs to match to the DataSourcePlanner "DataSourceName" name
-	Name string `json:"kind"`
-	// Config is the DataSource specific configuration object
-	// Each DataSourcePlanner needs to make sure to parse their Config Object correctly
-	Config json.RawMessage `json:"dataSourceConfig"`
-}
-
-type MappingConfiguration struct {
-	Disabled bool
-	Path     string
-}
-
-type PlannerConfiguration struct {
-	TypeFieldConfigurations []TypeFieldConfiguration
-}
-
-func (p *PlannerConfiguration) dataSourcePlannerFactoryForTypeField(typeName, fieldName string) DataSourcePlannerFactory {
-	for i := range p.TypeFieldConfigurations {
-		if p.TypeFieldConfigurations[i].TypeName == typeName && p.TypeFieldConfigurations[i].FieldName == fieldName {
-			return p.TypeFieldConfigurations[i].DataSourcePlannerFactory
-		}
-	}
-	return nil
-}
-
-func (p *PlannerConfiguration) mappingForTypeField(typeName, fieldName string) *MappingConfiguration {
-	for i := range p.TypeFieldConfigurations {
-		if p.TypeFieldConfigurations[i].TypeName == typeName && p.TypeFieldConfigurations[i].FieldName == fieldName {
-			return p.TypeFieldConfigurations[i].Mapping
-		}
-	}
-	return nil
-}
-
-func NewPlanner(base *BaseDataSourcePlanner) *Planner {
+func NewPlanner(base *datasource.BasePlanner) *Planner {
 	walker := astvisitor.NewWalker(48)
 	visitor := planningVisitor{
 		Walker: &walker,
@@ -99,7 +55,7 @@ func (p *Planner) Plan(operation, definition *ast.Document, report *operationrep
 
 type planningVisitor struct {
 	*astvisitor.Walker
-	base                  *BaseDataSourcePlanner
+	base                  *datasource.BasePlanner
 	operation, definition *ast.Document
 	rootNode              RootNode
 	currentNode           []Node
@@ -109,11 +65,11 @@ type planningVisitor struct {
 type dataSourcePlannerRef struct {
 	path     ast.Path
 	fieldRef int
-	planner  DataSourcePlanner
+	planner  datasource.Planner
 }
 
 func (p *planningVisitor) EnterDocument(operation, definition *ast.Document) {
-	p.operation, p.definition, p.base.definition = operation, definition, definition
+	p.operation, p.definition, p.base.Definition = operation, definition, definition
 	obj := &Object{}
 	p.rootNode = &Object{
 		operationType: operation.OperationDefinitions[0].OperationType,
@@ -150,14 +106,10 @@ func (p *planningVisitor) EnterField(ref int) {
 	typeName := p.definition.NodeResolverTypeNameString(p.EnclosingTypeDefinition, p.Path)
 	fieldName := p.operation.FieldNameString(ref)
 
-	plannerFactory := p.base.config.dataSourcePlannerFactoryForTypeField(typeName, fieldName)
+	plannerFactory := p.base.Config.DataSourcePlannerFactoryForTypeField(typeName, fieldName)
 	if plannerFactory != nil {
 		planner := plannerFactory.DataSourcePlanner()
-		planner.Configure(DataSourcePlannerConfiguration{
-			operation:  p.operation,
-			definition: p.definition,
-			walker:     p.Walker,
-		})
+		planner.Configure(p.operation,p.definition,p.Walker)
 		p.planners = append(p.planners, dataSourcePlannerRef{
 			path:     p.Path,
 			fieldRef: ref,
@@ -177,12 +129,12 @@ func (p *planningVisitor) EnterField(ref int) {
 		if ancestor.Kind == ast.NodeKindInlineFragment {
 			typeConditionName := p.operation.InlineFragmentTypeConditionName(ancestor.Ref)
 			skipCondition = &IfNotEqual{
-				Left: &ObjectVariableArgument{
-					PathSelector: PathSelector{
+				Left: &datasource.ObjectVariableArgument{
+					PathSelector: datasource.PathSelector{
 						Path: "__typename",
 					},
 				},
-				Right: &StaticVariableArgument{
+				Right: &datasource.StaticVariableArgument{
 					Value: typeConditionName,
 				},
 			}
@@ -250,8 +202,8 @@ func (p *planningVisitor) EnterField(ref int) {
 
 func (p *planningVisitor) LeaveField(ref int) {
 
-	var plannedDataSource DataSource
-	var plannedArgs []Argument
+	var plannedDataSource datasource.DataSource
+	var plannedArgs []datasource.Argument
 
 	if len(p.planners) != 0 {
 
@@ -306,11 +258,11 @@ func (p *planningVisitor) LeaveField(ref int) {
 	p.currentNode = p.currentNode[:len(p.currentNode)-1]
 }
 
-func (p *planningVisitor) fieldContextVariableArguments(ref int) []Argument {
+func (p *planningVisitor) fieldContextVariableArguments(ref int) []datasource.Argument {
 	// args
 	if p.operation.FieldHasArguments(ref) {
 		refs := p.operation.FieldArguments(ref)
-		out := make([]Argument, len(refs))
+		out := make([]datasource.Argument, len(refs))
 		for j, i := range refs {
 			argName := p.operation.ArgumentNameBytes(i)
 			value := p.operation.ArgumentValue(i)
@@ -319,7 +271,7 @@ func (p *planningVisitor) fieldContextVariableArguments(ref int) []Argument {
 			}
 			variableName := p.operation.VariableValueNameBytes(value.Ref)
 			name := append([]byte(".arguments."), argName...)
-			arg := &ContextVariableArgument{
+			arg := &datasource.ContextVariableArgument{
 				VariableName: variableName,
 				Name:         make([]byte, len(name)),
 			}
@@ -364,10 +316,10 @@ func (p *planningVisitor) fieldDataResolvingConfig(ref int) DataResolvingConfig 
 	}
 }
 
-func (p *planningVisitor) fieldPathSelector(ref int) (selector PathSelector) {
+func (p *planningVisitor) fieldPathSelector(ref int) (selector datasource.PathSelector) {
 	fieldName := p.operation.FieldNameString(ref)
 	typeName := p.definition.NodeResolverTypeNameString(p.EnclosingTypeDefinition, p.Path)
-	mapping := p.base.config.mappingForTypeField(typeName, fieldName)
+	mapping := p.base.Config.MappingForTypeField(typeName, fieldName)
 	if mapping == nil {
 		selector.Path = fieldName
 		return

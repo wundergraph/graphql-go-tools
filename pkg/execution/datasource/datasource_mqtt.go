@@ -1,10 +1,10 @@
-package execution
+package datasource
 
 import (
+	"context"
 	"encoding/json"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	log "github.com/jensneuse/abstractlogger"
-	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"io"
 	"sync"
@@ -20,7 +20,7 @@ type MQTTDataSourceConfig struct {
 type MQTTDataSourcePlannerFactoryFactory struct {
 }
 
-func (M MQTTDataSourcePlannerFactoryFactory) Initialize(base datasource.BasePlanner, configReader io.Reader) (datasource.PlannerFactory, error) {
+func (M MQTTDataSourcePlannerFactoryFactory) Initialize(base BasePlanner, configReader io.Reader) (PlannerFactory, error) {
 	factory := &MQTTDataSourcePlannerFactory{
 		base: base,
 	}
@@ -28,11 +28,11 @@ func (M MQTTDataSourcePlannerFactoryFactory) Initialize(base datasource.BasePlan
 }
 
 type MQTTDataSourcePlannerFactory struct {
-	base   datasource.BasePlanner
+	base   BasePlanner
 	config MQTTDataSourceConfig
 }
 
-func (m MQTTDataSourcePlannerFactory) DataSourcePlanner() datasource.Planner {
+func (m MQTTDataSourcePlannerFactory) DataSourcePlanner() Planner {
 	return &MQTTDataSourcePlanner{
 		BasePlanner:      m.base,
 		dataSourceConfig: m.config,
@@ -40,14 +40,14 @@ func (m MQTTDataSourcePlannerFactory) DataSourcePlanner() datasource.Planner {
 }
 
 type MQTTDataSourcePlanner struct {
-	datasource.BasePlanner
+	BasePlanner
 	dataSourceConfig MQTTDataSourceConfig
 }
 
-func (n *MQTTDataSourcePlanner) Plan(args []Argument) (datasource.DataSource, []Argument) {
+func (n *MQTTDataSourcePlanner) Plan(args []Argument) (DataSource, []Argument) {
 	return &MQTTDataSource{
-		log: n.log,
-	}, append(n.args, args...)
+		log: n.Log,
+	}, append(n.Args, args...)
 }
 
 func (n *MQTTDataSourcePlanner) EnterInlineFragment(ref int) {
@@ -67,22 +67,22 @@ func (n *MQTTDataSourcePlanner) LeaveSelectionSet(ref int) {
 }
 
 func (n *MQTTDataSourcePlanner) EnterField(ref int) {
-	n.rootField.setIfNotDefined(ref)
+	n.RootField.setIfNotDefined(ref)
 }
 
 func (n *MQTTDataSourcePlanner) LeaveField(ref int) {
-	if !n.rootField.isDefinedAndEquals(ref) {
+	if !n.RootField.isDefinedAndEquals(ref) {
 		return
 	}
-	n.args = append(n.args, &StaticVariableArgument{
+	n.Args = append(n.Args, &StaticVariableArgument{
 		Name:  literal.BROKERADDR,
 		Value: []byte(n.dataSourceConfig.BrokerAddr),
 	})
-	n.args = append(n.args, &StaticVariableArgument{
+	n.Args = append(n.Args, &StaticVariableArgument{
 		Name:  literal.CLIENTID,
 		Value: []byte(n.dataSourceConfig.ClientID),
 	})
-	n.args = append(n.args, &StaticVariableArgument{
+	n.Args = append(n.Args, &StaticVariableArgument{
 		Name:  literal.TOPIC,
 		Value: []byte(n.dataSourceConfig.Topic),
 	})
@@ -95,7 +95,7 @@ type MQTTDataSource struct {
 	client mqtt.Client
 }
 
-func (m *MQTTDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) (n int, err error) {
+func (m *MQTTDataSource) Resolve(ctx context.Context, args ResolverArgs, out io.Writer) (n int, err error) {
 
 	defer func() {
 		select {

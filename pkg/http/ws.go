@@ -162,6 +162,7 @@ func (g *GraphQLHTTPRequestHandler) startSubscription(r *http.Request, ctx conte
 	}
 }
 
+// nolint
 func (g *GraphQLHTTPRequestHandler) sendCloseMessage(id string, conn net.Conn, op ws.OpCode) error {
 	data, err := json.Marshal(WebsocketMessage{
 		Id:   id,

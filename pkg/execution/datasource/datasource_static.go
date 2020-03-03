@@ -1,8 +1,8 @@
-package execution
+package datasource
 
 import (
+	"context"
 	"encoding/json"
-	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
 	"io"
 )
 
@@ -13,7 +13,7 @@ type StaticDataSourceConfig struct {
 type StaticDataSourcePlannerFactoryFactory struct {
 }
 
-func (s StaticDataSourcePlannerFactoryFactory) Initialize(base datasource.BasePlanner, configReader io.Reader) (datasource.PlannerFactory, error) {
+func (s StaticDataSourcePlannerFactoryFactory) Initialize(base BasePlanner, configReader io.Reader) (PlannerFactory, error) {
 	factory := &StaticDataSourcePlannerFactory{
 		base: base,
 	}
@@ -21,32 +21,32 @@ func (s StaticDataSourcePlannerFactoryFactory) Initialize(base datasource.BasePl
 }
 
 type StaticDataSourcePlannerFactory struct {
-	base   datasource.BasePlanner
+	base   BasePlanner
 	config StaticDataSourceConfig
 }
 
-func (s StaticDataSourcePlannerFactory) DataSourcePlanner() datasource.Planner {
-	return datasource.SimpleDataSourcePlanner(&StaticDataSourcePlanner{
+func (s StaticDataSourcePlannerFactory) DataSourcePlanner() Planner {
+	return SimpleDataSourcePlanner(&StaticDataSourcePlanner{
 		BasePlanner:      s.base,
 		dataSourceConfig: s.config,
 	})
 }
 
 type StaticDataSourcePlanner struct {
-	datasource.BasePlanner
+	BasePlanner
 	dataSourceConfig StaticDataSourceConfig
 }
 
-func (s *StaticDataSourcePlanner) Plan(args []Argument) (datasource.DataSource, []Argument) {
+func (s *StaticDataSourcePlanner) Plan(args []Argument) (DataSource, []Argument) {
 	return &StaticDataSource{
-		data: []byte(s.dataSourceConfig.Data),
-	}, append(s.args, args...)
+		Data: []byte(s.dataSourceConfig.Data),
+	}, append(s.Args, args...)
 }
 
 type StaticDataSource struct {
-	data []byte
+	Data []byte
 }
 
-func (s StaticDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) (n int, err error) {
-	return out.Write(s.data)
+func (s StaticDataSource) Resolve(ctx context.Context, args ResolverArgs, out io.Writer) (n int, err error) {
+	return out.Write(s.Data)
 }

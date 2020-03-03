@@ -2,6 +2,7 @@ package http
 
 import (
 	"encoding/json"
+	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
 	"io/ioutil"
 	"testing"
 
@@ -33,7 +34,7 @@ type starWarsTestCase struct {
 }
 
 func newStarWarsExecutionHandler(t *testing.T) *execution.Handler {
-	base, err := execution.NewBaseDataSourcePlanner(starWarsSchema(t), execution.PlannerConfiguration{}, abstractlogger.NoopLogger)
+	base, err := datasource.NewBaseDataSourcePlanner(starWarsSchema(t), datasource.PlannerConfiguration{}, abstractlogger.NoopLogger)
 	require.NoError(t, err)
 	executionHandler := execution.NewHandler(base, nil)
 	return executionHandler

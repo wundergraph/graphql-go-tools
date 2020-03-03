@@ -1,8 +1,8 @@
-package execution
+package datasource
 
 import (
+	"context"
 	"encoding/json"
-	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/introspection"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 	"io"
@@ -14,7 +14,7 @@ type SchemaDataSourcePlannerConfig struct {
 type SchemaDataSourcePlannerFactoryFactory struct {
 }
 
-func (s SchemaDataSourcePlannerFactoryFactory) Initialize(base datasource.BasePlanner, configReader io.Reader) (datasource.PlannerFactory, error) {
+func (s SchemaDataSourcePlannerFactoryFactory) Initialize(base BasePlanner, configReader io.Reader) (PlannerFactory, error) {
 	factory := &SchemaDataSourcePlannerFactory{
 		base: base,
 	}
@@ -25,19 +25,19 @@ func (s SchemaDataSourcePlannerFactoryFactory) Initialize(base datasource.BasePl
 	gen := introspection.NewGenerator()
 	var data introspection.Data
 	var report operationreport.Report
-	gen.Generate(base.definition, &report, &data)
+	gen.Generate(base.Definition, &report, &data)
 	factory.schemaBytes, err = json.Marshal(data)
 	return factory, err
 }
 
 type SchemaDataSourcePlannerFactory struct {
-	base        datasource.BasePlanner
+	base        BasePlanner
 	config      SchemaDataSourcePlannerConfig
 	schemaBytes []byte
 }
 
-func (s SchemaDataSourcePlannerFactory) DataSourcePlanner() datasource.Planner {
-	return datasource.SimpleDataSourcePlanner(&SchemaDataSourcePlanner{
+func (s SchemaDataSourcePlannerFactory) DataSourcePlanner() Planner {
+	return SimpleDataSourcePlanner(&SchemaDataSourcePlanner{
 		BasePlanner:      s.base,
 		dataSourceConfig: s.config,
 		schemaBytes:      s.schemaBytes,
@@ -45,21 +45,21 @@ func (s SchemaDataSourcePlannerFactory) DataSourcePlanner() datasource.Planner {
 }
 
 type SchemaDataSourcePlanner struct {
-	datasource.BasePlanner
+	BasePlanner
 	dataSourceConfig SchemaDataSourcePlannerConfig
 	schemaBytes      []byte
 }
 
-func (s *SchemaDataSourcePlanner) Plan(args []Argument) (datasource.DataSource, []Argument) {
+func (s *SchemaDataSourcePlanner) Plan(args []Argument) (DataSource, []Argument) {
 	return &SchemaDataSource{
-		schemaBytes: s.schemaBytes,
-	}, append(s.args, args...)
+		SchemaBytes: s.schemaBytes,
+	}, append(s.Args, args...)
 }
 
 type SchemaDataSource struct {
-	schemaBytes []byte
+	SchemaBytes []byte
 }
 
-func (s *SchemaDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) (n int, err error) {
-	return out.Write(s.schemaBytes)
+func (s *SchemaDataSource) Resolve(ctx context.Context, args ResolverArgs, out io.Writer) (n int, err error) {
+	return out.Write(s.SchemaBytes)
 }
