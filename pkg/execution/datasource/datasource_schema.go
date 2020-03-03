@@ -2,6 +2,7 @@ package execution
 
 import (
 	"encoding/json"
+	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/introspection"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 	"io"
@@ -13,7 +14,7 @@ type SchemaDataSourcePlannerConfig struct {
 type SchemaDataSourcePlannerFactoryFactory struct {
 }
 
-func (s SchemaDataSourcePlannerFactoryFactory) Initialize(base BaseDataSourcePlanner, configReader io.Reader) (DataSourcePlannerFactory, error) {
+func (s SchemaDataSourcePlannerFactoryFactory) Initialize(base datasource.BasePlanner, configReader io.Reader) (datasource.PlannerFactory, error) {
 	factory := &SchemaDataSourcePlannerFactory{
 		base: base,
 	}
@@ -30,26 +31,26 @@ func (s SchemaDataSourcePlannerFactoryFactory) Initialize(base BaseDataSourcePla
 }
 
 type SchemaDataSourcePlannerFactory struct {
-	base        BaseDataSourcePlanner
+	base        datasource.BasePlanner
 	config      SchemaDataSourcePlannerConfig
 	schemaBytes []byte
 }
 
-func (s SchemaDataSourcePlannerFactory) DataSourcePlanner() DataSourcePlanner {
-	return SimpleDataSourcePlanner(&SchemaDataSourcePlanner{
-		BaseDataSourcePlanner: s.base,
-		dataSourceConfig:      s.config,
-		schemaBytes:           s.schemaBytes,
+func (s SchemaDataSourcePlannerFactory) DataSourcePlanner() datasource.Planner {
+	return datasource.SimpleDataSourcePlanner(&SchemaDataSourcePlanner{
+		BasePlanner:      s.base,
+		dataSourceConfig: s.config,
+		schemaBytes:      s.schemaBytes,
 	})
 }
 
 type SchemaDataSourcePlanner struct {
-	BaseDataSourcePlanner
+	datasource.BasePlanner
 	dataSourceConfig SchemaDataSourcePlannerConfig
 	schemaBytes      []byte
 }
 
-func (s *SchemaDataSourcePlanner) Plan(args []Argument) (DataSource, []Argument) {
+func (s *SchemaDataSourcePlanner) Plan(args []Argument) (datasource.DataSource, []Argument) {
 	return &SchemaDataSource{
 		schemaBytes: s.schemaBytes,
 	}, append(s.args, args...)

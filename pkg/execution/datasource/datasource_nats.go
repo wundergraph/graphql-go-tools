@@ -3,6 +3,7 @@ package execution
 import (
 	"encoding/json"
 	log "github.com/jensneuse/abstractlogger"
+	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/nats-io/nats.go"
 	"io"
@@ -18,7 +19,7 @@ type NatsDataSourceConfig struct {
 type NatsDataSourcePlannerFactoryFactory struct {
 }
 
-func (n NatsDataSourcePlannerFactoryFactory) Initialize(base BaseDataSourcePlanner, configReader io.Reader) (DataSourcePlannerFactory, error) {
+func (n NatsDataSourcePlannerFactoryFactory) Initialize(base datasource.BasePlanner, configReader io.Reader) (datasource.PlannerFactory, error) {
 	factory := &NatsDataSourcePlannerFactory{
 		base: base,
 	}
@@ -26,23 +27,23 @@ func (n NatsDataSourcePlannerFactoryFactory) Initialize(base BaseDataSourcePlann
 }
 
 type NatsDataSourcePlannerFactory struct {
-	base   BaseDataSourcePlanner
+	base   datasource.BasePlanner
 	config NatsDataSourceConfig
 }
 
-func (n NatsDataSourcePlannerFactory) DataSourcePlanner() DataSourcePlanner {
-	return SimpleDataSourcePlanner(&NatsDataSourcePlanner{
-		BaseDataSourcePlanner: n.base,
-		dataSourceConfig:      n.config,
+func (n NatsDataSourcePlannerFactory) DataSourcePlanner() datasource.Planner {
+	return datasource.SimpleDataSourcePlanner(&NatsDataSourcePlanner{
+		BasePlanner:      n.base,
+		dataSourceConfig: n.config,
 	})
 }
 
 type NatsDataSourcePlanner struct {
-	BaseDataSourcePlanner
+	datasource.BasePlanner
 	dataSourceConfig NatsDataSourceConfig
 }
 
-func (n *NatsDataSourcePlanner) Plan([]Argument) (DataSource, []Argument) {
+func (n *NatsDataSourcePlanner) Plan([]Argument) (datasource.DataSource, []Argument) {
 	n.args = append(n.args, &StaticVariableArgument{
 		Name:  literal.ADDR,
 		Value: []byte(n.dataSourceConfig.Addr),

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	log "github.com/jensneuse/abstractlogger"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	wasm "github.com/wasmerio/go-ext-wasm/wasmer"
 	"io"
@@ -18,7 +19,7 @@ type WasmDataSourceConfig struct {
 type WasmDataSourcePlannerFactoryFactory struct {
 }
 
-func (w WasmDataSourcePlannerFactoryFactory) Initialize(base BaseDataSourcePlanner, configReader io.Reader) (DataSourcePlannerFactory, error) {
+func (w WasmDataSourcePlannerFactoryFactory) Initialize(base datasource.BasePlanner, configReader io.Reader) (datasource.PlannerFactory, error) {
 	factory := &WasmDataSourcePlannerFactory{
 		base: base,
 	}
@@ -26,19 +27,19 @@ func (w WasmDataSourcePlannerFactoryFactory) Initialize(base BaseDataSourcePlann
 }
 
 type WasmDataSourcePlannerFactory struct {
-	base   BaseDataSourcePlanner
+	base   datasource.BasePlanner
 	config WasmDataSourceConfig
 }
 
-func (w WasmDataSourcePlannerFactory) DataSourcePlanner() DataSourcePlanner {
+func (w WasmDataSourcePlannerFactory) DataSourcePlanner() datasource.Planner {
 	return &WasmDataSourcePlanner{
-		BaseDataSourcePlanner: w.base,
-		dataSourceConfig:      w.config,
+		BasePlanner:      w.base,
+		dataSourceConfig: w.config,
 	}
 }
 
 type WasmDataSourcePlanner struct {
-	BaseDataSourcePlanner
+	datasource.BasePlanner
 	dataSourceConfig WasmDataSourceConfig
 }
 
@@ -92,7 +93,7 @@ func (w *WasmDataSourcePlanner) LeaveField(ref int) {
 
 }
 
-func (w *WasmDataSourcePlanner) Plan(args []Argument) (DataSource, []Argument) {
+func (w *WasmDataSourcePlanner) Plan(args []Argument) (datasource.DataSource, []Argument) {
 	return &WasmDataSource{
 		log: w.log,
 	}, append(w.args, args...)

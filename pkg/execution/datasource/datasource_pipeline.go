@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	log "github.com/jensneuse/abstractlogger"
+	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/pipeline/pkg/pipe"
 	"io"
@@ -31,7 +32,7 @@ type PipelineDataSourceConfig struct {
 type PipelineDataSourcePlannerFactoryFactory struct {
 }
 
-func (p PipelineDataSourcePlannerFactoryFactory) Initialize(base BaseDataSourcePlanner, configReader io.Reader) (DataSourcePlannerFactory, error) {
+func (p PipelineDataSourcePlannerFactoryFactory) Initialize(base datasource.BasePlanner, configReader io.Reader) (datasource.PlannerFactory, error) {
 	factory := &PipelineDataSourcePlannerFactory{
 		base: base,
 	}
@@ -39,24 +40,24 @@ func (p PipelineDataSourcePlannerFactoryFactory) Initialize(base BaseDataSourceP
 }
 
 type PipelineDataSourcePlannerFactory struct {
-	base   BaseDataSourcePlanner
+	base   datasource.BasePlanner
 	config PipelineDataSourceConfig
 }
 
-func (p PipelineDataSourcePlannerFactory) DataSourcePlanner() DataSourcePlanner {
+func (p PipelineDataSourcePlannerFactory) DataSourcePlanner() datasource.Planner {
 	return &PipelineDataSourcePlanner{
-		BaseDataSourcePlanner: p.base,
-		dataSourceConfig:      p.config,
+		BasePlanner:      p.base,
+		dataSourceConfig: p.config,
 	}
 }
 
 type PipelineDataSourcePlanner struct {
-	BaseDataSourcePlanner
+	datasource.BasePlanner
 	dataSourceConfig  PipelineDataSourceConfig
 	rawPipelineConfig []byte
 }
 
-func (h *PipelineDataSourcePlanner) Plan(args []Argument) (DataSource, []Argument) {
+func (h *PipelineDataSourcePlanner) Plan(args []Argument) (datasource.DataSource, []Argument) {
 
 	source := PipelineDataSource{
 		log: h.log,

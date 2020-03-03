@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	log "github.com/jensneuse/abstractlogger"
+	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"io"
 	"sync"
@@ -19,7 +20,7 @@ type MQTTDataSourceConfig struct {
 type MQTTDataSourcePlannerFactoryFactory struct {
 }
 
-func (M MQTTDataSourcePlannerFactoryFactory) Initialize(base BaseDataSourcePlanner, configReader io.Reader) (DataSourcePlannerFactory, error) {
+func (M MQTTDataSourcePlannerFactoryFactory) Initialize(base datasource.BasePlanner, configReader io.Reader) (datasource.PlannerFactory, error) {
 	factory := &MQTTDataSourcePlannerFactory{
 		base: base,
 	}
@@ -27,23 +28,23 @@ func (M MQTTDataSourcePlannerFactoryFactory) Initialize(base BaseDataSourcePlann
 }
 
 type MQTTDataSourcePlannerFactory struct {
-	base   BaseDataSourcePlanner
+	base   datasource.BasePlanner
 	config MQTTDataSourceConfig
 }
 
-func (m MQTTDataSourcePlannerFactory) DataSourcePlanner() DataSourcePlanner {
+func (m MQTTDataSourcePlannerFactory) DataSourcePlanner() datasource.Planner {
 	return &MQTTDataSourcePlanner{
-		BaseDataSourcePlanner: m.base,
-		dataSourceConfig:      m.config,
+		BasePlanner:      m.base,
+		dataSourceConfig: m.config,
 	}
 }
 
 type MQTTDataSourcePlanner struct {
-	BaseDataSourcePlanner
+	datasource.BasePlanner
 	dataSourceConfig MQTTDataSourceConfig
 }
 
-func (n *MQTTDataSourcePlanner) Plan(args []Argument) (DataSource, []Argument) {
+func (n *MQTTDataSourcePlanner) Plan(args []Argument) (datasource.DataSource, []Argument) {
 	return &MQTTDataSource{
 		log: n.log,
 	}, append(n.args, args...)

@@ -7,6 +7,7 @@ import (
 	"github.com/buger/jsonparser"
 	log "github.com/jensneuse/abstractlogger"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -53,7 +54,7 @@ type HttpJsonDataSourceConfigHeader struct {
 type HttpJsonDataSourcePlannerFactoryFactory struct {
 }
 
-func (h HttpJsonDataSourcePlannerFactoryFactory) Initialize(base BaseDataSourcePlanner, configReader io.Reader) (DataSourcePlannerFactory, error) {
+func (h HttpJsonDataSourcePlannerFactoryFactory) Initialize(base datasource.BasePlanner, configReader io.Reader) (datasource.PlannerFactory, error) {
 	factory := HttpJsonDataSourcePlannerFactory{
 		base: base,
 	}
@@ -62,23 +63,23 @@ func (h HttpJsonDataSourcePlannerFactoryFactory) Initialize(base BaseDataSourceP
 }
 
 type HttpJsonDataSourcePlannerFactory struct {
-	base   BaseDataSourcePlanner
+	base   datasource.BasePlanner
 	config HttpJsonDataSourceConfig
 }
 
-func (h HttpJsonDataSourcePlannerFactory) DataSourcePlanner() DataSourcePlanner {
+func (h HttpJsonDataSourcePlannerFactory) DataSourcePlanner() datasource.Planner {
 	return &HttpJsonDataSourcePlanner{
-		BaseDataSourcePlanner: h.base,
-		dataSourceConfig:      h.config,
+		BasePlanner:      h.base,
+		dataSourceConfig: h.config,
 	}
 }
 
 type HttpJsonDataSourcePlanner struct {
-	BaseDataSourcePlanner
+	datasource.BasePlanner
 	dataSourceConfig HttpJsonDataSourceConfig
 }
 
-func (h *HttpJsonDataSourcePlanner) Plan(args []Argument) (DataSource, []Argument) {
+func (h *HttpJsonDataSourcePlanner) Plan(args []Argument) (datasource.DataSource, []Argument) {
 	return &HttpJsonDataSource{
 		log: h.log,
 	}, append(h.args, args...)

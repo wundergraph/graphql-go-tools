@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	log "github.com/jensneuse/abstractlogger"
+	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"io"
 	"io/ioutil"
@@ -23,7 +24,7 @@ type HttpPollingStreamDataSourceConfiguration struct {
 type HttpPollingStreamDataSourcePlannerFactoryFactory struct {
 }
 
-func (h HttpPollingStreamDataSourcePlannerFactoryFactory) Initialize(base BaseDataSourcePlanner, configReader io.Reader) (DataSourcePlannerFactory, error) {
+func (h HttpPollingStreamDataSourcePlannerFactoryFactory) Initialize(base datasource.BasePlanner, configReader io.Reader) (datasource.PlannerFactory, error) {
 	factory := &HttpPollingStreamDataSourcePlannerFactory{
 		base: base,
 	}
@@ -31,24 +32,24 @@ func (h HttpPollingStreamDataSourcePlannerFactoryFactory) Initialize(base BaseDa
 }
 
 type HttpPollingStreamDataSourcePlannerFactory struct {
-	base   BaseDataSourcePlanner
+	base   datasource.BasePlanner
 	config HttpPollingStreamDataSourceConfiguration
 }
 
-func (h HttpPollingStreamDataSourcePlannerFactory) DataSourcePlanner() DataSourcePlanner {
+func (h HttpPollingStreamDataSourcePlannerFactory) DataSourcePlanner() datasource.Planner {
 	return &HttpPollingStreamDataSourcePlanner{
-		BaseDataSourcePlanner: h.base,
-		dataSourceConfig:      h.config,
+		BasePlanner:      h.base,
+		dataSourceConfig: h.config,
 	}
 }
 
 type HttpPollingStreamDataSourcePlanner struct {
-	BaseDataSourcePlanner
+	datasource.BasePlanner
 	dataSourceConfig HttpPollingStreamDataSourceConfiguration
 	delay            time.Duration
 }
 
-func (h *HttpPollingStreamDataSourcePlanner) Plan(args []Argument) (DataSource, []Argument) {
+func (h *HttpPollingStreamDataSourcePlanner) Plan(args []Argument) (datasource.DataSource, []Argument) {
 	return &HttpPollingStreamDataSource{
 		log:   h.log,
 		delay: h.delay,

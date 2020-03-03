@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/jensneuse/abstractlogger"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/tidwall/gjson"
 	"net/http"
@@ -56,7 +57,7 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 			}
 		}
 		`,
-		func(base *BaseDataSourcePlanner) {
+		func(base *datasource.BasePlanner) {
 			base.config = PlannerConfiguration{
 				TypeFieldConfigurations: []TypeFieldConfiguration{
 					{
@@ -170,7 +171,7 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 			}
 		}
 		`,
-		func(base *BaseDataSourcePlanner) {
+		func(base *datasource.BasePlanner) {
 			base.config = PlannerConfiguration{
 				TypeFieldConfigurations: []TypeFieldConfiguration{
 					{
@@ -316,7 +317,7 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 			}
 		}
 		`,
-		func(base *BaseDataSourcePlanner) {
+		func(base *datasource.BasePlanner) {
 			base.config = PlannerConfiguration{
 				TypeFieldConfigurations: []TypeFieldConfiguration{
 					{

@@ -2,6 +2,7 @@ package execution
 
 import (
 	"encoding/json"
+	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
 	"io"
 )
 
@@ -11,7 +12,7 @@ type TypeDataSourcePlannerConfig struct {
 type TypeDataSourcePlannerFactoryFactory struct {
 }
 
-func (t TypeDataSourcePlannerFactoryFactory) Initialize(base BaseDataSourcePlanner, configReader io.Reader) (DataSourcePlannerFactory, error) {
+func (t TypeDataSourcePlannerFactoryFactory) Initialize(base datasource.BasePlanner, configReader io.Reader) (datasource.PlannerFactory, error) {
 	factory := TypeDataSourcePlannerFactory{
 		base: base,
 	}
@@ -19,23 +20,23 @@ func (t TypeDataSourcePlannerFactoryFactory) Initialize(base BaseDataSourcePlann
 }
 
 type TypeDataSourcePlannerFactory struct {
-	base   BaseDataSourcePlanner
+	base   datasource.BasePlanner
 	config TypeDataSourcePlannerConfig
 }
 
-func (t TypeDataSourcePlannerFactory) DataSourcePlanner() DataSourcePlanner {
-	return SimpleDataSourcePlanner(&TypeDataSourcePlanner{
-		BaseDataSourcePlanner: t.base,
-		dataSourceConfig:      t.config,
+func (t TypeDataSourcePlannerFactory) DataSourcePlanner() datasource.Planner {
+	return datasource.SimpleDataSourcePlanner(&TypeDataSourcePlanner{
+		BasePlanner:      t.base,
+		dataSourceConfig: t.config,
 	})
 }
 
 type TypeDataSourcePlanner struct {
-	BaseDataSourcePlanner
+	datasource.BasePlanner
 	dataSourceConfig TypeDataSourcePlannerConfig
 }
 
-func (t *TypeDataSourcePlanner) Plan(args []Argument) (DataSource, []Argument) {
+func (t *TypeDataSourcePlanner) Plan(args []Argument) (datasource.DataSource, []Argument) {
 	return &TypeDataSource{}, append(t.args, args...)
 }
 

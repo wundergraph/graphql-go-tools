@@ -9,6 +9,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astimport"
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
+	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"io"
 	"io/ioutil"
@@ -28,7 +29,7 @@ type GraphQLDataSourceConfig struct {
 }
 
 type GraphQLDataSourcePlanner struct {
-	BaseDataSourcePlanner
+	datasource.BasePlanner
 	importer                *astimport.Importer
 	nodes                   []ast.Node
 	resolveDocument         *ast.Document
@@ -37,7 +38,7 @@ type GraphQLDataSourcePlanner struct {
 
 type GraphQLDataSourcePlannerFactoryFactory struct{}
 
-func (g GraphQLDataSourcePlannerFactoryFactory) Initialize(base BaseDataSourcePlanner, configReader io.Reader) (DataSourcePlannerFactory, error) {
+func (g GraphQLDataSourcePlannerFactoryFactory) Initialize(base datasource.BasePlanner, configReader io.Reader) (datasource.PlannerFactory, error) {
 	factory := &GraphQLDataSourcePlannerFactory{
 		base: base,
 	}
@@ -46,13 +47,13 @@ func (g GraphQLDataSourcePlannerFactoryFactory) Initialize(base BaseDataSourcePl
 }
 
 type GraphQLDataSourcePlannerFactory struct {
-	base   BaseDataSourcePlanner
+	base   datasource.BasePlanner
 	config GraphQLDataSourceConfig
 }
 
-func (g *GraphQLDataSourcePlannerFactory) DataSourcePlanner() DataSourcePlanner {
+func (g *GraphQLDataSourcePlannerFactory) DataSourcePlanner() datasource.Planner {
 	return &GraphQLDataSourcePlanner{
-		BaseDataSourcePlanner:   g.base,
+		BasePlanner:             g.base,
 		importer:                &astimport.Importer{},
 		dataSourceConfiguration: g.config,
 		resolveDocument:         &ast.Document{},
@@ -248,7 +249,7 @@ func (g *GraphQLDataSourcePlanner) LeaveField(ref int) {
 	}
 }
 
-func (g *GraphQLDataSourcePlanner) Plan(args []Argument) (DataSource, []Argument) {
+func (g *GraphQLDataSourcePlanner) Plan(args []Argument) (datasource.DataSource, []Argument) {
 	for i := range args {
 		if arg, ok := args[i].(*ContextVariableArgument); ok {
 			if bytes.HasPrefix(arg.Name, literal.DOT_ARGUMENTS_DOT) {
