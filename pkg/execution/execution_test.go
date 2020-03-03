@@ -9,6 +9,7 @@ import (
 	log "github.com/jensneuse/abstractlogger"
 	"github.com/jensneuse/diffview"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/introspection"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
@@ -100,38 +101,38 @@ func TestExecution(t *testing.T) {
 						Fetches: []Fetch{
 							&SingleFetch{
 								Source: &DataSourceInvocation{
-									Args: []Argument{
-										&ContextVariableArgument{
+									Args: []datasource.Argument{
+										&datasource.ContextVariableArgument{
 											Name:         []byte("name"),
 											VariableName: []byte("name"),
 										},
 									},
-									DataSource: &TypeDataSource{},
+									DataSource: &datasource.TypeDataSource{},
 								},
 								BufferName: "__type",
 							},
 							&SingleFetch{
 								Source: &DataSourceInvocation{
-									Args: []Argument{
-										&StaticVariableArgument{
+									Args: []datasource.Argument{
+										&datasource.StaticVariableArgument{
 											Name:  literal.HOST,
 											Value: []byte(graphQL1.URL),
 										},
-										&StaticVariableArgument{
+										&datasource.StaticVariableArgument{
 											Name:  literal.URL,
 											Value: []byte("/graphql"),
 										},
-										&StaticVariableArgument{
+										&datasource.StaticVariableArgument{
 											Name:  literal.QUERY,
 											Value: []byte("query q1($id: String!){user{id name birthday}}"),
 										},
-										&ContextVariableArgument{
+										&datasource.ContextVariableArgument{
 											Name:         []byte("id"),
 											VariableName: []byte("id"),
 										},
 									},
-									DataSource: &GraphQLDataSource{
-										log: log.NoopLogger,
+									DataSource: &datasource.GraphQLDataSource{
+										Log: log.NoopLogger,
 									},
 								},
 								BufferName: "user",
@@ -144,7 +145,7 @@ func TestExecution(t *testing.T) {
 							HasResolvedData: true,
 							Value: &Object{
 								DataResolvingConfig: DataResolvingConfig{
-									PathSelector: PathSelector{
+									PathSelector: datasource.PathSelector{
 										Path: "__type",
 									},
 								},
@@ -153,7 +154,7 @@ func TestExecution(t *testing.T) {
 										Name: []byte("name"),
 										Value: &Value{
 											DataResolvingConfig: DataResolvingConfig{
-												PathSelector: PathSelector{
+												PathSelector: datasource.PathSelector{
 													Path: "name",
 												},
 											},
@@ -164,7 +165,7 @@ func TestExecution(t *testing.T) {
 										Name: []byte("fields"),
 										Value: &List{
 											DataResolvingConfig: DataResolvingConfig{
-												PathSelector: PathSelector{
+												PathSelector: datasource.PathSelector{
 													Path: "fields",
 												},
 											},
@@ -174,7 +175,7 @@ func TestExecution(t *testing.T) {
 														Name: []byte("name"),
 														Value: &Value{
 															DataResolvingConfig: DataResolvingConfig{
-																PathSelector: PathSelector{
+																PathSelector: datasource.PathSelector{
 																	Path: "name",
 																},
 															},
@@ -185,7 +186,7 @@ func TestExecution(t *testing.T) {
 														Name: []byte("type"),
 														Value: &Object{
 															DataResolvingConfig: DataResolvingConfig{
-																PathSelector: PathSelector{
+																PathSelector: datasource.PathSelector{
 																	Path: "type",
 																},
 															},
@@ -194,7 +195,7 @@ func TestExecution(t *testing.T) {
 																	Name: []byte("name"),
 																	Value: &Value{
 																		DataResolvingConfig: DataResolvingConfig{
-																			PathSelector: PathSelector{
+																			PathSelector: datasource.PathSelector{
 																				Path: "name",
 																			},
 																		},
@@ -216,7 +217,7 @@ func TestExecution(t *testing.T) {
 							HasResolvedData: true,
 							Value: &Object{
 								DataResolvingConfig: DataResolvingConfig{
-									PathSelector: PathSelector{
+									PathSelector: datasource.PathSelector{
 										Path: "user",
 									},
 								},
@@ -224,56 +225,56 @@ func TestExecution(t *testing.T) {
 									Fetches: []Fetch{
 										&SingleFetch{
 											Source: &DataSourceInvocation{
-												Args: []Argument{
-													&StaticVariableArgument{
+												Args: []datasource.Argument{
+													&datasource.StaticVariableArgument{
 														Name:  literal.HOST,
 														Value: []byte(REST1.URL),
 													},
-													&StaticVariableArgument{
+													&datasource.StaticVariableArgument{
 														Name:  literal.URL,
 														Value: []byte("/user/{{ .id }}/friends"),
 													},
-													&StaticVariableArgument{
+													&datasource.StaticVariableArgument{
 														Name:  literal.METHOD,
 														Value: []byte("GET"),
 													},
-													&ObjectVariableArgument{
+													&datasource.ObjectVariableArgument{
 														Name: []byte("id"),
-														PathSelector: PathSelector{
+														PathSelector: datasource.PathSelector{
 															Path: "id",
 														},
 													},
 												},
-												DataSource: &HttpJsonDataSource{
-													log: log.NoopLogger,
+												DataSource: &datasource.HttpJsonDataSource{
+													Log: log.NoopLogger,
 												},
 											},
 											BufferName: "friends",
 										},
 										&SingleFetch{
 											Source: &DataSourceInvocation{
-												Args: []Argument{
-													&StaticVariableArgument{
+												Args: []datasource.Argument{
+													&datasource.StaticVariableArgument{
 														Name:  literal.HOST,
 														Value: []byte(graphQL2.URL),
 													},
-													&StaticVariableArgument{
+													&datasource.StaticVariableArgument{
 														Name:  literal.URL,
 														Value: []byte("/graphql"),
 													},
-													&StaticVariableArgument{
+													&datasource.StaticVariableArgument{
 														Name:  literal.QUERY,
 														Value: []byte(`query q1($id: String!){userPets(id: $id){	__typename name nickname... on Dog {woof} ... on Cat {meow}}}`),
 													},
-													&ObjectVariableArgument{
+													&datasource.ObjectVariableArgument{
 														Name: []byte("id"),
-														PathSelector: PathSelector{
+														PathSelector: datasource.PathSelector{
 															Path: "id",
 														},
 													},
 												},
-												DataSource: &GraphQLDataSource{
-													log: log.NoopLogger,
+												DataSource: &datasource.GraphQLDataSource{
+													Log: log.NoopLogger,
 												},
 											},
 											BufferName: "pets",
@@ -285,7 +286,7 @@ func TestExecution(t *testing.T) {
 										Name: []byte("id"),
 										Value: &Value{
 											DataResolvingConfig: DataResolvingConfig{
-												PathSelector: PathSelector{
+												PathSelector: datasource.PathSelector{
 													Path: "id",
 												},
 											},
@@ -296,7 +297,7 @@ func TestExecution(t *testing.T) {
 										Name: []byte("name"),
 										Value: &Value{
 											DataResolvingConfig: DataResolvingConfig{
-												PathSelector: PathSelector{
+												PathSelector: datasource.PathSelector{
 													Path: "name",
 												},
 											},
@@ -307,7 +308,7 @@ func TestExecution(t *testing.T) {
 										Name: []byte("birthday"),
 										Value: &Value{
 											DataResolvingConfig: DataResolvingConfig{
-												PathSelector: PathSelector{
+												PathSelector: datasource.PathSelector{
 													Path: "birthday",
 												},
 											},
@@ -321,28 +322,28 @@ func TestExecution(t *testing.T) {
 											Value: &Object{
 												Fetch: &SingleFetch{
 													Source: &DataSourceInvocation{
-														Args: []Argument{
-															&StaticVariableArgument{
+														Args: []datasource.Argument{
+															&datasource.StaticVariableArgument{
 																Name:  literal.HOST,
 																Value: []byte(REST2.URL),
 															},
-															&StaticVariableArgument{
+															&datasource.StaticVariableArgument{
 																Name:  literal.URL,
 																Value: []byte("/friends/{{ .id }}/pets"),
 															},
-															&StaticVariableArgument{
+															&datasource.StaticVariableArgument{
 																Name:  literal.METHOD,
 																Value: []byte("GET"),
 															},
-															&ObjectVariableArgument{
+															&datasource.ObjectVariableArgument{
 																Name: []byte("id"),
-																PathSelector: PathSelector{
+																PathSelector: datasource.PathSelector{
 																	Path: "id",
 																},
 															},
 														},
-														DataSource: &HttpJsonDataSource{
-															log: log.NoopLogger,
+														DataSource: &datasource.HttpJsonDataSource{
+															Log: log.NoopLogger,
 														},
 													},
 													BufferName: "pets",
@@ -352,7 +353,7 @@ func TestExecution(t *testing.T) {
 														Name: []byte("id"),
 														Value: &Value{
 															DataResolvingConfig: DataResolvingConfig{
-																PathSelector: PathSelector{
+																PathSelector: datasource.PathSelector{
 																	Path: "id",
 																},
 															},
@@ -363,7 +364,7 @@ func TestExecution(t *testing.T) {
 														Name: []byte("name"),
 														Value: &Value{
 															DataResolvingConfig: DataResolvingConfig{
-																PathSelector: PathSelector{
+																PathSelector: datasource.PathSelector{
 																	Path: "name",
 																},
 															},
@@ -374,7 +375,7 @@ func TestExecution(t *testing.T) {
 														Name: []byte("birthday"),
 														Value: &Value{
 															DataResolvingConfig: DataResolvingConfig{
-																PathSelector: PathSelector{
+																PathSelector: datasource.PathSelector{
 																	Path: "birthday",
 																},
 															},
@@ -391,7 +392,7 @@ func TestExecution(t *testing.T) {
 																		Name: []byte("__typename"),
 																		Value: &Value{
 																			DataResolvingConfig: DataResolvingConfig{
-																				PathSelector: PathSelector{
+																				PathSelector: datasource.PathSelector{
 																					Path: "__typename",
 																				},
 																			},
@@ -402,7 +403,7 @@ func TestExecution(t *testing.T) {
 																		Name: []byte("name"),
 																		Value: &Value{
 																			DataResolvingConfig: DataResolvingConfig{
-																				PathSelector: PathSelector{
+																				PathSelector: datasource.PathSelector{
 																					Path: "name",
 																				},
 																			},
@@ -413,7 +414,7 @@ func TestExecution(t *testing.T) {
 																		Name: []byte("nickname"),
 																		Value: &Value{
 																			DataResolvingConfig: DataResolvingConfig{
-																				PathSelector: PathSelector{
+																				PathSelector: datasource.PathSelector{
 																					Path: "nickname",
 																				},
 																			},
@@ -424,19 +425,19 @@ func TestExecution(t *testing.T) {
 																		Name: []byte("woof"),
 																		Value: &Value{
 																			DataResolvingConfig: DataResolvingConfig{
-																				PathSelector: PathSelector{
+																				PathSelector: datasource.PathSelector{
 																					Path: "woof",
 																				},
 																			},
 																			ValueType: StringValueType,
 																		},
 																		Skip: &IfNotEqual{
-																			Left: &ObjectVariableArgument{
-																				PathSelector: PathSelector{
+																			Left: &datasource.ObjectVariableArgument{
+																				PathSelector: datasource.PathSelector{
 																					Path: "__typename",
 																				},
 																			},
-																			Right: &StaticVariableArgument{
+																			Right: &datasource.StaticVariableArgument{
 																				Value: []byte("Dog"),
 																			},
 																		},
@@ -445,19 +446,19 @@ func TestExecution(t *testing.T) {
 																		Name: []byte("meow"),
 																		Value: &Value{
 																			DataResolvingConfig: DataResolvingConfig{
-																				PathSelector: PathSelector{
+																				PathSelector: datasource.PathSelector{
 																					Path: "meow",
 																				},
 																			},
 																			ValueType: StringValueType,
 																		},
 																		Skip: &IfNotEqual{
-																			Left: &ObjectVariableArgument{
-																				PathSelector: PathSelector{
+																			Left: &datasource.ObjectVariableArgument{
+																				PathSelector: datasource.PathSelector{
 																					Path: "__typename",
 																				},
 																			},
-																			Right: &StaticVariableArgument{
+																			Right: &datasource.StaticVariableArgument{
 																				Value: []byte("Cat"),
 																			},
 																		},
@@ -475,7 +476,7 @@ func TestExecution(t *testing.T) {
 										HasResolvedData: true,
 										Value: &List{
 											DataResolvingConfig: DataResolvingConfig{
-												PathSelector: PathSelector{
+												PathSelector: datasource.PathSelector{
 													Path: "userPets",
 												},
 											},
@@ -485,7 +486,7 @@ func TestExecution(t *testing.T) {
 														Name: []byte("__typename"),
 														Value: &Value{
 															DataResolvingConfig: DataResolvingConfig{
-																PathSelector: PathSelector{
+																PathSelector: datasource.PathSelector{
 																	Path: "__typename",
 																},
 															},
@@ -496,7 +497,7 @@ func TestExecution(t *testing.T) {
 														Name: []byte("name"),
 														Value: &Value{
 															DataResolvingConfig: DataResolvingConfig{
-																PathSelector: PathSelector{
+																PathSelector: datasource.PathSelector{
 																	Path: "name",
 																},
 															},
@@ -507,7 +508,7 @@ func TestExecution(t *testing.T) {
 														Name: []byte("nickname"),
 														Value: &Value{
 															DataResolvingConfig: DataResolvingConfig{
-																PathSelector: PathSelector{
+																PathSelector: datasource.PathSelector{
 																	Path: "nickname",
 																},
 															},
@@ -518,19 +519,19 @@ func TestExecution(t *testing.T) {
 														Name: []byte("woof"),
 														Value: &Value{
 															DataResolvingConfig: DataResolvingConfig{
-																PathSelector: PathSelector{
+																PathSelector: datasource.PathSelector{
 																	Path: "woof",
 																},
 															},
 															ValueType: StringValueType,
 														},
 														Skip: &IfNotEqual{
-															Left: &ObjectVariableArgument{
-																PathSelector: PathSelector{
+															Left: &datasource.ObjectVariableArgument{
+																PathSelector: datasource.PathSelector{
 																	Path: "__typename",
 																},
 															},
-															Right: &StaticVariableArgument{
+															Right: &datasource.StaticVariableArgument{
 																Value: []byte("Dog"),
 															},
 														},
@@ -539,19 +540,19 @@ func TestExecution(t *testing.T) {
 														Name: []byte("meow"),
 														Value: &Value{
 															DataResolvingConfig: DataResolvingConfig{
-																PathSelector: PathSelector{
+																PathSelector: datasource.PathSelector{
 																	Path: "meow",
 																},
 															},
 															ValueType: StringValueType,
 														},
 														Skip: &IfNotEqual{
-															Left: &ObjectVariableArgument{
-																PathSelector: PathSelector{
+															Left: &datasource.ObjectVariableArgument{
+																PathSelector: datasource.PathSelector{
 																	Path: "__typename",
 																},
 															},
-															Right: &StaticVariableArgument{
+															Right: &datasource.StaticVariableArgument{
 																Value: []byte("Cat"),
 															},
 														},
@@ -571,7 +572,7 @@ func TestExecution(t *testing.T) {
 
 	out := bytes.Buffer{}
 	ex := NewExecutor(nil)
-	_, err := ex.Execute(exampleContext, object, &out)
+	err := ex.Execute(exampleContext, object, &out)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -629,7 +630,7 @@ func BenchmarkExecution(b *testing.B) {
 
 			for i := 0; i < b.N; i++ {
 				out.Reset()
-				_, err := ex.Execute(exampleContext, object, &out)
+				err := ex.Execute(exampleContext, object, &out)
 				if err != nil {
 					b.Fatal(err)
 				}
@@ -642,9 +643,8 @@ type FakeDataSource struct {
 	data []byte
 }
 
-func (f FakeDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) Instruction {
-	_, _ = out.Write(f.data)
-	return 0
+func (f FakeDataSource) Resolve(ctx context.Context, args datasource.ResolverArgs, out io.Writer) (n int, err error) {
+	return out.Write(f.data)
 }
 
 func genField() Field {
@@ -656,32 +656,32 @@ func genField() Field {
 				Fetches: []Fetch{
 					&SingleFetch{
 						Source: &DataSourceInvocation{
-							Args: []Argument{
-								&ContextVariableArgument{
+							Args: []datasource.Argument{
+								&datasource.ContextVariableArgument{
 									Name:         []byte("name"),
 									VariableName: []byte("name"),
 								},
 							},
-							DataSource: &TypeDataSource{},
+							DataSource: &datasource.TypeDataSource{},
 						},
 						BufferName: "__type",
 					},
 					&SingleFetch{
 						Source: &DataSourceInvocation{
-							Args: []Argument{
-								&StaticVariableArgument{
+							Args: []datasource.Argument{
+								&datasource.StaticVariableArgument{
 									Name:  literal.HOST,
 									Value: []byte("localhost:8001"),
 								},
-								&StaticVariableArgument{
+								&datasource.StaticVariableArgument{
 									Name:  literal.URL,
 									Value: []byte("/graphql"),
 								},
-								&StaticVariableArgument{
+								&datasource.StaticVariableArgument{
 									Name:  literal.QUERY,
 									Value: []byte("query q1($id: String!){user{id name birthday}}"),
 								},
-								&ContextVariableArgument{
+								&datasource.ContextVariableArgument{
 									Name:         []byte("id"),
 									VariableName: []byte("id"),
 								},
@@ -700,7 +700,7 @@ func genField() Field {
 					HasResolvedData: true,
 					Value: &Object{
 						DataResolvingConfig: DataResolvingConfig{
-							PathSelector: PathSelector{
+							PathSelector: datasource.PathSelector{
 								Path: "__type",
 							},
 						},
@@ -709,7 +709,7 @@ func genField() Field {
 								Name: []byte("name"),
 								Value: &Value{
 									DataResolvingConfig: DataResolvingConfig{
-										PathSelector: PathSelector{
+										PathSelector: datasource.PathSelector{
 											Path: "name",
 										},
 									},
@@ -719,7 +719,7 @@ func genField() Field {
 								Name: []byte("fields"),
 								Value: &List{
 									DataResolvingConfig: DataResolvingConfig{
-										PathSelector: PathSelector{
+										PathSelector: datasource.PathSelector{
 											Path: "fields",
 										},
 									},
@@ -729,7 +729,7 @@ func genField() Field {
 												Name: []byte("name"),
 												Value: &Value{
 													DataResolvingConfig: DataResolvingConfig{
-														PathSelector: PathSelector{
+														PathSelector: datasource.PathSelector{
 															Path: "name",
 														},
 													},
@@ -739,7 +739,7 @@ func genField() Field {
 												Name: []byte("type"),
 												Value: &Object{
 													DataResolvingConfig: DataResolvingConfig{
-														PathSelector: PathSelector{
+														PathSelector: datasource.PathSelector{
 															Path: "type",
 														},
 													},
@@ -748,7 +748,7 @@ func genField() Field {
 															Name: []byte("name"),
 															Value: &Value{
 																DataResolvingConfig: DataResolvingConfig{
-																	PathSelector: PathSelector{
+																	PathSelector: datasource.PathSelector{
 																		Path: "name",
 																	},
 																},
@@ -772,14 +772,14 @@ func genField() Field {
 							Fetches: []Fetch{
 								&SingleFetch{
 									Source: &DataSourceInvocation{
-										Args: []Argument{
-											&StaticVariableArgument{
+										Args: []datasource.Argument{
+											&datasource.StaticVariableArgument{
 												Name:  literal.URL,
 												Value: []byte("/user/:id/friends"),
 											},
-											&ObjectVariableArgument{
+											&datasource.ObjectVariableArgument{
 												Name: []byte("id"),
-												PathSelector: PathSelector{
+												PathSelector: datasource.PathSelector{
 													Path: "id",
 												},
 											},
@@ -792,22 +792,22 @@ func genField() Field {
 								},
 								&SingleFetch{
 									Source: &DataSourceInvocation{
-										Args: []Argument{
-											&StaticVariableArgument{
+										Args: []datasource.Argument{
+											&datasource.StaticVariableArgument{
 												Name:  literal.HOST,
 												Value: []byte("localhost:8002"),
 											},
-											&StaticVariableArgument{
+											&datasource.StaticVariableArgument{
 												Name:  literal.URL,
 												Value: []byte("/graphql"),
 											},
-											&StaticVariableArgument{
+											&datasource.StaticVariableArgument{
 												Name:  literal.QUERY,
 												Value: []byte(`query q1($id: String!){userPets(id: $id){	__typename name nickname... on Dog {woof} ... on Cat {meow}}}`),
 											},
-											&ObjectVariableArgument{
+											&datasource.ObjectVariableArgument{
 												Name: []byte("id"),
-												PathSelector: PathSelector{
+												PathSelector: datasource.PathSelector{
 													Path: "id",
 												},
 											},
@@ -821,7 +821,7 @@ func genField() Field {
 							},
 						},
 						DataResolvingConfig: DataResolvingConfig{
-							PathSelector: PathSelector{
+							PathSelector: datasource.PathSelector{
 								Path: "data.user",
 							},
 						},
@@ -830,7 +830,7 @@ func genField() Field {
 								Name: []byte("id"),
 								Value: &Value{
 									DataResolvingConfig: DataResolvingConfig{
-										PathSelector: PathSelector{
+										PathSelector: datasource.PathSelector{
 											Path: "id",
 										},
 									},
@@ -840,7 +840,7 @@ func genField() Field {
 								Name: []byte("name"),
 								Value: &Value{
 									DataResolvingConfig: DataResolvingConfig{
-										PathSelector: PathSelector{
+										PathSelector: datasource.PathSelector{
 											Path: "name",
 										},
 									},
@@ -851,7 +851,7 @@ func genField() Field {
 								Name: []byte("birthday"),
 								Value: &Value{
 									DataResolvingConfig: DataResolvingConfig{
-										PathSelector: PathSelector{
+										PathSelector: datasource.PathSelector{
 											Path: "birthday",
 										},
 									},
@@ -867,7 +867,7 @@ func genField() Field {
 												Name: []byte("id"),
 												Value: &Value{
 													DataResolvingConfig: DataResolvingConfig{
-														PathSelector: PathSelector{
+														PathSelector: datasource.PathSelector{
 															Path: "id",
 														},
 													},
@@ -877,7 +877,7 @@ func genField() Field {
 												Name: []byte("name"),
 												Value: &Value{
 													DataResolvingConfig: DataResolvingConfig{
-														PathSelector: PathSelector{
+														PathSelector: datasource.PathSelector{
 															Path: "name",
 														},
 													},
@@ -888,7 +888,7 @@ func genField() Field {
 												Name: []byte("birthday"),
 												Value: &Value{
 													DataResolvingConfig: DataResolvingConfig{
-														PathSelector: PathSelector{
+														PathSelector: datasource.PathSelector{
 															Path: "birthday",
 														},
 													},
@@ -903,7 +903,7 @@ func genField() Field {
 								HasResolvedData: true,
 								Value: &List{
 									DataResolvingConfig: DataResolvingConfig{
-										PathSelector: PathSelector{
+										PathSelector: datasource.PathSelector{
 											Path: "data.userPets",
 										},
 									},
@@ -913,7 +913,7 @@ func genField() Field {
 												Name: []byte("__typename"),
 												Value: &Value{
 													DataResolvingConfig: DataResolvingConfig{
-														PathSelector: PathSelector{
+														PathSelector: datasource.PathSelector{
 															Path: "__typename",
 														},
 													},
@@ -923,7 +923,7 @@ func genField() Field {
 												Name: []byte("name"),
 												Value: &Value{
 													DataResolvingConfig: DataResolvingConfig{
-														PathSelector: PathSelector{
+														PathSelector: datasource.PathSelector{
 															Path: "name",
 														},
 													},
@@ -933,7 +933,7 @@ func genField() Field {
 												Name: []byte("nickname"),
 												Value: &Value{
 													DataResolvingConfig: DataResolvingConfig{
-														PathSelector: PathSelector{
+														PathSelector: datasource.PathSelector{
 															Path: "nickname",
 														},
 													},
@@ -943,19 +943,19 @@ func genField() Field {
 												Name: []byte("woof"),
 												Value: &Value{
 													DataResolvingConfig: DataResolvingConfig{
-														PathSelector: PathSelector{
+														PathSelector: datasource.PathSelector{
 															Path: "woof",
 														},
 													},
 													ValueType: StringValueType,
 												},
 												Skip: &IfNotEqual{
-													Left: &ObjectVariableArgument{
-														PathSelector: PathSelector{
+													Left: &datasource.ObjectVariableArgument{
+														PathSelector: datasource.PathSelector{
 															Path: "__typename",
 														},
 													},
-													Right: &StaticVariableArgument{
+													Right: &datasource.StaticVariableArgument{
 														Value: []byte("Dog"),
 													},
 												},
@@ -964,19 +964,19 @@ func genField() Field {
 												Name: []byte("meow"),
 												Value: &Value{
 													DataResolvingConfig: DataResolvingConfig{
-														PathSelector: PathSelector{
+														PathSelector: datasource.PathSelector{
 															Path: "meow",
 														},
 													},
 													ValueType: StringValueType,
 												},
 												Skip: &IfNotEqual{
-													Left: &ObjectVariableArgument{
-														PathSelector: PathSelector{
+													Left: &datasource.ObjectVariableArgument{
+														PathSelector: datasource.PathSelector{
 															Path: "__typename",
 														},
 													},
-													Right: &StaticVariableArgument{
+													Right: &datasource.StaticVariableArgument{
 														Value: []byte("Cat"),
 													},
 												},
@@ -1103,19 +1103,19 @@ func TestStreamExecution(t *testing.T) {
 				Value: &Object{
 					Fetch: &SingleFetch{
 						Source: &DataSourceInvocation{
-							Args: []Argument{
-								&StaticVariableArgument{
+							Args: []datasource.Argument{
+								&datasource.StaticVariableArgument{
 									Name:  literal.HOST,
 									Value: []byte(REST1.URL),
 								},
-								&StaticVariableArgument{
+								&datasource.StaticVariableArgument{
 									Name:  literal.URL,
 									Value: []byte("/bal"),
 								},
 							},
-							DataSource: &HttpPollingStreamDataSource{
-								delay: time.Millisecond,
-								log:   log.NoopLogger,
+							DataSource: &datasource.HttpPollingStreamDataSource{
+								Delay: time.Millisecond,
+								Log:   log.NoopLogger,
 							},
 						},
 						BufferName: "stream",
@@ -1130,7 +1130,7 @@ func TestStreamExecution(t *testing.T) {
 										Name: []byte("bar"),
 										Value: &Value{
 											DataResolvingConfig: DataResolvingConfig{
-												PathSelector: PathSelector{
+												PathSelector: datasource.PathSelector{
 													Path: "bar",
 												},
 											},
@@ -1141,7 +1141,7 @@ func TestStreamExecution(t *testing.T) {
 										Name: []byte("baz"),
 										Value: &Value{
 											DataResolvingConfig: DataResolvingConfig{
-												PathSelector: PathSelector{
+												PathSelector: datasource.PathSelector{
 													Path: "baz",
 												},
 											},
@@ -1157,11 +1157,10 @@ func TestStreamExecution(t *testing.T) {
 		},
 	}
 
-	var instructions []Instruction
 	var err error
 	for i := 1; i < 4; i++ {
 		out.Reset()
-		instructions, err = ex.Execute(ctx, streamPlan, &out) // nolint
+		err = ex.Execute(ctx, streamPlan, &out) // nolint
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1182,13 +1181,16 @@ func TestStreamExecution(t *testing.T) {
 	}
 
 	cancel()
-	instructions, err = ex.Execute(ctx, streamPlan, &out)
+	err = ex.Execute(ctx, streamPlan, &out)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if instructions[0] != CloseConnection {
-		t.Fatalf("want CloseConnection, got: %d\n", instructions[0])
+	select {
+	case <-ctx.Done():
+		return
+	default:
+		t.Fatalf("expected context.Context to be cancelled")
 	}
 }
 
@@ -1202,8 +1204,8 @@ func TestExecutor_ListFilterFirstN(t *testing.T) {
 				Value: &Object{
 					Fetch: &SingleFetch{
 						Source: &DataSourceInvocation{
-							DataSource: &StaticDataSource{
-								data: []byte("[{\"bar\":\"1\"},{\"bar\":\"2\"},{\"bar\":\"3\"}]"),
+							DataSource: &datasource.StaticDataSource{
+								Data: []byte("[{\"bar\":\"1\"},{\"bar\":\"2\"},{\"bar\":\"3\"}]"),
 							},
 						},
 						BufferName: "foos",
@@ -1222,7 +1224,7 @@ func TestExecutor_ListFilterFirstN(t *testing.T) {
 											Name: []byte("bar"),
 											Value: &Value{
 												DataResolvingConfig: DataResolvingConfig{
-													PathSelector: PathSelector{
+													PathSelector: datasource.PathSelector{
 														Path: "bar",
 													},
 												},
@@ -1245,7 +1247,7 @@ func TestExecutor_ListFilterFirstN(t *testing.T) {
 		Context: context.Background(),
 	}
 
-	_, err := ex.Execute(ctx, plan, out)
+	err := ex.Execute(ctx, plan, out)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1294,8 +1296,8 @@ func TestExecutor_ObjectVariables(t *testing.T) {
 				Value: &Object{
 					Fetch: &SingleFetch{
 						Source: &DataSourceInvocation{
-							DataSource: &StaticDataSource{
-								data: []byte(`{"name": "Jens","id":1}`),
+							DataSource: &datasource.StaticDataSource{
+								Data: []byte(`{"name": "Jens","id":1}`),
 							},
 						},
 						BufferName: "user",
@@ -1308,26 +1310,26 @@ func TestExecutor_ObjectVariables(t *testing.T) {
 								Fetch: &SingleFetch{
 									BufferName: "pet",
 									Source: &DataSourceInvocation{
-										Args: []Argument{
-											&StaticVariableArgument{
+										Args: []datasource.Argument{
+											&datasource.StaticVariableArgument{
 												Name:  literal.HOST,
 												Value: []byte(REST1.URL),
 											},
-											&StaticVariableArgument{
+											&datasource.StaticVariableArgument{
 												Name:  literal.URL,
 												Value: []byte("/"),
 											},
-											&StaticVariableArgument{
+											&datasource.StaticVariableArgument{
 												Name:  literal.METHOD,
 												Value: []byte("POST"),
 											},
-											&StaticVariableArgument{
+											&datasource.StaticVariableArgument{
 												Name:  literal.BODY,
 												Value: []byte(`{"id":{{ .object.id }}}`),
 											},
 										},
-										DataSource: &HttpJsonDataSource{
-											log: log.NoopLogger,
+										DataSource: &datasource.HttpJsonDataSource{
+											Log: log.NoopLogger,
 										},
 									},
 								},
@@ -1336,7 +1338,7 @@ func TestExecutor_ObjectVariables(t *testing.T) {
 										Name: []byte("name"),
 										Value: &Value{
 											DataResolvingConfig: DataResolvingConfig{
-												PathSelector: PathSelector{
+												PathSelector: datasource.PathSelector{
 													Path: "name",
 												},
 											},
@@ -1347,7 +1349,7 @@ func TestExecutor_ObjectVariables(t *testing.T) {
 										Name: []byte("id"),
 										Value: &Value{
 											DataResolvingConfig: DataResolvingConfig{
-												PathSelector: PathSelector{
+												PathSelector: datasource.PathSelector{
 													Path: "id",
 												},
 											},
@@ -1363,7 +1365,7 @@ func TestExecutor_ObjectVariables(t *testing.T) {
 													Name: []byte("name"),
 													Value: &Value{
 														DataResolvingConfig: DataResolvingConfig{
-															PathSelector: PathSelector{
+															PathSelector: datasource.PathSelector{
 																Path: "name",
 															},
 														},
@@ -1374,7 +1376,7 @@ func TestExecutor_ObjectVariables(t *testing.T) {
 													Name: []byte("age"),
 													Value: &Value{
 														DataResolvingConfig: DataResolvingConfig{
-															PathSelector: PathSelector{
+															PathSelector: datasource.PathSelector{
 																Path: "age",
 															},
 														},
@@ -1399,7 +1401,7 @@ func TestExecutor_ObjectVariables(t *testing.T) {
 		Context: context.Background(),
 	}
 
-	_, err := ex.Execute(ctx, plan, out)
+	err := ex.Execute(ctx, plan, out)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1439,22 +1441,22 @@ func TestExecutor_NestedObjectVariables(t *testing.T) {
 					Fetch: &SingleFetch{
 						BufferName: "preview",
 						Source: &DataSourceInvocation{
-							Args: []Argument{
-								&StaticVariableArgument{
+							Args: []datasource.Argument{
+								&datasource.StaticVariableArgument{
 									Name:  literal.HOST,
 									Value: []byte(previewService.URL),
 								},
-								&StaticVariableArgument{
+								&datasource.StaticVariableArgument{
 									Name:  literal.URL,
 									Value: []byte("/"),
 								},
-								&StaticVariableArgument{
+								&datasource.StaticVariableArgument{
 									Name:  literal.METHOD,
 									Value: []byte("GET"),
 								},
 							},
-							DataSource: &HttpJsonDataSource{
-								log: log.NoopLogger,
+							DataSource: &datasource.HttpJsonDataSource{
+								Log: log.NoopLogger,
 							},
 						},
 					},
@@ -1468,29 +1470,29 @@ func TestExecutor_NestedObjectVariables(t *testing.T) {
 										Name: []byte("data"),
 										Value: &Object{
 											DataResolvingConfig: DataResolvingConfig{
-												PathSelector: PathSelector{
+												PathSelector: datasource.PathSelector{
 													Path: "data",
 												},
 											},
 											Fetch: &SingleFetch{
 												BufferName: "additional_data_for_id",
 												Source: &DataSourceInvocation{
-													Args: []Argument{
-														&StaticVariableArgument{
+													Args: []datasource.Argument{
+														&datasource.StaticVariableArgument{
 															Name:  literal.HOST,
 															Value: []byte(additionalDataService.URL),
 														},
-														&StaticVariableArgument{
+														&datasource.StaticVariableArgument{
 															Name:  literal.URL,
 															Value: []byte("/api/additional_data?data_ids={{ .object.id }}"),
 														},
-														&StaticVariableArgument{
+														&datasource.StaticVariableArgument{
 															Name:  literal.METHOD,
 															Value: []byte("GET"),
 														},
 													},
-													DataSource: &HttpJsonDataSource{
-														log: log.NoopLogger,
+													DataSource: &datasource.HttpJsonDataSource{
+														Log: log.NoopLogger,
 													},
 												},
 											},
@@ -1499,7 +1501,7 @@ func TestExecutor_NestedObjectVariables(t *testing.T) {
 													Name: []byte("id"),
 													Value: &Value{
 														DataResolvingConfig: DataResolvingConfig{
-															PathSelector: PathSelector{
+															PathSelector: datasource.PathSelector{
 																Path: "id",
 															},
 														},
@@ -1516,7 +1518,7 @@ func TestExecutor_NestedObjectVariables(t *testing.T) {
 																Value: &Value{
 																	ValueType: StringValueType,
 																	DataResolvingConfig: DataResolvingConfig{
-																		PathSelector: PathSelector{
+																		PathSelector: datasource.PathSelector{
 																			Path: "name",
 																		},
 																	},
@@ -1543,7 +1545,7 @@ func TestExecutor_NestedObjectVariables(t *testing.T) {
 		Context: context.Background(),
 	}
 
-	_, err := ex.Execute(ctx, plan, out)
+	err := ex.Execute(ctx, plan, out)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1566,8 +1568,8 @@ func TestExecutor_ListWithPath(t *testing.T) {
 				Value: &Object{
 					Fetch: &SingleFetch{
 						Source: &DataSourceInvocation{
-							DataSource: &StaticDataSource{
-								data: []byte(`{"apis": [{"id": 1},{"id":2}]}`),
+							DataSource: &datasource.StaticDataSource{
+								Data: []byte(`{"apis": [{"id": 1},{"id":2}]}`),
 							},
 						},
 						BufferName: "apis",
@@ -1578,7 +1580,7 @@ func TestExecutor_ListWithPath(t *testing.T) {
 							HasResolvedData: true,
 							Value: &List{
 								DataResolvingConfig: DataResolvingConfig{
-									PathSelector: PathSelector{
+									PathSelector: datasource.PathSelector{
 										Path: "apis",
 									},
 								},
@@ -1588,7 +1590,7 @@ func TestExecutor_ListWithPath(t *testing.T) {
 											Name: []byte("id"),
 											Value: &Value{
 												DataResolvingConfig: DataResolvingConfig{
-													PathSelector: PathSelector{
+													PathSelector: datasource.PathSelector{
 														Path: "id",
 													},
 												},
@@ -1611,7 +1613,7 @@ func TestExecutor_ListWithPath(t *testing.T) {
 		Context: context.Background(),
 	}
 
-	_, err := ex.Execute(ctx, plan, out)
+	err := ex.Execute(ctx, plan, out)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1648,26 +1650,26 @@ func TestExecutor_GraphqlDataSourceWithParams(t *testing.T) {
 				Value: &Object{
 					Fetch: &SingleFetch{
 						Source: &DataSourceInvocation{
-							Args: []Argument{
-								&StaticVariableArgument{
+							Args: []datasource.Argument{
+								&datasource.StaticVariableArgument{
 									Name:  literal.HOST,
 									Value: []byte(graphQL1.URL),
 								},
-								&StaticVariableArgument{
+								&datasource.StaticVariableArgument{
 									Name:  literal.URL,
 									Value: []byte("/graphql"),
 								},
-								&StaticVariableArgument{
+								&datasource.StaticVariableArgument{
 									Name:  literal.QUERY,
 									Value: []byte("query q1($code: String!){countries(code: $code){id}}"),
 								},
-								&ContextVariableArgument{
+								&datasource.ContextVariableArgument{
 									Name:         []byte("code"),
 									VariableName: []byte("code"),
 								},
 							},
-							DataSource: &GraphQLDataSource{
-								log: log.NoopLogger,
+							DataSource: &datasource.GraphQLDataSource{
+								Log: log.NoopLogger,
 							},
 						},
 						BufferName: "countries",
@@ -1678,7 +1680,7 @@ func TestExecutor_GraphqlDataSourceWithParams(t *testing.T) {
 							HasResolvedData: true,
 							Value: &List{
 								DataResolvingConfig: DataResolvingConfig{
-									PathSelector: PathSelector{
+									PathSelector: datasource.PathSelector{
 										Path: "countries",
 									},
 								},
@@ -1688,7 +1690,7 @@ func TestExecutor_GraphqlDataSourceWithParams(t *testing.T) {
 											Name: []byte("id"),
 											Value: &Value{
 												DataResolvingConfig: DataResolvingConfig{
-													PathSelector: PathSelector{
+													PathSelector: datasource.PathSelector{
 														Path: "id",
 													},
 												},
@@ -1714,7 +1716,7 @@ func TestExecutor_GraphqlDataSourceWithParams(t *testing.T) {
 		},
 	}
 
-	_, err := ex.Execute(ctx, plan, out)
+	err := ex.Execute(ctx, plan, out)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1737,8 +1739,8 @@ func TestExecutor_ObjectWithPath(t *testing.T) {
 				Value: &Object{
 					Fetch: &SingleFetch{
 						Source: &DataSourceInvocation{
-							DataSource: &StaticDataSource{
-								data: []byte(`{"api": {"id": 1}`),
+							DataSource: &datasource.StaticDataSource{
+								Data: []byte(`{"api": {"id": 1}`),
 							},
 						},
 						BufferName: "id",
@@ -1749,7 +1751,7 @@ func TestExecutor_ObjectWithPath(t *testing.T) {
 							HasResolvedData: true,
 							Value: &Value{
 								DataResolvingConfig: DataResolvingConfig{
-									PathSelector: PathSelector{
+									PathSelector: datasource.PathSelector{
 										Path: "api.id",
 									},
 								},
@@ -1768,7 +1770,7 @@ func TestExecutor_ObjectWithPath(t *testing.T) {
 		Context: context.Background(),
 	}
 
-	_, err := ex.Execute(ctx, plan, out)
+	err := ex.Execute(ctx, plan, out)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1790,12 +1792,12 @@ func TestExecutor_ResolveArgs(t *testing.T) {
 		},
 	}
 
-	args := []Argument{
-		&StaticVariableArgument{
+	args := []datasource.Argument{
+		&datasource.StaticVariableArgument{
 			Name:  []byte("body"),
 			Value: []byte("{\\\"key\\\":\\\"{{ .arguments.input.foo }}\\\"}"),
 		},
-		&ContextVariableArgument{
+		&datasource.ContextVariableArgument{
 			Name:         []byte(".arguments.input"),
 			VariableName: []byte("input"),
 		},
@@ -1821,12 +1823,12 @@ func TestExecutor_ResolveArgsString(t *testing.T) {
 		},
 	}
 
-	args := []Argument{
-		&StaticVariableArgument{
+	args := []datasource.Argument{
+		&datasource.StaticVariableArgument{
 			Name:  []byte("url"),
 			Value: []byte("/apis/{{ .arguments.id }}"),
 		},
-		&ContextVariableArgument{
+		&datasource.ContextVariableArgument{
 			Name:         []byte(".arguments.id"),
 			VariableName: []byte("id"),
 		},
@@ -1854,24 +1856,24 @@ func TestExecutor_ResolveArgs_MultipleNested(t *testing.T) {
 		},
 	}
 
-	args := []Argument{
-		&StaticVariableArgument{
+	args := []datasource.Argument{
+		&datasource.StaticVariableArgument{
 			Name:  []byte("url"),
 			Value: []byte("/api/usage/apis/{{ .id }}/{{ .arguments.from.day }}/{{ .arguments.from.month }}/{{ .arguments.from.year }}/{{ .arguments.until.day }}/{{ .arguments.until.month }}/{{ .arguments.until.year }}?by=Hits&sort=1&p={{ .arguments.page }}"),
 		},
-		&StaticVariableArgument{
+		&datasource.StaticVariableArgument{
 			Name:  []byte("id"),
 			Value: []byte("1"),
 		},
-		&ContextVariableArgument{
+		&datasource.ContextVariableArgument{
 			Name:         []byte(".arguments.from"),
 			VariableName: []byte("from"),
 		},
-		&ContextVariableArgument{
+		&datasource.ContextVariableArgument{
 			Name:         []byte(".arguments.until"),
 			VariableName: []byte("until"),
 		},
-		&ContextVariableArgument{
+		&datasource.ContextVariableArgument{
 			Name:         []byte(".arguments.page"),
 			VariableName: []byte("page"),
 		},
@@ -1898,12 +1900,12 @@ func TestExecutor_ResolveArgsComplexPayload(t *testing.T) {
 		},
 	}
 
-	args := []Argument{
-		&StaticVariableArgument{
+	args := []datasource.Argument{
+		&datasource.StaticVariableArgument{
 			Name:  []byte("body"),
 			Value: []byte("{{ .arguments.input }}"),
 		},
-		&ContextVariableArgument{
+		&datasource.ContextVariableArgument{
 			Name:         []byte(".arguments.input"),
 			VariableName: []byte("input"),
 		},
@@ -1930,12 +1932,12 @@ func TestExecutor_ResolveArgsComplexPayloadWithSelector(t *testing.T) {
 		},
 	}
 
-	args := []Argument{
-		&StaticVariableArgument{
+	args := []datasource.Argument{
+		&datasource.StaticVariableArgument{
 			Name:  []byte("body"),
 			Value: []byte("{{ .arguments.input.bar }}"),
 		},
-		&ContextVariableArgument{
+		&datasource.ContextVariableArgument{
 			Name:         []byte(".arguments.input"),
 			VariableName: []byte("input"),
 		},
@@ -1961,12 +1963,12 @@ func TestExecutor_ResolveArgsFlatObjectContainingJSON(t *testing.T) {
 		},
 	}
 
-	args := []Argument{
-		&StaticVariableArgument{
+	args := []datasource.Argument{
+		&datasource.StaticVariableArgument{
 			Name:  []byte("header"),
 			Value: []byte("{{ .request.headers.Authorization }}"),
 		},
-		&ContextVariableArgument{
+		&datasource.ContextVariableArgument{
 			Name:         []byte("request"),
 			VariableName: []byte("request"),
 		},
@@ -1990,15 +1992,15 @@ func TestExecutor_ResolveArgsWithListArguments(t *testing.T) {
 		Context: context.Background(),
 	}
 
-	args := []Argument{
-		&ListArgument{
+	args := []datasource.Argument{
+		&datasource.ListArgument{
 			Name: []byte("headers"),
-			Arguments: []Argument{
-				&StaticVariableArgument{
+			Arguments: []datasource.Argument{
+				&datasource.StaticVariableArgument{
 					Name:  []byte("foo"),
 					Value: []byte("fooVal"),
 				},
-				&StaticVariableArgument{
+				&datasource.StaticVariableArgument{
 					Name:  []byte("bar"),
 					Value: []byte("barVal"),
 				},
@@ -2068,27 +2070,27 @@ func TestExecutor_HTTPJSONDataSourceWithBody(t *testing.T) {
 					Fetch: &SingleFetch{
 						BufferName: "withBody",
 						Source: &DataSourceInvocation{
-							DataSource: &HttpJsonDataSource{
-								log: log.NoopLogger,
+							DataSource: &datasource.HttpJsonDataSource{
+								Log: log.NoopLogger,
 							},
-							Args: []Argument{
-								&StaticVariableArgument{
+							Args: []datasource.Argument{
+								&datasource.StaticVariableArgument{
 									Name:  []byte("host"),
 									Value: []byte(REST1.URL),
 								},
-								&StaticVariableArgument{
+								&datasource.StaticVariableArgument{
 									Name:  []byte("url"),
 									Value: []byte("/"),
 								},
-								&StaticVariableArgument{
+								&datasource.StaticVariableArgument{
 									Name:  []byte("method"),
 									Value: []byte("POST"),
 								},
-								&StaticVariableArgument{
+								&datasource.StaticVariableArgument{
 									Name:  []byte("body"),
 									Value: []byte("{\\\"key\\\":\\\"{{ .arguments.input.foo }}\\\"}"),
 								},
-								&ContextVariableArgument{
+								&datasource.ContextVariableArgument{
 									Name:         []byte(".arguments.input"),
 									VariableName: []byte("input"),
 								},
@@ -2118,7 +2120,7 @@ func TestExecutor_HTTPJSONDataSourceWithBody(t *testing.T) {
 		},
 	}
 
-	_, err = ex.Execute(ctx, plan, out)
+	err = ex.Execute(ctx, plan, out)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2151,19 +2153,19 @@ func TestExecutor_Execute_WithUnions(t *testing.T) {
 			{
 				Name: []byte("id"),
 				Skip: &IfNotEqual{
-					Left: &ObjectVariableArgument{
-						PathSelector: PathSelector{
+					Left: &datasource.ObjectVariableArgument{
+						PathSelector: datasource.PathSelector{
 							Path: "__typename",
 						},
 					},
-					Right: &StaticVariableArgument{
+					Right: &datasource.StaticVariableArgument{
 						Value: []byte("Api"),
 					},
 				},
 				Value: &Value{
 					ValueType: StringValueType,
 					DataResolvingConfig: DataResolvingConfig{
-						PathSelector: PathSelector{
+						PathSelector: datasource.PathSelector{
 							Path: "id",
 						},
 					},
@@ -2172,19 +2174,19 @@ func TestExecutor_Execute_WithUnions(t *testing.T) {
 			{
 				Name: []byte("name"),
 				Skip: &IfNotEqual{
-					Left: &ObjectVariableArgument{
-						PathSelector: PathSelector{
+					Left: &datasource.ObjectVariableArgument{
+						PathSelector: datasource.PathSelector{
 							Path: "__typename",
 						},
 					},
-					Right: &StaticVariableArgument{
+					Right: &datasource.StaticVariableArgument{
 						Value: []byte("Api"),
 					},
 				},
 				Value: &Value{
 					ValueType: StringValueType,
 					DataResolvingConfig: DataResolvingConfig{
-						PathSelector: PathSelector{
+						PathSelector: datasource.PathSelector{
 							Path: "name",
 						},
 					},
@@ -2196,19 +2198,19 @@ func TestExecutor_Execute_WithUnions(t *testing.T) {
 			{
 				Name: []byte("status"),
 				Skip: &IfNotEqual{
-					Left: &ObjectVariableArgument{
-						PathSelector: PathSelector{
+					Left: &datasource.ObjectVariableArgument{
+						PathSelector: datasource.PathSelector{
 							Path: "__typename",
 						},
 					},
-					Right: &StaticVariableArgument{
+					Right: &datasource.StaticVariableArgument{
 						Value: []byte("RequestResult"),
 					},
 				},
 				Value: &Value{
 					ValueType: StringValueType,
 					DataResolvingConfig: DataResolvingConfig{
-						PathSelector: PathSelector{
+						PathSelector: datasource.PathSelector{
 							Path: "Status",
 						},
 					},
@@ -2217,19 +2219,19 @@ func TestExecutor_Execute_WithUnions(t *testing.T) {
 			{
 				Name: []byte("message"),
 				Skip: &IfNotEqual{
-					Left: &ObjectVariableArgument{
-						PathSelector: PathSelector{
+					Left: &datasource.ObjectVariableArgument{
+						PathSelector: datasource.PathSelector{
 							Path: "__typename",
 						},
 					},
-					Right: &StaticVariableArgument{
+					Right: &datasource.StaticVariableArgument{
 						Value: []byte("RequestResult"),
 					},
 				},
 				Value: &Value{
 					ValueType: StringValueType,
 					DataResolvingConfig: DataResolvingConfig{
-						PathSelector: PathSelector{
+						PathSelector: datasource.PathSelector{
 							Path: "Message",
 						},
 					},
@@ -2277,18 +2279,18 @@ func TestExecutor_Execute_WithUnions(t *testing.T) {
 		successField := Field{
 			Name: []byte("apis"),
 			Skip: &IfNotEqual{
-				Left: &ObjectVariableArgument{
-					PathSelector: PathSelector{
+				Left: &datasource.ObjectVariableArgument{
+					PathSelector: datasource.PathSelector{
 						Path: "__typename",
 					},
 				},
-				Right: &StaticVariableArgument{
+				Right: &datasource.StaticVariableArgument{
 					Value: []byte("ApisResultSuccess"),
 				},
 			},
 			Value: &List{
 				DataResolvingConfig: DataResolvingConfig{
-					PathSelector: PathSelector{
+					PathSelector: datasource.PathSelector{
 						Path: "apis",
 					},
 				},
@@ -2298,7 +2300,7 @@ func TestExecutor_Execute_WithUnions(t *testing.T) {
 							Name: []byte("name"),
 							Value: &Value{
 								DataResolvingConfig: DataResolvingConfig{
-									PathSelector: PathSelector{
+									PathSelector: datasource.PathSelector{
 										Path: "name",
 									},
 								},
@@ -2314,19 +2316,19 @@ func TestExecutor_Execute_WithUnions(t *testing.T) {
 			{
 				Name: []byte("status"),
 				Skip: &IfNotEqual{
-					Left: &ObjectVariableArgument{
-						PathSelector: PathSelector{
+					Left: &datasource.ObjectVariableArgument{
+						PathSelector: datasource.PathSelector{
 							Path: "__typename",
 						},
 					},
-					Right: &StaticVariableArgument{
+					Right: &datasource.StaticVariableArgument{
 						Value: []byte("RequestResult"),
 					},
 				},
 				Value: &Value{
 					ValueType: StringValueType,
 					DataResolvingConfig: DataResolvingConfig{
-						PathSelector: PathSelector{
+						PathSelector: datasource.PathSelector{
 							Path: "Status",
 						},
 					},
@@ -2335,19 +2337,19 @@ func TestExecutor_Execute_WithUnions(t *testing.T) {
 			{
 				Name: []byte("message"),
 				Skip: &IfNotEqual{
-					Left: &ObjectVariableArgument{
-						PathSelector: PathSelector{
+					Left: &datasource.ObjectVariableArgument{
+						PathSelector: datasource.PathSelector{
 							Path: "__typename",
 						},
 					},
-					Right: &StaticVariableArgument{
+					Right: &datasource.StaticVariableArgument{
 						Value: []byte("RequestResult"),
 					},
 				},
 				Value: &Value{
 					ValueType: StringValueType,
 					DataResolvingConfig: DataResolvingConfig{
-						PathSelector: PathSelector{
+						PathSelector: datasource.PathSelector{
 							Path: "Message",
 						},
 					},
@@ -2398,14 +2400,14 @@ func TestExecutor_Execute_WithUnions(t *testing.T) {
 			ctx := Context{
 				Context: context.Background(),
 			}
-			_, err := ex.Execute(ctx, planner(apiResponse, true), out)
+			err := ex.Execute(ctx, planner(apiResponse, true), out)
 			if err != nil {
 				panic(err)
 			}
 
 			successFirst := out.String()
 			out.Reset()
-			_, err = ex.Execute(ctx, planner(apiResponse, false), out)
+			err = ex.Execute(ctx, planner(apiResponse, false), out)
 			if err != nil {
 				panic(err)
 			}
@@ -2487,27 +2489,27 @@ func TestExecutor_HTTPJSONDataSourceWithBodyComplexPlayload(t *testing.T) {
 					Fetch: &SingleFetch{
 						BufferName: "withBody",
 						Source: &DataSourceInvocation{
-							DataSource: &HttpJsonDataSource{
-								log: log.NoopLogger,
+							DataSource: &datasource.HttpJsonDataSource{
+								Log: log.NoopLogger,
 							},
-							Args: []Argument{
-								&StaticVariableArgument{
+							Args: []datasource.Argument{
+								&datasource.StaticVariableArgument{
 									Name:  []byte("host"),
 									Value: []byte(REST1.URL),
 								},
-								&StaticVariableArgument{
+								&datasource.StaticVariableArgument{
 									Name:  []byte("url"),
 									Value: []byte("/"),
 								},
-								&StaticVariableArgument{
+								&datasource.StaticVariableArgument{
 									Name:  []byte("method"),
 									Value: []byte("POST"),
 								},
-								&StaticVariableArgument{
+								&datasource.StaticVariableArgument{
 									Name:  []byte("body"),
 									Value: []byte("{{ .arguments.input }}"),
 								},
-								&ContextVariableArgument{
+								&datasource.ContextVariableArgument{
 									Name:         []byte(".arguments.input"),
 									VariableName: []byte("input"),
 								},
@@ -2537,7 +2539,7 @@ func TestExecutor_HTTPJSONDataSourceWithBodyComplexPlayload(t *testing.T) {
 		},
 	}
 
-	_, err = ex.Execute(ctx, plan, out)
+	err = ex.Execute(ctx, plan, out)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2589,30 +2591,30 @@ func TestExecutor_HTTPJSONDataSourceWithHeaders(t *testing.T) {
 					Fetch: &SingleFetch{
 						BufferName: "withHeaders",
 						Source: &DataSourceInvocation{
-							DataSource: &HttpJsonDataSource{
-								log: log.NoopLogger,
+							DataSource: &datasource.HttpJsonDataSource{
+								Log: log.NoopLogger,
 							},
-							Args: []Argument{
-								&StaticVariableArgument{
+							Args: []datasource.Argument{
+								&datasource.StaticVariableArgument{
 									Name:  []byte("host"),
 									Value: []byte(REST1.URL),
 								},
-								&StaticVariableArgument{
+								&datasource.StaticVariableArgument{
 									Name:  []byte("url"),
 									Value: []byte("/"),
 								},
-								&StaticVariableArgument{
+								&datasource.StaticVariableArgument{
 									Name:  []byte("method"),
 									Value: []byte("GET"),
 								},
-								&ListArgument{
+								&datasource.ListArgument{
 									Name: []byte("headers"),
-									Arguments: []Argument{
-										&StaticVariableArgument{
+									Arguments: []datasource.Argument{
+										&datasource.StaticVariableArgument{
 											Name:  []byte("foo"),
 											Value: []byte("fooVal"),
 										},
-										&StaticVariableArgument{
+										&datasource.StaticVariableArgument{
 											Name:  []byte("bar"),
 											Value: []byte("barVal"),
 										},
@@ -2641,7 +2643,7 @@ func TestExecutor_HTTPJSONDataSourceWithHeaders(t *testing.T) {
 		Context: context.Background(),
 	}
 
-	_, err := ex.Execute(ctx, plan, out)
+	err := ex.Execute(ctx, plan, out)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2694,19 +2696,19 @@ func TestExecutor_HTTPJSONDataSourceWithPathSelector(t *testing.T) {
 					Fetch: &SingleFetch{
 						BufferName: "friends",
 						Source: &DataSourceInvocation{
-							DataSource: &HttpJsonDataSource{
-								log: log.NoopLogger,
+							DataSource: &datasource.HttpJsonDataSource{
+								Log: log.NoopLogger,
 							},
-							Args: []Argument{
-								&StaticVariableArgument{
+							Args: []datasource.Argument{
+								&datasource.StaticVariableArgument{
 									Name:  []byte("host"),
 									Value: []byte(REST1.URL),
 								},
-								&StaticVariableArgument{
+								&datasource.StaticVariableArgument{
 									Name:  []byte("url"),
 									Value: []byte("/"),
 								},
-								&StaticVariableArgument{
+								&datasource.StaticVariableArgument{
 									Name:  []byte("method"),
 									Value: []byte("GET"),
 								},
@@ -2723,7 +2725,7 @@ func TestExecutor_HTTPJSONDataSourceWithPathSelector(t *testing.T) {
 										Name: []byte("firstNames"),
 										Value: &List{
 											DataResolvingConfig: DataResolvingConfig{
-												PathSelector: PathSelector{
+												PathSelector: datasource.PathSelector{
 													Path: "friends.#.first",
 												},
 											},
@@ -2747,7 +2749,7 @@ func TestExecutor_HTTPJSONDataSourceWithPathSelector(t *testing.T) {
 		Context: context.Background(),
 	}
 
-	_, err := ex.Execute(ctx, plan, out)
+	err := ex.Execute(ctx, plan, out)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2807,25 +2809,25 @@ func TestExecutor_Introspection(t *testing.T) {
 		}
 	`)
 
-	config := PlannerConfiguration{
-		TypeFieldConfigurations: []TypeFieldConfiguration{
+	config := datasource.PlannerConfiguration{
+		TypeFieldConfigurations: []datasource.TypeFieldConfiguration{
 			{
 				TypeName:  "query",
 				FieldName: "__schema",
-				DataSource: DataSourceConfig{
+				DataSource: datasource.SourceConfig{
 					Name:   "SchemaDataSource",
-					Config: toJSON(SchemaDataSourcePlannerConfig{}),
+					Config: toJSON(datasource.SchemaDataSourcePlannerConfig{}),
 				},
 			},
 		},
 	}
 
-	base, err := NewBaseDataSourcePlanner(schema, config, log.NoopLogger)
+	base, err := datasource.NewBaseDataSourcePlanner(schema, config, log.NoopLogger)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = base.RegisterDataSourcePlannerFactory("SchemaDataSource", SchemaDataSourcePlannerFactoryFactory{})
+	err = base.RegisterDataSourcePlannerFactory("SchemaDataSource", datasource.SchemaDataSourcePlannerFactoryFactory{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2835,7 +2837,7 @@ func TestExecutor_Introspection(t *testing.T) {
 	gen := introspection.NewGenerator()
 	report := operationreport.Report{}
 	data := introspection.Data{}
-	gen.Generate(handler.base.definition, &report, &data)
+	gen.Generate(handler.base.Definition, &report, &data)
 
 	introspectionData, err := json.Marshal(data)
 	if err != nil {
@@ -2843,7 +2845,7 @@ func TestExecutor_Introspection(t *testing.T) {
 	}
 
 	out := bytes.Buffer{}
-	_, err = executor.Execute(ctx, introspectionQuery(introspectionData), &out)
+	err = executor.Execute(ctx, introspectionQuery(introspectionData), &out)
 	if err != nil {
 		t.Fatal(err)
 	}

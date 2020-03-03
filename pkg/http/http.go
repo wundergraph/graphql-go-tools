@@ -44,7 +44,7 @@ func (g *GraphQLHTTPRequestHandler) handleHTTP(w http.ResponseWriter, r *http.Re
 	}
 	ctx.Context = r.Context()
 	buf := bytes.NewBuffer(make([]byte, 0, 4096))
-	_, err = executor.Execute(ctx, rootNode, buf)
+	err = executor.Execute(ctx, rootNode, buf)
 	if err != nil {
 		g.log.Error("executor.Execute",
 			log.Error(err),

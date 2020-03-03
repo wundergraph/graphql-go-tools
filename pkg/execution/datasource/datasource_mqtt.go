@@ -1,6 +1,7 @@
-package execution
+package datasource
 
 import (
+	"context"
 	"encoding/json"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	log "github.com/jensneuse/abstractlogger"
@@ -19,7 +20,7 @@ type MQTTDataSourceConfig struct {
 type MQTTDataSourcePlannerFactoryFactory struct {
 }
 
-func (M MQTTDataSourcePlannerFactoryFactory) Initialize(base BaseDataSourcePlanner, configReader io.Reader) (DataSourcePlannerFactory, error) {
+func (M MQTTDataSourcePlannerFactoryFactory) Initialize(base BasePlanner, configReader io.Reader) (PlannerFactory, error) {
 	factory := &MQTTDataSourcePlannerFactory{
 		base: base,
 	}
@@ -27,26 +28,26 @@ func (M MQTTDataSourcePlannerFactoryFactory) Initialize(base BaseDataSourcePlann
 }
 
 type MQTTDataSourcePlannerFactory struct {
-	base   BaseDataSourcePlanner
+	base   BasePlanner
 	config MQTTDataSourceConfig
 }
 
-func (m MQTTDataSourcePlannerFactory) DataSourcePlanner() DataSourcePlanner {
+func (m MQTTDataSourcePlannerFactory) DataSourcePlanner() Planner {
 	return &MQTTDataSourcePlanner{
-		BaseDataSourcePlanner: m.base,
-		dataSourceConfig:      m.config,
+		BasePlanner:      m.base,
+		dataSourceConfig: m.config,
 	}
 }
 
 type MQTTDataSourcePlanner struct {
-	BaseDataSourcePlanner
+	BasePlanner
 	dataSourceConfig MQTTDataSourceConfig
 }
 
 func (n *MQTTDataSourcePlanner) Plan(args []Argument) (DataSource, []Argument) {
 	return &MQTTDataSource{
-		log: n.log,
-	}, append(n.args, args...)
+		log: n.Log,
+	}, append(n.Args, args...)
 }
 
 func (n *MQTTDataSourcePlanner) EnterInlineFragment(ref int) {
@@ -66,22 +67,22 @@ func (n *MQTTDataSourcePlanner) LeaveSelectionSet(ref int) {
 }
 
 func (n *MQTTDataSourcePlanner) EnterField(ref int) {
-	n.rootField.setIfNotDefined(ref)
+	n.RootField.setIfNotDefined(ref)
 }
 
 func (n *MQTTDataSourcePlanner) LeaveField(ref int) {
-	if !n.rootField.isDefinedAndEquals(ref) {
+	if !n.RootField.isDefinedAndEquals(ref) {
 		return
 	}
-	n.args = append(n.args, &StaticVariableArgument{
+	n.Args = append(n.Args, &StaticVariableArgument{
 		Name:  literal.BROKERADDR,
 		Value: []byte(n.dataSourceConfig.BrokerAddr),
 	})
-	n.args = append(n.args, &StaticVariableArgument{
+	n.Args = append(n.Args, &StaticVariableArgument{
 		Name:  literal.CLIENTID,
 		Value: []byte(n.dataSourceConfig.ClientID),
 	})
-	n.args = append(n.args, &StaticVariableArgument{
+	n.Args = append(n.Args, &StaticVariableArgument{
 		Name:  literal.TOPIC,
 		Value: []byte(n.dataSourceConfig.Topic),
 	})
@@ -94,15 +95,17 @@ type MQTTDataSource struct {
 	client mqtt.Client
 }
 
-func (m *MQTTDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) (ins Instruction) {
+func (m *MQTTDataSource) Resolve(ctx context.Context, args ResolverArgs, out io.Writer) (n int, err error) {
 
 	defer func() {
-		if ins != CloseConnection {
+		select {
+		case <-ctx.Done():
+			m.log.Debug("MQTTDataSource.Resolve.client.Disconnect")
+			m.client.Disconnect(250)
+			m.log.Debug("MQTTDataSource.Resolve.client.Disconnect.disconnected")
+		default:
 			return
 		}
-		m.log.Debug("MQTTDataSource.Resolve.client.Disconnect")
-		m.client.Disconnect(250)
-		m.log.Debug("MQTTDataSource.Resolve.client.Disconnect.disconnected")
 	}()
 
 	m.once.Do(func() {
@@ -123,16 +126,12 @@ func (m *MQTTDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) 
 
 	select {
 	case <-ctx.Done():
-		return CloseConnection
+		return
 	case msg, ok := <-m.ch:
 		if !ok {
-			return CloseConnection
+			return
 		}
-		_, err := out.Write(msg.Payload())
-		if err != nil {
-			return CloseConnection
-		}
-		return KeepStreamAlive
+		return out.Write(msg.Payload())
 	}
 }
 

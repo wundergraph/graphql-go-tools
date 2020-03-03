@@ -11,6 +11,7 @@ import (
 	"github.com/jensneuse/byte-template"
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/runes"
 	"github.com/tidwall/gjson"
@@ -24,7 +25,6 @@ type Executor struct {
 	out                io.Writer
 	err                error
 	buffers            LockableBufferMap
-	instructions       []Instruction
 	escapeBuf          [48]byte
 	templateDirectives []byte_template.DirectiveDefinition
 }
@@ -43,19 +43,10 @@ func NewExecutor(templateDirectives []byte_template.DirectiveDefinition) *Execut
 	}
 }
 
-type Instruction int
-
-const (
-	KeepStreamAlive Instruction = iota + 1
-	CloseConnection
-	CloseConnectionIfNotStream
-)
-
-func (e *Executor) Execute(ctx Context, node RootNode, w io.Writer) (instruction []Instruction, err error) {
+func (e *Executor) Execute(ctx Context, node RootNode, w io.Writer) error {
 	e.context = ctx
 	e.out = w
 	e.err = nil
-	e.instructions = e.instructions[:0]
 	var path string
 	switch node.OperationType() {
 	case ast.OperationTypeQuery:
@@ -66,7 +57,7 @@ func (e *Executor) Execute(ctx Context, node RootNode, w io.Writer) (instruction
 		path = "subscription"
 	}
 	e.resolveNode(node, nil, path, nil, true)
-	return e.instructions, e.err
+	return e.err
 }
 
 // write writes the data to the out io.Writer if there is no error previously captured
@@ -96,7 +87,10 @@ func (e *Executor) resolveNode(node Node, data []byte, path string, prefetch *sy
 			}
 		}
 		if shouldFetch && node.Fetch != nil { // execute the fetch on the object
-			e.instructions = append(e.instructions, node.Fetch.Fetch(e.context, data, e, path, &e.buffers))
+			_,err := node.Fetch.Fetch(e.context, data, e, path, &e.buffers)
+			if err != nil {
+				e.err = err
+			}
 			if prefetch != nil { // in case this was a prefetch we can immediately return
 				prefetch.Done()
 				return
@@ -212,24 +206,24 @@ func (e *Executor) resolveData(config DataResolvingConfig, data []byte) []byte {
 	return data
 }
 
-func (e *Executor) ResolveArgs(args []Argument, data []byte) ResolvedArgs {
+func (e *Executor) ResolveArgs(args []datasource.Argument, data []byte) ResolvedArgs {
 
 	args = append(args, e.context.ExtraArguments...)
 
 	resolved := make(ResolvedArgs, len(args))
 	for i := 0; i < len(args); i++ {
 		switch arg := args[i].(type) {
-		case *StaticVariableArgument:
+		case *datasource.StaticVariableArgument:
 			resolved[i].Key = arg.Name
 			resolved[i].Value = arg.Value
-		case *ObjectVariableArgument:
+		case *datasource.ObjectVariableArgument:
 			resolved[i].Key = arg.Name
 			result := gjson.GetBytes(data, arg.PathSelector.Path)
 			resolved[i].Value = unsafebytes.StringToBytes(result.Raw)
-		case *ContextVariableArgument:
+		case *datasource.ContextVariableArgument:
 			resolved[i].Key = arg.Name
 			resolved[i].Value = e.context.Variables[xxhash.Sum64(arg.VariableName)]
-		case *ListArgument:
+		case *datasource.ListArgument:
 			resolved[i].Key = arg.Name
 			listArgs := e.ResolveArgs(arg.Arguments, data)
 			listValues := make(map[string]string, len(listArgs))
@@ -333,14 +327,10 @@ type RootNode interface {
 type Context struct {
 	context.Context
 	Variables      Variables
-	ExtraArguments []Argument
+	ExtraArguments []datasource.Argument
 }
 
 type Variables map[uint64][]byte
-
-type Argument interface {
-	ArgName() []byte
-}
 
 type ResolvedArgument struct {
 	Key   []byte
@@ -348,6 +338,14 @@ type ResolvedArgument struct {
 }
 
 type ResolvedArgs []ResolvedArgument
+
+func (r ResolvedArgs) Keys() [][]byte {
+	keys := make([][]byte, len(r))
+	for i := range r {
+		keys[i] = (r)[i].Key
+	}
+	return keys
+}
 
 func (r *ResolvedArgs) Filter(condition func(i int) (keep bool)) {
 	n := 0
@@ -358,19 +356,6 @@ func (r *ResolvedArgs) Filter(condition func(i int) (keep bool)) {
 		}
 	}
 	*r = (*r)[:n]
-}
-
-var (
-	keys = []byte("abcdefghijklmnopqrstuvwxyz")
-)
-
-func (r ResolvedArgs) NextKey() []byte {
-	for i := 0; i < len(keys); i++ {
-		if r.ByKey(keys[i:i+1]) == nil {
-			return keys[i : i+1]
-		}
-	}
-	return nil
 }
 
 func (r ResolvedArgs) ByKey(key []byte) []byte {
@@ -390,48 +375,8 @@ func (r ResolvedArgs) Dump() []string {
 	return out
 }
 
-type ContextVariableArgument struct {
-	Name         []byte
-	VariableName []byte
-}
-
-func (c *ContextVariableArgument) ArgName() []byte {
-	return c.Name
-}
-
-type PathSelector struct {
-	Path string
-}
-
-type ObjectVariableArgument struct {
-	Name         []byte
-	PathSelector PathSelector
-}
-
-func (o *ObjectVariableArgument) ArgName() []byte {
-	return o.Name
-}
-
-type StaticVariableArgument struct {
-	Name  []byte
-	Value []byte
-}
-
-func (s *StaticVariableArgument) ArgName() []byte {
-	return s.Name
-}
-
-type ListArgument struct {
-	Name      []byte
-	Arguments []Argument
-}
-
-func (l ListArgument) ArgName() []byte {
-	return l.Name
-}
-
 type DataResolvingConfig struct {
-	PathSelector   PathSelector
+	PathSelector   datasource.PathSelector
 	Transformation Transformation
 }
 
@@ -447,11 +392,11 @@ func (o *Object) OperationType() ast.OperationType {
 }
 
 type ArgsResolver interface {
-	ResolveArgs(args []Argument, data []byte) ResolvedArgs
+	ResolveArgs(args []datasource.Argument, data []byte) ResolvedArgs
 }
 
 type Fetch interface {
-	Fetch(ctx Context, data []byte, argsResolver ArgsResolver, suffix string, buffers *LockableBufferMap) Instruction
+	Fetch(ctx Context, data []byte, argsResolver ArgsResolver, suffix string, buffers *LockableBufferMap) (n int, err error)
 }
 
 type SingleFetch struct {
@@ -459,7 +404,7 @@ type SingleFetch struct {
 	BufferName string
 }
 
-func (s *SingleFetch) Fetch(ctx Context, data []byte, argsResolver ArgsResolver, path string, buffers *LockableBufferMap) Instruction {
+func (s *SingleFetch) Fetch(ctx Context, data []byte, argsResolver ArgsResolver, path string, buffers *LockableBufferMap) (int, error) {
 	bufferName := path + "." + s.BufferName
 	hash := xxhash.Sum64String(bufferName)
 	buffers.Lock()
@@ -480,11 +425,15 @@ type SerialFetch struct {
 	Fetches []Fetch
 }
 
-func (s *SerialFetch) Fetch(ctx Context, data []byte, argsResolver ArgsResolver, suffix string, buffers *LockableBufferMap) Instruction {
+func (s *SerialFetch) Fetch(ctx Context, data []byte, argsResolver ArgsResolver, suffix string, buffers *LockableBufferMap) (n int, err error) {
 	for i := 0; i < len(s.Fetches); i++ {
-		s.Fetches[i].Fetch(ctx, data, argsResolver, suffix, buffers)
+		nextN, nextErr := s.Fetches[i].Fetch(ctx, data, argsResolver, suffix, buffers)
+		if nextErr != nil {
+			return n, nextErr
+		}
+		n = n + nextN
 	}
-	return CloseConnection
+	return
 }
 
 type ParallelFetch struct {
@@ -492,16 +441,16 @@ type ParallelFetch struct {
 	Fetches []Fetch
 }
 
-func (p *ParallelFetch) Fetch(ctx Context, data []byte, argsResolver ArgsResolver, suffix string, buffers *LockableBufferMap) Instruction {
+func (p *ParallelFetch) Fetch(ctx Context, data []byte, argsResolver ArgsResolver, suffix string, buffers *LockableBufferMap) (n int, err error) {
 	for i := 0; i < len(p.Fetches); i++ {
 		p.wg.Add(1)
 		go func(fetch Fetch, ctx Context, data []byte, argsResolver ArgsResolver) {
-			fetch.Fetch(ctx, data, argsResolver, suffix, buffers)
+			_,_ = fetch.Fetch(ctx, data, argsResolver, suffix, buffers) // TODO: handle results
 			p.wg.Done()
 		}(p.Fetches[i], ctx, data, argsResolver)
 	}
 	p.wg.Wait()
-	return CloseConnection
+	return
 }
 
 func (o *Object) HasResolversRecursively() bool {
@@ -533,7 +482,7 @@ func (f *Field) HasResolversRecursively() bool {
 }
 
 type IfEqual struct {
-	Left, Right Argument
+	Left, Right datasource.Argument
 }
 
 func (i *IfEqual) Evaluate(ctx Context, data []byte) bool {
@@ -541,30 +490,30 @@ func (i *IfEqual) Evaluate(ctx Context, data []byte) bool {
 	var right []byte
 
 	switch value := i.Left.(type) {
-	case *ContextVariableArgument:
+	case *datasource.ContextVariableArgument:
 		left = ctx.Variables[xxhash.Sum64(value.VariableName)]
-	case *ObjectVariableArgument:
+	case *datasource.ObjectVariableArgument:
 		result := gjson.GetBytes(data, value.PathSelector.Path)
 		if result.Type == gjson.String {
 			left = unsafebytes.StringToBytes(result.Str)
 		} else {
 			left = unsafebytes.StringToBytes(result.Raw)
 		}
-	case *StaticVariableArgument:
+	case *datasource.StaticVariableArgument:
 		left = value.Value
 	}
 
 	switch value := i.Right.(type) {
-	case *ContextVariableArgument:
+	case *datasource.ContextVariableArgument:
 		right = ctx.Variables[xxhash.Sum64(value.VariableName)]
-	case *ObjectVariableArgument:
+	case *datasource.ObjectVariableArgument:
 		result := gjson.GetBytes(data, value.PathSelector.Path)
 		if result.Type == gjson.String {
 			right = unsafebytes.StringToBytes(result.Str)
 		} else {
 			right = unsafebytes.StringToBytes(result.Raw)
 		}
-	case *StaticVariableArgument:
+	case *datasource.StaticVariableArgument:
 		right = value.Value
 	}
 
@@ -572,7 +521,7 @@ func (i *IfEqual) Evaluate(ctx Context, data []byte) bool {
 }
 
 type IfNotEqual struct {
-	Left, Right Argument
+	Left, Right datasource.Argument
 }
 
 func (i *IfNotEqual) Evaluate(ctx Context, data []byte) bool {
@@ -633,6 +582,6 @@ func (_ ListFilterFirstN) Kind() ListFilterKind {
 }
 
 type DataSourceInvocation struct {
-	Args       []Argument
-	DataSource DataSource
+	Args       []datasource.Argument
+	DataSource datasource.DataSource
 }

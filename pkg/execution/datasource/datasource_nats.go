@@ -1,6 +1,7 @@
-package execution
+package datasource
 
 import (
+	"context"
 	"encoding/json"
 	log "github.com/jensneuse/abstractlogger"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
@@ -18,7 +19,7 @@ type NatsDataSourceConfig struct {
 type NatsDataSourcePlannerFactoryFactory struct {
 }
 
-func (n NatsDataSourcePlannerFactoryFactory) Initialize(base BaseDataSourcePlanner, configReader io.Reader) (DataSourcePlannerFactory, error) {
+func (n NatsDataSourcePlannerFactoryFactory) Initialize(base BasePlanner, configReader io.Reader) (PlannerFactory, error) {
 	factory := &NatsDataSourcePlannerFactory{
 		base: base,
 	}
@@ -26,34 +27,34 @@ func (n NatsDataSourcePlannerFactoryFactory) Initialize(base BaseDataSourcePlann
 }
 
 type NatsDataSourcePlannerFactory struct {
-	base   BaseDataSourcePlanner
+	base   BasePlanner
 	config NatsDataSourceConfig
 }
 
-func (n NatsDataSourcePlannerFactory) DataSourcePlanner() DataSourcePlanner {
+func (n NatsDataSourcePlannerFactory) DataSourcePlanner() Planner {
 	return SimpleDataSourcePlanner(&NatsDataSourcePlanner{
-		BaseDataSourcePlanner: n.base,
-		dataSourceConfig:      n.config,
+		BasePlanner:      n.base,
+		dataSourceConfig: n.config,
 	})
 }
 
 type NatsDataSourcePlanner struct {
-	BaseDataSourcePlanner
+	BasePlanner
 	dataSourceConfig NatsDataSourceConfig
 }
 
 func (n *NatsDataSourcePlanner) Plan([]Argument) (DataSource, []Argument) {
-	n.args = append(n.args, &StaticVariableArgument{
+	n.Args = append(n.Args, &StaticVariableArgument{
 		Name:  literal.ADDR,
 		Value: []byte(n.dataSourceConfig.Addr),
 	})
-	n.args = append(n.args, &StaticVariableArgument{
+	n.Args = append(n.Args, &StaticVariableArgument{
 		Name:  literal.TOPIC,
 		Value: []byte(n.dataSourceConfig.Topic),
 	})
 	return &NatsDataSource{
-		log: n.log,
-	}, n.args
+		log: n.Log,
+	}, n.Args
 }
 
 type NatsDataSource struct {
@@ -63,9 +64,8 @@ type NatsDataSource struct {
 	once sync.Once
 }
 
-func (n *NatsDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) Instruction {
-	var err error
-	n.once.Do(func() {
+func (d *NatsDataSource) Resolve(ctx context.Context, args ResolverArgs, out io.Writer) (n int, err error) {
+	d.once.Do(func() {
 
 		addrArg := args.ByKey(literal.ADDR)
 		topicArg := args.ByKey(literal.TOPIC)
@@ -79,59 +79,54 @@ func (n *NatsDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) 
 
 		go func() {
 			<-ctx.Done()
-			if n.sub != nil {
-				n.log.Debug("NatsDataSource.unsubscribing",
+			if d.sub != nil {
+				d.log.Debug("NatsDataSource.unsubscribing",
 					log.String("addr", addr),
 					log.String("topic", topic),
 				)
-				err := n.sub.Unsubscribe()
+				err := d.sub.Unsubscribe()
 				if err != nil {
-					n.log.Error("Unsubscribe", log.Error(err))
+					d.log.Error("Unsubscribe", log.Error(err))
 				}
 			}
-			if n.conn != nil {
-				n.log.Debug("NatsDataSource.closing",
+			if d.conn != nil {
+				d.log.Debug("NatsDataSource.closing",
 					log.String("addr", addr),
 					log.String("topic", topic),
 				)
-				n.conn.Close()
+				d.conn.Close()
 			}
 		}()
 
-		n.log.Debug("NatsDataSource.connecting",
+		d.log.Debug("NatsDataSource.connecting",
 			log.String("addr", addr),
 			log.String("topic", topic),
 		)
 
-		n.conn, err = nats.Connect(addr)
+		d.conn, err = nats.Connect(addr)
 		if err != nil {
 			panic(err)
 		}
 
-		n.log.Debug("NatsDataSource.subscribing",
+		d.log.Debug("NatsDataSource.subscribing",
 			log.String("addr", addr),
 			log.String("topic", topic),
 		)
 
-		n.sub, err = n.conn.SubscribeSync(topic)
+		d.sub, err = d.conn.SubscribeSync(topic)
 		if err != nil {
 			panic(err)
 		}
 	})
 
 	if err != nil {
-		return CloseConnection
+		return n, err
 	}
 
-	message, err := n.sub.NextMsg(time.Minute)
+	message, err := d.sub.NextMsg(time.Minute)
 	if err != nil {
-		return CloseConnection
+		return n, err
 	}
 
-	_, err = out.Write(message.Data)
-	if err != nil {
-		return CloseConnection
-	}
-
-	return KeepStreamAlive
+	return out.Write(message.Data)
 }
