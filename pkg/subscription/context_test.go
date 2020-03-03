@@ -28,7 +28,7 @@ func TestSubscriptionCancellations(t *testing.T) {
 		}
 
 		ok := cancellations.Cancel("1")
-		assert.Eventually(t, ctxTestFunc, time.Second, 10*time.Millisecond)
+		assert.Eventually(t, ctxTestFunc, time.Second, 5*time.Millisecond)
 		assert.True(t, ok)
 	})
 }
