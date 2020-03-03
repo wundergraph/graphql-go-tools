@@ -149,7 +149,7 @@ type rootField struct {
 	ref       int
 }
 
-func (r *rootField) setIfNotDefined(ref int) {
+func (r *rootField) SetIfNotDefined(ref int) {
 	if r.isDefined {
 		return
 	}
@@ -157,7 +157,7 @@ func (r *rootField) setIfNotDefined(ref int) {
 	r.ref = ref
 }
 
-func (r *rootField) isDefinedAndEquals(ref int) bool {
+func (r *rootField) IsDefinedAndEquals(ref int) bool {
 	return r.isDefined && r.ref == ref
 }
 

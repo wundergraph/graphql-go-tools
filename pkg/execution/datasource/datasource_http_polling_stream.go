@@ -73,11 +73,11 @@ func (h *HttpPollingStreamDataSourcePlanner) LeaveSelectionSet(ref int) {
 }
 
 func (h *HttpPollingStreamDataSourcePlanner) EnterField(ref int) {
-	h.RootField.setIfNotDefined(ref)
+	h.RootField.SetIfNotDefined(ref)
 }
 
 func (h *HttpPollingStreamDataSourcePlanner) LeaveField(ref int) {
-	if !h.RootField.isDefinedAndEquals(ref) {
+	if !h.RootField.IsDefinedAndEquals(ref) {
 		return
 	}
 	h.Args = append(h.Args, &StaticVariableArgument{

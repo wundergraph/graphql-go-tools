@@ -102,11 +102,11 @@ func (h *HttpJsonDataSourcePlanner) LeaveSelectionSet(ref int) {
 }
 
 func (h *HttpJsonDataSourcePlanner) EnterField(ref int) {
-	h.RootField.setIfNotDefined(ref)
+	h.RootField.SetIfNotDefined(ref)
 }
 
 func (h *HttpJsonDataSourcePlanner) LeaveField(ref int) {
-	if !h.RootField.isDefinedAndEquals(ref) {
+	if !h.RootField.IsDefinedAndEquals(ref) {
 		return
 	}
 	definition, exists := h.Walker.FieldDefinition(ref)

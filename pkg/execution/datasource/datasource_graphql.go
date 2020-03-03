@@ -127,7 +127,7 @@ func (g *GraphQLDataSourcePlanner) LeaveSelectionSet(ref int) {
 
 func (g *GraphQLDataSourcePlanner) EnterField(ref int) {
 	if !g.RootField.isDefined {
-		g.RootField.setIfNotDefined(ref)
+		g.RootField.SetIfNotDefined(ref)
 
 		typeName := g.Definition.NodeNameString(g.Walker.EnclosingTypeDefinition)
 		fieldNameStr := g.Operation.FieldNameString(ref)

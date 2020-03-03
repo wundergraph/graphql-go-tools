@@ -67,11 +67,11 @@ func (n *MQTTDataSourcePlanner) LeaveSelectionSet(ref int) {
 }
 
 func (n *MQTTDataSourcePlanner) EnterField(ref int) {
-	n.RootField.setIfNotDefined(ref)
+	n.RootField.SetIfNotDefined(ref)
 }
 
 func (n *MQTTDataSourcePlanner) LeaveField(ref int) {
-	if !n.RootField.isDefinedAndEquals(ref) {
+	if !n.RootField.IsDefinedAndEquals(ref) {
 		return
 	}
 	n.Args = append(n.Args, &StaticVariableArgument{

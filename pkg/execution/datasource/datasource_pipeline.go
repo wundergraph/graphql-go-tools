@@ -88,11 +88,11 @@ func (h *PipelineDataSourcePlanner) LeaveSelectionSet(ref int) {
 }
 
 func (h *PipelineDataSourcePlanner) EnterField(ref int) {
-	h.RootField.setIfNotDefined(ref)
+	h.RootField.SetIfNotDefined(ref)
 }
 
 func (h *PipelineDataSourcePlanner) LeaveField(ref int) {
-	if !h.RootField.isDefinedAndEquals(ref) {
+	if !h.RootField.IsDefinedAndEquals(ref) {
 		return
 	}
 
