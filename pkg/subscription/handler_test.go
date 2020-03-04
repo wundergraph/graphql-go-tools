@@ -9,12 +9,16 @@ import (
 	"github.com/jensneuse/abstractlogger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jensneuse/graphql-go-tools/pkg/starwars"
 )
 
 func TestHandler_Handle(t *testing.T) {
+	starwars.SetRelativePathToStarWarsPackage("../starwars")
+
 	client := newMockClient()
 
-	subscriptionHandler, err := NewHandler(abstractlogger.NoopLogger, client)
+	subscriptionHandler, err := NewHandler(abstractlogger.NoopLogger, client, starwars.NewExecutionHandler(t))
 	require.NoError(t, err)
 
 	handlerRoutine := func(ctx context.Context) func() bool {
@@ -26,7 +30,7 @@ func TestHandler_Handle(t *testing.T) {
 
 	t.Run("connection_init", func(t *testing.T) {
 		t.Run("should send connection error message when error on read occurrs", func(t *testing.T) {
-			client.prepareConnectionInitMessage().withError()
+			client.prepareConnectionInitMessage().withError().and().resetReceivedMessages()
 
 			ctx, cancelFunc := context.WithCancel(context.Background())
 
@@ -38,12 +42,12 @@ func TestHandler_Handle(t *testing.T) {
 				Payload: jsonizePayload(t, "could not read message from client"),
 			}
 
-			messageFromServer := client.readFromServer()
-			assert.Equal(t, expectedMessage, messageFromServer)
+			messagesFromServer := client.readFromServer()
+			assert.Contains(t, messagesFromServer, expectedMessage)
 		})
 
 		t.Run("should successfully init connection and respond with ack", func(t *testing.T) {
-			client.prepareConnectionInitMessage().withoutError()
+			client.prepareConnectionInitMessage().withoutError().and().resetReceivedMessages()
 
 			ctx, cancelFunc := context.WithCancel(context.Background())
 
@@ -54,8 +58,8 @@ func TestHandler_Handle(t *testing.T) {
 				Type: MessageTypeConnectionAck,
 			}
 
-			messageFromServer := client.readFromServer()
-			assert.Equal(t, expectedMessage, messageFromServer)
+			messagesFromServer := client.readFromServer()
+			assert.Contains(t, messagesFromServer, expectedMessage)
 		})
 	})
 
@@ -66,7 +70,7 @@ func TestHandler_Handle(t *testing.T) {
 
 			subscriptionHandler.ChangeKeepAliveInterval(keepAliveInterval)
 
-			client.prepareConnectionInitMessage().withoutError()
+			client.prepareConnectionInitMessage().withoutError().and().resetReceivedMessages()
 			ctx, cancelFunc := context.WithCancel(context.Background())
 
 			handlerRoutineFunc := handlerRoutine(ctx)
@@ -79,9 +83,44 @@ func TestHandler_Handle(t *testing.T) {
 				Type: MessageTypeConnectionKeepAlive,
 			}
 
-			messageFromServer := client.readFromServer()
-			assert.Equal(t, expectedMessage, messageFromServer)
+			messagesFromServer := client.readFromServer()
+			assert.Contains(t, messagesFromServer, expectedMessage)
 		})
+
+		defaultKeepAliveInterval, err := time.ParseDuration(DefaultKeepAliveInterval)
+		require.NoError(t, err)
+		subscriptionHandler.ChangeKeepAliveInterval(defaultKeepAliveInterval)
+	})
+
+	t.Run("subscription query", func(t *testing.T) {
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		handlerRoutineFunc := handlerRoutine(ctx)
+		go handlerRoutineFunc()
+
+		t.Run("should start subscription on start", func(t *testing.T) {
+			payload := starwars.LoadQuery(t, starwars.FileRemainingJedisSubscription, nil)
+			client.prepareStartMessage("1", payload).withoutError().and().resetReceivedMessages()
+
+			time.Sleep(10 * time.Millisecond)
+
+			expectedMessage := Message{
+				Id:      "1",
+				Type:    MessageTypeData,
+				Payload: []byte(`{"data":null}`),
+			}
+
+			messagesFromServer := client.readFromServer()
+			assert.Contains(t, messagesFromServer, expectedMessage)
+			assert.Equal(t, 1, subscriptionHandler.activeSubscriptions)
+		})
+
+		t.Run("should stop subscription on stop", func(t *testing.T) {
+			client.prepareStopMessage("1").withoutError().and().resetReceivedMessages()
+			cancelFunc()
+			time.Sleep(10 * time.Millisecond)
+			assert.Equal(t, 0, subscriptionHandler.activeSubscriptions)
+		})
+
 	})
 
 	t.Run("connection_terminate", func(t *testing.T) {

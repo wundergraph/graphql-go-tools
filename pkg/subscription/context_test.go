@@ -22,6 +22,7 @@ func TestSubscriptionCancellations(t *testing.T) {
 	})
 
 	t.Run("should execute cancellation from map", func(t *testing.T) {
+		require.Equal(t, 1, len(cancellations))
 		ctxTestFunc := func() bool {
 			<-ctx.Done()
 			return true
@@ -30,5 +31,6 @@ func TestSubscriptionCancellations(t *testing.T) {
 		ok := cancellations.Cancel("1")
 		assert.Eventually(t, ctxTestFunc, time.Second, 5*time.Millisecond)
 		assert.True(t, ok)
+		assert.Equal(t, 0, len(cancellations))
 	})
 }

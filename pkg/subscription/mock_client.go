@@ -5,10 +5,10 @@ import (
 )
 
 type mockClient struct {
-	messageFromServer Message
-	messageToServer   Message
-	err               error
-	connected         bool
+	messagesFromServer []Message
+	messageToServer    Message
+	err                error
+	connected          bool
 }
 
 func newMockClient() *mockClient {
@@ -25,7 +25,7 @@ func (c *mockClient) ReadFromClient() (Message, error) {
 }
 
 func (c *mockClient) WriteToClient(message Message) error {
-	c.messageFromServer = message
+	c.messagesFromServer = append(c.messagesFromServer, message)
 	return c.err
 }
 
@@ -34,13 +34,33 @@ func (c *mockClient) Disconnect() error {
 	return nil
 }
 
-func (c *mockClient) readFromServer() Message {
-	return c.messageFromServer
+func (c *mockClient) readFromServer() []Message {
+	return c.messagesFromServer
 }
 
 func (c *mockClient) prepareConnectionInitMessage() *mockClient {
 	c.messageToServer = Message{
 		Type: MessageTypeConnectionInit,
+	}
+
+	return c
+}
+
+func (c *mockClient) prepareStartMessage(id string, payload []byte) *mockClient {
+	c.messageToServer = Message{
+		Id:      id,
+		Type:    MessageTypeStart,
+		Payload: payload,
+	}
+
+	return c
+}
+
+func (c *mockClient) prepareStopMessage(id string) *mockClient {
+	c.messageToServer = Message{
+		Id:      id,
+		Type:    MessageTypeStop,
+		Payload: nil,
 	}
 
 	return c
@@ -61,5 +81,14 @@ func (c *mockClient) withoutError() *mockClient {
 
 func (c *mockClient) withError() *mockClient {
 	c.err = errors.New("error")
+	return c
+}
+
+func (c *mockClient) and() *mockClient {
+	return c
+}
+
+func (c *mockClient) resetReceivedMessages() *mockClient {
+	c.messagesFromServer = []Message{}
 	return c
 }

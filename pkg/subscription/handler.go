@@ -1,11 +1,14 @@
 package subscription
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"time"
 
 	"github.com/jensneuse/abstractlogger"
+
+	"github.com/jensneuse/graphql-go-tools/pkg/execution"
 )
 
 const (
@@ -20,7 +23,7 @@ const (
 	MessageTypeError               = "error"
 	MessageTypeComplete            = "complete"
 
-	DefaultKeepAliveInterval = "30s"
+	DefaultKeepAliveInterval = "15s"
 )
 
 type Message struct {
@@ -36,29 +39,36 @@ type Client interface {
 }
 
 type Handler struct {
-	logger            abstractlogger.Logger
-	client            Client
-	keepAliveInterval time.Duration
-	subCancellations  subscriptionCancellations
+	logger              abstractlogger.Logger
+	client              Client
+	keepAliveInterval   time.Duration
+	subCancellations    subscriptionCancellations
+	executionHandler    *execution.Handler
+	activeSubscriptions int
 }
 
-func NewHandler(logger abstractlogger.Logger, client Client) (*Handler, error) {
+func NewHandler(logger abstractlogger.Logger, client Client, executionHandler *execution.Handler) (*Handler, error) {
 	keepAliveInterval, err := time.ParseDuration(DefaultKeepAliveInterval)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Handler{
-		logger:            logger,
-		client:            client,
-		keepAliveInterval: keepAliveInterval,
+		logger:              logger,
+		client:              client,
+		keepAliveInterval:   keepAliveInterval,
+		subCancellations:    subscriptionCancellations{},
+		executionHandler:    executionHandler,
+		activeSubscriptions: 0,
 	}, nil
 }
 
 func (h *Handler) Handle(ctx context.Context) {
-	runHandleLoop := true
+	defer func() {
+		h.subCancellations.CancelAll()
+	}()
 
-	for runHandleLoop {
+	for {
 		message, err := h.client.ReadFromClient()
 		if err != nil {
 			h.logger.Error("subscription.Handler.Handle()",
@@ -72,15 +82,19 @@ func (h *Handler) Handle(ctx context.Context) {
 			case MessageTypeConnectionInit:
 				h.handleInit()
 				go h.handleKeepAlive(ctx)
+			case MessageTypeStart:
+				h.handleStart(message.Id, message.Payload)
+			case MessageTypeStop:
+				h.handleStop(message.Id)
 			case MessageTypeConnectionTerminate:
 				h.handleConnectionTerminate()
-				runHandleLoop = false
+				return
 			}
 		}
 
 		select {
 		case <-ctx.Done():
-			runHandleLoop = false
+			return
 		default:
 			continue
 		}
@@ -104,12 +118,91 @@ func (h *Handler) handleInit() {
 	}
 }
 
-func (h *Handler) handleStart() {
+func (h *Handler) handleStart(id string, payload []byte) {
+	ctx := h.subCancellations.Add(id)
+	h.activeSubscriptions++
+	go h.startSubscription(ctx, id, payload)
+}
+
+func (h *Handler) startSubscription(ctx context.Context, id string, data []byte) {
+	executor, node, executionContext, err := h.executionHandler.Handle(data, []byte(""))
+	if err != nil {
+		h.logger.Error("subscription.Handler.startSubscription()",
+			abstractlogger.Error(err),
+		)
+
+		h.handleError(id, "error on subscription execution")
+	}
+
+	executionContext.Context = ctx
+	buf := bytes.NewBuffer(make([]byte, 0, 1024))
+
+	for {
+		buf.Reset()
+		select {
+		case <-ctx.Done():
+			h.activeSubscriptions--
+			return
+		default:
+			h.executeSubscription(buf, id, executor, node, executionContext)
+		}
+	}
 
 }
 
-func (h *Handler) handleStop() {
+func (h *Handler) executeSubscription(buf *bytes.Buffer, id string, executor *execution.Executor, node execution.RootNode, ctx execution.Context) {
+	_, err := executor.Execute(ctx, node, buf)
+	if err != nil {
+		h.logger.Error("subscription.Handle.executeSubscription()",
+			abstractlogger.Error(err),
+		)
 
+		h.handleError(id, "error on subscription execution")
+		return
+	}
+
+	h.logger.Debug("subscription.Handle.executeSubscription()",
+		abstractlogger.ByteString("execution_result", buf.Bytes()),
+	)
+
+	h.sendData(id, buf.Bytes())
+
+	// TODO: send complete?
+}
+
+func (h *Handler) handleStop(id string) {
+	h.subCancellations.Cancel(id)
+	h.activeSubscriptions--
+}
+
+func (h *Handler) sendData(id string, responseData []byte) {
+	dataMessage := Message{
+		Id:      id,
+		Type:    MessageTypeData,
+		Payload: responseData,
+	}
+
+	err := h.client.WriteToClient(dataMessage)
+	if err != nil {
+		h.logger.Error("subscription.Handler.sendData()",
+			abstractlogger.Error(err),
+		)
+	}
+}
+
+func (h *Handler) sendComplete(id string) {
+	completeMessage := Message{
+		Id:      id,
+		Type:    MessageTypeComplete,
+		Payload: nil,
+	}
+
+	err := h.client.WriteToClient(completeMessage)
+	if err != nil {
+		h.logger.Error("subscription.Handler.sendComplete()",
+			abstractlogger.Error(err),
+		)
+	}
 }
 
 func (h *Handler) handleConnectionTerminate() {
@@ -122,27 +215,26 @@ func (h *Handler) handleConnectionTerminate() {
 }
 
 func (h *Handler) handleKeepAlive(ctx context.Context) {
-	runKeepAliveLoop := true
-	for runKeepAliveLoop {
-		time.Sleep(h.keepAliveInterval)
-
-		keepAliveMessage := Message{
-			Type: MessageTypeConnectionKeepAlive,
-		}
-
-		err := h.client.WriteToClient(keepAliveMessage)
-		if err != nil {
-			h.logger.Error("subscription.Handler.handleKeepAlive()",
-				abstractlogger.Error(err),
-			)
-		}
-
+	for {
 		select {
 		case <-ctx.Done():
-			runKeepAliveLoop = false
-		default:
-			continue
+			return
+		case <-time.After(h.keepAliveInterval):
+			h.sendKeepAlive()
 		}
+	}
+}
+
+func (h *Handler) sendKeepAlive() {
+	keepAliveMessage := Message{
+		Type: MessageTypeConnectionKeepAlive,
+	}
+
+	err := h.client.WriteToClient(keepAliveMessage)
+	if err != nil {
+		h.logger.Error("subscription.Handler.sendKeepAlive()",
+			abstractlogger.Error(err),
+		)
 	}
 }
 
@@ -178,7 +270,7 @@ func (h *Handler) handleError(id string, errorPayload interface{}) {
 	}
 
 	errorMessage := Message{
-		Id:      "",
+		Id:      id,
 		Type:    MessageTypeError,
 		Payload: payloadBytes,
 	}

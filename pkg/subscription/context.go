@@ -19,5 +19,12 @@ func (sc subscriptionCancellations) Cancel(id string) (ok bool) {
 	}
 
 	cancelFunc()
+	delete(sc, id)
 	return true
+}
+
+func (sc subscriptionCancellations) CancelAll() {
+	for _, cancelFunc := range sc {
+		cancelFunc()
+	}
 }
