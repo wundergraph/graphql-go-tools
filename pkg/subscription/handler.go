@@ -16,14 +16,15 @@ const (
 	MessageTypeConnectionAck       = "connection_ack"
 	MessageTypeConnectionError     = "connection_error"
 	MessageTypeConnectionTerminate = "connection_terminate"
-	MessageTypeConnectionKeepAlive = "connection_keep_alive"
+	MessageTypeConnectionKeepAlive = "ka"
 	MessageTypeStart               = "start"
 	MessageTypeStop                = "stop"
 	MessageTypeData                = "data"
 	MessageTypeError               = "error"
 	MessageTypeComplete            = "complete"
 
-	DefaultKeepAliveInterval = "15s"
+	DefaultKeepAliveInterval          = "15s"
+	DefaultSubscriptionUpdateInterval = "1s"
 )
 
 type Message struct {
@@ -40,11 +41,12 @@ type Client interface {
 }
 
 type Handler struct {
-	logger            abstractlogger.Logger
-	client            Client
-	keepAliveInterval time.Duration
-	subCancellations  subscriptionCancellations
-	executionHandler  *execution.Handler
+	logger                     abstractlogger.Logger
+	client                     Client
+	keepAliveInterval          time.Duration
+	subscriptionUpdateInterval time.Duration
+	subCancellations           subscriptionCancellations
+	executionHandler           *execution.Handler
 }
 
 func NewHandler(logger abstractlogger.Logger, client Client, executionHandler *execution.Handler) (*Handler, error) {
@@ -53,12 +55,18 @@ func NewHandler(logger abstractlogger.Logger, client Client, executionHandler *e
 		return nil, err
 	}
 
+	subscriptionUpdateInterval, err := time.ParseDuration(DefaultSubscriptionUpdateInterval)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Handler{
-		logger:            logger,
-		client:            client,
-		keepAliveInterval: keepAliveInterval,
-		subCancellations:  subscriptionCancellations{},
-		executionHandler:  executionHandler,
+		logger:                     logger,
+		client:                     client,
+		keepAliveInterval:          keepAliveInterval,
+		subscriptionUpdateInterval: subscriptionUpdateInterval,
+		subCancellations:           subscriptionCancellations{},
+		executionHandler:           executionHandler,
 	}, nil
 }
 
@@ -142,13 +150,14 @@ func (h *Handler) startSubscription(ctx context.Context, id string, data []byte)
 
 	executionContext.Context = ctx
 	buf := bytes.NewBuffer(make([]byte, 0, 1024))
+	h.executeSubscription(buf, id, executor, node, executionContext)
 
 	for {
 		buf.Reset()
 		select {
 		case <-ctx.Done():
 			return
-		default:
+		case <-time.After(h.subscriptionUpdateInterval):
 			h.executeSubscription(buf, id, executor, node, executionContext)
 		}
 	}
