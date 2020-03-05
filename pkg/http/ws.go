@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net"
 
 	"github.com/gobwas/ws"
@@ -13,8 +14,9 @@ import (
 )
 
 type WebsocketSubscriptionClient struct {
-	logger     abstractlogger.Logger
-	clientConn net.Conn
+	logger             abstractlogger.Logger
+	clientConn         net.Conn
+	isClosedConnection bool
 }
 
 func NewWebsocketSubscriptionClient(logger abstractlogger.Logger, clientConn net.Conn) *WebsocketSubscriptionClient {
@@ -30,11 +32,17 @@ func (w *WebsocketSubscriptionClient) ReadFromClient() (message subscription.Mes
 
 	data, opCode, err = wsutil.ReadClientData(w.clientConn)
 	if err != nil {
+		if w.isClosedConnectionError(err) {
+			return message, nil
+		}
+
 		w.logger.Error("http.WebsocketSubscriptionClient.ReadFromClient()",
 			abstractlogger.Error(err),
 			abstractlogger.ByteString("data", data),
 			abstractlogger.Any("opCode", opCode),
 		)
+
+		w.isClosedConnectionError(err)
 
 		return message, err
 	}
@@ -54,6 +62,10 @@ func (w *WebsocketSubscriptionClient) ReadFromClient() (message subscription.Mes
 }
 
 func (w *WebsocketSubscriptionClient) WriteToClient(message subscription.Message) error {
+	if w.isClosedConnection {
+		return nil
+	}
+
 	messageBytes, err := json.Marshal(message)
 	if err != nil {
 		w.logger.Error("http.WebsocketSubscriptionClient.WriteToClient()",
@@ -78,11 +90,19 @@ func (w *WebsocketSubscriptionClient) WriteToClient(message subscription.Message
 }
 
 func (w *WebsocketSubscriptionClient) IsConnected() bool {
-	return true // TODO: Find a solution
+	return !w.isClosedConnection
 }
 
 func (w *WebsocketSubscriptionClient) Disconnect() error {
 	return w.clientConn.Close()
+}
+
+func (w *WebsocketSubscriptionClient) isClosedConnectionError(err error) bool {
+	if errors.As(err, &wsutil.ClosedError{}) {
+		w.isClosedConnection = true
+	}
+
+	return w.isClosedConnection
 }
 
 func (g *GraphQLHTTPRequestHandler) handleWebsocket(conn net.Conn) {
