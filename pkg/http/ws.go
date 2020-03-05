@@ -13,12 +13,16 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/subscription"
 )
 
+// WebsocketSubscriptionClient is an actual implementation of the subscritpion client interface.
 type WebsocketSubscriptionClient struct {
-	logger             abstractlogger.Logger
-	clientConn         net.Conn
+	logger abstractlogger.Logger
+	// clientConn holds the actual connection to the client.
+	clientConn net.Conn
+	// isClosedConnection indicates if the websocket connection is closed.
 	isClosedConnection bool
 }
 
+// NewWebsocketSubscriptionClient will create a new websocket subscription client.
 func NewWebsocketSubscriptionClient(logger abstractlogger.Logger, clientConn net.Conn) *WebsocketSubscriptionClient {
 	return &WebsocketSubscriptionClient{
 		logger:     logger,
@@ -26,6 +30,7 @@ func NewWebsocketSubscriptionClient(logger abstractlogger.Logger, clientConn net
 	}
 }
 
+// ReadFromClient will read a subscription message from the websocket client.
 func (w *WebsocketSubscriptionClient) ReadFromClient() (message subscription.Message, err error) {
 	data := make([]byte, 0, 1024)
 	var opCode ws.OpCode
@@ -61,6 +66,7 @@ func (w *WebsocketSubscriptionClient) ReadFromClient() (message subscription.Mes
 	return message, nil
 }
 
+// WriteToClient will write a subscription message to the websocket client.
 func (w *WebsocketSubscriptionClient) WriteToClient(message subscription.Message) error {
 	if w.isClosedConnection {
 		return nil
@@ -89,14 +95,17 @@ func (w *WebsocketSubscriptionClient) WriteToClient(message subscription.Message
 	return nil
 }
 
+// IsConnected will indicate if the websocket conenction is still established.
 func (w *WebsocketSubscriptionClient) IsConnected() bool {
 	return !w.isClosedConnection
 }
 
+// Disconnect will close the websocket connection.
 func (w *WebsocketSubscriptionClient) Disconnect() error {
 	return w.clientConn.Close()
 }
 
+// isClosedConnectionError will indicate if the given error is a conenction closed error.
 func (w *WebsocketSubscriptionClient) isClosedConnectionError(err error) bool {
 	if errors.As(err, &wsutil.ClosedError{}) {
 		w.isClosedConnection = true
@@ -105,6 +114,7 @@ func (w *WebsocketSubscriptionClient) isClosedConnectionError(err error) bool {
 	return w.isClosedConnection
 }
 
+// handleWebsocket will handle the websocket connection.
 func (g *GraphQLHTTPRequestHandler) handleWebsocket(conn net.Conn) {
 	defer func() {
 		err := conn.Close()

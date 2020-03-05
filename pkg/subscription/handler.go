@@ -27,28 +27,41 @@ const (
 	DefaultSubscriptionUpdateInterval = "1s"
 )
 
+// Message defines the actual subscription message wich will be passed from client to server and vice versa.
 type Message struct {
 	Id      string          `json:"id"`
 	Type    string          `json:"type"`
 	Payload json.RawMessage `json:"payload"`
 }
 
+// Client provides an interface which can be implemented by any possible subscription client like websockets, mqtt, etc.
 type Client interface {
+	// ReadFromClient will invoke a read operation from the client connection.
 	ReadFromClient() (Message, error)
+	// WriteToClient will invoke a write operation to the client connection.
 	WriteToClient(Message) error
+	// IsConnected will indicate if a connection is still established.
 	IsConnected() bool
+	// Disconnect will close the connection between server and client.
 	Disconnect() error
 }
 
+// Handler is the actual subscription handler which will keep track on how to handle messages coming from the client.
 type Handler struct {
-	logger                     abstractlogger.Logger
-	client                     Client
-	keepAliveInterval          time.Duration
+	logger abstractlogger.Logger
+	// client will hold the subscription client implementation.
+	client Client
+	// keepAliveInterval is the actual interval on which the server send keep alive messages to the client.
+	keepAliveInterval time.Duration
+	// subscriptionUpdateInterval is the actual interval on which the server sends subscription updates to the client.
 	subscriptionUpdateInterval time.Duration
-	subCancellations           subscriptionCancellations
-	executionHandler           *execution.Handler
+	// subCancellations is map containing the cancellation functions to every active subscription.
+	subCancellations subscriptionCancellations
+	// executionHandler will handle the graphql execution.
+	executionHandler *execution.Handler
 }
 
+// NewHandler creates a new subscription handler.
 func NewHandler(logger abstractlogger.Logger, client Client, executionHandler *execution.Handler) (*Handler, error) {
 	keepAliveInterval, err := time.ParseDuration(DefaultKeepAliveInterval)
 	if err != nil {
@@ -70,6 +83,7 @@ func NewHandler(logger abstractlogger.Logger, client Client, executionHandler *e
 	}, nil
 }
 
+// Handle will handle the subscritpion connection.
 func (h *Handler) Handle(ctx context.Context) {
 	defer func() {
 		h.subCancellations.CancelAll()
@@ -116,10 +130,17 @@ func (h *Handler) Handle(ctx context.Context) {
 	}
 }
 
+// ChangeKeepAliveInterval can be used to change the keep alive interval.
 func (h *Handler) ChangeKeepAliveInterval(d time.Duration) {
 	h.keepAliveInterval = d
 }
 
+// ChangeSubscriptionUpdateInterval can be used to change the update interval.
+func (h *Handler) ChangeSubscriptionUpdateInterval(d time.Duration) {
+	h.subscriptionUpdateInterval = d
+}
+
+// handleInit will handle an init message.
 func (h *Handler) handleInit() {
 	ackMessage := Message{
 		Type: MessageTypeConnectionAck,
@@ -133,11 +154,13 @@ func (h *Handler) handleInit() {
 	}
 }
 
+// handleStart will handle s start message.
 func (h *Handler) handleStart(id string, payload []byte) {
 	ctx := h.subCancellations.Add(id)
 	go h.startSubscription(ctx, id, payload)
 }
 
+// startSubscription will invoke the actual subscription.
 func (h *Handler) startSubscription(ctx context.Context, id string, data []byte) {
 	executor, node, executionContext, err := h.executionHandler.Handle(data, []byte(""))
 	if err != nil {
@@ -164,6 +187,7 @@ func (h *Handler) startSubscription(ctx context.Context, id string, data []byte)
 
 }
 
+// executeSubscription will keep execution the subscription until it ends.
 func (h *Handler) executeSubscription(buf *bytes.Buffer, id string, executor *execution.Executor, node execution.RootNode, ctx execution.Context) {
 	_, err := executor.Execute(ctx, node, buf)
 	if err != nil {
@@ -184,10 +208,12 @@ func (h *Handler) executeSubscription(buf *bytes.Buffer, id string, executor *ex
 	// TODO: send complete?
 }
 
+// handleStop will handle a stop message,
 func (h *Handler) handleStop(id string) {
 	h.subCancellations.Cancel(id)
 }
 
+// sendData will send a data message to the client.
 func (h *Handler) sendData(id string, responseData []byte) {
 	dataMessage := Message{
 		Id:      id,
@@ -203,6 +229,7 @@ func (h *Handler) sendData(id string, responseData []byte) {
 	}
 }
 
+// sendComplete will send a complete message to the client.
 func (h *Handler) sendComplete(id string) {
 	completeMessage := Message{
 		Id:      id,
@@ -218,6 +245,7 @@ func (h *Handler) sendComplete(id string) {
 	}
 }
 
+// handleConnectionTerminate will handle a comnnection terminate message.
 func (h *Handler) handleConnectionTerminate() {
 	err := h.client.Disconnect()
 	if err != nil {
@@ -227,6 +255,7 @@ func (h *Handler) handleConnectionTerminate() {
 	}
 }
 
+// handleKeepAlive will handle the keep alive loop.
 func (h *Handler) handleKeepAlive(ctx context.Context) {
 	for {
 		select {
@@ -238,6 +267,7 @@ func (h *Handler) handleKeepAlive(ctx context.Context) {
 	}
 }
 
+// sendKeepAlive will send a keep alive message to the client.
 func (h *Handler) sendKeepAlive() {
 	keepAliveMessage := Message{
 		Type: MessageTypeConnectionKeepAlive,
@@ -251,6 +281,7 @@ func (h *Handler) sendKeepAlive() {
 	}
 }
 
+// handleConnectionError will handle a connection error message.
 func (h *Handler) handleConnectionError(errorPayload interface{}) {
 	payloadBytes, err := json.Marshal(errorPayload)
 	if err != nil {
@@ -273,6 +304,7 @@ func (h *Handler) handleConnectionError(errorPayload interface{}) {
 	}
 }
 
+// handleError will handle an error message.
 func (h *Handler) handleError(id string, errorPayload interface{}) {
 	payloadBytes, err := json.Marshal(errorPayload)
 	if err != nil {
@@ -296,6 +328,7 @@ func (h *Handler) handleError(id string, errorPayload interface{}) {
 	}
 }
 
-func (h *Handler) activeSubscriptions() int {
+// ActiveSubscriptions will return the actual number of active subscriptions for that client.
+func (h *Handler) ActiveSubscriptions() int {
 	return len(h.subCancellations)
 }

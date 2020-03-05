@@ -108,7 +108,7 @@ func TestHandler_Handle(t *testing.T) {
 
 			messagesFromServer := client.readFromServer()
 			assert.Contains(t, messagesFromServer, expectedMessage)
-			assert.Equal(t, 1, subscriptionHandler.activeSubscriptions())
+			assert.Equal(t, 1, subscriptionHandler.ActiveSubscriptions())
 		})
 
 		t.Run("should stop subscription on stop", func(t *testing.T) {
@@ -119,7 +119,7 @@ func TestHandler_Handle(t *testing.T) {
 			cancelFunc()
 			require.Eventually(t, handlerRoutine(ctx), 1*time.Second, 5*time.Millisecond)
 
-			assert.Equal(t, 0, subscriptionHandler.activeSubscriptions())
+			assert.Equal(t, 0, subscriptionHandler.ActiveSubscriptions())
 		})
 	})
 
