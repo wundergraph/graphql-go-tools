@@ -1,189 +1,111 @@
 package http
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"net"
-	"net/http"
 
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
-	log "github.com/jensneuse/abstractlogger"
+	"github.com/jensneuse/abstractlogger"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/execution"
+	"github.com/jensneuse/graphql-go-tools/pkg/subscription"
 )
 
-const (
-	CONNECTION_INIT       = "connection_init"
-	CONNECTION_ACK        = "connection_ack"
-	CONNECTION_ERROR      = "connection_error"
-	CONNECTION_KEEP_ALIVE = "ka"
-	START                 = "start"
-	STOP                  = "stop"
-	CONNECTION_TERMINATE  = "connection_terminate"
-	DATA                  = "data"
-	ERROR                 = "error"
-	COMPLETE              = "complete"
-)
-
-type WebsocketMessage struct {
-	Id      string          `json:"id"`
-	Type    string          `json:"type"`
-	Payload json.RawMessage `json:"payload"`
+type WebsocketSubscriptionClient struct {
+	logger     abstractlogger.Logger
+	clientConn net.Conn
 }
 
-func (g *GraphQLHTTPRequestHandler) handleWebsocket(r *http.Request, conn net.Conn) {
-	defer conn.Close()
+func NewWebsocketSubscriptionClient(logger abstractlogger.Logger, clientConn net.Conn) *WebsocketSubscriptionClient {
+	return &WebsocketSubscriptionClient{
+		logger:     logger,
+		clientConn: clientConn,
+	}
+}
 
-	subscriptions := map[string]context.CancelFunc{}
+func (w *WebsocketSubscriptionClient) ReadFromClient() (message subscription.Message, err error) {
+	data := make([]byte, 0, 1024)
+	var opCode ws.OpCode
 
+	data, opCode, err = wsutil.ReadClientData(w.clientConn)
+	if err != nil {
+		w.logger.Error("http.WebsocketSubscriptionClient.ReadFromClient()",
+			abstractlogger.Error(err),
+			abstractlogger.ByteString("data", data),
+			abstractlogger.Any("opCode", opCode),
+		)
+
+		return message, err
+	}
+
+	err = json.Unmarshal(data, &message)
+	if err != nil {
+		w.logger.Error("http.WebsocketSubscriptionClient.ReadFromClient()",
+			abstractlogger.Error(err),
+			abstractlogger.ByteString("data", data),
+			abstractlogger.Any("opCode", opCode),
+		)
+
+		return message, err
+	}
+
+	return message, nil
+}
+
+func (w *WebsocketSubscriptionClient) WriteToClient(message subscription.Message) error {
+	messageBytes, err := json.Marshal(message)
+	if err != nil {
+		w.logger.Error("http.WebsocketSubscriptionClient.WriteToClient()",
+			abstractlogger.Error(err),
+			abstractlogger.Any("message", message),
+		)
+
+		return err
+	}
+
+	err = wsutil.WriteServerMessage(w.clientConn, ws.OpText, messageBytes)
+	if err != nil {
+		w.logger.Error("http.WebsocketSubscriptionClient.WriteToClient()",
+			abstractlogger.Error(err),
+			abstractlogger.ByteString("messageBytes", messageBytes),
+		)
+
+		return err
+	}
+
+	return nil
+}
+
+func (w *WebsocketSubscriptionClient) IsConnected() bool {
+	return true // TODO: Find a solution
+}
+
+func (w *WebsocketSubscriptionClient) Disconnect() error {
+	return w.clientConn.Close()
+}
+
+func (g *GraphQLHTTPRequestHandler) handleWebsocket(conn net.Conn) {
 	defer func() {
-		for _, cancel := range subscriptions {
-			cancel()
+		err := conn.Close()
+		if err != nil {
+			g.log.Error("http.GraphQLHTTPRequestHandler.handleWebsocket()",
+				abstractlogger.String("message", "could not close connection to client"),
+				abstractlogger.Error(err),
+			)
 		}
 	}()
 
-	for {
-		data, op, err := wsutil.ReadClientData(conn)
-		if err != nil {
-			g.log.Error("GraphQLHTTPRequestHandler.handleWebsocket",
-				log.Error(err),
-				log.ByteString("message", data),
-			)
-			return
-		}
-		g.log.Debug("GraphQLHTTPRequestHandler.handleWebsocket",
-			log.ByteString("message", data),
-			log.String("opCode", string(op)),
-		)
-		var message WebsocketMessage
-		err = json.Unmarshal(data, &message)
-		if err != nil {
-			g.log.Debug("GraphQLHTTPRequestHandler.handleClientMessage",
-				log.ByteString("message", data),
-				log.String("opCode", string(op)),
-			)
-			return
-		}
-
-		switch message.Type {
-		case CONNECTION_INIT:
-			err = g.sendAck(conn, op)
-			if err != nil {
-				g.log.Debug("GraphQLHTTPRequestHandler.sendAck",
-					log.ByteString("message", data),
-					log.String("opCode", string(op)),
-				)
-				return
-			}
-		case START:
-			ctx, cancel := context.WithCancel(context.Background())
-			subscriptions[message.Id] = cancel
-			go g.startSubscription(r, ctx, message.Payload, conn, op, message.Id)
-		case STOP:
-			cancel, ok := subscriptions[message.Id]
-			if !ok {
-				continue
-			}
-			cancel()
-			delete(subscriptions, message.Id)
-		}
-	}
-}
-
-func (g *GraphQLHTTPRequestHandler) sendAck(conn net.Conn, op ws.OpCode) error {
-	data, err := json.Marshal(WebsocketMessage{
-		Type: CONNECTION_ACK,
-	})
+	websocketClient := NewWebsocketSubscriptionClient(g.log, conn)
+	subscriptionHandler, err := subscription.NewHandler(g.log, websocketClient, g.executionHandler)
 	if err != nil {
-		return err
-	}
-	return wsutil.WriteServerMessage(conn, op, data)
-}
-
-func (g *GraphQLHTTPRequestHandler) startSubscription(r *http.Request, ctx context.Context, data []byte, conn net.Conn, op ws.OpCode, id string) {
-
-	extra := &bytes.Buffer{}
-	_ = g.extraVariables(r, extra)
-
-	executor, node, executionContext, err := g.executionHandler.Handle(data, extra.Bytes())
-	if err != nil {
-		g.log.Error("GraphQLHTTPRequestHandler.startSubscription.executionHandler.Handle",
-			log.Error(err),
-			log.ByteString("data", data),
+		g.log.Error("http.GraphQLHTTPRequestHandler.handleWebsocket()",
+			abstractlogger.String("message", "could not create subscriptionHandler"),
+			abstractlogger.Error(err),
 		)
+
 		return
 	}
 
-	executionContext.Context = ctx
-
-	buf := bytes.NewBuffer(make([]byte, 0, 1024))
-
-	for {
-		buf.Reset()
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			instructions, err := executor.Execute(executionContext, node, buf)
-			if err != nil {
-				g.log.Error("GraphQLHTTPRequestHandler.startSubscription.executor.Execute",
-					log.Error(err),
-					log.ByteString("data", data),
-				)
-			}
-
-			g.log.Debug("GraphQLHTTPRequestHandler.startSubscription",
-				log.ByteString("execution_result", buf.Bytes()),
-			)
-
-			response := WebsocketMessage{
-				Type:    DATA,
-				Id:      id,
-				Payload: buf.Bytes(),
-			}
-
-			responseData, err := json.Marshal(response)
-			if err != nil {
-				g.log.Error("GraphQLHTTPRequestHandler.startSubscription.json.Marshal",
-					log.Error(err),
-				)
-				return
-			}
-
-			err = wsutil.WriteServerMessage(conn, op, responseData)
-			if err != nil {
-				g.log.Error("GraphQLHTTPRequestHandler.startSubscription.wsutil.WriteServerMessage",
-					log.Error(err),
-					log.ByteString("data", data),
-				)
-				return
-			}
-
-			for i := 0; i < len(instructions); i++ {
-				switch instructions[i] {
-				case execution.CloseConnection:
-					err = g.sendCloseMessage(id, conn, op)
-					if err != nil {
-						g.log.Error("GraphQLHTTPRequestHandler.startSubscription.sendCloseMessage",
-							log.Error(err),
-						)
-					}
-					return
-				}
-			}
-		}
-	}
-}
-
-func (g *GraphQLHTTPRequestHandler) sendCloseMessage(id string, conn net.Conn, op ws.OpCode) error {
-	data, err := json.Marshal(WebsocketMessage{
-		Id:   id,
-		Type: STOP,
-	})
-	if err != nil {
-		return err
-	}
-	return wsutil.WriteServerMessage(conn, op, data)
+	subscriptionHandler.Handle(context.Background())
 }

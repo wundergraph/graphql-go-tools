@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/starwars"
+	"github.com/jensneuse/graphql-go-tools/pkg/subscription"
 )
 
 func TestGraphQLHTTPRequestHandler_ServeHTTP(t *testing.T) {
@@ -126,9 +127,9 @@ func TestGraphQLHTTPRequestHandler_ServeHTTP(t *testing.T) {
 			clientConn, _, _, err = ws.Dial(ctx, wsAddr)
 			assert.NoError(t, err)
 
-			initialClientMessage := WebsocketMessage{
+			initialClientMessage := subscription.Message{
 				Id:      "",
-				Type:    CONNECTION_INIT,
+				Type:    subscription.MessageTypeConnectionInit,
 				Payload: nil,
 			}
 			sendMessageToServer(t, clientConn, initialClientMessage)
@@ -138,9 +139,9 @@ func TestGraphQLHTTPRequestHandler_ServeHTTP(t *testing.T) {
 		})
 
 		t.Run("should successfully start a subscription", func(t *testing.T) {
-			startSubscriptionMessage := WebsocketMessage{
+			startSubscriptionMessage := subscription.Message{
 				Id:      "1",
-				Type:    START,
+				Type:    subscription.MessageTypeStart,
 				Payload: starwars.LoadQuery(t, starwars.FileRemainingJedisSubscription, nil),
 			}
 			sendMessageToServer(t, clientConn, startSubscriptionMessage)
@@ -213,7 +214,7 @@ func TestGraphQLHTTPRequestHandler_ExtraVariables(t *testing.T) {
 	})
 }
 
-func sendMessageToServer(t *testing.T, clientConn net.Conn, message WebsocketMessage) {
+func sendMessageToServer(t *testing.T, clientConn net.Conn, message subscription.Message) {
 	messageBytes, err := json.Marshal(message)
 	require.NoError(t, err)
 
