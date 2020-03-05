@@ -70,20 +70,23 @@ func TestHandler_Handle(t *testing.T) {
 			handlerRoutineFunc := handlerRoutine(ctx)
 			go handlerRoutineFunc()
 
-			time.Sleep(2 * keepAliveInterval)
-			cancelFunc()
-
 			expectedMessage := Message{
 				Type: MessageTypeConnectionKeepAlive,
 			}
 
 			messagesFromServer := client.readFromServer()
-			assert.Contains(t, messagesFromServer, expectedMessage)
-		})
+			waitForKeepAliveMessage := func() bool {
+				for len(messagesFromServer) < 2 {
+					messagesFromServer = client.readFromServer()
+				}
+				return true
+			}
 
-		defaultKeepAliveInterval, err := time.ParseDuration(DefaultKeepAliveInterval)
-		require.NoError(t, err)
-		subscriptionHandler.ChangeKeepAliveInterval(defaultKeepAliveInterval)
+			assert.Eventually(t, waitForKeepAliveMessage, 1*time.Second, 5*time.Millisecond)
+			assert.Contains(t, messagesFromServer, expectedMessage)
+
+			cancelFunc()
+		})
 	})
 
 	t.Run("subscription query", func(t *testing.T) {
