@@ -204,8 +204,6 @@ func (h *Handler) executeSubscription(buf *bytes.Buffer, id string, executor *ex
 	)
 
 	h.sendData(id, buf.Bytes())
-
-	// TODO: send complete?
 }
 
 // handleStop will handle a stop message,
@@ -229,6 +227,7 @@ func (h *Handler) sendData(id string, responseData []byte) {
 	}
 }
 
+//nolint
 // sendComplete will send a complete message to the client.
 func (h *Handler) sendComplete(id string) {
 	completeMessage := Message{

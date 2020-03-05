@@ -32,7 +32,7 @@ func NewWebsocketSubscriptionClient(logger abstractlogger.Logger, clientConn net
 
 // ReadFromClient will read a subscription message from the websocket client.
 func (w *WebsocketSubscriptionClient) ReadFromClient() (message subscription.Message, err error) {
-	data := make([]byte, 0, 1024)
+	var data []byte
 	var opCode ws.OpCode
 
 	data, opCode, err = wsutil.ReadClientData(w.clientConn)
@@ -116,16 +116,6 @@ func (w *WebsocketSubscriptionClient) isClosedConnectionError(err error) bool {
 
 // handleWebsocket will handle the websocket connection.
 func (g *GraphQLHTTPRequestHandler) handleWebsocket(conn net.Conn) {
-	defer func() {
-		err := conn.Close()
-		if err != nil {
-			g.log.Error("http.GraphQLHTTPRequestHandler.handleWebsocket()",
-				abstractlogger.String("message", "could not close connection to client"),
-				abstractlogger.Error(err),
-			)
-		}
-	}()
-
 	websocketClient := NewWebsocketSubscriptionClient(g.log, conn)
 	subscriptionHandler, err := subscription.NewHandler(g.log, websocketClient, g.executionHandler)
 	if err != nil {
@@ -137,5 +127,13 @@ func (g *GraphQLHTTPRequestHandler) handleWebsocket(conn net.Conn) {
 		return
 	}
 
-	subscriptionHandler.Handle(context.Background())
+	subscriptionHandler.Handle(context.Background()) // Blocking
+
+	err = conn.Close()
+	if err != nil {
+		g.log.Error("http.GraphQLHTTPRequestHandler.handleWebsocket()",
+			abstractlogger.String("message", "could not close connection to client"),
+			abstractlogger.Error(err),
+		)
+	}
 }
