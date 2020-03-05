@@ -3,7 +3,6 @@ package http
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"net"
 
 	"github.com/gobwas/ws"
@@ -107,7 +106,7 @@ func (w *WebsocketSubscriptionClient) Disconnect() error {
 
 // isClosedConnectionError will indicate if the given error is a conenction closed error.
 func (w *WebsocketSubscriptionClient) isClosedConnectionError(err error) bool {
-	if errors.As(err, &wsutil.ClosedError{}) {
+	if _, ok := err.(wsutil.ClosedError); ok {
 		w.isClosedConnection = true
 	}
 
