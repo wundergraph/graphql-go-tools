@@ -118,11 +118,19 @@ func TestHandler_Handle(t *testing.T) {
 			client.prepareStopMessage("1").withoutError().and().resetReceivedMessages()
 
 			ctx, cancelFunc := context.WithCancel(context.Background())
+			handlerRoutineFunc := handlerRoutine(ctx)
+			go handlerRoutineFunc()
+
+			waitForCanceledSubscription := func() bool {
+				for subscriptionHandler.ActiveSubscriptions() > 0 {
+				}
+				return true
+			}
+
+			assert.Eventually(t, waitForCanceledSubscription, 1*time.Second, 5*time.Millisecond)
+			assert.Equal(t, 0, subscriptionHandler.ActiveSubscriptions())
 
 			cancelFunc()
-			require.Eventually(t, handlerRoutine(ctx), 1*time.Second, 5*time.Millisecond)
-
-			assert.Equal(t, 0, subscriptionHandler.ActiveSubscriptions())
 		})
 	})
 
