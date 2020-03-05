@@ -35,16 +35,16 @@ type Message struct {
 type Client interface {
 	ReadFromClient() (Message, error)
 	WriteToClient(Message) error
+	IsConnected() bool
 	Disconnect() error
 }
 
 type Handler struct {
-	logger              abstractlogger.Logger
-	client              Client
-	keepAliveInterval   time.Duration
-	subCancellations    subscriptionCancellations
-	executionHandler    *execution.Handler
-	activeSubscriptions int
+	logger            abstractlogger.Logger
+	client            Client
+	keepAliveInterval time.Duration
+	subCancellations  subscriptionCancellations
+	executionHandler  *execution.Handler
 }
 
 func NewHandler(logger abstractlogger.Logger, client Client, executionHandler *execution.Handler) (*Handler, error) {
@@ -54,12 +54,11 @@ func NewHandler(logger abstractlogger.Logger, client Client, executionHandler *e
 	}
 
 	return &Handler{
-		logger:              logger,
-		client:              client,
-		keepAliveInterval:   keepAliveInterval,
-		subCancellations:    subscriptionCancellations{},
-		executionHandler:    executionHandler,
-		activeSubscriptions: 0,
+		logger:            logger,
+		client:            client,
+		keepAliveInterval: keepAliveInterval,
+		subCancellations:  subscriptionCancellations{},
+		executionHandler:  executionHandler,
 	}, nil
 }
 
@@ -69,6 +68,14 @@ func (h *Handler) Handle(ctx context.Context) {
 	}()
 
 	for {
+		if !h.client.IsConnected() {
+			h.logger.Debug("subscription.Handler.Handle()",
+				abstractlogger.String("message", "client has disconnected"),
+			)
+
+			return
+		}
+
 		message, err := h.client.ReadFromClient()
 		if err != nil {
 			h.logger.Error("subscription.Handler.Handle()",
@@ -120,7 +127,6 @@ func (h *Handler) handleInit() {
 
 func (h *Handler) handleStart(id string, payload []byte) {
 	ctx := h.subCancellations.Add(id)
-	h.activeSubscriptions++
 	go h.startSubscription(ctx, id, payload)
 }
 
@@ -141,7 +147,6 @@ func (h *Handler) startSubscription(ctx context.Context, id string, data []byte)
 		buf.Reset()
 		select {
 		case <-ctx.Done():
-			h.activeSubscriptions--
 			return
 		default:
 			h.executeSubscription(buf, id, executor, node, executionContext)
@@ -172,7 +177,6 @@ func (h *Handler) executeSubscription(buf *bytes.Buffer, id string, executor *ex
 
 func (h *Handler) handleStop(id string) {
 	h.subCancellations.Cancel(id)
-	h.activeSubscriptions--
 }
 
 func (h *Handler) sendData(id string, responseData []byte) {
@@ -281,4 +285,8 @@ func (h *Handler) handleError(id string, errorPayload interface{}) {
 			abstractlogger.Error(err),
 		)
 	}
+}
+
+func (h *Handler) activeSubscriptions() int {
+	return len(h.subCancellations)
 }

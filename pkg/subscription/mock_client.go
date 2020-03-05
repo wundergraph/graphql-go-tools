@@ -9,6 +9,7 @@ type mockClient struct {
 	messageToServer    Message
 	err                error
 	connected          bool
+	serverHasRead      bool
 }
 
 func newMockClient() *mockClient {
@@ -19,6 +20,7 @@ func newMockClient() *mockClient {
 
 func (c *mockClient) ReadFromClient() (Message, error) {
 	returnMessage, returnErr := c.messageToServer, c.err
+	c.serverHasRead = true
 	c.messageToServer = Message{}
 	c.err = nil
 	return returnMessage, returnErr
@@ -27,6 +29,10 @@ func (c *mockClient) ReadFromClient() (Message, error) {
 func (c *mockClient) WriteToClient(message Message) error {
 	c.messagesFromServer = append(c.messagesFromServer, message)
 	return c.err
+}
+
+func (c *mockClient) IsConnected() bool {
+	return c.connected
 }
 
 func (c *mockClient) Disconnect() error {
