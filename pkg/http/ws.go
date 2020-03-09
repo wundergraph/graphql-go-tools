@@ -101,6 +101,10 @@ func (w *WebsocketSubscriptionClient) IsConnected() bool {
 
 // Disconnect will close the websocket connection.
 func (w *WebsocketSubscriptionClient) Disconnect() error {
+	w.logger.Debug("http.GraphQLHTTPRequestHandler.Disconnect()",
+		abstractlogger.String("message", "disconnecting client"),
+	)
+	w.isClosedConnection = true
 	return w.clientConn.Close()
 }
 

@@ -300,6 +300,13 @@ func (h *Handler) handleConnectionError(errorPayload interface{}) {
 		h.logger.Error("subscription.Handler.handleConnectionError()",
 			abstractlogger.Error(err),
 		)
+
+		err := h.client.Disconnect()
+		if err != nil {
+			h.logger.Error("subscription.Handler.handleError()",
+				abstractlogger.Error(err),
+			)
+		}
 	}
 }
 
