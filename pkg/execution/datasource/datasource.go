@@ -31,10 +31,10 @@ type CorePlanner interface {
 	// During runtime the arguments get resolved and passed to the DataSource
 	Plan(args []Argument) (DataSource, []Argument)
 	// Configure is the function to initialize all important values for the Planner to function correctly
-	// You probably need access to the Walker, Operation and Definition to use the Planner to its full power
+	// You probably need access to the Walker, Operation and ObjectDefinition to use the Planner to its full power
 	// Walker gives you useful information from within all visitor Callbacks, e.g. the Path & Ancestors
 	// Operation is the AST of the GraphQL Operation
-	// Definition is the AST of the GraphQL schema Definition
+	// ObjectDefinition is the AST of the GraphQL schema ObjectDefinition
 	// Args are the pre-calculated Arguments from the planner
 	// resolverParameters are the parameters from the @directive params field
 	Configure(operation, definition *ast.Document, walker *astvisitor.Walker)
@@ -280,33 +280,33 @@ enum __DirectiveLocation {
     SUBSCRIPTION
     "Location adjacent to a field."
     FIELD
-    "Location adjacent to a fragment Definition."
+    "Location adjacent to a fragment ObjectDefinition."
     FRAGMENT_DEFINITION
     "Location adjacent to a fragment spread."
     FRAGMENT_SPREAD
     "Location adjacent to an inline fragment."
     INLINE_FRAGMENT
-    "Location adjacent to a schema Definition."
+    "Location adjacent to a schema ObjectDefinition."
     SCHEMA
-    "Location adjacent to a scalar Definition."
+    "Location adjacent to a scalar ObjectDefinition."
     SCALAR
-    "Location adjacent to an object type Definition."
+    "Location adjacent to an object type ObjectDefinition."
     OBJECT
-    "Location adjacent to a field Definition."
+    "Location adjacent to a field ObjectDefinition."
     FIELD_DEFINITION
-    "Location adjacent to an argument Definition."
+    "Location adjacent to an argument ObjectDefinition."
     ARGUMENT_DEFINITION
-    "Location adjacent to an interface Definition."
+    "Location adjacent to an interface ObjectDefinition."
     INTERFACE
-    "Location adjacent to a union Definition."
+    "Location adjacent to a union ObjectDefinition."
     UNION
-    "Location adjacent to an enum Definition."
+    "Location adjacent to an enum ObjectDefinition."
     ENUM
-    "Location adjacent to an enum value Definition."
+    "Location adjacent to an enum value ObjectDefinition."
     ENUM_VALUE
-    "Location adjacent to an input object type Definition."
+    "Location adjacent to an input object type ObjectDefinition."
     INPUT_OBJECT
-    "Location adjacent to an input object field Definition."
+    "Location adjacent to an input object field ObjectDefinition."
     INPUT_FIELD_DEFINITION
 }
 """

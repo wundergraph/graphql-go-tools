@@ -280,7 +280,7 @@ func (g *genVisitor) valueAssingmentStatement(scalarName, valueSourceName string
 
 	var caller *jen.Statement
 	if insideList {
-		caller = jen.Id("doc").Dot("Value").Call(jen.Id("ii")).Dot("Ref")
+		caller = jen.Id("doc").Dot("Path").Call(jen.Id("ii")).Dot("Ref")
 	} else {
 		caller = jen.Id("doc").Dot(valueSourceName).Call(jen.Id("ii")).Dot("Ref")
 	}

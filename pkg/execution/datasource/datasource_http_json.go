@@ -36,8 +36,8 @@ type HttpJsonDataSourceConfig struct {
 	// DefaultTypeName is the optional variable to define a default type name for the response object
 	// This is useful in case the response might be a Union or Interface type which uses StatusCodeTypeNameMappings
 	DefaultTypeName *string
-	// StatusCodeTypeNameMappings is a slice of mappings from http.StatusCode to GraphQL TypeName
-	// This can be used when the TypeName depends on the http.StatusCode
+	// StatusCodeTypeNameMappings is a slice of mappings from http.StatusCode to GraphQL TypeNameRestriction
+	// This can be used when the TypeNameRestriction depends on the http.StatusCode
 	StatusCodeTypeNameMappings []StatusCodeTypeNameMapping
 }
 

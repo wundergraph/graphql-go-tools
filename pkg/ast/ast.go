@@ -1602,7 +1602,7 @@ func (d *Document) PrintValueBytes(value Value, buf []byte) ([]byte, error) {
 
 type ListValue struct {
 	LBRACK position.Position // [
-	Refs   []int             // Value
+	Refs   []int             // Path
 	RBRACK position.Position // ]
 }
 

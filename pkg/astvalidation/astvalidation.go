@@ -1184,7 +1184,7 @@ func (v *variableUniquenessVisitor) EnterVariableDefinition(ref int) {
 		}
 		if bytes.Equal(name, v.operation.VariableDefinitionNameBytes(i)) {
 			if v.Ancestors[0].Kind != ast.NodeKindOperationDefinition {
-				v.StopWithInternalErr(fmt.Errorf("variable definition must have Operation Definition as root ancestor, got: %s", v.Ancestors[0].Kind))
+				v.StopWithInternalErr(fmt.Errorf("variable definition must have Operation ObjectDefinition as root ancestor, got: %s", v.Ancestors[0].Kind))
 				return
 			}
 			operationName := v.operation.Input.ByteSlice(v.operation.OperationDefinitions[v.Ancestors[0].Ref].Name)

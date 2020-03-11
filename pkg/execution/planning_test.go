@@ -1726,28 +1726,28 @@ func TestPlanner_Plan(t *testing.T) {
 			}`,
 		ResolverDefinitions{
 			{
-				TypeName:  literal.QUERY,
+				TypeNameRestriction:  literal.QUERY,
 				FieldName: []byte("user"),
 				PlannerFactory: func() Planner {
 					return NewGraphQLDataSourcePlanner(BasePlanner{})
 				},
 			},
 			{
-				TypeName:  []byte("User"),
+				TypeNameRestriction:  []byte("User"),
 				FieldName: []byte("friends"),
 				PlannerFactory: func() Planner {
 					return &HttpJsonDataSourcePlanner{}
 				},
 			},
 			{
-				TypeName:  []byte("User"),
+				TypeNameRestriction:  []byte("User"),
 				FieldName: []byte("pets"),
 				PlannerFactory: func() Planner {
 					return NewGraphQLDataSourcePlanner(BasePlanner{
 						dataSourceConfig: PlannerConfiguration{
 							TypeFieldConfigurations: []datasource.TypeFieldConfiguration{
 								{
-									TypeName:  "User",
+									TypeNameRestriction:  "User",
 									FieldName: "pets",
 									Mapping: &datasource.MappingConfiguration{
 										Path: "userPets",
@@ -1762,7 +1762,7 @@ func TestPlanner_Plan(t *testing.T) {
 		PlannerConfiguration{
 			TypeFieldConfigurations: []datasource.TypeFieldConfiguration{
 				{
-					TypeName:  "User",
+					TypeNameRestriction:  "User",
 					FieldName: "pets",
 					Mapping: &datasource.MappingConfiguration{
 						Path: "userPets",
@@ -1788,7 +1788,7 @@ func TestPlanner_Plan(t *testing.T) {
 						)
 				},
 				{
-					TypeName:  "query",
+					TypeNameRestriction:  "query",
 					FieldName: "user",
 					DataSource: SourceConfig{
 						Name: "GraphQLDataSource",
@@ -1799,7 +1799,7 @@ func TestPlanner_Plan(t *testing.T) {
 					},
 				},
 				{
-					TypeName:  "User",
+					TypeNameRestriction:  "User",
 					FieldName: "friends",
 					Mapping: &datasource.MappingConfiguration{
 						Disabled: true,
@@ -1819,21 +1819,21 @@ func TestPlanner_Plan(t *testing.T) {
 			Fields: []Field{
 				{
 					Name: []byte("data"),
-					Value: &Object{
+					Path: &Object{
 						Fetch: &SingleFetch{
 							Source: &DataSourceInvocation{
 								Args: []datasource.Argument{
 									&datasource.StaticVariableArgument{
 										Name:  literal.HOST,
-										Value: []byte("localhost:8001"),
+										Path: []byte("localhost:8001"),
 									},
 									&datasource.StaticVariableArgument{
 										Name:  literal.URL,
-										Value: []byte("/graphql"),
+										Path: []byte("/graphql"),
 									},
 									&datasource.StaticVariableArgument{
 										Name:  literal.QUERY,
-										Value: []byte("query o($id: String!){user(id: $id){id name birthday}}"),
+										Path: []byte("query o($id: String!){user(id: $id){id name birthday}}"),
 									},
 									&datasource.ContextVariableArgument{
 										Name:         []byte("id"),
@@ -1848,7 +1848,7 @@ func TestPlanner_Plan(t *testing.T) {
 							{
 								Name:            []byte("user"),
 								HasResolvedData: true,
-								Value: &Object{
+								Path: &Object{
 									DataResolvingConfig: DataResolvingConfig{
 										PathSelector: datasource.PathSelector{
 											Path: "user",
@@ -1861,11 +1861,11 @@ func TestPlanner_Plan(t *testing.T) {
 													Args: []datasource.Argument{
 														&datasource.StaticVariableArgument{
 															Name:  literal.HOST,
-															Value: []byte("localhost:9000"),
+															Path: []byte("localhost:9000"),
 														},
 														&datasource.StaticVariableArgument{
 															Name:  literal.URL,
-															Value: []byte("/user/:id/friends"),
+															Path: []byte("/user/:id/friends"),
 														},
 														&datasource.ObjectVariableArgument{
 															Name: []byte("id"),
@@ -1875,11 +1875,11 @@ func TestPlanner_Plan(t *testing.T) {
 														},
 														&datasource.StaticVariableArgument{
 															Name:  []byte("method"),
-															Value: []byte("GET"),
+															Path: []byte("GET"),
 														},
 														&datasource.StaticVariableArgument{
 															Name:  []byte("__typename"),
-															Value: []byte(`{"defaultTypeName":"User"}`),
+															Path: []byte(`{"defaultTypeName":"User"}`),
 														},
 													},
 													DataSource: &HttpJsonDataSource{},
@@ -1891,15 +1891,15 @@ func TestPlanner_Plan(t *testing.T) {
 													Args: []datasource.Argument{
 														&datasource.StaticVariableArgument{
 															Name:  literal.HOST,
-															Value: []byte("localhost:8002"),
+															Path: []byte("localhost:8002"),
 														},
 														&datasource.StaticVariableArgument{
 															Name:  literal.URL,
-															Value: []byte("/graphql"),
+															Path: []byte("/graphql"),
 														},
 														&datasource.StaticVariableArgument{
 															Name:  literal.QUERY,
-															Value: []byte("query o($userId: String!){userPets(userId: $userId){__typename nickname ... on Dog {name woof} ... on Cat {name meow}}}"),
+															Path: []byte("query o($userId: String!){userPets(userId: $userId){__typename nickname ... on Dog {name woof} ... on Cat {name meow}}}"),
 														},
 														&datasource.ObjectVariableArgument{
 															Name: []byte("userId"),
@@ -1917,7 +1917,7 @@ func TestPlanner_Plan(t *testing.T) {
 									Fields: []Field{
 										{
 											Name: []byte("id"),
-											Value: &Value{
+											Path: &Path{
 												DataResolvingConfig: DataResolvingConfig{
 													PathSelector: datasource.PathSelector{
 														Path: "id",
@@ -1928,7 +1928,7 @@ func TestPlanner_Plan(t *testing.T) {
 										},
 										{
 											Name: []byte("name"),
-											Value: &Value{
+											Path: &Path{
 												DataResolvingConfig: DataResolvingConfig{
 													PathSelector: datasource.PathSelector{
 														Path: "name",
@@ -1940,22 +1940,22 @@ func TestPlanner_Plan(t *testing.T) {
 										{
 											Name:            []byte("friends"),
 											HasResolvedData: true,
-											Value: &List{
-												Value: &Object{
+											Path: &List{
+												Path: &Object{
 													Fetch: &SingleFetch{
 														Source: &DataSourceInvocation{
 															Args: []datasource.Argument{
 																&datasource.StaticVariableArgument{
 																	Name:  literal.HOST,
-																	Value: []byte("localhost:8002"),
+																	Path: []byte("localhost:8002"),
 																},
 																&datasource.StaticVariableArgument{
 																	Name:  literal.URL,
-																	Value: []byte("/graphql"),
+																	Path: []byte("/graphql"),
 																},
 																&datasource.StaticVariableArgument{
 																	Name:  literal.QUERY,
-																	Value: []byte("query o($userId: String!){userPets(userId: $userId){__typename nickname ... on Dog {name woof} ... on Cat {name meow}}}"),
+																	Path: []byte("query o($userId: String!){userPets(userId: $userId){__typename nickname ... on Dog {name woof} ... on Cat {name meow}}}"),
 																},
 																&datasource.ObjectVariableArgument{
 																	Name: []byte("userId"),
@@ -1971,7 +1971,7 @@ func TestPlanner_Plan(t *testing.T) {
 													Fields: []Field{
 														{
 															Name: []byte("id"),
-															Value: &Value{
+															Path: &Path{
 																DataResolvingConfig: DataResolvingConfig{
 																	PathSelector: datasource.PathSelector{
 																		Path: "id",
@@ -1982,7 +1982,7 @@ func TestPlanner_Plan(t *testing.T) {
 														},
 														{
 															Name: []byte("name"),
-															Value: &Value{
+															Path: &Path{
 																DataResolvingConfig: DataResolvingConfig{
 																	PathSelector: datasource.PathSelector{
 																		Path: "name",
@@ -1993,7 +1993,7 @@ func TestPlanner_Plan(t *testing.T) {
 														},
 														{
 															Name: []byte("birthday"),
-															Value: &Value{
+															Path: &Path{
 																DataResolvingConfig: DataResolvingConfig{
 																	PathSelector: datasource.PathSelector{
 																		Path: "birthday",
@@ -2005,17 +2005,17 @@ func TestPlanner_Plan(t *testing.T) {
 														{
 															Name:            []byte("pets"),
 															HasResolvedData: true,
-															Value: &List{
+															Path: &List{
 																DataResolvingConfig: DataResolvingConfig{
 																	PathSelector: datasource.PathSelector{
 																		Path: "userPets",
 																	},
 																},
-																Value: &Object{
+																Path: &Object{
 																	Fields: []Field{
 																		{
 																			Name: []byte("__typename"),
-																			Value: &Value{
+																			Path: &Path{
 																				DataResolvingConfig: DataResolvingConfig{
 																					PathSelector: datasource.PathSelector{
 																						Path: "__typename",
@@ -2026,7 +2026,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		},
 																		{
 																			Name: []byte("nickname"),
-																			Value: &Value{
+																			Path: &Path{
 																				DataResolvingConfig: DataResolvingConfig{
 																					PathSelector: datasource.PathSelector{
 																						Path: "nickname",
@@ -2037,7 +2037,7 @@ func TestPlanner_Plan(t *testing.T) {
 																		},
 																		{
 																			Name: []byte("name"),
-																			Value: &Value{
+																			Path: &Path{
 																				DataResolvingConfig: DataResolvingConfig{
 																					PathSelector: datasource.PathSelector{
 																						Path: "name",
@@ -2052,13 +2052,13 @@ func TestPlanner_Plan(t *testing.T) {
 																					},
 																				},
 																				Right: &datasource.StaticVariableArgument{
-																					Value: []byte("Dog"),
+																					Path: []byte("Dog"),
 																				},
 																			},
 																		},
 																		{
 																			Name: []byte("woof"),
-																			Value: &Value{
+																			Path: &Path{
 																				DataResolvingConfig: DataResolvingConfig{
 																					PathSelector: datasource.PathSelector{
 																						Path: "woof",
@@ -2073,13 +2073,13 @@ func TestPlanner_Plan(t *testing.T) {
 																					},
 																				},
 																				Right: &datasource.StaticVariableArgument{
-																					Value: []byte("Dog"),
+																					Path: []byte("Dog"),
 																				},
 																			},
 																		},
 																		{
 																			Name: []byte("name"),
-																			Value: &Value{
+																			Path: &Path{
 																				DataResolvingConfig: DataResolvingConfig{
 																					PathSelector: datasource.PathSelector{
 																						Path: "name",
@@ -2094,13 +2094,13 @@ func TestPlanner_Plan(t *testing.T) {
 																					},
 																				},
 																				Right: &datasource.StaticVariableArgument{
-																					Value: []byte("Cat"),
+																					Path: []byte("Cat"),
 																				},
 																			},
 																		},
 																		{
 																			Name: []byte("meow"),
-																			Value: &Value{
+																			Path: &Path{
 																				DataResolvingConfig: DataResolvingConfig{
 																					PathSelector: datasource.PathSelector{
 																						Path: "meow",
@@ -2115,7 +2115,7 @@ func TestPlanner_Plan(t *testing.T) {
 																					},
 																				},
 																				Right: &datasource.StaticVariableArgument{
-																					Value: []byte("Cat"),
+																					Path: []byte("Cat"),
 																				},
 																			},
 																		},
@@ -2130,17 +2130,17 @@ func TestPlanner_Plan(t *testing.T) {
 										{
 											Name:            []byte("pets"),
 											HasResolvedData: true,
-											Value: &List{
+											Path: &List{
 												DataResolvingConfig: DataResolvingConfig{
 													PathSelector: datasource.PathSelector{
 														Path: "userPets",
 													},
 												},
-												Value: &Object{
+												Path: &Object{
 													Fields: []Field{
 														{
 															Name: []byte("__typename"),
-															Value: &Value{
+															Path: &Path{
 																DataResolvingConfig: DataResolvingConfig{
 																	PathSelector: datasource.PathSelector{
 																		Path: "__typename",
@@ -2151,7 +2151,7 @@ func TestPlanner_Plan(t *testing.T) {
 														},
 														{
 															Name: []byte("nickname"),
-															Value: &Value{
+															Path: &Path{
 																DataResolvingConfig: DataResolvingConfig{
 																	PathSelector: datasource.PathSelector{
 																		Path: "nickname",
@@ -2162,7 +2162,7 @@ func TestPlanner_Plan(t *testing.T) {
 														},
 														{
 															Name: []byte("name"),
-															Value: &Value{
+															Path: &Path{
 																DataResolvingConfig: DataResolvingConfig{
 																	PathSelector: datasource.PathSelector{
 																		Path: "name",
@@ -2177,13 +2177,13 @@ func TestPlanner_Plan(t *testing.T) {
 																	},
 																},
 																Right: &datasource.StaticVariableArgument{
-																	Value: []byte("Dog"),
+																	Path: []byte("Dog"),
 																},
 															},
 														},
 														{
 															Name: []byte("woof"),
-															Value: &Value{
+															Path: &Path{
 																DataResolvingConfig: DataResolvingConfig{
 																	PathSelector: datasource.PathSelector{
 																		Path: "woof",
@@ -2198,13 +2198,13 @@ func TestPlanner_Plan(t *testing.T) {
 																	},
 																},
 																Right: &datasource.StaticVariableArgument{
-																	Value: []byte("Dog"),
+																	Path: []byte("Dog"),
 																},
 															},
 														},
 														{
 															Name: []byte("name"),
-															Value: &Value{
+															Path: &Path{
 																DataResolvingConfig: DataResolvingConfig{
 																	PathSelector: datasource.PathSelector{
 																		Path: "name",
@@ -2219,13 +2219,13 @@ func TestPlanner_Plan(t *testing.T) {
 																	},
 																},
 																Right: &datasource.StaticVariableArgument{
-																	Value: []byte("Cat"),
+																	Path: []byte("Cat"),
 																},
 															},
 														},
 														{
 															Name: []byte("meow"),
-															Value: &Value{
+															Path: &Path{
 																DataResolvingConfig: DataResolvingConfig{
 																	PathSelector: datasource.PathSelector{
 																		Path: "meow",
@@ -2240,7 +2240,7 @@ func TestPlanner_Plan(t *testing.T) {
 																	},
 																},
 																Right: &datasource.StaticVariableArgument{
-																	Value: []byte("Cat"),
+																	Path: []byte("Cat"),
 																},
 															},
 														},
@@ -2250,7 +2250,7 @@ func TestPlanner_Plan(t *testing.T) {
 										},
 										{
 											Name: []byte("birthday"),
-											Value: &Value{
+											Path: &Path{
 												DataResolvingConfig: DataResolvingConfig{
 													PathSelector: datasource.PathSelector{
 														Path: "birthday",
