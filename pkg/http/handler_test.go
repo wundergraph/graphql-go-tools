@@ -16,10 +16,15 @@ import (
 	"github.com/jensneuse/abstractlogger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jensneuse/graphql-go-tools/pkg/starwars"
+	"github.com/jensneuse/graphql-go-tools/pkg/subscription"
 )
 
 func TestGraphQLHTTPRequestHandler_ServeHTTP(t *testing.T) {
-	handler := NewGraphqlHTTPHandlerFunc(newStarWarsExecutionHandler(t), abstractlogger.NoopLogger, &ws.DefaultHTTPUpgrader)
+	starwars.SetRelativePathToStarWarsPackage("../starwars")
+
+	handler := NewGraphqlHTTPHandlerFunc(starwars.NewExecutionHandler(t), abstractlogger.NoopLogger, &ws.DefaultHTTPUpgrader)
 	server := httptest.NewServer(handler)
 	defer server.Close()
 
@@ -29,7 +34,7 @@ func TestGraphQLHTTPRequestHandler_ServeHTTP(t *testing.T) {
 
 	t.Run("http", func(t *testing.T) {
 		t.Run("should return 400 Bad Request when query does not fit to schema", func(t *testing.T) {
-			requestBodyBytes := invalidQueryRequestBody(t)
+			requestBodyBytes := starwars.InvalidQueryRequestBody(t)
 			req, err := http.NewRequest(http.MethodPost, httpAddr, bytes.NewBuffer(requestBodyBytes))
 			require.NoError(t, err)
 
@@ -41,54 +46,54 @@ func TestGraphQLHTTPRequestHandler_ServeHTTP(t *testing.T) {
 		})
 
 		t.Run("should successfully handle query and return 200 OK", func(t *testing.T) {
-			starWarsCases := []starWarsTestCase{
+			starWarsCases := []starwars.TestCase{
 				{
-					name:        "simple hero query",
-					requestBody: starWarsLoadQuery(t, fileSimpleHeroQuery, nil),
+					Name:        "simple hero query",
+					RequestBody: starwars.LoadQuery(t, starwars.FileSimpleHeroQuery, nil),
 				},
 				{
-					name:        "droid query with argument and variable",
-					requestBody: starWarsLoadQuery(t, fileDroidWithArgAndVarQuery, queryVariables{"droidID": "2000"}),
+					Name:        "droid query with argument and variable",
+					RequestBody: starwars.LoadQuery(t, starwars.FileDroidWithArgAndVarQuery, starwars.QueryVariables{"droidID": "2000"}),
 				},
 				{
-					name:        "hero with aliases query",
-					requestBody: starWarsLoadQuery(t, fileHeroWithAliasesQuery, nil),
+					Name:        "hero with aliases query",
+					RequestBody: starwars.LoadQuery(t, starwars.FileHeroWithAliasesQuery, nil),
 				},
 				{
-					name:        "fragments query",
-					requestBody: starWarsLoadQuery(t, fileFragmentsQuery, queryVariables{"droidID": "2000"}),
+					Name:        "fragments query",
+					RequestBody: starwars.LoadQuery(t, starwars.FileFragmentsQuery, starwars.QueryVariables{"droidID": "2000"}),
 				},
 				{
-					name:        "hero with operation name query",
-					requestBody: starWarsLoadQuery(t, fileHeroWithOperationNameQuery, nil),
+					Name:        "hero with operation name query",
+					RequestBody: starwars.LoadQuery(t, starwars.FileHeroWithOperationNameQuery, nil),
 				},
 				{
-					name:        "directives include query",
-					requestBody: starWarsLoadQuery(t, fileDirectivesIncludeQuery, queryVariables{"withFriends": true}),
+					Name:        "directives include query",
+					RequestBody: starwars.LoadQuery(t, starwars.FileDirectivesIncludeQuery, starwars.QueryVariables{"withFriends": true}),
 				},
 				{
-					name:        "directives skip query",
-					requestBody: starWarsLoadQuery(t, fileDirectivesSkipQuery, queryVariables{"skipFriends": true}),
+					Name:        "directives skip query",
+					RequestBody: starwars.LoadQuery(t, starwars.FileDirectivesSkipQuery, starwars.QueryVariables{"skipFriends": true}),
 				},
 				{
-					name:        "create review mutation",
-					requestBody: starWarsLoadQuery(t, fileCreateReviewMutation, queryVariables{"ep": "JEDI", "review": starWarsReviewInput()}),
+					Name:        "create review mutation",
+					RequestBody: starwars.LoadQuery(t, starwars.FileCreateReviewMutation, starwars.QueryVariables{"ep": "JEDI", "review": starwars.ReviewInput()}),
 				},
 				{
-					name:        "inline fragments query",
-					requestBody: starWarsLoadQuery(t, fileInlineFragmentsQuery, nil),
+					Name:        "inline fragments query",
+					RequestBody: starwars.LoadQuery(t, starwars.FileInlineFragmentsQuery, nil),
 				},
 				{
-					name:        "union query",
-					requestBody: starWarsLoadQuery(t, fileUnionQuery, queryVariables{"name": "Han Solo"}),
+					Name:        "union query",
+					RequestBody: starwars.LoadQuery(t, starwars.FileUnionQuery, starwars.QueryVariables{"name": "Han Solo"}),
 				},
 			}
 
 			for _, testCase := range starWarsCases {
 				testCase := testCase
 
-				t.Run(testCase.name, func(t *testing.T) {
-					requestBodyBytes := testCase.requestBody
+				t.Run(testCase.Name, func(t *testing.T) {
+					requestBodyBytes := testCase.RequestBody
 					req, err := http.NewRequest(http.MethodPost, httpAddr, bytes.NewBuffer(requestBodyBytes))
 					require.NoError(t, err)
 
@@ -122,9 +127,9 @@ func TestGraphQLHTTPRequestHandler_ServeHTTP(t *testing.T) {
 			clientConn, _, _, err = ws.Dial(ctx, wsAddr)
 			assert.NoError(t, err)
 
-			initialClientMessage := WebsocketMessage{
+			initialClientMessage := subscription.Message{
 				Id:      "",
-				Type:    CONNECTION_INIT,
+				Type:    subscription.MessageTypeConnectionInit,
 				Payload: nil,
 			}
 			sendMessageToServer(t, clientConn, initialClientMessage)
@@ -134,10 +139,10 @@ func TestGraphQLHTTPRequestHandler_ServeHTTP(t *testing.T) {
 		})
 
 		t.Run("should successfully start a subscription", func(t *testing.T) {
-			startSubscriptionMessage := WebsocketMessage{
+			startSubscriptionMessage := subscription.Message{
 				Id:      "1",
-				Type:    START,
-				Payload: starWarsLoadQuery(t, fileRemainingJedisSubscription, nil),
+				Type:    subscription.MessageTypeStart,
+				Payload: starwars.LoadQuery(t, starwars.FileRemainingJedisSubscription, nil),
 			}
 			sendMessageToServer(t, clientConn, startSubscriptionMessage)
 
@@ -209,7 +214,7 @@ func TestGraphQLHTTPRequestHandler_ExtraVariables(t *testing.T) {
 	})
 }
 
-func sendMessageToServer(t *testing.T, clientConn net.Conn, message WebsocketMessage) {
+func sendMessageToServer(t *testing.T, clientConn net.Conn, message subscription.Message) {
 	messageBytes, err := json.Marshal(message)
 	require.NoError(t, err)
 
