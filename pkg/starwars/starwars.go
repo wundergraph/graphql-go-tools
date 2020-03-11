@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/execution"
+	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
 )
 
 type QueryVariables map[string]interface{}
@@ -42,7 +43,7 @@ func SetRelativePathToStarWarsPackage(path string) {
 }
 
 func NewExecutionHandler(t *testing.T) *execution.Handler {
-	base, err := execution.NewBaseDataSourcePlanner(Schema(t), execution.PlannerConfiguration{}, abstractlogger.NoopLogger)
+	base, err := datasource.NewBaseDataSourcePlanner(Schema(t), datasource.PlannerConfiguration{}, abstractlogger.NoopLogger)
 	require.NoError(t, err)
 	executionHandler := execution.NewHandler(base, nil)
 	return executionHandler

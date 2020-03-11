@@ -189,7 +189,7 @@ func (h *Handler) startSubscription(ctx context.Context, id string, data []byte)
 
 // executeSubscription will keep execution the subscription until it ends.
 func (h *Handler) executeSubscription(buf *bytes.Buffer, id string, executor *execution.Executor, node execution.RootNode, ctx execution.Context) {
-	_, err := executor.Execute(ctx, node, buf)
+	err := executor.Execute(ctx, node, buf)
 	if err != nil {
 		h.logger.Error("subscription.Handle.executeSubscription()",
 			abstractlogger.Error(err),
