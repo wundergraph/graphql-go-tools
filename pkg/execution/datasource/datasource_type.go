@@ -1,6 +1,7 @@
-package execution
+package datasource
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 )
@@ -11,7 +12,7 @@ type TypeDataSourcePlannerConfig struct {
 type TypeDataSourcePlannerFactoryFactory struct {
 }
 
-func (t TypeDataSourcePlannerFactoryFactory) Initialize(base BaseDataSourcePlanner, configReader io.Reader) (DataSourcePlannerFactory, error) {
+func (t TypeDataSourcePlannerFactoryFactory) Initialize(base BasePlanner, configReader io.Reader) (PlannerFactory, error) {
 	factory := TypeDataSourcePlannerFactory{
 		base: base,
 	}
@@ -19,29 +20,29 @@ func (t TypeDataSourcePlannerFactoryFactory) Initialize(base BaseDataSourcePlann
 }
 
 type TypeDataSourcePlannerFactory struct {
-	base   BaseDataSourcePlanner
+	base   BasePlanner
 	config TypeDataSourcePlannerConfig
 }
 
-func (t TypeDataSourcePlannerFactory) DataSourcePlanner() DataSourcePlanner {
+func (t TypeDataSourcePlannerFactory) DataSourcePlanner() Planner {
 	return SimpleDataSourcePlanner(&TypeDataSourcePlanner{
-		BaseDataSourcePlanner: t.base,
-		dataSourceConfig:      t.config,
+		BasePlanner:      t.base,
+		dataSourceConfig: t.config,
 	})
 }
 
 type TypeDataSourcePlanner struct {
-	BaseDataSourcePlanner
+	BasePlanner
 	dataSourceConfig TypeDataSourcePlannerConfig
 }
 
 func (t *TypeDataSourcePlanner) Plan(args []Argument) (DataSource, []Argument) {
-	return &TypeDataSource{}, append(t.args,args...)
+	return &TypeDataSource{}, append(t.Args, args...)
 }
 
 type TypeDataSource struct {
 }
 
-func (t *TypeDataSource) Resolve(ctx Context, args ResolvedArgs, out io.Writer) Instruction {
-	return CloseConnection
+func (t *TypeDataSource) Resolve(ctx context.Context, args ResolverArgs, out io.Writer) (n int, err error) {
+	return
 }

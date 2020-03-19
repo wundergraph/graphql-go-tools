@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
 	"github.com/jensneuse/pipeline/pkg/pipe"
 	"github.com/jensneuse/pipeline/pkg/step"
 	"testing"
@@ -32,7 +33,7 @@ func TestExecution_With_Transformation(t *testing.T) {
 							HasResolvedData: true,
 							Value: &Value{
 								DataResolvingConfig: DataResolvingConfig{
-									PathSelector: PathSelector{
+									PathSelector: datasource.PathSelector{
 										Path: "foo",
 									},
 									Transformation: &PipelineTransformation{
@@ -61,7 +62,7 @@ func TestExecution_With_Transformation(t *testing.T) {
 		Context: context.Background(),
 	}
 
-	_, err := ex.Execute(ctx, plan, out)
+	err := ex.Execute(ctx, plan, out)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,25 +92,25 @@ func TestPlanner_WithTransformation(t *testing.T) {
 		query TransformationQuery {
 			foo
 		}
-	`, func(base *BaseDataSourcePlanner) {
-		base.config = PlannerConfiguration{
-			TypeFieldConfigurations: []TypeFieldConfiguration{
+	`, func(base *datasource.BasePlanner) {
+		base.Config = datasource.PlannerConfiguration{
+			TypeFieldConfigurations: []datasource.TypeFieldConfiguration{
 				{
 					TypeName:  "query",
 					FieldName: "foo",
-					Mapping: &MappingConfiguration{
+					Mapping: &datasource.MappingConfiguration{
 						Disabled: true,
 					},
-					DataSource: DataSourceConfig{
+					DataSource: datasource.SourceConfig{
 						Name: "StaticDataSource",
-						Config: toJSON(StaticDataSourceConfig{
+						Config: toJSON(datasource.StaticDataSourceConfig{
 							Data: "{\"bar\":\"baz\"}",
 						}),
 					},
 				},
 			},
 		}
-		panicOnErr(base.RegisterDataSourcePlannerFactory("StaticDataSource", StaticDataSourcePlannerFactoryFactory{}))
+		panicOnErr(base.RegisterDataSourcePlannerFactory("StaticDataSource", datasource.StaticDataSourcePlannerFactoryFactory{}))
 	},
 		&Object{
 			operationType: ast.OperationTypeQuery,
@@ -119,8 +120,8 @@ func TestPlanner_WithTransformation(t *testing.T) {
 					Value: &Object{
 						Fetch: &SingleFetch{
 							Source: &DataSourceInvocation{
-								DataSource: &StaticDataSource{
-									data: []byte("{\"bar\":\"baz\"}"),
+								DataSource: &datasource.StaticDataSource{
+									Data: []byte("{\"bar\":\"baz\"}"),
 								},
 							},
 							BufferName: "foo",
@@ -152,25 +153,25 @@ func TestPlanner_WithTransformation(t *testing.T) {
 			bar
 		}
 	`,
-		func(base *BaseDataSourcePlanner) {
-			base.config = PlannerConfiguration{
-				TypeFieldConfigurations: []TypeFieldConfiguration{
+		func(base *datasource.BasePlanner) {
+			base.Config = datasource.PlannerConfiguration{
+				TypeFieldConfigurations: []datasource.TypeFieldConfiguration{
 					{
 						TypeName:  "query",
 						FieldName: "bar",
-						Mapping: &MappingConfiguration{
+						Mapping: &datasource.MappingConfiguration{
 							Disabled: true,
 						},
-						DataSource: DataSourceConfig{
+						DataSource: datasource.SourceConfig{
 							Name: "StaticDataSource",
-							Config: toJSON(StaticDataSourceConfig{
+							Config: toJSON(datasource.StaticDataSourceConfig{
 								Data: "{\"bar\":\"baz\"}",
 							}),
 						},
 					},
 				},
 			}
-			panicOnErr(base.RegisterDataSourcePlannerFactory("StaticDataSource", StaticDataSourcePlannerFactoryFactory{}))
+			panicOnErr(base.RegisterDataSourcePlannerFactory("StaticDataSource", datasource.StaticDataSourcePlannerFactoryFactory{}))
 		},
 		&Object{
 			operationType: ast.OperationTypeQuery,
@@ -180,8 +181,8 @@ func TestPlanner_WithTransformation(t *testing.T) {
 					Value: &Object{
 						Fetch: &SingleFetch{
 							Source: &DataSourceInvocation{
-								DataSource: &StaticDataSource{
-									data: []byte("{\"bar\":\"baz\"}"),
+								DataSource: &datasource.StaticDataSource{
+									Data: []byte("{\"bar\":\"baz\"}"),
 								},
 							},
 							BufferName: "bar",

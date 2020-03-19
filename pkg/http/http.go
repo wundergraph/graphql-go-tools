@@ -3,9 +3,10 @@ package http
 
 import (
 	"bytes"
-	log "github.com/jensneuse/abstractlogger"
 	"io/ioutil"
 	"net/http"
+
+	log "github.com/jensneuse/abstractlogger"
 )
 
 const (
@@ -44,7 +45,7 @@ func (g *GraphQLHTTPRequestHandler) handleHTTP(w http.ResponseWriter, r *http.Re
 	}
 	ctx.Context = r.Context()
 	buf := bytes.NewBuffer(make([]byte, 0, 4096))
-	_, err = executor.Execute(ctx, rootNode, buf)
+	err = executor.Execute(ctx, rootNode, buf)
 	if err != nil {
 		g.log.Error("executor.Execute",
 			log.Error(err),
@@ -53,7 +54,7 @@ func (g *GraphQLHTTPRequestHandler) handleHTTP(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	w.Header().Add("Content-Type", "application/json")
+	w.Header().Add(httpHeaderContentType, "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = buf.WriteTo(w)
 }

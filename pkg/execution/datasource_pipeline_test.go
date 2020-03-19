@@ -2,9 +2,10 @@ package execution
 
 import (
 	"bytes"
+	log "github.com/jensneuse/abstractlogger"
+	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/pipeline/pkg/pipe"
-	log "github.com/jensneuse/abstractlogger"
 	"os"
 	"testing"
 )
@@ -24,12 +25,12 @@ func TestPipelineDataSource_Resolve(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	source := PipelineDataSource{
-		log:      log.NoopLogger,
-		pipeline: pipeline,
+	source := datasource.PipelineDataSource{
+		Log:      log.NoopLogger,
+		Pipeline: pipeline,
 	}
 
-	args := []ResolvedArgument{
+	args := ResolvedArgs{
 		{
 			Key:   literal.INPUT_JSON,
 			Value: []byte(`{"foo":"bar"}`),
@@ -37,7 +38,10 @@ func TestPipelineDataSource_Resolve(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	source.Resolve(Context{}, args, &out)
+	_,err = source.Resolve(Context{}, args, &out)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	got := out.String()
 	want := `{"foo":"bar"}`
