@@ -2,24 +2,57 @@ package graphql
 
 import (
 	"io"
+	"io/ioutil"
+
+	"github.com/jensneuse/abstractlogger"
+
+	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
 )
 
 type Schema struct {
 	Content []byte
+
+	logger      abstractlogger.Logger
+	basePlanner *datasource.BasePlanner
 }
 
 func NewSchemaFromReader(reader io.Reader) (*Schema, error) {
-	return &Schema{Content: nil}, nil
+	logger := abstractlogger.NoopLogger
+
+	schemaContent, err := ioutil.ReadAll(reader)
+	if err != nil {
+		return nil, err
+	}
+
+	return createSchema(schemaContent, logger)
 }
 
 func NewSchemaFromString(schema string) (*Schema, error) {
-	return &Schema{Content: nil}, nil
+	logger := abstractlogger.NoopLogger
+	schemaContent := []byte(schema)
+
+	return createSchema(schemaContent, logger)
 }
 
 func (s *Schema) Validate() (valid bool, errors SchemaValidationErrors) {
+	// TODO: Needs to be implemented in the core of the library
 	return true, nil
 }
 
-func (s *Schema) Normalize() (*Schema, error) {
-	return s, nil
+func (s *Schema) AddLogger(logger abstractlogger.Logger) {
+	s.logger = logger
+	s.basePlanner.Log = logger
+}
+
+func createSchema(document []byte, logger abstractlogger.Logger) (*Schema, error) {
+	basePlanner, err := datasource.NewBaseDataSourcePlanner(document, datasource.PlannerConfiguration{}, logger)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Schema{
+		Content:     document,
+		logger:      logger,
+		basePlanner: basePlanner,
+	}, nil
 }
