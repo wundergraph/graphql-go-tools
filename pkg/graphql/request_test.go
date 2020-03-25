@@ -20,7 +20,7 @@ func TestUnmarshalRequest(t *testing.T) {
 	})
 
 	t.Run("should return error when query is empty", func(t *testing.T) {
-		requestBytes := []byte("{\"query\": \"\"}")
+		requestBytes := []byte(`{"query": ""}`)
 		requestBuffer := bytes.NewBuffer(requestBytes)
 
 		request, err := UnmarshalRequest(requestBuffer)
@@ -31,7 +31,7 @@ func TestUnmarshalRequest(t *testing.T) {
 	})
 
 	t.Run("should successfully unmarshal request", func(t *testing.T) {
-		requestBytes := []byte("{\"operation_name\": \"Hello\", \"variables\": \"\", \"query\": \"query Hello { hello }\"}")
+		requestBytes := []byte(`{"operation_name": "Hello", "variables": "", "query": "query Hello { hello }"}`)
 		requestBuffer := bytes.NewBuffer(requestBytes)
 
 		request, err := UnmarshalRequest(requestBuffer)
