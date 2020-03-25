@@ -6,6 +6,7 @@ import (
 
 	"github.com/jensneuse/abstractlogger"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewSchemaFromReader(t *testing.T) {
@@ -24,9 +25,8 @@ func TestNewSchemaFromReader(t *testing.T) {
 		schema, err := NewSchemaFromReader(schemaReader)
 
 		assert.NoError(t, err)
-		assert.Equal(t, schemaBytes, schema.document)
+		assert.Equal(t, schemaBytes, schema.document.Input.RawBytes)
 		assert.Equal(t, abstractlogger.NoopLogger, schema.logger)
-		assert.NotNil(t, schema.basePlanner)
 	})
 }
 
@@ -44,15 +44,15 @@ func TestNewSchemaFromString(t *testing.T) {
 		schema, err := NewSchemaFromString(string(schemaBytes))
 
 		assert.NoError(t, err)
-		assert.Equal(t, schemaBytes, schema.document)
+		assert.Equal(t, schemaBytes, schema.document.Input.RawBytes)
 		assert.Equal(t, abstractlogger.NoopLogger, schema.logger)
-		assert.NotNil(t, schema.basePlanner)
 	})
 }
 
 func TestSchema_Document(t *testing.T) {
 	schemaBytes := []byte("schema { query: Query } type Query { hello: String }")
-	schema := Schema{document: schemaBytes}
+	schema, err := NewSchemaFromString(string(schemaBytes))
+	require.NoError(t, err)
 
 	assert.Equal(t, schemaBytes, schema.Document())
 }

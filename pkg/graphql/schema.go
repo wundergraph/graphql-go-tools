@@ -6,13 +6,13 @@ import (
 
 	"github.com/jensneuse/abstractlogger"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
+	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
 )
 
 type Schema struct {
-	logger      abstractlogger.Logger
-	document    []byte
-	basePlanner *datasource.BasePlanner
+	logger   abstractlogger.Logger
+	document ast.Document
 }
 
 func NewSchemaFromReader(reader io.Reader) (*Schema, error) {
@@ -34,7 +34,7 @@ func NewSchemaFromString(schema string) (*Schema, error) {
 }
 
 func (s *Schema) Document() []byte {
-	return s.document
+	return s.document.Input.RawBytes
 }
 
 func (s *Schema) Validate() (valid bool, errors SchemaValidationErrors) {
@@ -42,20 +42,18 @@ func (s *Schema) Validate() (valid bool, errors SchemaValidationErrors) {
 	return true, nil
 }
 
-func (s *Schema) AddLogger(logger abstractlogger.Logger) {
+func (s *Schema) SetLogger(logger abstractlogger.Logger) {
 	s.logger = logger
-	s.basePlanner.Log = logger
 }
 
-func createSchema(document []byte, logger abstractlogger.Logger) (*Schema, error) {
-	basePlanner, err := datasource.NewBaseDataSourcePlanner(document, datasource.PlannerConfiguration{}, logger)
-	if err != nil {
-		return nil, err
+func createSchema(schemaContent []byte, logger abstractlogger.Logger) (*Schema, error) {
+	document, report := astparser.ParseGraphqlDocumentBytes(schemaContent)
+	if report.HasErrors() {
+		return nil, report
 	}
 
 	return &Schema{
-		document:    document,
-		logger:      logger,
-		basePlanner: basePlanner,
+		document: document,
+		logger:   logger,
 	}, nil
 }
