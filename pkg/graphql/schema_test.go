@@ -24,7 +24,7 @@ func TestNewSchemaFromReader(t *testing.T) {
 		schema, err := NewSchemaFromReader(schemaReader)
 
 		assert.NoError(t, err)
-		assert.Equal(t, schemaBytes, schema.Content)
+		assert.Equal(t, schemaBytes, schema.document)
 		assert.Equal(t, abstractlogger.NoopLogger, schema.logger)
 		assert.NotNil(t, schema.basePlanner)
 	})
@@ -44,8 +44,15 @@ func TestNewSchemaFromString(t *testing.T) {
 		schema, err := NewSchemaFromString(string(schemaBytes))
 
 		assert.NoError(t, err)
-		assert.Equal(t, schemaBytes, schema.Content)
+		assert.Equal(t, schemaBytes, schema.document)
 		assert.Equal(t, abstractlogger.NoopLogger, schema.logger)
 		assert.NotNil(t, schema.basePlanner)
 	})
+}
+
+func TestSchema_Document(t *testing.T) {
+	schemaBytes := []byte("schema { query: Query } type Query { hello: String }")
+	schema := Schema{document: schemaBytes}
+
+	assert.Equal(t, schemaBytes, schema.Document())
 }

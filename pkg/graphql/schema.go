@@ -10,9 +10,8 @@ import (
 )
 
 type Schema struct {
-	Content []byte
-
 	logger      abstractlogger.Logger
+	document    []byte
 	basePlanner *datasource.BasePlanner
 }
 
@@ -34,6 +33,10 @@ func NewSchemaFromString(schema string) (*Schema, error) {
 	return createSchema(schemaContent, logger)
 }
 
+func (s *Schema) Document() []byte {
+	return s.document
+}
+
 func (s *Schema) Validate() (valid bool, errors SchemaValidationErrors) {
 	// TODO: Needs to be implemented in the core of the library
 	return true, nil
@@ -51,7 +54,7 @@ func createSchema(document []byte, logger abstractlogger.Logger) (*Schema, error
 	}
 
 	return &Schema{
-		Content:     document,
+		document:    document,
 		logger:      logger,
 		basePlanner: basePlanner,
 	}, nil
