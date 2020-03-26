@@ -12,29 +12,19 @@ func TestUnmarshalRequest(t *testing.T) {
 		requestBytes := []byte("")
 		requestBuffer := bytes.NewBuffer(requestBytes)
 
-		request, err := UnmarshalRequest(requestBuffer)
+		var request Request
+		err := UnmarshalRequest(requestBuffer, &request)
 
 		assert.Error(t, err)
 		assert.Equal(t, ErrEmptyRequest, err)
-		assert.Nil(t, request)
-	})
-
-	t.Run("should return error when query is empty", func(t *testing.T) {
-		requestBytes := []byte(`{"query": ""}`)
-		requestBuffer := bytes.NewBuffer(requestBytes)
-
-		request, err := UnmarshalRequest(requestBuffer)
-
-		assert.Error(t, err)
-		assert.Equal(t, ErrEmptyRequest, err)
-		assert.Nil(t, request)
 	})
 
 	t.Run("should successfully unmarshal request", func(t *testing.T) {
 		requestBytes := []byte(`{"operation_name": "Hello", "variables": "", "query": "query Hello { hello }"}`)
 		requestBuffer := bytes.NewBuffer(requestBytes)
 
-		request, err := UnmarshalRequest(requestBuffer)
+		var request Request
+		err := UnmarshalRequest(requestBuffer, &request)
 
 		assert.NoError(t, err)
 		assert.Equal(t, "Hello", request.OperationName)
