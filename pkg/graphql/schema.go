@@ -4,33 +4,27 @@ import (
 	"io"
 	"io/ioutil"
 
-	"github.com/jensneuse/abstractlogger"
-
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
 )
 
 type Schema struct {
-	logger   abstractlogger.Logger
 	document ast.Document
 }
 
 func NewSchemaFromReader(reader io.Reader) (*Schema, error) {
-	logger := abstractlogger.NoopLogger
-
 	schemaContent, err := ioutil.ReadAll(reader)
 	if err != nil {
 		return nil, err
 	}
 
-	return createSchema(schemaContent, logger)
+	return createSchema(schemaContent)
 }
 
 func NewSchemaFromString(schema string) (*Schema, error) {
-	logger := abstractlogger.NoopLogger
 	schemaContent := []byte(schema)
 
-	return createSchema(schemaContent, logger)
+	return createSchema(schemaContent)
 }
 
 func (s *Schema) Document() []byte {
@@ -42,11 +36,7 @@ func (s *Schema) Validate() (valid bool, errors SchemaValidationErrors) {
 	return true, nil
 }
 
-func (s *Schema) SetLogger(logger abstractlogger.Logger) {
-	s.logger = logger
-}
-
-func createSchema(schemaContent []byte, logger abstractlogger.Logger) (*Schema, error) {
+func createSchema(schemaContent []byte) (*Schema, error) {
 	document, report := astparser.ParseGraphqlDocumentBytes(schemaContent)
 	if report.HasErrors() {
 		return nil, report
@@ -54,6 +44,5 @@ func createSchema(schemaContent []byte, logger abstractlogger.Logger) (*Schema, 
 
 	return &Schema{
 		document: document,
-		logger:   logger,
 	}, nil
 }
