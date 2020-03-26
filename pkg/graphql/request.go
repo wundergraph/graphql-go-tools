@@ -15,27 +15,17 @@ type Request struct {
 	Query         string          `json:"query"`
 }
 
-func UnmarshalRequest(reader io.Reader) (*Request, error) {
+func UnmarshalRequest(reader io.Reader, request *Request) error {
 	requestBytes, err := ioutil.ReadAll(reader)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if len(requestBytes) == 0 {
-		return nil, ErrEmptyRequest
+		return ErrEmptyRequest
 	}
 
-	var request Request
-	err = json.Unmarshal(requestBytes, &request)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(request.Query) == 0 {
-		return nil, ErrEmptyRequest
-	}
-
-	return &request, nil
+	return json.Unmarshal(requestBytes, &request)
 }
 
 func (r Request) ValidateForSchema(schema *Schema) (valid bool, errors OperationValidationErrors) {
