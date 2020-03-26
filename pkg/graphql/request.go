@@ -2,8 +2,12 @@ package graphql
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
+	"io/ioutil"
 )
+
+var ErrEmptyRequest = errors.New("the provided request is empty")
 
 type Request struct {
 	OperationName string          `json:"operation_name"`
@@ -11,8 +15,17 @@ type Request struct {
 	Query         string          `json:"query"`
 }
 
-func UnmarshalRequest(reader io.Reader) (*Request, error) {
-	return &Request{}, nil
+func UnmarshalRequest(reader io.Reader, request *Request) error {
+	requestBytes, err := ioutil.ReadAll(reader)
+	if err != nil {
+		return err
+	}
+
+	if len(requestBytes) == 0 {
+		return ErrEmptyRequest
+	}
+
+	return json.Unmarshal(requestBytes, &request)
 }
 
 func (r Request) ValidateForSchema(schema *Schema) (valid bool, errors OperationValidationErrors) {
