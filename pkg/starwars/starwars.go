@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/execution"
+	"github.com/jensneuse/graphql-go-tools/pkg/execution/boilerplate"
 	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
 )
 
@@ -52,7 +53,7 @@ func NewExecutionHandler(t *testing.T) *execution.Handler {
 func Schema(t *testing.T) []byte {
 	schema, err := ioutil.ReadFile(path.Join(testdataPath, "testdata/star_wars.graphql"))
 	require.NoError(t, err)
-	return schema
+	return boilerplate.NewSchemaBytesWithBoilerplate(schema)
 }
 
 func LoadQuery(t *testing.T, fileName string, variables QueryVariables) []byte {
