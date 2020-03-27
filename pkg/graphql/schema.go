@@ -6,9 +6,11 @@ import (
 
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
+	"github.com/jensneuse/graphql-go-tools/pkg/execution/boilerplate"
 )
 
 type Schema struct {
+	rawInput []byte
 	document ast.Document
 }
 
@@ -28,7 +30,7 @@ func NewSchemaFromString(schema string) (*Schema, error) {
 }
 
 func (s *Schema) Document() []byte {
-	return s.document.Input.RawBytes
+	return s.rawInput
 }
 
 func (s *Schema) Validate() (valid bool, errors SchemaValidationErrors) {
@@ -37,12 +39,14 @@ func (s *Schema) Validate() (valid bool, errors SchemaValidationErrors) {
 }
 
 func createSchema(schemaContent []byte) (*Schema, error) {
-	document, report := astparser.ParseGraphqlDocumentBytes(schemaContent)
+	schemaContentWithBoilerplate := boilerplate.NewSchemaBytesWithBoilerplate(schemaContent)
+	document, report := astparser.ParseGraphqlDocumentBytes(schemaContentWithBoilerplate)
 	if report.HasErrors() {
 		return nil, report
 	}
 
 	return &Schema{
+		rawInput: schemaContent,
 		document: document,
 	}, nil
 }

@@ -15,7 +15,7 @@ func TestOperationValidationErrors_Error(t *testing.T) {
 	assert.Equal(t, "operation contains 1 error(s)", validationErrs.Error())
 }
 
-func TestOperationValidationErrors_AsResponse(t *testing.T) {
+func TestOperationValidationErrors_WriteResponse(t *testing.T) {
 	validationErrs := OperationValidationErrors{
 		OperationValidationError{
 			Message: "error in operation",
@@ -40,4 +40,14 @@ func TestOperationValidationError_Error(t *testing.T) {
 	}
 
 	assert.Equal(t, "error in operation", validatonErr.Error())
+}
+
+func TestOperationValidationErrors_Count(t *testing.T) {
+	validationErrs := OperationValidationErrors{
+		OperationValidationError{
+			Message: "error in operation",
+		},
+	}
+
+	assert.Equal(t, 1, validationErrs.Count())
 }

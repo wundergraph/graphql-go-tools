@@ -5,9 +5,9 @@ import (
 )
 
 type Response struct {
-	Errors     Errors                 `json:"errors,omitempty"`
-	Data       map[string]interface{} `json:"data,omitempty"`
-	Extensions map[string]interface{} `json:"extensions,omitempty"`
+	Errors Errors `json:"errors,omitempty"`
+	// TODO: Data
+	// TODO: Extensions
 }
 
 func (r Response) Marshal() ([]byte, error) {

@@ -8,6 +8,7 @@ import (
 type Errors interface {
 	error
 	WriteResponse(writer io.Writer) (n int, err error)
+	Count() int
 }
 
 type OperationValidationErrors []OperationValidationError
@@ -29,6 +30,10 @@ func (o OperationValidationErrors) WriteResponse(writer io.Writer) (n int, err e
 	return writer.Write(responseBytes)
 }
 
+func (o OperationValidationErrors) Count() int {
+	return len(o)
+}
+
 type OperationValidationError struct {
 	Message   string          `json:"message"`
 	Locations []ErrorLocation `json:"locations,omitempty"`
@@ -47,6 +52,10 @@ func (s SchemaValidationErrors) Error() string {
 
 func (s SchemaValidationErrors) WriteResponse(writer io.Writer) (n int, err error) {
 	return writer.Write(nil)
+}
+
+func (s SchemaValidationErrors) Count() int {
+	return len(s)
 }
 
 type SchemaValidationError struct {
