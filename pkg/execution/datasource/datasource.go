@@ -7,6 +7,7 @@ import (
 	"github.com/jensneuse/abstractlogger"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
+	"github.com/jensneuse/graphql-go-tools/pkg/asttransform"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"io"
 )
@@ -70,6 +71,11 @@ func NewBaseDataSourcePlanner(schema []byte, config PlannerConfiguration, logger
 	definition, report := astparser.ParseGraphqlDocumentBytes(schema)
 	if report.HasErrors() {
 		return nil, report
+	}
+
+	err := asttransform.MergeDefinitionWithBaseSchema(&definition)
+	if err != nil {
+		return nil, err
 	}
 
 	return &BasePlanner{

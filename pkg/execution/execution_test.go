@@ -5,16 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/cespare/xxhash"
-	log "github.com/jensneuse/abstractlogger"
-	"github.com/jensneuse/diffview"
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/execution/boilerplate"
-	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
-	"github.com/jensneuse/graphql-go-tools/pkg/introspection"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
-	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
-	"github.com/sebdah/goldie"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -22,6 +12,17 @@ import (
 	"net/http/httputil"
 	"testing"
 	"time"
+
+	"github.com/cespare/xxhash"
+	log "github.com/jensneuse/abstractlogger"
+	"github.com/jensneuse/diffview"
+	"github.com/sebdah/goldie"
+
+	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
+	"github.com/jensneuse/graphql-go-tools/pkg/introspection"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
+	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
 // nolint
@@ -2809,8 +2810,6 @@ func TestExecutor_Introspection(t *testing.T) {
 			__schema: __Schema!
 		}
 	`)
-
-	schema = boilerplate.NewSchemaBytesWithBoilerplate(schema)
 
 	config := datasource.PlannerConfiguration{
 		TypeFieldConfigurations: []datasource.TypeFieldConfiguration{
