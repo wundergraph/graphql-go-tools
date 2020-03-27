@@ -9,6 +9,7 @@ import (
 	log "github.com/jensneuse/abstractlogger"
 	"github.com/jensneuse/diffview"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/execution/boilerplate"
 	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/introspection"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
@@ -263,7 +264,7 @@ func TestExecution(t *testing.T) {
 														Value: []byte("/graphql"),
 													},
 													&datasource.StaticVariableArgument{
-														Name:  literal.QUERY,
+														Name: literal.QUERY,
 														Value: []byte(`query q1($id: String!){userPets(id: $id){	__typename name nickname... on Dog {woof} ... on Cat {meow}}}`),
 													},
 													&datasource.ObjectVariableArgument{
@@ -802,7 +803,7 @@ func genField() Field {
 												Value: []byte("/graphql"),
 											},
 											&datasource.StaticVariableArgument{
-												Name:  literal.QUERY,
+												Name: literal.QUERY,
 												Value: []byte(`query q1($id: String!){userPets(id: $id){	__typename name nickname... on Dog {woof} ... on Cat {meow}}}`),
 											},
 											&datasource.ObjectVariableArgument{
@@ -2808,6 +2809,8 @@ func TestExecutor_Introspection(t *testing.T) {
 			__schema: __Schema!
 		}
 	`)
+
+	schema = boilerplate.NewSchemaBytesWithBoilerplate(schema)
 
 	config := datasource.PlannerConfiguration{
 		TypeFieldConfigurations: []datasource.TypeFieldConfiguration{
