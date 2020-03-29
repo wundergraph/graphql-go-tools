@@ -2,11 +2,13 @@ package codegen
 
 import (
 	"bytes"
-	"github.com/jensneuse/diffview"
-	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
-	"github.com/sebdah/goldie"
 	"io/ioutil"
 	"testing"
+
+	"github.com/sebdah/goldie"
+	"github.com/stretchr/testify/assert"
+
+	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
 )
 
 func TestCodeGen_GenerateDirectiveDefinitionStruct(t *testing.T) {
@@ -97,6 +99,6 @@ func TestCodeGen_GenerateDirectiveDefinitionStruct(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		diffview.NewGoland().DiffViewBytes("DataSource", fixture, data)
+		assert.Equal(t,string(data),string(fixture))
 	}
 }
