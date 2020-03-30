@@ -24,7 +24,7 @@ func TestNewSchemaFromReader(t *testing.T) {
 		schema, err := NewSchemaFromReader(schemaReader)
 
 		assert.NoError(t, err)
-		assert.Equal(t, schemaBytes, schema.document.Input.RawBytes)
+		assert.Equal(t, schemaBytes, schema.rawInput)
 	})
 }
 
@@ -42,7 +42,7 @@ func TestNewSchemaFromString(t *testing.T) {
 		schema, err := NewSchemaFromString(string(schemaBytes))
 
 		assert.NoError(t, err)
-		assert.Equal(t, schemaBytes, schema.document.Input.RawBytes)
+		assert.Equal(t, schemaBytes, schema.rawInput)
 	})
 }
 
