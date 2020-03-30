@@ -77,8 +77,8 @@ func TestRequest_ValidateForSchema(t *testing.T) {
 
 		result, err := request.ValidateForSchema(schema)
 		assert.NoError(t, err)
-		assert.False(t, result.Valid)
-		assert.Greater(t, result.Errors.Count(), 0)
+		assert.True(t, result.Valid)
+		assert.Nil(t, result.Errors)
 	})
 
 	t.Run("should return valid result when validation is successful", func(t *testing.T) {
