@@ -65,6 +65,23 @@ func TestRequest_ValidateForSchema(t *testing.T) {
 		assert.Greater(t, result.Errors.Count(), 0)
 	})
 
+	t.Run("should fail validation when schema definition is missing and query contains Query being not present in schema", func(t *testing.T) {
+		request := Request{
+			OperationName: "Hello",
+			Variables:     nil,
+			Query:         `query Hello { hello }`,
+		}
+
+		schema, err := NewSchemaFromString("type Mutation { hello: String }")
+		require.NoError(t, err)
+
+		result, err := request.ValidateForSchema(schema)
+		assert.Error(t, err)
+		assert.False(t, result.Valid)
+		assert.NotNil(t, result.Errors)
+		assert.Greater(t, 0, result.Errors.Count())
+	})
+
 	t.Run("should successfully validate even when schema definition is missing", func(t *testing.T) {
 		request := Request{
 			OperationName: "Hello",
