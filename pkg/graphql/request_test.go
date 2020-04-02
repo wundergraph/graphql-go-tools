@@ -81,6 +81,25 @@ func TestRequest_ValidateForSchema(t *testing.T) {
 		assert.Nil(t, result.Errors)
 	})
 
+	t.Run("should return valid result for introspection query", func(t *testing.T) {
+		starwars.SetRelativePathToStarWarsPackage("../starwars")
+		schemaBytes := starwars.Schema(t)
+
+		schema, err := NewSchemaFromString(string(schemaBytes))
+		require.NoError(t, err)
+
+		rawRequest := starwars.LoadQuery(t, starwars.FileIntrospectionQuery, nil)
+
+		var request Request
+		err = UnmarshalRequest(bytes.NewBuffer(rawRequest), &request)
+		require.NoError(t, err)
+
+		result, err := request.ValidateForSchema(schema)
+		assert.NoError(t, err)
+		assert.True(t, result.Valid)
+		assert.Nil(t, result.Errors)
+	})
+
 	t.Run("should return valid result when validation is successful", func(t *testing.T) {
 		starwars.SetRelativePathToStarWarsPackage("../starwars")
 		schemaBytes := starwars.Schema(t)
