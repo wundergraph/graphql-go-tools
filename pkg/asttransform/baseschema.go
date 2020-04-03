@@ -2,6 +2,7 @@ package asttransform
 
 import (
 	"bytes"
+
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
@@ -19,52 +20,35 @@ func MergeDefinitionWithBaseSchema(definition *ast.Document) error {
 }
 
 func handleSchema(definition *ast.Document) error {
-	for i := range definition.RootNodes {
-		if definition.RootNodes[i].Kind == ast.NodeKindSchemaDefinition {
-			return nil
-		}
+	if definition.HasSchemaDefinition() {
+		return nil
 	}
 
 	schemaDefinition := ast.SchemaDefinition{}
+	var rootOperationTypeRefs []int
 
 	for i := range definition.RootNodes {
 		if definition.RootNodes[i].Kind == ast.NodeKindObjectTypeDefinition {
 			typeName := definition.ObjectTypeDefinitionNameBytes(definition.RootNodes[i].Ref)
-			nameRef := definition.ObjectTypeDefinitionNameRef(definition.RootNodes[i].Ref)
-			var operationType ast.OperationType
+
 			switch {
 			case bytes.Equal(typeName, []byte("Query")):
-				operationType = ast.OperationTypeQuery
-				definition.Index.QueryTypeName = []byte("Query")
+				ref := definition.CreateRootOperationTypeDefinition(ast.OperationTypeQuery, i)
+				rootOperationTypeRefs = append(rootOperationTypeRefs, ref)
 			case bytes.Equal(typeName, []byte("Mutation")):
-				operationType = ast.OperationTypeMutation
-				definition.Index.MutationTypeName = []byte("Mutation")
+				ref := definition.CreateRootOperationTypeDefinition(ast.OperationTypeMutation, i)
+				rootOperationTypeRefs = append(rootOperationTypeRefs, ref)
 			case bytes.Equal(typeName, []byte("Subscription")):
-				operationType = ast.OperationTypeSubscription
-				definition.Index.SubscriptionTypeName = []byte("Subscription")
+				ref := definition.CreateRootOperationTypeDefinition(ast.OperationTypeSubscription, i)
+				rootOperationTypeRefs = append(rootOperationTypeRefs, ref)
 			default:
 				continue
 			}
-
-			definition.RootOperationTypeDefinitions = append(definition.RootOperationTypeDefinitions, ast.RootOperationTypeDefinition{
-				OperationType: operationType,
-				NamedType: ast.Type{
-					TypeKind: ast.TypeKindNamed,
-					Name:     nameRef,
-				},
-			})
-			ref := len(definition.RootOperationTypeDefinitions) - 1
-			schemaDefinition.RootOperationTypeDefinitions.Refs = append(schemaDefinition.RootOperationTypeDefinitions.Refs, ref)
 		}
 	}
 
-	definition.SchemaDefinitions = append(definition.SchemaDefinitions, schemaDefinition)
-	ref := len(definition.SchemaDefinitions) - 1
-	schemaNode := ast.Node{
-		Kind: ast.NodeKindSchemaDefinition,
-		Ref:  ref,
-	}
-	definition.RootNodes = append([]ast.Node{schemaNode}, definition.RootNodes...)
+	schemaDefinition.AddRootOperationTypeDefinitionRefs(rootOperationTypeRefs...)
+	definition.AddSchemaDefinitionRootNode(schemaDefinition)
 	return nil
 }
 
