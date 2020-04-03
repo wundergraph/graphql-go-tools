@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
@@ -22,7 +23,9 @@ type Request struct {
 	Variables     json.RawMessage `json:"variables"`
 	Query         string          `json:"query"`
 
-	document ast.Document
+	document     ast.Document
+	isParsed     bool
+	isNormalized bool
 }
 
 func UnmarshalRequest(reader io.Reader, request *Request) error {
@@ -43,8 +46,7 @@ func (r *Request) ValidateForSchema(schema *Schema) (result ValidationResult, er
 		return ValidationResult{Valid: false, Errors: nil}, ErrNilSchema
 	}
 
-	var report operationreport.Report
-	r.document, report = astparser.ParseGraphqlDocumentString(r.Query)
+	report := r.parseQueryOnce()
 	if report.HasErrors() {
 		return operationValidationResultFromReport(report)
 	}
@@ -55,6 +57,22 @@ func (r *Request) ValidateForSchema(schema *Schema) (result ValidationResult, er
 }
 
 func (r *Request) Normalize(schema *Schema) error {
+	if schema == nil {
+		return ErrNilSchema
+	}
+
+	report := r.parseQueryOnce()
+	if report.HasErrors() {
+		return report
+	}
+
+	normalizer := astnormalization.NewNormalizer(true)
+	normalizer.NormalizeOperation(&r.document, &schema.document, &report)
+	if report.HasErrors() {
+		return report
+	}
+
+	r.isNormalized = true
 	return nil
 }
 
@@ -63,5 +81,24 @@ func (r Request) CalculateComplexity(complexityCalculator ComplexityCalculator) 
 }
 
 func (r Request) Print(writer io.Writer) (n int, err error) {
-	return writer.Write(nil)
+	report := r.parseQueryOnce()
+	if report.HasErrors() {
+		return 0, report
+	}
+
+	return writer.Write(r.document.Input.RawBytes)
+}
+
+func (r *Request) IsNormalized() bool {
+	return r.isNormalized
+}
+
+func (r *Request) parseQueryOnce() (report operationreport.Report) {
+	if r.isParsed {
+		return report
+	}
+
+	r.isParsed = true
+	r.document, report = astparser.ParseGraphqlDocumentString(r.Query)
+	return report
 }
