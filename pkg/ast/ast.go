@@ -1209,6 +1209,12 @@ type SchemaDefinition struct {
 	RootOperationTypeDefinitions RootOperationTypeDefinitionList // e.g. query: Query, mutation: Mutation, subscription: Subscription
 }
 
+func (s *SchemaDefinition) AddRootOperationTypeDefinitionRefs(refs ...int) {
+	for _, ref := range refs {
+		s.RootOperationTypeDefinitions.Refs = append(s.RootOperationTypeDefinitions.Refs, ref)
+	}
+}
+
 func (d *Document) HasSchemaDefinition() bool {
 	for i := range d.RootNodes {
 		if d.RootNodes[i].Kind == NodeKindSchemaDefinition {
@@ -1219,7 +1225,7 @@ func (d *Document) HasSchemaDefinition() bool {
 	return false
 }
 
-func (d *Document) SetSchemaDefinitionRootNode(schemaDefinition SchemaDefinition) {
+func (d *Document) AddSchemaDefinitionRootNode(schemaDefinition SchemaDefinition) {
 	ref := d.AddSchemaDefinition(schemaDefinition)
 	schemaNode := Node{
 		Kind: NodeKindSchemaDefinition,
@@ -1337,7 +1343,7 @@ func (d *Document) RootOperationTypeDefinitionIsLastInSchemaDefinition(ref int, 
 	}
 }
 
-func (d *Document) CreateRootOperationTypeDefinitionUsingSchemaDefinition(schemaDefinition *SchemaDefinition, operationType OperationType, rootNodeIndex int) {
+func (d *Document) CreateRootOperationTypeDefinition(operationType OperationType, rootNodeIndex int) (ref int) {
 	switch operationType {
 	case OperationTypeQuery:
 		d.Index.QueryTypeName = []byte("Query")
@@ -1350,15 +1356,13 @@ func (d *Document) CreateRootOperationTypeDefinitionUsingSchemaDefinition(schema
 	}
 
 	nameRef := d.ObjectTypeDefinitionNameRef(d.RootNodes[rootNodeIndex].Ref)
-	ref := d.AddRootOperationTypeDefinition(RootOperationTypeDefinition{
+	return d.AddRootOperationTypeDefinition(RootOperationTypeDefinition{
 		OperationType: operationType,
 		NamedType: Type{
 			TypeKind: TypeKindNamed,
 			Name:     nameRef,
 		},
 	})
-
-	schemaDefinition.RootOperationTypeDefinitions.Refs = append(schemaDefinition.RootOperationTypeDefinitions.Refs, ref)
 }
 
 func (d *Document) AddRootOperationTypeDefinition(rootOperationTypeDefinition RootOperationTypeDefinition) (ref int) {

@@ -25,6 +25,7 @@ func handleSchema(definition *ast.Document) error {
 	}
 
 	schemaDefinition := ast.SchemaDefinition{}
+	var rootOperationTypeRefs []int
 
 	for i := range definition.RootNodes {
 		if definition.RootNodes[i].Kind == ast.NodeKindObjectTypeDefinition {
@@ -32,18 +33,22 @@ func handleSchema(definition *ast.Document) error {
 
 			switch {
 			case bytes.Equal(typeName, []byte("Query")):
-				definition.CreateRootOperationTypeDefinitionUsingSchemaDefinition(&schemaDefinition, ast.OperationTypeQuery, i)
+				ref := definition.CreateRootOperationTypeDefinition(ast.OperationTypeQuery, i)
+				rootOperationTypeRefs = append(rootOperationTypeRefs, ref)
 			case bytes.Equal(typeName, []byte("Mutation")):
-				definition.CreateRootOperationTypeDefinitionUsingSchemaDefinition(&schemaDefinition, ast.OperationTypeMutation, i)
+				ref := definition.CreateRootOperationTypeDefinition(ast.OperationTypeMutation, i)
+				rootOperationTypeRefs = append(rootOperationTypeRefs, ref)
 			case bytes.Equal(typeName, []byte("Subscription")):
-				definition.CreateRootOperationTypeDefinitionUsingSchemaDefinition(&schemaDefinition, ast.OperationTypeSubscription, i)
+				ref := definition.CreateRootOperationTypeDefinition(ast.OperationTypeSubscription, i)
+				rootOperationTypeRefs = append(rootOperationTypeRefs, ref)
 			default:
 				continue
 			}
 		}
 	}
 
-	definition.SetSchemaDefinitionRootNode(schemaDefinition)
+	schemaDefinition.AddRootOperationTypeDefinitionRefs(rootOperationTypeRefs...)
+	definition.AddSchemaDefinitionRootNode(schemaDefinition)
 	return nil
 }
 
