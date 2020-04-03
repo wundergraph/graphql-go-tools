@@ -1209,6 +1209,34 @@ type SchemaDefinition struct {
 	RootOperationTypeDefinitions RootOperationTypeDefinitionList // e.g. query: Query, mutation: Mutation, subscription: Subscription
 }
 
+func (s *SchemaDefinition) AddRootOperationTypeDefinitionRefs(refs ...int) {
+	s.RootOperationTypeDefinitions.Refs = append(s.RootOperationTypeDefinitions.Refs, refs...)
+}
+
+func (d *Document) HasSchemaDefinition() bool {
+	for i := range d.RootNodes {
+		if d.RootNodes[i].Kind == NodeKindSchemaDefinition {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (d *Document) AddSchemaDefinitionRootNode(schemaDefinition SchemaDefinition) {
+	ref := d.AddSchemaDefinition(schemaDefinition)
+	schemaNode := Node{
+		Kind: NodeKindSchemaDefinition,
+		Ref:  ref,
+	}
+	d.RootNodes = append([]Node{schemaNode}, d.RootNodes...)
+}
+
+func (d *Document) AddSchemaDefinition(schemaDefinition SchemaDefinition) (ref int) {
+	d.SchemaDefinitions = append(d.SchemaDefinitions, schemaDefinition)
+	return len(d.SchemaDefinitions) - 1
+}
+
 func (d *Document) NodeDirectives(node Node) []int {
 	switch node.Kind {
 	case NodeKindField:
@@ -1311,6 +1339,33 @@ func (d *Document) RootOperationTypeDefinitionIsLastInSchemaDefinition(ref int, 
 	default:
 		return false
 	}
+}
+
+func (d *Document) CreateRootOperationTypeDefinition(operationType OperationType, rootNodeIndex int) (ref int) {
+	switch operationType {
+	case OperationTypeQuery:
+		d.Index.QueryTypeName = []byte("Query")
+	case OperationTypeMutation:
+		d.Index.MutationTypeName = []byte("Mutation")
+	case OperationTypeSubscription:
+		d.Index.SubscriptionTypeName = []byte("Subscription")
+	default:
+		return
+	}
+
+	nameRef := d.ObjectTypeDefinitionNameRef(d.RootNodes[rootNodeIndex].Ref)
+	return d.AddRootOperationTypeDefinition(RootOperationTypeDefinition{
+		OperationType: operationType,
+		NamedType: Type{
+			TypeKind: TypeKindNamed,
+			Name:     nameRef,
+		},
+	})
+}
+
+func (d *Document) AddRootOperationTypeDefinition(rootOperationTypeDefinition RootOperationTypeDefinition) (ref int) {
+	d.RootOperationTypeDefinitions = append(d.RootOperationTypeDefinitions, rootOperationTypeDefinition)
+	return len(d.RootOperationTypeDefinitions) - 1
 }
 
 type Directive struct {
