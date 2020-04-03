@@ -1210,9 +1210,7 @@ type SchemaDefinition struct {
 }
 
 func (s *SchemaDefinition) AddRootOperationTypeDefinitionRefs(refs ...int) {
-	for _, ref := range refs {
-		s.RootOperationTypeDefinitions.Refs = append(s.RootOperationTypeDefinitions.Refs, ref)
-	}
+	s.RootOperationTypeDefinitions.Refs = append(s.RootOperationTypeDefinitions.Refs, refs...)
 }
 
 func (d *Document) HasSchemaDefinition() bool {
