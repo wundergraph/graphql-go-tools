@@ -81,7 +81,7 @@ func TestRequest_ValidateForSchema(t *testing.T) {
 		assert.Nil(t, result.Errors)
 	})
 
-	t.Run("should return valid result for introspection query", func(t *testing.T) {
+	t.Run("should return valid result for introspection query after normalization", func(t *testing.T) {
 		starwars.SetRelativePathToStarWarsPackage("../starwars")
 		schemaBytes := starwars.Schema(t)
 
@@ -93,6 +93,10 @@ func TestRequest_ValidateForSchema(t *testing.T) {
 		var request Request
 		err = UnmarshalRequest(bytes.NewBuffer(rawRequest), &request)
 		require.NoError(t, err)
+
+		err = request.Normalize(schema)
+		require.NoError(t, err)
+		require.True(t, request.IsNormalized())
 
 		result, err := request.ValidateForSchema(schema)
 		assert.NoError(t, err)
