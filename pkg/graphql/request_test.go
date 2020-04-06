@@ -119,3 +119,55 @@ func TestRequest_ValidateForSchema(t *testing.T) {
 		assert.Nil(t, result.Errors)
 	})
 }
+
+func TestRequest_Normalize(t *testing.T) {
+	t.Run("should return error when schema is nil", func(t *testing.T) {
+		request := Request{
+			OperationName: "Hello",
+			Variables:     nil,
+			Query:         `query Hello { hello }`,
+		}
+
+		err := request.Normalize(nil)
+		assert.Error(t, err)
+		assert.Equal(t, ErrNilSchema, err)
+		assert.False(t, request.isNormalized)
+	})
+
+	t.Run("should successfully normalize the request", func(t *testing.T) {
+		starwars.SetRelativePathToStarWarsPackage("../starwars")
+		schemaBytes := starwars.Schema(t)
+
+		schema, err := NewSchemaFromString(string(schemaBytes))
+		require.NoError(t, err)
+
+		rawRequest := starwars.LoadQuery(t, starwars.FileFragmentsQuery, nil)
+
+		var request Request
+		err = UnmarshalRequest(bytes.NewBuffer(rawRequest), &request)
+		require.NoError(t, err)
+
+		documentBeforeNormalization := request.document
+
+		err = request.Normalize(schema)
+		assert.NoError(t, err)
+		assert.NotEqual(t, documentBeforeNormalization, request.document)
+		assert.True(t, request.isNormalized)
+	})
+}
+
+func TestRequest_Print(t *testing.T) {
+	query := "query Hello { hello }"
+	request := Request{
+		OperationName: "Hello",
+		Variables:     nil,
+		Query:         query,
+	}
+
+	bytesBuf := new(bytes.Buffer)
+	n, err := request.Print(bytesBuf)
+
+	assert.NoError(t, err)
+	assert.Greater(t, n, 0)
+	assert.Equal(t, query, bytesBuf.String())
+}
