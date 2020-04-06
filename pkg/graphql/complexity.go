@@ -9,19 +9,19 @@ import (
 var DefaultComplexityCalculator = defaultComplexityCalculator{}
 
 type ComplexityCalculator interface {
-	Calculate(operation, definition *ast.Document) (nodeCount, complexity int, err error)
+	Calculate(operation, definition *ast.Document) (nodeCount, complexity, depth int, err error)
 }
 
 type defaultComplexityCalculator struct {
 }
 
-func (d defaultComplexityCalculator) Calculate(operation, definition *ast.Document) (nodeCount, complexity int, err error) {
+func (d defaultComplexityCalculator) Calculate(operation, definition *ast.Document) (nodeCount, complexity, depth int, err error) {
 	report := operationreport.Report{}
-	nodeCount, complexity = operation_complexity.CalculateOperationComplexity(operation, definition, &report)
+	nodeCount, complexity, depth = operation_complexity.CalculateOperationComplexity(operation, definition, &report)
 
 	if report.HasErrors() {
-		return 0, 0, report
+		return 0, 0, 0, report
 	}
 
-	return nodeCount, complexity, nil
+	return nodeCount, complexity, depth, nil
 }

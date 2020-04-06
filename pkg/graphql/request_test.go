@@ -155,26 +155,28 @@ func TestRequest_CalculateComplexity(t *testing.T) {
 			Query:         `query Hello { hello }`,
 		}
 
-		nodeCount, complexity, err := request.CalculateComplexity(DefaultComplexityCalculator, nil)
+		nodeCount, complexity, depth, err := request.CalculateComplexity(DefaultComplexityCalculator, nil)
 		assert.Error(t, err)
 		assert.Equal(t, ErrNilSchema, err)
 		assert.Equal(t, 0, nodeCount)
 		assert.Equal(t, 0, complexity)
+		assert.Equal(t, 0, depth)
 	})
 
 	t.Run("should successfully calculate the complexity of request", func(t *testing.T) {
 		schema := starwarsSchema(t)
 
-		rawRequest := starwars.LoadQuery(t, starwars.FileFragmentsQuery, nil)
+		rawRequest := starwars.LoadQuery(t, starwars.FileSimpleHeroQuery, nil)
 
 		var request Request
 		err := UnmarshalRequest(bytes.NewBuffer(rawRequest), &request)
 		require.NoError(t, err)
 
-		nodeCount, complexity, err := request.CalculateComplexity(DefaultComplexityCalculator, schema)
+		nodeCount, complexity, depth, err := request.CalculateComplexity(DefaultComplexityCalculator, schema)
 		assert.NoError(t, err)
-		assert.Equal(t, 0, nodeCount)
-		assert.Equal(t, 0, complexity)
+		assert.Equal(t, 1, nodeCount, "unexpected node count")
+		assert.Equal(t, 1, complexity, "unexpected complexity")
+		assert.Equal(t, 3, depth, "unexpected depth")
 	})
 }
 

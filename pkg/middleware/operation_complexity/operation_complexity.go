@@ -58,15 +58,16 @@ func NewOperationComplexityEstimator() *OperationComplexityEstimator {
 	}
 }
 
-func (n *OperationComplexityEstimator) Do(operation, definition *ast.Document, report *operationreport.Report) (nodeCount, complexity int) {
+func (n *OperationComplexityEstimator) Do(operation, definition *ast.Document, report *operationreport.Report) (nodeCount, complexity, depth int) {
 	n.visitor.count = 0
 	n.visitor.complexity = 0
+	n.visitor.depth = 0
 	n.visitor.multipliers = n.visitor.multipliers[:0]
 	n.walker.Walk(operation, definition, report)
-	return n.visitor.count, n.visitor.complexity
+	return n.visitor.count, n.visitor.complexity, n.visitor.depth
 }
 
-func CalculateOperationComplexity(operation, definition *ast.Document, report *operationreport.Report) (nodeCount, complexity int) {
+func CalculateOperationComplexity(operation, definition *ast.Document, report *operationreport.Report) (nodeCount, complexity, depth int) {
 	estimator := NewOperationComplexityEstimator()
 	return estimator.Do(operation, definition, report)
 }
@@ -76,6 +77,7 @@ type complexityVisitor struct {
 	operation, definition *ast.Document
 	count                 int
 	complexity            int
+	depth                 int
 	multipliers           []multiplier
 }
 
@@ -122,9 +124,7 @@ func (c *complexityVisitor) EnterArgument(ref int) {
 }
 
 func (c *complexityVisitor) EnterField(ref int) {
-
 	definition, exists := c.FieldDefinition(ref)
-
 	if !exists {
 		return
 	}
@@ -139,6 +139,10 @@ func (c *complexityVisitor) EnterField(ref int) {
 	}
 
 	c.complexity = c.complexity + c.calculateMultiplied(1)
+
+	if c.Depth > c.depth {
+		c.depth = c.Depth
+	}
 }
 
 func (c *complexityVisitor) LeaveField(ref int) {

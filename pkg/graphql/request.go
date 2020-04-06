@@ -76,17 +76,17 @@ func (r *Request) Normalize(schema *Schema) (result NormalizationResult, err err
 	return NormalizationResult{Successful: true, Errors: nil}, nil
 }
 
-func (r *Request) CalculateComplexity(complexityCalculator ComplexityCalculator, schema *Schema) (nodeCount, complexity int, err error) {
+func (r *Request) CalculateComplexity(complexityCalculator ComplexityCalculator, schema *Schema) (nodeCount, complexity, depth int, err error) {
 	if schema == nil {
-		return 0, 0, ErrNilSchema
+		return 0, 0, 0, ErrNilSchema
 	}
 
 	report := r.parseQueryOnce()
 	if report.HasErrors() {
-		return 0, 0, report
+		return 0, 0, 0, report
 	}
 
-	return complexityCalculator.Calculate(&schema.document, &r.document)
+	return complexityCalculator.Calculate(&r.document, &schema.document)
 }
 
 func (r Request) Print(writer io.Writer) (n int, err error) {
