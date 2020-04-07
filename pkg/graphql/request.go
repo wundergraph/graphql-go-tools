@@ -56,24 +56,24 @@ func (r *Request) ValidateForSchema(schema *Schema) (result ValidationResult, er
 	return operationValidationResultFromReport(report)
 }
 
-func (r *Request) Normalize(schema *Schema) error {
+func (r *Request) Normalize(schema *Schema) (result NormalizationResult, err error) {
 	if schema == nil {
-		return ErrNilSchema
+		return NormalizationResult{Successful: false, Errors: nil}, ErrNilSchema
 	}
 
 	report := r.parseQueryOnce()
 	if report.HasErrors() {
-		return report
+		return normalizationResultFromReport(report)
 	}
 
 	normalizer := astnormalization.NewNormalizer(true)
 	normalizer.NormalizeOperation(&r.document, &schema.document, &report)
 	if report.HasErrors() {
-		return report
+		return normalizationResultFromReport(report)
 	}
 
 	r.isNormalized = true
-	return nil
+	return NormalizationResult{Successful: true, Errors: nil}, nil
 }
 
 func (r Request) CalculateComplexity(complexityCalculator ComplexityCalculator) int {
