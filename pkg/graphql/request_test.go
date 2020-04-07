@@ -155,12 +155,12 @@ func TestRequest_CalculateComplexity(t *testing.T) {
 			Query:         `query Hello { hello }`,
 		}
 
-		nodeCount, complexity, depth, err := request.CalculateComplexity(DefaultComplexityCalculator, nil)
+		result, err := request.CalculateComplexity(DefaultComplexityCalculator, nil)
 		assert.Error(t, err)
 		assert.Equal(t, ErrNilSchema, err)
-		assert.Equal(t, 0, nodeCount)
-		assert.Equal(t, 0, complexity)
-		assert.Equal(t, 0, depth)
+		assert.Equal(t, 0, result.NodeCount, "unexpected node count")
+		assert.Equal(t, 0, result.Complexity, "unexpected complexity")
+		assert.Equal(t, 0, result.Depth, "unexpected depth")
 	})
 
 	t.Run("should successfully calculate the complexity of request", func(t *testing.T) {
@@ -172,11 +172,11 @@ func TestRequest_CalculateComplexity(t *testing.T) {
 		err := UnmarshalRequest(bytes.NewBuffer(rawRequest), &request)
 		require.NoError(t, err)
 
-		nodeCount, complexity, depth, err := request.CalculateComplexity(DefaultComplexityCalculator, schema)
+		result, err := request.CalculateComplexity(DefaultComplexityCalculator, schema)
 		assert.NoError(t, err)
-		assert.Equal(t, 1, nodeCount, "unexpected node count")
-		assert.Equal(t, 1, complexity, "unexpected complexity")
-		assert.Equal(t, 2, depth, "unexpected depth")
+		assert.Equal(t, 1, result.NodeCount, "unexpected node count")
+		assert.Equal(t, 1, result.Complexity, "unexpected complexity")
+		assert.Equal(t, 2, result.Depth, "unexpected depth")
 	})
 }
 

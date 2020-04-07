@@ -9,19 +9,44 @@ import (
 var DefaultComplexityCalculator = defaultComplexityCalculator{}
 
 type ComplexityCalculator interface {
-	Calculate(operation, definition *ast.Document) (nodeCount, complexity, depth int, err error)
+	Calculate(operation, definition *ast.Document) (ComplexityResult, error)
 }
 
 type defaultComplexityCalculator struct {
 }
 
-func (d defaultComplexityCalculator) Calculate(operation, definition *ast.Document) (nodeCount, complexity, depth int, err error) {
+func (d defaultComplexityCalculator) Calculate(operation, definition *ast.Document) (ComplexityResult, error) {
 	report := operationreport.Report{}
-	nodeCount, complexity, depth = operation_complexity.CalculateOperationComplexity(operation, definition, &report)
+	nodeCount, complexity, depth := operation_complexity.CalculateOperationComplexity(operation, definition, &report)
 
-	if report.HasErrors() {
-		return 0, 0, 0, report
+	return complexityResult(nodeCount, complexity, depth, report)
+}
+
+type ComplexityResult struct {
+	NodeCount  int
+	Complexity int
+	Depth      int
+	Errors     Errors
+}
+
+func complexityResult(nodeCount, complexity, depth int, report operationreport.Report) (ComplexityResult, error) {
+	result := ComplexityResult{
+		NodeCount:  nodeCount,
+		Complexity: complexity,
+		Depth:      depth,
+		Errors:     nil,
 	}
 
-	return nodeCount, complexity, depth, nil
+	if !report.HasErrors() {
+		return result, nil
+	}
+
+	result.Errors = operationValidationErrorsFromOperationReport(report)
+
+	var err error
+	if len(report.InternalErrors) > 0 {
+		err = report.InternalErrors[0]
+	}
+
+	return result, err
 }
