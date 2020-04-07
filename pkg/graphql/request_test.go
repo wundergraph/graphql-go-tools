@@ -94,8 +94,9 @@ func TestRequest_ValidateForSchema(t *testing.T) {
 		err = UnmarshalRequest(bytes.NewBuffer(rawRequest), &request)
 		require.NoError(t, err)
 
-		err = request.Normalize(schema)
+		normalizationResult, err := request.Normalize(schema)
 		require.NoError(t, err)
+		require.True(t, normalizationResult.Successful)
 		require.True(t, request.IsNormalized())
 
 		result, err := request.ValidateForSchema(schema)
