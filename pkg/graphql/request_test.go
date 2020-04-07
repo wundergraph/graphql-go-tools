@@ -176,7 +176,7 @@ func TestRequest_CalculateComplexity(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, 1, nodeCount, "unexpected node count")
 		assert.Equal(t, 1, complexity, "unexpected complexity")
-		assert.Equal(t, 3, depth, "unexpected depth")
+		assert.Equal(t, 2, depth, "unexpected depth")
 	})
 }
 

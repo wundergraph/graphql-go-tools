@@ -3,7 +3,7 @@ package operation_complexity
 import (
 	"testing"
 
-	"github.com/magiconair/properties/assert"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
@@ -24,7 +24,7 @@ func TestNodeCount(t *testing.T) {
 					  country
 					}
 				  }
-				}`, 2, 2, 5)
+				}`, 2, 2, 3)
 	})
 	t.Run("multiple users", func(t *testing.T) {
 		run(t, testDefinition, `
@@ -38,7 +38,7 @@ func TestNodeCount(t *testing.T) {
 					  country
 					}
 				  }
-				}`, 20, 11, 5)
+				}`, 20, 11, 3)
 	})
 	t.Run("multiple users with multiple transactions", func(t *testing.T) {
 		run(t, testDefinition, `
@@ -56,7 +56,7 @@ func TestNodeCount(t *testing.T) {
 						amount
 					}
 				  }
-				}`, 70, 21, 5)
+				}`, 70, 21, 3)
 	})
 	t.Run("multiple users with multiple transactions with nested senders", func(t *testing.T) {
 		run(t, testDefinition, `
@@ -88,7 +88,7 @@ func TestNodeCount(t *testing.T) {
 						}
 					}
 				  }
-				}`, 920, 221, 9)
+				}`, 920, 221, 5)
 	})
 	t.Run("introspection query", func(t *testing.T) {
 		run(t, testDefinition, introspectionQuery, 0, 0, 0)
@@ -133,10 +133,10 @@ func BenchmarkEstimateComplexity(b *testing.B) {
 			b.Fatalf("want nodeCount: 920, got: %d\n", nodeCount)
 		}
 		if complexity != 221 {
-			b.Fatalf("want complexity: 0, got: %d\n", complexity)
+			b.Fatalf("want complexity: 221, got: %d\n", complexity)
 		}
-		if depth != 9 {
-			b.Fatalf("want depth: 0, got: %d\n", depth)
+		if depth != 5 {
+			b.Fatalf("want depth: 5, got: %d\n", depth)
 		}
 	}
 }
