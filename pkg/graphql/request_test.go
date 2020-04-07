@@ -109,9 +109,10 @@ func TestRequest_Normalize(t *testing.T) {
 			Query:         `query Hello { hello }`,
 		}
 
-		err := request.Normalize(nil)
+		result, err := request.Normalize(nil)
 		assert.Error(t, err)
 		assert.Equal(t, ErrNilSchema, err)
+		assert.False(t, result.Successful)
 		assert.False(t, request.isNormalized)
 	})
 
@@ -130,9 +131,10 @@ func TestRequest_Normalize(t *testing.T) {
 
 		documentBeforeNormalization := request.document
 
-		err = request.Normalize(schema)
+		result, err := request.Normalize(schema)
 		assert.NoError(t, err)
 		assert.NotEqual(t, documentBeforeNormalization, request.document)
+		assert.True(t, result.Successful)
 		assert.True(t, request.isNormalized)
 	})
 }
