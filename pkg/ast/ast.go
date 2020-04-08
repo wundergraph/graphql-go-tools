@@ -1839,21 +1839,10 @@ func (d *Document) ObjectTypeDescriptionNameString(ref int) string {
 	return unsafebytes.BytesToString(d.ObjectTypeDescriptionNameBytes(ref))
 }
 
-func (d *Document) ObjectTypeDefinitionHasSchemaField(ref int) bool {
+func (d *Document) ObjectTypeDefinitionHasField(ref int, fieldName []byte) bool {
 	for _, fieldDefinitionRef := range d.ObjectTypeDefinitions[ref].FieldsDefinition.Refs {
-		fieldName := d.FieldDefinitionNameBytes(fieldDefinitionRef)
-		if fieldName.Equals([]byte("__schema")) {
-			return true
-		}
-	}
-
-	return false
-}
-
-func (d *Document) ObjectTypeDefinitionHasTypeField(ref int) bool {
-	for _, fieldDefinitionRef := range d.ObjectTypeDefinitions[ref].FieldsDefinition.Refs {
-		fieldName := d.FieldDefinitionNameBytes(fieldDefinitionRef)
-		if fieldName.Equals([]byte("__type")) {
+		currentFieldName := d.FieldDefinitionNameBytes(fieldDefinitionRef)
+		if currentFieldName.Equals(fieldName) {
 			return true
 		}
 	}

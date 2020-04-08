@@ -73,11 +73,11 @@ func addSchemaDefinition(definition *ast.Document) error {
 
 func addIntrospectionQueryFields(definition *ast.Document, objectTypeDefinitionRef int) error {
 	var fieldRefs []int
-	if !definition.ObjectTypeDefinitionHasSchemaField(objectTypeDefinitionRef) {
+	if !definition.ObjectTypeDefinitionHasField(objectTypeDefinitionRef, []byte("__schema")) {
 		fieldRefs = append(fieldRefs, addSchemaField(definition))
 	}
 
-	if !definition.ObjectTypeDefinitionHasTypeField(objectTypeDefinitionRef) {
+	if !definition.ObjectTypeDefinitionHasField(objectTypeDefinitionRef, []byte("__type")) {
 		fieldRefs = append(fieldRefs, addTypeField(definition))
 	}
 
