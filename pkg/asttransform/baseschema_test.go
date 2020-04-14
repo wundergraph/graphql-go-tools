@@ -58,4 +58,19 @@ func TestMergeDefinitionWithBaseSchema(t *testing.T) {
 				adminInformation: String!
 			}
 	`, "schema_missing"))
+	t.Run("complete", runTestMerge(`
+			schema {
+				query: Query
+			}
+			type Query {
+				hello(name: String): Hello!
+				__schema: __Schema!
+				__type(name: String!): __Type
+			}
+			type Hello {
+				hello: String!
+				object: String!
+				adminInformation: String!
+			}
+	`, "complete"))
 }

@@ -4,6 +4,8 @@ schema {
 
 type Query {
     hello(name: String): Hello!
+    __schema: __Schema!
+    __type(name: String!): __Type
 }
 
 type Hello {
