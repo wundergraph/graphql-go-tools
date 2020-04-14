@@ -1,17 +1,19 @@
 package operation_complexity
 
 import (
-	"fmt"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
-	"testing"
 )
 
 func TestNodeCount(t *testing.T) {
-
 	t.Run("one user", func(t *testing.T) {
-		run(testDefinition, `
+		run(t, testDefinition, `
 				{
 				  users(first: 1) {
 					id
@@ -22,10 +24,10 @@ func TestNodeCount(t *testing.T) {
 					  country
 					}
 				  }
-				}`, 2, 2)
+				}`, 2, 2, 3)
 	})
 	t.Run("multiple users", func(t *testing.T) {
-		run(testDefinition, `
+		run(t, testDefinition, `
 				{
 				  users(first: 10) {
 					id
@@ -36,10 +38,10 @@ func TestNodeCount(t *testing.T) {
 					  country
 					}
 				  }
-				}`, 20, 11)
+				}`, 20, 11, 3)
 	})
 	t.Run("multiple users with multiple transactions", func(t *testing.T) {
-		run(testDefinition, `
+		run(t, testDefinition, `
 				{
 				  users(first: 10) {
 					id
@@ -54,10 +56,10 @@ func TestNodeCount(t *testing.T) {
 						amount
 					}
 				  }
-				}`, 70, 21)
+				}`, 70, 21, 3)
 	})
 	t.Run("multiple users with multiple transactions with nested senders", func(t *testing.T) {
-		run(testDefinition, `
+		run(t, testDefinition, `
 				{
 				  users(first: 10) {
 					id
@@ -86,31 +88,28 @@ func TestNodeCount(t *testing.T) {
 						}
 					}
 				  }
-				}`, 920, 221)
+				}`, 920, 221, 5)
 	})
 	t.Run("introspection query", func(t *testing.T) {
-		run(testDefinition, introspectionQuery, 0, 0)
+		run(t, testDefinition, introspectionQuery, 0, 0, 0)
 	})
 }
 
-var run = func(definition, operation string, expectedNodeCount, expectedComplexity int) {
+var run = func(t *testing.T, definition, operation string, expectedNodeCount, expectedComplexity, expectedDepth int) {
 	def := unsafeparser.ParseGraphqlDocumentString(definition)
 	op := unsafeparser.ParseGraphqlDocumentString(operation)
 	report := operationreport.Report{}
 
 	astnormalization.NormalizeOperation(&op, &def, &report)
 
-	nodeCount, complexity := CalculateOperationComplexity(&op, &def, &report)
+	nodeCount, complexity, depth := CalculateOperationComplexity(&op, &def, &report)
 	if report.HasErrors() {
-		panic(report)
+		require.NoError(t, report)
 	}
 
-	if nodeCount != expectedNodeCount {
-		panic(fmt.Errorf("want complexity: %d, got: %d", expectedNodeCount, nodeCount))
-	}
-	if complexity != expectedComplexity {
-		panic(fmt.Errorf("want complexity: %d, got: %d", expectedNodeCount, complexity))
-	}
+	assert.Equal(t, nodeCount, expectedNodeCount, "unexpected node count")
+	assert.Equal(t, complexity, expectedComplexity, "unexpected complexity")
+	assert.Equal(t, depth, expectedDepth, "unexpected depth")
 }
 
 func BenchmarkEstimateComplexity(b *testing.B) {
@@ -125,7 +124,7 @@ func BenchmarkEstimateComplexity(b *testing.B) {
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		nodeCount, complexity := estimator.Do(&op, &def, &report)
+		nodeCount, complexity, depth := estimator.Do(&op, &def, &report)
 		if report.HasErrors() {
 			b.Fatal(report)
 		}
@@ -134,7 +133,10 @@ func BenchmarkEstimateComplexity(b *testing.B) {
 			b.Fatalf("want nodeCount: 920, got: %d\n", nodeCount)
 		}
 		if complexity != 221 {
-			b.Fatalf("want complexity: 0, got: %d\n", complexity)
+			b.Fatalf("want complexity: 221, got: %d\n", complexity)
+		}
+		if depth != 5 {
+			b.Fatalf("want depth: 5, got: %d\n", depth)
 		}
 	}
 }
