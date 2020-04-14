@@ -1,8 +1,8 @@
-GOLANG_CI_VERSION = "v1.21.0"
-GOLANG_CI_VERSION_SHORT = "1.21.0"
+GOLANG_CI_VERSION = "v1.24.0"
+GOLANG_CI_VERSION_SHORT = "1.24.0"
 HAS_GOLANG_CI_LINT := $(shell command -v /tmp/ci/golangci-lint;)
 INSTALLED_VERSION := $(shell command -v /tmp/ci/golangci-lint version;)
-HAS_CORRECT_VERSION := $(shell command -v if [[ $(INSTALLED_VERSION) == *$(GOLANG_CI_VERSION_SHORT)* ]]; echo "Version OK!" fi)
+HAS_CORRECT_VERSION := $(shell command -v if [[ $(INSTALLED_VERSION) == *$(GOLANG_CI_VERSION_SHORT)* ]]; echo "OK" fi)
 
 .PHONY: bootstrap
 
@@ -50,3 +50,7 @@ bootstrap:
 ifndef HAS_GOLANG_CI_LINT
 	curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh| sh -s -- -b /tmp/ci ${GOLANG_CI_VERSION}
 endif
+
+updateci:
+	rm /tmp/ci/golangci-lint
+	curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh| sh -s -- -b /tmp/ci ${GOLANG_CI_VERSION}

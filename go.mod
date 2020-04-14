@@ -20,7 +20,7 @@ require (
 	github.com/jensneuse/byte-template v0.0.0-20200214152254-4f3cf06e5c68
 	github.com/jensneuse/diffview v1.0.0
 	github.com/jensneuse/pipeline v0.0.0-20200117120358-9fb4de085cd6
-	github.com/magiconair/properties v1.8.1
+	github.com/magiconair/properties v1.8.1 // indirect
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mitchellh/mapstructure v1.2.2 // indirect
 	github.com/nats-io/nats-server/v2 v2.1.2 // indirect
@@ -32,15 +32,15 @@ require (
 	github.com/stretchr/testify v1.5.1
 	github.com/tidwall/gjson v1.3.5
 	github.com/tidwall/sjson v1.0.4
-	github.com/wasmerio/go-ext-wasm v0.0.0-20191213132134-adcef605ea8e
+	github.com/wasmerio/go-ext-wasm v0.3.1
 	go.uber.org/atomic v1.5.1 // indirect
 	go.uber.org/multierr v1.4.0 // indirect
 	golang.org/x/lint v0.0.0-20191125180803-fdd1cda4f05f // indirect
+	golang.org/x/net v0.0.0-20200324143707-d3edc9973b7e // indirect
 	golang.org/x/sys v0.0.0-20200327173247-9dae0f8f5775 // indirect
 	golang.org/x/text v0.3.2 // indirect
-	golang.org/x/tools v0.0.0-20200115044656-831fdb1e1868 // indirect
+	golang.org/x/tools v0.0.0-20200414032229-332987a829c3 // indirect
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
-	gopkg.in/ini.v1 v1.55.0 // indirect
 	gopkg.in/yaml.v2 v2.2.8 // indirect
 )
 
