@@ -5,15 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/cespare/xxhash"
-	log "github.com/jensneuse/abstractlogger"
-	"github.com/jensneuse/diffview"
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
-	"github.com/jensneuse/graphql-go-tools/pkg/introspection"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
-	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
-	"github.com/sebdah/goldie"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -21,6 +12,17 @@ import (
 	"net/http/httputil"
 	"testing"
 	"time"
+
+	"github.com/cespare/xxhash"
+	log "github.com/jensneuse/abstractlogger"
+	"github.com/jensneuse/diffview"
+	"github.com/sebdah/goldie"
+
+	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
+	"github.com/jensneuse/graphql-go-tools/pkg/introspection"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
+	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
 // nolint
@@ -263,7 +265,7 @@ func TestExecution(t *testing.T) {
 														Value: []byte("/graphql"),
 													},
 													&datasource.StaticVariableArgument{
-														Name:  literal.QUERY,
+														Name: literal.QUERY,
 														Value: []byte(`query q1($id: String!){userPets(id: $id){	__typename name nickname... on Dog {woof} ... on Cat {meow}}}`),
 													},
 													&datasource.ObjectVariableArgument{
@@ -802,7 +804,7 @@ func genField() Field {
 												Value: []byte("/graphql"),
 											},
 											&datasource.StaticVariableArgument{
-												Name:  literal.QUERY,
+												Name: literal.QUERY,
 												Value: []byte(`query q1($id: String!){userPets(id: $id){	__typename name nickname... on Dog {woof} ... on Cat {meow}}}`),
 											},
 											&datasource.ObjectVariableArgument{
