@@ -3,6 +3,8 @@ package asttransform
 import (
 	"bytes"
 
+	"github.com/cespare/xxhash"
+
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
@@ -20,6 +22,23 @@ func MergeDefinitionWithBaseSchema(definition *ast.Document) error {
 }
 
 func handleSchema(definition *ast.Document) error {
+	if err := addSchemaDefinition(definition); err != nil {
+		return err
+	}
+
+	queryNode, ok := findQueryNode(definition)
+	if !ok {
+		return nil
+	}
+
+	if err := addIntrospectionQueryFields(definition, queryNode.Ref); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func addSchemaDefinition(definition *ast.Document) error {
 	if definition.HasSchemaDefinition() {
 		return nil
 	}
@@ -50,6 +69,58 @@ func handleSchema(definition *ast.Document) error {
 	schemaDefinition.AddRootOperationTypeDefinitionRefs(rootOperationTypeRefs...)
 	definition.AddSchemaDefinitionRootNode(schemaDefinition)
 	return nil
+}
+
+func addIntrospectionQueryFields(definition *ast.Document, objectTypeDefinitionRef int) error {
+	var fieldRefs []int
+	if !definition.ObjectTypeDefinitionHasField(objectTypeDefinitionRef, []byte("__schema")) {
+		fieldRefs = append(fieldRefs, addSchemaField(definition))
+	}
+
+	if !definition.ObjectTypeDefinitionHasField(objectTypeDefinitionRef, []byte("__type")) {
+		fieldRefs = append(fieldRefs, addTypeField(definition))
+	}
+
+	definition.ObjectTypeDefinitions[objectTypeDefinitionRef].FieldsDefinition.Refs = append(definition.ObjectTypeDefinitions[objectTypeDefinitionRef].FieldsDefinition.Refs, fieldRefs...)
+	return nil
+}
+
+func addSchemaField(definition *ast.Document) (ref int) {
+	fieldNameRef := definition.Input.AppendInputBytes([]byte("__schema"))
+	fieldTypeRef := definition.AddNonNullNamedType([]byte("__Schema"))
+
+	return definition.AddFieldDefinition(ast.FieldDefinition{
+		Name: fieldNameRef,
+		Type: fieldTypeRef,
+	})
+}
+
+func addTypeField(definition *ast.Document) (ref int) {
+	fieldNameRef := definition.Input.AppendInputBytes([]byte("__type"))
+	fieldTypeRef := definition.AddNamedType([]byte("__Type"))
+
+	argumentNameRef := definition.Input.AppendInputBytes([]byte("name"))
+	argumentTypeRef := definition.AddNonNullNamedType([]byte("String"))
+
+	argumentRef := definition.AddInputValueDefinition(ast.InputValueDefinition{
+		Name: argumentNameRef,
+		Type: argumentTypeRef,
+	})
+
+	return definition.AddFieldDefinition(ast.FieldDefinition{
+		Name: fieldNameRef,
+		Type: fieldTypeRef,
+
+		HasArgumentsDefinitions: true,
+		ArgumentsDefinition: ast.InputValueDefinitionList{
+			Refs: []int{argumentRef},
+		},
+	})
+}
+
+func findQueryNode(definition *ast.Document) (queryNode ast.Node, ok bool) {
+	queryNode, ok = definition.Index.Nodes[xxhash.Sum64String("Query")]
+	return queryNode, ok
 }
 
 var baseSchema = []byte(`"The 'Int' scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1."

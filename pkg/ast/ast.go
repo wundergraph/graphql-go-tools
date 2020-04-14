@@ -1465,6 +1465,11 @@ func (d *Document) FieldDefinitionResolverTypeName(enclosingType Node) ByteSlice
 	return d.NodeNameBytes(enclosingType)
 }
 
+func (d *Document) AddFieldDefinition(fieldDefinition FieldDefinition) (ref int) {
+	d.FieldDefinitions = append(d.FieldDefinitions, fieldDefinition)
+	return len(d.FieldDefinitions) - 1
+}
+
 type InputValueDefinitionList struct {
 	LPAREN position.Position // (
 	Refs   []int             // InputValueDefinition
@@ -1834,6 +1839,16 @@ func (d *Document) ObjectTypeDescriptionNameString(ref int) string {
 	return unsafebytes.BytesToString(d.ObjectTypeDescriptionNameBytes(ref))
 }
 
+func (d *Document) ObjectTypeDefinitionHasField(ref int, fieldName []byte) bool {
+	for _, fieldDefinitionRef := range d.ObjectTypeDefinitions[ref].FieldsDefinition.Refs {
+		currentFieldName := d.FieldDefinitionNameBytes(fieldDefinitionRef)
+		if currentFieldName.Equals(fieldName) {
+			return true
+		}
+	}
+	return false
+}
+
 type TypeList struct {
 	Refs []int // Type
 }
@@ -1949,6 +1964,11 @@ func (d *Document) InputValueDefinitionHasDirective(ref int, directiveName ByteS
 	return false
 }
 
+func (d *Document) AddInputValueDefinition(inputValueDefinition InputValueDefinition) (ref int) {
+	d.InputValueDefinitions = append(d.InputValueDefinitions, inputValueDefinition)
+	return len(d.InputValueDefinitions) - 1
+}
+
 type Type struct {
 	TypeKind TypeKind           // one of Named,List,NonNull
 	Name     ByteSliceReference // e.g. String (only on NamedType)
@@ -2000,6 +2020,24 @@ func (d *Document) PrintTypeBytes(ref int, buf []byte) ([]byte, error) {
 	b := bytes.NewBuffer(buf)
 	err := d.PrintType(ref, b)
 	return b.Bytes(), err
+}
+
+func (d *Document) AddNamedType(name []byte) (ref int) {
+	nameRef := d.Input.AppendInputBytes(name)
+	d.Types = append(d.Types, Type{
+		TypeKind: TypeKindNamed,
+		Name:     nameRef,
+	})
+	return len(d.Types) - 1
+}
+
+func (d *Document) AddNonNullNamedType(name []byte) (ref int) {
+	namedRef := d.AddNamedType(name)
+	d.Types = append(d.Types, Type{
+		TypeKind: TypeKindNonNull,
+		OfType:   namedRef,
+	})
+	return len(d.Types) - 1
 }
 
 type DefaultValue struct {
