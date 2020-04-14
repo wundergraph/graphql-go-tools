@@ -87,7 +87,7 @@ func addIntrospectionQueryFields(definition *ast.Document, objectTypeDefinitionR
 
 func addSchemaField(definition *ast.Document) (ref int) {
 	fieldNameRef := definition.Input.AppendInputBytes([]byte("__schema"))
-	fieldTypeRef := definition.AddTypeNonNull([]byte("__Schema"))
+	fieldTypeRef := definition.AddNonNullNamedType([]byte("__Schema"))
 
 	return definition.AddFieldDefinition(ast.FieldDefinition{
 		Name: fieldNameRef,
@@ -97,10 +97,10 @@ func addSchemaField(definition *ast.Document) (ref int) {
 
 func addTypeField(definition *ast.Document) (ref int) {
 	fieldNameRef := definition.Input.AppendInputBytes([]byte("__type"))
-	fieldTypeRef := definition.AddTypeNamed([]byte("__Type"))
+	fieldTypeRef := definition.AddNamedType([]byte("__Type"))
 
 	argumentNameRef := definition.Input.AppendInputBytes([]byte("name"))
-	argumentTypeRef := definition.AddTypeNonNull([]byte("String"))
+	argumentTypeRef := definition.AddNonNullNamedType([]byte("String"))
 
 	argumentRef := definition.AddInputValueDefinition(ast.InputValueDefinition{
 		Name: argumentNameRef,

@@ -1846,7 +1846,6 @@ func (d *Document) ObjectTypeDefinitionHasField(ref int, fieldName []byte) bool 
 			return true
 		}
 	}
-
 	return false
 }
 
@@ -2023,23 +2022,21 @@ func (d *Document) PrintTypeBytes(ref int, buf []byte) ([]byte, error) {
 	return b.Bytes(), err
 }
 
-func (d *Document) AddTypeNamed(name []byte) (ref int) {
+func (d *Document) AddNamedType(name []byte) (ref int) {
 	nameRef := d.Input.AppendInputBytes(name)
 	d.Types = append(d.Types, Type{
 		TypeKind: TypeKindNamed,
 		Name:     nameRef,
 	})
-
 	return len(d.Types) - 1
 }
 
-func (d *Document) AddTypeNonNull(name []byte) (ref int) {
-	namedRef := d.AddTypeNamed(name)
+func (d *Document) AddNonNullNamedType(name []byte) (ref int) {
+	namedRef := d.AddNamedType(name)
 	d.Types = append(d.Types, Type{
 		TypeKind: TypeKindNonNull,
 		OfType:   namedRef,
 	})
-
 	return len(d.Types) - 1
 }
 
