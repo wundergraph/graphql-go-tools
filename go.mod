@@ -27,7 +27,8 @@ require (
 	github.com/stretchr/testify v1.5.1
 	github.com/tidwall/gjson v1.3.5
 	github.com/tidwall/sjson v1.0.4
-	github.com/wasmerio/go-ext-wasm v0.0.0-20191213132134-adcef605ea8e
+	github.com/urfave/cli v1.20.0 // indirect
+	github.com/wasmerio/go-ext-wasm v0.3.1
 	go.uber.org/atomic v1.5.1 // indirect
 	go.uber.org/multierr v1.4.0 // indirect
 	golang.org/x/lint v0.0.0-20191125180803-fdd1cda4f05f // indirect
