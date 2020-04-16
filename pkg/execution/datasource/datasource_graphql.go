@@ -353,7 +353,7 @@ func (g *GraphQLDataSource) Resolve(ctx context.Context, args ResolverArgs, out 
 
 	res, err := client.Do(request)
 	if err != nil {
-		g.Log.Error("GraphQLDataSource.client.Do",
+		g.Log.Error("GraphQLDataSource.Client.Do",
 			log.Error(err),
 		)
 		return n, err

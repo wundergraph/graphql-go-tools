@@ -100,9 +100,9 @@ func (m *MQTTDataSource) Resolve(ctx context.Context, args ResolverArgs, out io.
 	defer func() {
 		select {
 		case <-ctx.Done():
-			m.log.Debug("MQTTDataSource.Resolve.client.Disconnect")
+			m.log.Debug("MQTTDataSource.Resolve.Client.Disconnect")
 			m.client.Disconnect(250)
-			m.log.Debug("MQTTDataSource.Resolve.client.Disconnect.disconnected")
+			m.log.Debug("MQTTDataSource.Resolve.Client.Disconnect.disconnected")
 		default:
 			return
 		}

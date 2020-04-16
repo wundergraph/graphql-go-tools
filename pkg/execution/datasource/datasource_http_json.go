@@ -5,18 +5,20 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/buger/jsonparser"
-	log "github.com/jensneuse/abstractlogger"
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
-	"github.com/tidwall/gjson"
-	"github.com/tidwall/sjson"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/buger/jsonparser"
+	log "github.com/jensneuse/abstractlogger"
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
+
+	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 )
 
 // HttpJsonDataSourceConfig is the configuration object for the HttpJsonDataSource
@@ -41,6 +43,16 @@ type HttpJsonDataSourceConfig struct {
 	StatusCodeTypeNameMappings []StatusCodeTypeNameMapping
 }
 
+func DefaultHttpClient() *http.Client {
+	return &http.Client{
+		Timeout: time.Second * 10,
+		Transport: &http.Transport{
+			MaxIdleConnsPerHost: 1024,
+			TLSHandshakeTimeout: 0 * time.Second,
+		},
+	}
+}
+
 type StatusCodeTypeNameMapping struct {
 	StatusCode int
 	TypeName   string
@@ -52,11 +64,20 @@ type HttpJsonDataSourceConfigHeader struct {
 }
 
 type HttpJsonDataSourcePlannerFactoryFactory struct {
+	client *http.Client
 }
 
-func (h HttpJsonDataSourcePlannerFactoryFactory) Initialize(base BasePlanner, configReader io.Reader) (PlannerFactory, error) {
-	factory := HttpJsonDataSourcePlannerFactory{
-		base: base,
+func (h *HttpJsonDataSourcePlannerFactoryFactory) httpClient() *http.Client {
+	if h.client != nil {
+		return h.client
+	}
+	return DefaultHttpClient()
+}
+
+func (h *HttpJsonDataSourcePlannerFactoryFactory) Initialize(base BasePlanner, configReader io.Reader) (PlannerFactory, error) {
+	factory := &HttpJsonDataSourcePlannerFactory{
+		base:   base,
+		client: h.httpClient(),
 	}
 	err := json.NewDecoder(configReader).Decode(&factory.config)
 	return factory, err
@@ -65,23 +86,27 @@ func (h HttpJsonDataSourcePlannerFactoryFactory) Initialize(base BasePlanner, co
 type HttpJsonDataSourcePlannerFactory struct {
 	base   BasePlanner
 	config HttpJsonDataSourceConfig
+	client *http.Client
 }
 
-func (h HttpJsonDataSourcePlannerFactory) DataSourcePlanner() Planner {
+func (h *HttpJsonDataSourcePlannerFactory) DataSourcePlanner() Planner {
 	return &HttpJsonDataSourcePlanner{
 		BasePlanner:      h.base,
 		dataSourceConfig: h.config,
+		client:           h.client,
 	}
 }
 
 type HttpJsonDataSourcePlanner struct {
 	BasePlanner
 	dataSourceConfig HttpJsonDataSourceConfig
+	client           *http.Client
 }
 
 func (h *HttpJsonDataSourcePlanner) Plan(args []Argument) (DataSource, []Argument) {
 	return &HttpJsonDataSource{
-		Log: h.Log,
+		Log:    h.Log,
+		Client: h.client,
 	}, append(h.Args, args...)
 }
 
@@ -191,7 +216,8 @@ func (h *HttpJsonDataSourcePlanner) LeaveField(ref int) {
 }
 
 type HttpJsonDataSource struct {
-	Log log.Logger
+	Log    log.Logger
+	Client *http.Client
 }
 
 func (r *HttpJsonDataSource) Resolve(ctx context.Context, args ResolverArgs, out io.Writer) (n int, err error) {
@@ -253,14 +279,6 @@ func (r *HttpJsonDataSource) Resolve(ctx context.Context, args ResolverArgs, out
 		log.String("url", url),
 	)
 
-	client := http.Client{
-		Timeout: time.Second * 10,
-		Transport: &http.Transport{
-			MaxIdleConnsPerHost: 1024,
-			TLSHandshakeTimeout: 0 * time.Second,
-		},
-	}
-
 	var bodyReader io.Reader
 	if len(bodyArg) != 0 {
 		bodyArg = bytes.ReplaceAll(bodyArg, literal.BACKSLASH, nil)
@@ -277,9 +295,9 @@ func (r *HttpJsonDataSource) Resolve(ctx context.Context, args ResolverArgs, out
 
 	request.Header = header
 
-	res, err := client.Do(request)
+	res, err := r.Client.Do(request)
 	if err != nil {
-		r.Log.Error("HttpJsonDataSource.Resolve.client.Do",
+		r.Log.Error("HttpJsonDataSource.Resolve.Client.Do",
 			log.Error(err),
 		)
 		return

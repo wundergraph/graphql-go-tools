@@ -5,14 +5,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/jensneuse/abstractlogger"
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
-	"github.com/tidwall/gjson"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/jensneuse/abstractlogger"
+	"github.com/tidwall/gjson"
+
+	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 )
 
 const httpJsonDataSourceSchema = `
@@ -87,7 +89,7 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 					},
 				},
 			}
-			panicOnErr(base.RegisterDataSourcePlannerFactory("HttpJsonDataSource", datasource.HttpJsonDataSourcePlannerFactoryFactory{}))
+			panicOnErr(base.RegisterDataSourcePlannerFactory("HttpJsonDataSource", &datasource.HttpJsonDataSourcePlannerFactoryFactory{}))
 		},
 		&Object{
 			operationType: ast.OperationTypeQuery,
@@ -99,7 +101,8 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 							BufferName: "simpleType",
 							Source: &DataSourceInvocation{
 								DataSource: &datasource.HttpJsonDataSource{
-									Log: abstractlogger.Noop{},
+									Log:    abstractlogger.Noop{},
+									Client: datasource.DefaultHttpClient(),
 								},
 								Args: []datasource.Argument{
 									&datasource.StaticVariableArgument{
@@ -201,7 +204,7 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 					},
 				},
 			}
-			panicOnErr(base.RegisterDataSourcePlannerFactory("HttpJsonDataSource", datasource.HttpJsonDataSourcePlannerFactoryFactory{}))
+			panicOnErr(base.RegisterDataSourcePlannerFactory("HttpJsonDataSource", &datasource.HttpJsonDataSourcePlannerFactoryFactory{}))
 		},
 		&Object{
 			operationType: ast.OperationTypeQuery,
@@ -213,7 +216,8 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 							BufferName: "unionType",
 							Source: &DataSourceInvocation{
 								DataSource: &datasource.HttpJsonDataSource{
-									Log: abstractlogger.Noop{},
+									Log:    abstractlogger.Noop{},
+									Client: datasource.DefaultHttpClient(),
 								},
 								Args: []datasource.Argument{
 									&datasource.StaticVariableArgument{
@@ -347,7 +351,7 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 					},
 				},
 			}
-			panicOnErr(base.RegisterDataSourcePlannerFactory("HttpJsonDataSource", datasource.HttpJsonDataSourcePlannerFactoryFactory{}))
+			panicOnErr(base.RegisterDataSourcePlannerFactory("HttpJsonDataSource", &datasource.HttpJsonDataSourcePlannerFactoryFactory{}))
 		},
 		&Object{
 			operationType: ast.OperationTypeQuery,
@@ -360,6 +364,7 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 							Source: &DataSourceInvocation{
 								DataSource: &datasource.HttpJsonDataSource{
 									Log: abstractlogger.Noop{},
+									Client: datasource.DefaultHttpClient(),
 								},
 								Args: []datasource.Argument{
 									&datasource.StaticVariableArgument{
@@ -477,6 +482,7 @@ func TestHttpJsonDataSource_Resolve(t *testing.T) {
 			buf := bytes.Buffer{}
 			source := &datasource.HttpJsonDataSource{
 				Log: abstractlogger.Noop{},
+				Client: datasource.DefaultHttpClient(),
 			}
 			args := ResolvedArgs{
 				{
