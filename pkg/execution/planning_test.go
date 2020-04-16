@@ -3,22 +3,24 @@ package execution
 import (
 	"encoding/json"
 	"fmt"
+	"math/rand"
+	"reflect"
+	"strings"
+	"testing"
+	"time"
+
 	"github.com/davecgh/go-spew/spew"
 	"github.com/go-test/deep"
 	log "github.com/jensneuse/abstractlogger"
 	"github.com/jensneuse/diffview"
+	"github.com/jensneuse/pipeline/pkg/pipe"
+
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
 	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
-	"github.com/jensneuse/pipeline/pkg/pipe"
-	"math/rand"
-	"reflect"
-	"strings"
-	"testing"
-	"time"
 )
 
 func init() {
@@ -393,7 +395,7 @@ func TestPlanner_Plan(t *testing.T) {
 					},
 				},
 			}
-			panicOnErr(base.RegisterDataSourcePlannerFactory("HttpJsonDataSource", datasource.HttpJsonDataSourcePlannerFactoryFactory{}))
+			panicOnErr(base.RegisterDataSourcePlannerFactory("HttpJsonDataSource", &datasource.HttpJsonDataSourcePlannerFactoryFactory{}))
 		},
 		&Object{
 			operationType: ast.OperationTypeQuery,
@@ -406,7 +408,8 @@ func TestPlanner_Plan(t *testing.T) {
 								&SingleFetch{
 									Source: &DataSourceInvocation{
 										DataSource: &datasource.HttpJsonDataSource{
-											Log: log.NoopLogger,
+											Log:    log.NoopLogger,
+											Client: datasource.DefaultHttpClient(),
 										},
 										Args: []datasource.Argument{
 											&datasource.StaticVariableArgument{
@@ -455,6 +458,7 @@ func TestPlanner_Plan(t *testing.T) {
 										},
 										DataSource: &datasource.HttpJsonDataSource{
 											Log: log.NoopLogger,
+											Client: datasource.DefaultHttpClient(),
 										},
 									},
 									BufferName: "post",
@@ -541,6 +545,7 @@ func TestPlanner_Plan(t *testing.T) {
 											},
 											DataSource: &datasource.HttpJsonDataSource{
 												Log: log.NoopLogger,
+												Client: datasource.DefaultHttpClient(),
 											},
 										},
 										BufferName: "comments",
@@ -613,7 +618,7 @@ func TestPlanner_Plan(t *testing.T) {
 					},
 				},
 			}
-			panicOnErr(base.RegisterDataSourcePlannerFactory("HttpJsonDataSource", datasource.HttpJsonDataSourcePlannerFactoryFactory{}))
+			panicOnErr(base.RegisterDataSourcePlannerFactory("HttpJsonDataSource", &datasource.HttpJsonDataSourcePlannerFactoryFactory{}))
 		},
 		&Object{
 			operationType: ast.OperationTypeQuery,
@@ -626,6 +631,7 @@ func TestPlanner_Plan(t *testing.T) {
 							Source: &DataSourceInvocation{
 								DataSource: &datasource.HttpJsonDataSource{
 									Log: log.NoopLogger,
+									Client: datasource.DefaultHttpClient(),
 								},
 								Args: []datasource.Argument{
 									&datasource.StaticVariableArgument{
@@ -688,7 +694,7 @@ func TestPlanner_Plan(t *testing.T) {
 					},
 				},
 			}
-			panicOnErr(base.RegisterDataSourcePlannerFactory("HttpJsonDataSource", datasource.HttpJsonDataSourcePlannerFactoryFactory{}))
+			panicOnErr(base.RegisterDataSourcePlannerFactory("HttpJsonDataSource", &datasource.HttpJsonDataSourcePlannerFactoryFactory{}))
 		},
 		&Object{
 			operationType: ast.OperationTypeQuery,
@@ -701,6 +707,7 @@ func TestPlanner_Plan(t *testing.T) {
 							Source: &DataSourceInvocation{
 								DataSource: &datasource.HttpJsonDataSource{
 									Log: log.NoopLogger,
+									Client: datasource.DefaultHttpClient(),
 								},
 								Args: []datasource.Argument{
 									&datasource.StaticVariableArgument{
@@ -762,7 +769,7 @@ func TestPlanner_Plan(t *testing.T) {
 					},
 				},
 			}
-			panicOnErr(base.RegisterDataSourcePlannerFactory("HttpJsonDataSource", datasource.HttpJsonDataSourcePlannerFactoryFactory{}))
+			panicOnErr(base.RegisterDataSourcePlannerFactory("HttpJsonDataSource", &datasource.HttpJsonDataSourcePlannerFactoryFactory{}))
 		},
 		&Object{
 			operationType: ast.OperationTypeQuery,
@@ -775,6 +782,7 @@ func TestPlanner_Plan(t *testing.T) {
 							Source: &DataSourceInvocation{
 								DataSource: &datasource.HttpJsonDataSource{
 									Log: log.NoopLogger,
+									Client: datasource.DefaultHttpClient(),
 								},
 								Args: []datasource.Argument{
 									&datasource.StaticVariableArgument{
@@ -849,7 +857,7 @@ func TestPlanner_Plan(t *testing.T) {
 					},
 				},
 			}
-			panicOnErr(base.RegisterDataSourcePlannerFactory("HttpJsonDataSource", datasource.HttpJsonDataSourcePlannerFactoryFactory{}))
+			panicOnErr(base.RegisterDataSourcePlannerFactory("HttpJsonDataSource", &datasource.HttpJsonDataSourcePlannerFactoryFactory{}))
 		},
 		&Object{
 			operationType: ast.OperationTypeQuery,
@@ -862,6 +870,7 @@ func TestPlanner_Plan(t *testing.T) {
 							Source: &DataSourceInvocation{
 								DataSource: &datasource.HttpJsonDataSource{
 									Log: log.NoopLogger,
+									Client: datasource.DefaultHttpClient(),
 								},
 								Args: []datasource.Argument{
 									&datasource.StaticVariableArgument{
@@ -949,7 +958,7 @@ func TestPlanner_Plan(t *testing.T) {
 					},
 				},
 			}
-			panicOnErr(base.RegisterDataSourcePlannerFactory("HttpJsonDataSource", datasource.HttpJsonDataSourcePlannerFactoryFactory{}))
+			panicOnErr(base.RegisterDataSourcePlannerFactory("HttpJsonDataSource", &datasource.HttpJsonDataSourcePlannerFactoryFactory{}))
 		},
 		&Object{
 			operationType: ast.OperationTypeQuery,
@@ -962,6 +971,7 @@ func TestPlanner_Plan(t *testing.T) {
 							Source: &DataSourceInvocation{
 								DataSource: &datasource.HttpJsonDataSource{
 									Log: log.NoopLogger,
+									Client: datasource.DefaultHttpClient(),
 								},
 								Args: []datasource.Argument{
 									&datasource.StaticVariableArgument{
@@ -1398,7 +1408,7 @@ func TestPlanner_Plan(t *testing.T) {
 					},
 				},
 			}
-			panicOnErr(base.RegisterDataSourcePlannerFactory("HttpJsonDataSource", datasource.HttpJsonDataSourcePlannerFactoryFactory{}))
+			panicOnErr(base.RegisterDataSourcePlannerFactory("HttpJsonDataSource", &datasource.HttpJsonDataSourcePlannerFactoryFactory{}))
 		},
 		&Object{
 			operationType: ast.OperationTypeQuery,
@@ -1432,6 +1442,7 @@ func TestPlanner_Plan(t *testing.T) {
 								},
 								DataSource: &datasource.HttpJsonDataSource{
 									Log: log.NoopLogger,
+									Client: datasource.DefaultHttpClient(),
 								},
 							},
 							BufferName: "restUser",
@@ -1528,7 +1539,7 @@ func TestPlanner_Plan(t *testing.T) {
 				},
 			}
 			panicOnErr(base.RegisterDataSourcePlannerFactory("GraphQLDataSource", datasource.GraphQLDataSourcePlannerFactoryFactory{}))
-			panicOnErr(base.RegisterDataSourcePlannerFactory("HttpJsonDataSource", datasource.HttpJsonDataSourcePlannerFactoryFactory{}))
+			panicOnErr(base.RegisterDataSourcePlannerFactory("HttpJsonDataSource", &datasource.HttpJsonDataSourcePlannerFactoryFactory{}))
 		},
 		&Object{
 			operationType: ast.OperationTypeQuery,
@@ -1598,6 +1609,7 @@ func TestPlanner_Plan(t *testing.T) {
 											},
 											DataSource: &datasource.HttpJsonDataSource{
 												Log: log.NoopLogger,
+												Client: datasource.DefaultHttpClient(),
 											},
 										},
 										BufferName: "friends",

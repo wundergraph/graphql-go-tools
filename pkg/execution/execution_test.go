@@ -249,6 +249,7 @@ func TestExecution(t *testing.T) {
 												},
 												DataSource: &datasource.HttpJsonDataSource{
 													Log: log.NoopLogger,
+													Client: datasource.DefaultHttpClient(),
 												},
 											},
 											BufferName: "friends",
@@ -346,6 +347,7 @@ func TestExecution(t *testing.T) {
 														},
 														DataSource: &datasource.HttpJsonDataSource{
 															Log: log.NoopLogger,
+															Client: datasource.DefaultHttpClient(),
 														},
 													},
 													BufferName: "pets",
@@ -1332,6 +1334,7 @@ func TestExecutor_ObjectVariables(t *testing.T) {
 										},
 										DataSource: &datasource.HttpJsonDataSource{
 											Log: log.NoopLogger,
+											Client: datasource.DefaultHttpClient(),
 										},
 									},
 								},
@@ -1459,6 +1462,7 @@ func TestExecutor_NestedObjectVariables(t *testing.T) {
 							},
 							DataSource: &datasource.HttpJsonDataSource{
 								Log: log.NoopLogger,
+								Client: datasource.DefaultHttpClient(),
 							},
 						},
 					},
@@ -1495,6 +1499,7 @@ func TestExecutor_NestedObjectVariables(t *testing.T) {
 													},
 													DataSource: &datasource.HttpJsonDataSource{
 														Log: log.NoopLogger,
+														Client: datasource.DefaultHttpClient(),
 													},
 												},
 											},
@@ -2074,6 +2079,7 @@ func TestExecutor_HTTPJSONDataSourceWithBody(t *testing.T) {
 						Source: &DataSourceInvocation{
 							DataSource: &datasource.HttpJsonDataSource{
 								Log: log.NoopLogger,
+								Client: datasource.DefaultHttpClient(),
 							},
 							Args: []datasource.Argument{
 								&datasource.StaticVariableArgument{
@@ -2493,6 +2499,7 @@ func TestExecutor_HTTPJSONDataSourceWithBodyComplexPlayload(t *testing.T) {
 						Source: &DataSourceInvocation{
 							DataSource: &datasource.HttpJsonDataSource{
 								Log: log.NoopLogger,
+								Client: datasource.DefaultHttpClient(),
 							},
 							Args: []datasource.Argument{
 								&datasource.StaticVariableArgument{
@@ -2595,6 +2602,7 @@ func TestExecutor_HTTPJSONDataSourceWithHeaders(t *testing.T) {
 						Source: &DataSourceInvocation{
 							DataSource: &datasource.HttpJsonDataSource{
 								Log: log.NoopLogger,
+								Client: datasource.DefaultHttpClient(),
 							},
 							Args: []datasource.Argument{
 								&datasource.StaticVariableArgument{
@@ -2700,6 +2708,7 @@ func TestExecutor_HTTPJSONDataSourceWithPathSelector(t *testing.T) {
 						Source: &DataSourceInvocation{
 							DataSource: &datasource.HttpJsonDataSource{
 								Log: log.NoopLogger,
+								Client: datasource.DefaultHttpClient(),
 							},
 							Args: []datasource.Argument{
 								&datasource.StaticVariableArgument{
