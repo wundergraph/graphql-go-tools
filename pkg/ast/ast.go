@@ -8,15 +8,17 @@ package ast
 import (
 	"bytes"
 	"fmt"
-	"github.com/cespare/xxhash"
-	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexer/runes"
 	"io"
 	"log"
 	"strconv"
 	"unsafe"
+
+	"github.com/cespare/xxhash"
+
+	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/runes"
 )
 
 type OperationType int
@@ -464,7 +466,7 @@ func (d *Document) FieldDefinitionType(ref int) int {
 }
 
 func (d *Document) FieldDefinitionTypeNode(ref int) Node {
-	typeName := d.ResolveTypeName(d.FieldDefinitions[ref].Type)
+	typeName := d.ResolveTypeNameBytes(d.FieldDefinitions[ref].Type)
 	return d.Index.Nodes[xxhash.Sum64(typeName)]
 }
 
@@ -622,15 +624,19 @@ func (d *Document) InlineFragmentTypeConditionNameString(ref int) string {
 }
 
 func (d *Document) FragmentDefinitionTypeName(ref int) ByteSlice {
-	return d.ResolveTypeName(d.FragmentDefinitions[ref].TypeCondition.Type)
+	return d.ResolveTypeNameBytes(d.FragmentDefinitions[ref].TypeCondition.Type)
 }
 
-func (d *Document) ResolveTypeName(ref int) ByteSlice {
+func (d *Document) ResolveTypeNameBytes(ref int) ByteSlice {
 	graphqlType := d.Types[ref]
 	for graphqlType.TypeKind != TypeKindNamed {
 		graphqlType = d.Types[graphqlType.OfType]
 	}
 	return d.Input.ByteSlice(graphqlType.Name)
+}
+
+func (d *Document) ResolveTypeNameString(ref int) string {
+	return unsafebytes.BytesToString(d.ResolveTypeNameBytes(ref))
 }
 
 func (d *Document) PrintSelections(selections []int) (out string) {
@@ -973,7 +979,7 @@ func (d *Document) TypeDefinitionContainsImplementsInterface(typeName, interface
 		return false
 	}
 	for _, i := range d.ObjectTypeDefinitions[typeDefinition.Ref].ImplementsInterfaces.Refs {
-		implements := d.ResolveTypeName(i)
+		implements := d.ResolveTypeNameBytes(i)
 		if bytes.Equal(interfaceName, implements) {
 			return true
 		}
@@ -1137,7 +1143,7 @@ func (d *Document) NodeFragmentIsAllowedOnObjectTypeDefinition(fragmentNode, obj
 
 func (d *Document) UnionNodeIntersectsInterfaceNode(unionNode, interfaceNode Node) bool {
 	for _, i := range d.UnionTypeDefinitions[unionNode.Ref].UnionMemberTypes.Refs {
-		memberName := d.ResolveTypeName(i)
+		memberName := d.ResolveTypeNameBytes(i)
 		node := d.Index.Nodes[xxhash.Sum64(memberName)]
 		if node.Kind != NodeKindObjectTypeDefinition {
 			continue
@@ -1152,7 +1158,7 @@ func (d *Document) UnionNodeIntersectsInterfaceNode(unionNode, interfaceNode Nod
 func (d *Document) NodeIsUnionMember(node Node, union Node) bool {
 	nodeTypeName := d.NodeNameBytes(node)
 	for _, i := range d.UnionTypeDefinitions[union.Ref].UnionMemberTypes.Refs {
-		memberName := d.ResolveTypeName(i)
+		memberName := d.ResolveTypeNameBytes(i)
 		if bytes.Equal(nodeTypeName, memberName) {
 			return true
 		}

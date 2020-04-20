@@ -296,7 +296,7 @@ func (p *planningVisitor) LeaveSelectionSet(ref int) {
 }
 
 func (p *planningVisitor) jsonValueType(valueType int) JSONValueType {
-	typeName := p.definition.ResolveTypeName(valueType)
+	typeName := p.definition.ResolveTypeNameBytes(valueType)
 	switch {
 	case bytes.Equal(typeName, literal.INT):
 		return IntegerValueType
