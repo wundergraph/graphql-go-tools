@@ -1,10 +1,8 @@
 package fields
 
 type Data struct {
-	Types Types
+	Types []Type
 }
-
-type Types []Type
 
 type Type struct {
 	Name   string

@@ -7,13 +7,13 @@ import (
 )
 
 type RestrictedFieldsValidator interface {
-	Validate(operation *ast.Document, restrictedFields fields.Types) (RestrictedFieldsResult, error)
+	Validate(operation *ast.Document, restrictedFields []fields.Type) (RestrictedFieldsResult, error)
 }
 
 type fieldsValidator struct {
 }
 
-func (d fieldsValidator) Validate(operation *ast.Document, restrictedFields fields.Types) (RestrictedFieldsResult, error) {
+func (d fieldsValidator) Validate(operation *ast.Document, restrictedFields []fields.Type) (RestrictedFieldsResult, error) {
 	report := operationreport.Report{}
 
 	// call fields visitor
