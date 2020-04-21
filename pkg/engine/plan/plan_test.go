@@ -45,6 +45,7 @@ func TestPlanner_Plan(t *testing.T) {
 		query MyQuery($id: ID!){
 			droid(id: $id){
 				name
+				aliased: name
 				friends {
 					name
 				}
@@ -65,6 +66,12 @@ func TestPlanner_Plan(t *testing.T) {
 											Fields: []resolve.Field{
 												{
 													Name: []byte("name"),
+													Value: &resolve.String{
+														Path: []string{"name"},
+													},
+												},
+												{
+													Name: []byte("aliased"),
 													Value: &resolve.String{
 														Path: []string{"name"},
 													},

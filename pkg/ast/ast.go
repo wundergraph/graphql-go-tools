@@ -592,6 +592,17 @@ func (d *Document) NodeNameString(node Node) string {
 	return unsafebytes.BytesToString(d.NodeNameBytes(node))
 }
 
+func (d *Document) FieldAliasOrNameBytes(ref int) ByteSlice {
+	if d.FieldAliasIsDefined(ref) {
+		return d.FieldAliasBytes(ref)
+	}
+	return d.FieldNameBytes(ref)
+}
+
+func (d *Document) FieldAliasOrNameString(ref int) string {
+	return unsafebytes.BytesToString(d.FieldAliasOrNameBytes(ref))
+}
+
 func (d *Document) FieldAliasBytes(ref int) ByteSlice {
 	return d.Input.ByteSlice(d.Fields[ref].Alias.Name)
 }

@@ -2,7 +2,6 @@ package plan
 
 import (
 	"bytes"
-	"fmt"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
@@ -134,7 +133,6 @@ func (v *visitor) LeaveSelectionSet(ref int) {
 }
 
 func (v *visitor) EnterField(ref int) {
-	fmt.Println(v.operation.FieldNameString(ref), v.Path.String())
 	fieldName := v.operation.FieldNameBytes(ref)
 	fieldNameStr := v.operation.FieldNameString(ref)
 	definition, ok := v.definition.NodeFieldDefinitionByName(v.EnclosingTypeDefinition, fieldName)
@@ -178,6 +176,10 @@ func (v *visitor) EnterField(ref int) {
 			Item: value,
 		}
 		value = list
+	}
+
+	if v.operation.FieldAliasIsDefined(ref){
+		fieldName = v.operation.FieldAliasBytes(ref)
 	}
 
 	*v.currentFields = append(*v.currentFields, resolve.Field{
