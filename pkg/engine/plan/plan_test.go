@@ -113,7 +113,7 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		},
 	}))
-	t.Run("named Query in operation with multiple queries", test(testDefinition, `
+	t.Run("named Query in Operation with multiple queries", test(testDefinition, `
 		query Query1($id: ID!){
 			droid(id: $id){
 				name

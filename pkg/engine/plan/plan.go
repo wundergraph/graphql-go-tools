@@ -48,18 +48,42 @@ func (_ *SubscriptionResponsePlan) PlanKind() Kind {
 	return SubscriptionResponseKind
 }
 
+type DataSourcePlanner interface {
+	Register(visitor *Visitor)
+}
+
+type DataSourceConfiguration struct {
+	TypeName   string
+	FieldNames []string
+	Attributes []DataSourceAttribute
+}
+
+type DataSourceAttribute struct {
+	Key   string
+	Value interface{}
+}
+
 type Planner struct {
 	definition *ast.Document
-	visitor    *visitor
+	visitor    *Visitor
 	walker     *astvisitor.Walker
 }
 
-func NewPlanner(definition *ast.Document) *Planner {
+func (p *Planner) RegisterDataSourcePlanner(planner DataSourcePlanner) {
+	planner.Register(p.visitor)
+}
+
+type Configuration struct {
+	DataSources []DataSourceConfiguration
+}
+
+func NewPlanner(definition *ast.Document, config Configuration) *Planner {
 
 	walker := astvisitor.NewWalker(48)
-	visitor := &visitor{
-		Walker:     &walker,
-		definition: definition,
+	visitor := &Visitor{
+		Walker:      &walker,
+		Definition:  definition,
+		DataSources: config.DataSources,
 	}
 
 	walker.RegisterDocumentVisitor(visitor)
@@ -75,36 +99,37 @@ func NewPlanner(definition *ast.Document) *Planner {
 }
 
 func (p *Planner) Plan(operation *ast.Document, operationName []byte, report *operationreport.Report) (plan Plan) {
-	p.visitor.operation = operation
+	p.visitor.Operation = operation
 	p.visitor.opName = operationName
 	p.walker.Walk(operation, p.definition, report)
 	return p.visitor.plan
 }
 
-type visitor struct {
+type Visitor struct {
 	*astvisitor.Walker
-	definition, operation *ast.Document
+	DataSources           []DataSourceConfiguration
+	Definition, Operation *ast.Document
 	opName                []byte
 	plan                  Plan
-	currentObject         *resolve.Object
+	CurrentObject         *resolve.Object
 	currentFields         *[]resolve.Field
 	fields                []*[]resolve.Field
 }
 
-func (v *visitor) EnterDocument(operation, definition *ast.Document) {
+func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
 
 }
 
-func (v *visitor) LeaveDocument(operation, definition *ast.Document) {
+func (v *Visitor) LeaveDocument(operation, definition *ast.Document) {
 
 }
 
-func (v *visitor) EnterOperationDefinition(ref int) {
-	if bytes.Equal(v.operation.OperationDefinitionNameBytes(ref), v.opName) {
-		v.currentObject = &resolve.Object{}
+func (v *Visitor) EnterOperationDefinition(ref int) {
+	if bytes.Equal(v.Operation.OperationDefinitionNameBytes(ref), v.opName) {
+		v.CurrentObject = &resolve.Object{}
 		v.plan = &SynchronousResponsePlan{
 			Response: resolve.GraphQLResponse{
-				Data: v.currentObject,
+				Data: v.CurrentObject,
 			},
 		}
 	} else {
@@ -112,19 +137,19 @@ func (v *visitor) EnterOperationDefinition(ref int) {
 	}
 }
 
-func (v *visitor) LeaveOperationDefinition(ref int) {
-	v.currentObject = nil
+func (v *Visitor) LeaveOperationDefinition(ref int) {
+	v.CurrentObject = nil
 }
 
-func (v *visitor) EnterSelectionSet(ref int) {
-	v.currentObject.FieldSets = append(v.currentObject.FieldSets, resolve.FieldSet{
+func (v *Visitor) EnterSelectionSet(ref int) {
+	v.CurrentObject.FieldSets = append(v.CurrentObject.FieldSets, resolve.FieldSet{
 		Fields: []resolve.Field{},
 	})
-	v.currentFields = &v.currentObject.FieldSets[len(v.currentObject.FieldSets)-1].Fields
+	v.currentFields = &v.CurrentObject.FieldSets[len(v.CurrentObject.FieldSets)-1].Fields
 	v.fields = append(v.fields, v.currentFields)
 }
 
-func (v *visitor) LeaveSelectionSet(ref int) {
+func (v *Visitor) LeaveSelectionSet(ref int) {
 	v.fields = v.fields[:len(v.fields)-1]
 	if len(v.fields) == 0 {
 		return
@@ -132,15 +157,15 @@ func (v *visitor) LeaveSelectionSet(ref int) {
 	v.currentFields = v.fields[len(v.fields)-1]
 }
 
-func (v *visitor) EnterField(ref int) {
-	fieldName := v.operation.FieldNameBytes(ref)
-	fieldNameStr := v.operation.FieldNameString(ref)
-	definition, ok := v.definition.NodeFieldDefinitionByName(v.EnclosingTypeDefinition, fieldName)
+func (v *Visitor) EnterField(ref int) {
+	fieldName := v.Operation.FieldNameBytes(ref)
+	fieldNameStr := v.Operation.FieldNameString(ref)
+	definition, ok := v.Definition.NodeFieldDefinitionByName(v.EnclosingTypeDefinition, fieldName)
 	if !ok {
 		return
 	}
-	fieldDefinitionType := v.definition.FieldDefinitionType(definition)
-	typeName := v.definition.ResolveTypeNameString(fieldDefinitionType)
+	fieldDefinitionType := v.Definition.FieldDefinitionType(definition)
+	typeName := v.Definition.ResolveTypeNameString(fieldDefinitionType)
 
 	var value resolve.Node
 
@@ -165,11 +190,11 @@ func (v *visitor) EnterField(ref int) {
 		obj := &resolve.Object{}
 		value = obj
 		defer func() {
-			v.currentObject = obj
+			v.CurrentObject = obj
 		}()
 	}
 
-	isList := v.definition.TypeIsList(fieldDefinitionType)
+	isList := v.Definition.TypeIsList(fieldDefinitionType)
 	if isList {
 		list := &resolve.Array{
 			Path: []string{fieldNameStr},
@@ -178,8 +203,8 @@ func (v *visitor) EnterField(ref int) {
 		value = list
 	}
 
-	if v.operation.FieldAliasIsDefined(ref){
-		fieldName = v.operation.FieldAliasBytes(ref)
+	if v.Operation.FieldAliasIsDefined(ref) {
+		fieldName = v.Operation.FieldAliasBytes(ref)
 	}
 
 	*v.currentFields = append(*v.currentFields, resolve.Field{
@@ -188,6 +213,6 @@ func (v *visitor) EnterField(ref int) {
 	})
 }
 
-func (v *visitor) LeaveField(ref int) {
+func (v *Visitor) LeaveField(ref int) {
 
 }

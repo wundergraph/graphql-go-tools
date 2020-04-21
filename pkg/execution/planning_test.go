@@ -86,7 +86,7 @@ func run(definition string, operation string, configureBase func(base *datasourc
 
 func TestPlanner_Plan(t *testing.T) {
 
-	t.Run("GraphQLDataSource", run(withBaseSchema(GraphQLDataSourceSchema), `
+	t.Run("GraphQLDataSourcePlanner", run(withBaseSchema(GraphQLDataSourceSchema), `
 				query GraphQLQuery($code: String!) {
 					country(code: $code) {
 						code
@@ -102,7 +102,7 @@ func TestPlanner_Plan(t *testing.T) {
 						TypeName:  "query",
 						FieldName: "country",
 						DataSource: datasource.SourceConfig{
-							Name: "GraphQLDataSource",
+							Name: "GraphQLDataSourcePlanner",
 							Config: func() []byte {
 								data, _ := json.Marshal(datasource.GraphQLDataSourceConfig{
 									Host: "countries.trevorblades.com",
@@ -114,7 +114,7 @@ func TestPlanner_Plan(t *testing.T) {
 					},
 				},
 			}
-			panicOnErr(base.RegisterDataSourcePlannerFactory("GraphQLDataSource", datasource.GraphQLDataSourcePlannerFactoryFactory{}))
+			panicOnErr(base.RegisterDataSourcePlannerFactory("GraphQLDataSourcePlanner", datasource.GraphQLDataSourcePlannerFactoryFactory{}))
 		},
 		&Object{
 			operationType: ast.OperationTypeQuery,
@@ -205,7 +205,7 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		},
 	))
-	t.Run("GraphQLDataSource mutation", run(withBaseSchema(GraphQLDataSourceSchema), `
+	t.Run("GraphQLDataSourcePlanner mutation", run(withBaseSchema(GraphQLDataSourceSchema), `
 				mutation LikePost($id: ID!) {
 					likePost(id: $id) {
 						id
@@ -219,7 +219,7 @@ func TestPlanner_Plan(t *testing.T) {
 					TypeName:  "mutation",
 					FieldName: "likePost",
 					DataSource: datasource.SourceConfig{
-						Name: "GraphQLDataSource",
+						Name: "GraphQLDataSourcePlanner",
 						Config: func() []byte {
 							data, _ := json.Marshal(datasource.GraphQLDataSourceConfig{
 								Host: "fakebook.com",
@@ -231,7 +231,7 @@ func TestPlanner_Plan(t *testing.T) {
 				},
 			},
 		}
-		panicOnErr(base.RegisterDataSourcePlannerFactory("GraphQLDataSource", datasource.GraphQLDataSourcePlannerFactoryFactory{}))
+		panicOnErr(base.RegisterDataSourcePlannerFactory("GraphQLDataSourcePlanner", datasource.GraphQLDataSourcePlannerFactoryFactory{}))
 	},
 		&Object{
 			operationType: ast.OperationTypeMutation,
@@ -1282,7 +1282,7 @@ func TestPlanner_Plan(t *testing.T) {
 						TypeName:  "query",
 						FieldName: "user",
 						DataSource: datasource.SourceConfig{
-							Name: "GraphQLDataSource",
+							Name: "GraphQLDataSourcePlanner",
 							Config: toJSON(datasource.GraphQLDataSourceConfig{
 								Host: "localhost:8001",
 								URL:  "/graphql",
@@ -1291,7 +1291,7 @@ func TestPlanner_Plan(t *testing.T) {
 					},
 				},
 			}
-			panicOnErr(base.RegisterDataSourcePlannerFactory("GraphQLDataSource", datasource.GraphQLDataSourcePlannerFactoryFactory{}))
+			panicOnErr(base.RegisterDataSourcePlannerFactory("GraphQLDataSourcePlanner", datasource.GraphQLDataSourcePlannerFactoryFactory{}))
 		},
 		&Object{
 			operationType: ast.OperationTypeQuery,
@@ -1515,7 +1515,7 @@ func TestPlanner_Plan(t *testing.T) {
 						TypeName:  "query",
 						FieldName: "user",
 						DataSource: datasource.SourceConfig{
-							Name: "GraphQLDataSource",
+							Name: "GraphQLDataSourcePlanner",
 							Config: toJSON(datasource.GraphQLDataSourceConfig{
 								Host: "localhost:8001",
 								URL:  "/graphql",
@@ -1538,7 +1538,7 @@ func TestPlanner_Plan(t *testing.T) {
 					},
 				},
 			}
-			panicOnErr(base.RegisterDataSourcePlannerFactory("GraphQLDataSource", datasource.GraphQLDataSourcePlannerFactoryFactory{}))
+			panicOnErr(base.RegisterDataSourcePlannerFactory("GraphQLDataSourcePlanner", datasource.GraphQLDataSourcePlannerFactoryFactory{}))
 			panicOnErr(base.RegisterDataSourcePlannerFactory("HttpJsonDataSource", &datasource.HttpJsonDataSourcePlannerFactoryFactory{}))
 		},
 		&Object{
@@ -1780,13 +1780,13 @@ func TestPlanner_Plan(t *testing.T) {
 						Path: "userPets",
 					},
 					DataSource: SourceConfig{
-						Name: "GraphQLDataSource",
+						Name: "GraphQLDataSourcePlanner",
 						Config: toJSON(GraphQLDataSourceConfig{
 							Host: "localhost:8002",
 							URL:  "/graphql",
 						}),
 					},
-					@GraphQLDataSource(
+					@GraphQLDataSourcePlanner(
 							host: "localhost:8002"
 							url: "/graphql"
 							params: [
@@ -1803,7 +1803,7 @@ func TestPlanner_Plan(t *testing.T) {
 					TypeNameRestriction:  "query",
 					FieldName: "user",
 					DataSource: SourceConfig{
-						Name: "GraphQLDataSource",
+						Name: "GraphQLDataSourcePlanner",
 						Config: toJSON(GraphQLDataSourceConfig{
 							Host: "localhost:8001",
 							URL:  "/graphql",
@@ -1852,7 +1852,7 @@ func TestPlanner_Plan(t *testing.T) {
 										VariableName: []byte("id"),
 									},
 								},
-								DataSource: &GraphQLDataSource{},
+								DataSource: &GraphQLDataSourcePlanner{},
 							},
 							BufferName: "user",
 						},
@@ -1920,7 +1920,7 @@ func TestPlanner_Plan(t *testing.T) {
 															},
 														},
 													},
-													DataSource: &GraphQLDataSource{},
+													DataSource: &GraphQLDataSourcePlanner{},
 												},
 												BufferName: "pets",
 											},
@@ -1976,7 +1976,7 @@ func TestPlanner_Plan(t *testing.T) {
 																	},
 																},
 															},
-															DataSource: &GraphQLDataSource{},
+															DataSource: &GraphQLDataSourcePlanner{},
 														},
 														BufferName: "pets",
 													},
@@ -3425,7 +3425,7 @@ func BenchmarkPlanner_Plan(b *testing.B) {
 				TypeName:  "query",
 				FieldName: "user",
 				DataSource: datasource.SourceConfig{
-					Name: "GraphQLDataSource",
+					Name: "GraphQLDataSourcePlanner",
 					Config: toJSON(datasource.GraphQLDataSourceConfig{
 						Host: "localhost:8001",
 						URL:  "/graphql",
@@ -3450,7 +3450,7 @@ func BenchmarkPlanner_Plan(b *testing.B) {
 				TypeName:  "query",
 				FieldName: "user",
 				DataSource: datasource.SourceConfig{
-					Name: "GraphQLDataSource",
+					Name: "GraphQLDataSourcePlanner",
 					Config: toJSON(datasource.GraphQLDataSourceConfig{
 						Host: "localhost:8001",
 						URL:  "/graphql",
@@ -3543,7 +3543,7 @@ type Foo {
 `
 
 const GraphQLDataSourceSchema = `
-directive @GraphQLDataSource (
+directive @GraphQLDataSourcePlanner (
     host: String!
     url: String!
 	method: HTTP_METHOD = POST
