@@ -113,6 +113,47 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		},
 	}))
+	t.Run("named Query in operation with multiple queries", test(testDefinition, `
+		query Query1($id: ID!){
+			droid(id: $id){
+				name
+			}
+		}
+		query Query2($id: ID!){
+			droid(id: $id){
+				name
+				primaryFunction
+			}
+		}
+	`, "Query1", &SynchronousResponsePlan{
+		Response: resolve.GraphQLResponse{
+			Data: &resolve.Object{
+				FieldSets: []resolve.FieldSet{
+					{
+						Fields: []resolve.Field{
+							{
+								Name: []byte("droid"),
+								Value: &resolve.Object{
+									FieldSets: []resolve.FieldSet{
+										{
+											Fields: []resolve.Field{
+												{
+													Name: []byte("name"),
+													Value: &resolve.String{
+														Path: []string{"name"},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}))
 }
 
 const testDefinition = `
