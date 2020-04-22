@@ -1,6 +1,6 @@
 package fields
 
 type Type struct {
-	Name   string
-	Fields []string
+	Name   string   `json:"name"`
+	Fields []string `json:"fields"`
 }
