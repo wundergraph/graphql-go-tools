@@ -5,6 +5,7 @@ package astimport
 
 import (
 	"fmt"
+
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 )
 
@@ -122,4 +123,28 @@ func (i *Importer) ImportVariableDefinitions(refs []int, from, to *ast.Document)
 		definitions[j] = i.ImportVariableDefinition(k, from, to)
 	}
 	return definitions
+}
+
+func (i *Importer) ImportField(ref int, from, to *ast.Document) int {
+	field := ast.Field{
+		Alias: ast.Alias{
+			IsDefined: from.FieldAliasIsDefined(ref),
+		},
+		Name:         to.Input.AppendInputBytes(from.FieldNameBytes(ref)),
+		HasArguments: from.FieldHasArguments(ref),
+		// HasDirectives: from.FieldHasDirectives(ref), // HasDirectives: false, //TODO: implement import directives
+		SelectionSet:  -1,
+		HasSelections: false,
+	}
+	if field.Alias.IsDefined {
+		field.Alias.Name = to.Input.AppendInputBytes(from.FieldAliasBytes(ref))
+	}
+	if field.HasArguments {
+		field.Arguments.Refs = i.ImportArguments(from.FieldArguments(ref), from, to)
+	}
+	if field.HasDirectives {
+
+	}
+	to.Fields = append(to.Fields, field)
+	return len(to.Fields) - 1
 }

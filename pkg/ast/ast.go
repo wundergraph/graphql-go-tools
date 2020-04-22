@@ -301,6 +301,7 @@ func (d *Document) Reset() {
 
 	d.RefIndex = -1
 	d.Index.Reset()
+	d.Input.Reset()
 }
 
 func (d *Document) NextRefIndex() int {
@@ -2663,6 +2664,13 @@ func (d *Document) OperationDefinitionIsLastRootNode(ref int) bool {
 	return false
 }
 
+func (d *Document) AddOperationDefinitionToRootNodes(definition OperationDefinition) Node {
+	d.OperationDefinitions = append(d.OperationDefinitions, definition)
+	node := Node{Kind: NodeKindOperationDefinition, Ref: len(d.OperationDefinitions) - 1}
+	d.RootNodes = append(d.RootNodes, node)
+	return node
+}
+
 func (d *Document) FragmentDefinitionIsLastRootNode(ref int) bool {
 	for i := range d.RootNodes {
 		if d.RootNodes[i].Kind == NodeKindFragmentDefinition && d.RootNodes[i].Ref == ref {
@@ -2838,6 +2846,19 @@ func (d *Document) SelectionsAfterInlineFragment(inlineFragment int, selectionSe
 	return false
 }
 
+func (d *Document) AddSelectionSet() Node {
+	d.SelectionSets = append(d.SelectionSets, SelectionSet{SelectionRefs: d.Refs[d.NextRefIndex()][:0]})
+	return Node{
+		Kind: NodeKindSelectionSet,
+		Ref:  len(d.SelectionSets) - 1,
+	}
+}
+
+func (d *Document) AddSelection(set int, selection Selection) {
+	d.Selections = append(d.Selections, selection)
+	d.SelectionSets[set].SelectionRefs = append(d.SelectionSets[set].SelectionRefs, len(d.Selections)-1)
+}
+
 type Field struct {
 	Alias         Alias              // optional, e.g. renamed:
 	Name          ByteSliceReference // field name, e.g. id
@@ -2866,6 +2887,14 @@ func (d *Document) FieldNameBytes(ref int) ByteSlice {
 
 func (d *Document) FieldNameString(ref int) string {
 	return unsafebytes.BytesToString(d.Input.ByteSlice(d.Fields[ref].Name))
+}
+
+func (d *Document) AddField(field Field) Node {
+	d.Fields = append(d.Fields, field)
+	return Node{
+		Kind: NodeKindField,
+		Ref:  len(d.Fields) - 1,
+	}
 }
 
 type Alias struct {

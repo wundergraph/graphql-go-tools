@@ -4,6 +4,7 @@ import (
 	"bytes"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/astimport"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
@@ -55,13 +56,24 @@ type DataSourcePlanner interface {
 type DataSourceConfiguration struct {
 	TypeName          string
 	FieldNames        []string
-	Attributes        []DataSourceAttribute
+	Attributes        DataSourceAttributes
 	DataSourcePlanner DataSourcePlanner
 }
 
 type DataSourceAttribute struct {
 	Key   string
-	Value interface{}
+	Value []byte
+}
+
+type DataSourceAttributes []DataSourceAttribute
+
+func (d *DataSourceAttributes) ValueForKey(key string) []byte {
+	for i := range *d {
+		if (*d)[i].Key == key {
+			return (*d)[i].Value
+		}
+	}
+	return nil
 }
 
 type Planner struct {
@@ -78,9 +90,9 @@ func NewPlanner(definition *ast.Document, config Configuration) *Planner {
 
 	walker := astvisitor.NewWalker(48)
 	visitor := &Visitor{
-		Walker:                &walker,
-		Definition:            definition,
-		DataSources:           config.DataSources,
+		Walker:      &walker,
+		Definition:  definition,
+		DataSources: config.DataSources,
 	}
 
 	walker.SetVisitorFilter(visitor)
@@ -111,6 +123,7 @@ type Visitor struct {
 	*astvisitor.Walker
 	DataSources             []DataSourceConfiguration
 	Definition, Operation   *ast.Document
+	Importer                astimport.Importer
 	opName                  []byte
 	plan                    Plan
 	CurrentObject           *resolve.Object
@@ -130,6 +143,22 @@ func (v *Visitor) AllowVisitor(visitorKind astvisitor.VisitorKind, ref int, visi
 	default:
 		return visitor == v.activeDataSourcePlanner
 	}
+}
+
+func (v *Visitor) IsRootField(ref int) (bool, *DataSourceConfiguration) {
+	fieldName := v.Operation.FieldNameString(ref)
+	enclosingTypeName := v.EnclosingTypeDefinition.Name(v.Definition)
+	for i := range v.DataSources {
+		if enclosingTypeName != v.DataSources[i].TypeName {
+			continue
+		}
+		for j := range v.DataSources[i].FieldNames {
+			if fieldName == v.DataSources[i].FieldNames[j] {
+				return true, &v.DataSources[i]
+			}
+		}
+	}
+	return false, nil
 }
 
 func (v *Visitor) EnterDocument(operation, definition *ast.Document) {

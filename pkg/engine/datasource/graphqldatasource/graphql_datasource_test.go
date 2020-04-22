@@ -19,7 +19,7 @@ import (
 // TODO: next steps -> add tests for GraphQL DS Load, then complete GraphQL DS Plan test, next implement GraphQL Planner
 
 /*
-query MyQuery($id: ID!){
+operation MyQuery($id: ID!){
 	droid(id: $id){
 		name
 		aliased: name
@@ -44,7 +44,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 				Fetch: &resolve.SingleFetch{
 					DataSource: &Source{},
 					BufferId:   0,
-					Input:      []byte(`{"url":"https://swapi.com/graphql","query":"query($id: ID!){droid(id: $id){name}}","variables":{"id":$$0}}`),
+					Input:      []byte(`{"url":"https://swapi.com/graphql","operation":"operation($id: ID!){droid(id: $id){name}}","variables":{"id":$$0}}`),
 					Variables: []resolve.VariableRef{
 						{
 							Name: []byte("$$0"),
@@ -87,7 +87,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 				Attributes: []plan.DataSourceAttribute{
 					{
 						Key:   "url",
-						Value: "https://swapi.com/graphql",
+						Value: []byte("https://swapi.com/graphql"),
 					},
 				},
 				DataSourcePlanner: &Planner{},
@@ -114,12 +114,12 @@ func TestGraphQLDataSourceExecution(t *testing.T) {
 	t.Run("simple", test(func() context.Context {
 		return context.Background()
 	}, func(server *httptest.Server) string {
-		return fmt.Sprintf(`{"url":"%s","query":"query($id: ID!){droid(id: $id){name}}","variables":{"id":1}}`, server.URL)
+		return fmt.Sprintf(`{"url":"%s","operation":"operation($id: ID!){droid(id: $id){name}}","variables":{"id":1}}`, server.URL)
 	}, func(t *testing.T) http.HandlerFunc {
 		return func(writer http.ResponseWriter, request *http.Request) {
 			body, err := ioutil.ReadAll(request.Body)
 			assert.NoError(t, err)
-			assert.Equal(t, `{"query":"query($id: ID!){droid(id: $id){name}}","variables":{"id":1}}`, string(body))
+			assert.Equal(t, `{"operation":"operation($id: ID!){droid(id: $id){name}}","variables":{"id":1}}`, string(body))
 			assert.Equal(t, request.Method, http.MethodPost)
 			_, err = writer.Write([]byte(`{"data":{"droid":{"name":"r2d2"}}"}`))
 			assert.NoError(t, err)
