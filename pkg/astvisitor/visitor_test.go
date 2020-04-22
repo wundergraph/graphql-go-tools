@@ -3,14 +3,16 @@ package astvisitor
 import (
 	"bytes"
 	"fmt"
-	"github.com/jensneuse/diffview"
-	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
-	"github.com/sebdah/goldie"
 	"io"
 	"io/ioutil"
 	"testing"
+
+	"github.com/jensneuse/diffview"
+	"github.com/sebdah/goldie"
+
+	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
+	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
 var must = func(err error) {
@@ -52,7 +54,7 @@ func TestVisitOperation(t *testing.T) {
 	}
 }
 
-func TestVisitWithTypeName(t *testing.T){
+func TestVisitWithTypeName(t *testing.T) {
 	operation := `
 		query getApi($id: String!) {
 		  api(id: $id) {
@@ -92,7 +94,7 @@ func TestVisitWithTypeName(t *testing.T){
 	op := unsafeparser.ParseGraphqlDocumentString(operation)
 	def := unsafeparser.ParseGraphqlDocumentString(definition)
 	var report operationreport.Report
-	walker.Walk(&op,&def,&report)
+	walker.Walk(&op, &def, &report)
 	if report.HasErrors() {
 		t.Fatal(report.Error())
 	}
@@ -299,6 +301,7 @@ func BenchmarkMinimalVisitor(b *testing.B) {
 
 	walker := NewWalker(48)
 	walker.RegisterEnterFieldVisitor(visitor)
+	walker.SetVisitorFilter(visitor)
 	report := operationreport.Report{}
 
 	b.ResetTimer()
@@ -311,6 +314,10 @@ func BenchmarkMinimalVisitor(b *testing.B) {
 }
 
 type minimalVisitor struct {
+}
+
+func (m *minimalVisitor) AllowVisitor(kind VisitorKind, ref int, visitor interface{}) bool {
+	return visitor == m
 }
 
 func (m *minimalVisitor) EnterField(ref int) {
