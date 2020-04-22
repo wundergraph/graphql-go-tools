@@ -6,8 +6,12 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
+type data struct {
+	Types []Type
+}
+
 type Generator struct {
-	Data    *Data
+	Data    *data
 	walker  *astvisitor.Walker
 	visitor *requestVisitor
 }
@@ -26,7 +30,7 @@ func NewGenerator() *Generator {
 	}
 }
 
-func (g *Generator) Generate(definition *ast.Document, report *operationreport.Report, data *Data) {
+func (g *Generator) Generate(definition *ast.Document, report *operationreport.Report, data *data) {
 	g.visitor.data = data
 	g.visitor.definition = definition
 	g.walker.Walk(definition, nil, report)
@@ -35,5 +39,5 @@ func (g *Generator) Generate(definition *ast.Document, report *operationreport.R
 type requestVisitor struct {
 	*astvisitor.Walker
 	definition *ast.Document
-	data       *Data
+	data       *data
 }
