@@ -45,6 +45,7 @@ type Walker struct {
 	skip            bool
 	revisit         bool
 	filter          VisitorFilter
+	deferred        []func()
 }
 
 // NewWalker returns a fully initialized Walker
@@ -53,6 +54,7 @@ func NewWalker(ancestorSize int) Walker {
 		Ancestors:       make([]ast.Node, 0, ancestorSize),
 		Path:            make([]ast.PathItem, 0, ancestorSize),
 		typeDefinitions: make([]ast.Node, 0, ancestorSize),
+		deferred:        make([]func(), 0, 8),
 	}
 }
 
@@ -825,6 +827,7 @@ func (w *Walker) ResetVisitors() {
 	w.visitors.leaveSchemaExtension = w.visitors.leaveSchemaExtension[:0]
 	w.visitors.enterRootOperationTypeDefinition = w.visitors.enterRootOperationTypeDefinition[:0]
 	w.visitors.leaveRootOperationTypeDefinition = w.visitors.leaveRootOperationTypeDefinition[:0]
+	w.deferred = w.deferred[:0]
 }
 
 func (w *Walker) RegisterExecutableVisitor(visitor ExecutableVisitor) {
@@ -1293,6 +1296,22 @@ func (w *Walker) Walk(document, definition *ast.Document, report *operationrepor
 	w.walk()
 }
 
+// Defer runs the provided func() after the current batch of visitors
+// This gives you the possibility to execute some code that should e.g. run after all EnterField Visitors
+func (w *Walker) Defer(fn func()) {
+	w.deferred = append(w.deferred, fn)
+}
+
+func (w *Walker) runDeferred() {
+	if len(w.deferred) == 0 {
+		return
+	}
+	for i := range w.deferred {
+		w.deferred[i]()
+	}
+	w.deferred = w.deferred[:0]
+}
+
 func (w *Walker) appendAncestor(ref int, kind ast.NodeKind) {
 
 	w.Ancestors = append(w.Ancestors, ast.Node{
@@ -1753,6 +1772,8 @@ func (w *Walker) walkField(ref int) {
 		}
 		i++
 	}
+
+	w.runDeferred()
 
 	w.appendAncestor(ref, ast.NodeKindField)
 	if w.stop {

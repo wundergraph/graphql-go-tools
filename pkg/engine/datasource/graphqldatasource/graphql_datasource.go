@@ -10,27 +10,62 @@ import (
 	"github.com/buger/jsonparser"
 	"github.com/tidwall/sjson"
 
+	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 )
 
 type Planner struct {
-	v *plan.Visitor
+	v             *plan.Visitor
+	fetch         *resolve.SingleFetch
+	upstreamQuery *ast.Document
+	upstreamNodes []ast.Node
 }
 
-func (g *Planner) EnterField(ref int) {
-	fieldName := g.v.Operation.FieldNameString(ref)
-	fmt.Println("Planner", fieldName, g.v.Path.String())
+func (p *Planner) Register(visitor *plan.Visitor) {
+	p.v = visitor
+	visitor.RegisterFieldVisitor(p)
+	visitor.RegisterDocumentVisitor(p)
 }
 
-func (g *Planner) LeaveField(ref int) {
+func (p *Planner) EnterDocument(operation, definition *ast.Document) {
+	if p.upstreamQuery == nil {
+		p.upstreamQuery = ast.NewDocument()
+	} else {
+		p.upstreamQuery.Input.Reset()
+	}
+	p.upstreamNodes = p.upstreamNodes[:0]
+}
+
+func (p *Planner) isRootField() bool {
+	for i := range p.v.Ancestors {
+		if p.v.Ancestors[i].Kind == ast.NodeKindField {
+			return false
+		}
+	}
+	return true
+}
+
+func (p *Planner) EnterField(ref int) {
+	isRootField := p.isRootField()
+	fieldName := p.v.Operation.FieldNameString(ref)
+	fmt.Printf("Planner - field: %s, path: %s, isRootField: %t\n", fieldName, p.v.Path.String(), isRootField)
+
+	if isRootField {
+		if p.v.CurrentObject.Fetch == nil {
+			p.fetch = &resolve.SingleFetch{}
+			p.v.CurrentObject.Fetch = p.fetch
+		}
+	}
+}
+
+func (p *Planner) LeaveField(ref int) {
 
 }
 
-func (g *Planner) Register(visitor *plan.Visitor) {
-	g.v = visitor
-	visitor.RegisterFieldVisitor(g)
+func (p *Planner) LeaveDocument(operation, definition *ast.Document) {
+	p.fetch.Input = []byte("dummy")
 }
 
 type Source struct {

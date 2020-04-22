@@ -15,21 +15,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
-type Option func(config *plan.Configuration, planner *plan.Planner)
-
-func WithDataSource(dataSource plan.DataSourceConfiguration) Option {
-	return func(config *plan.Configuration, planner *plan.Planner) {
-		config.DataSources = append(config.DataSources, dataSource)
-	}
-}
-
-func WithPlanner(dataSourcePlanner plan.DataSourcePlanner) Option {
-	return func(config *plan.Configuration, planner *plan.Planner) {
-		planner.RegisterDataSourcePlanner(dataSourcePlanner)
-	}
-}
-
-func RunTest(definition, operation, operationName string, expectedPlan plan.Plan, option ...Option) func(t *testing.T) {
+func RunTest(definition, operation, operationName string, expectedPlan plan.Plan, config plan.Configuration) func(t *testing.T) {
 	return func(t *testing.T) {
 		def := unsafeparser.ParseGraphqlDocumentString(definition)
 		op := unsafeparser.ParseGraphqlDocumentString(operation)
@@ -42,13 +28,7 @@ func RunTest(definition, operation, operationName string, expectedPlan plan.Plan
 		norm.NormalizeOperation(&op, &def, &report)
 		valid := astvalidation.DefaultOperationValidator()
 		valid.Validate(&op, &def, &report)
-		config := plan.Configuration{
-			DataSources: []plan.DataSourceConfiguration{},
-		}
 		p := plan.NewPlanner(&def, config)
-		for i := range option {
-			option[i](&config, p)
-		}
 		actualPlan := p.Plan(&op, []byte(operationName), &report)
 		if report.HasErrors() {
 			t.Fatal(report.Error())

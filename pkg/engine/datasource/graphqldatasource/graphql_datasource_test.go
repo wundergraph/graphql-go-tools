@@ -44,6 +44,15 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 				Fetch: &resolve.SingleFetch{
 					DataSource: &Source{},
 					BufferId:   0,
+					Input:      []byte(`{"url":"https://swapi.com/graphql","query":"query($id: ID!){droid(id: $id){name}}","variables":{"id":$$0}}`),
+					Variables: []resolve.VariableRef{
+						{
+							Name: []byte("$$0"),
+							Variable: &resolve.ContextVariable{
+								Path: []string{"id"},
+							},
+						},
+					},
 				},
 				FieldSets: []resolve.FieldSet{
 					{
@@ -70,20 +79,21 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 				},
 			},
 		},
-	}, WithPlanner(&Planner{}), WithDataSource(plan.DataSourceConfiguration{
-		TypeName:   "Query",
-		FieldNames: []string{"droid"},
-		Attributes: []plan.DataSourceAttribute{
+	}, plan.Configuration{
+		DataSources: []plan.DataSourceConfiguration{
 			{
-				Key:   "Host",
-				Value: "swapi.com",
-			},
-			{
-				Key:   "URL",
-				Value: "/",
+				TypeName:   "Query",
+				FieldNames: []string{"droid"},
+				Attributes: []plan.DataSourceAttribute{
+					{
+						Key:   "url",
+						Value: "https://swapi.com/graphql",
+					},
+				},
+				DataSourcePlanner: &Planner{},
 			},
 		},
-	})))
+	}))
 }
 
 func TestGraphQLDataSourceExecution(t *testing.T) {

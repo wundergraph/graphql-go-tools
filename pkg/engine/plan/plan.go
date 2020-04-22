@@ -53,9 +53,10 @@ type DataSourcePlanner interface {
 }
 
 type DataSourceConfiguration struct {
-	TypeName   string
-	FieldNames []string
-	Attributes []DataSourceAttribute
+	TypeName          string
+	FieldNames        []string
+	Attributes        []DataSourceAttribute
+	DataSourcePlanner DataSourcePlanner
 }
 
 type DataSourceAttribute struct {
@@ -69,10 +70,6 @@ type Planner struct {
 	walker     *astvisitor.Walker
 }
 
-func (p *Planner) RegisterDataSourcePlanner(planner DataSourcePlanner) {
-	planner.Register(p.visitor)
-}
-
 type Configuration struct {
 	DataSources []DataSourceConfiguration
 }
@@ -81,15 +78,20 @@ func NewPlanner(definition *ast.Document, config Configuration) *Planner {
 
 	walker := astvisitor.NewWalker(48)
 	visitor := &Visitor{
-		Walker:      &walker,
-		Definition:  definition,
-		DataSources: config.DataSources,
+		Walker:                &walker,
+		Definition:            definition,
+		DataSources:           config.DataSources,
 	}
 
+	walker.SetVisitorFilter(visitor)
 	walker.RegisterDocumentVisitor(visitor)
 	walker.RegisterOperationDefinitionVisitor(visitor)
 	walker.RegisterSelectionSetVisitor(visitor)
 	walker.RegisterFieldVisitor(visitor)
+
+	for i := range config.DataSources {
+		config.DataSources[i].DataSourcePlanner.Register(visitor)
+	}
 
 	return &Planner{
 		definition: definition,
@@ -107,13 +109,27 @@ func (p *Planner) Plan(operation *ast.Document, operationName []byte, report *op
 
 type Visitor struct {
 	*astvisitor.Walker
-	DataSources           []DataSourceConfiguration
-	Definition, Operation *ast.Document
-	opName                []byte
-	plan                  Plan
-	CurrentObject         *resolve.Object
-	currentFields         *[]resolve.Field
-	fields                []*[]resolve.Field
+	DataSources             []DataSourceConfiguration
+	Definition, Operation   *ast.Document
+	opName                  []byte
+	plan                    Plan
+	CurrentObject           *resolve.Object
+	currentFields           *[]resolve.Field
+	fields                  []*[]resolve.Field
+	activeDataSourcePlanner DataSourcePlanner
+}
+
+func (v *Visitor) AllowVisitor(visitorKind astvisitor.VisitorKind, ref int, visitor interface{}) bool {
+	if visitor == v {
+		return true
+	}
+	switch visitorKind {
+	case astvisitor.EnterDocument,
+		astvisitor.LeaveDocument:
+		return true
+	default:
+		return visitor == v.activeDataSourcePlanner
+	}
 }
 
 func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
@@ -158,8 +174,12 @@ func (v *Visitor) LeaveSelectionSet(ref int) {
 }
 
 func (v *Visitor) EnterField(ref int) {
+
 	fieldName := v.Operation.FieldNameBytes(ref)
 	fieldNameStr := v.Operation.FieldNameString(ref)
+
+	v.setActiveDataSourcePlanner(fieldNameStr)
+
 	definition, ok := v.Definition.NodeFieldDefinitionByName(v.EnclosingTypeDefinition, fieldName)
 	if !ok {
 		return
@@ -168,6 +188,7 @@ func (v *Visitor) EnterField(ref int) {
 	typeName := v.Definition.ResolveTypeNameString(fieldDefinitionType)
 
 	var value resolve.Node
+	var nextCurrentObject *resolve.Object
 
 	switch typeName {
 	case "String":
@@ -189,28 +210,46 @@ func (v *Visitor) EnterField(ref int) {
 	default:
 		obj := &resolve.Object{}
 		value = obj
-		defer func() {
-			v.CurrentObject = obj
-		}()
+		nextCurrentObject = obj
 	}
 
-	isList := v.Definition.TypeIsList(fieldDefinitionType)
-	if isList {
-		list := &resolve.Array{
-			Path: []string{fieldNameStr},
-			Item: value,
+	v.Defer(func() {
+		if nextCurrentObject != nil {
+			v.CurrentObject = nextCurrentObject
 		}
-		value = list
-	}
+		isList := v.Definition.TypeIsList(fieldDefinitionType)
+		if isList {
+			list := &resolve.Array{
+				Path: []string{fieldNameStr},
+				Item: value,
+			}
+			value = list
+		}
 
-	if v.Operation.FieldAliasIsDefined(ref) {
-		fieldName = v.Operation.FieldAliasBytes(ref)
-	}
+		if v.Operation.FieldAliasIsDefined(ref) {
+			fieldName = v.Operation.FieldAliasBytes(ref)
+		}
 
-	*v.currentFields = append(*v.currentFields, resolve.Field{
-		Name:  fieldName,
-		Value: value,
+		*v.currentFields = append(*v.currentFields, resolve.Field{
+			Name:  fieldName,
+			Value: value,
+		})
 	})
+}
+
+func (v *Visitor) setActiveDataSourcePlanner(currentFieldName string) {
+	enclosingTypeName := v.EnclosingTypeDefinition.Name(v.Definition)
+	for i := range v.DataSources {
+		if v.DataSources[i].TypeName != enclosingTypeName {
+			continue
+		}
+		for j := range v.DataSources[i].FieldNames {
+			if v.DataSources[i].FieldNames[j] == currentFieldName {
+				v.activeDataSourcePlanner = v.DataSources[i].DataSourcePlanner
+				return
+			}
+		}
+	}
 }
 
 func (v *Visitor) LeaveField(ref int) {
