@@ -1,7 +1,6 @@
 package graphql
 
 import (
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/introspection"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
@@ -21,15 +20,20 @@ type (
 	}
 
 	SchemaFieldsGenerator interface {
-		Generate(schema *ast.Document) (SchemaFieldsResult, error)
+		Generate(schema string) (SchemaFieldsResult, error)
 	}
 )
 
 type schemaFieldsGenerator struct{}
 
-func (g schemaFieldsGenerator) Generate(schema *ast.Document) (SchemaFieldsResult, error) {
-	if schema == nil {
-		return SchemaFieldsResult{}, ErrNilSchema
+func (g schemaFieldsGenerator) Generate(schema string) (SchemaFieldsResult, error) {
+	if schema == "" {
+		return SchemaFieldsResult{}, ErrEmptySchema
+	}
+
+	parsedSchema, err := NewSchemaFromString(schema)
+	if err != nil {
+		return SchemaFieldsResult{}, err
 	}
 
 	var (
@@ -38,7 +42,7 @@ func (g schemaFieldsGenerator) Generate(schema *ast.Document) (SchemaFieldsResul
 	)
 
 	generator := introspection.NewGenerator()
-	generator.Generate(schema, &report, &data)
+	generator.Generate(&parsedSchema.document, &report, &data)
 
 	if report.HasErrors() {
 		return schemaFieldsResult(nil, report)

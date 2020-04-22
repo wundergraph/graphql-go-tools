@@ -17,6 +17,7 @@ import (
 var (
 	ErrEmptyRequest = errors.New("the provided request is empty")
 	ErrNilSchema    = errors.New("the provided schema is nil")
+	ErrEmptySchema  = errors.New("the provided schema is empty")
 )
 
 type Request struct {
