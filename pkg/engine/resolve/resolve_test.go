@@ -56,10 +56,10 @@ func TestResolver_ResolveNode(t *testing.T) {
 			r := New()
 			buf := &BufPair{
 				Data:   bytes.NewBuffer(nil),
-				errors: bytes.NewBuffer(nil),
+				Errors: bytes.NewBuffer(nil),
 			}
 			err := r.resolveNode(ctx, node, nil, buf)
-			assert.Equal(t, buf.errors.String(), "", "want error buf to be empty")
+			assert.Equal(t, buf.Errors.String(), "", "want error buf to be empty")
 			assert.NoError(t, err)
 			assert.Equal(t, expectedOutput, buf.Data.String())
 			ctrl.Finish()
@@ -517,7 +517,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 		mockDataSource.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
 			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
-				err = pair.WriteErr([]byte("errorMessage"))
+				err = pair.WriteErr([]byte("errorMessage"), nil, nil)
 				return
 			}).
 			Return(nil)
@@ -544,15 +544,15 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background()}, `{"errors":[{"message":"errorMessage"}],"data":{"name":null}}`
+		}, Context{Context: context.Background()}, `{"Errors":[{"message":"errorMessage"}],"data":{"name":null}}`
 	}))
-	t.Run("fetch with two errors", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("fetch with two Errors", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
 			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
-				err = pair.WriteErr([]byte("errorMessage1"))
-				err = pair.WriteErr([]byte("errorMessage2"))
+				err = pair.WriteErr([]byte("errorMessage1"), nil, nil)
+				err = pair.WriteErr([]byte("errorMessage2"), nil, nil)
 				return
 			}).
 			Return(nil)
@@ -578,7 +578,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background()}, `{"errors":[{"message":"errorMessage1"},{"message":"errorMessage2"}],"data":{"name":null}}`
+		}, Context{Context: context.Background()}, `{"Errors":[{"message":"errorMessage1"},{"message":"errorMessage2"}],"data":{"name":null}}`
 	}))
 	t.Run("null field should bubble up to parent with error", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{

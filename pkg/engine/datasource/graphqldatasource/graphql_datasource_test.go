@@ -1,7 +1,15 @@
 package graphqldatasource
 
 import (
+	"bytes"
+	"context"
+	"fmt"
+	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	. "github.com/jensneuse/graphql-go-tools/pkg/engine/datasourcetesting"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
@@ -23,7 +31,7 @@ query MyQuery($id: ID!){
 }
 */
 
-func TestGraphQLDataSource(t *testing.T) {
+func TestGraphQLDataSourcePlanning(t *testing.T) {
 	t.Run("simple named Query", RunTest(testDefinition, `
 		query MyQuery($id: ID!){
 			droid(id: $id){
@@ -76,6 +84,41 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 	})))
+}
+
+func TestGraphQLDataSourceExecution(t *testing.T) {
+	test := func(ctx func() context.Context, input func(server *httptest.Server) string, serverHandler func(t *testing.T) http.HandlerFunc, result func(t *testing.T, bufPair *resolve.BufPair, err error)) func(t *testing.T) {
+		return func(t *testing.T) {
+			server := httptest.NewServer(serverHandler(t))
+			defer server.Close()
+			source := &Source{}
+			bufPair := &resolve.BufPair{
+				Data:   &bytes.Buffer{},
+				Errors: &bytes.Buffer{},
+			}
+			err := source.Load(ctx(), []byte(input(server)), bufPair)
+			result(t, bufPair, err)
+		}
+	}
+
+	t.Run("simple", test(func() context.Context {
+		return context.Background()
+	}, func(server *httptest.Server) string {
+		return fmt.Sprintf(`{"url":"%s","query":"query($id: ID!){droid(id: $id){name}}","variables":{"id":1}}`, server.URL)
+	}, func(t *testing.T) http.HandlerFunc {
+		return func(writer http.ResponseWriter, request *http.Request) {
+			body, err := ioutil.ReadAll(request.Body)
+			assert.NoError(t, err)
+			assert.Equal(t, `{"query":"query($id: ID!){droid(id: $id){name}}","variables":{"id":1}}`, string(body))
+			assert.Equal(t, request.Method, http.MethodPost)
+			_, err = writer.Write([]byte(`{"data":{"droid":{"name":"r2d2"}}"}`))
+			assert.NoError(t, err)
+		}
+	}, func(t *testing.T, bufPair *resolve.BufPair, err error) {
+		assert.NoError(t, err)
+		assert.Equal(t, `{"droid":{"name":"r2d2"}}`, bufPair.Data.String())
+		assert.Equal(t, false, bufPair.HasErrors())
+	}))
 }
 
 const testDefinition = `

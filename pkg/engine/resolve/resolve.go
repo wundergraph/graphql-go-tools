@@ -22,7 +22,7 @@ var (
 	quote            = []byte("\"")
 	null             = []byte("null")
 	literalData      = []byte("data")
-	literalErrors    = []byte("errors")
+	literalErrors    = []byte("Errors")
 	literalMessage   = []byte("message")
 	literalLocations = []byte("locations")
 	literalPath      = []byte("path")
@@ -99,7 +99,7 @@ func New() *Resolver {
 			New: func() interface{} {
 				pair := BufPair{
 					Data:   bytes.NewBuffer(make([]byte, 0, 1024)),
-					errors: bytes.NewBuffer(make([]byte, 0, 1024)),
+					Errors: bytes.NewBuffer(make([]byte, 0, 1024)),
 				}
 				return &pair
 			},
@@ -191,7 +191,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx Context, response *GraphQLResponse
 		return
 	}
 
-	hasErrors := buf.errors.Len() != 0
+	hasErrors := buf.Errors.Len() != 0
 	hasData := buf.Data.Len() != 0
 
 	err = r.writeSafe(err, writer, lBrace)
@@ -202,7 +202,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx Context, response *GraphQLResponse
 		err = r.writeSafe(err, writer, quote)
 		err = r.writeSafe(err, writer, colon)
 		err = r.writeSafe(err, writer, lBrack)
-		_, err = buf.errors.WriteTo(writer)
+		_, err = buf.Errors.WriteTo(writer)
 		err = r.writeSafe(err, writer, rBrack)
 	}
 
@@ -713,10 +713,8 @@ type GraphQLResponse struct {
 }
 
 type BufPair struct {
-	errorPath      []byte
-	errorLocations []byte
-	Data           *bytes.Buffer
-	errors         *bytes.Buffer
+	Data   *bytes.Buffer
+	Errors *bytes.Buffer
 }
 
 func (b *BufPair) HasData() bool {
@@ -724,23 +722,23 @@ func (b *BufPair) HasData() bool {
 }
 
 func (b *BufPair) HasErrors() bool {
-	return b.errors.Len() != 0
+	return b.Errors.Len() != 0
 }
 
 func (b *BufPair) Reset() {
 	b.Data.Reset()
-	b.errors.Reset()
+	b.Errors.Reset()
 }
 
 func (b *BufPair) writeErrors(err error, data []byte) error {
 	if err != nil {
 		return err
 	}
-	_, err = b.errors.Write(data)
+	_, err = b.Errors.Write(data)
 	return err
 }
 
-func (b *BufPair) WriteErr(message []byte) (err error) {
+func (b *BufPair) WriteErr(message, locations, path []byte) (err error) {
 	if b.HasErrors() {
 		err = b.writeErrors(err, comma)
 	}
@@ -752,21 +750,21 @@ func (b *BufPair) WriteErr(message []byte) (err error) {
 	err = b.writeErrors(err, quote)
 	err = b.writeErrors(err, message)
 	err = b.writeErrors(err, quote)
-	if b.errorLocations != nil {
+	if locations != nil {
 		err = b.writeErrors(err, comma)
 		err = b.writeErrors(err, quote)
 		err = b.writeErrors(err, literalLocations)
 		err = b.writeErrors(err, quote)
 		err = b.writeErrors(err, colon)
-		err = b.writeErrors(err, b.errorLocations)
+		err = b.writeErrors(err, locations)
 	}
-	if b.errorPath != nil {
+	if path != nil {
 		err = b.writeErrors(err, comma)
 		err = b.writeErrors(err, quote)
 		err = b.writeErrors(err, literalPath)
 		err = b.writeErrors(err, quote)
 		err = b.writeErrors(err, colon)
-		err = b.writeErrors(err, b.errorPath)
+		err = b.writeErrors(err, path)
 	}
 	err = b.writeErrors(err, rBrace)
 	return
@@ -800,16 +798,16 @@ func (r *Resolver) MergeBufPairErrors(from, to *BufPair) (errorsWritten int, err
 	}
 	var written int64
 	if to.HasErrors() {
-		errorsWritten, err = to.errors.Write(comma)
+		errorsWritten, err = to.Errors.Write(comma)
 	}
-	written, err = from.errors.WriteTo(to.errors)
+	written, err = from.Errors.WriteTo(to.Errors)
 	errorsWritten += int(written)
 	return
 }
 
 func (r *Resolver) freeBufPair(pair *BufPair) {
 	pair.Data.Reset()
-	pair.errors.Reset()
+	pair.Errors.Reset()
 	r.bufPairPool.Put(pair)
 }
 
