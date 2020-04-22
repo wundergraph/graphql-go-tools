@@ -103,7 +103,7 @@ func (r *Request) IsNormalized() bool {
 	return r.isNormalized
 }
 
-func (r *Request) ValidateRestrictedFields(restrictedFields fields.Types) (RestrictedFieldsResult, error) {
+func (r *Request) ValidateRestrictedFields(restrictedFields []fields.Type) (RestrictedFieldsResult, error) {
 	report := r.parseQueryOnce()
 	if report.HasErrors() {
 		return restrictedFieldsResult(false, report)
