@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -42,15 +43,16 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 		Response: resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource: &Source{},
+					DataSource: &Source{
+						Client: http.Client{
+							Timeout: time.Second * 10,
+						},
+					},
 					BufferId:   0,
-					Input:      []byte(`{"url":"https://swapi.com/graphql","operation":"operation($id: ID!){droid(id: $id){name}}","variables":{"id":$$0}}`),
-					Variables: []resolve.VariableRef{
-						{
-							Name: []byte("$$0"),
-							Variable: &resolve.ContextVariable{
-								Path: []string{"id"},
-							},
+					Input:      []byte(`{"url":"https://swapi.com/graphql","query":"query($id: ID!){droid(id: $id){name}}","variables":{"id":$$0$$}}`),
+					Variables: []resolve.Variable{
+						&resolve.ContextVariable{
+							Path: []string{"id"},
 						},
 					},
 				},
@@ -89,6 +91,23 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 						Key:   "url",
 						Value: []byte("https://swapi.com/graphql"),
 					},
+					{
+						Key: "arguments",
+						Value: ArgumentsConfigJSON(ArgumentsConfig{
+							Fields: []FieldConfig{
+								{
+									FieldName: "droid",
+									Arguments: []Argument{
+										{
+											Name:       "id",
+											Source:     Field,
+											SourcePath: []string{"id"},
+										},
+									},
+								},
+							},
+						}),
+					},
 				},
 				DataSourcePlanner: &Planner{},
 			},
@@ -119,7 +138,7 @@ func TestGraphQLDataSourceExecution(t *testing.T) {
 		return func(writer http.ResponseWriter, request *http.Request) {
 			body, err := ioutil.ReadAll(request.Body)
 			assert.NoError(t, err)
-			assert.Equal(t, `{"operation":"operation($id: ID!){droid(id: $id){name}}","variables":{"id":1}}`, string(body))
+			assert.Equal(t, `{"operation":"query($id: ID!){droid(id: $id){name}}","variables":{"id":1}}`, string(body))
 			assert.Equal(t, request.Method, http.MethodPost)
 			_, err = writer.Write([]byte(`{"data":{"droid":{"name":"r2d2"}}"}`))
 			assert.NoError(t, err)

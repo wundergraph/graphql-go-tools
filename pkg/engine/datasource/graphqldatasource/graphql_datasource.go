@@ -3,13 +3,18 @@ package graphqldatasource
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/buger/jsonparser"
 	"github.com/tidwall/sjson"
 
+	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
@@ -25,6 +30,7 @@ type Planner struct {
 	nodes     []ast.Node
 	buf       *bytes.Buffer
 	URL       []byte
+	variables []byte
 }
 
 func (p *Planner) Register(visitor *plan.Visitor) {
@@ -47,6 +53,7 @@ func (p *Planner) EnterDocument(operation, definition *ast.Document) {
 	}
 	p.nodes = p.nodes[:0]
 	p.URL = nil
+	p.variables = nil
 }
 
 func (p *Planner) EnterField(ref int) {
@@ -63,13 +70,9 @@ func (p *Planner) EnterField(ref int) {
 		if len(p.operation.RootNodes) == 0 {
 			set := p.operation.AddSelectionSet()
 			definition := p.operation.AddOperationDefinitionToRootNodes(ast.OperationDefinition{
-				OperationType:          p.v.Operation.OperationDefinitions[p.v.Ancestors[0].Ref].OperationType,
-				HasVariableDefinitions: false,
-				VariableDefinitions:    ast.VariableDefinitionList{},
-				HasDirectives:          false,
-				Directives:             ast.DirectiveList{},
-				SelectionSet:           set.Ref,
-				HasSelections:          true,
+				OperationType: p.v.Operation.OperationDefinitions[p.v.Ancestors[0].Ref].OperationType,
+				SelectionSet:  set.Ref,
+				HasSelections: true,
 			})
 			p.nodes = append(p.nodes, definition, set)
 		}
@@ -83,6 +86,97 @@ func (p *Planner) EnterField(ref int) {
 	}
 	p.operation.AddSelection(p.nodes[len(p.nodes)-1].Ref, selection)
 	p.nodes = append(p.nodes, field)
+
+	if config == nil {
+		return
+	}
+	if arguments := config.Attributes.ValueForKey("arguments"); arguments != nil {
+		p.configureFieldArguments(field.Ref, ref, arguments)
+	}
+}
+
+func (p *Planner) configureFieldArguments(upstreamField, downstreamField int, arguments []byte) {
+	var config ArgumentsConfig
+	err := json.Unmarshal(arguments, &config)
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+	fieldName := p.v.Operation.FieldNameString(downstreamField)
+	for i := range config.Fields {
+		if config.Fields[i].FieldName != fieldName {
+			continue
+		}
+		for j := range config.Fields[i].Arguments {
+			p.applyFieldArgument(upstreamField, downstreamField, config.Fields[i].Arguments[j])
+		}
+	}
+}
+
+func (p *Planner) applyFieldArgument(upstreamField, downstreamField int, arg Argument) {
+	switch arg.Source {
+	case Field:
+		if fieldArgument, ok := p.v.Operation.FieldArgument(downstreamField, unsafebytes.StringToBytes(arg.SourcePath[0])); ok { // TODO: doesn't work with multi path args
+			value := p.v.Operation.ArgumentValue(fieldArgument)
+			if value.Kind != ast.ValueKindVariable {
+				return
+			}
+			variableName := p.v.Operation.VariableValueNameBytes(value.Ref)
+			variableNameStr := p.v.Operation.VariableValueNameString(value.Ref)
+
+			p.fetch.Variables = append(p.fetch.Variables, &resolve.ContextVariable{
+				Path: arg.SourcePath,
+			})
+
+			variableIndex := len(p.fetch.Variables) - 1
+
+			p.variables, _ = sjson.SetRawBytes(p.variables, variableNameStr, []byte("$$"+strconv.Itoa(variableIndex)+"$$"))
+
+			variable := ast.VariableValue{
+				Name: p.operation.Input.AppendInputBytes(variableName),
+			}
+			p.operation.VariableValues = append(p.operation.VariableValues, variable)
+			variableValueRef := len(p.operation.VariableValues) - 1
+			arg := ast.Argument{
+				Name: p.operation.Input.AppendInputString(arg.Name),
+				Value: ast.Value{
+					Kind: ast.ValueKindVariable,
+					Ref:  variableValueRef,
+				},
+			}
+			p.operation.Arguments = append(p.operation.Arguments, arg)
+			argRef := len(p.operation.Arguments) - 1
+			if !p.operation.Fields[upstreamField].HasArguments {
+				p.operation.Fields[upstreamField].HasArguments = true
+				p.operation.Fields[upstreamField].Arguments.Refs = p.operation.Refs[p.operation.NextRefIndex()][:0]
+			}
+			p.operation.Fields[upstreamField].Arguments.Refs = append(p.operation.Fields[upstreamField].Arguments.Refs, argRef)
+
+			for _, i := range p.v.Operation.OperationDefinitions[p.v.Ancestors[0].Ref].VariableDefinitions.Refs {
+				ref := p.v.Operation.VariableDefinitions[i].VariableValue.Ref
+				if !p.v.Operation.VariableValueNameBytes(ref).Equals(variableName) {
+					continue
+				}
+				importedType := p.v.Importer.ImportType(p.v.Operation.VariableDefinitions[i].Type, p.v.Operation, p.operation)
+				if !p.operation.OperationDefinitions[p.nodes[0].Ref].HasVariableDefinitions {
+					p.operation.OperationDefinitions[p.nodes[0].Ref].HasVariableDefinitions = true
+					p.operation.OperationDefinitions[p.nodes[0].Ref].VariableDefinitions.Refs = p.operation.Refs[p.operation.NextRefIndex()][:0]
+					variableDefinition := ast.VariableDefinition{
+						VariableValue: ast.Value{
+							Kind: ast.ValueKindVariable,
+							Ref:  variableValueRef,
+						},
+						Type: importedType,
+					}
+					p.operation.VariableDefinitions = append(p.operation.VariableDefinitions, variableDefinition)
+					ref := len(p.operation.VariableDefinitions) - 1
+					p.operation.OperationDefinitions[p.nodes[0].Ref].VariableDefinitions.Refs =
+						append(p.operation.OperationDefinitions[p.nodes[0].Ref].VariableDefinitions.Refs, ref)
+				}
+			}
+		}
+	case Object:
+	}
 }
 
 func (p *Planner) LeaveField(ref int) {
@@ -114,8 +208,16 @@ func (p *Planner) LeaveDocument(operation, definition *ast.Document) {
 		fmt.Println(err.Error())
 		return
 	}
-	p.fetch.Input, err = sjson.SetRawBytes(nil, "query", buf.Bytes())
+	if p.variables != nil {
+		p.fetch.Input, err = sjson.SetRawBytes(p.fetch.Input, "variables", p.variables)
+	}
+	p.fetch.Input, err = sjson.SetRawBytes(p.fetch.Input, "query", append([]byte{'"'}, append(buf.Bytes(), '"')...))
 	p.fetch.Input, err = sjson.SetRawBytes(p.fetch.Input, "url", append([]byte{'"'}, append(p.URL, '"')...))
+	p.fetch.DataSource = &Source{
+		Client: http.Client{
+			Timeout: time.Second * 10,
+		},
+	}
 }
 
 type Source struct {
@@ -187,3 +289,30 @@ func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPai
 
 	return
 }
+
+func ArgumentsConfigJSON(config ArgumentsConfig) []byte {
+	out, _ := json.Marshal(config)
+	return out
+}
+
+type ArgumentsConfig struct {
+	Fields []FieldConfig
+}
+
+type FieldConfig struct {
+	FieldName string
+	Arguments []Argument
+}
+
+type Argument struct {
+	Name       string
+	Source     ArgumentSource
+	SourcePath []string
+}
+
+type ArgumentSource string
+
+const (
+	Object ArgumentSource = "object"
+	Field  ArgumentSource = "field"
+)
