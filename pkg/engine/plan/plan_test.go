@@ -29,7 +29,7 @@ func TestPlanner_Plan(t *testing.T) {
 			norm.NormalizeOperation(&op, &def, &report)
 			valid := astvalidation.DefaultOperationValidator()
 			valid.Validate(&op, &def, &report)
-			p := NewPlanner(&def)
+			p := NewPlanner(&def,Configuration{})
 			plan := p.Plan(&op, []byte(operationName), &report)
 			if report.HasErrors() {
 				t.Fatal(report.Error())

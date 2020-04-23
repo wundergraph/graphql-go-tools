@@ -133,7 +133,7 @@ func TestGraphQLDataSourceExecution(t *testing.T) {
 	t.Run("simple", test(func() context.Context {
 		return context.Background()
 	}, func(server *httptest.Server) string {
-		return fmt.Sprintf(`{"url":"%s","operation":"operation($id: ID!){droid(id: $id){name}}","variables":{"id":1}}`, server.URL)
+		return fmt.Sprintf(`{"url":"%s","operation":"query($id: ID!){droid(id: $id){name}}","variables":{"id":1}}`, server.URL)
 	}, func(t *testing.T) http.HandlerFunc {
 		return func(writer http.ResponseWriter, request *http.Request) {
 			body, err := ioutil.ReadAll(request.Body)
