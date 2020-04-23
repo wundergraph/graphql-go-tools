@@ -767,6 +767,10 @@ func (d *Document) VariableValueNameBytes(ref int) ByteSlice {
 	return d.Input.ByteSlice(d.VariableValues[ref].Name)
 }
 
+func (d *Document) VariableValueNameString(ref int) string {
+	return unsafebytes.BytesToString(d.Input.ByteSlice(d.VariableValues[ref].Name))
+}
+
 func (d *Document) VariableValuesAreEqual(left, right int) bool {
 	return bytes.Equal(d.VariableValueNameBytes(left), d.VariableValueNameBytes(right))
 }
