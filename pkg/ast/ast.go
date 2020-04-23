@@ -2919,6 +2919,14 @@ func (d *Document) AddField(field Field) Node {
 	}
 }
 
+func (d *Document) AddArgumentToField(fieldRef,argRef int) {
+	if !d.Fields[fieldRef].HasArguments {
+		d.Fields[fieldRef].HasArguments = true
+		d.Fields[fieldRef].Arguments.Refs = d.Refs[d.NextRefIndex()][:0]
+	}
+	d.Fields[fieldRef].Arguments.Refs = append(d.Fields[fieldRef].Arguments.Refs, argRef)
+}
+
 type Alias struct {
 	IsDefined bool
 	Name      ByteSliceReference // optional, e.g. renamedField

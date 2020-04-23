@@ -127,12 +127,7 @@ func (p *Planner) applyFieldArgument(upstreamField, downstreamField int, arg Arg
 			p.variables, _ = sjson.SetRawBytes(p.variables, variableNameStr, contextVariableName)
 
 			variableValueRef, argRef := p.operation.AddVariableValueArgument(arg.Name, variableName)
-
-			if !p.operation.Fields[upstreamField].HasArguments {
-				p.operation.Fields[upstreamField].HasArguments = true
-				p.operation.Fields[upstreamField].Arguments.Refs = p.operation.Refs[p.operation.NextRefIndex()][:0]
-			}
-			p.operation.Fields[upstreamField].Arguments.Refs = append(p.operation.Fields[upstreamField].Arguments.Refs, argRef)
+			p.operation.AddArgumentToField(upstreamField,argRef)
 
 			for _, i := range p.v.Operation.OperationDefinitions[p.v.Ancestors[0].Ref].VariableDefinitions.Refs {
 				ref := p.v.Operation.VariableDefinitions[i].VariableValue.Ref
