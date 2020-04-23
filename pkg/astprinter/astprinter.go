@@ -216,10 +216,11 @@ func (p *printVisitor) LeaveArgument(ref int) {
 func (p *printVisitor) EnterOperationDefinition(ref int) {
 
 	hasName := p.document.OperationDefinitions[ref].Name.Length() > 0
+	hasVariables := p.document.OperationDefinitions[ref].HasVariableDefinitions
 
 	switch p.document.OperationDefinitions[ref].OperationType {
 	case ast.OperationTypeQuery:
-		if hasName {
+		if hasName || hasVariables {
 			p.write(literal.QUERY)
 		}
 	case ast.OperationTypeMutation:
