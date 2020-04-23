@@ -8,7 +8,6 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/buger/jsonparser"
@@ -124,28 +123,11 @@ func (p *Planner) applyFieldArgument(upstreamField, downstreamField int, arg Arg
 			variableName := p.v.Operation.VariableValueNameBytes(value.Ref)
 			variableNameStr := p.v.Operation.VariableValueNameString(value.Ref)
 
-			p.fetch.Variables = append(p.fetch.Variables, &resolve.ContextVariable{
-				Path: arg.SourcePath,
-			})
+			contextVariableName := p.fetch.Variables.AddVariable(&resolve.ContextVariable{Path: arg.SourcePath})
+			p.variables, _ = sjson.SetRawBytes(p.variables, variableNameStr, contextVariableName)
 
-			variableIndex := len(p.fetch.Variables) - 1
+			variableValueRef, argRef := p.operation.AddVariableValueArgument(arg.Name, variableName)
 
-			p.variables, _ = sjson.SetRawBytes(p.variables, variableNameStr, []byte("$$"+strconv.Itoa(variableIndex)+"$$"))
-
-			variable := ast.VariableValue{
-				Name: p.operation.Input.AppendInputBytes(variableName),
-			}
-			p.operation.VariableValues = append(p.operation.VariableValues, variable)
-			variableValueRef := len(p.operation.VariableValues) - 1
-			arg := ast.Argument{
-				Name: p.operation.Input.AppendInputString(arg.Name),
-				Value: ast.Value{
-					Kind: ast.ValueKindVariable,
-					Ref:  variableValueRef,
-				},
-			}
-			p.operation.Arguments = append(p.operation.Arguments, arg)
-			argRef := len(p.operation.Arguments) - 1
 			if !p.operation.Fields[upstreamField].HasArguments {
 				p.operation.Fields[upstreamField].HasArguments = true
 				p.operation.Fields[upstreamField].Arguments.Refs = p.operation.Refs[p.operation.NextRefIndex()][:0]
@@ -305,7 +287,7 @@ type FieldConfig struct {
 }
 
 type Argument struct {
-	Name       string
+	Name       []byte
 	Source     ArgumentSource
 	SourcePath []string
 }

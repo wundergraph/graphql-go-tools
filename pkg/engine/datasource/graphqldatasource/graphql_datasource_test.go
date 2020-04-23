@@ -17,8 +17,6 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 )
 
-// TODO: next steps -> add tests for GraphQL DS Load, then complete GraphQL DS Plan test, next implement GraphQL Planner
-
 /*
 operation MyQuery($id: ID!){
 	droid(id: $id){
@@ -48,13 +46,11 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 							Timeout: time.Second * 10,
 						},
 					},
-					BufferId:   0,
-					Input:      []byte(`{"url":"https://swapi.com/graphql","query":"query($id: ID!){droid(id: $id){name}}","variables":{"id":$$0$$}}`),
-					Variables: []resolve.Variable{
-						&resolve.ContextVariable{
-							Path: []string{"id"},
-						},
-					},
+					BufferId: 0,
+					Input:    []byte(`{"url":"https://swapi.com/graphql","query":"query($id: ID!){droid(id: $id){name}}","variables":{"id":$$0$$}}`),
+					Variables: resolve.NewVariables(&resolve.ContextVariable{
+						Path: []string{"id"},
+					}),
 				},
 				FieldSets: []resolve.FieldSet{
 					{
@@ -99,7 +95,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 									FieldName: "droid",
 									Arguments: []Argument{
 										{
-											Name:       "id",
+											Name:       []byte("id"),
 											Source:     Field,
 											SourcePath: []string{"id"},
 										},

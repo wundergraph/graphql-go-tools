@@ -11,6 +11,8 @@ import (
 	"sync"
 
 	"github.com/buger/jsonparser"
+
+	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 )
 
 var (
@@ -498,8 +500,8 @@ func (r *Resolver) resolveFetch(ctx Context, fetch Fetch, data []byte, set *resu
 
 func (r *Resolver) resolveSingleFetch(ctx Context, fetch *SingleFetch, data []byte, set *resultSet) (err error) {
 
-	if len(fetch.Variables) != 0 {
-		fetch.Input = r.resolveVariables(ctx, fetch.Variables, data, fetch.Input)
+	if len(fetch.Variables.variables) != 0 {
+		fetch.Input = r.resolveVariables(ctx, fetch.Variables.variables, data, fetch.Input)
 	}
 
 	buf := r.getBufPair()
@@ -604,7 +606,7 @@ type SingleFetch struct {
 	BufferId   uint8
 	Input      []byte
 	DataSource DataSource
-	Variables  []Variable
+	Variables  Variables
 }
 
 func (_ *SingleFetch) FetchKind() FetchKind {
@@ -680,6 +682,28 @@ func (_ *Array) NodeKind() NodeKind {
 
 type Variable interface {
 	VariableKind() VariableKind
+}
+
+type Variables struct {
+	variables []Variable
+}
+
+func NewVariables(variables ...Variable) Variables {
+	var out Variables
+	for i := range variables {
+		out.AddVariable(variables[i])
+	}
+	return out
+}
+
+var (
+	variablePrefixSuffix = []byte("$$")
+)
+
+func (v *Variables) AddVariable(variable Variable) (name []byte) {
+	v.variables = append(v.variables, variable)
+	index := unsafebytes.StringToBytes(strconv.Itoa(len(v.variables) - 1))
+	return append(variablePrefixSuffix, append(index, variablePrefixSuffix...)...)
 }
 
 type VariableKind int

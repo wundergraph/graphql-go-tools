@@ -1696,6 +1696,24 @@ type VariableValue struct {
 	Name   ByteSliceReference // e.g. devicePicSize
 }
 
+func (d *Document) AddVariableValueArgument(argName, variableName []byte) (variableValueRef, argRef int) {
+	variable := VariableValue{
+		Name: d.Input.AppendInputBytes(variableName),
+	}
+	d.VariableValues = append(d.VariableValues, variable)
+	variableValueRef = len(d.VariableValues) - 1
+	arg := Argument{
+		Name: d.Input.AppendInputBytes(argName),
+		Value: Value{
+			Kind: ValueKindVariable,
+			Ref:  variableValueRef,
+		},
+	}
+	d.Arguments = append(d.Arguments, arg)
+	argRef = len(d.Arguments) - 1
+	return
+}
+
 // StringValue
 // example:
 // "foo"
