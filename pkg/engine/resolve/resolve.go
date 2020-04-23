@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"strconv"
 	"sync"
 
 	"github.com/buger/jsonparser"
@@ -506,15 +507,16 @@ func (r *Resolver) resolveSingleFetch(ctx Context, fetch *SingleFetch, data []by
 	return fetch.DataSource.Load(ctx.Context, fetch.Input, buf)
 }
 
-func (r *Resolver) resolveVariables(ctx Context, variables []VariableRef, data, input []byte) []byte {
+func (r *Resolver) resolveVariables(ctx Context, variables []Variable, data, input []byte) []byte {
 	for i := range variables {
-		switch v := variables[i].Variable.(type) {
+		variableName := []byte("$$" + strconv.Itoa(i) + "$$")
+		switch v := variables[i].(type) {
 		case *ContextVariable:
 			value := r.resolveContextVariable(ctx, v)
-			input = bytes.ReplaceAll(input, variables[i].Name, value)
+			input = bytes.ReplaceAll(input, variableName, value)
 		case *ObjectVariable:
 			value := r.resolveObjectVariable(data, v)
-			input = bytes.ReplaceAll(input, variables[i].Name, value)
+			input = bytes.ReplaceAll(input, variableName, value)
 		}
 	}
 	return input
@@ -602,7 +604,7 @@ type SingleFetch struct {
 	BufferId   uint8
 	Input      []byte
 	DataSource DataSource
-	Variables  []VariableRef
+	Variables  []Variable
 }
 
 func (_ *SingleFetch) FetchKind() FetchKind {
@@ -674,11 +676,6 @@ func (a *Array) Nullable() bool {
 
 func (_ *Array) NodeKind() NodeKind {
 	return NodeKindArray
-}
-
-type VariableRef struct {
-	Name     []byte
-	Variable Variable
 }
 
 type Variable interface {

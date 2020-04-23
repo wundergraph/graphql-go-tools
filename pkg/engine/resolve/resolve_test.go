@@ -196,13 +196,10 @@ func TestResolver_ResolveNode(t *testing.T) {
 			Fetch: &SingleFetch{
 				BufferId:   0,
 				DataSource: mockDataSource,
-				Input:      []byte(`{"id":$$0}`),
-				Variables: []VariableRef{
-					{
-						Name: []byte("$$0"),
-						Variable: &ContextVariable{
-							Path: []string{"id"},
-						},
+				Input:      []byte(`{"id":$$0$$}`),
+				Variables: []Variable{
+					&ContextVariable{
+						Path: []string{"id"},
 					},
 				},
 			},
@@ -459,13 +456,10 @@ func TestResolver_ResolveNode(t *testing.T) {
 								Fetch: &SingleFetch{
 									BufferId:   0,
 									DataSource: mockDataSource,
-									Input:      []byte(`{"id":$$0}`),
-									Variables: []VariableRef{
-										{
-											Name: []byte("$$0"),
-											Variable: &ObjectVariable{
-												Path: []string{"id"},
-											},
+									Input:      []byte(`{"id":$$0$$}`),
+									Variables: []Variable{
+										&ObjectVariable{
+											Path: []string{"id"},
 										},
 									},
 								},
