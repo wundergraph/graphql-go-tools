@@ -135,21 +135,7 @@ func (p *Planner) applyFieldArgument(upstreamField, downstreamField int, arg Arg
 					continue
 				}
 				importedType := p.v.Importer.ImportType(p.v.Operation.VariableDefinitions[i].Type, p.v.Operation, p.operation)
-				if !p.operation.OperationDefinitions[p.nodes[0].Ref].HasVariableDefinitions {
-					p.operation.OperationDefinitions[p.nodes[0].Ref].HasVariableDefinitions = true
-					p.operation.OperationDefinitions[p.nodes[0].Ref].VariableDefinitions.Refs = p.operation.Refs[p.operation.NextRefIndex()][:0]
-					variableDefinition := ast.VariableDefinition{
-						VariableValue: ast.Value{
-							Kind: ast.ValueKindVariable,
-							Ref:  variableValueRef,
-						},
-						Type: importedType,
-					}
-					p.operation.VariableDefinitions = append(p.operation.VariableDefinitions, variableDefinition)
-					ref := len(p.operation.VariableDefinitions) - 1
-					p.operation.OperationDefinitions[p.nodes[0].Ref].VariableDefinitions.Refs =
-						append(p.operation.OperationDefinitions[p.nodes[0].Ref].VariableDefinitions.Refs, ref)
-				}
+				p.operation.AddVariableDefinitionToOperationDefinition(p.nodes[0].Ref,variableValueRef,importedType)
 			}
 		}
 	case Object:

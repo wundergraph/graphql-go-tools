@@ -2693,6 +2693,24 @@ func (d *Document) AddOperationDefinitionToRootNodes(definition OperationDefinit
 	return node
 }
 
+func (d *Document) AddVariableDefinitionToOperationDefinition(operationDefinitionRef, variableValueRef, typeRef int) {
+	if !d.OperationDefinitions[operationDefinitionRef].HasVariableDefinitions {
+		d.OperationDefinitions[operationDefinitionRef].HasVariableDefinitions = true
+		d.OperationDefinitions[operationDefinitionRef].VariableDefinitions.Refs = d.Refs[d.NextRefIndex()][:0]
+	}
+	variableDefinition := VariableDefinition{
+		VariableValue: Value{
+			Kind: ValueKindVariable,
+			Ref:  variableValueRef,
+		},
+		Type: typeRef,
+	}
+	d.VariableDefinitions = append(d.VariableDefinitions, variableDefinition)
+	ref := len(d.VariableDefinitions) - 1
+	d.OperationDefinitions[operationDefinitionRef].VariableDefinitions.Refs =
+		append(d.OperationDefinitions[operationDefinitionRef].VariableDefinitions.Refs, ref)
+}
+
 func (d *Document) FragmentDefinitionIsLastRootNode(ref int) bool {
 	for i := range d.RootNodes {
 		if d.RootNodes[i].Kind == NodeKindFragmentDefinition && d.RootNodes[i].Ref == ref {
@@ -2919,7 +2937,7 @@ func (d *Document) AddField(field Field) Node {
 	}
 }
 
-func (d *Document) AddArgumentToField(fieldRef,argRef int) {
+func (d *Document) AddArgumentToField(fieldRef, argRef int) {
 	if !d.Fields[fieldRef].HasArguments {
 		d.Fields[fieldRef].HasArguments = true
 		d.Fields[fieldRef].Arguments.Refs = d.Refs[d.NextRefIndex()][:0]
