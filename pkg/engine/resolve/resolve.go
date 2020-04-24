@@ -428,7 +428,7 @@ func (r *Resolver) resolveObject(ctx Context, object *Object, data []byte, objec
 	for i := range object.FieldSets {
 		var fieldSetData []byte
 		if set != nil && object.FieldSets[i].HasBuffer {
-			buffer, ok := set.buffers[object.FieldSets[i].BufferId]
+			buffer, ok := set.buffers[object.FieldSets[i].BufferID]
 			if ok {
 				fieldSetData = buffer.Data.Bytes()
 			}
@@ -577,7 +577,7 @@ func (_ *EmptyArray) NodeKind() NodeKind {
 
 type FieldSet struct {
 	OnTypeName []byte
-	BufferId   uint8
+	BufferID   uint8
 	HasBuffer  bool
 	Fields     []Field
 }

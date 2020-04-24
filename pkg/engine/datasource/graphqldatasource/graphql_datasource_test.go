@@ -28,6 +28,9 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 				}
 				primaryFunction
 			}
+			hero {
+				name
+			}
 		}
 	`, "MyQuery", &plan.SynchronousResponsePlan{
 		Response: resolve.GraphQLResponse{
@@ -39,13 +42,15 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 						},
 					},
 					BufferId: 0,
-					Input:    []byte(`{"url":"https://swapi.com/graphql","body":{"query":"query($id: ID!){droid(id: $id){name friends {name} primaryFunction}}","variables":{"id":$$0$$}}}`),
+					Input:    []byte(`{"url":"https://swapi.com/graphql","body":{"query":"query($id: ID!){droid(id: $id){name friends {name} primaryFunction} hero {name}}","variables":{"id":$$0$$}}}`),
 					Variables: resolve.NewVariables(&resolve.ContextVariable{
 						Path: []string{"id"},
 					}),
 				},
 				FieldSets: []resolve.FieldSet{
 					{
+						HasBuffer: true,
+						BufferID:  0,
 						Fields: []resolve.Field{
 							{
 								Name: []byte("droid"),
@@ -96,6 +101,23 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 									},
 								},
 							},
+							{
+								Name: []byte("hero"),
+								Value: &resolve.Object{
+									FieldSets: []resolve.FieldSet{
+										{
+											Fields: []resolve.Field{
+												{
+													Name: []byte("name"),
+													Value: &resolve.String{
+														Path: []string{"name"},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
 						},
 					},
 				},
@@ -105,7 +127,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 		DataSources: []plan.DataSourceConfiguration{
 			{
 				TypeName:   "Query",
-				FieldNames: []string{"droid"},
+				FieldNames: []string{"droid","hero"},
 				Attributes: []plan.DataSourceAttribute{
 					{
 						Key:   "url",

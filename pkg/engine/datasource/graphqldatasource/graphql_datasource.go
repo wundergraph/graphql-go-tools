@@ -60,13 +60,20 @@ func (p *Planner) EnterDocument(operation, definition *ast.Document) {
 }
 
 func (p *Planner) EnterField(ref int) {
+
 	isRootField, config := p.v.IsRootField(ref)
+	fieldNameStr := p.v.Operation.FieldNameString(ref)
+	_ = fieldNameStr
 
 	if isRootField && p.v.CurrentObject.Fetch == nil {
 
 		p.URL = config.Attributes.ValueForKey("url")
 
-		p.fetch = &resolve.SingleFetch{}
+		bufferID := p.v.NextBufferID()
+		p.v.SetBufferIDForCurrentFieldSet(bufferID)
+		p.fetch = &resolve.SingleFetch{
+			BufferId: bufferID,
+		}
 		p.v.CurrentObject.Fetch = p.fetch
 		if len(p.operation.RootNodes) == 0 {
 			set := p.operation.AddSelectionSet()

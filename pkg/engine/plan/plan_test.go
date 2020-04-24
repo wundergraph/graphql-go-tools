@@ -29,7 +29,7 @@ func TestPlanner_Plan(t *testing.T) {
 			norm.NormalizeOperation(&op, &def, &report)
 			valid := astvalidation.DefaultOperationValidator()
 			valid.Validate(&op, &def, &report)
-			p := NewPlanner(&def,Configuration{})
+			p := NewPlanner(&def, Configuration{})
 			plan := p.Plan(&op, []byte(operationName), &report)
 			if report.HasErrors() {
 				t.Fatal(report.Error())
@@ -61,6 +61,7 @@ func TestPlanner_Plan(t *testing.T) {
 							{
 								Name: []byte("droid"),
 								Value: &resolve.Object{
+									Path: []string{"droid"},
 									FieldSets: []resolve.FieldSet{
 										{
 											Fields: []resolve.Field{
@@ -134,6 +135,7 @@ func TestPlanner_Plan(t *testing.T) {
 							{
 								Name: []byte("droid"),
 								Value: &resolve.Object{
+									Path: []string{"droid"},
 									FieldSets: []resolve.FieldSet{
 										{
 											Fields: []resolve.Field{

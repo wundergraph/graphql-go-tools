@@ -123,7 +123,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 													},
 													FieldSets: []FieldSet{
 														{
-															BufferId:  0,
+															BufferID:  0,
 															HasBuffer: true,
 															Fields: []Field{
 																{
@@ -204,7 +204,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 			FieldSets: []FieldSet{
 				{
 					HasBuffer: true,
-					BufferId:  0,
+					BufferID:  0,
 					Fields: []Field{
 						{
 							Name: []byte("name"),
@@ -225,7 +225,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 			},
 			FieldSets: []FieldSet{
 				{
-					BufferId:  0,
+					BufferID:  0,
 					HasBuffer: true,
 					Fields: []Field{
 						{
@@ -305,7 +305,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 				},
 				FieldSets: []FieldSet{
 					{
-						BufferId:  0,
+						BufferID:  0,
 						HasBuffer: true,
 						Fields: []Field{
 							{
@@ -314,7 +314,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 									Item: &Object{
 										FieldSets: []FieldSet{
 											{
-												BufferId:   0,
+												BufferID:   0,
 												HasBuffer:  true,
 												OnTypeName: []byte("Dog"),
 												Fields: []Field{
@@ -344,7 +344,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 				},
 				FieldSets: []FieldSet{
 					{
-						BufferId:  0,
+						BufferID:  0,
 						HasBuffer: true,
 						Fields: []Field{
 							{
@@ -354,7 +354,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 									Item: &Object{
 										FieldSets: []FieldSet{
 											{
-												BufferId:   0,
+												BufferID:   0,
 												HasBuffer:  true,
 												OnTypeName: []byte("Dog"),
 												Fields: []Field{
@@ -384,7 +384,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 				},
 				FieldSets: []FieldSet{
 					{
-						BufferId:  0,
+						BufferID:  0,
 						HasBuffer: true,
 						Fields: []Field{
 							{
@@ -395,7 +395,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 									Item: &Object{
 										FieldSets: []FieldSet{
 											{
-												BufferId:   0,
+												BufferID:   0,
 												HasBuffer:  true,
 												OnTypeName: []byte("Dog"),
 												Fields: []Field{
@@ -434,7 +434,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 			FieldSets: []FieldSet{
 				{
 					HasBuffer: true,
-					BufferId:  0,
+					BufferID:  0,
 					Fields: []Field{
 						{
 							Name: []byte("id"),
@@ -461,7 +461,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 								},
 								FieldSets: []FieldSet{
 									{
-										BufferId:  0,
+										BufferID:  0,
 										HasBuffer: true,
 										Fields: []Field{
 											{
@@ -521,7 +521,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				FieldSets: []FieldSet{
 					{
 						HasBuffer: true,
-						BufferId:  0,
+						BufferID:  0,
 						Fields: []Field{
 							{
 								Name: []byte("name"),
@@ -555,7 +555,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				FieldSets: []FieldSet{
 					{
 						HasBuffer: true,
-						BufferId:  0,
+						BufferID:  0,
 						Fields: []Field{
 							{
 								Name: []byte("name"),
@@ -581,7 +581,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				FieldSets: []FieldSet{
 					{
 						HasBuffer: true,
-						BufferId:  0,
+						BufferID:  0,
 						Fields: []Field{
 							{
 								Name: []byte("stringObject"),
@@ -749,7 +749,7 @@ func BenchmarkResolver_ResolveNode(b *testing.B) {
 			},
 			FieldSets: []FieldSet{
 				{
-					BufferId:  0,
+					BufferID:  0,
 					HasBuffer: true,
 					Fields: []Field{
 						{

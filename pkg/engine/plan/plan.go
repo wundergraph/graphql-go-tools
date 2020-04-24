@@ -99,11 +99,13 @@ func NewPlanner(definition *ast.Document, config Configuration) *Planner {
 	walker.RegisterDocumentVisitor(visitor)
 	walker.RegisterOperationDefinitionVisitor(visitor)
 	walker.RegisterSelectionSetVisitor(visitor)
-	walker.RegisterFieldVisitor(visitor)
+	walker.RegisterEnterFieldVisitor(visitor)
 
 	for i := range config.DataSources {
 		config.DataSources[i].DataSourcePlanner.Register(visitor)
 	}
+
+	walker.RegisterLeaveFieldVisitor(visitor)
 
 	return &Planner{
 		definition: definition,
@@ -127,9 +129,30 @@ type Visitor struct {
 	opName                  []byte
 	plan                    Plan
 	CurrentObject           *resolve.Object
+	objects                 []fieldObject
 	currentFields           *[]resolve.Field
 	fields                  []*[]resolve.Field
 	activeDataSourcePlanner DataSourcePlanner
+}
+
+type fieldObject struct {
+	fieldRef int
+	object   *resolve.Object
+}
+
+func (v *Visitor) NextBufferID() uint8 {
+	return 0
+}
+
+func (v *Visitor) SetBufferIDForCurrentFieldSet(bufferID uint8) {
+	if v.CurrentObject == nil {
+		return
+	}
+	if len(v.CurrentObject.FieldSets) == 0 {
+		return
+	}
+	v.CurrentObject.FieldSets[len(v.CurrentObject.FieldSets)-1].HasBuffer = true
+	v.CurrentObject.FieldSets[len(v.CurrentObject.FieldSets)-1].BufferID = bufferID
 }
 
 func (v *Visitor) AllowVisitor(visitorKind astvisitor.VisitorKind, ref int, visitor interface{}) bool {
@@ -162,7 +185,8 @@ func (v *Visitor) IsRootField(ref int) (bool, *DataSourceConfiguration) {
 }
 
 func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
-
+	v.fields = v.fields[:0]
+	v.objects = v.objects[:0]
 }
 
 func (v *Visitor) LeaveDocument(operation, definition *ast.Document) {
@@ -172,6 +196,10 @@ func (v *Visitor) LeaveDocument(operation, definition *ast.Document) {
 func (v *Visitor) EnterOperationDefinition(ref int) {
 	if bytes.Equal(v.Operation.OperationDefinitionNameBytes(ref), v.opName) {
 		v.CurrentObject = &resolve.Object{}
+		v.objects = append(v.objects, fieldObject{
+			object:   v.CurrentObject,
+			fieldRef: -1,
+		})
 		v.plan = &SynchronousResponsePlan{
 			Response: resolve.GraphQLResponse{
 				Data: v.CurrentObject,
@@ -216,6 +244,9 @@ func (v *Visitor) EnterField(ref int) {
 	fieldDefinitionType := v.Definition.FieldDefinitionType(definition)
 	typeName := v.Definition.ResolveTypeNameString(fieldDefinitionType)
 
+	isList := v.Definition.TypeIsList(fieldDefinitionType)
+	isRootField, _ := v.IsRootField(ref)
+
 	var value resolve.Node
 	var nextCurrentObject *resolve.Object
 
@@ -238,6 +269,9 @@ func (v *Visitor) EnterField(ref int) {
 		}
 	default:
 		obj := &resolve.Object{}
+		if !isRootField && !isList {
+			obj.Path = []string{fieldNameStr}
+		}
 		value = obj
 		nextCurrentObject = obj
 	}
@@ -245,8 +279,11 @@ func (v *Visitor) EnterField(ref int) {
 	v.Defer(func() {
 		if nextCurrentObject != nil {
 			v.CurrentObject = nextCurrentObject
+			v.objects = append(v.objects, fieldObject{
+				fieldRef: ref,
+				object:   nextCurrentObject,
+			})
 		}
-		isList := v.Definition.TypeIsList(fieldDefinitionType)
 		if isList {
 			list := &resolve.Array{
 				Path: []string{fieldNameStr},
@@ -282,5 +319,11 @@ func (v *Visitor) setActiveDataSourcePlanner(currentFieldName string) {
 }
 
 func (v *Visitor) LeaveField(ref int) {
-
+	if len(v.objects) < 2 {
+		return
+	}
+	if v.objects[len(v.objects)-1].fieldRef == ref {
+		v.objects = v.objects[:len(v.objects)-1]
+		v.CurrentObject = v.objects[len(v.objects)-1].object
+	}
 }
