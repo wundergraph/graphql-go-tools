@@ -17,24 +17,16 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 )
 
-/*
-operation MyQuery($id: ID!){
-	droid(id: $id){
-		name
-		aliased: name
-		friends {
-			name
-		}
-		primaryFunction
-	}
-}
-*/
-
 func TestGraphQLDataSourcePlanning(t *testing.T) {
 	t.Run("simple named Query", RunTest(testDefinition, `
 		query MyQuery($id: ID!){
 			droid(id: $id){
 				name
+				aliased: name
+				friends {
+					name
+				}
+				primaryFunction
 			}
 		}
 	`, "MyQuery", &plan.SynchronousResponsePlan{
@@ -47,7 +39,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 						},
 					},
 					BufferId: 0,
-					Input:    []byte(`{"url":"https://swapi.com/graphql","body":{"query":"query($id: ID!){droid(id: $id){name}}","variables":{"id":$$0$$}}}`),
+					Input:    []byte(`{"url":"https://swapi.com/graphql","body":{"query":"query($id: ID!){droid(id: $id){name friends {name} primaryFunction}}","variables":{"id":$$0$$}}}`),
 					Variables: resolve.NewVariables(&resolve.ContextVariable{
 						Path: []string{"id"},
 					}),
@@ -65,6 +57,38 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 													Name: []byte("name"),
 													Value: &resolve.String{
 														Path: []string{"name"},
+													},
+												},
+												{
+													Name: []byte("aliased"),
+													Value: &resolve.String{
+														Path: []string{"name"},
+													},
+												},
+												{
+													Name: []byte("friends"),
+													Value: &resolve.Array{
+														Path: []string{"friends"},
+														Item: &resolve.Object{
+															FieldSets: []resolve.FieldSet{
+																{
+																	Fields: []resolve.Field{
+																		{
+																			Name: []byte("name"),
+																			Value: &resolve.String{
+																				Path: []string{"name"},
+																			},
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+												{
+													Name: []byte("primaryFunction"),
+													Value: &resolve.String{
+														Path: []string{"primaryFunction"},
 													},
 												},
 											},

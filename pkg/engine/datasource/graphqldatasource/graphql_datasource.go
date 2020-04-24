@@ -15,20 +15,22 @@ import (
 
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 )
 
 type Planner struct {
-	v         *plan.Visitor
-	fetch     *resolve.SingleFetch
-	printer   astprinter.Printer
-	operation *ast.Document
-	nodes     []ast.Node
-	buf       *bytes.Buffer
-	URL       []byte
-	variables []byte
+	v                   *plan.Visitor
+	fetch               *resolve.SingleFetch
+	printer             astprinter.Printer
+	operation           *ast.Document
+	nodes               []ast.Node
+	buf                 *bytes.Buffer
+	operationNormalizer *astnormalization.OperationNormalizer
+	URL                 []byte
+	variables           []byte
 }
 
 func (p *Planner) Register(visitor *plan.Visitor) {
@@ -48,6 +50,9 @@ func (p *Planner) EnterDocument(operation, definition *ast.Document) {
 		p.buf = &bytes.Buffer{}
 	} else {
 		p.buf.Reset()
+	}
+	if p.operationNormalizer == nil {
+		p.operationNormalizer = astnormalization.NewNormalizer(true)
 	}
 	p.nodes = p.nodes[:0]
 	p.URL = nil
@@ -124,7 +129,7 @@ func (p *Planner) applyFieldArgument(upstreamField, downstreamField int, arg Arg
 			p.variables, _ = sjson.SetRawBytes(p.variables, variableNameStr, contextVariableName)
 
 			variableValueRef, argRef := p.operation.AddVariableValueArgument(arg.Name, variableName)
-			p.operation.AddArgumentToField(upstreamField,argRef)
+			p.operation.AddArgumentToField(upstreamField, argRef)
 
 			for _, i := range p.v.Operation.OperationDefinitions[p.v.Ancestors[0].Ref].VariableDefinitions.Refs {
 				ref := p.v.Operation.VariableDefinitions[i].VariableValue.Ref
@@ -132,7 +137,7 @@ func (p *Planner) applyFieldArgument(upstreamField, downstreamField int, arg Arg
 					continue
 				}
 				importedType := p.v.Importer.ImportType(p.v.Operation.VariableDefinitions[i].Type, p.v.Operation, p.operation)
-				p.operation.AddVariableDefinitionToOperationDefinition(p.nodes[0].Ref,variableValueRef,importedType)
+				p.operation.AddVariableDefinitionToOperationDefinition(p.nodes[0].Ref, variableValueRef, importedType)
 			}
 		}
 	case Object:
@@ -162,6 +167,7 @@ func (p *Planner) LeaveSelectionSet(ref int) {
 }
 
 func (p *Planner) LeaveDocument(operation, definition *ast.Document) {
+	p.operationNormalizer.NormalizeOperation(p.operation, definition, p.v.Report)
 	buf := &bytes.Buffer{}
 	err := p.printer.Print(p.operation, nil, buf)
 	if err != nil {
@@ -186,8 +192,8 @@ type Source struct {
 
 func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPair) (err error) {
 	var (
-		url, body []byte
-		inputPaths            = [][]string{
+		url, body  []byte
+		inputPaths = [][]string{
 			{"url"},
 			{"body"},
 		}
