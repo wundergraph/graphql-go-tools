@@ -124,7 +124,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 			},
 		},
 	}, plan.Configuration{
-		DataSources: []plan.DataSourceConfiguration{
+		FieldConfigurations: []plan.FieldConfiguration{
 			{
 				TypeName:   "Query",
 				FieldNames: []string{"droid","hero"},

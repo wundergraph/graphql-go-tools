@@ -16,7 +16,7 @@ import (
 )
 
 func TestPlanner_Plan(t *testing.T) {
-	test := func(definition, operation, operationName string, expectedPlan Plan) func(t *testing.T) {
+	test := func(definition, operation, operationName string, expectedPlan Plan,config Configuration) func(t *testing.T) {
 		return func(t *testing.T) {
 			def := unsafeparser.ParseGraphqlDocumentString(definition)
 			op := unsafeparser.ParseGraphqlDocumentString(operation)
@@ -29,7 +29,7 @@ func TestPlanner_Plan(t *testing.T) {
 			norm.NormalizeOperation(&op, &def, &report)
 			valid := astvalidation.DefaultOperationValidator()
 			valid.Validate(&op, &def, &report)
-			p := NewPlanner(&def, Configuration{})
+			p := NewPlanner(&def, config)
 			plan := p.Plan(&op, []byte(operationName), &report)
 			if report.HasErrors() {
 				t.Fatal(report.Error())
@@ -61,7 +61,6 @@ func TestPlanner_Plan(t *testing.T) {
 							{
 								Name: []byte("droid"),
 								Value: &resolve.Object{
-									Path: []string{"droid"},
 									FieldSets: []resolve.FieldSet{
 										{
 											Fields: []resolve.Field{
@@ -113,6 +112,13 @@ func TestPlanner_Plan(t *testing.T) {
 				},
 			},
 		},
+	},Configuration{
+		FieldConfigurations: []FieldConfiguration{
+			{
+				TypeName: "Query",
+				FieldNames: []string{"droid"},
+			},
+		},
 	}))
 	t.Run("named Query in Operation with multiple queries", test(testDefinition, `
 		query Query1($id: ID!){
@@ -135,7 +141,6 @@ func TestPlanner_Plan(t *testing.T) {
 							{
 								Name: []byte("droid"),
 								Value: &resolve.Object{
-									Path: []string{"droid"},
 									FieldSets: []resolve.FieldSet{
 										{
 											Fields: []resolve.Field{
@@ -153,6 +158,13 @@ func TestPlanner_Plan(t *testing.T) {
 						},
 					},
 				},
+			},
+		},
+	},Configuration{
+		FieldConfigurations: []FieldConfiguration{
+			{
+				TypeName: "Query",
+				FieldNames: []string{"droid"},
 			},
 		},
 	}))
