@@ -197,11 +197,9 @@ func TestResolver_ResolveNode(t *testing.T) {
 				BufferId:   0,
 				DataSource: mockDataSource,
 				Input:      []byte(`{"id":$$0$$}`),
-				Variables: []Variable{
-					&ContextVariable{
-						Path: []string{"id"},
-					},
-				},
+				Variables: NewVariables(&ContextVariable{
+					Path: []string{"id"},
+				}),
 			},
 			FieldSets: []FieldSet{
 				{
@@ -457,11 +455,9 @@ func TestResolver_ResolveNode(t *testing.T) {
 									BufferId:   0,
 									DataSource: mockDataSource,
 									Input:      []byte(`{"id":$$0$$}`),
-									Variables: []Variable{
-										&ObjectVariable{
-											Path: []string{"id"},
-										},
-									},
+									Variables: NewVariables(&ObjectVariable{
+										Path: []string{"id"},
+									}),
 								},
 								FieldSets: []FieldSet{
 									{

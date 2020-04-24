@@ -18,7 +18,6 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 )
 
 type Planner struct {
@@ -57,8 +56,6 @@ func (p *Planner) EnterDocument(operation, definition *ast.Document) {
 
 func (p *Planner) EnterField(ref int) {
 	isRootField, config := p.v.IsRootField(ref)
-	fieldName := p.v.Operation.FieldNameString(ref)
-	fmt.Printf("Planner - field: %s, path: %s, isRootField: %t\n", fieldName, p.v.Path.String(), isRootField)
 
 	if isRootField && p.v.CurrentObject.Fetch == nil {
 
@@ -172,9 +169,9 @@ func (p *Planner) LeaveDocument(operation, definition *ast.Document) {
 		return
 	}
 	if p.variables != nil {
-		p.fetch.Input, err = sjson.SetRawBytes(p.fetch.Input, "variables", p.variables)
+		p.fetch.Input, err = sjson.SetRawBytes(p.fetch.Input, "body.variables", p.variables)
 	}
-	p.fetch.Input, err = sjson.SetRawBytes(p.fetch.Input, "query", append([]byte{'"'}, append(buf.Bytes(), '"')...))
+	p.fetch.Input, err = sjson.SetRawBytes(p.fetch.Input, "body.query", append([]byte{'"'}, append(buf.Bytes(), '"')...))
 	p.fetch.Input, err = sjson.SetRawBytes(p.fetch.Input, "url", append([]byte{'"'}, append(p.URL, '"')...))
 	p.fetch.DataSource = &Source{
 		Client: http.Client{
@@ -189,11 +186,10 @@ type Source struct {
 
 func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPair) (err error) {
 	var (
-		url, query, variables []byte
+		url, body []byte
 		inputPaths            = [][]string{
 			{"url"},
-			{"operation"},
-			{"variables"},
+			{"body"},
 		}
 		responsePaths = [][]string{
 			{"error"},
@@ -205,23 +201,9 @@ func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPai
 		case 0:
 			url = bytes
 		case 1:
-			query = append([]byte{'"'}, append(bytes, '"')...)
-		case 2:
-			variables = bytes
+			body = bytes
 		}
 	}, inputPaths...)
-
-	var body []byte
-	if len(variables) != 0 {
-		body, err = sjson.SetRawBytes(body, "variables", variables)
-		if err != nil {
-			return err
-		}
-	}
-	body, err = sjson.SetRawBytes(body, "operation", query)
-	if err != nil {
-		return err
-	}
 
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, string(url), bytes.NewReader(body))
 	if err != nil {
@@ -240,7 +222,6 @@ func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPai
 		return err
 	}
 
-	responseData = bytes.ReplaceAll(responseData, literal.BACKSLASH, nil)
 	jsonparser.EachKey(responseData, func(i int, bytes []byte, valueType jsonparser.ValueType, err error) {
 		switch i {
 		case 0:
