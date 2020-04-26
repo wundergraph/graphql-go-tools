@@ -7,16 +7,26 @@ import (
 )
 
 type RestrictedFieldsValidator interface {
-	Validate(operation *ast.Document, restrictedFields []fields.Type) (RestrictedFieldsResult, error)
+	Validate(operation, definition *ast.Document, restrictedTypes []fields.Type) (RestrictedFieldsResult, error)
 }
 
 type fieldsValidator struct {
 }
 
-func (d fieldsValidator) Validate(operation *ast.Document, restrictedFields []fields.Type) (RestrictedFieldsResult, error) {
+func (d fieldsValidator) Validate(operation, definition *ast.Document, restrictedTypes []fields.Type) (RestrictedFieldsResult, error) {
 	report := operationreport.Report{}
+	requestTypes := make(fields.RequestTypes)
+	fields.NewGenerator().Generate(operation, definition, &report, requestTypes)
 
-	// call fields visitor
+	for i := 0; i < len(restrictedTypes); i++ {
+		if typeFields, isTypeRestricted := requestTypes[restrictedTypes[i].Name]; isTypeRestricted {
+			for j := 0; j < len(restrictedTypes[i].Fields); j++ {
+				if _, isFieldRestricted := typeFields[restrictedTypes[i].Fields[j]]; isFieldRestricted {
+					return restrictedFieldsResult(false, report)
+				}
+			}
+		}
+	}
 
 	return restrictedFieldsResult(true, report)
 }

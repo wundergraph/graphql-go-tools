@@ -6,12 +6,10 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
-type data struct {
-	Types []Type
-}
+type RequestFields map[string]struct{}
+type RequestTypes map[string]RequestFields
 
 type Generator struct {
-	Data    *data
 	walker  *astvisitor.Walker
 	visitor *requestVisitor
 }
@@ -22,7 +20,7 @@ func NewGenerator() *Generator {
 		Walker: &walker,
 	}
 
-	// walker.RegisterAllNodesVisitor(&visitor)
+	walker.RegisterEnterFieldVisitor(&visitor)
 
 	return &Generator{
 		walker:  &walker,
@@ -30,14 +28,31 @@ func NewGenerator() *Generator {
 	}
 }
 
-func (g *Generator) Generate(definition *ast.Document, report *operationreport.Report, data *data) {
+func (g *Generator) Generate(operation, definition *ast.Document, report *operationreport.Report, data RequestTypes) {
 	g.visitor.data = data
+	g.visitor.operation = operation
 	g.visitor.definition = definition
-	g.walker.Walk(definition, nil, report)
+	g.walker.Walk(operation, definition, report)
 }
 
 type requestVisitor struct {
 	*astvisitor.Walker
-	definition *ast.Document
-	data       *data
+	operation, definition *ast.Document
+	data                  RequestTypes
+}
+
+func (p *requestVisitor) EnterField(ref int) {
+	fieldName := p.operation.FieldNameString(ref)
+	parentTypeName := p.definition.NodeNameString(p.EnclosingTypeDefinition)
+
+	t, ok := p.data[parentTypeName]
+	if !ok {
+		t = make(RequestFields)
+	}
+
+	if _, ok := t[fieldName]; !ok {
+		t[fieldName] = struct{}{}
+	}
+
+	p.data[parentTypeName] = t
 }

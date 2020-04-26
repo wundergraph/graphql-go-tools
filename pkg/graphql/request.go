@@ -104,14 +104,18 @@ func (r *Request) IsNormalized() bool {
 	return r.isNormalized
 }
 
-func (r *Request) ValidateRestrictedFields(restrictedFields []fields.Type) (RestrictedFieldsResult, error) {
+func (r *Request) ValidateRestrictedFields(schema *Schema, restrictedFields []fields.Type) (RestrictedFieldsResult, error) {
+	if schema == nil {
+		return RestrictedFieldsResult{Valid: false}, ErrNilSchema
+	}
+
 	report := r.parseQueryOnce()
 	if report.HasErrors() {
 		return restrictedFieldsResult(false, report)
 	}
 
 	var fieldsValidator RestrictedFieldsValidator = fieldsValidator{}
-	return fieldsValidator.Validate(&r.document, restrictedFields)
+	return fieldsValidator.Validate(&r.document, &schema.document, restrictedFields)
 }
 
 func (r *Request) parseQueryOnce() (report operationreport.Report) {
