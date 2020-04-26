@@ -15,6 +15,10 @@ type fieldsValidator struct {
 
 func (d fieldsValidator) Validate(operation, definition *ast.Document, restrictedTypes []fields.Type) (RestrictedFieldsResult, error) {
 	report := operationreport.Report{}
+	if len(restrictedTypes) == 0 {
+		return restrictedFieldsResult(true, report)
+	}
+
 	requestTypes := make(fields.RequestTypes)
 	fields.NewGenerator().Generate(operation, definition, &report, requestTypes)
 
