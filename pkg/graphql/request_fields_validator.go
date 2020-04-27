@@ -56,6 +56,7 @@ func fieldsValidationResult(report operationreport.Report, valid bool, typeName,
 			Message: fmt.Sprintf("field: %s is restricted on type: %s", fieldName, typeName),
 		})
 	}
+	result.Errors = errors
 
 	if !report.HasErrors() {
 		return result, nil
