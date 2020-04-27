@@ -16,7 +16,7 @@ type fieldsValidator struct {
 func (d fieldsValidator) Validate(operation, definition *ast.Document, restrictions []fields.Type) (RequestFieldsValidationResult, error) {
 	report := operationreport.Report{}
 	if len(restrictions) == 0 {
-		return fieldsValidationResult(true, report)
+		return fieldsValidationResult(report, true, "", "")
 	}
 
 	requestedTypes := make(fields.RequestTypes)
@@ -29,23 +29,27 @@ func (d fieldsValidator) Validate(operation, definition *ast.Document, restricti
 		}
 		for _, field := range restrictedType.Fields {
 			if _, hasRestrictedField := requestedFields[field]; hasRestrictedField {
-				return fieldsValidationResult(false, report)
+				return fieldsValidationResult(report, false, restrictedType.Name, field)
 			}
 		}
 	}
 
-	return fieldsValidationResult(true, report)
+	return fieldsValidationResult(report, true, "", "")
 }
 
 type RequestFieldsValidationResult struct {
-	Valid  bool
-	Errors Errors
+	Valid     bool
+	TypeName  string
+	FieldName string
+	Errors    Errors
 }
 
-func fieldsValidationResult(valid bool, report operationreport.Report) (RequestFieldsValidationResult, error) {
+func fieldsValidationResult(report operationreport.Report, valid bool, typeName, fieldName string) (RequestFieldsValidationResult, error) {
 	result := RequestFieldsValidationResult{
-		Valid:  valid,
-		Errors: nil,
+		Valid:     valid,
+		TypeName:  typeName,
+		FieldName: fieldName,
+		Errors:    nil,
 	}
 
 	if !report.HasErrors() {

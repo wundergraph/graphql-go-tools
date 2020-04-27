@@ -111,7 +111,7 @@ func (r *Request) ValidateRestrictedFields(schema *Schema, restrictedFields []fi
 
 	report := r.parseQueryOnce()
 	if report.HasErrors() {
-		return fieldsValidationResult(false, report)
+		return fieldsValidationResult(report, false, "", "")
 	}
 
 	var fieldsValidator RequestFieldsValidator = fieldsValidator{}
