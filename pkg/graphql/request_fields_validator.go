@@ -1,6 +1,8 @@
 package graphql
 
 import (
+	"fmt"
+
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/graphql/fields"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
@@ -38,25 +40,29 @@ func (d fieldsValidator) Validate(operation, definition *ast.Document, restricti
 }
 
 type RequestFieldsValidationResult struct {
-	Valid     bool
-	TypeName  string
-	FieldName string
-	Errors    Errors
+	Valid  bool
+	Errors Errors
 }
 
 func fieldsValidationResult(report operationreport.Report, valid bool, typeName, fieldName string) (RequestFieldsValidationResult, error) {
 	result := RequestFieldsValidationResult{
-		Valid:     valid,
-		TypeName:  typeName,
-		FieldName: fieldName,
-		Errors:    nil,
+		Valid:  valid,
+		Errors: nil,
+	}
+
+	var errors OperationValidationErrors
+	if !result.Valid {
+		errors = append(errors, OperationValidationError{
+			Message: fmt.Sprintf("field: %s is restricted on type: %s", fieldName, typeName),
+		})
 	}
 
 	if !report.HasErrors() {
 		return result, nil
 	}
 
-	result.Errors = operationValidationErrorsFromOperationReport(report)
+	errors = append(errors, operationValidationErrorsFromOperationReport(report)...)
+	result.Errors = errors
 
 	var err error
 	if len(report.InternalErrors) > 0 {

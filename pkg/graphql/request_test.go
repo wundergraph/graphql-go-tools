@@ -208,13 +208,13 @@ func TestRequest_ValidateRestrictedFields(t *testing.T) {
 				result, err := request.ValidateRestrictedFields(schema, restrictedFields)
 				assert.NoError(t, err)
 				assert.True(t, result.Valid)
-				assert.Empty(t, result.TypeName)
+				assert.Empty(t, result.typeName)
 
 				request = requestForQuery(t, starwars.FileHeroWithAliasesQuery)
 				result, err = request.ValidateRestrictedFields(schema, restrictedFields)
 				assert.NoError(t, err)
 				assert.True(t, result.Valid)
-				assert.Empty(t, result.TypeName)
+				assert.Empty(t, result.typeName)
 			})
 		})
 
@@ -224,8 +224,8 @@ func TestRequest_ValidateRestrictedFields(t *testing.T) {
 				result, err := request.ValidateRestrictedFields(schema, restrictedFields)
 				assert.NoError(t, err)
 				assert.False(t, result.Valid)
-				assert.Equal(t, "Query", result.TypeName)
-				assert.Equal(t, "droid", result.FieldName)
+				assert.Equal(t, "Query", result.typeName)
+				assert.Equal(t, "droid", result.fieldName)
 			})
 
 			t.Run("when mutation is restricted", func(t *testing.T) {
@@ -233,8 +233,8 @@ func TestRequest_ValidateRestrictedFields(t *testing.T) {
 				result, err := request.ValidateRestrictedFields(schema, restrictedFields)
 				assert.NoError(t, err)
 				assert.False(t, result.Valid)
-				assert.Equal(t, "Mutation", result.TypeName)
-				assert.Equal(t, "createReview", result.FieldName)
+				assert.Equal(t, "Mutation", result.typeName)
+				assert.Equal(t, "createReview", result.fieldName)
 			})
 
 			t.Run("when type field is restricted", func(t *testing.T) {
@@ -242,8 +242,8 @@ func TestRequest_ValidateRestrictedFields(t *testing.T) {
 				result, err := request.ValidateRestrictedFields(schema, restrictedFields)
 				assert.NoError(t, err)
 				assert.False(t, result.Valid)
-				assert.Equal(t, "Character", result.TypeName)
-				assert.Equal(t, "friends", result.FieldName)
+				assert.Equal(t, "Character", result.typeName)
+				assert.Equal(t, "friends", result.fieldName)
 			})
 
 			t.Run("when mutation response type has restricted field", func(t *testing.T) {
@@ -255,8 +255,8 @@ func TestRequest_ValidateRestrictedFields(t *testing.T) {
 				result, err := request.ValidateRestrictedFields(schema, restrictedFields)
 				assert.NoError(t, err)
 				assert.False(t, result.Valid)
-				assert.Equal(t, "Review", result.TypeName)
-				assert.Equal(t, "id", result.FieldName)
+				assert.Equal(t, "Review", result.typeName)
+				assert.Equal(t, "id", result.fieldName)
 			})
 		})
 	})
