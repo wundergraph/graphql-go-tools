@@ -6,9 +6,6 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
-type RequestFields map[string]struct{}
-type RequestTypes map[string]RequestFields
-
 type Generator struct {
 	walker  *astvisitor.Walker
 	visitor *requestVisitor
