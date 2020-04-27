@@ -225,8 +225,9 @@ func TestRequest_ValidateRestrictedFields(t *testing.T) {
 				assert.NoError(t, err)
 				assert.False(t, result.Valid)
 				assert.Error(t, result.Errors)
+
 				var buf bytes.Buffer
-				result.Errors.WriteResponse(&buf)
+				_, _ = result.Errors.WriteResponse(&buf)
 				assert.Equal(t, `{"errors":[{"message":"field: droid is restricted on type: Query"}]}`, buf.String())
 			})
 
