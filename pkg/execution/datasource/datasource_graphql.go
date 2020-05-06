@@ -280,13 +280,13 @@ func (g *GraphQLDataSourcePlanner) Plan(args []Argument) (DataSource, []Argument
 	}
 	return &GraphQLDataSource{
 		Log:    g.Log,
-		client: g.client,
+		Client: g.client,
 	}, g.Args
 }
 
 type GraphQLDataSource struct {
 	Log    log.Logger
-	client *http.Client
+	Client *http.Client
 }
 
 func (g *GraphQLDataSource) Resolve(ctx context.Context, args ResolverArgs, out io.Writer) (n int, err error) {
@@ -359,7 +359,7 @@ func (g *GraphQLDataSource) Resolve(ctx context.Context, args ResolverArgs, out 
 	request.Header.Add("Content-Type", "application/json")
 	request.Header.Add("Accept", "application/json")
 
-	res, err := g.client.Do(request)
+	res, err := g.Client.Do(request)
 	if err != nil {
 		g.Log.Error("GraphQLDataSource.Client.Do",
 			log.Error(err),
