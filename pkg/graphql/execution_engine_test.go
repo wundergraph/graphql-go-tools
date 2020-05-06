@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"io"
+	"io/ioutil"
 	"net/http"
 	"testing"
 
@@ -72,7 +72,7 @@ func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {
 			assert.Equal(t, "/", req.URL.Path)
 
 			body := bytes.NewBuffer([]byte(`{"hero": {"name": "Luke Skywalker"}}`))
-			return &http.Response{StatusCode: 200, Body: bufferCloser{Reader: body}}
+			return &http.Response{StatusCode: 200, Body: ioutil.NopCloser(body)}
 		})
 
 		httpJsonOptions := DataSourceHttpJsonOptions{
@@ -131,7 +131,7 @@ func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {
 			assert.Equal(t, "/", req.URL.Path)
 
 			body := bytes.NewBuffer([]byte(`{"data":{"hero":{"name":"Luke Skywalker"}}}`))
-			return &http.Response{StatusCode: 200, Body: bufferCloser{Reader: body}}
+			return &http.Response{StatusCode: 200, Body: ioutil.NopCloser(body)}
 		})
 
 		graphqlOptions := DataSourceGraphqlOptions{
@@ -151,12 +151,4 @@ func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, `{"data":{"hero":{"name":"Luke Skywalker"}}}`, buf.String())
 	})
-}
-
-type bufferCloser struct {
-	io.Reader
-}
-
-func (b bufferCloser) Close() error {
-	return nil
 }
