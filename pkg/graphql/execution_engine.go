@@ -22,15 +22,14 @@ type DataSourceGraphqlOptions struct {
 }
 
 type ExecutionOptions struct {
-	ExtraArguments  json.RawMessage
-	HttpJsonOptions DataSourceHttpJsonOptions
-	GraphqlOptions  DataSourceGraphqlOptions
+	ExtraArguments json.RawMessage
 }
 
 type ExecutionEngine struct {
 	logger      abstractlogger.Logger
 	basePlanner *datasource.BasePlanner
 	executor    *execution.Executor
+	schema      *Schema
 }
 
 func NewExecutionEngine(logger abstractlogger.Logger, schema *Schema, plannerConfig datasource.PlannerConfiguration) (*ExecutionEngine, error) {
@@ -44,15 +43,36 @@ func NewExecutionEngine(logger abstractlogger.Logger, schema *Schema, plannerCon
 		logger:      logger,
 		basePlanner: basePlanner,
 		executor:    executor,
+		schema:      schema,
 	}, nil
 }
 
 func (e *ExecutionEngine) AddHttpJsonDataSource(name string) error {
-	return e.AddDataSource(name, &datasource.HttpJsonDataSourcePlannerFactoryFactory{})
+	return e.AddHttpJsonDataSourceWithOptions(name, DataSourceHttpJsonOptions{})
+}
+
+func (e *ExecutionEngine) AddHttpJsonDataSourceWithOptions(name string, options DataSourceHttpJsonOptions) error {
+	httpJsonFactoryFactory := &datasource.HttpJsonDataSourcePlannerFactoryFactory{}
+
+	if options.HttpClient != nil {
+		httpJsonFactoryFactory.Client = options.HttpClient
+	}
+
+	return e.AddDataSource(name, httpJsonFactoryFactory)
 }
 
 func (e *ExecutionEngine) AddGraphqlDataSource(name string) error {
-	return e.AddDataSource(name, &datasource.GraphQLDataSourcePlannerFactoryFactory{})
+	return e.AddGraphqlDataSourceWithOptions(name, DataSourceGraphqlOptions{})
+}
+
+func (e *ExecutionEngine) AddGraphqlDataSourceWithOptions(name string, options DataSourceGraphqlOptions) error {
+	graphqlFactoryFactory := &datasource.GraphQLDataSourcePlannerFactoryFactory{}
+
+	if options.HttpClient != nil {
+		graphqlFactoryFactory.Client = options.HttpClient
+	}
+
+	return e.AddDataSource(name, graphqlFactoryFactory)
 }
 
 func (e *ExecutionEngine) AddDataSource(name string, plannerFactoryFactory datasource.PlannerFactoryFactory) error {
@@ -65,6 +85,17 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *Request, write
 
 func (e *ExecutionEngine) ExecuteWithOptions(ctx context.Context, operation *Request, writer io.Writer, options ExecutionOptions) error {
 	var report operationreport.Report
+	if !operation.IsNormalized() {
+		normalizationResult, err := operation.Normalize(e.schema)
+		if err != nil {
+			return err
+		}
+
+		if !normalizationResult.Successful {
+			return normalizationResult.Errors
+		}
+	}
+
 	planner := execution.NewPlanner(e.basePlanner)
 	plan := planner.Plan(&operation.document, e.basePlanner.Definition, &report)
 	if report.HasErrors() {
