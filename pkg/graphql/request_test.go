@@ -83,12 +83,7 @@ func TestRequest_ValidateForSchema(t *testing.T) {
 
 	t.Run("should return valid result for introspection query after normalization", func(t *testing.T) {
 		schema := starwarsSchema(t)
-
-		rawRequest := starwars.LoadQuery(t, starwars.FileIntrospectionQuery, nil)
-
-		var request Request
-		err := UnmarshalRequest(bytes.NewBuffer(rawRequest), &request)
-		require.NoError(t, err)
+		request := requestForQuery(t, starwars.FileIntrospectionQuery)
 
 		normalizationResult, err := request.Normalize(schema)
 		require.NoError(t, err)
@@ -103,12 +98,7 @@ func TestRequest_ValidateForSchema(t *testing.T) {
 
 	t.Run("should return valid result when validation is successful", func(t *testing.T) {
 		schema := starwarsSchema(t)
-
-		rawRequest := starwars.LoadQuery(t, starwars.FileSimpleHeroQuery, nil)
-
-		var request Request
-		err := UnmarshalRequest(bytes.NewBuffer(rawRequest), &request)
-		require.NoError(t, err)
+		request := requestForQuery(t, starwars.FileSimpleHeroQuery)
 
 		result, err := request.ValidateForSchema(schema)
 		assert.NoError(t, err)
@@ -134,13 +124,7 @@ func TestRequest_Normalize(t *testing.T) {
 
 	t.Run("should successfully normalize the request", func(t *testing.T) {
 		schema := starwarsSchema(t)
-
-		rawRequest := starwars.LoadQuery(t, starwars.FileFragmentsQuery, nil)
-
-		var request Request
-		err := UnmarshalRequest(bytes.NewBuffer(rawRequest), &request)
-		require.NoError(t, err)
-
+		request := requestForQuery(t, starwars.FileFragmentsQuery)
 		documentBeforeNormalization := request.document
 
 		result, err := request.Normalize(schema)
@@ -169,12 +153,7 @@ func TestRequest_Print(t *testing.T) {
 
 func TestRequest_CalculateComplexity(t *testing.T) {
 	t.Run("should return error when schema is nil", func(t *testing.T) {
-		request := Request{
-			OperationName: "Hello",
-			Variables:     nil,
-			Query:         `query Hello { hello }`,
-		}
-
+		request := Request{}
 		result, err := request.CalculateComplexity(DefaultComplexityCalculator, nil)
 		assert.Error(t, err)
 		assert.Equal(t, ErrNilSchema, err)
@@ -186,18 +165,101 @@ func TestRequest_CalculateComplexity(t *testing.T) {
 	t.Run("should successfully calculate the complexity of request", func(t *testing.T) {
 		schema := starwarsSchema(t)
 
-		rawRequest := starwars.LoadQuery(t, starwars.FileSimpleHeroQuery, nil)
-
-		var request Request
-		err := UnmarshalRequest(bytes.NewBuffer(rawRequest), &request)
-		require.NoError(t, err)
-
+		request := requestForQuery(t, starwars.FileSimpleHeroQuery)
 		result, err := request.CalculateComplexity(DefaultComplexityCalculator, schema)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, result.NodeCount, "unexpected node count")
 		assert.Equal(t, 1, result.Complexity, "unexpected complexity")
 		assert.Equal(t, 2, result.Depth, "unexpected depth")
 	})
+}
+
+func TestRequest_ValidateRestrictedFields(t *testing.T) {
+	t.Run("should return error when schema is nil", func(t *testing.T) {
+		request := Request{}
+		result, err := request.ValidateRestrictedFields(nil, nil)
+		assert.Error(t, err)
+		assert.Equal(t, ErrNilSchema, err)
+		assert.False(t, result.Valid)
+	})
+
+	t.Run("should allow request when no restrictions set", func(t *testing.T) {
+		schema := starwarsSchema(t)
+		request := requestForQuery(t, starwars.FileSimpleHeroQuery)
+
+		result, err := request.ValidateRestrictedFields(schema, nil)
+		assert.NoError(t, err)
+		assert.True(t, result.Valid)
+	})
+
+	t.Run("when restrictions set", func(t *testing.T) {
+		schema := starwarsSchema(t)
+		restrictedFields := []Type{
+			{Name: "Query", Fields: []string{"droid"}},
+			{Name: "Mutation", Fields: []string{"createReview"}},
+			{Name: "Character", Fields: []string{"friends"}},
+			{Name: "Starship", Fields: []string{"length"}},
+		}
+
+		t.Run("should allow request", func(t *testing.T) {
+			t.Run("when only allowed fields requested", func(t *testing.T) {
+				request := requestForQuery(t, starwars.FileSimpleHeroQuery)
+				result, err := request.ValidateRestrictedFields(schema, restrictedFields)
+				assert.NoError(t, err)
+				assert.True(t, result.Valid)
+				assert.Empty(t, result.Errors)
+
+				request = requestForQuery(t, starwars.FileHeroWithAliasesQuery)
+				result, err = request.ValidateRestrictedFields(schema, restrictedFields)
+				assert.NoError(t, err)
+				assert.True(t, result.Valid)
+				assert.Empty(t, result.Errors)
+			})
+		})
+
+		t.Run("should disallow request", func(t *testing.T) {
+			t.Run("when query is restricted", func(t *testing.T) {
+				request := requestForQuery(t, starwars.FileDroidWithArgAndVarQuery)
+				result, err := request.ValidateRestrictedFields(schema, restrictedFields)
+				assert.NoError(t, err)
+				assert.False(t, result.Valid)
+				assert.Error(t, result.Errors)
+
+				var buf bytes.Buffer
+				_, _ = result.Errors.WriteResponse(&buf)
+				assert.Equal(t, `{"errors":[{"message":"field: droid is restricted on type: Query"}]}`, buf.String())
+			})
+
+			t.Run("when mutation is restricted", func(t *testing.T) {
+				request := requestForQuery(t, starwars.FileCreateReviewMutation)
+				result, err := request.ValidateRestrictedFields(schema, restrictedFields)
+				assert.NoError(t, err)
+				assert.False(t, result.Valid)
+				assert.Error(t, result.Errors)
+			})
+
+			t.Run("when type field is restricted", func(t *testing.T) {
+				request := requestForQuery(t, starwars.FileUnionQuery)
+				result, err := request.ValidateRestrictedFields(schema, restrictedFields)
+				assert.NoError(t, err)
+				assert.False(t, result.Valid)
+				assert.Error(t, result.Errors)
+			})
+
+			t.Run("when mutation response type has restricted field", func(t *testing.T) {
+				restrictedFields := []Type{
+					{Name: "Review", Fields: []string{"id"}},
+				}
+
+				request := requestForQuery(t, starwars.FileCreateReviewMutation)
+				result, err := request.ValidateRestrictedFields(schema, restrictedFields)
+				assert.NoError(t, err)
+				assert.False(t, result.Valid)
+				assert.Error(t, result.Errors)
+			})
+		})
+	})
+
 }
 
 func starwarsSchema(t *testing.T) *Schema {
@@ -208,4 +270,14 @@ func starwarsSchema(t *testing.T) *Schema {
 	require.NoError(t, err)
 
 	return schema
+}
+
+func requestForQuery(t *testing.T, fileName string) Request {
+	rawRequest := starwars.LoadQuery(t, fileName, nil)
+
+	var request Request
+	err := UnmarshalRequest(bytes.NewBuffer(rawRequest), &request)
+	require.NoError(t, err)
+
+	return request
 }
