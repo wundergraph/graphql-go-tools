@@ -1,7 +1,6 @@
 package graphql
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -33,10 +32,6 @@ func TestExtractor_ExtractFieldsFromRequest(t *testing.T) {
 
 	assert.False(t, report.HasErrors())
 	assert.Equal(t, expectedFields, fields)
-}
-
-func removeStringLiteralNewLine(str string) string {
-	return strings.Replace(str, `\n`, " ", -1)
 }
 
 const testOperation = `query PostsUserQuery {
