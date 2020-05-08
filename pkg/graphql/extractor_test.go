@@ -1,21 +1,27 @@
-package fields
+package graphql
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
-	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
-func TestGenerator_Generate(t *testing.T) {
-	definition := unsafeparser.ParseGraphqlDocumentString(testDefinition)
-	operation := unsafeparser.ParseGraphqlDocumentString(testOperation)
+func TestExtractor_ExtractFieldsFromRequest(t *testing.T) {
+	schema, err := NewSchemaFromString(testDefinition)
+	require.NoError(t, err)
+
+	request := Request{
+		OperationName: "PostsUserQuery",
+		Variables:     nil,
+		Query:         testOperation,
+	}
 
 	fields := make(RequestTypes)
 	report := operationreport.Report{}
-	NewGenerator().Generate(&operation, &definition, &report, fields)
+	NewExtractor().ExtractFieldsFromRequest(&request, schema, &report, fields)
 
 	expectedFields := RequestTypes{
 		"Foo":   {"fooField": {}},
@@ -23,11 +29,12 @@ func TestGenerator_Generate(t *testing.T) {
 		"Query": {"foo": {}, "posts": {}},
 		"User":  {"id": {}, "name": {}},
 	}
+
+	assert.False(t, report.HasErrors())
 	assert.Equal(t, expectedFields, fields)
 }
 
-const testOperation = `
-query PostsUserQuery {
+const testOperation = `query PostsUserQuery {
 	posts {
 		id
 		description

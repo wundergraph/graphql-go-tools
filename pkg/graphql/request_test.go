@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/graphql/fields"
 	"github.com/jensneuse/graphql-go-tools/pkg/starwars"
 )
 
@@ -195,7 +194,7 @@ func TestRequest_ValidateRestrictedFields(t *testing.T) {
 
 	t.Run("when restrictions set", func(t *testing.T) {
 		schema := starwarsSchema(t)
-		restrictedFields := []fields.Type{
+		restrictedFields := []Type{
 			{Name: "Query", Fields: []string{"droid"}},
 			{Name: "Mutation", Fields: []string{"createReview"}},
 			{Name: "Character", Fields: []string{"friends"}},
@@ -248,7 +247,7 @@ func TestRequest_ValidateRestrictedFields(t *testing.T) {
 			})
 
 			t.Run("when mutation response type has restricted field", func(t *testing.T) {
-				restrictedFields := []fields.Type{
+				restrictedFields := []Type{
 					{Name: "Review", Fields: []string{"id"}},
 				}
 
