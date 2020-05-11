@@ -10,7 +10,25 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/asttransform"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"io"
+	"net/http"
+	"time"
 )
+
+var defaultHttpClient *http.Client
+
+func DefaultHttpClient() *http.Client {
+	if defaultHttpClient == nil {
+		defaultHttpClient = &http.Client{
+			Timeout: time.Second * 10,
+			Transport: &http.Transport{
+				MaxIdleConnsPerHost: 1024,
+				TLSHandshakeTimeout: 0 * time.Second,
+			},
+		}
+	}
+
+	return defaultHttpClient
+}
 
 type ResolverArgs interface {
 	ByKey(key []byte) []byte
