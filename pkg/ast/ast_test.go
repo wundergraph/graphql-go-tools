@@ -66,27 +66,27 @@ func ExampleDocument() {
 
 	// create a named Type
 	stringType := Type{
-		TypeKind:TypeKindNamed,
-		Name: stringName,
+		TypeKind: TypeKindNamed,
+		Name:     stringName,
 	}
 
 	// add the Type to the ast
-	doc.Types = append(doc.Types,stringType)
+	doc.Types = append(doc.Types, stringType)
 	// get a reference to the Type
-	stringTypeRef := len(doc.Types) -1
+	stringTypeRef := len(doc.Types) - 1
 
 	// create another Type
 	nonNullStringType := Type{
-		TypeKind:TypeKindNonNull,
+		TypeKind: TypeKindNonNull,
 		// add a reference to the named type
-		OfType:stringTypeRef,
+		OfType: stringTypeRef,
 	}
 	// Result: NonNull String / String!
 
 	// add the Type to the ast
-	doc.Types = append(doc.Types,nonNullStringType)
+	doc.Types = append(doc.Types, nonNullStringType)
 	// get a reference to the Type
-	nonNullStringTypeRef := len(doc.Types) -1
+	nonNullStringTypeRef := len(doc.Types) - 1
 
 	// add another string to the raw input
 	helloName := doc.Input.AppendInputString("hello")
@@ -99,13 +99,13 @@ func ExampleDocument() {
 	}
 
 	// add the FieldDefinition to the ast
-	doc.FieldDefinitions = append(doc.FieldDefinitions,helloFieldDefinition)
+	doc.FieldDefinitions = append(doc.FieldDefinitions, helloFieldDefinition)
 	// get a reference to the FieldDefinition
-	helloFieldDefinitionRef := len(doc.FieldDefinitions)-1
+	helloFieldDefinitionRef := len(doc.FieldDefinitions) - 1
 
 	// create an ObjectTypeDefinition
 	queryTypeDefinition := ObjectTypeDefinition{
-		Name:                queryTypeName,
+		Name: queryTypeName,
 		// declare that this ObjectTypeDefinition has fields
 		// this is necessary for the Walker to understand it must walk FieldDefinitions
 		HasFieldDefinitions: true,

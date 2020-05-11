@@ -1,8 +1,13 @@
-//go:generate stringer -type=DirectiveLocation
+//go:generate stringer -type=DirectiveLocation -output directive_location_string.go
 
 package ast
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
+)
 
 type DirectiveLocation int
 
@@ -105,4 +110,55 @@ func (d *DirectiveLocationIterable) Next() bool {
 
 func (d *DirectiveLocationIterable) Value() DirectiveLocation {
 	return d.current
+}
+
+// TODO: no need to have this method on document
+func (d *Document) DirectiveLocationBytes(location DirectiveLocation) ByteSlice {
+	switch location {
+	case ExecutableDirectiveLocationQuery:
+		return literal.LocationQuery
+	case ExecutableDirectiveLocationMutation:
+		return literal.LocationMutation
+	case ExecutableDirectiveLocationSubscription:
+		return literal.LocationSubscription
+	case ExecutableDirectiveLocationField:
+		return literal.LocationField
+	case ExecutableDirectiveLocationFragmentDefinition:
+		return literal.LocationFragmentDefinition
+	case ExecutableDirectiveLocationFragmentSpread:
+		return literal.LocationFragmentSpread
+	case ExecutableDirectiveLocationInlineFragment:
+		return literal.LocationInlineFragment
+	case ExecutableDirectiveLocationVariableDefinition:
+		return literal.LocationVariableDefinition
+	case TypeSystemDirectiveLocationSchema:
+		return literal.LocationSchema
+	case TypeSystemDirectiveLocationScalar:
+		return literal.LocationScalar
+	case TypeSystemDirectiveLocationObject:
+		return literal.LocationObject
+	case TypeSystemDirectiveLocationFieldDefinition:
+		return literal.LocationFieldDefinition
+	case TypeSystemDirectiveLocationArgumentDefinition:
+		return literal.LocationArgumentDefinition
+	case TypeSystemDirectiveLocationInterface:
+		return literal.LocationInterface
+	case TypeSystemDirectiveLocationUnion:
+		return literal.LocationUnion
+	case TypeSystemDirectiveLocationEnum:
+		return literal.LocationEnum
+	case TypeSystemDirectiveLocationEnumValue:
+		return literal.LocationEnumValue
+	case TypeSystemDirectiveLocationInputObject:
+		return literal.LocationInputObject
+	case TypeSystemDirectiveLocationInputFieldDefinition:
+		return literal.LocationInputFieldDefinition
+	default:
+		return nil
+	}
+}
+
+// TODO: no need to have this method on document
+func (d *Document) DirectiveLocationString(location DirectiveLocation) string {
+	return unsafebytes.BytesToString(d.DirectiveLocationBytes(location))
 }
