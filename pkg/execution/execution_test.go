@@ -134,7 +134,8 @@ func TestExecution(t *testing.T) {
 										},
 									},
 									DataSource: &datasource.GraphQLDataSource{
-										Log: log.NoopLogger,
+										Log:    log.NoopLogger,
+										Client: datasource.DefaultHttpClient(),
 									},
 								},
 								BufferName: "user",
@@ -248,7 +249,7 @@ func TestExecution(t *testing.T) {
 													},
 												},
 												DataSource: &datasource.HttpJsonDataSource{
-													Log: log.NoopLogger,
+													Log:    log.NoopLogger,
 													Client: datasource.DefaultHttpClient(),
 												},
 											},
@@ -277,7 +278,8 @@ func TestExecution(t *testing.T) {
 													},
 												},
 												DataSource: &datasource.GraphQLDataSource{
-													Log: log.NoopLogger,
+													Log:    log.NoopLogger,
+													Client: datasource.DefaultHttpClient(),
 												},
 											},
 											BufferName: "pets",
@@ -346,7 +348,7 @@ func TestExecution(t *testing.T) {
 															},
 														},
 														DataSource: &datasource.HttpJsonDataSource{
-															Log: log.NoopLogger,
+															Log:    log.NoopLogger,
 															Client: datasource.DefaultHttpClient(),
 														},
 													},
@@ -1333,7 +1335,7 @@ func TestExecutor_ObjectVariables(t *testing.T) {
 											},
 										},
 										DataSource: &datasource.HttpJsonDataSource{
-											Log: log.NoopLogger,
+											Log:    log.NoopLogger,
 											Client: datasource.DefaultHttpClient(),
 										},
 									},
@@ -1461,7 +1463,7 @@ func TestExecutor_NestedObjectVariables(t *testing.T) {
 								},
 							},
 							DataSource: &datasource.HttpJsonDataSource{
-								Log: log.NoopLogger,
+								Log:    log.NoopLogger,
 								Client: datasource.DefaultHttpClient(),
 							},
 						},
@@ -1498,7 +1500,7 @@ func TestExecutor_NestedObjectVariables(t *testing.T) {
 														},
 													},
 													DataSource: &datasource.HttpJsonDataSource{
-														Log: log.NoopLogger,
+														Log:    log.NoopLogger,
 														Client: datasource.DefaultHttpClient(),
 													},
 												},
@@ -1676,7 +1678,8 @@ func TestExecutor_GraphqlDataSourceWithParams(t *testing.T) {
 								},
 							},
 							DataSource: &datasource.GraphQLDataSource{
-								Log: log.NoopLogger,
+								Log:    log.NoopLogger,
+								Client: datasource.DefaultHttpClient(),
 							},
 						},
 						BufferName: "countries",
@@ -2078,7 +2081,7 @@ func TestExecutor_HTTPJSONDataSourceWithBody(t *testing.T) {
 						BufferName: "withBody",
 						Source: &DataSourceInvocation{
 							DataSource: &datasource.HttpJsonDataSource{
-								Log: log.NoopLogger,
+								Log:    log.NoopLogger,
 								Client: datasource.DefaultHttpClient(),
 							},
 							Args: []datasource.Argument{
@@ -2498,7 +2501,7 @@ func TestExecutor_HTTPJSONDataSourceWithBodyComplexPlayload(t *testing.T) {
 						BufferName: "withBody",
 						Source: &DataSourceInvocation{
 							DataSource: &datasource.HttpJsonDataSource{
-								Log: log.NoopLogger,
+								Log:    log.NoopLogger,
 								Client: datasource.DefaultHttpClient(),
 							},
 							Args: []datasource.Argument{
@@ -2601,7 +2604,7 @@ func TestExecutor_HTTPJSONDataSourceWithHeaders(t *testing.T) {
 						BufferName: "withHeaders",
 						Source: &DataSourceInvocation{
 							DataSource: &datasource.HttpJsonDataSource{
-								Log: log.NoopLogger,
+								Log:    log.NoopLogger,
 								Client: datasource.DefaultHttpClient(),
 							},
 							Args: []datasource.Argument{
@@ -2707,7 +2710,7 @@ func TestExecutor_HTTPJSONDataSourceWithPathSelector(t *testing.T) {
 						BufferName: "friends",
 						Source: &DataSourceInvocation{
 							DataSource: &datasource.HttpJsonDataSource{
-								Log: log.NoopLogger,
+								Log:    log.NoopLogger,
 								Client: datasource.DefaultHttpClient(),
 							},
 							Args: []datasource.Argument{
