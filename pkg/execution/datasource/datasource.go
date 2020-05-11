@@ -4,14 +4,17 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
+	"net/http"
+	"strings"
+	"time"
+
 	"github.com/jensneuse/abstractlogger"
+
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/asttransform"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
-	"io"
-	"net/http"
-	"time"
 )
 
 var defaultHttpClient *http.Client
@@ -149,7 +152,7 @@ type MappingConfiguration struct {
 
 func (p *PlannerConfiguration) DataSourcePlannerFactoryForTypeField(typeName, fieldName string) PlannerFactory {
 	for i := range p.TypeFieldConfigurations {
-		if p.TypeFieldConfigurations[i].TypeName == typeName && p.TypeFieldConfigurations[i].FieldName == fieldName {
+		if strings.EqualFold(p.TypeFieldConfigurations[i].TypeName, typeName) && strings.EqualFold(p.TypeFieldConfigurations[i].FieldName, fieldName) {
 			return p.TypeFieldConfigurations[i].DataSourcePlannerFactory
 		}
 	}
@@ -158,7 +161,7 @@ func (p *PlannerConfiguration) DataSourcePlannerFactoryForTypeField(typeName, fi
 
 func (p *PlannerConfiguration) MappingForTypeField(typeName, fieldName string) *MappingConfiguration {
 	for i := range p.TypeFieldConfigurations {
-		if p.TypeFieldConfigurations[i].TypeName == typeName && p.TypeFieldConfigurations[i].FieldName == fieldName {
+		if strings.EqualFold(p.TypeFieldConfigurations[i].TypeName, typeName) && strings.EqualFold(p.TypeFieldConfigurations[i].FieldName, fieldName) {
 			return p.TypeFieldConfigurations[i].Mapping
 		}
 	}

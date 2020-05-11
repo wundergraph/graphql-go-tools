@@ -39,7 +39,7 @@ func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {
 		plannerConfig := datasource.PlannerConfiguration{
 			TypeFieldConfigurations: []datasource.TypeFieldConfiguration{
 				{
-					TypeName:  "query",
+					TypeName:  "Query",
 					FieldName: "hero",
 					Mapping: &datasource.MappingConfiguration{
 						Disabled: false,
