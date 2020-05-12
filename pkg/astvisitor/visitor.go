@@ -1275,7 +1275,7 @@ func (w *Walker) appendAncestor(ref int, kind ast.NodeKind) {
 		fields := w.definition.NodeFieldDefinitions(w.typeDefinitions[len(w.typeDefinitions)-1])
 		for _, i := range fields {
 			if bytes.Equal(fieldName, w.definition.FieldDefinitionNameBytes(i)) {
-				typeName = w.definition.ResolveTypeName(w.definition.FieldDefinitionType(i))
+				typeName = w.definition.ResolveTypeNameBytes(w.definition.FieldDefinitionType(i))
 				break
 			}
 		}
