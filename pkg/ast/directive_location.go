@@ -112,8 +112,7 @@ func (d *DirectiveLocationIterable) Value() DirectiveLocation {
 	return d.current
 }
 
-// TODO: no need to have this method on document
-func (d *Document) DirectiveLocationBytes(location DirectiveLocation) ByteSlice {
+func (location DirectiveLocation) LiteralBytes() ByteSlice {
 	switch location {
 	case ExecutableDirectiveLocationQuery:
 		return literal.LocationQuery
@@ -158,7 +157,6 @@ func (d *Document) DirectiveLocationBytes(location DirectiveLocation) ByteSlice 
 	}
 }
 
-// TODO: no need to have this method on document
-func (d *Document) DirectiveLocationString(location DirectiveLocation) string {
-	return unsafebytes.BytesToString(d.DirectiveLocationBytes(location))
+func (location DirectiveLocation) LiteralString() string {
+	return unsafebytes.BytesToString(location.LiteralBytes())
 }

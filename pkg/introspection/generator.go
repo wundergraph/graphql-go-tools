@@ -270,7 +270,7 @@ func (i *introspectionVisitor) LeaveDirectiveDefinition(ref int) {
 }
 
 func (i *introspectionVisitor) EnterDirectiveLocation(location ast.DirectiveLocation) {
-	i.currentDirective.Locations = append(i.currentDirective.Locations, i.definition.DirectiveLocationString(location))
+	i.currentDirective.Locations = append(i.currentDirective.Locations, location.LiteralString())
 }
 
 func (i *introspectionVisitor) LeaveDirectiveLocation(location ast.DirectiveLocation) {
