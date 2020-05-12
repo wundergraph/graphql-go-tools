@@ -2,6 +2,7 @@ package introspection
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 
 	"github.com/cespare/xxhash"
@@ -14,23 +15,21 @@ type JsonConverter struct {
 	doc    *ast.Document
 }
 
-func (i *JsonConverter) GraphQLDocument(introspectionJSON io.Reader) *ast.Document {
+func (i *JsonConverter) GraphQLDocument(introspectionJSON io.Reader) (*ast.Document, error) {
 	var data Data
-	err := json.NewDecoder(introspectionJSON).Decode(&data)
-	if err != nil {
-		// TODO: handle error
+	if err := json.NewDecoder(introspectionJSON).Decode(&data); err != nil {
+		return nil, fmt.Errorf("failed to parse inrospection json: %v", err)
 	}
-	doc := ast.NewDocument()
 
-	i.importSchema(&data.Schema, doc)
+	i.schema = &data.Schema
+	i.doc = ast.NewDocument()
 
-	return doc
+	i.importSchema()
+
+	return i.doc, nil
 }
 
-func (i *JsonConverter) importSchema(schema *Schema, doc *ast.Document) {
-	i.schema = schema
-	i.doc = doc
-
+func (i *JsonConverter) importSchema() {
 	i.importRootOperations()
 
 	for _, fullType := range i.schema.Types {
@@ -113,6 +112,7 @@ func (i *JsonConverter) importObject(fullType FullType) {
 
 	// TODO: import description
 	// TODO: import implements
+	i.importDescription()
 
 	objectName := i.doc.Input.AppendInputString(fullType.Name)
 	objectTypeDef := ast.ObjectTypeDefinition{
