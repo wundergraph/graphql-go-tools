@@ -13,7 +13,7 @@ import (
 type TypeKind int
 
 const (
-	TypeKindUnknown TypeKind = iota
+	TypeKindUnknown TypeKind = 14 + iota
 	TypeKindNamed
 	TypeKindList
 	TypeKindNonNull

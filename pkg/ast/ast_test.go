@@ -1,5 +1,11 @@
 package ast
 
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
+
 // Create a new document with initialized slices.
 // In case you're on a hot path you always want to use a pre-initialized Document.
 func ExampleNewDocument() {
@@ -122,4 +128,113 @@ func ExampleDocument() {
 
 	// add ObjectTypeDefinition to the RootNodes
 	doc.RootNodes = append(doc.RootNodes, Node{Kind: NodeKindObjectTypeDefinition, Ref: queryTypeRef})
+}
+
+func TestKinds(t *testing.T) {
+	expectedArray := func(start, count int) (out []int) {
+		for i := start; i < start+count; i++ {
+			out = append(out, i)
+		}
+		return
+	}
+
+	t.Run("operation types has correct values", func(t *testing.T) {
+		operationTypes := []OperationType{
+			OperationTypeUnknown,
+			OperationTypeQuery,
+			OperationTypeMutation,
+			OperationTypeSubscription,
+		}
+		actualValues := make([]int, 0, len(operationTypes))
+		for _, t := range operationTypes {
+			actualValues = append(actualValues, int(t))
+		}
+		assert.Equal(t, expectedArray(0, 4), actualValues)
+	})
+
+	t.Run("value kinds has correct values", func(t *testing.T) {
+		valueKinds := []ValueKind{
+			ValueKindUnknown,
+			ValueKindString,
+			ValueKindBoolean,
+			ValueKindInteger,
+			ValueKindFloat,
+			ValueKindVariable,
+			ValueKindNull,
+			ValueKindList,
+			ValueKindObject,
+			ValueKindEnum,
+		}
+		actualValues := make([]int, 0, len(valueKinds))
+		for _, t := range valueKinds {
+			actualValues = append(actualValues, int(t))
+		}
+		assert.Equal(t, expectedArray(4, 10), actualValues)
+	})
+
+	t.Run("type kinds has correct values", func(t *testing.T) {
+		typeKinds := []TypeKind{
+			TypeKindUnknown,
+			TypeKindNamed,
+			TypeKindList,
+			TypeKindNonNull,
+		}
+		actualValues := make([]int, 0, len(typeKinds))
+		for _, t := range typeKinds {
+			actualValues = append(actualValues, int(t))
+		}
+		assert.Equal(t, expectedArray(14, 4), actualValues)
+	})
+
+	t.Run("selection kinds has correct values", func(t *testing.T) {
+		selectionKinds := []SelectionKind{
+			SelectionKindUnknown,
+			SelectionKindField,
+			SelectionKindFragmentSpread,
+			SelectionKindInlineFragment,
+		}
+		actualValues := make([]int, 0, len(selectionKinds))
+		for _, t := range selectionKinds {
+			actualValues = append(actualValues, int(t))
+		}
+		assert.Equal(t, expectedArray(18, 4), actualValues)
+	})
+
+	t.Run("node kinds has correct values", func(t *testing.T) {
+		nodeKinds := []NodeKind{
+			NodeKindUnknown,
+			NodeKindSchemaDefinition,
+			NodeKindSchemaExtension,
+			NodeKindObjectTypeDefinition,
+			NodeKindObjectTypeExtension,
+			NodeKindInterfaceTypeDefinition,
+			NodeKindInterfaceTypeExtension,
+			NodeKindUnionTypeDefinition,
+			NodeKindUnionTypeExtension,
+			NodeKindEnumTypeDefinition,
+			NodeKindEnumValueDefinition,
+			NodeKindEnumTypeExtension,
+			NodeKindInputObjectTypeDefinition,
+			NodeKindInputValueDefinition,
+			NodeKindInputObjectTypeExtension,
+			NodeKindScalarTypeDefinition,
+			NodeKindScalarTypeExtension,
+			NodeKindDirectiveDefinition,
+			NodeKindOperationDefinition,
+			NodeKindSelectionSet,
+			NodeKindField,
+			NodeKindFieldDefinition,
+			NodeKindFragmentSpread,
+			NodeKindInlineFragment,
+			NodeKindFragmentDefinition,
+			NodeKindArgument,
+			NodeKindDirective,
+			NodeKindVariableDefinition,
+		}
+		actualValues := make([]int, 0, len(nodeKinds))
+		for _, t := range nodeKinds {
+			actualValues = append(actualValues, int(t))
+		}
+		assert.Equal(t, expectedArray(22, 28), actualValues)
+	})
 }

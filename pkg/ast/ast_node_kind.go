@@ -8,7 +8,7 @@ import (
 type NodeKind int
 
 const (
-	NodeKindUnknown NodeKind = iota
+	NodeKindUnknown NodeKind = 22 + iota
 	NodeKindSchemaDefinition
 	NodeKindSchemaExtension
 	NodeKindObjectTypeDefinition

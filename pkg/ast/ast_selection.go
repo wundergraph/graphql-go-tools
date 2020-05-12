@@ -9,7 +9,7 @@ import (
 type SelectionKind int
 
 const (
-	SelectionKindUnknown SelectionKind = iota
+	SelectionKindUnknown SelectionKind = 18 + iota
 	SelectionKindField
 	SelectionKindFragmentSpread
 	SelectionKindInlineFragment

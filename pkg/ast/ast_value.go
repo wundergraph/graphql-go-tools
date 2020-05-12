@@ -11,7 +11,7 @@ import (
 type ValueKind int
 
 const (
-	ValueKindUnknown ValueKind = iota
+	ValueKindUnknown ValueKind = 4 + iota
 	ValueKindString
 	ValueKindBoolean
 	ValueKindInteger
