@@ -3,13 +3,15 @@ package lexer
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"testing"
+
 	"github.com/jensneuse/diffview"
+	"github.com/sebdah/goldie"
+
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/keyword"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/token"
-	"github.com/sebdah/goldie"
-	"io/ioutil"
-	"testing"
 )
 
 func TestLexer_Peek_Read(t *testing.T) {
@@ -169,7 +171,7 @@ func TestLexer_Peek_Read(t *testing.T) {
 		run("2.54E+1", mustRead(keyword.FLOAT, "2.54E+1"))
 	})
 	t.Run("read electron charge/mass ratio", func(t *testing.T) {
-		run("-1.758E11",mustRead(keyword.SUB, "-"),
+		run("-1.758E11", mustRead(keyword.SUB, "-"),
 			mustRead(keyword.FLOAT, "1.758E11"))
 	})
 	t.Run("read single line string", func(t *testing.T) {

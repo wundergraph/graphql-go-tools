@@ -2,13 +2,14 @@ package astvalidation
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
-	"testing"
 )
 
 func TestExecutionValidation(t *testing.T) {
@@ -3524,7 +3525,7 @@ func TestExecutionValidation(t *testing.T) {
 	})
 }
 
-func TestValidationWithTypeName(t *testing.T){
+func TestValidationWithTypeName(t *testing.T) {
 	operation := `
 		query getApi($id: String!) {
 		  api(id: $id) {
@@ -3563,7 +3564,7 @@ func TestValidationWithTypeName(t *testing.T){
 	def := unsafeparser.ParseGraphqlDocumentString(definition)
 	validator := DefaultOperationValidator()
 	var report operationreport.Report
-	validator.Validate(&op,&def,&report)
+	validator.Validate(&op, &def, &report)
 	if report.HasErrors() {
 		t.Fatal(report.Error())
 	}

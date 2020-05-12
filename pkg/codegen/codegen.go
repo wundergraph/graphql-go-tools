@@ -5,13 +5,15 @@ package codegen
 
 import (
 	"fmt"
+	"io"
+	"strings"
+
 	"github.com/dave/jennifer/jen"
 	"github.com/iancoleman/strcase"
+
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
-	"io"
-	"strings"
 )
 
 type CodeGen struct {

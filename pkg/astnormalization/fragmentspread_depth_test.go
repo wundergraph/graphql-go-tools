@@ -2,9 +2,10 @@ package astnormalization
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
-	"testing"
 )
 
 func TestRealDepthCalculator_CalculateDepthForFragmentSpread(t *testing.T) {

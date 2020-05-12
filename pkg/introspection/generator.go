@@ -1,12 +1,14 @@
 package introspection
 
 import (
+	"strings"
+
 	"github.com/cespare/xxhash"
+
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
-	"strings"
 )
 
 type Generator struct {

@@ -3,12 +3,14 @@ package astprinter
 import (
 	"bytes"
 	"fmt"
-	"github.com/jensneuse/diffview"
-	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
-	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
-	"github.com/sebdah/goldie"
 	"io/ioutil"
 	"testing"
+
+	"github.com/jensneuse/diffview"
+	"github.com/sebdah/goldie"
+
+	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
+	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
 func TestPrint(t *testing.T) {

@@ -6,6 +6,7 @@ import (
 	"log"
 
 	"github.com/cespare/xxhash"
+
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 )
 

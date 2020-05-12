@@ -4,6 +4,7 @@ import (
 	"bytes"
 
 	"github.com/cespare/xxhash"
+
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
 )
