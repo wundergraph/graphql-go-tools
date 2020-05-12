@@ -163,6 +163,7 @@ func (d *Document) Reset() {
 
 	d.RefIndex = -1
 	d.Index.Reset()
+	d.Input.Reset()
 }
 
 func (d *Document) NextRefIndex() int {
