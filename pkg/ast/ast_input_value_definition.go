@@ -29,14 +29,6 @@ type InputValueDefinition struct {
 	Directives    DirectiveList // e.g. @baz
 }
 
-func (d *Document) InputValueDefinitionHasDefaultValue(ref int) bool {
-	return d.InputValueDefinitions[ref].DefaultValue.IsDefined
-}
-
-func (d *Document) InputValueDefinitionDefaultValue(ref int) Value {
-	return d.InputValueDefinitions[ref].DefaultValue.Value
-}
-
 func (d *Document) InputValueDefinitionNameBytes(ref int) ByteSlice {
 	return d.Input.ByteSlice(d.InputValueDefinitions[ref].Name)
 }
@@ -58,6 +50,14 @@ func (d *Document) InputValueDefinitionDescriptionString(ref int) string {
 
 func (d *Document) InputValueDefinitionType(ref int) int {
 	return d.InputValueDefinitions[ref].Type
+}
+
+func (d *Document) InputValueDefinitionHasDefaultValue(ref int) bool {
+	return d.InputValueDefinitions[ref].DefaultValue.IsDefined
+}
+
+func (d *Document) InputValueDefinitionDefaultValue(ref int) Value {
+	return d.InputValueDefinitions[ref].DefaultValue.Value
 }
 
 func (d *Document) InputValueDefinitionArgumentIsOptional(ref int) bool {

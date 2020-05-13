@@ -42,6 +42,10 @@ func (d *Document) DirectiveNameBytes(ref int) ByteSlice {
 	return d.Input.ByteSlice(d.Directives[ref].Name)
 }
 
+func (d *Document) DirectiveNameString(ref int) string {
+	return d.Input.ByteSliceString(d.Directives[ref].Name)
+}
+
 func (d *Document) DirectiveIsFirst(directive int, ancestor Node) bool {
 	directives := d.NodeDirectives(ancestor)
 	return len(directives) != 0 && directives[0] == directive
@@ -50,10 +54,6 @@ func (d *Document) DirectiveIsFirst(directive int, ancestor Node) bool {
 func (d *Document) DirectiveIsLast(directive int, ancestor Node) bool {
 	directives := d.NodeDirectives(ancestor)
 	return len(directives) != 0 && directives[len(directives)-1] == directive
-}
-
-func (d *Document) DirectiveNameString(ref int) string {
-	return d.Input.ByteSliceString(d.Directives[ref].Name)
 }
 
 func (d *Document) DirectiveArgumentSet(ref int) []int {

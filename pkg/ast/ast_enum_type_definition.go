@@ -25,14 +25,6 @@ type EnumTypeDefinition struct {
 	EnumValuesDefinition    EnumValueDefinitionList // optional, e.g. { NORTH EAST }
 }
 
-func (d *Document) EnumTypeDefinitionHasDirectives(ref int) bool {
-	return d.EnumTypeDefinitions[ref].HasDirectives
-}
-
-func (d *Document) EnumTypeDefinitionHasEnumValueDefinition(ref int) bool {
-	return d.EnumTypeDefinitions[ref].HasEnumValuesDefinition
-}
-
 func (d *Document) EnumTypeDefinitionNameBytes(ref int) ByteSlice {
 	return d.Input.ByteSlice(d.EnumTypeDefinitions[ref].Name)
 }
@@ -50,6 +42,14 @@ func (d *Document) EnumTypeDefinitionDescriptionBytes(ref int) ByteSlice {
 
 func (d *Document) EnumTypeDefinitionDescriptionString(ref int) string {
 	return unsafebytes.BytesToString(d.EnumTypeDefinitionDescriptionBytes(ref))
+}
+
+func (d *Document) EnumTypeDefinitionHasDirectives(ref int) bool {
+	return d.EnumTypeDefinitions[ref].HasDirectives
+}
+
+func (d *Document) EnumTypeDefinitionHasEnumValueDefinition(ref int) bool {
+	return d.EnumTypeDefinitions[ref].HasEnumValuesDefinition
 }
 
 func (d *Document) EnumTypeDefinitionContainsEnumValue(enumTypeDef int, valueName ByteSlice) bool {

@@ -16,14 +16,14 @@ type ScalarTypeDefinition struct {
 	Directives    DirectiveList // optional, e.g. @foo
 }
 
-func (d *Document) ScalarTypeDefinitionHasDirectives(ref int) bool {
-	return d.ScalarTypeDefinitions[ref].HasDirectives
-}
-
 func (d *Document) ScalarTypeDefinitionNameBytes(ref int) ByteSlice {
 	return d.Input.ByteSlice(d.ScalarTypeDefinitions[ref].Name)
 }
 
 func (d *Document) ScalarTypeDefinitionNameString(ref int) string {
 	return unsafebytes.BytesToString(d.Input.ByteSlice(d.ScalarTypeDefinitions[ref].Name))
+}
+
+func (d *Document) ScalarTypeDefinitionHasDirectives(ref int) bool {
+	return d.ScalarTypeDefinitions[ref].HasDirectives
 }

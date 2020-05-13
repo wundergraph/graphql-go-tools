@@ -24,14 +24,6 @@ type VariableDefinition struct {
 	Directives    DirectiveList // optional, e.g. @foo
 }
 
-func (d *Document) VariableDefinitionsBefore(variableDefinition int) bool {
-	return variableDefinition != 0
-}
-
-func (d *Document) VariableDefinitionsAfter(variableDefinition int) bool {
-	return len(d.VariableDefinitions) != 1 && variableDefinition != len(d.VariableDefinitions)-1
-}
-
 func (d *Document) VariableDefinitionNameBytes(ref int) ByteSlice {
 	return d.VariableValueNameBytes(d.VariableDefinitions[ref].VariableValue.Ref)
 }
@@ -44,4 +36,12 @@ func (d *Document) VariableDefinitionByName(name ByteSlice) (definition int, exi
 		}
 	}
 	return -1, false
+}
+
+func (d *Document) VariableDefinitionsBefore(variableDefinition int) bool {
+	return variableDefinition != 0
+}
+
+func (d *Document) VariableDefinitionsAfter(variableDefinition int) bool {
+	return len(d.VariableDefinitions) != 1 && variableDefinition != len(d.VariableDefinitions)-1
 }

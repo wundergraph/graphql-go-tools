@@ -21,6 +21,25 @@ type EnumValueDefinition struct {
 	Directives    DirectiveList // optional, e.g. @foo
 }
 
+func (d *Document) EnumValueDefinitionNameBytes(ref int) ByteSlice {
+	return d.Input.ByteSlice(d.EnumValueDefinitions[ref].EnumValue)
+}
+
+func (d *Document) EnumValueDefinitionNameString(ref int) string {
+	return unsafebytes.BytesToString(d.Input.ByteSlice(d.EnumValueDefinitions[ref].EnumValue))
+}
+
+func (d *Document) EnumValueDefinitionDescriptionBytes(ref int) ByteSlice {
+	if !d.EnumValueDefinitions[ref].Description.IsDefined {
+		return nil
+	}
+	return d.Input.ByteSlice(d.EnumValueDefinitions[ref].Description.Content)
+}
+
+func (d *Document) EnumValueDefinitionDescriptionString(ref int) string {
+	return unsafebytes.BytesToString(d.EnumValueDefinitionDescriptionBytes(ref))
+}
+
 func (d *Document) EnumValueDefinitionIsFirst(ref int, ancestor Node) bool {
 	switch ancestor.Kind {
 	case NodeKindEnumTypeDefinition:
@@ -45,23 +64,4 @@ func (d *Document) EnumValueDefinitionIsLast(ref int, ancestor Node) bool {
 	default:
 		return false
 	}
-}
-
-func (d *Document) EnumValueDefinitionNameBytes(ref int) ByteSlice {
-	return d.Input.ByteSlice(d.EnumValueDefinitions[ref].EnumValue)
-}
-
-func (d *Document) EnumValueDefinitionNameString(ref int) string {
-	return unsafebytes.BytesToString(d.Input.ByteSlice(d.EnumValueDefinitions[ref].EnumValue))
-}
-
-func (d *Document) EnumValueDefinitionDescriptionBytes(ref int) ByteSlice {
-	if !d.EnumValueDefinitions[ref].Description.IsDefined {
-		return nil
-	}
-	return d.Input.ByteSlice(d.EnumValueDefinitions[ref].Description.Content)
-}
-
-func (d *Document) EnumValueDefinitionDescriptionString(ref int) string {
-	return unsafebytes.BytesToString(d.EnumValueDefinitionDescriptionBytes(ref))
 }

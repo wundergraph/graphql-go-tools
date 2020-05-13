@@ -19,6 +19,25 @@ type UnionTypeDefinition struct {
 	UnionMemberTypes    TypeList // optional, e.g. Photo | Person
 }
 
+func (d *Document) UnionTypeDefinitionNameBytes(ref int) ByteSlice {
+	return d.Input.ByteSlice(d.UnionTypeDefinitions[ref].Name)
+}
+
+func (d *Document) UnionTypeDefinitionNameString(ref int) string {
+	return unsafebytes.BytesToString(d.Input.ByteSlice(d.UnionTypeDefinitions[ref].Name))
+}
+
+func (d *Document) UnionTypeDefinitionDescriptionBytes(ref int) ByteSlice {
+	if !d.UnionTypeDefinitions[ref].Description.IsDefined {
+		return nil
+	}
+	return d.Input.ByteSlice(d.UnionTypeDefinitions[ref].Description.Content)
+}
+
+func (d *Document) UnionTypeDefinitionDescriptionString(ref int) string {
+	return unsafebytes.BytesToString(d.UnionTypeDefinitionDescriptionBytes(ref))
+}
+
 func (d *Document) UnionMemberTypeIsFirst(ref int, ancestor Node) bool {
 	switch ancestor.Kind {
 	case NodeKindUnionTypeDefinition:
@@ -47,23 +66,4 @@ func (d *Document) UnionMemberTypeIsLast(ref int, ancestor Node) bool {
 
 func (d *Document) UnionTypeDefinitionHasDirectives(ref int) bool {
 	return d.UnionTypeDefinitions[ref].HasDirectives
-}
-
-func (d *Document) UnionTypeDefinitionNameBytes(ref int) ByteSlice {
-	return d.Input.ByteSlice(d.UnionTypeDefinitions[ref].Name)
-}
-
-func (d *Document) UnionTypeDefinitionNameString(ref int) string {
-	return unsafebytes.BytesToString(d.Input.ByteSlice(d.UnionTypeDefinitions[ref].Name))
-}
-
-func (d *Document) UnionTypeDefinitionDescriptionBytes(ref int) ByteSlice {
-	if !d.UnionTypeDefinitions[ref].Description.IsDefined {
-		return nil
-	}
-	return d.Input.ByteSlice(d.UnionTypeDefinitions[ref].Description.Content)
-}
-
-func (d *Document) UnionTypeDefinitionDescriptionString(ref int) string {
-	return unsafebytes.BytesToString(d.UnionTypeDefinitionDescriptionBytes(ref))
 }

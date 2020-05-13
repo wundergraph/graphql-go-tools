@@ -19,6 +19,25 @@ type InputObjectTypeDefinition struct {
 	InputFieldsDefinition    InputValueDefinitionList // e.g. x:Float
 }
 
+func (d *Document) InputObjectTypeDefinitionNameBytes(ref int) ByteSlice {
+	return d.Input.ByteSlice(d.InputObjectTypeDefinitions[ref].Name)
+}
+
+func (d *Document) InputObjectTypeDefinitionNameString(ref int) string {
+	return unsafebytes.BytesToString(d.Input.ByteSlice(d.InputObjectTypeDefinitions[ref].Name))
+}
+
+func (d *Document) InputObjectTypeDefinitionDescriptionBytes(ref int) ByteSlice {
+	if !d.InputObjectTypeDefinitions[ref].Description.IsDefined {
+		return nil
+	}
+	return d.Input.ByteSlice(d.InputObjectTypeDefinitions[ref].Description.Content)
+}
+
+func (d *Document) InputObjectTypeDefinitionDescriptionString(ref int) string {
+	return unsafebytes.BytesToString(d.InputObjectTypeDefinitionNameBytes(ref))
+}
+
 func (d *Document) InputObjectTypeDefinitionInputValueDefinitionDefaultValueString(inputObjectTypeDefinitionName, inputValueDefinitionName string) string {
 	defaultValue := d.InputObjectTypeDefinitionInputValueDefinitionDefaultValue(inputObjectTypeDefinitionName, inputValueDefinitionName)
 	if defaultValue.Kind != ValueKindString {
@@ -70,23 +89,4 @@ func (d *Document) InputObjectTypeDefinitionInputValueDefinitionByName(definitio
 		}
 	}
 	return -1
-}
-
-func (d *Document) InputObjectTypeDefinitionNameBytes(ref int) ByteSlice {
-	return d.Input.ByteSlice(d.InputObjectTypeDefinitions[ref].Name)
-}
-
-func (d *Document) InputObjectTypeDefinitionNameString(ref int) string {
-	return unsafebytes.BytesToString(d.Input.ByteSlice(d.InputObjectTypeDefinitions[ref].Name))
-}
-
-func (d *Document) InputObjectTypeDefinitionDescriptionBytes(ref int) ByteSlice {
-	if !d.InputObjectTypeDefinitions[ref].Description.IsDefined {
-		return nil
-	}
-	return d.Input.ByteSlice(d.InputObjectTypeDefinitions[ref].Description.Content)
-}
-
-func (d *Document) InputObjectTypeDefinitionDescriptionString(ref int) string {
-	return unsafebytes.BytesToString(d.InputObjectTypeDefinitionNameBytes(ref))
 }

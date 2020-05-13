@@ -15,6 +15,18 @@ type VariableValue struct {
 	Name   ByteSliceReference // e.g. devicePicSize
 }
 
+func (d *Document) VariableValueNameBytes(ref int) ByteSlice {
+	return d.Input.ByteSlice(d.VariableValues[ref].Name)
+}
+
+func (d *Document) VariableValueNameString(ref int) string {
+	return unsafebytes.BytesToString(d.Input.ByteSlice(d.VariableValues[ref].Name))
+}
+
+func (d *Document) VariableValuesAreEqual(left, right int) bool {
+	return bytes.Equal(d.VariableValueNameBytes(left), d.VariableValueNameBytes(right))
+}
+
 func (d *Document) AddVariableValueArgument(argName, variableName []byte) (variableValueRef, argRef int) {
 	variable := VariableValue{
 		Name: d.Input.AppendInputBytes(variableName),
@@ -31,16 +43,4 @@ func (d *Document) AddVariableValueArgument(argName, variableName []byte) (varia
 	d.Arguments = append(d.Arguments, arg)
 	argRef = len(d.Arguments) - 1
 	return
-}
-
-func (d *Document) VariableValueNameBytes(ref int) ByteSlice {
-	return d.Input.ByteSlice(d.VariableValues[ref].Name)
-}
-
-func (d *Document) VariableValueNameString(ref int) string {
-	return unsafebytes.BytesToString(d.Input.ByteSlice(d.VariableValues[ref].Name))
-}
-
-func (d *Document) VariableValuesAreEqual(left, right int) bool {
-	return bytes.Equal(d.VariableValueNameBytes(left), d.VariableValueNameBytes(right))
 }
