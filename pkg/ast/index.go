@@ -1,5 +1,7 @@
 package ast
 
+import "github.com/cespare/xxhash"
+
 // Index is a struct to easily look up objects in a document, e.g. find Nodes (type/interface/union definitions) by name
 type Index struct {
 	// QueryTypeName is the name of the query type on the schema Node
@@ -30,4 +32,8 @@ func (i *Index) Reset() {
 	for j := range i.Nodes {
 		delete(i.Nodes, j)
 	}
+}
+
+func (i *Index) Add(name string, node Node) {
+	i.Nodes[xxhash.Sum64String(name)] = node
 }

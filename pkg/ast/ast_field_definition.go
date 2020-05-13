@@ -90,6 +90,17 @@ func (d *Document) AddFieldDefinition(fieldDefinition FieldDefinition) (ref int)
 	return len(d.FieldDefinitions) - 1
 }
 
+func (d *Document) ImportFieldDefinition(name string, typeRef int) (ref int) {
+	fieldName := d.Input.AppendInputString(name)
+
+	fieldDef := FieldDefinition{
+		Name: fieldName,
+		Type: typeRef,
+	}
+
+	return d.AddFieldDefinition(fieldDef)
+}
+
 func (d *Document) FieldDefinitionsContainField(definitions []int, field ByteSlice) bool {
 	for _, i := range definitions {
 		if bytes.Equal(field, d.FieldDefinitionNameBytes(i)) {

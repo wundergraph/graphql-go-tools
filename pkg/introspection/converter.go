@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/cespare/xxhash"
-
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 )
 
@@ -30,7 +28,7 @@ func (i *JsonConverter) GraphQLDocument(introspectionJSON io.Reader) (*ast.Docum
 }
 
 func (i *JsonConverter) importSchema() {
-	i.importRootOperations()
+	i.doc.ImportSchemaDefinition(i.schema.TypeNames())
 
 	for _, fullType := range i.schema.Types {
 		i.importFullType(fullType)
@@ -39,48 +37,6 @@ func (i *JsonConverter) importSchema() {
 	for _, directive := range i.schema.Directives {
 		i.importDirective(directive)
 	}
-}
-
-func (i *JsonConverter) importRootOperations() {
-	var operationRefs []int
-
-	if i.schema.QueryType != nil {
-		operationRefs = append(operationRefs, i.importRootOperation(i.schema.QueryType.Name, ast.OperationTypeQuery))
-	}
-	if i.schema.MutationType != nil {
-		operationRefs = append(operationRefs, i.importRootOperation(i.schema.MutationType.Name, ast.OperationTypeMutation))
-	}
-	if i.schema.SubscriptionType != nil {
-		operationRefs = append(operationRefs, i.importRootOperation(i.schema.SubscriptionType.Name, ast.OperationTypeSubscription))
-	}
-
-	schemaDefinition := ast.SchemaDefinition{
-		RootOperationTypeDefinitions: ast.RootOperationTypeDefinitionList{
-			Refs: operationRefs,
-		},
-	}
-
-	i.doc.SchemaDefinitions = append(i.doc.SchemaDefinitions, schemaDefinition)
-	schemaDefinitionRef := len(i.doc.SchemaDefinitions) - 1
-
-	// add the SchemaDefinition to the RootNodes
-	// all root level nodes have to be added to the RootNodes slice in order to make them available to the Walker for traversal
-	i.doc.RootNodes = append(i.doc.RootNodes, ast.Node{Kind: ast.NodeKindSchemaDefinition, Ref: schemaDefinitionRef})
-}
-
-func (i *JsonConverter) importRootOperation(name string, operationType ast.OperationType) int {
-	typeName := i.doc.Input.AppendInputString(name)
-
-	operationTypeDefinition := ast.RootOperationTypeDefinition{
-		OperationType: operationType,
-		NamedType: ast.Type{
-			Name: typeName,
-		},
-	}
-
-	i.doc.RootOperationTypeDefinitions = append(i.doc.RootOperationTypeDefinitions, operationTypeDefinition)
-	ref := len(i.doc.RootOperationTypeDefinitions) - 1
-	return ref
 }
 
 func (i *JsonConverter) importFullType(fullType FullType) {
@@ -132,25 +88,15 @@ func (i *JsonConverter) importObject(fullType FullType) {
 	}
 
 	i.doc.RootNodes = append(i.doc.RootNodes, objectTypeNode)
-	i.doc.Index.Nodes[xxhash.Sum64String(fullType.Name)] = objectTypeNode
+	i.doc.Index.Add(fullType.Name, objectTypeNode)
 }
 
 func (i *JsonConverter) importField(field Field) (ref int) {
-	fieldName := i.doc.Input.AppendInputString(field.Name)
-
 	// TODO: import description
 	// TODO: import args
-
 	typeRef := i.importType(field.Type)
 
-	helloFieldDefinition := ast.FieldDefinition{
-		Name: fieldName,
-		Type: typeRef,
-	}
-
-	i.doc.FieldDefinitions = append(i.doc.FieldDefinitions, helloFieldDefinition)
-	ref = len(i.doc.FieldDefinitions) - 1
-	return
+	return i.doc.ImportFieldDefinition(field.Name, typeRef)
 }
 
 func (i *JsonConverter) importType(typeRef TypeRef) (ref int) {
@@ -160,32 +106,20 @@ func (i *JsonConverter) importType(typeRef TypeRef) (ref int) {
 			TypeKind: ast.TypeKindList,
 			OfType:   i.importType(*typeRef.OfType),
 		}
-		return i.importAstType(listType)
+		return i.doc.AddType(listType)
 	case NONNULL:
 		nonNullType := ast.Type{
 			TypeKind: ast.TypeKindNonNull,
 			OfType:   i.importType(*typeRef.OfType),
 		}
-		return i.importAstType(nonNullType)
+		return i.doc.AddType(nonNullType)
 	}
 
-	name := i.doc.Input.AppendInputString(*typeRef.Name)
-	astType := ast.Type{
-		TypeKind: ast.TypeKindNamed,
-		Name:     name,
-	}
-
-	return i.importAstType(astType)
+	return i.doc.AddNamedType([]byte(*typeRef.Name))
 }
 
-func (i *JsonConverter) importAstType(t ast.Type) (ref int) {
-	i.doc.Types = append(i.doc.Types, t)
-	ref = len(i.doc.Types) - 1
-	return
-}
-
-func (i *JsonConverter) importDescription() (ref int) {
-	return 0
+func (i *JsonConverter) importDescription() {
+	// TODO: implement
 }
 
 func (i *JsonConverter) importScalar(fullType FullType) {

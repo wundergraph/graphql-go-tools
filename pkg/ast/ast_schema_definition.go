@@ -17,3 +17,25 @@ func (d *Document) AddSchemaDefinition(schemaDefinition SchemaDefinition) (ref i
 	d.SchemaDefinitions = append(d.SchemaDefinitions, schemaDefinition)
 	return len(d.SchemaDefinitions) - 1
 }
+
+func (d *Document) ImportSchemaDefinition(queryTypeName, mutationTypeName, subscriptionTypeName string) (ref int) {
+	var operationRefs []int
+
+	if queryTypeName != "" {
+		operationRefs = append(operationRefs, d.ImportRootOperationTypeDefinition(queryTypeName, OperationTypeQuery))
+	}
+	if mutationTypeName != "" {
+		operationRefs = append(operationRefs, d.ImportRootOperationTypeDefinition(mutationTypeName, OperationTypeMutation))
+	}
+	if subscriptionTypeName != "" {
+		operationRefs = append(operationRefs, d.ImportRootOperationTypeDefinition(subscriptionTypeName, OperationTypeSubscription))
+	}
+
+	schemaDefinition := SchemaDefinition{
+		RootOperationTypeDefinitions: RootOperationTypeDefinitionList{
+			Refs: operationRefs,
+		},
+	}
+
+	return d.AddSchemaDefinition(schemaDefinition)
+}

@@ -19,6 +19,19 @@ type Schema struct {
 	Directives       []Directive `json:"directives"`
 }
 
+func (s *Schema) TypeNames() (query, mutation, subscription string) {
+	if s.QueryType != nil {
+		query = s.QueryType.Name
+	}
+	if s.MutationType != nil {
+		mutation = s.MutationType.Name
+	}
+	if s.SubscriptionType != nil {
+		subscription = s.SubscriptionType.Name
+	}
+	return
+}
+
 func NewSchema() Schema {
 	return Schema{
 		Types:      make([]FullType, 0),

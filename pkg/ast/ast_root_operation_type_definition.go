@@ -72,3 +72,16 @@ func (d *Document) AddRootOperationTypeDefinition(rootOperationTypeDefinition Ro
 	d.RootOperationTypeDefinitions = append(d.RootOperationTypeDefinitions, rootOperationTypeDefinition)
 	return len(d.RootOperationTypeDefinitions) - 1
 }
+
+func (d *Document) ImportRootOperationTypeDefinition(name string, operationType OperationType) (ref int) {
+	typeName := d.Input.AppendInputString(name)
+
+	operationTypeDefinition := RootOperationTypeDefinition{
+		OperationType: operationType,
+		NamedType: Type{
+			Name: typeName,
+		},
+	}
+
+	return d.AddRootOperationTypeDefinition(operationTypeDefinition)
+}

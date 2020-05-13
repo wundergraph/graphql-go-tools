@@ -15,11 +15,11 @@ import (
 func TestJSONConverter_GraphQLDocument(t *testing.T) {
 	fixture, err := ioutil.ReadFile("./fixtures/startwars_introspected.golden")
 	assert.NoError(t, err)
-
 	buf := bytes.NewBuffer(fixture)
 
 	converter := JsonConverter{}
-	doc := converter.GraphQLDocument(buf)
+	doc, err := converter.GraphQLDocument(buf)
+	assert.NoError(t, err)
 
 	printDoc(doc)
 }
