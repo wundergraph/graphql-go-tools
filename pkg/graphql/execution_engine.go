@@ -1,9 +1,11 @@
 package graphql
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
+	"io/ioutil"
 	"net/http"
 
 	"github.com/jensneuse/abstractlogger"
@@ -79,11 +81,7 @@ func (e *ExecutionEngine) AddDataSource(name string, plannerFactoryFactory datas
 	return e.basePlanner.RegisterDataSourcePlannerFactory(name, plannerFactoryFactory)
 }
 
-func (e *ExecutionEngine) Execute(ctx context.Context, operation *Request, writer io.Writer) error {
-	return e.ExecuteWithOptions(ctx, operation, writer, ExecutionOptions{})
-}
-
-func (e *ExecutionEngine) ExecuteWithOptions(ctx context.Context, operation *Request, writer io.Writer, options ExecutionOptions) error {
+func (e *ExecutionEngine) ExecuteWithWriter(ctx context.Context, operation *Request, writer io.Writer, options ExecutionOptions) error {
 	var report operationreport.Report
 	if !operation.IsNormalized() {
 		normalizationResult, err := operation.Normalize(e.schema)
@@ -110,4 +108,33 @@ func (e *ExecutionEngine) ExecuteWithOptions(ctx context.Context, operation *Req
 	}
 
 	return e.executor.Execute(executionContext, plan, writer)
+}
+
+func (e *ExecutionEngine) Execute(ctx context.Context, operation *Request, options ExecutionOptions) (*ExecutionResult, error) {
+	var buf bytes.Buffer
+	err := e.ExecuteWithWriter(ctx, operation, &buf, options)
+	return &ExecutionResult{&buf}, err
+}
+
+type ExecutionResult struct {
+	buf *bytes.Buffer
+}
+
+func (r *ExecutionResult) Buffer() *bytes.Buffer {
+	return r.buf
+}
+
+func (r *ExecutionResult) GetAsHTTPResponse() (res *http.Response) {
+	if r.buf == nil {
+		return
+	}
+
+	res = &http.Response{}
+	res.Body = ioutil.NopCloser(r.buf)
+	res.Header = make(http.Header)
+	res.StatusCode = 200
+
+	res.Header.Set("Content-Type", "application/json")
+
+	return
 }
