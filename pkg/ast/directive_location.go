@@ -112,8 +112,8 @@ func (d *DirectiveLocationIterable) Value() DirectiveLocation {
 	return d.current
 }
 
-func (location DirectiveLocation) LiteralBytes() ByteSlice {
-	switch location {
+func (d DirectiveLocation) LiteralBytes() ByteSlice {
+	switch d {
 	case ExecutableDirectiveLocationQuery:
 		return literal.LocationQuery
 	case ExecutableDirectiveLocationMutation:
@@ -157,6 +157,6 @@ func (location DirectiveLocation) LiteralBytes() ByteSlice {
 	}
 }
 
-func (location DirectiveLocation) LiteralString() string {
-	return unsafebytes.BytesToString(location.LiteralBytes())
+func (d DirectiveLocation) LiteralString() string {
+	return unsafebytes.BytesToString(d.LiteralBytes())
 }

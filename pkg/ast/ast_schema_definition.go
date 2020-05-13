@@ -17,8 +17,3 @@ func (d *Document) AddSchemaDefinition(schemaDefinition SchemaDefinition) (ref i
 	d.SchemaDefinitions = append(d.SchemaDefinitions, schemaDefinition)
 	return len(d.SchemaDefinitions) - 1
 }
-
-type SchemaExtension struct {
-	ExtendLiteral position.Position
-	SchemaDefinition
-}
