@@ -87,7 +87,7 @@ func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {
 		err = engine.AddHttpJsonDataSourceWithOptions("HttpJsonDataSource", httpJsonOptions)
 		assert.NoError(t, err)
 
-		executionRes, err := engine.ExecuteWithOptions(context.Background(), &request, ExecutionOptions{ExtraArguments: extraVariablesBytes})
+		executionRes, err := engine.Execute(context.Background(), &request, ExecutionOptions{ExtraArguments: extraVariablesBytes})
 		assert.NoError(t, err)
 		assert.Equal(t, `{"data":{"hero":{"name":"Luke Skywalker"}}}`, executionRes.Buffer().String())
 	})
@@ -145,7 +145,7 @@ func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {
 		err = engine.AddGraphqlDataSourceWithOptions("GraphqlDataSource", graphqlOptions)
 		assert.NoError(t, err)
 
-		executionRes, err := engine.ExecuteWithOptions(context.Background(), &request, ExecutionOptions{ExtraArguments: extraVariablesBytes})
+		executionRes, err := engine.Execute(context.Background(), &request, ExecutionOptions{ExtraArguments: extraVariablesBytes})
 		assert.NoError(t, err)
 		assert.Equal(t, `{"data":{"hero":{"name":"Luke Skywalker"}}}`, executionRes.Buffer().String())
 	})
