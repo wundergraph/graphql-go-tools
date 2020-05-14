@@ -2,28 +2,21 @@ package execution
 
 import (
 	"bytes"
-	"github.com/cespare/xxhash"
-	log "github.com/jensneuse/abstractlogger"
-	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
 	"testing"
+
+	"github.com/cespare/xxhash"
+
+	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
 )
 
 func TestHandler_VariablesFromRequest(t *testing.T) {
-
-	base, err := datasource.NewBaseDataSourcePlanner(nil, datasource.PlannerConfiguration{}, log.NoopLogger)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	handler := NewHandler(base, nil)
-
 	request := GraphqlRequest{
 		Variables: []byte(`{"foo":"bar"}`),
 	}
 
 	extra := []byte(`{"request":{"headers":{"Authorization":"Bearer foo123"}}}`)
 
-	variables, extraArguments := handler.VariablesFromJson(request.Variables, extra)
+	variables, extraArguments := VariablesFromJson(request.Variables, extra)
 
 	for key, value := range map[string]string{
 		"foo":     "bar",
