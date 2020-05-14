@@ -1,8 +1,9 @@
 package codegen
 
 import (
-	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
 	"testing"
+
+	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
 )
 
 func TestManual(t *testing.T) {
@@ -204,13 +205,13 @@ directive @DataSource (
 		t.Fatal("want HTTP_METHOD_POST")
 	}
 	if d.NonNullStringWithDefault != "defaultValue" {
-		t.Fatalf("want defaultValue, got: %s",d.NonNullStringWithDefault)
+		t.Fatalf("want defaultValue, got: %s", d.NonNullStringWithDefault)
 	}
 	if d.NullableStringWithDefault != "defaultValue" {
 		t.Fatal("want defaultValue")
 	}
 	if d.IntWithDefault != 123 {
-		t.Fatalf("want 123, got: %d",d.IntWithDefault)
+		t.Fatalf("want 123, got: %d", d.IntWithDefault)
 	}
 	if d.FloatWithDefault != 1.23 {
 		t.Fatal("want 1.23")
@@ -219,7 +220,7 @@ directive @DataSource (
 		t.Fatal("want true")
 	}
 	if d.StringWithDefaultOverride != "bar" {
-		t.Fatalf("want bar, got: %s",d.StringWithDefaultOverride)
+		t.Fatalf("want bar, got: %s", d.StringWithDefaultOverride)
 	}
 	if *d.InputWithDefaultChildField.NullableString != "foo" {
 		t.Fatal("want foo")

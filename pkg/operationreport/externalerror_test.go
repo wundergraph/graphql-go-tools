@@ -3,8 +3,9 @@ package operationreport
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"testing"
+
+	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 )
 
 func TestPath_MarshalJSON(t *testing.T) {

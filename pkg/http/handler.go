@@ -2,11 +2,13 @@ package http
 
 import (
 	"encoding/json"
-	"github.com/gobwas/ws"
-	log "github.com/jensneuse/abstractlogger"
-	"github.com/jensneuse/graphql-go-tools/pkg/execution"
 	"io"
 	"net/http"
+
+	"github.com/gobwas/ws"
+	log "github.com/jensneuse/abstractlogger"
+
+	"github.com/jensneuse/graphql-go-tools/pkg/execution"
 )
 
 const (

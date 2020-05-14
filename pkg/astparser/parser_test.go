@@ -2,13 +2,15 @@ package astparser
 
 import (
 	"fmt"
+	"io/ioutil"
+	"testing"
+
 	"github.com/cespare/xxhash"
+
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/keyword"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
-	"io/ioutil"
-	"testing"
 )
 
 func TestParser_Parse(t *testing.T) {
