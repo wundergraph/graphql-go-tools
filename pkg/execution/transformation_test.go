@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
+	"testing"
+
 	"github.com/jensneuse/pipeline/pkg/pipe"
 	"github.com/jensneuse/pipeline/pkg/step"
-	"testing"
+
+	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
 )
 
 func TestExecution_With_Transformation(t *testing.T) {

@@ -2,12 +2,14 @@ package asttransform
 
 import (
 	"bytes"
-	"github.com/jensneuse/diffview"
-	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
-	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
-	"github.com/sebdah/goldie"
 	"io/ioutil"
 	"testing"
+
+	"github.com/jensneuse/diffview"
+	"github.com/sebdah/goldie"
+
+	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
+	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
 )
 
 func runTestMerge(definition, fixtureName string) func(t *testing.T) {

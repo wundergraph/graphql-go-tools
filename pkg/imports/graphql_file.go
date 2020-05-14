@@ -2,9 +2,10 @@ package imports
 
 import (
 	"bufio"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"io"
 	"os"
+
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 )
 
 type GraphQLFile struct {

@@ -3,10 +3,11 @@ package imports
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/jensneuse/diffview"
-	"github.com/sebdah/goldie"
 	"io/ioutil"
 	"testing"
+
+	"github.com/jensneuse/diffview"
+	"github.com/sebdah/goldie"
 )
 
 func TestScanner(t *testing.T) {
@@ -55,7 +56,7 @@ func TestScanner_ScanRegex(t *testing.T) {
 	}
 
 	buf := bytes.Buffer{}
-	err = file.render(false,&buf)
+	err = file.render(false, &buf)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -2,11 +2,13 @@ package codegen
 
 import (
 	"bytes"
-	"github.com/jensneuse/diffview"
-	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
-	"github.com/sebdah/goldie"
 	"io/ioutil"
 	"testing"
+
+	"github.com/jensneuse/diffview"
+	"github.com/sebdah/goldie"
+
+	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
 )
 
 func TestCodeGen_GenerateDirectiveDefinitionStruct(t *testing.T) {
