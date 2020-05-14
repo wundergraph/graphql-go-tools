@@ -2,10 +2,11 @@ package astimport
 
 import (
 	"bytes"
+	"testing"
+
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
-	"testing"
 )
 
 func TestImporter_ImportType(t *testing.T) {
