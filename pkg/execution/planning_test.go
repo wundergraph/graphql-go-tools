@@ -147,7 +147,8 @@ func TestPlanner_Plan(t *testing.T) {
 									},
 								},
 								DataSource: &datasource.GraphQLDataSource{
-									Log: log.NoopLogger,
+									Log:    log.NoopLogger,
+									Client: datasource.DefaultHttpClient(),
 								},
 							},
 							BufferName: "country",
@@ -264,7 +265,8 @@ func TestPlanner_Plan(t *testing.T) {
 									},
 								},
 								DataSource: &datasource.GraphQLDataSource{
-									Log: log.NoopLogger,
+									Log:    log.NoopLogger,
+									Client: datasource.DefaultHttpClient(),
 								},
 							},
 							BufferName: "likePost",
@@ -457,7 +459,7 @@ func TestPlanner_Plan(t *testing.T) {
 											},
 										},
 										DataSource: &datasource.HttpJsonDataSource{
-											Log: log.NoopLogger,
+											Log:    log.NoopLogger,
 											Client: datasource.DefaultHttpClient(),
 										},
 									},
@@ -544,7 +546,7 @@ func TestPlanner_Plan(t *testing.T) {
 												},
 											},
 											DataSource: &datasource.HttpJsonDataSource{
-												Log: log.NoopLogger,
+												Log:    log.NoopLogger,
 												Client: datasource.DefaultHttpClient(),
 											},
 										},
@@ -630,7 +632,7 @@ func TestPlanner_Plan(t *testing.T) {
 							BufferName: "withBody",
 							Source: &DataSourceInvocation{
 								DataSource: &datasource.HttpJsonDataSource{
-									Log: log.NoopLogger,
+									Log:    log.NoopLogger,
 									Client: datasource.DefaultHttpClient(),
 								},
 								Args: []datasource.Argument{
@@ -706,7 +708,7 @@ func TestPlanner_Plan(t *testing.T) {
 							BufferName: "withPath",
 							Source: &DataSourceInvocation{
 								DataSource: &datasource.HttpJsonDataSource{
-									Log: log.NoopLogger,
+									Log:    log.NoopLogger,
 									Client: datasource.DefaultHttpClient(),
 								},
 								Args: []datasource.Argument{
@@ -781,7 +783,7 @@ func TestPlanner_Plan(t *testing.T) {
 							BufferName: "listItems",
 							Source: &DataSourceInvocation{
 								DataSource: &datasource.HttpJsonDataSource{
-									Log: log.NoopLogger,
+									Log:    log.NoopLogger,
 									Client: datasource.DefaultHttpClient(),
 								},
 								Args: []datasource.Argument{
@@ -869,7 +871,7 @@ func TestPlanner_Plan(t *testing.T) {
 							BufferName: "listWithPath",
 							Source: &DataSourceInvocation{
 								DataSource: &datasource.HttpJsonDataSource{
-									Log: log.NoopLogger,
+									Log:    log.NoopLogger,
 									Client: datasource.DefaultHttpClient(),
 								},
 								Args: []datasource.Argument{
@@ -970,7 +972,7 @@ func TestPlanner_Plan(t *testing.T) {
 							BufferName: "withHeaders",
 							Source: &DataSourceInvocation{
 								DataSource: &datasource.HttpJsonDataSource{
-									Log: log.NoopLogger,
+									Log:    log.NoopLogger,
 									Client: datasource.DefaultHttpClient(),
 								},
 								Args: []datasource.Argument{
@@ -1324,7 +1326,8 @@ func TestPlanner_Plan(t *testing.T) {
 									},
 								},
 								DataSource: &datasource.GraphQLDataSource{
-									Log: log.NoopLogger,
+									Log:    log.NoopLogger,
+									Client: datasource.DefaultHttpClient(),
 								},
 							},
 							BufferName: "user",
@@ -1441,7 +1444,7 @@ func TestPlanner_Plan(t *testing.T) {
 									},
 								},
 								DataSource: &datasource.HttpJsonDataSource{
-									Log: log.NoopLogger,
+									Log:    log.NoopLogger,
 									Client: datasource.DefaultHttpClient(),
 								},
 							},
@@ -1495,6 +1498,7 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		},
 	))
+
 	t.Run("graphql resolver with nested rest resolver", run(withBaseSchema(complexSchema), `
 			query UserQuery($id: String!) {
 				user(id: $id) {
@@ -1572,7 +1576,8 @@ func TestPlanner_Plan(t *testing.T) {
 									},
 								},
 								DataSource: &datasource.GraphQLDataSource{
-									Log: log.NoopLogger,
+									Log:    log.NoopLogger,
+									Client: datasource.DefaultHttpClient(),
 								},
 							},
 							BufferName: "user",
@@ -1608,7 +1613,7 @@ func TestPlanner_Plan(t *testing.T) {
 												},
 											},
 											DataSource: &datasource.HttpJsonDataSource{
-												Log: log.NoopLogger,
+												Log:    log.NoopLogger,
 												Client: datasource.DefaultHttpClient(),
 											},
 										},
