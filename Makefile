@@ -1,5 +1,5 @@
-GOLANG_CI_VERSION = "v1.21.0"
-GOLANG_CI_VERSION_SHORT = "1.21.0"
+GOLANG_CI_VERSION = "v1.27.0"
+GOLANG_CI_VERSION_SHORT = "1.27.0"
 HAS_GOLANG_CI_LINT := $(shell command -v /tmp/ci/golangci-lint;)
 INSTALLED_VERSION := $(shell command -v /tmp/ci/golangci-lint version;)
 HAS_CORRECT_VERSION := $(shell command -v if [[ $(INSTALLED_VERSION) == *$(GOLANG_CI_VERSION_SHORT)* ]]; echo "Version OK!" fi)

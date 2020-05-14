@@ -33,7 +33,7 @@ func ErrOperationNameMustBeUnique(operationName ast.ByteSlice) (err ExternalErro
 }
 
 func ErrAnonymousOperationMustBeTheOnlyOperationInDocument() (err ExternalError) {
-	err.Message = fmt.Sprintf("anonymous operation name the only operation in a graphql document")
+	err.Message = "anonymous operation name the only operation in a graphql document"
 	return err
 }
 

@@ -172,7 +172,7 @@ func TestExampleExecutionEngine_Concatenation(t *testing.T) {
 	assert.NoError(t,err)
 
 	friendServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){
-		w.Write([]byte(`{"firstName":"Jens","lastName":"Neuse"}`))
+		_,_ = w.Write([]byte(`{"firstName":"Jens","lastName":"Neuse"}`))
 	}))
 
 	defer friendServer.Close()
