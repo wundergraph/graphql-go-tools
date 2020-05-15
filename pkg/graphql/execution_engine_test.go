@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 
 	"github.com/jensneuse/abstractlogger"
@@ -153,7 +154,7 @@ func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {
 }
 
 func stringify(any interface{}) []byte {
-	out,_ := json.Marshal(any)
+	out, _ := json.Marshal(any)
 	return out
 }
 
@@ -163,16 +164,16 @@ func stringPtr(str string) *string {
 
 func TestExampleExecutionEngine_Concatenation(t *testing.T) {
 
-	schema,err := NewSchemaFromString(`
+	schema, err := NewSchemaFromString(`
 		schema { query: Query }
 		type Query { friend: Friend }
 		type Friend { firstName: String lastName: String fullName: String }
 	`)
 
-	assert.NoError(t,err)
+	assert.NoError(t, err)
 
-	friendServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){
-		_,_ = w.Write([]byte(`{"firstName":"Jens","lastName":"Neuse"}`))
+	friendServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"firstName":"Jens","lastName":"Neuse"}`))
 	}))
 
 	defer friendServer.Close()
@@ -200,19 +201,19 @@ func TestExampleExecutionEngine_Concatenation(t *testing.T) {
 				DataSource: datasource.SourceConfig{
 					Name: "HttpJsonDataSource",
 					Config: stringify(datasource.HttpJsonDataSourceConfig{
-						Host: friendServer.URL,
+						Host:   friendServer.URL,
 						Method: stringPtr("GET"),
 					}),
 				},
 			},
 			{
-				TypeName: "Friend",
+				TypeName:  "Friend",
 				FieldName: "fullName",
 				DataSource: datasource.SourceConfig{
-					Name:   "FriendFullName",
+					Name: "FriendFullName",
 					Config: stringify(datasource.PipelineDataSourceConfig{
 						ConfigString: stringPtr(pipelineConcat),
-						InputJSON: `{"firstName":"{{ .object.firstName }}","lastName":"{{ .object.lastName }}"}`,
+						InputJSON:    `{"firstName":"{{ .object.firstName }}","lastName":"{{ .object.lastName }}"}`,
 					}),
 				},
 			},
@@ -220,20 +221,76 @@ func TestExampleExecutionEngine_Concatenation(t *testing.T) {
 	}
 
 	engine, err := NewExecutionEngine(abstractlogger.NoopLogger, schema, plannerConfig)
-	assert.NoError(t,err)
+	assert.NoError(t, err)
 	err = engine.AddHttpJsonDataSource("HttpJsonDataSource")
-	assert.NoError(t,err)
-	err = engine.AddDataSource("FriendFullName",datasource.PipelineDataSourcePlannerFactoryFactory{})
-	assert.NoError(t,err)
+	assert.NoError(t, err)
+	err = engine.AddDataSource("FriendFullName", datasource.PipelineDataSourcePlannerFactoryFactory{})
+	assert.NoError(t, err)
 
 	request := &Request{
 		Query: `query { friend { firstName lastName fullName }}`,
 	}
 
 	executionRes, err := engine.Execute(context.Background(), request, ExecutionOptions{})
-	assert.NoError(t,err)
+	assert.NoError(t, err)
 
 	expected := `{"data":{"friend":{"firstName":"Jens","lastName":"Neuse","fullName":"Jens Neuse"}}}`
 	actual := executionRes.Buffer().String()
-	assert.Equal(t,expected,actual)
+	assert.Equal(t, expected, actual)
+}
+
+func BenchmarkExecutionEngine(b *testing.B) {
+
+	newEngine := func() *ExecutionEngine {
+		schema, err := NewSchemaFromString(`type Query { hello: String}`)
+		assert.NoError(b, err)
+		plannerConfig := datasource.PlannerConfiguration{
+			TypeFieldConfigurations: []datasource.TypeFieldConfiguration{
+				{
+					TypeName:  "query",
+					FieldName: "hello",
+					Mapping: &datasource.MappingConfiguration{
+						Disabled: true,
+					},
+					DataSource: datasource.SourceConfig{
+						Name: "HelloDataSource",
+						Config: stringify(datasource.StaticDataSourceConfig{
+							Data: "world",
+						}),
+					},
+				},
+			},
+		}
+		engine, err := NewExecutionEngine(abstractlogger.NoopLogger, schema, plannerConfig)
+		assert.NoError(b, err)
+		assert.NoError(b, engine.AddDataSource("HelloDataSource", datasource.StaticDataSourcePlannerFactoryFactory{}))
+		return engine
+	}
+
+	ctx := context.Background()
+	req := &Request{
+		Query: "{hello}",
+	}
+	out := bytes.Buffer{}
+	err := newEngine().ExecuteWithWriter(ctx, req, &out, ExecutionOptions{})
+	assert.NoError(b, err)
+	assert.Equal(b,"{\"data\":{\"hello\":\"world\"}}",out.String())
+
+	pool := sync.Pool{
+		New: func() interface{}{
+			return newEngine()
+		},
+	}
+
+	b.SetBytes(int64(out.Len()))
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			engine := pool.Get().(*ExecutionEngine)
+			_ = engine.ExecuteWithWriter(ctx, req, ioutil.Discard, ExecutionOptions{})
+			pool.Put(engine)
+		}
+	})
 }
