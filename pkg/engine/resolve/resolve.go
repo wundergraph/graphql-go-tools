@@ -385,15 +385,18 @@ func (r *Resolver) resolveBoolean(boolean *Boolean, data []byte, booleanBuf *Buf
 }
 
 func (r *Resolver) resolveString(str *String, data []byte, stringBuf *BufPair) (err error) {
-	value, valueType, _, err := jsonparser.Get(data, str.Path...)
-	if err != nil || valueType != jsonparser.String {
-		if !str.nullable {
-			return errNonNullableFieldValueIsNull
+	if str.Path != nil {
+		value, valueType, _, err := jsonparser.Get(data, str.Path...)
+		if err != nil || valueType != jsonparser.String {
+			if !str.nullable {
+				return errNonNullableFieldValueIsNull
+			}
+			return r.resolveNull(stringBuf.Data)
 		}
-		return r.resolveNull(stringBuf.Data)
+		data = value
 	}
 	err = r.writeSafe(nil, stringBuf.Data, quote)
-	err = r.writeSafe(nil, stringBuf.Data, value)
+	err = r.writeSafe(nil, stringBuf.Data, data)
 	return r.writeSafe(nil, stringBuf.Data, quote)
 }
 
