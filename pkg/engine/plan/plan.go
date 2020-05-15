@@ -58,6 +58,13 @@ type FieldConfiguration struct {
 	FieldNames        []string
 	Attributes        DataSourceAttributes
 	DataSourcePlanner DataSourcePlanner
+	FieldMappings     []FieldMapping
+}
+
+type FieldMapping struct {
+	FieldName             string
+	DisableDefaultMapping bool
+	Mapping               []string
 }
 
 type DataSourceAttribute struct {
@@ -253,27 +260,29 @@ func (v *Visitor) EnterField(ref int) {
 	var value resolve.Node
 	var nextCurrentObject *resolve.Object
 
+	path := v.resolveFieldPath(ref)
+
 	switch typeName {
 	case "String":
 		value = &resolve.String{
-			Path: []string{fieldNameStr},
+			Path: path,
 		}
 	case "Boolean":
 		value = &resolve.Boolean{
-			Path: []string{fieldNameStr},
+			Path: path,
 		}
 	case "Int":
 		value = &resolve.Integer{
-			Path: []string{fieldNameStr},
+			Path: path,
 		}
 	case "Float":
 		value = &resolve.Float{
-			Path: []string{fieldNameStr},
+			Path: path,
 		}
 	default:
 		obj := &resolve.Object{}
 		if !isRootField && !isList {
-			obj.Path = []string{fieldNameStr}
+			obj.Path = path
 		}
 		value = obj
 		nextCurrentObject = obj
@@ -289,7 +298,7 @@ func (v *Visitor) EnterField(ref int) {
 		}
 		if isList {
 			list := &resolve.Array{
-				Path: []string{fieldNameStr},
+				Path: path,
 				Item: value,
 			}
 			value = list
@@ -304,6 +313,27 @@ func (v *Visitor) EnterField(ref int) {
 			Value: value,
 		})
 	})
+}
+
+func (v *Visitor) resolveFieldPath(ref int) []string {
+	typeName := v.EnclosingTypeDefinition.Name(v.Definition)
+	fieldName := v.Operation.FieldNameString(ref)
+	for i := range v.FieldConfigurations {
+		if v.FieldConfigurations[i].TypeName == typeName {
+			for j := range v.FieldConfigurations[i].FieldMappings {
+				if v.FieldConfigurations[i].FieldMappings[j].FieldName == fieldName {
+					if v.FieldConfigurations[i].FieldMappings[j].Mapping != nil {
+						return v.FieldConfigurations[i].FieldMappings[j].Mapping
+					}
+					if v.FieldConfigurations[i].FieldMappings[j].DisableDefaultMapping {
+						return nil
+					}
+					return []string{fieldName}
+				}
+			}
+		}
+	}
+	return []string{fieldName}
 }
 
 func (v *Visitor) setActiveDataSourcePlanner(currentFieldName string) {

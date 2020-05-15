@@ -62,8 +62,6 @@ func (p *Planner) EnterDocument(operation, definition *ast.Document) {
 func (p *Planner) EnterField(ref int) {
 
 	isRootField, config := p.v.IsRootField(ref)
-	fieldNameStr := p.v.Operation.FieldNameString(ref)
-	_ = fieldNameStr
 
 	if isRootField && p.v.CurrentObject.Fetch == nil {
 

@@ -1,11 +1,9 @@
 package datasourcetesting
 
 import (
-	"reflect"
 	"testing"
 
-	"github.com/davecgh/go-spew/spew"
-	"github.com/jensneuse/diffview"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
@@ -33,9 +31,6 @@ func RunTest(definition, operation, operationName string, expectedPlan plan.Plan
 		if report.HasErrors() {
 			t.Fatal(report.Error())
 		}
-		if !reflect.DeepEqual(expectedPlan, actualPlan) {
-			diffview.NewGoland().DiffViewAny("diff", expectedPlan, actualPlan)
-			t.Errorf("want:\n%s\ngot:\n%s\n", spew.Sdump(expectedPlan), spew.Sdump(actualPlan))
-		}
+		assert.Equal(t,expectedPlan,actualPlan)
 	}
 }
