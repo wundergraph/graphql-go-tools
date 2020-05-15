@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 
 	"github.com/jensneuse/abstractlogger"
@@ -149,7 +150,7 @@ func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {
 		assert.NoError(t, err)
 
 		executionRes, err := engine.Execute(context.Background(), &request, ExecutionOptions{ExtraArguments: extraVariablesBytes})
-		assert.Error(t,err)
+		assert.Error(t, err)
 		assert.Equal(t, ``, executionRes.Buffer().String())
 	})
 
@@ -296,4 +297,60 @@ func TestExampleExecutionEngine_Concatenation(t *testing.T) {
 	expected := `{"data":{"friend":{"firstName":"Jens","lastName":"Neuse","fullName":"Jens Neuse"}}}`
 	actual := executionRes.Buffer().String()
 	assert.Equal(t, expected, actual)
+}
+
+func BenchmarkExecutionEngine(b *testing.B) {
+
+	newEngine := func() *ExecutionEngine {
+		schema, err := NewSchemaFromString(`type Query { hello: String}`)
+		assert.NoError(b, err)
+		plannerConfig := datasource.PlannerConfiguration{
+			TypeFieldConfigurations: []datasource.TypeFieldConfiguration{
+				{
+					TypeName:  "query",
+					FieldName: "hello",
+					Mapping: &datasource.MappingConfiguration{
+						Disabled: true,
+					},
+					DataSource: datasource.SourceConfig{
+						Name: "HelloDataSource",
+						Config: stringify(datasource.StaticDataSourceConfig{
+							Data: "world",
+						}),
+					},
+				},
+			},
+		}
+		engine, err := NewExecutionEngine(abstractlogger.NoopLogger, schema, plannerConfig)
+		assert.NoError(b, err)
+		assert.NoError(b, engine.AddDataSource("HelloDataSource", datasource.StaticDataSourcePlannerFactoryFactory{}))
+		return engine
+	}
+
+	ctx := context.Background()
+	req := &Request{
+		Query: "{hello}",
+	}
+	out := bytes.Buffer{}
+	err := newEngine().ExecuteWithWriter(ctx, req, &out, ExecutionOptions{})
+	assert.NoError(b, err)
+	assert.Equal(b, "{\"data\":{\"hello\":\"world\"}}", out.String())
+
+	pool := sync.Pool{
+		New: func() interface{} {
+			return newEngine()
+		},
+	}
+
+	b.SetBytes(int64(out.Len()))
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			engine := pool.Get().(*ExecutionEngine)
+			_ = engine.ExecuteWithWriter(ctx, req, ioutil.Discard, ExecutionOptions{})
+			pool.Put(engine)
+		}
+	})
 }
