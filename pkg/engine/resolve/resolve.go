@@ -741,6 +741,13 @@ type BufPair struct {
 	Errors *bytes.Buffer
 }
 
+func NewBufPair() *BufPair {
+	return &BufPair{
+		Data:   &bytes.Buffer{},
+		Errors: &bytes.Buffer{},
+	}
+}
+
 func (b *BufPair) HasData() bool {
 	return b.Data.Len() != 0
 }
