@@ -2,6 +2,8 @@ package plan
 
 import (
 	"bytes"
+	"regexp"
+	"strings"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astimport"
@@ -103,7 +105,7 @@ func NewPlanner(definition *ast.Document, config Configuration) *Planner {
 	}
 
 	walker.SetVisitorFilter(visitor)
-	walker.RegisterDocumentVisitor(visitor)
+	walker.RegisterEnterDocumentVisitor(visitor)
 	walker.RegisterOperationDefinitionVisitor(visitor)
 	walker.RegisterSelectionSetVisitor(visitor)
 	walker.RegisterEnterFieldVisitor(visitor)
@@ -116,6 +118,7 @@ func NewPlanner(definition *ast.Document, config Configuration) *Planner {
 	}
 
 	walker.RegisterLeaveFieldVisitor(visitor)
+	walker.RegisterLeaveDocumentVisitor(visitor)
 
 	return &Planner{
 		definition: definition,
@@ -138,11 +141,21 @@ type Visitor struct {
 	Importer                astimport.Importer
 	opName                  []byte
 	plan                    Plan
-	CurrentObject           *resolve.Object
+	currentObject           *resolve.Object
 	objects                 []fieldObject
 	currentFields           *[]resolve.Field
 	fields                  []*[]resolve.Field
+	fetches                 resolve.Fetches
 	activeDataSourcePlanner DataSourcePlanner
+}
+
+func (v *Visitor) SetCurrentObjectFetch(fetch resolve.Fetch) {
+	v.currentObject.Fetch = fetch
+	v.fetches = append(v.fetches, fetch)
+}
+
+func (v *Visitor) CurrentObjectHasFetch() bool {
+	return v.currentObject.Fetch != nil
 }
 
 type fieldObject struct {
@@ -155,14 +168,14 @@ func (v *Visitor) NextBufferID() uint8 {
 }
 
 func (v *Visitor) SetBufferIDForCurrentFieldSet(bufferID uint8) {
-	if v.CurrentObject == nil {
+	if v.currentObject == nil {
 		return
 	}
-	if len(v.CurrentObject.FieldSets) == 0 {
+	if len(v.currentObject.FieldSets) == 0 {
 		return
 	}
-	v.CurrentObject.FieldSets[len(v.CurrentObject.FieldSets)-1].HasBuffer = true
-	v.CurrentObject.FieldSets[len(v.CurrentObject.FieldSets)-1].BufferID = bufferID
+	v.currentObject.FieldSets[len(v.currentObject.FieldSets)-1].HasBuffer = true
+	v.currentObject.FieldSets[len(v.currentObject.FieldSets)-1].BufferID = bufferID
 }
 
 func (v *Visitor) AllowVisitor(visitorKind astvisitor.VisitorKind, ref int, visitor interface{}) bool {
@@ -197,22 +210,55 @@ func (v *Visitor) IsRootField(ref int) (bool, *FieldConfiguration) {
 func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
 	v.fields = v.fields[:0]
 	v.objects = v.objects[:0]
+	v.fetches = v.fetches[:0]
 }
 
 func (v *Visitor) LeaveDocument(operation, definition *ast.Document) {
+	for i := range v.fetches {
+		v.prepareFetchVariables(v.fetches[i])
+	}
+}
 
+var (
+	templateRegex = regexp.MustCompile(`{{.*?}}`)
+	selectorRegex = regexp.MustCompile(`{{\s(.*?)\s}}`)
+)
+
+func (v *Visitor) prepareFetchVariables(fetch resolve.Fetch) {
+	switch f := fetch.(type) {
+	case *resolve.SingleFetch:
+		f.Input = templateRegex.ReplaceAllFunc(f.Input, func(i []byte) []byte {
+			selector := selectorRegex.FindSubmatch(i)
+			if len(selector) != 2 {
+				return i
+			}
+			path := strings.TrimPrefix(string(selector[1]), ".")
+			segments := strings.Split(path, ".")
+			if len(segments) < 2 {
+				return i
+			}
+			switch segments[0] {
+			case "object":
+				return f.Variables.AddVariable(&resolve.ObjectVariable{Path: segments[1:]})
+			case "arguments":
+				return f.Variables.AddVariable(&resolve.ContextVariable{Path: segments[1:]})
+			default:
+				return i
+			}
+		})
+	}
 }
 
 func (v *Visitor) EnterOperationDefinition(ref int) {
 	if bytes.Equal(v.Operation.OperationDefinitionNameBytes(ref), v.opName) {
-		v.CurrentObject = &resolve.Object{}
+		v.currentObject = &resolve.Object{}
 		v.objects = append(v.objects, fieldObject{
-			object:   v.CurrentObject,
+			object:   v.currentObject,
 			fieldRef: -1,
 		})
 		v.plan = &SynchronousResponsePlan{
 			Response: resolve.GraphQLResponse{
-				Data: v.CurrentObject,
+				Data: v.currentObject,
 			},
 		}
 	} else {
@@ -221,14 +267,14 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 }
 
 func (v *Visitor) LeaveOperationDefinition(ref int) {
-	v.CurrentObject = nil
+	v.currentObject = nil
 }
 
 func (v *Visitor) EnterSelectionSet(ref int) {
-	v.CurrentObject.FieldSets = append(v.CurrentObject.FieldSets, resolve.FieldSet{
+	v.currentObject.FieldSets = append(v.currentObject.FieldSets, resolve.FieldSet{
 		Fields: []resolve.Field{},
 	})
-	v.currentFields = &v.CurrentObject.FieldSets[len(v.CurrentObject.FieldSets)-1].Fields
+	v.currentFields = &v.currentObject.FieldSets[len(v.currentObject.FieldSets)-1].Fields
 	v.fields = append(v.fields, v.currentFields)
 }
 
@@ -290,7 +336,7 @@ func (v *Visitor) EnterField(ref int) {
 
 	v.Defer(func() {
 		if nextCurrentObject != nil {
-			v.CurrentObject = nextCurrentObject
+			v.currentObject = nextCurrentObject
 			v.objects = append(v.objects, fieldObject{
 				fieldRef: ref,
 				object:   nextCurrentObject,
@@ -352,11 +398,12 @@ func (v *Visitor) setActiveDataSourcePlanner(currentFieldName string) {
 }
 
 func (v *Visitor) LeaveField(ref int) {
+
 	if len(v.objects) < 2 {
 		return
 	}
 	if v.objects[len(v.objects)-1].fieldRef == ref {
 		v.objects = v.objects[:len(v.objects)-1]
-		v.CurrentObject = v.objects[len(v.objects)-1].object
+		v.currentObject = v.objects[len(v.objects)-1].object
 	}
 }

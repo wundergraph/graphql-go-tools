@@ -17,7 +17,7 @@ func (p *Planner) Register(visitor *plan.Visitor) {
 }
 
 func (p *Planner) EnterField(ref int) {
-	rootField,config := p.v.IsRootField(ref)
+	rootField, config := p.v.IsRootField(ref)
 	if !rootField {
 		return
 	}
@@ -26,11 +26,11 @@ func (p *Planner) EnterField(ref int) {
 
 	bufferID := p.v.NextBufferID()
 	p.v.SetBufferIDForCurrentFieldSet(bufferID)
-	p.v.CurrentObject.Fetch = &resolve.SingleFetch{
+	p.v.SetCurrentObjectFetch(&resolve.SingleFetch{
 		BufferId:   bufferID,
 		Input:      data,
 		DataSource: Source{},
-	}
+	})
 }
 
 type Source struct {

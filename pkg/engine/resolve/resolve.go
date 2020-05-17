@@ -65,6 +65,17 @@ type Fetch interface {
 	FetchKind() FetchKind
 }
 
+type Fetches []Fetch
+
+func (f *Fetches) AppendIfUnique(fetch Fetch) {
+	for i := range *f {
+		if fetch == (*f)[i] {
+			return
+		}
+	}
+	*f = append(*f, fetch)
+}
+
 type DataSource interface {
 	Load(ctx context.Context, input []byte, bufPair *BufPair) (err error)
 }
@@ -385,18 +396,18 @@ func (r *Resolver) resolveBoolean(boolean *Boolean, data []byte, booleanBuf *Buf
 }
 
 func (r *Resolver) resolveString(str *String, data []byte, stringBuf *BufPair) (err error) {
-	if str.Path != nil {
-		value, valueType, _, err := jsonparser.Get(data, str.Path...)
-		if err != nil || valueType != jsonparser.String {
-			if !str.nullable {
-				return errNonNullableFieldValueIsNull
-			}
-			return r.resolveNull(stringBuf.Data)
+	value, valueType, _, err := jsonparser.Get(data, str.Path...)
+	if err != nil || valueType != jsonparser.String {
+		if !str.nullable {
+			return errNonNullableFieldValueIsNull
 		}
-		data = value
+		return r.resolveNull(stringBuf.Data)
+	}
+	if data == nil && !str.nullable {
+		return errNonNullableFieldValueIsNull
 	}
 	err = r.writeSafe(nil, stringBuf.Data, quote)
-	err = r.writeSafe(nil, stringBuf.Data, data)
+	err = r.writeSafe(nil, stringBuf.Data, value)
 	return r.writeSafe(nil, stringBuf.Data, quote)
 }
 

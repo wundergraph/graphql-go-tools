@@ -63,7 +63,7 @@ func (p *Planner) EnterField(ref int) {
 
 	isRootField, config := p.v.IsRootField(ref)
 
-	if isRootField && p.v.CurrentObject.Fetch == nil {
+	if isRootField && !p.v.CurrentObjectHasFetch() {
 
 		p.URL = config.Attributes.ValueForKey("url")
 
@@ -72,7 +72,7 @@ func (p *Planner) EnterField(ref int) {
 		p.fetch = &resolve.SingleFetch{
 			BufferId: bufferID,
 		}
-		p.v.CurrentObject.Fetch = p.fetch
+		p.v.SetCurrentObjectFetch(p.fetch)
 		if len(p.operation.RootNodes) == 0 {
 			set := p.operation.AddSelectionSet()
 			definition := p.operation.AddOperationDefinitionToRootNodes(ast.OperationDefinition{

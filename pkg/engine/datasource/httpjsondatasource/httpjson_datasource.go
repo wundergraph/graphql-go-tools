@@ -85,13 +85,13 @@ func (p *Planner) EnterField(ref int) {
 
 	bufferID := p.v.NextBufferID()
 	p.v.SetBufferIDForCurrentFieldSet(bufferID)
-	p.v.CurrentObject.Fetch = &resolve.SingleFetch{
+	p.v.SetCurrentObjectFetch(&resolve.SingleFetch{
 		BufferId: bufferID,
 		Input:    input,
 		DataSource: &Source{
 			client: p.getClient(),
 		},
-	}
+	})
 }
 
 type Source struct {

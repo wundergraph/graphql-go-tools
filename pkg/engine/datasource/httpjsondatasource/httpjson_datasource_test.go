@@ -42,11 +42,15 @@ func TestHttpJsonDataSourcePlanning(t *testing.T) {
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
 						BufferId: 0,
-						Input:    []byte(`{"method":"GET","url":"https://example.com"}`),
+						Input:    []byte(`{"method":"GET","url":"https://example.com/$$0$$"}`),
 						DataSource: &Source{
-							client: &http.Client{},
+							client: NewPlanner(nil).getClient(),
 						},
-						Variables: resolve.Variables{},
+						Variables: resolve.NewVariables(
+							&resolve.ObjectVariable{
+								Path: []string{"id"},
+							},
+						),
 					},
 					FieldSets: []resolve.FieldSet{
 						{
@@ -84,7 +88,7 @@ func TestHttpJsonDataSourcePlanning(t *testing.T) {
 					Attributes: []plan.DataSourceAttribute{
 						{
 							Key:   "url",
-							Value: []byte("https://example.com"),
+							Value: []byte("https://example.com/{{ .object.id }}"),
 						},
 						{
 							Key:   "method",
@@ -110,7 +114,7 @@ func TestHttpJsonDataSourcePlanning(t *testing.T) {
 						BufferId: 0,
 						Input:    []byte(`{"body":{"foo":"bar"},"method":"POST","url":"https://example.com"}`),
 						DataSource: &Source{
-							client: &http.Client{},
+							client: NewPlanner(nil).getClient(),
 						},
 						Variables: resolve.Variables{},
 					},
@@ -180,7 +184,7 @@ func TestHttpJsonDataSourcePlanning(t *testing.T) {
 						BufferId: 0,
 						Input:    []byte(`{"headers":{"Authorization":"Bearer 123","X-API-Key":"456"},"method":"GET","url":"https://example.com"}`),
 						DataSource: &Source{
-							client: &http.Client{},
+							client: NewPlanner(nil).getClient(),
 						},
 						Variables: resolve.Variables{},
 					},
@@ -263,7 +267,7 @@ func TestHttpJsonDataSource_Load(t *testing.T) {
 		pair := resolve.NewBufPair()
 		err := source.Load(context.Background(), input, pair)
 		assert.NoError(t, err)
-		assert.Equal(t,`ok`,pair.Data.String())
+		assert.Equal(t, `ok`, pair.Data.String())
 	})
 	t.Run("get with headers", func(t *testing.T) {
 
@@ -272,37 +276,37 @@ func TestHttpJsonDataSource_Load(t *testing.T) {
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, r.Method, http.MethodGet)
-			assert.Equal(t,authorization,r.Header.Get("Authorization"))
-			assert.Equal(t,xApiKey,r.Header.Get("X-API-KEY"))
+			assert.Equal(t, authorization, r.Header.Get("Authorization"))
+			assert.Equal(t, xApiKey, r.Header.Get("X-API-KEY"))
 			w.Write([]byte(`ok`))
 		}))
 
 		defer server.Close()
 
-		input := []byte(fmt.Sprintf(`{"method":"GET","url":"%s","headers":{"Authorization":"%s","X-API-KEY":"%s"}}`, server.URL,authorization,xApiKey))
+		input := []byte(fmt.Sprintf(`{"method":"GET","url":"%s","headers":{"Authorization":"%s","X-API-KEY":"%s"}}`, server.URL, authorization, xApiKey))
 		pair := resolve.NewBufPair()
 		err := source.Load(context.Background(), input, pair)
 		assert.NoError(t, err)
-		assert.Equal(t,`ok`,pair.Data.String())
+		assert.Equal(t, `ok`, pair.Data.String())
 	})
 	t.Run("post with body", func(t *testing.T) {
 
 		body := `{"foo":"bar"}`
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			assert.Equal(t, http.MethodPost,r.Method)
-			actualBody,err := ioutil.ReadAll(r.Body)
-			assert.NoError(t,err)
-			assert.Equal(t,string(actualBody),body)
+			assert.Equal(t, http.MethodPost, r.Method)
+			actualBody, err := ioutil.ReadAll(r.Body)
+			assert.NoError(t, err)
+			assert.Equal(t, string(actualBody), body)
 			w.Write([]byte(`ok`))
 		}))
 
 		defer server.Close()
 
-		input := []byte(fmt.Sprintf(`{"method":"POST","url":"%s","body":%s}`, server.URL,body))
+		input := []byte(fmt.Sprintf(`{"method":"POST","url":"%s","body":%s}`, server.URL, body))
 		pair := resolve.NewBufPair()
 		err := source.Load(context.Background(), input, pair)
 		assert.NoError(t, err)
-		assert.Equal(t,`ok`,pair.Data.String())
+		assert.Equal(t, `ok`, pair.Data.String())
 	})
 }
