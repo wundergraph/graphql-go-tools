@@ -542,6 +542,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
 			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
 				err = pair.WriteErr([]byte("errorMessage1"), nil, nil)
+				if err != nil {
+					return
+				}
 				err = pair.WriteErr([]byte("errorMessage2"), nil, nil)
 				return
 			}).

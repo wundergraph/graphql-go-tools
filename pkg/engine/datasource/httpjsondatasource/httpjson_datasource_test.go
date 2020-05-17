@@ -19,6 +19,7 @@ const (
 	schema = `
 		type Query {
 			friend: Friend
+			withArgument(id: String!, name: String): Friend
 		}
 
 		type Friend {
@@ -29,6 +30,14 @@ const (
 	simpleOperation = `
 		query {
 			friend {
+				name
+			}
+		}
+	`
+
+	argumentOperation = `
+		query ArgumentQuery($idVariable: String!) {
+			withArgument(id: $idVariable, name: "foo") {
 				name
 			}
 		}
@@ -99,6 +108,76 @@ func TestHttpJsonDataSourcePlanning(t *testing.T) {
 					FieldMappings: []plan.FieldMapping{
 						{
 							FieldName:             "friend",
+							DisableDefaultMapping: true,
+						},
+					},
+				},
+			},
+		},
+	))
+	t.Run("get request with argument", datasourcetesting.RunTest(schema, argumentOperation, "ArgumentQuery",
+		&plan.SynchronousResponsePlan{
+			Response: resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						BufferId: 0,
+						Input:    []byte(`{"method":"GET","url":"https://example.com/$$0$$/foo"}`),
+						DataSource: &Source{
+							client: NewPlanner(nil).getClient(),
+						},
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path: []string{"idVariable"},
+							},
+						),
+					},
+					FieldSets: []resolve.FieldSet{
+						{
+							BufferID:  0,
+							HasBuffer: true,
+							Fields: []resolve.Field{
+								{
+									Name: []byte("withArgument"),
+									Value: &resolve.Object{
+										FieldSets: []resolve.FieldSet{
+											{
+												Fields: []resolve.Field{
+													{
+														Name: []byte("name"),
+														Value: &resolve.String{
+															Path: []string{"name"},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		plan.Configuration{
+			FieldConfigurations: []plan.FieldConfiguration{
+				{
+					TypeName:   "Query",
+					FieldNames: []string{"withArgument"},
+					Attributes: []plan.DataSourceAttribute{
+						{
+							Key:   "url",
+							Value: []byte("https://example.com/{{ .arguments.withArgument.id }}/{{ .arguments.withArgument.name }}"),
+						},
+						{
+							Key:   "method",
+							Value: []byte("GET"),
+						},
+					},
+					DataSourcePlanner: &Planner{},
+					FieldMappings: []plan.FieldMapping{
+						{
+							FieldName:             "withArgument",
 							DisableDefaultMapping: true,
 						},
 					},
@@ -258,7 +337,7 @@ func TestHttpJsonDataSource_Load(t *testing.T) {
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, r.Method, http.MethodGet)
-			w.Write([]byte(`ok`))
+			_,_ = w.Write([]byte(`ok`))
 		}))
 
 		defer server.Close()
@@ -278,7 +357,7 @@ func TestHttpJsonDataSource_Load(t *testing.T) {
 			assert.Equal(t, r.Method, http.MethodGet)
 			assert.Equal(t, authorization, r.Header.Get("Authorization"))
 			assert.Equal(t, xApiKey, r.Header.Get("X-API-KEY"))
-			w.Write([]byte(`ok`))
+			_,_ = w.Write([]byte(`ok`))
 		}))
 
 		defer server.Close()
@@ -298,7 +377,7 @@ func TestHttpJsonDataSource_Load(t *testing.T) {
 			actualBody, err := ioutil.ReadAll(r.Body)
 			assert.NoError(t, err)
 			assert.Equal(t, string(actualBody), body)
-			w.Write([]byte(`ok`))
+			_,_ = w.Write([]byte(`ok`))
 		}))
 
 		defer server.Close()

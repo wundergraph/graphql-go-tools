@@ -140,32 +140,57 @@ func (r *Resolver) writeSafe(err error, writer io.Writer, data []byte) error {
 	return err
 }
 
+// nolint
 func (r *Resolver) writeErrSafe(err error, writer io.Writer, message, locations, path []byte) error {
 	if err != nil {
 		return err
 	}
 	_, err = writer.Write(lBrace)
 	err = r.resolveObjectFieldSafe(err, writer, literalMessage, message)
-	if locations != nil {
-		_, err = writer.Write(comma)
-		err = r.resolveObjectFieldSafe(err, writer, literalLocations, locations)
+	if err != nil {
+		return err
 	}
 	if locations != nil {
 		_, err = writer.Write(comma)
+		if err != nil {
+			return err
+		}
+		err = r.resolveObjectFieldSafe(err, writer, literalLocations, locations)
+		if err != nil {
+			return err
+		}
+	}
+	if locations != nil {
+		_, err = writer.Write(comma)
+		if err != nil {
+			return err
+		}
 		err = r.resolveObjectFieldSafe(err, writer, literalPath, locations)
+		if err != nil {
+			return err
+		}
 	}
 	_, err = writer.Write(rBrace)
 	return err
 }
 
+// nolint
 func (r *Resolver) resolveObjectFieldSafe(err error, writer io.Writer, fieldName, fieldContent []byte) error {
 	if err != nil {
 		return err
 	}
-	_, err = writer.Write(quote)
-	_, err = writer.Write(fieldName)
-	_, err = writer.Write(quote)
-	_, err = writer.Write(colon)
+	if _, err = writer.Write(quote); err != nil {
+		return err
+	}
+	if _, err = writer.Write(fieldName); err != nil {
+		return err
+	}
+	if _, err = writer.Write(quote); err != nil {
+		return err
+	}
+	if _, err = writer.Write(colon); err != nil {
+		return err
+	}
 	_, err = writer.Write(fieldContent)
 	return err
 }
@@ -238,7 +263,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx Context, response *GraphQLResponse
 
 func (r *Resolver) resolveEmptyArray(writer io.Writer) (err error) {
 	err = r.writeSafe(nil, writer, lBrack)
-	return r.writeSafe(nil, writer, rBrack)
+	return r.writeSafe(err, writer, rBrack)
 }
 
 func (r *Resolver) resolveEmptyObject(writer io.Writer) (err error) {
@@ -406,9 +431,9 @@ func (r *Resolver) resolveString(str *String, data []byte, stringBuf *BufPair) (
 	if data == nil && !str.nullable {
 		return errNonNullableFieldValueIsNull
 	}
-	err = r.writeSafe(nil, stringBuf.Data, quote)
-	err = r.writeSafe(nil, stringBuf.Data, value)
-	return r.writeSafe(nil, stringBuf.Data, quote)
+	err = r.writeSafe(err, stringBuf.Data, quote)
+	err = r.writeSafe(err, stringBuf.Data, value)
+	return r.writeSafe(err, stringBuf.Data, quote)
 }
 
 func (r *Resolver) resolveNull(writer io.Writer) (err error) {
@@ -828,6 +853,9 @@ func (r *Resolver) MergeBufPairData(from, to *BufPair, prefixDataWithComma bool)
 	var written int64
 	if prefixDataWithComma {
 		dataWritten, err = to.Data.Write(comma)
+		if err != nil {
+			return
+		}
 	}
 	written, err = from.Data.WriteTo(to.Data)
 	dataWritten += int(written)
@@ -841,6 +869,9 @@ func (r *Resolver) MergeBufPairErrors(from, to *BufPair) (errorsWritten int, err
 	var written int64
 	if to.HasErrors() {
 		errorsWritten, err = to.Errors.Write(comma)
+		if err != nil {
+			return
+		}
 	}
 	written, err = from.Errors.WriteTo(to.Errors)
 	errorsWritten += int(written)

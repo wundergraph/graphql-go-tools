@@ -5,10 +5,13 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/buger/jsonparser"
+
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astimport"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
@@ -109,6 +112,7 @@ func NewPlanner(definition *ast.Document, config Configuration) *Planner {
 	walker.RegisterOperationDefinitionVisitor(visitor)
 	walker.RegisterSelectionSetVisitor(visitor)
 	walker.RegisterEnterFieldVisitor(visitor)
+	walker.RegisterEnterArgumentVisitor(visitor)
 
 	for i := range config.FieldConfigurations {
 		if config.FieldConfigurations[i].DataSourcePlanner == nil {
@@ -145,13 +149,22 @@ type Visitor struct {
 	objects                 []fieldObject
 	currentFields           *[]resolve.Field
 	fields                  []*[]resolve.Field
-	fetches                 resolve.Fetches
+	fetchConfigs            []fetchConfig
 	activeDataSourcePlanner DataSourcePlanner
+	fieldArguments          []fieldArgument
+
+	currentFieldName                    string
+	currentFieldEnclosingTypeDefinition ast.Node
 }
 
-func (v *Visitor) SetCurrentObjectFetch(fetch resolve.Fetch) {
+type fetchConfig struct {
+	fetch              resolve.Fetch
+	fieldConfiguration *FieldConfiguration
+}
+
+func (v *Visitor) SetCurrentObjectFetch(fetch resolve.Fetch, config *FieldConfiguration) {
 	v.currentObject.Fetch = fetch
-	v.fetches = append(v.fetches, fetch)
+	v.fetchConfigs = append(v.fetchConfigs, fetchConfig{fetch: fetch, fieldConfiguration: config})
 }
 
 func (v *Visitor) CurrentObjectHasFetch() bool {
@@ -210,12 +223,13 @@ func (v *Visitor) IsRootField(ref int) (bool, *FieldConfiguration) {
 func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
 	v.fields = v.fields[:0]
 	v.objects = v.objects[:0]
-	v.fetches = v.fetches[:0]
+	v.fetchConfigs = v.fetchConfigs[:0]
+	v.fieldArguments = v.fieldArguments[:0]
 }
 
 func (v *Visitor) LeaveDocument(operation, definition *ast.Document) {
-	for i := range v.fetches {
-		v.prepareFetchVariables(v.fetches[i])
+	for i := range v.fetchConfigs {
+		v.prepareFetchVariables(v.fetchConfigs[i])
 	}
 }
 
@@ -224,8 +238,8 @@ var (
 	selectorRegex = regexp.MustCompile(`{{\s(.*?)\s}}`)
 )
 
-func (v *Visitor) prepareFetchVariables(fetch resolve.Fetch) {
-	switch f := fetch.(type) {
+func (v *Visitor) prepareFetchVariables(config fetchConfig) {
+	switch f := config.fetch.(type) {
 	case *resolve.SingleFetch:
 		f.Input = templateRegex.ReplaceAllFunc(f.Input, func(i []byte) []byte {
 			selector := selectorRegex.FindSubmatch(i)
@@ -241,12 +255,74 @@ func (v *Visitor) prepareFetchVariables(fetch resolve.Fetch) {
 			case "object":
 				return f.Variables.AddVariable(&resolve.ObjectVariable{Path: segments[1:]})
 			case "arguments":
-				return f.Variables.AddVariable(&resolve.ContextVariable{Path: segments[1:]})
+				segments = segments[1:]
+				if len(segments) < 2 {
+					return i
+				}
+				for j := range v.fieldArguments {
+					if v.fieldArguments[j].typeName == config.fieldConfiguration.TypeName &&
+						v.fieldArguments[j].fieldName == segments[0] &&
+						v.fieldArguments[j].argumentName == segments[1] {
+						segments = segments[2:]
+						switch v.fieldArguments[j].kind {
+						case fieldArgumentTypeVariable:
+							variablePath := append([]string{string(v.fieldArguments[j].value)}, segments...)
+							return f.Variables.AddVariable(&resolve.ContextVariable{Path: variablePath})
+						case fieldArgumentTypeStatic:
+							if len(segments) == 0 {
+								return v.fieldArguments[j].value
+							}
+							i, _, _, _ = jsonparser.Get(v.fieldArguments[j].value, segments...)
+							return i
+						}
+					}
+				}
+				return i
 			default:
 				return i
 			}
 		})
 	}
+}
+
+func (v *Visitor) EnterArgument(ref int) {
+	if v.Ancestors[len(v.Ancestors)-1].Kind != ast.NodeKindField {
+		return
+	}
+	value := v.Operation.ArgumentValue(ref)
+	arg := fieldArgument{
+		typeName:     v.currentFieldEnclosingTypeDefinition.Name(v.Definition),
+		fieldName:    v.currentFieldName,
+		argumentName: v.Operation.ArgumentNameString(ref),
+		kind:         fieldArgumentTypeStatic,
+	}
+	switch value.Kind {
+	case ast.ValueKindVariable:
+		arg.kind = fieldArgumentTypeVariable
+		arg.value = v.Operation.VariableValueNameBytes(value.Ref)
+	case ast.ValueKindString:
+		arg.value = v.Operation.StringValueContentBytes(value.Ref)
+	case ast.ValueKindBoolean:
+		switch v.Operation.BooleanValues[value.Ref] {
+		case true:
+			arg.value = literal.TRUE
+		case false:
+			arg.value = literal.FALSE
+		default:
+			return
+		}
+	case ast.ValueKindFloat:
+		arg.value = v.Operation.FloatValueRaw(value.Ref)
+	case ast.ValueKindInteger:
+		arg.value = v.Operation.IntValueRaw(value.Ref)
+	case ast.ValueKindEnum:
+		arg.value = v.Operation.EnumValueNameBytes(value.Ref)
+	case ast.ValueKindNull:
+		arg.value = literal.NULL
+	default:
+		return
+	}
+	v.fieldArguments = append(v.fieldArguments, arg)
 }
 
 func (v *Visitor) EnterOperationDefinition(ref int) {
@@ -290,6 +366,9 @@ func (v *Visitor) EnterField(ref int) {
 
 	fieldName := v.Operation.FieldNameBytes(ref)
 	fieldNameStr := v.Operation.FieldNameString(ref)
+
+	v.currentFieldName = fieldNameStr
+	v.currentFieldEnclosingTypeDefinition = v.EnclosingTypeDefinition
 
 	v.setActiveDataSourcePlanner(fieldNameStr)
 
@@ -407,3 +486,18 @@ func (v *Visitor) LeaveField(ref int) {
 		v.currentObject = v.objects[len(v.objects)-1].object
 	}
 }
+
+type fieldArgument struct {
+	typeName     string
+	fieldName    string
+	argumentName string
+	kind         fieldArgumentType
+	value        []byte
+}
+
+type fieldArgumentType int
+
+const (
+	fieldArgumentTypeStatic fieldArgumentType = iota + 1
+	fieldArgumentTypeVariable
+)

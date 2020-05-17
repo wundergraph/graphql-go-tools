@@ -91,7 +91,7 @@ func (p *Planner) EnterField(ref int) {
 		DataSource: &Source{
 			client: p.getClient(),
 		},
-	})
+	},config)
 }
 
 type Source struct {

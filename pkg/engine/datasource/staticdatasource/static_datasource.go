@@ -30,7 +30,7 @@ func (p *Planner) EnterField(ref int) {
 		BufferId:   bufferID,
 		Input:      data,
 		DataSource: Source{},
-	})
+	}, config)
 }
 
 type Source struct {

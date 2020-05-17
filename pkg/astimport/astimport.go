@@ -142,9 +142,6 @@ func (i *Importer) ImportField(ref int, from, to *ast.Document) int {
 	if field.HasArguments {
 		field.Arguments.Refs = i.ImportArguments(from.FieldArguments(ref), from, to)
 	}
-	if field.HasDirectives {
-
-	}
 	to.Fields = append(to.Fields, field)
 	return len(to.Fields) - 1
 }

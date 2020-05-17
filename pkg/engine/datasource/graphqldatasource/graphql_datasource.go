@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -70,9 +69,9 @@ func (p *Planner) EnterField(ref int) {
 		bufferID := p.v.NextBufferID()
 		p.v.SetBufferIDForCurrentFieldSet(bufferID)
 		p.fetch = &resolve.SingleFetch{
-			BufferId: bufferID,
+			BufferId:          bufferID,
 		}
-		p.v.SetCurrentObjectFetch(p.fetch)
+		p.v.SetCurrentObjectFetch(p.fetch,config)
 		if len(p.operation.RootNodes) == 0 {
 			set := p.operation.AddSelectionSet()
 			definition := p.operation.AddOperationDefinitionToRootNodes(ast.OperationDefinition{
@@ -176,14 +175,13 @@ func (p *Planner) LeaveDocument(operation, definition *ast.Document) {
 	buf := &bytes.Buffer{}
 	err := p.printer.Print(p.operation, nil, buf)
 	if err != nil {
-		fmt.Println(err.Error())
 		return
 	}
 	if p.variables != nil {
-		p.fetch.Input, err = sjson.SetRawBytes(p.fetch.Input, "body.variables", p.variables)
+		p.fetch.Input, _ = sjson.SetRawBytes(p.fetch.Input, "body.variables", p.variables)
 	}
-	p.fetch.Input, err = sjson.SetRawBytes(p.fetch.Input, "body.query", append([]byte{'"'}, append(buf.Bytes(), '"')...))
-	p.fetch.Input, err = sjson.SetRawBytes(p.fetch.Input, "url", append([]byte{'"'}, append(p.URL, '"')...))
+	p.fetch.Input, _ = sjson.SetRawBytes(p.fetch.Input, "body.query", append([]byte{'"'}, append(buf.Bytes(), '"')...))
+	p.fetch.Input, _ = sjson.SetRawBytes(p.fetch.Input, "url", append([]byte{'"'}, append(p.URL, '"')...))
 	p.fetch.DataSource = &Source{
 		Client: http.Client{
 			Timeout: time.Second * 10,
