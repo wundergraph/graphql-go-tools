@@ -58,18 +58,18 @@ type DataSourcePlanner interface {
 	Register(visitor *Visitor)
 }
 
-type FieldConfiguration struct {
+type DataSourceConfiguration struct {
 	TypeName          string
 	FieldNames        []string
 	Attributes        DataSourceAttributes
 	DataSourcePlanner DataSourcePlanner
-	FieldMappings     []FieldMapping
 }
 
 type FieldMapping struct {
+	TypeName              string
 	FieldName             string
 	DisableDefaultMapping bool
-	Mapping               []string
+	Path                  []string
 }
 
 type DataSourceAttribute struct {
@@ -95,16 +95,18 @@ type Planner struct {
 }
 
 type Configuration struct {
-	FieldConfigurations []FieldConfiguration
+	DataSourceConfigurations []DataSourceConfiguration
+	FieldMappings            []FieldMapping
 }
 
 func NewPlanner(definition *ast.Document, config Configuration) *Planner {
 
 	walker := astvisitor.NewWalker(48)
 	visitor := &Visitor{
-		Walker:              &walker,
-		Definition:          definition,
-		FieldConfigurations: config.FieldConfigurations,
+		Walker:                   &walker,
+		Definition:               definition,
+		DataSourceConfigurations: config.DataSourceConfigurations,
+		FieldMappings:            config.FieldMappings,
 	}
 
 	walker.SetVisitorFilter(visitor)
@@ -114,11 +116,11 @@ func NewPlanner(definition *ast.Document, config Configuration) *Planner {
 	walker.RegisterEnterFieldVisitor(visitor)
 	walker.RegisterEnterArgumentVisitor(visitor)
 
-	for i := range config.FieldConfigurations {
-		if config.FieldConfigurations[i].DataSourcePlanner == nil {
+	for i := range config.DataSourceConfigurations {
+		if config.DataSourceConfigurations[i].DataSourcePlanner == nil {
 			continue
 		}
-		config.FieldConfigurations[i].DataSourcePlanner.Register(visitor)
+		config.DataSourceConfigurations[i].DataSourcePlanner.Register(visitor)
 	}
 
 	walker.RegisterLeaveFieldVisitor(visitor)
@@ -140,18 +142,19 @@ func (p *Planner) Plan(operation *ast.Document, operationName []byte, report *op
 
 type Visitor struct {
 	*astvisitor.Walker
-	FieldConfigurations     []FieldConfiguration
-	Definition, Operation   *ast.Document
-	Importer                astimport.Importer
-	opName                  []byte
-	plan                    Plan
-	currentObject           *resolve.Object
-	objects                 []fieldObject
-	currentFields           *[]resolve.Field
-	fields                  []*[]resolve.Field
-	fetchConfigs            []fetchConfig
-	activeDataSourcePlanner DataSourcePlanner
-	fieldArguments          []fieldArgument
+	DataSourceConfigurations []DataSourceConfiguration
+	FieldMappings            []FieldMapping
+	Definition, Operation    *ast.Document
+	Importer                 astimport.Importer
+	opName                   []byte
+	plan                     Plan
+	currentObject            *resolve.Object
+	objects                  []fieldObject
+	currentFields            *[]resolve.Field
+	fields                   []*[]resolve.Field
+	fetchConfigs             []fetchConfig
+	activeDataSourcePlanner  DataSourcePlanner
+	fieldArguments           []fieldArgument
 
 	currentFieldName                    string
 	currentFieldEnclosingTypeDefinition ast.Node
@@ -159,10 +162,10 @@ type Visitor struct {
 
 type fetchConfig struct {
 	fetch              resolve.Fetch
-	fieldConfiguration *FieldConfiguration
+	fieldConfiguration *DataSourceConfiguration
 }
 
-func (v *Visitor) SetCurrentObjectFetch(fetch resolve.Fetch, config *FieldConfiguration) {
+func (v *Visitor) SetCurrentObjectFetch(fetch resolve.Fetch, config *DataSourceConfiguration) {
 	v.currentObject.Fetch = fetch
 	v.fetchConfigs = append(v.fetchConfigs, fetchConfig{fetch: fetch, fieldConfiguration: config})
 }
@@ -204,16 +207,16 @@ func (v *Visitor) AllowVisitor(visitorKind astvisitor.VisitorKind, ref int, visi
 	}
 }
 
-func (v *Visitor) IsRootField(ref int) (bool, *FieldConfiguration) {
+func (v *Visitor) IsRootField(ref int) (bool, *DataSourceConfiguration) {
 	fieldName := v.Operation.FieldNameString(ref)
 	enclosingTypeName := v.EnclosingTypeDefinition.Name(v.Definition)
-	for i := range v.FieldConfigurations {
-		if enclosingTypeName != v.FieldConfigurations[i].TypeName {
+	for i := range v.DataSourceConfigurations {
+		if enclosingTypeName != v.DataSourceConfigurations[i].TypeName {
 			continue
 		}
-		for j := range v.FieldConfigurations[i].FieldNames {
-			if fieldName == v.FieldConfigurations[i].FieldNames[j] {
-				return true, &v.FieldConfigurations[i]
+		for j := range v.DataSourceConfigurations[i].FieldNames {
+			if fieldName == v.DataSourceConfigurations[i].FieldNames[j] {
+				return true, &v.DataSourceConfigurations[i]
 			}
 		}
 	}
@@ -380,7 +383,7 @@ func (v *Visitor) EnterField(ref int) {
 	typeName := v.Definition.ResolveTypeNameString(fieldDefinitionType)
 
 	isList := v.Definition.TypeIsList(fieldDefinitionType)
-	isRootField, _ := v.IsRootField(ref)
+	//isRootField, _ := v.IsRootField(ref)
 
 	var value resolve.Node
 	var nextCurrentObject *resolve.Object
@@ -406,7 +409,7 @@ func (v *Visitor) EnterField(ref int) {
 		}
 	default:
 		obj := &resolve.Object{}
-		if !isRootField && !isList {
+		if !isList {
 			obj.Path = path
 		}
 		value = obj
@@ -443,19 +446,15 @@ func (v *Visitor) EnterField(ref int) {
 func (v *Visitor) resolveFieldPath(ref int) []string {
 	typeName := v.EnclosingTypeDefinition.Name(v.Definition)
 	fieldName := v.Operation.FieldNameString(ref)
-	for i := range v.FieldConfigurations {
-		if v.FieldConfigurations[i].TypeName == typeName {
-			for j := range v.FieldConfigurations[i].FieldMappings {
-				if v.FieldConfigurations[i].FieldMappings[j].FieldName == fieldName {
-					if v.FieldConfigurations[i].FieldMappings[j].Mapping != nil {
-						return v.FieldConfigurations[i].FieldMappings[j].Mapping
-					}
-					if v.FieldConfigurations[i].FieldMappings[j].DisableDefaultMapping {
-						return nil
-					}
-					return []string{fieldName}
-				}
+	for i := range v.FieldMappings {
+		if v.FieldMappings[i].TypeName == typeName && v.FieldMappings[i].FieldName == fieldName {
+			if v.FieldMappings[i].Path != nil {
+				return v.FieldMappings[i].Path
 			}
+			if v.FieldMappings[i].DisableDefaultMapping {
+				return nil
+			}
+			return []string{fieldName}
 		}
 	}
 	return []string{fieldName}
@@ -463,13 +462,13 @@ func (v *Visitor) resolveFieldPath(ref int) []string {
 
 func (v *Visitor) setActiveDataSourcePlanner(currentFieldName string) {
 	enclosingTypeName := v.EnclosingTypeDefinition.Name(v.Definition)
-	for i := range v.FieldConfigurations {
-		if v.FieldConfigurations[i].TypeName != enclosingTypeName {
+	for i := range v.DataSourceConfigurations {
+		if v.DataSourceConfigurations[i].TypeName != enclosingTypeName {
 			continue
 		}
-		for j := range v.FieldConfigurations[i].FieldNames {
-			if v.FieldConfigurations[i].FieldNames[j] == currentFieldName {
-				v.activeDataSourcePlanner = v.FieldConfigurations[i].DataSourcePlanner
+		for j := range v.DataSourceConfigurations[i].FieldNames {
+			if v.DataSourceConfigurations[i].FieldNames[j] == currentFieldName {
+				v.activeDataSourcePlanner = v.DataSourceConfigurations[i].DataSourcePlanner
 				return
 			}
 		}

@@ -1,11 +1,9 @@
 package plan
 
 import (
-	"reflect"
 	"testing"
 
-	"github.com/davecgh/go-spew/spew"
-	"github.com/jensneuse/diffview"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
@@ -34,10 +32,7 @@ func TestPlanner_Plan(t *testing.T) {
 			if report.HasErrors() {
 				t.Fatal(report.Error())
 			}
-			if !reflect.DeepEqual(expectedPlan, plan) {
-				diffview.NewGoland().DiffViewAny("diff", expectedPlan, plan)
-				t.Errorf("want:\n%s\ngot:\n%s\n", spew.Sdump(expectedPlan), spew.Sdump(plan))
-			}
+			assert.Equal(t,expectedPlan,plan)
 		}
 	}
 
@@ -113,10 +108,17 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		},
 	},Configuration{
-		FieldConfigurations: []FieldConfiguration{
+		DataSourceConfigurations: []DataSourceConfiguration{
 			{
 				TypeName: "Query",
 				FieldNames: []string{"droid"},
+			},
+		},
+		FieldMappings: []FieldMapping{
+			{
+				TypeName:              "Query",
+				FieldName:             "droid",
+				DisableDefaultMapping: true,
 			},
 		},
 	}))
@@ -161,10 +163,17 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		},
 	},Configuration{
-		FieldConfigurations: []FieldConfiguration{
+		DataSourceConfigurations: []DataSourceConfiguration{
 			{
 				TypeName: "Query",
 				FieldNames: []string{"droid"},
+			},
+		},
+		FieldMappings: []FieldMapping{
+			{
+				TypeName:              "Query",
+				FieldName:             "droid",
+				DisableDefaultMapping: true,
 			},
 		},
 	}))

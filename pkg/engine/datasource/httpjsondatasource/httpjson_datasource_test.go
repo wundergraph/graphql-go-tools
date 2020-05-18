@@ -90,7 +90,7 @@ func TestHttpJsonDataSourcePlanning(t *testing.T) {
 			},
 		},
 		plan.Configuration{
-			FieldConfigurations: []plan.FieldConfiguration{
+			DataSourceConfigurations: []plan.DataSourceConfiguration{
 				{
 					TypeName:   "Query",
 					FieldNames: []string{"friend"},
@@ -105,12 +105,13 @@ func TestHttpJsonDataSourcePlanning(t *testing.T) {
 						},
 					},
 					DataSourcePlanner: &Planner{},
-					FieldMappings: []plan.FieldMapping{
-						{
-							FieldName:             "friend",
-							DisableDefaultMapping: true,
-						},
-					},
+				},
+			},
+			FieldMappings: []plan.FieldMapping{
+				{
+					TypeName:              "Query",
+					FieldName:             "friend",
+					DisableDefaultMapping: true,
 				},
 			},
 		},
@@ -160,7 +161,7 @@ func TestHttpJsonDataSourcePlanning(t *testing.T) {
 			},
 		},
 		plan.Configuration{
-			FieldConfigurations: []plan.FieldConfiguration{
+			DataSourceConfigurations: []plan.DataSourceConfiguration{
 				{
 					TypeName:   "Query",
 					FieldNames: []string{"withArgument"},
@@ -175,12 +176,13 @@ func TestHttpJsonDataSourcePlanning(t *testing.T) {
 						},
 					},
 					DataSourcePlanner: &Planner{},
-					FieldMappings: []plan.FieldMapping{
-						{
-							FieldName:             "withArgument",
-							DisableDefaultMapping: true,
-						},
-					},
+				},
+			},
+			FieldMappings: []plan.FieldMapping{
+				{
+					TypeName:              "Query",
+					FieldName:             "withArgument",
+					DisableDefaultMapping: true,
 				},
 			},
 		},
@@ -226,7 +228,7 @@ func TestHttpJsonDataSourcePlanning(t *testing.T) {
 			},
 		},
 		plan.Configuration{
-			FieldConfigurations: []plan.FieldConfiguration{
+			DataSourceConfigurations: []plan.DataSourceConfiguration{
 				{
 					TypeName:   "Query",
 					FieldNames: []string{"friend"},
@@ -245,12 +247,13 @@ func TestHttpJsonDataSourcePlanning(t *testing.T) {
 						},
 					},
 					DataSourcePlanner: &Planner{},
-					FieldMappings: []plan.FieldMapping{
-						{
-							FieldName:             "friend",
-							DisableDefaultMapping: true,
-						},
-					},
+				},
+			},
+			FieldMappings: []plan.FieldMapping{
+				{
+					TypeName:              "Query",
+					FieldName:             "friend",
+					DisableDefaultMapping: true,
 				},
 			},
 		},
@@ -296,7 +299,7 @@ func TestHttpJsonDataSourcePlanning(t *testing.T) {
 			},
 		},
 		plan.Configuration{
-			FieldConfigurations: []plan.FieldConfiguration{
+			DataSourceConfigurations: []plan.DataSourceConfiguration{
 				{
 					TypeName:   "Query",
 					FieldNames: []string{"friend"},
@@ -315,12 +318,13 @@ func TestHttpJsonDataSourcePlanning(t *testing.T) {
 						},
 					},
 					DataSourcePlanner: &Planner{},
-					FieldMappings: []plan.FieldMapping{
-						{
-							FieldName:             "friend",
-							DisableDefaultMapping: true,
-						},
-					},
+				},
+			},
+			FieldMappings: []plan.FieldMapping{
+				{
+					TypeName: "Query",
+					FieldName:             "friend",
+					DisableDefaultMapping: true,
 				},
 			},
 		},
@@ -337,7 +341,7 @@ func TestHttpJsonDataSource_Load(t *testing.T) {
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, r.Method, http.MethodGet)
-			_,_ = w.Write([]byte(`ok`))
+			_, _ = w.Write([]byte(`ok`))
 		}))
 
 		defer server.Close()
@@ -357,7 +361,7 @@ func TestHttpJsonDataSource_Load(t *testing.T) {
 			assert.Equal(t, r.Method, http.MethodGet)
 			assert.Equal(t, authorization, r.Header.Get("Authorization"))
 			assert.Equal(t, xApiKey, r.Header.Get("X-API-KEY"))
-			_,_ = w.Write([]byte(`ok`))
+			_, _ = w.Write([]byte(`ok`))
 		}))
 
 		defer server.Close()
@@ -377,7 +381,7 @@ func TestHttpJsonDataSource_Load(t *testing.T) {
 			actualBody, err := ioutil.ReadAll(r.Body)
 			assert.NoError(t, err)
 			assert.Equal(t, string(actualBody), body)
-			_,_ = w.Write([]byte(`ok`))
+			_, _ = w.Write([]byte(`ok`))
 		}))
 
 		defer server.Close()

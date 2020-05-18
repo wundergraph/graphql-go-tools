@@ -24,7 +24,7 @@ func TestStaticDataSourcePlanning(t *testing.T) {
 							HasBuffer: true,
 							Fields: []resolve.Field{
 								{
-									Name: []byte("hello"),
+									Name:  []byte("hello"),
 									Value: &resolve.String{},
 								},
 							},
@@ -39,7 +39,7 @@ func TestStaticDataSourcePlanning(t *testing.T) {
 			},
 		},
 		plan.Configuration{
-			FieldConfigurations: []plan.FieldConfiguration{
+			DataSourceConfigurations: []plan.DataSourceConfiguration{
 				{
 					TypeName:   "Query",
 					FieldNames: []string{"hello"},
@@ -50,12 +50,13 @@ func TestStaticDataSourcePlanning(t *testing.T) {
 						},
 					},
 					DataSourcePlanner: &Planner{},
-					FieldMappings: []plan.FieldMapping{
-						{
-							FieldName:             "hello",
-							DisableDefaultMapping: true,
-						},
-					},
+				},
+			},
+			FieldMappings: []plan.FieldMapping{
+				{
+					TypeName:              "Query",
+					FieldName:             "hello",
+					DisableDefaultMapping: true,
 				},
 			},
 		},

@@ -124,10 +124,10 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 			},
 		},
 	}, plan.Configuration{
-		FieldConfigurations: []plan.FieldConfiguration{
+		DataSourceConfigurations: []plan.DataSourceConfiguration{
 			{
 				TypeName:   "Query",
-				FieldNames: []string{"droid","hero"},
+				FieldNames: []string{"droid", "hero"},
 				Attributes: []plan.DataSourceAttribute{
 					{
 						Key:   "url",
@@ -154,7 +154,39 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 				DataSourcePlanner: &Planner{},
 			},
 		},
+		FieldMappings: []plan.FieldMapping{
+			{
+				TypeName:              "Query",
+				FieldName:             "droid",
+				DisableDefaultMapping: true,
+			},
+			{
+				TypeName:              "Query",
+				FieldName:             "hero",
+				DisableDefaultMapping: true,
+			},
+		},
 	}))
+	t.Run("nested graphql engines", RunTest(`
+
+	`, `
+	`, "NestedQuery",
+		nil,
+		plan.Configuration{
+			DataSourceConfigurations: []plan.DataSourceConfiguration{
+				{
+
+				},
+			},
+			FieldMappings: []plan.FieldMapping{
+				{
+					FieldName:             "",
+					DisableDefaultMapping: false,
+					Path:                  nil,
+				},
+			},
+		},
+	))
 }
 
 func TestGraphQLDataSourceExecution(t *testing.T) {
