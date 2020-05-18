@@ -6,138 +6,185 @@ import (
 	"io"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/astimport"
+	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
+	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
 type JsonConverter struct {
 	schema *Schema
 	doc    *ast.Document
+	parser *astparser.Parser
 }
 
-func (i *JsonConverter) GraphQLDocument(introspectionJSON io.Reader) (*ast.Document, error) {
+func (j *JsonConverter) GraphQLDocument(introspectionJSON io.Reader) (*ast.Document, error) {
 	var data Data
 	if err := json.NewDecoder(introspectionJSON).Decode(&data); err != nil {
 		return nil, fmt.Errorf("failed to parse inrospection json: %v", err)
 	}
 
-	i.schema = &data.Schema
-	i.doc = ast.NewDocument()
+	j.schema = &data.Schema
+	j.doc = ast.NewDocument()
+	j.parser = astparser.NewParser()
 
-	i.importSchema()
-
-	return i.doc, nil
-}
-
-func (i *JsonConverter) importSchema() {
-	i.doc.ImportSchemaDefinition(i.schema.TypeNames())
-
-	for _, fullType := range i.schema.Types {
-		i.importFullType(fullType)
+	if err := j.importSchema(); err != nil {
+		return nil, fmt.Errorf("failed to convert graphql schema: %v", err)
 	}
 
-	for _, directive := range i.schema.Directives {
-		i.importDirective(directive)
-	}
+	return j.doc, nil
 }
 
-func (i *JsonConverter) importFullType(fullType FullType) {
+func (j *JsonConverter) importSchema() error {
+	j.doc.ImportSchemaDefinition(j.schema.TypeNames())
+
+	for _, fullType := range j.schema.Types {
+		if err := j.importFullType(fullType); err != nil {
+			return err
+		}
+	}
+
+	for _, directive := range j.schema.Directives {
+		j.importDirective(directive)
+	}
+
+	return nil
+}
+
+func (j *JsonConverter) importFullType(fullType FullType) error {
 	switch fullType.Kind {
 	case SCALAR:
-		i.importScalar(fullType)
+		j.importScalar(fullType)
 	case OBJECT:
-		i.importObject(fullType)
+		return j.importObject(fullType)
 	case ENUM:
-		i.importEnum(fullType)
+		j.importEnum(fullType)
 	case INTERFACE:
-		i.importInterface(fullType)
+		j.importInterface(fullType)
 	case UNION:
-		i.importUnion(fullType)
+		j.importUnion(fullType)
 	case INPUTOBJECT:
-		i.importInputObject(fullType)
+		j.importInputObject(fullType)
 	}
+
+	return nil
 }
 
-func (i *JsonConverter) importDirective(directive Directive) {
+func (j *JsonConverter) importDirective(directive Directive) {
 	// TODO: implement
 }
 
-func (i *JsonConverter) importObject(fullType FullType) {
+func (j *JsonConverter) importObject(fullType FullType) error {
 	fieldRefs := make([]int, 0, len(fullType.Fields))
 	for _, field := range fullType.Fields {
-		fieldRefs = append(fieldRefs, i.importField(field))
+		fieldRef, err := j.importField(field)
+		if err != nil {
+			return err
+		}
+		fieldRefs = append(fieldRefs, fieldRef)
 	}
 
-	// TODO: import description
-	// TODO: import implements
-	i.importDescription()
-
-	objectName := i.doc.Input.AppendInputString(fullType.Name)
-	objectTypeDef := ast.ObjectTypeDefinition{
-		Name:                objectName,
-		HasFieldDefinitions: len(fieldRefs) > 0,
-		FieldsDefinition: ast.FieldDefinitionList{
-			Refs: fieldRefs,
-		},
+	iRefs := make([]int, 0, len(fullType.Interfaces))
+	for _, ref := range fullType.Interfaces {
+		iRefs = append(iRefs, j.importType(ref))
 	}
 
-	i.doc.ObjectTypeDefinitions = append(i.doc.ObjectTypeDefinitions, objectTypeDef)
-	ref := len(i.doc.ObjectTypeDefinitions) - 1
+	j.doc.ImportObjectTypeDefinition(
+		fullType.Name,
+		fullType.Description,
+		fieldRefs,
+		iRefs)
 
-	objectTypeNode := ast.Node{
-		Kind: ast.NodeKindObjectTypeDefinition,
-		Ref:  ref,
-	}
-
-	i.doc.RootNodes = append(i.doc.RootNodes, objectTypeNode)
-	i.doc.Index.Add(fullType.Name, objectTypeNode)
+	return nil
 }
 
-func (i *JsonConverter) importField(field Field) (ref int) {
-	// TODO: import description
-	// TODO: import args
-	typeRef := i.importType(field.Type)
+func (j *JsonConverter) importField(field Field) (ref int, err error) {
+	typeRef := j.importType(field.Type)
 
-	return i.doc.ImportFieldDefinition(field.Name, typeRef)
+	argRefs := make([]int, 0, len(field.Args))
+	for _, arg := range field.Args {
+		argRef, err := j.importArgument(arg)
+		if err != nil {
+			return -1, err
+		}
+		argRefs = append(argRefs, argRef)
+	}
+
+	return j.doc.ImportFieldDefinition(
+		field.Name, field.Description, typeRef, argRefs), nil
 }
 
-func (i *JsonConverter) importType(typeRef TypeRef) (ref int) {
+func (j *JsonConverter) importArgument(value InputValue) (ref int, err error) {
+	typeRef := j.importType(value.Type)
+
+	defaultValue, err := j.importDefaultValue(value.DefaultValue)
+	if err != nil {
+		return -1, err
+	}
+
+	return j.doc.ImportInputValueDefinition(
+		value.Name, value.Description, typeRef, defaultValue), nil
+}
+
+func (j *JsonConverter) importType(typeRef TypeRef) (ref int) {
 	switch typeRef.Kind {
 	case LIST:
 		listType := ast.Type{
 			TypeKind: ast.TypeKindList,
-			OfType:   i.importType(*typeRef.OfType),
+			OfType:   j.importType(*typeRef.OfType),
 		}
-		return i.doc.AddType(listType)
+		return j.doc.AddType(listType)
 	case NONNULL:
 		nonNullType := ast.Type{
 			TypeKind: ast.TypeKindNonNull,
-			OfType:   i.importType(*typeRef.OfType),
+			OfType:   j.importType(*typeRef.OfType),
 		}
-		return i.doc.AddType(nonNullType)
+		return j.doc.AddType(nonNullType)
 	}
 
-	return i.doc.AddNamedType([]byte(*typeRef.Name))
+	return j.doc.AddNamedType([]byte(*typeRef.Name))
 }
 
-func (i *JsonConverter) importDescription() {
+func (j *JsonConverter) importScalar(fullType FullType) {
 	// TODO: implement
 }
 
-func (i *JsonConverter) importScalar(fullType FullType) {
+func (j *JsonConverter) importEnum(fullType FullType) {
 	// TODO: implement
 }
 
-func (i *JsonConverter) importEnum(fullType FullType) {
+func (j *JsonConverter) importInterface(fullType FullType) {
 	// TODO: implement
 }
 
-func (i *JsonConverter) importInterface(fullType FullType) {
+func (j *JsonConverter) importUnion(fullType FullType) {
 	// TODO: implement
 }
 
-func (i *JsonConverter) importUnion(fullType FullType) {
+func (j *JsonConverter) importInputObject(fullType FullType) {
 	// TODO: implement
 }
 
-func (i *JsonConverter) importInputObject(fullType FullType) {
-	// TODO: implement
+func (j *JsonConverter) importDefaultValue(defaultValue *string) (out ast.DefaultValue, err error) {
+	if defaultValue == nil {
+		return
+	}
+
+	from := ast.NewDocument()
+	from.Input.AppendInputString(*defaultValue)
+
+	report := &operationreport.Report{}
+
+	j.parser.PrepareImport(from, report)
+	value := j.parser.ParseValue()
+
+	if report.HasErrors() {
+		err = report
+		return
+	}
+
+	importer := &astimport.Importer{}
+	return ast.DefaultValue{
+		IsDefined: true,
+		Value:     importer.ImportValue(value, from, j.doc),
+	}, nil
 }

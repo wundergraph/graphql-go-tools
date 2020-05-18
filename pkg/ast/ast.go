@@ -174,6 +174,11 @@ func (d *Document) NextRefIndex() int {
 	return d.RefIndex
 }
 
+func (d *Document) AddRootNode(node Node) {
+	d.RootNodes = append(d.RootNodes, node)
+	d.Index.Add(d.NodeNameString(node), node)
+}
+
 func (d *Document) DeleteRootNodes(nodes []Node) {
 	for i := range nodes {
 		d.DeleteRootNode(nodes[i])

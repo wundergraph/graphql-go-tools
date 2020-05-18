@@ -37,5 +37,11 @@ func (d *Document) ImportSchemaDefinition(queryTypeName, mutationTypeName, subsc
 		},
 	}
 
-	return d.AddSchemaDefinition(schemaDefinition)
+	ref = d.AddSchemaDefinition(schemaDefinition)
+	node := Node{
+		Kind: NodeKindSchemaDefinition,
+		Ref:  ref,
+	}
+	d.AddRootNode(node)
+	return
 }

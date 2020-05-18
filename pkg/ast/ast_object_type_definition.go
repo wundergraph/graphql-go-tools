@@ -74,3 +74,33 @@ func (d *Document) TypeDefinitionContainsImplementsInterface(typeName, interface
 	}
 	return false
 }
+
+func (d *Document) AddObjectTypeDefinition(definition ObjectTypeDefinition) (ref int) {
+	d.ObjectTypeDefinitions = append(d.ObjectTypeDefinitions, definition)
+	return len(d.ObjectTypeDefinitions) - 1
+}
+
+func (d *Document) ImportObjectTypeDefinition(name, description string, fieldRefs []int, iRefs []int) (ref int) {
+	objectName := d.Input.AppendInputString(name)
+
+	objectTypeDef := ObjectTypeDefinition{
+		Name:        objectName,
+		Description: d.ImportDescription(description),
+		FieldsDefinition: FieldDefinitionList{
+			Refs: fieldRefs,
+		},
+		HasFieldDefinitions: len(fieldRefs) > 0,
+		ImplementsInterfaces: TypeList{
+			Refs: iRefs,
+		},
+	}
+
+	ref = d.AddObjectTypeDefinition(objectTypeDef)
+	node := Node{
+		Kind: NodeKindObjectTypeDefinition,
+		Ref:  ref,
+	}
+	d.AddRootNode(node)
+
+	return
+}

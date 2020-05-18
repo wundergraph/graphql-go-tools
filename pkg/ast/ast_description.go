@@ -65,3 +65,15 @@ func (d *Document) PrintDescription(description Description, indent []byte, dept
 	}
 	return nil
 }
+
+func (d *Document) ImportDescription(desc string) (description Description) {
+	if desc == "" {
+		return
+	}
+
+	descContentRef := d.Input.AppendInputString(desc)
+	return Description{
+		IsDefined: true,
+		Content:   descContentRef,
+	}
+}

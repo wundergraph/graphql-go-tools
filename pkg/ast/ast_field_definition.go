@@ -90,12 +90,17 @@ func (d *Document) AddFieldDefinition(fieldDefinition FieldDefinition) (ref int)
 	return len(d.FieldDefinitions) - 1
 }
 
-func (d *Document) ImportFieldDefinition(name string, typeRef int) (ref int) {
+func (d *Document) ImportFieldDefinition(name, description string, typeRef int, argsRefs []int) (ref int) {
 	fieldName := d.Input.AppendInputString(name)
 
 	fieldDef := FieldDefinition{
-		Name: fieldName,
-		Type: typeRef,
+		Name:        fieldName,
+		Type:        typeRef,
+		Description: d.ImportDescription(description),
+		ArgumentsDefinition: InputValueDefinitionList{
+			Refs: argsRefs,
+		},
+		HasArgumentsDefinitions: len(argsRefs) > 0,
 	}
 
 	return d.AddFieldDefinition(fieldDef)
