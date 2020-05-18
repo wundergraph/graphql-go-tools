@@ -55,6 +55,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 							{
 								Name: []byte("droid"),
 								Value: &resolve.Object{
+									Path: []string{"droid"},
 									FieldSets: []resolve.FieldSet{
 										{
 											Fields: []resolve.Field{
@@ -104,6 +105,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 							{
 								Name: []byte("hero"),
 								Value: &resolve.Object{
+									Path: []string{"hero"},
 									FieldSets: []resolve.FieldSet{
 										{
 											Fields: []resolve.Field{
@@ -142,7 +144,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 									Arguments: []Argument{
 										{
 											Name:       []byte("id"),
-											Source:     Field,
+											Source:     FieldArgument,
 											SourcePath: []string{"id"},
 										},
 									},
@@ -154,35 +156,95 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 				DataSourcePlanner: &Planner{},
 			},
 		},
-		FieldMappings: []plan.FieldMapping{
-			{
-				TypeName:              "Query",
-				FieldName:             "droid",
-				DisableDefaultMapping: true,
-			},
-			{
-				TypeName:              "Query",
-				FieldName:             "hero",
-				DisableDefaultMapping: true,
-			},
-		},
 	}))
 	t.Run("nested graphql engines", RunTest(`
-
+		type Query {
+			serviceOne(serviceOneArg: String): ServiceOneResponse
+		}
+		type ServiceOneResponse {
+			field: String
+		}
 	`, `
+		query NestedQuery ($firstArg: String) {
+			serviceOne(serviceOneArg: $firstArg) {
+				field
+			}
+		}
 	`, "NestedQuery",
-		nil,
+		&plan.SynchronousResponsePlan{
+			Response: resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						BufferId: 0,
+						Input:    []byte(`{"url":"https://service.one","body":{"query":"query($firstArg: String){serviceOne(serviceOneArg: $firstArg){field}}","variables":{"firstArg":$$0$$}}}`),
+						DataSource: &Source{
+							Client: http.Client{
+								Timeout: time.Second * 10,
+							},
+						},
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path: []string{"firstArg"},
+							},
+						),
+					},
+					FieldSets: []resolve.FieldSet{
+						{
+							BufferID:  0,
+							HasBuffer: true,
+							Fields: []resolve.Field{
+								{
+									Name: []byte("serviceOne"),
+									Value: &resolve.Object{
+										Path: []string{"serviceOne"},
+										FieldSets: []resolve.FieldSet{
+											{
+												Fields: []resolve.Field{
+													{
+														Name: []byte("field"),
+														Value: &resolve.String{
+															Path: []string{"field"},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 		plan.Configuration{
 			DataSourceConfigurations: []plan.DataSourceConfiguration{
 				{
-
-				},
-			},
-			FieldMappings: []plan.FieldMapping{
-				{
-					FieldName:             "",
-					DisableDefaultMapping: false,
-					Path:                  nil,
+					TypeName:   "Query",
+					FieldNames: []string{"serviceOne"},
+					Attributes: []plan.DataSourceAttribute{
+						{
+							Key:   "url",
+							Value: []byte("https://service.one"),
+						},
+						{
+							Key: "arguments",
+							Value: ArgumentsConfigJSON(ArgumentsConfig{
+								Fields: []FieldConfig{
+									{
+										FieldName: "serviceOne",
+										Arguments: []Argument{
+											{
+												Name:   []byte("serviceOneArg"),
+												Source: FieldArgument,
+											},
+										},
+									},
+								},
+							}),
+						},
+					},
+					DataSourcePlanner: &Planner{},
 				},
 			},
 		},

@@ -12,7 +12,6 @@ import (
 	"github.com/buger/jsonparser"
 	"github.com/tidwall/sjson"
 
-	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
@@ -69,9 +68,9 @@ func (p *Planner) EnterField(ref int) {
 		bufferID := p.v.NextBufferID()
 		p.v.SetBufferIDForCurrentFieldSet(bufferID)
 		p.fetch = &resolve.SingleFetch{
-			BufferId:          bufferID,
+			BufferId: bufferID,
 		}
-		p.v.SetCurrentObjectFetch(p.fetch,config)
+		p.v.SetCurrentObjectFetch(p.fetch, config)
 		if len(p.operation.RootNodes) == 0 {
 			set := p.operation.AddSelectionSet()
 			definition := p.operation.AddOperationDefinitionToRootNodes(ast.OperationDefinition{
@@ -120,8 +119,8 @@ func (p *Planner) configureFieldArguments(upstreamField, downstreamField int, ar
 
 func (p *Planner) applyFieldArgument(upstreamField, downstreamField int, arg Argument) {
 	switch arg.Source {
-	case Field:
-		if fieldArgument, ok := p.v.Operation.FieldArgument(downstreamField, unsafebytes.StringToBytes(arg.SourcePath[0])); ok { // TODO: doesn't work with multi path args
+	case FieldArgument:
+		if fieldArgument, ok := p.v.Operation.FieldArgument(downstreamField, arg.Name); ok { // TODO: doesn't work with multi path args
 			value := p.v.Operation.ArgumentValue(fieldArgument)
 			if value.Kind != ast.ValueKindVariable {
 				return
@@ -129,7 +128,7 @@ func (p *Planner) applyFieldArgument(upstreamField, downstreamField int, arg Arg
 			variableName := p.v.Operation.VariableValueNameBytes(value.Ref)
 			variableNameStr := p.v.Operation.VariableValueNameString(value.Ref)
 
-			contextVariableName := p.fetch.Variables.AddVariable(&resolve.ContextVariable{Path: arg.SourcePath})
+			contextVariableName := p.fetch.Variables.AddVariable(&resolve.ContextVariable{Path: append([]string{variableNameStr}, arg.SourcePath...)})
 			p.variables, _ = sjson.SetRawBytes(p.variables, variableNameStr, contextVariableName)
 
 			variableValueRef, argRef := p.operation.AddVariableValueArgument(arg.Name, variableName)
@@ -144,7 +143,7 @@ func (p *Planner) applyFieldArgument(upstreamField, downstreamField int, arg Arg
 				p.operation.AddVariableDefinitionToOperationDefinition(p.nodes[0].Ref, variableValueRef, importedType)
 			}
 		}
-	case Object:
+	case ObjectField:
 	}
 }
 
@@ -266,6 +265,6 @@ type Argument struct {
 type ArgumentSource string
 
 const (
-	Object ArgumentSource = "object"
-	Field  ArgumentSource = "field"
+	ObjectField   ArgumentSource = "objectField"
+	FieldArgument ArgumentSource = "fieldArgument"
 )
