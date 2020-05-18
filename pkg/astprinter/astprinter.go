@@ -491,7 +491,13 @@ func (p *printVisitor) LeaveInputValueDefinition(ref int) {
 		}
 		p.write(p.inputValueDefinitionCloser)
 	} else {
-		p.write(literal.COMMA)
+		if len(p.Ancestors) > 0 {
+			parent := p.Ancestors[len(p.Ancestors)-1]
+			if parent.Kind == ast.NodeKindFieldDefinition {
+				p.write(literal.COMMA)
+			}
+		}
+
 		p.write(literal.SPACE)
 	}
 }

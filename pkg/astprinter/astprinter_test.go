@@ -2,12 +2,12 @@ package astprinter
 
 import (
 	"bytes"
-	"fmt"
 	"io/ioutil"
 	"testing"
 
 	"github.com/jensneuse/diffview"
 	"github.com/sebdah/goldie"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
@@ -39,9 +39,7 @@ func TestPrint(t *testing.T) {
 
 		got := buff.String()
 
-		if want != got {
-			panic(fmt.Errorf("want:\n%s\ngot:\n%s\n", want, got))
-		}
+		require.Equal(t, got, want)
 	}
 
 	t.Run("simple", func(t *testing.T) {

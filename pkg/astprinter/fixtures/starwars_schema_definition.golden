@@ -27,7 +27,7 @@ extend type Query {
 
 "The mutation type, represents all updates we can make to our data"
 type Mutation {
-    createReview(episode: Episode review: ReviewInput!): Review
+    createReview(episode: Episode, review: ReviewInput!): Review
 }
 
 "The subscription type, represents all subscriptions we can make to our data"
@@ -64,7 +64,7 @@ interface Character {
     "The friends of the character, or an empty list if they have none"
     friends: [Character]
     "The friends of the character exposed as a connection with edges"
-    friendsConnection(first: Int after: ID): FriendsConnection!
+    friendsConnection(first: Int, after: ID): FriendsConnection!
     "The movies this character appears in"
     appearsIn: [Episode]!
 }
@@ -77,7 +77,7 @@ extend interface Character {
     "The friends of the character, or an empty list if they have none"
     friends: [Character]
     "The friends of the character exposed as a connection with edges"
-    friendsConnection(first: Int after: ID): FriendsConnection!
+    friendsConnection(first: Int, after: ID): FriendsConnection!
     "The movies this character appears in"
     appearsIn: [Episode]!
 }
@@ -105,7 +105,7 @@ type Human implements Character {
     "This human's friends, or an empty list if they have none"
     friends: [Character]
     "The friends of the human exposed as a connection with edges"
-    friendsConnection(first: Int after: ID): FriendsConnection!
+    friendsConnection(first: Int, after: ID): FriendsConnection!
     "The movies this human appears in"
     appearsIn: [Episode]!
     "A list of starships this person has piloted, or an empty list if none"
@@ -121,7 +121,7 @@ type Droid implements Character {
     "This droid's friends, or an empty list if they have none"
     friends: [Character]
     "The friends of the droid exposed as a connection with edges"
-    friendsConnection(first: Int after: ID): FriendsConnection!
+    friendsConnection(first: Int, after: ID): FriendsConnection!
     "The movies this droid appears in"
     appearsIn: [Episode]!
     "This droid's primary function"
