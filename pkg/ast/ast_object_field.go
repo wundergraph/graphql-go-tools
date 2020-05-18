@@ -45,3 +45,11 @@ func (d *Document) ObjectValuesAreEqual(left, right int) bool {
 	}
 	return true
 }
+
+func (d *Document) AddObjectField(name ByteSlice, value Value) (ref int) {
+	d.ObjectFields = append(d.ObjectFields, ObjectField{
+		Name:  d.Input.AppendInputBytes(name),
+		Value: value,
+	})
+	return len(d.ObjectFields) - 1
+}

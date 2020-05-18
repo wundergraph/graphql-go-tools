@@ -10,3 +10,10 @@ type ObjectValue struct {
 	Refs   []int // ObjectField
 	RBRACE position.Position
 }
+
+func (d *Document) AddObjectValue(fieldRefs []int) (ref int) {
+	d.ObjectValues = append(d.ObjectValues, ObjectValue{
+		Refs: fieldRefs,
+	})
+	return len(d.ObjectValues) - 1
+}

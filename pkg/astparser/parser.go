@@ -558,7 +558,7 @@ Loop:
 
 		name := p.next()
 		colon := p.mustRead(keyword.COLON)
-		value := p.parseValue()
+		value := p.ParseValue()
 
 		argument := ast.Argument{
 			Name:  p.tokens[name].Literal,
@@ -588,7 +588,7 @@ Loop:
 	return
 }
 
-func (p *Parser) parseValue() (value ast.Value) {
+func (p *Parser) ParseValue() (value ast.Value) {
 
 	next, literal := p.peekLiteral()
 
@@ -665,7 +665,7 @@ func (p *Parser) parseObjectField() int {
 	objectField := ast.ObjectField{
 		Name:  p.mustRead(keyword.IDENT).Literal,
 		Colon: p.mustRead(keyword.COLON).TextPosition,
-		Value: p.parseValue(),
+		Value: p.ParseValue(),
 	}
 	p.document.ObjectFields = append(p.document.ObjectFields, objectField)
 	return len(p.document.ObjectFields) - 1
@@ -683,7 +683,7 @@ func (p *Parser) parseValueList() int {
 			p.document.ListValues = append(p.document.ListValues, list)
 			return len(p.document.ListValues) - 1
 		default:
-			value := p.parseValue()
+			value := p.ParseValue()
 			p.document.Values = append(p.document.Values, value)
 			ref := len(p.document.Values) - 1
 			if cap(list.Refs) == 0 {
@@ -1130,7 +1130,7 @@ func (p *Parser) parseInputValueDefinition() int {
 		equals := p.read()
 		inputValueDefinition.DefaultValue.IsDefined = true
 		inputValueDefinition.DefaultValue.Equals = equals.TextPosition
-		inputValueDefinition.DefaultValue.Value = p.parseValue()
+		inputValueDefinition.DefaultValue.Value = p.ParseValue()
 	}
 	if p.peekEquals(keyword.AT) {
 		inputValueDefinition.Directives = p.parseDirectiveList()
@@ -1726,7 +1726,7 @@ func (p *Parser) parseVariableDefinition() int {
 
 func (p *Parser) parseDefaultValue() ast.DefaultValue {
 	equals := p.mustRead(keyword.EQUALS).TextPosition
-	value := p.parseValue()
+	value := p.ParseValue()
 	return ast.DefaultValue{
 		IsDefined: true,
 		Equals:    equals,

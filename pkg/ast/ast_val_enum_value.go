@@ -24,3 +24,11 @@ func (d *Document) EnumValueNameString(ref int) string {
 func (d *Document) EnumValuesAreEqual(left, right int) bool {
 	return d.Input.ByteSliceReferenceContentEquals(d.EnumValueName(left), d.EnumValueName(right))
 }
+
+func (d *Document) AddEnumValue(name ByteSlice) (ref int) {
+	d.EnumValues = append(d.EnumValues, EnumValue{
+		Name: d.Input.AppendInputBytes(name),
+	})
+
+	return len(d.EnumValues) - 1
+}

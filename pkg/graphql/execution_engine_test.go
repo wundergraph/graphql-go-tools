@@ -153,7 +153,7 @@ func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {
 }
 
 func stringify(any interface{}) []byte {
-	out,_ := json.Marshal(any)
+	out, _ := json.Marshal(any)
 	return out
 }
 
@@ -163,16 +163,16 @@ func stringPtr(str string) *string {
 
 func TestExampleExecutionEngine_Concatenation(t *testing.T) {
 
-	schema,err := NewSchemaFromString(`
+	schema, err := NewSchemaFromString(`
 		schema { query: Query }
 		type Query { friend: Friend }
 		type Friend { firstName: String lastName: String fullName: String }
 	`)
 
-	assert.NoError(t,err)
+	assert.NoError(t, err)
 
-	friendServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){
-		_,_ = w.Write([]byte(`{"firstName":"Jens","lastName":"Neuse"}`))
+	friendServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"firstName":"Jens","lastName":"Neuse"}`))
 	}))
 
 	defer friendServer.Close()
@@ -200,19 +200,19 @@ func TestExampleExecutionEngine_Concatenation(t *testing.T) {
 				DataSource: datasource.SourceConfig{
 					Name: "HttpJsonDataSource",
 					Config: stringify(datasource.HttpJsonDataSourceConfig{
-						Host: friendServer.URL,
+						Host:   friendServer.URL,
 						Method: stringPtr("GET"),
 					}),
 				},
 			},
 			{
-				TypeName: "Friend",
+				TypeName:  "Friend",
 				FieldName: "fullName",
 				DataSource: datasource.SourceConfig{
-					Name:   "FriendFullName",
+					Name: "FriendFullName",
 					Config: stringify(datasource.PipelineDataSourceConfig{
 						ConfigString: stringPtr(pipelineConcat),
-						InputJSON: `{"firstName":"{{ .object.firstName }}","lastName":"{{ .object.lastName }}"}`,
+						InputJSON:    `{"firstName":"{{ .object.firstName }}","lastName":"{{ .object.lastName }}"}`,
 					}),
 				},
 			},
@@ -220,20 +220,20 @@ func TestExampleExecutionEngine_Concatenation(t *testing.T) {
 	}
 
 	engine, err := NewExecutionEngine(abstractlogger.NoopLogger, schema, plannerConfig)
-	assert.NoError(t,err)
+	assert.NoError(t, err)
 	err = engine.AddHttpJsonDataSource("HttpJsonDataSource")
-	assert.NoError(t,err)
-	err = engine.AddDataSource("FriendFullName",datasource.PipelineDataSourcePlannerFactoryFactory{})
-	assert.NoError(t,err)
+	assert.NoError(t, err)
+	err = engine.AddDataSource("FriendFullName", datasource.PipelineDataSourcePlannerFactoryFactory{})
+	assert.NoError(t, err)
 
 	request := &Request{
 		Query: `query { friend { firstName lastName fullName }}`,
 	}
 
 	executionRes, err := engine.Execute(context.Background(), request, ExecutionOptions{})
-	assert.NoError(t,err)
+	assert.NoError(t, err)
 
 	expected := `{"data":{"friend":{"firstName":"Jens","lastName":"Neuse","fullName":"Jens Neuse"}}}`
 	actual := executionRes.Buffer().String()
-	assert.Equal(t,expected,actual)
+	assert.Equal(t, expected, actual)
 }

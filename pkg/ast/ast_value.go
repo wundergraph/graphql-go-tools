@@ -155,3 +155,8 @@ func (d *Document) ValuesAreEqual(left, right Value) bool {
 		return false
 	}
 }
+
+func (d *Document) AddValue(value Value) (ref int) {
+	d.Values = append(d.Values, value)
+	return len(d.Values) - 1
+}

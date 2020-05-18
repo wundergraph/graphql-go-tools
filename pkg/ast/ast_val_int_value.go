@@ -41,3 +41,12 @@ func (d *Document) IntValuesAreEquals(left, right int) bool {
 	return d.IntValueIsNegative(left) == d.IntValueIsNegative(right) &&
 		bytes.Equal(d.IntValueRaw(left), d.IntValueRaw(right))
 }
+
+func (d *Document) AddIntValue(raw ByteSlice, isNegative bool) (ref int) {
+	d.IntValues = append(d.IntValues, IntValue{
+		Negative: isNegative,
+		Raw:      d.Input.AppendInputBytes(raw),
+	})
+
+	return len(d.IntValues) - 1
+}

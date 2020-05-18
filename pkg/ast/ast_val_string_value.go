@@ -34,3 +34,12 @@ func (d *Document) StringValuesAreEquals(left, right int) bool {
 	return d.StringValueIsBlockString(left) == d.StringValueIsBlockString(right) &&
 		bytes.Equal(d.StringValueContentBytes(left), d.StringValueContentBytes(right))
 }
+
+func (d *Document) AddStringValue(raw ByteSlice, isBlockString bool) (ref int) {
+	d.StringValues = append(d.StringValues, StringValue{
+		BlockString: isBlockString,
+		Content:     d.Input.AppendInputBytes(raw),
+	})
+
+	return len(d.StringValues) - 1
+}

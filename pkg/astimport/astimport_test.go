@@ -1,8 +1,9 @@
 package astimport
 
 import (
-	"bytes"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
@@ -10,7 +11,6 @@ import (
 )
 
 func TestImporter_ImportType(t *testing.T) {
-
 	for _, typeDef := range []string{
 		"ID!",
 		"[String]!",
@@ -18,7 +18,7 @@ func TestImporter_ImportType(t *testing.T) {
 		"FooType",
 	} {
 		typeBytes := []byte(typeDef)
-		from := &ast.Document{}
+		from := ast.NewDocument()
 		from.Input.AppendInputBytes(typeBytes)
 		report := &operationreport.Report{}
 		parser := astparser.NewParser()
@@ -30,43 +30,65 @@ func TestImporter_ImportType(t *testing.T) {
 		}
 
 		out, err := from.PrintTypeBytes(ref, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
+		require.Equal(t, typeBytes, out)
 
-		if !bytes.Equal(out, typeBytes) {
-			t.Fatalf("want: {{%s}}\ngot: {{%s}}'", string(typeBytes), string(out))
-		}
-
-		to := &ast.Document{}
+		to := ast.NewDocument()
 		importer := &Importer{}
 
 		ref = importer.ImportType(ref, from, to)
 		out, err = to.PrintTypeBytes(ref, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if !bytes.Equal(out, typeBytes) {
-			t.Fatalf("want: {{%s}}\ngot: {{%s}}'", string(typeBytes), string(out))
-		}
+		require.NoError(t, err)
+		require.Equal(t, typeBytes, out)
 	}
 }
 
-/*func ExampleImporter_ImportType() {
-	typeBytes := []byte("String!")
-	doc := ast.Document{}
-	importer := NewImporter()
+func TestImporter_ImportValue(t *testing.T) {
+	for _, tc := range []struct {
+		value, name string
+		kind        ast.ValueKind
+	}{
+		{"111", "integer", ast.ValueKindInteger},
+		{"-111", "negative integer", ast.ValueKindInteger},
+		{"11.1", "float", ast.ValueKindFloat},
+		{"-11.1", "negative float", ast.ValueKindFloat},
+		{`"bobby"`, "string", ast.ValueKindString},
+		{"ENUM_VALUE", "enum", ast.ValueKindEnum},
+		{`{one: "one"}`, "object", ast.ValueKindObject},
+		{"true", "bool", ast.ValueKindBoolean},
+		{"[1,2]", "list", ast.ValueKindList},
+		{"[[1,2]]", "nested list", ast.ValueKindList},
+		{`[{a: "b"},{c: "d"}]`, "list with objects", ast.ValueKindList},
+		{`[[{a: "b",c: [1,2]}]]`, "deep nested list", ast.ValueKindList},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			valueBytes := []byte(tc.value)
 
-	ref := importer.ImportTypeBytes(typeBytes,&doc)
-	// reference to the type
-	fmt.Println(ref)
-	// reference to the nested type
-	fmt.Println(doc.Types[ref].OfType)
-	// name of the nested type
-	fmt.Println(doc.TypeNameString(doc.Types[ref].OfType))
-	// Output:
-	// 1
-	// 0
-	// String
-}*/
+			from := ast.NewDocument()
+			from.Input.AppendInputBytes(valueBytes)
+
+			report := &operationreport.Report{}
+			parser := astparser.NewParser()
+			parser.PrepareImport(from, report)
+
+			value := parser.ParseValue()
+			require.Equal(t, value.Kind, tc.kind)
+
+			if report.HasErrors() {
+				t.Fatal(report)
+			}
+
+			out, err := from.PrintValueBytes(value, nil)
+			require.NoError(t, err)
+			require.Equal(t, valueBytes, out)
+
+			to := ast.NewDocument()
+			importer := &Importer{}
+
+			value = importer.ImportValue(value, from, to)
+			out, err = to.PrintValueBytes(value, nil)
+			require.NoError(t, err)
+			require.Equal(t, valueBytes, out)
+		})
+	}
+}
