@@ -71,9 +71,8 @@ func (d *Document) ImportDescription(desc string) (description Description) {
 		return
 	}
 
-	descContentRef := d.Input.AppendInputString(desc)
 	return Description{
 		IsDefined: true,
-		Content:   descContentRef,
+		Content:   d.Input.AppendInputString(desc),
 	}
 }

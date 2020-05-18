@@ -84,11 +84,9 @@ func (d *Document) AddInputValueDefinition(inputValueDefinition InputValueDefini
 }
 
 func (d *Document) ImportInputValueDefinition(name, description string, typeRef int, defaultValue DefaultValue) (ref int) {
-	inputName := d.Input.AppendInputString(name)
-
 	inputValueDef := InputValueDefinition{
 		Description:  d.ImportDescription(description),
-		Name:         inputName,
+		Name:         d.Input.AppendInputString(name),
 		Type:         typeRef,
 		DefaultValue: defaultValue,
 	}

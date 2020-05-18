@@ -81,10 +81,8 @@ func (d *Document) AddObjectTypeDefinition(definition ObjectTypeDefinition) (ref
 }
 
 func (d *Document) ImportObjectTypeDefinition(name, description string, fieldRefs []int, iRefs []int) (ref int) {
-	objectName := d.Input.AppendInputString(name)
-
 	objectTypeDef := ObjectTypeDefinition{
-		Name:        objectName,
+		Name:        d.Input.AppendInputString(name),
 		Description: d.ImportDescription(description),
 		FieldsDefinition: FieldDefinitionList{
 			Refs: fieldRefs,
