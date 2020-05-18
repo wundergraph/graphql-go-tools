@@ -54,6 +54,7 @@ const (
 	NodeKindFloat
 
 	FetchKindSingle FetchKind = iota + 1
+	FetchKindParallel
 )
 
 type Context struct {
@@ -94,7 +95,7 @@ func New() *Resolver {
 		resultSetPool: sync.Pool{
 			New: func() interface{} {
 				return &resultSet{
-					buffers: make(map[uint8]*BufPair, 8),
+					buffers: make(map[int]*BufPair, 8),
 				}
 			},
 		},
@@ -616,7 +617,7 @@ func (_ *EmptyArray) NodeKind() NodeKind {
 
 type FieldSet struct {
 	OnTypeName []byte
-	BufferID   uint8
+	BufferID   int
 	HasBuffer  bool
 	Fields     []Field
 }
@@ -638,11 +639,11 @@ func (_ *Null) NodeKind() NodeKind {
 }
 
 type resultSet struct {
-	buffers map[uint8]*BufPair
+	buffers map[int]*BufPair
 }
 
 type SingleFetch struct {
-	BufferId   uint8
+	BufferId   int
 	Input      []byte
 	DataSource DataSource
 	Variables  Variables
@@ -650,6 +651,14 @@ type SingleFetch struct {
 
 func (_ *SingleFetch) FetchKind() FetchKind {
 	return FetchKindSingle
+}
+
+type ParallelFetch struct {
+	Fetches []Fetch
+}
+
+func (_ *ParallelFetch) FetchKind() FetchKind {
+	return FetchKindParallel
 }
 
 type String struct {

@@ -29,6 +29,7 @@ type Planner struct {
 	operationNormalizer *astnormalization.OperationNormalizer
 	URL                 []byte
 	variables           []byte
+	bufferID            int
 }
 
 func (p *Planner) Register(visitor *plan.Visitor) {
@@ -61,25 +62,28 @@ func (p *Planner) EnterField(ref int) {
 
 	isRootField, config := p.v.IsRootField(ref)
 
-	if isRootField && !p.v.CurrentObjectHasFetch() {
+	if isRootField {
+		if p.nodes == nil { // Setup Fetch and root (operation definition)
+			p.URL = config.Attributes.ValueForKey("url")
 
-		p.URL = config.Attributes.ValueForKey("url")
-
-		bufferID := p.v.NextBufferID()
-		p.v.SetBufferIDForCurrentFieldSet(bufferID)
-		p.fetch = &resolve.SingleFetch{
-			BufferId: bufferID,
+			p.bufferID = p.v.NextBufferID()
+			p.fetch = &resolve.SingleFetch{
+				BufferId: p.bufferID,
+			}
+			p.v.SetCurrentObjectFetch(p.fetch, config)
+			if len(p.operation.RootNodes) == 0 {
+				set := p.operation.AddSelectionSet()
+				definition := p.operation.AddOperationDefinitionToRootNodes(ast.OperationDefinition{
+					OperationType: p.v.Operation.OperationDefinitions[p.v.Ancestors[0].Ref].OperationType,
+					SelectionSet:  set.Ref,
+					HasSelections: true,
+				})
+				p.nodes = append(p.nodes, definition, set)
+			}
 		}
-		p.v.SetCurrentObjectFetch(p.fetch, config)
-		if len(p.operation.RootNodes) == 0 {
-			set := p.operation.AddSelectionSet()
-			definition := p.operation.AddOperationDefinitionToRootNodes(ast.OperationDefinition{
-				OperationType: p.v.Operation.OperationDefinitions[p.v.Ancestors[0].Ref].OperationType,
-				SelectionSet:  set.Ref,
-				HasSelections: true,
-			})
-			p.nodes = append(p.nodes, definition, set)
-		}
+		// subsequent root fields get their own fieldset
+		// we need to set the buffer for all fields
+		p.v.SetBufferIDForCurrentFieldSet(p.bufferID)
 	}
 	field := p.operation.AddField(ast.Field{
 		Name: p.operation.Input.AppendInputBytes(p.v.Operation.FieldNameBytes(ref)),

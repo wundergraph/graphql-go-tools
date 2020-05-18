@@ -155,6 +155,8 @@ type Visitor struct {
 	fetchConfigs             []fetchConfig
 	activeDataSourcePlanner  DataSourcePlanner
 	fieldArguments           []fieldArgument
+	nextBufferID             int
+	popFieldsOnLeaveField    []int
 
 	currentFieldName                    string
 	currentFieldEnclosingTypeDefinition ast.Node
@@ -166,12 +168,23 @@ type fetchConfig struct {
 }
 
 func (v *Visitor) SetCurrentObjectFetch(fetch resolve.Fetch, config *DataSourceConfiguration) {
+	if v.currentObject.Fetch != nil {
+		switch current := v.currentObject.Fetch.(type) {
+		case *resolve.SingleFetch:
+			parallel := &resolve.ParallelFetch{
+				Fetches: []resolve.Fetch{
+					current,
+					fetch,
+				},
+			}
+			v.currentObject.Fetch = parallel
+		case *resolve.ParallelFetch:
+			current.Fetches = append(current.Fetches, fetch)
+		}
+		return
+	}
 	v.currentObject.Fetch = fetch
 	v.fetchConfigs = append(v.fetchConfigs, fetchConfig{fetch: fetch, fieldConfiguration: config})
-}
-
-func (v *Visitor) CurrentObjectHasFetch() bool {
-	return v.currentObject.Fetch != nil
 }
 
 type fieldObject struct {
@@ -179,11 +192,12 @@ type fieldObject struct {
 	object   *resolve.Object
 }
 
-func (v *Visitor) NextBufferID() uint8 {
-	return 0
+func (v *Visitor) NextBufferID() int {
+	v.nextBufferID++
+	return v.nextBufferID
 }
 
-func (v *Visitor) SetBufferIDForCurrentFieldSet(bufferID uint8) {
+func (v *Visitor) SetBufferIDForCurrentFieldSet(bufferID int) {
 	if v.currentObject == nil {
 		return
 	}
@@ -228,6 +242,8 @@ func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
 	v.objects = v.objects[:0]
 	v.fetchConfigs = v.fetchConfigs[:0]
 	v.fieldArguments = v.fieldArguments[:0]
+	v.popFieldsOnLeaveField = v.popFieldsOnLeaveField[:0]
+	v.nextBufferID = -1
 }
 
 func (v *Visitor) LeaveDocument(operation, definition *ast.Document) {
@@ -367,6 +383,17 @@ func (v *Visitor) LeaveSelectionSet(ref int) {
 
 func (v *Visitor) EnterField(ref int) {
 
+	if isRoot, _ := v.IsRootField(ref); isRoot {
+		if len(*v.currentFields) != 0 {
+			v.currentObject.FieldSets = append(v.currentObject.FieldSets, resolve.FieldSet{
+				Fields: []resolve.Field{},
+			})
+			v.currentFields = &v.currentObject.FieldSets[len(v.currentObject.FieldSets)-1].Fields
+			v.fields = append(v.fields, v.currentFields)
+			v.popFieldsOnLeaveField = append(v.popFieldsOnLeaveField, ref)
+		}
+	}
+
 	fieldName := v.Operation.FieldNameBytes(ref)
 	fieldNameStr := v.Operation.FieldNameString(ref)
 
@@ -383,7 +410,6 @@ func (v *Visitor) EnterField(ref int) {
 	typeName := v.Definition.ResolveTypeNameString(fieldDefinitionType)
 
 	isList := v.Definition.TypeIsList(fieldDefinitionType)
-	//isRootField, _ := v.IsRootField(ref)
 
 	var value resolve.Node
 	var nextCurrentObject *resolve.Object
@@ -476,6 +502,14 @@ func (v *Visitor) setActiveDataSourcePlanner(currentFieldName string) {
 }
 
 func (v *Visitor) LeaveField(ref int) {
+
+	if len(v.popFieldsOnLeaveField) != 0 && v.popFieldsOnLeaveField[len(v.popFieldsOnLeaveField)-1] == ref {
+		v.popFieldsOnLeaveField = v.popFieldsOnLeaveField[:len(v.popFieldsOnLeaveField)-1]
+		v.fields = v.fields[:len(v.fields)-1]
+		if len(v.fields) != 0 {
+			v.currentFields = v.fields[len(v.fields)-1]
+		}
+	}
 
 	if len(v.objects) < 2 {
 		return

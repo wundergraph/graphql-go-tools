@@ -1335,10 +1335,11 @@ type allVariablesUsedVisitor struct {
 func (a *allVariablesUsedVisitor) EnterDocument(operation, definition *ast.Document) {
 	a.operation = operation
 	a.definition = definition
+	a.variableDefinitions = a.variableDefinitions[:0]
 }
 
 func (a *allVariablesUsedVisitor) EnterOperationDefinition(ref int) {
-	a.variableDefinitions = a.operation.OperationDefinitions[ref].VariableDefinitions.Refs
+	a.variableDefinitions = append(a.variableDefinitions,a.operation.OperationDefinitions[ref].VariableDefinitions.Refs...)
 }
 
 func (a *allVariablesUsedVisitor) LeaveOperationDefinition(ref int) {
