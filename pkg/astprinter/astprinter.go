@@ -491,6 +491,7 @@ func (p *printVisitor) LeaveInputValueDefinition(ref int) {
 		}
 		p.write(p.inputValueDefinitionCloser)
 	} else {
+		p.write(literal.COMMA)
 		p.write(literal.SPACE)
 	}
 }
