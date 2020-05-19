@@ -55,11 +55,7 @@ func (d *Document) ImportInterfaceTypeDefinition(name, description string, field
 	}
 
 	ref = d.AddInterfaceTypeDefinition(definition)
-	node := Node{
-		Kind: NodeKindInterfaceTypeDefinition,
-		Ref:  ref,
-	}
-	d.AddRootNode(node)
+	d.ImportRootNode(ref, NodeKindInterfaceTypeDefinition)
 
 	return
 }

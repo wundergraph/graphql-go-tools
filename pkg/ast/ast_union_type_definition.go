@@ -84,11 +84,7 @@ func (d *Document) ImportUnionTypeDefinition(name, description string, typeRefs 
 	}
 
 	ref = d.AddUnionTypeDefinition(definition)
-	node := Node{
-		Kind: NodeKindUnionTypeDefinition,
-		Ref:  ref,
-	}
-	d.AddRootNode(node)
+	d.ImportRootNode(ref, NodeKindUnionTypeDefinition)
 
 	return
 }

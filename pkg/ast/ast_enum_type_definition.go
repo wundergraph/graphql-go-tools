@@ -77,11 +77,7 @@ func (d *Document) ImportEnumTypeDefinition(name, description string, valueRefs 
 	}
 
 	ref = d.AddEnumTypeDefinition(definition)
-	node := Node{
-		Kind: NodeKindEnumTypeDefinition,
-		Ref:  ref,
-	}
-	d.AddRootNode(node)
+	d.ImportRootNode(ref, NodeKindEnumTypeDefinition)
 
 	return
 }

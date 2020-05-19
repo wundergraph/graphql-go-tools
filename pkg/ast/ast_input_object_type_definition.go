@@ -107,11 +107,7 @@ func (d *Document) ImportInputObjectTypeDefinition(name, description string, arg
 	}
 
 	ref = d.AddInputObjectTypeDefinition(definition)
-	node := Node{
-		Kind: NodeKindInputObjectTypeDefinition,
-		Ref:  ref,
-	}
-	d.AddRootNode(node)
+	d.ImportRootNode(ref, NodeKindInputObjectTypeDefinition)
 
 	return
 }

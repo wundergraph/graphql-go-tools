@@ -40,11 +40,7 @@ func (d *Document) ImportScalarTypeDefinition(name, description string) (ref int
 	}
 
 	ref = d.AddScalarTypeDefinition(definition)
-	node := Node{
-		Kind: NodeKindScalarTypeDefinition,
-		Ref:  ref,
-	}
-	d.AddRootNode(node)
+	d.ImportRootNode(ref, NodeKindScalarTypeDefinition)
 
 	return
 }

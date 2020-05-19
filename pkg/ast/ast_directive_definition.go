@@ -123,11 +123,7 @@ func (d *Document) ImportDirectiveDefinition(name, description string, argsRefs 
 	}
 
 	ref = d.AddDirectiveDefinition(definition)
-	node := Node{
-		Kind: NodeKindDirectiveDefinition,
-		Ref:  ref,
-	}
-	d.AddRootNode(node)
+	d.ImportRootNode(ref, NodeKindDirectiveDefinition)
 
 	return
 }

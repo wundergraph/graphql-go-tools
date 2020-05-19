@@ -179,6 +179,13 @@ func (d *Document) AddRootNode(node Node) {
 	d.Index.Add(d.NodeNameString(node), node)
 }
 
+func (d *Document) ImportRootNode(ref int, kind NodeKind) {
+	d.AddRootNode(Node{
+		Kind: kind,
+		Ref:  ref,
+	})
+}
+
 func (d *Document) DeleteRootNodes(nodes []Node) {
 	for i := range nodes {
 		d.DeleteRootNode(nodes[i])
