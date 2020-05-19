@@ -138,7 +138,7 @@ func (i *introspectionVisitor) EnterInterfaceTypeDefinition(ref int) {
 	i.currentType.Description = i.definition.InterfaceTypeDefinitionDescriptionString(ref)
 
 	interfaceNameBytes := i.definition.InterfaceTypeDefinitionNameBytes(ref)
-	for objectTypeDefRef, _ := range i.definition.ObjectTypeDefinitions {
+	for objectTypeDefRef := range i.definition.ObjectTypeDefinitions {
 		if i.definition.ObjectTypeDefinitionImplementsInterface(objectTypeDefRef, interfaceNameBytes) {
 			objectName := i.definition.ObjectTypeDefinitionNameString(objectTypeDefRef)
 			i.currentType.PossibleTypes = append(i.currentType.PossibleTypes, TypeRef{
