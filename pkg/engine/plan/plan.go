@@ -272,7 +272,8 @@ func (v *Visitor) prepareFetchVariables(config fetchConfig) {
 			}
 			switch segments[0] {
 			case "object":
-				return f.Variables.AddVariable(&resolve.ObjectVariable{Path: segments[1:]})
+				variableName,_ := f.Variables.AddVariable(&resolve.ObjectVariable{Path: segments[1:]})
+				return variableName
 			case "arguments":
 				segments = segments[1:]
 				if len(segments) < 2 {
@@ -286,7 +287,8 @@ func (v *Visitor) prepareFetchVariables(config fetchConfig) {
 						switch v.fieldArguments[j].kind {
 						case fieldArgumentTypeVariable:
 							variablePath := append([]string{string(v.fieldArguments[j].value)}, segments...)
-							return f.Variables.AddVariable(&resolve.ContextVariable{Path: variablePath})
+							variableName,_ := f.Variables.AddVariable(&resolve.ContextVariable{Path: variablePath})
+							return variableName
 						case fieldArgumentTypeStatic:
 							if len(segments) == 0 {
 								return v.fieldArguments[j].value

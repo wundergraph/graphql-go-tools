@@ -124,7 +124,7 @@ func (p *Planner) configureFieldArguments(upstreamField, downstreamField int, ar
 func (p *Planner) applyFieldArgument(upstreamField, downstreamField int, arg Argument) {
 	switch arg.Source {
 	case FieldArgument:
-		if fieldArgument, ok := p.v.Operation.FieldArgument(downstreamField, arg.Name); ok { // TODO: doesn't work with multi path args
+		if fieldArgument, ok := p.v.Operation.FieldArgument(downstreamField, arg.Name); ok {
 			value := p.v.Operation.ArgumentValue(fieldArgument)
 			if value.Kind != ast.ValueKindVariable {
 				return
@@ -132,11 +132,15 @@ func (p *Planner) applyFieldArgument(upstreamField, downstreamField int, arg Arg
 			variableName := p.v.Operation.VariableValueNameBytes(value.Ref)
 			variableNameStr := p.v.Operation.VariableValueNameString(value.Ref)
 
-			contextVariableName := p.fetch.Variables.AddVariable(&resolve.ContextVariable{Path: append([]string{variableNameStr}, arg.SourcePath...)})
-			p.variables, _ = sjson.SetRawBytes(p.variables, variableNameStr, contextVariableName)
-
-			variableValueRef, argRef := p.operation.AddVariableValueArgument(arg.Name, variableName)
+			contextVariableName, exists := p.fetch.Variables.AddVariable(&resolve.ContextVariable{Path: append([]string{variableNameStr}, arg.SourcePath...)})
+			variableValueRef, argRef := p.operation.AddVariableValueArgument(arg.Name, variableName) // add the argument to the field, but don't redefine it
 			p.operation.AddArgumentToField(upstreamField, argRef)
+
+			if exists { // if the variable exists we don't have to put it onto the variables declaration again, skip
+				return
+			}
+
+			p.variables, _ = sjson.SetRawBytes(p.variables, variableNameStr, contextVariableName)
 
 			for _, i := range p.v.Operation.OperationDefinitions[p.v.Ancestors[0].Ref].VariableDefinitions.Refs {
 				ref := p.v.Operation.VariableDefinitions[i].VariableValue.Ref

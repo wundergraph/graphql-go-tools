@@ -730,6 +730,7 @@ func (_ *Array) NodeKind() NodeKind {
 
 type Variable interface {
 	VariableKind() VariableKind
+	Equals(another Variable) bool
 }
 
 type Variables struct {
@@ -748,10 +749,22 @@ var (
 	variablePrefixSuffix = []byte("$$")
 )
 
-func (v *Variables) AddVariable(variable Variable) (name []byte) {
-	v.variables = append(v.variables, variable)
-	index := unsafebytes.StringToBytes(strconv.Itoa(len(v.variables) - 1))
-	return append(variablePrefixSuffix, append(index, variablePrefixSuffix...)...)
+func (v *Variables) AddVariable(variable Variable) (name []byte,exists bool) {
+	index := -1
+	for i := range v.variables {
+		if v.variables[i].Equals(variable){
+			index = i
+			exists = true
+			break
+		}
+	}
+	if index == -1 {
+		v.variables = append(v.variables, variable)
+		index = len(v.variables) - 1
+	}
+	i := unsafebytes.StringToBytes(strconv.Itoa(index))
+	name = append(variablePrefixSuffix, append(i, variablePrefixSuffix...)...)
+	return
 }
 
 type VariableKind int
@@ -765,6 +778,25 @@ type ContextVariable struct {
 	Path []string
 }
 
+func (c *ContextVariable) Equals(another Variable) bool {
+	if another == nil {
+		return false
+	}
+	if another.VariableKind() != c.VariableKind() {
+		return false
+	}
+	anotherContextVariable := another.(*ContextVariable)
+	if len(c.Path) != len(anotherContextVariable.Path) {
+		return false
+	}
+	for i := range c.Path {
+		if c.Path[i] != anotherContextVariable.Path[i] {
+			return false
+		}
+	}
+	return true
+}
+
 func (_ *ContextVariable) VariableKind() VariableKind {
 	return VariableKindContext
 }
@@ -773,7 +805,26 @@ type ObjectVariable struct {
 	Path []string
 }
 
-func (_ *ObjectVariable) VariableKind() VariableKind {
+func (o *ObjectVariable) Equals(another Variable) bool {
+	if another == nil {
+		return false
+	}
+	if another.VariableKind() != o.VariableKind() {
+		return false
+	}
+	anotherObjectVariable := another.(*ObjectVariable)
+	if len(o.Path) != len(anotherObjectVariable.Path) {
+		return false
+	}
+	for i := range o.Path {
+		if o.Path[i] != anotherObjectVariable.Path[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func (o *ObjectVariable) VariableKind() VariableKind {
 	return VariableKindObject
 }
 
