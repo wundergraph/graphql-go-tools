@@ -24,6 +24,17 @@ func (d *Document) ScalarTypeDefinitionNameString(ref int) string {
 	return unsafebytes.BytesToString(d.Input.ByteSlice(d.ScalarTypeDefinitions[ref].Name))
 }
 
+func (d *Document) ScalarTypeDefinitionDescriptionBytes(ref int) ByteSlice {
+	if !d.ScalarTypeDefinitions[ref].Description.IsDefined {
+		return nil
+	}
+	return d.Input.ByteSlice(d.ScalarTypeDefinitions[ref].Description.Content)
+}
+
+func (d *Document) ScalarTypeDefinitionDescriptionString(ref int) string {
+	return unsafebytes.BytesToString(d.ScalarTypeDefinitionDescriptionBytes(ref))
+}
+
 func (d *Document) ScalarTypeDefinitionHasDirectives(ref int) bool {
 	return d.ScalarTypeDefinitions[ref].HasDirectives
 }
