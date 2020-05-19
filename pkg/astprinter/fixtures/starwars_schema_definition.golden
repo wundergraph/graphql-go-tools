@@ -168,17 +168,17 @@ type Review {
 "The input object sent when someone is creating a new review"
 input ReviewInput {
     "0-5 stars"
-    stars: Int! 
+    stars: Int!
     "Comment about the movie, optional"
-    commentary: String 
+    commentary: String
     "Favorite color, optional"
     favorite_color: ColorInput
 }
 
 "The input object sent when passing in a color"
 input ColorInput {
-    red: Int! 
-    green: Int! 
+    red: Int!
+    green: Int!
     blue: Int!
 }
 

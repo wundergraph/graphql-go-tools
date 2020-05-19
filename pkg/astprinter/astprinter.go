@@ -496,6 +496,8 @@ func (p *printVisitor) LeaveInputValueDefinition(ref int) {
 			if parent.Kind == ast.NodeKindFieldDefinition {
 				p.write(literal.COMMA)
 				p.write(literal.SPACE)
+			} else if len(p.indent) == 0 {
+				p.write(literal.SPACE)
 			}
 		}
 	}
