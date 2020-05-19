@@ -27,3 +27,24 @@ func (d *Document) ScalarTypeDefinitionNameString(ref int) string {
 func (d *Document) ScalarTypeDefinitionHasDirectives(ref int) bool {
 	return d.ScalarTypeDefinitions[ref].HasDirectives
 }
+
+func (d *Document) AddScalarTypeDefinition(definition ScalarTypeDefinition) (ref int) {
+	d.ScalarTypeDefinitions = append(d.ScalarTypeDefinitions, definition)
+	return len(d.ScalarTypeDefinitions) - 1
+}
+
+func (d *Document) ImportScalarTypeDefinition(name, description string) (ref int) {
+	definition := ScalarTypeDefinition{
+		Description: d.ImportDescription(description),
+		Name:        d.Input.AppendInputString(name),
+	}
+
+	ref = d.AddScalarTypeDefinition(definition)
+	node := Node{
+		Kind: NodeKindScalarTypeDefinition,
+		Ref:  ref,
+	}
+	d.AddRootNode(node)
+
+	return
+}

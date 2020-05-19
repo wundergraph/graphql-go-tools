@@ -90,3 +90,28 @@ func (d *Document) InputObjectTypeDefinitionInputValueDefinitionByName(definitio
 	}
 	return -1
 }
+
+func (d *Document) AddInputObjectTypeDefinition(definition InputObjectTypeDefinition) (ref int) {
+	d.InputObjectTypeDefinitions = append(d.InputObjectTypeDefinitions, definition)
+	return len(d.InputObjectTypeDefinitions) - 1
+}
+
+func (d *Document) ImportInputObjectTypeDefinition(name, description string, argsRefs []int) (ref int) {
+	definition := InputObjectTypeDefinition{
+		Description:              d.ImportDescription(description),
+		Name:                     d.Input.AppendInputString(name),
+		HasInputFieldsDefinition: len(argsRefs) > 0,
+		InputFieldsDefinition: InputValueDefinitionList{
+			Refs: argsRefs,
+		},
+	}
+
+	ref = d.AddInputObjectTypeDefinition(definition)
+	node := Node{
+		Kind: NodeKindInputObjectTypeDefinition,
+		Ref:  ref,
+	}
+	d.AddRootNode(node)
+
+	return
+}

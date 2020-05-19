@@ -100,3 +100,34 @@ func (d *Document) DirectiveDefinitionArgumentDefaultValueFloat32(directiveName,
 	}
 	return d.FloatValueAsFloat32(defaultValue.Ref)
 }
+
+func (d *Document) AddDirectiveDefinition(directiveDefinition DirectiveDefinition) (ref int) {
+	d.DirectiveDefinitions = append(d.DirectiveDefinitions, directiveDefinition)
+	return len(d.DirectiveDefinitions) - 1
+}
+
+func (d *Document) ImportDirectiveDefinition(name, description string, argsRefs []int, locations []string) (ref int) {
+	directiveLocations := DirectiveLocations{}
+	for _, location := range locations {
+		_ = directiveLocations.SetFromRaw([]byte(location))
+	}
+
+	definition := DirectiveDefinition{
+		Description:             d.ImportDescription(description),
+		Name:                    d.Input.AppendInputString(name),
+		HasArgumentsDefinitions: len(argsRefs) > 0,
+		ArgumentsDefinition: InputValueDefinitionList{
+			Refs: argsRefs,
+		},
+		DirectiveLocations: directiveLocations,
+	}
+
+	ref = d.AddDirectiveDefinition(definition)
+	node := Node{
+		Kind: NodeKindDirectiveDefinition,
+		Ref:  ref,
+	}
+	d.AddRootNode(node)
+
+	return
+}

@@ -44,7 +44,9 @@ func (j *JsonConverter) importSchema() error {
 	}
 
 	for _, directive := range j.schema.Directives {
-		j.importDirective(directive)
+		if err := j.importDirective(directive); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -53,34 +55,26 @@ func (j *JsonConverter) importSchema() error {
 func (j *JsonConverter) importFullType(fullType FullType) error {
 	switch fullType.Kind {
 	case SCALAR:
-		j.importScalar(fullType)
+		j.doc.ImportScalarTypeDefinition(fullType.Name, fullType.Description)
 	case OBJECT:
 		return j.importObject(fullType)
 	case ENUM:
 		j.importEnum(fullType)
 	case INTERFACE:
-		j.importInterface(fullType)
+		return j.importInterface(fullType)
 	case UNION:
 		j.importUnion(fullType)
 	case INPUTOBJECT:
-		j.importInputObject(fullType)
+		return j.importInputObject(fullType)
 	}
 
 	return nil
 }
 
-func (j *JsonConverter) importDirective(directive Directive) {
-	// TODO: implement
-}
-
 func (j *JsonConverter) importObject(fullType FullType) error {
-	fieldRefs := make([]int, 0, len(fullType.Fields))
-	for _, field := range fullType.Fields {
-		fieldRef, err := j.importField(field)
-		if err != nil {
-			return err
-		}
-		fieldRefs = append(fieldRefs, fieldRef)
+	fieldRefs, err := j.importFields(fullType.Fields)
+	if err != nil {
+		return err
 	}
 
 	iRefs := make([]int, 0, len(fullType.Interfaces))
@@ -97,32 +91,104 @@ func (j *JsonConverter) importObject(fullType FullType) error {
 	return nil
 }
 
+func (j *JsonConverter) importInterface(fullType FullType) error {
+	fieldRefs, err := j.importFields(fullType.Fields)
+	if err != nil {
+		return err
+	}
+
+	j.doc.ImportInterfaceTypeDefinition(
+		fullType.Name,
+		fullType.Description,
+		fieldRefs)
+
+	return nil
+}
+
+func (j *JsonConverter) importDirective(directive Directive) error {
+	argRefs, err := j.importInputFields(directive.Args)
+	if err != nil {
+		return err
+	}
+
+	j.doc.ImportDirectiveDefinition(
+		directive.Name,
+		directive.Description,
+		argRefs,
+		directive.Locations)
+
+	return nil
+}
+
+func (j *JsonConverter) importInputObject(fullType FullType) error {
+	argRefs, err := j.importInputFields(fullType.InputFields)
+	if err != nil {
+		return err
+	}
+
+	j.doc.ImportInputObjectTypeDefinition(
+		fullType.Name,
+		fullType.Description,
+		argRefs)
+
+	return nil
+}
+
+func (j *JsonConverter) importEnum(fullType FullType) {
+	// TODO: implement
+}
+
+func (j *JsonConverter) importUnion(fullType FullType) {
+	// TODO: implement
+}
+
+func (j *JsonConverter) importFields(fields []Field) (refs []int, err error) {
+	refs = make([]int, 0, len(fields))
+	for _, field := range fields {
+		fieldRef, err := j.importField(field)
+		if err != nil {
+			return nil, err
+		}
+		refs = append(refs, fieldRef)
+	}
+
+	return
+}
+
 func (j *JsonConverter) importField(field Field) (ref int, err error) {
 	typeRef := j.importType(field.Type)
 
-	argRefs := make([]int, 0, len(field.Args))
-	for _, arg := range field.Args {
-		argRef, err := j.importArgument(arg)
-		if err != nil {
-			return -1, err
-		}
-		argRefs = append(argRefs, argRef)
+	argRefs, err := j.importInputFields(field.Args)
+	if err != nil {
+		return -1, err
 	}
 
 	return j.doc.ImportFieldDefinition(
 		field.Name, field.Description, typeRef, argRefs), nil
 }
 
-func (j *JsonConverter) importArgument(value InputValue) (ref int, err error) {
-	typeRef := j.importType(value.Type)
+func (j *JsonConverter) importInputFields(fields []InputValue) (refs []int, err error) {
+	refs = make([]int, 0, len(fields))
+	for _, arg := range fields {
+		argRef, err := j.importInputField(arg)
+		if err != nil {
+			return nil, err
+		}
+		refs = append(refs, argRef)
+	}
+	return
+}
 
-	defaultValue, err := j.importDefaultValue(value.DefaultValue)
+func (j *JsonConverter) importInputField(field InputValue) (ref int, err error) {
+	typeRef := j.importType(field.Type)
+
+	defaultValue, err := j.importDefaultValue(field.DefaultValue)
 	if err != nil {
 		return -1, err
 	}
 
 	return j.doc.ImportInputValueDefinition(
-		value.Name, value.Description, typeRef, defaultValue), nil
+		field.Name, field.Description, typeRef, defaultValue), nil
 }
 
 func (j *JsonConverter) importType(typeRef TypeRef) (ref int) {
@@ -142,26 +208,6 @@ func (j *JsonConverter) importType(typeRef TypeRef) (ref int) {
 	}
 
 	return j.doc.AddNamedType([]byte(*typeRef.Name))
-}
-
-func (j *JsonConverter) importScalar(fullType FullType) {
-	// TODO: implement
-}
-
-func (j *JsonConverter) importEnum(fullType FullType) {
-	// TODO: implement
-}
-
-func (j *JsonConverter) importInterface(fullType FullType) {
-	// TODO: implement
-}
-
-func (j *JsonConverter) importUnion(fullType FullType) {
-	// TODO: implement
-}
-
-func (j *JsonConverter) importInputObject(fullType FullType) {
-	// TODO: implement
 }
 
 func (j *JsonConverter) importDefaultValue(defaultValue *string) (out ast.DefaultValue, err error) {
