@@ -35,7 +35,7 @@ func (d *Document) InputObjectTypeDefinitionDescriptionBytes(ref int) ByteSlice 
 }
 
 func (d *Document) InputObjectTypeDefinitionDescriptionString(ref int) string {
-	return unsafebytes.BytesToString(d.InputObjectTypeDefinitionNameBytes(ref))
+	return unsafebytes.BytesToString(d.InputObjectTypeDefinitionDescriptionBytes(ref))
 }
 
 func (d *Document) InputObjectTypeDefinitionInputValueDefinitionDefaultValueString(inputObjectTypeDefinitionName, inputValueDefinitionName string) string {
