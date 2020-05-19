@@ -225,22 +225,3 @@ func (d *Document) NodeByName(name ByteSlice) (Node, bool) {
 	node, exists := d.Index.Nodes[xxhash.Sum64(name)]
 	return node, exists
 }
-
-func (d *Document) HasSchemaDefinition() bool {
-	for i := range d.RootNodes {
-		if d.RootNodes[i].Kind == NodeKindSchemaDefinition {
-			return true
-		}
-	}
-
-	return false
-}
-
-func (d *Document) AddSchemaDefinitionRootNode(schemaDefinition SchemaDefinition) {
-	ref := d.AddSchemaDefinition(schemaDefinition)
-	schemaNode := Node{
-		Kind: NodeKindSchemaDefinition,
-		Ref:  ref,
-	}
-	d.RootNodes = append([]Node{schemaNode}, d.RootNodes...)
-}
