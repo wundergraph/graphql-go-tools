@@ -161,10 +161,14 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 				DataSourcePlanner: &Planner{},
 			},
 		},
-	}))
+	})) // TODO overlapping root fields,
+	// TODO nesting with object arguments,
+	// TODO test parallel fetch execution
+	// TODO handle scalar lists (Path?)
 	t.Run("nested graphql engines", RunTest(`
 		type Query {
 			serviceOne(serviceOneArg: String): ServiceOneResponse
+			anotherServiceOne(anotherServiceOneArg: Int): ServiceOneResponse
 			serviceTwo(serviceTwoArg: Boolean): ServiceTwoResponse
 		}
 		type ServiceOneResponse {
@@ -174,12 +178,15 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 			fieldTwo: String
 		}
 	`, `
-		query NestedQuery ($firstArg: String, $secondArg: Boolean){
+		query NestedQuery ($firstArg: String, $secondArg: Boolean, $thirdArg: Int){
 			serviceOne(serviceOneArg: $firstArg) {
 				fieldOne
 			}
 			serviceTwo(serviceTwoArg: $secondArg){
 				fieldTwo
+			}
+			anotherServiceOne(anotherServiceOneArg: $thirdArg){
+				fieldOne
 			}
 		}
 	`, "NestedQuery",
@@ -190,7 +197,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 						Fetches: []resolve.Fetch{
 							&resolve.SingleFetch{
 								BufferId: 0,
-								Input:    []byte(`{"url":"https://service.one","body":{"query":"query($firstArg: String){serviceOne(serviceOneArg: $firstArg){fieldOne}}","variables":{"firstArg":$$0$$}}}`),
+								Input:    []byte(`{"url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":$$0$$}}}`),
 								DataSource: &Source{
 									Client: http.Client{
 										Timeout: time.Second * 10,
@@ -199,6 +206,9 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 								Variables: resolve.NewVariables(
 									&resolve.ContextVariable{
 										Path: []string{"firstArg"},
+									},
+									&resolve.ContextVariable{
+										Path: []string{"thirdArg"},
 									},
 								),
 							},
@@ -267,6 +277,30 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 								},
 							},
 						},
+						{
+							BufferID:  0,
+							HasBuffer: true,
+							Fields: []resolve.Field{
+								{
+									Name: []byte("anotherServiceOne"),
+									Value: &resolve.Object{
+										Path: []string{"anotherServiceOne"},
+										FieldSets: []resolve.FieldSet{
+											{
+												Fields: []resolve.Field{
+													{
+														Name: []byte("fieldOne"),
+														Value: &resolve.String{
+															Path: []string{"fieldOne"},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
 					},
 				},
 			},
@@ -275,7 +309,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 			DataSourceConfigurations: []plan.DataSourceConfiguration{
 				{
 					TypeName:   "Query",
-					FieldNames: []string{"serviceOne"},
+					FieldNames: []string{"serviceOne","anotherServiceOne"},
 					Attributes: []plan.DataSourceAttribute{
 						{
 							Key:   "url",
@@ -290,6 +324,15 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 										Arguments: []Argument{
 											{
 												Name:   []byte("serviceOneArg"),
+												Source: FieldArgument,
+											},
+										},
+									},
+									{
+										FieldName: "anotherServiceOne",
+										Arguments: []Argument{
+											{
+												Name:   []byte("anotherServiceOneArg"),
 												Source: FieldArgument,
 											},
 										},
