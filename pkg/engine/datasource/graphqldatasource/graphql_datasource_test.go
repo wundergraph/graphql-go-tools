@@ -170,6 +170,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 			serviceOne(serviceOneArg: String): ServiceOneResponse
 			anotherServiceOne(anotherServiceOneArg: Int): ServiceOneResponse
 			serviceTwo(serviceTwoArg: Boolean): ServiceTwoResponse
+			secondServiceTwo(secondServiceTwoArg: Float): ServiceTwoResponse
 		}
 		type ServiceOneResponse {
 			fieldOne: String
@@ -178,7 +179,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 			fieldTwo: String
 		}
 	`, `
-		query NestedQuery ($firstArg: String, $secondArg: Boolean, $thirdArg: Int){
+		query NestedQuery ($firstArg: String, $secondArg: Boolean, $thirdArg: Int, $fourthArg: Float){
 			serviceOne(serviceOneArg: $firstArg) {
 				fieldOne
 			}
@@ -187,6 +188,9 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 			}
 			anotherServiceOne(anotherServiceOneArg: $thirdArg){
 				fieldOne
+			}
+			secondServiceTwo(secondServiceTwoArg: $fourthArg){
+				fieldTwo
 			}
 		}
 	`, "NestedQuery",
@@ -214,7 +218,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 							},
 							&resolve.SingleFetch{
 								BufferId: 1,
-								Input:    []byte(`{"url":"https://service.two","body":{"query":"query($secondArg: Boolean){serviceTwo(serviceTwoArg: $secondArg){fieldTwo}}","variables":{"secondArg":$$0$$}}}`),
+								Input:    []byte(`{"url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`),
 								DataSource: &Source{
 									Client: http.Client{
 										Timeout: time.Second * 10,
@@ -223,6 +227,9 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 								Variables: resolve.NewVariables(
 									&resolve.ContextVariable{
 										Path: []string{"secondArg"},
+									},
+									&resolve.ContextVariable{
+										Path: []string{"fourthArg"},
 									},
 								),
 							},
@@ -301,6 +308,30 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 								},
 							},
 						},
+						{
+							BufferID:  1,
+							HasBuffer: true,
+							Fields: []resolve.Field{
+								{
+									Name: []byte("secondServiceTwo"),
+									Value: &resolve.Object{
+										Path: []string{"secondServiceTwo"},
+										FieldSets: []resolve.FieldSet{
+											{
+												Fields: []resolve.Field{
+													{
+														Name: []byte("fieldTwo"),
+														Value: &resolve.String{
+															Path: []string{"fieldTwo"},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
 					},
 				},
 			},
@@ -345,7 +376,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 				},
 				{
 					TypeName:   "Query",
-					FieldNames: []string{"serviceTwo"},
+					FieldNames: []string{"serviceTwo","secondServiceTwo"},
 					Attributes: []plan.DataSourceAttribute{
 						{
 							Key:   "url",
@@ -360,6 +391,15 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 										Arguments: []Argument{
 											{
 												Name:   []byte("serviceTwoArg"),
+												Source: FieldArgument,
+											},
+										},
+									},
+									{
+										FieldName: "secondServiceTwo",
+										Arguments: []Argument{
+											{
+												Name:   []byte("secondServiceTwoArg"),
 												Source: FieldArgument,
 											},
 										},
