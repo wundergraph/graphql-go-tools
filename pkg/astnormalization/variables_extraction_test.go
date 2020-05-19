@@ -43,8 +43,8 @@ func TestVariablesExtraction(t *testing.T) {
 				}
 			  }
 			}`, `
-			mutation HttpBinPost($input: HttpBinPostInput){
-			  httpBinPost(input: $input){
+			mutation HttpBinPost($a: HttpBinPostInput){
+			  httpBinPost(input: $a){
 				headers {
 				  userAgent
 				}
