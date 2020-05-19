@@ -232,3 +232,14 @@ func (d *Document) NodeByName(name ByteSlice) (Node, bool) {
 	node, exists := d.Index.Nodes[xxhash.Sum64(name)]
 	return node, exists
 }
+
+func (d *Document) TypeDefinitionContainsImplementsInterface(typeName, interfaceName ByteSlice) bool {
+	typeDefinition, exists := d.Index.Nodes[xxhash.Sum64(typeName)]
+	if !exists {
+		return false
+	}
+	if typeDefinition.Kind != NodeKindObjectTypeDefinition {
+		return false
+	}
+	return d.ObjectTypeDefinitionImplementsInterface(typeDefinition.Ref, interfaceName)
+}

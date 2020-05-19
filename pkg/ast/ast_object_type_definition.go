@@ -3,8 +3,6 @@ package ast
 import (
 	"bytes"
 
-	"github.com/cespare/xxhash"
-
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
 )
@@ -57,17 +55,9 @@ func (d *Document) ObjectTypeDefinitionHasField(ref int, fieldName []byte) bool 
 	return false
 }
 
-// TODO: to be consistent consider renaming to ObjectTypeDefinitionContainsImplementsInterface
-func (d *Document) TypeDefinitionContainsImplementsInterface(typeName, interfaceName ByteSlice) bool {
-	typeDefinition, exists := d.Index.Nodes[xxhash.Sum64(typeName)]
-	if !exists {
-		return false
-	}
-	if typeDefinition.Kind != NodeKindObjectTypeDefinition {
-		return false
-	}
-	for _, i := range d.ObjectTypeDefinitions[typeDefinition.Ref].ImplementsInterfaces.Refs {
-		implements := d.ResolveTypeNameBytes(i)
+func (d *Document) ObjectTypeDefinitionImplementsInterface(definitionRef int, interfaceName ByteSlice) bool {
+	for _, iRef := range d.ObjectTypeDefinitions[definitionRef].ImplementsInterfaces.Refs {
+		implements := d.ResolveTypeNameBytes(iRef)
 		if bytes.Equal(interfaceName, implements) {
 			return true
 		}

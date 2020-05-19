@@ -98,7 +98,6 @@ func (i *introspectionVisitor) LeaveFieldDefinition(ref int) {
 }
 
 func (i *introspectionVisitor) EnterInputValueDefinition(ref int) {
-
 	var defaultValue *string
 	if i.definition.InputValueDefinitionHasDefaultValue(ref) {
 		value := i.definition.InputValueDefinitionDefaultValue(ref)
@@ -137,6 +136,17 @@ func (i *introspectionVisitor) EnterInterfaceTypeDefinition(ref int) {
 	i.currentType.Kind = INTERFACE
 	i.currentType.Name = i.definition.InterfaceTypeDefinitionNameString(ref)
 	i.currentType.Description = i.definition.InterfaceTypeDefinitionDescriptionString(ref)
+
+	interfaceNameBytes := i.definition.InterfaceTypeDefinitionNameBytes(ref)
+	for objectTypeDefRef, _ := range i.definition.ObjectTypeDefinitions {
+		if i.definition.ObjectTypeDefinitionImplementsInterface(objectTypeDefRef, interfaceNameBytes) {
+			objectName := i.definition.ObjectTypeDefinitionNameString(objectTypeDefRef)
+			i.currentType.PossibleTypes = append(i.currentType.PossibleTypes, TypeRef{
+				Kind: OBJECT,
+				Name: &objectName,
+			})
+		}
+	}
 }
 
 func (i *introspectionVisitor) LeaveInterfaceTypeDefinition(ref int) {
@@ -158,6 +168,7 @@ func (i *introspectionVisitor) EnterScalarTypeDefinition(ref int) {
 	typeDefinition := NewFullType()
 	typeDefinition.Kind = SCALAR
 	typeDefinition.Name = i.definition.ScalarTypeDefinitionNameString(ref)
+	typeDefinition.Description = i.definition.ScalarTypeDefinitionDescriptionString(ref)
 	i.data.Schema.Types = append(i.data.Schema.Types, typeDefinition)
 }
 
