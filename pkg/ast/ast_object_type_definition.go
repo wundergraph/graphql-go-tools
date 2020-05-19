@@ -81,7 +81,7 @@ func (d *Document) AddObjectTypeDefinition(definition ObjectTypeDefinition) (ref
 }
 
 func (d *Document) ImportObjectTypeDefinition(name, description string, fieldRefs []int, iRefs []int) (ref int) {
-	objectTypeDef := ObjectTypeDefinition{
+	definition := ObjectTypeDefinition{
 		Name:        d.Input.AppendInputString(name),
 		Description: d.ImportDescription(description),
 		FieldsDefinition: FieldDefinitionList{
@@ -93,7 +93,7 @@ func (d *Document) ImportObjectTypeDefinition(name, description string, fieldRef
 		},
 	}
 
-	ref = d.AddObjectTypeDefinition(objectTypeDef)
+	ref = d.AddObjectTypeDefinition(definition)
 	node := Node{
 		Kind: NodeKindObjectTypeDefinition,
 		Ref:  ref,

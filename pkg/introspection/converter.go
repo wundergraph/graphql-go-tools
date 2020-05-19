@@ -138,8 +138,18 @@ func (j *JsonConverter) importEnum(fullType FullType) {
 	// TODO: implement
 }
 
-func (j *JsonConverter) importUnion(fullType FullType) {
-	// TODO: implement
+func (j *JsonConverter) importUnion(fullType FullType) error {
+	typeRefs := make([]int, 0, len(fullType.PossibleTypes))
+	for _, ref := range fullType.PossibleTypes {
+		typeRefs = append(typeRefs, j.importType(ref))
+	}
+
+	j.doc.ImportUnionTypeDefinition(
+		fullType.Name,
+		fullType.Description,
+		typeRefs)
+
+	return nil
 }
 
 func (j *JsonConverter) importFields(fields []Field) (refs []int, err error) {
