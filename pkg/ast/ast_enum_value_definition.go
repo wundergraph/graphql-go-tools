@@ -7,7 +7,7 @@ import (
 
 type EnumValueDefinitionList struct {
 	LBRACE position.Position // {
-	Refs   []int             //
+	Refs   []int             // EnumValueDefinition
 	RBRACE position.Position // }
 }
 
@@ -64,4 +64,18 @@ func (d *Document) EnumValueDefinitionIsLast(ref int, ancestor Node) bool {
 	default:
 		return false
 	}
+}
+
+func (d *Document) AddEnumValueDefinition(inputValueDefinition EnumValueDefinition) (ref int) {
+	d.EnumValueDefinitions = append(d.EnumValueDefinitions, inputValueDefinition)
+	return len(d.EnumValueDefinitions) - 1
+}
+
+func (d *Document) ImportEnumValueDefinition(value, description string) (ref int) {
+	inputValueDef := EnumValueDefinition{
+		Description: d.ImportDescription(description),
+		EnumValue:   d.Input.AppendInputString(value),
+	}
+
+	return d.AddEnumValueDefinition(inputValueDef)
 }

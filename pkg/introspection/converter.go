@@ -52,23 +52,22 @@ func (j *JsonConverter) importSchema() error {
 	return nil
 }
 
-func (j *JsonConverter) importFullType(fullType FullType) error {
+func (j *JsonConverter) importFullType(fullType FullType) (err error) {
 	switch fullType.Kind {
 	case SCALAR:
 		j.doc.ImportScalarTypeDefinition(fullType.Name, fullType.Description)
 	case OBJECT:
-		return j.importObject(fullType)
+		err = j.importObject(fullType)
 	case ENUM:
 		j.importEnum(fullType)
 	case INTERFACE:
-		return j.importInterface(fullType)
+		err = j.importInterface(fullType)
 	case UNION:
-		j.importUnion(fullType)
+		err = j.importUnion(fullType)
 	case INPUTOBJECT:
-		return j.importInputObject(fullType)
+		err = j.importInputObject(fullType)
 	}
-
-	return nil
+	return
 }
 
 func (j *JsonConverter) importObject(fullType FullType) error {
@@ -135,7 +134,18 @@ func (j *JsonConverter) importInputObject(fullType FullType) error {
 }
 
 func (j *JsonConverter) importEnum(fullType FullType) {
-	// TODO: implement
+	valueRefs := make([]int, 0, len(fullType.EnumValues))
+	for _, value := range fullType.EnumValues {
+		valueRefs = append(valueRefs, j.doc.ImportEnumValueDefinition(
+			value.Name,
+			value.Description,
+		))
+	}
+
+	j.doc.ImportEnumTypeDefinition(
+		fullType.Name,
+		fullType.Description,
+		valueRefs)
 }
 
 func (j *JsonConverter) importUnion(fullType FullType) error {

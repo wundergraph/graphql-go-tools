@@ -60,3 +60,28 @@ func (d *Document) EnumTypeDefinitionContainsEnumValue(enumTypeDef int, valueNam
 	}
 	return false
 }
+
+func (d *Document) AddEnumTypeDefinition(definition EnumTypeDefinition) (ref int) {
+	d.EnumTypeDefinitions = append(d.EnumTypeDefinitions, definition)
+	return len(d.EnumTypeDefinitions) - 1
+}
+
+func (d *Document) ImportEnumTypeDefinition(name, description string, valueRefs []int) (ref int) {
+	definition := EnumTypeDefinition{
+		Description:             d.ImportDescription(description),
+		Name:                    d.Input.AppendInputString(name),
+		HasEnumValuesDefinition: len(valueRefs) > 0,
+		EnumValuesDefinition: EnumValueDefinitionList{
+			Refs: valueRefs,
+		},
+	}
+
+	ref = d.AddEnumTypeDefinition(definition)
+	node := Node{
+		Kind: NodeKindEnumTypeDefinition,
+		Ref:  ref,
+	}
+	d.AddRootNode(node)
+
+	return
+}
