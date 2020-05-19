@@ -2,6 +2,7 @@ package ast
 
 import (
 	"io"
+	"strings"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
@@ -72,7 +73,8 @@ func (d *Document) ImportDescription(desc string) (description Description) {
 	}
 
 	return Description{
-		IsDefined: true,
-		Content:   d.Input.AppendInputString(desc),
+		IsDefined:     true,
+		IsBlockString: strings.Contains(desc, "\n"),
+		Content:       d.Input.AppendInputString(desc),
 	}
 }
