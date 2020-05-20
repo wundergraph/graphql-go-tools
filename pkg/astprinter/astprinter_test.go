@@ -7,7 +7,7 @@ import (
 
 	"github.com/jensneuse/diffview"
 	"github.com/sebdah/goldie"
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
@@ -27,7 +27,7 @@ func TestPrint(t *testing.T) {
 		}
 	}
 
-	run := func(raw string, want string) {
+	run := func(raw string, expected string) {
 
 		definition := unsafeparser.ParseGraphqlDocumentString(testDefinition)
 		doc := unsafeparser.ParseGraphqlDocumentString(raw)
@@ -37,9 +37,8 @@ func TestPrint(t *testing.T) {
 
 		must(printer.Print(&doc, &definition, buff))
 
-		got := buff.String()
-
-		require.Equal(t, got, want)
+		actual := buff.String()
+		assert.Equal(t, expected, actual)
 	}
 
 	t.Run("simple", func(t *testing.T) {
