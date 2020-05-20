@@ -2,11 +2,12 @@ package astnormalization
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
-	"testing"
 )
 
 func TestNormalizeOperation(t *testing.T) {

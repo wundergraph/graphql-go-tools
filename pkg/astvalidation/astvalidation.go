@@ -6,7 +6,9 @@ package astvalidation
 import (
 	"bytes"
 	"fmt"
+
 	"github.com/cespare/xxhash"
+
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
@@ -199,7 +201,7 @@ func (f *fieldDefined) ValidateUnionField(ref int, enclosingTypeDefinition ast.N
 
 func (f *fieldDefined) ValidateInterfaceObjectTypeField(ref int, enclosingTypeDefinition ast.Node) {
 	fieldName := f.operation.FieldNameBytes(ref)
-	if bytes.Equal(fieldName,literal.TYPENAME){
+	if bytes.Equal(fieldName, literal.TYPENAME) {
 		return
 	}
 	typeName := f.definition.NodeNameBytes(enclosingTypeDefinition)
@@ -326,7 +328,7 @@ func (f *fieldSelectionMergingVisitor) EnterOperationDefinition(ref int) {
 
 func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 	fieldName := f.operation.FieldNameBytes(ref)
-	if bytes.Equal(fieldName,literal.TYPENAME){
+	if bytes.Equal(fieldName, literal.TYPENAME) {
 		return
 	}
 	objectName := f.operation.FieldObjectNameBytes(ref)

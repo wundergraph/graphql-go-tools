@@ -2,13 +2,15 @@ package astprinter
 
 import (
 	"bytes"
-	"fmt"
-	"github.com/jensneuse/diffview"
-	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
-	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
-	"github.com/sebdah/goldie"
 	"io/ioutil"
 	"testing"
+
+	"github.com/jensneuse/diffview"
+	"github.com/sebdah/goldie"
+	"github.com/stretchr/testify/assert"
+
+	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
+	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
 func TestPrint(t *testing.T) {
@@ -25,7 +27,7 @@ func TestPrint(t *testing.T) {
 		}
 	}
 
-	run := func(raw string, want string) {
+	run := func(raw string, expected string) {
 
 		definition := unsafeparser.ParseGraphqlDocumentString(testDefinition)
 		doc := unsafeparser.ParseGraphqlDocumentString(raw)
@@ -35,11 +37,8 @@ func TestPrint(t *testing.T) {
 
 		must(printer.Print(&doc, &definition, buff))
 
-		got := buff.String()
-
-		if want != got {
-			panic(fmt.Errorf("want:\n%s\ngot:\n%s\n", want, got))
-		}
+		actual := buff.String()
+		assert.Equal(t, expected, actual)
 	}
 
 	t.Run("simple", func(t *testing.T) {

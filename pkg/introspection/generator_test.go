@@ -2,11 +2,13 @@ package introspection
 
 import (
 	"encoding/json"
-	"github.com/jensneuse/diffview"
-	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
-	"github.com/sebdah/goldie"
 	"io/ioutil"
 	"testing"
+
+	"github.com/jensneuse/diffview"
+	"github.com/sebdah/goldie"
+
+	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
 )
 
 func TestGenerator_Generate(t *testing.T) {
@@ -32,9 +34,9 @@ func TestGenerator_Generate(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	goldie.Assert(t, "startwars_introspected", outputPretty)
+	goldie.Assert(t, "starwars_introspected", outputPretty)
 	if t.Failed() {
-		fixture, err := ioutil.ReadFile("./fixtures/startwars_introspected.golden")
+		fixture, err := ioutil.ReadFile("./fixtures/starwars_introspected.golden")
 		if err != nil {
 			t.Fatal(err)
 		}

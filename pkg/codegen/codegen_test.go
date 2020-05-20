@@ -99,6 +99,6 @@ func TestCodeGen_GenerateDirectiveDefinitionStruct(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		assert.Equal(t,string(data),string(fixture))
+		assert.Equal(t, string(data), string(fixture))
 	}
 }
