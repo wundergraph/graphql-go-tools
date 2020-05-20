@@ -42,11 +42,14 @@ func (d *Document) IntValuesAreEquals(left, right int) bool {
 		bytes.Equal(d.IntValueRaw(left), d.IntValueRaw(right))
 }
 
-func (d *Document) AddIntValue(raw ByteSlice, isNegative bool) (ref int) {
-	d.IntValues = append(d.IntValues, IntValue{
+func (d *Document) AddIntValue(value IntValue) (ref int) {
+	d.IntValues = append(d.IntValues, value)
+	return len(d.IntValues) - 1
+}
+
+func (d *Document) ImportIntValue(raw ByteSlice, isNegative bool) (ref int) {
+	return d.AddIntValue(IntValue{
 		Negative: isNegative,
 		Raw:      d.Input.AppendInputBytes(raw),
 	})
-
-	return len(d.IntValues) - 1
 }

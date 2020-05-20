@@ -38,12 +38,12 @@ func (i *Importer) ImportValue(fromValue ast.Value, from, to *ast.Document) (val
 
 	switch fromValue.Kind {
 	case ast.ValueKindFloat:
-		value.Ref = to.AddFloatValue(
+		value.Ref = to.ImportFloatValue(
 			from.FloatValueRaw(fromValue.Ref),
 			from.FloatValueIsNegative(fromValue.Ref))
 
 	case ast.ValueKindInteger:
-		value.Ref = to.AddIntValue(
+		value.Ref = to.ImportIntValue(
 			from.IntValueRaw(fromValue.Ref),
 			from.IntValueIsNegative(fromValue.Ref))
 
@@ -51,7 +51,7 @@ func (i *Importer) ImportValue(fromValue ast.Value, from, to *ast.Document) (val
 		value.Ref = fromValue.Ref
 
 	case ast.ValueKindString:
-		value.Ref = to.AddStringValue(
+		value.Ref = to.ImportStringValue(
 			from.StringValueContentBytes(fromValue.Ref),
 			from.StringValueIsBlockString(fromValue.Ref))
 
@@ -59,16 +59,16 @@ func (i *Importer) ImportValue(fromValue ast.Value, from, to *ast.Document) (val
 		// empty case
 
 	case ast.ValueKindEnum:
-		value.Ref = to.AddEnumValue(from.EnumValueNameBytes(fromValue.Ref))
+		value.Ref = to.ImportEnumValue(from.EnumValueNameBytes(fromValue.Ref))
 
 	case ast.ValueKindVariable:
-		value.Ref = to.AddVariableValue(from.VariableValueNameBytes(fromValue.Ref))
+		value.Ref = to.ImportVariableValue(from.VariableValueNameBytes(fromValue.Ref))
 
 	case ast.ValueKindList:
-		value.Ref = to.AddListValue(i.ImportListValues(fromValue.Ref, from, to))
+		value.Ref = to.ImportListValue(i.ImportListValues(fromValue.Ref, from, to))
 
 	case ast.ValueKindObject:
-		value.Ref = to.AddObjectValue(i.ImportObjectFields(fromValue.Ref, from, to))
+		value.Ref = to.ImportObjectValue(i.ImportObjectFields(fromValue.Ref, from, to))
 
 	default:
 		value.Kind = ast.ValueKindUnknown
@@ -83,7 +83,7 @@ func (i *Importer) ImportObjectFields(ref int, from, to *ast.Document) (refs []i
 	for _, fieldRef := range objValue.Refs {
 		objectField := from.ObjectFields[fieldRef]
 
-		refs = append(refs, to.AddObjectField(
+		refs = append(refs, to.ImportObjectField(
 			from.ObjectFieldNameBytes(fieldRef),
 			i.ImportValue(objectField.Value, from, to)))
 	}

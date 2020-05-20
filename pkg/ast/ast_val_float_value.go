@@ -38,11 +38,14 @@ func (d *Document) FloatValuesAreEqual(left, right int) bool {
 		bytes.Equal(d.FloatValueRaw(left), d.FloatValueRaw(right))
 }
 
-func (d *Document) AddFloatValue(raw ByteSlice, isNegative bool) (ref int) {
-	d.FloatValues = append(d.FloatValues, FloatValue{
+func (d *Document) AddFloatValue(value FloatValue) (ref int) {
+	d.FloatValues = append(d.FloatValues, value)
+	return len(d.FloatValues) - 1
+}
+
+func (d *Document) ImportFloatValue(raw ByteSlice, isNegative bool) (ref int) {
+	return d.AddFloatValue(FloatValue{
 		Negative: isNegative,
 		Raw:      d.Input.AppendInputBytes(raw),
 	})
-
-	return len(d.FloatValues) - 1
 }

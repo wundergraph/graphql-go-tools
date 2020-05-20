@@ -23,9 +23,13 @@ func (d *Document) ListValuesAreEqual(left, right int) bool {
 	return true
 }
 
-func (d *Document) AddListValue(valueRefs []int) (ref int) {
-	d.ListValues = append(d.ListValues, ListValue{
+func (d *Document) AddListValue(value ListValue) (ref int) {
+	d.ListValues = append(d.ListValues, value)
+	return len(d.ListValues) - 1
+}
+
+func (d *Document) ImportListValue(valueRefs []int) (ref int) {
+	return d.AddListValue(ListValue{
 		Refs: valueRefs,
 	})
-	return len(d.ListValues) - 1
 }

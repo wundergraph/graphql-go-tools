@@ -27,9 +27,13 @@ func (d *Document) VariableValuesAreEqual(left, right int) bool {
 	return bytes.Equal(d.VariableValueNameBytes(left), d.VariableValueNameBytes(right))
 }
 
-func (d *Document) AddVariableValue(name ByteSlice) (ref int) {
-	d.VariableValues = append(d.VariableValues, VariableValue{
+func (d *Document) AddVariableValue(value VariableValue) (ref int) {
+	d.VariableValues = append(d.VariableValues, value)
+	return len(d.VariableValues) - 1
+}
+
+func (d *Document) ImportVariableValue(name ByteSlice) (ref int) {
+	return d.AddVariableValue(VariableValue{
 		Name: d.Input.AppendInputBytes(name),
 	})
-	return len(d.VariableValues) - 1
 }
