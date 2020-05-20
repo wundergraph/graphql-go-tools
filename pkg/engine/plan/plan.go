@@ -16,11 +16,15 @@ import (
 )
 
 type Kind int
+type enterOrLeave int
 
 const (
 	SynchronousResponseKind Kind = iota + 1
 	StreamingResponseKind
 	SubscriptionResponseKind
+
+	enter enterOrLeave = iota + 1
+	leave
 )
 
 type Reference struct {
@@ -66,10 +70,10 @@ type DataSourceConfiguration struct {
 }
 
 type FieldMapping struct {
-	TypeName              string
-	FieldName             string
-	DisableDefaultMapping bool
-	Path                  []string
+	TypeName                 string
+	FieldName                string
+	DisableDefaultMapping    bool
+	Path                     []string
 }
 
 type DataSourceAttribute struct {
@@ -142,24 +146,29 @@ func (p *Planner) Plan(operation *ast.Document, operationName []byte, report *op
 
 type Visitor struct {
 	*astvisitor.Walker
-	DataSourceConfigurations []DataSourceConfiguration
-	FieldMappings            []FieldMapping
-	Definition, Operation    *ast.Document
-	Importer                 astimport.Importer
-	opName                   []byte
-	plan                     Plan
-	currentObject            *resolve.Object
-	objects                  []fieldObject
-	currentFields            *[]resolve.Field
-	fields                   []*[]resolve.Field
-	fetchConfigs             []fetchConfig
-	activeDataSourcePlanner  DataSourcePlanner
-	fieldArguments           []fieldArgument
-	nextBufferID             int
-	popFieldsOnLeaveField    []int
-
+	DataSourceConfigurations            []DataSourceConfiguration
+	FieldMappings                       []FieldMapping
+	Definition, Operation               *ast.Document
+	Importer                            astimport.Importer
+	opName                              []byte
+	plan                                Plan
+	currentObject                       *resolve.Object
+	objects                             []fieldObject
+	currentFields                       *[]resolve.Field
+	fields                              []*[]resolve.Field
+	fetchConfigs                        []fetchConfig
+	activeDataSourcePlanner             DataSourcePlanner
+	fieldArguments                      []fieldArgument
+	nextBufferID                        int
+	popFieldsOnLeaveField               []int
+	fieldDataSourcePlanners             []fieldDataSourcePlanner
 	currentFieldName                    string
 	currentFieldEnclosingTypeDefinition ast.Node
+}
+
+type fieldDataSourcePlanner struct {
+	field   int
+	planner DataSourcePlanner
 }
 
 type fetchConfig struct {
@@ -243,6 +252,7 @@ func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
 	v.fetchConfigs = v.fetchConfigs[:0]
 	v.fieldArguments = v.fieldArguments[:0]
 	v.popFieldsOnLeaveField = v.popFieldsOnLeaveField[:0]
+	v.fieldDataSourcePlanners = v.fieldDataSourcePlanners[:0]
 	v.nextBufferID = -1
 }
 
@@ -272,7 +282,7 @@ func (v *Visitor) prepareFetchVariables(config fetchConfig) {
 			}
 			switch segments[0] {
 			case "object":
-				variableName,_ := f.Variables.AddVariable(&resolve.ObjectVariable{Path: segments[1:]})
+				variableName, _ := f.Variables.AddVariable(&resolve.ObjectVariable{Path: segments[1:]})
 				return variableName
 			case "arguments":
 				segments = segments[1:]
@@ -287,7 +297,7 @@ func (v *Visitor) prepareFetchVariables(config fetchConfig) {
 						switch v.fieldArguments[j].kind {
 						case fieldArgumentTypeVariable:
 							variablePath := append([]string{string(v.fieldArguments[j].value)}, segments...)
-							variableName,_ := f.Variables.AddVariable(&resolve.ContextVariable{Path: variablePath})
+							variableName, _ := f.Variables.AddVariable(&resolve.ContextVariable{Path: variablePath})
 							return variableName
 						case fieldArgumentTypeStatic:
 							if len(segments) == 0 {
@@ -320,9 +330,9 @@ func (v *Visitor) EnterArgument(ref int) {
 	switch value.Kind {
 	case ast.ValueKindVariable:
 		arg.kind = fieldArgumentTypeVariable
-		arg.value = v.Operation.VariableValueNameBytes(value.Ref)
+		copy(arg.value, v.Operation.VariableValueNameBytes(value.Ref))
 	case ast.ValueKindString:
-		arg.value = v.Operation.StringValueContentBytes(value.Ref)
+		copy(arg.value, v.Operation.StringValueContentBytes(value.Ref))
 	case ast.ValueKindBoolean:
 		switch v.Operation.BooleanValues[value.Ref] {
 		case true:
@@ -333,13 +343,13 @@ func (v *Visitor) EnterArgument(ref int) {
 			return
 		}
 	case ast.ValueKindFloat:
-		arg.value = v.Operation.FloatValueRaw(value.Ref)
+		copy(arg.value, v.Operation.FloatValueRaw(value.Ref))
 	case ast.ValueKindInteger:
-		arg.value = v.Operation.IntValueRaw(value.Ref)
+		copy(arg.value, v.Operation.IntValueRaw(value.Ref))
 	case ast.ValueKindEnum:
-		arg.value = v.Operation.EnumValueNameBytes(value.Ref)
+		copy(arg.value, v.Operation.EnumValueNameBytes(value.Ref))
 	case ast.ValueKindNull:
-		arg.value = literal.NULL
+		copy(arg.value, literal.NULL)
 	default:
 		return
 	}
@@ -402,7 +412,7 @@ func (v *Visitor) EnterField(ref int) {
 	v.currentFieldName = fieldNameStr
 	v.currentFieldEnclosingTypeDefinition = v.EnclosingTypeDefinition
 
-	v.setActiveDataSourcePlanner(fieldNameStr)
+	v.setActiveDataSourcePlanner(ref, enter)
 
 	definition, ok := v.Definition.NodeFieldDefinitionByName(v.EnclosingTypeDefinition, fieldName)
 	if !ok {
@@ -461,7 +471,7 @@ func (v *Visitor) EnterField(ref int) {
 		}
 
 		if v.Operation.FieldAliasIsDefined(ref) {
-			fieldName = v.Operation.FieldAliasBytes(ref)
+			copy(fieldName, v.Operation.FieldAliasBytes(ref))
 		}
 
 		*v.currentFields = append(*v.currentFields, resolve.Field{
@@ -488,15 +498,35 @@ func (v *Visitor) resolveFieldPath(ref int) []string {
 	return []string{fieldName}
 }
 
-func (v *Visitor) setActiveDataSourcePlanner(currentFieldName string) {
+func (v *Visitor) setActiveDataSourcePlanner(fieldRef int, enterOrLeave enterOrLeave) {
+
+	if enterOrLeave == leave {
+		if len(v.fieldDataSourcePlanners) == 0 {
+			return
+		}
+		if v.fieldDataSourcePlanners[len(v.fieldDataSourcePlanners)-1].field == fieldRef {
+			v.fieldDataSourcePlanners = v.fieldDataSourcePlanners[:len(v.fieldDataSourcePlanners)-1]
+			if len(v.fieldDataSourcePlanners) != 0 {
+				v.activeDataSourcePlanner = v.fieldDataSourcePlanners[len(v.fieldDataSourcePlanners)-1].planner
+			}
+		}
+		return
+	}
+
+	fieldName := v.Operation.FieldNameString(fieldRef)
+
 	enclosingTypeName := v.EnclosingTypeDefinition.Name(v.Definition)
 	for i := range v.DataSourceConfigurations {
 		if v.DataSourceConfigurations[i].TypeName != enclosingTypeName {
 			continue
 		}
 		for j := range v.DataSourceConfigurations[i].FieldNames {
-			if v.DataSourceConfigurations[i].FieldNames[j] == currentFieldName {
+			if v.DataSourceConfigurations[i].FieldNames[j] == fieldName {
 				v.activeDataSourcePlanner = v.DataSourceConfigurations[i].DataSourcePlanner
+				v.fieldDataSourcePlanners = append(v.fieldDataSourcePlanners, fieldDataSourcePlanner{
+					field:   fieldRef,
+					planner: v.DataSourceConfigurations[i].DataSourcePlanner,
+				})
 				return
 			}
 		}
@@ -520,6 +550,8 @@ func (v *Visitor) LeaveField(ref int) {
 		v.objects = v.objects[:len(v.objects)-1]
 		v.currentObject = v.objects[len(v.objects)-1].object
 	}
+
+	v.setActiveDataSourcePlanner(ref, leave)
 }
 
 type fieldArgument struct {

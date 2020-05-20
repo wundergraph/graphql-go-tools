@@ -105,8 +105,8 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 						},
 					},
 					{
-						BufferID:   0,
-						HasBuffer:  true,
+						BufferID:  0,
+						HasBuffer: true,
 						Fields: []resolve.Field{
 							{
 								Name: []byte("hero"),
@@ -149,8 +149,8 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 									FieldName: "droid",
 									Arguments: []Argument{
 										{
-											Name:       []byte("id"),
-											Source:     FieldArgument,
+											Name:   []byte("id"),
+											Source: FieldArgument,
 										},
 									},
 								},
@@ -165,6 +165,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 	// TODO nesting with object arguments,
 	// TODO test parallel fetch execution
 	// TODO handle scalar lists (Path?)
+	// TODO add field dependency to query automatically (fields required for argument but not in the query itself, e.g. serviceOneField)
 	t.Run("nested graphql engines", RunTest(`
 		type Query {
 			serviceOne(serviceOneArg: String): ServiceOneResponse
@@ -178,6 +179,8 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 		}
 		type ServiceTwoResponse {
 			fieldTwo: String
+			serviceOneField: String
+			serviceOneResponse: ServiceOneResponse
 		}
 	`, `
 		query NestedQuery ($firstArg: String, $secondArg: Boolean, $thirdArg: Int, $fourthArg: Float){
@@ -186,6 +189,9 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 			}
 			serviceTwo(serviceTwoArg: $secondArg){
 				fieldTwo
+				serviceOneResponse {
+					fieldOne
+				}
 			}
 			anotherServiceOne(anotherServiceOneArg: $thirdArg){
 				fieldOne
@@ -281,6 +287,24 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 															Path: []string{"fieldTwo"},
 														},
 													},
+													{
+														Name: []byte("serviceOneResponse"),
+														Value: &resolve.Object{
+															Path: []string{"serviceOne"},
+															FieldSets: []resolve.FieldSet{
+																{
+																	Fields: []resolve.Field{
+																		{
+																			Name: []byte("fieldOne"),
+																			Value: &resolve.String{
+																				Path: []string{"fieldOne"},
+																			},
+																		},
+																	},
+																},
+															},
+														},
+													},
 												},
 											},
 										},
@@ -368,7 +392,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 			DataSourceConfigurations: []plan.DataSourceConfiguration{
 				{
 					TypeName:   "Query",
-					FieldNames: []string{"serviceOne","anotherServiceOne","reusingServiceOne"},
+					FieldNames: []string{"serviceOne", "anotherServiceOne", "reusingServiceOne"},
 					Attributes: []plan.DataSourceAttribute{
 						{
 							Key:   "url",
@@ -413,7 +437,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 				},
 				{
 					TypeName:   "Query",
-					FieldNames: []string{"serviceTwo","secondServiceTwo"},
+					FieldNames: []string{"serviceTwo", "secondServiceTwo"},
 					Attributes: []plan.DataSourceAttribute{
 						{
 							Key:   "url",
@@ -446,6 +470,41 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 						},
 					},
 					DataSourcePlanner: &Planner{},
+				},
+				{
+					TypeName:   "ServiceTwoResponse",
+					FieldNames: []string{"serviceOneResponse"},
+					Attributes: []plan.DataSourceAttribute{
+						{
+							Key:   "url",
+							Value: []byte("https://service.one"),
+						},
+						{
+							Key: "arguments",
+							Value: ArgumentsConfigJSON(ArgumentsConfig{
+								Fields: []FieldConfig{
+									{
+										FieldName: "serviceOneResponse",
+										Arguments: []Argument{
+											{
+												Name:       []byte("serviceOneArg"),
+												Source:     ObjectField,
+												SourcePath: []string{"serviceOneField"},
+											},
+										},
+									},
+								},
+							}),
+						},
+					},
+					DataSourcePlanner: &Planner{},
+				},
+			},
+			FieldMappings: []plan.FieldMapping{
+				{
+					TypeName:  "ServiceTwoResponse",
+					FieldName: "serviceOneResponse",
+					Path:      []string{"serviceOne"},
 				},
 			},
 		},

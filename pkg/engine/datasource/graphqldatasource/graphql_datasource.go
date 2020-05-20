@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -30,6 +31,7 @@ type Planner struct {
 	URL                 []byte
 	variables           []byte
 	bufferID            int
+	config              *plan.DataSourceConfiguration
 }
 
 func (p *Planner) Register(visitor *plan.Visitor) {
@@ -39,7 +41,7 @@ func (p *Planner) Register(visitor *plan.Visitor) {
 	visitor.RegisterSelectionSetVisitor(p)
 }
 
-func (p *Planner) EnterDocument(operation, definition *ast.Document) {
+func (p *Planner) EnterDocument(_, _ *ast.Document) {
 	if p.operation == nil {
 		p.operation = ast.NewDocument()
 	} else {
@@ -60,9 +62,15 @@ func (p *Planner) EnterDocument(operation, definition *ast.Document) {
 
 func (p *Planner) EnterField(ref int) {
 
-	isRootField, config := p.v.IsRootField(ref)
+	var (
+		isRootField bool
+		config      *plan.DataSourceConfiguration
+	)
 
-	if isRootField {
+	isRootField, config = p.v.IsRootField(ref)
+
+	if isRootField && config != nil {
+		p.config = config
 		if p.nodes == nil { // Setup Fetch and root (operation definition)
 			p.URL = config.Attributes.ValueForKey("url")
 
@@ -85,9 +93,7 @@ func (p *Planner) EnterField(ref int) {
 		// we need to set the buffer for all fields
 		p.v.SetBufferIDForCurrentFieldSet(p.bufferID)
 	}
-	field := p.operation.AddField(ast.Field{
-		Name: p.operation.Input.AppendInputBytes(p.v.Operation.FieldNameBytes(ref)),
-	})
+	field := p.addField(ref)
 	selection := ast.Selection{
 		Kind: ast.SelectionKindField,
 		Ref:  field.Ref,
@@ -101,6 +107,33 @@ func (p *Planner) EnterField(ref int) {
 	if arguments := config.Attributes.ValueForKey("arguments"); arguments != nil {
 		p.configureFieldArguments(field.Ref, ref, arguments)
 	}
+}
+
+func (p *Planner) addField(ref int) ast.Node {
+
+	alias := ast.Alias{
+		IsDefined: p.v.Operation.FieldAliasIsDefined(ref),
+	}
+
+	if alias.IsDefined {
+		alias.Name = p.operation.Input.AppendInputBytes(p.v.Operation.FieldAliasBytes(ref))
+	}
+
+	fieldName := p.v.Operation.FieldNameString(ref)
+	typeName := p.v.EnclosingTypeDefinition.Name(p.v.Definition)
+	for i := range p.v.FieldMappings {
+		if p.v.FieldMappings[i].TypeName == typeName &&
+			p.v.FieldMappings[i].FieldName == fieldName &&
+			len(p.v.FieldMappings[i].Path) == 1 {
+			fieldName = p.v.FieldMappings[i].Path[0]
+			break
+		}
+	}
+
+	return p.operation.AddField(ast.Field{
+		Name:  p.operation.Input.AppendInputString(fieldName),
+		Alias: alias,
+	})
 }
 
 func (p *Planner) configureFieldArguments(upstreamField, downstreamField int, arguments []byte) {
@@ -152,6 +185,7 @@ func (p *Planner) applyFieldArgument(upstreamField, downstreamField int, arg Arg
 			}
 		}
 	case ObjectField:
+		fmt.Println("objectField")
 	}
 }
 

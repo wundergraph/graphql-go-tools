@@ -7,6 +7,7 @@ import (
 
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
+	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
 	"github.com/jensneuse/graphql-go-tools/pkg/asttransform"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
@@ -29,6 +30,16 @@ func RunTest(definition, operation, operationName string, expectedPlan plan.Plan
 		p := plan.NewPlanner(&def, config)
 		actualPlan := p.Plan(&op, []byte(operationName), &report)
 		if report.HasErrors() {
+			printedDoc,err := astprinter.PrintStringIndent(&def,nil,"  ")
+			if err != nil {
+				t.Fatal(err)
+			}
+			_ = printedDoc
+			printedOp,err := astprinter.PrintStringIndent(&op,&def,"  ")
+			if err != nil {
+				t.Fatal(err)
+			}
+			_ = printedOp
 			t.Fatal(report.Error())
 		}
 		assert.Equal(t,expectedPlan,actualPlan)
