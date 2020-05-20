@@ -62,3 +62,20 @@ func TestJSONConverter_GraphQLDocument(t *testing.T) {
 		diffview.NewGoland().DiffViewBytes("startwars", fixture, schemaOutputPretty)
 	}
 }
+
+func BenchmarkJsonConverter_GraphQLDocument(b *testing.B) {
+	// with ranges
+	// BenchmarkJsonConverter_GraphQLDocument-8   	    1710	    670858 ns/op
+	// with loops
+	// BenchmarkJsonConverter_GraphQLDocument-8   	    1723	    671331 ns/op
+
+	starwarsIntrospectedBytes, err := ioutil.ReadFile("./fixtures/starwars_introspected.golden")
+	require.NoError(b, err)
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		converter := JsonConverter{}
+		buf := bytes.NewBuffer(starwarsIntrospectedBytes)
+		_, _ = converter.GraphQLDocument(buf)
+	}
+}

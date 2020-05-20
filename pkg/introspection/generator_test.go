@@ -34,9 +34,9 @@ func TestGenerator_Generate(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	goldie.Assert(t, "startwars_introspected", outputPretty)
+	goldie.Assert(t, "starwars_introspected", outputPretty)
 	if t.Failed() {
-		fixture, err := ioutil.ReadFile("./fixtures/startwars_introspected.golden")
+		fixture, err := ioutil.ReadFile("./fixtures/starwars_introspected.golden")
 		if err != nil {
 			t.Fatal(err)
 		}

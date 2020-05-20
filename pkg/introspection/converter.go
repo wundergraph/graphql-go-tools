@@ -37,14 +37,14 @@ func (j *JsonConverter) GraphQLDocument(introspectionJSON io.Reader) (*ast.Docum
 func (j *JsonConverter) importSchema() error {
 	j.doc.ImportSchemaDefinition(j.schema.TypeNames())
 
-	for _, fullType := range j.schema.Types {
-		if err := j.importFullType(fullType); err != nil {
+	for i := 0; i < len(j.schema.Types); i++ {
+		if err := j.importFullType(j.schema.Types[i]); err != nil {
 			return err
 		}
 	}
 
-	for _, directive := range j.schema.Directives {
-		if err := j.importDirective(directive); err != nil {
+	for i := 0; i < len(j.schema.Directives); i++ {
+		if err := j.importDirective(j.schema.Directives[i]); err != nil {
 			return err
 		}
 	}
@@ -76,9 +76,9 @@ func (j *JsonConverter) importObject(fullType FullType) error {
 		return err
 	}
 
-	iRefs := make([]int, 0, len(fullType.Interfaces))
-	for _, ref := range fullType.Interfaces {
-		iRefs = append(iRefs, j.importType(ref))
+	iRefs := make([]int, len(fullType.Interfaces))
+	for i := 0; i < len(iRefs); i++ {
+		iRefs[i] = j.importType(fullType.Interfaces[i])
 	}
 
 	j.doc.ImportObjectTypeDefinition(
@@ -134,12 +134,12 @@ func (j *JsonConverter) importInputObject(fullType FullType) error {
 }
 
 func (j *JsonConverter) importEnum(fullType FullType) {
-	valueRefs := make([]int, 0, len(fullType.EnumValues))
-	for _, value := range fullType.EnumValues {
-		valueRefs = append(valueRefs, j.doc.ImportEnumValueDefinition(
-			value.Name,
-			value.Description,
-		))
+	valueRefs := make([]int, len(fullType.EnumValues))
+	for i := 0; i < len(valueRefs); i++ {
+		valueRefs[i] = j.doc.ImportEnumValueDefinition(
+			fullType.EnumValues[i].Name,
+			fullType.EnumValues[i].Description,
+		)
 	}
 
 	j.doc.ImportEnumTypeDefinition(
@@ -149,9 +149,9 @@ func (j *JsonConverter) importEnum(fullType FullType) {
 }
 
 func (j *JsonConverter) importUnion(fullType FullType) error {
-	typeRefs := make([]int, 0, len(fullType.PossibleTypes))
-	for _, ref := range fullType.PossibleTypes {
-		typeRefs = append(typeRefs, j.importType(ref))
+	typeRefs := make([]int, len(fullType.PossibleTypes))
+	for i := 0; i < len(typeRefs); i++ {
+		typeRefs[i] = j.importType(fullType.PossibleTypes[i])
 	}
 
 	j.doc.ImportUnionTypeDefinition(
@@ -163,13 +163,13 @@ func (j *JsonConverter) importUnion(fullType FullType) error {
 }
 
 func (j *JsonConverter) importFields(fields []Field) (refs []int, err error) {
-	refs = make([]int, 0, len(fields))
-	for _, field := range fields {
-		fieldRef, err := j.importField(field)
+	refs = make([]int, len(fields))
+	for i := 0; i < len(refs); i++ {
+		fieldRef, err := j.importField(fields[i])
 		if err != nil {
 			return nil, err
 		}
-		refs = append(refs, fieldRef)
+		refs[i] = fieldRef
 	}
 
 	return
@@ -188,13 +188,13 @@ func (j *JsonConverter) importField(field Field) (ref int, err error) {
 }
 
 func (j *JsonConverter) importInputFields(fields []InputValue) (refs []int, err error) {
-	refs = make([]int, 0, len(fields))
-	for _, arg := range fields {
-		argRef, err := j.importInputField(arg)
+	refs = make([]int, len(fields))
+	for i := 0; i < len(refs); i++ {
+		argRef, err := j.importInputField(fields[i])
 		if err != nil {
 			return nil, err
 		}
-		refs = append(refs, argRef)
+		refs[i] = argRef
 	}
 	return
 }
