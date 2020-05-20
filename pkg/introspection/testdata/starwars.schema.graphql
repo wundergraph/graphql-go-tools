@@ -28,7 +28,7 @@ type Subscription {
 "The episodes in the Star Wars trilogy"
 enum Episode {
     "Star Wars Episode IV: A New Hope, released in 1977."
-    NEWHOPE
+    NEWHOPE @deprecated
     "Star Wars Episode V: The Empire Strikes Back, released in 1980."
     EMPIRE
     "Star Wars Episode VI: Return of the Jedi, released in 1983."
@@ -153,7 +153,7 @@ type Starship {
     "The ID of the starship"
     id: ID!
     "The name of the starship"
-    name: String!
+    name: String! @deprecated(reason: "why not?")
     "Length of the starship, along the longest axis"
     length(unit: LengthUnit = METER): Float
 }

@@ -1,6 +1,8 @@
 package ast
 
 import (
+	"bytes"
+
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
 )
@@ -38,6 +40,23 @@ func (d *Document) EnumValueDefinitionDescriptionBytes(ref int) ByteSlice {
 
 func (d *Document) EnumValueDefinitionDescriptionString(ref int) string {
 	return unsafebytes.BytesToString(d.EnumValueDefinitionDescriptionBytes(ref))
+}
+
+func (d *Document) EnumValueDefinitionHasDirectives(ref int) bool {
+	return d.EnumValueDefinitions[ref].HasDirectives
+}
+
+func (d *Document) EnumValueDefinitionDirectives(ref int) (refs []int) {
+	return d.EnumValueDefinitions[ref].Directives.Refs
+}
+
+func (d *Document) EnumValueDefinitionDirectiveByName(definitionRef int, directiveName ByteSlice) (ref int, exists bool) {
+	for _, i := range d.EnumValueDefinitions[definitionRef].Directives.Refs {
+		if bytes.Equal(directiveName, d.DirectiveNameBytes(i)) {
+			return i, true
+		}
+	}
+	return
 }
 
 func (d *Document) EnumValueDefinitionIsFirst(ref int, ancestor Node) bool {

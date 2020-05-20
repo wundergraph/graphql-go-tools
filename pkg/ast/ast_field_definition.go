@@ -56,6 +56,10 @@ func (d *Document) FieldDefinitionIsLast(field int, ancestor Node) bool {
 	return len(definitions) != 0 && definitions[len(definitions)-1] == field
 }
 
+func (d *Document) FieldDefinitionHasDirectives(ref int) bool {
+	return d.FieldDefinitions[ref].HasDirectives
+}
+
 func (d *Document) FieldDefinitionDirectives(fieldDefinition int) (refs []int) {
 	return d.FieldDefinitions[fieldDefinition].Directives.Refs
 }

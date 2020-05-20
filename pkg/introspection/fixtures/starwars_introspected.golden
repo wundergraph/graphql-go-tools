@@ -34,7 +34,9 @@
               "kind": "INTERFACE",
               "name": "Character",
               "ofType": null
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           },
           {
             "name": "reviews",
@@ -63,7 +65,9 @@
                 "name": "Review",
                 "ofType": null
               }
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           },
           {
             "name": "search",
@@ -88,7 +92,9 @@
                 "name": "SearchResult",
                 "ofType": null
               }
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           },
           {
             "name": "character",
@@ -113,7 +119,9 @@
               "kind": "INTERFACE",
               "name": "Character",
               "ofType": null
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           },
           {
             "name": "droid",
@@ -138,7 +146,9 @@
               "kind": "OBJECT",
               "name": "Droid",
               "ofType": null
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           },
           {
             "name": "human",
@@ -163,7 +173,9 @@
               "kind": "OBJECT",
               "name": "Human",
               "ofType": null
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           },
           {
             "name": "starship",
@@ -188,7 +200,9 @@
               "kind": "OBJECT",
               "name": "Starship",
               "ofType": null
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           }
         ],
         "inputFields": [],
@@ -234,7 +248,9 @@
               "kind": "OBJECT",
               "name": "Review",
               "ofType": null
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           }
         ],
         "inputFields": [],
@@ -266,7 +282,9 @@
               "kind": "OBJECT",
               "name": "Review",
               "ofType": null
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           }
         ],
         "inputFields": [],
@@ -284,15 +302,21 @@
         "enumValues": [
           {
             "name": "NEWHOPE",
-            "description": "Star Wars Episode IV: A New Hope, released in 1977."
+            "description": "Star Wars Episode IV: A New Hope, released in 1977.",
+            "isDeprecated": true,
+            "deprecationReason": null
           },
           {
             "name": "EMPIRE",
-            "description": "Star Wars Episode V: The Empire Strikes Back, released in 1980."
+            "description": "Star Wars Episode V: The Empire Strikes Back, released in 1980.",
+            "isDeprecated": false,
+            "deprecationReason": null
           },
           {
             "name": "JEDI",
-            "description": "Star Wars Episode VI: Return of the Jedi, released in 1983."
+            "description": "Star Wars Episode VI: Return of the Jedi, released in 1983.",
+            "isDeprecated": false,
+            "deprecationReason": null
           }
         ],
         "possibleTypes": []
@@ -314,7 +338,9 @@
                 "name": "ID",
                 "ofType": null
               }
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           },
           {
             "name": "name",
@@ -328,7 +354,9 @@
                 "name": "String",
                 "ofType": null
               }
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           },
           {
             "name": "friends",
@@ -342,7 +370,9 @@
                 "name": "Character",
                 "ofType": null
               }
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           },
           {
             "name": "friendsConnection",
@@ -377,7 +407,9 @@
                 "name": "FriendsConnection",
                 "ofType": null
               }
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           },
           {
             "name": "appearsIn",
@@ -395,7 +427,9 @@
                   "ofType": null
                 }
               }
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           }
         ],
         "inputFields": [],
@@ -424,11 +458,15 @@
         "enumValues": [
           {
             "name": "METER",
-            "description": "The standard unit around the world"
+            "description": "The standard unit around the world",
+            "isDeprecated": false,
+            "deprecationReason": null
           },
           {
             "name": "FOOT",
-            "description": "Primarily used in the United States"
+            "description": "Primarily used in the United States",
+            "isDeprecated": false,
+            "deprecationReason": null
           }
         ],
         "possibleTypes": []
@@ -450,7 +488,9 @@
                 "name": "ID",
                 "ofType": null
               }
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           },
           {
             "name": "name",
@@ -464,7 +504,9 @@
                 "name": "String",
                 "ofType": null
               }
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           },
           {
             "name": "homePlanet",
@@ -474,7 +516,9 @@
               "kind": "SCALAR",
               "name": "String",
               "ofType": null
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           },
           {
             "name": "height",
@@ -495,7 +539,9 @@
               "kind": "SCALAR",
               "name": "Float",
               "ofType": null
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           },
           {
             "name": "mass",
@@ -505,7 +551,9 @@
               "kind": "SCALAR",
               "name": "Float",
               "ofType": null
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           },
           {
             "name": "friends",
@@ -519,7 +567,9 @@
                 "name": "Character",
                 "ofType": null
               }
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           },
           {
             "name": "friendsConnection",
@@ -554,7 +604,9 @@
                 "name": "FriendsConnection",
                 "ofType": null
               }
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           },
           {
             "name": "appearsIn",
@@ -572,7 +624,9 @@
                   "ofType": null
                 }
               }
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           },
           {
             "name": "starships",
@@ -586,7 +640,9 @@
                 "name": "Starship",
                 "ofType": null
               }
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           }
         ],
         "inputFields": [],
@@ -617,7 +673,9 @@
                 "name": "ID",
                 "ofType": null
               }
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           },
           {
             "name": "name",
@@ -631,7 +689,9 @@
                 "name": "String",
                 "ofType": null
               }
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           },
           {
             "name": "friends",
@@ -645,7 +705,9 @@
                 "name": "Character",
                 "ofType": null
               }
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           },
           {
             "name": "friendsConnection",
@@ -680,7 +742,9 @@
                 "name": "FriendsConnection",
                 "ofType": null
               }
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           },
           {
             "name": "appearsIn",
@@ -698,7 +762,9 @@
                   "ofType": null
                 }
               }
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           },
           {
             "name": "primaryFunction",
@@ -708,7 +774,9 @@
               "kind": "SCALAR",
               "name": "String",
               "ofType": null
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           }
         ],
         "inputFields": [],
@@ -735,7 +803,9 @@
               "kind": "SCALAR",
               "name": "Int",
               "ofType": null
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           },
           {
             "name": "edges",
@@ -749,7 +819,9 @@
                 "name": "FriendsEdge",
                 "ofType": null
               }
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           },
           {
             "name": "friends",
@@ -763,7 +835,9 @@
                 "name": "Character",
                 "ofType": null
               }
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           },
           {
             "name": "pageInfo",
@@ -777,7 +851,9 @@
                 "name": "PageInfo",
                 "ofType": null
               }
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           }
         ],
         "inputFields": [],
@@ -802,7 +878,9 @@
                 "name": "ID",
                 "ofType": null
               }
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           },
           {
             "name": "node",
@@ -812,7 +890,9 @@
               "kind": "INTERFACE",
               "name": "Character",
               "ofType": null
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           }
         ],
         "inputFields": [],
@@ -833,7 +913,9 @@
               "kind": "SCALAR",
               "name": "ID",
               "ofType": null
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           },
           {
             "name": "endCursor",
@@ -843,7 +925,9 @@
               "kind": "SCALAR",
               "name": "ID",
               "ofType": null
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           },
           {
             "name": "hasNextPage",
@@ -857,7 +941,9 @@
                 "name": "Boolean",
                 "ofType": null
               }
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           }
         ],
         "inputFields": [],
@@ -878,7 +964,9 @@
               "kind": "ENUM",
               "name": "Episode",
               "ofType": null
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           },
           {
             "name": "stars",
@@ -892,7 +980,9 @@
                 "name": "Int",
                 "ofType": null
               }
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           },
           {
             "name": "commentary",
@@ -902,7 +992,9 @@
               "kind": "SCALAR",
               "name": "String",
               "ofType": null
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           }
         ],
         "inputFields": [],
@@ -1025,7 +1117,9 @@
                 "name": "ID",
                 "ofType": null
               }
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           },
           {
             "name": "name",
@@ -1039,7 +1133,9 @@
                 "name": "String",
                 "ofType": null
               }
-            }
+            },
+            "isDeprecated": true,
+            "deprecationReason": "why not?"
           },
           {
             "name": "length",
@@ -1060,7 +1156,9 @@
               "kind": "SCALAR",
               "name": "Float",
               "ofType": null
-            }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
           }
         ],
         "inputFields": [],

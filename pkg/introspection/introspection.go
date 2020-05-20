@@ -111,12 +111,12 @@ type TypeRef struct {
 }
 
 type Field struct {
-	Name        string       `json:"name"`
-	Description string       `json:"description"`
-	Args        []InputValue `json:"args"`
-	Type        TypeRef      `json:"type"`
-	// IsDeprecated      *bool        `json:"isDeprecated"`
-	// DeprecationReason string       `json:"deprecationReason"`
+	Name              string       `json:"name"`
+	Description       string       `json:"description"`
+	Args              []InputValue `json:"args"`
+	Type              TypeRef      `json:"type"`
+	IsDeprecated      bool         `json:"isDeprecated"`
+	DeprecationReason *string      `json:"deprecationReason"`
 }
 
 func NewField() Field {
@@ -126,10 +126,10 @@ func NewField() Field {
 }
 
 type EnumValue struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	// IsDeprecated      *bool   `json:"isDeprecated"`
-	// DeprecationReason *string `json:"deprecationReason"`
+	Name              string  `json:"name"`
+	Description       string  `json:"description"`
+	IsDeprecated      bool    `json:"isDeprecated"`
+	DeprecationReason *string `json:"deprecationReason"`
 }
 
 type InputValue struct {
