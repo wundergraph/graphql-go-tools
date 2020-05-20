@@ -127,3 +127,24 @@ func (d *Document) ArgumentsAfter(ancestor Node, argument int) []int {
 	}
 	return nil
 }
+
+func (d *Document) AddArgument(argument Argument) (ref int) {
+	d.Arguments = append(d.Arguments, argument)
+	return len(d.Arguments) - 1
+}
+
+func (d *Document) ImportVariableValueArgument(argName, variableName ByteSlice) (variableValueRef, argRef int) {
+	variableValueRef = d.ImportVariableValue(variableName)
+
+	arg := Argument{
+		Name: d.Input.AppendInputBytes(argName),
+		Value: Value{
+			Kind: ValueKindVariable,
+			Ref:  variableValueRef,
+		},
+	}
+
+	argRef = d.AddArgument(arg)
+
+	return
+}

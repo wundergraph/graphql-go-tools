@@ -401,7 +401,18 @@
         "inputFields": [],
         "interfaces": [],
         "enumValues": [],
-        "possibleTypes": []
+        "possibleTypes": [
+          {
+            "kind": "OBJECT",
+            "name": "Human",
+            "ofType": null
+          },
+          {
+            "kind": "OBJECT",
+            "name": "Droid",
+            "ofType": null
+          }
+        ]
       },
       {
         "kind": "ENUM",
@@ -902,7 +913,7 @@
       {
         "kind": "INPUT_OBJECT",
         "name": "ReviewInput",
-        "description": "ReviewInput",
+        "description": "The input object sent when someone is creating a new review",
         "fields": [],
         "inputFields": [
           {
@@ -947,7 +958,7 @@
       {
         "kind": "INPUT_OBJECT",
         "name": "ColorInput",
-        "description": "ColorInput",
+        "description": "The input object sent when passing in a color",
         "fields": [],
         "inputFields": [
           {
@@ -1086,7 +1097,7 @@
       {
         "kind": "SCALAR",
         "name": "Int",
-        "description": "",
+        "description": "The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.",
         "fields": [],
         "inputFields": [],
         "interfaces": [],
@@ -1096,7 +1107,7 @@
       {
         "kind": "SCALAR",
         "name": "Float",
-        "description": "",
+        "description": "The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](http://en.wikipedia.org/wiki/IEEE_floating_point).",
         "fields": [],
         "inputFields": [],
         "interfaces": [],
@@ -1106,7 +1117,7 @@
       {
         "kind": "SCALAR",
         "name": "String",
-        "description": "",
+        "description": "The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.",
         "fields": [],
         "inputFields": [],
         "interfaces": [],
@@ -1116,7 +1127,7 @@
       {
         "kind": "SCALAR",
         "name": "Boolean",
-        "description": "",
+        "description": "The `Boolean` scalar type represents `true` or `false` .",
         "fields": [],
         "inputFields": [],
         "interfaces": [],
@@ -1126,7 +1137,7 @@
       {
         "kind": "SCALAR",
         "name": "ID",
-        "description": "",
+        "description": "The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `4`) or integer (such as 4) input value will be accepted as an ID.",
         "fields": [],
         "inputFields": [],
         "interfaces": [],

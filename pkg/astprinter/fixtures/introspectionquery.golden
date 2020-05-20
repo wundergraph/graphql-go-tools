@@ -174,7 +174,7 @@ extend type Foo @foo {
 }
 
 input Foo {
-    field: String 
+    field: String
     field2: Boolean = true
 }
 

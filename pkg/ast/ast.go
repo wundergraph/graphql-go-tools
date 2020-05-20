@@ -174,6 +174,18 @@ func (d *Document) NextRefIndex() int {
 	return d.RefIndex
 }
 
+func (d *Document) AddRootNode(node Node) {
+	d.RootNodes = append(d.RootNodes, node)
+	d.Index.Add(d.NodeNameString(node), node)
+}
+
+func (d *Document) ImportRootNode(ref int, kind NodeKind) {
+	d.AddRootNode(Node{
+		Kind: kind,
+		Ref:  ref,
+	})
+}
+
 func (d *Document) DeleteRootNodes(nodes []Node) {
 	for i := range nodes {
 		d.DeleteRootNode(nodes[i])
@@ -221,21 +233,13 @@ func (d *Document) NodeByName(name ByteSlice) (Node, bool) {
 	return node, exists
 }
 
-func (d *Document) HasSchemaDefinition() bool {
-	for i := range d.RootNodes {
-		if d.RootNodes[i].Kind == NodeKindSchemaDefinition {
-			return true
-		}
+func (d *Document) TypeDefinitionContainsImplementsInterface(typeName, interfaceName ByteSlice) bool {
+	typeDefinition, exists := d.Index.Nodes[xxhash.Sum64(typeName)]
+	if !exists {
+		return false
 	}
-
-	return false
-}
-
-func (d *Document) AddSchemaDefinitionRootNode(schemaDefinition SchemaDefinition) {
-	ref := d.AddSchemaDefinition(schemaDefinition)
-	schemaNode := Node{
-		Kind: NodeKindSchemaDefinition,
-		Ref:  ref,
+	if typeDefinition.Kind != NodeKindObjectTypeDefinition {
+		return false
 	}
-	d.RootNodes = append([]Node{schemaNode}, d.RootNodes...)
+	return d.ObjectTypeDefinitionImplementsInterface(typeDefinition.Ref, interfaceName)
 }

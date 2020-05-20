@@ -4,7 +4,7 @@ import "github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
 
 type ListValue struct {
 	LBRACK position.Position // [
-	Refs   []int             // Path
+	Refs   []int             // Value
 	RBRACK position.Position // ]
 }
 
@@ -21,4 +21,15 @@ func (d *Document) ListValuesAreEqual(left, right int) bool {
 		}
 	}
 	return true
+}
+
+func (d *Document) AddListValue(value ListValue) (ref int) {
+	d.ListValues = append(d.ListValues, value)
+	return len(d.ListValues) - 1
+}
+
+func (d *Document) ImportListValue(valueRefs []int) (ref int) {
+	return d.AddListValue(ListValue{
+		Refs: valueRefs,
+	})
 }

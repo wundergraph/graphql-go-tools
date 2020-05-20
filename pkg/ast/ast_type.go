@@ -73,6 +73,11 @@ func (d *Document) PrintTypeBytes(ref int, buf []byte) ([]byte, error) {
 	return b.Bytes(), err
 }
 
+func (d *Document) AddType(t Type) (ref int) {
+	d.Types = append(d.Types, t)
+	return len(d.Types) - 1
+}
+
 func (d *Document) AddNamedType(name []byte) (ref int) {
 	nameRef := d.Input.AppendInputBytes(name)
 	d.Types = append(d.Types, Type{

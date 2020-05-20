@@ -38,3 +38,24 @@ func (d *Document) InterfaceTypeDefinitionDescriptionBytes(ref int) ByteSlice {
 func (d *Document) InterfaceTypeDefinitionDescriptionString(ref int) string {
 	return unsafebytes.BytesToString(d.InterfaceTypeDefinitionDescriptionBytes(ref))
 }
+
+func (d *Document) AddInterfaceTypeDefinition(definition InterfaceTypeDefinition) (ref int) {
+	d.InterfaceTypeDefinitions = append(d.InterfaceTypeDefinitions, definition)
+	return len(d.InterfaceTypeDefinitions) - 1
+}
+
+func (d *Document) ImportInterfaceTypeDefinition(name, description string, fieldRefs []int) (ref int) {
+	definition := InterfaceTypeDefinition{
+		Name:        d.Input.AppendInputString(name),
+		Description: d.ImportDescription(description),
+		FieldsDefinition: FieldDefinitionList{
+			Refs: fieldRefs,
+		},
+		HasFieldDefinitions: len(fieldRefs) > 0,
+	}
+
+	ref = d.AddInterfaceTypeDefinition(definition)
+	d.ImportRootNode(ref, NodeKindInterfaceTypeDefinition)
+
+	return
+}
