@@ -35,7 +35,7 @@ func (d *Document) InputObjectTypeDefinitionDescriptionBytes(ref int) ByteSlice 
 }
 
 func (d *Document) InputObjectTypeDefinitionDescriptionString(ref int) string {
-	return unsafebytes.BytesToString(d.InputObjectTypeDefinitionNameBytes(ref))
+	return unsafebytes.BytesToString(d.InputObjectTypeDefinitionDescriptionBytes(ref))
 }
 
 func (d *Document) InputObjectTypeDefinitionInputValueDefinitionDefaultValueString(inputObjectTypeDefinitionName, inputValueDefinitionName string) string {
@@ -89,4 +89,25 @@ func (d *Document) InputObjectTypeDefinitionInputValueDefinitionByName(definitio
 		}
 	}
 	return -1
+}
+
+func (d *Document) AddInputObjectTypeDefinition(definition InputObjectTypeDefinition) (ref int) {
+	d.InputObjectTypeDefinitions = append(d.InputObjectTypeDefinitions, definition)
+	return len(d.InputObjectTypeDefinitions) - 1
+}
+
+func (d *Document) ImportInputObjectTypeDefinition(name, description string, argsRefs []int) (ref int) {
+	definition := InputObjectTypeDefinition{
+		Description:              d.ImportDescription(description),
+		Name:                     d.Input.AppendInputString(name),
+		HasInputFieldsDefinition: len(argsRefs) > 0,
+		InputFieldsDefinition: InputValueDefinitionList{
+			Refs: argsRefs,
+		},
+	}
+
+	ref = d.AddInputObjectTypeDefinition(definition)
+	d.ImportRootNode(ref, NodeKindInputObjectTypeDefinition)
+
+	return
 }

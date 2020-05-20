@@ -67,3 +67,24 @@ func (d *Document) UnionMemberTypeIsLast(ref int, ancestor Node) bool {
 func (d *Document) UnionTypeDefinitionHasDirectives(ref int) bool {
 	return d.UnionTypeDefinitions[ref].HasDirectives
 }
+
+func (d *Document) AddUnionTypeDefinition(definition UnionTypeDefinition) (ref int) {
+	d.UnionTypeDefinitions = append(d.UnionTypeDefinitions, definition)
+	return len(d.UnionTypeDefinitions) - 1
+}
+
+func (d *Document) ImportUnionTypeDefinition(name, description string, typeRefs []int) (ref int) {
+	definition := UnionTypeDefinition{
+		Name:                d.Input.AppendInputString(name),
+		Description:         d.ImportDescription(description),
+		HasUnionMemberTypes: len(typeRefs) > 0,
+		UnionMemberTypes: TypeList{
+			Refs: typeRefs,
+		},
+	}
+
+	ref = d.AddUnionTypeDefinition(definition)
+	d.ImportRootNode(ref, NodeKindUnionTypeDefinition)
+
+	return
+}

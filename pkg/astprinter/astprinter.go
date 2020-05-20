@@ -491,7 +491,16 @@ func (p *printVisitor) LeaveInputValueDefinition(ref int) {
 		}
 		p.write(p.inputValueDefinitionCloser)
 	} else {
-		p.write(literal.SPACE)
+		if len(p.Ancestors) > 0 {
+			// check enclosing type kind
+			if p.Ancestors[len(p.Ancestors)-1].Kind == ast.NodeKindFieldDefinition {
+				p.write(literal.COMMA)
+				p.write(literal.SPACE)
+			} else if len(p.indent) == 0 {
+				// add space between arguments when printing without indents
+				p.write(literal.SPACE)
+			}
+		}
 	}
 }
 
