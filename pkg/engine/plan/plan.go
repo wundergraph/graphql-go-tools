@@ -70,10 +70,10 @@ type DataSourceConfiguration struct {
 }
 
 type FieldMapping struct {
-	TypeName                 string
-	FieldName                string
-	DisableDefaultMapping    bool
-	Path                     []string
+	TypeName              string
+	FieldName             string
+	DisableDefaultMapping bool
+	Path                  []string
 }
 
 type DataSourceAttribute struct {
@@ -330,9 +330,13 @@ func (v *Visitor) EnterArgument(ref int) {
 	switch value.Kind {
 	case ast.ValueKindVariable:
 		arg.kind = fieldArgumentTypeVariable
-		copy(arg.value, v.Operation.VariableValueNameBytes(value.Ref))
+		value := v.Operation.VariableValueNameBytes(value.Ref)
+		arg.value = make([]byte, len(value))
+		copy(arg.value, value)
 	case ast.ValueKindString:
-		copy(arg.value, v.Operation.StringValueContentBytes(value.Ref))
+		value := v.Operation.StringValueContentBytes(value.Ref)
+		arg.value = make([]byte, len(value))
+		copy(arg.value, value)
 	case ast.ValueKindBoolean:
 		switch v.Operation.BooleanValues[value.Ref] {
 		case true:
@@ -343,13 +347,19 @@ func (v *Visitor) EnterArgument(ref int) {
 			return
 		}
 	case ast.ValueKindFloat:
-		copy(arg.value, v.Operation.FloatValueRaw(value.Ref))
+		value := v.Operation.FloatValueRaw(value.Ref)
+		arg.value = make([]byte, len(value))
+		copy(arg.value, value)
 	case ast.ValueKindInteger:
-		copy(arg.value, v.Operation.IntValueRaw(value.Ref))
+		value := v.Operation.IntValueRaw(value.Ref)
+		arg.value = make([]byte, len(value))
+		copy(arg.value, value)
 	case ast.ValueKindEnum:
-		copy(arg.value, v.Operation.EnumValueNameBytes(value.Ref))
+		value := v.Operation.EnumValueNameBytes(value.Ref)
+		arg.value = make([]byte, len(value))
+		copy(arg.value, value)
 	case ast.ValueKindNull:
-		copy(arg.value, literal.NULL)
+		arg.value = literal.NULL
 	default:
 		return
 	}
@@ -471,7 +481,9 @@ func (v *Visitor) EnterField(ref int) {
 		}
 
 		if v.Operation.FieldAliasIsDefined(ref) {
-			copy(fieldName, v.Operation.FieldAliasBytes(ref))
+			alias := v.Operation.FieldAliasBytes(ref)
+			fieldName = make([]byte, len(alias))
+			copy(fieldName, alias)
 		}
 
 		*v.currentFields = append(*v.currentFields, resolve.Field{
