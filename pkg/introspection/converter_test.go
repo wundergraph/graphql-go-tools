@@ -64,18 +64,13 @@ func TestJSONConverter_GraphQLDocument(t *testing.T) {
 }
 
 func BenchmarkJsonConverter_GraphQLDocument(b *testing.B) {
-	// with ranges
-	// BenchmarkJsonConverter_GraphQLDocument-8   	    1710	    670858 ns/op
-	// with loops
-	// BenchmarkJsonConverter_GraphQLDocument-8   	    1723	    671331 ns/op
-
-	starwarsIntrospectedBytes, err := ioutil.ReadFile("./fixtures/starwars_introspected.golden")
+	introspectedBytes, err := ioutil.ReadFile("./testdata/swapi_introspection_response.json")
 	require.NoError(b, err)
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
+		buf := bytes.NewBuffer(introspectedBytes)
 		converter := JsonConverter{}
-		buf := bytes.NewBuffer(starwarsIntrospectedBytes)
 		_, _ = converter.GraphQLDocument(buf)
 	}
 }
