@@ -737,6 +737,195 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			},
 		}, Context{Context: context.Background()}, `{"data":{"stringObject":null,"integerObject":null,"floatObject":null,"booleanObject":null,"objectObject":null,"arrayObject":null,"asynchronousArrayObject":null,"nullableArray":null}}`
 	}))
+	t.Run("complex GraphQL Server plan",testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		return &GraphQLResponse{
+			Data: &Object{
+				Fetch: &ParallelFetch{
+					Fetches: []Fetch{
+						&SingleFetch{
+							BufferId: 0,
+							Input:    []byte(`{"url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":$$0$$}}}`),
+							DataSource: FakeDataSource(`{"data":{"serviceOne":{"fieldOne":"fieldOneValue"},"anotherServiceOne":{"fieldOne":"anotherFieldOneValue"},"reusingServiceOne":{"fieldOne":"anotherFieldOneValue"}}}`),
+							Variables: NewVariables(
+								&ContextVariable{
+									Path: []string{"firstArg"},
+								},
+								&ContextVariable{
+									Path: []string{"thirdArg"},
+								},
+							),
+						},
+						&SingleFetch{
+							BufferId: 1,
+							Input:    []byte(`{"url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`),
+							DataSource: FakeDataSource(``),
+							Variables: NewVariables(
+								&ContextVariable{
+									Path: []string{"secondArg"},
+								},
+								&ContextVariable{
+									Path: []string{"fourthArg"},
+								},
+							),
+						},
+					},
+				},
+				FieldSets: []FieldSet{
+					{
+						BufferID:  0,
+						HasBuffer: true,
+						Fields: []Field{
+							{
+								Name: []byte("serviceOne"),
+								Value: &Object{
+									Path: []string{"serviceOne"},
+									FieldSets: []FieldSet{
+										{
+											Fields: []Field{
+												{
+													Name: []byte("fieldOne"),
+													Value: &String{
+														Path: []string{"fieldOne"},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						BufferID:  1,
+						HasBuffer: true,
+						Fields: []Field{
+							{
+								Name: []byte("serviceTwo"),
+								Value: &Object{
+									Path: []string{"serviceTwo"},
+									Fetch: &SingleFetch{
+										BufferId:   2,
+										DataSource: FakeDataSource(``),
+										Input:      []byte(`{"url":"https://service.one","body":{"query":"{serviceOne {fieldOne}}"}}`),
+										Variables:  Variables{},
+									},
+									FieldSets: []FieldSet{
+										{
+											Fields: []Field{
+												{
+													Name: []byte("fieldTwo"),
+													Value: &String{
+														Path: []string{"fieldTwo"},
+													},
+												},
+											},
+										},
+										{
+											BufferID: 2,
+											HasBuffer: true,
+											Fields: []Field{
+												{
+													Name: []byte("serviceOneResponse"),
+													Value: &Object{
+
+														Path: []string{"serviceOne"},
+														FieldSets: []FieldSet{
+															{
+																Fields: []Field{
+																	{
+																		Name: []byte("fieldOne"),
+																		Value: &String{
+																			Path: []string{"fieldOne"},
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						BufferID:  0,
+						HasBuffer: true,
+						Fields: []Field{
+							{
+								Name: []byte("anotherServiceOne"),
+								Value: &Object{
+									Path: []string{"anotherServiceOne"},
+									FieldSets: []FieldSet{
+										{
+											Fields: []Field{
+												{
+													Name: []byte("fieldOne"),
+													Value: &String{
+														Path: []string{"fieldOne"},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						BufferID:  1,
+						HasBuffer: true,
+						Fields: []Field{
+							{
+								Name: []byte("secondServiceTwo"),
+								Value: &Object{
+									Path: []string{"secondServiceTwo"},
+									FieldSets: []FieldSet{
+										{
+											Fields: []Field{
+												{
+													Name: []byte("fieldTwo"),
+													Value: &String{
+														Path: []string{"fieldTwo"},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						BufferID:  0,
+						HasBuffer: true,
+						Fields: []Field{
+							{
+								Name: []byte("reusingServiceOne"),
+								Value: &Object{
+									Path: []string{"reusingServiceOne"},
+									FieldSets: []FieldSet{
+										{
+											Fields: []Field{
+												{
+													Name: []byte("fieldOne"),
+													Value: &String{
+														Path: []string{"fieldOne"},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},Context{Context:   context.Background(), Variables: []byte(`{"firstArg":"firstArgValue"}`)},``
+	}))
 }
 
 func BenchmarkResolver_ResolveNode(b *testing.B) {

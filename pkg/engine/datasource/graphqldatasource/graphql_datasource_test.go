@@ -278,6 +278,16 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 									Name: []byte("serviceTwo"),
 									Value: &resolve.Object{
 										Path: []string{"serviceTwo"},
+										Fetch: &resolve.SingleFetch{
+											BufferId:   2,
+											DataSource: &Source{
+												Client: http.Client{
+													Timeout: time.Second * 10,
+												},
+											},
+											Input:      []byte(`{"url":"https://service.one","body":{"query":"{serviceOne {fieldOne}}"}}`),
+											Variables:  resolve.Variables{},
+										},
 										FieldSets: []resolve.FieldSet{
 											{
 												Fields: []resolve.Field{
@@ -287,9 +297,16 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 															Path: []string{"fieldTwo"},
 														},
 													},
+												},
+											},
+											{
+												BufferID: 2,
+												HasBuffer: true,
+												Fields: []resolve.Field{
 													{
 														Name: []byte("serviceOneResponse"),
 														Value: &resolve.Object{
+
 															Path: []string{"serviceOne"},
 															FieldSets: []resolve.FieldSet{
 																{
