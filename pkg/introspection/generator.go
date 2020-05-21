@@ -466,7 +466,7 @@ func (i *introspectionVisitor) deprecationReason(directiveRef int) (reason *stri
 	argValue, exists := i.definition.DirectiveArgumentValueByName(directiveRef, []byte(DeprecationReasonArgName))
 	if exists {
 		reasonContent := i.definition.ValueContentString(argValue)
-		reason = &reasonContent
+		return &reasonContent
 	}
 
 	defaultValue := i.definition.DirectiveDefinitionArgumentDefaultValueString(DeprecatedDirectiveName, DeprecationReasonArgName)

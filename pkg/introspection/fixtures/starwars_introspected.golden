@@ -174,8 +174,8 @@
               "name": "Human",
               "ofType": null
             },
-            "isDeprecated": false,
-            "deprecationReason": null
+            "isDeprecated": true,
+            "deprecationReason": "skynet wins!"
           },
           {
             "name": "starship",
@@ -1134,8 +1134,20 @@
                 "ofType": null
               }
             },
+            "isDeprecated": false,
+            "deprecationReason": null
+          },
+          {
+            "name": "oldName",
+            "description": "The old name of starship",
+            "args": [],
+            "type": {
+              "kind": "SCALAR",
+              "name": "String",
+              "ofType": null
+            },
             "isDeprecated": true,
-            "deprecationReason": "No longer supported"
+            "deprecationReason": "why not?"
           },
           {
             "name": "length",
@@ -1169,7 +1181,7 @@
       {
         "kind": "UNION",
         "name": "SearchResult",
-        "description": "",
+        "description": "The union represents combined return result which could be on of the types: Human, Droid, Starship",
         "fields": [],
         "inputFields": [],
         "interfaces": [],
