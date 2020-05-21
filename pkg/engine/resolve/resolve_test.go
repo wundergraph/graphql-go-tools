@@ -745,8 +745,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
 				actual := string(input)
 				expected := `{"url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":123,"firstArg":"firstArgValue"}}}`
-				assert.Equal(t,expected,actual)
-				_,err = pair.Data.WriteString(`{"serviceOne":{"fieldOne":"fieldOneValue"},"anotherServiceOne":{"fieldOne":"anotherFieldOneValue"},"reusingServiceOne":{"fieldOne":"reUsingFieldOneValue"}}`)
+				assert.Equal(t, expected, actual)
+				_, err = pair.Data.WriteString(`{"serviceOne":{"fieldOne":"fieldOneValue"},"anotherServiceOne":{"fieldOne":"anotherFieldOneValue"},"reusingServiceOne":{"fieldOne":"reUsingFieldOneValue"}}`)
 				return
 			}).
 			Return(nil)
@@ -757,8 +757,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
 				actual := string(input)
 				expected := `{"url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo}}","variables":{"fourthArg":12.34,"secondArg":true}}}`
-				assert.Equal(t,expected,actual)
-				_,err = pair.Data.WriteString(`{"serviceTwo":{"fieldTwo":"fieldTwoValue"},"secondServiceTwo":{"fieldTwo":"secondFieldTwoValue"}}`)
+				assert.Equal(t, expected, actual)
+				_, err = pair.Data.WriteString(`{"serviceTwo":{"fieldTwo":"fieldTwoValue"},"secondServiceTwo":{"fieldTwo":"secondFieldTwoValue"}}`)
 				return
 			}).
 			Return(nil)
@@ -769,8 +769,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
 				actual := string(input)
 				expected := `{"url":"https://service.one","body":{"query":"{serviceOne {fieldOne}}"}}`
-				assert.Equal(t,expected,actual)
-				_,err = pair.Data.WriteString(`{"serviceOne":{"fieldOne":"fieldOneValue"}}`)
+				assert.Equal(t, expected, actual)
+				_, err = pair.Data.WriteString(`{"serviceOne":{"fieldOne":"fieldOneValue"}}`)
 				return
 			}).
 			Return(nil)
@@ -966,14 +966,40 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 
 func BenchmarkResolver_ResolveNode(b *testing.B) {
 	resolver := New()
-	ctx := Context{
-		Context: context.Background(),
-	}
+
+	ctx := Context{Context: context.Background(), Variables: []byte(`{"firstArg":"firstArgValue","thirdArg":123,"secondArg": true, "fourthArg": 12.34}`)}
+
 	plan := &GraphQLResponse{
 		Data: &Object{
-			Fetch: &SingleFetch{
-				BufferId:   0,
-				DataSource: FakeDataSource(`{"friends":[{"id":1,"name":"Alex"},{"id":2,"name":"Patric"}]}`),
+			Fetch: &ParallelFetch{
+				Fetches: []*SingleFetch{
+					{
+						BufferId:   0,
+						Input:      []byte(`{"url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":$$0$$}}}`),
+						DataSource: FakeDataSource(`{"serviceOne":{"fieldOne":"fieldOneValue"},"anotherServiceOne":{"fieldOne":"anotherFieldOneValue"},"reusingServiceOne":{"fieldOne":"reUsingFieldOneValue"}}`),
+						Variables: NewVariables(
+							&ContextVariable{
+								Path: []string{"firstArg"},
+							},
+							&ContextVariable{
+								Path: []string{"thirdArg"},
+							},
+						),
+					},
+					{
+						BufferId:   1,
+						Input:      []byte(`{"url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`),
+						DataSource: FakeDataSource(`{"serviceTwo":{"fieldTwo":"fieldTwoValue"},"secondServiceTwo":{"fieldTwo":"secondFieldTwoValue"}}`),
+						Variables: NewVariables(
+							&ContextVariable{
+								Path: []string{"secondArg"},
+							},
+							&ContextVariable{
+								Path: []string{"fourthArg"},
+							},
+						),
+					},
+				},
 			},
 			FieldSets: []FieldSet{
 				{
@@ -981,25 +1007,69 @@ func BenchmarkResolver_ResolveNode(b *testing.B) {
 					HasBuffer: true,
 					Fields: []Field{
 						{
-							Name: []byte("synchronousFriends"),
-							Value: &Array{
-								Path:                []string{"friends"},
-								ResolveAsynchronous: false,
-								nullable:            true,
-								Item: &Object{
-									FieldSets: []FieldSet{
-										{
-											Fields: []Field{
-												{
-													Name: []byte("id"),
-													Value: &Integer{
-														Path: []string{"id"},
-													},
+							Name: []byte("serviceOne"),
+							Value: &Object{
+								Path: []string{"serviceOne"},
+								FieldSets: []FieldSet{
+									{
+										Fields: []Field{
+											{
+												Name: []byte("fieldOne"),
+												Value: &String{
+													Path: []string{"fieldOne"},
 												},
-												{
-													Name: []byte("name"),
-													Value: &String{
-														Path: []string{"name"},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					BufferID:  1,
+					HasBuffer: true,
+					Fields: []Field{
+						{
+							Name: []byte("serviceTwo"),
+							Value: &Object{
+								Path: []string{"serviceTwo"},
+								Fetch: &SingleFetch{
+									BufferId:   2,
+									Input:      []byte(`{"url":"https://service.one","body":{"query":"{serviceOne {fieldOne}}"}}`),
+									DataSource: FakeDataSource(`{"serviceOne":{"fieldOne":"fieldOneValue"}}`),
+									Variables:  Variables{},
+								},
+								FieldSets: []FieldSet{
+									{
+										Fields: []Field{
+											{
+												Name: []byte("fieldTwo"),
+												Value: &String{
+													Path: []string{"fieldTwo"},
+												},
+											},
+										},
+									},
+									{
+										BufferID:  2,
+										HasBuffer: true,
+										Fields: []Field{
+											{
+												Name: []byte("serviceOneResponse"),
+												Value: &Object{
+													Path: []string{"serviceOne"},
+													FieldSets: []FieldSet{
+														{
+															Fields: []Field{
+																{
+																	Name: []byte("fieldOne"),
+																	Value: &String{
+																		Path: []string{"fieldOne"},
+																	},
+																},
+															},
+														},
 													},
 												},
 											},
@@ -1008,27 +1078,23 @@ func BenchmarkResolver_ResolveNode(b *testing.B) {
 								},
 							},
 						},
+					},
+				},
+				{
+					BufferID:  0,
+					HasBuffer: true,
+					Fields: []Field{
 						{
-							Name: []byte("asynchronousFriends"),
-							Value: &Array{
-								Path:                []string{"friends"},
-								ResolveAsynchronous: true,
-								nullable:            true,
-								Item: &Object{
-									FieldSets: []FieldSet{
-										{
-											Fields: []Field{
-												{
-													Name: []byte("id"),
-													Value: &Integer{
-														Path: []string{"id"},
-													},
-												},
-												{
-													Name: []byte("name"),
-													Value: &String{
-														Path: []string{"name"},
-													},
+							Name: []byte("anotherServiceOne"),
+							Value: &Object{
+								Path: []string{"anotherServiceOne"},
+								FieldSets: []FieldSet{
+									{
+										Fields: []Field{
+											{
+												Name: []byte("fieldOne"),
+												Value: &String{
+													Path: []string{"fieldOne"},
 												},
 											},
 										},
@@ -1036,34 +1102,47 @@ func BenchmarkResolver_ResolveNode(b *testing.B) {
 								},
 							},
 						},
+					},
+				},
+				{
+					BufferID:  1,
+					HasBuffer: true,
+					Fields: []Field{
 						{
-							Name: []byte("nullableFriends"),
-							Value: &Array{
-								Path:     []string{"nonExistingField"},
-								nullable: true,
-								Item:     &Object{},
+							Name: []byte("secondServiceTwo"),
+							Value: &Object{
+								Path: []string{"secondServiceTwo"},
+								FieldSets: []FieldSet{
+									{
+										Fields: []Field{
+											{
+												Name: []byte("fieldTwo"),
+												Value: &String{
+													Path: []string{"fieldTwo"},
+												},
+											},
+										},
+									},
+								},
 							},
 						},
+					},
+				},
+				{
+					BufferID:  0,
+					HasBuffer: true,
+					Fields: []Field{
 						{
-							Name: []byte("nonNullableFriends"),
-							Value: &Array{
-								Path:     []string{"nonExistingField"},
-								nullable: true,
-								Item: &Object{
-									FieldSets: []FieldSet{
-										{
-											Fields: []Field{
-												{
-													Name: []byte("id"),
-													Value: &Integer{
-														Path: []string{"id"},
-													},
-												},
-												{
-													Name: []byte("name"),
-													Value: &String{
-														Path: []string{"name"},
-													},
+							Name: []byte("reusingServiceOne"),
+							Value: &Object{
+								Path: []string{"reusingServiceOne"},
+								FieldSets: []FieldSet{
+									{
+										Fields: []Field{
+											{
+												Name: []byte("fieldOne"),
+												Value: &String{
+													Path: []string{"fieldOne"},
 												},
 											},
 										},
@@ -1077,17 +1156,20 @@ func BenchmarkResolver_ResolveNode(b *testing.B) {
 		},
 	}
 
-	var err error
+	//var err error
+	expected := `{"data":{"serviceOne":{"fieldOne":"fieldOneValue"},"serviceTwo":{"fieldTwo":"fieldTwoValue","serviceOneResponse":{"fieldOne":"fieldOneValue"}},"anotherServiceOne":{"fieldOne":"anotherFieldOneValue"},"secondServiceTwo":{"fieldTwo":"secondFieldTwoValue"},"reusingServiceOne":{"fieldOne":"reUsingFieldOneValue"}}}`
 
-	b.ResetTimer()
 	b.ReportAllocs()
+	b.SetBytes(int64(len(expected)))
+	b.ResetTimer()
 
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			err = resolver.ResolveGraphQLResponse(ctx, plan, nil, ioutil.Discard)
-			if err != nil {
-				b.Fatal(err)
-			}
+			_ = resolver.ResolveGraphQLResponse(ctx, plan, nil, ioutil.Discard)
+			/*buf := bytes.Buffer{}
+			err = resolver.ResolveGraphQLResponse(ctx, plan, nil, &buf)
+			assert.NoError(b,err)
+			assert.Equal(b,expected,buf.String())*/
 		}
 	})
 }

@@ -570,36 +570,48 @@ func (r *Resolver) resolveSingleFetch(ctx Context, fetch *SingleFetch, buf *BufP
 func (r *Resolver) resolveVariables(ctx Context, variables []Variable, data, input []byte) []byte {
 	for i := range variables {
 		variableName := []byte("$$" + strconv.Itoa(i) + "$$")
+		var value []byte
 		switch v := variables[i].(type) {
 		case *ContextVariable:
-			value := r.resolveContextVariable(ctx, v)
-			input = bytes.ReplaceAll(input, variableName, value)
+			value = r.resolveContextVariable(ctx, v)
 		case *ObjectVariable:
-			value := r.resolveObjectVariable(data, v)
-			input = bytes.ReplaceAll(input, variableName, value)
+			value = r.resolveObjectVariable(data, v)
+		default:
+			continue
+		}
+		for {
+			j := bytes.Index(input, variableName)
+			if j == -1 {
+				break
+			}
+			before := input[:j]
+			after := input[j+len(variableName):]
+			valueCopy := make([]byte,len(value))
+			copy(valueCopy,value)
+			input = append(before, append(valueCopy, after...)...)
 		}
 	}
 	return input
 }
 
 func (r *Resolver) resolveObjectVariable(data []byte, variable *ObjectVariable) []byte {
-	value, dataType, _, err := jsonparser.Get(data, variable.Path...)
+	value, dataType, offset, err := jsonparser.Get(data, variable.Path...)
 	if err != nil {
 		return null
 	}
 	if dataType == jsonparser.String {
-		value = append([]byte{'"'}, append(value, []byte{'"'}...)...)
+		value = data[offset-len(value)-2 : offset]
 	}
 	return value
 }
 
 func (r *Resolver) resolveContextVariable(ctx Context, variable *ContextVariable) []byte {
-	value, dataType, _, err := jsonparser.Get(ctx.Variables, variable.Path...)
+	value, dataType, offset, err := jsonparser.Get(ctx.Variables, variable.Path...)
 	if err != nil {
 		return null
 	}
 	if dataType == jsonparser.String {
-		value = append([]byte{'"'}, append(value, []byte{'"'}...)...)
+		value = ctx.Variables[offset-len(value)-2 : offset]
 	}
 	return value
 }
