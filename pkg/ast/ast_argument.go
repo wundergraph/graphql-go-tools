@@ -133,6 +133,15 @@ func (d *Document) AddArgument(argument Argument) (ref int) {
 	return len(d.Arguments) - 1
 }
 
+func (d *Document) ImportArgument(name string, value Value) (ref int) {
+	arg := Argument{
+		Name:  d.Input.AppendInputString(name),
+		Value: value,
+	}
+
+	return d.AddArgument(arg)
+}
+
 func (d *Document) ImportVariableValueArgument(argName, variableName ByteSlice) (variableValueRef, argRef int) {
 	variableValueRef = d.ImportVariableValue(variableName)
 

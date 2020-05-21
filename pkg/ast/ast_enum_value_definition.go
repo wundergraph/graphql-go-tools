@@ -90,10 +90,14 @@ func (d *Document) AddEnumValueDefinition(inputValueDefinition EnumValueDefiniti
 	return len(d.EnumValueDefinitions) - 1
 }
 
-func (d *Document) ImportEnumValueDefinition(value, description string) (ref int) {
+func (d *Document) ImportEnumValueDefinition(value, description string, directiveRefs []int) (ref int) {
 	inputValueDef := EnumValueDefinition{
-		Description: d.ImportDescription(description),
-		EnumValue:   d.Input.AppendInputString(value),
+		Description:   d.ImportDescription(description),
+		EnumValue:     d.Input.AppendInputString(value),
+		HasDirectives: len(directiveRefs) > 0,
+		Directives: DirectiveList{
+			Refs: directiveRefs,
+		},
 	}
 
 	return d.AddEnumValueDefinition(inputValueDef)
