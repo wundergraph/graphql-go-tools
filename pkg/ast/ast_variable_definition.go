@@ -38,6 +38,19 @@ func (d *Document) VariableDefinitionByName(name ByteSlice) (definition int, exi
 	return -1, false
 }
 
+func (d *Document) VariableDefinitionByNameAndOperation(operationDefinition int, name ByteSlice) (definition int, exists bool) {
+	if !d.OperationDefinitions[operationDefinition].HasVariableDefinitions {
+		return -1, false
+	}
+	for _, i := range d.OperationDefinitions[operationDefinition].VariableDefinitions.Refs {
+		definitionName := d.VariableValueNameBytes(d.VariableDefinitions[i].VariableValue.Ref)
+		if bytes.Equal(name, definitionName) {
+			return i, true
+		}
+	}
+	return -1, false
+}
+
 func (d *Document) VariableDefinitionsBefore(variableDefinition int) bool {
 	return variableDefinition != 0
 }
