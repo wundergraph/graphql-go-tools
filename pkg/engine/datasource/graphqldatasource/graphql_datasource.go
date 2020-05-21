@@ -4,13 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"time"
 
 	"github.com/buger/jsonparser"
+	"github.com/cespare/xxhash"
 	"github.com/tidwall/sjson"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
@@ -185,7 +185,38 @@ func (p *Planner) applyFieldArgument(upstreamField, downstreamField int, arg Arg
 			}
 		}
 	case ObjectField:
-		fmt.Println("objectField")
+		if len(arg.SourcePath) < 1 {
+			return
+		}
+
+		enclosingTypeName := p.v.EnclosingTypeDefinition.Name(p.v.Definition)
+		fieldName := p.v.Operation.FieldNameString(downstreamField)
+
+		for i := range p.v.FieldMappings {
+			if p.v.FieldMappings[i].TypeName == enclosingTypeName &&
+				p.v.FieldMappings[i].FieldName == fieldName &&
+				len(p.v.FieldMappings[i].Path) == 1 {
+				fieldName = p.v.FieldMappings[i].Path[0]
+			}
+		}
+
+		queryTypeDefinition := p.v.Definition.Index.Nodes[xxhash.Sum64(p.v.Definition.Index.QueryTypeName)]
+		argumentDefinition := p.v.Definition.NodeFieldDefinitionArgumentDefinitionByName(queryTypeDefinition, []byte(fieldName), arg.Name)
+		if argumentDefinition == -1 {
+			return
+		}
+
+		argumentType := p.v.Definition.InputValueDefinitionType(argumentDefinition)
+		variableName := p.operation.GenerateUnusedVariableDefinitionName(p.nodes[0].Ref)
+		variableValue, argument := p.operation.AddVariableValueArgument(arg.Name, variableName)
+		p.operation.AddArgumentToField(upstreamField, argument)
+		importedType := p.v.Importer.ImportType(argumentType, p.v.Definition, p.operation)
+		p.operation.AddVariableDefinitionToOperationDefinition(p.nodes[0].Ref, variableValue, importedType)
+
+		objectVariableName, exists := p.fetch.Variables.AddVariable(&resolve.ObjectVariable{Path: arg.SourcePath})
+		if !exists {
+			p.variables, _ = sjson.SetRawBytes(p.variables, string(variableName), objectVariableName)
+		}
 	}
 }
 

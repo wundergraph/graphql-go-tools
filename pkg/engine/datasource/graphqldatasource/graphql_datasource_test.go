@@ -284,8 +284,12 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 													Timeout: time.Second * 10,
 												},
 											},
-											Input:      []byte(`{"url":"https://service.one","body":{"query":"{serviceOne {fieldOne}}"}}`),
-											Variables:  resolve.Variables{},
+											Input:      []byte(`{"url":"https://service.one","body":{"query":"query($a: String){serviceOne(serviceOneArg: $a){fieldOne}}","variables":{"a":$$0$$}}}`),
+											Variables:  resolve.NewVariables(
+												&resolve.ObjectVariable{
+													Path: []string{"serviceOneField"},
+												},
+											),
 										},
 										FieldSets: []resolve.FieldSet{
 											{
