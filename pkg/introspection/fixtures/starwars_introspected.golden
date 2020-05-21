@@ -304,7 +304,7 @@
             "name": "NEWHOPE",
             "description": "Star Wars Episode IV: A New Hope, released in 1977.",
             "isDeprecated": true,
-            "deprecationReason": null
+            "deprecationReason": "No longer supported"
           },
           {
             "name": "EMPIRE",
@@ -1135,7 +1135,7 @@
               }
             },
             "isDeprecated": true,
-            "deprecationReason": "why not?"
+            "deprecationReason": "No longer supported"
           },
           {
             "name": "length",
