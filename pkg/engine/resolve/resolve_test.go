@@ -737,15 +737,15 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			},
 		}, Context{Context: context.Background()}, `{"data":{"stringObject":null,"integerObject":null,"floatObject":null,"booleanObject":null,"objectObject":null,"arrayObject":null,"asynchronousArrayObject":null,"nullableArray":null}}`
 	}))
-	t.Run("complex GraphQL Server plan",testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("complex GraphQL Server plan", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Data: &Object{
 				Fetch: &ParallelFetch{
-					Fetches: []Fetch{
-						&SingleFetch{
-							BufferId: 0,
-							Input:    []byte(`{"url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":$$0$$}}}`),
-							DataSource: FakeDataSource(`{"data":{"serviceOne":{"fieldOne":"fieldOneValue"},"anotherServiceOne":{"fieldOne":"anotherFieldOneValue"},"reusingServiceOne":{"fieldOne":"anotherFieldOneValue"}}}`),
+					Fetches: []*SingleFetch{
+						{
+							BufferId:   0,
+							Input:      []byte(`{"url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":$$0$$}}}`),
+							DataSource: FakeDataSource(`{"serviceOne":{"fieldOne":"fieldOneValue"},"anotherServiceOne":{"fieldOne":"anotherFieldOneValue"},"reusingServiceOne":{"fieldOne":"reUsingFieldOneValue"}}`),
 							Variables: NewVariables(
 								&ContextVariable{
 									Path: []string{"firstArg"},
@@ -755,10 +755,10 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 								},
 							),
 						},
-						&SingleFetch{
-							BufferId: 1,
-							Input:    []byte(`{"url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`),
-							DataSource: FakeDataSource(``),
+						{
+							BufferId:   1,
+							Input:      []byte(`{"url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`),
+							DataSource: FakeDataSource(`{"serviceTwo":{"fieldTwo":"fieldTwoValue"},"secondServiceTwo":{"fieldTwo":"secondFieldTwoValue"}}`),
 							Variables: NewVariables(
 								&ContextVariable{
 									Path: []string{"secondArg"},
@@ -805,8 +805,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 									Path: []string{"serviceTwo"},
 									Fetch: &SingleFetch{
 										BufferId:   2,
-										DataSource: FakeDataSource(``),
 										Input:      []byte(`{"url":"https://service.one","body":{"query":"{serviceOne {fieldOne}}"}}`),
+										DataSource: FakeDataSource(`{"serviceOne":{"fieldOne":"fieldOneValue"}}`),
 										Variables:  Variables{},
 									},
 									FieldSets: []FieldSet{
@@ -821,13 +821,12 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 											},
 										},
 										{
-											BufferID: 2,
+											BufferID:  2,
 											HasBuffer: true,
 											Fields: []Field{
 												{
 													Name: []byte("serviceOneResponse"),
 													Value: &Object{
-
 														Path: []string{"serviceOne"},
 														FieldSets: []FieldSet{
 															{
@@ -924,7 +923,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		},Context{Context:   context.Background(), Variables: []byte(`{"firstArg":"firstArgValue"}`)},``
+		}, Context{Context: context.Background(), Variables: []byte(`{"firstArg":"firstArgValue","thirdArg":123,"secondArg": true, "fourthArg": 12.34}`)}, `{"data":{"serviceOne":{"fieldOne":"fieldOneValue"},"serviceTwo":{"fieldTwo":"fieldTwoValue","serviceOneResponse":{"fieldOne":"fieldOneValue"}},"anotherServiceOne":{"fieldOne":"anotherFieldOneValue"},"secondServiceTwo":{"fieldTwo":"secondFieldTwoValue"},"reusingServiceOne":{"fieldOne":"reUsingFieldOneValue"}}}`
 	}))
 }
 

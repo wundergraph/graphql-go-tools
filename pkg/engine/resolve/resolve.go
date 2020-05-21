@@ -533,19 +533,37 @@ func (r *Resolver) freeResultSet(set *resultSet) {
 func (r *Resolver) resolveFetch(ctx Context, fetch Fetch, data []byte, set *resultSet) (err error) {
 	switch f := fetch.(type) {
 	case *SingleFetch:
-		err = r.resolveSingleFetch(ctx, f, data, set)
+		r.prepareSingleFetch(ctx, f, data, set)
+		err = r.resolveSingleFetch(ctx, f, set.buffers[f.BufferId])
+	case *ParallelFetch:
+		for i := range f.Fetches {
+			r.prepareSingleFetch(ctx, f.Fetches[i], data, set)
+		}
+		wg := r.waitGroupPool.Get().(*sync.WaitGroup)
+		defer r.waitGroupPool.Put(wg)
+		for i := range f.Fetches {
+			singleFetch := f.Fetches[i]
+			buf := set.buffers[f.Fetches[i].BufferId]
+			wg.Add(1)
+			go func(s *SingleFetch, buf *BufPair) {
+				_ = r.resolveSingleFetch(ctx, s, buf)
+				wg.Done()
+			}(singleFetch, buf)
+		}
+		wg.Wait()
 	}
 	return
 }
 
-func (r *Resolver) resolveSingleFetch(ctx Context, fetch *SingleFetch, data []byte, set *resultSet) (err error) {
-
+func (r *Resolver) prepareSingleFetch(ctx Context, fetch *SingleFetch, data []byte, set *resultSet) {
 	if len(fetch.Variables.variables) != 0 {
 		fetch.Input = r.resolveVariables(ctx, fetch.Variables.variables, data, fetch.Input)
 	}
-
 	buf := r.getBufPair()
 	set.buffers[fetch.BufferId] = buf
+}
+
+func (r *Resolver) resolveSingleFetch(ctx Context, fetch *SingleFetch, buf *BufPair) (err error) {
 	return fetch.DataSource.Load(ctx.Context, fetch.Input, buf)
 }
 
@@ -654,7 +672,7 @@ func (_ *SingleFetch) FetchKind() FetchKind {
 }
 
 type ParallelFetch struct {
-	Fetches []Fetch
+	Fetches []*SingleFetch
 }
 
 func (_ *ParallelFetch) FetchKind() FetchKind {
@@ -749,10 +767,10 @@ var (
 	variablePrefixSuffix = []byte("$$")
 )
 
-func (v *Variables) AddVariable(variable Variable) (name []byte,exists bool) {
+func (v *Variables) AddVariable(variable Variable) (name []byte, exists bool) {
 	index := -1
 	for i := range v.variables {
-		if v.variables[i].Equals(variable){
+		if v.variables[i].Equals(variable) {
 			index = i
 			exists = true
 			break

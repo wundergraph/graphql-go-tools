@@ -42,7 +42,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 						},
 					},
 					BufferId: 0,
-					Input:    []byte(`{"url":"https://swapi.com/graphql","body":{"query":"query($id: ID!){droid(id: $id){name friends {name} primaryFunction} hero {name}}","variables":{"id":$$0$$}}}`),
+					Input:    []byte(`{"url":"https://swapi.com/graphql","body":{"query":"query($id: ID!){droid(id: $id){name aliased: name friends {name} primaryFunction} hero {name}}","variables":{"id":$$0$$}}}`),
 					Variables: resolve.NewVariables(&resolve.ContextVariable{
 						Path: []string{"id"},
 					}),
@@ -208,8 +208,8 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 			Response: resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.ParallelFetch{
-						Fetches: []resolve.Fetch{
-							&resolve.SingleFetch{
+						Fetches: []*resolve.SingleFetch{
+							{
 								BufferId: 0,
 								Input:    []byte(`{"url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":$$0$$}}}`),
 								DataSource: &Source{
@@ -226,7 +226,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 									},
 								),
 							},
-							&resolve.SingleFetch{
+							{
 								BufferId: 1,
 								Input:    []byte(`{"url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`),
 								DataSource: &Source{

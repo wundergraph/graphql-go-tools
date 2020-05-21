@@ -176,12 +176,12 @@ type fetchConfig struct {
 	fieldConfiguration *DataSourceConfiguration
 }
 
-func (v *Visitor) SetCurrentObjectFetch(fetch resolve.Fetch, config *DataSourceConfiguration) {
+func (v *Visitor) SetCurrentObjectFetch(fetch *resolve.SingleFetch, config *DataSourceConfiguration) {
 	if v.currentObject.Fetch != nil {
 		switch current := v.currentObject.Fetch.(type) {
 		case *resolve.SingleFetch:
 			parallel := &resolve.ParallelFetch{
-				Fetches: []resolve.Fetch{
+				Fetches: []*resolve.SingleFetch{
 					current,
 					fetch,
 				},
