@@ -163,7 +163,6 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 		},
 	}))
 	// TODO nesting with object arguments,
-	// TODO test parallel fetch execution
 	// TODO handle scalar lists (Path?)
 	// TODO add field dependency to query automatically (fields required for argument but not in the query itself, e.g. serviceOneField)
 	t.Run("nested graphql engines", RunTest(`

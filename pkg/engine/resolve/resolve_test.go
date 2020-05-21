@@ -738,6 +738,43 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 		}, Context{Context: context.Background()}, `{"data":{"stringObject":null,"integerObject":null,"floatObject":null,"booleanObject":null,"objectObject":null,"arrayObject":null,"asynchronousArrayObject":null,"nullableArray":null}}`
 	}))
 	t.Run("complex GraphQL Server plan", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+
+		serviceOne := NewMockDataSource(ctrl)
+		serviceOne.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
+			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+				actual := string(input)
+				expected := `{"url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":123,"firstArg":"firstArgValue"}}}`
+				assert.Equal(t,expected,actual)
+				_,err = pair.Data.WriteString(`{"serviceOne":{"fieldOne":"fieldOneValue"},"anotherServiceOne":{"fieldOne":"anotherFieldOneValue"},"reusingServiceOne":{"fieldOne":"reUsingFieldOneValue"}}`)
+				return
+			}).
+			Return(nil)
+
+		serviceTwo := NewMockDataSource(ctrl)
+		serviceTwo.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
+			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+				actual := string(input)
+				expected := `{"url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo}}","variables":{"fourthArg":12.34,"secondArg":true}}}`
+				assert.Equal(t,expected,actual)
+				_,err = pair.Data.WriteString(`{"serviceTwo":{"fieldTwo":"fieldTwoValue"},"secondServiceTwo":{"fieldTwo":"secondFieldTwoValue"}}`)
+				return
+			}).
+			Return(nil)
+
+		nestedServiceOne := NewMockDataSource(ctrl)
+		nestedServiceOne.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
+			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+				actual := string(input)
+				expected := `{"url":"https://service.one","body":{"query":"{serviceOne {fieldOne}}"}}`
+				assert.Equal(t,expected,actual)
+				_,err = pair.Data.WriteString(`{"serviceOne":{"fieldOne":"fieldOneValue"}}`)
+				return
+			}).
+			Return(nil)
+
 		return &GraphQLResponse{
 			Data: &Object{
 				Fetch: &ParallelFetch{
@@ -745,7 +782,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						{
 							BufferId:   0,
 							Input:      []byte(`{"url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":$$0$$}}}`),
-							DataSource: FakeDataSource(`{"serviceOne":{"fieldOne":"fieldOneValue"},"anotherServiceOne":{"fieldOne":"anotherFieldOneValue"},"reusingServiceOne":{"fieldOne":"reUsingFieldOneValue"}}`),
+							DataSource: serviceOne,
 							Variables: NewVariables(
 								&ContextVariable{
 									Path: []string{"firstArg"},
@@ -758,7 +795,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						{
 							BufferId:   1,
 							Input:      []byte(`{"url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`),
-							DataSource: FakeDataSource(`{"serviceTwo":{"fieldTwo":"fieldTwoValue"},"secondServiceTwo":{"fieldTwo":"secondFieldTwoValue"}}`),
+							DataSource: serviceTwo,
 							Variables: NewVariables(
 								&ContextVariable{
 									Path: []string{"secondArg"},
@@ -806,7 +843,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 									Fetch: &SingleFetch{
 										BufferId:   2,
 										Input:      []byte(`{"url":"https://service.one","body":{"query":"{serviceOne {fieldOne}}"}}`),
-										DataSource: FakeDataSource(`{"serviceOne":{"fieldOne":"fieldOneValue"}}`),
+										DataSource: nestedServiceOne,
 										Variables:  Variables{},
 									},
 									FieldSets: []FieldSet{

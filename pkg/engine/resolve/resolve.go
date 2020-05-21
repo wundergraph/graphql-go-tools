@@ -583,17 +583,23 @@ func (r *Resolver) resolveVariables(ctx Context, variables []Variable, data, inp
 }
 
 func (r *Resolver) resolveObjectVariable(data []byte, variable *ObjectVariable) []byte {
-	value, _, _, err := jsonparser.Get(data, variable.Path...)
+	value, dataType, _, err := jsonparser.Get(data, variable.Path...)
 	if err != nil {
 		return null
+	}
+	if dataType == jsonparser.String {
+		value = append([]byte{'"'}, append(value, []byte{'"'}...)...)
 	}
 	return value
 }
 
 func (r *Resolver) resolveContextVariable(ctx Context, variable *ContextVariable) []byte {
-	value, _, _, err := jsonparser.Get(ctx.Variables, variable.Path...)
+	value, dataType, _, err := jsonparser.Get(ctx.Variables, variable.Path...)
 	if err != nil {
 		return null
+	}
+	if dataType == jsonparser.String {
+		value = append([]byte{'"'}, append(value, []byte{'"'}...)...)
 	}
 	return value
 }
