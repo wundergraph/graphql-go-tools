@@ -11,7 +11,7 @@ type Query {
     search(text: String): [SearchResult]
     character(id: ID!): Character
     droid(id: ID!): Droid
-    human(id: ID!): Human
+    human(id: ID!): Human @deprecated(reason: "skynet wins!")
     starship(id: ID!): Starship
 }
 
@@ -28,7 +28,7 @@ type Subscription {
 "The episodes in the Star Wars trilogy"
 enum Episode {
     "Star Wars Episode IV: A New Hope, released in 1977."
-    NEWHOPE
+    NEWHOPE @deprecated(reason: "No longer supported")
     "Star Wars Episode V: The Empire Strikes Back, released in 1980."
     EMPIRE
     "Star Wars Episode VI: Return of the Jedi, released in 1983."
@@ -154,6 +154,8 @@ type Starship {
     id: ID!
     "The name of the starship"
     name: String!
+    "The old name of starship"
+    oldName: String @deprecated(reason: "why not?")
     "Length of the starship, along the longest axis"
     length(unit: LengthUnit = METER): Float
 }
