@@ -468,57 +468,61 @@ func (v *Visitor) EnterField(ref int) {
 
 	switch typeName {
 	case "String":
-		str := &resolve.String{
-			Path: path,
+		str := &resolve.String{}
+		if !isList {
+			str.Path = path
+			v.Defer(func() {
+				if override,ok := v.fieldPathOverrides[ref];ok {
+					str.Path = override(str.Path)
+				}
+			})
 		}
 		value = str
-		v.Defer(func() {
-			if override,ok := v.fieldPathOverrides[ref];ok {
-				str.Path = override(str.Path)
-			}
-		})
 	case "Boolean":
-		boolean := &resolve.Boolean{
-			Path: path,
+		boolean := &resolve.Boolean{}
+		if !isList {
+			boolean.Path = path
+			v.Defer(func() {
+				if override,ok := v.fieldPathOverrides[ref];ok {
+					boolean.Path = override(boolean.Path)
+				}
+			})
 		}
 		value = boolean
-		v.Defer(func() {
-			if override,ok := v.fieldPathOverrides[ref];ok {
-				boolean.Path = override(boolean.Path)
-			}
-		})
 	case "Int":
-		integer := &resolve.Integer{
-			Path: path,
+		integer := &resolve.Integer{}
+		if !isList {
+			integer.Path = path
+			v.Defer(func() {
+				if override,ok := v.fieldPathOverrides[ref];ok {
+					integer.Path = override(integer.Path)
+				}
+			})
 		}
 		value = integer
-		v.Defer(func() {
-			if override,ok := v.fieldPathOverrides[ref];ok {
-				integer.Path = override(integer.Path)
-			}
-		})
 	case "Float":
-		float := &resolve.Float{
-			Path: path,
+		float := &resolve.Float{}
+		if !isList {
+			float.Path = path
+			v.Defer(func() {
+				if override,ok := v.fieldPathOverrides[ref];ok {
+					float.Path = override(float.Path)
+				}
+			})
 		}
 		value = float
-		v.Defer(func() {
-			if override,ok := v.fieldPathOverrides[ref];ok {
-				float.Path = override(float.Path)
-			}
-		})
 	default:
 		obj := &resolve.Object{}
 		if !isList {
 			obj.Path = path
+			v.Defer(func() {
+				if override,ok := v.fieldPathOverrides[ref];ok {
+					obj.Path = override(obj.Path)
+				}
+			})
 		}
 		value = obj
 		nextCurrentObject = obj
-		v.Defer(func() {
-			if override,ok := v.fieldPathOverrides[ref];ok {
-				obj.Path = override(obj.Path)
-			}
-		})
 	}
 
 	v.Defer(func() {

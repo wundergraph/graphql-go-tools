@@ -31,6 +31,8 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 			hero {
 				name
 			}
+			stringList
+			nestedStringList
 		}
 	`, "MyQuery", &plan.SynchronousResponsePlan{
 		Response: resolve.GraphQLResponse{
@@ -42,7 +44,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 						},
 					},
 					BufferId: 0,
-					Input:    []byte(`{"url":"https://swapi.com/graphql","body":{"query":"query($id: ID!){droid(id: $id){name aliased: name friends {name} primaryFunction} hero {name}}","variables":{"id":$$0$$}}}`),
+					Input:    []byte(`{"url":"https://swapi.com/graphql","body":{"query":"query($id: ID!){droid(id: $id){name aliased: name friends {name} primaryFunction} hero {name} stringList nestedStringList}","variables":{"id":$$0$$}}}`),
 					Variables: resolve.NewVariables(&resolve.ContextVariable{
 						Path: []string{"id"},
 					}),
@@ -128,6 +130,31 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 							},
 						},
 					},
+					{
+						BufferID:  0,
+						HasBuffer: true,
+						Fields: []resolve.Field{
+							{
+								Name: []byte("stringList"),
+								Value: &resolve.Array{
+									Item: &resolve.String{},
+								},
+							},
+						},
+					},
+					{
+						BufferID:  0,
+						HasBuffer: true,
+						Fields: []resolve.Field{
+							{
+								Name: []byte("nestedStringList"),
+								Value: &resolve.Array{
+									Path: []string{"nestedStringList"},
+									Item: &resolve.String{},
+								},
+							},
+						},
+					},
 				},
 			},
 		},
@@ -135,7 +162,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 		DataSourceConfigurations: []plan.DataSourceConfiguration{
 			{
 				TypeName:   "Query",
-				FieldNames: []string{"droid", "hero"},
+				FieldNames: []string{"droid", "hero", "stringList", "nestedStringList"},
 				Attributes: []plan.DataSourceAttribute{
 					{
 						Key:   "url",
@@ -161,9 +188,19 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 				DataSourcePlanner: &Planner{},
 			},
 		},
+		FieldMappings: []plan.FieldMapping{
+			{
+				TypeName:              "Query",
+				FieldName:             "stringList",
+				DisableDefaultMapping: true,
+			},
+			{
+				TypeName:              "Query",
+				FieldName:             "nestedStringList",
+				Path: []string{"nestedStringList"},
+			},
+		},
 	}))
-	// TODO add field dependency to query automatically (fields required for argument but not in the query itself, e.g. serviceOneField)
-	// TODO handle scalar lists (Path?)
 	t.Run("nested graphql engines", RunTest(`
 		type Query {
 			serviceOne(serviceOneArg: String): ServiceOneResponse
@@ -591,6 +628,8 @@ type Query {
     hero: Character
     droid(id: ID!): Droid
     search(name: String!): SearchResult
+	stringList: [String]
+	nestedStringList: [String]
 }
 
 type Mutation {
