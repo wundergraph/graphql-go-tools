@@ -322,7 +322,7 @@ func TestHttpJsonDataSourcePlanning(t *testing.T) {
 			},
 			FieldMappings: []plan.FieldMapping{
 				{
-					TypeName: "Query",
+					TypeName:              "Query",
 					FieldName:             "friend",
 					DisableDefaultMapping: true,
 				},

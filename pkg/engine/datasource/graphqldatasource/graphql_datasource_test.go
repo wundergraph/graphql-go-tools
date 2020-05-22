@@ -162,9 +162,8 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 			},
 		},
 	}))
-	// TODO nesting with object arguments,
-	// TODO handle scalar lists (Path?)
 	// TODO add field dependency to query automatically (fields required for argument but not in the query itself, e.g. serviceOneField)
+	// TODO handle scalar lists (Path?)
 	t.Run("nested graphql engines", RunTest(`
 		type Query {
 			serviceOne(serviceOneArg: String): ServiceOneResponse
@@ -278,14 +277,14 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 									Value: &resolve.Object{
 										Path: []string{"serviceTwo"},
 										Fetch: &resolve.SingleFetch{
-											BufferId:   2,
+											BufferId: 2,
 											DataSource: &Source{
 												Client: http.Client{
 													Timeout: time.Second * 10,
 												},
 											},
-											Input:      []byte(`{"url":"https://service.one","body":{"query":"query($a: String){serviceOne(serviceOneArg: $a){fieldOne}}","variables":{"a":$$0$$}}}`),
-											Variables:  resolve.NewVariables(
+											Input: []byte(`{"url":"https://service.one","body":{"query":"query($a: String){serviceOne(serviceOneArg: $a){fieldOne}}","variables":{"a":$$0$$}}}`),
+											Variables: resolve.NewVariables(
 												&resolve.ObjectVariable{
 													Path: []string{"serviceOneField"},
 												},
@@ -303,7 +302,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 												},
 											},
 											{
-												BufferID: 2,
+												BufferID:  2,
 												HasBuffer: true,
 												Fields: []resolve.Field{
 													{
