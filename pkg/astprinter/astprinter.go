@@ -126,13 +126,10 @@ func (p *printVisitor) EnterDirective(ref int) {
 	if p.document.DirectiveIsFirst(ref, p.Ancestors[len(p.Ancestors)-1]) {
 		switch p.Ancestors[len(p.Ancestors)-1].Kind {
 		case ast.NodeKindFieldDefinition:
-			if !p.document.FieldDefinitionHasArgumentsDefinitions(p.Ancestors[len(p.Ancestors)-1].Ref) {
-				p.writeFieldType(p.Ancestors[len(p.Ancestors)-1].Ref)
-			}
+			p.writeFieldType(p.Ancestors[len(p.Ancestors)-1].Ref)
 			p.write(literal.SPACE)
 		case ast.NodeKindEnumValueDefinition,
 			ast.NodeKindInputValueDefinition:
-
 			p.write(literal.SPACE)
 		}
 	}
@@ -449,7 +446,7 @@ func (p *printVisitor) EnterFieldDefinition(ref int) {
 }
 
 func (p *printVisitor) LeaveFieldDefinition(ref int) {
-	if !p.document.FieldDefinitionHasArgumentsDefinitions(ref) && !p.document.FieldDefinitionHasDirectives(ref) {
+	if !p.document.FieldDefinitionHasDirectives(ref) {
 		p.writeFieldType(ref)
 	}
 
@@ -507,10 +504,6 @@ func (p *printVisitor) LeaveInputValueDefinition(ref int) {
 			}
 		}
 		p.write(p.inputValueDefinitionCloser)
-
-		if p.Ancestors[len(p.Ancestors)-1].Kind == ast.NodeKindFieldDefinition {
-			p.writeFieldType(p.Ancestors[len(p.Ancestors)-1].Ref)
-		}
 	} else {
 		if len(p.Ancestors) > 0 {
 			// check enclosing type kind
