@@ -68,7 +68,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 												{
 													Name: []byte("aliased"),
 													Value: &resolve.String{
-														Path: []string{"name"},
+														Path: []string{"aliased"},
 													},
 												},
 												{
@@ -196,6 +196,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 			}
 			secondServiceTwo(secondServiceTwoArg: $fourthArg){
 				fieldTwo
+				__dep__serviceOneField: serviceOneField
 			}
 			reusingServiceOne(reusingServiceOneArg: $firstArg){
 				fieldOne
@@ -226,7 +227,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 							},
 							{
 								BufferId: 1,
-								Input:    []byte(`{"url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`),
+								Input:    []byte(`{"url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo __dep__serviceOneField: serviceOneField} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo __dep__serviceOneField: serviceOneField}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`),
 								DataSource: &Source{
 									Client: http.Client{
 										Timeout: time.Second * 10,
@@ -286,7 +287,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 											Input: []byte(`{"url":"https://service.one","body":{"query":"query($a: String){serviceOne(serviceOneArg: $a){fieldOne}}","variables":{"a":$$0$$}}}`),
 											Variables: resolve.NewVariables(
 												&resolve.ObjectVariable{
-													Path: []string{"serviceOneField"},
+													Path: []string{"__dep__serviceOneField"},
 												},
 											),
 										},
@@ -370,6 +371,12 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 														Name: []byte("fieldTwo"),
 														Value: &resolve.String{
 															Path: []string{"fieldTwo"},
+														},
+													},
+													{
+														Name: []byte("__dep__serviceOneField"),
+														Value: &resolve.String{
+															Path: []string{"__dep__serviceOneField"},
 														},
 													},
 												},
@@ -524,6 +531,12 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 					TypeName:  "ServiceTwoResponse",
 					FieldName: "serviceOneResponse",
 					Path:      []string{"serviceOne"},
+				},
+			},
+			FieldDependencies: []plan.FieldDependency{
+				{
+					TypeName:       "ServiceTwoResponse",
+					RequiredFields: []string{"serviceOneField"},
 				},
 			},
 		},

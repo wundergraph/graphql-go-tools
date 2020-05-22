@@ -19,6 +19,8 @@ type Kind int
 type enterOrLeave int
 
 const (
+	FieldDependencyPrefix = "__dep__"
+
 	SynchronousResponseKind Kind = iota + 1
 	StreamingResponseKind
 	SubscriptionResponseKind
@@ -101,16 +103,21 @@ type Planner struct {
 type Configuration struct {
 	DataSourceConfigurations []DataSourceConfiguration
 	FieldMappings            []FieldMapping
+	FieldDependencies        []FieldDependency
+}
+
+type FieldDependency struct {
+	TypeName       string
+	RequiredFields []string
 }
 
 func NewPlanner(definition *ast.Document, config Configuration) *Planner {
 
 	walker := astvisitor.NewWalker(48)
 	visitor := &Visitor{
-		Walker:                   &walker,
-		Definition:               definition,
-		DataSourceConfigurations: config.DataSourceConfigurations,
-		FieldMappings:            config.FieldMappings,
+		Walker:     &walker,
+		Definition: definition,
+		Config:     config,
 	}
 
 	walker.SetVisitorFilter(visitor)
@@ -146,8 +153,7 @@ func (p *Planner) Plan(operation *ast.Document, operationName []byte, report *op
 
 type Visitor struct {
 	*astvisitor.Walker
-	DataSourceConfigurations            []DataSourceConfiguration
-	FieldMappings                       []FieldMapping
+	Config                              Configuration
 	Definition, Operation               *ast.Document
 	Importer                            astimport.Importer
 	opName                              []byte
@@ -164,7 +170,10 @@ type Visitor struct {
 	fieldDataSourcePlanners             []fieldDataSourcePlanner
 	currentFieldName                    string
 	currentFieldEnclosingTypeDefinition ast.Node
+	fieldPathOverrides                  map[int]PathOverrideFunc
 }
+
+type PathOverrideFunc func(path []string) []string
 
 type fieldDataSourcePlanner struct {
 	field   int
@@ -174,6 +183,18 @@ type fieldDataSourcePlanner struct {
 type fetchConfig struct {
 	fetch              resolve.Fetch
 	fieldConfiguration *DataSourceConfiguration
+}
+
+// SetFieldPathOverride delegates to a data source planner the possibility to override the path selector for a field.
+// E.g. the GraphQL data source allows to define a field alias in the upstream query.
+// This means that a data source is able to override the shape of the graphql response.
+// In order for the planner to correctly set JSON path selectors for these fields it needs to be able to delegate
+// to the data source to override the JSON path of said field.
+//
+// In short, when a data source overrides the JSON response shape it must also override the JSON selectors
+// by setting an override for each field.
+func (v *Visitor) SetFieldPathOverride(field int,override PathOverrideFunc) {
+	v.fieldPathOverrides[field] = override
 }
 
 func (v *Visitor) SetCurrentObjectFetch(fetch *resolve.SingleFetch, config *DataSourceConfiguration) {
@@ -233,13 +254,13 @@ func (v *Visitor) AllowVisitor(visitorKind astvisitor.VisitorKind, ref int, visi
 func (v *Visitor) IsRootField(ref int) (bool, *DataSourceConfiguration) {
 	fieldName := v.Operation.FieldNameString(ref)
 	enclosingTypeName := v.EnclosingTypeDefinition.Name(v.Definition)
-	for i := range v.DataSourceConfigurations {
-		if enclosingTypeName != v.DataSourceConfigurations[i].TypeName {
+	for i := range v.Config.DataSourceConfigurations {
+		if enclosingTypeName != v.Config.DataSourceConfigurations[i].TypeName {
 			continue
 		}
-		for j := range v.DataSourceConfigurations[i].FieldNames {
-			if fieldName == v.DataSourceConfigurations[i].FieldNames[j] {
-				return true, &v.DataSourceConfigurations[i]
+		for j := range v.Config.DataSourceConfigurations[i].FieldNames {
+			if fieldName == v.Config.DataSourceConfigurations[i].FieldNames[j] {
+				return true, &v.Config.DataSourceConfigurations[i]
 			}
 		}
 	}
@@ -254,6 +275,13 @@ func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
 	v.popFieldsOnLeaveField = v.popFieldsOnLeaveField[:0]
 	v.fieldDataSourcePlanners = v.fieldDataSourcePlanners[:0]
 	v.nextBufferID = -1
+	if v.fieldPathOverrides == nil {
+		v.fieldPathOverrides = make(map[int]PathOverrideFunc,8)
+	} else {
+		for key := range v.fieldPathOverrides {
+			delete(v.fieldPathOverrides, key)
+		}
+	}
 }
 
 func (v *Visitor) LeaveDocument(operation, definition *ast.Document) {
@@ -440,21 +468,45 @@ func (v *Visitor) EnterField(ref int) {
 
 	switch typeName {
 	case "String":
-		value = &resolve.String{
+		str := &resolve.String{
 			Path: path,
 		}
+		value = str
+		v.Defer(func() {
+			if override,ok := v.fieldPathOverrides[ref];ok {
+				str.Path = override(str.Path)
+			}
+		})
 	case "Boolean":
-		value = &resolve.Boolean{
+		boolean := &resolve.Boolean{
 			Path: path,
 		}
+		value = boolean
+		v.Defer(func() {
+			if override,ok := v.fieldPathOverrides[ref];ok {
+				boolean.Path = override(boolean.Path)
+			}
+		})
 	case "Int":
-		value = &resolve.Integer{
+		integer := &resolve.Integer{
 			Path: path,
 		}
+		value = integer
+		v.Defer(func() {
+			if override,ok := v.fieldPathOverrides[ref];ok {
+				integer.Path = override(integer.Path)
+			}
+		})
 	case "Float":
-		value = &resolve.Float{
+		float := &resolve.Float{
 			Path: path,
 		}
+		value = float
+		v.Defer(func() {
+			if override,ok := v.fieldPathOverrides[ref];ok {
+				float.Path = override(float.Path)
+			}
+		})
 	default:
 		obj := &resolve.Object{}
 		if !isList {
@@ -462,6 +514,11 @@ func (v *Visitor) EnterField(ref int) {
 		}
 		value = obj
 		nextCurrentObject = obj
+		v.Defer(func() {
+			if override,ok := v.fieldPathOverrides[ref];ok {
+				obj.Path = override(obj.Path)
+			}
+		})
 	}
 
 	v.Defer(func() {
@@ -478,6 +535,9 @@ func (v *Visitor) EnterField(ref int) {
 				Item: value,
 			}
 			value = list
+			if override,ok := v.fieldPathOverrides[ref];ok {
+				list.Path = override(list.Path)
+			}
 		}
 
 		if v.Operation.FieldAliasIsDefined(ref) {
@@ -496,12 +556,12 @@ func (v *Visitor) EnterField(ref int) {
 func (v *Visitor) resolveFieldPath(ref int) []string {
 	typeName := v.EnclosingTypeDefinition.Name(v.Definition)
 	fieldName := v.Operation.FieldNameString(ref)
-	for i := range v.FieldMappings {
-		if v.FieldMappings[i].TypeName == typeName && v.FieldMappings[i].FieldName == fieldName {
-			if v.FieldMappings[i].Path != nil {
-				return v.FieldMappings[i].Path
+	for i := range v.Config.FieldMappings {
+		if v.Config.FieldMappings[i].TypeName == typeName && v.Config.FieldMappings[i].FieldName == fieldName {
+			if v.Config.FieldMappings[i].Path != nil {
+				return v.Config.FieldMappings[i].Path
 			}
-			if v.FieldMappings[i].DisableDefaultMapping {
+			if v.Config.FieldMappings[i].DisableDefaultMapping {
 				return nil
 			}
 			return []string{fieldName}
@@ -528,16 +588,16 @@ func (v *Visitor) setActiveDataSourcePlanner(fieldRef int, enterOrLeave enterOrL
 	fieldName := v.Operation.FieldNameString(fieldRef)
 
 	enclosingTypeName := v.EnclosingTypeDefinition.Name(v.Definition)
-	for i := range v.DataSourceConfigurations {
-		if v.DataSourceConfigurations[i].TypeName != enclosingTypeName {
+	for i := range v.Config.DataSourceConfigurations {
+		if v.Config.DataSourceConfigurations[i].TypeName != enclosingTypeName {
 			continue
 		}
-		for j := range v.DataSourceConfigurations[i].FieldNames {
-			if v.DataSourceConfigurations[i].FieldNames[j] == fieldName {
-				v.activeDataSourcePlanner = v.DataSourceConfigurations[i].DataSourcePlanner
+		for j := range v.Config.DataSourceConfigurations[i].FieldNames {
+			if v.Config.DataSourceConfigurations[i].FieldNames[j] == fieldName {
+				v.activeDataSourcePlanner = v.Config.DataSourceConfigurations[i].DataSourcePlanner
 				v.fieldDataSourcePlanners = append(v.fieldDataSourcePlanners, fieldDataSourcePlanner{
 					field:   fieldRef,
-					planner: v.DataSourceConfigurations[i].DataSourcePlanner,
+					planner: v.Config.DataSourceConfigurations[i].DataSourcePlanner,
 				})
 				return
 			}

@@ -111,21 +111,30 @@ func (p *Planner) EnterField(ref int) {
 
 func (p *Planner) addField(ref int) ast.Node {
 
+	fieldName := p.v.Operation.FieldNameString(ref)
+
 	alias := ast.Alias{
 		IsDefined: p.v.Operation.FieldAliasIsDefined(ref),
 	}
 
 	if alias.IsDefined {
-		alias.Name = p.operation.Input.AppendInputBytes(p.v.Operation.FieldAliasBytes(ref))
+		aliasBytes := p.v.Operation.FieldAliasBytes(ref)
+		alias.Name = p.operation.Input.AppendInputBytes(aliasBytes)
+		p.v.SetFieldPathOverride(ref, func(path []string) []string {
+			if len(path) != 0 && path[0] == fieldName {
+				path[0] = string(aliasBytes)
+				return path
+			}
+			return path
+		})
 	}
 
-	fieldName := p.v.Operation.FieldNameString(ref)
 	typeName := p.v.EnclosingTypeDefinition.Name(p.v.Definition)
-	for i := range p.v.FieldMappings {
-		if p.v.FieldMappings[i].TypeName == typeName &&
-			p.v.FieldMappings[i].FieldName == fieldName &&
-			len(p.v.FieldMappings[i].Path) == 1 {
-			fieldName = p.v.FieldMappings[i].Path[0]
+	for i := range p.v.Config.FieldMappings {
+		if p.v.Config.FieldMappings[i].TypeName == typeName &&
+			p.v.Config.FieldMappings[i].FieldName == fieldName &&
+			len(p.v.Config.FieldMappings[i].Path) == 1 {
+			fieldName = p.v.Config.FieldMappings[i].Path[0]
 			break
 		}
 	}
@@ -192,11 +201,11 @@ func (p *Planner) applyFieldArgument(upstreamField, downstreamField int, arg Arg
 		enclosingTypeName := p.v.EnclosingTypeDefinition.Name(p.v.Definition)
 		fieldName := p.v.Operation.FieldNameString(downstreamField)
 
-		for i := range p.v.FieldMappings {
-			if p.v.FieldMappings[i].TypeName == enclosingTypeName &&
-				p.v.FieldMappings[i].FieldName == fieldName &&
-				len(p.v.FieldMappings[i].Path) == 1 {
-				fieldName = p.v.FieldMappings[i].Path[0]
+		for i := range p.v.Config.FieldMappings {
+			if p.v.Config.FieldMappings[i].TypeName == enclosingTypeName &&
+				p.v.Config.FieldMappings[i].FieldName == fieldName &&
+				len(p.v.Config.FieldMappings[i].Path) == 1 {
+				fieldName = p.v.Config.FieldMappings[i].Path[0]
 			}
 		}
 
@@ -213,6 +222,7 @@ func (p *Planner) applyFieldArgument(upstreamField, downstreamField int, arg Arg
 		importedType := p.v.Importer.ImportType(argumentType, p.v.Definition, p.operation)
 		p.operation.AddVariableDefinitionToOperationDefinition(p.nodes[0].Ref, variableValue, importedType)
 
+		arg.SourcePath[0] = plan.FieldDependencyPrefix + arg.SourcePath[0]
 		objectVariableName, exists := p.fetch.Variables.AddVariable(&resolve.ObjectVariable{Path: arg.SourcePath})
 		if !exists {
 			p.variables, _ = sjson.SetRawBytes(p.variables, string(variableName), objectVariableName)
@@ -239,7 +249,42 @@ func (p *Planner) EnterSelectionSet(ref int) {
 }
 
 func (p *Planner) LeaveSelectionSet(ref int) {
+
+	typeName := p.v.EnclosingTypeDefinition.Name(p.v.Definition)
+
+	for i := range p.v.Config.FieldDependencies {
+		if p.v.Config.FieldDependencies[i].TypeName != typeName {
+			continue
+		}
+		for j := range p.v.Config.FieldDependencies[i].RequiredFields {
+			p.addFieldDependencyToSelectionSet(p.v.Config.FieldDependencies[i].RequiredFields[j], p.nodes[len(p.nodes)-1].Ref)
+		}
+	}
+
 	p.nodes = p.nodes[:len(p.nodes)-1]
+}
+
+func (p *Planner) addFieldDependencyToSelectionSet(fieldName string, selectionSet int) {
+
+	alias := plan.FieldDependencyPrefix + fieldName
+
+	if p.operation.SelectionSetHasFieldSelectionWithNameOrAliasString(selectionSet, alias) {
+		return
+	}
+
+	field := ast.Field{
+		Alias: ast.Alias{
+			IsDefined: true,
+			Name:      p.operation.Input.AppendInputString(alias),
+		},
+		Name: p.operation.Input.AppendInputString(fieldName),
+	}
+	addedField := p.operation.AddField(field)
+	selection := ast.Selection{
+		Kind: ast.SelectionKindField,
+		Ref:  addedField.Ref,
+	}
+	p.operation.AddSelection(selectionSet, selection)
 }
 
 func (p *Planner) LeaveDocument(operation, definition *ast.Document) {
