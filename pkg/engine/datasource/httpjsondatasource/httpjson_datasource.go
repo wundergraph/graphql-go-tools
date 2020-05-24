@@ -17,6 +17,7 @@ import (
 
 const (
 	URL     = "url"
+	BASEURL = "base_url"
 	METHOD  = "method"
 	BODY    = "body"
 	HEADERS = "headers"
@@ -58,6 +59,7 @@ func (p *Planner) EnterField(ref int) {
 	}
 
 	url := config.Attributes.ValueForKey(URL)
+	baseURL := config.Attributes.ValueForKey(BASEURL)
 	method := config.Attributes.ValueForKey(METHOD)
 	body := config.Attributes.ValueForKey(BODY)
 	headers := config.Attributes.ValueForKey(HEADERS)
@@ -66,6 +68,8 @@ func (p *Planner) EnterField(ref int) {
 		input []byte
 		err   error
 	)
+
+	url = append(baseURL,url...)
 
 	if url != nil {
 		input, err = sjson.SetBytes(input, URL, string(url))
@@ -91,7 +95,7 @@ func (p *Planner) EnterField(ref int) {
 		DataSource: &Source{
 			client: p.getClient(),
 		},
-	},config)
+	}, config)
 }
 
 type Source struct {

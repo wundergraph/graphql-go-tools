@@ -193,7 +193,7 @@ func TestHttpJsonDataSourcePlanning(t *testing.T) {
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
 						BufferId: 0,
-						Input:    []byte(`{"body":{"foo":"bar"},"method":"POST","url":"https://example.com"}`),
+						Input:    []byte(`{"body":{"foo":"bar"},"method":"POST","url":"https://example.com/friend"}`),
 						DataSource: &Source{
 							client: NewPlanner(nil).getClient(),
 						},
@@ -234,8 +234,12 @@ func TestHttpJsonDataSourcePlanning(t *testing.T) {
 					FieldNames: []string{"friend"},
 					Attributes: []plan.DataSourceAttribute{
 						{
-							Key:   "url",
+							Key:   "base_url",
 							Value: []byte("https://example.com"),
+						},
+						{
+							Key:   "url",
+							Value: []byte("/friend"),
 						},
 						{
 							Key:   "method",
@@ -264,7 +268,7 @@ func TestHttpJsonDataSourcePlanning(t *testing.T) {
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
 						BufferId: 0,
-						Input:    []byte(`{"headers":{"Authorization":"Bearer 123","X-API-Key":"456"},"method":"GET","url":"https://example.com"}`),
+						Input:    []byte(`{"headers":{"Authorization":"Bearer 123","X-API-Key":"456"},"method":"GET","url":"https://example.com/friend"}`),
 						DataSource: &Source{
 							client: NewPlanner(nil).getClient(),
 						},
@@ -305,8 +309,12 @@ func TestHttpJsonDataSourcePlanning(t *testing.T) {
 					FieldNames: []string{"friend"},
 					Attributes: []plan.DataSourceAttribute{
 						{
-							Key:   "url",
+							Key:   "base_url",
 							Value: []byte("https://example.com"),
+						},
+						{
+							Key:   "url",
+							Value: []byte("/friend"),
 						},
 						{
 							Key:   "method",
