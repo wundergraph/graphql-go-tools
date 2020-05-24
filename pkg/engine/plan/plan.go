@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/buger/jsonparser"
+	"github.com/cespare/xxhash"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astimport"
@@ -457,7 +458,7 @@ func (v *Visitor) EnterField(ref int) {
 		return
 	}
 	fieldDefinitionType := v.Definition.FieldDefinitionType(definition)
-	typeName := v.Definition.ResolveTypeNameString(fieldDefinitionType)
+	typeNameBytes := v.Definition.ResolveTypeNameBytes(fieldDefinitionType)
 
 	isList := v.Definition.TypeIsList(fieldDefinitionType)
 
@@ -466,7 +467,7 @@ func (v *Visitor) EnterField(ref int) {
 
 	path := v.resolveFieldPath(ref)
 
-	switch typeName {
+	switch string(typeNameBytes) {
 	case "String":
 		str := &resolve.String{}
 		if !isList {
@@ -512,17 +513,32 @@ func (v *Visitor) EnterField(ref int) {
 		}
 		value = float
 	default:
-		obj := &resolve.Object{}
-		if !isList {
-			obj.Path = path
-			v.Defer(func() {
-				if override,ok := v.fieldPathOverrides[ref];ok {
-					obj.Path = override(obj.Path)
-				}
-			})
+
+		switch v.Definition.Index.Nodes[xxhash.Sum64(typeNameBytes)].Kind {
+		case ast.NodeKindEnumTypeDefinition:
+			str := &resolve.String{}
+			if !isList {
+				str.Path = path
+				v.Defer(func() {
+					if override,ok := v.fieldPathOverrides[ref];ok {
+						str.Path = override(str.Path)
+					}
+				})
+			}
+			value = str
+		default:
+			obj := &resolve.Object{}
+			if !isList {
+				obj.Path = path
+				v.Defer(func() {
+					if override,ok := v.fieldPathOverrides[ref];ok {
+						obj.Path = override(obj.Path)
+					}
+				})
+			}
+			value = obj
+			nextCurrentObject = obj
 		}
-		value = obj
-		nextCurrentObject = obj
 	}
 
 	v.Defer(func() {

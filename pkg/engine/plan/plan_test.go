@@ -45,6 +45,7 @@ func TestPlanner_Plan(t *testing.T) {
 					name
 				}
 				primaryFunction
+				favoriteEpisode
 			}
 		}
 	`, "MyQuery", &SynchronousResponsePlan{
@@ -95,6 +96,12 @@ func TestPlanner_Plan(t *testing.T) {
 													Name: []byte("primaryFunction"),
 													Value: &resolve.String{
 														Path: []string{"primaryFunction"},
+													},
+												},
+												{
+													Name: []byte("favoriteEpisode"),
+													Value: &resolve.String{
+														Path: []string{"favoriteEpisode"},
 													},
 												},
 											},
@@ -234,6 +241,7 @@ type Droid implements Character {
     name: String!
     primaryFunction: String!
     friends: [Character]
+	favoriteEpisode: Episode
 }
 
 type Startship {
