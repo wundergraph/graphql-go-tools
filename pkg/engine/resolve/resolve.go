@@ -85,15 +85,16 @@ type DataSource interface {
 }
 
 type Resolver struct {
-	resultSetPool     sync.Pool
-	byteSlicesPool    sync.Pool
-	waitGroupPool     sync.Pool
-	bufPairPool       sync.Pool
-	bufPairSlicePool  sync.Pool
-	errChanPool       sync.Pool
-	hash64Pool        sync.Pool
-	inflightFetchMu   sync.Mutex
-	inflightFetches   map[uint64]*inflightFetch
+	EnableSingleFlightLoader bool
+	resultSetPool            sync.Pool
+	byteSlicesPool           sync.Pool
+	waitGroupPool            sync.Pool
+	bufPairPool              sync.Pool
+	bufPairSlicePool         sync.Pool
+	errChanPool              sync.Pool
+	hash64Pool               sync.Pool
+	inflightFetchMu          sync.Mutex
+	inflightFetches          map[uint64]*inflightFetch
 }
 
 type inflightFetch struct {
@@ -584,6 +585,10 @@ func (r *Resolver) prepareSingleFetch(ctx Context, fetch *SingleFetch, data []by
 
 func (r *Resolver) resolveSingleFetch(ctx Context, fetch *SingleFetch, buf *BufPair) (err error) {
 
+	if !r.EnableSingleFlightLoader {
+		return fetch.DataSource.Load(ctx.Context, fetch.Input, buf)
+	}
+
 	h := r.hash64Pool.Get().(hash.Hash64)
 	_, _ = h.Write(fetch.DataSource.UniqueIdentifier())
 	_, _ = h.Write(fetch.Input)
@@ -614,12 +619,12 @@ func (r *Resolver) resolveSingleFetch(ctx Context, fetch *SingleFetch, buf *BufP
 	err = fetch.DataSource.Load(ctx.Context, fetch.Input, buf)
 	inflight.err = err
 	if buf.Data.Len() != 0 {
-		inflight.data = make([]byte,buf.Data.Len())
-		copy(inflight.data,buf.Data.Bytes())
+		inflight.data = make([]byte, buf.Data.Len())
+		copy(inflight.data, buf.Data.Bytes())
 	}
 	if buf.Errors.Len() != 0 {
-		inflight.errors = make([]byte,buf.Errors.Len())
-		copy(inflight.errors,buf.Errors.Bytes())
+		inflight.errors = make([]byte, buf.Errors.Len())
+		copy(inflight.errors, buf.Errors.Bytes())
 	}
 
 	inflight.wg.Done()
