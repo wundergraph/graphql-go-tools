@@ -14,6 +14,10 @@ type _fakeDataSource struct {
 	data []byte
 }
 
+func (_ *_fakeDataSource) UniqueIdentifier() []byte {
+	return []byte("fake")
+}
+
 func (f *_fakeDataSource) Load(ctx context.Context, input []byte, pair *BufPair) (err error) {
 	_, err = pair.Data.Write(f.data)
 	return
@@ -185,6 +189,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 	}))
 	t.Run("fetch with context variable resolver", testFn(func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
+		mockDataSource.EXPECT().UniqueIdentifier().Return([]byte("mock"))
 		mockDataSource.EXPECT().
 			Load(gomock.Any(), []byte(`{"id":1}`), gomock.AssignableToTypeOf(&BufPair{})).
 			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
@@ -419,6 +424,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 	}))
 	t.Run("parent object variables", testFn(func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
+		mockDataSource.EXPECT().UniqueIdentifier().Return([]byte("mock"))
 		mockDataSource.EXPECT().
 			Load(gomock.Any(), gomock.GotFormatterAdapter(gotBytesFormatter{}, matchBytes(`{"id":1}`)), gomock.AssignableToTypeOf(&BufPair{})).
 			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
@@ -504,6 +510,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 	}))
 	t.Run("fetch with simple error", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
+		mockDataSource.EXPECT().UniqueIdentifier().Return([]byte("mock"))
 		mockDataSource.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
 			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
@@ -538,6 +545,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 	}))
 	t.Run("fetch with two Errors", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
+		mockDataSource.EXPECT().UniqueIdentifier().Return([]byte("mock"))
 		mockDataSource.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
 			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
@@ -740,6 +748,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 	t.Run("complex GraphQL Server plan", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 
 		serviceOne := NewMockDataSource(ctrl)
+		serviceOne.EXPECT().UniqueIdentifier().Return([]byte("serviceOne"))
 		serviceOne.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
 			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
@@ -752,6 +761,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			Return(nil)
 
 		serviceTwo := NewMockDataSource(ctrl)
+		serviceTwo.EXPECT().UniqueIdentifier().Return([]byte("serviceTwo"))
 		serviceTwo.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
 			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
@@ -764,6 +774,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			Return(nil)
 
 		nestedServiceOne := NewMockDataSource(ctrl)
+		nestedServiceOne.EXPECT().UniqueIdentifier().Return([]byte("nestedServiceOne"))
 		nestedServiceOne.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
 			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {

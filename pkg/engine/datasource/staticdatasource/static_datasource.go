@@ -33,7 +33,14 @@ func (p *Planner) EnterField(ref int) {
 	}, config)
 }
 
-type Source struct {
+type Source struct{}
+
+var (
+	uniqueIdentifier = []byte("static")
+)
+
+func (_ Source) UniqueIdentifier() []byte {
+	return uniqueIdentifier
 }
 
 func (_ Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPair) (err error) {

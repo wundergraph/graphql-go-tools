@@ -98,6 +98,14 @@ type Source struct {
 }
 
 var (
+	uniqueIdentifier = []byte("fast_http_json")
+)
+
+func (_ *Source) UniqueIdentifier() []byte {
+	return uniqueIdentifier
+}
+
+var (
 	accept          = []byte("Accept")
 	applicationJSON = []byte("application/json")
 )
@@ -144,10 +152,10 @@ func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPai
 
 	req.Header.AddBytesKV(accept, applicationJSON)
 
-	if deadline,ok := ctx.Deadline();ok {
-		err = s.client.DoDeadline(req, res,deadline)
+	if deadline, ok := ctx.Deadline(); ok {
+		err = s.client.DoDeadline(req, res, deadline)
 	} else {
-		err = s.client.Do(req,res)
+		err = s.client.Do(req, res)
 	}
 
 	if err != nil {

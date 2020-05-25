@@ -6,11 +6,13 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"hash"
 	"io"
 	"strconv"
 	"sync"
 
 	"github.com/buger/jsonparser"
+	"github.com/cespare/xxhash"
 
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 )
@@ -79,15 +81,27 @@ func (f *Fetches) AppendIfUnique(fetch Fetch) {
 
 type DataSource interface {
 	Load(ctx context.Context, input []byte, bufPair *BufPair) (err error)
+	UniqueIdentifier() []byte
 }
 
 type Resolver struct {
-	resultSetPool    sync.Pool
-	byteSlicesPool   sync.Pool
-	waitGroupPool    sync.Pool
-	bufPairPool      sync.Pool
-	bufPairSlicePool sync.Pool
-	errChanPool      sync.Pool
+	resultSetPool     sync.Pool
+	byteSlicesPool    sync.Pool
+	waitGroupPool     sync.Pool
+	bufPairPool       sync.Pool
+	bufPairSlicePool  sync.Pool
+	errChanPool       sync.Pool
+	hash64Pool        sync.Pool
+	inflightFetchMu   sync.Mutex
+	inflightFetches   map[uint64]*inflightFetch
+	inflightFetchPool sync.Pool
+}
+
+type inflightFetch struct {
+	wg     sync.WaitGroup
+	err    error
+	data   []byte
+	errors []byte
 }
 
 func New() *Resolver {
@@ -130,6 +144,17 @@ func New() *Resolver {
 				return make(chan error, 1)
 			},
 		},
+		hash64Pool: sync.Pool{
+			New: func() interface{} {
+				return xxhash.New()
+			},
+		},
+		inflightFetchPool: sync.Pool{
+			New: func() interface{} {
+				return &inflightFetch{}
+			},
+		},
+		inflightFetches: map[uint64]*inflightFetch{},
 	}
 }
 
@@ -564,7 +589,42 @@ func (r *Resolver) prepareSingleFetch(ctx Context, fetch *SingleFetch, data []by
 }
 
 func (r *Resolver) resolveSingleFetch(ctx Context, fetch *SingleFetch, buf *BufPair) (err error) {
-	return fetch.DataSource.Load(ctx.Context, fetch.Input, buf)
+
+	h := r.hash64Pool.Get().(hash.Hash64)
+	_, _ = h.Write(fetch.DataSource.UniqueIdentifier())
+	_, _ = h.Write(fetch.Input)
+	fetchID := h.Sum64()
+	h.Reset()
+	r.hash64Pool.Put(h)
+
+	r.inflightFetchMu.Lock()
+	inflight, ok := r.inflightFetches[fetchID]
+	if ok {
+		r.inflightFetchMu.Unlock()
+		inflight.wg.Wait()
+		if inflight.data != nil {
+			buf.Data.Write(inflight.data)
+		}
+		if inflight.errors != nil {
+			buf.Errors.Write(inflight.errors)
+		}
+		return inflight.err
+	}
+	inflight = r.inflightFetchPool.Get().(*inflightFetch)
+	defer r.inflightFetchPool.Put(inflight)
+	inflight.wg.Add(1)
+	r.inflightFetches[fetchID] = inflight
+	r.inflightFetchMu.Unlock()
+
+	err = fetch.DataSource.Load(ctx.Context, fetch.Input, buf)
+	inflight.err = err
+	inflight.data = buf.Data.Bytes()
+	inflight.errors = buf.Errors.Bytes()
+	inflight.wg.Done()
+	r.inflightFetchMu.Lock()
+	delete(r.inflightFetches, fetchID)
+	r.inflightFetchMu.Unlock()
+	return
 }
 
 func (r *Resolver) resolveVariables(ctx Context, variables []Variable, data, input []byte) []byte {

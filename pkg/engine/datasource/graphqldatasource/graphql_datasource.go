@@ -319,6 +319,14 @@ type Source struct {
 	Client http.Client
 }
 
+var (
+	uniqueIdentifier = []byte("graphql")
+)
+
+func (_ *Source) UniqueIdentifier() []byte {
+	return uniqueIdentifier
+}
+
 func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPair) (err error) {
 	var (
 		url, body  []byte

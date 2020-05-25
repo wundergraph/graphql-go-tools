@@ -102,6 +102,14 @@ type Source struct {
 	client *http.Client
 }
 
+var (
+	uniqueIdentifier = []byte("http_json")
+)
+
+func (_ *Source) UniqueIdentifier() []byte {
+	return uniqueIdentifier
+}
+
 func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPair) (err error) {
 
 	var (
