@@ -194,7 +194,7 @@ type fetchConfig struct {
 //
 // In short, when a data source overrides the JSON response shape it must also override the JSON selectors
 // by setting an override for each field.
-func (v *Visitor) SetFieldPathOverride(field int,override PathOverrideFunc) {
+func (v *Visitor) SetFieldPathOverride(field int, override PathOverrideFunc) {
 	v.fieldPathOverrides[field] = override
 }
 
@@ -277,7 +277,7 @@ func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
 	v.fieldDataSourcePlanners = v.fieldDataSourcePlanners[:0]
 	v.nextBufferID = -1
 	if v.fieldPathOverrides == nil {
-		v.fieldPathOverrides = make(map[int]PathOverrideFunc,8)
+		v.fieldPathOverrides = make(map[int]PathOverrideFunc, 8)
 	} else {
 		for key := range v.fieldPathOverrides {
 			delete(v.fieldPathOverrides, key)
@@ -287,7 +287,14 @@ func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
 
 func (v *Visitor) LeaveDocument(operation, definition *ast.Document) {
 	for i := range v.fetchConfigs {
-		v.prepareFetchVariables(v.fetchConfigs[i])
+		switch f := v.fetchConfigs[i].fetch.(type) {
+		case *resolve.SingleFetch:
+			v.prepareSingleFetchVariables(f, v.fetchConfigs[i].fieldConfiguration)
+		case *resolve.ParallelFetch:
+			for j := range f.Fetches {
+				v.prepareSingleFetchVariables(f.Fetches[j], v.fetchConfigs[i].fieldConfiguration)
+			}
+		}
 	}
 }
 
@@ -296,53 +303,50 @@ var (
 	selectorRegex = regexp.MustCompile(`{{\s(.*?)\s}}`)
 )
 
-func (v *Visitor) prepareFetchVariables(config fetchConfig) {
-	switch f := config.fetch.(type) {
-	case *resolve.SingleFetch:
-		f.Input = templateRegex.ReplaceAllFunc(f.Input, func(i []byte) []byte {
-			selector := selectorRegex.FindSubmatch(i)
-			if len(selector) != 2 {
-				return i
-			}
-			path := strings.TrimPrefix(string(selector[1]), ".")
-			segments := strings.Split(path, ".")
+func (v *Visitor) prepareSingleFetchVariables(f *resolve.SingleFetch, config *DataSourceConfiguration) {
+	f.Input = templateRegex.ReplaceAllFunc(f.Input, func(i []byte) []byte {
+		selector := selectorRegex.FindSubmatch(i)
+		if len(selector) != 2 {
+			return i
+		}
+		path := strings.TrimPrefix(string(selector[1]), ".")
+		segments := strings.Split(path, ".")
+		if len(segments) < 2 {
+			return i
+		}
+		switch segments[0] {
+		case "object":
+			variableName, _ := f.Variables.AddVariable(&resolve.ObjectVariable{Path: segments[1:]},false)
+			return variableName
+		case "arguments":
+			segments = segments[1:]
 			if len(segments) < 2 {
 				return i
 			}
-			switch segments[0] {
-			case "object":
-				variableName, _ := f.Variables.AddVariable(&resolve.ObjectVariable{Path: segments[1:]})
-				return variableName
-			case "arguments":
-				segments = segments[1:]
-				if len(segments) < 2 {
-					return i
-				}
-				for j := range v.fieldArguments {
-					if v.fieldArguments[j].typeName == config.fieldConfiguration.TypeName &&
-						v.fieldArguments[j].fieldName == segments[0] &&
-						v.fieldArguments[j].argumentName == segments[1] {
-						segments = segments[2:]
-						switch v.fieldArguments[j].kind {
-						case fieldArgumentTypeVariable:
-							variablePath := append([]string{string(v.fieldArguments[j].value)}, segments...)
-							variableName, _ := f.Variables.AddVariable(&resolve.ContextVariable{Path: variablePath})
-							return variableName
-						case fieldArgumentTypeStatic:
-							if len(segments) == 0 {
-								return v.fieldArguments[j].value
-							}
-							i, _, _, _ = jsonparser.Get(v.fieldArguments[j].value, segments...)
-							return i
+			for j := range v.fieldArguments {
+				if v.fieldArguments[j].typeName == config.TypeName &&
+					v.fieldArguments[j].fieldName == segments[0] &&
+					v.fieldArguments[j].argumentName == segments[1] {
+					segments = segments[2:]
+					switch v.fieldArguments[j].kind {
+					case fieldArgumentTypeVariable:
+						variablePath := append([]string{string(v.fieldArguments[j].value)}, segments...)
+						variableName, _ := f.Variables.AddVariable(&resolve.ContextVariable{Path: variablePath},false)
+						return variableName
+					case fieldArgumentTypeStatic:
+						if len(segments) == 0 {
+							return v.fieldArguments[j].value
 						}
+						i, _, _, _ = jsonparser.Get(v.fieldArguments[j].value, segments...)
+						return i
 					}
 				}
-				return i
-			default:
-				return i
 			}
-		})
-	}
+			return i
+		default:
+			return i
+		}
+	})
 }
 
 func (v *Visitor) EnterArgument(ref int) {
@@ -473,7 +477,7 @@ func (v *Visitor) EnterField(ref int) {
 		if !isList {
 			str.Path = path
 			v.Defer(func() {
-				if override,ok := v.fieldPathOverrides[ref];ok {
+				if override, ok := v.fieldPathOverrides[ref]; ok {
 					str.Path = override(str.Path)
 				}
 			})
@@ -484,7 +488,7 @@ func (v *Visitor) EnterField(ref int) {
 		if !isList {
 			boolean.Path = path
 			v.Defer(func() {
-				if override,ok := v.fieldPathOverrides[ref];ok {
+				if override, ok := v.fieldPathOverrides[ref]; ok {
 					boolean.Path = override(boolean.Path)
 				}
 			})
@@ -495,7 +499,7 @@ func (v *Visitor) EnterField(ref int) {
 		if !isList {
 			integer.Path = path
 			v.Defer(func() {
-				if override,ok := v.fieldPathOverrides[ref];ok {
+				if override, ok := v.fieldPathOverrides[ref]; ok {
 					integer.Path = override(integer.Path)
 				}
 			})
@@ -506,7 +510,7 @@ func (v *Visitor) EnterField(ref int) {
 		if !isList {
 			float.Path = path
 			v.Defer(func() {
-				if override,ok := v.fieldPathOverrides[ref];ok {
+				if override, ok := v.fieldPathOverrides[ref]; ok {
 					float.Path = override(float.Path)
 				}
 			})
@@ -514,13 +518,13 @@ func (v *Visitor) EnterField(ref int) {
 		value = float
 	default:
 
-		switch v.Definition.Index.Nodes[xxhash.Sum64(typeNameBytes)].Kind {
+		switch v.Definition.Index.Nodes[xxhash.Sum64(typeNameBytes)].Kind { // TODO verify definition type before and define resolve type based on that, in case of scalar use specific scalars and default to string
 		case ast.NodeKindEnumTypeDefinition:
 			str := &resolve.String{}
 			if !isList {
 				str.Path = path
 				v.Defer(func() {
-					if override,ok := v.fieldPathOverrides[ref];ok {
+					if override, ok := v.fieldPathOverrides[ref]; ok {
 						str.Path = override(str.Path)
 					}
 				})
@@ -531,7 +535,7 @@ func (v *Visitor) EnterField(ref int) {
 			if !isList {
 				obj.Path = path
 				v.Defer(func() {
-					if override,ok := v.fieldPathOverrides[ref];ok {
+					if override, ok := v.fieldPathOverrides[ref]; ok {
 						obj.Path = override(obj.Path)
 					}
 				})
@@ -555,7 +559,7 @@ func (v *Visitor) EnterField(ref int) {
 				Item: value,
 			}
 			value = list
-			if override,ok := v.fieldPathOverrides[ref];ok {
+			if override, ok := v.fieldPathOverrides[ref]; ok {
 				list.Path = override(list.Path)
 			}
 		}

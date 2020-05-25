@@ -115,12 +115,6 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		},
 	},Configuration{
-		DataSourceConfigurations: []DataSourceConfiguration{
-			{
-				TypeName: "Query",
-				FieldNames: []string{"droid"},
-			},
-		},
 		FieldMappings: []FieldMapping{
 			{
 				TypeName:              "Query",

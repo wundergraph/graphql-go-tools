@@ -570,13 +570,23 @@ func (r *Resolver) resolveSingleFetch(ctx Context, fetch *SingleFetch, buf *BufP
 func (r *Resolver) resolveVariables(ctx Context, variables []Variable, data, input []byte) []byte {
 	for i := range variables {
 		variableName := []byte("$$" + strconv.Itoa(i) + "$$")
-		var value []byte
+		var (
+			err           error
+			value, source []byte
+			path          []string
+		)
 		switch v := variables[i].(type) {
 		case *ContextVariable:
-			value = r.resolveContextVariable(ctx, v)
+			source = ctx.Variables
+			path = v.Path
 		case *ObjectVariable:
-			value = r.resolveObjectVariable(data, v)
+			source = data
+			path = v.Path
 		default:
+			continue
+		}
+		value, _, _, err = jsonparser.Get(source, path...)
+		if err != nil {
 			continue
 		}
 		for {
@@ -586,34 +596,12 @@ func (r *Resolver) resolveVariables(ctx Context, variables []Variable, data, inp
 			}
 			before := input[:j]
 			after := input[j+len(variableName):]
-			valueCopy := make([]byte,len(value))
-			copy(valueCopy,value)
+			valueCopy := make([]byte, len(value))
+			copy(valueCopy, value)
 			input = append(before, append(valueCopy, after...)...)
 		}
 	}
 	return input
-}
-
-func (r *Resolver) resolveObjectVariable(data []byte, variable *ObjectVariable) []byte {
-	value, dataType, offset, err := jsonparser.Get(data, variable.Path...)
-	if err != nil {
-		return null
-	}
-	if dataType == jsonparser.String {
-		value = data[offset-len(value)-2 : offset]
-	}
-	return value
-}
-
-func (r *Resolver) resolveContextVariable(ctx Context, variable *ContextVariable) []byte {
-	value, dataType, offset, err := jsonparser.Get(ctx.Variables, variable.Path...)
-	if err != nil {
-		return null
-	}
-	if dataType == jsonparser.String {
-		value = ctx.Variables[offset-len(value)-2 : offset]
-	}
-	return value
 }
 
 type Object struct {
@@ -774,18 +762,17 @@ type Variables struct {
 }
 
 func NewVariables(variables ...Variable) Variables {
-	var out Variables
-	for i := range variables {
-		out.AddVariable(variables[i])
+	return Variables{
+		variables: variables,
 	}
-	return out
 }
 
 var (
 	variablePrefixSuffix = []byte("$$")
+	quotes               = []byte("\"")
 )
 
-func (v *Variables) AddVariable(variable Variable) (name []byte, exists bool) {
+func (v *Variables) AddVariable(variable Variable, quoteValue bool) (name []byte, exists bool) {
 	index := -1
 	for i := range v.variables {
 		if v.variables[i].Equals(variable) {
@@ -800,6 +787,9 @@ func (v *Variables) AddVariable(variable Variable) (name []byte, exists bool) {
 	}
 	i := unsafebytes.StringToBytes(strconv.Itoa(index))
 	name = append(variablePrefixSuffix, append(i, variablePrefixSuffix...)...)
+	if quoteValue {
+		name = append(quotes, append(name, quotes...)...)
+	}
 	return
 }
 

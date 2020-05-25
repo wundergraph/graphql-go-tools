@@ -7,8 +7,6 @@ package ast
 
 import (
 	"github.com/cespare/xxhash"
-
-	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 )
 
 type Document struct {
@@ -214,18 +212,6 @@ func (d *Document) RemoveRootNode(node Node) {
 			return
 		}
 	}
-}
-
-func (d *Document) ResolveTypeNameBytes(ref int) ByteSlice {
-	graphqlType := d.Types[ref]
-	for graphqlType.TypeKind != TypeKindNamed {
-		graphqlType = d.Types[graphqlType.OfType]
-	}
-	return d.Input.ByteSlice(graphqlType.Name)
-}
-
-func (d *Document) ResolveTypeNameString(ref int) string {
-	return unsafebytes.BytesToString(d.ResolveTypeNameBytes(ref))
 }
 
 func (d *Document) NodeByName(name ByteSlice) (Node, bool) {

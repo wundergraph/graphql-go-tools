@@ -44,7 +44,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 						},
 					},
 					BufferId: 0,
-					Input:    []byte(`{"url":"https://swapi.com/graphql","body":{"query":"query($id: ID!){droid(id: $id){name aliased: name friends {name} primaryFunction} hero {name} stringList nestedStringList}","variables":{"id":$$0$$}}}`),
+					Input:    []byte(`{"url":"https://swapi.com/graphql","body":{"query":"query($id: ID!){droid(id: $id){name aliased: name friends {name} primaryFunction} hero {name} stringList nestedStringList}","variables":{"id":"$$0$$"}}}`),
 					Variables: resolve.NewVariables(&resolve.ContextVariable{
 						Path: []string{"id"},
 					}),
@@ -247,7 +247,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 						Fetches: []*resolve.SingleFetch{
 							{
 								BufferId: 0,
-								Input:    []byte(`{"url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":$$0$$}}}`),
+								Input:    []byte(`{"url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":"$$0$$"}}}`),
 								DataSource: &Source{
 									Client: http.Client{
 										Timeout: time.Second * 10,
@@ -321,7 +321,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 													Timeout: time.Second * 10,
 												},
 											},
-											Input: []byte(`{"url":"https://service.one","body":{"query":"query($a: String){serviceOne(serviceOneArg: $a){fieldOne}}","variables":{"a":$$0$$}}}`),
+											Input: []byte(`{"url":"https://service.one","body":{"query":"query($a: String){serviceOne(serviceOneArg: $a){fieldOne}}","variables":{"a":"$$0$$"}}}`),
 											Variables: resolve.NewVariables(
 												&resolve.ObjectVariable{
 													Path: []string{"__dep__serviceOneField"},

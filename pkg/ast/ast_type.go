@@ -162,3 +162,34 @@ func (d *Document) TypesAreCompatibleDeep(left int, right int) bool {
 		right = d.Types[right].OfType
 	}
 }
+
+func (d *Document) ResolveTypeNameBytes(ref int) ByteSlice {
+	graphqlType := d.Types[ref]
+	for graphqlType.TypeKind != TypeKindNamed {
+		graphqlType = d.Types[graphqlType.OfType]
+	}
+	return d.Input.ByteSlice(graphqlType.Name)
+}
+
+func (d *Document) ResolveTypeNameString(ref int) string {
+	return unsafebytes.BytesToString(d.ResolveTypeNameBytes(ref))
+}
+
+func (d *Document) TypeValueNeedsQuotes(ref int) bool {
+	graphqlType := d.Types[ref]
+	switch graphqlType.TypeKind {
+	case TypeKindNonNull:
+		return d.TypeValueNeedsQuotes(graphqlType.OfType)
+	case TypeKindList:
+		return false
+	case TypeKindNamed:
+		switch d.Input.ByteSliceString(graphqlType.Name) {
+		case "Int", "Float", "Boolean","JSON":
+			return false
+		default:
+			return true
+		}
+	default:
+		return false
+	}
+}

@@ -15,6 +15,8 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 )
 
+// TODO: test with one datasource and multiple aliases for the same root field: should create multiple fetches for each individual alias
+
 const (
 	schema = `
 		type Query {
@@ -24,6 +26,12 @@ const (
 
 		type Friend {
 			name: String
+			pet: Pet
+		}
+
+		type Pet {
+			id: String
+			name: String
 		}
 	`
 
@@ -31,6 +39,17 @@ const (
 		query {
 			friend {
 				name
+			}
+		}
+	`
+	nestedOperation = `
+		query {
+			friend {
+				name
+				pet {
+					id
+					name
+				}
 			}
 		}
 	`
@@ -45,21 +64,16 @@ const (
 )
 
 func TestHttpJsonDataSourcePlanning(t *testing.T) {
-	t.Run("get request", datasourcetesting.RunTest(schema, simpleOperation, "",
+	t.Run("get request", datasourcetesting.RunTest(schema, nestedOperation, "",
 		&plan.SynchronousResponsePlan{
 			Response: resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
 						BufferId: 0,
-						Input:    []byte(`{"method":"GET","url":"https://example.com/$$0$$"}`),
+						Input:    []byte(`{"method":"GET","url":"https://example.com/friend"}`),
 						DataSource: &Source{
 							client: NewPlanner(nil).getClient(),
 						},
-						Variables: resolve.NewVariables(
-							&resolve.ObjectVariable{
-								Path: []string{"id"},
-							},
-						),
 					},
 					FieldSets: []resolve.FieldSet{
 						{
@@ -69,6 +83,18 @@ func TestHttpJsonDataSourcePlanning(t *testing.T) {
 								{
 									Name: []byte("friend"),
 									Value: &resolve.Object{
+										Fetch: &resolve.SingleFetch{
+											BufferId: 1,
+											Input:    []byte(`{"method":"GET","url":"https://example.com/friend/$$0$$/pet"}`),
+											DataSource: &Source{
+												client: NewPlanner(nil).getClient(),
+											},
+											Variables: resolve.NewVariables(
+												&resolve.ObjectVariable{
+													Path: []string{"name"},
+												},
+											),
+										},
 										FieldSets: []resolve.FieldSet{
 											{
 												Fields: []resolve.Field{
@@ -76,6 +102,35 @@ func TestHttpJsonDataSourcePlanning(t *testing.T) {
 														Name: []byte("name"),
 														Value: &resolve.String{
 															Path: []string{"name"},
+														},
+													},
+												},
+											},
+											{
+												HasBuffer: true,
+												BufferID: 1,
+												Fields: []resolve.Field{
+													{
+														Name: []byte("pet"),
+														Value: &resolve.Object{
+															FieldSets: []resolve.FieldSet{
+																{
+																	Fields: []resolve.Field{
+																		{
+																			Name: []byte("id"),
+																			Value: &resolve.String{
+																				Path: []string{"id"},
+																			},
+																		},
+																		{
+																			Name: []byte("name"),
+																			Value: &resolve.String{
+																				Path: []string{"name"},
+																			},
+																		},
+																	},
+																},
+															},
 														},
 													},
 												},
@@ -97,7 +152,22 @@ func TestHttpJsonDataSourcePlanning(t *testing.T) {
 					Attributes: []plan.DataSourceAttribute{
 						{
 							Key:   "url",
-							Value: []byte("https://example.com/{{ .object.id }}"),
+							Value: []byte("https://example.com/friend"),
+						},
+						{
+							Key:   "method",
+							Value: []byte("GET"),
+						},
+					},
+					DataSourcePlanner: &Planner{},
+				},
+				{
+					TypeName:   "Friend",
+					FieldNames: []string{"pet"},
+					Attributes: []plan.DataSourceAttribute{
+						{
+							Key:   "url",
+							Value: []byte("https://example.com/friend/{{ .object.name }}/pet"),
 						},
 						{
 							Key:   "method",
@@ -111,6 +181,11 @@ func TestHttpJsonDataSourcePlanning(t *testing.T) {
 				{
 					TypeName:              "Query",
 					FieldName:             "friend",
+					DisableDefaultMapping: true,
+				},
+				{
+					TypeName:              "Friend",
+					FieldName:             "pet",
 					DisableDefaultMapping: true,
 				},
 			},

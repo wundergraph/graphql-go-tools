@@ -174,15 +174,21 @@ func (p *Planner) applyFieldArgument(upstreamField, downstreamField int, arg Arg
 			variableName := p.v.Operation.VariableValueNameBytes(value.Ref)
 			variableNameStr := p.v.Operation.VariableValueNameString(value.Ref)
 
-			contextVariableName, exists := p.fetch.Variables.AddVariable(&resolve.ContextVariable{Path: append([]string{variableNameStr}, arg.SourcePath...)})
+			variableDefinition, ok := p.v.Operation.VariableDefinitionByNameAndOperation(p.v.Ancestors[0].Ref, variableName)
+			if !ok {
+				return
+			}
+
+			variableDefinitionType := p.v.Operation.VariableDefinitions[variableDefinition].Type
+			wrapValueInQuotes := p.v.Operation.TypeValueNeedsQuotes(variableDefinitionType)
+
+			contextVariableName, exists := p.fetch.Variables.AddVariable(&resolve.ContextVariable{Path: append([]string{variableNameStr}, arg.SourcePath...)}, wrapValueInQuotes)
 			variableValueRef, argRef := p.operation.AddVariableValueArgument(arg.Name, variableName) // add the argument to the field, but don't redefine it
 			p.operation.AddArgumentToField(upstreamField, argRef)
 
 			if exists { // if the variable exists we don't have to put it onto the variables declaration again, skip
 				return
 			}
-
-			p.variables, _ = sjson.SetRawBytes(p.variables, variableNameStr, contextVariableName)
 
 			for _, i := range p.v.Operation.OperationDefinitions[p.v.Ancestors[0].Ref].VariableDefinitions.Refs {
 				ref := p.v.Operation.VariableDefinitions[i].VariableValue.Ref
@@ -192,6 +198,8 @@ func (p *Planner) applyFieldArgument(upstreamField, downstreamField int, arg Arg
 				importedType := p.v.Importer.ImportType(p.v.Operation.VariableDefinitions[i].Type, p.v.Operation, p.operation)
 				p.operation.AddVariableDefinitionToOperationDefinition(p.nodes[0].Ref, variableValueRef, importedType)
 			}
+
+			p.variables, _ = sjson.SetRawBytes(p.variables, variableNameStr, contextVariableName)
 		}
 	case ObjectField:
 		if len(arg.SourcePath) < 1 {
@@ -221,9 +229,10 @@ func (p *Planner) applyFieldArgument(upstreamField, downstreamField int, arg Arg
 		p.operation.AddArgumentToField(upstreamField, argument)
 		importedType := p.v.Importer.ImportType(argumentType, p.v.Definition, p.operation)
 		p.operation.AddVariableDefinitionToOperationDefinition(p.nodes[0].Ref, variableValue, importedType)
+		wrapVariableInQuotes := p.v.Definition.TypeValueNeedsQuotes(argumentType)
 
 		arg.SourcePath[0] = plan.FieldDependencyPrefix + arg.SourcePath[0]
-		objectVariableName, exists := p.fetch.Variables.AddVariable(&resolve.ObjectVariable{Path: arg.SourcePath})
+		objectVariableName, exists := p.fetch.Variables.AddVariable(&resolve.ObjectVariable{Path: arg.SourcePath},wrapVariableInQuotes)
 		if !exists {
 			p.variables, _ = sjson.SetRawBytes(p.variables, string(variableName), objectVariableName)
 		}
