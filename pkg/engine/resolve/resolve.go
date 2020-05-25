@@ -613,8 +613,14 @@ func (r *Resolver) resolveSingleFetch(ctx Context, fetch *SingleFetch, buf *BufP
 
 	err = fetch.DataSource.Load(ctx.Context, fetch.Input, buf)
 	inflight.err = err
-	inflight.data = buf.Data.Bytes()
-	inflight.errors = buf.Errors.Bytes()
+	if buf.Data.Len() != 0 {
+		inflight.data = make([]byte,buf.Data.Len())
+		copy(inflight.data,buf.Data.Bytes())
+	}
+	if buf.Errors.Len() != 0 {
+		inflight.errors = make([]byte,buf.Errors.Len())
+		copy(inflight.errors,buf.Errors.Bytes())
+	}
 
 	inflight.wg.Done()
 

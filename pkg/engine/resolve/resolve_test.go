@@ -3,7 +3,6 @@ package resolve
 import (
 	"bytes"
 	"context"
-	"io/ioutil"
 	"testing"
 
 	"github.com/golang/mock/gomock"
@@ -1167,7 +1166,7 @@ func BenchmarkResolver_ResolveNode(b *testing.B) {
 		},
 	}
 
-	//var err error
+	var err error
 	expected := `{"data":{"serviceOne":{"fieldOne":"fieldOneValue"},"serviceTwo":{"fieldTwo":"fieldTwoValue","serviceOneResponse":{"fieldOne":"fieldOneValue"}},"anotherServiceOne":{"fieldOne":"anotherFieldOneValue"},"secondServiceTwo":{"fieldTwo":"secondFieldTwoValue"},"reusingServiceOne":{"fieldOne":"reUsingFieldOneValue"}}}`
 
 	b.ReportAllocs()
@@ -1176,11 +1175,11 @@ func BenchmarkResolver_ResolveNode(b *testing.B) {
 
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			_ = resolver.ResolveGraphQLResponse(ctx, plan, nil, ioutil.Discard)
-			/*buf := bytes.Buffer{}
+			//_ = resolver.ResolveGraphQLResponse(ctx, plan, nil, ioutil.Discard)
+			buf := bytes.Buffer{}
 			err = resolver.ResolveGraphQLResponse(ctx, plan, nil, &buf)
 			assert.NoError(b,err)
-			assert.Equal(b,expected,buf.String())*/
+			assert.Equal(b,expected,buf.String())
 		}
 	})
 }
