@@ -620,10 +620,10 @@ func (r *Resolver) resolveSingleFetch(ctx Context, fetch *SingleFetch, buf *BufP
 	inflight.err = err
 	inflight.data = buf.Data.Bytes()
 	inflight.errors = buf.Errors.Bytes()
-	inflight.wg.Done()
 	r.inflightFetchMu.Lock()
 	delete(r.inflightFetches, fetchID)
 	r.inflightFetchMu.Unlock()
+	inflight.wg.Done()
 	return
 }
 
