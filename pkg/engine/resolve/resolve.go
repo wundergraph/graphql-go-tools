@@ -94,7 +94,6 @@ type Resolver struct {
 	hash64Pool        sync.Pool
 	inflightFetchMu   sync.Mutex
 	inflightFetches   map[uint64]*inflightFetch
-	inflightFetchPool sync.Pool
 }
 
 type inflightFetch struct {
@@ -147,11 +146,6 @@ func New() *Resolver {
 		hash64Pool: sync.Pool{
 			New: func() interface{} {
 				return xxhash.New()
-			},
-		},
-		inflightFetchPool: sync.Pool{
-			New: func() interface{} {
-				return &inflightFetch{}
 			},
 		},
 		inflightFetches: map[uint64]*inflightFetch{},
@@ -610,20 +604,23 @@ func (r *Resolver) resolveSingleFetch(ctx Context, fetch *SingleFetch, buf *BufP
 		}
 		return inflight.err
 	}
-	inflight = r.inflightFetchPool.Get().(*inflightFetch)
-	defer r.inflightFetchPool.Put(inflight)
+
+	inflight = &inflightFetch{}
 	inflight.wg.Add(1)
 	r.inflightFetches[fetchID] = inflight
+
 	r.inflightFetchMu.Unlock()
 
 	err = fetch.DataSource.Load(ctx.Context, fetch.Input, buf)
 	inflight.err = err
 	inflight.data = buf.Data.Bytes()
 	inflight.errors = buf.Errors.Bytes()
+
+	inflight.wg.Done()
+
 	r.inflightFetchMu.Lock()
 	delete(r.inflightFetches, fetchID)
 	r.inflightFetchMu.Unlock()
-	inflight.wg.Done()
 	return
 }
 
