@@ -247,10 +247,6 @@ func (l ListArgument) ArgName() []byte {
 }
 
 func isWhitelistedScheme(scheme string, whitelistedSchemes []string, defaultSchemes []string) bool {
-	if whitelistedSchemes == nil {
-		whitelistedSchemes = []string{}
-	}
-
 	schemes := append(whitelistedSchemes, defaultSchemes...)
 	for _, whitelistedScheme := range schemes {
 		if scheme == whitelistedScheme {

@@ -58,8 +58,8 @@ type HttpJsonDataSourceConfigHeader struct {
 }
 
 type HttpJsonDataSourcePlannerFactoryFactory struct {
-	Client            *http.Client
-	AdditionalSchemes []string
+	Client             *http.Client
+	WhitelistedSchemes []string
 }
 
 func (h *HttpJsonDataSourcePlannerFactoryFactory) httpClient() *http.Client {
@@ -73,7 +73,7 @@ func (h *HttpJsonDataSourcePlannerFactoryFactory) Initialize(base BasePlanner, c
 	factory := &HttpJsonDataSourcePlannerFactory{
 		base:               base,
 		client:             h.httpClient(),
-		whitelistedSchemes: h.AdditionalSchemes,
+		whitelistedSchemes: h.WhitelistedSchemes,
 	}
 	err := json.NewDecoder(configReader).Decode(&factory.config)
 	return factory, err

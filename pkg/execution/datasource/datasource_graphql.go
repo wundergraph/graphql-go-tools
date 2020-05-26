@@ -51,8 +51,8 @@ type GraphQLDataSourcePlanner struct {
 }
 
 type GraphQLDataSourcePlannerFactoryFactory struct {
-	Client            *http.Client
-	AdditionalSchemes []string
+	Client             *http.Client
+	WhitelistedSchemes []string
 }
 
 func (g *GraphQLDataSourcePlannerFactoryFactory) httpClient() *http.Client {
@@ -66,7 +66,7 @@ func (g GraphQLDataSourcePlannerFactoryFactory) Initialize(base BasePlanner, con
 	factory := &GraphQLDataSourcePlannerFactory{
 		base:               base,
 		client:             g.httpClient(),
-		whitelistedSchemes: g.AdditionalSchemes,
+		whitelistedSchemes: g.WhitelistedSchemes,
 	}
 	err := json.NewDecoder(configReader).Decode(&factory.config)
 	return factory, err
