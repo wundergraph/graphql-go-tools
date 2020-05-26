@@ -56,6 +56,10 @@ func (d *Document) FieldDefinitionIsLast(field int, ancestor Node) bool {
 	return len(definitions) != 0 && definitions[len(definitions)-1] == field
 }
 
+func (d *Document) FieldDefinitionHasDirectives(ref int) bool {
+	return d.FieldDefinitions[ref].HasDirectives
+}
+
 func (d *Document) FieldDefinitionDirectives(fieldDefinition int) (refs []int) {
 	return d.FieldDefinitions[fieldDefinition].Directives.Refs
 }
@@ -90,7 +94,7 @@ func (d *Document) AddFieldDefinition(fieldDefinition FieldDefinition) (ref int)
 	return len(d.FieldDefinitions) - 1
 }
 
-func (d *Document) ImportFieldDefinition(name, description string, typeRef int, argsRefs []int) (ref int) {
+func (d *Document) ImportFieldDefinition(name, description string, typeRef int, argsRefs []int, directiveRefs []int) (ref int) {
 	fieldDef := FieldDefinition{
 		Name:        d.Input.AppendInputString(name),
 		Type:        typeRef,
@@ -99,6 +103,10 @@ func (d *Document) ImportFieldDefinition(name, description string, typeRef int, 
 			Refs: argsRefs,
 		},
 		HasArgumentsDefinitions: len(argsRefs) > 0,
+		Directives: DirectiveList{
+			Refs: directiveRefs,
+		},
+		HasDirectives: len(directiveRefs) > 0,
 	}
 
 	return d.AddFieldDefinition(fieldDef)
@@ -111,6 +119,10 @@ func (d *Document) FieldDefinitionsContainField(definitions []int, field ByteSli
 		}
 	}
 	return false
+}
+
+func (d *Document) FieldDefinitionHasArgumentsDefinitions(ref int) bool {
+	return d.FieldDefinitions[ref].HasArgumentsDefinitions
 }
 
 func (d *Document) FieldDefinitionArgumentsDefinitions(ref int) []int {

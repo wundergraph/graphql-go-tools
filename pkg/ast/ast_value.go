@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 )
 
@@ -33,13 +34,17 @@ func (d *Document) ValueContentBytes(value Value) ByteSlice {
 	case ValueKindEnum:
 		return d.EnumValueNameBytes(value.Ref)
 	case ValueKindString:
-		d.StringValueContentBytes(value.Ref)
+		return d.StringValueContentBytes(value.Ref)
 	case ValueKindInteger:
 		return d.IntValueRaw(value.Ref)
 	case ValueKindFloat:
 		return d.FloatValueRaw(value.Ref)
 	}
 	panic(fmt.Errorf("ValueContentBytes not implemented for ValueKind: %s", value.Kind))
+}
+
+func (d *Document) ValueContentString(value Value) string {
+	return unsafebytes.BytesToString(d.ValueContentBytes(value))
 }
 
 // nolint

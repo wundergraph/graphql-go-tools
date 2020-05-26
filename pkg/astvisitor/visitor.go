@@ -2785,7 +2785,7 @@ func (w *Walker) walkEnumValueDefinition(ref int) {
 	}
 
 	if w.document.EnumValueDefinitions[ref].HasDirectives {
-		for _, i := range w.definition.EnumValueDefinitions[ref].Directives.Refs {
+		for _, i := range w.document.EnumValueDefinitions[ref].Directives.Refs {
 			w.walkDirective(i)
 			if w.stop {
 				return

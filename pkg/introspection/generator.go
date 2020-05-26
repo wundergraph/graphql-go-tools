@@ -11,6 +11,11 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
+const (
+	DeprecatedDirectiveName  = "deprecated"
+	DeprecationReasonArgName = "reason"
+)
+
 type Generator struct {
 	Data    *Data
 	walker  *astvisitor.Walker
@@ -88,6 +93,14 @@ func (i *introspectionVisitor) EnterFieldDefinition(ref int) {
 	i.currentField.Name = i.definition.FieldDefinitionNameString(ref)
 	i.currentField.Description = i.definition.FieldDefinitionDescriptionString(ref)
 	i.currentField.Type = i.TypeRef(i.definition.FieldDefinitionType(ref))
+
+	if i.definition.FieldDefinitionHasDirectives(ref) {
+		directiveRef, exists := i.definition.FieldDefinitionDirectiveByName(ref, []byte(DeprecatedDirectiveName))
+		if exists {
+			i.currentField.IsDeprecated = true
+			i.currentField.DeprecationReason = i.deprecationReason(directiveRef)
+		}
+	}
 }
 
 func (i *introspectionVisitor) LeaveFieldDefinition(ref int) {
@@ -245,10 +258,20 @@ func (i *introspectionVisitor) EnterEnumValueDefinition(ref int) {
 }
 
 func (i *introspectionVisitor) LeaveEnumValueDefinition(ref int) {
-	i.currentType.EnumValues = append(i.currentType.EnumValues, EnumValue{
+	enumValue := EnumValue{
 		Name:        i.definition.EnumValueDefinitionNameString(ref),
 		Description: i.definition.EnumValueDefinitionDescriptionString(ref),
-	})
+	}
+
+	if i.definition.EnumValueDefinitionHasDirectives(ref) {
+		directiveRef, exists := i.definition.EnumValueDefinitionDirectiveByName(ref, []byte(DeprecatedDirectiveName))
+		if exists {
+			enumValue.IsDeprecated = true
+			enumValue.DeprecationReason = i.deprecationReason(directiveRef)
+		}
+	}
+
+	i.currentType.EnumValues = append(i.currentType.EnumValues, enumValue)
 }
 
 func (i *introspectionVisitor) EnterInputObjectTypeDefinition(ref int) {
@@ -437,4 +460,19 @@ func (i *introspectionVisitor) TypeRef(typeRef int) TypeRef {
 	default:
 		return TypeRef{}
 	}
+}
+
+func (i *introspectionVisitor) deprecationReason(directiveRef int) (reason *string) {
+	argValue, exists := i.definition.DirectiveArgumentValueByName(directiveRef, []byte(DeprecationReasonArgName))
+	if exists {
+		reasonContent := i.definition.ValueContentString(argValue)
+		return &reasonContent
+	}
+
+	defaultValue := i.definition.DirectiveDefinitionArgumentDefaultValueString(DeprecatedDirectiveName, DeprecationReasonArgName)
+	if defaultValue != "" {
+		return &defaultValue
+	}
+
+	return
 }
