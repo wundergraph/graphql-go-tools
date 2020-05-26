@@ -8,8 +8,8 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"strconv"
-	"strings"
 
 	"github.com/buger/jsonparser"
 	log "github.com/jensneuse/abstractlogger"
@@ -19,6 +19,11 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 )
+
+var httpJsonSchemes = []string{
+	"https",
+	"http",
+}
 
 // HttpJsonDataSourceConfig is the configuration object for the HttpJsonDataSource
 type HttpJsonDataSourceConfig struct {
@@ -53,7 +58,8 @@ type HttpJsonDataSourceConfigHeader struct {
 }
 
 type HttpJsonDataSourcePlannerFactoryFactory struct {
-	Client *http.Client
+	Client            *http.Client
+	AdditionalSchemes []string
 }
 
 func (h *HttpJsonDataSourcePlannerFactoryFactory) httpClient() *http.Client {
@@ -65,37 +71,42 @@ func (h *HttpJsonDataSourcePlannerFactoryFactory) httpClient() *http.Client {
 
 func (h *HttpJsonDataSourcePlannerFactoryFactory) Initialize(base BasePlanner, configReader io.Reader) (PlannerFactory, error) {
 	factory := &HttpJsonDataSourcePlannerFactory{
-		base:   base,
-		client: h.httpClient(),
+		base:               base,
+		client:             h.httpClient(),
+		whitelistedSchemes: h.AdditionalSchemes,
 	}
 	err := json.NewDecoder(configReader).Decode(&factory.config)
 	return factory, err
 }
 
 type HttpJsonDataSourcePlannerFactory struct {
-	base   BasePlanner
-	config HttpJsonDataSourceConfig
-	client *http.Client
+	base               BasePlanner
+	config             HttpJsonDataSourceConfig
+	client             *http.Client
+	whitelistedSchemes []string
 }
 
 func (h *HttpJsonDataSourcePlannerFactory) DataSourcePlanner() Planner {
 	return &HttpJsonDataSourcePlanner{
-		BasePlanner:      h.base,
-		dataSourceConfig: h.config,
-		client:           h.client,
+		BasePlanner:        h.base,
+		dataSourceConfig:   h.config,
+		client:             h.client,
+		whitelistedSchemes: h.whitelistedSchemes,
 	}
 }
 
 type HttpJsonDataSourcePlanner struct {
 	BasePlanner
-	dataSourceConfig HttpJsonDataSourceConfig
-	client           *http.Client
+	dataSourceConfig   HttpJsonDataSourceConfig
+	client             *http.Client
+	whitelistedSchemes []string
 }
 
 func (h *HttpJsonDataSourcePlanner) Plan(args []Argument) (DataSource, []Argument) {
 	return &HttpJsonDataSource{
-		Log:    h.Log,
-		Client: h.client,
+		Log:                h.Log,
+		Client:             h.client,
+		WhitelistedSchemes: h.whitelistedSchemes,
 	}, append(h.Args, args...)
 }
 
@@ -205,8 +216,9 @@ func (h *HttpJsonDataSourcePlanner) LeaveField(ref int) {
 }
 
 type HttpJsonDataSource struct {
-	Log    log.Logger
-	Client *http.Client
+	Log                log.Logger
+	Client             *http.Client
+	WhitelistedSchemes []string
 }
 
 func (r *HttpJsonDataSource) Resolve(ctx context.Context, args ResolverArgs, out io.Writer) (n int, err error) {
@@ -248,9 +260,17 @@ func (r *HttpJsonDataSource) Resolve(ctx context.Context, args ResolverArgs, out
 		httpMethod = http.MethodPatch
 	}
 
-	url := string(hostArg) + string(urlArg)
-	if !strings.HasPrefix(url, "https://") && !strings.HasPrefix(url, "http://") {
-		url = "https://" + url
+	rawURL := string(hostArg) + string(urlArg)
+
+	var parsedURL *url.URL
+	parsedURL, err = url.Parse(rawURL)
+	if err != nil {
+		r.Log.Error("HttpJsonDataSource.RawURL could not be parsed")
+		return
+	}
+
+	if len(parsedURL.Scheme) == 0 || !isWhitelistedScheme(parsedURL.Scheme, r.WhitelistedSchemes, httpJsonSchemes) {
+		parsedURL.Scheme = httpJsonSchemes[0]
 	}
 
 	header := make(http.Header)
@@ -265,7 +285,8 @@ func (r *HttpJsonDataSource) Resolve(ctx context.Context, args ResolverArgs, out
 	}
 
 	r.Log.Debug("HttpJsonDataSource.Resolve",
-		log.String("url", url),
+		log.String("rawURL", rawURL),
+		log.String("parsedURL", parsedURL.String()),
 	)
 
 	var bodyReader io.Reader
@@ -274,7 +295,7 @@ func (r *HttpJsonDataSource) Resolve(ctx context.Context, args ResolverArgs, out
 		bodyReader = bytes.NewReader(bodyArg)
 	}
 
-	request, err := http.NewRequest(httpMethod, url, bodyReader)
+	request, err := http.NewRequest(httpMethod, parsedURL.String(), bodyReader)
 	if err != nil {
 		r.Log.Error("HttpJsonDataSource.Resolve.NewRequest",
 			log.Error(err),

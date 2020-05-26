@@ -16,11 +16,13 @@ import (
 )
 
 type DataSourceHttpJsonOptions struct {
-	HttpClient *http.Client
+	HttpClient        *http.Client
+	AdditionalSchemes []string
 }
 
 type DataSourceGraphqlOptions struct {
-	HttpClient *http.Client
+	HttpClient        *http.Client
+	AdditionalSchemes []string
 }
 
 type ExecutionOptions struct {
@@ -60,6 +62,10 @@ func (e *ExecutionEngine) AddHttpJsonDataSourceWithOptions(name string, options 
 		httpJsonFactoryFactory.Client = options.HttpClient
 	}
 
+	if len(options.AdditionalSchemes) > 0 {
+		httpJsonFactoryFactory.AdditionalSchemes = options.AdditionalSchemes
+	}
+
 	return e.AddDataSource(name, httpJsonFactoryFactory)
 }
 
@@ -72,6 +78,10 @@ func (e *ExecutionEngine) AddGraphqlDataSourceWithOptions(name string, options D
 
 	if options.HttpClient != nil {
 		graphqlFactoryFactory.Client = options.HttpClient
+	}
+
+	if len(options.AdditionalSchemes) > 0 {
+		graphqlFactoryFactory.AdditionalSchemes = options.AdditionalSchemes
 	}
 
 	return e.AddDataSource(name, graphqlFactoryFactory)

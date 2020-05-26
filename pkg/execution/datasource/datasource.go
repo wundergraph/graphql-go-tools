@@ -245,3 +245,18 @@ type ListArgument struct {
 func (l ListArgument) ArgName() []byte {
 	return l.Name
 }
+
+func isWhitelistedScheme(scheme string, whitelistedSchemes []string, defaultSchemes []string) bool {
+	if whitelistedSchemes == nil {
+		whitelistedSchemes = []string{}
+	}
+
+	schemes := append(whitelistedSchemes, defaultSchemes...)
+	for _, whitelistedScheme := range schemes {
+		if scheme == whitelistedScheme {
+			return true
+		}
+	}
+
+	return false
+}
