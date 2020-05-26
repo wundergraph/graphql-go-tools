@@ -8,7 +8,6 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
-	"net/url"
 	"strconv"
 
 	"github.com/buger/jsonparser"
@@ -260,12 +259,9 @@ func (r *HttpJsonDataSource) Resolve(ctx context.Context, args ResolverArgs, out
 		httpMethod = http.MethodPatch
 	}
 
-	rawURL := string(hostArg) + string(urlArg)
-
-	var parsedURL *url.URL
-	parsedURL, err = url.Parse(rawURL)
+	parsedURL, rawURL, err := parseURLBytes(hostArg, urlArg)
 	if err != nil {
-		r.Log.Error("HttpJsonDataSource.RawURL could not be parsed")
+		r.Log.Error("HttpJsonDataSource.RawURL could not be parsed", log.String("rawURL", rawURL))
 		return
 	}
 

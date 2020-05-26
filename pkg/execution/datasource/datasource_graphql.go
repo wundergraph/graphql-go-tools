@@ -7,7 +7,6 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
-	"net/url"
 
 	"github.com/buger/jsonparser"
 	log "github.com/jensneuse/abstractlogger"
@@ -316,12 +315,9 @@ func (g *GraphQLDataSource) Resolve(ctx context.Context, args ResolverArgs, out 
 		return
 	}
 
-	rawURL := string(hostArg) + string(urlArg)
-
-	var parsedURL *url.URL
-	parsedURL, err = url.Parse(rawURL)
+	parsedURL, rawURL, err := parseURLBytes(hostArg, urlArg)
 	if err != nil {
-		g.Log.Error("GraphQLDataSource.RawURL could not be parsed")
+		g.Log.Error("GraphQLDataSource.RawURL could not be parsed", log.String("rawURL", rawURL))
 		return
 	}
 
