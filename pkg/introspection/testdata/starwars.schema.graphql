@@ -11,7 +11,7 @@ type Query {
     search(text: String): [SearchResult]
     character(id: ID!): Character
     droid(id: ID!): Droid
-    human(id: ID!): Human
+    human(id: ID!): Human @deprecated(reason: "skynet wins!")
     starship(id: ID!): Starship
 }
 
@@ -28,7 +28,7 @@ type Subscription {
 "The episodes in the Star Wars trilogy"
 enum Episode {
     "Star Wars Episode IV: A New Hope, released in 1977."
-    NEWHOPE
+    NEWHOPE @deprecated(reason: "No longer supported")
     "Star Wars Episode V: The Empire Strikes Back, released in 1980."
     EMPIRE
     "Star Wars Episode VI: Return of the Jedi, released in 1983."
@@ -80,7 +80,7 @@ type Human implements Character {
 }
 
 "An autonomous mechanical character in the Star Wars universe"
-    type Droid implements Character {
+type Droid implements Character {
     "The ID of the droid"
     id: ID!
     "What others call this droid"
@@ -96,7 +96,7 @@ type Human implements Character {
 }
 
 "A connection object for a character's friends"
-    type FriendsConnection {
+type FriendsConnection {
     "The total number of friends"
     totalCount: Int
     "The edges for each of the character's friends."
@@ -108,7 +108,7 @@ type Human implements Character {
 }
 
 "An edge object for a character's friends"
-    type FriendsEdge {
+type FriendsEdge {
     "A cursor used for pagination"
     cursor: ID!
     "The character represented by this friendship edge"
@@ -116,14 +116,14 @@ type Human implements Character {
 }
 
 "Information for paginating this connection"
-    type PageInfo {
+type PageInfo {
     startCursor: ID
     endCursor: ID
     hasNextPage: Boolean!
 }
 
 "Represents a review for a movie"
-    type Review {
+type Review {
     "The movie"
     episode: Episode
     "The number of stars this review gave, 1-5"
@@ -154,10 +154,13 @@ type Starship {
     id: ID!
     "The name of the starship"
     name: String!
+    "The old name of starship"
+    oldName: String @deprecated(reason: "why not?")
     "Length of the starship, along the longest axis"
     length(unit: LengthUnit = METER): Float
 }
 
+"The union represents combined return result which could be on of the types: Human, Droid, Starship"
 union SearchResult = Human | Droid | Starship
 
 "The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1."

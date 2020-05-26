@@ -1,6 +1,8 @@
 package ast
 
 import (
+	"bytes"
+
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
 )
@@ -40,6 +42,23 @@ func (d *Document) EnumValueDefinitionDescriptionString(ref int) string {
 	return unsafebytes.BytesToString(d.EnumValueDefinitionDescriptionBytes(ref))
 }
 
+func (d *Document) EnumValueDefinitionHasDirectives(ref int) bool {
+	return d.EnumValueDefinitions[ref].HasDirectives
+}
+
+func (d *Document) EnumValueDefinitionDirectives(ref int) (refs []int) {
+	return d.EnumValueDefinitions[ref].Directives.Refs
+}
+
+func (d *Document) EnumValueDefinitionDirectiveByName(definitionRef int, directiveName ByteSlice) (ref int, exists bool) {
+	for _, i := range d.EnumValueDefinitions[definitionRef].Directives.Refs {
+		if bytes.Equal(directiveName, d.DirectiveNameBytes(i)) {
+			return i, true
+		}
+	}
+	return
+}
+
 func (d *Document) EnumValueDefinitionIsFirst(ref int, ancestor Node) bool {
 	switch ancestor.Kind {
 	case NodeKindEnumTypeDefinition:
@@ -71,10 +90,14 @@ func (d *Document) AddEnumValueDefinition(inputValueDefinition EnumValueDefiniti
 	return len(d.EnumValueDefinitions) - 1
 }
 
-func (d *Document) ImportEnumValueDefinition(value, description string) (ref int) {
+func (d *Document) ImportEnumValueDefinition(value, description string, directiveRefs []int) (ref int) {
 	inputValueDef := EnumValueDefinition{
-		Description: d.ImportDescription(description),
-		EnumValue:   d.Input.AppendInputString(value),
+		Description:   d.ImportDescription(description),
+		EnumValue:     d.Input.AppendInputString(value),
+		HasDirectives: len(directiveRefs) > 0,
+		Directives: DirectiveList{
+			Refs: directiveRefs,
+		},
 	}
 
 	return d.AddEnumValueDefinition(inputValueDef)

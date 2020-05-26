@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astimport"
@@ -136,9 +137,15 @@ func (j *JsonConverter) importInputObject(fullType FullType) error {
 func (j *JsonConverter) importEnum(fullType FullType) {
 	valueRefs := make([]int, len(fullType.EnumValues))
 	for i := 0; i < len(valueRefs); i++ {
+		var directiveRefs []int
+		if fullType.EnumValues[i].IsDeprecated {
+			directiveRefs = append(directiveRefs, j.importDeprecatedDirective(fullType.EnumValues[i].DeprecationReason))
+		}
+
 		valueRefs[i] = j.doc.ImportEnumValueDefinition(
 			fullType.EnumValues[i].Name,
 			fullType.EnumValues[i].Description,
+			directiveRefs,
 		)
 	}
 
@@ -183,8 +190,13 @@ func (j *JsonConverter) importField(field Field) (ref int, err error) {
 		return -1, err
 	}
 
+	var directiveRefs []int
+	if field.IsDeprecated {
+		directiveRefs = append(directiveRefs, j.importDeprecatedDirective(field.DeprecationReason))
+	}
+
 	return j.doc.ImportFieldDefinition(
-		field.Name, field.Description, typeRef, argRefs), nil
+		field.Name, field.Description, typeRef, argRefs, directiveRefs), nil
 }
 
 func (j *JsonConverter) importInputFields(fields []InputValue) (refs []int, err error) {
@@ -253,4 +265,19 @@ func (j *JsonConverter) importDefaultValue(defaultValue *string) (out ast.Defaul
 		IsDefined: true,
 		Value:     importer.ImportValue(value, from, j.doc),
 	}, nil
+}
+
+func (j *JsonConverter) importDeprecatedDirective(reason *string) (ref int) {
+	var args []int
+	if reason != nil {
+		valueRef := j.doc.ImportStringValue([]byte(*reason), strings.Contains(*reason, "\n"))
+		value := ast.Value{
+			Kind: ast.ValueKindString,
+			Ref:  valueRef,
+		}
+		j.doc.AddValue(value)
+		args = append(args, j.doc.ImportArgument(DeprecationReasonArgName, value))
+	}
+
+	return j.doc.ImportDirective(DeprecatedDirectiveName, args)
 }

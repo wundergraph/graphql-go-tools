@@ -68,6 +68,8 @@ func (d *Document) NodeDirectives(node Node) []int {
 		return d.ObjectTypeDefinitions[node.Ref].Directives.Refs
 	case NodeKindObjectTypeExtension:
 		return d.ObjectTypeExtensions[node.Ref].Directives.Refs
+	case NodeKindFieldDefinition:
+		return d.FieldDefinitions[node.Ref].Directives.Refs
 	case NodeKindInterfaceTypeDefinition:
 		return d.InterfaceTypeDefinitions[node.Ref].Directives.Refs
 	case NodeKindInterfaceTypeExtension:
