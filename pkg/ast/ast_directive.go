@@ -87,3 +87,20 @@ func (d *Document) DirectiveSetsAreEqual(left, right []int) bool {
 	}
 	return true
 }
+
+func (d *Document) AddDirective(directive Directive) (ref int) {
+	d.Directives = append(d.Directives, directive)
+	return len(d.Directives) - 1
+}
+
+func (d *Document) ImportDirective(name string, argRefs []int) (ref int) {
+	directive := Directive{
+		Name:         d.Input.AppendInputString(name),
+		HasArguments: len(argRefs) > 0,
+		Arguments: ArgumentList{
+			Refs: argRefs,
+		},
+	}
+
+	return d.AddDirective(directive)
+}
