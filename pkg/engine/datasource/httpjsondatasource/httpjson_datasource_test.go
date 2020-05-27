@@ -273,6 +273,7 @@ func TestHttpJsonDataSourcePlanning(t *testing.T) {
 							client: NewPlanner(nil).getClient(),
 						},
 						Variables: resolve.Variables{},
+						DisallowSingleFlight: true,
 					},
 					FieldSets: []resolve.FieldSet{
 						{

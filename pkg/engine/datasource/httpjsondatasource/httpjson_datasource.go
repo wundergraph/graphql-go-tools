@@ -69,7 +69,7 @@ func (p *Planner) EnterField(ref int) {
 		err   error
 	)
 
-	url = append(baseURL,url...)
+	url = append(baseURL, url...)
 
 	if url != nil {
 		input, err = sjson.SetBytes(input, URL, string(url))
@@ -95,6 +95,7 @@ func (p *Planner) EnterField(ref int) {
 		DataSource: &Source{
 			client: p.getClient(),
 		},
+		DisallowSingleFlight: !bytes.Equal(method, []byte("GET")),
 	}, config)
 }
 

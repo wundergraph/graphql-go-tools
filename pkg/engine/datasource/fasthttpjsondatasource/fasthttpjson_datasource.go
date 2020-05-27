@@ -1,6 +1,7 @@
 package fasthttpjsondatasource
 
 import (
+	"bytes"
 	"context"
 	"time"
 
@@ -90,6 +91,7 @@ func (p *Planner) EnterField(ref int) {
 		DataSource: &Source{
 			client: p.getClient(),
 		},
+		DisallowSingleFlight: !bytes.Equal(method, []byte("GET")),
 	}, config)
 }
 

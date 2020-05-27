@@ -62,11 +62,11 @@ func (g gotBytesFormatter) Got(got interface{}) string {
 }
 
 func TestResolver_ResolveNode(t *testing.T) {
-	testFn := func(fn func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string)) func(t *testing.T) {
+	testFn := func(fn func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string)) func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-		node, ctx, expectedOutput := fn(t, ctrl)
+		r := New()
+		node, ctx, expectedOutput := fn(t, r, ctrl)
 		return func(t *testing.T) {
-			r := New()
 			buf := &BufPair{
 				Data:   bytes.NewBuffer(nil),
 				Errors: bytes.NewBuffer(nil),
@@ -78,15 +78,15 @@ func TestResolver_ResolveNode(t *testing.T) {
 			ctrl.Finish()
 		}
 	}
-	t.Run("nullable empty object", testFn(func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+	t.Run("nullable empty object", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 			nullable: true,
 		}, Context{Context: context.Background()}, `null`
 	}))
-	t.Run("empty object", testFn(func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+	t.Run("empty object", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &EmptyObject{}, Context{Context: context.Background()}, `{}`
 	}))
-	t.Run("object with null field", testFn(func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+	t.Run("object with null field", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 			FieldSets: []FieldSet{
 				{
@@ -100,7 +100,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 			},
 		}, Context{Context: context.Background()}, `{"foo":null}`
 	}))
-	t.Run("default graphql object", testFn(func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+	t.Run("default graphql object", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 			FieldSets: []FieldSet{
 				{
@@ -116,7 +116,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 			},
 		}, Context{Context: context.Background()}, `{"data":null}`
 	}))
-	t.Run("graphql object with simple data source", testFn(func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+	t.Run("graphql object with simple data source", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 			FieldSets: []FieldSet{
 				{
@@ -196,7 +196,8 @@ func TestResolver_ResolveNode(t *testing.T) {
 			},
 		}, Context{Context: context.Background()}, `{"data":{"user":{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}}}`
 	}))
-	t.Run("fetch with context variable resolver", testFn(func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+	t.Run("fetch with context variable resolver", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+		r.EnableSingleFlightLoader = true
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().UniqueIdentifier().Return([]byte("mock"))
 		mockDataSource.EXPECT().
@@ -231,7 +232,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 			},
 		}, Context{Context: context.Background(), Variables: []byte(`{"id":1}`)}, `{"name":"Jens"}`
 	}))
-	t.Run("resolve arrays", testFn(func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+	t.Run("resolve arrays", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 			Fetch: &SingleFetch{
 				BufferId:   0,
@@ -311,7 +312,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 			},
 		}, Context{Context: context.Background()}, `{"synchronousFriends":[{"id":1,"name":"Alex"},{"id":2,"name":"Patric"}],"asynchronousFriends":[{"id":1,"name":"Alex"},{"id":2,"name":"Patric"}],"nullableFriends":null}`
 	}))
-	t.Run("array response from data source", testFn(func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+	t.Run("array response from data source", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 				Fetch: &SingleFetch{
 					BufferId:   0,
@@ -350,7 +351,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 			}, Context{Context: context.Background()},
 			`{"pets":[{"name":"Woofie"}]}`
 	}))
-	t.Run("resolve fieldsets based on __typename", testFn(func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+	t.Run("resolve fieldsets based on __typename", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 				Fetch: &SingleFetch{
 					BufferId:   0,
@@ -390,7 +391,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 			}, Context{Context: context.Background()},
 			`{"pets":[{"name":"Woofie"}]}`
 	}))
-	t.Run("resolve fieldsets asynchronous based on __typename", testFn(func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+	t.Run("resolve fieldsets asynchronous based on __typename", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 				Fetch: &SingleFetch{
 					BufferId:   0,
@@ -431,7 +432,8 @@ func TestResolver_ResolveNode(t *testing.T) {
 			}, Context{Context: context.Background()},
 			`{"pets":[{"name":"Woofie"}]}`
 	}))
-	t.Run("parent object variables", testFn(func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+	t.Run("parent object variables", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+		r.EnableSingleFlightLoader = true
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().UniqueIdentifier().Return([]byte("mock"))
 		mockDataSource.EXPECT().
@@ -498,11 +500,11 @@ func TestResolver_ResolveNode(t *testing.T) {
 }
 
 func TestResolver_ResolveGraphQLResponse(t *testing.T) {
-	testFn := func(fn func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string)) func(t *testing.T) {
+	testFn := func(fn func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string)) func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-		node, ctx, expectedOutput := fn(t, ctrl)
+		r := New()
+		node, ctx, expectedOutput := fn(t, r, ctrl)
 		return func(t *testing.T) {
-			r := New()
 			buf := &bytes.Buffer{}
 			err := r.ResolveGraphQLResponse(ctx, node, nil, buf)
 			assert.NoError(t, err)
@@ -510,14 +512,15 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			ctrl.Finish()
 		}
 	}
-	t.Run("empty graphql response", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("empty graphql response", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Data: &Object{
 				nullable: true,
 			},
 		}, Context{Context: context.Background()}, `{"data":null}`
 	}))
-	t.Run("fetch with simple error", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("fetch with simple error", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		r.EnableSingleFlightLoader = true
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().UniqueIdentifier().Return([]byte("mock"))
 		mockDataSource.EXPECT().
@@ -552,7 +555,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			},
 		}, Context{Context: context.Background()}, `{"Errors":[{"message":"errorMessage"}],"data":{"name":null}}`
 	}))
-	t.Run("fetch with two Errors", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("fetch with two Errors", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		r.EnableSingleFlightLoader = true
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().UniqueIdentifier().Return([]byte("mock"))
 		mockDataSource.EXPECT().
@@ -590,7 +594,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			},
 		}, Context{Context: context.Background()}, `{"Errors":[{"message":"errorMessage1"},{"message":"errorMessage2"}],"data":{"name":null}}`
 	}))
-	t.Run("null field should bubble up to parent with error", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("null field should bubble up to parent with error", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Data: &Object{
 				nullable: true,
@@ -754,8 +758,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			},
 		}, Context{Context: context.Background()}, `{"data":{"stringObject":null,"integerObject":null,"floatObject":null,"booleanObject":null,"objectObject":null,"arrayObject":null,"asynchronousArrayObject":null,"nullableArray":null}}`
 	}))
-	t.Run("complex GraphQL Server plan", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
-
+	t.Run("complex GraphQL Server plan", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		r.EnableSingleFlightLoader = true
 		serviceOne := NewMockDataSource(ctrl)
 		serviceOne.EXPECT().UniqueIdentifier().Return([]byte("serviceOne"))
 		serviceOne.EXPECT().

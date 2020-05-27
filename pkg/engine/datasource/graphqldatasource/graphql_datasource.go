@@ -76,7 +76,7 @@ func (p *Planner) EnterField(ref int) {
 
 			p.bufferID = p.v.NextBufferID()
 			p.fetch = &resolve.SingleFetch{
-				BufferId: p.bufferID,
+				BufferId:             p.bufferID,
 			}
 			p.v.SetCurrentObjectFetch(p.fetch, config)
 			if len(p.operation.RootNodes) == 0 {
@@ -232,7 +232,7 @@ func (p *Planner) applyFieldArgument(upstreamField, downstreamField int, arg Arg
 		wrapVariableInQuotes := p.v.Definition.TypeValueNeedsQuotes(argumentType)
 
 		arg.SourcePath[0] = plan.FieldDependencyPrefix + arg.SourcePath[0]
-		objectVariableName, exists := p.fetch.Variables.AddVariable(&resolve.ObjectVariable{Path: arg.SourcePath},wrapVariableInQuotes)
+		objectVariableName, exists := p.fetch.Variables.AddVariable(&resolve.ObjectVariable{Path: arg.SourcePath}, wrapVariableInQuotes)
 		if !exists {
 			p.variables, _ = sjson.SetRawBytes(p.variables, string(variableName), objectVariableName)
 		}
@@ -313,6 +313,7 @@ func (p *Planner) LeaveDocument(operation, definition *ast.Document) {
 			Timeout: time.Second * 10,
 		},
 	}
+	p.fetch.DisallowSingleFlight = p.operation.OperationDefinitions[p.nodes[0].Ref].OperationType != ast.OperationTypeQuery
 }
 
 type Source struct {

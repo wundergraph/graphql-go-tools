@@ -195,12 +195,114 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 				DisableDefaultMapping: true,
 			},
 			{
-				TypeName:              "Query",
-				FieldName:             "nestedStringList",
-				Path: []string{"nestedStringList"},
+				TypeName:  "Query",
+				FieldName: "nestedStringList",
+				Path:      []string{"nestedStringList"},
 			},
 		},
 	}))
+	t.Run("simple mutation", RunTest(`
+		type Mutation {
+			addFriend(name: String!):Friend!
+		}
+		type Friend {
+			id: ID!
+			name: String!
+		}
+	`,
+		`mutation AddFriend($name: String!){ addFriend(name: $name){ id name } }`,
+		"AddFriend",
+		&plan.SynchronousResponsePlan{
+			Response: resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						BufferId: 0,
+						Input:    []byte(`{"url":"https://service.one","body":{"query":"mutation($name: String!){addFriend(name: $name){id name}}","variables":{"name":"$$0$$"}}}`),
+						DataSource: &Source{
+							Client: http.Client{
+								Timeout: time.Second * 10,
+							},
+						},
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path: []string{"name"},
+							},
+						),
+						DisallowSingleFlight: true,
+					},
+					FieldSets: []resolve.FieldSet{
+						{
+							BufferID:  0,
+							HasBuffer: true,
+							Fields: []resolve.Field{
+								{
+									Name: []byte("addFriend"),
+									Value: &resolve.Object{
+										FieldSets: []resolve.FieldSet{
+											{
+												Fields: []resolve.Field{
+													{
+														Name: []byte("id"),
+														Value: &resolve.String{
+															Path: []string{"id"},
+														},
+													},
+													{
+														Name: []byte("name"),
+														Value: &resolve.String{
+															Path: []string{"name"},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		plan.Configuration{
+			DataSourceConfigurations: []plan.DataSourceConfiguration{
+				{
+					TypeName:   "Mutation",
+					FieldNames: []string{"addFriend"},
+					Attributes: []plan.DataSourceAttribute{
+						{
+							Key:   "url",
+							Value: []byte("https://service.one"),
+						},
+						{
+							Key: "arguments",
+							Value: ArgumentsConfigJSON(ArgumentsConfig{
+								Fields: []FieldConfig{
+									{
+										FieldName: "addFriend",
+										Arguments: []Argument{
+											{
+												Name:   []byte("name"),
+												Source: FieldArgument,
+											},
+										},
+									},
+								},
+							}),
+						},
+					},
+					DataSourcePlanner: &Planner{},
+				},
+			},
+			FieldMappings: []plan.FieldMapping{
+				{
+					TypeName:              "Mutation",
+					FieldName:             "addFriend",
+					DisableDefaultMapping: true,
+				},
+			},
+		},
+	))
 	t.Run("nested graphql engines", RunTest(`
 		type Query {
 			serviceOne(serviceOneArg: String): ServiceOneResponse
@@ -633,7 +735,7 @@ type Query {
 }
 
 type Mutation {
-    createReview(episode: Episode!, review: ReviewInput!): Review
+	createReview(episode: Episode!, review: ReviewInput!): Review
 }
 
 type Subscription {

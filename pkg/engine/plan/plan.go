@@ -316,7 +316,7 @@ func (v *Visitor) prepareSingleFetchVariables(f *resolve.SingleFetch, config *Da
 		}
 		switch segments[0] {
 		case "object":
-			variableName, _ := f.Variables.AddVariable(&resolve.ObjectVariable{Path: segments[1:]},false)
+			variableName, _ := f.Variables.AddVariable(&resolve.ObjectVariable{Path: segments[1:]}, false)
 			return variableName
 		case "arguments":
 			segments = segments[1:]
@@ -331,7 +331,7 @@ func (v *Visitor) prepareSingleFetchVariables(f *resolve.SingleFetch, config *Da
 					switch v.fieldArguments[j].kind {
 					case fieldArgumentTypeVariable:
 						variablePath := append([]string{string(v.fieldArguments[j].value)}, segments...)
-						variableName, _ := f.Variables.AddVariable(&resolve.ContextVariable{Path: variablePath},false)
+						variableName, _ := f.Variables.AddVariable(&resolve.ContextVariable{Path: variablePath}, false)
 						return variableName
 					case fieldArgumentTypeStatic:
 						if len(segments) == 0 {
@@ -519,7 +519,7 @@ func (v *Visitor) EnterField(ref int) {
 	default:
 
 		switch v.Definition.Index.Nodes[xxhash.Sum64(typeNameBytes)].Kind { // TODO verify definition type before and define resolve type based on that, in case of scalar use specific scalars and default to string
-		case ast.NodeKindEnumTypeDefinition:
+		case ast.NodeKindEnumTypeDefinition, ast.NodeKindScalarTypeDefinition:
 			str := &resolve.String{}
 			if !isList {
 				str.Path = path

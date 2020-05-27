@@ -367,8 +367,8 @@ func (r *Resolver) resolveArrayAsynchronous(ctx Context, array *Array, arrayItem
 	bufSlice := r.getBufPairSlice()
 	defer r.freeBufPairSlice(bufSlice)
 
-	wg := r.waitGroupPool.Get().(*sync.WaitGroup)
-	defer r.waitGroupPool.Put(wg)
+	wg := r.getWaitGroup()
+	defer r.freeWaitGroup(wg)
 
 	errCh := r.getErrChan()
 	defer r.freeErrChan(errCh)
@@ -570,8 +570,8 @@ func (r *Resolver) resolveFetch(ctx Context, fetch Fetch, data []byte, set *resu
 		for i := range f.Fetches {
 			r.prepareSingleFetch(ctx, f.Fetches[i], data, set)
 		}
-		wg := r.waitGroupPool.Get().(*sync.WaitGroup)
-		defer r.waitGroupPool.Put(wg)
+		wg := r.getWaitGroup()
+		defer r.freeWaitGroup(wg)
 		for i := range f.Fetches {
 			singleFetch := f.Fetches[i]
 			buf := set.buffers[f.Fetches[i].BufferId]
@@ -596,7 +596,7 @@ func (r *Resolver) prepareSingleFetch(ctx Context, fetch *SingleFetch, data []by
 
 func (r *Resolver) resolveSingleFetch(ctx Context, fetch *SingleFetch, buf *BufPair) (err error) {
 
-	if !r.EnableSingleFlightLoader {
+	if !r.EnableSingleFlightLoader || fetch.DisallowSingleFlight {
 		return fetch.DataSource.Load(ctx.Context, fetch.Input, buf)
 	}
 
@@ -760,10 +760,15 @@ type resultSet struct {
 }
 
 type SingleFetch struct {
-	BufferId   int
-	Input      []byte
-	DataSource DataSource
-	Variables  Variables
+	BufferId             int
+	Input                []byte
+	DataSource           DataSource
+	Variables            Variables
+	// DisallowSingleFlight is used for write operations like mutations, POST, DELETE etc. to disable singleFlight
+	// By default SingleFlight for fetches is disabled and needs to be enabled on the Resolver first
+	// If the resolver allows SingleFlight it's up the each individual DataSource Planner to decide whether an Operation
+	// should be allowed to use SingleFlight
+	DisallowSingleFlight bool
 }
 
 func (_ *SingleFetch) FetchKind() FetchKind {
