@@ -33,7 +33,7 @@ require (
 	github.com/tidwall/gjson v1.3.5
 	github.com/tidwall/sjson v1.0.4
 	github.com/valyala/fasthttp v1.12.0
-	go.uber.org/atomic v1.5.1 // indirect
+	go.uber.org/atomic v1.5.1
 	go.uber.org/multierr v1.4.0 // indirect
 	golang.org/x/lint v0.0.0-20191125180803-fdd1cda4f05f // indirect
 	golang.org/x/sys v0.0.0-20200327173247-9dae0f8f5775 // indirect

@@ -3,21 +3,31 @@ package resolve
 import (
 	"bytes"
 	"context"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 )
 
 type _fakeDataSource struct {
-	data []byte
+	data              []byte
+	artificialLatency time.Duration
 }
 
+var (
+	_fakeDataSourceUniqueID = []byte("fake")
+)
+
 func (_ *_fakeDataSource) UniqueIdentifier() []byte {
-	return []byte("fake")
+	return _fakeDataSourceUniqueID
 }
 
 func (f *_fakeDataSource) Load(ctx context.Context, input []byte, pair *BufPair) (err error) {
+	if f.artificialLatency != 0 {
+		time.Sleep(f.artificialLatency)
+	}
 	_, err = pair.Data.Write(f.data)
 	return
 }
@@ -975,7 +985,12 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 }
 
 func BenchmarkResolver_ResolveNode(b *testing.B) {
+
 	resolver := New()
+
+	serviceOneDS := FakeDataSource(`{"serviceOne":{"fieldOne":"fieldOneValue"},"anotherServiceOne":{"fieldOne":"anotherFieldOneValue"},"reusingServiceOne":{"fieldOne":"reUsingFieldOneValue"}}`)
+	serviceTwoDS := FakeDataSource(`{"serviceTwo":{"fieldTwo":"fieldTwoValue"},"secondServiceTwo":{"fieldTwo":"secondFieldTwoValue"}}`)
+	nestedServiceOneDS := FakeDataSource(`{"serviceOne":{"fieldOne":"fieldOneValue"}}`)
 
 	ctx := Context{Context: context.Background(), Variables: []byte(`{"firstArg":"firstArgValue","thirdArg":123,"secondArg": true, "fourthArg": 12.34}`)}
 
@@ -986,7 +1001,7 @@ func BenchmarkResolver_ResolveNode(b *testing.B) {
 					{
 						BufferId:   0,
 						Input:      []byte(`{"url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":$$0$$}}}`),
-						DataSource: FakeDataSource(`{"serviceOne":{"fieldOne":"fieldOneValue"},"anotherServiceOne":{"fieldOne":"anotherFieldOneValue"},"reusingServiceOne":{"fieldOne":"reUsingFieldOneValue"}}`),
+						DataSource: serviceOneDS,
 						Variables: NewVariables(
 							&ContextVariable{
 								Path: []string{"firstArg"},
@@ -999,7 +1014,7 @@ func BenchmarkResolver_ResolveNode(b *testing.B) {
 					{
 						BufferId:   1,
 						Input:      []byte(`{"url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`),
-						DataSource: FakeDataSource(`{"serviceTwo":{"fieldTwo":"fieldTwoValue"},"secondServiceTwo":{"fieldTwo":"secondFieldTwoValue"}}`),
+						DataSource: serviceTwoDS,
 						Variables: NewVariables(
 							&ContextVariable{
 								Path: []string{"secondArg"},
@@ -1047,7 +1062,7 @@ func BenchmarkResolver_ResolveNode(b *testing.B) {
 								Fetch: &SingleFetch{
 									BufferId:   2,
 									Input:      []byte(`{"url":"https://service.one","body":{"query":"{serviceOne {fieldOne}}"}}`),
-									DataSource: FakeDataSource(`{"serviceOne":{"fieldOne":"fieldOneValue"}}`),
+									DataSource: nestedServiceOneDS,
 									Variables:  Variables{},
 								},
 								FieldSets: []FieldSet{
@@ -1167,19 +1182,62 @@ func BenchmarkResolver_ResolveNode(b *testing.B) {
 	}
 
 	var err error
-	expected := `{"data":{"serviceOne":{"fieldOne":"fieldOneValue"},"serviceTwo":{"fieldTwo":"fieldTwoValue","serviceOneResponse":{"fieldOne":"fieldOneValue"}},"anotherServiceOne":{"fieldOne":"anotherFieldOneValue"},"secondServiceTwo":{"fieldTwo":"secondFieldTwoValue"},"reusingServiceOne":{"fieldOne":"reUsingFieldOneValue"}}}`
+	expected := []byte(`{"data":{"serviceOne":{"fieldOne":"fieldOneValue"},"serviceTwo":{"fieldTwo":"fieldTwoValue","serviceOneResponse":{"fieldOne":"fieldOneValue"}},"anotherServiceOne":{"fieldOne":"anotherFieldOneValue"},"secondServiceTwo":{"fieldTwo":"secondFieldTwoValue"},"reusingServiceOne":{"fieldOne":"reUsingFieldOneValue"}}}`)
 
-	b.ReportAllocs()
-	b.SetBytes(int64(len(expected)))
-	b.ResetTimer()
+	pool := sync.Pool{
+		New: func() interface{} {
+			return bytes.NewBuffer(make([]byte, 0, 1024))
+		},
+	}
 
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			//_ = resolver.ResolveGraphQLResponse(ctx, plan, nil, ioutil.Discard)
-			buf := bytes.Buffer{}
-			err = resolver.ResolveGraphQLResponse(ctx, plan, nil, &buf)
-			assert.NoError(b,err)
-			assert.Equal(b,expected,buf.String())
-		}
+	runBench := func(b *testing.B) {
+		b.ReportAllocs()
+		b.SetBytes(int64(len(expected)))
+		b.ResetTimer()
+
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				//_ = resolver.ResolveGraphQLResponse(ctx, plan, nil, ioutil.Discard)
+				buf := pool.Get().(*bytes.Buffer)
+				err = resolver.ResolveGraphQLResponse(ctx, plan, nil, buf)
+				if err != nil {
+					b.Fatal(err)
+				}
+				if !bytes.Equal(expected, buf.Bytes()) {
+					b.Fatalf("want:\n%s\ngot:\n%s\n", string(expected), buf.String())
+				}
+				buf.Reset()
+				pool.Put(buf)
+			}
+		})
+	}
+
+	b.Run("singleflight enabled (latency 0)", func(b *testing.B) {
+		serviceOneDS.artificialLatency = 0
+		serviceTwoDS.artificialLatency = 0
+		nestedServiceOneDS.artificialLatency = 0
+		resolver.EnableSingleFlightLoader = true
+		runBench(b)
+	})
+	b.Run("singleflight disabled (latency 0)", func(b *testing.B) {
+		serviceOneDS.artificialLatency = 0
+		serviceTwoDS.artificialLatency = 0
+		nestedServiceOneDS.artificialLatency = 0
+		resolver.EnableSingleFlightLoader = false
+		runBench(b)
+	})
+	b.Run("singleflight enabled (latency 5ms)", func(b *testing.B) {
+		serviceOneDS.artificialLatency = time.Millisecond * 5
+		serviceTwoDS.artificialLatency = 0
+		nestedServiceOneDS.artificialLatency = 0
+		resolver.EnableSingleFlightLoader = true
+		runBench(b)
+	})
+	b.Run("singleflight disabled (latency 5ms)", func(b *testing.B) {
+		serviceOneDS.artificialLatency = time.Millisecond * 5
+		serviceTwoDS.artificialLatency = 0
+		nestedServiceOneDS.artificialLatency = 0
+		resolver.EnableSingleFlightLoader = false
+		runBench(b)
 	})
 }

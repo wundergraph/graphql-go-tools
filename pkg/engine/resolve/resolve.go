@@ -93,15 +93,16 @@ type Resolver struct {
 	bufPairSlicePool         sync.Pool
 	errChanPool              sync.Pool
 	hash64Pool               sync.Pool
+	inflightFetchPool        sync.Pool
 	inflightFetchMu          sync.Mutex
 	inflightFetches          map[uint64]*inflightFetch
 }
 
 type inflightFetch struct {
-	wg     sync.WaitGroup
-	err    error
-	data   []byte
-	errors []byte
+	waitLoad sync.WaitGroup
+	waitFree sync.WaitGroup
+	err      error
+	bufPair  BufPair
 }
 
 func New() *Resolver {
@@ -147,6 +148,16 @@ func New() *Resolver {
 		hash64Pool: sync.Pool{
 			New: func() interface{} {
 				return xxhash.New()
+			},
+		},
+		inflightFetchPool: sync.Pool{
+			New: func() interface{} {
+				return &inflightFetch{
+					bufPair: BufPair{
+						Data:   bytes.NewBuffer(make([]byte, 0, 1024)),
+						Errors: bytes.NewBuffer(make([]byte, 0, 1024)),
+					},
+				}
 			},
 		},
 		inflightFetches: map[uint64]*inflightFetch{},
@@ -599,39 +610,53 @@ func (r *Resolver) resolveSingleFetch(ctx Context, fetch *SingleFetch, buf *BufP
 	r.inflightFetchMu.Lock()
 	inflight, ok := r.inflightFetches[fetchID]
 	if ok {
+		inflight.waitFree.Add(1)
+		defer inflight.waitFree.Done()
 		r.inflightFetchMu.Unlock()
-		inflight.wg.Wait()
-		if inflight.data != nil {
-			buf.Data.Write(inflight.data)
+		inflight.waitLoad.Wait()
+		if inflight.bufPair.HasData() {
+			_, err = buf.Data.Write(inflight.bufPair.Data.Bytes())
+			if err != nil {
+				return
+			}
 		}
-		if inflight.errors != nil {
-			buf.Errors.Write(inflight.errors)
+		if inflight.bufPair.HasErrors() {
+			_, err = buf.Errors.Write(inflight.bufPair.Errors.Bytes())
+			if err != nil {
+				return
+			}
 		}
 		return inflight.err
 	}
 
-	inflight = &inflightFetch{}
-	inflight.wg.Add(1)
+	inflight = r.getInflightFetch()
+	inflight.waitLoad.Add(1)
 	r.inflightFetches[fetchID] = inflight
 
 	r.inflightFetchMu.Unlock()
 
-	err = fetch.DataSource.Load(ctx.Context, fetch.Input, buf)
+	err = fetch.DataSource.Load(ctx.Context, fetch.Input, &inflight.bufPair)
 	inflight.err = err
-	if buf.Data.Len() != 0 {
-		inflight.data = make([]byte, buf.Data.Len())
-		copy(inflight.data, buf.Data.Bytes())
-	}
-	if buf.Errors.Len() != 0 {
-		inflight.errors = make([]byte, buf.Errors.Len())
-		copy(inflight.errors, buf.Errors.Bytes())
+
+	if inflight.bufPair.HasData() {
+		_, err = buf.Data.Write(inflight.bufPair.Data.Bytes())
 	}
 
-	inflight.wg.Done()
+	if inflight.bufPair.HasErrors() {
+		_, err = buf.Errors.Write(inflight.bufPair.Errors.Bytes())
+	}
+
+	inflight.waitLoad.Done()
 
 	r.inflightFetchMu.Lock()
 	delete(r.inflightFetches, fetchID)
 	r.inflightFetchMu.Unlock()
+
+	go func() {
+		inflight.waitFree.Wait()
+		r.freeInflightFetch(inflight)
+	}()
+
 	return
 }
 
@@ -1060,4 +1085,23 @@ func (r *Resolver) getErrChan() chan error {
 
 func (r *Resolver) freeErrChan(ch chan error) {
 	r.errChanPool.Put(ch)
+}
+
+func (r *Resolver) getWaitGroup() *sync.WaitGroup {
+	return &sync.WaitGroup{}
+}
+
+func (r *Resolver) freeWaitGroup(wg *sync.WaitGroup) {
+	r.waitGroupPool.Put(wg)
+}
+
+func (r *Resolver) getInflightFetch() *inflightFetch {
+	return r.inflightFetchPool.Get().(*inflightFetch)
+}
+
+func (r *Resolver) freeInflightFetch(f *inflightFetch) {
+	f.bufPair.Data.Reset()
+	f.bufPair.Errors.Reset()
+	f.err = nil
+	r.inflightFetchPool.Put(f)
 }
