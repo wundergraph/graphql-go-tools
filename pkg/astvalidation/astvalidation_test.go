@@ -3585,10 +3585,6 @@ func TestValidationWithTypeName(t *testing.T) {
 	}
 }
 
-func TestEntireValidation(t *testing.T) {
-	// runWithDefinition := func(definition string, operation string)
-}
-
 func BenchmarkValidation(b *testing.B) {
 
 	must := func(err error) {
