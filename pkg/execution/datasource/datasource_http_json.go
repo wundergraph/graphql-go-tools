@@ -15,6 +15,7 @@ import (
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 
+	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 )
@@ -337,12 +338,33 @@ func (r *HttpJsonDataSource) Resolve(ctx context.Context, args ResolverArgs, out
 	} else {
 		defaultTypeName := gjson.GetBytes(typeNameArg, "defaultTypeName")
 		if defaultTypeName.Exists() {
-			data, err = sjson.SetRawBytes(data, "__typename", []byte(defaultTypeName.Raw))
-			if err != nil {
-				r.Log.Error("HttpJsonDataSource.Resolve.setDefaultTypeName",
-					log.Error(err),
-				)
-				return
+			parsed := gjson.ParseBytes(data)
+			if parsed.IsArray() {
+				arrayData := []byte(`[]`)
+				items := parsed.Array()
+				for i := range items {
+					item, err := sjson.SetRaw(items[i].Raw, "__typename", defaultTypeName.Raw)
+					if err != nil {
+						r.Log.Error("HttpJsonDataSource.Resolve.array.setDefaultTypeName",
+							log.Error(err),
+						)
+					}
+					arrayData, err = sjson.SetRawBytes(arrayData, "-1", unsafebytes.StringToBytes(item))
+					if err != nil {
+						r.Log.Error("HttpJsonDataSource.Resolve.array.setArrayItem",
+							log.Error(err),
+						)
+					}
+				}
+				data = arrayData
+			} else {
+				data, err = sjson.SetRawBytes(data, "__typename", []byte(defaultTypeName.Raw))
+				if err != nil {
+					r.Log.Error("HttpJsonDataSource.Resolve.setDefaultTypeName",
+						log.Error(err),
+					)
+					return
+				}
 			}
 		}
 	}
