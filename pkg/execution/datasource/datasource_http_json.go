@@ -327,44 +327,42 @@ func (r *HttpJsonDataSource) Resolve(ctx context.Context, args ResolverArgs, out
 
 	statusCode := strconv.Itoa(res.StatusCode)
 	statusCodeTypeName := gjson.GetBytes(typeNameArg, statusCode)
+	defaultTypeName := gjson.GetBytes(typeNameArg, "defaultTypeName")
+	var result *gjson.Result
 	if statusCodeTypeName.Exists() {
-		data, err = sjson.SetRawBytes(data, "__typename", []byte(statusCodeTypeName.Raw))
-		if err != nil {
-			r.Log.Error("HttpJsonDataSource.Resolve.setStatusCodeTypeName",
-				log.Error(err),
-			)
-			return
-		}
-	} else {
-		defaultTypeName := gjson.GetBytes(typeNameArg, "defaultTypeName")
-		if defaultTypeName.Exists() {
-			parsed := gjson.ParseBytes(data)
-			if parsed.IsArray() {
-				arrayData := []byte(`[]`)
-				items := parsed.Array()
-				for i := range items {
-					item, err := sjson.SetRaw(items[i].Raw, "__typename", defaultTypeName.Raw)
-					if err != nil {
-						r.Log.Error("HttpJsonDataSource.Resolve.array.setDefaultTypeName",
-							log.Error(err),
-						)
-					}
-					arrayData, err = sjson.SetRawBytes(arrayData, "-1", unsafebytes.StringToBytes(item))
-					if err != nil {
-						r.Log.Error("HttpJsonDataSource.Resolve.array.setArrayItem",
-							log.Error(err),
-						)
-					}
-				}
-				data = arrayData
-			} else {
-				data, err = sjson.SetRawBytes(data, "__typename", []byte(defaultTypeName.Raw))
+		result = &statusCodeTypeName
+	}
+	if result == nil && defaultTypeName.Exists() {
+		result = &defaultTypeName
+	}
+
+	if result != nil {
+		parsed := gjson.ParseBytes(data)
+		if parsed.IsArray() {
+			arrayData := []byte(`[]`)
+			items := parsed.Array()
+			for i := range items {
+				item, err := sjson.SetRaw(items[i].Raw, "__typename", result.Raw)
 				if err != nil {
-					r.Log.Error("HttpJsonDataSource.Resolve.setDefaultTypeName",
+					r.Log.Error("HttpJsonDataSource.Resolve.array.setDefaultTypeName",
 						log.Error(err),
 					)
-					return
 				}
+				arrayData, err = sjson.SetRawBytes(arrayData, "-1", unsafebytes.StringToBytes(item))
+				if err != nil {
+					r.Log.Error("HttpJsonDataSource.Resolve.array.setArrayItem",
+						log.Error(err),
+					)
+				}
+			}
+			data = arrayData
+		} else {
+			data, err = sjson.SetRawBytes(data, "__typename", []byte(result.Raw))
+			if err != nil {
+				r.Log.Error("HttpJsonDataSource.Resolve.setDefaultTypeName",
+					log.Error(err),
+				)
+				return
 			}
 		}
 	}
