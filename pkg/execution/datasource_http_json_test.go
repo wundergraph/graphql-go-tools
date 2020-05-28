@@ -21,11 +21,12 @@ const httpJsonDataSourceSchema = `
 schema {
     query: Query
 }
-
 type Query {
 	simpleType: SimpleType
 	unionType: UnionType
 	interfaceType: InterfaceType
+	listOfStrings: [String!]
+	listOfObjects: [SimpleType]
 }
 type SimpleType {
 	scalarField: String
@@ -150,6 +151,184 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 													},
 												},
 												ValueType: StringValueType,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	))
+	t.Run("list of strings", run(withBaseSchema(httpJsonDataSourceSchema), `
+		query ListOfStrings {
+			listOfStrings
+		}
+		`,
+		func(base *datasource.BasePlanner) {
+			base.Config = datasource.PlannerConfiguration{
+				TypeFieldConfigurations: []datasource.TypeFieldConfiguration{
+					{
+						TypeName:  "query",
+						FieldName: "listOfStrings",
+						Mapping: &datasource.MappingConfiguration{
+							Disabled: true,
+						},
+						DataSource: datasource.SourceConfig{
+							Name: "HttpJsonDataSource",
+							Config: func() []byte {
+								data, _ := json.Marshal(datasource.HttpJsonDataSourceConfig{
+									Host: "example.com",
+									URL:  "/",
+									Method: func() *string {
+										method := "GET"
+										return &method
+									}(),
+								})
+								return data
+							}(),
+						},
+					},
+				},
+			}
+			panicOnErr(base.RegisterDataSourcePlannerFactory("HttpJsonDataSource", &datasource.HttpJsonDataSourcePlannerFactoryFactory{}))
+		},
+		&Object{
+			operationType: ast.OperationTypeQuery,
+			Fields: []Field{
+				{
+					Name: literal.DATA,
+					Value: &Object{
+						Fetch: &SingleFetch{
+							BufferName: "listOfStrings",
+							Source: &DataSourceInvocation{
+								DataSource: &datasource.HttpJsonDataSource{
+									Log:    abstractlogger.Noop{},
+									Client: datasource.DefaultHttpClient(),
+								},
+								Args: []datasource.Argument{
+									&datasource.StaticVariableArgument{
+										Name:  []byte("host"),
+										Value: []byte("example.com"),
+									},
+									&datasource.StaticVariableArgument{
+										Name:  []byte("url"),
+										Value: []byte("/"),
+									},
+									&datasource.StaticVariableArgument{
+										Name:  []byte("method"),
+										Value: []byte("GET"),
+									},
+								},
+							},
+						},
+						Fields: []Field{
+							{
+								Name:            []byte("listOfStrings"),
+								HasResolvedData: true,
+								Value: &List{
+									Value: &Value{
+										ValueType: StringValueType,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	))
+	t.Run("list of objects", run(withBaseSchema(httpJsonDataSourceSchema), `
+		query ListOfObjects {
+			listOfObjects {
+				scalarField
+			}
+		}
+		`,
+		func(base *datasource.BasePlanner) {
+			base.Config = datasource.PlannerConfiguration{
+				TypeFieldConfigurations: []datasource.TypeFieldConfiguration{
+					{
+						TypeName:  "query",
+						FieldName: "listOfObjects",
+						Mapping: &datasource.MappingConfiguration{
+							Disabled: true,
+						},
+						DataSource: datasource.SourceConfig{
+							Name: "HttpJsonDataSource",
+							Config: func() []byte {
+								data, _ := json.Marshal(datasource.HttpJsonDataSourceConfig{
+									Host: "example.com",
+									URL:  "/",
+									Method: func() *string {
+										method := "GET"
+										return &method
+									}(),
+									DefaultTypeName: func() *string {
+										typeName := "SimpleType"
+										return &typeName
+									}(),
+								})
+								return data
+							}(),
+						},
+					},
+				},
+			}
+			panicOnErr(base.RegisterDataSourcePlannerFactory("HttpJsonDataSource", &datasource.HttpJsonDataSourcePlannerFactoryFactory{}))
+		},
+		&Object{
+			operationType: ast.OperationTypeQuery,
+			Fields: []Field{
+				{
+					Name: literal.DATA,
+					Value: &Object{
+						Fetch: &SingleFetch{
+							BufferName: "listOfObjects",
+							Source: &DataSourceInvocation{
+								DataSource: &datasource.HttpJsonDataSource{
+									Log:    abstractlogger.Noop{},
+									Client: datasource.DefaultHttpClient(),
+								},
+								Args: []datasource.Argument{
+									&datasource.StaticVariableArgument{
+										Name:  []byte("host"),
+										Value: []byte("example.com"),
+									},
+									&datasource.StaticVariableArgument{
+										Name:  []byte("url"),
+										Value: []byte("/"),
+									},
+									&datasource.StaticVariableArgument{
+										Name:  []byte("method"),
+										Value: []byte("GET"),
+									},
+									&datasource.StaticVariableArgument{
+										Name:  []byte("__typename"),
+										Value: []byte(`{"defaultTypeName":"SimpleType"}`),
+									},
+								},
+							},
+						},
+						Fields: []Field{
+							{
+								Name:            []byte("listOfObjects"),
+								HasResolvedData: true,
+								Value: &List{
+									Value: &Object{
+										Fields: []Field{
+											{
+												Name: []byte("scalarField"),
+												Value: &Value{
+													DataResolvingConfig: DataResolvingConfig{
+														PathSelector: datasource.PathSelector{
+															Path: "scalarField",
+														},
+													},
+													ValueType: StringValueType,
+												},
 											},
 										},
 									},
@@ -363,7 +542,7 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 							BufferName: "interfaceType",
 							Source: &DataSourceInvocation{
 								DataSource: &datasource.HttpJsonDataSource{
-									Log: abstractlogger.Noop{},
+									Log:    abstractlogger.Noop{},
 									Client: datasource.DefaultHttpClient(),
 								},
 								Args: []datasource.Argument{
@@ -481,7 +660,7 @@ func TestHttpJsonDataSource_Resolve(t *testing.T) {
 			}
 			buf := bytes.Buffer{}
 			source := &datasource.HttpJsonDataSource{
-				Log: abstractlogger.Noop{},
+				Log:    abstractlogger.Noop{},
 				Client: datasource.DefaultHttpClient(),
 			}
 			args := ResolvedArgs{
