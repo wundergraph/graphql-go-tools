@@ -49,6 +49,18 @@ func TestRequest_ValidateForSchema(t *testing.T) {
 		assert.Equal(t, ValidationResult{Valid: false, Errors: nil}, result)
 	})
 
+	t.Run("should return gql errors no valid operation is in the the request", func(t *testing.T) {
+		request := Request{}
+
+		schema, err := NewSchemaFromString("schema { query: Query } type Query { hello: String }")
+		require.NoError(t, err)
+
+		result, err := request.ValidateForSchema(schema)
+		assert.NoError(t, err)
+		assert.False(t, result.Valid)
+		assert.Greater(t, result.Errors.Count(), 0)
+	})
+
 	t.Run("should return gql errors when validation fails", func(t *testing.T) {
 		request := Request{
 			OperationName: "Goodbye",
