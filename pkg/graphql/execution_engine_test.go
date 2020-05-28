@@ -93,6 +93,66 @@ func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {
 		assert.Equal(t, `{"data":{"hero":{"name":"Luke Skywalker"}}}`, executionRes.Buffer().String())
 	})
 
+	t.Run("execute with empty request object should not panic", func(t *testing.T) {
+
+		request := Request{}
+
+		plannerConfig := datasource.PlannerConfiguration{
+			TypeFieldConfigurations: []datasource.TypeFieldConfiguration{
+				{
+					TypeName:  "Query",
+					FieldName: "hero",
+					Mapping: &datasource.MappingConfiguration{
+						Disabled: false,
+						Path:     "hero",
+					},
+					DataSource: datasource.SourceConfig{
+						Name: "HttpJsonDataSource",
+						Config: func() []byte {
+							data, _ := json.Marshal(datasource.HttpJsonDataSourceConfig{
+								Host: "example.com",
+								URL:  "/",
+								Method: func() *string {
+									method := "GET"
+									return &method
+								}(),
+								DefaultTypeName: func() *string {
+									typeName := "Hero"
+									return &typeName
+								}(),
+							})
+							return data
+						}(),
+					},
+				},
+			},
+		}
+
+		roundTripper := testRoundTripper(func(req *http.Request) *http.Response {
+			assert.Equal(t, "example.com", req.URL.Host)
+			assert.Equal(t, "/", req.URL.Path)
+
+			body := bytes.NewBuffer([]byte(`{"hero": {"name": "Luke Skywalker"}}`))
+			return &http.Response{StatusCode: 200, Body: ioutil.NopCloser(body)}
+		})
+
+		httpJsonOptions := DataSourceHttpJsonOptions{
+			HttpClient: &http.Client{
+				Transport: roundTripper,
+			},
+		}
+
+		engine, err := NewExecutionEngine(abstractlogger.NoopLogger, schema, plannerConfig)
+		assert.NoError(t, err)
+
+		err = engine.AddHttpJsonDataSourceWithOptions("HttpJsonDataSource", httpJsonOptions)
+		assert.NoError(t, err)
+
+		executionRes, err := engine.Execute(context.Background(), &request, ExecutionOptions{ExtraArguments: extraVariablesBytes})
+		assert.Error(t,err)
+		assert.Equal(t, ``, executionRes.Buffer().String())
+	})
+
 	t.Run("execute with custom roundtripper for simple hero query on GraphqlDataSource", func(t *testing.T) {
 		query := starwars.LoadQuery(t, starwars.FileSimpleHeroQuery, nil)
 		request := Request{}
