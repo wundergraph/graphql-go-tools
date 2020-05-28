@@ -63,6 +63,12 @@ func TestExecutionValidation(t *testing.T) {
 		}
 	}
 
+	runManyRulesWithDefinition := func(definitionInput, operationInput string, expectation ValidationState, rules ...Rule) {
+		for _, rule := range rules {
+			runWithDefinition(definitionInput, operationInput, rule, expectation)
+		}
+	}
+
 	run := func(operationInput string, rule Rule, expectation ValidationState, expectFailedNormalization ...bool) {
 		runWithDefinition(testDefinition, operationInput, rule, expectation, expectFailedNormalization...)
 	}
@@ -2211,13 +2217,13 @@ func TestExecutionValidation(t *testing.T) {
 					ValidArguments(), Invalid)
 			})
 			t.Run("ID as arg given as string", func(t *testing.T) {
-				runWithDefinition(countriesDefinition, `{
+				runManyRulesWithDefinition(countriesDefinition, `{
 						country(code: "DE") {
 							code
 							name
 						}
 					}`,
-					ValidArguments(), Valid)
+					Valid, ValidArguments(), Values())
 			})
 		})
 		t.Run("5.4.2 Argument Uniqueness", func(t *testing.T) {
@@ -3577,6 +3583,10 @@ func TestValidationWithTypeName(t *testing.T) {
 	if report.HasErrors() {
 		t.Fatal(report.Error())
 	}
+}
+
+func TestEntireValidation(t *testing.T) {
+	// runWithDefinition := func(definition string, operation string)
 }
 
 func BenchmarkValidation(b *testing.B) {
