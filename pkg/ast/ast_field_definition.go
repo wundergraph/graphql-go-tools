@@ -95,6 +95,7 @@ func (d *Document) AddFieldDefinition(fieldDefinition FieldDefinition) (ref int)
 }
 
 func (d *Document) ImportFieldDefinition(name, description string, typeRef int, argsRefs []int, directiveRefs []int) (ref int) {
+
 	fieldDef := FieldDefinition{
 		Name:        d.Input.AppendInputString(name),
 		Type:        typeRef,
