@@ -70,7 +70,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 						BufferId: 0,
 						Input:    []byte(`{"method":"GET","url":"https://example.com/friend"}`),
 						DataSource: &Source{
-							client: NewPlanner(nil).defaultClient(),
+							client: NewPlanner(nil).clientOrDefault(),
 						},
 					},
 					FieldSets: []resolve.FieldSet{
@@ -85,7 +85,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 											BufferId: 1,
 											Input:    []byte(`{"method":"GET","url":"https://example.com/friend/$$0$$/pet"}`),
 											DataSource: &Source{
-												client: NewPlanner(nil).defaultClient(),
+												client: NewPlanner(nil).clientOrDefault(),
 											},
 											Variables: resolve.NewVariables(
 												&resolve.ObjectVariable{
@@ -197,7 +197,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 						BufferId: 0,
 						Input:    []byte(`{"method":"GET","url":"https://example.com/$$0$$/foo"}`),
 						DataSource: &Source{
-							client: NewPlanner(nil).defaultClient(),
+							client: NewPlanner(nil).clientOrDefault(),
 						},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
@@ -268,7 +268,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 						BufferId: 0,
 						Input:    []byte(`{"body":{"foo":"bar"},"method":"POST","url":"https://example.com/friend"}`),
 						DataSource: &Source{
-							client: NewPlanner(nil).defaultClient(),
+							client: NewPlanner(nil).clientOrDefault(),
 						},
 						Variables: resolve.Variables{},
 						DisallowSingleFlight: true,
@@ -344,7 +344,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 						BufferId: 0,
 						Input:    []byte(`{"headers":{"Authorization":"Bearer 123","X-API-Key":"456"},"method":"GET","url":"https://example.com/friend"}`),
 						DataSource: &Source{
-							client: NewPlanner(nil).defaultClient(),
+							client: NewPlanner(nil).clientOrDefault(),
 						},
 						Variables: resolve.Variables{},
 					},
@@ -416,7 +416,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 func TestFastHttpJsonDataSource_Load(t *testing.T) {
 
 	source := &Source{
-		client: NewPlanner(nil).defaultClient(),
+		client: NewPlanner(nil).clientOrDefault(),
 	}
 
 	t.Run("simple get", func(t *testing.T) {

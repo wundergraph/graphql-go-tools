@@ -4,23 +4,23 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"io/ioutil"
 	"log"
-	"net/http"
-	"time"
 
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash"
 	"github.com/tidwall/sjson"
 
+	"github.com/jensneuse/graphql-go-tools/internal/pkg/pool"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 )
 
 type Planner struct {
+	client              datasource.Client
 	v                   *plan.Visitor
 	fetch               *resolve.SingleFetch
 	printer             astprinter.Printer
@@ -32,6 +32,19 @@ type Planner struct {
 	variables           []byte
 	bufferID            int
 	config              *plan.DataSourceConfiguration
+}
+
+func NewPlanner(client datasource.Client) *Planner {
+	return &Planner{
+		client: client,
+	}
+}
+
+func (p *Planner) clientOrDefault() datasource.Client {
+	if p.client != nil {
+		return p.client
+	}
+	return datasource.NewFastHttpClient(datasource.DefaultFastHttpClient)
 }
 
 func (p *Planner) Register(visitor *plan.Visitor) {
@@ -76,7 +89,7 @@ func (p *Planner) EnterField(ref int) {
 
 			p.bufferID = p.v.NextBufferID()
 			p.fetch = &resolve.SingleFetch{
-				BufferId:             p.bufferID,
+				BufferId: p.bufferID,
 			}
 			p.v.SetCurrentObjectFetch(p.fetch, config)
 			if len(p.operation.RootNodes) == 0 {
@@ -308,16 +321,20 @@ func (p *Planner) LeaveDocument(operation, definition *ast.Document) {
 	}
 	p.fetch.Input, _ = sjson.SetRawBytes(p.fetch.Input, "body.query", append([]byte{'"'}, append(buf.Bytes(), '"')...))
 	p.fetch.Input, _ = sjson.SetRawBytes(p.fetch.Input, "url", append([]byte{'"'}, append(p.URL, '"')...))
-	p.fetch.DataSource = &Source{
-		Client: http.Client{
-			Timeout: time.Second * 10,
-		},
-	}
+	source := DefaultSource()
+	source.client = p.clientOrDefault()
+	p.fetch.DataSource = source
 	p.fetch.DisallowSingleFlight = p.operation.OperationDefinitions[p.nodes[0].Ref].OperationType != ast.OperationTypeQuery
 }
 
 type Source struct {
-	Client http.Client
+	client  datasource.Client
+}
+
+func DefaultSource() *Source {
+	return &Source{
+		client: datasource.NewFastHttpClient(datasource.DefaultFastHttpClient),
+	}
 }
 
 var (
@@ -328,6 +345,10 @@ func (_ *Source) UniqueIdentifier() []byte {
 	return uniqueIdentifier
 }
 
+var (
+	method = []byte("POST")
+)
+
 func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPair) (err error) {
 	var (
 		url, body  []byte
@@ -336,7 +357,7 @@ func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPai
 			{"body"},
 		}
 		responsePaths = [][]string{
-			{"error"},
+			{"errors"},
 			{"data"},
 		}
 	)
@@ -349,22 +370,15 @@ func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPai
 		}
 	}, inputPaths...)
 
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, string(url), bytes.NewReader(body))
+	buf := pool.BytesBuffer.Get()
+	defer pool.BytesBuffer.Put(buf)
+
+	err = s.client.Do(ctx, url, method, nil, body, buf)
 	if err != nil {
-		return err
+		return
 	}
 
-	request.Header.Add("Content-Type", "application/json")
-	request.Header.Add("Accept", "application/json")
-
-	res, err := s.Client.Do(request)
-	if err != nil {
-		return err
-	}
-	responseData, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		return err
-	}
+	responseData := buf.Bytes()
 
 	jsonparser.EachKey(responseData, func(i int, bytes []byte, valueType jsonparser.ValueType, err error) {
 		switch i {

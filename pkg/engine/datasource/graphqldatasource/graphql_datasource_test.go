@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -38,11 +37,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 		Response: resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource: &Source{
-						Client: http.Client{
-							Timeout: time.Second * 10,
-						},
-					},
+					DataSource: DefaultSource(),
 					BufferId: 0,
 					Input:    []byte(`{"url":"https://swapi.com/graphql","body":{"query":"query($id: ID!){droid(id: $id){name aliased: name friends {name} primaryFunction} hero {name} stringList nestedStringList}","variables":{"id":"$$0$$"}}}`),
 					Variables: resolve.NewVariables(&resolve.ContextVariable{
@@ -218,11 +213,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 					Fetch: &resolve.SingleFetch{
 						BufferId: 0,
 						Input:    []byte(`{"url":"https://service.one","body":{"query":"mutation($name: String!){addFriend(name: $name){id name}}","variables":{"name":"$$0$$"}}}`),
-						DataSource: &Source{
-							Client: http.Client{
-								Timeout: time.Second * 10,
-							},
-						},
+						DataSource: DefaultSource(),
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path: []string{"name"},
@@ -350,11 +341,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 							{
 								BufferId: 0,
 								Input:    []byte(`{"url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":"$$0$$"}}}`),
-								DataSource: &Source{
-									Client: http.Client{
-										Timeout: time.Second * 10,
-									},
-								},
+								DataSource: DefaultSource(),
 								Variables: resolve.NewVariables(
 									&resolve.ContextVariable{
 										Path: []string{"firstArg"},
@@ -367,11 +354,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 							{
 								BufferId: 1,
 								Input:    []byte(`{"url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo __dep__serviceOneField: serviceOneField} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo __dep__serviceOneField: serviceOneField}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`),
-								DataSource: &Source{
-									Client: http.Client{
-										Timeout: time.Second * 10,
-									},
-								},
+								DataSource: DefaultSource(),
 								Variables: resolve.NewVariables(
 									&resolve.ContextVariable{
 										Path: []string{"secondArg"},
@@ -418,11 +401,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 										Path: []string{"serviceTwo"},
 										Fetch: &resolve.SingleFetch{
 											BufferId: 2,
-											DataSource: &Source{
-												Client: http.Client{
-													Timeout: time.Second * 10,
-												},
-											},
+											DataSource: DefaultSource(),
 											Input: []byte(`{"url":"https://service.one","body":{"query":"query($a: String){serviceOne(serviceOneArg: $a){fieldOne}}","variables":{"a":"$$0$$"}}}`),
 											Variables: resolve.NewVariables(
 												&resolve.ObjectVariable{
@@ -687,7 +666,7 @@ func TestGraphQLDataSourceExecution(t *testing.T) {
 		return func(t *testing.T) {
 			server := httptest.NewServer(serverHandler(t))
 			defer server.Close()
-			source := &Source{}
+			source := DefaultSource()
 			bufPair := &resolve.BufPair{
 				Data:   &bytes.Buffer{},
 				Errors: &bytes.Buffer{},

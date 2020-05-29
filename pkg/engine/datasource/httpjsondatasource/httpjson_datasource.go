@@ -3,14 +3,12 @@ package httpjsondatasource
 import (
 	"bytes"
 	"context"
-	"io"
-	"net/http"
 	"time"
 
 	"github.com/buger/jsonparser"
 	"github.com/tidwall/sjson"
 
-	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 
@@ -26,25 +24,21 @@ const (
 )
 
 type Planner struct {
-	client Client
+	client datasource.Client
 	v      *plan.Visitor
 }
 
-type Client interface {
-	Do(ctx context.Context, url, method, headers, body []byte, out *resolve.BufPair) (err error)
-}
-
-func NewPlanner(client Client) *Planner {
+func NewPlanner(client datasource.Client) *Planner {
 	return &Planner{
 		client: client,
 	}
 }
 
-func (p *Planner) defaultClient() Client {
+func (p *Planner) clientOrDefault() datasource.Client {
 	if p.client != nil {
 		return p.client
 	}
-	return NewFastHttpClient(&fasthttp.Client{
+	return datasource.NewFastHttpClient(&fasthttp.Client{
 		WriteTimeout: time.Second * 5,
 		ReadTimeout:  time.Second * 5,
 	})
@@ -96,28 +90,23 @@ func (p *Planner) EnterField(ref int) {
 		BufferId: bufferID,
 		Input:    input,
 		DataSource: &Source{
-			client: p.defaultClient(),
+			client: p.clientOrDefault(),
 		},
 		DisallowSingleFlight: !bytes.Equal(method, []byte("GET")),
 	}, config)
 }
 
 type Source struct {
-	client Client
+	client datasource.Client
 }
 
 var (
-	uniqueIdentifier = []byte("fast_http_json")
+	uniqueIdentifier = []byte("http_json")
 )
 
 func (_ *Source) UniqueIdentifier() []byte {
 	return uniqueIdentifier
 }
-
-var (
-	accept          = []byte("Accept")
-	applicationJSON = []byte("application/json")
-)
 
 func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPair) (err error) {
 
@@ -144,96 +133,5 @@ func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPai
 		}
 	}, inputPaths...)
 
-	return s.client.Do(ctx, url, method, headers, body, bufPair)
-}
-
-type FastHttpClient struct {
-	client *fasthttp.Client
-}
-
-func NewFastHttpClient(client *fasthttp.Client) *FastHttpClient {
-	return &FastHttpClient{
-		client: client,
-	}
-}
-
-func (f *FastHttpClient) Do(ctx context.Context, url, method, headers, body []byte, out *resolve.BufPair) (err error) {
-	req, res := fasthttp.AcquireRequest(), fasthttp.AcquireResponse()
-	defer func() {
-		fasthttp.ReleaseRequest(req)
-		fasthttp.ReleaseResponse(res)
-	}()
-
-	req.Header.SetMethodBytes(method)
-	req.SetRequestURIBytes(url)
-	req.SetBody(body)
-
-	err = jsonparser.ObjectEach(headers, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
-		req.Header.SetBytesKV(key, value)
-		return nil
-	})
-
-	req.Header.AddBytesKV(accept, applicationJSON)
-
-	if deadline, ok := ctx.Deadline(); ok {
-		err = f.client.DoDeadline(req, res, deadline)
-	} else {
-		err = f.client.Do(req, res)
-	}
-
-	if err != nil {
-		return
-	}
-
-	_, err = out.Data.Write(res.Body())
-	return
-}
-
-type NetHttpClient struct {
-	client *http.Client
-}
-
-func NewNetHttpClient(client *http.Client) *NetHttpClient {
-	return &NetHttpClient{
-		client: client,
-	}
-}
-
-
-func (n *NetHttpClient) Do(ctx context.Context, url, method, headers, body []byte, out *resolve.BufPair) (err error) {
-
-	var (
-		bodyReader *bytes.Reader
-	)
-
-	if len(body) != 0 {
-		bodyReader = bytes.NewReader(body)
-	}
-
-	request, err := http.NewRequestWithContext(ctx, unsafebytes.BytesToString(method), unsafebytes.BytesToString(url), bodyReader)
-	if err != nil {
-		return err
-	}
-
-	if len(headers) != 0 {
-		err = jsonparser.ObjectEach(headers, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
-			request.Header.Add(unsafebytes.BytesToString(key), unsafebytes.BytesToString(value))
-			return nil
-		})
-		if err != nil {
-			return err
-		}
-	}
-
-	request.Header.Add("Accept", "application/json")
-
-	response, err := n.client.Do(request)
-	if err != nil {
-		return err
-	}
-
-	defer response.Body.Close()
-
-	_, err = io.Copy(out.Data, response.Body)
-	return
+	return s.client.Do(ctx, url, method, headers, body, bufPair.Data)
 }
