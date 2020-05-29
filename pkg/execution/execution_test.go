@@ -17,6 +17,7 @@ import (
 	log "github.com/jensneuse/abstractlogger"
 	"github.com/jensneuse/diffview"
 	"github.com/sebdah/goldie"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
@@ -267,7 +268,7 @@ func TestExecution(t *testing.T) {
 														Value: []byte("/graphql"),
 													},
 													&datasource.StaticVariableArgument{
-														Name: literal.QUERY,
+														Name:  literal.QUERY,
 														Value: []byte(`query q1($id: String!){userPets(id: $id){	__typename name nickname... on Dog {woof} ... on Cat {meow}}}`),
 													},
 													&datasource.ObjectVariableArgument{
@@ -808,7 +809,7 @@ func genField() Field {
 												Value: []byte("/graphql"),
 											},
 											&datasource.StaticVariableArgument{
-												Name: literal.QUERY,
+												Name:  literal.QUERY,
 												Value: []byte(`query q1($id: String!){userPets(id: $id){	__typename name nickname... on Dog {woof} ... on Cat {meow}}}`),
 											},
 											&datasource.ObjectVariableArgument{
@@ -2576,6 +2577,145 @@ func TestExecutor_HTTPJSONDataSourceWithBodyComplexPlayload(t *testing.T) {
 	}
 }
 
+func TestExecutor_HTTPJSONDataSource_ArrayResponse(t *testing.T) {
+
+	response := []interface{}{
+		map[string]interface{}{
+			"fieldValue": "foo",
+		},
+		map[string]interface{}{
+			"fieldValue": "bar",
+		},
+		map[string]interface{}{
+			"fieldValue": "baz",
+		},
+	}
+
+	REST1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		responseData, err := json.Marshal(response)
+		assert.NoError(t, err)
+
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(responseData)
+	}))
+
+	plan := &Object{
+		operationType: ast.OperationTypeQuery,
+		Fields: []Field{
+			{
+				Name: []byte("data"),
+				Value: &Object{
+					Fetch: &SingleFetch{
+						BufferName: "objects",
+						Source: &DataSourceInvocation{
+							DataSource: &datasource.HttpJsonDataSource{
+								Log:    log.NoopLogger,
+								Client: datasource.DefaultHttpClient(),
+							},
+							Args: []datasource.Argument{
+								&datasource.StaticVariableArgument{
+									Name:  []byte("host"),
+									Value: []byte(REST1.URL),
+								},
+								&datasource.StaticVariableArgument{
+									Name:  []byte("url"),
+									Value: []byte("/"),
+								},
+								&datasource.StaticVariableArgument{
+									Name:  []byte("method"),
+									Value: []byte("GET"),
+								},
+								&datasource.StaticVariableArgument{
+									Name:  []byte("__typename"),
+									Value: []byte(`{"defaultTypeName":"SimpleType"}`),
+								},
+							},
+						},
+					},
+					Fields: []Field{
+						{
+							Name:            []byte("objects"),
+							HasResolvedData: true,
+							Value: &List{
+								Value: &Object{
+									Fields: []Field{
+										{
+											Name: []byte("__typename"),
+											Value: &Value{
+												ValueType: StringValueType,
+												DataResolvingConfig: DataResolvingConfig{
+													PathSelector: datasource.PathSelector{
+														Path: "__typename",
+													},
+												},
+											},
+										},
+										{
+											Name: []byte("fieldValue"),
+											Value: &Value{
+												ValueType: StringValueType,
+												DataResolvingConfig: DataResolvingConfig{
+													PathSelector: datasource.PathSelector{
+														Path: "fieldValue",
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	out := &bytes.Buffer{}
+	ex := NewExecutor(nil)
+	ctx := Context{
+		Context: context.Background(),
+	}
+
+	err := ex.Execute(ctx, plan, out)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected := map[string]interface{}{
+		"data": map[string]interface{}{
+			"objects": []interface{}{
+				map[string]interface{}{
+					"__typename": "SimpleType",
+					"fieldValue": "foo",
+				},
+				map[string]interface{}{
+					"__typename": "SimpleType",
+					"fieldValue": "bar",
+				},
+				map[string]interface{}{
+					"__typename": "SimpleType",
+					"fieldValue": "baz",
+				},
+			},
+		},
+	}
+
+	wantResult, err := json.MarshalIndent(expected, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := string(wantResult)
+	got := prettyJSON(out)
+
+	if want != got {
+		t.Fatalf("want: %s\ngot: %s\n", want, got)
+		return
+	}
+}
+
 func TestExecutor_HTTPJSONDataSourceWithHeaders(t *testing.T) {
 
 	REST1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -2791,7 +2931,7 @@ func TestExecutor_HTTPJSONDataSourceWithPathSelector(t *testing.T) {
 }
 
 func prettyJSON(r io.Reader) string {
-	data := map[string]interface{}{}
+	var data interface{}
 	err := json.NewDecoder(r).Decode(&data)
 	if err != nil {
 		panic(err)
