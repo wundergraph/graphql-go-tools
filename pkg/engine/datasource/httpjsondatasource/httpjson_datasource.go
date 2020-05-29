@@ -13,6 +13,8 @@ import (
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
+
+	"github.com/valyala/fasthttp"
 )
 
 const (
@@ -24,27 +26,28 @@ const (
 )
 
 type Planner struct {
-	client *http.Client
+	client Client
 	v      *plan.Visitor
 }
 
-func NewPlanner(client *http.Client) *Planner {
+type Client interface {
+	Do(ctx context.Context, url, method, headers, body []byte, out *resolve.BufPair) (err error)
+}
+
+func NewPlanner(client Client) *Planner {
 	return &Planner{
 		client: client,
 	}
 }
 
-func (p *Planner) getClient() *http.Client {
+func (p *Planner) defaultClient() Client {
 	if p.client != nil {
 		return p.client
 	}
-	return &http.Client{
-		Timeout: time.Second * 10,
-		Transport: &http.Transport{
-			MaxIdleConnsPerHost: 1024,
-			TLSHandshakeTimeout: 0,
-		},
-	}
+	return NewFastHttpClient(&fasthttp.Client{
+		WriteTimeout: time.Second * 5,
+		ReadTimeout:  time.Second * 5,
+	})
 }
 
 func (p *Planner) Register(visitor *plan.Visitor) {
@@ -93,23 +96,28 @@ func (p *Planner) EnterField(ref int) {
 		BufferId: bufferID,
 		Input:    input,
 		DataSource: &Source{
-			client: p.getClient(),
+			client: p.defaultClient(),
 		},
 		DisallowSingleFlight: !bytes.Equal(method, []byte("GET")),
 	}, config)
 }
 
 type Source struct {
-	client *http.Client
+	client Client
 }
 
 var (
-	uniqueIdentifier = []byte("http_json")
+	uniqueIdentifier = []byte("fast_http_json")
 )
 
 func (_ *Source) UniqueIdentifier() []byte {
 	return uniqueIdentifier
 }
+
+var (
+	accept          = []byte("Accept")
+	applicationJSON = []byte("application/json")
+)
 
 func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPair) (err error) {
 
@@ -121,7 +129,6 @@ func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPai
 			{BODY},
 			{HEADERS},
 		}
-		bodyReader io.Reader
 	)
 
 	jsonparser.EachKey(input, func(i int, bytes []byte, valueType jsonparser.ValueType, err error) {
@@ -136,6 +143,68 @@ func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPai
 			headers = bytes
 		}
 	}, inputPaths...)
+
+	return s.client.Do(ctx, url, method, headers, body, bufPair)
+}
+
+type FastHttpClient struct {
+	client *fasthttp.Client
+}
+
+func NewFastHttpClient(client *fasthttp.Client) *FastHttpClient {
+	return &FastHttpClient{
+		client: client,
+	}
+}
+
+func (f *FastHttpClient) Do(ctx context.Context, url, method, headers, body []byte, out *resolve.BufPair) (err error) {
+	req, res := fasthttp.AcquireRequest(), fasthttp.AcquireResponse()
+	defer func() {
+		fasthttp.ReleaseRequest(req)
+		fasthttp.ReleaseResponse(res)
+	}()
+
+	req.Header.SetMethodBytes(method)
+	req.SetRequestURIBytes(url)
+	req.SetBody(body)
+
+	err = jsonparser.ObjectEach(headers, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
+		req.Header.SetBytesKV(key, value)
+		return nil
+	})
+
+	req.Header.AddBytesKV(accept, applicationJSON)
+
+	if deadline, ok := ctx.Deadline(); ok {
+		err = f.client.DoDeadline(req, res, deadline)
+	} else {
+		err = f.client.Do(req, res)
+	}
+
+	if err != nil {
+		return
+	}
+
+	_, err = out.Data.Write(res.Body())
+	return
+}
+
+type NetHttpClient struct {
+	client *http.Client
+}
+
+func NewNetHttpClient(client *http.Client) *NetHttpClient {
+	return &NetHttpClient{
+		client: client,
+	}
+}
+
+
+func (n *NetHttpClient) Do(ctx context.Context, url, method, headers, body []byte, out *resolve.BufPair) (err error) {
+
+	var (
+		bodyReader *bytes.Reader
+	)
 
 	if len(body) != 0 {
 		bodyReader = bytes.NewReader(body)
@@ -158,17 +227,13 @@ func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPai
 
 	request.Header.Add("Accept", "application/json")
 
-	response, err := s.client.Do(request)
+	response, err := n.client.Do(request)
 	if err != nil {
 		return err
 	}
 
 	defer response.Body.Close()
 
-	_, err = io.Copy(bufPair.Data, response.Body)
-	if err != nil {
-		return
-	}
-
-	return nil
+	_, err = io.Copy(out.Data, response.Body)
+	return
 }

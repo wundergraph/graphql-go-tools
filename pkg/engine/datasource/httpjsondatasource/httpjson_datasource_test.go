@@ -15,8 +15,6 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 )
 
-// TODO: test with one datasource and multiple aliases for the same root field: should create multiple fetches for each individual alias
-
 const (
 	schema = `
 		type Query {
@@ -63,7 +61,7 @@ const (
 	`
 )
 
-func TestHttpJsonDataSourcePlanning(t *testing.T) {
+func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 	t.Run("get request", datasourcetesting.RunTest(schema, nestedOperation, "",
 		&plan.SynchronousResponsePlan{
 			Response: resolve.GraphQLResponse{
@@ -72,7 +70,7 @@ func TestHttpJsonDataSourcePlanning(t *testing.T) {
 						BufferId: 0,
 						Input:    []byte(`{"method":"GET","url":"https://example.com/friend"}`),
 						DataSource: &Source{
-							client: NewPlanner(nil).getClient(),
+							client: NewPlanner(nil).defaultClient(),
 						},
 					},
 					FieldSets: []resolve.FieldSet{
@@ -87,7 +85,7 @@ func TestHttpJsonDataSourcePlanning(t *testing.T) {
 											BufferId: 1,
 											Input:    []byte(`{"method":"GET","url":"https://example.com/friend/$$0$$/pet"}`),
 											DataSource: &Source{
-												client: NewPlanner(nil).getClient(),
+												client: NewPlanner(nil).defaultClient(),
 											},
 											Variables: resolve.NewVariables(
 												&resolve.ObjectVariable{
@@ -199,7 +197,7 @@ func TestHttpJsonDataSourcePlanning(t *testing.T) {
 						BufferId: 0,
 						Input:    []byte(`{"method":"GET","url":"https://example.com/$$0$$/foo"}`),
 						DataSource: &Source{
-							client: NewPlanner(nil).getClient(),
+							client: NewPlanner(nil).defaultClient(),
 						},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
@@ -270,7 +268,7 @@ func TestHttpJsonDataSourcePlanning(t *testing.T) {
 						BufferId: 0,
 						Input:    []byte(`{"body":{"foo":"bar"},"method":"POST","url":"https://example.com/friend"}`),
 						DataSource: &Source{
-							client: NewPlanner(nil).getClient(),
+							client: NewPlanner(nil).defaultClient(),
 						},
 						Variables: resolve.Variables{},
 						DisallowSingleFlight: true,
@@ -346,7 +344,7 @@ func TestHttpJsonDataSourcePlanning(t *testing.T) {
 						BufferId: 0,
 						Input:    []byte(`{"headers":{"Authorization":"Bearer 123","X-API-Key":"456"},"method":"GET","url":"https://example.com/friend"}`),
 						DataSource: &Source{
-							client: NewPlanner(nil).getClient(),
+							client: NewPlanner(nil).defaultClient(),
 						},
 						Variables: resolve.Variables{},
 					},
@@ -415,10 +413,10 @@ func TestHttpJsonDataSourcePlanning(t *testing.T) {
 	))
 }
 
-func TestHttpJsonDataSource_Load(t *testing.T) {
+func TestFastHttpJsonDataSource_Load(t *testing.T) {
 
 	source := &Source{
-		client: &http.Client{},
+		client: NewPlanner(nil).defaultClient(),
 	}
 
 	t.Run("simple get", func(t *testing.T) {
