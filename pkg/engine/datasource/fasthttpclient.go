@@ -30,9 +30,13 @@ var (
 		WriteTimeout:        time.Second * 10,
 		MaxIdleConnDuration: time.Minute,
 	}
+	queryParamsKeys = [][]string{
+		{"name"},
+		{"value"},
+	}
 )
 
-func (f *FastHttpClient) Do(ctx context.Context, url, method, headers, body []byte, out io.Writer) (err error) {
+func (f *FastHttpClient) Do(ctx context.Context, url, queryParams, method, headers, body []byte, out io.Writer) (err error) {
 	req, res := fasthttp.AcquireRequest(), fasthttp.AcquireResponse()
 	defer func() {
 		fasthttp.ReleaseRequest(req)
@@ -43,10 +47,37 @@ func (f *FastHttpClient) Do(ctx context.Context, url, method, headers, body []by
 	req.SetRequestURIBytes(url)
 	req.SetBody(body)
 
-	err = jsonparser.ObjectEach(headers, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
-		req.Header.SetBytesKV(key, value)
-		return nil
-	})
+	if headers != nil {
+		err = jsonparser.ObjectEach(headers, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
+			req.Header.SetBytesKV(key, value)
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	if queryParams != nil {
+		_, err = jsonparser.ArrayEach(queryParams, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+			var (
+				parameterName, parameterValue []byte
+			)
+			jsonparser.EachKey(value, func(i int, bytes []byte, valueType jsonparser.ValueType, err error) {
+				switch i {
+				case 0:
+					parameterName = bytes
+				case 1:
+					parameterValue = bytes
+				}
+			}, queryParamsKeys...)
+			if parameterName != nil && parameterValue != nil {
+				req.URI().QueryArgs().AddBytesKV(parameterName, parameterValue)
+			}
+		})
+		if err != nil {
+			return err
+		}
+	}
 
 	req.Header.AddBytesKV(accept, applicationJSON)
 

@@ -373,7 +373,7 @@ func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPai
 	buf := pool.BytesBuffer.Get()
 	defer pool.BytesBuffer.Put(buf)
 
-	err = s.client.Do(ctx, url, method, nil, body, buf)
+	err = s.client.Do(ctx, url,nil, method, nil, body, buf)
 	if err != nil {
 		return
 	}

@@ -6,5 +6,5 @@ import (
 )
 
 type Client interface {
-	Do(ctx context.Context, url, method, headers, body []byte, out io.Writer) (err error)
+	Do(ctx context.Context, url, queryParams, method, headers, body []byte, out io.Writer) (err error)
 }

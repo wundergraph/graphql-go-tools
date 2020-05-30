@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"time"
 
 	"github.com/buger/jsonparser"
 	"github.com/tidwall/sjson"
@@ -12,8 +11,6 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
-
-	"github.com/valyala/fasthttp"
 )
 
 const (
@@ -41,10 +38,7 @@ func (p *Planner) clientOrDefault() datasource.Client {
 	if p.client != nil {
 		return p.client
 	}
-	return datasource.NewFastHttpClient(&fasthttp.Client{
-		WriteTimeout: time.Second * 5,
-		ReadTimeout:  time.Second * 5,
-	})
+	return datasource.NewFastHttpClient(datasource.DefaultFastHttpClient)
 }
 
 func (p *Planner) Register(visitor *plan.Visitor) {
@@ -119,6 +113,13 @@ type Source struct {
 
 var (
 	uniqueIdentifier = []byte("http_json")
+	inputPaths       = [][]string{
+		{URL},
+		{METHOD},
+		{BODY},
+		{HEADERS},
+		{QUERYPARAMS},
+	}
 )
 
 func (_ *Source) UniqueIdentifier() []byte {
@@ -128,13 +129,7 @@ func (_ *Source) UniqueIdentifier() []byte {
 func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPair) (err error) {
 
 	var (
-		url, method, body, headers []byte
-		inputPaths                 = [][]string{
-			{URL},
-			{METHOD},
-			{BODY},
-			{HEADERS},
-		}
+		url, method, body, headers, queryParams []byte
 	)
 
 	jsonparser.EachKey(input, func(i int, bytes []byte, valueType jsonparser.ValueType, err error) {
@@ -147,8 +142,10 @@ func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPai
 			body = bytes
 		case 3:
 			headers = bytes
+		case 4:
+			queryParams = bytes
 		}
 	}, inputPaths...)
 
-	return s.client.Do(ctx, url, method, headers, body, bufPair.Data)
+	return s.client.Do(ctx, url, queryParams, method, headers, body, bufPair.Data)
 }
