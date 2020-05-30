@@ -106,7 +106,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 											},
 											{
 												HasBuffer: true,
-												BufferID: 1,
+												BufferID:  1,
 												Fields: []resolve.Field{
 													{
 														Name: []byte("pet"),
@@ -241,7 +241,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 					Attributes: []plan.DataSourceAttribute{
 						{
 							Key:   "path",
-							Value: []byte("https://example.com/{{ .arguments.withArgument.id }}/{{ .arguments.withArgument.name }}"),
+							Value: []byte("https://example.com/{{ .arguments.id }}/{{ .arguments.name }}"),
 						},
 						{
 							Key:   "method",
@@ -270,7 +270,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 						DataSource: &Source{
 							client: NewPlanner(nil).clientOrDefault(),
 						},
-						Variables: resolve.Variables{},
+						Variables:            resolve.Variables{},
 						DisallowSingleFlight: true,
 					},
 					FieldSets: []resolve.FieldSet{
@@ -406,6 +406,98 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 				{
 					TypeName:              "Query",
 					FieldName:             "friend",
+					DisableDefaultMapping: true,
+				},
+			},
+		},
+	))
+	t.Run("get request with query", datasourcetesting.RunTest(schema, argumentOperation, "ArgumentQuery",
+		&plan.SynchronousResponsePlan{
+			Response: resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						BufferId: 0,
+						Input:    []byte(`{"query_params":[{"name":"static","value":"staticValue"},{"name":"name","value":"foo"},{"name":"id","value":"$$0$$"}],"method":"GET","url":"https://example.com/friend"}`),
+						DataSource: &Source{
+							client: NewPlanner(nil).clientOrDefault(),
+						},
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path: []string{"idVariable"},
+							},
+						),
+					},
+					FieldSets: []resolve.FieldSet{
+						{
+							BufferID:  0,
+							HasBuffer: true,
+							Fields: []resolve.Field{
+								{
+									Name: []byte("withArgument"),
+									Value: &resolve.Object{
+										FieldSets: []resolve.FieldSet{
+											{
+												Fields: []resolve.Field{
+													{
+														Name: []byte("name"),
+														Value: &resolve.String{
+															Path: []string{"name"},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		plan.Configuration{
+			DataSourceConfigurations: []plan.DataSourceConfiguration{
+				{
+					TypeName:   "Query",
+					FieldNames: []string{"withArgument"},
+					Attributes: []plan.DataSourceAttribute{
+						{
+							Key:   "base_url",
+							Value: []byte("https://example.com"),
+						},
+						{
+							Key:   "path",
+							Value: []byte("/friend"),
+						},
+						{
+							Key:   "method",
+							Value: []byte("GET"),
+						},
+						{
+							Key: "query_params",
+							Value: NewQueryValues(
+								QueryValue{
+									Name:  "static",
+									Value: "staticValue",
+								},
+								QueryValue{
+									Name:  "name",
+									Value: "{{ .arguments.name }}",
+								},
+								QueryValue{
+									Name:  "id",
+									Value: "{{ .arguments.id }}",
+								},
+							),
+						},
+					},
+					DataSourcePlanner: &Planner{},
+				},
+			},
+			FieldMappings: []plan.FieldMapping{
+				{
+					TypeName:              "Query",
+					FieldName:             "withArgument",
 					DisableDefaultMapping: true,
 				},
 			},

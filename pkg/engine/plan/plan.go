@@ -320,14 +320,14 @@ func (v *Visitor) prepareSingleFetchVariables(f *resolve.SingleFetch, config *Da
 			return variableName
 		case "arguments":
 			segments = segments[1:]
-			if len(segments) < 2 {
+			if len(segments) < 1 {
 				return i
 			}
 			for j := range v.fieldArguments {
 				if v.fieldArguments[j].typeName == config.TypeName &&
-					v.fieldArguments[j].fieldName == segments[0] &&
-					v.fieldArguments[j].argumentName == segments[1] {
-					segments = segments[2:]
+					//v.fieldArguments[j].fieldName == segments[0] &&
+					v.fieldArguments[j].argumentName == segments[0] {
+					segments = segments[1:]
 					switch v.fieldArguments[j].kind {
 					case fieldArgumentTypeVariable:
 						variablePath := append([]string{string(v.fieldArguments[j].value)}, segments...)

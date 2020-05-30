@@ -3,6 +3,7 @@ package httpjsondatasource
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/buger/jsonparser"
@@ -16,12 +17,13 @@ import (
 )
 
 const (
-	PATH    = "path"
-	URL     = "url"
-	BASEURL = "base_url"
-	METHOD  = "method"
-	BODY    = "body"
-	HEADERS = "headers"
+	PATH        = "path"
+	URL         = "url"
+	BASEURL     = "base_url"
+	METHOD      = "method"
+	BODY        = "body"
+	HEADERS     = "headers"
+	QUERYPARAMS = "query_params"
 )
 
 type Planner struct {
@@ -61,6 +63,7 @@ func (p *Planner) EnterField(ref int) {
 	method := config.Attributes.ValueForKey(METHOD)
 	body := config.Attributes.ValueForKey(BODY)
 	headers := config.Attributes.ValueForKey(HEADERS)
+	queryParams := config.Attributes.ValueForKey(QUERYPARAMS)
 
 	var (
 		input []byte
@@ -81,6 +84,9 @@ func (p *Planner) EnterField(ref int) {
 	if headers != nil {
 		input, err = sjson.SetRawBytes(input, HEADERS, headers)
 	}
+	if queryParams != nil {
+		input, err = sjson.SetRawBytes(input, QUERYPARAMS, queryParams)
+	}
 	if err != nil {
 		p.v.HandleInternalErr(err)
 	}
@@ -95,6 +101,16 @@ func (p *Planner) EnterField(ref int) {
 		},
 		DisallowSingleFlight: !bytes.Equal(method, []byte("GET")),
 	}, config)
+}
+
+type QueryValue struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+func NewQueryValues(values ...QueryValue) []byte {
+	out, _ := json.Marshal(values)
+	return out
 }
 
 type Source struct {
