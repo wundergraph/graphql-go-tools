@@ -16,6 +16,7 @@ import (
 )
 
 const (
+	PATH    = "path"
 	URL     = "url"
 	BASEURL = "base_url"
 	METHOD  = "method"
@@ -55,7 +56,7 @@ func (p *Planner) EnterField(ref int) {
 		return
 	}
 
-	url := config.Attributes.ValueForKey(URL)
+	path := config.Attributes.ValueForKey(PATH)
 	baseURL := config.Attributes.ValueForKey(BASEURL)
 	method := config.Attributes.ValueForKey(METHOD)
 	body := config.Attributes.ValueForKey(BODY)
@@ -66,7 +67,7 @@ func (p *Planner) EnterField(ref int) {
 		err   error
 	)
 
-	url = append(baseURL, url...)
+	url := append(baseURL, path...)
 
 	if url != nil {
 		input, err = sjson.SetBytes(input, URL, string(url))

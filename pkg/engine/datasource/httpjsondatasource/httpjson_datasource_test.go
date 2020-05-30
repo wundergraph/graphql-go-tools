@@ -149,7 +149,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 					FieldNames: []string{"friend"},
 					Attributes: []plan.DataSourceAttribute{
 						{
-							Key:   "url",
+							Key:   "path",
 							Value: []byte("https://example.com/friend"),
 						},
 						{
@@ -164,7 +164,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 					FieldNames: []string{"pet"},
 					Attributes: []plan.DataSourceAttribute{
 						{
-							Key:   "url",
+							Key:   "path",
 							Value: []byte("https://example.com/friend/{{ .object.name }}/pet"),
 						},
 						{
@@ -240,7 +240,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 					FieldNames: []string{"withArgument"},
 					Attributes: []plan.DataSourceAttribute{
 						{
-							Key:   "url",
+							Key:   "path",
 							Value: []byte("https://example.com/{{ .arguments.withArgument.id }}/{{ .arguments.withArgument.name }}"),
 						},
 						{
@@ -312,7 +312,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							Value: []byte("https://example.com"),
 						},
 						{
-							Key:   "url",
+							Key:   "path",
 							Value: []byte("/friend"),
 						},
 						{
@@ -387,7 +387,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							Value: []byte("https://example.com"),
 						},
 						{
-							Key:   "url",
+							Key:   "path",
 							Value: []byte("/friend"),
 						},
 						{
