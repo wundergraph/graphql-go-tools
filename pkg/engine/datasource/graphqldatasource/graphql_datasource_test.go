@@ -294,6 +294,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 			},
 		},
 	))
+	// TODO: add validation to check if all required field dependencies are met
 	t.Run("nested graphql engines", RunTest(`
 		type Query {
 			serviceOne(serviceOneArg: String): ServiceOneResponse
