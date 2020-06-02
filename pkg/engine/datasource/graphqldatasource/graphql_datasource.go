@@ -415,6 +415,6 @@ type Argument struct {
 type ArgumentSource string
 
 const (
-	ObjectField   ArgumentSource = "objectField"
-	FieldArgument ArgumentSource = "fieldArgument"
+	ObjectField   ArgumentSource = "object_field"
+	FieldArgument ArgumentSource = "field_argument"
 )
