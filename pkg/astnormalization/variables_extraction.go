@@ -1,8 +1,9 @@
 package astnormalization
 
 import (
-	"bytes"
+	"github.com/tidwall/sjson"
 
+	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astimport"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
@@ -27,8 +28,20 @@ func (v *variablesExtractionVisitor) EnterArgument(ref int) {
 		return
 	}
 
+	variableNameBytes := v.operation.GenerateUnusedVariableDefinitionName(v.Ancestors[0].Ref)
+	valueBytes, err := v.operation.ValueToJSON(v.operation.Arguments[ref].Value)
+	if err != nil {
+		v.StopWithInternalErr(err)
+		return
+	}
+	v.operation.Input.Variables, err = sjson.SetRawBytes(v.operation.Input.Variables, unsafebytes.BytesToString(variableNameBytes), valueBytes)
+	if err != nil {
+		v.StopWithInternalErr(err)
+		return
+	}
+
 	variable := ast.VariableValue{
-		Name: v.getNextVariableName(),
+		Name: v.operation.Input.AppendInputBytes(variableNameBytes),
 	}
 
 	v.operation.VariableValues = append(v.operation.VariableValues, variable)
@@ -64,29 +77,4 @@ func (v *variablesExtractionVisitor) EnterArgument(ref int) {
 
 func (v *variablesExtractionVisitor) EnterDocument(operation, definition *ast.Document) {
 	v.operation, v.definition = operation, definition
-}
-
-var (
-	alphabet = []byte("abcdefghijklmnopqrstuvwxyz")
-)
-
-// TODO: this can be better - Need to be able to support more than 26 variables
-func (v *variablesExtractionVisitor) getNextVariableName() ast.ByteSliceReference {
-	for o := 1; o < len(alphabet)+1; o++ {
-		for i := 0; i < len(alphabet); i++ {
-			potentialName := alphabet[i : i+o]
-			exists := false
-			for _, j := range v.operation.OperationDefinitions[v.Ancestors[0].Ref].VariableDefinitions.Refs {
-				if bytes.Equal(v.operation.VariableDefinitionNameBytes(j), potentialName) {
-					exists = true
-					break
-				}
-			}
-			if exists {
-				continue
-			}
-			return v.operation.Input.AppendInputBytes(potentialName)
-		}
-	}
-	return ast.ByteSliceReference{}
 }

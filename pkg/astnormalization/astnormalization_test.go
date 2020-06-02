@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
@@ -135,6 +137,32 @@ var mustString = func(str string, err error) string {
 		panic(err)
 	}
 	return str
+}
+
+var runWithVariables = func(t *testing.T, normalizeFunc registerNormalizeFunc, definition, operation, expectedOutput, variablesInput, expectedVariables string) {
+	definitionDocument := unsafeparser.ParseGraphqlDocumentString(definition)
+	operationDocument := unsafeparser.ParseGraphqlDocumentString(operation)
+	expectedOutputDocument := unsafeparser.ParseGraphqlDocumentString(expectedOutput)
+	report := operationreport.Report{}
+	walker := astvisitor.NewWalker(48)
+
+	if variablesInput != "" {
+		operationDocument.Input.Variables = []byte(variablesInput)
+	}
+
+	normalizeFunc(&walker)
+
+	walker.Walk(&operationDocument, &definitionDocument, &report)
+
+	if report.HasErrors() {
+		panic(report.Error())
+	}
+
+	actualAST := mustString(astprinter.PrintString(&operationDocument, &definitionDocument))
+	expectedAST := mustString(astprinter.PrintString(&expectedOutputDocument, &definitionDocument))
+	assert.Equal(t, expectedAST, actualAST)
+	actualVariables := string(operationDocument.Input.Variables)
+	assert.Equal(t, expectedVariables, actualVariables)
 }
 
 var run = func(normalizeFunc registerNormalizeFunc, definition, operation, expectedOutput string) {

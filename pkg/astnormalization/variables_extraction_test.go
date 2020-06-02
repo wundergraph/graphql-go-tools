@@ -32,7 +32,7 @@ const (
 
 func TestVariablesExtraction(t *testing.T) {
 	t.Run("simple http bin example", func(t *testing.T) {
-		run(variablesExtraction, variablesExtractionDefinition, `
+		runWithVariables(t,variablesExtraction, variablesExtractionDefinition, `
 			mutation HttpBinPost{
 			  httpBinPost(input: {foo: "bar"}){
 				headers {
@@ -52,6 +52,6 @@ func TestVariablesExtraction(t *testing.T) {
 				  foo
 				}
 			  }
-			}`)
+			}`,``,`{"a":{"foo":"bar"}}`)
 	})
 }
