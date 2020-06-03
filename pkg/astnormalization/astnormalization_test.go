@@ -14,13 +14,19 @@ import (
 
 func TestNormalizeOperation(t *testing.T) {
 
-	run := func(definition, operation, expectedOutput string) {
+	run := func(t *testing.T, definition, operation, expectedOutput, variablesInput, expectedVariables string) {
 		definitionDocument := unsafeparser.ParseGraphqlDocumentString(definition)
 		operationDocument := unsafeparser.ParseGraphqlDocumentString(operation)
 		expectedOutputDocument := unsafeparser.ParseGraphqlDocumentString(expectedOutput)
 		report := operationreport.Report{}
 
-		NormalizeOperation(&operationDocument, &definitionDocument, &report)
+		if variablesInput != "" {
+			operationDocument.Input.Variables = []byte(variablesInput)
+		}
+
+
+		normalizer := NewNormalizer(true,true)
+		normalizer.NormalizeOperation(&operationDocument, &definitionDocument, &report)
 
 		if report.HasErrors() {
 			t.Fatal(report.Error())
@@ -29,13 +35,12 @@ func TestNormalizeOperation(t *testing.T) {
 		got := mustString(astprinter.PrintString(&operationDocument, &definitionDocument))
 		want := mustString(astprinter.PrintString(&expectedOutputDocument, &definitionDocument))
 
-		if want != got {
-			panic(fmt.Errorf("\nwant:\n%s\ngot:\n%s", want, got))
-		}
+		assert.Equal(t, want,got)
+		assert.Equal(t, expectedVariables, string(operationDocument.Input.Variables))
 	}
 
 	t.Run("complex", func(t *testing.T) {
-		run(testDefinition, `	
+		run(t, testDefinition, `	
 				subscription sub {
 					... multipleSubscriptions
 					... on Subscription {
@@ -79,21 +84,10 @@ func TestNormalizeOperation(t *testing.T) {
 						sender
 					}
 					disallowedSecondRootField
-				}
-				fragment newMessageFields on Message {
-					body
-					sender
-				}
-				fragment multipleSubscriptions on Subscription {
-						newMessage {
-							body
-							sender
-						}
-						disallowedSecondRootField
-				}`)
+				}`, "", "")
 	})
 	t.Run("fragments", func(t *testing.T) {
-		run(testDefinition, `
+		run(t, testDefinition, `
 				query conflictingBecauseAlias {
 					dog {
 						extras { ...frag }
@@ -109,9 +103,30 @@ func TestNormalizeOperation(t *testing.T) {
 							string1: string
 						}
 					}
+				}`, "", "")
+	})
+	t.Run("fragments", func(t *testing.T) {
+		run(t, variablesExtractionDefinition, `
+			mutation HttpBinPost{
+			  httpBinPost(input: {foo: "bar"}){
+				headers {
+				  userAgent
 				}
-				fragment frag on DogExtra { string1 }
-				fragment frag2 on DogExtra { string1: string }`)
+				data {
+				  foo
+				}
+			  }
+			}`, `
+			mutation HttpBinPost($a: HttpBinPostInput){
+			  httpBinPost(input: $a){
+				headers {
+				  userAgent
+				}
+				data {
+				  foo
+				}
+			  }
+			}`,``,`{"a":{"foo":"bar"}}`)
 	})
 }
 
@@ -121,7 +136,7 @@ func BenchmarkAstNormalization(b *testing.B) {
 	operation := unsafeparser.ParseGraphqlDocumentString(testOperation)
 	report := operationreport.Report{}
 
-	normalizer := NewNormalizer(false)
+	normalizer := NewNormalizer(false,false)
 
 	b.ResetTimer()
 	b.ReportAllocs()

@@ -57,7 +57,7 @@ func run(definition string, operation string, configureBase func(base *datasourc
 		op := unsafeparser.ParseGraphqlDocumentString(operation)
 
 		var report operationreport.Report
-		normalizer := astnormalization.NewNormalizer(true)
+		normalizer := astnormalization.NewNormalizer(true,true)
 		normalizer.NormalizeOperation(&op, &def, &report)
 		if report.HasErrors() {
 			t.Error(report)

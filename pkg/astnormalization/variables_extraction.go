@@ -9,7 +9,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 )
 
-func variablesExtraction(walker *astvisitor.Walker) {
+func extractVariables(walker *astvisitor.Walker) {
 	visitor := &variablesExtractionVisitor{
 		Walker: walker,
 	}
@@ -25,6 +25,10 @@ type variablesExtractionVisitor struct {
 
 func (v *variablesExtractionVisitor) EnterArgument(ref int) {
 	if v.operation.Arguments[ref].Value.Kind == ast.ValueKindVariable {
+		return
+	}
+
+	if len(v.Ancestors) == 0 || v.Ancestors[0].Kind != ast.NodeKindOperationDefinition {
 		return
 	}
 
