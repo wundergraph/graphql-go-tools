@@ -76,7 +76,7 @@ func (r *Request) Normalize(schema *Schema) (result NormalizationResult, err err
 	}
 
 	r.isNormalized = true
-	
+
 	r.Variables = r.document.Input.Variables
 
 	return NormalizationResult{Successful: true, Errors: nil}, nil
