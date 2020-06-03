@@ -25,6 +25,7 @@ type Input struct {
 // Reset empties the Input
 func (i *Input) Reset() {
 	i.RawBytes = i.RawBytes[:0]
+	i.Variables = i.Variables[:]
 	i.InputPosition = 0
 	i.TextPosition.Reset()
 }
