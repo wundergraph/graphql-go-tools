@@ -67,13 +67,18 @@ func (r *Request) Normalize(schema *Schema) (result NormalizationResult, err err
 		return normalizationResultFromReport(report)
 	}
 
-	normalizer := astnormalization.NewNormalizer(true,true)
+	r.document.Input.Variables = r.Variables
+
+	normalizer := astnormalization.NewNormalizer(true, true)
 	normalizer.NormalizeOperation(&r.document, &schema.document, &report)
 	if report.HasErrors() {
 		return normalizationResultFromReport(report)
 	}
 
 	r.isNormalized = true
+	
+	r.Variables = r.document.Input.Variables
+
 	return NormalizationResult{Successful: true, Errors: nil}, nil
 }
 
