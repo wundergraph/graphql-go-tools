@@ -28,6 +28,7 @@ const (
 	FileUnionQuery                 = "testdata/queries/inline_fragments.query"
 	FileRemainingJedisSubscription = "testdata/subscriptions/remaining_jedis.subscription"
 	FileIntrospectionQuery         = "testdata/queries/introspection.query"
+	FileMultiQueries               = "testdata/queries/multi_queries.query"
 )
 
 var (

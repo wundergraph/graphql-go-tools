@@ -149,7 +149,7 @@ func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {
 		assert.NoError(t, err)
 
 		executionRes, err := engine.Execute(context.Background(), &request, ExecutionOptions{ExtraArguments: extraVariablesBytes})
-		assert.Error(t,err)
+		assert.Error(t, err)
 		assert.Equal(t, ``, executionRes.Buffer().String())
 	})
 
@@ -158,6 +158,66 @@ func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {
 		request := Request{}
 		err := UnmarshalRequest(bytes.NewBuffer(query), &request)
 		require.NoError(t, err)
+
+		plannerConfig := datasource.PlannerConfiguration{
+			TypeFieldConfigurations: []datasource.TypeFieldConfiguration{
+				{
+					TypeName:  "query",
+					FieldName: "hero",
+					Mapping: &datasource.MappingConfiguration{
+						Disabled: false,
+						Path:     "hero",
+					},
+					DataSource: datasource.SourceConfig{
+						Name: "GraphqlDataSource",
+						Config: func() []byte {
+							data, _ := json.Marshal(datasource.GraphQLDataSourceConfig{
+								Host: "example.com",
+								URL:  "/",
+								Method: func() *string {
+									method := "GET"
+									return &method
+								}(),
+							})
+							return data
+						}(),
+					},
+				},
+			},
+		}
+
+		roundTripper := testRoundTripper(func(req *http.Request) *http.Response {
+			assert.Equal(t, "example.com", req.URL.Host)
+			assert.Equal(t, "/", req.URL.Path)
+
+			body := bytes.NewBuffer([]byte(`{"data":{"hero":{"name":"Luke Skywalker"}}}`))
+			return &http.Response{StatusCode: 200, Body: ioutil.NopCloser(body)}
+		})
+
+		graphqlOptions := DataSourceGraphqlOptions{
+			HttpClient: &http.Client{
+				Transport: roundTripper,
+			},
+		}
+
+		engine, err := NewExecutionEngine(abstractlogger.NoopLogger, schema, plannerConfig)
+		assert.NoError(t, err)
+
+		err = engine.AddGraphqlDataSourceWithOptions("GraphqlDataSource", graphqlOptions)
+		assert.NoError(t, err)
+
+		executionRes, err := engine.Execute(context.Background(), &request, ExecutionOptions{ExtraArguments: extraVariablesBytes})
+		assert.NoError(t, err)
+		assert.Equal(t, `{"data":{"hero":{"name":"Luke Skywalker"}}}`, executionRes.Buffer().String())
+	})
+
+	t.Run("execute query by using operation name value", func(t *testing.T) {
+		query := starwars.LoadQuery(t, starwars.FileMultiQueries, nil)
+		request := Request{}
+		err := UnmarshalRequest(bytes.NewBuffer(query), &request)
+		require.NoError(t, err)
+
+		request.OperationName = "SingleHero"
 
 		plannerConfig := datasource.PlannerConfiguration{
 			TypeFieldConfigurations: []datasource.TypeFieldConfiguration{

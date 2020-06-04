@@ -77,7 +77,7 @@ func (h *Handler) Handle(requestData, extraVariables []byte) (executor *Executor
 		err = report
 		return
 	}
-	plan := planner.Plan(&operationDocument, h.base.Definition, &report)
+	plan := planner.Plan(&operationDocument, h.base.Definition, graphqlRequest.OperationName, &report)
 	if report.HasErrors() {
 		err = report
 		return
