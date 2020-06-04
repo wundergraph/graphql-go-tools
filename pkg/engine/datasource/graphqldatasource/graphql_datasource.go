@@ -111,15 +111,53 @@ func (p *Planner) EnterField(ref int) {
 		Kind: ast.SelectionKindField,
 		Ref:  field.Ref,
 	}
-	p.operation.AddSelection(p.nodes[len(p.nodes)-1].Ref, selection)
+	upstreamSelectionSet := p.nodes[len(p.nodes)-1].Ref
+	p.operation.AddSelection(upstreamSelectionSet, selection)
 	p.nodes = append(p.nodes, field)
-
 	if config == nil {
 		return
 	}
 	if arguments := config.Attributes.ValueForKey("arguments"); arguments != nil {
 		p.configureFieldArguments(field.Ref, ref, arguments)
 	}
+}
+
+func (p *Planner) handleFieldDependencies(downstreamField, upstreamSelectionSet int) {
+	typeName := p.v.EnclosingTypeDefinition.Name(p.v.Definition)
+	fieldName := p.v.Operation.FieldNameString(downstreamField)
+	for i := range p.v.Config.FieldDependencies {
+		if p.v.Config.FieldDependencies[i].TypeName != typeName {
+			continue
+		}
+		if p.v.Config.FieldDependencies[i].FieldName != fieldName {
+			continue
+		}
+		for j := range p.v.Config.FieldDependencies[i].RequiresFields {
+			requiredField := p.v.Config.FieldDependencies[i].RequiresFields[j]
+			p.addFieldDependency(requiredField,upstreamSelectionSet)
+		}
+	}
+}
+
+func (p *Planner) addFieldDependency(fieldName string, selectionSet int) {
+
+	if p.operation.SelectionSetHasFieldSelectionWithNameOrAliasString(selectionSet, fieldName) {
+		return
+	}
+
+	field := ast.Field{
+		Alias: ast.Alias{
+			IsDefined: true,
+			Name:      p.operation.Input.AppendInputString(fieldName),
+		},
+		Name: p.operation.Input.AppendInputString(fieldName),
+	}
+	addedField := p.operation.AddField(field)
+	selection := ast.Selection{
+		Kind: ast.SelectionKindField,
+		Ref:  addedField.Ref,
+	}
+	p.operation.AddSelection(selectionSet, selection)
 }
 
 func (p *Planner) addField(ref int) ast.Node {
@@ -244,7 +282,6 @@ func (p *Planner) applyFieldArgument(upstreamField, downstreamField int, arg Arg
 		p.operation.AddVariableDefinitionToOperationDefinition(p.nodes[0].Ref, variableValue, importedType)
 		wrapVariableInQuotes := p.v.Definition.TypeValueNeedsQuotes(argumentType)
 
-		arg.SourcePath[0] = plan.FieldDependencyPrefix + arg.SourcePath[0]
 		objectVariableName, exists := p.fetch.Variables.AddVariable(&resolve.ObjectVariable{Path: arg.SourcePath}, wrapVariableInQuotes)
 		if !exists {
 			p.variables, _ = sjson.SetRawBytes(p.variables, string(variableName), objectVariableName)
@@ -272,41 +309,17 @@ func (p *Planner) EnterSelectionSet(ref int) {
 
 func (p *Planner) LeaveSelectionSet(ref int) {
 
-	typeName := p.v.EnclosingTypeDefinition.Name(p.v.Definition)
+	upstreamSelectionSet := p.nodes[len(p.nodes) -1].Ref
 
-	for i := range p.v.Config.FieldDependencies {
-		if p.v.Config.FieldDependencies[i].TypeName != typeName {
+	for _,i := range p.v.Operation.SelectionSets[ref].SelectionRefs {
+		if p.v.Operation.Selections[i].Kind != ast.SelectionKindField {
 			continue
 		}
-		for j := range p.v.Config.FieldDependencies[i].RequiredFields {
-			p.addFieldDependencyToSelectionSet(p.v.Config.FieldDependencies[i].RequiredFields[j], p.nodes[len(p.nodes)-1].Ref)
-		}
+		downstreamField := p.v.Operation.Selections[i].Ref
+		p.handleFieldDependencies(downstreamField,upstreamSelectionSet)
 	}
 
 	p.nodes = p.nodes[:len(p.nodes)-1]
-}
-
-func (p *Planner) addFieldDependencyToSelectionSet(fieldName string, selectionSet int) {
-
-	alias := plan.FieldDependencyPrefix + fieldName
-
-	if p.operation.SelectionSetHasFieldSelectionWithNameOrAliasString(selectionSet, alias) {
-		return
-	}
-
-	field := ast.Field{
-		Alias: ast.Alias{
-			IsDefined: true,
-			Name:      p.operation.Input.AppendInputString(alias),
-		},
-		Name: p.operation.Input.AppendInputString(fieldName),
-	}
-	addedField := p.operation.AddField(field)
-	selection := ast.Selection{
-		Kind: ast.SelectionKindField,
-		Ref:  addedField.Ref,
-	}
-	p.operation.AddSelection(selectionSet, selection)
 }
 
 func (p *Planner) LeaveDocument(operation, definition *ast.Document) {
@@ -328,7 +341,7 @@ func (p *Planner) LeaveDocument(operation, definition *ast.Document) {
 }
 
 type Source struct {
-	client  datasource.Client
+	client datasource.Client
 }
 
 func DefaultSource() *Source {
@@ -373,7 +386,7 @@ func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPai
 	buf := pool.BytesBuffer.Get()
 	defer pool.BytesBuffer.Put(buf)
 
-	err = s.client.Do(ctx, url,nil, method, nil, body, buf)
+	err = s.client.Do(ctx, url, nil, method, nil, body, buf)
 	if err != nil {
 		return
 	}

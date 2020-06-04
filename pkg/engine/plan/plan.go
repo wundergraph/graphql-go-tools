@@ -20,8 +20,6 @@ type Kind int
 type enterOrLeave int
 
 const (
-	FieldDependencyPrefix = "__dep__"
-
 	SynchronousResponseKind Kind = iota + 1
 	StreamingResponseKind
 	SubscriptionResponseKind
@@ -109,7 +107,8 @@ type Configuration struct {
 
 type FieldDependency struct {
 	TypeName       string
-	RequiredFields []string
+	FieldName      string
+	RequiresFields []string
 }
 
 func NewPlanner(definition *ast.Document, config Configuration) *Planner {
