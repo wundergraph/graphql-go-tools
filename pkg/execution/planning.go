@@ -78,7 +78,7 @@ type dataSourcePlannerRef struct {
 func (p *planningVisitor) EnterDocument(operation, definition *ast.Document) {
 	p.operation, p.definition, p.base.Definition = operation, definition, definition
 	p.foundOperation = false
-	p.isSingleOperation = len(operation.OperationDefinitions) == 1
+	p.isSingleOperation = p.countOperationDefinitionsInRootNodes() == 1
 
 	if len(operation.OperationDefinitions) == 0 {
 		p.Walker.StopWithExternalErr(operationreport.ErrDocumentDoesntContainExecutableOperation())
@@ -412,4 +412,14 @@ func (p *planningVisitor) pipelineTransformation(directive int) *PipelineTransfo
 	return &PipelineTransformation{
 		pipeline: pipeline,
 	}
+}
+
+func (p *planningVisitor) countOperationDefinitionsInRootNodes() (count int) {
+	for i := range p.operation.RootNodes {
+		if p.operation.RootNodes[i].Kind == ast.NodeKindOperationDefinition {
+			count++
+		}
+	}
+
+	return count
 }
