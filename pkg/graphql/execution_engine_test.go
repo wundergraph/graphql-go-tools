@@ -35,7 +35,7 @@ func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {
 
 	loadStarWarsQuery := func(t *testing.T, starwarsFile string, variables starwars.QueryVariables) func(t *testing.T) Request {
 		return func(t *testing.T) Request {
-			query := starwars.LoadQuery(t, starwars.FileSimpleHeroQuery, variables)
+			query := starwars.LoadQuery(t, starwarsFile, variables)
 			request := Request{}
 			err := UnmarshalRequest(bytes.NewBuffer(query), &request)
 			require.NoError(t, err)
@@ -52,64 +52,6 @@ func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {
 			body := bytes.NewBuffer([]byte(response))
 			return &http.Response{StatusCode: statusCode, Body: ioutil.NopCloser(body)}
 		})
-	}
-
-	heroHttpJsonPlannerConfig := datasource.PlannerConfiguration{
-		TypeFieldConfigurations: []datasource.TypeFieldConfiguration{
-			{
-				TypeName:  "Query",
-				FieldName: "hero",
-				Mapping: &datasource.MappingConfiguration{
-					Disabled: false,
-					Path:     "hero",
-				},
-				DataSource: datasource.SourceConfig{
-					Name: "HttpJsonDataSource",
-					Config: func() []byte {
-						data, _ := json.Marshal(datasource.HttpJsonDataSourceConfig{
-							Host: "example.com",
-							URL:  "/",
-							Method: func() *string {
-								method := "GET"
-								return &method
-							}(),
-							DefaultTypeName: func() *string {
-								typeName := "Hero"
-								return &typeName
-							}(),
-						})
-						return data
-					}(),
-				},
-			},
-		},
-	}
-
-	heroGraphqlDataSource := datasource.PlannerConfiguration{
-		TypeFieldConfigurations: []datasource.TypeFieldConfiguration{
-			{
-				TypeName:  "query",
-				FieldName: "hero",
-				Mapping: &datasource.MappingConfiguration{
-					Disabled: false,
-					Path:     "hero",
-				},
-				DataSource: datasource.SourceConfig{
-					Name: "GraphqlDataSource",
-					Config: func() []byte {
-						data, _ := json.Marshal(datasource.GraphQLDataSourceConfig{
-							Host: "example.com",
-							URL:  "/",
-							Method: func() *string {
-								method := "GET"
-								return &method
-							}(),
-						})
-						return data
-					}(),
-				},
-			},
-		},
 	}
 
 	run := func(tc testCase, hasExecutionError bool) func(t *testing.T) {
@@ -202,6 +144,22 @@ func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {
 		plannerConfig:    heroGraphqlDataSource,
 		roundTripper:     createTestRoundTripper("example.com", "/", `{"data":{"hero":{"name":"Luke Skywalker"}}}`, 200),
 		expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+	}))
+
+	t.Run("execute query with variables for arguments", runWithoutError(testCase{
+		schema:           starwarsSchema(t),
+		request:          loadStarWarsQuery(t, starwars.FileDroidWithArgAndVarQuery, map[string]interface{}{"droidID": "R2D2"}),
+		plannerConfig:    droidGraphqlDataSource,
+		roundTripper:     createTestRoundTripper("example.com", "/", `{"data":{"droid":{"name":"R2D2"}}}`, 200),
+		expectedResponse: `{"data":{"droid":{"name":"R2D2"}}}`,
+	}))
+
+	t.Run("execute query with arguments", runWithoutError(testCase{
+		schema:           starwarsSchema(t),
+		request:          loadStarWarsQuery(t, starwars.FileDroidWithArgQuery, nil),
+		plannerConfig:    droidGraphqlDataSource,
+		roundTripper:     createTestRoundTripper("example.com", "/", `{"data":{"droid":{"name":"R2D2"}}}`, 200),
+		expectedResponse: `{"data":{"droid":{"name":"R2D2"}}}`,
 	}))
 }
 
@@ -345,4 +303,89 @@ func BenchmarkExecutionEngine(b *testing.B) {
 			pool.Put(engine)
 		}
 	})
+}
+
+var heroHttpJsonPlannerConfig = datasource.PlannerConfiguration{
+	TypeFieldConfigurations: []datasource.TypeFieldConfiguration{
+		{
+			TypeName:  "Query",
+			FieldName: "hero",
+			Mapping: &datasource.MappingConfiguration{
+				Disabled: false,
+				Path:     "hero",
+			},
+			DataSource: datasource.SourceConfig{
+				Name: "HttpJsonDataSource",
+				Config: func() []byte {
+					data, _ := json.Marshal(datasource.HttpJsonDataSourceConfig{
+						Host: "example.com",
+						URL:  "/",
+						Method: func() *string {
+							method := "GET"
+							return &method
+						}(),
+						DefaultTypeName: func() *string {
+							typeName := "Hero"
+							return &typeName
+						}(),
+					})
+					return data
+				}(),
+			},
+		},
+	},
+}
+
+var heroGraphqlDataSource = datasource.PlannerConfiguration{
+	TypeFieldConfigurations: []datasource.TypeFieldConfiguration{
+		{
+			TypeName:  "query",
+			FieldName: "hero",
+			Mapping: &datasource.MappingConfiguration{
+				Disabled: false,
+				Path:     "hero",
+			},
+			DataSource: datasource.SourceConfig{
+				Name: "GraphqlDataSource",
+				Config: func() []byte {
+					data, _ := json.Marshal(datasource.GraphQLDataSourceConfig{
+						Host: "example.com",
+						URL:  "/",
+						Method: func() *string {
+							method := "GET"
+							return &method
+						}(),
+					})
+					return data
+				}(),
+			},
+		},
+	},
+}
+
+var droidGraphqlDataSource = datasource.PlannerConfiguration{
+	TypeFieldConfigurations: []datasource.TypeFieldConfiguration{
+		{
+			TypeName:  "query",
+			FieldName: "droid",
+			Mapping: &datasource.MappingConfiguration{
+				Disabled: false,
+				Path:     "droid",
+			},
+			DataSource: datasource.SourceConfig{
+				Name: "GraphqlDataSource",
+				Config: func() []byte {
+					data, _ := json.Marshal(datasource.GraphQLDataSourceConfig{
+						Host: "example.com",
+						URL:  "/",
+						Method: func() *string {
+							method := "GET"
+							return &method
+						}(),
+					})
+					return data
+				}(),
+			},
+		},
+	},
 }
