@@ -102,14 +102,14 @@ var run = func(t *testing.T, definition, operation string, expectedNodeCount, ex
 
 	astnormalization.NormalizeOperation(&op, &def, &report)
 
-	nodeCount, complexity, depth := CalculateOperationComplexity(&op, &def, &report)
+	actualNodeCount, actualComplexity, actualDepth := CalculateOperationComplexity(&op, &def, &report)
 	if report.HasErrors() {
 		require.NoError(t, report)
 	}
 
-	assert.Equal(t, nodeCount, expectedNodeCount, "unexpected node count")
-	assert.Equal(t, complexity, expectedComplexity, "unexpected complexity")
-	assert.Equal(t, depth, expectedDepth, "unexpected depth")
+	assert.Equal(t, expectedNodeCount, actualNodeCount, "unexpected node count")
+	assert.Equal(t, expectedComplexity, actualComplexity, "unexpected complexity")
+	assert.Equal(t, expectedDepth, actualDepth, "unexpected depth")
 }
 
 func BenchmarkEstimateComplexity(b *testing.B) {
