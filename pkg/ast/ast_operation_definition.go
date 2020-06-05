@@ -36,15 +36,6 @@ func (d *Document) OperationDefinitionNameString(ref int) string {
 	return unsafebytes.BytesToString(d.Input.ByteSlice(d.OperationDefinitions[ref].Name))
 }
 
-func (d *Document) OperationDefinitionIsLastRootNode(ref int) bool {
-	for i := range d.RootNodes {
-		if d.RootNodes[i].Kind == NodeKindOperationDefinition && d.RootNodes[i].Ref == ref {
-			return len(d.RootNodes)-1 == i
-		}
-	}
-	return false
-}
-
 func (d *Document) AddOperationDefinitionToRootNodes(definition OperationDefinition) Node {
 	d.OperationDefinitions = append(d.OperationDefinitions, definition)
 	node := Node{Kind: NodeKindOperationDefinition, Ref: len(d.OperationDefinitions) - 1}

@@ -14,6 +14,8 @@ import (
 	log "github.com/jensneuse/abstractlogger"
 	"github.com/jensneuse/diffview"
 	"github.com/jensneuse/pipeline/pkg/pipe"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
@@ -46,7 +48,7 @@ func panicOnErr(err error) {
 	}
 }
 
-func run(definition string, operation string, configureBase func(base *datasource.BasePlanner), want Node, skip ...bool) func(t *testing.T) {
+func runWithOperationName(definition string, operation string, operationName string, configureBase func(base *datasource.BasePlanner), want Node, skip ...bool) func(t *testing.T) {
 	return func(t *testing.T) {
 
 		if len(skip) == 1 && skip[0] {
@@ -57,7 +59,7 @@ func run(definition string, operation string, configureBase func(base *datasourc
 		op := unsafeparser.ParseGraphqlDocumentString(operation)
 
 		var report operationreport.Report
-		normalizer := astnormalization.NewNormalizer(true)
+		normalizer := astnormalization.NewNormalizer(true, true)
 		normalizer.NormalizeOperation(&op, &def, &report)
 		if report.HasErrors() {
 			t.Error(report)
@@ -71,7 +73,7 @@ func run(definition string, operation string, configureBase func(base *datasourc
 		configureBase(base)
 
 		planner := NewPlanner(base)
-		got := planner.Plan(&op, &def, &report)
+		got := planner.Plan(&op, &def, operationName, &report)
 		if report.HasErrors() {
 			t.Error(report)
 		}
@@ -81,6 +83,42 @@ func run(definition string, operation string, configureBase func(base *datasourc
 			diffview.NewGoland().DiffViewAny("diff", want, got)
 			t.Errorf("want:\n%s\ngot:\n%s\n", spew.Sdump(want), spew.Sdump(got))
 		}
+	}
+}
+
+func run(definition string, operation string, configureBase func(base *datasource.BasePlanner), want Node, skip ...bool) func(t *testing.T) {
+	return runWithOperationName(definition, operation, "", configureBase, want, skip...)
+}
+
+func runAndReportExternalErrorWithOperationName(definition string, operation string, operationName string, configureBase func(base *datasource.BasePlanner), expectedError operationreport.ExternalError, skip ...bool) func(t *testing.T) {
+	return func(t *testing.T) {
+
+		if len(skip) == 1 && skip[0] {
+			return
+		}
+
+		def := unsafeparser.ParseGraphqlDocumentString(definition)
+		op := unsafeparser.ParseGraphqlDocumentString(operation)
+
+		var report operationreport.Report
+		normalizer := astnormalization.NewNormalizer(true, true)
+		normalizer.NormalizeOperation(&op, &def, &report)
+		if report.HasErrors() {
+			t.Error(report)
+		}
+
+		base, err := datasource.NewBaseDataSourcePlanner([]byte(definition), datasource.PlannerConfiguration{}, log.NoopLogger)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		configureBase(base)
+
+		planner := NewPlanner(base)
+		_ = planner.Plan(&op, &def, operationName, &report)
+		assert.Error(t, report)
+		require.Greater(t, len(report.ExternalErrors), 0)
+		assert.Equal(t, expectedError.Message, report.ExternalErrors[0].Message)
 	}
 }
 
@@ -3381,6 +3419,219 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		))
 	})
+
+	t.Run("operation selection", func(t *testing.T) {
+		var allCountriesPlannerConfig = func(base *datasource.BasePlanner) {
+			base.Config = datasource.PlannerConfiguration{
+				TypeFieldConfigurations: []datasource.TypeFieldConfiguration{
+					{
+						TypeName:  "query",
+						FieldName: "countries",
+						Mapping: &datasource.MappingConfiguration{
+							Disabled: true,
+						},
+					},
+				},
+			}
+		}
+		var addLanguagePlannerConfig = func(base *datasource.BasePlanner) {
+			base.Config = datasource.PlannerConfiguration{
+				TypeFieldConfigurations: []datasource.TypeFieldConfiguration{
+					{
+						TypeName:  "Mutation",
+						FieldName: "addLanguage",
+						Mapping: &datasource.MappingConfiguration{
+							Disabled: true,
+						},
+					},
+				},
+			}
+		}
+		var allCountriesQueryNode = &Object{
+			operationType: ast.OperationTypeQuery,
+			Fields: []Field{
+				{
+					Name: []byte("data"),
+					Value: &Object{
+						Fields: []Field{
+							{
+								Name: []byte("countries"),
+								Value: &List{
+									Value: &Object{
+										Fields: []Field{
+											{
+												Name: []byte("code"),
+												Value: &Value{
+													ValueType: StringValueType,
+													DataResolvingConfig: DataResolvingConfig{
+														PathSelector: datasource.PathSelector{
+															Path: "code",
+														},
+													},
+												},
+											},
+											{
+												Name: []byte("name"),
+												Value: &Value{
+													ValueType: StringValueType,
+													DataResolvingConfig: DataResolvingConfig{
+														PathSelector: datasource.PathSelector{
+															Path: "name",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		var addLanguageMutationNode = &Object{
+			operationType: ast.OperationTypeMutation,
+			Fields: []Field{
+				{
+					Name: []byte("data"),
+					Value: &Object{
+						Fields: []Field{
+							{
+								Name: []byte("addLanguage"),
+								Value: &Object{
+									Fields: []Field{
+										{
+											Name: []byte("code"),
+											Value: &Value{
+												ValueType: StringValueType,
+												DataResolvingConfig: DataResolvingConfig{
+													PathSelector: datasource.PathSelector{
+														Path: "code",
+													},
+												},
+											},
+										},
+										{
+											Name: []byte("name"),
+											Value: &Value{
+												ValueType: StringValueType,
+												DataResolvingConfig: DataResolvingConfig{
+													PathSelector: datasource.PathSelector{
+														Path: "name",
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		t.Run("select single anonymous operation (case 1a in GraphQL spec)", runWithOperationName(countriesSchema, `
+			{
+				countries {
+					code
+					name
+				}
+			}`,
+			"",
+			allCountriesPlannerConfig,
+			allCountriesQueryNode,
+		))
+
+		t.Run("select single named operation without name (case 1a in GraphQL spec)", runWithOperationName(countriesSchema, `
+			query AllCountries {
+				countries {
+					code
+					name
+				}
+			}`,
+			"",
+			allCountriesPlannerConfig,
+			allCountriesQueryNode,
+		))
+
+		t.Run("select named operation / query with name (case 2a in GraphQL spec)", runWithOperationName(countriesSchema, `
+			query AllContinents {
+				continents {
+					code
+					name
+				}
+			}
+
+			query AllCountries {
+				countries {
+					code
+					name
+				}
+			}`,
+			"AllCountries",
+			allCountriesPlannerConfig,
+			allCountriesQueryNode,
+		))
+
+		t.Run("select named operation / mutation with name (case 2a in GraphQL spec)", runWithOperationName(countriesSchema, `
+			query AllContinents {
+				continents {
+					code
+					name
+				}
+			}
+
+			mutation AddLanguage {
+				addLanguage(code: "GO", name: "go") {
+					code
+					name
+				}
+			}`,
+			"AddLanguage",
+			addLanguagePlannerConfig,
+			addLanguageMutationNode,
+		))
+
+		t.Run("return error when multiple operations are available and operation name was not provided (case 1b in GraphQL spec)", runAndReportExternalErrorWithOperationName(countriesSchema, `
+			query AllContinents {
+				continents {
+					code
+					name
+				}
+			}
+
+			query AllCountries {
+				countries {
+					code
+					name
+				}
+			}`,
+			"",
+			allCountriesPlannerConfig,
+			operationreport.ErrRequiredOperationNameIsMissing(),
+		))
+
+		t.Run("return error when multiple operations are available and operation name does not match (case 2b in GraphQL spec)", runAndReportExternalErrorWithOperationName(countriesSchema, `
+			query AllContinents {
+				continents {
+					code
+					name
+				}
+			}
+
+			query AllCountries {
+				countries {
+					code
+					name
+				}
+			}`,
+			"NoQuery",
+			allCountriesPlannerConfig,
+			operationreport.ErrOperationWithProvidedOperationNameNotFound("NoQuery"),
+		))
+	})
 }
 
 func BenchmarkPlanner_Plan(b *testing.B) {
@@ -3480,7 +3731,7 @@ func BenchmarkPlanner_Plan(b *testing.B) {
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		planner.Plan(&op, &def, &report)
+		planner.Plan(&op, &def, "", &report)
 		if report.HasErrors() {
 			b.Fatal(report)
 		}
@@ -3765,6 +4016,94 @@ type Query {
 	filePipeline(foo: String!): String
 }
 `
+
+const countriesSchema = `directive @cacheControl(maxAge: Int, scope: CacheControlScope) on FIELD_DEFINITION | OBJECT | INTERFACE
+
+scalar String
+scalar ID
+scalar Boolean
+
+schema {
+	query: Query
+	mutation: Mutation
+}
+
+enum CacheControlScope {
+  PUBLIC
+  PRIVATE
+}
+
+type Continent {
+  code: ID!
+  name: String!
+  countries: [Country!]!
+}
+
+input ContinentFilterInput {
+  code: StringQueryOperatorInput
+}
+
+type Country {
+  code: ID!
+  name: String!
+  native: String!
+  phone: String!
+  continent: Continent!
+  capital: String
+  currency: String
+  languages: [Language!]!
+  emoji: String!
+  emojiU: String!
+  states: [State!]!
+}
+
+input CountryFilterInput {
+  code: StringQueryOperatorInput
+  currency: StringQueryOperatorInput
+  continent: StringQueryOperatorInput
+}
+
+type Language {
+  code: ID!
+  name: String
+  native: String
+  rtl: Boolean!
+}
+
+input LanguageFilterInput {
+  code: StringQueryOperatorInput
+}
+
+type Query {
+  continents(filter: ContinentFilterInput): [Continent!]!
+  continent(code: ID!): Continent
+  countries(filter: CountryFilterInput): [Country!]!
+  country(code: ID!): Country
+  languages(filter: LanguageFilterInput): [Language!]!
+  language(code: ID!): Language
+}
+
+type Mutation {
+	addLanguage(code: ID!, name: String!): Language!
+}
+
+type State {
+  code: String
+  name: String!
+  country: Country!
+}
+
+input StringQueryOperatorInput {
+  eq: String
+  ne: String
+  in: [String]
+  nin: [String]
+  regex: String
+  glob: String
+}
+
+"""The Upload scalar type represents a file upload."""
+scalar Upload`
 
 func withBaseSchema(input string) string {
 	return input + `

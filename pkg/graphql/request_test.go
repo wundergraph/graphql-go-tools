@@ -23,7 +23,7 @@ func TestUnmarshalRequest(t *testing.T) {
 	})
 
 	t.Run("should successfully unmarshal request", func(t *testing.T) {
-		requestBytes := []byte(`{"operation_name": "Hello", "variables": "", "query": "query Hello { hello }"}`)
+		requestBytes := []byte(`{"operationName": "Hello", "variables": "", "query": "query Hello { hello }"}`)
 		requestBuffer := bytes.NewBuffer(requestBytes)
 
 		var request Request
