@@ -106,8 +106,15 @@ CPU and Memory consumption for lexing, parsing as well as most other operations 
     - Implemented Type Extension merging [#108](https://github.com/jensneuse/graphql-go-tools/pull/108)
 - [Patric Vormstein][patric-vormstein-github]
     - Fixed lexer on windows [#92](https://github.com/jensneuse/graphql-go-tools/pull/92)
+    - Author of the graphql package to simplify the usage of the library
+    - Refactored the http package to simplify usage with http servers
+    - Author of the starwars package to enhance testing
 - [Sergey Petrunin][sergey-petrunin-github]
     - Helped cleaning up the API of the pipeline package [#166](https://github.com/jensneuse/graphql-go-tools/pull/166)
+    - Refactored the ast package into multiple files
+    - Author of the introspection converter (introspection JSON -> AST)
+    - Fixed various bugs in the parser & visitor & printer
+    - Refactored and enhanced the astimport package
 
 [jens-neuse-github]: https://github.com/jensneuse
 [mantas-vidutis-github]: https://github.com/mvid
