@@ -59,7 +59,7 @@ func runWithOperationName(definition string, operation string, operationName str
 		op := unsafeparser.ParseGraphqlDocumentString(operation)
 
 		var report operationreport.Report
-		normalizer := astnormalization.NewNormalizer(true,true)
+		normalizer := astnormalization.NewNormalizer(true, true)
 		normalizer.NormalizeOperation(&op, &def, &report)
 		if report.HasErrors() {
 			t.Error(report)
@@ -101,7 +101,7 @@ func runAndReportExternalErrorWithOperationName(definition string, operation str
 		op := unsafeparser.ParseGraphqlDocumentString(operation)
 
 		var report operationreport.Report
-		normalizer := astnormalization.NewNormalizer(true)
+		normalizer := astnormalization.NewNormalizer(true, true)
 		normalizer.NormalizeOperation(&op, &def, &report)
 		if report.HasErrors() {
 			t.Error(report)
