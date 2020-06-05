@@ -360,19 +360,22 @@ func (_ *Source) UniqueIdentifier() []byte {
 
 var (
 	method = []byte("POST")
+	inputPaths       = [][]string{
+		{datasource.URL},
+		{datasource.METHOD},
+		{datasource.BODY},
+		{datasource.HEADERS},
+		{datasource.QUERYPARAMS},
+	}
+	responsePaths = [][]string{
+		{"errors"},
+		{"data"},
+	}
 )
 
 func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPair) (err error) {
 	var (
-		url, body  []byte
-		inputPaths = [][]string{
-			{"url"},
-			{"body"},
-		}
-		responsePaths = [][]string{
-			{"errors"},
-			{"data"},
-		}
+		url, body,headers  []byte
 	)
 	jsonparser.EachKey(input, func(i int, bytes []byte, valueType jsonparser.ValueType, err error) {
 		switch i {
@@ -380,13 +383,15 @@ func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPai
 			url = bytes
 		case 1:
 			body = bytes
+		case 2:
+			headers = bytes
 		}
 	}, inputPaths...)
 
 	buf := pool.BytesBuffer.Get()
 	defer pool.BytesBuffer.Put(buf)
 
-	err = s.client.Do(ctx, url, nil, method, nil, body, buf)
+	err = s.client.Do(ctx, url, nil, method, headers, body, buf)
 	if err != nil {
 		return
 	}

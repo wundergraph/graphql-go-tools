@@ -13,16 +13,6 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 )
 
-const (
-	PATH        = "path"
-	URL         = "url"
-	BASEURL     = "base_url"
-	METHOD      = "method"
-	BODY        = "body"
-	HEADERS     = "headers"
-	QUERYPARAMS = "query_params"
-)
-
 type Planner struct {
 	client datasource.Client
 	v      *plan.Visitor
@@ -52,12 +42,12 @@ func (p *Planner) EnterField(ref int) {
 		return
 	}
 
-	path := config.Attributes.ValueForKey(PATH)
-	baseURL := config.Attributes.ValueForKey(BASEURL)
-	method := config.Attributes.ValueForKey(METHOD)
-	body := config.Attributes.ValueForKey(BODY)
-	headers := config.Attributes.ValueForKey(HEADERS)
-	queryParams := config.Attributes.ValueForKey(QUERYPARAMS)
+	path := config.Attributes.ValueForKey(datasource.PATH)
+	baseURL := config.Attributes.ValueForKey(datasource.BASEURL)
+	method := config.Attributes.ValueForKey(datasource.METHOD)
+	body := config.Attributes.ValueForKey(datasource.BODY)
+	headers := config.Attributes.ValueForKey(datasource.HEADERS)
+	queryParams := config.Attributes.ValueForKey(datasource.QUERYPARAMS)
 
 	var (
 		input []byte
@@ -67,19 +57,19 @@ func (p *Planner) EnterField(ref int) {
 	url := append(baseURL, path...)
 
 	if url != nil {
-		input, err = sjson.SetBytes(input, URL, string(url))
+		input, err = sjson.SetBytes(input, datasource.URL, string(url))
 	}
 	if method != nil {
-		input, err = sjson.SetBytes(input, METHOD, string(method))
+		input, err = sjson.SetBytes(input, datasource.METHOD, string(method))
 	}
 	if body != nil {
-		input, err = sjson.SetRawBytes(input, BODY, body)
+		input, err = sjson.SetRawBytes(input, datasource.BODY, body)
 	}
 	if headers != nil {
-		input, err = sjson.SetRawBytes(input, HEADERS, headers)
+		input, err = sjson.SetRawBytes(input, datasource.HEADERS, headers)
 	}
 	if queryParams != nil {
-		input, err = sjson.SetRawBytes(input, QUERYPARAMS, queryParams)
+		input, err = sjson.SetRawBytes(input, datasource.QUERYPARAMS, queryParams)
 	}
 	if err != nil {
 		p.v.HandleInternalErr(err)
@@ -114,11 +104,11 @@ type Source struct {
 var (
 	uniqueIdentifier = []byte("http_json")
 	inputPaths       = [][]string{
-		{URL},
-		{METHOD},
-		{BODY},
-		{HEADERS},
-		{QUERYPARAMS},
+		{datasource.URL},
+		{datasource.METHOD},
+		{datasource.BODY},
+		{datasource.HEADERS},
+		{datasource.QUERYPARAMS},
 	}
 )
 
