@@ -26,11 +26,12 @@ func (t testRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 
 func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {
 	type testCase struct {
-		schema           *Schema
-		request          func(t *testing.T) Request
-		plannerConfig    datasource.PlannerConfiguration
-		roundTripper     testRoundTripper
-		expectedResponse string
+		schema            *Schema
+		request           func(t *testing.T) Request
+		plannerConfig     datasource.PlannerConfiguration
+		roundTripper      testRoundTripper
+		preExecutionTasks func(t *testing.T, request Request, schema *Schema, engine *ExecutionEngine) // optional
+		expectedResponse  string
 	}
 
 	loadStarWarsQuery := func(t *testing.T, starwarsFile string, variables starwars.QueryVariables) func(t *testing.T) Request {
@@ -86,6 +87,10 @@ func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {
 
 				err = engine.AddGraphqlDataSourceWithOptions("GraphqlDataSource", graphqlOptions)
 				assert.NoError(t, err)
+			}
+
+			if tc.preExecutionTasks != nil {
+				tc.preExecutionTasks(t, request, tc.schema, engine)
 			}
 
 			executionRes, err := engine.Execute(context.Background(), &request, ExecutionOptions{ExtraArguments: extraVariablesBytes})
@@ -147,20 +152,62 @@ func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {
 	}))
 
 	t.Run("execute query with variables for arguments", runWithoutError(testCase{
-		schema:           starwarsSchema(t),
-		request:          loadStarWarsQuery(t, starwars.FileDroidWithArgAndVarQuery, map[string]interface{}{"droidID": "R2D2"}),
-		plannerConfig:    droidGraphqlDataSource,
-		roundTripper:     createTestRoundTripper("example.com", "/", `{"data":{"droid":{"name":"R2D2"}}}`, 200),
-		expectedResponse: `{"data":{"droid":{"name":"R2D2"}}}`,
+		schema:            starwarsSchema(t),
+		request:           loadStarWarsQuery(t, starwars.FileDroidWithArgAndVarQuery, map[string]interface{}{"droidID": "R2D2"}),
+		plannerConfig:     droidGraphqlDataSource,
+		roundTripper:      createTestRoundTripper("example.com", "/", `{"data":{"droid":{"name":"R2D2"}}}`, 200),
+		preExecutionTasks: normalizeAndValidatePreExecutionTasks,
+		expectedResponse:  `{"data":{"droid":{"name":"R2D2"}}}`,
 	}))
 
 	t.Run("execute query with arguments", runWithoutError(testCase{
-		schema:           starwarsSchema(t),
-		request:          loadStarWarsQuery(t, starwars.FileDroidWithArgQuery, nil),
-		plannerConfig:    droidGraphqlDataSource,
-		roundTripper:     createTestRoundTripper("example.com", "/", `{"data":{"droid":{"name":"R2D2"}}}`, 200),
-		expectedResponse: `{"data":{"droid":{"name":"R2D2"}}}`,
+		schema:            starwarsSchema(t),
+		request:           loadStarWarsQuery(t, starwars.FileDroidWithArgQuery, nil),
+		plannerConfig:     droidGraphqlDataSource,
+		roundTripper:      createTestRoundTripper("example.com", "/", `{"data":{"droid":{"name":"R2D2"}}}`, 200),
+		preExecutionTasks: normalizeAndValidatePreExecutionTasks,
+		expectedResponse:  `{"data":{"droid":{"name":"R2D2"}}}`,
 	}))
+
+	t.Run("execute single mutation with arguments on document with multiple operations", runWithoutError(testCase{
+		schema: moviesSchema(t),
+		request: func(t *testing.T) Request {
+			return Request{
+				OperationName: "AddWithInput",
+				Variables:     nil,
+				Query: `mutation AddToWatchlist {
+						  addToWatchlist(movieID:3) {
+							id
+							name
+							year
+						  }
+						}
+						
+						
+						mutation AddWithInput {
+						  addToWatchlistWithInput(input: {id: 2}) {
+							id
+							name
+							year
+						  }
+						}`,
+			}
+		},
+		plannerConfig:     movieHttpJsonDataSource,
+		roundTripper:      createTestRoundTripper("example.com", "/", `{"added_movie":{"id":2, "name": "Episode V – The Empire Strikes Back", "year": 1980}}`, 200),
+		preExecutionTasks: normalizeAndValidatePreExecutionTasks,
+		expectedResponse:  `{"data":{"addToWatchlistWithInput":{"id":2,"name":"Episode V – The Empire Strikes Back","year":1980}}}`,
+	}))
+}
+
+func normalizeAndValidatePreExecutionTasks(t *testing.T, request Request, schema *Schema, engine *ExecutionEngine) {
+	normalizationResult, err := request.Normalize(schema)
+	require.NoError(t, err)
+	require.True(t, normalizationResult.Successful)
+
+	validationResult, err := request.ValidateForSchema(schema)
+	require.NoError(t, err)
+	require.True(t, validationResult.Valid)
 }
 
 func stringify(any interface{}) []byte {
@@ -170,6 +217,31 @@ func stringify(any interface{}) []byte {
 
 func stringPtr(str string) *string {
 	return &str
+}
+
+func moviesSchema(t *testing.T) *Schema {
+	schemaString := `
+type Movie {
+  id: Int!
+  name: String!
+  year: Int!
+}
+
+type Mutation {
+  addToWatchlist(movieID: Int!): Movie
+  addToWatchlistWithInput(input: WatchlistInput!): Movie
+}
+
+type Query {
+  default: String
+}
+
+input WatchlistInput {
+  id: Int!
+}`
+	schema, err := NewSchemaFromString(schemaString)
+	require.NoError(t, err)
+	return schema
 }
 
 func TestExampleExecutionEngine_Concatenation(t *testing.T) {
@@ -326,6 +398,37 @@ var heroHttpJsonPlannerConfig = datasource.PlannerConfiguration{
 						}(),
 						DefaultTypeName: func() *string {
 							typeName := "Hero"
+							return &typeName
+						}(),
+					})
+					return data
+				}(),
+			},
+		},
+	},
+}
+
+var movieHttpJsonDataSource = datasource.PlannerConfiguration{
+	TypeFieldConfigurations: []datasource.TypeFieldConfiguration{
+		{
+			TypeName:  "Mutation",
+			FieldName: "addToWatchlistWithInput",
+			Mapping: &datasource.MappingConfiguration{
+				Disabled: false,
+				Path:     "added_movie",
+			},
+			DataSource: datasource.SourceConfig{
+				Name: "HttpJsonDataSource",
+				Config: func() []byte {
+					data, _ := json.Marshal(datasource.HttpJsonDataSourceConfig{
+						Host: "example.com",
+						URL:  "/",
+						Method: func() *string {
+							method := "GET"
+							return &method
+						}(),
+						DefaultTypeName: func() *string {
+							typeName := "Movie"
 							return &typeName
 						}(),
 					})
