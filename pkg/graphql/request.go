@@ -20,7 +20,7 @@ var (
 )
 
 type Request struct {
-	OperationName string          `json:"operation_name"`
+	OperationName string          `json:"operationName"`
 	Variables     json.RawMessage `json:"variables"`
 	Query         string          `json:"query"`
 
