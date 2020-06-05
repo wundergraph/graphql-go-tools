@@ -190,6 +190,25 @@ func TestPrint(t *testing.T) {
 					BAZ
 				}`, `extend enum Foo @foo {BAR BAZ}`)
 	})
+	t.Run("multiple operations with variables", func(t *testing.T) {
+		run(`
+				mutation AddToWatchlist($a: Int!, $b: String!){
+					addToWatchlist(movieID: $a, name: $b){
+						id
+						name
+						year
+					}
+				}
+
+				mutation AddWithInput($a: WatchlistInput!){
+    				addToWatchlistWithInput(input: $a){
+						id
+						name
+						year
+					}
+				}`,
+			`mutation AddToWatchlist($a: Int!, $b: String!){addToWatchlist(movieID: $a, name: $b){id name year}} mutation AddWithInput($a: WatchlistInput!){addToWatchlistWithInput(input: $a){id name year}}`)
+	})
 }
 
 func TestPrintSchemaDefinition(t *testing.T) {

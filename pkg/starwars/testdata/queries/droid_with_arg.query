@@ -1,0 +1,5 @@
+{
+    droid(id: "R2D2") {
+        name
+    }
+}

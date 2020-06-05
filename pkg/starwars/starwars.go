@@ -19,6 +19,7 @@ const (
 	FileSimpleHeroQuery            = "testdata/queries/simple_hero.query"
 	FileHeroWithOperationNameQuery = "testdata/queries/hero_with_operation_name.query"
 	FileHeroWithAliasesQuery       = "testdata/queries/hero_with_aliases.query"
+	FileDroidWithArgQuery          = "testdata/queries/droid_with_arg.query"
 	FileDroidWithArgAndVarQuery    = "testdata/queries/droid_with_arg_and_var.query"
 	FileFragmentsQuery             = "testdata/queries/fragments.query"
 	FileDirectivesIncludeQuery     = "testdata/queries/directives_include.query"
@@ -28,6 +29,7 @@ const (
 	FileUnionQuery                 = "testdata/queries/inline_fragments.query"
 	FileRemainingJedisSubscription = "testdata/subscriptions/remaining_jedis.subscription"
 	FileIntrospectionQuery         = "testdata/queries/introspection.query"
+	FileMultiQueries               = "testdata/queries/multi_queries.query"
 )
 
 var (
