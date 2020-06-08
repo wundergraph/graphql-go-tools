@@ -118,12 +118,8 @@ func TestExecution(t *testing.T) {
 								Source: &DataSourceInvocation{
 									Args: []datasource.Argument{
 										&datasource.StaticVariableArgument{
-											Name:  literal.HOST,
-											Value: []byte(graphQL1.URL),
-										},
-										&datasource.StaticVariableArgument{
 											Name:  literal.URL,
-											Value: []byte("/graphql"),
+											Value: []byte(graphQL1.URL + "/graphql"),
 										},
 										&datasource.StaticVariableArgument{
 											Name:  literal.QUERY,
@@ -231,12 +227,8 @@ func TestExecution(t *testing.T) {
 											Source: &DataSourceInvocation{
 												Args: []datasource.Argument{
 													&datasource.StaticVariableArgument{
-														Name:  literal.HOST,
-														Value: []byte(REST1.URL),
-													},
-													&datasource.StaticVariableArgument{
 														Name:  literal.URL,
-														Value: []byte("/user/{{ .id }}/friends"),
+														Value: []byte(REST1.URL + "/user/{{ .id }}/friends"),
 													},
 													&datasource.StaticVariableArgument{
 														Name:  literal.METHOD,
@@ -260,15 +252,11 @@ func TestExecution(t *testing.T) {
 											Source: &DataSourceInvocation{
 												Args: []datasource.Argument{
 													&datasource.StaticVariableArgument{
-														Name:  literal.HOST,
-														Value: []byte(graphQL2.URL),
-													},
-													&datasource.StaticVariableArgument{
 														Name:  literal.URL,
-														Value: []byte("/graphql"),
+														Value: []byte(graphQL2.URL + "/graphql"),
 													},
 													&datasource.StaticVariableArgument{
-														Name:  literal.QUERY,
+														Name: literal.QUERY,
 														Value: []byte(`query q1($id: String!){userPets(id: $id){	__typename name nickname... on Dog {woof} ... on Cat {meow}}}`),
 													},
 													&datasource.ObjectVariableArgument{
@@ -330,12 +318,8 @@ func TestExecution(t *testing.T) {
 													Source: &DataSourceInvocation{
 														Args: []datasource.Argument{
 															&datasource.StaticVariableArgument{
-																Name:  literal.HOST,
-																Value: []byte(REST2.URL),
-															},
-															&datasource.StaticVariableArgument{
 																Name:  literal.URL,
-																Value: []byte("/friends/{{ .id }}/pets"),
+																Value: []byte(REST2.URL + "/friends/{{ .id }}/pets"),
 															},
 															&datasource.StaticVariableArgument{
 																Name:  literal.METHOD,
@@ -677,12 +661,8 @@ func genField() Field {
 						Source: &DataSourceInvocation{
 							Args: []datasource.Argument{
 								&datasource.StaticVariableArgument{
-									Name:  literal.HOST,
-									Value: []byte("localhost:8001"),
-								},
-								&datasource.StaticVariableArgument{
 									Name:  literal.URL,
-									Value: []byte("/graphql"),
+									Value: []byte("localhost:8001/graphql"),
 								},
 								&datasource.StaticVariableArgument{
 									Name:  literal.QUERY,
@@ -801,15 +781,11 @@ func genField() Field {
 									Source: &DataSourceInvocation{
 										Args: []datasource.Argument{
 											&datasource.StaticVariableArgument{
-												Name:  literal.HOST,
-												Value: []byte("localhost:8002"),
-											},
-											&datasource.StaticVariableArgument{
 												Name:  literal.URL,
-												Value: []byte("/graphql"),
+												Value: []byte("localhost:8002/graphql"),
 											},
 											&datasource.StaticVariableArgument{
-												Name:  literal.QUERY,
+												Name: literal.QUERY,
 												Value: []byte(`query q1($id: String!){userPets(id: $id){	__typename name nickname... on Dog {woof} ... on Cat {meow}}}`),
 											},
 											&datasource.ObjectVariableArgument{
@@ -1319,12 +1295,8 @@ func TestExecutor_ObjectVariables(t *testing.T) {
 									Source: &DataSourceInvocation{
 										Args: []datasource.Argument{
 											&datasource.StaticVariableArgument{
-												Name:  literal.HOST,
-												Value: []byte(REST1.URL),
-											},
-											&datasource.StaticVariableArgument{
 												Name:  literal.URL,
-												Value: []byte("/"),
+												Value: []byte(REST1.URL + "/"),
 											},
 											&datasource.StaticVariableArgument{
 												Name:  literal.METHOD,
@@ -1451,12 +1423,8 @@ func TestExecutor_NestedObjectVariables(t *testing.T) {
 						Source: &DataSourceInvocation{
 							Args: []datasource.Argument{
 								&datasource.StaticVariableArgument{
-									Name:  literal.HOST,
-									Value: []byte(previewService.URL),
-								},
-								&datasource.StaticVariableArgument{
 									Name:  literal.URL,
-									Value: []byte("/"),
+									Value: []byte(previewService.URL + "/"),
 								},
 								&datasource.StaticVariableArgument{
 									Name:  literal.METHOD,
@@ -1488,12 +1456,8 @@ func TestExecutor_NestedObjectVariables(t *testing.T) {
 												Source: &DataSourceInvocation{
 													Args: []datasource.Argument{
 														&datasource.StaticVariableArgument{
-															Name:  literal.HOST,
-															Value: []byte(additionalDataService.URL),
-														},
-														&datasource.StaticVariableArgument{
 															Name:  literal.URL,
-															Value: []byte("/api/additional_data?data_ids={{ .object.id }}"),
+															Value: []byte(additionalDataService.URL + "/api/additional_data?data_ids={{ .object.id }}"),
 														},
 														&datasource.StaticVariableArgument{
 															Name:  literal.METHOD,
@@ -1662,12 +1626,8 @@ func TestExecutor_GraphqlDataSourceWithParams(t *testing.T) {
 						Source: &DataSourceInvocation{
 							Args: []datasource.Argument{
 								&datasource.StaticVariableArgument{
-									Name:  literal.HOST,
-									Value: []byte(graphQL1.URL),
-								},
-								&datasource.StaticVariableArgument{
 									Name:  literal.URL,
-									Value: []byte("/graphql"),
+									Value: []byte(graphQL1.URL + "/graphql"),
 								},
 								&datasource.StaticVariableArgument{
 									Name:  literal.QUERY,
@@ -2087,12 +2047,8 @@ func TestExecutor_HTTPJSONDataSourceWithBody(t *testing.T) {
 							},
 							Args: []datasource.Argument{
 								&datasource.StaticVariableArgument{
-									Name:  []byte("host"),
-									Value: []byte(REST1.URL),
-								},
-								&datasource.StaticVariableArgument{
 									Name:  []byte("url"),
-									Value: []byte("/"),
+									Value: []byte(REST1.URL + "/"),
 								},
 								&datasource.StaticVariableArgument{
 									Name:  []byte("method"),
@@ -2507,12 +2463,8 @@ func TestExecutor_HTTPJSONDataSourceWithBodyComplexPlayload(t *testing.T) {
 							},
 							Args: []datasource.Argument{
 								&datasource.StaticVariableArgument{
-									Name:  []byte("host"),
-									Value: []byte(REST1.URL),
-								},
-								&datasource.StaticVariableArgument{
 									Name:  []byte("url"),
-									Value: []byte("/"),
+									Value: []byte(REST1.URL + "/"),
 								},
 								&datasource.StaticVariableArgument{
 									Name:  []byte("method"),
@@ -2615,12 +2567,8 @@ func TestExecutor_HTTPJSONDataSource_ArrayResponse(t *testing.T) {
 							},
 							Args: []datasource.Argument{
 								&datasource.StaticVariableArgument{
-									Name:  []byte("host"),
-									Value: []byte(REST1.URL),
-								},
-								&datasource.StaticVariableArgument{
 									Name:  []byte("url"),
-									Value: []byte("/"),
+									Value: []byte(REST1.URL + "/"),
 								},
 								&datasource.StaticVariableArgument{
 									Name:  []byte("method"),
@@ -2749,12 +2697,8 @@ func TestExecutor_HTTPJSONDataSourceWithHeaders(t *testing.T) {
 							},
 							Args: []datasource.Argument{
 								&datasource.StaticVariableArgument{
-									Name:  []byte("host"),
-									Value: []byte(REST1.URL),
-								},
-								&datasource.StaticVariableArgument{
 									Name:  []byte("url"),
-									Value: []byte("/"),
+									Value: []byte(REST1.URL + "/"),
 								},
 								&datasource.StaticVariableArgument{
 									Name:  []byte("method"),
@@ -2855,12 +2799,8 @@ func TestExecutor_HTTPJSONDataSourceWithPathSelector(t *testing.T) {
 							},
 							Args: []datasource.Argument{
 								&datasource.StaticVariableArgument{
-									Name:  []byte("host"),
-									Value: []byte(REST1.URL),
-								},
-								&datasource.StaticVariableArgument{
 									Name:  []byte("url"),
-									Value: []byte("/"),
+									Value: []byte(REST1.URL + "/"),
 								},
 								&datasource.StaticVariableArgument{
 									Name:  []byte("method"),

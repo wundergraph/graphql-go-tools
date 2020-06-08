@@ -143,8 +143,7 @@ func TestPlanner_Plan(t *testing.T) {
 							Name: "GraphQLDataSource",
 							Config: func() []byte {
 								data, _ := json.Marshal(datasource.GraphQLDataSourceConfig{
-									Host: "countries.trevorblades.com",
-									URL:  "/",
+									URL: "countries.trevorblades.com/",
 								})
 								return data
 							}(),
@@ -164,12 +163,8 @@ func TestPlanner_Plan(t *testing.T) {
 							Source: &DataSourceInvocation{
 								Args: []datasource.Argument{
 									&datasource.StaticVariableArgument{
-										Name:  []byte("host"),
-										Value: []byte("countries.trevorblades.com"),
-									},
-									&datasource.StaticVariableArgument{
 										Name:  []byte("url"),
-										Value: []byte("/"),
+										Value: []byte("countries.trevorblades.com/"),
 									},
 									&datasource.StaticVariableArgument{
 										Name:  []byte("query"),
@@ -261,8 +256,7 @@ func TestPlanner_Plan(t *testing.T) {
 						Name: "GraphQLDataSource",
 						Config: func() []byte {
 							data, _ := json.Marshal(datasource.GraphQLDataSourceConfig{
-								Host: "fakebook.com",
-								URL:  "/",
+								URL: "fakebook.com/",
 							})
 							return data
 						}(),
@@ -282,12 +276,8 @@ func TestPlanner_Plan(t *testing.T) {
 							Source: &DataSourceInvocation{
 								Args: []datasource.Argument{
 									&datasource.StaticVariableArgument{
-										Name:  []byte("host"),
-										Value: []byte("fakebook.com"),
-									},
-									&datasource.StaticVariableArgument{
 										Name:  []byte("url"),
-										Value: []byte("/"),
+										Value: []byte("fakebook.com/"),
 									},
 									&datasource.StaticVariableArgument{
 										Name:  []byte("query"),
@@ -386,8 +376,7 @@ func TestPlanner_Plan(t *testing.T) {
 						DataSource: datasource.SourceConfig{
 							Name: "HttpJsonDataSource",
 							Config: toJSON(datasource.HttpJsonDataSourceConfig{
-								Host: "jsonplaceholder.typicode.com",
-								URL:  "/comments?postId={{ .object.id }}",
+								URL: "jsonplaceholder.typicode.com/comments?postId={{ .object.id }}",
 							}),
 						},
 					},
@@ -400,8 +389,7 @@ func TestPlanner_Plan(t *testing.T) {
 						DataSource: datasource.SourceConfig{
 							Name: "HttpJsonDataSource",
 							Config: toJSON(datasource.HttpJsonDataSourceConfig{
-								Host: "httpbin.org",
-								URL:  "/get",
+								URL: "httpbin.org/get",
 							}),
 						},
 					},
@@ -414,8 +402,7 @@ func TestPlanner_Plan(t *testing.T) {
 						DataSource: datasource.SourceConfig{
 							Name: "HttpJsonDataSource",
 							Config: toJSON(datasource.HttpJsonDataSourceConfig{
-								Host: "jsonplaceholder.typicode.com",
-								URL:  "/posts/{{ .arguments.id }}",
+								URL: "jsonplaceholder.typicode.com/posts/{{ .arguments.id }}",
 							}),
 						},
 					},
@@ -453,12 +440,8 @@ func TestPlanner_Plan(t *testing.T) {
 										},
 										Args: []datasource.Argument{
 											&datasource.StaticVariableArgument{
-												Name:  []byte("host"),
-												Value: []byte("httpbin.org"),
-											},
-											&datasource.StaticVariableArgument{
 												Name:  []byte("url"),
-												Value: []byte("/get"),
+												Value: []byte("httpbin.org/get"),
 											},
 											&datasource.StaticVariableArgument{
 												Name:  []byte("method"),
@@ -476,12 +459,8 @@ func TestPlanner_Plan(t *testing.T) {
 									Source: &DataSourceInvocation{
 										Args: []datasource.Argument{
 											&datasource.StaticVariableArgument{
-												Name:  []byte("host"),
-												Value: []byte("jsonplaceholder.typicode.com"),
-											},
-											&datasource.StaticVariableArgument{
 												Name:  []byte("url"),
-												Value: []byte("/posts/{{ .arguments.id }}"),
+												Value: []byte("jsonplaceholder.typicode.com/posts/{{ .arguments.id }}"),
 											},
 											&datasource.StaticVariableArgument{
 												Name:  []byte("method"),
@@ -567,12 +546,8 @@ func TestPlanner_Plan(t *testing.T) {
 										Source: &DataSourceInvocation{
 											Args: []datasource.Argument{
 												&datasource.StaticVariableArgument{
-													Name:  []byte("host"),
-													Value: []byte("jsonplaceholder.typicode.com"),
-												},
-												&datasource.StaticVariableArgument{
 													Name:  []byte("url"),
-													Value: []byte("/comments?postId={{ .object.id }}"),
+													Value: []byte("jsonplaceholder.typicode.com/comments?postId={{ .object.id }}"),
 												},
 												&datasource.StaticVariableArgument{
 													Name:  []byte("method"),
@@ -649,8 +624,7 @@ func TestPlanner_Plan(t *testing.T) {
 						DataSource: datasource.SourceConfig{
 							Name: "HttpJsonDataSource",
 							Config: toJSON(datasource.HttpJsonDataSourceConfig{
-								Host:   "httpbin.org",
-								URL:    "/anything",
+								URL:    "httpbin.org/anything",
 								Method: stringPtr("POST"),
 								Body:   stringPtr(`{\"key\":\"{{ .arguments.input.foo }}\"}`),
 							}),
@@ -675,12 +649,8 @@ func TestPlanner_Plan(t *testing.T) {
 								},
 								Args: []datasource.Argument{
 									&datasource.StaticVariableArgument{
-										Name:  []byte("host"),
-										Value: []byte("httpbin.org"),
-									},
-									&datasource.StaticVariableArgument{
 										Name:  []byte("url"),
-										Value: []byte("/anything"),
+										Value: []byte("httpbin.org/anything"),
 									},
 									&datasource.StaticVariableArgument{
 										Name:  []byte("method"),
@@ -727,8 +697,7 @@ func TestPlanner_Plan(t *testing.T) {
 						DataSource: datasource.SourceConfig{
 							Name: "HttpJsonDataSource",
 							Config: toJSON(datasource.HttpJsonDataSourceConfig{
-								Host: "httpbin.org",
-								URL:  "/anything",
+								URL: "httpbin.org/anything",
 							}),
 						},
 					},
@@ -751,12 +720,8 @@ func TestPlanner_Plan(t *testing.T) {
 								},
 								Args: []datasource.Argument{
 									&datasource.StaticVariableArgument{
-										Name:  []byte("host"),
-										Value: []byte("httpbin.org"),
-									},
-									&datasource.StaticVariableArgument{
 										Name:  []byte("url"),
-										Value: []byte("/anything"),
+										Value: []byte("httpbin.org/anything"),
 									},
 									&datasource.StaticVariableArgument{
 										Name:  []byte("method"),
@@ -802,8 +767,7 @@ func TestPlanner_Plan(t *testing.T) {
 						DataSource: datasource.SourceConfig{
 							Name: "HttpJsonDataSource",
 							Config: toJSON(datasource.HttpJsonDataSourceConfig{
-								Host: "httpbin.org",
-								URL:  "/anything",
+								URL: "httpbin.org/anything",
 							}),
 						},
 					},
@@ -826,12 +790,8 @@ func TestPlanner_Plan(t *testing.T) {
 								},
 								Args: []datasource.Argument{
 									&datasource.StaticVariableArgument{
-										Name:  []byte("host"),
-										Value: []byte("httpbin.org"),
-									},
-									&datasource.StaticVariableArgument{
 										Name:  []byte("url"),
-										Value: []byte("/anything"),
+										Value: []byte("httpbin.org/anything"),
 									},
 									&datasource.StaticVariableArgument{
 										Name:  []byte("method"),
@@ -890,8 +850,7 @@ func TestPlanner_Plan(t *testing.T) {
 						DataSource: datasource.SourceConfig{
 							Name: "HttpJsonDataSource",
 							Config: toJSON(datasource.HttpJsonDataSourceConfig{
-								Host: "httpbin.org",
-								URL:  "/anything",
+								URL: "httpbin.org/anything",
 							}),
 						},
 					},
@@ -914,12 +873,8 @@ func TestPlanner_Plan(t *testing.T) {
 								},
 								Args: []datasource.Argument{
 									&datasource.StaticVariableArgument{
-										Name:  []byte("host"),
-										Value: []byte("httpbin.org"),
-									},
-									&datasource.StaticVariableArgument{
 										Name:  []byte("url"),
-										Value: []byte("/anything"),
+										Value: []byte("httpbin.org/anything"),
 									},
 									&datasource.StaticVariableArgument{
 										Name:  []byte("method"),
@@ -981,8 +936,7 @@ func TestPlanner_Plan(t *testing.T) {
 						DataSource: datasource.SourceConfig{
 							Name: "HttpJsonDataSource",
 							Config: toJSON(datasource.HttpJsonDataSourceConfig{
-								Host: "httpbin.org",
-								URL:  "/anything",
+								URL: "httpbin.org/anything",
 								Headers: []datasource.HttpJsonDataSourceConfigHeader{
 									{
 										Key:   "Authorization",
@@ -1015,12 +969,8 @@ func TestPlanner_Plan(t *testing.T) {
 								},
 								Args: []datasource.Argument{
 									&datasource.StaticVariableArgument{
-										Name:  []byte("host"),
-										Value: []byte("httpbin.org"),
-									},
-									&datasource.StaticVariableArgument{
 										Name:  []byte("url"),
-										Value: []byte("/anything"),
+										Value: []byte("httpbin.org/anything"),
 									},
 									&datasource.StaticVariableArgument{
 										Name:  []byte("method"),
@@ -1324,8 +1274,7 @@ func TestPlanner_Plan(t *testing.T) {
 						DataSource: datasource.SourceConfig{
 							Name: "GraphQLDataSource",
 							Config: toJSON(datasource.GraphQLDataSourceConfig{
-								Host: "localhost:8001",
-								URL:  "/graphql",
+								URL: "localhost:8001/graphql",
 							}),
 						},
 					},
@@ -1343,12 +1292,8 @@ func TestPlanner_Plan(t *testing.T) {
 							Source: &DataSourceInvocation{
 								Args: []datasource.Argument{
 									&datasource.StaticVariableArgument{
-										Name:  literal.HOST,
-										Value: []byte("localhost:8001"),
-									},
-									&datasource.StaticVariableArgument{
 										Name:  literal.URL,
-										Value: []byte("/graphql"),
+										Value: []byte("localhost:8001/graphql"),
 									},
 									&datasource.StaticVariableArgument{
 										Name:  literal.QUERY,
@@ -1442,8 +1387,7 @@ func TestPlanner_Plan(t *testing.T) {
 						DataSource: datasource.SourceConfig{
 							Name: "HttpJsonDataSource",
 							Config: toJSON(datasource.HttpJsonDataSourceConfig{
-								Host: "localhost:9001",
-								URL:  "/user/{{ .arguments.id }}",
+								URL: "localhost:9001/user/{{ .arguments.id }}",
 							}),
 						},
 					},
@@ -1461,12 +1405,8 @@ func TestPlanner_Plan(t *testing.T) {
 							Source: &DataSourceInvocation{
 								Args: []datasource.Argument{
 									&datasource.StaticVariableArgument{
-										Name:  literal.HOST,
-										Value: []byte("localhost:9001"),
-									},
-									&datasource.StaticVariableArgument{
 										Name:  literal.URL,
-										Value: []byte("/user/{{ .arguments.id }}"),
+										Value: []byte("localhost:9001/user/{{ .arguments.id }}"),
 									},
 									&datasource.StaticVariableArgument{
 										Name:  []byte("method"),
@@ -1559,8 +1499,7 @@ func TestPlanner_Plan(t *testing.T) {
 						DataSource: datasource.SourceConfig{
 							Name: "GraphQLDataSource",
 							Config: toJSON(datasource.GraphQLDataSourceConfig{
-								Host: "localhost:8001",
-								URL:  "/graphql",
+								URL: "localhost:8001/graphql",
 							}),
 						},
 					},
@@ -1573,8 +1512,7 @@ func TestPlanner_Plan(t *testing.T) {
 						DataSource: datasource.SourceConfig{
 							Name: "HttpJsonDataSource",
 							Config: toJSON(datasource.HttpJsonDataSourceConfig{
-								Host: "localhost:9001",
-								URL:  "/user/{{ .object.id }}/friends",
+								URL: "localhost:9001/user/{{ .object.id }}/friends",
 							}),
 						},
 					},
@@ -1593,12 +1531,8 @@ func TestPlanner_Plan(t *testing.T) {
 							Source: &DataSourceInvocation{
 								Args: []datasource.Argument{
 									&datasource.StaticVariableArgument{
-										Name:  literal.HOST,
-										Value: []byte("localhost:8001"),
-									},
-									&datasource.StaticVariableArgument{
 										Name:  literal.URL,
-										Value: []byte("/graphql"),
+										Value: []byte("localhost:8001/graphql"),
 									},
 									&datasource.StaticVariableArgument{
 										Name:  literal.QUERY,
@@ -1634,12 +1568,8 @@ func TestPlanner_Plan(t *testing.T) {
 										Source: &DataSourceInvocation{
 											Args: []datasource.Argument{
 												&datasource.StaticVariableArgument{
-													Name:  literal.HOST,
-													Value: []byte("localhost:9001"),
-												},
-												&datasource.StaticVariableArgument{
 													Name:  literal.URL,
-													Value: []byte("/user/{{ .object.id }}/friends"),
+													Value: []byte("localhost:9001/user/{{ .object.id }}/friends"),
 												},
 												&datasource.StaticVariableArgument{
 													Name:  []byte("method"),
@@ -1879,12 +1809,8 @@ func TestPlanner_Plan(t *testing.T) {
 							Source: &DataSourceInvocation{
 								Args: []datasource.Argument{
 									&datasource.StaticVariableArgument{
-										Name:  literal.HOST,
-										Value: []byte("localhost:8001"),
-									},
-									&datasource.StaticVariableArgument{
 										Name:  literal.URL,
-										Value: []byte("/graphql"),
+										Value: []byte("localhost:8001/graphql"),
 									},
 									&datasource.StaticVariableArgument{
 										Name:  literal.QUERY,
@@ -1915,12 +1841,8 @@ func TestPlanner_Plan(t *testing.T) {
 												Source: &DataSourceInvocation{
 													Args: []datasource.Argument{
 														&datasource.StaticVariableArgument{
-															Name:  literal.HOST,
-															Value: []byte("localhost:9000"),
-														},
-														&datasource.StaticVariableArgument{
 															Name:  literal.URL,
-															Value: []byte("/user/:id/friends"),
+															Value: []byte("localhost:9000/user/:id/friends"),
 														},
 														&datasource.ObjectVariableArgument{
 															Name: []byte("id"),
@@ -1945,12 +1867,8 @@ func TestPlanner_Plan(t *testing.T) {
 												Source: &DataSourceInvocation{
 													Args: []datasource.Argument{
 														&datasource.StaticVariableArgument{
-															Name:  literal.HOST,
-															Value: []byte("localhost:8002"),
-														},
-														&datasource.StaticVariableArgument{
 															Name:  literal.URL,
-															Value: []byte("/graphql"),
+															Value: []byte("localhost:8002/graphql"),
 														},
 														&datasource.StaticVariableArgument{
 															Name:  literal.QUERY,
@@ -2001,12 +1919,8 @@ func TestPlanner_Plan(t *testing.T) {
 														Source: &DataSourceInvocation{
 															Args: []datasource.Argument{
 																&datasource.StaticVariableArgument{
-																	Name:  literal.HOST,
-																	Value: []byte("localhost:8002"),
-																},
-																&datasource.StaticVariableArgument{
 																	Name:  literal.URL,
-																	Value: []byte("/graphql"),
+																	Value: []byte("localhost:8002/graphql"),
 																},
 																&datasource.StaticVariableArgument{
 																	Name:  literal.QUERY,
@@ -3683,8 +3597,7 @@ func BenchmarkPlanner_Plan(b *testing.B) {
 				DataSource: datasource.SourceConfig{
 					Name: "GraphQLDataSource",
 					Config: toJSON(datasource.GraphQLDataSourceConfig{
-						Host: "localhost:8001",
-						URL:  "/graphql",
+						URL: "localhost:8001/graphql",
 					}),
 				},
 			},
@@ -3697,8 +3610,7 @@ func BenchmarkPlanner_Plan(b *testing.B) {
 				DataSource: datasource.SourceConfig{
 					Name: "HttpJsonDataSource",
 					Config: toJSON(datasource.HttpJsonDataSourceConfig{
-						Host: "localhost:9001",
-						URL:  "/user/{{ .object.id }}/friends",
+						URL: "localhost:9001/user/{{ .object.id }}/friends",
 					}),
 				},
 			},
@@ -3708,8 +3620,7 @@ func BenchmarkPlanner_Plan(b *testing.B) {
 				DataSource: datasource.SourceConfig{
 					Name: "GraphQLDataSource",
 					Config: toJSON(datasource.GraphQLDataSourceConfig{
-						Host: "localhost:8001",
-						URL:  "/graphql",
+						URL: "localhost:8001/graphql",
 					}),
 				},
 				Mapping: &datasource.MappingConfiguration{
