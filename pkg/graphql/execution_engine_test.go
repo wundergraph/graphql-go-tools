@@ -283,7 +283,7 @@ func TestExampleExecutionEngine_Concatenation(t *testing.T) {
 				DataSource: datasource.SourceConfig{
 					Name: "HttpJsonDataSource",
 					Config: stringify(datasource.HttpJsonDataSourceConfig{
-						Host:   friendServer.URL,
+						URL:    friendServer.URL,
 						Method: stringPtr("GET"),
 					}),
 				},
@@ -390,8 +390,7 @@ var heroHttpJsonPlannerConfig = datasource.PlannerConfiguration{
 				Name: "HttpJsonDataSource",
 				Config: func() []byte {
 					data, _ := json.Marshal(datasource.HttpJsonDataSourceConfig{
-						Host: "example.com",
-						URL:  "/",
+						URL: "example.com/",
 						Method: func() *string {
 							method := "GET"
 							return &method
@@ -421,8 +420,7 @@ var movieHttpJsonDataSource = datasource.PlannerConfiguration{
 				Name: "HttpJsonDataSource",
 				Config: func() []byte {
 					data, _ := json.Marshal(datasource.HttpJsonDataSourceConfig{
-						Host: "example.com",
-						URL:  "/",
+						URL: "example.com/",
 						Method: func() *string {
 							method := "GET"
 							return &method
@@ -452,8 +450,7 @@ var heroGraphqlDataSource = datasource.PlannerConfiguration{
 				Name: "GraphqlDataSource",
 				Config: func() []byte {
 					data, _ := json.Marshal(datasource.GraphQLDataSourceConfig{
-						Host: "example.com",
-						URL:  "/",
+						URL: "example.com/",
 						Method: func() *string {
 							method := "GET"
 							return &method
@@ -479,8 +476,7 @@ var droidGraphqlDataSource = datasource.PlannerConfiguration{
 				Name: "GraphqlDataSource",
 				Config: func() []byte {
 					data, _ := json.Marshal(datasource.GraphQLDataSourceConfig{
-						Host: "example.com",
-						URL:  "/",
+						URL: "example.com/",
 						Method: func() *string {
 							method := "GET"
 							return &method
