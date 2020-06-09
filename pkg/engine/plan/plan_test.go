@@ -22,7 +22,7 @@ func TestPlanner_Plan(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			norm := astnormalization.NewNormalizer(true)
+			norm := astnormalization.NewNormalizer(true,true)
 			var report operationreport.Report
 			norm.NormalizeOperation(&op, &def, &report)
 			valid := astvalidation.DefaultOperationValidator()

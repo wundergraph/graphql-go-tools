@@ -1,4 +1,4 @@
-package datasource
+package httpclient
 
 import (
 	"bytes"
@@ -32,7 +32,9 @@ var (
 	}
 )
 
-func (n *NetHttpClient) Do(ctx context.Context, url, queryParams, method, headers, body []byte, out io.Writer) (err error) {
+func (n *NetHttpClient) Do(ctx context.Context, requestInput []byte, out io.Writer) (err error) {
+
+	url,method,body,headers,queryParams := requestInputParams(requestInput)
 
 	request, err := http.NewRequestWithContext(ctx, unsafebytes.BytesToString(method), unsafebytes.BytesToString(url), bytes.NewReader(body))
 	if err != nil {

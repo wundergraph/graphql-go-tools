@@ -14,13 +14,14 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource"
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 )
 
 type Planner struct {
-	client              datasource.Client
+	client              httpclient.Client
 	v                   *plan.Visitor
 	fetch               *resolve.SingleFetch
 	printer             astprinter.Printer
@@ -34,17 +35,17 @@ type Planner struct {
 	config              *plan.DataSourceConfiguration
 }
 
-func NewPlanner(client datasource.Client) *Planner {
+func NewPlanner(client httpclient.Client) *Planner {
 	return &Planner{
 		client: client,
 	}
 }
 
-func (p *Planner) clientOrDefault() datasource.Client {
+func (p *Planner) clientOrDefault() httpclient.Client {
 	if p.client != nil {
 		return p.client
 	}
-	return datasource.NewFastHttpClient(datasource.DefaultFastHttpClient)
+	return httpclient.NewFastHttpClient(httpclient.DefaultFastHttpClient)
 }
 
 func (p *Planner) Register(visitor *plan.Visitor) {
@@ -66,7 +67,7 @@ func (p *Planner) EnterDocument(_, _ *ast.Document) {
 		p.buf.Reset()
 	}
 	if p.operationNormalizer == nil {
-		p.operationNormalizer = astnormalization.NewNormalizer(true)
+		p.operationNormalizer = astnormalization.NewNormalizer(true, true)
 	}
 	p.nodes = p.nodes[:0]
 	p.URL = nil
@@ -134,7 +135,7 @@ func (p *Planner) handleFieldDependencies(downstreamField, upstreamSelectionSet 
 		}
 		for j := range p.v.Config.FieldDependencies[i].RequiresFields {
 			requiredField := p.v.Config.FieldDependencies[i].RequiresFields[j]
-			p.addFieldDependency(requiredField,upstreamSelectionSet)
+			p.addFieldDependency(requiredField, upstreamSelectionSet)
 		}
 	}
 }
@@ -309,14 +310,14 @@ func (p *Planner) EnterSelectionSet(ref int) {
 
 func (p *Planner) LeaveSelectionSet(ref int) {
 
-	upstreamSelectionSet := p.nodes[len(p.nodes) -1].Ref
+	upstreamSelectionSet := p.nodes[len(p.nodes)-1].Ref
 
-	for _,i := range p.v.Operation.SelectionSets[ref].SelectionRefs {
+	for _, i := range p.v.Operation.SelectionSets[ref].SelectionRefs {
 		if p.v.Operation.Selections[i].Kind != ast.SelectionKindField {
 			continue
 		}
 		downstreamField := p.v.Operation.Selections[i].Ref
-		p.handleFieldDependencies(downstreamField,upstreamSelectionSet)
+		p.handleFieldDependencies(downstreamField, upstreamSelectionSet)
 	}
 
 	p.nodes = p.nodes[:len(p.nodes)-1]
@@ -329,11 +330,10 @@ func (p *Planner) LeaveDocument(operation, definition *ast.Document) {
 	if err != nil {
 		return
 	}
-	if p.variables != nil {
-		p.fetch.Input, _ = sjson.SetRawBytes(p.fetch.Input, "body.variables", p.variables)
-	}
-	p.fetch.Input, _ = sjson.SetRawBytes(p.fetch.Input, "body.query", append([]byte{'"'}, append(buf.Bytes(), '"')...))
-	p.fetch.Input, _ = sjson.SetRawBytes(p.fetch.Input, "url", append([]byte{'"'}, append(p.URL, '"')...))
+	p.fetch.Input = httpclient.SetInputBodyWithPath(p.fetch.Input, p.variables, "variables")
+	p.fetch.Input = httpclient.SetInputBodyWithPath(p.fetch.Input, buf.Bytes(), "query")
+	p.fetch.Input = httpclient.SetInputURL(p.fetch.Input, p.URL)
+	p.fetch.Input = httpclient.SetInputMethod(p.fetch.Input, literal.HTTP_METHOD_POST)
 	source := DefaultSource()
 	source.client = p.clientOrDefault()
 	p.fetch.DataSource = source
@@ -341,12 +341,12 @@ func (p *Planner) LeaveDocument(operation, definition *ast.Document) {
 }
 
 type Source struct {
-	client datasource.Client
+	client httpclient.Client
 }
 
 func DefaultSource() *Source {
 	return &Source{
-		client: datasource.NewFastHttpClient(datasource.DefaultFastHttpClient),
+		client: httpclient.NewFastHttpClient(httpclient.DefaultFastHttpClient),
 	}
 }
 
@@ -359,14 +359,6 @@ func (_ *Source) UniqueIdentifier() []byte {
 }
 
 var (
-	method = []byte("POST")
-	inputPaths       = [][]string{
-		{datasource.URL},
-		{datasource.METHOD},
-		{datasource.BODY},
-		{datasource.HEADERS},
-		{datasource.QUERYPARAMS},
-	}
 	responsePaths = [][]string{
 		{"errors"},
 		{"data"},
@@ -374,24 +366,11 @@ var (
 )
 
 func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPair) (err error) {
-	var (
-		url, body,headers  []byte
-	)
-	jsonparser.EachKey(input, func(i int, bytes []byte, valueType jsonparser.ValueType, err error) {
-		switch i {
-		case 0:
-			url = bytes
-		case 1:
-			body = bytes
-		case 2:
-			headers = bytes
-		}
-	}, inputPaths...)
 
 	buf := pool.BytesBuffer.Get()
 	defer pool.BytesBuffer.Put(buf)
 
-	err = s.client.Do(ctx, url, nil, method, headers, body, buf)
+	err = s.client.Do(ctx, input, buf)
 	if err != nil {
 		return
 	}

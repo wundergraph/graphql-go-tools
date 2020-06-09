@@ -39,7 +39,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 				Fetch: &resolve.SingleFetch{
 					DataSource: DefaultSource(),
 					BufferId:   0,
-					Input:      []byte(`{"url":"https://swapi.com/graphql","body":{"query":"query($id: ID!){droid(id: $id){name aliased: name friends {name} primaryFunction} hero {name} stringList nestedStringList}","variables":{"id":"$$0$$"}}}`),
+					Input:      []byte(`{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($id: ID!){droid(id: $id){name aliased: name friends {name} primaryFunction} hero {name} stringList nestedStringList}","variables":{"id":"$$0$$"}}}`),
 					Variables: resolve.NewVariables(&resolve.ContextVariable{
 						Path: []string{"id"},
 					}),
@@ -212,7 +212,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
 						BufferId:   0,
-						Input:      []byte(`{"url":"https://service.one","body":{"query":"mutation($name: String!){addFriend(name: $name){id name}}","variables":{"name":"$$0$$"}}}`),
+						Input:      []byte(`{"method":"POST","url":"https://service.one","body":{"query":"mutation($name: String!){addFriend(name: $name){id name}}","variables":{"name":"$$0$$"}}}`),
 						DataSource: DefaultSource(),
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
@@ -341,7 +341,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 						Fetches: []*resolve.SingleFetch{
 							{
 								BufferId:   0,
-								Input:      []byte(`{"url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":"$$0$$"}}}`),
+								Input:      []byte(`{"method":"POST","url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":"$$0$$"}}}`),
 								DataSource: DefaultSource(),
 								Variables: resolve.NewVariables(
 									&resolve.ContextVariable{
@@ -354,7 +354,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 							},
 							{
 								BufferId:   1,
-								Input:      []byte(`{"url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo serviceOneField} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo serviceOneField}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`),
+								Input:      []byte(`{"method":"POST","url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo serviceOneField} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo serviceOneField}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`),
 								DataSource: DefaultSource(),
 								Variables: resolve.NewVariables(
 									&resolve.ContextVariable{
@@ -403,7 +403,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 										Fetch: &resolve.SingleFetch{
 											BufferId:   2,
 											DataSource: DefaultSource(),
-											Input:      []byte(`{"url":"https://service.one","body":{"query":"query($a: String){serviceOne(serviceOneArg: $a){fieldOne}}","variables":{"a":"$$0$$"}}}`),
+											Input:      []byte(`{"method":"POST","url":"https://service.one","body":{"query":"query($a: String){serviceOne(serviceOneArg: $a){fieldOne}}","variables":{"a":"$$0$$"}}}`),
 											Variables: resolve.NewVariables(
 												&resolve.ObjectVariable{
 													Path: []string{"serviceOneField"},
@@ -681,13 +681,13 @@ func TestGraphQLDataSourceExecution(t *testing.T) {
 	t.Run("simple", test(func() context.Context {
 		return context.Background()
 	}, func(server *httptest.Server) string {
-		return fmt.Sprintf(`{"url":"%s","body":{"query":"query($id: ID!){droid(id: $id){name}}","variables":{"id":1}}}`, server.URL)
+		return fmt.Sprintf(`{"method":"POST","url":"%s","body":{"query":"query($id: ID!){droid(id: $id){name}}","variables":{"id":1}}}`, server.URL)
 	}, func(t *testing.T) http.HandlerFunc {
 		return func(writer http.ResponseWriter, request *http.Request) {
 			body, err := ioutil.ReadAll(request.Body)
 			assert.NoError(t, err)
 			assert.Equal(t, `{"query":"query($id: ID!){droid(id: $id){name}}","variables":{"id":1}}`, string(body))
-			assert.Equal(t, request.Method, http.MethodPost)
+			assert.Equal(t, http.MethodPost,request.Method)
 			_, err = writer.Write([]byte(`{"data":{"droid":{"name":"r2d2"}}"}`))
 			assert.NoError(t, err)
 		}

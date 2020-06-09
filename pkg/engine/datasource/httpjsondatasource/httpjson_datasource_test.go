@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource"
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasourcetesting"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
@@ -196,13 +196,16 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
 						BufferId: 0,
-						Input:    []byte(`{"method":"GET","url":"https://example.com/$$0$$/foo"}`),
+						Input:    []byte(`{"method":"GET","url":"https://example.com/$$0$$/$$1$$"}`),
 						DataSource: &Source{
 							client: NewPlanner(nil).clientOrDefault(),
 						},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path: []string{"idVariable"},
+							},
+							&resolve.ContextVariable{
+								Path: []string{"a"},
 							},
 						),
 					},
@@ -418,11 +421,14 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
 						BufferId: 0,
-						Input:    []byte(`{"query_params":[{"name":"static","value":"staticValue"},{"name":"name","value":"foo"},{"name":"id","value":"$$0$$"}],"method":"GET","url":"https://example.com/friend"}`),
+						Input:    []byte(`{"query_params":[{"name":"static","value":"staticValue"},{"name":"name","value":"$$0$$"},{"name":"id","value":"$$1$$"}],"method":"GET","url":"https://example.com/friend"}`),
 						DataSource: &Source{
 							client: NewPlanner(nil).clientOrDefault(),
 						},
 						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path: []string{"a"},
+							},
 							&resolve.ContextVariable{
 								Path: []string{"idVariable"},
 							},
@@ -589,13 +595,13 @@ func TestHttpJsonDataSource_Load(t *testing.T) {
 
 	t.Run("net/http", func(t *testing.T) {
 		source := &Source{
-			client: datasource.NewNetHttpClient(datasource.DefaultNetHttpClient),
+			client: httpclient.NewNetHttpClient(httpclient.DefaultNetHttpClient),
 		}
 		runTests(t, source)
 	})
 	t.Run("fasthttp", func(t *testing.T) {
 		source := &Source{
-			client: datasource.NewFastHttpClient(datasource.DefaultFastHttpClient),
+			client: httpclient.NewFastHttpClient(httpclient.DefaultFastHttpClient),
 		}
 		runTests(t, source)
 	})

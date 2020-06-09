@@ -1,4 +1,4 @@
-package datasource
+package httpclient
 
 import (
 	"context"
@@ -36,7 +36,10 @@ var (
 	}
 )
 
-func (f *FastHttpClient) Do(ctx context.Context, url, queryParams, method, headers, body []byte, out io.Writer) (err error) {
+func (f *FastHttpClient) Do(ctx context.Context, requestInput []byte, out io.Writer) (err error) {
+
+	url,method,body,headers,queryParams := requestInputParams(requestInput)
+
 	req, res := fasthttp.AcquireRequest(), fasthttp.AcquireResponse()
 	defer func() {
 		fasthttp.ReleaseRequest(req)

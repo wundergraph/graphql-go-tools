@@ -5,30 +5,27 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/buger/jsonparser"
-	"github.com/tidwall/sjson"
-
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource"
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 )
 
 type Planner struct {
-	client datasource.Client
+	client httpclient.Client
 	v      *plan.Visitor
 }
 
-func NewPlanner(client datasource.Client) *Planner {
+func NewPlanner(client httpclient.Client) *Planner {
 	return &Planner{
 		client: client,
 	}
 }
 
-func (p *Planner) clientOrDefault() datasource.Client {
+func (p *Planner) clientOrDefault() httpclient.Client {
 	if p.client != nil {
 		return p.client
 	}
-	return datasource.NewFastHttpClient(datasource.DefaultFastHttpClient)
+	return httpclient.NewFastHttpClient(httpclient.DefaultFastHttpClient)
 }
 
 func (p *Planner) Register(visitor *plan.Visitor) {
@@ -42,38 +39,24 @@ func (p *Planner) EnterField(ref int) {
 		return
 	}
 
-	path := config.Attributes.ValueForKey(datasource.PATH)
-	baseURL := config.Attributes.ValueForKey(datasource.BASEURL)
-	method := config.Attributes.ValueForKey(datasource.METHOD)
-	body := config.Attributes.ValueForKey(datasource.BODY)
-	headers := config.Attributes.ValueForKey(datasource.HEADERS)
-	queryParams := config.Attributes.ValueForKey(datasource.QUERYPARAMS)
+	path := config.Attributes.ValueForKey(httpclient.PATH)
+	baseURL := config.Attributes.ValueForKey(httpclient.BASEURL)
+	method := config.Attributes.ValueForKey(httpclient.METHOD)
+	body := config.Attributes.ValueForKey(httpclient.BODY)
+	headers := config.Attributes.ValueForKey(httpclient.HEADERS)
+	queryParams := config.Attributes.ValueForKey(httpclient.QUERYPARAMS)
 
 	var (
 		input []byte
-		err   error
 	)
 
-	url := append(baseURL, path...)
+	url := []byte(string(baseURL) + string(path))
 
-	if url != nil {
-		input, err = sjson.SetBytes(input, datasource.URL, string(url))
-	}
-	if method != nil {
-		input, err = sjson.SetBytes(input, datasource.METHOD, string(method))
-	}
-	if body != nil {
-		input, err = sjson.SetRawBytes(input, datasource.BODY, body)
-	}
-	if headers != nil {
-		input, err = sjson.SetRawBytes(input, datasource.HEADERS, headers)
-	}
-	if queryParams != nil {
-		input, err = sjson.SetRawBytes(input, datasource.QUERYPARAMS, queryParams)
-	}
-	if err != nil {
-		p.v.HandleInternalErr(err)
-	}
+	input = httpclient.SetInputURL(input, url)
+	input = httpclient.SetInputMethod(input, method)
+	input = httpclient.SetInputBody(input, body)
+	input = httpclient.SetInputHeaders(input, headers)
+	input = httpclient.SetInputQueryParams(input, queryParams)
 
 	bufferID := p.v.NextBufferID()
 	p.v.SetBufferIDForCurrentFieldSet(bufferID)
@@ -98,18 +81,11 @@ func NewQueryValues(values ...QueryValue) []byte {
 }
 
 type Source struct {
-	client datasource.Client
+	client httpclient.Client
 }
 
 var (
 	uniqueIdentifier = []byte("http_json")
-	inputPaths       = [][]string{
-		{datasource.URL},
-		{datasource.METHOD},
-		{datasource.BODY},
-		{datasource.HEADERS},
-		{datasource.QUERYPARAMS},
-	}
 )
 
 func (_ *Source) UniqueIdentifier() []byte {
@@ -117,25 +93,5 @@ func (_ *Source) UniqueIdentifier() []byte {
 }
 
 func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPair) (err error) {
-
-	var (
-		url, method, body, headers, queryParams []byte
-	)
-
-	jsonparser.EachKey(input, func(i int, bytes []byte, valueType jsonparser.ValueType, err error) {
-		switch i {
-		case 0:
-			url = bytes
-		case 1:
-			method = bytes
-		case 2:
-			body = bytes
-		case 3:
-			headers = bytes
-		case 4:
-			queryParams = bytes
-		}
-	}, inputPaths...)
-
-	return s.client.Do(ctx, url, queryParams, method, headers, body, bufPair.Data)
+	return s.client.Do(ctx, input, bufPair.Data)
 }
