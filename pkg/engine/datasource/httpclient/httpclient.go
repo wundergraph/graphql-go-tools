@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"unicode"
 
 	"github.com/buger/jsonparser"
 	"github.com/tidwall/gjson"
@@ -40,8 +41,18 @@ type Client interface {
 func wrapQuotesIfString(b []byte) []byte {
 	inType := gjson.ParseBytes(b).Type
 	switch inType {
-	case gjson.Number, gjson.JSON, gjson.String:
+	case gjson.Number, gjson.String:
 		return b
+	case gjson.JSON:
+		for _,i := range b[1:]{
+			if unicode.IsSpace(rune(i)){
+				continue
+			}
+			if i == '"'{
+				return b
+			}
+			break
+		}
 	case gjson.False:
 		if bytes.Equal(b, literal.FALSE) {
 			return b
