@@ -33,4 +33,16 @@ func TestHttpClient(t *testing.T) {
 
 	in = SetInputBodyWithPath(nil, []byte(`{"foo":"bar"}`), "variables")
 	assert.Equal(t, `{"body":{"variables":{"foo":"bar"}}}`, string(in))
+
+	in = SetInputBodyWithPath(nil, []byte(`query { foo }`), "query")
+	assert.Equal(t, `{"body":{"query":"query { foo }"}}`, string(in))
+
+	in = SetInputBodyWithPath(nil, []byte(`{ foo }`), "query")
+	assert.Equal(t, `{"body":{"query":"{ foo }"}}`, string(in))
+
+	in = SetInputBodyWithPath(nil, []byte(`{foo}`), "query")
+	assert.Equal(t, `{"body":{"query":"{foo}"}}`, string(in))
+
+	in = SetInputBodyWithPath(nil, []byte(`{`), "query")
+	assert.Equal(t, `{"body":{"query":"{"}}`, string(in))
 }
