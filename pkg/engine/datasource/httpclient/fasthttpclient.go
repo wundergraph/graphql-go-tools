@@ -80,8 +80,8 @@ func (f *FastHttpClient) Do(ctx context.Context, requestInput []byte, out io.Wri
 		}
 	}
 
-	req.Header.AddBytesKV(contentTypeBytes, applicationJsonBytes)
-	req.Header.AddBytesKV(acceptBytes, applicationJsonBytes)
+	req.Header.SetBytesKV(acceptBytes, applicationJsonBytes)
+	req.Header.SetContentTypeBytes(applicationJsonBytes)
 
 	if deadline, ok := ctx.Deadline(); ok {
 		err = f.client.DoDeadline(req, res, deadline)
