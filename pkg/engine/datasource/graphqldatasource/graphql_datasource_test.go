@@ -3,6 +3,7 @@ package graphqldatasource
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -171,7 +172,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 									FieldName: "droid",
 									Arguments: []Argument{
 										{
-											Name:   []byte("id"),
+											Name:   "id",
 											Source: FieldArgument,
 										},
 									},
@@ -273,7 +274,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 										FieldName: "addFriend",
 										Arguments: []Argument{
 											{
-												Name:   []byte("name"),
+												Name:   "name",
 												Source: FieldArgument,
 											},
 										},
@@ -551,7 +552,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 										FieldName: "serviceOne",
 										Arguments: []Argument{
 											{
-												Name:   []byte("serviceOneArg"),
+												Name:   "serviceOneArg",
 												Source: FieldArgument,
 											},
 										},
@@ -560,7 +561,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 										FieldName: "anotherServiceOne",
 										Arguments: []Argument{
 											{
-												Name:   []byte("anotherServiceOneArg"),
+												Name:   "anotherServiceOneArg",
 												Source: FieldArgument,
 											},
 										},
@@ -569,7 +570,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 										FieldName: "reusingServiceOne",
 										Arguments: []Argument{
 											{
-												Name:   []byte("reusingServiceOneArg"),
+												Name:   "reusingServiceOneArg",
 												Source: FieldArgument,
 											},
 										},
@@ -596,7 +597,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 										FieldName: "serviceTwo",
 										Arguments: []Argument{
 											{
-												Name:   []byte("serviceTwoArg"),
+												Name:   "serviceTwoArg",
 												Source: FieldArgument,
 											},
 										},
@@ -605,7 +606,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 										FieldName: "secondServiceTwo",
 										Arguments: []Argument{
 											{
-												Name:   []byte("secondServiceTwoArg"),
+												Name:   "secondServiceTwoArg",
 												Source: FieldArgument,
 											},
 										},
@@ -632,7 +633,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 										FieldName: "serviceOneResponse",
 										Arguments: []Argument{
 											{
-												Name:       []byte("serviceOneArg"),
+												Name:       "serviceOneArg",
 												Source:     ObjectField,
 												SourcePath: []string{"serviceOneField"},
 											},
@@ -696,6 +697,13 @@ func TestGraphQLDataSourceExecution(t *testing.T) {
 		assert.Equal(t, `{"droid":{"name":"r2d2"}}`, bufPair.Data.String())
 		assert.Equal(t, false, bufPair.HasErrors())
 	}))
+}
+
+func TestParseArguments(t *testing.T){
+	input := `{"fields":[{"field_name":"continents","arguments":[{"name":"filter","source":"field_argument","source_path":["filter"]}]},{"field_name":"continent","arguments":[{"name":"code","source":"field_argument","source_path":["code"]}]},{"field_name":"countries","arguments":[{"name":"filter","source":"field_argument","source_path":["filter"]}]},{"field_name":"country","arguments":[{"name":"code","source":"field_argument","source_path":["code"]}]},{"field_name":"languages","arguments":[{"name":"filter","source":"field_argument","source_path":["filter"]}]},{"field_name":"language","arguments":[{"name":"code","source":"field_argument","source_path":["code"]}]}]}`
+	var args ArgumentsConfig
+	err := json.Unmarshal([]byte(input),&args)
+	assert.NoError(t,err)
 }
 
 const testDefinition = `

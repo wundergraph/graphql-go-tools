@@ -218,7 +218,7 @@ func (p *Planner) configureFieldArguments(upstreamField, downstreamField int, ar
 func (p *Planner) applyFieldArgument(upstreamField, downstreamField int, arg Argument) {
 	switch arg.Source {
 	case FieldArgument:
-		if fieldArgument, ok := p.v.Operation.FieldArgument(downstreamField, arg.Name); ok {
+		if fieldArgument, ok := p.v.Operation.FieldArgument(downstreamField, arg.NameBytes()); ok {
 			value := p.v.Operation.ArgumentValue(fieldArgument)
 			if value.Kind != ast.ValueKindVariable {
 				return
@@ -235,7 +235,7 @@ func (p *Planner) applyFieldArgument(upstreamField, downstreamField int, arg Arg
 			wrapValueInQuotes := p.v.Operation.TypeValueNeedsQuotes(variableDefinitionType)
 
 			contextVariableName, exists := p.fetch.Variables.AddVariable(&resolve.ContextVariable{Path: append([]string{variableNameStr}, arg.SourcePath...)}, wrapValueInQuotes)
-			variableValueRef, argRef := p.operation.AddVariableValueArgument(arg.Name, variableName) // add the argument to the field, but don't redefine it
+			variableValueRef, argRef := p.operation.AddVariableValueArgument(arg.NameBytes(), variableName) // add the argument to the field, but don't redefine it
 			p.operation.AddArgumentToField(upstreamField, argRef)
 
 			if exists { // if the variable exists we don't have to put it onto the variables declaration again, skip
@@ -270,14 +270,14 @@ func (p *Planner) applyFieldArgument(upstreamField, downstreamField int, arg Arg
 		}
 
 		queryTypeDefinition := p.v.Definition.Index.Nodes[xxhash.Sum64(p.v.Definition.Index.QueryTypeName)]
-		argumentDefinition := p.v.Definition.NodeFieldDefinitionArgumentDefinitionByName(queryTypeDefinition, []byte(fieldName), arg.Name)
+		argumentDefinition := p.v.Definition.NodeFieldDefinitionArgumentDefinitionByName(queryTypeDefinition, []byte(fieldName), arg.NameBytes())
 		if argumentDefinition == -1 {
 			return
 		}
 
 		argumentType := p.v.Definition.InputValueDefinitionType(argumentDefinition)
 		variableName := p.operation.GenerateUnusedVariableDefinitionName(p.nodes[0].Ref)
-		variableValue, argument := p.operation.AddVariableValueArgument(arg.Name, variableName)
+		variableValue, argument := p.operation.AddVariableValueArgument(arg.NameBytes(), variableName)
 		p.operation.AddArgumentToField(upstreamField, argument)
 		importedType := p.v.Importer.ImportType(argumentType, p.v.Definition, p.operation)
 		p.operation.AddVariableDefinitionToOperationDefinition(p.nodes[0].Ref, variableValue, importedType)
@@ -395,18 +395,22 @@ func ArgumentsConfigJSON(config ArgumentsConfig) []byte {
 }
 
 type ArgumentsConfig struct {
-	Fields []FieldConfig
+	Fields []FieldConfig `json:"fields"`
 }
 
 type FieldConfig struct {
-	FieldName string
-	Arguments []Argument
+	FieldName string `json:"field_name"`
+	Arguments []Argument `json:"arguments"`
 }
 
 type Argument struct {
-	Name       []byte
-	Source     ArgumentSource
-	SourcePath []string
+	Name       string `json:"name"`
+	Source     ArgumentSource `json:"source"`
+	SourcePath []string `json:"source_path"`
+}
+
+func (a Argument) NameBytes () []byte {
+	return []byte(a.Name)
 }
 
 type ArgumentSource string
