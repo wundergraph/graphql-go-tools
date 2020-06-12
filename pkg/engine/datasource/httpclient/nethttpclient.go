@@ -75,8 +75,8 @@ func (n *NetHttpClient) Do(ctx context.Context, requestInput []byte, out io.Writ
 		request.URL.RawQuery = query.Encode()
 	}
 
-	request.Header.Add("Accept", "application/json")
-	request.Header.Add("Content-Type", "application/json")
+	request.Header.Add("accept", "application/json")
+	request.Header.Add("content-type", "application/json")
 
 	response, err := n.client.Do(request)
 	if err != nil {

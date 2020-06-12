@@ -30,8 +30,8 @@ var (
 		{"value"},
 	}
 	applicationJsonBytes = []byte("application/json")
-	contentTypeBytes     = []byte("Content-Type")
-	acceptBytes          = []byte("Accept")
+	contentTypeBytes     = []byte("content-type")
+	acceptBytes          = []byte("accept")
 )
 
 func (f *FastHttpClient) Do(ctx context.Context, requestInput []byte, out io.Writer) (err error) {
