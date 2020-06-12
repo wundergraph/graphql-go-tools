@@ -9,11 +9,6 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
-var (
-	accept          = []byte("Accept")
-	applicationJSON = []byte("application/json")
-)
-
 type FastHttpClient struct {
 	client *fasthttp.Client
 }
@@ -34,11 +29,14 @@ var (
 		{"name"},
 		{"value"},
 	}
+	applicationJsonBytes = []byte("application/json")
+	contentTypeBytes     = []byte("Content-Type")
+	acceptBytes          = []byte("Accept")
 )
 
 func (f *FastHttpClient) Do(ctx context.Context, requestInput []byte, out io.Writer) (err error) {
 
-	url,method,body,headers,queryParams := requestInputParams(requestInput)
+	url, method, body, headers, queryParams := requestInputParams(requestInput)
 
 	req, res := fasthttp.AcquireRequest(), fasthttp.AcquireResponse()
 	defer func() {
@@ -59,6 +57,9 @@ func (f *FastHttpClient) Do(ctx context.Context, requestInput []byte, out io.Wri
 			return err
 		}
 	}
+
+	req.Header.AddBytesKV(contentTypeBytes, applicationJsonBytes)
+	req.Header.AddBytesKV(acceptBytes, applicationJsonBytes)
 
 	if queryParams != nil {
 		_, err = jsonparser.ArrayEach(queryParams, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
@@ -82,7 +83,7 @@ func (f *FastHttpClient) Do(ctx context.Context, requestInput []byte, out io.Wri
 		}
 	}
 
-	req.Header.AddBytesKV(accept, applicationJSON)
+	req.Header.AddBytesKV(acceptBytes, applicationJsonBytes)
 
 	if deadline, ok := ctx.Deadline(); ok {
 		err = f.client.DoDeadline(req, res, deadline)

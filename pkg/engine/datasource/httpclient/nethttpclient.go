@@ -76,6 +76,7 @@ func (n *NetHttpClient) Do(ctx context.Context, requestInput []byte, out io.Writ
 	}
 
 	request.Header.Add("Accept", "application/json")
+	request.Header.Add("Content-Type", "application/json")
 
 	response, err := n.client.Do(request)
 	if err != nil {
