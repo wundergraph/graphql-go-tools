@@ -44,11 +44,12 @@ func wrapQuotesIfString(b []byte) []byte {
 	case gjson.Number, gjson.String:
 		return b
 	case gjson.JSON:
-		for _,i := range b[1:]{
-			if unicode.IsSpace(rune(i)){
+		for _, i := range b[1:] {
+			if unicode.IsSpace(rune(i)) {
 				continue
 			}
-			if i == '"'{
+			switch i {
+			case '"', '[', '{', 't', 'n':
 				return b
 			}
 			break

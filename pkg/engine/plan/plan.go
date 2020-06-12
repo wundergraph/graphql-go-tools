@@ -2,6 +2,7 @@ package plan
 
 import (
 	"bytes"
+	"encoding/json"
 	"regexp"
 	"strings"
 
@@ -79,7 +80,7 @@ type FieldMapping struct {
 
 type DataSourceAttribute struct {
 	Key   string
-	Value []byte
+	Value json.RawMessage
 }
 
 type DataSourceAttributes []DataSourceAttribute
