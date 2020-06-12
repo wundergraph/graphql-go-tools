@@ -58,9 +58,6 @@ func (f *FastHttpClient) Do(ctx context.Context, requestInput []byte, out io.Wri
 		}
 	}
 
-	req.Header.AddBytesKV(contentTypeBytes, applicationJsonBytes)
-	req.Header.AddBytesKV(acceptBytes, applicationJsonBytes)
-
 	if queryParams != nil {
 		_, err = jsonparser.ArrayEach(queryParams, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
 			var (
@@ -83,6 +80,7 @@ func (f *FastHttpClient) Do(ctx context.Context, requestInput []byte, out io.Wri
 		}
 	}
 
+	req.Header.AddBytesKV(contentTypeBytes, applicationJsonBytes)
 	req.Header.AddBytesKV(acceptBytes, applicationJsonBytes)
 
 	if deadline, ok := ctx.Deadline(); ok {
