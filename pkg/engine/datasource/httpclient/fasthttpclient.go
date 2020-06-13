@@ -31,7 +31,6 @@ var (
 		{"value"},
 	}
 	applicationJsonBytes = []byte("application/json")
-	contentTypeBytes     = []byte("content-type")
 	acceptBytes          = []byte("accept")
 	acceptEncodingBytes  = []byte("Accept-Encoding")
 	gzipEncodingBytes    = []byte("gzip")
