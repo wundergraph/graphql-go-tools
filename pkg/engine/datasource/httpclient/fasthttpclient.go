@@ -1,6 +1,7 @@
 package httpclient
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"time"
@@ -30,8 +31,11 @@ var (
 		{"value"},
 	}
 	applicationJsonBytes = []byte("application/json")
-	contentTypeBytes     = []byte("content-type")
 	acceptBytes          = []byte("accept")
+	acceptEncodingBytes  = []byte("Accept-Encoding")
+	gzipEncodingBytes    = []byte("gzip")
+	userAgentBytes       = []byte("graphql-go-client")
+	contentEncoding      = []byte("Content-Encoding")
 )
 
 func (f *FastHttpClient) Do(ctx context.Context, requestInput []byte, out io.Writer) (err error) {
@@ -44,6 +48,7 @@ func (f *FastHttpClient) Do(ctx context.Context, requestInput []byte, out io.Wri
 		fasthttp.ReleaseResponse(res)
 	}()
 
+	req.Header.SetUserAgentBytes(userAgentBytes)
 	req.Header.SetMethodBytes(method)
 	req.SetRequestURIBytes(url)
 	req.SetBody(body)
@@ -81,6 +86,7 @@ func (f *FastHttpClient) Do(ctx context.Context, requestInput []byte, out io.Wri
 	}
 
 	req.Header.SetBytesKV(acceptBytes, applicationJsonBytes)
+	req.Header.SetBytesKV(acceptEncodingBytes, gzipEncodingBytes)
 	req.Header.SetContentTypeBytes(applicationJsonBytes)
 
 	if deadline, ok := ctx.Deadline(); ok {
@@ -91,6 +97,15 @@ func (f *FastHttpClient) Do(ctx context.Context, requestInput []byte, out io.Wri
 
 	if err != nil {
 		return
+	}
+
+	if bytes.Equal(res.Header.PeekBytes(contentEncoding), gzipEncodingBytes) {
+		body, err := res.BodyGunzip()
+		if err != nil {
+			return err
+		}
+		_, err = out.Write(body)
+		return err
 	}
 
 	return res.BodyWriteTo(out)

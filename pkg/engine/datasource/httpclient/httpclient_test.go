@@ -1,6 +1,13 @@
 package httpclient
 
 import (
+	"bytes"
+	"compress/gzip"
+	"context"
+	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
+	"net/http/httputil"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -54,4 +61,92 @@ func TestHttpClient(t *testing.T) {
 
 	in = SetInputBodyWithPath(nil, []byte(`{`), "query")
 	assert.Equal(t, `{"body":{"query":"{"}}`, string(in))
+}
+
+func TestHttpClientDo(t *testing.T) {
+
+	fast := NewFastHttpClient(DefaultFastHttpClient)
+	net := NewNetHttpClient(DefaultNetHttpClient)
+
+	runTest := func(client Client, ctx context.Context, input []byte, expectedOutput string) func(t *testing.T) {
+		return func(t *testing.T) {
+			out := &bytes.Buffer{}
+			err := client.Do(ctx, input, out)
+			assert.NoError(t, err)
+			assert.Equal(t, expectedOutput, out.String())
+		}
+	}
+
+	background := context.Background()
+
+	t.Run("simple get", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, err := httputil.DumpRequest(r, true)
+			assert.NoError(t, err)
+			_, err = w.Write([]byte("ok"))
+			assert.NoError(t, err)
+		}))
+		defer server.Close()
+		var input []byte
+		input = SetInputMethod(input, []byte("GET"))
+		input = SetInputURL(input, []byte(server.URL))
+		t.Run("fast", runTest(fast, background, input, `ok`))
+		t.Run("net", runTest(net, background, input, `ok`))
+	})
+
+	t.Run("post", func(t *testing.T) {
+		body := []byte(`{"foo","bar"}`)
+		var fastDump []byte
+		var netDump []byte
+		_ = netDump
+		_ = fastDump
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			dump, err := httputil.DumpRequest(r, true)
+			if fastDump == nil {
+				fastDump = dump
+			} else {
+				netDump = dump
+			}
+			assert.NoError(t, err)
+			_, err = w.Write([]byte("ok"))
+			assert.NoError(t, err)
+			actualBody, err := ioutil.ReadAll(r.Body)
+			assert.NoError(t, err)
+			assert.Equal(t, string(body), string(actualBody))
+		}))
+		defer server.Close()
+		var input []byte
+		input = SetInputMethod(input, []byte("POST"))
+		input = SetInputBody(input, body)
+		input = SetInputURL(input, []byte(server.URL))
+		t.Run("fast", runTest(fast, background, input, `ok`))
+		t.Run("net", runTest(net, background, input, `ok`))
+
+		//expectedDump := `POST / HTTP/1.1\nHost: 127.0.0.1:63168\nAccept: application/json\nAccept-Encoding: gzip\nContent-Length: 13\nContent-Type: application/json\nUser-Agent: graphql-go-client\n\n{\"foo\",\"bar\"}`
+		//assert.Equal(t,expectedDump,string(fastDump),"fastDump")
+		//assert.Equal(t,expectedDump,string(netDump),"netDump")
+	})
+
+	t.Run("gzip", func(t *testing.T) {
+		body := []byte(`{"foo","bar"}`)
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			acceptEncoding := r.Header.Get("Accept-Encoding")
+			assert.Equal(t,"gzip",acceptEncoding)
+			actualBody, err := ioutil.ReadAll(r.Body)
+			assert.NoError(t, err)
+			assert.Equal(t, string(body), string(actualBody))
+			gzipWriter := gzip.NewWriter(w)
+			defer gzipWriter.Close()
+			w.Header().Set("Content-Encoding", "gzip")
+			_, err = gzipWriter.Write([]byte("ok"))
+			assert.NoError(t, err)
+		}))
+		defer server.Close()
+		var input []byte
+		input = SetInputMethod(input, []byte("POST"))
+		input = SetInputBody(input, body)
+		input = SetInputURL(input, []byte(server.URL))
+		t.Run("fast", runTest(fast, background, input, `ok`))
+		t.Run("net", runTest(net, background, input, `ok`))
+	})
 }
