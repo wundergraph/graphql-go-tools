@@ -21,6 +21,7 @@ const (
 		type Query {
 			friend: Friend
 			withArgument(id: String!, name: String): Friend
+			withArrayArguments(names: [String]): Friend
 		}
 
 		type Friend {
@@ -56,6 +57,14 @@ const (
 	argumentOperation = `
 		query ArgumentQuery($idVariable: String!) {
 			withArgument(id: $idVariable, name: "foo") {
+				name
+			}
+		}
+	`
+
+	arrayArgumentOperation = `
+		query ArgumentQuery {
+			withArrayArguments(names: ["foo","bar"]) {
 				name
 			}
 		}
@@ -421,7 +430,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
 						BufferId: 0,
-						Input:    []byte(`{"query_params":[{"name":"static","value":"staticValue"},{"name":"name","value":"$$0$$"},{"name":"id","value":"$$1$$"}],"method":"GET","url":"https://example.com/friend"}`),
+						Input:    []byte(`{"query_params":[{"name":"static","value":"staticValue"},{"name":"static","value":"secondStaticValue"},{"name":"name","value":"$$0$$"},{"name":"id","value":"$$1$$"}],"method":"GET","url":"https://example.com/friend"}`),
 						DataSource: &Source{
 							client: NewPlanner(nil).clientOrDefault(),
 						},
@@ -488,6 +497,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 									Value: "staticValue",
 								},
 								QueryValue{
+									Name:  "static",
+									Value: "secondStaticValue",
+								},
+								QueryValue{
 									Name:  "name",
 									Value: "{{ .arguments.name }}",
 								},
@@ -505,6 +518,90 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 				{
 					TypeName:              "Query",
 					FieldName:             "withArgument",
+					DisableDefaultMapping: true,
+				},
+			},
+		},
+	))
+	t.Run("get request with array query", datasourcetesting.RunTest(schema, arrayArgumentOperation, "ArgumentQuery",
+		&plan.SynchronousResponsePlan{
+			Response: resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						BufferId: 0,
+						Input:    []byte(`{"query_params":[{"name":"names","value":$$0$$}],"method":"GET","url":"https://example.com/friend"}`),
+						DataSource: &Source{
+							client: NewPlanner(nil).clientOrDefault(),
+						},
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path: []string{"a"},
+							},
+						),
+					},
+					FieldSets: []resolve.FieldSet{
+						{
+							BufferID:  0,
+							HasBuffer: true,
+							Fields: []resolve.Field{
+								{
+									Name: []byte("withArrayArguments"),
+									Value: &resolve.Object{
+										FieldSets: []resolve.FieldSet{
+											{
+												Fields: []resolve.Field{
+													{
+														Name: []byte("name"),
+														Value: &resolve.String{
+															Path: []string{"name"},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		plan.Configuration{
+			DataSourceConfigurations: []plan.DataSourceConfiguration{
+				{
+					TypeName:   "Query",
+					FieldNames: []string{"withArrayArguments"},
+					Attributes: []plan.DataSourceAttribute{
+						{
+							Key:   "base_url",
+							Value: []byte("https://example.com"),
+						},
+						{
+							Key:   "path",
+							Value: []byte("/friend"),
+						},
+						{
+							Key:   "method",
+							Value: []byte("GET"),
+						},
+						{
+							Key: "query_params",
+							Value: NewQueryValues(
+								QueryValue{
+									Name:  "names",
+									Value: "{{ .arguments.names }}",
+								},
+							),
+						},
+					},
+					DataSourcePlanner: &Planner{},
+				},
+			},
+			FieldMappings: []plan.FieldMapping{
+				{
+					TypeName:              "Query",
+					FieldName:             "withArrayArguments",
 					DisableDefaultMapping: true,
 				},
 			},

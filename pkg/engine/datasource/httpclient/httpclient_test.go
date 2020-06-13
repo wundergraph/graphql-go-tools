@@ -129,6 +129,24 @@ func TestHttpClientDo(t *testing.T) {
 		t.Run("net", runTest(net, background, input, `ok`))
 	})
 
+	t.Run("query params multiple as array", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			fooValues := r.URL.Query()["foo"]
+			assert.Len(t, fooValues, 2)
+			assert.Equal(t, fooValues[0], "bar")
+			assert.Equal(t, fooValues[1], "baz")
+			_, err := w.Write([]byte("ok"))
+			assert.NoError(t, err)
+		}))
+		defer server.Close()
+		var input []byte
+		input = SetInputMethod(input, []byte("GET"))
+		input = SetInputURL(input, []byte(server.URL))
+		input = SetInputQueryParams(input, []byte(`[{"name":"foo","value":["foo","bar"]}]`))
+		t.Run("fast", runTest(fast, background, input, `ok`))
+		t.Run("net", runTest(net, background, input, `ok`))
+	})
+
 	t.Run("post", func(t *testing.T) {
 		body := []byte(`{"foo","bar"}`)
 		var fastDump []byte
