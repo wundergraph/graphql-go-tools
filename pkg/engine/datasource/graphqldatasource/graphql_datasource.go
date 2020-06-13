@@ -33,6 +33,7 @@ type Planner struct {
 	variables           []byte
 	bufferID            int
 	config              *plan.DataSourceConfiguration
+	abortLeaveDocument  bool
 }
 
 func NewPlanner(client httpclient.Client) *Planner {
@@ -56,6 +57,7 @@ func (p *Planner) Register(visitor *plan.Visitor) {
 }
 
 func (p *Planner) EnterDocument(_, _ *ast.Document) {
+	p.abortLeaveDocument = true
 	if p.operation == nil {
 		p.operation = ast.NewDocument()
 	} else {
@@ -75,6 +77,8 @@ func (p *Planner) EnterDocument(_, _ *ast.Document) {
 }
 
 func (p *Planner) EnterField(ref int) {
+
+	p.abortLeaveDocument = false // EnterField means this planner is activated
 
 	var (
 		isRootField bool
@@ -323,7 +327,10 @@ func (p *Planner) LeaveSelectionSet(ref int) {
 	p.nodes = p.nodes[:len(p.nodes)-1]
 }
 
-func (p *Planner) LeaveDocument(operation, definition *ast.Document) {
+func (p *Planner) LeaveDocument(_, definition *ast.Document) {
+	if p.abortLeaveDocument {
+		return // planner did not get activated, skip
+	}
 	p.operationNormalizer.NormalizeOperation(p.operation, definition, p.v.Report)
 	buf := &bytes.Buffer{}
 	err := p.printer.Print(p.operation, nil, buf)
@@ -399,17 +406,17 @@ type ArgumentsConfig struct {
 }
 
 type FieldConfig struct {
-	FieldName string `json:"field_name"`
+	FieldName string     `json:"field_name"`
 	Arguments []Argument `json:"arguments"`
 }
 
 type Argument struct {
-	Name       string `json:"name"`
+	Name       string         `json:"name"`
 	Source     ArgumentSource `json:"source"`
-	SourcePath []string `json:"source_path"`
+	SourcePath []string       `json:"source_path"`
 }
 
-func (a Argument) NameBytes () []byte {
+func (a Argument) NameBytes() []byte {
 	return []byte(a.Name)
 }
 
