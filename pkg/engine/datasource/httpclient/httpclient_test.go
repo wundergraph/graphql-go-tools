@@ -94,6 +94,41 @@ func TestHttpClientDo(t *testing.T) {
 		t.Run("net", runTest(net, background, input, `ok`))
 	})
 
+	t.Run("query params simple", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			fooValues := r.URL.Query()["foo"]
+			assert.Len(t, fooValues, 1)
+			assert.Equal(t, fooValues[0], "bar")
+			_, err := w.Write([]byte("ok"))
+			assert.NoError(t, err)
+		}))
+		defer server.Close()
+		var input []byte
+		input = SetInputMethod(input, []byte("GET"))
+		input = SetInputURL(input, []byte(server.URL))
+		input = SetInputQueryParams(input, []byte(`[{"name":"foo","value":"bar"}]`))
+		t.Run("fast", runTest(fast, background, input, `ok`))
+		t.Run("net", runTest(net, background, input, `ok`))
+	})
+
+	t.Run("query params multiple", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			fooValues := r.URL.Query()["foo"]
+			assert.Len(t, fooValues, 2)
+			assert.Equal(t, fooValues[0], "bar")
+			assert.Equal(t, fooValues[1], "baz")
+			_, err := w.Write([]byte("ok"))
+			assert.NoError(t, err)
+		}))
+		defer server.Close()
+		var input []byte
+		input = SetInputMethod(input, []byte("GET"))
+		input = SetInputURL(input, []byte(server.URL))
+		input = SetInputQueryParams(input, []byte(`[{"name":"foo","value":"bar"},{"name":"foo","value":"baz"}]`))
+		t.Run("fast", runTest(fast, background, input, `ok`))
+		t.Run("net", runTest(net, background, input, `ok`))
+	})
+
 	t.Run("post", func(t *testing.T) {
 		body := []byte(`{"foo","bar"}`)
 		var fastDump []byte
@@ -131,7 +166,7 @@ func TestHttpClientDo(t *testing.T) {
 		body := []byte(`{"foo","bar"}`)
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			acceptEncoding := r.Header.Get("Accept-Encoding")
-			assert.Equal(t,"gzip",acceptEncoding)
+			assert.Equal(t, "gzip", acceptEncoding)
 			actualBody, err := ioutil.ReadAll(r.Body)
 			assert.NoError(t, err)
 			assert.Equal(t, string(body), string(actualBody))
