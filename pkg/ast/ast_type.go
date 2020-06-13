@@ -114,6 +114,17 @@ func (d *Document) TypesAreEqualDeep(left int, right int) bool {
 	}
 }
 
+func (d *Document) TypeIsScalar(ref int, definition *Document) bool {
+	switch d.Types[ref].TypeKind {
+	case TypeKindNamed:
+		typeName := d.TypeNameBytes(ref)
+		return definition.Index.Nodes[xxhash.Sum64(typeName)].Kind == NodeKindScalarTypeDefinition
+	case TypeKindNonNull:
+		return d.TypeIsScalar(d.Types[ref].OfType, definition)
+	}
+	return false
+}
+
 func (d *Document) TypeIsList(ref int) bool {
 	switch d.Types[ref].TypeKind {
 	case TypeKindList:
@@ -184,7 +195,7 @@ func (d *Document) TypeValueNeedsQuotes(ref int) bool {
 		return false
 	case TypeKindNamed:
 		switch d.Input.ByteSliceString(graphqlType.Name) {
-		case "Int", "Float", "Boolean","JSON":
+		case "Int", "Float", "Boolean", "JSON":
 			return false
 		default:
 			return true

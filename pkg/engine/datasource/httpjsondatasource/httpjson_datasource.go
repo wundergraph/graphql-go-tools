@@ -4,10 +4,16 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"regexp"
+	"strings"
 
+	"github.com/buger/jsonparser"
+
+	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 )
 
 type Planner struct {
@@ -46,6 +52,8 @@ func (p *Planner) EnterField(ref int) {
 	headers := config.Attributes.ValueForKey(httpclient.HEADERS)
 	queryParams := config.Attributes.ValueForKey(httpclient.QUERYPARAMS)
 
+	queryParams = p.prepareQueryParams(ref, queryParams)
+
 	var (
 		input []byte
 	)
@@ -78,6 +86,56 @@ type QueryValue struct {
 func NewQueryValues(values ...QueryValue) []byte {
 	out, _ := json.Marshal(values)
 	return out
+}
+
+var (
+	selectorRegex = regexp.MustCompile(`"{{\s(.*?)\s}}"`)
+)
+
+// prepareQueryParams ensures that values
+func (p *Planner) prepareQueryParams(field int, params []byte) []byte {
+	var values [][]byte
+	_, err := jsonparser.ArrayEach(params, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+		values = append(values, value)
+	})
+	if err != nil {
+		return params
+	}
+
+	for i := range values {
+		values[i] = selectorRegex.ReplaceAllFunc(values[i], func(i []byte) []byte {
+			subs := selectorRegex.FindSubmatch(i)
+			if len(subs) != 2 {
+				return i
+			}
+			path := string(bytes.TrimPrefix(subs[1], []byte(".")))
+			segments := strings.Split(path, ".")
+			if len(segments) < 2 {
+				return i
+			}
+			argName := []byte(segments[1])
+			if argRef, ok := p.v.Operation.FieldArgument(field, argName); ok {
+				value := p.v.Operation.ArgumentValue(argRef)
+				switch value.Kind {
+				case ast.ValueKindVariable:
+					variableName := p.v.Operation.VariableValueNameBytes(value.Ref)
+					if variableDefinition, ok := p.v.Operation.VariableDefinitionByNameAndOperation(p.v.Ancestors[0].Ref, variableName); ok {
+						typeRef := p.v.Operation.VariableDefinitions[variableDefinition].Type
+						if p.v.Operation.TypeIsScalar(typeRef,p.v.Definition){
+							return i
+						}
+						return i[1 : len(i)-1]
+					}
+
+				}
+			}
+
+			return i
+		})
+	}
+
+	joined := bytes.Join(values, literal.COMMA)
+	return append([]byte("["), append(joined, []byte("]")...)...)
 }
 
 type Source struct {
