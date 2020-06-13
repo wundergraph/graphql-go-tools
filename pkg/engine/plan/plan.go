@@ -276,6 +276,7 @@ func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
 	v.popFieldsOnLeaveField = v.popFieldsOnLeaveField[:0]
 	v.fieldDataSourcePlanners = v.fieldDataSourcePlanners[:0]
 	v.nextBufferID = -1
+	v.activeDataSourcePlanner = nil
 	if v.fieldPathOverrides == nil {
 		v.fieldPathOverrides = make(map[int]PathOverrideFunc, 8)
 	} else {
