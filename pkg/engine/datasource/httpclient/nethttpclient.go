@@ -66,7 +66,12 @@ func (n *NetHttpClient) Do(ctx context.Context, requestInput []byte, out io.Writ
 				}
 			}, queryParamsKeys...)
 			if parameterName != nil && parameterValue != nil {
-				query.Add(string(parameterName), string(parameterValue))
+				_, arrayParseErr := jsonparser.ArrayEach(parameterValue, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+					query.Add(string(parameterName), string(value))
+				})
+				if arrayParseErr != nil {
+					query.Add(string(parameterName), string(parameterValue))
+				}
 			}
 		})
 		if err != nil {

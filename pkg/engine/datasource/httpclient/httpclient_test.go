@@ -142,7 +142,7 @@ func TestHttpClientDo(t *testing.T) {
 		var input []byte
 		input = SetInputMethod(input, []byte("GET"))
 		input = SetInputURL(input, []byte(server.URL))
-		input = SetInputQueryParams(input, []byte(`[{"name":"foo","value":["foo","bar"]}]`))
+		input = SetInputQueryParams(input, []byte(`[{"name":"foo","value":["bar","baz"]}]`))
 		t.Run("fast", runTest(fast, background, input, `ok`))
 		t.Run("net", runTest(net, background, input, `ok`))
 	})
