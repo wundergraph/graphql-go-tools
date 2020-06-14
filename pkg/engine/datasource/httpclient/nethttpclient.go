@@ -10,6 +10,7 @@ import (
 	"github.com/buger/jsonparser"
 
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 )
 
 type NetHttpClient struct {
@@ -34,7 +35,7 @@ var (
 
 func (n *NetHttpClient) Do(ctx context.Context, requestInput []byte, out io.Writer) (err error) {
 
-	url,method,body,headers,queryParams := requestInputParams(requestInput)
+	url, method, body, headers, queryParams := requestInputParams(requestInput)
 
 	request, err := http.NewRequestWithContext(ctx, unsafebytes.BytesToString(method), unsafebytes.BytesToString(url), bytes.NewReader(body))
 	if err != nil {
@@ -65,13 +66,13 @@ func (n *NetHttpClient) Do(ctx context.Context, requestInput []byte, out io.Writ
 					parameterValue = bytes
 				}
 			}, queryParamsKeys...)
-			if parameterName != nil && parameterValue != nil {
-				_, arrayParseErr := jsonparser.ArrayEach(parameterValue, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
-					query.Add(string(parameterName), string(value))
-				})
-				if arrayParseErr != nil {
-					query.Add(string(parameterName), string(parameterValue))
+			if len(parameterName) != 0 && len(parameterValue) != 0 {
+				if bytes.Equal(parameterValue[:1], literal.LBRACK) {
+					_, _ = jsonparser.ArrayEach(parameterValue, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+						query.Add(string(parameterName), string(value))
+					})
 				}
+				query.Add(string(parameterName), string(parameterValue))
 			}
 		})
 		if err != nil {

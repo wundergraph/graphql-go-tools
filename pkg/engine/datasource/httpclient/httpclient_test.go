@@ -117,6 +117,11 @@ func TestHttpClientDo(t *testing.T) {
 			assert.Len(t, fooValues, 2)
 			assert.Equal(t, fooValues[0], "bar")
 			assert.Equal(t, fooValues[1], "baz")
+
+			yearValues := r.URL.Query()["year"]
+			assert.Len(t,yearValues,1)
+			assert.Equal(t,yearValues[0],"2020")
+
 			_, err := w.Write([]byte("ok"))
 			assert.NoError(t, err)
 		}))
@@ -124,7 +129,7 @@ func TestHttpClientDo(t *testing.T) {
 		var input []byte
 		input = SetInputMethod(input, []byte("GET"))
 		input = SetInputURL(input, []byte(server.URL))
-		input = SetInputQueryParams(input, []byte(`[{"name":"foo","value":"bar"},{"name":"foo","value":"baz"}]`))
+		input = SetInputQueryParams(input, []byte(`[{"name":"foo","value":"bar"},{"name":"foo","value":"baz"},{"name":"year","value":"2020"}]`))
 		t.Run("fast", runTest(fast, background, input, `ok`))
 		t.Run("net", runTest(net, background, input, `ok`))
 	})

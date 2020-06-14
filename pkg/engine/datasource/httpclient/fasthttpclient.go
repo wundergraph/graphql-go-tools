@@ -9,6 +9,8 @@ import (
 	"github.com/buger/jsonparser"
 	"github.com/jensneuse/abstractlogger"
 	"github.com/valyala/fasthttp"
+
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 )
 
 type FastHttpClient struct {
@@ -104,14 +106,13 @@ func (f *FastHttpClient) Do(ctx context.Context, requestInput []byte, out io.Wri
 					parameterValue = bytes
 				}
 			}, queryParamsKeys...)
-			if parameterName != nil && parameterValue != nil {
-
-				_, arrayParseErr := jsonparser.ArrayEach(parameterValue, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
-					req.URI().QueryArgs().AddBytesKV(parameterName, value)
-				})
-				if arrayParseErr != nil {
-					req.URI().QueryArgs().AddBytesKV(parameterName, parameterValue)
+			if len(parameterName) != 0 && len(parameterValue) != 0 {
+				if bytes.Equal(parameterValue[:1], literal.LBRACK) {
+					_, _ = jsonparser.ArrayEach(parameterValue, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+						req.URI().QueryArgs().AddBytesKV(parameterName, value)
+					})
 				}
+				req.URI().QueryArgs().AddBytesKV(parameterName, parameterValue)
 			}
 		})
 		if err != nil {
