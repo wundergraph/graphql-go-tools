@@ -71,7 +71,7 @@ func (f *FastHttpClient) Do(ctx context.Context, requestInput []byte, out io.Wri
 				abstractlogger.ByteString("requestHeader", req.Header.Header()),
 				abstractlogger.Int("responseCode", res.StatusCode()),
 				abstractlogger.ByteString("responseHeader", res.Header.Header()),
-				abstractlogger.ByteString("responseBody", body),
+				abstractlogger.ByteString("responseBody", responseBody),
 			)
 		}
 		fasthttp.ReleaseRequest(req)
