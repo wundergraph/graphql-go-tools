@@ -111,8 +111,9 @@ func (f *FastHttpClient) Do(ctx context.Context, requestInput []byte, out io.Wri
 					_, _ = jsonparser.ArrayEach(parameterValue, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
 						req.URI().QueryArgs().AddBytesKV(parameterName, value)
 					})
+				} else {
+					req.URI().QueryArgs().AddBytesKV(parameterName, parameterValue)
 				}
-				req.URI().QueryArgs().AddBytesKV(parameterName, parameterValue)
 			}
 		})
 		if err != nil {

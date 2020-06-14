@@ -71,8 +71,9 @@ func (n *NetHttpClient) Do(ctx context.Context, requestInput []byte, out io.Writ
 					_, _ = jsonparser.ArrayEach(parameterValue, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
 						query.Add(string(parameterName), string(value))
 					})
+				} else {
+					query.Add(string(parameterName), string(parameterValue))
 				}
-				query.Add(string(parameterName), string(parameterValue))
 			}
 		})
 		if err != nil {
