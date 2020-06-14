@@ -57,6 +57,7 @@ func TestPlanner_Plan(t *testing.T) {
 							{
 								Name: []byte("droid"),
 								Value: &resolve.Object{
+									Nullable: true,
 									FieldSets: []resolve.FieldSet{
 										{
 											Fields: []resolve.Field{
@@ -75,8 +76,10 @@ func TestPlanner_Plan(t *testing.T) {
 												{
 													Name: []byte("friends"),
 													Value: &resolve.Array{
+														Nullable: true,
 														Path: []string{"friends"},
 														Item: &resolve.Object{
+															Nullable: true,
 															FieldSets: []resolve.FieldSet{
 																{
 																	Fields: []resolve.Field{
@@ -101,6 +104,7 @@ func TestPlanner_Plan(t *testing.T) {
 												{
 													Name: []byte("favoriteEpisode"),
 													Value: &resolve.String{
+														Nullable: true,
 														Path: []string{"favoriteEpisode"},
 													},
 												},
@@ -144,6 +148,7 @@ func TestPlanner_Plan(t *testing.T) {
 							{
 								Name: []byte("droid"),
 								Value: &resolve.Object{
+									Nullable: true,
 									FieldSets: []resolve.FieldSet{
 										{
 											Fields: []resolve.Field{

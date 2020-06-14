@@ -78,9 +78,9 @@ func TestResolver_ResolveNode(t *testing.T) {
 			ctrl.Finish()
 		}
 	}
-	t.Run("nullable empty object", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+	t.Run("Nullable empty object", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
-			nullable: true,
+			Nullable: true,
 		}, Context{Context: context.Background()}, `null`
 	}))
 	t.Run("empty object", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
@@ -108,7 +108,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 						{
 							Name: []byte("data"),
 							Value: &Object{
-								nullable: true,
+								Nullable: true,
 							},
 						},
 					},
@@ -248,7 +248,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 							Value: &Array{
 								Path:                []string{"friends"},
 								ResolveAsynchronous: false,
-								nullable:            true,
+								Nullable:            true,
 								Item: &Object{
 									FieldSets: []FieldSet{
 										{
@@ -276,7 +276,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 							Value: &Array{
 								Path:                []string{"friends"},
 								ResolveAsynchronous: true,
-								nullable:            true,
+								Nullable:            true,
 								Item: &Object{
 									FieldSets: []FieldSet{
 										{
@@ -303,7 +303,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 							Name: []byte("nullableFriends"),
 							Value: &Array{
 								Path:     []string{"nonExistingField"},
-								nullable: true,
+								Nullable: true,
 								Item:     &Object{},
 							},
 						},
@@ -515,7 +515,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 	t.Run("empty graphql response", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Data: &Object{
-				nullable: true,
+				Nullable: true,
 			},
 		}, Context{Context: context.Background()}, `{"data":null}`
 	}))
@@ -532,7 +532,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			Return(nil)
 		return &GraphQLResponse{
 			Data: &Object{
-				nullable: true,
+				Nullable: true,
 				Fetch: &SingleFetch{
 					BufferId:   0,
 					DataSource: mockDataSource,
@@ -546,7 +546,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 								Name: []byte("name"),
 								Value: &String{
 									Path:     []string{"name"},
-									nullable: true,
+									Nullable: true,
 								},
 							},
 						},
@@ -585,7 +585,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 								Name: []byte("name"),
 								Value: &String{
 									Path:     []string{"name"},
-									nullable: true,
+									Nullable: true,
 								},
 							},
 						},
@@ -597,7 +597,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 	t.Run("null field should bubble up to parent with error", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Data: &Object{
-				nullable: true,
+				Nullable: true,
 				Fetch: &SingleFetch{
 					BufferId:   0,
 					DataSource: FakeDataSource(`[{"id":1},{"id":2},{"id":3}]`),
@@ -610,14 +610,14 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 							{
 								Name: []byte("stringObject"),
 								Value: &Object{
-									nullable: true,
+									Nullable: true,
 									FieldSets: []FieldSet{
 										{
 											Fields: []Field{
 												{
 													Name: []byte("stringField"),
 													Value: &String{
-														nullable: false,
+														Nullable: false,
 													},
 												},
 											},
@@ -628,14 +628,14 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 							{
 								Name: []byte("integerObject"),
 								Value: &Object{
-									nullable: true,
+									Nullable: true,
 									FieldSets: []FieldSet{
 										{
 											Fields: []Field{
 												{
 													Name: []byte("integerField"),
 													Value: &Integer{
-														nullable: false,
+														Nullable: false,
 													},
 												},
 											},
@@ -646,14 +646,14 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 							{
 								Name: []byte("floatObject"),
 								Value: &Object{
-									nullable: true,
+									Nullable: true,
 									FieldSets: []FieldSet{
 										{
 											Fields: []Field{
 												{
 													Name: []byte("floatField"),
 													Value: &Float{
-														nullable: false,
+														Nullable: false,
 													},
 												},
 											},
@@ -664,14 +664,14 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 							{
 								Name: []byte("booleanObject"),
 								Value: &Object{
-									nullable: true,
+									Nullable: true,
 									FieldSets: []FieldSet{
 										{
 											Fields: []Field{
 												{
 													Name: []byte("booleanField"),
 													Value: &Boolean{
-														nullable: false,
+														Nullable: false,
 													},
 												},
 											},
@@ -682,14 +682,14 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 							{
 								Name: []byte("objectObject"),
 								Value: &Object{
-									nullable: true,
+									Nullable: true,
 									FieldSets: []FieldSet{
 										{
 											Fields: []Field{
 												{
 													Name: []byte("objectField"),
 													Value: &Object{
-														nullable: false,
+														Nullable: false,
 													},
 												},
 											},
@@ -700,16 +700,16 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 							{
 								Name: []byte("arrayObject"),
 								Value: &Object{
-									nullable: true,
+									Nullable: true,
 									FieldSets: []FieldSet{
 										{
 											Fields: []Field{
 												{
 													Name: []byte("arrayField"),
 													Value: &Array{
-														nullable: false,
+														Nullable: false,
 														Item: &String{
-															nullable: false,
+															Nullable: false,
 															Path:     []string{"nonExisting"},
 														},
 													},
@@ -722,17 +722,17 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 							{
 								Name: []byte("asynchronousArrayObject"),
 								Value: &Object{
-									nullable: true,
+									Nullable: true,
 									FieldSets: []FieldSet{
 										{
 											Fields: []Field{
 												{
 													Name: []byte("arrayField"),
 													Value: &Array{
-														nullable:            false,
+														Nullable:            false,
 														ResolveAsynchronous: true,
 														Item: &String{
-															nullable: false,
+															Nullable: false,
 															Path:     []string{"nonExisting"},
 														},
 													},
@@ -745,9 +745,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 							{
 								Name: []byte("nullableArray"),
 								Value: &Array{
-									nullable: true,
+									Nullable: true,
 									Item: &String{
-										nullable: false,
+										Nullable: false,
 										Path:     []string{"name"},
 									},
 								},

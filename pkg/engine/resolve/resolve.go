@@ -33,12 +33,11 @@ var (
 	literalPath      = []byte("path")
 )
 
-var errNonNullableFieldValueIsNull = errors.New("non nullable field value is null")
+var errNonNullableFieldValueIsNull = errors.New("non Nullable field value is null")
 var errTypeNameSkipped = errors.New("skipped because of __typename condition")
 
 type Node interface {
 	NodeKind() NodeKind
-	Nullable() bool
 }
 
 type NodeKind int
@@ -316,7 +315,7 @@ func (r *Resolver) resolveArray(ctx Context, array *Array, data []byte, arrayBuf
 	}, array.Path...)
 
 	if len(*arrayItems) == 0 {
-		if !array.nullable {
+		if !array.Nullable {
 			return errNonNullableFieldValueIsNull
 		}
 		return r.resolveNull(arrayBuf.Data)
@@ -341,7 +340,7 @@ func (r *Resolver) resolveArraySynchronous(ctx Context, array *Array, arrayItems
 	for i := range *arrayItems {
 		err = r.resolveNode(ctx, array.Item, (*arrayItems)[i], itemBuf)
 		if err != nil {
-			if errors.Is(err, errNonNullableFieldValueIsNull) && array.nullable {
+			if errors.Is(err, errNonNullableFieldValueIsNull) && array.Nullable {
 				arrayBuf.Data.Reset()
 				return r.resolveNull(arrayBuf.Data)
 			}
@@ -398,7 +397,7 @@ func (r *Resolver) resolveArrayAsynchronous(ctx Context, array *Array, arrayItem
 	}
 
 	if err != nil {
-		if errors.Is(err, errNonNullableFieldValueIsNull) && array.nullable {
+		if errors.Is(err, errNonNullableFieldValueIsNull) && array.Nullable {
 			arrayBuf.Data.Reset()
 			return r.resolveNull(arrayBuf.Data)
 		}
@@ -422,7 +421,7 @@ func (r *Resolver) resolveArrayAsynchronous(ctx Context, array *Array, arrayItem
 func (r *Resolver) resolveInteger(integer *Integer, data []byte, integerBuf *BufPair) (err error) {
 	value, dataType, _, err := jsonparser.Get(data, integer.Path...)
 	if err != nil || dataType != jsonparser.Number {
-		if !integer.nullable {
+		if !integer.Nullable {
 			return errNonNullableFieldValueIsNull
 		}
 		return r.resolveNull(integerBuf.Data)
@@ -433,7 +432,7 @@ func (r *Resolver) resolveInteger(integer *Integer, data []byte, integerBuf *Buf
 func (r *Resolver) resolveFloat(floatValue *Float, data []byte, integerBuf *BufPair) (err error) {
 	value, dataType, _, err := jsonparser.Get(data, floatValue.Path...)
 	if err != nil || dataType != jsonparser.Number {
-		if !floatValue.nullable {
+		if !floatValue.Nullable {
 			return errNonNullableFieldValueIsNull
 		}
 		return r.resolveNull(integerBuf.Data)
@@ -444,7 +443,7 @@ func (r *Resolver) resolveFloat(floatValue *Float, data []byte, integerBuf *BufP
 func (r *Resolver) resolveBoolean(boolean *Boolean, data []byte, booleanBuf *BufPair) (err error) {
 	value, valueType, _, err := jsonparser.Get(data, boolean.Path...)
 	if err != nil || valueType != jsonparser.Boolean {
-		if !boolean.nullable {
+		if !boolean.Nullable {
 			return errNonNullableFieldValueIsNull
 		}
 		return r.resolveNull(booleanBuf.Data)
@@ -455,12 +454,12 @@ func (r *Resolver) resolveBoolean(boolean *Boolean, data []byte, booleanBuf *Buf
 func (r *Resolver) resolveString(str *String, data []byte, stringBuf *BufPair) (err error) {
 	value, valueType, _, err := jsonparser.Get(data, str.Path...)
 	if err != nil || valueType != jsonparser.String {
-		if !str.nullable {
+		if !str.Nullable {
 			return errNonNullableFieldValueIsNull
 		}
 		return r.resolveNull(stringBuf.Data)
 	}
-	if data == nil && !str.nullable {
+	if data == nil && !str.Nullable {
 		return errNonNullableFieldValueIsNull
 	}
 	err = r.writeSafe(err, stringBuf.Data, quote)
@@ -531,7 +530,7 @@ func (r *Resolver) resolveObject(ctx Context, object *Object, data []byte, objec
 			}
 			err = r.resolveNode(ctx, object.FieldSets[i].Fields[j].Value, fieldSetData, fieldBuf)
 			if err != nil {
-				if errors.Is(err, errNonNullableFieldValueIsNull) && object.nullable {
+				if errors.Is(err, errNonNullableFieldValueIsNull) && object.Nullable {
 					objectBuf.Data.Reset()
 					return r.writeSafe(nil, objectBuf.Data, null)
 				}
@@ -541,7 +540,7 @@ func (r *Resolver) resolveObject(ctx Context, object *Object, data []byte, objec
 		}
 	}
 	if first {
-		if !object.nullable {
+		if !object.Nullable {
 			if typeNameSkip {
 				return errTypeNameSkipped
 			}
@@ -698,14 +697,10 @@ func (r *Resolver) resolveVariables(ctx Context, variables []Variable, data, inp
 }
 
 type Object struct {
-	nullable  bool
+	Nullable  bool
 	Path      []string
 	FieldSets []FieldSet
 	Fetch     Fetch
-}
-
-func (o *Object) Nullable() bool {
-	return o.nullable
 }
 
 func (_ *Object) NodeKind() NodeKind {
@@ -714,19 +709,11 @@ func (_ *Object) NodeKind() NodeKind {
 
 type EmptyObject struct{}
 
-func (_ *EmptyObject) Nullable() bool {
-	return false
-}
-
 func (_ *EmptyObject) NodeKind() NodeKind {
 	return NodeKindEmptyObject
 }
 
 type EmptyArray struct{}
-
-func (_ *EmptyArray) Nullable() bool {
-	return false
-}
 
 func (_ *EmptyArray) NodeKind() NodeKind {
 	return NodeKindEmptyArray
@@ -745,10 +732,6 @@ type Field struct {
 }
 
 type Null struct {
-}
-
-func (_ *Null) Nullable() bool {
-	return true
 }
 
 func (_ *Null) NodeKind() NodeKind {
@@ -785,11 +768,7 @@ func (_ *ParallelFetch) FetchKind() FetchKind {
 
 type String struct {
 	Path     []string
-	nullable bool
-}
-
-func (s *String) Nullable() bool {
-	return s.nullable
+	Nullable bool
 }
 
 func (_ *String) NodeKind() NodeKind {
@@ -798,11 +777,7 @@ func (_ *String) NodeKind() NodeKind {
 
 type Boolean struct {
 	Path     []string
-	nullable bool
-}
-
-func (b *Boolean) Nullable() bool {
-	return b.nullable
+	Nullable bool
 }
 
 func (_ *Boolean) NodeKind() NodeKind {
@@ -811,24 +786,16 @@ func (_ *Boolean) NodeKind() NodeKind {
 
 type Float struct {
 	Path     []string
-	nullable bool
+	Nullable bool
 }
 
 func (_ *Float) NodeKind() NodeKind {
 	return NodeKindFloat
 }
 
-func (f *Float) Nullable() bool {
-	return f.nullable
-}
-
 type Integer struct {
 	Path     []string
-	nullable bool
-}
-
-func (i *Integer) Nullable() bool {
-	return i.nullable
+	Nullable bool
 }
 
 func (_ *Integer) NodeKind() NodeKind {
@@ -837,13 +804,9 @@ func (_ *Integer) NodeKind() NodeKind {
 
 type Array struct {
 	Path                []string
-	nullable            bool
+	Nullable            bool
 	ResolveAsynchronous bool
 	Item                Node
-}
-
-func (a *Array) Nullable() bool {
-	return a.nullable
 }
 
 func (_ *Array) NodeKind() NodeKind {

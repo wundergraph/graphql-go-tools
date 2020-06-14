@@ -25,7 +25,9 @@ func TestStaticDataSourcePlanning(t *testing.T) {
 							Fields: []resolve.Field{
 								{
 									Name:  []byte("hello"),
-									Value: &resolve.String{},
+									Value: &resolve.String{
+										Nullable: true,
+									},
 								},
 							},
 						},

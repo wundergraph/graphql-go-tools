@@ -268,7 +268,7 @@ func (v *Visitor) IsRootField(ref int) (bool, *DataSourceConfiguration) {
 	return false, nil
 }
 
-func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
+func (v *Visitor) EnterDocument(_,_ *ast.Document) {
 	v.fields = v.fields[:0]
 	v.objects = v.objects[:0]
 	v.fetchConfigs = v.fetchConfigs[:0]
@@ -466,6 +466,7 @@ func (v *Visitor) EnterField(ref int) {
 	typeNameBytes := v.Definition.ResolveTypeNameBytes(fieldDefinitionType)
 
 	isList := v.Definition.TypeIsList(fieldDefinitionType)
+	fieldTypeIsNullable := !v.Definition.TypeIsNonNull(fieldDefinitionType)
 
 	var value resolve.Node
 	var nextCurrentObject *resolve.Object
@@ -474,7 +475,9 @@ func (v *Visitor) EnterField(ref int) {
 
 	switch string(typeNameBytes) {
 	case "String":
-		str := &resolve.String{}
+		str := &resolve.String{
+			Nullable: fieldTypeIsNullable,
+		}
 		if !isList {
 			str.Path = path
 			v.Defer(func() {
@@ -485,7 +488,9 @@ func (v *Visitor) EnterField(ref int) {
 		}
 		value = str
 	case "Boolean":
-		boolean := &resolve.Boolean{}
+		boolean := &resolve.Boolean{
+			Nullable: fieldTypeIsNullable,
+		}
 		if !isList {
 			boolean.Path = path
 			v.Defer(func() {
@@ -496,7 +501,9 @@ func (v *Visitor) EnterField(ref int) {
 		}
 		value = boolean
 	case "Int":
-		integer := &resolve.Integer{}
+		integer := &resolve.Integer{
+			Nullable: fieldTypeIsNullable,
+		}
 		if !isList {
 			integer.Path = path
 			v.Defer(func() {
@@ -507,7 +514,9 @@ func (v *Visitor) EnterField(ref int) {
 		}
 		value = integer
 	case "Float":
-		float := &resolve.Float{}
+		float := &resolve.Float{
+			Nullable: fieldTypeIsNullable,
+		}
 		if !isList {
 			float.Path = path
 			v.Defer(func() {
@@ -521,7 +530,9 @@ func (v *Visitor) EnterField(ref int) {
 
 		switch v.Definition.Index.Nodes[xxhash.Sum64(typeNameBytes)].Kind { // TODO verify definition type before and define resolve type based on that, in case of scalar use specific scalars and default to string
 		case ast.NodeKindEnumTypeDefinition, ast.NodeKindScalarTypeDefinition:
-			str := &resolve.String{}
+			str := &resolve.String{
+				Nullable: fieldTypeIsNullable,
+			}
 			if !isList {
 				str.Path = path
 				v.Defer(func() {
@@ -532,7 +543,9 @@ func (v *Visitor) EnterField(ref int) {
 			}
 			value = str
 		default:
-			obj := &resolve.Object{}
+			obj := &resolve.Object{
+				Nullable: fieldTypeIsNullable,
+			}
 			if !isList {
 				obj.Path = path
 				v.Defer(func() {
@@ -558,6 +571,7 @@ func (v *Visitor) EnterField(ref int) {
 			list := &resolve.Array{
 				Path: path,
 				Item: value,
+				Nullable: fieldTypeIsNullable,
 			}
 			value = list
 			if override, ok := v.fieldPathOverrides[ref]; ok {

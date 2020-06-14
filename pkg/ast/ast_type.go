@@ -125,6 +125,10 @@ func (d *Document) TypeIsScalar(ref int, definition *Document) bool {
 	return false
 }
 
+func (d *Document) TypeIsNonNull(ref int) bool {
+	return d.Types[ref].TypeKind == TypeKindNonNull
+}
+
 func (d *Document) TypeIsList(ref int) bool {
 	switch d.Types[ref].TypeKind {
 	case TypeKindList:

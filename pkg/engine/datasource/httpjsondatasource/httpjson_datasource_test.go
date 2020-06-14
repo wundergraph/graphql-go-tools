@@ -91,6 +91,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 								{
 									Name: []byte("friend"),
 									Value: &resolve.Object{
+										Nullable: true,
 										Fetch: &resolve.SingleFetch{
 											BufferId: 1,
 											Input:    []byte(`{"method":"GET","url":"https://example.com/friend/$$0$$/pet"}`),
@@ -110,6 +111,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 														Name: []byte("name"),
 														Value: &resolve.String{
 															Path: []string{"name"},
+															Nullable: true,
 														},
 													},
 												},
@@ -121,6 +123,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 													{
 														Name: []byte("pet"),
 														Value: &resolve.Object{
+															Nullable: true,
 															FieldSets: []resolve.FieldSet{
 																{
 																	Fields: []resolve.Field{
@@ -128,12 +131,14 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 																			Name: []byte("id"),
 																			Value: &resolve.String{
 																				Path: []string{"id"},
+																				Nullable: true,
 																			},
 																		},
 																		{
 																			Name: []byte("name"),
 																			Value: &resolve.String{
 																				Path: []string{"name"},
+																				Nullable: true,
 																			},
 																		},
 																	},
@@ -226,6 +231,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 								{
 									Name: []byte("withArgument"),
 									Value: &resolve.Object{
+										Nullable: true,
 										FieldSets: []resolve.FieldSet{
 											{
 												Fields: []resolve.Field{
@@ -233,6 +239,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 														Name: []byte("name"),
 														Value: &resolve.String{
 															Path: []string{"name"},
+															Nullable: true,
 														},
 													},
 												},
@@ -294,6 +301,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 								{
 									Name: []byte("friend"),
 									Value: &resolve.Object{
+										Nullable: true,
 										FieldSets: []resolve.FieldSet{
 											{
 												Fields: []resolve.Field{
@@ -301,6 +309,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 														Name: []byte("name"),
 														Value: &resolve.String{
 															Path: []string{"name"},
+															Nullable: true,
 														},
 													},
 												},
@@ -369,6 +378,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 								{
 									Name: []byte("friend"),
 									Value: &resolve.Object{
+										Nullable: true,
 										FieldSets: []resolve.FieldSet{
 											{
 												Fields: []resolve.Field{
@@ -376,6 +386,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 														Name: []byte("name"),
 														Value: &resolve.String{
 															Path: []string{"name"},
+															Nullable: true,
 														},
 													},
 												},
@@ -451,6 +462,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 								{
 									Name: []byte("withArgument"),
 									Value: &resolve.Object{
+										Nullable: true,
 										FieldSets: []resolve.FieldSet{
 											{
 												Fields: []resolve.Field{
@@ -458,6 +470,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 														Name: []byte("name"),
 														Value: &resolve.String{
 															Path: []string{"name"},
+															Nullable: true,
 														},
 													},
 												},
@@ -551,6 +564,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 								{
 									Name: []byte("withArrayArguments"),
 									Value: &resolve.Object{
+										Nullable: true,
 										FieldSets: []resolve.FieldSet{
 											{
 												Fields: []resolve.Field{
@@ -558,6 +572,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 														Name: []byte("name"),
 														Value: &resolve.String{
 															Path: []string{"name"},
+															Nullable: true,
 														},
 													},
 												},

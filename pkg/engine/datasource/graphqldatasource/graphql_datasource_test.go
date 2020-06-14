@@ -54,6 +54,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 								Name: []byte("droid"),
 								Value: &resolve.Object{
 									Path: []string{"droid"},
+									Nullable: true,
 									FieldSets: []resolve.FieldSet{
 										{
 											Fields: []resolve.Field{
@@ -72,8 +73,10 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 												{
 													Name: []byte("friends"),
 													Value: &resolve.Array{
+														Nullable: true,
 														Path: []string{"friends"},
 														Item: &resolve.Object{
+															Nullable: true,
 															FieldSets: []resolve.FieldSet{
 																{
 																	Fields: []resolve.Field{
@@ -110,6 +113,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 								Name: []byte("hero"),
 								Value: &resolve.Object{
 									Path: []string{"hero"},
+									Nullable: true,
 									FieldSets: []resolve.FieldSet{
 										{
 											Fields: []resolve.Field{
@@ -133,7 +137,10 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 							{
 								Name: []byte("stringList"),
 								Value: &resolve.Array{
-									Item: &resolve.String{},
+									Nullable: true,
+									Item: &resolve.String{
+										Nullable: true,
+									},
 								},
 							},
 						},
@@ -145,8 +152,11 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 							{
 								Name: []byte("nestedStringList"),
 								Value: &resolve.Array{
+									Nullable: true,
 									Path: []string{"nestedStringList"},
-									Item: &resolve.String{},
+									Item: &resolve.String{
+										Nullable: true,
+									},
 								},
 							},
 						},
@@ -305,7 +315,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 			secondServiceTwo(secondServiceTwoArg: Float): ServiceTwoResponse
 		}
 		type ServiceOneResponse {
-			fieldOne: String
+			fieldOne: String!
 		}
 		type ServiceTwoResponse {
 			fieldTwo: String
@@ -376,6 +386,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 								{
 									Name: []byte("serviceOne"),
 									Value: &resolve.Object{
+										Nullable: true,
 										Path: []string{"serviceOne"},
 										FieldSets: []resolve.FieldSet{
 											{
@@ -400,6 +411,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 								{
 									Name: []byte("serviceTwo"),
 									Value: &resolve.Object{
+										Nullable: true,
 										Path: []string{"serviceTwo"},
 										Fetch: &resolve.SingleFetch{
 											BufferId:   2,
@@ -417,6 +429,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 													{
 														Name: []byte("fieldTwo"),
 														Value: &resolve.String{
+															Nullable: true,
 															Path: []string{"fieldTwo"},
 														},
 													},
@@ -429,7 +442,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 													{
 														Name: []byte("serviceOneResponse"),
 														Value: &resolve.Object{
-
+															Nullable: true,
 															Path: []string{"serviceOne"},
 															FieldSets: []resolve.FieldSet{
 																{
@@ -459,6 +472,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 								{
 									Name: []byte("anotherServiceOne"),
 									Value: &resolve.Object{
+										Nullable: true,
 										Path: []string{"anotherServiceOne"},
 										FieldSets: []resolve.FieldSet{
 											{
@@ -483,6 +497,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 								{
 									Name: []byte("secondServiceTwo"),
 									Value: &resolve.Object{
+										Nullable: true,
 										Path: []string{"secondServiceTwo"},
 										FieldSets: []resolve.FieldSet{
 											{
@@ -491,12 +506,14 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 														Name: []byte("fieldTwo"),
 														Value: &resolve.String{
 															Path: []string{"fieldTwo"},
+															Nullable: true,
 														},
 													},
 													{
 														Name: []byte("serviceOneField"),
 														Value: &resolve.String{
 															Path: []string{"serviceOneField"},
+															Nullable: true,
 														},
 													},
 												},
@@ -513,6 +530,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 								{
 									Name: []byte("reusingServiceOne"),
 									Value: &resolve.Object{
+										Nullable: true,
 										Path: []string{"reusingServiceOne"},
 										FieldSets: []resolve.FieldSet{
 											{
