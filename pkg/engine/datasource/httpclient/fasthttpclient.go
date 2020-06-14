@@ -7,17 +7,31 @@ import (
 	"time"
 
 	"github.com/buger/jsonparser"
+	"github.com/jensneuse/abstractlogger"
 	"github.com/valyala/fasthttp"
 )
 
 type FastHttpClient struct {
 	client *fasthttp.Client
+	log    abstractlogger.Logger
 }
 
-func NewFastHttpClient(client *fasthttp.Client) *FastHttpClient {
-	return &FastHttpClient{
+type Option func(c *FastHttpClient)
+
+func WithLogger(logger abstractlogger.Logger) Option {
+	return func(c *FastHttpClient) {
+		c.log = logger
+	}
+}
+
+func NewFastHttpClient(client *fasthttp.Client, options ...Option) *FastHttpClient {
+	c := &FastHttpClient{
 		client: client,
 	}
+	for i := range options {
+		options[i](c)
+	}
+	return c
 }
 
 var (
@@ -40,10 +54,24 @@ var (
 
 func (f *FastHttpClient) Do(ctx context.Context, requestInput []byte, out io.Writer) (err error) {
 
+	var (
+		responseBody []byte
+	)
+
 	url, method, body, headers, queryParams := requestInputParams(requestInput)
 
 	req, res := fasthttp.AcquireRequest(), fasthttp.AcquireResponse()
 	defer func() {
+		if f.log != nil {
+			f.log.Debug("FastHttpClient.do",
+				abstractlogger.ByteString("requestInput", requestInput),
+				abstractlogger.ByteString("requestURI", req.RequestURI()),
+				abstractlogger.ByteString("requestHeader", req.Header.Header()),
+				abstractlogger.Int("responseCode", res.StatusCode()),
+				abstractlogger.ByteString("responseHeader", res.Header.Header()),
+				abstractlogger.ByteString("responseBody", body),
+			)
+		}
 		fasthttp.ReleaseRequest(req)
 		fasthttp.ReleaseResponse(res)
 	}()
@@ -106,13 +134,14 @@ func (f *FastHttpClient) Do(ctx context.Context, requestInput []byte, out io.Wri
 	}
 
 	if bytes.Equal(res.Header.PeekBytes(contentEncoding), gzipEncodingBytes) {
-		body, err := res.BodyGunzip()
+		responseBody, err = res.BodyGunzip()
 		if err != nil {
 			return err
 		}
-		_, err = out.Write(body)
-		return err
+	} else {
+		responseBody = res.Body()
 	}
 
-	return res.BodyWriteTo(out)
+	_, err = out.Write(responseBody)
+	return err
 }
