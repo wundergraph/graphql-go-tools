@@ -20,7 +20,7 @@ const (
 	schema = `
 		type Query {
 			friend: Friend
-			withArgument(id: String!, name: String): Friend
+			withArgument(id: String!, name: String, optional: String): Friend
 			withArrayArguments(names: [String]): Friend
 		}
 
@@ -507,6 +507,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 								QueryValue{
 									Name:  "id",
 									Value: "{{ .arguments.id }}",
+								},
+								QueryValue{
+									Name:  "id",
+									Value: "{{ .arguments.optional }}",
 								},
 							),
 						},

@@ -94,7 +94,10 @@ var (
 
 // prepareQueryParams ensures that values
 func (p *Planner) prepareQueryParams(field int, params []byte) []byte {
-	var values [][]byte
+	var (
+		values        [][]byte
+		deleteIndices []int
+	)
 	_, err := jsonparser.ArrayEach(params, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
 		values = append(values, value)
 	})
@@ -103,35 +106,42 @@ func (p *Planner) prepareQueryParams(field int, params []byte) []byte {
 	}
 
 	for i := range values {
-		values[i] = selectorRegex.ReplaceAllFunc(values[i], func(i []byte) []byte {
-			subs := selectorRegex.FindSubmatch(i)
+		values[i] = selectorRegex.ReplaceAllFunc(values[i], func(b []byte) []byte {
+			subs := selectorRegex.FindSubmatch(b)
 			if len(subs) != 2 {
-				return i
+				return b
 			}
 			path := string(bytes.TrimPrefix(subs[1], []byte(".")))
 			segments := strings.Split(path, ".")
-			if len(segments) < 2 {
-				return i
+			if len(segments) < 2 || segments[0] != "arguments" {
+				return b
 			}
 			argName := []byte(segments[1])
-			if argRef, ok := p.v.Operation.FieldArgument(field, argName); ok {
-				value := p.v.Operation.ArgumentValue(argRef)
-				switch value.Kind {
-				case ast.ValueKindVariable:
-					variableName := p.v.Operation.VariableValueNameBytes(value.Ref)
-					if variableDefinition, ok := p.v.Operation.VariableDefinitionByNameAndOperation(p.v.Ancestors[0].Ref, variableName); ok {
-						typeRef := p.v.Operation.VariableDefinitions[variableDefinition].Type
-						if p.v.Operation.TypeIsScalar(typeRef,p.v.Definition){
-							return i
-						}
-						return i[1 : len(i)-1]
+			argRef, exists := p.v.Operation.FieldArgument(field, argName)
+			if !exists { // field argument is not defined, we have to remove the variable
+				deleteIndices = append(deleteIndices, i)
+				return b
+			}
+			value := p.v.Operation.ArgumentValue(argRef)
+			switch value.Kind {
+			case ast.ValueKindVariable:
+				variableName := p.v.Operation.VariableValueNameBytes(value.Ref)
+				if variableDefinition, ok := p.v.Operation.VariableDefinitionByNameAndOperation(p.v.Ancestors[0].Ref, variableName); ok {
+					typeRef := p.v.Operation.VariableDefinitions[variableDefinition].Type
+					if p.v.Operation.TypeIsScalar(typeRef, p.v.Definition) {
+						return b
 					}
-
+					return b[1 : len(b)-1]
 				}
 			}
 
-			return i
+			return b
 		})
+	}
+
+	for i := len(deleteIndices) - 1; i >= 0; i-- {
+		del := deleteIndices[i]
+		values = append(values[:del],values[del+1:]...) // remove variables marked for deletion
 	}
 
 	joined := bytes.Join(values, literal.COMMA)
