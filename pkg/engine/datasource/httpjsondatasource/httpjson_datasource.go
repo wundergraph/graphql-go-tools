@@ -70,7 +70,7 @@ func (p *Planner) EnterField(ref int) {
 	p.v.SetBufferIDForCurrentFieldSet(bufferID)
 	p.v.SetCurrentObjectFetch(&resolve.SingleFetch{
 		BufferId: bufferID,
-		Input:    input,
+		Input:    string(input),
 		DataSource: &Source{
 			client: p.clientOrDefault(),
 		},

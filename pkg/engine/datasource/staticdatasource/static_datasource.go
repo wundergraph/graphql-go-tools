@@ -28,7 +28,7 @@ func (p *Planner) EnterField(ref int) {
 	p.v.SetBufferIDForCurrentFieldSet(bufferID)
 	p.v.SetCurrentObjectFetch(&resolve.SingleFetch{
 		BufferId:   bufferID,
-		Input:      data,
+		Input:      string(data),
 		DataSource: Source{},
 	}, config)
 }

@@ -34,7 +34,15 @@ func TestStaticDataSourcePlanning(t *testing.T) {
 					},
 					Fetch: &resolve.SingleFetch{
 						BufferId:   0,
-						Input:      []byte("world"),
+						Input:      "world",
+						InputTemplate: resolve.InputTemplate{
+							Segments: []resolve.TemplateSegment{
+								{
+									SegmentType: resolve.StaticSegmentType,
+									Data: []byte("world"),
+								},
+							},
+						},
 						DataSource: Source{},
 					},
 				},

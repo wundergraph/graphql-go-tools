@@ -211,7 +211,24 @@ func TestResolver_ResolveNode(t *testing.T) {
 			Fetch: &SingleFetch{
 				BufferId:   0,
 				DataSource: mockDataSource,
-				Input:      []byte(`{"id":$$0$$}`),
+				Input:      `{"id":$$0$$}`,
+				InputTemplate: InputTemplate{
+					Segments: []TemplateSegment{
+						{
+							SegmentType: StaticSegmentType,
+							Data:        []byte(`{"id":`),
+						},
+						{
+							SegmentType:        VariableSegmentType,
+							VariableSource:     VariableSourceContext,
+							VariableSourcePath: []string{"id"},
+						},
+						{
+							SegmentType: StaticSegmentType,
+							Data:        []byte(`}`),
+						},
+					},
+				},
 				Variables: NewVariables(&ContextVariable{
 					Path: []string{"id"},
 				}),
@@ -471,7 +488,24 @@ func TestResolver_ResolveNode(t *testing.T) {
 								Fetch: &SingleFetch{
 									BufferId:   0,
 									DataSource: mockDataSource,
-									Input:      []byte(`{"id":$$0$$}`),
+									Input:      `{"id":$$0$$}`,
+									InputTemplate: InputTemplate{
+										Segments: []TemplateSegment{
+											{
+												SegmentType: StaticSegmentType,
+												Data:        []byte(`{"id":`),
+											},
+											{
+												SegmentType:        VariableSegmentType,
+												VariableSource:     VariableSourceObject,
+												VariableSourcePath: []string{"id"},
+											},
+											{
+												SegmentType: StaticSegmentType,
+												Data:        []byte(`}`),
+											},
+										},
+									},
 									Variables: NewVariables(&ObjectVariable{
 										Path: []string{"id"},
 									}),
@@ -804,8 +838,34 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				Fetch: &ParallelFetch{
 					Fetches: []*SingleFetch{
 						{
-							BufferId:   0,
-							Input:      []byte(`{"url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":"$$0$$"}}}`),
+							BufferId: 0,
+							Input:    `{"url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":"$$0$$"}}}`,
+							InputTemplate: InputTemplate{
+								Segments: []TemplateSegment{
+									{
+										SegmentType: StaticSegmentType,
+										Data:        []byte(`{"url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":`),
+									},
+									{
+										SegmentType:        VariableSegmentType,
+										VariableSource:     VariableSourceContext,
+										VariableSourcePath: []string{"thirdArg"},
+									},
+									{
+										SegmentType: StaticSegmentType,
+										Data:        []byte(`,"firstArg":"`),
+									},
+									{
+										SegmentType:        VariableSegmentType,
+										VariableSource:     VariableSourceContext,
+										VariableSourcePath: []string{"firstArg"},
+									},
+									{
+										SegmentType: StaticSegmentType,
+										Data:        []byte(`"}}}`),
+									},
+								},
+							},
 							DataSource: serviceOne,
 							Variables: NewVariables(
 								&ContextVariable{
@@ -817,8 +877,34 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 							),
 						},
 						{
-							BufferId:   1,
-							Input:      []byte(`{"url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`),
+							BufferId: 1,
+							Input:    `{"url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`,
+							InputTemplate: InputTemplate{
+								Segments: []TemplateSegment{
+									{
+										SegmentType: StaticSegmentType,
+										Data:        []byte(`{"url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo}}","variables":{"fourthArg":`),
+									},
+									{
+										SegmentType:        VariableSegmentType,
+										VariableSource:     VariableSourceContext,
+										VariableSourcePath: []string{"fourthArg"},
+									},
+									{
+										SegmentType: StaticSegmentType,
+										Data:        []byte(`,"secondArg":`),
+									},
+									{
+										SegmentType:        VariableSegmentType,
+										VariableSource:     VariableSourceContext,
+										VariableSourcePath: []string{"secondArg"},
+									},
+									{
+										SegmentType: StaticSegmentType,
+										Data:        []byte(`}}}`),
+									},
+								},
+							},
 							DataSource: serviceTwo,
 							Variables: NewVariables(
 								&ContextVariable{
@@ -865,8 +951,16 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 								Value: &Object{
 									Path: []string{"serviceTwo"},
 									Fetch: &SingleFetch{
-										BufferId:   2,
-										Input:      []byte(`{"url":"https://service.one","body":{"query":"{serviceOne {fieldOne}}"}}`),
+										BufferId: 2,
+										Input:    `{"url":"https://service.one","body":{"query":"{serviceOne {fieldOne}}"}}`,
+										InputTemplate: InputTemplate{
+											Segments: []TemplateSegment{
+												{
+													SegmentType: StaticSegmentType,
+													Data:        []byte(`{"url":"https://service.one","body":{"query":"{serviceOne {fieldOne}}"}}`),
+												},
+											},
+										},
 										DataSource: nestedServiceOne,
 										Variables:  Variables{},
 									},
@@ -1003,8 +1097,34 @@ func BenchmarkResolver_ResolveNode(b *testing.B) {
 			Fetch: &ParallelFetch{
 				Fetches: []*SingleFetch{
 					{
-						BufferId:   0,
-						Input:      []byte(`{"url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":$$0$$}}}`),
+						BufferId: 0,
+						Input:    `{"url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":$$0$$}}}`,
+						InputTemplate: InputTemplate{
+							Segments: []TemplateSegment{
+								{
+									SegmentType: StaticSegmentType,
+									Data:        []byte(`{"url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":`),
+								},
+								{
+									SegmentType:        VariableSegmentType,
+									VariableSource:     VariableSourceContext,
+									VariableSourcePath: []string{"thirdArg"},
+								},
+								{
+									SegmentType: StaticSegmentType,
+									Data:        []byte(`,"firstArg":`),
+								},
+								{
+									SegmentType:        VariableSegmentType,
+									VariableSource:     VariableSourceContext,
+									VariableSourcePath: []string{"firstArg"},
+								},
+								{
+									SegmentType: StaticSegmentType,
+									Data:        []byte(`}}}`),
+								},
+							},
+						},
 						DataSource: serviceOneDS,
 						Variables: NewVariables(
 							&ContextVariable{
@@ -1016,8 +1136,34 @@ func BenchmarkResolver_ResolveNode(b *testing.B) {
 						),
 					},
 					{
-						BufferId:   1,
-						Input:      []byte(`{"url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`),
+						BufferId: 1,
+						Input:    `{"url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`,
+						InputTemplate: InputTemplate{
+							Segments: []TemplateSegment{
+								{
+									SegmentType: StaticSegmentType,
+									Data:        []byte(`{"url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo}}","variables":{"fourthArg":`),
+								},
+								{
+									SegmentType:        VariableSegmentType,
+									VariableSource:     VariableSourceContext,
+									VariableSourcePath: []string{"fourthArg"},
+								},
+								{
+									SegmentType: StaticSegmentType,
+									Data:        []byte(`,"secondArg":`),
+								},
+								{
+									SegmentType:        VariableSegmentType,
+									VariableSource:     VariableSourceContext,
+									VariableSourcePath: []string{"secondArg"},
+								},
+								{
+									SegmentType: StaticSegmentType,
+									Data:        []byte(`}}}`),
+								},
+							},
+						},
 						DataSource: serviceTwoDS,
 						Variables: NewVariables(
 							&ContextVariable{
@@ -1064,8 +1210,16 @@ func BenchmarkResolver_ResolveNode(b *testing.B) {
 							Value: &Object{
 								Path: []string{"serviceTwo"},
 								Fetch: &SingleFetch{
-									BufferId:   2,
-									Input:      []byte(`{"url":"https://service.one","body":{"query":"{serviceOne {fieldOne}}"}}`),
+									BufferId: 2,
+									Input:    `{"url":"https://service.one","body":{"query":"{serviceOne {fieldOne}}"}}`,
+									InputTemplate: InputTemplate{
+										Segments: []TemplateSegment{
+											{
+												SegmentType: StaticSegmentType,
+												Data:        []byte(`{"url":"https://service.one","body":{"query":"{serviceOne {fieldOne}}"}}`),
+											},
+										},
+									},
 									DataSource: nestedServiceOneDS,
 									Variables:  Variables{},
 								},

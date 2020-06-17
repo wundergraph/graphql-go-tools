@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"hash"
 	"io"
 	"strconv"
@@ -13,8 +14,6 @@ import (
 
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash"
-
-	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 )
 
 var (
@@ -563,20 +562,33 @@ func (r *Resolver) freeResultSet(set *resultSet) {
 func (r *Resolver) resolveFetch(ctx Context, fetch Fetch, data []byte, set *resultSet) (err error) {
 	switch f := fetch.(type) {
 	case *SingleFetch:
-		r.prepareSingleFetch(ctx, f, data, set)
-		err = r.resolveSingleFetch(ctx, f, set.buffers[f.BufferId])
+		preparedInput := r.getBufPair()
+		defer r.freeBufPair(preparedInput)
+		err = r.prepareSingleFetch(ctx, f, data, set, preparedInput.Data)
+		if err != nil {
+			return err
+		}
+		err = r.resolveSingleFetch(ctx, f, preparedInput.Data, set.buffers[f.BufferId])
 	case *ParallelFetch:
+		preparedInputs := r.getBufPairSlice()
+		defer r.freeBufPairSlice(preparedInputs)
 		for i := range f.Fetches {
-			r.prepareSingleFetch(ctx, f.Fetches[i], data, set)
+			preparedInput := r.getBufPair()
+			err = r.prepareSingleFetch(ctx, f.Fetches[i], data, set, preparedInput.Data)
+			if err != nil {
+				return err
+			}
+			*preparedInputs = append(*preparedInputs, preparedInput)
 		}
 		wg := r.getWaitGroup()
 		defer r.freeWaitGroup(wg)
 		for i := range f.Fetches {
+			preparedInput := (*preparedInputs)[i]
 			singleFetch := f.Fetches[i]
 			buf := set.buffers[f.Fetches[i].BufferId]
 			wg.Add(1)
 			go func(s *SingleFetch, buf *BufPair) {
-				_ = r.resolveSingleFetch(ctx, s, buf)
+				_ = r.resolveSingleFetch(ctx, s, preparedInput.Data, buf)
 				wg.Done()
 			}(singleFetch, buf)
 		}
@@ -585,23 +597,22 @@ func (r *Resolver) resolveFetch(ctx Context, fetch Fetch, data []byte, set *resu
 	return
 }
 
-func (r *Resolver) prepareSingleFetch(ctx Context, fetch *SingleFetch, data []byte, set *resultSet) {
-	if len(fetch.Variables.variables) != 0 {
-		fetch.Input = r.resolveVariables(ctx, fetch.Variables.variables, data, fetch.Input)
-	}
+func (r *Resolver) prepareSingleFetch(ctx Context, fetch *SingleFetch, data []byte, set *resultSet, preparedInput *bytes.Buffer) (err error) {
+	err = fetch.InputTemplate.Render(ctx, data, preparedInput)
 	buf := r.getBufPair()
 	set.buffers[fetch.BufferId] = buf
+	return
 }
 
-func (r *Resolver) resolveSingleFetch(ctx Context, fetch *SingleFetch, buf *BufPair) (err error) {
+func (r *Resolver) resolveSingleFetch(ctx Context, fetch *SingleFetch, preparedInput *bytes.Buffer, buf *BufPair) (err error) {
 
 	if !r.EnableSingleFlightLoader || fetch.DisallowSingleFlight {
-		return fetch.DataSource.Load(ctx.Context, fetch.Input, buf)
+		return fetch.DataSource.Load(ctx.Context, preparedInput.Bytes(), buf)
 	}
 
 	h := r.hash64Pool.Get().(hash.Hash64)
 	_, _ = h.Write(fetch.DataSource.UniqueIdentifier())
-	_, _ = h.Write(fetch.Input)
+	_, _ = h.Write(preparedInput.Bytes())
 	fetchID := h.Sum64()
 	h.Reset()
 	r.hash64Pool.Put(h)
@@ -634,7 +645,7 @@ func (r *Resolver) resolveSingleFetch(ctx Context, fetch *SingleFetch, buf *BufP
 
 	r.inflightFetchMu.Unlock()
 
-	err = fetch.DataSource.Load(ctx.Context, fetch.Input, &inflight.bufPair)
+	err = fetch.DataSource.Load(ctx.Context, preparedInput.Bytes(), &inflight.bufPair)
 	inflight.err = err
 
 	if inflight.bufPair.HasData() {
@@ -657,43 +668,6 @@ func (r *Resolver) resolveSingleFetch(ctx Context, fetch *SingleFetch, buf *BufP
 	}()
 
 	return
-}
-
-func (r *Resolver) resolveVariables(ctx Context, variables []Variable, data, input []byte) []byte {
-	for i := range variables {
-		variableName := []byte("$$" + strconv.Itoa(i) + "$$")
-		var (
-			err           error
-			value, source []byte
-			path          []string
-		)
-		switch v := variables[i].(type) {
-		case *ContextVariable:
-			source = ctx.Variables
-			path = v.Path
-		case *ObjectVariable:
-			source = data
-			path = v.Path
-		default:
-			continue
-		}
-		value, _, _, err = jsonparser.Get(source, path...)
-		if err != nil {
-			continue
-		}
-		for {
-			j := bytes.Index(input, variableName)
-			if j == -1 {
-				break
-			}
-			before := input[:j]
-			after := input[j+len(variableName):]
-			valueCopy := make([]byte, len(value))
-			copy(valueCopy, value)
-			input = append(before, append(valueCopy, after...)...)
-		}
-	}
-	return input
 }
 
 type Object struct {
@@ -743,15 +717,68 @@ type resultSet struct {
 }
 
 type SingleFetch struct {
-	BufferId             int
-	Input                []byte
-	DataSource           DataSource
-	Variables            Variables
+	BufferId   int
+	Input      string
+	DataSource DataSource
+	Variables  Variables
 	// DisallowSingleFlight is used for write operations like mutations, POST, DELETE etc. to disable singleFlight
 	// By default SingleFlight for fetches is disabled and needs to be enabled on the Resolver first
 	// If the resolver allows SingleFlight it's up the each individual DataSource Planner to decide whether an Operation
 	// should be allowed to use SingleFlight
 	DisallowSingleFlight bool
+	InputTemplate        InputTemplate
+}
+
+type InputTemplate struct {
+	Segments []TemplateSegment
+}
+
+func (i *InputTemplate) Render(ctx Context, data []byte, preparedInput *bytes.Buffer) (err error) {
+	var (
+		variableSource []byte
+	)
+	for j := range i.Segments {
+		switch i.Segments[j].SegmentType {
+		case StaticSegmentType:
+			_, err = preparedInput.Write(i.Segments[j].Data)
+		case VariableSegmentType:
+			switch i.Segments[j].VariableSource {
+			case VariableSourceObject:
+				variableSource = data
+			case VariableSourceContext:
+				variableSource = ctx.Variables
+			default:
+				return fmt.Errorf("InputTemplate.Render: cannot resolve variable of kind: %d", i.Segments[j].VariableSource)
+			}
+			value, _, _, err := jsonparser.Get(variableSource, i.Segments[j].VariableSourcePath...)
+			if err != nil {
+				return err
+			}
+			_, err = preparedInput.Write(value)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return
+}
+
+type SegmentType int
+type VariableSource int
+
+const (
+	StaticSegmentType SegmentType = iota + 1
+	VariableSegmentType
+
+	VariableSourceObject VariableSource = iota + 1
+	VariableSourceContext
+)
+
+type TemplateSegment struct {
+	SegmentType        SegmentType
+	Data               []byte
+	VariableSource     VariableSource
+	VariableSourcePath []string
 }
 
 func (_ *SingleFetch) FetchKind() FetchKind {
@@ -818,38 +845,34 @@ type Variable interface {
 	Equals(another Variable) bool
 }
 
-type Variables struct {
-	variables []Variable
-}
+type Variables []Variable
 
 func NewVariables(variables ...Variable) Variables {
-	return Variables{
-		variables: variables,
-	}
+	return variables
 }
 
-var (
-	variablePrefixSuffix = []byte("$$")
-	quotes               = []byte("\"")
+const (
+	variablePrefixSuffix = "$$"
+	quotes               = "\""
 )
 
-func (v *Variables) AddVariable(variable Variable, quoteValue bool) (name []byte, exists bool) {
+func (v *Variables) AddVariable(variable Variable, quoteValue bool) (name string, exists bool) {
 	index := -1
-	for i := range v.variables {
-		if v.variables[i].Equals(variable) {
+	for i := range *v {
+		if (*v)[i].Equals(variable) {
 			index = i
 			exists = true
 			break
 		}
 	}
 	if index == -1 {
-		v.variables = append(v.variables, variable)
-		index = len(v.variables) - 1
+		*v = append(*v, variable)
+		index = len(*v) - 1
 	}
-	i := unsafebytes.StringToBytes(strconv.Itoa(index))
-	name = append(variablePrefixSuffix, append(i, variablePrefixSuffix...)...)
+	i := strconv.Itoa(index)
+	name = variablePrefixSuffix + i + variablePrefixSuffix
 	if quoteValue {
-		name = append(quotes, append(name, quotes...)...)
+		name = quotes + name + quotes
 	}
 	return
 }

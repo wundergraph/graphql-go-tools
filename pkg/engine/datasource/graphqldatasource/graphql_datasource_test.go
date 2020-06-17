@@ -40,7 +40,24 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 				Fetch: &resolve.SingleFetch{
 					DataSource: DefaultSource(),
 					BufferId:   0,
-					Input:      []byte(`{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($id: ID!){droid(id: $id){name aliased: name friends {name} primaryFunction} hero {name} stringList nestedStringList}","variables":{"id":"$$0$$"}}}`),
+					Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($id: ID!){droid(id: $id){name aliased: name friends {name} primaryFunction} hero {name} stringList nestedStringList}","variables":{"id":"$$0$$"}}}`,
+					InputTemplate: resolve.InputTemplate{
+						Segments: []resolve.TemplateSegment{
+							{
+								SegmentType: resolve.StaticSegmentType,
+								Data:        []byte(`{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($id: ID!){droid(id: $id){name aliased: name friends {name} primaryFunction} hero {name} stringList nestedStringList}","variables":{"id":"`),
+							},
+							{
+								SegmentType:        resolve.VariableSegmentType,
+								VariableSource:     resolve.VariableSourceContext,
+								VariableSourcePath: []string{"id"},
+							},
+							{
+								SegmentType: resolve.StaticSegmentType,
+								Data:        []byte(`"}}}`),
+							},
+						},
+					},
 					Variables: resolve.NewVariables(&resolve.ContextVariable{
 						Path: []string{"id"},
 					}),
@@ -53,7 +70,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 							{
 								Name: []byte("droid"),
 								Value: &resolve.Object{
-									Path: []string{"droid"},
+									Path:     []string{"droid"},
 									Nullable: true,
 									FieldSets: []resolve.FieldSet{
 										{
@@ -74,7 +91,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 													Name: []byte("friends"),
 													Value: &resolve.Array{
 														Nullable: true,
-														Path: []string{"friends"},
+														Path:     []string{"friends"},
 														Item: &resolve.Object{
 															Nullable: true,
 															FieldSets: []resolve.FieldSet{
@@ -112,7 +129,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 							{
 								Name: []byte("hero"),
 								Value: &resolve.Object{
-									Path: []string{"hero"},
+									Path:     []string{"hero"},
 									Nullable: true,
 									FieldSets: []resolve.FieldSet{
 										{
@@ -153,7 +170,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 								Name: []byte("nestedStringList"),
 								Value: &resolve.Array{
 									Nullable: true,
-									Path: []string{"nestedStringList"},
+									Path:     []string{"nestedStringList"},
 									Item: &resolve.String{
 										Nullable: true,
 									},
@@ -222,8 +239,25 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 			Response: resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId:   0,
-						Input:      []byte(`{"method":"POST","url":"https://service.one","body":{"query":"mutation($name: String!){addFriend(name: $name){id name}}","variables":{"name":"$$0$$"}}}`),
+						BufferId: 0,
+						Input:    `{"method":"POST","url":"https://service.one","body":{"query":"mutation($name: String!){addFriend(name: $name){id name}}","variables":{"name":"$$0$$"}}}`,
+						InputTemplate: resolve.InputTemplate{
+							Segments: []resolve.TemplateSegment{
+								{
+									SegmentType: resolve.StaticSegmentType,
+									Data:        []byte(`{"method":"POST","url":"https://service.one","body":{"query":"mutation($name: String!){addFriend(name: $name){id name}}","variables":{"name":"`),
+								},
+								{
+									SegmentType:        resolve.VariableSegmentType,
+									VariableSource:     resolve.VariableSourceContext,
+									VariableSourcePath: []string{"name"},
+								},
+								{
+									SegmentType: resolve.StaticSegmentType,
+									Data:        []byte(`"}}}`),
+								},
+							},
+						},
 						DataSource: DefaultSource(),
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
@@ -351,8 +385,34 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 					Fetch: &resolve.ParallelFetch{
 						Fetches: []*resolve.SingleFetch{
 							{
-								BufferId:   0,
-								Input:      []byte(`{"method":"POST","url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":"$$0$$"}}}`),
+								BufferId: 0,
+								Input:    `{"method":"POST","url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":"$$0$$"}}}`,
+								InputTemplate: resolve.InputTemplate{
+									Segments: []resolve.TemplateSegment{
+										{
+											SegmentType: resolve.StaticSegmentType,
+											Data:        []byte(`{"method":"POST","url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":`),
+										},
+										{
+											SegmentType:        resolve.VariableSegmentType,
+											VariableSource:     resolve.VariableSourceContext,
+											VariableSourcePath: []string{"thirdArg"},
+										},
+										{
+											SegmentType: resolve.StaticSegmentType,
+											Data:        []byte(`,"firstArg":"`),
+										},
+										{
+											SegmentType:        resolve.VariableSegmentType,
+											VariableSource:     resolve.VariableSourceContext,
+											VariableSourcePath: []string{"firstArg"},
+										},
+										{
+											SegmentType: resolve.StaticSegmentType,
+											Data:        []byte(`"}}}`),
+										},
+									},
+								},
 								DataSource: DefaultSource(),
 								Variables: resolve.NewVariables(
 									&resolve.ContextVariable{
@@ -364,8 +424,34 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 								),
 							},
 							{
-								BufferId:   1,
-								Input:      []byte(`{"method":"POST","url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo serviceOneField} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo serviceOneField}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`),
+								BufferId: 1,
+								Input:    `{"method":"POST","url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo serviceOneField} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo serviceOneField}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`,
+								InputTemplate: resolve.InputTemplate{
+									Segments: []resolve.TemplateSegment{
+										{
+											SegmentType: resolve.StaticSegmentType,
+											Data:        []byte(`{"method":"POST","url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo serviceOneField} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo serviceOneField}}","variables":{"fourthArg":`),
+										},
+										{
+											SegmentType:        resolve.VariableSegmentType,
+											VariableSource:     resolve.VariableSourceContext,
+											VariableSourcePath: []string{"fourthArg"},
+										},
+										{
+											SegmentType: resolve.StaticSegmentType,
+											Data:        []byte(`,"secondArg":`),
+										},
+										{
+											SegmentType:        resolve.VariableSegmentType,
+											VariableSource:     resolve.VariableSourceContext,
+											VariableSourcePath: []string{"secondArg"},
+										},
+										{
+											SegmentType: resolve.StaticSegmentType,
+											Data:        []byte(`}}}`),
+										},
+									},
+								},
 								DataSource: DefaultSource(),
 								Variables: resolve.NewVariables(
 									&resolve.ContextVariable{
@@ -387,7 +473,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 									Name: []byte("serviceOne"),
 									Value: &resolve.Object{
 										Nullable: true,
-										Path: []string{"serviceOne"},
+										Path:     []string{"serviceOne"},
 										FieldSets: []resolve.FieldSet{
 											{
 												Fields: []resolve.Field{
@@ -412,11 +498,28 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 									Name: []byte("serviceTwo"),
 									Value: &resolve.Object{
 										Nullable: true,
-										Path: []string{"serviceTwo"},
+										Path:     []string{"serviceTwo"},
 										Fetch: &resolve.SingleFetch{
 											BufferId:   2,
 											DataSource: DefaultSource(),
-											Input:      []byte(`{"method":"POST","url":"https://service.one","body":{"query":"query($a: String){serviceOne(serviceOneArg: $a){fieldOne}}","variables":{"a":"$$0$$"}}}`),
+											Input:      `{"method":"POST","url":"https://service.one","body":{"query":"query($a: String){serviceOne(serviceOneArg: $a){fieldOne}}","variables":{"a":"$$0$$"}}}`,
+											InputTemplate: resolve.InputTemplate{
+												Segments: []resolve.TemplateSegment{
+													{
+														SegmentType: resolve.StaticSegmentType,
+														Data: []byte(`{"method":"POST","url":"https://service.one","body":{"query":"query($a: String){serviceOne(serviceOneArg: $a){fieldOne}}","variables":{"a":"`),
+													},
+													{
+														SegmentType: resolve.VariableSegmentType,
+														VariableSource: resolve.VariableSourceObject,
+														VariableSourcePath: []string{"serviceOneField"},
+													},
+													{
+														SegmentType: resolve.StaticSegmentType,
+														Data: []byte(`"}}}`),
+													},
+												},
+											},
 											Variables: resolve.NewVariables(
 												&resolve.ObjectVariable{
 													Path: []string{"serviceOneField"},
@@ -430,7 +533,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 														Name: []byte("fieldTwo"),
 														Value: &resolve.String{
 															Nullable: true,
-															Path: []string{"fieldTwo"},
+															Path:     []string{"fieldTwo"},
 														},
 													},
 												},
@@ -443,7 +546,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 														Name: []byte("serviceOneResponse"),
 														Value: &resolve.Object{
 															Nullable: true,
-															Path: []string{"serviceOne"},
+															Path:     []string{"serviceOne"},
 															FieldSets: []resolve.FieldSet{
 																{
 																	Fields: []resolve.Field{
@@ -473,7 +576,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 									Name: []byte("anotherServiceOne"),
 									Value: &resolve.Object{
 										Nullable: true,
-										Path: []string{"anotherServiceOne"},
+										Path:     []string{"anotherServiceOne"},
 										FieldSets: []resolve.FieldSet{
 											{
 												Fields: []resolve.Field{
@@ -498,21 +601,21 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 									Name: []byte("secondServiceTwo"),
 									Value: &resolve.Object{
 										Nullable: true,
-										Path: []string{"secondServiceTwo"},
+										Path:     []string{"secondServiceTwo"},
 										FieldSets: []resolve.FieldSet{
 											{
 												Fields: []resolve.Field{
 													{
 														Name: []byte("fieldTwo"),
 														Value: &resolve.String{
-															Path: []string{"fieldTwo"},
+															Path:     []string{"fieldTwo"},
 															Nullable: true,
 														},
 													},
 													{
 														Name: []byte("serviceOneField"),
 														Value: &resolve.String{
-															Path: []string{"serviceOneField"},
+															Path:     []string{"serviceOneField"},
 															Nullable: true,
 														},
 													},
@@ -531,7 +634,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 									Name: []byte("reusingServiceOne"),
 									Value: &resolve.Object{
 										Nullable: true,
-										Path: []string{"reusingServiceOne"},
+										Path:     []string{"reusingServiceOne"},
 										FieldSets: []resolve.FieldSet{
 											{
 												Fields: []resolve.Field{
@@ -706,7 +809,7 @@ func TestGraphQLDataSourceExecution(t *testing.T) {
 			body, err := ioutil.ReadAll(request.Body)
 			assert.NoError(t, err)
 			assert.Equal(t, `{"query":"query($id: ID!){droid(id: $id){name}}","variables":{"id":1}}`, string(body))
-			assert.Equal(t, http.MethodPost,request.Method)
+			assert.Equal(t, http.MethodPost, request.Method)
 			_, err = writer.Write([]byte(`{"data":{"droid":{"name":"r2d2"}}"}`))
 			assert.NoError(t, err)
 		}
@@ -717,11 +820,11 @@ func TestGraphQLDataSourceExecution(t *testing.T) {
 	}))
 }
 
-func TestParseArguments(t *testing.T){
+func TestParseArguments(t *testing.T) {
 	input := `{"fields":[{"field_name":"continents","arguments":[{"name":"filter","source":"field_argument","source_path":["filter"]}]},{"field_name":"continent","arguments":[{"name":"code","source":"field_argument","source_path":["code"]}]},{"field_name":"countries","arguments":[{"name":"filter","source":"field_argument","source_path":["filter"]}]},{"field_name":"country","arguments":[{"name":"code","source":"field_argument","source_path":["code"]}]},{"field_name":"languages","arguments":[{"name":"filter","source":"field_argument","source_path":["filter"]}]},{"field_name":"language","arguments":[{"name":"code","source":"field_argument","source_path":["code"]}]}]}`
 	var args ArgumentsConfig
-	err := json.Unmarshal([]byte(input),&args)
-	assert.NoError(t,err)
+	err := json.Unmarshal([]byte(input), &args)
+	assert.NoError(t, err)
 }
 
 const testDefinition = `

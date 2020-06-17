@@ -255,7 +255,7 @@ func (p *Planner) applyFieldArgument(upstreamField, downstreamField int, arg Arg
 				p.operation.AddVariableDefinitionToOperationDefinition(p.nodes[0].Ref, variableValueRef, importedType)
 			}
 
-			p.variables, _ = sjson.SetRawBytes(p.variables, variableNameStr, contextVariableName)
+			p.variables, _ = sjson.SetRawBytes(p.variables, variableNameStr, []byte(contextVariableName))
 		}
 	case ObjectField:
 		if len(arg.SourcePath) < 1 {
@@ -289,12 +289,12 @@ func (p *Planner) applyFieldArgument(upstreamField, downstreamField int, arg Arg
 
 		objectVariableName, exists := p.fetch.Variables.AddVariable(&resolve.ObjectVariable{Path: arg.SourcePath}, wrapVariableInQuotes)
 		if !exists {
-			p.variables, _ = sjson.SetRawBytes(p.variables, string(variableName), objectVariableName)
+			p.variables, _ = sjson.SetRawBytes(p.variables, string(variableName), []byte(objectVariableName))
 		}
 	}
 }
 
-func (p *Planner) LeaveField(ref int) {
+func (p *Planner) LeaveField(_ int) {
 	p.nodes = p.nodes[:len(p.nodes)-1]
 }
 
@@ -337,10 +337,12 @@ func (p *Planner) LeaveDocument(_, definition *ast.Document) {
 	if err != nil {
 		return
 	}
-	p.fetch.Input = httpclient.SetInputBodyWithPath(p.fetch.Input, p.variables, "variables")
-	p.fetch.Input = httpclient.SetInputBodyWithPath(p.fetch.Input, buf.Bytes(), "query")
-	p.fetch.Input = httpclient.SetInputURL(p.fetch.Input, p.URL)
-	p.fetch.Input = httpclient.SetInputMethod(p.fetch.Input, literal.HTTP_METHOD_POST)
+	var input []byte
+	input = httpclient.SetInputBodyWithPath(input, p.variables, "variables")
+	input = httpclient.SetInputBodyWithPath(input, buf.Bytes(), "query")
+	input = httpclient.SetInputURL(input, p.URL)
+	input = httpclient.SetInputMethod(input, literal.HTTP_METHOD_POST)
+	p.fetch.Input = string(input)
 	source := DefaultSource()
 	source.client = p.clientOrDefault()
 	p.fetch.DataSource = source

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/buger/jsonparser"
@@ -199,6 +200,7 @@ func (v *Visitor) SetFieldPathOverride(field int, override PathOverrideFunc) {
 }
 
 func (v *Visitor) SetCurrentObjectFetch(fetch *resolve.SingleFetch, config *DataSourceConfiguration) {
+	v.fetchConfigs = append(v.fetchConfigs, fetchConfig{fetch: fetch, fieldConfiguration: config})
 	if v.currentObject.Fetch != nil {
 		switch current := v.currentObject.Fetch.(type) {
 		case *resolve.SingleFetch:
@@ -215,7 +217,6 @@ func (v *Visitor) SetCurrentObjectFetch(fetch *resolve.SingleFetch, config *Data
 		return
 	}
 	v.currentObject.Fetch = fetch
-	v.fetchConfigs = append(v.fetchConfigs, fetchConfig{fetch: fetch, fieldConfiguration: config})
 }
 
 type fieldObject struct {
@@ -268,7 +269,7 @@ func (v *Visitor) IsRootField(ref int) (bool, *DataSourceConfiguration) {
 	return false, nil
 }
 
-func (v *Visitor) EnterDocument(_,_ *ast.Document) {
+func (v *Visitor) EnterDocument(_, _ *ast.Document) {
 	v.fields = v.fields[:0]
 	v.objects = v.objects[:0]
 	v.fetchConfigs = v.fetchConfigs[:0]
@@ -286,7 +287,7 @@ func (v *Visitor) EnterDocument(_,_ *ast.Document) {
 	}
 }
 
-func (v *Visitor) LeaveDocument(operation, definition *ast.Document) {
+func (v *Visitor) LeaveDocument(_, _ *ast.Document) {
 	for i := range v.fetchConfigs {
 		switch f := v.fetchConfigs[i].fetch.(type) {
 		case *resolve.SingleFetch:
@@ -305,8 +306,8 @@ var (
 )
 
 func (v *Visitor) prepareSingleFetchVariables(f *resolve.SingleFetch, config *DataSourceConfiguration) {
-	f.Input = templateRegex.ReplaceAllFunc(f.Input, func(i []byte) []byte {
-		selector := selectorRegex.FindSubmatch(i)
+	f.Input = templateRegex.ReplaceAllStringFunc(f.Input, func(i string) string {
+		selector := selectorRegex.FindStringSubmatch(i)
 		if len(selector) != 2 {
 			return i
 		}
@@ -326,7 +327,6 @@ func (v *Visitor) prepareSingleFetchVariables(f *resolve.SingleFetch, config *Da
 			}
 			for j := range v.fieldArguments {
 				if v.fieldArguments[j].typeName == config.TypeName &&
-					//v.fieldArguments[j].fieldName == segments[0] &&
 					v.fieldArguments[j].argumentName == segments[0] {
 					segments = segments[1:]
 					switch v.fieldArguments[j].kind {
@@ -336,9 +336,9 @@ func (v *Visitor) prepareSingleFetchVariables(f *resolve.SingleFetch, config *Da
 						return variableName
 					case fieldArgumentTypeStatic:
 						if len(segments) == 0 {
-							return v.fieldArguments[j].value
+							return string(v.fieldArguments[j].value)
 						}
-						i, _, _, _ = jsonparser.Get(v.fieldArguments[j].value, segments...)
+						i, _ = jsonparser.GetString(v.fieldArguments[j].value, segments...)
 						return i
 					}
 				}
@@ -348,6 +348,36 @@ func (v *Visitor) prepareSingleFetchVariables(f *resolve.SingleFetch, config *Da
 			return i
 		}
 	})
+
+	segments := strings.Split(f.Input,"$$")
+	isVariable := false
+	for _,seg := range segments {
+		switch {
+		case isVariable:
+			i,_ := strconv.Atoi(seg)
+			switch v := f.Variables[i].(type) {
+			case *resolve.ContextVariable:
+				f.InputTemplate.Segments = append(f.InputTemplate.Segments,resolve.TemplateSegment{
+					SegmentType: resolve.VariableSegmentType,
+					VariableSource: resolve.VariableSourceContext,
+					VariableSourcePath: v.Path,
+				})
+			case *resolve.ObjectVariable:
+				f.InputTemplate.Segments = append(f.InputTemplate.Segments,resolve.TemplateSegment{
+					SegmentType: resolve.VariableSegmentType,
+					VariableSource: resolve.VariableSourceObject,
+					VariableSourcePath: v.Path,
+				})
+			}
+			isVariable = false
+		default:
+			f.InputTemplate.Segments = append(f.InputTemplate.Segments,resolve.TemplateSegment{
+				SegmentType: resolve.StaticSegmentType,
+				Data: []byte(seg),
+			})
+			isVariable = true
+		}
+	}
 }
 
 func (v *Visitor) EnterArgument(ref int) {
@@ -569,8 +599,8 @@ func (v *Visitor) EnterField(ref int) {
 		}
 		if isList {
 			list := &resolve.Array{
-				Path: path,
-				Item: value,
+				Path:     path,
+				Item:     value,
 				Nullable: fieldTypeIsNullable,
 			}
 			value = list
