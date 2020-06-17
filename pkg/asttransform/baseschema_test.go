@@ -60,6 +60,19 @@ func TestMergeDefinitionWithBaseSchema(t *testing.T) {
 				adminInformation: String!
 			}
 	`, "schema_missing"))
+	t.Run("custom query type name", runTestMerge(`
+			schema {
+				query: query_root
+			}
+			type query_root {
+				hello(name: String): Hello!
+			}
+			type Hello {
+				hello: String!
+				object: String!
+				adminInformation: String!
+			}
+	`, "custom_query_name"))
 	t.Run("complete", runTestMerge(`
 			schema {
 				query: Query
