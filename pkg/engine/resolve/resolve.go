@@ -451,14 +451,23 @@ func (r *Resolver) resolveBoolean(boolean *Boolean, data []byte, booleanBuf *Buf
 }
 
 func (r *Resolver) resolveString(str *String, data []byte, stringBuf *BufPair) (err error) {
-	value, valueType, _, err := jsonparser.Get(data, str.Path...)
-	if err != nil || valueType != jsonparser.String {
-		if !str.Nullable {
-			return errNonNullableFieldValueIsNull
-		}
-		return r.resolveNull(stringBuf.Data)
+	var (
+		value []byte
+		valueType jsonparser.ValueType
+	)
+	if data != nil && str.Path == nil {
+		value = data
 	}
-	if data == nil && !str.Nullable {
+	if value == nil {
+		value, valueType, _, err = jsonparser.Get(data, str.Path...)
+		if err != nil || valueType != jsonparser.String {
+			if !str.Nullable {
+				return errNonNullableFieldValueIsNull
+			}
+			return r.resolveNull(stringBuf.Data)
+		}
+	}
+	if value == nil && !str.Nullable {
 		return errNonNullableFieldValueIsNull
 	}
 	err = r.writeSafe(err, stringBuf.Data, quote)

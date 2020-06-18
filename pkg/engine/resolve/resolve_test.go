@@ -253,7 +253,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 		return &Object{
 			Fetch: &SingleFetch{
 				BufferId:   0,
-				DataSource: FakeDataSource(`{"friends":[{"id":1,"name":"Alex"},{"id":2,"name":"Patric"}]}`),
+				DataSource: FakeDataSource(`{"friends":[{"id":1,"name":"Alex"},{"id":2,"name":"Patric"}],"strings":["foo","bar","baz"],"integers":[123,456,789],"floats":[1.2,3.4,5.6],"booleans":[true,false,true]}`),
 			},
 			FieldSets: []FieldSet{
 				{
@@ -324,10 +324,54 @@ func TestResolver_ResolveNode(t *testing.T) {
 								Item:     &Object{},
 							},
 						},
+						{
+							Name: []byte("strings"),
+							Value: &Array{
+								Path:                []string{"strings"},
+								ResolveAsynchronous: false,
+								Nullable:            true,
+								Item: &String{
+									Nullable: false,
+								},
+							},
+						},
+						{
+							Name: []byte("integers"),
+							Value: &Array{
+								Path:                []string{"integers"},
+								ResolveAsynchronous: false,
+								Nullable:            true,
+								Item: &Integer{
+									Nullable: false,
+								},
+							},
+						},
+						{
+							Name: []byte("floats"),
+							Value: &Array{
+								Path:                []string{"floats"},
+								ResolveAsynchronous: false,
+								Nullable:            true,
+								Item: &Float{
+									Nullable: false,
+								},
+							},
+						},
+						{
+							Name: []byte("booleans"),
+							Value: &Array{
+								Path:                []string{"booleans"},
+								ResolveAsynchronous: false,
+								Nullable:            true,
+								Item: &Boolean{
+									Nullable: false,
+								},
+							},
+						},
 					},
 				},
 			},
-		}, Context{Context: context.Background()}, `{"synchronousFriends":[{"id":1,"name":"Alex"},{"id":2,"name":"Patric"}],"asynchronousFriends":[{"id":1,"name":"Alex"},{"id":2,"name":"Patric"}],"nullableFriends":null}`
+		}, Context{Context: context.Background()}, `{"synchronousFriends":[{"id":1,"name":"Alex"},{"id":2,"name":"Patric"}],"asynchronousFriends":[{"id":1,"name":"Alex"},{"id":2,"name":"Patric"}],"nullableFriends":null,"strings":["foo","bar","baz"],"integers":[123,456,789],"floats":[1.2,3.4,5.6],"booleans":[true,false,true]}`
 	}))
 	t.Run("array response from data source", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
