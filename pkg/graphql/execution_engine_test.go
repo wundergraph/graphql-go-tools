@@ -45,10 +45,20 @@ func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {
 		}
 	}
 
-	createTestRoundTripper := func(host string, url string, response string, statusCode int) testRoundTripper {
+	createTestRoundTripper := func(host string, url string, expectedBody string, response string, statusCode int) testRoundTripper {
 		return testRoundTripper(func(req *http.Request) *http.Response {
 			assert.Equal(t, host, req.URL.Host)
 			assert.Equal(t, url, req.URL.Path)
+
+			if len(expectedBody) > 0 {
+				var receivedBodyBytes []byte
+				if req.Body != nil {
+					var err error
+					receivedBodyBytes, err = ioutil.ReadAll(req.Body)
+					require.NoError(t, err)
+				}
+				assert.Equal(t, expectedBody, string(receivedBodyBytes))
+			}
 
 			body := bytes.NewBuffer([]byte(response))
 			return &http.Response{StatusCode: statusCode, Body: ioutil.NopCloser(body)}
@@ -117,7 +127,7 @@ func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {
 		schema:           starwarsSchema(t),
 		request:          loadStarWarsQuery(t, starwars.FileSimpleHeroQuery, nil),
 		plannerConfig:    heroHttpJsonPlannerConfig,
-		roundTripper:     createTestRoundTripper("example.com", "/", `{"hero": {"name": "Luke Skywalker"}}`, 200),
+		roundTripper:     createTestRoundTripper("example.com", "/", "", `{"hero": {"name": "Luke Skywalker"}}`, 200),
 		expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
 	}))
 
@@ -127,7 +137,7 @@ func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {
 			return Request{}
 		},
 		plannerConfig:    heroHttpJsonPlannerConfig,
-		roundTripper:     createTestRoundTripper("example.com", "/", `{"hero": {"name": "Luke Skywalker"}}`, 200),
+		roundTripper:     createTestRoundTripper("example.com", "/", "", `{"hero": {"name": "Luke Skywalker"}}`, 200),
 		expectedResponse: "",
 	}))
 
@@ -135,7 +145,7 @@ func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {
 		schema:           starwarsSchema(t),
 		request:          loadStarWarsQuery(t, starwars.FileSimpleHeroQuery, nil),
 		plannerConfig:    heroGraphqlDataSource,
-		roundTripper:     createTestRoundTripper("example.com", "/", `{"data":{"hero":{"name":"Luke Skywalker"}}}`, 200),
+		roundTripper:     createTestRoundTripper("example.com", "/", "", `{"data":{"hero":{"name":"Luke Skywalker"}}}`, 200),
 		expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
 	}))
 
@@ -147,7 +157,7 @@ func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {
 			return request
 		},
 		plannerConfig:    heroGraphqlDataSource,
-		roundTripper:     createTestRoundTripper("example.com", "/", `{"data":{"hero":{"name":"Luke Skywalker"}}}`, 200),
+		roundTripper:     createTestRoundTripper("example.com", "/", "", `{"data":{"hero":{"name":"Luke Skywalker"}}}`, 200),
 		expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
 	}))
 
@@ -155,7 +165,7 @@ func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {
 		schema:            starwarsSchema(t),
 		request:           loadStarWarsQuery(t, starwars.FileDroidWithArgAndVarQuery, map[string]interface{}{"droidID": "R2D2"}),
 		plannerConfig:     droidGraphqlDataSource,
-		roundTripper:      createTestRoundTripper("example.com", "/", `{"data":{"droid":{"name":"R2D2"}}}`, 200),
+		roundTripper:      createTestRoundTripper("example.com", "/", "", `{"data":{"droid":{"name":"R2D2"}}}`, 200),
 		preExecutionTasks: normalizeAndValidatePreExecutionTasks,
 		expectedResponse:  `{"data":{"droid":{"name":"R2D2"}}}`,
 	}))
@@ -164,7 +174,7 @@ func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {
 		schema:            starwarsSchema(t),
 		request:           loadStarWarsQuery(t, starwars.FileDroidWithArgQuery, nil),
 		plannerConfig:     droidGraphqlDataSource,
-		roundTripper:      createTestRoundTripper("example.com", "/", `{"data":{"droid":{"name":"R2D2"}}}`, 200),
+		roundTripper:      createTestRoundTripper("example.com", "/", "", `{"data":{"droid":{"name":"R2D2"}}}`, 200),
 		preExecutionTasks: normalizeAndValidatePreExecutionTasks,
 		expectedResponse:  `{"data":{"droid":{"name":"R2D2"}}}`,
 	}))
@@ -194,9 +204,27 @@ func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {
 			}
 		},
 		plannerConfig:     movieHttpJsonDataSource,
-		roundTripper:      createTestRoundTripper("example.com", "/", `{"added_movie":{"id":2, "name": "Episode V – The Empire Strikes Back", "year": 1980}}`, 200),
+		roundTripper:      createTestRoundTripper("example.com", "/", "", `{"added_movie":{"id":2, "name": "Episode V – The Empire Strikes Back", "year": 1980}}`, 200),
 		preExecutionTasks: normalizeAndValidatePreExecutionTasks,
 		expectedResponse:  `{"data":{"addToWatchlistWithInput":{"id":2,"name":"Episode V – The Empire Strikes Back","year":1980}}}`,
+	}))
+
+	t.Run("execute single mutation with arguments on document with multiple operations", runWithoutError(testCase{
+		schema: heroWithArgumentSchema(t),
+		request: func(t *testing.T) Request {
+			return Request{
+				OperationName: "MyHero",
+				Variables: stringify(map[string]interface{}{
+					"heroName": "Luke Skywalker",
+				}),
+				Query: `query MyHero($heroName: String){
+					hero(name: $heroName)
+				}`,
+			}
+		},
+		plannerConfig:    heroWithArgumentHttpJsonDataSource,
+		roundTripper:     createTestRoundTripper("example.com", "/", `{ "name": "Luke Skywalker" }`, `{"race": "Human"}`, 200),
+		expectedResponse: `{"data":{"hero":"Human"}}`,
 	}))
 }
 
@@ -239,6 +267,17 @@ type Query {
 input WatchlistInput {
   id: Int!
 }`
+	schema, err := NewSchemaFromString(schemaString)
+	require.NoError(t, err)
+	return schema
+}
+
+func heroWithArgumentSchema(t *testing.T) *Schema {
+	schemaString := `
+		type Query {
+			hero(name: String): String
+		}`
+
 	schema, err := NewSchemaFromString(schemaString)
 	require.NoError(t, err)
 	return schema
@@ -427,6 +466,37 @@ var movieHttpJsonDataSource = datasource.PlannerConfiguration{
 						}(),
 						DefaultTypeName: func() *string {
 							typeName := "Movie"
+							return &typeName
+						}(),
+					})
+					return data
+				}(),
+			},
+		},
+	},
+}
+
+var heroWithArgumentHttpJsonDataSource = datasource.PlannerConfiguration{
+	TypeFieldConfigurations: []datasource.TypeFieldConfiguration{
+		{
+			TypeName:  "Query",
+			FieldName: "hero",
+			Mapping: &datasource.MappingConfiguration{
+				Disabled: false,
+				Path:     "race",
+			},
+			DataSource: datasource.SourceConfig{
+				Name: "HttpJsonDataSource",
+				Config: func() []byte {
+					data, _ := json.Marshal(datasource.HttpJsonDataSourceConfig{
+						URL: "example.com/",
+						Method: func() *string {
+							method := "GET"
+							return &method
+						}(),
+						Body: stringPtr(`{ "name": "{{ .arguments.name }}" }`),
+						DefaultTypeName: func() *string {
+							typeName := "Hero"
 							return &typeName
 						}(),
 					})
