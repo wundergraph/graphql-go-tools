@@ -89,7 +89,7 @@ func (p *Planner) EnterField(ref int) {
 
 	if isRootField && config != nil {
 		p.config = config
-		if p.nodes == nil { // Setup Fetch and root (operation definition)
+		if len(p.nodes) == 0 { // Setup Fetch and root (operation definition)
 			p.URL = config.Attributes.ValueForKey("url")
 
 			p.bufferID = p.v.NextBufferID()
