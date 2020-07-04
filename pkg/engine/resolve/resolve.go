@@ -14,6 +14,8 @@ import (
 
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash"
+
+	"github.com/jensneuse/graphql-go-tools/pkg/fastbuffer"
 )
 
 var (
@@ -126,8 +128,8 @@ func New() *Resolver {
 		bufPairPool: sync.Pool{
 			New: func() interface{} {
 				pair := BufPair{
-					Data:   bytes.NewBuffer(make([]byte, 0, 1024)),
-					Errors: bytes.NewBuffer(make([]byte, 0, 1024)),
+					Data:   fastbuffer.New(),
+					Errors: fastbuffer.New(),
 				}
 				return &pair
 			},
@@ -152,8 +154,8 @@ func New() *Resolver {
 			New: func() interface{} {
 				return &inflightFetch{
 					bufPair: BufPair{
-						Data:   bytes.NewBuffer(make([]byte, 0, 1024)),
-						Errors: bytes.NewBuffer(make([]byte, 0, 1024)),
+						Data:   fastbuffer.New(),
+						Errors: fastbuffer.New(),
 					},
 				}
 			},
@@ -232,7 +234,8 @@ func (r *Resolver) resolveNode(ctx Context, node Node, data []byte, bufPair *Buf
 	case *Array:
 		return r.resolveArray(ctx, n, data, bufPair)
 	case *Null:
-		return r.resolveNull(bufPair.Data)
+		r.resolveNull(bufPair.Data)
+		return
 	case *String:
 		return r.resolveString(n, data, bufPair)
 	case *Boolean:
@@ -242,9 +245,11 @@ func (r *Resolver) resolveNode(ctx Context, node Node, data []byte, bufPair *Buf
 	case *Float:
 		return r.resolveFloat(n, data, bufPair)
 	case *EmptyObject:
-		return r.resolveEmptyObject(bufPair.Data)
+		r.resolveEmptyObject(bufPair.Data)
+		return
 	case *EmptyArray:
-		return r.resolveEmptyArray(bufPair.Data)
+		r.resolveEmptyArray(bufPair.Data)
+		return
 	default:
 		return
 	}
@@ -271,7 +276,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx Context, response *GraphQLResponse
 		err = r.writeSafe(err, writer, quote)
 		err = r.writeSafe(err, writer, colon)
 		err = r.writeSafe(err, writer, lBrack)
-		_, err = buf.Errors.WriteTo(writer)
+		_, err = writer.Write(buf.Errors.Bytes())
 		err = r.writeSafe(err, writer, rBrack)
 	}
 
@@ -283,7 +288,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx Context, response *GraphQLResponse
 		err = r.writeSafe(err, writer, literalData)
 		err = r.writeSafe(err, writer, quote)
 		err = r.writeSafe(err, writer, colon)
-		_, err = buf.Data.WriteTo(writer)
+		_, err = writer.Write(buf.Data.Bytes())
 	}
 
 	err = r.writeSafe(err, writer, rBrace)
@@ -291,14 +296,14 @@ func (r *Resolver) ResolveGraphQLResponse(ctx Context, response *GraphQLResponse
 	return
 }
 
-func (r *Resolver) resolveEmptyArray(writer io.Writer) (err error) {
-	err = r.writeSafe(nil, writer, lBrack)
-	return r.writeSafe(err, writer, rBrack)
+func (r *Resolver) resolveEmptyArray(b *fastbuffer.FastBuffer) {
+	b.WriteBytes(lBrack)
+	b.WriteBytes(rBrack)
 }
 
-func (r *Resolver) resolveEmptyObject(writer io.Writer) (err error) {
-	err = r.writeSafe(err, writer, lBrace)
-	return r.writeSafe(err, writer, rBrace)
+func (r *Resolver) resolveEmptyObject(b *fastbuffer.FastBuffer) {
+	b.WriteBytes(lBrace)
+	b.WriteBytes(rBrace)
 }
 
 func (r *Resolver) resolveArray(ctx Context, array *Array, data []byte, arrayBuf *BufPair) (err error) {
@@ -317,7 +322,8 @@ func (r *Resolver) resolveArray(ctx Context, array *Array, data []byte, arrayBuf
 		if !array.Nullable {
 			return errNonNullableFieldValueIsNull
 		}
-		return r.resolveNull(arrayBuf.Data)
+		r.resolveNull(arrayBuf.Data)
+		return nil
 	}
 
 	if array.ResolveAsynchronous {
@@ -331,7 +337,7 @@ func (r *Resolver) resolveArraySynchronous(ctx Context, array *Array, arrayItems
 	itemBuf := r.getBufPair()
 	defer r.freeBufPair(itemBuf)
 
-	err = r.writeSafe(err, arrayBuf.Data, lBrack)
+	arrayBuf.Data.WriteBytes(lBrack)
 	var (
 		hasPreviousItem bool
 		dataWritten     int
@@ -341,7 +347,8 @@ func (r *Resolver) resolveArraySynchronous(ctx Context, array *Array, arrayItems
 		if err != nil {
 			if errors.Is(err, errNonNullableFieldValueIsNull) && array.Nullable {
 				arrayBuf.Data.Reset()
-				return r.resolveNull(arrayBuf.Data)
+				r.resolveNull(arrayBuf.Data)
+				return
 			}
 			if errors.Is(err, errTypeNameSkipped) {
 				err = nil
@@ -349,18 +356,20 @@ func (r *Resolver) resolveArraySynchronous(ctx Context, array *Array, arrayItems
 			}
 			return
 		}
-		dataWritten, _, err = r.MergeBufPairs(itemBuf, arrayBuf, hasPreviousItem)
+		dataWritten += itemBuf.Data.Len()
+		r.MergeBufPairs(itemBuf, arrayBuf, hasPreviousItem)
 		if !hasPreviousItem && dataWritten != 0 {
 			hasPreviousItem = true
 		}
 	}
 
-	return r.writeSafe(err, arrayBuf.Data, rBrack)
+	arrayBuf.Data.WriteBytes(rBrack)
+	return
 }
 
 func (r *Resolver) resolveArrayAsynchronous(ctx Context, array *Array, arrayItems *[][]byte, arrayBuf *BufPair) (err error) {
 
-	err = r.writeSafe(err, arrayBuf.Data, lBrack)
+	arrayBuf.Data.WriteBytes(lBrack)
 
 	bufSlice := r.getBufPairSlice()
 	defer r.freeBufPairSlice(bufSlice)
@@ -398,7 +407,8 @@ func (r *Resolver) resolveArrayAsynchronous(ctx Context, array *Array, arrayItem
 	if err != nil {
 		if errors.Is(err, errNonNullableFieldValueIsNull) && array.Nullable {
 			arrayBuf.Data.Reset()
-			return r.resolveNull(arrayBuf.Data)
+			r.resolveNull(arrayBuf.Data)
+			return
 		}
 		return
 	}
@@ -408,13 +418,15 @@ func (r *Resolver) resolveArrayAsynchronous(ctx Context, array *Array, arrayItem
 		dataWritten     int
 	)
 	for i := range *bufSlice {
-		dataWritten, _, err = r.MergeBufPairs((*bufSlice)[i], arrayBuf, hasPreviousItem)
+		dataWritten += (*bufSlice)[i].Data.Len()
+		r.MergeBufPairs((*bufSlice)[i], arrayBuf, hasPreviousItem)
 		if !hasPreviousItem && dataWritten != 0 {
 			hasPreviousItem = true
 		}
 	}
 
-	return r.writeSafe(err, arrayBuf.Data, rBrack)
+	arrayBuf.Data.WriteBytes(rBrack)
+	return
 }
 
 func (r *Resolver) resolveInteger(integer *Integer, data []byte, integerBuf *BufPair) (err error) {
@@ -423,20 +435,24 @@ func (r *Resolver) resolveInteger(integer *Integer, data []byte, integerBuf *Buf
 		if !integer.Nullable {
 			return errNonNullableFieldValueIsNull
 		}
-		return r.resolveNull(integerBuf.Data)
+		r.resolveNull(integerBuf.Data)
+		return
 	}
-	return r.writeSafe(nil, integerBuf.Data, value)
+	integerBuf.Data.WriteBytes(value)
+	return
 }
 
-func (r *Resolver) resolveFloat(floatValue *Float, data []byte, integerBuf *BufPair) (err error) {
+func (r *Resolver) resolveFloat(floatValue *Float, data []byte, floatBuf *BufPair) (err error) {
 	value, dataType, _, err := jsonparser.Get(data, floatValue.Path...)
 	if err != nil || dataType != jsonparser.Number {
 		if !floatValue.Nullable {
 			return errNonNullableFieldValueIsNull
 		}
-		return r.resolveNull(integerBuf.Data)
+		r.resolveNull(floatBuf.Data)
+		return
 	}
-	return r.writeSafe(nil, integerBuf.Data, value)
+	floatBuf.Data.WriteBytes(value)
+	return
 }
 
 func (r *Resolver) resolveBoolean(boolean *Boolean, data []byte, booleanBuf *BufPair) (err error) {
@@ -445,9 +461,11 @@ func (r *Resolver) resolveBoolean(boolean *Boolean, data []byte, booleanBuf *Buf
 		if !boolean.Nullable {
 			return errNonNullableFieldValueIsNull
 		}
-		return r.resolveNull(booleanBuf.Data)
+		r.resolveNull(booleanBuf.Data)
+		return
 	}
-	return r.writeSafe(nil, booleanBuf.Data, value)
+	booleanBuf.Data.WriteBytes(value)
+	return
 }
 
 func (r *Resolver) resolveString(str *String, data []byte, stringBuf *BufPair) (err error) {
@@ -464,19 +482,21 @@ func (r *Resolver) resolveString(str *String, data []byte, stringBuf *BufPair) (
 			if !str.Nullable {
 				return errNonNullableFieldValueIsNull
 			}
-			return r.resolveNull(stringBuf.Data)
+			r.resolveNull(stringBuf.Data)
+			return
 		}
 	}
 	if value == nil && !str.Nullable {
 		return errNonNullableFieldValueIsNull
 	}
-	err = r.writeSafe(err, stringBuf.Data, quote)
-	err = r.writeSafe(err, stringBuf.Data, value)
-	return r.writeSafe(err, stringBuf.Data, quote)
+	stringBuf.Data.WriteBytes(quote)
+	stringBuf.Data.WriteBytes(value)
+	stringBuf.Data.WriteBytes(quote)
+	return
 }
 
-func (r *Resolver) resolveNull(writer io.Writer) (err error) {
-	return r.writeSafe(nil, writer, null)
+func (r *Resolver) resolveNull(b *fastbuffer.FastBuffer) {
+	b.WriteBytes(null)
 }
 
 func (r *Resolver) resolveObject(ctx Context, object *Object, data []byte, objectBuf *BufPair) (err error) {
@@ -494,7 +514,7 @@ func (r *Resolver) resolveObject(ctx Context, object *Object, data []byte, objec
 			return
 		}
 		for i := range set.buffers {
-			_, err = r.MergeBufPairErrors(set.buffers[i], objectBuf)
+			r.MergeBufPairErrors(set.buffers[i], objectBuf)
 		}
 	}
 
@@ -524,27 +544,25 @@ func (r *Resolver) resolveObject(ctx Context, object *Object, data []byte, objec
 
 		for j := range object.FieldSets[i].Fields {
 			if first {
-				err = r.writeSafe(err, objectBuf.Data, lBrace)
+				objectBuf.Data.WriteBytes(lBrace)
 				first = false
 			} else {
-				err = r.writeSafe(err, objectBuf.Data, comma)
+				objectBuf.Data.WriteBytes(comma)
 			}
-			err = r.writeSafe(err, objectBuf.Data, quote)
-			err = r.writeSafe(err, objectBuf.Data, object.FieldSets[i].Fields[j].Name)
-			err = r.writeSafe(err, objectBuf.Data, quote)
-			err = r.writeSafe(err, objectBuf.Data, colon)
-			if err != nil {
-				return
-			}
+			objectBuf.Data.WriteBytes(quote)
+			objectBuf.Data.WriteBytes(object.FieldSets[i].Fields[j].Name)
+			objectBuf.Data.WriteBytes(quote)
+			objectBuf.Data.WriteBytes(colon)
 			err = r.resolveNode(ctx, object.FieldSets[i].Fields[j].Value, fieldSetData, fieldBuf)
 			if err != nil {
 				if errors.Is(err, errNonNullableFieldValueIsNull) && object.Nullable {
 					objectBuf.Data.Reset()
-					return r.writeSafe(nil, objectBuf.Data, null)
+					r.resolveNull(objectBuf.Data)
+					return
 				}
 				return
 			}
-			_, _, err = r.MergeBufPairs(fieldBuf, objectBuf, false)
+			r.MergeBufPairs(fieldBuf, objectBuf, false)
 		}
 	}
 	if first {
@@ -554,9 +572,11 @@ func (r *Resolver) resolveObject(ctx Context, object *Object, data []byte, objec
 			}
 			return errNonNullableFieldValueIsNull
 		}
-		return r.resolveNull(objectBuf.Data)
+		r.resolveNull(objectBuf.Data)
+		return
 	}
-	return r.writeSafe(err, objectBuf.Data, rBrace)
+	objectBuf.Data.WriteBytes(rBrace)
+	return
 }
 
 func (r *Resolver) freeResultSet(set *resultSet) {
@@ -606,14 +626,14 @@ func (r *Resolver) resolveFetch(ctx Context, fetch Fetch, data []byte, set *resu
 	return
 }
 
-func (r *Resolver) prepareSingleFetch(ctx Context, fetch *SingleFetch, data []byte, set *resultSet, preparedInput *bytes.Buffer) (err error) {
+func (r *Resolver) prepareSingleFetch(ctx Context, fetch *SingleFetch, data []byte, set *resultSet, preparedInput *fastbuffer.FastBuffer) (err error) {
 	err = fetch.InputTemplate.Render(ctx, data, preparedInput)
 	buf := r.getBufPair()
 	set.buffers[fetch.BufferId] = buf
 	return
 }
 
-func (r *Resolver) resolveSingleFetch(ctx Context, fetch *SingleFetch, preparedInput *bytes.Buffer, buf *BufPair) (err error) {
+func (r *Resolver) resolveSingleFetch(ctx Context, fetch *SingleFetch, preparedInput *fastbuffer.FastBuffer, buf *BufPair) (err error) {
 
 	if !r.EnableSingleFlightLoader || fetch.DisallowSingleFlight {
 		return fetch.DataSource.Load(ctx.Context, preparedInput.Bytes(), buf)
@@ -634,16 +654,10 @@ func (r *Resolver) resolveSingleFetch(ctx Context, fetch *SingleFetch, preparedI
 		r.inflightFetchMu.Unlock()
 		inflight.waitLoad.Wait()
 		if inflight.bufPair.HasData() {
-			_, err = buf.Data.Write(inflight.bufPair.Data.Bytes())
-			if err != nil {
-				return
-			}
+			buf.Data.WriteBytes(inflight.bufPair.Data.Bytes())
 		}
 		if inflight.bufPair.HasErrors() {
-			_, err = buf.Errors.Write(inflight.bufPair.Errors.Bytes())
-			if err != nil {
-				return
-			}
+			buf.Errors.WriteBytes(inflight.bufPair.Errors.Bytes())
 		}
 		return inflight.err
 	}
@@ -658,11 +672,11 @@ func (r *Resolver) resolveSingleFetch(ctx Context, fetch *SingleFetch, preparedI
 	inflight.err = err
 
 	if inflight.bufPair.HasData() {
-		_, err = buf.Data.Write(inflight.bufPair.Data.Bytes())
+		buf.Data.WriteBytes(inflight.bufPair.Data.Bytes())
 	}
 
 	if inflight.bufPair.HasErrors() {
-		_, err = buf.Errors.Write(inflight.bufPair.Errors.Bytes())
+		buf.Errors.WriteBytes(inflight.bufPair.Errors.Bytes())
 	}
 
 	inflight.waitLoad.Done()
@@ -742,14 +756,14 @@ type InputTemplate struct {
 	Segments []TemplateSegment
 }
 
-func (i *InputTemplate) Render(ctx Context, data []byte, preparedInput *bytes.Buffer) (err error) {
+func (i *InputTemplate) Render(ctx Context, data []byte, preparedInput *fastbuffer.FastBuffer) (err error) {
 	var (
 		variableSource []byte
 	)
 	for j := range i.Segments {
 		switch i.Segments[j].SegmentType {
 		case StaticSegmentType:
-			_, err = preparedInput.Write(i.Segments[j].Data)
+			preparedInput.WriteBytes(i.Segments[j].Data)
 		case VariableSegmentType:
 			switch i.Segments[j].VariableSource {
 			case VariableSourceObject:
@@ -763,10 +777,7 @@ func (i *InputTemplate) Render(ctx Context, data []byte, preparedInput *bytes.Bu
 			if err != nil {
 				return err
 			}
-			_, err = preparedInput.Write(value)
-			if err != nil {
-				return err
-			}
+			preparedInput.WriteBytes(value)
 		}
 	}
 	return
@@ -952,14 +963,14 @@ type GraphQLResponse struct {
 }
 
 type BufPair struct {
-	Data   *bytes.Buffer
-	Errors *bytes.Buffer
+	Data   *fastbuffer.FastBuffer
+	Errors *fastbuffer.FastBuffer
 }
 
 func NewBufPair() *BufPair {
 	return &BufPair{
-		Data:   &bytes.Buffer{},
-		Errors: &bytes.Buffer{},
+		Data:   fastbuffer.New(),
+		Errors: fastbuffer.New(),
 	}
 }
 
@@ -976,85 +987,66 @@ func (b *BufPair) Reset() {
 	b.Errors.Reset()
 }
 
-func (b *BufPair) writeErrors(err error, data []byte) error {
-	if err != nil {
-		return err
-	}
-	_, err = b.Errors.Write(data)
-	return err
+func (b *BufPair) writeErrors(data []byte) {
+	b.Errors.WriteBytes(data)
 }
 
-func (b *BufPair) WriteErr(message, locations, path []byte) (err error) {
+func (b *BufPair) WriteErr(message, locations, path []byte) {
 	if b.HasErrors() {
-		err = b.writeErrors(err, comma)
+		b.writeErrors(comma)
 	}
-	err = b.writeErrors(err, lBrace)
-	err = b.writeErrors(err, quote)
-	err = b.writeErrors(err, literalMessage)
-	err = b.writeErrors(err, quote)
-	err = b.writeErrors(err, colon)
-	err = b.writeErrors(err, quote)
-	err = b.writeErrors(err, message)
-	err = b.writeErrors(err, quote)
+	b.writeErrors(lBrace)
+	b.writeErrors(quote)
+	b.writeErrors(literalMessage)
+	b.writeErrors(quote)
+	b.writeErrors(colon)
+	b.writeErrors(quote)
+	b.writeErrors(message)
+	b.writeErrors(quote)
 	if locations != nil {
-		err = b.writeErrors(err, comma)
-		err = b.writeErrors(err, quote)
-		err = b.writeErrors(err, literalLocations)
-		err = b.writeErrors(err, quote)
-		err = b.writeErrors(err, colon)
-		err = b.writeErrors(err, locations)
+		b.writeErrors(comma)
+		b.writeErrors(quote)
+		b.writeErrors(literalLocations)
+		b.writeErrors(quote)
+		b.writeErrors(colon)
+		b.writeErrors(locations)
 	}
 	if path != nil {
-		err = b.writeErrors(err, comma)
-		err = b.writeErrors(err, quote)
-		err = b.writeErrors(err, literalPath)
-		err = b.writeErrors(err, quote)
-		err = b.writeErrors(err, colon)
-		err = b.writeErrors(err, path)
+		b.writeErrors(comma)
+		b.writeErrors(quote)
+		b.writeErrors(literalPath)
+		b.writeErrors(quote)
+		b.writeErrors(colon)
+		b.writeErrors(path)
 	}
-	err = b.writeErrors(err, rBrace)
-	return
+	b.writeErrors(rBrace)
 }
 
-func (r *Resolver) MergeBufPairs(from, to *BufPair, prefixDataWithComma bool) (dataWritten, errorsWritten int, err error) {
-	dataWritten, err = r.MergeBufPairData(from, to, prefixDataWithComma)
-	if err != nil {
-		return
-	}
-	errorsWritten, err = r.MergeBufPairErrors(from, to)
-	return
+func (r *Resolver) MergeBufPairs(from, to *BufPair, prefixDataWithComma bool) {
+	r.MergeBufPairData(from, to, prefixDataWithComma)
+	r.MergeBufPairErrors(from, to)
 }
 
-func (r *Resolver) MergeBufPairData(from, to *BufPair, prefixDataWithComma bool) (dataWritten int, err error) {
+func (r *Resolver) MergeBufPairData(from, to *BufPair, prefixDataWithComma bool) {
 	if !from.HasData() {
 		return
 	}
-	var written int64
 	if prefixDataWithComma {
-		dataWritten, err = to.Data.Write(comma)
-		if err != nil {
-			return
-		}
+		to.Data.WriteBytes(comma)
 	}
-	written, err = from.Data.WriteTo(to.Data)
-	dataWritten += int(written)
-	return
+	to.Data.WriteBytes(from.Data.Bytes())
+	from.Data.Reset()
 }
 
-func (r *Resolver) MergeBufPairErrors(from, to *BufPair) (errorsWritten int, err error) {
+func (r *Resolver) MergeBufPairErrors(from, to *BufPair) {
 	if !from.HasErrors() {
 		return
 	}
-	var written int64
 	if to.HasErrors() {
-		errorsWritten, err = to.Errors.Write(comma)
-		if err != nil {
-			return
-		}
+		to.Errors.WriteBytes(comma)
 	}
-	written, err = from.Errors.WriteTo(to.Errors)
-	errorsWritten += int(written)
-	return
+	to.Errors.WriteBytes(from.Errors.Bytes())
+	from.Errors.Reset()
 }
 
 func (r *Resolver) freeBufPair(pair *BufPair) {

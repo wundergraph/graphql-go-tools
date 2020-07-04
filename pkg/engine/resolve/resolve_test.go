@@ -9,6 +9,8 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/jensneuse/graphql-go-tools/pkg/fastbuffer"
 )
 
 type _fakeDataSource struct {
@@ -28,7 +30,7 @@ func (f *_fakeDataSource) Load(ctx context.Context, input []byte, pair *BufPair)
 	if f.artificialLatency != 0 {
 		time.Sleep(f.artificialLatency)
 	}
-	_, err = pair.Data.Write(f.data)
+	pair.Data.WriteBytes(f.data)
 	return
 }
 
@@ -68,8 +70,8 @@ func TestResolver_ResolveNode(t *testing.T) {
 		node, ctx, expectedOutput := fn(t, r, ctrl)
 		return func(t *testing.T) {
 			buf := &BufPair{
-				Data:   bytes.NewBuffer(nil),
-				Errors: bytes.NewBuffer(nil),
+				Data:   fastbuffer.New(),
+				Errors: fastbuffer.New(),
 			}
 			err := r.resolveNode(ctx, node, nil, buf)
 			assert.Equal(t, buf.Errors.String(), "", "want error buf to be empty")
@@ -203,7 +205,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 		mockDataSource.EXPECT().
 			Load(gomock.Any(), []byte(`{"id":1}`), gomock.AssignableToTypeOf(&BufPair{})).
 			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
-				_, err = pair.Data.Write([]byte(`{"name":"Jens"}`))
+				pair.Data.WriteBytes([]byte(`{"name":"Jens"}`))
 				return
 			}).
 			Return(nil)
@@ -500,7 +502,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 		mockDataSource.EXPECT().
 			Load(gomock.Any(), gomock.GotFormatterAdapter(gotBytesFormatter{}, matchBytes(`{"id":1}`)), gomock.AssignableToTypeOf(&BufPair{})).
 			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
-				_, err = pair.Data.Write([]byte(`{"name":"Woofie"}`))
+				pair.Data.WriteBytes([]byte(`{"name":"Woofie"}`))
 				return
 			}).
 			Return(nil)
@@ -604,7 +606,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 		mockDataSource.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
 			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
-				err = pair.WriteErr([]byte("errorMessage"), nil, nil)
+				pair.WriteErr([]byte("errorMessage"), nil, nil)
 				return
 			}).
 			Return(nil)
@@ -640,11 +642,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 		mockDataSource.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
 			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
-				err = pair.WriteErr([]byte("errorMessage1"), nil, nil)
-				if err != nil {
-					return
-				}
-				err = pair.WriteErr([]byte("errorMessage2"), nil, nil)
+				pair.WriteErr([]byte("errorMessage1"), nil, nil)
+				pair.WriteErr([]byte("errorMessage2"), nil, nil)
 				return
 			}).
 			Return(nil)
@@ -846,7 +845,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				actual := string(input)
 				expected := `{"url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":123,"firstArg":"firstArgValue"}}}`
 				assert.Equal(t, expected, actual)
-				_, err = pair.Data.WriteString(`{"serviceOne":{"fieldOne":"fieldOneValue"},"anotherServiceOne":{"fieldOne":"anotherFieldOneValue"},"reusingServiceOne":{"fieldOne":"reUsingFieldOneValue"}}`)
+				pair.Data.WriteString(`{"serviceOne":{"fieldOne":"fieldOneValue"},"anotherServiceOne":{"fieldOne":"anotherFieldOneValue"},"reusingServiceOne":{"fieldOne":"reUsingFieldOneValue"}}`)
 				return
 			}).
 			Return(nil)
@@ -859,7 +858,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				actual := string(input)
 				expected := `{"url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo}}","variables":{"fourthArg":12.34,"secondArg":true}}}`
 				assert.Equal(t, expected, actual)
-				_, err = pair.Data.WriteString(`{"serviceTwo":{"fieldTwo":"fieldTwoValue"},"secondServiceTwo":{"fieldTwo":"secondFieldTwoValue"}}`)
+				pair.Data.WriteString(`{"serviceTwo":{"fieldTwo":"fieldTwoValue"},"secondServiceTwo":{"fieldTwo":"secondFieldTwoValue"}}`)
 				return
 			}).
 			Return(nil)
@@ -872,7 +871,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				actual := string(input)
 				expected := `{"url":"https://service.one","body":{"query":"{serviceOne {fieldOne}}"}}`
 				assert.Equal(t, expected, actual)
-				_, err = pair.Data.WriteString(`{"serviceOne":{"fieldOne":"fieldOneValue"}}`)
+				pair.Data.WriteString(`{"serviceOne":{"fieldOne":"fieldOneValue"}}`)
 				return
 			}).
 			Return(nil)
