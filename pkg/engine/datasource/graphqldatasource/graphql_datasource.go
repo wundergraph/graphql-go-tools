@@ -389,9 +389,9 @@ func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPai
 	jsonparser.EachKey(responseData, func(i int, bytes []byte, valueType jsonparser.ValueType, err error) {
 		switch i {
 		case 0:
-			bufPair.Errors.Write(bytes)
+			bufPair.Errors.WriteBytes(bytes)
 		case 1:
-			bufPair.Data.Write(bytes)
+			bufPair.Data.WriteBytes(bytes)
 		}
 	}, responsePaths...)
 

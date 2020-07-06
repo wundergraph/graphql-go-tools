@@ -1,7 +1,6 @@
 package graphqldatasource
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -15,6 +14,7 @@ import (
 	. "github.com/jensneuse/graphql-go-tools/pkg/engine/datasourcetesting"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
+	"github.com/jensneuse/graphql-go-tools/pkg/fastbuffer"
 )
 
 func TestGraphQLDataSourcePlanning(t *testing.T) {
@@ -792,8 +792,8 @@ func TestGraphQLDataSourceExecution(t *testing.T) {
 			defer server.Close()
 			source := DefaultSource()
 			bufPair := &resolve.BufPair{
-				Data:   &bytes.Buffer{},
-				Errors: &bytes.Buffer{},
+				Data:   fastbuffer.New(),
+				Errors: fastbuffer.New(),
 			}
 			err := source.Load(ctx(), []byte(input(server)), bufPair)
 			result(t, bufPair, err)

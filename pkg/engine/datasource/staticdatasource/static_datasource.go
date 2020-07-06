@@ -44,6 +44,6 @@ func (_ Source) UniqueIdentifier() []byte {
 }
 
 func (_ Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPair) (err error) {
-	_, err = bufPair.Data.Write(input)
+	bufPair.Data.WriteBytes(input)
 	return
 }

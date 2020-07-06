@@ -11,6 +11,7 @@ import (
 	"io"
 	"strconv"
 	"sync"
+	"unicode"
 
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash"
@@ -348,7 +349,7 @@ func (r *Resolver) resolveArraySynchronous(ctx Context, array *Array, arrayItems
 			if errors.Is(err, errNonNullableFieldValueIsNull) && array.Nullable {
 				arrayBuf.Data.Reset()
 				r.resolveNull(arrayBuf.Data)
-				return
+				return nil
 			}
 			if errors.Is(err, errTypeNameSkipped) {
 				err = nil
@@ -408,7 +409,7 @@ func (r *Resolver) resolveArrayAsynchronous(ctx Context, array *Array, arrayItem
 		if errors.Is(err, errNonNullableFieldValueIsNull) && array.Nullable {
 			arrayBuf.Data.Reset()
 			r.resolveNull(arrayBuf.Data)
-			return
+			return nil
 		}
 		return
 	}
@@ -429,52 +430,61 @@ func (r *Resolver) resolveArrayAsynchronous(ctx Context, array *Array, arrayItem
 	return
 }
 
-func (r *Resolver) resolveInteger(integer *Integer, data []byte, integerBuf *BufPair) (err error) {
+func (r *Resolver) resolveInteger(integer *Integer, data []byte, integerBuf *BufPair) error {
 	value, dataType, _, err := jsonparser.Get(data, integer.Path...)
 	if err != nil || dataType != jsonparser.Number {
 		if !integer.Nullable {
 			return errNonNullableFieldValueIsNull
 		}
 		r.resolveNull(integerBuf.Data)
-		return
+		return nil
 	}
 	integerBuf.Data.WriteBytes(value)
-	return
+	return nil
 }
 
-func (r *Resolver) resolveFloat(floatValue *Float, data []byte, floatBuf *BufPair) (err error) {
+func (r *Resolver) resolveFloat(floatValue *Float, data []byte, floatBuf *BufPair) error {
 	value, dataType, _, err := jsonparser.Get(data, floatValue.Path...)
 	if err != nil || dataType != jsonparser.Number {
 		if !floatValue.Nullable {
 			return errNonNullableFieldValueIsNull
 		}
 		r.resolveNull(floatBuf.Data)
-		return
+		return nil
 	}
 	floatBuf.Data.WriteBytes(value)
-	return
+	return nil
 }
 
-func (r *Resolver) resolveBoolean(boolean *Boolean, data []byte, booleanBuf *BufPair) (err error) {
+func (r *Resolver) resolveBoolean(boolean *Boolean, data []byte, booleanBuf *BufPair) error {
 	value, valueType, _, err := jsonparser.Get(data, boolean.Path...)
 	if err != nil || valueType != jsonparser.Boolean {
 		if !boolean.Nullable {
 			return errNonNullableFieldValueIsNull
 		}
 		r.resolveNull(booleanBuf.Data)
-		return
+		return nil
 	}
 	booleanBuf.Data.WriteBytes(value)
-	return
+	return nil
 }
 
-func (r *Resolver) resolveString(str *String, data []byte, stringBuf *BufPair) (err error) {
+func (r *Resolver) resolveString(str *String, data []byte, stringBuf *BufPair) error {
 	var (
-		value []byte
+		value     []byte
 		valueType jsonparser.ValueType
+		err       error
 	)
-	if data != nil && str.Path == nil {
-		value = data
+	if len(data) != 0 && str.Path == nil {
+		_, valueType, _, _ = jsonparser.Get(data)
+		if valueType == jsonparser.String || unicode.IsLetter(rune(data[0])){
+			value = data
+		} else if !str.Nullable {
+			return errNonNullableFieldValueIsNull
+		} else {
+			r.resolveNull(stringBuf.Data)
+			return nil
+		}
 	}
 	if value == nil {
 		value, valueType, _, err = jsonparser.Get(data, str.Path...)
@@ -483,7 +493,7 @@ func (r *Resolver) resolveString(str *String, data []byte, stringBuf *BufPair) (
 				return errNonNullableFieldValueIsNull
 			}
 			r.resolveNull(stringBuf.Data)
-			return
+			return nil
 		}
 	}
 	if value == nil && !str.Nullable {
@@ -492,7 +502,7 @@ func (r *Resolver) resolveString(str *String, data []byte, stringBuf *BufPair) (
 	stringBuf.Data.WriteBytes(quote)
 	stringBuf.Data.WriteBytes(value)
 	stringBuf.Data.WriteBytes(quote)
-	return
+	return nil
 }
 
 func (r *Resolver) resolveNull(b *fastbuffer.FastBuffer) {
@@ -558,7 +568,7 @@ func (r *Resolver) resolveObject(ctx Context, object *Object, data []byte, objec
 				if errors.Is(err, errNonNullableFieldValueIsNull) && object.Nullable {
 					objectBuf.Data.Reset()
 					r.resolveNull(objectBuf.Data)
-					return
+					return nil
 				}
 				return
 			}

@@ -15,6 +15,11 @@ type FastBuffer struct {
 	b []byte
 }
 
+func (f *FastBuffer) Write(p []byte) (n int, err error) {
+	f.b = append(f.b,p...)
+	return len(p),nil
+}
+
 func (f *FastBuffer) Reset() {
 	f.b = f.b[:0]
 }

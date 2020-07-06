@@ -21,7 +21,7 @@ func TestFastBuffer(t *testing.T) {
 	buf.WriteBytes([]byte("Goodbye!"))
 	assert.Equal(t,"Goodbye!",string(buf.Bytes()))
 
-	buf.b = make([]byte,0,0)
+	buf.b = make([]byte,0)
 	foobar := []byte("FooBar")
 	buf.WriteBytes(foobar)
 	foobar[0] = 'B'
