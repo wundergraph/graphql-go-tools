@@ -5,7 +5,6 @@ func Bytes(in, out []byte) []byte {
 	out = out[:0]
 
 	for i := range in {
-
 		switch in[i] {
 		case 9:
 			out = append(out, 92, 116) // \t
@@ -17,6 +16,14 @@ func Bytes(in, out []byte) []byte {
 			} else {
 				out = append(out, 92, 34) // \"
 			}
+		case 92:
+			// if we have `\\` inside string
+			if in[i-1] == 92 {
+				// make 4 in a row
+				out = append(out, 92, 92, 92)
+				continue
+			}
+			fallthrough
 		default:
 			out = append(out, in[i])
 		}
