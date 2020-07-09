@@ -15,7 +15,6 @@ import (
 
 	"github.com/cespare/xxhash"
 	log "github.com/jensneuse/abstractlogger"
-	"github.com/jensneuse/diffview"
 	"github.com/sebdah/goldie"
 	"github.com/stretchr/testify/assert"
 
@@ -588,7 +587,7 @@ func TestExecution(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		diffview.NewGoland().DiffViewBytes("execution", fixture, pretty)
+		assert.Equal(t, fixture, pretty)
 	}
 }
 
@@ -2151,7 +2150,7 @@ func TestExecutor_HTTPJSONDataSourceWithBody(t *testing.T) {
 	t.Run("should successfully use data source with body including complex json object with escaped strings", func(t *testing.T) {
 		wantUpstream := map[string]interface{}{
 			"meta_data": map[string]interface{}{
-				"test": "{foo: \"bar\"}",
+				"test": "{\"foo\": \"bar\", \"re\":\"\\w+\"}",
 			},
 		}
 		wantBytes, err := json.MarshalIndent(wantUpstream, "", "  ")
@@ -2170,7 +2169,7 @@ func TestExecutor_HTTPJSONDataSourceWithBody(t *testing.T) {
 		restServer := createRESTServer(wantString)
 		defer restServer.Client()
 
-		run(t, restServer, `{{ .arguments.input.query }}`, `{"query": { "meta_data": { "test": "{foo: \"bar\"}" } }`, expectedResult)
+		run(t, restServer, `{{ .arguments.input.query }}`, `{"query": { "meta_data": { "test": "{\"foo\": \"bar\", \"re\":\"\\w+\"}" } }`, expectedResult)
 	})
 
 }
@@ -3010,13 +3009,12 @@ func TestExecutor_Introspection(t *testing.T) {
 
 	goldie.Assert(t, "introspection_execution", response)
 	if t.Failed() {
-
 		fixture, err := ioutil.ReadFile("./fixtures/introspection_execution.golden")
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		diffview.NewGoland().DiffViewBytes("execution", fixture, response)
+		assert.Equal(t, fixture, response)
 	}
 }
 
