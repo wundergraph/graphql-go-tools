@@ -31,6 +31,7 @@ type Planner struct {
 	operationNormalizer *astnormalization.OperationNormalizer
 	URL                 []byte
 	variables           []byte
+	headers           []byte
 	bufferID            int
 	config              *plan.DataSourceConfiguration
 	abortLeaveDocument  bool
@@ -74,6 +75,7 @@ func (p *Planner) EnterDocument(_, _ *ast.Document) {
 	p.nodes = p.nodes[:0]
 	p.URL = nil
 	p.variables = nil
+	p.headers = nil
 }
 
 func (p *Planner) EnterField(ref int) {
@@ -91,7 +93,7 @@ func (p *Planner) EnterField(ref int) {
 		p.config = config
 		if len(p.nodes) == 0 { // Setup Fetch and root (operation definition)
 			p.URL = config.Attributes.ValueForKey("url")
-
+			p.headers = config.Attributes.ValueForKey(httpclient.HEADERS)
 			p.bufferID = p.v.NextBufferID()
 			p.fetch = &resolve.SingleFetch{
 				BufferId: p.bufferID,
@@ -342,6 +344,7 @@ func (p *Planner) LeaveDocument(_, definition *ast.Document) {
 	input = httpclient.SetInputBodyWithPath(input, buf.Bytes(), "query")
 	input = httpclient.SetInputURL(input, p.URL)
 	input = httpclient.SetInputMethod(input, literal.HTTP_METHOD_POST)
+	input = httpclient.SetInputHeaders(input, p.headers)
 	p.fetch.Input = string(input)
 	source := DefaultSource()
 	source.client = p.clientOrDefault()
