@@ -238,3 +238,32 @@ func TestKinds(t *testing.T) {
 		assert.Equal(t, expectedArray(22, 28), actualValues)
 	})
 }
+
+func TestFilterIntSliceByWhitelist(t *testing.T) {
+	run := func(inputIntSlice []int, inputWhitelistIntSlice []int, expectedFilteredIntSlice []int) func(t *testing.T) {
+		return func(t *testing.T) {
+			result := FilterIntSliceByWhitelist(inputIntSlice, inputWhitelistIntSlice)
+			assert.Equal(t, expectedFilteredIntSlice, result)
+		}
+	}
+
+	t.Run("should return empty slice when all input slices are nil",
+		run(nil, nil, []int{}),
+	)
+
+	t.Run("should return empty slice when all input slices are empty",
+		run([]int{}, []int{}, []int{}),
+	)
+
+	t.Run("should return empty slice when whitelisted is empty",
+		run([]int{1, 2, 3}, []int{}, []int{}),
+	)
+
+	t.Run("should return a slice with filtered int values",
+		run([]int{1, 2, 3, 4}, []int{2, 3, 10}, []int{2, 3}),
+	)
+
+	t.Run("should return all values when all are whitelisted",
+		run([]int{1, 2, 3}, []int{1, 2, 3, 4, 5}, []int{1, 2, 3}),
+	)
+}
