@@ -3412,6 +3412,12 @@ func TestExecutionValidation(t *testing.T) {
 									}`,
 					AllVariablesUsed(), Valid)
 			})
+			t.Run("165 variant nested", func(t *testing.T) {
+				run(`	query variableUnused($name: String) {
+										findNestedDog(complex: {nested: {name: $name}})
+									}`,
+					AllVariablesUsed(), Valid)
+			})
 			t.Run("165 variant - input object type variable", func(t *testing.T) {
 				run(`query variableUnused($atOtherHomes: Boolean) {
 									dog {
@@ -4007,6 +4013,7 @@ type Mutation {
 }
 
 input ComplexInput { name: String, owner: String }
+input ComplexNestedInput { complex: ComplexInput }
 input ComplexNonOptionalInput { name: String! }
 
 input NestedInput {
@@ -4064,6 +4071,7 @@ type Query {
 	humanOrAlien: HumanOrAlien
 	arguments: ValidArguments
 	findDog(complex: ComplexInput): Dog
+	findNestedDog(complex: ComplexNestedInput): Dog
 	findDogNonOptional(complex: ComplexNonOptionalInput): Dog
   	booleanList(booleanListArg: [Boolean!]): Boolean
 	extra: Extra
