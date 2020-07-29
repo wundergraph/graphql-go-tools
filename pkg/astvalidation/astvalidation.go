@@ -10,6 +10,7 @@ import (
 	"github.com/cespare/xxhash"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/astimport"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
@@ -721,6 +722,7 @@ func Values() Rule {
 type valuesVisitor struct {
 	*astvisitor.Walker
 	operation, definition *ast.Document
+	importer astimport.Importer
 }
 
 func (v *valuesVisitor) EnterDocument(operation, definition *ast.Document) {
@@ -775,8 +777,20 @@ func (v *valuesVisitor) valueSatisfiesInputValueDefinitionType(value ast.Value, 
 
 	switch v.definition.Types[definitionTypeRef].TypeKind {
 	case ast.TypeKindNonNull:
-		if value.Kind == ast.ValueKindNull {
+		switch value.Kind {
+		case ast.ValueKindNull:
 			return false
+		case ast.ValueKindVariable:
+			variableName := v.operation.VariableValueNameBytes(value.Ref)
+			variableDefinition, exists := v.operation.VariableDefinitionByNameAndOperation(v.Ancestors[0].Ref,variableName)
+			if !exists {
+				return false
+			}
+			variableTypeRef := v.operation.VariableDefinitions[variableDefinition].Type
+			importedDefinitionType := v.importer.ImportType(definitionTypeRef,v.definition,v.operation)
+			if !v.operation.TypesAreEqualDeep(importedDefinitionType,variableTypeRef){
+				return false
+			}
 		}
 		return v.valueSatisfiesInputValueDefinitionType(value, v.definition.Types[definitionTypeRef].OfType)
 	case ast.TypeKindNamed:
@@ -900,6 +914,16 @@ func (v *valuesVisitor) objectValueSatisfiesInputValueDefinition(objectValue, in
 
 func (v *valuesVisitor) valueSatisfiesScalar(value ast.Value, scalar int) bool {
 	scalarName := v.definition.ScalarTypeDefinitionNameString(scalar)
+	if value.Kind == ast.ValueKindVariable {
+		variableName := v.operation.VariableValueNameBytes(value.Ref)
+		variableDefinition, exists := v.operation.VariableDefinitionByNameAndOperation(v.Ancestors[0].Ref,variableName)
+		if !exists {
+			return false
+		}
+		variableTypeRef := v.operation.VariableDefinitions[variableDefinition].Type
+		typeName := v.operation.ResolveTypeNameString(variableTypeRef)
+		return scalarName == typeName
+	}
 	switch scalarName {
 	case "Boolean":
 		return value.Kind == ast.ValueKindBoolean

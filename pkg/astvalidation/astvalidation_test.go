@@ -2763,6 +2763,20 @@ func TestExecutionValidation(t *testing.T) {
 							}`,
 					Values(), Valid)
 			})
+			t.Run("145 variant inline variable", func(t *testing.T) {
+				run(`
+							query goodComplexDefaultValue($name: String = "Fido" ) {
+								findDog(complex: { name: $name })
+							}`,
+					Values(), Valid)
+			})
+			t.Run("145 variant variable non null", func(t *testing.T) {
+				run(`
+							query goodComplexDefaultValue($name: String ) {
+								findDogNonOptional(complex: { name: $name })
+							}`,
+					Values(), Invalid)
+			})
 			t.Run("145 variant", func(t *testing.T) {
 				run(`
 							query goodComplexDefaultValue($search: ComplexInput = { name: 123 }) {
