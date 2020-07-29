@@ -24,8 +24,7 @@ func TestNormalizeOperation(t *testing.T) {
 			operationDocument.Input.Variables = []byte(variablesInput)
 		}
 
-
-		normalizer := NewNormalizer(true,true)
+		normalizer := NewNormalizer(true, true)
 		normalizer.NormalizeOperation(&operationDocument, &definitionDocument, &report)
 
 		if report.HasErrors() {
@@ -35,7 +34,7 @@ func TestNormalizeOperation(t *testing.T) {
 		got := mustString(astprinter.PrintString(&operationDocument, &definitionDocument))
 		want := mustString(astprinter.PrintString(&expectedOutputDocument, &definitionDocument))
 
-		assert.Equal(t, want,got)
+		assert.Equal(t, want, got)
 		assert.Equal(t, expectedVariables, string(operationDocument.Input.Variables))
 	}
 
@@ -126,7 +125,39 @@ func TestNormalizeOperation(t *testing.T) {
 				  foo
 				}
 			  }
-			}`,``,`{"a":{"foo":"bar"}}`)
+			}`, ``, `{"a":{"foo":"bar"}}`)
+	})
+}
+
+func TestOperationNormalizer_NormalizeOperation(t *testing.T) {
+	t.Run("should return an error once on normalization with missing field", func(t *testing.T) {
+		schema := `
+type Query {
+	country: Country!
+}
+
+type Country {
+	name: String!
+}
+`
+
+		query := `
+{
+	country {
+		nam
+	}
+}
+`
+		definition := unsafeparser.ParseGraphqlDocumentString(schema)
+		operation := unsafeparser.ParseGraphqlDocumentString(query)
+
+		report := operationreport.Report{}
+		normalizer := NewNormalizer(true, true)
+		normalizer.NormalizeOperation(&operation, &definition, &report)
+
+		assert.True(t, report.HasErrors())
+		assert.Equal(t, 1, len(report.ExternalErrors))
+		assert.Equal(t, 0, len(report.InternalErrors))
 	})
 }
 
@@ -136,7 +167,7 @@ func BenchmarkAstNormalization(b *testing.B) {
 	operation := unsafeparser.ParseGraphqlDocumentString(testOperation)
 	report := operationreport.Report{}
 
-	normalizer := NewNormalizer(false,false)
+	normalizer := NewNormalizer(false, false)
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -154,7 +185,7 @@ var mustString = func(str string, err error) string {
 	return str
 }
 
-var runWithVariables = func(t *testing.T, normalizeFunc registerNormalizeFunc, definition, operation, expectedOutput, variablesInput, expectedVariables string) {
+var runWithVariables = func(t *testing.T, normalizeFunc registerNormalizeVariablesFunc, definition, operation,operationName, expectedOutput, variablesInput, expectedVariables string) {
 	definitionDocument := unsafeparser.ParseGraphqlDocumentString(definition)
 	operationDocument := unsafeparser.ParseGraphqlDocumentString(operation)
 	expectedOutputDocument := unsafeparser.ParseGraphqlDocumentString(expectedOutput)
@@ -165,7 +196,8 @@ var runWithVariables = func(t *testing.T, normalizeFunc registerNormalizeFunc, d
 		operationDocument.Input.Variables = []byte(variablesInput)
 	}
 
-	normalizeFunc(&walker)
+	visitor := normalizeFunc(&walker)
+	visitor.operationName = []byte(operationName)
 
 	walker.Walk(&operationDocument, &definitionDocument, &report)
 

@@ -7,7 +7,36 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
+	"github.com/jensneuse/graphql-go-tools/pkg/starwars"
 )
+
+func TestRequest_Normalize(t *testing.T) {
+	t.Run("should return error when schema is nil", func(t *testing.T) {
+		request := Request{
+			OperationName: "Hello",
+			Variables:     nil,
+			Query:         `query Hello { hello }`,
+		}
+
+		result, err := request.Normalize(nil)
+		assert.Error(t, err)
+		assert.Equal(t, ErrNilSchema, err)
+		assert.False(t, result.Successful)
+		assert.False(t, request.isNormalized)
+	})
+
+	t.Run("should successfully normalize the request", func(t *testing.T) {
+		schema := starwarsSchema(t)
+		request := requestForQuery(t, starwars.FileFragmentsQuery)
+		documentBeforeNormalization := request.document
+
+		result, err := request.Normalize(schema)
+		assert.NoError(t, err)
+		assert.NotEqual(t, documentBeforeNormalization, request.document)
+		assert.True(t, result.Successful)
+		assert.True(t, request.isNormalized)
+	})
+}
 
 func Test_normalizationResultFromReport(t *testing.T) {
 	t.Run("should return successful result when report does not have errors", func(t *testing.T) {

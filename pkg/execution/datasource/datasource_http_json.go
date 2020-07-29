@@ -27,34 +27,32 @@ var httpJsonSchemes = []string{
 
 // HttpJsonDataSourceConfig is the configuration object for the HttpJsonDataSource
 type HttpJsonDataSourceConfig struct {
-	// Host is the hostname of the upstream
-	Host string `json:"host"`
 	// URL is the url of the upstream
-	URL string `json:"url"`
+	URL string `bson:"url" json:"url"`
 	// Method is the http.Method, e.g. GET, POST, UPDATE, DELETE
 	// default is GET
-	Method *string `json:"method"`
+	Method *string `bson:"method" json:"method"`
 	// Body is the http body to send
 	// default is null/nil (no body)
-	Body *string `json:"body"`
+	Body *string `bson:"body" json:"body"`
 	// Headers defines the header mappings
-	Headers []HttpJsonDataSourceConfigHeader `json:"headers"`
+	Headers []HttpJsonDataSourceConfigHeader `bson:"headers" json:"headers"`
 	// DefaultTypeName is the optional variable to define a default type name for the response object
 	// This is useful in case the response might be a Union or Interface type which uses StatusCodeTypeNameMappings
-	DefaultTypeName *string `json:"default_type_name"`
+	DefaultTypeName *string `bson:"default_type_name" json:"default_type_name"`
 	// StatusCodeTypeNameMappings is a slice of mappings from http.StatusCode to GraphQL TypeName
 	// This can be used when the TypeName depends on the http.StatusCode
-	StatusCodeTypeNameMappings []StatusCodeTypeNameMapping `json:"status_code_type_name_mappings"`
+	StatusCodeTypeNameMappings []StatusCodeTypeNameMapping `bson:"status_code_type_name_mappings" json:"status_code_type_name_mappings"`
 }
 
 type StatusCodeTypeNameMapping struct {
-	StatusCode int    `json:"status_code"`
-	TypeName   string `json:"type_name"`
+	StatusCode int    `bson:"status_code" json:"status_code"`
+	TypeName   string `bson:"type_name" json:"type_name"`
 }
 
 type HttpJsonDataSourceConfigHeader struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
+	Key   string `bson:"key" json:"key"`
+	Value string `bson:"value" json:"value"`
 }
 
 type HttpJsonDataSourcePlannerFactoryFactory struct {
@@ -110,6 +108,10 @@ func (h *HttpJsonDataSourcePlanner) Plan(args []Argument) (DataSource, []Argumen
 	}, append(h.Args, args...)
 }
 
+func (h *HttpJsonDataSourcePlanner) EnterDocument(operation, definition *ast.Document) {
+
+}
+
 func (h *HttpJsonDataSourcePlanner) EnterInlineFragment(ref int) {
 
 }
@@ -130,6 +132,8 @@ func (h *HttpJsonDataSourcePlanner) EnterField(ref int) {
 	h.RootField.SetIfNotDefined(ref)
 }
 
+func (h *HttpJsonDataSourcePlanner) EnterArgument(ref int) {}
+
 func (h *HttpJsonDataSourcePlanner) LeaveField(ref int) {
 	if !h.RootField.IsDefinedAndEquals(ref) {
 		return
@@ -138,10 +142,6 @@ func (h *HttpJsonDataSourcePlanner) LeaveField(ref int) {
 	if !exists {
 		return
 	}
-	h.Args = append(h.Args, &StaticVariableArgument{
-		Name:  literal.HOST,
-		Value: []byte(h.dataSourceConfig.Host),
-	})
 	h.Args = append(h.Args, &StaticVariableArgument{
 		Name:  literal.URL,
 		Value: []byte(h.dataSourceConfig.URL),
@@ -222,8 +222,6 @@ type HttpJsonDataSource struct {
 }
 
 func (r *HttpJsonDataSource) Resolve(ctx context.Context, args ResolverArgs, out io.Writer) (n int, err error) {
-
-	hostArg := args.ByKey(literal.HOST)
 	urlArg := args.ByKey(literal.URL)
 	methodArg := args.ByKey(literal.METHOD)
 	bodyArg := args.ByKey(literal.BODY)
@@ -235,9 +233,6 @@ func (r *HttpJsonDataSource) Resolve(ctx context.Context, args ResolverArgs, out
 	)
 
 	switch {
-	case hostArg == nil:
-		r.Log.Error(fmt.Sprintf("arg '%s' must not be nil", string(literal.HOST)))
-		return
 	case urlArg == nil:
 		r.Log.Error(fmt.Sprintf("arg '%s' must not be nil", string(literal.URL)))
 		return
@@ -260,7 +255,7 @@ func (r *HttpJsonDataSource) Resolve(ctx context.Context, args ResolverArgs, out
 		httpMethod = http.MethodPatch
 	}
 
-	parsedURL, rawURL, err := parseURLBytes(hostArg, urlArg)
+	parsedURL, rawURL, err := parseURLBytes(urlArg)
 	if err != nil {
 		r.Log.Error("HttpJsonDataSource.RawURL could not be parsed", log.String("rawURL", rawURL))
 		return
@@ -288,7 +283,6 @@ func (r *HttpJsonDataSource) Resolve(ctx context.Context, args ResolverArgs, out
 
 	var bodyReader io.Reader
 	if len(bodyArg) != 0 {
-		bodyArg = bytes.ReplaceAll(bodyArg, literal.BACKSLASH, nil)
 		bodyReader = bytes.NewReader(bodyArg)
 	}
 
