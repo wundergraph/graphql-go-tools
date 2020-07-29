@@ -722,7 +722,7 @@ func Values() Rule {
 type valuesVisitor struct {
 	*astvisitor.Walker
 	operation, definition *ast.Document
-	importer astimport.Importer
+	importer              astimport.Importer
 }
 
 func (v *valuesVisitor) EnterDocument(operation, definition *ast.Document) {
@@ -782,13 +782,13 @@ func (v *valuesVisitor) valueSatisfiesInputValueDefinitionType(value ast.Value, 
 			return false
 		case ast.ValueKindVariable:
 			variableName := v.operation.VariableValueNameBytes(value.Ref)
-			variableDefinition, exists := v.operation.VariableDefinitionByNameAndOperation(v.Ancestors[0].Ref,variableName)
+			variableDefinition, exists := v.operation.VariableDefinitionByNameAndOperation(v.Ancestors[0].Ref, variableName)
 			if !exists {
 				return false
 			}
 			variableTypeRef := v.operation.VariableDefinitions[variableDefinition].Type
-			importedDefinitionType := v.importer.ImportType(definitionTypeRef,v.definition,v.operation)
-			if !v.operation.TypesAreEqualDeep(importedDefinitionType,variableTypeRef){
+			importedDefinitionType := v.importer.ImportType(definitionTypeRef, v.definition, v.operation)
+			if !v.operation.TypesAreEqualDeep(importedDefinitionType, variableTypeRef) {
 				return false
 			}
 		}
@@ -916,7 +916,7 @@ func (v *valuesVisitor) valueSatisfiesScalar(value ast.Value, scalar int) bool {
 	scalarName := v.definition.ScalarTypeDefinitionNameString(scalar)
 	if value.Kind == ast.ValueKindVariable {
 		variableName := v.operation.VariableValueNameBytes(value.Ref)
-		variableDefinition, exists := v.operation.VariableDefinitionByNameAndOperation(v.Ancestors[0].Ref,variableName)
+		variableDefinition, exists := v.operation.VariableDefinitionByNameAndOperation(v.Ancestors[0].Ref, variableName)
 		if !exists {
 			return false
 		}
@@ -1393,7 +1393,7 @@ func (a *allVariablesUsedVisitor) EnterDocument(operation, definition *ast.Docum
 }
 
 func (a *allVariablesUsedVisitor) EnterOperationDefinition(ref int) {
-	a.variableDefinitions = append(a.variableDefinitions,a.operation.OperationDefinitions[ref].VariableDefinitions.Refs...)
+	a.variableDefinitions = append(a.variableDefinitions, a.operation.OperationDefinitions[ref].VariableDefinitions.Refs...)
 }
 
 func (a *allVariablesUsedVisitor) LeaveOperationDefinition(ref int) {
@@ -1413,11 +1413,22 @@ func (a *allVariablesUsedVisitor) EnterArgument(ref int) {
 		return // nothing to check, skip
 	}
 
-	if a.operation.Arguments[ref].Value.Kind != ast.ValueKindVariable {
-		return // skip non variable value
+	a.verifyValue(a.operation.Arguments[ref].Value)
+}
+
+func (a *allVariablesUsedVisitor) verifyValue(value ast.Value) {
+	switch value.Kind {
+	case ast.ValueKindVariable: // don't skip
+	case ast.ValueKindObject:
+		for i := range a.operation.ObjectValues[value.Ref].Refs {
+			a.verifyValue(a.operation.ObjectFields[i].Value)
+		}
+		return
+	default:
+		return // skip all others
 	}
 
-	variableName := a.operation.VariableValueNameBytes(a.operation.Arguments[ref].Value.Ref)
+	variableName := a.operation.VariableValueNameBytes(value.Ref)
 	for i, j := range a.variableDefinitions {
 		if bytes.Equal(variableName, a.operation.VariableDefinitionNameBytes(j)) {
 			a.variableDefinitions = append(a.variableDefinitions[:i], a.variableDefinitions[i+1:]...)

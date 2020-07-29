@@ -3407,6 +3407,12 @@ func TestExecutionValidation(t *testing.T) {
 		})
 		t.Run("5.8.4 All Variables Used", func(t *testing.T) {
 			t.Run("165", func(t *testing.T) {
+				run(`	query variableUnused($name: String) {
+										findDog(complex: {name: $name})
+									}`,
+					AllVariablesUsed(), Valid)
+			})
+			t.Run("165 variant - input object type variable", func(t *testing.T) {
 				run(`query variableUnused($atOtherHomes: Boolean) {
 									dog {
 										isHousetrained
