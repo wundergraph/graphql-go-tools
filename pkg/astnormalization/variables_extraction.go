@@ -53,7 +53,6 @@ func (v *variablesExtractionVisitor) EnterArgument(ref int) {
 	variableNameBytes := v.operation.GenerateUnusedVariableDefinitionName(v.Ancestors[0].Ref)
 	valueBytes, err := v.operation.ValueToJSON(v.operation.Arguments[ref].Value)
 	if err != nil {
-		v.StopWithInternalErr(err)
 		return
 	}
 	v.operation.Input.Variables, err = sjson.SetRawBytes(v.operation.Input.Variables, unsafebytes.BytesToString(variableNameBytes), valueBytes)

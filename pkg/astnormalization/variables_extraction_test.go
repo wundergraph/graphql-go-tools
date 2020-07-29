@@ -54,6 +54,29 @@ func TestVariablesExtraction(t *testing.T) {
 			  }
 			}`, ``, `{"a":{"foo":"bar"}}`)
 	})
+	t.Run("variables in argument", func(t *testing.T) {
+		runWithVariables(t, extractVariables, variablesExtractionDefinition, `
+			mutation HttpBinPost($foo: String! = "bar") {
+			  httpBinPost(input: {foo: $foo}){
+				headers {
+				  userAgent
+				}
+				data {
+				  foo
+				}
+			  }
+			}`, "", `
+			mutation HttpBinPost($foo: String! = "bar") {
+			  httpBinPost(input: {foo: $foo}){
+				headers {
+				  userAgent
+				}
+				data {
+				  foo
+				}
+			  }
+			}`, ``, ``)
+	})
 	t.Run("multiple queries", func(t *testing.T) {
 		runWithVariables(t, extractVariables, forumExampleSchema, `
 			mutation Register {
