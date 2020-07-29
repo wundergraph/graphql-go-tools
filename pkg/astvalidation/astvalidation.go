@@ -1420,7 +1420,7 @@ func (a *allVariablesUsedVisitor) verifyValue(value ast.Value) {
 	switch value.Kind {
 	case ast.ValueKindVariable: // don't skip
 	case ast.ValueKindObject:
-		for i := range a.operation.ObjectValues[value.Ref].Refs {
+		for _, i := range a.operation.ObjectValues[value.Ref].Refs {
 			a.verifyValue(a.operation.ObjectFields[i].Value)
 		}
 		return
