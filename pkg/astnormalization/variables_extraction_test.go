@@ -120,6 +120,25 @@ func TestVariablesExtraction(t *testing.T) {
 			  }
 			}`, ``, `{"a":{"user":{"id":"jens","username":"jens"}}}`)
 	})
+	t.Run("values on directives should be ignored", func(t *testing.T) {
+		runWithVariables(t, extractVariables, forumExampleSchema, `
+			mutation Register($a: CreateUserInput @foo(name: "bar")) {
+			  createUser(input: $a){
+				user {
+				  id
+				  username
+				}
+			  }
+			}`, "Register", `
+			mutation Register($a: CreateUserInput @foo(name: "bar")) {
+			  createUser(input: $a){
+				user {
+				  id
+				  username
+				}
+			  }
+			}`, ``, ``)
+	})
 }
 
 const forumExampleSchema = `

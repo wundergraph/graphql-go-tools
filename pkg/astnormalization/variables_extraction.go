@@ -45,9 +45,14 @@ func (v *variablesExtractionVisitor) EnterArgument(ref int) {
 	if v.operation.Arguments[ref].Value.Kind == ast.ValueKindVariable {
 		return
 	}
-
 	if len(v.Ancestors) == 0 || v.Ancestors[0].Kind != ast.NodeKindOperationDefinition {
 		return
+	}
+
+	for i := range v.Ancestors {
+		if v.Ancestors[i].Kind == ast.NodeKindDirective {
+			return // skip all directives in any case
+		}
 	}
 
 	variableNameBytes := v.operation.GenerateUnusedVariableDefinitionName(v.Ancestors[0].Ref)
