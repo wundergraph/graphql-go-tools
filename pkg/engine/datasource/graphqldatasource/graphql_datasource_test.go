@@ -507,16 +507,16 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 												Segments: []resolve.TemplateSegment{
 													{
 														SegmentType: resolve.StaticSegmentType,
-														Data: []byte(`{"method":"POST","url":"https://service.one","body":{"query":"query($a: String){serviceOne(serviceOneArg: $a){fieldOne}}","variables":{"a":"`),
+														Data:        []byte(`{"method":"POST","url":"https://service.one","body":{"query":"query($a: String){serviceOne(serviceOneArg: $a){fieldOne}}","variables":{"a":"`),
 													},
 													{
-														SegmentType: resolve.VariableSegmentType,
-														VariableSource: resolve.VariableSourceObject,
+														SegmentType:        resolve.VariableSegmentType,
+														VariableSource:     resolve.VariableSourceObject,
 														VariableSourcePath: []string{"serviceOneField"},
 													},
 													{
 														SegmentType: resolve.StaticSegmentType,
-														Data: []byte(`"}}}`),
+														Data:        []byte(`"}}}`),
 													},
 												},
 											},
@@ -779,6 +779,173 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 					TypeName:       "ServiceTwoResponse",
 					FieldName:      "serviceOneResponse",
 					RequiresFields: []string{"serviceOneField"},
+				},
+			},
+		},
+	))
+	t.Run("inline object value with arguments", RunTest(`
+			schema {
+				mutation: Mutation
+			}
+			type Mutation {
+				createUser(input: CreateUserInput!): CreateUser
+			}
+			input CreateUserInput {
+				user: UserInput
+			}
+			input UserInput {
+				id: String
+				username: String
+			}
+			type CreateUser {
+				user: User
+			}
+			type User {
+				id: String
+				username: String
+				createdDate: String
+			}
+			directive @fromClaim(name: String) on VARIABLE_DEFINITION
+			`, `
+			mutation Register($name: String $id: String @fromClaim(name: "sub")) {
+			  createUser(input: {user: {id: $id username: $name}}){
+				user {
+				  id
+				  username
+				  createdDate
+				}
+			  }
+			}`,
+		"Register",
+		&plan.SynchronousResponsePlan{
+			Response: resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						BufferId: 0,
+						Input:    `{"method":"POST","url":"https://user.service","body":{"query":"mutation($id: String, $name: String){createUser(input: {user: {id: $id,username: $name}}){user {id username createdDate}}}","variables":{"name":"$$1$$","id":"$$0$$"}}}`,
+						InputTemplate: resolve.InputTemplate{
+							Segments: []resolve.TemplateSegment{
+								{
+									SegmentType: resolve.StaticSegmentType,
+									Data:        []byte(`{"method":"POST","url":"https://user.service","body":{"query":"mutation($id: String, $name: String){createUser(input: {user: {id: $id,username: $name}}){user {id username createdDate}}}","variables":{"name":"`),
+								},
+								{
+									SegmentType:        resolve.VariableSegmentType,
+									VariableSource:     resolve.VariableSourceContext,
+									VariableSourcePath: []string{"name"},
+								},
+								{
+									SegmentType: resolve.StaticSegmentType,
+									Data: []byte(`","id":"`),
+								},
+								{
+									SegmentType:        resolve.VariableSegmentType,
+									VariableSource:     resolve.VariableSourceContext,
+									VariableSourcePath: []string{"id"},
+								},
+								{
+									SegmentType: resolve.StaticSegmentType,
+									Data:        []byte(`"}}}`),
+								},
+							},
+						},
+						DataSource: DefaultSource(),
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path: []string{"id"},
+							},
+							&resolve.ContextVariable{
+								Path: []string{"name"},
+							},
+						),
+						DisallowSingleFlight: true,
+					},
+					FieldSets: []resolve.FieldSet{
+						{
+							BufferID:  0,
+							HasBuffer: true,
+							Fields: []resolve.Field{
+								{
+									Name: []byte("createUser"),
+									Value: &resolve.Object{
+										Nullable: true,
+										Path: []string{"createUser"},
+										FieldSets: []resolve.FieldSet{
+											{
+												Fields: []resolve.Field{
+													{
+														Name: []byte("user"),
+														Value: &resolve.Object{
+															Path:     []string{"user"},
+															Nullable: true,
+															FieldSets: []resolve.FieldSet{
+																{
+																	Fields: []resolve.Field{
+																		{
+																			Name: []byte("id"),
+																			Value: &resolve.String{
+																				Path:     []string{"id"},
+																				Nullable: true,
+																			},
+																		},
+																		{
+																			Name: []byte("username"),
+																			Value: &resolve.String{
+																				Path:     []string{"username"},
+																				Nullable: true,
+																			},
+																		},
+																		{
+																			Name: []byte("createdDate"),
+																			Value: &resolve.String{
+																				Path:     []string{"createdDate"},
+																				Nullable: true,
+																			},
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		plan.Configuration{
+			DataSourceConfigurations: []plan.DataSourceConfiguration{
+				{
+					TypeName:   "Mutation",
+					FieldNames: []string{"createUser"},
+					Attributes: []plan.DataSourceAttribute{
+						{
+							Key:   "url",
+							Value: []byte("https://user.service"),
+						},
+						{
+							Key: "arguments",
+							Value: ArgumentsConfigJSON(ArgumentsConfig{
+								Fields: []FieldConfig{
+									{
+										FieldName: "createUser",
+										Arguments: []Argument{
+											{
+												Name:   "input",
+												Source: FieldArgument,
+											},
+										},
+									},
+								},
+							}),
+						},
+					},
+					DataSourcePlanner: &Planner{},
 				},
 			},
 		},

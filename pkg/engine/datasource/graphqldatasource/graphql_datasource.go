@@ -31,7 +31,7 @@ type Planner struct {
 	operationNormalizer *astnormalization.OperationNormalizer
 	URL                 []byte
 	variables           []byte
-	headers           []byte
+	headers             []byte
 	bufferID            int
 	config              *plan.DataSourceConfiguration
 	abortLeaveDocument  bool
@@ -227,6 +227,7 @@ func (p *Planner) applyFieldArgument(upstreamField, downstreamField int, arg Arg
 		if fieldArgument, ok := p.v.Operation.FieldArgument(downstreamField, arg.NameBytes()); ok {
 			value := p.v.Operation.ArgumentValue(fieldArgument)
 			if value.Kind != ast.ValueKindVariable {
+				p.applyInlineFieldArgument(upstreamField, downstreamField, arg)
 				return
 			}
 			variableName := p.v.Operation.VariableValueNameBytes(value.Ref)
@@ -294,6 +295,53 @@ func (p *Planner) applyFieldArgument(upstreamField, downstreamField int, arg Arg
 			p.variables, _ = sjson.SetRawBytes(p.variables, string(variableName), []byte(objectVariableName))
 		}
 	}
+}
+
+func (p *Planner) applyInlineFieldArgument(upstreamField, downstreamField int, arg Argument) {
+	fieldArgument, ok := p.v.Operation.FieldArgument(downstreamField, arg.NameBytes())
+	if !ok {
+		return
+	}
+	value := p.v.Operation.ArgumentValue(fieldArgument)
+	importedValue := p.v.Importer.ImportValue(value,p.v.Operation,p.operation)
+	argRef := p.operation.AddArgument(ast.Argument{
+		Name: p.operation.Input.AppendInputBytes(arg.NameBytes()),
+		Value: importedValue,
+	})
+	p.operation.AddArgumentToField(upstreamField, argRef)
+	p.addVariableDefinitionsRecursively(value,arg)
+}
+
+func (p *Planner) addVariableDefinitionsRecursively(value ast.Value,arg Argument){
+	switch value.Kind {
+	case ast.ValueKindObject:
+		for _,i := range p.v.Operation.ObjectValues[value.Ref].Refs {
+			p.addVariableDefinitionsRecursively(p.v.Operation.ObjectFields[i].Value,arg)
+		}
+		return
+	case ast.ValueKindVariable:
+		// continue after switch
+	default:
+		return
+	}
+
+	variableName := p.v.Operation.VariableValueNameBytes(value.Ref)
+	variableNameStr := p.v.Operation.VariableValueNameString(value.Ref)
+	variableDefinition, exists := p.v.Operation.VariableDefinitionByNameAndOperation(p.v.Ancestors[0].Ref,variableName)
+	if !exists {
+		return
+	}
+	importedVariableDefinition := p.v.Importer.ImportVariableDefinition(variableDefinition,p.v.Operation,p.operation)
+	p.operation.AddImportedVariableDefinitionToOperationDefinition(p.nodes[0].Ref,importedVariableDefinition)
+
+	variableDefinitionType := p.v.Operation.VariableDefinitions[variableDefinition].Type
+	wrapValueInQuotes := p.v.Operation.TypeValueNeedsQuotes(variableDefinitionType)
+
+	contextVariableName, variableExists := p.fetch.Variables.AddVariable(&resolve.ContextVariable{Path: append(arg.SourcePath,variableNameStr)}, wrapValueInQuotes)
+	if variableExists {
+		return
+	}
+	p.variables, _ = sjson.SetRawBytes(p.variables, variableNameStr, []byte(contextVariableName))
 }
 
 func (p *Planner) LeaveField(_ int) {

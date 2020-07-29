@@ -61,6 +61,15 @@ func (d *Document) AddVariableDefinitionToOperationDefinition(operationDefinitio
 		append(d.OperationDefinitions[operationDefinitionRef].VariableDefinitions.Refs, ref)
 }
 
+func (d *Document) AddImportedVariableDefinitionToOperationDefinition(operationDefinition,variableDefinition int) {
+	if !d.OperationDefinitions[operationDefinition].HasVariableDefinitions {
+		d.OperationDefinitions[operationDefinition].HasVariableDefinitions = true
+		d.OperationDefinitions[operationDefinition].VariableDefinitions.Refs = d.Refs[d.NextRefIndex()][:0]
+	}
+	d.OperationDefinitions[operationDefinition].VariableDefinitions.Refs =
+		append(d.OperationDefinitions[operationDefinition].VariableDefinitions.Refs, variableDefinition)
+}
+
 const (
 	alphabet = `abcdefghijklmnopqrstuvwxyz`
 )
