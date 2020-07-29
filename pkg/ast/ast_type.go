@@ -199,10 +199,10 @@ func (d *Document) TypeValueNeedsQuotes(ref int) bool {
 		return false
 	case TypeKindNamed:
 		switch d.Input.ByteSliceString(graphqlType.Name) {
-		case "Int", "Float", "Boolean", "JSON":
-			return false
-		default:
+		case "String", "Date", "ID":
 			return true
+		default:
+			return false
 		}
 	default:
 		return false
