@@ -185,7 +185,7 @@ var mustString = func(str string, err error) string {
 	return str
 }
 
-var runWithVariables = func(t *testing.T, normalizeFunc registerNormalizeFunc, definition, operation, expectedOutput, variablesInput, expectedVariables string) {
+var runWithVariables = func(t *testing.T, normalizeFunc registerNormalizeVariablesFunc, definition, operation,operationName, expectedOutput, variablesInput, expectedVariables string) {
 	definitionDocument := unsafeparser.ParseGraphqlDocumentString(definition)
 	operationDocument := unsafeparser.ParseGraphqlDocumentString(operation)
 	expectedOutputDocument := unsafeparser.ParseGraphqlDocumentString(expectedOutput)
@@ -196,7 +196,8 @@ var runWithVariables = func(t *testing.T, normalizeFunc registerNormalizeFunc, d
 		operationDocument.Input.Variables = []byte(variablesInput)
 	}
 
-	normalizeFunc(&walker)
+	visitor := normalizeFunc(&walker)
+	visitor.operationName = []byte(operationName)
 
 	walker.Walk(&operationDocument, &definitionDocument, &report)
 
