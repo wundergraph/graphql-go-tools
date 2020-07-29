@@ -73,8 +73,7 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 							Name: "HttpJsonDataSource",
 							Config: func() []byte {
 								data, _ := json.Marshal(datasource.HttpJsonDataSourceConfig{
-									Host: "example.com",
-									URL:  "/",
+									URL: "example.com/",
 									Method: func() *string {
 										method := "GET"
 										return &method
@@ -107,12 +106,8 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 								},
 								Args: []datasource.Argument{
 									&datasource.StaticVariableArgument{
-										Name:  []byte("host"),
-										Value: []byte("example.com"),
-									},
-									&datasource.StaticVariableArgument{
 										Name:  []byte("url"),
-										Value: []byte("/"),
+										Value: []byte("example.com/"),
 									},
 									&datasource.StaticVariableArgument{
 										Name:  []byte("method"),
@@ -180,8 +175,7 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 							Name: "HttpJsonDataSource",
 							Config: func() []byte {
 								data, _ := json.Marshal(datasource.HttpJsonDataSourceConfig{
-									Host: "example.com",
-									URL:  "/",
+									URL: "example.com/",
 									Method: func() *string {
 										method := "GET"
 										return &method
@@ -210,12 +204,8 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 								},
 								Args: []datasource.Argument{
 									&datasource.StaticVariableArgument{
-										Name:  []byte("host"),
-										Value: []byte("example.com"),
-									},
-									&datasource.StaticVariableArgument{
 										Name:  []byte("url"),
-										Value: []byte("/"),
+										Value: []byte("example.com/"),
 									},
 									&datasource.StaticVariableArgument{
 										Name:  []byte("method"),
@@ -260,8 +250,7 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 							Name: "HttpJsonDataSource",
 							Config: func() []byte {
 								data, _ := json.Marshal(datasource.HttpJsonDataSourceConfig{
-									Host: "example.com",
-									URL:  "/",
+									URL: "example.com/",
 									Method: func() *string {
 										method := "GET"
 										return &method
@@ -294,12 +283,8 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 								},
 								Args: []datasource.Argument{
 									&datasource.StaticVariableArgument{
-										Name:  []byte("host"),
-										Value: []byte("example.com"),
-									},
-									&datasource.StaticVariableArgument{
 										Name:  []byte("url"),
-										Value: []byte("/"),
+										Value: []byte("example.com/"),
 									},
 									&datasource.StaticVariableArgument{
 										Name:  []byte("method"),
@@ -367,8 +352,7 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 							Config: func() []byte {
 								defaultTypeName := "SuccessType"
 								data, _ := json.Marshal(datasource.HttpJsonDataSourceConfig{
-									Host:            "example.com",
-									URL:             "/",
+									URL:             "example.com/",
 									DefaultTypeName: &defaultTypeName,
 									StatusCodeTypeNameMappings: []datasource.StatusCodeTypeNameMapping{
 										{
@@ -400,12 +384,8 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 								},
 								Args: []datasource.Argument{
 									&datasource.StaticVariableArgument{
-										Name:  []byte("host"),
-										Value: []byte("example.com"),
-									},
-									&datasource.StaticVariableArgument{
 										Name:  []byte("url"),
-										Value: []byte("/"),
+										Value: []byte("example.com/"),
 									},
 									&datasource.StaticVariableArgument{
 										Name:  []byte("method"),
@@ -514,8 +494,7 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 							Config: func() []byte {
 								defaultTypeName := "SuccessInterface"
 								data, _ := json.Marshal(datasource.HttpJsonDataSourceConfig{
-									Host:            "example.com",
-									URL:             "/",
+									URL:             "example.com/",
 									DefaultTypeName: &defaultTypeName,
 									StatusCodeTypeNameMappings: []datasource.StatusCodeTypeNameMapping{
 										{
@@ -547,12 +526,8 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 								},
 								Args: []datasource.Argument{
 									&datasource.StaticVariableArgument{
-										Name:  []byte("host"),
-										Value: []byte("example.com"),
-									},
-									&datasource.StaticVariableArgument{
 										Name:  []byte("url"),
-										Value: []byte("/"),
+										Value: []byte("example.com/"),
 									},
 									&datasource.StaticVariableArgument{
 										Name:  []byte("method"),
@@ -665,12 +640,8 @@ func TestHttpJsonDataSource_Resolve(t *testing.T) {
 			}
 			args := ResolvedArgs{
 				{
-					Key:   []byte("host"),
-					Value: []byte(fakeServer.URL),
-				},
-				{
 					Key:   []byte("url"),
-					Value: []byte("/"),
+					Value: []byte(fakeServer.URL + "/"),
 				},
 				{
 					Key:   []byte("method"),

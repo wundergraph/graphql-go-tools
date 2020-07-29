@@ -15,7 +15,6 @@ import (
 
 	"github.com/cespare/xxhash"
 	log "github.com/jensneuse/abstractlogger"
-	"github.com/jensneuse/diffview"
 	"github.com/sebdah/goldie"
 	"github.com/stretchr/testify/assert"
 
@@ -118,12 +117,8 @@ func TestExecution(t *testing.T) {
 								Source: &DataSourceInvocation{
 									Args: []datasource.Argument{
 										&datasource.StaticVariableArgument{
-											Name:  literal.HOST,
-											Value: []byte(graphQL1.URL),
-										},
-										&datasource.StaticVariableArgument{
 											Name:  literal.URL,
-											Value: []byte("/graphql"),
+											Value: []byte(graphQL1.URL + "/graphql"),
 										},
 										&datasource.StaticVariableArgument{
 											Name:  literal.QUERY,
@@ -231,12 +226,8 @@ func TestExecution(t *testing.T) {
 											Source: &DataSourceInvocation{
 												Args: []datasource.Argument{
 													&datasource.StaticVariableArgument{
-														Name:  literal.HOST,
-														Value: []byte(REST1.URL),
-													},
-													&datasource.StaticVariableArgument{
 														Name:  literal.URL,
-														Value: []byte("/user/{{ .id }}/friends"),
+														Value: []byte(REST1.URL + "/user/{{ .id }}/friends"),
 													},
 													&datasource.StaticVariableArgument{
 														Name:  literal.METHOD,
@@ -260,15 +251,11 @@ func TestExecution(t *testing.T) {
 											Source: &DataSourceInvocation{
 												Args: []datasource.Argument{
 													&datasource.StaticVariableArgument{
-														Name:  literal.HOST,
-														Value: []byte(graphQL2.URL),
-													},
-													&datasource.StaticVariableArgument{
 														Name:  literal.URL,
-														Value: []byte("/graphql"),
+														Value: []byte(graphQL2.URL + "/graphql"),
 													},
 													&datasource.StaticVariableArgument{
-														Name:  literal.QUERY,
+														Name: literal.QUERY,
 														Value: []byte(`query q1($id: String!){userPets(id: $id){	__typename name nickname... on Dog {woof} ... on Cat {meow}}}`),
 													},
 													&datasource.ObjectVariableArgument{
@@ -330,12 +317,8 @@ func TestExecution(t *testing.T) {
 													Source: &DataSourceInvocation{
 														Args: []datasource.Argument{
 															&datasource.StaticVariableArgument{
-																Name:  literal.HOST,
-																Value: []byte(REST2.URL),
-															},
-															&datasource.StaticVariableArgument{
 																Name:  literal.URL,
-																Value: []byte("/friends/{{ .id }}/pets"),
+																Value: []byte(REST2.URL + "/friends/{{ .id }}/pets"),
 															},
 															&datasource.StaticVariableArgument{
 																Name:  literal.METHOD,
@@ -604,7 +587,7 @@ func TestExecution(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		diffview.NewGoland().DiffViewBytes("execution", fixture, pretty)
+		assert.Equal(t, fixture, pretty)
 	}
 }
 
@@ -677,12 +660,8 @@ func genField() Field {
 						Source: &DataSourceInvocation{
 							Args: []datasource.Argument{
 								&datasource.StaticVariableArgument{
-									Name:  literal.HOST,
-									Value: []byte("localhost:8001"),
-								},
-								&datasource.StaticVariableArgument{
 									Name:  literal.URL,
-									Value: []byte("/graphql"),
+									Value: []byte("localhost:8001/graphql"),
 								},
 								&datasource.StaticVariableArgument{
 									Name:  literal.QUERY,
@@ -801,15 +780,11 @@ func genField() Field {
 									Source: &DataSourceInvocation{
 										Args: []datasource.Argument{
 											&datasource.StaticVariableArgument{
-												Name:  literal.HOST,
-												Value: []byte("localhost:8002"),
-											},
-											&datasource.StaticVariableArgument{
 												Name:  literal.URL,
-												Value: []byte("/graphql"),
+												Value: []byte("localhost:8002/graphql"),
 											},
 											&datasource.StaticVariableArgument{
-												Name:  literal.QUERY,
+												Name: literal.QUERY,
 												Value: []byte(`query q1($id: String!){userPets(id: $id){	__typename name nickname... on Dog {woof} ... on Cat {meow}}}`),
 											},
 											&datasource.ObjectVariableArgument{
@@ -1319,12 +1294,8 @@ func TestExecutor_ObjectVariables(t *testing.T) {
 									Source: &DataSourceInvocation{
 										Args: []datasource.Argument{
 											&datasource.StaticVariableArgument{
-												Name:  literal.HOST,
-												Value: []byte(REST1.URL),
-											},
-											&datasource.StaticVariableArgument{
 												Name:  literal.URL,
-												Value: []byte("/"),
+												Value: []byte(REST1.URL + "/"),
 											},
 											&datasource.StaticVariableArgument{
 												Name:  literal.METHOD,
@@ -1451,12 +1422,8 @@ func TestExecutor_NestedObjectVariables(t *testing.T) {
 						Source: &DataSourceInvocation{
 							Args: []datasource.Argument{
 								&datasource.StaticVariableArgument{
-									Name:  literal.HOST,
-									Value: []byte(previewService.URL),
-								},
-								&datasource.StaticVariableArgument{
 									Name:  literal.URL,
-									Value: []byte("/"),
+									Value: []byte(previewService.URL + "/"),
 								},
 								&datasource.StaticVariableArgument{
 									Name:  literal.METHOD,
@@ -1488,12 +1455,8 @@ func TestExecutor_NestedObjectVariables(t *testing.T) {
 												Source: &DataSourceInvocation{
 													Args: []datasource.Argument{
 														&datasource.StaticVariableArgument{
-															Name:  literal.HOST,
-															Value: []byte(additionalDataService.URL),
-														},
-														&datasource.StaticVariableArgument{
 															Name:  literal.URL,
-															Value: []byte("/api/additional_data?data_ids={{ .object.id }}"),
+															Value: []byte(additionalDataService.URL + "/api/additional_data?data_ids={{ .object.id }}"),
 														},
 														&datasource.StaticVariableArgument{
 															Name:  literal.METHOD,
@@ -1662,12 +1625,8 @@ func TestExecutor_GraphqlDataSourceWithParams(t *testing.T) {
 						Source: &DataSourceInvocation{
 							Args: []datasource.Argument{
 								&datasource.StaticVariableArgument{
-									Name:  literal.HOST,
-									Value: []byte(graphQL1.URL),
-								},
-								&datasource.StaticVariableArgument{
 									Name:  literal.URL,
-									Value: []byte("/graphql"),
+									Value: []byte(graphQL1.URL + "/graphql"),
 								},
 								&datasource.StaticVariableArgument{
 									Name:  literal.QUERY,
@@ -1961,7 +1920,7 @@ func TestExecutor_ResolveArgsComplexPayloadWithSelector(t *testing.T) {
 	}
 	want := `{"bal": "baz"}`
 	if !bytes.Equal(resolved.ByKey([]byte("body")), []byte(want)) {
-		t.Fatalf("want key 'body' with value: '%s'", want)
+		t.Fatalf("want key 'body' with value: '%s'\ngot: '%s'", want, resolved.ByKey([]byte("body")))
 	}
 }
 
@@ -2032,129 +1991,187 @@ func TestExecutor_ResolveArgsWithListArguments(t *testing.T) {
 }
 
 func TestExecutor_HTTPJSONDataSourceWithBody(t *testing.T) {
+	createRESTServer := func(wantString string) *httptest.Server {
+		return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-	wantUpstream := map[string]interface{}{
-		"key": "fooValue",
+			if r.Method != http.MethodPost {
+				t.Fatalf("wantUpstream: %s, got: %s\n", http.MethodPost, r.Method)
+				return
+			}
+
+			data, err := ioutil.ReadAll(r.Body)
+			if err != nil {
+				t.Fatal(err)
+				return
+			}
+			defer r.Body.Close()
+
+			strData := string(data)
+			_ = strData
+
+			gotString := prettyJSON(bytes.NewReader(data))
+
+			if wantString != gotString {
+				t.Fatalf("wantUpstream: %s\ngot: %s\n", wantString, gotString)
+				return
+			}
+
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("bar"))
+		}))
 	}
-	wantBytes, err := json.MarshalIndent(wantUpstream, "", "  ")
-	if err != nil {
-		t.Fatal(err)
-		return
-	}
 
-	wantString := string(wantBytes)
-
-	REST1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
-		if r.Method != http.MethodPost {
-			t.Fatalf("wantUpstream: %s, got: %s\n", http.MethodPost, r.Method)
-			return
-		}
-
-		data, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			t.Fatal(err)
-			return
-		}
-		defer r.Body.Close()
-
-		strData := string(data)
-		_ = strData
-
-		gotString := prettyJSON(bytes.NewReader(data))
-
-		if wantString != gotString {
-			t.Fatalf("wantUpstream: %s\ngot: %s\n", wantString, gotString)
-			return
-		}
-
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("bar"))
-	}))
-
-	plan := &Object{
-		operationType: ast.OperationTypeQuery,
-		Fields: []Field{
-			{
-				Name: []byte("data"),
-				Value: &Object{
-					Fetch: &SingleFetch{
-						BufferName: "withBody",
-						Source: &DataSourceInvocation{
-							DataSource: &datasource.HttpJsonDataSource{
-								Log:    log.NoopLogger,
-								Client: datasource.DefaultHttpClient(),
-							},
-							Args: []datasource.Argument{
-								&datasource.StaticVariableArgument{
-									Name:  []byte("host"),
-									Value: []byte(REST1.URL),
+	createPlanForRestServer := func(restServer *httptest.Server, bodyValue string) *Object {
+		return &Object{
+			operationType: ast.OperationTypeQuery,
+			Fields: []Field{
+				{
+					Name: []byte("data"),
+					Value: &Object{
+						Fetch: &SingleFetch{
+							BufferName: "withBody",
+							Source: &DataSourceInvocation{
+								DataSource: &datasource.HttpJsonDataSource{
+									Log:    log.NoopLogger,
+									Client: datasource.DefaultHttpClient(),
 								},
-								&datasource.StaticVariableArgument{
-									Name:  []byte("url"),
-									Value: []byte("/"),
-								},
-								&datasource.StaticVariableArgument{
-									Name:  []byte("method"),
-									Value: []byte("POST"),
-								},
-								&datasource.StaticVariableArgument{
-									Name:  []byte("body"),
-									Value: []byte("{\\\"key\\\":\\\"{{ .arguments.input.foo }}\\\"}"),
-								},
-								&datasource.ContextVariableArgument{
-									Name:         []byte(".arguments.input"),
-									VariableName: []byte("input"),
+								Args: []datasource.Argument{
+									&datasource.StaticVariableArgument{
+										Name:  []byte("url"),
+										Value: []byte(restServer.URL + "/"),
+									},
+									&datasource.StaticVariableArgument{
+										Name:  []byte("method"),
+										Value: []byte("POST"),
+									},
+									&datasource.StaticVariableArgument{
+										Name:  []byte("body"),
+										Value: []byte(bodyValue),
+									},
+									&datasource.ContextVariableArgument{
+										Name:         []byte(".arguments.input"),
+										VariableName: []byte("input"),
+									},
 								},
 							},
 						},
-					},
-					Fields: []Field{
-						{
-							Name:            []byte("withBody"),
-							HasResolvedData: true,
-							Value: &Value{
-								ValueType: StringValueType,
+						Fields: []Field{
+							{
+								Name:            []byte("withBody"),
+								HasResolvedData: true,
+								Value: &Value{
+									ValueType: StringValueType,
+								},
 							},
 						},
 					},
 				},
 			},
-		},
+		}
 	}
 
-	out := &bytes.Buffer{}
-	ex := NewExecutor(nil)
-	ctx := Context{
-		Context: context.Background(),
-		Variables: map[uint64][]byte{
-			xxhash.Sum64String("input"): []byte(`{"foo": "fooValue"}`),
-		},
+	run := func(t *testing.T, testServer *httptest.Server, bodyValue string, argumentsInputString string, expectedResult map[string]interface{}) {
+		plan := createPlanForRestServer(testServer, bodyValue)
+
+		out := &bytes.Buffer{}
+		ex := NewExecutor(nil)
+		ctx := Context{
+			Context: context.Background(),
+			Variables: map[uint64][]byte{
+				xxhash.Sum64String("input"): []byte(argumentsInputString),
+			},
+		}
+
+		err := ex.Execute(ctx, plan, out)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		wantResult, err := json.MarshalIndent(expectedResult, "", "  ")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		want := string(wantResult)
+		got := prettyJSON(out)
+
+		if want != got {
+			t.Fatalf("want: %s\ngot: %s\n", want, got)
+			return
+		}
 	}
 
-	err = ex.Execute(ctx, plan, out)
-	if err != nil {
-		t.Fatal(err)
-	}
+	t.Run("should successfully use data source with body", func(t *testing.T) {
+		wantUpstream := map[string]interface{}{
+			"key": "fooValue",
+		}
+		wantBytes, err := json.MarshalIndent(wantUpstream, "", "  ")
+		if err != nil {
+			t.Fatal(err)
+			return
+		}
 
-	expected := map[string]interface{}{
-		"data": map[string]interface{}{
-			"withBody": "bar",
-		},
-	}
+		expectedResult := map[string]interface{}{
+			"data": map[string]interface{}{
+				"withBody": "bar",
+			},
+		}
 
-	wantResult, err := json.MarshalIndent(expected, "", "  ")
-	if err != nil {
-		t.Fatal(err)
-	}
+		wantString := string(wantBytes)
+		restServer := createRESTServer(wantString)
+		defer restServer.Close()
 
-	want := string(wantResult)
-	got := prettyJSON(out)
+		run(t, restServer, `{"key":"{{ .arguments.input.foo }}"}`, `{"foo": "fooValue"}`, expectedResult)
+	})
 
-	if want != got {
-		t.Fatalf("want: %s\ngot: %s\n", want, got)
-		return
-	}
+	t.Run("should successfully use data source with body including json object as value in json object argument", func(t *testing.T) {
+		wantUpstream := map[string]interface{}{
+			"key": "{ \"obj_key\": \"obj_value\" }",
+		}
+		wantBytes, err := json.MarshalIndent(wantUpstream, "", "  ")
+		if err != nil {
+			t.Fatal(err)
+			return
+		}
+
+		expectedResult := map[string]interface{}{
+			"data": map[string]interface{}{
+				"withBody": "bar",
+			},
+		}
+
+		wantString := string(wantBytes)
+		restServer := createRESTServer(wantString)
+		defer restServer.Client()
+
+		run(t, restServer, `{ "key": "{{ .arguments.input.foo }}" }`, `{"foo": "{ \"obj_key\": \"obj_value\" }"}`, expectedResult)
+	})
+
+	t.Run("should successfully use data source with body including complex json object with escaped strings", func(t *testing.T) {
+		wantUpstream := map[string]interface{}{
+			"meta_data": map[string]interface{}{
+				"test": "{\"foo\": \"bar\", \"re\":\"\\w+\"}",
+			},
+		}
+		wantBytes, err := json.MarshalIndent(wantUpstream, "", "  ")
+		if err != nil {
+			t.Fatal(err)
+			return
+		}
+
+		expectedResult := map[string]interface{}{
+			"data": map[string]interface{}{
+				"withBody": "bar",
+			},
+		}
+
+		wantString := string(wantBytes)
+		restServer := createRESTServer(wantString)
+		defer restServer.Client()
+
+		run(t, restServer, `{{ .arguments.input.query }}`, `{"query": { "meta_data": { "test": "{\"foo\": \"bar\", \"re\":\"\\w+\"}" } }`, expectedResult)
+	})
+
 }
 
 func TestExecutor_Execute_WithUnions(t *testing.T) {
@@ -2507,12 +2524,8 @@ func TestExecutor_HTTPJSONDataSourceWithBodyComplexPlayload(t *testing.T) {
 							},
 							Args: []datasource.Argument{
 								&datasource.StaticVariableArgument{
-									Name:  []byte("host"),
-									Value: []byte(REST1.URL),
-								},
-								&datasource.StaticVariableArgument{
 									Name:  []byte("url"),
-									Value: []byte("/"),
+									Value: []byte(REST1.URL + "/"),
 								},
 								&datasource.StaticVariableArgument{
 									Name:  []byte("method"),
@@ -2615,12 +2628,8 @@ func TestExecutor_HTTPJSONDataSource_ArrayResponse(t *testing.T) {
 							},
 							Args: []datasource.Argument{
 								&datasource.StaticVariableArgument{
-									Name:  []byte("host"),
-									Value: []byte(REST1.URL),
-								},
-								&datasource.StaticVariableArgument{
 									Name:  []byte("url"),
-									Value: []byte("/"),
+									Value: []byte(REST1.URL + "/"),
 								},
 								&datasource.StaticVariableArgument{
 									Name:  []byte("method"),
@@ -2749,12 +2758,8 @@ func TestExecutor_HTTPJSONDataSourceWithHeaders(t *testing.T) {
 							},
 							Args: []datasource.Argument{
 								&datasource.StaticVariableArgument{
-									Name:  []byte("host"),
-									Value: []byte(REST1.URL),
-								},
-								&datasource.StaticVariableArgument{
 									Name:  []byte("url"),
-									Value: []byte("/"),
+									Value: []byte(REST1.URL + "/"),
 								},
 								&datasource.StaticVariableArgument{
 									Name:  []byte("method"),
@@ -2855,12 +2860,8 @@ func TestExecutor_HTTPJSONDataSourceWithPathSelector(t *testing.T) {
 							},
 							Args: []datasource.Argument{
 								&datasource.StaticVariableArgument{
-									Name:  []byte("host"),
-									Value: []byte(REST1.URL),
-								},
-								&datasource.StaticVariableArgument{
 									Name:  []byte("url"),
-									Value: []byte("/"),
+									Value: []byte(REST1.URL + "/"),
 								},
 								&datasource.StaticVariableArgument{
 									Name:  []byte("method"),
@@ -3008,12 +3009,64 @@ func TestExecutor_Introspection(t *testing.T) {
 
 	goldie.Assert(t, "introspection_execution", response)
 	if t.Failed() {
-
 		fixture, err := ioutil.ReadFile("./fixtures/introspection_execution.golden")
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		diffview.NewGoland().DiffViewBytes("execution", fixture, response)
+		assert.Equal(t, fixture, response)
 	}
+}
+
+func TestIsJSONObjectAsBytes(t *testing.T) {
+	run := func(inputString string, expectedResult bool) (string, func(t *testing.T)) {
+		return fmt.Sprintf("%s is %v", inputString, expectedResult), func(t *testing.T) {
+			inputBytes := []byte(inputString)
+			result := isJSONObjectAsBytes(inputBytes)
+			assert.Equal(t, expectedResult, result)
+		}
+	}
+
+	t.Run(run("hello", false))
+	t.Run(run("1", false))
+	t.Run(run("query { meow }", false))
+	t.Run(run(": - }", false))
+	t.Run(run("{ - )", false))
+	t.Run(run("{}", true))
+	t.Run(run("   {}", true))
+	t.Run(run("{}   ", true))
+	t.Run(run("{\"hello\": \"world\"}", true))
+	t.Run(run(`{"hello": "world"}`, true))
+}
+
+func Test_byteSliceContainsEscapedQuotes(t *testing.T) {
+	run := func(inputString string, expectedResult bool) (string, func(t *testing.T)) {
+		return fmt.Sprintf("%s is %v", inputString, expectedResult), func(t *testing.T) {
+			inputBytes := []byte(inputString)
+			result := byteSliceContainsEscapedQuotes(inputBytes)
+			assert.Equal(t, expectedResult, result)
+		}
+	}
+
+	t.Run(run(`"my dog is a string"`, false))
+	t.Run(run(`[1, 2, 3, 4]`, false))
+	t.Run(run(`{"key": "value"}`, false))
+
+	t.Run(run(`"the name of my dog is \"Hans\""`, true))
+	t.Run(run(`{"test": "{foo: \"bar\"}"}`, true))
+}
+
+func Test_byteSliceContainsQuotes(t *testing.T) {
+	run := func(inputString string, expectedResult bool) (string, func(t *testing.T)) {
+		return fmt.Sprintf("%s is %v", inputString, expectedResult), func(t *testing.T) {
+			inputBytes := []byte(inputString)
+			result := byteSliceContainsQuotes(inputBytes)
+			assert.Equal(t, expectedResult, result)
+		}
+	}
+
+	t.Run(run(`my dog is a string`, false))
+	t.Run(run(`[1, 2, 3, 4]`, false))
+
+	t.Run(run(`the name of my dog is "Hans"`, true))
 }
