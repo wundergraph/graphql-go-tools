@@ -85,18 +85,37 @@ type DataSource interface {
 	UniqueIdentifier() []byte
 }
 
+type SubscriptionTrigger interface {
+	Next(ctx context.Context, out io.Writer) (err error)
+}
+
+type TriggerManager interface {
+	UniqueIdentifier() []byte
+	ConfigureTrigger(input []byte) (trigger SubscriptionTrigger, err error)
+}
+
 type Resolver struct {
 	EnableSingleFlightLoader bool
 	resultSetPool            sync.Pool
 	byteSlicesPool           sync.Pool
 	waitGroupPool            sync.Pool
 	bufPairPool              sync.Pool
+	bufPool                  sync.Pool
 	bufPairSlicePool         sync.Pool
 	errChanPool              sync.Pool
 	hash64Pool               sync.Pool
 	inflightFetchPool        sync.Pool
 	inflightFetchMu          sync.Mutex
 	inflightFetches          map[uint64]*inflightFetch
+	triggerManagers          map[uint64]TriggerManager
+}
+
+func (r *Resolver) RegisterTriggerManager(t TriggerManager) {
+	hash64 := r.getHash64()
+	_,_ = hash64.Write(t.UniqueIdentifier())
+	managerID := hash64.Sum64()
+	r.putHash64(hash64)
+	r.triggerManagers[managerID] = t
 }
 
 type inflightFetch struct {
@@ -135,6 +154,11 @@ func New() *Resolver {
 				return &pair
 			},
 		},
+		bufPool: sync.Pool{
+			New: func() interface{} {
+				return fastbuffer.New()
+			},
+		},
 		bufPairSlicePool: sync.Pool{
 			New: func() interface{} {
 				slice := make([]*BufPair, 0, 24)
@@ -162,6 +186,7 @@ func New() *Resolver {
 			},
 		},
 		inflightFetches: map[uint64]*inflightFetch{},
+		triggerManagers: map[uint64]TriggerManager{},
 	}
 }
 
@@ -295,6 +320,43 @@ func (r *Resolver) ResolveGraphQLResponse(ctx Context, response *GraphQLResponse
 	err = r.writeSafe(err, writer, rBrace)
 
 	return
+}
+
+func (r *Resolver) ResolveGraphQLSubscription(ctx Context, subscription *GraphQLSubscription, writer FlushWriter) (err error) {
+	hash64 := r.getHash64()
+	_, _ = hash64.Write(subscription.Trigger.ManagerID)
+	managerID := hash64.Sum64()
+	r.putHash64(hash64)
+
+	manager, ok := r.triggerManagers[managerID]
+	if !ok {
+		return fmt.Errorf("trigger manager not found for id: %s", string(subscription.Trigger.ManagerID))
+	}
+
+	trigger, err := manager.ConfigureTrigger(subscription.Trigger.Input)
+	if err != nil {
+		return fmt.Errorf("configuring trigger failed")
+	}
+	done := ctx.Done()
+	buf := r.getBuffer()
+	defer r.putBuffer(buf)
+	for {
+		select {
+		case <-done:
+			return nil
+		default:
+			err = trigger.Next(ctx, buf)
+			if err != nil {
+				return err
+			}
+			err = r.ResolveGraphQLResponse(ctx, subscription.Response, buf.Bytes(), writer)
+			if err != nil {
+				return err
+			}
+			writer.Flush()
+			buf.Reset()
+		}
+	}
 }
 
 func (r *Resolver) resolveEmptyArray(b *fastbuffer.FastBuffer) {
@@ -477,7 +539,7 @@ func (r *Resolver) resolveString(str *String, data []byte, stringBuf *BufPair) e
 	)
 	if len(data) != 0 && str.Path == nil {
 		_, valueType, _, _ = jsonparser.Get(data)
-		if valueType == jsonparser.String || unicode.IsLetter(rune(data[0])){
+		if valueType == jsonparser.String || unicode.IsLetter(rune(data[0])) {
 			value = data
 		} else if !str.Nullable {
 			return errNonNullableFieldValueIsNull
@@ -649,12 +711,11 @@ func (r *Resolver) resolveSingleFetch(ctx Context, fetch *SingleFetch, preparedI
 		return fetch.DataSource.Load(ctx.Context, preparedInput.Bytes(), buf)
 	}
 
-	h := r.hash64Pool.Get().(hash.Hash64)
-	_, _ = h.Write(fetch.DataSource.UniqueIdentifier())
-	_, _ = h.Write(preparedInput.Bytes())
-	fetchID := h.Sum64()
-	h.Reset()
-	r.hash64Pool.Put(h)
+	hash64 := r.getHash64()
+	_, _ = hash64.Write(fetch.DataSource.UniqueIdentifier())
+	_, _ = hash64.Write(preparedInput.Bytes())
+	fetchID := hash64.Sum64()
+	r.putHash64(hash64)
 
 	r.inflightFetchMu.Lock()
 	inflight, ok := r.inflightFetches[fetchID]
@@ -968,6 +1029,21 @@ func (o *ObjectVariable) VariableKind() VariableKind {
 	return VariableKindObject
 }
 
+type GraphQLSubscription struct {
+	Trigger  GraphQLSubscriptionTrigger
+	Response *GraphQLResponse
+}
+
+type GraphQLSubscriptionTrigger struct {
+	ManagerID []byte
+	Input     []byte
+}
+
+type FlushWriter interface {
+	io.Writer
+	Flush()
+}
+
 type GraphQLResponse struct {
 	Data Node
 }
@@ -1106,4 +1182,22 @@ func (r *Resolver) freeInflightFetch(f *inflightFetch) {
 	f.bufPair.Errors.Reset()
 	f.err = nil
 	r.inflightFetchPool.Put(f)
+}
+
+func (r *Resolver) getHash64() hash.Hash64 {
+	return r.hash64Pool.Get().(hash.Hash64)
+}
+
+func (r *Resolver) putHash64(h hash.Hash64) {
+	h.Reset()
+	r.hash64Pool.Put(h)
+}
+
+func (r *Resolver) getBuffer() *fastbuffer.FastBuffer {
+	return r.bufPool.Get().(*fastbuffer.FastBuffer)
+}
+
+func (r *Resolver) putBuffer(b *fastbuffer.FastBuffer) {
+	b.Reset()
+	r.bufPool.Put(b)
 }

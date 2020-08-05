@@ -3,6 +3,8 @@ package resolve
 import (
 	"bytes"
 	"context"
+	"io"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -1123,6 +1125,90 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			},
 		}, Context{Context: context.Background(), Variables: []byte(`{"firstArg":"firstArgValue","thirdArg":123,"secondArg": true, "fourthArg": 12.34}`)}, `{"data":{"serviceOne":{"fieldOne":"fieldOneValue"},"serviceTwo":{"fieldTwo":"fieldTwoValue","serviceOneResponse":{"fieldOne":"fieldOneValue"}},"anotherServiceOne":{"fieldOne":"anotherFieldOneValue"},"secondServiceTwo":{"fieldTwo":"secondFieldTwoValue"},"reusingServiceOne":{"fieldOne":"reUsingFieldOneValue"}}}`
 	}))
+}
+
+type TestFlushWriter struct {
+	flushed []string
+	buf     bytes.Buffer
+}
+
+func (t *TestFlushWriter) Write(p []byte) (n int, err error) {
+	return t.buf.Write(p)
+}
+
+func (t *TestFlushWriter) Flush() {
+	t.flushed = append(t.flushed, t.buf.String())
+	t.buf.Reset()
+}
+
+type FakeTriggerManager struct {
+	cancel context.CancelFunc
+}
+
+func (f *FakeTriggerManager) UniqueIdentifier() []byte {
+	return []byte("fake")
+}
+
+func (f *FakeTriggerManager) ConfigureTrigger(input []byte) (trigger SubscriptionTrigger, err error) {
+	return &FakeTrigger{
+		cancel: f.cancel,
+	}, nil
+}
+
+type FakeTrigger struct {
+	counter int
+	cancel  context.CancelFunc
+}
+
+func (f *FakeTrigger) Next(ctx context.Context, out io.Writer) (err error) {
+	_, _ = out.Write([]byte(`{"counter":` + strconv.Itoa(f.counter) + `}`))
+	f.counter++
+	defer func() {
+		if f.counter == 3 {
+			f.cancel()
+		}
+	}()
+	return nil
+}
+
+func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
+	resolver := New()
+	c, cancel := context.WithCancel(context.Background())
+	resolver.RegisterTriggerManager(&FakeTriggerManager{
+		cancel: cancel,
+	})
+	subscription := &GraphQLSubscription{
+		Trigger: GraphQLSubscriptionTrigger{
+			ManagerID: []byte("fake"),
+			Input:     nil,
+		},
+		Response: &GraphQLResponse{
+			Data: &Object{
+				FieldSets: []FieldSet{
+					{
+						Fields: []Field{
+							{
+								Name: []byte("counter"),
+								Value: &Integer{
+									Path: []string{"counter"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	ctx := Context{
+		Context: c,
+	}
+	out := &TestFlushWriter{}
+	err := resolver.ResolveGraphQLSubscription(ctx, subscription, out)
+	assert.NoError(t, err)
+	assert.Equal(t, 3, len(out.flushed))
+	assert.Equal(t, `{"data":{"counter":0}}`, out.flushed[0])
+	assert.Equal(t, `{"data":{"counter":1}}`, out.flushed[1])
+	assert.Equal(t, `{"data":{"counter":2}}`, out.flushed[2])
 }
 
 func BenchmarkResolver_ResolveNode(b *testing.B) {
