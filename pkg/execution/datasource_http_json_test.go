@@ -10,11 +10,14 @@ import (
 	"testing"
 
 	"github.com/jensneuse/abstractlogger"
+	"github.com/stretchr/testify/assert"
 	"github.com/tidwall/gjson"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
+
+	"gopkg.in/mgo.v2/bson"
 )
 
 const httpJsonDataSourceSchema = `
@@ -173,8 +176,8 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 						},
 						DataSource: datasource.SourceConfig{
 							Name: "HttpJsonDataSource",
-							Config: func() []byte {
-								data, _ := json.Marshal(datasource.HttpJsonDataSourceConfig{
+							Config: func() (data json.RawMessage) {
+								data, _ = json.Marshal(datasource.HttpJsonDataSourceConfig{
 									URL: "example.com/",
 									Method: func() *string {
 										method := "GET"
@@ -676,4 +679,24 @@ func TestHttpJsonDataSource_Resolve(t *testing.T) {
 		200,
 		`{"500":"ErrorInterface","200":"AnotherSuccess","defaultTypeName":"SuccessInterface"}`,
 		"AnotherSuccess"))
+}
+
+func TestDataSourceConfig_BSONJSONEncodings(t *testing.T) {
+
+	dataSource := datasource.SourceConfig{
+		Name:   "HTTPJSONDataSource",
+		Config: []byte(`{"foo":"bar"}`),
+	}
+
+	// Encode and decode with bson
+	dataSourceInBytes, _ := bson.Marshal(dataSource)
+	var val interface{}
+	_ = bson.Unmarshal(dataSourceInBytes, &val)
+
+	// Encode and decode the value gotten by bson decode
+	endValInBytes, _ := json.Marshal(val)
+	var endVal datasource.SourceConfig
+	_ = json.Unmarshal(endValInBytes, &endVal)
+
+	assert.Equal(t, dataSource, endVal)
 }
