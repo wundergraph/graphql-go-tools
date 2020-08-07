@@ -36,6 +36,33 @@ func TestRequest_Normalize(t *testing.T) {
 		assert.True(t, result.Successful)
 		assert.True(t, request.isNormalized)
 	})
+
+	t.Run("should successfully normalize single query with arguments", func(t *testing.T) {
+		schema := starwarsSchema(t)
+		request := requestForQuery(t, starwars.FileDroidWithArgQuery)
+		documentBeforeNormalization := request.document
+
+		result, err := request.Normalize(schema)
+		assert.NoError(t, err)
+		assert.NotEqual(t, documentBeforeNormalization, request.document)
+		assert.Equal(t, []byte(`{"a":"R2D2"}`), request.document.Input.Variables)
+		assert.True(t, result.Successful)
+		assert.True(t, request.isNormalized)
+	})
+
+	t.Run("should successfully normalize multiple queries with arguments", func(t *testing.T) {
+		schema := starwarsSchema(t)
+		request := requestForQuery(t, starwars.FileMultiQueriesWithArguments)
+		request.OperationName = "GetDroid"
+		documentBeforeNormalization := request.document
+
+		result, err := request.Normalize(schema)
+		assert.NoError(t, err)
+		assert.NotEqual(t, documentBeforeNormalization, request.document)
+		assert.Equal(t, []byte(`{"a":"1"}`), request.document.Input.Variables)
+		assert.True(t, result.Successful)
+		assert.True(t, request.isNormalized)
+	})
 }
 
 func Test_normalizationResultFromReport(t *testing.T) {
