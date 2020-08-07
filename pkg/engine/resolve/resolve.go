@@ -92,7 +92,6 @@ type Resolver struct {
 	byteSlicesPool           sync.Pool
 	waitGroupPool            sync.Pool
 	bufPairPool              sync.Pool
-	bufPool                  sync.Pool
 	bufPairSlicePool         sync.Pool
 	errChanPool              sync.Pool
 	hash64Pool               sync.Pool
@@ -144,11 +143,6 @@ func New() *Resolver {
 					Errors: fastbuffer.New(),
 				}
 				return &pair
-			},
-		},
-		bufPool: sync.Pool{
-			New: func() interface{} {
-				return fastbuffer.New()
 			},
 		},
 		bufPairSlicePool: sync.Pool{
@@ -1181,13 +1175,4 @@ func (r *Resolver) getHash64() hash.Hash64 {
 func (r *Resolver) putHash64(h hash.Hash64) {
 	h.Reset()
 	r.hash64Pool.Put(h)
-}
-
-func (r *Resolver) getBuffer() *fastbuffer.FastBuffer {
-	return r.bufPool.Get().(*fastbuffer.FastBuffer)
-}
-
-func (r *Resolver) putBuffer(b *fastbuffer.FastBuffer) {
-	b.Reset()
-	r.bufPool.Put(b)
 }
