@@ -3,8 +3,7 @@ package resolve
 import (
 	"bytes"
 	"context"
-	"io"
-	"strconv"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -12,6 +11,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/subscription"
 	"github.com/jensneuse/graphql-go-tools/pkg/fastbuffer"
 )
 
@@ -1128,8 +1128,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 }
 
 type TestFlushWriter struct {
-	flushed []string
-	buf     bytes.Buffer
+	flushed     []string
+	buf         bytes.Buffer
+	flushTicker chan struct{}
 }
 
 func (t *TestFlushWriter) Write(p []byte) (n int, err error) {
@@ -1139,45 +1140,45 @@ func (t *TestFlushWriter) Write(p []byte) (n int, err error) {
 func (t *TestFlushWriter) Flush() {
 	t.flushed = append(t.flushed, t.buf.String())
 	t.buf.Reset()
+	t.flushTicker <- struct{}{}
 }
 
-type FakeTriggerManager struct {
+type FakeStream struct {
 	cancel context.CancelFunc
+	flushTicker chan struct{}
 }
 
-func (f *FakeTriggerManager) UniqueIdentifier() []byte {
-	return []byte("fake")
-}
-
-func (f *FakeTriggerManager) ConfigureTrigger(input []byte) (trigger SubscriptionTrigger, err error) {
-	return &FakeTrigger{
-		cancel: f.cancel,
-	}, nil
-}
-
-type FakeTrigger struct {
-	counter int
-	cancel  context.CancelFunc
-}
-
-func (f *FakeTrigger) Next(ctx context.Context, out io.Writer) (err error) {
-	_, _ = out.Write([]byte(`{"counter":` + strconv.Itoa(f.counter) + `}`))
-	f.counter++
-	defer func() {
-		if f.counter == 3 {
-			f.cancel()
+func (f *FakeStream) Start(input []byte, next chan<- []byte, stop <-chan struct{}) {
+	count := 0
+	for {
+		select {
+		case <-stop:
+			return
+		case <-f.flushTicker:
+			if count == 3 {
+				f.cancel()
+				return
+			}
+			next <- []byte(fmt.Sprintf(`{"counter":%d}`, count))
+			count++
 		}
-	}()
-	return nil
+	}
+}
+
+func (f *FakeStream) UniqueIdentifier() []byte {
+	return []byte("fake")
 }
 
 func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	resolver := New()
+	ticker := make(chan struct{},1)
 	c, cancel := context.WithCancel(context.Background())
-	resolver.RegisterTriggerManager(&FakeTriggerManager{
+	defer cancel()
+	resolver.RegisterTriggerManager(subscription.NewManager(&FakeStream{
 		cancel: cancel,
-	})
-	subscription := &GraphQLSubscription{
+		flushTicker: ticker,
+	}))
+	plan := &GraphQLSubscription{
 		Trigger: GraphQLSubscriptionTrigger{
 			ManagerID: []byte("fake"),
 			Input:     nil,
@@ -1202,8 +1203,11 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	ctx := Context{
 		Context: c,
 	}
-	out := &TestFlushWriter{}
-	err := resolver.ResolveGraphQLSubscription(ctx, subscription, out)
+	out := &TestFlushWriter{
+		flushTicker: ticker,
+	}
+	ticker<- struct{}{}
+	err := resolver.ResolveGraphQLSubscription(ctx, plan, out)
 	assert.NoError(t, err)
 	assert.Equal(t, 3, len(out.flushed))
 	assert.Equal(t, `{"data":{"counter":0}}`, out.flushed[0])

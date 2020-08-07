@@ -16,6 +16,7 @@ import (
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash"
 
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/subscription"
 	"github.com/jensneuse/graphql-go-tools/pkg/fastbuffer"
 )
 
@@ -85,15 +86,6 @@ type DataSource interface {
 	UniqueIdentifier() []byte
 }
 
-type SubscriptionTrigger interface {
-	Next(ctx context.Context, out io.Writer) (err error)
-}
-
-type TriggerManager interface {
-	UniqueIdentifier() []byte
-	ConfigureTrigger(input []byte) (trigger SubscriptionTrigger, err error)
-}
-
 type Resolver struct {
 	EnableSingleFlightLoader bool
 	resultSetPool            sync.Pool
@@ -107,15 +99,15 @@ type Resolver struct {
 	inflightFetchPool        sync.Pool
 	inflightFetchMu          sync.Mutex
 	inflightFetches          map[uint64]*inflightFetch
-	triggerManagers          map[uint64]TriggerManager
+	triggerManagers          map[uint64]*subscription.Manager
 }
 
-func (r *Resolver) RegisterTriggerManager(t TriggerManager) {
+func (r *Resolver) RegisterTriggerManager(m *subscription.Manager) {
 	hash64 := r.getHash64()
-	_,_ = hash64.Write(t.UniqueIdentifier())
+	_, _ = hash64.Write(m.UniqueIdentifier())
 	managerID := hash64.Sum64()
 	r.putHash64(hash64)
-	r.triggerManagers[managerID] = t
+	r.triggerManagers[managerID] = m
 }
 
 type inflightFetch struct {
@@ -186,7 +178,7 @@ func New() *Resolver {
 			},
 		},
 		inflightFetches: map[uint64]*inflightFetch{},
-		triggerManagers: map[uint64]TriggerManager{},
+		triggerManagers: map[uint64]*subscription.Manager{},
 	}
 }
 
@@ -333,28 +325,26 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx Context, subscription *GraphQL
 		return fmt.Errorf("trigger manager not found for id: %s", string(subscription.Trigger.ManagerID))
 	}
 
-	trigger, err := manager.ConfigureTrigger(subscription.Trigger.Input)
+	trigger, err := manager.StartTrigger(subscription.Trigger.Input)
 	if err != nil {
 		return fmt.Errorf("configuring trigger failed")
 	}
+	defer manager.StopTrigger(trigger)
 	done := ctx.Done()
-	buf := r.getBuffer()
-	defer r.putBuffer(buf)
 	for {
 		select {
 		case <-done:
 			return nil
 		default:
-			err = trigger.Next(ctx, buf)
-			if err != nil {
-				return err
+			data, ok := trigger.Next(ctx)
+			if !ok {
+				return nil
 			}
-			err = r.ResolveGraphQLResponse(ctx, subscription.Response, buf.Bytes(), writer)
+			err = r.ResolveGraphQLResponse(ctx, subscription.Response, data, writer)
 			if err != nil {
 				return err
 			}
 			writer.Flush()
-			buf.Reset()
 		}
 	}
 }

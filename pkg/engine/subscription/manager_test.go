@@ -1,39 +1,47 @@
-package http_polling
+package subscription
 
 import (
 	"context"
-	"net/http"
-	"net/http/httptest"
 	"strconv"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/subscription"
 )
 
-func TestHttpPolling(t *testing.T) {
+type FakeStream struct {
+	done bool
+	wg *sync.WaitGroup
+}
+
+func (f *FakeStream) Start(input []byte, next chan<- []byte, stop <-chan struct{}) {
 	counter := 0
-	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(strconv.Itoa(counter)))
-		counter++
-	}))
-	defer testServer.Close()
+	for {
+		select {
+		case <-stop:
+			f.done = true
+			f.wg.Done()
+			return
+		case <-time.After(time.Duration(1) * time.Millisecond):
+			next <- []byte(strconv.Itoa(counter))
+			counter++
+		}
+	}
+}
 
-	httpPollingStream := New(httpclient.NewNetHttpClient(httpclient.DefaultNetHttpClient))
+func (f *FakeStream) UniqueIdentifier() []byte {
+	return []byte("fake_stream")
+}
 
-	manager := subscription.NewManager(httpPollingStream)
-	var (
-		requestInput []byte
-		input        []byte
-	)
-	requestInput = httpclient.SetInputURL(requestInput, []byte(testServer.URL))
-	requestInput = httpclient.SetInputMethod(requestInput, []byte("GET"))
+func TestSubscriptionManager(t *testing.T) {
+	fakeStream := &FakeStream{
+		wg: &sync.WaitGroup{},
+	}
+	fakeStream.wg.Add(1)
+	manager := NewManager(fakeStream)
 
-	input = SetInputInterval(input, 0)
-	input = SetRequestInput(input, requestInput)
+	input := []byte("none")
 
 	trigger1, err := manager.StartTrigger(input)
 	assert.NoError(t, err)
@@ -44,7 +52,9 @@ func TestHttpPolling(t *testing.T) {
 	trigger3, err := manager.StartTrigger(input)
 	assert.NoError(t, err)
 
-	receiveOneAndStop := func(trigger *subscription.Trigger, wg *sync.WaitGroup, triggerID int) {
+	assert.Equal(t, 3, len(manager.subscriptions[trigger1.SubscriptionID()].triggers))
+
+	receiveOneAndStop := func(trigger *Trigger, wg *sync.WaitGroup, triggerID int) {
 		data, ok := trigger.Next(context.Background())
 		assert.True(t, ok)
 		assert.Equal(t, "0", string(data), "triggerID: %d", triggerID)
@@ -54,7 +64,7 @@ func TestHttpPolling(t *testing.T) {
 		wg.Done()
 	}
 
-	receive := func(trigger *subscription.Trigger, wg *sync.WaitGroup, triggerID int) {
+	receive := func(trigger *Trigger, wg *sync.WaitGroup, triggerID int) {
 		data, ok := trigger.Next(context.Background())
 		assert.True(t, ok)
 		assert.Equal(t, "0", string(data), "triggerID: %d", triggerID)
@@ -79,8 +89,6 @@ func TestHttpPolling(t *testing.T) {
 
 	wg.Wait()
 
-	assert.Equal(t, 3, counter)
-
 	trigger4, err := manager.StartTrigger(input)
 	assert.NoError(t, err)
 
@@ -92,4 +100,7 @@ func TestHttpPolling(t *testing.T) {
 	assert.Equal(t, "3", string(data), "triggerID: %d", 4)
 
 	manager.StopTrigger(trigger4)
+	assert.Equal(t, 0, len(manager.subscriptions))
+	fakeStream.wg.Wait()
+	assert.Equal(t, true, fakeStream.done)
 }

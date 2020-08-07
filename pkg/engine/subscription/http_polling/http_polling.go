@@ -1,9 +1,8 @@
 package http_polling
 
 import (
+	"bytes"
 	"context"
-	"fmt"
-	"io"
 	"strconv"
 	"time"
 
@@ -11,7 +10,6 @@ import (
 	"github.com/tidwall/sjson"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 )
 
 func SetInputInterval(input []byte, interval int64) []byte {
@@ -24,54 +22,51 @@ func SetRequestInput(input, requestInput []byte) []byte {
 	return out
 }
 
-type Trigger struct {
-	client       httpclient.Client
-	requestInput []byte
-	interval     time.Duration
+var (
+	HttpPolling = []byte("http_polling_stream")
+)
+
+type HttpPollingStream struct {
+	client httpclient.Client
 }
 
-func (h *Trigger) Next(ctx context.Context, out io.Writer) (err error) {
-	done := ctx.Done()
+func New(client httpclient.Client) *HttpPollingStream {
+	return &HttpPollingStream{
+		client: client,
+	}
+}
+
+func (h *HttpPollingStream) Start(input []byte, next chan<- []byte, stop <-chan struct{}) {
+	interval, err := jsonparser.GetInt(input, "interval")
+	if err != nil {
+		return
+	}
+	requestInput, _, _, err := jsonparser.Get(input, "request_input")
+	if err != nil {
+		return
+	}
+	buf := bytes.NewBuffer(make([]byte, 0, 4096))
 	for {
 		select {
-		case <-done:
-			return nil
-		case <-time.After(h.interval):
-			return h.client.Do(ctx, h.requestInput, out)
+		case <-time.After(time.Duration(interval) * time.Millisecond):
+			buf.Reset()
+			err := h.client.Do(context.Background(), requestInput, buf)
+			if err != nil {
+				continue
+			}
+			src := buf.Bytes()
+			if len(src) == 0 {
+				continue
+			}
+			dst := make([]byte, len(src))
+			copy(dst, src)
+			next <- dst
+		case <-stop:
+			return
 		}
 	}
 }
 
-type Manager struct {
-	client httpclient.Client
-}
-
-var (
-	UniqueID = []byte("http_polling")
-)
-
-func (m *Manager) UniqueIdentifier() []byte {
-	return UniqueID
-}
-
-func (m *Manager) ConfigureTrigger(input []byte) (trigger resolve.SubscriptionTrigger, err error) {
-	interval, err := jsonparser.GetInt(input, "interval")
-	if err != nil {
-		return nil, fmt.Errorf("interval missing")
-	}
-	requestInput, _, _, err := jsonparser.Get(input, "request_input")
-	if err != nil {
-		return nil, fmt.Errorf("request_input missing")
-	}
-	return &Trigger{
-		requestInput: requestInput,
-		interval:     time.Millisecond * time.Duration(interval),
-		client:       m.client,
-	}, nil
-}
-
-func NewManager(client httpclient.Client) *Manager {
-	return &Manager{
-		client: client,
-	}
+func (h *HttpPollingStream) UniqueIdentifier() []byte {
+	return HttpPolling
 }
