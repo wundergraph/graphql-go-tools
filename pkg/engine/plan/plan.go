@@ -66,10 +66,10 @@ type DataSourcePlanner interface {
 }
 
 type DataSourceConfiguration struct {
-	TypeName          string
-	FieldNames        []string
-	Attributes        DataSourceAttributes
-	DataSourcePlanner DataSourcePlanner
+	TypeName             string
+	FieldNames           []string
+	Attributes           DataSourceAttributes
+	DataSourcePlanner    DataSourcePlanner
 }
 
 type FieldMapping struct {
@@ -129,11 +129,20 @@ func NewPlanner(definition *ast.Document, config Configuration) *Planner {
 	walker.RegisterEnterFieldVisitor(visitor)
 	walker.RegisterEnterArgumentVisitor(visitor)
 
+	registered := make([]DataSourcePlanner, 0, len(config.DataSourceConfigurations))
+
+Next:
 	for i := range config.DataSourceConfigurations {
 		if config.DataSourceConfigurations[i].DataSourcePlanner == nil {
 			continue
 		}
+		for j := range registered {
+			if registered[j] == config.DataSourceConfigurations[i].DataSourcePlanner {
+				continue Next
+			}
+		}
 		config.DataSourceConfigurations[i].DataSourcePlanner.Register(visitor)
+		registered = append(registered, config.DataSourceConfigurations[i].DataSourcePlanner)
 	}
 
 	walker.RegisterLeaveFieldVisitor(visitor)
@@ -260,6 +269,15 @@ func (v *Visitor) IsRootField(ref int) (bool, *DataSourceConfiguration) {
 		if enclosingTypeName != v.Config.DataSourceConfigurations[i].TypeName {
 			continue
 		}
+		for k := range v.fieldDataSourcePlanners {
+			if v.fieldDataSourcePlanners[k].planner == v.Config.DataSourceConfigurations[i].DataSourcePlanner {
+				for l := range v.Ancestors {
+					if v.Ancestors[l].Kind == ast.NodeKindField && v.Ancestors[l].Ref == v.fieldDataSourcePlanners[k].field {
+						return false, &v.Config.DataSourceConfigurations[i]
+					}
+				}
+			}
+		}
 		for j := range v.Config.DataSourceConfigurations[i].FieldNames {
 			if fieldName == v.Config.DataSourceConfigurations[i].FieldNames[j] {
 				return true, &v.Config.DataSourceConfigurations[i]
@@ -349,31 +367,31 @@ func (v *Visitor) prepareSingleFetchVariables(f *resolve.SingleFetch, config *Da
 		}
 	})
 
-	segments := strings.Split(f.Input,"$$")
+	segments := strings.Split(f.Input, "$$")
 	isVariable := false
-	for _,seg := range segments {
+	for _, seg := range segments {
 		switch {
 		case isVariable:
-			i,_ := strconv.Atoi(seg)
+			i, _ := strconv.Atoi(seg)
 			switch v := f.Variables[i].(type) {
 			case *resolve.ContextVariable:
-				f.InputTemplate.Segments = append(f.InputTemplate.Segments,resolve.TemplateSegment{
-					SegmentType: resolve.VariableSegmentType,
-					VariableSource: resolve.VariableSourceContext,
+				f.InputTemplate.Segments = append(f.InputTemplate.Segments, resolve.TemplateSegment{
+					SegmentType:        resolve.VariableSegmentType,
+					VariableSource:     resolve.VariableSourceContext,
 					VariableSourcePath: v.Path,
 				})
 			case *resolve.ObjectVariable:
-				f.InputTemplate.Segments = append(f.InputTemplate.Segments,resolve.TemplateSegment{
-					SegmentType: resolve.VariableSegmentType,
-					VariableSource: resolve.VariableSourceObject,
+				f.InputTemplate.Segments = append(f.InputTemplate.Segments, resolve.TemplateSegment{
+					SegmentType:        resolve.VariableSegmentType,
+					VariableSource:     resolve.VariableSourceObject,
 					VariableSourcePath: v.Path,
 				})
 			}
 			isVariable = false
 		default:
-			f.InputTemplate.Segments = append(f.InputTemplate.Segments,resolve.TemplateSegment{
+			f.InputTemplate.Segments = append(f.InputTemplate.Segments, resolve.TemplateSegment{
 				SegmentType: resolve.StaticSegmentType,
-				Data: []byte(seg),
+				Data:        []byte(seg),
 			})
 			isVariable = true
 		}

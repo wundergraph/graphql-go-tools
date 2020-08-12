@@ -339,6 +339,156 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 			},
 		},
 	))
+	nestedResolverPlanner := &Planner{}
+	t.Run("nested resolvers of same upstream", RunTest(`
+		type Query {
+			foo(bar: String):Baz
+		}
+		type Baz {
+			bar(bal: String):String
+		}
+		`,
+		`
+		query NestedQuery {
+			foo(bar: "baz") {
+				bar(bal: "bat")
+			}
+		}
+		`,
+		"NestedQuery",
+		&plan.SynchronousResponsePlan{
+			Response: resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						BufferId: 0,
+						Input:    `{"method":"POST","url":"https://foo.service","body":{"query":"query($a: String, $b: String){foo(bar: $a){bar(bal: $b)}}","variables":{"b":"$$1$$","a":"$$0$$"}}}`,
+						InputTemplate: resolve.InputTemplate{
+							Segments: []resolve.TemplateSegment{
+								{
+									SegmentType: resolve.StaticSegmentType,
+									Data:        []byte(`{"method":"POST","url":"https://foo.service","body":{"query":"query($a: String, $b: String){foo(bar: $a){bar(bal: $b)}}","variables":{"b":"`),
+								},
+								{
+									SegmentType:        resolve.VariableSegmentType,
+									VariableSource:     resolve.VariableSourceContext,
+									VariableSourcePath: []string{"b"},
+								},
+								{
+									SegmentType: resolve.StaticSegmentType,
+									Data:        []byte(`","a":"`),
+								},
+								{
+									SegmentType:        resolve.VariableSegmentType,
+									VariableSource:     resolve.VariableSourceContext,
+									VariableSourcePath: []string{"a"},
+								},
+								{
+									SegmentType: resolve.StaticSegmentType,
+									Data:        []byte(`"}}}`),
+								},
+							},
+						},
+						DataSource: DefaultSource(),
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path: []string{"a"},
+							},
+							&resolve.ContextVariable{
+								Path: []string{"b"},
+							},
+						),
+						DisallowSingleFlight: false,
+					},
+					FieldSets: []resolve.FieldSet{
+						{
+							BufferID: 0,
+							HasBuffer: true,
+							Fields: []resolve.Field{
+								{
+									Name: []byte("foo"),
+									Value: &resolve.Object{
+										Nullable: true,
+										Path: []string{"foo"},
+										FieldSets: []resolve.FieldSet{
+											{
+												Fields: []resolve.Field{
+													{
+														Name: []byte("bar"),
+														Value: &resolve.String{
+															Nullable: true,
+															Path: []string{"bar"},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		plan.Configuration{
+			DataSourceConfigurations: []plan.DataSourceConfiguration{
+				{
+					TypeName: "Query",
+					FieldNames: []string{"foo"},
+					Attributes: []plan.DataSourceAttribute{
+						{
+							Key:   "url",
+							Value: []byte("https://foo.service"),
+						},
+						{
+							Key: "arguments",
+							Value: ArgumentsConfigJSON(ArgumentsConfig{
+								Fields: []FieldConfig{
+									{
+										FieldName: "foo",
+										Arguments: []Argument{
+											{
+												Name:   "bar",
+												Source: FieldArgument,
+											},
+										},
+									},
+								},
+							}),
+						},
+					},
+					DataSourcePlanner: nestedResolverPlanner,
+				},
+				{
+					TypeName: "Baz",
+					FieldNames: []string{"bar"},
+					Attributes: []plan.DataSourceAttribute{
+						{
+							Key:   "url",
+							Value: []byte("https://foo.service"),
+						},
+						{
+							Key: "arguments",
+							Value: ArgumentsConfigJSON(ArgumentsConfig{
+								Fields: []FieldConfig{
+									{
+										FieldName: "bar",
+										Arguments: []Argument{
+											{
+												Name:   "bal",
+												Source: FieldArgument,
+											},
+										},
+									},
+								},
+							}),
+						},
+					},
+					DataSourcePlanner: nestedResolverPlanner,
+				},
+			},
+		},
+	))
 	// TODO: add validation to check if all required field dependencies are met
 	t.Run("nested graphql engines", RunTest(`
 		type Query {
@@ -836,7 +986,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 								},
 								{
 									SegmentType: resolve.StaticSegmentType,
-									Data: []byte(`","id":"`),
+									Data:        []byte(`","id":"`),
 								},
 								{
 									SegmentType:        resolve.VariableSegmentType,
@@ -869,7 +1019,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 									Name: []byte("createUser"),
 									Value: &resolve.Object{
 										Nullable: true,
-										Path: []string{"createUser"},
+										Path:     []string{"createUser"},
 										FieldSets: []resolve.FieldSet{
 											{
 												Fields: []resolve.Field{
