@@ -321,7 +321,8 @@ func (r *Resolver) resolveArray(ctx Context, array *Array, data []byte, arrayBuf
 
 	if len(*arrayItems) == 0 {
 		if !array.Nullable {
-			return errNonNullableFieldValueIsNull
+			r.resolveEmptyArray(arrayBuf.Data)
+			return nil
 		}
 		r.resolveNull(arrayBuf.Data)
 		return nil
