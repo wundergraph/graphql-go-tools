@@ -190,19 +190,26 @@ func (d *Document) ResolveTypeNameString(ref int) string {
 	return unsafebytes.BytesToString(d.ResolveTypeNameBytes(ref))
 }
 
-func (d *Document) TypeValueNeedsQuotes(ref int) bool {
+func (d *Document) TypeValueNeedsQuotes(ref int, definition *Document) bool {
 	graphqlType := d.Types[ref]
 	switch graphqlType.TypeKind {
 	case TypeKindNonNull:
-		return d.TypeValueNeedsQuotes(graphqlType.OfType)
+		return d.TypeValueNeedsQuotes(graphqlType.OfType,definition)
 	case TypeKindList:
 		return false
 	case TypeKindNamed:
-		switch d.Input.ByteSliceString(graphqlType.Name) {
+		typeName := d.Input.ByteSliceString(graphqlType.Name)
+		switch  typeName {
 		case "String", "Date", "ID":
 			return true
 		default:
-			return false
+			definitionNodeKind := definition.Index.Nodes[xxhash.Sum64String(typeName)].Kind
+			switch definitionNodeKind {
+			case NodeKindEnumTypeDefinition:
+				return true
+			default:
+				return false
+			}
 		}
 	default:
 		return false
