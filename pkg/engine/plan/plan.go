@@ -267,6 +267,7 @@ func (v *Visitor) AllowVisitor(visitorKind astvisitor.VisitorKind, ref int, visi
 func (v *Visitor) IsRootField(ref int) (bool, *DataSourceConfiguration) {
 	fieldName := v.Operation.FieldNameString(ref)
 	enclosingTypeName := v.EnclosingTypeDefinition.Name(v.Definition)
+	NextConfig:
 	for i := range v.Config.DataSourceConfigurations {
 		if enclosingTypeName != v.Config.DataSourceConfigurations[i].TypeName {
 			continue
