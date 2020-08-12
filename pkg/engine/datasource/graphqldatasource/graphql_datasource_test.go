@@ -458,6 +458,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 						},
 					},
 					DataSourcePlanner: nestedResolverPlanner,
+					UpstreamUniqueIdentifier: "foo",
 				},
 				{
 					TypeName: "Baz",
@@ -485,6 +486,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 						},
 					},
 					DataSourcePlanner: nestedResolverPlanner,
+					UpstreamUniqueIdentifier: "foo",
 				},
 			},
 		},

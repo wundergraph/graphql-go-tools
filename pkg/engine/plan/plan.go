@@ -66,10 +66,11 @@ type DataSourcePlanner interface {
 }
 
 type DataSourceConfiguration struct {
-	TypeName             string
-	FieldNames           []string
-	Attributes           DataSourceAttributes
-	DataSourcePlanner    DataSourcePlanner
+	TypeName                 string
+	FieldNames               []string
+	Attributes               DataSourceAttributes
+	DataSourcePlanner        DataSourcePlanner
+	UpstreamUniqueIdentifier string
 }
 
 type FieldMapping struct {
@@ -187,8 +188,9 @@ type Visitor struct {
 type PathOverrideFunc func(path []string) []string
 
 type fieldDataSourcePlanner struct {
-	field   int
-	planner DataSourcePlanner
+	field              int
+	planner            DataSourcePlanner
+	upstreamIdentifier string
 }
 
 type fetchConfig struct {
@@ -270,9 +272,11 @@ func (v *Visitor) IsRootField(ref int) (bool, *DataSourceConfiguration) {
 			continue
 		}
 		for k := range v.fieldDataSourcePlanners {
-			if v.fieldDataSourcePlanners[k].planner == v.Config.DataSourceConfigurations[i].DataSourcePlanner {
+			if v.fieldDataSourcePlanners[k].planner == v.Config.DataSourceConfigurations[i].DataSourcePlanner &&
+				v.fieldDataSourcePlanners[k].upstreamIdentifier == v.Config.DataSourceConfigurations[i].UpstreamUniqueIdentifier {
 				for l := range v.Ancestors {
-					if v.Ancestors[l].Kind == ast.NodeKindField && v.Ancestors[l].Ref == v.fieldDataSourcePlanners[k].field {
+					if v.Ancestors[l].Kind == ast.NodeKindField &&
+						v.Ancestors[l].Ref == v.fieldDataSourcePlanners[k].field {
 						return false, &v.Config.DataSourceConfigurations[i]
 					}
 				}
@@ -683,8 +687,9 @@ func (v *Visitor) setActiveDataSourcePlanner(fieldRef int, enterOrLeave enterOrL
 			if v.Config.DataSourceConfigurations[i].FieldNames[j] == fieldName {
 				v.activeDataSourcePlanner = v.Config.DataSourceConfigurations[i].DataSourcePlanner
 				v.fieldDataSourcePlanners = append(v.fieldDataSourcePlanners, fieldDataSourcePlanner{
-					field:   fieldRef,
-					planner: v.Config.DataSourceConfigurations[i].DataSourcePlanner,
+					field:              fieldRef,
+					planner:            v.Config.DataSourceConfigurations[i].DataSourcePlanner,
+					upstreamIdentifier: v.Config.DataSourceConfigurations[i].UpstreamUniqueIdentifier,
 				})
 				return
 			}
