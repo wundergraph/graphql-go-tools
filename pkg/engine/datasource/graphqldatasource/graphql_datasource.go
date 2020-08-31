@@ -239,7 +239,7 @@ func (p *Planner) applyFieldArgument(upstreamField, downstreamField int, arg Arg
 			}
 
 			variableDefinitionType := p.v.Operation.VariableDefinitions[variableDefinition].Type
-			wrapValueInQuotes := p.v.Operation.TypeValueNeedsQuotes(variableDefinitionType)
+			wrapValueInQuotes := p.v.Operation.TypeValueNeedsQuotes(variableDefinitionType,p.v.Definition)
 
 			contextVariableName, exists := p.fetch.Variables.AddVariable(&resolve.ContextVariable{Path: append([]string{variableNameStr}, arg.SourcePath...)}, wrapValueInQuotes)
 			variableValueRef, argRef := p.operation.AddVariableValueArgument(arg.NameBytes(), variableName) // add the argument to the field, but don't redefine it
@@ -288,7 +288,7 @@ func (p *Planner) applyFieldArgument(upstreamField, downstreamField int, arg Arg
 		p.operation.AddArgumentToField(upstreamField, argument)
 		importedType := p.v.Importer.ImportType(argumentType, p.v.Definition, p.operation)
 		p.operation.AddVariableDefinitionToOperationDefinition(p.nodes[0].Ref, variableValue, importedType)
-		wrapVariableInQuotes := p.v.Definition.TypeValueNeedsQuotes(argumentType)
+		wrapVariableInQuotes := p.v.Definition.TypeValueNeedsQuotes(argumentType,p.v.Definition)
 
 		objectVariableName, exists := p.fetch.Variables.AddVariable(&resolve.ObjectVariable{Path: arg.SourcePath}, wrapVariableInQuotes)
 		if !exists {
@@ -335,7 +335,7 @@ func (p *Planner) addVariableDefinitionsRecursively(value ast.Value,arg Argument
 	p.operation.AddImportedVariableDefinitionToOperationDefinition(p.nodes[0].Ref,importedVariableDefinition)
 
 	variableDefinitionType := p.v.Operation.VariableDefinitions[variableDefinition].Type
-	wrapValueInQuotes := p.v.Operation.TypeValueNeedsQuotes(variableDefinitionType)
+	wrapValueInQuotes := p.v.Operation.TypeValueNeedsQuotes(variableDefinitionType,p.v.Definition)
 
 	contextVariableName, variableExists := p.fetch.Variables.AddVariable(&resolve.ContextVariable{Path: append(arg.SourcePath,variableNameStr)}, wrapValueInQuotes)
 	if variableExists {

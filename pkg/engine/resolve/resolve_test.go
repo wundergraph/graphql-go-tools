@@ -837,6 +837,67 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			},
 		}, Context{Context: context.Background()}, `{"data":{"stringObject":null,"integerObject":null,"floatObject":null,"booleanObject":null,"objectObject":null,"arrayObject":null,"asynchronousArrayObject":null,"nullableArray":null}}`
 	}))
+	t.Run("empty array should resolve correctly", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		return &GraphQLResponse{
+			Data: &Object{
+				Nullable: true,
+				Fetch: &SingleFetch{
+					BufferId:   0,
+					DataSource: FakeDataSource(`[]`),
+				},
+				FieldSets: []FieldSet{
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Fields: []Field{
+							{
+								Name: []byte("nonNullArray"),
+								Value: &Array{
+									Nullable: false,
+									Item: &Object{
+										Nullable: false,
+										FieldSets: []FieldSet{
+											{
+												Fields: []Field{
+													{
+														Name: []byte("foo"),
+														Value: &String{
+															Nullable: false,
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+							{
+								Name: []byte("nullableArray"),
+								Value: &Array{
+									Nullable: true,
+									Item: &Object{
+										Nullable: false,
+										FieldSets: []FieldSet{
+											{
+												Fields: []Field{
+													{
+														Name: []byte("foo"),
+														Value: &String{
+															Nullable: false,
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, Context{Context: context.Background()}, `{"data":{"nonNullArray":[],"nullableArray":null}}`
+	}))
 	t.Run("complex GraphQL Server plan", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		r.EnableSingleFlightLoader = true
 		serviceOne := NewMockDataSource(ctrl)

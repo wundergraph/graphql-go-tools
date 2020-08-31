@@ -54,6 +54,18 @@ func TestVariablesExtraction(t *testing.T) {
 			  }
 			}`, ``, `{"a":{"foo":"bar"}}`)
 	})
+	t.Run("enum", func(t *testing.T) {
+		runWithVariables(t, extractVariables, forumExampleSchema, `
+			mutation EnumOperation {
+			  useEnum(simpleEnum: Foo)
+			}`,
+			"EnumOperation", `
+			mutation EnumOperation($a: SimpleEnum) {
+			  useEnum(simpleEnum: $a)
+			}`,
+			``,
+			`{"a":"Foo"}`)
+	})
 	t.Run("variables in argument", func(t *testing.T) {
 		runWithVariables(t, extractVariables, variablesExtractionDefinition, `
 			mutation HttpBinPost($foo: String! = "bar") {
@@ -146,9 +158,14 @@ schema {
 	mutation: Mutation
 }
 scalar String
+enum SimpleEnum {
+	Foo
+	Bar
+}
 type Mutation {
 	createUser(input: CreateUserInput): CreateUser
 	createPost(input: CreatePostInput): CreatePost
+	useEnum(simpleEnum: SimpleEnum): String
 }
 input CreateUserInput {
 	user: UserInput

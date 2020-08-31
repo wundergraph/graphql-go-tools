@@ -66,10 +66,11 @@ type DataSourcePlanner interface {
 }
 
 type DataSourceConfiguration struct {
-	TypeName          string
-	FieldNames        []string
-	Attributes        DataSourceAttributes
-	DataSourcePlanner DataSourcePlanner
+	TypeName                 string
+	FieldNames               []string
+	Attributes               DataSourceAttributes
+	DataSourcePlanner        DataSourcePlanner
+	UpstreamUniqueIdentifier string
 }
 
 type FieldMapping struct {
@@ -129,11 +130,20 @@ func NewPlanner(definition *ast.Document, config Configuration) *Planner {
 	walker.RegisterEnterFieldVisitor(visitor)
 	walker.RegisterEnterArgumentVisitor(visitor)
 
+	registered := make([]DataSourcePlanner, 0, len(config.DataSourceConfigurations))
+
+Next:
 	for i := range config.DataSourceConfigurations {
 		if config.DataSourceConfigurations[i].DataSourcePlanner == nil {
 			continue
 		}
+		for j := range registered {
+			if registered[j] == config.DataSourceConfigurations[i].DataSourcePlanner {
+				continue Next
+			}
+		}
 		config.DataSourceConfigurations[i].DataSourcePlanner.Register(visitor)
+		registered = append(registered, config.DataSourceConfigurations[i].DataSourcePlanner)
 	}
 
 	walker.RegisterLeaveFieldVisitor(visitor)
@@ -178,8 +188,9 @@ type Visitor struct {
 type PathOverrideFunc func(path []string) []string
 
 type fieldDataSourcePlanner struct {
-	field   int
-	planner DataSourcePlanner
+	field              int
+	planner            DataSourcePlanner
+	upstreamIdentifier string
 }
 
 type fetchConfig struct {
@@ -259,6 +270,27 @@ func (v *Visitor) IsRootField(ref int) (bool, *DataSourceConfiguration) {
 	for i := range v.Config.DataSourceConfigurations {
 		if enclosingTypeName != v.Config.DataSourceConfigurations[i].TypeName {
 			continue
+		}
+		fieldMatches := false
+		for m := range v.Config.DataSourceConfigurations[i].FieldNames {
+			if v.Config.DataSourceConfigurations[i].FieldNames[m] == fieldName {
+				fieldMatches = true
+				break
+			}
+		}
+		if !fieldMatches {
+			continue
+		}
+		for k := range v.fieldDataSourcePlanners {
+			if v.fieldDataSourcePlanners[k].planner == v.Config.DataSourceConfigurations[i].DataSourcePlanner &&
+				v.fieldDataSourcePlanners[k].upstreamIdentifier == v.Config.DataSourceConfigurations[i].UpstreamUniqueIdentifier {
+				for l := range v.Ancestors {
+					if v.Ancestors[l].Kind == ast.NodeKindField &&
+						v.Ancestors[l].Ref == v.fieldDataSourcePlanners[k].field {
+						return false, &v.Config.DataSourceConfigurations[i]
+					}
+				}
+			}
 		}
 		for j := range v.Config.DataSourceConfigurations[i].FieldNames {
 			if fieldName == v.Config.DataSourceConfigurations[i].FieldNames[j] {
@@ -349,31 +381,31 @@ func (v *Visitor) prepareSingleFetchVariables(f *resolve.SingleFetch, config *Da
 		}
 	})
 
-	segments := strings.Split(f.Input,"$$")
+	segments := strings.Split(f.Input, "$$")
 	isVariable := false
-	for _,seg := range segments {
+	for _, seg := range segments {
 		switch {
 		case isVariable:
-			i,_ := strconv.Atoi(seg)
+			i, _ := strconv.Atoi(seg)
 			switch v := f.Variables[i].(type) {
 			case *resolve.ContextVariable:
-				f.InputTemplate.Segments = append(f.InputTemplate.Segments,resolve.TemplateSegment{
-					SegmentType: resolve.VariableSegmentType,
-					VariableSource: resolve.VariableSourceContext,
+				f.InputTemplate.Segments = append(f.InputTemplate.Segments, resolve.TemplateSegment{
+					SegmentType:        resolve.VariableSegmentType,
+					VariableSource:     resolve.VariableSourceContext,
 					VariableSourcePath: v.Path,
 				})
 			case *resolve.ObjectVariable:
-				f.InputTemplate.Segments = append(f.InputTemplate.Segments,resolve.TemplateSegment{
-					SegmentType: resolve.VariableSegmentType,
-					VariableSource: resolve.VariableSourceObject,
+				f.InputTemplate.Segments = append(f.InputTemplate.Segments, resolve.TemplateSegment{
+					SegmentType:        resolve.VariableSegmentType,
+					VariableSource:     resolve.VariableSourceObject,
 					VariableSourcePath: v.Path,
 				})
 			}
 			isVariable = false
 		default:
-			f.InputTemplate.Segments = append(f.InputTemplate.Segments,resolve.TemplateSegment{
+			f.InputTemplate.Segments = append(f.InputTemplate.Segments, resolve.TemplateSegment{
 				SegmentType: resolve.StaticSegmentType,
-				Data: []byte(seg),
+				Data:        []byte(seg),
 			})
 			isVariable = true
 		}
@@ -665,8 +697,9 @@ func (v *Visitor) setActiveDataSourcePlanner(fieldRef int, enterOrLeave enterOrL
 			if v.Config.DataSourceConfigurations[i].FieldNames[j] == fieldName {
 				v.activeDataSourcePlanner = v.Config.DataSourceConfigurations[i].DataSourcePlanner
 				v.fieldDataSourcePlanners = append(v.fieldDataSourcePlanners, fieldDataSourcePlanner{
-					field:   fieldRef,
-					planner: v.Config.DataSourceConfigurations[i].DataSourcePlanner,
+					field:              fieldRef,
+					planner:            v.Config.DataSourceConfigurations[i].DataSourcePlanner,
+					upstreamIdentifier: v.Config.DataSourceConfigurations[i].UpstreamUniqueIdentifier,
 				})
 				return
 			}

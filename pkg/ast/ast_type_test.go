@@ -3,18 +3,24 @@ package ast
 import (
 	"testing"
 
+	"github.com/cespare/xxhash"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestDocument_TypeValueNeedsQuotes(t *testing.T) {
 	doc := Document{}
+	definition := NewDocument()
+	//someEnumName := definition.Input.AppendInputString("SomeEnum")
+	definition.Index.Nodes[xxhash.Sum64String("SomeEnum")] = Node{
+		Kind: NodeKindEnumTypeDefinition,
+	}
 
 	stringRef := doc.Input.AppendInputString("String")
 	doc.Types = append(doc.Types, Type{
 		TypeKind: TypeKindNamed,
 		Name:     stringRef,
 	})
-	stringNeedsQuotes := doc.TypeValueNeedsQuotes(0)
+	stringNeedsQuotes := doc.TypeValueNeedsQuotes(0, definition)
 	assert.Equal(t, true, stringNeedsQuotes)
 
 	idRef := doc.Input.AppendInputString("ID")
@@ -22,7 +28,7 @@ func TestDocument_TypeValueNeedsQuotes(t *testing.T) {
 		TypeKind: TypeKindNamed,
 		Name:     idRef,
 	})
-	idNeedsQuotes := doc.TypeValueNeedsQuotes(1)
+	idNeedsQuotes := doc.TypeValueNeedsQuotes(1, definition)
 	assert.Equal(t, true, idNeedsQuotes)
 
 	intRef := doc.Input.AppendInputString("Int")
@@ -30,7 +36,7 @@ func TestDocument_TypeValueNeedsQuotes(t *testing.T) {
 		TypeKind: TypeKindNamed,
 		Name:     intRef,
 	})
-	intNeedsQuotes := doc.TypeValueNeedsQuotes(2)
+	intNeedsQuotes := doc.TypeValueNeedsQuotes(2, definition)
 	assert.Equal(t, false, intNeedsQuotes)
 
 	floatRef := doc.Input.AppendInputString("Float")
@@ -38,7 +44,7 @@ func TestDocument_TypeValueNeedsQuotes(t *testing.T) {
 		TypeKind: TypeKindNamed,
 		Name:     floatRef,
 	})
-	floatNeedsQuotes := doc.TypeValueNeedsQuotes(3)
+	floatNeedsQuotes := doc.TypeValueNeedsQuotes(3, definition)
 	assert.Equal(t, false, floatNeedsQuotes)
 
 	booleanRef := doc.Input.AppendInputString("Boolean")
@@ -46,7 +52,7 @@ func TestDocument_TypeValueNeedsQuotes(t *testing.T) {
 		TypeKind: TypeKindNamed,
 		Name:     booleanRef,
 	})
-	booleanNeedsQuotes := doc.TypeValueNeedsQuotes(4)
+	booleanNeedsQuotes := doc.TypeValueNeedsQuotes(4, definition)
 	assert.Equal(t, false, booleanNeedsQuotes)
 
 	jsonRef := doc.Input.AppendInputString("JSON")
@@ -54,7 +60,7 @@ func TestDocument_TypeValueNeedsQuotes(t *testing.T) {
 		TypeKind: TypeKindNamed,
 		Name:     jsonRef,
 	})
-	jsonNeedsQuotes := doc.TypeValueNeedsQuotes(5)
+	jsonNeedsQuotes := doc.TypeValueNeedsQuotes(5, definition)
 	assert.Equal(t, false, jsonNeedsQuotes)
 
 	dateRef := doc.Input.AppendInputString("Date")
@@ -62,7 +68,7 @@ func TestDocument_TypeValueNeedsQuotes(t *testing.T) {
 		TypeKind: TypeKindNamed,
 		Name:     dateRef,
 	})
-	dateNeedsQuotes := doc.TypeValueNeedsQuotes(6)
+	dateNeedsQuotes := doc.TypeValueNeedsQuotes(6, definition)
 	assert.Equal(t, true, dateNeedsQuotes)
 
 	customRef := doc.Input.AppendInputString("CreateUserInput")
@@ -70,6 +76,14 @@ func TestDocument_TypeValueNeedsQuotes(t *testing.T) {
 		TypeKind: TypeKindNamed,
 		Name:     customRef,
 	})
-	customNeedsQuotes := doc.TypeValueNeedsQuotes(7)
+	customNeedsQuotes := doc.TypeValueNeedsQuotes(7, definition)
 	assert.Equal(t, false, customNeedsQuotes)
+
+	enumRef := doc.Input.AppendInputString("SomeEnum")
+	doc.Types = append(doc.Types, Type{
+		TypeKind: TypeKindNamed,
+		Name:     enumRef,
+	})
+	enumNeedsQuotes := doc.TypeValueNeedsQuotes(8, definition)
+	assert.Equal(t, true, enumNeedsQuotes)
 }
