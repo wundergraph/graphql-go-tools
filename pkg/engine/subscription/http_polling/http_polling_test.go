@@ -32,7 +32,7 @@ func TestHttpPolling(t *testing.T) {
 	requestInput = httpclient.SetInputURL(requestInput, []byte(testServer.URL))
 	requestInput = httpclient.SetInputMethod(requestInput, []byte("GET"))
 
-	input = SetInputInterval(input, 0)
+	input = SetInputIntervalMillis(input, 0)
 	input = SetRequestInput(input, requestInput)
 
 	trigger1, err := manager.StartTrigger(input)

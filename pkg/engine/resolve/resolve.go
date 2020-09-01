@@ -319,7 +319,11 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx Context, subscription *GraphQL
 		return fmt.Errorf("trigger manager not found for id: %s", string(subscription.Trigger.ManagerID))
 	}
 
-	trigger, err := manager.StartTrigger(subscription.Trigger.Input)
+	buf := r.getBufPair()
+	defer r.freeBufPair(buf)
+	err = subscription.Trigger.InputTemplate.Render(ctx, nil, buf.Data)
+
+	trigger, err := manager.StartTrigger(buf.Data.Bytes())
 	if err != nil {
 		return fmt.Errorf("configuring trigger failed")
 	}
@@ -1020,8 +1024,10 @@ type GraphQLSubscription struct {
 }
 
 type GraphQLSubscriptionTrigger struct {
-	ManagerID []byte
-	Input     []byte
+	ManagerID     []byte
+	Input         string
+	InputTemplate InputTemplate
+	Variables     Variables
 }
 
 type FlushWriter interface {

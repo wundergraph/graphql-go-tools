@@ -12,7 +12,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
 )
 
-func SetInputInterval(input []byte, interval int64) []byte {
+func SetInputIntervalMillis(input []byte, interval int64) []byte {
 	out, _ := sjson.SetRawBytes(input, "interval", []byte(strconv.FormatInt(interval, 10)))
 	return out
 }

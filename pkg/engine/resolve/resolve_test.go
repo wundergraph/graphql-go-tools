@@ -1242,7 +1242,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	plan := &GraphQLSubscription{
 		Trigger: GraphQLSubscriptionTrigger{
 			ManagerID: []byte("fake"),
-			Input:     nil,
+			Input:     "",
 		},
 		Response: &GraphQLResponse{
 			Data: &Object{
