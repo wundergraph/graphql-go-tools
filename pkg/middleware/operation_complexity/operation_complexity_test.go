@@ -24,7 +24,24 @@ func TestNodeCount(t *testing.T) {
 					  country
 					}
 				  }
-				}`, 2, 2, 3)
+				}`,
+			OperationStats{
+				NodeCount:  2,
+				Complexity: 2,
+				Depth:      3,
+			},
+			[]FieldComplexityResult{
+				{
+					TypeName:  "Query",
+					FieldName: "users",
+					Stats: OperationStats{
+						NodeCount:  2,
+						Complexity: 2,
+						Depth:      3,
+					},
+				},
+			},
+		)
 	})
 	t.Run("multiple users", func(t *testing.T) {
 		run(t, testDefinition, `
@@ -38,7 +55,24 @@ func TestNodeCount(t *testing.T) {
 					  country
 					}
 				  }
-				}`, 20, 11, 3)
+				}`,
+			OperationStats{
+				NodeCount:  20,
+				Complexity: 11,
+				Depth:      3,
+			},
+			[]FieldComplexityResult{
+				{
+					TypeName:  "Query",
+					FieldName: "users",
+					Stats: OperationStats{
+						NodeCount:  20,
+						Complexity: 11,
+						Depth:      3,
+					},
+				},
+			},
+		)
 	})
 	t.Run("multiple users with multiple transactions", func(t *testing.T) {
 		run(t, testDefinition, `
@@ -56,7 +90,24 @@ func TestNodeCount(t *testing.T) {
 						amount
 					}
 				  }
-				}`, 70, 21, 3)
+				}`,
+			OperationStats{
+				NodeCount:  70,
+				Complexity: 21,
+				Depth:      3,
+			},
+			[]FieldComplexityResult{
+				{
+					TypeName:  "Query",
+					FieldName: "users",
+					Stats: OperationStats{
+						NodeCount:  70,
+						Complexity: 21,
+						Depth:      3,
+					},
+				},
+			},
+		)
 	})
 	t.Run("multiple users with multiple transactions with nested senders", func(t *testing.T) {
 		run(t, testDefinition, `
@@ -88,28 +139,159 @@ func TestNodeCount(t *testing.T) {
 						}
 					}
 				  }
-				}`, 920, 221, 5)
+				}`,
+			OperationStats{
+				NodeCount:  920,
+				Complexity: 221,
+				Depth:      5,
+			},
+			[]FieldComplexityResult{
+				{
+					TypeName:  "Query",
+					FieldName: "users",
+					Stats: OperationStats{
+						NodeCount:  920,
+						Complexity: 221,
+						Depth:      5,
+					},
+				},
+			},
+		)
+	})
+	t.Run("multiple queries and one being an alias", func(t *testing.T) {
+		run(t, testDefinition, `
+				{
+				  person: user(id: "1") {
+					name
+ 				  }
+				  users(first: 1) {
+					id
+					balance
+					name
+					address {
+					  city
+					  country
+					}
+				  }
+				  bestUsers: users(first: 10) {
+					id
+					balance
+					name
+					address {
+					  city
+					  country
+					}
+					transactions(first: 5) {
+						id
+						amount
+					}
+				  }
+				}`,
+			OperationStats{
+				NodeCount:  73,
+				Complexity: 24,
+				Depth:      3,
+			},
+			[]FieldComplexityResult{
+				{
+					TypeName:  "Query",
+					FieldName: "user",
+					Alias:     "person",
+					Stats: OperationStats{
+						NodeCount:  1,
+						Complexity: 1,
+						Depth:      2,
+					},
+				},
+				{
+					TypeName:  "Query",
+					FieldName: "users",
+					Stats: OperationStats{
+						NodeCount:  2,
+						Complexity: 2,
+						Depth:      3,
+					},
+				},
+				{
+					TypeName:  "Query",
+					FieldName: "users",
+					Alias:     "bestUsers",
+					Stats: OperationStats{
+						NodeCount:  70,
+						Complexity: 21,
+						Depth:      3,
+					},
+				},
+			},
+		)
+	})
+	t.Run("multiple mutations with alias", func(t *testing.T) {
+		run(t, testDefinition, `
+				mutation AlterUsers {
+				  createJohn: createUser(input: {balance: 10, name: "John Doe", email: "john@doe.fake"}) {
+                    id
+				  }
+				  createJane: createUser(input: {balance: 100, name: "Jane Doe", email: "jane@doe.fake"}) {
+                    id
+				  }
+				}`,
+			OperationStats{
+				NodeCount:  2,
+				Complexity: 2,
+				Depth:      2,
+			},
+			[]FieldComplexityResult{
+				{
+					TypeName:  "Mutation",
+					FieldName: "createUser",
+					Alias:     "createJohn",
+					Stats: OperationStats{
+						NodeCount:  1,
+						Complexity: 1,
+						Depth:      2,
+					},
+				},
+				{
+					TypeName:  "Mutation",
+					FieldName: "createUser",
+					Alias:     "createJane",
+					Stats: OperationStats{
+						NodeCount:  1,
+						Complexity: 1,
+						Depth:      2,
+					},
+				},
+			},
+		)
 	})
 	t.Run("introspection query", func(t *testing.T) {
-		run(t, testDefinition, introspectionQuery, 0, 0, 0)
+		run(t, testDefinition, introspectionQuery,
+			OperationStats{
+				NodeCount:  0,
+				Complexity: 0,
+				Depth:      0,
+			},
+			[]FieldComplexityResult{},
+		)
 	})
 }
 
-var run = func(t *testing.T, definition, operation string, expectedNodeCount, expectedComplexity, expectedDepth int) {
+var run = func(t *testing.T, definition, operation string, expectedGlobalComplexityResult OperationStats, expectedFieldsComplexityResult []FieldComplexityResult) {
 	def := unsafeparser.ParseGraphqlDocumentString(definition)
 	op := unsafeparser.ParseGraphqlDocumentString(operation)
 	report := operationreport.Report{}
 
 	astnormalization.NormalizeOperation(&op, &def, &report)
 
-	actualNodeCount, actualComplexity, actualDepth := CalculateOperationComplexity(&op, &def, &report)
+	actualGlobalComplexityResult, actualFieldsComplexityResult := CalculateOperationComplexity(&op, &def, &report)
 	if report.HasErrors() {
 		require.NoError(t, report)
 	}
 
-	assert.Equal(t, expectedNodeCount, actualNodeCount, "unexpected node count")
-	assert.Equal(t, expectedComplexity, actualComplexity, "unexpected complexity")
-	assert.Equal(t, expectedDepth, actualDepth, "unexpected depth")
+	assert.Equal(t, expectedGlobalComplexityResult.NodeCount, actualGlobalComplexityResult.NodeCount, "unexpected global node count")
+	assert.Equal(t, expectedGlobalComplexityResult.Complexity, actualGlobalComplexityResult.Complexity, "unexpected global complexity")
+	assert.Equal(t, expectedGlobalComplexityResult.Depth, actualGlobalComplexityResult.Depth, "unexpected global depth")
+	assert.Equal(t, expectedFieldsComplexityResult, actualFieldsComplexityResult, "unexpected fields complexity result")
 }
 
 func BenchmarkEstimateComplexity(b *testing.B) {
@@ -124,19 +306,19 @@ func BenchmarkEstimateComplexity(b *testing.B) {
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		nodeCount, complexity, depth := estimator.Do(&op, &def, &report)
+		globalComplexityResult, _ := estimator.Do(&op, &def, &report)
 		if report.HasErrors() {
 			b.Fatal(report)
 		}
 
-		if nodeCount != 920 {
-			b.Fatalf("want nodeCount: 920, got: %d\n", nodeCount)
+		if globalComplexityResult.NodeCount != 920 {
+			b.Fatalf("want nodeCount: 920, got: %d\n", globalComplexityResult.NodeCount)
 		}
-		if complexity != 221 {
-			b.Fatalf("want complexity: 221, got: %d\n", complexity)
+		if globalComplexityResult.Complexity != 221 {
+			b.Fatalf("want complexity: 221, got: %d\n", globalComplexityResult.Complexity)
 		}
-		if depth != 5 {
-			b.Fatalf("want depth: 5, got: %d\n", depth)
+		if globalComplexityResult.Depth != 5 {
+			b.Fatalf("want depth: 5, got: %d\n", globalComplexityResult.Depth)
 		}
 	}
 }

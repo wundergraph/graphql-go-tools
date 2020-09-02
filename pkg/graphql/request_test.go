@@ -60,6 +60,7 @@ func TestRequest_CalculateComplexity(t *testing.T) {
 		assert.Equal(t, 0, result.NodeCount, "unexpected node count")
 		assert.Equal(t, 0, result.Complexity, "unexpected complexity")
 		assert.Equal(t, 0, result.Depth, "unexpected depth")
+		assert.Nil(t, result.PerRootField, "per root field results is not nil")
 	})
 
 	t.Run("should successfully calculate the complexity of request", func(t *testing.T) {
@@ -71,6 +72,44 @@ func TestRequest_CalculateComplexity(t *testing.T) {
 		assert.Equal(t, 1, result.NodeCount, "unexpected node count")
 		assert.Equal(t, 1, result.Complexity, "unexpected complexity")
 		assert.Equal(t, 2, result.Depth, "unexpected depth")
+		assert.Equal(t, []FieldComplexityResult{
+			{
+				TypeName:   "Query",
+				FieldName:  "hero",
+				Alias:      "",
+				NodeCount:  1,
+				Complexity: 1,
+				Depth:      2,
+			},
+		}, result.PerRootField, "unexpected per root field results")
+	})
+
+	t.Run("should successfully calculate the complexity of request with multiple query fields", func(t *testing.T) {
+		schema := starwarsSchema(t)
+
+		request := requestForQuery(t, starwars.FileHeroWithAliasesQuery)
+		result, err := request.CalculateComplexity(DefaultComplexityCalculator, schema)
+		assert.NoError(t, err)
+		assert.Equal(t, 2, result.NodeCount, "unexpected node count")
+		assert.Equal(t, 2, result.Complexity, "unexpected complexity")
+		assert.Equal(t, 2, result.Depth, "unexpected depth")
+		assert.Equal(t, []FieldComplexityResult{
+			{
+				TypeName:   "Query",
+				FieldName:  "hero",
+				Alias:      "empireHero",
+				NodeCount:  1,
+				Complexity: 1,
+				Depth:      2,
+			},
+			{
+				TypeName:   "Query",
+				FieldName:  "hero",
+				Alias:      "jediHero",
+				NodeCount:  1,
+				Complexity: 1,
+				Depth:      2,
+			}}, result.PerRootField, "unexpected per root field results")
 	})
 }
 
