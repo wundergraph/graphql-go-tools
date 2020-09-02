@@ -318,6 +318,8 @@ func (v *Visitor) EnterDocument(_, _ *ast.Document) {
 	v.fieldDataSourcePlanners = v.fieldDataSourcePlanners[:0]
 	v.nextBufferID = -1
 	v.activeDataSourcePlanner = nil
+	v.subscription = nil
+	v.subscriptionDataSourceConfiguration = nil
 	if v.fieldPathOverrides == nil {
 		v.fieldPathOverrides = make(map[int]PathOverrideFunc, 8)
 	} else {
