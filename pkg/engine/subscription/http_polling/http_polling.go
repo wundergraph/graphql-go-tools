@@ -57,7 +57,6 @@ func (h *HttpPollingStream) Start(input []byte, next chan<- []byte, stop <-chan 
 	}
 	skipSameResponse,err := jsonparser.GetBoolean(input,"skip_publish_same_response")
 	if err != nil {
-		err = nil
 		skipSameResponse = false
 	}
 	buf := bytes.NewBuffer(make([]byte, 0, 4096))
