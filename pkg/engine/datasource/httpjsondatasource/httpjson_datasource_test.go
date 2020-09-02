@@ -349,7 +349,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 		&plan.SubscriptionResponsePlan{
 			Subscription: resolve.GraphQLSubscription{
 				Trigger: resolve.GraphQLSubscriptionTrigger{
-					Input:    `{"interval":1000,"request_input":{"method":"GET","url":"https://example.com/$$0$$/$$1$$"}}`,
+					Input:    `{"interval":1000,"request_input":{"method":"GET","url":"https://example.com/$$0$$/$$1$$"},"skip_publish_same_response":true}`,
 					InputTemplate: resolve.InputTemplate{
 						Segments: []resolve.TemplateSegment{
 							{
@@ -372,7 +372,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							},
 							{
 								SegmentType: resolve.StaticSegmentType,
-								Data:        []byte(`"}}`),
+								Data:        []byte(`"},"skip_publish_same_response":true}`),
 							},
 						},
 					},
@@ -434,6 +434,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 						{
 							Key: "polling_interval_millis",
 							Value: []byte("1000"),
+						},
+						{
+							Key: "skip_publish_same_response",
+							Value: []byte("true"),
 						},
 					},
 					DataSourcePlanner: &Planner{},

@@ -54,6 +54,7 @@ func (p *Planner) EnterField(ref int) {
 	headers := config.Attributes.ValueForKey(httpclient.HEADERS)
 	queryParams := config.Attributes.ValueForKey(httpclient.QUERYPARAMS)
 	intervalMillis := config.Attributes.ValueForKey("polling_interval_millis")
+	skipPublishSameResponse := config.Attributes.ValueForKey("skip_publish_same_response")
 
 	queryParams = p.prepareQueryParams(ref, queryParams)
 
@@ -84,6 +85,7 @@ func (p *Planner) EnterField(ref int) {
 	case ast.OperationTypeSubscription:
 
 		var httpPollingInput []byte
+		httpPollingInput = http_polling.SetSkipPublishSameResponse(httpPollingInput, bytes.Equal(skipPublishSameResponse, literal.TRUE))
 		httpPollingInput = http_polling.SetRequestInput(httpPollingInput, input)
 		httpPollingInput = http_polling.SetInputIntervalMillis(httpPollingInput, unsafebytes.BytesToInt64(intervalMillis))
 

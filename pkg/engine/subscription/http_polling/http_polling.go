@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/buger/jsonparser"
+	"github.com/cespare/xxhash"
 	"github.com/tidwall/sjson"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
@@ -19,6 +20,15 @@ func SetInputIntervalMillis(input []byte, interval int64) []byte {
 
 func SetRequestInput(input, requestInput []byte) []byte {
 	out, _ := sjson.SetRawBytes(input, "request_input", requestInput)
+	return out
+}
+
+func SetSkipPublishSameResponse(input []byte, skip bool) []byte {
+	skipBytes := []byte("false")
+	if skip {
+		skipBytes = []byte("true")
+	}
+	out, _ := sjson.SetRawBytes(input, "skip_publish_same_response", skipBytes)
 	return out
 }
 
@@ -45,7 +55,16 @@ func (h *HttpPollingStream) Start(input []byte, next chan<- []byte, stop <-chan 
 	if err != nil {
 		return
 	}
+	skipSameResponse,err := jsonparser.GetBoolean(input,"skip_publish_same_response")
+	if err != nil {
+		err = nil
+		skipSameResponse = false
+	}
 	buf := bytes.NewBuffer(make([]byte, 0, 4096))
+	hash := xxhash.New()
+	var (
+		sum uint64
+	)
 	for {
 		select {
 		case <-time.After(time.Duration(interval) * time.Millisecond):
@@ -57,6 +76,18 @@ func (h *HttpPollingStream) Start(input []byte, next chan<- []byte, stop <-chan 
 			src := buf.Bytes()
 			if len(src) == 0 {
 				continue
+			}
+			if skipSameResponse {
+				hash.Reset()
+				_,err = hash.Write(src)
+				if err != nil {
+					continue
+				}
+				nextSum := hash.Sum64()
+				if nextSum == sum {
+					continue
+				}
+				sum = nextSum
 			}
 			dst := make([]byte, len(src))
 			copy(dst, src)
