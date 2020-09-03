@@ -101,8 +101,15 @@ func (p *Planner) EnterField(ref int) {
 			p.v.SetCurrentObjectFetch(p.fetch, config)
 			if len(p.operation.RootNodes) == 0 {
 				set := p.operation.AddSelectionSet()
+				operationType := ast.OperationTypeQuery
+				if len(p.v.Ancestors) == 2 {
+					// OperationType is the same as the downstream Operation only if this is a root field of the actual Query
+					// if Ancestors are more then 2 this is a field nested in another Query
+					// this means OperationType must always be Query for nested fields
+					operationType = p.v.Operation.OperationDefinitions[p.v.Ancestors[0].Ref].OperationType
+				}
 				definition := p.operation.AddOperationDefinitionToRootNodes(ast.OperationDefinition{
-					OperationType: p.v.Operation.OperationDefinitions[p.v.Ancestors[0].Ref].OperationType,
+					OperationType: operationType,
 					SelectionSet:  set.Ref,
 					HasSelections: true,
 				})
