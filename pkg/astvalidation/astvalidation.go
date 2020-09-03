@@ -1424,6 +1424,10 @@ func (a *allVariablesUsedVisitor) verifyValue(value ast.Value) {
 			a.verifyValue(a.operation.ObjectFields[i].Value)
 		}
 		return
+	case ast.ValueKindList:
+		for _, i := range a.operation.ListValues[value.Ref].Refs {
+			a.verifyValue(a.operation.Values[i])
+		}
 	default:
 		return // skip all others
 	}
