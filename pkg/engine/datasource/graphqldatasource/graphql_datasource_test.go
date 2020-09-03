@@ -401,14 +401,14 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 					},
 					FieldSets: []resolve.FieldSet{
 						{
-							BufferID: 0,
+							BufferID:  0,
 							HasBuffer: true,
 							Fields: []resolve.Field{
 								{
 									Name: []byte("foo"),
 									Value: &resolve.Object{
 										Nullable: true,
-										Path: []string{"foo"},
+										Path:     []string{"foo"},
 										FieldSets: []resolve.FieldSet{
 											{
 												Fields: []resolve.Field{
@@ -416,7 +416,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 														Name: []byte("bar"),
 														Value: &resolve.String{
 															Nullable: true,
-															Path: []string{"bar"},
+															Path:     []string{"bar"},
 														},
 													},
 												},
@@ -433,7 +433,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 		plan.Configuration{
 			DataSourceConfigurations: []plan.DataSourceConfiguration{
 				{
-					TypeName: "Query",
+					TypeName:   "Query",
 					FieldNames: []string{"foo"},
 					Attributes: []plan.DataSourceAttribute{
 						{
@@ -457,11 +457,11 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 							}),
 						},
 					},
-					DataSourcePlanner: nestedResolverPlanner,
+					DataSourcePlanner:        nestedResolverPlanner,
 					UpstreamUniqueIdentifier: "foo",
 				},
 				{
-					TypeName: "Baz",
+					TypeName:   "Baz",
 					FieldNames: []string{"bar"},
 					Attributes: []plan.DataSourceAttribute{
 						{
@@ -485,7 +485,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 							}),
 						},
 					},
-					DataSourcePlanner: nestedResolverPlanner,
+					DataSourcePlanner:        nestedResolverPlanner,
 					UpstreamUniqueIdentifier: "foo",
 				},
 			},
@@ -935,6 +935,164 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 			},
 		},
 	))
+	t.Run("mutation with variables in array object argument", RunTest(
+		todoSchema,
+		`mutation AddTak($title: String!, $completed: Boolean!, $name: String! @fromClaim(name: "sub")) {
+					  addTask(input: [{title: $title, completed: $completed, user: {name: $name}}]){
+						task {
+						  id
+						  title
+						  completed
+						}
+					  }
+					}`,
+		"AddTak",
+		&plan.SynchronousResponsePlan{
+			Response: resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						BufferId: 0,
+						Input:    `{"method":"POST","url":"https://graphql.service","body":{"query":"mutation($title: String!, $completed: Boolean!, $name: String!){addTask(input: [{title: $title,completed: $completed,user: {name: $name}}]){task {id title completed}}}","variables":{"name":"$$2$$","completed":$$1$$,"title":"$$0$$"}}}`,
+						InputTemplate: resolve.InputTemplate{
+							Segments: []resolve.TemplateSegment{
+								{
+									SegmentType: resolve.StaticSegmentType,
+									Data:        []byte(`{"method":"POST","url":"https://graphql.service","body":{"query":"mutation($title: String!, $completed: Boolean!, $name: String!){addTask(input: [{title: $title,completed: $completed,user: {name: $name}}]){task {id title completed}}}","variables":{"name":"`),
+								},
+								{
+									SegmentType:        resolve.VariableSegmentType,
+									VariableSource:     resolve.VariableSourceContext,
+									VariableSourcePath: []string{"name"},
+								},
+								{
+									SegmentType: resolve.StaticSegmentType,
+									Data:        []byte(`","completed":`),
+								},
+								{
+									SegmentType:        resolve.VariableSegmentType,
+									VariableSource:     resolve.VariableSourceContext,
+									VariableSourcePath: []string{"completed"},
+								},
+								{
+									SegmentType: resolve.StaticSegmentType,
+									Data:        []byte(`,"title":"`),
+								},
+								{
+									SegmentType:        resolve.VariableSegmentType,
+									VariableSource:     resolve.VariableSourceContext,
+									VariableSourcePath: []string{"title"},
+								},
+								{
+									SegmentType: resolve.StaticSegmentType,
+									Data:        []byte(`"}}}`),
+								},
+							},
+						},
+						DataSource: DefaultSource(),
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path: []string{"title"},
+							},
+							&resolve.ContextVariable{
+								Path: []string{"completed"},
+							},
+							&resolve.ContextVariable{
+								Path: []string{"name"},
+							},
+						),
+						DisallowSingleFlight: true,
+					},
+					FieldSets: []resolve.FieldSet{
+						{
+							HasBuffer: true,
+							BufferID: 0,
+							Fields: []resolve.Field{
+								{
+									Name: []byte("addTask"),
+									Value: &resolve.Object{
+										Path: []string{"addTask"},
+										Nullable: true,
+										FieldSets: []resolve.FieldSet{
+											{
+												Fields: []resolve.Field{
+													{
+														Name: []byte("task"),
+														Value: &resolve.Array{
+															Nullable: true,
+															Path: []string{"task"},
+															Item: &resolve.Object{
+																Nullable: true,
+																FieldSets: []resolve.FieldSet{
+																	{
+																		Fields: []resolve.Field{
+																			{
+																				Name: []byte("id"),
+																				Value: &resolve.String{
+																					Path: []string{"id"},
+																				},
+																			},
+																			{
+																				Name: []byte("title"),
+																				Value: &resolve.String{
+																					Path: []string{"title"},
+																				},
+																			},
+																			{
+																				Name: []byte("completed"),
+																				Value: &resolve.Boolean{
+																					Path: []string{"completed"},
+																				},
+																			},
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		plan.Configuration{
+			DataSourceConfigurations: []plan.DataSourceConfiguration{
+				{
+					TypeName: "Mutation",
+					FieldNames: []string{"addTask"},
+					Attributes: []plan.DataSourceAttribute{
+						{
+							Key:   "url",
+							Value: []byte("https://graphql.service"),
+						},
+						{
+							Key: "arguments",
+							Value: ArgumentsConfigJSON(ArgumentsConfig{
+								Fields: []FieldConfig{
+									{
+										FieldName: "addTask",
+										Arguments: []Argument{
+											{
+												Name: "input",
+												Source: FieldArgument,
+											},
+										},
+									},
+								},
+							}),
+						},
+					},
+					DataSourcePlanner: &Planner{},
+					UpstreamUniqueIdentifier: "graphql.service",
+				},
+			},
+		},
+	))
 	t.Run("inline object value with arguments", RunTest(`
 			schema {
 				mutation: Mutation
@@ -1209,3 +1367,475 @@ type Startship {
     name: String!
     length: Float!
 }`
+
+const todoSchema = `
+
+schema {
+	query: Query
+	mutation: Mutation
+}
+
+scalar ID
+scalar String
+scalar Boolean
+
+""""""
+scalar DateTime
+
+""""""
+enum DgraphIndex {
+  """"""
+  int
+  """"""
+  float
+  """"""
+  bool
+  """"""
+  hash
+  """"""
+  exact
+  """"""
+  term
+  """"""
+  fulltext
+  """"""
+  trigram
+  """"""
+  regexp
+  """"""
+  year
+  """"""
+  month
+  """"""
+  day
+  """"""
+  hour
+}
+
+""""""
+input DateTimeFilter {
+  """"""
+  eq: DateTime
+  """"""
+  le: DateTime
+  """"""
+  lt: DateTime
+  """"""
+  ge: DateTime
+  """"""
+  gt: DateTime
+}
+
+""""""
+input StringHashFilter {
+  """"""
+  eq: String
+}
+
+""""""
+type UpdateTaskPayload {
+  """"""
+  task(filter: TaskFilter, order: TaskOrder, first: Int, offset: Int): [Task]
+  """"""
+  numUids: Int
+}
+
+""""""
+type Subscription {
+  """"""
+  getTask(id: ID!): Task
+  """"""
+  queryTask(filter: TaskFilter, order: TaskOrder, first: Int, offset: Int): [Task]
+  """"""
+  getUser(username: String!): User
+  """"""
+  queryUser(filter: UserFilter, order: UserOrder, first: Int, offset: Int): [User]
+}
+
+""""""
+input FloatFilter {
+  """"""
+  eq: Float
+  """"""
+  le: Float
+  """"""
+  lt: Float
+  """"""
+  ge: Float
+  """"""
+  gt: Float
+}
+
+""""""
+input StringTermFilter {
+  """"""
+  allofterms: String
+  """"""
+  anyofterms: String
+}
+
+""""""
+type DeleteTaskPayload {
+  """"""
+  task(filter: TaskFilter, order: TaskOrder, first: Int, offset: Int): [Task]
+  """"""
+  msg: String
+  """"""
+  numUids: Int
+}
+
+""""""
+type Mutation {
+  """"""
+  addTask(input: [AddTaskInput!]!): AddTaskPayload
+  """"""
+  updateTask(input: UpdateTaskInput!): UpdateTaskPayload
+  """"""
+  deleteTask(filter: TaskFilter!): DeleteTaskPayload
+  """"""
+  addUser(input: [AddUserInput!]!): AddUserPayload
+  """"""
+  updateUser(input: UpdateUserInput!): UpdateUserPayload
+  """"""
+  deleteUser(filter: UserFilter!): DeleteUserPayload
+}
+
+""""""
+enum HTTPMethod {
+  """"""
+  GET
+  """"""
+  POST
+  """"""
+  PUT
+  """"""
+  PATCH
+  """"""
+  DELETE
+}
+
+""""""
+type DeleteUserPayload {
+  """"""
+  user(filter: UserFilter, order: UserOrder, first: Int, offset: Int): [User]
+  """"""
+  msg: String
+  """"""
+  numUids: Int
+}
+
+""""""
+input TaskFilter {
+  """"""
+  id: [ID!]
+  """"""
+  title: StringFullTextFilter
+  """"""
+  completed: Boolean
+  """"""
+  and: TaskFilter
+  """"""
+  or: TaskFilter
+  """"""
+  not: TaskFilter
+}
+
+""""""
+type UpdateUserPayload {
+  """"""
+  user(filter: UserFilter, order: UserOrder, first: Int, offset: Int): [User]
+  """"""
+  numUids: Int
+}
+
+""""""
+input TaskRef {
+  """"""
+  id: ID
+  """"""
+  title: String
+  """"""
+  completed: Boolean
+  """"""
+  user: UserRef
+}
+
+""""""
+input UserFilter {
+  """"""
+  username: StringHashFilter
+  """"""
+  name: StringExactFilter
+  """"""
+  and: UserFilter
+  """"""
+  or: UserFilter
+  """"""
+  not: UserFilter
+}
+
+""""""
+input UserOrder {
+  """"""
+  asc: UserOrderable
+  """"""
+  desc: UserOrderable
+  """"""
+  then: UserOrder
+}
+
+""""""
+input AuthRule {
+  """"""
+  and: [AuthRule]
+  """"""
+  or: [AuthRule]
+  """"""
+  not: AuthRule
+  """"""
+  rule: String
+}
+
+""""""
+type AddTaskPayload {
+  """"""
+  task(filter: TaskFilter, order: TaskOrder, first: Int, offset: Int): [Task]
+  """"""
+  numUids: Int
+}
+
+""""""
+type AddUserPayload {
+  """"""
+  user(filter: UserFilter, order: UserOrder, first: Int, offset: Int): [User]
+  """"""
+  numUids: Int
+}
+
+""""""
+type Task {
+  """"""
+  id: ID!
+  """"""
+  title: String!
+  """"""
+  completed: Boolean!
+  """"""
+  user(filter: UserFilter): User!
+}
+
+""""""
+input IntFilter {
+  """"""
+  eq: Int
+  """"""
+  le: Int
+  """"""
+  lt: Int
+  """"""
+  ge: Int
+  """"""
+  gt: Int
+}
+
+""""""
+input StringExactFilter {
+  """"""
+  eq: String
+  """"""
+  le: String
+  """"""
+  lt: String
+  """"""
+  ge: String
+  """"""
+  gt: String
+}
+
+""""""
+enum UserOrderable {
+  """"""
+  username
+  """"""
+  name
+}
+
+""""""
+input AddTaskInput {
+  """"""
+  title: String!
+  """"""
+  completed: Boolean!
+  """"""
+  user: UserRef!
+}
+
+""""""
+input TaskPatch {
+  """"""
+  title: String
+  """"""
+  completed: Boolean
+  """"""
+  user: UserRef
+}
+
+""""""
+input UserRef {
+  """"""
+  username: String
+  """"""
+  name: String
+  """"""
+  tasks: [TaskRef]
+}
+
+""""""
+input StringFullTextFilter {
+  """"""
+  alloftext: String
+  """"""
+  anyoftext: String
+}
+
+""""""
+enum TaskOrderable {
+  """"""
+  title
+}
+
+""""""
+input UpdateTaskInput {
+  """"""
+  filter: TaskFilter!
+  """"""
+  set: TaskPatch
+  """"""
+  remove: TaskPatch
+}
+
+""""""
+input UserPatch {
+  """"""
+  name: String
+  """"""
+  tasks: [TaskRef]
+}
+
+""""""
+type Query {
+  """"""
+  getTask(id: ID!): Task
+  """"""
+  queryTask(filter: TaskFilter, order: TaskOrder, first: Int, offset: Int): [Task]
+  """"""
+  getUser(username: String!): User
+  """"""
+  queryUser(filter: UserFilter, order: UserOrder, first: Int, offset: Int): [User]
+}
+
+""""""
+type User {
+  """"""
+  username: String!
+  """"""
+  name: String
+  """"""
+  tasks(filter: TaskFilter, order: TaskOrder, first: Int, offset: Int): [Task]
+}
+
+""""""
+enum Mode {
+  """"""
+  BATCH
+  """"""
+  SINGLE
+}
+
+""""""
+input CustomHTTP {
+  """"""
+  url: String!
+  """"""
+  method: HTTPMethod!
+  """"""
+  body: String
+  """"""
+  graphql: String
+  """"""
+  mode: Mode
+  """"""
+  forwardHeaders: [String!]
+  """"""
+  secretHeaders: [String!]
+  """"""
+  introspectionHeaders: [String!]
+  """"""
+  skipIntrospection: Boolean
+}
+
+""""""
+input StringRegExpFilter {
+  """"""
+  regexp: String
+}
+
+""""""
+input AddUserInput {
+  """"""
+  username: String!
+  """"""
+  name: String
+  """"""
+  tasks: [TaskRef]
+}
+
+""""""
+input TaskOrder {
+  """"""
+  asc: TaskOrderable
+  """"""
+  desc: TaskOrderable
+  """"""
+  then: TaskOrder
+}
+
+""""""
+input UpdateUserInput {
+  """"""
+  filter: UserFilter!
+  """"""
+  set: UserPatch
+  """"""
+  remove: UserPatch
+}
+"""
+The @cache directive caches the response server side and sets cache control headers according to the configuration.
+With this setting you can reduce the load on your backend systems for operations that get hit a lot while data doesn't change that frequently. 
+"""
+directive @cache(
+  """maxAge defines the maximum time in seconds a response will be understood 'fresh', defaults to 300 (5 minutes)"""
+  maxAge: Int! = 300
+  """
+  vary defines the headers to append to the cache key
+  In addition to all possible headers you can also select a custom claim for authenticated requests
+  Examples: 'jwt.sub', 'jwt.team' to vary the cache key based on 'sub' or 'team' fields on the jwt. 
+  """
+  vary: [String]! = []
+) on QUERY
+
+"""The @auth directive lets you configure auth for a given operation"""
+directive @auth(
+  """disable explicitly disables authentication for the annotated operation"""
+  disable: Boolean! = false
+) on QUERY | MUTATION | SUBSCRIPTION
+
+"""The @fromClaim directive overrides a variable from a select claim in the jwt"""
+directive @fromClaim(
+  """
+  name is the name of the claim you want to use for the variable
+  examples: sub, team, custom.nested.claim
+  """
+  name: String!
+) on VARIABLE_DEFINITION
+`

@@ -326,6 +326,11 @@ func (p *Planner) addVariableDefinitionsRecursively(value ast.Value,arg Argument
 			p.addVariableDefinitionsRecursively(p.v.Operation.ObjectFields[i].Value,arg)
 		}
 		return
+	case ast.ValueKindList:
+		for _,i := range p.v.Operation.ListValues[value.Ref].Refs {
+			p.addVariableDefinitionsRecursively(p.v.Operation.Values[i],arg)
+		}
+		return
 	case ast.ValueKindVariable:
 		// continue after switch
 	default:
