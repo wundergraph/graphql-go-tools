@@ -52,6 +52,11 @@ func TestSubscriptionManager(t *testing.T) {
 	trigger3, err := manager.StartTrigger(input)
 	assert.NoError(t, err)
 
+	manager.StopTrigger(trigger1)
+
+	trigger1, err = manager.StartTrigger(input)
+	assert.NoError(t, err)
+
 	assert.Equal(t, 3, len(manager.subscriptions[trigger1.SubscriptionID()].triggers))
 
 	receiveOneAndStop := func(trigger *Trigger, wg *sync.WaitGroup, triggerID int) {
