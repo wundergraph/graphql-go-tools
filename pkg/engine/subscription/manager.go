@@ -24,21 +24,50 @@ type sub struct {
 	triggers []*Trigger
 }
 
+func (m *Manager) StartTrigger(input []byte) (trigger *Trigger, err error) {
+
+	subscriptionID := m.subscriptionID(input)
+
+	trigger = NewTrigger(subscriptionID)
+
+	m.mux.Lock()
+	defer m.mux.Unlock()
+
+	subs, ok := m.subscriptions[subscriptionID]
+	if ok {
+		subs.Lock()
+		subs.triggers = append(subs.triggers, trigger)
+		subs.Unlock()
+		return
+	}
+
+	m.subscriptions[subscriptionID] = &sub{
+		triggers: []*Trigger{trigger},
+	}
+
+	go m.startPolling(subscriptionID, input)
+
+	return
+}
+
 func (m *Manager) StopTrigger(trigger *Trigger) {
 	subscriptionID := trigger.SubscriptionID()
 	m.mux.Lock()
 	defer m.mux.Unlock()
-	subs,ok := m.subscriptions[subscriptionID]
+	subs, ok := m.subscriptions[subscriptionID]
 	if !ok {
 		return
 	}
 	subs.Lock()
+	defer subs.Unlock()
 	subs.triggers = m.deleteTrigger(m.subscriptions[subscriptionID].triggers, trigger)
-	if len(m.subscriptions[subscriptionID].triggers) == 0 {
+
+	if len(subs.triggers) == 0 {
 		delete(m.subscriptions, subscriptionID)
 		return
+	} else {
+		m.subscriptions[subscriptionID] = subs
 	}
-	subs.Unlock()
 }
 
 func (m *Manager) deleteTrigger(triggers []*Trigger, trigger *Trigger) []*Trigger {
@@ -61,55 +90,41 @@ func (m *Manager) triggerIndex(triggers []*Trigger, trigger *Trigger) int {
 	return -1
 }
 
-func (m *Manager) StartTrigger(input []byte) (trigger *Trigger, err error) {
-
-	subscriptionID := m.subscriptionID(input)
-
-	t := NewTrigger(subscriptionID)
-
-	m.mux.Lock()
-	defer m.mux.Unlock()
-
-	subs, ok := m.subscriptions[subscriptionID]
-	if ok {
-		subs.Lock()
-		subs.triggers = append(subs.triggers, t)
-		subs.Unlock()
-		return t, nil
-	}
-
-	m.subscriptions[subscriptionID] = &sub{
-		triggers: []*Trigger{t},
-	}
-
-	go m.startPolling(subscriptionID, input)
-
-	return t, nil
-}
-
 func (m *Manager) startPolling(subscriptionID uint64, input []byte) {
-	cancel := make(chan struct{})
+	stop := make(chan struct{})
 	next := make(chan []byte)
 	go func() {
-		m.stream.Start(input, next, cancel)
+		m.stream.Start(input, next, stop)
 	}()
-	for message := range next {
-		m.mux.RLock()
-		subs, ok := m.subscriptions[subscriptionID]
-		m.mux.RUnlock()
-		if !ok {
-			cancel <- struct{}{}
-			return
-		}
-		subs.RLock()
-		for i := range subs.triggers {
-			select {
-			case subs.triggers[i].results <- message:
-			default:
+	for {
+		select {
+		case message := <-next:
+			m.mux.RLock()
+			subs, ok := m.subscriptions[subscriptionID]
+			m.mux.RUnlock()
+			if !ok {
+				stop <- struct{}{}
+				return
+			}
+			subs.RLock()
+			for i := range subs.triggers {
+				select {
+				case subs.triggers[i].results <- message:
+				default:
+					continue
+				}
+			}
+			subs.RUnlock()
+		default:
+			m.mux.RLock()
+			_, ok := m.subscriptions[subscriptionID]
+			m.mux.RUnlock()
+			if ok {
 				continue
 			}
+			stop <- struct{}{}
+			return
 		}
-		subs.RUnlock()
 	}
 }
 
