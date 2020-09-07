@@ -9,16 +9,17 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/atomic"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/subscription"
 )
 
 func TestHttpPolling(t *testing.T) {
-	counter := 0
+	counter := &atomic.Int64{}
 	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(strconv.Itoa(counter)))
-		counter++
+		_, _ = w.Write([]byte(strconv.Itoa(int(counter.Load()))))
+		counter.Inc()
 	}))
 	defer testServer.Close()
 
@@ -32,7 +33,7 @@ func TestHttpPolling(t *testing.T) {
 	requestInput = httpclient.SetInputURL(requestInput, []byte(testServer.URL))
 	requestInput = httpclient.SetInputMethod(requestInput, []byte("GET"))
 
-	input = SetInputIntervalMillis(input, 0)
+	input = SetInputIntervalMillis(input, 1)
 	input = SetRequestInput(input, requestInput)
 
 	trigger1, err := manager.StartTrigger(input)
@@ -79,7 +80,7 @@ func TestHttpPolling(t *testing.T) {
 
 	wg.Wait()
 
-	assert.Equal(t, 3, counter)
+	assert.Equal(t, int64(3), counter.Load())
 
 	trigger4, err := manager.StartTrigger(input)
 	assert.NoError(t, err)

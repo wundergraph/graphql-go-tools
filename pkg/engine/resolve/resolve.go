@@ -325,8 +325,8 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx Context, subscription *GraphQL
 		return
 	}
 	rendered := buf.Data.Bytes()
-	triggerInput := make([]byte,len(rendered))
-	copy(triggerInput,rendered)
+	triggerInput := make([]byte, len(rendered))
+	copy(triggerInput, rendered)
 	r.freeBufPair(buf)
 
 	trigger, err := manager.StartTrigger(triggerInput)
@@ -335,18 +335,15 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx Context, subscription *GraphQL
 	}
 	defer manager.StopTrigger(trigger)
 	for {
-		select {
-		default:
-			data, ok := trigger.Next(ctx)
-			if !ok {
-				return nil
-			}
-			err = r.ResolveGraphQLResponse(ctx, subscription.Response, data, writer)
-			if err != nil {
-				return err
-			}
-			writer.Flush()
+		data, ok := trigger.Next(ctx)
+		if !ok {
+			return nil
 		}
+		err = r.ResolveGraphQLResponse(ctx, subscription.Response, data, writer)
+		if err != nil {
+			return err
+		}
+		writer.Flush()
 	}
 }
 
