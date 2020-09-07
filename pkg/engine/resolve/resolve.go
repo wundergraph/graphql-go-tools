@@ -320,19 +320,22 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx Context, subscription *GraphQL
 	}
 
 	buf := r.getBufPair()
-	defer r.freeBufPair(buf)
 	err = subscription.Trigger.InputTemplate.Render(ctx, nil, buf.Data)
+	if err != nil {
+		return
+	}
+	rendered := buf.Data.Bytes()
+	triggerInput := make([]byte,len(rendered))
+	copy(triggerInput,rendered)
+	r.freeBufPair(buf)
 
-	trigger, err := manager.StartTrigger(buf.Data.Bytes())
+	trigger, err := manager.StartTrigger(triggerInput)
 	if err != nil {
 		return fmt.Errorf("configuring trigger failed")
 	}
 	defer manager.StopTrigger(trigger)
-	done := ctx.Done()
 	for {
 		select {
-		case <-done:
-			return nil
 		default:
 			data, ok := trigger.Next(ctx)
 			if !ok {
