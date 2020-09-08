@@ -1191,7 +1191,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 type TestFlushWriter struct {
 	flushed     []string
 	buf         bytes.Buffer
-	flushTicker chan struct{}
 }
 
 func (t *TestFlushWriter) Write(p []byte) (n int, err error) {
@@ -1201,28 +1200,21 @@ func (t *TestFlushWriter) Write(p []byte) (n int, err error) {
 func (t *TestFlushWriter) Flush() {
 	t.flushed = append(t.flushed, t.buf.String())
 	t.buf.Reset()
-	t.flushTicker <- struct{}{}
 }
 
 type FakeStream struct {
-	cancel context.CancelFunc
-	flushTicker chan struct{}
+	cancel      context.CancelFunc
 }
 
 func (f *FakeStream) Start(input []byte, next chan<- []byte, stop <-chan struct{}) {
 	count := 0
 	for {
-		select {
-		case <-stop:
+		if count == 3 {
+			f.cancel()
 			return
-		case <-f.flushTicker:
-			if count == 3 {
-				f.cancel()
-				return
-			}
-			next <- []byte(fmt.Sprintf(`{"counter":%d}`, count))
-			count++
 		}
+		next <- []byte(fmt.Sprintf(`{"counter":%d}`, count))
+		count++
 	}
 }
 
@@ -1232,13 +1224,15 @@ func (f *FakeStream) UniqueIdentifier() []byte {
 
 func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	resolver := New()
-	ticker := make(chan struct{},1)
 	c, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	resolver.RegisterTriggerManager(subscription.NewManager(&FakeStream{
-		cancel: cancel,
-		flushTicker: ticker,
-	}))
+	man := subscription.NewManager(&FakeStream{
+		cancel:      cancel,
+	})
+	manCtx, cancelMan := context.WithCancel(context.Background())
+	defer cancelMan()
+	man.Run(manCtx.Done())
+	resolver.RegisterTriggerManager(man)
 	plan := &GraphQLSubscription{
 		Trigger: GraphQLSubscriptionTrigger{
 			ManagerID: []byte("fake"),
@@ -1265,9 +1259,8 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		Context: c,
 	}
 	out := &TestFlushWriter{
-		flushTicker: ticker,
+		buf:         bytes.Buffer{},
 	}
-	ticker<- struct{}{}
 	err := resolver.ResolveGraphQLSubscription(ctx, plan, out)
 	assert.NoError(t, err)
 	assert.Equal(t, 3, len(out.flushed))

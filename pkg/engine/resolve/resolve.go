@@ -329,11 +329,9 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx Context, subscription *GraphQL
 	copy(triggerInput, rendered)
 	r.freeBufPair(buf)
 
-	trigger, err := manager.StartTrigger(triggerInput)
-	if err != nil {
-		return fmt.Errorf("configuring trigger failed")
-	}
+	trigger := manager.StartTrigger(triggerInput)
 	defer manager.StopTrigger(trigger)
+
 	for {
 		data, ok := trigger.Next(ctx)
 		if !ok {
