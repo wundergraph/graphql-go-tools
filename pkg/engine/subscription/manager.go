@@ -1,131 +1,112 @@
 package subscription
 
 import (
-	"sync"
-
 	"github.com/jensneuse/graphql-go-tools/pkg/pool"
 )
 
 func NewManager(stream Stream) *Manager {
 	return &Manager{
 		stream:        stream,
-		subscriptions: map[uint64]*sub{},
+		subscribers:   map[uint64]int64{},
+		subscriptions: map[uint64]*subscription{},
+		addTrigger:    make(chan addTrigger),
+		removeTrigger: make(chan Trigger),
 	}
+}
+
+type addTrigger struct {
+	trigger Trigger
+	input   []byte
 }
 
 type Manager struct {
-	subscriptions map[uint64]*sub
 	stream        Stream
-	mux           sync.RWMutex
+	subscriptions map[uint64]*subscription
+	subscribers   map[uint64]int64
+	addTrigger    chan addTrigger
+	removeTrigger chan Trigger
 }
 
-type sub struct {
-	sync.RWMutex
-	triggers []*Trigger
+func (m *Manager) Run(done <-chan struct{}) {
+	go m.run(done)
 }
 
-func (m *Manager) StartTrigger(input []byte) (trigger *Trigger, err error) {
+func (m *Manager) run(done <-chan struct{}) {
+	for {
+		select {
+		case <-done:
+			return
+		case addTrigger := <-m.addTrigger:
+			sub, exists := m.subscriptions[addTrigger.trigger.subscriptionID]
+			if !exists {
+				sub = &subscription{
+					triggers: map[Trigger]struct{}{
+						addTrigger.trigger: {},
+					},
+					addTrigger:    make(chan Trigger),
+					removeTrigger: make(chan Trigger),
+					stop:          make(chan struct{}),
+					results:       make(chan []byte),
+				}
+				m.subscriptions[addTrigger.trigger.subscriptionID] = sub
+				m.subscribers[addTrigger.trigger.subscriptionID] = 1
+				go m.stream.Start(addTrigger.input, sub.results, sub.stop)
+				go sub.run()
+				continue
+			}
+			sub.addTrigger <- addTrigger.trigger
+			m.subscribers[addTrigger.trigger.subscriptionID] += 1
+		case trigger := <-m.removeTrigger:
+			m.subscriptions[trigger.subscriptionID].removeTrigger <- trigger
+			subscribers := m.subscribers[trigger.subscriptionID] - 1
+			if subscribers == 0 {
+				close(m.subscriptions[trigger.subscriptionID].stop)
+				delete(m.subscriptions, trigger.subscriptionID)
+				delete(m.subscribers, trigger.subscriptionID)
+				continue
+			}
+			m.subscribers[trigger.subscriptionID] = subscribers
+		}
+	}
+}
 
+type subscription struct {
+	triggers      map[Trigger]struct{}
+	addTrigger    chan Trigger
+	removeTrigger chan Trigger
+	stop          chan struct{}
+	results       chan []byte
+}
+
+func (s *subscription) run() {
+	for {
+		select {
+		case <-s.stop:
+			return
+		case trigger := <-s.addTrigger:
+			s.triggers[trigger] = struct{}{}
+		case trigger := <-s.removeTrigger:
+			delete(s.triggers, trigger)
+		case result := <-s.results:
+			for trigger := range s.triggers {
+				trigger.results <- result
+			}
+		}
+	}
+}
+
+func (m *Manager) StartTrigger(input []byte) (trigger Trigger) {
 	subscriptionID := m.subscriptionID(input)
-
 	trigger = NewTrigger(subscriptionID)
-
-	m.mux.Lock()
-	defer m.mux.Unlock()
-
-	subs, ok := m.subscriptions[subscriptionID]
-	if ok {
-		subs.Lock()
-		subs.triggers = append(subs.triggers, trigger)
-		subs.Unlock()
-		return
+	m.addTrigger <- addTrigger{
+		trigger: trigger,
+		input:   input,
 	}
-
-	m.subscriptions[subscriptionID] = &sub{
-		triggers: []*Trigger{trigger},
-	}
-
-	go m.startPolling(subscriptionID, input)
-
 	return
 }
 
-func (m *Manager) StopTrigger(trigger *Trigger) {
-	subscriptionID := trigger.SubscriptionID()
-	m.mux.Lock()
-	defer m.mux.Unlock()
-	subs, ok := m.subscriptions[subscriptionID]
-	if !ok {
-		return
-	}
-	subs.Lock()
-	defer subs.Unlock()
-	subs.triggers = m.deleteTrigger(m.subscriptions[subscriptionID].triggers, trigger)
-
-	if len(subs.triggers) == 0 {
-		delete(m.subscriptions, subscriptionID)
-		return
-	} else {
-		m.subscriptions[subscriptionID] = subs
-	}
-}
-
-func (m *Manager) deleteTrigger(triggers []*Trigger, trigger *Trigger) []*Trigger {
-	i := m.triggerIndex(triggers, trigger)
-	if i == -1 {
-		return triggers
-	}
-	copy(triggers[i:], triggers[i+1:])
-	triggers[len(triggers)-1] = nil
-	triggers = triggers[:len(triggers)-1]
-	return triggers
-}
-
-func (m *Manager) triggerIndex(triggers []*Trigger, trigger *Trigger) int {
-	for i := range triggers {
-		if triggers[i] == trigger {
-			return i
-		}
-	}
-	return -1
-}
-
-func (m *Manager) startPolling(subscriptionID uint64, input []byte) {
-	stop := make(chan struct{})
-	next := make(chan []byte)
-	go func() {
-		m.stream.Start(input, next, stop)
-	}()
-	for {
-		select {
-		case message := <-next:
-			m.mux.RLock()
-			subs, ok := m.subscriptions[subscriptionID]
-			m.mux.RUnlock()
-			if !ok {
-				stop <- struct{}{}
-				return
-			}
-			subs.RLock()
-			for i := range subs.triggers {
-				select {
-				case subs.triggers[i].results <- message:
-				default:
-					continue
-				}
-			}
-			subs.RUnlock()
-		default:
-			m.mux.RLock()
-			_, ok := m.subscriptions[subscriptionID]
-			m.mux.RUnlock()
-			if ok {
-				continue
-			}
-			stop <- struct{}{}
-			return
-		}
-	}
+func (m *Manager) StopTrigger(trigger Trigger) {
+	m.removeTrigger <- trigger
 }
 
 func (m *Manager) subscriptionID(input []byte) uint64 {

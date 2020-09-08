@@ -4,8 +4,8 @@ import (
 	"context"
 )
 
-func NewTrigger(subscriptionID uint64) *Trigger {
-	return &Trigger{
+func NewTrigger(subscriptionID uint64) Trigger {
+	return Trigger{
 		subscriptionID: subscriptionID,
 		results:        make(chan []byte), // unbuffered channel
 	}

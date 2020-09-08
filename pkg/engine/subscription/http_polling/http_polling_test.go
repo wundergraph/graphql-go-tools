@@ -26,6 +26,10 @@ func TestHttpPolling(t *testing.T) {
 	httpPollingStream := New(httpclient.NewNetHttpClient(httpclient.DefaultNetHttpClient))
 
 	manager := subscription.NewManager(httpPollingStream)
+	ctx,cancel := context.WithCancel(context.Background())
+	defer cancel()
+	manager.Run(ctx.Done())
+
 	var (
 		requestInput []byte
 		input        []byte
@@ -36,16 +40,11 @@ func TestHttpPolling(t *testing.T) {
 	input = SetInputIntervalMillis(input, 1)
 	input = SetRequestInput(input, requestInput)
 
-	trigger1, err := manager.StartTrigger(input)
-	assert.NoError(t, err)
+	trigger1 := manager.StartTrigger(input)
+	trigger2 := manager.StartTrigger(input)
+	trigger3 := manager.StartTrigger(input)
 
-	trigger2, err := manager.StartTrigger(input)
-	assert.NoError(t, err)
-
-	trigger3, err := manager.StartTrigger(input)
-	assert.NoError(t, err)
-
-	receiveOneAndStop := func(trigger *subscription.Trigger, wg *sync.WaitGroup, triggerID int) {
+	receiveOneAndStop := func(trigger subscription.Trigger, wg *sync.WaitGroup, triggerID int) {
 		data, ok := trigger.Next(context.Background())
 		assert.True(t, ok)
 		assert.Equal(t, "0", string(data), "triggerID: %d", triggerID)
@@ -55,7 +54,7 @@ func TestHttpPolling(t *testing.T) {
 		wg.Done()
 	}
 
-	receive := func(trigger *subscription.Trigger, wg *sync.WaitGroup, triggerID int) {
+	receive := func(trigger subscription.Trigger, wg *sync.WaitGroup, triggerID int) {
 		data, ok := trigger.Next(context.Background())
 		assert.True(t, ok)
 		assert.Equal(t, "0", string(data), "triggerID: %d", triggerID)
@@ -82,8 +81,7 @@ func TestHttpPolling(t *testing.T) {
 
 	assert.Equal(t, int64(3), counter.Load())
 
-	trigger4, err := manager.StartTrigger(input)
-	assert.NoError(t, err)
+	trigger4 := manager.StartTrigger(input)
 
 	manager.StopTrigger(trigger1)
 	manager.StopTrigger(trigger2)

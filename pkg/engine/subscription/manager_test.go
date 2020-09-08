@@ -40,26 +40,23 @@ func TestSubscriptionManager(t *testing.T) {
 	}
 	fakeStream.wg.Add(1)
 	manager := NewManager(fakeStream)
+	ctx,cancel := context.WithCancel(context.Background())
+	defer cancel()
+	manager.Run(ctx.Done())
 
 	input := []byte("none")
 
-	trigger1, err := manager.StartTrigger(input)
-	assert.NoError(t, err)
-
-	trigger2, err := manager.StartTrigger(input)
-	assert.NoError(t, err)
-
-	trigger3, err := manager.StartTrigger(input)
-	assert.NoError(t, err)
+	trigger1 := manager.StartTrigger(input)
+	trigger2 := manager.StartTrigger(input)
+	trigger3 := manager.StartTrigger(input)
 
 	manager.StopTrigger(trigger1)
 
-	trigger1, err = manager.StartTrigger(input)
-	assert.NoError(t, err)
-
+	trigger1 = manager.StartTrigger(input)
+	time.Sleep(time.Millisecond)
 	assert.Equal(t, 3, len(manager.subscriptions[trigger1.SubscriptionID()].triggers))
 
-	receiveOneAndStop := func(trigger *Trigger, wg *sync.WaitGroup, triggerID int) {
+	receiveOneAndStop := func(trigger Trigger, wg *sync.WaitGroup, triggerID int) {
 		data, ok := trigger.Next(context.Background())
 		assert.True(t, ok)
 		assert.Equal(t, "0", string(data), "triggerID: %d", triggerID)
@@ -69,7 +66,7 @@ func TestSubscriptionManager(t *testing.T) {
 		wg.Done()
 	}
 
-	receive := func(trigger *Trigger, wg *sync.WaitGroup, triggerID int) {
+	receive := func(trigger Trigger, wg *sync.WaitGroup, triggerID int) {
 		data, ok := trigger.Next(context.Background())
 		assert.True(t, ok)
 		assert.Equal(t, "0", string(data), "triggerID: %d", triggerID)
@@ -94,8 +91,7 @@ func TestSubscriptionManager(t *testing.T) {
 
 	wg.Wait()
 
-	trigger4, err := manager.StartTrigger(input)
-	assert.NoError(t, err)
+	trigger4 := manager.StartTrigger(input)
 
 	manager.StopTrigger(trigger1)
 	manager.StopTrigger(trigger2)
@@ -105,6 +101,7 @@ func TestSubscriptionManager(t *testing.T) {
 	assert.Equal(t, "3", string(data), "triggerID: %d", 4)
 
 	manager.StopTrigger(trigger4)
+	time.Sleep(time.Millisecond)
 	assert.Equal(t, 0, len(manager.subscriptions))
 	fakeStream.wg.Wait()
 	assert.Equal(t, true, fakeStream.done)
