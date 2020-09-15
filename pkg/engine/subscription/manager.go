@@ -6,11 +6,13 @@ import (
 
 func NewManager(stream Stream) *Manager {
 	return &Manager{
-		stream:        stream,
-		subscribers:   map[uint64]int64{},
-		subscriptions: map[uint64]*subscription{},
-		addTrigger:    make(chan addTrigger),
-		removeTrigger: make(chan Trigger),
+		stream:             stream,
+		subscribers:        map[uint64]int64{},
+		subscriptions:      map[uint64]*subscription{},
+		addTrigger:         make(chan addTrigger),
+		removeTrigger:      make(chan Trigger),
+		countSubscribers:   make(chan chan int64),
+		countSubscriptions: make(chan chan int64),
 	}
 }
 
@@ -20,11 +22,25 @@ type addTrigger struct {
 }
 
 type Manager struct {
-	stream        Stream
-	subscriptions map[uint64]*subscription
-	subscribers   map[uint64]int64
-	addTrigger    chan addTrigger
-	removeTrigger chan Trigger
+	stream             Stream
+	subscriptions      map[uint64]*subscription
+	subscribers        map[uint64]int64
+	addTrigger         chan addTrigger
+	removeTrigger      chan Trigger
+	countSubscriptions chan chan int64
+	countSubscribers   chan chan int64
+}
+
+func (m *Manager) TotalSubscriptions() int64 {
+	out := make(chan int64)
+	m.countSubscriptions <- out
+	return <-out
+}
+
+func (m *Manager) TotalSubscribers() int64 {
+	out := make(chan int64)
+	m.countSubscribers <- out
+	return <-out
 }
 
 func (m *Manager) Run(done <-chan struct{}) {
@@ -66,6 +82,14 @@ func (m *Manager) run(done <-chan struct{}) {
 				continue
 			}
 			m.subscribers[trigger.subscriptionID] = subscribers
+		case out := <-m.countSubscriptions:
+			out <- int64(len(m.subscriptions))
+		case out := <-m.countSubscribers:
+			var subs int64
+			for i := range m.subscribers {
+				subs += m.subscribers[i]
+			}
+			out <- subs
 		}
 	}
 }

@@ -24,23 +24,18 @@ var (
 	}
 
 	connectionInitMessage = []byte(`{"type":"connection_init"}`)
-	startMessage          = []byte(`{"type":"start","id":{{ .id }},"payload":{{ .payload }}}`)
-	stopMessage           = []byte(`{"type":"stop","id":{{ .id }}}`)
-
-	configKeys = [][]string{
-		{"scheme"},
-		{"host"},
-		{"path"},
-	}
+	startMessage          = []byte(`{"type":"start","id":"{{ .id }}","payload":{{ .payload }}}`)
+	stopMessage           = []byte(`{"type":"stop","id":"{{ .id }}"}`)
 )
 
 type WebsocketClient struct {
-	conn               *websocket.Conn
-	done               chan struct{}
-	tmpl               *byte_template.Template
-	addSubscription    chan addSubscriptionCmd
-	removeSubscription chan removeSubscriptionCmd
-	subscriptions      map[uint64]Subscription
+	conn                   *websocket.Conn
+	done                   chan struct{}
+	tmpl                   *byte_template.Template
+	addSubscription        chan addSubscriptionCmd
+	removeSubscription     chan removeSubscriptionCmd
+	subscriptions          map[uint64]Subscription
+	closeIfNoSubscriptions chan chan bool
 }
 
 func (w *WebsocketClient) Open(scheme, host, path string, header http.Header) (err error) {
@@ -49,6 +44,7 @@ func (w *WebsocketClient) Open(scheme, host, path string, header http.Header) (e
 	w.addSubscription = make(chan addSubscriptionCmd)
 	w.removeSubscription = make(chan removeSubscriptionCmd)
 	w.subscriptions = map[uint64]Subscription{}
+	w.closeIfNoSubscriptions = make(chan chan bool)
 	w.done = make(chan struct{})
 
 	u := url.URL{
@@ -85,6 +81,12 @@ func (w *WebsocketClient) Close() {
 	_ = w.conn.Close()
 }
 
+func (w *WebsocketClient) CloseIfNoSubscriptions() (closed bool) {
+	closedChan := make(chan bool)
+	w.closeIfNoSubscriptions <- closedChan
+	return <-closedChan
+}
+
 func (w *WebsocketClient) connectionInit() error {
 	err := w.conn.WriteMessage(websocket.TextMessage, connectionInitMessage)
 	if err != nil {
@@ -117,6 +119,12 @@ func (w *WebsocketClient) run() {
 			w.handleAdd(add)
 		case remove := <-w.removeSubscription:
 			w.handleRemove(remove)
+		case closed := <-w.closeIfNoSubscriptions:
+			shouldClose := len(w.subscriptions) == 0
+			if shouldClose {
+				w.Close()
+			}
+			closed <- shouldClose
 		default:
 			w.handleNextMessage()
 		}
@@ -132,7 +140,7 @@ func (w *WebsocketClient) handleNextMessage() {
 	if err != nil {
 		return
 	}
-	id, err := jsonparser.GetInt(data, "id")
+	id, err := jsonparser.GetString(data, "id")
 	if err != nil {
 		return
 	}
@@ -147,7 +155,7 @@ func (w *WebsocketClient) handleNextMessage() {
 	default:
 		return
 	}
-	sub, ok := w.subscriptions[uint64(id)]
+	sub, ok := w.subscriptions[uint64(unsafebytes.BytesToInt64(unsafebytes.StringToBytes(id)))]
 	if !ok {
 		return
 	}
@@ -160,19 +168,17 @@ func (w *WebsocketClient) handleNextMessage() {
 func (w *WebsocketClient) handleAdd(add addSubscriptionCmd) {
 
 	var (
-		subscription Subscription
-		ok           bool
+		err error
+		id  uint64
 	)
 
 	defer func() {
-		if !ok {
+		if err != nil {
 			close(add.getSubscription)
-			return
 		}
-		add.getSubscription <- subscription
 	}()
 
-	id, err := w.nextSubscriptionID()
+	id, err = w.nextSubscriptionID()
 	if err != nil {
 		return
 	}
@@ -202,16 +208,22 @@ func (w *WebsocketClient) handleAdd(add addSubscriptionCmd) {
 		return
 	}
 
-	subscription.id = id
-	subscription.next = make(chan []byte)
-	subscription.stop = make(chan struct{})
-	subscription.unsubscribe = make(chan struct{})
+	subscription := Subscription{
+		id:          id,
+		next:        make(chan []byte),
+		stop:        make(chan struct{}),
+		unsubscribe: make(chan struct{}),
+	}
 
 	w.subscriptions[id] = subscription
-	ok = true
+	add.getSubscription <- subscription
 }
 
 func (w *WebsocketClient) handleRemove(remove removeSubscriptionCmd) {
+
+	close(w.subscriptions[remove.id].stop)
+	delete(w.subscriptions, remove.id)
+
 	buf := pool.BytesBuffer.Get()
 	defer pool.BytesBuffer.Put(buf)
 
@@ -233,9 +245,6 @@ func (w *WebsocketClient) handleRemove(remove removeSubscriptionCmd) {
 	if err != nil {
 		return
 	}
-
-	close(w.subscriptions[remove.id].stop)
-	delete(w.subscriptions, remove.id)
 }
 
 func (w *WebsocketClient) nextSubscriptionID() (uint64, error) {
@@ -274,7 +283,7 @@ func (w *WebsocketClient) Unsubscribe(subscription Subscription) {
 		id: subscription.id,
 	}
 	w.removeSubscription <- cmd
-	<- subscription.stop
+	<-subscription.stop
 }
 
 type Subscription struct {

@@ -8,7 +8,9 @@ import (
 	"net/http/httptest"
 	"sync"
 	"testing"
+	"time"
 
+	"github.com/buger/jsonparser"
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/atomic"
@@ -16,13 +18,14 @@ import (
 
 func TestWebsocketClient(t *testing.T) {
 
-	//server := FakeGraphQLSubscriptionServer(t)
-	//defer server.Close()
+	server := FakeGraphQLSubscriptionServer(t)
+	defer server.Close()
 
-	// host := server.Listener.Addr().String()
+ 	host := server.Listener.Addr().String()
 
 	client := &WebsocketClient{}
-	err := client.Open("ws", "localhost:4444", "/", nil)
+	//err := client.Open("ws", "localhost:4444", "/", nil)
+	err := client.Open("ws", host, "", nil)
 	defer client.Close()
 	assert.NoError(t, err)
 
@@ -66,7 +69,6 @@ func TestWebsocketClient(t *testing.T) {
 
 func FakeGraphQLSubscriptionServer(t *testing.T) *httptest.Server {
 	upgrader := websocket.Upgrader{}
-	subscriptionCounter := atomic.NewInt64(0)
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
@@ -74,36 +76,59 @@ func FakeGraphQLSubscriptionServer(t *testing.T) *httptest.Server {
 			return
 		}
 		defer c.Close()
-		id := subscriptionCounter.Inc()
 		mt, message, err := c.ReadMessage()
 		assert.NoError(t, err)
 		assert.Equal(t, websocket.TextMessage, mt)
 		assert.Equal(t, `{"type":"connection_init"}`, string(message))
 		err = c.WriteMessage(websocket.TextMessage, []byte(`{"type":"connection_ack"}`))
 		assert.NoError(t, err)
-		mt, message, err = c.ReadMessage()
-		assert.NoError(t, err)
-		assert.Equal(t, websocket.TextMessage, mt)
-		assert.Equal(t, fmt.Sprintf(`{"type":"start","id":"%d","payload":{"query":"subscription{counter{count}}"}}`, id), string(message))
-		counter := atomic.NewInt64(0)
-		ctx, cancel := context.WithCancel(context.Background())
 
-		go func() {
-			mt, message, err := c.ReadMessage()
-			assert.NoError(t, err)
-			assert.Equal(t, websocket.TextMessage, mt)
-			assert.Equal(t, fmt.Sprintf(`{"id":"%d","type":"stop"}`,id), string(message))
-			cancel()
-		}()
+		streams := map[string]func(){}
+		writeMux := &sync.Mutex{}
+
+		startStream := func(id string,done <- chan struct{}){
+			counter := 0
+			for {
+				time.Sleep(time.Millisecond)
+				select {
+					case <- done:
+						message := fmt.Sprintf(`{"type":"complete","id":"%s","payload":null}`,id)
+						writeMux.Lock()
+						err = c.WriteMessage(websocket.TextMessage, []byte(message))
+						writeMux.Unlock()
+						assert.NoError(t, err)
+						return
+				default:
+					message := fmt.Sprintf(`{"type":"data","id":"%s","payload":{"data":{"counter":{"count":%d}}}}`,id,counter)
+					writeMux.Lock()
+					err = c.WriteMessage(websocket.TextMessage, []byte(message))
+					writeMux.Unlock()
+					assert.NoError(t, err)
+					counter++
+				}
+			}
+		}
 
 		for {
-			select {
-			case <-ctx.Done():
+			mt, message, err := c.ReadMessage()
+			if err != nil {
 				return
-			default:
-				err = c.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf(`{"type":"data","id":"%d","payload":{"data":{"counter":{"count":%d}}}}`, id, counter.Load())))
-				assert.NoError(t, err)
-				counter.Inc()
+			}
+			assert.Equal(t, websocket.TextMessage, mt)
+
+			messageType,err := jsonparser.GetString(message,"type")
+			assert.NoError(t,err)
+			messageID,err := jsonparser.GetString(message,"id")
+			assert.NoError(t,err)
+			switch messageType {
+			case "start":
+				ctx,cancel := context.WithCancel(context.Background())
+				streams[messageID] = cancel
+				go startStream(messageID,ctx.Done())
+			case "stop":
+				cancel := streams[messageID]
+				cancel()
+				delete(streams,messageID)
 			}
 		}
 	}))
