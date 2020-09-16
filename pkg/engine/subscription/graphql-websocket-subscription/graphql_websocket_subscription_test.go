@@ -28,11 +28,11 @@ func TestGraphQLWebsocketSubscriptionStream(t *testing.T) {
 
 	manager.Run(ctx.Done())
 
-	input := fmt.Sprintf(`{"scheme":"ws","host":"%s","path":"","body":{"query":"subscription{counter{count}}","variables":{}}}`,host)
+	input := fmt.Sprintf(`{"scheme":"ws","host":"%s","path":"","body":{"query":"subscription{counter{count}}","variables":{}}}`, host)
 
 	totalMessages := atomic.NewInt64(0)
 
-	read := func(wg *sync.WaitGroup,tag string, trigger subscription.Trigger, then func(), messages ...string) {
+	read := func(wg *sync.WaitGroup, tag string, trigger subscription.Trigger, then func(), messages ...string) {
 		wg.Add(1)
 		go func(wg *sync.WaitGroup, trigger subscription.Trigger, then func(), messages ...string) {
 			defer func() {
@@ -50,7 +50,7 @@ func TestGraphQLWebsocketSubscriptionStream(t *testing.T) {
 				actual := string(data)
 				expected := messages[i]
 				assert.Equal(t, expected, actual)
-				if !t.Failed(){
+				if !t.Failed() {
 					totalMessages.Inc()
 				}
 			}
@@ -65,17 +65,17 @@ func TestGraphQLWebsocketSubscriptionStream(t *testing.T) {
 	assert.Equal(t, int64(1), manager.TotalSubscriptions())
 	assert.Equal(t, int64(3), manager.TotalSubscribers())
 
-	read(wg,"t1", t1, func() {
+	read(wg, "t1", t1, func() {
 		assert.Equal(t, int64(1), manager.TotalSubscriptions())
 		assert.Equal(t, int64(2), manager.TotalSubscribers())
 	}, `{"counter":{"count":0}}`)
-	read(wg, "t2",t2, nil, `{"counter":{"count":0}}`, `{"counter":{"count":1}}`, `{"counter":{"count":2}}`)
-	read(wg, "t3",t3, nil, `{"counter":{"count":0}}`, `{"counter":{"count":1}}`, `{"counter":{"count":2}}`)
+	read(wg, "t2", t2, nil, `{"counter":{"count":0}}`, `{"counter":{"count":1}}`, `{"counter":{"count":2}}`)
+	read(wg, "t3", t3, nil, `{"counter":{"count":0}}`, `{"counter":{"count":1}}`, `{"counter":{"count":2}}`)
 	wg.Wait()
 
 	assert.Equal(t, int64(0), manager.TotalSubscriptions())
 	assert.Equal(t, int64(0), manager.TotalSubscribers())
-	assert.Equal(t,int64(7),totalMessages.Load())
+	assert.Equal(t, int64(7), totalMessages.Load())
 
 	t4 := manager.StartTrigger([]byte(input))
 
@@ -84,7 +84,7 @@ func TestGraphQLWebsocketSubscriptionStream(t *testing.T) {
 
 	wg = &sync.WaitGroup{}
 
-	read(wg,"t4", t4, func() {
+	read(wg, "t4", t4, func() {
 		assert.Equal(t, int64(0), manager.TotalSubscriptions())
 		assert.Equal(t, int64(0), manager.TotalSubscribers())
 	}, `{"counter":{"count":0}}`)
@@ -93,5 +93,5 @@ func TestGraphQLWebsocketSubscriptionStream(t *testing.T) {
 
 	assert.Equal(t, int64(0), manager.TotalSubscriptions())
 	assert.Equal(t, int64(0), manager.TotalSubscribers())
-	assert.Equal(t,int64(8),totalMessages.Load())
+	assert.Equal(t, int64(8), totalMessages.Load())
 }
