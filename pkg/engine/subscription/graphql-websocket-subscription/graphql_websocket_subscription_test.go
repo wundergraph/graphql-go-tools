@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/atomic"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/subscription"
 )
@@ -29,6 +30,8 @@ func TestGraphQLWebsocketSubscriptionStream(t *testing.T) {
 
 	input := fmt.Sprintf(`{"scheme":"ws","host":"%s","path":"","body":{"query":"subscription{counter{count}}","variables":{}}}`,host)
 
+	totalMessages := atomic.NewInt64(0)
+
 	read := func(wg *sync.WaitGroup,tag string, trigger subscription.Trigger, then func(), messages ...string) {
 		wg.Add(1)
 		go func(wg *sync.WaitGroup, trigger subscription.Trigger, then func(), messages ...string) {
@@ -42,11 +45,14 @@ func TestGraphQLWebsocketSubscriptionStream(t *testing.T) {
 			for i := range messages {
 				data, ok := trigger.Next(context.Background())
 				if !ok {
-					panic("want ok")
+					return
 				}
 				actual := string(data)
 				expected := messages[i]
 				assert.Equal(t, expected, actual)
+				if !t.Failed(){
+					totalMessages.Inc()
+				}
 			}
 		}(wg, trigger, then, messages...)
 	}
@@ -69,6 +75,7 @@ func TestGraphQLWebsocketSubscriptionStream(t *testing.T) {
 
 	assert.Equal(t, int64(0), manager.TotalSubscriptions())
 	assert.Equal(t, int64(0), manager.TotalSubscribers())
+	assert.Equal(t,int64(7),totalMessages.Load())
 
 	t4 := manager.StartTrigger([]byte(input))
 
@@ -86,4 +93,5 @@ func TestGraphQLWebsocketSubscriptionStream(t *testing.T) {
 
 	assert.Equal(t, int64(0), manager.TotalSubscriptions())
 	assert.Equal(t, int64(0), manager.TotalSubscribers())
+	assert.Equal(t,int64(8),totalMessages.Load())
 }
