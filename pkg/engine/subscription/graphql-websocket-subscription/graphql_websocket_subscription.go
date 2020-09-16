@@ -93,8 +93,12 @@ func (g *GraphQLWebsocketSubscriptionStream) Start(input []byte, next chan<- []b
 			if !ok {
 				return
 			}
+			content,_,_,err := jsonparser.Get(data,"data")
+			if err != nil || len(content) == 0 {
+				continue
+			}
 			select {
-			case next <- data:
+			case next <- content:
 			case <-stop:
 				return
 			}

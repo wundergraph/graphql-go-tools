@@ -68,9 +68,9 @@ func TestGraphQLWebsocketSubscriptionStream(t *testing.T) {
 	read(wg,"t1", t1, func() {
 		assert.Equal(t, int64(1), manager.TotalSubscriptions())
 		assert.Equal(t, int64(2), manager.TotalSubscribers())
-	}, `{"data":{"counter":{"count":0}}}`)
-	read(wg, "t2",t2, nil, `{"data":{"counter":{"count":0}}}`, `{"data":{"counter":{"count":1}}}`, `{"data":{"counter":{"count":2}}}`)
-	read(wg, "t3",t3, nil, `{"data":{"counter":{"count":0}}}`, `{"data":{"counter":{"count":1}}}`, `{"data":{"counter":{"count":2}}}`)
+	}, `{"counter":{"count":0}}`)
+	read(wg, "t2",t2, nil, `{"counter":{"count":0}}`, `{"counter":{"count":1}}`, `{"counter":{"count":2}}`)
+	read(wg, "t3",t3, nil, `{"counter":{"count":0}}`, `{"counter":{"count":1}}`, `{"counter":{"count":2}}`)
 	wg.Wait()
 
 	assert.Equal(t, int64(0), manager.TotalSubscriptions())
@@ -87,7 +87,7 @@ func TestGraphQLWebsocketSubscriptionStream(t *testing.T) {
 	read(wg,"t4", t4, func() {
 		assert.Equal(t, int64(0), manager.TotalSubscriptions())
 		assert.Equal(t, int64(0), manager.TotalSubscribers())
-	}, `{"data":{"counter":{"count":0}}}`)
+	}, `{"counter":{"count":0}}`)
 
 	wg.Wait()
 

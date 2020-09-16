@@ -96,14 +96,15 @@ func FakeGraphQLSubscriptionServer(t *testing.T) *httptest.Server {
 						writeMux.Lock()
 						err = c.WriteMessage(websocket.TextMessage, []byte(message))
 						writeMux.Unlock()
-						assert.NoError(t, err)
 						return
 				default:
 					message := fmt.Sprintf(`{"type":"data","id":"%s","payload":{"data":{"counter":{"count":%d}}}}`,id,counter)
 					writeMux.Lock()
 					err = c.WriteMessage(websocket.TextMessage, []byte(message))
 					writeMux.Unlock()
-					assert.NoError(t, err)
+					if err != nil {
+						return
+					}
 					counter++
 				}
 			}
