@@ -4,6 +4,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"sync"
+
+	"github.com/buger/jsonparser"
+
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
 )
 
 var (
@@ -30,20 +34,27 @@ func New() *GraphQLWebsocketSubscriptionStream {
 }
 
 func (g *GraphQLWebsocketSubscriptionStream) Start(input []byte, next chan<- []byte, stop <-chan struct{}) {
+
+	scheme,host,path,body,headers := httpclient.GetSubscriptionInput(input)
+
 	var (
-		config Config
+		header http.Header
 	)
-	err := json.Unmarshal(input, &config)
-	if err != nil {
-		return
+
+	if len(headers) != 0 {
+		header = map[string][]string{}
+		_ = jsonparser.ObjectEach(headers, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
+			header[string(key)] = []string{string(value)}
+			return nil
+		})
 	}
 
-	key := config.Scheme + config.Host + config.Path
+	key := string(scheme) + string(host) + string(path)
 	g.wsClientsMux.Lock()
 	client, ok := g.wsClients[key]
 	if !ok {
 		client = &WebsocketClient{}
-		err = client.Open(config.Scheme, config.Host, config.Path, config.Header)
+		err := client.Open(string(scheme), string(host), string(path), header)
 		if err != nil {
 			g.wsClientsMux.Unlock()
 			return
@@ -64,7 +75,7 @@ func (g *GraphQLWebsocketSubscriptionStream) Start(input []byte, next chan<- []b
 		g.wsClientsMux.Unlock()
 	}()
 
-	subscription, ok := client.Subscribe(config.Body)
+	subscription, ok := client.Subscribe(body)
 	if !ok {
 		return
 	}

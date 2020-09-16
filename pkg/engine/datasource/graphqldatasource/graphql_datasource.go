@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"net/url"
 
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash"
@@ -35,6 +36,7 @@ type Planner struct {
 	bufferID            int
 	config              *plan.DataSourceConfiguration
 	abortLeaveDocument  bool
+	operationType       ast.OperationType
 }
 
 func NewPlanner(client httpclient.Client) *Planner {
@@ -76,6 +78,7 @@ func (p *Planner) EnterDocument(_, _ *ast.Document) {
 	p.URL = nil
 	p.variables = nil
 	p.headers = nil
+	p.operationType = ast.OperationTypeUnknown
 }
 
 func (p *Planner) EnterField(ref int) {
@@ -94,31 +97,36 @@ func (p *Planner) EnterField(ref int) {
 		if len(p.nodes) == 0 { // Setup Fetch and root (operation definition)
 			p.URL = config.Attributes.ValueForKey("url")
 			p.headers = config.Attributes.ValueForKey(httpclient.HEADERS)
-			p.bufferID = p.v.NextBufferID()
-			p.fetch = &resolve.SingleFetch{
-				BufferId: p.bufferID,
-			}
-			p.v.SetCurrentObjectFetch(p.fetch, config)
 			if len(p.operation.RootNodes) == 0 {
 				set := p.operation.AddSelectionSet()
-				operationType := ast.OperationTypeQuery
+				p.operationType = ast.OperationTypeQuery
 				if len(p.v.Ancestors) == 2 {
-					// OperationType is the same as the downstream Operation only if this is a root field of the actual Query
-					// if Ancestors are more then 2 this is a field nested in another Query
-					// this means OperationType must always be Query for nested fields
-					operationType = p.v.Operation.OperationDefinitions[p.v.Ancestors[0].Ref].OperationType
+					p.operationType = p.v.Operation.OperationDefinitions[p.v.Ancestors[0].Ref].OperationType
 				}
+				// this means OperationType must always be Query for nested fields
+				// if Ancestors are more then 2 this is a field nested in another Query
+				// OperationType is the same as the downstream Operation only if this is a root field of the actual Query
 				definition := p.operation.AddOperationDefinitionToRootNodes(ast.OperationDefinition{
-					OperationType: operationType,
+					OperationType: p.operationType,
 					SelectionSet:  set.Ref,
 					HasSelections: true,
 				})
 				p.nodes = append(p.nodes, definition, set)
 			}
+			if p.operationType != ast.OperationTypeSubscription {
+				p.bufferID = p.v.NextBufferID()
+				p.fetch = &resolve.SingleFetch{
+					BufferId: p.bufferID,
+				}
+				p.v.SetCurrentObjectFetch(p.fetch, config)
+			}
 		}
 		// subsequent root fields get their own fieldset
 		// we need to set the buffer for all fields
-		p.v.SetBufferIDForCurrentFieldSet(p.bufferID)
+		// subscriptions don't have their own buffer, the initial data comes from the trigger which has a buffer itself
+		if p.operationType != ast.OperationTypeSubscription {
+			p.v.SetBufferIDForCurrentFieldSet(p.bufferID)
+		}
 	}
 	field := p.addField(ref)
 	selection := ast.Selection{
@@ -246,7 +254,7 @@ func (p *Planner) applyFieldArgument(upstreamField, downstreamField int, arg Arg
 			}
 
 			variableDefinitionType := p.v.Operation.VariableDefinitions[variableDefinition].Type
-			wrapValueInQuotes := p.v.Operation.TypeValueNeedsQuotes(variableDefinitionType,p.v.Definition)
+			wrapValueInQuotes := p.v.Operation.TypeValueNeedsQuotes(variableDefinitionType, p.v.Definition)
 
 			contextVariableName, exists := p.fetch.Variables.AddVariable(&resolve.ContextVariable{Path: append([]string{variableNameStr}, arg.SourcePath...)}, wrapValueInQuotes)
 			variableValueRef, argRef := p.operation.AddVariableValueArgument(arg.NameBytes(), variableName) // add the argument to the field, but don't redefine it
@@ -295,7 +303,7 @@ func (p *Planner) applyFieldArgument(upstreamField, downstreamField int, arg Arg
 		p.operation.AddArgumentToField(upstreamField, argument)
 		importedType := p.v.Importer.ImportType(argumentType, p.v.Definition, p.operation)
 		p.operation.AddVariableDefinitionToOperationDefinition(p.nodes[0].Ref, variableValue, importedType)
-		wrapVariableInQuotes := p.v.Definition.TypeValueNeedsQuotes(argumentType,p.v.Definition)
+		wrapVariableInQuotes := p.v.Definition.TypeValueNeedsQuotes(argumentType, p.v.Definition)
 
 		objectVariableName, exists := p.fetch.Variables.AddVariable(&resolve.ObjectVariable{Path: arg.SourcePath}, wrapVariableInQuotes)
 		if !exists {
@@ -310,25 +318,25 @@ func (p *Planner) applyInlineFieldArgument(upstreamField, downstreamField int, a
 		return
 	}
 	value := p.v.Operation.ArgumentValue(fieldArgument)
-	importedValue := p.v.Importer.ImportValue(value,p.v.Operation,p.operation)
+	importedValue := p.v.Importer.ImportValue(value, p.v.Operation, p.operation)
 	argRef := p.operation.AddArgument(ast.Argument{
-		Name: p.operation.Input.AppendInputBytes(arg.NameBytes()),
+		Name:  p.operation.Input.AppendInputBytes(arg.NameBytes()),
 		Value: importedValue,
 	})
 	p.operation.AddArgumentToField(upstreamField, argRef)
-	p.addVariableDefinitionsRecursively(value,arg)
+	p.addVariableDefinitionsRecursively(value, arg)
 }
 
-func (p *Planner) addVariableDefinitionsRecursively(value ast.Value,arg Argument){
+func (p *Planner) addVariableDefinitionsRecursively(value ast.Value, arg Argument) {
 	switch value.Kind {
 	case ast.ValueKindObject:
-		for _,i := range p.v.Operation.ObjectValues[value.Ref].Refs {
-			p.addVariableDefinitionsRecursively(p.v.Operation.ObjectFields[i].Value,arg)
+		for _, i := range p.v.Operation.ObjectValues[value.Ref].Refs {
+			p.addVariableDefinitionsRecursively(p.v.Operation.ObjectFields[i].Value, arg)
 		}
 		return
 	case ast.ValueKindList:
-		for _,i := range p.v.Operation.ListValues[value.Ref].Refs {
-			p.addVariableDefinitionsRecursively(p.v.Operation.Values[i],arg)
+		for _, i := range p.v.Operation.ListValues[value.Ref].Refs {
+			p.addVariableDefinitionsRecursively(p.v.Operation.Values[i], arg)
 		}
 		return
 	case ast.ValueKindVariable:
@@ -339,17 +347,17 @@ func (p *Planner) addVariableDefinitionsRecursively(value ast.Value,arg Argument
 
 	variableName := p.v.Operation.VariableValueNameBytes(value.Ref)
 	variableNameStr := p.v.Operation.VariableValueNameString(value.Ref)
-	variableDefinition, exists := p.v.Operation.VariableDefinitionByNameAndOperation(p.v.Ancestors[0].Ref,variableName)
+	variableDefinition, exists := p.v.Operation.VariableDefinitionByNameAndOperation(p.v.Ancestors[0].Ref, variableName)
 	if !exists {
 		return
 	}
-	importedVariableDefinition := p.v.Importer.ImportVariableDefinition(variableDefinition,p.v.Operation,p.operation)
-	p.operation.AddImportedVariableDefinitionToOperationDefinition(p.nodes[0].Ref,importedVariableDefinition)
+	importedVariableDefinition := p.v.Importer.ImportVariableDefinition(variableDefinition, p.v.Operation, p.operation)
+	p.operation.AddImportedVariableDefinitionToOperationDefinition(p.nodes[0].Ref, importedVariableDefinition)
 
 	variableDefinitionType := p.v.Operation.VariableDefinitions[variableDefinition].Type
-	wrapValueInQuotes := p.v.Operation.TypeValueNeedsQuotes(variableDefinitionType,p.v.Definition)
+	wrapValueInQuotes := p.v.Operation.TypeValueNeedsQuotes(variableDefinitionType, p.v.Definition)
 
-	contextVariableName, variableExists := p.fetch.Variables.AddVariable(&resolve.ContextVariable{Path: append(arg.SourcePath,variableNameStr)}, wrapValueInQuotes)
+	contextVariableName, variableExists := p.fetch.Variables.AddVariable(&resolve.ContextVariable{Path: append(arg.SourcePath, variableNameStr)}, wrapValueInQuotes)
 	if variableExists {
 		return
 	}
@@ -399,17 +407,46 @@ func (p *Planner) LeaveDocument(_, definition *ast.Document) {
 	if err != nil {
 		return
 	}
-	var input []byte
-	input = httpclient.SetInputBodyWithPath(input, p.variables, "variables")
-	input = httpclient.SetInputBodyWithPath(input, buf.Bytes(), "query")
-	input = httpclient.SetInputURL(input, p.URL)
-	input = httpclient.SetInputMethod(input, literal.HTTP_METHOD_POST)
-	input = httpclient.SetInputHeaders(input, p.headers)
-	p.fetch.Input = string(input)
-	source := DefaultSource()
-	source.client = p.clientOrDefault()
-	p.fetch.DataSource = source
-	p.fetch.DisallowSingleFlight = p.operation.OperationDefinitions[p.nodes[0].Ref].OperationType != ast.OperationTypeQuery
+
+	switch p.operationType {
+	case ast.OperationTypeQuery, ast.OperationTypeMutation:
+		var input []byte
+		input = httpclient.SetInputBodyWithPath(input, p.variables, "variables")
+		input = httpclient.SetInputBodyWithPath(input, buf.Bytes(), "query")
+		input = httpclient.SetInputURL(input, p.URL)
+		input = httpclient.SetInputMethod(input, literal.HTTP_METHOD_POST)
+		input = httpclient.SetInputHeaders(input, p.headers)
+		p.fetch.Input = string(input)
+		source := DefaultSource()
+		source.client = p.clientOrDefault()
+		p.fetch.DataSource = source
+		p.fetch.DisallowSingleFlight = p.operation.OperationDefinitions[p.nodes[0].Ref].OperationType != ast.OperationTypeQuery
+	case ast.OperationTypeSubscription:
+
+		parsedURL, err := url.Parse(string(p.URL))
+		if err != nil {
+			p.v.StopWithInternalErr(err)
+			return
+		}
+
+		scheme := []byte("ws")
+		if parsedURL.Scheme == "https" {
+			scheme = []byte("wss")
+		}
+
+		var input []byte
+		input = httpclient.SetInputHeaders(input, p.headers)
+		input = httpclient.SetInputBodyWithPath(input, p.variables, "variables")
+		input = httpclient.SetInputBodyWithPath(input, buf.Bytes(), "query")
+		input = httpclient.SetInputPath(input, []byte(parsedURL.Path))
+		input = httpclient.SetInputHost(input, []byte(parsedURL.Host))
+		input = httpclient.SetInputScheme(input, scheme)
+
+		p.v.SetSubscriptionTrigger(resolve.GraphQLSubscriptionTrigger{
+			Input:     string(input),
+			ManagerID: []byte("graphql_websocket_subscription"),
+		}, *p.config)
+	}
 }
 
 type Source struct {

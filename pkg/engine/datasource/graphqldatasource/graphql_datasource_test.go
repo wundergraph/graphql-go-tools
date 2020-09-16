@@ -1260,6 +1260,57 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 			},
 		},
 	))
+	t.Run("subscription", RunTest(testDefinition, `
+		subscription RemainingJedis {
+			remainingJedis
+		}
+	`, "RemainingJedis", &plan.SubscriptionResponsePlan{
+		Subscription: resolve.GraphQLSubscription{
+			Trigger:  resolve.GraphQLSubscriptionTrigger{
+				ManagerID:     []byte("graphql_websocket_subscription"),
+				Input:         `{"scheme":"wss","host":"swapi.com","path":"/graphql","body":{"query":"subscription{remainingJedis}"}}`,
+				InputTemplate: resolve.InputTemplate{
+					Segments: []resolve.TemplateSegment{
+						{
+							SegmentType: resolve.StaticSegmentType,
+							Data: []byte(`{"scheme":"wss","host":"swapi.com","path":"/graphql","body":{"query":"subscription{remainingJedis}"}}` ),
+						},
+					},
+				},
+			},
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					FieldSets: []resolve.FieldSet{
+						{
+							Fields: []resolve.Field{
+								{
+									Name: []byte("remainingJedis"),
+									Value: &resolve.Integer{
+										Path: []string{"remainingJedis"},
+										Nullable: false,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}, plan.Configuration{
+		DataSourceConfigurations: []plan.DataSourceConfiguration{
+			{
+				TypeName:   "Subscription",
+				FieldNames: []string{"remainingJedis"},
+				Attributes: []plan.DataSourceAttribute{
+					{
+						Key:   "url",
+						Value: []byte("https://swapi.com/graphql"),
+					},
+				},
+				DataSourcePlanner: &Planner{},
+			},
+		},
+	}))
 }
 
 func TestGraphQLDataSourceExecution(t *testing.T) {
