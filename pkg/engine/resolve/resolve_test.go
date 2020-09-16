@@ -1207,6 +1207,7 @@ type FakeStream struct {
 }
 
 func (f *FakeStream) Start(input []byte, next chan<- []byte, stop <-chan struct{}) {
+	time.Sleep(time.Millisecond)
 	count := 0
 	for {
 		if count == 3 {
