@@ -50,7 +50,7 @@ func (r *Request) CalculateComplexity(complexityCalculator ComplexityCalculator,
 	if report.HasErrors() {
 		return complexityResult(
 			operation_complexity.OperationStats{},
-			[]operation_complexity.FieldComplexityResult{},
+			[]operation_complexity.RootFieldStats{},
 			report,
 		)
 	}

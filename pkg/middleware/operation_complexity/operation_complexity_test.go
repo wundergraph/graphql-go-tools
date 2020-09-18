@@ -11,7 +11,30 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
-func TestNodeCount(t *testing.T) {
+func TestCalculateOperationComplexity(t *testing.T) {
+	t.Run("query with a scalar return type", func(t *testing.T) {
+		run(t, testDefinition, `
+				{
+				  currentPeriod
+				}`,
+			OperationStats{
+				NodeCount:  0,
+				Complexity: 0,
+				Depth:      0,
+			},
+			[]RootFieldStats{
+				{
+					TypeName:  "Query",
+					FieldName: "currentPeriod",
+					Stats: OperationStats{
+						NodeCount:  0,
+						Complexity: 0,
+						Depth:      0,
+					},
+				},
+			},
+		)
+	})
 	t.Run("one user", func(t *testing.T) {
 		run(t, testDefinition, `
 				{
@@ -30,14 +53,82 @@ func TestNodeCount(t *testing.T) {
 				Complexity: 2,
 				Depth:      3,
 			},
-			[]FieldComplexityResult{
+			[]RootFieldStats{
 				{
 					TypeName:  "Query",
 					FieldName: "users",
 					Stats: OperationStats{
 						NodeCount:  2,
 						Complexity: 2,
-						Depth:      3,
+						Depth:      2,
+					},
+				},
+			},
+		)
+	})
+	t.Run("one user with inline fragments", func(t *testing.T) {
+		run(t, testDefinition, `
+				{
+				  users(first: 1) {
+					... {
+						id
+						balance
+						name
+						address {
+						  city
+						  country
+						}
+					}
+				  }
+				}`,
+			OperationStats{
+				NodeCount:  2,
+				Complexity: 2,
+				Depth:      3,
+			},
+			[]RootFieldStats{
+				{
+					TypeName:  "Query",
+					FieldName: "users",
+					Stats: OperationStats{
+						NodeCount:  2,
+						Complexity: 2,
+						Depth:      2,
+					},
+				},
+			},
+		)
+	})
+	t.Run("one user with fragments", func(t *testing.T) {
+		run(t, testDefinition, `
+				{
+				  users(first: 1) {
+					...UserFragment
+				  }
+				}
+				fragment UserFragment on User {
+					id
+					balance
+					name
+					address {
+					  city
+					  country
+					}
+                }
+				`,
+			OperationStats{
+				NodeCount:  2,
+				Complexity: 2,
+				Depth:      3,
+			},
+			[]RootFieldStats{
+				{
+					TypeName:  "Query",
+					FieldName: "users",
+					Stats: OperationStats{
+						NodeCount:  2,
+						Complexity: 2,
+						Depth:      2,
 					},
 				},
 			},
@@ -61,14 +152,14 @@ func TestNodeCount(t *testing.T) {
 				Complexity: 11,
 				Depth:      3,
 			},
-			[]FieldComplexityResult{
+			[]RootFieldStats{
 				{
 					TypeName:  "Query",
 					FieldName: "users",
 					Stats: OperationStats{
 						NodeCount:  20,
 						Complexity: 11,
-						Depth:      3,
+						Depth:      2,
 					},
 				},
 			},
@@ -96,14 +187,14 @@ func TestNodeCount(t *testing.T) {
 				Complexity: 21,
 				Depth:      3,
 			},
-			[]FieldComplexityResult{
+			[]RootFieldStats{
 				{
 					TypeName:  "Query",
 					FieldName: "users",
 					Stats: OperationStats{
 						NodeCount:  70,
 						Complexity: 21,
-						Depth:      3,
+						Depth:      2,
 					},
 				},
 			},
@@ -145,14 +236,14 @@ func TestNodeCount(t *testing.T) {
 				Complexity: 221,
 				Depth:      5,
 			},
-			[]FieldComplexityResult{
+			[]RootFieldStats{
 				{
 					TypeName:  "Query",
 					FieldName: "users",
 					Stats: OperationStats{
 						NodeCount:  920,
 						Complexity: 221,
-						Depth:      5,
+						Depth:      4,
 					},
 				},
 			},
@@ -192,7 +283,7 @@ func TestNodeCount(t *testing.T) {
 				Complexity: 24,
 				Depth:      3,
 			},
-			[]FieldComplexityResult{
+			[]RootFieldStats{
 				{
 					TypeName:  "Query",
 					FieldName: "user",
@@ -200,7 +291,7 @@ func TestNodeCount(t *testing.T) {
 					Stats: OperationStats{
 						NodeCount:  1,
 						Complexity: 1,
-						Depth:      2,
+						Depth:      1,
 					},
 				},
 				{
@@ -209,7 +300,7 @@ func TestNodeCount(t *testing.T) {
 					Stats: OperationStats{
 						NodeCount:  2,
 						Complexity: 2,
-						Depth:      3,
+						Depth:      2,
 					},
 				},
 				{
@@ -219,7 +310,7 @@ func TestNodeCount(t *testing.T) {
 					Stats: OperationStats{
 						NodeCount:  70,
 						Complexity: 21,
-						Depth:      3,
+						Depth:      2,
 					},
 				},
 			},
@@ -240,7 +331,7 @@ func TestNodeCount(t *testing.T) {
 				Complexity: 2,
 				Depth:      2,
 			},
-			[]FieldComplexityResult{
+			[]RootFieldStats{
 				{
 					TypeName:  "Mutation",
 					FieldName: "createUser",
@@ -248,7 +339,7 @@ func TestNodeCount(t *testing.T) {
 					Stats: OperationStats{
 						NodeCount:  1,
 						Complexity: 1,
-						Depth:      2,
+						Depth:      1,
 					},
 				},
 				{
@@ -258,7 +349,7 @@ func TestNodeCount(t *testing.T) {
 					Stats: OperationStats{
 						NodeCount:  1,
 						Complexity: 1,
-						Depth:      2,
+						Depth:      1,
 					},
 				},
 			},
@@ -271,12 +362,12 @@ func TestNodeCount(t *testing.T) {
 				Complexity: 0,
 				Depth:      0,
 			},
-			[]FieldComplexityResult{},
+			[]RootFieldStats{},
 		)
 	})
 }
 
-var run = func(t *testing.T, definition, operation string, expectedGlobalComplexityResult OperationStats, expectedFieldsComplexityResult []FieldComplexityResult) {
+var run = func(t *testing.T, definition, operation string, expectedGlobalComplexityResult OperationStats, expectedFieldsComplexityResult []RootFieldStats) {
 	def := unsafeparser.ParseGraphqlDocumentString(definition)
 	op := unsafeparser.ParseGraphqlDocumentString(operation)
 	report := operationreport.Report{}
@@ -295,7 +386,6 @@ var run = func(t *testing.T, definition, operation string, expectedGlobalComplex
 }
 
 func BenchmarkEstimateComplexity(b *testing.B) {
-
 	def := unsafeparser.ParseGraphqlDocumentString(testDefinition)
 	op := unsafeparser.ParseGraphqlDocumentString(complexQuery)
 
@@ -414,6 +504,7 @@ type Query {
     user(id: ID!): User
     users(first: Int! @nodeCountMultiply, afterID: ID): [User]
     transactions(first: Int! @nodeCountMultiply, afterID: ID): [Transaction]
+    currentPeriod: String
 }
 
 type Mutation {

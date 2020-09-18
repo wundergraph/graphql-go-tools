@@ -39,7 +39,7 @@ type FieldComplexityResult struct {
 	Depth      int
 }
 
-func complexityResult(globalComplexityResult operation_complexity.OperationStats, fieldsComplexityResult []operation_complexity.FieldComplexityResult, report operationreport.Report) (ComplexityResult, error) {
+func complexityResult(globalComplexityResult operation_complexity.OperationStats, fieldsComplexityResult []operation_complexity.RootFieldStats, report operationreport.Report) (ComplexityResult, error) {
 	allFieldComplexityResults := make([]FieldComplexityResult, 0, len(fieldsComplexityResult))
 	for _, fieldResult := range fieldsComplexityResult {
 		allFieldComplexityResults = append(allFieldComplexityResults, FieldComplexityResult{

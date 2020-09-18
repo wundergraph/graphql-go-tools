@@ -79,7 +79,7 @@ func TestRequest_CalculateComplexity(t *testing.T) {
 				Alias:      "",
 				NodeCount:  1,
 				Complexity: 1,
-				Depth:      2,
+				Depth:      1,
 			},
 		}, result.PerRootField, "unexpected per root field results")
 	})
@@ -100,7 +100,7 @@ func TestRequest_CalculateComplexity(t *testing.T) {
 				Alias:      "empireHero",
 				NodeCount:  1,
 				Complexity: 1,
-				Depth:      2,
+				Depth:      1,
 			},
 			{
 				TypeName:   "Query",
@@ -108,7 +108,7 @@ func TestRequest_CalculateComplexity(t *testing.T) {
 				Alias:      "jediHero",
 				NodeCount:  1,
 				Complexity: 1,
-				Depth:      2,
+				Depth:      1,
 			}}, result.PerRootField, "unexpected per root field results")
 	})
 }
