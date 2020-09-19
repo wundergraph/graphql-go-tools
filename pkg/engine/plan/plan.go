@@ -48,6 +48,9 @@ func (_ *SynchronousResponsePlan) PlanKind() Kind {
 }
 
 type StreamingResponsePlan struct {
+	InitialResponse resolve.GraphQLResponse
+	Deferreables    []resolve.GraphQLResponse
+	Streamables     []resolve.GraphQLResponse
 }
 
 func (_ *StreamingResponsePlan) PlanKind() Kind {
