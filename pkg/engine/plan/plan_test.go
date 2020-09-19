@@ -183,6 +183,38 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		},
 	}))
+	t.Run("subscription", test(testDefinition, `
+		subscription RemainingJedis {
+			remainingJedis
+		}
+	`, "RemainingJedis", &SubscriptionResponsePlan{
+		Subscription: resolve.GraphQLSubscription{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					FieldSets: []resolve.FieldSet{
+						{
+							Fields: []resolve.Field{
+								{
+									Name: []byte("remainingJedis"),
+									Value: &resolve.Integer{
+										Path: []string{"remainingJedis"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+	Configuration{
+		DataSourceConfigurations: []DataSourceConfiguration{
+			{
+				TypeName: "Subscription",
+				FieldNames: []string{"remainingJedis"},
+			},
+		},
+	}))
 }
 
 const testDefinition = `

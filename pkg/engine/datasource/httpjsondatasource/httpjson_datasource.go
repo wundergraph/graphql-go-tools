@@ -9,10 +9,12 @@ import (
 
 	"github.com/buger/jsonparser"
 
+	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/subscription/http_polling"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 )
 
@@ -51,6 +53,8 @@ func (p *Planner) EnterField(ref int) {
 	body := config.Attributes.ValueForKey(httpclient.BODY)
 	headers := config.Attributes.ValueForKey(httpclient.HEADERS)
 	queryParams := config.Attributes.ValueForKey(httpclient.QUERYPARAMS)
+	intervalMillis := config.Attributes.ValueForKey("polling_interval_millis")
+	skipPublishSameResponse := config.Attributes.ValueForKey("skip_publish_same_response")
 
 	queryParams = p.prepareQueryParams(ref, queryParams)
 
@@ -66,16 +70,30 @@ func (p *Planner) EnterField(ref int) {
 	input = httpclient.SetInputHeaders(input, headers)
 	input = httpclient.SetInputQueryParams(input, queryParams)
 
-	bufferID := p.v.NextBufferID()
-	p.v.SetBufferIDForCurrentFieldSet(bufferID)
-	p.v.SetCurrentObjectFetch(&resolve.SingleFetch{
-		BufferId: bufferID,
-		Input:    string(input),
-		DataSource: &Source{
-			client: p.clientOrDefault(),
-		},
-		DisallowSingleFlight: !bytes.Equal(method, []byte("GET")),
-	}, config)
+	switch p.v.Operation.OperationDefinitions[p.v.Ancestors[0].Ref].OperationType {
+	case ast.OperationTypeQuery, ast.OperationTypeMutation:
+		bufferID := p.v.NextBufferID()
+		p.v.SetBufferIDForCurrentFieldSet(bufferID)
+		p.v.SetCurrentObjectFetch(&resolve.SingleFetch{
+			BufferId: bufferID,
+			Input:    string(input),
+			DataSource: &Source{
+				client: p.clientOrDefault(),
+			},
+			DisallowSingleFlight: !bytes.Equal(method, []byte("GET")),
+		}, config)
+	case ast.OperationTypeSubscription:
+
+		var httpPollingInput []byte
+		httpPollingInput = http_polling.SetSkipPublishSameResponse(httpPollingInput, bytes.Equal(skipPublishSameResponse, literal.TRUE))
+		httpPollingInput = http_polling.SetRequestInput(httpPollingInput, input)
+		httpPollingInput = http_polling.SetInputIntervalMillis(httpPollingInput, unsafebytes.BytesToInt64(intervalMillis))
+
+		p.v.SetSubscriptionTrigger(resolve.GraphQLSubscriptionTrigger{
+			Input:     string(httpPollingInput),
+			ManagerID: []byte("http_polling_stream"),
+		}, *config)
+	}
 }
 
 type QueryValue struct {
@@ -141,7 +159,7 @@ func (p *Planner) prepareQueryParams(field int, params []byte) []byte {
 
 	for i := len(deleteIndices) - 1; i >= 0; i-- {
 		del := deleteIndices[i]
-		values = append(values[:del],values[del+1:]...) // remove variables marked for deletion
+		values = append(values[:del], values[del+1:]...) // remove variables marked for deletion
 	}
 
 	joined := bytes.Join(values, literal.COMMA)

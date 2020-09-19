@@ -58,6 +58,7 @@ func (_ *StreamingResponsePlan) PlanKind() Kind {
 }
 
 type SubscriptionResponsePlan struct {
+	Subscription resolve.GraphQLSubscription
 }
 
 func (_ *SubscriptionResponsePlan) PlanKind() Kind {
@@ -186,6 +187,8 @@ type Visitor struct {
 	currentFieldName                    string
 	currentFieldEnclosingTypeDefinition ast.Node
 	fieldPathOverrides                  map[int]PathOverrideFunc
+	subscription                        *resolve.GraphQLSubscription
+	subscriptionDataSourceConfiguration *DataSourceConfiguration
 }
 
 type PathOverrideFunc func(path []string) []string
@@ -211,6 +214,11 @@ type fetchConfig struct {
 // by setting an override for each field.
 func (v *Visitor) SetFieldPathOverride(field int, override PathOverrideFunc) {
 	v.fieldPathOverrides[field] = override
+}
+
+func (v *Visitor) SetSubscriptionTrigger(trigger resolve.GraphQLSubscriptionTrigger, config DataSourceConfiguration) {
+	v.subscription.Trigger = trigger
+	v.subscriptionDataSourceConfiguration = &config
 }
 
 func (v *Visitor) SetCurrentObjectFetch(fetch *resolve.SingleFetch, config *DataSourceConfiguration) {
@@ -313,6 +321,8 @@ func (v *Visitor) EnterDocument(_, _ *ast.Document) {
 	v.fieldDataSourcePlanners = v.fieldDataSourcePlanners[:0]
 	v.nextBufferID = -1
 	v.activeDataSourcePlanner = nil
+	v.subscription = nil
+	v.subscriptionDataSourceConfiguration = nil
 	if v.fieldPathOverrides == nil {
 		v.fieldPathOverrides = make(map[int]PathOverrideFunc, 8)
 	} else {
@@ -326,13 +336,17 @@ func (v *Visitor) LeaveDocument(_, _ *ast.Document) {
 	for i := range v.fetchConfigs {
 		switch f := v.fetchConfigs[i].fetch.(type) {
 		case *resolve.SingleFetch:
-			v.prepareSingleFetchVariables(f, v.fetchConfigs[i].fieldConfiguration)
+			v.prepareSingleFetchVariables(&f.Input, &f.InputTemplate, &f.Variables, v.fetchConfigs[i].fieldConfiguration)
 		case *resolve.ParallelFetch:
 			for j := range f.Fetches {
-				v.prepareSingleFetchVariables(f.Fetches[j], v.fetchConfigs[i].fieldConfiguration)
+				v.prepareSingleFetchVariables(&f.Fetches[j].Input, &f.Fetches[j].InputTemplate, &f.Fetches[j].Variables, v.fetchConfigs[i].fieldConfiguration)
 			}
 		}
 	}
+	if v.subscription == nil || v.subscriptionDataSourceConfiguration == nil {
+		return
+	}
+	v.prepareSingleFetchVariables(&v.subscription.Trigger.Input, &v.subscription.Trigger.InputTemplate, &v.subscription.Trigger.Variables, v.subscriptionDataSourceConfiguration)
 }
 
 var (
@@ -340,8 +354,8 @@ var (
 	selectorRegex = regexp.MustCompile(`{{\s(.*?)\s}}`)
 )
 
-func (v *Visitor) prepareSingleFetchVariables(f *resolve.SingleFetch, config *DataSourceConfiguration) {
-	f.Input = templateRegex.ReplaceAllStringFunc(f.Input, func(i string) string {
+func (v *Visitor) prepareSingleFetchVariables(input *string, inputTemplate *resolve.InputTemplate, variables *resolve.Variables, config *DataSourceConfiguration) {
+	*input = templateRegex.ReplaceAllStringFunc(*input, func(i string) string {
 		selector := selectorRegex.FindStringSubmatch(i)
 		if len(selector) != 2 {
 			return i
@@ -353,7 +367,7 @@ func (v *Visitor) prepareSingleFetchVariables(f *resolve.SingleFetch, config *Da
 		}
 		switch segments[0] {
 		case "object":
-			variableName, _ := f.Variables.AddVariable(&resolve.ObjectVariable{Path: segments[1:]}, false)
+			variableName, _ := variables.AddVariable(&resolve.ObjectVariable{Path: segments[1:]}, false)
 			return variableName
 		case "arguments":
 			segments = segments[1:]
@@ -367,7 +381,7 @@ func (v *Visitor) prepareSingleFetchVariables(f *resolve.SingleFetch, config *Da
 					switch v.fieldArguments[j].kind {
 					case fieldArgumentTypeVariable:
 						variablePath := append([]string{string(v.fieldArguments[j].value)}, segments...)
-						variableName, _ := f.Variables.AddVariable(&resolve.ContextVariable{Path: variablePath}, false)
+						variableName, _ := variables.AddVariable(&resolve.ContextVariable{Path: variablePath}, false)
 						return variableName
 					case fieldArgumentTypeStatic:
 						if len(segments) == 0 {
@@ -384,21 +398,21 @@ func (v *Visitor) prepareSingleFetchVariables(f *resolve.SingleFetch, config *Da
 		}
 	})
 
-	segments := strings.Split(f.Input, "$$")
+	segments := strings.Split(*input, "$$")
 	isVariable := false
 	for _, seg := range segments {
 		switch {
 		case isVariable:
 			i, _ := strconv.Atoi(seg)
-			switch v := f.Variables[i].(type) {
+			switch v := (*variables)[i].(type) {
 			case *resolve.ContextVariable:
-				f.InputTemplate.Segments = append(f.InputTemplate.Segments, resolve.TemplateSegment{
+				inputTemplate.Segments = append(inputTemplate.Segments, resolve.TemplateSegment{
 					SegmentType:        resolve.VariableSegmentType,
 					VariableSource:     resolve.VariableSourceContext,
 					VariableSourcePath: v.Path,
 				})
 			case *resolve.ObjectVariable:
-				f.InputTemplate.Segments = append(f.InputTemplate.Segments, resolve.TemplateSegment{
+				inputTemplate.Segments = append(inputTemplate.Segments, resolve.TemplateSegment{
 					SegmentType:        resolve.VariableSegmentType,
 					VariableSource:     resolve.VariableSourceObject,
 					VariableSourcePath: v.Path,
@@ -406,7 +420,7 @@ func (v *Visitor) prepareSingleFetchVariables(f *resolve.SingleFetch, config *Da
 			}
 			isVariable = false
 		default:
-			f.InputTemplate.Segments = append(f.InputTemplate.Segments, resolve.TemplateSegment{
+			inputTemplate.Segments = append(inputTemplate.Segments, resolve.TemplateSegment{
 				SegmentType: resolve.StaticSegmentType,
 				Data:        []byte(seg),
 			})
@@ -472,10 +486,23 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 			object:   v.currentObject,
 			fieldRef: -1,
 		})
-		v.plan = &SynchronousResponsePlan{
-			Response: resolve.GraphQLResponse{
-				Data: v.currentObject,
-			},
+		switch v.Operation.OperationDefinitions[ref].OperationType {
+		case ast.OperationTypeQuery, ast.OperationTypeMutation:
+			v.plan = &SynchronousResponsePlan{
+				Response: resolve.GraphQLResponse{
+					Data: v.currentObject,
+				},
+			}
+		case ast.OperationTypeSubscription:
+			plan := &SubscriptionResponsePlan{
+				Subscription: resolve.GraphQLSubscription{
+					Response: &resolve.GraphQLResponse{
+						Data: v.currentObject,
+					},
+				},
+			}
+			v.plan = plan
+			v.subscription = &plan.Subscription
 		}
 	} else {
 		v.SkipNode()

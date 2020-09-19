@@ -16,6 +16,7 @@ import (
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash"
 
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/subscription"
 	"github.com/jensneuse/graphql-go-tools/pkg/fastbuffer"
 )
 
@@ -97,6 +98,15 @@ type Resolver struct {
 	inflightFetchPool        sync.Pool
 	inflightFetchMu          sync.Mutex
 	inflightFetches          map[uint64]*inflightFetch
+	triggerManagers          map[uint64]*subscription.Manager
+}
+
+func (r *Resolver) RegisterTriggerManager(m *subscription.Manager) {
+	hash64 := r.getHash64()
+	_, _ = hash64.Write(m.UniqueIdentifier())
+	managerID := hash64.Sum64()
+	r.putHash64(hash64)
+	r.triggerManagers[managerID] = m
 }
 
 type inflightFetch struct {
@@ -162,6 +172,7 @@ func New() *Resolver {
 			},
 		},
 		inflightFetches: map[uint64]*inflightFetch{},
+		triggerManagers: map[uint64]*subscription.Manager{},
 	}
 }
 
@@ -295,6 +306,43 @@ func (r *Resolver) ResolveGraphQLResponse(ctx Context, response *GraphQLResponse
 	err = r.writeSafe(err, writer, rBrace)
 
 	return
+}
+
+func (r *Resolver) ResolveGraphQLSubscription(ctx Context, subscription *GraphQLSubscription, writer FlushWriter) (err error) {
+	hash64 := r.getHash64()
+	_, _ = hash64.Write(subscription.Trigger.ManagerID)
+	managerID := hash64.Sum64()
+	r.putHash64(hash64)
+
+	manager, ok := r.triggerManagers[managerID]
+	if !ok {
+		return fmt.Errorf("trigger manager not found for id: %s", string(subscription.Trigger.ManagerID))
+	}
+
+	buf := r.getBufPair()
+	err = subscription.Trigger.InputTemplate.Render(ctx, nil, buf.Data)
+	if err != nil {
+		return
+	}
+	rendered := buf.Data.Bytes()
+	triggerInput := make([]byte, len(rendered))
+	copy(triggerInput, rendered)
+	r.freeBufPair(buf)
+
+	trigger := manager.StartTrigger(triggerInput)
+	defer manager.StopTrigger(trigger)
+
+	for {
+		data, ok := trigger.Next(ctx)
+		if !ok {
+			return nil
+		}
+		err = r.ResolveGraphQLResponse(ctx, subscription.Response, data, writer)
+		if err != nil {
+			return err
+		}
+		writer.Flush()
+	}
 }
 
 func (r *Resolver) resolveEmptyArray(b *fastbuffer.FastBuffer) {
@@ -478,7 +526,7 @@ func (r *Resolver) resolveString(str *String, data []byte, stringBuf *BufPair) e
 	)
 	if len(data) != 0 && str.Path == nil {
 		_, valueType, _, _ = jsonparser.Get(data)
-		if valueType == jsonparser.String || unicode.IsLetter(rune(data[0])){
+		if valueType == jsonparser.String || unicode.IsLetter(rune(data[0])) {
 			value = data
 		} else if !str.Nullable {
 			return errNonNullableFieldValueIsNull
@@ -650,12 +698,11 @@ func (r *Resolver) resolveSingleFetch(ctx Context, fetch *SingleFetch, preparedI
 		return fetch.DataSource.Load(ctx.Context, preparedInput.Bytes(), buf)
 	}
 
-	h := r.hash64Pool.Get().(hash.Hash64)
-	_, _ = h.Write(fetch.DataSource.UniqueIdentifier())
-	_, _ = h.Write(preparedInput.Bytes())
-	fetchID := h.Sum64()
-	h.Reset()
-	r.hash64Pool.Put(h)
+	hash64 := r.getHash64()
+	_, _ = hash64.Write(fetch.DataSource.UniqueIdentifier())
+	_, _ = hash64.Write(preparedInput.Bytes())
+	fetchID := hash64.Sum64()
+	r.putHash64(hash64)
 
 	r.inflightFetchMu.Lock()
 	inflight, ok := r.inflightFetches[fetchID]
@@ -969,6 +1016,23 @@ func (o *ObjectVariable) VariableKind() VariableKind {
 	return VariableKindObject
 }
 
+type GraphQLSubscription struct {
+	Trigger  GraphQLSubscriptionTrigger
+	Response *GraphQLResponse
+}
+
+type GraphQLSubscriptionTrigger struct {
+	ManagerID     []byte
+	Input         string
+	InputTemplate InputTemplate
+	Variables     Variables
+}
+
+type FlushWriter interface {
+	io.Writer
+	Flush()
+}
+
 type GraphQLResponse struct {
 	Data Node
 }
@@ -1107,4 +1171,13 @@ func (r *Resolver) freeInflightFetch(f *inflightFetch) {
 	f.bufPair.Errors.Reset()
 	f.err = nil
 	r.inflightFetchPool.Put(f)
+}
+
+func (r *Resolver) getHash64() hash.Hash64 {
+	return r.hash64Pool.Get().(hash.Hash64)
+}
+
+func (r *Resolver) putHash64(h hash.Hash64) {
+	h.Reset()
+	r.hash64Pool.Put(h)
 }

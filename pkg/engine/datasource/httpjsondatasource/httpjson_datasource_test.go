@@ -24,6 +24,12 @@ const (
 			withArrayArguments(names: [String]): Friend
 		}
 
+		type Subscription {
+			friend: Friend
+			withArgument(id: String!, name: String, optional: String): Friend
+			withArrayArguments(names: [String]): Friend
+		}
+
 		type Friend {
 			name: String
 			pet: Pet
@@ -62,6 +68,14 @@ const (
 		}
 	`
 
+	argumentSubscription = `
+		subscription ArgumentQuery($idVariable: String!) {
+			withArgument(id: $idVariable, name: "foo") {
+				name
+			}
+		}
+	`
+
 	arrayArgumentOperation = `
 		query ArgumentQuery {
 			withArrayArguments(names: ["foo","bar"]) {
@@ -83,7 +97,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							Segments: []resolve.TemplateSegment{
 								{
 									SegmentType: resolve.StaticSegmentType,
-									Data: []byte(`{"method":"GET","url":"https://example.com/friend"}`),
+									Data:        []byte(`{"method":"GET","url":"https://example.com/friend"}`),
 								},
 							},
 						},
@@ -107,16 +121,16 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 												Segments: []resolve.TemplateSegment{
 													{
 														SegmentType: resolve.StaticSegmentType,
-														Data: []byte(`{"method":"GET","url":"https://example.com/friend/`),
+														Data:        []byte(`{"method":"GET","url":"https://example.com/friend/`),
 													},
 													{
-														SegmentType: resolve.VariableSegmentType,
-														VariableSource: resolve.VariableSourceObject,
+														SegmentType:        resolve.VariableSegmentType,
+														VariableSource:     resolve.VariableSourceObject,
 														VariableSourcePath: []string{"name"},
 													},
 													{
 														SegmentType: resolve.StaticSegmentType,
-														Data: []byte(`/pet"}`),
+														Data:        []byte(`/pet"}`),
 													},
 												},
 											},
@@ -135,7 +149,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 													{
 														Name: []byte("name"),
 														Value: &resolve.String{
-															Path: []string{"name"},
+															Path:     []string{"name"},
 															Nullable: true,
 														},
 													},
@@ -155,14 +169,14 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 																		{
 																			Name: []byte("id"),
 																			Value: &resolve.String{
-																				Path: []string{"id"},
+																				Path:     []string{"id"},
 																				Nullable: true,
 																			},
 																		},
 																		{
 																			Name: []byte("name"),
 																			Value: &resolve.String{
-																				Path: []string{"name"},
+																				Path:     []string{"name"},
 																				Nullable: true,
 																			},
 																		},
@@ -240,25 +254,25 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							Segments: []resolve.TemplateSegment{
 								{
 									SegmentType: resolve.StaticSegmentType,
-									Data: []byte(`{"method":"GET","url":"https://example.com/`),
+									Data:        []byte(`{"method":"GET","url":"https://example.com/`),
 								},
 								{
-									SegmentType: resolve.VariableSegmentType,
-									VariableSource: resolve.VariableSourceContext,
+									SegmentType:        resolve.VariableSegmentType,
+									VariableSource:     resolve.VariableSourceContext,
 									VariableSourcePath: []string{"idVariable"},
 								},
 								{
 									SegmentType: resolve.StaticSegmentType,
-									Data: []byte(`/`),
+									Data:        []byte(`/`),
 								},
 								{
-									SegmentType: resolve.VariableSegmentType,
-									VariableSource: resolve.VariableSourceContext,
+									SegmentType:        resolve.VariableSegmentType,
+									VariableSource:     resolve.VariableSourceContext,
 									VariableSourcePath: []string{"a"},
 								},
 								{
 									SegmentType: resolve.StaticSegmentType,
-									Data: []byte(`"}`),
+									Data:        []byte(`"}`),
 								},
 							},
 						},
@@ -289,7 +303,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 													{
 														Name: []byte("name"),
 														Value: &resolve.String{
-															Path: []string{"name"},
+															Path:     []string{"name"},
 															Nullable: true,
 														},
 													},
@@ -331,6 +345,113 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 			},
 		},
 	))
+	t.Run("pulling subscription get request with argument", datasourcetesting.RunTest(schema, argumentSubscription, "ArgumentQuery",
+		&plan.SubscriptionResponsePlan{
+			Subscription: resolve.GraphQLSubscription{
+				Trigger: resolve.GraphQLSubscriptionTrigger{
+					Input:    `{"interval":1000,"request_input":{"method":"GET","url":"https://example.com/$$0$$/$$1$$"},"skip_publish_same_response":true}`,
+					InputTemplate: resolve.InputTemplate{
+						Segments: []resolve.TemplateSegment{
+							{
+								SegmentType: resolve.StaticSegmentType,
+								Data:        []byte(`{"interval":1000,"request_input":{"method":"GET","url":"https://example.com/`),
+							},
+							{
+								SegmentType:        resolve.VariableSegmentType,
+								VariableSource:     resolve.VariableSourceContext,
+								VariableSourcePath: []string{"idVariable"},
+							},
+							{
+								SegmentType: resolve.StaticSegmentType,
+								Data:        []byte(`/`),
+							},
+							{
+								SegmentType:        resolve.VariableSegmentType,
+								VariableSource:     resolve.VariableSourceContext,
+								VariableSourcePath: []string{"a"},
+							},
+							{
+								SegmentType: resolve.StaticSegmentType,
+								Data:        []byte(`"},"skip_publish_same_response":true}`),
+							},
+						},
+					},
+					ManagerID: []byte("http_polling_stream"),
+					Variables: resolve.NewVariables(
+						&resolve.ContextVariable{
+							Path: []string{"idVariable"},
+						},
+						&resolve.ContextVariable{
+							Path: []string{"a"},
+						},
+					),
+				},
+				Response: &resolve.GraphQLResponse{
+					Data: &resolve.Object{
+						FieldSets: []resolve.FieldSet{
+							{
+								Fields: []resolve.Field{
+									{
+										Name: []byte("withArgument"),
+										Value: &resolve.Object{
+											Nullable: true,
+											FieldSets: []resolve.FieldSet{
+												{
+													Fields: []resolve.Field{
+														{
+															Name: []byte("name"),
+															Value: &resolve.String{
+																Path:     []string{"name"},
+																Nullable: true,
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		plan.Configuration{
+			DataSourceConfigurations: []plan.DataSourceConfiguration{
+				{
+					TypeName:   "Subscription",
+					FieldNames: []string{"withArgument"},
+					Attributes: []plan.DataSourceAttribute{
+						{
+							Key:   "path",
+							Value: []byte("https://example.com/{{ .arguments.id }}/{{ .arguments.name }}"),
+						},
+						{
+							Key:   "method",
+							Value: []byte("GET"),
+						},
+						{
+							Key: "polling_interval_millis",
+							Value: []byte("1000"),
+						},
+						{
+							Key: "skip_publish_same_response",
+							Value: []byte("true"),
+						},
+					},
+					DataSourcePlanner: &Planner{},
+				},
+			},
+			FieldMappings: []plan.FieldMapping{
+				{
+					TypeName:              "Subscription",
+					FieldName:             "withArgument",
+					DisableDefaultMapping: true,
+				},
+			},
+		},
+	))
 	t.Run("post request with body", datasourcetesting.RunTest(schema, simpleOperation, "",
 		&plan.SynchronousResponsePlan{
 			Response: resolve.GraphQLResponse{
@@ -342,7 +463,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							Segments: []resolve.TemplateSegment{
 								{
 									SegmentType: resolve.StaticSegmentType,
-									Data: []byte(`{"body":{"foo":"bar"},"method":"POST","url":"https://example.com/friend"}`),
+									Data:        []byte(`{"body":{"foo":"bar"},"method":"POST","url":"https://example.com/friend"}`),
 								},
 							},
 						},
@@ -366,7 +487,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 													{
 														Name: []byte("name"),
 														Value: &resolve.String{
-															Path: []string{"name"},
+															Path:     []string{"name"},
 															Nullable: true,
 														},
 													},
@@ -427,7 +548,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							Segments: []resolve.TemplateSegment{
 								{
 									SegmentType: resolve.StaticSegmentType,
-									Data: []byte(`{"headers":{"Authorization":"Bearer 123","X-API-Key":"456"},"method":"GET","url":"https://example.com/friend"}`),
+									Data:        []byte(`{"headers":{"Authorization":"Bearer 123","X-API-Key":"456"},"method":"GET","url":"https://example.com/friend"}`),
 								},
 							},
 						},
@@ -450,7 +571,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 													{
 														Name: []byte("name"),
 														Value: &resolve.String{
-															Path: []string{"name"},
+															Path:     []string{"name"},
 															Nullable: true,
 														},
 													},
@@ -511,25 +632,25 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							Segments: []resolve.TemplateSegment{
 								{
 									SegmentType: resolve.StaticSegmentType,
-									Data: []byte(`{"query_params":[{"name":"static","value":"staticValue"},{"name":"static","value":"secondStaticValue"},{"name":"name","value":"`),
+									Data:        []byte(`{"query_params":[{"name":"static","value":"staticValue"},{"name":"static","value":"secondStaticValue"},{"name":"name","value":"`),
 								},
 								{
-									SegmentType: resolve.VariableSegmentType,
-									VariableSource: resolve.VariableSourceContext,
+									SegmentType:        resolve.VariableSegmentType,
+									VariableSource:     resolve.VariableSourceContext,
 									VariableSourcePath: []string{"a"},
 								},
 								{
 									SegmentType: resolve.StaticSegmentType,
-									Data: []byte(`"},{"name":"id","value":"`),
+									Data:        []byte(`"},{"name":"id","value":"`),
 								},
 								{
-									SegmentType: resolve.VariableSegmentType,
-									VariableSource: resolve.VariableSourceContext,
+									SegmentType:        resolve.VariableSegmentType,
+									VariableSource:     resolve.VariableSourceContext,
 									VariableSourcePath: []string{"idVariable"},
 								},
 								{
 									SegmentType: resolve.StaticSegmentType,
-									Data: []byte(`"}],"method":"GET","url":"https://example.com/friend"}`),
+									Data:        []byte(`"}],"method":"GET","url":"https://example.com/friend"}`),
 								},
 							},
 						},
@@ -560,7 +681,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 													{
 														Name: []byte("name"),
 														Value: &resolve.String{
-															Path: []string{"name"},
+															Path:     []string{"name"},
 															Nullable: true,
 														},
 													},
@@ -642,16 +763,16 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							Segments: []resolve.TemplateSegment{
 								{
 									SegmentType: resolve.StaticSegmentType,
-									Data: []byte(`{"query_params":[{"name":"names","value":`),
+									Data:        []byte(`{"query_params":[{"name":"names","value":`),
 								},
 								{
-									SegmentType: resolve.VariableSegmentType,
-									VariableSource: resolve.VariableSourceContext,
+									SegmentType:        resolve.VariableSegmentType,
+									VariableSource:     resolve.VariableSourceContext,
 									VariableSourcePath: []string{"a"},
 								},
 								{
 									SegmentType: resolve.StaticSegmentType,
-									Data: []byte(`}],"method":"GET","url":"https://example.com/friend"}`),
+									Data:        []byte(`}],"method":"GET","url":"https://example.com/friend"}`),
 								},
 							},
 						},
@@ -679,7 +800,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 													{
 														Name: []byte("name"),
 														Value: &resolve.String{
-															Path: []string{"name"},
+															Path:     []string{"name"},
 															Nullable: true,
 														},
 													},

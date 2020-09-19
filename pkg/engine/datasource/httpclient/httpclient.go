@@ -22,6 +22,9 @@ const (
 	BODY        = "body"
 	HEADERS     = "headers"
 	QUERYPARAMS = "query_params"
+
+	SCHEME = "scheme"
+	HOST = "host"
 )
 
 var (
@@ -31,6 +34,13 @@ var (
 		{BODY},
 		{HEADERS},
 		{QUERYPARAMS},
+	}
+	subscriptionInputPaths = [][]string{
+		{SCHEME},
+		{HOST},
+		{BODY},
+		{HEADERS},
+		{PATH},
 	}
 )
 
@@ -119,6 +129,30 @@ func SetInputQueryParams(input, queryParams []byte) []byte {
 	return out
 }
 
+func SetInputScheme(input, scheme []byte) []byte {
+	if len(scheme) == 0 {
+		return input
+	}
+	out, _ := sjson.SetRawBytes(input, SCHEME, wrapQuotesIfString(scheme))
+	return out
+}
+
+func SetInputHost(input, host []byte) []byte {
+	if len(host) == 0 {
+		return input
+	}
+	out, _ := sjson.SetRawBytes(input, HOST, wrapQuotesIfString(host))
+	return out
+}
+
+func SetInputPath(input, path []byte) []byte {
+	if len(path) == 0 {
+		return input
+	}
+	out, _ := sjson.SetRawBytes(input, PATH, wrapQuotesIfString(path))
+	return out
+}
+
 func requestInputParams(input []byte) (url, method, body, headers, queryParams []byte) {
 	jsonparser.EachKey(input, func(i int, bytes []byte, valueType jsonparser.ValueType, err error) {
 		switch i {
@@ -134,5 +168,23 @@ func requestInputParams(input []byte) (url, method, body, headers, queryParams [
 			queryParams = bytes
 		}
 	}, inputPaths...)
+	return
+}
+
+func GetSubscriptionInput (input []byte) (scheme, host,path, body, headers []byte) {
+	jsonparser.EachKey(input, func(i int, bytes []byte, valueType jsonparser.ValueType, err error) {
+		switch i {
+		case 0:
+			scheme = bytes
+		case 1:
+			host = bytes
+		case 2:
+			body = bytes
+		case 3:
+			headers = bytes
+		case 4:
+			path = bytes
+		}
+	}, subscriptionInputPaths...)
 	return
 }
