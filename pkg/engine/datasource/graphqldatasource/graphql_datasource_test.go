@@ -1265,7 +1265,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 			remainingJedis
 		}
 	`, "RemainingJedis", &plan.SubscriptionResponsePlan{
-		Subscription: resolve.GraphQLSubscription{
+		Response: resolve.GraphQLSubscription{
 			Trigger:  resolve.GraphQLSubscriptionTrigger{
 				ManagerID:     []byte("graphql_websocket_subscription"),
 				Input:         `{"scheme":"wss","host":"swapi.com","path":"/graphql","body":{"query":"subscription{remainingJedis}"}}`,

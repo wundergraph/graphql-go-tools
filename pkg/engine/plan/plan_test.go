@@ -188,7 +188,7 @@ func TestPlanner_Plan(t *testing.T) {
 			remainingJedis
 		}
 	`, "RemainingJedis", &SubscriptionResponsePlan{
-		Subscription: resolve.GraphQLSubscription{
+		Response: resolve.GraphQLSubscription{
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					FieldSets: []resolve.FieldSet{
