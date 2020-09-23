@@ -45,7 +45,6 @@ func (p *ProcessDefer) traverseNode(node resolve.Node) {
 		p.objects = append(p.objects, n)
 		for i := range n.FieldSets {
 			for j := range n.FieldSets[i].Fields {
-				p.traverseNode(n.FieldSets[i].Fields[j].Value)
 				if n.FieldSets[i].Fields[j].Defer {
 					p.updated = true
 					patchIndex, ok := p.createPatch(n, i, j)
@@ -58,6 +57,9 @@ func (p *ProcessDefer) traverseNode(node resolve.Node) {
 							PatchIndex: patchIndex,
 						},
 					}
+					p.traverseNode(p.streamingResponsePlan.Response.Patches[patchIndex].Value)
+				} else {
+					p.traverseNode(n.FieldSets[i].Fields[j].Value)
 				}
 			}
 		}
