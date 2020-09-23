@@ -87,6 +87,7 @@ func NewContext(ctx context.Context) *Context {
 }
 
 func (c *Context) Free() {
+	c.Context = nil
 	c.Variables = c.Variables[:0]
 	c.pathElements = c.pathElements[:0]
 	c.patches = c.patches[:0]
