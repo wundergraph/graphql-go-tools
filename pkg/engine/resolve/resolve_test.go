@@ -75,7 +75,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 				Data:   fastbuffer.New(),
 				Errors: fastbuffer.New(),
 			}
-			err := r.resolveNode(ctx, node, nil, buf)
+			err := r.resolveNode(&ctx, node, nil, buf)
 			assert.Equal(t, buf.Errors.String(), "", "want error buf to be empty")
 			assert.NoError(t, err)
 			assert.Equal(t, expectedOutput, buf.Data.String())
@@ -588,7 +588,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 		node, ctx, expectedOutput := fn(t, r, ctrl)
 		return func(t *testing.T) {
 			buf := &bytes.Buffer{}
-			err := r.ResolveGraphQLResponse(ctx, node, nil, buf)
+			err := r.ResolveGraphQLResponse(&ctx, node, nil, buf)
 			assert.NoError(t, err)
 			assert.Equal(t, expectedOutput, buf.String())
 			ctrl.Finish()
@@ -1262,7 +1262,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	out := &TestFlushWriter{
 		buf:         bytes.Buffer{},
 	}
-	err := resolver.ResolveGraphQLSubscription(ctx, plan, out)
+	err := resolver.ResolveGraphQLSubscription(&ctx, plan, out)
 	assert.NoError(t, err)
 	assert.Equal(t, 3, len(out.flushed))
 	assert.Equal(t, `{"data":{"counter":0}}`, out.flushed[0])
@@ -1277,8 +1277,6 @@ func BenchmarkResolver_ResolveNode(b *testing.B) {
 	serviceOneDS := FakeDataSource(`{"serviceOne":{"fieldOne":"fieldOneValue"},"anotherServiceOne":{"fieldOne":"anotherFieldOneValue"},"reusingServiceOne":{"fieldOne":"reUsingFieldOneValue"}}`)
 	serviceTwoDS := FakeDataSource(`{"serviceTwo":{"fieldTwo":"fieldTwoValue"},"secondServiceTwo":{"fieldTwo":"secondFieldTwoValue"}}`)
 	nestedServiceOneDS := FakeDataSource(`{"serviceOne":{"fieldOne":"fieldOneValue"}}`)
-
-	ctx := Context{Context: context.Background(), Variables: []byte(`{"firstArg":"firstArgValue","thirdArg":123,"secondArg": true, "fourthArg": 12.34}`)}
 
 	plan := &GraphQLResponse{
 		Data: &Object{
@@ -1536,6 +1534,14 @@ func BenchmarkResolver_ResolveNode(b *testing.B) {
 		},
 	}
 
+	variables := []byte(`{"firstArg":"firstArgValue","thirdArg":123,"secondArg": true, "fourthArg": 12.34}`)
+
+	ctxPool := sync.Pool{
+		New: func () interface{}{
+			return NewContext(context.Background())
+		},
+	}
+
 	runBench := func(b *testing.B) {
 		b.ReportAllocs()
 		b.SetBytes(int64(len(expected)))
@@ -1544,6 +1550,8 @@ func BenchmarkResolver_ResolveNode(b *testing.B) {
 		b.RunParallel(func(pb *testing.PB) {
 			for pb.Next() {
 				//_ = resolver.ResolveGraphQLResponse(ctx, plan, nil, ioutil.Discard)
+				ctx := ctxPool.Get().(*Context)
+				ctx.Variables = variables
 				buf := pool.Get().(*bytes.Buffer)
 				err = resolver.ResolveGraphQLResponse(ctx, plan, nil, buf)
 				if err != nil {
@@ -1552,8 +1560,12 @@ func BenchmarkResolver_ResolveNode(b *testing.B) {
 				if !bytes.Equal(expected, buf.Bytes()) {
 					b.Fatalf("want:\n%s\ngot:\n%s\n", string(expected), buf.String())
 				}
+
 				buf.Reset()
 				pool.Put(buf)
+
+				ctx.Free()
+				ctxPool.Put(ctx)
 			}
 		})
 	}
@@ -1565,7 +1577,7 @@ func BenchmarkResolver_ResolveNode(b *testing.B) {
 		resolver.EnableSingleFlightLoader = true
 		runBench(b)
 	})
-	b.Run("singleflight disabled (latency 0)", func(b *testing.B) {
+/*	b.Run("singleflight disabled (latency 0)", func(b *testing.B) {
 		serviceOneDS.artificialLatency = 0
 		serviceTwoDS.artificialLatency = 0
 		nestedServiceOneDS.artificialLatency = 0
@@ -1585,5 +1597,5 @@ func BenchmarkResolver_ResolveNode(b *testing.B) {
 		nestedServiceOneDS.artificialLatency = 0
 		resolver.EnableSingleFlightLoader = false
 		runBench(b)
-	})
+	})*/
 }

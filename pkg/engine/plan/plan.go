@@ -48,9 +48,7 @@ func (_ *SynchronousResponsePlan) PlanKind() Kind {
 }
 
 type StreamingResponsePlan struct {
-	InitialResponse resolve.GraphQLResponse
-	Deferreables    []resolve.GraphQLResponse
-	Streamables     []resolve.GraphQLResponse
+	Response resolve.GraphQLStreamingResponse
 }
 
 func (_ *StreamingResponsePlan) PlanKind() Kind {
@@ -58,7 +56,7 @@ func (_ *StreamingResponsePlan) PlanKind() Kind {
 }
 
 type SubscriptionResponsePlan struct {
-	Subscription resolve.GraphQLSubscription
+	Response resolve.GraphQLSubscription
 }
 
 func (_ *SubscriptionResponsePlan) PlanKind() Kind {
@@ -495,14 +493,14 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 			}
 		case ast.OperationTypeSubscription:
 			plan := &SubscriptionResponsePlan{
-				Subscription: resolve.GraphQLSubscription{
+				Response: resolve.GraphQLSubscription{
 					Response: &resolve.GraphQLResponse{
 						Data: v.currentObject,
 					},
 				},
 			}
 			v.plan = plan
-			v.subscription = &plan.Subscription
+			v.subscription = &plan.Response
 		}
 	} else {
 		v.SkipNode()

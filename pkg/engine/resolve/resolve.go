@@ -16,8 +16,11 @@ import (
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash"
 
+	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/subscription"
 	"github.com/jensneuse/graphql-go-tools/pkg/fastbuffer"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
+	"github.com/jensneuse/graphql-go-tools/pkg/pool"
 )
 
 var (
@@ -63,7 +66,80 @@ const (
 
 type Context struct {
 	context.Context
-	Variables []byte
+	Variables    []byte
+	pathElements [][]byte
+	patches      []patch
+	usedBuffers  []*bytes.Buffer
+	currentPatch int
+	maxPatch     int
+}
+
+func NewContext(ctx context.Context) *Context {
+	return &Context{
+		Context:      ctx,
+		Variables:    make([]byte, 0, 4096),
+		pathElements: make([][]byte, 0, 16),
+		patches:      make([]patch, 0, 48),
+		usedBuffers:  make([]*bytes.Buffer, 0, 48),
+		currentPatch: -1,
+		maxPatch:     -1,
+	}
+}
+
+func (c *Context) Free() {
+	c.Variables = c.Variables[:0]
+	c.pathElements = c.pathElements[:0]
+	c.patches = c.patches[:0]
+	for i := range c.usedBuffers {
+		pool.BytesBuffer.Put(c.usedBuffers[i])
+	}
+	c.usedBuffers = c.usedBuffers[:0]
+	c.currentPatch = -1
+	c.maxPatch = -1
+}
+
+func (c *Context) addPathElement(elem []byte) {
+	c.pathElements = append(c.pathElements, elem)
+}
+
+func (c *Context) addIntegerPathElement(elem int) {
+	b := unsafebytes.StringToBytes(strconv.Itoa(elem))
+	c.pathElements = append(c.pathElements, b)
+}
+
+func (c *Context) removeLastPathElement() {
+	c.pathElements = c.pathElements[:len(c.pathElements)-1]
+}
+
+func (c *Context) path() []byte {
+	buf := pool.BytesBuffer.Get()
+	c.usedBuffers = append(c.usedBuffers, buf)
+	buf.Write(literal.SLASH)
+	buf.Write(literal.DATA)
+	for i := range c.pathElements {
+		_, _ = buf.Write(literal.SLASH)
+		_, _ = buf.Write(c.pathElements[i])
+	}
+	return buf.Bytes()
+}
+
+func (c *Context) addPatch(index int, path, data []byte) {
+	next := patch{path: path, data: data, index: index}
+	c.patches = append(c.patches, next)
+	c.maxPatch++
+}
+
+func (c *Context) popNextPatch() (patch patch, ok bool) {
+	c.currentPatch++
+	if c.currentPatch > c.maxPatch {
+		return patch, false
+	}
+	return c.patches[c.currentPatch], true
+}
+
+type patch struct {
+	path, data []byte
+	index      int
 }
 
 type Fetch interface {
@@ -239,13 +315,16 @@ func (r *Resolver) resolveObjectFieldSafe(err error, writer io.Writer, fieldName
 	return err
 }
 
-func (r *Resolver) resolveNode(ctx Context, node Node, data []byte, bufPair *BufPair) (err error) {
+func (r *Resolver) resolveNode(ctx *Context, node Node, data []byte, bufPair *BufPair) (err error) {
 	switch n := node.(type) {
 	case *Object:
 		return r.resolveObject(ctx, n, data, bufPair)
 	case *Array:
 		return r.resolveArray(ctx, n, data, bufPair)
 	case *Null:
+		if n.Defer.Enabled {
+			r.prepareDefer(ctx, n.Defer.PatchIndex, data)
+		}
 		r.resolveNull(bufPair.Data)
 		return
 	case *String:
@@ -267,7 +346,14 @@ func (r *Resolver) resolveNode(ctx Context, node Node, data []byte, bufPair *Buf
 	}
 }
 
-func (r *Resolver) ResolveGraphQLResponse(ctx Context, response *GraphQLResponse, data []byte, writer io.Writer) (err error) {
+func (r *Resolver) validateContext(ctx *Context) (err error){
+	if ctx.maxPatch != -1 || ctx.currentPatch != -1 {
+		return fmt.Errorf("Context must be resetted using Free() before re-using it")
+	}
+	return nil
+}
+
+func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, data []byte, writer io.Writer) (err error) {
 
 	buf := r.getBufPair()
 	defer r.freeBufPair(buf)
@@ -308,7 +394,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx Context, response *GraphQLResponse
 	return
 }
 
-func (r *Resolver) ResolveGraphQLSubscription(ctx Context, subscription *GraphQLSubscription, writer FlushWriter) (err error) {
+func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQLSubscription, writer FlushWriter) (err error) {
 	hash64 := r.getHash64()
 	_, _ = hash64.Write(subscription.Trigger.ManagerID)
 	managerID := hash64.Sum64()
@@ -345,6 +431,106 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx Context, subscription *GraphQL
 	}
 }
 
+func (r *Resolver) ResolveGraphQLStreamingResponse(ctx *Context, response *GraphQLStreamingResponse, data []byte, writer FlushWriter) (err error) {
+
+	if err := r.validateContext(ctx);err != nil {
+		return err
+	}
+
+	err = r.ResolveGraphQLResponse(ctx, response.InitialResponse, data, writer)
+	if err != nil {
+		return err
+	}
+	writer.Flush()
+
+	for {
+		patch, ok := ctx.popNextPatch()
+		if !ok {
+			break
+		}
+
+		if patch.index > len(response.Patches)-1 {
+			continue
+		}
+
+		preparedPatch := response.Patches[patch.index]
+		err = r.ResolveGraphQLResponsePatch(ctx, preparedPatch, patch.data, patch.path, writer)
+		if err != nil {
+			return err
+		}
+		writer.Flush()
+	}
+
+	return
+}
+
+func (r *Resolver) ResolveGraphQLResponsePatch(ctx *Context, patch *GraphQLResponsePatch, data, path []byte, writer io.Writer) (err error) {
+
+	buf := r.getBufPair()
+	defer r.freeBufPair(buf)
+
+	if patch.Fetch != nil {
+		set := r.getResultSet()
+		defer r.freeResultSet(set)
+		err = r.resolveFetch(ctx, patch.Fetch, data, set)
+		if err != nil {
+			return err
+		}
+		_, ok := set.buffers[0]
+		if ok {
+			r.MergeBufPairErrors(set.buffers[0], buf)
+			data = set.buffers[0].Data.Bytes()
+		}
+	}
+
+	err = r.resolveNode(ctx, patch.Value, data, buf)
+	if err != nil {
+		return
+	}
+
+	hasErrors := buf.Errors.Len() != 0
+	hasData := buf.Data.Len() != 0
+
+	err = r.writeSafe(err, writer, lBrack)
+
+	if hasErrors {
+		return
+	}
+
+	if hasData {
+		if hasErrors {
+			err = r.writeSafe(err, writer, comma)
+		}
+		err = r.writeSafe(err, writer, lBrace)
+		err = r.writeSafe(err, writer, quote)
+		err = r.writeSafe(err, writer, literal.OP)
+		err = r.writeSafe(err, writer, quote)
+		err = r.writeSafe(err, writer, colon)
+		err = r.writeSafe(err, writer, quote)
+		err = r.writeSafe(err, writer, literal.REPLACE)
+		err = r.writeSafe(err, writer, quote)
+		err = r.writeSafe(err, writer, comma)
+		err = r.writeSafe(err, writer, quote)
+		err = r.writeSafe(err, writer, literal.PATH)
+		err = r.writeSafe(err, writer, quote)
+		err = r.writeSafe(err, writer, colon)
+		err = r.writeSafe(err, writer, quote)
+		err = r.writeSafe(err, writer, path)
+		err = r.writeSafe(err, writer, quote)
+		err = r.writeSafe(err, writer, comma)
+		err = r.writeSafe(err, writer, quote)
+		err = r.writeSafe(err, writer, literal.VALUE)
+		err = r.writeSafe(err, writer, quote)
+		err = r.writeSafe(err, writer, colon)
+		_, err = writer.Write(buf.Data.Bytes())
+		err = r.writeSafe(err, writer, rBrace)
+	}
+
+	err = r.writeSafe(err, writer, rBrack)
+
+	return
+}
+
 func (r *Resolver) resolveEmptyArray(b *fastbuffer.FastBuffer) {
 	b.WriteBytes(lBrack)
 	b.WriteBytes(rBrack)
@@ -355,7 +541,7 @@ func (r *Resolver) resolveEmptyObject(b *fastbuffer.FastBuffer) {
 	b.WriteBytes(rBrace)
 }
 
-func (r *Resolver) resolveArray(ctx Context, array *Array, data []byte, arrayBuf *BufPair) (err error) {
+func (r *Resolver) resolveArray(ctx *Context, array *Array, data []byte, arrayBuf *BufPair) (err error) {
 
 	arrayItems := r.byteSlicesPool.Get().(*[][]byte)
 	defer func() {
@@ -382,7 +568,7 @@ func (r *Resolver) resolveArray(ctx Context, array *Array, data []byte, arrayBuf
 	return r.resolveArraySynchronous(ctx, array, arrayItems, arrayBuf)
 }
 
-func (r *Resolver) resolveArraySynchronous(ctx Context, array *Array, arrayItems *[][]byte, arrayBuf *BufPair) (err error) {
+func (r *Resolver) resolveArraySynchronous(ctx *Context, array *Array, arrayItems *[][]byte, arrayBuf *BufPair) (err error) {
 
 	itemBuf := r.getBufPair()
 	defer r.freeBufPair(itemBuf)
@@ -393,7 +579,9 @@ func (r *Resolver) resolveArraySynchronous(ctx Context, array *Array, arrayItems
 		dataWritten     int
 	)
 	for i := range *arrayItems {
+		ctx.addIntegerPathElement(i)
 		err = r.resolveNode(ctx, array.Item, (*arrayItems)[i], itemBuf)
+		ctx.removeLastPathElement()
 		if err != nil {
 			if errors.Is(err, errNonNullableFieldValueIsNull) && array.Nullable {
 				arrayBuf.Data.Reset()
@@ -417,7 +605,7 @@ func (r *Resolver) resolveArraySynchronous(ctx Context, array *Array, arrayItems
 	return
 }
 
-func (r *Resolver) resolveArrayAsynchronous(ctx Context, array *Array, arrayItems *[][]byte, arrayBuf *BufPair) (err error) {
+func (r *Resolver) resolveArrayAsynchronous(ctx *Context, array *Array, arrayItems *[][]byte, arrayBuf *BufPair) (err error) {
 
 	arrayBuf.Data.WriteBytes(lBrack)
 
@@ -436,15 +624,16 @@ func (r *Resolver) resolveArrayAsynchronous(ctx Context, array *Array, arrayItem
 		itemBuf := r.getBufPair()
 		*bufSlice = append(*bufSlice, itemBuf)
 		itemData := (*arrayItems)[i]
-		go func() {
-			if e := r.resolveNode(ctx, array.Item, itemData, itemBuf); e != nil && !errors.Is(e, errTypeNameSkipped) {
+		go func(ctx Context, i int) {
+			ctx.addPathElement([]byte(strconv.Itoa(i)))
+			if e := r.resolveNode(&ctx, array.Item, itemData, itemBuf); e != nil && !errors.Is(e, errTypeNameSkipped) {
 				select {
 				case errCh <- e:
 				default:
 				}
 			}
 			wg.Done()
-		}()
+		}(*ctx, i)
 	}
 
 	wg.Wait()
@@ -554,11 +743,19 @@ func (r *Resolver) resolveString(str *String, data []byte, stringBuf *BufPair) e
 	return nil
 }
 
+func (r *Resolver) prepareDefer(ctx *Context, patchIndex int, data []byte) {
+	buf := pool.BytesBuffer.Get()
+	ctx.usedBuffers = append(ctx.usedBuffers, buf)
+	_, _ = buf.Write(data)
+	path, data := ctx.path(), buf.Bytes()
+	ctx.addPatch(patchIndex, path, data)
+}
+
 func (r *Resolver) resolveNull(b *fastbuffer.FastBuffer) {
 	b.WriteBytes(null)
 }
 
-func (r *Resolver) resolveObject(ctx Context, object *Object, data []byte, objectBuf *BufPair) (err error) {
+func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, objectBuf *BufPair) (err error) {
 
 	if len(object.Path) != 0 {
 		data, _, _, _ = jsonparser.Get(data, object.Path...)
@@ -566,7 +763,7 @@ func (r *Resolver) resolveObject(ctx Context, object *Object, data []byte, objec
 
 	var set *resultSet
 	if object.Fetch != nil {
-		set = r.resultSetPool.Get().(*resultSet)
+		set = r.getResultSet()
 		defer r.freeResultSet(set)
 		err = r.resolveFetch(ctx, object.Fetch, data, set)
 		if err != nil {
@@ -612,7 +809,9 @@ func (r *Resolver) resolveObject(ctx Context, object *Object, data []byte, objec
 			objectBuf.Data.WriteBytes(object.FieldSets[i].Fields[j].Name)
 			objectBuf.Data.WriteBytes(quote)
 			objectBuf.Data.WriteBytes(colon)
+			ctx.addPathElement(object.FieldSets[i].Fields[j].Name)
 			err = r.resolveNode(ctx, object.FieldSets[i].Fields[j].Value, fieldSetData, fieldBuf)
+			ctx.removeLastPathElement()
 			if err != nil {
 				if errors.Is(err, errNonNullableFieldValueIsNull) && object.Nullable {
 					objectBuf.Data.Reset()
@@ -647,7 +846,7 @@ func (r *Resolver) freeResultSet(set *resultSet) {
 	r.resultSetPool.Put(set)
 }
 
-func (r *Resolver) resolveFetch(ctx Context, fetch Fetch, data []byte, set *resultSet) (err error) {
+func (r *Resolver) resolveFetch(ctx *Context, fetch Fetch, data []byte, set *resultSet) (err error) {
 	switch f := fetch.(type) {
 	case *SingleFetch:
 		preparedInput := r.getBufPair()
@@ -685,14 +884,14 @@ func (r *Resolver) resolveFetch(ctx Context, fetch Fetch, data []byte, set *resu
 	return
 }
 
-func (r *Resolver) prepareSingleFetch(ctx Context, fetch *SingleFetch, data []byte, set *resultSet, preparedInput *fastbuffer.FastBuffer) (err error) {
+func (r *Resolver) prepareSingleFetch(ctx *Context, fetch *SingleFetch, data []byte, set *resultSet, preparedInput *fastbuffer.FastBuffer) (err error) {
 	err = fetch.InputTemplate.Render(ctx, data, preparedInput)
 	buf := r.getBufPair()
 	set.buffers[fetch.BufferId] = buf
 	return
 }
 
-func (r *Resolver) resolveSingleFetch(ctx Context, fetch *SingleFetch, preparedInput *fastbuffer.FastBuffer, buf *BufPair) (err error) {
+func (r *Resolver) resolveSingleFetch(ctx *Context, fetch *SingleFetch, preparedInput *fastbuffer.FastBuffer, buf *BufPair) (err error) {
 
 	if !r.EnableSingleFlightLoader || fetch.DisallowSingleFlight {
 		return fetch.DataSource.Load(ctx.Context, preparedInput.Bytes(), buf)
@@ -787,6 +986,12 @@ type Field struct {
 }
 
 type Null struct {
+	Defer Defer
+}
+
+type Defer struct {
+	Enabled    bool
+	PatchIndex int
 }
 
 func (_ *Null) NodeKind() NodeKind {
@@ -814,7 +1019,7 @@ type InputTemplate struct {
 	Segments []TemplateSegment
 }
 
-func (i *InputTemplate) Render(ctx Context, data []byte, preparedInput *fastbuffer.FastBuffer) (err error) {
+func (i *InputTemplate) Render(ctx *Context, data []byte, preparedInput *fastbuffer.FastBuffer) (err error) {
 	var (
 		variableSource []byte
 	)
@@ -1037,6 +1242,16 @@ type GraphQLResponse struct {
 	Data Node
 }
 
+type GraphQLStreamingResponse struct {
+	InitialResponse *GraphQLResponse
+	Patches         []*GraphQLResponsePatch
+}
+
+type GraphQLResponsePatch struct {
+	Value Node
+	Fetch Fetch
+}
+
 type BufPair struct {
 	Data   *fastbuffer.FastBuffer
 	Errors *fastbuffer.FastBuffer
@@ -1128,6 +1343,10 @@ func (r *Resolver) freeBufPair(pair *BufPair) {
 	pair.Data.Reset()
 	pair.Errors.Reset()
 	r.bufPairPool.Put(pair)
+}
+
+func (r *Resolver) getResultSet() *resultSet {
+	return r.resultSetPool.Get().(*resultSet)
 }
 
 func (r *Resolver) getBufPair() *BufPair {
