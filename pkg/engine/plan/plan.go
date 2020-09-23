@@ -131,6 +131,7 @@ func NewPlanner(definition *ast.Document, config Configuration) *Planner {
 	walker.RegisterSelectionSetVisitor(visitor)
 	walker.RegisterEnterFieldVisitor(visitor)
 	walker.RegisterEnterArgumentVisitor(visitor)
+	walker.RegisterEnterDirectiveVisitor(visitor)
 
 	registered := make([]DataSourcePlanner, 0, len(config.DataSourceConfigurations))
 
@@ -345,6 +346,17 @@ func (v *Visitor) LeaveDocument(_, _ *ast.Document) {
 		return
 	}
 	v.prepareSingleFetchVariables(&v.subscription.Trigger.Input, &v.subscription.Trigger.InputTemplate, &v.subscription.Trigger.Variables, v.subscriptionDataSourceConfiguration)
+}
+
+func (v *Visitor) EnterDirective(ref int) {
+	directiveName := v.Operation.DirectiveNameString(ref)
+	switch directiveName {
+	case "defer":
+		if v.currentFields == nil || len(*v.currentFields) == 0 {
+			return
+		}
+		(*v.currentFields)[len(*v.currentFields)-1].Defer = true
+	}
 }
 
 var (

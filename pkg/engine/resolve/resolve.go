@@ -346,7 +346,7 @@ func (r *Resolver) resolveNode(ctx *Context, node Node, data []byte, bufPair *Bu
 	}
 }
 
-func (r *Resolver) validateContext(ctx *Context) (err error){
+func (r *Resolver) validateContext(ctx *Context) (err error) {
 	if ctx.maxPatch != -1 || ctx.currentPatch != -1 {
 		return fmt.Errorf("Context must be resetted using Free() before re-using it")
 	}
@@ -433,7 +433,7 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 
 func (r *Resolver) ResolveGraphQLStreamingResponse(ctx *Context, response *GraphQLStreamingResponse, data []byte, writer FlushWriter) (err error) {
 
-	if err := r.validateContext(ctx);err != nil {
+	if err := r.validateContext(ctx); err != nil {
 		return err
 	}
 
@@ -982,6 +982,7 @@ type FieldSet struct {
 
 type Field struct {
 	Name  []byte
+	Defer bool
 	Value Node
 }
 

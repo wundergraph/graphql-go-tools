@@ -45,7 +45,7 @@ func TestPlanner_Plan(t *testing.T) {
 					name
 				}
 				primaryFunction
-				favoriteEpisode
+				favoriteEpisode @defer
 			}
 		}
 	`, "MyQuery", &SynchronousResponsePlan{
@@ -103,6 +103,7 @@ func TestPlanner_Plan(t *testing.T) {
 												},
 												{
 													Name: []byte("favoriteEpisode"),
+													Defer: true,
 													Value: &resolve.String{
 														Nullable: true,
 														Path: []string{"favoriteEpisode"},
@@ -218,6 +219,9 @@ func TestPlanner_Plan(t *testing.T) {
 }
 
 const testDefinition = `
+
+directive @defer on FIELD
+
 union SearchResult = Human | Droid | Starship
 
 schema {
