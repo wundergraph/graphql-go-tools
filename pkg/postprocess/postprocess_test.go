@@ -69,6 +69,10 @@ func TestDefaultProcessor_Process(t *testing.T) {
 														Name:  []byte("posts"),
 														Defer: true,
 														Value: &resolve.Array{
+															Stream: resolve.Stream{
+																Enabled:          true,
+																InitialBatchSize: 0,
+															},
 															Item: &resolve.Object{
 																FieldSets: []resolve.FieldSet{
 																	{
@@ -80,7 +84,8 @@ func TestDefaultProcessor_Process(t *testing.T) {
 																				},
 																			},
 																			{
-																				Name: []byte("body"),
+																				Name:  []byte("body"),
+																				Defer: true,
 																				Value: &resolve.String{
 																					Path: []string{"body"},
 																				},
@@ -177,20 +182,38 @@ func TestDefaultProcessor_Process(t *testing.T) {
 						},
 					},
 					Value: &resolve.Array{
-						Item: &resolve.Object{
-							FieldSets: []resolve.FieldSet{
-								{
-									Fields: []resolve.Field{
-										{
-											Name: []byte("title"),
-											Value: &resolve.String{
-												Path: []string{"title"},
-											},
+						Stream: resolve.Stream{
+							Enabled:          true,
+							InitialBatchSize: 0,
+							PatchIndex:       2,
+						},
+					},
+				},
+				{
+					Value: &resolve.String{
+						Path: []string{"body"},
+					},
+					Operation: literal.REPLACE,
+				},
+				{
+					Operation: literal.ADD,
+					Value: &resolve.Object{
+						FieldSets: []resolve.FieldSet{
+							{
+								Fields: []resolve.Field{
+									{
+										Name: []byte("title"),
+										Value: &resolve.String{
+											Path: []string{"title"},
 										},
-										{
-											Name: []byte("body"),
-											Value: &resolve.String{
-												Path: []string{"body"},
+									},
+									{
+										Name: []byte("body"),
+										Defer: true,
+										Value: &resolve.Null{
+											Defer: resolve.Defer{
+												Enabled:    true,
+												PatchIndex: 1,
 											},
 										},
 									},

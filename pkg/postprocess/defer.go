@@ -7,34 +7,45 @@ import (
 )
 
 type ProcessDefer struct {
-	objects               []*resolve.Object
-	streamingResponsePlan *plan.StreamingResponsePlan
-	updated               bool
+	objects []*resolve.Object
+	out     *plan.StreamingResponsePlan
+	updated bool
 }
 
 func (p *ProcessDefer) Process(pre plan.Plan) plan.Plan {
 
-	p.streamingResponsePlan = nil
+	p.out = nil
 	p.updated = false
 	p.objects = p.objects[:0]
 
-	switch typed := pre.(type) {
+	switch in := pre.(type) {
 	case *plan.SynchronousResponsePlan:
-		return p.synchronousResponse(typed)
+		return p.synchronousResponse(in)
+	case *plan.StreamingResponsePlan:
+		return p.processStreamingResponsePlan(in)
 	default:
 		return pre
 	}
 }
 
+func (p *ProcessDefer) processStreamingResponsePlan(in *plan.StreamingResponsePlan) plan.Plan {
+	p.out = in
+	for i := range p.out.Response.Patches {
+		p.traverseNode(p.out.Response.Patches[i].Value)
+	}
+	p.traverseNode(p.out.Response.InitialResponse.Data)
+	return p.out
+}
+
 func (p *ProcessDefer) synchronousResponse(pre *plan.SynchronousResponsePlan) plan.Plan {
-	p.streamingResponsePlan = &plan.StreamingResponsePlan{
+	p.out = &plan.StreamingResponsePlan{
 		Response: resolve.GraphQLStreamingResponse{
 			InitialResponse: &pre.Response,
 		},
 	}
-	p.traverseNode(p.streamingResponsePlan.Response.InitialResponse.Data)
+	p.traverseNode(p.out.Response.InitialResponse.Data)
 	if p.updated {
-		return p.streamingResponsePlan
+		return p.out
 	}
 	return pre
 }
@@ -58,7 +69,7 @@ func (p *ProcessDefer) traverseNode(node resolve.Node) {
 							PatchIndex: patchIndex,
 						},
 					}
-					p.traverseNode(p.streamingResponsePlan.Response.Patches[patchIndex].Value)
+					p.traverseNode(p.out.Response.Patches[patchIndex].Value)
 				} else {
 					p.traverseNode(n.FieldSets[i].Fields[j].Value)
 				}
@@ -87,12 +98,12 @@ func (p *ProcessDefer) createPatch(object *resolve.Object, fieldSet, field int) 
 		object.FieldSets[fieldSet].BufferID = 0
 	} else {
 		patch = &resolve.GraphQLResponsePatch{
-			Value: oldValue,
+			Value:     oldValue,
 			Operation: literal.REPLACE,
 		}
 	}
-	p.streamingResponsePlan.Response.Patches = append(p.streamingResponsePlan.Response.Patches, patch)
-	patchIndex := len(p.streamingResponsePlan.Response.Patches) - 1
+	p.out.Response.Patches = append(p.out.Response.Patches, patch)
+	patchIndex := len(p.out.Response.Patches) - 1
 	return patchIndex, true
 }
 
