@@ -41,7 +41,10 @@ func TestPlanner_Plan(t *testing.T) {
 			droid(id: $id){
 				name
 				aliased: name
-				friends {
+				friends @stream {
+					name
+				}
+				friendsWithInitialBatch: friends @stream(initialBatchSize: 5) {
 					name
 				}
 				primaryFunction
@@ -76,6 +79,36 @@ func TestPlanner_Plan(t *testing.T) {
 												{
 													Name: []byte("friends"),
 													Value: &resolve.Array{
+														Stream: resolve.Stream{
+															Enabled: true,
+															InitialBatchSize: 0,
+														},
+														Nullable: true,
+														Path: []string{"friends"},
+														Item: &resolve.Object{
+															Nullable: true,
+															FieldSets: []resolve.FieldSet{
+																{
+																	Fields: []resolve.Field{
+																		{
+																			Name: []byte("name"),
+																			Value: &resolve.String{
+																				Path: []string{"name"},
+																			},
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+												{
+													Name: []byte("friendsWithInitialBatch"),
+													Value: &resolve.Array{
+														Stream: resolve.Stream{
+															Enabled: true,
+															InitialBatchSize: 5,
+														},
 														Nullable: true,
 														Path: []string{"friends"},
 														Item: &resolve.Object{
@@ -221,6 +254,8 @@ func TestPlanner_Plan(t *testing.T) {
 const testDefinition = `
 
 directive @defer on FIELD
+
+directive @stream(initialBatchSize: Int) on FIELD
 
 union SearchResult = Human | Droid | Starship
 

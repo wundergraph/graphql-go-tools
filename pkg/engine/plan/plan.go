@@ -174,6 +174,7 @@ type Visitor struct {
 	opName                              []byte
 	plan                                Plan
 	currentObject                       *resolve.Object
+	currentArray                        *resolve.Array
 	objects                             []fieldObject
 	currentFields                       *[]resolve.Field
 	fields                              []*[]resolve.Field
@@ -356,6 +357,20 @@ func (v *Visitor) EnterDirective(ref int) {
 			return
 		}
 		(*v.currentFields)[len(*v.currentFields)-1].Defer = true
+	case "stream":
+		if v.currentArray == nil {
+			return
+		}
+		v.currentArray.Stream.Enabled = true
+		v.currentArray.Stream.InitialBatchSize = 0
+		value,ok := v.Operation.DirectiveArgumentValueByName(ref,literal.INITIAL_BATCH_SIZE)
+		if !ok {
+			return
+		}
+		if value.Kind != ast.ValueKindInteger {
+			return
+		}
+		v.currentArray.Stream.InitialBatchSize = int(v.Operation.IntValueAsInt(value.Ref))
 	}
 }
 
@@ -675,6 +690,7 @@ func (v *Visitor) EnterField(ref int) {
 				Item:     value,
 				Nullable: fieldTypeIsNullable,
 			}
+			v.currentArray = list
 			value = list
 			if override, ok := v.fieldPathOverrides[ref]; ok {
 				list.Path = override(list.Path)
