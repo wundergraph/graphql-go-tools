@@ -72,12 +72,14 @@ type Context struct {
 	usedBuffers  []*bytes.Buffer
 	currentPatch int
 	maxPatch     int
+	pathPrefix   []byte
 }
 
 func NewContext(ctx context.Context) *Context {
 	return &Context{
 		Context:      ctx,
 		Variables:    make([]byte, 0, 4096),
+		pathPrefix:   make([]byte, 0, 4096),
 		pathElements: make([][]byte, 0, 16),
 		patches:      make([]patch, 0, 48),
 		usedBuffers:  make([]*bytes.Buffer, 0, 48),
@@ -89,6 +91,7 @@ func NewContext(ctx context.Context) *Context {
 func (c *Context) Free() {
 	c.Context = nil
 	c.Variables = c.Variables[:0]
+	c.pathPrefix = c.pathPrefix[:0]
 	c.pathElements = c.pathElements[:0]
 	c.patches = c.patches[:0]
 	for i := range c.usedBuffers {
@@ -115,8 +118,12 @@ func (c *Context) removeLastPathElement() {
 func (c *Context) path() []byte {
 	buf := pool.BytesBuffer.Get()
 	c.usedBuffers = append(c.usedBuffers, buf)
-	buf.Write(literal.SLASH)
-	buf.Write(literal.DATA)
+	if len(c.pathPrefix) != 0 {
+		buf.Write(c.pathPrefix)
+	} else {
+		buf.Write(literal.SLASH)
+		buf.Write(literal.DATA)
+	}
 	for i := range c.pathElements {
 		_, _ = buf.Write(literal.SLASH)
 		_, _ = buf.Write(c.pathElements[i])
@@ -124,8 +131,8 @@ func (c *Context) path() []byte {
 	return buf.Bytes()
 }
 
-func (c *Context) addPatch(index int, path, data []byte) {
-	next := patch{path: path, data: data, index: index}
+func (c *Context) addPatch(index int, path, extraPath, data []byte) {
+	next := patch{path: path, extraPath: extraPath, data: data, index: index}
 	c.patches = append(c.patches, next)
 	c.maxPatch++
 }
@@ -139,8 +146,8 @@ func (c *Context) popNextPatch() (patch patch, ok bool) {
 }
 
 type patch struct {
-	path, data []byte
-	index      int
+	path, extraPath, data []byte
+	index                     int
 }
 
 type Fetch interface {
@@ -324,7 +331,7 @@ func (r *Resolver) resolveNode(ctx *Context, node Node, data []byte, bufPair *Bu
 		return r.resolveArray(ctx, n, data, bufPair)
 	case *Null:
 		if n.Defer.Enabled {
-			r.prepareDefer(ctx, n.Defer.PatchIndex, data)
+			r.preparePatch(ctx, n.Defer.PatchIndex, nil, data)
 		}
 		r.resolveNull(bufPair.Data)
 		return
@@ -455,7 +462,7 @@ func (r *Resolver) ResolveGraphQLStreamingResponse(ctx *Context, response *Graph
 		}
 
 		preparedPatch := response.Patches[patch.index]
-		err = r.ResolveGraphQLResponsePatch(ctx, preparedPatch, patch.data, patch.path, writer)
+		err = r.ResolveGraphQLResponsePatch(ctx, preparedPatch, patch.data, patch.path, patch.extraPath, writer)
 		if err != nil {
 			return err
 		}
@@ -465,10 +472,12 @@ func (r *Resolver) ResolveGraphQLStreamingResponse(ctx *Context, response *Graph
 	return
 }
 
-func (r *Resolver) ResolveGraphQLResponsePatch(ctx *Context, patch *GraphQLResponsePatch, data, path []byte, writer io.Writer) (err error) {
+func (r *Resolver) ResolveGraphQLResponsePatch(ctx *Context, patch *GraphQLResponsePatch, data, path, extraPath []byte, writer io.Writer) (err error) {
 
 	buf := r.getBufPair()
 	defer r.freeBufPair(buf)
+
+	ctx.pathPrefix = append(path, extraPath...)
 
 	if patch.Fetch != nil {
 		set := r.getResultSet()
@@ -508,7 +517,7 @@ func (r *Resolver) ResolveGraphQLResponsePatch(ctx *Context, patch *GraphQLRespo
 		err = r.writeSafe(err, writer, quote)
 		err = r.writeSafe(err, writer, colon)
 		err = r.writeSafe(err, writer, quote)
-		err = r.writeSafe(err, writer, literal.REPLACE)
+		err = r.writeSafe(err, writer, patch.Operation)
 		err = r.writeSafe(err, writer, quote)
 		err = r.writeSafe(err, writer, comma)
 		err = r.writeSafe(err, writer, quote)
@@ -563,7 +572,7 @@ func (r *Resolver) resolveArray(ctx *Context, array *Array, data []byte, arrayBu
 		return nil
 	}
 
-	if array.ResolveAsynchronous {
+	if array.ResolveAsynchronous && !array.Stream.Enabled {
 		return r.resolveArrayAsynchronous(ctx, array, arrayItems, arrayBuf)
 	}
 	return r.resolveArraySynchronous(ctx, array, arrayItems, arrayBuf)
@@ -580,6 +589,15 @@ func (r *Resolver) resolveArraySynchronous(ctx *Context, array *Array, arrayItem
 		dataWritten     int
 	)
 	for i := range *arrayItems {
+
+		if array.Stream.Enabled {
+			if i > array.Stream.InitialBatchSize-1 {
+				extraPath := append(literal.SLASH,unsafebytes.StringToBytes(strconv.Itoa(i))...)
+				r.preparePatch(ctx, array.Stream.PatchIndex, extraPath, (*arrayItems)[i])
+				continue
+			}
+		}
+
 		ctx.addIntegerPathElement(i)
 		err = r.resolveNode(ctx, array.Item, (*arrayItems)[i], itemBuf)
 		ctx.removeLastPathElement()
@@ -744,12 +762,12 @@ func (r *Resolver) resolveString(str *String, data []byte, stringBuf *BufPair) e
 	return nil
 }
 
-func (r *Resolver) prepareDefer(ctx *Context, patchIndex int, data []byte) {
+func (r *Resolver) preparePatch(ctx *Context, patchIndex int, extraPath, data []byte) {
 	buf := pool.BytesBuffer.Get()
 	ctx.usedBuffers = append(ctx.usedBuffers, buf)
 	_, _ = buf.Write(data)
 	path, data := ctx.path(), buf.Bytes()
-	ctx.addPatch(patchIndex, path, data)
+	ctx.addPatch(patchIndex, path, extraPath, data)
 }
 
 func (r *Resolver) resolveNull(b *fastbuffer.FastBuffer) {
@@ -1119,6 +1137,13 @@ type Array struct {
 	Nullable            bool
 	ResolveAsynchronous bool
 	Item                Node
+	Stream              Stream
+}
+
+type Stream struct {
+	Enabled          bool
+	InitialBatchSize int
+	PatchIndex       int
 }
 
 func (_ *Array) NodeKind() NodeKind {
@@ -1250,8 +1275,9 @@ type GraphQLStreamingResponse struct {
 }
 
 type GraphQLResponsePatch struct {
-	Value Node
-	Fetch Fetch
+	Value     Node
+	Fetch     Fetch
+	Operation []byte
 }
 
 type BufPair struct {

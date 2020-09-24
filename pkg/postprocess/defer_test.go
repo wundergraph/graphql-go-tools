@@ -8,6 +8,7 @@ import (
 
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 )
 
 func TestProcessDefer_Process(t *testing.T) {
@@ -163,6 +164,7 @@ func TestProcessDefer_Process(t *testing.T) {
 			},
 			Patches: []*resolve.GraphQLResponsePatch{
 				{
+					Operation: literal.REPLACE,
 					Fetch: &resolve.SingleFetch{
 						DataSource: postsService,
 						InputTemplate: resolve.InputTemplate{
@@ -407,6 +409,7 @@ func TestProcessDefer_Process_Nested(t *testing.T) {
 			},
 			Patches: []*resolve.GraphQLResponsePatch{
 				{
+					Operation: literal.REPLACE,
 					Fetch: &resolve.SingleFetch{
 						DataSource: postsService,
 						InputTemplate: resolve.InputTemplate{
@@ -457,6 +460,7 @@ func TestProcessDefer_Process_Nested(t *testing.T) {
 					},
 				},
 				{
+					Operation: literal.REPLACE,
 					Fetch: &resolve.SingleFetch{
 						BufferId:   0,
 						DataSource: commentsService,
@@ -721,6 +725,7 @@ func TestProcessDefer_Process_KeepFetchIfUsedUndeferred(t *testing.T) {
 			},
 			Patches: []*resolve.GraphQLResponsePatch{
 				{
+					Operation: literal.REPLACE,
 					Value: &resolve.Array{
 						Item: &resolve.Object{
 							FieldSets: []resolve.FieldSet{
@@ -919,6 +924,7 @@ func TestProcessDefer_Process_ParallelFetch(t *testing.T) {
 			},
 			Patches: []*resolve.GraphQLResponsePatch{
 				{
+					Operation: literal.REPLACE,
 					Fetch: &resolve.SingleFetch{
 						DataSource: postsService,
 						InputTemplate: resolve.InputTemplate{

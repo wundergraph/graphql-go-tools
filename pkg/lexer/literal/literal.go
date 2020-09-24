@@ -84,6 +84,7 @@ var (
 	DOT_OBJECT_DOT                = []byte(".object.")
 	DOT_ARGUMENTS_DOT             = []byte(".arguments.")
 	ADDR                          = []byte("addr")
+	ADD                           = []byte("add")
 	BROKERADDR                    = []byte("brokerAddr")
 	CLIENTID                      = []byte("clientID")
 	TOPIC                         = []byte("topic")

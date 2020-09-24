@@ -10,6 +10,8 @@ import (
 	jsonpatch "github.com/evanphx/json-patch/v5"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 )
 
 func TestWithoutDefer(t *testing.T) {
@@ -234,6 +236,7 @@ func TestDefer(t *testing.T) {
 		},
 		Patches: []*GraphQLResponsePatch{
 			{
+				Operation: literal.REPLACE,
 				Fetch: &SingleFetch{
 					DataSource: postsService,
 					InputTemplate: InputTemplate{

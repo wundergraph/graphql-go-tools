@@ -3,6 +3,7 @@ package postprocess
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 )
 
 type ProcessDefer struct {
@@ -78,14 +79,16 @@ func (p *ProcessDefer) createPatch(object *resolve.Object, fieldSet, field int) 
 			return 0, false
 		}
 		patch = &resolve.GraphQLResponsePatch{
-			Value: oldValue,
-			Fetch: &patchFetch,
+			Value:     oldValue,
+			Fetch:     &patchFetch,
+			Operation: literal.REPLACE,
 		}
 		object.FieldSets[fieldSet].HasBuffer = false
 		object.FieldSets[fieldSet].BufferID = 0
 	} else {
 		patch = &resolve.GraphQLResponsePatch{
 			Value: oldValue,
+			Operation: literal.REPLACE,
 		}
 	}
 	p.streamingResponsePlan.Response.Patches = append(p.streamingResponsePlan.Response.Patches, patch)

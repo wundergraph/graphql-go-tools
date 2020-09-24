@@ -7,6 +7,7 @@ import (
 
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 )
 
 func TestDefaultProcessor_Process(t *testing.T) {
@@ -162,6 +163,7 @@ func TestDefaultProcessor_Process(t *testing.T) {
 			},
 			Patches: []*resolve.GraphQLResponsePatch{
 				{
+					Operation: literal.REPLACE,
 					Fetch: &resolve.SingleFetch{
 						DataSource: postsService,
 						InputTemplate: resolve.InputTemplate{
