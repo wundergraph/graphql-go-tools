@@ -592,8 +592,9 @@ func (r *Resolver) resolveArraySynchronous(ctx *Context, array *Array, arrayItem
 
 		if array.Stream.Enabled {
 			if i > array.Stream.InitialBatchSize-1 {
-				extraPath := append(literal.SLASH,unsafebytes.StringToBytes(strconv.Itoa(i))...)
-				r.preparePatch(ctx, array.Stream.PatchIndex, extraPath, (*arrayItems)[i])
+				ctx.addIntegerPathElement(i)
+				r.preparePatch(ctx, array.Stream.PatchIndex, nil, (*arrayItems)[i])
+				ctx.removeLastPathElement()
 				continue
 			}
 		}

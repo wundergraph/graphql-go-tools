@@ -1,7 +1,7 @@
 [
   {
     "op": "add",
-    "path": "/data/users",
+    "path": "/data/users/0",
     "value": {
       "id": 1,
       "name": "Leanne Graham"
