@@ -16,6 +16,7 @@ func TestProcessStream_Process(t *testing.T) {
 	postsService := &fakeService{}
 
 	original := &plan.SynchronousResponsePlan{
+		FlushInterval: 500,
 		Response: resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
@@ -29,11 +30,10 @@ func TestProcessStream_Process(t *testing.T) {
 						Fields: []resolve.Field{
 							{
 								Name: []byte("users"),
+								Stream: &resolve.StreamField{
+									InitialBatchSize: 0,
+								},
 								Value: &resolve.Array{
-									Stream: resolve.Stream{
-										Enabled: true,
-										InitialBatchSize: 0,
-									},
 									Item: &resolve.Object{
 										Fetch: &resolve.SingleFetch{
 											BufferId:   1,
@@ -108,6 +108,7 @@ func TestProcessStream_Process(t *testing.T) {
 	}
 
 	expected := &plan.StreamingResponsePlan{
+		FlushInterval: 500,
 		Response: resolve.GraphQLStreamingResponse{
 			InitialResponse: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
@@ -219,6 +220,7 @@ func TestProcessStream_Process_BatchSize_1(t *testing.T) {
 	postsService := &fakeService{}
 
 	original := &plan.SynchronousResponsePlan{
+		FlushInterval: 500,
 		Response: resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
@@ -232,11 +234,10 @@ func TestProcessStream_Process_BatchSize_1(t *testing.T) {
 						Fields: []resolve.Field{
 							{
 								Name: []byte("users"),
+								Stream: &resolve.StreamField{
+									InitialBatchSize: 1,
+								},
 								Value: &resolve.Array{
-									Stream: resolve.Stream{
-										Enabled: true,
-										InitialBatchSize: 1,
-									},
 									Item: &resolve.Object{
 										Fetch: &resolve.SingleFetch{
 											BufferId:   1,
@@ -311,6 +312,7 @@ func TestProcessStream_Process_BatchSize_1(t *testing.T) {
 	}
 
 	expected := &plan.StreamingResponsePlan{
+		FlushInterval: 500,
 		Response: resolve.GraphQLStreamingResponse{
 			InitialResponse: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
@@ -329,7 +331,6 @@ func TestProcessStream_Process_BatchSize_1(t *testing.T) {
 										Stream: resolve.Stream{
 											Enabled: true,
 											InitialBatchSize: 1,
-											PatchIndex: 0,
 										},
 										Item: &resolve.Object{
 											Fetch: &resolve.SingleFetch{

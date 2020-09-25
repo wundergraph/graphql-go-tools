@@ -37,10 +37,16 @@ type Reference struct {
 
 type Plan interface {
 	PlanKind() Kind
+	SetFlushInterval(interval int64)
 }
 
 type SynchronousResponsePlan struct {
-	Response resolve.GraphQLResponse
+	Response      resolve.GraphQLResponse
+	FlushInterval int64
+}
+
+func (s *SynchronousResponsePlan) SetFlushInterval(interval int64) {
+	s.FlushInterval = interval
 }
 
 func (_ *SynchronousResponsePlan) PlanKind() Kind {
@@ -48,7 +54,12 @@ func (_ *SynchronousResponsePlan) PlanKind() Kind {
 }
 
 type StreamingResponsePlan struct {
-	Response resolve.GraphQLStreamingResponse
+	Response      resolve.GraphQLStreamingResponse
+	FlushInterval int64
+}
+
+func (s *StreamingResponsePlan) SetFlushInterval(interval int64) {
+	s.FlushInterval = interval
 }
 
 func (_ *StreamingResponsePlan) PlanKind() Kind {
@@ -56,7 +67,12 @@ func (_ *StreamingResponsePlan) PlanKind() Kind {
 }
 
 type SubscriptionResponsePlan struct {
-	Response resolve.GraphQLSubscription
+	Response      resolve.GraphQLSubscription
+	FlushInterval int64
+}
+
+func (s *SubscriptionResponsePlan) SetFlushInterval(interval int64) {
+	s.FlushInterval = interval
 }
 
 func (_ *SubscriptionResponsePlan) PlanKind() Kind {
@@ -105,6 +121,7 @@ type Planner struct {
 }
 
 type Configuration struct {
+	DefaultFlushInterval     int64
 	DataSourceConfigurations []DataSourceConfiguration
 	FieldMappings            []FieldMapping
 	FieldDependencies        []FieldDependency
@@ -174,7 +191,6 @@ type Visitor struct {
 	opName                              []byte
 	plan                                Plan
 	currentObject                       *resolve.Object
-	currentArray                        *resolve.Array
 	objects                             []fieldObject
 	currentFields                       *[]resolve.Field
 	fields                              []*[]resolve.Field
@@ -356,22 +372,40 @@ func (v *Visitor) EnterDirective(ref int) {
 		if v.currentFields == nil || len(*v.currentFields) == 0 {
 			return
 		}
-		(*v.currentFields)[len(*v.currentFields)-1].Defer = true
+		(*v.currentFields)[len(*v.currentFields)-1].Defer = &resolve.DeferField{}
 	case "stream":
-		if v.currentArray == nil {
+		if v.currentFields == nil || len(*v.currentFields) == 0 {
 			return
 		}
-		v.currentArray.Stream.Enabled = true
-		v.currentArray.Stream.InitialBatchSize = 0
-		value,ok := v.Operation.DirectiveArgumentValueByName(ref,literal.INITIAL_BATCH_SIZE)
+		config := &resolve.StreamField{
+			InitialBatchSize: 0,
+		}
+		v.setInitialBatchSize(ref, config)
+		(*v.currentFields)[len(*v.currentFields)-1].Stream = config
+	case "flushInterval":
+		if v.Ancestors[len(v.Ancestors)-1].Kind != ast.NodeKindOperationDefinition {
+			return
+		}
+		value, ok := v.Operation.DirectiveArgumentValueByName(ref, literal.MILLISECONDS)
 		if !ok {
 			return
 		}
 		if value.Kind != ast.ValueKindInteger {
 			return
 		}
-		v.currentArray.Stream.InitialBatchSize = int(v.Operation.IntValueAsInt(value.Ref))
+		v.plan.SetFlushInterval(v.Operation.IntValueAsInt(value.Ref))
 	}
+}
+
+func (v *Visitor) setInitialBatchSize(directive int, config *resolve.StreamField) {
+	value, ok := v.Operation.DirectiveArgumentValueByName(directive, literal.INITIAL_BATCH_SIZE)
+	if !ok {
+		return
+	}
+	if value.Kind != ast.ValueKindInteger {
+		return
+	}
+	config.InitialBatchSize = int(v.Operation.IntValueAsInt(value.Ref))
 }
 
 var (
@@ -514,12 +548,14 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 		switch v.Operation.OperationDefinitions[ref].OperationType {
 		case ast.OperationTypeQuery, ast.OperationTypeMutation:
 			v.plan = &SynchronousResponsePlan{
+				FlushInterval: v.Config.DefaultFlushInterval,
 				Response: resolve.GraphQLResponse{
 					Data: v.currentObject,
 				},
 			}
 		case ast.OperationTypeSubscription:
 			plan := &SubscriptionResponsePlan{
+				FlushInterval: v.Config.DefaultFlushInterval,
 				Response: resolve.GraphQLSubscription{
 					Response: &resolve.GraphQLResponse{
 						Data: v.currentObject,
@@ -690,7 +726,6 @@ func (v *Visitor) EnterField(ref int) {
 				Item:     value,
 				Nullable: fieldTypeIsNullable,
 			}
-			v.currentArray = list
 			value = list
 			if override, ok := v.fieldPathOverrides[ref]; ok {
 				list.Path = override(list.Path)

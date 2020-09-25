@@ -39,6 +39,7 @@ func (p *ProcessDefer) processStreamingResponsePlan(in *plan.StreamingResponsePl
 
 func (p *ProcessDefer) synchronousResponse(pre *plan.SynchronousResponsePlan) plan.Plan {
 	p.out = &plan.StreamingResponsePlan{
+		FlushInterval: pre.FlushInterval,
 		Response: resolve.GraphQLStreamingResponse{
 			InitialResponse: &pre.Response,
 		},
@@ -57,12 +58,13 @@ func (p *ProcessDefer) traverseNode(node resolve.Node) {
 		p.objects = append(p.objects, n)
 		for i := range n.FieldSets {
 			for j := range n.FieldSets[i].Fields {
-				if n.FieldSets[i].Fields[j].Defer {
+				if n.FieldSets[i].Fields[j].Defer != nil {
 					p.updated = true
 					patchIndex, ok := p.createPatch(n, i, j)
 					if !ok {
 						continue
 					}
+					n.FieldSets[i].Fields[j].Defer = nil
 					n.FieldSets[i].Fields[j].Value = &resolve.Null{
 						Defer: resolve.Defer{
 							Enabled:    true,
@@ -116,7 +118,7 @@ func (p *ProcessDefer) bufferUsedOnNonDeferField(object *resolve.Object, fieldSe
 			if i == fieldSet && j == field {
 				continue // skip currently evaluated field
 			}
-			if !object.FieldSets[i].Fields[j].Defer {
+			if object.FieldSets[i].Fields[j].Defer == nil {
 				return true
 			}
 		}

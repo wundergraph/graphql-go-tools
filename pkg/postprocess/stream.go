@@ -37,6 +37,7 @@ func (p *ProcessStream) processStreamingResponsePlan(in *plan.StreamingResponseP
 
 func (p *ProcessStream) processSynchronousPlan(in *plan.SynchronousResponsePlan) plan.Plan {
 	p.out = &plan.StreamingResponsePlan{
+		FlushInterval: in.FlushInterval,
 		Response: resolve.GraphQLStreamingResponse{
 			InitialResponse: &in.Response,
 		},
@@ -53,6 +54,14 @@ func (p *ProcessStream) traverseNode(node resolve.Node) {
 	case *resolve.Object:
 		for i := range n.FieldSets {
 			for j := range n.FieldSets[i].Fields {
+				if n.FieldSets[i].Fields[j].Stream != nil {
+					switch array := n.FieldSets[i].Fields[j].Value.(type){
+					case *resolve.Array:
+						array.Stream.Enabled = true
+						array.Stream.InitialBatchSize = n.FieldSets[i].Fields[j].Stream.InitialBatchSize
+						n.FieldSets[i].Fields[j].Stream = nil
+					}
+				}
 				p.traverseNode(n.FieldSets[i].Fields[j].Value)
 			}
 		}

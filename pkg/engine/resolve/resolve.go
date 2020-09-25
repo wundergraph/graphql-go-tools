@@ -11,6 +11,7 @@ import (
 	"io"
 	"strconv"
 	"sync"
+	"time"
 	"unicode"
 
 	"github.com/buger/jsonparser"
@@ -147,7 +148,7 @@ func (c *Context) popNextPatch() (patch patch, ok bool) {
 
 type patch struct {
 	path, extraPath, data []byte
-	index                     int
+	index                 int
 }
 
 type Fetch interface {
@@ -451,6 +452,13 @@ func (r *Resolver) ResolveGraphQLStreamingResponse(ctx *Context, response *Graph
 	}
 	writer.Flush()
 
+	nextFlush := time.Now().Add(time.Millisecond * time.Duration(response.FlushRate))
+
+	buf := pool.BytesBuffer.Get()
+	defer pool.BytesBuffer.Put(buf)
+
+	buf.Write(literal.LBRACK)
+
 	for {
 		patch, ok := ctx.popNextPatch()
 		if !ok {
@@ -461,8 +469,33 @@ func (r *Resolver) ResolveGraphQLStreamingResponse(ctx *Context, response *Graph
 			continue
 		}
 
+		if buf.Len() != 1 {
+			buf.Write(literal.COMMA)
+		}
+
 		preparedPatch := response.Patches[patch.index]
-		err = r.ResolveGraphQLResponsePatch(ctx, preparedPatch, patch.data, patch.path, patch.extraPath, writer)
+		err = r.ResolveGraphQLResponsePatch(ctx, preparedPatch, patch.data, patch.path, patch.extraPath, buf)
+		if err != nil {
+			return err
+		}
+
+		now := time.Now()
+		if now.After(nextFlush) {
+			buf.Write(literal.RBRACK)
+			_,err = writer.Write(buf.Bytes())
+			if err != nil {
+				return err
+			}
+			writer.Flush()
+			buf.Reset()
+			buf.Write(literal.LBRACK)
+			nextFlush = time.Now().Add(time.Millisecond * time.Duration(response.FlushRate))
+		}
+	}
+
+	if buf.Len() != 1 {
+		buf.Write(literal.RBRACK)
+		_,err = writer.Write(buf.Bytes())
 		if err != nil {
 			return err
 		}
@@ -501,8 +534,6 @@ func (r *Resolver) ResolveGraphQLResponsePatch(ctx *Context, patch *GraphQLRespo
 	hasErrors := buf.Errors.Len() != 0
 	hasData := buf.Data.Len() != 0
 
-	err = r.writeSafe(err, writer, lBrack)
-
 	if hasErrors {
 		return
 	}
@@ -535,8 +566,6 @@ func (r *Resolver) ResolveGraphQLResponsePatch(ctx *Context, patch *GraphQLRespo
 		_, err = writer.Write(buf.Data.Bytes())
 		err = r.writeSafe(err, writer, rBrace)
 	}
-
-	err = r.writeSafe(err, writer, rBrack)
 
 	return
 }
@@ -1001,10 +1030,17 @@ type FieldSet struct {
 }
 
 type Field struct {
-	Name  []byte
-	Defer bool
-	Value Node
+	Name   []byte
+	Value  Node
+	Defer  *DeferField
+	Stream *StreamField
 }
+
+type StreamField struct {
+	InitialBatchSize int
+}
+
+type DeferField struct {}
 
 type Null struct {
 	Defer Defer
@@ -1273,6 +1309,7 @@ type GraphQLResponse struct {
 type GraphQLStreamingResponse struct {
 	InitialResponse *GraphQLResponse
 	Patches         []*GraphQLResponsePatch
+	FlushRate       int64
 }
 
 type GraphQLResponsePatch struct {

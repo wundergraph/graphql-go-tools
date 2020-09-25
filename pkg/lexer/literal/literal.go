@@ -99,6 +99,7 @@ var (
 	OP                            = []byte("op")
 	REPLACE                       = []byte("replace")
 	INITIAL_BATCH_SIZE            = []byte("initialBatchSize")
+	MILLISECONDS                  = []byte("milliSeconds")
 	PATH                          = []byte("path")
 	VALUE                         = []byte("value")
 	HTTP_METHOD_GET               = []byte("GET")

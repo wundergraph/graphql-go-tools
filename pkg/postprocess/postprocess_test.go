@@ -16,6 +16,7 @@ func TestDefaultProcessor_Process(t *testing.T) {
 	postsService := &fakeService{}
 
 	original := &plan.SynchronousResponsePlan{
+		FlushInterval: 500,
 		Response: resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
@@ -29,6 +30,9 @@ func TestDefaultProcessor_Process(t *testing.T) {
 						Fields: []resolve.Field{
 							{
 								Name: []byte("users"),
+								Stream: &resolve.StreamField{
+									InitialBatchSize: 0,
+								},
 								Value: &resolve.Array{
 									Item: &resolve.Object{
 										Fetch: &resolve.SingleFetch{
@@ -67,12 +71,8 @@ func TestDefaultProcessor_Process(t *testing.T) {
 												Fields: []resolve.Field{
 													{
 														Name:  []byte("posts"),
-														Defer: true,
+														Defer: &resolve.DeferField{},
 														Value: &resolve.Array{
-															Stream: resolve.Stream{
-																Enabled:          true,
-																InitialBatchSize: 0,
-															},
 															Item: &resolve.Object{
 																FieldSets: []resolve.FieldSet{
 																	{
@@ -84,8 +84,7 @@ func TestDefaultProcessor_Process(t *testing.T) {
 																				},
 																			},
 																			{
-																				Name:  []byte("body"),
-																				Defer: true,
+																				Name: []byte("body"),
 																				Value: &resolve.String{
 																					Path: []string{"body"},
 																				},
@@ -110,6 +109,7 @@ func TestDefaultProcessor_Process(t *testing.T) {
 	}
 
 	expected := &plan.StreamingResponsePlan{
+		FlushInterval: 500,
 		Response: resolve.GraphQLStreamingResponse{
 			InitialResponse: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
@@ -125,39 +125,10 @@ func TestDefaultProcessor_Process(t *testing.T) {
 								{
 									Name: []byte("users"),
 									Value: &resolve.Array{
-										Item: &resolve.Object{
-											FieldSets: []resolve.FieldSet{
-												{
-													Fields: []resolve.Field{
-														{
-															Name: []byte("id"),
-															Value: &resolve.Integer{
-																Path: []string{"id"},
-															},
-														},
-														{
-															Name: []byte("name"),
-															Value: &resolve.String{
-																Path: []string{"name"},
-															},
-														},
-													},
-												},
-												{
-													Fields: []resolve.Field{
-														{
-															Name:  []byte("posts"),
-															Defer: true,
-															Value: &resolve.Null{
-																Defer: resolve.Defer{
-																	Enabled:    true,
-																	PatchIndex: 0,
-																},
-															},
-														},
-													},
-												},
-											},
+										Stream: resolve.Stream{
+											Enabled:          true,
+											InitialBatchSize: 0,
+											PatchIndex:       1,
 										},
 									},
 								},
@@ -182,18 +153,27 @@ func TestDefaultProcessor_Process(t *testing.T) {
 						},
 					},
 					Value: &resolve.Array{
-						Stream: resolve.Stream{
-							Enabled:          true,
-							InitialBatchSize: 0,
-							PatchIndex:       2,
+						Item: &resolve.Object{
+							FieldSets: []resolve.FieldSet{
+								{
+									Fields: []resolve.Field{
+										{
+											Name: []byte("title"),
+											Value: &resolve.String{
+												Path: []string{"title"},
+											},
+										},
+										{
+											Name: []byte("body"),
+											Value: &resolve.String{
+												Path: []string{"body"},
+											},
+										},
+									},
+								},
+							},
 						},
 					},
-				},
-				{
-					Value: &resolve.String{
-						Path: []string{"body"},
-					},
-					Operation: literal.REPLACE,
 				},
 				{
 					Operation: literal.ADD,
@@ -202,18 +182,27 @@ func TestDefaultProcessor_Process(t *testing.T) {
 							{
 								Fields: []resolve.Field{
 									{
-										Name: []byte("title"),
-										Value: &resolve.String{
-											Path: []string{"title"},
+										Name: []byte("id"),
+										Value: &resolve.Integer{
+											Path: []string{"id"},
 										},
 									},
 									{
-										Name: []byte("body"),
-										Defer: true,
+										Name: []byte("name"),
+										Value: &resolve.String{
+											Path: []string{"name"},
+										},
+									},
+								},
+							},
+							{
+								Fields: []resolve.Field{
+									{
+										Name: []byte("posts"),
 										Value: &resolve.Null{
 											Defer: resolve.Defer{
 												Enabled:    true,
-												PatchIndex: 1,
+												PatchIndex: 0,
 											},
 										},
 									},

@@ -17,6 +17,7 @@ func TestProcessDefer_Process(t *testing.T) {
 	postsService := &fakeService{}
 
 	original := &plan.SynchronousResponsePlan{
+		FlushInterval: 500,
 		Response: resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
@@ -68,7 +69,7 @@ func TestProcessDefer_Process(t *testing.T) {
 												Fields: []resolve.Field{
 													{
 														Name:  []byte("posts"),
-														Defer: true,
+														Defer: &resolve.DeferField{},
 														Value: &resolve.Array{
 															Item: &resolve.Object{
 																FieldSets: []resolve.FieldSet{
@@ -106,6 +107,7 @@ func TestProcessDefer_Process(t *testing.T) {
 	}
 
 	expected := &plan.StreamingResponsePlan{
+		FlushInterval: 500,
 		Response: resolve.GraphQLStreamingResponse{
 			InitialResponse: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
@@ -143,7 +145,6 @@ func TestProcessDefer_Process(t *testing.T) {
 													Fields: []resolve.Field{
 														{
 															Name:  []byte("posts"),
-															Defer: true,
 															Value: &resolve.Null{
 																Defer: resolve.Defer{
 																	Enabled:    true,
@@ -217,6 +218,7 @@ func TestProcessDefer_Process_Nested(t *testing.T) {
 	commentsService := &fakeService{}
 
 	original := &plan.SynchronousResponsePlan{
+		FlushInterval: 500,
 		Response: resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
@@ -268,7 +270,7 @@ func TestProcessDefer_Process_Nested(t *testing.T) {
 												Fields: []resolve.Field{
 													{
 														Name:  []byte("posts"),
-														Defer: true,
+														Defer: &resolve.DeferField{},
 														Value: &resolve.Array{
 															Item: &resolve.Object{
 																Fetch: &resolve.SingleFetch{
@@ -307,7 +309,7 @@ func TestProcessDefer_Process_Nested(t *testing.T) {
 																		Fields: []resolve.Field{
 																			{
 																				Name:  []byte("comments"),
-																				Defer: true,
+																				Defer: &resolve.DeferField{},
 																				Value: &resolve.Array{
 																					Item: &resolve.Object{
 																						FieldSets: []resolve.FieldSet{
@@ -351,6 +353,7 @@ func TestProcessDefer_Process_Nested(t *testing.T) {
 	}
 
 	expected := &plan.StreamingResponsePlan{
+		FlushInterval: 500,
 		Response: resolve.GraphQLStreamingResponse{
 			InitialResponse: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
@@ -388,7 +391,6 @@ func TestProcessDefer_Process_Nested(t *testing.T) {
 													Fields: []resolve.Field{
 														{
 															Name:  []byte("posts"),
-															Defer: true,
 															Value: &resolve.Null{
 																Defer: resolve.Defer{
 																	Enabled:    true,
@@ -445,7 +447,6 @@ func TestProcessDefer_Process_Nested(t *testing.T) {
 									Fields: []resolve.Field{
 										{
 											Name:  []byte("comments"),
-											Defer: true,
 											Value: &resolve.Null{
 												Defer: resolve.Defer{
 													Enabled:    true,
@@ -513,6 +514,7 @@ func TestProcessDefer_Process_KeepFetchIfUsedUndeferred(t *testing.T) {
 	postsService := &fakeService{}
 
 	original := &plan.SynchronousResponsePlan{
+		FlushInterval: 500,
 		Response: resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
@@ -564,7 +566,7 @@ func TestProcessDefer_Process_KeepFetchIfUsedUndeferred(t *testing.T) {
 												Fields: []resolve.Field{
 													{
 														Name:  []byte("posts"),
-														Defer: true,
+														Defer: &resolve.DeferField{},
 														Value: &resolve.Array{
 															Item: &resolve.Object{
 																FieldSets: []resolve.FieldSet{
@@ -627,6 +629,7 @@ func TestProcessDefer_Process_KeepFetchIfUsedUndeferred(t *testing.T) {
 	}
 
 	expected := &plan.StreamingResponsePlan{
+		FlushInterval: 500,
 		Response: resolve.GraphQLStreamingResponse{
 			InitialResponse: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
@@ -679,7 +682,6 @@ func TestProcessDefer_Process_KeepFetchIfUsedUndeferred(t *testing.T) {
 													Fields: []resolve.Field{
 														{
 															Name:  []byte("posts"),
-															Defer: true,
 															Value: &resolve.Null{
 																Defer: resolve.Defer{
 																	Enabled:    true,
@@ -765,6 +767,7 @@ func TestProcessDefer_Process_ParallelFetch(t *testing.T) {
 	postsService := &fakeService{}
 
 	original := &plan.SynchronousResponsePlan{
+		FlushInterval: 500,
 		Response: resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
@@ -824,7 +827,7 @@ func TestProcessDefer_Process_ParallelFetch(t *testing.T) {
 												Fields: []resolve.Field{
 													{
 														Name:  []byte("posts"),
-														Defer: true,
+														Defer: &resolve.DeferField{},
 														Value: &resolve.Array{
 															Item: &resolve.Object{
 																FieldSets: []resolve.FieldSet{
@@ -862,6 +865,7 @@ func TestProcessDefer_Process_ParallelFetch(t *testing.T) {
 	}
 
 	expected := &plan.StreamingResponsePlan{
+		FlushInterval: 500,
 		Response: resolve.GraphQLStreamingResponse{
 			InitialResponse: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
@@ -903,7 +907,6 @@ func TestProcessDefer_Process_ParallelFetch(t *testing.T) {
 													Fields: []resolve.Field{
 														{
 															Name:  []byte("posts"),
-															Defer: true,
 															Value: &resolve.Null{
 																Defer: resolve.Defer{
 																	Enabled:    true,

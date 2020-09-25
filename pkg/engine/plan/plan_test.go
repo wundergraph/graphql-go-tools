@@ -37,7 +37,7 @@ func TestPlanner_Plan(t *testing.T) {
 	}
 
 	t.Run("simple named Query", test(testDefinition, `
-		query MyQuery($id: ID!){
+		query MyQuery($id: ID!) @flushInterval(milliSeconds: 100) {
 			droid(id: $id){
 				name
 				aliased: name
@@ -52,6 +52,7 @@ func TestPlanner_Plan(t *testing.T) {
 			}
 		}
 	`, "MyQuery", &SynchronousResponsePlan{
+		FlushInterval: 100,
 		Response: resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				FieldSets: []resolve.FieldSet{
@@ -78,11 +79,10 @@ func TestPlanner_Plan(t *testing.T) {
 												},
 												{
 													Name: []byte("friends"),
+													Stream: &resolve.StreamField{
+														InitialBatchSize: 0,
+													},
 													Value: &resolve.Array{
-														Stream: resolve.Stream{
-															Enabled: true,
-															InitialBatchSize: 0,
-														},
 														Nullable: true,
 														Path: []string{"friends"},
 														Item: &resolve.Object{
@@ -104,11 +104,10 @@ func TestPlanner_Plan(t *testing.T) {
 												},
 												{
 													Name: []byte("friendsWithInitialBatch"),
+													Stream: &resolve.StreamField{
+														InitialBatchSize: 5,
+													},
 													Value: &resolve.Array{
-														Stream: resolve.Stream{
-															Enabled: true,
-															InitialBatchSize: 5,
-														},
 														Nullable: true,
 														Path: []string{"friends"},
 														Item: &resolve.Object{
@@ -136,7 +135,7 @@ func TestPlanner_Plan(t *testing.T) {
 												},
 												{
 													Name: []byte("favoriteEpisode"),
-													Defer: true,
+													Defer: &resolve.DeferField{},
 													Value: &resolve.String{
 														Nullable: true,
 														Path: []string{"favoriteEpisode"},
@@ -254,6 +253,8 @@ func TestPlanner_Plan(t *testing.T) {
 const testDefinition = `
 
 directive @defer on FIELD
+
+directive @flushInterval(milliSeconds: Int!) on QUERY | SUBSCRIPTION
 
 directive @stream(initialBatchSize: Int) on FIELD
 
