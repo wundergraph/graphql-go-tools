@@ -452,50 +452,58 @@ func (r *Resolver) ResolveGraphQLStreamingResponse(ctx *Context, response *Graph
 	}
 	writer.Flush()
 
-	nextFlush := time.Now().Add(time.Millisecond * time.Duration(response.FlushRate))
+	nextFlush := time.Now().Add(time.Millisecond * time.Duration(response.FlushInterval))
 
 	buf := pool.BytesBuffer.Get()
 	defer pool.BytesBuffer.Put(buf)
 
 	buf.Write(literal.LBRACK)
 
+	done := ctx.Context.Done()
+
+Loop:
 	for {
-		patch, ok := ctx.popNextPatch()
-		if !ok {
-			break
-		}
+		select {
+		case <-done:
+			return
+		default:
+			patch, ok := ctx.popNextPatch()
+			if !ok {
+				break Loop
+			}
 
-		if patch.index > len(response.Patches)-1 {
-			continue
-		}
+			if patch.index > len(response.Patches)-1 {
+				continue
+			}
 
-		if buf.Len() != 1 {
-			buf.Write(literal.COMMA)
-		}
+			if buf.Len() != 1 {
+				buf.Write(literal.COMMA)
+			}
 
-		preparedPatch := response.Patches[patch.index]
-		err = r.ResolveGraphQLResponsePatch(ctx, preparedPatch, patch.data, patch.path, patch.extraPath, buf)
-		if err != nil {
-			return err
-		}
-
-		now := time.Now()
-		if now.After(nextFlush) {
-			buf.Write(literal.RBRACK)
-			_,err = writer.Write(buf.Bytes())
+			preparedPatch := response.Patches[patch.index]
+			err = r.ResolveGraphQLResponsePatch(ctx, preparedPatch, patch.data, patch.path, patch.extraPath, buf)
 			if err != nil {
 				return err
 			}
-			writer.Flush()
-			buf.Reset()
-			buf.Write(literal.LBRACK)
-			nextFlush = time.Now().Add(time.Millisecond * time.Duration(response.FlushRate))
+
+			now := time.Now()
+			if now.After(nextFlush) {
+				buf.Write(literal.RBRACK)
+				_, err = writer.Write(buf.Bytes())
+				if err != nil {
+					return err
+				}
+				writer.Flush()
+				buf.Reset()
+				buf.Write(literal.LBRACK)
+				nextFlush = time.Now().Add(time.Millisecond * time.Duration(response.FlushInterval))
+			}
 		}
 	}
 
 	if buf.Len() != 1 {
 		buf.Write(literal.RBRACK)
-		_,err = writer.Write(buf.Bytes())
+		_, err = writer.Write(buf.Bytes())
 		if err != nil {
 			return err
 		}
@@ -1040,7 +1048,7 @@ type StreamField struct {
 	InitialBatchSize int
 }
 
-type DeferField struct {}
+type DeferField struct{}
 
 type Null struct {
 	Defer Defer
@@ -1309,7 +1317,7 @@ type GraphQLResponse struct {
 type GraphQLStreamingResponse struct {
 	InitialResponse *GraphQLResponse
 	Patches         []*GraphQLResponsePatch
-	FlushRate       int64
+	FlushInterval   int64
 }
 
 type GraphQLResponsePatch struct {
