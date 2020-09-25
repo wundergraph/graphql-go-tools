@@ -40,6 +40,7 @@ func (p *ProcessStream) processSynchronousPlan(in *plan.SynchronousResponsePlan)
 		FlushInterval: in.FlushInterval,
 		Response: resolve.GraphQLStreamingResponse{
 			InitialResponse: &in.Response,
+			FlushInterval:   in.FlushInterval,
 		},
 	}
 	p.traverseNode(in.Response.Data)
@@ -50,12 +51,12 @@ func (p *ProcessStream) processSynchronousPlan(in *plan.SynchronousResponsePlan)
 }
 
 func (p *ProcessStream) traverseNode(node resolve.Node) {
-	switch n := node.(type){
+	switch n := node.(type) {
 	case *resolve.Object:
 		for i := range n.FieldSets {
 			for j := range n.FieldSets[i].Fields {
 				if n.FieldSets[i].Fields[j].Stream != nil {
-					switch array := n.FieldSets[i].Fields[j].Value.(type){
+					switch array := n.FieldSets[i].Fields[j].Value.(type) {
 					case *resolve.Array:
 						array.Stream.Enabled = true
 						array.Stream.InitialBatchSize = n.FieldSets[i].Fields[j].Stream.InitialBatchSize
@@ -75,8 +76,8 @@ func (p *ProcessStream) traverseNode(node resolve.Node) {
 			if n.Stream.InitialBatchSize == 0 {
 				n.Item = nil
 			}
-			p.out.Response.Patches = append(p.out.Response.Patches,patch)
-			n.Stream.PatchIndex = len(p.out.Response.Patches) -1
+			p.out.Response.Patches = append(p.out.Response.Patches, patch)
+			n.Stream.PatchIndex = len(p.out.Response.Patches) - 1
 
 			p.traverseNode(p.out.Response.Patches[n.Stream.PatchIndex].Value)
 

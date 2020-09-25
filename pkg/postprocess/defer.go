@@ -42,6 +42,7 @@ func (p *ProcessDefer) synchronousResponse(pre *plan.SynchronousResponsePlan) pl
 		FlushInterval: pre.FlushInterval,
 		Response: resolve.GraphQLStreamingResponse{
 			InitialResponse: &pre.Response,
+			FlushInterval: pre.FlushInterval,
 		},
 	}
 	p.traverseNode(p.out.Response.InitialResponse.Data)
