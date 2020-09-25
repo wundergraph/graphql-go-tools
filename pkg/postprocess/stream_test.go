@@ -110,6 +110,7 @@ func TestProcessStream_Process(t *testing.T) {
 	expected := &plan.StreamingResponsePlan{
 		FlushInterval: 500,
 		Response: resolve.GraphQLStreamingResponse{
+			FlushInterval: 500,
 			InitialResponse: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
@@ -314,6 +315,7 @@ func TestProcessStream_Process_BatchSize_1(t *testing.T) {
 	expected := &plan.StreamingResponsePlan{
 		FlushInterval: 500,
 		Response: resolve.GraphQLStreamingResponse{
+			FlushInterval: 500,
 			InitialResponse: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
