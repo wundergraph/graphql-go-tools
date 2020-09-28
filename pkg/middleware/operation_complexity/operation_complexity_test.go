@@ -316,6 +316,98 @@ func TestCalculateOperationComplexity(t *testing.T) {
 			},
 		)
 	})
+	t.Run("multiple queries with different depth higher depth first", func(t *testing.T) {
+		run(t, testDefinition, `
+				{
+					transactions(first: 1) {
+						id
+						sender {
+							id
+							transactions(first: 1) {
+								id
+							}
+						}
+					}
+					users(first: 1) {
+						id
+						address {
+					  		city
+						}
+					}
+				}`,
+			OperationStats{
+				NodeCount:  5,
+				Complexity: 5,
+				Depth:      4,
+			},
+			[]RootFieldStats{
+				{
+					TypeName:  "Query",
+					FieldName: "transactions",
+					Stats: OperationStats{
+						NodeCount:  3,
+						Complexity: 3,
+						Depth:      3,
+					},
+				},
+				{
+					TypeName:  "Query",
+					FieldName: "users",
+					Stats: OperationStats{
+						NodeCount:  2,
+						Complexity: 2,
+						Depth:      2,
+					},
+				},
+			},
+		)
+	})
+	t.Run("multiple queries with different depth higher depth last", func(t *testing.T) {
+		run(t, testDefinition, `
+				{
+					users(first: 1) {
+						id
+						address {
+					  		city
+						}
+					}
+					transactions(first: 1) {
+						id
+						sender {
+							id
+							transactions(first: 1) {
+								id
+							}
+						}
+					}
+				}`,
+			OperationStats{
+				NodeCount:  5,
+				Complexity: 5,
+				Depth:      4,
+			},
+			[]RootFieldStats{
+				{
+					TypeName:  "Query",
+					FieldName: "users",
+					Stats: OperationStats{
+						NodeCount:  2,
+						Complexity: 2,
+						Depth:      2,
+					},
+				},
+				{
+					TypeName:  "Query",
+					FieldName: "transactions",
+					Stats: OperationStats{
+						NodeCount:  3,
+						Complexity: 3,
+						Depth:      3,
+					},
+				},
+			},
+		)
+	})
 	t.Run("multiple mutations with alias", func(t *testing.T) {
 		run(t, testDefinition, `
 				mutation AlterUsers {
