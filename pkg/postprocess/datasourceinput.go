@@ -1,0 +1,104 @@
+package postprocess
+
+import (
+	"strconv"
+	"strings"
+
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
+)
+
+type ProcessDataSource struct {}
+
+func (d *ProcessDataSource) Process(pre plan.Plan) plan.Plan {
+	switch t := pre.(type){
+	case *plan.SynchronousResponsePlan:
+		d.traverseNode(t.Response.Data)
+	case *plan.StreamingResponsePlan:
+		d.traverseNode(t.Response.InitialResponse.Data)
+		for i := range t.Response.Patches {
+			d.traverseNode(t.Response.Patches[i].Value)
+		}
+	case *plan.SubscriptionResponsePlan:
+		d.traverseNode(t.Response.Response.Data)
+	}
+	return pre
+}
+
+func (d *ProcessDataSource) traverseNode(node resolve.Node){
+	switch n := node.(type){
+	case *resolve.Object:
+		d.traverseFetch(n.Fetch)
+		for i := range n.FieldSets {
+			for j := range n.FieldSets[i].Fields {
+				d.traverseNode(n.FieldSets[i].Fields[j].Value)
+			}
+		}
+	case *resolve.Array:
+		d.traverseNode(n.Item)
+	}
+}
+
+func (d *ProcessDataSource) traverseFetch(fetch resolve.Fetch){
+	if fetch == nil {
+		return
+	}
+	switch f := fetch.(type){
+	case *resolve.SingleFetch:
+		d.traverseSingleFetch(f)
+	case *resolve.ParallelFetch:
+		for i := range f.Fetches {
+			d.traverseSingleFetch(f.Fetches[i])
+		}
+	}
+}
+
+func (d *ProcessDataSource) traverseSingleFetch(fetch *resolve.SingleFetch){
+	defer func() {
+		fetch.Variables = nil
+		fetch.Input = ""
+	}()
+
+	if fetch.Input == "" {
+		return
+	}
+
+	if !strings.Contains(fetch.Input,"$$"){
+		fetch.InputTemplate.Segments = append(fetch.InputTemplate.Segments, resolve.TemplateSegment{
+			SegmentType: resolve.StaticSegmentType,
+			Data:        []byte(fetch.Input),
+		})
+		return
+	}
+
+	segments := strings.Split(fetch.Input, "$$")
+
+	isVariable := false
+	for _, seg := range segments {
+		switch {
+		case isVariable:
+			i, _ := strconv.Atoi(seg)
+			switch v := (fetch.Variables)[i].(type) {
+			case *resolve.ContextVariable:
+				fetch.InputTemplate.Segments = append(fetch.InputTemplate.Segments, resolve.TemplateSegment{
+					SegmentType:        resolve.VariableSegmentType,
+					VariableSource:     resolve.VariableSourceContext,
+					VariableSourcePath: v.Path,
+				})
+			case *resolve.ObjectVariable:
+				fetch.InputTemplate.Segments = append(fetch.InputTemplate.Segments, resolve.TemplateSegment{
+					SegmentType:        resolve.VariableSegmentType,
+					VariableSource:     resolve.VariableSourceObject,
+					VariableSourcePath: v.Path,
+				})
+			}
+			isVariable = false
+		default:
+			fetch.InputTemplate.Segments = append(fetch.InputTemplate.Segments, resolve.TemplateSegment{
+				SegmentType: resolve.StaticSegmentType,
+				Data:        []byte(seg),
+			})
+			isVariable = true
+		}
+	}
+}

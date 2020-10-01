@@ -17,6 +17,7 @@ func DefaultProcessor() *Processor {
 		[]PostProcessor{
 			&ProcessDefer{},
 			&ProcessStream{},
+			&ProcessDataSource{},
 		},
 	}
 }
