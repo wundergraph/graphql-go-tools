@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"io"
 
-	"github.com/cespare/xxhash"
-
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
@@ -118,7 +116,8 @@ func (d *Document) TypeIsScalar(ref int, definition *Document) bool {
 	switch d.Types[ref].TypeKind {
 	case TypeKindNamed:
 		typeName := d.TypeNameBytes(ref)
-		return definition.Index.Nodes[xxhash.Sum64(typeName)].Kind == NodeKindScalarTypeDefinition
+		node, _ := definition.Index.FirstNodeByNameBytes(typeName)
+		return node.Kind == NodeKindScalarTypeDefinition
 	case TypeKindNonNull:
 		return d.TypeIsScalar(d.Types[ref].OfType, definition)
 	}
@@ -154,8 +153,8 @@ func (d *Document) TypesAreCompatibleDeep(left int, right int) bool {
 			if bytes.Equal(leftName, rightName) {
 				return true
 			}
-			leftNode := d.Index.Nodes[xxhash.Sum64(leftName)]
-			rightNode := d.Index.Nodes[xxhash.Sum64(rightName)]
+			leftNode, _ := d.Index.FirstNodeByNameBytes(leftName)
+			rightNode, _ := d.Index.FirstNodeByNameBytes(rightName)
 			if leftNode.Kind == rightNode.Kind {
 				return false
 			}
@@ -194,22 +193,17 @@ func (d *Document) TypeValueNeedsQuotes(ref int, definition *Document) bool {
 	graphqlType := d.Types[ref]
 	switch graphqlType.TypeKind {
 	case TypeKindNonNull:
-		return d.TypeValueNeedsQuotes(graphqlType.OfType,definition)
+		return d.TypeValueNeedsQuotes(graphqlType.OfType, definition)
 	case TypeKindList:
 		return false
 	case TypeKindNamed:
 		typeName := d.Input.ByteSliceString(graphqlType.Name)
-		switch  typeName {
+		switch typeName {
 		case "String", "Date", "ID":
 			return true
 		default:
-			definitionNodeKind := definition.Index.Nodes[xxhash.Sum64String(typeName)].Kind
-			switch definitionNodeKind {
-			case NodeKindEnumTypeDefinition:
-				return true
-			default:
-				return false
-			}
+			node, _ := definition.Index.FirstNodeByNameStr(typeName)
+			return node.Kind == NodeKindEnumTypeDefinition
 		}
 	default:
 		return false

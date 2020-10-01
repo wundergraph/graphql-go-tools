@@ -3,17 +3,16 @@ package ast
 import (
 	"testing"
 
-	"github.com/cespare/xxhash"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestDocument_TypeValueNeedsQuotes(t *testing.T) {
 	doc := Document{}
 	definition := NewDocument()
-	//someEnumName := definition.Input.AppendInputString("SomeEnum")
-	definition.Index.Nodes[xxhash.Sum64String("SomeEnum")] = Node{
+
+	definition.Index.AddNodeStr("SomeEnum",Node{
 		Kind: NodeKindEnumTypeDefinition,
-	}
+	})
 
 	stringRef := doc.Input.AppendInputString("String")
 	doc.Types = append(doc.Types, Type{
