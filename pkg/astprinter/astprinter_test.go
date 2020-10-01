@@ -82,6 +82,10 @@ func TestPrint(t *testing.T) {
 					}
 				}`, `query argOnRequiredArg($catCommand: CatCommand @include(if: true), $complex: Boolean = true){dog {doesKnowCommand(dogCommand: $catCommand)}}`)
 	})
+	t.Run("spacing", func(t *testing.T) {
+		run(`query($representations: [_Any!]!){_entities (representations: $representations){... on User {reviews {body product {upc __typename}}}}}`,
+			`query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}`)
+	})
 	t.Run("directives", func(t *testing.T) {
 		t.Run("on field", func(t *testing.T) {
 			run(`
