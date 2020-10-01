@@ -4,11 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/buger/jsonparser"
-	"github.com/cespare/xxhash"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astimport"
@@ -293,7 +291,7 @@ func (v *Visitor) AllowVisitor(visitorKind astvisitor.VisitorKind, ref int, visi
 
 func (v *Visitor) IsRootField(ref int) (bool, *DataSourceConfiguration) {
 	fieldName := v.Operation.FieldNameString(ref)
-	enclosingTypeName := v.EnclosingTypeDefinition.Name(v.Definition)
+	enclosingTypeName := v.EnclosingTypeDefinition.NameString(v.Definition)
 	for i := range v.Config.DataSourceConfigurations {
 		if enclosingTypeName != v.Config.DataSourceConfigurations[i].TypeName {
 			continue
@@ -456,36 +454,6 @@ func (v *Visitor) prepareSingleFetchVariables(input *string, inputTemplate *reso
 			return i
 		}
 	})
-
-	segments := strings.Split(*input, "$$")
-	isVariable := false
-	for _, seg := range segments {
-		switch {
-		case isVariable:
-			i, _ := strconv.Atoi(seg)
-			switch v := (*variables)[i].(type) {
-			case *resolve.ContextVariable:
-				inputTemplate.Segments = append(inputTemplate.Segments, resolve.TemplateSegment{
-					SegmentType:        resolve.VariableSegmentType,
-					VariableSource:     resolve.VariableSourceContext,
-					VariableSourcePath: v.Path,
-				})
-			case *resolve.ObjectVariable:
-				inputTemplate.Segments = append(inputTemplate.Segments, resolve.TemplateSegment{
-					SegmentType:        resolve.VariableSegmentType,
-					VariableSource:     resolve.VariableSourceObject,
-					VariableSourcePath: v.Path,
-				})
-			}
-			isVariable = false
-		default:
-			inputTemplate.Segments = append(inputTemplate.Segments, resolve.TemplateSegment{
-				SegmentType: resolve.StaticSegmentType,
-				Data:        []byte(seg),
-			})
-			isVariable = true
-		}
-	}
 }
 
 func (v *Visitor) EnterArgument(ref int) {
@@ -494,7 +462,7 @@ func (v *Visitor) EnterArgument(ref int) {
 	}
 	value := v.Operation.ArgumentValue(ref)
 	arg := fieldArgument{
-		typeName:     v.currentFieldEnclosingTypeDefinition.Name(v.Definition),
+		typeName:     v.currentFieldEnclosingTypeDefinition.NameString(v.Definition),
 		fieldName:    v.currentFieldName,
 		argumentName: v.Operation.ArgumentNameString(ref),
 		kind:         fieldArgumentTypeStatic,
@@ -680,8 +648,9 @@ func (v *Visitor) EnterField(ref int) {
 		}
 		value = float
 	default:
-
-		switch v.Definition.Index.Nodes[xxhash.Sum64(typeNameBytes)].Kind { // TODO verify definition type before and define resolve type based on that, in case of scalar use specific scalars and default to string
+		// TODO verify definition type before and define resolve type based on that, in case of scalar use specific scalars and default to string
+		node,_ := v.Definition.Index.FirstNodeByNameBytes(typeNameBytes)
+		switch node.Kind {
 		case ast.NodeKindEnumTypeDefinition, ast.NodeKindScalarTypeDefinition:
 			str := &resolve.String{
 				Nullable: fieldTypeIsNullable,
@@ -746,7 +715,7 @@ func (v *Visitor) EnterField(ref int) {
 }
 
 func (v *Visitor) resolveFieldPath(ref int) []string {
-	typeName := v.EnclosingTypeDefinition.Name(v.Definition)
+	typeName := v.EnclosingTypeDefinition.NameString(v.Definition)
 	fieldName := v.Operation.FieldNameString(ref)
 	for i := range v.Config.FieldMappings {
 		if v.Config.FieldMappings[i].TypeName == typeName && v.Config.FieldMappings[i].FieldName == fieldName {
@@ -779,7 +748,7 @@ func (v *Visitor) setActiveDataSourcePlanner(fieldRef int, enterOrLeave enterOrL
 
 	fieldName := v.Operation.FieldNameString(fieldRef)
 
-	enclosingTypeName := v.EnclosingTypeDefinition.Name(v.Definition)
+	enclosingTypeName := v.EnclosingTypeDefinition.NameString(v.Definition)
 	for i := range v.Config.DataSourceConfigurations {
 		if v.Config.DataSourceConfigurations[i].TypeName != enclosingTypeName {
 			continue

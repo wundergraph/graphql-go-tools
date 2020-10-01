@@ -93,14 +93,6 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 					Fetch: &resolve.SingleFetch{
 						BufferId: 0,
 						Input:    `{"method":"GET","url":"https://example.com/friend"}`,
-						InputTemplate: resolve.InputTemplate{
-							Segments: []resolve.TemplateSegment{
-								{
-									SegmentType: resolve.StaticSegmentType,
-									Data:        []byte(`{"method":"GET","url":"https://example.com/friend"}`),
-								},
-							},
-						},
 						DataSource: &Source{
 							client: NewPlanner(nil).clientOrDefault(),
 						},
@@ -117,23 +109,6 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 										Fetch: &resolve.SingleFetch{
 											BufferId: 1,
 											Input:    `{"method":"GET","url":"https://example.com/friend/$$0$$/pet"}`,
-											InputTemplate: resolve.InputTemplate{
-												Segments: []resolve.TemplateSegment{
-													{
-														SegmentType: resolve.StaticSegmentType,
-														Data:        []byte(`{"method":"GET","url":"https://example.com/friend/`),
-													},
-													{
-														SegmentType:        resolve.VariableSegmentType,
-														VariableSource:     resolve.VariableSourceObject,
-														VariableSourcePath: []string{"name"},
-													},
-													{
-														SegmentType: resolve.StaticSegmentType,
-														Data:        []byte(`/pet"}`),
-													},
-												},
-											},
 											DataSource: &Source{
 												client: NewPlanner(nil).clientOrDefault(),
 											},
@@ -250,32 +225,6 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 					Fetch: &resolve.SingleFetch{
 						BufferId: 0,
 						Input:    `{"method":"GET","url":"https://example.com/$$0$$/$$1$$"}`,
-						InputTemplate: resolve.InputTemplate{
-							Segments: []resolve.TemplateSegment{
-								{
-									SegmentType: resolve.StaticSegmentType,
-									Data:        []byte(`{"method":"GET","url":"https://example.com/`),
-								},
-								{
-									SegmentType:        resolve.VariableSegmentType,
-									VariableSource:     resolve.VariableSourceContext,
-									VariableSourcePath: []string{"idVariable"},
-								},
-								{
-									SegmentType: resolve.StaticSegmentType,
-									Data:        []byte(`/`),
-								},
-								{
-									SegmentType:        resolve.VariableSegmentType,
-									VariableSource:     resolve.VariableSourceContext,
-									VariableSourcePath: []string{"a"},
-								},
-								{
-									SegmentType: resolve.StaticSegmentType,
-									Data:        []byte(`"}`),
-								},
-							},
-						},
 						DataSource: &Source{
 							client: NewPlanner(nil).clientOrDefault(),
 						},
@@ -350,32 +299,6 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 			Response: resolve.GraphQLSubscription{
 				Trigger: resolve.GraphQLSubscriptionTrigger{
 					Input:    `{"interval":1000,"request_input":{"method":"GET","url":"https://example.com/$$0$$/$$1$$"},"skip_publish_same_response":true}`,
-					InputTemplate: resolve.InputTemplate{
-						Segments: []resolve.TemplateSegment{
-							{
-								SegmentType: resolve.StaticSegmentType,
-								Data:        []byte(`{"interval":1000,"request_input":{"method":"GET","url":"https://example.com/`),
-							},
-							{
-								SegmentType:        resolve.VariableSegmentType,
-								VariableSource:     resolve.VariableSourceContext,
-								VariableSourcePath: []string{"idVariable"},
-							},
-							{
-								SegmentType: resolve.StaticSegmentType,
-								Data:        []byte(`/`),
-							},
-							{
-								SegmentType:        resolve.VariableSegmentType,
-								VariableSource:     resolve.VariableSourceContext,
-								VariableSourcePath: []string{"a"},
-							},
-							{
-								SegmentType: resolve.StaticSegmentType,
-								Data:        []byte(`"},"skip_publish_same_response":true}`),
-							},
-						},
-					},
 					ManagerID: []byte("http_polling_stream"),
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
@@ -459,14 +382,6 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 					Fetch: &resolve.SingleFetch{
 						BufferId: 0,
 						Input:    `{"body":{"foo":"bar"},"method":"POST","url":"https://example.com/friend"}`,
-						InputTemplate: resolve.InputTemplate{
-							Segments: []resolve.TemplateSegment{
-								{
-									SegmentType: resolve.StaticSegmentType,
-									Data:        []byte(`{"body":{"foo":"bar"},"method":"POST","url":"https://example.com/friend"}`),
-								},
-							},
-						},
 						DataSource: &Source{
 							client: NewPlanner(nil).clientOrDefault(),
 						},
@@ -544,14 +459,6 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 					Fetch: &resolve.SingleFetch{
 						BufferId: 0,
 						Input:    `{"headers":{"Authorization":"Bearer 123","X-API-Key":"456"},"method":"GET","url":"https://example.com/friend"}`,
-						InputTemplate: resolve.InputTemplate{
-							Segments: []resolve.TemplateSegment{
-								{
-									SegmentType: resolve.StaticSegmentType,
-									Data:        []byte(`{"headers":{"Authorization":"Bearer 123","X-API-Key":"456"},"method":"GET","url":"https://example.com/friend"}`),
-								},
-							},
-						},
 						DataSource: &Source{
 							client: NewPlanner(nil).clientOrDefault(),
 						},
@@ -628,32 +535,6 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 					Fetch: &resolve.SingleFetch{
 						BufferId: 0,
 						Input:    `{"query_params":[{"name":"static","value":"staticValue"},{"name":"static","value":"secondStaticValue"},{"name":"name","value":"$$0$$"},{"name":"id","value":"$$1$$"}],"method":"GET","url":"https://example.com/friend"}`,
-						InputTemplate: resolve.InputTemplate{
-							Segments: []resolve.TemplateSegment{
-								{
-									SegmentType: resolve.StaticSegmentType,
-									Data:        []byte(`{"query_params":[{"name":"static","value":"staticValue"},{"name":"static","value":"secondStaticValue"},{"name":"name","value":"`),
-								},
-								{
-									SegmentType:        resolve.VariableSegmentType,
-									VariableSource:     resolve.VariableSourceContext,
-									VariableSourcePath: []string{"a"},
-								},
-								{
-									SegmentType: resolve.StaticSegmentType,
-									Data:        []byte(`"},{"name":"id","value":"`),
-								},
-								{
-									SegmentType:        resolve.VariableSegmentType,
-									VariableSource:     resolve.VariableSourceContext,
-									VariableSourcePath: []string{"idVariable"},
-								},
-								{
-									SegmentType: resolve.StaticSegmentType,
-									Data:        []byte(`"}],"method":"GET","url":"https://example.com/friend"}`),
-								},
-							},
-						},
 						DataSource: &Source{
 							client: NewPlanner(nil).clientOrDefault(),
 						},
@@ -759,23 +640,6 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 					Fetch: &resolve.SingleFetch{
 						BufferId: 0,
 						Input:    `{"query_params":[{"name":"names","value":$$0$$}],"method":"GET","url":"https://example.com/friend"}`,
-						InputTemplate: resolve.InputTemplate{
-							Segments: []resolve.TemplateSegment{
-								{
-									SegmentType: resolve.StaticSegmentType,
-									Data:        []byte(`{"query_params":[{"name":"names","value":`),
-								},
-								{
-									SegmentType:        resolve.VariableSegmentType,
-									VariableSource:     resolve.VariableSourceContext,
-									VariableSourcePath: []string{"a"},
-								},
-								{
-									SegmentType: resolve.StaticSegmentType,
-									Data:        []byte(`}],"method":"GET","url":"https://example.com/friend"}`),
-								},
-							},
-						},
 						DataSource: &Source{
 							client: NewPlanner(nil).clientOrDefault(),
 						},

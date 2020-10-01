@@ -4,15 +4,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"log"
+	"fmt"
 	"net/url"
 
 	"github.com/buger/jsonparser"
-	"github.com/cespare/xxhash"
 	"github.com/tidwall/sjson"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
+	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
@@ -22,21 +22,26 @@ import (
 )
 
 type Planner struct {
-	client              httpclient.Client
-	v                   *plan.Visitor
-	fetch               *resolve.SingleFetch
-	printer             astprinter.Printer
-	operation           *ast.Document
-	nodes               []ast.Node
-	buf                 *bytes.Buffer
-	operationNormalizer *astnormalization.OperationNormalizer
-	URL                 []byte
-	variables           []byte
-	headers             []byte
-	bufferID            int
-	config              *plan.DataSourceConfiguration
-	abortLeaveDocument  bool
-	operationType       ast.OperationType
+	client                 httpclient.Client
+	v                      *plan.Visitor
+	fetch                  *resolve.SingleFetch
+	printer                astprinter.Printer
+	operation              *ast.Document
+	nodes                  []ast.Node
+	buf                    *bytes.Buffer
+	operationNormalizer    *astnormalization.OperationNormalizer
+	URL                    []byte
+	variables              []byte
+	headers                []byte
+	bufferID               int
+	config                 *plan.DataSourceConfiguration
+	abortLeaveDocument     bool
+	operationType          ast.OperationType
+	isNestedRequest        bool
+	isFederation           bool
+	federationSDL          []byte
+	federationSchema       *ast.Document
+	federationRootTypeName []byte
 }
 
 func NewPlanner(client httpclient.Client) *Planner {
@@ -76,9 +81,18 @@ func (p *Planner) EnterDocument(_, _ *ast.Document) {
 	}
 	p.nodes = p.nodes[:0]
 	p.URL = nil
+	p.federationSDL = nil
 	p.variables = nil
 	p.headers = nil
 	p.operationType = ast.OperationTypeUnknown
+	p.isFederation = false
+	p.federationSDL = nil
+	p.federationRootTypeName = nil
+	if p.federationSchema == nil {
+		p.federationSchema = ast.NewDocument()
+	} else {
+		p.federationSchema.Reset()
+	}
 }
 
 func (p *Planner) EnterField(ref int) {
@@ -97,11 +111,21 @@ func (p *Planner) EnterField(ref int) {
 		if len(p.nodes) == 0 { // Setup Fetch and root (operation definition)
 			p.URL = config.Attributes.ValueForKey("url")
 			p.headers = config.Attributes.ValueForKey(httpclient.HEADERS)
+			p.federationSDL = config.Attributes.ValueForKey("federation_service_sdl")
+			if p.federationSDL != nil {
+				p.isFederation = true
+				p.federationRootTypeName = p.v.EnclosingTypeDefinition.NameBytes(p.v.Definition)
+				parser := astparser.NewParser()
+				p.federationSchema.Input.ResetInputBytes(p.federationSDL)
+				parser.Parse(p.federationSchema, p.v.Report)
+			}
 			if len(p.operation.RootNodes) == 0 {
 				set := p.operation.AddSelectionSet()
 				p.operationType = ast.OperationTypeQuery
 				if len(p.v.Ancestors) == 2 {
 					p.operationType = p.v.Operation.OperationDefinitions[p.v.Ancestors[0].Ref].OperationType
+				} else {
+					p.isNestedRequest = true
 				}
 				// this means OperationType must always be Query for nested fields
 				// if Ancestors are more then 2 this is a field nested in another Query
@@ -142,10 +166,77 @@ func (p *Planner) EnterField(ref int) {
 	if arguments := config.Attributes.ValueForKey("arguments"); arguments != nil {
 		p.configureFieldArguments(field.Ref, ref, arguments)
 	}
+	if p.isFederation && p.isNestedRequest && isRootField {
+		p.addFederationVariables()
+	}
+}
+
+func (p *Planner) addFederationVariables() {
+	enclosingTypeName := p.v.EnclosingTypeDefinition.NameBytes(p.v.Definition)
+	definition, ok := p.federationSchema.Index.FirstNodeByNameBytes(enclosingTypeName)
+	if !ok {
+		return
+	}
+	var (
+		fieldDefinitions []int
+		directives       []int
+		keys             [][]byte
+	)
+	switch definition.Kind {
+	case ast.NodeKindObjectTypeDefinition:
+		fieldDefinitions = p.federationSchema.ObjectTypeDefinitions[definition.Ref].FieldsDefinition.Refs
+		directives = p.federationSchema.ObjectTypeDefinitions[definition.Ref].Directives.Refs
+	case ast.NodeKindObjectTypeExtension:
+		fieldDefinitions = p.federationSchema.ObjectTypeExtensions[definition.Ref].FieldsDefinition.Refs
+		directives = p.federationSchema.ObjectTypeExtensions[definition.Ref].Directives.Refs
+	case ast.NodeKindInterfaceTypeDefinition:
+		fieldDefinitions = p.federationSchema.InterfaceTypeDefinitions[definition.Ref].FieldsDefinition.Refs
+		directives = p.federationSchema.InterfaceTypeDefinitions[definition.Ref].Directives.Refs
+	case ast.NodeKindInterfaceTypeExtension:
+		fieldDefinitions = p.federationSchema.InterfaceTypeExtensions[definition.Ref].FieldsDefinition.Refs
+		directives = p.federationSchema.InterfaceTypeExtensions[definition.Ref].Directives.Refs
+	default:
+		return
+	}
+
+	for _, i := range directives {
+		name := p.federationSchema.DirectiveNameBytes(i)
+		if !bytes.Equal([]byte("key"), name) {
+			continue
+		}
+		value, ok := p.federationSchema.DirectiveArgumentValueByName(i, []byte("fields"))
+		if !ok {
+			continue
+		}
+		if value.Kind != ast.ValueKindString {
+			continue
+		}
+		keyValue := p.federationSchema.StringValueContentBytes(value.Ref)
+		keys = append(keys, keyValue)
+	}
+
+	variableTemplate := []byte(fmt.Sprintf(`{"__typename":"%s"}`, string(enclosingTypeName)))
+
+	for i := range keys {
+		key := keys[i]
+		for _, j := range fieldDefinitions {
+			fieldDefinitionName := p.federationSchema.FieldDefinitionNameBytes(j)
+			if !bytes.Equal(fieldDefinitionName, key) {
+				continue
+			}
+			objectVariableName, exists := p.fetch.Variables.AddVariable(&resolve.ObjectVariable{Path: []string{string(fieldDefinitionName)}}, true)
+			if !exists {
+				variableTemplate, _ = sjson.SetRawBytes(variableTemplate, string(fieldDefinitionName), []byte(objectVariableName))
+			}
+		}
+	}
+
+	representationsVariable := append([]byte("["), append(variableTemplate, []byte("]")...)...)
+	p.variables, _ = sjson.SetRawBytes(p.variables, "representations", representationsVariable)
 }
 
 func (p *Planner) handleFieldDependencies(downstreamField, upstreamSelectionSet int) {
-	typeName := p.v.EnclosingTypeDefinition.Name(p.v.Definition)
+	typeName := p.v.EnclosingTypeDefinition.NameString(p.v.Definition)
 	fieldName := p.v.Operation.FieldNameString(downstreamField)
 	for i := range p.v.Config.FieldDependencies {
 		if p.v.Config.FieldDependencies[i].TypeName != typeName {
@@ -202,7 +293,7 @@ func (p *Planner) addField(ref int) ast.Node {
 		})
 	}
 
-	typeName := p.v.EnclosingTypeDefinition.Name(p.v.Definition)
+	typeName := p.v.EnclosingTypeDefinition.NameString(p.v.Definition)
 	for i := range p.v.Config.FieldMappings {
 		if p.v.Config.FieldMappings[i].TypeName == typeName &&
 			p.v.Config.FieldMappings[i].FieldName == fieldName &&
@@ -222,7 +313,6 @@ func (p *Planner) configureFieldArguments(upstreamField, downstreamField int, ar
 	var config ArgumentsConfig
 	err := json.Unmarshal(arguments, &config)
 	if err != nil {
-		log.Fatal(err)
 		return
 	}
 	fieldName := p.v.Operation.FieldNameString(downstreamField)
@@ -280,7 +370,7 @@ func (p *Planner) applyFieldArgument(upstreamField, downstreamField int, arg Arg
 			return
 		}
 
-		enclosingTypeName := p.v.EnclosingTypeDefinition.Name(p.v.Definition)
+		enclosingTypeName := p.v.EnclosingTypeDefinition.NameString(p.v.Definition)
 		fieldName := p.v.Operation.FieldNameString(downstreamField)
 
 		for i := range p.v.Config.FieldMappings {
@@ -291,7 +381,10 @@ func (p *Planner) applyFieldArgument(upstreamField, downstreamField int, arg Arg
 			}
 		}
 
-		queryTypeDefinition := p.v.Definition.Index.Nodes[xxhash.Sum64(p.v.Definition.Index.QueryTypeName)]
+		queryTypeDefinition,exists := p.v.Definition.Index.FirstNodeByNameBytes(p.v.Definition.Index.QueryTypeName)
+		if !exists {
+			return
+		}
 		argumentDefinition := p.v.Definition.NodeFieldDefinitionArgumentDefinitionByName(queryTypeDefinition, []byte(fieldName), arg.NameBytes())
 		if argumentDefinition == -1 {
 			return
@@ -394,28 +487,141 @@ func (p *Planner) LeaveSelectionSet(ref int) {
 		p.handleFieldDependencies(downstreamField, upstreamSelectionSet)
 	}
 
+	p.addFederationSelections(ref)
+
 	p.nodes = p.nodes[:len(p.nodes)-1]
+}
+
+func (p *Planner) addFederationSelections(set int) {
+	if !p.isFederation {
+		return
+	}
+	enclosingTypeName := p.v.EnclosingTypeDefinition.NameBytes(p.v.Definition)
+	refs := p.v.Operation.SelectionSets[set].SelectionRefs
+	for _, i := range refs {
+		if p.v.Operation.Selections[i].Kind != ast.SelectionKindField {
+			continue
+		}
+		field := p.v.Operation.Selections[i].Ref
+		fieldName := p.v.Operation.FieldNameBytes(field)
+		p.addFederatedField(set, fieldName, enclosingTypeName)
+	}
+}
+
+func (p *Planner) addFederatedField(downstreamSelectionSet int, fieldName, enclosingTypeName []byte) {
+	upstreamSelectionSet := p.nodes[len(p.nodes)-1].Ref
+	definition, ok := p.federationSchema.Index.FirstNodeByNameBytes(enclosingTypeName)
+	if !ok {
+		return
+	}
+	var (
+		fieldDefinitions []int
+		directives       []int
+		keys             [][]byte
+		addTypeNameField bool
+	)
+	switch definition.Kind {
+	case ast.NodeKindObjectTypeDefinition:
+		fieldDefinitions = p.federationSchema.ObjectTypeDefinitions[definition.Ref].FieldsDefinition.Refs
+		directives = p.federationSchema.ObjectTypeDefinitions[definition.Ref].Directives.Refs
+	case ast.NodeKindObjectTypeExtension:
+		fieldDefinitions = p.federationSchema.ObjectTypeExtensions[definition.Ref].FieldsDefinition.Refs
+		directives = p.federationSchema.ObjectTypeExtensions[definition.Ref].Directives.Refs
+	case ast.NodeKindInterfaceTypeDefinition:
+		fieldDefinitions = p.federationSchema.InterfaceTypeDefinitions[definition.Ref].FieldsDefinition.Refs
+		directives = p.federationSchema.InterfaceTypeDefinitions[definition.Ref].Directives.Refs
+	case ast.NodeKindInterfaceTypeExtension:
+		fieldDefinitions = p.federationSchema.InterfaceTypeExtensions[definition.Ref].FieldsDefinition.Refs
+		directives = p.federationSchema.InterfaceTypeExtensions[definition.Ref].Directives.Refs
+	default:
+		return
+	}
+
+	for _, i := range directives {
+		name := p.federationSchema.DirectiveNameBytes(i)
+		if !bytes.Equal([]byte("key"), name) {
+			continue
+		}
+		value, ok := p.federationSchema.DirectiveArgumentValueByName(i, []byte("fields"))
+		if !ok {
+			continue
+		}
+		if value.Kind != ast.ValueKindString {
+			continue
+		}
+		keyValue := p.federationSchema.StringValueContentBytes(value.Ref)
+		keys = append(keys, keyValue)
+	}
+
+	for i := range keys {
+		key := keys[i]
+		for _, j := range fieldDefinitions {
+			fieldDefinitionName := p.federationSchema.FieldDefinitionNameBytes(j)
+			if !bytes.Equal(fieldDefinitionName, key) {
+				continue
+			}
+			_, isExternal := p.federationSchema.FieldDefinitionDirectiveByName(j, []byte("external"))
+			if isExternal {
+				addTypeNameField = true
+				externalField := p.operation.AddField(ast.Field{
+					Name: p.operation.Input.AppendInputBytes(fieldDefinitionName),
+				}).Ref
+				p.operation.AddSelection(upstreamSelectionSet, ast.Selection{
+					Kind: ast.SelectionKindField,
+					Ref:  externalField,
+				})
+			}
+		}
+	}
+	if addTypeNameField {
+		externalField := p.operation.AddField(ast.Field{
+			Name: p.operation.Input.AppendInputBytes(literal.TYPENAME),
+		}).Ref
+		p.operation.AddSelection(upstreamSelectionSet, ast.Selection{
+			Kind: ast.SelectionKindField,
+			Ref:  externalField,
+		})
+	}
 }
 
 func (p *Planner) LeaveDocument(_, definition *ast.Document) {
 	if p.abortLeaveDocument {
 		return // planner did not get activated, skip
 	}
-	p.operationNormalizer.NormalizeOperation(p.operation, definition, p.v.Report)
+	if !p.isFederation {
+		p.operationNormalizer.NormalizeOperation(p.operation, definition, p.v.Report)
+	}
+
 	buf := &bytes.Buffer{}
+	if p.isFederation && p.isNestedRequest {
+		_, _ = buf.Write(federationQueryHeader)
+		_, _ = buf.Write(p.federationRootTypeName)
+		_, _ = buf.Write(literal.SPACE)
+	}
+
 	err := p.printer.Print(p.operation, nil, buf)
 	if err != nil {
 		return
 	}
 
+	if p.isFederation && p.isNestedRequest {
+		_, _ = buf.Write(federationQueryTrailer)
+	}
+
 	switch p.operationType {
 	case ast.OperationTypeQuery, ast.OperationTypeMutation:
 		var input []byte
+
+		if p.isFederation && p.isNestedRequest {
+			input, _ = sjson.SetRawBytes(input, "extract_entities", []byte("true"))
+		}
+
 		input = httpclient.SetInputBodyWithPath(input, p.variables, "variables")
 		input = httpclient.SetInputBodyWithPath(input, buf.Bytes(), "query")
 		input = httpclient.SetInputURL(input, p.URL)
 		input = httpclient.SetInputMethod(input, literal.HTTP_METHOD_POST)
 		input = httpclient.SetInputHeaders(input, p.headers)
+
 		p.fetch.Input = string(input)
 		source := DefaultSource()
 		source.client = p.clientOrDefault()
@@ -435,6 +641,11 @@ func (p *Planner) LeaveDocument(_, definition *ast.Document) {
 		}
 
 		var input []byte
+
+		if p.isFederation && p.isNestedRequest {
+			input, _ = sjson.SetRawBytes(input, "extract_entities", []byte("true"))
+		}
+
 		input = httpclient.SetInputHeaders(input, p.headers)
 		input = httpclient.SetInputBodyWithPath(input, p.variables, "variables")
 		input = httpclient.SetInputBodyWithPath(input, buf.Bytes(), "query")
@@ -468,10 +679,13 @@ func (_ *Source) UniqueIdentifier() []byte {
 }
 
 var (
-	responsePaths = [][]string{
+	federationQueryHeader  = []byte(`query($representations: [_Any!]!){_entities(representations: $representations){... on `)
+	federationQueryTrailer = []byte(`}}`)
+	responsePaths          = [][]string{
 		{"errors"},
 		{"data"},
 	}
+	entitiesPath = []string{"_entities", "[0]"}
 )
 
 func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPair) (err error) {
@@ -486,11 +700,19 @@ func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPai
 
 	responseData := buf.Bytes()
 
+	extractEntitiesRaw, _, _, _ := jsonparser.Get(input, "extract_entities")
+	extractEntities := bytes.Equal(extractEntitiesRaw, literal.TRUE)
+
 	jsonparser.EachKey(responseData, func(i int, bytes []byte, valueType jsonparser.ValueType, err error) {
 		switch i {
 		case 0:
 			bufPair.Errors.WriteBytes(bytes)
 		case 1:
+			if extractEntities {
+				data,_,_,_ := jsonparser.Get(bytes,entitiesPath...)
+				bufPair.Data.WriteBytes(data)
+				return
+			}
 			bufPair.Data.WriteBytes(bytes)
 		}
 	}, responsePaths...)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -41,23 +42,6 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 					DataSource: DefaultSource(),
 					BufferId:   0,
 					Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($id: ID!){droid(id: $id){name aliased: name friends {name} primaryFunction} hero {name} stringList nestedStringList}","variables":{"id":"$$0$$"}}}`,
-					InputTemplate: resolve.InputTemplate{
-						Segments: []resolve.TemplateSegment{
-							{
-								SegmentType: resolve.StaticSegmentType,
-								Data:        []byte(`{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($id: ID!){droid(id: $id){name aliased: name friends {name} primaryFunction} hero {name} stringList nestedStringList}","variables":{"id":"`),
-							},
-							{
-								SegmentType:        resolve.VariableSegmentType,
-								VariableSource:     resolve.VariableSourceContext,
-								VariableSourcePath: []string{"id"},
-							},
-							{
-								SegmentType: resolve.StaticSegmentType,
-								Data:        []byte(`"}}}`),
-							},
-						},
-					},
 					Variables: resolve.NewVariables(&resolve.ContextVariable{
 						Path: []string{"id"},
 					}),
@@ -241,23 +225,6 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 					Fetch: &resolve.SingleFetch{
 						BufferId: 0,
 						Input:    `{"method":"POST","url":"https://service.one","body":{"query":"mutation($name: String!){addFriend(name: $name){id name}}","variables":{"name":"$$0$$"}}}`,
-						InputTemplate: resolve.InputTemplate{
-							Segments: []resolve.TemplateSegment{
-								{
-									SegmentType: resolve.StaticSegmentType,
-									Data:        []byte(`{"method":"POST","url":"https://service.one","body":{"query":"mutation($name: String!){addFriend(name: $name){id name}}","variables":{"name":"`),
-								},
-								{
-									SegmentType:        resolve.VariableSegmentType,
-									VariableSource:     resolve.VariableSourceContext,
-									VariableSourcePath: []string{"name"},
-								},
-								{
-									SegmentType: resolve.StaticSegmentType,
-									Data:        []byte(`"}}}`),
-								},
-							},
-						},
 						DataSource: DefaultSource(),
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
@@ -362,32 +329,6 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 					Fetch: &resolve.SingleFetch{
 						BufferId: 0,
 						Input:    `{"method":"POST","url":"https://foo.service","body":{"query":"query($a: String, $b: String){foo(bar: $a){bar(bal: $b)}}","variables":{"b":"$$1$$","a":"$$0$$"}}}`,
-						InputTemplate: resolve.InputTemplate{
-							Segments: []resolve.TemplateSegment{
-								{
-									SegmentType: resolve.StaticSegmentType,
-									Data:        []byte(`{"method":"POST","url":"https://foo.service","body":{"query":"query($a: String, $b: String){foo(bar: $a){bar(bal: $b)}}","variables":{"b":"`),
-								},
-								{
-									SegmentType:        resolve.VariableSegmentType,
-									VariableSource:     resolve.VariableSourceContext,
-									VariableSourcePath: []string{"b"},
-								},
-								{
-									SegmentType: resolve.StaticSegmentType,
-									Data:        []byte(`","a":"`),
-								},
-								{
-									SegmentType:        resolve.VariableSegmentType,
-									VariableSource:     resolve.VariableSourceContext,
-									VariableSourcePath: []string{"a"},
-								},
-								{
-									SegmentType: resolve.StaticSegmentType,
-									Data:        []byte(`"}}}`),
-								},
-							},
-						},
 						DataSource: DefaultSource(),
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
@@ -539,32 +480,6 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 							{
 								BufferId: 0,
 								Input:    `{"method":"POST","url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":"$$0$$"}}}`,
-								InputTemplate: resolve.InputTemplate{
-									Segments: []resolve.TemplateSegment{
-										{
-											SegmentType: resolve.StaticSegmentType,
-											Data:        []byte(`{"method":"POST","url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":`),
-										},
-										{
-											SegmentType:        resolve.VariableSegmentType,
-											VariableSource:     resolve.VariableSourceContext,
-											VariableSourcePath: []string{"thirdArg"},
-										},
-										{
-											SegmentType: resolve.StaticSegmentType,
-											Data:        []byte(`,"firstArg":"`),
-										},
-										{
-											SegmentType:        resolve.VariableSegmentType,
-											VariableSource:     resolve.VariableSourceContext,
-											VariableSourcePath: []string{"firstArg"},
-										},
-										{
-											SegmentType: resolve.StaticSegmentType,
-											Data:        []byte(`"}}}`),
-										},
-									},
-								},
 								DataSource: DefaultSource(),
 								Variables: resolve.NewVariables(
 									&resolve.ContextVariable{
@@ -578,32 +493,6 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 							{
 								BufferId: 1,
 								Input:    `{"method":"POST","url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo serviceOneField} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo serviceOneField}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`,
-								InputTemplate: resolve.InputTemplate{
-									Segments: []resolve.TemplateSegment{
-										{
-											SegmentType: resolve.StaticSegmentType,
-											Data:        []byte(`{"method":"POST","url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo serviceOneField} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo serviceOneField}}","variables":{"fourthArg":`),
-										},
-										{
-											SegmentType:        resolve.VariableSegmentType,
-											VariableSource:     resolve.VariableSourceContext,
-											VariableSourcePath: []string{"fourthArg"},
-										},
-										{
-											SegmentType: resolve.StaticSegmentType,
-											Data:        []byte(`,"secondArg":`),
-										},
-										{
-											SegmentType:        resolve.VariableSegmentType,
-											VariableSource:     resolve.VariableSourceContext,
-											VariableSourcePath: []string{"secondArg"},
-										},
-										{
-											SegmentType: resolve.StaticSegmentType,
-											Data:        []byte(`}}}`),
-										},
-									},
-								},
 								DataSource: DefaultSource(),
 								Variables: resolve.NewVariables(
 									&resolve.ContextVariable{
@@ -655,23 +544,6 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 											BufferId:   2,
 											DataSource: DefaultSource(),
 											Input:      `{"method":"POST","url":"https://service.one","body":{"query":"query($a: String){serviceOne(serviceOneArg: $a){fieldOne}}","variables":{"a":"$$0$$"}}}`,
-											InputTemplate: resolve.InputTemplate{
-												Segments: []resolve.TemplateSegment{
-													{
-														SegmentType: resolve.StaticSegmentType,
-														Data:        []byte(`{"method":"POST","url":"https://service.one","body":{"query":"query($a: String){serviceOne(serviceOneArg: $a){fieldOne}}","variables":{"a":"`),
-													},
-													{
-														SegmentType:        resolve.VariableSegmentType,
-														VariableSource:     resolve.VariableSourceObject,
-														VariableSourcePath: []string{"serviceOneField"},
-													},
-													{
-														SegmentType: resolve.StaticSegmentType,
-														Data:        []byte(`"}}}`),
-													},
-												},
-											},
 											Variables: resolve.NewVariables(
 												&resolve.ObjectVariable{
 													Path: []string{"serviceOneField"},
@@ -953,41 +825,6 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 					Fetch: &resolve.SingleFetch{
 						BufferId: 0,
 						Input:    `{"method":"POST","url":"https://graphql.service","body":{"query":"mutation($title: String!, $completed: Boolean!, $name: String!){addTask(input: [{title: $title,completed: $completed,user: {name: $name}}]){task {id title completed}}}","variables":{"name":"$$2$$","completed":$$1$$,"title":"$$0$$"}}}`,
-						InputTemplate: resolve.InputTemplate{
-							Segments: []resolve.TemplateSegment{
-								{
-									SegmentType: resolve.StaticSegmentType,
-									Data:        []byte(`{"method":"POST","url":"https://graphql.service","body":{"query":"mutation($title: String!, $completed: Boolean!, $name: String!){addTask(input: [{title: $title,completed: $completed,user: {name: $name}}]){task {id title completed}}}","variables":{"name":"`),
-								},
-								{
-									SegmentType:        resolve.VariableSegmentType,
-									VariableSource:     resolve.VariableSourceContext,
-									VariableSourcePath: []string{"name"},
-								},
-								{
-									SegmentType: resolve.StaticSegmentType,
-									Data:        []byte(`","completed":`),
-								},
-								{
-									SegmentType:        resolve.VariableSegmentType,
-									VariableSource:     resolve.VariableSourceContext,
-									VariableSourcePath: []string{"completed"},
-								},
-								{
-									SegmentType: resolve.StaticSegmentType,
-									Data:        []byte(`,"title":"`),
-								},
-								{
-									SegmentType:        resolve.VariableSegmentType,
-									VariableSource:     resolve.VariableSourceContext,
-									VariableSourcePath: []string{"title"},
-								},
-								{
-									SegmentType: resolve.StaticSegmentType,
-									Data:        []byte(`"}}}`),
-								},
-							},
-						},
 						DataSource: DefaultSource(),
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
@@ -1005,12 +842,12 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 					FieldSets: []resolve.FieldSet{
 						{
 							HasBuffer: true,
-							BufferID: 0,
+							BufferID:  0,
 							Fields: []resolve.Field{
 								{
 									Name: []byte("addTask"),
 									Value: &resolve.Object{
-										Path: []string{"addTask"},
+										Path:     []string{"addTask"},
 										Nullable: true,
 										FieldSets: []resolve.FieldSet{
 											{
@@ -1019,7 +856,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 														Name: []byte("task"),
 														Value: &resolve.Array{
 															Nullable: true,
-															Path: []string{"task"},
+															Path:     []string{"task"},
 															Item: &resolve.Object{
 																Nullable: true,
 																FieldSets: []resolve.FieldSet{
@@ -1063,7 +900,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 		plan.Configuration{
 			DataSourceConfigurations: []plan.DataSourceConfiguration{
 				{
-					TypeName: "Mutation",
+					TypeName:   "Mutation",
 					FieldNames: []string{"addTask"},
 					Attributes: []plan.DataSourceAttribute{
 						{
@@ -1078,7 +915,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 										FieldName: "addTask",
 										Arguments: []Argument{
 											{
-												Name: "input",
+												Name:   "input",
 												Source: FieldArgument,
 											},
 										},
@@ -1087,7 +924,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 							}),
 						},
 					},
-					DataSourcePlanner: &Planner{},
+					DataSourcePlanner:        &Planner{},
 					UpstreamUniqueIdentifier: "graphql.service",
 				},
 			},
@@ -1133,32 +970,6 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 					Fetch: &resolve.SingleFetch{
 						BufferId: 0,
 						Input:    `{"method":"POST","url":"https://user.service","body":{"query":"mutation($id: String, $name: String){createUser(input: {user: {id: $id,username: $name}}){user {id username createdDate}}}","variables":{"name":"$$1$$","id":"$$0$$"}}}`,
-						InputTemplate: resolve.InputTemplate{
-							Segments: []resolve.TemplateSegment{
-								{
-									SegmentType: resolve.StaticSegmentType,
-									Data:        []byte(`{"method":"POST","url":"https://user.service","body":{"query":"mutation($id: String, $name: String){createUser(input: {user: {id: $id,username: $name}}){user {id username createdDate}}}","variables":{"name":"`),
-								},
-								{
-									SegmentType:        resolve.VariableSegmentType,
-									VariableSource:     resolve.VariableSourceContext,
-									VariableSourcePath: []string{"name"},
-								},
-								{
-									SegmentType: resolve.StaticSegmentType,
-									Data:        []byte(`","id":"`),
-								},
-								{
-									SegmentType:        resolve.VariableSegmentType,
-									VariableSource:     resolve.VariableSourceContext,
-									VariableSourcePath: []string{"id"},
-								},
-								{
-									SegmentType: resolve.StaticSegmentType,
-									Data:        []byte(`"}}}`),
-								},
-							},
-						},
 						DataSource: DefaultSource(),
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
@@ -1266,17 +1077,9 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 		}
 	`, "RemainingJedis", &plan.SubscriptionResponsePlan{
 		Response: resolve.GraphQLSubscription{
-			Trigger:  resolve.GraphQLSubscriptionTrigger{
-				ManagerID:     []byte("graphql_websocket_subscription"),
-				Input:         `{"scheme":"wss","host":"swapi.com","path":"/graphql","body":{"query":"subscription{remainingJedis}"}}`,
-				InputTemplate: resolve.InputTemplate{
-					Segments: []resolve.TemplateSegment{
-						{
-							SegmentType: resolve.StaticSegmentType,
-							Data: []byte(`{"scheme":"wss","host":"swapi.com","path":"/graphql","body":{"query":"subscription{remainingJedis}"}}` ),
-						},
-					},
-				},
+			Trigger: resolve.GraphQLSubscriptionTrigger{
+				ManagerID: []byte("graphql_websocket_subscription"),
+				Input:     `{"scheme":"wss","host":"swapi.com","path":"/graphql","body":{"query":"subscription{remainingJedis}"}}`,
 			},
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
@@ -1286,7 +1089,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 								{
 									Name: []byte("remainingJedis"),
 									Value: &resolve.Integer{
-										Path: []string{"remainingJedis"},
+										Path:     []string{"remainingJedis"},
 										Nullable: false,
 									},
 								},
@@ -1311,6 +1114,217 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 			},
 		},
 	}))
+	t.Run("simple", RunTest(federationTestSchema,
+		`query MyReviews {
+					  me {
+						id
+						username
+						reviews {
+						  body
+						  product {
+							name
+						  }
+						}
+					  }
+					}`,
+		"MyReviews",
+		&plan.SynchronousResponsePlan{
+			Response: resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						BufferId:   0,
+						Input:      `{"method":"POST","url":"http://localhost:4001","body":{"query":"{me {id username}}"}}`,
+						DataSource: DefaultSource(),
+					},
+					FieldSets: []resolve.FieldSet{
+						{
+							HasBuffer: true,
+							BufferID:  0,
+							Fields: []resolve.Field{
+								{
+									Name: []byte("me"),
+									Value: &resolve.Object{
+										Fetch: &resolve.SingleFetch{
+											BufferId:   1,
+											Input:      `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"$$0$$","__typename":"User"}]}},"extract_entities":true}`,
+											Variables: resolve.NewVariables(
+												&resolve.ObjectVariable{
+													Path: []string{"id"},
+												},
+											),
+											DataSource: DefaultSource(),
+										},
+										Path:     []string{"me"},
+										Nullable: true,
+										FieldSets: []resolve.FieldSet{
+											{
+												Fields: []resolve.Field{
+													{
+														Name: []byte("id"),
+														Value: &resolve.String{
+															Path: []string{"id"},
+														},
+													},
+													{
+														Name: []byte("username"),
+														Value: &resolve.String{
+															Path: []string{"username"},
+														},
+													},
+												},
+											},
+											{
+												HasBuffer: true,
+												BufferID: 1,
+												Fields: []resolve.Field{
+													{
+														Name: []byte("reviews"),
+														Value: &resolve.Array{
+															Path: []string{"reviews"},
+															Nullable: true,
+															Item: &resolve.Object{
+																Nullable: true,
+																FieldSets: []resolve.FieldSet{
+																	{
+																		Fields: []resolve.Field{
+																			{
+																				Name: []byte("body"),
+																				Value: &resolve.String{
+																					Path: []string{"body"},
+																				},
+																			},
+																			{
+																				Name: []byte("product"),
+																				Value: &resolve.Object{
+																					Path: []string{"product"},
+																					Fetch: &resolve.SingleFetch{
+																						BufferId:   2,
+																						Input:      `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"$$0$$","__typename":"Product"}]}},"extract_entities":true}`,
+																						DataSource: DefaultSource(),
+																						Variables: resolve.NewVariables(
+																							&resolve.ObjectVariable{
+																								Path: []string{"upc"},
+																							},
+																						),
+																					},
+																					FieldSets: []resolve.FieldSet{
+																						{
+																							HasBuffer: true,
+																							BufferID: 2,
+																							Fields: []resolve.Field{
+																								{
+																									Name: []byte("name"),
+																									Value: &resolve.String{
+																										Path: []string{"name"},
+																									},
+																								},
+																							},
+																						},
+																					},
+																				},
+																			},
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		plan.Configuration{
+			DataSourceConfigurations: []plan.DataSourceConfiguration{
+				{
+					TypeName:   "Query",
+					FieldNames: []string{"me"},
+					Attributes: []plan.DataSourceAttribute{
+						{
+							Key:   "url",
+							Value: []byte("http://localhost:4001"),
+						},
+						{
+							Key: "federation_service_sdl",
+							Value: []byte(`extend type Query {me: User} type User @key(fields: "id"){ id: ID! username: String!}`),
+						},
+					},
+					DataSourcePlanner: &Planner{},
+				},
+				{
+					TypeName:   "Product",
+					FieldNames: []string{"name","price"},
+					Attributes: []plan.DataSourceAttribute{
+						{
+							Key:   "url",
+							Value: []byte("http://localhost:4003"),
+						},
+						{
+							Key:   "federation_service_sdl",
+							Value: []byte(`extend type Query {topProducts(first: Int = 5): [Product]}type Product @key(fields: "upc") {upc: String!name: String! price: Int!}`),
+						},
+					},
+					DataSourcePlanner: &Planner{},
+				},
+				{
+					TypeName:   "User",
+					FieldNames: []string{"reviews"},
+					Attributes: []plan.DataSourceAttribute{
+						{
+							Key:   "url",
+							Value: []byte("http://localhost:4002"),
+						},
+						{
+							Key:   "federation_service_sdl",
+							Value: []byte(`type Review { body: String! author: User! @provides(fields: "username") product: Product! } extend type User @key(fields: "id") { id: ID! @external reviews: [Review] } extend type Product @key(fields: "upc") { upc: String! @external reviews: [Review] } `),
+						},
+					},
+					DataSourcePlanner: &Planner{},
+				},
+			},
+			FieldMappings: []plan.FieldMapping{},
+		},
+	))
+}
+
+type fakeHttpClient struct {
+	data []byte
+}
+
+func (f *fakeHttpClient) Do(ctx context.Context, requestInput []byte, out io.Writer) (err error) {
+	_,err = out.Write(f.data)
+	return
+}
+
+func TestGraphQLDataSourceEntitiesExtraction(t *testing.T){
+	t.Run("extraction false", func(t *testing.T) {
+		source := &Source{
+			client:  &fakeHttpClient{
+				data: []byte(`{"data":{"foo":"bar"}}`),
+			},
+		}
+		bufPair := resolve.NewBufPair()
+		err := source.Load(context.Background(),nil,bufPair)
+		assert.NoError(t,err)
+		assert.Equal(t,`{"foo":"bar"}`,bufPair.Data.String())
+	})
+	t.Run("extraction true", func(t *testing.T) {
+		source := &Source{
+			client:  &fakeHttpClient{
+				data: []byte(`{"data":{"_entities":[{"foo":"bar"}]}}`),
+			},
+		}
+		bufPair := resolve.NewBufPair()
+		err := source.Load(context.Background(),[]byte(`{"extract_entities":true}`),bufPair)
+		assert.NoError(t,err)
+		assert.Equal(t,`{"foo":"bar"}`,bufPair.Data.String())
+	})
 }
 
 func TestGraphQLDataSourceExecution(t *testing.T) {
@@ -1889,4 +1903,38 @@ directive @fromClaim(
   """
   name: String!
 ) on VARIABLE_DEFINITION
+`
+
+const federationTestSchema = `
+scalar String
+scalar Int
+scalar ID
+
+schema {
+	query: Query
+}
+
+type Product {
+  upc: String!
+  name: String!
+  price: Int!
+  reviews: [Review]
+}
+
+type Query {
+  me: User
+  topProducts(first: Int = 5): [Product]
+}
+
+type Review {
+  body: String!
+  author: User!
+  product: Product!
+}
+
+type User {
+  id: ID!
+  username: String!
+  reviews: [Review]
+}
 `
