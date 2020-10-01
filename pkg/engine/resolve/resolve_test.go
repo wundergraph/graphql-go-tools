@@ -1186,11 +1186,213 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			},
 		}, Context{Context: context.Background(), Variables: []byte(`{"firstArg":"firstArgValue","thirdArg":123,"secondArg": true, "fourthArg": 12.34}`)}, `{"data":{"serviceOne":{"fieldOne":"fieldOneValue"},"serviceTwo":{"fieldTwo":"fieldTwoValue","serviceOneResponse":{"fieldOne":"fieldOneValue"}},"anotherServiceOne":{"fieldOne":"anotherFieldOneValue"},"secondServiceTwo":{"fieldTwo":"secondFieldTwoValue"},"reusingServiceOne":{"fieldOne":"reUsingFieldOneValue"}}}`
 	}))
+	t.Run("federation", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		r.EnableSingleFlightLoader = true
+
+		userService := NewMockDataSource(ctrl)
+		userService.EXPECT().UniqueIdentifier().Return([]byte("userService"))
+		userService.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
+			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+				actual := string(input)
+				expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"{me {id username}}"}}`
+				assert.Equal(t, expected, actual)
+				pair.Data.WriteString(`{"me": {"id": "1234","username": "Me","__typename": "User"}}`)
+				return
+			}).
+			Return(nil)
+
+		reviewsService := NewMockDataSource(ctrl)
+		reviewsService.EXPECT().UniqueIdentifier().Return([]byte("userService"))
+		reviewsService.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
+			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+				actual := string(input)
+				expected := `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}},"extract_entities":true}`
+				assert.Equal(t, expected, actual)
+				pair.Data.WriteString(`{"reviews": [{"body": "A highly effective form of birth control.","product": {"upc": "top-1","__typename": "Product"}},{"body": "Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product": {"upc": "top-1","__typename": "Product"}}]}`)
+				return
+			}).
+			Return(nil)
+
+		productServiceCallCount := 0
+
+		productService := NewMockDataSource(ctrl)
+		productService.EXPECT().UniqueIdentifier().Return([]byte("userService")).Times(2)
+		productService.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
+			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+				actual := string(input)
+				productServiceCallCount++
+				switch productServiceCallCount {
+				case 1:
+					expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"}]}},"extract_entities":true}`
+					assert.Equal(t, expected, actual)
+					pair.Data.WriteString(`{"name": "Trilby"}`)
+				case 2:
+					expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"}]}},"extract_entities":true}`
+					assert.Equal(t, expected, actual)
+					pair.Data.WriteString(`{"name": "Trilby"}`)
+				}
+				return
+			}).
+			Return(nil).Times(2)
+
+		return &GraphQLResponse{
+			Data: &Object{
+				Fetch: &SingleFetch{
+					BufferId: 0,
+					InputTemplate: InputTemplate{
+						Segments: []TemplateSegment{
+							{
+								Data:        []byte(`{"method":"POST","url":"http://localhost:4001","body":{"query":"{me {id username}}"}}`),
+								SegmentType: StaticSegmentType,
+							},
+						},
+					},
+					DataSource: userService,
+				},
+				FieldSets: []FieldSet{
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Fields: []Field{
+							{
+								Name: []byte("me"),
+								Value: &Object{
+									Fetch: &SingleFetch{
+										BufferId: 1,
+										InputTemplate: InputTemplate{
+											Segments: []TemplateSegment{
+												{
+													Data:        []byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"`),
+													SegmentType: StaticSegmentType,
+												},
+												{
+													SegmentType:        VariableSegmentType,
+													VariableSource:     VariableSourceObject,
+													VariableSourcePath: []string{"id"},
+												},
+												{
+													Data:        []byte(`","__typename":"User"}]}},"extract_entities":true}`),
+													SegmentType: StaticSegmentType,
+												},
+											},
+										},
+										DataSource: reviewsService,
+									},
+									Path:     []string{"me"},
+									Nullable: true,
+									FieldSets: []FieldSet{
+										{
+											Fields: []Field{
+												{
+													Name: []byte("id"),
+													Value: &String{
+														Path: []string{"id"},
+													},
+												},
+												{
+													Name: []byte("username"),
+													Value: &String{
+														Path: []string{"username"},
+													},
+												},
+											},
+										},
+										{
+											HasBuffer: true,
+											BufferID:  1,
+											Fields: []Field{
+												{
+													Name: []byte("reviews"),
+													Value: &Array{
+														Path:     []string{"reviews"},
+														Nullable: true,
+														Item: &Object{
+															Nullable: true,
+															FieldSets: []FieldSet{
+																{
+																	Fields: []Field{
+																		{
+																			Name: []byte("body"),
+																			Value: &String{
+																				Path: []string{"body"},
+																			},
+																		},
+																		{
+																			Name: []byte("product"),
+																			Value: &Object{
+																				Path: []string{"product"},
+																				Fetch: &SingleFetch{
+																					BufferId: 2,
+																					DataSource: productService,
+																					InputTemplate: InputTemplate{
+																						Segments: []TemplateSegment{
+																							{
+																								Data:        []byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"`),
+																								SegmentType: StaticSegmentType,
+																							},
+																							{
+																								SegmentType:        VariableSegmentType,
+																								VariableSource:     VariableSourceObject,
+																								VariableSourcePath: []string{"upc"},
+																							},
+																							{
+																								Data:        []byte(`","__typename":"Product"}]}},"extract_entities":true}`),
+																								SegmentType: StaticSegmentType,
+																							},
+																						},
+																					},
+																				},
+																				FieldSets: []FieldSet{
+																					{
+																						Fields: []Field{
+																							{
+																								Name: []byte("upc"),
+																								Value: &String{
+																									Path: []string{"upc"},
+																								},
+																							},
+																						},
+																					},
+																					{
+																						HasBuffer: true,
+																						BufferID:  2,
+																						Fields: []Field{
+																							{
+																								Name: []byte("name"),
+																								Value: &String{
+																									Path: []string{"name"},
+																								},
+																							},
+																						},
+																					},
+																				},
+																			},
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, Context{Context: context.Background(), Variables: nil}, `{"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","name":"Trilby"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-1","name":"Trilby"}}]}}}`
+	}))
 }
 
 type TestFlushWriter struct {
-	flushed     []string
-	buf         bytes.Buffer
+	flushed []string
+	buf     bytes.Buffer
 }
 
 func (t *TestFlushWriter) Write(p []byte) (n int, err error) {
@@ -1203,7 +1405,7 @@ func (t *TestFlushWriter) Flush() {
 }
 
 type FakeStream struct {
-	cancel      context.CancelFunc
+	cancel context.CancelFunc
 }
 
 func (f *FakeStream) Start(input []byte, next chan<- []byte, stop <-chan struct{}) {
@@ -1228,7 +1430,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	c, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	man := subscription.NewManager(&FakeStream{
-		cancel:      cancel,
+		cancel: cancel,
 	})
 	manCtx, cancelMan := context.WithCancel(context.Background())
 	defer cancelMan()
@@ -1260,7 +1462,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		Context: c,
 	}
 	out := &TestFlushWriter{
-		buf:         bytes.Buffer{},
+		buf: bytes.Buffer{},
 	}
 	err := resolver.ResolveGraphQLSubscription(&ctx, plan, out)
 	assert.NoError(t, err)
@@ -1537,7 +1739,7 @@ func BenchmarkResolver_ResolveNode(b *testing.B) {
 	variables := []byte(`{"firstArg":"firstArgValue","thirdArg":123,"secondArg": true, "fourthArg": 12.34}`)
 
 	ctxPool := sync.Pool{
-		New: func () interface{}{
+		New: func() interface{} {
 			return NewContext(context.Background())
 		},
 	}
@@ -1577,25 +1779,25 @@ func BenchmarkResolver_ResolveNode(b *testing.B) {
 		resolver.EnableSingleFlightLoader = true
 		runBench(b)
 	})
-/*	b.Run("singleflight disabled (latency 0)", func(b *testing.B) {
-		serviceOneDS.artificialLatency = 0
-		serviceTwoDS.artificialLatency = 0
-		nestedServiceOneDS.artificialLatency = 0
-		resolver.EnableSingleFlightLoader = false
-		runBench(b)
-	})
-	b.Run("singleflight enabled (latency 5ms)", func(b *testing.B) {
-		serviceOneDS.artificialLatency = time.Millisecond * 5
-		serviceTwoDS.artificialLatency = 0
-		nestedServiceOneDS.artificialLatency = 0
-		resolver.EnableSingleFlightLoader = true
-		runBench(b)
-	})
-	b.Run("singleflight disabled (latency 5ms)", func(b *testing.B) {
-		serviceOneDS.artificialLatency = time.Millisecond * 5
-		serviceTwoDS.artificialLatency = 0
-		nestedServiceOneDS.artificialLatency = 0
-		resolver.EnableSingleFlightLoader = false
-		runBench(b)
-	})*/
+	/*	b.Run("singleflight disabled (latency 0)", func(b *testing.B) {
+			serviceOneDS.artificialLatency = 0
+			serviceTwoDS.artificialLatency = 0
+			nestedServiceOneDS.artificialLatency = 0
+			resolver.EnableSingleFlightLoader = false
+			runBench(b)
+		})
+		b.Run("singleflight enabled (latency 5ms)", func(b *testing.B) {
+			serviceOneDS.artificialLatency = time.Millisecond * 5
+			serviceTwoDS.artificialLatency = 0
+			nestedServiceOneDS.artificialLatency = 0
+			resolver.EnableSingleFlightLoader = true
+			runBench(b)
+		})
+		b.Run("singleflight disabled (latency 5ms)", func(b *testing.B) {
+			serviceOneDS.artificialLatency = time.Millisecond * 5
+			serviceTwoDS.artificialLatency = 0
+			nestedServiceOneDS.artificialLatency = 0
+			resolver.EnableSingleFlightLoader = false
+			runBench(b)
+		})*/
 }
