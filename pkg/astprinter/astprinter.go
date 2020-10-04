@@ -856,6 +856,9 @@ func (p *printVisitor) EnterDirectiveDefinition(ref int) {
 	p.write(literal.AT)
 	p.write(p.document.DirectiveDefinitionNameBytes(ref))
 	p.isFirstDirectiveLocation = true
+
+	p.inputValueDefinitionOpener = literal.LPAREN
+	p.inputValueDefinitionCloser = literal.RPAREN
 }
 
 func (p *printVisitor) LeaveDirectiveDefinition(ref int) {
