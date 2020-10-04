@@ -61,6 +61,18 @@ func TestHttpClient(t *testing.T) {
 
 	in = SetInputBodyWithPath(nil, []byte(`{`), "query")
 	assert.Equal(t, `{"body":{"query":"{"}}`, string(in))
+
+	in = SetInputBodyWithPath(nil,[]byte(`{topProducts {upc name price}}}`),"query")
+	assert.Equal(t,`{"body":{"query":"{topProducts {upc name price}}}"}}`,string(in))
+
+	in = SetInputBodyWithPath(nil,[]byte(`$$0$$`),"variables.foo")
+	assert.Equal(t,`{"body":{"variables":{"foo":$$0$$}}}`,string(in))
+
+	in = SetInputBodyWithPath(nil,[]byte(`"$$0$$"`),"variables.foo")
+	assert.Equal(t,`{"body":{"variables":{"foo":"$$0$$"}}}`,string(in))
+
+	in = SetInputBodyWithPath(nil,[]byte(`{"bar":$$0$$}`),"variables.foo")
+	assert.Equal(t,`{"body":{"variables":{"foo":{"bar":$$0$$}}}}`,string(in))
 }
 
 func TestHttpClientDo(t *testing.T) {
@@ -153,20 +165,9 @@ func TestHttpClientDo(t *testing.T) {
 	})
 
 	t.Run("post", func(t *testing.T) {
-		body := []byte(`{"foo","bar"}`)
-		var fastDump []byte
-		var netDump []byte
-		_ = netDump
-		_ = fastDump
+		body := []byte(`{"foo":"bar"}`)
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			dump, err := httputil.DumpRequest(r, true)
-			if fastDump == nil {
-				fastDump = dump
-			} else {
-				netDump = dump
-			}
-			assert.NoError(t, err)
-			_, err = w.Write([]byte("ok"))
+			_, err := w.Write([]byte("ok"))
 			assert.NoError(t, err)
 			actualBody, err := ioutil.ReadAll(r.Body)
 			assert.NoError(t, err)
@@ -179,14 +180,10 @@ func TestHttpClientDo(t *testing.T) {
 		input = SetInputURL(input, []byte(server.URL))
 		t.Run("fast", runTest(fast, background, input, `ok`))
 		t.Run("net", runTest(net, background, input, `ok`))
-
-		//expectedDump := `POST / HTTP/1.1\nHost: 127.0.0.1:63168\nAccept: application/json\nAccept-Encoding: gzip\nContent-Length: 13\nContent-Type: application/json\nUser-Agent: graphql-go-client\n\n{\"foo\",\"bar\"}`
-		//assert.Equal(t,expectedDump,string(fastDump),"fastDump")
-		//assert.Equal(t,expectedDump,string(netDump),"netDump")
 	})
 
 	t.Run("gzip", func(t *testing.T) {
-		body := []byte(`{"foo","bar"}`)
+		body := []byte(`{"foo":"bar"}`)
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			acceptEncoding := r.Header.Get("Accept-Encoding")
 			assert.Equal(t, "gzip", acceptEncoding)

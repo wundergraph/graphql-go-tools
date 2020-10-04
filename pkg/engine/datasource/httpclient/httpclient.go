@@ -3,10 +3,11 @@ package httpclient
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
-	"unicode"
 
 	"github.com/buger/jsonparser"
+	byte_template "github.com/jensneuse/byte-template"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 
@@ -49,20 +50,34 @@ type Client interface {
 }
 
 func wrapQuotesIfString(b []byte) []byte {
+
+	if bytes.HasPrefix(b,[]byte("$$")) && bytes.HasSuffix(b,[]byte("$$")){
+		return b
+	}
+
+	if bytes.HasPrefix(b,[]byte("{{")) && bytes.HasSuffix(b,[]byte("}}")){
+		return b
+	}
+
 	inType := gjson.ParseBytes(b).Type
 	switch inType {
 	case gjson.Number, gjson.String:
 		return b
 	case gjson.JSON:
-		for _, i := range b[1:] {
-			if unicode.IsSpace(rune(i)) {
-				continue
-			}
-			switch i {
-			case '"', '[', '{', 't', 'n':
-				return b
-			}
-			break
+		var value interface{}
+		withoutTemplate := bytes.ReplaceAll(b,[]byte("$$"),nil)
+
+		buf := &bytes.Buffer{}
+		tmpl := byte_template.New()
+		_,_ = tmpl.Execute(buf,withoutTemplate, func(w io.Writer, path []byte) (n int, err error) {
+			return w.Write([]byte("0"))
+		})
+
+		withoutTemplate = buf.Bytes()
+
+		err := json.Unmarshal(withoutTemplate,&value)
+		if err == nil {
+			return b
 		}
 	case gjson.False:
 		if bytes.Equal(b, literal.FALSE) {
