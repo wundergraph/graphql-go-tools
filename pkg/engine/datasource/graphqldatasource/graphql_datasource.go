@@ -17,31 +17,34 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
+	"github.com/jensneuse/graphql-go-tools/pkg/federation"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
+	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 	"github.com/jensneuse/graphql-go-tools/pkg/pool"
 )
 
 type Planner struct {
-	client                 httpclient.Client
-	v                      *plan.Visitor
-	fetch                  *resolve.SingleFetch
-	printer                astprinter.Printer
-	operation              *ast.Document
-	nodes                  []ast.Node
-	buf                    *bytes.Buffer
-	operationNormalizer    *astnormalization.OperationNormalizer
-	URL                    []byte
-	variables              []byte
-	headers                []byte
-	bufferID               int
-	config                 *plan.DataSourceConfiguration
-	abortLeaveDocument     bool
-	operationType          ast.OperationType
-	isNestedRequest        bool
-	isFederation           bool
-	federationSDL          []byte
-	federationSchema       *ast.Document
-	federationRootTypeName []byte
+	client                                  httpclient.Client
+	v                                       *plan.Visitor
+	fetch                                   *resolve.SingleFetch
+	printer                                 astprinter.Printer
+	operation                               *ast.Document
+	nodes                                   []ast.Node
+	buf                                     *bytes.Buffer
+	operationNormalizer                     *astnormalization.OperationNormalizer
+	URL                                     []byte
+	variables                               []byte
+	headers                                 []byte
+	bufferID                                int
+	config                                  *plan.DataSourceConfiguration
+	abortLeaveDocument                      bool
+	operationType                           ast.OperationType
+	isNestedRequest                         bool
+	isFederation                            bool
+	federationSDL                           []byte
+	federationSchema                        *ast.Document
+	federationRootTypeName                  []byte
+	federationVariablesAddedForSelectionSet []int
 }
 
 func NewPlanner(client httpclient.Client) *Planner {
@@ -88,6 +91,7 @@ func (p *Planner) EnterDocument(_, _ *ast.Document) {
 	p.isFederation = false
 	p.federationSDL = nil
 	p.federationRootTypeName = nil
+	p.federationVariablesAddedForSelectionSet = p.federationVariablesAddedForSelectionSet[:0]
 	if p.federationSchema == nil {
 		p.federationSchema = ast.NewDocument()
 	} else {
@@ -160,6 +164,8 @@ func (p *Planner) EnterField(ref int) {
 	upstreamSelectionSet := p.nodes[len(p.nodes)-1].Ref
 	p.operation.AddSelection(upstreamSelectionSet, selection)
 	p.nodes = append(p.nodes, field)
+	fieldName := p.v.Operation.FieldNameString(ref)
+	_ = fieldName
 	if config == nil {
 		return
 	}
@@ -172,6 +178,16 @@ func (p *Planner) EnterField(ref int) {
 }
 
 func (p *Planner) addFederationVariables() {
+
+	currentSelectionSet := p.nodes[len(p.nodes)-2].Ref
+	for _,i := range p.federationVariablesAddedForSelectionSet {
+		if currentSelectionSet == i {
+			return
+		}
+	}
+
+	p.federationVariablesAddedForSelectionSet = append(p.federationVariablesAddedForSelectionSet,currentSelectionSet)
+
 	enclosingTypeName := p.v.EnclosingTypeDefinition.NameBytes(p.v.Definition)
 	definition, ok := p.federationSchema.Index.FirstNodeByNameBytes(enclosingTypeName)
 	if !ok {
@@ -381,7 +397,7 @@ func (p *Planner) applyFieldArgument(upstreamField, downstreamField int, arg Arg
 			}
 		}
 
-		queryTypeDefinition,exists := p.v.Definition.Index.FirstNodeByNameBytes(p.v.Definition.Index.QueryTypeName)
+		queryTypeDefinition, exists := p.v.Definition.Index.FirstNodeByNameBytes(p.v.Definition.Index.QueryTypeName)
 		if !exists {
 			return
 		}
@@ -584,28 +600,15 @@ func (p *Planner) addFederatedField(downstreamSelectionSet int, fieldName, enclo
 	}
 }
 
-func (p *Planner) LeaveDocument(_, definition *ast.Document) {
+func (p *Planner) LeaveDocument(_, _ *ast.Document) {
 	if p.abortLeaveDocument {
 		return // planner did not get activated, skip
 	}
-	if !p.isFederation {
-		p.operationNormalizer.NormalizeOperation(p.operation, definition, p.v.Report)
-	}
 
-	buf := &bytes.Buffer{}
-	if p.isFederation && p.isNestedRequest {
-		_, _ = buf.Write(federationQueryHeader)
-		_, _ = buf.Write(p.federationRootTypeName)
-		_, _ = buf.Write(literal.SPACE)
-	}
-
-	err := p.printer.Print(p.operation, nil, buf)
+	query,err := p.printQuery()
 	if err != nil {
+		p.v.StopWithInternalErr(err)
 		return
-	}
-
-	if p.isFederation && p.isNestedRequest {
-		_, _ = buf.Write(federationQueryTrailer)
 	}
 
 	switch p.operationType {
@@ -617,7 +620,7 @@ func (p *Planner) LeaveDocument(_, definition *ast.Document) {
 		}
 
 		input = httpclient.SetInputBodyWithPath(input, p.variables, "variables")
-		input = httpclient.SetInputBodyWithPath(input, buf.Bytes(), "query")
+		input = httpclient.SetInputBodyWithPath(input, query, "query")
 		input = httpclient.SetInputURL(input, p.URL)
 		input = httpclient.SetInputMethod(input, literal.HTTP_METHOD_POST)
 		input = httpclient.SetInputHeaders(input, p.headers)
@@ -648,7 +651,7 @@ func (p *Planner) LeaveDocument(_, definition *ast.Document) {
 
 		input = httpclient.SetInputHeaders(input, p.headers)
 		input = httpclient.SetInputBodyWithPath(input, p.variables, "variables")
-		input = httpclient.SetInputBodyWithPath(input, buf.Bytes(), "query")
+		input = httpclient.SetInputBodyWithPath(input, query, "query")
 		input = httpclient.SetInputPath(input, []byte(parsedURL.Path))
 		input = httpclient.SetInputHost(input, []byte(parsedURL.Host))
 		input = httpclient.SetInputScheme(input, scheme)
@@ -658,6 +661,67 @@ func (p *Planner) LeaveDocument(_, definition *ast.Document) {
 			ManagerID: []byte("graphql_websocket_subscription"),
 		}, *p.config)
 	}
+}
+
+func (p *Planner) printQuery() ([]byte,error) {
+
+	buf := &bytes.Buffer{}
+
+	if p.isFederation && p.isNestedRequest {
+		_, _ = buf.Write(federationQueryHeader)
+		_, _ = buf.Write(p.federationRootTypeName)
+		_, _ = buf.Write(literal.SPACE)
+	}
+
+	err := p.printer.Print(p.operation, nil, buf)
+	if err != nil {
+		return nil, err
+	}
+
+	if p.isFederation && p.isNestedRequest {
+		_, _ = buf.Write(federationQueryTrailer)
+	}
+
+	rawQuery := buf.Bytes()
+
+	baseSchema,err := astprinter.PrintString(p.v.Definition,nil)
+	if err != nil {
+		return nil,err
+	}
+
+	federationSchema,err := federation.BuildFederationSchema(baseSchema,string(p.federationSDL))
+	if err != nil {
+		return nil, err
+	}
+
+	operation := ast.NewDocument()
+	definition := ast.NewDocument()
+	report := &operationreport.Report{}
+	parser := astparser.NewParser()
+
+	definition.Input.ResetInputString(federationSchema)
+	operation.Input.ResetInputBytes(rawQuery)
+
+	parser.Parse(operation,report)
+	if report.HasErrors() {
+		return nil,fmt.Errorf("printQuery: parse operation failed")
+	}
+
+	parser.Parse(definition,report)
+	if report.HasErrors() {
+		return nil, fmt.Errorf("printQuery: parse definition failed")
+	}
+
+	p.operationNormalizer.NormalizeOperation(operation, definition, report)
+
+	if report.HasErrors() {
+		return nil,fmt.Errorf("normalization failed")
+	}
+
+	buf.Reset()
+
+	err = p.printer.Print(operation,p.v.Definition,buf)
+	return buf.Bytes(),err
 }
 
 type Source struct {
@@ -709,7 +773,7 @@ func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPai
 			bufPair.Errors.WriteBytes(bytes)
 		case 1:
 			if extractEntities {
-				data,_,_,_ := jsonparser.Get(bytes,entitiesPath...)
+				data, _, _, _ := jsonparser.Get(bytes, entitiesPath...)
 				bufPair.Data.WriteBytes(data)
 				return
 			}
