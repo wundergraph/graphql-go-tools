@@ -649,7 +649,7 @@ func (v *Visitor) EnterField(ref int) {
 		value = float
 	default:
 		// TODO verify definition type before and define resolve type based on that, in case of scalar use specific scalars and default to string
-		node,_ := v.Definition.Index.FirstNodeByNameBytes(typeNameBytes)
+		node, _ := v.Definition.Index.FirstNodeByNameBytes(typeNameBytes)
 		switch node.Kind {
 		case ast.NodeKindEnumTypeDefinition, ast.NodeKindScalarTypeDefinition:
 			str := &resolve.String{
