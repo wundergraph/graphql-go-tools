@@ -809,7 +809,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 	))
 	t.Run("mutation with variables in array object argument", RunTest(
 		todoSchema,
-		`mutation AddTak($title: String!, $completed: Boolean!, $name: String! @fromClaim(name: "sub")) {
+		`mutation AddTask($title: String!, $completed: Boolean!, $name: String! @fromClaim(name: "sub")) {
 					  addTask(input: [{title: $title, completed: $completed, user: {name: $name}}]){
 						task {
 						  id
@@ -818,7 +818,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 						}
 					  }
 					}`,
-		"AddTak",
+		"AddTask",
 		&plan.SynchronousResponsePlan{
 			Response: resolve.GraphQLResponse{
 				Data: &resolve.Object{
