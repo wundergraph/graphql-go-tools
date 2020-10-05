@@ -1130,6 +1130,10 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 									price
 									reviews {
 										body
+										author {
+											id
+											username
+										}
 									}
 								}
 							}
@@ -1243,7 +1247,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 																							},
 																							{
 																								BufferId: 3,
-																								Input:    `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {reviews {body}}}}","variables":{"representations":[{"upc":"$$0$$","__typename":"Product"}]}},"extract_entities":true}`,
+																								Input:    `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {reviews {body author {id username __typename}}}}}","variables":{"representations":[{"upc":"$$0$$","__typename":"Product"}]}},"extract_entities":true}`,
 																								Variables: resolve.NewVariables(
 																									&resolve.ObjectVariable{
 																										Path: []string{"upc"},
@@ -1296,6 +1300,30 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 																															Name: []byte("body"),
 																															Value: &resolve.String{
 																																Path: []string{"body"},
+																															},
+																														},
+																														{
+																															Name: []byte("author"),
+																															Value: &resolve.Object{
+																																Path: []string{"author"},
+																																FieldSets: []resolve.FieldSet{
+																																	{
+																																		Fields: []resolve.Field{
+																																			{
+																																				Name: []byte("id"),
+																																				Value: &resolve.String{
+																																					Path: []string{"id"},
+																																				},
+																																			},
+																																			{
+																																				Name: []byte("username"),
+																																				Value: &resolve.String{
+																																					Path: []string{"username"},
+																																				},
+																																			},
+																																		},
+																																	},
+																																},
 																															},
 																														},
 																													},
