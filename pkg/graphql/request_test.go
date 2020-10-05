@@ -135,11 +135,8 @@ func requestForQuery(t *testing.T, fileName string) Request {
 }
 
 func TestRequest_IsIntrospectionQuery(t *testing.T) {
-	var (
-		request Request
-	)
-
 	t.Run("named introspection query", func(t *testing.T) {
+		var request Request
 		err := UnmarshalRequest(strings.NewReader(namedIntrospectionQuery), &request)
 		assert.NoError(t, err)
 
@@ -149,6 +146,7 @@ func TestRequest_IsIntrospectionQuery(t *testing.T) {
 	})
 
 	t.Run("silent introspection query", func(t *testing.T) {
+		var request Request
 		err := UnmarshalRequest(strings.NewReader(silentIntrospectionQuery), &request)
 		assert.NoError(t, err)
 
@@ -158,6 +156,7 @@ func TestRequest_IsIntrospectionQuery(t *testing.T) {
 	})
 
 	t.Run("not introspection query", func(t *testing.T) {
+		var request Request
 		err := UnmarshalRequest(strings.NewReader(nonIntrospectionQuery), &request)
 		assert.NoError(t, err)
 
@@ -167,6 +166,7 @@ func TestRequest_IsIntrospectionQuery(t *testing.T) {
 	})
 
 	t.Run("mutation query", func(t *testing.T) {
+		var request Request
 		err := UnmarshalRequest(strings.NewReader(mutationQuery), &request)
 		assert.NoError(t, err)
 
