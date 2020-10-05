@@ -1127,6 +1127,10 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 								}	
 								product {
 									name
+									price
+									reviews {
+										body
+									}
 								}
 							}
 						}
@@ -1225,15 +1229,29 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 																				Name: []byte("product"),
 																				Value: &resolve.Object{
 																					Path: []string{"product"},
-																					Fetch: &resolve.SingleFetch{
-																						BufferId:   2,
-																						Input:      `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"$$0$$","__typename":"Product"}]}},"extract_entities":true}`,
-																						DataSource: DefaultSource(),
-																						Variables: resolve.NewVariables(
-																							&resolve.ObjectVariable{
-																								Path: []string{"upc"},
+																					Fetch: &resolve.ParallelFetch{
+																						Fetches: []*resolve.SingleFetch{
+																							{
+																								BufferId:   2,
+																								Input:      `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"upc":"$$0$$","__typename":"Product"}]}},"extract_entities":true}`,
+																								DataSource: DefaultSource(),
+																								Variables: resolve.NewVariables(
+																									&resolve.ObjectVariable{
+																										Path: []string{"upc"},
+																									},
+																								),
 																							},
-																						),
+																							{
+																								BufferId: 3,
+																								Input:    `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {reviews {body}}}}","variables":{"representations":[{"upc":"$$0$$","__typename":"Product"}]}},"extract_entities":true}`,
+																								Variables: resolve.NewVariables(
+																									&resolve.ObjectVariable{
+																										Path: []string{"upc"},
+																									},
+																								),
+																								DataSource: DefaultSource(),
+																							},
+																						},
 																					},
 																					FieldSets: []resolve.FieldSet{
 																						{
@@ -1244,6 +1262,46 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 																									Name: []byte("name"),
 																									Value: &resolve.String{
 																										Path: []string{"name"},
+																									},
+																								},
+																							},
+																						},
+																						{
+																							HasBuffer: true,
+																							BufferID: 2,
+																							Fields: []resolve.Field{
+																								{
+																									Name: []byte("price"),
+																									Value: &resolve.Integer{
+																										Path: []string{"price"},
+																									},
+																								},
+																							},
+																						},
+																						{
+																							HasBuffer: true,
+																							BufferID: 3,
+																							Fields: []resolve.Field{
+																								{
+																									Name: []byte("reviews"),
+																									Value: &resolve.Array{
+																										Nullable: true,
+																										Path: []string{"reviews"},
+																										Item: &resolve.Object{
+																											Nullable:  true,
+																											FieldSets: []resolve.FieldSet{
+																												{
+																													Fields: []resolve.Field{
+																														{
+																															Name: []byte("body"),
+																															Value: &resolve.String{
+																																Path: []string{"body"},
+																															},
+																														},
+																													},
+																												},
+																											},
+																										},
 																									},
 																								},
 																							},
@@ -1395,6 +1453,31 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 							},
 						},
 					},
+					UpstreamUniqueIdentifier: "User/reviews",
+				},
+				{
+					TypeName:   "Product",
+					FieldNames: []string{"reviews"},
+					Attributes: []plan.DataSourceAttribute{
+						{
+							Key:   "url",
+							Value: []byte("http://localhost:4002"),
+						},
+						{
+							Key:   "federation_service_sdl",
+							Value: []byte(`type Review { body: String! author: User! @provides(fields: "username") product: Product! } extend type User @key(fields: "id") { id: ID! @external reviews: [Review] } extend type Product @key(fields: "upc") { upc: String! @external reviews: [Review] } `),
+						},
+					},
+					DataSourcePlanner: &Planner{},
+					ProvidesExtraFields: []plan.TypeFields{
+						{
+							TypeName: "User",
+							FieldNames: []string{
+								"username",
+							},
+						},
+					},
+					UpstreamUniqueIdentifier: "Product/reviews",
 				},
 			},
 			FieldMappings: []plan.FieldMapping{},
