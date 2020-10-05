@@ -24,27 +24,27 @@ import (
 )
 
 type Planner struct {
-	client                                  httpclient.Client
-	v                                       *plan.Visitor
-	fetch                                   *resolve.SingleFetch
-	printer                                 astprinter.Printer
-	operation                               *ast.Document
-	nodes                                   []ast.Node
-	buf                                     *bytes.Buffer
-	operationNormalizer                     *astnormalization.OperationNormalizer
-	URL                                     []byte
-	variables                               []byte
-	headers                                 []byte
-	bufferID                                int
-	config                                  *plan.DataSourceConfiguration
-	abortLeaveDocument                      bool
-	operationType                           ast.OperationType
-	isNestedRequest                         bool
-	isFederation                            bool
-	federationSDL                           []byte
-	federationSchema                        *ast.Document
-	federationRootTypeName                  []byte
-	federationVariablesAddedForSelectionSet []int
+	client                 httpclient.Client
+	v                      *plan.Visitor
+	fetch                  *resolve.SingleFetch
+	printer                astprinter.Printer
+	operation              *ast.Document
+	nodes                  []ast.Node
+	buf                    *bytes.Buffer
+	operationNormalizer    *astnormalization.OperationNormalizer
+	URL                    []byte
+	variables              []byte
+	headers                []byte
+	bufferID               int
+	config                 *plan.DataSourceConfiguration
+	abortLeaveDocument     bool
+	operationType          ast.OperationType
+	isNestedRequest        bool
+	isFederation           bool
+	federationSDL          []byte
+	federationSchema       *ast.Document
+	federationRootTypeName []byte
+	federationVariablesSet bool
 }
 
 func NewPlanner(client httpclient.Client) *Planner {
@@ -91,7 +91,7 @@ func (p *Planner) EnterDocument(_, _ *ast.Document) {
 	p.isFederation = false
 	p.federationSDL = nil
 	p.federationRootTypeName = nil
-	p.federationVariablesAddedForSelectionSet = p.federationVariablesAddedForSelectionSet[:0]
+	p.federationVariablesSet = false
 	if p.federationSchema == nil {
 		p.federationSchema = ast.NewDocument()
 	} else {
@@ -109,6 +109,12 @@ func (p *Planner) EnterField(ref int) {
 	)
 
 	isRootField, config = p.v.IsRootField(ref)
+
+	typeName := p.v.EnclosingTypeDefinition.NameString(p.v.Definition)
+	_ = typeName
+
+	fieldName := p.v.Operation.FieldNameString(ref)
+	_ = fieldName
 
 	if isRootField && config != nil {
 		p.config = config
@@ -152,7 +158,9 @@ func (p *Planner) EnterField(ref int) {
 		// subsequent root fields get their own fieldset
 		// we need to set the buffer for all fields
 		// subscriptions don't have their own buffer, the initial data comes from the trigger which has a buffer itself
-		if p.operationType != ast.OperationTypeSubscription {
+		minDepthLimitReached := p.v.Depth > config.MinDepth
+		dataSourceProvidesExtraField := p.v.CurrentDataSourceProvidesExtraField(ref)
+		if p.operationType != ast.OperationTypeSubscription && minDepthLimitReached && !dataSourceProvidesExtraField {
 			p.v.SetBufferIDForCurrentFieldSet(p.bufferID)
 		}
 	}
@@ -164,8 +172,6 @@ func (p *Planner) EnterField(ref int) {
 	upstreamSelectionSet := p.nodes[len(p.nodes)-1].Ref
 	p.operation.AddSelection(upstreamSelectionSet, selection)
 	p.nodes = append(p.nodes, field)
-	fieldName := p.v.Operation.FieldNameString(ref)
-	_ = fieldName
 	if config == nil {
 		return
 	}
@@ -179,14 +185,9 @@ func (p *Planner) EnterField(ref int) {
 
 func (p *Planner) addFederationVariables() {
 
-	currentSelectionSet := p.nodes[len(p.nodes)-2].Ref
-	for _,i := range p.federationVariablesAddedForSelectionSet {
-		if currentSelectionSet == i {
-			return
-		}
+	if p.federationVariablesSet {
+		return
 	}
-
-	p.federationVariablesAddedForSelectionSet = append(p.federationVariablesAddedForSelectionSet,currentSelectionSet)
 
 	enclosingTypeName := p.v.EnclosingTypeDefinition.NameBytes(p.v.Definition)
 	definition, ok := p.federationSchema.Index.FirstNodeByNameBytes(enclosingTypeName)
@@ -232,6 +233,7 @@ func (p *Planner) addFederationVariables() {
 	}
 
 	variableTemplate := []byte(fmt.Sprintf(`{"__typename":"%s"}`, string(enclosingTypeName)))
+	variablesAdded := false
 
 	for i := range keys {
 		key := keys[i]
@@ -243,12 +245,18 @@ func (p *Planner) addFederationVariables() {
 			objectVariableName, exists := p.fetch.Variables.AddVariable(&resolve.ObjectVariable{Path: []string{string(fieldDefinitionName)}}, true)
 			if !exists {
 				variableTemplate, _ = sjson.SetRawBytes(variableTemplate, string(fieldDefinitionName), []byte(objectVariableName))
+				variablesAdded = true
 			}
 		}
 	}
 
+	if !variablesAdded {
+		return
+	}
+
 	representationsVariable := append([]byte("["), append(variableTemplate, []byte("]")...)...)
 	p.variables, _ = sjson.SetRawBytes(p.variables, "representations", representationsVariable)
+	p.federationVariablesSet = true
 }
 
 func (p *Planner) handleFieldDependencies(downstreamField, upstreamSelectionSet int) {
@@ -605,7 +613,7 @@ func (p *Planner) LeaveDocument(_, _ *ast.Document) {
 		return // planner did not get activated, skip
 	}
 
-	query,err := p.printQuery()
+	query, err := p.printQuery()
 	if err != nil {
 		p.v.StopWithInternalErr(err)
 		return
@@ -663,7 +671,7 @@ func (p *Planner) LeaveDocument(_, _ *ast.Document) {
 	}
 }
 
-func (p *Planner) printQuery() ([]byte,error) {
+func (p *Planner) printQuery() ([]byte, error) {
 
 	buf := &bytes.Buffer{}
 
@@ -684,12 +692,12 @@ func (p *Planner) printQuery() ([]byte,error) {
 
 	rawQuery := buf.Bytes()
 
-	baseSchema,err := astprinter.PrintString(p.v.Definition,nil)
+	baseSchema, err := astprinter.PrintString(p.v.Definition, nil)
 	if err != nil {
-		return nil,err
+		return nil, err
 	}
 
-	federationSchema,err := federation.BuildFederationSchema(baseSchema,string(p.federationSDL))
+	federationSchema, err := federation.BuildFederationSchema(baseSchema, string(p.federationSDL))
 	if err != nil {
 		return nil, err
 	}
@@ -702,12 +710,12 @@ func (p *Planner) printQuery() ([]byte,error) {
 	definition.Input.ResetInputString(federationSchema)
 	operation.Input.ResetInputBytes(rawQuery)
 
-	parser.Parse(operation,report)
+	parser.Parse(operation, report)
 	if report.HasErrors() {
-		return nil,fmt.Errorf("printQuery: parse operation failed")
+		return nil, fmt.Errorf("printQuery: parse operation failed")
 	}
 
-	parser.Parse(definition,report)
+	parser.Parse(definition, report)
 	if report.HasErrors() {
 		return nil, fmt.Errorf("printQuery: parse definition failed")
 	}
@@ -715,13 +723,13 @@ func (p *Planner) printQuery() ([]byte,error) {
 	p.operationNormalizer.NormalizeOperation(operation, definition, report)
 
 	if report.HasErrors() {
-		return nil,fmt.Errorf("normalization failed")
+		return nil, fmt.Errorf("normalization failed")
 	}
 
 	buf.Reset()
 
-	err = p.printer.Print(operation,p.v.Definition,buf)
-	return buf.Bytes(),err
+	err = p.printer.Print(operation, p.v.Definition, buf)
+	return buf.Bytes(), err
 }
 
 type Source struct {

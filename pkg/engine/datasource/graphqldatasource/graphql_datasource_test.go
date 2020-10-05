@@ -1115,17 +1115,21 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 		},
 	}))
 	t.Run("simple", RunTest(federationTestSchema,
-		`query MyReviews {
-					  me {
-						id
-						username
-						reviews {
-						  body
-						  product {
-							name
-						  }
+		`	query MyReviews {
+						me {
+							id
+							username
+							reviews {
+								body
+								author {
+									id
+									username
+								}	
+								product {
+									name
+								}
+							}
 						}
-					  }
 					}`,
 		"MyReviews",
 		&plan.SynchronousResponsePlan{
@@ -1146,7 +1150,7 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 									Value: &resolve.Object{
 										Fetch: &resolve.SingleFetch{
 											BufferId:   1,
-											Input:      `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"$$0$$","__typename":"User"}]}},"extract_entities":true}`,
+											Input:      `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body author {id username __typename} product {upc __typename}}}}}","variables":{"representations":[{"id":"$$0$$","__typename":"User"}]}},"extract_entities":true}`,
 											Variables: resolve.NewVariables(
 												&resolve.ObjectVariable{
 													Path: []string{"id"},
@@ -1191,6 +1195,30 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 																				Name: []byte("body"),
 																				Value: &resolve.String{
 																					Path: []string{"body"},
+																				},
+																			},
+																			{
+																				Name: []byte("author"),
+																				Value: &resolve.Object{
+																					Path: []string{"author"},
+																					FieldSets: []resolve.FieldSet{
+																						{
+																							Fields: []resolve.Field{
+																								{
+																									Name: []byte("id"),
+																									Value: &resolve.String{
+																										Path: []string{"id"},
+																									},
+																								},
+																								{
+																									Name: []byte("username"),
+																									Value: &resolve.String{
+																										Path: []string{"username"},
+																									},
+																								},
+																							},
+																						},
+																					},
 																				},
 																			},
 																			{
@@ -1256,10 +1284,65 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 						},
 					},
 					DataSourcePlanner: &Planner{},
+					UpstreamUniqueIdentifier: "http://localhost:4001",
+				},
+				{
+					TypeName:   "User",
+					FieldNames: []string{
+						"username",
+					},
+					Attributes: []plan.DataSourceAttribute{
+						{
+							Key:   "url",
+							Value: []byte("http://localhost:4001"),
+						},
+						{
+							Key: "federation_service_sdl",
+							Value: []byte(`extend type Query {me: User} type User @key(fields: "id"){ id: ID! username: String!}`),
+						},
+					},
+					DataSourcePlanner: &Planner{},
+					UpstreamUniqueIdentifier: "http://localhost:4001/nested",
+					MinDepth: 6,
+				},
+				{
+					TypeName:   "Query",
+					FieldNames: []string{"topProducts"},
+					Attributes: []plan.DataSourceAttribute{
+						{
+							Key:   "url",
+							Value: []byte("http://localhost:4001"),
+						},
+						{
+							Key: "federation_service_sdl",
+							Value: []byte(`extend type Query {\n    topProducts(first: Int = 5): [Product]\n}\n\ntype Product @key(fields: \"upc\") {\n    upc: String!\n    name: String!\n    price: Int!\n}\n`),
+						},
+						{
+							Key: "arguments",
+							Value: ArgumentsConfigJSON(ArgumentsConfig{
+								Fields: []FieldConfig{
+									{
+										FieldName: "topProducts",
+										Arguments: []Argument{
+											{
+												Name: "first",
+												Source: FieldArgument,
+											},
+										},
+									},
+								},
+							}),
+						},
+					},
+					DataSourcePlanner: &Planner{},
+					UpstreamUniqueIdentifier: "http://localhost:4001",
 				},
 				{
 					TypeName:   "Product",
-					FieldNames: []string{"name","price"},
+					FieldNames: []string{
+						"name",
+						"price",
+					},
 					Attributes: []plan.DataSourceAttribute{
 						{
 							Key:   "url",
@@ -1271,6 +1354,24 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 						},
 					},
 					DataSourcePlanner: &Planner{},
+				},
+				{
+					TypeName:   "Subscription",
+					FieldNames: []string{
+						"updatedPrice",
+					},
+					Attributes: []plan.DataSourceAttribute{
+						{
+							Key:   "url",
+							Value: []byte("http://localhost:4003"),
+						},
+						{
+							Key:   "federation_service_sdl",
+							Value: []byte(`extend type Query {topProducts(first: Int = 5): [Product]}type Product @key(fields: "upc") {upc: String!name: String! price: Int!}`),
+						},
+					},
+					DataSourcePlanner: &Planner{},
+					UpstreamUniqueIdentifier: "http://localhost:4003/sub",
 				},
 				{
 					TypeName:   "User",
@@ -1286,6 +1387,14 @@ func TestGraphQLDataSourcePlanning(t *testing.T) {
 						},
 					},
 					DataSourcePlanner: &Planner{},
+					ProvidesExtraFields: []plan.TypeFields{
+						{
+							TypeName: "User",
+							FieldNames: []string{
+								"username",
+							},
+						},
+					},
 				},
 			},
 			FieldMappings: []plan.FieldMapping{},

@@ -87,6 +87,13 @@ type DataSourceConfiguration struct {
 	Attributes               DataSourceAttributes
 	DataSourcePlanner        DataSourcePlanner
 	UpstreamUniqueIdentifier string
+	MinDepth                 int
+	ProvidesExtraFields      []TypeFields
+}
+
+type TypeFields struct {
+	TypeName   string
+	FieldNames []string
 }
 
 type FieldMapping struct {
@@ -208,6 +215,7 @@ type Visitor struct {
 type PathOverrideFunc func(path []string) []string
 
 type fieldDataSourcePlanner struct {
+	config             DataSourceConfiguration
 	field              int
 	planner            DataSourcePlanner
 	upstreamIdentifier string
@@ -560,7 +568,14 @@ func (v *Visitor) LeaveSelectionSet(ref int) {
 
 func (v *Visitor) EnterField(ref int) {
 
-	if isRoot, _ := v.IsRootField(ref); isRoot {
+	fieldName := v.Operation.FieldNameBytes(ref)
+	fieldNameStr := v.Operation.FieldNameString(ref)
+
+	isRoot,config := v.IsRootField(ref)
+	configMinDepthReached := isRoot && v.Depth > config.MinDepth
+	dataSourceProvidesExtraField := v.CurrentDataSourceProvidesExtraField(ref)
+
+	if configMinDepthReached && !dataSourceProvidesExtraField {
 		if len(*v.currentFields) != 0 {
 			v.currentObject.FieldSets = append(v.currentObject.FieldSets, resolve.FieldSet{
 				Fields: []resolve.Field{},
@@ -570,9 +585,6 @@ func (v *Visitor) EnterField(ref int) {
 			v.popFieldsOnLeaveField = append(v.popFieldsOnLeaveField, ref)
 		}
 	}
-
-	fieldName := v.Operation.FieldNameBytes(ref)
-	fieldNameStr := v.Operation.FieldNameString(ref)
 
 	v.currentFieldName = fieldNameStr
 	v.currentFieldEnclosingTypeDefinition = v.EnclosingTypeDefinition
@@ -747,10 +759,15 @@ func (v *Visitor) setActiveDataSourcePlanner(fieldRef int, enterOrLeave enterOrL
 	}
 
 	fieldName := v.Operation.FieldNameString(fieldRef)
-
 	enclosingTypeName := v.EnclosingTypeDefinition.NameString(v.Definition)
+
+	if v.CurrentDataSourceProvidesExtraField(fieldRef){
+		return
+	}
+
 	for i := range v.Config.DataSourceConfigurations {
-		if v.Config.DataSourceConfigurations[i].TypeName != enclosingTypeName {
+		if v.Config.DataSourceConfigurations[i].TypeName != enclosingTypeName ||
+			v.Config.DataSourceConfigurations[i].MinDepth > v.Depth {
 			continue
 		}
 		for j := range v.Config.DataSourceConfigurations[i].FieldNames {
@@ -758,6 +775,7 @@ func (v *Visitor) setActiveDataSourcePlanner(fieldRef int, enterOrLeave enterOrL
 				v.activeDataSourcePlanner = v.Config.DataSourceConfigurations[i].DataSourcePlanner
 				v.fieldDataSourcePlanners = append(v.fieldDataSourcePlanners, fieldDataSourcePlanner{
 					field:              fieldRef,
+					config:             v.Config.DataSourceConfigurations[i],
 					planner:            v.Config.DataSourceConfigurations[i].DataSourcePlanner,
 					upstreamIdentifier: v.Config.DataSourceConfigurations[i].UpstreamUniqueIdentifier,
 				})
@@ -765,6 +783,26 @@ func (v *Visitor) setActiveDataSourcePlanner(fieldRef int, enterOrLeave enterOrL
 			}
 		}
 	}
+}
+
+func (v *Visitor) CurrentDataSourceProvidesExtraField(field int) bool {
+	if len(v.fieldDataSourcePlanners) == 0 {
+		return false
+	}
+	fieldName := v.Operation.FieldNameString(field)
+	enclosingTypeName := v.EnclosingTypeDefinition.NameString(v.Definition)
+	config := v.fieldDataSourcePlanners[len(v.fieldDataSourcePlanners)-1].config
+	for i := range config.ProvidesExtraFields {
+		if config.ProvidesExtraFields[i].TypeName != enclosingTypeName {
+			continue
+		}
+		for j := range config.ProvidesExtraFields[i].FieldNames {
+			if config.ProvidesExtraFields[i].FieldNames[j] == fieldName {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (v *Visitor) LeaveField(ref int) {
