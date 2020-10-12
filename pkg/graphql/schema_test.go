@@ -2,6 +2,7 @@ package graphql
 
 import (
 	"bytes"
+	"io/ioutil"
 	"testing"
 
 	"github.com/sebdah/goldie"
@@ -362,6 +363,24 @@ func TestSchema_IntrospectionResponse(t *testing.T) {
 	err = schema.IntrospectionResponse(out)
 	assert.NoError(t, err)
 	goldie.Assert(t, "introspection_response", out.Bytes())
+}
+
+func TestSchemaIntrospection(t *testing.T) {
+	schemaString := "schema { query: Query } type Query { hello: String }"
+	schema, err := NewSchemaFromString(schemaString)
+	assert.NoError(t, err)
+
+	result, err := SchemaIntrospection(schema)
+	assert.NoError(t, err)
+
+	resp := result.GetAsHTTPResponse()
+	assert.NotNil(t, resp)
+	assert.NotNil(t, resp.Body)
+
+	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	assert.NoError(t, err)
+
+	goldie.Assert(t, "introspection_response", bodyBytes)
 }
 
 var invalidSchema = `type Query {
