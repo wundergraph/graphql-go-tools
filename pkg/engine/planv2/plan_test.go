@@ -186,6 +186,7 @@ type Mutation {
 
 type Subscription {
     remainingJedis: Int!
+	newReviews: Review
 }
 
 input ReviewInput {
