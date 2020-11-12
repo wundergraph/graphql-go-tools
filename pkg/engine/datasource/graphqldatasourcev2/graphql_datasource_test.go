@@ -289,6 +289,116 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 	))
+	t.Run("nested resolvers of same upstream", RunTest(`
+		type Query {
+			foo(bar: String):Baz
+		}
+		type Baz {
+			bar(bal: String):String
+		}
+		`,
+		`
+		query NestedQuery {
+			foo(bar: "baz") {
+				bar(bal: "bat")
+			}
+		}
+		`,
+		"NestedQuery",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						BufferId:   0,
+						Input:      `{"method":"POST","url":"https://foo.service","body":{"query":"query($a: String, $b: String){foo(bar: $a){bar(bal: $b)}}","variables":{"b":"$$1$$","a":"$$0$$"}}}`,
+						DataSource: &Source{},
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path: []string{"a"},
+							},
+							&resolve.ContextVariable{
+								Path: []string{"b"},
+							},
+						),
+						DisallowSingleFlight: false,
+					},
+					FieldSets: []resolve.FieldSet{
+						{
+							BufferID:  0,
+							HasBuffer: true,
+							Fields: []resolve.Field{
+								{
+									Name: []byte("foo"),
+									Value: &resolve.Object{
+										Nullable: true,
+										Path:     []string{"foo"},
+										FieldSets: []resolve.FieldSet{
+											{
+												Fields: []resolve.Field{
+													{
+														Name: []byte("bar"),
+														Value: &resolve.String{
+															Nullable: true,
+															Path:     []string{"bar"},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		plan.Configuration{
+			DataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"foo"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Baz",
+							FieldNames: []string{"bar"},
+						},
+					},
+					Factory:                    &Factory{},
+					OverrideFieldPathFromAlias: true,
+					Custom: ConfigJson(Configuration{
+						URL: "https://foo.service",
+					}),
+				},
+			},
+			Fields: []plan.FieldConfiguration{
+				{
+					TypeName:  "Query",
+					FieldName: "foo",
+					Arguments: []plan.ArgumentConfiguration{
+						{
+							Name:       "bar",
+							SourceType: plan.FieldArgumentSource,
+						},
+					},
+				},
+				{
+					TypeName:  "Baz",
+					FieldName: "bar",
+					Arguments: []plan.ArgumentConfiguration{
+						{
+							Name:       "bal",
+							SourceType: plan.FieldArgumentSource,
+						},
+					},
+				},
+			},
+		},
+	))
 }
 
 func ConfigJson(config Configuration) json.RawMessage {
