@@ -193,10 +193,106 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 	}))
+	t.Run("simple mutation", RunTest(`
+		type Mutation {
+			addFriend(name: String!):Friend!
+		}
+		type Friend {
+			id: ID!
+			name: String!
+		}
+	`,
+		`mutation AddFriend($name: String!){ addFriend(name: $name){ id name } }`,
+		"AddFriend",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						BufferId:   0,
+						Input:      `{"method":"POST","url":"https://service.one","body":{"query":"mutation($name: String!){addFriend(name: $name){id name}}","variables":{"name":"$$0$$"}}}`,
+						DataSource: &Source{},
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path: []string{"name"},
+							},
+						),
+						DisallowSingleFlight: true,
+					},
+					FieldSets: []resolve.FieldSet{
+						{
+							BufferID:  0,
+							HasBuffer: true,
+							Fields: []resolve.Field{
+								{
+									Name: []byte("addFriend"),
+									Value: &resolve.Object{
+										FieldSets: []resolve.FieldSet{
+											{
+												Fields: []resolve.Field{
+													{
+														Name: []byte("id"),
+														Value: &resolve.String{
+															Path: []string{"id"},
+														},
+													},
+													{
+														Name: []byte("name"),
+														Value: &resolve.String{
+															Path: []string{"name"},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		plan.Configuration{
+			DataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Mutation",
+							FieldNames: []string{"addFriend"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Friend",
+							FieldNames: []string{"id", "name"},
+						},
+					},
+					OverrideFieldPathFromAlias: true,
+					Custom: ConfigJson(Configuration{
+						URL: "https://service.one",
+					}),
+					Factory: &Factory{},
+				},
+			},
+			Fields: []plan.FieldConfiguration{
+				{
+					TypeName:              "Mutation",
+					FieldName:             "addFriend",
+					DisableDefaultMapping: true,
+					Arguments: []plan.ArgumentConfiguration{
+						{
+							Name:       "name",
+							SourceType: plan.FieldArgumentSource,
+						},
+					},
+				},
+			},
+		},
+	))
 }
 
 func ConfigJson(config Configuration) json.RawMessage {
-	out,_ := json.Marshal(config)
+	out, _ := json.Marshal(config)
 	return out
 }
 

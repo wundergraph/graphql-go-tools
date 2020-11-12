@@ -28,6 +28,7 @@ type Planner struct {
 	nodes                      []ast.Node
 	variables                  resolve.Variables
 	lastFieldEnclosingTypeName string
+	disallowSingleFlight       bool
 }
 
 type Configuration struct {
@@ -61,15 +62,16 @@ func (p *Planner) Register(visitor *plan.Visitor, config json.RawMessage) error 
 
 func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 
-	input := httpclient.SetInputBodyWithPath(nil,p.upstreamVariables,"variables")
+	input := httpclient.SetInputBodyWithPath(nil, p.upstreamVariables, "variables")
 	input = httpclient.SetInputBodyWithPath(input, p.printOperation(), "query")
 	input = httpclient.SetInputURL(input, []byte(p.config.URL))
 	input = httpclient.SetInputMethod(input, []byte(p.config.HttpMethod))
 
 	return plan.FetchConfiguration{
-		Input:      string(input),
-		DataSource: &Source{},
-		Variables:  p.variables,
+		Input:                string(input),
+		DataSource:           &Source{},
+		Variables:            p.variables,
+		DisallowSingleFlight: p.disallowSingleFlight,
 	}
 }
 
@@ -77,6 +79,7 @@ func (p *Planner) EnterOperationDefinition(ref int) {
 	definition := p.upstreamOperation.AddOperationDefinitionToRootNodes(ast.OperationDefinition{
 		OperationType: p.visitor.Operation.OperationDefinitions[ref].OperationType,
 	})
+	p.disallowSingleFlight = p.visitor.Operation.OperationDefinitions[ref].OperationType == ast.OperationTypeMutation
 	p.nodes = append(p.nodes, definition)
 }
 
@@ -146,6 +149,7 @@ func (p *Planner) EnterDocument(operation, definition *ast.Document) {
 	p.nodes = p.nodes[:0]
 	p.upstreamVariables = nil
 	p.variables = p.variables[:0]
+	p.disallowSingleFlight = false
 }
 
 func (p *Planner) LeaveDocument(operation, definition *ast.Document) {

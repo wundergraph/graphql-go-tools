@@ -496,10 +496,11 @@ func (v *Visitor) configureObjectFetch(config objectFetchConfiguration) {
 
 func (v *Visitor) configureSingleFetch(bufferID int, internal objectFetchConfiguration, external FetchConfiguration) *resolve.SingleFetch {
 	return &resolve.SingleFetch{
-		BufferId:   bufferID,
-		Input:      external.Input,
-		DataSource: external.DataSource,
-		Variables:  external.Variables,
+		BufferId:             bufferID,
+		Input:                external.Input,
+		DataSource:           external.DataSource,
+		Variables:            external.Variables,
+		DisallowSingleFlight: external.DisallowSingleFlight,
 	}
 }
 
@@ -561,9 +562,10 @@ type DataSourcePlanner interface {
 }
 
 type FetchConfiguration struct {
-	Input      string
-	Variables  resolve.Variables
-	DataSource resolve.DataSource
+	Input                string
+	Variables            resolve.Variables
+	DataSource           resolve.DataSource
+	DisallowSingleFlight bool
 }
 
 type configurationVisitor struct {
