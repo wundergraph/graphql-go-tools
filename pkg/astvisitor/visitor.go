@@ -34,6 +34,8 @@ type Walker struct {
 	SelectionsAfter []int
 	// Report is the object to collect errors when walking the AST
 	Report          *operationreport.Report
+	CurrentRef      int
+	CurrentKind     ast.NodeKind
 	document        *ast.Document
 	definition      *ast.Document
 	visitors        visitors
@@ -828,6 +830,11 @@ func (w *Walker) ResetVisitors() {
 	w.deferred = w.deferred[:0]
 }
 
+func (w *Walker) setCurrent(kind ast.NodeKind, ref int) {
+	w.CurrentKind = kind
+	w.CurrentRef = ref
+}
+
 func (w *Walker) RegisterExecutableVisitor(visitor ExecutableVisitor) {
 	w.RegisterOperationDefinitionVisitor(visitor)
 	w.RegisterSelectionSetVisitor(visitor)
@@ -1360,7 +1367,7 @@ func (w *Walker) appendAncestor(ref int, kind ast.NodeKind) {
 		w.Path = append(w.Path, ast.PathItem{
 			Kind:       ast.FieldName,
 			ArrayIndex: 0,
-			FieldName:  w.document.FieldObjectNameBytes(ref),
+			FieldName:  w.document.FieldAliasOrNameBytes(ref),
 		})
 		if bytes.Equal(fieldName, literal.TYPENAME) {
 			typeName = literal.STRING
@@ -1752,6 +1759,8 @@ func (w *Walker) walkField(ref int) {
 	selectionsBefore := w.SelectionsBefore
 	selectionsAfter := w.SelectionsAfter
 
+	w.setCurrent(ast.NodeKindField, ref)
+
 	for i := 0; i < len(w.visitors.enterField); {
 		if w.filter == nil || w.filter.AllowVisitor(EnterField, ref, w.visitors.enterField[i]) {
 			w.visitors.enterField[i].EnterField(ref)
@@ -1805,6 +1814,8 @@ func (w *Walker) walkField(ref int) {
 	w.SelectionsBefore = selectionsBefore
 	w.SelectionsAfter = selectionsAfter
 
+	w.setCurrent(ast.NodeKindField, ref)
+
 	for i := 0; i < len(w.visitors.leaveField); {
 		if w.filter == nil || w.filter.AllowVisitor(LeaveField, ref, w.visitors.leaveField[i]) {
 			w.visitors.leaveField[i].LeaveField(ref)
@@ -1829,6 +1840,8 @@ func (w *Walker) walkField(ref int) {
 
 func (w *Walker) walkDirective(ref int) {
 	w.increaseDepth()
+
+	w.setCurrent(ast.NodeKindDirective, ref)
 
 	for i := 0; i < len(w.visitors.enterDirective); {
 		if w.filter == nil || w.filter.AllowVisitor(EnterDirective, ref, w.visitors.enterDirective[i]) {
@@ -1862,6 +1875,8 @@ func (w *Walker) walkDirective(ref int) {
 
 	w.removeLastAncestor()
 
+	w.setCurrent(ast.NodeKindDirective, ref)
+
 	for i := 0; i < len(w.visitors.leaveDirective); {
 		if w.filter == nil || w.filter.AllowVisitor(LeaveDirective, ref, w.visitors.leaveDirective[i]) {
 			w.visitors.leaveDirective[i].LeaveDirective(ref)
@@ -1886,6 +1901,8 @@ func (w *Walker) walkDirective(ref int) {
 
 func (w *Walker) walkArgument(ref int) {
 	w.increaseDepth()
+
+	w.setCurrent(ast.NodeKindArgument, ref)
 
 	for i := 0; i < len(w.visitors.enterArgument); {
 		if w.filter == nil || w.filter.AllowVisitor(EnterArgument, ref, w.visitors.enterArgument[i]) {
@@ -1930,6 +1947,8 @@ func (w *Walker) walkArgument(ref int) {
 
 func (w *Walker) walkFragmentSpread(ref int) {
 	w.increaseDepth()
+
+	w.setCurrent(ast.NodeKindFragmentSpread, ref)
 
 	for i := 0; i < len(w.visitors.enterFragmentSpread); {
 		if w.filter == nil || w.filter.AllowVisitor(EnterFragmentSpread, ref, w.visitors.enterFragmentSpread[i]) {
@@ -1978,6 +1997,8 @@ func (w *Walker) walkInlineFragment(ref int) {
 	selectionsBefore := w.SelectionsBefore
 	selectionsAfter := w.SelectionsAfter
 
+	w.setCurrent(ast.NodeKindInlineFragment, ref)
+
 	for i := 0; i < len(w.visitors.enterInlineFragment); {
 		if w.filter == nil || w.filter.AllowVisitor(EnterInlineFragment, ref, w.visitors.enterInlineFragment[i]) {
 			w.visitors.enterInlineFragment[i].EnterInlineFragment(ref)
@@ -2020,6 +2041,8 @@ func (w *Walker) walkInlineFragment(ref int) {
 	w.SelectionsBefore = selectionsBefore
 	w.SelectionsAfter = selectionsAfter
 
+	w.setCurrent(ast.NodeKindInlineFragment, ref)
+
 	for i := 0; i < len(w.visitors.leaveInlineFragment); {
 		if w.filter == nil || w.filter.AllowVisitor(LeaveInlineFragment, ref, w.visitors.leaveInlineFragment[i]) {
 			w.visitors.leaveInlineFragment[i].LeaveInlineFragment(ref)
@@ -2044,6 +2067,8 @@ func (w *Walker) walkInlineFragment(ref int) {
 
 func (w *Walker) walkFragmentDefinition(ref int) {
 	w.increaseDepth()
+
+	w.setCurrent(ast.NodeKindFragmentDefinition, ref)
 
 	for i := 0; i < len(w.visitors.enterFragmentDefinition); {
 		if w.filter == nil || w.filter.AllowVisitor(EnterFragmentDefinition, ref, w.visitors.enterFragmentDefinition[i]) {
@@ -2078,6 +2103,8 @@ func (w *Walker) walkFragmentDefinition(ref int) {
 
 	w.removeLastAncestor()
 
+	w.setCurrent(ast.NodeKindFragmentDefinition, ref)
+
 	for i := 0; i < len(w.visitors.leaveFragmentDefinition); {
 		if w.filter == nil || w.filter.AllowVisitor(LeaveFragmentDefinition, ref, w.visitors.leaveFragmentDefinition[i]) {
 			w.visitors.leaveFragmentDefinition[i].LeaveFragmentDefinition(ref)
@@ -2102,6 +2129,8 @@ func (w *Walker) walkFragmentDefinition(ref int) {
 
 func (w *Walker) walkObjectTypeDefinition(ref int) {
 	w.increaseDepth()
+
+	w.setCurrent(ast.NodeKindObjectTypeDefinition, ref)
 
 	for i := 0; i < len(w.visitors.enterObjectTypeDefinition); {
 		if w.filter == nil || w.filter.AllowVisitor(EnterObjectTypeDefinition, ref, w.visitors.enterObjectTypeDefinition[i]) {
@@ -2147,6 +2176,8 @@ func (w *Walker) walkObjectTypeDefinition(ref int) {
 
 	w.removeLastAncestor()
 
+	w.setCurrent(ast.NodeKindObjectTypeDefinition, ref)
+
 	for i := 0; i < len(w.visitors.leaveObjectTypeDefinition); {
 		if w.filter == nil || w.filter.AllowVisitor(LeaveObjectTypeDefinition, ref, w.visitors.leaveObjectTypeDefinition[i]) {
 			w.visitors.leaveObjectTypeDefinition[i].LeaveObjectTypeDefinition(ref)
@@ -2171,6 +2202,8 @@ func (w *Walker) walkObjectTypeDefinition(ref int) {
 
 func (w *Walker) walkObjectTypeExtension(ref int) {
 	w.increaseDepth()
+
+	w.setCurrent(ast.NodeKindObjectTypeExtension, ref)
 
 	for i := 0; i < len(w.visitors.enterObjectTypeExtension); {
 		if w.filter == nil || w.filter.AllowVisitor(EnterObjectTypeExtension, ref, w.visitors.enterObjectTypeExtension[i]) {
@@ -2216,6 +2249,8 @@ func (w *Walker) walkObjectTypeExtension(ref int) {
 
 	w.removeLastAncestor()
 
+	w.setCurrent(ast.NodeKindObjectTypeExtension, ref)
+
 	for i := 0; i < len(w.visitors.leaveObjectTypeExtension); {
 		if w.filter == nil || w.filter.AllowVisitor(LeaveObjectTypeExtension, ref, w.visitors.leaveObjectTypeExtension[i]) {
 			w.visitors.leaveObjectTypeExtension[i].LeaveObjectTypeExtension(ref)
@@ -2240,6 +2275,8 @@ func (w *Walker) walkObjectTypeExtension(ref int) {
 
 func (w *Walker) walkFieldDefinition(ref int) {
 	w.increaseDepth()
+
+	w.setCurrent(ast.NodeKindFieldDefinition, ref)
 
 	for i := 0; i < len(w.visitors.enterFieldDefinition); {
 		if w.filter == nil || w.filter.AllowVisitor(EnterFieldDefinition, ref, w.visitors.enterFieldDefinition[i]) {
@@ -2285,6 +2322,8 @@ func (w *Walker) walkFieldDefinition(ref int) {
 
 	w.removeLastAncestor()
 
+	w.setCurrent(ast.NodeKindFieldDefinition, ref)
+
 	for i := 0; i < len(w.visitors.leaveFieldDefinition); {
 		if w.filter == nil || w.filter.AllowVisitor(LeaveFieldDefinition, ref, w.visitors.leaveFieldDefinition[i]) {
 			w.visitors.leaveFieldDefinition[i].LeaveFieldDefinition(ref)
@@ -2309,6 +2348,8 @@ func (w *Walker) walkFieldDefinition(ref int) {
 
 func (w *Walker) walkInputValueDefinition(ref int) {
 	w.increaseDepth()
+
+	w.setCurrent(ast.NodeKindInputValueDefinition, ref)
 
 	for i := 0; i < len(w.visitors.enterInputValueDefinition); {
 		if w.filter == nil || w.filter.AllowVisitor(EnterInputValueDefinition, ref, w.visitors.enterInputValueDefinition[i]) {
@@ -2345,6 +2386,8 @@ func (w *Walker) walkInputValueDefinition(ref int) {
 
 	w.removeLastAncestor()
 
+	w.setCurrent(ast.NodeKindInputValueDefinition, ref)
+
 	for i := 0; i < len(w.visitors.leaveInputValueDefinition); {
 		if w.filter == nil || w.filter.AllowVisitor(LeaveInputValueDefinition, ref, w.visitors.leaveInputValueDefinition[i]) {
 			w.visitors.leaveInputValueDefinition[i].LeaveInputValueDefinition(ref)
@@ -2369,6 +2412,8 @@ func (w *Walker) walkInputValueDefinition(ref int) {
 
 func (w *Walker) walkInterfaceTypeDefinition(ref int) {
 	w.increaseDepth()
+
+	w.setCurrent(ast.NodeKindInterfaceTypeDefinition, ref)
 
 	for i := 0; i < len(w.visitors.enterInterfaceTypeDefinition); {
 		if w.filter == nil || w.filter.AllowVisitor(EnterInterfaceTypeDefinition, ref, w.visitors.enterInterfaceTypeDefinition[i]) {
@@ -2414,6 +2459,8 @@ func (w *Walker) walkInterfaceTypeDefinition(ref int) {
 
 	w.removeLastAncestor()
 
+	w.setCurrent(ast.NodeKindInterfaceTypeDefinition, ref)
+
 	for i := 0; i < len(w.visitors.leaveInterfaceTypeDefinition); {
 		if w.filter == nil || w.filter.AllowVisitor(LeaveInterfaceTypeDefinition, ref, w.visitors.leaveInterfaceTypeDefinition[i]) {
 			w.visitors.leaveInterfaceTypeDefinition[i].LeaveInterfaceTypeDefinition(ref)
@@ -2438,6 +2485,8 @@ func (w *Walker) walkInterfaceTypeDefinition(ref int) {
 
 func (w *Walker) walkInterfaceTypeExtension(ref int) {
 	w.increaseDepth()
+
+	w.setCurrent(ast.NodeKindInterfaceTypeExtension, ref)
 
 	for i := 0; i < len(w.visitors.enterInterfaceTypeExtension); {
 		if w.filter == nil || w.filter.AllowVisitor(EnterInterfaceTypeExtension, ref, w.visitors.enterInterfaceTypeExtension[i]) {
@@ -2483,6 +2532,8 @@ func (w *Walker) walkInterfaceTypeExtension(ref int) {
 
 	w.removeLastAncestor()
 
+	w.setCurrent(ast.NodeKindInterfaceTypeExtension, ref)
+
 	for i := 0; i < len(w.visitors.leaveInterfaceTypeExtension); {
 		if w.filter == nil || w.filter.AllowVisitor(LeaveInterfaceTypeExtension, ref, w.visitors.leaveInterfaceTypeExtension[i]) {
 			w.visitors.leaveInterfaceTypeExtension[i].LeaveInterfaceTypeExtension(ref)
@@ -2507,6 +2558,8 @@ func (w *Walker) walkInterfaceTypeExtension(ref int) {
 
 func (w *Walker) walkScalarTypeDefinition(ref int) {
 	w.increaseDepth()
+
+	w.setCurrent(ast.NodeKindScalarTypeDefinition, ref)
 
 	for i := 0; i < len(w.visitors.enterScalarTypeDefinition); {
 		if w.filter == nil || w.filter.AllowVisitor(EnterScalarTypeDefinition, ref, w.visitors.enterScalarTypeDefinition[i]) {
@@ -2543,6 +2596,8 @@ func (w *Walker) walkScalarTypeDefinition(ref int) {
 
 	w.removeLastAncestor()
 
+	w.setCurrent(ast.NodeKindScalarTypeDefinition, ref)
+
 	for i := 0; i < len(w.visitors.leaveScalarTypeDefinition); {
 		if w.filter == nil || w.filter.AllowVisitor(LeaveScalarTypeDefinition, ref, w.visitors.leaveScalarTypeDefinition[i]) {
 			w.visitors.leaveScalarTypeDefinition[i].LeaveScalarTypeDefinition(ref)
@@ -2567,6 +2622,8 @@ func (w *Walker) walkScalarTypeDefinition(ref int) {
 
 func (w *Walker) walkScalarTypeExtension(ref int) {
 	w.increaseDepth()
+
+	w.setCurrent(ast.NodeKindScalarTypeExtension, ref)
 
 	for i := 0; i < len(w.visitors.enterScalarTypeExtension); {
 		if w.filter == nil || w.filter.AllowVisitor(EnterScalarTypeExtension, ref, w.visitors.enterScalarTypeExtension[i]) {
@@ -2603,6 +2660,8 @@ func (w *Walker) walkScalarTypeExtension(ref int) {
 
 	w.removeLastAncestor()
 
+	w.setCurrent(ast.NodeKindScalarTypeExtension, ref)
+
 	for i := 0; i < len(w.visitors.leaveScalarTypeExtension); {
 		if w.filter == nil || w.filter.AllowVisitor(LeaveScalarTypeExtension, ref, w.visitors.leaveScalarTypeExtension[i]) {
 			w.visitors.leaveScalarTypeExtension[i].LeaveScalarTypeExtension(ref)
@@ -2627,6 +2686,8 @@ func (w *Walker) walkScalarTypeExtension(ref int) {
 
 func (w *Walker) walkUnionTypeDefinition(ref int) {
 	w.increaseDepth()
+
+	w.setCurrent(ast.NodeKindUnionTypeDefinition, ref)
 
 	for i := 0; i < len(w.visitors.enterUnionTypeDefinition); {
 		if w.filter == nil || w.filter.AllowVisitor(EnterUnionTypeDefinition, ref, w.visitors.enterUnionTypeDefinition[i]) {
@@ -2672,6 +2733,8 @@ func (w *Walker) walkUnionTypeDefinition(ref int) {
 
 	w.removeLastAncestor()
 
+	w.setCurrent(ast.NodeKindUnionTypeDefinition, ref)
+
 	for i := 0; i < len(w.visitors.leaveUnionTypeDefinition); {
 		if w.filter == nil || w.filter.AllowVisitor(LeaveUnionTypeDefinition, ref, w.visitors.leaveUnionTypeDefinition[i]) {
 			w.visitors.leaveUnionTypeDefinition[i].LeaveUnionTypeDefinition(ref)
@@ -2696,6 +2759,8 @@ func (w *Walker) walkUnionTypeDefinition(ref int) {
 
 func (w *Walker) walkUnionTypeExtension(ref int) {
 	w.increaseDepth()
+
+	w.setCurrent(ast.NodeKindUnionTypeExtension, ref)
 
 	for i := 0; i < len(w.visitors.enterUnionTypeExtension); {
 		if w.filter == nil || w.filter.AllowVisitor(EnterUnionTypeExtension, ref, w.visitors.enterUnionTypeExtension[i]) {
@@ -2741,6 +2806,8 @@ func (w *Walker) walkUnionTypeExtension(ref int) {
 
 	w.removeLastAncestor()
 
+	w.setCurrent(ast.NodeKindUnionTypeExtension, ref)
+
 	for i := 0; i < len(w.visitors.leaveUnionTypeExtension); {
 		if w.filter == nil || w.filter.AllowVisitor(LeaveUnionTypeExtension, ref, w.visitors.leaveUnionTypeExtension[i]) {
 			w.visitors.leaveUnionTypeExtension[i].LeaveUnionTypeExtension(ref)
@@ -2765,6 +2832,8 @@ func (w *Walker) walkUnionTypeExtension(ref int) {
 
 func (w *Walker) walkUnionMemberType(ref int) {
 	w.increaseDepth()
+
+	w.setCurrent(ast.NodeKindUnionMemberType, ref)
 
 	for i := 0; i < len(w.visitors.enterUnionMemberType); {
 		if w.filter == nil || w.filter.AllowVisitor(EnterUnionMemberType, ref, w.visitors.enterUnionMemberType[i]) {
@@ -2810,6 +2879,8 @@ func (w *Walker) walkUnionMemberType(ref int) {
 func (w *Walker) walkEnumTypeDefinition(ref int) {
 	w.increaseDepth()
 
+	w.setCurrent(ast.NodeKindEnumTypeDefinition, ref)
+
 	for i := 0; i < len(w.visitors.enterEnumTypeDefinition); {
 		if w.filter == nil || w.filter.AllowVisitor(EnterEnumTypeDefinition, ref, w.visitors.enterEnumTypeDefinition[i]) {
 			w.visitors.enterEnumTypeDefinition[i].EnterEnumTypeDefinition(ref)
@@ -2854,6 +2925,8 @@ func (w *Walker) walkEnumTypeDefinition(ref int) {
 
 	w.removeLastAncestor()
 
+	w.setCurrent(ast.NodeKindEnumTypeDefinition, ref)
+
 	for i := 0; i < len(w.visitors.leaveEnumTypeDefinition); {
 		if w.filter == nil || w.filter.AllowVisitor(LeaveEnumTypeDefinition, ref, w.visitors.leaveEnumTypeDefinition[i]) {
 			w.visitors.leaveEnumTypeDefinition[i].LeaveEnumTypeDefinition(ref)
@@ -2878,6 +2951,8 @@ func (w *Walker) walkEnumTypeDefinition(ref int) {
 
 func (w *Walker) walkEnumTypeExtension(ref int) {
 	w.increaseDepth()
+
+	w.setCurrent(ast.NodeKindEnumTypeExtension, ref)
 
 	for i := 0; i < len(w.visitors.enterEnumTypeExtension); {
 		if w.filter == nil || w.filter.AllowVisitor(EnterEnumTypeExtension, ref, w.visitors.enterEnumTypeExtension[i]) {
@@ -2923,6 +2998,8 @@ func (w *Walker) walkEnumTypeExtension(ref int) {
 
 	w.removeLastAncestor()
 
+	w.setCurrent(ast.NodeKindEnumTypeExtension, ref)
+
 	for i := 0; i < len(w.visitors.leaveEnumTypeExtension); {
 		if w.filter == nil || w.filter.AllowVisitor(LeaveEnumTypeExtension, ref, w.visitors.leaveEnumTypeExtension[i]) {
 			w.visitors.leaveEnumTypeExtension[i].LeaveEnumTypeExtension(ref)
@@ -2947,6 +3024,8 @@ func (w *Walker) walkEnumTypeExtension(ref int) {
 
 func (w *Walker) walkEnumValueDefinition(ref int) {
 	w.increaseDepth()
+
+	w.setCurrent(ast.NodeKindEnumValueDefinition, ref)
 
 	for i := 0; i < len(w.visitors.enterEnumValueDefinition); {
 		if w.filter == nil || w.filter.AllowVisitor(EnterEnumValueDefinition, ref, w.visitors.enterEnumValueDefinition[i]) {
@@ -2983,6 +3062,8 @@ func (w *Walker) walkEnumValueDefinition(ref int) {
 
 	w.removeLastAncestor()
 
+	w.setCurrent(ast.NodeKindEnumValueDefinition, ref)
+
 	for i := 0; i < len(w.visitors.leaveEnumValueDefinition); {
 		if w.filter == nil || w.filter.AllowVisitor(LeaveEnumValueDefinition, ref, w.visitors.leaveEnumValueDefinition[i]) {
 			w.visitors.leaveEnumValueDefinition[i].LeaveEnumValueDefinition(ref)
@@ -3007,6 +3088,8 @@ func (w *Walker) walkEnumValueDefinition(ref int) {
 
 func (w *Walker) walkInputObjectTypeDefinition(ref int) {
 	w.increaseDepth()
+
+	w.setCurrent(ast.NodeKindInputObjectTypeDefinition, ref)
 
 	for i := 0; i < len(w.visitors.enterInputObjectTypeDefinition); {
 		if w.filter == nil || w.filter.AllowVisitor(EnterInputObjectTypeDefinition, ref, w.visitors.enterInputObjectTypeDefinition[i]) {
@@ -3052,6 +3135,8 @@ func (w *Walker) walkInputObjectTypeDefinition(ref int) {
 
 	w.removeLastAncestor()
 
+	w.setCurrent(ast.NodeKindInputObjectTypeDefinition, ref)
+
 	for i := 0; i < len(w.visitors.leaveInputObjectTypeDefinition); {
 		if w.filter == nil || w.filter.AllowVisitor(LeaveInputObjectTypeDefinition, ref, w.visitors.leaveInputObjectTypeDefinition[i]) {
 			w.visitors.leaveInputObjectTypeDefinition[i].LeaveInputObjectTypeDefinition(ref)
@@ -3076,6 +3161,8 @@ func (w *Walker) walkInputObjectTypeDefinition(ref int) {
 
 func (w *Walker) walkInputObjectTypeExtension(ref int) {
 	w.increaseDepth()
+
+	w.setCurrent(ast.NodeKindInputObjectTypeExtension, ref)
 
 	for i := 0; i < len(w.visitors.enterInputObjectTypeExtension); {
 		if w.filter == nil || w.filter.AllowVisitor(EnterInputObjectTypeExtension, ref, w.visitors.enterInputObjectTypeExtension[i]) {
@@ -3121,6 +3208,8 @@ func (w *Walker) walkInputObjectTypeExtension(ref int) {
 
 	w.removeLastAncestor()
 
+	w.setCurrent(ast.NodeKindInputObjectTypeExtension, ref)
+
 	for i := 0; i < len(w.visitors.leaveInputObjectTypeExtension); {
 		if w.filter == nil || w.filter.AllowVisitor(LeaveInputObjectTypeExtension, ref, w.visitors.leaveInputObjectTypeExtension[i]) {
 			w.visitors.leaveInputObjectTypeExtension[i].LeaveInputObjectTypeExtension(ref)
@@ -3145,6 +3234,8 @@ func (w *Walker) walkInputObjectTypeExtension(ref int) {
 
 func (w *Walker) walkDirectiveDefinition(ref int) {
 	w.increaseDepth()
+
+	w.setCurrent(ast.NodeKindDirectiveDefinition, ref)
 
 	for i := 0; i < len(w.visitors.enterDirectiveDefinition); {
 		if w.filter == nil || w.filter.AllowVisitor(EnterDirectiveDefinition, ref, w.visitors.enterDirectiveDefinition[i]) {
@@ -3185,6 +3276,8 @@ func (w *Walker) walkDirectiveDefinition(ref int) {
 	}
 
 	w.removeLastAncestor()
+
+	w.setCurrent(ast.NodeKindDirectiveDefinition, ref)
 
 	for i := 0; i < len(w.visitors.leaveDirectiveDefinition); {
 		if w.filter == nil || w.filter.AllowVisitor(LeaveDirectiveDefinition, ref, w.visitors.leaveDirectiveDefinition[i]) {
@@ -3255,6 +3348,8 @@ func (w *Walker) walkDirectiveLocation(location ast.DirectiveLocation) {
 func (w *Walker) walkSchemaDefinition(ref int) {
 	w.increaseDepth()
 
+	w.setCurrent(ast.NodeKindSchemaDefinition, ref)
+
 	for i := 0; i < len(w.visitors.enterSchemaDefinition); {
 		if w.filter == nil || w.filter.AllowVisitor(EnterSchemaDefinition, ref, w.visitors.enterSchemaDefinition[i]) {
 			w.visitors.enterSchemaDefinition[i].EnterSchemaDefinition(ref)
@@ -3297,6 +3392,8 @@ func (w *Walker) walkSchemaDefinition(ref int) {
 
 	w.removeLastAncestor()
 
+	w.setCurrent(ast.NodeKindSchemaDefinition, ref)
+
 	for i := 0; i < len(w.visitors.leaveSchemaDefinition); {
 		if w.filter == nil || w.filter.AllowVisitor(LeaveSchemaDefinition, ref, w.visitors.leaveSchemaDefinition[i]) {
 			w.visitors.leaveSchemaDefinition[i].LeaveSchemaDefinition(ref)
@@ -3321,6 +3418,8 @@ func (w *Walker) walkSchemaDefinition(ref int) {
 
 func (w *Walker) walkSchemaExtension(ref int) {
 	w.increaseDepth()
+
+	w.setCurrent(ast.NodeKindSchemaExtension, ref)
 
 	for i := 0; i < len(w.visitors.enterSchemaExtension); {
 		if w.filter == nil || w.filter.AllowVisitor(EnterSchemaExtension, ref, w.visitors.enterSchemaExtension[i]) {
@@ -3363,6 +3462,8 @@ func (w *Walker) walkSchemaExtension(ref int) {
 	}
 
 	w.removeLastAncestor()
+
+	w.setCurrent(ast.NodeKindSchemaExtension, ref)
 
 	for i := 0; i < len(w.visitors.leaveSchemaExtension); {
 		if w.filter == nil || w.filter.AllowVisitor(LeaveSchemaExtension, ref, w.visitors.leaveSchemaExtension[i]) {

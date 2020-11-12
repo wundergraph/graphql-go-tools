@@ -358,7 +358,7 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 	if bytes.Equal(fieldName, literal.TYPENAME) {
 		return
 	}
-	objectName := f.operation.FieldObjectNameBytes(ref)
+	objectName := f.operation.FieldAliasOrNameBytes(ref)
 	definition, ok := f.definition.NodeFieldDefinitionByName(f.EnclosingTypeDefinition, fieldName)
 	if !ok {
 		enclosingTypeName := f.definition.NodeNameBytes(f.EnclosingTypeDefinition)

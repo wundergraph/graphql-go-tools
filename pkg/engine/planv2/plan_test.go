@@ -53,7 +53,7 @@ func TestPlanner_Plan(t *testing.T) {
 		}
 	`, "MyQuery", &SynchronousResponsePlan{
 		FlushInterval: 100,
-		Response: resolve.GraphQLResponse{
+		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				FieldSets: []resolve.FieldSet{
 					{
