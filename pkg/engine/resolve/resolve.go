@@ -836,49 +836,48 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 
 	typeNameSkip := false
 	first := true
-	for i := range object.FieldSets {
-		var fieldSetData []byte
-		if set != nil && object.FieldSets[i].HasBuffer {
-			buffer, ok := set.buffers[object.FieldSets[i].BufferID]
+	for i := range object.Fields {
+
+		var fieldData []byte
+		if set != nil && object.Fields[i].HasBuffer {
+			buffer, ok := set.buffers[object.Fields[i].BufferID]
 			if ok {
-				fieldSetData = buffer.Data.Bytes()
+				fieldData = buffer.Data.Bytes()
 			}
 		} else {
-			fieldSetData = data
+			fieldData = data
 		}
 
-		if object.FieldSets[i].OnTypeName != nil {
-			typeName, _, _, _ := jsonparser.Get(fieldSetData, "__typename")
-			if !bytes.Equal(typeName, object.FieldSets[i].OnTypeName) {
+		if object.Fields[i].OnTypeName != nil {
+			typeName, _, _, _ := jsonparser.Get(fieldData, "__typename")
+			if !bytes.Equal(typeName, object.Fields[i].OnTypeName) {
 				typeNameSkip = true
 				continue
 			}
 		}
 
-		for j := range object.FieldSets[i].Fields {
-			if first {
-				objectBuf.Data.WriteBytes(lBrace)
-				first = false
-			} else {
-				objectBuf.Data.WriteBytes(comma)
-			}
-			objectBuf.Data.WriteBytes(quote)
-			objectBuf.Data.WriteBytes(object.FieldSets[i].Fields[j].Name)
-			objectBuf.Data.WriteBytes(quote)
-			objectBuf.Data.WriteBytes(colon)
-			ctx.addPathElement(object.FieldSets[i].Fields[j].Name)
-			err = r.resolveNode(ctx, object.FieldSets[i].Fields[j].Value, fieldSetData, fieldBuf)
-			ctx.removeLastPathElement()
-			if err != nil {
-				if errors.Is(err, errNonNullableFieldValueIsNull) && object.Nullable {
-					objectBuf.Data.Reset()
-					r.resolveNull(objectBuf.Data)
-					return nil
-				}
-				return
-			}
-			r.MergeBufPairs(fieldBuf, objectBuf, false)
+		if first {
+			objectBuf.Data.WriteBytes(lBrace)
+			first = false
+		} else {
+			objectBuf.Data.WriteBytes(comma)
 		}
+		objectBuf.Data.WriteBytes(quote)
+		objectBuf.Data.WriteBytes(object.Fields[i].Name)
+		objectBuf.Data.WriteBytes(quote)
+		objectBuf.Data.WriteBytes(colon)
+		ctx.addPathElement(object.Fields[i].Name)
+		err = r.resolveNode(ctx, object.Fields[i].Value, fieldData, fieldBuf)
+		ctx.removeLastPathElement()
+		if err != nil {
+			if errors.Is(err, errNonNullableFieldValueIsNull) && object.Nullable {
+				objectBuf.Data.Reset()
+				r.resolveNull(objectBuf.Data)
+				return nil
+			}
+			return
+		}
+		r.MergeBufPairs(fieldBuf, objectBuf, false)
 	}
 	if first {
 		if !object.Nullable {
@@ -1008,10 +1007,10 @@ func (r *Resolver) resolveSingleFetch(ctx *Context, fetch *SingleFetch, prepared
 }
 
 type Object struct {
-	Nullable  bool
-	Path      []string
-	FieldSets []FieldSet
-	Fetch     Fetch
+	Nullable bool
+	Path     []string
+	Fields   []Field
+	Fetch    Fetch
 }
 
 func (_ *Object) NodeKind() NodeKind {
@@ -1030,18 +1029,14 @@ func (_ *EmptyArray) NodeKind() NodeKind {
 	return NodeKindEmptyArray
 }
 
-type FieldSet struct {
-	OnTypeName []byte
-	BufferID   int
-	HasBuffer  bool
-	Fields     []Field
-}
-
 type Field struct {
-	Name   []byte
-	Value  Node
-	Defer  *DeferField
-	Stream *StreamField
+	Name       []byte
+	Value      Node
+	Defer      *DeferField
+	Stream     *StreamField
+	HasBuffer  bool
+	BufferID   int
+	OnTypeName []byte
 }
 
 type StreamField struct {

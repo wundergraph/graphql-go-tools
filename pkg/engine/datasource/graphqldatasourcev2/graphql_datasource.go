@@ -111,33 +111,29 @@ func (p *Planner) LeaveSelectionSet(ref int) {
 func (p *Planner) EnterField(ref int) {
 	p.addField(ref)
 	p.lastFieldEnclosingTypeName = p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
-}
 
-func (p *Planner) LeaveField(ref int) {
-	p.nodes = p.nodes[:len(p.nodes)-1]
-}
+	// fmt.Printf("Planner::%s::%s::EnterField::%s::%d\n", p.id, p.visitor.Walker.Path.DotDelimitedString(), p.visitor.Operation.FieldNameString(ref), ref)
 
-func (p *Planner) EnterArgument(ref int) {
-	if p.visitor.Walker.Ancestors[len(p.visitor.Walker.Ancestors)-1].Kind != ast.NodeKindField {
-		return
-	}
-	if p.nodes[len(p.nodes)-1].Kind != ast.NodeKindField {
-		return
-	}
-	downstreamFieldRef := p.visitor.Walker.Ancestors[len(p.visitor.Walker.Ancestors)-1].Ref
 	upstreamFieldRef := p.nodes[len(p.nodes)-1].Ref
 	typeName := p.lastFieldEnclosingTypeName
-	fieldName := p.visitor.Operation.FieldNameString(downstreamFieldRef)
-	argName := p.visitor.Operation.ArgumentNameString(ref)
+	fieldName := p.visitor.Operation.FieldNameString(ref)
 	fieldConfiguration := p.visitor.Config.Fields.ForTypeField(typeName, fieldName)
 	if fieldConfiguration == nil {
 		return
 	}
-	argumentConfig := fieldConfiguration.Arguments.ForName(argName)
-	if argumentConfig == nil {
-		return
+	for i := range fieldConfiguration.Arguments {
+		argumentConfiguration := fieldConfiguration.Arguments[i]
+		p.configureArgument(upstreamFieldRef, ref, *fieldConfiguration, argumentConfiguration)
 	}
-	p.configureArgument(upstreamFieldRef, downstreamFieldRef, *argumentConfig)
+}
+
+func (p *Planner) LeaveField(ref int) {
+	// fmt.Printf("Planner::%s::%s::LeaveField::%s::%d\n", p.id, p.visitor.Walker.Path.DotDelimitedString(), p.visitor.Operation.FieldNameString(ref), ref)
+	p.nodes = p.nodes[:len(p.nodes)-1]
+}
+
+func (p *Planner) EnterArgument(ref int) {
+
 }
 
 func (p *Planner) EnterDocument(operation, definition *ast.Document) {
@@ -156,12 +152,12 @@ func (p *Planner) LeaveDocument(operation, definition *ast.Document) {
 
 }
 
-func (p *Planner) configureArgument(upstreamFieldRef, downstreamFieldRef int, config plan.ArgumentConfiguration) {
-	switch config.SourceType {
+func (p *Planner) configureArgument(upstreamFieldRef, downstreamFieldRef int, fieldConfig plan.FieldConfiguration, argumentConfiguration plan.ArgumentConfiguration) {
+	switch argumentConfiguration.SourceType {
 	case plan.FieldArgumentSource:
-		p.configureFieldArgumentSource(upstreamFieldRef, downstreamFieldRef, config.Name)
+		p.configureFieldArgumentSource(upstreamFieldRef, downstreamFieldRef, argumentConfiguration.Name)
 	case plan.ObjectFieldSource:
-		p.configureObjectFieldSource(upstreamFieldRef, downstreamFieldRef, config.SourcePath)
+		p.configureObjectFieldSource(upstreamFieldRef, downstreamFieldRef, fieldConfig, argumentConfiguration)
 	}
 }
 
@@ -258,8 +254,38 @@ func (p *Planner) addVariableDefinitionsRecursively(value ast.Value, argumentNam
 	p.variables, _ = sjson.SetRawBytes(p.variables, variableNameStr, []byte(contextVariableName))*/
 }
 
-func (p *Planner) configureObjectFieldSource(upstreamFieldRef, downstreamFieldRef int, sourcePath []string) {
+func (p *Planner) configureObjectFieldSource(upstreamFieldRef, downstreamFieldRef int, fieldConfiguration plan.FieldConfiguration, argumentConfiguration plan.ArgumentConfiguration) {
+	if len(argumentConfiguration.SourcePath) < 1 {
+		return
+	}
 
+	fieldName := p.visitor.Operation.FieldNameString(downstreamFieldRef)
+
+	if len(fieldConfiguration.Path) == 1 {
+		fieldName = fieldConfiguration.Path[0]
+	}
+
+	queryTypeDefinition, exists := p.visitor.Definition.Index.FirstNodeByNameBytes(p.visitor.Definition.Index.QueryTypeName)
+	if !exists {
+		return
+	}
+	argumentDefinition := p.visitor.Definition.NodeFieldDefinitionArgumentDefinitionByName(queryTypeDefinition, []byte(fieldName), []byte(argumentConfiguration.Name))
+	if argumentDefinition == -1 {
+		return
+	}
+
+	argumentType := p.visitor.Definition.InputValueDefinitionType(argumentDefinition)
+	variableName := p.upstreamOperation.GenerateUnusedVariableDefinitionName(p.nodes[0].Ref)
+	variableValue, argument := p.upstreamOperation.AddVariableValueArgument([]byte(argumentConfiguration.Name), variableName)
+	p.upstreamOperation.AddArgumentToField(upstreamFieldRef, argument)
+	importedType := p.visitor.Importer.ImportType(argumentType, p.visitor.Definition, p.upstreamOperation)
+	p.upstreamOperation.AddVariableDefinitionToOperationDefinition(p.nodes[0].Ref, variableValue, importedType)
+	wrapVariableInQuotes := p.visitor.Definition.TypeValueNeedsQuotes(argumentType, p.visitor.Definition)
+
+	objectVariableName, exists := p.variables.AddVariable(&resolve.ObjectVariable{Path: argumentConfiguration.SourcePath}, wrapVariableInQuotes)
+	if !exists {
+		p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, string(variableName), []byte(objectVariableName))
+	}
 }
 
 func (p *Planner) printOperation() []byte {

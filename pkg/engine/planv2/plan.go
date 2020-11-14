@@ -13,10 +13,13 @@ import (
 )
 
 type Planner struct {
-	configurationWalker  *astvisitor.Walker
-	configurationVisitor *configurationVisitor
-	planningWalker       *astvisitor.Walker
-	planningVisitor      *Visitor
+	config                Configuration
+	configurationWalker   *astvisitor.Walker
+	configurationVisitor  *configurationVisitor
+	planningWalker        *astvisitor.Walker
+	planningVisitor       *Visitor
+	requiredFieldsWalker  *astvisitor.Walker
+	requiredFieldsVisitor *requiredFieldsVisitor
 }
 
 type Configuration struct {
@@ -43,6 +46,7 @@ type FieldConfiguration struct {
 	Path                              []string
 	RespectOverrideFieldPathFromAlias bool
 	Arguments                         ArgumentsConfigurations
+	RequiresFields                    []string
 }
 
 type ArgumentsConfigurations []ArgumentConfiguration
@@ -110,12 +114,22 @@ type FieldMapping struct {
 
 func NewPlanner(config Configuration) *Planner {
 
+	// required fields pre-processing
+
+	requiredFieldsWalker := astvisitor.NewWalker(48)
+	requiredFieldsV := &requiredFieldsVisitor{
+		walker: &requiredFieldsWalker,
+	}
+
+	requiredFieldsWalker.RegisterEnterDocumentVisitor(requiredFieldsV)
+	requiredFieldsWalker.RegisterEnterOperationVisitor(requiredFieldsV)
+	requiredFieldsWalker.RegisterEnterFieldVisitor(requiredFieldsV)
+
 	// configuration
 
 	configurationWalker := astvisitor.NewWalker(48)
 	configVisitor := &configurationVisitor{
 		walker: &configurationWalker,
-		config: config,
 	}
 
 	configurationWalker.RegisterEnterDocumentVisitor(configVisitor)
@@ -127,14 +141,16 @@ func NewPlanner(config Configuration) *Planner {
 	planningWalker := astvisitor.NewWalker(48)
 	planningVisitor := &Visitor{
 		Walker: &planningWalker,
-		Config: config,
 	}
 
 	p := &Planner{
-		configurationWalker:  &configurationWalker,
-		configurationVisitor: configVisitor,
-		planningWalker:       &planningWalker,
-		planningVisitor:      planningVisitor,
+		config:                config,
+		configurationWalker:   &configurationWalker,
+		configurationVisitor:  configVisitor,
+		planningWalker:        &planningWalker,
+		planningVisitor:       planningVisitor,
+		requiredFieldsWalker:  &requiredFieldsWalker,
+		requiredFieldsVisitor: requiredFieldsV,
 	}
 
 	return p
@@ -142,12 +158,27 @@ func NewPlanner(config Configuration) *Planner {
 
 func (p *Planner) Plan(operation, definition *ast.Document, operationName string, report *operationreport.Report) (plan Plan) {
 
+	// make a copy of the config as the pre-processor modifies it
+
+	config := p.config
+
+	// pre-process required fields
+
+	p.preProcessRequiredFields(&config, operation, definition, operationName, report)
+
+	// find planning paths
+
 	p.configurationVisitor.operationName = operationName
+	p.configurationVisitor.config = config
 	p.configurationWalker.Walk(operation, definition, report)
 
+	// configure planning visitor
+
 	p.planningVisitor.planners = p.configurationVisitor.planners
+	p.planningVisitor.Config = config
 	p.planningVisitor.fetchConfigurations = p.configurationVisitor.fetches
 	p.planningVisitor.fieldBuffers = p.configurationVisitor.fieldBuffers
+	p.planningVisitor.skipFieldPaths = p.requiredFieldsVisitor.skipFieldPaths
 
 	p.planningWalker.ResetVisitors()
 	p.planningWalker.SetVisitorFilter(p.planningVisitor)
@@ -164,10 +195,32 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 		}
 	}
 
+	// process the plan
+
 	p.planningVisitor.OperationName = operationName
 	p.planningWalker.Walk(operation, definition, report)
 
 	return p.planningVisitor.plan
+}
+
+func (p *Planner) preProcessRequiredFields(config *Configuration, operation, definition *ast.Document, operationName string, report *operationreport.Report) {
+	if !p.hasRequiredFields(config) {
+		return
+	}
+	p.requiredFieldsVisitor.config = config
+	p.requiredFieldsVisitor.operation = operation
+	p.requiredFieldsVisitor.definition = definition
+	p.requiredFieldsVisitor.operationName = operationName
+	p.requiredFieldsWalker.Walk(operation, definition, report)
+}
+
+func (p *Planner) hasRequiredFields(config *Configuration) bool {
+	for i := range config.Fields {
+		if len(config.Fields[i].RequiresFields) != 0 {
+			return true
+		}
+	}
+	return false
 }
 
 type Visitor struct {
@@ -178,18 +231,20 @@ type Visitor struct {
 	plan                  Plan
 	OperationName         string
 	objects               []*resolve.Object
-	fields                []*[]resolve.Field
+	currentFields         []objectFields
 	planners              []plannerConfiguration
 	fetchConfigurations   map[int]objectFetchConfiguration
 	fieldBuffers          map[int]int
+	skipFieldPaths        []string
+}
+
+type objectFields struct {
+	popOnField int
+	fields     *[]resolve.Field
 }
 
 type objectFetchConfiguration struct {
-	planners []plannerWithBufferID
 	object   *resolve.Object
-}
-
-type plannerWithBufferID struct {
 	planner  DataSourcePlanner
 	bufferID int
 }
@@ -199,7 +254,8 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor int
 		return true
 	}
 	path := v.Walker.Path.DotDelimitedString()
-	if kind == astvisitor.EnterField {
+	switch kind {
+	case astvisitor.EnterField, astvisitor.LeaveField:
 		fieldAliasOrName := v.Operation.FieldAliasOrNameString(ref)
 		path = path + "." + fieldAliasOrName
 	}
@@ -253,35 +309,32 @@ func (v *Visitor) EnterDirective(ref int) {
 	case ast.NodeKindField:
 		switch directiveName {
 		case "stream":
-			initialBatchSize := 0
+			/*initialBatchSize := 0
 			if value, ok := v.Operation.DirectiveArgumentValueByName(ref, literal.INITIAL_BATCH_SIZE); ok {
 				if value.Kind == ast.ValueKindInteger {
 					initialBatchSize = int(v.Operation.IntValueAsInt(value.Ref))
 				}
-			}
-			(*v.fields[len(v.fields)-1])[len(*v.fields[len(v.fields)-1])-1].Stream = &resolve.StreamField{
-				InitialBatchSize: initialBatchSize,
-			}
+			}*/
 		case "defer":
-			(*v.fields[len(v.fields)-1])[len(*v.fields[len(v.fields)-1])-1].Defer = &resolve.DeferField{}
+
 		}
 	}
 }
 
 func (v *Visitor) LeaveSelectionSet(ref int) {
-	v.fields = v.fields[:len(v.fields)-1]
+
 }
 
 func (v *Visitor) EnterSelectionSet(ref int) {
-	currentObject := v.objects[len(v.objects)-1]
-	fieldSet := resolve.FieldSet{
-		Fields: []resolve.Field{},
-	}
-	currentObject.FieldSets = append(currentObject.FieldSets, fieldSet)
-	v.fields = append(v.fields, &currentObject.FieldSets[len(currentObject.FieldSets)-1].Fields)
+
 }
 
 func (v *Visitor) EnterField(ref int) {
+
+	if v.skipField(ref) {
+		return
+	}
+
 	fieldName := v.Operation.FieldAliasOrNameBytes(ref)
 	fieldDefinition, ok := v.Walker.FieldDefinition(ref)
 	if !ok {
@@ -289,27 +342,27 @@ func (v *Visitor) EnterField(ref int) {
 	}
 
 	if fetchConfig, exists := v.fetchConfigurations[ref]; exists {
-		v.fetchConfigurations[ref] = objectFetchConfiguration{
-			planners: fetchConfig.planners,
-			object:   v.objects[len(v.objects)-1],
-		}
-	}
-
-	if bufferID, ok := v.fieldBuffers[ref]; ok {
-		v.objects[len(v.objects)-1].FieldSets[len(v.objects[len(v.objects)-1].FieldSets)-1].HasBuffer = true
-		v.objects[len(v.objects)-1].FieldSets[len(v.objects[len(v.objects)-1].FieldSets)-1].BufferID = bufferID
+		fetchConfig.object = v.objects[len(v.objects)-1]
+		v.fetchConfigurations[ref] = fetchConfig
 	}
 
 	path := v.resolveFieldPath(ref)
 	fieldDefinitionType := v.Definition.FieldDefinitionType(fieldDefinition)
+	bufferID, hasBuffer := v.fieldBuffers[ref]
 	field := resolve.Field{
-		Name:  fieldName,
-		Value: v.resolveFieldValue(ref, fieldDefinitionType, true, path),
+		Name:      fieldName,
+		Value:     v.resolveFieldValue(ref, fieldDefinitionType, true, path),
+		HasBuffer: hasBuffer,
+		BufferID:  bufferID,
 	}
-	*v.fields[len(v.fields)-1] = append(*v.fields[len(v.fields)-1], field)
+
+	*v.currentFields[len(v.currentFields)-1].fields = append(*v.currentFields[len(v.currentFields)-1].fields, field)
 }
 
 func (v *Visitor) LeaveField(ref int) {
+	if v.currentFields[len(v.currentFields)-1].popOnField == ref {
+		v.currentFields = v.currentFields[:len(v.currentFields)-1]
+	}
 	fieldDefinition, ok := v.Walker.FieldDefinition(ref)
 	if !ok {
 		return
@@ -319,6 +372,16 @@ func (v *Visitor) LeaveField(ref int) {
 	case ast.NodeKindObjectTypeDefinition, ast.NodeKindInterfaceTypeDefinition:
 		v.objects = v.objects[:len(v.objects)-1]
 	}
+}
+
+func (v *Visitor) skipField(ref int) bool {
+	fullPath := v.Walker.Path.DotDelimitedString() + "." + v.Operation.FieldAliasOrNameString(ref)
+	for i := range v.skipFieldPaths {
+		if v.skipFieldPaths[i] == fullPath {
+			return true
+		}
+	}
+	return false
 }
 
 func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path []string) resolve.Node {
@@ -377,8 +440,15 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 			object := &resolve.Object{
 				Nullable: nullable,
 				Path:     path,
+				Fields:   []resolve.Field{},
 			}
 			v.objects = append(v.objects, object)
+			v.Walker.Defer(func() {
+				v.currentFields = append(v.currentFields, objectFields{
+					popOnField: fieldRef,
+					fields:     &object.Fields,
+				})
+			})
 			return object
 		default:
 			return &resolve.Null{}
@@ -395,9 +465,15 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 		return
 	}
 
-	rootObject := &resolve.Object{}
+	rootObject := &resolve.Object{
+		Fields: []resolve.Field{},
+	}
 
 	v.objects = append(v.objects, rootObject)
+	v.currentFields = append(v.currentFields, objectFields{
+		fields:     &rootObject.Fields,
+		popOnField: -1,
+	})
 
 	isSubscription, isStreaming, err := AnalyzePlanKind(v.Operation, v.Definition, v.OperationName)
 	if err != nil {
@@ -475,28 +551,27 @@ func (v *Visitor) configureObjectFetch(config objectFetchConfiguration) {
 	if config.object == nil {
 		return
 	}
-	if len(config.planners) == 0 {
+	fetchConfig := config.planner.ConfigureFetch()
+	fetch := v.configureSingleFetch(config, fetchConfig)
+	if config.object.Fetch == nil {
+		config.object.Fetch = fetch
 		return
 	}
-	if len(config.planners) == 1 {
-		fetchConfig := config.planners[0].planner.ConfigureFetch()
-		config.object.Fetch = v.configureSingleFetch(config.planners[0].bufferID, config, fetchConfig)
-		return
-	}
-	fetches := make([]*resolve.SingleFetch, len(config.planners))
-	for i := range fetches {
-		fetchConfig := config.planners[i].planner.ConfigureFetch()
-		bufferID := config.planners[i].bufferID
-		fetches[i] = v.configureSingleFetch(bufferID, config, fetchConfig)
-	}
-	config.object.Fetch = &resolve.ParallelFetch{
-		Fetches: fetches,
+	switch existing := config.object.Fetch.(type) {
+	case *resolve.SingleFetch:
+		copyOfExisting := *existing
+		parallel := &resolve.ParallelFetch{
+			Fetches: []*resolve.SingleFetch{&copyOfExisting, fetch},
+		}
+		config.object.Fetch = parallel
+	case *resolve.ParallelFetch:
+		existing.Fetches = append(existing.Fetches, fetch)
 	}
 }
 
-func (v *Visitor) configureSingleFetch(bufferID int, internal objectFetchConfiguration, external FetchConfiguration) *resolve.SingleFetch {
+func (v *Visitor) configureSingleFetch(internal objectFetchConfiguration, external FetchConfiguration) *resolve.SingleFetch {
 	return &resolve.SingleFetch{
-		BufferId:             bufferID,
+		BufferId:             internal.bufferID,
 		Input:                external.Input,
 		DataSource:           external.DataSource,
 		Variables:            external.Variables,
@@ -712,18 +787,9 @@ func (c *configurationVisitor) EnterField(ref int) {
 				},
 				dataSourceConfiguration: config,
 			})
-			plannerWithBuffer := plannerWithBufferID{
-				planner:  planner,
+			c.fetches[ref] = objectFetchConfiguration{
 				bufferID: bufferID,
-			}
-			if existing, ok := c.fetches[ref]; ok {
-				c.fetches[ref] = objectFetchConfiguration{
-					planners: append(existing.planners, plannerWithBuffer),
-				}
-			} else {
-				c.fetches[ref] = objectFetchConfiguration{
-					planners: []plannerWithBufferID{plannerWithBuffer},
-				}
+				planner:  planner,
 			}
 			return
 		}
@@ -763,5 +829,73 @@ func (c *configurationVisitor) EnterDocument(operation, definition *ast.Document
 		for i := range c.fieldBuffers {
 			delete(c.fieldBuffers, i)
 		}
+	}
+}
+
+type requiredFieldsVisitor struct {
+	operation, definition *ast.Document
+	walker                *astvisitor.Walker
+	config                *Configuration
+	operationName         string
+	skipFieldPaths        []string
+}
+
+func (r *requiredFieldsVisitor) EnterDocument(operation, definition *ast.Document) {
+	r.skipFieldPaths = r.skipFieldPaths[:0]
+}
+
+func (r *requiredFieldsVisitor) EnterField(ref int) {
+	typeName := r.walker.EnclosingTypeDefinition.NameString(r.definition)
+	fieldName := r.operation.FieldNameString(ref)
+	fieldConfig := r.config.Fields.ForTypeField(typeName, fieldName)
+	if fieldConfig == nil {
+		return
+	}
+	if len(fieldConfig.RequiresFields) == 0 {
+		return
+	}
+	selectionSet := r.walker.Ancestors[len(r.walker.Ancestors)-1]
+	if selectionSet.Kind != ast.NodeKindSelectionSet {
+		return
+	}
+	for i := range fieldConfig.RequiresFields {
+		r.handleRequiredField(selectionSet.Ref, fieldConfig.RequiresFields[i])
+	}
+}
+
+func (r *requiredFieldsVisitor) handleRequiredField(selectionSet int, requiredFieldName string) {
+	for _, ref := range r.operation.SelectionSets[selectionSet].SelectionRefs {
+		selection := r.operation.Selections[ref]
+		if selection.Kind != ast.SelectionKindField {
+			continue
+		}
+		name := r.operation.FieldAliasOrNameString(selection.Ref)
+		if name == requiredFieldName {
+			// already exists
+			return
+		}
+	}
+	r.addRequiredField(requiredFieldName, selectionSet)
+}
+
+func (r *requiredFieldsVisitor) addRequiredField(fieldName string, selectionSet int) {
+	field := ast.Field{
+		Name: r.operation.Input.AppendInputString(fieldName),
+	}
+	addedField := r.operation.AddField(field)
+	selection := ast.Selection{
+		Kind: ast.SelectionKindField,
+		Ref:  addedField.Ref,
+	}
+	r.operation.AddSelection(selectionSet, selection)
+	addedFieldPath := r.walker.Path.DotDelimitedString() + "." + fieldName
+	r.skipFieldPaths = append(r.skipFieldPaths, addedFieldPath)
+}
+
+func (r *requiredFieldsVisitor) EnterOperationDefinition(ref int) {
+	operationName := r.operation.OperationDefinitionNameString(ref)
+	if r.operationName != operationName {
+		r.walker.SkipNode()
+		return
 	}
 }
