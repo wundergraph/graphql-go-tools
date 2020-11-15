@@ -774,7 +774,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 					ChildNodes: []plan.TypeField{
 						{
-							TypeName: "AddTaskPayload",
+							TypeName:   "AddTaskPayload",
 							FieldNames: []string{"task"},
 						},
 						{
@@ -792,6 +792,142 @@ func TestGraphQLDataSource(t *testing.T) {
 				{
 					TypeName:  "Mutation",
 					FieldName: "addTask",
+					Arguments: []plan.ArgumentConfiguration{
+						{
+							Name:       "input",
+							SourceType: plan.FieldArgumentSource,
+						},
+					},
+				},
+			},
+		},
+	))
+	t.Run("inline object value with arguments", RunTest(`
+			schema {
+				mutation: Mutation
+			}
+			type Mutation {
+				createUser(input: CreateUserInput!): CreateUser
+			}
+			input CreateUserInput {
+				user: UserInput
+			}
+			input UserInput {
+				id: String
+				username: String
+			}
+			type CreateUser {
+				user: User
+			}
+			type User {
+				id: String
+				username: String
+				createdDate: String
+			}
+			directive @fromClaim(name: String) on VARIABLE_DEFINITION
+			`, `
+			mutation Register($name: String $id: String @fromClaim(name: "sub")) {
+			  createUser(input: {user: {id: $id username: $name}}){
+				user {
+				  id
+				  username
+				  createdDate
+				}
+			  }
+			}`,
+		"Register",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						BufferId:   0,
+						Input:      `{"method":"POST","url":"https://user.service","body":{"query":"mutation($id: String, $name: String){createUser(input: {user: {id: $id,username: $name}}){user {id username createdDate}}}","variables":{"name":"$$1$$","id":"$$0$$"}}}`,
+						DataSource: &Source{},
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path: []string{"id"},
+							},
+							&resolve.ContextVariable{
+								Path: []string{"name"},
+							},
+						),
+						DisallowSingleFlight: true,
+					},
+					Fields: []resolve.Field{
+						{
+							BufferID:  0,
+							HasBuffer: true,
+							Name:      []byte("createUser"),
+							Value: &resolve.Object{
+								Nullable: true,
+								Path:     []string{"createUser"},
+								Fields: []resolve.Field{
+									{
+										Name: []byte("user"),
+										Value: &resolve.Object{
+											Path:     []string{"user"},
+											Nullable: true,
+											Fields: []resolve.Field{
+												{
+													Name: []byte("id"),
+													Value: &resolve.String{
+														Path:     []string{"id"},
+														Nullable: true,
+													},
+												},
+												{
+													Name: []byte("username"),
+													Value: &resolve.String{
+														Path:     []string{"username"},
+														Nullable: true,
+													},
+												},
+												{
+													Name: []byte("createdDate"),
+													Value: &resolve.String{
+														Path:     []string{"createdDate"},
+														Nullable: true,
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		plan.Configuration{
+			DataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Mutation",
+							FieldNames: []string{"createUser"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName: "CreateUser",
+							FieldNames: []string{"user"},
+						},
+						{
+							TypeName: "User",
+							FieldNames: []string{"id","username","createdDate"},
+						},
+					},
+					Custom: ConfigJson(Configuration{
+						URL: "https://user.service",
+					}),
+					Factory: &Factory{},
+				},
+			},
+			Fields: []plan.FieldConfiguration{
+				{
+					TypeName:  "Mutation",
+					FieldName: "createUser",
 					Arguments: []plan.ArgumentConfiguration{
 						{
 							Name:       "input",
