@@ -155,20 +155,20 @@ func (p *Planner) LeaveDocument(operation, definition *ast.Document) {
 func (p *Planner) configureArgument(upstreamFieldRef, downstreamFieldRef int, fieldConfig plan.FieldConfiguration, argumentConfiguration plan.ArgumentConfiguration) {
 	switch argumentConfiguration.SourceType {
 	case plan.FieldArgumentSource:
-		p.configureFieldArgumentSource(upstreamFieldRef, downstreamFieldRef, argumentConfiguration.Name)
+		p.configureFieldArgumentSource(upstreamFieldRef, downstreamFieldRef, argumentConfiguration.Name, argumentConfiguration.SourcePath)
 	case plan.ObjectFieldSource:
 		p.configureObjectFieldSource(upstreamFieldRef, downstreamFieldRef, fieldConfig, argumentConfiguration)
 	}
 }
 
-func (p *Planner) configureFieldArgumentSource(upstreamFieldRef, downstreamFieldRef int, argumentName string) {
+func (p *Planner) configureFieldArgumentSource(upstreamFieldRef, downstreamFieldRef int, argumentName string, sourcePath []string) {
 	fieldArgument, ok := p.visitor.Operation.FieldArgument(downstreamFieldRef, []byte(argumentName))
 	if !ok {
 		return
 	}
 	value := p.visitor.Operation.ArgumentValue(fieldArgument)
 	if value.Kind != ast.ValueKindVariable {
-		p.applyInlineFieldArgument(upstreamFieldRef, downstreamFieldRef, argumentName)
+		p.applyInlineFieldArgument(upstreamFieldRef, downstreamFieldRef, argumentName, sourcePath)
 		return
 	}
 	variableName := p.visitor.Operation.VariableValueNameBytes(value.Ref)
@@ -202,7 +202,7 @@ func (p *Planner) configureFieldArgumentSource(upstreamFieldRef, downstreamField
 	p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, variableNameStr, []byte(contextVariableName))
 }
 
-func (p *Planner) applyInlineFieldArgument(upstreamField, downstreamField int, argumentName string) {
+func (p *Planner) applyInlineFieldArgument(upstreamField, downstreamField int, argumentName string, sourcePath []string) {
 	fieldArgument, ok := p.visitor.Operation.FieldArgument(downstreamField, []byte(argumentName))
 	if !ok {
 		return
@@ -214,19 +214,19 @@ func (p *Planner) applyInlineFieldArgument(upstreamField, downstreamField int, a
 		Value: importedValue,
 	})
 	p.upstreamOperation.AddArgumentToField(upstreamField, argRef)
-	// p.addVariableDefinitionsRecursively(value, )
+	p.addVariableDefinitionsRecursively(value, argumentName, sourcePath)
 }
 
-func (p *Planner) addVariableDefinitionsRecursively(value ast.Value, argumentName string) {
-	/*switch value.Kind {
+func (p *Planner) addVariableDefinitionsRecursively(value ast.Value, argumentName string, sourcePath []string) {
+	switch value.Kind {
 	case ast.ValueKindObject:
-		for _, i := range p.v.Operation.ObjectValues[value.Ref].Refs {
-			p.addVariableDefinitionsRecursively(p.v.Operation.ObjectFields[i].Value, arg)
+		for _, i := range p.visitor.Operation.ObjectValues[value.Ref].Refs {
+			p.addVariableDefinitionsRecursively(p.visitor.Operation.ObjectFields[i].Value, argumentName, sourcePath)
 		}
 		return
 	case ast.ValueKindList:
-		for _, i := range p.v.Operation.ListValues[value.Ref].Refs {
-			p.addVariableDefinitionsRecursively(p.v.Operation.Values[i], arg)
+		for _, i := range p.visitor.Operation.ListValues[value.Ref].Refs {
+			p.addVariableDefinitionsRecursively(p.visitor.Operation.Values[i], argumentName, sourcePath)
 		}
 		return
 	case ast.ValueKindVariable:
@@ -235,23 +235,23 @@ func (p *Planner) addVariableDefinitionsRecursively(value ast.Value, argumentNam
 		return
 	}
 
-	variableName := p.v.Operation.VariableValueNameBytes(value.Ref)
-	variableNameStr := p.v.Operation.VariableValueNameString(value.Ref)
-	variableDefinition, exists := p.v.Operation.VariableDefinitionByNameAndOperation(p.v.Ancestors[0].Ref, variableName)
+	variableName := p.visitor.Operation.VariableValueNameBytes(value.Ref)
+	variableNameStr := p.visitor.Operation.VariableValueNameString(value.Ref)
+	variableDefinition, exists := p.visitor.Operation.VariableDefinitionByNameAndOperation(p.visitor.Walker.Ancestors[0].Ref, variableName)
 	if !exists {
 		return
 	}
-	importedVariableDefinition := p.v.Importer.ImportVariableDefinition(variableDefinition, p.v.Operation, p.operation)
-	p.operation.AddImportedVariableDefinitionToOperationDefinition(p.nodes[0].Ref, importedVariableDefinition)
+	importedVariableDefinition := p.visitor.Importer.ImportVariableDefinition(variableDefinition, p.visitor.Operation, p.upstreamOperation)
+	p.upstreamOperation.AddImportedVariableDefinitionToOperationDefinition(p.nodes[0].Ref, importedVariableDefinition)
 
-	variableDefinitionType := p.v.Operation.VariableDefinitions[variableDefinition].Type
-	wrapValueInQuotes := p.v.Operation.TypeValueNeedsQuotes(variableDefinitionType, p.v.Definition)
+	variableDefinitionType := p.visitor.Operation.VariableDefinitions[variableDefinition].Type
+	wrapValueInQuotes := p.visitor.Operation.TypeValueNeedsQuotes(variableDefinitionType, p.visitor.Definition)
 
-	contextVariableName, variableExists := p.fetch.Variables.AddVariable(&resolve.ContextVariable{Path: append(arg.SourcePath, variableNameStr)}, wrapValueInQuotes)
+	contextVariableName, variableExists := p.variables.AddVariable(&resolve.ContextVariable{Path: append(sourcePath, variableNameStr)}, wrapValueInQuotes)
 	if variableExists {
 		return
 	}
-	p.variables, _ = sjson.SetRawBytes(p.variables, variableNameStr, []byte(contextVariableName))*/
+	p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, variableNameStr, []byte(contextVariableName))
 }
 
 func (p *Planner) configureObjectFieldSource(upstreamFieldRef, downstreamFieldRef int, fieldConfiguration plan.FieldConfiguration, argumentConfiguration plan.ArgumentConfiguration) {

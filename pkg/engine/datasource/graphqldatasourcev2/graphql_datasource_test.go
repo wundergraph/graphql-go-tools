@@ -432,7 +432,7 @@ func TestGraphQLDataSource(t *testing.T) {
 								),
 							},
 							{
-								BufferId:   1,
+								BufferId: 1,
 								// 			 {"method":"POST","url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo serviceOneField}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}
 								Input:      `{"method":"POST","url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo serviceOneField} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo serviceOneField}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`,
 								DataSource: &Source{},
@@ -685,6 +685,123 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 	))
+	t.Run("mutation with variables in array object argument", RunTest(
+		todoSchema,
+		`mutation AddTask($title: String!, $completed: Boolean!, $name: String! @fromClaim(name: "sub")) {
+					  addTask(input: [{title: $title, completed: $completed, user: {name: $name}}]){
+						task {
+						  id
+						  title
+						  completed
+						}
+					  }
+					}`,
+		"AddTask",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						BufferId:   0,
+						Input:      `{"method":"POST","url":"https://graphql.service","body":{"query":"mutation($title: String!, $completed: Boolean!, $name: String!){addTask(input: [{title: $title,completed: $completed,user: {name: $name}}]){task {id title completed}}}","variables":{"name":"$$2$$","completed":$$1$$,"title":"$$0$$"}}}`,
+						DataSource: &Source{},
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path: []string{"title"},
+							},
+							&resolve.ContextVariable{
+								Path: []string{"completed"},
+							},
+							&resolve.ContextVariable{
+								Path: []string{"name"},
+							},
+						),
+						DisallowSingleFlight: true,
+					},
+					Fields: []resolve.Field{
+						{
+							HasBuffer: true,
+							BufferID:  0,
+							Name:      []byte("addTask"),
+							Value: &resolve.Object{
+								Path:     []string{"addTask"},
+								Nullable: true,
+								Fields: []resolve.Field{
+									{
+										Name: []byte("task"),
+										Value: &resolve.Array{
+											Nullable: true,
+											Path:     []string{"task"},
+											Item: &resolve.Object{
+												Nullable: true,
+												Fields: []resolve.Field{
+													{
+														Name: []byte("id"),
+														Value: &resolve.String{
+															Path: []string{"id"},
+														},
+													},
+													{
+														Name: []byte("title"),
+														Value: &resolve.String{
+															Path: []string{"title"},
+														},
+													},
+													{
+														Name: []byte("completed"),
+														Value: &resolve.Boolean{
+															Path: []string{"completed"},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		plan.Configuration{
+			DataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Mutation",
+							FieldNames: []string{"addTask"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName: "AddTaskPayload",
+							FieldNames: []string{"task"},
+						},
+						{
+							TypeName:   "Task",
+							FieldNames: []string{"id", "title", "completed"},
+						},
+					},
+					Custom: ConfigJson(Configuration{
+						URL: "https://graphql.service",
+					}),
+					Factory: &Factory{},
+				},
+			},
+			Fields: []plan.FieldConfiguration{
+				{
+					TypeName:  "Mutation",
+					FieldName: "addTask",
+					Arguments: []plan.ArgumentConfiguration{
+						{
+							Name:       "input",
+							SourceType: plan.FieldArgumentSource,
+						},
+					},
+				},
+			},
+		},
+	))
 }
 
 func ConfigJson(config Configuration) json.RawMessage {
@@ -755,3 +872,475 @@ type Startship {
     name: String!
     length: Float!
 }`
+
+const todoSchema = `
+
+schema {
+	query: Query
+	mutation: Mutation
+}
+
+scalar ID
+scalar String
+scalar Boolean
+
+""""""
+scalar DateTime
+
+""""""
+enum DgraphIndex {
+  """"""
+  int
+  """"""
+  float
+  """"""
+  bool
+  """"""
+  hash
+  """"""
+  exact
+  """"""
+  term
+  """"""
+  fulltext
+  """"""
+  trigram
+  """"""
+  regexp
+  """"""
+  year
+  """"""
+  month
+  """"""
+  day
+  """"""
+  hour
+}
+
+""""""
+input DateTimeFilter {
+  """"""
+  eq: DateTime
+  """"""
+  le: DateTime
+  """"""
+  lt: DateTime
+  """"""
+  ge: DateTime
+  """"""
+  gt: DateTime
+}
+
+""""""
+input StringHashFilter {
+  """"""
+  eq: String
+}
+
+""""""
+type UpdateTaskPayload {
+  """"""
+  task(filter: TaskFilter, order: TaskOrder, first: Int, offset: Int): [Task]
+  """"""
+  numUids: Int
+}
+
+""""""
+type Subscription {
+  """"""
+  getTask(id: ID!): Task
+  """"""
+  queryTask(filter: TaskFilter, order: TaskOrder, first: Int, offset: Int): [Task]
+  """"""
+  getUser(username: String!): User
+  """"""
+  queryUser(filter: UserFilter, order: UserOrder, first: Int, offset: Int): [User]
+}
+
+""""""
+input FloatFilter {
+  """"""
+  eq: Float
+  """"""
+  le: Float
+  """"""
+  lt: Float
+  """"""
+  ge: Float
+  """"""
+  gt: Float
+}
+
+""""""
+input StringTermFilter {
+  """"""
+  allofterms: String
+  """"""
+  anyofterms: String
+}
+
+""""""
+type DeleteTaskPayload {
+  """"""
+  task(filter: TaskFilter, order: TaskOrder, first: Int, offset: Int): [Task]
+  """"""
+  msg: String
+  """"""
+  numUids: Int
+}
+
+""""""
+type Mutation {
+  """"""
+  addTask(input: [AddTaskInput!]!): AddTaskPayload
+  """"""
+  updateTask(input: UpdateTaskInput!): UpdateTaskPayload
+  """"""
+  deleteTask(filter: TaskFilter!): DeleteTaskPayload
+  """"""
+  addUser(input: [AddUserInput!]!): AddUserPayload
+  """"""
+  updateUser(input: UpdateUserInput!): UpdateUserPayload
+  """"""
+  deleteUser(filter: UserFilter!): DeleteUserPayload
+}
+
+""""""
+enum HTTPMethod {
+  """"""
+  GET
+  """"""
+  POST
+  """"""
+  PUT
+  """"""
+  PATCH
+  """"""
+  DELETE
+}
+
+""""""
+type DeleteUserPayload {
+  """"""
+  user(filter: UserFilter, order: UserOrder, first: Int, offset: Int): [User]
+  """"""
+  msg: String
+  """"""
+  numUids: Int
+}
+
+""""""
+input TaskFilter {
+  """"""
+  id: [ID!]
+  """"""
+  title: StringFullTextFilter
+  """"""
+  completed: Boolean
+  """"""
+  and: TaskFilter
+  """"""
+  or: TaskFilter
+  """"""
+  not: TaskFilter
+}
+
+""""""
+type UpdateUserPayload {
+  """"""
+  user(filter: UserFilter, order: UserOrder, first: Int, offset: Int): [User]
+  """"""
+  numUids: Int
+}
+
+""""""
+input TaskRef {
+  """"""
+  id: ID
+  """"""
+  title: String
+  """"""
+  completed: Boolean
+  """"""
+  user: UserRef
+}
+
+""""""
+input UserFilter {
+  """"""
+  username: StringHashFilter
+  """"""
+  name: StringExactFilter
+  """"""
+  and: UserFilter
+  """"""
+  or: UserFilter
+  """"""
+  not: UserFilter
+}
+
+""""""
+input UserOrder {
+  """"""
+  asc: UserOrderable
+  """"""
+  desc: UserOrderable
+  """"""
+  then: UserOrder
+}
+
+""""""
+input AuthRule {
+  """"""
+  and: [AuthRule]
+  """"""
+  or: [AuthRule]
+  """"""
+  not: AuthRule
+  """"""
+  rule: String
+}
+
+""""""
+type AddTaskPayload {
+  """"""
+  task(filter: TaskFilter, order: TaskOrder, first: Int, offset: Int): [Task]
+  """"""
+  numUids: Int
+}
+
+""""""
+type AddUserPayload {
+  """"""
+  user(filter: UserFilter, order: UserOrder, first: Int, offset: Int): [User]
+  """"""
+  numUids: Int
+}
+
+""""""
+type Task {
+  """"""
+  id: ID!
+  """"""
+  title: String!
+  """"""
+  completed: Boolean!
+  """"""
+  user(filter: UserFilter): User!
+}
+
+""""""
+input IntFilter {
+  """"""
+  eq: Int
+  """"""
+  le: Int
+  """"""
+  lt: Int
+  """"""
+  ge: Int
+  """"""
+  gt: Int
+}
+
+""""""
+input StringExactFilter {
+  """"""
+  eq: String
+  """"""
+  le: String
+  """"""
+  lt: String
+  """"""
+  ge: String
+  """"""
+  gt: String
+}
+
+""""""
+enum UserOrderable {
+  """"""
+  username
+  """"""
+  name
+}
+
+""""""
+input AddTaskInput {
+  """"""
+  title: String!
+  """"""
+  completed: Boolean!
+  """"""
+  user: UserRef!
+}
+
+""""""
+input TaskPatch {
+  """"""
+  title: String
+  """"""
+  completed: Boolean
+  """"""
+  user: UserRef
+}
+
+""""""
+input UserRef {
+  """"""
+  username: String
+  """"""
+  name: String
+  """"""
+  tasks: [TaskRef]
+}
+
+""""""
+input StringFullTextFilter {
+  """"""
+  alloftext: String
+  """"""
+  anyoftext: String
+}
+
+""""""
+enum TaskOrderable {
+  """"""
+  title
+}
+
+""""""
+input UpdateTaskInput {
+  """"""
+  filter: TaskFilter!
+  """"""
+  set: TaskPatch
+  """"""
+  remove: TaskPatch
+}
+
+""""""
+input UserPatch {
+  """"""
+  name: String
+  """"""
+  tasks: [TaskRef]
+}
+
+""""""
+type Query {
+  """"""
+  getTask(id: ID!): Task
+  """"""
+  queryTask(filter: TaskFilter, order: TaskOrder, first: Int, offset: Int): [Task]
+  """"""
+  getUser(username: String!): User
+  """"""
+  queryUser(filter: UserFilter, order: UserOrder, first: Int, offset: Int): [User]
+}
+
+""""""
+type User {
+  """"""
+  username: String!
+  """"""
+  name: String
+  """"""
+  tasks(filter: TaskFilter, order: TaskOrder, first: Int, offset: Int): [Task]
+}
+
+""""""
+enum Mode {
+  """"""
+  BATCH
+  """"""
+  SINGLE
+}
+
+""""""
+input CustomHTTP {
+  """"""
+  url: String!
+  """"""
+  method: HTTPMethod!
+  """"""
+  body: String
+  """"""
+  graphql: String
+  """"""
+  mode: Mode
+  """"""
+  forwardHeaders: [String!]
+  """"""
+  secretHeaders: [String!]
+  """"""
+  introspectionHeaders: [String!]
+  """"""
+  skipIntrospection: Boolean
+}
+
+""""""
+input StringRegExpFilter {
+  """"""
+  regexp: String
+}
+
+""""""
+input AddUserInput {
+  """"""
+  username: String!
+  """"""
+  name: String
+  """"""
+  tasks: [TaskRef]
+}
+
+""""""
+input TaskOrder {
+  """"""
+  asc: TaskOrderable
+  """"""
+  desc: TaskOrderable
+  """"""
+  then: TaskOrder
+}
+
+""""""
+input UpdateUserInput {
+  """"""
+  filter: UserFilter!
+  """"""
+  set: UserPatch
+  """"""
+  remove: UserPatch
+}
+"""
+The @cache directive caches the response server side and sets cache control headers according to the configuration.
+With this setting you can reduce the load on your backend systems for operations that get hit a lot while data doesn't change that frequently. 
+"""
+directive @cache(
+  """maxAge defines the maximum time in seconds a response will be understood 'fresh', defaults to 300 (5 minutes)"""
+  maxAge: Int! = 300
+  """
+  vary defines the headers to append to the cache key
+  In addition to all possible headers you can also select a custom claim for authenticated requests
+  Examples: 'jwt.sub', 'jwt.team' to vary the cache key based on 'sub' or 'team' fields on the jwt. 
+  """
+  vary: [String]! = []
+) on QUERY
+
+"""The @auth directive lets you configure auth for a given operation"""
+directive @auth(
+  """disable explicitly disables authentication for the annotated operation"""
+  disable: Boolean! = false
+) on QUERY | MUTATION | SUBSCRIPTION
+
+"""The @fromClaim directive overrides a variable from a select claim in the jwt"""
+directive @fromClaim(
+  """
+  name is the name of the claim you want to use for the variable
+  examples: sub, team, custom.nested.claim
+  """
+  name: String!
+) on VARIABLE_DEFINITION
+`
