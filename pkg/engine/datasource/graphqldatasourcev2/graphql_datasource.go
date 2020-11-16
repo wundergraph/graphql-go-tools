@@ -32,13 +32,22 @@ type Planner struct {
 }
 
 type Configuration struct {
+	Fetch        FetchConfiguration
+	Subscription SubscriptionConfiguration
+}
+
+type SubscriptionConfiguration struct {
+	URL string
+}
+
+type FetchConfiguration struct {
 	URL        string
 	HttpMethod string
 }
 
 func (c *Configuration) ApplyDefaults() {
-	if c.HttpMethod == "" {
-		c.HttpMethod = "POST"
+	if c.Fetch.HttpMethod == "" {
+		c.Fetch.HttpMethod = "POST"
 	}
 }
 
@@ -64,14 +73,26 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 
 	input := httpclient.SetInputBodyWithPath(nil, p.upstreamVariables, "variables")
 	input = httpclient.SetInputBodyWithPath(input, p.printOperation(), "query")
-	input = httpclient.SetInputURL(input, []byte(p.config.URL))
-	input = httpclient.SetInputMethod(input, []byte(p.config.HttpMethod))
+	input = httpclient.SetInputURL(input, []byte(p.config.Fetch.URL))
+	input = httpclient.SetInputMethod(input, []byte(p.config.Fetch.HttpMethod))
 
 	return plan.FetchConfiguration{
 		Input:                string(input),
 		DataSource:           &Source{},
 		Variables:            p.variables,
 		DisallowSingleFlight: p.disallowSingleFlight,
+	}
+}
+
+func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
+
+	input := httpclient.SetInputBodyWithPath(nil, p.upstreamVariables, "variables")
+	input = httpclient.SetInputBodyWithPath(input, p.printOperation(), "query")
+	input = httpclient.SetInputURL(input, []byte(p.config.Subscription.URL))
+
+	return plan.SubscriptionConfiguration{
+		Input:                 string(input),
+		SubscriptionManagerID: "graphql_websocket_subscription",
 	}
 }
 

@@ -244,9 +244,11 @@ type objectFields struct {
 }
 
 type objectFetchConfiguration struct {
-	object   *resolve.Object
-	planner  DataSourcePlanner
-	bufferID int
+	object         *resolve.Object
+	trigger        *resolve.GraphQLSubscriptionTrigger
+	planner        DataSourcePlanner
+	bufferID       int
+	isSubscription bool
 }
 
 func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor interface{}) bool {
@@ -341,8 +343,16 @@ func (v *Visitor) EnterField(ref int) {
 		return
 	}
 
-	if fetchConfig, exists := v.fetchConfigurations[ref]; exists {
-		fetchConfig.object = v.objects[len(v.objects)-1]
+	fetchConfig, hasFetchConfig := v.fetchConfigurations[ref]
+	if hasFetchConfig {
+		if fetchConfig.isSubscription {
+			plan, ok := v.plan.(*SubscriptionResponsePlan)
+			if ok {
+				fetchConfig.trigger = &plan.Response.Trigger
+			}
+		} else {
+			fetchConfig.object = v.objects[len(v.objects)-1]
+		}
 		v.fetchConfigurations[ref] = fetchConfig
 	}
 
@@ -542,9 +552,20 @@ func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
 }
 
 func (v *Visitor) LeaveDocument(operation, definition *ast.Document) {
-	for i := range v.fetchConfigurations {
-		v.configureObjectFetch(v.fetchConfigurations[i])
+	for _, config := range v.fetchConfigurations {
+		if config.isSubscription {
+			v.configureSubscription(config)
+		} else {
+			v.configureObjectFetch(config)
+		}
 	}
+}
+
+func (v *Visitor) configureSubscription(config objectFetchConfiguration) {
+	subscription := config.planner.ConfigureSubscription()
+	config.trigger.Input = subscription.Input
+	config.trigger.ManagerID = []byte(subscription.SubscriptionManagerID)
+	config.trigger.Variables = subscription.Variables
 }
 
 func (v *Visitor) configureObjectFetch(config objectFetchConfiguration) {
@@ -634,6 +655,13 @@ func (_ *SubscriptionResponsePlan) PlanKind() Kind {
 type DataSourcePlanner interface {
 	Register(visitor *Visitor, customConfiguration json.RawMessage) error
 	ConfigureFetch() FetchConfiguration
+	ConfigureSubscription() SubscriptionConfiguration
+}
+
+type SubscriptionConfiguration struct {
+	Input                 string
+	SubscriptionManagerID string
+	Variables             resolve.Variables
 }
 
 type FetchConfiguration struct {
@@ -758,6 +786,11 @@ func (c *configurationVisitor) EnterField(ref int) {
 	typeName := c.walker.EnclosingTypeDefinition.NameString(c.definition)
 	parent := c.walker.Path.DotDelimitedString()
 	current := parent + "." + fieldAliasOrName
+	root := c.walker.Ancestors[0]
+	if root.Kind != ast.NodeKindOperationDefinition {
+		return
+	}
+	isSubscription := c.operation.OperationDefinitions[root.Ref].OperationType == ast.OperationTypeSubscription
 	for i, planner := range c.planners {
 		if planner.hasParent(parent) && planner.hasRootNode(typeName, fieldName) {
 			// same parent + root node = root sibling
@@ -773,8 +806,13 @@ func (c *configurationVisitor) EnterField(ref int) {
 	}
 	for i, config := range c.config.DataSources {
 		if config.HasRootNode(typeName, fieldName) {
-			bufferID := c.nextBufferID()
-			c.fieldBuffers[ref] = bufferID
+			var (
+				bufferID int
+			)
+			if !isSubscription {
+				bufferID = c.nextBufferID()
+				c.fieldBuffers[ref] = bufferID
+			}
 			planner := c.config.DataSources[i].Factory.Planner()
 			c.planners = append(c.planners, plannerConfiguration{
 				bufferID:   bufferID,
@@ -788,8 +826,9 @@ func (c *configurationVisitor) EnterField(ref int) {
 				dataSourceConfiguration: config,
 			})
 			c.fetches[ref] = objectFetchConfiguration{
-				bufferID: bufferID,
-				planner:  planner,
+				bufferID:       bufferID,
+				planner:        planner,
+				isSubscription: isSubscription,
 			}
 			return
 		}

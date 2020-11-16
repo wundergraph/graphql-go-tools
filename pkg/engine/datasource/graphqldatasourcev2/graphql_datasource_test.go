@@ -156,7 +156,9 @@ func TestGraphQLDataSource(t *testing.T) {
 				Factory:                    &Factory{},
 				OverrideFieldPathFromAlias: true,
 				Custom: ConfigJson(Configuration{
-					URL: "https://swapi.com/graphql",
+					Fetch: FetchConfiguration{
+						URL: "https://swapi.com/graphql",
+					},
 				}),
 			},
 		},
@@ -251,7 +253,9 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 					OverrideFieldPathFromAlias: true,
 					Custom: ConfigJson(Configuration{
-						URL: "https://service.one",
+						Fetch: FetchConfiguration{
+							URL: "https://service.one",
+						},
 					}),
 					Factory: &Factory{},
 				},
@@ -345,7 +349,9 @@ func TestGraphQLDataSource(t *testing.T) {
 					Factory:                    &Factory{},
 					OverrideFieldPathFromAlias: true,
 					Custom: ConfigJson(Configuration{
-						URL: "https://foo.service",
+						Fetch: FetchConfiguration{
+							URL: "https://foo.service",
+						},
 					}),
 				},
 			},
@@ -593,7 +599,9 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 					Custom: ConfigJson(Configuration{
-						URL: "https://service.one",
+						Fetch: FetchConfiguration{
+							URL: "https://service.one",
+						},
 					}),
 					Factory:                    nestedGraphQLEngineFactory,
 					OverrideFieldPathFromAlias: true,
@@ -612,7 +620,9 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 					Custom: ConfigJson(Configuration{
-						URL: "https://service.two",
+						Fetch: FetchConfiguration{
+							URL: "https://service.two",
+						},
 					}),
 					Factory:                    nestedGraphQLEngineFactory,
 					OverrideFieldPathFromAlias: true,
@@ -783,7 +793,9 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 					Custom: ConfigJson(Configuration{
-						URL: "https://graphql.service",
+						Fetch: FetchConfiguration{
+							URL: "https://graphql.service",
+						},
 					}),
 					Factory: &Factory{},
 				},
@@ -910,16 +922,18 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 					ChildNodes: []plan.TypeField{
 						{
-							TypeName: "CreateUser",
+							TypeName:   "CreateUser",
 							FieldNames: []string{"user"},
 						},
 						{
-							TypeName: "User",
-							FieldNames: []string{"id","username","createdDate"},
+							TypeName:   "User",
+							FieldNames: []string{"id", "username", "createdDate"},
 						},
 					},
 					Custom: ConfigJson(Configuration{
-						URL: "https://user.service",
+						Fetch: FetchConfiguration{
+							URL: "https://user.service",
+						},
 					}),
 					Factory: &Factory{},
 				},
@@ -938,6 +952,48 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 	))
+	t.Run("subscription", RunTest(testDefinition, `
+		subscription RemainingJedis {
+			remainingJedis
+		}
+	`, "RemainingJedis", &plan.SubscriptionResponsePlan{
+		Response: resolve.GraphQLSubscription{
+			Trigger: resolve.GraphQLSubscriptionTrigger{
+				ManagerID: []byte("graphql_websocket_subscription"),
+				Input:     `{"url":"wss://swapi.com/graphql","body":{"query":"subscription{remainingJedis}"}}`,
+			},
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fields: []resolve.Field{
+						{
+							Name: []byte("remainingJedis"),
+							Value: &resolve.Integer{
+								Path:     []string{"remainingJedis"},
+								Nullable: false,
+							},
+						},
+					},
+				},
+			},
+		},
+	}, plan.Configuration{
+		DataSources: []plan.DataSourceConfiguration{
+			{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Subscription",
+						FieldNames: []string{"remainingJedis"},
+					},
+				},
+				Custom: ConfigJson(Configuration{
+					Subscription: SubscriptionConfiguration{
+						URL: "wss://swapi.com/graphql",
+					},
+				}),
+				Factory: &Factory{},
+			},
+		},
+	}))
 }
 
 func ConfigJson(config Configuration) json.RawMessage {
@@ -1480,3 +1536,67 @@ directive @fromClaim(
   name: String!
 ) on VARIABLE_DEFINITION
 `
+
+const testDefinition = `
+union SearchResult = Human | Droid | Starship
+
+schema {
+    query: Query
+    mutation: Mutation
+    subscription: Subscription
+}
+
+type Query {
+    hero: Character
+    droid(id: ID!): Droid
+    search(name: String!): SearchResult
+	stringList: [String]
+	nestedStringList: [String]
+}
+
+type Mutation {
+	createReview(episode: Episode!, review: ReviewInput!): Review
+}
+
+type Subscription {
+    remainingJedis: Int!
+}
+
+input ReviewInput {
+    stars: Int!
+    commentary: String
+}
+
+type Review {
+    id: ID!
+    stars: Int!
+    commentary: String
+}
+
+enum Episode {
+    NEWHOPE
+    EMPIRE
+    JEDI
+}
+
+interface Character {
+    name: String!
+    friends: [Character]
+}
+
+type Human implements Character {
+    name: String!
+    height: String!
+    friends: [Character]
+}
+
+type Droid implements Character {
+    name: String!
+    primaryFunction: String!
+    friends: [Character]
+}
+
+type Startship {
+    name: String!
+    length: Float!
+}`
