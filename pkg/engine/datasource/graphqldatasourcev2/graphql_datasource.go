@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/tidwall/sjson"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
 	plan "github.com/jensneuse/graphql-go-tools/pkg/engine/planv2"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
+	"github.com/jensneuse/graphql-go-tools/pkg/federation"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
@@ -29,11 +31,19 @@ type Planner struct {
 	variables                  resolve.Variables
 	lastFieldEnclosingTypeName string
 	disallowSingleFlight       bool
+	hasFederationRoot          bool
+	extractEntities            bool
 }
 
 type Configuration struct {
 	Fetch        FetchConfiguration
 	Subscription SubscriptionConfiguration
+	Federation   FederationConfiguration
+}
+
+type FederationConfiguration struct {
+	Enabled    bool
+	ServiceSDL string
 }
 
 type SubscriptionConfiguration struct {
@@ -71,7 +81,11 @@ func (p *Planner) Register(visitor *plan.Visitor, config json.RawMessage) error 
 
 func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 
-	input := httpclient.SetInputBodyWithPath(nil, p.upstreamVariables, "variables")
+	var input []byte
+	if p.extractEntities {
+		input, _ = sjson.SetRawBytes(input, "extract_entities", []byte("true"))
+	}
+	input = httpclient.SetInputBodyWithPath(input, p.upstreamVariables, "variables")
 	input = httpclient.SetInputBodyWithPath(input, p.printOperation(), "query")
 	input = httpclient.SetInputURL(input, []byte(p.config.Fetch.URL))
 	input = httpclient.SetInputMethod(input, []byte(p.config.Fetch.HttpMethod))
@@ -130,8 +144,12 @@ func (p *Planner) LeaveSelectionSet(ref int) {
 }
 
 func (p *Planner) EnterField(ref int) {
-	p.addField(ref)
+
 	p.lastFieldEnclosingTypeName = p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
+
+	p.handleFederation(ref)
+
+	p.addField(ref)
 
 	// fmt.Printf("Planner::%s::%s::EnterField::%s::%d\n", p.id, p.visitor.Walker.Path.DotDelimitedString(), p.visitor.Operation.FieldNameString(ref), ref)
 
@@ -167,10 +185,175 @@ func (p *Planner) EnterDocument(operation, definition *ast.Document) {
 	p.upstreamVariables = nil
 	p.variables = p.variables[:0]
 	p.disallowSingleFlight = false
+	p.hasFederationRoot = false
+	p.extractEntities = false
 }
 
 func (p *Planner) LeaveDocument(operation, definition *ast.Document) {
 
+}
+
+func (p *Planner) handleFederation(fieldRef int) {
+	if !p.config.Federation.Enabled || // federation must be enabled
+		p.hasFederationRoot || // should not already have federation root field
+		!p.isNestedRequest() { // must be nested, otherwise it's a regular query
+		return
+	}
+	p.hasFederationRoot = true
+	// query($representations: [_Any!]!){_entities(representations: $representations){... on Product
+	p.addRepresentationsVariableDefinition() // $representations: [_Any!]!
+	p.addEntitiesSelectionSet()              // {_entities(representations: $representations)
+	p.addOneTypeInlineFragment()             // ... on Product
+	p.addRepresentationsVariable()           // "variables\":{\"representations\":[{\"upc\":\"$$0$$\",\"__typename\":\"Product\"}]}}
+}
+
+func (p *Planner) addRepresentationsVariable() {
+	// "variables\":{\"representations\":[{\"upc\":\"$$0$$\",\"__typename\":\"Product\"}]}}
+	parser := astparser.NewParser()
+	doc := ast.NewDocument()
+	doc.Input.ResetInputString(p.config.Federation.ServiceSDL)
+	report := &operationreport.Report{}
+	parser.Parse(doc, report)
+	if report.HasErrors() {
+		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("GraphQL Planner: failed parsing Federation SDL"))
+		return
+	}
+	directive := -1
+	for i := range doc.ObjectTypeExtensions {
+		if p.lastFieldEnclosingTypeName == doc.ObjectTypeExtensionNameString(i) {
+			for _, j := range doc.ObjectTypeExtensions[i].Directives.Refs {
+				if doc.DirectiveNameString(j) == "key" {
+					directive = j
+					break
+				}
+			}
+			break
+		}
+	}
+	for i := range doc.ObjectTypeDefinitions {
+		if p.lastFieldEnclosingTypeName == doc.ObjectTypeDefinitionNameString(i) {
+			for _, j := range doc.ObjectTypeDefinitions[i].Directives.Refs {
+				if doc.DirectiveNameString(j) == "key" {
+					directive = j
+					break
+				}
+			}
+			break
+		}
+	}
+	if directive == -1 {
+		return
+	}
+	value, exists := doc.DirectiveArgumentValueByName(directive, []byte("fields"))
+	if !exists {
+		return
+	}
+	if value.Kind != ast.ValueKindString {
+		return
+	}
+	fieldsStr := doc.StringValueContentString(value.Ref)
+	fields := strings.Split(fieldsStr, " ")
+	representationsJson, _ := sjson.SetRawBytes(nil, "__typename", []byte("\""+p.lastFieldEnclosingTypeName+"\""))
+	for i := range fields {
+		variable, exists := p.variables.AddVariable(&resolve.ObjectVariable{
+			Path: []string{fields[i]},
+		}, true)
+		if exists {
+			continue
+		}
+		representationsJson, _ = sjson.SetRawBytes(representationsJson, fields[i], []byte(variable))
+	}
+	representationsJson = append([]byte("["), append(representationsJson, []byte("]")...)...)
+	p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, "representations", representationsJson)
+	p.extractEntities = true
+}
+
+func (p *Planner) addOneTypeInlineFragment() {
+	selectionSet := p.upstreamOperation.AddSelectionSet()
+	typeRef := p.upstreamOperation.AddNamedType([]byte(p.lastFieldEnclosingTypeName))
+	inlineFragment := p.upstreamOperation.AddInlineFragment(ast.InlineFragment{
+		HasSelections: true,
+		SelectionSet:  selectionSet.Ref,
+		TypeCondition: ast.TypeCondition{
+			Type: typeRef,
+		},
+	})
+	p.upstreamOperation.AddSelection(p.nodes[len(p.nodes)-1].Ref, ast.Selection{
+		Kind: ast.SelectionKindInlineFragment,
+		Ref:  inlineFragment,
+	})
+	p.nodes = append(p.nodes, selectionSet)
+}
+
+func (p *Planner) addEntitiesSelectionSet() {
+
+	// $representations
+	representationsLiteral := p.upstreamOperation.Input.AppendInputString("representations")
+	representationsVariable := p.upstreamOperation.AddVariableValue(ast.VariableValue{
+		Name: representationsLiteral,
+	})
+	representationsArgument := p.upstreamOperation.AddArgument(ast.Argument{
+		Name: representationsLiteral,
+		Value: ast.Value{
+			Kind: ast.ValueKindVariable,
+			Ref:  representationsVariable,
+		},
+	})
+
+	// _entities
+	entitiesSelectionSet := p.upstreamOperation.AddSelectionSet()
+	entitiesField := p.upstreamOperation.AddField(ast.Field{
+		Name:          p.upstreamOperation.Input.AppendInputString("_entities"),
+		HasSelections: true,
+		HasArguments:  true,
+		Arguments: ast.ArgumentList{
+			Refs: []int{representationsArgument},
+		},
+		SelectionSet: entitiesSelectionSet.Ref,
+	})
+	p.upstreamOperation.AddSelection(p.nodes[len(p.nodes)-1].Ref, ast.Selection{
+		Kind: ast.SelectionKindField,
+		Ref:  entitiesField.Ref,
+	})
+	p.nodes = append(p.nodes, entitiesField, entitiesSelectionSet)
+}
+
+func (p *Planner) addRepresentationsVariableDefinition() {
+	anyType := p.upstreamOperation.AddNamedType([]byte("_Any"))
+	nonNullAnyType := p.upstreamOperation.AddType(ast.Type{
+		TypeKind: ast.TypeKindNonNull,
+		OfType:   anyType,
+	})
+	listOfNonNullAnyType := p.upstreamOperation.AddType(ast.Type{
+		TypeKind: ast.TypeKindList,
+		OfType:   nonNullAnyType,
+	})
+	nonNullListOfNonNullAnyType := p.upstreamOperation.AddType(ast.Type{
+		TypeKind: ast.TypeKindNonNull,
+		OfType:   listOfNonNullAnyType,
+	})
+	representationsVariable := p.upstreamOperation.AddVariableValue(ast.VariableValue{
+		Name: p.upstreamOperation.Input.AppendInputBytes([]byte("representations")),
+	})
+	p.upstreamOperation.AddVariableDefinitionToOperationDefinition(p.nodes[0].Ref, representationsVariable, nonNullListOfNonNullAnyType)
+}
+
+func (p *Planner) isNestedRequest() bool {
+	for i := range p.nodes {
+		if p.nodes[i].Kind == ast.NodeKindField {
+			return false
+		}
+	}
+	selectionSetAncestors := 0
+	for i := range p.visitor.Walker.Ancestors {
+		if p.visitor.Walker.Ancestors[i].Kind == ast.NodeKindSelectionSet {
+			selectionSetAncestors++
+			if selectionSetAncestors == 2 {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (p *Planner) configureArgument(upstreamFieldRef, downstreamFieldRef int, fieldConfig plan.FieldConfiguration, argumentConfiguration plan.ArgumentConfiguration) {
@@ -313,20 +496,10 @@ func (p *Planner) printOperation() []byte {
 
 	buf := &bytes.Buffer{}
 
-	/*if p.isFederation && p.isNestedRequest {
-		_, _ = buf.Write(federationQueryHeader)
-		_, _ = buf.Write(p.federationRootTypeName)
-		_, _ = buf.Write(literal.SPACE)
-	}*/
-
 	err := astprinter.Print(p.upstreamOperation, nil, buf)
 	if err != nil {
 		return nil
 	}
-
-	/*if p.isFederation && p.isNestedRequest {
-		_, _ = buf.Write(federationQueryTrailer)
-	}*/
 
 	rawQuery := buf.Bytes()
 
@@ -335,12 +508,11 @@ func (p *Planner) printOperation() []byte {
 		return nil
 	}
 
-	/*federationSchema, err := federation.BuildFederationSchema(baseSchema, string(p.federationSDL))
+	federationSchema, err := federation.BuildFederationSchema(baseSchema, p.config.Federation.ServiceSDL)
 	if err != nil {
-		return nil, err
-	}*/
-
-	federationSchema := baseSchema
+		p.visitor.Walker.StopWithInternalErr(err)
+		return nil
+	}
 
 	operation := ast.NewDocument()
 	definition := ast.NewDocument()
@@ -361,6 +533,10 @@ func (p *Planner) printOperation() []byte {
 		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("printOperation: parse definition failed"))
 		return nil
 	}
+
+	operationStr, _ := astprinter.PrintStringIndent(operation, definition, "  ")
+	schemaStr, _ := astprinter.PrintStringIndent(definition, nil, "  ")
+	_, _ = schemaStr, operationStr
 
 	normalizer := astnormalization.NewNormalizer(true, true)
 	normalizer.NormalizeOperation(operation, definition, report)
