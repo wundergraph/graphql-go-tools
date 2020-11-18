@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/buger/jsonparser"
 	"github.com/tidwall/sjson"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
@@ -18,7 +19,9 @@ import (
 	plan "github.com/jensneuse/graphql-go-tools/pkg/engine/planv2"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 	"github.com/jensneuse/graphql-go-tools/pkg/federation"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
+	"github.com/jensneuse/graphql-go-tools/pkg/pool"
 )
 
 type Planner struct {
@@ -604,13 +607,50 @@ func (f *Factory) Planner() plan.DataSourcePlanner {
 	}
 }
 
+var (
+	responsePaths          = [][]string{
+		{"errors"},
+		{"data"},
+	}
+	entitiesPath = []string{"_entities", "[0]"}
+	uniqueIdentifier = []byte("graphql")
+)
+
 type Source struct {
+	client httpclient.Client
 }
 
 func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPair) (err error) {
+	buf := pool.BytesBuffer.Get()
+	defer pool.BytesBuffer.Put(buf)
+
+	err = s.client.Do(ctx, input, buf)
+	if err != nil {
+		return
+	}
+
+	responseData := buf.Bytes()
+
+	extractEntitiesRaw, _, _, _ := jsonparser.Get(input, "extract_entities")
+	extractEntities := bytes.Equal(extractEntitiesRaw, literal.TRUE)
+
+	jsonparser.EachKey(responseData, func(i int, bytes []byte, valueType jsonparser.ValueType, err error) {
+		switch i {
+		case 0:
+			bufPair.Errors.WriteBytes(bytes)
+		case 1:
+			if extractEntities {
+				data, _, _, _ := jsonparser.Get(bytes, entitiesPath...)
+				bufPair.Data.WriteBytes(data)
+				return
+			}
+			bufPair.Data.WriteBytes(bytes)
+		}
+	}, responsePaths...)
+
 	return
 }
 
 func (s *Source) UniqueIdentifier() []byte {
-	return nil
+	return uniqueIdentifier
 }
