@@ -28,6 +28,16 @@ type OperationDefinition struct {
 	HasSelections          bool
 }
 
+func (d *Document) OperationDefinitionHasVariableDefinition(ref int, variableName string) bool {
+	for _,i := range d.OperationDefinitions[ref].VariableDefinitions.Refs {
+		value := d.VariableDefinitions[i].VariableValue.Ref
+		if variableName == d.VariableValueNameString(value) {
+			return true
+		}
+	}
+	return false
+}
+
 func (d *Document) OperationDefinitionNameBytes(ref int) ByteSlice {
 	return d.Input.ByteSlice(d.OperationDefinitions[ref].Name)
 }

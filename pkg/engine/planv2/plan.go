@@ -2,6 +2,7 @@ package planv2
 
 import (
 	"encoding/json"
+	"regexp"
 	"strings"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
@@ -230,6 +231,7 @@ type Visitor struct {
 	Config                Configuration
 	plan                  Plan
 	OperationName         string
+	operationDefinition   int
 	objects               []*resolve.Object
 	currentFields         []objectFields
 	planners              []plannerConfiguration
@@ -249,6 +251,7 @@ type objectFetchConfiguration struct {
 	planner        DataSourcePlanner
 	bufferID       int
 	isSubscription bool
+	fieldRef       int
 }
 
 func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor interface{}) bool {
@@ -353,6 +356,7 @@ func (v *Visitor) EnterField(ref int) {
 		} else {
 			fetchConfig.object = v.objects[len(v.objects)-1]
 		}
+		fetchConfig.fieldRef = ref
 		v.fetchConfigurations[ref] = fetchConfig
 	}
 
@@ -475,6 +479,8 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 		return
 	}
 
+	v.operationDefinition = ref
+
 	rootObject := &resolve.Object{
 		Fields: []resolve.Field{},
 	}
@@ -561,11 +567,59 @@ func (v *Visitor) LeaveDocument(operation, definition *ast.Document) {
 	}
 }
 
+var (
+	templateRegex = regexp.MustCompile(`{{.*?}}`)
+	selectorRegex = regexp.MustCompile(`{{\s(.*?)\s}}`)
+)
+
+func (v *Visitor) resolveInputTemplates(config objectFetchConfiguration, input *string, variables *resolve.Variables) {
+	*input = templateRegex.ReplaceAllStringFunc(*input, func(s string) string {
+		selectors := selectorRegex.FindStringSubmatch(s)
+		if len(selectors) != 2 {
+			return s
+		}
+		selector := strings.TrimPrefix(selectors[1], ".")
+		parts := strings.Split(selector, ".")
+		if len(parts) < 2 {
+			return s
+		}
+		path := parts[1:]
+		var (
+			variableName string
+		)
+		switch parts[0] {
+		case "object":
+			variableName, _ = variables.AddVariable(&resolve.ObjectVariable{
+				Path: path,
+			}, false)
+		case "arguments":
+			argumentName := path[0]
+			arg, ok := v.Operation.FieldArgument(config.fieldRef, []byte(argumentName))
+			if !ok {
+				break
+			}
+			value := v.Operation.ArgumentValue(arg)
+			if value.Kind != ast.ValueKindVariable {
+				break
+			}
+			variableValue := v.Operation.VariableValueNameString(value.Ref)
+			if !v.Operation.OperationDefinitionHasVariableDefinition(v.operationDefinition, variableValue) {
+				break // omit optional argument when variable is not defined
+			}
+			variableName, _ = variables.AddVariable(&resolve.ContextVariable{
+				Path: []string{variableValue},
+			}, false)
+		}
+		return variableName
+	})
+}
+
 func (v *Visitor) configureSubscription(config objectFetchConfiguration) {
 	subscription := config.planner.ConfigureSubscription()
 	config.trigger.Input = subscription.Input
 	config.trigger.ManagerID = []byte(subscription.SubscriptionManagerID)
 	config.trigger.Variables = subscription.Variables
+	v.resolveInputTemplates(config, &config.trigger.Input, &config.trigger.Variables)
 }
 
 func (v *Visitor) configureObjectFetch(config objectFetchConfiguration) {
@@ -574,6 +628,7 @@ func (v *Visitor) configureObjectFetch(config objectFetchConfiguration) {
 	}
 	fetchConfig := config.planner.ConfigureFetch()
 	fetch := v.configureSingleFetch(config, fetchConfig)
+	v.resolveInputTemplates(config, &fetch.Input, &fetch.Variables)
 	if config.object.Fetch == nil {
 		config.object.Fetch = fetch
 		return

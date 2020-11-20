@@ -4,166 +4,153 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net/http"
 	"regexp"
 	"strings"
 
-	"github.com/buger/jsonparser"
-
-	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
+	plan "github.com/jensneuse/graphql-go-tools/pkg/engine/planv2"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/subscription/http_polling"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 )
 
 type Planner struct {
-	client httpclient.Client
-	v      *plan.Visitor
+	client              httpclient.Client
+	v                   *plan.Visitor
+	config              Configuration
+	rootField           int
+	operationDefinition int
 }
 
-func NewPlanner(client httpclient.Client) *Planner {
-	return &Planner{
-		client: client,
-	}
+func (p *Planner) EnterOperationDefinition(ref int) {
+	p.operationDefinition = ref
 }
 
-func (p *Planner) clientOrDefault() httpclient.Client {
-	if p.client != nil {
-		return p.client
-	}
-	return httpclient.NewFastHttpClient(httpclient.DefaultFastHttpClient)
+type Factory struct{}
+
+func (f *Factory) Planner() plan.DataSourcePlanner {
+	return &Planner{}
 }
 
-func (p *Planner) Register(visitor *plan.Visitor) {
-	p.v = visitor
-	visitor.RegisterEnterFieldVisitor(p)
+type Configuration struct {
+	Fetch        FetchConfiguration
+	Subscription SubscriptionConfiguration
 }
 
-func (p *Planner) EnterField(ref int) {
-	rootField, config := p.v.IsRootField(ref)
-	if !rootField {
-		return
-	}
-
-	path := config.Attributes.ValueForKey(httpclient.PATH)
-	baseURL := config.Attributes.ValueForKey(httpclient.BASEURL)
-	method := config.Attributes.ValueForKey(httpclient.METHOD)
-	body := config.Attributes.ValueForKey(httpclient.BODY)
-	headers := config.Attributes.ValueForKey(httpclient.HEADERS)
-	queryParams := config.Attributes.ValueForKey(httpclient.QUERYPARAMS)
-	intervalMillis := config.Attributes.ValueForKey("polling_interval_millis")
-	skipPublishSameResponse := config.Attributes.ValueForKey("skip_publish_same_response")
-
-	queryParams = p.prepareQueryParams(ref, queryParams)
-
-	var (
-		input []byte
-	)
-
-	url := []byte(string(baseURL) + string(path))
-
-	input = httpclient.SetInputURL(input, url)
-	input = httpclient.SetInputMethod(input, method)
-	input = httpclient.SetInputBody(input, body)
-	input = httpclient.SetInputHeaders(input, headers)
-	input = httpclient.SetInputQueryParams(input, queryParams)
-
-	switch p.v.Operation.OperationDefinitions[p.v.Ancestors[0].Ref].OperationType {
-	case ast.OperationTypeQuery, ast.OperationTypeMutation:
-		bufferID := p.v.NextBufferID()
-		p.v.SetBufferIDForCurrentFieldSet(bufferID)
-		p.v.SetCurrentObjectFetch(&resolve.SingleFetch{
-			BufferId: bufferID,
-			Input:    string(input),
-			DataSource: &Source{
-				client: p.clientOrDefault(),
-			},
-			DisallowSingleFlight: !bytes.Equal(method, []byte("GET")),
-		}, config)
-	case ast.OperationTypeSubscription:
-
-		var httpPollingInput []byte
-		httpPollingInput = http_polling.SetSkipPublishSameResponse(httpPollingInput, bytes.Equal(skipPublishSameResponse, literal.TRUE))
-		httpPollingInput = http_polling.SetRequestInput(httpPollingInput, input)
-		httpPollingInput = http_polling.SetInputIntervalMillis(httpPollingInput, unsafebytes.BytesToInt64(intervalMillis))
-
-		p.v.SetSubscriptionTrigger(resolve.GraphQLSubscriptionTrigger{
-			Input:     string(httpPollingInput),
-			ManagerID: []byte("http_polling_stream"),
-		}, *config)
-	}
+type SubscriptionConfiguration struct {
+	PollingIntervalMillis   int64
+	SkipPublishSameResponse bool
 }
 
-type QueryValue struct {
+type FetchConfiguration struct {
+	URL    string
+	Method string
+	Header http.Header
+	Query  []QueryConfiguration
+	Body   string
+}
+
+type QueryConfiguration struct {
 	Name  string `json:"name"`
 	Value string `json:"value"`
 }
 
-func NewQueryValues(values ...QueryValue) []byte {
-	out, _ := json.Marshal(values)
-	return out
+func (p *Planner) Register(visitor *plan.Visitor, customConfiguration json.RawMessage) error {
+	p.v = visitor
+	visitor.Walker.RegisterEnterFieldVisitor(p)
+	visitor.Walker.RegisterEnterOperationVisitor(p)
+	return json.Unmarshal(customConfiguration, &p.config)
+}
+
+func (p *Planner) EnterField(ref int) {
+	p.rootField = ref
+}
+
+func (p *Planner) configureInput() []byte {
+
+	input := httpclient.SetInputURL(nil, []byte(p.config.Fetch.URL))
+	input = httpclient.SetInputMethod(input, []byte(p.config.Fetch.Method))
+	input = httpclient.SetInputBody(input, []byte(p.config.Fetch.Body))
+
+	header, err := json.Marshal(p.config.Fetch.Header)
+	if err == nil && len(header) != 0 && !bytes.Equal(header, literal.NULL) {
+		input = httpclient.SetInputHeaders(input, header)
+	}
+
+	preparedQuery := p.prepareQueryParams(p.rootField, p.config.Fetch.Query)
+	query, err := json.Marshal(preparedQuery)
+	if err == nil && len(preparedQuery) != 0 {
+		input = httpclient.SetInputQueryParams(input, query)
+	}
+	return input
+}
+
+func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
+	input := p.configureInput()
+	return plan.FetchConfiguration{
+		Input:                string(input),
+		Variables:            nil,
+		DataSource:           &Source{},
+		DisallowSingleFlight: p.config.Fetch.Method != "GET",
+	}
+}
+
+func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
+
+	input := p.configureInput()
+
+	var httpPollingInput []byte
+	httpPollingInput = http_polling.SetSkipPublishSameResponse(httpPollingInput, p.config.Subscription.SkipPublishSameResponse)
+	httpPollingInput = http_polling.SetRequestInput(httpPollingInput, input)
+	httpPollingInput = http_polling.SetInputIntervalMillis(httpPollingInput, p.config.Subscription.PollingIntervalMillis)
+
+	return plan.SubscriptionConfiguration{
+		Input:                 string(httpPollingInput),
+		SubscriptionManagerID: "http_polling_stream",
+		Variables:             nil,
+	}
 }
 
 var (
-	selectorRegex = regexp.MustCompile(`"{{\s(.*?)\s}}"`)
+	selectorRegex = regexp.MustCompile(`{{\s(.*?)\s}}`)
 )
 
-// prepareQueryParams ensures that values
-func (p *Planner) prepareQueryParams(field int, params []byte) []byte {
-	var (
-		values        [][]byte
-		deleteIndices []int
-	)
-	_, err := jsonparser.ArrayEach(params, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
-		values = append(values, value)
-	})
-	if err != nil {
-		return params
-	}
-
-	for i := range values {
-		values[i] = selectorRegex.ReplaceAllFunc(values[i], func(b []byte) []byte {
-			subs := selectorRegex.FindSubmatch(b)
-			if len(subs) != 2 {
-				return b
-			}
-			path := string(bytes.TrimPrefix(subs[1], []byte(".")))
-			segments := strings.Split(path, ".")
-			if len(segments) < 2 || segments[0] != "arguments" {
-				return b
-			}
-			argName := []byte(segments[1])
-			argRef, exists := p.v.Operation.FieldArgument(field, argName)
-			if !exists { // field argument is not defined, we have to remove the variable
-				deleteIndices = append(deleteIndices, i)
-				return b
-			}
-			value := p.v.Operation.ArgumentValue(argRef)
-			switch value.Kind {
-			case ast.ValueKindVariable:
-				variableName := p.v.Operation.VariableValueNameBytes(value.Ref)
-				if variableDefinition, ok := p.v.Operation.VariableDefinitionByNameAndOperation(p.v.Ancestors[0].Ref, variableName); ok {
-					typeRef := p.v.Operation.VariableDefinitions[variableDefinition].Type
-					if p.v.Operation.TypeIsScalar(typeRef, p.v.Definition) {
-						return b
-					}
-					return b[1 : len(b)-1]
+func (p *Planner) prepareQueryParams(field int, query []QueryConfiguration) []QueryConfiguration {
+	out := make([]QueryConfiguration, 0, len(query))
+Next:
+	for i := range query {
+		matches := selectorRegex.FindAllStringSubmatch(query[i].Value, -1)
+		for j := range matches {
+			if len(matches[j]) == 2 {
+				path := matches[j][1]
+				path = strings.TrimPrefix(path, ".")
+				elements := strings.Split(path, ".")
+				if len(elements) < 2 {
+					continue
+				}
+				if elements[0] != "arguments" {
+					continue
+				}
+				argumentName := elements[1]
+				arg, ok := p.v.Operation.FieldArgument(field, []byte(argumentName))
+				if !ok {
+					continue Next
+				}
+				value := p.v.Operation.Arguments[arg].Value
+				if value.Kind != ast.ValueKindVariable {
+					continue Next
+				}
+				variableName := p.v.Operation.VariableValueNameString(value.Ref)
+				if !p.v.Operation.OperationDefinitionHasVariableDefinition(p.operationDefinition, variableName) {
+					continue Next
 				}
 			}
-
-			return b
-		})
+		}
+		out = append(out, query[i])
 	}
-
-	for i := len(deleteIndices) - 1; i >= 0; i-- {
-		del := deleteIndices[i]
-		values = append(values[:del], values[del+1:]...) // remove variables marked for deletion
-	}
-
-	joined := bytes.Join(values, literal.COMMA)
-	return append([]byte("["), append(joined, []byte("]")...)...)
+	return out
 }
 
 type Source struct {

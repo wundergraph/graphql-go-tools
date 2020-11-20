@@ -2,6 +2,7 @@ package httpjsondatasource
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -11,8 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasourcetesting"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
+	datasourcetesting "github.com/jensneuse/graphql-go-tools/pkg/engine/datasourcetestingv2"
+	plan "github.com/jensneuse/graphql-go-tools/pkg/engine/planv2"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 )
 
@@ -88,77 +89,57 @@ const (
 func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 	t.Run("get request", datasourcetesting.RunTest(schema, nestedOperation, "",
 		&plan.SynchronousResponsePlan{
-			Response: resolve.GraphQLResponse{
+			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
 						BufferId: 0,
 						Input:    `{"method":"GET","url":"https://example.com/friend"}`,
-						DataSource: &Source{
-							client: NewPlanner(nil).clientOrDefault(),
-						},
+						DataSource: &Source{},
 					},
-					FieldSets: []resolve.FieldSet{
+					Fields: []resolve.Field{
 						{
 							BufferID:  0,
 							HasBuffer: true,
-							Fields: []resolve.Field{
-								{
-									Name: []byte("friend"),
-									Value: &resolve.Object{
-										Nullable: true,
-										Fetch: &resolve.SingleFetch{
-											BufferId: 1,
-											Input:    `{"method":"GET","url":"https://example.com/friend/$$0$$/pet"}`,
-											DataSource: &Source{
-												client: NewPlanner(nil).clientOrDefault(),
-											},
-											Variables: resolve.NewVariables(
-												&resolve.ObjectVariable{
-													Path: []string{"name"},
-												},
-											),
+							Name:      []byte("friend"),
+							Value: &resolve.Object{
+								Nullable: true,
+								Fetch: &resolve.SingleFetch{
+									BufferId: 1,
+									Input:    `{"method":"GET","url":"https://example.com/friend/$$0$$/pet"}`,
+									DataSource: &Source{},
+									Variables: resolve.NewVariables(
+										&resolve.ObjectVariable{
+											Path: []string{"name"},
 										},
-										FieldSets: []resolve.FieldSet{
-											{
-												Fields: []resolve.Field{
-													{
-														Name: []byte("name"),
-														Value: &resolve.String{
-															Path:     []string{"name"},
-															Nullable: true,
-														},
+									),
+								},
+								Fields: []resolve.Field{
+									{
+										Name: []byte("name"),
+										Value: &resolve.String{
+											Path:     []string{"name"},
+											Nullable: true,
+										},
+									},
+									{
+										HasBuffer: true,
+										BufferID:  1,
+										Name:      []byte("pet"),
+										Value: &resolve.Object{
+											Nullable: true,
+											Fields: []resolve.Field{
+												{
+													Name: []byte("id"),
+													Value: &resolve.String{
+														Path:     []string{"id"},
+														Nullable: true,
 													},
 												},
-											},
-											{
-												HasBuffer: true,
-												BufferID:  1,
-												Fields: []resolve.Field{
-													{
-														Name: []byte("pet"),
-														Value: &resolve.Object{
-															Nullable: true,
-															FieldSets: []resolve.FieldSet{
-																{
-																	Fields: []resolve.Field{
-																		{
-																			Name: []byte("id"),
-																			Value: &resolve.String{
-																				Path:     []string{"id"},
-																				Nullable: true,
-																			},
-																		},
-																		{
-																			Name: []byte("name"),
-																			Value: &resolve.String{
-																				Path:     []string{"name"},
-																				Nullable: true,
-																			},
-																		},
-																	},
-																},
-															},
-														},
+												{
+													Name: []byte("name"),
+													Value: &resolve.String{
+														Path:     []string{"name"},
+														Nullable: true,
 													},
 												},
 											},
@@ -172,39 +153,39 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 			},
 		},
 		plan.Configuration{
-			DataSourceConfigurations: []plan.DataSourceConfiguration{
+			DataSources: []plan.DataSourceConfiguration{
 				{
-					TypeName:   "Query",
-					FieldNames: []string{"friend"},
-					Attributes: []plan.DataSourceAttribute{
+					RootNodes: []plan.TypeField{
 						{
-							Key:   "path",
-							Value: []byte("https://example.com/friend"),
-						},
-						{
-							Key:   "method",
-							Value: []byte("GET"),
+							TypeName:   "Query",
+							FieldNames: []string{"friend"},
 						},
 					},
-					DataSourcePlanner: &Planner{},
+					Custom: ConfigJSON(Configuration{
+						Fetch: FetchConfiguration{
+							URL:    "https://example.com/friend",
+							Method: "GET",
+						},
+					}),
+					Factory: &Factory{},
 				},
 				{
-					TypeName:   "Friend",
-					FieldNames: []string{"pet"},
-					Attributes: []plan.DataSourceAttribute{
+					RootNodes: []plan.TypeField{
 						{
-							Key:   "path",
-							Value: []byte("https://example.com/friend/{{ .object.name }}/pet"),
-						},
-						{
-							Key:   "method",
-							Value: []byte("GET"),
+							TypeName:   "Friend",
+							FieldNames: []string{"pet"},
 						},
 					},
-					DataSourcePlanner: &Planner{},
+					Custom: ConfigJSON(Configuration{
+						Fetch: FetchConfiguration{
+							URL:    "https://example.com/friend/{{ .object.name }}/pet",
+							Method: "GET",
+						},
+					}),
+					Factory: &Factory{},
 				},
 			},
-			FieldMappings: []plan.FieldMapping{
+			Fields: []plan.FieldConfiguration{
 				{
 					TypeName:              "Query",
 					FieldName:             "friend",
@@ -220,14 +201,12 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 	))
 	t.Run("get request with argument", datasourcetesting.RunTest(schema, argumentOperation, "ArgumentQuery",
 		&plan.SynchronousResponsePlan{
-			Response: resolve.GraphQLResponse{
+			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
 						BufferId: 0,
 						Input:    `{"method":"GET","url":"https://example.com/$$0$$/$$1$$"}`,
-						DataSource: &Source{
-							client: NewPlanner(nil).clientOrDefault(),
-						},
+						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path: []string{"idVariable"},
@@ -237,27 +216,19 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							},
 						),
 					},
-					FieldSets: []resolve.FieldSet{
+					Fields: []resolve.Field{
 						{
 							BufferID:  0,
 							HasBuffer: true,
-							Fields: []resolve.Field{
-								{
-									Name: []byte("withArgument"),
-									Value: &resolve.Object{
-										Nullable: true,
-										FieldSets: []resolve.FieldSet{
-											{
-												Fields: []resolve.Field{
-													{
-														Name: []byte("name"),
-														Value: &resolve.String{
-															Path:     []string{"name"},
-															Nullable: true,
-														},
-													},
-												},
-											},
+							Name:      []byte("withArgument"),
+							Value: &resolve.Object{
+								Nullable: true,
+								Fields: []resolve.Field{
+									{
+										Name: []byte("name"),
+										Value: &resolve.String{
+											Path:     []string{"name"},
+											Nullable: true,
 										},
 									},
 								},
@@ -268,24 +239,24 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 			},
 		},
 		plan.Configuration{
-			DataSourceConfigurations: []plan.DataSourceConfiguration{
+			DataSources: []plan.DataSourceConfiguration{
 				{
-					TypeName:   "Query",
-					FieldNames: []string{"withArgument"},
-					Attributes: []plan.DataSourceAttribute{
+					RootNodes: []plan.TypeField{
 						{
-							Key:   "path",
-							Value: []byte("https://example.com/{{ .arguments.id }}/{{ .arguments.name }}"),
-						},
-						{
-							Key:   "method",
-							Value: []byte("GET"),
+							TypeName:   "Query",
+							FieldNames: []string{"withArgument"},
 						},
 					},
-					DataSourcePlanner: &Planner{},
+					Custom: ConfigJSON(Configuration{
+						Fetch: FetchConfiguration{
+							URL:    "https://example.com/{{ .arguments.id }}/{{ .arguments.name }}",
+							Method: "GET",
+						},
+					}),
+					Factory: &Factory{},
 				},
 			},
-			FieldMappings: []plan.FieldMapping{
+			Fields: []plan.FieldConfiguration{
 				{
 					TypeName:              "Query",
 					FieldName:             "withArgument",
@@ -298,7 +269,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 		&plan.SubscriptionResponsePlan{
 			Response: resolve.GraphQLSubscription{
 				Trigger: resolve.GraphQLSubscriptionTrigger{
-					Input:    `{"interval":1000,"request_input":{"method":"GET","url":"https://example.com/$$0$$/$$1$$"},"skip_publish_same_response":true}`,
+					Input:     `{"interval":1000,"request_input":{"method":"GET","url":"https://example.com/$$0$$/$$1$$"},"skip_publish_same_response":true}`,
 					ManagerID: []byte("http_polling_stream"),
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
@@ -311,25 +282,17 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 				},
 				Response: &resolve.GraphQLResponse{
 					Data: &resolve.Object{
-						FieldSets: []resolve.FieldSet{
+						Fields: []resolve.Field{
 							{
-								Fields: []resolve.Field{
-									{
-										Name: []byte("withArgument"),
-										Value: &resolve.Object{
-											Nullable: true,
-											FieldSets: []resolve.FieldSet{
-												{
-													Fields: []resolve.Field{
-														{
-															Name: []byte("name"),
-															Value: &resolve.String{
-																Path:     []string{"name"},
-																Nullable: true,
-															},
-														},
-													},
-												},
+								Name: []byte("withArgument"),
+								Value: &resolve.Object{
+									Nullable: true,
+									Fields: []resolve.Field{
+										{
+											Name: []byte("name"),
+											Value: &resolve.String{
+												Path:     []string{"name"},
+												Nullable: true,
 											},
 										},
 									},
@@ -341,32 +304,28 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 			},
 		},
 		plan.Configuration{
-			DataSourceConfigurations: []plan.DataSourceConfiguration{
+			DataSources: []plan.DataSourceConfiguration{
 				{
-					TypeName:   "Subscription",
-					FieldNames: []string{"withArgument"},
-					Attributes: []plan.DataSourceAttribute{
+					RootNodes: []plan.TypeField{
 						{
-							Key:   "path",
-							Value: []byte("https://example.com/{{ .arguments.id }}/{{ .arguments.name }}"),
-						},
-						{
-							Key:   "method",
-							Value: []byte("GET"),
-						},
-						{
-							Key: "polling_interval_millis",
-							Value: []byte("1000"),
-						},
-						{
-							Key: "skip_publish_same_response",
-							Value: []byte("true"),
+							TypeName:   "Subscription",
+							FieldNames: []string{"withArgument"},
 						},
 					},
-					DataSourcePlanner: &Planner{},
+					Custom: ConfigJSON(Configuration{
+						Fetch: FetchConfiguration{
+							URL:    "https://example.com/{{ .arguments.id }}/{{ .arguments.name }}",
+							Method: "GET",
+						},
+						Subscription: SubscriptionConfiguration{
+							PollingIntervalMillis:   1000,
+							SkipPublishSameResponse: true,
+						},
+					}),
+					Factory: &Factory{},
 				},
 			},
-			FieldMappings: []plan.FieldMapping{
+			Fields: []plan.FieldConfiguration{
 				{
 					TypeName:              "Subscription",
 					FieldName:             "withArgument",
@@ -377,37 +336,27 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 	))
 	t.Run("post request with body", datasourcetesting.RunTest(schema, simpleOperation, "",
 		&plan.SynchronousResponsePlan{
-			Response: resolve.GraphQLResponse{
+			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
 						BufferId: 0,
 						Input:    `{"body":{"foo":"bar"},"method":"POST","url":"https://example.com/friend"}`,
-						DataSource: &Source{
-							client: NewPlanner(nil).clientOrDefault(),
-						},
+						DataSource: &Source{},
 						DisallowSingleFlight: true,
 					},
-					FieldSets: []resolve.FieldSet{
+					Fields: []resolve.Field{
 						{
 							BufferID:  0,
 							HasBuffer: true,
-							Fields: []resolve.Field{
-								{
-									Name: []byte("friend"),
-									Value: &resolve.Object{
-										Nullable: true,
-										FieldSets: []resolve.FieldSet{
-											{
-												Fields: []resolve.Field{
-													{
-														Name: []byte("name"),
-														Value: &resolve.String{
-															Path:     []string{"name"},
-															Nullable: true,
-														},
-													},
-												},
-											},
+							Name:      []byte("friend"),
+							Value: &resolve.Object{
+								Nullable: true,
+								Fields: []resolve.Field{
+									{
+										Name: []byte("name"),
+										Value: &resolve.String{
+											Path:     []string{"name"},
+											Nullable: true,
 										},
 									},
 								},
@@ -418,32 +367,25 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 			},
 		},
 		plan.Configuration{
-			DataSourceConfigurations: []plan.DataSourceConfiguration{
+			DataSources: []plan.DataSourceConfiguration{
 				{
-					TypeName:   "Query",
-					FieldNames: []string{"friend"},
-					Attributes: []plan.DataSourceAttribute{
+					RootNodes: []plan.TypeField{
 						{
-							Key:   "base_url",
-							Value: []byte("https://example.com"),
-						},
-						{
-							Key:   "path",
-							Value: []byte("/friend"),
-						},
-						{
-							Key:   "method",
-							Value: []byte("POST"),
-						},
-						{
-							Key:   "body",
-							Value: []byte(`{"foo":"bar"}`),
+							TypeName:   "Query",
+							FieldNames: []string{"friend"},
 						},
 					},
-					DataSourcePlanner: &Planner{},
+					Custom: ConfigJSON(Configuration{
+						Fetch: FetchConfiguration{
+							URL:    "https://example.com/friend",
+							Method: "POST",
+							Body:   "{\"foo\":\"bar\"}",
+						},
+					}),
+					Factory: &Factory{},
 				},
 			},
-			FieldMappings: []plan.FieldMapping{
+			Fields: []plan.FieldConfiguration{
 				{
 					TypeName:              "Query",
 					FieldName:             "friend",
@@ -454,36 +396,26 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 	))
 	t.Run("get request with headers", datasourcetesting.RunTest(schema, simpleOperation, "",
 		&plan.SynchronousResponsePlan{
-			Response: resolve.GraphQLResponse{
+			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
 						BufferId: 0,
-						Input:    `{"headers":{"Authorization":"Bearer 123","X-API-Key":"456"},"method":"GET","url":"https://example.com/friend"}`,
-						DataSource: &Source{
-							client: NewPlanner(nil).clientOrDefault(),
-						},
+						Input:    `{"headers":{"Authorization":["Bearer 123"],"X-API-Key":["456"]},"method":"GET","url":"https://example.com/friend"}`,
+						DataSource: &Source{},
 					},
-					FieldSets: []resolve.FieldSet{
+					Fields: []resolve.Field{
 						{
 							BufferID:  0,
 							HasBuffer: true,
-							Fields: []resolve.Field{
-								{
-									Name: []byte("friend"),
-									Value: &resolve.Object{
-										Nullable: true,
-										FieldSets: []resolve.FieldSet{
-											{
-												Fields: []resolve.Field{
-													{
-														Name: []byte("name"),
-														Value: &resolve.String{
-															Path:     []string{"name"},
-															Nullable: true,
-														},
-													},
-												},
-											},
+							Name:      []byte("friend"),
+							Value: &resolve.Object{
+								Nullable: true,
+								Fields: []resolve.Field{
+									{
+										Name: []byte("name"),
+										Value: &resolve.String{
+											Path:     []string{"name"},
+											Nullable: true,
 										},
 									},
 								},
@@ -494,32 +426,28 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 			},
 		},
 		plan.Configuration{
-			DataSourceConfigurations: []plan.DataSourceConfiguration{
+			DataSources: []plan.DataSourceConfiguration{
 				{
-					TypeName:   "Query",
-					FieldNames: []string{"friend"},
-					Attributes: []plan.DataSourceAttribute{
+					RootNodes: []plan.TypeField{
 						{
-							Key:   "base_url",
-							Value: []byte("https://example.com"),
-						},
-						{
-							Key:   "path",
-							Value: []byte("/friend"),
-						},
-						{
-							Key:   "method",
-							Value: []byte("GET"),
-						},
-						{
-							Key:   "headers",
-							Value: []byte(`{"Authorization":"Bearer 123","X-API-Key":"456"}`),
+							TypeName:   "Query",
+							FieldNames: []string{"friend"},
 						},
 					},
-					DataSourcePlanner: &Planner{},
+					Custom: ConfigJSON(Configuration{
+						Fetch: FetchConfiguration{
+							URL:    "https://example.com/friend",
+							Method: "GET",
+							Header: http.Header{
+								"Authorization": []string{"Bearer 123"},
+								"X-API-Key":     []string{"456"},
+							},
+						},
+					}),
+					Factory: &Factory{},
 				},
 			},
-			FieldMappings: []plan.FieldMapping{
+			Fields: []plan.FieldConfiguration{
 				{
 					TypeName:              "Query",
 					FieldName:             "friend",
@@ -530,14 +458,12 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 	))
 	t.Run("get request with query", datasourcetesting.RunTest(schema, argumentOperation, "ArgumentQuery",
 		&plan.SynchronousResponsePlan{
-			Response: resolve.GraphQLResponse{
+			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
 						BufferId: 0,
 						Input:    `{"query_params":[{"name":"static","value":"staticValue"},{"name":"static","value":"secondStaticValue"},{"name":"name","value":"$$0$$"},{"name":"id","value":"$$1$$"}],"method":"GET","url":"https://example.com/friend"}`,
-						DataSource: &Source{
-							client: NewPlanner(nil).clientOrDefault(),
-						},
+						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path: []string{"a"},
@@ -547,27 +473,19 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							},
 						),
 					},
-					FieldSets: []resolve.FieldSet{
+					Fields: []resolve.Field{
 						{
 							BufferID:  0,
 							HasBuffer: true,
-							Fields: []resolve.Field{
-								{
-									Name: []byte("withArgument"),
-									Value: &resolve.Object{
-										Nullable: true,
-										FieldSets: []resolve.FieldSet{
-											{
-												Fields: []resolve.Field{
-													{
-														Name: []byte("name"),
-														Value: &resolve.String{
-															Path:     []string{"name"},
-															Nullable: true,
-														},
-													},
-												},
-											},
+							Name:      []byte("withArgument"),
+							Value: &resolve.Object{
+								Nullable: true,
+								Fields: []resolve.Field{
+									{
+										Name: []byte("name"),
+										Value: &resolve.String{
+											Path:     []string{"name"},
+											Nullable: true,
 										},
 									},
 								},
@@ -578,53 +496,46 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 			},
 		},
 		plan.Configuration{
-			DataSourceConfigurations: []plan.DataSourceConfiguration{
+			DataSources: []plan.DataSourceConfiguration{
 				{
-					TypeName:   "Query",
-					FieldNames: []string{"withArgument"},
-					Attributes: []plan.DataSourceAttribute{
+					RootNodes: []plan.TypeField{
 						{
-							Key:   "base_url",
-							Value: []byte("https://example.com"),
+							TypeName:   "Query",
+							FieldNames: []string{"withArgument"},
 						},
-						{
-							Key:   "path",
-							Value: []byte("/friend"),
-						},
-						{
-							Key:   "method",
-							Value: []byte("GET"),
-						},
-						{
-							Key: "query_params",
-							Value: NewQueryValues(
-								QueryValue{
+					},
+					Custom: ConfigJSON(Configuration{
+						Fetch: FetchConfiguration{
+							URL:    "https://example.com/friend",
+							Method: "GET",
+							Query: []QueryConfiguration{
+								{
 									Name:  "static",
 									Value: "staticValue",
 								},
-								QueryValue{
+								{
 									Name:  "static",
 									Value: "secondStaticValue",
 								},
-								QueryValue{
+								{
 									Name:  "name",
 									Value: "{{ .arguments.name }}",
 								},
-								QueryValue{
+								{
 									Name:  "id",
 									Value: "{{ .arguments.id }}",
 								},
-								QueryValue{
-									Name:  "id",
+								{
+									Name:  "optional",
 									Value: "{{ .arguments.optional }}",
 								},
-							),
+							},
 						},
-					},
-					DataSourcePlanner: &Planner{},
+					}),
+					Factory: &Factory{},
 				},
 			},
-			FieldMappings: []plan.FieldMapping{
+			Fields: []plan.FieldConfiguration{
 				{
 					TypeName:              "Query",
 					FieldName:             "withArgument",
@@ -635,41 +546,31 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 	))
 	t.Run("get request with array query", datasourcetesting.RunTest(schema, arrayArgumentOperation, "ArgumentQuery",
 		&plan.SynchronousResponsePlan{
-			Response: resolve.GraphQLResponse{
+			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
 						BufferId: 0,
-						Input:    `{"query_params":[{"name":"names","value":$$0$$}],"method":"GET","url":"https://example.com/friend"}`,
-						DataSource: &Source{
-							client: NewPlanner(nil).clientOrDefault(),
-						},
+						Input:    `{"query_params":[{"name":"names","value":"$$0$$"}],"method":"GET","url":"https://example.com/friend"}`,
+						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path: []string{"a"},
 							},
 						),
 					},
-					FieldSets: []resolve.FieldSet{
+					Fields: []resolve.Field{
 						{
 							BufferID:  0,
 							HasBuffer: true,
-							Fields: []resolve.Field{
-								{
-									Name: []byte("withArrayArguments"),
-									Value: &resolve.Object{
-										Nullable: true,
-										FieldSets: []resolve.FieldSet{
-											{
-												Fields: []resolve.Field{
-													{
-														Name: []byte("name"),
-														Value: &resolve.String{
-															Path:     []string{"name"},
-															Nullable: true,
-														},
-													},
-												},
-											},
+							Name:      []byte("withArrayArguments"),
+							Value: &resolve.Object{
+								Nullable: true,
+								Fields: []resolve.Field{
+									{
+										Name: []byte("name"),
+										Value: &resolve.String{
+											Path:     []string{"name"},
+											Nullable: true,
 										},
 									},
 								},
@@ -680,37 +581,30 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 			},
 		},
 		plan.Configuration{
-			DataSourceConfigurations: []plan.DataSourceConfiguration{
+			DataSources: []plan.DataSourceConfiguration{
 				{
-					TypeName:   "Query",
-					FieldNames: []string{"withArrayArguments"},
-					Attributes: []plan.DataSourceAttribute{
+					RootNodes: []plan.TypeField{
 						{
-							Key:   "base_url",
-							Value: []byte("https://example.com"),
+							TypeName:   "Query",
+							FieldNames: []string{"withArrayArguments"},
 						},
-						{
-							Key:   "path",
-							Value: []byte("/friend"),
-						},
-						{
-							Key:   "method",
-							Value: []byte("GET"),
-						},
-						{
-							Key: "query_params",
-							Value: NewQueryValues(
-								QueryValue{
+					},
+					Custom: ConfigJSON(Configuration{
+						Fetch: FetchConfiguration{
+							URL:    "https://example.com/friend",
+							Method: "GET",
+							Query: []QueryConfiguration{
+								{
 									Name:  "names",
 									Value: "{{ .arguments.names }}",
 								},
-							),
+							},
 						},
-					},
-					DataSourcePlanner: &Planner{},
+					}),
+					Factory: &Factory{},
 				},
 			},
-			FieldMappings: []plan.FieldMapping{
+			Fields: []plan.FieldConfiguration{
 				{
 					TypeName:              "Query",
 					FieldName:             "withArrayArguments",
@@ -814,4 +708,9 @@ func TestHttpJsonDataSource_Load(t *testing.T) {
 		}
 		runTests(t, source)
 	})
+}
+
+func ConfigJSON(config Configuration) json.RawMessage {
+	out, _ := json.Marshal(config)
+	return out
 }
