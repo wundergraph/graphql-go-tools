@@ -1,4 +1,4 @@
-package graphqldatasourcev2
+package graphql_datasource
 
 import (
 	"encoding/json"

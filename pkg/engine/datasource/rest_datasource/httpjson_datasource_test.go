@@ -1,4 +1,4 @@
-package httpjsondatasource
+package rest_datasource
 
 import (
 	"context"
