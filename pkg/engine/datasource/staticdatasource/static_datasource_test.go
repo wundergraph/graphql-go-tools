@@ -1,10 +1,11 @@
 package staticdatasource
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasourcetesting"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
+	plan "github.com/jensneuse/graphql-go-tools/pkg/engine/planv2"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 )
 
@@ -16,19 +17,15 @@ const (
 func TestStaticDataSourcePlanning(t *testing.T) {
 	t.Run("simple", datasourcetesting.RunTest(definition, operation, "",
 		&plan.SynchronousResponsePlan{
-			Response: resolve.GraphQLResponse{
+			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
-					FieldSets: []resolve.FieldSet{
+					Fields: []resolve.Field{
 						{
 							BufferID:  0,
 							HasBuffer: true,
-							Fields: []resolve.Field{
-								{
-									Name:  []byte("hello"),
-									Value: &resolve.String{
-										Nullable: true,
-									},
-								},
+							Name:      []byte("hello"),
+							Value: &resolve.String{
+								Nullable: true,
 							},
 						},
 					},
@@ -41,20 +38,21 @@ func TestStaticDataSourcePlanning(t *testing.T) {
 			},
 		},
 		plan.Configuration{
-			DataSourceConfigurations: []plan.DataSourceConfiguration{
+			DataSources: []plan.DataSourceConfiguration{
 				{
-					TypeName:   "Query",
-					FieldNames: []string{"hello"},
-					Attributes: []plan.DataSourceAttribute{
+					RootNodes: []plan.TypeField{
 						{
-							Key:   "data",
-							Value: []byte(`world`),
+							TypeName:   "Query",
+							FieldNames: []string{"hello"},
 						},
 					},
-					DataSourcePlanner: &Planner{},
+					Custom: ConfigJSON(Configuration{
+						Data: "world",
+					}),
+					Factory: &Factory{},
 				},
 			},
-			FieldMappings: []plan.FieldMapping{
+			Fields: []plan.FieldConfiguration{
 				{
 					TypeName:              "Query",
 					FieldName:             "hello",
@@ -63,4 +61,9 @@ func TestStaticDataSourcePlanning(t *testing.T) {
 			},
 		},
 	))
+}
+
+func ConfigJSON(config Configuration) json.RawMessage {
+	out, _ := json.Marshal(config)
+	return out
 }

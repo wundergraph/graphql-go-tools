@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
-	datasourcetesting "github.com/jensneuse/graphql-go-tools/pkg/engine/datasourcetestingv2"
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasourcetesting"
 	plan "github.com/jensneuse/graphql-go-tools/pkg/engine/planv2"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 )

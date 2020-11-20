@@ -10,7 +10,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
 	"github.com/jensneuse/graphql-go-tools/pkg/asttransform"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
+	plan "github.com/jensneuse/graphql-go-tools/pkg/engine/planv2"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
@@ -22,26 +22,24 @@ func RunTest(definition, operation, operationName string, expectedPlan plan.Plan
 		if err != nil {
 			t.Fatal(err)
 		}
-		norm := astnormalization.NewNormalizer(true,true)
+		norm := astnormalization.NewNormalizer(true, true)
 		var report operationreport.Report
 		norm.NormalizeOperation(&op, &def, &report)
 		valid := astvalidation.DefaultOperationValidator()
 		valid.Validate(&op, &def, &report)
-		p := plan.NewPlanner(&def, config)
-		actualPlan := p.Plan(&op, []byte(operationName), &report)
+		p := plan.NewPlanner(config)
+		actualPlan := p.Plan(&op, &def, operationName, &report)
 		if report.HasErrors() {
-			printedDoc,err := astprinter.PrintStringIndent(&def,nil,"  ")
+			_, err := astprinter.PrintStringIndent(&def, nil, "  ")
 			if err != nil {
 				t.Fatal(err)
 			}
-			_ = printedDoc
-			printedOp,err := astprinter.PrintStringIndent(&op,&def,"  ")
+			_, err = astprinter.PrintStringIndent(&op, &def, "  ")
 			if err != nil {
 				t.Fatal(err)
 			}
-			_ = printedOp
 			t.Fatal(report.Error())
 		}
-		assert.Equal(t,expectedPlan,actualPlan)
+		assert.Equal(t, expectedPlan, actualPlan)
 	}
 }

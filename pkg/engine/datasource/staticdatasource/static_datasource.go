@@ -2,35 +2,43 @@ package staticdatasource
 
 import (
 	"context"
+	"encoding/json"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
+	plan "github.com/jensneuse/graphql-go-tools/pkg/engine/planv2"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 )
 
+type Configuration struct {
+	Data string `json:"data"`
+}
+
+type Factory struct{}
+
+func (f *Factory) Planner() plan.DataSourcePlanner {
+	return &Planner{}
+}
+
 type Planner struct {
-	v *plan.Visitor
+	v      *plan.Visitor
+	config Configuration
 }
 
-func (p *Planner) Register(visitor *plan.Visitor) {
-	p.v = visitor
-	visitor.RegisterEnterFieldVisitor(p)
+func (p *Planner) Register(visitor *plan.Visitor, customConfiguration json.RawMessage) error {
+	return json.Unmarshal(customConfiguration, &p.config)
 }
 
-func (p *Planner) EnterField(ref int) {
-	rootField, config := p.v.IsRootField(ref)
-	if !rootField {
-		return
-	}
-
-	data := config.Attributes.ValueForKey("data")
-
-	bufferID := p.v.NextBufferID()
-	p.v.SetBufferIDForCurrentFieldSet(bufferID)
-	p.v.SetCurrentObjectFetch(&resolve.SingleFetch{
-		BufferId:   bufferID,
-		Input:      string(data),
+func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
+	return plan.FetchConfiguration{
+		Input:      p.config.Data,
 		DataSource: Source{},
-	}, config)
+	}
+}
+
+func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
+	return plan.SubscriptionConfiguration{
+		Input:                 p.config.Data,
+		SubscriptionManagerID: "static",
+	}
 }
 
 type Source struct{}
