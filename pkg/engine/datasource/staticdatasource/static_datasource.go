@@ -19,7 +19,6 @@ func (f *Factory) Planner() plan.DataSourcePlanner {
 }
 
 type Planner struct {
-	v      *plan.Visitor
 	config Configuration
 }
 

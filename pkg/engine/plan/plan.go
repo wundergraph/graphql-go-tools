@@ -236,7 +236,7 @@ type Visitor struct {
 	currentFields         []objectFields
 	currentField          *resolve.Field
 	planners              []plannerConfiguration
-	fetchConfigurations   map[int]objectFetchConfiguration
+	fetchConfigurations   []objectFetchConfiguration
 	fieldBuffers          map[int]int
 	skipFieldPaths        []string
 }
@@ -351,18 +351,25 @@ func (v *Visitor) EnterField(ref int) {
 		return
 	}
 
-	fetchConfig, hasFetchConfig := v.fetchConfigurations[ref]
+	var (
+		hasFetchConfig bool
+		i int
+	)
+	for i = range v.fetchConfigurations {
+		if ref == v.fetchConfigurations[i].fieldRef {
+			hasFetchConfig = true
+			break
+		}
+	}
 	if hasFetchConfig {
-		if fetchConfig.isSubscription {
+		if v.fetchConfigurations[i].isSubscription {
 			plan, ok := v.plan.(*SubscriptionResponsePlan)
 			if ok {
-				fetchConfig.trigger = &plan.Response.Trigger
+				v.fetchConfigurations[i].trigger = &plan.Response.Trigger
 			}
 		} else {
-			fetchConfig.object = v.objects[len(v.objects)-1]
+			v.fetchConfigurations[i].object = v.objects[len(v.objects)-1]
 		}
-		fetchConfig.fieldRef = ref
-		v.fetchConfigurations[ref] = fetchConfig
 	}
 
 	path := v.resolveFieldPath(ref)
@@ -496,7 +503,7 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 		popOnField: -1,
 	})
 
-	isSubscription, isStreaming, err := AnalyzePlanKind(v.Operation, v.Definition, v.OperationName)
+	isSubscription, _, err := AnalyzePlanKind(v.Operation, v.Definition, v.OperationName)
 	if err != nil {
 		v.Walker.StopWithInternalErr(err)
 		return
@@ -515,9 +522,9 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 		return
 	}
 
-	if isStreaming {
+	/*if isStreaming {
 
-	}
+	}*/
 
 	v.plan = &SynchronousResponsePlan{
 		Response: graphQLResponse,
@@ -732,7 +739,7 @@ type configurationVisitor struct {
 	walker                *astvisitor.Walker
 	config                Configuration
 	planners              []plannerConfiguration
-	fetches               map[int]objectFetchConfiguration
+	fetches               []objectFetchConfiguration
 	currentBufferId       int
 	fieldBuffers          map[int]int
 }
@@ -775,7 +782,6 @@ func (p *plannerConfiguration) setPathExit(path string) {
 			return
 		}
 	}
-	return
 }
 
 func (p *plannerConfiguration) hasPathPrefix(prefix string) bool {
@@ -880,11 +886,12 @@ func (c *configurationVisitor) EnterField(ref int) {
 				},
 				dataSourceConfiguration: config,
 			})
-			c.fetches[ref] = objectFetchConfiguration{
+			c.fetches = append(c.fetches, objectFetchConfiguration{
 				bufferID:       bufferID,
 				planner:        planner,
 				isSubscription: isSubscription,
-			}
+				fieldRef:       ref,
+			})
 			return
 		}
 	}
@@ -911,11 +918,9 @@ func (c *configurationVisitor) EnterDocument(operation, definition *ast.Document
 		c.planners = c.planners[:0]
 	}
 	if c.fetches == nil {
-		c.fetches = map[int]objectFetchConfiguration{}
+		c.fetches = []objectFetchConfiguration{}
 	} else {
-		for i := range c.fetches {
-			delete(c.fetches, i)
-		}
+		c.fetches = c.fetches[:0]
 	}
 	if c.fieldBuffers == nil {
 		c.fieldBuffers = map[int]int{}

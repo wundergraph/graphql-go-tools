@@ -17,7 +17,7 @@ import (
 )
 
 type Planner struct {
-	client              httpclient.Client
+	client              httpclient.Client //nolint
 	v                   *plan.Visitor
 	config              Configuration
 	rootField           int

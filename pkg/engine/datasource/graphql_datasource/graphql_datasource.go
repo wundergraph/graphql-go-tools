@@ -389,7 +389,7 @@ func (p *Planner) configureFieldArgumentSource(upstreamFieldRef, downstreamField
 	variableDefinitionType := p.visitor.Operation.VariableDefinitions[variableDefinition].Type
 	wrapValueInQuotes := p.visitor.Operation.TypeValueNeedsQuotes(variableDefinitionType, p.visitor.Definition)
 
-	contextVariableName, exists := p.variables.AddVariable(&resolve.ContextVariable{Path: append([]string{variableNameStr})}, wrapValueInQuotes)
+	contextVariableName, exists := p.variables.AddVariable(&resolve.ContextVariable{Path: []string{variableNameStr}}, wrapValueInQuotes)
 	variableValueRef, argRef := p.upstreamOperation.AddVariableValueArgument([]byte(argumentName), variableName) // add the argument to the field, but don't redefine it
 	p.upstreamOperation.AddArgumentToField(upstreamFieldRef, argRef)
 

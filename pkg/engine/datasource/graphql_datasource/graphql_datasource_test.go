@@ -994,6 +994,7 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 	}))
+	federationFactory := &Factory{}
 	t.Run("federation", RunTest(federationTestSchema,
 		`	query MyReviews {
 						me {
@@ -1218,7 +1219,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							ServiceSDL: "extend type Query {me: User} type User @key(fields: \"id\"){ id: ID! username: String!}",
 						},
 					}),
-					Factory: &Factory{},
+					Factory: federationFactory,
 				},
 				{
 					RootNodes: []plan.TypeField{
@@ -1253,7 +1254,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							ServiceSDL: "extend type Query {topProducts(first: Int = 5): [Product]} type Product @key(fields: \"upc\") {upc: String! name: String! price: Int!}",
 						},
 					}),
-					Factory: &Factory{},
+					Factory: federationFactory,
 				},
 				{
 					RootNodes: []plan.TypeField{
@@ -1280,7 +1281,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							FieldNames: []string{"upc"},
 						},
 					},
-					Factory: &Factory{},
+					Factory: federationFactory,
 					Custom: ConfigJson(Configuration{
 						Fetch: FetchConfiguration{
 							URL: "http://review.service",
