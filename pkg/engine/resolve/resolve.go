@@ -1009,7 +1009,7 @@ func (r *Resolver) resolveSingleFetch(ctx *Context, fetch *SingleFetch, prepared
 type Object struct {
 	Nullable bool
 	Path     []string
-	Fields   []Field
+	Fields   []*Field
 	Fetch    Fetch
 }
 

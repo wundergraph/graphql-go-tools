@@ -18,79 +18,65 @@ func TestProcessDefer_Process(t *testing.T) {
 
 	original := &plan.SynchronousResponsePlan{
 		FlushInterval: 500,
-		Response: resolve.GraphQLResponse{
+		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
 					DataSource: userService,
 					BufferId:   0,
 				},
-				FieldSets: []resolve.FieldSet{
+				Fields: []*resolve.Field{
 					{
 						HasBuffer: true,
 						BufferID:  0,
-						Fields: []resolve.Field{
-							{
-								Name: []byte("users"),
-								Value: &resolve.Array{
-									Item: &resolve.Object{
-										Fetch: &resolve.SingleFetch{
-											BufferId:   1,
-											DataSource: postsService,
-											InputTemplate: resolve.InputTemplate{
-												Segments: []resolve.TemplateSegment{
-													{
-														SegmentType:        resolve.VariableSegmentType,
-														VariableSource:     resolve.VariableSourceObject,
-														VariableSourcePath: []string{"id"},
-													},
-												},
+						Name:      []byte("users"),
+						Value: &resolve.Array{
+							Item: &resolve.Object{
+								Fetch: &resolve.SingleFetch{
+									BufferId:   1,
+									DataSource: postsService,
+									InputTemplate: resolve.InputTemplate{
+										Segments: []resolve.TemplateSegment{
+											{
+												SegmentType:        resolve.VariableSegmentType,
+												VariableSource:     resolve.VariableSourceObject,
+												VariableSourcePath: []string{"id"},
 											},
 										},
-										FieldSets: []resolve.FieldSet{
-											{
-												Fields: []resolve.Field{
+									},
+								},
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("id"),
+										Value: &resolve.Integer{
+											Path: []string{"id"},
+										},
+									},
+									{
+										Name: []byte("name"),
+										Value: &resolve.String{
+											Path: []string{"name"},
+										},
+									},
+
+									{
+
+										HasBuffer: true,
+										BufferID:  1,
+										Name:      []byte("posts"),
+										Defer:     &resolve.DeferField{},
+										Value: &resolve.Array{
+											Item: &resolve.Object{
+												Fields: []*resolve.Field{
 													{
-														Name: []byte("id"),
-														Value: &resolve.Integer{
-															Path: []string{"id"},
-														},
-													},
-													{
-														Name: []byte("name"),
+														Name: []byte("title"),
 														Value: &resolve.String{
-															Path: []string{"name"},
+															Path: []string{"title"},
 														},
 													},
-												},
-											},
-											{
-												HasBuffer: true,
-												BufferID:  1,
-												Fields: []resolve.Field{
 													{
-														Name:  []byte("posts"),
-														Defer: &resolve.DeferField{},
-														Value: &resolve.Array{
-															Item: &resolve.Object{
-																FieldSets: []resolve.FieldSet{
-																	{
-																		Fields: []resolve.Field{
-																			{
-																				Name: []byte("title"),
-																				Value: &resolve.String{
-																					Path: []string{"title"},
-																				},
-																			},
-																			{
-																				Name: []byte("body"),
-																				Value: &resolve.String{
-																					Path: []string{"body"},
-																				},
-																			},
-																		},
-																	},
-																},
-															},
+														Name: []byte("body"),
+														Value: &resolve.String{
+															Path: []string{"body"},
 														},
 													},
 												},
@@ -116,44 +102,34 @@ func TestProcessDefer_Process(t *testing.T) {
 						DataSource: userService,
 						BufferId:   0,
 					},
-					FieldSets: []resolve.FieldSet{
+					Fields: []*resolve.Field{
 						{
 							HasBuffer: true,
 							BufferID:  0,
-							Fields: []resolve.Field{
-								{
-									Name: []byte("users"),
-									Value: &resolve.Array{
-										Item: &resolve.Object{
-											FieldSets: []resolve.FieldSet{
-												{
-													Fields: []resolve.Field{
-														{
-															Name: []byte("id"),
-															Value: &resolve.Integer{
-																Path: []string{"id"},
-															},
-														},
-														{
-															Name: []byte("name"),
-															Value: &resolve.String{
-																Path: []string{"name"},
-															},
-														},
-													},
-												},
-												{
-													Fields: []resolve.Field{
-														{
-															Name:  []byte("posts"),
-															Value: &resolve.Null{
-																Defer: resolve.Defer{
-																	Enabled:    true,
-																	PatchIndex: 0,
-																},
-															},
-														},
-													},
+							Name:      []byte("users"),
+							Value: &resolve.Array{
+								Item: &resolve.Object{
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("id"),
+											Value: &resolve.Integer{
+												Path: []string{"id"},
+											},
+										},
+										{
+											Name: []byte("name"),
+											Value: &resolve.String{
+												Path: []string{"name"},
+											},
+										},
+
+										{
+
+											Name: []byte("posts"),
+											Value: &resolve.Null{
+												Defer: resolve.Defer{
+													Enabled:    true,
+													PatchIndex: 0,
 												},
 											},
 										},
@@ -181,21 +157,17 @@ func TestProcessDefer_Process(t *testing.T) {
 					},
 					Value: &resolve.Array{
 						Item: &resolve.Object{
-							FieldSets: []resolve.FieldSet{
+							Fields: []*resolve.Field{
 								{
-									Fields: []resolve.Field{
-										{
-											Name: []byte("title"),
-											Value: &resolve.String{
-												Path: []string{"title"},
-											},
-										},
-										{
-											Name: []byte("body"),
-											Value: &resolve.String{
-												Path: []string{"body"},
-											},
-										},
+									Name: []byte("title"),
+									Value: &resolve.String{
+										Path: []string{"title"},
+									},
+								},
+								{
+									Name: []byte("body"),
+									Value: &resolve.String{
+										Path: []string{"body"},
 									},
 								},
 							},
@@ -220,120 +192,99 @@ func TestProcessDefer_Process_Nested(t *testing.T) {
 
 	original := &plan.SynchronousResponsePlan{
 		FlushInterval: 500,
-		Response: resolve.GraphQLResponse{
+		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
 					DataSource: userService,
 					BufferId:   0,
 				},
-				FieldSets: []resolve.FieldSet{
+				Fields: []*resolve.Field{
 					{
 						HasBuffer: true,
 						BufferID:  0,
-						Fields: []resolve.Field{
-							{
-								Name: []byte("users"),
-								Value: &resolve.Array{
-									Item: &resolve.Object{
-										Fetch: &resolve.SingleFetch{
-											BufferId:   1,
-											DataSource: postsService,
-											InputTemplate: resolve.InputTemplate{
-												Segments: []resolve.TemplateSegment{
-													{
-														SegmentType:        resolve.VariableSegmentType,
-														VariableSource:     resolve.VariableSourceObject,
-														VariableSourcePath: []string{"id"},
-													},
-												},
+						Name:      []byte("users"),
+						Value: &resolve.Array{
+							Item: &resolve.Object{
+								Fetch: &resolve.SingleFetch{
+									BufferId:   1,
+									DataSource: postsService,
+									InputTemplate: resolve.InputTemplate{
+										Segments: []resolve.TemplateSegment{
+											{
+												SegmentType:        resolve.VariableSegmentType,
+												VariableSource:     resolve.VariableSourceObject,
+												VariableSourcePath: []string{"id"},
 											},
 										},
-										FieldSets: []resolve.FieldSet{
-											{
-												Fields: []resolve.Field{
-													{
-														Name: []byte("id"),
-														Value: &resolve.Integer{
-															Path: []string{"id"},
-														},
-													},
-													{
-														Name: []byte("name"),
-														Value: &resolve.String{
-															Path: []string{"name"},
+									},
+								},
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("id"),
+										Value: &resolve.Integer{
+											Path: []string{"id"},
+										},
+									},
+									{
+										Name: []byte("name"),
+										Value: &resolve.String{
+											Path: []string{"name"},
+										},
+									},
+
+									{
+										HasBuffer: true,
+										BufferID:  1,
+										Name:      []byte("posts"),
+										Defer:     &resolve.DeferField{},
+										Value: &resolve.Array{
+											Item: &resolve.Object{
+												Fetch: &resolve.SingleFetch{
+													BufferId:   2,
+													DataSource: commentsService,
+													InputTemplate: resolve.InputTemplate{
+														Segments: []resolve.TemplateSegment{
+															{
+																SegmentType:        resolve.VariableSegmentType,
+																VariableSource:     resolve.VariableSourceObject,
+																VariableSourcePath: []string{"id"},
+															},
 														},
 													},
 												},
-											},
-											{
-												HasBuffer: true,
-												BufferID:  1,
-												Fields: []resolve.Field{
+												Fields: []*resolve.Field{
 													{
-														Name:  []byte("posts"),
-														Defer: &resolve.DeferField{},
+														Name: []byte("title"),
+														Value: &resolve.String{
+															Path: []string{"title"},
+														},
+													},
+													{
+														Name: []byte("body"),
+														Value: &resolve.String{
+															Path: []string{"body"},
+														},
+													},
+
+													{
+
+														HasBuffer: true,
+														BufferID:  2,
+														Name:      []byte("comments"),
+														Defer:     &resolve.DeferField{},
 														Value: &resolve.Array{
 															Item: &resolve.Object{
-																Fetch: &resolve.SingleFetch{
-																	BufferId:   2,
-																	DataSource: commentsService,
-																	InputTemplate: resolve.InputTemplate{
-																		Segments: []resolve.TemplateSegment{
-																			{
-																				SegmentType:        resolve.VariableSegmentType,
-																				VariableSource:     resolve.VariableSourceObject,
-																				VariableSourcePath: []string{"id"},
-																			},
-																		},
-																	},
-																},
-																FieldSets: []resolve.FieldSet{
+																Fields: []*resolve.Field{
 																	{
-																		Fields: []resolve.Field{
-																			{
-																				Name: []byte("title"),
-																				Value: &resolve.String{
-																					Path: []string{"title"},
-																				},
-																			},
-																			{
-																				Name: []byte("body"),
-																				Value: &resolve.String{
-																					Path: []string{"body"},
-																				},
-																			},
+																		Name: []byte("user"),
+																		Value: &resolve.String{
+																			Path: []string{"user"},
 																		},
 																	},
 																	{
-																		HasBuffer: true,
-																		BufferID:  2,
-																		Fields: []resolve.Field{
-																			{
-																				Name:  []byte("comments"),
-																				Defer: &resolve.DeferField{},
-																				Value: &resolve.Array{
-																					Item: &resolve.Object{
-																						FieldSets: []resolve.FieldSet{
-																							{
-																								Fields: []resolve.Field{
-																									{
-																										Name: []byte("user"),
-																										Value: &resolve.String{
-																											Path: []string{"user"},
-																										},
-																									},
-																									{
-																										Name: []byte("text"),
-																										Value: &resolve.String{
-																											Path: []string{"text"},
-																										},
-																									},
-																								},
-																							},
-																						},
-																					},
-																				},
-																			},
+																		Name: []byte("text"),
+																		Value: &resolve.String{
+																			Path: []string{"text"},
 																		},
 																	},
 																},
@@ -363,44 +314,33 @@ func TestProcessDefer_Process_Nested(t *testing.T) {
 						DataSource: userService,
 						BufferId:   0,
 					},
-					FieldSets: []resolve.FieldSet{
+					Fields: []*resolve.Field{
 						{
 							HasBuffer: true,
 							BufferID:  0,
-							Fields: []resolve.Field{
-								{
-									Name: []byte("users"),
-									Value: &resolve.Array{
-										Item: &resolve.Object{
-											FieldSets: []resolve.FieldSet{
-												{
-													Fields: []resolve.Field{
-														{
-															Name: []byte("id"),
-															Value: &resolve.Integer{
-																Path: []string{"id"},
-															},
-														},
-														{
-															Name: []byte("name"),
-															Value: &resolve.String{
-																Path: []string{"name"},
-															},
-														},
-													},
-												},
-												{
-													Fields: []resolve.Field{
-														{
-															Name:  []byte("posts"),
-															Value: &resolve.Null{
-																Defer: resolve.Defer{
-																	Enabled:    true,
-																	PatchIndex: 0,
-																},
-															},
-														},
-													},
+							Name:      []byte("users"),
+							Value: &resolve.Array{
+								Item: &resolve.Object{
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("id"),
+											Value: &resolve.Integer{
+												Path: []string{"id"},
+											},
+										},
+										{
+											Name: []byte("name"),
+											Value: &resolve.String{
+												Path: []string{"name"},
+											},
+										},
+										{
+
+											Name: []byte("posts"),
+											Value: &resolve.Null{
+												Defer: resolve.Defer{
+													Enabled:    true,
+													PatchIndex: 0,
 												},
 											},
 										},
@@ -428,33 +368,26 @@ func TestProcessDefer_Process_Nested(t *testing.T) {
 					},
 					Value: &resolve.Array{
 						Item: &resolve.Object{
-							FieldSets: []resolve.FieldSet{
+							Fields: []*resolve.Field{
 								{
-									Fields: []resolve.Field{
-										{
-											Name: []byte("title"),
-											Value: &resolve.String{
-												Path: []string{"title"},
-											},
-										},
-										{
-											Name: []byte("body"),
-											Value: &resolve.String{
-												Path: []string{"body"},
-											},
-										},
+									Name: []byte("title"),
+									Value: &resolve.String{
+										Path: []string{"title"},
 									},
 								},
 								{
-									Fields: []resolve.Field{
-										{
-											Name:  []byte("comments"),
-											Value: &resolve.Null{
-												Defer: resolve.Defer{
-													Enabled:    true,
-													PatchIndex: 1,
-												},
-											},
+									Name: []byte("body"),
+									Value: &resolve.String{
+										Path: []string{"body"},
+									},
+								},
+								{
+
+									Name: []byte("comments"),
+									Value: &resolve.Null{
+										Defer: resolve.Defer{
+											Enabled:    true,
+											PatchIndex: 1,
 										},
 									},
 								},
@@ -479,21 +412,17 @@ func TestProcessDefer_Process_Nested(t *testing.T) {
 					},
 					Value: &resolve.Array{
 						Item: &resolve.Object{
-							FieldSets: []resolve.FieldSet{
+							Fields: []*resolve.Field{
 								{
-									Fields: []resolve.Field{
-										{
-											Name: []byte("user"),
-											Value: &resolve.String{
-												Path: []string{"user"},
-											},
-										},
-										{
-											Name: []byte("text"),
-											Value: &resolve.String{
-												Path: []string{"text"},
-											},
-										},
+									Name: []byte("user"),
+									Value: &resolve.String{
+										Path: []string{"user"},
+									},
+								},
+								{
+									Name: []byte("text"),
+									Value: &resolve.String{
+										Path: []string{"text"},
 									},
 								},
 							},
@@ -517,104 +446,88 @@ func TestProcessDefer_Process_KeepFetchIfUsedUndeferred(t *testing.T) {
 
 	original := &plan.SynchronousResponsePlan{
 		FlushInterval: 500,
-		Response: resolve.GraphQLResponse{
+		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
 					DataSource: userService,
 					BufferId:   0,
 				},
-				FieldSets: []resolve.FieldSet{
+				Fields: []*resolve.Field{
 					{
 						HasBuffer: true,
 						BufferID:  0,
-						Fields: []resolve.Field{
-							{
-								Name: []byte("users"),
-								Value: &resolve.Array{
-									Item: &resolve.Object{
-										Fetch: &resolve.SingleFetch{
-											BufferId:   1,
-											DataSource: postsService,
-											InputTemplate: resolve.InputTemplate{
-												Segments: []resolve.TemplateSegment{
+						Name:      []byte("users"),
+						Value: &resolve.Array{
+							Item: &resolve.Object{
+								Fetch: &resolve.SingleFetch{
+									BufferId:   1,
+									DataSource: postsService,
+									InputTemplate: resolve.InputTemplate{
+										Segments: []resolve.TemplateSegment{
+											{
+												SegmentType:        resolve.VariableSegmentType,
+												VariableSource:     resolve.VariableSourceObject,
+												VariableSourcePath: []string{"id"},
+											},
+										},
+									},
+								},
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("id"),
+										Value: &resolve.Integer{
+											Path: []string{"id"},
+										},
+									},
+									{
+										Name: []byte("name"),
+										Value: &resolve.String{
+											Path: []string{"name"},
+										},
+									},
+
+									{
+
+										HasBuffer: true,
+										BufferID:  1,
+										Name:      []byte("posts"),
+										Defer:     &resolve.DeferField{},
+										Value: &resolve.Array{
+											Item: &resolve.Object{
+												Fields: []*resolve.Field{
 													{
-														SegmentType:        resolve.VariableSegmentType,
-														VariableSource:     resolve.VariableSourceObject,
-														VariableSourcePath: []string{"id"},
+														Name: []byte("title"),
+														Value: &resolve.String{
+															Path: []string{"title"},
+														},
+													},
+													{
+														Name: []byte("body"),
+														Value: &resolve.String{
+															Path: []string{"body"},
+														},
 													},
 												},
 											},
 										},
-										FieldSets: []resolve.FieldSet{
-											{
-												Fields: []resolve.Field{
+									},
+									{
+										HasBuffer: true,
+										BufferID:  1,
+										Name:      []byte("no_defer_posts"),
+										Value: &resolve.Array{
+											Item: &resolve.Object{
+												Fields: []*resolve.Field{
 													{
-														Name: []byte("id"),
-														Value: &resolve.Integer{
-															Path: []string{"id"},
-														},
-													},
-													{
-														Name: []byte("name"),
+														Name: []byte("title"),
 														Value: &resolve.String{
-															Path: []string{"name"},
-														},
-													},
-												},
-											},
-											{
-												HasBuffer: true,
-												BufferID:  1,
-												Fields: []resolve.Field{
-													{
-														Name:  []byte("posts"),
-														Defer: &resolve.DeferField{},
-														Value: &resolve.Array{
-															Item: &resolve.Object{
-																FieldSets: []resolve.FieldSet{
-																	{
-																		Fields: []resolve.Field{
-																			{
-																				Name: []byte("title"),
-																				Value: &resolve.String{
-																					Path: []string{"title"},
-																				},
-																			},
-																			{
-																				Name: []byte("body"),
-																				Value: &resolve.String{
-																					Path: []string{"body"},
-																				},
-																			},
-																		},
-																	},
-																},
-															},
+															Path: []string{"title"},
 														},
 													},
 													{
-														Name: []byte("no_defer_posts"),
-														Value: &resolve.Array{
-															Item: &resolve.Object{
-																FieldSets: []resolve.FieldSet{
-																	{
-																		Fields: []resolve.Field{
-																			{
-																				Name: []byte("title"),
-																				Value: &resolve.String{
-																					Path: []string{"title"},
-																				},
-																			},
-																			{
-																				Name: []byte("body"),
-																				Value: &resolve.String{
-																					Path: []string{"body"},
-																				},
-																			},
-																		},
-																	},
-																},
-															},
+														Name: []byte("body"),
+														Value: &resolve.String{
+															Path: []string{"body"},
 														},
 													},
 												},
@@ -640,81 +553,68 @@ func TestProcessDefer_Process_KeepFetchIfUsedUndeferred(t *testing.T) {
 						DataSource: userService,
 						BufferId:   0,
 					},
-					FieldSets: []resolve.FieldSet{
+					Fields: []*resolve.Field{
 						{
 							HasBuffer: true,
 							BufferID:  0,
-							Fields: []resolve.Field{
-								{
-									Name: []byte("users"),
-									Value: &resolve.Array{
-										Item: &resolve.Object{
-											Fetch: &resolve.SingleFetch{
-												BufferId:   1,
-												DataSource: postsService,
-												InputTemplate: resolve.InputTemplate{
-													Segments: []resolve.TemplateSegment{
-														{
-															SegmentType:        resolve.VariableSegmentType,
-															VariableSource:     resolve.VariableSourceObject,
-															VariableSourcePath: []string{"id"},
-														},
-													},
+							Name:      []byte("users"),
+							Value: &resolve.Array{
+								Item: &resolve.Object{
+									Fetch: &resolve.SingleFetch{
+										BufferId:   1,
+										DataSource: postsService,
+										InputTemplate: resolve.InputTemplate{
+											Segments: []resolve.TemplateSegment{
+												{
+													SegmentType:        resolve.VariableSegmentType,
+													VariableSource:     resolve.VariableSourceObject,
+													VariableSourcePath: []string{"id"},
 												},
 											},
-											FieldSets: []resolve.FieldSet{
-												{
-													Fields: []resolve.Field{
-														{
-															Name: []byte("id"),
-															Value: &resolve.Integer{
-																Path: []string{"id"},
-															},
-														},
-														{
-															Name: []byte("name"),
-															Value: &resolve.String{
-																Path: []string{"name"},
-															},
-														},
-													},
+										},
+									},
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("id"),
+											Value: &resolve.Integer{
+												Path: []string{"id"},
+											},
+										},
+										{
+											Name: []byte("name"),
+											Value: &resolve.String{
+												Path: []string{"name"},
+											},
+										},
+
+										{
+											HasBuffer: true,
+											BufferID:  1,
+											Name:      []byte("posts"),
+											Value: &resolve.Null{
+												Defer: resolve.Defer{
+													Enabled:    true,
+													PatchIndex: 0,
 												},
-												{
-													HasBuffer: true,
-													BufferID:  1,
-													Fields: []resolve.Field{
+											},
+										},
+										{
+											HasBuffer: true,
+											BufferID:  1,
+											Name:      []byte("no_defer_posts"),
+											Value: &resolve.Array{
+												Item: &resolve.Object{
+													Fields: []*resolve.Field{
 														{
-															Name:  []byte("posts"),
-															Value: &resolve.Null{
-																Defer: resolve.Defer{
-																	Enabled:    true,
-																	PatchIndex: 0,
-																},
+															Name: []byte("title"),
+															Value: &resolve.String{
+																Path: []string{"title"},
 															},
 														},
 														{
-															Name: []byte("no_defer_posts"),
-															Value: &resolve.Array{
-																Item: &resolve.Object{
-																	FieldSets: []resolve.FieldSet{
-																		{
-																			Fields: []resolve.Field{
-																				{
-																					Name: []byte("title"),
-																					Value: &resolve.String{
-																						Path: []string{"title"},
-																					},
-																				},
-																				{
-																					Name: []byte("body"),
-																					Value: &resolve.String{
-																						Path: []string{"body"},
-																					},
-																				},
-																			},
-																		},
-																	},
-																},
+															Name: []byte("body"),
+															Value: &resolve.String{
+																Path: []string{"body"},
 															},
 														},
 													},
@@ -733,21 +633,17 @@ func TestProcessDefer_Process_KeepFetchIfUsedUndeferred(t *testing.T) {
 					Operation: literal.REPLACE,
 					Value: &resolve.Array{
 						Item: &resolve.Object{
-							FieldSets: []resolve.FieldSet{
+							Fields: []*resolve.Field{
 								{
-									Fields: []resolve.Field{
-										{
-											Name: []byte("title"),
-											Value: &resolve.String{
-												Path: []string{"title"},
-											},
-										},
-										{
-											Name: []byte("body"),
-											Value: &resolve.String{
-												Path: []string{"body"},
-											},
-										},
+									Name: []byte("title"),
+									Value: &resolve.String{
+										Path: []string{"title"},
+									},
+								},
+								{
+									Name: []byte("body"),
+									Value: &resolve.String{
+										Path: []string{"body"},
 									},
 								},
 							},
@@ -771,87 +667,73 @@ func TestProcessDefer_Process_ParallelFetch(t *testing.T) {
 
 	original := &plan.SynchronousResponsePlan{
 		FlushInterval: 500,
-		Response: resolve.GraphQLResponse{
+		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
 					DataSource: userService,
 					BufferId:   0,
 				},
-				FieldSets: []resolve.FieldSet{
+				Fields: []*resolve.Field{
 					{
 						HasBuffer: true,
 						BufferID:  0,
-						Fields: []resolve.Field{
-							{
-								Name: []byte("users"),
-								Value: &resolve.Array{
-									Item: &resolve.Object{
-										Fetch: &resolve.ParallelFetch{
-											Fetches: []*resolve.SingleFetch{
-												{
-													BufferId:   1,
-													DataSource: postsService,
-													InputTemplate: resolve.InputTemplate{
-														Segments: []resolve.TemplateSegment{
-															{
-																SegmentType:        resolve.VariableSegmentType,
-																VariableSource:     resolve.VariableSourceObject,
-																VariableSourcePath: []string{"id"},
-															},
-														},
+						Name:      []byte("users"),
+						Value: &resolve.Array{
+							Item: &resolve.Object{
+								Fetch: &resolve.ParallelFetch{
+									Fetches: []*resolve.SingleFetch{
+										{
+											BufferId:   1,
+											DataSource: postsService,
+											InputTemplate: resolve.InputTemplate{
+												Segments: []resolve.TemplateSegment{
+													{
+														SegmentType:        resolve.VariableSegmentType,
+														VariableSource:     resolve.VariableSourceObject,
+														VariableSourcePath: []string{"id"},
 													},
-												},
-												{
-													BufferId:   2,
-													DataSource: postsService,
 												},
 											},
 										},
-										FieldSets: []resolve.FieldSet{
-											{
-												Fields: []resolve.Field{
+										{
+											BufferId:   2,
+											DataSource: postsService,
+										},
+									},
+								},
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("id"),
+										Value: &resolve.Integer{
+											Path: []string{"id"},
+										},
+									},
+									{
+										Name: []byte("name"),
+										Value: &resolve.String{
+											Path: []string{"name"},
+										},
+									},
+
+									{
+
+										HasBuffer: true,
+										BufferID:  1,
+										Name:      []byte("posts"),
+										Defer:     &resolve.DeferField{},
+										Value: &resolve.Array{
+											Item: &resolve.Object{
+												Fields: []*resolve.Field{
 													{
-														Name: []byte("id"),
-														Value: &resolve.Integer{
-															Path: []string{"id"},
-														},
-													},
-													{
-														Name: []byte("name"),
+														Name: []byte("title"),
 														Value: &resolve.String{
-															Path: []string{"name"},
+															Path: []string{"title"},
 														},
 													},
-												},
-											},
-											{
-												HasBuffer: true,
-												BufferID:  1,
-												Fields: []resolve.Field{
 													{
-														Name:  []byte("posts"),
-														Defer: &resolve.DeferField{},
-														Value: &resolve.Array{
-															Item: &resolve.Object{
-																FieldSets: []resolve.FieldSet{
-																	{
-																		Fields: []resolve.Field{
-																			{
-																				Name: []byte("title"),
-																				Value: &resolve.String{
-																					Path: []string{"title"},
-																				},
-																			},
-																			{
-																				Name: []byte("body"),
-																				Value: &resolve.String{
-																					Path: []string{"body"},
-																				},
-																			},
-																		},
-																	},
-																},
-															},
+														Name: []byte("body"),
+														Value: &resolve.String{
+															Path: []string{"body"},
 														},
 													},
 												},
@@ -877,48 +759,36 @@ func TestProcessDefer_Process_ParallelFetch(t *testing.T) {
 						DataSource: userService,
 						BufferId:   0,
 					},
-					FieldSets: []resolve.FieldSet{
+					Fields: []*resolve.Field{
 						{
 							HasBuffer: true,
 							BufferID:  0,
-							Fields: []resolve.Field{
-								{
-									Name: []byte("users"),
-									Value: &resolve.Array{
-										Item: &resolve.Object{
-											Fetch: &resolve.SingleFetch{
-												BufferId:   2,
-												DataSource: postsService,
+							Name:      []byte("users"),
+							Value: &resolve.Array{
+								Item: &resolve.Object{
+									Fetch: &resolve.SingleFetch{
+										BufferId:   2,
+										DataSource: postsService,
+									},
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("id"),
+											Value: &resolve.Integer{
+												Path: []string{"id"},
 											},
-											FieldSets: []resolve.FieldSet{
-												{
-													Fields: []resolve.Field{
-														{
-															Name: []byte("id"),
-															Value: &resolve.Integer{
-																Path: []string{"id"},
-															},
-														},
-														{
-															Name: []byte("name"),
-															Value: &resolve.String{
-																Path: []string{"name"},
-															},
-														},
-													},
-												},
-												{
-													Fields: []resolve.Field{
-														{
-															Name:  []byte("posts"),
-															Value: &resolve.Null{
-																Defer: resolve.Defer{
-																	Enabled:    true,
-																	PatchIndex: 0,
-																},
-															},
-														},
-													},
+										},
+										{
+											Name: []byte("name"),
+											Value: &resolve.String{
+												Path: []string{"name"},
+											},
+										},
+										{
+											Name: []byte("posts"),
+											Value: &resolve.Null{
+												Defer: resolve.Defer{
+													Enabled:    true,
+													PatchIndex: 0,
 												},
 											},
 										},
@@ -946,21 +816,17 @@ func TestProcessDefer_Process_ParallelFetch(t *testing.T) {
 					},
 					Value: &resolve.Array{
 						Item: &resolve.Object{
-							FieldSets: []resolve.FieldSet{
+							Fields: []*resolve.Field{
 								{
-									Fields: []resolve.Field{
-										{
-											Name: []byte("title"),
-											Value: &resolve.String{
-												Path: []string{"title"},
-											},
-										},
-										{
-											Name: []byte("body"),
-											Value: &resolve.String{
-												Path: []string{"body"},
-											},
-										},
+									Name: []byte("title"),
+									Value: &resolve.String{
+										Path: []string{"title"},
+									},
+								},
+								{
+									Name: []byte("body"),
+									Value: &resolve.String{
+										Path: []string{"body"},
 									},
 								},
 							},
@@ -984,78 +850,63 @@ func TestProcessDefer_Process_ShouldSkipWithoutDefer(t *testing.T) {
 
 	planFactory := func() plan.Plan {
 		return &plan.SynchronousResponsePlan{
-			Response: resolve.GraphQLResponse{
+			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
 						DataSource: userService,
 						BufferId:   0,
 					},
-					FieldSets: []resolve.FieldSet{
+					Fields: []*resolve.Field{
 						{
 							HasBuffer: true,
 							BufferID:  0,
-							Fields: []resolve.Field{
-								{
-									Name: []byte("users"),
-									Value: &resolve.Array{
-										Item: &resolve.Object{
-											Fetch: &resolve.SingleFetch{
-												BufferId:   1,
-												DataSource: postsService,
-												InputTemplate: resolve.InputTemplate{
-													Segments: []resolve.TemplateSegment{
-														{
-															SegmentType:        resolve.VariableSegmentType,
-															VariableSource:     resolve.VariableSourceObject,
-															VariableSourcePath: []string{"id"},
-														},
-													},
+							Name:      []byte("users"),
+							Value: &resolve.Array{
+								Item: &resolve.Object{
+									Fetch: &resolve.SingleFetch{
+										BufferId:   1,
+										DataSource: postsService,
+										InputTemplate: resolve.InputTemplate{
+											Segments: []resolve.TemplateSegment{
+												{
+													SegmentType:        resolve.VariableSegmentType,
+													VariableSource:     resolve.VariableSourceObject,
+													VariableSourcePath: []string{"id"},
 												},
 											},
-											FieldSets: []resolve.FieldSet{
-												{
-													Fields: []resolve.Field{
+										},
+									},
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("id"),
+											Value: &resolve.Integer{
+												Path: []string{"id"},
+											},
+										},
+										{
+											Name: []byte("name"),
+											Value: &resolve.String{
+												Path: []string{"name"},
+											},
+										},
+
+										{
+											HasBuffer: true,
+											BufferID:  1,
+											Name:      []byte("non_deferred_posts"),
+											Value: &resolve.Array{
+												Item: &resolve.Object{
+													Fields: []*resolve.Field{
 														{
-															Name: []byte("id"),
-															Value: &resolve.Integer{
-																Path: []string{"id"},
-															},
-														},
-														{
-															Name: []byte("name"),
+															Name: []byte("title"),
 															Value: &resolve.String{
-																Path: []string{"name"},
+																Path: []string{"title"},
 															},
 														},
-													},
-												},
-												{
-													HasBuffer: true,
-													BufferID:  1,
-													Fields: []resolve.Field{
 														{
-															Name: []byte("non_deferred_posts"),
-															Value: &resolve.Array{
-																Item: &resolve.Object{
-																	FieldSets: []resolve.FieldSet{
-																		{
-																			Fields: []resolve.Field{
-																				{
-																					Name: []byte("title"),
-																					Value: &resolve.String{
-																						Path: []string{"title"},
-																					},
-																				},
-																				{
-																					Name: []byte("body"),
-																					Value: &resolve.String{
-																						Path: []string{"body"},
-																					},
-																				},
-																			},
-																		},
-																	},
-																},
+															Name: []byte("body"),
+															Value: &resolve.String{
+																Path: []string{"body"},
 															},
 														},
 													},

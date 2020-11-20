@@ -211,6 +211,7 @@ func TestKinds(t *testing.T) {
 			NodeKindInterfaceTypeExtension,
 			NodeKindUnionTypeDefinition,
 			NodeKindUnionTypeExtension,
+			NodeKindUnionMemberType,
 			NodeKindEnumTypeDefinition,
 			NodeKindEnumValueDefinition,
 			NodeKindEnumTypeExtension,
@@ -235,7 +236,7 @@ func TestKinds(t *testing.T) {
 		for _, t := range nodeKinds {
 			actualValues = append(actualValues, int(t))
 		}
-		assert.Equal(t, expectedArray(22, 28), actualValues)
+		assert.Equal(t, expectedArray(22, 29), actualValues)
 	})
 }
 

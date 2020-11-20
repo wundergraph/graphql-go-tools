@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	. "github.com/jensneuse/graphql-go-tools/pkg/engine/datasourcetesting"
-	plan "github.com/jensneuse/graphql-go-tools/pkg/engine/planv2"
+	plan "github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 )
 
@@ -39,7 +39,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					),
 				},
-				Fields: []resolve.Field{
+				Fields: []*resolve.Field{
 					{
 						HasBuffer: true,
 						BufferID:  0,
@@ -47,7 +47,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						Value: &resolve.Object{
 							Path:     []string{"droid"},
 							Nullable: true,
-							Fields: []resolve.Field{
+							Fields: []*resolve.Field{
 								{
 									Name: []byte("name"),
 									Value: &resolve.String{
@@ -67,7 +67,7 @@ func TestGraphQLDataSource(t *testing.T) {
 										Path:     []string{"friends"},
 										Item: &resolve.Object{
 											Nullable: true,
-											Fields: []resolve.Field{
+											Fields: []*resolve.Field{
 												{
 													Name: []byte("name"),
 													Value: &resolve.String{
@@ -94,7 +94,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						Value: &resolve.Object{
 							Path:     []string{"hero"},
 							Nullable: true,
-							Fields: []resolve.Field{
+							Fields: []*resolve.Field{
 								{
 									Name: []byte("name"),
 									Value: &resolve.String{
@@ -210,13 +210,13 @@ func TestGraphQLDataSource(t *testing.T) {
 						),
 						DisallowSingleFlight: true,
 					},
-					Fields: []resolve.Field{
+					Fields: []*resolve.Field{
 						{
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("addFriend"),
 							Value: &resolve.Object{
-								Fields: []resolve.Field{
+								Fields: []*resolve.Field{
 									{
 										Name: []byte("id"),
 										Value: &resolve.String{
@@ -308,7 +308,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						),
 						DisallowSingleFlight: false,
 					},
-					Fields: []resolve.Field{
+					Fields: []*resolve.Field{
 						{
 							BufferID:  0,
 							HasBuffer: true,
@@ -316,7 +316,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							Value: &resolve.Object{
 								Nullable: true,
 								Path:     []string{"foo"},
-								Fields: []resolve.Field{
+								Fields: []*resolve.Field{
 									{
 										Name: []byte("bar"),
 										Value: &resolve.String{
@@ -453,7 +453,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 					},
-					Fields: []resolve.Field{
+					Fields: []*resolve.Field{
 						{
 							BufferID:  0,
 							HasBuffer: true,
@@ -461,7 +461,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							Value: &resolve.Object{
 								Nullable: true,
 								Path:     []string{"serviceOne"},
-								Fields: []resolve.Field{
+								Fields: []*resolve.Field{
 									{
 										Name: []byte("fieldOne"),
 										Value: &resolve.String{
@@ -488,7 +488,7 @@ func TestGraphQLDataSource(t *testing.T) {
 										},
 									),
 								},
-								Fields: []resolve.Field{
+								Fields: []*resolve.Field{
 									{
 										Name: []byte("fieldTwo"),
 										Value: &resolve.String{
@@ -503,7 +503,7 @@ func TestGraphQLDataSource(t *testing.T) {
 										Value: &resolve.Object{
 											Nullable: true,
 											Path:     []string{"serviceOne"},
-											Fields: []resolve.Field{
+											Fields: []*resolve.Field{
 												{
 													Name: []byte("fieldOne"),
 													Value: &resolve.String{
@@ -523,7 +523,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							Value: &resolve.Object{
 								Nullable: true,
 								Path:     []string{"anotherServiceOne"},
-								Fields: []resolve.Field{
+								Fields: []*resolve.Field{
 									{
 										Name: []byte("fieldOne"),
 										Value: &resolve.String{
@@ -540,7 +540,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							Value: &resolve.Object{
 								Nullable: true,
 								Path:     []string{"secondServiceTwo"},
-								Fields: []resolve.Field{
+								Fields: []*resolve.Field{
 									{
 										Name: []byte("fieldTwo"),
 										Value: &resolve.String{
@@ -565,7 +565,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							Value: &resolve.Object{
 								Nullable: true,
 								Path:     []string{"reusingServiceOne"},
-								Fields: []resolve.Field{
+								Fields: []*resolve.Field{
 									{
 										Name: []byte("fieldOne"),
 										Value: &resolve.String{
@@ -727,7 +727,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						),
 						DisallowSingleFlight: true,
 					},
-					Fields: []resolve.Field{
+					Fields: []*resolve.Field{
 						{
 							HasBuffer: true,
 							BufferID:  0,
@@ -735,7 +735,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							Value: &resolve.Object{
 								Path:     []string{"addTask"},
 								Nullable: true,
-								Fields: []resolve.Field{
+								Fields: []*resolve.Field{
 									{
 										Name: []byte("task"),
 										Value: &resolve.Array{
@@ -743,7 +743,7 @@ func TestGraphQLDataSource(t *testing.T) {
 											Path:     []string{"task"},
 											Item: &resolve.Object{
 												Nullable: true,
-												Fields: []resolve.Field{
+												Fields: []*resolve.Field{
 													{
 														Name: []byte("id"),
 														Value: &resolve.String{
@@ -865,7 +865,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						),
 						DisallowSingleFlight: true,
 					},
-					Fields: []resolve.Field{
+					Fields: []*resolve.Field{
 						{
 							BufferID:  0,
 							HasBuffer: true,
@@ -873,13 +873,13 @@ func TestGraphQLDataSource(t *testing.T) {
 							Value: &resolve.Object{
 								Nullable: true,
 								Path:     []string{"createUser"},
-								Fields: []resolve.Field{
+								Fields: []*resolve.Field{
 									{
 										Name: []byte("user"),
 										Value: &resolve.Object{
 											Path:     []string{"user"},
 											Nullable: true,
-											Fields: []resolve.Field{
+											Fields: []*resolve.Field{
 												{
 													Name: []byte("id"),
 													Value: &resolve.String{
@@ -964,7 +964,7 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
-					Fields: []resolve.Field{
+					Fields: []*resolve.Field{
 						{
 							Name: []byte("remainingJedis"),
 							Value: &resolve.Integer{
@@ -1028,7 +1028,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						Input:      `{"method":"POST","url":"http://user.service","body":{"query":"{me {id username}}"}}`,
 						DataSource: &Source{},
 					},
-					Fields: []resolve.Field{
+					Fields: []*resolve.Field{
 						{
 							HasBuffer: true,
 							BufferID:  0,
@@ -1046,7 +1046,7 @@ func TestGraphQLDataSource(t *testing.T) {
 								},
 								Path:     []string{"me"},
 								Nullable: true,
-								Fields: []resolve.Field{
+								Fields: []*resolve.Field{
 									{
 										Name: []byte("id"),
 										Value: &resolve.String{
@@ -1068,7 +1068,7 @@ func TestGraphQLDataSource(t *testing.T) {
 											Nullable: true,
 											Item: &resolve.Object{
 												Nullable: true,
-												Fields: []resolve.Field{
+												Fields: []*resolve.Field{
 													{
 														Name: []byte("body"),
 														Value: &resolve.String{
@@ -1079,7 +1079,7 @@ func TestGraphQLDataSource(t *testing.T) {
 														Name: []byte("author"),
 														Value: &resolve.Object{
 															Path: []string{"author"},
-															Fields: []resolve.Field{
+															Fields: []*resolve.Field{
 																{
 																	Name: []byte("id"),
 																	Value: &resolve.String{
@@ -1123,7 +1123,7 @@ func TestGraphQLDataSource(t *testing.T) {
 																	},
 																},
 															},
-															Fields: []resolve.Field{
+															Fields: []*resolve.Field{
 																{
 																	HasBuffer: true,
 																	BufferID:  2,
@@ -1149,7 +1149,7 @@ func TestGraphQLDataSource(t *testing.T) {
 																		Path:     []string{"reviews"},
 																		Item: &resolve.Object{
 																			Nullable: true,
-																			Fields: []resolve.Field{
+																			Fields: []*resolve.Field{
 																				{
 																					Name: []byte("body"),
 																					Value: &resolve.String{
@@ -1160,7 +1160,7 @@ func TestGraphQLDataSource(t *testing.T) {
 																					Name: []byte("author"),
 																					Value: &resolve.Object{
 																						Path: []string{"author"},
-																						Fields: []resolve.Field{
+																						Fields: []*resolve.Field{
 																							{
 																								Name: []byte("id"),
 																								Value: &resolve.String{

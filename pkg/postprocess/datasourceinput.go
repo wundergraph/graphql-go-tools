@@ -31,10 +31,8 @@ func (d *ProcessDataSource) traverseNode(node resolve.Node) {
 	switch n := node.(type) {
 	case *resolve.Object:
 		d.traverseFetch(n.Fetch)
-		for i := range n.FieldSets {
-			for j := range n.FieldSets[i].Fields {
-				d.traverseNode(n.FieldSets[i].Fields[j].Value)
-			}
+		for i := range n.Fields {
+			d.traverseNode(n.Fields[i].Value)
 		}
 	case *resolve.Array:
 		d.traverseNode(n.Item)

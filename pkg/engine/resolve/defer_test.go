@@ -21,7 +21,7 @@ func TestWithoutDefer(t *testing.T) {
 	userService := fakeService(t, controller, "user", "./testdata/users.json",
 		"")
 	postsService := fakeService(t, controller, "posts", "./testdata/posts.json",
-		"1","2",
+		"1", "2",
 	)
 
 	res := &GraphQLResponse{
@@ -30,72 +30,57 @@ func TestWithoutDefer(t *testing.T) {
 				DataSource: userService,
 				BufferId:   0,
 			},
-			FieldSets: []FieldSet{
+			Fields: []*Field{
 				{
 					HasBuffer: true,
 					BufferID:  0,
-					Fields: []Field{
-						{
-							Name: []byte("users"),
-							Value: &Array{
-								Item: &Object{
-									Fetch: &SingleFetch{
-										BufferId:   1,
-										DataSource: postsService,
-										InputTemplate: InputTemplate{
-											Segments: []TemplateSegment{
-												{
-													SegmentType:        VariableSegmentType,
-													VariableSource:     VariableSourceObject,
-													VariableSourcePath: []string{"id"},
-												},
-											},
+					Name:      []byte("users"),
+					Value: &Array{
+						Item: &Object{
+							Fetch: &SingleFetch{
+								BufferId:   1,
+								DataSource: postsService,
+								InputTemplate: InputTemplate{
+									Segments: []TemplateSegment{
+										{
+											SegmentType:        VariableSegmentType,
+											VariableSource:     VariableSourceObject,
+											VariableSourcePath: []string{"id"},
 										},
 									},
-									FieldSets: []FieldSet{
-										{
-											Fields: []Field{
+								},
+							},
+							Fields: []*Field{
+								{
+									Name: []byte("id"),
+									Value: &Integer{
+										Path: []string{"id"},
+									},
+								},
+								{
+									Name: []byte("name"),
+									Value: &String{
+										Path: []string{"name"},
+									},
+								},
+								{
+
+									HasBuffer: true,
+									BufferID:  1,
+									Name:      []byte("posts"),
+									Value: &Array{
+										Item: &Object{
+											Fields: []*Field{
 												{
-													Name: []byte("id"),
-													Value: &Integer{
-														Path: []string{"id"},
-													},
-												},
-												{
-													Name: []byte("name"),
+													Name: []byte("title"),
 													Value: &String{
-														Path: []string{"name"},
+														Path: []string{"title"},
 													},
 												},
-											},
-										},
-										{
-											HasBuffer: true,
-											BufferID:  1,
-											Fields: []Field{
 												{
-													Name: []byte("posts"),
-													Value: &Array{
-														Item: &Object{
-															FieldSets: []FieldSet{
-																{
-																	Fields: []Field{
-																		{
-																			Name: []byte("title"),
-																			Value: &String{
-																				Path: []string{"title"},
-																			},
-																		},
-																		{
-																			Name: []byte("body"),
-																			Value: &String{
-																				Path: []string{"body"},
-																			},
-																		},
-																	},
-																},
-															},
-														},
+													Name: []byte("body"),
+													Value: &String{
+														Path: []string{"body"},
 													},
 												},
 											},
@@ -186,44 +171,32 @@ func TestDefer(t *testing.T) {
 					DataSource: userService,
 					BufferId:   0,
 				},
-				FieldSets: []FieldSet{
+				Fields: []*Field{
 					{
 						HasBuffer: true,
 						BufferID:  0,
-						Fields: []Field{
-							{
-								Name: []byte("users"),
-								Value: &Array{
-									Item: &Object{
-										FieldSets: []FieldSet{
-											{
-												Fields: []Field{
-													{
-														Name: []byte("id"),
-														Value: &Integer{
-															Path: []string{"id"},
-														},
-													},
-													{
-														Name: []byte("name"),
-														Value: &String{
-															Path: []string{"name"},
-														},
-													},
-												},
-											},
-											{
-												Fields: []Field{
-													{
-														Name: []byte("posts"),
-														Value: &Null{
-															Defer: Defer{
-																Enabled:    true,
-																PatchIndex: 0,
-															},
-														},
-													},
-												},
+						Name:      []byte("users"),
+						Value: &Array{
+							Item: &Object{
+								Fields: []*Field{
+									{
+										Name: []byte("id"),
+										Value: &Integer{
+											Path: []string{"id"},
+										},
+									},
+									{
+										Name: []byte("name"),
+										Value: &String{
+											Path: []string{"name"},
+										},
+									},
+									{
+										Name: []byte("posts"),
+										Value: &Null{
+											Defer: Defer{
+												Enabled:    true,
+												PatchIndex: 0,
 											},
 										},
 									},
@@ -251,21 +224,17 @@ func TestDefer(t *testing.T) {
 				},
 				Value: &Array{
 					Item: &Object{
-						FieldSets: []FieldSet{
+						Fields: []*Field{
 							{
-								Fields: []Field{
-									{
-										Name: []byte("title"),
-										Value: &String{
-											Path: []string{"title"},
-										},
-									},
-									{
-										Name: []byte("body"),
-										Value: &String{
-											Path: []string{"body"},
-										},
-									},
+								Name: []byte("title"),
+								Value: &String{
+									Path: []string{"title"},
+								},
+							},
+							{
+								Name: []byte("body"),
+								Value: &String{
+									Path: []string{"body"},
 								},
 							},
 						},
@@ -320,10 +289,10 @@ func (d *DiscardFlushWriter) Flush() {
 
 func BenchmarkDefer(b *testing.B) {
 
-	userData,err := ioutil.ReadFile("./testdata/users.json")
-	assert.NoError(b,err)
-	postsData,err := ioutil.ReadFile("./testdata/posts.json")
-	assert.NoError(b,err)
+	userData, err := ioutil.ReadFile("./testdata/users.json")
+	assert.NoError(b, err)
+	postsData, err := ioutil.ReadFile("./testdata/posts.json")
+	assert.NoError(b, err)
 
 	userService := FakeDataSource(string(userData))
 	postsService := FakeDataSource(string(postsData))
@@ -335,44 +304,32 @@ func BenchmarkDefer(b *testing.B) {
 					DataSource: userService,
 					BufferId:   0,
 				},
-				FieldSets: []FieldSet{
+				Fields: []*Field{
 					{
 						HasBuffer: true,
 						BufferID:  0,
-						Fields: []Field{
-							{
-								Name: []byte("users"),
-								Value: &Array{
-									Item: &Object{
-										FieldSets: []FieldSet{
-											{
-												Fields: []Field{
-													{
-														Name: []byte("id"),
-														Value: &Integer{
-															Path: []string{"id"},
-														},
-													},
-													{
-														Name: []byte("name"),
-														Value: &String{
-															Path: []string{"name"},
-														},
-													},
-												},
-											},
-											{
-												Fields: []Field{
-													{
-														Name: []byte("posts"),
-														Value: &Null{
-															Defer: Defer{
-																Enabled:    true,
-																PatchIndex: 0,
-															},
-														},
-													},
-												},
+						Name:      []byte("users"),
+						Value: &Array{
+							Item: &Object{
+								Fields: []*Field{
+									{
+										Name: []byte("id"),
+										Value: &Integer{
+											Path: []string{"id"},
+										},
+									},
+									{
+										Name: []byte("name"),
+										Value: &String{
+											Path: []string{"name"},
+										},
+									},
+									{
+										Name: []byte("posts"),
+										Value: &Null{
+											Defer: Defer{
+												Enabled:    true,
+												PatchIndex: 0,
 											},
 										},
 									},
@@ -399,21 +356,17 @@ func BenchmarkDefer(b *testing.B) {
 				},
 				Value: &Array{
 					Item: &Object{
-						FieldSets: []FieldSet{
+						Fields: []*Field{
 							{
-								Fields: []Field{
-									{
-										Name: []byte("title"),
-										Value: &String{
-											Path: []string{"title"},
-										},
-									},
-									{
-										Name: []byte("body"),
-										Value: &String{
-											Path: []string{"body"},
-										},
-									},
+								Name: []byte("title"),
+								Value: &String{
+									Path: []string{"title"},
+								},
+							},
+							{
+								Name: []byte("body"),
+								Value: &String{
+									Path: []string{"body"},
 								},
 							},
 						},
@@ -431,13 +384,13 @@ func BenchmarkDefer(b *testing.B) {
 	//writer := &TestFlushWriter{}
 
 	expect1, err := ioutil.ReadFile("./testdata/defer_1.json")
-	assert.NoError(b,err)
+	assert.NoError(b, err)
 	expect2, err := ioutil.ReadFile("./testdata/defer_2.json")
-	assert.NoError(b,err)
+	assert.NoError(b, err)
 	expect3, err := ioutil.ReadFile("./testdata/defer_3.json")
-	assert.NoError(b,err)
+	assert.NoError(b, err)
 
-	_,_,_ = expect1,expect2,expect3
+	_, _, _ = expect1, expect2, expect3
 
 	b.ResetTimer()
 	b.ReportAllocs()

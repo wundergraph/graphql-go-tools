@@ -10,7 +10,7 @@ import (
 
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
-	plan "github.com/jensneuse/graphql-go-tools/pkg/engine/planv2"
+	plan "github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/subscription/http_polling"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"

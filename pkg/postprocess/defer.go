@@ -41,7 +41,7 @@ func (p *ProcessDefer) synchronousResponse(pre *plan.SynchronousResponsePlan) pl
 	p.out = &plan.StreamingResponsePlan{
 		FlushInterval: pre.FlushInterval,
 		Response: resolve.GraphQLStreamingResponse{
-			InitialResponse: &pre.Response,
+			InitialResponse: pre.Response,
 			FlushInterval: pre.FlushInterval,
 		},
 	}
@@ -57,25 +57,23 @@ func (p *ProcessDefer) traverseNode(node resolve.Node) {
 	switch n := node.(type) {
 	case *resolve.Object:
 		p.objects = append(p.objects, n)
-		for i := range n.FieldSets {
-			for j := range n.FieldSets[i].Fields {
-				if n.FieldSets[i].Fields[j].Defer != nil {
-					p.updated = true
-					patchIndex, ok := p.createPatch(n, i, j)
-					if !ok {
-						continue
-					}
-					n.FieldSets[i].Fields[j].Defer = nil
-					n.FieldSets[i].Fields[j].Value = &resolve.Null{
-						Defer: resolve.Defer{
-							Enabled:    true,
-							PatchIndex: patchIndex,
-						},
-					}
-					p.traverseNode(p.out.Response.Patches[patchIndex].Value)
-				} else {
-					p.traverseNode(n.FieldSets[i].Fields[j].Value)
+		for i := range n.Fields {
+			if n.Fields[i].Defer != nil {
+				p.updated = true
+				patchIndex, ok := p.createPatch(n, i)
+				if !ok {
+					continue
 				}
+				n.Fields[i].Defer = nil
+				n.Fields[i].Value = &resolve.Null{
+					Defer: resolve.Defer{
+						Enabled:    true,
+						PatchIndex: patchIndex,
+					},
+				}
+				p.traverseNode(p.out.Response.Patches[patchIndex].Value)
+			} else {
+				p.traverseNode(n.Fields[i].Value)
 			}
 		}
 		p.objects = p.objects[:len(p.objects)-1]
@@ -84,11 +82,11 @@ func (p *ProcessDefer) traverseNode(node resolve.Node) {
 	}
 }
 
-func (p *ProcessDefer) createPatch(object *resolve.Object, fieldSet, field int) (int, bool) {
-	oldValue := object.FieldSets[fieldSet].Fields[field].Value
+func (p *ProcessDefer) createPatch(object *resolve.Object, field int) (int, bool) {
+	oldValue := object.Fields[field].Value
 	var patch *resolve.GraphQLResponsePatch
-	if object.FieldSets[fieldSet].HasBuffer && !p.bufferUsedOnNonDeferField(object, fieldSet, field, object.FieldSets[fieldSet].BufferID) {
-		patchFetch, ok := p.processFieldSetBuffer(object, fieldSet)
+	if object.Fields[field].HasBuffer && !p.bufferUsedOnNonDeferField(object, field, object.Fields[field].BufferID) {
+		patchFetch, ok := p.processFieldSetBuffer(object, field)
 		if !ok {
 			return 0, false
 		}
@@ -97,8 +95,8 @@ func (p *ProcessDefer) createPatch(object *resolve.Object, fieldSet, field int) 
 			Fetch:     &patchFetch,
 			Operation: literal.REPLACE,
 		}
-		object.FieldSets[fieldSet].HasBuffer = false
-		object.FieldSets[fieldSet].BufferID = 0
+		object.Fields[field].HasBuffer = false
+		object.Fields[field].BufferID = 0
 	} else {
 		patch = &resolve.GraphQLResponsePatch{
 			Value:     oldValue,
@@ -110,25 +108,23 @@ func (p *ProcessDefer) createPatch(object *resolve.Object, fieldSet, field int) 
 	return patchIndex, true
 }
 
-func (p *ProcessDefer) bufferUsedOnNonDeferField(object *resolve.Object, fieldSet, field, bufferID int) bool {
-	for i := range object.FieldSets {
-		if object.FieldSets[i].BufferID != bufferID {
+func (p *ProcessDefer) bufferUsedOnNonDeferField(object *resolve.Object, field, bufferID int) bool {
+	for i := range object.Fields {
+		if object.Fields[i].BufferID != bufferID {
 			continue
 		}
-		for j := range object.FieldSets[i].Fields {
-			if i == fieldSet && j == field {
-				continue // skip currently evaluated field
-			}
-			if object.FieldSets[i].Fields[j].Defer == nil {
-				return true
-			}
+		if i == field {
+			continue // skip currently evaluated field
+		}
+		if object.Fields[i].Defer == nil {
+			return true
 		}
 	}
 	return false
 }
 
-func (p *ProcessDefer) processFieldSetBuffer(object *resolve.Object, fieldSet int) (patchFetch resolve.SingleFetch, ok bool) {
-	id := object.FieldSets[fieldSet].BufferID
+func (p *ProcessDefer) processFieldSetBuffer(object *resolve.Object,field int) (patchFetch resolve.SingleFetch, ok bool) {
+	id := object.Fields[field].BufferID
 	if p.objects[len(p.objects)-1].Fetch == nil {
 		return patchFetch, false
 	}

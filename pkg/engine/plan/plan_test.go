@@ -14,7 +14,7 @@ import (
 )
 
 func TestPlanner_Plan(t *testing.T) {
-	test := func(definition, operation, operationName string, expectedPlan Plan,config Configuration) func(t *testing.T) {
+	test := func(definition, operation, operationName string, expectedPlan Plan, config Configuration) func(t *testing.T) {
 		return func(t *testing.T) {
 			def := unsafeparser.ParseGraphqlDocumentString(definition)
 			op := unsafeparser.ParseGraphqlDocumentString(operation)
@@ -22,21 +22,21 @@ func TestPlanner_Plan(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			norm := astnormalization.NewNormalizer(true,true)
+			norm := astnormalization.NewNormalizer(true, true)
 			var report operationreport.Report
 			norm.NormalizeOperation(&op, &def, &report)
 			valid := astvalidation.DefaultOperationValidator()
 			valid.Validate(&op, &def, &report)
-			p := NewPlanner(&def, config)
-			plan := p.Plan(&op, []byte(operationName), &report)
+			p := NewPlanner(config)
+			plan := p.Plan(&op, &def, operationName, &report)
 			if report.HasErrors() {
 				t.Fatal(report.Error())
 			}
-			assert.Equal(t,expectedPlan,plan)
+			assert.Equal(t, expectedPlan, plan)
 		}
 	}
 
-	t.Run("simple named Query", test(testDefinition, `
+	t.Run("stream & defer Query", test(testDefinition, `
 		query MyQuery($id: ID!) @flushInterval(milliSeconds: 100) {
 			droid(id: $id){
 				name
@@ -53,184 +53,81 @@ func TestPlanner_Plan(t *testing.T) {
 		}
 	`, "MyQuery", &SynchronousResponsePlan{
 		FlushInterval: 100,
-		Response: resolve.GraphQLResponse{
+		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
-				FieldSets: []resolve.FieldSet{
+				Fields: []*resolve.Field{
 					{
-						Fields: []resolve.Field{
-							{
-								Name: []byte("droid"),
-								Value: &resolve.Object{
-									Nullable: true,
-									FieldSets: []resolve.FieldSet{
-										{
-											Fields: []resolve.Field{
-												{
-													Name: []byte("name"),
-													Value: &resolve.String{
-														Path: []string{"name"},
-													},
-												},
-												{
-													Name: []byte("aliased"),
-													Value: &resolve.String{
-														Path: []string{"name"},
-													},
-												},
-												{
-													Name: []byte("friends"),
-													Stream: &resolve.StreamField{
-														InitialBatchSize: 0,
-													},
-													Value: &resolve.Array{
-														Nullable: true,
-														Path: []string{"friends"},
-														Item: &resolve.Object{
-															Nullable: true,
-															FieldSets: []resolve.FieldSet{
-																{
-																	Fields: []resolve.Field{
-																		{
-																			Name: []byte("name"),
-																			Value: &resolve.String{
-																				Path: []string{"name"},
-																			},
-																		},
-																	},
-																},
-															},
-														},
-													},
-												},
-												{
-													Name: []byte("friendsWithInitialBatch"),
-													Stream: &resolve.StreamField{
-														InitialBatchSize: 5,
-													},
-													Value: &resolve.Array{
-														Nullable: true,
-														Path: []string{"friends"},
-														Item: &resolve.Object{
-															Nullable: true,
-															FieldSets: []resolve.FieldSet{
-																{
-																	Fields: []resolve.Field{
-																		{
-																			Name: []byte("name"),
-																			Value: &resolve.String{
-																				Path: []string{"name"},
-																			},
-																		},
-																	},
-																},
-															},
-														},
-													},
-												},
-												{
-													Name: []byte("primaryFunction"),
-													Value: &resolve.String{
-														Path: []string{"primaryFunction"},
-													},
-												},
-												{
-													Name: []byte("favoriteEpisode"),
-													Defer: &resolve.DeferField{},
-													Value: &resolve.String{
-														Nullable: true,
-														Path: []string{"favoriteEpisode"},
-													},
-												},
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	},Configuration{
-		FieldMappings: []FieldMapping{
-			{
-				TypeName:              "Query",
-				FieldName:             "droid",
-				DisableDefaultMapping: true,
-			},
-		},
-	}))
-	t.Run("named Query in Operation with multiple queries", test(testDefinition, `
-		query Query1($id: ID!){
-			droid(id: $id){
-				name
-			}
-		}
-		query Query2($id: ID!){
-			droid(id: $id){
-				name
-				primaryFunction
-			}
-		}
-	`, "Query1", &SynchronousResponsePlan{
-		Response: resolve.GraphQLResponse{
-			Data: &resolve.Object{
-				FieldSets: []resolve.FieldSet{
-					{
-						Fields: []resolve.Field{
-							{
-								Name: []byte("droid"),
-								Value: &resolve.Object{
-									Nullable: true,
-									FieldSets: []resolve.FieldSet{
-										{
-											Fields: []resolve.Field{
-												{
-													Name: []byte("name"),
-													Value: &resolve.String{
-														Path: []string{"name"},
-													},
-												},
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	},Configuration{
-		DataSourceConfigurations: []DataSourceConfiguration{
-			{
-				TypeName: "Query",
-				FieldNames: []string{"droid"},
-			},
-		},
-		FieldMappings: []FieldMapping{
-			{
-				TypeName:              "Query",
-				FieldName:             "droid",
-				DisableDefaultMapping: true,
-			},
-		},
-	}))
-	t.Run("subscription", test(testDefinition, `
-		subscription RemainingJedis {
-			remainingJedis
-		}
-	`, "RemainingJedis", &SubscriptionResponsePlan{
-		Response: resolve.GraphQLSubscription{
-			Response: &resolve.GraphQLResponse{
-				Data: &resolve.Object{
-					FieldSets: []resolve.FieldSet{
-						{
-							Fields: []resolve.Field{
+						Name: []byte("droid"),
+						Value: &resolve.Object{
+							Path:     []string{"droid"},
+							Nullable: true,
+							Fields: []*resolve.Field{
 								{
-									Name: []byte("remainingJedis"),
-									Value: &resolve.Integer{
-										Path: []string{"remainingJedis"},
+									Name: []byte("name"),
+									Value: &resolve.String{
+										Path: []string{"name"},
+									},
+								},
+								{
+									Name: []byte("aliased"),
+									Value: &resolve.String{
+										Path: []string{"name"},
+									},
+								},
+								{
+									Name: []byte("friends"),
+									Stream: &resolve.StreamField{
+										InitialBatchSize: 0,
+									},
+									Value: &resolve.Array{
+										Nullable: true,
+										Path:     []string{"friends"},
+										Item: &resolve.Object{
+											Nullable: true,
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("name"),
+													Value: &resolve.String{
+														Path: []string{"name"},
+													},
+												},
+											},
+										},
+									},
+								},
+								{
+									Name: []byte("friendsWithInitialBatch"),
+									Stream: &resolve.StreamField{
+										InitialBatchSize: 5,
+									},
+									Value: &resolve.Array{
+										Nullable: true,
+										Path:     []string{"friends"},
+										Item: &resolve.Object{
+											Nullable: true,
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("name"),
+													Value: &resolve.String{
+														Path: []string{"name"},
+													},
+												},
+											},
+										},
+									},
+								},
+								{
+									Name: []byte("primaryFunction"),
+									Value: &resolve.String{
+										Path: []string{"primaryFunction"},
+									},
+								},
+								{
+									Name:  []byte("favoriteEpisode"),
+									Defer: &resolve.DeferField{},
+									Value: &resolve.String{
+										Nullable: true,
+										Path:     []string{"favoriteEpisode"},
 									},
 								},
 							},
@@ -239,14 +136,8 @@ func TestPlanner_Plan(t *testing.T) {
 				},
 			},
 		},
-	},
-	Configuration{
-		DataSourceConfigurations: []DataSourceConfiguration{
-			{
-				TypeName: "Subscription",
-				FieldNames: []string{"remainingJedis"},
-			},
-		},
+	}, Configuration{
+		DefaultFlushInterval: 0,
 	}))
 }
 
@@ -278,6 +169,7 @@ type Mutation {
 
 type Subscription {
     remainingJedis: Int!
+	newReviews: Review
 }
 
 input ReviewInput {

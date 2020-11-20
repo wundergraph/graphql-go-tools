@@ -1,12 +1,9 @@
 package plan
 
 import (
-	"bytes"
 	"encoding/json"
 	"regexp"
 	"strings"
-
-	"github.com/buger/jsonparser"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astimport"
@@ -16,22 +13,655 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
+type Planner struct {
+	config                Configuration
+	configurationWalker   *astvisitor.Walker
+	configurationVisitor  *configurationVisitor
+	planningWalker        *astvisitor.Walker
+	planningVisitor       *Visitor
+	requiredFieldsWalker  *astvisitor.Walker
+	requiredFieldsVisitor *requiredFieldsVisitor
+}
+
+type Configuration struct {
+	DefaultFlushInterval int64
+	DataSources          []DataSourceConfiguration
+	Fields               FieldConfigurations
+}
+
+type FieldConfigurations []FieldConfiguration
+
+func (f FieldConfigurations) ForTypeField(typeName, fieldName string) *FieldConfiguration {
+	for i := range f {
+		if f[i].TypeName == typeName && f[i].FieldName == fieldName {
+			return &f[i]
+		}
+	}
+	return nil
+}
+
+type FieldConfiguration struct {
+	TypeName                          string
+	FieldName                         string
+	DisableDefaultMapping             bool
+	Path                              []string
+	RespectOverrideFieldPathFromAlias bool
+	Arguments                         ArgumentsConfigurations
+	RequiresFields                    []string
+}
+
+type ArgumentsConfigurations []ArgumentConfiguration
+
+func (a ArgumentsConfigurations) ForName(argName string) *ArgumentConfiguration {
+	for i := range a {
+		if a[i].Name == argName {
+			return &a[i]
+		}
+	}
+	return nil
+}
+
+type SourceType string
+
+const (
+	ObjectFieldSource   SourceType = "object_field"
+	FieldArgumentSource SourceType = "field_argument"
+)
+
+type ArgumentConfiguration struct {
+	Name       string
+	SourceType SourceType
+	SourcePath []string
+}
+
+type DataSourceConfiguration struct {
+	RootNodes                  []TypeField
+	ChildNodes                 []TypeField
+	Factory                    PlannerFactory
+	OverrideFieldPathFromAlias bool
+	Custom                     json.RawMessage
+}
+
+func (d *DataSourceConfiguration) HasRootNode(typeName, fieldName string) bool {
+	for i := range d.RootNodes {
+		if typeName != d.RootNodes[i].TypeName {
+			continue
+		}
+		for j := range d.RootNodes[i].FieldNames {
+			if fieldName == d.RootNodes[i].FieldNames[j] {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+type PlannerFactory interface {
+	Planner() DataSourcePlanner
+}
+
+type TypeField struct {
+	TypeName   string
+	FieldNames []string
+}
+
+type FieldMapping struct {
+	TypeName                          string
+	FieldName                         string
+	DisableDefaultMapping             bool
+	Path                              []string
+	RespectOverrideFieldPathFromAlias bool
+}
+
+func NewPlanner(config Configuration) *Planner {
+
+	// required fields pre-processing
+
+	requiredFieldsWalker := astvisitor.NewWalker(48)
+	requiredFieldsV := &requiredFieldsVisitor{
+		walker: &requiredFieldsWalker,
+	}
+
+	requiredFieldsWalker.RegisterEnterDocumentVisitor(requiredFieldsV)
+	requiredFieldsWalker.RegisterEnterOperationVisitor(requiredFieldsV)
+	requiredFieldsWalker.RegisterEnterFieldVisitor(requiredFieldsV)
+
+	// configuration
+
+	configurationWalker := astvisitor.NewWalker(48)
+	configVisitor := &configurationVisitor{
+		walker: &configurationWalker,
+	}
+
+	configurationWalker.RegisterEnterDocumentVisitor(configVisitor)
+	configurationWalker.RegisterFieldVisitor(configVisitor)
+	configurationWalker.RegisterEnterOperationVisitor(configVisitor)
+
+	// planning
+
+	planningWalker := astvisitor.NewWalker(48)
+	planningVisitor := &Visitor{
+		Walker: &planningWalker,
+	}
+
+	p := &Planner{
+		config:                config,
+		configurationWalker:   &configurationWalker,
+		configurationVisitor:  configVisitor,
+		planningWalker:        &planningWalker,
+		planningVisitor:       planningVisitor,
+		requiredFieldsWalker:  &requiredFieldsWalker,
+		requiredFieldsVisitor: requiredFieldsV,
+	}
+
+	return p
+}
+
+func (p *Planner) Plan(operation, definition *ast.Document, operationName string, report *operationreport.Report) (plan Plan) {
+
+	// make a copy of the config as the pre-processor modifies it
+
+	config := p.config
+
+	// pre-process required fields
+
+	p.preProcessRequiredFields(&config, operation, definition, operationName, report)
+
+	// find planning paths
+
+	p.configurationVisitor.operationName = operationName
+	p.configurationVisitor.config = config
+	p.configurationWalker.Walk(operation, definition, report)
+
+	// configure planning visitor
+
+	p.planningVisitor.planners = p.configurationVisitor.planners
+	p.planningVisitor.Config = config
+	p.planningVisitor.fetchConfigurations = p.configurationVisitor.fetches
+	p.planningVisitor.fieldBuffers = p.configurationVisitor.fieldBuffers
+	p.planningVisitor.skipFieldPaths = p.requiredFieldsVisitor.skipFieldPaths
+
+	p.planningWalker.ResetVisitors()
+	p.planningWalker.SetVisitorFilter(p.planningVisitor)
+	p.planningWalker.RegisterDocumentVisitor(p.planningVisitor)
+	p.planningWalker.RegisterEnterOperationVisitor(p.planningVisitor)
+	p.planningWalker.RegisterFieldVisitor(p.planningVisitor)
+	p.planningWalker.RegisterSelectionSetVisitor(p.planningVisitor)
+	p.planningWalker.RegisterEnterDirectiveVisitor(p.planningVisitor)
+
+	for key := range p.planningVisitor.planners {
+		err := p.planningVisitor.planners[key].planner.Register(p.planningVisitor, p.planningVisitor.planners[key].dataSourceConfiguration.Custom)
+		if err != nil {
+			p.planningWalker.StopWithInternalErr(err)
+		}
+	}
+
+	// process the plan
+
+	p.planningVisitor.OperationName = operationName
+	p.planningWalker.Walk(operation, definition, report)
+
+	return p.planningVisitor.plan
+}
+
+func (p *Planner) preProcessRequiredFields(config *Configuration, operation, definition *ast.Document, operationName string, report *operationreport.Report) {
+	if !p.hasRequiredFields(config) {
+		return
+	}
+	p.requiredFieldsVisitor.config = config
+	p.requiredFieldsVisitor.operation = operation
+	p.requiredFieldsVisitor.definition = definition
+	p.requiredFieldsVisitor.operationName = operationName
+	p.requiredFieldsWalker.Walk(operation, definition, report)
+}
+
+func (p *Planner) hasRequiredFields(config *Configuration) bool {
+	for i := range config.Fields {
+		if len(config.Fields[i].RequiresFields) != 0 {
+			return true
+		}
+	}
+	return false
+}
+
+type Visitor struct {
+	Operation, Definition *ast.Document
+	Walker                *astvisitor.Walker
+	Importer              astimport.Importer
+	Config                Configuration
+	plan                  Plan
+	OperationName         string
+	operationDefinition   int
+	objects               []*resolve.Object
+	currentFields         []objectFields
+	currentField          *resolve.Field
+	planners              []plannerConfiguration
+	fetchConfigurations   map[int]objectFetchConfiguration
+	fieldBuffers          map[int]int
+	skipFieldPaths        []string
+}
+
+type objectFields struct {
+	popOnField int
+	fields     *[]*resolve.Field
+}
+
+type objectFetchConfiguration struct {
+	object         *resolve.Object
+	trigger        *resolve.GraphQLSubscriptionTrigger
+	planner        DataSourcePlanner
+	bufferID       int
+	isSubscription bool
+	fieldRef       int
+}
+
+func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor interface{}) bool {
+	if visitor == v {
+		return true
+	}
+	path := v.Walker.Path.DotDelimitedString()
+	switch kind {
+	case astvisitor.EnterField, astvisitor.LeaveField:
+		fieldAliasOrName := v.Operation.FieldAliasOrNameString(ref)
+		path = path + "." + fieldAliasOrName
+	}
+	if !strings.Contains(path, ".") {
+		return true
+	}
+	for _, config := range v.planners {
+		if config.planner == visitor && config.hasPath(path) {
+			switch kind {
+			case astvisitor.EnterSelectionSet, astvisitor.LeaveSelectionSet:
+				return !config.isExitPath(path)
+			default:
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (v *Visitor) currentFullPath() string {
+	path := v.Walker.Path.DotDelimitedString()
+	if v.Walker.CurrentKind == ast.NodeKindField {
+		fieldAliasOrName := v.Operation.FieldAliasOrNameString(v.Walker.CurrentRef)
+		path = path + "." + fieldAliasOrName
+	}
+	return path
+}
+
+func (v *Visitor) currentPlannerConfiguration() plannerConfiguration {
+	path := v.currentFullPath()
+	for i := range v.planners {
+		if v.planners[i].hasPath(path) {
+			return v.planners[i]
+		}
+	}
+	return plannerConfiguration{}
+}
+
+func (v *Visitor) EnterDirective(ref int) {
+	directiveName := v.Operation.DirectiveNameString(ref)
+	ancestor := v.Walker.Ancestors[len(v.Walker.Ancestors)-1]
+	switch ancestor.Kind {
+	case ast.NodeKindOperationDefinition:
+		switch directiveName {
+		case "flushInterval":
+			if value, ok := v.Operation.DirectiveArgumentValueByName(ref, literal.MILLISECONDS); ok {
+				if value.Kind == ast.ValueKindInteger {
+					v.plan.SetFlushInterval(v.Operation.IntValueAsInt(value.Ref))
+				}
+			}
+		}
+	case ast.NodeKindField:
+		switch directiveName {
+		case "stream":
+			initialBatchSize := 0
+			if value, ok := v.Operation.DirectiveArgumentValueByName(ref, literal.INITIAL_BATCH_SIZE); ok {
+				if value.Kind == ast.ValueKindInteger {
+					initialBatchSize = int(v.Operation.IntValueAsInt(value.Ref))
+				}
+			}
+			v.currentField.Stream = &resolve.StreamField{
+				InitialBatchSize: initialBatchSize,
+			}
+		case "defer":
+			v.currentField.Defer = &resolve.DeferField{}
+		}
+	}
+}
+
+func (v *Visitor) LeaveSelectionSet(ref int) {
+
+}
+
+func (v *Visitor) EnterSelectionSet(ref int) {
+
+}
+
+func (v *Visitor) EnterField(ref int) {
+
+	if v.skipField(ref) {
+		return
+	}
+
+	fieldName := v.Operation.FieldAliasOrNameBytes(ref)
+	fieldDefinition, ok := v.Walker.FieldDefinition(ref)
+	if !ok {
+		return
+	}
+
+	fetchConfig, hasFetchConfig := v.fetchConfigurations[ref]
+	if hasFetchConfig {
+		if fetchConfig.isSubscription {
+			plan, ok := v.plan.(*SubscriptionResponsePlan)
+			if ok {
+				fetchConfig.trigger = &plan.Response.Trigger
+			}
+		} else {
+			fetchConfig.object = v.objects[len(v.objects)-1]
+		}
+		fetchConfig.fieldRef = ref
+		v.fetchConfigurations[ref] = fetchConfig
+	}
+
+	path := v.resolveFieldPath(ref)
+	fieldDefinitionType := v.Definition.FieldDefinitionType(fieldDefinition)
+	bufferID, hasBuffer := v.fieldBuffers[ref]
+	v.currentField = &resolve.Field{
+		Name:      fieldName,
+		Value:     v.resolveFieldValue(ref, fieldDefinitionType, true, path),
+		HasBuffer: hasBuffer,
+		BufferID:  bufferID,
+	}
+
+	*v.currentFields[len(v.currentFields)-1].fields = append(*v.currentFields[len(v.currentFields)-1].fields, v.currentField)
+}
+
+func (v *Visitor) LeaveField(ref int) {
+	if v.currentFields[len(v.currentFields)-1].popOnField == ref {
+		v.currentFields = v.currentFields[:len(v.currentFields)-1]
+	}
+	fieldDefinition, ok := v.Walker.FieldDefinition(ref)
+	if !ok {
+		return
+	}
+	fieldDefinitionTypeNode := v.Definition.FieldDefinitionTypeNode(fieldDefinition)
+	switch fieldDefinitionTypeNode.Kind {
+	case ast.NodeKindObjectTypeDefinition, ast.NodeKindInterfaceTypeDefinition:
+		v.objects = v.objects[:len(v.objects)-1]
+	}
+}
+
+func (v *Visitor) skipField(ref int) bool {
+	fullPath := v.Walker.Path.DotDelimitedString() + "." + v.Operation.FieldAliasOrNameString(ref)
+	for i := range v.skipFieldPaths {
+		if v.skipFieldPaths[i] == fullPath {
+			return true
+		}
+	}
+	return false
+}
+
+func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path []string) resolve.Node {
+	ofType := v.Definition.Types[typeRef].OfType
+	switch v.Definition.Types[typeRef].TypeKind {
+	case ast.TypeKindNonNull:
+		return v.resolveFieldValue(fieldRef, ofType, false, path)
+	case ast.TypeKindList:
+		listItem := v.resolveFieldValue(fieldRef, ofType, true, nil)
+		return &resolve.Array{
+			Nullable: nullable,
+			Path:     path,
+			Item:     listItem,
+		}
+	case ast.TypeKindNamed:
+		typeName := v.Definition.ResolveTypeNameString(typeRef)
+		typeDefinitionNode, ok := v.Definition.Index.FirstNodeByNameStr(typeName)
+		if !ok {
+			return &resolve.Null{}
+		}
+		switch typeDefinitionNode.Kind {
+		case ast.NodeKindScalarTypeDefinition:
+			switch typeName {
+			case "String":
+				return &resolve.String{
+					Path:     path,
+					Nullable: nullable,
+				}
+			case "Boolean":
+				return &resolve.Boolean{
+					Path:     path,
+					Nullable: nullable,
+				}
+			case "Int":
+				return &resolve.Integer{
+					Path:     path,
+					Nullable: nullable,
+				}
+			case "Float":
+				return &resolve.Float{
+					Path:     path,
+					Nullable: nullable,
+				}
+			default:
+				return &resolve.String{
+					Path:     path,
+					Nullable: nullable,
+				}
+			}
+		case ast.NodeKindEnumTypeDefinition:
+			return &resolve.String{
+				Path:     path,
+				Nullable: nullable,
+			}
+		case ast.NodeKindObjectTypeDefinition, ast.NodeKindInterfaceTypeDefinition:
+			object := &resolve.Object{
+				Nullable: nullable,
+				Path:     path,
+				Fields:   []*resolve.Field{},
+			}
+			v.objects = append(v.objects, object)
+			v.Walker.Defer(func() {
+				v.currentFields = append(v.currentFields, objectFields{
+					popOnField: fieldRef,
+					fields:     &object.Fields,
+				})
+			})
+			return object
+		default:
+			return &resolve.Null{}
+		}
+	default:
+		return &resolve.Null{}
+	}
+}
+
+func (v *Visitor) EnterOperationDefinition(ref int) {
+	operationName := v.Operation.OperationDefinitionNameString(ref)
+	if v.OperationName != operationName {
+		v.Walker.SkipNode()
+		return
+	}
+
+	v.operationDefinition = ref
+
+	rootObject := &resolve.Object{
+		Fields: []*resolve.Field{},
+	}
+
+	v.objects = append(v.objects, rootObject)
+	v.currentFields = append(v.currentFields, objectFields{
+		fields:     &rootObject.Fields,
+		popOnField: -1,
+	})
+
+	isSubscription, isStreaming, err := AnalyzePlanKind(v.Operation, v.Definition, v.OperationName)
+	if err != nil {
+		v.Walker.StopWithInternalErr(err)
+		return
+	}
+
+	graphQLResponse := &resolve.GraphQLResponse{
+		Data: rootObject,
+	}
+
+	if isSubscription {
+		v.plan = &SubscriptionResponsePlan{
+			Response: resolve.GraphQLSubscription{
+				Response: graphQLResponse,
+			},
+		}
+		return
+	}
+
+	if isStreaming {
+
+	}
+
+	v.plan = &SynchronousResponsePlan{
+		Response: graphQLResponse,
+	}
+}
+
+func (v *Visitor) resolveFieldPath(ref int) []string {
+	typeName := v.Walker.EnclosingTypeDefinition.NameString(v.Definition)
+	fieldName := v.Operation.FieldNameString(ref)
+
+	config := v.currentPlannerConfiguration()
+	aliasOverride := config.dataSourceConfiguration.OverrideFieldPathFromAlias
+
+	for i := range v.Config.Fields {
+		if v.Config.Fields[i].TypeName == typeName && v.Config.Fields[i].FieldName == fieldName {
+			if aliasOverride && v.Config.Fields[i].RespectOverrideFieldPathFromAlias {
+				return []string{v.Operation.FieldAliasOrNameString(ref)}
+			}
+			if v.Config.Fields[i].DisableDefaultMapping {
+				return nil
+			}
+			if v.Config.Fields[i].Path != nil {
+				return v.Config.Fields[i].Path
+			}
+			return []string{fieldName}
+		}
+	}
+
+	if aliasOverride {
+		return []string{v.Operation.FieldAliasOrNameString(ref)}
+	}
+
+	return []string{fieldName}
+}
+
+func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
+	v.Operation, v.Definition = operation, definition
+}
+
+func (v *Visitor) LeaveDocument(operation, definition *ast.Document) {
+	for _, config := range v.fetchConfigurations {
+		if config.isSubscription {
+			v.configureSubscription(config)
+		} else {
+			v.configureObjectFetch(config)
+		}
+	}
+}
+
+var (
+	templateRegex = regexp.MustCompile(`{{.*?}}`)
+	selectorRegex = regexp.MustCompile(`{{\s(.*?)\s}}`)
+)
+
+func (v *Visitor) resolveInputTemplates(config objectFetchConfiguration, input *string, variables *resolve.Variables) {
+	*input = templateRegex.ReplaceAllStringFunc(*input, func(s string) string {
+		selectors := selectorRegex.FindStringSubmatch(s)
+		if len(selectors) != 2 {
+			return s
+		}
+		selector := strings.TrimPrefix(selectors[1], ".")
+		parts := strings.Split(selector, ".")
+		if len(parts) < 2 {
+			return s
+		}
+		path := parts[1:]
+		var (
+			variableName string
+		)
+		switch parts[0] {
+		case "object":
+			variableName, _ = variables.AddVariable(&resolve.ObjectVariable{
+				Path: path,
+			}, false)
+		case "arguments":
+			argumentName := path[0]
+			arg, ok := v.Operation.FieldArgument(config.fieldRef, []byte(argumentName))
+			if !ok {
+				break
+			}
+			value := v.Operation.ArgumentValue(arg)
+			if value.Kind != ast.ValueKindVariable {
+				break
+			}
+			variableValue := v.Operation.VariableValueNameString(value.Ref)
+			if !v.Operation.OperationDefinitionHasVariableDefinition(v.operationDefinition, variableValue) {
+				break // omit optional argument when variable is not defined
+			}
+			variableName, _ = variables.AddVariable(&resolve.ContextVariable{
+				Path: []string{variableValue},
+			}, false)
+		}
+		return variableName
+	})
+}
+
+func (v *Visitor) configureSubscription(config objectFetchConfiguration) {
+	subscription := config.planner.ConfigureSubscription()
+	config.trigger.Input = subscription.Input
+	config.trigger.ManagerID = []byte(subscription.SubscriptionManagerID)
+	config.trigger.Variables = subscription.Variables
+	v.resolveInputTemplates(config, &config.trigger.Input, &config.trigger.Variables)
+}
+
+func (v *Visitor) configureObjectFetch(config objectFetchConfiguration) {
+	if config.object == nil {
+		return
+	}
+	fetchConfig := config.planner.ConfigureFetch()
+	fetch := v.configureSingleFetch(config, fetchConfig)
+	v.resolveInputTemplates(config, &fetch.Input, &fetch.Variables)
+	if config.object.Fetch == nil {
+		config.object.Fetch = fetch
+		return
+	}
+	switch existing := config.object.Fetch.(type) {
+	case *resolve.SingleFetch:
+		copyOfExisting := *existing
+		parallel := &resolve.ParallelFetch{
+			Fetches: []*resolve.SingleFetch{&copyOfExisting, fetch},
+		}
+		config.object.Fetch = parallel
+	case *resolve.ParallelFetch:
+		existing.Fetches = append(existing.Fetches, fetch)
+	}
+}
+
+func (v *Visitor) configureSingleFetch(internal objectFetchConfiguration, external FetchConfiguration) *resolve.SingleFetch {
+	return &resolve.SingleFetch{
+		BufferId:             internal.bufferID,
+		Input:                external.Input,
+		DataSource:           external.DataSource,
+		Variables:            external.Variables,
+		DisallowSingleFlight: external.DisallowSingleFlight,
+	}
+}
+
 type Kind int
-type enterOrLeave int
 
 const (
 	SynchronousResponseKind Kind = iota + 1
 	StreamingResponseKind
 	SubscriptionResponseKind
-
-	enter enterOrLeave = iota + 1
-	leave
 )
-
-type Reference struct {
-	Id   int
-	Kind Kind
-}
 
 type Plan interface {
 	PlanKind() Kind
@@ -39,7 +669,7 @@ type Plan interface {
 }
 
 type SynchronousResponsePlan struct {
-	Response      resolve.GraphQLResponse
+	Response      *resolve.GraphQLResponse
 	FlushInterval int64
 }
 
@@ -78,726 +708,99 @@ func (_ *SubscriptionResponsePlan) PlanKind() Kind {
 }
 
 type DataSourcePlanner interface {
-	Register(visitor *Visitor)
+	Register(visitor *Visitor, customConfiguration json.RawMessage) error
+	ConfigureFetch() FetchConfiguration
+	ConfigureSubscription() SubscriptionConfiguration
 }
 
-type DataSourceConfiguration struct {
-	TypeName                 string
-	FieldNames               []string
-	Attributes               DataSourceAttributes
-	DataSourcePlanner        DataSourcePlanner
-	UpstreamUniqueIdentifier string
-	MinDepth                 int
-	ProvidesExtraFields      []TypeFields
+type SubscriptionConfiguration struct {
+	Input                 string
+	SubscriptionManagerID string
+	Variables             resolve.Variables
 }
 
-type TypeFields struct {
-	TypeName   string
-	FieldNames []string
+type FetchConfiguration struct {
+	Input                string
+	Variables            resolve.Variables
+	DataSource           resolve.DataSource
+	DisallowSingleFlight bool
 }
 
-type FieldMapping struct {
-	TypeName              string
-	FieldName             string
-	DisableDefaultMapping bool
-	Path                  []string
+type configurationVisitor struct {
+	operationName         string
+	operation, definition *ast.Document
+	walker                *astvisitor.Walker
+	config                Configuration
+	planners              []plannerConfiguration
+	fetches               map[int]objectFetchConfiguration
+	currentBufferId       int
+	fieldBuffers          map[int]int
 }
 
-type DataSourceAttribute struct {
-	Key   string
-	Value json.RawMessage
+type plannerConfiguration struct {
+	parentPath              string
+	planner                 DataSourcePlanner
+	paths                   []pathConfiguration
+	dataSourceConfiguration DataSourceConfiguration
+	bufferID                int
 }
 
-type DataSourceAttributes []DataSourceAttribute
+func (c *configurationVisitor) nextBufferID() int {
+	c.currentBufferId++
+	return c.currentBufferId
+}
 
-func (d *DataSourceAttributes) ValueForKey(key string) []byte {
-	for i := range *d {
-		if (*d)[i].Key == key {
-			return (*d)[i].Value
+func (p *plannerConfiguration) hasPath(path string) bool {
+	for i := range p.paths {
+		if p.paths[i].path == path {
+			return true
 		}
 	}
-	return nil
+	return false
 }
 
-type Planner struct {
-	definition *ast.Document
-	visitor    *Visitor
-	walker     *astvisitor.Walker
-}
-
-type Configuration struct {
-	DefaultFlushInterval     int64
-	DataSourceConfigurations []DataSourceConfiguration
-	FieldMappings            []FieldMapping
-	FieldDependencies        []FieldDependency
-}
-
-type FieldDependency struct {
-	TypeName       string
-	FieldName      string
-	RequiresFields []string
-}
-
-func NewPlanner(definition *ast.Document, config Configuration) *Planner {
-
-	walker := astvisitor.NewWalker(48)
-	visitor := &Visitor{
-		Walker:     &walker,
-		Definition: definition,
-		Config:     config,
+func (p *plannerConfiguration) isExitPath(path string) bool {
+	for i := range p.paths {
+		if p.paths[i].path == path {
+			return p.paths[i].exitPlannerOnNode
+		}
 	}
+	return false
+}
 
-	walker.SetVisitorFilter(visitor)
-	walker.RegisterEnterDocumentVisitor(visitor)
-	walker.RegisterOperationDefinitionVisitor(visitor)
-	walker.RegisterSelectionSetVisitor(visitor)
-	walker.RegisterEnterFieldVisitor(visitor)
-	walker.RegisterEnterArgumentVisitor(visitor)
-	walker.RegisterEnterDirectiveVisitor(visitor)
+func (p *plannerConfiguration) setPathExit(path string) {
+	for i := range p.paths {
+		if p.paths[i].path == path {
+			p.paths[i].exitPlannerOnNode = true
+			return
+		}
+	}
+	return
+}
 
-	registered := make([]DataSourcePlanner, 0, len(config.DataSourceConfigurations))
-
-Next:
-	for i := range config.DataSourceConfigurations {
-		if config.DataSourceConfigurations[i].DataSourcePlanner == nil {
+func (p *plannerConfiguration) hasPathPrefix(prefix string) bool {
+	for i := range p.paths {
+		if p.paths[i].path == prefix {
 			continue
 		}
-		for j := range registered {
-			if registered[j] == config.DataSourceConfigurations[i].DataSourcePlanner {
-				continue Next
-			}
+		if strings.HasPrefix(p.paths[i].path, prefix) {
+			return true
 		}
-		config.DataSourceConfigurations[i].DataSourcePlanner.Register(visitor)
-		registered = append(registered, config.DataSourceConfigurations[i].DataSourcePlanner)
 	}
-
-	walker.RegisterLeaveFieldVisitor(visitor)
-	walker.RegisterLeaveDocumentVisitor(visitor)
-
-	return &Planner{
-		definition: definition,
-		visitor:    visitor,
-		walker:     &walker,
-	}
+	return false
 }
 
-func (p *Planner) Plan(operation *ast.Document, operationName []byte, report *operationreport.Report) (plan Plan) {
-	p.visitor.Operation = operation
-	p.visitor.opName = operationName
-	p.walker.Walk(operation, p.definition, report)
-	return p.visitor.plan
+func (p *plannerConfiguration) hasParent(parent string) bool {
+	return p.parentPath == parent
 }
 
-type Visitor struct {
-	*astvisitor.Walker
-	Config                              Configuration
-	Definition, Operation               *ast.Document
-	Importer                            astimport.Importer
-	opName                              []byte
-	plan                                Plan
-	currentObject                       *resolve.Object
-	objects                             []fieldObject
-	currentFields                       *[]resolve.Field
-	fields                              []*[]resolve.Field
-	fetchConfigs                        []fetchConfig
-	activeDataSourcePlanner             DataSourcePlanner
-	fieldArguments                      []fieldArgument
-	nextBufferID                        int
-	popFieldsOnLeaveField               []int
-	fieldDataSourcePlanners             []fieldDataSourcePlanner
-	currentFieldName                    string
-	currentFieldEnclosingTypeDefinition ast.Node
-	fieldPathOverrides                  map[int]PathOverrideFunc
-	subscription                        *resolve.GraphQLSubscription
-	subscriptionDataSourceConfiguration *DataSourceConfiguration
-}
-
-type PathOverrideFunc func(path []string) []string
-
-type fieldDataSourcePlanner struct {
-	config             DataSourceConfiguration
-	field              int
-	planner            DataSourcePlanner
-	upstreamIdentifier string
-}
-
-type fetchConfig struct {
-	fetch              resolve.Fetch
-	fieldConfiguration *DataSourceConfiguration
-}
-
-// SetFieldPathOverride delegates to a data source planner the possibility to override the path selector for a field.
-// E.g. the GraphQL data source allows to define a field alias in the upstream query.
-// This means that a data source is able to override the shape of the graphql response.
-// In order for the planner to correctly set JSON path selectors for these fields it needs to be able to delegate
-// to the data source to override the JSON path of said field.
-//
-// In short, when a data source overrides the JSON response shape it must also override the JSON selectors
-// by setting an override for each field.
-func (v *Visitor) SetFieldPathOverride(field int, override PathOverrideFunc) {
-	v.fieldPathOverrides[field] = override
-}
-
-func (v *Visitor) SetSubscriptionTrigger(trigger resolve.GraphQLSubscriptionTrigger, config DataSourceConfiguration) {
-	v.subscription.Trigger = trigger
-	v.subscriptionDataSourceConfiguration = &config
-}
-
-func (v *Visitor) SetCurrentObjectFetch(fetch *resolve.SingleFetch, config *DataSourceConfiguration) {
-	v.fetchConfigs = append(v.fetchConfigs, fetchConfig{fetch: fetch, fieldConfiguration: config})
-	if v.currentObject.Fetch != nil {
-		switch current := v.currentObject.Fetch.(type) {
-		case *resolve.SingleFetch:
-			parallel := &resolve.ParallelFetch{
-				Fetches: []*resolve.SingleFetch{
-					current,
-					fetch,
-				},
-			}
-			v.currentObject.Fetch = parallel
-		case *resolve.ParallelFetch:
-			current.Fetches = append(current.Fetches, fetch)
-		}
-		return
-	}
-	v.currentObject.Fetch = fetch
-}
-
-type fieldObject struct {
-	fieldRef int
-	object   *resolve.Object
-}
-
-func (v *Visitor) NextBufferID() int {
-	v.nextBufferID++
-	return v.nextBufferID
-}
-
-func (v *Visitor) SetBufferIDForCurrentFieldSet(bufferID int) {
-	if v.currentObject == nil {
-		return
-	}
-	if len(v.currentObject.FieldSets) == 0 {
-		return
-	}
-	v.currentObject.FieldSets[len(v.currentObject.FieldSets)-1].HasBuffer = true
-	v.currentObject.FieldSets[len(v.currentObject.FieldSets)-1].BufferID = bufferID
-}
-
-func (v *Visitor) AllowVisitor(visitorKind astvisitor.VisitorKind, ref int, visitor interface{}) bool {
-	if visitor == v {
-		return true
-	}
-	switch visitorKind {
-	case astvisitor.EnterDocument,
-		astvisitor.LeaveDocument:
-		return true
-	default:
-		return visitor == v.activeDataSourcePlanner
-	}
-}
-
-func (v *Visitor) IsRootField(ref int) (bool, *DataSourceConfiguration) {
-	fieldName := v.Operation.FieldNameString(ref)
-	enclosingTypeName := v.EnclosingTypeDefinition.NameString(v.Definition)
-	for i := range v.Config.DataSourceConfigurations {
-		if enclosingTypeName != v.Config.DataSourceConfigurations[i].TypeName {
+func (p *plannerConfiguration) hasChildNode(typeName, fieldName string) bool {
+	for i := range p.dataSourceConfiguration.ChildNodes {
+		if typeName != p.dataSourceConfiguration.ChildNodes[i].TypeName {
 			continue
 		}
-		fieldMatches := false
-		for m := range v.Config.DataSourceConfigurations[i].FieldNames {
-			if v.Config.DataSourceConfigurations[i].FieldNames[m] == fieldName {
-				fieldMatches = true
-				break
-			}
-		}
-		if !fieldMatches {
-			continue
-		}
-		for k := range v.fieldDataSourcePlanners {
-			if v.fieldDataSourcePlanners[k].planner == v.Config.DataSourceConfigurations[i].DataSourcePlanner &&
-				v.fieldDataSourcePlanners[k].upstreamIdentifier == v.Config.DataSourceConfigurations[i].UpstreamUniqueIdentifier {
-				for l := range v.Ancestors {
-					if v.Ancestors[l].Kind == ast.NodeKindField &&
-						v.Ancestors[l].Ref == v.fieldDataSourcePlanners[k].field {
-						return false, &v.Config.DataSourceConfigurations[i]
-					}
-				}
-			}
-		}
-		for j := range v.Config.DataSourceConfigurations[i].FieldNames {
-			if fieldName == v.Config.DataSourceConfigurations[i].FieldNames[j] {
-				return true, &v.Config.DataSourceConfigurations[i]
-			}
-		}
-	}
-	return false, nil
-}
-
-func (v *Visitor) EnterDocument(_, _ *ast.Document) {
-	v.fields = v.fields[:0]
-	v.objects = v.objects[:0]
-	v.fetchConfigs = v.fetchConfigs[:0]
-	v.fieldArguments = v.fieldArguments[:0]
-	v.popFieldsOnLeaveField = v.popFieldsOnLeaveField[:0]
-	v.fieldDataSourcePlanners = v.fieldDataSourcePlanners[:0]
-	v.nextBufferID = -1
-	v.activeDataSourcePlanner = nil
-	v.subscription = nil
-	v.subscriptionDataSourceConfiguration = nil
-	if v.fieldPathOverrides == nil {
-		v.fieldPathOverrides = make(map[int]PathOverrideFunc, 8)
-	} else {
-		for key := range v.fieldPathOverrides {
-			delete(v.fieldPathOverrides, key)
-		}
-	}
-}
-
-func (v *Visitor) LeaveDocument(_, _ *ast.Document) {
-	for i := range v.fetchConfigs {
-		switch f := v.fetchConfigs[i].fetch.(type) {
-		case *resolve.SingleFetch:
-			v.prepareSingleFetchVariables(&f.Input, &f.InputTemplate, &f.Variables, v.fetchConfigs[i].fieldConfiguration)
-		case *resolve.ParallelFetch:
-			for j := range f.Fetches {
-				v.prepareSingleFetchVariables(&f.Fetches[j].Input, &f.Fetches[j].InputTemplate, &f.Fetches[j].Variables, v.fetchConfigs[i].fieldConfiguration)
-			}
-		}
-	}
-	if v.subscription == nil || v.subscriptionDataSourceConfiguration == nil {
-		return
-	}
-	v.prepareSingleFetchVariables(&v.subscription.Trigger.Input, &v.subscription.Trigger.InputTemplate, &v.subscription.Trigger.Variables, v.subscriptionDataSourceConfiguration)
-}
-
-func (v *Visitor) EnterDirective(ref int) {
-	directiveName := v.Operation.DirectiveNameString(ref)
-	switch directiveName {
-	case "defer":
-		if v.currentFields == nil || len(*v.currentFields) == 0 {
-			return
-		}
-		(*v.currentFields)[len(*v.currentFields)-1].Defer = &resolve.DeferField{}
-	case "stream":
-		if v.currentFields == nil || len(*v.currentFields) == 0 {
-			return
-		}
-		config := &resolve.StreamField{
-			InitialBatchSize: 0,
-		}
-		v.setInitialBatchSize(ref, config)
-		(*v.currentFields)[len(*v.currentFields)-1].Stream = config
-	case "flushInterval":
-		if v.Ancestors[len(v.Ancestors)-1].Kind != ast.NodeKindOperationDefinition {
-			return
-		}
-		value, ok := v.Operation.DirectiveArgumentValueByName(ref, literal.MILLISECONDS)
-		if !ok {
-			return
-		}
-		if value.Kind != ast.ValueKindInteger {
-			return
-		}
-		v.plan.SetFlushInterval(v.Operation.IntValueAsInt(value.Ref))
-	}
-}
-
-func (v *Visitor) setInitialBatchSize(directive int, config *resolve.StreamField) {
-	value, ok := v.Operation.DirectiveArgumentValueByName(directive, literal.INITIAL_BATCH_SIZE)
-	if !ok {
-		return
-	}
-	if value.Kind != ast.ValueKindInteger {
-		return
-	}
-	config.InitialBatchSize = int(v.Operation.IntValueAsInt(value.Ref))
-}
-
-var (
-	templateRegex = regexp.MustCompile(`{{.*?}}`)
-	selectorRegex = regexp.MustCompile(`{{\s(.*?)\s}}`)
-)
-
-func (v *Visitor) prepareSingleFetchVariables(input *string, inputTemplate *resolve.InputTemplate, variables *resolve.Variables, config *DataSourceConfiguration) {
-	*input = templateRegex.ReplaceAllStringFunc(*input, func(i string) string {
-		selector := selectorRegex.FindStringSubmatch(i)
-		if len(selector) != 2 {
-			return i
-		}
-		path := strings.TrimPrefix(string(selector[1]), ".")
-		segments := strings.Split(path, ".")
-		if len(segments) < 2 {
-			return i
-		}
-		switch segments[0] {
-		case "object":
-			variableName, _ := variables.AddVariable(&resolve.ObjectVariable{Path: segments[1:]}, false)
-			return variableName
-		case "arguments":
-			segments = segments[1:]
-			if len(segments) < 1 {
-				return i
-			}
-			for j := range v.fieldArguments {
-				if v.fieldArguments[j].typeName == config.TypeName &&
-					v.fieldArguments[j].argumentName == segments[0] {
-					segments = segments[1:]
-					switch v.fieldArguments[j].kind {
-					case fieldArgumentTypeVariable:
-						variablePath := append([]string{string(v.fieldArguments[j].value)}, segments...)
-						variableName, _ := variables.AddVariable(&resolve.ContextVariable{Path: variablePath}, false)
-						return variableName
-					case fieldArgumentTypeStatic:
-						if len(segments) == 0 {
-							return string(v.fieldArguments[j].value)
-						}
-						i, _ = jsonparser.GetString(v.fieldArguments[j].value, segments...)
-						return i
-					}
-				}
-			}
-			return i
-		default:
-			return i
-		}
-	})
-}
-
-func (v *Visitor) EnterArgument(ref int) {
-	if v.Ancestors[len(v.Ancestors)-1].Kind != ast.NodeKindField {
-		return
-	}
-	value := v.Operation.ArgumentValue(ref)
-	arg := fieldArgument{
-		typeName:     v.currentFieldEnclosingTypeDefinition.NameString(v.Definition),
-		fieldName:    v.currentFieldName,
-		argumentName: v.Operation.ArgumentNameString(ref),
-		kind:         fieldArgumentTypeStatic,
-	}
-	switch value.Kind {
-	case ast.ValueKindVariable:
-		arg.kind = fieldArgumentTypeVariable
-		value := v.Operation.VariableValueNameBytes(value.Ref)
-		arg.value = make([]byte, len(value))
-		copy(arg.value, value)
-	case ast.ValueKindString:
-		value := v.Operation.StringValueContentBytes(value.Ref)
-		arg.value = make([]byte, len(value))
-		copy(arg.value, value)
-	case ast.ValueKindBoolean:
-		switch v.Operation.BooleanValues[value.Ref] {
-		case true:
-			arg.value = literal.TRUE
-		case false:
-			arg.value = literal.FALSE
-		default:
-			return
-		}
-	case ast.ValueKindFloat:
-		value := v.Operation.FloatValueRaw(value.Ref)
-		arg.value = make([]byte, len(value))
-		copy(arg.value, value)
-	case ast.ValueKindInteger:
-		value := v.Operation.IntValueRaw(value.Ref)
-		arg.value = make([]byte, len(value))
-		copy(arg.value, value)
-	case ast.ValueKindEnum:
-		value := v.Operation.EnumValueNameBytes(value.Ref)
-		arg.value = make([]byte, len(value))
-		copy(arg.value, value)
-	case ast.ValueKindNull:
-		arg.value = literal.NULL
-	default:
-		return
-	}
-	v.fieldArguments = append(v.fieldArguments, arg)
-}
-
-func (v *Visitor) EnterOperationDefinition(ref int) {
-	if bytes.Equal(v.Operation.OperationDefinitionNameBytes(ref), v.opName) {
-		v.currentObject = &resolve.Object{}
-		v.objects = append(v.objects, fieldObject{
-			object:   v.currentObject,
-			fieldRef: -1,
-		})
-		switch v.Operation.OperationDefinitions[ref].OperationType {
-		case ast.OperationTypeQuery, ast.OperationTypeMutation:
-			v.plan = &SynchronousResponsePlan{
-				FlushInterval: v.Config.DefaultFlushInterval,
-				Response: resolve.GraphQLResponse{
-					Data: v.currentObject,
-				},
-			}
-		case ast.OperationTypeSubscription:
-			plan := &SubscriptionResponsePlan{
-				FlushInterval: v.Config.DefaultFlushInterval,
-				Response: resolve.GraphQLSubscription{
-					Response: &resolve.GraphQLResponse{
-						Data: v.currentObject,
-					},
-				},
-			}
-			v.plan = plan
-			v.subscription = &plan.Response
-		}
-	} else {
-		v.SkipNode()
-	}
-}
-
-func (v *Visitor) LeaveOperationDefinition(ref int) {
-	v.currentObject = nil
-}
-
-func (v *Visitor) EnterSelectionSet(ref int) {
-	v.currentObject.FieldSets = append(v.currentObject.FieldSets, resolve.FieldSet{
-		Fields: []resolve.Field{},
-	})
-	v.currentFields = &v.currentObject.FieldSets[len(v.currentObject.FieldSets)-1].Fields
-	v.fields = append(v.fields, v.currentFields)
-}
-
-func (v *Visitor) LeaveSelectionSet(ref int) {
-	v.fields = v.fields[:len(v.fields)-1]
-	if len(v.fields) == 0 {
-		return
-	}
-	v.currentFields = v.fields[len(v.fields)-1]
-}
-
-func (v *Visitor) EnterField(ref int) {
-
-	fieldName := v.Operation.FieldNameBytes(ref)
-	fieldNameStr := v.Operation.FieldNameString(ref)
-
-	isRoot,config := v.IsRootField(ref)
-	configMinDepthReached := isRoot && v.Depth > config.MinDepth
-	dataSourceProvidesExtraField := v.CurrentDataSourceProvidesExtraField(ref)
-
-	if configMinDepthReached && !dataSourceProvidesExtraField {
-		if len(*v.currentFields) != 0 {
-			v.currentObject.FieldSets = append(v.currentObject.FieldSets, resolve.FieldSet{
-				Fields: []resolve.Field{},
-			})
-			v.currentFields = &v.currentObject.FieldSets[len(v.currentObject.FieldSets)-1].Fields
-			v.fields = append(v.fields, v.currentFields)
-			v.popFieldsOnLeaveField = append(v.popFieldsOnLeaveField, ref)
-		}
-	}
-
-	v.currentFieldName = fieldNameStr
-	v.currentFieldEnclosingTypeDefinition = v.EnclosingTypeDefinition
-
-	v.setActiveDataSourcePlanner(ref, enter)
-
-	definition, ok := v.Definition.NodeFieldDefinitionByName(v.EnclosingTypeDefinition, fieldName)
-	if !ok {
-		return
-	}
-	fieldDefinitionType := v.Definition.FieldDefinitionType(definition)
-	typeNameBytes := v.Definition.ResolveTypeNameBytes(fieldDefinitionType)
-
-	isList := v.Definition.TypeIsList(fieldDefinitionType)
-	fieldTypeIsNullable := !v.Definition.TypeIsNonNull(fieldDefinitionType)
-
-	var value resolve.Node
-	var nextCurrentObject *resolve.Object
-
-	path := v.resolveFieldPath(ref)
-
-	switch string(typeNameBytes) {
-	case "String":
-		str := &resolve.String{
-			Nullable: fieldTypeIsNullable,
-		}
-		if !isList {
-			str.Path = path
-			v.Defer(func() {
-				if override, ok := v.fieldPathOverrides[ref]; ok {
-					str.Path = override(str.Path)
-				}
-			})
-		}
-		value = str
-	case "Boolean":
-		boolean := &resolve.Boolean{
-			Nullable: fieldTypeIsNullable,
-		}
-		if !isList {
-			boolean.Path = path
-			v.Defer(func() {
-				if override, ok := v.fieldPathOverrides[ref]; ok {
-					boolean.Path = override(boolean.Path)
-				}
-			})
-		}
-		value = boolean
-	case "Int":
-		integer := &resolve.Integer{
-			Nullable: fieldTypeIsNullable,
-		}
-		if !isList {
-			integer.Path = path
-			v.Defer(func() {
-				if override, ok := v.fieldPathOverrides[ref]; ok {
-					integer.Path = override(integer.Path)
-				}
-			})
-		}
-		value = integer
-	case "Float":
-		float := &resolve.Float{
-			Nullable: fieldTypeIsNullable,
-		}
-		if !isList {
-			float.Path = path
-			v.Defer(func() {
-				if override, ok := v.fieldPathOverrides[ref]; ok {
-					float.Path = override(float.Path)
-				}
-			})
-		}
-		value = float
-	default:
-		// TODO verify definition type before and define resolve type based on that, in case of scalar use specific scalars and default to string
-		node, _ := v.Definition.Index.FirstNodeByNameBytes(typeNameBytes)
-		switch node.Kind {
-		case ast.NodeKindEnumTypeDefinition, ast.NodeKindScalarTypeDefinition:
-			str := &resolve.String{
-				Nullable: fieldTypeIsNullable,
-			}
-			if !isList {
-				str.Path = path
-				v.Defer(func() {
-					if override, ok := v.fieldPathOverrides[ref]; ok {
-						str.Path = override(str.Path)
-					}
-				})
-			}
-			value = str
-		default:
-			obj := &resolve.Object{
-				Nullable: fieldTypeIsNullable,
-			}
-			if !isList {
-				obj.Path = path
-				v.Defer(func() {
-					if override, ok := v.fieldPathOverrides[ref]; ok {
-						obj.Path = override(obj.Path)
-					}
-				})
-			}
-			value = obj
-			nextCurrentObject = obj
-		}
-	}
-
-	v.Defer(func() {
-		if nextCurrentObject != nil {
-			v.currentObject = nextCurrentObject
-			v.objects = append(v.objects, fieldObject{
-				fieldRef: ref,
-				object:   nextCurrentObject,
-			})
-		}
-		if isList {
-			list := &resolve.Array{
-				Path:     path,
-				Item:     value,
-				Nullable: fieldTypeIsNullable,
-			}
-			value = list
-			if override, ok := v.fieldPathOverrides[ref]; ok {
-				list.Path = override(list.Path)
-			}
-		}
-
-		if v.Operation.FieldAliasIsDefined(ref) {
-			alias := v.Operation.FieldAliasBytes(ref)
-			fieldName = make([]byte, len(alias))
-			copy(fieldName, alias)
-		}
-
-		*v.currentFields = append(*v.currentFields, resolve.Field{
-			Name:  fieldName,
-			Value: value,
-		})
-	})
-}
-
-func (v *Visitor) resolveFieldPath(ref int) []string {
-	typeName := v.EnclosingTypeDefinition.NameString(v.Definition)
-	fieldName := v.Operation.FieldNameString(ref)
-	for i := range v.Config.FieldMappings {
-		if v.Config.FieldMappings[i].TypeName == typeName && v.Config.FieldMappings[i].FieldName == fieldName {
-			if v.Config.FieldMappings[i].Path != nil {
-				return v.Config.FieldMappings[i].Path
-			}
-			if v.Config.FieldMappings[i].DisableDefaultMapping {
-				return nil
-			}
-			return []string{fieldName}
-		}
-	}
-	return []string{fieldName}
-}
-
-func (v *Visitor) setActiveDataSourcePlanner(fieldRef int, enterOrLeave enterOrLeave) {
-
-	if enterOrLeave == leave {
-		if len(v.fieldDataSourcePlanners) == 0 {
-			return
-		}
-		if v.fieldDataSourcePlanners[len(v.fieldDataSourcePlanners)-1].field == fieldRef {
-			v.fieldDataSourcePlanners = v.fieldDataSourcePlanners[:len(v.fieldDataSourcePlanners)-1]
-			if len(v.fieldDataSourcePlanners) != 0 {
-				v.activeDataSourcePlanner = v.fieldDataSourcePlanners[len(v.fieldDataSourcePlanners)-1].planner
-			}
-		}
-		return
-	}
-
-	fieldName := v.Operation.FieldNameString(fieldRef)
-	enclosingTypeName := v.EnclosingTypeDefinition.NameString(v.Definition)
-
-	if v.CurrentDataSourceProvidesExtraField(fieldRef){
-		return
-	}
-
-	for i := range v.Config.DataSourceConfigurations {
-		if v.Config.DataSourceConfigurations[i].TypeName != enclosingTypeName ||
-			v.Config.DataSourceConfigurations[i].MinDepth > v.Depth {
-			continue
-		}
-		for j := range v.Config.DataSourceConfigurations[i].FieldNames {
-			if v.Config.DataSourceConfigurations[i].FieldNames[j] == fieldName {
-				v.activeDataSourcePlanner = v.Config.DataSourceConfigurations[i].DataSourcePlanner
-				v.fieldDataSourcePlanners = append(v.fieldDataSourcePlanners, fieldDataSourcePlanner{
-					field:              fieldRef,
-					config:             v.Config.DataSourceConfigurations[i],
-					planner:            v.Config.DataSourceConfigurations[i].DataSourcePlanner,
-					upstreamIdentifier: v.Config.DataSourceConfigurations[i].UpstreamUniqueIdentifier,
-				})
-				return
-			}
-		}
-	}
-}
-
-func (v *Visitor) CurrentDataSourceProvidesExtraField(field int) bool {
-	if len(v.fieldDataSourcePlanners) == 0 {
-		return false
-	}
-	fieldName := v.Operation.FieldNameString(field)
-	enclosingTypeName := v.EnclosingTypeDefinition.NameString(v.Definition)
-	config := v.fieldDataSourcePlanners[len(v.fieldDataSourcePlanners)-1].config
-	for i := range config.ProvidesExtraFields {
-		if config.ProvidesExtraFields[i].TypeName != enclosingTypeName {
-			continue
-		}
-		for j := range config.ProvidesExtraFields[i].FieldNames {
-			if config.ProvidesExtraFields[i].FieldNames[j] == fieldName {
+		for j := range p.dataSourceConfiguration.ChildNodes[i].FieldNames {
+			if fieldName == p.dataSourceConfiguration.ChildNodes[i].FieldNames[j] {
 				return true
 			}
 		}
@@ -805,38 +808,188 @@ func (v *Visitor) CurrentDataSourceProvidesExtraField(field int) bool {
 	return false
 }
 
-func (v *Visitor) LeaveField(ref int) {
-
-	if len(v.popFieldsOnLeaveField) != 0 && v.popFieldsOnLeaveField[len(v.popFieldsOnLeaveField)-1] == ref {
-		v.popFieldsOnLeaveField = v.popFieldsOnLeaveField[:len(v.popFieldsOnLeaveField)-1]
-		v.fields = v.fields[:len(v.fields)-1]
-		if len(v.fields) != 0 {
-			v.currentFields = v.fields[len(v.fields)-1]
+func (p *plannerConfiguration) hasRootNode(typeName, fieldName string) bool {
+	for i := range p.dataSourceConfiguration.RootNodes {
+		if typeName != p.dataSourceConfiguration.RootNodes[i].TypeName {
+			continue
+		}
+		for j := range p.dataSourceConfiguration.RootNodes[i].FieldNames {
+			if fieldName == p.dataSourceConfiguration.RootNodes[i].FieldNames[j] {
+				return true
+			}
 		}
 	}
+	return false
+}
 
-	if len(v.objects) < 2 {
+type pathConfiguration struct {
+	path              string
+	exitPlannerOnNode bool
+}
+
+func (c *configurationVisitor) EnterOperationDefinition(ref int) {
+	operationName := c.operation.OperationDefinitionNameString(ref)
+	if c.operationName != operationName {
+		c.walker.SkipNode()
 		return
 	}
-	if v.objects[len(v.objects)-1].fieldRef == ref {
-		v.objects = v.objects[:len(v.objects)-1]
-		v.currentObject = v.objects[len(v.objects)-1].object
+}
+
+func (c *configurationVisitor) EnterField(ref int) {
+	fieldName := c.operation.FieldNameString(ref)
+	fieldAliasOrName := c.operation.FieldAliasOrNameString(ref)
+	typeName := c.walker.EnclosingTypeDefinition.NameString(c.definition)
+	parent := c.walker.Path.DotDelimitedString()
+	current := parent + "." + fieldAliasOrName
+	root := c.walker.Ancestors[0]
+	if root.Kind != ast.NodeKindOperationDefinition {
+		return
 	}
-
-	v.setActiveDataSourcePlanner(ref, leave)
+	isSubscription := c.operation.OperationDefinitions[root.Ref].OperationType == ast.OperationTypeSubscription
+	for i, planner := range c.planners {
+		if planner.hasParent(parent) && planner.hasRootNode(typeName, fieldName) {
+			// same parent + root node = root sibling
+			c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{path: current})
+			c.fieldBuffers[ref] = planner.bufferID
+			return
+		}
+		if planner.hasPath(parent) && planner.hasChildNode(typeName, fieldName) {
+			// has parent path + has child node = child
+			c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{path: current})
+			return
+		}
+	}
+	for i, config := range c.config.DataSources {
+		if config.HasRootNode(typeName, fieldName) {
+			var (
+				bufferID int
+			)
+			if !isSubscription {
+				bufferID = c.nextBufferID()
+				c.fieldBuffers[ref] = bufferID
+			}
+			planner := c.config.DataSources[i].Factory.Planner()
+			c.planners = append(c.planners, plannerConfiguration{
+				bufferID:   bufferID,
+				parentPath: parent,
+				planner:    planner,
+				paths: []pathConfiguration{
+					{
+						path: current,
+					},
+				},
+				dataSourceConfiguration: config,
+			})
+			c.fetches[ref] = objectFetchConfiguration{
+				bufferID:       bufferID,
+				planner:        planner,
+				isSubscription: isSubscription,
+			}
+			return
+		}
+	}
 }
 
-type fieldArgument struct {
-	typeName     string
-	fieldName    string
-	argumentName string
-	kind         fieldArgumentType
-	value        []byte
+func (c *configurationVisitor) LeaveField(ref int) {
+	fieldAliasOrName := c.operation.FieldAliasOrNameString(ref)
+	parent := c.walker.Path.DotDelimitedString()
+	current := parent + "." + fieldAliasOrName
+	for i, planner := range c.planners {
+		if planner.hasPath(current) && !planner.hasPathPrefix(current) {
+			c.planners[i].setPathExit(current)
+			return
+		}
+	}
 }
 
-type fieldArgumentType int
+func (c *configurationVisitor) EnterDocument(operation, definition *ast.Document) {
+	c.operation, c.definition = operation, definition
+	c.currentBufferId = -1
+	if c.planners == nil {
+		c.planners = make([]plannerConfiguration, 0, 8)
+	} else {
+		c.planners = c.planners[:0]
+	}
+	if c.fetches == nil {
+		c.fetches = map[int]objectFetchConfiguration{}
+	} else {
+		for i := range c.fetches {
+			delete(c.fetches, i)
+		}
+	}
+	if c.fieldBuffers == nil {
+		c.fieldBuffers = map[int]int{}
+	} else {
+		for i := range c.fieldBuffers {
+			delete(c.fieldBuffers, i)
+		}
+	}
+}
 
-const (
-	fieldArgumentTypeStatic fieldArgumentType = iota + 1
-	fieldArgumentTypeVariable
-)
+type requiredFieldsVisitor struct {
+	operation, definition *ast.Document
+	walker                *astvisitor.Walker
+	config                *Configuration
+	operationName         string
+	skipFieldPaths        []string
+}
+
+func (r *requiredFieldsVisitor) EnterDocument(operation, definition *ast.Document) {
+	r.skipFieldPaths = r.skipFieldPaths[:0]
+}
+
+func (r *requiredFieldsVisitor) EnterField(ref int) {
+	typeName := r.walker.EnclosingTypeDefinition.NameString(r.definition)
+	fieldName := r.operation.FieldNameString(ref)
+	fieldConfig := r.config.Fields.ForTypeField(typeName, fieldName)
+	if fieldConfig == nil {
+		return
+	}
+	if len(fieldConfig.RequiresFields) == 0 {
+		return
+	}
+	selectionSet := r.walker.Ancestors[len(r.walker.Ancestors)-1]
+	if selectionSet.Kind != ast.NodeKindSelectionSet {
+		return
+	}
+	for i := range fieldConfig.RequiresFields {
+		r.handleRequiredField(selectionSet.Ref, fieldConfig.RequiresFields[i])
+	}
+}
+
+func (r *requiredFieldsVisitor) handleRequiredField(selectionSet int, requiredFieldName string) {
+	for _, ref := range r.operation.SelectionSets[selectionSet].SelectionRefs {
+		selection := r.operation.Selections[ref]
+		if selection.Kind != ast.SelectionKindField {
+			continue
+		}
+		name := r.operation.FieldAliasOrNameString(selection.Ref)
+		if name == requiredFieldName {
+			// already exists
+			return
+		}
+	}
+	r.addRequiredField(requiredFieldName, selectionSet)
+}
+
+func (r *requiredFieldsVisitor) addRequiredField(fieldName string, selectionSet int) {
+	field := ast.Field{
+		Name: r.operation.Input.AppendInputString(fieldName),
+	}
+	addedField := r.operation.AddField(field)
+	selection := ast.Selection{
+		Kind: ast.SelectionKindField,
+		Ref:  addedField.Ref,
+	}
+	r.operation.AddSelection(selectionSet, selection)
+	addedFieldPath := r.walker.Path.DotDelimitedString() + "." + fieldName
+	r.skipFieldPaths = append(r.skipFieldPaths, addedFieldPath)
+}
+
+func (r *requiredFieldsVisitor) EnterOperationDefinition(ref int) {
+	operationName := r.operation.OperationDefinitionNameString(ref)
+	if r.operationName != operationName {
+		r.walker.SkipNode()
+		return
+	}
+}

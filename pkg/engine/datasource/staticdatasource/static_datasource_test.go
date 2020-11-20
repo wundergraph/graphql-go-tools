@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasourcetesting"
-	plan "github.com/jensneuse/graphql-go-tools/pkg/engine/planv2"
+	plan "github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 )
 
@@ -19,7 +19,7 @@ func TestStaticDataSourcePlanning(t *testing.T) {
 		&plan.SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
-					Fields: []resolve.Field{
+					Fields: []*resolve.Field{
 						{
 							BufferID:  0,
 							HasBuffer: true,

@@ -17,82 +17,68 @@ func TestDefaultProcessor_Process(t *testing.T) {
 
 	original := &plan.SynchronousResponsePlan{
 		FlushInterval: 500,
-		Response: resolve.GraphQLResponse{
+		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
 					DataSource: userService,
 					BufferId:   0,
 				},
-				FieldSets: []resolve.FieldSet{
+				Fields: []*resolve.Field{
 					{
 						HasBuffer: true,
 						BufferID:  0,
-						Fields: []resolve.Field{
-							{
-								Name: []byte("users"),
-								Stream: &resolve.StreamField{
-									InitialBatchSize: 0,
-								},
-								Value: &resolve.Array{
-									Item: &resolve.Object{
-										Fetch: &resolve.SingleFetch{
-											BufferId:   1,
-											DataSource: postsService,
-											InputTemplate: resolve.InputTemplate{
-												Segments: []resolve.TemplateSegment{
-													{
-														SegmentType:        resolve.VariableSegmentType,
-														VariableSource:     resolve.VariableSourceObject,
-														VariableSourcePath: []string{"id"},
-													},
-												},
+						Name:      []byte("users"),
+						Stream: &resolve.StreamField{
+							InitialBatchSize: 0,
+						},
+						Value: &resolve.Array{
+							Item: &resolve.Object{
+								Fetch: &resolve.SingleFetch{
+									BufferId:   1,
+									DataSource: postsService,
+									InputTemplate: resolve.InputTemplate{
+										Segments: []resolve.TemplateSegment{
+											{
+												SegmentType:        resolve.VariableSegmentType,
+												VariableSource:     resolve.VariableSourceObject,
+												VariableSourcePath: []string{"id"},
 											},
 										},
-										FieldSets: []resolve.FieldSet{
-											{
-												Fields: []resolve.Field{
+									},
+								},
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("id"),
+										Value: &resolve.Integer{
+											Path: []string{"id"},
+										},
+									},
+									{
+										Name: []byte("name"),
+										Value: &resolve.String{
+											Path: []string{"name"},
+										},
+									},
+
+									{
+
+										HasBuffer: true,
+										BufferID:  1,
+										Name:      []byte("posts"),
+										Defer:     &resolve.DeferField{},
+										Value: &resolve.Array{
+											Item: &resolve.Object{
+												Fields: []*resolve.Field{
 													{
-														Name: []byte("id"),
-														Value: &resolve.Integer{
-															Path: []string{"id"},
-														},
-													},
-													{
-														Name: []byte("name"),
+														Name: []byte("title"),
 														Value: &resolve.String{
-															Path: []string{"name"},
+															Path: []string{"title"},
 														},
 													},
-												},
-											},
-											{
-												HasBuffer: true,
-												BufferID:  1,
-												Fields: []resolve.Field{
 													{
-														Name:  []byte("posts"),
-														Defer: &resolve.DeferField{},
-														Value: &resolve.Array{
-															Item: &resolve.Object{
-																FieldSets: []resolve.FieldSet{
-																	{
-																		Fields: []resolve.Field{
-																			{
-																				Name: []byte("title"),
-																				Value: &resolve.String{
-																					Path: []string{"title"},
-																				},
-																			},
-																			{
-																				Name: []byte("body"),
-																				Value: &resolve.String{
-																					Path: []string{"body"},
-																				},
-																			},
-																		},
-																	},
-																},
-															},
+														Name: []byte("body"),
+														Value: &resolve.String{
+															Path: []string{"body"},
 														},
 													},
 												},
@@ -118,20 +104,16 @@ func TestDefaultProcessor_Process(t *testing.T) {
 						DataSource: userService,
 						BufferId:   0,
 					},
-					FieldSets: []resolve.FieldSet{
+					Fields: []*resolve.Field{
 						{
 							HasBuffer: true,
 							BufferID:  0,
-							Fields: []resolve.Field{
-								{
-									Name: []byte("users"),
-									Value: &resolve.Array{
-										Stream: resolve.Stream{
-											Enabled:          true,
-											InitialBatchSize: 0,
-											PatchIndex:       1,
-										},
-									},
+							Name:      []byte("users"),
+							Value: &resolve.Array{
+								Stream: resolve.Stream{
+									Enabled:          true,
+									InitialBatchSize: 0,
+									PatchIndex:       1,
 								},
 							},
 						},
@@ -155,21 +137,17 @@ func TestDefaultProcessor_Process(t *testing.T) {
 					},
 					Value: &resolve.Array{
 						Item: &resolve.Object{
-							FieldSets: []resolve.FieldSet{
+							Fields: []*resolve.Field{
 								{
-									Fields: []resolve.Field{
-										{
-											Name: []byte("title"),
-											Value: &resolve.String{
-												Path: []string{"title"},
-											},
-										},
-										{
-											Name: []byte("body"),
-											Value: &resolve.String{
-												Path: []string{"body"},
-											},
-										},
+									Name: []byte("title"),
+									Value: &resolve.String{
+										Path: []string{"title"},
+									},
+								},
+								{
+									Name: []byte("body"),
+									Value: &resolve.String{
+										Path: []string{"body"},
 									},
 								},
 							},
@@ -179,33 +157,26 @@ func TestDefaultProcessor_Process(t *testing.T) {
 				{
 					Operation: literal.ADD,
 					Value: &resolve.Object{
-						FieldSets: []resolve.FieldSet{
+						Fields: []*resolve.Field{
 							{
-								Fields: []resolve.Field{
-									{
-										Name: []byte("id"),
-										Value: &resolve.Integer{
-											Path: []string{"id"},
-										},
-									},
-									{
-										Name: []byte("name"),
-										Value: &resolve.String{
-											Path: []string{"name"},
-										},
-									},
+								Name: []byte("id"),
+								Value: &resolve.Integer{
+									Path: []string{"id"},
 								},
 							},
 							{
-								Fields: []resolve.Field{
-									{
-										Name: []byte("posts"),
-										Value: &resolve.Null{
-											Defer: resolve.Defer{
-												Enabled:    true,
-												PatchIndex: 0,
-											},
-										},
+								Name: []byte("name"),
+								Value: &resolve.String{
+									Path: []string{"name"},
+								},
+							},
+
+							{
+								Name: []byte("posts"),
+								Value: &resolve.Null{
+									Defer: resolve.Defer{
+										Enabled:    true,
+										PatchIndex: 0,
 									},
 								},
 							},
@@ -224,99 +195,79 @@ func TestDefaultProcessor_Process(t *testing.T) {
 
 func TestDefaultProcessor_Federation(t *testing.T) {
 	pre := &plan.SynchronousResponsePlan{
-		Response: resolve.GraphQLResponse{
+		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
 					BufferId: 0,
 					Input:    `{"method":"POST","url":"http://localhost:4001","body":{"query":"{me {id username}}"}}`,
 				},
-				FieldSets: []resolve.FieldSet{
+				Fields: []*resolve.Field{
 					{
 						HasBuffer: true,
 						BufferID:  0,
-						Fields: []resolve.Field{
-							{
-								Name: []byte("me"),
-								Value: &resolve.Object{
-									Fetch: &resolve.SingleFetch{
-										BufferId: 1,
-										Input:    `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"$$0$$","__typename":"User"}]}},"extract_entities":true}`,
-										Variables: resolve.NewVariables(
-											&resolve.ObjectVariable{
-												Path: []string{"id"},
-											},
-										),
+						Name:      []byte("me"),
+						Value: &resolve.Object{
+							Fetch: &resolve.SingleFetch{
+								BufferId: 1,
+								Input:    `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"$$0$$","__typename":"User"}]}},"extract_entities":true}`,
+								Variables: resolve.NewVariables(
+									&resolve.ObjectVariable{
+										Path: []string{"id"},
 									},
-									Path:     []string{"me"},
-									Nullable: true,
-									FieldSets: []resolve.FieldSet{
-										{
-											Fields: []resolve.Field{
+								),
+							},
+							Path:     []string{"me"},
+							Nullable: true,
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("id"),
+									Value: &resolve.String{
+										Path: []string{"id"},
+									},
+								},
+								{
+									Name: []byte("username"),
+									Value: &resolve.String{
+										Path: []string{"username"},
+									},
+								},
+								{
+									HasBuffer: true,
+									BufferID:  1,
+									Name:      []byte("reviews"),
+									Defer:     &resolve.DeferField{},
+									Value: &resolve.Array{
+										Path:     []string{"reviews"},
+										Nullable: true,
+										Item: &resolve.Object{
+											Nullable: true,
+											Fields: []*resolve.Field{
 												{
-													Name: []byte("id"),
+													Name: []byte("body"),
 													Value: &resolve.String{
-														Path: []string{"id"},
+														Path: []string{"body"},
 													},
 												},
 												{
-													Name: []byte("username"),
-													Value: &resolve.String{
-														Path: []string{"username"},
-													},
-												},
-											},
-										},
-										{
-											HasBuffer: true,
-											BufferID:  1,
-											Fields: []resolve.Field{
-												{
-													Name:  []byte("reviews"),
-													Defer: &resolve.DeferField{},
-													Value: &resolve.Array{
-														Path:     []string{"reviews"},
-														Nullable: true,
-														Item: &resolve.Object{
-															Nullable: true,
-															FieldSets: []resolve.FieldSet{
-																{
-																	Fields: []resolve.Field{
-																		{
-																			Name: []byte("body"),
-																			Value: &resolve.String{
-																				Path: []string{"body"},
-																			},
-																		},
-																		{
-																			Name: []byte("product"),
-																			Value: &resolve.Object{
-																				Path: []string{"product"},
-																				Fetch: &resolve.SingleFetch{
-																					BufferId: 2,
-																					Input:    `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"$$0$$","__typename":"Product"}]}},"extract_entities":true}`,
-																					Variables: resolve.NewVariables(
-																						&resolve.ObjectVariable{
-																							Path: []string{"upc"},
-																						},
-																					),
-																				},
-																				FieldSets: []resolve.FieldSet{
-																					{
-																						HasBuffer: true,
-																						BufferID:  2,
-																						Fields: []resolve.Field{
-																							{
-																								Name: []byte("name"),
-																								Value: &resolve.String{
-																									Path: []string{"name"},
-																								},
-																							},
-																						},
-																					},
-																				},
-																			},
-																		},
-																	},
+													Name: []byte("product"),
+													Value: &resolve.Object{
+														Path: []string{"product"},
+														Fetch: &resolve.SingleFetch{
+															BufferId: 2,
+															Input:    `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"$$0$$","__typename":"Product"}]}},"extract_entities":true}`,
+															Variables: resolve.NewVariables(
+																&resolve.ObjectVariable{
+																	Path: []string{"upc"},
+																},
+															),
+														},
+														Fields: []*resolve.Field{
+															{
+																HasBuffer: true,
+																BufferID:  2,
+																Name:      []byte("name"),
+																Value: &resolve.String{
+																	Path: []string{"name"},
 																},
 															},
 														},
@@ -344,50 +295,38 @@ func TestDefaultProcessor_Federation(t *testing.T) {
 							Segments: []resolve.TemplateSegment{
 								{
 									SegmentType: resolve.StaticSegmentType,
-									Data: []byte(`{"method":"POST","url":"http://localhost:4001","body":{"query":"{me {id username}}"}}`),
+									Data:        []byte(`{"method":"POST","url":"http://localhost:4001","body":{"query":"{me {id username}}"}}`),
 								},
 							},
 						},
 					},
-					FieldSets: []resolve.FieldSet{
+					Fields: []*resolve.Field{
 						{
 							HasBuffer: true,
 							BufferID:  0,
-							Fields: []resolve.Field{
-								{
-									Name: []byte("me"),
-									Value: &resolve.Object{
-										Path:     []string{"me"},
-										Nullable: true,
-										FieldSets: []resolve.FieldSet{
-											{
-												Fields: []resolve.Field{
-													{
-														Name: []byte("id"),
-														Value: &resolve.String{
-															Path: []string{"id"},
-														},
-													},
-													{
-														Name: []byte("username"),
-														Value: &resolve.String{
-															Path: []string{"username"},
-														},
-													},
-												},
-											},
-											{
-												Fields: []resolve.Field{
-													{
-														Name: []byte("reviews"),
-														Value: &resolve.Null{
-															Defer: resolve.Defer{
-																Enabled:    true,
-																PatchIndex: 0,
-															},
-														},
-													},
-												},
+							Name:      []byte("me"),
+							Value: &resolve.Object{
+								Path:     []string{"me"},
+								Nullable: true,
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("id"),
+										Value: &resolve.String{
+											Path: []string{"id"},
+										},
+									},
+									{
+										Name: []byte("username"),
+										Value: &resolve.String{
+											Path: []string{"username"},
+										},
+									},
+									{
+										Name: []byte("reviews"),
+										Value: &resolve.Null{
+											Defer: resolve.Defer{
+												Enabled:    true,
+												PatchIndex: 0,
 											},
 										},
 									},
@@ -405,16 +344,16 @@ func TestDefaultProcessor_Federation(t *testing.T) {
 							Segments: []resolve.TemplateSegment{
 								{
 									SegmentType: resolve.StaticSegmentType,
-									Data: []byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"`),
+									Data:        []byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"`),
 								},
 								{
-									SegmentType: resolve.VariableSegmentType,
-									VariableSource: resolve.VariableSourceObject,
+									SegmentType:        resolve.VariableSegmentType,
+									VariableSource:     resolve.VariableSourceObject,
 									VariableSourcePath: []string{"id"},
 								},
 								{
 									SegmentType: resolve.StaticSegmentType,
-									Data: []byte(`","__typename":"User"}]}},"extract_entities":true}`),
+									Data:        []byte(`","__typename":"User"}]}},"extract_entities":true}`),
 								},
 							},
 						},
@@ -425,52 +364,44 @@ func TestDefaultProcessor_Federation(t *testing.T) {
 						Nullable: true,
 						Item: &resolve.Object{
 							Nullable: true,
-							FieldSets: []resolve.FieldSet{
+							Fields: []*resolve.Field{
 								{
-									Fields: []resolve.Field{
-										{
-											Name: []byte("body"),
-											Value: &resolve.String{
-												Path: []string{"body"},
-											},
-										},
-										{
-											Name: []byte("product"),
-											Value: &resolve.Object{
-												Path: []string{"product"},
-												Fetch: &resolve.SingleFetch{
-													BufferId: 2,
-													InputTemplate: resolve.InputTemplate{
-														Segments: []resolve.TemplateSegment{
-															{
-																SegmentType: resolve.StaticSegmentType,
-																Data: []byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"`),
-															},
-															{
-																SegmentType: resolve.VariableSegmentType,
-																VariableSource: resolve.VariableSourceObject,
-																VariableSourcePath: []string{"upc"},
-															},
-															{
-																SegmentType: resolve.StaticSegmentType,
-																Data: []byte(`","__typename":"Product"}]}},"extract_entities":true}`),
-															},
-														},
+									Name: []byte("body"),
+									Value: &resolve.String{
+										Path: []string{"body"},
+									},
+								},
+								{
+									Name: []byte("product"),
+									Value: &resolve.Object{
+										Path: []string{"product"},
+										Fetch: &resolve.SingleFetch{
+											BufferId: 2,
+											InputTemplate: resolve.InputTemplate{
+												Segments: []resolve.TemplateSegment{
+													{
+														SegmentType: resolve.StaticSegmentType,
+														Data:        []byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"`),
+													},
+													{
+														SegmentType:        resolve.VariableSegmentType,
+														VariableSource:     resolve.VariableSourceObject,
+														VariableSourcePath: []string{"upc"},
+													},
+													{
+														SegmentType: resolve.StaticSegmentType,
+														Data:        []byte(`","__typename":"Product"}]}},"extract_entities":true}`),
 													},
 												},
-												FieldSets: []resolve.FieldSet{
-													{
-														HasBuffer: true,
-														BufferID:  2,
-														Fields: []resolve.Field{
-															{
-																Name: []byte("name"),
-																Value: &resolve.String{
-																	Path: []string{"name"},
-																},
-															},
-														},
-													},
+											},
+										},
+										Fields: []*resolve.Field{
+											{
+												HasBuffer: true,
+												BufferID:  2,
+												Name:      []byte("name"),
+												Value: &resolve.String{
+													Path: []string{"name"},
 												},
 											},
 										},
@@ -486,5 +417,5 @@ func TestDefaultProcessor_Federation(t *testing.T) {
 
 	processor := DefaultProcessor()
 	actual := processor.Process(pre)
-	assert.Equal(t,expected,actual)
+	assert.Equal(t, expected, actual)
 }

@@ -1,4 +1,4 @@
-package planv2
+package plan
 
 import (
 	"testing"

@@ -13,7 +13,7 @@ import (
 
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasourcetesting"
-	plan "github.com/jensneuse/graphql-go-tools/pkg/engine/planv2"
+	plan "github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 )
 
@@ -96,7 +96,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 						Input:    `{"method":"GET","url":"https://example.com/friend"}`,
 						DataSource: &Source{},
 					},
-					Fields: []resolve.Field{
+					Fields: []*resolve.Field{
 						{
 							BufferID:  0,
 							HasBuffer: true,
@@ -113,7 +113,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 										},
 									),
 								},
-								Fields: []resolve.Field{
+								Fields: []*resolve.Field{
 									{
 										Name: []byte("name"),
 										Value: &resolve.String{
@@ -127,7 +127,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 										Name:      []byte("pet"),
 										Value: &resolve.Object{
 											Nullable: true,
-											Fields: []resolve.Field{
+											Fields: []*resolve.Field{
 												{
 													Name: []byte("id"),
 													Value: &resolve.String{
@@ -216,14 +216,14 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							},
 						),
 					},
-					Fields: []resolve.Field{
+					Fields: []*resolve.Field{
 						{
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("withArgument"),
 							Value: &resolve.Object{
 								Nullable: true,
-								Fields: []resolve.Field{
+								Fields: []*resolve.Field{
 									{
 										Name: []byte("name"),
 										Value: &resolve.String{
@@ -282,12 +282,12 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 				},
 				Response: &resolve.GraphQLResponse{
 					Data: &resolve.Object{
-						Fields: []resolve.Field{
+						Fields: []*resolve.Field{
 							{
 								Name: []byte("withArgument"),
 								Value: &resolve.Object{
 									Nullable: true,
-									Fields: []resolve.Field{
+									Fields: []*resolve.Field{
 										{
 											Name: []byte("name"),
 											Value: &resolve.String{
@@ -344,14 +344,14 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 						DataSource: &Source{},
 						DisallowSingleFlight: true,
 					},
-					Fields: []resolve.Field{
+					Fields: []*resolve.Field{
 						{
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("friend"),
 							Value: &resolve.Object{
 								Nullable: true,
-								Fields: []resolve.Field{
+								Fields: []*resolve.Field{
 									{
 										Name: []byte("name"),
 										Value: &resolve.String{
@@ -403,14 +403,14 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 						Input:    `{"headers":{"Authorization":["Bearer 123"],"X-API-Key":["456"]},"method":"GET","url":"https://example.com/friend"}`,
 						DataSource: &Source{},
 					},
-					Fields: []resolve.Field{
+					Fields: []*resolve.Field{
 						{
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("friend"),
 							Value: &resolve.Object{
 								Nullable: true,
-								Fields: []resolve.Field{
+								Fields: []*resolve.Field{
 									{
 										Name: []byte("name"),
 										Value: &resolve.String{
@@ -473,14 +473,14 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							},
 						),
 					},
-					Fields: []resolve.Field{
+					Fields: []*resolve.Field{
 						{
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("withArgument"),
 							Value: &resolve.Object{
 								Nullable: true,
-								Fields: []resolve.Field{
+								Fields: []*resolve.Field{
 									{
 										Name: []byte("name"),
 										Value: &resolve.String{
@@ -558,14 +558,14 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							},
 						),
 					},
-					Fields: []resolve.Field{
+					Fields: []*resolve.Field{
 						{
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("withArrayArguments"),
 							Value: &resolve.Object{
 								Nullable: true,
-								Fields: []resolve.Field{
+								Fields: []*resolve.Field{
 									{
 										Name: []byte("name"),
 										Value: &resolve.String{

@@ -25,20 +25,16 @@ func TestArrayStream(t *testing.T) {
 					DataSource: userService,
 					BufferId:   0,
 				},
-				FieldSets: []FieldSet{
+				Fields: []*Field{
 					{
 						HasBuffer: true,
 						BufferID:  0,
-						Fields: []Field{
-							{
-								Name: []byte("users"),
-								Value: &Array{
-									Stream: Stream{
-										Enabled:          true,
-										InitialBatchSize: 0,
-										PatchIndex:       0,
-									},
-								},
+						Name:      []byte("users"),
+						Value: &Array{
+							Stream: Stream{
+								Enabled:          true,
+								InitialBatchSize: 0,
+								PatchIndex:       0,
 							},
 						},
 					},
@@ -49,21 +45,17 @@ func TestArrayStream(t *testing.T) {
 			{
 				Operation: literal.ADD,
 				Value: &Object{
-					FieldSets: []FieldSet{
+					Fields: []*Field{
 						{
-							Fields: []Field{
-								{
-									Name: []byte("id"),
-									Value: &Integer{
-										Path: []string{"id"},
-									},
-								},
-								{
-									Name: []byte("name"),
-									Value: &String{
-										Path: []string{"name"},
-									},
-								},
+							Name: []byte("id"),
+							Value: &Integer{
+								Path: []string{"id"},
+							},
+						},
+						{
+							Name: []byte("name"),
+							Value: &String{
+								Path: []string{"name"},
 							},
 						},
 					},
@@ -110,37 +102,29 @@ func TestArrayStream_InitialBatch_1(t *testing.T) {
 					DataSource: userService,
 					BufferId:   0,
 				},
-				FieldSets: []FieldSet{
+				Fields: []*Field{
 					{
 						HasBuffer: true,
 						BufferID:  0,
-						Fields: []Field{
-							{
-								Name: []byte("users"),
-								Value: &Array{
-									Stream: Stream{
-										Enabled:          true,
-										InitialBatchSize: 1,
-										PatchIndex:       0,
+						Name:      []byte("users"),
+						Value: &Array{
+							Stream: Stream{
+								Enabled:          true,
+								InitialBatchSize: 1,
+								PatchIndex:       0,
+							},
+							Item: &Object{
+								Fields: []*Field{
+									{
+										Name: []byte("id"),
+										Value: &Integer{
+											Path: []string{"id"},
+										},
 									},
-									Item: &Object{
-										FieldSets: []FieldSet{
-											{
-												Fields: []Field{
-													{
-														Name: []byte("id"),
-														Value: &Integer{
-															Path: []string{"id"},
-														},
-													},
-													{
-														Name: []byte("name"),
-														Value: &String{
-															Path: []string{"name"},
-														},
-													},
-												},
-											},
+									{
+										Name: []byte("name"),
+										Value: &String{
+											Path: []string{"name"},
 										},
 									},
 								},
@@ -154,21 +138,17 @@ func TestArrayStream_InitialBatch_1(t *testing.T) {
 			{
 				Operation: literal.ADD,
 				Value: &Object{
-					FieldSets: []FieldSet{
+					Fields: []*Field{
 						{
-							Fields: []Field{
-								{
-									Name: []byte("id"),
-									Value: &Integer{
-										Path: []string{"id"},
-									},
-								},
-								{
-									Name: []byte("name"),
-									Value: &String{
-										Path: []string{"name"},
-									},
-								},
+							Name: []byte("id"),
+							Value: &Integer{
+								Path: []string{"id"},
+							},
+						},
+						{
+							Name: []byte("name"),
+							Value: &String{
+								Path: []string{"name"},
 							},
 						},
 					},
@@ -211,37 +191,29 @@ func TestArrayStream_InitialBatch_2(t *testing.T) {
 					DataSource: userService,
 					BufferId:   0,
 				},
-				FieldSets: []FieldSet{
+				Fields: []*Field{
 					{
 						HasBuffer: true,
 						BufferID:  0,
-						Fields: []Field{
-							{
-								Name: []byte("users"),
-								Value: &Array{
-									Stream: Stream{
-										Enabled:          true,
-										InitialBatchSize: 2,
-										PatchIndex:       0,
+						Name:      []byte("users"),
+						Value: &Array{
+							Stream: Stream{
+								Enabled:          true,
+								InitialBatchSize: 2,
+								PatchIndex:       0,
+							},
+							Item: &Object{
+								Fields: []*Field{
+									{
+										Name: []byte("id"),
+										Value: &Integer{
+											Path: []string{"id"},
+										},
 									},
-									Item: &Object{
-										FieldSets: []FieldSet{
-											{
-												Fields: []Field{
-													{
-														Name: []byte("id"),
-														Value: &Integer{
-															Path: []string{"id"},
-														},
-													},
-													{
-														Name: []byte("name"),
-														Value: &String{
-															Path: []string{"name"},
-														},
-													},
-												},
-											},
+									{
+										Name: []byte("name"),
+										Value: &String{
+											Path: []string{"name"},
 										},
 									},
 								},
@@ -255,21 +227,17 @@ func TestArrayStream_InitialBatch_2(t *testing.T) {
 			{
 				Operation: literal.ADD,
 				Value: &Object{
-					FieldSets: []FieldSet{
+					Fields: []*Field{
 						{
-							Fields: []Field{
-								{
-									Name: []byte("id"),
-									Value: &Integer{
-										Path: []string{"id"},
-									},
-								},
-								{
-									Name: []byte("name"),
-									Value: &String{
-										Path: []string{"name"},
-									},
-								},
+							Name: []byte("id"),
+							Value: &Integer{
+								Path: []string{"id"},
+							},
+						},
+						{
+							Name: []byte("name"),
+							Value: &String{
+								Path: []string{"name"},
 							},
 						},
 					},
@@ -302,7 +270,7 @@ func TestStreamAndDefer(t *testing.T) {
 		"")
 
 	postsService := fakeService(t, controller, "posts", "./testdata/posts.json",
-		"1","2",
+		"1", "2",
 	)
 
 	res := &GraphQLStreamingResponse{
@@ -312,20 +280,16 @@ func TestStreamAndDefer(t *testing.T) {
 					DataSource: userService,
 					BufferId:   0,
 				},
-				FieldSets: []FieldSet{
+				Fields: []*Field{
 					{
 						HasBuffer: true,
 						BufferID:  0,
-						Fields: []Field{
-							{
-								Name: []byte("users"),
-								Value: &Array{
-									Stream: Stream{
-										Enabled:          true,
-										InitialBatchSize: 0,
-										PatchIndex:       0,
-									},
-								},
+						Name:      []byte("users"),
+						Value: &Array{
+							Stream: Stream{
+								Enabled:          true,
+								InitialBatchSize: 0,
+								PatchIndex:       0,
 							},
 						},
 					},
@@ -336,33 +300,26 @@ func TestStreamAndDefer(t *testing.T) {
 			{
 				Operation: literal.ADD,
 				Value: &Object{
-					FieldSets: []FieldSet{
+					Fields: []*Field{
 						{
-							Fields: []Field{
-								{
-									Name: []byte("id"),
-									Value: &Integer{
-										Path: []string{"id"},
-									},
-								},
-								{
-									Name: []byte("name"),
-									Value: &String{
-										Path: []string{"name"},
-									},
-								},
+							Name: []byte("id"),
+							Value: &Integer{
+								Path: []string{"id"},
 							},
 						},
 						{
-							Fields: []Field{
-								{
-									Name: []byte("posts"),
-									Value: &Null{
-										Defer: Defer{
-											Enabled:    true,
-											PatchIndex: 1,
-										},
-									},
+							Name: []byte("name"),
+							Value: &String{
+								Path: []string{"name"},
+							},
+						},
+						{
+
+							Name: []byte("posts"),
+							Value: &Null{
+								Defer: Defer{
+									Enabled:    true,
+									PatchIndex: 1,
 								},
 							},
 						},
@@ -385,21 +342,17 @@ func TestStreamAndDefer(t *testing.T) {
 				},
 				Value: &Array{
 					Item: &Object{
-						FieldSets: []FieldSet{
+						Fields: []*Field{
 							{
-								Fields: []Field{
-									{
-										Name: []byte("title"),
-										Value: &String{
-											Path: []string{"title"},
-										},
-									},
-									{
-										Name: []byte("body"),
-										Value: &String{
-											Path: []string{"body"},
-										},
-									},
+								Name: []byte("title"),
+								Value: &String{
+									Path: []string{"title"},
+								},
+							},
+							{
+								Name: []byte("body"),
+								Value: &String{
+									Path: []string{"body"},
 								},
 							},
 						},

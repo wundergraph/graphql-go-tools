@@ -39,7 +39,7 @@ func (p *ProcessStream) processSynchronousPlan(in *plan.SynchronousResponsePlan)
 	p.out = &plan.StreamingResponsePlan{
 		FlushInterval: in.FlushInterval,
 		Response: resolve.GraphQLStreamingResponse{
-			InitialResponse: &in.Response,
+			InitialResponse: in.Response,
 			FlushInterval:   in.FlushInterval,
 		},
 	}
@@ -53,18 +53,16 @@ func (p *ProcessStream) processSynchronousPlan(in *plan.SynchronousResponsePlan)
 func (p *ProcessStream) traverseNode(node resolve.Node) {
 	switch n := node.(type) {
 	case *resolve.Object:
-		for i := range n.FieldSets {
-			for j := range n.FieldSets[i].Fields {
-				if n.FieldSets[i].Fields[j].Stream != nil {
-					switch array := n.FieldSets[i].Fields[j].Value.(type) {
-					case *resolve.Array:
-						array.Stream.Enabled = true
-						array.Stream.InitialBatchSize = n.FieldSets[i].Fields[j].Stream.InitialBatchSize
-						n.FieldSets[i].Fields[j].Stream = nil
-					}
+		for i := range n.Fields {
+			if n.Fields[i].Stream != nil {
+				switch array := n.Fields[i].Value.(type) {
+				case *resolve.Array:
+					array.Stream.Enabled = true
+					array.Stream.InitialBatchSize = n.Fields[i].Stream.InitialBatchSize
+					n.Fields[i].Stream = nil
 				}
-				p.traverseNode(n.FieldSets[i].Fields[j].Value)
 			}
+			p.traverseNode(n.Fields[i].Value)
 		}
 	case *resolve.Array:
 		if n.Stream.Enabled {

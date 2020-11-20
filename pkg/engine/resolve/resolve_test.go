@@ -92,29 +92,21 @@ func TestResolver_ResolveNode(t *testing.T) {
 	}))
 	t.Run("object with null field", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
-			FieldSets: []FieldSet{
+			Fields: []*Field{
 				{
-					Fields: []Field{
-						{
-							Name:  []byte("foo"),
-							Value: &Null{},
-						},
-					},
+					Name:  []byte("foo"),
+					Value: &Null{},
 				},
 			},
 		}, Context{Context: context.Background()}, `{"foo":null}`
 	}))
 	t.Run("default graphql object", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
-			FieldSets: []FieldSet{
+			Fields: []*Field{
 				{
-					Fields: []Field{
-						{
-							Name: []byte("data"),
-							Value: &Object{
-								Nullable: true,
-							},
-						},
+					Name: []byte("data"),
+					Value: &Object{
+						Nullable: true,
 					},
 				},
 			},
@@ -122,70 +114,60 @@ func TestResolver_ResolveNode(t *testing.T) {
 	}))
 	t.Run("graphql object with simple data source", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
-			FieldSets: []FieldSet{
+			Fields: []*Field{
 				{
-					Fields: []Field{
-						{
-							Name: []byte("data"),
-							Value: &Object{
-								FieldSets: []FieldSet{
-									{
-										Fields: []Field{
-											{
-												Name: []byte("user"),
-												Value: &Object{
-													Fetch: &SingleFetch{
-														BufferId:   0,
-														DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
+					Name: []byte("data"),
+					Value: &Object{
+						Fields: []*Field{
+							{
+								Name: []byte("user"),
+								Value: &Object{
+									Fetch: &SingleFetch{
+										BufferId:   0,
+										DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
+									},
+									Fields: []*Field{
+										{
+											BufferID:  0,
+											HasBuffer: true,
+											Name:      []byte("id"),
+											Value: &String{
+												Path: []string{"id"},
+											},
+										},
+										{
+											BufferID:  0,
+											HasBuffer: true,
+											Name:      []byte("name"),
+											Value: &String{
+												Path: []string{"name"},
+											},
+										},
+										{
+											BufferID:  0,
+											HasBuffer: true,
+											Name:      []byte("registered"),
+											Value: &Boolean{
+												Path: []string{"registered"},
+											},
+										},
+										{
+											BufferID:  0,
+											HasBuffer: true,
+											Name:      []byte("pet"),
+											Value: &Object{
+												Path: []string{"pet"},
+												Fields: []*Field{
+													{
+														Name: []byte("name"),
+														Value: &String{
+															Path: []string{"name"},
+														},
 													},
-													FieldSets: []FieldSet{
-														{
-															BufferID:  0,
-															HasBuffer: true,
-															Fields: []Field{
-																{
-																	Name: []byte("id"),
-																	Value: &String{
-																		Path: []string{"id"},
-																	},
-																},
-																{
-																	Name: []byte("name"),
-																	Value: &String{
-																		Path: []string{"name"},
-																	},
-																},
-																{
-																	Name: []byte("registered"),
-																	Value: &Boolean{
-																		Path: []string{"registered"},
-																	},
-																},
-																{
-																	Name: []byte("pet"),
-																	Value: &Object{
-																		Path: []string{"pet"},
-																		FieldSets: []FieldSet{
-																			{
-																				Fields: []Field{
-																					{
-																						Name: []byte("name"),
-																						Value: &String{
-																							Path: []string{"name"},
-																						},
-																					},
-																					{
-																						Name: []byte("kind"),
-																						Value: &String{
-																							Path: []string{"kind"},
-																						},
-																					},
-																				},
-																			},
-																		},
-																	},
-																},
-															},
+													{
+														Name: []byte("kind"),
+														Value: &String{
+															Path: []string{"kind"},
 														},
 													},
 												},
@@ -237,17 +219,13 @@ func TestResolver_ResolveNode(t *testing.T) {
 					Path: []string{"id"},
 				}),
 			},
-			FieldSets: []FieldSet{
+			Fields: []*Field{
 				{
 					HasBuffer: true,
 					BufferID:  0,
-					Fields: []Field{
-						{
-							Name: []byte("name"),
-							Value: &String{
-								Path: []string{"name"},
-							},
-						},
+					Name:      []byte("name"),
+					Value: &String{
+						Path: []string{"name"},
 					},
 				},
 			},
@@ -259,118 +237,118 @@ func TestResolver_ResolveNode(t *testing.T) {
 				BufferId:   0,
 				DataSource: FakeDataSource(`{"friends":[{"id":1,"name":"Alex"},{"id":2,"name":"Patric"}],"strings":["foo","bar","baz"],"integers":[123,456,789],"floats":[1.2,3.4,5.6],"booleans":[true,false,true]}`),
 			},
-			FieldSets: []FieldSet{
+			Fields: []*Field{
 				{
 					BufferID:  0,
 					HasBuffer: true,
-					Fields: []Field{
-						{
-							Name: []byte("synchronousFriends"),
-							Value: &Array{
-								Path:                []string{"friends"},
-								ResolveAsynchronous: false,
-								Nullable:            true,
-								Item: &Object{
-									FieldSets: []FieldSet{
-										{
-											Fields: []Field{
-												{
-													Name: []byte("id"),
-													Value: &Integer{
-														Path: []string{"id"},
-													},
-												},
-												{
-													Name: []byte("name"),
-													Value: &String{
-														Path: []string{"name"},
-													},
-												},
-											},
-										},
+					Name:      []byte("synchronousFriends"),
+					Value: &Array{
+						Path:                []string{"friends"},
+						ResolveAsynchronous: false,
+						Nullable:            true,
+						Item: &Object{
+							Fields: []*Field{
+								{
+									Name: []byte("id"),
+									Value: &Integer{
+										Path: []string{"id"},
+									},
+								},
+								{
+									Name: []byte("name"),
+									Value: &String{
+										Path: []string{"name"},
 									},
 								},
 							},
 						},
-						{
-							Name: []byte("asynchronousFriends"),
-							Value: &Array{
-								Path:                []string{"friends"},
-								ResolveAsynchronous: true,
-								Nullable:            true,
-								Item: &Object{
-									FieldSets: []FieldSet{
-										{
-											Fields: []Field{
-												{
-													Name: []byte("id"),
-													Value: &Integer{
-														Path: []string{"id"},
-													},
-												},
-												{
-													Name: []byte("name"),
-													Value: &String{
-														Path: []string{"name"},
-													},
-												},
-											},
-										},
+					},
+				},
+				{
+					BufferID:  0,
+					HasBuffer: true,
+					Name:      []byte("asynchronousFriends"),
+					Value: &Array{
+						Path:                []string{"friends"},
+						ResolveAsynchronous: true,
+						Nullable:            true,
+						Item: &Object{
+							Fields: []*Field{
+								{
+									Name: []byte("id"),
+									Value: &Integer{
+										Path: []string{"id"},
+									},
+								},
+								{
+									Name: []byte("name"),
+									Value: &String{
+										Path: []string{"name"},
 									},
 								},
 							},
 						},
-						{
-							Name: []byte("nullableFriends"),
-							Value: &Array{
-								Path:     []string{"nonExistingField"},
-								Nullable: true,
-								Item:     &Object{},
-							},
+					},
+				},
+				{
+					BufferID:  0,
+					HasBuffer: true,
+					Name:      []byte("nullableFriends"),
+					Value: &Array{
+						Path:     []string{"nonExistingField"},
+						Nullable: true,
+						Item:     &Object{},
+					},
+				},
+				{
+					BufferID:  0,
+					HasBuffer: true,
+					Name:      []byte("strings"),
+					Value: &Array{
+						Path:                []string{"strings"},
+						ResolveAsynchronous: false,
+						Nullable:            true,
+						Item: &String{
+							Nullable: false,
 						},
-						{
-							Name: []byte("strings"),
-							Value: &Array{
-								Path:                []string{"strings"},
-								ResolveAsynchronous: false,
-								Nullable:            true,
-								Item: &String{
-									Nullable: false,
-								},
-							},
+					},
+				},
+				{
+					BufferID:  0,
+					HasBuffer: true,
+					Name:      []byte("integers"),
+					Value: &Array{
+						Path:                []string{"integers"},
+						ResolveAsynchronous: false,
+						Nullable:            true,
+						Item: &Integer{
+							Nullable: false,
 						},
-						{
-							Name: []byte("integers"),
-							Value: &Array{
-								Path:                []string{"integers"},
-								ResolveAsynchronous: false,
-								Nullable:            true,
-								Item: &Integer{
-									Nullable: false,
-								},
-							},
+					},
+				},
+				{
+					BufferID:  0,
+					HasBuffer: true,
+					Name:      []byte("floats"),
+					Value: &Array{
+						Path:                []string{"floats"},
+						ResolveAsynchronous: false,
+						Nullable:            true,
+						Item: &Float{
+							Nullable: false,
 						},
-						{
-							Name: []byte("floats"),
-							Value: &Array{
-								Path:                []string{"floats"},
-								ResolveAsynchronous: false,
-								Nullable:            true,
-								Item: &Float{
-									Nullable: false,
-								},
-							},
-						},
-						{
-							Name: []byte("booleans"),
-							Value: &Array{
-								Path:                []string{"booleans"},
-								ResolveAsynchronous: false,
-								Nullable:            true,
-								Item: &Boolean{
-									Nullable: false,
-								},
-							},
+					},
+				},
+				{
+					BufferID:  0,
+					HasBuffer: true,
+					Name:      []byte("booleans"),
+					Value: &Array{
+						Path:                []string{"booleans"},
+						ResolveAsynchronous: false,
+						Nullable:            true,
+						Item: &Boolean{
+							Nullable: false,
 						},
 					},
 				},
@@ -383,29 +361,21 @@ func TestResolver_ResolveNode(t *testing.T) {
 					BufferId:   0,
 					DataSource: FakeDataSource(`[{"__typename":"Dog","name":"Woofie"},{"__typename":"Cat","name":"Mietzie"}]`),
 				},
-				FieldSets: []FieldSet{
+				Fields: []*Field{
 					{
 						BufferID:  0,
 						HasBuffer: true,
-						Fields: []Field{
-							{
-								Name: []byte("pets"),
-								Value: &Array{
-									Item: &Object{
-										FieldSets: []FieldSet{
-											{
-												BufferID:   0,
-												HasBuffer:  true,
-												OnTypeName: []byte("Dog"),
-												Fields: []Field{
-													{
-														Name: []byte("name"),
-														Value: &String{
-															Path: []string{"name"},
-														},
-													},
-												},
-											},
+						Name:      []byte("pets"),
+						Value: &Array{
+							Item: &Object{
+								Fields: []*Field{
+									{
+										BufferID:   0,
+										HasBuffer:  true,
+										OnTypeName: []byte("Dog"),
+										Name:       []byte("name"),
+										Value: &String{
+											Path: []string{"name"},
 										},
 									},
 								},
@@ -422,30 +392,22 @@ func TestResolver_ResolveNode(t *testing.T) {
 					BufferId:   0,
 					DataSource: FakeDataSource(`{"pets":[{"__typename":"Dog","name":"Woofie"},{"__typename":"Cat","name":"Mietzie"}]}`),
 				},
-				FieldSets: []FieldSet{
+				Fields: []*Field{
 					{
 						BufferID:  0,
 						HasBuffer: true,
-						Fields: []Field{
-							{
-								Name: []byte("pets"),
-								Value: &Array{
-									Path: []string{"pets"},
-									Item: &Object{
-										FieldSets: []FieldSet{
-											{
-												BufferID:   0,
-												HasBuffer:  true,
-												OnTypeName: []byte("Dog"),
-												Fields: []Field{
-													{
-														Name: []byte("name"),
-														Value: &String{
-															Path: []string{"name"},
-														},
-													},
-												},
-											},
+						Name:      []byte("pets"),
+						Value: &Array{
+							Path: []string{"pets"},
+							Item: &Object{
+								Fields: []*Field{
+									{
+										BufferID:   0,
+										HasBuffer:  true,
+										OnTypeName: []byte("Dog"),
+										Name:       []byte("name"),
+										Value: &String{
+											Path: []string{"name"},
 										},
 									},
 								},
@@ -462,31 +424,23 @@ func TestResolver_ResolveNode(t *testing.T) {
 					BufferId:   0,
 					DataSource: FakeDataSource(`{"pets":[{"__typename":"Dog","name":"Woofie"},{"__typename":"Cat","name":"Mietzie"}]}`),
 				},
-				FieldSets: []FieldSet{
+				Fields: []*Field{
 					{
 						BufferID:  0,
 						HasBuffer: true,
-						Fields: []Field{
-							{
-								Name: []byte("pets"),
-								Value: &Array{
-									ResolveAsynchronous: true,
-									Path:                []string{"pets"},
-									Item: &Object{
-										FieldSets: []FieldSet{
-											{
-												BufferID:   0,
-												HasBuffer:  true,
-												OnTypeName: []byte("Dog"),
-												Fields: []Field{
-													{
-														Name: []byte("name"),
-														Value: &String{
-															Path: []string{"name"},
-														},
-													},
-												},
-											},
+						Name:      []byte("pets"),
+						Value: &Array{
+							ResolveAsynchronous: true,
+							Path:                []string{"pets"},
+							Item: &Object{
+								Fields: []*Field{
+									{
+										BufferID:   0,
+										HasBuffer:  true,
+										OnTypeName: []byte("Dog"),
+										Name:       []byte("name"),
+										Value: &String{
+											Path: []string{"name"},
 										},
 									},
 								},
@@ -513,64 +467,60 @@ func TestResolver_ResolveNode(t *testing.T) {
 				BufferId:   0,
 				DataSource: FakeDataSource(`{"id":1,"name":"Jens"}`),
 			},
-			FieldSets: []FieldSet{
+			Fields: []*Field{
 				{
 					HasBuffer: true,
 					BufferID:  0,
-					Fields: []Field{
-						{
-							Name: []byte("id"),
-							Value: &Integer{
-								Path: []string{"id"},
-							},
-						},
-						{
-							Name: []byte("name"),
-							Value: &String{
-								Path: []string{"name"},
-							},
-						},
-						{
-							Name: []byte("pet"),
-							Value: &Object{
-								Fetch: &SingleFetch{
-									BufferId:   0,
-									DataSource: mockDataSource,
-									Input:      `{"id":$$0$$}`,
-									InputTemplate: InputTemplate{
-										Segments: []TemplateSegment{
-											{
-												SegmentType: StaticSegmentType,
-												Data:        []byte(`{"id":`),
-											},
-											{
-												SegmentType:        VariableSegmentType,
-												VariableSource:     VariableSourceObject,
-												VariableSourcePath: []string{"id"},
-											},
-											{
-												SegmentType: StaticSegmentType,
-												Data:        []byte(`}`),
-											},
-										},
-									},
-									Variables: NewVariables(&ObjectVariable{
-										Path: []string{"id"},
-									}),
-								},
-								FieldSets: []FieldSet{
+					Name:      []byte("id"),
+					Value: &Integer{
+						Path: []string{"id"},
+					},
+				},
+				{
+					HasBuffer: true,
+					BufferID:  0,
+					Name:      []byte("name"),
+					Value: &String{
+						Path: []string{"name"},
+					},
+				},
+				{
+					HasBuffer: true,
+					BufferID:  0,
+					Name:      []byte("pet"),
+					Value: &Object{
+						Fetch: &SingleFetch{
+							BufferId:   0,
+							DataSource: mockDataSource,
+							Input:      `{"id":$$0$$}`,
+							InputTemplate: InputTemplate{
+								Segments: []TemplateSegment{
 									{
-										BufferID:  0,
-										HasBuffer: true,
-										Fields: []Field{
-											{
-												Name: []byte("name"),
-												Value: &String{
-													Path: []string{"name"},
-												},
-											},
-										},
+										SegmentType: StaticSegmentType,
+										Data:        []byte(`{"id":`),
 									},
+									{
+										SegmentType:        VariableSegmentType,
+										VariableSource:     VariableSourceObject,
+										VariableSourcePath: []string{"id"},
+									},
+									{
+										SegmentType: StaticSegmentType,
+										Data:        []byte(`}`),
+									},
+								},
+							},
+							Variables: NewVariables(&ObjectVariable{
+								Path: []string{"id"},
+							}),
+						},
+						Fields: []*Field{
+							{
+								BufferID:  0,
+								HasBuffer: true,
+								Name:      []byte("name"),
+								Value: &String{
+									Path: []string{"name"},
 								},
 							},
 						},
@@ -619,18 +569,14 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					BufferId:   0,
 					DataSource: mockDataSource,
 				},
-				FieldSets: []FieldSet{
+				Fields: []*Field{
 					{
 						HasBuffer: true,
 						BufferID:  0,
-						Fields: []Field{
-							{
-								Name: []byte("name"),
-								Value: &String{
-									Path:     []string{"name"},
-									Nullable: true,
-								},
-							},
+						Name:      []byte("name"),
+						Value: &String{
+							Path:     []string{"name"},
+							Nullable: true,
 						},
 					},
 				},
@@ -655,18 +601,14 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					BufferId:   0,
 					DataSource: mockDataSource,
 				},
-				FieldSets: []FieldSet{
+				Fields: []*Field{
 					{
 						HasBuffer: true,
 						BufferID:  0,
-						Fields: []Field{
-							{
-								Name: []byte("name"),
-								Value: &String{
-									Path:     []string{"name"},
-									Nullable: true,
-								},
-							},
+						Name:      []byte("name"),
+						Value: &String{
+							Path:     []string{"name"},
+							Nullable: true,
 						},
 					},
 				},
@@ -681,155 +623,137 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					BufferId:   0,
 					DataSource: FakeDataSource(`[{"id":1},{"id":2},{"id":3}]`),
 				},
-				FieldSets: []FieldSet{
+				Fields: []*Field{
 					{
 						HasBuffer: true,
 						BufferID:  0,
-						Fields: []Field{
-							{
-								Name: []byte("stringObject"),
-								Value: &Object{
-									Nullable: true,
-									FieldSets: []FieldSet{
-										{
-											Fields: []Field{
-												{
-													Name: []byte("stringField"),
-													Value: &String{
-														Nullable: false,
-													},
-												},
-											},
-										},
-									},
-								},
-							},
-							{
-								Name: []byte("integerObject"),
-								Value: &Object{
-									Nullable: true,
-									FieldSets: []FieldSet{
-										{
-											Fields: []Field{
-												{
-													Name: []byte("integerField"),
-													Value: &Integer{
-														Nullable: false,
-													},
-												},
-											},
-										},
-									},
-								},
-							},
-							{
-								Name: []byte("floatObject"),
-								Value: &Object{
-									Nullable: true,
-									FieldSets: []FieldSet{
-										{
-											Fields: []Field{
-												{
-													Name: []byte("floatField"),
-													Value: &Float{
-														Nullable: false,
-													},
-												},
-											},
-										},
-									},
-								},
-							},
-							{
-								Name: []byte("booleanObject"),
-								Value: &Object{
-									Nullable: true,
-									FieldSets: []FieldSet{
-										{
-											Fields: []Field{
-												{
-													Name: []byte("booleanField"),
-													Value: &Boolean{
-														Nullable: false,
-													},
-												},
-											},
-										},
-									},
-								},
-							},
-							{
-								Name: []byte("objectObject"),
-								Value: &Object{
-									Nullable: true,
-									FieldSets: []FieldSet{
-										{
-											Fields: []Field{
-												{
-													Name: []byte("objectField"),
-													Value: &Object{
-														Nullable: false,
-													},
-												},
-											},
-										},
-									},
-								},
-							},
-							{
-								Name: []byte("arrayObject"),
-								Value: &Object{
-									Nullable: true,
-									FieldSets: []FieldSet{
-										{
-											Fields: []Field{
-												{
-													Name: []byte("arrayField"),
-													Value: &Array{
-														Nullable: false,
-														Item: &String{
-															Nullable: false,
-															Path:     []string{"nonExisting"},
-														},
-													},
-												},
-											},
-										},
-									},
-								},
-							},
-							{
-								Name: []byte("asynchronousArrayObject"),
-								Value: &Object{
-									Nullable: true,
-									FieldSets: []FieldSet{
-										{
-											Fields: []Field{
-												{
-													Name: []byte("arrayField"),
-													Value: &Array{
-														Nullable:            false,
-														ResolveAsynchronous: true,
-														Item: &String{
-															Nullable: false,
-															Path:     []string{"nonExisting"},
-														},
-													},
-												},
-											},
-										},
-									},
-								},
-							},
-							{
-								Name: []byte("nullableArray"),
-								Value: &Array{
-									Nullable: true,
-									Item: &String{
+						Name:      []byte("stringObject"),
+						Value: &Object{
+							Nullable: true,
+							Fields: []*Field{
+								{
+									Name: []byte("stringField"),
+									Value: &String{
 										Nullable: false,
-										Path:     []string{"name"},
 									},
 								},
+							},
+						},
+					},
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("integerObject"),
+						Value: &Object{
+							Nullable: true,
+							Fields: []*Field{
+								{
+									Name: []byte("integerField"),
+									Value: &Integer{
+										Nullable: false,
+									},
+								},
+							},
+						},
+					},
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("floatObject"),
+						Value: &Object{
+							Nullable: true,
+							Fields: []*Field{
+								{
+									Name: []byte("floatField"),
+									Value: &Float{
+										Nullable: false,
+									},
+								},
+							},
+						},
+					},
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("booleanObject"),
+						Value: &Object{
+							Nullable: true,
+							Fields: []*Field{
+								{
+									Name: []byte("booleanField"),
+									Value: &Boolean{
+										Nullable: false,
+									},
+								},
+							},
+						},
+					},
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("objectObject"),
+						Value: &Object{
+							Nullable: true,
+							Fields: []*Field{
+								{
+									Name: []byte("objectField"),
+									Value: &Object{
+										Nullable: false,
+									},
+								},
+							},
+						},
+					},
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("arrayObject"),
+						Value: &Object{
+							Nullable: true,
+							Fields: []*Field{
+								{
+									Name: []byte("arrayField"),
+									Value: &Array{
+										Nullable: false,
+										Item: &String{
+											Nullable: false,
+											Path:     []string{"nonExisting"},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("asynchronousArrayObject"),
+						Value: &Object{
+							Nullable: true,
+							Fields: []*Field{
+								{
+									Name: []byte("arrayField"),
+									Value: &Array{
+										Nullable:            false,
+										ResolveAsynchronous: true,
+										Item: &String{
+											Nullable: false,
+											Path:     []string{"nonExisting"},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("nullableArray"),
+						Value: &Array{
+							Nullable: true,
+							Item: &String{
+								Nullable: false,
+								Path:     []string{"name"},
 							},
 						},
 					},
@@ -845,49 +769,39 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					BufferId:   0,
 					DataSource: FakeDataSource(`[]`),
 				},
-				FieldSets: []FieldSet{
+				Fields: []*Field{
 					{
 						HasBuffer: true,
 						BufferID:  0,
-						Fields: []Field{
-							{
-								Name: []byte("nonNullArray"),
-								Value: &Array{
-									Nullable: false,
-									Item: &Object{
-										Nullable: false,
-										FieldSets: []FieldSet{
-											{
-												Fields: []Field{
-													{
-														Name: []byte("foo"),
-														Value: &String{
-															Nullable: false,
-														},
-													},
-												},
-											},
+						Name:      []byte("nonNullArray"),
+						Value: &Array{
+							Nullable: false,
+							Item: &Object{
+								Nullable: false,
+								Fields: []*Field{
+									{
+										Name: []byte("foo"),
+										Value: &String{
+											Nullable: false,
 										},
 									},
 								},
 							},
-							{
-								Name: []byte("nullableArray"),
-								Value: &Array{
-									Nullable: true,
-									Item: &Object{
-										Nullable: false,
-										FieldSets: []FieldSet{
-											{
-												Fields: []Field{
-													{
-														Name: []byte("foo"),
-														Value: &String{
-															Nullable: false,
-														},
-													},
-												},
-											},
+						},
+					},
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("nullableArray"),
+						Value: &Array{
+							Nullable: true,
+							Item: &Object{
+								Nullable: false,
+								Fields: []*Field{
+									{
+										Name: []byte("foo"),
+										Value: &String{
+											Nullable: false,
 										},
 									},
 								},
@@ -1023,26 +937,18 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						},
 					},
 				},
-				FieldSets: []FieldSet{
+				Fields: []*Field{
 					{
 						BufferID:  0,
 						HasBuffer: true,
-						Fields: []Field{
-							{
-								Name: []byte("serviceOne"),
-								Value: &Object{
-									Path: []string{"serviceOne"},
-									FieldSets: []FieldSet{
-										{
-											Fields: []Field{
-												{
-													Name: []byte("fieldOne"),
-													Value: &String{
-														Path: []string{"fieldOne"},
-													},
-												},
-											},
-										},
+						Name:      []byte("serviceOne"),
+						Value: &Object{
+							Path: []string{"serviceOne"},
+							Fields: []*Field{
+								{
+									Name: []byte("fieldOne"),
+									Value: &String{
+										Path: []string{"fieldOne"},
 									},
 								},
 							},
@@ -1051,57 +957,41 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					{
 						BufferID:  1,
 						HasBuffer: true,
-						Fields: []Field{
-							{
-								Name: []byte("serviceTwo"),
-								Value: &Object{
-									Path: []string{"serviceTwo"},
-									Fetch: &SingleFetch{
-										BufferId: 2,
-										Input:    `{"url":"https://service.one","body":{"query":"{serviceOne {fieldOne}}"}}`,
-										InputTemplate: InputTemplate{
-											Segments: []TemplateSegment{
-												{
-													SegmentType: StaticSegmentType,
-													Data:        []byte(`{"url":"https://service.one","body":{"query":"{serviceOne {fieldOne}}"}}`),
-												},
-											},
+						Name:      []byte("serviceTwo"),
+						Value: &Object{
+							Path: []string{"serviceTwo"},
+							Fetch: &SingleFetch{
+								BufferId: 2,
+								Input:    `{"url":"https://service.one","body":{"query":"{serviceOne {fieldOne}}"}}`,
+								InputTemplate: InputTemplate{
+									Segments: []TemplateSegment{
+										{
+											SegmentType: StaticSegmentType,
+											Data:        []byte(`{"url":"https://service.one","body":{"query":"{serviceOne {fieldOne}}"}}`),
 										},
-										DataSource: nestedServiceOne,
-										Variables:  Variables{},
 									},
-									FieldSets: []FieldSet{
-										{
-											Fields: []Field{
-												{
-													Name: []byte("fieldTwo"),
-													Value: &String{
-														Path: []string{"fieldTwo"},
-													},
-												},
-											},
-										},
-										{
-											BufferID:  2,
-											HasBuffer: true,
-											Fields: []Field{
-												{
-													Name: []byte("serviceOneResponse"),
-													Value: &Object{
-														Path: []string{"serviceOne"},
-														FieldSets: []FieldSet{
-															{
-																Fields: []Field{
-																	{
-																		Name: []byte("fieldOne"),
-																		Value: &String{
-																			Path: []string{"fieldOne"},
-																		},
-																	},
-																},
-															},
-														},
-													},
+								},
+								DataSource: nestedServiceOne,
+								Variables:  Variables{},
+							},
+							Fields: []*Field{
+								{
+									Name: []byte("fieldTwo"),
+									Value: &String{
+										Path: []string{"fieldTwo"},
+									},
+								},
+								{
+									BufferID:  2,
+									HasBuffer: true,
+									Name:      []byte("serviceOneResponse"),
+									Value: &Object{
+										Path: []string{"serviceOne"},
+										Fields: []*Field{
+											{
+												Name: []byte("fieldOne"),
+												Value: &String{
+													Path: []string{"fieldOne"},
 												},
 											},
 										},
@@ -1113,22 +1003,14 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					{
 						BufferID:  0,
 						HasBuffer: true,
-						Fields: []Field{
-							{
-								Name: []byte("anotherServiceOne"),
-								Value: &Object{
-									Path: []string{"anotherServiceOne"},
-									FieldSets: []FieldSet{
-										{
-											Fields: []Field{
-												{
-													Name: []byte("fieldOne"),
-													Value: &String{
-														Path: []string{"fieldOne"},
-													},
-												},
-											},
-										},
+						Name: []byte("anotherServiceOne"),
+						Value: &Object{
+							Path: []string{"anotherServiceOne"},
+							Fields: []*Field{
+								{
+									Name: []byte("fieldOne"),
+									Value: &String{
+										Path: []string{"fieldOne"},
 									},
 								},
 							},
@@ -1137,22 +1019,14 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					{
 						BufferID:  1,
 						HasBuffer: true,
-						Fields: []Field{
-							{
-								Name: []byte("secondServiceTwo"),
-								Value: &Object{
-									Path: []string{"secondServiceTwo"},
-									FieldSets: []FieldSet{
-										{
-											Fields: []Field{
-												{
-													Name: []byte("fieldTwo"),
-													Value: &String{
-														Path: []string{"fieldTwo"},
-													},
-												},
-											},
-										},
+						Name: []byte("secondServiceTwo"),
+						Value: &Object{
+							Path: []string{"secondServiceTwo"},
+							Fields: []*Field{
+								{
+									Name: []byte("fieldTwo"),
+									Value: &String{
+										Path: []string{"fieldTwo"},
 									},
 								},
 							},
@@ -1161,22 +1035,14 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					{
 						BufferID:  0,
 						HasBuffer: true,
-						Fields: []Field{
-							{
-								Name: []byte("reusingServiceOne"),
-								Value: &Object{
-									Path: []string{"reusingServiceOne"},
-									FieldSets: []FieldSet{
-										{
-											Fields: []Field{
-												{
-													Name: []byte("fieldOne"),
-													Value: &String{
-														Path: []string{"fieldOne"},
-													},
-												},
-											},
-										},
+						Name: []byte("reusingServiceOne"),
+						Value: &Object{
+							Path: []string{"reusingServiceOne"},
+							Fields: []*Field{
+								{
+									Name: []byte("fieldOne"),
+									Value: &String{
+										Path: []string{"fieldOne"},
 									},
 								},
 							},
@@ -1252,126 +1118,103 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 					DataSource: userService,
 				},
-				FieldSets: []FieldSet{
+				Fields: []*Field{
 					{
 						HasBuffer: true,
 						BufferID:  0,
-						Fields: []Field{
-							{
-								Name: []byte("me"),
-								Value: &Object{
-									Fetch: &SingleFetch{
-										BufferId: 1,
-										InputTemplate: InputTemplate{
-											Segments: []TemplateSegment{
-												{
-													Data:        []byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"`),
-													SegmentType: StaticSegmentType,
-												},
-												{
-													SegmentType:        VariableSegmentType,
-													VariableSource:     VariableSourceObject,
-													VariableSourcePath: []string{"id"},
-												},
-												{
-													Data:        []byte(`","__typename":"User"}]}},"extract_entities":true}`),
-													SegmentType: StaticSegmentType,
-												},
-											},
+						Name:      []byte("me"),
+						Value: &Object{
+							Fetch: &SingleFetch{
+								BufferId: 1,
+								InputTemplate: InputTemplate{
+									Segments: []TemplateSegment{
+										{
+											Data:        []byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"`),
+											SegmentType: StaticSegmentType,
 										},
-										DataSource: reviewsService,
+										{
+											SegmentType:        VariableSegmentType,
+											VariableSource:     VariableSourceObject,
+											VariableSourcePath: []string{"id"},
+										},
+										{
+											Data:        []byte(`","__typename":"User"}]}},"extract_entities":true}`),
+											SegmentType: StaticSegmentType,
+										},
 									},
-									Path:     []string{"me"},
-									Nullable: true,
-									FieldSets: []FieldSet{
-										{
-											Fields: []Field{
+								},
+								DataSource: reviewsService,
+							},
+							Path:     []string{"me"},
+							Nullable: true,
+							Fields: []*Field{
+								{
+									Name: []byte("id"),
+									Value: &String{
+										Path: []string{"id"},
+									},
+								},
+								{
+									Name: []byte("username"),
+									Value: &String{
+										Path: []string{"username"},
+									},
+								},
+								{
+
+									HasBuffer: true,
+									BufferID:  1,
+									Name:      []byte("reviews"),
+									Value: &Array{
+										Path:     []string{"reviews"},
+										Nullable: true,
+										Item: &Object{
+											Nullable: true,
+											Fields: []*Field{
 												{
-													Name: []byte("id"),
+													Name: []byte("body"),
 													Value: &String{
-														Path: []string{"id"},
+														Path: []string{"body"},
 													},
 												},
 												{
-													Name: []byte("username"),
-													Value: &String{
-														Path: []string{"username"},
-													},
-												},
-											},
-										},
-										{
-											HasBuffer: true,
-											BufferID:  1,
-											Fields: []Field{
-												{
-													Name: []byte("reviews"),
-													Value: &Array{
-														Path:     []string{"reviews"},
-														Nullable: true,
-														Item: &Object{
-															Nullable: true,
-															FieldSets: []FieldSet{
-																{
-																	Fields: []Field{
-																		{
-																			Name: []byte("body"),
-																			Value: &String{
-																				Path: []string{"body"},
-																			},
-																		},
-																		{
-																			Name: []byte("product"),
-																			Value: &Object{
-																				Path: []string{"product"},
-																				Fetch: &SingleFetch{
-																					BufferId: 2,
-																					DataSource: productService,
-																					InputTemplate: InputTemplate{
-																						Segments: []TemplateSegment{
-																							{
-																								Data:        []byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"`),
-																								SegmentType: StaticSegmentType,
-																							},
-																							{
-																								SegmentType:        VariableSegmentType,
-																								VariableSource:     VariableSourceObject,
-																								VariableSourcePath: []string{"upc"},
-																							},
-																							{
-																								Data:        []byte(`","__typename":"Product"}]}},"extract_entities":true}`),
-																								SegmentType: StaticSegmentType,
-																							},
-																						},
-																					},
-																				},
-																				FieldSets: []FieldSet{
-																					{
-																						Fields: []Field{
-																							{
-																								Name: []byte("upc"),
-																								Value: &String{
-																									Path: []string{"upc"},
-																								},
-																							},
-																						},
-																					},
-																					{
-																						HasBuffer: true,
-																						BufferID:  2,
-																						Fields: []Field{
-																							{
-																								Name: []byte("name"),
-																								Value: &String{
-																									Path: []string{"name"},
-																								},
-																							},
-																						},
-																					},
-																				},
-																			},
-																		},
+													Name: []byte("product"),
+													Value: &Object{
+														Path: []string{"product"},
+														Fetch: &SingleFetch{
+															BufferId:   2,
+															DataSource: productService,
+															InputTemplate: InputTemplate{
+																Segments: []TemplateSegment{
+																	{
+																		Data:        []byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"`),
+																		SegmentType: StaticSegmentType,
 																	},
+																	{
+																		SegmentType:        VariableSegmentType,
+																		VariableSource:     VariableSourceObject,
+																		VariableSourcePath: []string{"upc"},
+																	},
+																	{
+																		Data:        []byte(`","__typename":"Product"}]}},"extract_entities":true}`),
+																		SegmentType: StaticSegmentType,
+																	},
+																},
+															},
+														},
+														Fields: []*Field{
+															{
+																Name: []byte("upc"),
+																Value: &String{
+																	Path: []string{"upc"},
+																},
+															},
+															{
+																HasBuffer: true,
+																BufferID:  2,
+																Name:      []byte("name"),
+																Value: &String{
+																	Path: []string{"name"},
 																},
 															},
 														},
@@ -1443,15 +1286,11 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		},
 		Response: &GraphQLResponse{
 			Data: &Object{
-				FieldSets: []FieldSet{
+				Fields: []*Field{
 					{
-						Fields: []Field{
-							{
-								Name: []byte("counter"),
-								Value: &Integer{
-									Path: []string{"counter"},
-								},
-							},
+						Name: []byte("counter"),
+						Value: &Integer{
+							Path: []string{"counter"},
 						},
 					},
 				},
@@ -1564,26 +1403,18 @@ func BenchmarkResolver_ResolveNode(b *testing.B) {
 					},
 				},
 			},
-			FieldSets: []FieldSet{
+			Fields: []*Field{
 				{
 					BufferID:  0,
 					HasBuffer: true,
-					Fields: []Field{
-						{
-							Name: []byte("serviceOne"),
-							Value: &Object{
-								Path: []string{"serviceOne"},
-								FieldSets: []FieldSet{
-									{
-										Fields: []Field{
-											{
-												Name: []byte("fieldOne"),
-												Value: &String{
-													Path: []string{"fieldOne"},
-												},
-											},
-										},
-									},
+					Name:      []byte("serviceOne"),
+					Value: &Object{
+						Path: []string{"serviceOne"},
+						Fields: []*Field{
+							{
+								Name: []byte("fieldOne"),
+								Value: &String{
+									Path: []string{"fieldOne"},
 								},
 							},
 						},
@@ -1592,57 +1423,41 @@ func BenchmarkResolver_ResolveNode(b *testing.B) {
 				{
 					BufferID:  1,
 					HasBuffer: true,
-					Fields: []Field{
-						{
-							Name: []byte("serviceTwo"),
-							Value: &Object{
-								Path: []string{"serviceTwo"},
-								Fetch: &SingleFetch{
-									BufferId: 2,
-									Input:    `{"url":"https://service.one","body":{"query":"{serviceOne {fieldOne}}"}}`,
-									InputTemplate: InputTemplate{
-										Segments: []TemplateSegment{
-											{
-												SegmentType: StaticSegmentType,
-												Data:        []byte(`{"url":"https://service.one","body":{"query":"{serviceOne {fieldOne}}"}}`),
-											},
-										},
+					Name:      []byte("serviceTwo"),
+					Value: &Object{
+						Path: []string{"serviceTwo"},
+						Fetch: &SingleFetch{
+							BufferId: 2,
+							Input:    `{"url":"https://service.one","body":{"query":"{serviceOne {fieldOne}}"}}`,
+							InputTemplate: InputTemplate{
+								Segments: []TemplateSegment{
+									{
+										SegmentType: StaticSegmentType,
+										Data:        []byte(`{"url":"https://service.one","body":{"query":"{serviceOne {fieldOne}}"}}`),
 									},
-									DataSource: nestedServiceOneDS,
-									Variables:  Variables{},
 								},
-								FieldSets: []FieldSet{
-									{
-										Fields: []Field{
-											{
-												Name: []byte("fieldTwo"),
-												Value: &String{
-													Path: []string{"fieldTwo"},
-												},
-											},
-										},
-									},
-									{
-										BufferID:  2,
-										HasBuffer: true,
-										Fields: []Field{
-											{
-												Name: []byte("serviceOneResponse"),
-												Value: &Object{
-													Path: []string{"serviceOne"},
-													FieldSets: []FieldSet{
-														{
-															Fields: []Field{
-																{
-																	Name: []byte("fieldOne"),
-																	Value: &String{
-																		Path: []string{"fieldOne"},
-																	},
-																},
-															},
-														},
-													},
-												},
+							},
+							DataSource: nestedServiceOneDS,
+							Variables:  Variables{},
+						},
+						Fields: []*Field{
+							{
+								Name: []byte("fieldTwo"),
+								Value: &String{
+									Path: []string{"fieldTwo"},
+								},
+							},
+							{
+								BufferID:  2,
+								HasBuffer: true,
+								Name:      []byte("serviceOneResponse"),
+								Value: &Object{
+									Path: []string{"serviceOne"},
+									Fields: []*Field{
+										{
+											Name: []byte("fieldOne"),
+											Value: &String{
+												Path: []string{"fieldOne"},
 											},
 										},
 									},
@@ -1654,22 +1469,14 @@ func BenchmarkResolver_ResolveNode(b *testing.B) {
 				{
 					BufferID:  0,
 					HasBuffer: true,
-					Fields: []Field{
-						{
-							Name: []byte("anotherServiceOne"),
-							Value: &Object{
-								Path: []string{"anotherServiceOne"},
-								FieldSets: []FieldSet{
-									{
-										Fields: []Field{
-											{
-												Name: []byte("fieldOne"),
-												Value: &String{
-													Path: []string{"fieldOne"},
-												},
-											},
-										},
-									},
+					Name:      []byte("anotherServiceOne"),
+					Value: &Object{
+						Path: []string{"anotherServiceOne"},
+						Fields: []*Field{
+							{
+								Name: []byte("fieldOne"),
+								Value: &String{
+									Path: []string{"fieldOne"},
 								},
 							},
 						},
@@ -1678,22 +1485,14 @@ func BenchmarkResolver_ResolveNode(b *testing.B) {
 				{
 					BufferID:  1,
 					HasBuffer: true,
-					Fields: []Field{
-						{
-							Name: []byte("secondServiceTwo"),
-							Value: &Object{
-								Path: []string{"secondServiceTwo"},
-								FieldSets: []FieldSet{
-									{
-										Fields: []Field{
-											{
-												Name: []byte("fieldTwo"),
-												Value: &String{
-													Path: []string{"fieldTwo"},
-												},
-											},
-										},
-									},
+					Name:      []byte("secondServiceTwo"),
+					Value: &Object{
+						Path: []string{"secondServiceTwo"},
+						Fields: []*Field{
+							{
+								Name: []byte("fieldTwo"),
+								Value: &String{
+									Path: []string{"fieldTwo"},
 								},
 							},
 						},
@@ -1702,22 +1501,14 @@ func BenchmarkResolver_ResolveNode(b *testing.B) {
 				{
 					BufferID:  0,
 					HasBuffer: true,
-					Fields: []Field{
-						{
-							Name: []byte("reusingServiceOne"),
-							Value: &Object{
-								Path: []string{"reusingServiceOne"},
-								FieldSets: []FieldSet{
-									{
-										Fields: []Field{
-											{
-												Name: []byte("fieldOne"),
-												Value: &String{
-													Path: []string{"fieldOne"},
-												},
-											},
-										},
-									},
+					Name:      []byte("reusingServiceOne"),
+					Value: &Object{
+						Path: []string{"reusingServiceOne"},
+						Fields: []*Field{
+							{
+								Name: []byte("fieldOne"),
+								Value: &String{
+									Path: []string{"fieldOne"},
 								},
 							},
 						},
