@@ -6,22 +6,28 @@ import (
 
 type mockClient struct {
 	messagesFromServer []Message
-	messageToServer    Message
+	messageToServer    *Message
 	err                error
+	messagePipe        chan *Message
 	connected          bool
 	serverHasRead      bool
 }
 
 func newMockClient() *mockClient {
 	return &mockClient{
-		connected: true,
+		connected:   true,
+		messagePipe: make(chan *Message, 1),
 	}
 }
 
-func (c *mockClient) ReadFromClient() (Message, error) {
-	returnMessage, returnErr := c.messageToServer, c.err
+func (c *mockClient) ReadFromClient() (*Message, error) {
+	returnErr := c.err
+	returnMessage := <-c.messagePipe
+	if returnErr != nil {
+		return nil, returnErr
+	}
+
 	c.serverHasRead = true
-	c.messageToServer = Message{}
 	c.err = nil
 	return returnMessage, returnErr
 }
@@ -40,12 +46,16 @@ func (c *mockClient) Disconnect() error {
 	return nil
 }
 
+func (c *mockClient) hasMoreMessagesThan(num int) bool {
+	return len(c.messagesFromServer) > num
+}
+
 func (c *mockClient) readFromServer() []Message {
 	return c.messagesFromServer
 }
 
 func (c *mockClient) prepareConnectionInitMessage() *mockClient {
-	c.messageToServer = Message{
+	c.messageToServer = &Message{
 		Type: MessageTypeConnectionInit,
 	}
 
@@ -53,7 +63,7 @@ func (c *mockClient) prepareConnectionInitMessage() *mockClient {
 }
 
 func (c *mockClient) prepareStartMessage(id string, payload []byte) *mockClient {
-	c.messageToServer = Message{
+	c.messageToServer = &Message{
 		Id:      id,
 		Type:    MessageTypeStart,
 		Payload: payload,
@@ -63,7 +73,7 @@ func (c *mockClient) prepareStartMessage(id string, payload []byte) *mockClient 
 }
 
 func (c *mockClient) prepareStopMessage(id string) *mockClient {
-	c.messageToServer = Message{
+	c.messageToServer = &Message{
 		Id:      id,
 		Type:    MessageTypeStop,
 		Payload: nil,
@@ -73,11 +83,17 @@ func (c *mockClient) prepareStopMessage(id string) *mockClient {
 }
 
 func (c *mockClient) prepareConnectionTerminateMessage() *mockClient {
-	c.messageToServer = Message{
+	c.messageToServer = &Message{
 		Type: MessageTypeConnectionTerminate,
 	}
 
 	return c
+}
+
+func (c *mockClient) send() bool {
+	c.messagePipe <- c.messageToServer
+	c.messageToServer = nil
+	return true
 }
 
 func (c *mockClient) withoutError() *mockClient {
@@ -94,7 +110,13 @@ func (c *mockClient) and() *mockClient {
 	return c
 }
 
-func (c *mockClient) resetReceivedMessages() *mockClient {
+func (c *mockClient) reset() *mockClient {
 	c.messagesFromServer = []Message{}
+	return c
+}
+
+func (c *mockClient) reconnect() *mockClient {
+	c.reset()
+	c.connected = true
 	return c
 }

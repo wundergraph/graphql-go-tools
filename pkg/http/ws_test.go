@@ -62,7 +62,7 @@ func TestWebsocketSubscriptionClient_ReadFromClient(t *testing.T) {
 		connToServer, connToClient := net.Pipe()
 		websocketClient := NewWebsocketSubscriptionClient(abstractlogger.NoopLogger, connToClient)
 
-		messageToServer := subscription.Message{
+		messageToServer := &subscription.Message{
 			Id:      "1",
 			Type:    subscription.MessageTypeData,
 			Payload: []byte(`{"data":null}`),

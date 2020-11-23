@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/jensneuse/abstractlogger"
 
+	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/execution"
 )
 
@@ -37,7 +40,7 @@ type Message struct {
 // Client provides an interface which can be implemented by any possible subscription client like websockets, mqtt, etc.
 type Client interface {
 	// ReadFromClient will invoke a read operation from the client connection.
-	ReadFromClient() (Message, error)
+	ReadFromClient() (*Message, error)
 	// WriteToClient will invoke a write operation to the client connection.
 	WriteToClient(Message) error
 	// IsConnected will indicate if a connection is still established.
@@ -59,6 +62,8 @@ type Handler struct {
 	subCancellations subscriptionCancellations
 	// executionHandler will handle the graphql execution.
 	executionHandler *execution.Handler
+	// bufferPool will hold buffers.
+	bufferPool *sync.Pool
 }
 
 // NewHandler creates a new subscription handler.
@@ -80,6 +85,11 @@ func NewHandler(logger abstractlogger.Logger, client Client, executionHandler *e
 		subscriptionUpdateInterval: subscriptionUpdateInterval,
 		subCancellations:           subscriptionCancellations{},
 		executionHandler:           executionHandler,
+		bufferPool: &sync.Pool{
+			New: func() interface{} {
+				return bytes.NewBuffer(make([]byte, 0, 1024))
+			},
+		},
 	}, nil
 }
 
@@ -106,7 +116,7 @@ func (h *Handler) Handle(ctx context.Context) {
 			)
 
 			h.handleConnectionError("could not read message from client")
-		} else {
+		} else if message != nil {
 			switch message.Type {
 			case MessageTypeConnectionInit:
 				h.handleInit()
@@ -156,23 +166,54 @@ func (h *Handler) handleInit() {
 
 // handleStart will handle s start message.
 func (h *Handler) handleStart(id string, payload []byte) {
-	ctx := h.subCancellations.Add(id)
-	go h.startSubscription(ctx, id, payload)
-}
-
-// startSubscription will invoke the actual subscription.
-func (h *Handler) startSubscription(ctx context.Context, id string, data []byte) {
-	executor, node, executionContext, err := h.executionHandler.Handle(data, []byte(""))
+	executor, node, executionContext, err := h.executionHandler.Handle(payload, []byte(""))
 	if err != nil {
-		h.logger.Error("subscription.Handler.startSubscription()",
+		h.logger.Error("subscription.Handler.handleStart()",
 			abstractlogger.Error(err),
 		)
 
-		h.handleError(id, "error on subscription execution")
+		h.handleError(id, cleanErrorMessage(err))
+		return
 	}
 
+	if node.OperationType() == ast.OperationTypeSubscription {
+		ctx := h.subCancellations.Add(id)
+		go h.startSubscription(ctx, id, executor, node, executionContext)
+		return
+	}
+
+	go h.handleNonSubscriptionOperation(id, executor, node, executionContext)
+}
+
+// handleNonSubscriptionOperation will handle a non-subscription operation like a query or a mutation.
+func (h *Handler) handleNonSubscriptionOperation(id string, executor *execution.Executor, node execution.RootNode, executionContext execution.Context) {
+	buf := h.bufferPool.Get().(*bytes.Buffer)
+	buf.Reset()
+
+	err := executor.Execute(executionContext, node, buf)
+	if err != nil {
+		h.logger.Error("subscription.Handle.handleNonSubscriptionOperation()",
+			abstractlogger.Error(err),
+		)
+
+		h.handleError(id, err)
+		return
+	}
+
+	h.logger.Debug("subscription.Handle.handleNonSubscriptionOperation()",
+		abstractlogger.ByteString("execution_result", buf.Bytes()),
+	)
+
+	h.sendData(id, buf.Bytes())
+	h.sendComplete(id)
+}
+
+// startSubscription will invoke the actual subscription.
+func (h *Handler) startSubscription(ctx context.Context, id string, executor *execution.Executor, node execution.RootNode, executionContext execution.Context) {
 	executionContext.Context = ctx
-	buf := bytes.NewBuffer(make([]byte, 0, 1024))
+	buf := h.bufferPool.Get().(*bytes.Buffer)
+	buf.Reset()
+
 	h.executeSubscription(buf, id, executor, node, executionContext)
 
 	for {
@@ -195,7 +236,7 @@ func (h *Handler) executeSubscription(buf *bytes.Buffer, id string, executor *ex
 			abstractlogger.Error(err),
 		)
 
-		h.handleError(id, "error on subscription execution")
+		h.handleError(id, err)
 		return
 	}
 
@@ -209,6 +250,7 @@ func (h *Handler) executeSubscription(buf *bytes.Buffer, id string, executor *ex
 // handleStop will handle a stop message,
 func (h *Handler) handleStop(id string) {
 	h.subCancellations.Cancel(id)
+	h.sendComplete(id)
 }
 
 // sendData will send a data message to the client.
@@ -337,4 +379,9 @@ func (h *Handler) handleError(id string, errorPayload interface{}) {
 // ActiveSubscriptions will return the actual number of active subscriptions for that client.
 func (h *Handler) ActiveSubscriptions() int {
 	return len(h.subCancellations)
+}
+
+func cleanErrorMessage(err error) string {
+	errMsg := strings.TrimPrefix(err.Error(), "external: ")
+	return errMsg
 }
