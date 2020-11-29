@@ -1,11 +1,10 @@
 package graphql_datasource
 
 import (
-	"encoding/json"
 	"testing"
 
 	. "github.com/jensneuse/graphql-go-tools/pkg/engine/datasourcetesting"
-	plan "github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 )
 
@@ -1326,11 +1325,6 @@ func TestGraphQLDataSource(t *testing.T) {
 				},
 			},
 		}))
-}
-
-func ConfigJson(config Configuration) json.RawMessage {
-	out, _ := json.Marshal(config)
-	return out
 }
 
 const starWarsSchema = `

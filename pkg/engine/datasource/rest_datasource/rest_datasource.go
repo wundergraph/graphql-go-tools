@@ -10,14 +10,18 @@ import (
 
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
-	plan "github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/subscription/http_polling"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 )
 
+const (
+	UniqueIdentifier = "rest"
+)
+
 type Planner struct {
-	client              httpclient.Client //nolint
+	client              httpclient.Client
 	v                   *plan.Visitor
 	config              Configuration
 	rootField           int
@@ -28,15 +32,24 @@ func (p *Planner) EnterOperationDefinition(ref int) {
 	p.operationDefinition = ref
 }
 
-type Factory struct{}
+type Factory struct {
+	Client httpclient.Client
+}
 
 func (f *Factory) Planner() plan.DataSourcePlanner {
-	return &Planner{}
+	return &Planner{
+		client: f.Client,
+	}
 }
 
 type Configuration struct {
 	Fetch        FetchConfiguration
 	Subscription SubscriptionConfiguration
+}
+
+func ConfigJSON(config Configuration) json.RawMessage {
+	out, _ := json.Marshal(config)
+	return out
 }
 
 type SubscriptionConfiguration struct {
@@ -90,9 +103,11 @@ func (p *Planner) configureInput() []byte {
 func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 	input := p.configureInput()
 	return plan.FetchConfiguration{
-		Input:                string(input),
-		Variables:            nil,
-		DataSource:           &Source{},
+		Input:     string(input),
+		Variables: nil,
+		DataSource: &Source{
+			client: p.client,
+		},
 		DisallowSingleFlight: p.config.Fetch.Method != "GET",
 	}
 }
@@ -158,7 +173,7 @@ type Source struct {
 }
 
 var (
-	uniqueIdentifier = []byte("http_json")
+	uniqueIdentifier = []byte(UniqueIdentifier)
 )
 
 func (_ *Source) UniqueIdentifier() []byte {

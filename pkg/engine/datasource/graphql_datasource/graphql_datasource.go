@@ -16,12 +16,16 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
-	plan "github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 	"github.com/jensneuse/graphql-go-tools/pkg/federation"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 	"github.com/jensneuse/graphql-go-tools/pkg/pool"
+)
+
+const (
+	UniqueIdentifier = "graphql"
 )
 
 type Planner struct {
@@ -36,12 +40,18 @@ type Planner struct {
 	disallowSingleFlight       bool
 	hasFederationRoot          bool
 	extractEntities            bool
+	client                     httpclient.Client
 }
 
 type Configuration struct {
 	Fetch        FetchConfiguration
 	Subscription SubscriptionConfiguration
 	Federation   FederationConfiguration
+}
+
+func ConfigJson(config Configuration) json.RawMessage {
+	out, _ := json.Marshal(config)
+	return out
 }
 
 type FederationConfiguration struct {
@@ -94,8 +104,10 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 	input = httpclient.SetInputMethod(input, []byte(p.config.Fetch.HttpMethod))
 
 	return plan.FetchConfiguration{
-		Input:                string(input),
-		DataSource:           &Source{},
+		Input: string(input),
+		DataSource: &Source{
+			client: p.client,
+		},
 		Variables:            p.variables,
 		DisallowSingleFlight: p.disallowSingleFlight,
 	}
@@ -597,23 +609,25 @@ func (p *Planner) addField(ref int) {
 }
 
 type Factory struct {
-	id int
+	id     int
+	Client httpclient.Client
 }
 
 func (f *Factory) Planner() plan.DataSourcePlanner {
 	f.id++
 	return &Planner{
-		id: strconv.Itoa(f.id),
+		id:     strconv.Itoa(f.id),
+		client: f.Client,
 	}
 }
 
 var (
-	responsePaths          = [][]string{
+	responsePaths = [][]string{
 		{"errors"},
 		{"data"},
 	}
-	entitiesPath = []string{"_entities", "[0]"}
-	uniqueIdentifier = []byte("graphql")
+	entitiesPath     = []string{"_entities", "[0]"}
+	uniqueIdentifier = []byte(UniqueIdentifier)
 )
 
 type Source struct {

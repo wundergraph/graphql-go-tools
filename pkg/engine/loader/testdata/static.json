@@ -1,0 +1,33 @@
+{
+  "DefaultFlushInterval": 0,
+  "DataSources": [
+    {
+      "RootNodes": [
+        {
+          "TypeName": "Query",
+          "FieldNames": [
+            "hello"
+          ]
+        }
+      ],
+      "ChildNodes": null,
+      "DataSourceName": "static",
+      "OverrideFieldPathFromAlias": false,
+      "Custom": {
+        "data": "world"
+      }
+    }
+  ],
+  "Fields": [
+    {
+      "TypeName": "Query",
+      "FieldName": "hello",
+      "DisableDefaultMapping": true,
+      "Path": null,
+      "RespectOverrideFieldPathFromAlias": false,
+      "Arguments": null,
+      "RequiresFields": null
+    }
+  ],
+  "Schema": "type Query { hello: String }"
+}

@@ -1,0 +1,204 @@
+{
+  "DefaultFlushInterval": 10,
+  "DataSources": [
+    {
+      "DataSourceName": "graphql",
+      "RootNodes": [
+        {
+          "TypeName": "Query",
+          "FieldNames": [
+            "me"
+          ]
+        }
+      ],
+      "ChildNodes": [
+        {
+          "TypeName": "User",
+          "FieldNames": [
+            "id",
+            "username"
+          ]
+        }
+      ],
+      "OverrideFieldPathFromAlias": false,
+      "Custom": {
+        "Federation": {
+          "Enabled": true,
+          "ServiceSDL": "extend type Query {me: User} type User @key(fields: \"id\"){ id: ID! username: String!}"
+        },
+        "Fetch": {
+          "URL": "http://user.service",
+          "HttpMethod": ""
+        },
+        "Subscription": {
+          "URL": ""
+        }
+      }
+    },
+    {
+      "DataSourceName": "graphql",
+      "RootNodes": [
+        {
+          "TypeName": "Query",
+          "FieldNames": [
+            "topProducts"
+          ]
+        },
+        {
+          "TypeName": "Subscription",
+          "FieldNames": [
+            "updatedPrice"
+          ]
+        },
+        {
+          "TypeName": "Product",
+          "FieldNames": [
+            "upc",
+            "name",
+            "price"
+          ]
+        }
+      ],
+      "ChildNodes": [
+        {
+          "TypeName": "Product",
+          "FieldNames": [
+            "upc",
+            "name",
+            "price"
+          ]
+        }
+      ],
+      "OverrideFieldPathFromAlias": false,
+      "Custom": {
+        "Fetch": {
+          "URL": "http://product.service",
+          "HttpMethod": ""
+        },
+        "Subscription": {
+          "URL": "ws://product.service"
+        },
+        "Federation": {
+          "Enabled": true,
+          "ServiceSDL": "extend type Query {topProducts(first: Int = 5): [Product]} type Product @key(fields: \"upc\") {upc: String! name: String! price: Int!}"
+        }
+      }
+    },
+    {
+      "DataSourceName": "graphql",
+      "RootNodes": [
+        {
+          "TypeName": "User",
+          "FieldNames": [
+            "reviews"
+          ]
+        },
+        {
+          "TypeName": "Product",
+          "FieldNames": [
+            "reviews"
+          ]
+        }
+      ],
+      "ChildNodes": [
+        {
+          "TypeName": "Review",
+          "FieldNames": [
+            "body",
+            "author",
+            "product"
+          ]
+        },
+        {
+          "TypeName": "User",
+          "FieldNames": [
+            "id",
+            "username"
+          ]
+        },
+        {
+          "TypeName": "Product",
+          "FieldNames": [
+            "upc"
+          ]
+        }
+      ],
+      "OverrideFieldPathFromAlias": false,
+      "Custom": {
+        "Fetch": {
+          "URL": "http://review.service",
+          "HttpMethod": ""
+        },
+        "Subscription": {
+          "URL": ""
+        },
+        "Federation": {
+          "Enabled": true,
+          "ServiceSDL": "type Review { body: String! author: User! @provides(fields: \"username\") product: Product! } extend type User @key(fields: \"id\") { id: ID! @external reviews: [Review] } extend type Product @key(fields: \"upc\") { upc: String! @external reviews: [Review] }"
+        }
+      }
+    }
+  ],
+  "Fields": [
+    {
+      "TypeName": "Query",
+      "FieldName": "topProducts",
+      "DisableDefaultMapping": false,
+      "Path": null,
+      "RespectOverrideFieldPathFromAlias": false,
+      "Arguments": [
+        {
+          "Name": "first",
+          "SourceType": "field_argument",
+          "SourcePath": null
+        }
+      ],
+      "RequiresFields": null
+    },
+    {
+      "TypeName": "User",
+      "FieldName": "reviews",
+      "DisableDefaultMapping": false,
+      "Path": null,
+      "RespectOverrideFieldPathFromAlias": false,
+      "Arguments": null,
+      "RequiresFields": [
+        "id"
+      ]
+    },
+    {
+      "TypeName": "Product",
+      "FieldName": "name",
+      "DisableDefaultMapping": false,
+      "Path": null,
+      "RespectOverrideFieldPathFromAlias": false,
+      "Arguments": null,
+      "RequiresFields": [
+        "upc"
+      ]
+    },
+    {
+      "TypeName": "Product",
+      "FieldName": "price",
+      "DisableDefaultMapping": false,
+      "Path": null,
+      "RespectOverrideFieldPathFromAlias": false,
+      "Arguments": null,
+      "RequiresFields": [
+        "upc"
+      ]
+    },
+    {
+      "TypeName": "Product",
+      "FieldName": "reviews",
+      "DisableDefaultMapping": false,
+      "Path": null,
+      "RespectOverrideFieldPathFromAlias": false,
+      "Arguments": null,
+      "RequiresFields": [
+        "upc"
+      ]
+    }
+  ],
+  "Schema": "scalar String scalar Int scalar ID schema { query: Query } type Product { upc: String! name: String! price: Int! reviews: [Review] } type Query { me: User topProducts(first: Int = 5): [Product] } type Review { body: String! author: User! product: Product! } type User { id: ID! username: String! reviews: [Review] }"
+}

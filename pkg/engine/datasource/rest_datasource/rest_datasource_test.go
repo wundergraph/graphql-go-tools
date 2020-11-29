@@ -2,7 +2,6 @@ package rest_datasource
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -13,7 +12,7 @@ import (
 
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasourcetesting"
-	plan "github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 )
 
@@ -708,9 +707,4 @@ func TestHttpJsonDataSource_Load(t *testing.T) {
 		}
 		runTests(t, source)
 	})
-}
-
-func ConfigJSON(config Configuration) json.RawMessage {
-	out, _ := json.Marshal(config)
-	return out
 }

@@ -1,0 +1,64 @@
+{
+  "DefaultFlushInterval": 0,
+  "DataSources": [
+    {
+      "DataSourceName": "rest",
+      "RootNodes": [
+        {
+          "TypeName": "Query",
+          "FieldNames": [
+            "withArgument"
+          ]
+        }
+      ],
+      "ChildNodes": null,
+      "OverrideFieldPathFromAlias": false,
+      "Custom": {
+        "Fetch": {
+          "Body": "",
+          "Header": null,
+          "Method": "GET",
+          "Query": [
+            {
+              "name": "static",
+              "value": "staticValue"
+            },
+            {
+              "name": "static",
+              "value": "secondStaticValue"
+            },
+            {
+              "name": "name",
+              "value": "{{ .arguments.name }}"
+            },
+            {
+              "name": "id",
+              "value": "{{ .arguments.id }}"
+            },
+            {
+              "name": "optional",
+              "value": "{{ .arguments.optional }}"
+            }
+          ],
+          "URL": "https://example.com/friend"
+        },
+        "Subscription": {
+          "PollingIntervalMillis": 0,
+          "SkipPublishSameResponse": false
+        }
+      }
+    }
+  ],
+  "Fields": [
+    {
+      "TypeName": "Query",
+      "FieldName": "withArgument",
+      "DisableDefaultMapping": true,
+      "Path": null,
+      "RespectOverrideFieldPathFromAlias": false,
+      "Arguments": null,
+      "RequiresFields": null
+    }
+  ],
+  "Schema": "type Query { friend: Friend withArgument(id: String!, name: String, optional: String): Friend withArrayArguments(names: [String]): Friend } type Subscription { friend: Friend withArgument(id: String!, name: String, optional: String): Friend withArrayArguments(names: [String]): Friend } type Friend { name: String pet: Pet } type Pet { id: String name: String }"
+}

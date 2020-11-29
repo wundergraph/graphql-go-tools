@@ -8,8 +8,17 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 )
 
+const (
+	UniqueIdentifier = "static"
+)
+
 type Configuration struct {
 	Data string `json:"data"`
+}
+
+func ConfigJSON(config Configuration) json.RawMessage {
+	out, _ := json.Marshal(config)
+	return out
 }
 
 type Factory struct{}
@@ -43,7 +52,7 @@ func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
 type Source struct{}
 
 var (
-	uniqueIdentifier = []byte("static")
+	uniqueIdentifier = []byte(UniqueIdentifier)
 )
 
 func (_ Source) UniqueIdentifier() []byte {

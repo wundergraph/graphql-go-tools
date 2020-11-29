@@ -27,6 +27,7 @@ type Configuration struct {
 	DefaultFlushInterval int64
 	DataSources          []DataSourceConfiguration
 	Fields               FieldConfigurations
+	Schema               string
 }
 
 type FieldConfigurations []FieldConfiguration
@@ -155,6 +156,10 @@ func NewPlanner(config Configuration) *Planner {
 	}
 
 	return p
+}
+
+func (p *Planner) SetConfig(config Configuration) {
+	p.config = config
 }
 
 func (p *Planner) Plan(operation, definition *ast.Document, operationName string, report *operationreport.Report) (plan Plan) {
@@ -353,7 +358,7 @@ func (v *Visitor) EnterField(ref int) {
 
 	var (
 		hasFetchConfig bool
-		i int
+		i              int
 	)
 	for i = range v.fetchConfigurations {
 		if ref == v.fetchConfigurations[i].fieldRef {

@@ -1,11 +1,10 @@
 package staticdatasource
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasourcetesting"
-	plan "github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 )
 
@@ -61,9 +60,4 @@ func TestStaticDataSourcePlanning(t *testing.T) {
 			},
 		},
 	))
-}
-
-func ConfigJSON(config Configuration) json.RawMessage {
-	out, _ := json.Marshal(config)
-	return out
 }
