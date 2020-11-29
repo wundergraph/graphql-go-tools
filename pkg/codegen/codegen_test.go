@@ -5,8 +5,8 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/jensneuse/diffview"
 	"github.com/sebdah/goldie"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
 )
@@ -99,6 +99,6 @@ func TestCodeGen_GenerateDirectiveDefinitionStruct(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		diffview.NewGoland().DiffViewBytes("DataSource", fixture, data)
+		assert.Equal(t, string(data), string(fixture))
 	}
 }

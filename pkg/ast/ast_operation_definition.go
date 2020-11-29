@@ -28,6 +28,16 @@ type OperationDefinition struct {
 	HasSelections          bool
 }
 
+func (d *Document) OperationDefinitionHasVariableDefinition(ref int, variableName string) bool {
+	for _,i := range d.OperationDefinitions[ref].VariableDefinitions.Refs {
+		value := d.VariableDefinitions[i].VariableValue.Ref
+		if variableName == d.VariableValueNameString(value) {
+			return true
+		}
+	}
+	return false
+}
+
 func (d *Document) OperationDefinitionNameBytes(ref int) ByteSlice {
 	return d.Input.ByteSlice(d.OperationDefinitions[ref].Name)
 }
@@ -59,6 +69,15 @@ func (d *Document) AddVariableDefinitionToOperationDefinition(operationDefinitio
 	ref := len(d.VariableDefinitions) - 1
 	d.OperationDefinitions[operationDefinitionRef].VariableDefinitions.Refs =
 		append(d.OperationDefinitions[operationDefinitionRef].VariableDefinitions.Refs, ref)
+}
+
+func (d *Document) AddImportedVariableDefinitionToOperationDefinition(operationDefinition,variableDefinition int) {
+	if !d.OperationDefinitions[operationDefinition].HasVariableDefinitions {
+		d.OperationDefinitions[operationDefinition].HasVariableDefinitions = true
+		d.OperationDefinitions[operationDefinition].VariableDefinitions.Refs = d.Refs[d.NextRefIndex()][:0]
+	}
+	d.OperationDefinitions[operationDefinition].VariableDefinitions.Refs =
+		append(d.OperationDefinitions[operationDefinition].VariableDefinitions.Refs, variableDefinition)
 }
 
 const (
