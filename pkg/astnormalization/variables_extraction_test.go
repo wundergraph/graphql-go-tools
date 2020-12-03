@@ -54,6 +54,41 @@ func TestVariablesExtraction(t *testing.T) {
 			  }
 			}`, ``, `{"a":{"foo":"bar"}}`)
 	})
+	t.Run("enum", func(t *testing.T) {
+		runWithVariables(t, extractVariables, forumExampleSchema, `
+			mutation EnumOperation {
+			  useEnum(simpleEnum: Foo)
+			}`,
+			"EnumOperation", `
+			mutation EnumOperation($a: SimpleEnum) {
+			  useEnum(simpleEnum: $a)
+			}`,
+			``,
+			`{"a":"Foo"}`)
+	})
+	t.Run("variables in argument", func(t *testing.T) {
+		runWithVariables(t, extractVariables, variablesExtractionDefinition, `
+			mutation HttpBinPost($foo: String! = "bar") {
+			  httpBinPost(input: {foo: $foo}){
+				headers {
+				  userAgent
+				}
+				data {
+				  foo
+				}
+			  }
+			}`, "", `
+			mutation HttpBinPost($foo: String! = "bar") {
+			  httpBinPost(input: {foo: $foo}){
+				headers {
+				  userAgent
+				}
+				data {
+				  foo
+				}
+			  }
+			}`, ``, ``)
+	})
 	t.Run("multiple queries", func(t *testing.T) {
 		runWithVariables(t, extractVariables, forumExampleSchema, `
 			mutation Register {
@@ -97,6 +132,25 @@ func TestVariablesExtraction(t *testing.T) {
 			  }
 			}`, ``, `{"a":{"user":{"id":"jens","username":"jens"}}}`)
 	})
+	t.Run("values on directives should be ignored", func(t *testing.T) {
+		runWithVariables(t, extractVariables, forumExampleSchema, `
+			mutation Register($a: CreateUserInput @foo(name: "bar")) {
+			  createUser(input: $a){
+				user {
+				  id
+				  username
+				}
+			  }
+			}`, "Register", `
+			mutation Register($a: CreateUserInput @foo(name: "bar")) {
+			  createUser(input: $a){
+				user {
+				  id
+				  username
+				}
+			  }
+			}`, ``, ``)
+	})
 }
 
 const forumExampleSchema = `
@@ -104,9 +158,14 @@ schema {
 	mutation: Mutation
 }
 scalar String
+enum SimpleEnum {
+	Foo
+	Bar
+}
 type Mutation {
 	createUser(input: CreateUserInput): CreateUser
 	createPost(input: CreatePostInput): CreatePost
+	useEnum(simpleEnum: SimpleEnum): String
 }
 input CreateUserInput {
 	user: UserInput

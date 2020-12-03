@@ -2763,6 +2763,20 @@ func TestExecutionValidation(t *testing.T) {
 							}`,
 					Values(), Valid)
 			})
+			t.Run("145 variant inline variable", func(t *testing.T) {
+				run(`
+							query goodComplexDefaultValue($name: String = "Fido" ) {
+								findDog(complex: { name: $name })
+							}`,
+					Values(), Valid)
+			})
+			t.Run("145 variant variable non null", func(t *testing.T) {
+				run(`
+							query goodComplexDefaultValue($name: String ) {
+								findDogNonOptional(complex: { name: $name })
+							}`,
+					Values(), Invalid)
+			})
 			t.Run("145 variant", func(t *testing.T) {
 				run(`
 							query goodComplexDefaultValue($search: ComplexInput = { name: 123 }) {
@@ -3393,6 +3407,18 @@ func TestExecutionValidation(t *testing.T) {
 		})
 		t.Run("5.8.4 All Variables Used", func(t *testing.T) {
 			t.Run("165", func(t *testing.T) {
+				run(`	query variableUnused($name: String) {
+										findDog(complex: {name: $name})
+									}`,
+					AllVariablesUsed(), Valid)
+			})
+			t.Run("165 variant nested", func(t *testing.T) {
+				run(`	query variableUnused($name: String) {
+										findNestedDog(complex: {nested: {name: $name}})
+									}`,
+					AllVariablesUsed(), Valid)
+			})
+			t.Run("165 variant - input object type variable", func(t *testing.T) {
 				run(`query variableUnused($atOtherHomes: Boolean) {
 									dog {
 										isHousetrained
@@ -3445,6 +3471,18 @@ func TestExecutionValidation(t *testing.T) {
 									isHousetrained(atOtherHomes: $atOtherHomes)
 								}`,
 					AllVariablesUsed(), Invalid)
+			})
+			t.Run("variables in array object", func(t *testing.T) {
+				runWithDefinition(todoSchema,`mutation AddTak($title: String!, $completed: Boolean!, $name: String! @fromClaim(name: "sub")) {
+  									addTask(input: [{title: $title, completed: $completed, user: {name: $name}}]){
+										task {
+										  id
+										  title
+										  completed
+										}
+									  }
+								}`,
+					AllVariablesUsed(), Valid)
 			})
 		})
 		t.Run("5.8.5 All VariableValue Usages are Allowed", func(t *testing.T) {
@@ -3987,6 +4025,7 @@ type Mutation {
 }
 
 input ComplexInput { name: String, owner: String }
+input ComplexNestedInput { complex: ComplexInput }
 input ComplexNonOptionalInput { name: String! }
 
 input NestedInput {
@@ -4044,6 +4083,7 @@ type Query {
 	humanOrAlien: HumanOrAlien
 	arguments: ValidArguments
 	findDog(complex: ComplexInput): Dog
+	findNestedDog(complex: ComplexNestedInput): Dog
 	findDogNonOptional(complex: ComplexNonOptionalInput): Dog
   	booleanList(booleanListArg: [Boolean!]): Boolean
 	extra: Extra
@@ -4466,4 +4506,476 @@ input StringQueryOperatorInput {
 
 """The Upload scalar type represents a file upload."""
 scalar Upload
+`
+
+const todoSchema = `
+
+schema {
+	query: Query
+	mutation: Mutation
+}
+
+scalar ID
+scalar String
+scalar Boolean
+
+""""""
+scalar DateTime
+
+""""""
+enum DgraphIndex {
+  """"""
+  int
+  """"""
+  float
+  """"""
+  bool
+  """"""
+  hash
+  """"""
+  exact
+  """"""
+  term
+  """"""
+  fulltext
+  """"""
+  trigram
+  """"""
+  regexp
+  """"""
+  year
+  """"""
+  month
+  """"""
+  day
+  """"""
+  hour
+}
+
+""""""
+input DateTimeFilter {
+  """"""
+  eq: DateTime
+  """"""
+  le: DateTime
+  """"""
+  lt: DateTime
+  """"""
+  ge: DateTime
+  """"""
+  gt: DateTime
+}
+
+""""""
+input StringHashFilter {
+  """"""
+  eq: String
+}
+
+""""""
+type UpdateTaskPayload {
+  """"""
+  task(filter: TaskFilter, order: TaskOrder, first: Int, offset: Int): [Task]
+  """"""
+  numUids: Int
+}
+
+""""""
+type Subscription {
+  """"""
+  getTask(id: ID!): Task
+  """"""
+  queryTask(filter: TaskFilter, order: TaskOrder, first: Int, offset: Int): [Task]
+  """"""
+  getUser(username: String!): User
+  """"""
+  queryUser(filter: UserFilter, order: UserOrder, first: Int, offset: Int): [User]
+}
+
+""""""
+input FloatFilter {
+  """"""
+  eq: Float
+  """"""
+  le: Float
+  """"""
+  lt: Float
+  """"""
+  ge: Float
+  """"""
+  gt: Float
+}
+
+""""""
+input StringTermFilter {
+  """"""
+  allofterms: String
+  """"""
+  anyofterms: String
+}
+
+""""""
+type DeleteTaskPayload {
+  """"""
+  task(filter: TaskFilter, order: TaskOrder, first: Int, offset: Int): [Task]
+  """"""
+  msg: String
+  """"""
+  numUids: Int
+}
+
+""""""
+type Mutation {
+  """"""
+  addTask(input: [AddTaskInput!]!): AddTaskPayload
+  """"""
+  updateTask(input: UpdateTaskInput!): UpdateTaskPayload
+  """"""
+  deleteTask(filter: TaskFilter!): DeleteTaskPayload
+  """"""
+  addUser(input: [AddUserInput!]!): AddUserPayload
+  """"""
+  updateUser(input: UpdateUserInput!): UpdateUserPayload
+  """"""
+  deleteUser(filter: UserFilter!): DeleteUserPayload
+}
+
+""""""
+enum HTTPMethod {
+  """"""
+  GET
+  """"""
+  POST
+  """"""
+  PUT
+  """"""
+  PATCH
+  """"""
+  DELETE
+}
+
+""""""
+type DeleteUserPayload {
+  """"""
+  user(filter: UserFilter, order: UserOrder, first: Int, offset: Int): [User]
+  """"""
+  msg: String
+  """"""
+  numUids: Int
+}
+
+""""""
+input TaskFilter {
+  """"""
+  id: [ID!]
+  """"""
+  title: StringFullTextFilter
+  """"""
+  completed: Boolean
+  """"""
+  and: TaskFilter
+  """"""
+  or: TaskFilter
+  """"""
+  not: TaskFilter
+}
+
+""""""
+type UpdateUserPayload {
+  """"""
+  user(filter: UserFilter, order: UserOrder, first: Int, offset: Int): [User]
+  """"""
+  numUids: Int
+}
+
+""""""
+input TaskRef {
+  """"""
+  id: ID
+  """"""
+  title: String
+  """"""
+  completed: Boolean
+  """"""
+  user: UserRef
+}
+
+""""""
+input UserFilter {
+  """"""
+  username: StringHashFilter
+  """"""
+  name: StringExactFilter
+  """"""
+  and: UserFilter
+  """"""
+  or: UserFilter
+  """"""
+  not: UserFilter
+}
+
+""""""
+input UserOrder {
+  """"""
+  asc: UserOrderable
+  """"""
+  desc: UserOrderable
+  """"""
+  then: UserOrder
+}
+
+""""""
+input AuthRule {
+  """"""
+  and: [AuthRule]
+  """"""
+  or: [AuthRule]
+  """"""
+  not: AuthRule
+  """"""
+  rule: String
+}
+
+""""""
+type AddTaskPayload {
+  """"""
+  task(filter: TaskFilter, order: TaskOrder, first: Int, offset: Int): [Task]
+  """"""
+  numUids: Int
+}
+
+""""""
+type AddUserPayload {
+  """"""
+  user(filter: UserFilter, order: UserOrder, first: Int, offset: Int): [User]
+  """"""
+  numUids: Int
+}
+
+""""""
+type Task {
+  """"""
+  id: ID!
+  """"""
+  title: String!
+  """"""
+  completed: Boolean!
+  """"""
+  user(filter: UserFilter): User!
+}
+
+""""""
+input IntFilter {
+  """"""
+  eq: Int
+  """"""
+  le: Int
+  """"""
+  lt: Int
+  """"""
+  ge: Int
+  """"""
+  gt: Int
+}
+
+""""""
+input StringExactFilter {
+  """"""
+  eq: String
+  """"""
+  le: String
+  """"""
+  lt: String
+  """"""
+  ge: String
+  """"""
+  gt: String
+}
+
+""""""
+enum UserOrderable {
+  """"""
+  username
+  """"""
+  name
+}
+
+""""""
+input AddTaskInput {
+  """"""
+  title: String!
+  """"""
+  completed: Boolean!
+  """"""
+  user: UserRef!
+}
+
+""""""
+input TaskPatch {
+  """"""
+  title: String
+  """"""
+  completed: Boolean
+  """"""
+  user: UserRef
+}
+
+""""""
+input UserRef {
+  """"""
+  username: String
+  """"""
+  name: String
+  """"""
+  tasks: [TaskRef]
+}
+
+""""""
+input StringFullTextFilter {
+  """"""
+  alloftext: String
+  """"""
+  anyoftext: String
+}
+
+""""""
+enum TaskOrderable {
+  """"""
+  title
+}
+
+""""""
+input UpdateTaskInput {
+  """"""
+  filter: TaskFilter!
+  """"""
+  set: TaskPatch
+  """"""
+  remove: TaskPatch
+}
+
+""""""
+input UserPatch {
+  """"""
+  name: String
+  """"""
+  tasks: [TaskRef]
+}
+
+""""""
+type Query {
+  """"""
+  getTask(id: ID!): Task
+  """"""
+  queryTask(filter: TaskFilter, order: TaskOrder, first: Int, offset: Int): [Task]
+  """"""
+  getUser(username: String!): User
+  """"""
+  queryUser(filter: UserFilter, order: UserOrder, first: Int, offset: Int): [User]
+}
+
+""""""
+type User {
+  """"""
+  username: String!
+  """"""
+  name: String
+  """"""
+  tasks(filter: TaskFilter, order: TaskOrder, first: Int, offset: Int): [Task]
+}
+
+""""""
+enum Mode {
+  """"""
+  BATCH
+  """"""
+  SINGLE
+}
+
+""""""
+input CustomHTTP {
+  """"""
+  url: String!
+  """"""
+  method: HTTPMethod!
+  """"""
+  body: String
+  """"""
+  graphql: String
+  """"""
+  mode: Mode
+  """"""
+  forwardHeaders: [String!]
+  """"""
+  secretHeaders: [String!]
+  """"""
+  introspectionHeaders: [String!]
+  """"""
+  skipIntrospection: Boolean
+}
+
+""""""
+input StringRegExpFilter {
+  """"""
+  regexp: String
+}
+
+""""""
+input AddUserInput {
+  """"""
+  username: String!
+  """"""
+  name: String
+  """"""
+  tasks: [TaskRef]
+}
+
+""""""
+input TaskOrder {
+  """"""
+  asc: TaskOrderable
+  """"""
+  desc: TaskOrderable
+  """"""
+  then: TaskOrder
+}
+
+""""""
+input UpdateUserInput {
+  """"""
+  filter: UserFilter!
+  """"""
+  set: UserPatch
+  """"""
+  remove: UserPatch
+}
+"""
+The @cache directive caches the response server side and sets cache control headers according to the configuration.
+With this setting you can reduce the load on your backend systems for operations that get hit a lot while data doesn't change that frequently. 
+"""
+directive @cache(
+  """maxAge defines the maximum time in seconds a response will be understood 'fresh', defaults to 300 (5 minutes)"""
+  maxAge: Int! = 300
+  """
+  vary defines the headers to append to the cache key
+  In addition to all possible headers you can also select a custom claim for authenticated requests
+  Examples: 'jwt.sub', 'jwt.team' to vary the cache key based on 'sub' or 'team' fields on the jwt. 
+  """
+  vary: [String]! = []
+) on QUERY
+
+"""The @auth directive lets you configure auth for a given operation"""
+directive @auth(
+  """disable explicitly disables authentication for the annotated operation"""
+  disable: Boolean! = false
+) on QUERY | MUTATION | SUBSCRIPTION
+
+"""The @fromClaim directive overrides a variable from a select claim in the jwt"""
+directive @fromClaim(
+  """
+  name is the name of the claim you want to use for the variable
+  examples: sub, team, custom.nested.claim
+  """
+  name: String!
+) on VARIABLE_DEFINITION
 `

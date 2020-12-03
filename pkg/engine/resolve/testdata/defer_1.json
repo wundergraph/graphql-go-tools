@@ -1,0 +1,16 @@
+{
+  "data": {
+    "users": [
+      {
+        "id": 1,
+        "name": "Leanne Graham",
+        "posts": null
+      },
+      {
+        "id": 2,
+        "name": "Ervin Howell",
+        "posts": null
+      }
+    ]
+  }
+}
