@@ -414,7 +414,7 @@ func (d *Document) NodeFragmentIsAllowedOnObjectTypeDefinition(fragmentNode, obj
 func (d *Document) UnionNodeIntersectsInterfaceNode(unionNode, interfaceNode Node) bool {
 	for _, i := range d.UnionTypeDefinitions[unionNode.Ref].UnionMemberTypes.Refs {
 		memberName := d.ResolveTypeNameBytes(i)
-		node,exists := d.Index.FirstNodeByNameBytes(memberName)
+		node, exists := d.Index.FirstNodeByNameBytes(memberName)
 		if !exists {
 			continue
 		}

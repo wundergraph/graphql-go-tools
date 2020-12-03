@@ -26,7 +26,7 @@ func TestHttpPolling(t *testing.T) {
 	httpPollingStream := New(httpclient.NewNetHttpClient(httpclient.DefaultNetHttpClient))
 
 	manager := subscription.NewManager(httpPollingStream)
-	ctx,cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	manager.Run(ctx.Done())
 

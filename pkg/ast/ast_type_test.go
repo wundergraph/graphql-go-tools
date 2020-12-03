@@ -10,7 +10,7 @@ func TestDocument_TypeValueNeedsQuotes(t *testing.T) {
 	doc := Document{}
 	definition := NewDocument()
 
-	definition.Index.AddNodeStr("SomeEnum",Node{
+	definition.Index.AddNodeStr("SomeEnum", Node{
 		Kind: NodeKindEnumTypeDefinition,
 	})
 

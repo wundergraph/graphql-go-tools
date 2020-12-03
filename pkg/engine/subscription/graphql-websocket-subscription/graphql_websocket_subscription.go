@@ -35,7 +35,7 @@ func New() *GraphQLWebsocketSubscriptionStream {
 
 func (g *GraphQLWebsocketSubscriptionStream) Start(input []byte, next chan<- []byte, stop <-chan struct{}) {
 
-	scheme,host,path,body,headers := httpclient.GetSubscriptionInput(input)
+	scheme, host, path, body, headers := httpclient.GetSubscriptionInput(input)
 
 	var (
 		header http.Header
@@ -93,7 +93,7 @@ func (g *GraphQLWebsocketSubscriptionStream) Start(input []byte, next chan<- []b
 			if !ok {
 				return
 			}
-			content,_,_,err := jsonparser.Get(data,"data")
+			content, _, _, err := jsonparser.Get(data, "data")
 			if err != nil || len(content) == 0 {
 				continue
 			}

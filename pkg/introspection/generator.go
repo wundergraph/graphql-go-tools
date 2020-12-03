@@ -422,7 +422,7 @@ func (i *introspectionVisitor) TypeRef(typeRef int) TypeRef {
 	switch i.definition.Types[typeRef].TypeKind {
 	case ast.TypeKindNamed:
 		name := i.definition.TypeNameBytes(typeRef)
-		node,exists := i.definition.Index.FirstNodeByNameBytes(name)
+		node, exists := i.definition.Index.FirstNodeByNameBytes(name)
 		if !exists {
 			return TypeRef{}
 		}

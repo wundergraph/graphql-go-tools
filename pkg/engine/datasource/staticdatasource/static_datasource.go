@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	plan "github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 )
 

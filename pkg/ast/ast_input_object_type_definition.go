@@ -69,7 +69,7 @@ func (d *Document) InputObjectTypeDefinitionInputValueDefinitionDefaultValueFloa
 }
 
 func (d *Document) InputObjectTypeDefinitionInputValueDefinitionDefaultValue(inputObjectTypeDefinitionName, inputValueDefinitionName string) Value {
-	inputObjectTypeDefinition,exists := d.Index.FirstNodeByNameStr(inputObjectTypeDefinitionName)
+	inputObjectTypeDefinition, exists := d.Index.FirstNodeByNameStr(inputObjectTypeDefinitionName)
 	if !exists {
 		return Value{}
 	}

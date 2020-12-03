@@ -21,7 +21,7 @@ func TestWebsocketClient(t *testing.T) {
 	server := FakeGraphQLSubscriptionServer(t)
 	defer server.Close()
 
- 	host := server.Listener.Addr().String()
+	host := server.Listener.Addr().String()
 
 	client := &WebsocketClient{}
 	//err := client.Open("ws", "localhost:4444", "/", nil)
@@ -86,19 +86,19 @@ func FakeGraphQLSubscriptionServer(t *testing.T) *httptest.Server {
 		streams := map[string]func(){}
 		writeMux := &sync.Mutex{}
 
-		startStream := func(id string,done <- chan struct{}){
+		startStream := func(id string, done <-chan struct{}) {
 			counter := 0
 			for {
 				time.Sleep(time.Millisecond)
 				select {
-					case <- done:
-						message := fmt.Sprintf(`{"type":"complete","id":"%s","payload":null}`,id)
-						writeMux.Lock()
-						err = c.WriteMessage(websocket.TextMessage, []byte(message))
-						writeMux.Unlock()
-						return
+				case <-done:
+					message := fmt.Sprintf(`{"type":"complete","id":"%s","payload":null}`, id)
+					writeMux.Lock()
+					err = c.WriteMessage(websocket.TextMessage, []byte(message))
+					writeMux.Unlock()
+					return
 				default:
-					message := fmt.Sprintf(`{"type":"data","id":"%s","payload":{"data":{"counter":{"count":%d}}}}`,id,counter)
+					message := fmt.Sprintf(`{"type":"data","id":"%s","payload":{"data":{"counter":{"count":%d}}}}`, id, counter)
 					writeMux.Lock()
 					err = c.WriteMessage(websocket.TextMessage, []byte(message))
 					writeMux.Unlock()
@@ -117,19 +117,19 @@ func FakeGraphQLSubscriptionServer(t *testing.T) *httptest.Server {
 			}
 			assert.Equal(t, websocket.TextMessage, mt)
 
-			messageType,err := jsonparser.GetString(message,"type")
-			assert.NoError(t,err)
-			messageID,err := jsonparser.GetString(message,"id")
-			assert.NoError(t,err)
+			messageType, err := jsonparser.GetString(message, "type")
+			assert.NoError(t, err)
+			messageID, err := jsonparser.GetString(message, "id")
+			assert.NoError(t, err)
 			switch messageType {
 			case "start":
-				ctx,cancel := context.WithCancel(context.Background())
+				ctx, cancel := context.WithCancel(context.Background())
 				streams[messageID] = cancel
-				go startStream(messageID,ctx.Done())
+				go startStream(messageID, ctx.Done())
 			case "stop":
 				cancel := streams[messageID]
 				cancel()
-				delete(streams,messageID)
+				delete(streams, messageID)
 			}
 		}
 	}))

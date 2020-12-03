@@ -81,7 +81,7 @@ func TestPrint(t *testing.T) {
 					  """
 					  vary: [String]! = []
 					) on QUERY`,
-	`"""
+			`"""
 directive @cache
 """
 directive @cache("maxAge defines the maximum time in seconds a response will be understood 'fresh', defaults to 300 (5 minutes)"
