@@ -34,7 +34,6 @@ func New() *GraphQLWebsocketSubscriptionStream {
 }
 
 func (g *GraphQLWebsocketSubscriptionStream) Start(input []byte, next chan<- []byte, stop <-chan struct{}) {
-
 	scheme, host, path, body, headers := httpclient.GetSubscriptionInput(input)
 
 	var (
