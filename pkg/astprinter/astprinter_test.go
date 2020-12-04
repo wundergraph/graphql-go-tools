@@ -67,6 +67,31 @@ func TestPrint(t *testing.T) {
 				}`,
 			"subscription sub {...multipleSubscriptions} fragment multipleSubscriptions on Subscription {...{newMessage {body}} ... on Subscription {typedInlineFragment} newMessage {body sender} disallowedSecondRootField}")
 	})
+	t.Run("directive definition", func(t *testing.T) {
+		run(`	"""
+					directive @cache
+					"""
+					directive @cache(
+					  "maxAge defines the maximum time in seconds a response will be understood 'fresh', defaults to 300 (5 minutes)"
+					  maxAge: Int! = 300
+					  """
+					  vary defines the headers to append to the cache key
+					  In addition to all possible headers you can also select a custom claim for authenticated requests
+					  Examples: 'jwt.sub', 'jwt.team' to vary the cache key based on 'sub' or 'team' fields on the jwt. 
+					  """
+					  vary: [String]! = []
+					) on QUERY`,
+			`"""
+directive @cache
+"""
+directive @cache("maxAge defines the maximum time in seconds a response will be understood 'fresh', defaults to 300 (5 minutes)"
+maxAge: Int! = 300 """
+vary defines the headers to append to the cache key
+In addition to all possible headers you can also select a custom claim for authenticated requests
+Examples: 'jwt.sub', 'jwt.team' to vary the cache key based on 'sub' or 'team' fields on the jwt.
+"""
+vary: [String]! = []) on QUERY`)
+	})
 	t.Run("anonymous query", func(t *testing.T) {
 		run(`	{
 						dog {
@@ -81,6 +106,10 @@ func TestPrint(t *testing.T) {
 						doesKnowCommand(dogCommand: $catCommand)
 					}
 				}`, `query argOnRequiredArg($catCommand: CatCommand @include(if: true), $complex: Boolean = true){dog {doesKnowCommand(dogCommand: $catCommand)}}`)
+	})
+	t.Run("spacing", func(t *testing.T) {
+		run(`query($representations: [_Any!]!){_entities (representations: $representations){... on User {reviews {body product {upc __typename}}}}}`,
+			`query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}`)
 	})
 	t.Run("directives", func(t *testing.T) {
 		t.Run("on field", func(t *testing.T) {

@@ -5,8 +5,6 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/cespare/xxhash"
-
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/keyword"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
@@ -94,7 +92,7 @@ func TestParser_Parse(t *testing.T) {
 
 	wantIndexedNode := func(key string, kind ast.NodeKind) check {
 		return func(doc *ast.Document, extra interface{}) {
-			node, exists := doc.Index.Nodes[xxhash.Sum64String(key)]
+			node, exists := doc.Index.FirstNodeByNameStr(key)
 			if !exists {
 				panic("want true")
 			}

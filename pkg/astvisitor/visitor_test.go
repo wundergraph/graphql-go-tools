@@ -301,6 +301,7 @@ func BenchmarkMinimalVisitor(b *testing.B) {
 
 	walker := NewWalker(48)
 	walker.RegisterEnterFieldVisitor(visitor)
+	walker.SetVisitorFilter(visitor)
 	report := operationreport.Report{}
 
 	b.ResetTimer()
@@ -313,6 +314,10 @@ func BenchmarkMinimalVisitor(b *testing.B) {
 }
 
 type minimalVisitor struct {
+}
+
+func (m *minimalVisitor) AllowVisitor(kind VisitorKind, ref int, visitor interface{}) bool {
+	return visitor == m
 }
 
 func (m *minimalVisitor) EnterField(ref int) {
