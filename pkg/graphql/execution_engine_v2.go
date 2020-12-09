@@ -1,6 +1,11 @@
 package graphql
 
 import (
+	"bytes"
+	"context"
+	"io"
+	"io/ioutil"
+	"net/http"
 	"sync"
 
 	"github.com/jensneuse/abstractlogger"
@@ -42,6 +47,32 @@ func (e *EngineV2Configuration) SetFieldConfiguration(fieldConfigs plan.FieldCon
 	e.plannerConfig.Fields = fieldConfigs
 }
 
+type EngineResultWriter struct {
+	buf *bytes.Buffer
+}
+
+func NewEngineResultWriter() EngineResultWriter {
+	return EngineResultWriter{
+		buf: &bytes.Buffer{},
+	}
+}
+
+func (e *EngineResultWriter) Write(p []byte) (n int, err error) {
+	return e.buf.Write(p)
+}
+
+func (e *EngineResultWriter) Reset() {
+	e.buf.Reset()
+}
+
+func (e *EngineResultWriter) AsHTTPResponse(status int, headers http.Header) *http.Response {
+	res := &http.Response{}
+	res.Body = ioutil.NopCloser(e.buf)
+	res.Header = headers
+	res.StatusCode = status
+	return res
+}
+
 type ExecutionEngineV2 struct {
 	logger      abstractlogger.Logger
 	config      EngineV2Configuration
@@ -62,4 +93,8 @@ func NewExecutionEngineV2(logger abstractlogger.Logger, engineConfig EngineV2Con
 			},
 		},
 	}, nil
+}
+
+func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *Request, writer io.Writer) error {
+	return nil
 }

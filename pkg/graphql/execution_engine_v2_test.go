@@ -1,6 +1,8 @@
 package graphql
 
 import (
+	"io/ioutil"
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -61,4 +63,20 @@ func TestNewEngineV2Configuration(t *testing.T) {
 		assert.Len(t, engineConfig.plannerConfig.Fields, 3)
 		assert.Equal(t, fieldConfigs, engineConfig.plannerConfig.Fields)
 	})
+}
+
+func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
+	rw := NewEngineResultWriter()
+	_, err := rw.Write([]byte(`{"key": "value"}`))
+	require.NoError(t, err)
+
+	headers := make(http.Header)
+	headers.Set("Content-Type", "application/json")
+	response := rw.AsHTTPResponse(http.StatusOK, headers)
+	body, err := ioutil.ReadAll(response.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusOK, response.StatusCode)
+	assert.Equal(t, "application/json", response.Header.Get("Content-Type"))
+	assert.Equal(t, `{"key": "value"}`, string(body))
 }
