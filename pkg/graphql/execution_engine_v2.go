@@ -3,6 +3,7 @@ package graphql
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -12,6 +13,8 @@ import (
 
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
+	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
+	"github.com/jensneuse/graphql-go-tools/pkg/postprocess"
 )
 
 type EngineV2Configuration struct {
@@ -61,6 +64,18 @@ func (e *EngineResultWriter) Write(p []byte) (n int, err error) {
 	return e.buf.Write(p)
 }
 
+func (e *EngineResultWriter) Read(p []byte) (n int, err error) {
+	return e.buf.Read(p)
+}
+
+func (e *EngineResultWriter) Bytes() []byte {
+	return e.buf.Bytes()
+}
+
+func (e *EngineResultWriter) String() string {
+	return e.buf.String()
+}
+
 func (e *EngineResultWriter) Reset() {
 	e.buf.Reset()
 }
@@ -73,12 +88,32 @@ func (e *EngineResultWriter) AsHTTPResponse(status int, headers http.Header) *ht
 	return res
 }
 
+type internalExecutionContext struct {
+	resolveContext *resolve.Context
+	postProcessor  *postprocess.Processor
+}
+
+func newInternalExecutionContext() *internalExecutionContext {
+	return &internalExecutionContext{
+		resolveContext: resolve.NewContext(nil),
+		postProcessor:  postprocess.DefaultProcessor(),
+	}
+}
+
+func (e *internalExecutionContext) setContext(ctx context.Context) {
+	e.resolveContext.Context = ctx
+}
+
+func (e *internalExecutionContext) reset() {
+	e.resolveContext.Free()
+}
+
 type ExecutionEngineV2 struct {
-	logger      abstractlogger.Logger
-	config      EngineV2Configuration
-	planner     *plan.Planner
-	resolver    *resolve.Resolver
-	contextPool sync.Pool
+	logger                       abstractlogger.Logger
+	config                       EngineV2Configuration
+	planner                      *plan.Planner
+	resolver                     *resolve.Resolver
+	internalExecutionContextPool sync.Pool
 }
 
 func NewExecutionEngineV2(logger abstractlogger.Logger, engineConfig EngineV2Configuration) (*ExecutionEngineV2, error) {
@@ -87,14 +122,54 @@ func NewExecutionEngineV2(logger abstractlogger.Logger, engineConfig EngineV2Con
 		config:   engineConfig,
 		planner:  plan.NewPlanner(engineConfig.plannerConfig),
 		resolver: resolve.New(),
-		contextPool: sync.Pool{
+		internalExecutionContextPool: sync.Pool{
 			New: func() interface{} {
-				return resolve.NewContext(nil)
+				return newInternalExecutionContext()
 			},
 		},
 	}, nil
 }
 
 func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *Request, writer io.Writer) error {
-	return nil
+	if !operation.IsNormalized() {
+		result, err := operation.Normalize(e.config.schema)
+		if err != nil {
+			return err
+		}
+
+		if !result.Successful {
+			return result.Errors
+		}
+	}
+
+	execContext := e.getFreshInternalExecutionContext(ctx)
+	defer e.internalExecutionContextPool.Put(execContext)
+
+	// Optimization: Hashing the operation and caching the postprocessed plan for
+	// this specific operation will improve perfomance significantly.
+	var report operationreport.Report
+	planResult := e.planner.Plan(&operation.document, &e.config.schema.document, operation.OperationName, &report)
+	if report.HasErrors() {
+		return report
+	}
+
+	planResult = execContext.postProcessor.Process(planResult)
+
+	var err error
+	switch p := planResult.(type) {
+	case *plan.SynchronousResponsePlan:
+		err = e.resolver.ResolveGraphQLResponse(execContext.resolveContext, p.Response, nil, writer)
+	default:
+		return errors.New("execution of operation is not possible")
+	}
+
+	return err
+}
+
+func (e *ExecutionEngineV2) getFreshInternalExecutionContext(ctx context.Context) *internalExecutionContext {
+	execCtx := e.internalExecutionContextPool.Get().(*internalExecutionContext)
+	execCtx.reset()
+	execCtx.setContext(ctx)
+
+	return execCtx
 }

@@ -1,14 +1,19 @@
 package graphql
 
 import (
+	"context"
 	"io/ioutil"
 	"net/http"
 	"testing"
 
+	"github.com/jensneuse/abstractlogger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/rest_datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
+	"github.com/jensneuse/graphql-go-tools/pkg/starwars"
 )
 
 func TestNewEngineV2Configuration(t *testing.T) {
@@ -79,4 +84,68 @@ func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
 	assert.Equal(t, http.StatusOK, response.StatusCode)
 	assert.Equal(t, "application/json", response.Header.Get("Content-Type"))
 	assert.Equal(t, `{"key": "value"}`, string(body))
+}
+
+type ExecutionEngineV2TestCase struct {
+	schema           *Schema
+	operation        func(t *testing.T) Request
+	dataSources      []plan.DataSourceConfiguration
+	fields           plan.FieldConfigurations
+	expectedResponse string
+}
+
+func TestExecutionEngineV2_Execute(t *testing.T) {
+	run := func(testCase ExecutionEngineV2TestCase) func(t *testing.T) {
+		return func(t *testing.T) {
+			engineConf := NewEngineV2Configuration(testCase.schema)
+			engineConf.SetDataSources(testCase.dataSources)
+			engineConf.SetFieldConfiguration(testCase.fields)
+
+			engine, err := NewExecutionEngineV2(abstractlogger.Noop{}, engineConf)
+			require.NoError(t, err)
+
+			operation := testCase.operation(t)
+			resultWriter := NewEngineResultWriter()
+			err = engine.Execute(context.Background(), &operation, &resultWriter)
+
+			assert.Equal(t, testCase.expectedResponse, resultWriter.String())
+		}
+	}
+
+	t.Run("execute simple hero query with rest data source", run(
+		ExecutionEngineV2TestCase{
+			starwarsSchema(t),
+			loadStarWarsQuery(starwars.FileSimpleHeroQuery, nil),
+			[]plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{TypeName: "Query", FieldNames: []string{"hero"}},
+					},
+					Factory: &rest_datasource.Factory{
+						Client: testNetHttpClient(t,
+							"example.com",
+							"/",
+							"",
+							`{"hero": {"name": "Luke Skywalker"}}`,
+							200,
+						),
+					},
+					Custom: rest_datasource.ConfigJSON(rest_datasource.Configuration{
+						Fetch: rest_datasource.FetchConfiguration{
+							URL:    "https://example.com/",
+							Method: "GET",
+						},
+					}),
+				},
+			},
+			[]plan.FieldConfiguration{},
+			`{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+		},
+	))
+}
+
+func testNetHttpClient(t *testing.T, expectedHost string, expectedPath string, expectedBody string, response string, statusCode int) httpclient.Client {
+	return httpclient.NewNetHttpClient(&http.Client{
+		Transport: createTestRoundTripper(t, expectedHost, expectedPath, expectedBody, response, statusCode),
+	})
 }
