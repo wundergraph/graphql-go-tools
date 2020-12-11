@@ -109,6 +109,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			err = engine.Execute(context.Background(), &operation, &resultWriter)
 
 			assert.Equal(t, testCase.expectedResponse, resultWriter.String())
+			assert.NoError(t, err)
 		}
 	}
 
@@ -122,13 +123,13 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 						{TypeName: "Query", FieldNames: []string{"hero"}},
 					},
 					Factory: &rest_datasource.Factory{
-						Client: testNetHttpClient(t,
-							"example.com",
-							"/",
-							"",
-							`{"hero": {"name": "Luke Skywalker"}}`,
-							200,
-						),
+						Client: testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "example.com",
+							expectedPath:     "/",
+							expectedBody:     "",
+							sendResponseBody: `{"hero": {"name": "Luke Skywalker"}}`,
+							sendStatusCode:   200,
+						}),
 					},
 					Custom: rest_datasource.ConfigJSON(rest_datasource.Configuration{
 						Fetch: rest_datasource.FetchConfiguration{
@@ -144,8 +145,8 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 	))
 }
 
-func testNetHttpClient(t *testing.T, expectedHost string, expectedPath string, expectedBody string, response string, statusCode int) httpclient.Client {
+func testNetHttpClient(t *testing.T, testCase roundTripperTestCase) httpclient.Client {
 	return httpclient.NewNetHttpClient(&http.Client{
-		Transport: createTestRoundTripper(t, expectedHost, expectedPath, expectedBody, response, statusCode),
+		Transport: createTestRoundTripper(t, testCase),
 	})
 }

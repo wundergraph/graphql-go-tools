@@ -24,23 +24,31 @@ func (t testRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	return t(req), nil
 }
 
-func createTestRoundTripper(t *testing.T, host string, url string, expectedBody string, response string, statusCode int) testRoundTripper {
-	return testRoundTripper(func(req *http.Request) *http.Response {
-		assert.Equal(t, host, req.URL.Host)
-		assert.Equal(t, url, req.URL.Path)
+type roundTripperTestCase struct {
+	expectedHost     string
+	expectedPath     string
+	expectedBody     string
+	sendStatusCode   int
+	sendResponseBody string
+}
 
-		if len(expectedBody) > 0 {
+func createTestRoundTripper(t *testing.T, testCase roundTripperTestCase) testRoundTripper {
+	return testRoundTripper(func(req *http.Request) *http.Response {
+		assert.Equal(t, testCase.expectedHost, req.URL.Host)
+		assert.Equal(t, testCase.expectedPath, req.URL.Path)
+
+		if len(testCase.expectedBody) > 0 {
 			var receivedBodyBytes []byte
 			if req.Body != nil {
 				var err error
 				receivedBodyBytes, err = ioutil.ReadAll(req.Body)
 				require.NoError(t, err)
 			}
-			assert.Equal(t, expectedBody, string(receivedBodyBytes))
+			assert.Equal(t, testCase.expectedBody, string(receivedBodyBytes))
 		}
 
-		body := bytes.NewBuffer([]byte(response))
-		return &http.Response{StatusCode: statusCode, Body: ioutil.NopCloser(body)}
+		body := bytes.NewBuffer([]byte(testCase.sendResponseBody))
+		return &http.Response{StatusCode: testCase.sendStatusCode, Body: ioutil.NopCloser(body)}
 	})
 }
 
@@ -113,10 +121,16 @@ func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {
 	}
 
 	t.Run("execute with custom roundtripper for simple hero query on HttpJsonDatasource", runWithoutError(testCase{
-		schema:           starwarsSchema(t),
-		request:          loadStarWarsQuery(starwars.FileSimpleHeroQuery, nil),
-		plannerConfig:    heroHttpJsonPlannerConfig,
-		roundTripper:     createTestRoundTripper(t, "example.com", "/", "", `{"hero": {"name": "Luke Skywalker"}}`, 200),
+		schema:        starwarsSchema(t),
+		request:       loadStarWarsQuery(starwars.FileSimpleHeroQuery, nil),
+		plannerConfig: heroHttpJsonPlannerConfig,
+		roundTripper: createTestRoundTripper(t, roundTripperTestCase{
+			expectedHost:     "example.com",
+			expectedPath:     "/",
+			expectedBody:     "",
+			sendResponseBody: `{"hero": {"name": "Luke Skywalker"}}`,
+			sendStatusCode:   200,
+		}),
 		expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
 	}))
 
@@ -125,45 +139,75 @@ func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {
 		request: func(t *testing.T) Request {
 			return Request{}
 		},
-		plannerConfig:    heroHttpJsonPlannerConfig,
-		roundTripper:     createTestRoundTripper(t, "example.com", "/", "", `{"hero": {"name": "Luke Skywalker"}}`, 200),
+		plannerConfig: heroHttpJsonPlannerConfig,
+		roundTripper: createTestRoundTripper(t, roundTripperTestCase{
+			expectedHost:     "example.com",
+			expectedPath:     "/",
+			expectedBody:     "",
+			sendResponseBody: `{"hero": {"name": "Luke Skywalker"}}`,
+			sendStatusCode:   200,
+		}),
 		expectedResponse: "",
 	}))
 
 	t.Run("execute with empty request object should not panic", runWithoutError(testCase{
-		schema:           starwarsSchema(t),
-		request:          loadStarWarsQuery(starwars.FileSimpleHeroQuery, nil),
-		plannerConfig:    heroGraphqlDataSource,
-		roundTripper:     createTestRoundTripper(t, "example.com", "/", "", `{"data":{"hero":{"name":"Luke Skywalker"}}}`, 200),
+		schema:        starwarsSchema(t),
+		request:       loadStarWarsQuery(starwars.FileSimpleHeroQuery, nil),
+		plannerConfig: heroGraphqlDataSource,
+		roundTripper: createTestRoundTripper(t, roundTripperTestCase{
+			expectedHost:     "example.com",
+			expectedPath:     "/",
+			expectedBody:     "",
+			sendResponseBody: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+			sendStatusCode:   200,
+		}),
 		expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
 	}))
 
-	t.Run("execute with empty request object should not panic", runWithoutError(testCase{
+	t.Run("execute the correct query when sending multiple queries", runWithoutError(testCase{
 		schema: starwarsSchema(t),
 		request: func(t *testing.T) Request {
 			request := loadStarWarsQuery(starwars.FileMultiQueries, nil)(t)
 			request.OperationName = "SingleHero"
 			return request
 		},
-		plannerConfig:    heroGraphqlDataSource,
-		roundTripper:     createTestRoundTripper(t, "example.com", "/", "", `{"data":{"hero":{"name":"Luke Skywalker"}}}`, 200),
+		plannerConfig: heroGraphqlDataSource,
+		roundTripper: createTestRoundTripper(t, roundTripperTestCase{
+			expectedHost:     "example.com",
+			expectedPath:     "/",
+			expectedBody:     "",
+			sendResponseBody: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+			sendStatusCode:   200,
+		}),
 		expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
 	}))
 
 	t.Run("execute query with variables for arguments", runWithoutError(testCase{
-		schema:            starwarsSchema(t),
-		request:           loadStarWarsQuery(starwars.FileDroidWithArgAndVarQuery, map[string]interface{}{"droidID": "R2D2"}),
-		plannerConfig:     droidGraphqlDataSource,
-		roundTripper:      createTestRoundTripper(t, "example.com", "/", "", `{"data":{"droid":{"name":"R2D2"}}}`, 200),
+		schema:        starwarsSchema(t),
+		request:       loadStarWarsQuery(starwars.FileDroidWithArgAndVarQuery, map[string]interface{}{"droidID": "R2D2"}),
+		plannerConfig: droidGraphqlDataSource,
+		roundTripper: createTestRoundTripper(t, roundTripperTestCase{
+			expectedHost:     "example.com",
+			expectedPath:     "/",
+			expectedBody:     "",
+			sendResponseBody: `{"data":{"droid":{"name":"R2D2"}}}`,
+			sendStatusCode:   200,
+		}),
 		preExecutionTasks: normalizeAndValidatePreExecutionTasks,
 		expectedResponse:  `{"data":{"droid":{"name":"R2D2"}}}`,
 	}))
 
 	t.Run("execute query with arguments", runWithoutError(testCase{
-		schema:            starwarsSchema(t),
-		request:           loadStarWarsQuery(starwars.FileDroidWithArgQuery, nil),
-		plannerConfig:     droidGraphqlDataSource,
-		roundTripper:      createTestRoundTripper(t, "example.com", "/", "", `{"data":{"droid":{"name":"R2D2"}}}`, 200),
+		schema:        starwarsSchema(t),
+		request:       loadStarWarsQuery(starwars.FileDroidWithArgQuery, nil),
+		plannerConfig: droidGraphqlDataSource,
+		roundTripper: createTestRoundTripper(t, roundTripperTestCase{
+			expectedHost:     "example.com",
+			expectedPath:     "/",
+			expectedBody:     "",
+			sendResponseBody: `{"data":{"droid":{"name":"R2D2"}}}`,
+			sendStatusCode:   200,
+		}),
 		preExecutionTasks: normalizeAndValidatePreExecutionTasks,
 		expectedResponse:  `{"data":{"droid":{"name":"R2D2"}}}`,
 	}))
@@ -192,8 +236,14 @@ func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {
 						}`,
 			}
 		},
-		plannerConfig:     movieHttpJsonDataSource,
-		roundTripper:      createTestRoundTripper(t, "example.com", "/", "", `{"added_movie":{"id":2, "name": "Episode V – The Empire Strikes Back", "year": 1980}}`, 200),
+		plannerConfig: movieHttpJsonDataSource,
+		roundTripper: createTestRoundTripper(t, roundTripperTestCase{
+			expectedHost:     "example.com",
+			expectedPath:     "/",
+			expectedBody:     "",
+			sendResponseBody: `{"added_movie":{"id":2, "name": "Episode V – The Empire Strikes Back", "year": 1980}}`,
+			sendStatusCode:   200,
+		}),
 		preExecutionTasks: normalizeAndValidatePreExecutionTasks,
 		expectedResponse:  `{"data":{"addToWatchlistWithInput":{"id":2,"name":"Episode V – The Empire Strikes Back","year":1980}}}`,
 	}))
@@ -211,8 +261,14 @@ func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {
 				}`,
 			}
 		},
-		plannerConfig:    heroWithArgumentHttpJsonDataSource,
-		roundTripper:     createTestRoundTripper(t, "example.com", "/", `{ "name": "Luke Skywalker" }`, `{"race": "Human"}`, 200),
+		plannerConfig: heroWithArgumentHttpJsonDataSource,
+		roundTripper: createTestRoundTripper(t, roundTripperTestCase{
+			expectedHost:     "example.com",
+			expectedPath:     "/",
+			expectedBody:     `{ "name": "Luke Skywalker" }`,
+			sendResponseBody: `{"race": "Human"}`,
+			sendStatusCode:   200,
+		}),
 		expectedResponse: `{"data":{"hero":"Human"}}`,
 	}))
 }
