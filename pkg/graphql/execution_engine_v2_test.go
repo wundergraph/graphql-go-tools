@@ -4,6 +4,7 @@ import (
 	"context"
 	"io/ioutil"
 	"net/http"
+	"sync"
 	"testing"
 
 	"github.com/jensneuse/abstractlogger"
@@ -13,6 +14,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/graphql_datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/rest_datasource"
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/staticdatasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/starwars"
 )
@@ -424,4 +426,79 @@ func testNetHttpClient(t *testing.T, testCase roundTripperTestCase) httpclient.C
 	return httpclient.NewNetHttpClient(&http.Client{
 		Transport: createTestRoundTripper(t, testCase),
 	})
+}
+
+func BenchmarkExecutionEngineV2(b *testing.B) {
+	type benchCase struct {
+		engine *ExecutionEngineV2
+		writer *EngineResultWriter
+	}
+
+	newEngine := func() *ExecutionEngineV2 {
+		schema, err := NewSchemaFromString(`type Query { hello: String}`)
+		require.NoError(b, err)
+
+		engineConf := NewEngineV2Configuration(schema)
+		engineConf.SetDataSources([]plan.DataSourceConfiguration{
+			{
+				RootNodes: []plan.TypeField{
+					{TypeName: "Query", FieldNames: []string{"hello"}},
+				},
+				Factory: &staticdatasource.Factory{},
+				Custom: staticdatasource.ConfigJSON(staticdatasource.Configuration{
+					Data: "world",
+				}),
+			},
+		})
+		engineConf.SetFieldConfiguration([]plan.FieldConfiguration{
+			{
+				TypeName:              "Query",
+				FieldName:             "hello",
+				DisableDefaultMapping: true,
+			},
+		})
+
+		engine, err := NewExecutionEngineV2(abstractlogger.NoopLogger, engineConf)
+		require.NoError(b, err)
+
+		return engine
+	}
+
+	newBenchCase := func() *benchCase {
+		writer := NewEngineResultWriter()
+		return &benchCase{
+			engine: newEngine(),
+			writer: &writer,
+		}
+	}
+
+	ctx := context.Background()
+	req := Request{
+		Query: "{hello}",
+	}
+
+	writer := NewEngineResultWriter()
+	engine := newEngine()
+	require.NoError(b, engine.Execute(ctx, &req, &writer))
+	require.Equal(b, "{\"data\":{\"hello\":\"world\"}}", writer.String())
+
+	pool := sync.Pool{
+		New: func() interface{} {
+			return newBenchCase()
+		},
+	}
+
+	b.SetBytes(int64(writer.Len()))
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			bc := pool.Get().(*benchCase)
+			bc.writer.Reset()
+			_ = bc.engine.Execute(ctx, &req, bc.writer)
+			pool.Put(bc)
+		}
+	})
+
 }

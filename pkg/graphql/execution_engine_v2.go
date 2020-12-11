@@ -68,6 +68,10 @@ func (e *EngineResultWriter) Read(p []byte) (n int, err error) {
 	return e.buf.Read(p)
 }
 
+func (e *EngineResultWriter) Len() int {
+	return e.buf.Len()
+}
+
 func (e *EngineResultWriter) Bytes() []byte {
 	return e.buf.Bytes()
 }
