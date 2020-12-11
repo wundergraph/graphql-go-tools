@@ -44,7 +44,7 @@ func createTestRoundTripper(t *testing.T, testCase roundTripperTestCase) testRou
 				receivedBodyBytes, err = ioutil.ReadAll(req.Body)
 				require.NoError(t, err)
 			}
-			assert.Equal(t, testCase.expectedBody, string(receivedBodyBytes))
+			require.Equal(t, testCase.expectedBody, string(receivedBodyBytes))
 		}
 
 		body := bytes.NewBuffer([]byte(testCase.sendResponseBody))
@@ -150,7 +150,7 @@ func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {
 		expectedResponse: "",
 	}))
 
-	t.Run("execute with empty request object should not panic", runWithoutError(testCase{
+	t.Run("execute with custom roundtripper for simple hero query on GraphqlDataSource", runWithoutError(testCase{
 		schema:        starwarsSchema(t),
 		request:       loadStarWarsQuery(starwars.FileSimpleHeroQuery, nil),
 		plannerConfig: heroGraphqlDataSource,
@@ -248,7 +248,7 @@ func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {
 		expectedResponse:  `{"data":{"addToWatchlistWithInput":{"id":2,"name":"Episode V – The Empire Strikes Back","year":1980}}}`,
 	}))
 
-	t.Run("execute single mutation with arguments on document with multiple operations", runWithoutError(testCase{
+	t.Run("execute operation with rest data source and arguments", runWithoutError(testCase{
 		schema: heroWithArgumentSchema(t),
 		request: func(t *testing.T) Request {
 			return Request{

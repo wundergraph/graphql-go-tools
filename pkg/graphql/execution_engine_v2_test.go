@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/graphql_datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/rest_datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
@@ -95,7 +96,7 @@ type ExecutionEngineV2TestCase struct {
 }
 
 func TestExecutionEngineV2_Execute(t *testing.T) {
-	run := func(testCase ExecutionEngineV2TestCase) func(t *testing.T) {
+	run := func(testCase ExecutionEngineV2TestCase, withError bool) func(t *testing.T) {
 		return func(t *testing.T) {
 			engineConf := NewEngineV2Configuration(testCase.schema)
 			engineConf.SetDataSources(testCase.dataSources)
@@ -109,15 +110,53 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			err = engine.Execute(context.Background(), &operation, &resultWriter)
 
 			assert.Equal(t, testCase.expectedResponse, resultWriter.String())
-			assert.NoError(t, err)
+
+			if withError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
 		}
 	}
 
-	t.Run("execute simple hero query with rest data source", run(
+	runWithError := func(testCase ExecutionEngineV2TestCase) func(t *testing.T) {
+		return run(testCase, true)
+	}
+
+	runWithoutError := func(testCase ExecutionEngineV2TestCase) func(t *testing.T) {
+		return run(testCase, false)
+	}
+
+	t.Run("execute with empty request object should not panic", runWithError(
 		ExecutionEngineV2TestCase{
-			starwarsSchema(t),
-			loadStarWarsQuery(starwars.FileSimpleHeroQuery, nil),
-			[]plan.DataSourceConfiguration{
+			schema: starwarsSchema(t),
+			operation: func(t *testing.T) Request {
+				return Request{}
+			},
+			dataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{TypeName: "Query", FieldNames: []string{"hero"}},
+					},
+					Factory: &rest_datasource.Factory{},
+					Custom: rest_datasource.ConfigJSON(rest_datasource.Configuration{
+						Fetch: rest_datasource.FetchConfiguration{
+							URL:    "https://example.com/",
+							Method: "GET",
+						},
+					}),
+				},
+			},
+			fields:           []plan.FieldConfiguration{},
+			expectedResponse: "",
+		},
+	))
+
+	t.Run("execute simple hero operation with rest data source", runWithoutError(
+		ExecutionEngineV2TestCase{
+			schema:    starwarsSchema(t),
+			operation: loadStarWarsQuery(starwars.FileSimpleHeroQuery, nil),
+			dataSources: []plan.DataSourceConfiguration{
 				{
 					RootNodes: []plan.TypeField{
 						{TypeName: "Query", FieldNames: []string{"hero"}},
@@ -139,8 +178,244 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					}),
 				},
 			},
-			[]plan.FieldConfiguration{},
-			`{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+			fields:           []plan.FieldConfiguration{},
+			expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+		},
+	))
+
+	t.Run("execute simple hero operation with graphql data source", runWithoutError(
+		ExecutionEngineV2TestCase{
+			schema:    starwarsSchema(t),
+			operation: loadStarWarsQuery(starwars.FileSimpleHeroQuery, nil),
+			dataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{TypeName: "Query", FieldNames: []string{"hero"}},
+					},
+					Factory: &graphql_datasource.Factory{
+						Client: testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "example.com",
+							expectedPath:     "/",
+							expectedBody:     "",
+							sendResponseBody: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+							sendStatusCode:   200,
+						}),
+					},
+					Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
+						Fetch: graphql_datasource.FetchConfiguration{
+							URL:        "https://example.com/",
+							HttpMethod: "GET",
+						},
+					}),
+				},
+			},
+			fields:           []plan.FieldConfiguration{},
+			expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+		},
+	))
+
+	t.Run("execute the correct operation when sending multiple queries", runWithoutError(
+		ExecutionEngineV2TestCase{
+			schema: starwarsSchema(t),
+			operation: func(t *testing.T) Request {
+				request := loadStarWarsQuery(starwars.FileMultiQueries, nil)(t)
+				request.OperationName = "SingleHero"
+				return request
+			},
+			dataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{TypeName: "Query", FieldNames: []string{"hero"}},
+					},
+					Factory: &graphql_datasource.Factory{
+						Client: testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "example.com",
+							expectedPath:     "/",
+							expectedBody:     "",
+							sendResponseBody: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+							sendStatusCode:   200,
+						}),
+					},
+					Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
+						Fetch: graphql_datasource.FetchConfiguration{
+							URL:        "https://example.com/",
+							HttpMethod: "GET",
+						},
+					}),
+				},
+			},
+			fields:           []plan.FieldConfiguration{},
+			expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+		},
+	))
+
+	t.Run("execute operation with variables for arguments", runWithoutError(
+		ExecutionEngineV2TestCase{
+			schema:    starwarsSchema(t),
+			operation: loadStarWarsQuery(starwars.FileDroidWithArgAndVarQuery, map[string]interface{}{"droidID": "R2D2"}),
+			dataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{TypeName: "Query", FieldNames: []string{"droid"}},
+					},
+					Factory: &graphql_datasource.Factory{
+						Client: testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "example.com",
+							expectedPath:     "/",
+							expectedBody:     "",
+							sendResponseBody: `{"data":{"droid":{"name":"R2D2"}}}`,
+							sendStatusCode:   200,
+						}),
+					},
+					Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
+						Fetch: graphql_datasource.FetchConfiguration{
+							URL:        "https://example.com/",
+							HttpMethod: "GET",
+						},
+					}),
+				},
+			},
+			fields:           []plan.FieldConfiguration{},
+			expectedResponse: `{"data":{"droid":{"name":"R2D2"}}}`,
+		},
+	))
+
+	t.Run("execute operation with arguments", runWithoutError(
+		ExecutionEngineV2TestCase{
+			schema:    starwarsSchema(t),
+			operation: loadStarWarsQuery(starwars.FileDroidWithArgQuery, nil),
+			dataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{TypeName: "Query", FieldNames: []string{"droid"}},
+					},
+					Factory: &graphql_datasource.Factory{
+						Client: testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "example.com",
+							expectedPath:     "/",
+							expectedBody:     "",
+							sendResponseBody: `{"data":{"droid":{"name":"R2D2"}}}`,
+							sendStatusCode:   200,
+						}),
+					},
+					Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
+						Fetch: graphql_datasource.FetchConfiguration{
+							URL:        "https://example.com/",
+							HttpMethod: "GET",
+						},
+					}),
+				},
+			},
+			fields:           []plan.FieldConfiguration{},
+			expectedResponse: `{"data":{"droid":{"name":"R2D2"}}}`,
+		},
+	))
+
+	t.Run("execute single mutation with arguments on document with multiple operations", runWithoutError(
+		ExecutionEngineV2TestCase{
+			schema: moviesSchema(t),
+			operation: func(t *testing.T) Request {
+				return Request{
+					OperationName: "AddWithInput",
+					Variables:     nil,
+					Query: `mutation AddToWatchlist {
+						  addToWatchlist(movieID:3) {
+							id
+							name
+							year
+						  }
+						}
+						
+						
+						mutation AddWithInput {
+						  addToWatchlistWithInput(input: {id: 2}) {
+							id
+							name
+							year
+						  }
+						}`,
+				}
+			},
+			dataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{TypeName: "Mutation", FieldNames: []string{"addToWatchlistWithInput"}},
+					},
+					Factory: &rest_datasource.Factory{
+						Client: testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "example.com",
+							expectedPath:     "/",
+							expectedBody:     "",
+							sendResponseBody: `{"added_movie":{"id":2, "name": "Episode V – The Empire Strikes Back", "year": 1980}}`,
+							sendStatusCode:   200,
+						}),
+					},
+					Custom: rest_datasource.ConfigJSON(rest_datasource.Configuration{
+						Fetch: rest_datasource.FetchConfiguration{
+							URL:    "https://example.com/",
+							Method: "GET",
+						},
+					}),
+				},
+			},
+			fields: []plan.FieldConfiguration{
+				{
+					TypeName:              "Mutation",
+					FieldName:             "addToWatchlistWithInput",
+					DisableDefaultMapping: false,
+					Path:                  []string{"added_movie"},
+				},
+			},
+			expectedResponse: `{"data":{"addToWatchlistWithInput":{"id":2,"name":"Episode V – The Empire Strikes Back","year":1980}}}`,
+		},
+	))
+
+	t.Run("execute operation with rest data source and arguments", runWithoutError(
+		ExecutionEngineV2TestCase{
+			schema: heroWithArgumentSchema(t),
+			operation: func(t *testing.T) Request {
+				return Request{
+					OperationName: "MyHero",
+					Variables: stringify(map[string]interface{}{
+						"heroName": "Luke Skywalker",
+					}),
+					Query: `query MyHero($heroName: String){
+						hero(name: $heroName)
+					}`,
+				}
+			},
+			dataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{TypeName: "Query", FieldNames: []string{"hero"}},
+					},
+					Factory: &rest_datasource.Factory{
+						Client: testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "example.com",
+							expectedPath:     "/",
+							expectedBody:     `{ "name": "Luke Skywalker" }`,
+							sendResponseBody: `{"race": "Human"}`,
+							sendStatusCode:   200,
+						}),
+					},
+					Custom: rest_datasource.ConfigJSON(rest_datasource.Configuration{
+						Fetch: rest_datasource.FetchConfiguration{
+							URL:    "https://example.com/",
+							Method: "POST",
+							Body:   `{ "name": "{{ .arguments.name }}" }`,
+						},
+					}),
+				},
+			},
+			fields: []plan.FieldConfiguration{
+				{
+					TypeName:              "Query",
+					FieldName:             "hero",
+					DisableDefaultMapping: false,
+					Path:                  []string{"race"},
+				},
+			},
+			expectedResponse: `{"data":{"hero":"Human"}}`,
 		},
 	))
 }

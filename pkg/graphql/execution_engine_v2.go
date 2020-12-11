@@ -104,6 +104,10 @@ func (e *internalExecutionContext) setContext(ctx context.Context) {
 	e.resolveContext.Context = ctx
 }
 
+func (e *internalExecutionContext) setVariables(variables []byte) {
+	e.resolveContext.Variables = variables
+}
+
 func (e *internalExecutionContext) reset() {
 	e.resolveContext.Free()
 }
@@ -142,7 +146,7 @@ func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *Request, wri
 		}
 	}
 
-	execContext := e.getFreshInternalExecutionContext(ctx)
+	execContext := e.getFreshInternalExecutionContext(ctx, operation)
 	defer e.internalExecutionContextPool.Put(execContext)
 
 	// Optimization: Hashing the operation and caching the postprocessed plan for
@@ -166,10 +170,11 @@ func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *Request, wri
 	return err
 }
 
-func (e *ExecutionEngineV2) getFreshInternalExecutionContext(ctx context.Context) *internalExecutionContext {
+func (e *ExecutionEngineV2) getFreshInternalExecutionContext(ctx context.Context, operation *Request) *internalExecutionContext {
 	execCtx := e.internalExecutionContextPool.Get().(*internalExecutionContext)
 	execCtx.reset()
 	execCtx.setContext(ctx)
+	execCtx.setVariables(operation.Variables)
 
 	return execCtx
 }
