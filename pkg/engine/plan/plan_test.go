@@ -14,25 +14,37 @@ import (
 )
 
 func TestPlanner_Plan(t *testing.T) {
+	testLogic := func(definition, operation, operationName string, config Configuration, report *operationreport.Report) Plan {
+		def := unsafeparser.ParseGraphqlDocumentString(definition)
+		op := unsafeparser.ParseGraphqlDocumentString(operation)
+		err := asttransform.MergeDefinitionWithBaseSchema(&def)
+		if err != nil {
+			t.Fatal(err)
+		}
+		norm := astnormalization.NewNormalizer(true, true)
+		norm.NormalizeOperation(&op, &def, report)
+		valid := astvalidation.DefaultOperationValidator()
+		valid.Validate(&op, &def, report)
+		p := NewPlanner(config)
+		return p.Plan(&op, &def, operationName, report)
+	}
+
 	test := func(definition, operation, operationName string, expectedPlan Plan, config Configuration) func(t *testing.T) {
 		return func(t *testing.T) {
-			def := unsafeparser.ParseGraphqlDocumentString(definition)
-			op := unsafeparser.ParseGraphqlDocumentString(operation)
-			err := asttransform.MergeDefinitionWithBaseSchema(&def)
-			if err != nil {
-				t.Fatal(err)
-			}
-			norm := astnormalization.NewNormalizer(true, true)
 			var report operationreport.Report
-			norm.NormalizeOperation(&op, &def, &report)
-			valid := astvalidation.DefaultOperationValidator()
-			valid.Validate(&op, &def, &report)
-			p := NewPlanner(config)
-			plan := p.Plan(&op, &def, operationName, &report)
+			plan := testLogic(definition, operation, operationName, config, &report)
 			if report.HasErrors() {
 				t.Fatal(report.Error())
 			}
 			assert.Equal(t, expectedPlan, plan)
+		}
+	}
+
+	testWithError := func(definition, operation, operationName string, config Configuration) func(t *testing.T) {
+		return func(t *testing.T) {
+			var report operationreport.Report
+			_ = testLogic(definition, operation, operationName, config, &report)
+			assert.Error(t, report)
 		}
 	}
 
@@ -139,6 +151,100 @@ func TestPlanner_Plan(t *testing.T) {
 	}, Configuration{
 		DefaultFlushInterval: 0,
 	}))
+
+	t.Run("operation selection", func(t *testing.T) {
+		t.Run("should successfully plan a single named query by providing an operation name", test(testDefinition, `
+				query MyHero {
+					hero{
+						name
+					}
+				}
+			`, "MyHero", expectedMyHeroPlan, Configuration{},
+		))
+
+		t.Run("should successfully plan multiple named queries by providing an operation name", test(testDefinition, `
+				query MyDroid($id: ID!) {
+					droid(id: $id){
+						name
+					}
+				}
+		
+				query MyHero {
+					hero{
+						name
+					}
+				}
+			`, "MyHero", expectedMyHeroPlan, Configuration{},
+		))
+
+		t.Run("should successfully plan a single named query without providing an operation name", test(testDefinition, `
+				query MyHero {
+					hero{
+						name
+					}
+				}
+			`, "", expectedMyHeroPlan, Configuration{},
+		))
+
+		t.Run("should successfully plan a single unnamed query without providing an operation name", test(testDefinition, `
+				{
+					hero{
+						name
+					}
+				}
+			`, "", expectedMyHeroPlan, Configuration{},
+		))
+
+		t.Run("should write into error report when no query with name was found", testWithError(testDefinition, `
+				query MyHero {
+					hero{
+						name
+					}
+				}
+			`, "NoHero", Configuration{},
+		))
+
+		t.Run("should write into error report when no operation name was provided on multiple named queries", testWithError(testDefinition, `
+				query MyDroid($id: ID!) {
+					droid(id: $id){
+						name
+					}
+				}
+		
+				query MyHero {
+					hero{
+						name
+					}
+				}
+			`, "", Configuration{},
+		))
+	})
+
+}
+
+var expectedMyHeroPlan = &SynchronousResponsePlan{
+	FlushInterval: 0,
+	Response: &resolve.GraphQLResponse{
+		Data: &resolve.Object{
+			Fields: []*resolve.Field{
+				{
+					Name: []byte("hero"),
+					Value: &resolve.Object{
+						Path:     []string{"hero"},
+						Nullable: true,
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("name"),
+								Value: &resolve.String{
+									Path: []string{"name"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
 }
 
 const testDefinition = `
