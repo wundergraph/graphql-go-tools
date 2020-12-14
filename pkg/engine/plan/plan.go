@@ -168,13 +168,16 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 
 	config := p.config
 
+	// select operation
+
+	p.selectOperation(operation, operationName)
+
 	// pre-process required fields
 
-	p.preProcessRequiredFields(&config, operation, definition, operationName, report)
+	p.preProcessRequiredFields(&config, operation, definition, report)
 
 	// find planning paths
 
-	p.configurationVisitor.operationName = operationName
 	p.configurationVisitor.config = config
 	p.configurationWalker.Walk(operation, definition, report)
 
@@ -203,20 +206,29 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 
 	// process the plan
 
-	p.planningVisitor.OperationName = operationName
 	p.planningWalker.Walk(operation, definition, report)
 
 	return p.planningVisitor.plan
 }
 
-func (p *Planner) preProcessRequiredFields(config *Configuration, operation, definition *ast.Document, operationName string, report *operationreport.Report) {
+func (p *Planner) selectOperation(operation *ast.Document, operationName string) {
+	if len(operation.OperationDefinitions) == 1 {
+		operationName = operation.OperationDefinitionNameString(0)
+	}
+
+	p.requiredFieldsVisitor.operationName = operationName
+	p.configurationVisitor.operationName = operationName
+	p.planningVisitor.OperationName = operationName
+}
+
+func (p *Planner) preProcessRequiredFields(config *Configuration, operation, definition *ast.Document, report *operationreport.Report) {
 	if !p.hasRequiredFields(config) {
 		return
 	}
+
 	p.requiredFieldsVisitor.config = config
 	p.requiredFieldsVisitor.operation = operation
 	p.requiredFieldsVisitor.definition = definition
-	p.requiredFieldsVisitor.operationName = operationName
 	p.requiredFieldsWalker.Walk(operation, definition, report)
 }
 
