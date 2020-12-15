@@ -44,7 +44,7 @@ func TestPlanner_Plan(t *testing.T) {
 		return func(t *testing.T) {
 			var report operationreport.Report
 			_ = testLogic(definition, operation, operationName, config, &report)
-			assert.Error(t, report)
+			assert.True(t, report.HasErrors())
 		}
 	}
 
