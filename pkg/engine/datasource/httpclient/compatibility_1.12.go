@@ -54,7 +54,7 @@ func NewRequestWithContext(ctx context.Context, method, url string, body io.Read
 		Host:       u.Host,
 	}
 
-	req.WithContext(ctx)
+	req = req.WithContext(ctx)
 
 	if body != nil {
 		switch v := body.(type) {
