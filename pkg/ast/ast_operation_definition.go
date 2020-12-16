@@ -81,15 +81,13 @@ func (d *Document) AddImportedVariableDefinitionToOperationDefinition(operationD
 }
 
 func (d *Document) OperationNameExists(operationName string) bool {
-	nameExists := false
 	for i := 0; i < len(d.OperationDefinitions); i++ {
 		if d.OperationDefinitionNameString(i) == operationName {
-			nameExists = true
-			break
+			return true
 		}
 	}
 
-	return nameExists
+	return false
 }
 
 const (

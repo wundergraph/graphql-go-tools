@@ -40,6 +40,18 @@ func TestDocument_OperationNameExists(t *testing.T) {
 		false,
 	))
 
+	t.Run("found on document with a single operations", run(
+		func(doc *Document) []OperationDefinition {
+			return []OperationDefinition{
+				{
+					Name: doc.Input.AppendInputString("MyOperation"),
+				},
+			}
+		},
+		"MyOperation",
+		true,
+	))
+
 	t.Run("found on document with multiple operations", run(
 		func(doc *Document) []OperationDefinition {
 			return []OperationDefinition{
