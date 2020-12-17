@@ -66,7 +66,7 @@ func TestNewEngineV2Configuration(t *testing.T) {
 			{FieldName: "c"},
 			{FieldName: "d"},
 		}
-		engineConfig.SetFieldConfiguration(fieldConfigs)
+		engineConfig.SetFieldConfigurations(fieldConfigs)
 
 		assert.Len(t, engineConfig.plannerConfig.Fields, 3)
 		assert.Equal(t, fieldConfigs, engineConfig.plannerConfig.Fields)
@@ -102,7 +102,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		return func(t *testing.T) {
 			engineConf := NewEngineV2Configuration(testCase.schema)
 			engineConf.SetDataSources(testCase.dataSources)
-			engineConf.SetFieldConfiguration(testCase.fields)
+			engineConf.SetFieldConfigurations(testCase.fields)
 
 			engine, err := NewExecutionEngineV2(abstractlogger.Noop{}, engineConf)
 			require.NoError(t, err)
@@ -450,7 +450,7 @@ func BenchmarkExecutionEngineV2(b *testing.B) {
 				}),
 			},
 		})
-		engineConf.SetFieldConfiguration([]plan.FieldConfiguration{
+		engineConf.SetFieldConfigurations([]plan.FieldConfiguration{
 			{
 				TypeName:              "Query",
 				FieldName:             "hello",

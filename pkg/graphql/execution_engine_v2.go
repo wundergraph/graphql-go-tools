@@ -46,7 +46,7 @@ func (e *EngineV2Configuration) AddFieldConfiguration(fieldConfig plan.FieldConf
 	e.plannerConfig.Fields = append(e.plannerConfig.Fields, fieldConfig)
 }
 
-func (e *EngineV2Configuration) SetFieldConfiguration(fieldConfigs plan.FieldConfigurations) {
+func (e *EngineV2Configuration) SetFieldConfigurations(fieldConfigs plan.FieldConfigurations) {
 	e.plannerConfig.Fields = fieldConfigs
 }
 
