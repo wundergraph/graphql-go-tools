@@ -80,6 +80,29 @@ func (d *Document) AddImportedVariableDefinitionToOperationDefinition(operationD
 		append(d.OperationDefinitions[operationDefinition].VariableDefinitions.Refs, variableDefinition)
 }
 
+func (d *Document) OperationNameExists(operationName string) bool {
+
+	for i := range d.RootNodes {
+		if d.RootNodes[i].Kind != NodeKindOperationDefinition {
+			continue
+		}
+		if d.OperationDefinitionNameString(i) == operationName {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (d *Document) NumOfOperationDefinitions () (n int) {
+	for i := range d.RootNodes {
+		if d.RootNodes[i].Kind == NodeKindOperationDefinition {
+			n++
+		}
+	}
+	return
+}
+
 const (
 	alphabet = `abcdefghijklmnopqrstuvwxyz`
 )
