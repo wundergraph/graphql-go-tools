@@ -215,13 +215,15 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 }
 
 func (p *Planner) selectOperation(operation *ast.Document, operationName string, report *operationreport.Report) {
+
+	numOfOperations := operation.NumOfOperationDefinitions()
 	operationName = strings.TrimSpace(operationName)
-	if len(operationName) == 0 && len(operation.OperationDefinitions) > 1 {
+	if len(operationName) == 0 && numOfOperations > 1 {
 		report.AddExternalError(operationreport.ErrRequiredOperationNameIsMissing())
 		return
 	}
 
-	if len(operationName) == 0 && len(operation.OperationDefinitions) == 1 {
+	if len(operationName) == 0 && numOfOperations == 1 {
 		operationName = operation.OperationDefinitionNameString(0)
 	}
 
