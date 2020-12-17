@@ -12,6 +12,12 @@ func TestDocument_OperationNameExists(t *testing.T) {
 			doc := Document{}
 			operationDefinitions := operationDefinitionsFunc(&doc)
 			doc.OperationDefinitions = append(doc.OperationDefinitions, operationDefinitions...)
+			for i := range doc.OperationDefinitions {
+				doc.RootNodes = append(doc.RootNodes, Node{
+					Kind: NodeKindOperationDefinition,
+					Ref: i,
+				})
+			}
 			exists := doc.OperationNameExists(operationName)
 			assert.Equal(t, expectedExists, exists)
 		}
