@@ -168,13 +168,19 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 
 	config := p.config
 
+	// select operation
+
+	p.selectOperation(operation, operationName, report)
+	if report.HasErrors() {
+		return
+	}
+
 	// pre-process required fields
 
-	p.preProcessRequiredFields(&config, operation, definition, operationName, report)
+	p.preProcessRequiredFields(&config, operation, definition, report)
 
 	// find planning paths
 
-	p.configurationVisitor.operationName = operationName
 	p.configurationVisitor.config = config
 	p.configurationWalker.Walk(operation, definition, report)
 
@@ -203,20 +209,42 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 
 	// process the plan
 
-	p.planningVisitor.OperationName = operationName
 	p.planningWalker.Walk(operation, definition, report)
 
 	return p.planningVisitor.plan
 }
 
-func (p *Planner) preProcessRequiredFields(config *Configuration, operation, definition *ast.Document, operationName string, report *operationreport.Report) {
+func (p *Planner) selectOperation(operation *ast.Document, operationName string, report *operationreport.Report) {
+
+	numOfOperations := operation.NumOfOperationDefinitions()
+	operationName = strings.TrimSpace(operationName)
+	if len(operationName) == 0 && numOfOperations > 1 {
+		report.AddExternalError(operationreport.ErrRequiredOperationNameIsMissing())
+		return
+	}
+
+	if len(operationName) == 0 && numOfOperations == 1 {
+		operationName = operation.OperationDefinitionNameString(0)
+	}
+
+	if !operation.OperationNameExists(operationName) {
+		report.AddExternalError(operationreport.ErrOperationWithProvidedOperationNameNotFound(operationName))
+		return
+	}
+
+	p.requiredFieldsVisitor.operationName = operationName
+	p.configurationVisitor.operationName = operationName
+	p.planningVisitor.OperationName = operationName
+}
+
+func (p *Planner) preProcessRequiredFields(config *Configuration, operation, definition *ast.Document, report *operationreport.Report) {
 	if !p.hasRequiredFields(config) {
 		return
 	}
+
 	p.requiredFieldsVisitor.config = config
 	p.requiredFieldsVisitor.operation = operation
 	p.requiredFieldsVisitor.definition = definition
-	p.requiredFieldsVisitor.operationName = operationName
 	p.requiredFieldsWalker.Walk(operation, definition, report)
 }
 
