@@ -849,7 +849,7 @@ func (p *Parser) parseObjectTypeDefinition(description *ast.Description) {
 
 func (p *Parser) indexNode(key ast.ByteSliceReference, value ast.Node) {
 	name := p.document.Input.ByteSlice(key)
-	p.document.Index.AddNodeBytes(name,value)
+	p.document.Index.AddNodeBytes(name, value)
 }
 
 func (p *Parser) parseRootDescription() {
@@ -1827,7 +1827,7 @@ func (p *Parser) parseObjectTypeExtension(extend position.Position) {
 	p.document.RootNodes = append(p.document.RootNodes, node)
 
 	if p.shouldIndex {
-		p.indexNode(objectTypeDefinition.Name,node)
+		p.indexNode(objectTypeDefinition.Name, node)
 	}
 }
 

@@ -6,8 +6,9 @@ package resolve
 
 import (
 	context "context"
-	gomock "github.com/golang/mock/gomock"
 	reflect "reflect"
+
+	gomock "github.com/golang/mock/gomock"
 )
 
 // MockDataSource is a mock of DataSource interface

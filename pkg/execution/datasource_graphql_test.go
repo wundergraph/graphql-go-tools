@@ -19,6 +19,18 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
+type preSendHttpHookFunc func(ctx datasource.HookContext, req *http.Request)
+
+func (p preSendHttpHookFunc) Execute(ctx datasource.HookContext, req *http.Request) {
+	p(ctx, req)
+}
+
+type postReceiveHttpHookFunc func(ctx datasource.HookContext, resp *http.Response, body []byte)
+
+func (p postReceiveHttpHookFunc) Execute(ctx datasource.HookContext, resp *http.Response, body []byte) {
+	p(ctx, resp, body)
+}
+
 var graphqlDataSourceName = "graphql"
 
 func TestGraphqlDataSource_WithPlanning(t *testing.T) {
@@ -26,6 +38,7 @@ func TestGraphqlDataSource_WithPlanning(t *testing.T) {
 		definition            string
 		operation             datasource.GraphqlRequest
 		typeFieldConfigs      []datasource.TypeFieldConfiguration
+		hooksFactory          func(t *testing.T) datasource.Hooks
 		assertRequestBody     bool
 		expectedRequestBodies []string
 		upstreamResponses     []string
@@ -60,7 +73,12 @@ func TestGraphqlDataSource_WithPlanning(t *testing.T) {
 			basePlanner, err := datasource.NewBaseDataSourcePlanner([]byte(tc.definition), plannerConfig, abstractlogger.NoopLogger)
 			require.NoError(t, err)
 
-			err = basePlanner.RegisterDataSourcePlannerFactory(graphqlDataSourceName, &datasource.GraphQLDataSourcePlannerFactoryFactory{})
+			var hooks datasource.Hooks
+			if tc.hooksFactory != nil {
+				hooks = tc.hooksFactory(t)
+			}
+
+			err = basePlanner.RegisterDataSourcePlannerFactory(graphqlDataSourceName, &datasource.GraphQLDataSourcePlannerFactoryFactory{Hooks: hooks})
 			require.NoError(t, err)
 
 			definitionDocument := unsafeparser.ParseGraphqlDocumentString(tc.definition)
@@ -103,7 +121,7 @@ func TestGraphqlDataSource_WithPlanning(t *testing.T) {
 				Query:         "{ continents { code name } }",
 			},
 			typeFieldConfigs: []datasource.TypeFieldConfiguration{
-				typeFieldConfigContinents,
+				graphqlTypeFieldConfigContinents,
 			},
 			assertRequestBody: false,
 			upstreamResponses: []string{
@@ -122,7 +140,41 @@ func TestGraphqlDataSource_WithPlanning(t *testing.T) {
 				Query:         `{ country(code: "DE") { code name } }`,
 			},
 			typeFieldConfigs: []datasource.TypeFieldConfiguration{
-				typeFieldConfigCountry,
+				graphqlTypeFieldConfigCountry,
+			},
+			assertRequestBody: false,
+			upstreamResponses: []string{
+				`{ "data": { "country": { "code": "DE", "name": "Germany" } } }`,
+			},
+			expectedResponseBody: `{ "data": { "country": { "code": "DE", "name": "Germany" } } }`,
+		}),
+	)
+
+	t.Run("should execute hooks", run(
+		testCase{
+			definition: countriesSchema,
+			operation: datasource.GraphqlRequest{
+				OperationName: "",
+				Variables:     nil,
+				Query:         `{ country(code: "DE") { code name } }`,
+			},
+			typeFieldConfigs: []datasource.TypeFieldConfiguration{
+				graphqlTypeFieldConfigCountry,
+			},
+			hooksFactory: func(t *testing.T) datasource.Hooks {
+				return datasource.Hooks{
+					PreSendHttpHook: preSendHttpHookFunc(func(ctx datasource.HookContext, req *http.Request) {
+						assert.Equal(t, ctx.TypeName, "Query")
+						assert.Equal(t, ctx.FieldName, "country")
+						assert.Regexp(t, `http://127.0.0.1:[0-9]+`, req.URL.String())
+					}),
+					PostReceiveHttpHook: postReceiveHttpHookFunc(func(ctx datasource.HookContext, resp *http.Response, body []byte) {
+						assert.Equal(t, ctx.TypeName, "Query")
+						assert.Equal(t, ctx.FieldName, "country")
+						assert.Equal(t, 200, resp.StatusCode)
+						assert.Equal(t, body, []byte(`{ "data": { "country": { "code": "DE", "name": "Germany" } } }`))
+					}),
+				}
 			},
 			assertRequestBody: false,
 			upstreamResponses: []string{
@@ -141,8 +193,8 @@ func TestGraphqlDataSource_WithPlanning(t *testing.T) {
 				Query:         `{ continents { code name } country(code: "DE") { code name } }`,
 			},
 			typeFieldConfigs: []datasource.TypeFieldConfiguration{
-				typeFieldConfigCountry,
-				typeFieldConfigContinents,
+				graphqlTypeFieldConfigCountry,
+				graphqlTypeFieldConfigContinents,
 			},
 			assertRequestBody: true,
 			expectedRequestBodies: []string{
@@ -166,8 +218,8 @@ func TestGraphqlDataSource_WithPlanning(t *testing.T) {
 				Query:         `{ country(code: "DE") { code name } continent(code: "EU") { code name } }`,
 			},
 			typeFieldConfigs: []datasource.TypeFieldConfiguration{
-				typeFieldConfigCountry,
-				typeFieldConfigContinent,
+				graphqlTypeFieldConfigCountry,
+				graphqlTypeFieldConfigContinent,
 			},
 			assertRequestBody: true,
 			expectedRequestBodies: []string{
@@ -218,7 +270,7 @@ func createPlannerConfigToUpstream(t *testing.T, upstreamURL []string, method st
 	}
 }
 
-var typeFieldConfigContinents = datasource.TypeFieldConfiguration{
+var graphqlTypeFieldConfigContinents = datasource.TypeFieldConfiguration{
 	TypeName:  "Query",
 	FieldName: "continents",
 	Mapping: &datasource.MappingConfiguration{
@@ -230,7 +282,7 @@ var typeFieldConfigContinents = datasource.TypeFieldConfiguration{
 	},
 }
 
-var typeFieldConfigContinent = datasource.TypeFieldConfiguration{
+var graphqlTypeFieldConfigContinent = datasource.TypeFieldConfiguration{
 	TypeName:  "Query",
 	FieldName: "continent",
 	Mapping: &datasource.MappingConfiguration{
@@ -242,7 +294,7 @@ var typeFieldConfigContinent = datasource.TypeFieldConfiguration{
 	},
 }
 
-var typeFieldConfigCountry = datasource.TypeFieldConfiguration{
+var graphqlTypeFieldConfigCountry = datasource.TypeFieldConfiguration{
 	TypeName:  "Query",
 	FieldName: "country",
 	Mapping: &datasource.MappingConfiguration{

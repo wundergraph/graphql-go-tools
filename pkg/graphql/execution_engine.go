@@ -19,11 +19,13 @@ import (
 type DataSourceHttpJsonOptions struct {
 	HttpClient         *http.Client
 	WhitelistedSchemes []string
+	Hooks              *datasource.Hooks
 }
 
 type DataSourceGraphqlOptions struct {
 	HttpClient         *http.Client
 	WhitelistedSchemes []string
+	Hooks              *datasource.Hooks
 }
 
 type ExecutionOptions struct {
@@ -72,6 +74,10 @@ func (e *ExecutionEngine) AddHttpJsonDataSourceWithOptions(name string, options 
 		httpJsonFactoryFactory.WhitelistedSchemes = options.WhitelistedSchemes
 	}
 
+	if options.Hooks != nil {
+		httpJsonFactoryFactory.Hooks = *options.Hooks
+	}
+
 	return e.AddDataSource(name, httpJsonFactoryFactory)
 }
 
@@ -88,6 +94,10 @@ func (e *ExecutionEngine) AddGraphqlDataSourceWithOptions(name string, options D
 
 	if len(options.WhitelistedSchemes) > 0 {
 		graphqlFactoryFactory.WhitelistedSchemes = options.WhitelistedSchemes
+	}
+
+	if options.Hooks != nil {
+		graphqlFactoryFactory.Hooks = *options.Hooks
 	}
 
 	return e.AddDataSource(name, graphqlFactoryFactory)
@@ -133,6 +143,10 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *Request, optio
 	var buf bytes.Buffer
 	err := e.ExecuteWithWriter(ctx, operation, &buf, options)
 	return &ExecutionResult{&buf}, err
+}
+
+func (e *ExecutionEngine) NewExecutionHandler() *execution.Handler {
+	return execution.NewHandler(e.basePlanner, nil)
 }
 
 type ExecutionResult struct {

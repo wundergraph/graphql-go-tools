@@ -54,7 +54,7 @@ type Droid implements Character {
     friends: [Character]
 }
 
-type Startship {
+type Starship {
     name: String!
     length: Float!
 }

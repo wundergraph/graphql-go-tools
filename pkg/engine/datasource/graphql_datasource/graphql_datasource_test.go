@@ -1269,14 +1269,14 @@ func TestGraphQLDataSource(t *testing.T) {
 					ChildNodes: []plan.TypeField{
 						{
 							TypeName:   "Review",
-							FieldNames: []string{"body", "author","product"},
+							FieldNames: []string{"body", "author", "product"},
 						},
 						{
 							TypeName:   "User",
-							FieldNames: []string{"id","username"},
+							FieldNames: []string{"id", "username"},
 						},
 						{
-							TypeName: "Product",
+							TypeName:   "Product",
 							FieldNames: []string{"upc"},
 						},
 					},
@@ -1304,23 +1304,23 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				},
 				{
-					TypeName: "User",
-					FieldName: "reviews",
+					TypeName:       "User",
+					FieldName:      "reviews",
 					RequiresFields: []string{"id"},
 				},
 				{
-					TypeName: "Product",
-					FieldName: "name",
+					TypeName:       "Product",
+					FieldName:      "name",
 					RequiresFields: []string{"upc"},
 				},
 				{
-					TypeName: "Product",
-					FieldName: "price",
+					TypeName:       "Product",
+					FieldName:      "price",
 					RequiresFields: []string{"upc"},
 				},
 				{
-					TypeName: "Product",
-					FieldName: "reviews",
+					TypeName:       "Product",
+					FieldName:      "reviews",
 					RequiresFields: []string{"upc"},
 				},
 			},

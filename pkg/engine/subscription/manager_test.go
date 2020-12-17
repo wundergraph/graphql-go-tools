@@ -12,7 +12,7 @@ import (
 
 type FakeStream struct {
 	done bool
-	wg *sync.WaitGroup
+	wg   *sync.WaitGroup
 }
 
 func (f *FakeStream) Start(input []byte, next chan<- []byte, stop <-chan struct{}) {
@@ -40,7 +40,7 @@ func TestSubscriptionManager(t *testing.T) {
 	}
 	fakeStream.wg.Add(1)
 	manager := NewManager(fakeStream)
-	ctx,cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	manager.Run(ctx.Done())
 

@@ -3473,7 +3473,7 @@ func TestExecutionValidation(t *testing.T) {
 					AllVariablesUsed(), Invalid)
 			})
 			t.Run("variables in array object", func(t *testing.T) {
-				runWithDefinition(todoSchema,`mutation AddTak($title: String!, $completed: Boolean!, $name: String! @fromClaim(name: "sub")) {
+				runWithDefinition(todoSchema, `mutation AddTak($title: String!, $completed: Boolean!, $name: String! @fromClaim(name: "sub")) {
   									addTask(input: [{title: $title, completed: $completed, user: {name: $name}}]){
 										task {
 										  id

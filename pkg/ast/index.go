@@ -54,7 +54,6 @@ func (i *Index) AddNodeBytes(name []byte, node Node) {
 	i.nodes[hash] = append(i.nodes[hash], node)
 }
 
-
 func (i *Index) NodesByNameStr(name string) ([]Node, bool) {
 	hash := xxhash.Sum64String(name)
 	node, exists := i.nodes[hash]

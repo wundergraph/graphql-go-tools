@@ -7,9 +7,9 @@ import (
 )
 
 func TestSchemaBuilder_BuildFederationSchema(t *testing.T) {
-	actual,err := BuildFederationSchema(baseSchema,serviceSDL)
-	assert.NoError(t,err)
-	assert.Equal(t,federatedSchema, actual)
+	actual, err := BuildFederationSchema(baseSchema, serviceSDL)
+	assert.NoError(t, err)
+	assert.Equal(t, federatedSchema, actual)
 }
 
 const serviceSDL = `extend type Query {topProducts(first: Int = 5): [Product]}type Product @key(fields: "upc") {upc: String!name: String! price: Int!} extend type Query {me: User} type User @key(fields: "id"){ id: ID! username: String!} type Review { body: String! author: User! @provides(fields: "username") product: Product! } extend type User @key(fields: "id") { id: ID! @external reviews: [Review] } extend type Product @key(fields: "upc") { upc: String! @external reviews: [Review] }`

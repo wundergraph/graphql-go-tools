@@ -37,7 +37,8 @@ func (n *NetHttpClient) Do(ctx context.Context, requestInput []byte, out io.Writ
 
 	url, method, body, headers, queryParams := requestInputParams(requestInput)
 
-	request, err := http.NewRequestWithContext(ctx, unsafebytes.BytesToString(method), unsafebytes.BytesToString(url), bytes.NewReader(body))
+	// Change to `http.NewRequestWithContext` when support for go 1.12 is dropped
+	request, err := NewRequestWithContext(ctx, unsafebytes.BytesToString(method), unsafebytes.BytesToString(url), bytes.NewReader(body))
 	if err != nil {
 		return err
 	}

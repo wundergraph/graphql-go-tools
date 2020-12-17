@@ -2,8 +2,10 @@ package graphql
 
 import (
 	"bytes"
+	"io/ioutil"
 	"testing"
 
+	"github.com/sebdah/goldie"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -350,6 +352,35 @@ func TestSchema_Validate(t *testing.T) {
 		true,
 		0,
 	))
+}
+
+func TestSchema_IntrospectionResponse(t *testing.T) {
+	schemaBytes := []byte("schema { query: Query } type Query { hello: String }")
+	schemaReader := bytes.NewBuffer(schemaBytes)
+	schema, err := NewSchemaFromReader(schemaReader)
+	assert.NoError(t, err)
+	out := &bytes.Buffer{}
+	err = schema.IntrospectionResponse(out)
+	assert.NoError(t, err)
+	goldie.Assert(t, "introspection_response", out.Bytes())
+}
+
+func TestSchemaIntrospection(t *testing.T) {
+	schemaString := "schema { query: Query } type Query { hello: String }"
+	schema, err := NewSchemaFromString(schemaString)
+	assert.NoError(t, err)
+
+	result, err := SchemaIntrospection(schema)
+	assert.NoError(t, err)
+
+	resp := result.GetAsHTTPResponse()
+	assert.NotNil(t, resp)
+	assert.NotNil(t, resp.Body)
+
+	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	assert.NoError(t, err)
+
+	goldie.Assert(t, "introspection_response", bodyBytes)
 }
 
 var invalidSchema = `type Query {

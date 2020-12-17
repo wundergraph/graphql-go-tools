@@ -1,0 +1,22 @@
+query GetDroid {
+    droid(id: "1") {
+        name
+    }
+}
+
+query Search {
+    search(name: "C3PO") {
+        ...on Droid {
+            name
+            primaryFunction
+        }
+        ...on Human {
+            name
+            height
+        }
+        ...on Starship {
+            name
+            length
+        }
+    }
+}
