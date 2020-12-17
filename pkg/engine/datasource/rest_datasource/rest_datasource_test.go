@@ -91,8 +91,8 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId: 0,
-						Input:    `{"method":"GET","url":"https://example.com/friend"}`,
+						BufferId:   0,
+						Input:      `{"method":"GET","url":"https://example.com/friend"}`,
 						DataSource: &Source{},
 					},
 					Fields: []*resolve.Field{
@@ -103,8 +103,8 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							Value: &resolve.Object{
 								Nullable: true,
 								Fetch: &resolve.SingleFetch{
-									BufferId: 1,
-									Input:    `{"method":"GET","url":"https://example.com/friend/$$0$$/pet"}`,
+									BufferId:   1,
+									Input:      `{"method":"GET","url":"https://example.com/friend/$$0$$/pet"}`,
 									DataSource: &Source{},
 									Variables: resolve.NewVariables(
 										&resolve.ObjectVariable{
@@ -203,8 +203,8 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId: 0,
-						Input:    `{"method":"GET","url":"https://example.com/$$0$$/$$1$$"}`,
+						BufferId:   0,
+						Input:      `{"method":"GET","url":"https://example.com/$$0$$/$$1$$"}`,
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
@@ -338,9 +338,9 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId: 0,
-						Input:    `{"body":{"foo":"bar"},"method":"POST","url":"https://example.com/friend"}`,
-						DataSource: &Source{},
+						BufferId:             0,
+						Input:                `{"body":{"foo":"bar"},"method":"POST","url":"https://example.com/friend"}`,
+						DataSource:           &Source{},
 						DisallowSingleFlight: true,
 					},
 					Fields: []*resolve.Field{
@@ -398,8 +398,8 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId: 0,
-						Input:    `{"headers":{"Authorization":["Bearer 123"],"X-API-Key":["456"]},"method":"GET","url":"https://example.com/friend"}`,
+						BufferId:   0,
+						Input:      `{"headers":{"Authorization":["Bearer 123"],"X-API-Key":["456"]},"method":"GET","url":"https://example.com/friend"}`,
 						DataSource: &Source{},
 					},
 					Fields: []*resolve.Field{
@@ -460,8 +460,8 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId: 0,
-						Input:    `{"query_params":[{"name":"static","value":"staticValue"},{"name":"static","value":"secondStaticValue"},{"name":"name","value":"$$0$$"},{"name":"id","value":"$$1$$"}],"method":"GET","url":"https://example.com/friend"}`,
+						BufferId:   0,
+						Input:      `{"query_params":[{"name":"static","value":"staticValue"},{"name":"static","value":"secondStaticValue"},{"name":"name","value":"$$0$$"},{"name":"id","value":"$$1$$"}],"method":"GET","url":"https://example.com/friend"}`,
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
@@ -548,8 +548,8 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId: 0,
-						Input:    `{"query_params":[{"name":"names","value":"$$0$$"}],"method":"GET","url":"https://example.com/friend"}`,
+						BufferId:   0,
+						Input:      `{"query_params":[{"name":"names","value":"$$0$$"}],"method":"GET","url":"https://example.com/friend"}`,
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{

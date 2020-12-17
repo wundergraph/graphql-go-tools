@@ -13,13 +13,10 @@ import (
 )
 
 func TestGraphQLWebsocketSubscriptionStream(t *testing.T) {
-
 	server := FakeGraphQLSubscriptionServer(t)
 	defer server.Close()
 
 	host := server.Listener.Addr().String()
-
-	//host = "localhost:4444"
 
 	stream := New()
 	ctx, cancel := context.WithCancel(context.Background())

@@ -30,6 +30,8 @@ const (
 	FileRemainingJedisSubscription = "testdata/subscriptions/remaining_jedis.subscription"
 	FileIntrospectionQuery         = "testdata/queries/introspection.query"
 	FileMultiQueries               = "testdata/queries/multi_queries.query"
+	FileMultiQueriesWithArguments  = "testdata/queries/multi_queries_with_arguments.query"
+	FileInvalidQuery               = "testdata/queries/invalid.query"
 )
 
 var (

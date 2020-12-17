@@ -1003,7 +1003,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					{
 						BufferID:  0,
 						HasBuffer: true,
-						Name: []byte("anotherServiceOne"),
+						Name:      []byte("anotherServiceOne"),
 						Value: &Object{
 							Path: []string{"anotherServiceOne"},
 							Fields: []*Field{
@@ -1019,7 +1019,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					{
 						BufferID:  1,
 						HasBuffer: true,
-						Name: []byte("secondServiceTwo"),
+						Name:      []byte("secondServiceTwo"),
 						Value: &Object{
 							Path: []string{"secondServiceTwo"},
 							Fields: []*Field{
@@ -1035,7 +1035,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					{
 						BufferID:  0,
 						HasBuffer: true,
-						Name: []byte("reusingServiceOne"),
+						Name:      []byte("reusingServiceOne"),
 						Value: &Object{
 							Path: []string{"reusingServiceOne"},
 							Fields: []*Field{

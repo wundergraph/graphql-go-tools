@@ -25,7 +25,7 @@ const (
 	QUERYPARAMS = "query_params"
 
 	SCHEME = "scheme"
-	HOST = "host"
+	HOST   = "host"
 )
 
 var (
@@ -51,11 +51,11 @@ type Client interface {
 
 func wrapQuotesIfString(b []byte) []byte {
 
-	if bytes.HasPrefix(b,[]byte("$$")) && bytes.HasSuffix(b,[]byte("$$")){
+	if bytes.HasPrefix(b, []byte("$$")) && bytes.HasSuffix(b, []byte("$$")) {
 		return b
 	}
 
-	if bytes.HasPrefix(b,[]byte("{{")) && bytes.HasSuffix(b,[]byte("}}")){
+	if bytes.HasPrefix(b, []byte("{{")) && bytes.HasSuffix(b, []byte("}}")) {
 		return b
 	}
 
@@ -65,17 +65,17 @@ func wrapQuotesIfString(b []byte) []byte {
 		return b
 	case gjson.JSON:
 		var value interface{}
-		withoutTemplate := bytes.ReplaceAll(b,[]byte("$$"),nil)
+		withoutTemplate := bytes.ReplaceAll(b, []byte("$$"), nil)
 
 		buf := &bytes.Buffer{}
 		tmpl := byte_template.New()
-		_,_ = tmpl.Execute(buf,withoutTemplate, func(w io.Writer, path []byte) (n int, err error) {
+		_, _ = tmpl.Execute(buf, withoutTemplate, func(w io.Writer, path []byte) (n int, err error) {
 			return w.Write([]byte("0"))
 		})
 
 		withoutTemplate = buf.Bytes()
 
-		err := json.Unmarshal(withoutTemplate,&value)
+		err := json.Unmarshal(withoutTemplate, &value)
 		if err == nil {
 			return b
 		}
@@ -186,7 +186,7 @@ func requestInputParams(input []byte) (url, method, body, headers, queryParams [
 	return
 }
 
-func GetSubscriptionInput (input []byte) (scheme, host,path, body, headers []byte) {
+func GetSubscriptionInput(input []byte) (scheme, host, path, body, headers []byte) {
 	jsonparser.EachKey(input, func(i int, bytes []byte, valueType jsonparser.ValueType, err error) {
 		switch i {
 		case 0:

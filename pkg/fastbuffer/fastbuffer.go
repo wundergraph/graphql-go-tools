@@ -7,7 +7,7 @@ import (
 
 func New() *FastBuffer {
 	return &FastBuffer{
-		b: make([]byte,0,1024),
+		b: make([]byte, 0, 1024),
 	}
 }
 
@@ -16,8 +16,8 @@ type FastBuffer struct {
 }
 
 func (f *FastBuffer) Write(p []byte) (n int, err error) {
-	f.b = append(f.b,p...)
-	return len(p),nil
+	f.b = append(f.b, p...)
+	return len(p), nil
 }
 
 func (f *FastBuffer) Reset() {
@@ -25,18 +25,18 @@ func (f *FastBuffer) Reset() {
 }
 
 func (f *FastBuffer) WriteBytes(b []byte) {
-	f.b = append(f.b,b...)
+	f.b = append(f.b, b...)
 }
 
-func (f *FastBuffer) WriteString(s string){
-	f.b = append(f.b,s...)
+func (f *FastBuffer) WriteString(s string) {
+	f.b = append(f.b, s...)
 }
 
 func (f *FastBuffer) Bytes() []byte {
 	return f.b
 }
 
-func (f *FastBuffer) Len () int {
+func (f *FastBuffer) Len() int {
 	return len(f.b)
 }
 

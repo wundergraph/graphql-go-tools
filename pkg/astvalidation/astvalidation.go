@@ -1307,7 +1307,7 @@ func (v *variablesAreInputTypesVisitor) EnterDocument(operation, definition *ast
 func (v *variablesAreInputTypesVisitor) EnterVariableDefinition(ref int) {
 
 	typeName := v.operation.ResolveTypeNameBytes(v.operation.VariableDefinitions[ref].Type)
-	typeDefinitionNode,_ := v.definition.Index.FirstNodeByNameBytes(typeName)
+	typeDefinitionNode, _ := v.definition.Index.FirstNodeByNameBytes(typeName)
 	switch typeDefinitionNode.Kind {
 	case ast.NodeKindInputObjectTypeDefinition, ast.NodeKindScalarTypeDefinition, ast.NodeKindEnumTypeDefinition:
 		return

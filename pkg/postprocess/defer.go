@@ -42,7 +42,7 @@ func (p *ProcessDefer) synchronousResponse(pre *plan.SynchronousResponsePlan) pl
 		FlushInterval: pre.FlushInterval,
 		Response: resolve.GraphQLStreamingResponse{
 			InitialResponse: pre.Response,
-			FlushInterval: pre.FlushInterval,
+			FlushInterval:   pre.FlushInterval,
 		},
 	}
 	p.traverseNode(p.out.Response.InitialResponse.Data)
@@ -123,7 +123,7 @@ func (p *ProcessDefer) bufferUsedOnNonDeferField(object *resolve.Object, field, 
 	return false
 }
 
-func (p *ProcessDefer) processFieldSetBuffer(object *resolve.Object,field int) (patchFetch resolve.SingleFetch, ok bool) {
+func (p *ProcessDefer) processFieldSetBuffer(object *resolve.Object, field int) (patchFetch resolve.SingleFetch, ok bool) {
 	id := object.Fields[field].BufferID
 	if p.objects[len(p.objects)-1].Fetch == nil {
 		return patchFetch, false

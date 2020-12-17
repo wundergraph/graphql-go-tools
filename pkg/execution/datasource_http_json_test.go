@@ -5,16 +5,22 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/jensneuse/abstractlogger"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 
+	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
 	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
+	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
 const httpJsonDataSourceSchema = `
@@ -105,6 +111,14 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 									Client: datasource.DefaultHttpClient(),
 								},
 								Args: []datasource.Argument{
+									&datasource.StaticVariableArgument{
+										Name:  []byte("root_type_name"),
+										Value: []byte("Query"),
+									},
+									&datasource.StaticVariableArgument{
+										Name:  []byte("root_field_name"),
+										Value: []byte("simpleType"),
+									},
 									&datasource.StaticVariableArgument{
 										Name:  []byte("url"),
 										Value: []byte("example.com/"),
@@ -204,6 +218,14 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 								},
 								Args: []datasource.Argument{
 									&datasource.StaticVariableArgument{
+										Name:  []byte("root_type_name"),
+										Value: []byte("Query"),
+									},
+									&datasource.StaticVariableArgument{
+										Name:  []byte("root_field_name"),
+										Value: []byte("listOfStrings"),
+									},
+									&datasource.StaticVariableArgument{
 										Name:  []byte("url"),
 										Value: []byte("example.com/"),
 									},
@@ -282,6 +304,14 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 									Client: datasource.DefaultHttpClient(),
 								},
 								Args: []datasource.Argument{
+									&datasource.StaticVariableArgument{
+										Name:  []byte("root_type_name"),
+										Value: []byte("Query"),
+									},
+									&datasource.StaticVariableArgument{
+										Name:  []byte("root_field_name"),
+										Value: []byte("listOfObjects"),
+									},
 									&datasource.StaticVariableArgument{
 										Name:  []byte("url"),
 										Value: []byte("example.com/"),
@@ -383,6 +413,14 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 									Client: datasource.DefaultHttpClient(),
 								},
 								Args: []datasource.Argument{
+									&datasource.StaticVariableArgument{
+										Name:  []byte("root_type_name"),
+										Value: []byte("Query"),
+									},
+									&datasource.StaticVariableArgument{
+										Name:  []byte("root_field_name"),
+										Value: []byte("unionType"),
+									},
 									&datasource.StaticVariableArgument{
 										Name:  []byte("url"),
 										Value: []byte("example.com/"),
@@ -525,6 +563,14 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 									Client: datasource.DefaultHttpClient(),
 								},
 								Args: []datasource.Argument{
+									&datasource.StaticVariableArgument{
+										Name:  []byte("root_type_name"),
+										Value: []byte("Query"),
+									},
+									&datasource.StaticVariableArgument{
+										Name:  []byte("root_field_name"),
+										Value: []byte("interfaceType"),
+									},
 									&datasource.StaticVariableArgument{
 										Name:  []byte("url"),
 										Value: []byte("example.com/"),
@@ -676,4 +722,152 @@ func TestHttpJsonDataSource_Resolve(t *testing.T) {
 		200,
 		`{"500":"ErrorInterface","200":"AnotherSuccess","defaultTypeName":"SuccessInterface"}`,
 		"AnotherSuccess"))
+}
+
+var httpJsonDataSourceName = "http_json"
+
+func TestHttpJsonDataSource_WithPlanning(t *testing.T) {
+	type testCase struct {
+		definition            string
+		operation             datasource.GraphqlRequest
+		typeFieldConfigs      []datasource.TypeFieldConfiguration
+		hooksFactory          func(t *testing.T) datasource.Hooks
+		assertRequestBody     bool
+		expectedRequestBodies []string
+		upstreamResponses     []string
+		expectedResponseBody  string
+	}
+
+	run := func(tc testCase) func(t *testing.T) {
+		return func(t *testing.T) {
+			upstreams := make([]*httptest.Server, len(tc.upstreamResponses))
+			for i := 0; i < len(tc.upstreamResponses); i++ {
+				if tc.assertRequestBody {
+					require.Len(t, tc.expectedRequestBodies, len(tc.upstreamResponses))
+				}
+
+				var expectedRequestBody string
+				if tc.assertRequestBody {
+					expectedRequestBody = tc.expectedRequestBodies[i]
+				}
+
+				upstream := upstreamHttpJsonServer(t, tc.assertRequestBody, expectedRequestBody, tc.upstreamResponses[i])
+				defer upstream.Close()
+
+				upstreams[i] = upstream
+			}
+
+			var upstreamURLs []string
+			for _, upstream := range upstreams {
+				upstreamURLs = append(upstreamURLs, upstream.URL)
+			}
+
+			plannerConfig := createPlannerConfigToUpstream(t, upstreamURLs, http.MethodPost, tc.typeFieldConfigs)
+			basePlanner, err := datasource.NewBaseDataSourcePlanner([]byte(tc.definition), plannerConfig, abstractlogger.NoopLogger)
+			require.NoError(t, err)
+
+			var hooks datasource.Hooks
+			if tc.hooksFactory != nil {
+				hooks = tc.hooksFactory(t)
+			}
+
+			err = basePlanner.RegisterDataSourcePlannerFactory(httpJsonDataSourceName, &datasource.HttpJsonDataSourcePlannerFactoryFactory{Hooks: hooks})
+			require.NoError(t, err)
+
+			definitionDocument := unsafeparser.ParseGraphqlDocumentString(tc.definition)
+			operationDocument := unsafeparser.ParseGraphqlDocumentString(tc.operation.Query)
+
+			var report operationreport.Report
+			operationDocument.Input.Variables = tc.operation.Variables
+			normalizer := astnormalization.NewNormalizer(true, true)
+			normalizer.NormalizeOperation(&operationDocument, &definitionDocument, &report)
+			require.False(t, report.HasErrors())
+
+			tc.operation.Variables = operationDocument.Input.Variables
+
+			planner := NewPlanner(basePlanner)
+			plan := planner.Plan(&operationDocument, &definitionDocument, tc.operation.OperationName, &report)
+			require.False(t, report.HasErrors())
+
+			variables, extraArguments := VariablesFromJson(tc.operation.Variables, nil)
+			executionContext := Context{
+				Context:        context.Background(),
+				Variables:      variables,
+				ExtraArguments: extraArguments,
+			}
+
+			var buf bytes.Buffer
+			executor := NewExecutor(nil)
+			err = executor.Execute(executionContext, plan, &buf)
+			require.NoError(t, err)
+
+			assert.JSONEq(t, tc.expectedResponseBody, buf.String())
+		}
+	}
+
+	t.Run("should execute hooks", run(
+		testCase{
+			definition: countriesSchema,
+			operation: datasource.GraphqlRequest{
+				OperationName: "",
+				Variables:     nil,
+				Query:         `{ country(code: "DE") { code name } }`,
+			},
+			typeFieldConfigs: []datasource.TypeFieldConfiguration{
+				httpJsonTypeFieldConfigCountry,
+			},
+			hooksFactory: func(t *testing.T) datasource.Hooks {
+				return datasource.Hooks{
+					PreSendHttpHook: preSendHttpHookFunc(func(ctx datasource.HookContext, req *http.Request) {
+						assert.Equal(t, ctx.TypeName, "Query")
+						assert.Equal(t, ctx.FieldName, "country")
+						assert.Regexp(t, `http://127.0.0.1:[0-9]+`, req.URL.String())
+					}),
+					PostReceiveHttpHook: postReceiveHttpHookFunc(func(ctx datasource.HookContext, resp *http.Response, body []byte) {
+						assert.Equal(t, ctx.TypeName, "Query")
+						assert.Equal(t, ctx.FieldName, "country")
+						assert.Equal(t, 200, resp.StatusCode)
+						assert.Equal(t, body, []byte(`{ "code": "DE", "name": "Germany" }`))
+					}),
+				}
+			},
+			assertRequestBody: false,
+			upstreamResponses: []string{
+				`{ "code": "DE", "name": "Germany" }`,
+			},
+			expectedResponseBody: `{ "data": { "country": { "code": "DE", "name": "Germany" } } }`,
+		}),
+	)
+}
+
+func upstreamHttpJsonServer(t *testing.T, assertRequestBody bool, expectedRequestBody string, response string) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.NotNil(t, r.Body)
+
+		bodyBytes, err := ioutil.ReadAll(r.Body)
+		require.NoError(t, err)
+
+		if assertRequestBody {
+			isEqual := assert.JSONEq(t, expectedRequestBody, string(bodyBytes))
+			if !isEqual {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+		}
+
+		_, err = w.Write([]byte(response))
+		require.NoError(t, err)
+	}))
+}
+
+var httpJsonTypeFieldConfigCountry = datasource.TypeFieldConfiguration{
+	TypeName:  "Query",
+	FieldName: "country",
+	Mapping: &datasource.MappingConfiguration{
+		Disabled: true,
+		Path:     "country",
+	},
+	DataSource: datasource.SourceConfig{
+		Name: httpJsonDataSourceName,
+	},
 }

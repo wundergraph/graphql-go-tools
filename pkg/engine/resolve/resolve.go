@@ -5,7 +5,6 @@ package resolve
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"hash"
 	"io"
@@ -16,6 +15,8 @@ import (
 
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash"
+
+	errors "golang.org/x/xerrors"
 
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/subscription"

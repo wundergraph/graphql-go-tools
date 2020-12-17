@@ -62,17 +62,17 @@ func TestHttpClient(t *testing.T) {
 	in = SetInputBodyWithPath(nil, []byte(`{`), "query")
 	assert.Equal(t, `{"body":{"query":"{"}}`, string(in))
 
-	in = SetInputBodyWithPath(nil,[]byte(`{topProducts {upc name price}}}`),"query")
-	assert.Equal(t,`{"body":{"query":"{topProducts {upc name price}}}"}}`,string(in))
+	in = SetInputBodyWithPath(nil, []byte(`{topProducts {upc name price}}}`), "query")
+	assert.Equal(t, `{"body":{"query":"{topProducts {upc name price}}}"}}`, string(in))
 
-	in = SetInputBodyWithPath(nil,[]byte(`$$0$$`),"variables.foo")
-	assert.Equal(t,`{"body":{"variables":{"foo":$$0$$}}}`,string(in))
+	in = SetInputBodyWithPath(nil, []byte(`$$0$$`), "variables.foo")
+	assert.Equal(t, `{"body":{"variables":{"foo":$$0$$}}}`, string(in))
 
-	in = SetInputBodyWithPath(nil,[]byte(`"$$0$$"`),"variables.foo")
-	assert.Equal(t,`{"body":{"variables":{"foo":"$$0$$"}}}`,string(in))
+	in = SetInputBodyWithPath(nil, []byte(`"$$0$$"`), "variables.foo")
+	assert.Equal(t, `{"body":{"variables":{"foo":"$$0$$"}}}`, string(in))
 
-	in = SetInputBodyWithPath(nil,[]byte(`{"bar":$$0$$}`),"variables.foo")
-	assert.Equal(t,`{"body":{"variables":{"foo":{"bar":$$0$$}}}}`,string(in))
+	in = SetInputBodyWithPath(nil, []byte(`{"bar":$$0$$}`), "variables.foo")
+	assert.Equal(t, `{"body":{"variables":{"foo":{"bar":$$0$$}}}}`, string(in))
 }
 
 func TestHttpClientDo(t *testing.T) {
@@ -131,8 +131,8 @@ func TestHttpClientDo(t *testing.T) {
 			assert.Equal(t, fooValues[1], "baz")
 
 			yearValues := r.URL.Query()["year"]
-			assert.Len(t,yearValues,1)
-			assert.Equal(t,yearValues[0],"2020")
+			assert.Len(t, yearValues, 1)
+			assert.Equal(t, yearValues[0], "2020")
 
 			_, err := w.Write([]byte("ok"))
 			assert.NoError(t, err)

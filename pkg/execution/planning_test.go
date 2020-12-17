@@ -163,6 +163,14 @@ func TestPlanner_Plan(t *testing.T) {
 							Source: &DataSourceInvocation{
 								Args: []datasource.Argument{
 									&datasource.StaticVariableArgument{
+										Name:  []byte("root_type_name"),
+										Value: []byte("Query"),
+									},
+									&datasource.StaticVariableArgument{
+										Name:  []byte("root_field_name"),
+										Value: []byte("country"),
+									},
+									&datasource.StaticVariableArgument{
 										Name:  []byte("url"),
 										Value: []byte("countries.trevorblades.com/"),
 									},
@@ -275,6 +283,14 @@ func TestPlanner_Plan(t *testing.T) {
 						Fetch: &SingleFetch{
 							Source: &DataSourceInvocation{
 								Args: []datasource.Argument{
+									&datasource.StaticVariableArgument{
+										Name:  []byte("root_type_name"),
+										Value: []byte("Mutation"),
+									},
+									&datasource.StaticVariableArgument{
+										Name:  []byte("root_field_name"),
+										Value: []byte("likePost"),
+									},
 									&datasource.StaticVariableArgument{
 										Name:  []byte("url"),
 										Value: []byte("fakebook.com/"),
@@ -440,6 +456,14 @@ func TestPlanner_Plan(t *testing.T) {
 										},
 										Args: []datasource.Argument{
 											&datasource.StaticVariableArgument{
+												Name:  []byte("root_type_name"),
+												Value: []byte("Query"),
+											},
+											&datasource.StaticVariableArgument{
+												Name:  []byte("root_field_name"),
+												Value: []byte("httpBinGet"),
+											},
+											&datasource.StaticVariableArgument{
 												Name:  []byte("url"),
 												Value: []byte("httpbin.org/get"),
 											},
@@ -458,6 +482,14 @@ func TestPlanner_Plan(t *testing.T) {
 								&SingleFetch{
 									Source: &DataSourceInvocation{
 										Args: []datasource.Argument{
+											&datasource.StaticVariableArgument{
+												Name:  []byte("root_type_name"),
+												Value: []byte("Query"),
+											},
+											&datasource.StaticVariableArgument{
+												Name:  []byte("root_field_name"),
+												Value: []byte("post"),
+											},
 											&datasource.StaticVariableArgument{
 												Name:  []byte("url"),
 												Value: []byte("jsonplaceholder.typicode.com/posts/{{ .arguments.id }}"),
@@ -545,6 +577,14 @@ func TestPlanner_Plan(t *testing.T) {
 									Fetch: &SingleFetch{
 										Source: &DataSourceInvocation{
 											Args: []datasource.Argument{
+												&datasource.StaticVariableArgument{
+													Name:  []byte("root_type_name"),
+													Value: []byte("JSONPlaceholderPost"),
+												},
+												&datasource.StaticVariableArgument{
+													Name:  []byte("root_field_name"),
+													Value: []byte("comments"),
+												},
 												&datasource.StaticVariableArgument{
 													Name:  []byte("url"),
 													Value: []byte("jsonplaceholder.typicode.com/comments?postId={{ .object.id }}"),
@@ -649,6 +689,14 @@ func TestPlanner_Plan(t *testing.T) {
 								},
 								Args: []datasource.Argument{
 									&datasource.StaticVariableArgument{
+										Name:  []byte("root_type_name"),
+										Value: []byte("Query"),
+									},
+									&datasource.StaticVariableArgument{
+										Name:  []byte("root_field_name"),
+										Value: []byte("withBody"),
+									},
+									&datasource.StaticVariableArgument{
 										Name:  []byte("url"),
 										Value: []byte("httpbin.org/anything"),
 									},
@@ -720,6 +768,14 @@ func TestPlanner_Plan(t *testing.T) {
 								},
 								Args: []datasource.Argument{
 									&datasource.StaticVariableArgument{
+										Name:  []byte("root_type_name"),
+										Value: []byte("Query"),
+									},
+									&datasource.StaticVariableArgument{
+										Name:  []byte("root_field_name"),
+										Value: []byte("withPath"),
+									},
+									&datasource.StaticVariableArgument{
 										Name:  []byte("url"),
 										Value: []byte("httpbin.org/anything"),
 									},
@@ -789,6 +845,14 @@ func TestPlanner_Plan(t *testing.T) {
 									Client: datasource.DefaultHttpClient(),
 								},
 								Args: []datasource.Argument{
+									&datasource.StaticVariableArgument{
+										Name:  []byte("root_type_name"),
+										Value: []byte("Query"),
+									},
+									&datasource.StaticVariableArgument{
+										Name:  []byte("root_field_name"),
+										Value: []byte("listItems"),
+									},
 									&datasource.StaticVariableArgument{
 										Name:  []byte("url"),
 										Value: []byte("httpbin.org/anything"),
@@ -872,6 +936,14 @@ func TestPlanner_Plan(t *testing.T) {
 									Client: datasource.DefaultHttpClient(),
 								},
 								Args: []datasource.Argument{
+									&datasource.StaticVariableArgument{
+										Name:  []byte("root_type_name"),
+										Value: []byte("Query"),
+									},
+									&datasource.StaticVariableArgument{
+										Name:  []byte("root_field_name"),
+										Value: []byte("listWithPath"),
+									},
 									&datasource.StaticVariableArgument{
 										Name:  []byte("url"),
 										Value: []byte("httpbin.org/anything"),
@@ -968,6 +1040,14 @@ func TestPlanner_Plan(t *testing.T) {
 									Client: datasource.DefaultHttpClient(),
 								},
 								Args: []datasource.Argument{
+									&datasource.StaticVariableArgument{
+										Name:  []byte("root_type_name"),
+										Value: []byte("Query"),
+									},
+									&datasource.StaticVariableArgument{
+										Name:  []byte("root_field_name"),
+										Value: []byte("withHeaders"),
+									},
 									&datasource.StaticVariableArgument{
 										Name:  []byte("url"),
 										Value: []byte("httpbin.org/anything"),
@@ -1292,6 +1372,14 @@ func TestPlanner_Plan(t *testing.T) {
 							Source: &DataSourceInvocation{
 								Args: []datasource.Argument{
 									&datasource.StaticVariableArgument{
+										Name:  []byte("root_type_name"),
+										Value: []byte("Query"),
+									},
+									&datasource.StaticVariableArgument{
+										Name:  []byte("root_field_name"),
+										Value: []byte("user"),
+									},
+									&datasource.StaticVariableArgument{
 										Name:  literal.URL,
 										Value: []byte("localhost:8001/graphql"),
 									},
@@ -1404,6 +1492,14 @@ func TestPlanner_Plan(t *testing.T) {
 						Fetch: &SingleFetch{
 							Source: &DataSourceInvocation{
 								Args: []datasource.Argument{
+									&datasource.StaticVariableArgument{
+										Name:  []byte("root_type_name"),
+										Value: []byte("Query"),
+									},
+									&datasource.StaticVariableArgument{
+										Name:  []byte("root_field_name"),
+										Value: []byte("restUser"),
+									},
 									&datasource.StaticVariableArgument{
 										Name:  literal.URL,
 										Value: []byte("localhost:9001/user/{{ .arguments.id }}"),
@@ -1531,6 +1627,14 @@ func TestPlanner_Plan(t *testing.T) {
 							Source: &DataSourceInvocation{
 								Args: []datasource.Argument{
 									&datasource.StaticVariableArgument{
+										Name:  []byte("root_type_name"),
+										Value: []byte("Query"),
+									},
+									&datasource.StaticVariableArgument{
+										Name:  []byte("root_field_name"),
+										Value: []byte("user"),
+									},
+									&datasource.StaticVariableArgument{
 										Name:  literal.URL,
 										Value: []byte("localhost:8001/graphql"),
 									},
@@ -1567,6 +1671,14 @@ func TestPlanner_Plan(t *testing.T) {
 									Fetch: &SingleFetch{
 										Source: &DataSourceInvocation{
 											Args: []datasource.Argument{
+												&datasource.StaticVariableArgument{
+													Name:  []byte("root_type_name"),
+													Value: []byte("User"),
+												},
+												&datasource.StaticVariableArgument{
+													Name:  []byte("root_field_name"),
+													Value: []byte("friends"),
+												},
 												&datasource.StaticVariableArgument{
 													Name:  literal.URL,
 													Value: []byte("localhost:9001/user/{{ .object.id }}/friends"),

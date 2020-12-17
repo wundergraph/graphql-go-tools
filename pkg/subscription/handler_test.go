@@ -22,7 +22,7 @@ func TestHandler_Handle(t *testing.T) {
 		_, client, handlerRoutine := setupSubscriptionHandlerTest(t)
 
 		t.Run("should send connection error message when error on read occurrs", func(t *testing.T) {
-			client.prepareConnectionInitMessage().withError().and().resetReceivedMessages()
+			client.prepareConnectionInitMessage().withError().and().send()
 
 			ctx, cancelFunc := context.WithCancel(context.Background())
 
@@ -39,7 +39,7 @@ func TestHandler_Handle(t *testing.T) {
 		})
 
 		t.Run("should successfully init connection and respond with ack", func(t *testing.T) {
-			client.prepareConnectionInitMessage().withoutError().and().resetReceivedMessages()
+			client.reconnect().and().prepareConnectionInitMessage().withoutError().and().send()
 
 			ctx, cancelFunc := context.WithCancel(context.Background())
 
@@ -64,7 +64,7 @@ func TestHandler_Handle(t *testing.T) {
 
 			subscriptionHandler.ChangeKeepAliveInterval(keepAliveInterval)
 
-			client.prepareConnectionInitMessage().withoutError().and().resetReceivedMessages()
+			client.prepareConnectionInitMessage().withoutError().and().send()
 			ctx, cancelFunc := context.WithCancel(context.Background())
 
 			handlerRoutineFunc := handlerRoutine(ctx)
@@ -89,12 +89,106 @@ func TestHandler_Handle(t *testing.T) {
 		})
 	})
 
+	t.Run("erroneous operation(s)", func(t *testing.T) {
+		_, client, handlerRoutine := setupSubscriptionHandlerTest(t)
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		handlerRoutineFunc := handlerRoutine(ctx)
+		go handlerRoutineFunc()
+
+		t.Run("should send error when query contains syntax errors", func(t *testing.T) {
+			payload := []byte(`{"operationName": "Broken", "query Broken {": "", "variables": null}`)
+			client.prepareStartMessage("1", payload).withoutError().send()
+
+			waitForClientHavingAMessage := func() bool {
+				return client.hasMoreMessagesThan(0)
+			}
+			require.Eventually(t, waitForClientHavingAMessage, 5*time.Second, 5*time.Millisecond)
+
+			jsonErrorMsg, err := json.Marshal("document doesn't contain any executable operation, locations: [], path: []")
+			require.NoError(t, err)
+
+			expectedMessage := Message{
+				Id:      "1",
+				Type:    MessageTypeError,
+				Payload: jsonErrorMsg,
+			}
+
+			messagesFromServer := client.readFromServer()
+			assert.Contains(t, messagesFromServer, expectedMessage)
+		})
+
+		cancelFunc()
+	})
+
+	t.Run("non-subscription query", func(t *testing.T) {
+		subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t)
+
+		t.Run("should process query and return error when query is not valid", func(t *testing.T) {
+			payload := starwars.LoadQuery(t, starwars.FileInvalidQuery, nil)
+			client.prepareStartMessage("1", payload).withoutError().and().send()
+
+			ctx, cancelFunc := context.WithCancel(context.Background())
+			cancelFunc()
+			handlerRoutineFunc := handlerRoutine(ctx)
+			go handlerRoutineFunc()
+
+			waitForClientHavingAMessage := func() bool {
+				return client.hasMoreMessagesThan(0)
+			}
+			require.Eventually(t, waitForClientHavingAMessage, 1*time.Second, 5*time.Millisecond)
+
+			jsonErrMessage, err := json.Marshal("field: invalid not defined on type: Character, locations: [], path: [query,hero,invalid]")
+			require.NoError(t, err)
+			expectedErrorMessage := Message{
+				Id:      "1",
+				Type:    MessageTypeError,
+				Payload: jsonErrMessage,
+			}
+
+			messagesFromServer := client.readFromServer()
+			assert.Contains(t, messagesFromServer, expectedErrorMessage)
+			assert.Equal(t, 0, subscriptionHandler.ActiveSubscriptions())
+		})
+
+		t.Run("should process and send result for a query", func(t *testing.T) {
+			payload := starwars.LoadQuery(t, starwars.FileSimpleHeroQuery, nil)
+			client.prepareStartMessage("1", payload).withoutError().and().send()
+
+			ctx, cancelFunc := context.WithCancel(context.Background())
+			cancelFunc()
+			handlerRoutineFunc := handlerRoutine(ctx)
+			go handlerRoutineFunc()
+
+			waitForClientHavingTwoMessages := func() bool {
+				return client.hasMoreMessagesThan(1)
+			}
+			require.Eventually(t, waitForClientHavingTwoMessages, 1*time.Second, 5*time.Millisecond)
+
+			expectedDataMessage := Message{
+				Id:      "1",
+				Type:    MessageTypeData,
+				Payload: []byte(`{"data":null}`),
+			}
+
+			expectedCompleteMessage := Message{
+				Id:      "1",
+				Type:    MessageTypeComplete,
+				Payload: nil,
+			}
+
+			messagesFromServer := client.readFromServer()
+			assert.Contains(t, messagesFromServer, expectedDataMessage)
+			assert.Contains(t, messagesFromServer, expectedCompleteMessage)
+			assert.Equal(t, 0, subscriptionHandler.ActiveSubscriptions())
+		})
+	})
+
 	t.Run("subscription query", func(t *testing.T) {
 		subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t)
 
 		t.Run("should start subscription on start", func(t *testing.T) {
 			payload := starwars.LoadQuery(t, starwars.FileRemainingJedisSubscription, nil)
-			client.prepareStartMessage("1", payload).withoutError().and().resetReceivedMessages()
+			client.prepareStartMessage("1", payload).withoutError().and().send()
 
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			handlerRoutineFunc := handlerRoutine(ctx)
@@ -114,8 +208,8 @@ func TestHandler_Handle(t *testing.T) {
 			assert.Equal(t, 1, subscriptionHandler.ActiveSubscriptions())
 		})
 
-		t.Run("should stop subscription on stop", func(t *testing.T) {
-			client.prepareStopMessage("1").withoutError().and().resetReceivedMessages()
+		t.Run("should stop subscription on stop and send complete message to client", func(t *testing.T) {
+			client.reconnect().prepareStopMessage("1").withoutError().and().send()
 
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			handlerRoutineFunc := handlerRoutine(ctx)
@@ -130,6 +224,15 @@ func TestHandler_Handle(t *testing.T) {
 			assert.Eventually(t, waitForCanceledSubscription, 1*time.Second, 5*time.Millisecond)
 			assert.Equal(t, 0, subscriptionHandler.ActiveSubscriptions())
 
+			expectedMessage := Message{
+				Id:      "1",
+				Type:    MessageTypeComplete,
+				Payload: nil,
+			}
+
+			messagesFromServer := client.readFromServer()
+			assert.Contains(t, messagesFromServer, expectedMessage)
+
 			cancelFunc()
 		})
 	})
@@ -138,7 +241,7 @@ func TestHandler_Handle(t *testing.T) {
 		_, client, handlerRoutine := setupSubscriptionHandlerTest(t)
 
 		t.Run("should successfully disconnect from client", func(t *testing.T) {
-			client.prepareConnectionTerminateMessage().withoutError()
+			client.prepareConnectionTerminateMessage().withoutError().and().send()
 			require.True(t, client.connected)
 
 			ctx, cancelFunc := context.WithCancel(context.Background())

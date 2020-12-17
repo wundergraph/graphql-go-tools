@@ -133,6 +133,6 @@ func (d *Document) FieldDefinitionType(ref int) int {
 
 func (d *Document) FieldDefinitionTypeNode(ref int) Node {
 	typeName := d.ResolveTypeNameBytes(d.FieldDefinitions[ref].Type)
-	node,_ :=  d.Index.FirstNodeByNameBytes(typeName)
+	node, _ := d.Index.FirstNodeByNameBytes(typeName)
 	return node
 }
