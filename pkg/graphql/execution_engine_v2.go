@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"io"
 	"io/ioutil"
 	"net/http"
 	"sync"
@@ -66,6 +65,10 @@ func (e *EngineResultWriter) Write(p []byte) (n int, err error) {
 
 func (e *EngineResultWriter) Read(p []byte) (n int, err error) {
 	return e.buf.Read(p)
+}
+
+func (e *EngineResultWriter) Flush() {
+	// Will be implemented with subscriptions
 }
 
 func (e *EngineResultWriter) Len() int {
@@ -138,7 +141,7 @@ func NewExecutionEngineV2(logger abstractlogger.Logger, engineConfig EngineV2Con
 	}, nil
 }
 
-func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *Request, writer io.Writer) error {
+func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *Request, writer resolve.FlushWriter) error {
 	if !operation.IsNormalized() {
 		result, err := operation.Normalize(e.config.schema)
 		if err != nil {
