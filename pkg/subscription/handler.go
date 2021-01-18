@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"strings"
 	"sync"
 	"time"
@@ -11,7 +12,6 @@ import (
 	"github.com/jensneuse/abstractlogger"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/execution"
 )
 
 const (
@@ -49,6 +49,17 @@ type Client interface {
 	Disconnect() error
 }
 
+type ExecutorPool interface {
+	Get(payload []byte) (Executor, error)
+	Put(executor Executor) error
+}
+
+type Executor interface {
+	Execute(writer io.Writer) error
+	OperationType() ast.OperationType
+	SetContext(context context.Context)
+}
+
 // Handler is the actual subscription handler which will keep track on how to handle messages coming from the client.
 type Handler struct {
 	logger abstractlogger.Logger
@@ -61,13 +72,14 @@ type Handler struct {
 	// subCancellations is map containing the cancellation functions to every active subscription.
 	subCancellations subscriptionCancellations
 	// executionHandler will handle the graphql execution.
-	executionHandler *execution.Handler
+	// TODO: executionHandler *execution.Handler
+	executorPool ExecutorPool
 	// bufferPool will hold buffers.
 	bufferPool *sync.Pool
 }
 
 // NewHandler creates a new subscription handler.
-func NewHandler(logger abstractlogger.Logger, client Client, executionHandler *execution.Handler) (*Handler, error) {
+func NewHandler(logger abstractlogger.Logger, client Client /*executionHandler *execution.Handler*/, executorPool ExecutorPool) (*Handler, error) {
 	keepAliveInterval, err := time.ParseDuration(DefaultKeepAliveInterval)
 	if err != nil {
 		return nil, err
@@ -84,7 +96,8 @@ func NewHandler(logger abstractlogger.Logger, client Client, executionHandler *e
 		keepAliveInterval:          keepAliveInterval,
 		subscriptionUpdateInterval: subscriptionUpdateInterval,
 		subCancellations:           subscriptionCancellations{},
-		executionHandler:           executionHandler,
+		// TODO: executionHandler:           executionHandler,
+		executorPool: executorPool,
 		bufferPool: &sync.Pool{
 			New: func() interface{} {
 				return bytes.NewBuffer(make([]byte, 0, 1024))
@@ -166,7 +179,8 @@ func (h *Handler) handleInit() {
 
 // handleStart will handle s start message.
 func (h *Handler) handleStart(id string, payload []byte) {
-	executor, node, executionContext, err := h.executionHandler.Handle(payload, []byte(""))
+	//TODO: executor, node, executionContext, err := h.executionHandler.Handle(payload, []byte(""))
+	executor, err := h.executorPool.Get(payload)
 	if err != nil {
 		h.logger.Error("subscription.Handler.handleStart()",
 			abstractlogger.Error(err),
@@ -176,21 +190,34 @@ func (h *Handler) handleStart(id string, payload []byte) {
 		return
 	}
 
-	if node.OperationType() == ast.OperationTypeSubscription {
+	// TODO: if node.OperationType() == ast.OperationTypeSubscription {
+	if executor.OperationType() == ast.OperationTypeSubscription {
 		ctx := h.subCancellations.Add(id)
-		go h.startSubscription(ctx, id, executor, node, executionContext)
+		//go h.startSubscription(ctx, id, executor, node, executionContext)
+		go h.startSubscription(ctx, id, executor)
 		return
 	}
 
-	go h.handleNonSubscriptionOperation(id, executor, node, executionContext)
+	//TODO: go h.handleNonSubscriptionOperation(id, executor, node, executionContext)
+	go h.handleNonSubscriptionOperation(id, executor)
 }
 
 // handleNonSubscriptionOperation will handle a non-subscription operation like a query or a mutation.
-func (h *Handler) handleNonSubscriptionOperation(id string, executor *execution.Executor, node execution.RootNode, executionContext execution.Context) {
+func (h *Handler) handleNonSubscriptionOperation(id string /*executor *execution.Executor, node execution.RootNode, executionContext execution.Context*/, executor Executor) {
+	defer func() {
+		err := h.executorPool.Put(executor)
+		if err != nil {
+			h.logger.Error("subscription.Handle.handleNonSubscriptionOperation()",
+				abstractlogger.Error(err),
+			)
+		}
+	}()
+
 	buf := h.bufferPool.Get().(*bytes.Buffer)
 	buf.Reset()
 
-	err := executor.Execute(executionContext, node, buf)
+	//err := executor.Execute(executionContext, node, buf)
+	err := executor.Execute(buf)
 	if err != nil {
 		h.logger.Error("subscription.Handle.handleNonSubscriptionOperation()",
 			abstractlogger.Error(err),
@@ -209,12 +236,23 @@ func (h *Handler) handleNonSubscriptionOperation(id string, executor *execution.
 }
 
 // startSubscription will invoke the actual subscription.
-func (h *Handler) startSubscription(ctx context.Context, id string, executor *execution.Executor, node execution.RootNode, executionContext execution.Context) {
-	executionContext.Context = ctx
+func (h *Handler) startSubscription(ctx context.Context, id string /*executor *execution.Executor, node execution.RootNode, executionContext execution.Context*/, executor Executor) {
+	defer func() {
+		err := h.executorPool.Put(executor)
+		if err != nil {
+			h.logger.Error("subscription.Handle.startSubscription()",
+				abstractlogger.Error(err),
+			)
+		}
+	}()
+
+	// TODO: executionContext.Context = ctx
+	executor.SetContext(ctx)
 	buf := h.bufferPool.Get().(*bytes.Buffer)
 	buf.Reset()
 
-	h.executeSubscription(buf, id, executor, node, executionContext)
+	//TODO: h.executeSubscription(buf, id, executor, node, executionContext)
+	h.executeSubscription(buf, id, executor)
 
 	for {
 		buf.Reset()
@@ -222,15 +260,17 @@ func (h *Handler) startSubscription(ctx context.Context, id string, executor *ex
 		case <-ctx.Done():
 			return
 		case <-time.After(h.subscriptionUpdateInterval):
-			h.executeSubscription(buf, id, executor, node, executionContext)
+			//TODO: h.executeSubscription(buf, id, executor, node, executionContext)
+			h.executeSubscription(buf, id, executor)
 		}
 	}
 
 }
 
 // executeSubscription will keep execution the subscription until it ends.
-func (h *Handler) executeSubscription(buf *bytes.Buffer, id string, executor *execution.Executor, node execution.RootNode, ctx execution.Context) {
-	err := executor.Execute(ctx, node, buf)
+func (h *Handler) executeSubscription(buf *bytes.Buffer, id string /*executor *execution.Executor, node execution.RootNode, ctx execution.Context*/, executor Executor) {
+	//err := executor.Execute(ctx, node, buf)
+	err := executor.Execute(buf)
 	if err != nil {
 		h.logger.Error("subscription.Handle.executeSubscription()",
 			abstractlogger.Error(err),

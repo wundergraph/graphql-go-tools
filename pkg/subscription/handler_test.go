@@ -162,7 +162,7 @@ func TestHandler_Handle(t *testing.T) {
 			waitForClientHavingTwoMessages := func() bool {
 				return client.hasMoreMessagesThan(1)
 			}
-			require.Eventually(t, waitForClientHavingTwoMessages, 1*time.Second, 5*time.Millisecond)
+			require.Eventually(t, waitForClientHavingTwoMessages, 60*time.Second, 5*time.Millisecond)
 
 			expectedDataMessage := Message{
 				Id:      "1",
@@ -276,8 +276,10 @@ func TestHandler_Handle(t *testing.T) {
 func setupSubscriptionHandlerTest(t *testing.T) (subscriptionHandler *Handler, client *mockClient, routine handlerRoutine) {
 	client = newMockClient()
 
+	executorPool := NewExecutorV1Pool(starwars.NewExecutionHandler(t))
+
 	var err error
-	subscriptionHandler, err = NewHandler(abstractlogger.NoopLogger, client, starwars.NewExecutionHandler(t))
+	subscriptionHandler, err = NewHandler(abstractlogger.NoopLogger, client, &executorPool)
 	require.NoError(t, err)
 
 	routine = func(ctx context.Context) func() bool {
