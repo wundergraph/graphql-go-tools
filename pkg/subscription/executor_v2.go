@@ -15,8 +15,8 @@ type ExecutorV2Pool struct {
 	executorPool *sync.Pool
 }
 
-func NewExecutorV2Pool(engine *graphql.ExecutionEngineV2) ExecutorV2Pool {
-	return ExecutorV2Pool{
+func NewExecutorV2Pool(engine *graphql.ExecutionEngineV2) *ExecutorV2Pool {
+	return &ExecutorV2Pool{
 		engine: engine,
 		executorPool: &sync.Pool{
 			New: func() interface{} {

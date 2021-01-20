@@ -14,8 +14,8 @@ type ExecutorV1Pool struct {
 	executorPool     *sync.Pool
 }
 
-func NewExecutorV1Pool(executionHandler *execution.Handler) ExecutorV1Pool {
-	return ExecutorV1Pool{
+func NewExecutorV1Pool(executionHandler *execution.Handler) *ExecutorV1Pool {
+	return &ExecutorV1Pool{
 		ExecutionHandler: executionHandler,
 		executorPool: &sync.Pool{
 			New: func() interface{} {

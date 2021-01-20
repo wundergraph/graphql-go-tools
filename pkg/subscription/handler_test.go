@@ -23,7 +23,7 @@ func TestHandler_Handle(t *testing.T) {
 		executorPool := NewExecutorV1Pool(starwars.NewExecutionHandler(t))
 
 		t.Run("connection_init", func(t *testing.T) {
-			_, client, handlerRoutine := setupSubscriptionHandlerTest(t, &executorPool)
+			_, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
 
 			t.Run("should send connection error message when error on read occurrs", func(t *testing.T) {
 				client.prepareConnectionInitMessage().withError().and().send()
@@ -60,7 +60,7 @@ func TestHandler_Handle(t *testing.T) {
 		})
 
 		t.Run("connection_keep_alive", func(t *testing.T) {
-			subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, &executorPool)
+			subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
 
 			t.Run("should successfully send keep alive messages after connection_init", func(t *testing.T) {
 				keepAliveInterval, err := time.ParseDuration("5ms")
@@ -94,7 +94,7 @@ func TestHandler_Handle(t *testing.T) {
 		})
 
 		t.Run("erroneous operation(s)", func(t *testing.T) {
-			_, client, handlerRoutine := setupSubscriptionHandlerTest(t, &executorPool)
+			_, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			handlerRoutineFunc := handlerRoutine(ctx)
 			go handlerRoutineFunc()
@@ -125,7 +125,7 @@ func TestHandler_Handle(t *testing.T) {
 		})
 
 		t.Run("non-subscription query", func(t *testing.T) {
-			subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, &executorPool)
+			subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
 
 			t.Run("should process query and return error when query is not valid", func(t *testing.T) {
 				payload := starwars.LoadQuery(t, starwars.FileInvalidQuery, nil)
@@ -188,7 +188,7 @@ func TestHandler_Handle(t *testing.T) {
 		})
 
 		t.Run("subscription query", func(t *testing.T) {
-			subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, &executorPool)
+			subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
 
 			t.Run("should start subscription on start", func(t *testing.T) {
 				payload := starwars.LoadQuery(t, starwars.FileRemainingJedisSubscription, nil)
@@ -242,7 +242,7 @@ func TestHandler_Handle(t *testing.T) {
 		})
 
 		t.Run("connection_terminate", func(t *testing.T) {
-			_, client, handlerRoutine := setupSubscriptionHandlerTest(t, &executorPool)
+			_, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
 
 			t.Run("should successfully disconnect from client", func(t *testing.T) {
 				client.prepareConnectionTerminateMessage().withoutError().and().send()
@@ -258,7 +258,7 @@ func TestHandler_Handle(t *testing.T) {
 		})
 
 		t.Run("client is disconnected", func(t *testing.T) {
-			_, client, handlerRoutine := setupSubscriptionHandlerTest(t, &executorPool)
+			_, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
 
 			t.Run("server should not read from client and stop handler", func(t *testing.T) {
 				err := client.Disconnect()
@@ -286,7 +286,7 @@ func TestHandler_Handle(t *testing.T) {
 
 		executorPool := NewExecutorV2Pool(engine)
 		t.Run("connection_init", func(t *testing.T) {
-			_, client, handlerRoutine := setupSubscriptionHandlerTest(t, &executorPool)
+			_, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
 
 			t.Run("should send connection error message when error on read occurrs", func(t *testing.T) {
 				client.prepareConnectionInitMessage().withError().and().send()
@@ -323,7 +323,7 @@ func TestHandler_Handle(t *testing.T) {
 		})
 
 		t.Run("connection_keep_alive", func(t *testing.T) {
-			subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, &executorPool)
+			subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
 
 			t.Run("should successfully send keep alive messages after connection_init", func(t *testing.T) {
 				keepAliveInterval, err := time.ParseDuration("5ms")
@@ -357,7 +357,7 @@ func TestHandler_Handle(t *testing.T) {
 		})
 
 		t.Run("erroneous operation(s)", func(t *testing.T) {
-			_, client, handlerRoutine := setupSubscriptionHandlerTest(t, &executorPool)
+			_, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			handlerRoutineFunc := handlerRoutine(ctx)
 			go handlerRoutineFunc()
@@ -388,7 +388,7 @@ func TestHandler_Handle(t *testing.T) {
 		})
 
 		t.Run("non-subscription query", func(t *testing.T) {
-			subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, &executorPool)
+			subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
 
 			t.Run("should process query and return error when query is not valid", func(t *testing.T) {
 				payload := starwars.LoadQuery(t, starwars.FileInvalidQuery, nil)
@@ -451,7 +451,7 @@ func TestHandler_Handle(t *testing.T) {
 		})
 
 		t.Run("subscription query", func(t *testing.T) {
-			subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, &executorPool)
+			subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
 
 			/* TODO: Subscriptions are currently not implemented. Uncomment this test, when implementation is ready
 			t.Run("should start subscription on start", func(t *testing.T) {
@@ -506,7 +506,7 @@ func TestHandler_Handle(t *testing.T) {
 		})
 
 		t.Run("connection_terminate", func(t *testing.T) {
-			_, client, handlerRoutine := setupSubscriptionHandlerTest(t, &executorPool)
+			_, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
 
 			t.Run("should successfully disconnect from client", func(t *testing.T) {
 				client.prepareConnectionTerminateMessage().withoutError().and().send()
@@ -522,7 +522,7 @@ func TestHandler_Handle(t *testing.T) {
 		})
 
 		t.Run("client is disconnected", func(t *testing.T) {
-			_, client, handlerRoutine := setupSubscriptionHandlerTest(t, &executorPool)
+			_, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
 
 			t.Run("server should not read from client and stop handler", func(t *testing.T) {
 				err := client.Disconnect()
