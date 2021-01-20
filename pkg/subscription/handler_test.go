@@ -453,6 +453,7 @@ func TestHandler_Handle(t *testing.T) {
 		t.Run("subscription query", func(t *testing.T) {
 			subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, &executorPool)
 
+			/* TODO: Subscriptions are currently not implemented. Uncomment this test, when implementation is ready
 			t.Run("should start subscription on start", func(t *testing.T) {
 				payload := starwars.LoadQuery(t, starwars.FileRemainingJedisSubscription, nil)
 				client.prepareStartMessage("1", payload).withoutError().and().send()
@@ -473,7 +474,7 @@ func TestHandler_Handle(t *testing.T) {
 				messagesFromServer := client.readFromServer()
 				assert.Contains(t, messagesFromServer, expectedMessage)
 				assert.Equal(t, 1, subscriptionHandler.ActiveSubscriptions())
-			})
+			})*/
 
 			t.Run("should stop subscription on stop and send complete message to client", func(t *testing.T) {
 				client.reconnect().prepareStopMessage("1").withoutError().and().send()

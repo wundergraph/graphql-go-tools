@@ -47,12 +47,11 @@ func operationValidationErrorsFromOperationReport(report operationreport.Report)
 }
 
 func (o OperationValidationErrors) Error() string {
-	// TODO: return fmt.Sprintf("operation contains %d error(s)", len(o))
-	if len(o) > 0 {
+	if len(o) > 0 { // avoid panic ...
 		return o.ErrorByIndex(0).Error()
 	}
 
-	return "no error"
+	return "no error" // ... so, this should never be returned
 }
 
 func (o OperationValidationErrors) WriteResponse(writer io.Writer) (n int, err error) {

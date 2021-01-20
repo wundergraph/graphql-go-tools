@@ -2,10 +2,10 @@ package subscription
 
 import (
 	"context"
-	"io"
 	"sync"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 	"github.com/jensneuse/graphql-go-tools/pkg/execution"
 )
 
@@ -32,8 +32,6 @@ func (e *ExecutorV1Pool) Get(payload []byte) (Executor, error) {
 	}
 
 	executor := e.executorPool.Get().(*ExecutorV1)
-	executor.reset()
-
 	executor.engineExecutor = engineExecutor
 	executor.rootNode = node
 	executor.executionContext = executionContext
@@ -42,6 +40,7 @@ func (e *ExecutorV1Pool) Get(payload []byte) (Executor, error) {
 }
 
 func (e *ExecutorV1Pool) Put(executor Executor) error {
+	executor.Reset()
 	e.executorPool.Put(executor)
 	return nil
 }
@@ -52,7 +51,7 @@ type ExecutorV1 struct {
 	executionContext execution.Context
 }
 
-func (e *ExecutorV1) Execute(writer io.Writer) error {
+func (e *ExecutorV1) Execute(writer resolve.FlushWriter) error {
 	return e.engineExecutor.Execute(e.executionContext, e.rootNode, writer)
 }
 
@@ -64,7 +63,7 @@ func (e *ExecutorV1) SetContext(context context.Context) {
 	e.executionContext.Context = context
 }
 
-func (e *ExecutorV1) reset() {
+func (e *ExecutorV1) Reset() {
 	e.engineExecutor = nil
 	e.rootNode = nil
 	e.executionContext = execution.Context{}
