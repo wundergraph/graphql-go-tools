@@ -82,12 +82,12 @@ func (o OperationValidationErrors) ErrorByIndex(i int) error {
 
 type OperationValidationError struct {
 	Message   string          `json:"message"`
-	Locations []ErrorLocation `json:"location,omitempty"`
+	Locations []ErrorLocation `json:"locations,omitempty"`
 	Path      ErrorPath       `json:"path,omitempty"`
 }
 
 func (o OperationValidationError) Error() string {
-	return fmt.Sprintf("%s, location: %+v, path: %s", o.Message, o.Locations, o.Path.String())
+	return fmt.Sprintf("%s, locations: %+v, path: %s", o.Message, o.Locations, o.Path.String())
 }
 
 type SchemaValidationErrors []SchemaValidationError

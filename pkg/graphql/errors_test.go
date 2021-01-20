@@ -31,7 +31,7 @@ func TestOperationValidationErrors_Error(t *testing.T) {
 		},
 	}
 
-	assert.Equal(t, "a single error, location: [{Line:1 Column:1}], path: [hello]", validationErrs.Error())
+	assert.Equal(t, "a single error, locations: [{Line:1 Column:1}], path: [hello]", validationErrs.Error())
 }
 
 func TestOperationValidationErrors_WriteResponse(t *testing.T) {
@@ -59,7 +59,7 @@ func TestOperationValidationErrors_WriteResponse(t *testing.T) {
 	buf := new(bytes.Buffer)
 	n, err := validationErrs.WriteResponse(buf)
 
-	expectedResponse := `{"errors":[{"message":"error in operation","location":[{"line":1,"column":1}],"path":["hello"]}]}`
+	expectedResponse := `{"errors":[{"message":"error in operation","locations":[{"line":1,"column":1}],"path":["hello"]}]}`
 
 	assert.NoError(t, err)
 	assert.Greater(t, n, 0)
@@ -86,7 +86,7 @@ func TestOperationValidationError_Error(t *testing.T) {
 		},
 	}
 
-	assert.Equal(t, "error in operation, location: [{Line:1 Column:1}], path: [hello]", validatonErr.Error())
+	assert.Equal(t, "error in operation, locations: [{Line:1 Column:1}], path: [hello]", validatonErr.Error())
 }
 
 func TestOperationValidationErrors_Count(t *testing.T) {
