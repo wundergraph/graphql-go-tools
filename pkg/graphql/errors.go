@@ -82,7 +82,7 @@ func (o OperationValidationErrors) ErrorByIndex(i int) error {
 
 type OperationValidationError struct {
 	Message   string          `json:"message"`
-	Locations []ErrorLocation `json:"locations,omitempty"`
+	Locations []ErrorLocation `json:"location,omitempty"`
 	Path      ErrorPath       `json:"path,omitempty"`
 }
 
