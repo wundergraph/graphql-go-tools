@@ -149,7 +149,7 @@ func TestRequest_ValidateRestrictedFields(t *testing.T) {
 
 				var buf bytes.Buffer
 				_, _ = result.Errors.WriteResponse(&buf)
-				assert.Equal(t, `{"errors":[{"message":"field: droid is restricted on type: Query"}]}`, buf.String())
+				assert.Equal(t, `{"errors":[{"message":"field: droid is restricted on type: Query","path":null}]}`, buf.String())
 			})
 
 			t.Run("when mutation is restricted", func(t *testing.T) {
