@@ -531,6 +531,107 @@ func TestResolver_ResolveNode(t *testing.T) {
 	}))
 }
 
+func TestResolver_WithHooks(t *testing.T) {
+	testFn := func(fn func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string)) func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		r := New()
+		node, ctx, expectedOutput := fn(t, r, ctrl)
+		return func(t *testing.T) {
+			buf := &BufPair{
+				Data:   fastbuffer.New(),
+				Errors: fastbuffer.New(),
+			}
+			err := r.resolveNode(&ctx, node, nil, buf)
+			assert.Equal(t, buf.Errors.String(), "", "want error buf to be empty")
+			assert.NoError(t, err)
+			assert.Equal(t, expectedOutput, buf.Data.String())
+			ctrl.Finish()
+		}
+	}
+	t.Run("resolve with hooks", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+		beforeFetch := NewMockBeforeFetchHook(ctrl)
+		beforeFetch.EXPECT().OnBeforeFetch([]byte("fakeInput")).Return()
+		afterFetch := NewMockAfterFetchHook(ctrl)
+		afterFetch.EXPECT().OnData([]byte(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`), false).Return()
+		return &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("data"),
+					Value: &Object{
+						Fields: []*Field{
+							{
+								Name: []byte("user"),
+								Value: &Object{
+									Fetch: &SingleFetch{
+										BufferId:   0,
+										DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
+										InputTemplate: InputTemplate{
+											Segments: []TemplateSegment{
+												{
+													SegmentType: StaticSegmentType,
+													Data:        []byte("fakeInput"),
+												},
+											},
+										},
+									},
+									Fields: []*Field{
+										{
+											BufferID:  0,
+											HasBuffer: true,
+											Name:      []byte("id"),
+											Value: &String{
+												Path: []string{"id"},
+											},
+										},
+										{
+											BufferID:  0,
+											HasBuffer: true,
+											Name:      []byte("name"),
+											Value: &String{
+												Path: []string{"name"},
+											},
+										},
+										{
+											BufferID:  0,
+											HasBuffer: true,
+											Name:      []byte("registered"),
+											Value: &Boolean{
+												Path: []string{"registered"},
+											},
+										},
+										{
+											BufferID:  0,
+											HasBuffer: true,
+											Name:      []byte("pet"),
+											Value: &Object{
+												Path: []string{"pet"},
+												Fields: []*Field{
+													{
+														Name: []byte("name"),
+														Value: &String{
+															Path: []string{"name"},
+														},
+													},
+													{
+														Name: []byte("kind"),
+														Value: &String{
+															Path: []string{"kind"},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, Context{Context: context.Background(), beforeFetchHook: beforeFetch, afterFetchHook: afterFetch}, `{"data":{"user":{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}}}`
+	}))
+}
+
 func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 	testFn := func(fn func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string)) func(t *testing.T) {
 		ctrl := gomock.NewController(t)
