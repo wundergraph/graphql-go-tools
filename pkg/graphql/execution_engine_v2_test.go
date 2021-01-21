@@ -428,6 +428,78 @@ func testNetHttpClient(t *testing.T, testCase roundTripperTestCase) httpclient.C
 	})
 }
 
+type beforeFetchHook struct {
+	input string
+}
+
+func (b *beforeFetchHook) OnBeforeFetch(input []byte) {
+	b.input += string(input)
+}
+
+type afterFetchHook struct {
+	data string
+	err  string
+}
+
+func (a *afterFetchHook) OnData(output []byte, singleFlight bool) {
+	a.data += string(output)
+}
+
+func (a *afterFetchHook) OnError(output []byte, singleFlight bool) {
+	a.err += string(output)
+}
+
+func TestExecutionWithOptions(t *testing.T) {
+
+	testCase := ExecutionEngineV2TestCase{
+		schema:    starwarsSchema(t),
+		operation: loadStarWarsQuery(starwars.FileSimpleHeroQuery, nil),
+		dataSources: []plan.DataSourceConfiguration{
+			{
+				RootNodes: []plan.TypeField{
+					{TypeName: "Query", FieldNames: []string{"hero"}},
+				},
+				Factory: &graphql_datasource.Factory{
+					Client: testNetHttpClient(t, roundTripperTestCase{
+						expectedHost:     "example.com",
+						expectedPath:     "/",
+						expectedBody:     "",
+						sendResponseBody: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+						sendStatusCode:   200,
+					}),
+				},
+				Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
+					Fetch: graphql_datasource.FetchConfiguration{
+						URL:        "https://example.com/",
+						HttpMethod: "GET",
+					},
+				}),
+			},
+		},
+		fields:           []plan.FieldConfiguration{},
+		expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+	}
+
+	engineConf := NewEngineV2Configuration(testCase.schema)
+	engineConf.SetDataSources(testCase.dataSources)
+	engineConf.SetFieldConfigurations(testCase.fields)
+
+	engine, err := NewExecutionEngineV2(abstractlogger.Noop{}, engineConf)
+	require.NoError(t, err)
+
+	before := &beforeFetchHook{}
+	after := &afterFetchHook{}
+
+	operation := testCase.operation(t)
+	resultWriter := NewEngineResultWriter()
+	err = engine.Execute(context.Background(), &operation, &resultWriter, WithBeforeFetchHook(before), WithAfterFetchHook(after))
+
+	assert.Equal(t, `{"method":"GET","url":"https://example.com/","body":{"query":"{hero}"}}`,before.input)
+	assert.Equal(t, `{"hero":{"name":"Luke Skywalker"}}`,after.data)
+	assert.Equal(t, "",after.err)
+	assert.NoError(t, err)
+}
+
 func BenchmarkExecutionEngineV2(b *testing.B) {
 	type benchCase struct {
 		engine *ExecutionEngineV2
