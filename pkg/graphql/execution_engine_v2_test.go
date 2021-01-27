@@ -16,6 +16,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/rest_datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/staticdatasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 	"github.com/jensneuse/graphql-go-tools/pkg/starwars"
 )
 
@@ -432,7 +433,7 @@ type beforeFetchHook struct {
 	input string
 }
 
-func (b *beforeFetchHook) OnBeforeFetch(input []byte) {
+func (b *beforeFetchHook) OnBeforeFetch(ctx resolve.HookContext, input []byte) {
 	b.input += string(input)
 }
 
@@ -441,11 +442,11 @@ type afterFetchHook struct {
 	err  string
 }
 
-func (a *afterFetchHook) OnData(output []byte, singleFlight bool) {
+func (a *afterFetchHook) OnData(ctx resolve.HookContext, output []byte, singleFlight bool) {
 	a.data += string(output)
 }
 
-func (a *afterFetchHook) OnError(output []byte, singleFlight bool) {
+func (a *afterFetchHook) OnError(ctx resolve.HookContext, output []byte, singleFlight bool) {
 	a.err += string(output)
 }
 
