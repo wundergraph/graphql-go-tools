@@ -1339,6 +1339,64 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 	}))
 }
 
+func TestResolver_WithHeader(t *testing.T) {
+
+	resolver := New()
+	ctx := &Context{
+		Context: context.Background(),
+		Request: Request{
+			Header: map[string][]string{
+				"Authorization": {"foo"},
+			},
+		},
+	}
+
+	ctrl := gomock.NewController(t)
+	fakeService := NewMockDataSource(ctrl)
+	fakeService.EXPECT().UniqueIdentifier().Return([]byte("fakeService"))
+	fakeService.EXPECT().
+		Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
+		Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+			actual := string(input)
+			assert.Equal(t, "foo", actual)
+			pair.Data.WriteString(`{"bar":"baz"}`)
+			return
+		}).
+		Return(nil)
+
+	out := &bytes.Buffer{}
+	res := &GraphQLResponse{
+		Data: &Object{
+			Fetch: &SingleFetch{
+				BufferId:   0,
+				DataSource: fakeService,
+				InputTemplate: InputTemplate{
+					Segments: []TemplateSegment{
+						{
+							SegmentType:        VariableSegmentType,
+							VariableSource:     VariableSourceRequestHeader,
+							VariableSourcePath: []string{"Authorization"},
+						},
+					},
+				},
+			},
+			Fields: []*Field{
+				{
+					Name: []byte("bar"),
+					Value: &String{
+						Path: []string{"bar"},
+					},
+					HasBuffer: true,
+					BufferID:  0,
+				},
+			},
+		},
+	}
+	err := resolver.ResolveGraphQLResponse(ctx, res, nil, out)
+	assert.NoError(t, err)
+	assert.Equal(t, `{"data":{"bar":"baz"}}`, out.String())
+}
+
 type TestFlushWriter struct {
 	flushed []string
 	buf     bytes.Buffer
@@ -1676,27 +1734,6 @@ func BenchmarkResolver_ResolveNode(b *testing.B) {
 		resolver.EnableSingleFlightLoader = true
 		runBench(b)
 	})
-	/*	b.Run("singleflight disabled (latency 0)", func(b *testing.B) {
-			serviceOneDS.artificialLatency = 0
-			serviceTwoDS.artificialLatency = 0
-			nestedServiceOneDS.artificialLatency = 0
-			resolver.EnableSingleFlightLoader = false
-			runBench(b)
-		})
-		b.Run("singleflight enabled (latency 5ms)", func(b *testing.B) {
-			serviceOneDS.artificialLatency = time.Millisecond * 5
-			serviceTwoDS.artificialLatency = 0
-			nestedServiceOneDS.artificialLatency = 0
-			resolver.EnableSingleFlightLoader = true
-			runBench(b)
-		})
-		b.Run("singleflight disabled (latency 5ms)", func(b *testing.B) {
-			serviceOneDS.artificialLatency = time.Millisecond * 5
-			serviceTwoDS.artificialLatency = 0
-			nestedServiceOneDS.artificialLatency = 0
-			resolver.EnableSingleFlightLoader = false
-			runBench(b)
-		})*/
 }
 
 type hookContextPathMatcher struct {

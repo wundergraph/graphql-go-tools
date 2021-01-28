@@ -1929,14 +1929,14 @@ func TestExecutor_ResolveArgsFlatObjectContainingJSON(t *testing.T) {
 	e.context = Context{
 		Context: context.Background(),
 		Variables: map[uint64][]byte{
-			xxhash.Sum64String("request"): []byte(`{"headers":{"Authorization":"foo"}}`),
+			xxhash.Sum64String("request"): []byte(`{"header":{"Authorization":"foo"}}`),
 		},
 	}
 
 	args := []datasource.Argument{
 		&datasource.StaticVariableArgument{
 			Name:  []byte("header"),
-			Value: []byte("{{ .request.headers.Authorization }}"),
+			Value: []byte("{{ .request.header.Authorization }}"),
 		},
 		&datasource.ContextVariableArgument{
 			Name:         []byte("request"),

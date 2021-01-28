@@ -34,41 +34,43 @@ func New() *GraphQLWebsocketSubscriptionStream {
 }
 
 func (g *GraphQLWebsocketSubscriptionStream) Start(input []byte, next chan<- []byte, stop <-chan struct{}) {
-	scheme, host, path, body, headers := httpclient.GetSubscriptionInput(input)
+
+	rawURL, rawHeader, body := httpclient.GetSubscriptionInput(input)
 
 	var (
 		header http.Header
 	)
 
-	if len(headers) != 0 {
+	if len(rawHeader) != 0 {
 		header = map[string][]string{}
-		_ = jsonparser.ObjectEach(headers, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
+		_ = jsonparser.ObjectEach(rawHeader, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
 			header[string(key)] = []string{string(value)}
 			return nil
 		})
 	}
 
-	key := string(scheme) + string(host) + string(path)
+	url := string(rawURL)
+
 	g.wsClientsMux.Lock()
-	client, ok := g.wsClients[key]
+	client, ok := g.wsClients[url]
 	if !ok {
 		client = &WebsocketClient{}
-		err := client.Open(string(scheme), string(host), string(path), header)
+		err := client.Open(url, header)
 		if err != nil {
 			g.wsClientsMux.Unlock()
 			return
 		}
-		g.wsClients[key] = client
+		g.wsClients[url] = client
 	}
 	g.wsClientsMux.Unlock()
 
 	defer func() {
 		g.wsClientsMux.Lock()
-		client, ok := g.wsClients[key]
+		client, ok := g.wsClients[url]
 		if ok {
 			closed := client.CloseIfNoSubscriptions()
 			if closed {
-				delete(g.wsClients, key)
+				delete(g.wsClients, url)
 			}
 		}
 		g.wsClientsMux.Unlock()

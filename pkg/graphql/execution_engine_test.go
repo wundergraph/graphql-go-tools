@@ -33,7 +33,7 @@ type roundTripperTestCase struct {
 }
 
 func createTestRoundTripper(t *testing.T, testCase roundTripperTestCase) testRoundTripper {
-	return testRoundTripper(func(req *http.Request) *http.Response {
+	return func(req *http.Request) *http.Response {
 		assert.Equal(t, testCase.expectedHost, req.URL.Host)
 		assert.Equal(t, testCase.expectedPath, req.URL.Path)
 
@@ -49,7 +49,7 @@ func createTestRoundTripper(t *testing.T, testCase roundTripperTestCase) testRou
 
 		body := bytes.NewBuffer([]byte(testCase.sendResponseBody))
 		return &http.Response{StatusCode: testCase.sendStatusCode, Body: ioutil.NopCloser(body)}
-	})
+	}
 }
 
 func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {

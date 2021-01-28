@@ -186,6 +186,43 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		},
 	))
 
+	t.Run("execute with header injection", runWithoutError(
+		ExecutionEngineV2TestCase{
+			schema:    starwarsSchema(t),
+			operation: func(t *testing.T) Request {
+				request := loadStarWarsQuery(starwars.FileSimpleHeroQuery, nil)(t)
+				request.request.Header = map[string][]string{
+					"Authorization": {"foo"},
+				}
+				return request
+			},
+			dataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{TypeName: "Query", FieldNames: []string{"hero"}},
+					},
+					Factory: &rest_datasource.Factory{
+						Client: testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "example.com",
+							expectedPath:     "/foo",
+							expectedBody:     "",
+							sendResponseBody: `{"hero": {"name": "Luke Skywalker"}}`,
+							sendStatusCode:   200,
+						}),
+					},
+					Custom: rest_datasource.ConfigJSON(rest_datasource.Configuration{
+						Fetch: rest_datasource.FetchConfiguration{
+							URL:    "https://example.com/{{ .request.header.Authorization }}",
+							Method: "GET",
+						},
+					}),
+				},
+			},
+			fields:           []plan.FieldConfiguration{},
+			expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+		},
+	))
+
 	t.Run("execute simple hero operation with graphql data source", runWithoutError(
 		ExecutionEngineV2TestCase{
 			schema:    starwarsSchema(t),
@@ -206,8 +243,8 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					},
 					Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
 						Fetch: graphql_datasource.FetchConfiguration{
-							URL:        "https://example.com/",
-							HttpMethod: "GET",
+							URL:    "https://example.com/",
+							Method: "GET",
 						},
 					}),
 				},
@@ -241,8 +278,8 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					},
 					Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
 						Fetch: graphql_datasource.FetchConfiguration{
-							URL:        "https://example.com/",
-							HttpMethod: "GET",
+							URL:    "https://example.com/",
+							Method: "GET",
 						},
 					}),
 				},
@@ -272,8 +309,8 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					},
 					Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
 						Fetch: graphql_datasource.FetchConfiguration{
-							URL:        "https://example.com/",
-							HttpMethod: "GET",
+							URL:    "https://example.com/",
+							Method: "GET",
 						},
 					}),
 				},
@@ -303,8 +340,8 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					},
 					Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
 						Fetch: graphql_datasource.FetchConfiguration{
-							URL:        "https://example.com/",
-							HttpMethod: "GET",
+							URL:    "https://example.com/",
+							Method: "GET",
 						},
 					}),
 				},
@@ -471,8 +508,8 @@ func TestExecutionWithOptions(t *testing.T) {
 				},
 				Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
 					Fetch: graphql_datasource.FetchConfiguration{
-						URL:        "https://example.com/",
-						HttpMethod: "GET",
+						URL:    "https://example.com/",
+						Method: "GET",
 					},
 				}),
 			},
