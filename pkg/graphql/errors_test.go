@@ -5,27 +5,61 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 )
 
 func TestOperationValidationErrors_Error(t *testing.T) {
 	validationErrs := OperationValidationErrors{
-		OperationValidationError{},
+		OperationValidationError{
+			Message: "a single error",
+			Locations: []ErrorLocation{
+				{
+					Line:   1,
+					Column: 1,
+				},
+			},
+			Path: ErrorPath{
+				astPath: []ast.PathItem{
+					{
+						Kind:       ast.FieldName,
+						ArrayIndex: 0,
+						FieldName:  []byte("hello"),
+					},
+				},
+			},
+		},
 	}
 
-	assert.Equal(t, "operation contains 1 error(s)", validationErrs.Error())
+	assert.Equal(t, "a single error, locations: [{Line:1 Column:1}], path: [hello]", validationErrs.Error())
 }
 
 func TestOperationValidationErrors_WriteResponse(t *testing.T) {
 	validationErrs := OperationValidationErrors{
 		OperationValidationError{
 			Message: "error in operation",
+			Locations: []ErrorLocation{
+				{
+					Line:   1,
+					Column: 1,
+				},
+			},
+			Path: ErrorPath{
+				astPath: []ast.PathItem{
+					{
+						Kind:       ast.FieldName,
+						ArrayIndex: 0,
+						FieldName:  []byte("hello"),
+					},
+				},
+			},
 		},
 	}
 
 	buf := new(bytes.Buffer)
 	n, err := validationErrs.WriteResponse(buf)
 
-	expectedResponse := `{"errors":[{"message":"error in operation"}]}`
+	expectedResponse := `{"errors":[{"message":"error in operation","locations":[{"line":1,"column":1}],"path":["hello"]}]}`
 
 	assert.NoError(t, err)
 	assert.Greater(t, n, 0)
@@ -34,12 +68,25 @@ func TestOperationValidationErrors_WriteResponse(t *testing.T) {
 
 func TestOperationValidationError_Error(t *testing.T) {
 	validatonErr := OperationValidationError{
-		Message:   "error in operation",
-		Locations: nil,
-		Path:      nil,
+		Message: "error in operation",
+		Locations: []ErrorLocation{
+			{
+				Line:   1,
+				Column: 1,
+			},
+		},
+		Path: ErrorPath{
+			astPath: []ast.PathItem{
+				{
+					Kind:       ast.FieldName,
+					ArrayIndex: 0,
+					FieldName:  []byte("hello"),
+				},
+			},
+		},
 	}
 
-	assert.Equal(t, "error in operation", validatonErr.Error())
+	assert.Equal(t, "error in operation, locations: [{Line:1 Column:1}], path: [hello]", validatonErr.Error())
 }
 
 func TestOperationValidationErrors_Count(t *testing.T) {

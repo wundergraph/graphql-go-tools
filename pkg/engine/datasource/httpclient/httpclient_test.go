@@ -32,17 +32,17 @@ func TestHttpClient(t *testing.T) {
 	in = SetInputQueryParams(nil, []byte(`{"foo":"bar"}`))
 	assert.Equal(t, `{"query_params":{"foo":"bar"}}`, string(in))
 
-	in = SetInputHeaders(nil, []byte(`{"foo":"bar"}`))
-	assert.Equal(t, `{"headers":{"foo":"bar"}}`, string(in))
+	in = SetInputHeader(nil, []byte(`{"foo":"bar"}`))
+	assert.Equal(t, `{"header":{"foo":"bar"}}`, string(in))
 
-	in = SetInputHeaders(nil, []byte(`[true]`))
-	assert.Equal(t, `{"headers":[true]}`, string(in))
+	in = SetInputHeader(nil, []byte(`[true]`))
+	assert.Equal(t, `{"header":[true]}`, string(in))
 
-	in = SetInputHeaders(nil, []byte(`[null]`))
-	assert.Equal(t, `{"headers":[null]}`, string(in))
+	in = SetInputHeader(nil, []byte(`[null]`))
+	assert.Equal(t, `{"header":[null]}`, string(in))
 
-	in = SetInputHeaders(nil, []byte(`["str"]`))
-	assert.Equal(t, `{"headers":["str"]}`, string(in))
+	in = SetInputHeader(nil, []byte(`["str"]`))
+	assert.Equal(t, `{"header":["str"]}`, string(in))
 
 	in = SetInputBody(nil, []byte(`{"foo":"bar"}`))
 	assert.Equal(t, `{"body":{"foo":"bar"}}`, string(in))

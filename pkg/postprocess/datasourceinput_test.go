@@ -15,8 +15,13 @@ func TestDataSourceInput_Process(t *testing.T) {
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
 					BufferId:   0,
-					Input:      `{"method":"POST","url":"http://localhost:4001","body":{"query":"{me {id username}}"}}`,
+					Input:      `{"method":"POST","url":"http://localhost:4001/$$0$$","body":{"query":"{me {id username}}"}}`,
 					DataSource: nil,
+					Variables: []resolve.Variable{
+						&resolve.HeaderVariable{
+							Path: []string{"Authorization"},
+						},
+					},
 				},
 				Fields: []*resolve.Field{
 					{
@@ -113,7 +118,16 @@ func TestDataSourceInput_Process(t *testing.T) {
 					InputTemplate: resolve.InputTemplate{
 						Segments: []resolve.TemplateSegment{
 							{
-								Data:        []byte(`{"method":"POST","url":"http://localhost:4001","body":{"query":"{me {id username}}"}}`),
+								Data:        []byte(`{"method":"POST","url":"http://localhost:4001/`),
+								SegmentType: resolve.StaticSegmentType,
+							},
+							{
+								SegmentType: resolve.VariableSegmentType,
+								VariableSource: resolve.VariableSourceRequestHeader,
+								VariableSourcePath: []string{"Authorization"},
+							},
+							{
+								Data:        []byte(`","body":{"query":"{me {id username}}"}}`),
 								SegmentType: resolve.StaticSegmentType,
 							},
 						},
@@ -225,6 +239,55 @@ func TestDataSourceInput_Process(t *testing.T) {
 					},
 				},
 			},
+		},
+	}
+
+	processor := &ProcessDataSource{}
+	actual := processor.Process(pre)
+
+	assert.Equal(t, expected, actual)
+}
+
+func TestDataSourceInput_Subscription_Process(t *testing.T) {
+
+	pre := &plan.SubscriptionResponsePlan{
+		Response: resolve.GraphQLSubscription{
+			Trigger: resolve.GraphQLSubscriptionTrigger{
+				ManagerID:     []byte("fake"),
+				Input:      `{"method":"POST","url":"http://localhost:4001/$$0$$","body":{"query":"{me {id username}}"}}`,
+				Variables: []resolve.Variable{
+					&resolve.HeaderVariable{
+						Path: []string{"Authorization"},
+					},
+				},
+			},
+			Response: &resolve.GraphQLResponse{},
+		},
+	}
+
+	expected := &plan.SubscriptionResponsePlan{
+		Response: resolve.GraphQLSubscription{
+			Trigger: resolve.GraphQLSubscriptionTrigger{
+				ManagerID:     []byte("fake"),
+				InputTemplate: resolve.InputTemplate{
+					Segments: []resolve.TemplateSegment{
+						{
+							Data:        []byte(`{"method":"POST","url":"http://localhost:4001/`),
+							SegmentType: resolve.StaticSegmentType,
+						},
+						{
+							SegmentType: resolve.VariableSegmentType,
+							VariableSource: resolve.VariableSourceRequestHeader,
+							VariableSourcePath: []string{"Authorization"},
+						},
+						{
+							Data:        []byte(`","body":{"query":"{me {id username}}"}}`),
+							SegmentType: resolve.StaticSegmentType,
+						},
+					},
+				},
+			},
+			Response: &resolve.GraphQLResponse{},
 		},
 	}
 

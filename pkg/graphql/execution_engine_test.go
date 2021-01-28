@@ -24,6 +24,34 @@ func (t testRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	return t(req), nil
 }
 
+type roundTripperTestCase struct {
+	expectedHost     string
+	expectedPath     string
+	expectedBody     string
+	sendStatusCode   int
+	sendResponseBody string
+}
+
+func createTestRoundTripper(t *testing.T, testCase roundTripperTestCase) testRoundTripper {
+	return func(req *http.Request) *http.Response {
+		assert.Equal(t, testCase.expectedHost, req.URL.Host)
+		assert.Equal(t, testCase.expectedPath, req.URL.Path)
+
+		if len(testCase.expectedBody) > 0 {
+			var receivedBodyBytes []byte
+			if req.Body != nil {
+				var err error
+				receivedBodyBytes, err = ioutil.ReadAll(req.Body)
+				require.NoError(t, err)
+			}
+			require.Equal(t, testCase.expectedBody, string(receivedBodyBytes))
+		}
+
+		body := bytes.NewBuffer([]byte(testCase.sendResponseBody))
+		return &http.Response{StatusCode: testCase.sendStatusCode, Body: ioutil.NopCloser(body)}
+	}
+}
+
 func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {
 	type testCase struct {
 		schema            *Schema
@@ -32,37 +60,6 @@ func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {
 		roundTripper      testRoundTripper
 		preExecutionTasks func(t *testing.T, request Request, schema *Schema, engine *ExecutionEngine) // optional
 		expectedResponse  string
-	}
-
-	loadStarWarsQuery := func(t *testing.T, starwarsFile string, variables starwars.QueryVariables) func(t *testing.T) Request {
-		return func(t *testing.T) Request {
-			query := starwars.LoadQuery(t, starwarsFile, variables)
-			request := Request{}
-			err := UnmarshalRequest(bytes.NewBuffer(query), &request)
-			require.NoError(t, err)
-
-			return request
-		}
-	}
-
-	createTestRoundTripper := func(host string, url string, expectedBody string, response string, statusCode int) testRoundTripper {
-		return testRoundTripper(func(req *http.Request) *http.Response {
-			assert.Equal(t, host, req.URL.Host)
-			assert.Equal(t, url, req.URL.Path)
-
-			if len(expectedBody) > 0 {
-				var receivedBodyBytes []byte
-				if req.Body != nil {
-					var err error
-					receivedBodyBytes, err = ioutil.ReadAll(req.Body)
-					require.NoError(t, err)
-				}
-				assert.Equal(t, expectedBody, string(receivedBodyBytes))
-			}
-
-			body := bytes.NewBuffer([]byte(response))
-			return &http.Response{StatusCode: statusCode, Body: ioutil.NopCloser(body)}
-		})
 	}
 
 	run := func(tc testCase, hasExecutionError bool) func(t *testing.T) {
@@ -124,10 +121,16 @@ func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {
 	}
 
 	t.Run("execute with custom roundtripper for simple hero query on HttpJsonDatasource", runWithoutError(testCase{
-		schema:           starwarsSchema(t),
-		request:          loadStarWarsQuery(t, starwars.FileSimpleHeroQuery, nil),
-		plannerConfig:    heroHttpJsonPlannerConfig,
-		roundTripper:     createTestRoundTripper("example.com", "/", "", `{"hero": {"name": "Luke Skywalker"}}`, 200),
+		schema:        starwarsSchema(t),
+		request:       loadStarWarsQuery(starwars.FileSimpleHeroQuery, nil),
+		plannerConfig: heroHttpJsonPlannerConfig,
+		roundTripper: createTestRoundTripper(t, roundTripperTestCase{
+			expectedHost:     "example.com",
+			expectedPath:     "/",
+			expectedBody:     "",
+			sendResponseBody: `{"hero": {"name": "Luke Skywalker"}}`,
+			sendStatusCode:   200,
+		}),
 		expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
 	}))
 
@@ -136,45 +139,75 @@ func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {
 		request: func(t *testing.T) Request {
 			return Request{}
 		},
-		plannerConfig:    heroHttpJsonPlannerConfig,
-		roundTripper:     createTestRoundTripper("example.com", "/", "", `{"hero": {"name": "Luke Skywalker"}}`, 200),
+		plannerConfig: heroHttpJsonPlannerConfig,
+		roundTripper: createTestRoundTripper(t, roundTripperTestCase{
+			expectedHost:     "example.com",
+			expectedPath:     "/",
+			expectedBody:     "",
+			sendResponseBody: `{"hero": {"name": "Luke Skywalker"}}`,
+			sendStatusCode:   200,
+		}),
 		expectedResponse: "",
 	}))
 
-	t.Run("execute with empty request object should not panic", runWithoutError(testCase{
-		schema:           starwarsSchema(t),
-		request:          loadStarWarsQuery(t, starwars.FileSimpleHeroQuery, nil),
-		plannerConfig:    heroGraphqlDataSource,
-		roundTripper:     createTestRoundTripper("example.com", "/", "", `{"data":{"hero":{"name":"Luke Skywalker"}}}`, 200),
+	t.Run("execute with custom roundtripper for simple hero query on GraphqlDataSource", runWithoutError(testCase{
+		schema:        starwarsSchema(t),
+		request:       loadStarWarsQuery(starwars.FileSimpleHeroQuery, nil),
+		plannerConfig: heroGraphqlDataSource,
+		roundTripper: createTestRoundTripper(t, roundTripperTestCase{
+			expectedHost:     "example.com",
+			expectedPath:     "/",
+			expectedBody:     "",
+			sendResponseBody: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+			sendStatusCode:   200,
+		}),
 		expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
 	}))
 
-	t.Run("execute with empty request object should not panic", runWithoutError(testCase{
+	t.Run("execute the correct query when sending multiple queries", runWithoutError(testCase{
 		schema: starwarsSchema(t),
 		request: func(t *testing.T) Request {
-			request := loadStarWarsQuery(t, starwars.FileMultiQueries, nil)(t)
+			request := loadStarWarsQuery(starwars.FileMultiQueries, nil)(t)
 			request.OperationName = "SingleHero"
 			return request
 		},
-		plannerConfig:    heroGraphqlDataSource,
-		roundTripper:     createTestRoundTripper("example.com", "/", "", `{"data":{"hero":{"name":"Luke Skywalker"}}}`, 200),
+		plannerConfig: heroGraphqlDataSource,
+		roundTripper: createTestRoundTripper(t, roundTripperTestCase{
+			expectedHost:     "example.com",
+			expectedPath:     "/",
+			expectedBody:     "",
+			sendResponseBody: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+			sendStatusCode:   200,
+		}),
 		expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
 	}))
 
 	t.Run("execute query with variables for arguments", runWithoutError(testCase{
-		schema:            starwarsSchema(t),
-		request:           loadStarWarsQuery(t, starwars.FileDroidWithArgAndVarQuery, map[string]interface{}{"droidID": "R2D2"}),
-		plannerConfig:     droidGraphqlDataSource,
-		roundTripper:      createTestRoundTripper("example.com", "/", "", `{"data":{"droid":{"name":"R2D2"}}}`, 200),
+		schema:        starwarsSchema(t),
+		request:       loadStarWarsQuery(starwars.FileDroidWithArgAndVarQuery, map[string]interface{}{"droidID": "R2D2"}),
+		plannerConfig: droidGraphqlDataSource,
+		roundTripper: createTestRoundTripper(t, roundTripperTestCase{
+			expectedHost:     "example.com",
+			expectedPath:     "/",
+			expectedBody:     "",
+			sendResponseBody: `{"data":{"droid":{"name":"R2D2"}}}`,
+			sendStatusCode:   200,
+		}),
 		preExecutionTasks: normalizeAndValidatePreExecutionTasks,
 		expectedResponse:  `{"data":{"droid":{"name":"R2D2"}}}`,
 	}))
 
 	t.Run("execute query with arguments", runWithoutError(testCase{
-		schema:            starwarsSchema(t),
-		request:           loadStarWarsQuery(t, starwars.FileDroidWithArgQuery, nil),
-		plannerConfig:     droidGraphqlDataSource,
-		roundTripper:      createTestRoundTripper("example.com", "/", "", `{"data":{"droid":{"name":"R2D2"}}}`, 200),
+		schema:        starwarsSchema(t),
+		request:       loadStarWarsQuery(starwars.FileDroidWithArgQuery, nil),
+		plannerConfig: droidGraphqlDataSource,
+		roundTripper: createTestRoundTripper(t, roundTripperTestCase{
+			expectedHost:     "example.com",
+			expectedPath:     "/",
+			expectedBody:     "",
+			sendResponseBody: `{"data":{"droid":{"name":"R2D2"}}}`,
+			sendStatusCode:   200,
+		}),
 		preExecutionTasks: normalizeAndValidatePreExecutionTasks,
 		expectedResponse:  `{"data":{"droid":{"name":"R2D2"}}}`,
 	}))
@@ -203,13 +236,19 @@ func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {
 						}`,
 			}
 		},
-		plannerConfig:     movieHttpJsonDataSource,
-		roundTripper:      createTestRoundTripper("example.com", "/", "", `{"added_movie":{"id":2, "name": "Episode V – The Empire Strikes Back", "year": 1980}}`, 200),
+		plannerConfig: movieHttpJsonDataSource,
+		roundTripper: createTestRoundTripper(t, roundTripperTestCase{
+			expectedHost:     "example.com",
+			expectedPath:     "/",
+			expectedBody:     "",
+			sendResponseBody: `{"added_movie":{"id":2, "name": "Episode V – The Empire Strikes Back", "year": 1980}}`,
+			sendStatusCode:   200,
+		}),
 		preExecutionTasks: normalizeAndValidatePreExecutionTasks,
 		expectedResponse:  `{"data":{"addToWatchlistWithInput":{"id":2,"name":"Episode V – The Empire Strikes Back","year":1980}}}`,
 	}))
 
-	t.Run("execute single mutation with arguments on document with multiple operations", runWithoutError(testCase{
+	t.Run("execute operation with rest data source and arguments", runWithoutError(testCase{
 		schema: heroWithArgumentSchema(t),
 		request: func(t *testing.T) Request {
 			return Request{
@@ -222,8 +261,14 @@ func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {
 				}`,
 			}
 		},
-		plannerConfig:    heroWithArgumentHttpJsonDataSource,
-		roundTripper:     createTestRoundTripper("example.com", "/", `{ "name": "Luke Skywalker" }`, `{"race": "Human"}`, 200),
+		plannerConfig: heroWithArgumentHttpJsonDataSource,
+		roundTripper: createTestRoundTripper(t, roundTripperTestCase{
+			expectedHost:     "example.com",
+			expectedPath:     "/",
+			expectedBody:     `{ "name": "Luke Skywalker" }`,
+			sendResponseBody: `{"race": "Human"}`,
+			sendStatusCode:   200,
+		}),
 		expectedResponse: `{"data":{"hero":"Human"}}`,
 	}))
 }
@@ -557,4 +602,15 @@ var droidGraphqlDataSource = datasource.PlannerConfiguration{
 			},
 		},
 	},
+}
+
+func loadStarWarsQuery(starwarsFile string, variables starwars.QueryVariables) func(t *testing.T) Request {
+	return func(t *testing.T) Request {
+		query := starwars.LoadQuery(t, starwarsFile, variables)
+		request := Request{}
+		err := UnmarshalRequest(bytes.NewBuffer(query), &request)
+		require.NoError(t, err)
+
+		return request
+	}
 }
