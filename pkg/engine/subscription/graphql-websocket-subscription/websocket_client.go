@@ -6,7 +6,6 @@ import (
 	"io"
 	"math"
 	"net/http"
-	"net/url"
 	"strconv"
 
 	"github.com/buger/jsonparser"
@@ -38,19 +37,13 @@ type WebsocketClient struct {
 	closeIfNoSubscriptions chan chan bool
 }
 
-func (w *WebsocketClient) Open(scheme, host, path string, header http.Header) (err error) {
+func (w *WebsocketClient) Open(url string, header http.Header) (err error) {
 	w.tmpl = byte_template.New()
 	w.addSubscription = make(chan addSubscriptionCmd)
 	w.removeSubscription = make(chan removeSubscriptionCmd)
 	w.subscriptions = map[uint64]Subscription{}
 	w.closeIfNoSubscriptions = make(chan chan bool)
 	w.done = make(chan struct{})
-
-	u := url.URL{
-		Scheme: scheme,
-		Host:   host,
-		Path:   path,
-	}
 
 	if header != nil && len(header) != 0 {
 		for key := range defaultHeader {
@@ -60,7 +53,7 @@ func (w *WebsocketClient) Open(scheme, host, path string, header http.Header) (e
 		header = defaultHeader
 	}
 
-	w.conn, _, err = websocket.DefaultDialer.Dial(u.String(), header)
+	w.conn, _, err = websocket.DefaultDialer.Dial(url, header)
 	if err != nil {
 		return err
 	}

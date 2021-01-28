@@ -1,4 +1,4 @@
-//go:generate mockgen -self_package=github.com/jensneuse/go-data-resolver/pkg/resolve -destination=resolve_mock_test.go -package=resolve . DataSource
+//go:generate mockgen -self_package=github.com/jensneuse/go-data-resolver/pkg/resolve -destination=resolve_mock_test.go -package=resolve . DataSource,BeforeFetchHook,AfterFetchHook
 
 package resolve
 
@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"hash"
 	"io"
+	"net/http"
 	"strconv"
 	"sync"
 	"time"
@@ -43,6 +44,7 @@ var (
 
 var errNonNullableFieldValueIsNull = errors.New("non Nullable field value is null")
 var errTypeNameSkipped = errors.New("skipped because of __typename condition")
+var errHeaderPathInvalid = errors.New("invalid header path: header variables must be of this format: .request.header.{{ key }} ")
 
 type Node interface {
 	NodeKind() NodeKind
@@ -66,15 +68,35 @@ const (
 	FetchKindParallel
 )
 
+type HookContext struct {
+	CurrentPath []byte
+}
+
+type BeforeFetchHook interface {
+	OnBeforeFetch(ctx HookContext, input []byte)
+}
+
+type AfterFetchHook interface {
+	OnData(ctx HookContext, output []byte, singleFlight bool)
+	OnError(ctx HookContext, output []byte, singleFlight bool)
+}
+
 type Context struct {
 	context.Context
-	Variables    []byte
-	pathElements [][]byte
-	patches      []patch
-	usedBuffers  []*bytes.Buffer
-	currentPatch int
-	maxPatch     int
-	pathPrefix   []byte
+	Variables       []byte
+	Request         Request
+	pathElements    [][]byte
+	patches         []patch
+	usedBuffers     []*bytes.Buffer
+	currentPatch    int
+	maxPatch        int
+	pathPrefix      []byte
+	beforeFetchHook BeforeFetchHook
+	afterFetchHook  AfterFetchHook
+}
+
+type Request struct {
+	Header http.Header
 }
 
 func NewContext(ctx context.Context) *Context {
@@ -102,6 +124,17 @@ func (c *Context) Free() {
 	c.usedBuffers = c.usedBuffers[:0]
 	c.currentPatch = -1
 	c.maxPatch = -1
+	c.beforeFetchHook = nil
+	c.afterFetchHook = nil
+	c.Request.Header = nil
+}
+
+func (c *Context) SetBeforeFetchHook(hook BeforeFetchHook) {
+	c.beforeFetchHook = hook
+}
+
+func (c *Context) SetAfterFetchHook(hook AfterFetchHook) {
+	c.afterFetchHook = hook
 }
 
 func (c *Context) addPathElement(elem []byte) {
@@ -127,6 +160,9 @@ func (c *Context) path() []byte {
 		buf.Write(literal.DATA)
 	}
 	for i := range c.pathElements {
+		if i == 0 && bytes.Equal(literal.DATA,c.pathElements[0]){
+			continue
+		}
 		_, _ = buf.Write(literal.SLASH)
 		_, _ = buf.Write(c.pathElements[i])
 	}
@@ -157,15 +193,6 @@ type Fetch interface {
 }
 
 type Fetches []Fetch
-
-func (f *Fetches) AppendIfUnique(fetch Fetch) {
-	for i := range *f {
-		if fetch == (*f)[i] {
-			return
-		}
-	}
-	*f = append(*f, fetch)
-}
 
 type DataSource interface {
 	Load(ctx context.Context, input []byte, bufPair *BufPair) (err error)
@@ -267,61 +294,6 @@ func (r *Resolver) writeSafe(err error, writer io.Writer, data []byte) error {
 		return err
 	}
 	_, err = writer.Write(data)
-	return err
-}
-
-// nolint
-func (r *Resolver) writeErrSafe(err error, writer io.Writer, message, locations, path []byte) error {
-	if err != nil {
-		return err
-	}
-	_, err = writer.Write(lBrace)
-	err = r.resolveObjectFieldSafe(err, writer, literalMessage, message)
-	if err != nil {
-		return err
-	}
-	if locations != nil {
-		_, err = writer.Write(comma)
-		if err != nil {
-			return err
-		}
-		err = r.resolveObjectFieldSafe(err, writer, literalLocations, locations)
-		if err != nil {
-			return err
-		}
-	}
-	if locations != nil {
-		_, err = writer.Write(comma)
-		if err != nil {
-			return err
-		}
-		err = r.resolveObjectFieldSafe(err, writer, literalPath, locations)
-		if err != nil {
-			return err
-		}
-	}
-	_, err = writer.Write(rBrace)
-	return err
-}
-
-// nolint
-func (r *Resolver) resolveObjectFieldSafe(err error, writer io.Writer, fieldName, fieldContent []byte) error {
-	if err != nil {
-		return err
-	}
-	if _, err = writer.Write(quote); err != nil {
-		return err
-	}
-	if _, err = writer.Write(fieldName); err != nil {
-		return err
-	}
-	if _, err = writer.Write(quote); err != nil {
-		return err
-	}
-	if _, err = writer.Write(colon); err != nil {
-		return err
-	}
-	_, err = writer.Write(fieldContent)
 	return err
 }
 
@@ -950,8 +922,21 @@ func (r *Resolver) prepareSingleFetch(ctx *Context, fetch *SingleFetch, data []b
 
 func (r *Resolver) resolveSingleFetch(ctx *Context, fetch *SingleFetch, preparedInput *fastbuffer.FastBuffer, buf *BufPair) (err error) {
 
+	if ctx.beforeFetchHook != nil {
+		ctx.beforeFetchHook.OnBeforeFetch(r.hookCtx(ctx), preparedInput.Bytes())
+	}
+
 	if !r.EnableSingleFlightLoader || fetch.DisallowSingleFlight {
-		return fetch.DataSource.Load(ctx.Context, preparedInput.Bytes(), buf)
+		err = fetch.DataSource.Load(ctx.Context, preparedInput.Bytes(), buf)
+		if ctx.afterFetchHook != nil {
+			if buf.HasData() {
+				ctx.afterFetchHook.OnData(r.hookCtx(ctx),buf.Data.Bytes(), false)
+			}
+			if buf.HasErrors() {
+				ctx.afterFetchHook.OnError(r.hookCtx(ctx),buf.Errors.Bytes(), false)
+			}
+		}
+		return
 	}
 
 	hash64 := r.getHash64()
@@ -968,9 +953,15 @@ func (r *Resolver) resolveSingleFetch(ctx *Context, fetch *SingleFetch, prepared
 		r.inflightFetchMu.Unlock()
 		inflight.waitLoad.Wait()
 		if inflight.bufPair.HasData() {
+			if ctx.afterFetchHook != nil {
+				ctx.afterFetchHook.OnData(r.hookCtx(ctx),inflight.bufPair.Data.Bytes(), true)
+			}
 			buf.Data.WriteBytes(inflight.bufPair.Data.Bytes())
 		}
 		if inflight.bufPair.HasErrors() {
+			if ctx.afterFetchHook != nil {
+				ctx.afterFetchHook.OnError(r.hookCtx(ctx),inflight.bufPair.Errors.Bytes(), true)
+			}
 			buf.Errors.WriteBytes(inflight.bufPair.Errors.Bytes())
 		}
 		return inflight.err
@@ -986,10 +977,16 @@ func (r *Resolver) resolveSingleFetch(ctx *Context, fetch *SingleFetch, prepared
 	inflight.err = err
 
 	if inflight.bufPair.HasData() {
+		if ctx.afterFetchHook != nil {
+			ctx.afterFetchHook.OnData(r.hookCtx(ctx),inflight.bufPair.Data.Bytes(), false)
+		}
 		buf.Data.WriteBytes(inflight.bufPair.Data.Bytes())
 	}
 
 	if inflight.bufPair.HasErrors() {
+		if ctx.afterFetchHook != nil {
+			ctx.afterFetchHook.OnError(r.hookCtx(ctx),inflight.bufPair.Errors.Bytes(), true)
+		}
 		buf.Errors.WriteBytes(inflight.bufPair.Errors.Bytes())
 	}
 
@@ -1005,6 +1002,12 @@ func (r *Resolver) resolveSingleFetch(ctx *Context, fetch *SingleFetch, prepared
 	}()
 
 	return
+}
+
+func (r *Resolver) hookCtx(ctx *Context) HookContext {
+	return HookContext{
+		CurrentPath: ctx.path(),
+	}
 }
 
 type Object struct {
@@ -1081,9 +1084,6 @@ type InputTemplate struct {
 }
 
 func (i *InputTemplate) Render(ctx *Context, data []byte, preparedInput *fastbuffer.FastBuffer) (err error) {
-	var (
-		variableSource []byte
-	)
 	for j := range i.Segments {
 		switch i.Segments[j].SegmentType {
 		case StaticSegmentType:
@@ -1091,20 +1091,59 @@ func (i *InputTemplate) Render(ctx *Context, data []byte, preparedInput *fastbuf
 		case VariableSegmentType:
 			switch i.Segments[j].VariableSource {
 			case VariableSourceObject:
-				variableSource = data
+				err = i.renderObjectVariable(data, i.Segments[j].VariableSourcePath, preparedInput)
 			case VariableSourceContext:
-				variableSource = ctx.Variables
+				err = i.renderContextVariable(ctx,i.Segments[j].VariableSourcePath,preparedInput)
+			case VariableSourceRequestHeader:
+				err = i.renderHeaderVariable(ctx,i.Segments[j].VariableSourcePath,preparedInput)
 			default:
-				return fmt.Errorf("InputTemplate.Render: cannot resolve variable of kind: %d", i.Segments[j].VariableSource)
+				err = fmt.Errorf("InputTemplate.Render: cannot resolve variable of kind: %d", i.Segments[j].VariableSource)
 			}
-			value, _, _, err := jsonparser.Get(variableSource, i.Segments[j].VariableSourcePath...)
 			if err != nil {
 				return err
 			}
-			preparedInput.WriteBytes(value)
 		}
 	}
 	return
+}
+
+func (i *InputTemplate) renderObjectVariable(data []byte, path []string, preparedInput *fastbuffer.FastBuffer) error {
+	value, _, _, err := jsonparser.Get(data, path...)
+	if err != nil {
+		return err
+	}
+	preparedInput.WriteBytes(value)
+	return nil
+}
+
+func (i *InputTemplate) renderContextVariable(ctx *Context, path []string, preparedInput *fastbuffer.FastBuffer) error {
+	value, _, _, err := jsonparser.Get(ctx.Variables, path...)
+	if err != nil {
+		return err
+	}
+	preparedInput.WriteBytes(value)
+	return nil
+}
+
+func (i *InputTemplate) renderHeaderVariable(ctx *Context,path []string, preparedInput *fastbuffer.FastBuffer) error {
+	if len(path) != 1 {
+		return errHeaderPathInvalid
+	}
+	value := ctx.Request.Header[path[0]]
+	if len(value) == 0 {
+		return nil
+	}
+	if len(value) == 1 {
+		preparedInput.WriteString(value[0])
+		return nil
+	}
+	for j := range value {
+		if j != 0 {
+			preparedInput.WriteBytes(literal.COMMA)
+		}
+		preparedInput.WriteString(value[j])
+	}
+	return nil
 }
 
 type SegmentType int
@@ -1116,6 +1155,7 @@ const (
 
 	VariableSourceObject VariableSource = iota + 1
 	VariableSourceContext
+	VariableSourceRequestHeader
 )
 
 type TemplateSegment struct {
@@ -1194,6 +1234,7 @@ func (_ *Array) NodeKind() NodeKind {
 type Variable interface {
 	VariableKind() VariableKind
 	Equals(another Variable) bool
+	TemplateSegment () TemplateSegment
 }
 
 type Variables []Variable
@@ -1233,10 +1274,19 @@ type VariableKind int
 const (
 	VariableKindContext VariableKind = iota + 1
 	VariableKindObject
+	VariableKindHeader
 )
 
 type ContextVariable struct {
 	Path []string
+}
+
+func (c *ContextVariable) TemplateSegment() TemplateSegment {
+	return TemplateSegment{
+		SegmentType:        VariableSegmentType,
+		VariableSource:     VariableSourceContext,
+		VariableSourcePath: c.Path,
+	}
 }
 
 func (c *ContextVariable) Equals(another Variable) bool {
@@ -1266,6 +1316,14 @@ type ObjectVariable struct {
 	Path []string
 }
 
+func (o *ObjectVariable) TemplateSegment() TemplateSegment {
+	return TemplateSegment{
+		SegmentType:        VariableSegmentType,
+		VariableSource:     VariableSourceObject,
+		VariableSourcePath: o.Path,
+	}
+}
+
 func (o *ObjectVariable) Equals(another Variable) bool {
 	if another == nil {
 		return false
@@ -1287,6 +1345,41 @@ func (o *ObjectVariable) Equals(another Variable) bool {
 
 func (o *ObjectVariable) VariableKind() VariableKind {
 	return VariableKindObject
+}
+
+type HeaderVariable struct {
+	Path []string
+}
+
+func (h *HeaderVariable) TemplateSegment() TemplateSegment {
+	return TemplateSegment{
+		SegmentType:        VariableSegmentType,
+		VariableSource:     VariableSourceRequestHeader,
+		VariableSourcePath: h.Path,
+	}
+}
+
+func (h *HeaderVariable) VariableKind() VariableKind {
+	return VariableKindHeader
+}
+
+func (h *HeaderVariable) Equals(another Variable) bool {
+	if another == nil {
+		return false
+	}
+	if another.VariableKind() != h.VariableKind() {
+		return false
+	}
+	anotherHeaderVariable := another.(*HeaderVariable)
+	if len(h.Path) != len(anotherHeaderVariable.Path) {
+		return false
+	}
+	for i := range h.Path {
+		if h.Path[i] != anotherHeaderVariable.Path[i] {
+			return false
+		}
+	}
+	return true
 }
 
 type GraphQLSubscription struct {

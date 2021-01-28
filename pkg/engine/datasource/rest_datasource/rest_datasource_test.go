@@ -399,8 +399,13 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
 						BufferId:   0,
-						Input:      `{"headers":{"Authorization":["Bearer 123"],"X-API-Key":["456"]},"method":"GET","url":"https://example.com/friend"}`,
+						Input:      `{"header":{"Authorization":["Bearer 123"],"Token":["Bearer $$0$$"],"X-API-Key":["456"]},"method":"GET","url":"https://example.com/friend"}`,
 						DataSource: &Source{},
+						Variables: []resolve.Variable{
+							&resolve.HeaderVariable{
+								Path: []string{"Authorization"},
+							},
+						},
 					},
 					Fields: []*resolve.Field{
 						{
@@ -440,6 +445,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							Header: http.Header{
 								"Authorization": []string{"Bearer 123"},
 								"X-API-Key":     []string{"456"},
+								"Token":         []string{"Bearer {{ .request.header.Authorization }}"},
 							},
 						},
 					}),
@@ -667,7 +673,7 @@ func TestHttpJsonDataSource_Load(t *testing.T) {
 
 			defer server.Close()
 
-			input := []byte(fmt.Sprintf(`{"method":"GET","url":"%s","headers":{"Authorization":"%s","X-API-KEY":"%s"}}`, server.URL, authorization, xApiKey))
+			input := []byte(fmt.Sprintf(`{"method":"GET","url":"%s","header":{"Authorization":"%s","X-API-KEY":"%s"}}`, server.URL, authorization, xApiKey))
 			pair := resolve.NewBufPair()
 			err := source.Load(context.Background(), input, pair)
 			assert.NoError(t, err)
