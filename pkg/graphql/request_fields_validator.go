@@ -17,7 +17,7 @@ type FieldRestrictionValidator interface {
 type FieldRestrictionListKind int
 
 const (
-	AllowList = iota
+	AllowList FieldRestrictionListKind = iota
 	BlockList
 )
 
