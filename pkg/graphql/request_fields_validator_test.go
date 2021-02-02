@@ -21,7 +21,7 @@ func TestFieldsValidator_Validate(t *testing.T) {
 			},
 		}
 
-		validator := fieldsValidator{}
+		validator := DefaultFieldsValidator{}
 		result, err := validator.Validate(&request, schema, blockedFields)
 		assert.NoError(t, err)
 		assert.False(t, result.Valid)
@@ -37,7 +37,7 @@ func TestFieldsValidator_Validate(t *testing.T) {
 			},
 		}
 
-		validator := fieldsValidator{}
+		validator := DefaultFieldsValidator{}
 		result, err := validator.Validate(&request, schema, blockedFields)
 		assert.NoError(t, err)
 		assert.True(t, result.Valid)
@@ -61,7 +61,7 @@ func TestFieldsValidator_ValidateByFieldList(t *testing.T) {
 				},
 			}
 
-			validator := fieldsValidator{}
+			validator := DefaultFieldsValidator{}
 			result, err := validator.ValidateByFieldList(&request, schema, blockList)
 			assert.NoError(t, err)
 			assert.False(t, result.Valid)
@@ -79,7 +79,7 @@ func TestFieldsValidator_ValidateByFieldList(t *testing.T) {
 				},
 			}
 
-			validator := fieldsValidator{}
+			validator := DefaultFieldsValidator{}
 			result, err := validator.ValidateByFieldList(&request, schema, blockList)
 			assert.NoError(t, err)
 			assert.True(t, result.Valid)
@@ -103,7 +103,7 @@ func TestFieldsValidator_ValidateByFieldList(t *testing.T) {
 				},
 			}
 
-			validator := fieldsValidator{}
+			validator := DefaultFieldsValidator{}
 			result, err := validator.ValidateByFieldList(&request, schema, allowList)
 			assert.NoError(t, err)
 			assert.False(t, result.Valid)
@@ -125,7 +125,7 @@ func TestFieldsValidator_ValidateByFieldList(t *testing.T) {
 				},
 			}
 
-			validator := fieldsValidator{}
+			validator := DefaultFieldsValidator{}
 			result, err := validator.ValidateByFieldList(&request, schema, allowList)
 			assert.NoError(t, err)
 			assert.True(t, result.Valid)
