@@ -13,6 +13,7 @@ func TestFieldsValidator_Validate(t *testing.T) {
 	request := requestForQuery(t, starwars.FileSimpleHeroQuery)
 
 	t.Run("should invalidate if blocked fields are used", func(t *testing.T) {
+
 		blockedFields := []Type{
 			{
 				Name:   "Character",
@@ -28,6 +29,7 @@ func TestFieldsValidator_Validate(t *testing.T) {
 	})
 
 	t.Run("should validate if non-blocked fields are used", func(t *testing.T) {
+
 		blockedFields := []Type{
 			{
 				Name:   "Character",
@@ -87,7 +89,7 @@ func TestFieldsValidator_ValidateByFieldList(t *testing.T) {
 
 	t.Run("allow list", func(t *testing.T) {
 		t.Run("should invalidate if a field which is not allowed is used", func(t *testing.T) {
-			blockList := FieldRestrictionList{
+			allowList := FieldRestrictionList{
 				Kind: AllowList,
 				Types: []Type{
 					{
@@ -102,14 +104,14 @@ func TestFieldsValidator_ValidateByFieldList(t *testing.T) {
 			}
 
 			validator := fieldsValidator{}
-			result, err := validator.ValidateByFieldList(&request, schema, blockList)
+			result, err := validator.ValidateByFieldList(&request, schema, allowList)
 			assert.NoError(t, err)
 			assert.False(t, result.Valid)
 			assert.Equal(t, 1, result.Errors.Count())
 		})
 
 		t.Run("should validate if all fields are allowed", func(t *testing.T) {
-			blockList := FieldRestrictionList{
+			allowList := FieldRestrictionList{
 				Kind: AllowList,
 				Types: []Type{
 					{
@@ -124,7 +126,7 @@ func TestFieldsValidator_ValidateByFieldList(t *testing.T) {
 			}
 
 			validator := fieldsValidator{}
-			result, err := validator.ValidateByFieldList(&request, schema, blockList)
+			result, err := validator.ValidateByFieldList(&request, schema, allowList)
 			assert.NoError(t, err)
 			assert.True(t, result.Valid)
 			assert.Equal(t, 0, result.Errors.Count())
