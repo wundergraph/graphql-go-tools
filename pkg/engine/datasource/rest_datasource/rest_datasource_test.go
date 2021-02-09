@@ -673,7 +673,7 @@ func TestHttpJsonDataSource_Load(t *testing.T) {
 
 			defer server.Close()
 
-			input := []byte(fmt.Sprintf(`{"method":"GET","url":"%s","header":{"Authorization":"%s","X-API-KEY":"%s"}}`, server.URL, authorization, xApiKey))
+			input := []byte(fmt.Sprintf(`{"method":"GET","url":"%s","header":{"Authorization":["Bearer 123"],"Token":["%s"],"X-API-Key":["%s"]}}`, server.URL, authorization, xApiKey))
 			pair := resolve.NewBufPair()
 			err := source.Load(context.Background(), input, pair)
 			assert.NoError(t, err)
