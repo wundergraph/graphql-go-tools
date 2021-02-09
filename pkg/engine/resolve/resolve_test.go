@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"net/http"
 	"sync"
 	"testing"
 	"time"
@@ -1340,61 +1341,73 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 }
 
 func TestResolver_WithHeader(t *testing.T) {
-
-	resolver := New()
-	ctx := &Context{
-		Context: context.Background(),
-		Request: Request{
-			Header: map[string][]string{
-				"Authorization": {"foo"},
-			},
-		},
+	cases := []struct {
+		name, header, variable string
+	}{
+		{"header and variable are of equal case", "Authorization", "Authorization"},
+		{"header is downcased and variable is uppercased", "authorization", "AUTHORIZATION"},
+		{"header is uppercasesed and variable is downcased", "AUTHORIZATION", "authorization"},
 	}
 
-	ctrl := gomock.NewController(t)
-	fakeService := NewMockDataSource(ctrl)
-	fakeService.EXPECT().UniqueIdentifier().Return([]byte("fakeService"))
-	fakeService.EXPECT().
-		Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
-		Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
-			actual := string(input)
-			assert.Equal(t, "foo", actual)
-			pair.Data.WriteString(`{"bar":"baz"}`)
-			return
-		}).
-		Return(nil)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			resolver := New()
 
-	out := &bytes.Buffer{}
-	res := &GraphQLResponse{
-		Data: &Object{
-			Fetch: &SingleFetch{
-				BufferId:   0,
-				DataSource: fakeService,
-				InputTemplate: InputTemplate{
-					Segments: []TemplateSegment{
+			header := make(http.Header)
+			header.Set(tc.header, "foo")
+			ctx := &Context{
+				Context: context.Background(),
+				Request: Request{
+					Header: header,
+				},
+			}
+
+			ctrl := gomock.NewController(t)
+			fakeService := NewMockDataSource(ctrl)
+			fakeService.EXPECT().UniqueIdentifier().Return([]byte("fakeService"))
+			fakeService.EXPECT().
+				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
+				Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+					actual := string(input)
+					assert.Equal(t, "foo", actual)
+					pair.Data.WriteString(`{"bar":"baz"}`)
+					return
+				}).
+				Return(nil)
+
+			out := &bytes.Buffer{}
+			res := &GraphQLResponse{
+				Data: &Object{
+					Fetch: &SingleFetch{
+						BufferId:   0,
+						DataSource: fakeService,
+						InputTemplate: InputTemplate{
+							Segments: []TemplateSegment{
+								{
+									SegmentType:        VariableSegmentType,
+									VariableSource:     VariableSourceRequestHeader,
+									VariableSourcePath: []string{tc.variable},
+								},
+							},
+						},
+					},
+					Fields: []*Field{
 						{
-							SegmentType:        VariableSegmentType,
-							VariableSource:     VariableSourceRequestHeader,
-							VariableSourcePath: []string{"Authorization"},
+							Name: []byte("bar"),
+							Value: &String{
+								Path: []string{"bar"},
+							},
+							HasBuffer: true,
+							BufferID:  0,
 						},
 					},
 				},
-			},
-			Fields: []*Field{
-				{
-					Name: []byte("bar"),
-					Value: &String{
-						Path: []string{"bar"},
-					},
-					HasBuffer: true,
-					BufferID:  0,
-				},
-			},
-		},
+			}
+			err := resolver.ResolveGraphQLResponse(ctx, res, nil, out)
+			assert.NoError(t, err)
+			assert.Equal(t, `{"data":{"bar":"baz"}}`, out.String())
+		})
 	}
-	err := resolver.ResolveGraphQLResponse(ctx, res, nil, out)
-	assert.NoError(t, err)
-	assert.Equal(t, `{"data":{"bar":"baz"}}`, out.String())
 }
 
 type TestFlushWriter struct {

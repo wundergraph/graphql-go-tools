@@ -1129,7 +1129,7 @@ func (i *InputTemplate) renderHeaderVariable(ctx *Context,path []string, prepare
 	if len(path) != 1 {
 		return errHeaderPathInvalid
 	}
-	value := ctx.Request.Header[path[0]]
+	value := ctx.Request.Header.Values(path[0])
 	if len(value) == 0 {
 		return nil
 	}
