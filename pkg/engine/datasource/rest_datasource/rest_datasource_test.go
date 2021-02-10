@@ -68,6 +68,14 @@ const (
 		}
 	`
 
+	argumentWithoutVariablesOperation = `
+		query ArgumentWithoutVariablesQuery {
+			withArgument(id: "123abc", name: "foo") {
+				name
+			}
+		}
+	`
+
 	argumentSubscription = `
 		subscription ArgumentQuery($idVariable: String!) {
 			withArgument(id: $idVariable, name: "foo") {
@@ -249,6 +257,72 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 					Custom: ConfigJSON(Configuration{
 						Fetch: FetchConfiguration{
 							URL:    "https://example.com/{{ .arguments.id }}/{{ .arguments.name }}",
+							Method: "GET",
+						},
+					}),
+					Factory: &Factory{},
+				},
+			},
+			Fields: []plan.FieldConfiguration{
+				{
+					TypeName:              "Query",
+					FieldName:             "withArgument",
+					DisableDefaultMapping: true,
+				},
+			},
+		},
+	))
+	t.Run("get request with argument using templates with and without spaces", datasourcetesting.RunTest(schema, argumentWithoutVariablesOperation, "ArgumentWithoutVariablesQuery",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						BufferId:   0,
+						Input:      `{"method":"GET","url":"https://example.com/$$0$$/$$1$$"}`,
+						DataSource: &Source{},
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path: []string{"a"},
+							},
+							&resolve.ContextVariable{
+								Path: []string{"b"},
+							},
+						),
+					},
+					Fields: []*resolve.Field{
+						{
+							BufferID:  0,
+							HasBuffer: true,
+							Name:      []byte("withArgument"),
+							Value: &resolve.Object{
+								Nullable: true,
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("name"),
+										Value: &resolve.String{
+											Path:     []string{"name"},
+											Nullable: true,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		plan.Configuration{
+			DataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"withArgument"},
+						},
+					},
+					Custom: ConfigJSON(Configuration{
+						Fetch: FetchConfiguration{
+							URL:    "https://example.com/{{.arguments.id}}/{{   .arguments.name   }}",
 							Method: "GET",
 						},
 					}),

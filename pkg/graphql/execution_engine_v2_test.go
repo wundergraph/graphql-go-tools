@@ -188,7 +188,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 
 	t.Run("execute with header injection", runWithoutError(
 		ExecutionEngineV2TestCase{
-			schema:    starwarsSchema(t),
+			schema: starwarsSchema(t),
 			operation: func(t *testing.T) Request {
 				request := loadStarWarsQuery(starwars.FileSimpleHeroQuery, nil)(t)
 				request.request.Header = map[string][]string{
@@ -458,6 +458,55 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			expectedResponse: `{"data":{"hero":"Human"}}`,
 		},
 	))
+
+	t.Run("execute operation with rest data source and arguments in url", runWithoutError(
+		ExecutionEngineV2TestCase{
+			schema: heroWithArgumentSchema(t),
+			operation: func(t *testing.T) Request {
+				return Request{
+					OperationName: "MyHero",
+					Variables: stringify(map[string]interface{}{
+						"heroName": "luke",
+					}),
+					Query: `query MyHero($heroName: String){
+						hero(name: $heroName)
+					}`,
+				}
+			},
+			dataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{TypeName: "Query", FieldNames: []string{"hero"}},
+					},
+					Factory: &rest_datasource.Factory{
+						Client: testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "example.com",
+							expectedPath:     "/name/luke",
+							expectedBody:     "",
+							sendResponseBody: `{"race": "Human"}`,
+							sendStatusCode:   200,
+						}),
+					},
+					Custom: rest_datasource.ConfigJSON(rest_datasource.Configuration{
+						Fetch: rest_datasource.FetchConfiguration{
+							URL:    "https://example.com/name/{{.arguments.name}}",
+							Method: "POST",
+							Body:   "",
+						},
+					}),
+				},
+			},
+			fields: []plan.FieldConfiguration{
+				{
+					TypeName:              "Query",
+					FieldName:             "hero",
+					DisableDefaultMapping: false,
+					Path:                  []string{"race"},
+				},
+			},
+			expectedResponse: `{"data":{"hero":"Human"}}`,
+		},
+	))
 }
 
 func testNetHttpClient(t *testing.T, testCase roundTripperTestCase) httpclient.Client {
@@ -532,9 +581,9 @@ func TestExecutionWithOptions(t *testing.T) {
 	resultWriter := NewEngineResultWriter()
 	err = engine.Execute(context.Background(), &operation, &resultWriter, WithBeforeFetchHook(before), WithAfterFetchHook(after))
 
-	assert.Equal(t, `{"method":"GET","url":"https://example.com/","body":{"query":"{hero}"}}`,before.input)
-	assert.Equal(t, `{"hero":{"name":"Luke Skywalker"}}`,after.data)
-	assert.Equal(t, "",after.err)
+	assert.Equal(t, `{"method":"GET","url":"https://example.com/","body":{"query":"{hero}"}}`, before.input)
+	assert.Equal(t, `{"hero":{"name":"Luke Skywalker"}}`, after.data)
+	assert.Equal(t, "", after.err)
 	assert.NoError(t, err)
 }
 
