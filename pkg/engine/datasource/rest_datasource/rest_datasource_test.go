@@ -668,12 +668,15 @@ func TestHttpJsonDataSource_Load(t *testing.T) {
 				assert.Equal(t, r.Method, http.MethodGet)
 				assert.Equal(t, authorization, r.Header.Get("Authorization"))
 				assert.Equal(t, xApiKey, r.Header.Get("X-API-KEY"))
+				assert.Equal(t, []string{"one", "two"}, r.Header["Multi"])
+				assert.Equal(t, "x,y", r.Header.Get("MultiComma"))
+
 				_, _ = w.Write([]byte(`ok`))
 			}))
 
 			defer server.Close()
 
-			input := []byte(fmt.Sprintf(`{"method":"GET","url":"%s","header":{"Authorization":["Bearer 123"],"Token":["%s"],"X-API-Key":["%s"]}}`, server.URL, authorization, xApiKey))
+			input := []byte(fmt.Sprintf(`{"method":"GET","url":"%s","header":{"Multi":["one", "two"],"MultiComma":["x,y"],"Authorization":["Bearer 123"],"Token":["%s"],"X-API-Key":["%s"]}}`, server.URL, authorization, xApiKey))
 			pair := resolve.NewBufPair()
 			err := source.Load(context.Background(), input, pair)
 			assert.NoError(t, err)

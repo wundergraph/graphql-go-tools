@@ -85,11 +85,11 @@ func (f *FastHttpClient) Do(ctx context.Context, requestInput []byte, out io.Wri
 
 	if headers != nil {
 		err = jsonparser.ObjectEach(headers, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
-			_,err := jsonparser.ArrayEach(value, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+			_, err := jsonparser.ArrayEach(value, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
 				if err != nil {
 					return
 				}
-				req.Header.SetBytesKV(key, value)
+				req.Header.AddBytesKV(key, value)
 			})
 			return err
 		})
