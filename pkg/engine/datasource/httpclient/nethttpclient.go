@@ -9,7 +9,6 @@ import (
 
 	"github.com/buger/jsonparser"
 
-	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 )
 
@@ -38,7 +37,7 @@ func (n *NetHttpClient) Do(ctx context.Context, requestInput []byte, out io.Writ
 	url, method, body, headers, queryParams := requestInputParams(requestInput)
 
 	// Change to `http.NewRequestWithContext` when support for go 1.12 is dropped
-	request, err := NewRequestWithContext(ctx, unsafebytes.BytesToString(method), unsafebytes.BytesToString(url), bytes.NewReader(body))
+	request, err := NewRequestWithContext(ctx, string(method), string(url), bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
@@ -49,7 +48,7 @@ func (n *NetHttpClient) Do(ctx context.Context, requestInput []byte, out io.Writ
 				if err != nil {
 					return
 				}
-				request.Header.Add(unsafebytes.BytesToString(key), unsafebytes.BytesToString(value))
+				request.Header.Add(string(key), string(value))
 			})
 			return err
 		})
