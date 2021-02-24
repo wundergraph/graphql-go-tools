@@ -42,7 +42,8 @@ type Planner struct {
 	hasFederationRoot          bool
 	extractEntities            bool
 	client                     httpclient.Client
-	isNested bool
+	isNested                   bool
+	rootTypeName               string
 }
 
 type Configuration struct {
@@ -179,6 +180,10 @@ func (p *Planner) LeaveSelectionSet(ref int) {
 
 func (p *Planner) EnterField(ref int) {
 
+	if p.rootTypeName == "" {
+		p.rootTypeName = p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
+	}
+
 	p.lastFieldEnclosingTypeName = p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
 
 	p.handleFederation(ref)
@@ -221,6 +226,7 @@ func (p *Planner) EnterDocument(operation, definition *ast.Document) {
 	p.disallowSingleFlight = false
 	p.hasFederationRoot = false
 	p.extractEntities = false
+	p.rootTypeName = ""
 }
 
 func (p *Planner) LeaveDocument(operation, definition *ast.Document) {
@@ -526,6 +532,11 @@ func (p *Planner) configureObjectFieldSource(upstreamFieldRef, downstreamFieldRe
 	}
 }
 
+const (
+	normalizationFailedErrMsg = "printOperation: normalization failed"
+	parseDocumentFailedErrMsg = "printOperation: parse %s failed"
+)
+
 func (p *Planner) printOperation() []byte {
 
 	buf := &bytes.Buffer{}
@@ -558,15 +569,43 @@ func (p *Planner) printOperation() []byte {
 
 	parser.Parse(operation, report)
 	if report.HasErrors() {
-		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("printOperation: parse operation failed"))
+		p.stopWithError(parseDocumentFailedErrMsg, "operation")
 		return nil
 	}
 
 	parser.Parse(definition, report)
 	if report.HasErrors() {
-		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("printOperation: parse definition failed"))
+		p.stopWithError(parseDocumentFailedErrMsg, "definition")
 		return nil
 	}
+
+	if !p.normalizeOperation(operation, definition, report, true) {
+		p.stopWithError(normalizationFailedErrMsg)
+		return nil
+	}
+
+	buf.Reset()
+
+	err = astprinter.Print(operation, p.visitor.Definition, buf)
+	if err != nil {
+		p.stopWithError(normalizationFailedErrMsg)
+		return nil
+	}
+
+	return buf.Bytes()
+}
+
+func (p *Planner) stopWithError(msg string, args ...interface{}) {
+	p.visitor.Walker.StopWithInternalErr(fmt.Errorf(msg, args...))
+}
+
+// normalizeOperation - tries to normalize operation against definition.
+//
+// withRetry - temporary flag which will replace query type with corresponding root type and reruns normalization.
+//
+// TODO: implement less hacky solution to normalize upstream queries
+func (p *Planner) normalizeOperation(operation, definition *ast.Document, report *operationreport.Report, withRetry bool) (ok bool) {
+	report.Reset()
 
 	operationStr, _ := astprinter.PrintStringIndent(operation, definition, "  ")
 	schemaStr, _ := astprinter.PrintStringIndent(definition, nil, "  ")
@@ -575,19 +614,18 @@ func (p *Planner) printOperation() []byte {
 	normalizer := astnormalization.NewNormalizer(true, true)
 	normalizer.NormalizeOperation(operation, definition, report)
 
-	if report.HasErrors() {
-		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("normalization failed"))
-		return nil
+	if !report.HasErrors() {
+		return true
 	}
 
-	buf.Reset()
+	if withRetry && p.isNested && !p.config.Federation.Enabled {
+		definition.RemoveObjectTypeDefinition(definition.Index.QueryTypeName)
+		definition.ReplaceRootOperationTypeDefinition(p.rootTypeName, ast.OperationTypeQuery)
 
-	err = astprinter.Print(operation, p.visitor.Definition, buf)
-	if err != nil {
-		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("normalization failed"))
-		return nil
+		return p.normalizeOperation(operation, definition, report, false)
 	}
-	return buf.Bytes()
+
+	return false
 }
 
 func (p *Planner) addField(ref int) {

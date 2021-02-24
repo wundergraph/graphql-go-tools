@@ -396,16 +396,23 @@ func TestGraphQLDataSource(t *testing.T) {
 		}
 		type ServiceOneResponse {
 			fieldOne: String!
+			countries: [Country!]!
 		}
 		type ServiceTwoResponse {
 			fieldTwo: String
 			serviceOneField: String
 			serviceOneResponse: ServiceOneResponse
 		}
+		type Country {
+			name: String!
+        }
 	`, `
 		query NestedQuery ($firstArg: String, $secondArg: Boolean, $thirdArg: Int, $fourthArg: Float){
 			serviceOne(serviceOneArg: $firstArg) {
 				fieldOne
+				countries {
+					name
+				}
 			}
 			serviceTwo(serviceTwoArg: $secondArg){
 				fieldTwo
@@ -444,7 +451,7 @@ func TestGraphQLDataSource(t *testing.T) {
 								),
 							},
 							{
-								BufferId: 1,
+								BufferId: 2,
 								// 			 {"method":"POST","url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo serviceOneField}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}
 								Input:      `{"method":"POST","url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo serviceOneField} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo serviceOneField}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`,
 								DataSource: &Source{},
@@ -467,6 +474,13 @@ func TestGraphQLDataSource(t *testing.T) {
 							Value: &resolve.Object{
 								Nullable: true,
 								Path:     []string{"serviceOne"},
+
+								Fetch: &resolve.SingleFetch{
+									BufferId:   1, // here is ok
+									DataSource: &Source{},
+									Input:      `{"method":"POST","url":"https://country.service","body":{"query":"{countries {name}}"}}`,
+								},
+
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("fieldOne"),
@@ -474,18 +488,36 @@ func TestGraphQLDataSource(t *testing.T) {
 											Path: []string{"fieldOne"},
 										},
 									},
+									{
+										Name:      []byte("countries"),
+										HasBuffer: true,
+										BufferID:  1,
+										Value: &resolve.Array{
+											Path: []string{"countries"},
+											Item: &resolve.Object{
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("name"),
+														Value: &resolve.String{
+															Path: []string{"name"},
+														},
+													},
+												},
+											},
+										},
+									},
 								},
 							},
 						},
 						{
 							HasBuffer: true,
-							BufferID:  1,
+							BufferID:  2,
 							Name:      []byte("serviceTwo"),
 							Value: &resolve.Object{
 								Nullable: true,
 								Path:     []string{"serviceTwo"},
 								Fetch: &resolve.SingleFetch{
-									BufferId:   2,
+									BufferId:   3,
 									DataSource: &Source{},
 									Input:      `{"method":"POST","url":"https://service.one","body":{"query":"query($a: String){serviceOne(serviceOneArg: $a){fieldOne}}","variables":{"a":"$$0$$"}}}`,
 									Variables: resolve.NewVariables(
@@ -504,7 +536,7 @@ func TestGraphQLDataSource(t *testing.T) {
 									},
 									{
 										HasBuffer: true,
-										BufferID:  2,
+										BufferID:  3,
 										Name:      []byte("serviceOneResponse"),
 										Value: &resolve.Object{
 											Nullable: true,
@@ -540,7 +572,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 						{
-							BufferID:  1,
+							BufferID:  2,
 							HasBuffer: true,
 							Name:      []byte("secondServiceTwo"),
 							Value: &resolve.Object{
@@ -628,6 +660,27 @@ func TestGraphQLDataSource(t *testing.T) {
 					Custom: ConfigJson(Configuration{
 						Fetch: FetchConfiguration{
 							URL: "https://service.two",
+						},
+					}),
+					Factory:                    nestedGraphQLEngineFactory,
+					OverrideFieldPathFromAlias: true,
+				},
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "ServiceOneResponse",
+							FieldNames: []string{"countries"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Country",
+							FieldNames: []string{"name"},
+						},
+					},
+					Custom: ConfigJson(Configuration{
+						Fetch: FetchConfiguration{
+							URL: "https://country.service",
 						},
 					}),
 					Factory:                    nestedGraphQLEngineFactory,
