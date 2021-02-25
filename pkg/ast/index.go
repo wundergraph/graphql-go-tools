@@ -1,6 +1,10 @@
 package ast
 
-import "github.com/cespare/xxhash"
+import (
+	"bytes"
+
+	"github.com/cespare/xxhash"
+)
 
 // Index is a struct to easily look up objects in a document, e.g. find Nodes (type/interface/union definitions) by name
 type Index struct {
@@ -82,4 +86,21 @@ func (i *Index) FirstNodeByNameBytes(name []byte) (Node, bool) {
 		return Node{}, false
 	}
 	return node[0], true
+}
+
+func (i *Index) RemoveNodeByName(name []byte) {
+	hash := xxhash.Sum64(name)
+	delete(i.nodes, hash)
+
+	if bytes.Equal(i.QueryTypeName, name) {
+		i.QueryTypeName = nil
+	}
+
+	if bytes.Equal(i.MutationTypeName, name) {
+		i.MutationTypeName = nil
+	}
+
+	if bytes.Equal(i.SubscriptionTypeName, name) {
+		i.SubscriptionTypeName = nil
+	}
 }
