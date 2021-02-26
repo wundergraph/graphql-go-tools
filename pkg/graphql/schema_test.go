@@ -8,6 +8,8 @@ import (
 	"github.com/sebdah/goldie"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 )
 
 func TestNewSchemaFromReader(t *testing.T) {
@@ -383,8 +385,186 @@ func TestSchemaIntrospection(t *testing.T) {
 	goldie.Assert(t, "introspection_response", bodyBytes)
 }
 
+func TestSchema_GetAllFieldArguments(t *testing.T) {
+	schema, err := NewSchemaFromString(schemaWithChildren)
+	require.NoError(t, err)
+
+	t.Run("should get all field arguments without skip function", func(t *testing.T) {
+		fieldArguments := schema.GetAllFieldArguments()
+		expectedFieldArguments := []TypeFieldArguments{
+			{
+				TypeName:      "Query",
+				FieldName:     "singleArgLevel1",
+				ArgumentNames: []string{"lvl"},
+			},
+			{
+				TypeName:      "Query",
+				FieldName:     "__type",
+				ArgumentNames: []string{"name"},
+			},
+			{
+				TypeName:      "Query",
+				FieldName:     "multiArgLevel1",
+				ArgumentNames: []string{"lvl", "number"},
+			},
+			{
+				TypeName:      "SingleArgLevel1",
+				FieldName:     "singleArgLevel2",
+				ArgumentNames: []string{"lvl"},
+			},
+			{
+				TypeName:      "MultiArgLevel1",
+				FieldName:     "multiArgLevel2",
+				ArgumentNames: []string{"lvl", "number"},
+			},
+			{
+				TypeName:      "__Type",
+				FieldName:     "fields",
+				ArgumentNames: []string{"includeDeprecated"},
+			},
+			{
+				TypeName:      "__Type",
+				FieldName:     "enumValues",
+				ArgumentNames: []string{"includeDeprecated"},
+			},
+		}
+		assert.Equal(t, expectedFieldArguments, fieldArguments)
+	})
+
+	t.Run("should get all field arguments excluding skipped fields by skip field funcs", func(t *testing.T) {
+		fieldArguments := schema.GetAllFieldArguments(NewSkipReservedNamesFunc())
+		expectedFieldArguments := []TypeFieldArguments{
+			{
+				TypeName:      "Query",
+				FieldName:     "singleArgLevel1",
+				ArgumentNames: []string{"lvl"},
+			},
+			{
+				TypeName:      "Query",
+				FieldName:     "multiArgLevel1",
+				ArgumentNames: []string{"lvl", "number"},
+			},
+			{
+				TypeName:      "SingleArgLevel1",
+				FieldName:     "singleArgLevel2",
+				ArgumentNames: []string{"lvl"},
+			},
+			{
+				TypeName:      "MultiArgLevel1",
+				FieldName:     "multiArgLevel2",
+				ArgumentNames: []string{"lvl", "number"},
+			},
+		}
+		assert.Equal(t, expectedFieldArguments, fieldArguments)
+	})
+}
+
+func TestSchema_GetAllNestedFieldChildrenFromTypeField(t *testing.T) {
+	schema, err := NewSchemaFromString(schemaWithChildren)
+	require.NoError(t, err)
+
+	t.Run("should return nil when type or field does not exist", func(t *testing.T) {
+		typeFields := schema.GetAllNestedFieldChildrenFromTypeField("Not", "existent")
+		assert.Equal(t, []TypeFields(nil), typeFields)
+	})
+
+	t.Run("should get field children without skip function", func(t *testing.T) {
+		typeFields := schema.GetAllNestedFieldChildrenFromTypeField("Query", "withChildren")
+		expectedTypeFields := []TypeFields{
+			{
+				TypeName:   "WithChildren",
+				FieldNames: []string{"id", "name", "nested"},
+			},
+			{
+				TypeName:   "Nested",
+				FieldNames: []string{"id", "name"},
+			},
+		}
+
+		assert.Equal(t, expectedTypeFields, typeFields)
+	})
+
+	t.Run("should get field children with skip function for engine v2 data source config", func(t *testing.T) {
+		dataSources := []plan.DataSourceConfiguration{
+			{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "WithChildren",
+						FieldNames: []string{"nested"},
+					},
+				},
+			},
+		}
+		typeFields := schema.GetAllNestedFieldChildrenFromTypeField("Query", "withChildren", NewIsDataSourceConfigV2RootFieldSkipFunc(dataSources))
+		expectedTypeFields := []TypeFields{
+			{
+				TypeName:   "WithChildren",
+				FieldNames: []string{"id", "name"},
+			},
+		}
+
+		assert.Equal(t, expectedTypeFields, typeFields)
+	})
+
+	t.Run("should get field children from schema with recursive references", func(t *testing.T) {
+		schema, err = NewSchemaFromString(countriesSchema)
+		require.NoError(t, err)
+
+		typeFields := schema.GetAllNestedFieldChildrenFromTypeField("Query", "countries")
+		expectedTypeFields := []TypeFields{
+			{
+				TypeName:   "Country",
+				FieldNames: []string{"code", "name", "native", "phone", "continent", "capital", "currency", "languages", "emoji", "emojiU", "states"},
+			},
+			{
+				TypeName:   "Continent",
+				FieldNames: []string{"code", "name", "countries"},
+			},
+			{
+				TypeName:   "Language",
+				FieldNames: []string{"code", "name", "native", "rtl"},
+			},
+			{
+				TypeName:   "State",
+				FieldNames: []string{"code", "name", "country"},
+			},
+		}
+
+		assert.Equal(t, expectedTypeFields, typeFields)
+	})
+}
+
 var invalidSchema = `type Query {
 	foo: Bar
+}`
+
+var schemaWithChildren = `
+type Query {
+	withChildren: WithChildren
+	singleArgLevel1(lvl: int): SingleArgLevel1
+}
+
+extend type Query {
+	multiArgLevel1(lvl: int, number: int): MultiArgLevel1
+}
+
+type WithChildren { 
+	id: ID!
+	name: String
+	nested: Nested
+} 
+
+type Nested { 
+	id: ID! 
+	name: String! 
+} 
+
+type SingleArgLevel1 {
+	singleArgLevel2(lvl: int): String
+}
+
+type MultiArgLevel1 {
+	multiArgLevel2(lvl: int, number: int): String
 }`
 
 var countriesSchema = `directive @cacheControl(maxAge: Int, scope: CacheControlScope) on FIELD_DEFINITION | OBJECT | INTERFACE
