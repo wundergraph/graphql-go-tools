@@ -46,6 +46,10 @@ type Planner struct {
 	rootTypeName               string
 }
 
+func (p *Planner) MergeAliasedRootNodes() bool {
+	return true
+}
+
 type Configuration struct {
 	Fetch        FetchConfiguration
 	Subscription SubscriptionConfiguration

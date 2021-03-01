@@ -28,6 +28,10 @@ type Planner struct {
 	operationDefinition int
 }
 
+func (p *Planner) MergeAliasedRootNodes() bool {
+	return false
+}
+
 func (p *Planner) EnterOperationDefinition(ref int) {
 	p.operationDefinition = ref
 }

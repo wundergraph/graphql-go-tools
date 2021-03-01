@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasourcetesting"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
@@ -63,6 +64,18 @@ const (
 	argumentOperation = `
 		query ArgumentQuery($idVariable: String!) {
 			withArgument(id: $idVariable, name: "foo") {
+				name
+			}
+		}
+	`
+
+	duplicatedArgumentOperationWithAlias = `
+		query ArgumentQuery($idVariable: String!) {
+			withArgument(id: $idVariable, name: "foo") {
+				name
+			}
+
+			aliased: withArgument(id: $idVariable, name: "bar") {
 				name
 			}
 		}
@@ -270,6 +283,109 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 					DisableDefaultMapping: true,
 				},
 			},
+		},
+	))
+	t.Run("get request with duplicated argument and alias", datasourcetesting.RunTest(schema, duplicatedArgumentOperationWithAlias, "ArgumentQuery",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.ParallelFetch{
+						Fetches: []*resolve.SingleFetch{
+							{
+								BufferId:   0,
+								Input:      `{"method":"GET","url":"https://example.com/$$0$$/$$1$$"}`,
+								DataSource: &Source{},
+								Variables: resolve.NewVariables(
+									&resolve.ContextVariable{
+										Path: []string{"idVariable"},
+									},
+									&resolve.ContextVariable{
+										Path: []string{"a"},
+									},
+								),
+							},
+							{
+								BufferId:   1,
+								Input:      `{"method":"GET","url":"https://example.com/$$0$$/$$1$$"}`,
+								DataSource: &Source{},
+								Variables: resolve.NewVariables(
+									&resolve.ContextVariable{
+										Path: []string{"idVariable"},
+									},
+									&resolve.ContextVariable{
+										Path: []string{"b"},
+									},
+								),
+							},
+						},
+					},
+					Fields: []*resolve.Field{
+						{
+							BufferID:  0,
+							HasBuffer: true,
+							Name:      []byte("withArgument"),
+							Value: &resolve.Object{
+								Nullable: true,
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("name"),
+										Value: &resolve.String{
+											Path:     []string{"name"},
+											Nullable: true,
+										},
+									},
+								},
+							},
+						},
+						{
+							BufferID:  1,
+							HasBuffer: true,
+							Name:      []byte("aliased"),
+							Value: &resolve.Object{
+								Nullable: true,
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("name"),
+										Value: &resolve.String{
+											Path:     []string{"name"},
+											Nullable: true,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		plan.Configuration{
+			DataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"withArgument"},
+						},
+					},
+					Custom: ConfigJSON(Configuration{
+						Fetch: FetchConfiguration{
+							URL:    "https://example.com/{{ .arguments.id }}/{{ .arguments.name }}",
+							Method: "GET",
+						},
+					}),
+					Factory: &Factory{},
+				},
+			},
+			Fields: []plan.FieldConfiguration{
+				{
+					TypeName:              "Query",
+					FieldName:             "withArgument",
+					DisableDefaultMapping: true,
+				},
+			},
+		},
+		func(t *testing.T, op ast.Document, actualPlan plan.Plan) {
+			assert.Equal(t, `{"b":"bar","a":"foo"}`, string(op.Input.Variables))
 		},
 	))
 	t.Run("get request with argument using templates with and without spaces", datasourcetesting.RunTest(schema, argumentWithoutVariablesOperation, "ArgumentWithoutVariablesQuery",

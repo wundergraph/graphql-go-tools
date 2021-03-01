@@ -31,6 +31,10 @@ type Planner struct {
 	config Configuration
 }
 
+func (p *Planner) MergeAliasedRootNodes() bool {
+	return false
+}
+
 func (p *Planner) Register(visitor *plan.Visitor, customConfiguration json.RawMessage, isNested bool) error {
 	return json.Unmarshal(customConfiguration, &p.config)
 }

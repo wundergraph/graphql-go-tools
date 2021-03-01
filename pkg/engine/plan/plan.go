@@ -765,6 +765,15 @@ type DataSourcePlanner interface {
 	Register(visitor *Visitor, customConfiguration json.RawMessage, isNested bool) error
 	ConfigureFetch() FetchConfiguration
 	ConfigureSubscription() SubscriptionConfiguration
+	// MergeAliasedRootNodes will reuse a data source for multiple root fields with aliases if true.
+	// Example:
+	//  {
+	//    rootField
+	//    alias: rootField
+	//  }
+	// On dynamic data sources (e.g. GraphQL, SQL, ...) this should return true and for
+	// static data sources (e.g. REST, static, GRPC...) it should be false.
+	MergeAliasedRootNodes() bool
 }
 
 type SubscriptionConfiguration struct {
@@ -912,7 +921,7 @@ func (c *configurationVisitor) EnterField(ref int) {
 	}
 	isSubscription := c.isSubscription(root.Ref, current)
 	for i, planner := range c.planners {
-		if planner.hasParent(parent) && planner.hasRootNode(typeName, fieldName) {
+		if planner.hasParent(parent) && planner.hasRootNode(typeName, fieldName) && planner.planner.MergeAliasedRootNodes() {
 			// same parent + root node = root sibling
 			c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{path: current})
 			c.fieldBuffers[ref] = planner.bufferID
