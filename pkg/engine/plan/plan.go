@@ -569,7 +569,10 @@ func (v *Visitor) resolveFieldPath(ref int) []string {
 	typeName := v.Walker.EnclosingTypeDefinition.NameString(v.Definition)
 	fieldName := v.Operation.FieldNameString(ref)
 	config := v.currentOrParentPlannerConfiguration()
-	aliasOverride := config.planner.DataSourcePlanningBehavior().OverrideFieldPathFromAlias
+	aliasOverride := false
+	if config.planner != nil {
+		aliasOverride = config.planner.DataSourcePlanningBehavior().OverrideFieldPathFromAlias
+	}
 
 	for i := range v.Config.Fields {
 		if v.Config.Fields[i].TypeName == typeName && v.Config.Fields[i].FieldName == fieldName {
