@@ -323,16 +323,6 @@ func (v *Visitor) currentFullPath() string {
 	return path
 }
 
-func (v *Visitor) currentPlannerConfiguration() plannerConfiguration {
-	path := v.currentFullPath()
-	for i := range v.planners {
-		if v.planners[i].hasPath(path) {
-			return v.planners[i]
-		}
-	}
-	return plannerConfiguration{}
-}
-
 func (v *Visitor) EnterDirective(ref int) {
 	directiveName := v.Operation.DirectiveNameString(ref)
 	ancestor := v.Walker.Ancestors[len(v.Walker.Ancestors)-1]
@@ -628,6 +618,7 @@ func (v *Visitor) currentOrParentPlannerConfiguration() plannerConfiguration {
 				if currentPlannerPathDeepness > plannerPathDeepness {
 					plannerPathDeepness = currentPlannerPathDeepness
 					plannerIndex = i
+					break
 				}
 			}
 		}
