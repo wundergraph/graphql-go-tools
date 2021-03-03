@@ -28,8 +28,11 @@ type Planner struct {
 	operationDefinition int
 }
 
-func (p *Planner) MergeAliasedRootNodes() bool {
-	return false
+func (p *Planner) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavior {
+	return plan.DataSourcePlanningBehavior{
+		MergeAliasedRootNodes:      false,
+		OverrideFieldPathFromAlias: false,
+	}
 }
 
 func (p *Planner) EnterOperationDefinition(ref int) {

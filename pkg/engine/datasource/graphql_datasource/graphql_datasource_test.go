@@ -156,8 +156,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						FieldNames: []string{"name", "primaryFunction", "friends"},
 					},
 				},
-				Factory:                    &Factory{},
-				OverrideFieldPathFromAlias: true,
+				Factory: &Factory{},
 				Custom: ConfigJson(Configuration{
 					Fetch: FetchConfiguration{
 						URL: "https://swapi.com/graphql",
@@ -257,7 +256,6 @@ func TestGraphQLDataSource(t *testing.T) {
 							FieldNames: []string{"id", "name"},
 						},
 					},
-					OverrideFieldPathFromAlias: true,
 					Custom: ConfigJson(Configuration{
 						Fetch: FetchConfiguration{
 							URL: "https://service.one",
@@ -352,8 +350,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							FieldNames: []string{"bar"},
 						},
 					},
-					Factory:                    &Factory{},
-					OverrideFieldPathFromAlias: true,
+					Factory: &Factory{},
 					Custom: ConfigJson(Configuration{
 						Fetch: FetchConfiguration{
 							URL: "https://foo.service",
@@ -641,8 +638,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							URL: "https://service.one",
 						},
 					}),
-					Factory:                    nestedGraphQLEngineFactory,
-					OverrideFieldPathFromAlias: true,
+					Factory: nestedGraphQLEngineFactory,
 				},
 				{
 					RootNodes: []plan.TypeField{
@@ -662,8 +658,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							URL: "https://service.two",
 						},
 					}),
-					Factory:                    nestedGraphQLEngineFactory,
-					OverrideFieldPathFromAlias: true,
+					Factory: nestedGraphQLEngineFactory,
 				},
 				{
 					RootNodes: []plan.TypeField{
@@ -683,8 +678,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							URL: "https://country.service",
 						},
 					}),
-					Factory:                    nestedGraphQLEngineFactory,
-					OverrideFieldPathFromAlias: true,
+					Factory: nestedGraphQLEngineFactory,
 				},
 			},
 			Fields: []plan.FieldConfiguration{

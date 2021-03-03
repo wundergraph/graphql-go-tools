@@ -34,6 +34,7 @@ const (
 		type Friend {
 			name: String
 			pet: Pet
+			phone(name: String!): String
 		}
 
 		type Pet {
@@ -73,6 +74,8 @@ const (
 		query ArgumentQuery($idVariable: String!) {
 			withArgument(id: $idVariable, name: "foo") {
 				name
+				homePhone: phone(name: "home")
+				officePhone: phone(name: "office")
 			}
 
 			aliased: withArgument(id: $idVariable, name: "bar") {
@@ -305,7 +308,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 								),
 							},
 							{
-								BufferId:   1,
+								BufferId:   3,
 								Input:      `{"method":"GET","url":"https://example.com/$$0$$/$$1$$"}`,
 								DataSource: &Source{},
 								Variables: resolve.NewVariables(
@@ -313,7 +316,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 										Path: []string{"idVariable"},
 									},
 									&resolve.ContextVariable{
-										Path: []string{"b"},
+										Path: []string{"d"},
 									},
 								),
 							},
@@ -326,6 +329,30 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							Name:      []byte("withArgument"),
 							Value: &resolve.Object{
 								Nullable: true,
+								Fetch: &resolve.ParallelFetch{
+									Fetches: []*resolve.SingleFetch{
+										{
+											BufferId:   1,
+											Input:      `{"method":"GET","url":"https://example.com/friends/phone/$$0$$"}`,
+											DataSource: &Source{},
+											Variables: resolve.NewVariables(
+												&resolve.ContextVariable{
+													Path: []string{"b"},
+												},
+											),
+										},
+										{
+											BufferId:   2,
+											Input:      `{"method":"GET","url":"https://example.com/friends/phone/$$0$$"}`,
+											DataSource: &Source{},
+											Variables: resolve.NewVariables(
+												&resolve.ContextVariable{
+													Path: []string{"c"},
+												},
+											),
+										},
+									},
+								},
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("name"),
@@ -334,11 +361,29 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 											Nullable: true,
 										},
 									},
+									{
+										BufferID:  1,
+										HasBuffer: true,
+										Name:      []byte("homePhone"),
+										Value: &resolve.String{
+											Path:     []string{"phone"},
+											Nullable: true,
+										},
+									},
+									{
+										BufferID:  2,
+										HasBuffer: true,
+										Name:      []byte("officePhone"),
+										Value: &resolve.String{
+											Path:     []string{"phone"},
+											Nullable: true,
+										},
+									},
 								},
 							},
 						},
 						{
-							BufferID:  1,
+							BufferID:  3,
 							HasBuffer: true,
 							Name:      []byte("aliased"),
 							Value: &resolve.Object{
@@ -375,6 +420,21 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 					}),
 					Factory: &Factory{},
 				},
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Friend",
+							FieldNames: []string{"phone"},
+						},
+					},
+					Custom: ConfigJSON(Configuration{
+						Fetch: FetchConfiguration{
+							URL:    "https://example.com/friends/phone/{{ .arguments.name }}",
+							Method: "GET",
+						},
+					}),
+					Factory: &Factory{},
+				},
 			},
 			Fields: []plan.FieldConfiguration{
 				{
@@ -385,7 +445,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 			},
 		},
 		func(t *testing.T, op ast.Document, actualPlan plan.Plan) {
-			assert.Equal(t, `{"b":"bar","a":"foo"}`, string(op.Input.Variables))
+			assert.Equal(t, `{"d":"bar","c":"office","b":"home","a":"foo"}`, string(op.Input.Variables))
 		},
 	))
 	t.Run("get request with argument using templates with and without spaces", datasourcetesting.RunTest(schema, argumentWithoutVariablesOperation, "ArgumentWithoutVariablesQuery",

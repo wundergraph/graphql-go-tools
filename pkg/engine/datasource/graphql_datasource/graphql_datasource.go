@@ -46,8 +46,11 @@ type Planner struct {
 	rootTypeName               string
 }
 
-func (p *Planner) MergeAliasedRootNodes() bool {
-	return true
+func (p *Planner) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavior {
+	return plan.DataSourcePlanningBehavior{
+		MergeAliasedRootNodes:      true,
+		OverrideFieldPathFromAlias: true,
+	}
 }
 
 type Configuration struct {

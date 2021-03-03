@@ -31,8 +31,11 @@ type Planner struct {
 	config Configuration
 }
 
-func (p *Planner) MergeAliasedRootNodes() bool {
-	return false
+func (p *Planner) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavior {
+	return plan.DataSourcePlanningBehavior{
+		MergeAliasedRootNodes:      false,
+		OverrideFieldPathFromAlias: false,
+	}
 }
 
 func (p *Planner) Register(visitor *plan.Visitor, customConfiguration json.RawMessage, isNested bool) error {
