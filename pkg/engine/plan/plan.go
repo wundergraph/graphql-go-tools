@@ -612,7 +612,7 @@ func (v *Visitor) LeaveDocument(operation, definition *ast.Document) {
 
 var (
 	templateRegex = regexp.MustCompile(`{{.*?}}`)
-	selectorRegex = regexp.MustCompile(`{{\s*(.*?)\s*}}`)
+	selectorRegex = regexp.MustCompile(`{{\s*\.(.*?)\s*}}`)
 )
 
 func (v *Visitor) resolveInputTemplates(config objectFetchConfiguration, input *string, variables *resolve.Variables) {
@@ -657,7 +657,7 @@ func (v *Visitor) resolveInputTemplates(config objectFetchConfiguration, input *
 				break
 			}
 			switch path[0] {
-			case "header":
+			case "headers":
 				key := path[1]
 				variableName, _ = variables.AddVariable(&resolve.HeaderVariable{
 					Path: []string{key},

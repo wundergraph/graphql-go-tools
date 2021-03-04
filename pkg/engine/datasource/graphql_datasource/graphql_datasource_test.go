@@ -32,7 +32,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Fetch: &resolve.SingleFetch{
 					DataSource: &Source{},
 					BufferId:   0,
-					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$1$$"]},"body":{"query":"query($id: ID!){droid(id: $id){name aliased: name friends {name} primaryFunction} hero {name} stringList nestedStringList}","variables":{"id":"$$0$$"}}}`,
+					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$1$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!){droid(id: $id){name aliased: name friends {name} primaryFunction} hero {name} stringList nestedStringList}","variables":{"id":"$$0$$"}}}`,
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
 							Path: []string{"id"},
@@ -162,7 +162,8 @@ func TestGraphQLDataSource(t *testing.T) {
 					Fetch: FetchConfiguration{
 						URL: "https://swapi.com/graphql",
 						Header: http.Header{
-							"Authorization": []string{"{{ .request.header.Authorization }}"},
+							"Authorization":    []string{"{{ .request.headers.Authorization }}"},
+							"Invalid-Template": []string{"{{ request.headers.Authorization }}"},
 						},
 					},
 				}),

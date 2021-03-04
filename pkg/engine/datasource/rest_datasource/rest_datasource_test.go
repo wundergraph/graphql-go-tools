@@ -473,7 +473,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
 						BufferId:   0,
-						Input:      `{"header":{"Authorization":["Bearer 123"],"Token":["Bearer $$0$$"],"X-API-Key":["456"]},"method":"GET","url":"https://example.com/friend"}`,
+						Input:      `{"header":{"Authorization":["Bearer 123"],"Invalid-Template":["{{ request.headers.Authorization }}"],"Token":["Bearer $$0$$"],"X-API-Key":["456"]},"method":"GET","url":"https://example.com/friend"}`,
 						DataSource: &Source{},
 						Variables: []resolve.Variable{
 							&resolve.HeaderVariable{
@@ -517,9 +517,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							URL:    "https://example.com/friend",
 							Method: "GET",
 							Header: http.Header{
-								"Authorization": []string{"Bearer 123"},
-								"X-API-Key":     []string{"456"},
-								"Token":         []string{"Bearer {{ .request.header.Authorization }}"},
+								"Authorization":    []string{"Bearer 123"},
+								"X-API-Key":        []string{"456"},
+								"Token":            []string{"Bearer {{ .request.headers.Authorization }}"},
+								"Invalid-Template": []string{"{{ request.headers.Authorization }}"},
 							},
 						},
 					}),

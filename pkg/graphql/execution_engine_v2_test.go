@@ -212,7 +212,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					},
 					Custom: rest_datasource.ConfigJSON(rest_datasource.Configuration{
 						Fetch: rest_datasource.FetchConfiguration{
-							URL:    "https://example.com/{{ .request.header.Authorization }}",
+							URL:    "https://example.com/{{ .request.headers.Authorization }}",
 							Method: "GET",
 						},
 					}),
