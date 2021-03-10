@@ -87,7 +87,7 @@ func TestNormalizeOperation(t *testing.T) {
 	})
 	t.Run("fragments", func(t *testing.T) {
 		run(t, testDefinition, `
-				query conflictingBecauseAlias {
+				query conflictingBecauseAlias ($unused: String) {
 					dog {
 						extras { ...frag }
 						extras { ...frag2 }
@@ -102,7 +102,7 @@ func TestNormalizeOperation(t *testing.T) {
 							string1: string
 						}
 					}
-				}`, "", "")
+				}`, `{"unused":"foo"}`, `{}`)
 	})
 	t.Run("fragments", func(t *testing.T) {
 		run(t, variablesExtractionDefinition, `
@@ -186,6 +186,33 @@ var mustString = func(str string, err error) string {
 }
 
 var runWithVariables = func(t *testing.T, normalizeFunc registerNormalizeVariablesFunc, definition, operation, operationName, expectedOutput, variablesInput, expectedVariables string) {
+	definitionDocument := unsafeparser.ParseGraphqlDocumentString(definition)
+	operationDocument := unsafeparser.ParseGraphqlDocumentString(operation)
+	expectedOutputDocument := unsafeparser.ParseGraphqlDocumentString(expectedOutput)
+	report := operationreport.Report{}
+	walker := astvisitor.NewWalker(48)
+
+	if variablesInput != "" {
+		operationDocument.Input.Variables = []byte(variablesInput)
+	}
+
+	visitor := normalizeFunc(&walker)
+	visitor.operationName = []byte(operationName)
+
+	walker.Walk(&operationDocument, &definitionDocument, &report)
+
+	if report.HasErrors() {
+		panic(report.Error())
+	}
+
+	actualAST := mustString(astprinter.PrintString(&operationDocument, &definitionDocument))
+	expectedAST := mustString(astprinter.PrintString(&expectedOutputDocument, &definitionDocument))
+	assert.Equal(t, expectedAST, actualAST)
+	actualVariables := string(operationDocument.Input.Variables)
+	assert.Equal(t, expectedVariables, actualVariables)
+}
+
+var runWithDeleteUnusedVariables = func(t *testing.T, normalizeFunc registerNormalizeDeleteVariablesFunc, definition, operation, operationName, expectedOutput, variablesInput, expectedVariables string) {
 	definitionDocument := unsafeparser.ParseGraphqlDocumentString(definition)
 	operationDocument := unsafeparser.ParseGraphqlDocumentString(operation)
 	expectedOutputDocument := unsafeparser.ParseGraphqlDocumentString(expectedOutput)

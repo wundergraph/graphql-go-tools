@@ -3,6 +3,7 @@ package ast
 import (
 	"bytes"
 
+	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
 )
 
@@ -26,6 +27,10 @@ type VariableDefinition struct {
 
 func (d *Document) VariableDefinitionNameBytes(ref int) ByteSlice {
 	return d.VariableValueNameBytes(d.VariableDefinitions[ref].VariableValue.Ref)
+}
+
+func (d *Document) VariableDefinitionNameString(ref int) string {
+	return unsafebytes.BytesToString(d.VariableValueNameBytes(d.VariableDefinitions[ref].VariableValue.Ref))
 }
 
 func (d *Document) VariableDefinitionByNameAndOperation(operationDefinition int, name ByteSlice) (definition int, exists bool) {

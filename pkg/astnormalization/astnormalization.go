@@ -90,6 +90,8 @@ type registerNormalizeFunc func(walker *astvisitor.Walker)
 
 type registerNormalizeVariablesFunc func(walker *astvisitor.Walker) *variablesExtractionVisitor
 
+type registerNormalizeDeleteVariablesFunc func(walker *astvisitor.Walker) *deleteUnusedVariablesVisitor
+
 // OperationNormalizer walks a given AST and applies all registered rules
 type OperationNormalizer struct {
 	walkers                   []*astvisitor.Walker
@@ -124,6 +126,7 @@ func (o *OperationNormalizer) setupWalkers() {
 	if o.removeFragmentDefinitions {
 		removeFragmentDefinitions(&other)
 	}
+	deleteUnusedVariables(&other)
 
 	o.walkers = append(o.walkers, &fragmentInline, &other)
 }
