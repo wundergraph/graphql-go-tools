@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
+	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
 	"github.com/jensneuse/graphql-go-tools/pkg/asttransform"
@@ -14,7 +15,9 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
-func RunTest(definition, operation, operationName string, expectedPlan plan.Plan, config plan.Configuration) func(t *testing.T) {
+type CheckFunc func(t *testing.T, op ast.Document, actualPlan plan.Plan)
+
+func RunTest(definition, operation, operationName string, expectedPlan plan.Plan, config plan.Configuration, extraChecks ...CheckFunc) func(t *testing.T) {
 	return func(t *testing.T) {
 		def := unsafeparser.ParseGraphqlDocumentString(definition)
 		op := unsafeparser.ParseGraphqlDocumentString(operation)
@@ -41,5 +44,10 @@ func RunTest(definition, operation, operationName string, expectedPlan plan.Plan
 			t.Fatal(report.Error())
 		}
 		assert.Equal(t, expectedPlan, actualPlan)
+
+		for _, extraCheck := range extraChecks {
+			extraCheck(t, op, actualPlan)
+		}
+
 	}
 }

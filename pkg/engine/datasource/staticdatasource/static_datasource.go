@@ -31,6 +31,18 @@ type Planner struct {
 	config Configuration
 }
 
+func (p *Planner) DownstreamResponseFieldAlias(downstreamFieldRef int) (alias string, exists bool) {
+	// skip, not required
+	return
+}
+
+func (p *Planner) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavior {
+	return plan.DataSourcePlanningBehavior{
+		MergeAliasedRootNodes:      false,
+		OverrideFieldPathFromAlias: false,
+	}
+}
+
 func (p *Planner) Register(visitor *plan.Visitor, customConfiguration json.RawMessage, isNested bool) error {
 	return json.Unmarshal(customConfiguration, &p.config)
 }

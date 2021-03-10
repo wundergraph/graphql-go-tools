@@ -46,6 +46,41 @@ type Planner struct {
 	rootTypeName               string
 }
 
+func (p *Planner) DownstreamResponseFieldAlias(downstreamFieldRef int) (alias string, exists bool) {
+
+	// If there's no alias but the downstream Query re-uses the same path on different root fields,
+	// we rewrite the downstream Query using an alias so that we can have an aliased Query to the upstream
+	// while keeping a non aliased Query to the downstream but with a path rewrite on an existing root field.
+
+	fieldName := p.visitor.Operation.FieldNameString(downstreamFieldRef)
+
+	if p.visitor.Operation.FieldAliasIsDefined(downstreamFieldRef) {
+		return "", false
+	}
+
+	typeName := p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
+	for i := range p.visitor.Config.Fields {
+		if p.visitor.Config.Fields[i].TypeName == typeName &&
+			p.visitor.Config.Fields[i].FieldName == fieldName &&
+			len(p.visitor.Config.Fields[i].Path) == 1 {
+
+			if p.visitor.Config.Fields[i].Path[0] != fieldName {
+				aliasBytes := p.visitor.Operation.FieldNameBytes(downstreamFieldRef)
+				return string(aliasBytes), true
+			}
+			break
+		}
+	}
+	return "", false
+}
+
+func (p *Planner) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavior {
+	return plan.DataSourcePlanningBehavior{
+		MergeAliasedRootNodes:      true,
+		OverrideFieldPathFromAlias: true,
+	}
+}
+
 type Configuration struct {
 	Fetch        FetchConfiguration
 	Subscription SubscriptionConfiguration
@@ -189,8 +224,6 @@ func (p *Planner) EnterField(ref int) {
 	p.handleFederation(ref)
 
 	p.addField(ref)
-
-	// fmt.Printf("Planner::%s::%s::EnterField::%s::%d\n", p.id, p.visitor.Walker.Path.DotDelimitedString(), p.visitor.Operation.FieldNameString(ref), ref)
 
 	upstreamFieldRef := p.nodes[len(p.nodes)-1].Ref
 	typeName := p.lastFieldEnclosingTypeName
@@ -605,12 +638,8 @@ func (p *Planner) stopWithError(msg string, args ...interface{}) {
 //
 // TODO: implement less hacky solution to normalize upstream queries
 func (p *Planner) normalizeOperation(operation, definition *ast.Document, report *operationreport.Report, withRetry bool) (ok bool) {
+
 	report.Reset()
-
-	operationStr, _ := astprinter.PrintStringIndent(operation, definition, "  ")
-	schemaStr, _ := astprinter.PrintStringIndent(definition, nil, "  ")
-	_, _ = schemaStr, operationStr
-
 	normalizer := astnormalization.NewNormalizer(true, true)
 	normalizer.NormalizeOperation(operation, definition, report)
 
@@ -646,7 +675,15 @@ func (p *Planner) addField(ref int) {
 		if p.visitor.Config.Fields[i].TypeName == typeName &&
 			p.visitor.Config.Fields[i].FieldName == fieldName &&
 			len(p.visitor.Config.Fields[i].Path) == 1 {
+
+			if p.visitor.Config.Fields[i].Path[0] != fieldName && !alias.IsDefined {
+				alias.IsDefined = true
+				aliasBytes := p.visitor.Operation.FieldNameBytes(ref)
+				alias.Name = p.upstreamOperation.Input.AppendInputBytes(aliasBytes)
+			}
+
 			fieldName = p.visitor.Config.Fields[i].Path[0]
+
 			break
 		}
 	}
