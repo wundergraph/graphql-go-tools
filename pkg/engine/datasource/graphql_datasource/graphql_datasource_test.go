@@ -440,7 +440,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							Name:      []byte("alias"),
 							Value: &resolve.Object{
 								Nullable: true,
-								Path:     []string{"country"},
+								Path:     []string{"alias"},
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("name"),
@@ -561,7 +561,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							Name:      []byte("countryAlias"),
 							Value: &resolve.Object{
 								Nullable: true,
-								Path:     []string{"country"},
+								Path:     []string{"countryAlias"},
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("name"),
@@ -587,10 +587,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "Country",
-							FieldNames: []string{"name", "code"},
-						},
 						{
 							TypeName:   "Country",
 							FieldNames: []string{"name", "code"},
@@ -698,7 +694,6 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 							{
 								BufferId: 2,
-								// 			 {"method":"POST","url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo serviceOneField}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}
 								Input:      `{"method":"POST","url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo serviceOneField} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo serviceOneField}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`,
 								DataSource: &Source{},
 								Variables: resolve.NewVariables(
@@ -722,7 +717,7 @@ func TestGraphQLDataSource(t *testing.T) {
 								Path:     []string{"serviceOne"},
 
 								Fetch: &resolve.SingleFetch{
-									BufferId:   1, // here is ok
+									BufferId:   1,
 									DataSource: &Source{},
 									Input:      `{"method":"POST","url":"https://country.service","body":{"query":"{countries {name}}"}}`,
 								},
@@ -765,7 +760,7 @@ func TestGraphQLDataSource(t *testing.T) {
 								Fetch: &resolve.SingleFetch{
 									BufferId:   3,
 									DataSource: &Source{},
-									Input:      `{"method":"POST","url":"https://service.one","body":{"query":"query($a: String){serviceOne(serviceOneArg: $a){fieldOne}}","variables":{"a":"$$0$$"}}}`,
+									Input:      `{"method":"POST","url":"https://service.one","body":{"query":"query($a: String){serviceOneResponse: serviceOne(serviceOneArg: $a){fieldOne}}","variables":{"a":"$$0$$"}}}`,
 									Variables: resolve.NewVariables(
 										&resolve.ObjectVariable{
 											Path: []string{"serviceOneField"},
@@ -786,7 +781,7 @@ func TestGraphQLDataSource(t *testing.T) {
 										Name:      []byte("serviceOneResponse"),
 										Value: &resolve.Object{
 											Nullable: true,
-											Path:     []string{"serviceOne"},
+											Path:     []string{"serviceOneResponse"},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("fieldOne"),

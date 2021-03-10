@@ -46,7 +46,6 @@ type FieldConfiguration struct {
 	FieldName             string
 	DisableDefaultMapping bool
 	Path                  []string
-	// RespectOverrideFieldPathFromAlias bool
 	Arguments      ArgumentsConfigurations
 	RequiresFields []string
 }
@@ -566,9 +565,15 @@ func (v *Visitor) resolveFieldPath(ref int) []string {
 
 	for i := range v.Config.Fields {
 		if v.Config.Fields[i].TypeName == typeName && v.Config.Fields[i].FieldName == fieldName {
-			/*if aliasOverride && v.Config.Fields[i].RespectOverrideFieldPathFromAlias {
-				return []string{v.Operation.FieldAliasOrNameString(ref)}
-			}*/
+			if aliasOverride {
+				override,exists := config.planner.DownstreamResponseFieldAlias(ref)
+				if exists {
+					return []string{override}
+				}
+			}
+			if aliasOverride && v.Operation.FieldAliasIsDefined(ref) {
+				return []string{v.Operation.FieldAliasString(ref)}
+			}
 			if v.Config.Fields[i].DisableDefaultMapping {
 				return nil
 			}
@@ -812,6 +817,28 @@ type DataSourcePlanner interface {
 	ConfigureFetch() FetchConfiguration
 	ConfigureSubscription() SubscriptionConfiguration
 	DataSourcePlanningBehavior() DataSourcePlanningBehavior
+	// DownstreamResponseFieldAlias allows the DataSourcePlanner to overwrite the response path with an alias
+	// It's required to set OverrideFieldPathFromAlias to true
+	// This function is useful in the following scenario
+	// 1. The downstream Query doesn't contain an alias
+	// 2. The path configuration rewrites the field to an existing field
+	// 3. The DataSourcePlanner is using an alias to the upstream
+	// Example:
+	//
+	// type Query {
+	//		country: Country
+	//		countryAlias: Country
+	// }
+	//
+	// Both, country and countryAlias have a path in the FieldConfiguration of "country"
+	// In theory, they would be treated as the same field
+	// However, by using DownstreamResponseFieldAlias, it's possible for the DataSourcePlanner to use an alias for countryAlias.
+	// In this case, the response would contain both, country and countryAlias fields in the response.
+	// At the same time, the downstream Query would only expect the response on the path "country",
+	// as both country and countryAlias have a mapping to the path "country".
+	// The DataSourcePlanner could keep track that it rewrites the upstream query and use DownstreamResponseFieldAlias
+	// to indicate to the Planner to expect the response for countryAlias on the path "countryAlias" instead of "country".
+	DownstreamResponseFieldAlias(downstreamFieldRef int) (alias string, exists bool)
 }
 
 type SubscriptionConfiguration struct {
