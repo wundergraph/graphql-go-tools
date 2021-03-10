@@ -32,7 +32,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Fetch: &resolve.SingleFetch{
 					DataSource: &Source{},
 					BufferId:   0,
-					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$1$$"]},"body":{"query":"query($id: ID!){droid(id: $id){name aliased: name friends {name} primaryFunction} hero {name} stringList nestedStringList}","variables":{"id":"$$0$$"}}}`,
+					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$1$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!){droid(id: $id){name aliased: name friends {name} primaryFunction} hero {name} stringList nestedStringList}","variables":{"id":"$$0$$"}}}`,
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
 							Path: []string{"id"},
@@ -156,13 +156,13 @@ func TestGraphQLDataSource(t *testing.T) {
 						FieldNames: []string{"name", "primaryFunction", "friends"},
 					},
 				},
-				Factory:                    &Factory{},
-				OverrideFieldPathFromAlias: true,
+				Factory: &Factory{},
 				Custom: ConfigJson(Configuration{
 					Fetch: FetchConfiguration{
 						URL: "https://swapi.com/graphql",
 						Header: http.Header{
-							"Authorization": []string{"{{ .request.header.Authorization }}"},
+							"Authorization":    []string{"{{ .request.headers.Authorization }}"},
+							"Invalid-Template": []string{"{{ request.headers.Authorization }}"},
 						},
 					},
 				}),
@@ -191,6 +191,7 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 	}))
+
 	t.Run("simple mutation", RunTest(`
 		type Mutation {
 			addFriend(name: String!):Friend!
@@ -257,7 +258,6 @@ func TestGraphQLDataSource(t *testing.T) {
 							FieldNames: []string{"id", "name"},
 						},
 					},
-					OverrideFieldPathFromAlias: true,
 					Custom: ConfigJson(Configuration{
 						Fetch: FetchConfiguration{
 							URL: "https://service.one",
@@ -281,6 +281,7 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 	))
+
 	t.Run("nested resolvers of same upstream", RunTest(`
 		type Query {
 			foo(bar: String):Baz
@@ -352,8 +353,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							FieldNames: []string{"bar"},
 						},
 					},
-					Factory:                    &Factory{},
-					OverrideFieldPathFromAlias: true,
+					Factory: &Factory{},
 					Custom: ConfigJson(Configuration{
 						Fetch: FetchConfiguration{
 							URL: "https://foo.service",
@@ -385,6 +385,249 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 	))
+
+	t.Run("same upstream with alias in query", RunTest(
+		countriesSchema,
+		`
+		query QueryWithAlias {
+			country(code: "AD") {
+				name
+			}
+			alias: country(code: "AE") {
+				name
+            }
+		}
+		`,
+		"QueryWithAlias",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						BufferId:   0,
+						Input:      `{"method":"POST","url":"https://countries.service","body":{"query":"query($a: ID!, $b: ID!){country(code: $a){name} alias: country(code: $b){name}}","variables":{"b":"$$1$$","a":"$$0$$"}}}`,
+						DataSource: &Source{},
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path: []string{"a"},
+							},
+							&resolve.ContextVariable{
+								Path: []string{"b"},
+							},
+						),
+						DisallowSingleFlight: false,
+					},
+					Fields: []*resolve.Field{
+						{
+							BufferID:  0,
+							HasBuffer: true,
+							Name:      []byte("country"),
+							Value: &resolve.Object{
+								Nullable: true,
+								Path:     []string{"country"},
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("name"),
+										Value: &resolve.String{
+											Nullable: false,
+											Path:     []string{"name"},
+										},
+									},
+								},
+							},
+						},
+						{
+							BufferID:  0,
+							HasBuffer: true,
+							Name:      []byte("alias"),
+							Value: &resolve.Object{
+								Nullable: true,
+								Path:     []string{"alias"},
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("name"),
+										Value: &resolve.String{
+											Nullable: false,
+											Path:     []string{"name"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		plan.Configuration{
+			DataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"country", "countryAlias"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Country",
+							FieldNames: []string{"name", "code"},
+						},
+					},
+					Factory: &Factory{},
+					Custom: ConfigJson(Configuration{
+						Fetch: FetchConfiguration{
+							URL: "https://countries.service",
+						},
+					}),
+				},
+			},
+			Fields: []plan.FieldConfiguration{
+				{
+					TypeName:  "Query",
+					FieldName: "country",
+					Path:      []string{"country"},
+					Arguments: []plan.ArgumentConfiguration{
+						{
+							Name:       "code",
+							SourceType: plan.FieldArgumentSource,
+						},
+					},
+				},
+				{
+					TypeName:  "Query",
+					FieldName: "countryAlias",
+					Path:      []string{"country"},
+					Arguments: []plan.ArgumentConfiguration{
+						{
+							Name:       "code",
+							SourceType: plan.FieldArgumentSource,
+						},
+					},
+				},
+			},
+		},
+	))
+
+	t.Run("same upstream with alias in schema", RunTest(
+		countriesSchema,
+		`
+		query QueryWithSchemaAlias {
+			country(code: "AD") {
+				name
+			}
+			countryAlias(code: "AE") {
+				name
+            }
+		}
+		`,
+		"QueryWithSchemaAlias",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						BufferId:   0,
+						Input:      `{"method":"POST","url":"https://countries.service","body":{"query":"query($a: ID!, $b: ID!){country(code: $a){name} countryAlias: country(code: $b){name}}","variables":{"b":"$$1$$","a":"$$0$$"}}}`,
+						DataSource: &Source{},
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path: []string{"a"},
+							},
+							&resolve.ContextVariable{
+								Path: []string{"b"},
+							},
+						),
+						DisallowSingleFlight: false,
+					},
+					Fields: []*resolve.Field{
+						{
+							BufferID:  0,
+							HasBuffer: true,
+							Name:      []byte("country"),
+							Value: &resolve.Object{
+								Nullable: true,
+								Path:     []string{"country"},
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("name"),
+										Value: &resolve.String{
+											Nullable: false,
+											Path:     []string{"name"},
+										},
+									},
+								},
+							},
+						},
+						{
+							BufferID:  0,
+							HasBuffer: true,
+							Name:      []byte("countryAlias"),
+							Value: &resolve.Object{
+								Nullable: true,
+								Path:     []string{"countryAlias"},
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("name"),
+										Value: &resolve.String{
+											Nullable: false,
+											Path:     []string{"name"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		plan.Configuration{
+			DataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"country", "countryAlias"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Country",
+							FieldNames: []string{"name", "code"},
+						},
+					},
+					Factory: &Factory{},
+					Custom: ConfigJson(Configuration{
+						Fetch: FetchConfiguration{
+							URL: "https://countries.service",
+						},
+					}),
+				},
+			},
+			Fields: []plan.FieldConfiguration{
+				{
+					TypeName:  "Query",
+					FieldName: "country",
+					Path:      []string{"country"},
+					Arguments: []plan.ArgumentConfiguration{
+						{
+							Name:       "code",
+							SourceType: plan.FieldArgumentSource,
+						},
+					},
+				},
+				{
+					TypeName:  "Query",
+					FieldName: "countryAlias",
+					Path:      []string{"country"},
+					Arguments: []plan.ArgumentConfiguration{
+						{
+							Name:       "code",
+							SourceType: plan.FieldArgumentSource,
+						},
+					},
+				},
+			},
+		},
+	))
+
 	nestedGraphQLEngineFactory := &Factory{}
 	t.Run("nested graphql engines", RunTest(`
 		type Query {
@@ -396,16 +639,23 @@ func TestGraphQLDataSource(t *testing.T) {
 		}
 		type ServiceOneResponse {
 			fieldOne: String!
+			countries: [Country!]!
 		}
 		type ServiceTwoResponse {
 			fieldTwo: String
 			serviceOneField: String
 			serviceOneResponse: ServiceOneResponse
 		}
+		type Country {
+			name: String!
+        }
 	`, `
 		query NestedQuery ($firstArg: String, $secondArg: Boolean, $thirdArg: Int, $fourthArg: Float){
 			serviceOne(serviceOneArg: $firstArg) {
 				fieldOne
+				countries {
+					name
+				}
 			}
 			serviceTwo(serviceTwoArg: $secondArg){
 				fieldTwo
@@ -444,8 +694,7 @@ func TestGraphQLDataSource(t *testing.T) {
 								),
 							},
 							{
-								BufferId: 1,
-								// 			 {"method":"POST","url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo serviceOneField}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}
+								BufferId: 2,
 								Input:      `{"method":"POST","url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo serviceOneField} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo serviceOneField}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`,
 								DataSource: &Source{},
 								Variables: resolve.NewVariables(
@@ -467,6 +716,13 @@ func TestGraphQLDataSource(t *testing.T) {
 							Value: &resolve.Object{
 								Nullable: true,
 								Path:     []string{"serviceOne"},
+
+								Fetch: &resolve.SingleFetch{
+									BufferId:   1,
+									DataSource: &Source{},
+									Input:      `{"method":"POST","url":"https://country.service","body":{"query":"{countries {name}}"}}`,
+								},
+
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("fieldOne"),
@@ -474,20 +730,38 @@ func TestGraphQLDataSource(t *testing.T) {
 											Path: []string{"fieldOne"},
 										},
 									},
+									{
+										Name:      []byte("countries"),
+										HasBuffer: true,
+										BufferID:  1,
+										Value: &resolve.Array{
+											Path: []string{"countries"},
+											Item: &resolve.Object{
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("name"),
+														Value: &resolve.String{
+															Path: []string{"name"},
+														},
+													},
+												},
+											},
+										},
+									},
 								},
 							},
 						},
 						{
 							HasBuffer: true,
-							BufferID:  1,
+							BufferID:  2,
 							Name:      []byte("serviceTwo"),
 							Value: &resolve.Object{
 								Nullable: true,
 								Path:     []string{"serviceTwo"},
 								Fetch: &resolve.SingleFetch{
-									BufferId:   2,
+									BufferId:   3,
 									DataSource: &Source{},
-									Input:      `{"method":"POST","url":"https://service.one","body":{"query":"query($a: String){serviceOne(serviceOneArg: $a){fieldOne}}","variables":{"a":"$$0$$"}}}`,
+									Input:      `{"method":"POST","url":"https://service.one","body":{"query":"query($a: String){serviceOneResponse: serviceOne(serviceOneArg: $a){fieldOne}}","variables":{"a":"$$0$$"}}}`,
 									Variables: resolve.NewVariables(
 										&resolve.ObjectVariable{
 											Path: []string{"serviceOneField"},
@@ -504,11 +778,11 @@ func TestGraphQLDataSource(t *testing.T) {
 									},
 									{
 										HasBuffer: true,
-										BufferID:  2,
+										BufferID:  3,
 										Name:      []byte("serviceOneResponse"),
 										Value: &resolve.Object{
 											Nullable: true,
-											Path:     []string{"serviceOne"},
+											Path:     []string{"serviceOneResponse"},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("fieldOne"),
@@ -540,7 +814,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 						{
-							BufferID:  1,
+							BufferID:  2,
 							HasBuffer: true,
 							Name:      []byte("secondServiceTwo"),
 							Value: &resolve.Object{
@@ -609,8 +883,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							URL: "https://service.one",
 						},
 					}),
-					Factory:                    nestedGraphQLEngineFactory,
-					OverrideFieldPathFromAlias: true,
+					Factory: nestedGraphQLEngineFactory,
 				},
 				{
 					RootNodes: []plan.TypeField{
@@ -630,8 +903,27 @@ func TestGraphQLDataSource(t *testing.T) {
 							URL: "https://service.two",
 						},
 					}),
-					Factory:                    nestedGraphQLEngineFactory,
-					OverrideFieldPathFromAlias: true,
+					Factory: nestedGraphQLEngineFactory,
+				},
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "ServiceOneResponse",
+							FieldNames: []string{"countries"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Country",
+							FieldNames: []string{"name"},
+						},
+					},
+					Custom: ConfigJson(Configuration{
+						Fetch: FetchConfiguration{
+							URL: "https://country.service",
+						},
+					}),
+					Factory: nestedGraphQLEngineFactory,
 				},
 			},
 			Fields: []plan.FieldConfiguration{
@@ -701,6 +993,7 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 	))
+
 	t.Run("mutation with variables in array object argument", RunTest(
 		todoSchema,
 		`mutation AddTask($title: String!, $completed: Boolean!, $name: String! @fromClaim(name: "sub")) {
@@ -820,6 +1113,7 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 	))
+
 	t.Run("inline object value with arguments", RunTest(`
 			schema {
 				mutation: Mutation
@@ -958,6 +1252,7 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 	))
+
 	t.Run("subscription", RunTest(testDefinition, `
 		subscription RemainingJedis {
 			remainingJedis
@@ -1000,6 +1295,7 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 	}))
+
 	federationFactory := &Factory{}
 	t.Run("federation", RunTest(federationTestSchema,
 		`	query MyReviews {
@@ -1965,5 +2261,25 @@ type User {
   id: ID!
   username: String!
   reviews: [Review]
+}
+`
+
+const countriesSchema = `
+scalar String
+scalar Int
+scalar ID
+
+schema {
+	query: Query
+}
+
+type Country {
+  name: String!
+  code: ID!
+}
+
+type Query {
+  country(code: ID!): Country
+  countryAlias(code: ID!): Country
 }
 `

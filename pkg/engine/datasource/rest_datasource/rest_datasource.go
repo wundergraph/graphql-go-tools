@@ -28,6 +28,18 @@ type Planner struct {
 	operationDefinition int
 }
 
+func (p *Planner) DownstreamResponseFieldAlias(downstreamFieldRef int) (alias string, exists bool) {
+	// the REST DataSourcePlanner doesn't rewrite upstream fields: skip
+	return
+}
+
+func (p *Planner) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavior {
+	return plan.DataSourcePlanningBehavior{
+		MergeAliasedRootNodes:      false,
+		OverrideFieldPathFromAlias: false,
+	}
+}
+
 func (p *Planner) EnterOperationDefinition(ref int) {
 	p.operationDefinition = ref
 }

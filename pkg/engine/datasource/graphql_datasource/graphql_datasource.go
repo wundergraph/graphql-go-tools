@@ -42,7 +42,43 @@ type Planner struct {
 	hasFederationRoot          bool
 	extractEntities            bool
 	client                     httpclient.Client
-	isNested bool
+	isNested                   bool
+	rootTypeName               string
+}
+
+func (p *Planner) DownstreamResponseFieldAlias(downstreamFieldRef int) (alias string, exists bool) {
+
+	// If there's no alias but the downstream Query re-uses the same path on different root fields,
+	// we rewrite the downstream Query using an alias so that we can have an aliased Query to the upstream
+	// while keeping a non aliased Query to the downstream but with a path rewrite on an existing root field.
+
+	fieldName := p.visitor.Operation.FieldNameString(downstreamFieldRef)
+
+	if p.visitor.Operation.FieldAliasIsDefined(downstreamFieldRef) {
+		return "", false
+	}
+
+	typeName := p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
+	for i := range p.visitor.Config.Fields {
+		if p.visitor.Config.Fields[i].TypeName == typeName &&
+			p.visitor.Config.Fields[i].FieldName == fieldName &&
+			len(p.visitor.Config.Fields[i].Path) == 1 {
+
+			if p.visitor.Config.Fields[i].Path[0] != fieldName {
+				aliasBytes := p.visitor.Operation.FieldNameBytes(downstreamFieldRef)
+				return string(aliasBytes), true
+			}
+			break
+		}
+	}
+	return "", false
+}
+
+func (p *Planner) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavior {
+	return plan.DataSourcePlanningBehavior{
+		MergeAliasedRootNodes:      true,
+		OverrideFieldPathFromAlias: true,
+	}
 }
 
 type Configuration struct {
@@ -179,13 +215,15 @@ func (p *Planner) LeaveSelectionSet(ref int) {
 
 func (p *Planner) EnterField(ref int) {
 
+	if p.rootTypeName == "" {
+		p.rootTypeName = p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
+	}
+
 	p.lastFieldEnclosingTypeName = p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
 
 	p.handleFederation(ref)
 
 	p.addField(ref)
-
-	// fmt.Printf("Planner::%s::%s::EnterField::%s::%d\n", p.id, p.visitor.Walker.Path.DotDelimitedString(), p.visitor.Operation.FieldNameString(ref), ref)
 
 	upstreamFieldRef := p.nodes[len(p.nodes)-1].Ref
 	typeName := p.lastFieldEnclosingTypeName
@@ -221,6 +259,7 @@ func (p *Planner) EnterDocument(operation, definition *ast.Document) {
 	p.disallowSingleFlight = false
 	p.hasFederationRoot = false
 	p.extractEntities = false
+	p.rootTypeName = ""
 }
 
 func (p *Planner) LeaveDocument(operation, definition *ast.Document) {
@@ -526,6 +565,11 @@ func (p *Planner) configureObjectFieldSource(upstreamFieldRef, downstreamFieldRe
 	}
 }
 
+const (
+	normalizationFailedErrMsg = "printOperation: normalization failed"
+	parseDocumentFailedErrMsg = "printOperation: parse %s failed"
+)
+
 func (p *Planner) printOperation() []byte {
 
 	buf := &bytes.Buffer{}
@@ -558,25 +602,18 @@ func (p *Planner) printOperation() []byte {
 
 	parser.Parse(operation, report)
 	if report.HasErrors() {
-		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("printOperation: parse operation failed"))
+		p.stopWithError(parseDocumentFailedErrMsg, "operation")
 		return nil
 	}
 
 	parser.Parse(definition, report)
 	if report.HasErrors() {
-		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("printOperation: parse definition failed"))
+		p.stopWithError(parseDocumentFailedErrMsg, "definition")
 		return nil
 	}
 
-	operationStr, _ := astprinter.PrintStringIndent(operation, definition, "  ")
-	schemaStr, _ := astprinter.PrintStringIndent(definition, nil, "  ")
-	_, _ = schemaStr, operationStr
-
-	normalizer := astnormalization.NewNormalizer(true, true)
-	normalizer.NormalizeOperation(operation, definition, report)
-
-	if report.HasErrors() {
-		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("normalization failed"))
+	if !p.normalizeOperation(operation, definition, report, true) {
+		p.stopWithError(normalizationFailedErrMsg)
 		return nil
 	}
 
@@ -584,10 +621,40 @@ func (p *Planner) printOperation() []byte {
 
 	err = astprinter.Print(operation, p.visitor.Definition, buf)
 	if err != nil {
-		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("normalization failed"))
+		p.stopWithError(normalizationFailedErrMsg)
 		return nil
 	}
+
 	return buf.Bytes()
+}
+
+func (p *Planner) stopWithError(msg string, args ...interface{}) {
+	p.visitor.Walker.StopWithInternalErr(fmt.Errorf(msg, args...))
+}
+
+// normalizeOperation - tries to normalize operation against definition.
+//
+// withRetry - temporary flag which will replace query type with corresponding root type and reruns normalization.
+//
+// TODO: implement less hacky solution to normalize upstream queries
+func (p *Planner) normalizeOperation(operation, definition *ast.Document, report *operationreport.Report, withRetry bool) (ok bool) {
+
+	report.Reset()
+	normalizer := astnormalization.NewNormalizer(true, true)
+	normalizer.NormalizeOperation(operation, definition, report)
+
+	if !report.HasErrors() {
+		return true
+	}
+
+	if withRetry && p.isNested && !p.config.Federation.Enabled {
+		definition.RemoveObjectTypeDefinition(definition.Index.QueryTypeName)
+		definition.ReplaceRootOperationTypeDefinition(p.rootTypeName, ast.OperationTypeQuery)
+
+		return p.normalizeOperation(operation, definition, report, false)
+	}
+
+	return false
 }
 
 func (p *Planner) addField(ref int) {
@@ -608,7 +675,15 @@ func (p *Planner) addField(ref int) {
 		if p.visitor.Config.Fields[i].TypeName == typeName &&
 			p.visitor.Config.Fields[i].FieldName == fieldName &&
 			len(p.visitor.Config.Fields[i].Path) == 1 {
+
+			if p.visitor.Config.Fields[i].Path[0] != fieldName && !alias.IsDefined {
+				alias.IsDefined = true
+				aliasBytes := p.visitor.Operation.FieldNameBytes(ref)
+				alias.Name = p.upstreamOperation.Input.AppendInputBytes(aliasBytes)
+			}
+
 			fieldName = p.visitor.Config.Fields[i].Path[0]
+
 			break
 		}
 	}
