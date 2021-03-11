@@ -19,6 +19,7 @@ type options struct {
 
 type option func(options *options)
 
+// nolint
 func withDisableNormalization() option {
 	return func(options *options) {
 		options.disableNormalization = true
