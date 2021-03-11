@@ -24,7 +24,11 @@ func TestNormalizeOperation(t *testing.T) {
 			operationDocument.Input.Variables = []byte(variablesInput)
 		}
 
-		normalizer := NewNormalizer(true, true)
+		normalizer := NewWithOpts(
+			WithExtractVariables(),
+			WithRemoveFragmentDefinitions(),
+			WithRemoveUnusedVariables(),
+		)
 		normalizer.NormalizeOperation(&operationDocument, &definitionDocument, &report)
 
 		if report.HasErrors() {

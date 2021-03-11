@@ -12,6 +12,25 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
+type options struct {
+	disableNormalization     bool
+	expectNormalizationError bool
+}
+
+type option func(options *options)
+
+func withDisableNormalization() option {
+	return func(options *options) {
+		options.disableNormalization = true
+	}
+}
+
+func withExpectNormalizationError() option {
+	return func(options *options) {
+		options.expectNormalizationError = true
+	}
+}
+
 func TestExecutionValidation(t *testing.T) {
 
 	must := func(err error) {
@@ -38,15 +57,20 @@ func TestExecutionValidation(t *testing.T) {
 		return str
 	}
 
-	runWithDefinition := func(definitionInput, operationInput string, rule Rule, expectation ValidationState, expectFailedNormalization ...bool) {
+	runWithDefinition := func(definitionInput, operationInput string, rule Rule, expectation ValidationState, opts ...option) {
+
+		var options options
+		for _, opt := range opts {
+			opt(&options)
+		}
 
 		definition := mustDocument(astparser.ParseGraphqlDocumentString(definitionInput))
 		operation := mustDocument(astparser.ParseGraphqlDocumentString(operationInput))
 		report := operationreport.Report{}
 
-		astnormalization.NormalizeOperation(&operation, &definition, &report)
-		if report.HasErrors() {
-			if (len(expectFailedNormalization) == 1 && !expectFailedNormalization[0]) || len(expectFailedNormalization) == 0 {
+		if !options.disableNormalization {
+			astnormalization.NormalizeOperation(&operation, &definition, &report)
+			if report.HasErrors() && !options.expectNormalizationError {
 				panic(report.Error())
 			}
 		}
@@ -69,8 +93,8 @@ func TestExecutionValidation(t *testing.T) {
 		}
 	}
 
-	run := func(operationInput string, rule Rule, expectation ValidationState, expectFailedNormalization ...bool) {
-		runWithDefinition(testDefinition, operationInput, rule, expectation, expectFailedNormalization...)
+	run := func(operationInput string, rule Rule, expectation ValidationState, opts ...option) {
+		runWithDefinition(testDefinition, operationInput, rule, expectation, opts...)
 	}
 
 	// 5.1 Documents
@@ -262,7 +286,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment aliasedLyingFieldTargetNotDefined on Dog {
 								barkVolume: kawVolume
 							}`,
-					FieldSelections(), Invalid, true)
+					FieldSelections(), Invalid, withExpectNormalizationError())
 			})
 			t.Run("104 variant", func(t *testing.T) {
 				run(`
@@ -271,7 +295,7 @@ func TestExecutionValidation(t *testing.T) {
 									barkVolume: kawVolume
 								}
 							}`,
-					FieldSelections(), Invalid, true)
+					FieldSelections(), Invalid, withExpectNormalizationError())
 			})
 			t.Run("103", func(t *testing.T) {
 				run(`	{
@@ -294,7 +318,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment definedOnImplementorsButNotInterface on Pet {
 								nickname
 							}`,
-					FieldSelections(), Invalid, true)
+					FieldSelections(), Invalid, withExpectNormalizationError())
 			})
 			t.Run("105", func(t *testing.T) {
 				run(`	fragment inDirectFieldSelectionOnUnion on CatOrDog {
@@ -332,7 +356,7 @@ func TestExecutionValidation(t *testing.T) {
 	    							x
 	  							}
 							}`,
-					FieldSelections(), Invalid, true)
+					FieldSelections(), Invalid, withExpectNormalizationError())
 			})
 			t.Run("106", func(t *testing.T) {
 				run(`
@@ -340,7 +364,7 @@ func TestExecutionValidation(t *testing.T) {
 								name
 								barkVolume
 							}`,
-					FieldSelections(), Invalid, true)
+					FieldSelections(), Invalid, withExpectNormalizationError())
 			})
 			t.Run("106 variant", func(t *testing.T) {
 				run(`
@@ -349,7 +373,7 @@ func TestExecutionValidation(t *testing.T) {
 									name
 								}
 							}`,
-					FieldSelections(), Invalid, true)
+					FieldSelections(), Invalid, withExpectNormalizationError())
 			})
 		})
 		t.Run("5.3.2 Field Selection Merging", func(t *testing.T) {
@@ -1705,7 +1729,7 @@ func TestExecutionValidation(t *testing.T) {
 									}
 								}
 							}`,
-					FieldSelectionMerging(), Invalid, true)
+					FieldSelectionMerging(), Invalid, withExpectNormalizationError())
 			})
 			t.Run("112 variant", func(t *testing.T) {
 				run(`
@@ -1800,7 +1824,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment pet2 on Pet {
 								name1: nickname
 							}`,
-					FieldSelectionMerging(), Invalid, true)
+					FieldSelectionMerging(), Invalid, withExpectNormalizationError())
 			})
 			t.Run("112 variant", func(t *testing.T) {
 				run(`	
@@ -1916,7 +1940,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment dogFrag on Dog {
 								someValue: barkVolume
 							}`,
-					FieldSelectionMerging(), Invalid, true)
+					FieldSelectionMerging(), Invalid, withExpectNormalizationError())
 			})
 			t.Run("112 variant", func(t *testing.T) {
 				run(`	query conflictingDifferingResponses {
@@ -1942,7 +1966,7 @@ func TestExecutionValidation(t *testing.T) {
 									sinceWhen
 								}
 							}`,
-					FieldSelections(), Invalid, true)
+					FieldSelections(), Invalid, withExpectNormalizationError())
 			})
 			t.Run("116", func(t *testing.T) {
 				run(`	
@@ -1962,12 +1986,12 @@ func TestExecutionValidation(t *testing.T) {
 							mutation directQueryOnUnionWithoutSubFields {
 								catOrDog
 							}`,
-					FieldSelections(), Invalid, true)
+					FieldSelections(), Invalid, withExpectNormalizationError())
 				run(`
 							subscription directQueryOnUnionWithoutSubFields {
 								catOrDog
 							}`,
-					FieldSelections(), Invalid, true)
+					FieldSelections(), Invalid, withExpectNormalizationError())
 			})
 		})
 	})
@@ -2383,7 +2407,7 @@ func TestExecutionValidation(t *testing.T) {
 					run(`	
 								fragment notOnExistingType on NotInSchema {
   									name
-								}`, Fragments(), Invalid, true)
+								}`, Fragments(), Invalid, withExpectNormalizationError())
 				})
 				t.Run("129", func(t *testing.T) {
 					run(`	
@@ -2391,7 +2415,7 @@ func TestExecutionValidation(t *testing.T) {
   									... on NotInSchema {
     									name
   									}
-								}`, Fragments(), Invalid, true)
+								}`, Fragments(), Invalid, withExpectNormalizationError())
 				})
 			})
 			t.Run("5.5.1.3 Fragments on Composite Types", func(t *testing.T) {
@@ -2422,7 +2446,7 @@ func TestExecutionValidation(t *testing.T) {
 								fragment fragOnScalar on Int {
 									something
 								}`,
-						Fragments(), Invalid, true)
+						Fragments(), Invalid, withExpectNormalizationError())
 				})
 				t.Run("131", func(t *testing.T) {
 					run(`
@@ -2431,7 +2455,7 @@ func TestExecutionValidation(t *testing.T) {
 										somethingElse
 									}
 								}`,
-						Fragments(), Invalid, true)
+						Fragments(), Invalid, withExpectNormalizationError())
 				})
 			})
 			t.Run("5.5.1.4 Fragments must be used", func(t *testing.T) {
@@ -2474,7 +2498,7 @@ func TestExecutionValidation(t *testing.T) {
 								{
 									...dogNames
 								}`,
-						Fragments(), Invalid, true)
+						Fragments(), Invalid, withExpectNormalizationError())
 				})
 				t.Run("132 variant", func(t *testing.T) {
 					run(`	fragment dogNames on Query {
@@ -2496,7 +2520,7 @@ func TestExecutionValidation(t *testing.T) {
 										...undefinedFragment
 									}
 								}`,
-						Fragments(), Invalid, true)
+						Fragments(), Invalid, withExpectNormalizationError())
 				})
 			})
 			t.Run("5.5.2.2 Fragment spreads must not form cycles", func(t *testing.T) {
@@ -2536,7 +2560,7 @@ func TestExecutionValidation(t *testing.T) {
 										...dogFragment
 									}
 								}`,
-						Fragments(), Invalid, true)
+						Fragments(), Invalid, withExpectNormalizationError())
 				})
 				t.Run("136 variant", func(t *testing.T) {
 					run(`
@@ -2557,7 +2581,7 @@ func TestExecutionValidation(t *testing.T) {
 										... { ...dogFragment }
 									}
 								}`,
-						Fragments(), Invalid, true)
+						Fragments(), Invalid, withExpectNormalizationError())
 				})
 			})
 			t.Run("5.5.2.3 Fragment spread is possible", func(t *testing.T) {
@@ -2588,7 +2612,7 @@ func TestExecutionValidation(t *testing.T) {
 											barkVolume
 										}
 									}`,
-							Fragments(), Invalid, true)
+							Fragments(), Invalid, withExpectNormalizationError())
 					})
 					t.Run("138", func(t *testing.T) {
 						run(`

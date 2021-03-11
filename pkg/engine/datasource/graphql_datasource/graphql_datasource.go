@@ -640,7 +640,11 @@ func (p *Planner) stopWithError(msg string, args ...interface{}) {
 func (p *Planner) normalizeOperation(operation, definition *ast.Document, report *operationreport.Report, withRetry bool) (ok bool) {
 
 	report.Reset()
-	normalizer := astnormalization.NewNormalizer(true, true)
+	normalizer := astnormalization.NewWithOpts(
+		astnormalization.WithExtractVariables(),
+		astnormalization.WithRemoveFragmentDefinitions(),
+		astnormalization.WithRemoveUnusedVariables(),
+	)
 	normalizer.NormalizeOperation(operation, definition, report)
 
 	if !report.HasErrors() {

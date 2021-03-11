@@ -94,20 +94,60 @@ type registerNormalizeDeleteVariablesFunc func(walker *astvisitor.Walker) *delet
 
 // OperationNormalizer walks a given AST and applies all registered rules
 type OperationNormalizer struct {
-	walkers                   []*astvisitor.Walker
-	removeFragmentDefinitions bool
-	extractVariables          bool
-	variablesExtraction       *variablesExtractionVisitor
+	walkers             []*astvisitor.Walker
+	variablesExtraction *variablesExtractionVisitor
+	options             options
 }
 
 // NewNormalizer creates a new OperationNormalizer and sets up all default rules
 func NewNormalizer(removeFragmentDefinitions, extractVariables bool) *OperationNormalizer {
 	normalizer := &OperationNormalizer{
-		removeFragmentDefinitions: removeFragmentDefinitions,
-		extractVariables:          extractVariables,
+		options: options{
+			removeUnusedVariables: removeFragmentDefinitions,
+			extractVariables:      extractVariables,
+		},
 	}
 	normalizer.setupWalkers()
 	return normalizer
+}
+
+// NewWithOpts creates a new OperationNormalizer with Options
+func NewWithOpts(opts ...Option) *OperationNormalizer {
+	var options options
+	for _, opt := range opts {
+		opt(&options)
+	}
+	normalizer := &OperationNormalizer{
+		options: options,
+	}
+	normalizer.setupWalkers()
+	return normalizer
+}
+
+type options struct {
+	removeFragmentDefinitions bool
+	extractVariables          bool
+	removeUnusedVariables     bool
+}
+
+type Option func(options *options)
+
+func WithExtractVariables() Option {
+	return func(options *options) {
+		options.extractVariables = true
+	}
+}
+
+func WithRemoveFragmentDefinitions() Option {
+	return func(options *options) {
+		options.removeFragmentDefinitions = true
+	}
+}
+
+func WithRemoveUnusedVariables() Option {
+	return func(options *options) {
+		options.removeUnusedVariables = true
+	}
 }
 
 func (o *OperationNormalizer) setupWalkers() {
@@ -120,14 +160,15 @@ func (o *OperationNormalizer) setupWalkers() {
 	mergeInlineFragments(&other)
 	mergeFieldSelections(&other)
 	deduplicateFields(&other)
-	if o.extractVariables {
+	if o.options.extractVariables {
 		o.variablesExtraction = extractVariables(&other)
 	}
-	if o.removeFragmentDefinitions {
+	if o.options.removeFragmentDefinitions {
 		removeFragmentDefinitions(&other)
 	}
-	deleteUnusedVariables(&other)
-
+	if o.options.removeUnusedVariables {
+		deleteUnusedVariables(&other)
+	}
 	o.walkers = append(o.walkers, &fragmentInline, &other)
 }
 
