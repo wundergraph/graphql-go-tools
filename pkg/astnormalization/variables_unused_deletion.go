@@ -25,6 +25,7 @@ type deleteUnusedVariablesVisitor struct {
 	operation, definition *ast.Document
 	definedVariables      []int
 	operationName         []byte
+	skip bool
 }
 
 func (d *deleteUnusedVariablesVisitor) LeaveOperationDefinition(ref int) {
@@ -39,28 +40,52 @@ func (d *deleteUnusedVariablesVisitor) LeaveOperationDefinition(ref int) {
 		}
 
 	}
+	d.skip = true
 }
 
-func (d *deleteUnusedVariablesVisitor) EnterArgument(ref int) {
-	if d.operation.Arguments[ref].Value.Kind != ast.ValueKindVariable {
-		return
-	}
-	usedVariableNameBytes := d.operation.VariableValueNameBytes(d.operation.Arguments[ref].Value.Ref)
+func (d *deleteUnusedVariablesVisitor) removeDefinedVariableWithName(name []byte) {
 	for i, variable := range d.definedVariables {
 		definedVariableNameBytes := d.operation.VariableDefinitionNameBytes(variable)
-		if bytes.Equal(usedVariableNameBytes, definedVariableNameBytes) {
+		if bytes.Equal(name, definedVariableNameBytes) {
 			d.definedVariables = append(d.definedVariables[:i], d.definedVariables[i+1:]...)
+			d.removeDefinedVariableWithName(name)
 			return
 		}
 	}
 }
 
+func (d *deleteUnusedVariablesVisitor) traverseValue(value ast.Value){
+	switch value.Kind {
+	case ast.ValueKindVariable:
+		d.removeDefinedVariableWithName(d.operation.VariableValueNameBytes(value.Ref))
+	case ast.ValueKindList:
+		for _, ref := range d.operation.ListValues[value.Ref].Refs {
+			d.traverseValue(d.operation.Value(ref))
+		}
+	case ast.ValueKindObject:
+		for _, ref := range d.operation.ObjectValues[value.Ref].Refs {
+			d.traverseValue(d.operation.ObjectField(ref).Value)
+		}
+	}
+}
+
+func (d *deleteUnusedVariablesVisitor) EnterArgument(ref int) {
+	if d.skip {
+		return
+	}
+	d.traverseValue(d.operation.Arguments[ref].Value)
+}
+
 func (d *deleteUnusedVariablesVisitor) EnterVariableDefinition(ref int) {
+	if d.skip {
+		return
+	}
 	d.definedVariables = append(d.definedVariables, ref)
 }
 
 func (d *deleteUnusedVariablesVisitor) EnterOperationDefinition(ref int) {
 	d.definedVariables = d.definedVariables[:0]
+	d.skip = false
 }
 
 func (d *deleteUnusedVariablesVisitor) EnterDocument(operation, definition *ast.Document) {
