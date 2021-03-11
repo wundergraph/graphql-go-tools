@@ -78,4 +78,26 @@ func TestConfigureHandlers(t *testing.T) {
 		assert.Equal(t, handlers[0].Path, "/playground/")
 	})
 
+	t.Run("should be / when path prefix and playground path /,empty combinations", func(t *testing.T) {
+		combinations := [][]string{
+			{"/", "/"},
+			{"", "/"},
+			{"/", ""},
+			{"", ""},
+		}
+
+		for _, combination := range combinations {
+			config := Config{
+				PathPrefix:                      combination[0],
+				PlaygroundPath:                  combination[1],
+				GraphqlEndpointPath:             "/graphql",
+				GraphQLSubscriptionEndpointPath: "/graphqlws",
+			}
+
+			p := New(config)
+			handlers, err := p.Handlers()
+			require.NoError(t, err)
+			assert.Equal(t, "/", handlers[0].Path)
+		}
+	})
 }
