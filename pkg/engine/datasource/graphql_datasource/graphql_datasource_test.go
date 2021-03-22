@@ -1273,7 +1273,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
 						BufferId:   0,
-						Input:      `{"method":"POST","url":"http://api.com","body":{"query":"mutation($name: String!, $personal: Boolean!){namespaceCreate(input: {name: $name,personal: $personal}){... on NamespaceCreated {__typename namespace {id name}} ... on Error {__typename code message}}}","variables":{"personal":$$1$$,"name":"$$0$$"}}}`,
+						Input:      `{"method":"POST","url":"http://api.com","body":{"query":"mutation($name: String!, $personal: Boolean!){namespaceCreate(input: {name: $name,personal: $personal}){__typename ... on NamespaceCreated {namespace {id name}} ... on Error {code message}}}","variables":{"personal":$$1$$,"name":"$$0$$"}}}`,
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{

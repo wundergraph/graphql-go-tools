@@ -206,16 +206,6 @@ func (p *Planner) EnterSelectionSet(ref int) {
 	case ast.NodeKindInlineFragment:
 		p.upstreamOperation.InlineFragments[parent.Ref].HasSelections = true
 		p.upstreamOperation.InlineFragments[parent.Ref].SelectionSet = set.Ref
-		typeCondition := p.upstreamOperation.InlineFragmentTypeConditionName(parent.Ref)
-		if typeCondition != nil {
-			typeNameField := p.upstreamOperation.AddField(ast.Field{
-				Name: p.upstreamOperation.Input.AppendInputBytes([]byte("__typename")),
-			})
-			p.upstreamOperation.AddSelection(set.Ref,ast.Selection{
-				Kind: ast.SelectionKindField,
-				Ref: typeNameField.Ref,
-			})
-		}
 	}
 	p.nodes = append(p.nodes, set)
 }
@@ -241,6 +231,17 @@ func (p *Planner) EnterInlineFragment(ref int) {
 		Kind: ast.SelectionKindInlineFragment,
 		Ref:  inlineFragment,
 	}
+
+
+	// add __typename field to selection set which contains typeCondition
+	// so that the resolver can distinguish between the response types
+	typeNameField := p.upstreamOperation.AddField(ast.Field{
+		Name: p.upstreamOperation.Input.AppendInputBytes([]byte("__typename")),
+	})
+	p.upstreamOperation.AddSelection(p.nodes[len(p.nodes)-1].Ref,ast.Selection{
+		Kind: ast.SelectionKindField,
+		Ref: typeNameField.Ref,
+	})
 
 	p.upstreamOperation.AddSelection(p.nodes[len(p.nodes)-1].Ref, selection)
 	p.nodes = append(p.nodes, ast.Node{Kind: ast.NodeKindInlineFragment,Ref: inlineFragment})
