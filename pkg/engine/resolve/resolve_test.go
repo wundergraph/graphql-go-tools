@@ -387,6 +387,36 @@ func TestResolver_ResolveNode(t *testing.T) {
 			}, Context{Context: context.Background()},
 			`{"pets":[{"name":"Woofie"}]}`
 	}))
+	t.Run("non null object with field condition can be null", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+		return &Object{
+				Fetch: &SingleFetch{
+					BufferId:   0,
+					DataSource: FakeDataSource(`{"__typename":"Dog","name":"Woofie"}`),
+				},
+				Fields: []*Field{
+					{
+						BufferID:  0,
+						HasBuffer: true,
+						Name:      []byte("cat"),
+						Value: &Object{
+							Nullable: false,
+							Fields: []*Field{
+								{
+									BufferID:   0,
+									HasBuffer:  true,
+									OnTypeName: []byte("Cat"),
+									Name:       []byte("name"),
+									Value: &String{
+										Path: []string{"name"},
+									},
+								},
+							},
+						},
+					},
+				},
+			}, Context{Context: context.Background()},
+			`{}`
+	}))
 	t.Run("resolve fieldsets based on __typename", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 				Fetch: &SingleFetch{
