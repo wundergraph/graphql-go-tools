@@ -402,8 +402,6 @@ func TestResolver_ResolveNode(t *testing.T) {
 							Nullable: false,
 							Fields: []*Field{
 								{
-									BufferID:   0,
-									HasBuffer:  true,
 									OnTypeName: []byte("Cat"),
 									Name:       []byte("name"),
 									Value: &String{
@@ -416,6 +414,76 @@ func TestResolver_ResolveNode(t *testing.T) {
 				},
 			}, Context{Context: context.Background()},
 			`{}`
+	}))
+	t.Run("object with multiple type conditions", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+		return &Object{
+				Fetch: &SingleFetch{
+					BufferId:   0,
+					DataSource: FakeDataSource(`{"data":{"namespaceCreate":{"__typename":"Error","code":"UserAlreadyHasPersonalNamespace","message":""}}}`),
+				},
+				Fields: []*Field{
+					{
+						BufferID:  0,
+						HasBuffer: true,
+						Name:      []byte("data"),
+						Value: &Object{
+							Nullable: false,
+							Path: []string{"data"},
+							Fields: []*Field{
+								{
+									Name: []byte("namespaceCreate"),
+									Value: &Object{
+										Path: []string{"namespaceCreate"},
+										Fields: []*Field{
+											{
+												Name:       []byte("namespace"),
+												OnTypeName: []byte("NamespaceCreated"),
+												Value: &Object{
+													Path: []string{"namespace"},
+													Nullable: false,
+													Fields: []*Field{
+														{
+															Name: []byte("id"),
+															Value: &String{
+																Nullable: false,
+																Path: []string{"id"},
+															},
+														},
+														{
+															Name: []byte("name"),
+															Value: &String{
+																Nullable: false,
+																Path: []string{"name"},
+															},
+														},
+													},
+												},
+											},
+											{
+												Name: []byte("code"),
+												OnTypeName: []byte("Error"),
+												Value: &String{
+													Nullable: false,
+													Path: []string{"code"},
+												},
+											},
+											{
+												Name: []byte("message"),
+												OnTypeName: []byte("Error"),
+												Value: &String{
+													Nullable: false,
+													Path: []string{"message"},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}, Context{Context: context.Background()},
+			`{"data":{"namespaceCreate":{"code":"UserAlreadyHasPersonalNamespace","message":""}}}`
 	}))
 	t.Run("resolve fieldsets based on __typename", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
