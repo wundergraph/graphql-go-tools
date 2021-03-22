@@ -206,6 +206,16 @@ func (p *Planner) EnterSelectionSet(ref int) {
 	case ast.NodeKindInlineFragment:
 		p.upstreamOperation.InlineFragments[parent.Ref].HasSelections = true
 		p.upstreamOperation.InlineFragments[parent.Ref].SelectionSet = set.Ref
+		typeCondition := p.upstreamOperation.InlineFragmentTypeConditionName(parent.Ref)
+		if typeCondition != nil {
+			typeNameField := p.upstreamOperation.AddField(ast.Field{
+				Name: p.upstreamOperation.Input.AppendInputBytes([]byte("__typename")),
+			})
+			p.upstreamOperation.AddSelection(set.Ref,ast.Selection{
+				Kind: ast.SelectionKindField,
+				Ref: typeNameField.Ref,
+			})
+		}
 	}
 	p.nodes = append(p.nodes, set)
 }
