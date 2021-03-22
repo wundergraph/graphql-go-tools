@@ -46,8 +46,8 @@ type FieldConfiguration struct {
 	FieldName             string
 	DisableDefaultMapping bool
 	Path                  []string
-	Arguments      ArgumentsConfigurations
-	RequiresFields []string
+	Arguments             ArgumentsConfigurations
+	RequiresFields        []string
 }
 
 type ArgumentsConfigurations []ArgumentConfiguration
@@ -402,9 +402,21 @@ func (v *Visitor) EnterField(ref int) {
 		Value:     v.resolveFieldValue(ref, fieldDefinitionType, true, path),
 		HasBuffer: hasBuffer,
 		BufferID:  bufferID,
+		OnTypeName: v.resolveOnTypeName(),
 	}
 
 	*v.currentFields[len(v.currentFields)-1].fields = append(*v.currentFields[len(v.currentFields)-1].fields, v.currentField)
+}
+
+func (v *Visitor) resolveOnTypeName () []byte {
+	if len(v.Walker.Ancestors) < 2 {
+		return nil
+	}
+	inlineFragment := v.Walker.Ancestors[len(v.Walker.Ancestors)-2]
+	if inlineFragment.Kind != ast.NodeKindInlineFragment {
+		return nil
+	}
+	return v.Operation.InlineFragmentTypeConditionName(inlineFragment.Ref)
 }
 
 func (v *Visitor) LeaveField(ref int) {
@@ -484,7 +496,7 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 				Path:     path,
 				Nullable: nullable,
 			}
-		case ast.NodeKindObjectTypeDefinition, ast.NodeKindInterfaceTypeDefinition:
+		case ast.NodeKindObjectTypeDefinition, ast.NodeKindInterfaceTypeDefinition, ast.NodeKindUnionTypeDefinition:
 			object := &resolve.Object{
 				Nullable: nullable,
 				Path:     path,
@@ -566,7 +578,7 @@ func (v *Visitor) resolveFieldPath(ref int) []string {
 	for i := range v.Config.Fields {
 		if v.Config.Fields[i].TypeName == typeName && v.Config.Fields[i].FieldName == fieldName {
 			if aliasOverride {
-				override,exists := config.planner.DownstreamResponseFieldAlias(ref)
+				override, exists := config.planner.DownstreamResponseFieldAlias(ref)
 				if exists {
 					return []string{override}
 				}
