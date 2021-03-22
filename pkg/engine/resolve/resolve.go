@@ -844,6 +844,11 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 		err = r.resolveNode(ctx, object.Fields[i].Value, fieldData, fieldBuf)
 		ctx.removeLastPathElement()
 		if err != nil {
+			if errors.Is(err,errTypeNameSkipped) {
+				objectBuf.Data.Reset()
+				r.resolveEmptyObject(objectBuf.Data)
+				return nil
+			}
 			if errors.Is(err, errNonNullableFieldValueIsNull) && object.Nullable {
 				objectBuf.Data.Reset()
 				r.resolveNull(objectBuf.Data)
@@ -854,10 +859,10 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 		r.MergeBufPairs(fieldBuf, objectBuf, false)
 	}
 	if first {
+		if typeNameSkip {
+			return errTypeNameSkipped
+		}
 		if !object.Nullable {
-			if typeNameSkip {
-				return errTypeNameSkipped
-			}
 			return errNonNullableFieldValueIsNull
 		}
 		r.resolveNull(objectBuf.Data)
