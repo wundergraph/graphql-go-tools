@@ -1287,29 +1287,29 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 					Fields: []*resolve.Field{
 						{
-							Name: []byte("namespaceCreate"),
+							Name:      []byte("namespaceCreate"),
 							HasBuffer: true,
-							BufferID: 0,
+							BufferID:  0,
 							Value: &resolve.Object{
 								Path: []string{"namespaceCreate"},
 								Fields: []*resolve.Field{
 									{
 										OnTypeName: []byte("NamespaceCreated"),
-										Name: []byte("namespace"),
+										Name:       []byte("namespace"),
 										Value: &resolve.Object{
 											Path: []string{"namespace"},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("id"),
 													Value: &resolve.String{
-														Path: []string{"id"},
+														Path:     []string{"id"},
 														Nullable: false,
 													},
 												},
 												{
 													Name: []byte("name"),
 													Value: &resolve.String{
-														Path: []string{"name"},
+														Path:     []string{"name"},
 														Nullable: false,
 													},
 												},
@@ -1318,14 +1318,14 @@ func TestGraphQLDataSource(t *testing.T) {
 									},
 									{
 										OnTypeName: []byte("Error"),
-										Name: []byte("code"),
+										Name:       []byte("code"),
 										Value: &resolve.String{
 											Path: []string{"code"},
 										},
 									},
 									{
 										OnTypeName: []byte("Error"),
-										Name: []byte("message"),
+										Name:       []byte("message"),
 										Value: &resolve.String{
 											Path: []string{"message"},
 										},
@@ -1339,7 +1339,7 @@ func TestGraphQLDataSource(t *testing.T) {
 		}, plan.Configuration{
 			DataSources: []plan.DataSourceConfiguration{
 				{
-					RootNodes:  []plan.TypeField{
+					RootNodes: []plan.TypeField{
 						{
 							TypeName: "Mutation",
 							FieldNames: []string{
@@ -1355,16 +1355,16 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 						{
-							TypeName: "Namespace",
-							FieldNames: []string{"id","name"},
+							TypeName:   "Namespace",
+							FieldNames: []string{"id", "name"},
 						},
 						{
-							TypeName: "Error",
-							FieldNames: []string{"code","message"},
+							TypeName:   "Error",
+							FieldNames: []string{"code", "message"},
 						},
 					},
-					Custom:     ConfigJson(Configuration{
-						Fetch:        FetchConfiguration{
+					Custom: ConfigJson(Configuration{
+						Fetch: FetchConfiguration{
 							URL:    "http://api.com",
 							Method: "POST",
 						},
@@ -1372,10 +1372,10 @@ func TestGraphQLDataSource(t *testing.T) {
 							URL: "ws://api.com",
 						},
 					}),
-					Factory:    &Factory{},
+					Factory: &Factory{},
 				},
 			},
-			Fields:               []plan.FieldConfiguration{
+			Fields: []plan.FieldConfiguration{
 				{
 					TypeName:  "Mutation",
 					FieldName: "namespaceCreate",
@@ -1385,6 +1385,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							SourceType: plan.FieldArgumentSource,
 						},
 					},
+					DisableDefaultMapping: false,
+					Path: []string{},
 				},
 			},
 			DefaultFlushInterval: 500,

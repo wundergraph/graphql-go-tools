@@ -589,7 +589,7 @@ func (v *Visitor) resolveFieldPath(ref int) []string {
 			if v.Config.Fields[i].DisableDefaultMapping {
 				return nil
 			}
-			if v.Config.Fields[i].Path != nil {
+			if len(v.Config.Fields[i].Path) != 0 {
 				return v.Config.Fields[i].Path
 			}
 			return []string{fieldName}
