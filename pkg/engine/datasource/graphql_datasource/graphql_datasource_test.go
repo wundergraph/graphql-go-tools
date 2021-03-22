@@ -694,7 +694,7 @@ func TestGraphQLDataSource(t *testing.T) {
 								),
 							},
 							{
-								BufferId: 2,
+								BufferId:   2,
 								Input:      `{"method":"POST","url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo serviceOneField} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo serviceOneField}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`,
 								DataSource: &Source{},
 								Variables: resolve.NewVariables(
@@ -1252,6 +1252,144 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 	))
+
+	t.Run("mutation with union response", RunTest(wgSchema, `
+		mutation CreateNamespace($name: String! $personal: Boolean!) {
+			namespaceCreate(input: {name: $name, personal: $personal}){
+				... on NamespaceCreated {
+					namespace {
+						id
+						name
+					}
+				}
+				... on Error {
+					code
+					message
+				}
+			}
+		}`, "CreateNamespace",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						BufferId:   0,
+						Input:      `{"method":"POST","url":"http://api.com","body":{"query":"mutation($name: String!, $personal: Boolean!){namespaceCreate(input: {name: $name,personal: $personal}){... on NamespaceCreated {namespace {id name}} ... on Error {code message}}}","variables":{"personal":$$1$$,"name":"$$0$$"}}}`,
+						DataSource: &Source{},
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path: []string{"name"},
+							},
+							&resolve.ContextVariable{
+								Path: []string{"personal"},
+							},
+						),
+						DisallowSingleFlight: true,
+					},
+					Fields: []*resolve.Field{
+						{
+							Name: []byte("namespaceCreate"),
+							HasBuffer: true,
+							BufferID: 0,
+							Value: &resolve.Object{
+								Path: []string{"namespaceCreate"},
+								Fields: []*resolve.Field{
+									{
+										OnTypeName: []byte("NamespaceCreated"),
+										Name: []byte("namespace"),
+										Value: &resolve.Object{
+											Path: []string{"namespace"},
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("id"),
+													Value: &resolve.String{
+														Path: []string{"id"},
+														Nullable: false,
+													},
+												},
+												{
+													Name: []byte("name"),
+													Value: &resolve.String{
+														Path: []string{"name"},
+														Nullable: false,
+													},
+												},
+											},
+										},
+									},
+									{
+										OnTypeName: []byte("Error"),
+										Name: []byte("code"),
+										Value: &resolve.String{
+											Path: []string{"code"},
+										},
+									},
+									{
+										OnTypeName: []byte("Error"),
+										Name: []byte("message"),
+										Value: &resolve.String{
+											Path: []string{"message"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, plan.Configuration{
+			DataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes:  []plan.TypeField{
+						{
+							TypeName: "Mutation",
+							FieldNames: []string{
+								"namespaceCreate",
+							},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName: "NamespaceCreated",
+							FieldNames: []string{
+								"namespace",
+							},
+						},
+						{
+							TypeName: "Namespace",
+							FieldNames: []string{"id","name"},
+						},
+						{
+							TypeName: "Error",
+							FieldNames: []string{"code","message"},
+						},
+					},
+					Custom:     ConfigJson(Configuration{
+						Fetch:        FetchConfiguration{
+							URL:    "http://api.com",
+							Method: "POST",
+						},
+						Subscription: SubscriptionConfiguration{
+							URL: "ws://api.com",
+						},
+					}),
+					Factory:    &Factory{},
+				},
+			},
+			Fields:               []plan.FieldConfiguration{
+				{
+					TypeName:  "Mutation",
+					FieldName: "namespaceCreate",
+					Arguments: []plan.ArgumentConfiguration{
+						{
+							Name:       "input",
+							SourceType: plan.FieldArgumentSource,
+						},
+					},
+				},
+			},
+			DefaultFlushInterval: 500,
+			Schema:               wgSchema,
+		}))
 
 	t.Run("subscription", RunTest(testDefinition, `
 		subscription RemainingJedis {
@@ -2282,4 +2420,298 @@ type Query {
   country(code: ID!): Country
   countryAlias(code: ID!): Country
 }
+`
+
+const wgSchema = `union DeleteEnvironmentResponse = Success | Error
+
+type Query {
+  user: User
+  edges: [Edge!]!
+  admin_Config: AdminConfigResponse!
+}
+
+type NamespaceMemberRemoved {
+  namespace: Namespace!
+}
+
+type NamespaceMemberAdded {
+  namespace: Namespace!
+}
+
+union DeleteNamespaceResponse = Success | Error
+
+enum Membership {
+  owner
+  maintainer
+  viewer
+  guest
+}
+
+input CreateAccessToken {
+  name: String!
+}
+
+type ApiCreated {
+  api: Api!
+}
+
+scalar Time
+
+union NamespaceRemoveMemberResponse = NamespaceMemberRemoved | Error
+
+enum EnvironmentKind {
+  Personal
+  Team
+  Business
+}
+
+type Edge {
+  id: ID!
+  name: String!
+  location: String!
+}
+
+type NamespaceCreated {
+  namespace: Namespace!
+}
+
+union UpdateEnvironmentResponse = EnvironmentUpdated | Error
+
+type Deployment {
+  id: ID!
+  name: String!
+  config: JSON!
+  environments: [Environment!]!
+}
+
+type Error {
+  code: ErrorCode!
+  message: String!
+}
+
+type Mutation {
+  accessTokenCreate(input: CreateAccessToken!): CreateAccessTokenResponse!
+  accessTokenDelete(input: DeleteAccessToken!): DeleteAccessTokenResponse!
+  apiCreate(input: CreateApi!): CreateApiResponse!
+  apiUpdate(input: UpdateApi!): UpdateApiResponse!
+  apiDelete(input: DeleteApi!): DeleteApiResponse!
+  deploymentCreateOrUpdate(input: CreateOrUpdateDeployment!): CreateOrUpdateDeploymentResponse!
+  deploymentDelete(input: DeleteDeployment!): DeleteDeploymentResponse!
+  environmentCreate(input: CreateEnvironment!): CreateEnvironmentResponse!
+  environmentUpdate(input: UpdateEnvironment!): UpdateEnvironmentResponse!
+  environmentDelete(input: DeleteEnvironment!): DeleteEnvironmentResponse!
+  namespaceCreate(input: CreateNamespace!): CreateNamespaceResponse!
+  namespaceDelete(input: DeleteNamespace!): DeleteNamespaceResponse!
+  namespaceAddMember(input: NamespaceAddMember!): NamespaceAddMemberResponse!
+  namespaceRemoveMember(input: NamespaceRemoveMember!): NamespaceRemoveMemberResponse!
+  namespaceUpdateMembership(input: NamespaceUpdateMembership!): NamespaceUpdateMembershipResponse!
+  admin_setWunderNodeImageTag(imageTag: String!): AdminConfigResponse!
+}
+
+type AccessToken {
+  id: ID!
+  name: String!
+  createdAt: Time!
+}
+
+type EnvironmentCreated {
+  environment: Environment!
+}
+
+type DeploymentUpdated {
+  deployment: Deployment!
+}
+
+enum ErrorCode {
+  Internal
+  AuthenticationRequired
+  Unauthorized
+  NotFound
+  Conflict
+  UserAlreadyHasPersonalNamespace
+  TeamPlanInPersonalNamespace
+  InvalidName
+  UnableToDeployEnvironment
+  InvalidWunderGraphConfig
+  ApiEnvironmentNamespaceMismatch
+  UnableToUpdateEdgesOnPersonalEnvironment
+}
+
+input CreateEnvironment {
+  namespace: ID!
+  name: String
+  primary: Boolean!
+  kind: EnvironmentKind!
+  edges: [ID!]
+}
+
+type Environment {
+  id: ID!
+  name: String
+  primary: Boolean!
+  kind: EnvironmentKind!
+  edges: [Edge!]
+  primaryHostName: String!
+  hostNames: [String!]!
+}
+
+type DeploymentCreated {
+  deployment: Deployment!
+}
+
+union AdminConfigResponse = Error | AdminConfig
+
+input CreateNamespace {
+  name: String!
+  personal: Boolean!
+}
+
+input NamespaceUpdateMembership {
+  namespaceID: ID!
+  memberID: ID!
+  newMembership: Membership!
+}
+
+union DeleteApiResponse = Success | Error
+
+type ApiUpdated {
+  api: Api!
+}
+
+input DeleteDeployment {
+  deploymentID: ID!
+}
+
+input NamespaceRemoveMember {
+  namespaceID: ID!
+  memberID: ID!
+}
+
+union NamespaceUpdateMembershipResponse = NamespaceMembershipUpdated | Error
+
+type User {
+  id: ID!
+  name: String!
+  email: String!
+  namespaces: [Namespace!]!
+  accessTokens: [AccessToken!]!
+}
+
+input DeleteApi {
+  id: ID!
+}
+
+type NamespaceMembershipUpdated {
+  namespace: Namespace!
+}
+
+type EnvironmentUpdated {
+  environment: Environment!
+}
+
+union CreateNamespaceResponse = NamespaceCreated | Error
+
+type Namespace {
+  id: ID!
+  name: String!
+  members: [Member!]!
+  apis: [Api!]!
+  environments: [Environment!]!
+  personal: Boolean!
+}
+
+input UpdateEnvironment {
+  environmentID: ID!
+  edgeIDs: [ID!]
+}
+
+input DeleteEnvironment {
+  environmentID: ID!
+}
+
+enum ApiVisibility {
+  public
+  private
+  namespace
+}
+
+type Member {
+  user: User!
+  membership: Membership!
+}
+
+union DeleteAccessTokenResponse = Success | Error
+
+input CreateApi {
+  apiName: String!
+  namespaceID: String!
+  visibility: ApiVisibility!
+  markdownDescription: String!
+}
+
+union CreateApiResponse = ApiCreated | Error
+
+union CreateEnvironmentResponse = EnvironmentCreated | Error
+
+union UpdateApiResponse = ApiUpdated | Error
+
+input CreateOrUpdateDeployment {
+  apiID: ID!
+  name: String
+  config: JSON!
+  environmentIDs: [ID!]!
+}
+
+union CreateOrUpdateDeploymentResponse = DeploymentCreated | DeploymentUpdated | Error
+
+union CreateAccessTokenResponse = AccessTokenCreated | Error
+
+input DeleteAccessToken {
+  id: ID!
+}
+
+type AdminConfig {
+  WunderNodeImageTag: String!
+}
+
+input UpdateApi {
+  id: ID!
+  apiName: String!
+  config: JSON!
+  visibility: ApiVisibility!
+  markdownDescription: String!
+}
+
+type Success {
+  message: String!
+}
+
+scalar JSON
+
+input NamespaceAddMember {
+  namespaceID: ID!
+  newMemberEmail: String!
+  membership: Membership
+}
+
+input DeleteNamespace {
+  namespaceID: ID!
+}
+
+type AccessTokenCreated {
+  token: String!
+  accessToken: AccessToken!
+}
+
+union NamespaceAddMemberResponse = NamespaceMemberAdded | Error
+
+type Api {
+  id: ID!
+  name: String!
+  visibility: ApiVisibility!
+  deployments: [Deployment!]!
+  markdownDescription: String!
+}
+
+union DeleteDeploymentResponse = Success | Error
 `
