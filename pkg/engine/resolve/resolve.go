@@ -844,7 +844,7 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 		err = r.resolveNode(ctx, object.Fields[i].Value, fieldData, fieldBuf)
 		ctx.removeLastPathElement()
 		if err != nil {
-			if errors.Is(err,errTypeNameSkipped) {
+			if errors.Is(err,errTypeNameSkipped){
 				objectBuf.Data.Reset()
 				r.resolveEmptyObject(objectBuf.Data)
 				return nil
