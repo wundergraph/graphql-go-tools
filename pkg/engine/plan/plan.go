@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"bytes"
 	"encoding/json"
 	"regexp"
 	"strings"
@@ -367,8 +368,22 @@ func (v *Visitor) EnterField(ref int) {
 		return
 	}
 
-	fieldName := v.Operation.FieldAliasOrNameBytes(ref)
-	fieldDefinition, ok := v.Walker.FieldDefinition(ref)
+	fieldName := v.Operation.FieldNameBytes(ref)
+	fieldAliasOrName := v.Operation.FieldAliasOrNameBytes(ref)
+	if bytes.Equal(fieldName,literal.TYPENAME){
+		v.currentField = &resolve.Field{
+			Name: fieldAliasOrName,
+			Value:     &resolve.String{
+				Nullable: false,
+				Path: v.resolveFieldPath(ref),
+			},
+			OnTypeName: v.resolveOnTypeName(),
+		}
+		*v.currentFields[len(v.currentFields)-1].fields = append(*v.currentFields[len(v.currentFields)-1].fields, v.currentField)
+		return
+	}
+
+	fieldDefinition, ok := v.Walker.FieldDefinitionWithExists(ref)
 	if !ok {
 		return
 	}
@@ -398,10 +413,10 @@ func (v *Visitor) EnterField(ref int) {
 	fieldDefinitionType := v.Definition.FieldDefinitionType(fieldDefinition)
 	bufferID, hasBuffer := v.fieldBuffers[ref]
 	v.currentField = &resolve.Field{
-		Name:      fieldName,
-		Value:     v.resolveFieldValue(ref, fieldDefinitionType, true, path),
-		HasBuffer: hasBuffer,
-		BufferID:  bufferID,
+		Name:       fieldAliasOrName,
+		Value:      v.resolveFieldValue(ref, fieldDefinitionType, true, path),
+		HasBuffer:  hasBuffer,
+		BufferID:   bufferID,
 		OnTypeName: v.resolveOnTypeName(),
 	}
 
@@ -423,7 +438,7 @@ func (v *Visitor) LeaveField(ref int) {
 	if v.currentFields[len(v.currentFields)-1].popOnField == ref {
 		v.currentFields = v.currentFields[:len(v.currentFields)-1]
 	}
-	fieldDefinition, ok := v.Walker.FieldDefinition(ref)
+	fieldDefinition, ok := v.Walker.FieldDefinitionWithExists(ref)
 	if !ok {
 		return
 	}

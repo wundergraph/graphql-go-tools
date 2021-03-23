@@ -1255,7 +1255,9 @@ func TestGraphQLDataSource(t *testing.T) {
 
 	t.Run("mutation with union response", RunTest(wgSchema, `
 		mutation CreateNamespace($name: String! $personal: Boolean!) {
+			__typename
 			namespaceCreate(input: {name: $name, personal: $personal}){
+				__typename
 				... on NamespaceCreated {
 					namespace {
 						id
@@ -1273,7 +1275,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
 						BufferId:   0,
-						Input:      `{"method":"POST","url":"http://api.com","body":{"query":"mutation($name: String!, $personal: Boolean!){namespaceCreate(input: {name: $name,personal: $personal}){__typename ... on NamespaceCreated {namespace {id name}} ... on Error {code message}}}","variables":{"personal":$$1$$,"name":"$$0$$"}}}`,
+						Input:      `{"method":"POST","url":"http://api.com","body":{"query":"mutation($name: String!, $personal: Boolean!){__typename namespaceCreate(input: {name: $name,personal: $personal}){__typename ... on NamespaceCreated {namespace {id name}} ... on Error {code message}}}","variables":{"personal":$$1$$,"name":"$$0$$"}}}`,
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
@@ -1287,12 +1289,26 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 					Fields: []*resolve.Field{
 						{
+							Name: []byte("__typename"),
+							Value: &resolve.String{
+								Path: []string{"__typename"},
+								Nullable: false,
+							},
+						},
+						{
 							Name:      []byte("namespaceCreate"),
 							HasBuffer: true,
 							BufferID:  0,
 							Value: &resolve.Object{
 								Path: []string{"namespaceCreate"},
 								Fields: []*resolve.Field{
+									{
+										Name: []byte("__typename"),
+										Value: &resolve.String{
+											Path: []string{"__typename"},
+											Nullable: false,
+										},
+									},
 									{
 										OnTypeName: []byte("NamespaceCreated"),
 										Name:       []byte("namespace"),
