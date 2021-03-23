@@ -12,7 +12,6 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/go-test/deep"
 	log "github.com/jensneuse/abstractlogger"
-	"github.com/jensneuse/diffview"
 	"github.com/jensneuse/pipeline/pkg/pipe"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -80,7 +79,7 @@ func runWithOperationName(definition string, operation string, operationName str
 
 		if !reflect.DeepEqual(want, got) {
 			fmt.Println(deep.Equal(want, got))
-			diffview.NewGoland().DiffViewAny("diff", want, got)
+			assert.Equal(t, want,got)
 			t.Errorf("want:\n%s\ngot:\n%s\n", spew.Sdump(want), spew.Sdump(got))
 		}
 	}

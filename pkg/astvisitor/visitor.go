@@ -1384,7 +1384,7 @@ func (w *Walker) appendAncestor(ref int, kind ast.NodeKind) {
 			w.StopWithExternalErr(operationreport.ErrFieldUndefinedOnType(fieldName, typeName))
 			return
 		}
-	case ast.NodeKindObjectTypeDefinition, ast.NodeKindInterfaceTypeDefinition:
+	case ast.NodeKindObjectTypeDefinition, ast.NodeKindInterfaceTypeDefinition, ast.NodeKindUnionTypeDefinition:
 		w.EnclosingTypeDefinition = ast.Node{
 			Kind: kind,
 			Ref:  ref,
@@ -3598,8 +3598,15 @@ func (w *Walker) ArgumentInputValueDefinition(argument int) (definition int, exi
 	return
 }
 
+func (w *Walker) FieldDefinitionWithExists(field int) (definition int, exists bool) {
+	fieldName := w.document.FieldNameBytes(field)
+	definition, exists = w.definition.NodeFieldDefinitionByName(w.EnclosingTypeDefinition, fieldName)
+	return
+}
+
 func (w *Walker) FieldDefinition(field int) (definition int, exists bool) {
-	definition, _ = w.definition.NodeFieldDefinitionByName(w.EnclosingTypeDefinition, w.document.FieldNameBytes(field))
+	fieldName := w.document.FieldNameBytes(field)
+	definition, _ = w.definition.NodeFieldDefinitionByName(w.EnclosingTypeDefinition, fieldName)
 	exists = definition != -1
 	return
 }
@@ -3612,7 +3619,7 @@ func (w *Walker) AncestorNameBytes() ast.ByteSlice {
 }
 
 func (w *Walker) FieldDefinitionDirectiveArgumentValueByName(field int, directiveName, argumentName ast.ByteSlice) (ast.Value, bool) {
-	definition, exists := w.FieldDefinition(field)
+	definition, exists := w.FieldDefinitionWithExists(field)
 	if !exists {
 		return ast.Value{}, false
 	}
