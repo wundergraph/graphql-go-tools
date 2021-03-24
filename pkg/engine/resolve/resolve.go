@@ -37,7 +37,7 @@ var (
 	quote            = []byte("\"")
 	null             = []byte("null")
 	literalData      = []byte("data")
-	literalErrors    = []byte("Errors")
+	literalErrors    = []byte("errors")
 	literalMessage   = []byte("message")
 	literalLocations = []byte("locations")
 	literalPath      = []byte("path")
