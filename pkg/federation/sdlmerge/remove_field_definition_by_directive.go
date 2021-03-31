@@ -1,38 +1,36 @@
-package federation
+package sdlmerge
 
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 )
 
-func removeDirective(directives ...string) func(walker * astvisitor.Walker) {
-	return func(walker *astvisitor.Walker) {
-		directivesSet := make(map[string]struct{}, len(directives))
-		for _, directive := range directives {
-			directivesSet[directive] = struct{}{}
-		}
+func newRemoveFieldDefinitions(directives ...string) *removeFieldDefinitionByDirective {
+	directivesSet := make(map[string]struct{}, len(directives))
+	for _, directive := range directives {
+		directivesSet[directive] = struct{}{}
+	}
 
-		visitor := removeFieldDirective{
-			Walker:    walker,
-			directives: directivesSet,
-		}
-
-		walker.RegisterEnterDocumentVisitor(&visitor)
-		walker.RegisterEnterObjectTypeDefinitionVisitor(&visitor)
+	return &removeFieldDefinitionByDirective{
+		directives: directivesSet,
 	}
 }
 
-type removeFieldDirective struct {
-	*astvisitor.Walker
-	operation *ast.Document
+type removeFieldDefinitionByDirective struct {
+	operation  *ast.Document
 	directives map[string]struct{}
 }
 
-func (r *removeFieldDirective) EnterDocument(operation, _ *ast.Document) {
+func (r *removeFieldDefinitionByDirective) Register(walker *astvisitor.Walker) {
+	walker.RegisterEnterDocumentVisitor(r)
+	walker.RegisterLeaveObjectTypeDefinitionVisitor(r)
+}
+
+func (r *removeFieldDefinitionByDirective) EnterDocument(operation, _ *ast.Document) {
 	r.operation = operation
 }
 
-func (r *removeFieldDirective) EnterObjectTypeDefinition(ref int) {
+func (r *removeFieldDefinitionByDirective) LeaveObjectTypeDefinition(ref int) {
 	var refsForDeletion []int
 	// select fields for deletion
 	for _, fieldRef := range r.operation.ObjectTypeDefinitions[ref].FieldsDefinition.Refs {

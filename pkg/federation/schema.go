@@ -8,8 +8,13 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
+	"github.com/jensneuse/graphql-go-tools/pkg/federation/sdlmerge"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
+
+func BuildBaseSchemaDocument(serviceSDLs ...string) (string, error) {
+	return sdlmerge.MergeSDLs(serviceSDLs...)
+}
 
 func BuildFederationSchema(baseSchema, serviceSDL string) (string, error) {
 	builder := schemaBuilder{}
