@@ -214,8 +214,8 @@ func (p *Planner) EnterSelectionSet(ref int) {
 				field := p.upstreamOperation.AddField(ast.Field{
 					Name: p.upstreamOperation.Input.AppendInputString("__typename"),
 				})
-				p.upstreamOperation.AddSelection(set.Ref,ast.Selection{
-					Ref: field.Ref,
+				p.upstreamOperation.AddSelection(set.Ref, ast.Selection{
+					Ref:  field.Ref,
 					Kind: ast.SelectionKindField,
 				})
 			}
@@ -777,6 +777,11 @@ var (
 		{"errors"},
 		{"data"},
 	}
+	errorPaths = [][]string{
+		{"message"},
+		{"locations"},
+		{"path"},
+	}
 	entitiesPath     = []string{"_entities", "[0]"}
 	uniqueIdentifier = []byte(UniqueIdentifier)
 )
@@ -802,7 +807,24 @@ func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPai
 	jsonparser.EachKey(responseData, func(i int, bytes []byte, valueType jsonparser.ValueType, err error) {
 		switch i {
 		case 0:
-			bufPair.Errors.WriteBytes(bytes)
+			_, _ = jsonparser.ArrayEach(bytes, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+				var (
+					message, locations, path []byte
+				)
+				jsonparser.EachKey(value, func(i int, bytes []byte, valueType jsonparser.ValueType, err error) {
+					switch i {
+					case 0:
+						message = bytes
+					case 1:
+						locations = bytes
+					case 2:
+						path = bytes
+					}
+				}, errorPaths...)
+				if message != nil {
+					bufPair.WriteErr(message, locations, path)
+				}
+			})
 		case 1:
 			if extractEntities {
 				data, _, _, _ := jsonparser.Get(bytes, entitiesPath...)
