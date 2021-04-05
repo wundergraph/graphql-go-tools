@@ -30,7 +30,7 @@ func NewRequiredFieldExtractor(document *ast.Document) *RequiredFieldExtractor {
 }
 
 func (r *RequiredFieldExtractor) GetAllFieldRequires() []TypeFieldRequires {
-	typeFieldRequires := make([]TypeFieldRequires, 0)
+	var typeFieldRequires []TypeFieldRequires
 
 	r.addFieldsForObjectExtensionDefinitions(&typeFieldRequires)
 	r.addFieldsForObjectDefinitions(&typeFieldRequires)
@@ -49,7 +49,7 @@ func (r *RequiredFieldExtractor) addFieldsForObjectExtensionDefinitions(fieldReq
 		}
 
 		for _, fieldRef := range objectType.FieldsDefinition.Refs {
-			if !r.isExternalField(fieldRef) {
+			if r.isExternalField(fieldRef) {
 				continue
 			}
 
@@ -148,7 +148,7 @@ func (r *RequiredFieldExtractor) requiredFieldsByRequiresDirective(ref int) []st
 
 func (r *RequiredFieldExtractor) isExternalField(ref int) bool {
 	for _, directiveRef := range r.document.FieldDefinitions[ref].Directives.Refs {
-		if directiveName := r.document.DirectiveNameString(directiveRef); directiveName != externalDirectiveName {
+		if directiveName := r.document.DirectiveNameString(directiveRef); directiveName == externalDirectiveName {
 			return true
 		}
 	}
