@@ -21,6 +21,11 @@ type TypeFieldRequires struct {
 	RequiresFields []string
 }
 
+func ExtractRequiredFields(document *ast.Document) []TypeFieldRequires {
+	extractor := NewRequiredFieldExtractor(document)
+	return extractor.GetAllFieldRequires()
+}
+
 type RequiredFieldExtractor struct {
 	document *ast.Document
 }
