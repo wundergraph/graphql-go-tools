@@ -9,12 +9,6 @@ import (
 // Currently it doesnt support multiple primary keys https://www.apollographql.com/docs/federation/entities/#defining-multiple-primary-keys
 // and nested fields in primary keys https://www.apollographql.com/docs/federation/entities/#defining-a-compound-primary-key
 
-const (
-	keyDirectiveName      = "key"
-	requireDirectiveName  = "requires"
-	externalDirectiveName = "external"
-)
-
 type TypeFieldRequires struct {
 	TypeName       string
 	FieldName      string
@@ -54,7 +48,7 @@ func (r *RequiredFieldExtractor) addFieldsForObjectExtensionDefinitions(fieldReq
 		}
 
 		for _, fieldRef := range objectType.FieldsDefinition.Refs {
-			if r.isExternalField(fieldRef) {
+			if isExternalField(r.document, fieldRef) {
 				continue
 			}
 
@@ -107,28 +101,6 @@ func (r *RequiredFieldExtractor) addFieldsForObjectDefinitions(fieldRequires *[]
 	}
 }
 
-func (r *RequiredFieldExtractor) primaryKeyFieldsIfObjectTypeIsEntity(objectType ast.ObjectTypeDefinition) (keyFields []string, ok bool) {
-	for _, directiveRef := range objectType.Directives.Refs {
-		if directiveName := r.document.DirectiveNameString(directiveRef); directiveName != keyDirectiveName {
-			continue
-		}
-
-		value, exists := r.document.DirectiveArgumentValueByName(directiveRef, []byte("fields"))
-		if !exists {
-			continue
-		}
-		if value.Kind != ast.ValueKindString {
-			continue
-		}
-
-		fieldsStr := r.document.StringValueContentString(value.Ref)
-
-		return strings.Split(fieldsStr, " "), true
-	}
-
-	return nil, false
-}
-
 func (r *RequiredFieldExtractor) requiredFieldsByRequiresDirective(ref int) []string {
 	for _, directiveRef := range r.document.FieldDefinitions[ref].Directives.Refs {
 		if directiveName := r.document.DirectiveNameString(directiveRef); directiveName != requireDirectiveName {
@@ -151,12 +123,24 @@ func (r *RequiredFieldExtractor) requiredFieldsByRequiresDirective(ref int) []st
 	return nil
 }
 
-func (r *RequiredFieldExtractor) isExternalField(ref int) bool {
-	for _, directiveRef := range r.document.FieldDefinitions[ref].Directives.Refs {
-		if directiveName := r.document.DirectiveNameString(directiveRef); directiveName == externalDirectiveName {
-			return true
+func (r *RequiredFieldExtractor) primaryKeyFieldsIfObjectTypeIsEntity(objectType ast.ObjectTypeDefinition) (keyFields []string, ok bool) {
+	for _, directiveRef := range objectType.Directives.Refs {
+		if directiveName := r.document.DirectiveNameString(directiveRef); directiveName != keyDirectiveName {
+			continue
 		}
+
+		value, exists := r.document.DirectiveArgumentValueByName(directiveRef, []byte("fields"))
+		if !exists {
+			continue
+		}
+		if value.Kind != ast.ValueKindString {
+			continue
+		}
+
+		fieldsStr := r.document.StringValueContentString(value.Ref)
+
+		return strings.Split(fieldsStr, " "), true
 	}
 
-	return false
+	return nil, false
 }

@@ -8,7 +8,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
 )
 
-func run(t *testing.T, SDL string, expected []TypeFieldRequires) {
+func runRequiredFieldExtractor(t *testing.T, SDL string, expected []TypeFieldRequires) {
 	document := unsafeparser.ParseGraphqlDocumentString(SDL)
 	extractor := NewRequiredFieldExtractor(&document)
 	got := extractor.GetAllFieldRequires()
@@ -17,7 +17,7 @@ func run(t *testing.T, SDL string, expected []TypeFieldRequires) {
 
 func TestRequiredFieldExtractor_GetAllFieldRequires(t *testing.T) {
 	t.Run("non Entity object", func(t *testing.T) {
-		run(t, `
+		runRequiredFieldExtractor(t, `
 		type Review {
 			body: String!
 			author: User! @provides(fields: "username")
@@ -26,7 +26,7 @@ func TestRequiredFieldExtractor_GetAllFieldRequires(t *testing.T) {
 		`, nil)
 	})
 	t.Run("non Entity object extension", func(t *testing.T) {
-		run(t, `
+		runRequiredFieldExtractor(t, `
 		type Review {
 			body: String!
 		}
@@ -37,7 +37,7 @@ func TestRequiredFieldExtractor_GetAllFieldRequires(t *testing.T) {
 		`, nil)
 	})
 	t.Run("Entity with simple primary key", func(t *testing.T) {
-		run(t, `
+		runRequiredFieldExtractor(t, `
 		type Review @key(fields: "id"){
 			id: Int!
 			body: String!
@@ -49,7 +49,7 @@ func TestRequiredFieldExtractor_GetAllFieldRequires(t *testing.T) {
 		})
 	})
 	t.Run("Entity with composed primary key", func(t *testing.T) {
-		run(t, `
+		runRequiredFieldExtractor(t, `
 		type Review @key(fields: "id author"){
 			id: Int!
 			body: String!
@@ -62,7 +62,7 @@ func TestRequiredFieldExtractor_GetAllFieldRequires(t *testing.T) {
 		})
 	})
 	t.Run("Entity object extension without non-primary external fields", func(t *testing.T) {
-		run(t, `
+		runRequiredFieldExtractor(t, `
 		extend type Review @key(fields: "id"){
 			id: Int! @external
 			author: String!
@@ -72,7 +72,7 @@ func TestRequiredFieldExtractor_GetAllFieldRequires(t *testing.T) {
 		})
 	})
 	t.Run("Entity object extension with \"requires\" directive", func(t *testing.T) {
-		run(t, `
+		runRequiredFieldExtractor(t, `
 		extend type Review @key(fields: "id"){
 			id: Int! @external
 			title: String! @external
