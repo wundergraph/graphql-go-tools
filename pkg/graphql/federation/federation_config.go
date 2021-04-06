@@ -74,8 +74,8 @@ func (f *engineConfigV2Factory) engineConfigArguments(fieldConfs *plan.FieldConf
 		}
 
 		lookupKey := graphql.CreateTypeFieldLookupKey((*fieldConfs)[i].TypeName, (*fieldConfs)[i].FieldName)
-		currentArgs, ok := generatedArgs[lookupKey]
-		if !ok {
+		currentArgs, exists := generatedArgs[lookupKey]
+		if !exists {
 			continue
 		}
 

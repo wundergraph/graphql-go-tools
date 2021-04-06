@@ -26,8 +26,8 @@ func (f *requiredFieldExtractor) addFieldsForObjectExtensionDefinitions(fieldReq
 		objectType := objectTypeExt.ObjectTypeDefinition
 		typeName := f.document.Input.ByteSliceString(objectType.Name)
 
-		primaryKeys, ok := f.primaryKeyFieldsIfObjectTypeIsEntity(objectType)
-		if !ok {
+		primaryKeys, exists := f.primaryKeyFieldsIfObjectTypeIsEntity(objectType)
+		if !exists {
 			continue
 		}
 
@@ -57,8 +57,8 @@ func (f *requiredFieldExtractor) addFieldsForObjectDefinitions(fieldRequires *pl
 	for _, objectType := range f.document.ObjectTypeDefinitions {
 		typeName := f.document.Input.ByteSliceString(objectType.Name)
 
-		primaryKeys, ok := f.primaryKeyFieldsIfObjectTypeIsEntity(objectType)
-		if !ok {
+		primaryKeys, exists := f.primaryKeyFieldsIfObjectTypeIsEntity(objectType)
+		if !exists {
 			continue
 		}
 
@@ -69,7 +69,7 @@ func (f *requiredFieldExtractor) addFieldsForObjectDefinitions(fieldRequires *pl
 
 		for _, fieldRef := range objectType.FieldsDefinition.Refs {
 			fieldName := f.document.FieldDefinitionNameString(fieldRef)
-			if _, ok := primaryKeysSet[fieldName]; ok { // Field is part of primary key, it couldn't have any required fields
+			if _, exists := primaryKeysSet[fieldName]; exists { // Field is part of primary key, it couldn't have any required fields
 				continue
 			}
 

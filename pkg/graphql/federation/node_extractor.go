@@ -1,6 +1,7 @@
 package federation
 
 import (
+	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 )
@@ -27,8 +28,10 @@ func (r *nodeExtractor) getAllRootNodes() []plan.TypeField {
 	var rootNodes []plan.TypeField
 
 	for _, astNode := range r.document.RootNodes {
-		typeName := r.document.NodeNameString(astNode)
-		r.addRootNodesForObjectDefinition(typeName, &rootNodes)
+		switch astNode.Kind {
+		case ast.NodeKindObjectTypeExtension, ast.NodeKindObjectTypeDefinition:
+			r.addRootNodes(astNode, &rootNodes)
+		}
 	}
 
 	return rootNodes
@@ -39,8 +42,8 @@ func (r *nodeExtractor) getAllChildNodes(rootNodes []plan.TypeField) []plan.Type
 
 	for i := range rootNodes {
 		for _, fieldName := range rootNodes[i].FieldNames {
-			fieldNode, ok := r.document.Index.FirstNodeByNameStr(fieldName)
-			if !ok {
+			fieldNode, exists := r.document.Index.FirstNodeByNameStr(fieldName)
+			if !exists {
 				continue
 			}
 
@@ -53,7 +56,12 @@ func (r *nodeExtractor) getAllChildNodes(rootNodes []plan.TypeField) []plan.Type
 }
 
 func (r *nodeExtractor) findChildNodesForType(typeName string, childNodes *[]plan.TypeField) {
-	fieldsRefs := r.getTypeFieldRefs(typeName)
+	node, exists := r.document.Index.FirstNodeByNameStr(typeName)
+	if !exists {
+		return
+	}
+
+	fieldsRefs := r.document.NodeFieldDefinitions(node)
 
 	for _, fieldRef := range fieldsRefs {
 		fieldName := r.document.FieldDefinitionNameString(fieldRef)
@@ -91,14 +99,15 @@ func (r *nodeExtractor) addChildTypeFieldName(typeName, fieldName string, childN
 	return true
 }
 
-func (r *nodeExtractor) addRootNodesForObjectDefinition(typeName string, rootNodes *[]plan.TypeField) {
-	if !r.isEntity(typeName) && !r.isRootOperationTypeName(typeName) {
+func (r *nodeExtractor) addRootNodes(astNode ast.Node, rootNodes *[]plan.TypeField) {
+	typeName := r.getNodeName(astNode)
+	if !r.isEntity(astNode) && !r.isRootOperationTypeName(typeName) {
 		return
 	}
 
 	var fieldNames []string
 
-	fieldRefs := r.getTypeFieldRefs(typeName)
+	fieldRefs := r.document.NodeFieldDefinitions(astNode)
 	for _, fieldRef := range fieldRefs {
 		if isExternalField(r.document, fieldRef) {
 			continue
@@ -118,51 +127,19 @@ func (r *nodeExtractor) addRootNodesForObjectDefinition(typeName string, rootNod
 	})
 }
 
-func (r *nodeExtractor) getTypeFieldRefs(typeName string) []int {
-	node, ok := r.document.Index.FirstNodeByNameStr(typeName)
-	if !ok {
-		return nil
-	}
+func (r *nodeExtractor) getNodeName(astNode ast.Node) string {
+	var ref ast.ByteSliceReference
 
-	var fields []int
-	switch node.Kind {
+	switch astNode.Kind {
 	case ast.NodeKindObjectTypeDefinition:
-		fields = r.document.ObjectTypeDefinitions[node.Ref].FieldsDefinition.Refs
-	case ast.NodeKindInterfaceTypeDefinition:
-		fields = r.document.InterfaceTypeDefinitions[node.Ref].FieldsDefinition.Refs
+		ref = r.document.ObjectTypeDefinitions[astNode.Ref].Name
 	case ast.NodeKindObjectTypeExtension:
-		fields = r.document.ObjectTypeExtensions[node.Ref].FieldsDefinition.Refs
-	case ast.NodeKindInterfaceTypeExtension:
-		fields = r.document.InterfaceTypeExtensions[node.Ref].FieldsDefinition.Refs
-	default:
-		return nil
+		ref = r.document.ObjectTypeExtensions[astNode.Ref].Name
 	}
 
-	return fields
-}
+	bytesName := r.document.Input.ByteSlice(ref)
 
-func (r *nodeExtractor) getTypeDirectiveRefs(typeName string) []int {
-	node, ok := r.document.Index.FirstNodeByNameStr(typeName)
-	if !ok {
-		return nil
-	}
-
-	var directives []int
-
-	switch node.Kind {
-	case ast.NodeKindObjectTypeDefinition:
-		directives = r.document.ObjectTypeDefinitions[node.Ref].Directives.Refs
-	case ast.NodeKindInterfaceTypeDefinition:
-		directives = r.document.InterfaceTypeDefinitions[node.Ref].Directives.Refs
-	case ast.NodeKindObjectTypeExtension:
-		directives = r.document.ObjectTypeExtensions[node.Ref].Directives.Refs
-	case ast.NodeKindInterfaceTypeExtension:
-		directives = r.document.InterfaceTypeExtensions[node.Ref].Directives.Refs
-	default:
-		return nil
-	}
-
-	return directives
+	return unsafebytes.BytesToString(bytesName)
 }
 
 func (r *nodeExtractor) isRootOperationTypeName(typeName string) bool {
@@ -172,13 +149,13 @@ func (r *nodeExtractor) isRootOperationTypeName(typeName string) bool {
 		"Subscription": {},
 	}
 
-	_, ok := rootOperationNames[typeName]
+	_, exists := rootOperationNames[typeName]
 
-	return ok
+	return exists
 }
 
-func (r *nodeExtractor) isEntity(typeName string) bool {
-	directiveRefs := r.getTypeDirectiveRefs(typeName)
+func (r *nodeExtractor) isEntity(astNode ast.Node) bool {
+	directiveRefs := r.document.NodeDirectives(astNode)
 
 	for _, directiveRef := range directiveRefs {
 		if directiveName := r.document.DirectiveNameString(directiveRef); directiveName == keyDirectiveName {
