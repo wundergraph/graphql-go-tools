@@ -11,7 +11,7 @@ import (
 
 func runRootNodeExtractor(t *testing.T, SDL string, expected []plan.TypeField) {
 	document := unsafeparser.ParseGraphqlDocumentString(SDL)
-	extractor := NewRootNodeExtractor(&document)
+	extractor := newNodeExtractor(&document)
 	got := extractor.getAllRootNodes()
 	assert.Equal(t, expected, got)
 }

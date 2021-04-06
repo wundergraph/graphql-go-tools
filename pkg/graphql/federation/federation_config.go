@@ -9,6 +9,12 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/graphql"
 )
 
+const (
+	keyDirectiveName      = "key"
+	requireDirectiveName  = "requires"
+	externalDirectiveName = "external"
+)
+
 func NewEngineConfigV2Factory(httpClient *http.Client, rawBaseSchema string, SDLs ...string) *engineConfigV2Factory {
 	return &engineConfigV2Factory{
 		httpClient:    httpClient,
