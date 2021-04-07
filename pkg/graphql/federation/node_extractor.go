@@ -41,13 +41,23 @@ func (r *nodeExtractor) getAllChildNodes(rootNodes []plan.TypeField) []plan.Type
 	var childNodes []plan.TypeField
 
 	for i := range rootNodes {
-		for _, fieldName := range rootNodes[i].FieldNames {
-			fieldNode, exists := r.document.Index.FirstNodeByNameStr(fieldName)
-			if !exists {
-				continue
-			}
+		fieldNameToRef := make(map[string]int, len(rootNodes[i].FieldNames))
 
-			fieldTypeName := r.document.FieldDefinitionTypeNode(fieldNode.Ref).NameString(r.document)
+		rootNodeASTNode, exists := r.document.Index.FirstNodeByNameStr(rootNodes[i].TypeName)
+		if !exists {
+			continue
+		}
+
+		fieldRefs := r.document.NodeFieldDefinitions(rootNodeASTNode)
+		for _, fieldRef := range fieldRefs {
+			fieldName := r.document.FieldDefinitionNameString(fieldRef)
+			fieldNameToRef[fieldName] = fieldRef
+		}
+
+		for _, fieldName := range rootNodes[i].FieldNames {
+			fieldRef := fieldNameToRef[fieldName]
+
+			fieldTypeName := r.getNodeName(r.document.FieldDefinitionTypeNode(fieldRef))
 			r.findChildNodesForType(fieldTypeName, &childNodes)
 		}
 	}
@@ -70,7 +80,7 @@ func (r *nodeExtractor) findChildNodesForType(typeName string, childNodes *[]pla
 			continue
 		}
 
-		fieldTypeName := r.document.FieldDefinitionTypeNode(fieldRef).NameString(r.document)
+		fieldTypeName := r.getNodeName(r.document.FieldDefinitionTypeNode(fieldRef))
 		r.findChildNodesForType(fieldTypeName, childNodes)
 	}
 }
@@ -127,6 +137,7 @@ func (r *nodeExtractor) addRootNodes(astNode ast.Node, rootNodes *[]plan.TypeFie
 	})
 }
 
+// document.NodeNameBytes method doesnt support NodeKindObjectTypeExtension and NodeKindInterfaceTypeExtension
 func (r *nodeExtractor) getNodeName(astNode ast.Node) string {
 	var ref ast.ByteSliceReference
 
@@ -135,6 +146,22 @@ func (r *nodeExtractor) getNodeName(astNode ast.Node) string {
 		ref = r.document.ObjectTypeDefinitions[astNode.Ref].Name
 	case ast.NodeKindObjectTypeExtension:
 		ref = r.document.ObjectTypeExtensions[astNode.Ref].Name
+	case ast.NodeKindInterfaceTypeExtension:
+		ref = r.document.InterfaceTypeExtensions[astNode.Ref].Name
+	case ast.NodeKindInterfaceTypeDefinition:
+		ref = r.document.InterfaceTypeDefinitions[astNode.Ref].Name
+	case ast.NodeKindInputObjectTypeDefinition:
+		ref = r.document.InputObjectTypeDefinitions[astNode.Ref].Name
+	case ast.NodeKindUnionTypeDefinition:
+		ref = r.document.UnionTypeDefinitions[astNode.Ref].Name
+	case ast.NodeKindScalarTypeDefinition:
+		ref = r.document.ScalarTypeDefinitions[astNode.Ref].Name
+	case ast.NodeKindDirectiveDefinition:
+		ref = r.document.DirectiveDefinitions[astNode.Ref].Name
+	case ast.NodeKindField:
+		ref = r.document.Fields[astNode.Ref].Name
+	case ast.NodeKindDirective:
+		ref = r.document.Directives[astNode.Ref].Name
 	}
 
 	bytesName := r.document.Input.ByteSlice(ref)
