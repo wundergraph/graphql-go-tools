@@ -5,7 +5,10 @@ import (
 	"net/http"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
+	graphqlDataSource "github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/graphql_datasource"
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
+	"github.com/jensneuse/graphql-go-tools/pkg/federation"
 	"github.com/jensneuse/graphql-go-tools/pkg/graphql"
 )
 
@@ -15,44 +18,59 @@ const (
 	externalDirectiveName = "external"
 )
 
-func NewEngineConfigV2Factory(httpClient *http.Client, rawBaseSchema string, SDLs ...string) *engineConfigV2Factory {
+func NewEngineConfigV2Factory(httpClient *http.Client, dataSourceConfig ...graphqlDataSource.Configuration) *engineConfigV2Factory {
 	return &engineConfigV2Factory{
-		httpClient:    httpClient,
-		rawBaseSchema: rawBaseSchema,
-		SDLs:          SDLs,
+		httpClient:        httpClient,
+		dataSourceConfigs: dataSourceConfig,
 	}
 }
 
 type engineConfigV2Factory struct {
-	rawBaseSchema string
-	schema        *graphql.Schema
-	httpClient    *http.Client
-	SDLs          []string
+	httpClient        *http.Client
+	dataSourceConfigs []graphqlDataSource.Configuration
+	schema            *graphql.Schema
 }
 
 func (f *engineConfigV2Factory) New() (*graphql.EngineV2Configuration, error) {
 	var err error
-	if f.schema, err = graphql.NewSchemaFromString(f.rawBaseSchema); err != nil {
-		return nil, err
+
+	SDLs := make([]string, len(f.dataSourceConfigs))
+	for i := range f.dataSourceConfigs {
+		SDLs[i] = f.dataSourceConfigs[i].Federation.ServiceSDL
+	}
+
+	rawBaseSchema, err := federation.BuildBaseSchemaDocument(SDLs...)
+	if err != nil {
+		return nil, fmt.Errorf("build base schema: %v", err)
+	}
+
+	if f.schema, err = graphql.NewSchemaFromString(rawBaseSchema); err != nil {
+		return nil, fmt.Errorf("parse schema from strinig: %v", err)
 	}
 
 	conf := graphql.NewEngineV2Configuration(f.schema)
 
 	fieldConfigs, err := f.engineConfigFieldConfigs()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create field configs: %v", err)
+	}
+
+	datsSources, err := f.engineConfigDataSources()
+	if err != nil {
+		return nil, fmt.Errorf("create datasource config: %v", err)
 	}
 
 	conf.SetFieldConfigurations(fieldConfigs)
+	conf.SetDataSources(datsSources)
 
-	return nil, nil
+	return &conf, nil
 }
 
 func (f *engineConfigV2Factory) engineConfigFieldConfigs() (plan.FieldConfigurations, error) {
 	var planFieldConfigs plan.FieldConfigurations
 
-	for _, SDL := range f.SDLs {
-		doc, report := astparser.ParseGraphqlDocumentString(SDL)
+	for _, dataSourceConfig := range f.dataSourceConfigs {
+		doc, report := astparser.ParseGraphqlDocumentString(dataSourceConfig.Federation.ServiceSDL)
 		if report.HasErrors() {
 			return nil, fmt.Errorf("parse graphql document string: %w", report)
 		}
@@ -106,4 +124,27 @@ func (f *engineConfigV2Factory) createArgumentConfigurationsForArgumentNames(arg
 	return argConfs
 }
 
-//
+func (f *engineConfigV2Factory) engineConfigDataSources() (planDataSources []plan.DataSourceConfiguration, err error) {
+	for _, dataSourceConfig := range f.dataSourceConfigs {
+		doc, report := astparser.ParseGraphqlDocumentString(dataSourceConfig.Federation.ServiceSDL)
+		if report.HasErrors() {
+			return nil, fmt.Errorf("parse graphql document string: %w", report)
+		}
+
+		var planDataSource plan.DataSourceConfiguration
+		extractor := newNodeExtractor(&doc)
+		planDataSource.RootNodes, planDataSource.ChildNodes = extractor.getAllNodes()
+
+		factory := &graphqlDataSource.Factory{}
+		if f.httpClient != nil {
+			factory.Client = httpclient.NewNetHttpClient(f.httpClient)
+		}
+		planDataSource.Factory = factory
+
+		planDataSource.Custom = graphqlDataSource.ConfigJson(dataSourceConfig)
+
+		planDataSources = append(planDataSources, planDataSource)
+	}
+
+	return
+}
