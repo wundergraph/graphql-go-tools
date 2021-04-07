@@ -47,7 +47,7 @@ func MergeSDLs(SDLs ...string) (string, error) {
 		return "", fmt.Errorf("merge ast: %w", err)
 	}
 
-	out, err := astprinter.PrintStringIndent(&doc, nil, "  ")
+	out, err := astprinter.PrintString(&doc, nil)
 	if err != nil {
 		return "", fmt.Errorf("stringify schema: %w", err)
 	}
@@ -66,6 +66,7 @@ func (m *normalizer) setupWalkers() {
 			newExtendInterfaceTypeDefinition(),
 			newExtendObjectTypeDefinition(),
 			newRemoveMergedTypeExtensions(),
+			newRemoveEmptyObjectTypeDefinition(),
 		},
 		// visitors for clean up federated duplicated fields and directives
 		{

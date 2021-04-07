@@ -9,18 +9,18 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 )
 
-func runNodeExtractor(t *testing.T, SDL string, expectedRoot, expectedChild []plan.TypeField) {
-	document := unsafeparser.ParseGraphqlDocumentString(SDL)
-	extractor := newNodeExtractor(&document)
-	gotRoot, gotChild := extractor.getAllNodes()
-
-	assert.Equal(t, expectedRoot, gotRoot, "root nodes dont match")
-	assert.Equal(t, expectedChild, gotChild, "child nodes dont match")
-}
-
 func TestNodeExtractor_GetAllNodes(t *testing.T) {
+	run := func (t *testing.T, SDL string, expectedRoot, expectedChild []plan.TypeField) {
+		document := unsafeparser.ParseGraphqlDocumentString(SDL)
+		extractor := newNodeExtractor(&document)
+		gotRoot, gotChild := extractor.getAllNodes()
+
+		assert.Equal(t, expectedRoot, gotRoot, "root nodes dont match")
+		assert.Equal(t, expectedChild, gotChild, "child nodes dont match")
+	}
+
 	t.Run("only root operation", func(t *testing.T) {
-		runNodeExtractor(t, `
+		run(t, `
 			extend type Query {
 				me: User
 			}
@@ -48,7 +48,7 @@ func TestNodeExtractor_GetAllNodes(t *testing.T) {
 			})
 	})
 	t.Run("nested child nodes", func(t *testing.T) {
-		runNodeExtractor(t, `
+		run(t, `
 			extend type Query {
 				me: User
 				review(id: ID!): Review
@@ -76,7 +76,7 @@ func TestNodeExtractor_GetAllNodes(t *testing.T) {
 			})
 	})
 	t.Run("Entity definition", func(t *testing.T) {
-		runNodeExtractor(t, `
+		run(t, `
 			type User @key(fields: "id") {
 				id: ID!
 				reviews: [Review!]!
@@ -96,7 +96,7 @@ func TestNodeExtractor_GetAllNodes(t *testing.T) {
 			})
 	})
 	t.Run("nested Entity definition", func(t *testing.T) {
-		runNodeExtractor(t, `
+		run(t, `
 			extend type Query {
 				me: User
 			}
@@ -122,7 +122,7 @@ func TestNodeExtractor_GetAllNodes(t *testing.T) {
 			})
 	})
 	t.Run("extended Entity", func(t *testing.T) {
-		runNodeExtractor(t, `
+		run(t, `
 			extend type User @key(fields: "id") {
 				id: ID! @external
 				username: String! @external
@@ -143,7 +143,7 @@ func TestNodeExtractor_GetAllNodes(t *testing.T) {
 			})
 	})
 	t.Run("extended Entity with root definitions", func(t *testing.T) {
-		runNodeExtractor(t, `
+		run(t, `
 			extend type Query {
 				reviews(IDs: [ID!]!): [Review!]
 			}

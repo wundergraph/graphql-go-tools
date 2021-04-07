@@ -75,7 +75,7 @@ func TestMergeSDLs(t *testing.T) {
 	}
 
 	expectedOutputDocument := unsafeparser.ParseGraphqlDocumentString(federatedSchema)
-	want := mustString(astprinter.PrintStringIndent(&expectedOutputDocument, nil, "  "))
+	want := mustString(astprinter.PrintString(&expectedOutputDocument, nil))
 
 	assert.Equal(t, want, got)
 }
@@ -128,8 +128,6 @@ const (
 			me: User
 			topProducts(first: Int = 5): [Product]
 		}
-		
-		type Mutation 
 		
 		type Subscription {
 			review: Review!
