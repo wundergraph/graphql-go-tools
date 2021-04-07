@@ -18,21 +18,23 @@ const (
 	externalDirectiveName = "external"
 )
 
-func NewEngineConfigV2Factory(httpClient *http.Client, dataSourceConfig ...graphqlDataSource.Configuration) *engineConfigV2Factory {
-	return &engineConfigV2Factory{
+func NewEngineConfigV2Factory(httpClient *http.Client, dataSourceConfig ...graphqlDataSource.Configuration) *EngineConfigV2Factory {
+	return &EngineConfigV2Factory{
 		httpClient:        httpClient,
 		dataSourceConfigs: dataSourceConfig,
 	}
 }
 
-type engineConfigV2Factory struct {
+type EngineConfigV2Factory struct {
 	httpClient        *http.Client
 	dataSourceConfigs []graphqlDataSource.Configuration
 	schema            *graphql.Schema
 }
 
-func (f *engineConfigV2Factory) New() (*graphql.EngineV2Configuration, error) {
-	var err error
+func (f *EngineConfigV2Factory) Schema() (*graphql.Schema, error) {
+	if f.schema != nil {
+		return f.schema, nil
+	}
 
 	SDLs := make([]string, len(f.dataSourceConfigs))
 	for i := range f.dataSourceConfigs {
@@ -48,9 +50,20 @@ func (f *engineConfigV2Factory) New() (*graphql.EngineV2Configuration, error) {
 		return nil, fmt.Errorf("parse schema from strinig: %v", err)
 	}
 
-	conf := graphql.NewEngineV2Configuration(f.schema)
+	return f.schema, nil
+}
 
-	fieldConfigs, err := f.engineConfigFieldConfigs()
+func (f *EngineConfigV2Factory) EngineV2Configuration() (*graphql.EngineV2Configuration, error) {
+	var err error
+
+	schema, err := f.Schema()
+	if err != nil {
+		return nil, fmt.Errorf("get schema: %v", err)
+	}
+
+	conf := graphql.NewEngineV2Configuration(schema)
+
+	fieldConfigs, err := f.engineConfigFieldConfigs(schema)
 	if err != nil {
 		return nil, fmt.Errorf("create field configs: %v", err)
 	}
@@ -66,7 +79,7 @@ func (f *engineConfigV2Factory) New() (*graphql.EngineV2Configuration, error) {
 	return &conf, nil
 }
 
-func (f *engineConfigV2Factory) engineConfigFieldConfigs() (plan.FieldConfigurations, error) {
+func (f *EngineConfigV2Factory) engineConfigFieldConfigs(schema *graphql.Schema) (plan.FieldConfigurations, error) {
 	var planFieldConfigs plan.FieldConfigurations
 
 	for _, dataSourceConfig := range f.dataSourceConfigs {
@@ -78,14 +91,14 @@ func (f *engineConfigV2Factory) engineConfigFieldConfigs() (plan.FieldConfigurat
 		planFieldConfigs = append(planFieldConfigs, extractor.getAllFieldRequires()...)
 	}
 
-	generatedArgs := f.schema.GetAllFieldArguments(graphql.NewSkipReservedNamesFunc())
+	generatedArgs := schema.GetAllFieldArguments(graphql.NewSkipReservedNamesFunc())
 	generatedArgsAsLookupMap := graphql.CreateTypeFieldArgumentsLookupMap(generatedArgs)
 	f.engineConfigArguments(&planFieldConfigs, generatedArgsAsLookupMap)
 
 	return planFieldConfigs, nil
 }
 
-func (f *engineConfigV2Factory) engineConfigArguments(fieldConfs *plan.FieldConfigurations, generatedArgs map[graphql.TypeFieldLookupKey]graphql.TypeFieldArguments) {
+func (f *EngineConfigV2Factory) engineConfigArguments(fieldConfs *plan.FieldConfigurations, generatedArgs map[graphql.TypeFieldLookupKey]graphql.TypeFieldArguments) {
 	for i := range *fieldConfs {
 		if len(generatedArgs) == 0 {
 			return
@@ -110,7 +123,7 @@ func (f *engineConfigV2Factory) engineConfigArguments(fieldConfs *plan.FieldConf
 	}
 }
 
-func (f *engineConfigV2Factory) createArgumentConfigurationsForArgumentNames(argumentNames []string) plan.ArgumentsConfigurations {
+func (f *EngineConfigV2Factory) createArgumentConfigurationsForArgumentNames(argumentNames []string) plan.ArgumentsConfigurations {
 	argConfs := plan.ArgumentsConfigurations{}
 	for _, argName := range argumentNames {
 		argConf := plan.ArgumentConfiguration{
@@ -124,7 +137,7 @@ func (f *engineConfigV2Factory) createArgumentConfigurationsForArgumentNames(arg
 	return argConfs
 }
 
-func (f *engineConfigV2Factory) engineConfigDataSources() (planDataSources []plan.DataSourceConfiguration, err error) {
+func (f *EngineConfigV2Factory) engineConfigDataSources() (planDataSources []plan.DataSourceConfiguration, err error) {
 	for _, dataSourceConfig := range f.dataSourceConfigs {
 		doc, report := astparser.ParseGraphqlDocumentString(dataSourceConfig.Federation.ServiceSDL)
 		if report.HasErrors() {
