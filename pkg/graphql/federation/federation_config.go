@@ -53,30 +53,28 @@ func (f *EngineConfigV2Factory) Schema() (*graphql.Schema, error) {
 	return f.schema, nil
 }
 
-func (f *EngineConfigV2Factory) EngineV2Configuration() (*graphql.EngineV2Configuration, error) {
-	var err error
-
+func (f *EngineConfigV2Factory) EngineV2Configuration() (conf graphql.EngineV2Configuration, err error) {
 	schema, err := f.Schema()
 	if err != nil {
-		return nil, fmt.Errorf("get schema: %v", err)
+		return conf, fmt.Errorf("get schema: %v", err)
 	}
 
-	conf := graphql.NewEngineV2Configuration(schema)
+	conf = graphql.NewEngineV2Configuration(schema)
 
 	fieldConfigs, err := f.engineConfigFieldConfigs(schema)
 	if err != nil {
-		return nil, fmt.Errorf("create field configs: %v", err)
+		return conf, fmt.Errorf("create field configs: %v", err)
 	}
 
 	datsSources, err := f.engineConfigDataSources()
 	if err != nil {
-		return nil, fmt.Errorf("create datasource config: %v", err)
+		return conf, fmt.Errorf("create datasource config: %v", err)
 	}
 
 	conf.SetFieldConfigurations(fieldConfigs)
 	conf.SetDataSources(datsSources)
 
-	return &conf, nil
+	return conf, nil
 }
 
 func (f *EngineConfigV2Factory) engineConfigFieldConfigs(schema *graphql.Schema) (plan.FieldConfigurations, error) {
