@@ -28,7 +28,7 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 		httpClient *http.Client,
 		dataSourceConfigs []graphqlDataSource.Configuration,
 		baseSchema string,
-		expectedConfigFactory func(t *testing.T, baseSchema string) *graphql.EngineV2Configuration,
+		expectedConfigFactory func(t *testing.T, baseSchema string) graphql.EngineV2Configuration,
 	) {
 		doc, report := astparser.ParseGraphqlDocumentString(baseSchema)
 		if report.HasErrors() {
@@ -74,7 +74,7 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 					ServiceSDL: reviewSchema,
 				},
 			},
-		}, baseFederationSchema, func(t *testing.T, baseSchema string) *graphql.EngineV2Configuration {
+		}, baseFederationSchema, func(t *testing.T, baseSchema string) graphql.EngineV2Configuration {
 			schema, err := graphql.NewSchemaFromString(baseSchema)
 			require.NoError(t, err)
 
@@ -218,7 +218,7 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 				},
 			})
 
-			return &conf
+			return conf
 		})
 	})
 }
