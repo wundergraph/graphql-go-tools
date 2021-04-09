@@ -5,14 +5,11 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gobwas/ws"
 	log "github.com/jensneuse/abstractlogger"
-	graphqlDataSource "github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/graphql_datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/graphql"
-	"github.com/jensneuse/graphql-go-tools/pkg/graphql/federation"
 	"github.com/jensneuse/graphql-go-tools/pkg/playground"
 	"go.uber.org/zap"
 
@@ -47,8 +44,9 @@ func startServer() {
 
 	httpClient := http.DefaultClient
 
-	mux := NewRouterSwapper()
-	datasourceWatcher := NewDatasourceWatcher(httpClient, DatasourceWatcherConfig{
+	mux := http.NewServeMux()
+
+	datasourceWatcher := NewDatasourcePoller(httpClient, DatasourcePollerConfig{
 		Services: []ServiceConfig{
 			{Name: "accounts", URL: "http://localhost:4001/query"},
 			{Name: "products", URL: "http://localhost:4002/query"},
@@ -70,61 +68,22 @@ func startServer() {
 		return
 	}
 
-	mux.Register(func(mux *http.ServeMux) {
-		for i := range handlers {
-			mux.Handle(handlers[i].Path, handlers[i].Handler)
-		}
-	})
+	for i := range handlers {
+		mux.Handle(handlers[i].Path, handlers[i].Handler)
+	}
 
-	var dataSourceConfig []graphqlDataSource.Configuration
-	var dataSourceMu sync.Mutex
+	var gqlHandlerFacory HandlerFactoryFn = func(schema *graphql.Schema, engine *graphql.ExecutionEngineV2) http.Handler {
+		return http2.NewGraphqlHTTPHandler(schema, engine, upgrader, logger)
+	}
 
-	datasourceWatcher.Register(UpdateDatasourceHandlerFn(func(newDataSourceConfig ...graphqlDataSource.Configuration) {
-		dataSourceMu.Lock()
-		dataSourceConfig = newDataSourceConfig
-		dataSourceMu.Unlock()
+	gateway := NewGateway(gqlHandlerFacory, httpClient, logger)
 
-		mux.Swap()
-	}))
+	datasourceWatcher.Register(gateway)
+	go datasourceWatcher.Run(ctx)
 
-	readyCh := make(chan struct{})
-	var readyOnce sync.Once
+	gateway.Ready()
 
-	mux.Register(func(mux *http.ServeMux) {
-		dataSourceMu.Lock()
-		newDataSourceConfig := dataSourceConfig
-		dataSourceMu.Unlock()
-
-		engineConfigFactory := federation.NewEngineConfigV2Factory(httpClient, newDataSourceConfig...)
-		schema, err := engineConfigFactory.Schema()
-		if err != nil {
-			logger.Fatal("failed to get schema", log.Error(err))
-		}
-		datasourceConfig, err := engineConfigFactory.EngineV2Configuration()
-		if err != nil {
-			logger.Fatal("failed to get engine config", log.Error(err))
-		}
-
-		engine, err := graphql.NewExecutionEngineV2(logger, datasourceConfig)
-		if err != nil {
-			logger.Fatal("failed to create engine", log.Error(err))
-		}
-
-		gqlHandler := http2.NewGraphqlHTTPHandler(schema, engine, upgrader, logger)
-		mux.Handle(graphqlEndpoint, gqlHandler)
-
-		readyOnce.Do(func() { close(readyCh) })
-	})
-
-	var wg sync.WaitGroup
-	wg.Add(1)
-
-	go func() {
-		datasourceWatcher.Start(ctx)
-		wg.Done()
-	}()
-
-	<- readyCh
+	mux.Handle("/query", gateway)
 
 	addr := "0.0.0.0:4000"
 	logger.Info("Listening",

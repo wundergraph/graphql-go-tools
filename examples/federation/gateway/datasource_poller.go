@@ -15,23 +15,13 @@ import (
 	graphqlDataSource "github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/graphql_datasource"
 )
 
-type UpdateDatasourceHandler interface {
-	UpdateDatasource(dataSourceConfig ...graphqlDataSource.Configuration)
-}
-
-type UpdateDatasourceHandlerFn func(dataSourceConfig ...graphqlDataSource.Configuration)
-
-func (u UpdateDatasourceHandlerFn) UpdateDatasource(dataSourceConfig ...graphqlDataSource.Configuration) {
-	u(dataSourceConfig...)
-}
-
 type ServiceConfig struct {
 	Name string
 	URL  string
 	WS   string
 }
 
-type DatasourceWatcherConfig struct {
+type DatasourcePollerConfig struct {
 	Services        []ServiceConfig
 	PollingInterval time.Duration
 }
@@ -57,33 +47,31 @@ func (g GQLErr) Error() string {
 	return builder.String()
 }
 
-func NewDatasourceWatcher(
+func NewDatasourcePoller(
 	httpClient *http.Client,
-	config DatasourceWatcherConfig,
-) *DatasourceWatcher {
-	return &DatasourceWatcher{
-		httpClient:                httpClient,
-		mu:                        &sync.Mutex{},
-		config:                    config,
-		sdlMap:                    make(map[string]string),
+	config DatasourcePollerConfig,
+) *DatasourcePollerPoller {
+	return &DatasourcePollerPoller{
+		httpClient: httpClient,
+		config:     config,
+		sdlMap:     make(map[string]string),
 	}
 }
 
-type DatasourceWatcher struct {
+type DatasourcePollerPoller struct {
 	httpClient *http.Client
 
-	mu     *sync.Mutex
-	config DatasourceWatcherConfig
+	config DatasourcePollerConfig
 	sdlMap map[string]string
 
-	updateDatasourceCallbacks []UpdateDatasourceHandler
+	updateDatasourceObservers []DataSourceObserver
 }
 
-func (d *DatasourceWatcher) Register(updateDatasourceHandler UpdateDatasourceHandler) {
-	d.updateDatasourceCallbacks = append(d.updateDatasourceCallbacks, updateDatasourceHandler)
+func (d *DatasourcePollerPoller) Register(updateDatasourceObserver DataSourceObserver) {
+	d.updateDatasourceObservers = append(d.updateDatasourceObservers, updateDatasourceObserver)
 }
 
-func (d *DatasourceWatcher) Start(ctx context.Context) {
+func (d *DatasourcePollerPoller) Run(ctx context.Context) {
 	d.updateSDLs(ctx)
 
 	if d.config.PollingInterval == 0 {
@@ -104,53 +92,58 @@ func (d *DatasourceWatcher) Start(ctx context.Context) {
 	}
 }
 
-func (d *DatasourceWatcher) UpdateServiceSDL(newServiceConfig ServiceConfig, sdl string) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	for i := range d.config.Services {
-		if d.config.Services[i].Name != newServiceConfig.Name {
-			continue
-		}
-
-		d.config.Services[i] = newServiceConfig
-		d.sdlMap[newServiceConfig.Name] = sdl
-
-		return
-	}
-
-	d.config.Services = append(d.config.Services, newServiceConfig)
-	d.sdlMap[newServiceConfig.Name] = sdl
-
-}
-
-func (d *DatasourceWatcher) updateSDLs(ctx context.Context) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
+func (d *DatasourcePollerPoller) updateSDLs(ctx context.Context) {
 	d.sdlMap = make(map[string]string)
 
-	for _, serviceConf := range d.config.Services {
-		sdl, err := d.fetchServiceSDL(ctx, serviceConf.URL)
-		if err != nil {
-			log.Println("Failed to get sdl", err)
-		}
+	var wg sync.WaitGroup
+	resultCh := make(chan struct {
+		name string
+		sdl  string
+	})
 
-		d.sdlMap[serviceConf.Name] = sdl
+	for _, serviceConf := range d.config.Services {
+		serviceConf := serviceConf // Create new instance of serviceConf for the goroutine.
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			sdl, err := d.fetchServiceSDL(ctx, serviceConf.URL)
+			if err != nil {
+				log.Println("Failed to get sdl", err)
+				return
+			}
+
+			select {
+			case <-ctx.Done():
+			case resultCh <- struct {
+				name string
+				sdl  string
+			}{name: serviceConf.Name, sdl: sdl}:
+			}
+		}()
 	}
 
-	d.updateCallbacks()
+	go func() {
+		wg.Wait()
+		close(resultCh)
+	}()
+
+	for result := range resultCh {
+		d.sdlMap[result.name] = result.sdl
+	}
+
+	d.updateObservers()
 }
 
-func (d *DatasourceWatcher) updateCallbacks() {
+func (d *DatasourcePollerPoller) updateObservers() {
 	dataSourceConfigs := d.createDatasourceConfig()
 
-	for i := range d.updateDatasourceCallbacks {
-		d.updateDatasourceCallbacks[i].UpdateDatasource(dataSourceConfigs...)
+	for i := range d.updateDatasourceObservers {
+		d.updateDatasourceObservers[i].UpdateDataSources(dataSourceConfigs)
 	}
 }
 
-func (d *DatasourceWatcher) createDatasourceConfig() []graphqlDataSource.Configuration {
+func (d *DatasourcePollerPoller) createDatasourceConfig() []graphqlDataSource.Configuration {
 	dataSourceConfigs := make([]graphqlDataSource.Configuration, 0, len(d.config.Services))
 
 	for _, serviceConfig := range d.config.Services {
@@ -179,7 +172,7 @@ func (d *DatasourceWatcher) createDatasourceConfig() []graphqlDataSource.Configu
 	return dataSourceConfigs
 }
 
-func (d *DatasourceWatcher) fetchServiceSDL(ctx context.Context, serviceURL string) (string, error) {
+func (d *DatasourcePollerPoller) fetchServiceSDL(ctx context.Context, serviceURL string) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, serviceURL, bytes.NewReader([]byte(ServiceDefinitionQuery)))
 	req.Header.Add("Content-Type", "application/json")
 
@@ -208,7 +201,6 @@ func (d *DatasourceWatcher) fetchServiceSDL(ctx context.Context, serviceURL stri
 		return "", fmt.Errorf("read bytes: %v", err)
 	}
 
-	fmt.Println("resp.Body", string(bs))
 	if err = json.NewDecoder(bytes.NewReader(bs)).Decode(&result); err != nil {
 		return "", fmt.Errorf("decode response: %v", err)
 	}
