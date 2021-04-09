@@ -10,7 +10,7 @@ import (
 )
 
 func TestNodeExtractor_GetAllNodes(t *testing.T) {
-	run := func (t *testing.T, SDL string, expectedRoot, expectedChild []plan.TypeField) {
+	run := func(t *testing.T, SDL string, expectedRoot, expectedChild []plan.TypeField) {
 		document := unsafeparser.ParseGraphqlDocumentString(SDL)
 		extractor := newNodeExtractor(&document)
 		gotRoot, gotChild := extractor.getAllNodes()

@@ -13,4 +13,3 @@ func isExternalField(document *ast.Document, ref int) bool {
 
 	return false
 }
-

@@ -24,7 +24,7 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 	}
 
 	runWithoutError := func(
-	t *testing.T,
+		t *testing.T,
 		httpClient *http.Client,
 		dataSourceConfigs []graphqlDataSource.Configuration,
 		baseSchema string,
@@ -126,7 +126,7 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 						},
 						{
 							TypeName:   "User",
-							FieldNames:  []string{"id", "username"},
+							FieldNames: []string{"id", "username"},
 						},
 					},
 					ChildNodes: []plan.TypeField{
