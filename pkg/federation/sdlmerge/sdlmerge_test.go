@@ -1,13 +1,11 @@
 package sdlmerge
 
 import (
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
@@ -51,21 +49,6 @@ func mustString(str string, err error) string {
 		panic(err)
 	}
 	return str
-}
-
-func printSchemaToFile(doc *ast.Document, fileName string) error {
-	fi, err := os.Create(fileName)
-	if err != nil {
-		return err
-	}
-
-	defer func() { _ = fi.Close() }()
-
-	if err := astprinter.PrintIndent(doc, nil, []byte("  "), fi); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func TestMergeSDLs(t *testing.T) {

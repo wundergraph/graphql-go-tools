@@ -34,7 +34,7 @@ func MergeAST(ast *ast.Document) error {
 }
 
 func MergeSDLs(SDLs ...string) (string, error) {
-	rawDocs := make([]string, 0, len(SDLs) + 1)
+	rawDocs := make([]string, 0, len(SDLs)+1)
 	rawDocs = append(rawDocs, rootOperationTypeDefinitions)
 	rawDocs = append(rawDocs, SDLs...)
 

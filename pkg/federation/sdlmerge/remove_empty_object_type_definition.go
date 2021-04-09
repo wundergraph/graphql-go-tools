@@ -9,12 +9,11 @@ func newRemoveEmptyObjectTypeDefinition() *removeEmptyObjectTypeDefinition {
 	return &removeEmptyObjectTypeDefinition{}
 }
 
-type removeEmptyObjectTypeDefinition struct {}
+type removeEmptyObjectTypeDefinition struct{}
 
 func (r *removeEmptyObjectTypeDefinition) Register(walker *astvisitor.Walker) {
 	walker.RegisterLeaveDocumentVisitor(r)
 }
-
 
 func (r *removeEmptyObjectTypeDefinition) LeaveDocument(operation, _ *ast.Document) {
 	for ref := range operation.ObjectTypeDefinitions {
