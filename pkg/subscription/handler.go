@@ -270,6 +270,14 @@ func (h *Handler) startSubscription(ctx context.Context, id string, executor Exe
 // executeSubscription will keep execution the subscription until it ends.
 func (h *Handler) executeSubscription(buf *graphql.EngineResultWriter, id string, executor Executor) {
 	//err := executor.Execute(ctx, node, buf)
+	buf.SetFlushCallback(func(data []byte) {
+		h.logger.Debug("subscription.Handle.executeSubscription()",
+			abstractlogger.ByteString("execution_result", data),
+		)
+		h.sendData(id, data)
+	})
+	defer buf.SetFlushCallback(nil)
+
 	err := executor.Execute(buf)
 	if err != nil {
 		h.logger.Error("subscription.Handle.executeSubscription()",
@@ -277,14 +285,7 @@ func (h *Handler) executeSubscription(buf *graphql.EngineResultWriter, id string
 		)
 
 		h.handleError(id, err)
-		return
 	}
-
-	h.logger.Debug("subscription.Handle.executeSubscription()",
-		abstractlogger.ByteString("execution_result", buf.Bytes()),
-	)
-
-	h.sendData(id, buf.Bytes())
 }
 
 // handleStop will handle a stop message,
