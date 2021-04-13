@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/jensneuse/abstractlogger"
 	"github.com/stretchr/testify/assert"
@@ -17,6 +18,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/staticdatasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/subscription"
 	"github.com/jensneuse/graphql-go-tools/pkg/starwars"
 )
 
@@ -95,12 +97,19 @@ type ExecutionEngineV2TestCase struct {
 	operation        func(t *testing.T) Request
 	dataSources      []plan.DataSourceConfiguration
 	fields           plan.FieldConfigurations
+	streamFactory    func(cancelSubscriptionFn context.CancelFunc) subscription.Stream
 	expectedResponse string
 }
 
 func TestExecutionEngineV2_Execute(t *testing.T) {
 	run := func(testCase ExecutionEngineV2TestCase, withError bool) func(t *testing.T) {
 		return func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			subscriptionCtx, subscriptionCancelFn := context.WithCancel(ctx)
+			defer subscriptionCancelFn()
+
 			engineConf := NewEngineV2Configuration(testCase.schema)
 			engineConf.SetDataSources(testCase.dataSources)
 			engineConf.SetFieldConfigurations(testCase.fields)
@@ -108,11 +117,26 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			engine, err := NewExecutionEngineV2(abstractlogger.Noop{}, engineConf)
 			require.NoError(t, err)
 
-			operation := testCase.operation(t)
-			resultWriter := NewEngineResultWriter()
-			err = engine.Execute(context.Background(), &operation, &resultWriter)
+			if testCase.streamFactory != nil {
+				mngr := subscription.NewManager(testCase.streamFactory(subscriptionCancelFn))
+				engine.WithTriggerManager(mngr)
+				mngr.Run(ctx.Done())
+			}
 
-			assert.Equal(t, testCase.expectedResponse, resultWriter.String())
+			operation := testCase.operation(t)
+
+			var messages []string
+
+			resultWriter := NewEngineResultWriter()
+			resultWriter.SetFlushCallback(func(data []byte) {
+				messages = append(messages, string(data))
+			})
+
+			err = engine.Execute(subscriptionCtx, &operation, &resultWriter)
+
+			messages = append(messages, resultWriter.String())
+
+			assert.Contains(t, messages, testCase.expectedResponse)
 
 			if withError {
 				assert.Error(t, err)
@@ -507,6 +531,39 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			expectedResponse: `{"data":{"hero":"Human"}}`,
 		},
 	))
+
+	t.Run("execute subscription operation with graphql data source", runWithoutError(ExecutionEngineV2TestCase{
+		schema: starwarsSchema(t),
+		operation: func(t *testing.T) Request {
+			request := loadStarWarsQuery(starwars.FileRemainingJedisSubscription, nil)(t)
+			return request
+		},
+		dataSources: []plan.DataSourceConfiguration{
+			{
+				RootNodes: []plan.TypeField{
+					{TypeName: "Subscription", FieldNames: []string{"remainingJedis"}},
+				},
+				Factory: &graphql_datasource.Factory{},
+				Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
+					Subscription: graphql_datasource.SubscriptionConfiguration{
+						URL: "wss://swapi.com/graphql",
+					},
+				}),
+			},
+		},
+		fields: []plan.FieldConfiguration{},
+		streamFactory: func(cancelSubscriptionFn context.CancelFunc) subscription.Stream {
+			stream := subscription.NewStreamStub([]byte("graphql_websocket_subscription"), context.Background().Done())
+			go func() {
+				stream.SendMessage(`{"url":"wss://swapi.com/graphql","body":{"query":"subscription{remainingJedis}"}}`, []byte(`{"remainingJedis":1}`))
+				time.Sleep(10 * time.Millisecond)
+				cancelSubscriptionFn()
+			}()
+
+			return stream
+		},
+		expectedResponse: `{"data":{"remainingJedis":1}}`,
+	}))
 }
 
 func testNetHttpClient(t *testing.T, testCase roundTripperTestCase) httpclient.Client {

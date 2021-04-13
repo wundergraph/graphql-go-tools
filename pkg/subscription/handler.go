@@ -285,6 +285,15 @@ func (h *Handler) executeSubscription(buf *graphql.EngineResultWriter, id string
 		)
 
 		h.handleError(id, err)
+		return
+	}
+
+	if buf.Len() > 0 {
+		data := buf.Bytes()
+		h.logger.Debug("subscription.Handle.executeSubscription()",
+			abstractlogger.ByteString("execution_result", data),
+		)
+		h.sendData(id, data)
 	}
 }
 
