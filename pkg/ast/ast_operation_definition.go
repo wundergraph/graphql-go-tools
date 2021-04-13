@@ -94,7 +94,7 @@ func (d *Document) OperationNameExists(operationName string) bool {
 	return false
 }
 
-func (d *Document) NumOfOperationDefinitions () (n int) {
+func (d *Document) NumOfOperationDefinitions() (n int) {
 	for i := range d.RootNodes {
 		if d.RootNodes[i].Kind == NodeKindOperationDefinition {
 			n++

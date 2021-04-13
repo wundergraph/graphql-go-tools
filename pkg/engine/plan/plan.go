@@ -370,12 +370,12 @@ func (v *Visitor) EnterField(ref int) {
 
 	fieldName := v.Operation.FieldNameBytes(ref)
 	fieldAliasOrName := v.Operation.FieldAliasOrNameBytes(ref)
-	if bytes.Equal(fieldName,literal.TYPENAME){
+	if bytes.Equal(fieldName, literal.TYPENAME) {
 		v.currentField = &resolve.Field{
 			Name: fieldAliasOrName,
-			Value:     &resolve.String{
+			Value: &resolve.String{
 				Nullable: false,
-				Path: v.resolveFieldPath(ref),
+				Path:     v.resolveFieldPath(ref),
 			},
 			OnTypeName: v.resolveOnTypeName(),
 		}
@@ -423,7 +423,7 @@ func (v *Visitor) EnterField(ref int) {
 	*v.currentFields[len(v.currentFields)-1].fields = append(*v.currentFields[len(v.currentFields)-1].fields, v.currentField)
 }
 
-func (v *Visitor) resolveOnTypeName () []byte {
+func (v *Visitor) resolveOnTypeName() []byte {
 	if len(v.Walker.Ancestors) < 2 {
 		return nil
 	}

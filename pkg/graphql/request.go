@@ -62,7 +62,7 @@ func UnmarshalHttpRequest(r *http.Request, request *Request) error {
 	return UnmarshalRequest(r.Body, request)
 }
 
-func (r *Request) SetHeader(header http.Header){
+func (r *Request) SetHeader(header http.Header) {
 	r.request.Header = header
 }
 

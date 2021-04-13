@@ -428,7 +428,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 						Name:      []byte("data"),
 						Value: &Object{
 							Nullable: false,
-							Path: []string{"data"},
+							Path:     []string{"data"},
 							Fields: []*Field{
 								{
 									Name: []byte("namespaceCreate"),
@@ -439,40 +439,40 @@ func TestResolver_ResolveNode(t *testing.T) {
 												Name:       []byte("namespace"),
 												OnTypeName: []byte("NamespaceCreated"),
 												Value: &Object{
-													Path: []string{"namespace"},
+													Path:     []string{"namespace"},
 													Nullable: false,
 													Fields: []*Field{
 														{
 															Name: []byte("id"),
 															Value: &String{
 																Nullable: false,
-																Path: []string{"id"},
+																Path:     []string{"id"},
 															},
 														},
 														{
 															Name: []byte("name"),
 															Value: &String{
 																Nullable: false,
-																Path: []string{"name"},
+																Path:     []string{"name"},
 															},
 														},
 													},
 												},
 											},
 											{
-												Name: []byte("code"),
+												Name:       []byte("code"),
 												OnTypeName: []byte("Error"),
 												Value: &String{
 													Nullable: false,
-													Path: []string{"code"},
+													Path:     []string{"code"},
 												},
 											},
 											{
-												Name: []byte("message"),
+												Name:       []byte("message"),
 												OnTypeName: []byte("Error"),
 												Value: &String{
 													Nullable: false,
-													Path: []string{"message"},
+													Path:     []string{"message"},
 												},
 											},
 										},

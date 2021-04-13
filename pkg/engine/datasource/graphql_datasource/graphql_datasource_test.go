@@ -1291,7 +1291,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						{
 							Name: []byte("__typename"),
 							Value: &resolve.String{
-								Path: []string{"__typename"},
+								Path:     []string{"__typename"},
 								Nullable: false,
 							},
 						},
@@ -1305,7 +1305,7 @@ func TestGraphQLDataSource(t *testing.T) {
 									{
 										Name: []byte("__typename"),
 										Value: &resolve.String{
-											Path: []string{"__typename"},
+											Path:     []string{"__typename"},
 											Nullable: false,
 										},
 									},
@@ -1402,7 +1402,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 					DisableDefaultMapping: false,
-					Path: []string{},
+					Path:                  []string{},
 				},
 			},
 			DefaultFlushInterval: 500,

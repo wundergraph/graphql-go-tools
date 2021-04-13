@@ -15,7 +15,7 @@ func TestDocument_OperationNameExists(t *testing.T) {
 			for i := range doc.OperationDefinitions {
 				doc.RootNodes = append(doc.RootNodes, Node{
 					Kind: NodeKindOperationDefinition,
-					Ref: i,
+					Ref:  i,
 				})
 			}
 			exists := doc.OperationNameExists(operationName)
