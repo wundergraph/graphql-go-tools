@@ -99,7 +99,8 @@ const (
 		
 		extend type Product @key(fields: "upc") {
 			upc: String! @external
-			reviews: [Review]
+			name: String! @external
+			reviews: [Review] @requires(fields: "name")
 		}
 
 		extend type Subscription {
@@ -131,6 +132,7 @@ const (
 		
 		type Review {
 			body: String!
+			author: User!
 			product: Product!
 		}
 	`

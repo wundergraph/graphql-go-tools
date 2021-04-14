@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	federationPredeclaredFieldDirectives      = []string{"external", "requires", "provides"}
+	federationPredeclaredFieldDirectives      = []string{"external", "requires"}
 	federationPredeclaredObjectTypeDirectives = []string{"key"}
 )
 
@@ -70,9 +70,10 @@ func (m *normalizer) setupWalkers() {
 		},
 		// visitors for clean up federated duplicated fields and directives
 		{
-			newRemoveFieldDefinitions(federationPredeclaredFieldDirectives...),
-			newRemoveInterfaceDefinitionDirective(federationPredeclaredObjectTypeDirectives...),
-			newRemoveObjectTypeDefinitionDirective(federationPredeclaredObjectTypeDirectives...),
+			newRemoveFieldDefinitions("external"),
+			newRemoveInterfaceDefinitionDirective("key"),
+			newRemoveObjectTypeDefinitionDirective("key"),
+			newRemoveFieldDefinitionDirective("provides", "requires"),
 		},
 	}
 

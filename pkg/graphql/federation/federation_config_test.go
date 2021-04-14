@@ -274,6 +274,7 @@ const (
 	}
 	type Review {
 		body: String!
+		author: User!
 		product: Product!
 	}
 `
