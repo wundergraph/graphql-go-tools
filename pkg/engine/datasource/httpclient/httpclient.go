@@ -21,7 +21,7 @@ const (
 	BASEURL     = "base_url"
 	METHOD      = "method"
 	BODY        = "body"
-	HEADER     = "header"
+	HEADER      = "header"
 	QUERYPARAMS = "query_params"
 
 	SCHEME = "scheme"

@@ -11,11 +11,6 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
-var (
-	federationPredeclaredFieldDirectives      = []string{"external", "requires"}
-	federationPredeclaredObjectTypeDirectives = []string{"key"}
-)
-
 const rootOperationTypeDefinitions = `
 	type Query {}
 	type Mutation {}

@@ -54,13 +54,13 @@ func (d *ProcessDataSource) traverseFetch(fetch resolve.Fetch) {
 }
 
 func (d *ProcessDataSource) traverseTrigger(trigger *resolve.GraphQLSubscriptionTrigger) {
-	d.resolveInputTemplate(trigger.Variables,trigger.Input,&trigger.InputTemplate)
+	d.resolveInputTemplate(trigger.Variables, trigger.Input, &trigger.InputTemplate)
 	trigger.Input = ""
 	trigger.Variables = nil
 }
 
 func (d *ProcessDataSource) traverseSingleFetch(fetch *resolve.SingleFetch) {
-	d.resolveInputTemplate(fetch.Variables,fetch.Input,&fetch.InputTemplate)
+	d.resolveInputTemplate(fetch.Variables, fetch.Input, &fetch.InputTemplate)
 	fetch.Input = ""
 	fetch.Variables = nil
 }

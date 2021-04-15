@@ -47,4 +47,3 @@ func (r *removeFieldDefinitionDirective) EnterFieldDefinition(ref int) {
 		}
 	}
 }
-

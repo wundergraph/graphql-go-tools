@@ -213,7 +213,7 @@ func (l *Lexer) readDigit(tok *token.Token) {
 
 	if isFloat {
 		l.readRune()
-		l.readFloat(hasExponent,tok)
+		l.readFloat(hasExponent, tok)
 		return
 	}
 
@@ -221,7 +221,7 @@ func (l *Lexer) readDigit(tok *token.Token) {
 	tok.SetEnd(l.input.InputPosition, l.input.TextPosition)
 }
 
-func (l *Lexer) readFloat(hasReadExponentAlready bool,tok *token.Token) {
+func (l *Lexer) readFloat(hasReadExponentAlready bool, tok *token.Token) {
 
 	var r byte
 	for {
@@ -240,7 +240,7 @@ func (l *Lexer) readFloat(hasReadExponentAlready bool,tok *token.Token) {
 	}
 
 	optionalExponent := l.peekRune(false)
-	if optionalExponent  == runes.EXPONENT_LOWER || optionalExponent == runes.EXPONENT_UPPER {
+	if optionalExponent == runes.EXPONENT_LOWER || optionalExponent == runes.EXPONENT_UPPER {
 		l.readRune()
 	}
 
