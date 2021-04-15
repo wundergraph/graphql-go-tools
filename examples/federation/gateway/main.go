@@ -9,11 +9,12 @@ import (
 
 	"github.com/gobwas/ws"
 	log "github.com/jensneuse/abstractlogger"
-	"github.com/jensneuse/graphql-go-tools/pkg/graphql"
-	"github.com/jensneuse/graphql-go-tools/pkg/playground"
 	"go.uber.org/zap"
 
-	http2 "federation/gateway/http"
+	"github.com/jensneuse/graphql-go-tools/pkg/graphql"
+	"github.com/jensneuse/graphql-go-tools/pkg/playground"
+
+	http2 "github.com/jensneuse/federation-example/gateway/http"
 )
 
 // It's just a simple example of graphql federation gateway server, it's NOT a production ready code.

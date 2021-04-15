@@ -1,4 +1,4 @@
-//go:generate go run ../testdata/gqlgen.go
+//go:generate go run github.com/99designs/gqlgen
 package main
 
 import (
@@ -6,11 +6,12 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/99designs/gqlgen/example/federation/accounts/graph"
-	"github.com/99designs/gqlgen/example/federation/accounts/graph/generated"
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/handler/debug"
 	"github.com/99designs/gqlgen/graphql/playground"
+
+	"github.com/jensneuse/federation-example/accounts/graph"
+	"github.com/jensneuse/federation-example/accounts/graph/generated"
 )
 
 const defaultPort = "4001"

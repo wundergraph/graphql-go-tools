@@ -38,8 +38,8 @@ func NewGateway(
 		httpClient:        httpClient,
 		logger:            logger,
 
-		mu: &sync.Mutex{},
-		readyCh: make(chan struct{}),
+		mu:        &sync.Mutex{},
+		readyCh:   make(chan struct{}),
 		readyOnce: &sync.Once{},
 	}
 }

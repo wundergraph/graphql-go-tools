@@ -1,4 +1,4 @@
-module federation
+module github.com/jensneuse/federation-example
 
 go 1.16
 

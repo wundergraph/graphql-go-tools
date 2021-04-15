@@ -5,9 +5,9 @@ package graph
 
 import (
 	"context"
-	generated1 "federation/accounts/graph/generated"
 
 	"github.com/99designs/gqlgen/example/federation/accounts/graph/model"
+	"github.com/jensneuse/federation-example/accounts/graph/generated"
 )
 
 func (r *queryResolver) Me(ctx context.Context) (*model.User, error) {
@@ -17,7 +17,7 @@ func (r *queryResolver) Me(ctx context.Context) (*model.User, error) {
 	}, nil
 }
 
-// Query returns generated1.QueryResolver implementation.
-func (r *Resolver) Query() generated1.QueryResolver { return &queryResolver{r} }
+// Query returns generated.QueryResolver implementation.
+func (r *Resolver) Query() generated.QueryResolver { return &queryResolver{r} }
 
 type queryResolver struct{ *Resolver }
