@@ -12,6 +12,7 @@ import (
 
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/subscription"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 	"github.com/jensneuse/graphql-go-tools/pkg/postprocess"
 )
@@ -50,7 +51,8 @@ func (e *EngineV2Configuration) SetFieldConfigurations(fieldConfigs plan.FieldCo
 }
 
 type EngineResultWriter struct {
-	buf *bytes.Buffer
+	buf           *bytes.Buffer
+	flushCallback func(data []byte)
 }
 
 func NewEngineResultWriter() EngineResultWriter {
@@ -65,6 +67,10 @@ func NewEngineResultWriterFromBuffer(buf *bytes.Buffer) EngineResultWriter {
 	}
 }
 
+func (e *EngineResultWriter) SetFlushCallback(flushCb func(data []byte)) {
+	e.flushCallback = flushCb
+}
+
 func (e *EngineResultWriter) Write(p []byte) (n int, err error) {
 	return e.buf.Write(p)
 }
@@ -74,7 +80,11 @@ func (e *EngineResultWriter) Read(p []byte) (n int, err error) {
 }
 
 func (e *EngineResultWriter) Flush() {
-	// Will be implemented with subscriptions
+	if e.flushCallback != nil {
+		e.flushCallback(e.Bytes())
+	}
+
+	e.Reset()
 }
 
 func (e *EngineResultWriter) Len() int {
@@ -157,6 +167,19 @@ func WithAfterFetchHook(hook resolve.AfterFetchHook) ExecutionOptionsV2 {
 	}
 }
 
+func NewExecutionEngineV2WithTriggerManagers(logger abstractlogger.Logger, engineConfig EngineV2Configuration, triggerManagers ...*subscription.Manager) (*ExecutionEngineV2, error) {
+	executionEngine, err := NewExecutionEngineV2(logger, engineConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, triggerManager := range triggerManagers {
+		executionEngine.WithTriggerManager(triggerManager)
+	}
+
+	return executionEngine, nil
+}
+
 func NewExecutionEngineV2(logger abstractlogger.Logger, engineConfig EngineV2Configuration) (*ExecutionEngineV2, error) {
 	return &ExecutionEngineV2{
 		logger: logger,
@@ -173,6 +196,10 @@ func NewExecutionEngineV2(logger abstractlogger.Logger, engineConfig EngineV2Con
 			},
 		},
 	}, nil
+}
+
+func (e *ExecutionEngineV2) WithTriggerManager(subManager *subscription.Manager) {
+	e.resolver.RegisterTriggerManager(subManager)
 }
 
 func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *Request, writer resolve.FlushWriter, options ...ExecutionOptionsV2) error {
@@ -212,6 +239,8 @@ func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *Request, wri
 	switch p := planResult.(type) {
 	case *plan.SynchronousResponsePlan:
 		err = e.resolver.ResolveGraphQLResponse(execContext.resolveContext, p.Response, nil, writer)
+	case *plan.SubscriptionResponsePlan:
+		err = e.resolver.ResolveGraphQLSubscription(execContext.resolveContext, &p.Response, writer)
 	default:
 		return errors.New("execution of operation is not possible")
 	}
