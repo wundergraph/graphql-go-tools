@@ -8,7 +8,8 @@ import (
 	"fmt"
 
 	"github.com/99designs/gqlgen/example/federation/reviews/graph/model"
-	generated1 "github.com/jensneuse/federation-example/reviews/graph/generated"
+
+	"github.com/jensneuse/federation-example/reviews/graph/generated"
 )
 
 func (r *productResolver) Reviews(ctx context.Context, obj *model.Product) ([]*model.Review, error) {
@@ -24,7 +25,7 @@ func (r *productResolver) Reviews(ctx context.Context, obj *model.Product) ([]*m
 }
 
 func (r *userResolver) Username(ctx context.Context, obj *model.User) (string, error) {
-	return fmt.Sprintf("User%s", obj.ID), nil
+	return fmt.Sprintf("User %s", obj.ID), nil
 }
 
 func (r *userResolver) Reviews(ctx context.Context, obj *model.User) ([]*model.Review, error) {
@@ -39,11 +40,11 @@ func (r *userResolver) Reviews(ctx context.Context, obj *model.User) ([]*model.R
 	return res, nil
 }
 
-// Product returns generated1.ProductResolver implementation.
-func (r *Resolver) Product() generated1.ProductResolver { return &productResolver{r} }
+// Product returns generated.ProductResolver implementation.
+func (r *Resolver) Product() generated.ProductResolver { return &productResolver{r} }
 
-// User returns generated1.UserResolver implementation.
-func (r *Resolver) User() generated1.UserResolver { return &userResolver{r} }
+// User returns generated.UserResolver implementation.
+func (r *Resolver) User() generated.UserResolver { return &userResolver{r} }
 
 type productResolver struct{ *Resolver }
 type userResolver struct{ *Resolver }

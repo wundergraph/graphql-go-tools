@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/99designs/gqlgen/example/federation/products/graph/model"
+
 	"github.com/jensneuse/federation-example/products/graph/generated"
 )
 

@@ -7,7 +7,7 @@ import (
 	"context"
 
 	"github.com/99designs/gqlgen/example/federation/reviews/graph/model"
-	generated1 "github.com/jensneuse/federation-example/reviews/graph/generated"
+	"github.com/jensneuse/federation-example/reviews/graph/generated"
 )
 
 func (r *entityResolver) FindProductByUpc(ctx context.Context, upc string) (*model.Product, error) {
@@ -22,7 +22,7 @@ func (r *entityResolver) FindUserByID(ctx context.Context, id string) (*model.Us
 	}, nil
 }
 
-// Entity returns generated1.EntityResolver implementation.
-func (r *Resolver) Entity() generated1.EntityResolver { return &entityResolver{r} }
+// Entity returns generated.EntityResolver implementation.
+func (r *Resolver) Entity() generated.EntityResolver { return &entityResolver{r} }
 
 type entityResolver struct{ *Resolver }

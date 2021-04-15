@@ -5,12 +5,16 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gobwas/ws"
 	log "github.com/jensneuse/abstractlogger"
+	"go.uber.org/zap"
+
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/subscription"
+	graphql_websocket_subscription "github.com/jensneuse/graphql-go-tools/pkg/engine/subscription/graphql-websocket-subscription"
 	"github.com/jensneuse/graphql-go-tools/pkg/graphql"
 	"github.com/jensneuse/graphql-go-tools/pkg/playground"
-	"go.uber.org/zap"
 
 	http2 "github.com/jensneuse/federation-example/gateway/http"
 )
@@ -41,7 +45,18 @@ func startServer() {
 	playgroundURLPrefix := "/playground"
 	playgroundURL := ""
 
+	httpClient := http.DefaultClient
+
 	mux := http.NewServeMux()
+
+	datasourceWatcher := NewDatasourcePoller(httpClient, DatasourcePollerConfig{
+		Services: []ServiceConfig{
+			{Name: "accounts", URL: "http://localhost:4001/query"},
+			{Name: "products", URL: "http://localhost:4002/query", WS: "ws://localhost:4002/query"},
+			{Name: "reviews", URL: "http://localhost:4003/query"},
+		},
+		PollingInterval: 30 * time.Second,
+	})
 
 	p := playground.New(playground.Config{
 		PathPrefix:                      "",
@@ -60,22 +75,22 @@ func startServer() {
 		mux.Handle(handlers[i].Path, handlers[i].Handler)
 	}
 
-	schema, err := graphql.NewSchemaFromString(baseSchema)
-	if err != nil {
-		logger.Fatal("create schema", log.Error(err))
-	}
-	// Create and run subscription manager with websocket stream
-	subscriptionManager := newSubscriptionManager()
+	subscriptionManager := subscription.NewManager(graphql_websocket_subscription.New())
 	go subscriptionManager.Run(ctx.Done())
-	// Configure execution engine
-	engine, err := newEngine(logger, schema, subscriptionManager)
-	if err != nil {
-		logger.Fatal("create engine", log.Error(err))
-	}
-	// Create graphql handler
-	gqlHandler := http2.NewGraphqlHTTPHandler(schema, engine, upgrader, logger)
 
-	mux.Handle("/query", gqlHandler)
+	var gqlHandlerFactory HandlerFactoryFn = func(schema *graphql.Schema, engine *graphql.ExecutionEngineV2) http.Handler {
+		engine.WithTriggerManager(subscriptionManager)
+		return http2.NewGraphqlHTTPHandler(schema, engine, upgrader, logger)
+	}
+
+	gateway := NewGateway(gqlHandlerFactory, httpClient, logger)
+
+	datasourceWatcher.Register(gateway)
+	go datasourceWatcher.Run(ctx)
+
+	gateway.Ready()
+
+	mux.Handle("/query", gateway)
 
 	addr := "0.0.0.0:4000"
 	logger.Info("Listening",
