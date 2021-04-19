@@ -35,16 +35,16 @@ func MergeSDLs(SDLs ...string) (string, error) {
 
 	doc, report := astparser.ParseGraphqlDocumentString(strings.Join(rawDocs, "\n"))
 	if report.HasErrors() {
-		return "", fmt.Errorf("parse graphql document string: %w", report)
+		return "", fmt.Errorf("parse graphql document string: %s", report.Error())
 	}
 
 	if err := MergeAST(&doc); err != nil {
-		return "", fmt.Errorf("merge ast: %w", err)
+		return "", fmt.Errorf("merge ast: %s", err.Error())
 	}
 
 	out, err := astprinter.PrintString(&doc, nil)
 	if err != nil {
-		return "", fmt.Errorf("stringify schema: %w", err)
+		return "", fmt.Errorf("stringify schema: %s", err.Error())
 	}
 
 	return out, nil
@@ -87,7 +87,7 @@ func (m *normalizer) normalize(operation *ast.Document) error {
 	for _, walker := range m.walkers {
 		walker.Walk(operation, nil, &report)
 		if report.HasErrors() {
-			return fmt.Errorf("walk: %w", report)
+			return fmt.Errorf("walk: %s", report.Error())
 		}
 	}
 

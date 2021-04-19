@@ -83,7 +83,7 @@ func (f *EngineConfigV2Factory) engineConfigFieldConfigs(schema *graphql.Schema)
 	for _, dataSourceConfig := range f.dataSourceConfigs {
 		doc, report := astparser.ParseGraphqlDocumentString(dataSourceConfig.Federation.ServiceSDL)
 		if report.HasErrors() {
-			return nil, fmt.Errorf("parse graphql document string: %w", report)
+			return nil, fmt.Errorf("parse graphql document string: %s", report.Error())
 		}
 		extractor := &requiredFieldExtractor{document: &doc}
 		planFieldConfigs = append(planFieldConfigs, extractor.getAllFieldRequires()...)
@@ -139,7 +139,7 @@ func (f *EngineConfigV2Factory) engineConfigDataSources() (planDataSources []pla
 	for _, dataSourceConfig := range f.dataSourceConfigs {
 		doc, report := astparser.ParseGraphqlDocumentString(dataSourceConfig.Federation.ServiceSDL)
 		if report.HasErrors() {
-			return nil, fmt.Errorf("parse graphql document string: %w", report)
+			return nil, fmt.Errorf("parse graphql document string: %s", report.Error())
 		}
 
 		var planDataSource plan.DataSourceConfiguration

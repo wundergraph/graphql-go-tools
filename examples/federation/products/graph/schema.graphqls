@@ -11,4 +11,3 @@ type Product @key(fields: "upc") {
     name: String!
     price: Int!
 }
-
