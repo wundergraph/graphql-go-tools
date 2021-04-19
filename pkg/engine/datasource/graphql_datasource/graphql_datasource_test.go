@@ -1452,6 +1452,70 @@ func TestGraphQLDataSource(t *testing.T) {
 		},
 	}))
 
+	t.Run("subscription with variables", RunTest(`
+		type Subscription {
+			foo(bar: String): Int!
+ 		}
+`, `
+		subscription SubscriptionWithVariables {
+			foo(bar: "baz")
+		}
+	`, "SubscriptionWithVariables", &plan.SubscriptionResponsePlan{
+		Response: resolve.GraphQLSubscription{
+			Trigger: resolve.GraphQLSubscriptionTrigger{
+				ManagerID: []byte("graphql_websocket_subscription"),
+				Input:     `{"url":"wss://swapi.com/graphql","body":{"query":"subscription($a: String){foo(bar: $a)}","variables":{"a":"$$0$$"}}}`,
+				Variables: resolve.NewVariables(
+					&resolve.ContextVariable{
+						Path: []string{"a"},
+					},
+				),
+			},
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fields: []*resolve.Field{
+						{
+							Name: []byte("foo"),
+							Value: &resolve.Integer{
+								Path:     []string{"foo"},
+								Nullable: false,
+							},
+						},
+					},
+				},
+			},
+		},
+	}, plan.Configuration{
+		DataSources: []plan.DataSourceConfiguration{
+			{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Subscription",
+						FieldNames: []string{"foo"},
+					},
+				},
+				Custom: ConfigJson(Configuration{
+					Subscription: SubscriptionConfiguration{
+						URL: "wss://swapi.com/graphql",
+					},
+				}),
+				Factory: &Factory{},
+			},
+		},
+		Fields: []plan.FieldConfiguration{
+			{
+				TypeName: "Subscription",
+				FieldName: "foo",
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "bar",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+		},
+	}))
+
 	federationFactory := &Factory{}
 	t.Run("federation", RunTest(federationTestSchema,
 		`	query MyReviews {

@@ -64,7 +64,8 @@ type ComplexityRoot struct {
 	}
 
 	Subscription struct {
-		UpdatedPrice func(childComplexity int) int
+		UpdateProductPrice func(childComplexity int, upc string) int
+		UpdatedPrice       func(childComplexity int) int
 	}
 
 	Service struct {
@@ -80,6 +81,7 @@ type QueryResolver interface {
 }
 type SubscriptionResolver interface {
 	UpdatedPrice(ctx context.Context) (<-chan *model.Product, error)
+	UpdateProductPrice(ctx context.Context, upc string) (<-chan *model.Product, error)
 }
 
 type executableSchema struct {
@@ -160,6 +162,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Query.__resolve_entities(childComplexity, args["representations"].([]map[string]interface{})), true
+
+	case "Subscription.updateProductPrice":
+		if e.complexity.Subscription.UpdateProductPrice == nil {
+			break
+		}
+
+		args, err := ec.field_Subscription_updateProductPrice_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Subscription.UpdateProductPrice(childComplexity, args["upc"].(string)), true
 
 	case "Subscription.updatedPrice":
 		if e.complexity.Subscription.UpdatedPrice == nil {
@@ -248,6 +262,7 @@ var sources = []*ast.Source{
 
 extend type Subscription {
     updatedPrice: Product!
+    updateProductPrice(upc: String!): Product!
 }
 
 type Product @key(fields: "upc") {
@@ -350,6 +365,21 @@ func (ec *executionContext) field_Query_topProducts_args(ctx context.Context, ra
 		}
 	}
 	args["first"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Subscription_updateProductPrice_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 string
+	if tmp, ok := rawArgs["upc"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("upc"))
+		arg0, err = ec.unmarshalNString2string(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["upc"] = arg0
 	return args, nil
 }
 
@@ -744,6 +774,58 @@ func (ec *executionContext) _Subscription_updatedPrice(ctx context.Context, fiel
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
 		return ec.resolvers.Subscription().UpdatedPrice(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return nil
+	}
+	return func() graphql.Marshaler {
+		res, ok := <-resTmp.(<-chan *model.Product)
+		if !ok {
+			return nil
+		}
+		return graphql.WriterFunc(func(w io.Writer) {
+			w.Write([]byte{'{'})
+			graphql.MarshalString(field.Alias).MarshalGQL(w)
+			w.Write([]byte{':'})
+			ec.marshalNProduct2ᚖgithubᚗcomᚋ99designsᚋgqlgenᚋexampleᚋfederationᚋproductsᚋgraphᚋmodelᚐProduct(ctx, field.Selections, res).MarshalGQL(w)
+			w.Write([]byte{'}'})
+		})
+	}
+}
+
+func (ec *executionContext) _Subscription_updateProductPrice(ctx context.Context, field graphql.CollectedField) (ret func() graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = nil
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	rawArgs := field.ArgumentMap(ec.Variables)
+	args, err := ec.field_Subscription_updateProductPrice_args(ctx, rawArgs)
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	fc.Args = args
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Subscription().UpdateProductPrice(rctx, args["upc"].(string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -2074,6 +2156,8 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 	switch fields[0].Name {
 	case "updatedPrice":
 		return ec._Subscription_updatedPrice(ctx, fields[0])
+	case "updateProductPrice":
+		return ec._Subscription_updateProductPrice(ctx, fields[0])
 	default:
 		panic("unknown field " + strconv.Quote(fields[0].Name))
 	}

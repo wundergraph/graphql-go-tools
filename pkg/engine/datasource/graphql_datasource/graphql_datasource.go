@@ -174,6 +174,7 @@ func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
 	return plan.SubscriptionConfiguration{
 		Input:                 string(input),
 		SubscriptionManagerID: "graphql_websocket_subscription",
+		Variables:            p.variables,
 	}
 }
 
