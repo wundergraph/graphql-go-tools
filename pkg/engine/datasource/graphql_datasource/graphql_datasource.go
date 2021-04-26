@@ -42,8 +42,10 @@ type Planner struct {
 	hasFederationRoot          bool
 	extractEntities            bool
 	client                     httpclient.Client
-	isNested                   bool
-	rootTypeName               string
+	isNested                   bool   // isNested - flags that datasource is nested e.g. field with datasource is not on a query type
+	rootTypeName               string // rootTypeName - holds name of top level type
+	rootFieldName              string // rootFieldName - holds name of root type field
+	rootFieldRef               int    // rootFieldRef - holds ref of root type field
 }
 
 func (p *Planner) DownstreamResponseFieldAlias(downstreamFieldRef int) (alias string, exists bool) {
@@ -268,6 +270,14 @@ func (p *Planner) LeaveInlineFragment(ref int) {
 
 func (p *Planner) EnterField(ref int) {
 
+	fieldName := p.visitor.Operation.FieldNameString(ref)
+
+	// store root field name and ref
+	if p.rootFieldName == "" {
+		p.rootFieldName = fieldName
+		p.rootFieldRef = ref
+	}
+	// store root type name
 	if p.rootTypeName == "" {
 		p.rootTypeName = p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
 	}
@@ -275,12 +285,11 @@ func (p *Planner) EnterField(ref int) {
 	p.lastFieldEnclosingTypeName = p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
 
 	p.handleFederation(ref)
-
 	p.addField(ref)
 
 	upstreamFieldRef := p.nodes[len(p.nodes)-1].Ref
 	typeName := p.lastFieldEnclosingTypeName
-	fieldName := p.visitor.Operation.FieldNameUnsafeString(ref)
+
 	fieldConfiguration := p.visitor.Config.Fields.ForTypeField(typeName, fieldName)
 	if fieldConfiguration == nil {
 		return
@@ -312,7 +321,11 @@ func (p *Planner) EnterDocument(operation, definition *ast.Document) {
 	p.disallowSingleFlight = false
 	p.hasFederationRoot = false
 	p.extractEntities = false
+
+	// reset information about root type
 	p.rootTypeName = ""
+	p.rootFieldName = ""
+	p.rootFieldRef = -1
 }
 
 func (p *Planner) LeaveDocument(operation, definition *ast.Document) {
@@ -623,6 +636,7 @@ const (
 	parseDocumentFailedErrMsg = "printOperation: parse %s failed"
 )
 
+// printOperation - prints normalized upstream operation
 func (p *Planner) printOperation() []byte {
 
 	buf := &bytes.Buffer{}
@@ -645,11 +659,13 @@ func (p *Planner) printOperation() []byte {
 		return nil
 	}
 
+	// create empty operation and definition documents
 	operation := ast.NewDocument()
 	definition := ast.NewDocument()
 	report := &operationreport.Report{}
 	parser := astparser.NewParser()
 
+	// creates a copy of operation and schema to be able to safely modify them
 	definition.Input.ResetInputString(federationSchema)
 	operation.Input.ResetInputBytes(rawQuery)
 
@@ -665,13 +681,19 @@ func (p *Planner) printOperation() []byte {
 		return nil
 	}
 
-	if !p.normalizeOperation(operation, definition, report, true) {
+	// When datasource is nested and definition query type do not contain operation field
+	// we have to replace a query type with a current root type
+	p.replaceQueryType(definition)
+
+	// normalize upstream operation
+	if !p.normalizeOperation(operation, definition, report) {
 		p.stopWithError(normalizationFailedErrMsg)
 		return nil
 	}
 
 	buf.Reset()
 
+	// print upstream operation
 	err = astprinter.Print(operation, p.visitor.Definition, buf)
 	if err != nil {
 		p.stopWithError(normalizationFailedErrMsg)
@@ -685,12 +707,85 @@ func (p *Planner) stopWithError(msg string, args ...interface{}) {
 	p.visitor.Walker.StopWithInternalErr(fmt.Errorf(msg, args...))
 }
 
-// normalizeOperation - tries to normalize operation against definition.
+// replaceQueryType - sets definition query type to a current root type.
+// Helps to do a normalization of the upstream query for a nested datasources.
+// Skips replace when:
+// 1. datasource is not nested;
+// 2. federation is enabled;
+// 3. query type contains an operation field;
 //
-// withRetry - temporary flag which will replace query type with corresponding root type and reruns normalization.
+// Example transformation:
+// Original schema definition:
 //
-// TODO: implement less hacky solution to normalize upstream queries
-func (p *Planner) normalizeOperation(operation, definition *ast.Document, report *operationreport.Report, withRetry bool) (ok bool) {
+// type Query {
+// 	serviceOne(serviceOneArg: String): ServiceOneResponse
+// 	serviceTwo(serviceTwoArg: Boolean): ServiceTwoResponse
+// }
+// type ServiceOneResponse {
+// 	fieldOne: String!
+// 	countries: [Country!]! # nested datasource without explicit field path
+// }
+// type ServiceTwoResponse {
+// 	fieldTwo: String
+// 	serviceOneField: String
+// 	serviceOneResponse: ServiceOneResponse # nested datasource with implicit field path "serviceOne"
+// }
+// type Country {
+// 	name: String!
+// }
+//
+// `serviceOneResponse` field of a `ServiceTwoResponse` is nested but have a field path exists on a query type
+// - In this case definition will not be modified
+//
+// `countries` field of a `ServiceOneResponse` is nested and not present on a query type
+// - In this case query type of definition will be replaced with a `ServiceOneResponse`
+//
+// Modified schema definition:
+//
+// schema {
+//    query: ServiceOneResponse
+// }
+//
+// type ServiceOneResponse {
+//    fieldOne: String!
+//    countries: [Country!]!
+// }
+//
+// type ServiceTwoResponse {
+//    fieldTwo: String
+//    serviceOneField: String
+//    serviceOneResponse: ServiceOneResponse
+// }
+//
+// type Country {
+//    name: String!
+// }
+// Refer to pkg/engine/datasource/graphql_datasource/graphql_datasource_test.go:632
+// Case name: TestGraphQLDataSource/nested_graphql_engines
+func (p *Planner) replaceQueryType(definition *ast.Document) {
+	if !p.isNested || p.config.Federation.Enabled {
+		return
+	}
+
+	queryTypeName := definition.Index.QueryTypeName
+	queryNode, exists := definition.Index.FirstNodeByNameBytes(queryTypeName)
+	if !exists || queryNode.Kind != ast.NodeKindObjectTypeDefinition {
+		return
+	}
+
+	// check that query type has rootFieldName within its fields
+	hasField := definition.FieldDefinitionsContainField(definition.ObjectTypeDefinitions[queryNode.Ref].FieldsDefinition.Refs, []byte(p.rootFieldName))
+	if !hasField {
+		definition.RemoveObjectTypeDefinition(definition.Index.QueryTypeName)
+		definition.ReplaceRootOperationTypeDefinition(p.rootTypeName, ast.OperationTypeQuery)
+
+		str, _ := astprinter.PrintStringIndent(definition, nil, "  ")
+		_ = str
+	}
+}
+
+// normalizeOperation - normalizes operation against definition.
+func (p *Planner) normalizeOperation(operation, definition *ast.Document, report *operationreport.Report) (ok bool) {
 
 	report.Reset()
 	normalizer := astnormalization.NewWithOpts(
@@ -704,19 +799,12 @@ func (p *Planner) normalizeOperation(operation, definition *ast.Document, report
 		return true
 	}
 
-	if withRetry && p.isNested && !p.config.Federation.Enabled {
-		definition.RemoveObjectTypeDefinition(definition.Index.QueryTypeName)
-		definition.ReplaceRootOperationTypeDefinition(p.rootTypeName, ast.OperationTypeQuery)
-
-		return p.normalizeOperation(operation, definition, report, false)
-	}
-
 	return false
 }
 
+// addField - add a field to an upstream operation
 func (p *Planner) addField(ref int) {
-
-	fieldName := p.visitor.Operation.FieldNameUnsafeString(ref)
+	fieldName := p.visitor.Operation.FieldNameString(ref)
 
 	alias := ast.Alias{
 		IsDefined: p.visitor.Operation.FieldAliasIsDefined(ref),
@@ -729,17 +817,25 @@ func (p *Planner) addField(ref int) {
 
 	typeName := p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
 	for i := range p.visitor.Config.Fields {
-		if p.visitor.Config.Fields[i].TypeName == typeName &&
-			p.visitor.Config.Fields[i].FieldName == fieldName &&
-			len(p.visitor.Config.Fields[i].Path) == 1 {
+		isDesiredField := p.visitor.Config.Fields[i].TypeName == typeName &&
+			p.visitor.Config.Fields[i].FieldName == fieldName
 
+		// chech that we are on a desired field and field path contains a single element - mapping is plain
+		if isDesiredField && len(p.visitor.Config.Fields[i].Path) == 1 {
+			// define alias when mapping path differs from fieldName and no alias has been defined
 			if p.visitor.Config.Fields[i].Path[0] != fieldName && !alias.IsDefined {
 				alias.IsDefined = true
 				aliasBytes := p.visitor.Operation.FieldNameBytes(ref)
 				alias.Name = p.upstreamOperation.Input.AppendInputBytes(aliasBytes)
 			}
 
+			// override fieldName with mapping path value
 			fieldName = p.visitor.Config.Fields[i].Path[0]
+
+			// when provided field is a root type field save new field name
+			if ref == p.rootFieldRef {
+				p.rootFieldName = fieldName
+			}
 
 			break
 		}
