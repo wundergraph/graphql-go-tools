@@ -52,7 +52,7 @@ func (p *Planner) DownstreamResponseFieldAlias(downstreamFieldRef int) (alias st
 	// we rewrite the downstream Query using an alias so that we can have an aliased Query to the upstream
 	// while keeping a non aliased Query to the downstream but with a path rewrite on an existing root field.
 
-	fieldName := p.visitor.Operation.FieldNameString(downstreamFieldRef)
+	fieldName := p.visitor.Operation.FieldNameUnsafeString(downstreamFieldRef)
 
 	if p.visitor.Operation.FieldAliasIsDefined(downstreamFieldRef) {
 		return "", false
@@ -210,7 +210,7 @@ func (p *Planner) EnterSelectionSet(ref int) {
 	p.nodes = append(p.nodes, set)
 	for _, selectionRef := range p.visitor.Operation.SelectionSets[ref].SelectionRefs {
 		if p.visitor.Operation.Selections[selectionRef].Kind == ast.SelectionKindField {
-			if p.visitor.Operation.FieldNameString(p.visitor.Operation.Selections[selectionRef].Ref) == "__typename" {
+			if p.visitor.Operation.FieldNameUnsafeString(p.visitor.Operation.Selections[selectionRef].Ref) == "__typename" {
 				field := p.upstreamOperation.AddField(ast.Field{
 					Name: p.upstreamOperation.Input.AppendInputString("__typename"),
 				})
@@ -280,7 +280,7 @@ func (p *Planner) EnterField(ref int) {
 
 	upstreamFieldRef := p.nodes[len(p.nodes)-1].Ref
 	typeName := p.lastFieldEnclosingTypeName
-	fieldName := p.visitor.Operation.FieldNameString(ref)
+	fieldName := p.visitor.Operation.FieldNameUnsafeString(ref)
 	fieldConfiguration := p.visitor.Config.Fields.ForTypeField(typeName, fieldName)
 	if fieldConfiguration == nil {
 		return
@@ -292,7 +292,7 @@ func (p *Planner) EnterField(ref int) {
 }
 
 func (p *Planner) LeaveField(ref int) {
-	// fmt.Printf("Planner::%s::%s::LeaveField::%s::%d\n", p.id, p.visitor.Walker.Path.DotDelimitedString(), p.visitor.Operation.FieldNameString(ref), ref)
+	// fmt.Printf("Planner::%s::%s::LeaveField::%s::%d\n", p.id, p.visitor.Walker.Path.DotDelimitedString(), p.visitor.Operation.FieldNameUnsafeString(ref), ref)
 	p.nodes = p.nodes[:len(p.nodes)-1]
 }
 
@@ -589,7 +589,7 @@ func (p *Planner) configureObjectFieldSource(upstreamFieldRef, downstreamFieldRe
 		return
 	}
 
-	fieldName := p.visitor.Operation.FieldNameString(downstreamFieldRef)
+	fieldName := p.visitor.Operation.FieldNameUnsafeString(downstreamFieldRef)
 
 	if len(fieldConfiguration.Path) == 1 {
 		fieldName = fieldConfiguration.Path[0]
@@ -716,7 +716,7 @@ func (p *Planner) normalizeOperation(operation, definition *ast.Document, report
 
 func (p *Planner) addField(ref int) {
 
-	fieldName := p.visitor.Operation.FieldNameString(ref)
+	fieldName := p.visitor.Operation.FieldNameUnsafeString(ref)
 
 	alias := ast.Alias{
 		IsDefined: p.visitor.Operation.FieldAliasIsDefined(ref),

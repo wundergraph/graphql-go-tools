@@ -370,12 +370,12 @@ func (v *Visitor) EnterField(ref int) {
 
 	fieldName := v.Operation.FieldNameBytes(ref)
 	fieldAliasOrName := v.Operation.FieldAliasOrNameBytes(ref)
-	if bytes.Equal(fieldName,literal.TYPENAME){
+	if bytes.Equal(fieldName, literal.TYPENAME) {
 		v.currentField = &resolve.Field{
 			Name: fieldAliasOrName,
-			Value:     &resolve.String{
+			Value: &resolve.String{
 				Nullable: false,
-				Path: v.resolveFieldPath(ref),
+				Path:     v.resolveFieldPath(ref),
 			},
 			OnTypeName: v.resolveOnTypeName(),
 		}
@@ -423,7 +423,7 @@ func (v *Visitor) EnterField(ref int) {
 	*v.currentFields[len(v.currentFields)-1].fields = append(*v.currentFields[len(v.currentFields)-1].fields, v.currentField)
 }
 
-func (v *Visitor) resolveOnTypeName () []byte {
+func (v *Visitor) resolveOnTypeName() []byte {
 	if len(v.Walker.Ancestors) < 2 {
 		return nil
 	}
@@ -583,7 +583,7 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 
 func (v *Visitor) resolveFieldPath(ref int) []string {
 	typeName := v.Walker.EnclosingTypeDefinition.NameString(v.Definition)
-	fieldName := v.Operation.FieldNameString(ref)
+	fieldName := v.Operation.FieldNameUnsafeString(ref)
 	config := v.currentOrParentPlannerConfiguration()
 	aliasOverride := false
 	if config.planner != nil {
@@ -1002,7 +1002,7 @@ func (c *configurationVisitor) EnterOperationDefinition(ref int) {
 }
 
 func (c *configurationVisitor) EnterField(ref int) {
-	fieldName := c.operation.FieldNameString(ref)
+	fieldName := c.operation.FieldNameUnsafeString(ref)
 	fieldAliasOrName := c.operation.FieldAliasOrNameString(ref)
 	typeName := c.walker.EnclosingTypeDefinition.NameString(c.definition)
 	parent := c.walker.Path.DotDelimitedString()
@@ -1113,7 +1113,7 @@ func (r *requiredFieldsVisitor) EnterDocument(operation, definition *ast.Documen
 
 func (r *requiredFieldsVisitor) EnterField(ref int) {
 	typeName := r.walker.EnclosingTypeDefinition.NameString(r.definition)
-	fieldName := r.operation.FieldNameString(ref)
+	fieldName := r.operation.FieldNameUnsafeString(ref)
 	fieldConfig := r.config.Fields.ForTypeField(typeName, fieldName)
 	if fieldConfig == nil {
 		return

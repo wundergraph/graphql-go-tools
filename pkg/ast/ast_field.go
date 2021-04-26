@@ -21,7 +21,8 @@ func (d *Document) FieldNameBytes(ref int) ByteSlice {
 	return d.Input.ByteSlice(d.Fields[ref].Name)
 }
 
-func (d *Document) FieldNameString(ref int) string {
+// FieldNameUnsafeString - returns field name as a string which is unsafe pointer to document input content
+func (d *Document) FieldNameUnsafeString(ref int) string {
 	return unsafebytes.BytesToString(d.Input.ByteSlice(d.Fields[ref].Name))
 }
 
