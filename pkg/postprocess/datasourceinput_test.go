@@ -122,8 +122,8 @@ func TestDataSourceInput_Process(t *testing.T) {
 								SegmentType: resolve.StaticSegmentType,
 							},
 							{
-								SegmentType: resolve.VariableSegmentType,
-								VariableSource: resolve.VariableSourceRequestHeader,
+								SegmentType:        resolve.VariableSegmentType,
+								VariableSource:     resolve.VariableSourceRequestHeader,
 								VariableSourcePath: []string{"Authorization"},
 							},
 							{
@@ -253,8 +253,8 @@ func TestDataSourceInput_Subscription_Process(t *testing.T) {
 	pre := &plan.SubscriptionResponsePlan{
 		Response: resolve.GraphQLSubscription{
 			Trigger: resolve.GraphQLSubscriptionTrigger{
-				ManagerID:     []byte("fake"),
-				Input:      `{"method":"POST","url":"http://localhost:4001/$$0$$","body":{"query":"{me {id username}}"}}`,
+				ManagerID: []byte("fake"),
+				Input:     `{"method":"POST","url":"http://localhost:4001/$$0$$","body":{"query":"{me {id username}}"}}`,
 				Variables: []resolve.Variable{
 					&resolve.HeaderVariable{
 						Path: []string{"Authorization"},
@@ -268,7 +268,7 @@ func TestDataSourceInput_Subscription_Process(t *testing.T) {
 	expected := &plan.SubscriptionResponsePlan{
 		Response: resolve.GraphQLSubscription{
 			Trigger: resolve.GraphQLSubscriptionTrigger{
-				ManagerID:     []byte("fake"),
+				ManagerID: []byte("fake"),
 				InputTemplate: resolve.InputTemplate{
 					Segments: []resolve.TemplateSegment{
 						{
@@ -276,8 +276,8 @@ func TestDataSourceInput_Subscription_Process(t *testing.T) {
 							SegmentType: resolve.StaticSegmentType,
 						},
 						{
-							SegmentType: resolve.VariableSegmentType,
-							VariableSource: resolve.VariableSourceRequestHeader,
+							SegmentType:        resolve.VariableSegmentType,
+							VariableSource:     resolve.VariableSourceRequestHeader,
 							VariableSourcePath: []string{"Authorization"},
 						},
 						{

@@ -25,7 +25,7 @@ type deleteUnusedVariablesVisitor struct {
 	operation, definition *ast.Document
 	definedVariables      []int
 	operationName         []byte
-	skip bool
+	skip                  bool
 }
 
 func (d *deleteUnusedVariablesVisitor) LeaveOperationDefinition(ref int) {
@@ -33,8 +33,8 @@ func (d *deleteUnusedVariablesVisitor) LeaveOperationDefinition(ref int) {
 		variableName := d.operation.VariableDefinitionNameString(variable)
 		for i, variableDefinitionRef := range d.operation.OperationDefinitions[ref].VariableDefinitions.Refs {
 			if variable == variableDefinitionRef {
-				d.operation.OperationDefinitions[ref].VariableDefinitions.Refs = append(d.operation.OperationDefinitions[ref].VariableDefinitions.Refs[:i],d.operation.OperationDefinitions[ref].VariableDefinitions.Refs[i+1:]...)
-				d.operation.Input.Variables = jsonparser.Delete(d.operation.Input.Variables,variableName)
+				d.operation.OperationDefinitions[ref].VariableDefinitions.Refs = append(d.operation.OperationDefinitions[ref].VariableDefinitions.Refs[:i], d.operation.OperationDefinitions[ref].VariableDefinitions.Refs[i+1:]...)
+				d.operation.Input.Variables = jsonparser.Delete(d.operation.Input.Variables, variableName)
 				d.operation.OperationDefinitions[ref].HasVariableDefinitions = len(d.operation.OperationDefinitions[ref].VariableDefinitions.Refs) != 0
 			}
 		}
@@ -54,7 +54,7 @@ func (d *deleteUnusedVariablesVisitor) removeDefinedVariableWithName(name []byte
 	}
 }
 
-func (d *deleteUnusedVariablesVisitor) traverseValue(value ast.Value){
+func (d *deleteUnusedVariablesVisitor) traverseValue(value ast.Value) {
 	switch value.Kind {
 	case ast.ValueKindVariable:
 		d.removeDefinedVariableWithName(d.operation.VariableValueNameBytes(value.Ref))

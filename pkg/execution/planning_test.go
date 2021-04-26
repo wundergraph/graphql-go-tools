@@ -79,7 +79,7 @@ func runWithOperationName(definition string, operation string, operationName str
 
 		if !reflect.DeepEqual(want, got) {
 			fmt.Println(deep.Equal(want, got))
-			assert.Equal(t, want,got)
+			assert.Equal(t, want, got)
 			t.Errorf("want:\n%s\ngot:\n%s\n", spew.Sdump(want), spew.Sdump(got))
 		}
 	}

@@ -21,7 +21,7 @@ type TypeCondition struct {
 //  id
 //  name
 //  profilePic(size: 50)
-//}
+// }
 type FragmentDefinition struct {
 	FragmentLiteral position.Position  // fragment
 	Name            ByteSliceReference // Name but not on, e.g. friendFields

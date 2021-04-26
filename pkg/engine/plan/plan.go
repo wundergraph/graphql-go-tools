@@ -900,7 +900,7 @@ type plannerConfiguration struct {
 	bufferID                int
 }
 
-//isNestedPlanner returns true in case the planner is not directly attached to the Operation root
+// isNestedPlanner returns true in case the planner is not directly attached to the Operation root
 // a nested planner should always build a Query
 func (p *plannerConfiguration) isNestedPlanner() bool {
 	for i := range p.paths {
