@@ -778,9 +778,6 @@ func (p *Planner) replaceQueryType(definition *ast.Document) {
 	if !hasField {
 		definition.RemoveObjectTypeDefinition(definition.Index.QueryTypeName)
 		definition.ReplaceRootOperationTypeDefinition(p.rootTypeName, ast.OperationTypeQuery)
-
-		str, _ := astprinter.PrintStringIndent(definition, nil, "  ")
-		_ = str
 	}
 }
 
@@ -795,11 +792,7 @@ func (p *Planner) normalizeOperation(operation, definition *ast.Document, report
 	)
 	normalizer.NormalizeOperation(operation, definition, report)
 
-	if !report.HasErrors() {
-		return true
-	}
-
-	return false
+	return !report.HasErrors()
 }
 
 // addField - add a field to an upstream operation
