@@ -707,61 +707,71 @@ func (p *Planner) stopWithError(msg string, args ...interface{}) {
 	p.visitor.Walker.StopWithInternalErr(fmt.Errorf(msg, args...))
 }
 
-// replaceQueryType - sets definition query type to a current root type.
-// Helps to do a normalization of the upstream query for a nested datasources.
-// Skips replace when:
-// 1. datasource is not nested;
-// 2. federation is enabled;
-// 3. query type contains an operation field;
-//
-// Example transformation:
-// Original schema definition:
-//
-// type Query {
-// 	serviceOne(serviceOneArg: String): ServiceOneResponse
-// 	serviceTwo(serviceTwoArg: Boolean): ServiceTwoResponse
-// }
-// type ServiceOneResponse {
-// 	fieldOne: String!
-// 	countries: [Country!]! # nested datasource without explicit field path
-// }
-// type ServiceTwoResponse {
-// 	fieldTwo: String
-// 	serviceOneField: String
-// 	serviceOneResponse: ServiceOneResponse # nested datasource with implicit field path "serviceOne"
-// }
-// type Country {
-// 	name: String!
-// }
-//
-// `serviceOneResponse` field of a `ServiceTwoResponse` is nested but have a field path exists on a query type
-// - In this case definition will not be modified
-//
-// `countries` field of a `ServiceOneResponse` is nested and not present on a query type
-// - In this case query type of definition will be replaced with a `ServiceOneResponse`
-//
-// Modified schema definition:
-//
-// schema {
-//    query: ServiceOneResponse
-// }
-//
-// type ServiceOneResponse {
-//    fieldOne: String!
-//    countries: [Country!]!
-// }
-//
-// type ServiceTwoResponse {
-//    fieldTwo: String
-//    serviceOneField: String
-//    serviceOneResponse: ServiceOneResponse
-// }
-//
-// type Country {
-//    name: String!
-// }
-// Refer to pkg/engine/datasource/graphql_datasource/graphql_datasource_test.go:632
-// Case name: TestGraphQLDataSource/nested_graphql_engines
+/*
+replaceQueryType - sets definition query type to a current root type.
+Helps to do a normalization of the upstream query for a nested datasource.
+Skips replace when:
+1. datasource is not nested;
+2. federation is enabled;
+3. query type contains an operation field;
+
+Example transformation:
+Original schema definition:
+
+type Query {
+	serviceOne(serviceOneArg: String): ServiceOneResponse
+	serviceTwo(serviceTwoArg: Boolean): ServiceTwoResponse
+}
+type ServiceOneResponse {
+	fieldOne: String!
+	countries: [Country!]! # nested datasource without explicit field path
+}
+type ServiceTwoResponse {
+	fieldTwo: String
+	serviceOneField: String
+	serviceOneResponse: ServiceOneResponse # nested datasource with implicit field path "serviceOne"
+}
+type Country {
+	name: String!
+}
+
+`serviceOneResponse` field of a `ServiceTwoResponse` is nested but has a field path that exists on the Query type
+- In this case definition will not be modified
+
+`countries` field of a `ServiceOneResponse` is nested and not present on the Query type
+- In this case query type of definition will be replaced with a `ServiceOneResponse`
+
+Modified schema definition:
+
+schema {
+   query: ServiceOneResponse
+}
+
+type ServiceOneResponse {
+   fieldOne: String!
+   countries: [Country!]!
+}
+
+type ServiceTwoResponse {
+   fieldTwo: String
+   serviceOneField: String
+   serviceOneResponse: ServiceOneResponse
+}
+
+type Country {
+   name: String!
+}
+Refer to pkg/engine/datasource/graphql_datasource/graphql_datasource_test.go:632
+Case name: TestGraphQLDataSource/nested_graphql_engines
+
+If we didn't do this transformation, the normalization would fail because it's not possible
+to traverse the AST as there's a mismatch between the upstream Operation and the schema.
+
+If the nested Query can be rewritten so that it's a valid Query against the existing schema, fine.
+However, when rewriting the nested Query onto the schema's Query type,
+it might be the case that no FieldDefinition exists for the rewritten root field.
+In that case, we transform the schema so that normalization and printing of the upstream Query succeeds.
+*/
 func (p *Planner) replaceQueryType(definition *ast.Document) {
 	if !p.isNested || p.config.Federation.Enabled {
 		return
@@ -775,10 +785,12 @@ func (p *Planner) replaceQueryType(definition *ast.Document) {
 
 	// check that query type has rootFieldName within its fields
 	hasField := definition.FieldDefinitionsContainField(definition.ObjectTypeDefinitions[queryNode.Ref].FieldsDefinition.Refs, []byte(p.rootFieldName))
-	if !hasField {
-		definition.RemoveObjectTypeDefinition(definition.Index.QueryTypeName)
-		definition.ReplaceRootOperationTypeDefinition(p.rootTypeName, ast.OperationTypeQuery)
+	if hasField {
+		return
 	}
+
+	definition.RemoveObjectTypeDefinition(definition.Index.QueryTypeName)
+	definition.ReplaceRootOperationTypeDefinition(p.rootTypeName, ast.OperationTypeQuery)
 }
 
 // normalizeOperation - normalizes operation against definition.
