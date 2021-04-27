@@ -413,6 +413,7 @@ type Alien implements Sentient {
 
 type Human implements Sentient {
   name: String!
+  relative: Human
 }
 
 enum CatCommand { JUMP }

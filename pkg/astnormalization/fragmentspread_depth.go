@@ -66,6 +66,7 @@ func (n *nestedDepthCalc) calculatedNestedDepths(depths *Depths) {
 }
 
 func (n *nestedDepthCalc) calculateNestedDepth(i int) int {
+	println("calculateNestedDepth")
 	if !(*n.depths)[i].isNested {
 		return (*n.depths)[i].Depth
 	}
