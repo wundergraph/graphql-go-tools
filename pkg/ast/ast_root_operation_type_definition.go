@@ -99,13 +99,24 @@ func (d *Document) ImportRootOperationTypeDefinition(name string, operationType 
 	return d.AddRootOperationTypeDefinition(operationTypeDefinition)
 }
 
-func (d *Document) ReplaceRootOperationTypeDefinition(name string, operationType OperationType) (ref int) {
+func (d *Document) ReplaceRootOperationTypeDefinition(name string, operationType OperationType) (ref int, ok bool) {
+	node, exists := d.NodeByNameStr(name)
+	if !exists || node.Kind != NodeKindObjectTypeDefinition {
+		return -1, false
+	}
+
+	var rootOperationFound bool
 	for i := range d.RootOperationTypeDefinitions {
 		if d.RootOperationTypeDefinitions[i].OperationType == operationType {
 			d.RootOperationTypeDefinitions = append(d.RootOperationTypeDefinitions[:i], d.RootOperationTypeDefinitions[i+1:]...)
+			rootOperationFound = true
 			break
 		}
 	}
+	if !rootOperationFound {
+		return -1, false
+	}
 
-	return d.ImportRootOperationTypeDefinition(name, operationType)
+	ref = d.ImportRootOperationTypeDefinition(name, operationType)
+	return ref, true
 }

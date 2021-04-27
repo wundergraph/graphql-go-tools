@@ -3,47 +3,59 @@ package ast_test
 import (
 	"testing"
 
+	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestDocument_ReplaceRootOperationTypeDefinition(t *testing.T) {
-	prepareDoc := func(t *testing.T) *ast.Document {
-		doc := ast.NewDocument()
-		typeRef := doc.AddNamedType([]byte("String"))
+	schema := "schema {query: Query} type Query {queryName: String} type Country {code: String} interface Model {id: String}"
 
-		queryFieldRef := doc.ImportFieldDefinition("queryName", "", typeRef, nil, nil)
-		doc.ImportObjectTypeDefinition("Query", "", []int{queryFieldRef}, nil)
-		doc.ImportSchemaDefinition("Query", "", "")
-
-		codeFieldRef := doc.ImportFieldDefinition("code", "", typeRef, nil, nil)
-		doc.ImportObjectTypeDefinition("Country", "", []int{codeFieldRef}, nil)
-
-		schema := "schema {query: Query} type Query {queryName: String} type Country {code: String}"
-		docStr, _ := astprinter.PrintString(doc, nil)
-		assert.Equal(t, schema, docStr)
-		return doc
+	prepareDoc := func() *ast.Document {
+		doc := unsafeparser.ParseGraphqlDocumentString(schema)
+		return &doc
 	}
 
-	t.Run("replace query type with existing type", func(t *testing.T) {
-		doc := prepareDoc(t)
-		doc.ReplaceRootOperationTypeDefinition("Country", ast.OperationTypeQuery)
+	t.Run("should replace query type with existing type", func(t *testing.T) {
+		doc := prepareDoc()
+		ref, ok := doc.ReplaceRootOperationTypeDefinition("Country", ast.OperationTypeQuery)
+		assert.NotEqual(t, -1, ref)
+		assert.True(t, ok)
+
 		docStr, _ := astprinter.PrintString(doc, nil)
-		assert.Equal(t, "schema {query: Country} type Query {queryName: String} type Country {code: String}", docStr)
+		assert.Equal(t, "schema {query: Country} type Query {queryName: String} type Country {code: String} interface Model {id: String}", docStr)
 	})
 
-	t.Run("replace query type with not existing type", func(t *testing.T) {
-		doc := prepareDoc(t)
-		doc.ReplaceRootOperationTypeDefinition("NotExisting", ast.OperationTypeQuery)
-		docStr, _ := astprinter.PrintString(doc, nil)
-		assert.Equal(t, "schema {query: NotExisting} type Query {queryName: String} type Country {code: String}", docStr)
-	})
+	t.Run("should not modify document", func(t *testing.T) {
+		t.Run("when replacing query type with not existing type", func(t *testing.T) {
+			doc := prepareDoc()
+			ref, ok := doc.ReplaceRootOperationTypeDefinition("NotExisting", ast.OperationTypeQuery)
+			assert.Equal(t, -1, ref)
+			assert.False(t, ok)
 
-	t.Run("replace mutation type when it is not present", func(t *testing.T) {
-		doc := prepareDoc(t)
-		doc.ReplaceRootOperationTypeDefinition("Country", ast.OperationTypeMutation)
-		docStr, _ := astprinter.PrintString(doc, nil)
-		assert.Equal(t, "schema {query: Query} type Query {queryName: String} type Country {code: String}", docStr)
+			docStr, _ := astprinter.PrintString(doc, nil)
+			assert.Equal(t, schema, docStr)
+		})
+
+		t.Run("when replacing query type with not an object type", func(t *testing.T) {
+			doc := prepareDoc()
+			ref, ok := doc.ReplaceRootOperationTypeDefinition("Model", ast.OperationTypeQuery)
+			assert.Equal(t, -1, ref)
+			assert.False(t, ok)
+
+			docStr, _ := astprinter.PrintString(doc, nil)
+			assert.Equal(t, schema, docStr)
+		})
+
+		t.Run("when replacing mutation which was not defined", func(t *testing.T) {
+			doc := prepareDoc()
+			ref, ok := doc.ReplaceRootOperationTypeDefinition("Country", ast.OperationTypeMutation)
+			assert.Equal(t, -1, ref)
+			assert.False(t, ok)
+
+			docStr, _ := astprinter.PrintString(doc, nil)
+			assert.Equal(t, schema, docStr)
+		})
 	})
 }
