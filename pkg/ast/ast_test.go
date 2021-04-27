@@ -296,20 +296,19 @@ func TestDocument_NodeByName(t *testing.T) {
 			})
 		})
 
-		// TODO: commented as schema node is not present in index at the moment
-		// t.Run("when node name is schema", func(t *testing.T) {
-		// 	t.Run("NodeByName", func(t *testing.T) {
-		// 		node, exists := doc.NodeByName([]byte("schema"))
-		// 		assert.Equal(t, ast.NodeKindSchemaDefinition, node.Kind)
-		// 		assert.True(t, exists)
-		// 	})
-		//
-		// 	t.Run("NodeByNameStr", func(t *testing.T) {
-		// 		node, exists := doc.NodeByNameStr("schema")
-		// 		assert.Equal(t, ast.NodeKindSchemaDefinition, node.Kind)
-		// 		assert.True(t, exists)
-		// 	})
-		// })
+		t.Run("when node name is schema", func(t *testing.T) {
+			t.Run("NodeByName", func(t *testing.T) {
+				node, exists := doc.NodeByName([]byte("schema"))
+				assert.Equal(t, ast.NodeKindSchemaDefinition, node.Kind)
+				assert.True(t, exists)
+			})
+
+			t.Run("NodeByNameStr", func(t *testing.T) {
+				node, exists := doc.NodeByNameStr("schema")
+				assert.Equal(t, ast.NodeKindSchemaDefinition, node.Kind)
+				assert.True(t, exists)
+			})
+		})
 	})
 
 	t.Run("should return false for not existing node", func(t *testing.T) {
@@ -317,13 +316,13 @@ func TestDocument_NodeByName(t *testing.T) {
 
 		t.Run("NodeByName", func(t *testing.T) {
 			node, exists := doc.NodeByName([]byte("NotExisting"))
-			assert.Equal(t, ast.NodeKind(0), node.Kind)
+			assert.Equal(t, ast.Node{}, node)
 			assert.False(t, exists)
 		})
 
 		t.Run("NodeByNameStr", func(t *testing.T) {
 			node, exists := doc.NodeByNameStr("NotExisting")
-			assert.Equal(t, ast.NodeKind(0), node.Kind)
+			assert.Equal(t, ast.Node{}, node)
 			assert.False(t, exists)
 		})
 	})
