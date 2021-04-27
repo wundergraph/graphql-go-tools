@@ -100,6 +100,6 @@ func TestGraphQLWebsocketSubscriptionStream(t *testing.T) {
 	// We'll refactor subscriptions soon.
 	// That said, you're invited to try them.
 	// Things should work fine, testing concurrency is just a bit more complicated.
-	<- time.After(time.Second)
+	<-time.After(time.Second)
 	t.SkipNow()
 }

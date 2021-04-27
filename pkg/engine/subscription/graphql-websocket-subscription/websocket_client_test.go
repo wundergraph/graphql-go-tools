@@ -24,7 +24,7 @@ func TestWebsocketClient(t *testing.T) {
 
 	client := &WebsocketClient{}
 
-	err := client.Open("ws://" + host, nil)
+	err := client.Open("ws://"+host, nil)
 	defer client.Close()
 	assert.NoError(t, err)
 

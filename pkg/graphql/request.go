@@ -62,7 +62,7 @@ func UnmarshalHttpRequest(r *http.Request, request *Request) error {
 	return UnmarshalRequest(r.Body, request)
 }
 
-func (r *Request) SetHeader(header http.Header){
+func (r *Request) SetHeader(header http.Header) {
 	r.request.Header = header
 }
 
@@ -143,7 +143,7 @@ func (r *Request) IsIntrospectionQuery() (result bool, err error) {
 		return
 	}
 
-	return r.document.FieldNameString(selection.Ref) == schemaFieldName, nil
+	return r.document.FieldNameUnsafeString(selection.Ref) == schemaFieldName, nil
 }
 
 func (r *Request) OperationType() (OperationType, error) {

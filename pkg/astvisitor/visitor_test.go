@@ -204,7 +204,7 @@ func (p *pathVisitor) EnterDocument(operation, definition *ast.Document) {
 }
 
 func (p *pathVisitor) EnterField(ref int) {
-	p.out.Write([]byte(fmt.Sprintf("EnterField: %s, path: %s\n", p.op.FieldNameString(ref), p.Path)))
+	p.out.Write([]byte(fmt.Sprintf("EnterField: %s, path: %s\n", p.op.FieldNameUnsafeString(ref), p.Path)))
 }
 
 func TestVisitWithSkip(t *testing.T) {
@@ -921,7 +921,7 @@ func (p *printingVisitor) EnterField(ref int) {
 
 func (p *printingVisitor) LeaveField(ref int) {
 	p.leave()
-	fieldName := p.operation.FieldNameString(ref)
+	fieldName := p.operation.FieldNameUnsafeString(ref)
 	parentTypeName := p.definition.NodeNameString(p.EnclosingTypeDefinition)
 	p.must(fmt.Fprintf(p.out, "LeaveField(%s::%s): ref: %d\n", fieldName, parentTypeName, ref))
 }

@@ -44,19 +44,19 @@ func TestBytesToString(t *testing.T) {
 }
 
 func TestBytesToBool(t *testing.T) {
-	if !BytesToBool([]byte("true")){
+	if !BytesToBool([]byte("true")) {
 		t.Fatal("want true")
 	}
-	if BytesToBool([]byte("false")){
+	if BytesToBool([]byte("false")) {
 		t.Fatal("want false")
 	}
-	if !BytesToBool([]byte("1")){
+	if !BytesToBool([]byte("1")) {
 		t.Fatal("want true")
 	}
-	if BytesToBool([]byte("0")){
+	if BytesToBool([]byte("0")) {
 		t.Fatal("want false")
 	}
-	if BytesToBool([]byte("2")){
+	if BytesToBool([]byte("2")) {
 		t.Fatal("want false")
 	}
 }

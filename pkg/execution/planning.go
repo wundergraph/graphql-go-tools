@@ -141,7 +141,7 @@ func (p *planningVisitor) EnterField(ref int) {
 	}
 
 	typeName := p.definition.NodeResolverTypeNameString(p.EnclosingTypeDefinition, p.Path)
-	fieldName := p.operation.FieldNameString(ref)
+	fieldName := p.operation.FieldNameUnsafeString(ref)
 
 	plannerFactory := p.base.Config.DataSourcePlannerFactoryForTypeField(typeName, fieldName)
 	if plannerFactory != nil {
@@ -360,7 +360,7 @@ func (p *planningVisitor) fieldDataResolvingConfig(ref int) DataResolvingConfig 
 }
 
 func (p *planningVisitor) fieldPathSelector(ref int) (selector datasource.PathSelector) {
-	fieldName := p.operation.FieldNameString(ref)
+	fieldName := p.operation.FieldNameUnsafeString(ref)
 	typeName := p.definition.NodeResolverTypeNameString(p.EnclosingTypeDefinition, p.Path)
 	mapping := p.base.Config.MappingForTypeField(typeName, fieldName)
 	if mapping == nil {

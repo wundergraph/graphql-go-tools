@@ -14,7 +14,7 @@ import (
 //  EAST
 //  SOUTH
 //  WEST
-//}
+// }
 type EnumTypeDefinition struct {
 	Description             Description        // optional, describes enum
 	EnumLiteral             position.Position  // enum

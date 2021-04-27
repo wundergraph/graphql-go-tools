@@ -165,7 +165,7 @@ func (g *GraphQLDataSourcePlanner) EnterField(ref int) {
 		g.RootField.SetIfNotDefined(ref)
 
 		typeName := g.Definition.NodeNameString(g.Walker.EnclosingTypeDefinition)
-		fieldNameStr := g.Operation.FieldNameString(ref)
+		fieldNameStr := g.Operation.FieldNameUnsafeString(ref)
 		fieldName := g.Operation.FieldNameBytes(ref)
 
 		g.Args = append(g.Args, &StaticVariableArgument{
