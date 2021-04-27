@@ -14,6 +14,7 @@ type SimpleWalker struct {
 	visitor          AllNodesVisitor
 	SelectionsBefore []int
 	SelectionsAfter  []int
+	visitedFieldRefs []int
 }
 
 func NewSimpleWalker(ancestorSize int) SimpleWalker {
@@ -194,7 +195,24 @@ func (w *SimpleWalker) walkSelectionSet(ref int) {
 	w.decreaseDepth()
 }
 
+func (w *SimpleWalker) addVisitedField(ref int) {
+	w.visitedFieldRefs = append(w.visitedFieldRefs, ref)
+}
+
+func (w *SimpleWalker) isFieldVisited(ref int) bool {
+	for i := 0; i < len(w.visitedFieldRefs); i++ {
+		if w.visitedFieldRefs[i] == ref {
+			return true
+		}
+	}
+	return false
+}
+
 func (w *SimpleWalker) walkField(ref int) {
+	if w.isFieldVisited(ref) {
+		return
+	}
+	w.addVisitedField(ref)
 	w.increaseDepth()
 
 	selectionsBefore := w.SelectionsBefore

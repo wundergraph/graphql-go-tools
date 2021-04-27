@@ -54,11 +54,22 @@ func (r *FragmentSpreadDepth) Get(operation, definition *ast.Document, report *o
 }
 
 type nestedDepthCalc struct {
-	depths *Depths
+	depths  *Depths
+	visited []int
+}
+
+func (n *nestedDepthCalc) isVisited(i int) bool {
+	for j := 0; j < len(n.visited); j++ {
+		if n.visited[j] == i {
+			return true
+		}
+	}
+	return false
 }
 
 func (n *nestedDepthCalc) calculatedNestedDepths(depths *Depths) {
 	n.depths = depths
+	n.visited = make([]int, 0, len(*depths))
 
 	for i := range *depths {
 		(*depths)[i].Depth = n.calculateNestedDepth(i)
@@ -66,10 +77,15 @@ func (n *nestedDepthCalc) calculatedNestedDepths(depths *Depths) {
 }
 
 func (n *nestedDepthCalc) calculateNestedDepth(i int) int {
-	println("calculateNestedDepth")
+	if n.isVisited(i) {
+		return 0
+	}
+	n.visited = append(n.visited, i)
+
 	if !(*n.depths)[i].isNested {
 		return (*n.depths)[i].Depth
 	}
+
 	return (*n.depths)[i].Depth + n.depthForFragment((*n.depths)[i].parentFragmentName)
 }
 

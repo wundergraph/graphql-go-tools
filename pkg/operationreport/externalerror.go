@@ -222,3 +222,9 @@ func ErrEnumValueNameMustBeUnique(enumName, enumValueName ast.ByteSlice) (err Ex
 	err.Message = fmt.Sprintf("enum value '%s.%s' can only be defined once", enumName, enumValueName)
 	return err
 }
+
+func ErrFragmentCyclesIsNotAllowed(line, column uint32) (err ExternalError) {
+	err.Message = fmt.Sprintf("fragment cycles is not allowed")
+	err.Locations = []Location{{Line: line, Column: column}}
+	return err
+}
