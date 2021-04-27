@@ -1,8 +1,10 @@
-package ast
+package ast_test
 
 import (
 	"testing"
 
+	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
+	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -20,7 +22,7 @@ func ExampleNewDocument() {
 		}
 	`)
 
-	doc := NewDocument()
+	doc := ast.NewDocument()
 	doc.Input.ResetInputBytes(schema)
 
 	// ...then parse the Input
@@ -32,15 +34,15 @@ func ExampleDocument() {
 
 	// create the same doc as in NewDocument() example but manually.
 
-	doc := &Document{}
+	doc := &ast.Document{}
 
 	// add Query to the raw input
 	queryTypeName := doc.Input.AppendInputString("Query")
 
 	// create a RootOperationTypeDefinition
-	rootOperationTypeDefinition := RootOperationTypeDefinition{
-		OperationType: OperationTypeQuery,
-		NamedType: Type{
+	rootOperationTypeDefinition := ast.RootOperationTypeDefinition{
+		OperationType: ast.OperationTypeQuery,
+		NamedType: ast.Type{
 			Name: queryTypeName,
 		},
 	}
@@ -51,8 +53,8 @@ func ExampleDocument() {
 	queryRootOperationTypeRef := len(doc.RootOperationTypeDefinitions) - 1
 
 	// create a SchemaDefinition
-	schemaDefinition := SchemaDefinition{
-		RootOperationTypeDefinitions: RootOperationTypeDefinitionList{
+	schemaDefinition := ast.SchemaDefinition{
+		RootOperationTypeDefinitions: ast.RootOperationTypeDefinitionList{
 			// add the RootOperationTypeDefinition reference
 			Refs: []int{queryRootOperationTypeRef},
 		},
@@ -65,14 +67,14 @@ func ExampleDocument() {
 
 	// add the SchemaDefinition to the RootNodes
 	// all root level nodes have to be added to the RootNodes slice in order to make them available to the Walker for traversal
-	doc.RootNodes = append(doc.RootNodes, Node{Kind: NodeKindSchemaDefinition, Ref: schemaDefinitionRef})
+	doc.RootNodes = append(doc.RootNodes, ast.Node{Kind: ast.NodeKindSchemaDefinition, Ref: schemaDefinitionRef})
 
 	// add another string to the raw input
 	stringName := doc.Input.AppendInputString("String")
 
 	// create a named Type
-	stringType := Type{
-		TypeKind: TypeKindNamed,
+	stringType := ast.Type{
+		TypeKind: ast.TypeKindNamed,
 		Name:     stringName,
 	}
 
@@ -82,8 +84,8 @@ func ExampleDocument() {
 	stringTypeRef := len(doc.Types) - 1
 
 	// create another Type
-	nonNullStringType := Type{
-		TypeKind: TypeKindNonNull,
+	nonNullStringType := ast.Type{
+		TypeKind: ast.TypeKindNonNull,
 		// add a reference to the named type
 		OfType: stringTypeRef,
 	}
@@ -98,7 +100,7 @@ func ExampleDocument() {
 	helloName := doc.Input.AppendInputString("hello")
 
 	// create a FieldDefinition
-	helloFieldDefinition := FieldDefinition{
+	helloFieldDefinition := ast.FieldDefinition{
 		Name: helloName,
 		// add the Type reference
 		Type: nonNullStringTypeRef,
@@ -110,12 +112,12 @@ func ExampleDocument() {
 	helloFieldDefinitionRef := len(doc.FieldDefinitions) - 1
 
 	// create an ObjectTypeDefinition
-	queryTypeDefinition := ObjectTypeDefinition{
+	queryTypeDefinition := ast.ObjectTypeDefinition{
 		Name: queryTypeName,
 		// declare that this ObjectTypeDefinition has fields
 		// this is necessary for the Walker to understand it must walk FieldDefinitions
 		HasFieldDefinitions: true,
-		FieldsDefinition: FieldDefinitionList{
+		FieldsDefinition: ast.FieldDefinitionList{
 			// add the FieldDefinition reference
 			Refs: []int{helloFieldDefinitionRef},
 		},
@@ -127,7 +129,7 @@ func ExampleDocument() {
 	queryTypeRef := len(doc.ObjectTypeDefinitions) - 1
 
 	// add ObjectTypeDefinition to the RootNodes
-	doc.RootNodes = append(doc.RootNodes, Node{Kind: NodeKindObjectTypeDefinition, Ref: queryTypeRef})
+	doc.RootNodes = append(doc.RootNodes, ast.Node{Kind: ast.NodeKindObjectTypeDefinition, Ref: queryTypeRef})
 }
 
 func TestKinds(t *testing.T) {
@@ -139,11 +141,11 @@ func TestKinds(t *testing.T) {
 	}
 
 	t.Run("operation types has correct values", func(t *testing.T) {
-		operationTypes := []OperationType{
-			OperationTypeUnknown,
-			OperationTypeQuery,
-			OperationTypeMutation,
-			OperationTypeSubscription,
+		operationTypes := []ast.OperationType{
+			ast.OperationTypeUnknown,
+			ast.OperationTypeQuery,
+			ast.OperationTypeMutation,
+			ast.OperationTypeSubscription,
 		}
 		actualValues := make([]int, 0, len(operationTypes))
 		for _, t := range operationTypes {
@@ -153,17 +155,17 @@ func TestKinds(t *testing.T) {
 	})
 
 	t.Run("value kinds has correct values", func(t *testing.T) {
-		valueKinds := []ValueKind{
-			ValueKindUnknown,
-			ValueKindString,
-			ValueKindBoolean,
-			ValueKindInteger,
-			ValueKindFloat,
-			ValueKindVariable,
-			ValueKindNull,
-			ValueKindList,
-			ValueKindObject,
-			ValueKindEnum,
+		valueKinds := []ast.ValueKind{
+			ast.ValueKindUnknown,
+			ast.ValueKindString,
+			ast.ValueKindBoolean,
+			ast.ValueKindInteger,
+			ast.ValueKindFloat,
+			ast.ValueKindVariable,
+			ast.ValueKindNull,
+			ast.ValueKindList,
+			ast.ValueKindObject,
+			ast.ValueKindEnum,
 		}
 		actualValues := make([]int, 0, len(valueKinds))
 		for _, t := range valueKinds {
@@ -173,11 +175,11 @@ func TestKinds(t *testing.T) {
 	})
 
 	t.Run("type kinds has correct values", func(t *testing.T) {
-		typeKinds := []TypeKind{
-			TypeKindUnknown,
-			TypeKindNamed,
-			TypeKindList,
-			TypeKindNonNull,
+		typeKinds := []ast.TypeKind{
+			ast.TypeKindUnknown,
+			ast.TypeKindNamed,
+			ast.TypeKindList,
+			ast.TypeKindNonNull,
 		}
 		actualValues := make([]int, 0, len(typeKinds))
 		for _, t := range typeKinds {
@@ -187,11 +189,11 @@ func TestKinds(t *testing.T) {
 	})
 
 	t.Run("selection kinds has correct values", func(t *testing.T) {
-		selectionKinds := []SelectionKind{
-			SelectionKindUnknown,
-			SelectionKindField,
-			SelectionKindFragmentSpread,
-			SelectionKindInlineFragment,
+		selectionKinds := []ast.SelectionKind{
+			ast.SelectionKindUnknown,
+			ast.SelectionKindField,
+			ast.SelectionKindFragmentSpread,
+			ast.SelectionKindInlineFragment,
 		}
 		actualValues := make([]int, 0, len(selectionKinds))
 		for _, t := range selectionKinds {
@@ -201,36 +203,36 @@ func TestKinds(t *testing.T) {
 	})
 
 	t.Run("node kinds has correct values", func(t *testing.T) {
-		nodeKinds := []NodeKind{
-			NodeKindUnknown,
-			NodeKindSchemaDefinition,
-			NodeKindSchemaExtension,
-			NodeKindObjectTypeDefinition,
-			NodeKindObjectTypeExtension,
-			NodeKindInterfaceTypeDefinition,
-			NodeKindInterfaceTypeExtension,
-			NodeKindUnionTypeDefinition,
-			NodeKindUnionTypeExtension,
-			NodeKindUnionMemberType,
-			NodeKindEnumTypeDefinition,
-			NodeKindEnumValueDefinition,
-			NodeKindEnumTypeExtension,
-			NodeKindInputObjectTypeDefinition,
-			NodeKindInputValueDefinition,
-			NodeKindInputObjectTypeExtension,
-			NodeKindScalarTypeDefinition,
-			NodeKindScalarTypeExtension,
-			NodeKindDirectiveDefinition,
-			NodeKindOperationDefinition,
-			NodeKindSelectionSet,
-			NodeKindField,
-			NodeKindFieldDefinition,
-			NodeKindFragmentSpread,
-			NodeKindInlineFragment,
-			NodeKindFragmentDefinition,
-			NodeKindArgument,
-			NodeKindDirective,
-			NodeKindVariableDefinition,
+		nodeKinds := []ast.NodeKind{
+			ast.NodeKindUnknown,
+			ast.NodeKindSchemaDefinition,
+			ast.NodeKindSchemaExtension,
+			ast.NodeKindObjectTypeDefinition,
+			ast.NodeKindObjectTypeExtension,
+			ast.NodeKindInterfaceTypeDefinition,
+			ast.NodeKindInterfaceTypeExtension,
+			ast.NodeKindUnionTypeDefinition,
+			ast.NodeKindUnionTypeExtension,
+			ast.NodeKindUnionMemberType,
+			ast.NodeKindEnumTypeDefinition,
+			ast.NodeKindEnumValueDefinition,
+			ast.NodeKindEnumTypeExtension,
+			ast.NodeKindInputObjectTypeDefinition,
+			ast.NodeKindInputValueDefinition,
+			ast.NodeKindInputObjectTypeExtension,
+			ast.NodeKindScalarTypeDefinition,
+			ast.NodeKindScalarTypeExtension,
+			ast.NodeKindDirectiveDefinition,
+			ast.NodeKindOperationDefinition,
+			ast.NodeKindSelectionSet,
+			ast.NodeKindField,
+			ast.NodeKindFieldDefinition,
+			ast.NodeKindFragmentSpread,
+			ast.NodeKindInlineFragment,
+			ast.NodeKindFragmentDefinition,
+			ast.NodeKindArgument,
+			ast.NodeKindDirective,
+			ast.NodeKindVariableDefinition,
 		}
 		actualValues := make([]int, 0, len(nodeKinds))
 		for _, t := range nodeKinds {
@@ -243,7 +245,7 @@ func TestKinds(t *testing.T) {
 func TestFilterIntSliceByWhitelist(t *testing.T) {
 	run := func(inputIntSlice []int, inputWhitelistIntSlice []int, expectedFilteredIntSlice []int) func(t *testing.T) {
 		return func(t *testing.T) {
-			result := FilterIntSliceByWhitelist(inputIntSlice, inputWhitelistIntSlice)
+			result := ast.FilterIntSliceByWhitelist(inputIntSlice, inputWhitelistIntSlice)
 			assert.Equal(t, expectedFilteredIntSlice, result)
 		}
 	}
@@ -267,4 +269,61 @@ func TestFilterIntSliceByWhitelist(t *testing.T) {
 	t.Run("should return all values when all are whitelisted",
 		run([]int{1, 2, 3}, []int{1, 2, 3, 4, 5}, []int{1, 2, 3}),
 	)
+}
+
+func TestDocument_NodeByName(t *testing.T) {
+	schema := "schema {query: Query} type Query {queryName: String}"
+
+	prepareDoc := func() *ast.Document {
+		doc := unsafeparser.ParseGraphqlDocumentString(schema)
+		return &doc
+	}
+
+	t.Run("should return a node", func(t *testing.T) {
+		doc := prepareDoc()
+
+		t.Run("when node name is Query", func(t *testing.T) {
+			t.Run("NodeByName", func(t *testing.T) {
+				node, exists := doc.NodeByName([]byte("Query"))
+				assert.Equal(t, ast.NodeKindObjectTypeDefinition, node.Kind)
+				assert.True(t, exists)
+			})
+
+			t.Run("NodeByNameStr", func(t *testing.T) {
+				node, exists := doc.NodeByNameStr("Query")
+				assert.Equal(t, ast.NodeKindObjectTypeDefinition, node.Kind)
+				assert.True(t, exists)
+			})
+		})
+
+		t.Run("when node name is schema", func(t *testing.T) {
+			t.Run("NodeByName", func(t *testing.T) {
+				node, exists := doc.NodeByName([]byte("schema"))
+				assert.Equal(t, ast.NodeKindSchemaDefinition, node.Kind)
+				assert.True(t, exists)
+			})
+
+			t.Run("NodeByNameStr", func(t *testing.T) {
+				node, exists := doc.NodeByNameStr("schema")
+				assert.Equal(t, ast.NodeKindSchemaDefinition, node.Kind)
+				assert.True(t, exists)
+			})
+		})
+	})
+
+	t.Run("should return false for not existing node", func(t *testing.T) {
+		doc := prepareDoc()
+
+		t.Run("NodeByName", func(t *testing.T) {
+			node, exists := doc.NodeByName([]byte("NotExisting"))
+			assert.Equal(t, ast.Node{}, node)
+			assert.False(t, exists)
+		})
+
+		t.Run("NodeByNameStr", func(t *testing.T) {
+			node, exists := doc.NodeByNameStr("NotExisting")
+			assert.Equal(t, ast.Node{}, node)
+			assert.False(t, exists)
+		})
+	})
 }

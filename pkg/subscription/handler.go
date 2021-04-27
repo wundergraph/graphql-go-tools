@@ -217,7 +217,7 @@ func (h *Handler) handleNonSubscriptionOperation(id string, executor Executor) {
 
 	defer h.bufferPool.Put(buf)
 
-	//err := executor.Execute(executionContext, node, buf)
+	// err := executor.Execute(executionContext, node, buf)
 	err := executor.Execute(buf)
 	if err != nil {
 		h.logger.Error("subscription.Handle.handleNonSubscriptionOperation()",
@@ -319,7 +319,7 @@ func (h *Handler) sendData(id string, responseData []byte) {
 	}
 }
 
-//nolint
+// nolint
 // sendComplete will send a complete message to the client.
 func (h *Handler) sendComplete(id string) {
 	completeMessage := Message{

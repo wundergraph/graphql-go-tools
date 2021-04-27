@@ -583,7 +583,7 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 
 func (v *Visitor) resolveFieldPath(ref int) []string {
 	typeName := v.Walker.EnclosingTypeDefinition.NameString(v.Definition)
-	fieldName := v.Operation.FieldNameString(ref)
+	fieldName := v.Operation.FieldNameUnsafeString(ref)
 	config := v.currentOrParentPlannerConfiguration()
 	aliasOverride := false
 	if config.planner != nil {
@@ -900,7 +900,7 @@ type plannerConfiguration struct {
 	bufferID                int
 }
 
-//isNestedPlanner returns true in case the planner is not directly attached to the Operation root
+// isNestedPlanner returns true in case the planner is not directly attached to the Operation root
 // a nested planner should always build a Query
 func (p *plannerConfiguration) isNestedPlanner() bool {
 	for i := range p.paths {
@@ -1002,7 +1002,7 @@ func (c *configurationVisitor) EnterOperationDefinition(ref int) {
 }
 
 func (c *configurationVisitor) EnterField(ref int) {
-	fieldName := c.operation.FieldNameString(ref)
+	fieldName := c.operation.FieldNameUnsafeString(ref)
 	fieldAliasOrName := c.operation.FieldAliasOrNameString(ref)
 	typeName := c.walker.EnclosingTypeDefinition.NameString(c.definition)
 	parent := c.walker.Path.DotDelimitedString()
@@ -1113,7 +1113,7 @@ func (r *requiredFieldsVisitor) EnterDocument(operation, definition *ast.Documen
 
 func (r *requiredFieldsVisitor) EnterField(ref int) {
 	typeName := r.walker.EnclosingTypeDefinition.NameString(r.definition)
-	fieldName := r.operation.FieldNameString(ref)
+	fieldName := r.operation.FieldNameUnsafeString(ref)
 	fieldConfig := r.config.Fields.ForTypeField(typeName, fieldName)
 	if fieldConfig == nil {
 		return

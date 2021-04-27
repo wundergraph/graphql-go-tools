@@ -1817,7 +1817,7 @@ func BenchmarkResolver_ResolveNode(b *testing.B) {
 
 		b.RunParallel(func(pb *testing.PB) {
 			for pb.Next() {
-				//_ = resolver.ResolveGraphQLResponse(ctx, plan, nil, ioutil.Discard)
+				// _ = resolver.ResolveGraphQLResponse(ctx, plan, nil, ioutil.Discard)
 				ctx := ctxPool.Get().(*Context)
 				ctx.Variables = variables
 				buf := pool.Get().(*bytes.Buffer)

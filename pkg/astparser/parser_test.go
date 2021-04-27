@@ -394,7 +394,7 @@ func TestParser_Parse(t *testing.T) {
 						panic("want name")
 					}
 
-					//directives
+					// directives
 					foo := doc.Directives[namedEntity.Directives.Refs[0]]
 					if doc.Input.ByteSliceString(foo.Name) != "foo" {
 						panic("want foo")
@@ -834,7 +834,7 @@ func TestParser_Parse(t *testing.T) {
 						panic("want name")
 					}
 
-					//directives
+					// directives
 					foo := doc.Directives[namedEntity.Directives.Refs[0]]
 					if doc.Input.ByteSliceString(foo.Name) != "foo" {
 						panic("want foo")

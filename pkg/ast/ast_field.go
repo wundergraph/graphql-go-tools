@@ -21,8 +21,14 @@ func (d *Document) FieldNameBytes(ref int) ByteSlice {
 	return d.Input.ByteSlice(d.Fields[ref].Name)
 }
 
-func (d *Document) FieldNameString(ref int) string {
+// FieldNameUnsafeString - returns field name as a string which is unsafe pointer to document input content
+func (d *Document) FieldNameUnsafeString(ref int) string {
 	return unsafebytes.BytesToString(d.Input.ByteSlice(d.Fields[ref].Name))
+}
+
+// FieldNameString - returns fied name as a string value
+func (d *Document) FieldNameString(ref int) string {
+	return string(d.Input.ByteSlice(d.Fields[ref].Name))
 }
 
 func (d *Document) AddField(field Field) Node {

@@ -211,8 +211,11 @@ func (d *Document) RemoveRootNode(node Node) {
 }
 
 func (d *Document) NodeByName(name ByteSlice) (Node, bool) {
-	node, exists := d.Index.FirstNodeByNameBytes(name)
-	return node, exists
+	return d.Index.FirstNodeByNameBytes(name)
+}
+
+func (d *Document) NodeByNameStr(name string) (Node, bool) {
+	return d.Index.FirstNodeByNameStr(name)
 }
 
 func (d *Document) TypeDefinitionContainsImplementsInterface(typeName, interfaceName ByteSlice) bool {

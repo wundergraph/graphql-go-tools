@@ -143,7 +143,7 @@ func (r *Request) IsIntrospectionQuery() (result bool, err error) {
 		return
 	}
 
-	return r.document.FieldNameString(selection.Ref) == schemaFieldName, nil
+	return r.document.FieldNameUnsafeString(selection.Ref) == schemaFieldName, nil
 }
 
 func (r *Request) OperationType() (OperationType, error) {
