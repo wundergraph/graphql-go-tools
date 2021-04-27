@@ -217,7 +217,7 @@ func (h *Handler) handleNonSubscriptionOperation(id string, executor Executor) {
 
 	defer h.bufferPool.Put(buf)
 
-	//err := executor.Execute(executionContext, node, buf)
+	// err := executor.Execute(executionContext, node, buf)
 	err := executor.Execute(buf)
 	if err != nil {
 		h.logger.Error("subscription.Handle.handleNonSubscriptionOperation()",
@@ -269,7 +269,7 @@ func (h *Handler) startSubscription(ctx context.Context, id string, executor Exe
 
 // executeSubscription will keep execution the subscription until it ends.
 func (h *Handler) executeSubscription(buf *graphql.EngineResultWriter, id string, executor Executor) {
-	//err := executor.Execute(ctx, node, buf)
+	// err := executor.Execute(ctx, node, buf)
 	err := executor.Execute(buf)
 	if err != nil {
 		h.logger.Error("subscription.Handle.executeSubscription()",
@@ -309,7 +309,7 @@ func (h *Handler) sendData(id string, responseData []byte) {
 	}
 }
 
-//nolint
+// nolint
 // sendComplete will send a complete message to the client.
 func (h *Handler) sendComplete(id string) {
 	completeMessage := Message{

@@ -381,7 +381,7 @@ func BenchmarkDefer(b *testing.B) {
 	ctx := NewContext(context.Background())
 
 	writer := &DiscardFlushWriter{}
-	//writer := &TestFlushWriter{}
+	// writer := &TestFlushWriter{}
 
 	expect1, err := ioutil.ReadFile("./testdata/defer_1.json")
 	assert.NoError(b, err)
@@ -406,7 +406,7 @@ func BenchmarkDefer(b *testing.B) {
 		_ = resolver.ResolveGraphQLStreamingResponse(ctx, res, nil, writer)
 
 		ctx.Free()
-		//writer.flushed = writer.flushed[:0]
+		// writer.flushed = writer.flushed[:0]
 	}
 }
 

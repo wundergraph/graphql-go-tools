@@ -423,6 +423,9 @@ func (p *Parser) parseSchemaDefinition() {
 		Kind: ast.NodeKindSchemaDefinition,
 		Ref:  ref,
 	}
+	if p.shouldIndex {
+		p.indexNode(schemaLiteral.Literal, rootNode)
+	}
 	p.document.RootNodes = append(p.document.RootNodes, rootNode)
 }
 
