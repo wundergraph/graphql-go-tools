@@ -88,4 +88,27 @@ func TestMergeDefinitionWithBaseSchema(t *testing.T) {
 				adminInformation: String!
 			}
 	`, "complete"))
+	t.Run("with mutation & subscription", runTestMerge(`
+			schema {
+				query: Query
+				mutation: Mutation
+				subscription: Subscription
+			}
+			type Mutation {
+				m: String!
+			}
+			type Subscription {
+				s: String!
+			}
+			type Query {
+				hello(name: String): Hello!
+				__schema: __Schema!
+				__type(name: String!): __Type
+			}
+			type Hello {
+				hello: String!
+				object: String!
+				adminInformation: String!
+			}
+	`, "with_mutation_subscription"))
 }

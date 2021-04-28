@@ -2,6 +2,10 @@ package plan
 
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
+	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
+	"github.com/jensneuse/graphql-go-tools/pkg/asttransform"
+	"github.com/jensneuse/graphql-go-tools/pkg/federation"
 )
 
 const (
@@ -117,7 +121,15 @@ func (r *TypeFieldExtractor) addChildTypeFieldName(typeName, fieldName string, c
 
 func (r *TypeFieldExtractor) addRootNodes(astNode ast.Node, rootNodes *[]TypeField) {
 	typeName := r.document.NodeNameString(astNode)
-	if !r.isEntity(astNode) && !r.isRootOperationTypeName(typeName) {
+
+	// we need to first build the base schema so that we get a valid Index
+	// to look up if typeName is a RootOperationTypeName
+	// the service SDL itself might use ObjectTypeExtension types which will not be indexed
+	document := r.baseSchema()
+
+	// node should be an entity or a root operation type definition
+	// if document == nil, there are no root operation type definitions in this document
+	if !r.isEntity(astNode) && (document == nil || !document.Index.IsRootOperationTypeNameString(typeName)) {
 		return
 	}
 
@@ -144,16 +156,32 @@ func (r *TypeFieldExtractor) addRootNodes(astNode ast.Node, rootNodes *[]TypeFie
 	})
 }
 
-func (r *TypeFieldExtractor) isRootOperationTypeName(typeName string) bool {
-	rootOperationNames := map[string]struct{}{
-		"Query":        {},
-		"Mutation":     {},
-		"Subscription": {},
+func (r *TypeFieldExtractor) baseSchema () *ast.Document {
+	schemaSDL,err := astprinter.PrintString(r.document,nil)
+	if err != nil {
+		return nil
 	}
-
-	_, exists := rootOperationNames[typeName]
-
-	return exists
+	baseSchemaSDL,err := federation.BuildBaseSchemaDocument(schemaSDL)
+	if err != nil {
+		return nil
+	}
+	document,report := astparser.ParseGraphqlDocumentString(baseSchemaSDL)
+	if report.HasErrors() {
+		return nil
+	}
+	err = asttransform.MergeDefinitionWithBaseSchema(&document)
+	if err != nil {
+		return nil
+	}
+	mergedSDL,err := astprinter.PrintString(&document,nil)
+	if err != nil {
+		return nil
+	}
+	mergedDocument,report := astparser.ParseGraphqlDocumentString(mergedSDL)
+	if report.HasErrors() {
+		return nil
+	}
+	return &mergedDocument
 }
 
 func (r *TypeFieldExtractor) isEntity(astNode ast.Node) bool {
