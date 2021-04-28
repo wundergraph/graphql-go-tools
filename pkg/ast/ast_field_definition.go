@@ -71,6 +71,11 @@ func (d *Document) FieldDefinitionDirectiveByName(fieldDefinition int, directive
 	return
 }
 
+func (d *Document) FieldDefinitionHasNamedDirective(fieldDefinition int, directiveName string) bool {
+	_,exists := d.FieldDefinitionDirectiveByName(fieldDefinition,unsafebytes.StringToBytes(directiveName))
+	return exists
+}
+
 func (d *Document) FieldDefinitionResolverTypeName(enclosingType Node) ByteSlice {
 	switch enclosingType.Kind {
 	case NodeKindObjectTypeDefinition:

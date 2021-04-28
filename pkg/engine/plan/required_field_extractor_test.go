@@ -1,4 +1,4 @@
-package federation
+package plan
 
 import (
 	"testing"
@@ -6,14 +6,13 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 )
 
 func TestRequiredFieldExtractor_GetAllFieldRequires(t *testing.T) {
-	run := func(t *testing.T, SDL string, expected plan.FieldConfigurations) {
+	run := func(t *testing.T, SDL string, expected FieldConfigurations) {
 		document := unsafeparser.ParseGraphqlDocumentString(SDL)
-		extractor := &requiredFieldExtractor{document: &document}
-		got := extractor.getAllFieldRequires()
+		extractor := &RequiredFieldExtractor{document: &document}
+		got := extractor.GetAllFieldRequires()
 		assert.Equal(t, expected, got)
 	}
 
@@ -44,7 +43,7 @@ func TestRequiredFieldExtractor_GetAllFieldRequires(t *testing.T) {
 			body: String!
 			title: String
 		}
-		`, plan.FieldConfigurations{
+		`, FieldConfigurations{
 			{TypeName: "Review", FieldName: "body", RequiresFields: []string{"id"}},
 			{TypeName: "Review", FieldName: "title", RequiresFields: []string{"id"}},
 		})
@@ -57,7 +56,7 @@ func TestRequiredFieldExtractor_GetAllFieldRequires(t *testing.T) {
 			title: String
 			author: String!
 		}
-		`, plan.FieldConfigurations{
+		`, FieldConfigurations{
 			{TypeName: "Review", FieldName: "body", RequiresFields: []string{"id", "author"}},
 			{TypeName: "Review", FieldName: "title", RequiresFields: []string{"id", "author"}},
 		})
@@ -68,7 +67,7 @@ func TestRequiredFieldExtractor_GetAllFieldRequires(t *testing.T) {
 			id: Int! @external
 			author: String!
 		}
-		`, plan.FieldConfigurations{
+		`, FieldConfigurations{
 			{TypeName: "Review", FieldName: "author", RequiresFields: []string{"id"}},
 		})
 	})
@@ -80,7 +79,7 @@ func TestRequiredFieldExtractor_GetAllFieldRequires(t *testing.T) {
 			author: String! @external
 			slug: String @requires(fields: "title author")
 		}
-		`, plan.FieldConfigurations{
+		`, FieldConfigurations{
 			{TypeName: "Review", FieldName: "slug", RequiresFields: []string{"id", "title", "author"}},
 		})
 	})

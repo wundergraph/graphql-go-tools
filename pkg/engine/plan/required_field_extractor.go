@@ -1,19 +1,24 @@
-package federation
+package plan
 
 import (
 	"strings"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 )
 
-// requiredFieldExtractor
-type requiredFieldExtractor struct {
+// RequiredFieldExtractor
+type RequiredFieldExtractor struct {
 	document *ast.Document
 }
 
-func (f *requiredFieldExtractor) getAllFieldRequires() plan.FieldConfigurations {
-	var fieldRequires plan.FieldConfigurations
+func NewRequiredFieldExtractor(document *ast.Document) *RequiredFieldExtractor {
+	return &RequiredFieldExtractor{
+		document: document,
+	}
+}
+
+func (f *RequiredFieldExtractor) GetAllFieldRequires() FieldConfigurations {
+	var fieldRequires FieldConfigurations
 
 	f.addFieldsForObjectExtensionDefinitions(&fieldRequires)
 	f.addFieldsForObjectDefinitions(&fieldRequires)
@@ -21,7 +26,7 @@ func (f *requiredFieldExtractor) getAllFieldRequires() plan.FieldConfigurations 
 	return fieldRequires
 }
 
-func (f *requiredFieldExtractor) addFieldsForObjectExtensionDefinitions(fieldRequires *plan.FieldConfigurations) {
+func (f *RequiredFieldExtractor) addFieldsForObjectExtensionDefinitions(fieldRequires *FieldConfigurations) {
 	for _, objectTypeExt := range f.document.ObjectTypeExtensions {
 		objectType := objectTypeExt.ObjectTypeDefinition
 		typeName := f.document.Input.ByteSliceString(objectType.Name)
@@ -32,7 +37,7 @@ func (f *requiredFieldExtractor) addFieldsForObjectExtensionDefinitions(fieldReq
 		}
 
 		for _, fieldRef := range objectType.FieldsDefinition.Refs {
-			if isExternalField(f.document, fieldRef) {
+			if f.document.FieldDefinitionHasNamedDirective(fieldRef,federationExternalDirectiveName) {
 				continue
 			}
 
@@ -44,7 +49,7 @@ func (f *requiredFieldExtractor) addFieldsForObjectExtensionDefinitions(fieldReq
 			requiredFieldsByRequiresDirective := f.requiredFieldsByRequiresDirective(fieldRef)
 			requiredFields = append(requiredFields, requiredFieldsByRequiresDirective...)
 
-			*fieldRequires = append(*fieldRequires, plan.FieldConfiguration{
+			*fieldRequires = append(*fieldRequires, FieldConfiguration{
 				TypeName:       typeName,
 				FieldName:      fieldName,
 				RequiresFields: requiredFields,
@@ -53,7 +58,7 @@ func (f *requiredFieldExtractor) addFieldsForObjectExtensionDefinitions(fieldReq
 	}
 }
 
-func (f *requiredFieldExtractor) addFieldsForObjectDefinitions(fieldRequires *plan.FieldConfigurations) {
+func (f *RequiredFieldExtractor) addFieldsForObjectDefinitions(fieldRequires *FieldConfigurations) {
 	for _, objectType := range f.document.ObjectTypeDefinitions {
 		typeName := f.document.Input.ByteSliceString(objectType.Name)
 
@@ -76,7 +81,7 @@ func (f *requiredFieldExtractor) addFieldsForObjectDefinitions(fieldRequires *pl
 			requiredFields := make([]string, len(primaryKeys))
 			copy(requiredFields, primaryKeys)
 
-			*fieldRequires = append(*fieldRequires, plan.FieldConfiguration{
+			*fieldRequires = append(*fieldRequires, FieldConfiguration{
 				TypeName:       typeName,
 				FieldName:      fieldName,
 				RequiresFields: requiredFields,
@@ -85,9 +90,9 @@ func (f *requiredFieldExtractor) addFieldsForObjectDefinitions(fieldRequires *pl
 	}
 }
 
-func (f *requiredFieldExtractor) requiredFieldsByRequiresDirective(ref int) []string {
+func (f *RequiredFieldExtractor) requiredFieldsByRequiresDirective(ref int) []string {
 	for _, directiveRef := range f.document.FieldDefinitions[ref].Directives.Refs {
-		if directiveName := f.document.DirectiveNameString(directiveRef); directiveName != requireDirectiveName {
+		if directiveName := f.document.DirectiveNameString(directiveRef); directiveName != federationRequireDirectiveName {
 			continue
 		}
 
@@ -107,9 +112,9 @@ func (f *requiredFieldExtractor) requiredFieldsByRequiresDirective(ref int) []st
 	return nil
 }
 
-func (f *requiredFieldExtractor) primaryKeyFieldsIfObjectTypeIsEntity(objectType ast.ObjectTypeDefinition) (keyFields []string, ok bool) {
+func (f *RequiredFieldExtractor) primaryKeyFieldsIfObjectTypeIsEntity(objectType ast.ObjectTypeDefinition) (keyFields []string, ok bool) {
 	for _, directiveRef := range objectType.Directives.Refs {
-		if directiveName := f.document.DirectiveNameString(directiveRef); directiveName != keyDirectiveName {
+		if directiveName := f.document.DirectiveNameString(directiveRef); directiveName != federationKeyDirectiveName {
 			continue
 		}
 

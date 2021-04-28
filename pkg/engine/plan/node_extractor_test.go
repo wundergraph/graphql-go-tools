@@ -1,4 +1,4 @@
-package federation
+package plan
 
 import (
 	"testing"
@@ -6,14 +6,13 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 )
 
 func TestNodeExtractor_GetAllNodes(t *testing.T) {
-	run := func(t *testing.T, SDL string, expectedRoot, expectedChild []plan.TypeField) {
+	run := func(t *testing.T, SDL string, expectedRoot, expectedChild []TypeField) {
 		document := unsafeparser.ParseGraphqlDocumentString(SDL)
-		extractor := newNodeExtractor(&document)
-		gotRoot, gotChild := extractor.getAllNodes()
+		extractor := NewNodeExtractor(&document)
+		gotRoot, gotChild := extractor.GetAllNodes()
 
 		assert.Equal(t, expectedRoot, gotRoot, "root nodes dont match")
 		assert.Equal(t, expectedChild, gotChild, "child nodes dont match")
@@ -38,12 +37,12 @@ func TestNodeExtractor_GetAllNodes(t *testing.T) {
 				id: ID!
 			}
 		`,
-			[]plan.TypeField{
+			[]TypeField{
 				{TypeName: "Query", FieldNames: []string{"me"}},
 				{TypeName: "Mutation", FieldNames: []string{"addUser", "deleteUser"}},
 				{TypeName: "Subscription", FieldNames: []string{"userChanges"}},
 			},
-			[]plan.TypeField{
+			[]TypeField{
 				{TypeName: "User", FieldNames: []string{"id"}},
 			})
 	})
@@ -67,10 +66,10 @@ func TestNodeExtractor_GetAllNodes(t *testing.T) {
 				user: User
 			}
 		`,
-			[]plan.TypeField{
+			[]TypeField{
 				{TypeName: "Query", FieldNames: []string{"me", "review", "user"}},
 			},
-			[]plan.TypeField{
+			[]TypeField{
 				{TypeName: "User", FieldNames: []string{"id", "reviews"}},
 				{TypeName: "Review", FieldNames: []string{"id", "comment", "rating", "user"}},
 			})
@@ -88,10 +87,10 @@ func TestNodeExtractor_GetAllNodes(t *testing.T) {
 				rating: Int!
 			}
 		`,
-			[]plan.TypeField{
+			[]TypeField{
 				{TypeName: "User", FieldNames: []string{"id", "reviews"}},
 			},
-			[]plan.TypeField{
+			[]TypeField{
 				{TypeName: "Review", FieldNames: []string{"id", "comment", "rating"}},
 			})
 	})
@@ -112,11 +111,11 @@ func TestNodeExtractor_GetAllNodes(t *testing.T) {
 				rating: Int!
 			}
 		`,
-			[]plan.TypeField{
+			[]TypeField{
 				{TypeName: "Query", FieldNames: []string{"me"}},
 				{TypeName: "User", FieldNames: []string{"id", "reviews"}},
 			},
-			[]plan.TypeField{
+			[]TypeField{
 				{TypeName: "User", FieldNames: []string{"id", "reviews"}},
 				{TypeName: "Review", FieldNames: []string{"id", "comment", "rating"}},
 			})
@@ -134,10 +133,10 @@ func TestNodeExtractor_GetAllNodes(t *testing.T) {
 				author: User! @provide(fields: "username")
 			}
 		`,
-			[]plan.TypeField{
+			[]TypeField{
 				{TypeName: "User", FieldNames: []string{"reviews"}},
 			},
-			[]plan.TypeField{
+			[]TypeField{
 				{TypeName: "Review", FieldNames: []string{"comment", "author"}},
 				{TypeName: "User", FieldNames: []string{"id", "username", "reviews"}},
 			})
@@ -159,11 +158,11 @@ func TestNodeExtractor_GetAllNodes(t *testing.T) {
 				author: User!
 			}
 		`,
-			[]plan.TypeField{
+			[]TypeField{
 				{TypeName: "Query", FieldNames: []string{"reviews"}},
 				{TypeName: "User", FieldNames: []string{"reviews"}},
 			},
-			[]plan.TypeField{
+			[]TypeField{
 				{TypeName: "Review", FieldNames: []string{"id", "comment", "author"}},
 				{TypeName: "User", FieldNames: []string{"id", "reviews"}},
 			})

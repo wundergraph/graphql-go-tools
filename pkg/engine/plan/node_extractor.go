@@ -1,9 +1,14 @@
-package federation
+package plan
 
 import (
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
+)
+
+const (
+	federationKeyDirectiveName      = "key"
+	federationRequireDirectiveName  = "requires"
+	federationExternalDirectiveName = "external"
 )
 
 // Extract all fields from Entities.
@@ -13,19 +18,19 @@ type nodeExtractor struct {
 	document *ast.Document
 }
 
-func newNodeExtractor(document *ast.Document) *nodeExtractor {
+func NewNodeExtractor(document *ast.Document) *nodeExtractor {
 	return &nodeExtractor{document: document}
 }
 
-func (r *nodeExtractor) getAllNodes() (rootNodes, childNodes []plan.TypeField) {
+func (r *nodeExtractor) GetAllNodes() (rootNodes, childNodes []TypeField) {
 	rootNodes = r.getAllRootNodes()
 	childNodes = r.getAllChildNodes(rootNodes)
 
 	return
 }
 
-func (r *nodeExtractor) getAllRootNodes() []plan.TypeField {
-	var rootNodes []plan.TypeField
+func (r *nodeExtractor) getAllRootNodes() []TypeField {
+	var rootNodes []TypeField
 
 	for _, astNode := range r.document.RootNodes {
 		switch astNode.Kind {
@@ -37,8 +42,8 @@ func (r *nodeExtractor) getAllRootNodes() []plan.TypeField {
 	return rootNodes
 }
 
-func (r *nodeExtractor) getAllChildNodes(rootNodes []plan.TypeField) []plan.TypeField {
-	var childNodes []plan.TypeField
+func (r *nodeExtractor) getAllChildNodes(rootNodes []TypeField) []TypeField {
+	var childNodes []TypeField
 
 	for i := range rootNodes {
 		fieldNameToRef := make(map[string]int, len(rootNodes[i].FieldNames))
@@ -65,7 +70,7 @@ func (r *nodeExtractor) getAllChildNodes(rootNodes []plan.TypeField) []plan.Type
 	return childNodes
 }
 
-func (r *nodeExtractor) findChildNodesForType(typeName string, childNodes *[]plan.TypeField) {
+func (r *nodeExtractor) findChildNodesForType(typeName string, childNodes *[]TypeField) {
 	node, exists := r.document.Index.FirstNodeByNameStr(typeName)
 	if !exists {
 		return
@@ -85,7 +90,7 @@ func (r *nodeExtractor) findChildNodesForType(typeName string, childNodes *[]pla
 	}
 }
 
-func (r *nodeExtractor) addChildTypeFieldName(typeName, fieldName string, childNodes *[]plan.TypeField) bool {
+func (r *nodeExtractor) addChildTypeFieldName(typeName, fieldName string, childNodes *[]TypeField) bool {
 	for i := range *childNodes {
 		if (*childNodes)[i].TypeName != typeName {
 			continue
@@ -101,7 +106,7 @@ func (r *nodeExtractor) addChildTypeFieldName(typeName, fieldName string, childN
 		return true
 	}
 
-	*childNodes = append(*childNodes, plan.TypeField{
+	*childNodes = append(*childNodes, TypeField{
 		TypeName:   typeName,
 		FieldNames: []string{fieldName},
 	})
@@ -109,7 +114,7 @@ func (r *nodeExtractor) addChildTypeFieldName(typeName, fieldName string, childN
 	return true
 }
 
-func (r *nodeExtractor) addRootNodes(astNode ast.Node, rootNodes *[]plan.TypeField) {
+func (r *nodeExtractor) addRootNodes(astNode ast.Node, rootNodes *[]TypeField) {
 	typeName := r.getNodeName(astNode)
 	if !r.isEntity(astNode) && !r.isRootOperationTypeName(typeName) {
 		return
@@ -119,7 +124,8 @@ func (r *nodeExtractor) addRootNodes(astNode ast.Node, rootNodes *[]plan.TypeFie
 
 	fieldRefs := r.document.NodeFieldDefinitions(astNode)
 	for _, fieldRef := range fieldRefs {
-		if isExternalField(r.document, fieldRef) {
+		// check if field definition is external (has external directive)
+		if r.document.FieldDefinitionHasNamedDirective(fieldRef,federationExternalDirectiveName) {
 			continue
 		}
 
@@ -131,7 +137,7 @@ func (r *nodeExtractor) addRootNodes(astNode ast.Node, rootNodes *[]plan.TypeFie
 		return
 	}
 
-	*rootNodes = append(*rootNodes, plan.TypeField{
+	*rootNodes = append(*rootNodes, TypeField{
 		TypeName:   typeName,
 		FieldNames: fieldNames,
 	})
@@ -185,7 +191,7 @@ func (r *nodeExtractor) isEntity(astNode ast.Node) bool {
 	directiveRefs := r.document.NodeDirectives(astNode)
 
 	for _, directiveRef := range directiveRefs {
-		if directiveName := r.document.DirectiveNameString(directiveRef); directiveName == keyDirectiveName {
+		if directiveName := r.document.DirectiveNameString(directiveRef); directiveName == federationKeyDirectiveName {
 			return true
 		}
 	}

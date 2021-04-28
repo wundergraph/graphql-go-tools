@@ -12,12 +12,6 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/graphql"
 )
 
-const (
-	keyDirectiveName      = "key"
-	requireDirectiveName  = "requires"
-	externalDirectiveName = "external"
-)
-
 func NewEngineConfigV2Factory(httpClient *http.Client, dataSourceConfig ...graphqlDataSource.Configuration) *EngineConfigV2Factory {
 	return &EngineConfigV2Factory{
 		httpClient:        httpClient,
@@ -85,8 +79,8 @@ func (f *EngineConfigV2Factory) engineConfigFieldConfigs(schema *graphql.Schema)
 		if report.HasErrors() {
 			return nil, fmt.Errorf("parse graphql document string: %s", report.Error())
 		}
-		extractor := &requiredFieldExtractor{document: &doc}
-		planFieldConfigs = append(planFieldConfigs, extractor.getAllFieldRequires()...)
+		extractor := plan.NewRequiredFieldExtractor(&doc)
+		planFieldConfigs = append(planFieldConfigs, extractor.GetAllFieldRequires()...)
 	}
 
 	generatedArgs := schema.GetAllFieldArguments(graphql.NewSkipReservedNamesFunc())
@@ -143,8 +137,8 @@ func (f *EngineConfigV2Factory) engineConfigDataSources() (planDataSources []pla
 		}
 
 		var planDataSource plan.DataSourceConfiguration
-		extractor := newNodeExtractor(&doc)
-		planDataSource.RootNodes, planDataSource.ChildNodes = extractor.getAllNodes()
+		extractor := plan.NewNodeExtractor(&doc)
+		planDataSource.RootNodes, planDataSource.ChildNodes = extractor.GetAllNodes()
 
 		factory := &graphqlDataSource.Factory{}
 		if f.httpClient != nil {
