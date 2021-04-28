@@ -31,7 +31,7 @@ type EngineConfigV2Factory struct {
 	schema            *graphql.Schema
 }
 
-func (f *EngineConfigV2Factory) Schema() (*graphql.Schema, error) {
+func (f *EngineConfigV2Factory) MergedSchema() (*graphql.Schema, error) {
 	if f.schema != nil {
 		return f.schema, nil
 	}
@@ -54,7 +54,7 @@ func (f *EngineConfigV2Factory) Schema() (*graphql.Schema, error) {
 }
 
 func (f *EngineConfigV2Factory) EngineV2Configuration() (conf graphql.EngineV2Configuration, err error) {
-	schema, err := f.Schema()
+	schema, err := f.MergedSchema()
 	if err != nil {
 		return conf, fmt.Errorf("get schema: %v", err)
 	}
