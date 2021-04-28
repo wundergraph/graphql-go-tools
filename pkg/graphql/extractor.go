@@ -50,7 +50,7 @@ type requestVisitor struct {
 }
 
 func (p *requestVisitor) EnterField(ref int) {
-	fieldName := p.operation.FieldNameUnsafeString(ref)
+	fieldName := p.operation.FieldNameString(ref)
 	parentTypeName := p.definition.NodeNameString(p.EnclosingTypeDefinition)
 
 	t, ok := p.data[parentTypeName]

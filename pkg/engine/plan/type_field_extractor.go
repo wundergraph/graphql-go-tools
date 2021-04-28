@@ -1,7 +1,6 @@
 package plan
 
 import (
-	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 )
 
@@ -11,25 +10,27 @@ const (
 	federationExternalDirectiveName = "external"
 )
 
-// Extract all fields from Entities.
-// If the Entity is extended - only local fields (fields without external directive).
-
-type nodeExtractor struct {
+// TypeFieldExtractor takes an ast.Document as input
+// and generates the TypeField configuration for both root fields & child fields
+// If a type is a federation entity (annotated with @key directive)
+// and a field is is extended, this field will be skipped
+// so that only "local" fields will be generated
+type TypeFieldExtractor struct {
 	document *ast.Document
 }
 
-func NewNodeExtractor(document *ast.Document) *nodeExtractor {
-	return &nodeExtractor{document: document}
+func NewNodeExtractor(document *ast.Document) *TypeFieldExtractor {
+	return &TypeFieldExtractor{document: document}
 }
 
-func (r *nodeExtractor) GetAllNodes() (rootNodes, childNodes []TypeField) {
+// GetAllNodes returns all Root- & ChildNodes
+func (r *TypeFieldExtractor) GetAllNodes() (rootNodes, childNodes []TypeField) {
 	rootNodes = r.getAllRootNodes()
 	childNodes = r.getAllChildNodes(rootNodes)
-
 	return
 }
 
-func (r *nodeExtractor) getAllRootNodes() []TypeField {
+func (r *TypeFieldExtractor) getAllRootNodes() []TypeField {
 	var rootNodes []TypeField
 
 	for _, astNode := range r.document.RootNodes {
@@ -42,7 +43,7 @@ func (r *nodeExtractor) getAllRootNodes() []TypeField {
 	return rootNodes
 }
 
-func (r *nodeExtractor) getAllChildNodes(rootNodes []TypeField) []TypeField {
+func (r *TypeFieldExtractor) getAllChildNodes(rootNodes []TypeField) []TypeField {
 	var childNodes []TypeField
 
 	for i := range rootNodes {
@@ -62,7 +63,7 @@ func (r *nodeExtractor) getAllChildNodes(rootNodes []TypeField) []TypeField {
 		for _, fieldName := range rootNodes[i].FieldNames {
 			fieldRef := fieldNameToRef[fieldName]
 
-			fieldTypeName := r.getNodeName(r.document.FieldDefinitionTypeNode(fieldRef))
+			fieldTypeName := r.document.NodeNameString(r.document.FieldDefinitionTypeNode(fieldRef))
 			r.findChildNodesForType(fieldTypeName, &childNodes)
 		}
 	}
@@ -70,7 +71,7 @@ func (r *nodeExtractor) getAllChildNodes(rootNodes []TypeField) []TypeField {
 	return childNodes
 }
 
-func (r *nodeExtractor) findChildNodesForType(typeName string, childNodes *[]TypeField) {
+func (r *TypeFieldExtractor) findChildNodesForType(typeName string, childNodes *[]TypeField) {
 	node, exists := r.document.Index.FirstNodeByNameStr(typeName)
 	if !exists {
 		return
@@ -85,12 +86,12 @@ func (r *nodeExtractor) findChildNodesForType(typeName string, childNodes *[]Typ
 			continue
 		}
 
-		fieldTypeName := r.getNodeName(r.document.FieldDefinitionTypeNode(fieldRef))
+		fieldTypeName := r.document.NodeNameString(r.document.FieldDefinitionTypeNode(fieldRef))
 		r.findChildNodesForType(fieldTypeName, childNodes)
 	}
 }
 
-func (r *nodeExtractor) addChildTypeFieldName(typeName, fieldName string, childNodes *[]TypeField) bool {
+func (r *TypeFieldExtractor) addChildTypeFieldName(typeName, fieldName string, childNodes *[]TypeField) bool {
 	for i := range *childNodes {
 		if (*childNodes)[i].TypeName != typeName {
 			continue
@@ -114,8 +115,8 @@ func (r *nodeExtractor) addChildTypeFieldName(typeName, fieldName string, childN
 	return true
 }
 
-func (r *nodeExtractor) addRootNodes(astNode ast.Node, rootNodes *[]TypeField) {
-	typeName := r.getNodeName(astNode)
+func (r *TypeFieldExtractor) addRootNodes(astNode ast.Node, rootNodes *[]TypeField) {
+	typeName := r.document.NodeNameString(astNode)
 	if !r.isEntity(astNode) && !r.isRootOperationTypeName(typeName) {
 		return
 	}
@@ -143,39 +144,7 @@ func (r *nodeExtractor) addRootNodes(astNode ast.Node, rootNodes *[]TypeField) {
 	})
 }
 
-// document.NodeNameBytes method doesnt support NodeKindObjectTypeExtension and NodeKindInterfaceTypeExtension
-func (r *nodeExtractor) getNodeName(astNode ast.Node) string {
-	var ref ast.ByteSliceReference
-
-	switch astNode.Kind {
-	case ast.NodeKindObjectTypeDefinition:
-		ref = r.document.ObjectTypeDefinitions[astNode.Ref].Name
-	case ast.NodeKindObjectTypeExtension:
-		ref = r.document.ObjectTypeExtensions[astNode.Ref].Name
-	case ast.NodeKindInterfaceTypeExtension:
-		ref = r.document.InterfaceTypeExtensions[astNode.Ref].Name
-	case ast.NodeKindInterfaceTypeDefinition:
-		ref = r.document.InterfaceTypeDefinitions[astNode.Ref].Name
-	case ast.NodeKindInputObjectTypeDefinition:
-		ref = r.document.InputObjectTypeDefinitions[astNode.Ref].Name
-	case ast.NodeKindUnionTypeDefinition:
-		ref = r.document.UnionTypeDefinitions[astNode.Ref].Name
-	case ast.NodeKindScalarTypeDefinition:
-		ref = r.document.ScalarTypeDefinitions[astNode.Ref].Name
-	case ast.NodeKindDirectiveDefinition:
-		ref = r.document.DirectiveDefinitions[astNode.Ref].Name
-	case ast.NodeKindField:
-		ref = r.document.Fields[astNode.Ref].Name
-	case ast.NodeKindDirective:
-		ref = r.document.Directives[astNode.Ref].Name
-	}
-
-	bytesName := r.document.Input.ByteSlice(ref)
-
-	return unsafebytes.BytesToString(bytesName)
-}
-
-func (r *nodeExtractor) isRootOperationTypeName(typeName string) bool {
+func (r *TypeFieldExtractor) isRootOperationTypeName(typeName string) bool {
 	rootOperationNames := map[string]struct{}{
 		"Query":        {},
 		"Mutation":     {},
@@ -187,7 +156,7 @@ func (r *nodeExtractor) isRootOperationTypeName(typeName string) bool {
 	return exists
 }
 
-func (r *nodeExtractor) isEntity(astNode ast.Node) bool {
+func (r *TypeFieldExtractor) isEntity(astNode ast.Node) bool {
 	directiveRefs := r.document.NodeDirectives(astNode)
 
 	for _, directiveRef := range directiveRefs {

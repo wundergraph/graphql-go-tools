@@ -170,7 +170,7 @@ func (d *Document) NextRefIndex() int {
 
 func (d *Document) AddRootNode(node Node) {
 	d.RootNodes = append(d.RootNodes, node)
-	d.Index.AddNodeStr(d.NodeNameString(node), node)
+	d.Index.AddNodeStr(d.NodeNameUnsafeString(node), node)
 }
 
 func (d *Document) ImportRootNode(ref int, kind NodeKind) {

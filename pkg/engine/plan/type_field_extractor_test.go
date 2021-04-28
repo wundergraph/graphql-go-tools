@@ -8,7 +8,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
 )
 
-func TestNodeExtractor_GetAllNodes(t *testing.T) {
+func TestTypeFieldExtractor_GetAllNodes(t *testing.T) {
 	run := func(t *testing.T, SDL string, expectedRoot, expectedChild []TypeField) {
 		document := unsafeparser.ParseGraphqlDocumentString(SDL)
 		extractor := NewNodeExtractor(&document)

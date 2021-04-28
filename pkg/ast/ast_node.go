@@ -34,6 +34,10 @@ func (d *Document) NodeNameBytes(node Node) ByteSlice {
 		ref = d.Fields[node.Ref].Name
 	case NodeKindDirective:
 		ref = d.Directives[node.Ref].Name
+	case NodeKindObjectTypeExtension:
+		ref = d.ObjectTypeExtensions[node.Ref].Name
+	case NodeKindInterfaceTypeExtension:
+		ref = d.InterfaceTypeExtensions[node.Ref].Name
 	}
 
 	return d.Input.ByteSlice(ref)
@@ -48,8 +52,12 @@ func (n Node) NameString(definition *Document) string {
 }
 
 // TODO: we could use node name directly
-func (d *Document) NodeNameString(node Node) string {
+func (d *Document) NodeNameUnsafeString(node Node) string {
 	return unsafebytes.BytesToString(d.NodeNameBytes(node))
+}
+
+func (d *Document) NodeNameString(node Node) string {
+	return string(d.NodeNameBytes(node))
 }
 
 // Node directives
