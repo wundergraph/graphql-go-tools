@@ -17,7 +17,7 @@ func NewRequiredFieldExtractor(document *ast.Document) *RequiredFieldExtractor {
 	}
 }
 
-func (f *RequiredFieldExtractor) GetAllFieldRequires() FieldConfigurations {
+func (f *RequiredFieldExtractor) GetAllRequiredFields() FieldConfigurations {
 	var fieldRequires FieldConfigurations
 
 	f.addFieldsForObjectExtensionDefinitions(&fieldRequires)

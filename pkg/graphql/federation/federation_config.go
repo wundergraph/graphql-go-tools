@@ -80,7 +80,7 @@ func (f *EngineConfigV2Factory) engineConfigFieldConfigs(schema *graphql.Schema)
 			return nil, fmt.Errorf("parse graphql document string: %s", report.Error())
 		}
 		extractor := plan.NewRequiredFieldExtractor(&doc)
-		planFieldConfigs = append(planFieldConfigs, extractor.GetAllFieldRequires()...)
+		planFieldConfigs = append(planFieldConfigs, extractor.GetAllRequiredFields()...)
 	}
 
 	generatedArgs := schema.GetAllFieldArguments(graphql.NewSkipReservedNamesFunc())

@@ -12,7 +12,7 @@ func TestRequiredFieldExtractor_GetAllFieldRequires(t *testing.T) {
 	run := func(t *testing.T, SDL string, expected FieldConfigurations) {
 		document := unsafeparser.ParseGraphqlDocumentString(SDL)
 		extractor := &RequiredFieldExtractor{document: &document}
-		got := extractor.GetAllFieldRequires()
+		got := extractor.GetAllRequiredFields()
 		assert.Equal(t, expected, got)
 	}
 
