@@ -43,17 +43,17 @@ func (f *RequiredFieldExtractor) addFieldsForObjectExtensionDefinitions(fieldReq
 			continue
 		}
 
-		for _, fieldRef := range objectType.FieldsDefinition.Refs {
-			if f.document.FieldDefinitionHasNamedDirective(fieldRef,federationExternalDirectiveName) {
+		for _, fieldDefinitionRef := range objectType.FieldsDefinition.Refs {
+			if f.document.FieldDefinitionHasNamedDirective(fieldDefinitionRef,federationExternalDirectiveName) {
 				continue
 			}
 
-			fieldName := f.document.FieldDefinitionNameString(fieldRef)
+			fieldName := f.document.FieldDefinitionNameString(fieldDefinitionRef)
 
 			requiredFields := make([]string, len(primaryKeys))
 			copy(requiredFields, primaryKeys)
 
-			requiredFieldsByRequiresDirective := f.requiredFieldsByRequiresDirective(fieldRef)
+			requiredFieldsByRequiresDirective := f.requiredFieldsByRequiresDirective(fieldDefinitionRef)
 			requiredFields = append(requiredFields, requiredFieldsByRequiresDirective...)
 
 			*fieldRequires = append(*fieldRequires, FieldConfiguration{
@@ -97,8 +97,8 @@ func (f *RequiredFieldExtractor) addFieldsForObjectDefinitions(fieldRequires *Fi
 	}
 }
 
-func (f *RequiredFieldExtractor) requiredFieldsByRequiresDirective(ref int) []string {
-	for _, directiveRef := range f.document.FieldDefinitions[ref].Directives.Refs {
+func (f *RequiredFieldExtractor) requiredFieldsByRequiresDirective(fieldDefinitionRef int) []string {
+	for _, directiveRef := range f.document.FieldDefinitions[fieldDefinitionRef].Directives.Refs {
 		if directiveName := f.document.DirectiveNameString(directiveRef); directiveName != federationRequireDirectiveName {
 			continue
 		}
