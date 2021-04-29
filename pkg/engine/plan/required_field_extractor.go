@@ -10,7 +10,10 @@ var (
 	fieldsArgumentNameBytes = []byte("fields")
 )
 
-// RequiredFieldExtractor
+// RequiredFieldExtractor extracts all required fields from an ast.Document
+// containing a parsed federation subgraph SDL
+// by visiting the directives specified in the federation specification
+// and extracting the required meta data
 type RequiredFieldExtractor struct {
 	document *ast.Document
 }
