@@ -10,6 +10,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/graphql_datasource"
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/subscription"
 	"github.com/jensneuse/graphql-go-tools/pkg/graphql"
 	"github.com/jensneuse/graphql-go-tools/pkg/starwars"
 )
@@ -281,8 +284,31 @@ func TestHandler_Handle(t *testing.T) {
 		require.NoError(t, err)
 
 		engineConf := graphql.NewEngineV2Configuration(starWarsSchema)
+		engineConf.SetDataSources([]plan.DataSourceConfiguration{
+			{
+				RootNodes: []plan.TypeField{
+					{TypeName: "Subscription", FieldNames: []string{"remainingJedis"}},
+				},
+				Factory: &graphql_datasource.Factory{},
+				Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
+					Subscription: graphql_datasource.SubscriptionConfiguration{
+						URL: "wss://swapi.com/graphql",
+					},
+				}),
+			},
+		})
 		engine, err := graphql.NewExecutionEngineV2(abstractlogger.NoopLogger, engineConf)
 		require.NoError(t, err)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		streamStub := subscription.NewStreamStub([]byte("graphql_websocket_subscription"), ctx.Done())
+
+		websocketManager := subscription.NewManager(streamStub)
+		websocketManager.Run(ctx.Done())
+
+		engine.WithTriggerManager(websocketManager)
 
 		executorPool := NewExecutorV2Pool(engine)
 		t.Run("connection_init", func(t *testing.T) {
@@ -453,10 +479,10 @@ func TestHandler_Handle(t *testing.T) {
 		t.Run("subscription query", func(t *testing.T) {
 			subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
 
-			/* TODO: Subscriptions are currently not implemented. Uncomment this test, when implementation is ready
 			t.Run("should start subscription on start", func(t *testing.T) {
 				payload := starwars.LoadQuery(t, starwars.FileRemainingJedisSubscription, nil)
 				client.prepareStartMessage("1", payload).withoutError().and().send()
+				go streamStub.SendMessage(`{"url":"wss://swapi.com/graphql","body":{"query":"subscription{remainingJedis}"}}`, []byte(`{"remainingJedis":1}`))
 
 				ctx, cancelFunc := context.WithCancel(context.Background())
 				handlerRoutineFunc := handlerRoutine(ctx)
@@ -468,13 +494,13 @@ func TestHandler_Handle(t *testing.T) {
 				expectedMessage := Message{
 					Id:      "1",
 					Type:    MessageTypeData,
-					Payload: []byte(`{"data":null}`),
+					Payload: []byte(`{"data":{"remainingJedis":1}}`),
 				}
 
 				messagesFromServer := client.readFromServer()
 				assert.Contains(t, messagesFromServer, expectedMessage)
 				assert.Equal(t, 1, subscriptionHandler.ActiveSubscriptions())
-			})*/
+			})
 
 			t.Run("should stop subscription on stop and send complete message to client", func(t *testing.T) {
 				client.reconnect().prepareStopMessage("1").withoutError().and().send()
