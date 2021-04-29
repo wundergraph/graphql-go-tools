@@ -6,6 +6,10 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 )
 
+var (
+	fieldsArgumentNameBytes = []byte("fields")
+)
+
 // RequiredFieldExtractor
 type RequiredFieldExtractor struct {
 	document *ast.Document
@@ -96,7 +100,7 @@ func (f *RequiredFieldExtractor) requiredFieldsByRequiresDirective(ref int) []st
 			continue
 		}
 
-		value, exists := f.document.DirectiveArgumentValueByName(directiveRef, []byte("fields"))
+		value, exists := f.document.DirectiveArgumentValueByName(directiveRef, fieldsArgumentNameBytes)
 		if !exists {
 			continue
 		}
@@ -118,7 +122,7 @@ func (f *RequiredFieldExtractor) primaryKeyFieldsIfObjectTypeIsEntity(objectType
 			continue
 		}
 
-		value, exists := f.document.DirectiveArgumentValueByName(directiveRef, []byte("fields"))
+		value, exists := f.document.DirectiveArgumentValueByName(directiveRef, fieldsArgumentNameBytes)
 		if !exists {
 			continue
 		}
