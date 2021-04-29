@@ -23,7 +23,7 @@ type LocalTypeFieldExtractor struct {
 	document *ast.Document
 }
 
-func NewNodeExtractor(document *ast.Document) *LocalTypeFieldExtractor {
+func NewLocalTypeFieldExtractor(document *ast.Document) *LocalTypeFieldExtractor {
 	return &LocalTypeFieldExtractor{document: document}
 }
 

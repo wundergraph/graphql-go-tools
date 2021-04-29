@@ -11,7 +11,7 @@ import (
 func TestTypeFieldExtractor_GetAllNodes(t *testing.T) {
 	run := func(t *testing.T, SDL string, expectedRoot, expectedChild []TypeField) {
 		document := unsafeparser.ParseGraphqlDocumentString(SDL)
-		extractor := NewNodeExtractor(&document)
+		extractor := NewLocalTypeFieldExtractor(&document)
 		gotRoot, gotChild := extractor.GetAllNodes()
 
 		assert.Equal(t, expectedRoot, gotRoot, "root nodes dont match")

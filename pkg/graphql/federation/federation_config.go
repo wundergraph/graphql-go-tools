@@ -137,7 +137,7 @@ func (f *EngineConfigV2Factory) engineConfigDataSources() (planDataSources []pla
 		}
 
 		var planDataSource plan.DataSourceConfiguration
-		extractor := plan.NewNodeExtractor(&doc)
+		extractor := plan.NewLocalTypeFieldExtractor(&doc)
 		planDataSource.RootNodes, planDataSource.ChildNodes = extractor.GetAllNodes()
 
 		factory := &graphqlDataSource.Factory{}
