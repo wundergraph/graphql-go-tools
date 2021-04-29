@@ -2,9 +2,42 @@
 [![CI](https://github.com/jensneuse/graphql-go-tools/workflows/ci/badge.svg)](https://github.com/jensneuse/graphql-go-tools/workflows/ci/badge.svg)
 # graphql-go-tools
 
-Looking for a ready to use GraphQL Server/Gateway?
+## Sponsors
 
-Have a look at: https://github.com/jensneuse/graphql-gateway
+### WunderGraph
+
+Are you looking for a GraphQL e2e data fetching solution?
+Supports frameworks like NextJS,
+type safety with generated clients (e.g. TypeScript),
+authentication,
+edge caching,
+realtime streaming support,
+federation, schema stitching, etc...
+
+Have a look at: https://wundergraph.com
+
+WunderGraph allows yourto treat APIs like packages.
+Install, share & integrate as simple as npm install.
+
+### Tyk
+
+Need a full lifecycle Api Management solution with 1st Class GraphQL Support?
+Go check out https://tyk.io
+
+Tyk is the best in class FLAPIM solution to manage all your APIs.
+Turn REST APIs into GraphQL using the GUI in no time
+thanks to tyk's Universal Data Graph.
+
+## Apollo Federation Gateway Replacement
+
+This library can be used as a replacement for the Apollo Federation Gateway.
+It implements the [Apollo Federation Specification](https://www.apollographql.com/docs/apollo-server/federation/federation-spec/).
+
+In addition to the scope of other implementations, this one supports **Subscriptions!**
+
+Check out the [Demo](/examples/federation/README.md).
+
+## Overview
 
 This repository implements low level building blocks to write graphql services in Go.
 
@@ -43,17 +76,14 @@ Currently implemented:
         - supported DataSources:
             - GraphQL (multiple GraphQL services can be combined)
             - static (static embedded data)
-            - HTTP JSON
-            - HTTP JSON Streaming (uses polling to create a stream)
-            - MQTT
-            - Nats
-            - Webassembly (resolve a Request using WASI compliant modules)
+            - REST
     - query execution: takes a context object and executes an execution plan
 - Middleware:
     - Operation Complexity: Calculates the complexity of an operation based on the GitHub algorithm
 - OperationReport: Makes it easy to collect errors during all phases of a request and enables easy error printing according to the GraphQL spec
 - Playground: Easy hosting of GraphQL Playground (no external dependencies, simple middleware) 
 - Import Statements: combine multiple GraphQL files into one single schema using #import statements
+- Implements the Apollo Federation Specification: Replacement for Apollo Federation Gateway 
 
 ## Go version Info
 
@@ -104,23 +134,27 @@ CPU and Memory consumption for lexing, parsing as well as most other operations 
 - [Jonas Bergner][jonas-bergner-github]
     - Contributions to the initial version of the parser, contributions to the tests
     - Implemented Type Extension merging [#108](https://github.com/jensneuse/graphql-go-tools/pull/108)
-- [Patric Vormstein][patric-vormstein-github]
+- [Patric Vormstein][patric-vormstein-github] (Active Maintainer)
     - Fixed lexer on windows [#92](https://github.com/jensneuse/graphql-go-tools/pull/92)
     - Author of the graphql package to simplify the usage of the library
     - Refactored the http package to simplify usage with http servers
     - Author of the starwars package to enhance testing
-- [Sergey Petrunin][sergey-petrunin-github]
+- [Sergey Petrunin][sergey-petrunin-github] (Active Maintainer)
     - Helped cleaning up the API of the pipeline package [#166](https://github.com/jensneuse/graphql-go-tools/pull/166)
     - Refactored the ast package into multiple files
     - Author of the introspection converter (introspection JSON -> AST)
     - Fixed various bugs in the parser & visitor & printer
     - Refactored and enhanced the astimport package
+- [Vasyl][vasyl-github]
+    - Implemented the logic to generate a federation configuration
+    - Added federation example
 
 [jens-neuse-github]: https://github.com/jensneuse
 [mantas-vidutis-github]: https://github.com/mvid
 [jonas-bergner-github]: https://github.com/java-jonas
 [patric-vormstein-github]: https://github.com/pvormste
 [sergey-petrunin-github]: https://github.com/spetrunin
+[vasyl-github]: https://github.com/chedom
 
 ## Contributions
 
