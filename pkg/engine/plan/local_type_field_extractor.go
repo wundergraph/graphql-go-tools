@@ -138,7 +138,7 @@ func (e *LocalTypeFieldExtractor) addRootNodes(astNode ast.Node, rootNodes *[]Ty
 	fieldRefs := e.document.NodeFieldDefinitions(astNode)
 	for _, fieldRef := range fieldRefs {
 		// check if field definition is external (has external directive)
-		if e.document.FieldDefinitionHasNamedDirective(fieldRef,federationExternalDirectiveName) {
+		if e.document.FieldDefinitionHasNamedDirective(fieldRef, federationExternalDirectiveName) {
 			continue
 		}
 
@@ -156,16 +156,16 @@ func (e *LocalTypeFieldExtractor) addRootNodes(astNode ast.Node, rootNodes *[]Ty
 	})
 }
 
-func (e *LocalTypeFieldExtractor) baseSchema () *ast.Document {
-	schemaSDL,err := astprinter.PrintString(e.document,nil)
+func (e *LocalTypeFieldExtractor) baseSchema() *ast.Document {
+	schemaSDL, err := astprinter.PrintString(e.document, nil)
 	if err != nil {
 		return nil
 	}
-	baseSchemaSDL,err := federation.BuildBaseSchemaDocument(schemaSDL)
+	baseSchemaSDL, err := federation.BuildBaseSchemaDocument(schemaSDL)
 	if err != nil {
 		return nil
 	}
-	document,report := astparser.ParseGraphqlDocumentString(baseSchemaSDL)
+	document, report := astparser.ParseGraphqlDocumentString(baseSchemaSDL)
 	if report.HasErrors() {
 		return nil
 	}
@@ -173,11 +173,11 @@ func (e *LocalTypeFieldExtractor) baseSchema () *ast.Document {
 	if err != nil {
 		return nil
 	}
-	mergedSDL,err := astprinter.PrintString(&document,nil)
+	mergedSDL, err := astprinter.PrintString(&document, nil)
 	if err != nil {
 		return nil
 	}
-	mergedDocument,report := astparser.ParseGraphqlDocumentString(mergedSDL)
+	mergedDocument, report := astparser.ParseGraphqlDocumentString(mergedSDL)
 	if report.HasErrors() {
 		return nil
 	}
