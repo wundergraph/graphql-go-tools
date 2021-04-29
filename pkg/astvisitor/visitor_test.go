@@ -902,41 +902,41 @@ func (p *printingVisitor) LeaveOperationDefinition(ref int) {
 
 func (p *printingVisitor) EnterSelectionSet(ref int) {
 	p.enter()
-	parentTypeName := p.definition.NodeNameString(p.EnclosingTypeDefinition)
+	parentTypeName := p.definition.NodeNameUnsafeString(p.EnclosingTypeDefinition)
 	p.must(fmt.Fprintf(p.out, "EnterSelectionSet(%s): ref: %d\n", parentTypeName, ref))
 }
 
 func (p *printingVisitor) LeaveSelectionSet(ref int) {
 	p.leave()
-	parentTypeName := p.definition.NodeNameString(p.EnclosingTypeDefinition)
+	parentTypeName := p.definition.NodeNameUnsafeString(p.EnclosingTypeDefinition)
 	p.must(fmt.Fprintf(p.out, "LeaveSelectionSet(%s): ref: %d\n", parentTypeName, ref))
 }
 
 func (p *printingVisitor) EnterField(ref int) {
 	p.enter()
 	fieldName := p.operation.FieldNameBytes(ref)
-	parentTypeName := p.definition.NodeNameString(p.EnclosingTypeDefinition)
+	parentTypeName := p.definition.NodeNameUnsafeString(p.EnclosingTypeDefinition)
 	p.must(fmt.Fprintf(p.out, "EnterField(%s::%s): ref: %d\n", fieldName, parentTypeName, ref))
 }
 
 func (p *printingVisitor) LeaveField(ref int) {
 	p.leave()
 	fieldName := p.operation.FieldNameUnsafeString(ref)
-	parentTypeName := p.definition.NodeNameString(p.EnclosingTypeDefinition)
+	parentTypeName := p.definition.NodeNameUnsafeString(p.EnclosingTypeDefinition)
 	p.must(fmt.Fprintf(p.out, "LeaveField(%s::%s): ref: %d\n", fieldName, parentTypeName, ref))
 }
 
 func (p *printingVisitor) EnterArgument(ref int) {
 	p.enter()
 	argName := p.operation.ArgumentNameString(ref)
-	parentTypeName := p.definition.NodeNameString(p.EnclosingTypeDefinition)
+	parentTypeName := p.definition.NodeNameUnsafeString(p.EnclosingTypeDefinition)
 	p.must(fmt.Fprintf(p.out, "EnterArgument(%s::%s): ref: %d\n", argName, parentTypeName, ref))
 }
 
 func (p *printingVisitor) LeaveArgument(ref int) {
 	p.leave()
 	argName := p.operation.ArgumentNameString(ref)
-	parentTypeName := p.definition.NodeNameString(p.EnclosingTypeDefinition)
+	parentTypeName := p.definition.NodeNameUnsafeString(p.EnclosingTypeDefinition)
 	p.must(fmt.Fprintf(p.out, "LeaveArgument(%s::%s): ref: %d\n", argName, parentTypeName, ref))
 }
 

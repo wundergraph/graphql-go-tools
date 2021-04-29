@@ -4,6 +4,8 @@ import (
 	"bytes"
 
 	"github.com/cespare/xxhash"
+
+	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 )
 
 // Index is a struct to easily look up objects in a document, e.g. find Nodes (type/interface/union definitions) by name
@@ -103,4 +105,36 @@ func (i *Index) RemoveNodeByName(name []byte) {
 	if bytes.Equal(i.SubscriptionTypeName, name) {
 		i.SubscriptionTypeName = nil
 	}
+}
+
+func (i *Index) IsRootOperationTypeNameBytes(typeName []byte) bool {
+	if len(typeName) == 0 {
+		return false
+	}
+	if bytes.Equal(i.QueryTypeName, typeName) {
+		return true
+	}
+	if bytes.Equal(i.MutationTypeName, typeName) {
+		return true
+	}
+	if bytes.Equal(i.SubscriptionTypeName, typeName) {
+		return true
+	}
+	return false
+}
+
+func (i *Index) IsRootOperationTypeNameString(typeName string) bool {
+	if typeName == "" {
+		return false
+	}
+	if unsafebytes.BytesToString(i.QueryTypeName) == typeName {
+		return true
+	}
+	if unsafebytes.BytesToString(i.MutationTypeName) == typeName {
+		return true
+	}
+	if unsafebytes.BytesToString(i.SubscriptionTypeName) == typeName {
+		return true
+	}
+	return false
 }

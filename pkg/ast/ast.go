@@ -53,15 +53,6 @@ type Document struct {
 	Index                        Index
 }
 
-func (d *Document) IndexOf(slice []int, ref int) (int, bool) {
-	for i, j := range slice {
-		if ref == j {
-			return i, true
-		}
-	}
-	return -1, false
-}
-
 func NewDocument() *Document {
 	return &Document{
 		RootNodes:                    make([]Node, 0, 48),
@@ -170,7 +161,7 @@ func (d *Document) NextRefIndex() int {
 
 func (d *Document) AddRootNode(node Node) {
 	d.RootNodes = append(d.RootNodes, node)
-	d.Index.AddNodeStr(d.NodeNameString(node), node)
+	d.Index.AddNodeStr(d.NodeNameUnsafeString(node), node)
 }
 
 func (d *Document) ImportRootNode(ref int, kind NodeKind) {

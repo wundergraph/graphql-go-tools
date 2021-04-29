@@ -71,6 +71,11 @@ func (d *Document) FieldDefinitionDirectiveByName(fieldDefinition int, directive
 	return
 }
 
+func (d *Document) FieldDefinitionHasNamedDirective(fieldDefinition int, directiveName string) bool {
+	_, exists := d.FieldDefinitionDirectiveByName(fieldDefinition, unsafebytes.StringToBytes(directiveName))
+	return exists
+}
+
 func (d *Document) FieldDefinitionResolverTypeName(enclosingType Node) ByteSlice {
 	switch enclosingType.Kind {
 	case NodeKindObjectTypeDefinition:
@@ -135,4 +140,13 @@ func (d *Document) FieldDefinitionTypeNode(ref int) Node {
 	typeName := d.ResolveTypeNameBytes(d.FieldDefinitions[ref].Type)
 	node, _ := d.Index.FirstNodeByNameBytes(typeName)
 	return node
+}
+
+func (d *Document) RemoveFieldDefinitionsFromObjectTypeDefinition(fieldDefinitionRefs []int, objectTypeDefinitionRef int) {
+	for _, fieldRef := range fieldDefinitionRefs {
+		if i, ok := indexOf(d.ObjectTypeDefinitions[objectTypeDefinitionRef].FieldsDefinition.Refs, fieldRef); ok {
+			deleteRef(&d.ObjectTypeDefinitions[objectTypeDefinitionRef].FieldsDefinition.Refs, i)
+		}
+	}
+	d.ObjectTypeDefinitions[objectTypeDefinitionRef].HasFieldDefinitions = len(d.ObjectTypeDefinitions[objectTypeDefinitionRef].FieldsDefinition.Refs) > 0
 }
