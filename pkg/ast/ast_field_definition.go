@@ -72,7 +72,7 @@ func (d *Document) FieldDefinitionDirectiveByName(fieldDefinition int, directive
 }
 
 func (d *Document) FieldDefinitionHasNamedDirective(fieldDefinition int, directiveName string) bool {
-	_,exists := d.FieldDefinitionDirectiveByName(fieldDefinition,unsafebytes.StringToBytes(directiveName))
+	_, exists := d.FieldDefinitionDirectiveByName(fieldDefinition, unsafebytes.StringToBytes(directiveName))
 	return exists
 }
 
@@ -145,17 +145,8 @@ func (d *Document) FieldDefinitionTypeNode(ref int) Node {
 func (d *Document) RemoveFieldDefinitionsFromObjectTypeDefinition(fieldDefinitionRefs []int, objectTypeDefinitionRef int) {
 	for _, fieldRef := range fieldDefinitionRefs {
 		if i, ok := indexOf(d.ObjectTypeDefinitions[objectTypeDefinitionRef].FieldsDefinition.Refs, fieldRef); ok {
-			d.ObjectTypeDefinitions[objectTypeDefinitionRef].FieldsDefinition.Refs = append(d.ObjectTypeDefinitions[objectTypeDefinitionRef].FieldsDefinition.Refs[:i], d.ObjectTypeDefinitions[objectTypeDefinitionRef].FieldsDefinition.Refs[i+1:]...)
+			deleteRef(&d.ObjectTypeDefinitions[objectTypeDefinitionRef].FieldsDefinition.Refs, i)
 		}
 	}
 	d.ObjectTypeDefinitions[objectTypeDefinitionRef].HasFieldDefinitions = len(d.ObjectTypeDefinitions[objectTypeDefinitionRef].FieldsDefinition.Refs) > 0
-}
-
-func indexOf(refs []int, ref int) (int, bool) {
-	for i, j := range refs {
-		if ref == j {
-			return i, true
-		}
-	}
-	return -1, false
 }

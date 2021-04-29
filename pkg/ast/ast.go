@@ -53,15 +53,6 @@ type Document struct {
 	Index                        Index
 }
 
-func (d *Document) IndexOf(slice []int, ref int) (int, bool) {
-	for i, j := range slice {
-		if ref == j {
-			return i, true
-		}
-	}
-	return -1, false
-}
-
 func NewDocument() *Document {
 	return &Document{
 		RootNodes:                    make([]Node, 0, 48),
