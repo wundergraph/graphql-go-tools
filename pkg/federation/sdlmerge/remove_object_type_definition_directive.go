@@ -40,10 +40,5 @@ func (r *removeObjectTypeDefinitionDirective) EnterObjectTypeDefinition(ref int)
 		}
 	}
 	// delete directives
-	for _, directiveRef := range refsForDeletion {
-		if i, ok := indexOf(r.operation.ObjectTypeDefinitions[ref].Directives.Refs, directiveRef); ok {
-			r.operation.ObjectTypeDefinitions[ref].Directives.Refs = append(r.operation.ObjectTypeDefinitions[ref].Directives.Refs[:i], r.operation.ObjectTypeDefinitions[ref].Directives.Refs[i+1:]...)
-			r.operation.ObjectTypeDefinitions[ref].HasDirectives = len(r.operation.ObjectTypeDefinitions[ref].Directives.Refs) > 0
-		}
-	}
+	r.operation.RemoveDirectivesFromNode(ast.Node{Kind: ast.NodeKindObjectTypeDefinition,Ref: ref},refsForDeletion)
 }

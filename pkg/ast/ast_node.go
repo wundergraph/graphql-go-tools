@@ -115,22 +115,43 @@ func (d *Document) NodeDirectives(node Node) []int {
 	}
 }
 
-func (d *Document) RemoveDirectiveFromNode(node Node, ref int) {
+func (d *Document) RemoveDirectivesFromNode(node Node, directiveRefs []int) {
+	for _, ref := range directiveRefs {
+		d.RemoveDirectiveFromNode(node, ref)
+	}
+}
+
+func (d *Document) RemoveDirectiveFromNode(node Node, directiveRef int) {
 	switch node.Kind {
 	case NodeKindFragmentSpread:
-		if i, ok := d.IndexOf(d.FragmentSpreads[node.Ref].Directives.Refs, ref); ok {
+		if i, ok := d.IndexOf(d.FragmentSpreads[node.Ref].Directives.Refs, directiveRef); ok {
 			d.FragmentSpreads[node.Ref].Directives.Refs = append(d.FragmentSpreads[node.Ref].Directives.Refs[:i], d.FragmentSpreads[node.Ref].Directives.Refs[i+1:]...)
 			d.FragmentSpreads[node.Ref].HasDirectives = len(d.FragmentSpreads[node.Ref].Directives.Refs) > 0
 		}
 	case NodeKindInlineFragment:
-		if i, ok := d.IndexOf(d.InlineFragments[node.Ref].Directives.Refs, ref); ok {
+		if i, ok := d.IndexOf(d.InlineFragments[node.Ref].Directives.Refs, directiveRef); ok {
 			d.InlineFragments[node.Ref].Directives.Refs = append(d.InlineFragments[node.Ref].Directives.Refs[:i], d.InlineFragments[node.Ref].Directives.Refs[i+1:]...)
 			d.InlineFragments[node.Ref].HasDirectives = len(d.InlineFragments[node.Ref].Directives.Refs) > 0
 		}
 	case NodeKindField:
-		if i, ok := d.IndexOf(d.Fields[node.Ref].Directives.Refs, ref); ok {
+		if i, ok := d.IndexOf(d.Fields[node.Ref].Directives.Refs, directiveRef); ok {
 			d.Fields[node.Ref].Directives.Refs = append(d.Fields[node.Ref].Directives.Refs[:i], d.Fields[node.Ref].Directives.Refs[i+1:]...)
 			d.Fields[node.Ref].HasDirectives = len(d.Fields[node.Ref].Directives.Refs) > 0
+		}
+	case NodeKindFieldDefinition:
+		if i, ok := indexOf(d.FieldDefinitions[node.Ref].Directives.Refs, directiveRef); ok {
+			d.FieldDefinitions[node.Ref].Directives.Refs = append(d.FieldDefinitions[node.Ref].Directives.Refs[:i], d.FieldDefinitions[node.Ref].Directives.Refs[i+1:]...)
+			d.FieldDefinitions[node.Ref].HasDirectives = len(d.FieldDefinitions[node.Ref].Directives.Refs) > 0
+		}
+	case NodeKindInterfaceTypeDefinition:
+		if i, ok := indexOf(d.InterfaceTypeDefinitions[node.Ref].Directives.Refs, directiveRef); ok {
+			d.InterfaceTypeDefinitions[node.Ref].Directives.Refs = append(d.InterfaceTypeDefinitions[node.Ref].Directives.Refs[:i], d.InterfaceTypeDefinitions[node.Ref].Directives.Refs[i+1:]...)
+			d.InterfaceTypeDefinitions[node.Ref].HasDirectives = len(d.InterfaceTypeDefinitions[node.Ref].Directives.Refs) > 0
+		}
+	case NodeKindObjectTypeDefinition:
+		if i, ok := indexOf(d.ObjectTypeDefinitions[node.Ref].Directives.Refs, directiveRef); ok {
+			d.ObjectTypeDefinitions[node.Ref].Directives.Refs = append(d.ObjectTypeDefinitions[node.Ref].Directives.Refs[:i], d.ObjectTypeDefinitions[node.Ref].Directives.Refs[i+1:]...)
+			d.ObjectTypeDefinitions[node.Ref].HasDirectives = len(d.ObjectTypeDefinitions[node.Ref].Directives.Refs) > 0
 		}
 	default:
 		log.Printf("RemoveDirectiveFromNode not implemented for node kind: %s", node.Kind)

@@ -41,10 +41,5 @@ func (r *removeInterfaceDefinitionDirective) EnterInterfaceTypeDefinition(ref in
 		}
 	}
 	// delete directives
-	for _, directiveRef := range refsForDeletion {
-		if i, ok := indexOf(r.operation.InterfaceTypeDefinitions[ref].Directives.Refs, directiveRef); ok {
-			r.operation.InterfaceTypeDefinitions[ref].Directives.Refs = append(r.operation.InterfaceTypeDefinitions[ref].Directives.Refs[:i], r.operation.InterfaceTypeDefinitions[ref].Directives.Refs[i+1:]...)
-			r.operation.InterfaceTypeDefinitions[ref].HasDirectives = len(r.operation.InterfaceTypeDefinitions[ref].Directives.Refs) > 0
-		}
-	}
+	r.operation.RemoveDirectivesFromNode(ast.Node{Kind: ast.NodeKindInterfaceTypeDefinition, Ref: ref}, refsForDeletion)
 }

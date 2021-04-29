@@ -42,20 +42,5 @@ func (r *removeFieldDefinitionByDirective) LeaveObjectTypeDefinition(ref int) {
 		}
 	}
 	// delete fields
-	for _, fieldRef := range refsForDeletion {
-		if i, ok := indexOf(r.operation.ObjectTypeDefinitions[ref].FieldsDefinition.Refs, fieldRef); ok {
-			r.operation.ObjectTypeDefinitions[ref].FieldsDefinition.Refs = append(r.operation.ObjectTypeDefinitions[ref].FieldsDefinition.Refs[:i], r.operation.ObjectTypeDefinitions[ref].FieldsDefinition.Refs[i+1:]...)
-			r.operation.ObjectTypeDefinitions[ref].HasFieldDefinitions = len(r.operation.ObjectTypeDefinitions[ref].FieldsDefinition.Refs) > 0
-		}
-	}
-}
-
-func indexOf(refs []int, ref int) (int, bool) {
-	for i, j := range refs {
-		if ref == j {
-			return i, true
-		}
-	}
-
-	return -1, false
+	r.operation.RemoveFieldDefinitionsFromObjectTypeDefinition(refsForDeletion,ref)
 }

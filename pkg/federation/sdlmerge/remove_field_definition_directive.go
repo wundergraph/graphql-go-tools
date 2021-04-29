@@ -40,10 +40,5 @@ func (r *removeFieldDefinitionDirective) EnterFieldDefinition(ref int) {
 		}
 	}
 	// delete directives
-	for _, directiveRef := range refsForDeletion {
-		if i, ok := indexOf(r.operation.FieldDefinitions[ref].Directives.Refs, directiveRef); ok {
-			r.operation.FieldDefinitions[ref].Directives.Refs = append(r.operation.FieldDefinitions[ref].Directives.Refs[:i], r.operation.FieldDefinitions[ref].Directives.Refs[i+1:]...)
-			r.operation.FieldDefinitions[ref].HasDirectives = len(r.operation.FieldDefinitions[ref].Directives.Refs) > 0
-		}
-	}
+	r.operation.RemoveDirectivesFromNode(ast.Node{Kind: ast.NodeKindFieldDefinition, Ref: ref},refsForDeletion)
 }

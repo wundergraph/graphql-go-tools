@@ -184,6 +184,8 @@ func (e *LocalTypeFieldExtractor) baseSchema () *ast.Document {
 	return &mergedDocument
 }
 
+// isEntity checks if node is an Entity according to the federation spec
+// by checking if it is annotated with the "key" directive
 func (e *LocalTypeFieldExtractor) isEntity(astNode ast.Node) bool {
 	directiveRefs := e.document.NodeDirectives(astNode)
 

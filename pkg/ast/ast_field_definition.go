@@ -141,3 +141,21 @@ func (d *Document) FieldDefinitionTypeNode(ref int) Node {
 	node, _ := d.Index.FirstNodeByNameBytes(typeName)
 	return node
 }
+
+func (d *Document) RemoveFieldDefinitionsFromObjectTypeDefinition(fieldDefinitionRefs []int, objectTypeDefinitionRef int) {
+	for _, fieldRef := range fieldDefinitionRefs {
+		if i, ok := indexOf(d.ObjectTypeDefinitions[objectTypeDefinitionRef].FieldsDefinition.Refs, fieldRef); ok {
+			d.ObjectTypeDefinitions[objectTypeDefinitionRef].FieldsDefinition.Refs = append(d.ObjectTypeDefinitions[objectTypeDefinitionRef].FieldsDefinition.Refs[:i], d.ObjectTypeDefinitions[objectTypeDefinitionRef].FieldsDefinition.Refs[i+1:]...)
+		}
+	}
+	d.ObjectTypeDefinitions[objectTypeDefinitionRef].HasFieldDefinitions = len(d.ObjectTypeDefinitions[objectTypeDefinitionRef].FieldsDefinition.Refs) > 0
+}
+
+func indexOf(refs []int, ref int) (int, bool) {
+	for i, j := range refs {
+		if ref == j {
+			return i, true
+		}
+	}
+	return -1, false
+}
