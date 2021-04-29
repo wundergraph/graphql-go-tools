@@ -14,88 +14,88 @@ const (
 	federationExternalDirectiveName = "external"
 )
 
-// TypeFieldExtractor takes an ast.Document as input
+// LocalTypeFieldExtractor takes an ast.Document as input
 // and generates the TypeField configuration for both root fields & child fields
 // If a type is a federation entity (annotated with @key directive)
 // and a field is is extended, this field will be skipped
 // so that only "local" fields will be generated
-type TypeFieldExtractor struct {
+type LocalTypeFieldExtractor struct {
 	document *ast.Document
 }
 
-func NewNodeExtractor(document *ast.Document) *TypeFieldExtractor {
-	return &TypeFieldExtractor{document: document}
+func NewNodeExtractor(document *ast.Document) *LocalTypeFieldExtractor {
+	return &LocalTypeFieldExtractor{document: document}
 }
 
 // GetAllNodes returns all Root- & ChildNodes
-func (r *TypeFieldExtractor) GetAllNodes() (rootNodes, childNodes []TypeField) {
-	rootNodes = r.getAllRootNodes()
-	childNodes = r.getAllChildNodes(rootNodes)
+func (e *LocalTypeFieldExtractor) GetAllNodes() (rootNodes, childNodes []TypeField) {
+	rootNodes = e.getAllRootNodes()
+	childNodes = e.getAllChildNodes(rootNodes)
 	return
 }
 
-func (r *TypeFieldExtractor) getAllRootNodes() []TypeField {
+func (e *LocalTypeFieldExtractor) getAllRootNodes() []TypeField {
 	var rootNodes []TypeField
 
-	for _, astNode := range r.document.RootNodes {
+	for _, astNode := range e.document.RootNodes {
 		switch astNode.Kind {
 		case ast.NodeKindObjectTypeExtension, ast.NodeKindObjectTypeDefinition:
-			r.addRootNodes(astNode, &rootNodes)
+			e.addRootNodes(astNode, &rootNodes)
 		}
 	}
 
 	return rootNodes
 }
 
-func (r *TypeFieldExtractor) getAllChildNodes(rootNodes []TypeField) []TypeField {
+func (e *LocalTypeFieldExtractor) getAllChildNodes(rootNodes []TypeField) []TypeField {
 	var childNodes []TypeField
 
 	for i := range rootNodes {
 		fieldNameToRef := make(map[string]int, len(rootNodes[i].FieldNames))
 
-		rootNodeASTNode, exists := r.document.Index.FirstNodeByNameStr(rootNodes[i].TypeName)
+		rootNodeASTNode, exists := e.document.Index.FirstNodeByNameStr(rootNodes[i].TypeName)
 		if !exists {
 			continue
 		}
 
-		fieldRefs := r.document.NodeFieldDefinitions(rootNodeASTNode)
+		fieldRefs := e.document.NodeFieldDefinitions(rootNodeASTNode)
 		for _, fieldRef := range fieldRefs {
-			fieldName := r.document.FieldDefinitionNameString(fieldRef)
+			fieldName := e.document.FieldDefinitionNameString(fieldRef)
 			fieldNameToRef[fieldName] = fieldRef
 		}
 
 		for _, fieldName := range rootNodes[i].FieldNames {
 			fieldRef := fieldNameToRef[fieldName]
 
-			fieldTypeName := r.document.NodeNameString(r.document.FieldDefinitionTypeNode(fieldRef))
-			r.findChildNodesForType(fieldTypeName, &childNodes)
+			fieldTypeName := e.document.NodeNameString(e.document.FieldDefinitionTypeNode(fieldRef))
+			e.findChildNodesForType(fieldTypeName, &childNodes)
 		}
 	}
 
 	return childNodes
 }
 
-func (r *TypeFieldExtractor) findChildNodesForType(typeName string, childNodes *[]TypeField) {
-	node, exists := r.document.Index.FirstNodeByNameStr(typeName)
+func (e *LocalTypeFieldExtractor) findChildNodesForType(typeName string, childNodes *[]TypeField) {
+	node, exists := e.document.Index.FirstNodeByNameStr(typeName)
 	if !exists {
 		return
 	}
 
-	fieldsRefs := r.document.NodeFieldDefinitions(node)
+	fieldsRefs := e.document.NodeFieldDefinitions(node)
 
 	for _, fieldRef := range fieldsRefs {
-		fieldName := r.document.FieldDefinitionNameString(fieldRef)
+		fieldName := e.document.FieldDefinitionNameString(fieldRef)
 
-		if added := r.addChildTypeFieldName(typeName, fieldName, childNodes); !added {
+		if added := e.addChildTypeFieldName(typeName, fieldName, childNodes); !added {
 			continue
 		}
 
-		fieldTypeName := r.document.NodeNameString(r.document.FieldDefinitionTypeNode(fieldRef))
-		r.findChildNodesForType(fieldTypeName, childNodes)
+		fieldTypeName := e.document.NodeNameString(e.document.FieldDefinitionTypeNode(fieldRef))
+		e.findChildNodesForType(fieldTypeName, childNodes)
 	}
 }
 
-func (r *TypeFieldExtractor) addChildTypeFieldName(typeName, fieldName string, childNodes *[]TypeField) bool {
+func (e *LocalTypeFieldExtractor) addChildTypeFieldName(typeName, fieldName string, childNodes *[]TypeField) bool {
 	for i := range *childNodes {
 		if (*childNodes)[i].TypeName != typeName {
 			continue
@@ -119,30 +119,30 @@ func (r *TypeFieldExtractor) addChildTypeFieldName(typeName, fieldName string, c
 	return true
 }
 
-func (r *TypeFieldExtractor) addRootNodes(astNode ast.Node, rootNodes *[]TypeField) {
-	typeName := r.document.NodeNameString(astNode)
+func (e *LocalTypeFieldExtractor) addRootNodes(astNode ast.Node, rootNodes *[]TypeField) {
+	typeName := e.document.NodeNameString(astNode)
 
 	// we need to first build the base schema so that we get a valid Index
 	// to look up if typeName is a RootOperationTypeName
 	// the service SDL itself might use ObjectTypeExtension types which will not be indexed
-	document := r.baseSchema()
+	document := e.baseSchema()
 
 	// node should be an entity or a root operation type definition
 	// if document == nil, there are no root operation type definitions in this document
-	if !r.isEntity(astNode) && (document == nil || !document.Index.IsRootOperationTypeNameString(typeName)) {
+	if !e.isEntity(astNode) && (document == nil || !document.Index.IsRootOperationTypeNameString(typeName)) {
 		return
 	}
 
 	var fieldNames []string
 
-	fieldRefs := r.document.NodeFieldDefinitions(astNode)
+	fieldRefs := e.document.NodeFieldDefinitions(astNode)
 	for _, fieldRef := range fieldRefs {
 		// check if field definition is external (has external directive)
-		if r.document.FieldDefinitionHasNamedDirective(fieldRef,federationExternalDirectiveName) {
+		if e.document.FieldDefinitionHasNamedDirective(fieldRef,federationExternalDirectiveName) {
 			continue
 		}
 
-		fieldName := r.document.FieldDefinitionNameString(fieldRef)
+		fieldName := e.document.FieldDefinitionNameString(fieldRef)
 		fieldNames = append(fieldNames, fieldName)
 	}
 
@@ -156,8 +156,8 @@ func (r *TypeFieldExtractor) addRootNodes(astNode ast.Node, rootNodes *[]TypeFie
 	})
 }
 
-func (r *TypeFieldExtractor) baseSchema () *ast.Document {
-	schemaSDL,err := astprinter.PrintString(r.document,nil)
+func (e *LocalTypeFieldExtractor) baseSchema () *ast.Document {
+	schemaSDL,err := astprinter.PrintString(e.document,nil)
 	if err != nil {
 		return nil
 	}
@@ -184,11 +184,11 @@ func (r *TypeFieldExtractor) baseSchema () *ast.Document {
 	return &mergedDocument
 }
 
-func (r *TypeFieldExtractor) isEntity(astNode ast.Node) bool {
-	directiveRefs := r.document.NodeDirectives(astNode)
+func (e *LocalTypeFieldExtractor) isEntity(astNode ast.Node) bool {
+	directiveRefs := e.document.NodeDirectives(astNode)
 
 	for _, directiveRef := range directiveRefs {
-		if directiveName := r.document.DirectiveNameString(directiveRef); directiveName == federationKeyDirectiveName {
+		if directiveName := e.document.DirectiveNameString(directiveRef); directiveName == federationKeyDirectiveName {
 			return true
 		}
 	}
