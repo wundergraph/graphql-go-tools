@@ -16,7 +16,7 @@ federation, schema stitching, etc...
 
 Have a look at: https://wundergraph.com
 
-WunderGraph allows yourto treat APIs like packages.
+WunderGraph allows you to treat APIs like packages.
 Install, share & integrate as simple as npm install.
 
 ### Tyk
