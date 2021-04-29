@@ -35,7 +35,7 @@ It implements the [Apollo Federation Specification](https://www.apollographql.co
 
 In addition to the scope of other implementations, this one supports **Subscriptions!**
 
-Check out the [Demo](/examples/federation/README.md).
+Check out the [Demo](/examples/federation).
 
 ## Overview
 
