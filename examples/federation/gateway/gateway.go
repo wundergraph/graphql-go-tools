@@ -72,7 +72,7 @@ func (g *Gateway) Ready() {
 func (g *Gateway) UpdateDataSources(newDataSourcesConfig []graphqlDataSource.Configuration) {
 	engineConfigFactory := federation.NewEngineConfigV2Factory(g.httpClient, newDataSourcesConfig...)
 
-	schema, err := engineConfigFactory.Schema()
+	schema, err := engineConfigFactory.MergedSchema()
 	if err != nil {
 		g.logger.Error("get schema:", log.Error(err))
 		return
