@@ -25,6 +25,14 @@ type EngineConfigV2Factory struct {
 	schema            *graphql.Schema
 }
 
+func (f *EngineConfigV2Factory) SetMergedSchemaFromString(mergedSchema string) (err error) {
+	f.schema, err = graphql.NewSchemaFromString(mergedSchema)
+	if err != nil {
+		return fmt.Errorf("set merged schema: %s", err.Error())
+	}
+	return nil
+}
+
 func (f *EngineConfigV2Factory) MergedSchema() (*graphql.Schema, error) {
 	if f.schema != nil {
 		return f.schema, nil
