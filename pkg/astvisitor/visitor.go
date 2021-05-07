@@ -46,9 +46,6 @@ type Walker struct {
 	revisit         bool
 	filter          VisitorFilter
 	deferred        []func()
-	// enclosingFragmentDefinition is the FragmentDefinition Node representing nearest parent Fragment within object ancestors
-	// e.g. if we are inside fragment it will be the FragmentDefinition of that fragment
-	enclosingFragmentDefinition ast.Node
 }
 
 // NewWalker returns a fully initialized Walker
@@ -1949,15 +1946,8 @@ func (w *Walker) walkArgument(ref int) {
 }
 
 func (w *Walker) walkFragmentSpread(ref int) {
-	fragmentName := w.document.FragmentSpreadNameBytes(ref)
-	if w.enclosingFragmentDefinition.Kind == ast.NodeKindFragmentDefinition {
-		if bytes.Equal(fragmentName, w.document.FragmentDefinitionNameBytes(w.enclosingFragmentDefinition.Ref)) {
-			position := w.document.FragmentSpreads[ref].Spread
-			w.StopWithExternalErr(operationreport.ErrFragmentCyclesIsNotAllowed(position.LineStart, position.CharStart))
-		}
-	}
-
 	w.increaseDepth()
+
 	w.setCurrent(ast.NodeKindFragmentSpread, ref)
 
 	for i := 0; i < len(w.visitors.enterFragmentSpread); {
@@ -2080,11 +2070,6 @@ func (w *Walker) walkFragmentDefinition(ref int) {
 
 	w.setCurrent(ast.NodeKindFragmentDefinition, ref)
 
-	w.enclosingFragmentDefinition = ast.Node{
-		Kind: ast.NodeKindFragmentDefinition,
-		Ref:  ref,
-	}
-
 	for i := 0; i < len(w.visitors.enterFragmentDefinition); {
 		if w.filter == nil || w.filter.AllowVisitor(EnterFragmentDefinition, ref, w.visitors.enterFragmentDefinition[i]) {
 			w.visitors.enterFragmentDefinition[i].EnterFragmentDefinition(ref)
@@ -2140,7 +2125,6 @@ func (w *Walker) walkFragmentDefinition(ref int) {
 	}
 
 	w.decreaseDepth()
-	w.enclosingFragmentDefinition = ast.Node{}
 }
 
 func (w *Walker) walkObjectTypeDefinition(ref int) {
