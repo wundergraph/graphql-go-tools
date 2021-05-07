@@ -401,17 +401,4 @@ func TestInlineFragments(t *testing.T) {
 					name
 				}`)
 	})
-	t.Run("stack overflow", func(t *testing.T) {
-		run(fragmentSpreadInline, testDefinition, `
-				{
-					human {
-						...frag1
-					}
-				}
-				fragment frag1 on Human {
-					relative {
-						...frag1
-					}
-				}`, "")
-	})
 }
