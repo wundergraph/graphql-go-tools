@@ -7,7 +7,8 @@ import (
 )
 
 func TestNoSchemaIntrospectionCustomRule(t *testing.T) {
-
+	// FIXME: add var
+	var schema string
 	expectErrors := func(queryStr string) helpers.ResultCompare {
 		return helpers.ExpectValidationErrorsWithSchema(
 			schema,
@@ -20,7 +21,7 @@ func TestNoSchemaIntrospectionCustomRule(t *testing.T) {
 		expectErrors(queryStr)(`[]`)
 	}
 
-	schema := helpers.BuildSchema(`
+	schema = helpers.BuildSchema(`
   type Query {
     someQuery: SomeType
   }
