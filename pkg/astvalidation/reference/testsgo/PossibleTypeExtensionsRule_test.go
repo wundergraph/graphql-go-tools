@@ -89,12 +89,12 @@ func TestPossibleTypeExtensionsRule(t *testing.T) {
       extend enum Unknown @dummy
       extend input Unknown @dummy
     `)(`[
-      { message, locations: [{ line: 4, column: 21 }] },
-      { message, locations: [{ line: 5, column: 19 }] },
-      { message, locations: [{ line: 6, column: 24 }] },
-      { message, locations: [{ line: 7, column: 20 }] },
-      { message, locations: [{ line: 8, column: 19 }] },
-      { message, locations: [{ line: 9, column: 20 }] },
+      {` + message + `, locations: [{ line: 4, column: 21 }] },
+      {` + message + `, locations: [{ line: 5, column: 19 }] },
+      {` + message + `, locations: [{ line: 6, column: 24 }] },
+      {` + message + `, locations: [{ line: 7, column: 20 }] },
+      {` + message + `, locations: [{ line: 8, column: 19 }] },
+      {` + message + `, locations: [{ line: 9, column: 20 }] },
 ]`)
 		})
 
@@ -113,12 +113,12 @@ func TestPossibleTypeExtensionsRule(t *testing.T) {
       extend enum Foo @dummy
       extend input Foo @dummy
     `)(`[
-      { message, locations: [{ line: 6, column: 21 }] },
-      { message, locations: [{ line: 7, column: 19 }] },
-      { message, locations: [{ line: 8, column: 24 }] },
-      { message, locations: [{ line: 9, column: 20 }] },
-      { message, locations: [{ line: 10, column: 19 }] },
-      { message, locations: [{ line: 11, column: 20 }] },
+      {` + message + `, locations: [{ line: 6, column: 21 }] },
+      {` + message + `, locations: [{ line: 7, column: 19 }] },
+      {` + message + `, locations: [{ line: 8, column: 24 }] },
+      {` + message + `, locations: [{ line: 9, column: 20 }] },
+      {` + message + `, locations: [{ line: 10, column: 19 }] },
+      {` + message + `, locations: [{ line: 11, column: 20 }] },
 ]`)
 		})
 
@@ -218,12 +218,12 @@ func TestPossibleTypeExtensionsRule(t *testing.T) {
 			message :=
 				`Cannot extend type "Unknown" because it is not defined. Did you mean "Known"?`
 			expectSDLErrors(sdl, schema)(`[
-      { message, locations: [{ line: 2, column: 21 }] },
-      { message, locations: [{ line: 3, column: 19 }] },
-      { message, locations: [{ line: 4, column: 24 }] },
-      { message, locations: [{ line: 5, column: 20 }] },
-      { message, locations: [{ line: 6, column: 19 }] },
-      { message, locations: [{ line: 7, column: 20 }] },
+      {` + message + `, locations: [{ line: 2, column: 21 }] },
+      {` + message + `, locations: [{ line: 3, column: 19 }] },
+      {` + message + `, locations: [{ line: 4, column: 24 }] },
+      {` + message + `, locations: [{ line: 5, column: 20 }] },
+      {` + message + `, locations: [{ line: 6, column: 19 }] },
+      {` + message + `, locations: [{ line: 7, column: 20 }] },
 ]`)
 		})
 
