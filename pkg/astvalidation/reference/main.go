@@ -28,6 +28,43 @@ import (
   "github.com/jensneuse/graphql-go-tools/pkg/astvalidation/reference/helpers"
 )
 `
+
+	buildAssertion = `function buildAssertion(sdlStr: string) {
+  const schema = buildSchema(sdlStr);
+  return { expectErrors, expectValid };
+
+  function expectErrors(queryStr: string) {
+    return expectValidationErrorsWithSchema(
+      schema,
+      NoDeprecatedCustomRule,
+      queryStr,
+    );
+  }
+
+  function expectValid(queryStr: string) {
+    expectErrors(queryStr).to.deep.equal([]);
+  }
+}`
+	buildAssertionGo = `
+type AssertQuery func(queryStr string) helpers.ResultCompare
+
+func buildAssertion(sdlStr string) (AssertQuery, func(queryStr string)){
+  schema := helpers.BuildSchema(sdlStr)
+
+  expectErrors := func(queryStr string) helpers.ResultCompare {
+    return helpers.ExpectValidationErrorsWithSchema(
+      schema,
+      "NoDeprecatedCustomRule",
+      queryStr,
+    )
+  }
+
+  expectValid := func(queryStr string) {
+    expectErrors(queryStr)("[]")
+  }
+
+  return expectErrors, expectValid
+}`
 )
 
 func main() {
@@ -91,10 +128,10 @@ var (
 	// 	// "validation",
 	// }
 	convertRules = []string{
-		// "FieldsOnCorrectTypeRule",
-		// "NoDeprecatedCustomRule",
-		"PossibleTypeExtensionsRule",
-		// "ValuesOfCorrectTypeRule",
+		"FieldsOnCorrectTypeRule",
+		"NoDeprecatedCustomRule", // syntax ok
+		// "PossibleTypeExtensionsRule", // syntax ok
+		// "ValuesOfCorrectTypeRule", // need a skip
 		// "VariablesInAllowedPositionRule", // OK
 		// "validation",
 	}
@@ -135,6 +172,12 @@ type Converter struct {
 
 func (c *Converter) iterateLines(testName string, content string) string {
 	var outLines []string
+
+	hasBuildAss := strings.Contains(content, buildAssertion)
+	if hasBuildAss {
+		content = strings.ReplaceAll(content, buildAssertion, "")
+		content = strings.ReplaceAll(content, "{ expectValid, expectErrors }", "expectValid, expectErrors")
+	}
 	content = strings.ReplaceAll(content, ";", "")
 	lines := strings.Split(content, "\n")
 
@@ -150,6 +193,10 @@ func (c *Converter) iterateLines(testName string, content string) string {
 	}
 
 	outLines = append(outLines, "}")
+
+	if hasBuildAss {
+		outLines = append(outLines, buildAssertionGo)
+	}
 
 	return strings.Join(outLines, "\n")
 }
