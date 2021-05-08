@@ -143,6 +143,10 @@ func ExpectValidationErrors(rule string, queryStr string) ResultCompare {
 	return ExpectValidationErrorsWithSchema(testSchema, rule, queryStr)
 }
 
-func expectSDLValidationErrors(schema string, rule string, sdlStr string) {
+func ExpectSDLValidationErrors(schema string, rule string, sdlStr string) ResultCompare {
+	return nil
+}
 
+func BuildSchema(sdl string) string {
+	return sdl
 }
