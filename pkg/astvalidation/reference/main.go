@@ -10,17 +10,17 @@ import (
 	"strings"
 )
 
-//go:generate rm -rf ./out
-//go:generate mkdir out
+//go:generate rm -rf ./testsgo
+//go:generate mkdir testsgo
 //go:generate go run main.go
-//go:generate gofmt -w out
+//go:generate gofmt -w testsgo
 
 const (
 	inputDir = "./__tests__"
-	outDir   = "./out"
+	outDir   = "./testsgo"
 
 	header = `
-package out
+package testsgo
 
 import (
   "testing"
@@ -77,7 +77,10 @@ func buildAssertion(sdlStr string) (AssertQuery, func(queryStr string)){
 
 	expectErrMsgGo = `
     expectErrorMessage := func(schema string, queryStr string) func(string) {
-    }`
+		return func(string){
+			// TODO: fix me
+		}
+	}`
 )
 
 func main() {
