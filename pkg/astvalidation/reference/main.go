@@ -135,6 +135,7 @@ type Converter struct {
 
 func (c *Converter) iterateLines(testName string, content string) string {
 	var outLines []string
+	content = strings.ReplaceAll(content, ";", "")
 	lines := strings.Split(content, "\n")
 
 	outLines = append(outLines, header)
@@ -155,12 +156,13 @@ func (c *Converter) iterateLines(testName string, content string) string {
 
 func (c *Converter) transformLine(line string) (out string, skip bool) {
 	switch {
-
 	case strings.Contains(line, `'`):
 		if strings.Contains(line, `"`) {
 			if !c.insideResultAssertion {
 				transformedLine := strings.ReplaceAll(line, `'`, "`")
 				out, skip = c.transformLine(transformedLine)
+			} else {
+				out = line
 			}
 		} else {
 			transformedLine := strings.ReplaceAll(line, `'`, `"`)
@@ -210,7 +212,8 @@ func (c *Converter) transformLine(line string) (out string, skip bool) {
 if len(sch) > 0 { schema = sch[0] }`
 
 	case strings.Contains(line, "buildSchema("):
-		out = strings.ReplaceAll(line, "buildSchema", "helpers.BuildSchema")
+		transformedLine := strings.ReplaceAll(line, "buildSchema", "helpers.BuildSchema")
+		out, skip = c.transformLine(transformedLine)
 
 	case strings.Contains(line, "expectValidationErrorsWithSchema"):
 		transformedLine := strings.ReplaceAll(line,
@@ -257,7 +260,9 @@ if len(sch) > 0 { schema = sch[0] }`
 		if strings.Contains(line, "to.deep.equal") {
 			out, skip = c.transformLine(line)
 		} else {
-			c.insideStringLiteral = !c.insideStringLiteral
+			if strings.Count(line, "`") == 1 {
+				c.insideStringLiteral = !c.insideStringLiteral
+			}
 			out = line
 		}
 
