@@ -92,9 +92,9 @@ var (
 	// }
 	convertRules = []string{
 		// "FieldsOnCorrectTypeRule",
-		"KnownArgumentNamesRule", // OK
-		"KnownDirectivesRule",    // OK
-		// "KnownTypeNamesRule",
+		// "KnownArgumentNamesRule", // OK
+		// "KnownDirectivesRule",    // OK
+		"KnownTypeNamesRule",
 		// "LoneSchemaDefinitionRule",
 		// "NoDeprecatedCustomRule",
 		// "OverlappingFieldsCanBeMergedRule",
@@ -175,13 +175,11 @@ func transformLine(insideImport *bool, line string) (out string, skip bool) {
 		*insideImport = false
 		return "", true
 
-	case strings.Contains(line, "buildSchema("):
-		variableName :=
-			strings.TrimPrefix(
-				strings.TrimSpace(strings.Split(line, "=")[0]),
-				"const",
-			)
-		out = fmt.Sprintf("%s := helpers.BuildSchema(`", variableName)
+	case strings.Contains(line, "const "):
+		parts := strings.Split(line, "=")
+		variableName := strings.TrimPrefix(strings.TrimSpace(parts[0]), "const")
+		transformedLine := fmt.Sprintf("%s := %s", variableName, parts[1])
+		out, skip = transformLine(insideImport, transformedLine)
 
 	case strings.Contains(line, "describe("):
 		name := strings.TrimSuffix(strings.ReplaceAll(line, "describe(", ""), jsArrowFunction)
@@ -191,8 +189,11 @@ func transformLine(insideImport *bool, line string) (out string, skip bool) {
 		name := strings.TrimSuffix(strings.ReplaceAll(line, "it(", ""), jsArrowFunction)
 		out = fmt.Sprintf(`t.Run(%s, func(t *testing.T) {`, name)
 
+	case strings.Contains(line, "function expectErrorsWithSchema"):
+		out = "expectErrorsWithSchema := func(schema string, queryStr string) helpers.ResultCompare {"
+
 	case strings.Contains(line, "function expectErrors"):
-		out = "\nexpectErrors := func(queryStr string) helpers.ResultCompare {"
+		out = "expectErrors := func(queryStr string) helpers.ResultCompare {"
 
 	case strings.Contains(line, "function expectValidSDL"):
 		out = "expectValidSDL :=  func(sdlStr string, schema ...string) {"
@@ -205,14 +206,20 @@ func transformLine(insideImport *bool, line string) (out string, skip bool) {
 			schema := ""
 if len(sch) > 0 { schema = sch[0] }`
 
-	case strings.Contains(line, "return expectSDLValidationErrors("):
+	case strings.Contains(line, "buildSchema("):
+		out = strings.ReplaceAll(line, "buildSchema", "helpers.BuildSchema")
+
+	case strings.Contains(line, "expectValidationErrorsWithSchema"):
+		transformedLine := strings.ReplaceAll(line,
+			"expectValidationErrorsWithSchema", "helpers.ExpectValidationErrorsWithSchema")
+
+		out, skip = transformLine(insideImport, transformedLine)
+
+	case strings.Contains(line, "expectSDLValidationErrors("):
 		transformedLine := strings.ReplaceAll(line,
 			"expectSDLValidationErrors", "helpers.ExpectSDLValidationErrors")
-		if strings.Contains(transformedLine, "Rule,") {
-			ruleName := strings.TrimSpace(strings.Split(transformedLine, ",")[1])
-			transformedLine = strings.ReplaceAll(transformedLine, ruleName, strconv.Quote(ruleName))
-		}
-		out = transformedLine
+
+		out, skip = transformLine(insideImport, transformedLine)
 
 	case strings.Contains(line, "return expectValidationErrors("):
 		ruleName := strings.TrimSpace(strings.TrimSuffix(strings.ReplaceAll(line, "return expectValidationErrors(", ""), ", queryStr);"))
@@ -234,12 +241,18 @@ if len(sch) > 0 { schema = sch[0] }`
 	case strings.Contains(line, "])"):
 		out = "]`)"
 
-	case strings.HasSuffix(line, "Rule,"):
+	case strings.Contains(line, "Rule,"):
 		if *insideImport {
 			return "", true
 		}
-		ruleName := strconv.Quote(strings.TrimSpace(strings.TrimSuffix(line, ",")))
-		out = ruleName + ","
+		var ruleName string
+		for _, s := range strings.Split(line, ",") {
+			if strings.Contains(s, "Rule") {
+				ruleName = strings.TrimSpace(s)
+				break
+			}
+		}
+		out = strings.ReplaceAll(line, ruleName, strconv.Quote(ruleName))
 
 	// case strings.Contains(line, "function"):
 	// 	out = strings.ReplaceAll(line, "function", "func")
