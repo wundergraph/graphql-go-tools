@@ -92,22 +92,10 @@ var (
 	// }
 	convertRules = []string{
 		// "FieldsOnCorrectTypeRule",
-		// "KnownArgumentNamesRule", // OK
-		// "KnownDirectivesRule",    // OK
-		"KnownTypeNamesRule",
-		// "LoneSchemaDefinitionRule",
 		// "NoDeprecatedCustomRule",
-		// "OverlappingFieldsCanBeMergedRule",
 		// "PossibleTypeExtensionsRule",
-		// "ProvidedRequiredArgumentsRule",
-		// "UniqueDirectiveNamesRule",
-		// "UniqueDirectivesPerLocationRule",
-		// "UniqueEnumValueNamesRule",
-		// "UniqueFieldDefinitionNamesRule",
-		// "UniqueOperationTypesRule",
-		// "UniqueTypeNamesRule",
 		// "ValuesOfCorrectTypeRule",
-		// "VariablesInAllowedPositionRule",
+		"VariablesInAllowedPositionRule",
 		// "validation",
 	}
 )
@@ -131,22 +119,29 @@ func processFile(workingDir string, filename string) {
 		return
 	}
 
-	result := iterateLines(testName, string(content))
+	converter := &Converter{}
+	result := converter.iterateLines(testName, string(content))
 
 	outFileName := testName + "_test.go"
 	ioutil.WriteFile(filepath.Join(outDir, outFileName), []byte(result), os.ModePerm)
 }
 
-func iterateLines(testName string, content string) string {
+type Converter struct {
+	insideImport        bool
+	insideStringLiteral bool
+	lineNumber          int
+}
+
+func (c *Converter) iterateLines(testName string, content string) string {
 	var outLines []string
 	lines := strings.Split(content, "\n")
 
 	outLines = append(outLines, header)
 	outLines = append(outLines, fmt.Sprintf("func Test%s(t *testing.T) {", testName))
 
-	insideImport := false
-	for _, line := range lines {
-		transformedLine, skip := transformLine(&insideImport, line)
+	for i, line := range lines {
+		c.lineNumber = i + 1
+		transformedLine, skip := c.transformLine(line)
 		if !skip {
 			outLines = append(outLines, transformedLine)
 		}
@@ -157,29 +152,29 @@ func iterateLines(testName string, content string) string {
 	return strings.Join(outLines, "\n")
 }
 
-func transformLine(insideImport *bool, line string) (out string, skip bool) {
+func (c *Converter) transformLine(line string) (out string, skip bool) {
 	switch {
 
 	case strings.Contains(line, `'`) && !strings.Contains(line, `"`):
 		transformedLine := strings.ReplaceAll(line, `'`, `"`)
-		out, skip = transformLine(insideImport, transformedLine)
+		out, skip = c.transformLine(transformedLine)
 
 	case strings.Contains(line, "import { "):
 		return "", true
 
 	case strings.Contains(line, "import {"):
-		*insideImport = true
+		c.insideImport = true
 		return "", true
 
 	case strings.Contains(line, "} from"):
-		*insideImport = false
+		c.insideImport = false
 		return "", true
 
 	case strings.Contains(line, "const "):
 		parts := strings.Split(line, "=")
 		variableName := strings.TrimPrefix(strings.TrimSpace(parts[0]), "const")
 		transformedLine := fmt.Sprintf("%s := %s", variableName, parts[1])
-		out, skip = transformLine(insideImport, transformedLine)
+		out, skip = c.transformLine(transformedLine)
 
 	case strings.Contains(line, "describe("):
 		name := strings.TrimSuffix(strings.ReplaceAll(line, "describe(", ""), jsArrowFunction)
@@ -196,10 +191,10 @@ func transformLine(insideImport *bool, line string) (out string, skip bool) {
 		out = "expectErrors := func(queryStr string) helpers.ResultCompare {"
 
 	case strings.Contains(line, "function expectValidSDL"):
-		out = "expectValidSDL :=  func(sdlStr string, schema ...string) {"
+		out = "expectValidSDL := func(sdlStr string, schema ...string) {"
 
 	case strings.Contains(line, "function expectValid"):
-		out = "expectValid :=  func(queryStr string) {"
+		out = "expectValid := func(queryStr string) {"
 
 	case strings.Contains(line, "function expectSDLErrors"):
 		out = `expectSDLErrors := func(sdlStr string, sch ...string) helpers.ResultCompare {
@@ -213,36 +208,50 @@ if len(sch) > 0 { schema = sch[0] }`
 		transformedLine := strings.ReplaceAll(line,
 			"expectValidationErrorsWithSchema", "helpers.ExpectValidationErrorsWithSchema")
 
-		out, skip = transformLine(insideImport, transformedLine)
+		out, skip = c.transformLine(transformedLine)
 
 	case strings.Contains(line, "expectSDLValidationErrors("):
 		transformedLine := strings.ReplaceAll(line,
 			"expectSDLValidationErrors", "helpers.ExpectSDLValidationErrors")
 
-		out, skip = transformLine(insideImport, transformedLine)
+		out, skip = c.transformLine(transformedLine)
 
-	case strings.Contains(line, "return expectValidationErrors("):
-		ruleName := strings.TrimSpace(strings.TrimSuffix(strings.ReplaceAll(line, "return expectValidationErrors(", ""), ", queryStr);"))
-		out = fmt.Sprintf(`return helpers.ExpectValidationErrors("%s", queryStr)`, ruleName)
+	case strings.Contains(line, "expectValidationErrors("):
+		transformedLine := strings.ReplaceAll(line,
+			"expectValidationErrors", "helpers.ExpectValidationErrors")
+		out, skip = c.transformLine(transformedLine)
 
 	case strings.Contains(line, "expectSDLErrors(sdlStr, schema)"):
 		transformedLine := strings.ReplaceAll(line, "expectSDLErrors(sdlStr, schema)", "expectSDLErrors(sdlStr, schema...)")
-		out, skip = transformLine(insideImport, transformedLine)
+		out, skip = c.transformLine(transformedLine)
 
 	case strings.Contains(line, "to.deep.equal([])"):
 		out = strings.ReplaceAll(line, ".to.deep.equal([])", "(`[]`)")
 
 	case strings.Contains(line, "`).to.deep.equal(["):
+		c.insideStringLiteral = false
 		out = strings.ReplaceAll(line, ".to.deep.equal(", "(`")
 
 	case strings.Contains(line, ").to.deep.equal(["):
 		out = strings.ReplaceAll(line, ".to.deep.equal(", "(`")
 
 	case strings.Contains(line, "])"):
-		out = "]`)"
+		if c.insideStringLiteral {
+			out = line
+		} else {
+			out = "]`)"
+		}
+
+	case strings.Contains(line, "`"):
+		if strings.Contains(line, "to.deep.equal") {
+			out, skip = c.transformLine(line)
+		} else {
+			c.insideStringLiteral = !c.insideStringLiteral
+			out = line
+		}
 
 	case strings.Contains(line, "Rule,"):
-		if *insideImport {
+		if c.insideImport {
 			return "", true
 		}
 		var ruleName string
@@ -252,13 +261,16 @@ if len(sch) > 0 { schema = sch[0] }`
 				break
 			}
 		}
+		if strings.Contains(ruleName, "(") {
+			ruleName = strings.Split(ruleName, "(")[1]
+		}
 		out = strings.ReplaceAll(line, ruleName, strconv.Quote(ruleName))
 
 	// case strings.Contains(line, "function"):
 	// 	out = strings.ReplaceAll(line, "function", "func")
 
 	default:
-		if *insideImport {
+		if c.insideImport {
 			return "", true
 		}
 		out = line
