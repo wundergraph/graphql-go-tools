@@ -27,6 +27,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 	expectValidWithSchema := func(schema string, queryStr string) {
 		expectErrorsWithSchema(schema, queryStr)(`[]`)
 	}
+	_ = expectValidWithSchema // FIXME: remove me I'm unused
 
 	t.Run("Validate: Values of correct type", func(t *testing.T) {
 		t.Run("Valid values", func(t *testing.T) {
