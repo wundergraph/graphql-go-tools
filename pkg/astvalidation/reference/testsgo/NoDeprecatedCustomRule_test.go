@@ -50,8 +50,8 @@ func TestNoDeprecatedCustomRule(t *testing.T) {
           deprecatedField
         }
       `)(`[
-        { message, locations: [{ line: 3, column: 11 }] },
-        { message, locations: [{ line: 7, column: 11 }] },
+        {` + message + `, locations: [{ line: 3, column: 11 }] },
+        {` + message + `, locations: [{ line: 7, column: 11 }] },
 ]`)
 			})
 		})
@@ -195,8 +195,8 @@ func TestNoDeprecatedCustomRule(t *testing.T) {
           ) @someDirective(someArg: { deprecatedField: "" })
         }
       `)(`[
-        { message, locations: [{ line: 4, column: 24 }] },
-        { message, locations: [{ line: 5, column: 39 }] },
+        {` + message + `, locations: [{ line: 4, column: 24 }] },
+        {` + message + `, locations: [{ line: 5, column: 39 }] },
 ]`)
 			})
 		})
@@ -249,8 +249,8 @@ func TestNoDeprecatedCustomRule(t *testing.T) {
           someField(enumArg: DEPRECATED_VALUE)
         }
       `)(`[
-        { message, locations: [{ line: 3, column: 33 }] },
-        { message, locations: [{ line: 5, column: 30 }] },
+        {` + message + `, locations: [{ line: 3, column: 33 }] },
+        {` + message + `, locations: [{ line: 5, column: 30 }] },
 ]`)
 			})
 		})
@@ -260,10 +260,10 @@ func TestNoDeprecatedCustomRule(t *testing.T) {
 
 type AssertQuery func(queryStr string) helpers.ResultCompare
 
-func buildAssertion(sdlStr string) (AssertQuery, func(queryStr string)) {
+func buildAssertion(sdlStr string) (expectValid func(queryStr string), expectErrors AssertQuery) {
 	schema := helpers.BuildSchema(sdlStr)
 
-	expectErrors := func(queryStr string) helpers.ResultCompare {
+	expectErrors = func(queryStr string) helpers.ResultCompare {
 		return helpers.ExpectValidationErrorsWithSchema(
 			schema,
 			"NoDeprecatedCustomRule",
@@ -271,9 +271,9 @@ func buildAssertion(sdlStr string) (AssertQuery, func(queryStr string)) {
 		)
 	}
 
-	expectValid := func(queryStr string) {
+	expectValid = func(queryStr string) {
 		expectErrors(queryStr)("[]")
 	}
 
-	return expectErrors, expectValid
+	return
 }

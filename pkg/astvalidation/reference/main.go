@@ -48,10 +48,10 @@ import (
 	buildAssertionGo = `
 type AssertQuery func(queryStr string) helpers.ResultCompare
 
-func buildAssertion(sdlStr string) (AssertQuery, func(queryStr string)){
+func buildAssertion(sdlStr string) (expectValid func(queryStr string), expectErrors AssertQuery) {
   schema := helpers.BuildSchema(sdlStr)
 
-  expectErrors := func(queryStr string) helpers.ResultCompare {
+  expectErrors = func(queryStr string) helpers.ResultCompare {
     return helpers.ExpectValidationErrorsWithSchema(
       schema,
       "NoDeprecatedCustomRule",
@@ -59,11 +59,11 @@ func buildAssertion(sdlStr string) (AssertQuery, func(queryStr string)){
     )
   }
 
-  expectValid := func(queryStr string) {
+  expectValid = func(queryStr string) {
     expectErrors(queryStr)("[]")
   }
 
-  return expectErrors, expectValid
+  return
 }`
 
 	expectErrMsgJs = `
@@ -356,6 +356,10 @@ if len(sch) > 0 { schema = sch[0] }`
 		}
 		out = strings.ReplaceAll(line, ruleName, strconv.Quote(ruleName))
 
+	case strings.Contains(line, "{ message,"):
+		if c.insideResultAssertion {
+			out = strings.ReplaceAll(line, "{ message,", "{` + message + `,")
+		}
 	// case strings.Contains(line, "function"):
 	// 	out = strings.ReplaceAll(line, "function", "func")
 
