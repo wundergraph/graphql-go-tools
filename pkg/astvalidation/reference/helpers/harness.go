@@ -144,7 +144,7 @@ func ExpectValidationErrors(rule string, queryStr string) ResultCompare {
 }
 
 func ExpectSDLValidationErrors(schema string, rule string, sdlStr string) ResultCompare {
-	return nil
+	return func(result string) {}
 }
 
 func BuildSchema(sdl string) string {
