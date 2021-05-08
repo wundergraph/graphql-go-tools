@@ -93,9 +93,9 @@ var (
 	convertRules = []string{
 		// "FieldsOnCorrectTypeRule",
 		// "NoDeprecatedCustomRule",
-		// "PossibleTypeExtensionsRule",
+		"PossibleTypeExtensionsRule",
 		// "ValuesOfCorrectTypeRule",
-		"VariablesInAllowedPositionRule",
+		// "VariablesInAllowedPositionRule", // OK
 		// "validation",
 	}
 )
@@ -127,9 +127,10 @@ func processFile(workingDir string, filename string) {
 }
 
 type Converter struct {
-	insideImport        bool
-	insideStringLiteral bool
-	lineNumber          int
+	insideImport          bool
+	insideStringLiteral   bool
+	insideResultAssertion bool
+	lineNumber            int
 }
 
 func (c *Converter) iterateLines(testName string, content string) string {
@@ -155,9 +156,16 @@ func (c *Converter) iterateLines(testName string, content string) string {
 func (c *Converter) transformLine(line string) (out string, skip bool) {
 	switch {
 
-	case strings.Contains(line, `'`) && !strings.Contains(line, `"`):
-		transformedLine := strings.ReplaceAll(line, `'`, `"`)
-		out, skip = c.transformLine(transformedLine)
+	case strings.Contains(line, `'`):
+		if strings.Contains(line, `"`) {
+			if !c.insideResultAssertion {
+				transformedLine := strings.ReplaceAll(line, `'`, "`")
+				out, skip = c.transformLine(transformedLine)
+			}
+		} else {
+			transformedLine := strings.ReplaceAll(line, `'`, `"`)
+			out, skip = c.transformLine(transformedLine)
+		}
 
 	case strings.Contains(line, "import { "):
 		return "", true
@@ -230,15 +238,18 @@ if len(sch) > 0 { schema = sch[0] }`
 
 	case strings.Contains(line, "`).to.deep.equal(["):
 		c.insideStringLiteral = false
+		c.insideResultAssertion = true
 		out = strings.ReplaceAll(line, ".to.deep.equal(", "(`")
 
 	case strings.Contains(line, ").to.deep.equal(["):
+		c.insideResultAssertion = true
 		out = strings.ReplaceAll(line, ".to.deep.equal(", "(`")
 
 	case strings.Contains(line, "])"):
 		if c.insideStringLiteral {
 			out = line
 		} else {
+			c.insideResultAssertion = false
 			out = "]`)"
 		}
 
