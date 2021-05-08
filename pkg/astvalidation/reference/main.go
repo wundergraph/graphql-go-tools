@@ -65,6 +65,19 @@ func buildAssertion(sdlStr string) (AssertQuery, func(queryStr string)){
 
   return expectErrors, expectValid
 }`
+
+	expectErrMsgJs = `
+    function expectErrorMessage(schema: GraphQLSchema, queryStr: string) {
+      const errors = validate(schema, parse(queryStr), [
+        FieldsOnCorrectTypeRule,
+      ]);
+      expect(errors.length).to.equal(1);
+      return expect(errors[0].message);
+    }`
+
+	expectErrMsgGo = `
+    expectErrorMessage := func(schema string, queryStr string) func(string) {
+    }`
 )
 
 func main() {
@@ -129,7 +142,7 @@ var (
 	// }
 	convertRules = []string{
 		"FieldsOnCorrectTypeRule",
-		"NoDeprecatedCustomRule", // syntax ok
+		// "NoDeprecatedCustomRule", // syntax ok
 		// "PossibleTypeExtensionsRule", // syntax ok
 		// "ValuesOfCorrectTypeRule", // need a skip
 		// "VariablesInAllowedPositionRule", // OK
@@ -174,10 +187,18 @@ func (c *Converter) iterateLines(testName string, content string) string {
 	var outLines []string
 
 	hasBuildAss := strings.Contains(content, buildAssertion)
+	hasExpectErr := strings.Contains(content, expectErrMsgJs)
+
 	if hasBuildAss {
 		content = strings.ReplaceAll(content, buildAssertion, "")
 		content = strings.ReplaceAll(content, "{ expectValid, expectErrors }", "expectValid, expectErrors")
 	}
+
+	if hasExpectErr {
+		content = strings.ReplaceAll(content, expectErrMsgJs, expectErrMsgGo)
+		content = strings.ReplaceAll(content, ".to.equal", "")
+	}
+
 	content = strings.ReplaceAll(content, ";", "")
 	lines := strings.Split(content, "\n")
 
