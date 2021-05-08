@@ -141,10 +141,10 @@ var (
 	// 	// "validation",
 	// }
 	convertRules = []string{
-		"FieldsOnCorrectTypeRule",
+		// "FieldsOnCorrectTypeRule",
 		// "NoDeprecatedCustomRule", // syntax ok
 		// "PossibleTypeExtensionsRule", // syntax ok
-		// "ValuesOfCorrectTypeRule", // need a skip
+		"ValuesOfCorrectTypeRule", // need a skip
 		// "VariablesInAllowedPositionRule", // OK
 		// "validation",
 	}
@@ -188,6 +188,14 @@ func (c *Converter) iterateLines(testName string, content string) string {
 
 	hasBuildAss := strings.Contains(content, buildAssertion)
 	hasExpectErr := strings.Contains(content, expectErrMsgJs)
+	hasIgnoreTest := strings.Contains(content, ignoreTest)
+
+	hh := ignoreTest
+	_ = hh
+
+	if hasIgnoreTest {
+		content = strings.ReplaceAll(content, ignoreTest, "")
+	}
 
 	if hasBuildAss {
 		content = strings.ReplaceAll(content, buildAssertion, "")
@@ -270,6 +278,9 @@ func (c *Converter) transformLine(line string) (out string, skip bool) {
 
 	case strings.Contains(line, "function expectValidSDL"):
 		out = "expectValidSDL := func(sdlStr string, schema ...string) {"
+
+	case strings.Contains(line, "function expectValidWithSchema"):
+		out = "expectValidWithSchema := func(schema string, queryStr string) {"
 
 	case strings.Contains(line, "function expectValid"):
 		out = "expectValid := func(queryStr string) {"
@@ -362,3 +373,100 @@ if len(sch) > 0 { schema = sch[0] }`
 
 	return
 }
+
+const ignoreTest = `    it('reports original error for custom scalar which throws', () => {
+      const customScalar = new GraphQLScalarType({
+        name: 'Invalid',
+        parseValue(value) {
+          throw new Error(` +
+	"\n            `Invalid scalar is always invalid: ${inspect(value)}`," + `
+          );
+        },
+      });
+
+      const schema = new GraphQLSchema({
+        query: new GraphQLObjectType({
+          name: 'Query',
+          fields: {
+            invalidArg: {
+              type: GraphQLString,
+              args: { arg: { type: customScalar } },
+            },
+          },
+        }),
+      });
+
+      const expectedErrors = expectErrorsWithSchema(
+        schema,
+        '{ invalidArg(arg: 123) }',
+      );
+
+      expectedErrors.to.deep.equal([
+        {
+          message:
+            'Expected value of type "Invalid", found 123; Invalid scalar is always invalid: 123',
+          locations: [{ line: 1, column: 19 }],
+        },
+      ]);
+
+      expectedErrors.to.have.nested.property(
+        '[0].originalError.message',
+        'Invalid scalar is always invalid: 123',
+      );
+    });
+
+    it('reports error for custom scalar that returns undefined', () => {
+      const customScalar = new GraphQLScalarType({
+        name: 'CustomScalar',
+        parseValue() {
+          return undefined;
+        },
+      });
+
+      const schema = new GraphQLSchema({
+        query: new GraphQLObjectType({
+          name: 'Query',
+          fields: {
+            invalidArg: {
+              type: GraphQLString,
+              args: { arg: { type: customScalar } },
+            },
+          },
+        }),
+      });
+
+      expectErrorsWithSchema(schema, '{ invalidArg(arg: 123) }').to.deep.equal([
+        {
+          message: 'Expected value of type "CustomScalar", found 123.',
+          locations: [{ line: 1, column: 19 }],
+        },
+      ]);
+    });
+
+    it('allows custom scalar to accept complex literals', () => {
+      const customScalar = new GraphQLScalarType({ name: 'Any' });
+      const schema = new GraphQLSchema({
+        query: new GraphQLObjectType({
+          name: 'Query',
+          fields: {
+            anyArg: {
+              type: GraphQLString,
+              args: { arg: { type: customScalar } },
+            },
+          },
+        }),
+      });
+
+      expectValidWithSchema(
+        schema,` +
+	"\n        `" + `
+          {
+            test1: anyArg(arg: 123)
+            test2: anyArg(arg: "abc")
+            test3: anyArg(arg: [123, "abc"])
+            test4: anyArg(arg: {deep: [123, "abc"]})
+          }` +
+	"\n        `," + `
+      );
+    });
+`
