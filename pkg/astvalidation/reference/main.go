@@ -128,7 +128,7 @@ func processFile(workingDir string, filename string) {
 
 type Converter struct {
 	insideImport          bool
-	insideStringLiteral   bool
+	insideMultilineString bool
 	insideResultAssertion bool
 	lineNumber            int
 }
@@ -240,7 +240,7 @@ if len(sch) > 0 { schema = sch[0] }`
 		out = strings.ReplaceAll(line, ".to.deep.equal([])", "(`[]`)")
 
 	case strings.Contains(line, "`).to.deep.equal(["):
-		c.insideStringLiteral = false
+		c.insideMultilineString = false
 		c.insideResultAssertion = true
 		out = strings.ReplaceAll(line, ".to.deep.equal(", "(`")
 
@@ -249,7 +249,7 @@ if len(sch) > 0 { schema = sch[0] }`
 		out = strings.ReplaceAll(line, ".to.deep.equal(", "(`")
 
 	case strings.Contains(line, "])"):
-		if c.insideStringLiteral {
+		if c.insideMultilineString {
 			out = line
 		} else {
 			c.insideResultAssertion = false
@@ -261,7 +261,7 @@ if len(sch) > 0 { schema = sch[0] }`
 			out, skip = c.transformLine(line)
 		} else {
 			if strings.Count(line, "`") == 1 {
-				c.insideStringLiteral = !c.insideStringLiteral
+				c.insideMultilineString = !c.insideMultilineString
 			}
 			out = line
 		}
