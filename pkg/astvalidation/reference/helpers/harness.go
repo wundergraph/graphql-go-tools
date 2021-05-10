@@ -136,6 +136,11 @@ const testSchema = `
 type ResultCompare func(result string)
 
 func ExpectValidationErrorsWithSchema(schema string, rule string, queryStr string) ResultCompare {
+	// js:
+	// const doc = parse(queryStr);
+	// const errors = validate(schema, doc, [rule]);
+	// return expect(errors);
+
 	return func(result string) {}
 }
 
@@ -144,6 +149,10 @@ func ExpectValidationErrors(rule string, queryStr string) ResultCompare {
 }
 
 func ExpectSDLValidationErrors(schema string, rule string, sdlStr string) ResultCompare {
+	// js:
+	// const doc = parse(sdlStr);
+	// const errors = validateSDL(doc, schema, [rule]);
+	// return expect(errors);
 	return func(result string) {}
 }
 
