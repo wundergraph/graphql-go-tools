@@ -1,6 +1,9 @@
 package testsgo
 
 import (
+	"fmt"
+
+	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation"
@@ -141,7 +144,7 @@ const testSchema = `
 `
 
 type Loc struct {
-	line, column int
+	line, column uint32
 }
 
 type Err struct {
@@ -153,12 +156,14 @@ type MessageCompare func(msg string)
 type ResultCompare func(result []Err)
 
 func ExpectValidationErrorsWithSchema(schema string, rule string, queryStr string) ResultCompare {
-	// js:
-	// const doc = parse(queryStr);
-	// const errors = validate(schema, doc, [rule]);
-	// return expect(errors);
+	op := unsafeparser.ParseGraphqlDocumentString(queryStr)
+	def := unsafeparser.ParseGraphqlDocumentString(schema)
 
-	return func(result []Err) {}
+	report := operationreport.Report{}
+	validator := astvalidation.DefaultOperationValidator()
+	validator.Validate(&op, &def, &report)
+
+	return compareReportErrors(report)
 }
 
 func ExpectValidationErrors(rule string, queryStr string) ResultCompare {
@@ -169,19 +174,17 @@ func ExpectSDLValidationErrors(schema string, rule string, sdlStr string) Result
 	definition, report := astparser.ParseGraphqlDocumentString(schema)
 	// require.False(t, report.HasErrors())
 
+	// merge schema additions
 	definition.Input.AppendInputBytes([]byte(sdlStr))
 	parser := astparser.NewParser()
 	parser.Parse(&definition, &report)
 
+	// validate schema sdl
 	report = operationreport.Report{}
 	validator := astvalidation.DefaultDefinitionValidator()
 	validator.Validate(&definition, &report)
 
-	// js:
-	// const doc = parse(sdlStr);
-	// const errors = validateSDL(doc, schema, [rule]);
-	// return expect(errors);
-	return func(result []Err) {}
+	return compareReportErrors(report)
 }
 
 func BuildSchema(sdl string) string {
@@ -189,7 +192,14 @@ func BuildSchema(sdl string) string {
 }
 
 func ExpectErrorMessage(schema string, queryStr string) MessageCompare {
-	return func(msg string) {}
+	op := unsafeparser.ParseGraphqlDocumentString(queryStr)
+	def := unsafeparser.ParseGraphqlDocumentString(schema)
+
+	report := operationreport.Report{}
+	validator := astvalidation.DefaultOperationValidator()
+	validator.Validate(&op, &def, &report)
+
+	return hasReportError(report)
 }
 
 func ExtendSchema(schema string, sdlStr string) string {
@@ -204,4 +214,48 @@ func ExtendSchema(schema string, sdlStr string) string {
 	res, _ := astprinter.PrintStringIndent(&definition, nil, "  ")
 	// TODO: handle error
 	return res
+}
+
+// externalErrors - converted external errors to simple local type
+// converted could be adjusted to use exact type
+func externalErrors(report operationreport.Report) (out []Err) {
+	for _, externalError := range report.ExternalErrors {
+		var locations []Loc
+
+		for _, location := range externalError.Locations {
+			locations = append(locations, Loc{
+				line:   location.Line,
+				column: location.Column,
+			})
+		}
+
+		out = append(out, Err{
+			message:   externalError.Message,
+			locations: locations,
+		})
+	}
+
+	return
+}
+
+func compareReportErrors(report operationreport.Report) ResultCompare {
+	return func(expectedErrors []Err) {
+		fmt.Println("expectedErrors", expectedErrors)
+		actualErrors := externalErrors(report)
+
+		fmt.Println("actualErrors", actualErrors)
+	}
+}
+
+func hasReportError(report operationreport.Report) MessageCompare {
+	return func(msg string) {
+		actualErrors := externalErrors(report)
+
+		var messages []string
+		for _, actualError := range actualErrors {
+			messages = append(messages, actualError.message)
+		}
+
+		// TODO check that error has msg
+	}
 }
