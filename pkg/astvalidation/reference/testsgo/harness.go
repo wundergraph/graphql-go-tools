@@ -2,6 +2,9 @@ package testsgo
 
 import (
 	"fmt"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
@@ -152,8 +155,8 @@ type Err struct {
 	locations []Loc
 }
 
-type MessageCompare func(msg string)
-type ResultCompare func(result []Err)
+type MessageCompare func(t *testing.T, msg string)
+type ResultCompare func(t *testing.T, result []Err)
 
 func ExpectValidationErrorsWithSchema(schema string, rule string, queryStr string) ResultCompare {
 	op := unsafeparser.ParseGraphqlDocumentString(queryStr)
@@ -239,16 +242,18 @@ func externalErrors(report operationreport.Report) (out []Err) {
 }
 
 func compareReportErrors(report operationreport.Report) ResultCompare {
-	return func(expectedErrors []Err) {
+	return func(t *testing.T, expectedErrors []Err) {
 		fmt.Println("expectedErrors", expectedErrors)
 		actualErrors := externalErrors(report)
 
 		fmt.Println("actualErrors", actualErrors)
+
+		assert.Equal(t, expectedErrors, actualErrors)
 	}
 }
 
 func hasReportError(report operationreport.Report) MessageCompare {
-	return func(msg string) {
+	return func(t *testing.T, msg string) {
 		actualErrors := externalErrors(report)
 
 		var messages []string
@@ -257,5 +262,6 @@ func hasReportError(report operationreport.Report) MessageCompare {
 		}
 
 		// TODO check that error has msg
+		assert.Contains(t, messages, msg)
 	}
 }
