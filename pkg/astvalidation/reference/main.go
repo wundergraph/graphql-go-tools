@@ -16,40 +16,6 @@ import (
 //go:generate go run main.go
 //go:generate gofmt -w testsgo
 
-const (
-	inputDir = "./__tests__"
-	outDir   = "./testsgo"
-
-	header = `
-package testsgo
-
-import (
-  "testing"
-)
-`
-)
-
-type Replacement struct {
-	Rule        string
-	Source      string
-	Replacement string
-}
-
-func (r Replacement) Do(content string) string {
-	return strings.ReplaceAll(content, r.Source, r.Replacement)
-}
-
-type Replacements []Replacement
-
-func (r Replacements) ReplaceForRule(rule string) (out []Replacement) {
-	for _, replacement := range r {
-		if replacement.Rule == rule {
-			out = append(out, replacement)
-		}
-	}
-	return
-}
-
 func main() {
 	currDir, _ := os.Getwd()
 	println(currDir)
@@ -76,6 +42,19 @@ func main() {
 		processFile(workingDir, fileInfo.Name(), replacements)
 	}
 }
+
+const (
+	inputDir = "./__tests__"
+	outDir   = "./testsgo"
+
+	header = `
+package testsgo
+
+import (
+  "testing"
+)
+`
+)
 
 var (
 	jsArrowFunction = ", () => {"
@@ -334,5 +313,30 @@ if len(sch) > 0 { schema = sch[0] }`
 		out = line
 	}
 
+	return
+}
+
+type Replacement struct {
+	Rule        string
+	Source      string
+	Replacement string
+}
+
+func (r Replacement) Do(content string) string {
+	if !strings.Contains(content, r.Source) {
+		log.Fatal("Could not find a replacement for Rule:", r.Rule, " Source:\n", r.Source)
+	}
+	out := strings.ReplaceAll(content, r.Source, r.Replacement)
+	return out
+}
+
+type Replacements []Replacement
+
+func (r Replacements) ReplaceForRule(rule string) (out []Replacement) {
+	for _, replacement := range r {
+		if replacement.Rule == rule {
+			out = append(out, replacement)
+		}
+	}
 	return
 }

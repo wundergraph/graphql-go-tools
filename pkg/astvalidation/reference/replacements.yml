@@ -1,73 +1,147 @@
 -
   rule: ValuesOfCorrectTypeRule
-  source: >-
-    it('reports original error for custom scalar which throws', () => {
-      const customScalar = new GraphQLScalarType({
-        name: 'Invalid',
-        parseValue(value) {
-          throw new Error(
-            `Invalid scalar is always invalid: ${inspect(value)}`,
-          );
-        },
-      });
-
-      const schema = new GraphQLSchema({
-        query: new GraphQLObjectType({
-          name: 'Query',
-          fields: {
-            invalidArg: {
-              type: GraphQLString,
-              args: { arg: { type: customScalar } },
+  reason: we have no scalars
+  source: >2
+        it('reports original error for custom scalar which throws', () => {
+          const customScalar = new GraphQLScalarType({
+            name: 'Invalid',
+            parseValue(value) {
+              throw new Error(
+                `Invalid scalar is always invalid: ${inspect(value)}`,
+              );
             },
-          },
-        }),
-      });
+          });
 
-      const expectedErrors = expectErrorsWithSchema(
-        schema,
-        '{ invalidArg(arg: 123) }',
-      );
+          const schema = new GraphQLSchema({
+            query: new GraphQLObjectType({
+              name: 'Query',
+              fields: {
+                invalidArg: {
+                  type: GraphQLString,
+                  args: { arg: { type: customScalar } },
+                },
+              },
+            }),
+          });
 
-      expectedErrors.to.deep.equal([
-        {
-          message:
-            'Expected value of type "Invalid", found 123; Invalid scalar is always invalid: 123',
-          locations: [{ line: 1, column: 19 }],
-        },
-      ]);
+          const expectedErrors = expectErrorsWithSchema(
+            schema,
+            '{ invalidArg(arg: 123) }',
+          );
 
-      expectedErrors.to.have.nested.property(
-        '[0].originalError.message',
-        'Invalid scalar is always invalid: 123',
-      );
-    });
+          expectedErrors.to.deep.equal([
+            {
+              message:
+                'Expected value of type "Invalid", found 123; Invalid scalar is always invalid: 123',
+              locations: [{ line: 1, column: 19 }],
+            },
+          ]);
+
+          expectedErrors.to.have.nested.property(
+            '[0].originalError.message',
+            'Invalid scalar is always invalid: 123',
+          );
+        });
+
+        it('reports error for custom scalar that returns undefined', () => {
+          const customScalar = new GraphQLScalarType({
+            name: 'CustomScalar',
+            parseValue() {
+              return undefined;
+            },
+          });
+
+          const schema = new GraphQLSchema({
+            query: new GraphQLObjectType({
+              name: 'Query',
+              fields: {
+                invalidArg: {
+                  type: GraphQLString,
+                  args: { arg: { type: customScalar } },
+                },
+              },
+            }),
+          });
+
+          expectErrorsWithSchema(schema, '{ invalidArg(arg: 123) }').to.deep.equal([
+            {
+              message: 'Expected value of type "CustomScalar", found 123.',
+              locations: [{ line: 1, column: 19 }],
+            },
+          ]);
+        });
+
+        it('allows custom scalar to accept complex literals', () => {
+          const customScalar = new GraphQLScalarType({ name: 'Any' });
+          const schema = new GraphQLSchema({
+            query: new GraphQLObjectType({
+              name: 'Query',
+              fields: {
+                anyArg: {
+                  type: GraphQLString,
+                  args: { arg: { type: customScalar } },
+                },
+              },
+            }),
+          });
+
+          expectValidWithSchema(
+            schema,
+            `
+              {
+                test1: anyArg(arg: 123)
+                test2: anyArg(arg: "abc")
+                test3: anyArg(arg: [123, "abc"])
+                test4: anyArg(arg: {deep: [123, "abc"]})
+              }
+            `,
+          );
+        });
   replacement:
 -
   rule: ValuesOfCorrectTypeRule
+  reason: was used in custom scalars test above
   source: >-
     function expectValidWithSchema(schema: GraphQLSchema, queryStr: string) {
       expectErrorsWithSchema(schema, queryStr).to.deep.equal([]);
     }
   replacement:
 -
-  rule: FieldsOnCorrectTypeRule
+  rule: ValuesOfCorrectTypeRule
+  reason: was used in custom scalars test above
   source: >-
-    function expectErrorMessage(schema: GraphQLSchema, queryStr: string) {
-      const errors = validate(schema, parse(queryStr), [
-        FieldsOnCorrectTypeRule,
-      ]);
-      expect(errors.length).to.equal(1);
-      return expect(errors[0].message);
+    function expectErrorsWithSchema(schema: GraphQLSchema, queryStr: string) {
+      return expectValidationErrorsWithSchema(
+        schema,
+        ValuesOfCorrectTypeRule,
+        queryStr,
+      );
     }
+  replacement:
+-
+  rule: FieldsOnCorrectTypeRule
+  reason: moved to harness helpers to be able to extract message from errors
+  source: >2
+        function expectErrorMessage(schema: GraphQLSchema, queryStr: string) {
+          const errors = validate(schema, parse(queryStr), [
+            FieldsOnCorrectTypeRule,
+          ]);
+          expect(errors.length).to.equal(1);
+          return expect(errors[0].message);
+        }
   replacement: >-
-    expectErrorMessage := func(schema string, queryStr string) {
+    expectErrorMessage := func(schema string, queryStr string) MessageCompare {
       return ExpectErrorMessage(schema, queryStr)
     }
 -
   rule: FieldsOnCorrectTypeRule
+  reason: related to expectErrorMessage - msg.to.equal replaced by a function call
   source: .to.equal
   replacement:
 -
-  rule:
+  rule: UniqueDirectivesPerLocationRule
+  reason: replaced with harness helper
   source: >-
+    const schemaWithDirectives = extendSchema(testSchema, parse(extensionSDL));
   replacement:
+    schemaWithDirectives := ExtendSchema(testSchema, extensionSDL)
