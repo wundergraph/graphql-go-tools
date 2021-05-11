@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"gopkg.in/yaml.v2"
 )
 
 //go:generate rm -rf ./testsgo/*_test.go
@@ -25,60 +27,28 @@ import (
   "testing"
 )
 `
-
-	buildAssertion = `function buildAssertion(sdlStr: string) {
-  const schema = buildSchema(sdlStr);
-  return { expectErrors, expectValid };
-
-  function expectErrors(queryStr: string) {
-    return expectValidationErrorsWithSchema(
-      schema,
-      NoDeprecatedCustomRule,
-      queryStr,
-    );
-  }
-
-  function expectValid(queryStr: string) {
-    expectErrors(queryStr).to.deep.equal([]);
-  }
-}`
-	buildAssertionGo = `
-type AssertQuery func(queryStr string) helpers.ResultCompare
-
-func buildAssertion(sdlStr string) (expectValid func(queryStr string), expectErrors AssertQuery) {
-  schema := helpers.BuildSchema(sdlStr)
-
-  expectErrors = func(queryStr string) ResultCompare {
-    return ExpectValidationErrorsWithSchema(
-      schema,
-      "NoDeprecatedCustomRule",
-      queryStr,
-    )
-  }
-
-  expectValid = func(queryStr string) {
-    expectErrors(queryStr)("[]")
-  }
-
-  return
-}`
-
-	expectErrMsgJs = `
-    function expectErrorMessage(schema: GraphQLSchema, queryStr: string) {
-      const errors = validate(schema, parse(queryStr), [
-        FieldsOnCorrectTypeRule,
-      ]);
-      expect(errors.length).to.equal(1);
-      return expect(errors[0].message);
-    }`
-
-	expectErrMsgGo = `
-    expectErrorMessage := func(schema string, queryStr string) func(string) {
-		return func(string){
-			// TODO: fix me
-		}
-	}`
 )
+
+type Replacement struct {
+	Rule        string
+	Source      string
+	Replacement string
+}
+
+func (r Replacement) Do(content string) string {
+	return strings.ReplaceAll(content, r.Source, r.Replacement)
+}
+
+type Replacements []Replacement
+
+func (r Replacements) ReplaceForRule(rule string) (out []Replacement) {
+	for _, replacement := range r {
+		if replacement.Rule == rule {
+			out = append(out, replacement)
+		}
+	}
+	return
+}
 
 func main() {
 	currDir, _ := os.Getwd()
@@ -94,8 +64,16 @@ func main() {
 		log.Fatal(err)
 	}
 
+	replacementsPath := workingDir + "/../replacements.yml"
+	replacementContent, _ := ioutil.ReadFile(replacementsPath)
+
+	var replacements []Replacement
+	if err := yaml.Unmarshal(replacementContent, &replacements); err != nil {
+		log.Fatal(err)
+	}
+
 	for _, fileInfo := range dir {
-		processFile(workingDir, fileInfo.Name())
+		processFile(workingDir, fileInfo.Name(), replacements)
 	}
 }
 
@@ -151,9 +129,9 @@ func skipRule(name string) bool {
 	return true
 }
 
-func processFile(workingDir string, filename string) {
+func processFile(workingDir string, filename string, replacements Replacements) {
 	fPath := filepath.Join(workingDir, filename)
-	content, _ := ioutil.ReadFile(fPath)
+	fileContent, _ := ioutil.ReadFile(fPath)
 
 	testName := strings.TrimSuffix(strings.Split(filepath.Base(filename), ".")[0], "-test")
 
@@ -161,8 +139,13 @@ func processFile(workingDir string, filename string) {
 		return
 	}
 
+	content := string(fileContent)
+	for _, replacement := range replacements.ReplaceForRule(testName) {
+		content = replacement.Do(content)
+	}
+
 	converter := &Converter{}
-	result := converter.iterateLines(testName, string(content))
+	result := converter.iterateLines(testName, content)
 
 	outFileName := testName + "_test.go"
 	err := ioutil.WriteFile(filepath.Join(outDir, outFileName), []byte(result), os.ModePerm)
@@ -181,27 +164,6 @@ type Converter struct {
 func (c *Converter) iterateLines(testName string, content string) string {
 	var outLines []string
 
-	hasBuildAss := strings.Contains(content, buildAssertion)
-	hasExpectErr := strings.Contains(content, expectErrMsgJs)
-	hasIgnoreTest := strings.Contains(content, ignoreTest)
-
-	hh := ignoreTest
-	_ = hh
-
-	if hasIgnoreTest {
-		content = strings.ReplaceAll(content, ignoreTest, "")
-	}
-
-	if hasBuildAss {
-		content = strings.ReplaceAll(content, buildAssertion, "")
-		content = strings.ReplaceAll(content, "{ expectValid, expectErrors }", "expectValid, expectErrors")
-	}
-
-	if hasExpectErr {
-		content = strings.ReplaceAll(content, expectErrMsgJs, expectErrMsgGo)
-		content = strings.ReplaceAll(content, ".to.equal", "")
-	}
-
 	content = strings.ReplaceAll(content, ";", "")
 	lines := strings.Split(content, "\n")
 
@@ -217,10 +179,6 @@ func (c *Converter) iterateLines(testName string, content string) string {
 	}
 
 	outLines = append(outLines, "}")
-
-	if hasBuildAss {
-		outLines = append(outLines, buildAssertionGo)
-	}
 
 	return strings.Join(outLines, "\n")
 }
@@ -378,100 +336,3 @@ if len(sch) > 0 { schema = sch[0] }`
 
 	return
 }
-
-const ignoreTest = `    it('reports original error for custom scalar which throws', () => {
-      const customScalar = new GraphQLScalarType({
-        name: 'Invalid',
-        parseValue(value) {
-          throw new Error(` +
-	"\n            `Invalid scalar is always invalid: ${inspect(value)}`," + `
-          );
-        },
-      });
-
-      const schema = new GraphQLSchema({
-        query: new GraphQLObjectType({
-          name: 'Query',
-          fields: {
-            invalidArg: {
-              type: GraphQLString,
-              args: { arg: { type: customScalar } },
-            },
-          },
-        }),
-      });
-
-      const expectedErrors = expectErrorsWithSchema(
-        schema,
-        '{ invalidArg(arg: 123) }',
-      );
-
-      expectedErrors.to.deep.equal([
-        {
-          message:
-            'Expected value of type "Invalid", found 123; Invalid scalar is always invalid: 123',
-          locations: [{ line: 1, column: 19 }],
-        },
-      ]);
-
-      expectedErrors.to.have.nested.property(
-        '[0].originalError.message',
-        'Invalid scalar is always invalid: 123',
-      );
-    });
-
-    it('reports error for custom scalar that returns undefined', () => {
-      const customScalar = new GraphQLScalarType({
-        name: 'CustomScalar',
-        parseValue() {
-          return undefined;
-        },
-      });
-
-      const schema = new GraphQLSchema({
-        query: new GraphQLObjectType({
-          name: 'Query',
-          fields: {
-            invalidArg: {
-              type: GraphQLString,
-              args: { arg: { type: customScalar } },
-            },
-          },
-        }),
-      });
-
-      expectErrorsWithSchema(schema, '{ invalidArg(arg: 123) }').to.deep.equal([
-        {
-          message: 'Expected value of type "CustomScalar", found 123.',
-          locations: [{ line: 1, column: 19 }],
-        },
-      ]);
-    });
-
-    it('allows custom scalar to accept complex literals', () => {
-      const customScalar = new GraphQLScalarType({ name: 'Any' });
-      const schema = new GraphQLSchema({
-        query: new GraphQLObjectType({
-          name: 'Query',
-          fields: {
-            anyArg: {
-              type: GraphQLString,
-              args: { arg: { type: customScalar } },
-            },
-          },
-        }),
-      });
-
-      expectValidWithSchema(
-        schema,` +
-	"\n        `" + `
-          {
-            test1: anyArg(arg: 123)
-            test2: anyArg(arg: "abc")
-            test3: anyArg(arg: [123, "abc"])
-            test4: anyArg(arg: {deep: [123, "abc"]})
-          }` +
-	"\n        `," + `
-      );
-    });
-`

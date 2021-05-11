@@ -142,6 +142,7 @@ type Err struct {
 	locations []Loc
 }
 
+type HasMessage func(msg string)
 type ResultCompare func(result []Err)
 
 func ExpectValidationErrorsWithSchema(schema string, rule string, queryStr string) ResultCompare {
@@ -167,4 +168,8 @@ func ExpectSDLValidationErrors(schema string, rule string, sdlStr string) Result
 
 func BuildSchema(sdl string) string {
 	return sdl
+}
+
+func ExpectErrorMessage(schema string, queryStr string) HasMessage {
+	return func(msg string) {}
 }

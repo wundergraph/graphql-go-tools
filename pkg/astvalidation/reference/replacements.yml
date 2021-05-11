@@ -1,0 +1,73 @@
+-
+  rule: ValuesOfCorrectTypeRule
+  source: >-
+    it('reports original error for custom scalar which throws', () => {
+      const customScalar = new GraphQLScalarType({
+        name: 'Invalid',
+        parseValue(value) {
+          throw new Error(
+            `Invalid scalar is always invalid: ${inspect(value)}`,
+          );
+        },
+      });
+
+      const schema = new GraphQLSchema({
+        query: new GraphQLObjectType({
+          name: 'Query',
+          fields: {
+            invalidArg: {
+              type: GraphQLString,
+              args: { arg: { type: customScalar } },
+            },
+          },
+        }),
+      });
+
+      const expectedErrors = expectErrorsWithSchema(
+        schema,
+        '{ invalidArg(arg: 123) }',
+      );
+
+      expectedErrors.to.deep.equal([
+        {
+          message:
+            'Expected value of type "Invalid", found 123; Invalid scalar is always invalid: 123',
+          locations: [{ line: 1, column: 19 }],
+        },
+      ]);
+
+      expectedErrors.to.have.nested.property(
+        '[0].originalError.message',
+        'Invalid scalar is always invalid: 123',
+      );
+    });
+  replacement:
+-
+  rule: ValuesOfCorrectTypeRule
+  source: >-
+    function expectValidWithSchema(schema: GraphQLSchema, queryStr: string) {
+      expectErrorsWithSchema(schema, queryStr).to.deep.equal([]);
+    }
+  replacement:
+-
+  rule: FieldsOnCorrectTypeRule
+  source: >-
+    function expectErrorMessage(schema: GraphQLSchema, queryStr: string) {
+      const errors = validate(schema, parse(queryStr), [
+        FieldsOnCorrectTypeRule,
+      ]);
+      expect(errors.length).to.equal(1);
+      return expect(errors[0].message);
+    }
+  replacement: >-
+    expectErrorMessage := func(schema string, queryStr string) {
+      return ExpectErrorMessage(schema, queryStr)
+    }
+-
+  rule: FieldsOnCorrectTypeRule
+  source: .to.equal
+  replacement:
+-
+  rule:
+  source: >-
+  replacement:
