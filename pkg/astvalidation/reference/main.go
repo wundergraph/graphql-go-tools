@@ -112,9 +112,7 @@ var (
 		"KnownTypeNamesRule",
 		"LoneAnonymousOperationRule",
 		"LoneSchemaDefinitionRule",
-		"NoDeprecatedCustomRule",
 		"NoFragmentCyclesRule",
-		"NoSchemaIntrospectionCustomRule",
 		"NoUndefinedVariablesRule",
 		"NoUnusedFragmentsRule",
 		"NoUnusedVariablesRule",
@@ -138,7 +136,9 @@ var (
 		"ValuesOfCorrectTypeRule",
 		"VariablesAreInputTypesRule",
 		"VariablesInAllowedPositionRule",
-		// "validation",
+		// "validation", // should be rewritten manually
+		// "NoDeprecatedCustomRule", // should be ignored we have no custom rules
+		// "NoSchemaIntrospectionCustomRule", // should be ignored we have no custom rules
 	}
 )
 
