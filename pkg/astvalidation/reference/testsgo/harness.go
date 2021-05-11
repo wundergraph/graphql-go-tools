@@ -1,5 +1,12 @@
 package testsgo
 
+import (
+	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
+	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
+	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation"
+	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
+)
+
 const testSchema = `
   interface Being {
     name(surname: Boolean): String
@@ -142,7 +149,7 @@ type Err struct {
 	locations []Loc
 }
 
-type HasMessage func(msg string)
+type MessageCompare func(msg string)
 type ResultCompare func(result []Err)
 
 func ExpectValidationErrorsWithSchema(schema string, rule string, queryStr string) ResultCompare {
@@ -159,6 +166,17 @@ func ExpectValidationErrors(rule string, queryStr string) ResultCompare {
 }
 
 func ExpectSDLValidationErrors(schema string, rule string, sdlStr string) ResultCompare {
+	definition, report := astparser.ParseGraphqlDocumentString(schema)
+	// require.False(t, report.HasErrors())
+
+	definition.Input.AppendInputBytes([]byte(sdlStr))
+	parser := astparser.NewParser()
+	parser.Parse(&definition, &report)
+
+	report = operationreport.Report{}
+	validator := astvalidation.DefaultDefinitionValidator()
+	validator.Validate(&definition, &report)
+
 	// js:
 	// const doc = parse(sdlStr);
 	// const errors = validateSDL(doc, schema, [rule]);
@@ -170,6 +188,20 @@ func BuildSchema(sdl string) string {
 	return sdl
 }
 
-func ExpectErrorMessage(schema string, queryStr string) HasMessage {
+func ExpectErrorMessage(schema string, queryStr string) MessageCompare {
 	return func(msg string) {}
+}
+
+func ExtendSchema(schema string, sdlStr string) string {
+	definition, report := astparser.ParseGraphqlDocumentString(schema)
+	// TODO: handle error
+
+	definition.Input.AppendInputBytes([]byte(sdlStr))
+	parser := astparser.NewParser()
+	parser.Parse(&definition, &report)
+	// TODO: handle error
+
+	res, _ := astprinter.PrintStringIndent(&definition, nil, "  ")
+	// TODO: handle error
+	return res
 }
