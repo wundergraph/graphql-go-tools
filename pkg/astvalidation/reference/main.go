@@ -218,6 +218,9 @@ func (c *Converter) transformLine(line string) (out string, skip bool) {
 			schema := ""
 if len(sch) > 0 { schema = sch[0] }`
 
+	case strings.Contains(line, "expectErrorMessage(schema,"):
+		out = strings.ReplaceAll(line, ")(", ")(t,")
+
 	case strings.Contains(line, "buildSchema("):
 		transformedLine := strings.ReplaceAll(line, "buildSchema", "BuildSchema")
 		out, skip = c.transformLine(transformedLine)
@@ -244,7 +247,7 @@ if len(sch) > 0 { schema = sch[0] }`
 		out, skip = c.transformLine(transformedLine)
 
 	case strings.Contains(line, "to.deep.equal([])"):
-		out = strings.ReplaceAll(line, ".to.deep.equal([])", "([]Err{})")
+		out = strings.ReplaceAll(line, ".to.deep.equal([])", "(t, []Err{})")
 
 	case strings.Contains(line, "`).to.deep.equal(["):
 		c.insideMultilineString = false
@@ -252,7 +255,7 @@ if len(sch) > 0 { schema = sch[0] }`
 
 	case strings.Contains(line, ").to.deep.equal(["):
 		c.insideResultAssertion = true
-		out = strings.ReplaceAll(line, ".to.deep.equal([", "([]Err{")
+		out = strings.ReplaceAll(line, ".to.deep.equal([", "(t, []Err{")
 
 	case strings.Contains(line, "{ message,"):
 		if c.insideResultAssertion {
