@@ -840,6 +840,20 @@ func (v *valuesVisitor) valueSatisfiesTypeDefinitionNode(value ast.Value, node a
 }
 
 func (v *valuesVisitor) valueSatisfiesEnum(value ast.Value, node ast.Node) bool {
+	if value.Kind == ast.ValueKindVariable {
+		name := v.operation.VariableValueNameBytes(value.Ref)
+		if v.Ancestors[0].Kind != ast.NodeKindOperationDefinition {
+			return false
+		}
+		definition,ok := v.operation.VariableDefinitionByNameAndOperation(v.Ancestors[0].Ref,name)
+		if !ok {
+			return false
+		}
+		variableType := v.operation.VariableDefinitions[definition].Type
+		actualTypeName := v.operation.ResolveTypeNameBytes(variableType)
+		expectedTypeName := node.NameBytes(v.definition)
+		return bytes.Equal(actualTypeName,expectedTypeName)
+	}
 	if value.Kind != ast.ValueKindEnum {
 		return false
 	}

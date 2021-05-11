@@ -38,6 +38,8 @@ func (d *Document) NodeNameBytes(node Node) ByteSlice {
 		ref = d.ObjectTypeExtensions[node.Ref].Name
 	case NodeKindInterfaceTypeExtension:
 		ref = d.InterfaceTypeExtensions[node.Ref].Name
+	case NodeKindEnumTypeDefinition:
+		ref = d.EnumTypeDefinitions[node.Ref].Name
 	}
 
 	return d.Input.ByteSlice(ref)
