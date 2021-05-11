@@ -2,22 +2,20 @@ package testsgo
 
 import (
 	"testing"
-
-	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation/reference/helpers"
 )
 
 func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 
-	expectErrors := func(queryStr string) helpers.ResultCompare {
-		return helpers.ExpectValidationErrors("OverlappingFieldsCanBeMergedRule", queryStr)
+	expectErrors := func(queryStr string) ResultCompare {
+		return ExpectValidationErrors("OverlappingFieldsCanBeMergedRule", queryStr)
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)(`[]`)
+		expectErrors(queryStr)([]Err{})
 	}
 
-	expectErrorsWithSchema := func(schema string, queryStr string) helpers.ResultCompare {
-		return helpers.ExpectValidationErrorsWithSchema(
+	expectErrorsWithSchema := func(schema string, queryStr string) ResultCompare {
+		return ExpectValidationErrorsWithSchema(
 			schema,
 			"OverlappingFieldsCanBeMergedRule",
 			queryStr,
@@ -25,7 +23,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 	}
 
 	expectValidWithSchema := func(schema string, queryStr string) {
-		expectErrorsWithSchema(schema, queryStr)(`[]`)
+		expectErrorsWithSchema(schema, queryStr)([]Err{})
 	}
 
 	t.Run("Validate: Overlapping fields can be merged", func(t *testing.T) {
@@ -101,16 +99,15 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
         fido: name
         fido: nickname
       }
-    `)(`[
-      {
-        message:
-          'Fields "fido" conflict because "name" and "nickname" are different fields. Use different aliases on the fields to fetch both if this was intentional.',
-        locations: [
-          { line: 3, column: 9 },
-          { line: 4, column: 9 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `Fields "fido" conflict because "name" and "nickname" are different fields. Use different aliases on the fields to fetch both if this was intentional.`,
+					locations: []Loc{
+						{line: 3, column: 9},
+						{line: 4, column: 9},
+					},
+				},
+			})
 		})
 
 		t.Run("Same aliases allowed on non-overlapping fields", func(t *testing.T) {
@@ -134,16 +131,15 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
         name: nickname
         name
       }
-    `)(`[
-      {
-        message:
-          'Fields "name" conflict because "nickname" and "name" are different fields. Use different aliases on the fields to fetch both if this was intentional.',
-        locations: [
-          { line: 3, column: 9 },
-          { line: 4, column: 9 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `Fields "name" conflict because "nickname" and "name" are different fields. Use different aliases on the fields to fetch both if this was intentional.`,
+					locations: []Loc{
+						{line: 3, column: 9},
+						{line: 4, column: 9},
+					},
+				},
+			})
 		})
 
 		t.Run("different args, second adds an argument", func(t *testing.T) {
@@ -152,16 +148,15 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
         doesKnowCommand
         doesKnowCommand(dogCommand: HEEL)
       }
-    `)(`[
-      {
-        message:
-          'Fields "doesKnowCommand" conflict because they have differing arguments. Use different aliases on the fields to fetch both if this was intentional.',
-        locations: [
-          { line: 3, column: 9 },
-          { line: 4, column: 9 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `Fields "doesKnowCommand" conflict because they have differing arguments. Use different aliases on the fields to fetch both if this was intentional.`,
+					locations: []Loc{
+						{line: 3, column: 9},
+						{line: 4, column: 9},
+					},
+				},
+			})
 		})
 
 		t.Run("different args, second missing an argument", func(t *testing.T) {
@@ -170,16 +165,15 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
         doesKnowCommand(dogCommand: SIT)
         doesKnowCommand
       }
-    `)(`[
-      {
-        message:
-          'Fields "doesKnowCommand" conflict because they have differing arguments. Use different aliases on the fields to fetch both if this was intentional.',
-        locations: [
-          { line: 3, column: 9 },
-          { line: 4, column: 9 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `Fields "doesKnowCommand" conflict because they have differing arguments. Use different aliases on the fields to fetch both if this was intentional.`,
+					locations: []Loc{
+						{line: 3, column: 9},
+						{line: 4, column: 9},
+					},
+				},
+			})
 		})
 
 		t.Run("conflicting arg values", func(t *testing.T) {
@@ -188,16 +182,15 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
         doesKnowCommand(dogCommand: SIT)
         doesKnowCommand(dogCommand: HEEL)
       }
-    `)(`[
-      {
-        message:
-          'Fields "doesKnowCommand" conflict because they have differing arguments. Use different aliases on the fields to fetch both if this was intentional.',
-        locations: [
-          { line: 3, column: 9 },
-          { line: 4, column: 9 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `Fields "doesKnowCommand" conflict because they have differing arguments. Use different aliases on the fields to fetch both if this was intentional.`,
+					locations: []Loc{
+						{line: 3, column: 9},
+						{line: 4, column: 9},
+					},
+				},
+			})
 		})
 
 		t.Run("conflicting arg names", func(t *testing.T) {
@@ -206,16 +199,15 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
         isAtLocation(x: 0)
         isAtLocation(y: 0)
       }
-    `)(`[
-      {
-        message:
-          'Fields "isAtLocation" conflict because they have differing arguments. Use different aliases on the fields to fetch both if this was intentional.',
-        locations: [
-          { line: 3, column: 9 },
-          { line: 4, column: 9 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `Fields "isAtLocation" conflict because they have differing arguments. Use different aliases on the fields to fetch both if this was intentional.`,
+					locations: []Loc{
+						{line: 3, column: 9},
+						{line: 4, column: 9},
+					},
+				},
+			})
 		})
 
 		t.Run("allows different args where no conflict is possible", func(t *testing.T) {
@@ -245,16 +237,15 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
       fragment B on Type {
         x: b
       }
-    `)(`[
-      {
-        message:
-          'Fields "x" conflict because "a" and "b" are different fields. Use different aliases on the fields to fetch both if this was intentional.',
-        locations: [
-          { line: 7, column: 9 },
-          { line: 10, column: 9 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `Fields "x" conflict because "a" and "b" are different fields. Use different aliases on the fields to fetch both if this was intentional.`,
+					locations: []Loc{
+						{line: 7, column: 9},
+						{line: 10, column: 9},
+					},
+				},
+			})
 		})
 
 		t.Run("reports each conflict once", func(t *testing.T) {
@@ -280,32 +271,29 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
       fragment B on Type {
         x: b
       }
-    `)(`[
-      {
-        message:
-          'Fields "x" conflict because "a" and "b" are different fields. Use different aliases on the fields to fetch both if this was intentional.',
-        locations: [
-          { line: 18, column: 9 },
-          { line: 21, column: 9 },
-        ],
-      },
-      {
-        message:
-          'Fields "x" conflict because "c" and "a" are different fields. Use different aliases on the fields to fetch both if this was intentional.',
-        locations: [
-          { line: 14, column: 11 },
-          { line: 18, column: 9 },
-        ],
-      },
-      {
-        message:
-          'Fields "x" conflict because "c" and "b" are different fields. Use different aliases on the fields to fetch both if this was intentional.',
-        locations: [
-          { line: 14, column: 11 },
-          { line: 21, column: 9 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `Fields "x" conflict because "a" and "b" are different fields. Use different aliases on the fields to fetch both if this was intentional.`,
+					locations: []Loc{
+						{line: 18, column: 9},
+						{line: 21, column: 9},
+					},
+				},
+				{
+					message: `Fields "x" conflict because "c" and "a" are different fields. Use different aliases on the fields to fetch both if this was intentional.`,
+					locations: []Loc{
+						{line: 14, column: 11},
+						{line: 18, column: 9},
+					},
+				},
+				{
+					message: `Fields "x" conflict because "c" and "b" are different fields. Use different aliases on the fields to fetch both if this was intentional.`,
+					locations: []Loc{
+						{line: 14, column: 11},
+						{line: 21, column: 9},
+					},
+				},
+			})
 		})
 
 		t.Run("deep conflict", func(t *testing.T) {
@@ -318,18 +306,17 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
           x: b
         }
       }
-    `)(`[
-      {
-        message:
-          'Fields "field" conflict because subfields "x" conflict because "a" and "b" are different fields. Use different aliases on the fields to fetch both if this was intentional.',
-        locations: [
-          { line: 3, column: 9 },
-          { line: 4, column: 11 },
-          { line: 6, column: 9 },
-          { line: 7, column: 11 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `Fields "field" conflict because subfields "x" conflict because "a" and "b" are different fields. Use different aliases on the fields to fetch both if this was intentional.`,
+					locations: []Loc{
+						{line: 3, column: 9},
+						{line: 4, column: 11},
+						{line: 6, column: 9},
+						{line: 7, column: 11},
+					},
+				},
+			})
 		})
 
 		t.Run("deep conflict with multiple issues", func(t *testing.T) {
@@ -344,20 +331,19 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
           y: d
         }
       }
-    `)(`[
-      {
-        message:
-          'Fields "field" conflict because subfields "x" conflict because "a" and "b" are different fields and subfields "y" conflict because "c" and "d" are different fields. Use different aliases on the fields to fetch both if this was intentional.',
-        locations: [
-          { line: 3, column: 9 },
-          { line: 4, column: 11 },
-          { line: 5, column: 11 },
-          { line: 7, column: 9 },
-          { line: 8, column: 11 },
-          { line: 9, column: 11 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `Fields "field" conflict because subfields "x" conflict because "a" and "b" are different fields and subfields "y" conflict because "c" and "d" are different fields. Use different aliases on the fields to fetch both if this was intentional.`,
+					locations: []Loc{
+						{line: 3, column: 9},
+						{line: 4, column: 11},
+						{line: 5, column: 11},
+						{line: 7, column: 9},
+						{line: 8, column: 11},
+						{line: 9, column: 11},
+					},
+				},
+			})
 		})
 
 		t.Run("very deep conflict", func(t *testing.T) {
@@ -374,20 +360,19 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
           }
         }
       }
-    `)(`[
-      {
-        message:
-          'Fields "field" conflict because subfields "deepField" conflict because subfields "x" conflict because "a" and "b" are different fields. Use different aliases on the fields to fetch both if this was intentional.',
-        locations: [
-          { line: 3, column: 9 },
-          { line: 4, column: 11 },
-          { line: 5, column: 13 },
-          { line: 8, column: 9 },
-          { line: 9, column: 11 },
-          { line: 10, column: 13 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `Fields "field" conflict because subfields "deepField" conflict because subfields "x" conflict because "a" and "b" are different fields. Use different aliases on the fields to fetch both if this was intentional.`,
+					locations: []Loc{
+						{line: 3, column: 9},
+						{line: 4, column: 11},
+						{line: 5, column: 13},
+						{line: 8, column: 9},
+						{line: 9, column: 11},
+						{line: 10, column: 13},
+					},
+				},
+			})
 		})
 
 		t.Run("reports deep conflict to nearest common ancestor", func(t *testing.T) {
@@ -407,18 +392,17 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
           }
         }
       }
-    `)(`[
-      {
-        message:
-          'Fields "deepField" conflict because subfields "x" conflict because "a" and "b" are different fields. Use different aliases on the fields to fetch both if this was intentional.',
-        locations: [
-          { line: 4, column: 11 },
-          { line: 5, column: 13 },
-          { line: 7, column: 11 },
-          { line: 8, column: 13 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `Fields "deepField" conflict because subfields "x" conflict because "a" and "b" are different fields. Use different aliases on the fields to fetch both if this was intentional.`,
+					locations: []Loc{
+						{line: 4, column: 11},
+						{line: 5, column: 13},
+						{line: 7, column: 11},
+						{line: 8, column: 13},
+					},
+				},
+			})
 		})
 
 		t.Run("reports deep conflict to nearest common ancestor in fragments", func(t *testing.T) {
@@ -446,18 +430,17 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
           }
         }
       }
-    `)(`[
-      {
-        message:
-          'Fields "deeperField" conflict because subfields "x" conflict because "a" and "b" are different fields. Use different aliases on the fields to fetch both if this was intentional.',
-        locations: [
-          { line: 12, column: 11 },
-          { line: 13, column: 13 },
-          { line: 15, column: 11 },
-          { line: 16, column: 13 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `Fields "deeperField" conflict because subfields "x" conflict because "a" and "b" are different fields. Use different aliases on the fields to fetch both if this was intentional.`,
+					locations: []Loc{
+						{line: 12, column: 11},
+						{line: 13, column: 13},
+						{line: 15, column: 11},
+						{line: 16, column: 13},
+					},
+				},
+			})
 		})
 
 		t.Run("reports deep conflict in nested fragments", func(t *testing.T) {
@@ -484,20 +467,19 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
       fragment J on T {
         x: b
       }
-    `)(`[
-      {
-        message:
-          'Fields "field" conflict because subfields "x" conflict because "a" and "b" are different fields and subfields "y" conflict because "c" and "d" are different fields. Use different aliases on the fields to fetch both if this was intentional.',
-        locations: [
-          { line: 3, column: 9 },
-          { line: 11, column: 9 },
-          { line: 15, column: 9 },
-          { line: 6, column: 9 },
-          { line: 22, column: 9 },
-          { line: 18, column: 9 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `Fields "field" conflict because subfields "x" conflict because "a" and "b" are different fields and subfields "y" conflict because "c" and "d" are different fields. Use different aliases on the fields to fetch both if this was intentional.`,
+					locations: []Loc{
+						{line: 3, column: 9},
+						{line: 11, column: 9},
+						{line: 15, column: 9},
+						{line: 6, column: 9},
+						{line: 22, column: 9},
+						{line: 18, column: 9},
+					},
+				},
+			})
 		})
 
 		t.Run("ignores unknown fragments", func(t *testing.T) {
@@ -516,7 +498,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 		})
 
 		t.Run("return types must be unambiguous", func(t *testing.T) {
-			schema := helpers.BuildSchema(`
+			schema := BuildSchema(`
       interface SomeBox {
         deepBox: SomeBox
         unrelatedField: String
@@ -598,16 +580,15 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
             }
           }
         `,
-				)(`[
-        {
-          message:
-            'Fields "scalar" conflict because they return conflicting types "Int" and "String!". Use different aliases on the fields to fetch both if this was intentional.',
-          locations: [
-            { line: 5, column: 17 },
-            { line: 8, column: 17 },
-          ],
-        },
-]`)
+				)([]Err{
+					{
+						message: `Fields "scalar" conflict because they return conflicting types "Int" and "String!". Use different aliases on the fields to fetch both if this was intentional.`,
+						locations: []Loc{
+							{line: 5, column: 17},
+							{line: 8, column: 17},
+						},
+					},
+				})
 			})
 
 			t.Run("compatible return shapes on different return types", func(t *testing.T) {
@@ -650,16 +631,15 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
             }
           }
         `,
-				)(`[
-        {
-          message:
-            'Fields "scalar" conflict because they return conflicting types "Int" and "String". Use different aliases on the fields to fetch both if this was intentional.',
-          locations: [
-            { line: 5, column: 17 },
-            { line: 8, column: 17 },
-          ],
-        },
-]`)
+				)([]Err{
+					{
+						message: `Fields "scalar" conflict because they return conflicting types "Int" and "String". Use different aliases on the fields to fetch both if this was intentional.`,
+						locations: []Loc{
+							{line: 5, column: 17},
+							{line: 8, column: 17},
+						},
+					},
+				})
 			})
 
 			t.Run("reports correctly when a non-exclusive follows an exclusive", func(t *testing.T) {
@@ -709,18 +689,17 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
             scalar: unrelatedField
           }
         `,
-				)(`[
-        {
-          message:
-            'Fields "other" conflict because subfields "scalar" conflict because "scalar" and "unrelatedField" are different fields. Use different aliases on the fields to fetch both if this was intentional.',
-          locations: [
-            { line: 31, column: 13 },
-            { line: 39, column: 13 },
-            { line: 34, column: 13 },
-            { line: 42, column: 13 },
-          ],
-        },
-]`)
+				)([]Err{
+					{
+						message: `Fields "other" conflict because subfields "scalar" conflict because "scalar" and "unrelatedField" are different fields. Use different aliases on the fields to fetch both if this was intentional.`,
+						locations: []Loc{
+							{line: 31, column: 13},
+							{line: 39, column: 13},
+							{line: 34, column: 13},
+							{line: 42, column: 13},
+						},
+					},
+				})
 			})
 
 			t.Run("disallows differing return type nullability despite no overlap", func(t *testing.T) {
@@ -738,16 +717,15 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
             }
           }
         `,
-				)(`[
-        {
-          message:
-            'Fields "scalar" conflict because they return conflicting types "String!" and "String". Use different aliases on the fields to fetch both if this was intentional.',
-          locations: [
-            { line: 5, column: 17 },
-            { line: 8, column: 17 },
-          ],
-        },
-]`)
+				)([]Err{
+					{
+						message: `Fields "scalar" conflict because they return conflicting types "String!" and "String". Use different aliases on the fields to fetch both if this was intentional.`,
+						locations: []Loc{
+							{line: 5, column: 17},
+							{line: 8, column: 17},
+						},
+					},
+				})
 			})
 
 			t.Run("disallows differing return type list despite no overlap", func(t *testing.T) {
@@ -769,16 +747,15 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
             }
           }
         `,
-				)(`[
-        {
-          message:
-            'Fields "box" conflict because they return conflicting types "[StringBox]" and "StringBox". Use different aliases on the fields to fetch both if this was intentional.',
-          locations: [
-            { line: 5, column: 17 },
-            { line: 10, column: 17 },
-          ],
-        },
-]`)
+				)([]Err{
+					{
+						message: `Fields "box" conflict because they return conflicting types "[StringBox]" and "StringBox". Use different aliases on the fields to fetch both if this was intentional.`,
+						locations: []Loc{
+							{line: 5, column: 17},
+							{line: 10, column: 17},
+						},
+					},
+				})
 
 				expectErrorsWithSchema(
 					schema,
@@ -798,16 +775,15 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
             }
           }
         `,
-				)(`[
-        {
-          message:
-            'Fields "box" conflict because they return conflicting types "StringBox" and "[StringBox]". Use different aliases on the fields to fetch both if this was intentional.',
-          locations: [
-            { line: 5, column: 17 },
-            { line: 10, column: 17 },
-          ],
-        },
-]`)
+				)([]Err{
+					{
+						message: `Fields "box" conflict because they return conflicting types "StringBox" and "[StringBox]". Use different aliases on the fields to fetch both if this was intentional.`,
+						locations: []Loc{
+							{line: 5, column: 17},
+							{line: 10, column: 17},
+						},
+					},
+				})
 			})
 
 			t.Run("disallows differing subfields", func(t *testing.T) {
@@ -830,16 +806,15 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
             }
           }
         `,
-				)(`[
-        {
-          message:
-            'Fields "val" conflict because "scalar" and "unrelatedField" are different fields. Use different aliases on the fields to fetch both if this was intentional.',
-          locations: [
-            { line: 6, column: 19 },
-            { line: 7, column: 19 },
-          ],
-        },
-]`)
+				)([]Err{
+					{
+						message: `Fields "val" conflict because "scalar" and "unrelatedField" are different fields. Use different aliases on the fields to fetch both if this was intentional.`,
+						locations: []Loc{
+							{line: 6, column: 19},
+							{line: 7, column: 19},
+						},
+					},
+				})
 			})
 
 			t.Run("disallows differing deep return types despite no overlap", func(t *testing.T) {
@@ -861,18 +836,17 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
             }
           }
         `,
-				)(`[
-        {
-          message:
-            'Fields "box" conflict because subfields "scalar" conflict because they return conflicting types "String" and "Int". Use different aliases on the fields to fetch both if this was intentional.',
-          locations: [
-            { line: 5, column: 17 },
-            { line: 6, column: 19 },
-            { line: 10, column: 17 },
-            { line: 11, column: 19 },
-          ],
-        },
-]`)
+				)([]Err{
+					{
+						message: `Fields "box" conflict because subfields "scalar" conflict because they return conflicting types "String" and "Int". Use different aliases on the fields to fetch both if this was intentional.`,
+						locations: []Loc{
+							{line: 5, column: 17},
+							{line: 6, column: 19},
+							{line: 10, column: 17},
+							{line: 11, column: 19},
+						},
+					},
+				})
 			})
 
 			t.Run("allows non-conflicting overlapping types", func(t *testing.T) {
@@ -948,20 +922,19 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
             }
           }
         `,
-				)(`[
-        {
-          message:
-            'Fields "edges" conflict because subfields "node" conflict because subfields "id" conflict because "name" and "id" are different fields. Use different aliases on the fields to fetch both if this was intentional.',
-          locations: [
-            { line: 5, column: 15 },
-            { line: 6, column: 17 },
-            { line: 7, column: 19 },
-            { line: 14, column: 13 },
-            { line: 15, column: 15 },
-            { line: 16, column: 17 },
-          ],
-        },
-]`)
+				)([]Err{
+					{
+						message: `Fields "edges" conflict because subfields "node" conflict because subfields "id" conflict because "name" and "id" are different fields. Use different aliases on the fields to fetch both if this was intentional.`,
+						locations: []Loc{
+							{line: 5, column: 15},
+							{line: 6, column: 17},
+							{line: 7, column: 19},
+							{line: 14, column: 13},
+							{line: 15, column: 15},
+							{line: 16, column: 17},
+						},
+					},
+				})
 			})
 
 			t.Run("ignores unknown types", func(t *testing.T) {
@@ -983,7 +956,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 			})
 
 			t.Run("works for field names that are JS keywords", func(t *testing.T) {
-				schemaWithKeywords := helpers.BuildSchema(`
+				schemaWithKeywords := BuildSchema(`
         type Foo {
           constructor: String
         }
@@ -1033,16 +1006,15 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
         fido: name
         fido: nickname
       }
-    `)(`[
-      {
-        message:
-          'Fields "fido" conflict because "name" and "nickname" are different fields. Use different aliases on the fields to fetch both if this was intentional.',
-        locations: [
-          { line: 4, column: 9 },
-          { line: 5, column: 9 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `Fields "fido" conflict because "name" and "nickname" are different fields. Use different aliases on the fields to fetch both if this was intentional.`,
+					locations: []Loc{
+						{line: 4, column: 9},
+						{line: 5, column: 9},
+					},
+				},
+			})
 		})
 	})
 

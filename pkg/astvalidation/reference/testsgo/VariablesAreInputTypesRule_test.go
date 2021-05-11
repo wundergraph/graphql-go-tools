@@ -2,18 +2,16 @@ package testsgo
 
 import (
 	"testing"
-
-	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation/reference/helpers"
 )
 
 func TestVariablesAreInputTypesRule(t *testing.T) {
 
-	expectErrors := func(queryStr string) helpers.ResultCompare {
-		return helpers.ExpectValidationErrors("VariablesAreInputTypesRule", queryStr)
+	expectErrors := func(queryStr string) ResultCompare {
+		return ExpectValidationErrors("VariablesAreInputTypesRule", queryStr)
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)(`[]`)
+		expectErrors(queryStr)([]Err{})
 	}
 
 	t.Run("Validate: Variables are input types", func(t *testing.T) {
@@ -30,20 +28,20 @@ func TestVariablesAreInputTypesRule(t *testing.T) {
       query Foo($a: Dog, $b: [[CatOrDog!]]!, $c: Pet) {
         field(a: $a, b: $b, c: $c)
       }
-    `)(`[
-      {
-        locations: [{ line: 2, column: 21 }],
-        message: 'Variable "$a" cannot be non-input type "Dog".',
-      },
-      {
-        locations: [{ line: 2, column: 30 }],
-        message: 'Variable "$b" cannot be non-input type "[[CatOrDog!]]!".',
-      },
-      {
-        locations: [{ line: 2, column: 50 }],
-        message: 'Variable "$c" cannot be non-input type "Pet".',
-      },
-]`)
+    `)([]Err{
+				{
+					locations: []Loc{{line: 2, column: 21}},
+					message:   `Variable "$a" cannot be non-input type "Dog".`,
+				},
+				{
+					locations: []Loc{{line: 2, column: 30}},
+					message:   `Variable "$b" cannot be non-input type "[[CatOrDog!]]!".`,
+				},
+				{
+					locations: []Loc{{line: 2, column: 50}},
+					message:   `Variable "$c" cannot be non-input type "Pet".`,
+				},
+			})
 		})
 	})
 

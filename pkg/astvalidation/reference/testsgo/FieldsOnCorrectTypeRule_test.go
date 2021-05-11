@@ -2,18 +2,16 @@ package testsgo
 
 import (
 	"testing"
-
-	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation/reference/helpers"
 )
 
 func TestFieldsOnCorrectTypeRule(t *testing.T) {
 
-	expectErrors := func(queryStr string) helpers.ResultCompare {
-		return helpers.ExpectValidationErrors("FieldsOnCorrectTypeRule", queryStr)
+	expectErrors := func(queryStr string) ResultCompare {
+		return ExpectValidationErrors("FieldsOnCorrectTypeRule", queryStr)
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)(`[]`)
+		expectErrors(queryStr)([]Err{})
 	}
 
 	t.Run("Validate: Fields on correct type", func(t *testing.T) {
@@ -77,16 +75,16 @@ func TestFieldsOnCorrectTypeRule(t *testing.T) {
           }
         }
       }
-    `)(`[
-      {
-        message: 'Cannot query field "unknown_pet_field" on type "Pet".',
-        locations: [{ line: 3, column: 9 }],
-      },
-      {
-        message: 'Cannot query field "unknown_cat_field" on type "Cat".',
-        locations: [{ line: 5, column: 13 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   `Cannot query field "unknown_pet_field" on type "Pet".`,
+					locations: []Loc{{line: 3, column: 9}},
+				},
+				{
+					message:   `Cannot query field "unknown_cat_field" on type "Cat".`,
+					locations: []Loc{{line: 5, column: 13}},
+				},
+			})
 		})
 
 		t.Run("Field not defined on fragment", func(t *testing.T) {
@@ -94,13 +92,12 @@ func TestFieldsOnCorrectTypeRule(t *testing.T) {
       fragment fieldNotDefined on Dog {
         meowVolume
       }
-    `)(`[
-      {
-        message:
-          'Cannot query field "meowVolume" on type "Dog". Did you mean "barkVolume"?',
-        locations: [{ line: 3, column: 9 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   `Cannot query field "meowVolume" on type "Dog". Did you mean "barkVolume"?`,
+					locations: []Loc{{line: 3, column: 9}},
+				},
+			})
 		})
 
 		t.Run("Ignores deeply unknown field", func(t *testing.T) {
@@ -110,12 +107,12 @@ func TestFieldsOnCorrectTypeRule(t *testing.T) {
           deeper_unknown_field
         }
       }
-    `)(`[
-      {
-        message: 'Cannot query field "unknown_field" on type "Dog".',
-        locations: [{ line: 3, column: 9 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   `Cannot query field "unknown_field" on type "Dog".`,
+					locations: []Loc{{line: 3, column: 9}},
+				},
+			})
 		})
 
 		t.Run("Sub-field not defined", func(t *testing.T) {
@@ -125,12 +122,12 @@ func TestFieldsOnCorrectTypeRule(t *testing.T) {
           unknown_field
         }
       }
-    `)(`[
-      {
-        message: 'Cannot query field "unknown_field" on type "Pet".',
-        locations: [{ line: 4, column: 11 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   `Cannot query field "unknown_field" on type "Pet".`,
+					locations: []Loc{{line: 4, column: 11}},
+				},
+			})
 		})
 
 		t.Run("Field not defined on inline fragment", func(t *testing.T) {
@@ -140,13 +137,12 @@ func TestFieldsOnCorrectTypeRule(t *testing.T) {
           meowVolume
         }
       }
-    `)(`[
-      {
-        message:
-          'Cannot query field "meowVolume" on type "Dog". Did you mean "barkVolume"?',
-        locations: [{ line: 4, column: 11 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   `Cannot query field "meowVolume" on type "Dog". Did you mean "barkVolume"?`,
+					locations: []Loc{{line: 4, column: 11}},
+				},
+			})
 		})
 
 		t.Run("Aliased field target not defined", func(t *testing.T) {
@@ -154,13 +150,12 @@ func TestFieldsOnCorrectTypeRule(t *testing.T) {
       fragment aliasedFieldTargetNotDefined on Dog {
         volume : mooVolume
       }
-    `)(`[
-      {
-        message:
-          'Cannot query field "mooVolume" on type "Dog". Did you mean "barkVolume"?',
-        locations: [{ line: 3, column: 9 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   `Cannot query field "mooVolume" on type "Dog". Did you mean "barkVolume"?`,
+					locations: []Loc{{line: 3, column: 9}},
+				},
+			})
 		})
 
 		t.Run("Aliased lying field target not defined", func(t *testing.T) {
@@ -168,13 +163,12 @@ func TestFieldsOnCorrectTypeRule(t *testing.T) {
       fragment aliasedLyingFieldTargetNotDefined on Dog {
         barkVolume : kawVolume
       }
-    `)(`[
-      {
-        message:
-          'Cannot query field "kawVolume" on type "Dog". Did you mean "barkVolume"?',
-        locations: [{ line: 3, column: 9 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   `Cannot query field "kawVolume" on type "Dog". Did you mean "barkVolume"?`,
+					locations: []Loc{{line: 3, column: 9}},
+				},
+			})
 		})
 
 		t.Run("Not defined on interface", func(t *testing.T) {
@@ -182,12 +176,12 @@ func TestFieldsOnCorrectTypeRule(t *testing.T) {
       fragment notDefinedOnInterface on Pet {
         tailLength
       }
-    `)(`[
-      {
-        message: 'Cannot query field "tailLength" on type "Pet".',
-        locations: [{ line: 3, column: 9 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   `Cannot query field "tailLength" on type "Pet".`,
+					locations: []Loc{{line: 3, column: 9}},
+				},
+			})
 		})
 
 		t.Run("Defined on implementors but not on interface", func(t *testing.T) {
@@ -195,13 +189,12 @@ func TestFieldsOnCorrectTypeRule(t *testing.T) {
       fragment definedOnImplementorsButNotInterface on Pet {
         nickname
       }
-    `)(`[
-      {
-        message:
-          'Cannot query field "nickname" on type "Pet". Did you mean to use an inline fragment on "Cat" or "Dog"?',
-        locations: [{ line: 3, column: 9 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   `Cannot query field "nickname" on type "Pet". Did you mean to use an inline fragment on "Cat" or "Dog"?`,
+					locations: []Loc{{line: 3, column: 9}},
+				},
+			})
 		})
 
 		t.Run("Meta field selection on union", func(t *testing.T) {
@@ -217,12 +210,12 @@ func TestFieldsOnCorrectTypeRule(t *testing.T) {
       fragment directFieldSelectionOnUnion on CatOrDog {
         directField
       }
-    `)(`[
-      {
-        message: 'Cannot query field "directField" on type "CatOrDog".',
-        locations: [{ line: 3, column: 9 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   `Cannot query field "directField" on type "CatOrDog".`,
+					locations: []Loc{{line: 3, column: 9}},
+				},
+			})
 		})
 
 		t.Run("Defined on implementors queried on union", func(t *testing.T) {
@@ -230,13 +223,12 @@ func TestFieldsOnCorrectTypeRule(t *testing.T) {
       fragment definedOnImplementorsQueriedOnUnion on CatOrDog {
         name
       }
-    `)(`[
-      {
-        message:
-          'Cannot query field "name" on type "CatOrDog". Did you mean to use an inline fragment on "Being", "Pet", "Canine", "Cat", or "Dog"?',
-        locations: [{ line: 3, column: 9 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   `Cannot query field "name" on type "CatOrDog". Did you mean to use an inline fragment on "Being", "Pet", "Canine", "Cat", or "Dog"?`,
+					locations: []Loc{{line: 3, column: 9}},
+				},
+			})
 		})
 
 		t.Run("valid field in inline fragment", func(t *testing.T) {
@@ -253,14 +245,11 @@ func TestFieldsOnCorrectTypeRule(t *testing.T) {
 		})
 
 		t.Run("Fields on correct type error message", func(t *testing.T) {
-			expectErrorMessage := func(schema string, queryStr string) func(string) {
-				return func(string) {
-					// TODO: fix me
-				}
+			expectErrorMessage := func(schema string, queryStr string) MessageCompare {
+				return ExpectErrorMessage(schema, queryStr)
 			}
-
 			t.Run("Works with no suggestions", func(t *testing.T) {
-				schema := helpers.BuildSchema(`
+				schema := BuildSchema(`
         type T {
           fieldWithVeryLongNameThatWillNeverBeSuggested: String
         }
@@ -273,7 +262,7 @@ func TestFieldsOnCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Works with no small numbers of type suggestions", func(t *testing.T) {
-				schema := helpers.BuildSchema(`
+				schema := BuildSchema(`
         union T = A | B
         type Query { t: T }
 
@@ -287,7 +276,7 @@ func TestFieldsOnCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Works with no small numbers of field suggestions", func(t *testing.T) {
-				schema := helpers.BuildSchema(`
+				schema := BuildSchema(`
         type T {
           y: String
           z: String
@@ -301,7 +290,7 @@ func TestFieldsOnCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Only shows one set of suggestions at a time, preferring types", func(t *testing.T) {
-				schema := helpers.BuildSchema(`
+				schema := BuildSchema(`
         interface T {
           y: String
           z: String
@@ -326,7 +315,7 @@ func TestFieldsOnCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Sort type suggestions based on inheritance order", func(t *testing.T) {
-				schema := helpers.BuildSchema(`
+				schema := BuildSchema(`
         interface T { bar: String }
         type Query { t: T }
 
@@ -352,7 +341,7 @@ func TestFieldsOnCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Limits lots of type suggestions", func(t *testing.T) {
-				schema := helpers.BuildSchema(`
+				schema := BuildSchema(`
         union T = A | B | C | D | E | F
         type Query { t: T }
 
@@ -370,7 +359,7 @@ func TestFieldsOnCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Limits lots of field suggestions", func(t *testing.T) {
-				schema := helpers.BuildSchema(`
+				schema := BuildSchema(`
         type T {
           u: String
           v: String

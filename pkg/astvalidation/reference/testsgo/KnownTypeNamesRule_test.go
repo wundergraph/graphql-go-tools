@@ -2,34 +2,32 @@ package testsgo
 
 import (
 	"testing"
-
-	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation/reference/helpers"
 )
 
 func TestKnownTypeNamesRule(t *testing.T) {
 
-	expectErrors := func(queryStr string) helpers.ResultCompare {
-		return helpers.ExpectValidationErrors("KnownTypeNamesRule", queryStr)
+	expectErrors := func(queryStr string) ResultCompare {
+		return ExpectValidationErrors("KnownTypeNamesRule", queryStr)
 	}
 
-	expectErrorsWithSchema := func(schema string, queryStr string) helpers.ResultCompare {
-		return helpers.ExpectValidationErrorsWithSchema(schema, "KnownTypeNamesRule", queryStr)
+	expectErrorsWithSchema := func(schema string, queryStr string) ResultCompare {
+		return ExpectValidationErrorsWithSchema(schema, "KnownTypeNamesRule", queryStr)
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)(`[]`)
+		expectErrors(queryStr)([]Err{})
 	}
 
-	expectSDLErrors := func(sdlStr string, sch ...string) helpers.ResultCompare {
+	expectSDLErrors := func(sdlStr string, sch ...string) ResultCompare {
 		schema := ""
 		if len(sch) > 0 {
 			schema = sch[0]
 		}
-		return helpers.ExpectSDLValidationErrors(schema, "KnownTypeNamesRule", sdlStr)
+		return ExpectSDLValidationErrors(schema, "KnownTypeNamesRule", sdlStr)
 	}
 
 	expectValidSDL := func(sdlStr string, schema ...string) {
-		expectSDLErrors(sdlStr, schema...)(`[]`)
+		expectSDLErrors(sdlStr, schema...)([]Err{})
 	}
 
 	t.Run("Validate: Known type names", func(t *testing.T) {
@@ -62,43 +60,43 @@ func TestKnownTypeNamesRule(t *testing.T) {
       fragment PetFields on Peat {
         name
       }
-    `)(`[
-      {
-        message: 'Unknown type "JumbledUpLetters".',
-        locations: [{ line: 2, column: 23 }],
-      },
-      {
-        message: 'Unknown type "Badger".',
-        locations: [{ line: 5, column: 25 }],
-      },
-      {
-        message: 'Unknown type "Peat". Did you mean "Pet" or "Cat"?',
-        locations: [{ line: 8, column: 29 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   `Unknown type "JumbledUpLetters".`,
+					locations: []Loc{{line: 2, column: 23}},
+				},
+				{
+					message:   `Unknown type "Badger".`,
+					locations: []Loc{{line: 5, column: 25}},
+				},
+				{
+					message:   `Unknown type "Peat". Did you mean "Pet" or "Cat"?`,
+					locations: []Loc{{line: 8, column: 29}},
+				},
+			})
 		})
 
 		t.Run("references to standard scalars that are missing in schema", func(t *testing.T) {
-			schema := helpers.BuildSchema("type Query { foo: String }")
+			schema := BuildSchema("type Query { foo: String }")
 			query := `
       query ($id: ID, $float: Float, $int: Int) {
         __typename
       }
     `
-			expectErrorsWithSchema(schema, query)(`[
-      {
-        message: 'Unknown type "ID".',
-        locations: [{ line: 2, column: 19 }],
-      },
-      {
-        message: 'Unknown type "Float".',
-        locations: [{ line: 2, column: 31 }],
-      },
-      {
-        message: 'Unknown type "Int".',
-        locations: [{ line: 2, column: 44 }],
-      },
-]`)
+			expectErrorsWithSchema(schema, query)([]Err{
+				{
+					message:   `Unknown type "ID".`,
+					locations: []Loc{{line: 2, column: 19}},
+				},
+				{
+					message:   `Unknown type "Float".`,
+					locations: []Loc{{line: 2, column: 31}},
+				},
+				{
+					message:   `Unknown type "Int".`,
+					locations: []Loc{{line: 2, column: 44}},
+				},
+			})
 		})
 
 		t.Run("within SDL", func(t *testing.T) {
@@ -176,56 +174,56 @@ func TestKnownTypeNamesRule(t *testing.T) {
           mutation: M
           subscription: N
         }
-      `)(`[
-        {
-          message: 'Unknown type "C". Did you mean "A" or "B"?',
-          locations: [{ line: 5, column: 36 }],
-        },
-        {
-          message: 'Unknown type "D". Did you mean "A", "B", or "ID"?',
-          locations: [{ line: 6, column: 16 }],
-        },
-        {
-          message: 'Unknown type "E". Did you mean "A" or "B"?',
-          locations: [{ line: 6, column: 20 }],
-        },
-        {
-          message: 'Unknown type "F". Did you mean "A" or "B"?',
-          locations: [{ line: 9, column: 27 }],
-        },
-        {
-          message: 'Unknown type "G". Did you mean "A" or "B"?',
-          locations: [{ line: 9, column: 31 }],
-        },
-        {
-          message: 'Unknown type "H". Did you mean "A" or "B"?',
-          locations: [{ line: 12, column: 16 }],
-        },
-        {
-          message: 'Unknown type "I". Did you mean "A", "B", or "ID"?',
-          locations: [{ line: 12, column: 20 }],
-        },
-        {
-          message: 'Unknown type "J". Did you mean "A" or "B"?',
-          locations: [{ line: 16, column: 14 }],
-        },
-        {
-          message: 'Unknown type "K". Did you mean "A" or "B"?',
-          locations: [{ line: 19, column: 37 }],
-        },
-        {
-          message: 'Unknown type "L". Did you mean "A" or "B"?',
-          locations: [{ line: 22, column: 18 }],
-        },
-        {
-          message: 'Unknown type "M". Did you mean "A" or "B"?',
-          locations: [{ line: 23, column: 21 }],
-        },
-        {
-          message: 'Unknown type "N". Did you mean "A" or "B"?',
-          locations: [{ line: 24, column: 25 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   `Unknown type "C". Did you mean "A" or "B"?`,
+						locations: []Loc{{line: 5, column: 36}},
+					},
+					{
+						message:   `Unknown type "D". Did you mean "A", "B", or "ID"?`,
+						locations: []Loc{{line: 6, column: 16}},
+					},
+					{
+						message:   `Unknown type "E". Did you mean "A" or "B"?`,
+						locations: []Loc{{line: 6, column: 20}},
+					},
+					{
+						message:   `Unknown type "F". Did you mean "A" or "B"?`,
+						locations: []Loc{{line: 9, column: 27}},
+					},
+					{
+						message:   `Unknown type "G". Did you mean "A" or "B"?`,
+						locations: []Loc{{line: 9, column: 31}},
+					},
+					{
+						message:   `Unknown type "H". Did you mean "A" or "B"?`,
+						locations: []Loc{{line: 12, column: 16}},
+					},
+					{
+						message:   `Unknown type "I". Did you mean "A", "B", or "ID"?`,
+						locations: []Loc{{line: 12, column: 20}},
+					},
+					{
+						message:   `Unknown type "J". Did you mean "A" or "B"?`,
+						locations: []Loc{{line: 16, column: 14}},
+					},
+					{
+						message:   `Unknown type "K". Did you mean "A" or "B"?`,
+						locations: []Loc{{line: 19, column: 37}},
+					},
+					{
+						message:   `Unknown type "L". Did you mean "A" or "B"?`,
+						locations: []Loc{{line: 22, column: 18}},
+					},
+					{
+						message:   `Unknown type "M". Did you mean "A" or "B"?`,
+						locations: []Loc{{line: 23, column: 21}},
+					},
+					{
+						message:   `Unknown type "N". Did you mean "A" or "B"?`,
+						locations: []Loc{{line: 24, column: 25}},
+					},
+				})
 			})
 
 			t.Run("does not consider non-type definitions", func(t *testing.T) {
@@ -237,16 +235,16 @@ func TestKnownTypeNamesRule(t *testing.T) {
         type Query {
           foo: Foo
         }
-      `)(`[
-        {
-          message: 'Unknown type "Foo".',
-          locations: [{ line: 7, column: 16 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   `Unknown type "Foo".`,
+						locations: []Loc{{line: 7, column: 16}},
+					},
+				})
 			})
 
 			t.Run("reference standard types inside extension document", func(t *testing.T) {
-				schema := helpers.BuildSchema("type Foo")
+				schema := BuildSchema("type Foo")
 				sdl := `
         type SomeType {
           string: String
@@ -262,7 +260,7 @@ func TestKnownTypeNamesRule(t *testing.T) {
 			})
 
 			t.Run("reference types inside extension document", func(t *testing.T) {
-				schema := helpers.BuildSchema("type Foo")
+				schema := BuildSchema("type Foo")
 				sdl := `
         type QueryRoot {
           foo: Foo
@@ -280,7 +278,7 @@ func TestKnownTypeNamesRule(t *testing.T) {
 			})
 
 			t.Run("unknown type references inside extension document", func(t *testing.T) {
-				schema := helpers.BuildSchema("type A")
+				schema := BuildSchema("type A")
 				sdl := `
         type B
 
@@ -307,56 +305,56 @@ func TestKnownTypeNamesRule(t *testing.T) {
         }
       `
 
-				expectSDLErrors(sdl, schema)(`[
-        {
-          message: 'Unknown type "C". Did you mean "A" or "B"?',
-          locations: [{ line: 4, column: 36 }],
-        },
-        {
-          message: 'Unknown type "D". Did you mean "A", "B", or "ID"?',
-          locations: [{ line: 5, column: 16 }],
-        },
-        {
-          message: 'Unknown type "E". Did you mean "A" or "B"?',
-          locations: [{ line: 5, column: 20 }],
-        },
-        {
-          message: 'Unknown type "F". Did you mean "A" or "B"?',
-          locations: [{ line: 8, column: 27 }],
-        },
-        {
-          message: 'Unknown type "G". Did you mean "A" or "B"?',
-          locations: [{ line: 8, column: 31 }],
-        },
-        {
-          message: 'Unknown type "H". Did you mean "A" or "B"?',
-          locations: [{ line: 11, column: 16 }],
-        },
-        {
-          message: 'Unknown type "I". Did you mean "A", "B", or "ID"?',
-          locations: [{ line: 11, column: 20 }],
-        },
-        {
-          message: 'Unknown type "J". Did you mean "A" or "B"?',
-          locations: [{ line: 15, column: 14 }],
-        },
-        {
-          message: 'Unknown type "K". Did you mean "A" or "B"?',
-          locations: [{ line: 18, column: 37 }],
-        },
-        {
-          message: 'Unknown type "L". Did you mean "A" or "B"?',
-          locations: [{ line: 21, column: 18 }],
-        },
-        {
-          message: 'Unknown type "M". Did you mean "A" or "B"?',
-          locations: [{ line: 22, column: 21 }],
-        },
-        {
-          message: 'Unknown type "N". Did you mean "A" or "B"?',
-          locations: [{ line: 23, column: 25 }],
-        },
-]`)
+				expectSDLErrors(sdl, schema)([]Err{
+					{
+						message:   `Unknown type "C". Did you mean "A" or "B"?`,
+						locations: []Loc{{line: 4, column: 36}},
+					},
+					{
+						message:   `Unknown type "D". Did you mean "A", "B", or "ID"?`,
+						locations: []Loc{{line: 5, column: 16}},
+					},
+					{
+						message:   `Unknown type "E". Did you mean "A" or "B"?`,
+						locations: []Loc{{line: 5, column: 20}},
+					},
+					{
+						message:   `Unknown type "F". Did you mean "A" or "B"?`,
+						locations: []Loc{{line: 8, column: 27}},
+					},
+					{
+						message:   `Unknown type "G". Did you mean "A" or "B"?`,
+						locations: []Loc{{line: 8, column: 31}},
+					},
+					{
+						message:   `Unknown type "H". Did you mean "A" or "B"?`,
+						locations: []Loc{{line: 11, column: 16}},
+					},
+					{
+						message:   `Unknown type "I". Did you mean "A", "B", or "ID"?`,
+						locations: []Loc{{line: 11, column: 20}},
+					},
+					{
+						message:   `Unknown type "J". Did you mean "A" or "B"?`,
+						locations: []Loc{{line: 15, column: 14}},
+					},
+					{
+						message:   `Unknown type "K". Did you mean "A" or "B"?`,
+						locations: []Loc{{line: 18, column: 37}},
+					},
+					{
+						message:   `Unknown type "L". Did you mean "A" or "B"?`,
+						locations: []Loc{{line: 21, column: 18}},
+					},
+					{
+						message:   `Unknown type "M". Did you mean "A" or "B"?`,
+						locations: []Loc{{line: 22, column: 21}},
+					},
+					{
+						message:   `Unknown type "N". Did you mean "A" or "B"?`,
+						locations: []Loc{{line: 23, column: 25}},
+					},
+				})
 			})
 		})
 	})

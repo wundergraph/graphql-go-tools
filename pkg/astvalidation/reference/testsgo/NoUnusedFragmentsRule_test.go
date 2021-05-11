@@ -2,18 +2,16 @@ package testsgo
 
 import (
 	"testing"
-
-	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation/reference/helpers"
 )
 
 func TestNoUnusedFragmentsRule(t *testing.T) {
 
-	expectErrors := func(queryStr string) helpers.ResultCompare {
-		return helpers.ExpectValidationErrors("NoUnusedFragmentsRule", queryStr)
+	expectErrors := func(queryStr string) ResultCompare {
+		return ExpectValidationErrors("NoUnusedFragmentsRule", queryStr)
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)(`[]`)
+		expectErrors(queryStr)([]Err{})
 	}
 
 	t.Run("Validate: No unused fragments", func(t *testing.T) {
@@ -93,16 +91,16 @@ func TestNoUnusedFragmentsRule(t *testing.T) {
       fragment Unused2 on Human {
         name
       }
-    `)(`[
-      {
-        message: 'Fragment "Unused1" is never used.',
-        locations: [{ line: 22, column: 7 }],
-      },
-      {
-        message: 'Fragment "Unused2" is never used.',
-        locations: [{ line: 25, column: 7 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   `Fragment "Unused1" is never used.`,
+					locations: []Loc{{line: 22, column: 7}},
+				},
+				{
+					message:   `Fragment "Unused2" is never used.`,
+					locations: []Loc{{line: 25, column: 7}},
+				},
+			})
 		})
 
 		t.Run("contains unknown fragments with ref cycle", func(t *testing.T) {
@@ -135,16 +133,16 @@ func TestNoUnusedFragmentsRule(t *testing.T) {
         name
         ...Unused1
       }
-    `)(`[
-      {
-        message: 'Fragment "Unused1" is never used.',
-        locations: [{ line: 22, column: 7 }],
-      },
-      {
-        message: 'Fragment "Unused2" is never used.',
-        locations: [{ line: 26, column: 7 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   `Fragment "Unused1" is never used.`,
+					locations: []Loc{{line: 22, column: 7}},
+				},
+				{
+					message:   `Fragment "Unused2" is never used.`,
+					locations: []Loc{{line: 26, column: 7}},
+				},
+			})
 		})
 
 		t.Run("contains unknown and undef fragments", func(t *testing.T) {
@@ -157,12 +155,12 @@ func TestNoUnusedFragmentsRule(t *testing.T) {
       fragment foo on Human {
         name
       }
-    `)(`[
-      {
-        message: 'Fragment "foo" is never used.',
-        locations: [{ line: 7, column: 7 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   `Fragment "foo" is never used.`,
+					locations: []Loc{{line: 7, column: 7}},
+				},
+			})
 		})
 	})
 

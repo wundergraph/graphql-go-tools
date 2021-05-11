@@ -2,18 +2,16 @@ package testsgo
 
 import (
 	"testing"
-
-	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation/reference/helpers"
 )
 
 func TestFragmentsOnCompositeTypesRule(t *testing.T) {
 
-	expectErrors := func(queryStr string) helpers.ResultCompare {
-		return helpers.ExpectValidationErrors("FragmentsOnCompositeTypesRule", queryStr)
+	expectErrors := func(queryStr string) ResultCompare {
+		return ExpectValidationErrors("FragmentsOnCompositeTypesRule", queryStr)
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)(`[]`)
+		expectErrors(queryStr)([]Err{})
 	}
 
 	t.Run("Validate: Fragments on composite types", func(t *testing.T) {
@@ -76,13 +74,12 @@ func TestFragmentsOnCompositeTypesRule(t *testing.T) {
       fragment scalarFragment on Boolean {
         bad
       }
-    `)(`[
-      {
-        message:
-          'Fragment "scalarFragment" cannot condition on non composite type "Boolean".',
-        locations: [{ line: 2, column: 34 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   `Fragment "scalarFragment" cannot condition on non composite type "Boolean".`,
+					locations: []Loc{{line: 2, column: 34}},
+				},
+			})
 		})
 
 		t.Run("enum is invalid fragment type", func(t *testing.T) {
@@ -90,13 +87,12 @@ func TestFragmentsOnCompositeTypesRule(t *testing.T) {
       fragment scalarFragment on FurColor {
         bad
       }
-    `)(`[
-      {
-        message:
-          'Fragment "scalarFragment" cannot condition on non composite type "FurColor".',
-        locations: [{ line: 2, column: 34 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   `Fragment "scalarFragment" cannot condition on non composite type "FurColor".`,
+					locations: []Loc{{line: 2, column: 34}},
+				},
+			})
 		})
 
 		t.Run("input object is invalid fragment type", func(t *testing.T) {
@@ -104,13 +100,12 @@ func TestFragmentsOnCompositeTypesRule(t *testing.T) {
       fragment inputFragment on ComplexInput {
         stringField
       }
-    `)(`[
-      {
-        message:
-          'Fragment "inputFragment" cannot condition on non composite type "ComplexInput".',
-        locations: [{ line: 2, column: 33 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   `Fragment "inputFragment" cannot condition on non composite type "ComplexInput".`,
+					locations: []Loc{{line: 2, column: 33}},
+				},
+			})
 		})
 
 		t.Run("scalar is invalid inline fragment type", func(t *testing.T) {
@@ -120,12 +115,12 @@ func TestFragmentsOnCompositeTypesRule(t *testing.T) {
           barks
         }
       }
-    `)(`[
-      {
-        message: 'Fragment cannot condition on non composite type "String".',
-        locations: [{ line: 3, column: 16 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   `Fragment cannot condition on non composite type "String".`,
+					locations: []Loc{{line: 3, column: 16}},
+				},
+			})
 		})
 	})
 

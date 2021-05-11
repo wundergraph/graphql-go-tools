@@ -2,18 +2,16 @@ package testsgo
 
 import (
 	"testing"
-
-	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation/reference/helpers"
 )
 
 func TestKnownFragmentNamesRule(t *testing.T) {
 
-	expectErrors := func(queryStr string) helpers.ResultCompare {
-		return helpers.ExpectValidationErrors("KnownFragmentNamesRule", queryStr)
+	expectErrors := func(queryStr string) ResultCompare {
+		return ExpectValidationErrors("KnownFragmentNamesRule", queryStr)
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)(`[]`)
+		expectErrors(queryStr)([]Err{})
 	}
 
 	t.Run("Validate: Known fragment names", func(t *testing.T) {
@@ -57,20 +55,20 @@ func TestKnownFragmentNamesRule(t *testing.T) {
         name
         ...UnknownFragment3
       }
-    `)(`[
-      {
-        message: 'Unknown fragment "UnknownFragment1".',
-        locations: [{ line: 4, column: 14 }],
-      },
-      {
-        message: 'Unknown fragment "UnknownFragment2".',
-        locations: [{ line: 6, column: 16 }],
-      },
-      {
-        message: 'Unknown fragment "UnknownFragment3".',
-        locations: [{ line: 12, column: 12 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   `Unknown fragment "UnknownFragment1".`,
+					locations: []Loc{{line: 4, column: 14}},
+				},
+				{
+					message:   `Unknown fragment "UnknownFragment2".`,
+					locations: []Loc{{line: 6, column: 16}},
+				},
+				{
+					message:   `Unknown fragment "UnknownFragment3".`,
+					locations: []Loc{{line: 12, column: 12}},
+				},
+			})
 		})
 	})
 

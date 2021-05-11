@@ -2,18 +2,16 @@ package testsgo
 
 import (
 	"testing"
-
-	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation/reference/helpers"
 )
 
 func TestLoneAnonymousOperationRule(t *testing.T) {
 
-	expectErrors := func(queryStr string) helpers.ResultCompare {
-		return helpers.ExpectValidationErrors("LoneAnonymousOperationRule", queryStr)
+	expectErrors := func(queryStr string) ResultCompare {
+		return ExpectValidationErrors("LoneAnonymousOperationRule", queryStr)
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)(`[]`)
+		expectErrors(queryStr)([]Err{})
 	}
 
 	t.Run("Validate: Anonymous operation must be alone", func(t *testing.T) {
@@ -64,16 +62,16 @@ func TestLoneAnonymousOperationRule(t *testing.T) {
       {
         fieldB
       }
-    `)(`[
-      {
-        message: "This anonymous operation must be the only defined operation.",
-        locations: [{ line: 2, column: 7 }],
-      },
-      {
-        message: "This anonymous operation must be the only defined operation.",
-        locations: [{ line: 5, column: 7 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   "This anonymous operation must be the only defined operation.",
+					locations: []Loc{{line: 2, column: 7}},
+				},
+				{
+					message:   "This anonymous operation must be the only defined operation.",
+					locations: []Loc{{line: 5, column: 7}},
+				},
+			})
 		})
 
 		t.Run("anon operation with a mutation", func(t *testing.T) {
@@ -84,12 +82,12 @@ func TestLoneAnonymousOperationRule(t *testing.T) {
       mutation Foo {
         fieldB
       }
-    `)(`[
-      {
-        message: "This anonymous operation must be the only defined operation.",
-        locations: [{ line: 2, column: 7 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   "This anonymous operation must be the only defined operation.",
+					locations: []Loc{{line: 2, column: 7}},
+				},
+			})
 		})
 
 		t.Run("anon operation with a subscription", func(t *testing.T) {
@@ -100,12 +98,12 @@ func TestLoneAnonymousOperationRule(t *testing.T) {
       subscription Foo {
         fieldB
       }
-    `)(`[
-      {
-        message: "This anonymous operation must be the only defined operation.",
-        locations: [{ line: 2, column: 7 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   "This anonymous operation must be the only defined operation.",
+					locations: []Loc{{line: 2, column: 7}},
+				},
+			})
 		})
 	})
 

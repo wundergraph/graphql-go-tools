@@ -2,33 +2,31 @@ package testsgo
 
 import (
 	"testing"
-
-	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation/reference/helpers"
 )
 
 func TestKnownDirectivesRule(t *testing.T) {
 
-	expectErrors := func(queryStr string) helpers.ResultCompare {
-		return helpers.ExpectValidationErrors("KnownDirectivesRule", queryStr)
+	expectErrors := func(queryStr string) ResultCompare {
+		return ExpectValidationErrors("KnownDirectivesRule", queryStr)
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)(`[]`)
+		expectErrors(queryStr)([]Err{})
 	}
 
-	expectSDLErrors := func(sdlStr string, sch ...string) helpers.ResultCompare {
+	expectSDLErrors := func(sdlStr string, sch ...string) ResultCompare {
 		schema := ""
 		if len(sch) > 0 {
 			schema = sch[0]
 		}
-		return helpers.ExpectSDLValidationErrors(schema, "KnownDirectivesRule", sdlStr)
+		return ExpectSDLValidationErrors(schema, "KnownDirectivesRule", sdlStr)
 	}
 
 	expectValidSDL := func(sdlStr string, schema ...string) {
-		expectSDLErrors(sdlStr, schema...)(`[]`)
+		expectSDLErrors(sdlStr, schema...)([]Err{})
 	}
 
-	schemaWithSDLDirectives := helpers.BuildSchema(`
+	schemaWithSDLDirectives := BuildSchema(`
   directive @onSchema on SCHEMA
   directive @onScalar on SCALAR
   directive @onObject on OBJECT
@@ -76,12 +74,12 @@ func TestKnownDirectivesRule(t *testing.T) {
           name
         }
       }
-    `)(`[
-      {
-        message: 'Unknown directive "@unknown".',
-        locations: [{ line: 3, column: 13 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   `Unknown directive "@unknown".`,
+					locations: []Loc{{line: 3, column: 13}},
+				},
+			})
 		})
 
 		t.Run("with many unknown directives", func(t *testing.T) {
@@ -97,20 +95,20 @@ func TestKnownDirectivesRule(t *testing.T) {
           }
         }
       }
-    `)(`[
-      {
-        message: 'Unknown directive "@unknown".',
-        locations: [{ line: 3, column: 13 }],
-      },
-      {
-        message: 'Unknown directive "@unknown".',
-        locations: [{ line: 6, column: 15 }],
-      },
-      {
-        message: 'Unknown directive "@unknown".',
-        locations: [{ line: 8, column: 16 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   `Unknown directive "@unknown".`,
+					locations: []Loc{{line: 3, column: 13}},
+				},
+				{
+					message:   `Unknown directive "@unknown".`,
+					locations: []Loc{{line: 6, column: 15}},
+				},
+				{
+					message:   `Unknown directive "@unknown".`,
+					locations: []Loc{{line: 8, column: 16}},
+				},
+			})
 		})
 
 		t.Run("with well placed directives", func(t *testing.T) {
@@ -158,24 +156,24 @@ func TestKnownDirectivesRule(t *testing.T) {
       mutation Bar @onQuery {
         someField
       }
-    `)(`[
-      {
-        message: 'Directive "@include" may not be used on QUERY.',
-        locations: [{ line: 2, column: 32 }],
-      },
-      {
-        message: 'Directive "@onQuery" may not be used on FIELD.',
-        locations: [{ line: 3, column: 14 }],
-      },
-      {
-        message: 'Directive "@onQuery" may not be used on FRAGMENT_SPREAD.',
-        locations: [{ line: 4, column: 17 }],
-      },
-      {
-        message: 'Directive "@onQuery" may not be used on MUTATION.',
-        locations: [{ line: 7, column: 20 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   `Directive "@include" may not be used on QUERY.`,
+					locations: []Loc{{line: 2, column: 32}},
+				},
+				{
+					message:   `Directive "@onQuery" may not be used on FIELD.`,
+					locations: []Loc{{line: 3, column: 14}},
+				},
+				{
+					message:   `Directive "@onQuery" may not be used on FRAGMENT_SPREAD.`,
+					locations: []Loc{{line: 4, column: 17}},
+				},
+				{
+					message:   `Directive "@onQuery" may not be used on MUTATION.`,
+					locations: []Loc{{line: 7, column: 20}},
+				},
+			})
 		})
 
 		t.Run("with misplaced variable definition directive", func(t *testing.T) {
@@ -183,12 +181,12 @@ func TestKnownDirectivesRule(t *testing.T) {
       query Foo($var: Boolean @onField) {
         name
       }
-    `)(`[
-      {
-        message: 'Directive "@onField" may not be used on VARIABLE_DEFINITION.',
-        locations: [{ line: 2, column: 31 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   `Directive "@onField" may not be used on VARIABLE_DEFINITION.`,
+					locations: []Loc{{line: 2, column: 31}},
+				},
+			})
 		})
 
 		t.Run("within SDL", func(t *testing.T) {
@@ -220,7 +218,7 @@ func TestKnownDirectivesRule(t *testing.T) {
 			})
 
 			t.Run("with directive defined in schema extension", func(t *testing.T) {
-				schema := helpers.BuildSchema(`
+				schema := BuildSchema(`
         type Query {
           foo: String
         }
@@ -236,7 +234,7 @@ func TestKnownDirectivesRule(t *testing.T) {
 			})
 
 			t.Run("with directive used in schema extension", func(t *testing.T) {
-				schema := helpers.BuildSchema(`
+				schema := BuildSchema(`
         directive @test on OBJECT
 
         type Query {
@@ -252,7 +250,7 @@ func TestKnownDirectivesRule(t *testing.T) {
 			})
 
 			t.Run("with unknown directive in schema extension", func(t *testing.T) {
-				schema := helpers.BuildSchema(`
+				schema := BuildSchema(`
         type Query {
           foo: String
         }
@@ -262,12 +260,12 @@ func TestKnownDirectivesRule(t *testing.T) {
           extend type Query @unknown
         `,
 					schema,
-				)(`[
-        {
-          message: 'Unknown directive "@unknown".',
-          locations: [{ line: 2, column: 29 }],
-        },
-]`)
+				)([]Err{
+					{
+						message:   `Unknown directive "@unknown".`,
+						locations: []Loc{{line: 2, column: 29}},
+					},
+				})
 			})
 
 			t.Run("with well placed directives", func(t *testing.T) {
@@ -345,69 +343,64 @@ func TestKnownDirectivesRule(t *testing.T) {
           extend schema @onObject
         `,
 					schemaWithSDLDirectives,
-				)(`[
-        {
-          message: 'Directive "@onInterface" may not be used on OBJECT.',
-          locations: [{ line: 2, column: 45 }],
-        },
-        {
-          message:
-            'Directive "@onInputFieldDefinition" may not be used on ARGUMENT_DEFINITION.',
-          locations: [{ line: 3, column: 32 }],
-        },
-        {
-          message:
-            'Directive "@onInputFieldDefinition" may not be used on FIELD_DEFINITION.',
-          locations: [{ line: 3, column: 65 }],
-        },
-        {
-          message: 'Directive "@onEnum" may not be used on SCALAR.',
-          locations: [{ line: 6, column: 27 }],
-        },
-        {
-          message: 'Directive "@onObject" may not be used on INTERFACE.',
-          locations: [{ line: 8, column: 33 }],
-        },
-        {
-          message:
-            'Directive "@onInputFieldDefinition" may not be used on ARGUMENT_DEFINITION.',
-          locations: [{ line: 9, column: 32 }],
-        },
-        {
-          message:
-            'Directive "@onInputFieldDefinition" may not be used on FIELD_DEFINITION.',
-          locations: [{ line: 9, column: 65 }],
-        },
-        {
-          message: 'Directive "@onEnumValue" may not be used on UNION.',
-          locations: [{ line: 12, column: 25 }],
-        },
-        {
-          message: 'Directive "@onScalar" may not be used on ENUM.',
-          locations: [{ line: 14, column: 23 }],
-        },
-        {
-          message: 'Directive "@onUnion" may not be used on ENUM_VALUE.',
-          locations: [{ line: 15, column: 22 }],
-        },
-        {
-          message: 'Directive "@onEnum" may not be used on INPUT_OBJECT.',
-          locations: [{ line: 18, column: 25 }],
-        },
-        {
-          message:
-            'Directive "@onArgumentDefinition" may not be used on INPUT_FIELD_DEFINITION.',
-          locations: [{ line: 19, column: 26 }],
-        },
-        {
-          message: 'Directive "@onObject" may not be used on SCHEMA.',
-          locations: [{ line: 22, column: 18 }],
-        },
-        {
-          message: 'Directive "@onObject" may not be used on SCHEMA.',
-          locations: [{ line: 26, column: 25 }],
-        },
-]`)
+				)([]Err{
+					{
+						message:   `Directive "@onInterface" may not be used on OBJECT.`,
+						locations: []Loc{{line: 2, column: 45}},
+					},
+					{
+						message:   `Directive "@onInputFieldDefinition" may not be used on ARGUMENT_DEFINITION.`,
+						locations: []Loc{{line: 3, column: 32}},
+					},
+					{
+						message:   `Directive "@onInputFieldDefinition" may not be used on FIELD_DEFINITION.`,
+						locations: []Loc{{line: 3, column: 65}},
+					},
+					{
+						message:   `Directive "@onEnum" may not be used on SCALAR.`,
+						locations: []Loc{{line: 6, column: 27}},
+					},
+					{
+						message:   `Directive "@onObject" may not be used on INTERFACE.`,
+						locations: []Loc{{line: 8, column: 33}},
+					},
+					{
+						message:   `Directive "@onInputFieldDefinition" may not be used on ARGUMENT_DEFINITION.`,
+						locations: []Loc{{line: 9, column: 32}},
+					},
+					{
+						message:   `Directive "@onInputFieldDefinition" may not be used on FIELD_DEFINITION.`,
+						locations: []Loc{{line: 9, column: 65}},
+					},
+					{
+						message:   `Directive "@onEnumValue" may not be used on UNION.`,
+						locations: []Loc{{line: 12, column: 25}},
+					},
+					{
+						message:   `Directive "@onScalar" may not be used on ENUM.`,
+						locations: []Loc{{line: 14, column: 23}},
+					},
+					{
+						message:   `Directive "@onUnion" may not be used on ENUM_VALUE.`,
+						locations: []Loc{{line: 15, column: 22}},
+					},
+					{
+						message:   `Directive "@onEnum" may not be used on INPUT_OBJECT.`,
+						locations: []Loc{{line: 18, column: 25}},
+					},
+					{
+						message:   `Directive "@onArgumentDefinition" may not be used on INPUT_FIELD_DEFINITION.`,
+						locations: []Loc{{line: 19, column: 26}},
+					},
+					{
+						message:   `Directive "@onObject" may not be used on SCHEMA.`,
+						locations: []Loc{{line: 22, column: 18}},
+					},
+					{
+						message:   `Directive "@onObject" may not be used on SCHEMA.`,
+						locations: []Loc{{line: 26, column: 25}},
+					},
+				})
 			})
 		})
 	})

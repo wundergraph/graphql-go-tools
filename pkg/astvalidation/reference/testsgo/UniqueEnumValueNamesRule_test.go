@@ -2,22 +2,20 @@ package testsgo
 
 import (
 	"testing"
-
-	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation/reference/helpers"
 )
 
 func TestUniqueEnumValueNamesRule(t *testing.T) {
 
-	expectSDLErrors := func(sdlStr string, sch ...string) helpers.ResultCompare {
+	expectSDLErrors := func(sdlStr string, sch ...string) ResultCompare {
 		schema := ""
 		if len(sch) > 0 {
 			schema = sch[0]
 		}
-		return helpers.ExpectSDLValidationErrors(schema, "UniqueEnumValueNamesRule", sdlStr)
+		return ExpectSDLValidationErrors(schema, "UniqueEnumValueNamesRule", sdlStr)
 	}
 
 	expectValidSDL := func(sdlStr string, schema ...string) {
-		expectSDLErrors(sdlStr, schema...)(`[]`)
+		expectSDLErrors(sdlStr, schema...)([]Err{})
 	}
 
 	t.Run("Validate: Unique enum value names", func(t *testing.T) {
@@ -51,15 +49,15 @@ func TestUniqueEnumValueNamesRule(t *testing.T) {
         BAR
         FOO
       }
-    `)(`[
-      {
-        message: 'Enum value "SomeEnum.FOO" can only be defined once.',
-        locations: [
-          { line: 3, column: 9 },
-          { line: 5, column: 9 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `Enum value "SomeEnum.FOO" can only be defined once.`,
+					locations: []Loc{
+						{line: 3, column: 9},
+						{line: 5, column: 9},
+					},
+				},
+			})
 		})
 
 		t.Run("extend enum with new value", func(t *testing.T) {
@@ -84,15 +82,15 @@ func TestUniqueEnumValueNamesRule(t *testing.T) {
       enum SomeEnum {
         FOO
       }
-    `)(`[
-      {
-        message: 'Enum value "SomeEnum.FOO" can only be defined once.',
-        locations: [
-          { line: 3, column: 9 },
-          { line: 6, column: 9 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `Enum value "SomeEnum.FOO" can only be defined once.`,
+					locations: []Loc{
+						{line: 3, column: 9},
+						{line: 6, column: 9},
+					},
+				},
+			})
 		})
 
 		t.Run("duplicate value inside extension", func(t *testing.T) {
@@ -103,15 +101,15 @@ func TestUniqueEnumValueNamesRule(t *testing.T) {
         BAR
         FOO
       }
-    `)(`[
-      {
-        message: 'Enum value "SomeEnum.FOO" can only be defined once.',
-        locations: [
-          { line: 4, column: 9 },
-          { line: 6, column: 9 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `Enum value "SomeEnum.FOO" can only be defined once.`,
+					locations: []Loc{
+						{line: 4, column: 9},
+						{line: 6, column: 9},
+					},
+				},
+			})
 		})
 
 		t.Run("duplicate value inside different extensions", func(t *testing.T) {
@@ -123,19 +121,19 @@ func TestUniqueEnumValueNamesRule(t *testing.T) {
       extend enum SomeEnum {
         FOO
       }
-    `)(`[
-      {
-        message: 'Enum value "SomeEnum.FOO" can only be defined once.',
-        locations: [
-          { line: 4, column: 9 },
-          { line: 7, column: 9 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `Enum value "SomeEnum.FOO" can only be defined once.`,
+					locations: []Loc{
+						{line: 4, column: 9},
+						{line: 7, column: 9},
+					},
+				},
+			})
 		})
 
 		t.Run("adding new value to the type inside existing schema", func(t *testing.T) {
-			schema := helpers.BuildSchema("enum SomeEnum")
+			schema := BuildSchema("enum SomeEnum")
 			sdl := `
       extend enum SomeEnum {
         FOO
@@ -146,7 +144,7 @@ func TestUniqueEnumValueNamesRule(t *testing.T) {
 		})
 
 		t.Run("adding conflicting value to existing schema twice", func(t *testing.T) {
-			schema := helpers.BuildSchema(`
+			schema := BuildSchema(`
       enum SomeEnum {
         FOO
       }
@@ -160,22 +158,20 @@ func TestUniqueEnumValueNamesRule(t *testing.T) {
       }
     `
 
-			expectSDLErrors(sdl, schema)(`[
-      {
-        message:
-          'Enum value "SomeEnum.FOO" already exists in the schema. It cannot also be defined in this type extension.',
-        locations: [{ line: 3, column: 9 }],
-      },
-      {
-        message:
-          'Enum value "SomeEnum.FOO" already exists in the schema. It cannot also be defined in this type extension.',
-        locations: [{ line: 6, column: 9 }],
-      },
-]`)
+			expectSDLErrors(sdl, schema)([]Err{
+				{
+					message:   `Enum value "SomeEnum.FOO" already exists in the schema. It cannot also be defined in this type extension.`,
+					locations: []Loc{{line: 3, column: 9}},
+				},
+				{
+					message:   `Enum value "SomeEnum.FOO" already exists in the schema. It cannot also be defined in this type extension.`,
+					locations: []Loc{{line: 6, column: 9}},
+				},
+			})
 		})
 
 		t.Run("adding enum values to existing schema twice", func(t *testing.T) {
-			schema := helpers.BuildSchema("enum SomeEnum")
+			schema := BuildSchema("enum SomeEnum")
 			sdl := `
       extend enum SomeEnum {
         FOO
@@ -185,15 +181,15 @@ func TestUniqueEnumValueNamesRule(t *testing.T) {
       }
     `
 
-			expectSDLErrors(sdl, schema)(`[
-      {
-        message: 'Enum value "SomeEnum.FOO" can only be defined once.',
-        locations: [
-          { line: 3, column: 9 },
-          { line: 6, column: 9 },
-        ],
-      },
-]`)
+			expectSDLErrors(sdl, schema)([]Err{
+				{
+					message: `Enum value "SomeEnum.FOO" can only be defined once.`,
+					locations: []Loc{
+						{line: 3, column: 9},
+						{line: 6, column: 9},
+					},
+				},
+			})
 		})
 	})
 

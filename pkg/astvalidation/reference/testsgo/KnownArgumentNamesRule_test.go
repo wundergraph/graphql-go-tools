@@ -2,26 +2,24 @@ package testsgo
 
 import (
 	"testing"
-
-	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation/reference/helpers"
 )
 
 func TestKnownArgumentNamesRule(t *testing.T) {
 
-	expectErrors := func(queryStr string) helpers.ResultCompare {
-		return helpers.ExpectValidationErrors("KnownArgumentNamesRule", queryStr)
+	expectErrors := func(queryStr string) ResultCompare {
+		return ExpectValidationErrors("KnownArgumentNamesRule", queryStr)
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)(`[]`)
+		expectErrors(queryStr)([]Err{})
 	}
 
-	expectSDLErrors := func(sdlStr string, sch ...string) helpers.ResultCompare {
+	expectSDLErrors := func(sdlStr string, sch ...string) ResultCompare {
 		schema := ""
 		if len(sch) > 0 {
 			schema = sch[0]
 		}
-		return helpers.ExpectSDLValidationErrors(
+		return ExpectSDLValidationErrors(
 			schema,
 			"KnownArgumentNamesOnDirectivesRule",
 			sdlStr,
@@ -29,7 +27,7 @@ func TestKnownArgumentNamesRule(t *testing.T) {
 	}
 
 	expectValidSDL := func(sdlStr string, schema ...string) {
-		expectSDLErrors(sdlStr)(`[]`)
+		expectSDLErrors(sdlStr)([]Err{})
 	}
 
 	t.Run("Validate: Known argument names", func(t *testing.T) {
@@ -103,12 +101,12 @@ func TestKnownArgumentNamesRule(t *testing.T) {
       {
         dog @skip(unless: true)
       }
-    `)(`[
-      {
-        message: 'Unknown argument "unless" on directive "@skip".',
-        locations: [{ line: 3, column: 19 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   `Unknown argument "unless" on directive "@skip".`,
+					locations: []Loc{{line: 3, column: 19}},
+				},
+			})
 		})
 
 		t.Run("directive without args is valid", func(t *testing.T) {
@@ -124,12 +122,12 @@ func TestKnownArgumentNamesRule(t *testing.T) {
       {
         dog @onField(if: true)
       }
-    `)(`[
-      {
-        message: 'Unknown argument "if" on directive "@onField".',
-        locations: [{ line: 3, column: 22 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   `Unknown argument "if" on directive "@onField".`,
+					locations: []Loc{{line: 3, column: 22}},
+				},
+			})
 		})
 
 		t.Run("misspelled directive args are reported", func(t *testing.T) {
@@ -137,13 +135,12 @@ func TestKnownArgumentNamesRule(t *testing.T) {
       {
         dog @skip(iff: true)
       }
-    `)(`[
-      {
-        message:
-          'Unknown argument "iff" on directive "@skip". Did you mean "if"?',
-        locations: [{ line: 3, column: 19 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   `Unknown argument "iff" on directive "@skip". Did you mean "if"?`,
+					locations: []Loc{{line: 3, column: 19}},
+				},
+			})
 		})
 
 		t.Run("invalid arg name", func(t *testing.T) {
@@ -151,12 +148,12 @@ func TestKnownArgumentNamesRule(t *testing.T) {
       fragment invalidArgName on Dog {
         doesKnowCommand(unknown: true)
       }
-    `)(`[
-      {
-        message: 'Unknown argument "unknown" on field "Dog.doesKnowCommand".',
-        locations: [{ line: 3, column: 25 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   `Unknown argument "unknown" on field "Dog.doesKnowCommand".`,
+					locations: []Loc{{line: 3, column: 25}},
+				},
+			})
 		})
 
 		t.Run("misspelled arg name is reported", func(t *testing.T) {
@@ -164,13 +161,12 @@ func TestKnownArgumentNamesRule(t *testing.T) {
       fragment invalidArgName on Dog {
         doesKnowCommand(DogCommand: true)
       }
-    `)(`[
-      {
-        message:
-          'Unknown argument "DogCommand" on field "Dog.doesKnowCommand". Did you mean "dogCommand"?',
-        locations: [{ line: 3, column: 25 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   `Unknown argument "DogCommand" on field "Dog.doesKnowCommand". Did you mean "dogCommand"?`,
+					locations: []Loc{{line: 3, column: 25}},
+				},
+			})
 		})
 
 		t.Run("unknown args amongst known args", func(t *testing.T) {
@@ -178,16 +174,16 @@ func TestKnownArgumentNamesRule(t *testing.T) {
       fragment oneGoodArgOneInvalidArg on Dog {
         doesKnowCommand(whoKnows: 1, dogCommand: SIT, unknown: true)
       }
-    `)(`[
-      {
-        message: 'Unknown argument "whoKnows" on field "Dog.doesKnowCommand".',
-        locations: [{ line: 3, column: 25 }],
-      },
-      {
-        message: 'Unknown argument "unknown" on field "Dog.doesKnowCommand".',
-        locations: [{ line: 3, column: 55 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   `Unknown argument "whoKnows" on field "Dog.doesKnowCommand".`,
+					locations: []Loc{{line: 3, column: 25}},
+				},
+				{
+					message:   `Unknown argument "unknown" on field "Dog.doesKnowCommand".`,
+					locations: []Loc{{line: 3, column: 55}},
+				},
+			})
 		})
 
 		t.Run("unknown args deeply", func(t *testing.T) {
@@ -204,16 +200,16 @@ func TestKnownArgumentNamesRule(t *testing.T) {
           }
         }
       }
-    `)(`[
-      {
-        message: 'Unknown argument "unknown" on field "Dog.doesKnowCommand".',
-        locations: [{ line: 4, column: 27 }],
-      },
-      {
-        message: 'Unknown argument "unknown" on field "Dog.doesKnowCommand".',
-        locations: [{ line: 9, column: 31 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   `Unknown argument "unknown" on field "Dog.doesKnowCommand".`,
+					locations: []Loc{{line: 4, column: 27}},
+				},
+				{
+					message:   `Unknown argument "unknown" on field "Dog.doesKnowCommand".`,
+					locations: []Loc{{line: 9, column: 31}},
+				},
+			})
 		})
 
 		t.Run("within SDL", func(t *testing.T) {
@@ -234,12 +230,12 @@ func TestKnownArgumentNamesRule(t *testing.T) {
         }
 
         directive @test(arg: String) on FIELD_DEFINITION
-      `)(`[
-        {
-          message: 'Unknown argument "unknown" on directive "@test".',
-          locations: [{ line: 3, column: 29 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   `Unknown argument "unknown" on directive "@test".`,
+						locations: []Loc{{line: 3, column: 29}},
+					},
+				})
 			})
 
 			t.Run("misspelled arg name is reported on directive defined inside SDL", func(t *testing.T) {
@@ -249,13 +245,12 @@ func TestKnownArgumentNamesRule(t *testing.T) {
         }
 
         directive @test(arg: String) on FIELD_DEFINITION
-      `)(`[
-        {
-          message:
-            'Unknown argument "agr" on directive "@test". Did you mean "arg"?',
-          locations: [{ line: 3, column: 29 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   `Unknown argument "agr" on directive "@test". Did you mean "arg"?`,
+						locations: []Loc{{line: 3, column: 29}},
+					},
+				})
 			})
 
 			t.Run("unknown arg on standard directive", func(t *testing.T) {
@@ -263,12 +258,12 @@ func TestKnownArgumentNamesRule(t *testing.T) {
         type Query {
           foo: String @deprecated(unknown: "")
         }
-      `)(`[
-        {
-          message: 'Unknown argument "unknown" on directive "@deprecated".',
-          locations: [{ line: 3, column: 35 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   `Unknown argument "unknown" on directive "@deprecated".`,
+						locations: []Loc{{line: 3, column: 35}},
+					},
+				})
 			})
 
 			t.Run("unknown arg on overridden standard directive", func(t *testing.T) {
@@ -277,16 +272,16 @@ func TestKnownArgumentNamesRule(t *testing.T) {
           foo: String @deprecated(reason: "")
         }
         directive @deprecated(arg: String) on FIELD
-      `)(`[
-        {
-          message: 'Unknown argument "reason" on directive "@deprecated".',
-          locations: [{ line: 3, column: 35 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   `Unknown argument "reason" on directive "@deprecated".`,
+						locations: []Loc{{line: 3, column: 35}},
+					},
+				})
 			})
 
 			t.Run("unknown arg on directive defined in schema extension", func(t *testing.T) {
-				schema := helpers.BuildSchema(`
+				schema := BuildSchema(`
         type Query {
           foo: String
         }
@@ -298,16 +293,16 @@ func TestKnownArgumentNamesRule(t *testing.T) {
           extend type Query  @test(unknown: "")
         `,
 					schema,
-				)(`[
-        {
-          message: 'Unknown argument "unknown" on directive "@test".',
-          locations: [{ line: 4, column: 36 }],
-        },
-]`)
+				)([]Err{
+					{
+						message:   `Unknown argument "unknown" on directive "@test".`,
+						locations: []Loc{{line: 4, column: 36}},
+					},
+				})
 			})
 
 			t.Run("unknown arg on directive used in schema extension", func(t *testing.T) {
-				schema := helpers.BuildSchema(`
+				schema := BuildSchema(`
         directive @test(arg: String) on OBJECT
 
         type Query {
@@ -319,12 +314,12 @@ func TestKnownArgumentNamesRule(t *testing.T) {
           extend type Query @test(unknown: "")
         `,
 					schema,
-				)(`[
-        {
-          message: 'Unknown argument "unknown" on directive "@test".',
-          locations: [{ line: 2, column: 35 }],
-        },
-]`)
+				)([]Err{
+					{
+						message:   `Unknown argument "unknown" on directive "@test".`,
+						locations: []Loc{{line: 2, column: 35}},
+					},
+				})
 			})
 		})
 	})

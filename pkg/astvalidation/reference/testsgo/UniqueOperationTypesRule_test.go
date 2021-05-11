@@ -2,22 +2,20 @@ package testsgo
 
 import (
 	"testing"
-
-	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation/reference/helpers"
 )
 
 func TestUniqueOperationTypesRule(t *testing.T) {
 
-	expectSDLErrors := func(sdlStr string, sch ...string) helpers.ResultCompare {
+	expectSDLErrors := func(sdlStr string, sch ...string) ResultCompare {
 		schema := ""
 		if len(sch) > 0 {
 			schema = sch[0]
 		}
-		return helpers.ExpectSDLValidationErrors(schema, "UniqueOperationTypesRule", sdlStr)
+		return ExpectSDLValidationErrors(schema, "UniqueOperationTypesRule", sdlStr)
 	}
 
 	expectValidSDL := func(sdlStr string, schema ...string) {
-		expectSDLErrors(sdlStr, schema...)(`[]`)
+		expectSDLErrors(sdlStr, schema...)([]Err{})
 	}
 
 	t.Run("Validate: Unique operation types", func(t *testing.T) {
@@ -86,29 +84,29 @@ func TestUniqueOperationTypesRule(t *testing.T) {
         mutation: Foo
         subscription: Foo
       }
-    `)(`[
-      {
-        message: "There can be only one query type in schema.",
-        locations: [
-          { line: 5, column: 9 },
-          { line: 9, column: 9 },
-        ],
-      },
-      {
-        message: "There can be only one mutation type in schema.",
-        locations: [
-          { line: 6, column: 9 },
-          { line: 10, column: 9 },
-        ],
-      },
-      {
-        message: "There can be only one subscription type in schema.",
-        locations: [
-          { line: 7, column: 9 },
-          { line: 11, column: 9 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: "There can be only one query type in schema.",
+					locations: []Loc{
+						{line: 5, column: 9},
+						{line: 9, column: 9},
+					},
+				},
+				{
+					message: "There can be only one mutation type in schema.",
+					locations: []Loc{
+						{line: 6, column: 9},
+						{line: 10, column: 9},
+					},
+				},
+				{
+					message: "There can be only one subscription type in schema.",
+					locations: []Loc{
+						{line: 7, column: 9},
+						{line: 11, column: 9},
+					},
+				},
+			})
 		})
 
 		t.Run("duplicate operation types inside schema extension", func(t *testing.T) {
@@ -126,29 +124,29 @@ func TestUniqueOperationTypesRule(t *testing.T) {
         mutation: Foo
         subscription: Foo
       }
-    `)(`[
-      {
-        message: "There can be only one query type in schema.",
-        locations: [
-          { line: 5, column: 9 },
-          { line: 11, column: 9 },
-        ],
-      },
-      {
-        message: "There can be only one mutation type in schema.",
-        locations: [
-          { line: 6, column: 9 },
-          { line: 12, column: 9 },
-        ],
-      },
-      {
-        message: "There can be only one subscription type in schema.",
-        locations: [
-          { line: 7, column: 9 },
-          { line: 13, column: 9 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: "There can be only one query type in schema.",
+					locations: []Loc{
+						{line: 5, column: 9},
+						{line: 11, column: 9},
+					},
+				},
+				{
+					message: "There can be only one mutation type in schema.",
+					locations: []Loc{
+						{line: 6, column: 9},
+						{line: 12, column: 9},
+					},
+				},
+				{
+					message: "There can be only one subscription type in schema.",
+					locations: []Loc{
+						{line: 7, column: 9},
+						{line: 13, column: 9},
+					},
+				},
+			})
 		})
 
 		t.Run("duplicate operation types inside schema extension twice", func(t *testing.T) {
@@ -172,50 +170,50 @@ func TestUniqueOperationTypesRule(t *testing.T) {
         mutation: Foo
         subscription: Foo
       }
-    `)(`[
-      {
-        message: "There can be only one query type in schema.",
-        locations: [
-          { line: 5, column: 9 },
-          { line: 11, column: 9 },
-        ],
-      },
-      {
-        message: "There can be only one mutation type in schema.",
-        locations: [
-          { line: 6, column: 9 },
-          { line: 12, column: 9 },
-        ],
-      },
-      {
-        message: "There can be only one subscription type in schema.",
-        locations: [
-          { line: 7, column: 9 },
-          { line: 13, column: 9 },
-        ],
-      },
-      {
-        message: "There can be only one query type in schema.",
-        locations: [
-          { line: 5, column: 9 },
-          { line: 17, column: 9 },
-        ],
-      },
-      {
-        message: "There can be only one mutation type in schema.",
-        locations: [
-          { line: 6, column: 9 },
-          { line: 18, column: 9 },
-        ],
-      },
-      {
-        message: "There can be only one subscription type in schema.",
-        locations: [
-          { line: 7, column: 9 },
-          { line: 19, column: 9 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: "There can be only one query type in schema.",
+					locations: []Loc{
+						{line: 5, column: 9},
+						{line: 11, column: 9},
+					},
+				},
+				{
+					message: "There can be only one mutation type in schema.",
+					locations: []Loc{
+						{line: 6, column: 9},
+						{line: 12, column: 9},
+					},
+				},
+				{
+					message: "There can be only one subscription type in schema.",
+					locations: []Loc{
+						{line: 7, column: 9},
+						{line: 13, column: 9},
+					},
+				},
+				{
+					message: "There can be only one query type in schema.",
+					locations: []Loc{
+						{line: 5, column: 9},
+						{line: 17, column: 9},
+					},
+				},
+				{
+					message: "There can be only one mutation type in schema.",
+					locations: []Loc{
+						{line: 6, column: 9},
+						{line: 18, column: 9},
+					},
+				},
+				{
+					message: "There can be only one subscription type in schema.",
+					locations: []Loc{
+						{line: 7, column: 9},
+						{line: 19, column: 9},
+					},
+				},
+			})
 		})
 
 		t.Run("duplicate operation types inside second schema extension", func(t *testing.T) {
@@ -236,33 +234,33 @@ func TestUniqueOperationTypesRule(t *testing.T) {
         mutation: Foo
         subscription: Foo
       }
-    `)(`[
-      {
-        message: "There can be only one query type in schema.",
-        locations: [
-          { line: 5, column: 9 },
-          { line: 14, column: 9 },
-        ],
-      },
-      {
-        message: "There can be only one mutation type in schema.",
-        locations: [
-          { line: 9, column: 9 },
-          { line: 15, column: 9 },
-        ],
-      },
-      {
-        message: "There can be only one subscription type in schema.",
-        locations: [
-          { line: 10, column: 9 },
-          { line: 16, column: 9 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: "There can be only one query type in schema.",
+					locations: []Loc{
+						{line: 5, column: 9},
+						{line: 14, column: 9},
+					},
+				},
+				{
+					message: "There can be only one mutation type in schema.",
+					locations: []Loc{
+						{line: 9, column: 9},
+						{line: 15, column: 9},
+					},
+				},
+				{
+					message: "There can be only one subscription type in schema.",
+					locations: []Loc{
+						{line: 10, column: 9},
+						{line: 16, column: 9},
+					},
+				},
+			})
 		})
 
 		t.Run("define schema inside extension SDL", func(t *testing.T) {
-			schema := helpers.BuildSchema("type Foo")
+			schema := BuildSchema("type Foo")
 			sdl := `
       schema {
         query: Foo
@@ -275,7 +273,7 @@ func TestUniqueOperationTypesRule(t *testing.T) {
 		})
 
 		t.Run("define and extend schema inside extension SDL", func(t *testing.T) {
-			schema := helpers.BuildSchema("type Foo")
+			schema := BuildSchema("type Foo")
 			sdl := `
       schema { query: Foo }
       extend schema { mutation: Foo }
@@ -286,7 +284,7 @@ func TestUniqueOperationTypesRule(t *testing.T) {
 		})
 
 		t.Run("adding new operation types to existing schema", func(t *testing.T) {
-			schema := helpers.BuildSchema("type Query")
+			schema := BuildSchema("type Query")
 			sdl := `
       extend schema { mutation: Foo }
       extend schema { subscription: Foo }
@@ -296,7 +294,7 @@ func TestUniqueOperationTypesRule(t *testing.T) {
 		})
 
 		t.Run("adding conflicting operation types to existing schema", func(t *testing.T) {
-			schema := helpers.BuildSchema(`
+			schema := BuildSchema(`
       type Query
       type Mutation
       type Subscription
@@ -312,27 +310,24 @@ func TestUniqueOperationTypesRule(t *testing.T) {
       }
     `
 
-			expectSDLErrors(sdl, schema)(`[
-      {
-        message:
-          "Type for query already defined in the schema. It cannot be redefined.",
-        locations: [{ line: 3, column: 9 }],
-      },
-      {
-        message:
-          "Type for mutation already defined in the schema. It cannot be redefined.",
-        locations: [{ line: 4, column: 9 }],
-      },
-      {
-        message:
-          "Type for subscription already defined in the schema. It cannot be redefined.",
-        locations: [{ line: 5, column: 9 }],
-      },
-]`)
+			expectSDLErrors(sdl, schema)([]Err{
+				{
+					message:   "Type for query already defined in the schema. It cannot be redefined.",
+					locations: []Loc{{line: 3, column: 9}},
+				},
+				{
+					message:   "Type for mutation already defined in the schema. It cannot be redefined.",
+					locations: []Loc{{line: 4, column: 9}},
+				},
+				{
+					message:   "Type for subscription already defined in the schema. It cannot be redefined.",
+					locations: []Loc{{line: 5, column: 9}},
+				},
+			})
 		})
 
 		t.Run("adding conflicting operation types to existing schema twice", func(t *testing.T) {
-			schema := helpers.BuildSchema(`
+			schema := BuildSchema(`
       type Query
       type Mutation
       type Subscription
@@ -352,38 +347,32 @@ func TestUniqueOperationTypesRule(t *testing.T) {
       }
     `
 
-			expectSDLErrors(sdl, schema)(`[
-      {
-        message:
-          "Type for query already defined in the schema. It cannot be redefined.",
-        locations: [{ line: 3, column: 9 }],
-      },
-      {
-        message:
-          "Type for mutation already defined in the schema. It cannot be redefined.",
-        locations: [{ line: 4, column: 9 }],
-      },
-      {
-        message:
-          "Type for subscription already defined in the schema. It cannot be redefined.",
-        locations: [{ line: 5, column: 9 }],
-      },
-      {
-        message:
-          "Type for query already defined in the schema. It cannot be redefined.",
-        locations: [{ line: 9, column: 9 }],
-      },
-      {
-        message:
-          "Type for mutation already defined in the schema. It cannot be redefined.",
-        locations: [{ line: 10, column: 9 }],
-      },
-      {
-        message:
-          "Type for subscription already defined in the schema. It cannot be redefined.",
-        locations: [{ line: 11, column: 9 }],
-      },
-]`)
+			expectSDLErrors(sdl, schema)([]Err{
+				{
+					message:   "Type for query already defined in the schema. It cannot be redefined.",
+					locations: []Loc{{line: 3, column: 9}},
+				},
+				{
+					message:   "Type for mutation already defined in the schema. It cannot be redefined.",
+					locations: []Loc{{line: 4, column: 9}},
+				},
+				{
+					message:   "Type for subscription already defined in the schema. It cannot be redefined.",
+					locations: []Loc{{line: 5, column: 9}},
+				},
+				{
+					message:   "Type for query already defined in the schema. It cannot be redefined.",
+					locations: []Loc{{line: 9, column: 9}},
+				},
+				{
+					message:   "Type for mutation already defined in the schema. It cannot be redefined.",
+					locations: []Loc{{line: 10, column: 9}},
+				},
+				{
+					message:   "Type for subscription already defined in the schema. It cannot be redefined.",
+					locations: []Loc{{line: 11, column: 9}},
+				},
+			})
 		})
 	})
 

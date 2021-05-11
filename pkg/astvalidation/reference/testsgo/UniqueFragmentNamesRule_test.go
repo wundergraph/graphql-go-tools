@@ -2,18 +2,16 @@ package testsgo
 
 import (
 	"testing"
-
-	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation/reference/helpers"
 )
 
 func TestUniqueFragmentNamesRule(t *testing.T) {
 
-	expectErrors := func(queryStr string) helpers.ResultCompare {
-		return helpers.ExpectValidationErrors("UniqueFragmentNamesRule", queryStr)
+	expectErrors := func(queryStr string) ResultCompare {
+		return ExpectValidationErrors("UniqueFragmentNamesRule", queryStr)
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)(`[]`)
+		expectErrors(queryStr)([]Err{})
 	}
 
 	t.Run("Validate: Unique fragment names", func(t *testing.T) {
@@ -91,15 +89,15 @@ func TestUniqueFragmentNamesRule(t *testing.T) {
       fragment fragA on Type {
         fieldB
       }
-    `)(`[
-      {
-        message: 'There can be only one fragment named "fragA".',
-        locations: [
-          { line: 5, column: 16 },
-          { line: 8, column: 16 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `There can be only one fragment named "fragA".`,
+					locations: []Loc{
+						{line: 5, column: 16},
+						{line: 8, column: 16},
+					},
+				},
+			})
 		})
 
 		t.Run("fragments named the same without being referenced", func(t *testing.T) {
@@ -110,15 +108,15 @@ func TestUniqueFragmentNamesRule(t *testing.T) {
       fragment fragA on Type {
         fieldB
       }
-    `)(`[
-      {
-        message: 'There can be only one fragment named "fragA".',
-        locations: [
-          { line: 2, column: 16 },
-          { line: 5, column: 16 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `There can be only one fragment named "fragA".`,
+					locations: []Loc{
+						{line: 2, column: 16},
+						{line: 5, column: 16},
+					},
+				},
+			})
 		})
 	})
 

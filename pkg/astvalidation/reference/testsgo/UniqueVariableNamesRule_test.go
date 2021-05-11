@@ -2,18 +2,16 @@ package testsgo
 
 import (
 	"testing"
-
-	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation/reference/helpers"
 )
 
 func TestUniqueVariableNamesRule(t *testing.T) {
 
-	expectErrors := func(queryStr string) helpers.ResultCompare {
-		return helpers.ExpectValidationErrors("UniqueVariableNamesRule", queryStr)
+	expectErrors := func(queryStr string) ResultCompare {
+		return ExpectValidationErrors("UniqueVariableNamesRule", queryStr)
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)(`[]`)
+		expectErrors(queryStr)([]Err{})
 	}
 
 	t.Run("Validate: Unique variable names", func(t *testing.T) {
@@ -29,36 +27,36 @@ func TestUniqueVariableNamesRule(t *testing.T) {
       query A($x: Int, $x: Int, $x: String) { __typename }
       query B($x: String, $x: Int) { __typename }
       query C($x: Int, $x: Int) { __typename }
-    `)(`[
-      {
-        message: 'There can be only one variable named "$x".',
-        locations: [
-          { line: 2, column: 16 },
-          { line: 2, column: 25 },
-        ],
-      },
-      {
-        message: 'There can be only one variable named "$x".',
-        locations: [
-          { line: 2, column: 16 },
-          { line: 2, column: 34 },
-        ],
-      },
-      {
-        message: 'There can be only one variable named "$x".',
-        locations: [
-          { line: 3, column: 16 },
-          { line: 3, column: 28 },
-        ],
-      },
-      {
-        message: 'There can be only one variable named "$x".',
-        locations: [
-          { line: 4, column: 16 },
-          { line: 4, column: 25 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `There can be only one variable named "$x".`,
+					locations: []Loc{
+						{line: 2, column: 16},
+						{line: 2, column: 25},
+					},
+				},
+				{
+					message: `There can be only one variable named "$x".`,
+					locations: []Loc{
+						{line: 2, column: 16},
+						{line: 2, column: 34},
+					},
+				},
+				{
+					message: `There can be only one variable named "$x".`,
+					locations: []Loc{
+						{line: 3, column: 16},
+						{line: 3, column: 28},
+					},
+				},
+				{
+					message: `There can be only one variable named "$x".`,
+					locations: []Loc{
+						{line: 4, column: 16},
+						{line: 4, column: 25},
+					},
+				},
+			})
 		})
 	})
 

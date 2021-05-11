@@ -2,18 +2,16 @@ package testsgo
 
 import (
 	"testing"
-
-	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation/reference/helpers"
 )
 
 func TestExecutableDefinitionsRule(t *testing.T) {
 
-	expectErrors := func(queryStr string) helpers.ResultCompare {
-		return helpers.ExpectValidationErrors("ExecutableDefinitionsRule", queryStr)
+	expectErrors := func(queryStr string) ResultCompare {
+		return ExpectValidationErrors("ExecutableDefinitionsRule", queryStr)
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)(`[]`)
+		expectErrors(queryStr)([]Err{})
 	}
 
 	t.Run("Validate: Executable definitions", func(t *testing.T) {
@@ -57,16 +55,16 @@ func TestExecutableDefinitionsRule(t *testing.T) {
       extend type Dog {
         color: String
       }
-    `)(`[
-      {
-        message: 'The "Cow" definition is not executable.',
-        locations: [{ line: 8, column: 7 }],
-      },
-      {
-        message: 'The "Dog" definition is not executable.',
-        locations: [{ line: 12, column: 7 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   `The "Cow" definition is not executable.`,
+					locations: []Loc{{line: 8, column: 7}},
+				},
+				{
+					message:   `The "Dog" definition is not executable.`,
+					locations: []Loc{{line: 12, column: 7}},
+				},
+			})
 		})
 
 		t.Run("with schema definition", func(t *testing.T) {
@@ -80,20 +78,20 @@ func TestExecutableDefinitionsRule(t *testing.T) {
       }
 
       extend schema @directive
-    `)(`[
-      {
-        message: "The schema definition is not executable.",
-        locations: [{ line: 2, column: 7 }],
-      },
-      {
-        message: 'The "Query" definition is not executable.',
-        locations: [{ line: 6, column: 7 }],
-      },
-      {
-        message: "The schema definition is not executable.",
-        locations: [{ line: 10, column: 7 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   "The schema definition is not executable.",
+					locations: []Loc{{line: 2, column: 7}},
+				},
+				{
+					message:   `The "Query" definition is not executable.`,
+					locations: []Loc{{line: 6, column: 7}},
+				},
+				{
+					message:   "The schema definition is not executable.",
+					locations: []Loc{{line: 10, column: 7}},
+				},
+			})
 		})
 	})
 

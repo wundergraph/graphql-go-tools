@@ -2,22 +2,20 @@ package testsgo
 
 import (
 	"testing"
-
-	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation/reference/helpers"
 )
 
 func TestLoneSchemaDefinitionRule(t *testing.T) {
 
-	expectSDLErrors := func(sdlStr string, sch ...string) helpers.ResultCompare {
+	expectSDLErrors := func(sdlStr string, sch ...string) ResultCompare {
 		schema := ""
 		if len(sch) > 0 {
 			schema = sch[0]
 		}
-		return helpers.ExpectSDLValidationErrors(schema, "LoneSchemaDefinitionRule", sdlStr)
+		return ExpectSDLValidationErrors(schema, "LoneSchemaDefinitionRule", sdlStr)
 	}
 
 	expectValidSDL := func(sdlStr string, schema ...string) {
-		expectSDLErrors(sdlStr, schema...)(`[]`)
+		expectSDLErrors(sdlStr, schema...)([]Err{})
 	}
 
 	t.Run("Validate: Schema definition should be alone", func(t *testing.T) {
@@ -58,20 +56,20 @@ func TestLoneSchemaDefinitionRule(t *testing.T) {
       schema {
         subscription: Foo
       }
-    `)(`[
-      {
-        message: "Must provide only one schema definition.",
-        locations: [{ line: 10, column: 7 }],
-      },
-      {
-        message: "Must provide only one schema definition.",
-        locations: [{ line: 14, column: 7 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   "Must provide only one schema definition.",
+					locations: []Loc{{line: 10, column: 7}},
+				},
+				{
+					message:   "Must provide only one schema definition.",
+					locations: []Loc{{line: 14, column: 7}},
+				},
+			})
 		})
 
 		t.Run("define schema in schema extension", func(t *testing.T) {
-			schema := helpers.BuildSchema(`
+			schema := BuildSchema(`
       type Foo {
         foo: String
       }
@@ -84,11 +82,11 @@ func TestLoneSchemaDefinitionRule(t *testing.T) {
         }
       `,
 				schema,
-			)(`[]`)
+			)([]Err{})
 		})
 
 		t.Run("redefine schema in schema extension", func(t *testing.T) {
-			schema := helpers.BuildSchema(`
+			schema := BuildSchema(`
       schema {
         query: Foo
       }
@@ -105,16 +103,16 @@ func TestLoneSchemaDefinitionRule(t *testing.T) {
         }
       `,
 				schema,
-			)(`[
-      {
-        message: "Cannot define a new schema within a schema extension.",
-        locations: [{ line: 2, column: 9 }],
-      },
-]`)
+			)([]Err{
+				{
+					message:   "Cannot define a new schema within a schema extension.",
+					locations: []Loc{{line: 2, column: 9}},
+				},
+			})
 		})
 
 		t.Run("redefine implicit schema in schema extension", func(t *testing.T) {
-			schema := helpers.BuildSchema(`
+			schema := BuildSchema(`
       type Query {
         fooField: Foo
       }
@@ -131,16 +129,16 @@ func TestLoneSchemaDefinitionRule(t *testing.T) {
         }
       `,
 				schema,
-			)(`[
-      {
-        message: "Cannot define a new schema within a schema extension.",
-        locations: [{ line: 2, column: 9 }],
-      },
-]`)
+			)([]Err{
+				{
+					message:   "Cannot define a new schema within a schema extension.",
+					locations: []Loc{{line: 2, column: 9}},
+				},
+			})
 		})
 
 		t.Run("extend schema in schema extension", func(t *testing.T) {
-			schema := helpers.BuildSchema(`
+			schema := BuildSchema(`
       type Query {
         fooField: Foo
       }

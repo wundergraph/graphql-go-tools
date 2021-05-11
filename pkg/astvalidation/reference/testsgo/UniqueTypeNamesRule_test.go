@@ -2,22 +2,20 @@ package testsgo
 
 import (
 	"testing"
-
-	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation/reference/helpers"
 )
 
 func TestUniqueTypeNamesRule(t *testing.T) {
 
-	expectSDLErrors := func(sdlStr string, sch ...string) helpers.ResultCompare {
+	expectSDLErrors := func(sdlStr string, sch ...string) ResultCompare {
 		schema := ""
 		if len(sch) > 0 {
 			schema = sch[0]
 		}
-		return helpers.ExpectSDLValidationErrors(schema, "UniqueTypeNamesRule", sdlStr)
+		return ExpectSDLValidationErrors(schema, "UniqueTypeNamesRule", sdlStr)
 	}
 
 	expectValidSDL := func(sdlStr string, schema ...string) {
-		expectSDLErrors(sdlStr, schema...)(`[]`)
+		expectSDLErrors(sdlStr, schema...)([]Err{})
 	}
 
 	t.Run("Validate: Unique type names", func(t *testing.T) {
@@ -61,66 +59,66 @@ func TestUniqueTypeNamesRule(t *testing.T) {
       union Foo
       enum Foo
       input Foo
-    `)(`[
-      {
-        message: 'There can be only one type named "Foo".',
-        locations: [
-          { line: 2, column: 12 },
-          { line: 4, column: 14 },
-        ],
-      },
-      {
-        message: 'There can be only one type named "Foo".',
-        locations: [
-          { line: 2, column: 12 },
-          { line: 5, column: 12 },
-        ],
-      },
-      {
-        message: 'There can be only one type named "Foo".',
-        locations: [
-          { line: 2, column: 12 },
-          { line: 6, column: 17 },
-        ],
-      },
-      {
-        message: 'There can be only one type named "Foo".',
-        locations: [
-          { line: 2, column: 12 },
-          { line: 7, column: 13 },
-        ],
-      },
-      {
-        message: 'There can be only one type named "Foo".',
-        locations: [
-          { line: 2, column: 12 },
-          { line: 8, column: 12 },
-        ],
-      },
-      {
-        message: 'There can be only one type named "Foo".',
-        locations: [
-          { line: 2, column: 12 },
-          { line: 9, column: 13 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `There can be only one type named "Foo".`,
+					locations: []Loc{
+						{line: 2, column: 12},
+						{line: 4, column: 14},
+					},
+				},
+				{
+					message: `There can be only one type named "Foo".`,
+					locations: []Loc{
+						{line: 2, column: 12},
+						{line: 5, column: 12},
+					},
+				},
+				{
+					message: `There can be only one type named "Foo".`,
+					locations: []Loc{
+						{line: 2, column: 12},
+						{line: 6, column: 17},
+					},
+				},
+				{
+					message: `There can be only one type named "Foo".`,
+					locations: []Loc{
+						{line: 2, column: 12},
+						{line: 7, column: 13},
+					},
+				},
+				{
+					message: `There can be only one type named "Foo".`,
+					locations: []Loc{
+						{line: 2, column: 12},
+						{line: 8, column: 12},
+					},
+				},
+				{
+					message: `There can be only one type named "Foo".`,
+					locations: []Loc{
+						{line: 2, column: 12},
+						{line: 9, column: 13},
+					},
+				},
+			})
 		})
 
 		t.Run("adding new type to existing schema", func(t *testing.T) {
-			schema := helpers.BuildSchema("type Foo")
+			schema := BuildSchema("type Foo")
 
 			expectValidSDL("type Bar", schema)
 		})
 
 		t.Run("adding new type to existing schema with same-named directive", func(t *testing.T) {
-			schema := helpers.BuildSchema("directive @Foo on SCHEMA")
+			schema := BuildSchema("directive @Foo on SCHEMA")
 
 			expectValidSDL("type Foo", schema)
 		})
 
 		t.Run("adding conflicting types to existing schema", func(t *testing.T) {
-			schema := helpers.BuildSchema("type Foo")
+			schema := BuildSchema("type Foo")
 			sdl := `
       scalar Foo
       type Foo
@@ -130,38 +128,32 @@ func TestUniqueTypeNamesRule(t *testing.T) {
       input Foo
     `
 
-			expectSDLErrors(sdl, schema)(`[
-      {
-        message:
-          'Type "Foo" already exists in the schema. It cannot also be defined in this type definition.',
-        locations: [{ line: 2, column: 14 }],
-      },
-      {
-        message:
-          'Type "Foo" already exists in the schema. It cannot also be defined in this type definition.',
-        locations: [{ line: 3, column: 12 }],
-      },
-      {
-        message:
-          'Type "Foo" already exists in the schema. It cannot also be defined in this type definition.',
-        locations: [{ line: 4, column: 17 }],
-      },
-      {
-        message:
-          'Type "Foo" already exists in the schema. It cannot also be defined in this type definition.',
-        locations: [{ line: 5, column: 13 }],
-      },
-      {
-        message:
-          'Type "Foo" already exists in the schema. It cannot also be defined in this type definition.',
-        locations: [{ line: 6, column: 12 }],
-      },
-      {
-        message:
-          'Type "Foo" already exists in the schema. It cannot also be defined in this type definition.',
-        locations: [{ line: 7, column: 13 }],
-      },
-]`)
+			expectSDLErrors(sdl, schema)([]Err{
+				{
+					message:   `Type "Foo" already exists in the schema. It cannot also be defined in this type definition.`,
+					locations: []Loc{{line: 2, column: 14}},
+				},
+				{
+					message:   `Type "Foo" already exists in the schema. It cannot also be defined in this type definition.`,
+					locations: []Loc{{line: 3, column: 12}},
+				},
+				{
+					message:   `Type "Foo" already exists in the schema. It cannot also be defined in this type definition.`,
+					locations: []Loc{{line: 4, column: 17}},
+				},
+				{
+					message:   `Type "Foo" already exists in the schema. It cannot also be defined in this type definition.`,
+					locations: []Loc{{line: 5, column: 13}},
+				},
+				{
+					message:   `Type "Foo" already exists in the schema. It cannot also be defined in this type definition.`,
+					locations: []Loc{{line: 6, column: 12}},
+				},
+				{
+					message:   `Type "Foo" already exists in the schema. It cannot also be defined in this type definition.`,
+					locations: []Loc{{line: 7, column: 13}},
+				},
+			})
 		})
 	})
 

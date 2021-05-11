@@ -2,26 +2,24 @@ package testsgo
 
 import (
 	"testing"
-
-	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation/reference/helpers"
 )
 
 func TestProvidedRequiredArgumentsRule(t *testing.T) {
 
-	expectErrors := func(queryStr string) helpers.ResultCompare {
-		return helpers.ExpectValidationErrors("ProvidedRequiredArgumentsRule", queryStr)
+	expectErrors := func(queryStr string) ResultCompare {
+		return ExpectValidationErrors("ProvidedRequiredArgumentsRule", queryStr)
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)(`[]`)
+		expectErrors(queryStr)([]Err{})
 	}
 
-	expectSDLErrors := func(sdlStr string, sch ...string) helpers.ResultCompare {
+	expectSDLErrors := func(sdlStr string, sch ...string) ResultCompare {
 		schema := ""
 		if len(sch) > 0 {
 			schema = sch[0]
 		}
-		return helpers.ExpectSDLValidationErrors(
+		return ExpectSDLValidationErrors(
 			schema,
 			"ProvidedRequiredArgumentsOnDirectivesRule",
 			sdlStr,
@@ -29,7 +27,7 @@ func TestProvidedRequiredArgumentsRule(t *testing.T) {
 	}
 
 	expectValidSDL := func(sdlStr string, schema ...string) {
-		expectSDLErrors(sdlStr)(`[]`)
+		expectSDLErrors(sdlStr)([]Err{})
 	}
 
 	t.Run("Validate: Provided required arguments", func(t *testing.T) {
@@ -163,13 +161,12 @@ func TestProvidedRequiredArgumentsRule(t *testing.T) {
             multipleReqs(req2: 2)
           }
         }
-      `)(`[
-        {
-          message:
-            'Field "multipleReqs" argument "req1" of type "Int!" is required, but it was not provided.',
-          locations: [{ line: 4, column: 13 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   `Field "multipleReqs" argument "req1" of type "Int!" is required, but it was not provided.`,
+						locations: []Loc{{line: 4, column: 13}},
+					},
+				})
 			})
 
 			t.Run("Missing multiple non-nullable arguments", func(t *testing.T) {
@@ -179,18 +176,16 @@ func TestProvidedRequiredArgumentsRule(t *testing.T) {
             multipleReqs
           }
         }
-      `)(`[
-        {
-          message:
-            'Field "multipleReqs" argument "req1" of type "Int!" is required, but it was not provided.',
-          locations: [{ line: 4, column: 13 }],
-        },
-        {
-          message:
-            'Field "multipleReqs" argument "req2" of type "Int!" is required, but it was not provided.',
-          locations: [{ line: 4, column: 13 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   `Field "multipleReqs" argument "req1" of type "Int!" is required, but it was not provided.`,
+						locations: []Loc{{line: 4, column: 13}},
+					},
+					{
+						message:   `Field "multipleReqs" argument "req2" of type "Int!" is required, but it was not provided.`,
+						locations: []Loc{{line: 4, column: 13}},
+					},
+				})
 			})
 
 			t.Run("Incorrect value and missing argument", func(t *testing.T) {
@@ -200,13 +195,12 @@ func TestProvidedRequiredArgumentsRule(t *testing.T) {
             multipleReqs(req1: "one")
           }
         }
-      `)(`[
-        {
-          message:
-            'Field "multipleReqs" argument "req2" of type "Int!" is required, but it was not provided.',
-          locations: [{ line: 4, column: 13 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   `Field "multipleReqs" argument "req2" of type "Int!" is required, but it was not provided.`,
+						locations: []Loc{{line: 4, column: 13}},
+					},
+				})
 			})
 		})
 
@@ -239,18 +233,16 @@ func TestProvidedRequiredArgumentsRule(t *testing.T) {
             name @skip
           }
         }
-      `)(`[
-        {
-          message:
-            'Directive "@include" argument "if" of type "Boolean!" is required, but it was not provided.',
-          locations: [{ line: 3, column: 15 }],
-        },
-        {
-          message:
-            'Directive "@skip" argument "if" of type "Boolean!" is required, but it was not provided.',
-          locations: [{ line: 4, column: 18 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   `Directive "@include" argument "if" of type "Boolean!" is required, but it was not provided.`,
+						locations: []Loc{{line: 3, column: 15}},
+					},
+					{
+						message:   `Directive "@skip" argument "if" of type "Boolean!" is required, but it was not provided.`,
+						locations: []Loc{{line: 4, column: 18}},
+					},
+				})
 			})
 		})
 
@@ -272,13 +264,12 @@ func TestProvidedRequiredArgumentsRule(t *testing.T) {
         }
 
         directive @test(arg: String!) on FIELD_DEFINITION
-      `)(`[
-        {
-          message:
-            'Directive "@test" argument "arg" of type "String!" is required, but it was not provided.',
-          locations: [{ line: 3, column: 23 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   `Directive "@test" argument "arg" of type "String!" is required, but it was not provided.`,
+						locations: []Loc{{line: 3, column: 23}},
+					},
+				})
 			})
 
 			t.Run("Missing arg on standard directive", func(t *testing.T) {
@@ -286,13 +277,12 @@ func TestProvidedRequiredArgumentsRule(t *testing.T) {
         type Query {
           foo: String @include
         }
-      `)(`[
-        {
-          message:
-            'Directive "@include" argument "if" of type "Boolean!" is required, but it was not provided.',
-          locations: [{ line: 3, column: 23 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   `Directive "@include" argument "if" of type "Boolean!" is required, but it was not provided.`,
+						locations: []Loc{{line: 3, column: 23}},
+					},
+				})
 			})
 
 			t.Run("Missing arg on overridden standard directive", func(t *testing.T) {
@@ -301,17 +291,16 @@ func TestProvidedRequiredArgumentsRule(t *testing.T) {
           foo: String @deprecated
         }
         directive @deprecated(reason: String!) on FIELD
-      `)(`[
-        {
-          message:
-            'Directive "@deprecated" argument "reason" of type "String!" is required, but it was not provided.',
-          locations: [{ line: 3, column: 23 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   `Directive "@deprecated" argument "reason" of type "String!" is required, but it was not provided.`,
+						locations: []Loc{{line: 3, column: 23}},
+					},
+				})
 			})
 
 			t.Run("Missing arg on directive defined in schema extension", func(t *testing.T) {
-				schema := helpers.BuildSchema(`
+				schema := BuildSchema(`
         type Query {
           foo: String
         }
@@ -323,17 +312,16 @@ func TestProvidedRequiredArgumentsRule(t *testing.T) {
           extend type Query  @test
         `,
 					schema,
-				)(`[
-        {
-          message:
-            'Directive "@test" argument "arg" of type "String!" is required, but it was not provided.',
-          locations: [{ line: 4, column: 30 }],
-        },
-]`)
+				)([]Err{
+					{
+						message:   `Directive "@test" argument "arg" of type "String!" is required, but it was not provided.`,
+						locations: []Loc{{line: 4, column: 30}},
+					},
+				})
 			})
 
 			t.Run("Missing arg on directive used in schema extension", func(t *testing.T) {
-				schema := helpers.BuildSchema(`
+				schema := BuildSchema(`
         directive @test(arg: String!) on OBJECT
 
         type Query {
@@ -345,13 +333,12 @@ func TestProvidedRequiredArgumentsRule(t *testing.T) {
           extend type Query @test
         `,
 					schema,
-				)(`[
-        {
-          message:
-            'Directive "@test" argument "arg" of type "String!" is required, but it was not provided.',
-          locations: [{ line: 2, column: 29 }],
-        },
-]`)
+				)([]Err{
+					{
+						message:   `Directive "@test" argument "arg" of type "String!" is required, but it was not provided.`,
+						locations: []Loc{{line: 2, column: 29}},
+					},
+				})
 			})
 		})
 	})

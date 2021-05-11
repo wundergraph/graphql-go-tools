@@ -2,18 +2,16 @@ package testsgo
 
 import (
 	"testing"
-
-	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation/reference/helpers"
 )
 
 func TestUniqueOperationNamesRule(t *testing.T) {
 
-	expectErrors := func(queryStr string) helpers.ResultCompare {
-		return helpers.ExpectValidationErrors("UniqueOperationNamesRule", queryStr)
+	expectErrors := func(queryStr string) ResultCompare {
+		return ExpectValidationErrors("UniqueOperationNamesRule", queryStr)
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)(`[]`)
+		expectErrors(queryStr)([]Err{})
 	}
 
 	t.Run("Validate: Unique operation names", func(t *testing.T) {
@@ -88,15 +86,15 @@ func TestUniqueOperationNamesRule(t *testing.T) {
       query Foo {
         fieldB
       }
-    `)(`[
-      {
-        message: 'There can be only one operation named "Foo".',
-        locations: [
-          { line: 2, column: 13 },
-          { line: 5, column: 13 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `There can be only one operation named "Foo".`,
+					locations: []Loc{
+						{line: 2, column: 13},
+						{line: 5, column: 13},
+					},
+				},
+			})
 		})
 
 		t.Run("multiple ops of same name of different types (mutation)", func(t *testing.T) {
@@ -107,15 +105,15 @@ func TestUniqueOperationNamesRule(t *testing.T) {
       mutation Foo {
         fieldB
       }
-    `)(`[
-      {
-        message: 'There can be only one operation named "Foo".',
-        locations: [
-          { line: 2, column: 13 },
-          { line: 5, column: 16 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `There can be only one operation named "Foo".`,
+					locations: []Loc{
+						{line: 2, column: 13},
+						{line: 5, column: 16},
+					},
+				},
+			})
 		})
 
 		t.Run("multiple ops of same name of different types (subscription)", func(t *testing.T) {
@@ -126,15 +124,15 @@ func TestUniqueOperationNamesRule(t *testing.T) {
       subscription Foo {
         fieldB
       }
-    `)(`[
-      {
-        message: 'There can be only one operation named "Foo".',
-        locations: [
-          { line: 2, column: 13 },
-          { line: 5, column: 20 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `There can be only one operation named "Foo".`,
+					locations: []Loc{
+						{line: 2, column: 13},
+						{line: 5, column: 20},
+					},
+				},
+			})
 		})
 	})
 

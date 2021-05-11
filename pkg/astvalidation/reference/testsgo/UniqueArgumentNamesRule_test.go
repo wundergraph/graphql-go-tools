@@ -2,18 +2,16 @@ package testsgo
 
 import (
 	"testing"
-
-	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation/reference/helpers"
 )
 
 func TestUniqueArgumentNamesRule(t *testing.T) {
 
-	expectErrors := func(queryStr string) helpers.ResultCompare {
-		return helpers.ExpectValidationErrors("UniqueArgumentNamesRule", queryStr)
+	expectErrors := func(queryStr string) ResultCompare {
+		return ExpectValidationErrors("UniqueArgumentNamesRule", queryStr)
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)(`[]`)
+		expectErrors(queryStr)([]Err{})
 	}
 
 	t.Run("Validate: Unique argument names", func(t *testing.T) {
@@ -95,15 +93,15 @@ func TestUniqueArgumentNamesRule(t *testing.T) {
       {
         field(arg1: "value", arg1: "value")
       }
-    `)(`[
-      {
-        message: 'There can be only one argument named "arg1".',
-        locations: [
-          { line: 3, column: 15 },
-          { line: 3, column: 30 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `There can be only one argument named "arg1".`,
+					locations: []Loc{
+						{line: 3, column: 15},
+						{line: 3, column: 30},
+					},
+				},
+			})
 		})
 
 		t.Run("many duplicate field arguments", func(t *testing.T) {
@@ -111,22 +109,22 @@ func TestUniqueArgumentNamesRule(t *testing.T) {
       {
         field(arg1: "value", arg1: "value", arg1: "value")
       }
-    `)(`[
-      {
-        message: 'There can be only one argument named "arg1".',
-        locations: [
-          { line: 3, column: 15 },
-          { line: 3, column: 30 },
-        ],
-      },
-      {
-        message: 'There can be only one argument named "arg1".',
-        locations: [
-          { line: 3, column: 15 },
-          { line: 3, column: 45 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `There can be only one argument named "arg1".`,
+					locations: []Loc{
+						{line: 3, column: 15},
+						{line: 3, column: 30},
+					},
+				},
+				{
+					message: `There can be only one argument named "arg1".`,
+					locations: []Loc{
+						{line: 3, column: 15},
+						{line: 3, column: 45},
+					},
+				},
+			})
 		})
 
 		t.Run("duplicate directive arguments", func(t *testing.T) {
@@ -134,15 +132,15 @@ func TestUniqueArgumentNamesRule(t *testing.T) {
       {
         field @directive(arg1: "value", arg1: "value")
       }
-    `)(`[
-      {
-        message: 'There can be only one argument named "arg1".',
-        locations: [
-          { line: 3, column: 26 },
-          { line: 3, column: 41 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `There can be only one argument named "arg1".`,
+					locations: []Loc{
+						{line: 3, column: 26},
+						{line: 3, column: 41},
+					},
+				},
+			})
 		})
 
 		t.Run("many duplicate directive arguments", func(t *testing.T) {
@@ -150,22 +148,22 @@ func TestUniqueArgumentNamesRule(t *testing.T) {
       {
         field @directive(arg1: "value", arg1: "value", arg1: "value")
       }
-    `)(`[
-      {
-        message: 'There can be only one argument named "arg1".',
-        locations: [
-          { line: 3, column: 26 },
-          { line: 3, column: 41 },
-        ],
-      },
-      {
-        message: 'There can be only one argument named "arg1".',
-        locations: [
-          { line: 3, column: 26 },
-          { line: 3, column: 56 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `There can be only one argument named "arg1".`,
+					locations: []Loc{
+						{line: 3, column: 26},
+						{line: 3, column: 41},
+					},
+				},
+				{
+					message: `There can be only one argument named "arg1".`,
+					locations: []Loc{
+						{line: 3, column: 26},
+						{line: 3, column: 56},
+					},
+				},
+			})
 		})
 	})
 

@@ -2,22 +2,20 @@ package testsgo
 
 import (
 	"testing"
-
-	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation/reference/helpers"
 )
 
 func TestPossibleTypeExtensionsRule(t *testing.T) {
 
-	expectSDLErrors := func(sdlStr string, sch ...string) helpers.ResultCompare {
+	expectSDLErrors := func(sdlStr string, sch ...string) ResultCompare {
 		schema := ""
 		if len(sch) > 0 {
 			schema = sch[0]
 		}
-		return helpers.ExpectSDLValidationErrors(schema, "PossibleTypeExtensionsRule", sdlStr)
+		return ExpectSDLValidationErrors(schema, "PossibleTypeExtensionsRule", sdlStr)
 	}
 
 	expectValidSDL := func(sdlStr string, schema ...string) {
-		expectSDLErrors(sdlStr, schema...)(`[]`)
+		expectSDLErrors(sdlStr, schema...)([]Err{})
 	}
 
 	t.Run("Validate: Possible type extensions", func(t *testing.T) {
@@ -88,14 +86,14 @@ func TestPossibleTypeExtensionsRule(t *testing.T) {
       extend union Unknown @dummy
       extend enum Unknown @dummy
       extend input Unknown @dummy
-    `)(`[
-      {` + message + `, locations: [{ line: 4, column: 21 }] },
-      {` + message + `, locations: [{ line: 5, column: 19 }] },
-      {` + message + `, locations: [{ line: 6, column: 24 }] },
-      {` + message + `, locations: [{ line: 7, column: 20 }] },
-      {` + message + `, locations: [{ line: 8, column: 19 }] },
-      {` + message + `, locations: [{ line: 9, column: 20 }] },
-]`)
+    `)([]Err{
+				{message: message, locations: []Loc{{line: 4, column: 21}}},
+				{message: message, locations: []Loc{{line: 5, column: 19}}},
+				{message: message, locations: []Loc{{line: 6, column: 24}}},
+				{message: message, locations: []Loc{{line: 7, column: 20}}},
+				{message: message, locations: []Loc{{line: 8, column: 19}}},
+				{message: message, locations: []Loc{{line: 9, column: 20}}},
+			})
 		})
 
 		t.Run("does not consider non-type definitions", func(t *testing.T) {
@@ -112,14 +110,14 @@ func TestPossibleTypeExtensionsRule(t *testing.T) {
       extend union Foo @dummy
       extend enum Foo @dummy
       extend input Foo @dummy
-    `)(`[
-      {` + message + `, locations: [{ line: 6, column: 21 }] },
-      {` + message + `, locations: [{ line: 7, column: 19 }] },
-      {` + message + `, locations: [{ line: 8, column: 24 }] },
-      {` + message + `, locations: [{ line: 9, column: 20 }] },
-      {` + message + `, locations: [{ line: 10, column: 19 }] },
-      {` + message + `, locations: [{ line: 11, column: 20 }] },
-]`)
+    `)([]Err{
+				{message: message, locations: []Loc{{line: 6, column: 21}}},
+				{message: message, locations: []Loc{{line: 7, column: 19}}},
+				{message: message, locations: []Loc{{line: 8, column: 24}}},
+				{message: message, locations: []Loc{{line: 9, column: 20}}},
+				{message: message, locations: []Loc{{line: 10, column: 19}}},
+				{message: message, locations: []Loc{{line: 11, column: 20}}},
+			})
 		})
 
 		t.Run("extending with different kinds", func(t *testing.T) {
@@ -137,54 +135,54 @@ func TestPossibleTypeExtensionsRule(t *testing.T) {
       extend enum FooUnion @dummy
       extend input FooEnum @dummy
       extend scalar FooInputObject @dummy
-    `)(`[
-      {
-        message: 'Cannot extend non-object type "FooScalar".',
-        locations: [
-          { line: 2, column: 7 },
-          { line: 9, column: 7 },
-        ],
-      },
-      {
-        message: 'Cannot extend non-interface type "FooObject".',
-        locations: [
-          { line: 3, column: 7 },
-          { line: 10, column: 7 },
-        ],
-      },
-      {
-        message: 'Cannot extend non-union type "FooInterface".',
-        locations: [
-          { line: 4, column: 7 },
-          { line: 11, column: 7 },
-        ],
-      },
-      {
-        message: 'Cannot extend non-enum type "FooUnion".',
-        locations: [
-          { line: 5, column: 7 },
-          { line: 12, column: 7 },
-        ],
-      },
-      {
-        message: 'Cannot extend non-input object type "FooEnum".',
-        locations: [
-          { line: 6, column: 7 },
-          { line: 13, column: 7 },
-        ],
-      },
-      {
-        message: 'Cannot extend non-scalar type "FooInputObject".',
-        locations: [
-          { line: 7, column: 7 },
-          { line: 14, column: 7 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `Cannot extend non-object type "FooScalar".`,
+					locations: []Loc{
+						{line: 2, column: 7},
+						{line: 9, column: 7},
+					},
+				},
+				{
+					message: `Cannot extend non-interface type "FooObject".`,
+					locations: []Loc{
+						{line: 3, column: 7},
+						{line: 10, column: 7},
+					},
+				},
+				{
+					message: `Cannot extend non-union type "FooInterface".`,
+					locations: []Loc{
+						{line: 4, column: 7},
+						{line: 11, column: 7},
+					},
+				},
+				{
+					message: `Cannot extend non-enum type "FooUnion".`,
+					locations: []Loc{
+						{line: 5, column: 7},
+						{line: 12, column: 7},
+					},
+				},
+				{
+					message: `Cannot extend non-input object type "FooEnum".`,
+					locations: []Loc{
+						{line: 6, column: 7},
+						{line: 13, column: 7},
+					},
+				},
+				{
+					message: `Cannot extend non-scalar type "FooInputObject".`,
+					locations: []Loc{
+						{line: 7, column: 7},
+						{line: 14, column: 7},
+					},
+				},
+			})
 		})
 
 		t.Run("extending types within existing schema", func(t *testing.T) {
-			schema := helpers.BuildSchema(`
+			schema := BuildSchema(`
       scalar FooScalar
       type FooObject
       interface FooInterface
@@ -205,7 +203,7 @@ func TestPossibleTypeExtensionsRule(t *testing.T) {
 		})
 
 		t.Run("extending unknown types within existing schema", func(t *testing.T) {
-			schema := helpers.BuildSchema("type Known")
+			schema := BuildSchema("type Known")
 			sdl := `
       extend scalar Unknown @dummy
       extend type Unknown @dummy
@@ -217,18 +215,18 @@ func TestPossibleTypeExtensionsRule(t *testing.T) {
 
 			message :=
 				`Cannot extend type "Unknown" because it is not defined. Did you mean "Known"?`
-			expectSDLErrors(sdl, schema)(`[
-      {` + message + `, locations: [{ line: 2, column: 21 }] },
-      {` + message + `, locations: [{ line: 3, column: 19 }] },
-      {` + message + `, locations: [{ line: 4, column: 24 }] },
-      {` + message + `, locations: [{ line: 5, column: 20 }] },
-      {` + message + `, locations: [{ line: 6, column: 19 }] },
-      {` + message + `, locations: [{ line: 7, column: 20 }] },
-]`)
+			expectSDLErrors(sdl, schema)([]Err{
+				{message: message, locations: []Loc{{line: 2, column: 21}}},
+				{message: message, locations: []Loc{{line: 3, column: 19}}},
+				{message: message, locations: []Loc{{line: 4, column: 24}}},
+				{message: message, locations: []Loc{{line: 5, column: 20}}},
+				{message: message, locations: []Loc{{line: 6, column: 19}}},
+				{message: message, locations: []Loc{{line: 7, column: 20}}},
+			})
 		})
 
 		t.Run("extending types with different kinds within existing schema", func(t *testing.T) {
-			schema := helpers.BuildSchema(`
+			schema := BuildSchema(`
       scalar FooScalar
       type FooObject
       interface FooInterface
@@ -245,32 +243,32 @@ func TestPossibleTypeExtensionsRule(t *testing.T) {
       extend scalar FooInputObject @dummy
     `
 
-			expectSDLErrors(sdl, schema)(`[
-      {
-        message: 'Cannot extend non-object type "FooScalar".',
-        locations: [{ line: 2, column: 7 }],
-      },
-      {
-        message: 'Cannot extend non-interface type "FooObject".',
-        locations: [{ line: 3, column: 7 }],
-      },
-      {
-        message: 'Cannot extend non-union type "FooInterface".',
-        locations: [{ line: 4, column: 7 }],
-      },
-      {
-        message: 'Cannot extend non-enum type "FooUnion".',
-        locations: [{ line: 5, column: 7 }],
-      },
-      {
-        message: 'Cannot extend non-input object type "FooEnum".',
-        locations: [{ line: 6, column: 7 }],
-      },
-      {
-        message: 'Cannot extend non-scalar type "FooInputObject".',
-        locations: [{ line: 7, column: 7 }],
-      },
-]`)
+			expectSDLErrors(sdl, schema)([]Err{
+				{
+					message:   `Cannot extend non-object type "FooScalar".`,
+					locations: []Loc{{line: 2, column: 7}},
+				},
+				{
+					message:   `Cannot extend non-interface type "FooObject".`,
+					locations: []Loc{{line: 3, column: 7}},
+				},
+				{
+					message:   `Cannot extend non-union type "FooInterface".`,
+					locations: []Loc{{line: 4, column: 7}},
+				},
+				{
+					message:   `Cannot extend non-enum type "FooUnion".`,
+					locations: []Loc{{line: 5, column: 7}},
+				},
+				{
+					message:   `Cannot extend non-input object type "FooEnum".`,
+					locations: []Loc{{line: 6, column: 7}},
+				},
+				{
+					message:   `Cannot extend non-scalar type "FooInputObject".`,
+					locations: []Loc{{line: 7, column: 7}},
+				},
+			})
 		})
 	})
 

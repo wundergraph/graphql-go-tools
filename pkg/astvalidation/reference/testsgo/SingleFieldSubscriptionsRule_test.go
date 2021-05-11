@@ -2,18 +2,16 @@ package testsgo
 
 import (
 	"testing"
-
-	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation/reference/helpers"
 )
 
 func TestSingleFieldSubscriptionsRule(t *testing.T) {
 
-	expectErrors := func(queryStr string) helpers.ResultCompare {
-		return helpers.ExpectValidationErrors("SingleFieldSubscriptionsRule", queryStr)
+	expectErrors := func(queryStr string) ResultCompare {
+		return ExpectValidationErrors("SingleFieldSubscriptionsRule", queryStr)
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)(`[]`)
+		expectErrors(queryStr)([]Err{})
 	}
 
 	t.Run("Validate: Subscriptions with single field", func(t *testing.T) {
@@ -31,13 +29,12 @@ func TestSingleFieldSubscriptionsRule(t *testing.T) {
         importantEmails
         notImportantEmails
       }
-    `)(`[
-      {
-        message:
-          'Subscription "ImportantEmails" must select only one top level field.',
-        locations: [{ line: 4, column: 9 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   `Subscription "ImportantEmails" must select only one top level field.`,
+					locations: []Loc{{line: 4, column: 9}},
+				},
+			})
 		})
 
 		t.Run("fails with more than one root field including introspection", func(t *testing.T) {
@@ -46,13 +43,12 @@ func TestSingleFieldSubscriptionsRule(t *testing.T) {
         importantEmails
         __typename
       }
-    `)(`[
-      {
-        message:
-          'Subscription "ImportantEmails" must select only one top level field.',
-        locations: [{ line: 4, column: 9 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   `Subscription "ImportantEmails" must select only one top level field.`,
+					locations: []Loc{{line: 4, column: 9}},
+				},
+			})
 		})
 
 		t.Run("fails with many more than one root field", func(t *testing.T) {
@@ -62,16 +58,15 @@ func TestSingleFieldSubscriptionsRule(t *testing.T) {
         notImportantEmails
         spamEmails
       }
-    `)(`[
-      {
-        message:
-          'Subscription "ImportantEmails" must select only one top level field.',
-        locations: [
-          { line: 4, column: 9 },
-          { line: 5, column: 9 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `Subscription "ImportantEmails" must select only one top level field.`,
+					locations: []Loc{
+						{line: 4, column: 9},
+						{line: 5, column: 9},
+					},
+				},
+			})
 		})
 
 		t.Run("fails with more than one root field in anonymous subscriptions", func(t *testing.T) {
@@ -80,12 +75,12 @@ func TestSingleFieldSubscriptionsRule(t *testing.T) {
         importantEmails
         notImportantEmails
       }
-    `)(`[
-      {
-        message: "Anonymous Subscription must select only one top level field.",
-        locations: [{ line: 4, column: 9 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   "Anonymous Subscription must select only one top level field.",
+					locations: []Loc{{line: 4, column: 9}},
+				},
+			})
 		})
 	})
 

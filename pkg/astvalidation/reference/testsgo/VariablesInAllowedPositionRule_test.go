@@ -2,18 +2,16 @@ package testsgo
 
 import (
 	"testing"
-
-	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation/reference/helpers"
 )
 
 func TestVariablesInAllowedPositionRule(t *testing.T) {
 
-	expectErrors := func(queryStr string) helpers.ResultCompare {
-		return helpers.ExpectValidationErrors("VariablesInAllowedPositionRule", queryStr)
+	expectErrors := func(queryStr string) ResultCompare {
+		return ExpectValidationErrors("VariablesInAllowedPositionRule", queryStr)
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)(`[]`)
+		expectErrors(queryStr)([]Err{})
 	}
 
 	t.Run("Validate: Variables are in allowed positions", func(t *testing.T) {
@@ -162,16 +160,15 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
           nonNullIntArgField(nonNullIntArg: $intArg)
         }
       }
-    `)(`[
-      {
-        message:
-          'Variable "$intArg" of type "Int" used in position expecting type "Int!".',
-        locations: [
-          { line: 2, column: 19 },
-          { line: 4, column: 45 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `Variable "$intArg" of type "Int" used in position expecting type "Int!".`,
+					locations: []Loc{
+						{line: 2, column: 19},
+						{line: 4, column: 45},
+					},
+				},
+			})
 		})
 
 		t.Run("Int => Int! within fragment", func(t *testing.T) {
@@ -185,16 +182,15 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
           ...nonNullIntArgFieldFrag
         }
       }
-    `)(`[
-      {
-        message:
-          'Variable "$intArg" of type "Int" used in position expecting type "Int!".',
-        locations: [
-          { line: 6, column: 19 },
-          { line: 3, column: 43 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `Variable "$intArg" of type "Int" used in position expecting type "Int!".`,
+					locations: []Loc{
+						{line: 6, column: 19},
+						{line: 3, column: 43},
+					},
+				},
+			})
 		})
 
 		t.Run("Int => Int! within nested fragment", func(t *testing.T) {
@@ -212,16 +208,15 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
           ...outerFrag
         }
       }
-    `)(`[
-      {
-        message:
-          'Variable "$intArg" of type "Int" used in position expecting type "Int!".',
-        locations: [
-          { line: 10, column: 19 },
-          { line: 7, column: 43 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `Variable "$intArg" of type "Int" used in position expecting type "Int!".`,
+					locations: []Loc{
+						{line: 10, column: 19},
+						{line: 7, column: 43},
+					},
+				},
+			})
 		})
 
 		t.Run("String over Boolean", func(t *testing.T) {
@@ -231,16 +226,15 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
           booleanArgField(booleanArg: $stringVar)
         }
       }
-    `)(`[
-      {
-        message:
-          'Variable "$stringVar" of type "String" used in position expecting type "Boolean".',
-        locations: [
-          { line: 2, column: 19 },
-          { line: 4, column: 39 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `Variable "$stringVar" of type "String" used in position expecting type "Boolean".`,
+					locations: []Loc{
+						{line: 2, column: 19},
+						{line: 4, column: 39},
+					},
+				},
+			})
 		})
 
 		t.Run("String => [String]", func(t *testing.T) {
@@ -250,16 +244,15 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
           stringListArgField(stringListArg: $stringVar)
         }
       }
-    `)(`[
-      {
-        message:
-          'Variable "$stringVar" of type "String" used in position expecting type "[String]".',
-        locations: [
-          { line: 2, column: 19 },
-          { line: 4, column: 45 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `Variable "$stringVar" of type "String" used in position expecting type "[String]".`,
+					locations: []Loc{
+						{line: 2, column: 19},
+						{line: 4, column: 45},
+					},
+				},
+			})
 		})
 
 		t.Run("Boolean => Boolean! in directive", func(t *testing.T) {
@@ -267,16 +260,15 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
       query Query($boolVar: Boolean) {
         dog @include(if: $boolVar)
       }
-    `)(`[
-      {
-        message:
-          'Variable "$boolVar" of type "Boolean" used in position expecting type "Boolean!".',
-        locations: [
-          { line: 2, column: 19 },
-          { line: 3, column: 26 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `Variable "$boolVar" of type "Boolean" used in position expecting type "Boolean!".`,
+					locations: []Loc{
+						{line: 2, column: 19},
+						{line: 3, column: 26},
+					},
+				},
+			})
 		})
 
 		t.Run("String => Boolean! in directive", func(t *testing.T) {
@@ -284,16 +276,15 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
       query Query($stringVar: String) {
         dog @include(if: $stringVar)
       }
-    `)(`[
-      {
-        message:
-          'Variable "$stringVar" of type "String" used in position expecting type "Boolean!".',
-        locations: [
-          { line: 2, column: 19 },
-          { line: 3, column: 26 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `Variable "$stringVar" of type "String" used in position expecting type "Boolean!".`,
+					locations: []Loc{
+						{line: 2, column: 19},
+						{line: 3, column: 26},
+					},
+				},
+			})
 		})
 
 		t.Run("[String] => [String!]", func(t *testing.T) {
@@ -304,16 +295,15 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
           stringListNonNullArgField(stringListNonNullArg: $stringListVar)
         }
       }
-    `)(`[
-      {
-        message:
-          'Variable "$stringListVar" of type "[String]" used in position expecting type "[String!]".',
-        locations: [
-          { line: 2, column: 19 },
-          { line: 5, column: 59 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `Variable "$stringListVar" of type "[String]" used in position expecting type "[String!]".`,
+					locations: []Loc{
+						{line: 2, column: 19},
+						{line: 5, column: 59},
+					},
+				},
+			})
 		})
 
 		t.Run("Allows optional (nullable) variables with default values", func(t *testing.T) {
@@ -324,16 +314,15 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
             nonNullIntArgField(nonNullIntArg: $intVar)
           }
         }
-      `)(`[
-        {
-          message:
-            'Variable "$intVar" of type "Int" used in position expecting type "Int!".',
-          locations: [
-            { line: 2, column: 21 },
-            { line: 4, column: 47 },
-          ],
-        },
-]`)
+      `)([]Err{
+					{
+						message: `Variable "$intVar" of type "Int" used in position expecting type "Int!".`,
+						locations: []Loc{
+							{line: 2, column: 21},
+							{line: 4, column: 47},
+						},
+					},
+				})
 			})
 
 			t.Run("Int => Int! when variable provides non-null default value", func(t *testing.T) {

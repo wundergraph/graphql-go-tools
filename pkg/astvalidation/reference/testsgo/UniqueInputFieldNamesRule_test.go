@@ -2,18 +2,16 @@ package testsgo
 
 import (
 	"testing"
-
-	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation/reference/helpers"
 )
 
 func TestUniqueInputFieldNamesRule(t *testing.T) {
 
-	expectErrors := func(queryStr string) helpers.ResultCompare {
-		return helpers.ExpectValidationErrors("UniqueInputFieldNamesRule", queryStr)
+	expectErrors := func(queryStr string) ResultCompare {
+		return ExpectValidationErrors("UniqueInputFieldNamesRule", queryStr)
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)(`[]`)
+		expectErrors(queryStr)([]Err{})
 	}
 
 	t.Run("Validate: Unique input field names", func(t *testing.T) {
@@ -62,15 +60,15 @@ func TestUniqueInputFieldNamesRule(t *testing.T) {
       {
         field(arg: { f1: "value", f1: "value" })
       }
-    `)(`[
-      {
-        message: 'There can be only one input field named "f1".',
-        locations: [
-          { line: 3, column: 22 },
-          { line: 3, column: 35 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `There can be only one input field named "f1".`,
+					locations: []Loc{
+						{line: 3, column: 22},
+						{line: 3, column: 35},
+					},
+				},
+			})
 		})
 
 		t.Run("many duplicate input object fields", func(t *testing.T) {
@@ -78,22 +76,22 @@ func TestUniqueInputFieldNamesRule(t *testing.T) {
       {
         field(arg: { f1: "value", f1: "value", f1: "value" })
       }
-    `)(`[
-      {
-        message: 'There can be only one input field named "f1".',
-        locations: [
-          { line: 3, column: 22 },
-          { line: 3, column: 35 },
-        ],
-      },
-      {
-        message: 'There can be only one input field named "f1".',
-        locations: [
-          { line: 3, column: 22 },
-          { line: 3, column: 48 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `There can be only one input field named "f1".`,
+					locations: []Loc{
+						{line: 3, column: 22},
+						{line: 3, column: 35},
+					},
+				},
+				{
+					message: `There can be only one input field named "f1".`,
+					locations: []Loc{
+						{line: 3, column: 22},
+						{line: 3, column: 48},
+					},
+				},
+			})
 		})
 
 		t.Run("nested duplicate input object fields", func(t *testing.T) {
@@ -101,15 +99,15 @@ func TestUniqueInputFieldNamesRule(t *testing.T) {
       {
         field(arg: { f1: {f2: "value", f2: "value" }})
       }
-    `)(`[
-      {
-        message: 'There can be only one input field named "f2".',
-        locations: [
-          { line: 3, column: 27 },
-          { line: 3, column: 40 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `There can be only one input field named "f2".`,
+					locations: []Loc{
+						{line: 3, column: 27},
+						{line: 3, column: 40},
+					},
+				},
+			})
 		})
 	})
 

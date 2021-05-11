@@ -2,32 +2,17 @@ package testsgo
 
 import (
 	"testing"
-
-	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation/reference/helpers"
 )
 
 func TestValuesOfCorrectTypeRule(t *testing.T) {
 
-	expectErrors := func(queryStr string) helpers.ResultCompare {
-		return helpers.ExpectValidationErrors("ValuesOfCorrectTypeRule", queryStr)
-	}
-
-	expectErrorsWithSchema := func(schema string, queryStr string) helpers.ResultCompare {
-		return helpers.ExpectValidationErrorsWithSchema(
-			schema,
-			"ValuesOfCorrectTypeRule",
-			queryStr,
-		)
+	expectErrors := func(queryStr string) ResultCompare {
+		return ExpectValidationErrors("ValuesOfCorrectTypeRule", queryStr)
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)(`[]`)
+		expectErrors(queryStr)([]Err{})
 	}
-
-	expectValidWithSchema := func(schema string, queryStr string) {
-		expectErrorsWithSchema(schema, queryStr)(`[]`)
-	}
-	_ = expectValidWithSchema // FIXME: remove me I'm unused
 
 	t.Run("Validate: Values of correct type", func(t *testing.T) {
 		t.Run("Valid values", func(t *testing.T) {
@@ -178,12 +163,12 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
             stringArgField(stringArg: 1)
           }
         }
-      `)(`[
-        {
-          message: "String cannot represent a non string value: 1",
-          locations: [{ line: 4, column: 39 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   "String cannot represent a non string value: 1",
+						locations: []Loc{{line: 4, column: 39}},
+					},
+				})
 			})
 
 			t.Run("Float into String", func(t *testing.T) {
@@ -193,12 +178,12 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
             stringArgField(stringArg: 1.0)
           }
         }
-      `)(`[
-        {
-          message: "String cannot represent a non string value: 1.0",
-          locations: [{ line: 4, column: 39 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   "String cannot represent a non string value: 1.0",
+						locations: []Loc{{line: 4, column: 39}},
+					},
+				})
 			})
 
 			t.Run("Boolean into String", func(t *testing.T) {
@@ -208,12 +193,12 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
             stringArgField(stringArg: true)
           }
         }
-      `)(`[
-        {
-          message: "String cannot represent a non string value: true",
-          locations: [{ line: 4, column: 39 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   "String cannot represent a non string value: true",
+						locations: []Loc{{line: 4, column: 39}},
+					},
+				})
 			})
 
 			t.Run("Unquoted String into String", func(t *testing.T) {
@@ -223,12 +208,12 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
             stringArgField(stringArg: BAR)
           }
         }
-      `)(`[
-        {
-          message: "String cannot represent a non string value: BAR",
-          locations: [{ line: 4, column: 39 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   "String cannot represent a non string value: BAR",
+						locations: []Loc{{line: 4, column: 39}},
+					},
+				})
 			})
 		})
 
@@ -240,12 +225,12 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
             intArgField(intArg: "3")
           }
         }
-      `)(`[
-        {
-          message: 'Int cannot represent non-integer value: "3"',
-          locations: [{ line: 4, column: 33 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   `Int cannot represent non-integer value: "3"`,
+						locations: []Loc{{line: 4, column: 33}},
+					},
+				})
 			})
 
 			t.Run("Big Int into Int", func(t *testing.T) {
@@ -255,13 +240,12 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
             intArgField(intArg: 829384293849283498239482938)
           }
         }
-      `)(`[
-        {
-          message:
-            "Int cannot represent non 32-bit signed integer value: 829384293849283498239482938",
-          locations: [{ line: 4, column: 33 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   "Int cannot represent non 32-bit signed integer value: 829384293849283498239482938",
+						locations: []Loc{{line: 4, column: 33}},
+					},
+				})
 			})
 
 			t.Run("Unquoted String into Int", func(t *testing.T) {
@@ -271,12 +255,12 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
             intArgField(intArg: FOO)
           }
         }
-      `)(`[
-        {
-          message: "Int cannot represent non-integer value: FOO",
-          locations: [{ line: 4, column: 33 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   "Int cannot represent non-integer value: FOO",
+						locations: []Loc{{line: 4, column: 33}},
+					},
+				})
 			})
 
 			t.Run("Simple Float into Int", func(t *testing.T) {
@@ -286,12 +270,12 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
             intArgField(intArg: 3.0)
           }
         }
-      `)(`[
-        {
-          message: "Int cannot represent non-integer value: 3.0",
-          locations: [{ line: 4, column: 33 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   "Int cannot represent non-integer value: 3.0",
+						locations: []Loc{{line: 4, column: 33}},
+					},
+				})
 			})
 
 			t.Run("Float into Int", func(t *testing.T) {
@@ -301,12 +285,12 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
             intArgField(intArg: 3.333)
           }
         }
-      `)(`[
-        {
-          message: "Int cannot represent non-integer value: 3.333",
-          locations: [{ line: 4, column: 33 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   "Int cannot represent non-integer value: 3.333",
+						locations: []Loc{{line: 4, column: 33}},
+					},
+				})
 			})
 		})
 
@@ -318,12 +302,12 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
             floatArgField(floatArg: "3.333")
           }
         }
-      `)(`[
-        {
-          message: 'Float cannot represent non numeric value: "3.333"',
-          locations: [{ line: 4, column: 37 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   `Float cannot represent non numeric value: "3.333"`,
+						locations: []Loc{{line: 4, column: 37}},
+					},
+				})
 			})
 
 			t.Run("Boolean into Float", func(t *testing.T) {
@@ -333,12 +317,12 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
             floatArgField(floatArg: true)
           }
         }
-      `)(`[
-        {
-          message: "Float cannot represent non numeric value: true",
-          locations: [{ line: 4, column: 37 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   "Float cannot represent non numeric value: true",
+						locations: []Loc{{line: 4, column: 37}},
+					},
+				})
 			})
 
 			t.Run("Unquoted into Float", func(t *testing.T) {
@@ -348,12 +332,12 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
             floatArgField(floatArg: FOO)
           }
         }
-      `)(`[
-        {
-          message: "Float cannot represent non numeric value: FOO",
-          locations: [{ line: 4, column: 37 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   "Float cannot represent non numeric value: FOO",
+						locations: []Loc{{line: 4, column: 37}},
+					},
+				})
 			})
 		})
 
@@ -365,12 +349,12 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
             booleanArgField(booleanArg: 2)
           }
         }
-      `)(`[
-        {
-          message: "Boolean cannot represent a non boolean value: 2",
-          locations: [{ line: 4, column: 41 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   "Boolean cannot represent a non boolean value: 2",
+						locations: []Loc{{line: 4, column: 41}},
+					},
+				})
 			})
 
 			t.Run("Float into Boolean", func(t *testing.T) {
@@ -380,12 +364,12 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
             booleanArgField(booleanArg: 1.0)
           }
         }
-      `)(`[
-        {
-          message: "Boolean cannot represent a non boolean value: 1.0",
-          locations: [{ line: 4, column: 41 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   "Boolean cannot represent a non boolean value: 1.0",
+						locations: []Loc{{line: 4, column: 41}},
+					},
+				})
 			})
 
 			t.Run("String into Boolean", func(t *testing.T) {
@@ -395,12 +379,12 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
             booleanArgField(booleanArg: "true")
           }
         }
-      `)(`[
-        {
-          message: 'Boolean cannot represent a non boolean value: "true"',
-          locations: [{ line: 4, column: 41 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   `Boolean cannot represent a non boolean value: "true"`,
+						locations: []Loc{{line: 4, column: 41}},
+					},
+				})
 			})
 
 			t.Run("Unquoted into Boolean", func(t *testing.T) {
@@ -410,12 +394,12 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
             booleanArgField(booleanArg: TRUE)
           }
         }
-      `)(`[
-        {
-          message: "Boolean cannot represent a non boolean value: TRUE",
-          locations: [{ line: 4, column: 41 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   "Boolean cannot represent a non boolean value: TRUE",
+						locations: []Loc{{line: 4, column: 41}},
+					},
+				})
 			})
 		})
 
@@ -427,13 +411,12 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
             idArgField(idArg: 1.0)
           }
         }
-      `)(`[
-        {
-          message:
-            "ID cannot represent a non-string and non-integer value: 1.0",
-          locations: [{ line: 4, column: 31 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   "ID cannot represent a non-string and non-integer value: 1.0",
+						locations: []Loc{{line: 4, column: 31}},
+					},
+				})
 			})
 
 			t.Run("Boolean into ID", func(t *testing.T) {
@@ -443,13 +426,12 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
             idArgField(idArg: true)
           }
         }
-      `)(`[
-        {
-          message:
-            "ID cannot represent a non-string and non-integer value: true",
-          locations: [{ line: 4, column: 31 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   "ID cannot represent a non-string and non-integer value: true",
+						locations: []Loc{{line: 4, column: 31}},
+					},
+				})
 			})
 
 			t.Run("Unquoted into ID", func(t *testing.T) {
@@ -459,13 +441,12 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
             idArgField(idArg: SOMETHING)
           }
         }
-      `)(`[
-        {
-          message:
-            "ID cannot represent a non-string and non-integer value: SOMETHING",
-          locations: [{ line: 4, column: 31 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   "ID cannot represent a non-string and non-integer value: SOMETHING",
+						locations: []Loc{{line: 4, column: 31}},
+					},
+				})
 			})
 		})
 
@@ -477,12 +458,12 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
             doesKnowCommand(dogCommand: 2)
           }
         }
-      `)(`[
-        {
-          message: 'Enum "DogCommand" cannot represent non-enum value: 2.',
-          locations: [{ line: 4, column: 41 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   `Enum "DogCommand" cannot represent non-enum value: 2.`,
+						locations: []Loc{{line: 4, column: 41}},
+					},
+				})
 			})
 
 			t.Run("Float into Enum", func(t *testing.T) {
@@ -492,12 +473,12 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
             doesKnowCommand(dogCommand: 1.0)
           }
         }
-      `)(`[
-        {
-          message: 'Enum "DogCommand" cannot represent non-enum value: 1.0.',
-          locations: [{ line: 4, column: 41 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   `Enum "DogCommand" cannot represent non-enum value: 1.0.`,
+						locations: []Loc{{line: 4, column: 41}},
+					},
+				})
 			})
 
 			t.Run("String into Enum", func(t *testing.T) {
@@ -507,13 +488,12 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
             doesKnowCommand(dogCommand: "SIT")
           }
         }
-      `)(`[
-        {
-          message:
-            'Enum "DogCommand" cannot represent non-enum value: "SIT". Did you mean the enum value "SIT"?',
-          locations: [{ line: 4, column: 41 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   `Enum "DogCommand" cannot represent non-enum value: "SIT". Did you mean the enum value "SIT"?`,
+						locations: []Loc{{line: 4, column: 41}},
+					},
+				})
 			})
 
 			t.Run("Boolean into Enum", func(t *testing.T) {
@@ -523,12 +503,12 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
             doesKnowCommand(dogCommand: true)
           }
         }
-      `)(`[
-        {
-          message: 'Enum "DogCommand" cannot represent non-enum value: true.',
-          locations: [{ line: 4, column: 41 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   `Enum "DogCommand" cannot represent non-enum value: true.`,
+						locations: []Loc{{line: 4, column: 41}},
+					},
+				})
 			})
 
 			t.Run("Unknown Enum Value into Enum", func(t *testing.T) {
@@ -538,12 +518,12 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
             doesKnowCommand(dogCommand: JUGGLE)
           }
         }
-      `)(`[
-        {
-          message: 'Value "JUGGLE" does not exist in "DogCommand" enum.',
-          locations: [{ line: 4, column: 41 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   `Value "JUGGLE" does not exist in "DogCommand" enum.`,
+						locations: []Loc{{line: 4, column: 41}},
+					},
+				})
 			})
 
 			t.Run("Different case Enum Value into Enum", func(t *testing.T) {
@@ -553,13 +533,12 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
             doesKnowCommand(dogCommand: sit)
           }
         }
-      `)(`[
-        {
-          message:
-            'Value "sit" does not exist in "DogCommand" enum. Did you mean the enum value "SIT"?',
-          locations: [{ line: 4, column: 41 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   `Value "sit" does not exist in "DogCommand" enum. Did you mean the enum value "SIT"?`,
+						locations: []Loc{{line: 4, column: 41}},
+					},
+				})
 			})
 		})
 
@@ -613,12 +592,12 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
             stringListArgField(stringListArg: ["one", 2])
           }
         }
-      `)(`[
-        {
-          message: "String cannot represent a non string value: 2",
-          locations: [{ line: 4, column: 55 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   "String cannot represent a non string value: 2",
+						locations: []Loc{{line: 4, column: 55}},
+					},
+				})
 			})
 
 			t.Run("Single value of incorrect type", func(t *testing.T) {
@@ -628,12 +607,12 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
             stringListArgField(stringListArg: 1)
           }
         }
-      `)(`[
-        {
-          message: "String cannot represent a non string value: 1",
-          locations: [{ line: 4, column: 47 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   "String cannot represent a non string value: 1",
+						locations: []Loc{{line: 4, column: 47}},
+					},
+				})
 			})
 		})
 
@@ -747,16 +726,16 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
             multipleReqs(req2: "two", req1: "one")
           }
         }
-      `)(`[
-        {
-          message: 'Int cannot represent non-integer value: "two"',
-          locations: [{ line: 4, column: 32 }],
-        },
-        {
-          message: 'Int cannot represent non-integer value: "one"',
-          locations: [{ line: 4, column: 45 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   `Int cannot represent non-integer value: "two"`,
+						locations: []Loc{{line: 4, column: 32}},
+					},
+					{
+						message:   `Int cannot represent non-integer value: "one"`,
+						locations: []Loc{{line: 4, column: 45}},
+					},
+				})
 			})
 
 			t.Run("Incorrect value and missing argument (ProvidedRequiredArgumentsRule)", func(t *testing.T) {
@@ -766,12 +745,12 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
             multipleReqs(req1: "one")
           }
         }
-      `)(`[
-        {
-          message: 'Int cannot represent non-integer value: "one"',
-          locations: [{ line: 4, column: 32 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   `Int cannot represent non-integer value: "one"`,
+						locations: []Loc{{line: 4, column: 32}},
+					},
+				})
 			})
 
 			t.Run("Null value", func(t *testing.T) {
@@ -781,12 +760,12 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
             multipleReqs(req1: null)
           }
         }
-      `)(`[
-        {
-          message: 'Expected value of type "Int!", found null.',
-          locations: [{ line: 4, column: 32 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   `Expected value of type "Int!", found null.`,
+						locations: []Loc{{line: 4, column: 32}},
+					},
+				})
 			})
 		})
 
@@ -852,7 +831,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
         {
           complicatedArgs {
             complexArgField(complexArg: {
-              stringListField: ["one", "two"],
+
               booleanField: false,
               requiredField: true,
               stringField: "foo",
@@ -872,13 +851,12 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
             complexArgField(complexArg: { intField: 4 })
           }
         }
-      `)(`[
-        {
-          message:
-            'Field "ComplexInput.requiredField" of required type "Boolean!" was not provided.',
-          locations: [{ line: 4, column: 41 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   `Field "ComplexInput.requiredField" of required type "Boolean!" was not provided.`,
+						locations: []Loc{{line: 4, column: 41}},
+					},
+				})
 			})
 
 			t.Run("Partial object, invalid field type", func(t *testing.T) {
@@ -886,17 +864,17 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
         {
           complicatedArgs {
             complexArgField(complexArg: {
-              stringListField: ["one", 2],
+
               requiredField: true,
             })
           }
         }
-      `)(`[
-        {
-          message: "String cannot represent a non string value: 2",
-          locations: [{ line: 5, column: 40 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   "String cannot represent a non string value: 2",
+						locations: []Loc{{line: 5, column: 40}},
+					},
+				})
 			})
 
 			t.Run("Partial object, null to non-null field", func(t *testing.T) {
@@ -909,12 +887,12 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
             })
           }
         }
-      `)(`[
-        {
-          message: 'Expected value of type "Boolean!", found null.',
-          locations: [{ line: 6, column: 29 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   `Expected value of type "Boolean!", found null.`,
+						locations: []Loc{{line: 6, column: 29}},
+					},
+				})
 			})
 
 			t.Run("Partial object, unknown field arg", func(t *testing.T) {
@@ -927,13 +905,12 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
             })
           }
         }
-      `)(`[
-        {
-          message:
-            'Field "invalidField" is not defined by type "ComplexInput". Did you mean "intField"?',
-          locations: [{ line: 6, column: 15 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   `Field "invalidField" is not defined by type "ComplexInput". Did you mean "intField"?`,
+						locations: []Loc{{line: 6, column: 15}},
+					},
+				})
 			})
 
 		})
@@ -959,16 +936,16 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
             name @skip(if: ENUM)
           }
         }
-      `)(`[
-        {
-          message: 'Boolean cannot represent a non boolean value: "yes"',
-          locations: [{ line: 3, column: 28 }],
-        },
-        {
-          message: "Boolean cannot represent a non boolean value: ENUM",
-          locations: [{ line: 4, column: 28 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   `Boolean cannot represent a non boolean value: "yes"`,
+						locations: []Loc{{line: 3, column: 28}},
+					},
+					{
+						message:   "Boolean cannot represent a non boolean value: ENUM",
+						locations: []Loc{{line: 4, column: 28}},
+					},
+				})
 			})
 		})
 
@@ -1007,20 +984,20 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
         ) {
           dog { name }
         }
-      `)(`[
-        {
-          message: 'Expected value of type "Int!", found null.',
-          locations: [{ line: 3, column: 22 }],
-        },
-        {
-          message: 'Expected value of type "String!", found null.',
-          locations: [{ line: 4, column: 25 }],
-        },
-        {
-          message: 'Expected value of type "Boolean!", found null.',
-          locations: [{ line: 5, column: 47 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   `Expected value of type "Int!", found null.`,
+						locations: []Loc{{line: 3, column: 22}},
+					},
+					{
+						message:   `Expected value of type "String!", found null.`,
+						locations: []Loc{{line: 4, column: 25}},
+					},
+					{
+						message:   `Expected value of type "Boolean!", found null.`,
+						locations: []Loc{{line: 5, column: 47}},
+					},
+				})
 			})
 
 			t.Run("variables with invalid default values", func(t *testing.T) {
@@ -1032,21 +1009,20 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
         ) {
           dog { name }
         }
-      `)(`[
-        {
-          message: 'Int cannot represent non-integer value: "one"',
-          locations: [{ line: 3, column: 21 }],
-        },
-        {
-          message: "String cannot represent a non string value: 4",
-          locations: [{ line: 4, column: 24 }],
-        },
-        {
-          message:
-            'Expected value of type "ComplexInput", found "NotVeryComplex".',
-          locations: [{ line: 5, column: 30 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   `Int cannot represent non-integer value: "one"`,
+						locations: []Loc{{line: 3, column: 21}},
+					},
+					{
+						message:   "String cannot represent a non string value: 4",
+						locations: []Loc{{line: 4, column: 24}},
+					},
+					{
+						message:   `Expected value of type "ComplexInput", found "NotVeryComplex".`,
+						locations: []Loc{{line: 5, column: 30}},
+					},
+				})
 			})
 
 			t.Run("variables with complex invalid default values", func(t *testing.T) {
@@ -1056,16 +1032,16 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
         ) {
           dog { name }
         }
-      `)(`[
-        {
-          message: "Boolean cannot represent a non boolean value: 123",
-          locations: [{ line: 3, column: 47 }],
-        },
-        {
-          message: 'Int cannot represent non-integer value: "abc"',
-          locations: [{ line: 3, column: 62 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   "Boolean cannot represent a non boolean value: 123",
+						locations: []Loc{{line: 3, column: 47}},
+					},
+					{
+						message:   `Int cannot represent non-integer value: "abc"`,
+						locations: []Loc{{line: 3, column: 62}},
+					},
+				})
 			})
 
 			t.Run("complex variables missing required field", func(t *testing.T) {
@@ -1073,13 +1049,12 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
         query MissingRequiredField($a: ComplexInput = {intField: 3}) {
           dog { name }
         }
-      `)(`[
-        {
-          message:
-            'Field "ComplexInput.requiredField" of required type "Boolean!" was not provided.',
-          locations: [{ line: 2, column: 55 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   `Field "ComplexInput.requiredField" of required type "Boolean!" was not provided.`,
+						locations: []Loc{{line: 2, column: 55}},
+					},
+				})
 			})
 
 			t.Run("list variables with invalid item", func(t *testing.T) {
@@ -1087,12 +1062,12 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
         query InvalidItem($a: [String] = ["one", 2]) {
           dog { name }
         }
-      `)(`[
-        {
-          message: "String cannot represent a non string value: 2",
-          locations: [{ line: 2, column: 50 }],
-        },
-]`)
+      `)([]Err{
+					{
+						message:   "String cannot represent a non string value: 2",
+						locations: []Loc{{line: 2, column: 50}},
+					},
+				})
 			})
 		})
 	})

@@ -2,8 +2,6 @@ package testsgo
 
 import (
 	"testing"
-
-	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation/reference/helpers"
 )
 
 func TestUniqueDirectivesPerLocationRule(t *testing.T) {
@@ -14,14 +12,10 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
   directive @directiveB on FIELD | FRAGMENT_DEFINITION
   directive @repeatable repeatable on FIELD | FRAGMENT_DEFINITION
 `
+	schemaWithDirectives := ExtendSchema(testSchema, extensionSDL)
 
-	// FIXME: use test schema and extend it
-	_ = extensionSDL
-	// schemaWithDirectives := extendSchema(testSchema, parse(extensionSDL))
-	schemaWithDirectives := ""
-
-	expectErrors := func(queryStr string) helpers.ResultCompare {
-		return helpers.ExpectValidationErrorsWithSchema(
+	expectErrors := func(queryStr string) ResultCompare {
+		return ExpectValidationErrorsWithSchema(
 			schemaWithDirectives,
 			"UniqueDirectivesPerLocationRule",
 			queryStr,
@@ -29,15 +23,15 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)(`[]`)
+		expectErrors(queryStr)([]Err{})
 	}
 
-	expectSDLErrors := func(sdlStr string, sch ...string) helpers.ResultCompare {
+	expectSDLErrors := func(sdlStr string, sch ...string) ResultCompare {
 		schema := ""
 		if len(sch) > 0 {
 			schema = sch[0]
 		}
-		return helpers.ExpectSDLValidationErrors(
+		return ExpectSDLValidationErrors(
 			schema,
 			"UniqueDirectivesPerLocationRule",
 			sdlStr,
@@ -111,16 +105,15 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
       fragment Test on Type {
         field @directive @directive
       }
-    `)(`[
-      {
-        message:
-          'The directive "@directive" can only be used once at this location.',
-        locations: [
-          { line: 3, column: 15 },
-          { line: 3, column: 26 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `The directive "@directive" can only be used once at this location.`,
+					locations: []Loc{
+						{line: 3, column: 15},
+						{line: 3, column: 26},
+					},
+				},
+			})
 		})
 
 		t.Run("many duplicate directives in one location", func(t *testing.T) {
@@ -128,24 +121,22 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
       fragment Test on Type {
         field @directive @directive @directive
       }
-    `)(`[
-      {
-        message:
-          'The directive "@directive" can only be used once at this location.',
-        locations: [
-          { line: 3, column: 15 },
-          { line: 3, column: 26 },
-        ],
-      },
-      {
-        message:
-          'The directive "@directive" can only be used once at this location.',
-        locations: [
-          { line: 3, column: 15 },
-          { line: 3, column: 37 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `The directive "@directive" can only be used once at this location.`,
+					locations: []Loc{
+						{line: 3, column: 15},
+						{line: 3, column: 26},
+					},
+				},
+				{
+					message: `The directive "@directive" can only be used once at this location.`,
+					locations: []Loc{
+						{line: 3, column: 15},
+						{line: 3, column: 37},
+					},
+				},
+			})
 		})
 
 		t.Run("different duplicate directives in one location", func(t *testing.T) {
@@ -153,24 +144,22 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
       fragment Test on Type {
         field @directiveA @directiveB @directiveA @directiveB
       }
-    `)(`[
-      {
-        message:
-          'The directive "@directiveA" can only be used once at this location.',
-        locations: [
-          { line: 3, column: 15 },
-          { line: 3, column: 39 },
-        ],
-      },
-      {
-        message:
-          'The directive "@directiveB" can only be used once at this location.',
-        locations: [
-          { line: 3, column: 27 },
-          { line: 3, column: 51 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `The directive "@directiveA" can only be used once at this location.`,
+					locations: []Loc{
+						{line: 3, column: 15},
+						{line: 3, column: 39},
+					},
+				},
+				{
+					message: `The directive "@directiveB" can only be used once at this location.`,
+					locations: []Loc{
+						{line: 3, column: 27},
+						{line: 3, column: 51},
+					},
+				},
+			})
 		})
 
 		t.Run("duplicate directives in many locations", func(t *testing.T) {
@@ -178,24 +167,22 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
       fragment Test on Type @directive @directive {
         field @directive @directive
       }
-    `)(`[
-      {
-        message:
-          'The directive "@directive" can only be used once at this location.',
-        locations: [
-          { line: 2, column: 29 },
-          { line: 2, column: 40 },
-        ],
-      },
-      {
-        message:
-          'The directive "@directive" can only be used once at this location.',
-        locations: [
-          { line: 3, column: 15 },
-          { line: 3, column: 26 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `The directive "@directive" can only be used once at this location.`,
+					locations: []Loc{
+						{line: 2, column: 29},
+						{line: 2, column: 40},
+					},
+				},
+				{
+					message: `The directive "@directive" can only be used once at this location.`,
+					locations: []Loc{
+						{line: 3, column: 15},
+						{line: 3, column: 26},
+					},
+				},
+			})
 		})
 
 		t.Run("duplicate directives on SDL definitions", func(t *testing.T) {
@@ -210,56 +197,50 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
       interface TestInterface @nonRepeatable @nonRepeatable
       union TestUnion @nonRepeatable @nonRepeatable
       input TestInput @nonRepeatable @nonRepeatable
-    `)(`[
-      {
-        message:
-          'The directive "@nonRepeatable" can only be used once at this location.',
-        locations: [
-          { line: 5, column: 14 },
-          { line: 5, column: 29 },
-        ],
-      },
-      {
-        message:
-          'The directive "@nonRepeatable" can only be used once at this location.',
-        locations: [
-          { line: 7, column: 25 },
-          { line: 7, column: 40 },
-        ],
-      },
-      {
-        message:
-          'The directive "@nonRepeatable" can only be used once at this location.',
-        locations: [
-          { line: 8, column: 23 },
-          { line: 8, column: 38 },
-        ],
-      },
-      {
-        message:
-          'The directive "@nonRepeatable" can only be used once at this location.',
-        locations: [
-          { line: 9, column: 31 },
-          { line: 9, column: 46 },
-        ],
-      },
-      {
-        message:
-          'The directive "@nonRepeatable" can only be used once at this location.',
-        locations: [
-          { line: 10, column: 23 },
-          { line: 10, column: 38 },
-        ],
-      },
-      {
-        message:
-          'The directive "@nonRepeatable" can only be used once at this location.',
-        locations: [
-          { line: 11, column: 23 },
-          { line: 11, column: 38 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `The directive "@nonRepeatable" can only be used once at this location.`,
+					locations: []Loc{
+						{line: 5, column: 14},
+						{line: 5, column: 29},
+					},
+				},
+				{
+					message: `The directive "@nonRepeatable" can only be used once at this location.`,
+					locations: []Loc{
+						{line: 7, column: 25},
+						{line: 7, column: 40},
+					},
+				},
+				{
+					message: `The directive "@nonRepeatable" can only be used once at this location.`,
+					locations: []Loc{
+						{line: 8, column: 23},
+						{line: 8, column: 38},
+					},
+				},
+				{
+					message: `The directive "@nonRepeatable" can only be used once at this location.`,
+					locations: []Loc{
+						{line: 9, column: 31},
+						{line: 9, column: 46},
+					},
+				},
+				{
+					message: `The directive "@nonRepeatable" can only be used once at this location.`,
+					locations: []Loc{
+						{line: 10, column: 23},
+						{line: 10, column: 38},
+					},
+				},
+				{
+					message: `The directive "@nonRepeatable" can only be used once at this location.`,
+					locations: []Loc{
+						{line: 11, column: 23},
+						{line: 11, column: 38},
+					},
+				},
+			})
 		})
 
 		t.Run("duplicate directives on SDL extensions", func(t *testing.T) {
@@ -274,56 +255,50 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
       extend interface TestInterface @nonRepeatable @nonRepeatable
       extend union TestUnion @nonRepeatable @nonRepeatable
       extend input TestInput @nonRepeatable @nonRepeatable
-    `)(`[
-      {
-        message:
-          'The directive "@nonRepeatable" can only be used once at this location.',
-        locations: [
-          { line: 5, column: 21 },
-          { line: 5, column: 36 },
-        ],
-      },
-      {
-        message:
-          'The directive "@nonRepeatable" can only be used once at this location.',
-        locations: [
-          { line: 7, column: 32 },
-          { line: 7, column: 47 },
-        ],
-      },
-      {
-        message:
-          'The directive "@nonRepeatable" can only be used once at this location.',
-        locations: [
-          { line: 8, column: 30 },
-          { line: 8, column: 45 },
-        ],
-      },
-      {
-        message:
-          'The directive "@nonRepeatable" can only be used once at this location.',
-        locations: [
-          { line: 9, column: 38 },
-          { line: 9, column: 53 },
-        ],
-      },
-      {
-        message:
-          'The directive "@nonRepeatable" can only be used once at this location.',
-        locations: [
-          { line: 10, column: 30 },
-          { line: 10, column: 45 },
-        ],
-      },
-      {
-        message:
-          'The directive "@nonRepeatable" can only be used once at this location.',
-        locations: [
-          { line: 11, column: 30 },
-          { line: 11, column: 45 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `The directive "@nonRepeatable" can only be used once at this location.`,
+					locations: []Loc{
+						{line: 5, column: 21},
+						{line: 5, column: 36},
+					},
+				},
+				{
+					message: `The directive "@nonRepeatable" can only be used once at this location.`,
+					locations: []Loc{
+						{line: 7, column: 32},
+						{line: 7, column: 47},
+					},
+				},
+				{
+					message: `The directive "@nonRepeatable" can only be used once at this location.`,
+					locations: []Loc{
+						{line: 8, column: 30},
+						{line: 8, column: 45},
+					},
+				},
+				{
+					message: `The directive "@nonRepeatable" can only be used once at this location.`,
+					locations: []Loc{
+						{line: 9, column: 38},
+						{line: 9, column: 53},
+					},
+				},
+				{
+					message: `The directive "@nonRepeatable" can only be used once at this location.`,
+					locations: []Loc{
+						{line: 10, column: 30},
+						{line: 10, column: 45},
+					},
+				},
+				{
+					message: `The directive "@nonRepeatable" can only be used once at this location.`,
+					locations: []Loc{
+						{line: 11, column: 30},
+						{line: 11, column: 45},
+					},
+				},
+			})
 		})
 
 		t.Run("duplicate directives between SDL definitions and extensions", func(t *testing.T) {
@@ -332,16 +307,15 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
 
       schema @nonRepeatable { query: Dummy }
       extend schema @nonRepeatable
-    `)(`[
-      {
-        message:
-          'The directive "@nonRepeatable" can only be used once at this location.',
-        locations: [
-          { line: 4, column: 14 },
-          { line: 5, column: 21 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `The directive "@nonRepeatable" can only be used once at this location.`,
+					locations: []Loc{
+						{line: 4, column: 14},
+						{line: 5, column: 21},
+					},
+				},
+			})
 
 			expectSDLErrors(`
       directive @nonRepeatable on SCALAR
@@ -349,24 +323,22 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
       scalar TestScalar @nonRepeatable
       extend scalar TestScalar @nonRepeatable
       scalar TestScalar @nonRepeatable
-    `)(`[
-      {
-        message:
-          'The directive "@nonRepeatable" can only be used once at this location.',
-        locations: [
-          { line: 4, column: 25 },
-          { line: 5, column: 32 },
-        ],
-      },
-      {
-        message:
-          'The directive "@nonRepeatable" can only be used once at this location.',
-        locations: [
-          { line: 4, column: 25 },
-          { line: 6, column: 25 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `The directive "@nonRepeatable" can only be used once at this location.`,
+					locations: []Loc{
+						{line: 4, column: 25},
+						{line: 5, column: 32},
+					},
+				},
+				{
+					message: `The directive "@nonRepeatable" can only be used once at this location.`,
+					locations: []Loc{
+						{line: 4, column: 25},
+						{line: 6, column: 25},
+					},
+				},
+			})
 
 			expectSDLErrors(`
       directive @nonRepeatable on OBJECT
@@ -374,24 +346,22 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
       extend type TestObject @nonRepeatable
       type TestObject @nonRepeatable
       extend type TestObject @nonRepeatable
-    `)(`[
-      {
-        message:
-          'The directive "@nonRepeatable" can only be used once at this location.',
-        locations: [
-          { line: 4, column: 30 },
-          { line: 5, column: 23 },
-        ],
-      },
-      {
-        message:
-          'The directive "@nonRepeatable" can only be used once at this location.',
-        locations: [
-          { line: 4, column: 30 },
-          { line: 6, column: 30 },
-        ],
-      },
-]`)
+    `)([]Err{
+				{
+					message: `The directive "@nonRepeatable" can only be used once at this location.`,
+					locations: []Loc{
+						{line: 4, column: 30},
+						{line: 5, column: 23},
+					},
+				},
+				{
+					message: `The directive "@nonRepeatable" can only be used once at this location.`,
+					locations: []Loc{
+						{line: 4, column: 30},
+						{line: 6, column: 30},
+					},
+				},
+			})
 		})
 	})
 

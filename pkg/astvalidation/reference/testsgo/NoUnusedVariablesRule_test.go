@@ -2,18 +2,16 @@ package testsgo
 
 import (
 	"testing"
-
-	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation/reference/helpers"
 )
 
 func TestNoUnusedVariablesRule(t *testing.T) {
 
-	expectErrors := func(queryStr string) helpers.ResultCompare {
-		return helpers.ExpectValidationErrors("NoUnusedVariablesRule", queryStr)
+	expectErrors := func(queryStr string) ResultCompare {
+		return ExpectValidationErrors("NoUnusedVariablesRule", queryStr)
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)(`[]`)
+		expectErrors(queryStr)([]Err{})
 	}
 
 	t.Run("Validate: No unused variables", func(t *testing.T) {
@@ -109,12 +107,12 @@ func TestNoUnusedVariablesRule(t *testing.T) {
       query ($a: String, $b: String, $c: String) {
         field(a: $a, b: $b)
       }
-    `)(`[
-      {
-        message: 'Variable "$c" is never used.',
-        locations: [{ line: 2, column: 38 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   `Variable "$c" is never used.`,
+					locations: []Loc{{line: 2, column: 38}},
+				},
+			})
 		})
 
 		t.Run("multiple variables not used", func(t *testing.T) {
@@ -122,16 +120,16 @@ func TestNoUnusedVariablesRule(t *testing.T) {
       query Foo($a: String, $b: String, $c: String) {
         field(b: $b)
       }
-    `)(`[
-      {
-        message: 'Variable "$a" is never used in operation "Foo".',
-        locations: [{ line: 2, column: 17 }],
-      },
-      {
-        message: 'Variable "$c" is never used in operation "Foo".',
-        locations: [{ line: 2, column: 41 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   `Variable "$a" is never used in operation "Foo".`,
+					locations: []Loc{{line: 2, column: 17}},
+				},
+				{
+					message:   `Variable "$c" is never used in operation "Foo".`,
+					locations: []Loc{{line: 2, column: 41}},
+				},
+			})
 		})
 
 		t.Run("variable not used in fragments", func(t *testing.T) {
@@ -152,12 +150,12 @@ func TestNoUnusedVariablesRule(t *testing.T) {
       fragment FragC on Type {
         field
       }
-    `)(`[
-      {
-        message: 'Variable "$c" is never used in operation "Foo".',
-        locations: [{ line: 2, column: 41 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   `Variable "$c" is never used in operation "Foo".`,
+					locations: []Loc{{line: 2, column: 41}},
+				},
+			})
 		})
 
 		t.Run("multiple variables not used in fragments", func(t *testing.T) {
@@ -178,16 +176,16 @@ func TestNoUnusedVariablesRule(t *testing.T) {
       fragment FragC on Type {
         field
       }
-    `)(`[
-      {
-        message: 'Variable "$a" is never used in operation "Foo".',
-        locations: [{ line: 2, column: 17 }],
-      },
-      {
-        message: 'Variable "$c" is never used in operation "Foo".',
-        locations: [{ line: 2, column: 41 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   `Variable "$a" is never used in operation "Foo".`,
+					locations: []Loc{{line: 2, column: 17}},
+				},
+				{
+					message:   `Variable "$c" is never used in operation "Foo".`,
+					locations: []Loc{{line: 2, column: 41}},
+				},
+			})
 		})
 
 		t.Run("variable not used by unreferenced fragment", func(t *testing.T) {
@@ -201,12 +199,12 @@ func TestNoUnusedVariablesRule(t *testing.T) {
       fragment FragB on Type {
         field(b: $b)
       }
-    `)(`[
-      {
-        message: 'Variable "$b" is never used in operation "Foo".',
-        locations: [{ line: 2, column: 17 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   `Variable "$b" is never used in operation "Foo".`,
+					locations: []Loc{{line: 2, column: 17}},
+				},
+			})
 		})
 
 		t.Run("variable not used by fragment used by other operation", func(t *testing.T) {
@@ -223,16 +221,16 @@ func TestNoUnusedVariablesRule(t *testing.T) {
       fragment FragB on Type {
         field(b: $b)
       }
-    `)(`[
-      {
-        message: 'Variable "$b" is never used in operation "Foo".',
-        locations: [{ line: 2, column: 17 }],
-      },
-      {
-        message: 'Variable "$a" is never used in operation "Bar".',
-        locations: [{ line: 5, column: 17 }],
-      },
-]`)
+    `)([]Err{
+				{
+					message:   `Variable "$b" is never used in operation "Foo".`,
+					locations: []Loc{{line: 2, column: 17}},
+				},
+				{
+					message:   `Variable "$a" is never used in operation "Bar".`,
+					locations: []Loc{{line: 5, column: 17}},
+				},
+			})
 		})
 	})
 
