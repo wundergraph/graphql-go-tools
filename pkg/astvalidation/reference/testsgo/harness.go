@@ -1,4 +1,4 @@
-package helpers
+package testsgo
 
 const testSchema = `
   interface Being {
@@ -133,7 +133,16 @@ const testSchema = `
   directive @onVariableDefinition on VARIABLE_DEFINITION
 `
 
-type ResultCompare func(result string)
+type Loc struct {
+	line, column int
+}
+
+type Err struct {
+	message   string
+	locations []Loc
+}
+
+type ResultCompare func(result []Err)
 
 func ExpectValidationErrorsWithSchema(schema string, rule string, queryStr string) ResultCompare {
 	// js:
@@ -141,7 +150,7 @@ func ExpectValidationErrorsWithSchema(schema string, rule string, queryStr strin
 	// const errors = validate(schema, doc, [rule]);
 	// return expect(errors);
 
-	return func(result string) {}
+	return func(result []Err) {}
 }
 
 func ExpectValidationErrors(rule string, queryStr string) ResultCompare {
@@ -153,7 +162,7 @@ func ExpectSDLValidationErrors(schema string, rule string, sdlStr string) Result
 	// const doc = parse(sdlStr);
 	// const errors = validateSDL(doc, schema, [rule]);
 	// return expect(errors);
-	return func(result string) {}
+	return func(result []Err) {}
 }
 
 func BuildSchema(sdl string) string {

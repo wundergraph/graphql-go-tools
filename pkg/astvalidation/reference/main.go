@@ -10,8 +10,7 @@ import (
 	"strings"
 )
 
-//go:generate rm -rf ./testsgo
-//go:generate mkdir testsgo
+//go:generate rm -rf ./testsgo/*_test.go
 //go:generate go run main.go
 //go:generate gofmt -w testsgo
 
@@ -24,8 +23,6 @@ package testsgo
 
 import (
   "testing"
-
-  "github.com/jensneuse/graphql-go-tools/pkg/astvalidation/reference/helpers"
 )
 `
 
@@ -51,8 +48,8 @@ type AssertQuery func(queryStr string) helpers.ResultCompare
 func buildAssertion(sdlStr string) (expectValid func(queryStr string), expectErrors AssertQuery) {
   schema := helpers.BuildSchema(sdlStr)
 
-  expectErrors = func(queryStr string) helpers.ResultCompare {
-    return helpers.ExpectValidationErrorsWithSchema(
+  expectErrors = func(queryStr string) ResultCompare {
+    return ExpectValidationErrorsWithSchema(
       schema,
       "NoDeprecatedCustomRule",
       queryStr,
@@ -168,7 +165,10 @@ func processFile(workingDir string, filename string) {
 	result := converter.iterateLines(testName, string(content))
 
 	outFileName := testName + "_test.go"
-	ioutil.WriteFile(filepath.Join(outDir, outFileName), []byte(result), os.ModePerm)
+	err := ioutil.WriteFile(filepath.Join(outDir, outFileName), []byte(result), os.ModePerm)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 type Converter struct {
@@ -229,12 +229,8 @@ func (c *Converter) transformLine(line string) (out string, skip bool) {
 	switch {
 	case strings.Contains(line, `'`):
 		if strings.Contains(line, `"`) {
-			if !c.insideResultAssertion {
-				transformedLine := strings.ReplaceAll(line, `'`, "`")
-				out, skip = c.transformLine(transformedLine)
-			} else {
-				out = line
-			}
+			transformedLine := strings.ReplaceAll(line, `'`, "`")
+			out, skip = c.transformLine(transformedLine)
 		} else {
 			transformedLine := strings.ReplaceAll(line, `'`, `"`)
 			out, skip = c.transformLine(transformedLine)
@@ -266,10 +262,10 @@ func (c *Converter) transformLine(line string) (out string, skip bool) {
 		out = fmt.Sprintf(`t.Run(%s, func(t *testing.T) {`, name)
 
 	case strings.Contains(line, "function expectErrorsWithSchema"):
-		out = "expectErrorsWithSchema := func(schema string, queryStr string) helpers.ResultCompare {"
+		out = "expectErrorsWithSchema := func(schema string, queryStr string) ResultCompare {"
 
 	case strings.Contains(line, "function expectErrors"):
-		out = "expectErrors := func(queryStr string) helpers.ResultCompare {"
+		out = "expectErrors := func(queryStr string) ResultCompare {"
 
 	case strings.Contains(line, "function expectValidSDL"):
 		out = "expectValidSDL := func(sdlStr string, schema ...string) {"
@@ -281,29 +277,29 @@ func (c *Converter) transformLine(line string) (out string, skip bool) {
 		out = "expectValid := func(queryStr string) {"
 
 	case strings.Contains(line, "function expectSDLErrors"):
-		out = `expectSDLErrors := func(sdlStr string, sch ...string) helpers.ResultCompare {
+		out = `expectSDLErrors := func(sdlStr string, sch ...string) ResultCompare {
 			schema := ""
 if len(sch) > 0 { schema = sch[0] }`
 
 	case strings.Contains(line, "buildSchema("):
-		transformedLine := strings.ReplaceAll(line, "buildSchema", "helpers.BuildSchema")
+		transformedLine := strings.ReplaceAll(line, "buildSchema", "BuildSchema")
 		out, skip = c.transformLine(transformedLine)
 
 	case strings.Contains(line, "expectValidationErrorsWithSchema"):
 		transformedLine := strings.ReplaceAll(line,
-			"expectValidationErrorsWithSchema", "helpers.ExpectValidationErrorsWithSchema")
+			"expectValidationErrorsWithSchema", "ExpectValidationErrorsWithSchema")
 
 		out, skip = c.transformLine(transformedLine)
 
 	case strings.Contains(line, "expectSDLValidationErrors("):
 		transformedLine := strings.ReplaceAll(line,
-			"expectSDLValidationErrors", "helpers.ExpectSDLValidationErrors")
+			"expectSDLValidationErrors", "ExpectSDLValidationErrors")
 
 		out, skip = c.transformLine(transformedLine)
 
 	case strings.Contains(line, "expectValidationErrors("):
 		transformedLine := strings.ReplaceAll(line,
-			"expectValidationErrors", "helpers.ExpectValidationErrors")
+			"expectValidationErrors", "ExpectValidationErrors")
 		out, skip = c.transformLine(transformedLine)
 
 	case strings.Contains(line, "expectSDLErrors(sdlStr, schema)"):
@@ -311,23 +307,40 @@ if len(sch) > 0 { schema = sch[0] }`
 		out, skip = c.transformLine(transformedLine)
 
 	case strings.Contains(line, "to.deep.equal([])"):
-		out = strings.ReplaceAll(line, ".to.deep.equal([])", "(`[]`)")
+		out = strings.ReplaceAll(line, ".to.deep.equal([])", "([]Err{})")
 
 	case strings.Contains(line, "`).to.deep.equal(["):
 		c.insideMultilineString = false
-		c.insideResultAssertion = true
-		out = strings.ReplaceAll(line, ".to.deep.equal(", "(`")
+		fallthrough
 
 	case strings.Contains(line, ").to.deep.equal(["):
 		c.insideResultAssertion = true
-		out = strings.ReplaceAll(line, ".to.deep.equal(", "(`")
+		out = strings.ReplaceAll(line, ".to.deep.equal([", "([]Err{")
+
+	case strings.Contains(line, "{ message,"):
+		if c.insideResultAssertion {
+			out = strings.ReplaceAll(line, "{ message,", `{ message: message,`)
+			out, skip = c.transformLine(out)
+		}
+
+	case strings.Contains(line, "locations: ["):
+		transformedLine := strings.ReplaceAll(line, "locations: [", `locations: []Loc{`)
+		if strings.Contains(transformedLine, "}]") {
+			transformedLine = strings.ReplaceAll(transformedLine, "}]", `}}`)
+		}
+		out = transformedLine
 
 	case strings.Contains(line, "])"):
 		if c.insideMultilineString {
 			out = line
 		} else {
 			c.insideResultAssertion = false
-			out = "]`)"
+			out = "})"
+		}
+
+	case strings.Contains(line, "],"):
+		if c.insideResultAssertion {
+			out = strings.ReplaceAll(line, "],", `},`)
 		}
 
 	case strings.Contains(line, "`"):
@@ -355,13 +368,6 @@ if len(sch) > 0 { schema = sch[0] }`
 			ruleName = strings.Split(ruleName, "(")[1]
 		}
 		out = strings.ReplaceAll(line, ruleName, strconv.Quote(ruleName))
-
-	case strings.Contains(line, "{ message,"):
-		if c.insideResultAssertion {
-			out = strings.ReplaceAll(line, "{ message,", "{` + message + `,")
-		}
-	// case strings.Contains(line, "function"):
-	// 	out = strings.ReplaceAll(line, "function", "func")
 
 	default:
 		if c.insideImport {
