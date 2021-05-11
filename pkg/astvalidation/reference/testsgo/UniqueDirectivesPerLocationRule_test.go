@@ -23,7 +23,7 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)([]Err{})
+		expectErrors(queryStr)(t, []Err{})
 	}
 
 	expectSDLErrors := func(sdlStr string, sch ...string) ResultCompare {
@@ -105,7 +105,7 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
       fragment Test on Type {
         field @directive @directive
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `The directive "@directive" can only be used once at this location.`,
 					locations: []Loc{
@@ -121,7 +121,7 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
       fragment Test on Type {
         field @directive @directive @directive
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `The directive "@directive" can only be used once at this location.`,
 					locations: []Loc{
@@ -144,7 +144,7 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
       fragment Test on Type {
         field @directiveA @directiveB @directiveA @directiveB
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `The directive "@directiveA" can only be used once at this location.`,
 					locations: []Loc{
@@ -167,7 +167,7 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
       fragment Test on Type @directive @directive {
         field @directive @directive
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `The directive "@directive" can only be used once at this location.`,
 					locations: []Loc{
@@ -197,7 +197,7 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
       interface TestInterface @nonRepeatable @nonRepeatable
       union TestUnion @nonRepeatable @nonRepeatable
       input TestInput @nonRepeatable @nonRepeatable
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `The directive "@nonRepeatable" can only be used once at this location.`,
 					locations: []Loc{
@@ -255,7 +255,7 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
       extend interface TestInterface @nonRepeatable @nonRepeatable
       extend union TestUnion @nonRepeatable @nonRepeatable
       extend input TestInput @nonRepeatable @nonRepeatable
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `The directive "@nonRepeatable" can only be used once at this location.`,
 					locations: []Loc{
@@ -307,7 +307,7 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
 
       schema @nonRepeatable { query: Dummy }
       extend schema @nonRepeatable
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `The directive "@nonRepeatable" can only be used once at this location.`,
 					locations: []Loc{
@@ -323,7 +323,7 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
       scalar TestScalar @nonRepeatable
       extend scalar TestScalar @nonRepeatable
       scalar TestScalar @nonRepeatable
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `The directive "@nonRepeatable" can only be used once at this location.`,
 					locations: []Loc{
@@ -346,7 +346,7 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
       extend type TestObject @nonRepeatable
       type TestObject @nonRepeatable
       extend type TestObject @nonRepeatable
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `The directive "@nonRepeatable" can only be used once at this location.`,
 					locations: []Loc{

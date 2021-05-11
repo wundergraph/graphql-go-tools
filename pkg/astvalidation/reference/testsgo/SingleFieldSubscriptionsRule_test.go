@@ -11,7 +11,7 @@ func TestSingleFieldSubscriptionsRule(t *testing.T) {
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)([]Err{})
+		expectErrors(queryStr)(t, []Err{})
 	}
 
 	t.Run("Validate: Subscriptions with single field", func(t *testing.T) {
@@ -29,7 +29,7 @@ func TestSingleFieldSubscriptionsRule(t *testing.T) {
         importantEmails
         notImportantEmails
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Subscription "ImportantEmails" must select only one top level field.`,
 					locations: []Loc{{line: 4, column: 9}},
@@ -43,7 +43,7 @@ func TestSingleFieldSubscriptionsRule(t *testing.T) {
         importantEmails
         __typename
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Subscription "ImportantEmails" must select only one top level field.`,
 					locations: []Loc{{line: 4, column: 9}},
@@ -58,7 +58,7 @@ func TestSingleFieldSubscriptionsRule(t *testing.T) {
         notImportantEmails
         spamEmails
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `Subscription "ImportantEmails" must select only one top level field.`,
 					locations: []Loc{
@@ -75,7 +75,7 @@ func TestSingleFieldSubscriptionsRule(t *testing.T) {
         importantEmails
         notImportantEmails
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   "Anonymous Subscription must select only one top level field.",
 					locations: []Loc{{line: 4, column: 9}},

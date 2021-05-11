@@ -11,7 +11,7 @@ func TestUniqueVariableNamesRule(t *testing.T) {
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)([]Err{})
+		expectErrors(queryStr)(t, []Err{})
 	}
 
 	t.Run("Validate: Unique variable names", func(t *testing.T) {
@@ -27,7 +27,7 @@ func TestUniqueVariableNamesRule(t *testing.T) {
       query A($x: Int, $x: Int, $x: String) { __typename }
       query B($x: String, $x: Int) { __typename }
       query C($x: Int, $x: Int) { __typename }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `There can be only one variable named "$x".`,
 					locations: []Loc{

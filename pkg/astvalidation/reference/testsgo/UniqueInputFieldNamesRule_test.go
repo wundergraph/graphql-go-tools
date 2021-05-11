@@ -11,7 +11,7 @@ func TestUniqueInputFieldNamesRule(t *testing.T) {
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)([]Err{})
+		expectErrors(queryStr)(t, []Err{})
 	}
 
 	t.Run("Validate: Unique input field names", func(t *testing.T) {
@@ -60,7 +60,7 @@ func TestUniqueInputFieldNamesRule(t *testing.T) {
       {
         field(arg: { f1: "value", f1: "value" })
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `There can be only one input field named "f1".`,
 					locations: []Loc{
@@ -76,7 +76,7 @@ func TestUniqueInputFieldNamesRule(t *testing.T) {
       {
         field(arg: { f1: "value", f1: "value", f1: "value" })
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `There can be only one input field named "f1".`,
 					locations: []Loc{
@@ -99,7 +99,7 @@ func TestUniqueInputFieldNamesRule(t *testing.T) {
       {
         field(arg: { f1: {f2: "value", f2: "value" }})
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `There can be only one input field named "f2".`,
 					locations: []Loc{

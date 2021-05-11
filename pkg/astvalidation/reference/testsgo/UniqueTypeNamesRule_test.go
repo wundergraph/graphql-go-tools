@@ -15,7 +15,7 @@ func TestUniqueTypeNamesRule(t *testing.T) {
 	}
 
 	expectValidSDL := func(sdlStr string, schema ...string) {
-		expectSDLErrors(sdlStr, schema...)([]Err{})
+		expectSDLErrors(sdlStr, schema...)(t, []Err{})
 	}
 
 	t.Run("Validate: Unique type names", func(t *testing.T) {
@@ -59,7 +59,7 @@ func TestUniqueTypeNamesRule(t *testing.T) {
       union Foo
       enum Foo
       input Foo
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `There can be only one type named "Foo".`,
 					locations: []Loc{
@@ -128,7 +128,7 @@ func TestUniqueTypeNamesRule(t *testing.T) {
       input Foo
     `
 
-			expectSDLErrors(sdl, schema)([]Err{
+			expectSDLErrors(sdl, schema)(t, []Err{
 				{
 					message:   `Type "Foo" already exists in the schema. It cannot also be defined in this type definition.`,
 					locations: []Loc{{line: 2, column: 14}},

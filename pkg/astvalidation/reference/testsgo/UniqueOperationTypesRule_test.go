@@ -15,7 +15,7 @@ func TestUniqueOperationTypesRule(t *testing.T) {
 	}
 
 	expectValidSDL := func(sdlStr string, schema ...string) {
-		expectSDLErrors(sdlStr, schema...)([]Err{})
+		expectSDLErrors(sdlStr, schema...)(t, []Err{})
 	}
 
 	t.Run("Validate: Unique operation types", func(t *testing.T) {
@@ -84,7 +84,7 @@ func TestUniqueOperationTypesRule(t *testing.T) {
         mutation: Foo
         subscription: Foo
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: "There can be only one query type in schema.",
 					locations: []Loc{
@@ -124,7 +124,7 @@ func TestUniqueOperationTypesRule(t *testing.T) {
         mutation: Foo
         subscription: Foo
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: "There can be only one query type in schema.",
 					locations: []Loc{
@@ -170,7 +170,7 @@ func TestUniqueOperationTypesRule(t *testing.T) {
         mutation: Foo
         subscription: Foo
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: "There can be only one query type in schema.",
 					locations: []Loc{
@@ -234,7 +234,7 @@ func TestUniqueOperationTypesRule(t *testing.T) {
         mutation: Foo
         subscription: Foo
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: "There can be only one query type in schema.",
 					locations: []Loc{
@@ -310,7 +310,7 @@ func TestUniqueOperationTypesRule(t *testing.T) {
       }
     `
 
-			expectSDLErrors(sdl, schema)([]Err{
+			expectSDLErrors(sdl, schema)(t, []Err{
 				{
 					message:   "Type for query already defined in the schema. It cannot be redefined.",
 					locations: []Loc{{line: 3, column: 9}},
@@ -347,7 +347,7 @@ func TestUniqueOperationTypesRule(t *testing.T) {
       }
     `
 
-			expectSDLErrors(sdl, schema)([]Err{
+			expectSDLErrors(sdl, schema)(t, []Err{
 				{
 					message:   "Type for query already defined in the schema. It cannot be redefined.",
 					locations: []Loc{{line: 3, column: 9}},

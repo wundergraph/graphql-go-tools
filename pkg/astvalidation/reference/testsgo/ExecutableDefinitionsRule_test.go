@@ -11,7 +11,7 @@ func TestExecutableDefinitionsRule(t *testing.T) {
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)([]Err{})
+		expectErrors(queryStr)(t, []Err{})
 	}
 
 	t.Run("Validate: Executable definitions", func(t *testing.T) {
@@ -55,7 +55,7 @@ func TestExecutableDefinitionsRule(t *testing.T) {
       extend type Dog {
         color: String
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `The "Cow" definition is not executable.`,
 					locations: []Loc{{line: 8, column: 7}},
@@ -78,7 +78,7 @@ func TestExecutableDefinitionsRule(t *testing.T) {
       }
 
       extend schema @directive
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   "The schema definition is not executable.",
 					locations: []Loc{{line: 2, column: 7}},

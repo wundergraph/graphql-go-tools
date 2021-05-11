@@ -11,7 +11,7 @@ func TestKnownFragmentNamesRule(t *testing.T) {
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)([]Err{})
+		expectErrors(queryStr)(t, []Err{})
 	}
 
 	t.Run("Validate: Known fragment names", func(t *testing.T) {
@@ -55,7 +55,7 @@ func TestKnownFragmentNamesRule(t *testing.T) {
         name
         ...UnknownFragment3
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Unknown fragment "UnknownFragment1".`,
 					locations: []Loc{{line: 4, column: 14}},

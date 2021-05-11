@@ -11,7 +11,7 @@ func TestPossibleFragmentSpreadsRule(t *testing.T) {
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)([]Err{})
+		expectErrors(queryStr)(t, []Err{})
 	}
 
 	t.Run("Validate: Possible fragment spreads", func(t *testing.T) {
@@ -107,7 +107,7 @@ func TestPossibleFragmentSpreadsRule(t *testing.T) {
 			expectErrors(`
       fragment invalidObjectWithinObject on Cat { ...dogFragment }
       fragment dogFragment on Dog { barkVolume }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Fragment "dogFragment" cannot be spread here as objects of type "Cat" can never be of type "Dog".`,
 					locations: []Loc{{line: 2, column: 51}},
@@ -120,7 +120,7 @@ func TestPossibleFragmentSpreadsRule(t *testing.T) {
       fragment invalidObjectWithinObjectAnon on Cat {
         ... on Dog { barkVolume }
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Fragment cannot be spread here as objects of type "Cat" can never be of type "Dog".`,
 					locations: []Loc{{line: 3, column: 9}},
@@ -132,7 +132,7 @@ func TestPossibleFragmentSpreadsRule(t *testing.T) {
 			expectErrors(`
       fragment invalidObjectWithinInterface on Pet { ...humanFragment }
       fragment humanFragment on Human { pets { name } }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Fragment "humanFragment" cannot be spread here as objects of type "Pet" can never be of type "Human".`,
 					locations: []Loc{{line: 2, column: 54}},
@@ -144,7 +144,7 @@ func TestPossibleFragmentSpreadsRule(t *testing.T) {
 			expectErrors(`
       fragment invalidObjectWithinUnion on CatOrDog { ...humanFragment }
       fragment humanFragment on Human { pets { name } }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Fragment "humanFragment" cannot be spread here as objects of type "CatOrDog" can never be of type "Human".`,
 					locations: []Loc{{line: 2, column: 55}},
@@ -156,7 +156,7 @@ func TestPossibleFragmentSpreadsRule(t *testing.T) {
 			expectErrors(`
       fragment invalidUnionWithinObject on Human { ...catOrDogFragment }
       fragment catOrDogFragment on CatOrDog { __typename }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Fragment "catOrDogFragment" cannot be spread here as objects of type "Human" can never be of type "CatOrDog".`,
 					locations: []Loc{{line: 2, column: 52}},
@@ -168,7 +168,7 @@ func TestPossibleFragmentSpreadsRule(t *testing.T) {
 			expectErrors(`
       fragment invalidUnionWithinInterface on Pet { ...humanOrAlienFragment }
       fragment humanOrAlienFragment on HumanOrAlien { __typename }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Fragment "humanOrAlienFragment" cannot be spread here as objects of type "Pet" can never be of type "HumanOrAlien".`,
 					locations: []Loc{{line: 2, column: 53}},
@@ -180,7 +180,7 @@ func TestPossibleFragmentSpreadsRule(t *testing.T) {
 			expectErrors(`
       fragment invalidUnionWithinUnion on CatOrDog { ...humanOrAlienFragment }
       fragment humanOrAlienFragment on HumanOrAlien { __typename }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Fragment "humanOrAlienFragment" cannot be spread here as objects of type "CatOrDog" can never be of type "HumanOrAlien".`,
 					locations: []Loc{{line: 2, column: 54}},
@@ -192,7 +192,7 @@ func TestPossibleFragmentSpreadsRule(t *testing.T) {
 			expectErrors(`
       fragment invalidInterfaceWithinObject on Cat { ...intelligentFragment }
       fragment intelligentFragment on Intelligent { iq }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Fragment "intelligentFragment" cannot be spread here as objects of type "Cat" can never be of type "Intelligent".`,
 					locations: []Loc{{line: 2, column: 54}},
@@ -206,7 +206,7 @@ func TestPossibleFragmentSpreadsRule(t *testing.T) {
         ...intelligentFragment
       }
       fragment intelligentFragment on Intelligent { iq }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Fragment "intelligentFragment" cannot be spread here as objects of type "Pet" can never be of type "Intelligent".`,
 					locations: []Loc{{line: 3, column: 9}},
@@ -219,7 +219,7 @@ func TestPossibleFragmentSpreadsRule(t *testing.T) {
       fragment invalidInterfaceWithinInterfaceAnon on Pet {
         ...on Intelligent { iq }
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Fragment cannot be spread here as objects of type "Pet" can never be of type "Intelligent".`,
 					locations: []Loc{{line: 3, column: 9}},
@@ -231,7 +231,7 @@ func TestPossibleFragmentSpreadsRule(t *testing.T) {
 			expectErrors(`
       fragment invalidInterfaceWithinUnion on HumanOrAlien { ...petFragment }
       fragment petFragment on Pet { name }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Fragment "petFragment" cannot be spread here as objects of type "HumanOrAlien" can never be of type "Pet".`,
 					locations: []Loc{{line: 2, column: 62}},

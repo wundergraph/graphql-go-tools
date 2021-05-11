@@ -11,7 +11,7 @@ func TestFieldsOnCorrectTypeRule(t *testing.T) {
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)([]Err{})
+		expectErrors(queryStr)(t, []Err{})
 	}
 
 	t.Run("Validate: Fields on correct type", func(t *testing.T) {
@@ -75,7 +75,7 @@ func TestFieldsOnCorrectTypeRule(t *testing.T) {
           }
         }
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Cannot query field "unknown_pet_field" on type "Pet".`,
 					locations: []Loc{{line: 3, column: 9}},
@@ -92,7 +92,7 @@ func TestFieldsOnCorrectTypeRule(t *testing.T) {
       fragment fieldNotDefined on Dog {
         meowVolume
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Cannot query field "meowVolume" on type "Dog". Did you mean "barkVolume"?`,
 					locations: []Loc{{line: 3, column: 9}},
@@ -107,7 +107,7 @@ func TestFieldsOnCorrectTypeRule(t *testing.T) {
           deeper_unknown_field
         }
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Cannot query field "unknown_field" on type "Dog".`,
 					locations: []Loc{{line: 3, column: 9}},
@@ -122,7 +122,7 @@ func TestFieldsOnCorrectTypeRule(t *testing.T) {
           unknown_field
         }
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Cannot query field "unknown_field" on type "Pet".`,
 					locations: []Loc{{line: 4, column: 11}},
@@ -137,7 +137,7 @@ func TestFieldsOnCorrectTypeRule(t *testing.T) {
           meowVolume
         }
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Cannot query field "meowVolume" on type "Dog". Did you mean "barkVolume"?`,
 					locations: []Loc{{line: 4, column: 11}},
@@ -150,7 +150,7 @@ func TestFieldsOnCorrectTypeRule(t *testing.T) {
       fragment aliasedFieldTargetNotDefined on Dog {
         volume : mooVolume
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Cannot query field "mooVolume" on type "Dog". Did you mean "barkVolume"?`,
 					locations: []Loc{{line: 3, column: 9}},
@@ -163,7 +163,7 @@ func TestFieldsOnCorrectTypeRule(t *testing.T) {
       fragment aliasedLyingFieldTargetNotDefined on Dog {
         barkVolume : kawVolume
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Cannot query field "kawVolume" on type "Dog". Did you mean "barkVolume"?`,
 					locations: []Loc{{line: 3, column: 9}},
@@ -176,7 +176,7 @@ func TestFieldsOnCorrectTypeRule(t *testing.T) {
       fragment notDefinedOnInterface on Pet {
         tailLength
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Cannot query field "tailLength" on type "Pet".`,
 					locations: []Loc{{line: 3, column: 9}},
@@ -189,7 +189,7 @@ func TestFieldsOnCorrectTypeRule(t *testing.T) {
       fragment definedOnImplementorsButNotInterface on Pet {
         nickname
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Cannot query field "nickname" on type "Pet". Did you mean to use an inline fragment on "Cat" or "Dog"?`,
 					locations: []Loc{{line: 3, column: 9}},
@@ -210,7 +210,7 @@ func TestFieldsOnCorrectTypeRule(t *testing.T) {
       fragment directFieldSelectionOnUnion on CatOrDog {
         directField
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Cannot query field "directField" on type "CatOrDog".`,
 					locations: []Loc{{line: 3, column: 9}},
@@ -223,7 +223,7 @@ func TestFieldsOnCorrectTypeRule(t *testing.T) {
       fragment definedOnImplementorsQueriedOnUnion on CatOrDog {
         name
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Cannot query field "name" on type "CatOrDog". Did you mean to use an inline fragment on "Being", "Pet", "Canine", "Cat", or "Dog"?`,
 					locations: []Loc{{line: 3, column: 9}},
@@ -256,7 +256,7 @@ func TestFieldsOnCorrectTypeRule(t *testing.T) {
         type Query { t: T }
       `)
 
-				expectErrorMessage(schema, "{ t { f } }")(
+				expectErrorMessage(schema, "{ t { f } }")(t,
 					`Cannot query field "f" on type "T".`,
 				)
 			})
@@ -270,7 +270,7 @@ func TestFieldsOnCorrectTypeRule(t *testing.T) {
         type B { f: String }
       `)
 
-				expectErrorMessage(schema, "{ t { f } }")(
+				expectErrorMessage(schema, "{ t { f } }")(t,
 					`Cannot query field "f" on type "T". Did you mean to use an inline fragment on "A" or "B"?`,
 				)
 			})
@@ -284,7 +284,7 @@ func TestFieldsOnCorrectTypeRule(t *testing.T) {
         type Query { t: T }
       `)
 
-				expectErrorMessage(schema, "{ t { f } }")(
+				expectErrorMessage(schema, "{ t { f } }")(t,
 					`Cannot query field "f" on type "T". Did you mean "y" or "z"?`,
 				)
 			})
@@ -309,7 +309,7 @@ func TestFieldsOnCorrectTypeRule(t *testing.T) {
         }
       `)
 
-				expectErrorMessage(schema, "{ t { f } }")(
+				expectErrorMessage(schema, "{ t { f } }")(t,
 					`Cannot query field "f" on type "T". Did you mean to use an inline fragment on "A" or "B"?`,
 				)
 			})
@@ -335,7 +335,7 @@ func TestFieldsOnCorrectTypeRule(t *testing.T) {
         }
       `)
 
-				expectErrorMessage(schema, "{ t { foo } }")(
+				expectErrorMessage(schema, "{ t { foo } }")(t,
 					`Cannot query field "foo" on type "T". Did you mean to use an inline fragment on "Z", "Y", or "X"?`,
 				)
 			})
@@ -353,7 +353,7 @@ func TestFieldsOnCorrectTypeRule(t *testing.T) {
         type F { f: String }
       `)
 
-				expectErrorMessage(schema, "{ t { f } }")(
+				expectErrorMessage(schema, "{ t { f } }")(t,
 					`Cannot query field "f" on type "T". Did you mean to use an inline fragment on "A", "B", "C", "D", or "E"?`,
 				)
 			})
@@ -371,7 +371,7 @@ func TestFieldsOnCorrectTypeRule(t *testing.T) {
         type Query { t: T }
       `)
 
-				expectErrorMessage(schema, "{ t { f } }")(
+				expectErrorMessage(schema, "{ t { f } }")(t,
 					`Cannot query field "f" on type "T". Did you mean "u", "v", "w", "x", or "y"?`,
 				)
 			})

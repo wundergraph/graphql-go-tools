@@ -15,7 +15,7 @@ func TestPossibleTypeExtensionsRule(t *testing.T) {
 	}
 
 	expectValidSDL := func(sdlStr string, schema ...string) {
-		expectSDLErrors(sdlStr, schema...)([]Err{})
+		expectSDLErrors(sdlStr, schema...)(t, []Err{})
 	}
 
 	t.Run("Validate: Possible type extensions", func(t *testing.T) {
@@ -86,7 +86,7 @@ func TestPossibleTypeExtensionsRule(t *testing.T) {
       extend union Unknown @dummy
       extend enum Unknown @dummy
       extend input Unknown @dummy
-    `)([]Err{
+    `)(t, []Err{
 				{message: message, locations: []Loc{{line: 4, column: 21}}},
 				{message: message, locations: []Loc{{line: 5, column: 19}}},
 				{message: message, locations: []Loc{{line: 6, column: 24}}},
@@ -110,7 +110,7 @@ func TestPossibleTypeExtensionsRule(t *testing.T) {
       extend union Foo @dummy
       extend enum Foo @dummy
       extend input Foo @dummy
-    `)([]Err{
+    `)(t, []Err{
 				{message: message, locations: []Loc{{line: 6, column: 21}}},
 				{message: message, locations: []Loc{{line: 7, column: 19}}},
 				{message: message, locations: []Loc{{line: 8, column: 24}}},
@@ -135,7 +135,7 @@ func TestPossibleTypeExtensionsRule(t *testing.T) {
       extend enum FooUnion @dummy
       extend input FooEnum @dummy
       extend scalar FooInputObject @dummy
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `Cannot extend non-object type "FooScalar".`,
 					locations: []Loc{
@@ -215,7 +215,7 @@ func TestPossibleTypeExtensionsRule(t *testing.T) {
 
 			message :=
 				`Cannot extend type "Unknown" because it is not defined. Did you mean "Known"?`
-			expectSDLErrors(sdl, schema)([]Err{
+			expectSDLErrors(sdl, schema)(t, []Err{
 				{message: message, locations: []Loc{{line: 2, column: 21}}},
 				{message: message, locations: []Loc{{line: 3, column: 19}}},
 				{message: message, locations: []Loc{{line: 4, column: 24}}},
@@ -243,7 +243,7 @@ func TestPossibleTypeExtensionsRule(t *testing.T) {
       extend scalar FooInputObject @dummy
     `
 
-			expectSDLErrors(sdl, schema)([]Err{
+			expectSDLErrors(sdl, schema)(t, []Err{
 				{
 					message:   `Cannot extend non-object type "FooScalar".`,
 					locations: []Loc{{line: 2, column: 7}},

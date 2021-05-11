@@ -11,7 +11,7 @@ func TestKnownDirectivesRule(t *testing.T) {
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)([]Err{})
+		expectErrors(queryStr)(t, []Err{})
 	}
 
 	expectSDLErrors := func(sdlStr string, sch ...string) ResultCompare {
@@ -23,7 +23,7 @@ func TestKnownDirectivesRule(t *testing.T) {
 	}
 
 	expectValidSDL := func(sdlStr string, schema ...string) {
-		expectSDLErrors(sdlStr, schema...)([]Err{})
+		expectSDLErrors(sdlStr, schema...)(t, []Err{})
 	}
 
 	schemaWithSDLDirectives := BuildSchema(`
@@ -74,7 +74,7 @@ func TestKnownDirectivesRule(t *testing.T) {
           name
         }
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Unknown directive "@unknown".`,
 					locations: []Loc{{line: 3, column: 13}},
@@ -95,7 +95,7 @@ func TestKnownDirectivesRule(t *testing.T) {
           }
         }
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Unknown directive "@unknown".`,
 					locations: []Loc{{line: 3, column: 13}},
@@ -156,7 +156,7 @@ func TestKnownDirectivesRule(t *testing.T) {
       mutation Bar @onQuery {
         someField
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Directive "@include" may not be used on QUERY.`,
 					locations: []Loc{{line: 2, column: 32}},
@@ -181,7 +181,7 @@ func TestKnownDirectivesRule(t *testing.T) {
       query Foo($var: Boolean @onField) {
         name
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Directive "@onField" may not be used on VARIABLE_DEFINITION.`,
 					locations: []Loc{{line: 2, column: 31}},
@@ -260,7 +260,7 @@ func TestKnownDirectivesRule(t *testing.T) {
           extend type Query @unknown
         `,
 					schema,
-				)([]Err{
+				)(t, []Err{
 					{
 						message:   `Unknown directive "@unknown".`,
 						locations: []Loc{{line: 2, column: 29}},
@@ -343,7 +343,7 @@ func TestKnownDirectivesRule(t *testing.T) {
           extend schema @onObject
         `,
 					schemaWithSDLDirectives,
-				)([]Err{
+				)(t, []Err{
 					{
 						message:   `Directive "@onInterface" may not be used on OBJECT.`,
 						locations: []Loc{{line: 2, column: 45}},

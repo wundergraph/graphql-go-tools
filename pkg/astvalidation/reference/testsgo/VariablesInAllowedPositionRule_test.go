@@ -11,7 +11,7 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)([]Err{})
+		expectErrors(queryStr)(t, []Err{})
 	}
 
 	t.Run("Validate: Variables are in allowed positions", func(t *testing.T) {
@@ -160,7 +160,7 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
           nonNullIntArgField(nonNullIntArg: $intArg)
         }
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `Variable "$intArg" of type "Int" used in position expecting type "Int!".`,
 					locations: []Loc{
@@ -182,7 +182,7 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
           ...nonNullIntArgFieldFrag
         }
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `Variable "$intArg" of type "Int" used in position expecting type "Int!".`,
 					locations: []Loc{
@@ -208,7 +208,7 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
           ...outerFrag
         }
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `Variable "$intArg" of type "Int" used in position expecting type "Int!".`,
 					locations: []Loc{
@@ -226,7 +226,7 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
           booleanArgField(booleanArg: $stringVar)
         }
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `Variable "$stringVar" of type "String" used in position expecting type "Boolean".`,
 					locations: []Loc{
@@ -244,7 +244,7 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
           stringListArgField(stringListArg: $stringVar)
         }
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `Variable "$stringVar" of type "String" used in position expecting type "[String]".`,
 					locations: []Loc{
@@ -260,7 +260,7 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
       query Query($boolVar: Boolean) {
         dog @include(if: $boolVar)
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `Variable "$boolVar" of type "Boolean" used in position expecting type "Boolean!".`,
 					locations: []Loc{
@@ -276,7 +276,7 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
       query Query($stringVar: String) {
         dog @include(if: $stringVar)
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `Variable "$stringVar" of type "String" used in position expecting type "Boolean!".`,
 					locations: []Loc{
@@ -295,7 +295,7 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
           stringListNonNullArgField(stringListNonNullArg: $stringListVar)
         }
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `Variable "$stringListVar" of type "[String]" used in position expecting type "[String!]".`,
 					locations: []Loc{
@@ -314,7 +314,7 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
             nonNullIntArgField(nonNullIntArg: $intVar)
           }
         }
-      `)([]Err{
+      `)(t, []Err{
 					{
 						message: `Variable "$intVar" of type "Int" used in position expecting type "Int!".`,
 						locations: []Loc{

@@ -11,7 +11,7 @@ func TestNoUnusedVariablesRule(t *testing.T) {
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)([]Err{})
+		expectErrors(queryStr)(t, []Err{})
 	}
 
 	t.Run("Validate: No unused variables", func(t *testing.T) {
@@ -107,7 +107,7 @@ func TestNoUnusedVariablesRule(t *testing.T) {
       query ($a: String, $b: String, $c: String) {
         field(a: $a, b: $b)
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Variable "$c" is never used.`,
 					locations: []Loc{{line: 2, column: 38}},
@@ -120,7 +120,7 @@ func TestNoUnusedVariablesRule(t *testing.T) {
       query Foo($a: String, $b: String, $c: String) {
         field(b: $b)
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Variable "$a" is never used in operation "Foo".`,
 					locations: []Loc{{line: 2, column: 17}},
@@ -150,7 +150,7 @@ func TestNoUnusedVariablesRule(t *testing.T) {
       fragment FragC on Type {
         field
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Variable "$c" is never used in operation "Foo".`,
 					locations: []Loc{{line: 2, column: 41}},
@@ -176,7 +176,7 @@ func TestNoUnusedVariablesRule(t *testing.T) {
       fragment FragC on Type {
         field
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Variable "$a" is never used in operation "Foo".`,
 					locations: []Loc{{line: 2, column: 17}},
@@ -199,7 +199,7 @@ func TestNoUnusedVariablesRule(t *testing.T) {
       fragment FragB on Type {
         field(b: $b)
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Variable "$b" is never used in operation "Foo".`,
 					locations: []Loc{{line: 2, column: 17}},
@@ -221,7 +221,7 @@ func TestNoUnusedVariablesRule(t *testing.T) {
       fragment FragB on Type {
         field(b: $b)
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Variable "$b" is never used in operation "Foo".`,
 					locations: []Loc{{line: 2, column: 17}},

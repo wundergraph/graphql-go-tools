@@ -11,7 +11,7 @@ func TestUniqueArgumentNamesRule(t *testing.T) {
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)([]Err{})
+		expectErrors(queryStr)(t, []Err{})
 	}
 
 	t.Run("Validate: Unique argument names", func(t *testing.T) {
@@ -93,7 +93,7 @@ func TestUniqueArgumentNamesRule(t *testing.T) {
       {
         field(arg1: "value", arg1: "value")
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `There can be only one argument named "arg1".`,
 					locations: []Loc{
@@ -109,7 +109,7 @@ func TestUniqueArgumentNamesRule(t *testing.T) {
       {
         field(arg1: "value", arg1: "value", arg1: "value")
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `There can be only one argument named "arg1".`,
 					locations: []Loc{
@@ -132,7 +132,7 @@ func TestUniqueArgumentNamesRule(t *testing.T) {
       {
         field @directive(arg1: "value", arg1: "value")
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `There can be only one argument named "arg1".`,
 					locations: []Loc{
@@ -148,7 +148,7 @@ func TestUniqueArgumentNamesRule(t *testing.T) {
       {
         field @directive(arg1: "value", arg1: "value", arg1: "value")
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `There can be only one argument named "arg1".`,
 					locations: []Loc{

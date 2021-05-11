@@ -15,7 +15,7 @@ func TestLoneSchemaDefinitionRule(t *testing.T) {
 	}
 
 	expectValidSDL := func(sdlStr string, schema ...string) {
-		expectSDLErrors(sdlStr, schema...)([]Err{})
+		expectSDLErrors(sdlStr, schema...)(t, []Err{})
 	}
 
 	t.Run("Validate: Schema definition should be alone", func(t *testing.T) {
@@ -56,7 +56,7 @@ func TestLoneSchemaDefinitionRule(t *testing.T) {
       schema {
         subscription: Foo
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   "Must provide only one schema definition.",
 					locations: []Loc{{line: 10, column: 7}},
@@ -82,7 +82,7 @@ func TestLoneSchemaDefinitionRule(t *testing.T) {
         }
       `,
 				schema,
-			)([]Err{})
+			)(t, []Err{})
 		})
 
 		t.Run("redefine schema in schema extension", func(t *testing.T) {
@@ -103,7 +103,7 @@ func TestLoneSchemaDefinitionRule(t *testing.T) {
         }
       `,
 				schema,
-			)([]Err{
+			)(t, []Err{
 				{
 					message:   "Cannot define a new schema within a schema extension.",
 					locations: []Loc{{line: 2, column: 9}},
@@ -129,7 +129,7 @@ func TestLoneSchemaDefinitionRule(t *testing.T) {
         }
       `,
 				schema,
-			)([]Err{
+			)(t, []Err{
 				{
 					message:   "Cannot define a new schema within a schema extension.",
 					locations: []Loc{{line: 2, column: 9}},

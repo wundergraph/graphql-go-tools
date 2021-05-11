@@ -11,7 +11,7 @@ func TestVariablesAreInputTypesRule(t *testing.T) {
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)([]Err{})
+		expectErrors(queryStr)(t, []Err{})
 	}
 
 	t.Run("Validate: Variables are input types", func(t *testing.T) {
@@ -28,7 +28,7 @@ func TestVariablesAreInputTypesRule(t *testing.T) {
       query Foo($a: Dog, $b: [[CatOrDog!]]!, $c: Pet) {
         field(a: $a, b: $b, c: $c)
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					locations: []Loc{{line: 2, column: 21}},
 					message:   `Variable "$a" cannot be non-input type "Dog".`,

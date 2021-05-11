@@ -11,7 +11,7 @@ func TestScalarLeafsRule(t *testing.T) {
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)([]Err{})
+		expectErrors(queryStr)(t, []Err{})
 	}
 
 	t.Run("Validate: Scalar leafs", func(t *testing.T) {
@@ -28,7 +28,7 @@ func TestScalarLeafsRule(t *testing.T) {
       query directQueryOnObjectWithoutSubFields {
         human
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Field "human" of type "Human" must have a selection of subfields. Did you mean "human { ... }"?`,
 					locations: []Loc{{line: 3, column: 9}},
@@ -41,7 +41,7 @@ func TestScalarLeafsRule(t *testing.T) {
       {
         human { pets }
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Field "pets" of type "[Pet]" must have a selection of subfields. Did you mean "pets { ... }"?`,
 					locations: []Loc{{line: 3, column: 17}},
@@ -62,7 +62,7 @@ func TestScalarLeafsRule(t *testing.T) {
       fragment scalarSelectionsNotAllowedOnBoolean on Dog {
         barks { sinceWhen }
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Field "barks" must not have a selection since type "Boolean" has no subfields.`,
 					locations: []Loc{{line: 3, column: 15}},
@@ -75,7 +75,7 @@ func TestScalarLeafsRule(t *testing.T) {
       fragment scalarSelectionsNotAllowedOnEnum on Cat {
         furColor { inHexDec }
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Field "furColor" must not have a selection since type "FurColor" has no subfields.`,
 					locations: []Loc{{line: 3, column: 18}},
@@ -88,7 +88,7 @@ func TestScalarLeafsRule(t *testing.T) {
       fragment scalarSelectionsNotAllowedWithArgs on Dog {
         doesKnowCommand(dogCommand: SIT) { sinceWhen }
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Field "doesKnowCommand" must not have a selection since type "Boolean" has no subfields.`,
 					locations: []Loc{{line: 3, column: 42}},
@@ -101,7 +101,7 @@ func TestScalarLeafsRule(t *testing.T) {
       fragment scalarSelectionsNotAllowedWithDirectives on Dog {
         name @include(if: true) { isAlsoHumanName }
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Field "name" must not have a selection since type "String" has no subfields.`,
 					locations: []Loc{{line: 3, column: 33}},
@@ -114,7 +114,7 @@ func TestScalarLeafsRule(t *testing.T) {
       fragment scalarSelectionsNotAllowedWithDirectivesAndArgs on Dog {
         doesKnowCommand(dogCommand: SIT) @include(if: true) { sinceWhen }
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Field "doesKnowCommand" must not have a selection since type "Boolean" has no subfields.`,
 					locations: []Loc{{line: 3, column: 61}},

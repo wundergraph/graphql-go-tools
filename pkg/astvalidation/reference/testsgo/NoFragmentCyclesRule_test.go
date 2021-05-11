@@ -11,7 +11,7 @@ func TestNoFragmentCyclesRule(t *testing.T) {
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)([]Err{})
+		expectErrors(queryStr)(t, []Err{})
 	}
 
 	t.Run("Validate: No circular fragment spreads", func(t *testing.T) {
@@ -62,7 +62,7 @@ func TestNoFragmentCyclesRule(t *testing.T) {
 		t.Run("spreading recursively within field fails", func(t *testing.T) {
 			expectErrors(`
       fragment fragA on Human { relatives { ...fragA } },
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Cannot spread fragment "fragA" within itself.`,
 					locations: []Loc{{line: 2, column: 45}},
@@ -73,7 +73,7 @@ func TestNoFragmentCyclesRule(t *testing.T) {
 		t.Run("no spreading itself directly", func(t *testing.T) {
 			expectErrors(`
       fragment fragA on Dog { ...fragA }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Cannot spread fragment "fragA" within itself.`,
 					locations: []Loc{{line: 2, column: 31}},
@@ -88,7 +88,7 @@ func TestNoFragmentCyclesRule(t *testing.T) {
           ...fragA
         }
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Cannot spread fragment "fragA" within itself.`,
 					locations: []Loc{{line: 4, column: 11}},
@@ -100,7 +100,7 @@ func TestNoFragmentCyclesRule(t *testing.T) {
 			expectErrors(`
       fragment fragA on Dog { ...fragB }
       fragment fragB on Dog { ...fragA }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `Cannot spread fragment "fragA" within itself via "fragB".`,
 					locations: []Loc{
@@ -115,7 +115,7 @@ func TestNoFragmentCyclesRule(t *testing.T) {
 			expectErrors(`
       fragment fragB on Dog { ...fragA }
       fragment fragA on Dog { ...fragB }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `Cannot spread fragment "fragB" within itself via "fragA".`,
 					locations: []Loc{
@@ -138,7 +138,7 @@ func TestNoFragmentCyclesRule(t *testing.T) {
           ...fragA
         }
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `Cannot spread fragment "fragA" within itself via "fragB".`,
 					locations: []Loc{
@@ -159,7 +159,7 @@ func TestNoFragmentCyclesRule(t *testing.T) {
       fragment fragZ on Dog { ...fragO }
       fragment fragO on Dog { ...fragP }
       fragment fragP on Dog { ...fragA, ...fragX }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `Cannot spread fragment "fragA" within itself via "fragB", "fragC", "fragO", "fragP".`,
 					locations: []Loc{
@@ -188,7 +188,7 @@ func TestNoFragmentCyclesRule(t *testing.T) {
       fragment fragA on Dog { ...fragB, ...fragC }
       fragment fragB on Dog { ...fragA }
       fragment fragC on Dog { ...fragA }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `Cannot spread fragment "fragA" within itself via "fragB".`,
 					locations: []Loc{
@@ -211,7 +211,7 @@ func TestNoFragmentCyclesRule(t *testing.T) {
       fragment fragA on Dog { ...fragC }
       fragment fragB on Dog { ...fragC }
       fragment fragC on Dog { ...fragA, ...fragB }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `Cannot spread fragment "fragA" within itself via "fragC".`,
 					locations: []Loc{
@@ -234,7 +234,7 @@ func TestNoFragmentCyclesRule(t *testing.T) {
       fragment fragA on Dog { ...fragB }
       fragment fragB on Dog { ...fragB, ...fragC }
       fragment fragC on Dog { ...fragA, ...fragB }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Cannot spread fragment "fragB" within itself.`,
 					locations: []Loc{{line: 3, column: 31}},

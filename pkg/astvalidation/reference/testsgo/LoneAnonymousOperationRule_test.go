@@ -11,7 +11,7 @@ func TestLoneAnonymousOperationRule(t *testing.T) {
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)([]Err{})
+		expectErrors(queryStr)(t, []Err{})
 	}
 
 	t.Run("Validate: Anonymous operation must be alone", func(t *testing.T) {
@@ -62,7 +62,7 @@ func TestLoneAnonymousOperationRule(t *testing.T) {
       {
         fieldB
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   "This anonymous operation must be the only defined operation.",
 					locations: []Loc{{line: 2, column: 7}},
@@ -82,7 +82,7 @@ func TestLoneAnonymousOperationRule(t *testing.T) {
       mutation Foo {
         fieldB
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   "This anonymous operation must be the only defined operation.",
 					locations: []Loc{{line: 2, column: 7}},
@@ -98,7 +98,7 @@ func TestLoneAnonymousOperationRule(t *testing.T) {
       subscription Foo {
         fieldB
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   "This anonymous operation must be the only defined operation.",
 					locations: []Loc{{line: 2, column: 7}},

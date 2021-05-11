@@ -11,7 +11,7 @@ func TestNoUndefinedVariablesRule(t *testing.T) {
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)([]Err{})
+		expectErrors(queryStr)(t, []Err{})
 	}
 
 	t.Run("Validate: No undefined variables", func(t *testing.T) {
@@ -121,7 +121,7 @@ func TestNoUndefinedVariablesRule(t *testing.T) {
       query Foo($a: String, $b: String, $c: String) {
         field(a: $a, b: $b, c: $c, d: $d)
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `Variable "$d" is not defined by operation "Foo".`,
 					locations: []Loc{
@@ -137,7 +137,7 @@ func TestNoUndefinedVariablesRule(t *testing.T) {
       {
         field(a: $a)
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `Variable "$a" is not defined.`,
 					locations: []Loc{
@@ -153,7 +153,7 @@ func TestNoUndefinedVariablesRule(t *testing.T) {
       query Foo($b: String) {
         field(a: $a, b: $b, c: $c)
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `Variable "$a" is not defined by operation "Foo".`,
 					locations: []Loc{
@@ -179,7 +179,7 @@ func TestNoUndefinedVariablesRule(t *testing.T) {
       fragment FragA on Type {
         field(a: $a)
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `Variable "$a" is not defined.`,
 					locations: []Loc{
@@ -208,7 +208,7 @@ func TestNoUndefinedVariablesRule(t *testing.T) {
       fragment FragC on Type {
         field(c: $c)
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `Variable "$c" is not defined by operation "Foo".`,
 					locations: []Loc{
@@ -237,7 +237,7 @@ func TestNoUndefinedVariablesRule(t *testing.T) {
       fragment FragC on Type {
         field(c: $c)
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `Variable "$a" is not defined by operation "Foo".`,
 					locations: []Loc{
@@ -266,7 +266,7 @@ func TestNoUndefinedVariablesRule(t *testing.T) {
       fragment FragAB on Type {
         field(a: $a, b: $b)
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `Variable "$b" is not defined by operation "Foo".`,
 					locations: []Loc{
@@ -295,7 +295,7 @@ func TestNoUndefinedVariablesRule(t *testing.T) {
       fragment FragAB on Type {
         field(a: $a, b: $b)
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `Variable "$a" is not defined by operation "Foo".`,
 					locations: []Loc{
@@ -327,7 +327,7 @@ func TestNoUndefinedVariablesRule(t *testing.T) {
       fragment FragB on Type {
         field(b: $b)
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `Variable "$a" is not defined by operation "Foo".`,
 					locations: []Loc{
@@ -361,7 +361,7 @@ func TestNoUndefinedVariablesRule(t *testing.T) {
       fragment FragC on Type {
         field2(c: $c)
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `Variable "$a" is not defined by operation "Foo".`,
 					locations: []Loc{

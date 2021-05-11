@@ -15,7 +15,7 @@ func TestKnownTypeNamesRule(t *testing.T) {
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)([]Err{})
+		expectErrors(queryStr)(t, []Err{})
 	}
 
 	expectSDLErrors := func(sdlStr string, sch ...string) ResultCompare {
@@ -27,7 +27,7 @@ func TestKnownTypeNamesRule(t *testing.T) {
 	}
 
 	expectValidSDL := func(sdlStr string, schema ...string) {
-		expectSDLErrors(sdlStr, schema...)([]Err{})
+		expectSDLErrors(sdlStr, schema...)(t, []Err{})
 	}
 
 	t.Run("Validate: Known type names", func(t *testing.T) {
@@ -60,7 +60,7 @@ func TestKnownTypeNamesRule(t *testing.T) {
       fragment PetFields on Peat {
         name
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Unknown type "JumbledUpLetters".`,
 					locations: []Loc{{line: 2, column: 23}},
@@ -83,7 +83,7 @@ func TestKnownTypeNamesRule(t *testing.T) {
         __typename
       }
     `
-			expectErrorsWithSchema(schema, query)([]Err{
+			expectErrorsWithSchema(schema, query)(t, []Err{
 				{
 					message:   `Unknown type "ID".`,
 					locations: []Loc{{line: 2, column: 19}},
@@ -174,7 +174,7 @@ func TestKnownTypeNamesRule(t *testing.T) {
           mutation: M
           subscription: N
         }
-      `)([]Err{
+      `)(t, []Err{
 					{
 						message:   `Unknown type "C". Did you mean "A" or "B"?`,
 						locations: []Loc{{line: 5, column: 36}},
@@ -235,7 +235,7 @@ func TestKnownTypeNamesRule(t *testing.T) {
         type Query {
           foo: Foo
         }
-      `)([]Err{
+      `)(t, []Err{
 					{
 						message:   `Unknown type "Foo".`,
 						locations: []Loc{{line: 7, column: 16}},
@@ -305,7 +305,7 @@ func TestKnownTypeNamesRule(t *testing.T) {
         }
       `
 
-				expectSDLErrors(sdl, schema)([]Err{
+				expectSDLErrors(sdl, schema)(t, []Err{
 					{
 						message:   `Unknown type "C". Did you mean "A" or "B"?`,
 						locations: []Loc{{line: 4, column: 36}},

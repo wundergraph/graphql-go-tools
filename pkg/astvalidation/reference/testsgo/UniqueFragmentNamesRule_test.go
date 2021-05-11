@@ -11,7 +11,7 @@ func TestUniqueFragmentNamesRule(t *testing.T) {
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)([]Err{})
+		expectErrors(queryStr)(t, []Err{})
 	}
 
 	t.Run("Validate: Unique fragment names", func(t *testing.T) {
@@ -89,7 +89,7 @@ func TestUniqueFragmentNamesRule(t *testing.T) {
       fragment fragA on Type {
         fieldB
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `There can be only one fragment named "fragA".`,
 					locations: []Loc{
@@ -108,7 +108,7 @@ func TestUniqueFragmentNamesRule(t *testing.T) {
       fragment fragA on Type {
         fieldB
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `There can be only one fragment named "fragA".`,
 					locations: []Loc{

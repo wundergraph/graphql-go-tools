@@ -11,7 +11,7 @@ func TestNoUnusedFragmentsRule(t *testing.T) {
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)([]Err{})
+		expectErrors(queryStr)(t, []Err{})
 	}
 
 	t.Run("Validate: No unused fragments", func(t *testing.T) {
@@ -91,7 +91,7 @@ func TestNoUnusedFragmentsRule(t *testing.T) {
       fragment Unused2 on Human {
         name
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Fragment "Unused1" is never used.`,
 					locations: []Loc{{line: 22, column: 7}},
@@ -133,7 +133,7 @@ func TestNoUnusedFragmentsRule(t *testing.T) {
         name
         ...Unused1
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Fragment "Unused1" is never used.`,
 					locations: []Loc{{line: 22, column: 7}},
@@ -155,7 +155,7 @@ func TestNoUnusedFragmentsRule(t *testing.T) {
       fragment foo on Human {
         name
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Fragment "foo" is never used.`,
 					locations: []Loc{{line: 7, column: 7}},

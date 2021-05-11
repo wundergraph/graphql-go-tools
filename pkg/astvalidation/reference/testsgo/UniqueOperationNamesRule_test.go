@@ -11,7 +11,7 @@ func TestUniqueOperationNamesRule(t *testing.T) {
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)([]Err{})
+		expectErrors(queryStr)(t, []Err{})
 	}
 
 	t.Run("Validate: Unique operation names", func(t *testing.T) {
@@ -86,7 +86,7 @@ func TestUniqueOperationNamesRule(t *testing.T) {
       query Foo {
         fieldB
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `There can be only one operation named "Foo".`,
 					locations: []Loc{
@@ -105,7 +105,7 @@ func TestUniqueOperationNamesRule(t *testing.T) {
       mutation Foo {
         fieldB
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `There can be only one operation named "Foo".`,
 					locations: []Loc{
@@ -124,7 +124,7 @@ func TestUniqueOperationNamesRule(t *testing.T) {
       subscription Foo {
         fieldB
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message: `There can be only one operation named "Foo".`,
 					locations: []Loc{

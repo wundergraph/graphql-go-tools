@@ -11,7 +11,7 @@ func TestFragmentsOnCompositeTypesRule(t *testing.T) {
 	}
 
 	expectValid := func(queryStr string) {
-		expectErrors(queryStr)([]Err{})
+		expectErrors(queryStr)(t, []Err{})
 	}
 
 	t.Run("Validate: Fragments on composite types", func(t *testing.T) {
@@ -74,7 +74,7 @@ func TestFragmentsOnCompositeTypesRule(t *testing.T) {
       fragment scalarFragment on Boolean {
         bad
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Fragment "scalarFragment" cannot condition on non composite type "Boolean".`,
 					locations: []Loc{{line: 2, column: 34}},
@@ -87,7 +87,7 @@ func TestFragmentsOnCompositeTypesRule(t *testing.T) {
       fragment scalarFragment on FurColor {
         bad
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Fragment "scalarFragment" cannot condition on non composite type "FurColor".`,
 					locations: []Loc{{line: 2, column: 34}},
@@ -100,7 +100,7 @@ func TestFragmentsOnCompositeTypesRule(t *testing.T) {
       fragment inputFragment on ComplexInput {
         stringField
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Fragment "inputFragment" cannot condition on non composite type "ComplexInput".`,
 					locations: []Loc{{line: 2, column: 33}},
@@ -115,7 +115,7 @@ func TestFragmentsOnCompositeTypesRule(t *testing.T) {
           barks
         }
       }
-    `)([]Err{
+    `)(t, []Err{
 				{
 					message:   `Fragment cannot condition on non composite type "String".`,
 					locations: []Loc{{line: 3, column: 16}},
