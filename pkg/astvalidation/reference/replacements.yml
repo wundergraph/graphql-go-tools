@@ -151,10 +151,10 @@
   source: >-
     function expectSDLErrors(sdlStr: string, schema?: GraphQLSchema) {
   replacement: >-
-    ExpectSDLErrors := func(t *testing.T, schema string, sdls ...string) ResultCompare {
-      sdlStr := ""
-      if len(sdls) > 0 {
-        sdlStr = sdls[0]
+    ExpectSDLErrors := func(t *testing.T, sdlStr string, schemas ...string) ResultCompare {
+      schema := ""
+      if len(schemas) > 0 {
+        schema = schemas[0]
       }
 -
   rule: __ALL__
@@ -164,6 +164,6 @@
       expectSDLErrors(sdlStr, schema).to.deep.equal([]);
     }
   replacement: >-
-    ExpectValidSDL := func(t *testing.T, schema string, sdls ...string) {
-      ExpectSDLErrors(t, schema, sdls...)([]Err{})
+    ExpectValidSDL := func(t *testing.T, sdlStr string, schemas ...string) {
+      ExpectSDLErrors(t, sdlStr, schemas...)([]Err{})
     }

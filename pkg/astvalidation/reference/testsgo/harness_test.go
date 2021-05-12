@@ -57,10 +57,11 @@ func ExpectValidationErrors(t *testing.T, rule string, queryStr string) ResultCo
 
 // ExpectSDLValidationErrors - is a helper to run schema definition validation
 // returns ResultCompare function
+// in reference tests schema is optional but leaves on a first param
 func ExpectSDLValidationErrors(t *testing.T, schema string, rule string, sdlStr string) ResultCompare {
-	def := prepareSchema(schema)
+	def := prepareSchema(sdlStr)
 
-	if sdlStr != "" {
+	if schema != "" {
 		// merge schema additions
 		def.Input.AppendInputBytes([]byte(sdlStr))
 		parser := astparser.NewParser()

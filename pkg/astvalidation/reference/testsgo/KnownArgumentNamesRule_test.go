@@ -14,10 +14,10 @@ func TestKnownArgumentNamesRule(t *testing.T) {
 		ExpectErrors(t, queryStr)([]Err{})
 	}
 
-	ExpectSDLErrors := func(t *testing.T, schema string, sdls ...string) ResultCompare {
-		sdlStr := ""
-		if len(sdls) > 0 {
-			sdlStr = sdls[0]
+	ExpectSDLErrors := func(t *testing.T, sdlStr string, schemas ...string) ResultCompare {
+		schema := ""
+		if len(schemas) > 0 {
+			schema = schemas[0]
 		}
 		return ExpectSDLValidationErrors(t,
 			schema,

@@ -6,16 +6,16 @@ import (
 
 func TestUniqueDirectiveNamesRule(t *testing.T) {
 
-	ExpectSDLErrors := func(t *testing.T, schema string, sdls ...string) ResultCompare {
-		sdlStr := ""
-		if len(sdls) > 0 {
-			sdlStr = sdls[0]
+	ExpectSDLErrors := func(t *testing.T, sdlStr string, schemas ...string) ResultCompare {
+		schema := ""
+		if len(schemas) > 0 {
+			schema = schemas[0]
 		}
 		return ExpectSDLValidationErrors(t, schema, "UniqueDirectiveNamesRule", sdlStr)
 	}
 
-	ExpectValidSDL := func(t *testing.T, schema string, sdls ...string) {
-		ExpectSDLErrors(t, schema, sdls...)([]Err{})
+	ExpectValidSDL := func(t *testing.T, sdlStr string, schemas ...string) {
+		ExpectSDLErrors(t, sdlStr, schemas...)([]Err{})
 	}
 
 	t.Run("Validate: Unique directive names", func(t *testing.T) {
