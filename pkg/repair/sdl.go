@@ -8,16 +8,22 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
-func SDL(input string) (string, error) {
+type OptionsSDL struct {
+	SetAllMutationFieldsNullable bool
+}
+
+func SDL(input string, options OptionsSDL) (string, error) {
 	repair := sdlRepair{
 		sdl: input,
+		options: options,
 	}
 	return repair.do()
 }
 
 type sdlRepair struct {
-	sdl string
-	doc *ast.Document
+	sdl     string
+	doc     *ast.Document
+	options OptionsSDL
 }
 
 func (r *sdlRepair) do() (string, error) {
@@ -30,10 +36,10 @@ func (r *sdlRepair) do() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return astprinter.PrintString(r.doc,nil)
+	return astprinter.PrintString(r.doc, nil)
 }
 
-func (r *sdlRepair) repairEmptyInputObjectTypeDefinitions () error {
+func (r *sdlRepair) repairEmptyInputObjectTypeDefinitions() error {
 	walker := astvisitor.NewWalker(8)
 	visitor := &emptyInputObjectTypeDefinitionVisitor{
 		walker: &walker,
@@ -41,9 +47,17 @@ func (r *sdlRepair) repairEmptyInputObjectTypeDefinitions () error {
 	walker.RegisterEnterInputObjectTypeDefinitionVisitor(visitor)
 	walker.RegisterEnterInputValueDefinitionVisitor(visitor)
 	walker.RegisterDocumentVisitor(visitor)
+	if r.options.SetAllMutationFieldsNullable {
+		setAllMutationFieldsNullableVisitor := &setAllMutationFieldsNullableVisitor{
+			walker: &walker,
+		}
+		walker.RegisterEnterDocumentVisitor(setAllMutationFieldsNullableVisitor)
+		walker.RegisterEnterFieldDefinitionVisitor(setAllMutationFieldsNullableVisitor)
+		walker.RegisterObjectTypeDefinitionVisitor(setAllMutationFieldsNullableVisitor)
+	}
 	report := operationreport.Report{}
 	for {
-		walker.Walk(r.doc,nil,&report)
+		walker.Walk(r.doc, nil, &report)
 		if report.HasErrors() {
 			return report
 		}
@@ -55,21 +69,21 @@ func (r *sdlRepair) repairEmptyInputObjectTypeDefinitions () error {
 }
 
 type emptyInputObjectTypeDefinitionVisitor struct {
-	walker *astvisitor.Walker
+	walker  *astvisitor.Walker
 	changed bool
-	doc *ast.Document
+	doc     *ast.Document
 
 	removeRootNode bool
-	rootNode ast.Node
+	rootNode       ast.Node
 
 	removeFieldsWithType []string
 
 	removeInputValueDefinition bool
-	inputObjectTypeDefinition int
-	inputValueDefinition int
+	inputObjectTypeDefinition  int
+	inputValueDefinition       int
 
 	removeFieldArgument bool
-	fieldDefinition int
+	fieldDefinition     int
 }
 
 func (e *emptyInputObjectTypeDefinitionVisitor) EnterInputValueDefinition(ref int) {
@@ -103,7 +117,7 @@ func (e *emptyInputObjectTypeDefinitionVisitor) LeaveDocument(operation, definit
 		for i, ref := range e.doc.InputObjectTypeDefinitions[e.inputObjectTypeDefinition].InputFieldsDefinition.Refs {
 			if ref == e.inputValueDefinition {
 				e.doc.InputObjectTypeDefinitions[e.inputObjectTypeDefinition].InputFieldsDefinition.Refs =
-					append(e.doc.InputObjectTypeDefinitions[e.inputObjectTypeDefinition].InputFieldsDefinition.Refs[:i],e.doc.InputObjectTypeDefinitions[e.inputObjectTypeDefinition].InputFieldsDefinition.Refs[i+1:]...)
+					append(e.doc.InputObjectTypeDefinitions[e.inputObjectTypeDefinition].InputFieldsDefinition.Refs[:i], e.doc.InputObjectTypeDefinitions[e.inputObjectTypeDefinition].InputFieldsDefinition.Refs[i+1:]...)
 				e.doc.InputObjectTypeDefinitions[e.inputObjectTypeDefinition].HasInputFieldsDefinition = len(e.doc.InputObjectTypeDefinitions[e.inputObjectTypeDefinition].InputFieldsDefinition.Refs) != 0
 				return
 			}
@@ -128,7 +142,7 @@ func (e *emptyInputObjectTypeDefinitionVisitor) EnterDocument(operation, definit
 }
 
 func (e *emptyInputObjectTypeDefinitionVisitor) EnterInputObjectTypeDefinition(ref int) {
-	if e.doc.InputObjectTypeDefinitions[ref].HasInputFieldsDefinition{
+	if e.doc.InputObjectTypeDefinitions[ref].HasInputFieldsDefinition {
 		return
 	}
 	e.changed = true
@@ -143,3 +157,33 @@ func (e *emptyInputObjectTypeDefinitionVisitor) EnterInputObjectTypeDefinition(r
 	}
 }
 
+type setAllMutationFieldsNullableVisitor struct {
+	walker                *astvisitor.Walker
+	definition *ast.Document
+	insideMutation bool
+	mutationTypeName string
+}
+
+func (s *setAllMutationFieldsNullableVisitor) LeaveObjectTypeDefinition(ref int) {
+	s.insideMutation = false
+}
+
+func (s *setAllMutationFieldsNullableVisitor) EnterDocument(operation, definition *ast.Document) {
+	s.definition = operation
+	s.mutationTypeName = operation.Index.MutationTypeName.String()
+}
+
+func (s *setAllMutationFieldsNullableVisitor) EnterObjectTypeDefinition(ref int) {
+	typeName := s.definition.ObjectTypeDefinitionNameString(ref)
+	s.insideMutation = typeName == s.mutationTypeName
+}
+
+func (s *setAllMutationFieldsNullableVisitor) EnterFieldDefinition(ref int) {
+	if !s.insideMutation {
+		return
+	}
+	typeRef := s.definition.FieldDefinitions[ref].Type
+	if s.definition.Types[typeRef].TypeKind == ast.TypeKindNonNull {
+		s.definition.FieldDefinitions[ref].Type = s.definition.Types[typeRef].OfType
+	}
+}
