@@ -862,6 +862,22 @@ func (v *valuesVisitor) valueSatisfiesEnum(value ast.Value, node ast.Node) bool 
 }
 
 func (v *valuesVisitor) valueSatisfiesInputObjectTypeDefinition(value ast.Value, inputObjectTypeDefinition int) bool {
+
+	if value.Kind == ast.ValueKindVariable {
+		name := v.operation.VariableValueNameBytes(value.Ref)
+		if v.Ancestors[0].Kind != ast.NodeKindOperationDefinition {
+			return false
+		}
+		definition,ok := v.operation.VariableDefinitionByNameAndOperation(v.Ancestors[0].Ref,name)
+		if !ok {
+			return false
+		}
+		variableType := v.operation.VariableDefinitions[definition].Type
+		actualTypeName := v.operation.ResolveTypeNameBytes(variableType)
+		expectedTypeName := v.definition.InputObjectTypeDefinitionNameBytes(inputObjectTypeDefinition)
+		return bytes.Equal(actualTypeName,expectedTypeName)
+	}
+
 	if value.Kind != ast.ValueKindObject {
 		return false
 	}
