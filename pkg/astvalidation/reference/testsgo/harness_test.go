@@ -6,7 +6,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation"
@@ -167,8 +166,12 @@ type ResultCompare func(expectedErrors []Err)
 // ExpectValidationErrorsWithSchema - is a helper to run operation validation
 // returns ResultCompare function
 func ExpectValidationErrorsWithSchema(t *testing.T, schema string, rule string, queryStr string) ResultCompare {
-	op := unsafeparser.ParseGraphqlDocumentString(queryStr)
-	def := unsafeparser.ParseGraphqlDocumentString(schema)
+	op, opReport := astparser.ParseGraphqlDocumentString(queryStr)
+	def, _ := astparser.ParseGraphqlDocumentString(queryStr)
+
+	if opReport.HasErrors() {
+		return compareReportErrors(t, opReport)
+	}
 
 	report := operationreport.Report{}
 	validator := astvalidation.DefaultOperationValidator()
@@ -186,18 +189,25 @@ func ExpectValidationErrors(t *testing.T, rule string, queryStr string) ResultCo
 // ExpectSDLValidationErrors - is a helper to run schema definition validation
 // returns ResultCompare function
 func ExpectSDLValidationErrors(t *testing.T, schema string, rule string, sdlStr string) ResultCompare {
-	definition, report := astparser.ParseGraphqlDocumentString(schema)
-	// require.False(t, report.HasErrors())
+	def, defReport := astparser.ParseGraphqlDocumentString(schema)
+	if defReport.HasErrors() {
+		return compareReportErrors(t, defReport)
+	}
 
 	// merge schema additions
-	definition.Input.AppendInputBytes([]byte(sdlStr))
+	def.Input.AppendInputBytes([]byte(sdlStr))
 	parser := astparser.NewParser()
-	parser.Parse(&definition, &report)
+	mergeReport := operationreport.Report{}
+	parser.Parse(&def, &mergeReport)
+
+	if mergeReport.HasErrors() {
+		return compareReportErrors(t, mergeReport)
+	}
 
 	// validate schema sdl
-	report = operationreport.Report{}
+	report := operationreport.Report{}
 	validator := astvalidation.DefaultDefinitionValidator()
-	validator.Validate(&definition, &report)
+	validator.Validate(&def, &report)
 
 	return compareReportErrors(t, report)
 }
@@ -211,8 +221,12 @@ func BuildSchema(sdl string) string {
 // ExpectValidationErrorMessage - is a helper to run operation validation and check single error message
 // returns MessageCompare
 func ExpectValidationErrorMessage(t *testing.T, schema string, queryStr string) MessageCompare {
-	op := unsafeparser.ParseGraphqlDocumentString(queryStr)
-	def := unsafeparser.ParseGraphqlDocumentString(schema)
+	op, opReport := astparser.ParseGraphqlDocumentString(queryStr)
+	def, _ := astparser.ParseGraphqlDocumentString(schema)
+
+	if opReport.HasErrors() {
+		return hasReportError(t, opReport)
+	}
 
 	report := operationreport.Report{}
 	validator := astvalidation.DefaultOperationValidator()
