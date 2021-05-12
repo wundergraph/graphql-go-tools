@@ -3629,6 +3629,20 @@ func TestExecutionValidation(t *testing.T) {
 					}
 					`, Values(), Valid)
 			})
+			t.Run("complex values with input object", func(t *testing.T) {
+				runWithDefinition(wundergraphSchema, `
+					query FirstAPI($a: String $b: StringFilter) {
+						findFirstapi(where: {id: {equals: $a} AND: {name: $b}}) {
+							id
+							name
+							namespace {
+								id
+								name
+							}
+						}
+					}
+					`, Values(), Valid)
+			})
 		})
 	})
 }
