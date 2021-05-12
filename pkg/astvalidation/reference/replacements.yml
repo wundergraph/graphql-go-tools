@@ -130,8 +130,8 @@
           return expect(errors[0].message);
         }
   replacement: >-
-    expectErrorMessage := func(schema string, queryStr string) MessageCompare {
-      return ExpectErrorMessage(schema, queryStr)
+    ExpectErrorMessage := func(t *testing.T, schema string, queryStr string) MessageCompare {
+      return ExpectValidationErrorMessage(t, schema, queryStr)
     }
 -
   rule: FieldsOnCorrectTypeRule

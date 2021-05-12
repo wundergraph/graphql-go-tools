@@ -6,15 +6,14 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v2"
 )
 
-//go:generate rm -rf ./testsgo/*_test.go
-//go:generate go run main.go
-//go:generate gofmt -w testsgo
+//go:generate ./gen.sh
 
 func main() {
 	currDir, _ := os.Getwd()
@@ -181,6 +180,12 @@ func (c *Converter) iterateLines(testName string, content string) string {
 // out - a processed line
 // skip - a flag to skip appending line to results
 func (c *Converter) transformLine(line string) (out string, skip bool) {
+	fmt.Println("#transformLine lineNumber: ", c.lineNumber, " line: ", line)
+
+	defer func() {
+		fmt.Println("#transformLine RESULT ", c.lineNumber, " skip: ", skip, " out: ", out)
+	}()
+
 	// selects a required line transformation
 	// NOTE: Order of transformation is matters!!!
 	switch {
@@ -230,71 +235,32 @@ func (c *Converter) transformLine(line string) (out string, skip bool) {
 		out = fmt.Sprintf(`t.Run(%s, func(t *testing.T) {`, name)
 
 		/*
-			Start of section for processing reference test helper functions
+			#  Start of section for processing reference test helper functions
 			in reference implementation each test has a wrapper of harness helpers with rule name
 			we do not need a rule name as it could be derived from *testing.T but we preserving rule name to not heavily modify a file
 			Here we replacing test helper function definitions with go function variables
 		*/
 
-	case strings.Contains(line, "function expectErrorsWithSchema"):
-		out = "expectErrorsWithSchema := func(schema string, queryStr string) ResultCompare {"
+		// rewrite test helpers
+	case strings.Contains(line, "function"):
+		out = c.transformHelperFunctions(line)
 
-	case strings.Contains(line, "function expectErrors"):
-		out = "expectErrors := func(queryStr string) ResultCompare {"
-
-	case strings.Contains(line, "function expectValidSDL"):
-		out = "expectValidSDL := func(sdlStr string, schema ...string) {"
-
-	case strings.Contains(line, "function expectValidWithSchema"):
-		out = "expectValidWithSchema := func(schema string, queryStr string) {"
-
-	case strings.Contains(line, "function expectValid"):
-		out = "expectValid := func(queryStr string) {"
-
-		// as reference expectSDLErrors function has an optional param we need to handle a variadic schemas param
-	case strings.Contains(line, "function expectSDLErrors"):
-		out = `expectSDLErrors := func(sdlStr string, sch ...string) ResultCompare {
-			schema := ""
-if len(sch) > 0 { schema = sch[0] }`
-
-		// add *testing.T arg to expectErrorMessage call
-		// as expectErrorMessage returns MessageCompare which expects "t" to be present
-	case strings.Contains(line, "expectErrorMessage(schema,"):
-		out = strings.ReplaceAll(line, ")(", ")(t,")
+	// rewrite calls to test helpers
+	case !strings.Contains(line, ":=") && regexp.MustCompile("expect.*\\(").MatchString(line):
+		transformedLine := c.transformUsageOfHelperFunctions(line)
+		out, skip = c.transformLine(transformedLine)
 
 	case strings.Contains(line, "buildSchema("):
 		transformedLine := strings.ReplaceAll(line, "buildSchema", "BuildSchema")
 		out, skip = c.transformLine(transformedLine)
 
-	case strings.Contains(line, "expectValidationErrorsWithSchema"):
-		transformedLine := strings.ReplaceAll(line,
-			"expectValidationErrorsWithSchema", "ExpectValidationErrorsWithSchema")
-
-		out, skip = c.transformLine(transformedLine)
-
-	case strings.Contains(line, "expectSDLValidationErrors("):
-		transformedLine := strings.ReplaceAll(line,
-			"expectSDLValidationErrors", "ExpectSDLValidationErrors")
-
-		out, skip = c.transformLine(transformedLine)
-
-	case strings.Contains(line, "expectValidationErrors("):
-		transformedLine := strings.ReplaceAll(line,
-			"expectValidationErrors", "ExpectValidationErrors")
-		out, skip = c.transformLine(transformedLine)
-
-	case strings.Contains(line, "expectSDLErrors(sdlStr, schema)"):
-		transformedLine := strings.ReplaceAll(line,
-			"expectSDLErrors(sdlStr, schema)", "expectSDLErrors(sdlStr, schema...)")
-		out, skip = c.transformLine(transformedLine)
-
 		/*
-			End of section for processing reference test helper functions
+			# End of section for processing reference test helper functions
 		*/
 
 		// replace chai deep equal compare for an empty errors array
 	case strings.Contains(line, "to.deep.equal([])"):
-		out = strings.ReplaceAll(line, ".to.deep.equal([])", "(t, []Err{})")
+		out = strings.ReplaceAll(line, ".to.deep.equal([])", "([]Err{})")
 
 		// detects end of schema sdl multiline string and steps into replacing errors matcher
 	case strings.Contains(line, "`).to.deep.equal(["):
@@ -306,7 +272,7 @@ if len(sch) > 0 { schema = sch[0] }`
 	case strings.Contains(line, ").to.deep.equal(["):
 		// set insideResultAssertion as we are entering errors assertion
 		c.insideResultAssertion = true
-		out = strings.ReplaceAll(line, ".to.deep.equal([", "(t, []Err{")
+		out = strings.ReplaceAll(line, ".to.deep.equal([", "([]Err{")
 
 		// replace js object field inlining with message property of Err object
 	case strings.Contains(line, "{ message,"):
@@ -381,6 +347,96 @@ if len(sch) > 0 { schema = sch[0] }`
 			return "", true
 		}
 		out = line
+	}
+
+	return
+}
+
+func (c *Converter) transformHelperFunctions(line string) (out string) {
+	fmt.Println("#transformHelperFunctions lineNumber: ", c.lineNumber, " line: ", line)
+	defer func() {
+		fmt.Println("#transformHelperFunctions lineNumber: ", c.lineNumber, " out: ", out)
+	}()
+
+	switch {
+	case strings.Contains(line, "function expectErrorsWithSchema"):
+		out = "ExpectErrorsWithSchema := func(t *testing.T, schema string, queryStr string) ResultCompare {"
+
+	case strings.Contains(line, "function expectErrors"):
+		out = "ExpectErrors := func(t *testing.T, queryStr string) ResultCompare {"
+
+	case strings.Contains(line, "function expectValidSDL"):
+		out = "ExpectValidSDL := func(t *testing.T, sdlStr string, schema ...string) {"
+
+	case strings.Contains(line, "function expectValidWithSchema"):
+		out = "ExpectValidWithSchema := func(t *testing.T, schema string, queryStr string) {"
+
+	case strings.Contains(line, "function expectValid"):
+		out = "ExpectValid := func(t *testing.T, queryStr string) {"
+
+		// as reference expectSDLErrors function has an optional param we need to handle a variadic schemas param
+	case strings.Contains(line, "function expectSDLErrors"):
+		out = `ExpectSDLErrors := func(t *testing.T, sdlStr string, sch ...string) ResultCompare {
+			schema := ""
+if len(sch) > 0 { schema = sch[0] }`
+
+	}
+
+	return
+}
+
+func (c *Converter) transformUsageOfHelperFunctions(line string) (out string) {
+	fmt.Println("#transformUsageOfHelperFunctions lineNumber: ", c.lineNumber, " line: ", line)
+	defer func() {
+		fmt.Println("#transformUsageOfHelperFunctions lineNumber: ", c.lineNumber, " out: ", out)
+	}()
+
+	switch {
+	case strings.Contains(line, "expectSDLErrors("):
+		out = strings.ReplaceAll(line,
+			"expectSDLErrors(sdlStr, schema)", "ExpectSDLErrors(t, sdlStr, schema...)")
+		out = strings.ReplaceAll(out,
+			"expectSDLErrors(", "ExpectSDLErrors(t,")
+
+	// add *testing.T arg to expectErrorMessage call
+	case strings.Contains(line, "expectErrorMessage("):
+		out = strings.ReplaceAll(line, "expectErrorMessage(", "ExpectErrorMessage(t,")
+
+	case strings.Contains(line, "expectValidationErrorsWithSchema("):
+		out = strings.ReplaceAll(line,
+			"expectValidationErrorsWithSchema(", "ExpectValidationErrorsWithSchema(t,")
+
+	case strings.Contains(line, "expectErrorsWithSchema("):
+		out = strings.ReplaceAll(line,
+			"expectErrorsWithSchema(", "ExpectErrorsWithSchema(t,")
+
+	case strings.Contains(line, "expectSDLValidationErrors("):
+		out = strings.ReplaceAll(line,
+			"expectSDLValidationErrors(", "ExpectSDLValidationErrors(t,")
+
+	case strings.Contains(line, "expectValidationErrors("):
+		out = strings.ReplaceAll(line,
+			"expectValidationErrors(", "ExpectValidationErrors(t,")
+
+	case strings.Contains(line, "expectErrors("):
+		out = strings.ReplaceAll(line,
+			"expectErrors(", "ExpectErrors(t,")
+
+	case strings.Contains(line, "expectValid("):
+		out = strings.ReplaceAll(line,
+			"expectValid(", "ExpectValid(t,")
+
+	case strings.Contains(line, "expectSDLErrors("):
+		out = strings.ReplaceAll(line,
+			"expectValid(", "ExpectSDLErrors(t,")
+
+	case strings.Contains(line, "expectValidSDL("):
+		out = strings.ReplaceAll(line,
+			"expectValidSDL(", "ExpectValidSDL(t,")
+
+	case strings.Contains(line, "expectValidWithSchema("):
+		out = strings.ReplaceAll(line,
+			"expectValidWithSchema(", "ExpectValidWithSchema(t,")
 	}
 
 	return
