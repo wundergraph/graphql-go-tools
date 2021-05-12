@@ -1912,7 +1912,12 @@ func (p *Parser) parseEnumTypeExtension(extend position.Position) {
 	}
 	p.document.EnumTypeExtensions = append(p.document.EnumTypeExtensions, enumTypeExtension)
 	ref := len(p.document.EnumTypeExtensions) - 1
-	p.document.RootNodes = append(p.document.RootNodes, ast.Node{Ref: ref, Kind: ast.NodeKindEnumTypeExtension})
+	node := ast.Node{Ref: ref, Kind: ast.NodeKindEnumTypeExtension}
+	p.document.RootNodes = append(p.document.RootNodes, node)
+
+	if p.shouldIndex {
+		p.indexNode(enumTypeExtension.Name, node)
+	}
 }
 
 func (p *Parser) parseInputObjectTypeExtension(extend position.Position) {

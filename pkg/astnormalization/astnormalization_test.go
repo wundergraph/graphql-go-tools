@@ -134,7 +134,7 @@ func TestNormalizeOperation(t *testing.T) {
 	t.Run("type extensions", func(t *testing.T) {
 		run(t, typeExtensionsDefinition, `
 			{
-				findUserByLocation(loc: {lat: 1.000, lon: 2.000}) {
+				findUserByLocation(loc: {lat: 1.000, lon: 2.000, planet: "EARTH"}) {
 					name
 					age
 				}
@@ -144,8 +144,8 @@ func TestNormalizeOperation(t *testing.T) {
 					age
 				}
 			}`,
-			`{"a": {"lat": 1.000, "lon": 2.000}}`,
-			`{"a": {"lat":1.000,"lon":2.000}}`)
+			`{"a": {"lat": 1.000, "lon": 2.000, "planet": "EARTH"}}`,
+			`{"a": {"lat":1.000,"lon":2.000,"planet":"EARTH"}}`)
 	})
 }
 
@@ -659,9 +659,15 @@ extend type User {
 	age: Int
 }
 
+extend enum Planet {
+	EARTH
+	MARS
+}
+
 extend input Location {
 	lat: Float 
 	lon: Float
+	planet: Planet
 }
 
 directive @inline on INLINE_FRAGMENT

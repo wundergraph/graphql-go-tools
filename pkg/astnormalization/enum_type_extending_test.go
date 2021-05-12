@@ -30,4 +30,12 @@ func TestExtendEnumType(t *testing.T) {
 					extend enum Countries @deprecated(reason: "some reason") @skip(if: false) {EN IT}
 					`)
 	})
+	t.Run("extend non existent enum type", func(t *testing.T) {
+		run(extendEnumTypeDefinition, "", `
+					extend enum Planet { EARTH MARS }
+					 `, `
+					extend enum Planet { EARTH MARS }
+					enum Planet { EARTH MARS }
+					`)
+	})
 }

@@ -18,6 +18,17 @@ func (d *Document) EnumTypeExtensionNameString(ref int) string {
 	return unsafebytes.BytesToString(d.Input.ByteSlice(d.EnumTypeExtensions[ref].Name))
 }
 
+func (d *Document) EnumTypeExtensionDescriptionBytes(ref int) ByteSlice {
+	if !d.EnumTypeExtensions[ref].Description.IsDefined {
+		return nil
+	}
+	return d.Input.ByteSlice(d.EnumTypeExtensions[ref].Description.Content)
+}
+
+func (d *Document) EnumTypeExtensionDescriptionString(ref int) string {
+	return unsafebytes.BytesToString(d.EnumTypeExtensionDescriptionBytes(ref))
+}
+
 func (d *Document) EnumTypeExtensionHasDirectives(ref int) bool {
 	return d.EnumTypeExtensions[ref].HasDirectives
 }
