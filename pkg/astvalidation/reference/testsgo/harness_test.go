@@ -38,6 +38,7 @@ func ExpectValidationErrorsWithSchema(t *testing.T, schema string, rule string, 
 	def := prepareSchema(schema)
 
 	if opReport.HasErrors() {
+		t.Log("operation report has errors")
 		return compareReportErrors(t, opReport)
 	}
 
@@ -59,14 +60,17 @@ func ExpectValidationErrors(t *testing.T, rule string, queryStr string) ResultCo
 func ExpectSDLValidationErrors(t *testing.T, schema string, rule string, sdlStr string) ResultCompare {
 	def := prepareSchema(schema)
 
-	// merge schema additions
-	def.Input.AppendInputBytes([]byte(sdlStr))
-	parser := astparser.NewParser()
-	mergeReport := operationreport.Report{}
-	parser.Parse(&def, &mergeReport)
+	if sdlStr != "" {
+		// merge schema additions
+		def.Input.AppendInputBytes([]byte(sdlStr))
+		parser := astparser.NewParser()
+		mergeReport := operationreport.Report{}
+		parser.Parse(&def, &mergeReport)
 
-	if mergeReport.HasErrors() {
-		return compareReportErrors(t, mergeReport)
+		if mergeReport.HasErrors() {
+			t.Log("merge failed")
+			return compareReportErrors(t, mergeReport)
+		}
 	}
 
 	// validate schema sdl
@@ -90,6 +94,7 @@ func ExpectValidationErrorMessage(t *testing.T, schema string, queryStr string) 
 	def := prepareSchema(schema)
 
 	if opReport.HasErrors() {
+		t.Log("operation report has errors")
 		return hasReportError(t, opReport)
 	}
 
