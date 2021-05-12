@@ -57,8 +57,10 @@ import (
 )
 
 var (
+	// jsArrowFunction - represents a function passed to mocha describe and it
 	jsArrowFunction = ", () => {"
 
+	// convertRules - list of reference rules which should be converted
 	convertRules = []string{
 		"ExecutableDefinitionsRule",
 		"FieldsOnCorrectTypeRule",
@@ -99,6 +101,7 @@ var (
 	}
 )
 
+// skipRule - determine do we have to convert particular rule e.g. test file from reference tests
 func skipRule(name string) bool {
 	for _, rule := range convertRules {
 		if rule == name {
@@ -108,6 +111,7 @@ func skipRule(name string) bool {
 	return true
 }
 
+// processFile - convert and save reference test file
 func processFile(workingDir string, filename string, replacements Replacements) {
 	fPath := filepath.Join(workingDir, filename)
 	fileContent, _ := ioutil.ReadFile(fPath)
@@ -133,6 +137,8 @@ func processFile(workingDir string, filename string, replacements Replacements) 
 	}
 }
 
+// Converter - is a line by line js-to-go converter of a reference test file
+// global replacements should be done before running Converter
 type Converter struct {
 	insideImport          bool
 	insideMultilineString bool
@@ -140,13 +146,18 @@ type Converter struct {
 	lineNumber            int
 }
 
+// iterateLines - iterates over js file content line by line and wraps a content into go test function
 func (c *Converter) iterateLines(testName string, content string) string {
 	var outLines []string
 
+	// remove semicolons from content
 	content = strings.ReplaceAll(content, ";", "")
+	// splits content into separate lines
 	lines := strings.Split(content, "\n")
 
+	// appends package header
 	outLines = append(outLines, header)
+	// appends go test function wrapper
 	outLines = append(outLines, fmt.Sprintf("func Test%s(t *testing.T) {", testName))
 
 	for i, line := range lines {
@@ -157,46 +168,73 @@ func (c *Converter) iterateLines(testName string, content string) string {
 		}
 	}
 
+	// appends go test function closing bracket
 	outLines = append(outLines, "}")
 
+	// joins processed lines into resulting string
 	return strings.Join(outLines, "\n")
 }
 
+// transformLine - doing required replacement for the particular js code line
+// could be called recursively in some cases
+// returns:
+// out - a processed line
+// skip - a flag to skip appending line to results
 func (c *Converter) transformLine(line string) (out string, skip bool) {
+	// selects a required line transformation
+	// NOTE: Order of transformation is matters!!!
 	switch {
+
+	// handles js string wrapped into "'" which in go should be presented with "`" or `"`
 	case strings.Contains(line, `'`):
+		// when js string contains double quote
 		if strings.Contains(line, `"`) {
+			// wrap result into "`"
 			transformedLine := strings.ReplaceAll(line, `'`, "`")
 			out, skip = c.transformLine(transformedLine)
 		} else {
+			// wrap result into `"`
 			transformedLine := strings.ReplaceAll(line, `'`, `"`)
 			out, skip = c.transformLine(transformedLine)
 		}
 
+		// skip js single line import
 	case strings.Contains(line, "import { "):
 		return "", true
 
+		// skip js multi line import
 	case strings.Contains(line, "import {"):
 		c.insideImport = true
 		return "", true
 
+		// skip js multi line end of import
 	case strings.Contains(line, "} from"):
 		c.insideImport = false
 		return "", true
 
+		// replace js const with a go variable
 	case strings.Contains(line, "const "):
 		parts := strings.Split(line, "=")
 		variableName := strings.TrimPrefix(strings.TrimSpace(parts[0]), "const")
 		transformedLine := fmt.Sprintf("%s := %s", variableName, parts[1])
 		out, skip = c.transformLine(transformedLine)
 
+		// replace mocha "describe" with go t.Run
 	case strings.Contains(line, "describe("):
 		name := strings.TrimSuffix(strings.ReplaceAll(line, "describe(", ""), jsArrowFunction)
 		out = fmt.Sprintf(`t.Run(%s, func(t *testing.T) {`, name)
 
+		// replace mocha "it" with go t.Run
 	case strings.Contains(line, "it("):
 		name := strings.TrimSuffix(strings.ReplaceAll(line, "it(", ""), jsArrowFunction)
 		out = fmt.Sprintf(`t.Run(%s, func(t *testing.T) {`, name)
+
+		/*
+			Start of section for processing reference test helper functions
+			in reference implementation each test has a wrapper of harness helpers with rule name
+			we do not need a rule name as it could be derived from *testing.T but we preserving rule name to not heavily modify a file
+			Here we replacing test helper function definitions with go function variables
+		*/
 
 	case strings.Contains(line, "function expectErrorsWithSchema"):
 		out = "expectErrorsWithSchema := func(schema string, queryStr string) ResultCompare {"
@@ -213,11 +251,14 @@ func (c *Converter) transformLine(line string) (out string, skip bool) {
 	case strings.Contains(line, "function expectValid"):
 		out = "expectValid := func(queryStr string) {"
 
+		// as reference expectSDLErrors function has an optional param we need to handle a variadic schemas param
 	case strings.Contains(line, "function expectSDLErrors"):
 		out = `expectSDLErrors := func(sdlStr string, sch ...string) ResultCompare {
 			schema := ""
 if len(sch) > 0 { schema = sch[0] }`
 
+		// add *testing.T arg to expectErrorMessage call
+		// as expectErrorMessage returns MessageCompare which expects "t" to be present
 	case strings.Contains(line, "expectErrorMessage(schema,"):
 		out = strings.ReplaceAll(line, ")(", ")(t,")
 
@@ -243,26 +284,39 @@ if len(sch) > 0 { schema = sch[0] }`
 		out, skip = c.transformLine(transformedLine)
 
 	case strings.Contains(line, "expectSDLErrors(sdlStr, schema)"):
-		transformedLine := strings.ReplaceAll(line, "expectSDLErrors(sdlStr, schema)", "expectSDLErrors(sdlStr, schema...)")
+		transformedLine := strings.ReplaceAll(line,
+			"expectSDLErrors(sdlStr, schema)", "expectSDLErrors(sdlStr, schema...)")
 		out, skip = c.transformLine(transformedLine)
 
+		/*
+			End of section for processing reference test helper functions
+		*/
+
+		// replace chai deep equal compare for an empty errors array
 	case strings.Contains(line, "to.deep.equal([])"):
 		out = strings.ReplaceAll(line, ".to.deep.equal([])", "(t, []Err{})")
 
+		// detects end of schema sdl multiline string and steps into replacing errors matcher
 	case strings.Contains(line, "`).to.deep.equal(["):
+		// set insideMultilineString to false as schema sdl multiline string finished
 		c.insideMultilineString = false
 		fallthrough
 
+		// replace chai deep equal compare of errors with a call to ResultCompare
 	case strings.Contains(line, ").to.deep.equal(["):
+		// set insideResultAssertion as we are entering errors assertion
 		c.insideResultAssertion = true
 		out = strings.ReplaceAll(line, ".to.deep.equal([", "(t, []Err{")
 
+		// replace js object field inlining with message property of Err object
 	case strings.Contains(line, "{ message,"):
 		if c.insideResultAssertion {
 			out = strings.ReplaceAll(line, "{ message,", `{ message: message,`)
 			out, skip = c.transformLine(out)
 		}
 
+		// replace locations with Loc slice property
+		// when locations in a single line we should replace ending brackets to close slice
 	case strings.Contains(line, "locations: ["):
 		transformedLine := strings.ReplaceAll(line, "locations: [", `locations: []Loc{`)
 		if strings.Contains(transformedLine, "}]") {
@@ -270,30 +324,41 @@ if len(sch) > 0 { schema = sch[0] }`
 		}
 		out = transformedLine
 
+		// closes result assertion with a slice close
 	case strings.Contains(line, "])"):
+		// if we are inside a multiline string leave a line as is
 		if c.insideMultilineString {
 			out = line
 		} else {
+			// set insideResultAssertion to false as we are leaving result assertion
 			c.insideResultAssertion = false
 			out = "})"
 		}
 
+		// handles closing slice when we are inside a multiline assertion
 	case strings.Contains(line, "],"):
 		if c.insideResultAssertion {
 			out = strings.ReplaceAll(line, "],", `},`)
 		}
 
+		// handles js multiline strings
 	case strings.Contains(line, "`"):
 		if strings.Contains(line, "to.deep.equal") {
+			// in case string contains chai comparison proceed with a different convertion
+			// TODO: check is it covered with conditions above
 			out, skip = c.transformLine(line)
 		} else {
+			// change insideMultilineString in case we are at start or end of js multiline string
 			if strings.Count(line, "`") == 1 {
 				c.insideMultilineString = !c.insideMultilineString
 			}
+			// add line as is
 			out = line
 		}
 
+		// replacing a rule js function name with a simple string rule name
 	case strings.Contains(line, "Rule,"):
+		// if we are inside importing of rule function just skip a line
 		if c.insideImport {
 			return "", true
 		}
@@ -309,6 +374,8 @@ if len(sch) > 0 { schema = sch[0] }`
 		}
 		out = strings.ReplaceAll(line, ruleName, strconv.Quote(ruleName))
 
+		// do not transform a line when no conditions met
+		// in case we are inside an import just skip a line
 	default:
 		if c.insideImport {
 			return "", true
@@ -319,6 +386,7 @@ if len(sch) > 0 { schema = sch[0] }`
 	return
 }
 
+// Replacement - is a type holding global replacements for a particular rule e.g. test file in references tests
 type Replacement struct {
 	Rule        string
 	Source      string
@@ -333,8 +401,10 @@ func (r Replacement) Do(content string) string {
 	return out
 }
 
+// Replacements - list of global replacements for rules
 type Replacements []Replacement
 
+// ReplaceForRule - returns array of Replacement for particular rule
 func (r Replacements) ReplaceForRule(rule string) (out []Replacement) {
 	for _, replacement := range r {
 		if replacement.Rule == rule {
