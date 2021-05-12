@@ -36,6 +36,18 @@ func DefaultOperationValidator() *OperationValidator {
 	return &validator
 }
 
+func NewOperationValidator(rules []Rule) *OperationValidator {
+	validator := OperationValidator{
+		walker: astvisitor.NewWalker(48),
+	}
+
+	for _, rule := range rules {
+		validator.RegisterRule(rule)
+	}
+
+	return &validator
+}
+
 // OperationValidator orchestrates the validation process of Operations
 type OperationValidator struct {
 	walker astvisitor.Walker
