@@ -1137,8 +1137,10 @@ func (i *InputTemplate) renderContextVariable(ctx *Context, path []string, rende
 func (i *InputTemplate) renderGraphQLValue(data []byte, valueType jsonparser.ValueType, buf *fastbuffer.FastBuffer) (err error) {
 	switch valueType {
 	case jsonparser.String:
+		buf.WriteBytes(literal.BACKSLASH)
 		buf.WriteBytes(literal.QUOTE)
 		buf.WriteBytes(data)
+		buf.WriteBytes(literal.BACKSLASH)
 		buf.WriteBytes(literal.QUOTE)
 	case jsonparser.Object:
 		buf.WriteBytes(literal.LBRACE)
