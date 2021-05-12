@@ -1,150 +1,18 @@
 package testsgo
 
 import (
-	"fmt"
+	"io/ioutil"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
+	"github.com/jensneuse/graphql-go-tools/pkg/asttransform"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
-
-// testSchema - represents schema definition used in reference tests
-const testSchema = `
-  interface Being {
-    name(surname: Boolean): String
-  }
-
-  interface Mammal {
-    mother: Mammal
-    father: Mammal
-  }
-
-  interface Pet implements Being {
-    name(surname: Boolean): String
-  }
-
-  interface Canine implements Mammal & Being {
-    name(surname: Boolean): String
-    mother: Canine
-    father: Canine
-  }
-
-  enum DogCommand {
-    SIT
-    HEEL
-    DOWN
-  }
-
-  type Dog implements Being & Pet & Mammal & Canine {
-    name(surname: Boolean): String
-    nickname: String
-    barkVolume: Int
-    barks: Boolean
-    doesKnowCommand(dogCommand: DogCommand): Boolean
-    isHouseTrained(atOtherHomes: Boolean = true): Boolean
-    isAtLocation(x: Int, y: Int): Boolean
-    mother: Dog
-    father: Dog
-  }
-
-  type Cat implements Being & Pet {
-    name(surname: Boolean): String
-    nickname: String
-    meows: Boolean
-    meowsVolume: Int
-    furColor: FurColor
-  }
-
-  union CatOrDog = Cat | Dog
-
-  interface Intelligent {
-    iq: Int
-  }
-
-  type Human implements Being & Intelligent {
-    name(surname: Boolean): String
-    pets: [Pet]
-    relatives: [Human]
-    iq: Int
-  }
-
-  type Alien implements Being & Intelligent {
-    name(surname: Boolean): String
-    numEyes: Int
-    iq: Int
-  }
-
-  union DogOrHuman = Dog | Human
-
-  union HumanOrAlien = Human | Alien
-
-  enum FurColor {
-    BROWN
-    BLACK
-    TAN
-    SPOTTED
-    NO_FUR
-    UNKNOWN
-  }
-
-  input ComplexInput {
-    requiredField: Boolean!
-    nonNullField: Boolean! = false
-    intField: Int
-    stringField: String
-    booleanField: Boolean
-    stringListField: [String]
-  }
-
-  type ComplicatedArgs {
-    # TODO List
-    # TODO Coercion
-    # TODO NotNulls
-    intArgField(intArg: Int): String
-    nonNullIntArgField(nonNullIntArg: Int!): String
-    stringArgField(stringArg: String): String
-    booleanArgField(booleanArg: Boolean): String
-    enumArgField(enumArg: FurColor): String
-    floatArgField(floatArg: Float): String
-    idArgField(idArg: ID): String
-    stringListArgField(stringListArg: [String]): String
-    stringListNonNullArgField(stringListNonNullArg: [String!]): String
-    complexArgField(complexArg: ComplexInput): String
-    multipleReqs(req1: Int!, req2: Int!): String
-    nonNullFieldWithDefault(arg: Int! = 0): String
-    multipleOpts(opt1: Int = 0, opt2: Int = 0): String
-    multipleOptAndReq(req1: Int!, req2: Int!, opt1: Int = 0, opt2: Int = 0): String
-  }
-
-  type QueryRoot {
-    human(id: ID): Human
-    alien: Alien
-    dog: Dog
-    cat: Cat
-    pet: Pet
-    catOrDog: CatOrDog
-    dogOrHuman: DogOrHuman
-    humanOrAlien: HumanOrAlien
-    complicatedArgs: ComplicatedArgs
-  }
-
-  schema {
-    query: QueryRoot
-  }
-
-  directive @onQuery on QUERY
-  directive @onMutation on MUTATION
-  directive @onSubscription on SUBSCRIPTION
-  directive @onField on FIELD
-  directive @onFragmentDefinition on FRAGMENT_DEFINITION
-  directive @onFragmentSpread on FRAGMENT_SPREAD
-  directive @onInlineFragment on INLINE_FRAGMENT
-  directive @onVariableDefinition on VARIABLE_DEFINITION
-`
 
 // Loc - local type representing location of validation error message
 type Loc struct {
@@ -167,7 +35,7 @@ type ResultCompare func(expectedErrors []Err)
 // returns ResultCompare function
 func ExpectValidationErrorsWithSchema(t *testing.T, schema string, rule string, queryStr string) ResultCompare {
 	op, opReport := astparser.ParseGraphqlDocumentString(queryStr)
-	def, _ := astparser.ParseGraphqlDocumentString(queryStr)
+	def := prepareSchema(schema)
 
 	if opReport.HasErrors() {
 		return compareReportErrors(t, opReport)
@@ -189,10 +57,7 @@ func ExpectValidationErrors(t *testing.T, rule string, queryStr string) ResultCo
 // ExpectSDLValidationErrors - is a helper to run schema definition validation
 // returns ResultCompare function
 func ExpectSDLValidationErrors(t *testing.T, schema string, rule string, sdlStr string) ResultCompare {
-	def, defReport := astparser.ParseGraphqlDocumentString(schema)
-	if defReport.HasErrors() {
-		return compareReportErrors(t, defReport)
-	}
+	def := prepareSchema(schema)
 
 	// merge schema additions
 	def.Input.AppendInputBytes([]byte(sdlStr))
@@ -222,7 +87,7 @@ func BuildSchema(sdl string) string {
 // returns MessageCompare
 func ExpectValidationErrorMessage(t *testing.T, schema string, queryStr string) MessageCompare {
 	op, opReport := astparser.ParseGraphqlDocumentString(queryStr)
-	def, _ := astparser.ParseGraphqlDocumentString(schema)
+	def := prepareSchema(schema)
 
 	if opReport.HasErrors() {
 		return hasReportError(t, opReport)
@@ -237,11 +102,11 @@ func ExpectValidationErrorMessage(t *testing.T, schema string, queryStr string) 
 
 // ExtendSchema - helper to extend schema with provided sdl
 func ExtendSchema(schema string, sdlStr string) string {
-	definition, report := astparser.ParseGraphqlDocumentString(schema)
-	// TODO: handle error
+	definition := prepareSchema(schema)
 
 	definition.Input.AppendInputBytes([]byte(sdlStr))
 	parser := astparser.NewParser()
+	report := operationreport.Report{}
 	parser.Parse(&definition, &report)
 	// TODO: handle error
 
@@ -250,9 +115,24 @@ func ExtendSchema(schema string, sdlStr string) string {
 	return res
 }
 
+func prepareSchema(schema string) ast.Document {
+	definition, report := astparser.ParseGraphqlDocumentString(schema)
+	if report.HasErrors() {
+		panic(report.Error())
+	}
+	// require.False(t, report.HasErrors())
+
+	asttransform.MergeDefinitionWithBaseSchema(&definition)
+	// require.NoError(t, err)
+
+	return definition
+}
+
 // externalErrors - converts external errors to simple local type Err
 // convertor could be adjusted to use exact type
 func externalErrors(report operationreport.Report) (out []Err) {
+	out = make([]Err, 0)
+
 	for _, externalError := range report.ExternalErrors {
 		var locations []Loc
 
@@ -275,11 +155,7 @@ func externalErrors(report operationreport.Report) (out []Err) {
 // compareReportErrors - helper returns ResultCompare function for operationreport.Report
 func compareReportErrors(t *testing.T, report operationreport.Report) ResultCompare {
 	return func(expectedErrors []Err) {
-		fmt.Println("expectedErrors", expectedErrors)
 		actualErrors := externalErrors(report)
-
-		fmt.Println("actualErrors", actualErrors)
-
 		assert.Equal(t, expectedErrors, actualErrors)
 	}
 }
@@ -297,4 +173,16 @@ func hasReportError(t *testing.T, report operationreport.Report) MessageCompare 
 		// TODO check that error has msg
 		assert.Contains(t, messages, msg)
 	}
+}
+
+// testSchema - represents schema definition used in reference tests
+var testSchema string
+
+func init() {
+	content, err := ioutil.ReadFile("test_schema.graphql")
+	if err != nil {
+		panic(err)
+	}
+
+	testSchema = string(content)
 }
