@@ -134,16 +134,18 @@ func TestNormalizeOperation(t *testing.T) {
 	t.Run("type extensions", func(t *testing.T) {
 		run(t, typeExtensionsDefinition, `
 			{
-				me {
+				findUserByLocation(loc: {lat: 1.000, lon: 2.000}) {
 					name
 					age
 				}
-			}`, `{
-				me {
+			}`, `query($a: Location){
+				findUserByLocation(loc: $a) {
 					name
 					age
 				}
-			}`, "", "")
+			}`,
+			`{"a": {"lat": 1.000, "lon": 2.000}}`,
+			`{"a": {"lat":1.000,"lon":2.000}}`)
 	})
 }
 
@@ -644,14 +646,22 @@ enum __TypeKind {
 
 const typeExtensionsDefinition = `
 schema { query: Query }
+
 extend type Query {
-	me: User
+	findUserByLocation(loc: Location): [User]
 }
+
 type User {
 	name: String
 }
+
 extend type User {
 	age: Int
+}
+
+extend input Location {
+	lat: Float 
+	lon: Float
 }
 
 directive @inline on INLINE_FRAGMENT
