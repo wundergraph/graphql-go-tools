@@ -18,6 +18,17 @@ func (d *Document) ObjectTypeExtensionNameString(ref int) string {
 	return unsafebytes.BytesToString(d.Input.ByteSlice(d.ObjectTypeExtensions[ref].Name))
 }
 
+func (d *Document) ObjectTypeExtensionDescriptionNameBytes(ref int) ByteSlice {
+	if !d.ObjectTypeExtensions[ref].Description.IsDefined {
+		return nil
+	}
+	return d.Input.ByteSlice(d.ObjectTypeExtensions[ref].Description.Content)
+}
+
+func (d *Document) ObjectTypeExtensionDescriptionNameString(ref int) string {
+	return unsafebytes.BytesToString(d.ObjectTypeExtensionDescriptionNameBytes(ref))
+}
+
 func (d *Document) ObjectTypeExtensionHasFieldDefinitions(ref int) bool {
 	return d.ObjectTypeExtensions[ref].HasFieldDefinitions
 }

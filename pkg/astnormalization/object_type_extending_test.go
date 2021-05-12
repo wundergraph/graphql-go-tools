@@ -89,4 +89,36 @@ func TestExtendObjectType(t *testing.T) {
 					}
 					`)
 	})
+	t.Run("extend missing object type definition", func(t *testing.T) {
+		run(extendObjectTypeDefinition, `schema { query: Query }`, `
+			extend type Query {
+				me: String
+			}
+			`, `
+			extend type Query {
+				me: String
+			}
+
+			type Query {
+				me: String
+			}
+			`)
+	})
+	t.Run("extend empty object type definition", func(t *testing.T) {
+		run(extendObjectTypeDefinition, `schema { query: Query }`, `
+			type Query {}
+
+			extend type Query {
+				me: String
+			}
+			`, `
+			type Query {
+				me: String
+			}
+
+			extend type Query {
+				me: String
+			}
+			`)
+	})
 }
