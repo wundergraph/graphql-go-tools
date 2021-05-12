@@ -26,10 +26,10 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
 		ExpectErrors(t, queryStr)([]Err{})
 	}
 
-	ExpectSDLErrors := func(t *testing.T, sdlStr string, sch ...string) ResultCompare {
-		schema := ""
-		if len(sch) > 0 {
-			schema = sch[0]
+	ExpectSDLErrors := func(t *testing.T, schema string, sdls ...string) ResultCompare {
+		sdlStr := ""
+		if len(sdls) > 0 {
+			sdlStr = sdls[0]
 		}
 		return ExpectSDLValidationErrors(t,
 			schema,

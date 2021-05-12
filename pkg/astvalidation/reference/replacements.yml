@@ -145,3 +145,25 @@
     const schemaWithDirectives = extendSchema(testSchema, parse(extensionSDL));
   replacement:
     schemaWithDirectives := ExtendSchema(testSchema, extensionSDL)
+-
+  rule: __ALL__
+  reason: reference expectSDLErrors function has an optional param we need to handle a variadic schemas param
+  source: >-
+    function expectSDLErrors(sdlStr: string, schema?: GraphQLSchema) {
+  replacement: >-
+    ExpectSDLErrors := func(t *testing.T, schema string, sdls ...string) ResultCompare {
+      sdlStr := ""
+      if len(sdls) > 0 {
+        sdlStr = sdls[0]
+      }
+-
+  rule: __ALL__
+  reason:
+  source: >-
+    function expectValidSDL(sdlStr: string, schema?: GraphQLSchema) {
+      expectSDLErrors(sdlStr, schema).to.deep.equal([]);
+    }
+  replacement: >-
+    ExpectValidSDL := func(t *testing.T, schema string, sdls ...string) {
+      ExpectSDLErrors(t, schema, sdls...)([]Err{})
+    }

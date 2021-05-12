@@ -374,12 +374,6 @@ func (c *Converter) transformHelperFunctions(line string) (out string) {
 	case strings.Contains(line, "function expectValid"):
 		out = "ExpectValid := func(t *testing.T, queryStr string) {"
 
-		// as reference expectSDLErrors function has an optional param we need to handle a variadic schemas param
-	case strings.Contains(line, "function expectSDLErrors"):
-		out = `ExpectSDLErrors := func(t *testing.T, sdlStr string, sch ...string) ResultCompare {
-			schema := ""
-if len(sch) > 0 { schema = sch[0] }`
-
 	}
 
 	return
@@ -452,7 +446,7 @@ type Replacement struct {
 
 func (r Replacement) Do(content string) string {
 	if !strings.Contains(content, r.Source) {
-		log.Fatal("Could not find a replacement for Rule:", r.Rule, " Source:\n", r.Source)
+		return content
 	}
 	out := strings.ReplaceAll(content, r.Source, r.Replacement)
 	return out
@@ -464,7 +458,7 @@ type Replacements []Replacement
 // ReplaceForRule - returns array of Replacement for particular rule
 func (r Replacements) ReplaceForRule(rule string) (out []Replacement) {
 	for _, replacement := range r {
-		if replacement.Rule == rule {
+		if replacement.Rule == "__ALL__" || replacement.Rule == rule {
 			out = append(out, replacement)
 		}
 	}

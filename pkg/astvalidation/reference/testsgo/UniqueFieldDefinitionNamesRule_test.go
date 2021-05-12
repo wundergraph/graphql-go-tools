@@ -6,10 +6,10 @@ import (
 
 func TestUniqueFieldDefinitionNamesRule(t *testing.T) {
 
-	ExpectSDLErrors := func(t *testing.T, sdlStr string, sch ...string) ResultCompare {
-		schema := ""
-		if len(sch) > 0 {
-			schema = sch[0]
+	ExpectSDLErrors := func(t *testing.T, schema string, sdls ...string) ResultCompare {
+		sdlStr := ""
+		if len(sdls) > 0 {
+			sdlStr = sdls[0]
 		}
 		return ExpectSDLValidationErrors(t,
 			schema,
@@ -18,8 +18,8 @@ func TestUniqueFieldDefinitionNamesRule(t *testing.T) {
 		)
 	}
 
-	ExpectValidSDL := func(t *testing.T, sdlStr string, schema ...string) {
-		ExpectSDLErrors(t, sdlStr, schema...)([]Err{})
+	ExpectValidSDL := func(t *testing.T, schema string, sdls ...string) {
+		ExpectSDLErrors(t, schema, sdls...)([]Err{})
 	}
 
 	t.Run("Validate: Unique field definition names", func(t *testing.T) {
