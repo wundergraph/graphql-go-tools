@@ -180,11 +180,10 @@ func (c *Converter) iterateLines(testName string, content string) string {
 // out - a processed line
 // skip - a flag to skip appending line to results
 func (c *Converter) transformLine(line string) (out string, skip bool) {
-	fmt.Println("#transformLine lineNumber: ", c.lineNumber, " line: ", line)
-
-	defer func() {
-		fmt.Println("#transformLine RESULT ", c.lineNumber, " skip: ", skip, " out: ", out)
-	}()
+	// fmt.Println("#transformLine lineNumber: ", c.lineNumber, " line: ", line)
+	// defer func() {
+	// 	fmt.Println("#transformLine RESULT ", c.lineNumber, " skip: ", skip, " out: ", out)
+	// }()
 
 	// selects a required line transformation
 	// NOTE: Order of transformation is matters!!!
@@ -352,11 +351,12 @@ func (c *Converter) transformLine(line string) (out string, skip bool) {
 	return
 }
 
+// transformHelperFunctions - creates helper function variables
 func (c *Converter) transformHelperFunctions(line string) (out string) {
-	fmt.Println("#transformHelperFunctions lineNumber: ", c.lineNumber, " line: ", line)
-	defer func() {
-		fmt.Println("#transformHelperFunctions lineNumber: ", c.lineNumber, " out: ", out)
-	}()
+	// fmt.Println("#transformHelperFunctions lineNumber: ", c.lineNumber, " line: ", line)
+	// defer func() {
+	// 	fmt.Println("#transformHelperFunctions lineNumber: ", c.lineNumber, " out: ", out)
+	// }()
 
 	switch {
 	case strings.Contains(line, "function expectErrorsWithSchema"):
@@ -385,11 +385,12 @@ if len(sch) > 0 { schema = sch[0] }`
 	return
 }
 
+// transformUsageOfHelperFunctions - adds a *testing.T as a first argument to helpers call
 func (c *Converter) transformUsageOfHelperFunctions(line string) (out string) {
-	fmt.Println("#transformUsageOfHelperFunctions lineNumber: ", c.lineNumber, " line: ", line)
-	defer func() {
-		fmt.Println("#transformUsageOfHelperFunctions lineNumber: ", c.lineNumber, " out: ", out)
-	}()
+	// fmt.Println("#transformUsageOfHelperFunctions lineNumber: ", c.lineNumber, " line: ", line)
+	// defer func() {
+	// 	fmt.Println("#transformUsageOfHelperFunctions lineNumber: ", c.lineNumber, " out: ", out)
+	// }()
 
 	switch {
 	case strings.Contains(line, "expectSDLErrors("):
