@@ -1134,7 +1134,7 @@ func (i *InputTemplate) renderContextVariable(ctx *Context, path []string, rende
 	return i.renderGraphQLValue(value, valueType, preparedInput)
 }
 
-func (i *InputTemplate) renderGraphQLValue(data []byte, valueType jsonparser.ValueType, buf *fastbuffer.FastBuffer) error {
+func (i *InputTemplate) renderGraphQLValue(data []byte, valueType jsonparser.ValueType, buf *fastbuffer.FastBuffer) (err error) {
 	switch valueType {
 	case jsonparser.String:
 		buf.WriteBytes(literal.QUOTE)
@@ -1143,7 +1143,7 @@ func (i *InputTemplate) renderGraphQLValue(data []byte, valueType jsonparser.Val
 	case jsonparser.Object:
 		buf.WriteBytes(literal.LBRACE)
 		first := true
-		err := jsonparser.ObjectEach(data, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
+		err = jsonparser.ObjectEach(data, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
 			if !first {
 				buf.WriteBytes(literal.COMMA)
 			} else {
@@ -1151,7 +1151,7 @@ func (i *InputTemplate) renderGraphQLValue(data []byte, valueType jsonparser.Val
 			}
 			buf.WriteBytes(key)
 			buf.WriteBytes(literal.COLON)
-			return i.renderGraphQLValue(value,dataType,buf)
+			return i.renderGraphQLValue(value, dataType, buf)
 		})
 		if err != nil {
 			return err
@@ -1164,14 +1164,18 @@ func (i *InputTemplate) renderGraphQLValue(data []byte, valueType jsonparser.Val
 	case jsonparser.Array:
 		buf.WriteBytes(literal.LBRACK)
 		first := true
-		_,err := jsonparser.ArrayEach(data, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+		var arrayErr error
+		_, err = jsonparser.ArrayEach(data, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
 			if !first {
 				buf.WriteBytes(literal.COMMA)
 			} else {
 				first = false
 			}
-			err = i.renderGraphQLValue(value,dataType,buf)
+			arrayErr = i.renderGraphQLValue(value, dataType, buf)
 		})
+		if arrayErr != nil {
+			return arrayErr
+		}
 		if err != nil {
 			return err
 		}
@@ -1179,7 +1183,7 @@ func (i *InputTemplate) renderGraphQLValue(data []byte, valueType jsonparser.Val
 	case jsonparser.Number:
 		buf.WriteBytes(data)
 	}
-	return nil
+	return
 }
 
 func (i *InputTemplate) renderHeaderVariable(ctx *Context, path []string, preparedInput *fastbuffer.FastBuffer) error {
