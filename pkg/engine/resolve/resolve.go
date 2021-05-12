@@ -1099,7 +1099,7 @@ func (i *InputTemplate) Render(ctx *Context, data []byte, preparedInput *fastbuf
 			case VariableSourceObject:
 				err = i.renderObjectVariable(data, i.Segments[j].VariableSourcePath, preparedInput)
 			case VariableSourceContext:
-				err = i.renderContextVariable(ctx, i.Segments[j].VariableSourcePath, preparedInput)
+				err = i.renderContextVariable(ctx, i.Segments[j].VariableSourcePath, i.Segments[j].RenderAsGraphQLValue, preparedInput)
 			case VariableSourceRequestHeader:
 				err = i.renderHeaderVariable(ctx, i.Segments[j].VariableSourcePath, preparedInput)
 			default:
@@ -1122,12 +1122,63 @@ func (i *InputTemplate) renderObjectVariable(data []byte, path []string, prepare
 	return nil
 }
 
-func (i *InputTemplate) renderContextVariable(ctx *Context, path []string, preparedInput *fastbuffer.FastBuffer) error {
-	value, _, _, err := jsonparser.Get(ctx.Variables, path...)
+func (i *InputTemplate) renderContextVariable(ctx *Context, path []string, renderAsGraphQLValue bool, preparedInput *fastbuffer.FastBuffer) error {
+	value, valueType, _, err := jsonparser.Get(ctx.Variables, path...)
 	if err != nil {
 		return err
 	}
-	preparedInput.WriteBytes(value)
+	if !renderAsGraphQLValue {
+		preparedInput.WriteBytes(value)
+		return nil
+	}
+	return i.renderGraphQLValue(value, valueType, preparedInput)
+}
+
+func (i *InputTemplate) renderGraphQLValue(data []byte, valueType jsonparser.ValueType, buf *fastbuffer.FastBuffer) error {
+	switch valueType {
+	case jsonparser.String:
+		buf.WriteBytes(literal.QUOTE)
+		buf.WriteBytes(data)
+		buf.WriteBytes(literal.QUOTE)
+	case jsonparser.Object:
+		buf.WriteBytes(literal.LBRACE)
+		first := true
+		err := jsonparser.ObjectEach(data, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
+			if !first {
+				buf.WriteBytes(literal.COMMA)
+			} else {
+				first = false
+			}
+			buf.WriteBytes(key)
+			buf.WriteBytes(literal.COLON)
+			return i.renderGraphQLValue(value,dataType,buf)
+		})
+		if err != nil {
+			return err
+		}
+		buf.WriteBytes(literal.RBRACE)
+	case jsonparser.Null:
+		buf.WriteBytes(literal.NULL)
+	case jsonparser.Boolean:
+		buf.WriteBytes(data)
+	case jsonparser.Array:
+		buf.WriteBytes(literal.LBRACK)
+		first := true
+		_,err := jsonparser.ArrayEach(data, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+			if !first {
+				buf.WriteBytes(literal.COMMA)
+			} else {
+				first = false
+			}
+			err = i.renderGraphQLValue(value,dataType,buf)
+		})
+		if err != nil {
+			return err
+		}
+		buf.WriteBytes(literal.RBRACK)
+	case jsonparser.Number:
+		buf.WriteBytes(data)
+	}
 	return nil
 }
 
@@ -1169,10 +1220,11 @@ const (
 )
 
 type TemplateSegment struct {
-	SegmentType        SegmentType
-	Data               []byte
-	VariableSource     VariableSource
-	VariableSourcePath []string
+	SegmentType          SegmentType
+	Data                 []byte
+	VariableSource       VariableSource
+	VariableSourcePath   []string
+	RenderAsGraphQLValue bool
 }
 
 func (_ *SingleFetch) FetchKind() FetchKind {
@@ -1288,14 +1340,16 @@ const (
 )
 
 type ContextVariable struct {
-	Path []string
+	Path                 []string
+	RenderAsGraphQLValue bool
 }
 
 func (c *ContextVariable) TemplateSegment() TemplateSegment {
 	return TemplateSegment{
-		SegmentType:        VariableSegmentType,
-		VariableSource:     VariableSourceContext,
-		VariableSourcePath: c.Path,
+		SegmentType:          VariableSegmentType,
+		VariableSource:       VariableSourceContext,
+		VariableSourcePath:   c.Path,
+		RenderAsGraphQLValue: c.RenderAsGraphQLValue,
 	}
 }
 
