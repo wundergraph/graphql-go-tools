@@ -14,6 +14,63 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
+var rulesMap = map[string][]astvalidation.Rule{
+	"ExecutableDefinitionsRule":        {astvalidation.DocumentContainsExecutableOperation()},
+	"FieldsOnCorrectTypeRule":          {astvalidation.FieldSelections()},
+	"KnownArgumentNamesRule":           {astvalidation.ValidArguments()},
+	"KnownDirectivesRule":              {astvalidation.DirectivesAreDefined()},
+	"KnownTypeNamesRule":               {astvalidation.KnownTypeNames()},
+	"LoneAnonymousOperationRule":       {astvalidation.LoneAnonymousOperation()},
+	"NoUndefinedVariablesRule":         {astvalidation.AllVariableUsesDefined()},
+	"NoUnusedVariablesRule":            {astvalidation.AllVariablesUsed()},
+	"OverlappingFieldsCanBeMergedRule": {astvalidation.FieldSelectionMerging()},
+	"ProvidedRequiredArgumentsRule":    {astvalidation.RequiredArguments()},
+	"SingleFieldSubscriptionsRule":     {astvalidation.SubscriptionSingleRootField()},
+	"UniqueArgumentNamesRule":          {astvalidation.ArgumentUniqueness()},
+	"UniqueDirectivesPerLocationRule":  {astvalidation.DirectivesAreUniquePerLocation()},
+	"UniqueEnumValueNamesRule":         {astvalidation.UniqueEnumValueNames()},
+	"UniqueFieldDefinitionNamesRule":   {astvalidation.UniqueFieldDefinitionNames()},
+	"UniqueOperationNamesRule":         {astvalidation.OperationNameUniqueness()},
+	"UniqueOperationTypesRule":         {astvalidation.UniqueOperationTypes()},
+	"UniqueTypeNamesRule":              {astvalidation.UniqueTypeNames()},
+	"UniqueVariableNamesRule":          {astvalidation.VariableUniqueness()},
+	"ValuesOfCorrectTypeRule":          {astvalidation.Values()},
+	"VariablesAreInputTypesRule":       {astvalidation.VariablesAreInputTypes()},
+	"VariablesInAllowedPositionRule":   {astvalidation.ValidArguments()},
+
+	// fragments rules
+	"FragmentsOnCompositeTypesRule": {astvalidation.Fragments()},
+	"KnownFragmentNamesRule":        {astvalidation.Fragments()},
+	"NoFragmentCyclesRule":          {astvalidation.Fragments()},
+	"NoUnusedFragmentsRule":         {astvalidation.Fragments()},
+	"PossibleFragmentSpreadsRule":   {astvalidation.Fragments()},
+	"UniqueFragmentNamesRule":       {astvalidation.Fragments()},
+
+	// not mapped rules
+
+	// "UniqueInputFieldNamesRule",
+	// "UniqueDirectiveNamesRule",
+	// "LoneSchemaDefinitionRule",
+	// "ScalarLeafsRule",
+	// "PossibleTypeExtensionsRule",
+}
+
+func operationValidatorFor(rule string) *astvalidation.OperationValidator {
+	rules, ok := rulesMap[rule]
+	if !ok {
+		return astvalidation.DefaultOperationValidator()
+	}
+	return astvalidation.NewOperationValidator(rules)
+}
+
+func definitionValidatorFor(rule string) *astvalidation.DefinitionValidator {
+	rules, ok := rulesMap[rule]
+	if !ok {
+		return astvalidation.DefaultDefinitionValidator()
+	}
+	return astvalidation.NewDefinitionValidator(rules)
+}
+
 // Loc - local type representing location of validation error message
 type Loc struct {
 	line, column uint32
@@ -42,8 +99,12 @@ func ExpectValidationErrorsWithSchema(t *testing.T, schema string, rule string, 
 		return compareReportErrors(t, opReport)
 	}
 
-	report := operationreport.Report{}
-	validator := astvalidation.DefaultOperationValidator()
+	var (
+		report    = operationreport.Report{}
+		validator *astvalidation.OperationValidator
+	)
+
+	validator = operationValidatorFor(rule)
 	validator.Validate(&op, &def, &report)
 
 	return compareReportErrors(t, report)
@@ -63,7 +124,7 @@ func ExpectSDLValidationErrors(t *testing.T, schema string, rule string, sdlStr 
 
 	if schema != "" {
 		// merge schema additions
-		def.Input.AppendInputBytes([]byte(sdlStr))
+		def.Input.AppendInputBytes([]byte(schema))
 		parser := astparser.NewParser()
 		mergeReport := operationreport.Report{}
 		parser.Parse(&def, &mergeReport)
@@ -75,8 +136,12 @@ func ExpectSDLValidationErrors(t *testing.T, schema string, rule string, sdlStr 
 	}
 
 	// validate schema sdl
-	report := operationreport.Report{}
-	validator := astvalidation.DefaultDefinitionValidator()
+	var (
+		report    = operationreport.Report{}
+		validator *astvalidation.DefinitionValidator
+	)
+
+	validator = definitionValidatorFor(rule)
 	validator.Validate(&def, &report)
 
 	return compareReportErrors(t, report)
