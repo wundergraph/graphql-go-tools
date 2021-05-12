@@ -6,21 +6,21 @@ import (
 
 func TestPossibleTypeExtensionsRule(t *testing.T) {
 
-	expectSDLErrors := func(sdlStr string, sch ...string) ResultCompare {
+	ExpectSDLErrors := func(t *testing.T, sdlStr string, sch ...string) ResultCompare {
 		schema := ""
 		if len(sch) > 0 {
 			schema = sch[0]
 		}
-		return ExpectSDLValidationErrors(schema, "PossibleTypeExtensionsRule", sdlStr)
+		return ExpectSDLValidationErrors(t, schema, "PossibleTypeExtensionsRule", sdlStr)
 	}
 
-	expectValidSDL := func(sdlStr string, schema ...string) {
-		expectSDLErrors(sdlStr, schema...)(t, []Err{})
+	ExpectValidSDL := func(t *testing.T, sdlStr string, schema ...string) {
+		ExpectSDLErrors(t, sdlStr, schema...)([]Err{})
 	}
 
 	t.Run("Validate: Possible type extensions", func(t *testing.T) {
 		t.Run("no extensions", func(t *testing.T) {
-			expectValidSDL(`
+			ExpectValidSDL(t, `
       scalar FooScalar
       type FooObject
       interface FooInterface
@@ -31,7 +31,7 @@ func TestPossibleTypeExtensionsRule(t *testing.T) {
 		})
 
 		t.Run("one extension per type", func(t *testing.T) {
-			expectValidSDL(`
+			ExpectValidSDL(t, `
       scalar FooScalar
       type FooObject
       interface FooInterface
@@ -49,7 +49,7 @@ func TestPossibleTypeExtensionsRule(t *testing.T) {
 		})
 
 		t.Run("many extensions per type", func(t *testing.T) {
-			expectValidSDL(`
+			ExpectValidSDL(t, `
       scalar FooScalar
       type FooObject
       interface FooInterface
@@ -77,7 +77,7 @@ func TestPossibleTypeExtensionsRule(t *testing.T) {
 			message :=
 				`Cannot extend type "Unknown" because it is not defined. Did you mean "Known"?`
 
-			expectSDLErrors(`
+			ExpectSDLErrors(t, `
       type Known
 
       extend scalar Unknown @dummy
@@ -86,7 +86,7 @@ func TestPossibleTypeExtensionsRule(t *testing.T) {
       extend union Unknown @dummy
       extend enum Unknown @dummy
       extend input Unknown @dummy
-    `)(t, []Err{
+    `)([]Err{
 				{message: message, locations: []Loc{{line: 4, column: 21}}},
 				{message: message, locations: []Loc{{line: 5, column: 19}}},
 				{message: message, locations: []Loc{{line: 6, column: 24}}},
@@ -99,7 +99,7 @@ func TestPossibleTypeExtensionsRule(t *testing.T) {
 		t.Run("does not consider non-type definitions", func(t *testing.T) {
 			message := `Cannot extend type "Foo" because it is not defined.`
 
-			expectSDLErrors(`
+			ExpectSDLErrors(t, `
       query Foo { __typename }
       fragment Foo on Query { __typename }
       directive @Foo on SCHEMA
@@ -110,7 +110,7 @@ func TestPossibleTypeExtensionsRule(t *testing.T) {
       extend union Foo @dummy
       extend enum Foo @dummy
       extend input Foo @dummy
-    `)(t, []Err{
+    `)([]Err{
 				{message: message, locations: []Loc{{line: 6, column: 21}}},
 				{message: message, locations: []Loc{{line: 7, column: 19}}},
 				{message: message, locations: []Loc{{line: 8, column: 24}}},
@@ -121,7 +121,7 @@ func TestPossibleTypeExtensionsRule(t *testing.T) {
 		})
 
 		t.Run("extending with different kinds", func(t *testing.T) {
-			expectSDLErrors(`
+			ExpectSDLErrors(t, `
       scalar FooScalar
       type FooObject
       interface FooInterface
@@ -135,7 +135,7 @@ func TestPossibleTypeExtensionsRule(t *testing.T) {
       extend enum FooUnion @dummy
       extend input FooEnum @dummy
       extend scalar FooInputObject @dummy
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `Cannot extend non-object type "FooScalar".`,
 					locations: []Loc{
@@ -199,7 +199,7 @@ func TestPossibleTypeExtensionsRule(t *testing.T) {
       extend input FooInputObject @dummy
     `
 
-			expectValidSDL(sdl, schema)
+			ExpectValidSDL(t, sdl, schema)
 		})
 
 		t.Run("extending unknown types within existing schema", func(t *testing.T) {
@@ -215,7 +215,7 @@ func TestPossibleTypeExtensionsRule(t *testing.T) {
 
 			message :=
 				`Cannot extend type "Unknown" because it is not defined. Did you mean "Known"?`
-			expectSDLErrors(sdl, schema)(t, []Err{
+			ExpectSDLErrors(t, sdl, schema)([]Err{
 				{message: message, locations: []Loc{{line: 2, column: 21}}},
 				{message: message, locations: []Loc{{line: 3, column: 19}}},
 				{message: message, locations: []Loc{{line: 4, column: 24}}},
@@ -243,7 +243,7 @@ func TestPossibleTypeExtensionsRule(t *testing.T) {
       extend scalar FooInputObject @dummy
     `
 
-			expectSDLErrors(sdl, schema)(t, []Err{
+			ExpectSDLErrors(t, sdl, schema)([]Err{
 				{
 					message:   `Cannot extend non-object type "FooScalar".`,
 					locations: []Loc{{line: 2, column: 7}},

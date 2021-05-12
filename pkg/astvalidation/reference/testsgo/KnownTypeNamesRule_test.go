@@ -6,33 +6,33 @@ import (
 
 func TestKnownTypeNamesRule(t *testing.T) {
 
-	expectErrors := func(queryStr string) ResultCompare {
-		return ExpectValidationErrors("KnownTypeNamesRule", queryStr)
+	ExpectErrors := func(t *testing.T, queryStr string) ResultCompare {
+		return ExpectValidationErrors(t, "KnownTypeNamesRule", queryStr)
 	}
 
-	expectErrorsWithSchema := func(schema string, queryStr string) ResultCompare {
-		return ExpectValidationErrorsWithSchema(schema, "KnownTypeNamesRule", queryStr)
+	ExpectErrorsWithSchema := func(t *testing.T, schema string, queryStr string) ResultCompare {
+		return ExpectValidationErrorsWithSchema(t, schema, "KnownTypeNamesRule", queryStr)
 	}
 
-	expectValid := func(queryStr string) {
-		expectErrors(queryStr)(t, []Err{})
+	ExpectValid := func(t *testing.T, queryStr string) {
+		ExpectErrors(t, queryStr)([]Err{})
 	}
 
-	expectSDLErrors := func(sdlStr string, sch ...string) ResultCompare {
+	ExpectSDLErrors := func(t *testing.T, sdlStr string, sch ...string) ResultCompare {
 		schema := ""
 		if len(sch) > 0 {
 			schema = sch[0]
 		}
-		return ExpectSDLValidationErrors(schema, "KnownTypeNamesRule", sdlStr)
+		return ExpectSDLValidationErrors(t, schema, "KnownTypeNamesRule", sdlStr)
 	}
 
-	expectValidSDL := func(sdlStr string, schema ...string) {
-		expectSDLErrors(sdlStr, schema...)(t, []Err{})
+	ExpectValidSDL := func(t *testing.T, sdlStr string, schema ...string) {
+		ExpectSDLErrors(t, sdlStr, schema...)([]Err{})
 	}
 
 	t.Run("Validate: Known type names", func(t *testing.T) {
 		t.Run("known type names are valid", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       query Foo(
         $var: String
         $required: [Int!]!
@@ -50,7 +50,7 @@ func TestKnownTypeNamesRule(t *testing.T) {
 		})
 
 		t.Run("unknown type names are invalid", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       query Foo($var: JumbledUpLetters) {
         user(id: 4) {
           name
@@ -60,7 +60,7 @@ func TestKnownTypeNamesRule(t *testing.T) {
       fragment PetFields on Peat {
         name
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message:   `Unknown type "JumbledUpLetters".`,
 					locations: []Loc{{line: 2, column: 23}},
@@ -83,7 +83,7 @@ func TestKnownTypeNamesRule(t *testing.T) {
         __typename
       }
     `
-			expectErrorsWithSchema(schema, query)(t, []Err{
+			ExpectErrorsWithSchema(t, schema, query)([]Err{
 				{
 					message:   `Unknown type "ID".`,
 					locations: []Loc{{line: 2, column: 19}},
@@ -101,7 +101,7 @@ func TestKnownTypeNamesRule(t *testing.T) {
 
 		t.Run("within SDL", func(t *testing.T) {
 			t.Run("use standard types", func(t *testing.T) {
-				expectValidSDL(`
+				ExpectValidSDL(t, `
         type Query {
           string: String
           int: Int
@@ -114,7 +114,7 @@ func TestKnownTypeNamesRule(t *testing.T) {
 			})
 
 			t.Run("reference types defined inside the same document", func(t *testing.T) {
-				expectValidSDL(`
+				ExpectValidSDL(t, `
         union SomeUnion = SomeObject | AnotherObject
 
         type SomeObject implements SomeInterface {
@@ -149,7 +149,7 @@ func TestKnownTypeNamesRule(t *testing.T) {
 			})
 
 			t.Run("unknown type references", func(t *testing.T) {
-				expectSDLErrors(`
+				ExpectSDLErrors(t, `
         type A
         type B
 
@@ -174,7 +174,7 @@ func TestKnownTypeNamesRule(t *testing.T) {
           mutation: M
           subscription: N
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   `Unknown type "C". Did you mean "A" or "B"?`,
 						locations: []Loc{{line: 5, column: 36}},
@@ -227,7 +227,7 @@ func TestKnownTypeNamesRule(t *testing.T) {
 			})
 
 			t.Run("does not consider non-type definitions", func(t *testing.T) {
-				expectSDLErrors(`
+				ExpectSDLErrors(t, `
         query Foo { __typename }
         fragment Foo on Query { __typename }
         directive @Foo on QUERY
@@ -235,7 +235,7 @@ func TestKnownTypeNamesRule(t *testing.T) {
         type Query {
           foo: Foo
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   `Unknown type "Foo".`,
 						locations: []Loc{{line: 7, column: 16}},
@@ -256,7 +256,7 @@ func TestKnownTypeNamesRule(t *testing.T) {
         }
       `
 
-				expectValidSDL(sdl, schema)
+				ExpectValidSDL(t, sdl, schema)
 			})
 
 			t.Run("reference types inside extension document", func(t *testing.T) {
@@ -274,7 +274,7 @@ func TestKnownTypeNamesRule(t *testing.T) {
         }
       `
 
-				expectValidSDL(sdl, schema)
+				ExpectValidSDL(t, sdl, schema)
 			})
 
 			t.Run("unknown type references inside extension document", func(t *testing.T) {
@@ -305,7 +305,7 @@ func TestKnownTypeNamesRule(t *testing.T) {
         }
       `
 
-				expectSDLErrors(sdl, schema)(t, []Err{
+				ExpectSDLErrors(t, sdl, schema)([]Err{
 					{
 						message:   `Unknown type "C". Did you mean "A" or "B"?`,
 						locations: []Loc{{line: 4, column: 36}},

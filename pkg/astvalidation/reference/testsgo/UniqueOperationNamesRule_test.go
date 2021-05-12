@@ -6,17 +6,17 @@ import (
 
 func TestUniqueOperationNamesRule(t *testing.T) {
 
-	expectErrors := func(queryStr string) ResultCompare {
-		return ExpectValidationErrors("UniqueOperationNamesRule", queryStr)
+	ExpectErrors := func(t *testing.T, queryStr string) ResultCompare {
+		return ExpectValidationErrors(t, "UniqueOperationNamesRule", queryStr)
 	}
 
-	expectValid := func(queryStr string) {
-		expectErrors(queryStr)(t, []Err{})
+	ExpectValid := func(t *testing.T, queryStr string) {
+		ExpectErrors(t, queryStr)([]Err{})
 	}
 
 	t.Run("Validate: Unique operation names", func(t *testing.T) {
 		t.Run("no operations", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       fragment fragA on Type {
         field
       }
@@ -24,7 +24,7 @@ func TestUniqueOperationNamesRule(t *testing.T) {
 		})
 
 		t.Run("one anon operation", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       {
         field
       }
@@ -32,7 +32,7 @@ func TestUniqueOperationNamesRule(t *testing.T) {
 		})
 
 		t.Run("one named operation", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       query Foo {
         field
       }
@@ -40,7 +40,7 @@ func TestUniqueOperationNamesRule(t *testing.T) {
 		})
 
 		t.Run("multiple operations", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       query Foo {
         field
       }
@@ -52,7 +52,7 @@ func TestUniqueOperationNamesRule(t *testing.T) {
 		})
 
 		t.Run("multiple operations of different types", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       query Foo {
         field
       }
@@ -68,7 +68,7 @@ func TestUniqueOperationNamesRule(t *testing.T) {
 		})
 
 		t.Run("fragment and operation named the same", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       query Foo {
         ...Foo
       }
@@ -79,14 +79,14 @@ func TestUniqueOperationNamesRule(t *testing.T) {
 		})
 
 		t.Run("multiple operations of same name", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       query Foo {
         fieldA
       }
       query Foo {
         fieldB
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `There can be only one operation named "Foo".`,
 					locations: []Loc{
@@ -98,14 +98,14 @@ func TestUniqueOperationNamesRule(t *testing.T) {
 		})
 
 		t.Run("multiple ops of same name of different types (mutation)", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       query Foo {
         fieldA
       }
       mutation Foo {
         fieldB
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `There can be only one operation named "Foo".`,
 					locations: []Loc{
@@ -117,14 +117,14 @@ func TestUniqueOperationNamesRule(t *testing.T) {
 		})
 
 		t.Run("multiple ops of same name of different types (subscription)", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       query Foo {
         fieldA
       }
       subscription Foo {
         fieldB
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `There can be only one operation named "Foo".`,
 					locations: []Loc{

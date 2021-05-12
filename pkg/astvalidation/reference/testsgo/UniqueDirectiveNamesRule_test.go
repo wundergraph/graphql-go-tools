@@ -6,33 +6,33 @@ import (
 
 func TestUniqueDirectiveNamesRule(t *testing.T) {
 
-	expectSDLErrors := func(sdlStr string, sch ...string) ResultCompare {
+	ExpectSDLErrors := func(t *testing.T, sdlStr string, sch ...string) ResultCompare {
 		schema := ""
 		if len(sch) > 0 {
 			schema = sch[0]
 		}
-		return ExpectSDLValidationErrors(schema, "UniqueDirectiveNamesRule", sdlStr)
+		return ExpectSDLValidationErrors(t, schema, "UniqueDirectiveNamesRule", sdlStr)
 	}
 
-	expectValidSDL := func(sdlStr string, schema ...string) {
-		expectSDLErrors(sdlStr, schema...)(t, []Err{})
+	ExpectValidSDL := func(t *testing.T, sdlStr string, schema ...string) {
+		ExpectSDLErrors(t, sdlStr, schema...)([]Err{})
 	}
 
 	t.Run("Validate: Unique directive names", func(t *testing.T) {
 		t.Run("no directive", func(t *testing.T) {
-			expectValidSDL(`
+			ExpectValidSDL(t, `
       type Foo
     `)
 		})
 
 		t.Run("one directive", func(t *testing.T) {
-			expectValidSDL(`
+			ExpectValidSDL(t, `
       directive @foo on SCHEMA
     `)
 		})
 
 		t.Run("many directives", func(t *testing.T) {
-			expectValidSDL(`
+			ExpectValidSDL(t, `
       directive @foo on SCHEMA
       directive @bar on SCHEMA
       directive @baz on SCHEMA
@@ -40,7 +40,7 @@ func TestUniqueDirectiveNamesRule(t *testing.T) {
 		})
 
 		t.Run("directive and non-directive definitions named the same", func(t *testing.T) {
-			expectValidSDL(`
+			ExpectValidSDL(t, `
       query foo { __typename }
       fragment foo on foo { __typename }
       type foo
@@ -50,11 +50,11 @@ func TestUniqueDirectiveNamesRule(t *testing.T) {
 		})
 
 		t.Run("directives named the same", func(t *testing.T) {
-			expectSDLErrors(`
+			ExpectSDLErrors(t, `
       directive @foo on SCHEMA
 
       directive @foo on SCHEMA
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `There can be only one directive named "@foo".`,
 					locations: []Loc{
@@ -68,13 +68,13 @@ func TestUniqueDirectiveNamesRule(t *testing.T) {
 		t.Run("adding new directive to existing schema", func(t *testing.T) {
 			schema := BuildSchema("directive @foo on SCHEMA")
 
-			expectValidSDL("directive @bar on SCHEMA", schema)
+			ExpectValidSDL(t, "directive @bar on SCHEMA", schema)
 		})
 
 		t.Run("adding new directive with standard name to existing schema", func(t *testing.T) {
 			schema := BuildSchema("type foo")
 
-			expectSDLErrors("directive @skip on SCHEMA", schema)(t, []Err{
+			ExpectSDLErrors(t, "directive @skip on SCHEMA", schema)([]Err{
 				{
 					message:   `Directive "@skip" already exists in the schema. It cannot be redefined.`,
 					locations: []Loc{{line: 1, column: 12}},
@@ -85,13 +85,13 @@ func TestUniqueDirectiveNamesRule(t *testing.T) {
 		t.Run("adding new directive to existing schema with same-named type", func(t *testing.T) {
 			schema := BuildSchema("type foo")
 
-			expectValidSDL("directive @foo on SCHEMA", schema)
+			ExpectValidSDL(t, "directive @foo on SCHEMA", schema)
 		})
 
 		t.Run("adding conflicting directives to existing schema", func(t *testing.T) {
 			schema := BuildSchema("directive @foo on SCHEMA")
 
-			expectSDLErrors("directive @foo on SCHEMA", schema)(t, []Err{
+			ExpectSDLErrors(t, "directive @foo on SCHEMA", schema)([]Err{
 				{
 					message:   `Directive "@foo" already exists in the schema. It cannot be redefined.`,
 					locations: []Loc{{line: 1, column: 12}},

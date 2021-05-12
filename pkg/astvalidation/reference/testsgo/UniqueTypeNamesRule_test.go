@@ -6,33 +6,33 @@ import (
 
 func TestUniqueTypeNamesRule(t *testing.T) {
 
-	expectSDLErrors := func(sdlStr string, sch ...string) ResultCompare {
+	ExpectSDLErrors := func(t *testing.T, sdlStr string, sch ...string) ResultCompare {
 		schema := ""
 		if len(sch) > 0 {
 			schema = sch[0]
 		}
-		return ExpectSDLValidationErrors(schema, "UniqueTypeNamesRule", sdlStr)
+		return ExpectSDLValidationErrors(t, schema, "UniqueTypeNamesRule", sdlStr)
 	}
 
-	expectValidSDL := func(sdlStr string, schema ...string) {
-		expectSDLErrors(sdlStr, schema...)(t, []Err{})
+	ExpectValidSDL := func(t *testing.T, sdlStr string, schema ...string) {
+		ExpectSDLErrors(t, sdlStr, schema...)([]Err{})
 	}
 
 	t.Run("Validate: Unique type names", func(t *testing.T) {
 		t.Run("no types", func(t *testing.T) {
-			expectValidSDL(`
+			ExpectValidSDL(t, `
       directive @test on SCHEMA
     `)
 		})
 
 		t.Run("one type", func(t *testing.T) {
-			expectValidSDL(`
+			ExpectValidSDL(t, `
       type Foo
     `)
 		})
 
 		t.Run("many types", func(t *testing.T) {
-			expectValidSDL(`
+			ExpectValidSDL(t, `
       type Foo
       type Bar
       type Baz
@@ -40,7 +40,7 @@ func TestUniqueTypeNamesRule(t *testing.T) {
 		})
 
 		t.Run("type and non-type definitions named the same", func(t *testing.T) {
-			expectValidSDL(`
+			ExpectValidSDL(t, `
       query Foo { __typename }
       fragment Foo on Query { __typename }
       directive @Foo on SCHEMA
@@ -50,7 +50,7 @@ func TestUniqueTypeNamesRule(t *testing.T) {
 		})
 
 		t.Run("types named the same", func(t *testing.T) {
-			expectSDLErrors(`
+			ExpectSDLErrors(t, `
       type Foo
 
       scalar Foo
@@ -59,7 +59,7 @@ func TestUniqueTypeNamesRule(t *testing.T) {
       union Foo
       enum Foo
       input Foo
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `There can be only one type named "Foo".`,
 					locations: []Loc{
@@ -108,13 +108,13 @@ func TestUniqueTypeNamesRule(t *testing.T) {
 		t.Run("adding new type to existing schema", func(t *testing.T) {
 			schema := BuildSchema("type Foo")
 
-			expectValidSDL("type Bar", schema)
+			ExpectValidSDL(t, "type Bar", schema)
 		})
 
 		t.Run("adding new type to existing schema with same-named directive", func(t *testing.T) {
 			schema := BuildSchema("directive @Foo on SCHEMA")
 
-			expectValidSDL("type Foo", schema)
+			ExpectValidSDL(t, "type Foo", schema)
 		})
 
 		t.Run("adding conflicting types to existing schema", func(t *testing.T) {
@@ -128,7 +128,7 @@ func TestUniqueTypeNamesRule(t *testing.T) {
       input Foo
     `
 
-			expectSDLErrors(sdl, schema)(t, []Err{
+			ExpectSDLErrors(t, sdl, schema)([]Err{
 				{
 					message:   `Type "Foo" already exists in the schema. It cannot also be defined in this type definition.`,
 					locations: []Loc{{line: 2, column: 14}},

@@ -14,24 +14,24 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
 `
 	schemaWithDirectives := ExtendSchema(testSchema, extensionSDL)
 
-	expectErrors := func(queryStr string) ResultCompare {
-		return ExpectValidationErrorsWithSchema(
+	ExpectErrors := func(t *testing.T, queryStr string) ResultCompare {
+		return ExpectValidationErrorsWithSchema(t,
 			schemaWithDirectives,
 			"UniqueDirectivesPerLocationRule",
 			queryStr,
 		)
 	}
 
-	expectValid := func(queryStr string) {
-		expectErrors(queryStr)(t, []Err{})
+	ExpectValid := func(t *testing.T, queryStr string) {
+		ExpectErrors(t, queryStr)([]Err{})
 	}
 
-	expectSDLErrors := func(sdlStr string, sch ...string) ResultCompare {
+	ExpectSDLErrors := func(t *testing.T, sdlStr string, sch ...string) ResultCompare {
 		schema := ""
 		if len(sch) > 0 {
 			schema = sch[0]
 		}
-		return ExpectSDLValidationErrors(
+		return ExpectSDLValidationErrors(t,
 			schema,
 			"UniqueDirectivesPerLocationRule",
 			sdlStr,
@@ -40,7 +40,7 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
 
 	t.Run("Validate: Directives Are Unique Per Location", func(t *testing.T) {
 		t.Run("no directives", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       fragment Test on Type {
         field
       }
@@ -48,7 +48,7 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
 		})
 
 		t.Run("unique directives in different locations", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       fragment Test on Type @directiveA {
         field @directiveB
       }
@@ -56,7 +56,7 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
 		})
 
 		t.Run("unique directives in same locations", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       fragment Test on Type @directiveA @directiveB {
         field @directiveA @directiveB
       }
@@ -64,7 +64,7 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
 		})
 
 		t.Run("same directives in different locations", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       fragment Test on Type @directiveA {
         field @directiveA
       }
@@ -72,7 +72,7 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
 		})
 
 		t.Run("same directives in similar locations", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       fragment Test on Type {
         field @directive
         field @directive
@@ -81,7 +81,7 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
 		})
 
 		t.Run("repeatable directives in same location", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       fragment Test on Type @repeatable @repeatable {
         field @repeatable @repeatable
       }
@@ -89,7 +89,7 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
 		})
 
 		t.Run("unknown directives must be ignored", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       type Test @unknown @unknown {
         field: String! @unknown @unknown
       }
@@ -101,11 +101,11 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
 		})
 
 		t.Run("duplicate directives in one location", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       fragment Test on Type {
         field @directive @directive
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `The directive "@directive" can only be used once at this location.`,
 					locations: []Loc{
@@ -117,11 +117,11 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
 		})
 
 		t.Run("many duplicate directives in one location", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       fragment Test on Type {
         field @directive @directive @directive
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `The directive "@directive" can only be used once at this location.`,
 					locations: []Loc{
@@ -140,11 +140,11 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
 		})
 
 		t.Run("different duplicate directives in one location", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       fragment Test on Type {
         field @directiveA @directiveB @directiveA @directiveB
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `The directive "@directiveA" can only be used once at this location.`,
 					locations: []Loc{
@@ -163,11 +163,11 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
 		})
 
 		t.Run("duplicate directives in many locations", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       fragment Test on Type @directive @directive {
         field @directive @directive
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `The directive "@directive" can only be used once at this location.`,
 					locations: []Loc{
@@ -186,7 +186,7 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
 		})
 
 		t.Run("duplicate directives on SDL definitions", func(t *testing.T) {
-			expectSDLErrors(`
+			ExpectSDLErrors(t, `
       directive @nonRepeatable on
         SCHEMA | SCALAR | OBJECT | INTERFACE | UNION | INPUT_OBJECT
 
@@ -197,7 +197,7 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
       interface TestInterface @nonRepeatable @nonRepeatable
       union TestUnion @nonRepeatable @nonRepeatable
       input TestInput @nonRepeatable @nonRepeatable
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `The directive "@nonRepeatable" can only be used once at this location.`,
 					locations: []Loc{
@@ -244,7 +244,7 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
 		})
 
 		t.Run("duplicate directives on SDL extensions", func(t *testing.T) {
-			expectSDLErrors(`
+			ExpectSDLErrors(t, `
       directive @nonRepeatable on
         SCHEMA | SCALAR | OBJECT | INTERFACE | UNION | INPUT_OBJECT
 
@@ -255,7 +255,7 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
       extend interface TestInterface @nonRepeatable @nonRepeatable
       extend union TestUnion @nonRepeatable @nonRepeatable
       extend input TestInput @nonRepeatable @nonRepeatable
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `The directive "@nonRepeatable" can only be used once at this location.`,
 					locations: []Loc{
@@ -302,12 +302,12 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
 		})
 
 		t.Run("duplicate directives between SDL definitions and extensions", func(t *testing.T) {
-			expectSDLErrors(`
+			ExpectSDLErrors(t, `
       directive @nonRepeatable on SCHEMA
 
       schema @nonRepeatable { query: Dummy }
       extend schema @nonRepeatable
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `The directive "@nonRepeatable" can only be used once at this location.`,
 					locations: []Loc{
@@ -317,13 +317,13 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
 				},
 			})
 
-			expectSDLErrors(`
+			ExpectSDLErrors(t, `
       directive @nonRepeatable on SCALAR
 
       scalar TestScalar @nonRepeatable
       extend scalar TestScalar @nonRepeatable
       scalar TestScalar @nonRepeatable
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `The directive "@nonRepeatable" can only be used once at this location.`,
 					locations: []Loc{
@@ -340,13 +340,13 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
 				},
 			})
 
-			expectSDLErrors(`
+			ExpectSDLErrors(t, `
       directive @nonRepeatable on OBJECT
 
       extend type TestObject @nonRepeatable
       type TestObject @nonRepeatable
       extend type TestObject @nonRepeatable
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `The directive "@nonRepeatable" can only be used once at this location.`,
 					locations: []Loc{

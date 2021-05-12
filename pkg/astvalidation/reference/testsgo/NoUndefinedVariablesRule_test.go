@@ -6,17 +6,17 @@ import (
 
 func TestNoUndefinedVariablesRule(t *testing.T) {
 
-	expectErrors := func(queryStr string) ResultCompare {
-		return ExpectValidationErrors("NoUndefinedVariablesRule", queryStr)
+	ExpectErrors := func(t *testing.T, queryStr string) ResultCompare {
+		return ExpectValidationErrors(t, "NoUndefinedVariablesRule", queryStr)
 	}
 
-	expectValid := func(queryStr string) {
-		expectErrors(queryStr)(t, []Err{})
+	ExpectValid := func(t *testing.T, queryStr string) {
+		ExpectErrors(t, queryStr)([]Err{})
 	}
 
 	t.Run("Validate: No undefined variables", func(t *testing.T) {
 		t.Run("all variables defined", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       query Foo($a: String, $b: String, $c: String) {
         field(a: $a, b: $b, c: $c)
       }
@@ -24,7 +24,7 @@ func TestNoUndefinedVariablesRule(t *testing.T) {
 		})
 
 		t.Run("all variables deeply defined", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       query Foo($a: String, $b: String, $c: String) {
         field(a: $a) {
           field(b: $b) {
@@ -36,7 +36,7 @@ func TestNoUndefinedVariablesRule(t *testing.T) {
 		})
 
 		t.Run("all variables deeply in inline fragments defined", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       query Foo($a: String, $b: String, $c: String) {
         ... on Type {
           field(a: $a) {
@@ -52,7 +52,7 @@ func TestNoUndefinedVariablesRule(t *testing.T) {
 		})
 
 		t.Run("all variables in fragments deeply defined", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       query Foo($a: String, $b: String, $c: String) {
         ...FragA
       }
@@ -73,7 +73,7 @@ func TestNoUndefinedVariablesRule(t *testing.T) {
 		})
 
 		t.Run("variable within single fragment defined in multiple operations", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       query Foo($a: String) {
         ...FragA
       }
@@ -87,7 +87,7 @@ func TestNoUndefinedVariablesRule(t *testing.T) {
 		})
 
 		t.Run("variable within fragments defined in operations", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       query Foo($a: String) {
         ...FragA
       }
@@ -104,7 +104,7 @@ func TestNoUndefinedVariablesRule(t *testing.T) {
 		})
 
 		t.Run("variable within recursive fragment defined", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       query Foo($a: String) {
         ...FragA
       }
@@ -117,11 +117,11 @@ func TestNoUndefinedVariablesRule(t *testing.T) {
 		})
 
 		t.Run("variable not defined", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       query Foo($a: String, $b: String, $c: String) {
         field(a: $a, b: $b, c: $c, d: $d)
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `Variable "$d" is not defined by operation "Foo".`,
 					locations: []Loc{
@@ -133,11 +133,11 @@ func TestNoUndefinedVariablesRule(t *testing.T) {
 		})
 
 		t.Run("variable not defined by un-named query", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       {
         field(a: $a)
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `Variable "$a" is not defined.`,
 					locations: []Loc{
@@ -149,11 +149,11 @@ func TestNoUndefinedVariablesRule(t *testing.T) {
 		})
 
 		t.Run("multiple variables not defined", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       query Foo($b: String) {
         field(a: $a, b: $b, c: $c)
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `Variable "$a" is not defined by operation "Foo".`,
 					locations: []Loc{
@@ -172,14 +172,14 @@ func TestNoUndefinedVariablesRule(t *testing.T) {
 		})
 
 		t.Run("variable in fragment not defined by un-named query", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       {
         ...FragA
       }
       fragment FragA on Type {
         field(a: $a)
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `Variable "$a" is not defined.`,
 					locations: []Loc{
@@ -191,7 +191,7 @@ func TestNoUndefinedVariablesRule(t *testing.T) {
 		})
 
 		t.Run("variable in fragment not defined by operation", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       query Foo($a: String, $b: String) {
         ...FragA
       }
@@ -208,7 +208,7 @@ func TestNoUndefinedVariablesRule(t *testing.T) {
       fragment FragC on Type {
         field(c: $c)
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `Variable "$c" is not defined by operation "Foo".`,
 					locations: []Loc{
@@ -220,7 +220,7 @@ func TestNoUndefinedVariablesRule(t *testing.T) {
 		})
 
 		t.Run("multiple variables in fragments not defined", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       query Foo($b: String) {
         ...FragA
       }
@@ -237,7 +237,7 @@ func TestNoUndefinedVariablesRule(t *testing.T) {
       fragment FragC on Type {
         field(c: $c)
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `Variable "$a" is not defined by operation "Foo".`,
 					locations: []Loc{
@@ -256,7 +256,7 @@ func TestNoUndefinedVariablesRule(t *testing.T) {
 		})
 
 		t.Run("single variable in fragment not defined by multiple operations", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       query Foo($a: String) {
         ...FragAB
       }
@@ -266,7 +266,7 @@ func TestNoUndefinedVariablesRule(t *testing.T) {
       fragment FragAB on Type {
         field(a: $a, b: $b)
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `Variable "$b" is not defined by operation "Foo".`,
 					locations: []Loc{
@@ -285,7 +285,7 @@ func TestNoUndefinedVariablesRule(t *testing.T) {
 		})
 
 		t.Run("variables in fragment not defined by multiple operations", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       query Foo($b: String) {
         ...FragAB
       }
@@ -295,7 +295,7 @@ func TestNoUndefinedVariablesRule(t *testing.T) {
       fragment FragAB on Type {
         field(a: $a, b: $b)
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `Variable "$a" is not defined by operation "Foo".`,
 					locations: []Loc{
@@ -314,7 +314,7 @@ func TestNoUndefinedVariablesRule(t *testing.T) {
 		})
 
 		t.Run("variable in fragment used by other operation", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       query Foo($b: String) {
         ...FragA
       }
@@ -327,7 +327,7 @@ func TestNoUndefinedVariablesRule(t *testing.T) {
       fragment FragB on Type {
         field(b: $b)
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `Variable "$a" is not defined by operation "Foo".`,
 					locations: []Loc{
@@ -346,7 +346,7 @@ func TestNoUndefinedVariablesRule(t *testing.T) {
 		})
 
 		t.Run("multiple undefined variables produce multiple errors", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       query Foo($b: String) {
         ...FragAB
       }
@@ -361,7 +361,7 @@ func TestNoUndefinedVariablesRule(t *testing.T) {
       fragment FragC on Type {
         field2(c: $c)
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `Variable "$a" is not defined by operation "Foo".`,
 					locations: []Loc{

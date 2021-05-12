@@ -159,14 +159,14 @@ type Err struct {
 }
 
 // MessageCompare - is a function which allows to check that report has an expectedErrMsg
-type MessageCompare func(t *testing.T, expectedErrMsg string)
+type MessageCompare func(expectedErrMsg string)
 
 // ResultCompare - is a function to compare report errors with expectedErrors
-type ResultCompare func(t *testing.T, expectedErrors []Err)
+type ResultCompare func(expectedErrors []Err)
 
 // ExpectValidationErrorsWithSchema - is a helper to run operation validation
 // returns ResultCompare function
-func ExpectValidationErrorsWithSchema(schema string, rule string, queryStr string) ResultCompare {
+func ExpectValidationErrorsWithSchema(t *testing.T, schema string, rule string, queryStr string) ResultCompare {
 	op := unsafeparser.ParseGraphqlDocumentString(queryStr)
 	def := unsafeparser.ParseGraphqlDocumentString(schema)
 
@@ -174,18 +174,18 @@ func ExpectValidationErrorsWithSchema(schema string, rule string, queryStr strin
 	validator := astvalidation.DefaultOperationValidator()
 	validator.Validate(&op, &def, &report)
 
-	return compareReportErrors(report)
+	return compareReportErrors(t, report)
 }
 
 // ExpectValidationErrors - a wrapper for ExpectValidationErrorsWithSchema which uses default testSchema
 // returns ResultCompare function
-func ExpectValidationErrors(rule string, queryStr string) ResultCompare {
-	return ExpectValidationErrorsWithSchema(testSchema, rule, queryStr)
+func ExpectValidationErrors(t *testing.T, rule string, queryStr string) ResultCompare {
+	return ExpectValidationErrorsWithSchema(t, testSchema, rule, queryStr)
 }
 
 // ExpectSDLValidationErrors - is a helper to run schema definition validation
 // returns ResultCompare function
-func ExpectSDLValidationErrors(schema string, rule string, sdlStr string) ResultCompare {
+func ExpectSDLValidationErrors(t *testing.T, schema string, rule string, sdlStr string) ResultCompare {
 	definition, report := astparser.ParseGraphqlDocumentString(schema)
 	// require.False(t, report.HasErrors())
 
@@ -199,7 +199,7 @@ func ExpectSDLValidationErrors(schema string, rule string, sdlStr string) Result
 	validator := astvalidation.DefaultDefinitionValidator()
 	validator.Validate(&definition, &report)
 
-	return compareReportErrors(report)
+	return compareReportErrors(t, report)
 }
 
 // BuildSchema - helper used in reference test.
@@ -208,9 +208,9 @@ func BuildSchema(sdl string) string {
 	return sdl
 }
 
-// ExpectErrorMessage - is a helper to run operation validation and check single error message
+// ExpectValidationErrorMessage - is a helper to run operation validation and check single error message
 // returns MessageCompare
-func ExpectErrorMessage(schema string, queryStr string) MessageCompare {
+func ExpectValidationErrorMessage(t *testing.T, schema string, queryStr string) MessageCompare {
 	op := unsafeparser.ParseGraphqlDocumentString(queryStr)
 	def := unsafeparser.ParseGraphqlDocumentString(schema)
 
@@ -218,7 +218,7 @@ func ExpectErrorMessage(schema string, queryStr string) MessageCompare {
 	validator := astvalidation.DefaultOperationValidator()
 	validator.Validate(&op, &def, &report)
 
-	return hasReportError(report)
+	return hasReportError(t, report)
 }
 
 // ExtendSchema - helper to extend schema with provided sdl
@@ -259,8 +259,8 @@ func externalErrors(report operationreport.Report) (out []Err) {
 }
 
 // compareReportErrors - helper returns ResultCompare function for operationreport.Report
-func compareReportErrors(report operationreport.Report) ResultCompare {
-	return func(t *testing.T, expectedErrors []Err) {
+func compareReportErrors(t *testing.T, report operationreport.Report) ResultCompare {
+	return func(expectedErrors []Err) {
 		fmt.Println("expectedErrors", expectedErrors)
 		actualErrors := externalErrors(report)
 
@@ -271,8 +271,8 @@ func compareReportErrors(report operationreport.Report) ResultCompare {
 }
 
 // hasReportError - helper returns MessageCompare function for operationreport.Report
-func hasReportError(report operationreport.Report) MessageCompare {
-	return func(t *testing.T, msg string) {
+func hasReportError(t *testing.T, report operationreport.Report) MessageCompare {
+	return func(msg string) {
 		actualErrors := externalErrors(report)
 
 		var messages []string

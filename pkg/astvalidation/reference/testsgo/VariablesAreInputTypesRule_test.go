@@ -6,17 +6,17 @@ import (
 
 func TestVariablesAreInputTypesRule(t *testing.T) {
 
-	expectErrors := func(queryStr string) ResultCompare {
-		return ExpectValidationErrors("VariablesAreInputTypesRule", queryStr)
+	ExpectErrors := func(t *testing.T, queryStr string) ResultCompare {
+		return ExpectValidationErrors(t, "VariablesAreInputTypesRule", queryStr)
 	}
 
-	expectValid := func(queryStr string) {
-		expectErrors(queryStr)(t, []Err{})
+	ExpectValid := func(t *testing.T, queryStr string) {
+		ExpectErrors(t, queryStr)([]Err{})
 	}
 
 	t.Run("Validate: Variables are input types", func(t *testing.T) {
 		t.Run("input types are valid", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       query Foo($a: String, $b: [Boolean!]!, $c: ComplexInput) {
         field(a: $a, b: $b, c: $c)
       }
@@ -24,11 +24,11 @@ func TestVariablesAreInputTypesRule(t *testing.T) {
 		})
 
 		t.Run("output types are invalid", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       query Foo($a: Dog, $b: [[CatOrDog!]]!, $c: Pet) {
         field(a: $a, b: $b, c: $c)
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					locations: []Loc{{line: 2, column: 21}},
 					message:   `Variable "$a" cannot be non-input type "Dog".`,

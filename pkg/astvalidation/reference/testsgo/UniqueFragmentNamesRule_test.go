@@ -6,17 +6,17 @@ import (
 
 func TestUniqueFragmentNamesRule(t *testing.T) {
 
-	expectErrors := func(queryStr string) ResultCompare {
-		return ExpectValidationErrors("UniqueFragmentNamesRule", queryStr)
+	ExpectErrors := func(t *testing.T, queryStr string) ResultCompare {
+		return ExpectValidationErrors(t, "UniqueFragmentNamesRule", queryStr)
 	}
 
-	expectValid := func(queryStr string) {
-		expectErrors(queryStr)(t, []Err{})
+	ExpectValid := func(t *testing.T, queryStr string) {
+		ExpectErrors(t, queryStr)([]Err{})
 	}
 
 	t.Run("Validate: Unique fragment names", func(t *testing.T) {
 		t.Run("no fragments", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       {
         field
       }
@@ -24,7 +24,7 @@ func TestUniqueFragmentNamesRule(t *testing.T) {
 		})
 
 		t.Run("one fragment", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       {
         ...fragA
       }
@@ -36,7 +36,7 @@ func TestUniqueFragmentNamesRule(t *testing.T) {
 		})
 
 		t.Run("many fragments", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       {
         ...fragA
         ...fragB
@@ -55,7 +55,7 @@ func TestUniqueFragmentNamesRule(t *testing.T) {
 		})
 
 		t.Run("inline fragments are always unique", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       {
         ...on Type {
           fieldA
@@ -68,7 +68,7 @@ func TestUniqueFragmentNamesRule(t *testing.T) {
 		})
 
 		t.Run("fragment and operation named the same", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       query Foo {
         ...Foo
       }
@@ -79,7 +79,7 @@ func TestUniqueFragmentNamesRule(t *testing.T) {
 		})
 
 		t.Run("fragments named the same", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       {
         ...fragA
       }
@@ -89,7 +89,7 @@ func TestUniqueFragmentNamesRule(t *testing.T) {
       fragment fragA on Type {
         fieldB
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `There can be only one fragment named "fragA".`,
 					locations: []Loc{
@@ -101,14 +101,14 @@ func TestUniqueFragmentNamesRule(t *testing.T) {
 		})
 
 		t.Run("fragments named the same without being referenced", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       fragment fragA on Type {
         fieldA
       }
       fragment fragA on Type {
         fieldB
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `There can be only one fragment named "fragA".`,
 					locations: []Loc{

@@ -6,29 +6,29 @@ import (
 
 func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 
-	expectErrors := func(queryStr string) ResultCompare {
-		return ExpectValidationErrors("OverlappingFieldsCanBeMergedRule", queryStr)
+	ExpectErrors := func(t *testing.T, queryStr string) ResultCompare {
+		return ExpectValidationErrors(t, "OverlappingFieldsCanBeMergedRule", queryStr)
 	}
 
-	expectValid := func(queryStr string) {
-		expectErrors(queryStr)(t, []Err{})
+	ExpectValid := func(t *testing.T, queryStr string) {
+		ExpectErrors(t, queryStr)([]Err{})
 	}
 
-	expectErrorsWithSchema := func(schema string, queryStr string) ResultCompare {
-		return ExpectValidationErrorsWithSchema(
+	ExpectErrorsWithSchema := func(t *testing.T, schema string, queryStr string) ResultCompare {
+		return ExpectValidationErrorsWithSchema(t,
 			schema,
 			"OverlappingFieldsCanBeMergedRule",
 			queryStr,
 		)
 	}
 
-	expectValidWithSchema := func(schema string, queryStr string) {
-		expectErrorsWithSchema(schema, queryStr)(t, []Err{})
+	ExpectValidWithSchema := func(t *testing.T, schema string, queryStr string) {
+		ExpectErrorsWithSchema(t, schema, queryStr)([]Err{})
 	}
 
 	t.Run("Validate: Overlapping fields can be merged", func(t *testing.T) {
 		t.Run("unique fields", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       fragment uniqueFields on Dog {
         name
         nickname
@@ -37,7 +37,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 		})
 
 		t.Run("identical fields", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       fragment mergeIdenticalFields on Dog {
         name
         name
@@ -46,7 +46,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 		})
 
 		t.Run("identical fields with identical args", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       fragment mergeIdenticalFieldsWithIdenticalArgs on Dog {
         doesKnowCommand(dogCommand: SIT)
         doesKnowCommand(dogCommand: SIT)
@@ -55,7 +55,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 		})
 
 		t.Run("identical fields with identical directives", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       fragment mergeSameFieldsWithSameDirectives on Dog {
         name @include(if: true)
         name @include(if: true)
@@ -64,7 +64,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 		})
 
 		t.Run("different args with different aliases", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       fragment differentArgsWithDifferentAliases on Dog {
         knowsSit: doesKnowCommand(dogCommand: SIT)
         knowsDown: doesKnowCommand(dogCommand: DOWN)
@@ -73,7 +73,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 		})
 
 		t.Run("different directives with different aliases", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       fragment differentDirectivesWithDifferentAliases on Dog {
         nameIfTrue: name @include(if: true)
         nameIfFalse: name @include(if: false)
@@ -85,7 +85,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 			// Note: Differing skip/include directives don"t create an ambiguous return
 			// value and are acceptable in conditions where differing runtime values
 			// may have the same desired effect of including or skipping a field.
-			expectValid(`
+			ExpectValid(t, `
       fragment differentDirectivesWithDifferentAliases on Dog {
         name @include(if: true)
         name @include(if: false)
@@ -94,12 +94,12 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 		})
 
 		t.Run("Same aliases with different field targets", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       fragment sameAliasesWithDifferentFieldTargets on Dog {
         fido: name
         fido: nickname
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `Fields "fido" conflict because "name" and "nickname" are different fields. Use different aliases on the fields to fetch both if this was intentional.`,
 					locations: []Loc{
@@ -113,7 +113,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 		t.Run("Same aliases allowed on non-overlapping fields", func(t *testing.T) {
 			// This is valid since no object can be both a "Dog" and a "Cat", thus
 			// these fields can never overlap.
-			expectValid(`
+			ExpectValid(t, `
       fragment sameAliasesWithDifferentFieldTargets on Pet {
         ... on Dog {
           name
@@ -126,12 +126,12 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 		})
 
 		t.Run("Alias masking direct field access", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       fragment aliasMaskingDirectFieldAccess on Dog {
         name: nickname
         name
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `Fields "name" conflict because "nickname" and "name" are different fields. Use different aliases on the fields to fetch both if this was intentional.`,
 					locations: []Loc{
@@ -143,12 +143,12 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 		})
 
 		t.Run("different args, second adds an argument", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       fragment conflictingArgs on Dog {
         doesKnowCommand
         doesKnowCommand(dogCommand: HEEL)
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `Fields "doesKnowCommand" conflict because they have differing arguments. Use different aliases on the fields to fetch both if this was intentional.`,
 					locations: []Loc{
@@ -160,12 +160,12 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 		})
 
 		t.Run("different args, second missing an argument", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       fragment conflictingArgs on Dog {
         doesKnowCommand(dogCommand: SIT)
         doesKnowCommand
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `Fields "doesKnowCommand" conflict because they have differing arguments. Use different aliases on the fields to fetch both if this was intentional.`,
 					locations: []Loc{
@@ -177,12 +177,12 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 		})
 
 		t.Run("conflicting arg values", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       fragment conflictingArgs on Dog {
         doesKnowCommand(dogCommand: SIT)
         doesKnowCommand(dogCommand: HEEL)
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `Fields "doesKnowCommand" conflict because they have differing arguments. Use different aliases on the fields to fetch both if this was intentional.`,
 					locations: []Loc{
@@ -194,12 +194,12 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 		})
 
 		t.Run("conflicting arg names", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       fragment conflictingArgs on Dog {
         isAtLocation(x: 0)
         isAtLocation(y: 0)
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `Fields "isAtLocation" conflict because they have differing arguments. Use different aliases on the fields to fetch both if this was intentional.`,
 					locations: []Loc{
@@ -213,7 +213,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 		t.Run("allows different args where no conflict is possible", func(t *testing.T) {
 			// This is valid since no object can be both a "Dog" and a "Cat", thus
 			// these fields can never overlap.
-			expectValid(`
+			ExpectValid(t, `
       fragment conflictingArgs on Pet {
         ... on Dog {
           name(surname: true)
@@ -226,7 +226,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 		})
 
 		t.Run("encounters conflict in fragments", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       {
         ...A
         ...B
@@ -237,7 +237,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
       fragment B on Type {
         x: b
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `Fields "x" conflict because "a" and "b" are different fields. Use different aliases on the fields to fetch both if this was intentional.`,
 					locations: []Loc{
@@ -249,7 +249,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 		})
 
 		t.Run("reports each conflict once", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       {
         f1 {
           ...A
@@ -271,7 +271,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
       fragment B on Type {
         x: b
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `Fields "x" conflict because "a" and "b" are different fields. Use different aliases on the fields to fetch both if this was intentional.`,
 					locations: []Loc{
@@ -297,7 +297,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 		})
 
 		t.Run("deep conflict", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       {
         field {
           x: a
@@ -306,7 +306,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
           x: b
         }
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `Fields "field" conflict because subfields "x" conflict because "a" and "b" are different fields. Use different aliases on the fields to fetch both if this was intentional.`,
 					locations: []Loc{
@@ -320,7 +320,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 		})
 
 		t.Run("deep conflict with multiple issues", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       {
         field {
           x: a
@@ -331,7 +331,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
           y: d
         }
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `Fields "field" conflict because subfields "x" conflict because "a" and "b" are different fields and subfields "y" conflict because "c" and "d" are different fields. Use different aliases on the fields to fetch both if this was intentional.`,
 					locations: []Loc{
@@ -347,7 +347,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 		})
 
 		t.Run("very deep conflict", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       {
         field {
           deepField {
@@ -360,7 +360,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
           }
         }
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `Fields "field" conflict because subfields "deepField" conflict because subfields "x" conflict because "a" and "b" are different fields. Use different aliases on the fields to fetch both if this was intentional.`,
 					locations: []Loc{
@@ -376,7 +376,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 		})
 
 		t.Run("reports deep conflict to nearest common ancestor", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       {
         field {
           deepField {
@@ -392,7 +392,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
           }
         }
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `Fields "deepField" conflict because subfields "x" conflict because "a" and "b" are different fields. Use different aliases on the fields to fetch both if this was intentional.`,
 					locations: []Loc{
@@ -406,7 +406,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 		})
 
 		t.Run("reports deep conflict to nearest common ancestor in fragments", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       {
         field {
           ...F
@@ -430,7 +430,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
           }
         }
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `Fields "deeperField" conflict because subfields "x" conflict because "a" and "b" are different fields. Use different aliases on the fields to fetch both if this was intentional.`,
 					locations: []Loc{
@@ -444,7 +444,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 		})
 
 		t.Run("reports deep conflict in nested fragments", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       {
         field {
           ...F
@@ -467,7 +467,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
       fragment J on T {
         x: b
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `Fields "field" conflict because subfields "x" conflict because "a" and "b" are different fields and subfields "y" conflict because "c" and "d" are different fields. Use different aliases on the fields to fetch both if this was intentional.`,
 					locations: []Loc{
@@ -483,7 +483,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 		})
 
 		t.Run("ignores unknown fragments", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       {
         field
         ...Unknown
@@ -566,7 +566,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 				// type IntBox and the interface type NonNullStringBox1. While that
 				// condition does not exist in the current schema, the schema could
 				// expand in the future to allow this. Thus it is invalid.
-				expectErrorsWithSchema(
+				ExpectErrorsWithSchema(t,
 					schema,
 					`
           {
@@ -580,7 +580,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
             }
           }
         `,
-				)(t, []Err{
+				)([]Err{
 					{
 						message: `Fields "scalar" conflict because they return conflicting types "Int" and "String!". Use different aliases on the fields to fetch both if this was intentional.`,
 						locations: []Loc{
@@ -595,7 +595,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 				// In this case `deepBox` returns `SomeBox` in the first usage, and
 				// `StringBox` in the second usage. These return types are not the same!
 				// however this is valid because the return *shapes* are compatible.
-				expectValidWithSchema(
+				ExpectValidWithSchema(t,
 					schema,
 					`
           {
@@ -617,7 +617,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 			})
 
 			t.Run("disallows differing return types despite no overlap", func(t *testing.T) {
-				expectErrorsWithSchema(
+				ExpectErrorsWithSchema(t,
 					schema,
 					`
           {
@@ -631,7 +631,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
             }
           }
         `,
-				)(t, []Err{
+				)([]Err{
 					{
 						message: `Fields "scalar" conflict because they return conflicting types "Int" and "String". Use different aliases on the fields to fetch both if this was intentional.`,
 						locations: []Loc{
@@ -643,7 +643,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 			})
 
 			t.Run("reports correctly when a non-exclusive follows an exclusive", func(t *testing.T) {
-				expectErrorsWithSchema(
+				ExpectErrorsWithSchema(t,
 					schema,
 					`
           {
@@ -689,7 +689,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
             scalar: unrelatedField
           }
         `,
-				)(t, []Err{
+				)([]Err{
 					{
 						message: `Fields "other" conflict because subfields "scalar" conflict because "scalar" and "unrelatedField" are different fields. Use different aliases on the fields to fetch both if this was intentional.`,
 						locations: []Loc{
@@ -703,7 +703,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 			})
 
 			t.Run("disallows differing return type nullability despite no overlap", func(t *testing.T) {
-				expectErrorsWithSchema(
+				ExpectErrorsWithSchema(t,
 					schema,
 					`
           {
@@ -717,7 +717,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
             }
           }
         `,
-				)(t, []Err{
+				)([]Err{
 					{
 						message: `Fields "scalar" conflict because they return conflicting types "String!" and "String". Use different aliases on the fields to fetch both if this was intentional.`,
 						locations: []Loc{
@@ -729,7 +729,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 			})
 
 			t.Run("disallows differing return type list despite no overlap", func(t *testing.T) {
-				expectErrorsWithSchema(
+				ExpectErrorsWithSchema(t,
 					schema,
 					`
           {
@@ -747,7 +747,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
             }
           }
         `,
-				)(t, []Err{
+				)([]Err{
 					{
 						message: `Fields "box" conflict because they return conflicting types "[StringBox]" and "StringBox". Use different aliases on the fields to fetch both if this was intentional.`,
 						locations: []Loc{
@@ -757,7 +757,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 					},
 				})
 
-				expectErrorsWithSchema(
+				ExpectErrorsWithSchema(t,
 					schema,
 					`
           {
@@ -775,7 +775,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
             }
           }
         `,
-				)(t, []Err{
+				)([]Err{
 					{
 						message: `Fields "box" conflict because they return conflicting types "StringBox" and "[StringBox]". Use different aliases on the fields to fetch both if this was intentional.`,
 						locations: []Loc{
@@ -787,7 +787,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 			})
 
 			t.Run("disallows differing subfields", func(t *testing.T) {
-				expectErrorsWithSchema(
+				ExpectErrorsWithSchema(t,
 					schema,
 					`
           {
@@ -806,7 +806,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
             }
           }
         `,
-				)(t, []Err{
+				)([]Err{
 					{
 						message: `Fields "val" conflict because "scalar" and "unrelatedField" are different fields. Use different aliases on the fields to fetch both if this was intentional.`,
 						locations: []Loc{
@@ -818,7 +818,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 			})
 
 			t.Run("disallows differing deep return types despite no overlap", func(t *testing.T) {
-				expectErrorsWithSchema(
+				ExpectErrorsWithSchema(t,
 					schema,
 					`
           {
@@ -836,7 +836,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
             }
           }
         `,
-				)(t, []Err{
+				)([]Err{
 					{
 						message: `Fields "box" conflict because subfields "scalar" conflict because they return conflicting types "String" and "Int". Use different aliases on the fields to fetch both if this was intentional.`,
 						locations: []Loc{
@@ -850,7 +850,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 			})
 
 			t.Run("allows non-conflicting overlapping types", func(t *testing.T) {
-				expectValidWithSchema(
+				ExpectValidWithSchema(t,
 					schema,
 					`
           {
@@ -868,7 +868,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 			})
 
 			t.Run("same wrapped scalar return types", func(t *testing.T) {
-				expectValidWithSchema(
+				ExpectValidWithSchema(t,
 					schema,
 					`
           {
@@ -886,7 +886,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 			})
 
 			t.Run("allows inline fragments without type condition", func(t *testing.T) {
-				expectValidWithSchema(
+				ExpectValidWithSchema(t,
 					schema,
 					`
           {
@@ -900,7 +900,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 			})
 
 			t.Run("compares deep types including list", func(t *testing.T) {
-				expectErrorsWithSchema(
+				ExpectErrorsWithSchema(t,
 					schema,
 					`
           {
@@ -922,7 +922,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
             }
           }
         `,
-				)(t, []Err{
+				)([]Err{
 					{
 						message: `Fields "edges" conflict because subfields "node" conflict because subfields "id" conflict because "name" and "id" are different fields. Use different aliases on the fields to fetch both if this was intentional.`,
 						locations: []Loc{
@@ -938,7 +938,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 			})
 
 			t.Run("ignores unknown types", func(t *testing.T) {
-				expectValidWithSchema(
+				ExpectValidWithSchema(t,
 					schema,
 					`
           {
@@ -966,7 +966,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
         }
       `)
 
-				expectValidWithSchema(
+				ExpectValidWithSchema(t,
 					schemaWithKeywords,
 					`
           {
@@ -980,19 +980,19 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 		})
 
 		t.Run("does not infinite loop on recursive fragment", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       fragment fragA on Human { name, relatives { name, ...fragA } }
     `)
 		})
 
 		t.Run("does not infinite loop on immediately recursive fragment", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       fragment fragA on Human { name, ...fragA }
     `)
 		})
 
 		t.Run("does not infinite loop on transitively recursive fragment", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       fragment fragA on Human { name, ...fragB }
       fragment fragB on Human { name, ...fragC }
       fragment fragC on Human { name, ...fragA }
@@ -1000,13 +1000,13 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 		})
 
 		t.Run("finds invalid case even with immediately recursive fragment", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       fragment sameAliasesWithDifferentFieldTargets on Dog {
         ...sameAliasesWithDifferentFieldTargets
         fido: name
         fido: nickname
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `Fields "fido" conflict because "name" and "nickname" are different fields. Use different aliases on the fields to fetch both if this was intentional.`,
 					locations: []Loc{

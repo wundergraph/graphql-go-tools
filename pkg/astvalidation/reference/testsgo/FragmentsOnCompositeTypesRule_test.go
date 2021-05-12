@@ -6,17 +6,17 @@ import (
 
 func TestFragmentsOnCompositeTypesRule(t *testing.T) {
 
-	expectErrors := func(queryStr string) ResultCompare {
-		return ExpectValidationErrors("FragmentsOnCompositeTypesRule", queryStr)
+	ExpectErrors := func(t *testing.T, queryStr string) ResultCompare {
+		return ExpectValidationErrors(t, "FragmentsOnCompositeTypesRule", queryStr)
 	}
 
-	expectValid := func(queryStr string) {
-		expectErrors(queryStr)(t, []Err{})
+	ExpectValid := func(t *testing.T, queryStr string) {
+		ExpectErrors(t, queryStr)([]Err{})
 	}
 
 	t.Run("Validate: Fragments on composite types", func(t *testing.T) {
 		t.Run("object is valid fragment type", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       fragment validFragment on Dog {
         barks
       }
@@ -24,7 +24,7 @@ func TestFragmentsOnCompositeTypesRule(t *testing.T) {
 		})
 
 		t.Run("interface is valid fragment type", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       fragment validFragment on Pet {
         name
       }
@@ -32,7 +32,7 @@ func TestFragmentsOnCompositeTypesRule(t *testing.T) {
 		})
 
 		t.Run("object is valid inline fragment type", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       fragment validFragment on Pet {
         ... on Dog {
           barks
@@ -42,7 +42,7 @@ func TestFragmentsOnCompositeTypesRule(t *testing.T) {
 		})
 
 		t.Run("interface is valid inline fragment type", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       fragment validFragment on Mammal {
         ... on Canine {
           name
@@ -52,7 +52,7 @@ func TestFragmentsOnCompositeTypesRule(t *testing.T) {
 		})
 
 		t.Run("inline fragment without type is valid", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       fragment validFragment on Pet {
         ... {
           name
@@ -62,7 +62,7 @@ func TestFragmentsOnCompositeTypesRule(t *testing.T) {
 		})
 
 		t.Run("union is valid fragment type", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       fragment validFragment on CatOrDog {
         __typename
       }
@@ -70,11 +70,11 @@ func TestFragmentsOnCompositeTypesRule(t *testing.T) {
 		})
 
 		t.Run("scalar is invalid fragment type", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       fragment scalarFragment on Boolean {
         bad
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message:   `Fragment "scalarFragment" cannot condition on non composite type "Boolean".`,
 					locations: []Loc{{line: 2, column: 34}},
@@ -83,11 +83,11 @@ func TestFragmentsOnCompositeTypesRule(t *testing.T) {
 		})
 
 		t.Run("enum is invalid fragment type", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       fragment scalarFragment on FurColor {
         bad
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message:   `Fragment "scalarFragment" cannot condition on non composite type "FurColor".`,
 					locations: []Loc{{line: 2, column: 34}},
@@ -96,11 +96,11 @@ func TestFragmentsOnCompositeTypesRule(t *testing.T) {
 		})
 
 		t.Run("input object is invalid fragment type", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       fragment inputFragment on ComplexInput {
         stringField
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message:   `Fragment "inputFragment" cannot condition on non composite type "ComplexInput".`,
 					locations: []Loc{{line: 2, column: 33}},
@@ -109,13 +109,13 @@ func TestFragmentsOnCompositeTypesRule(t *testing.T) {
 		})
 
 		t.Run("scalar is invalid inline fragment type", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       fragment invalidFragment on Pet {
         ... on String {
           barks
         }
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message:   `Fragment cannot condition on non composite type "String".`,
 					locations: []Loc{{line: 3, column: 16}},

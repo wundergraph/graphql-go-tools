@@ -6,17 +6,17 @@ import (
 
 func TestLoneAnonymousOperationRule(t *testing.T) {
 
-	expectErrors := func(queryStr string) ResultCompare {
-		return ExpectValidationErrors("LoneAnonymousOperationRule", queryStr)
+	ExpectErrors := func(t *testing.T, queryStr string) ResultCompare {
+		return ExpectValidationErrors(t, "LoneAnonymousOperationRule", queryStr)
 	}
 
-	expectValid := func(queryStr string) {
-		expectErrors(queryStr)(t, []Err{})
+	ExpectValid := func(t *testing.T, queryStr string) {
+		ExpectErrors(t, queryStr)([]Err{})
 	}
 
 	t.Run("Validate: Anonymous operation must be alone", func(t *testing.T) {
 		t.Run("no operations", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       fragment fragA on Type {
         field
       }
@@ -24,7 +24,7 @@ func TestLoneAnonymousOperationRule(t *testing.T) {
 		})
 
 		t.Run("one anon operation", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       {
         field
       }
@@ -32,7 +32,7 @@ func TestLoneAnonymousOperationRule(t *testing.T) {
 		})
 
 		t.Run("multiple named operations", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       query Foo {
         field
       }
@@ -44,7 +44,7 @@ func TestLoneAnonymousOperationRule(t *testing.T) {
 		})
 
 		t.Run("anon operation with fragment", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       {
         ...Foo
       }
@@ -55,14 +55,14 @@ func TestLoneAnonymousOperationRule(t *testing.T) {
 		})
 
 		t.Run("multiple anon operations", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       {
         fieldA
       }
       {
         fieldB
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message:   "This anonymous operation must be the only defined operation.",
 					locations: []Loc{{line: 2, column: 7}},
@@ -75,14 +75,14 @@ func TestLoneAnonymousOperationRule(t *testing.T) {
 		})
 
 		t.Run("anon operation with a mutation", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       {
         fieldA
       }
       mutation Foo {
         fieldB
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message:   "This anonymous operation must be the only defined operation.",
 					locations: []Loc{{line: 2, column: 7}},
@@ -91,14 +91,14 @@ func TestLoneAnonymousOperationRule(t *testing.T) {
 		})
 
 		t.Run("anon operation with a subscription", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       {
         fieldA
       }
       subscription Foo {
         fieldB
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message:   "This anonymous operation must be the only defined operation.",
 					locations: []Loc{{line: 2, column: 7}},

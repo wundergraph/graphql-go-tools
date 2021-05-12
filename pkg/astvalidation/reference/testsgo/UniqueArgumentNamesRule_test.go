@@ -6,17 +6,17 @@ import (
 
 func TestUniqueArgumentNamesRule(t *testing.T) {
 
-	expectErrors := func(queryStr string) ResultCompare {
-		return ExpectValidationErrors("UniqueArgumentNamesRule", queryStr)
+	ExpectErrors := func(t *testing.T, queryStr string) ResultCompare {
+		return ExpectValidationErrors(t, "UniqueArgumentNamesRule", queryStr)
 	}
 
-	expectValid := func(queryStr string) {
-		expectErrors(queryStr)(t, []Err{})
+	ExpectValid := func(t *testing.T, queryStr string) {
+		ExpectErrors(t, queryStr)([]Err{})
 	}
 
 	t.Run("Validate: Unique argument names", func(t *testing.T) {
 		t.Run("no arguments on field", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       {
         field
       }
@@ -24,7 +24,7 @@ func TestUniqueArgumentNamesRule(t *testing.T) {
 		})
 
 		t.Run("no arguments on directive", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       {
         field @directive
       }
@@ -32,7 +32,7 @@ func TestUniqueArgumentNamesRule(t *testing.T) {
 		})
 
 		t.Run("argument on field", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       {
         field(arg: "value")
       }
@@ -40,7 +40,7 @@ func TestUniqueArgumentNamesRule(t *testing.T) {
 		})
 
 		t.Run("argument on directive", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       {
         field @directive(arg: "value")
       }
@@ -48,7 +48,7 @@ func TestUniqueArgumentNamesRule(t *testing.T) {
 		})
 
 		t.Run("same argument on two fields", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       {
         one: field(arg: "value")
         two: field(arg: "value")
@@ -57,7 +57,7 @@ func TestUniqueArgumentNamesRule(t *testing.T) {
 		})
 
 		t.Run("same argument on field and directive", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       {
         field(arg: "value") @directive(arg: "value")
       }
@@ -65,7 +65,7 @@ func TestUniqueArgumentNamesRule(t *testing.T) {
 		})
 
 		t.Run("same argument on two directives", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       {
         field @directive1(arg: "value") @directive2(arg: "value")
       }
@@ -73,7 +73,7 @@ func TestUniqueArgumentNamesRule(t *testing.T) {
 		})
 
 		t.Run("multiple field arguments", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       {
         field(arg1: "value", arg2: "value", arg3: "value")
       }
@@ -81,7 +81,7 @@ func TestUniqueArgumentNamesRule(t *testing.T) {
 		})
 
 		t.Run("multiple directive arguments", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       {
         field @directive(arg1: "value", arg2: "value", arg3: "value")
       }
@@ -89,11 +89,11 @@ func TestUniqueArgumentNamesRule(t *testing.T) {
 		})
 
 		t.Run("duplicate field arguments", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       {
         field(arg1: "value", arg1: "value")
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `There can be only one argument named "arg1".`,
 					locations: []Loc{
@@ -105,11 +105,11 @@ func TestUniqueArgumentNamesRule(t *testing.T) {
 		})
 
 		t.Run("many duplicate field arguments", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       {
         field(arg1: "value", arg1: "value", arg1: "value")
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `There can be only one argument named "arg1".`,
 					locations: []Loc{
@@ -128,11 +128,11 @@ func TestUniqueArgumentNamesRule(t *testing.T) {
 		})
 
 		t.Run("duplicate directive arguments", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       {
         field @directive(arg1: "value", arg1: "value")
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `There can be only one argument named "arg1".`,
 					locations: []Loc{
@@ -144,11 +144,11 @@ func TestUniqueArgumentNamesRule(t *testing.T) {
 		})
 
 		t.Run("many duplicate directive arguments", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       {
         field @directive(arg1: "value", arg1: "value", arg1: "value")
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `There can be only one argument named "arg1".`,
 					locations: []Loc{

@@ -6,18 +6,18 @@ import (
 
 func TestValuesOfCorrectTypeRule(t *testing.T) {
 
-	expectErrors := func(queryStr string) ResultCompare {
-		return ExpectValidationErrors("ValuesOfCorrectTypeRule", queryStr)
+	ExpectErrors := func(t *testing.T, queryStr string) ResultCompare {
+		return ExpectValidationErrors(t, "ValuesOfCorrectTypeRule", queryStr)
 	}
 
-	expectValid := func(queryStr string) {
-		expectErrors(queryStr)(t, []Err{})
+	ExpectValid := func(t *testing.T, queryStr string) {
+		ExpectErrors(t, queryStr)([]Err{})
 	}
 
 	t.Run("Validate: Values of correct type", func(t *testing.T) {
 		t.Run("Valid values", func(t *testing.T) {
 			t.Run("Good int value", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           complicatedArgs {
             intArgField(intArg: 2)
@@ -27,7 +27,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Good negative int value", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           complicatedArgs {
             intArgField(intArg: -2)
@@ -37,7 +37,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Good boolean value", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           complicatedArgs {
             booleanArgField(booleanArg: true)
@@ -47,7 +47,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Good string value", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           complicatedArgs {
             stringArgField(stringArg: "foo")
@@ -57,7 +57,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Good float value", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           complicatedArgs {
             floatArgField(floatArg: 1.1)
@@ -67,7 +67,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Good negative float value", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           complicatedArgs {
             floatArgField(floatArg: -1.1)
@@ -77,7 +77,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Int into Float", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           complicatedArgs {
             floatArgField(floatArg: 1)
@@ -87,7 +87,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Int into ID", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           complicatedArgs {
             idArgField(idArg: 1)
@@ -97,7 +97,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("String into ID", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           complicatedArgs {
             idArgField(idArg: "someIdString")
@@ -107,7 +107,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Good enum value", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           dog {
             doesKnowCommand(dogCommand: SIT)
@@ -117,7 +117,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Enum with undefined value", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           complicatedArgs {
             enumArgField(enumArg: UNKNOWN)
@@ -127,7 +127,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Enum with null value", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           complicatedArgs {
             enumArgField(enumArg: NO_FUR)
@@ -137,7 +137,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("null into nullable type", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           complicatedArgs {
             intArgField(intArg: null)
@@ -145,7 +145,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
         }
       `)
 
-				expectValid(`
+				ExpectValid(t, `
         {
           dog(a: null, b: null, c:{ requiredField: true, intField: null }) {
             name
@@ -157,13 +157,13 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 
 		t.Run("Invalid String values", func(t *testing.T) {
 			t.Run("Int into String", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         {
           complicatedArgs {
             stringArgField(stringArg: 1)
           }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   "String cannot represent a non string value: 1",
 						locations: []Loc{{line: 4, column: 39}},
@@ -172,13 +172,13 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Float into String", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         {
           complicatedArgs {
             stringArgField(stringArg: 1.0)
           }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   "String cannot represent a non string value: 1.0",
 						locations: []Loc{{line: 4, column: 39}},
@@ -187,13 +187,13 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Boolean into String", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         {
           complicatedArgs {
             stringArgField(stringArg: true)
           }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   "String cannot represent a non string value: true",
 						locations: []Loc{{line: 4, column: 39}},
@@ -202,13 +202,13 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Unquoted String into String", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         {
           complicatedArgs {
             stringArgField(stringArg: BAR)
           }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   "String cannot represent a non string value: BAR",
 						locations: []Loc{{line: 4, column: 39}},
@@ -219,13 +219,13 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 
 		t.Run("Invalid Int values", func(t *testing.T) {
 			t.Run("String into Int", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         {
           complicatedArgs {
             intArgField(intArg: "3")
           }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   `Int cannot represent non-integer value: "3"`,
 						locations: []Loc{{line: 4, column: 33}},
@@ -234,13 +234,13 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Big Int into Int", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         {
           complicatedArgs {
             intArgField(intArg: 829384293849283498239482938)
           }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   "Int cannot represent non 32-bit signed integer value: 829384293849283498239482938",
 						locations: []Loc{{line: 4, column: 33}},
@@ -249,13 +249,13 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Unquoted String into Int", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         {
           complicatedArgs {
             intArgField(intArg: FOO)
           }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   "Int cannot represent non-integer value: FOO",
 						locations: []Loc{{line: 4, column: 33}},
@@ -264,13 +264,13 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Simple Float into Int", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         {
           complicatedArgs {
             intArgField(intArg: 3.0)
           }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   "Int cannot represent non-integer value: 3.0",
 						locations: []Loc{{line: 4, column: 33}},
@@ -279,13 +279,13 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Float into Int", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         {
           complicatedArgs {
             intArgField(intArg: 3.333)
           }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   "Int cannot represent non-integer value: 3.333",
 						locations: []Loc{{line: 4, column: 33}},
@@ -296,13 +296,13 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 
 		t.Run("Invalid Float values", func(t *testing.T) {
 			t.Run("String into Float", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         {
           complicatedArgs {
             floatArgField(floatArg: "3.333")
           }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   `Float cannot represent non numeric value: "3.333"`,
 						locations: []Loc{{line: 4, column: 37}},
@@ -311,13 +311,13 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Boolean into Float", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         {
           complicatedArgs {
             floatArgField(floatArg: true)
           }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   "Float cannot represent non numeric value: true",
 						locations: []Loc{{line: 4, column: 37}},
@@ -326,13 +326,13 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Unquoted into Float", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         {
           complicatedArgs {
             floatArgField(floatArg: FOO)
           }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   "Float cannot represent non numeric value: FOO",
 						locations: []Loc{{line: 4, column: 37}},
@@ -343,13 +343,13 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 
 		t.Run("Invalid Boolean value", func(t *testing.T) {
 			t.Run("Int into Boolean", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         {
           complicatedArgs {
             booleanArgField(booleanArg: 2)
           }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   "Boolean cannot represent a non boolean value: 2",
 						locations: []Loc{{line: 4, column: 41}},
@@ -358,13 +358,13 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Float into Boolean", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         {
           complicatedArgs {
             booleanArgField(booleanArg: 1.0)
           }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   "Boolean cannot represent a non boolean value: 1.0",
 						locations: []Loc{{line: 4, column: 41}},
@@ -373,13 +373,13 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("String into Boolean", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         {
           complicatedArgs {
             booleanArgField(booleanArg: "true")
           }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   `Boolean cannot represent a non boolean value: "true"`,
 						locations: []Loc{{line: 4, column: 41}},
@@ -388,13 +388,13 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Unquoted into Boolean", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         {
           complicatedArgs {
             booleanArgField(booleanArg: TRUE)
           }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   "Boolean cannot represent a non boolean value: TRUE",
 						locations: []Loc{{line: 4, column: 41}},
@@ -405,13 +405,13 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 
 		t.Run("Invalid ID value", func(t *testing.T) {
 			t.Run("Float into ID", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         {
           complicatedArgs {
             idArgField(idArg: 1.0)
           }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   "ID cannot represent a non-string and non-integer value: 1.0",
 						locations: []Loc{{line: 4, column: 31}},
@@ -420,13 +420,13 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Boolean into ID", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         {
           complicatedArgs {
             idArgField(idArg: true)
           }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   "ID cannot represent a non-string and non-integer value: true",
 						locations: []Loc{{line: 4, column: 31}},
@@ -435,13 +435,13 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Unquoted into ID", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         {
           complicatedArgs {
             idArgField(idArg: SOMETHING)
           }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   "ID cannot represent a non-string and non-integer value: SOMETHING",
 						locations: []Loc{{line: 4, column: 31}},
@@ -452,13 +452,13 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 
 		t.Run("Invalid Enum value", func(t *testing.T) {
 			t.Run("Int into Enum", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         {
           dog {
             doesKnowCommand(dogCommand: 2)
           }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   `Enum "DogCommand" cannot represent non-enum value: 2.`,
 						locations: []Loc{{line: 4, column: 41}},
@@ -467,13 +467,13 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Float into Enum", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         {
           dog {
             doesKnowCommand(dogCommand: 1.0)
           }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   `Enum "DogCommand" cannot represent non-enum value: 1.0.`,
 						locations: []Loc{{line: 4, column: 41}},
@@ -482,13 +482,13 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("String into Enum", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         {
           dog {
             doesKnowCommand(dogCommand: "SIT")
           }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   `Enum "DogCommand" cannot represent non-enum value: "SIT". Did you mean the enum value "SIT"?`,
 						locations: []Loc{{line: 4, column: 41}},
@@ -497,13 +497,13 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Boolean into Enum", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         {
           dog {
             doesKnowCommand(dogCommand: true)
           }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   `Enum "DogCommand" cannot represent non-enum value: true.`,
 						locations: []Loc{{line: 4, column: 41}},
@@ -512,13 +512,13 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Unknown Enum Value into Enum", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         {
           dog {
             doesKnowCommand(dogCommand: JUGGLE)
           }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   `Value "JUGGLE" does not exist in "DogCommand" enum.`,
 						locations: []Loc{{line: 4, column: 41}},
@@ -527,13 +527,13 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Different case Enum Value into Enum", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         {
           dog {
             doesKnowCommand(dogCommand: sit)
           }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   `Value "sit" does not exist in "DogCommand" enum. Did you mean the enum value "SIT"?`,
 						locations: []Loc{{line: 4, column: 41}},
@@ -544,7 +544,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 
 		t.Run("Valid List value", func(t *testing.T) {
 			t.Run("Good list value", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           complicatedArgs {
             stringListArgField(stringListArg: ["one", null, "two"])
@@ -554,7 +554,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Empty list value", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           complicatedArgs {
             stringListArgField(stringListArg: [])
@@ -564,7 +564,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Null value", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           complicatedArgs {
             stringListArgField(stringListArg: null)
@@ -574,7 +574,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Single value into List", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           complicatedArgs {
             stringListArgField(stringListArg: "one")
@@ -586,13 +586,13 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 
 		t.Run("Invalid List value", func(t *testing.T) {
 			t.Run("Incorrect item type", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         {
           complicatedArgs {
             stringListArgField(stringListArg: ["one", 2])
           }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   "String cannot represent a non string value: 2",
 						locations: []Loc{{line: 4, column: 55}},
@@ -601,13 +601,13 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Single value of incorrect type", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         {
           complicatedArgs {
             stringListArgField(stringListArg: 1)
           }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   "String cannot represent a non string value: 1",
 						locations: []Loc{{line: 4, column: 47}},
@@ -618,7 +618,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 
 		t.Run("Valid non-nullable value", func(t *testing.T) {
 			t.Run("Arg on optional arg", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           dog {
             isHouseTrained(atOtherHomes: true)
@@ -628,7 +628,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("No Arg on optional arg", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           dog {
             isHouseTrained
@@ -638,7 +638,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Multiple args", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           complicatedArgs {
             multipleReqs(req1: 1, req2: 2)
@@ -648,7 +648,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Multiple args reverse order", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           complicatedArgs {
             multipleReqs(req2: 2, req1: 1)
@@ -658,7 +658,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("No args on multiple optional", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           complicatedArgs {
             multipleOpts
@@ -668,7 +668,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("One arg on multiple optional", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           complicatedArgs {
             multipleOpts(opt1: 1)
@@ -678,7 +678,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Second arg on multiple optional", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           complicatedArgs {
             multipleOpts(opt2: 1)
@@ -688,7 +688,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Multiple required args on mixedList", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           complicatedArgs {
             multipleOptAndReq(req1: 3, req2: 4)
@@ -698,7 +698,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Multiple required and one optional arg on mixedList", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           complicatedArgs {
             multipleOptAndReq(req1: 3, req2: 4, opt1: 5)
@@ -708,7 +708,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("All required and optional args on mixedList", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           complicatedArgs {
             multipleOptAndReq(req1: 3, req2: 4, opt1: 5, opt2: 6)
@@ -720,13 +720,13 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 
 		t.Run("Invalid non-nullable value", func(t *testing.T) {
 			t.Run("Incorrect value type", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         {
           complicatedArgs {
             multipleReqs(req2: "two", req1: "one")
           }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   `Int cannot represent non-integer value: "two"`,
 						locations: []Loc{{line: 4, column: 32}},
@@ -739,13 +739,13 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Incorrect value and missing argument (ProvidedRequiredArgumentsRule)", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         {
           complicatedArgs {
             multipleReqs(req1: "one")
           }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   `Int cannot represent non-integer value: "one"`,
 						locations: []Loc{{line: 4, column: 32}},
@@ -754,13 +754,13 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Null value", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         {
           complicatedArgs {
             multipleReqs(req1: null)
           }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   `Expected value of type "Int!", found null.`,
 						locations: []Loc{{line: 4, column: 32}},
@@ -771,7 +771,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 
 		t.Run("Valid input object value", func(t *testing.T) {
 			t.Run("Optional arg, despite required field in type", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           complicatedArgs {
             complexArgField
@@ -781,7 +781,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Partial object, only required", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           complicatedArgs {
             complexArgField(complexArg: { requiredField: true })
@@ -791,7 +791,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Partial object, required field can be falsy", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           complicatedArgs {
             complexArgField(complexArg: { requiredField: false })
@@ -801,7 +801,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Partial object, including required", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           complicatedArgs {
             complexArgField(complexArg: { requiredField: true, intField: 4 })
@@ -811,7 +811,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Full object", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           complicatedArgs {
             complexArgField(complexArg: {
@@ -827,7 +827,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Full object with fields in different order", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           complicatedArgs {
             complexArgField(complexArg: {
@@ -845,13 +845,13 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 
 		t.Run("Invalid input object value", func(t *testing.T) {
 			t.Run("Partial object, missing required", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         {
           complicatedArgs {
             complexArgField(complexArg: { intField: 4 })
           }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   `Field "ComplexInput.requiredField" of required type "Boolean!" was not provided.`,
 						locations: []Loc{{line: 4, column: 41}},
@@ -860,7 +860,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Partial object, invalid field type", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         {
           complicatedArgs {
             complexArgField(complexArg: {
@@ -869,7 +869,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
             })
           }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   "String cannot represent a non string value: 2",
 						locations: []Loc{{line: 5, column: 40}},
@@ -878,7 +878,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Partial object, null to non-null field", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         {
           complicatedArgs {
             complexArgField(complexArg: {
@@ -887,7 +887,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
             })
           }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   `Expected value of type "Boolean!", found null.`,
 						locations: []Loc{{line: 6, column: 29}},
@@ -896,7 +896,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Partial object, unknown field arg", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         {
           complicatedArgs {
             complexArgField(complexArg: {
@@ -905,7 +905,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
             })
           }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   `Field "invalidField" is not defined by type "ComplexInput". Did you mean "intField"?`,
 						locations: []Loc{{line: 6, column: 15}},
@@ -917,7 +917,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 
 		t.Run("Directive arguments", func(t *testing.T) {
 			t.Run("with directives of valid types", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           dog @include(if: true) {
             name
@@ -930,13 +930,13 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("with directive with incorrect types", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         {
           dog @include(if: "yes") {
             name @skip(if: ENUM)
           }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   `Boolean cannot represent a non boolean value: "yes"`,
 						locations: []Loc{{line: 3, column: 28}},
@@ -951,7 +951,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 
 		t.Run("Variable default values", func(t *testing.T) {
 			t.Run("variables with valid default values", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         query WithDefaultValues(
           $a: Int = 1,
           $b: String = "ok",
@@ -964,7 +964,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("variables with valid default null values", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         query WithDefaultValues(
           $a: Int = null,
           $b: String = null,
@@ -976,7 +976,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("variables with invalid default null values", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         query WithDefaultValues(
           $a: Int! = null,
           $b: String! = null,
@@ -984,7 +984,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
         ) {
           dog { name }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   `Expected value of type "Int!", found null.`,
 						locations: []Loc{{line: 3, column: 22}},
@@ -1001,7 +1001,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("variables with invalid default values", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         query InvalidDefaultValues(
           $a: Int = "one",
           $b: String = 4,
@@ -1009,7 +1009,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
         ) {
           dog { name }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   `Int cannot represent non-integer value: "one"`,
 						locations: []Loc{{line: 3, column: 21}},
@@ -1026,13 +1026,13 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("variables with complex invalid default values", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         query WithDefaultValues(
           $a: ComplexInput = { requiredField: 123, intField: "abc" }
         ) {
           dog { name }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   "Boolean cannot represent a non boolean value: 123",
 						locations: []Loc{{line: 3, column: 47}},
@@ -1045,11 +1045,11 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("complex variables missing required field", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         query MissingRequiredField($a: ComplexInput = {intField: 3}) {
           dog { name }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   `Field "ComplexInput.requiredField" of required type "Boolean!" was not provided.`,
 						locations: []Loc{{line: 2, column: 55}},
@@ -1058,11 +1058,11 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("list variables with invalid item", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         query InvalidItem($a: [String] = ["one", 2]) {
           dog { name }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   "String cannot represent a non string value: 2",
 						locations: []Loc{{line: 2, column: 50}},

@@ -6,24 +6,24 @@ import (
 
 func TestKnownDirectivesRule(t *testing.T) {
 
-	expectErrors := func(queryStr string) ResultCompare {
-		return ExpectValidationErrors("KnownDirectivesRule", queryStr)
+	ExpectErrors := func(t *testing.T, queryStr string) ResultCompare {
+		return ExpectValidationErrors(t, "KnownDirectivesRule", queryStr)
 	}
 
-	expectValid := func(queryStr string) {
-		expectErrors(queryStr)(t, []Err{})
+	ExpectValid := func(t *testing.T, queryStr string) {
+		ExpectErrors(t, queryStr)([]Err{})
 	}
 
-	expectSDLErrors := func(sdlStr string, sch ...string) ResultCompare {
+	ExpectSDLErrors := func(t *testing.T, sdlStr string, sch ...string) ResultCompare {
 		schema := ""
 		if len(sch) > 0 {
 			schema = sch[0]
 		}
-		return ExpectSDLValidationErrors(schema, "KnownDirectivesRule", sdlStr)
+		return ExpectSDLValidationErrors(t, schema, "KnownDirectivesRule", sdlStr)
 	}
 
-	expectValidSDL := func(sdlStr string, schema ...string) {
-		expectSDLErrors(sdlStr, schema...)(t, []Err{})
+	ExpectValidSDL := func(t *testing.T, sdlStr string, schema ...string) {
+		ExpectSDLErrors(t, sdlStr, schema...)([]Err{})
 	}
 
 	schemaWithSDLDirectives := BuildSchema(`
@@ -42,7 +42,7 @@ func TestKnownDirectivesRule(t *testing.T) {
 
 	t.Run("Validate: Known directives", func(t *testing.T) {
 		t.Run("with no directives", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       query Foo {
         name
         ...Frag
@@ -55,7 +55,7 @@ func TestKnownDirectivesRule(t *testing.T) {
 		})
 
 		t.Run("with known directives", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       {
         dog @include(if: true) {
           name
@@ -68,13 +68,13 @@ func TestKnownDirectivesRule(t *testing.T) {
 		})
 
 		t.Run("with unknown directive", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       {
         dog @unknown(directive: "value") {
           name
         }
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message:   `Unknown directive "@unknown".`,
 					locations: []Loc{{line: 3, column: 13}},
@@ -83,7 +83,7 @@ func TestKnownDirectivesRule(t *testing.T) {
 		})
 
 		t.Run("with many unknown directives", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       {
         dog @unknown(directive: "value") {
           name
@@ -95,7 +95,7 @@ func TestKnownDirectivesRule(t *testing.T) {
           }
         }
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message:   `Unknown directive "@unknown".`,
 					locations: []Loc{{line: 3, column: 13}},
@@ -112,7 +112,7 @@ func TestKnownDirectivesRule(t *testing.T) {
 		})
 
 		t.Run("with well placed directives", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       query ($var: Boolean) @onQuery {
         name @include(if: $var)
         ...Frag @include(if: true)
@@ -139,7 +139,7 @@ func TestKnownDirectivesRule(t *testing.T) {
 		})
 
 		t.Run("with well placed variable definition directive", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       query Foo($var: Boolean @onVariableDefinition) {
         name
       }
@@ -147,7 +147,7 @@ func TestKnownDirectivesRule(t *testing.T) {
 		})
 
 		t.Run("with misplaced directives", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       query Foo($var: Boolean) @include(if: true) {
         name @onQuery @include(if: $var)
         ...Frag @onQuery
@@ -156,7 +156,7 @@ func TestKnownDirectivesRule(t *testing.T) {
       mutation Bar @onQuery {
         someField
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message:   `Directive "@include" may not be used on QUERY.`,
 					locations: []Loc{{line: 2, column: 32}},
@@ -177,11 +177,11 @@ func TestKnownDirectivesRule(t *testing.T) {
 		})
 
 		t.Run("with misplaced variable definition directive", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       query Foo($var: Boolean @onField) {
         name
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message:   `Directive "@onField" may not be used on VARIABLE_DEFINITION.`,
 					locations: []Loc{{line: 2, column: 31}},
@@ -191,7 +191,7 @@ func TestKnownDirectivesRule(t *testing.T) {
 
 		t.Run("within SDL", func(t *testing.T) {
 			t.Run("with directive defined inside SDL", func(t *testing.T) {
-				expectValidSDL(`
+				ExpectValidSDL(t, `
         type Query {
           foo: String @test
         }
@@ -201,7 +201,7 @@ func TestKnownDirectivesRule(t *testing.T) {
 			})
 
 			t.Run("with standard directive", func(t *testing.T) {
-				expectValidSDL(`
+				ExpectValidSDL(t, `
         type Query {
           foo: String @deprecated
         }
@@ -209,7 +209,7 @@ func TestKnownDirectivesRule(t *testing.T) {
 			})
 
 			t.Run("with overridden standard directive", func(t *testing.T) {
-				expectValidSDL(`
+				ExpectValidSDL(t, `
         schema @deprecated {
           query: Query
         }
@@ -223,7 +223,7 @@ func TestKnownDirectivesRule(t *testing.T) {
           foo: String
         }
       `)
-				expectValidSDL(
+				ExpectValidSDL(t,
 					`
           directive @test on OBJECT
 
@@ -241,7 +241,7 @@ func TestKnownDirectivesRule(t *testing.T) {
           foo: String
         }
       `)
-				expectValidSDL(
+				ExpectValidSDL(t,
 					`
           extend type Query @test
         `,
@@ -255,12 +255,12 @@ func TestKnownDirectivesRule(t *testing.T) {
           foo: String
         }
       `)
-				expectSDLErrors(
+				ExpectSDLErrors(t,
 					`
           extend type Query @unknown
         `,
 					schema,
-				)(t, []Err{
+				)([]Err{
 					{
 						message:   `Unknown directive "@unknown".`,
 						locations: []Loc{{line: 2, column: 29}},
@@ -269,7 +269,7 @@ func TestKnownDirectivesRule(t *testing.T) {
 			})
 
 			t.Run("with well placed directives", func(t *testing.T) {
-				expectValidSDL(
+				ExpectValidSDL(t,
 					`
           type MyObj implements MyInterface @onObject {
             myField(myArg: Int @onArgumentDefinition): String @onFieldDefinition
@@ -314,7 +314,7 @@ func TestKnownDirectivesRule(t *testing.T) {
 			})
 
 			t.Run("with misplaced directives", func(t *testing.T) {
-				expectSDLErrors(
+				ExpectSDLErrors(t,
 					`
           type MyObj implements MyInterface @onInterface {
             myField(myArg: Int @onInputFieldDefinition): String @onInputFieldDefinition
@@ -343,7 +343,7 @@ func TestKnownDirectivesRule(t *testing.T) {
           extend schema @onObject
         `,
 					schemaWithSDLDirectives,
-				)(t, []Err{
+				)([]Err{
 					{
 						message:   `Directive "@onInterface" may not be used on OBJECT.`,
 						locations: []Loc{{line: 2, column: 45}},

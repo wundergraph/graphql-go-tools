@@ -6,17 +6,17 @@ import (
 
 func TestVariablesInAllowedPositionRule(t *testing.T) {
 
-	expectErrors := func(queryStr string) ResultCompare {
-		return ExpectValidationErrors("VariablesInAllowedPositionRule", queryStr)
+	ExpectErrors := func(t *testing.T, queryStr string) ResultCompare {
+		return ExpectValidationErrors(t, "VariablesInAllowedPositionRule", queryStr)
 	}
 
-	expectValid := func(queryStr string) {
-		expectErrors(queryStr)(t, []Err{})
+	ExpectValid := func(t *testing.T, queryStr string) {
+		ExpectErrors(t, queryStr)([]Err{})
 	}
 
 	t.Run("Validate: Variables are in allowed positions", func(t *testing.T) {
 		t.Run("Boolean => Boolean", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       query Query($booleanArg: Boolean)
       {
         complicatedArgs {
@@ -27,7 +27,7 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
 		})
 
 		t.Run("Boolean => Boolean within fragment", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       fragment booleanArgFrag on ComplicatedArgs {
         booleanArgField(booleanArg: $booleanArg)
       }
@@ -39,7 +39,7 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
       }
     `)
 
-			expectValid(`
+			ExpectValid(t, `
       query Query($booleanArg: Boolean)
       {
         complicatedArgs {
@@ -53,7 +53,7 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
 		})
 
 		t.Run("Boolean! => Boolean", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       query Query($nonNullBooleanArg: Boolean!)
       {
         complicatedArgs {
@@ -64,7 +64,7 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
 		})
 
 		t.Run("Boolean! => Boolean within fragment", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       fragment booleanArgFrag on ComplicatedArgs {
         booleanArgField(booleanArg: $nonNullBooleanArg)
       }
@@ -79,7 +79,7 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
 		})
 
 		t.Run("[String] => [String]", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       query Query($stringListVar: [String])
       {
         complicatedArgs {
@@ -90,7 +90,7 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
 		})
 
 		t.Run("[String!] => [String]", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       query Query($stringListVar: [String!])
       {
         complicatedArgs {
@@ -101,7 +101,7 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
 		})
 
 		t.Run("String => [String] in item position", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       query Query($stringVar: String)
       {
         complicatedArgs {
@@ -112,7 +112,7 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
 		})
 
 		t.Run("String! => [String] in item position", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       query Query($stringVar: String!)
       {
         complicatedArgs {
@@ -123,7 +123,7 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
 		})
 
 		t.Run("ComplexInput => ComplexInput", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       query Query($complexVar: ComplexInput)
       {
         complicatedArgs {
@@ -134,7 +134,7 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
 		})
 
 		t.Run("ComplexInput => ComplexInput in field position", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       query Query($boolVar: Boolean = false)
       {
         complicatedArgs {
@@ -145,7 +145,7 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
 		})
 
 		t.Run("Boolean! => Boolean! in directive", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       query Query($boolVar: Boolean!)
       {
         dog @include(if: $boolVar)
@@ -154,13 +154,13 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
 		})
 
 		t.Run("Int => Int!", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       query Query($intArg: Int) {
         complicatedArgs {
           nonNullIntArgField(nonNullIntArg: $intArg)
         }
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `Variable "$intArg" of type "Int" used in position expecting type "Int!".`,
 					locations: []Loc{
@@ -172,7 +172,7 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
 		})
 
 		t.Run("Int => Int! within fragment", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       fragment nonNullIntArgFieldFrag on ComplicatedArgs {
         nonNullIntArgField(nonNullIntArg: $intArg)
       }
@@ -182,7 +182,7 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
           ...nonNullIntArgFieldFrag
         }
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `Variable "$intArg" of type "Int" used in position expecting type "Int!".`,
 					locations: []Loc{
@@ -194,7 +194,7 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
 		})
 
 		t.Run("Int => Int! within nested fragment", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       fragment outerFrag on ComplicatedArgs {
         ...nonNullIntArgFieldFrag
       }
@@ -208,7 +208,7 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
           ...outerFrag
         }
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `Variable "$intArg" of type "Int" used in position expecting type "Int!".`,
 					locations: []Loc{
@@ -220,13 +220,13 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
 		})
 
 		t.Run("String over Boolean", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       query Query($stringVar: String) {
         complicatedArgs {
           booleanArgField(booleanArg: $stringVar)
         }
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `Variable "$stringVar" of type "String" used in position expecting type "Boolean".`,
 					locations: []Loc{
@@ -238,13 +238,13 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
 		})
 
 		t.Run("String => [String]", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       query Query($stringVar: String) {
         complicatedArgs {
           stringListArgField(stringListArg: $stringVar)
         }
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `Variable "$stringVar" of type "String" used in position expecting type "[String]".`,
 					locations: []Loc{
@@ -256,11 +256,11 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
 		})
 
 		t.Run("Boolean => Boolean! in directive", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       query Query($boolVar: Boolean) {
         dog @include(if: $boolVar)
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `Variable "$boolVar" of type "Boolean" used in position expecting type "Boolean!".`,
 					locations: []Loc{
@@ -272,11 +272,11 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
 		})
 
 		t.Run("String => Boolean! in directive", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       query Query($stringVar: String) {
         dog @include(if: $stringVar)
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `Variable "$stringVar" of type "String" used in position expecting type "Boolean!".`,
 					locations: []Loc{
@@ -288,14 +288,14 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
 		})
 
 		t.Run("[String] => [String!]", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       query Query($stringListVar: [String])
       {
         complicatedArgs {
           stringListNonNullArgField(stringListNonNullArg: $stringListVar)
         }
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `Variable "$stringListVar" of type "[String]" used in position expecting type "[String!]".`,
 					locations: []Loc{
@@ -308,13 +308,13 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
 
 		t.Run("Allows optional (nullable) variables with default values", func(t *testing.T) {
 			t.Run("Int => Int! fails when variable provides null default value", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         query Query($intVar: Int = null) {
           complicatedArgs {
             nonNullIntArgField(nonNullIntArg: $intVar)
           }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message: `Variable "$intVar" of type "Int" used in position expecting type "Int!".`,
 						locations: []Loc{
@@ -326,7 +326,7 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
 			})
 
 			t.Run("Int => Int! when variable provides non-null default value", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         query Query($intVar: Int = 1) {
           complicatedArgs {
             nonNullIntArgField(nonNullIntArg: $intVar)
@@ -335,7 +335,7 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
 			})
 
 			t.Run("Int => Int! when optional argument provides default value", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         query Query($intVar: Int) {
           complicatedArgs {
             nonNullFieldWithDefault(nonNullIntArg: $intVar)
@@ -344,7 +344,7 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
 			})
 
 			t.Run("Boolean => Boolean! in directive with default value with option", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         query Query($boolVar: Boolean = false) {
           dog @include(if: $boolVar)
         }`)

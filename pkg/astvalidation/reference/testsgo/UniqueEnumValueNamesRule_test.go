@@ -6,27 +6,27 @@ import (
 
 func TestUniqueEnumValueNamesRule(t *testing.T) {
 
-	expectSDLErrors := func(sdlStr string, sch ...string) ResultCompare {
+	ExpectSDLErrors := func(t *testing.T, sdlStr string, sch ...string) ResultCompare {
 		schema := ""
 		if len(sch) > 0 {
 			schema = sch[0]
 		}
-		return ExpectSDLValidationErrors(schema, "UniqueEnumValueNamesRule", sdlStr)
+		return ExpectSDLValidationErrors(t, schema, "UniqueEnumValueNamesRule", sdlStr)
 	}
 
-	expectValidSDL := func(sdlStr string, schema ...string) {
-		expectSDLErrors(sdlStr, schema...)(t, []Err{})
+	ExpectValidSDL := func(t *testing.T, sdlStr string, schema ...string) {
+		ExpectSDLErrors(t, sdlStr, schema...)([]Err{})
 	}
 
 	t.Run("Validate: Unique enum value names", func(t *testing.T) {
 		t.Run("no values", func(t *testing.T) {
-			expectValidSDL(`
+			ExpectValidSDL(t, `
       enum SomeEnum
     `)
 		})
 
 		t.Run("one value", func(t *testing.T) {
-			expectValidSDL(`
+			ExpectValidSDL(t, `
       enum SomeEnum {
         FOO
       }
@@ -34,7 +34,7 @@ func TestUniqueEnumValueNamesRule(t *testing.T) {
 		})
 
 		t.Run("multiple values", func(t *testing.T) {
-			expectValidSDL(`
+			ExpectValidSDL(t, `
       enum SomeEnum {
         FOO
         BAR
@@ -43,13 +43,13 @@ func TestUniqueEnumValueNamesRule(t *testing.T) {
 		})
 
 		t.Run("duplicate values inside the same enum definition", func(t *testing.T) {
-			expectSDLErrors(`
+			ExpectSDLErrors(t, `
       enum SomeEnum {
         FOO
         BAR
         FOO
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `Enum value "SomeEnum.FOO" can only be defined once.`,
 					locations: []Loc{
@@ -61,7 +61,7 @@ func TestUniqueEnumValueNamesRule(t *testing.T) {
 		})
 
 		t.Run("extend enum with new value", func(t *testing.T) {
-			expectValidSDL(`
+			ExpectValidSDL(t, `
       enum SomeEnum {
         FOO
       }
@@ -75,14 +75,14 @@ func TestUniqueEnumValueNamesRule(t *testing.T) {
 		})
 
 		t.Run("extend enum with duplicate value", func(t *testing.T) {
-			expectSDLErrors(`
+			ExpectSDLErrors(t, `
       extend enum SomeEnum {
         FOO
       }
       enum SomeEnum {
         FOO
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `Enum value "SomeEnum.FOO" can only be defined once.`,
 					locations: []Loc{
@@ -94,14 +94,14 @@ func TestUniqueEnumValueNamesRule(t *testing.T) {
 		})
 
 		t.Run("duplicate value inside extension", func(t *testing.T) {
-			expectSDLErrors(`
+			ExpectSDLErrors(t, `
       enum SomeEnum
       extend enum SomeEnum {
         FOO
         BAR
         FOO
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `Enum value "SomeEnum.FOO" can only be defined once.`,
 					locations: []Loc{
@@ -113,7 +113,7 @@ func TestUniqueEnumValueNamesRule(t *testing.T) {
 		})
 
 		t.Run("duplicate value inside different extensions", func(t *testing.T) {
-			expectSDLErrors(`
+			ExpectSDLErrors(t, `
       enum SomeEnum
       extend enum SomeEnum {
         FOO
@@ -121,7 +121,7 @@ func TestUniqueEnumValueNamesRule(t *testing.T) {
       extend enum SomeEnum {
         FOO
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `Enum value "SomeEnum.FOO" can only be defined once.`,
 					locations: []Loc{
@@ -140,7 +140,7 @@ func TestUniqueEnumValueNamesRule(t *testing.T) {
       }
     `
 
-			expectValidSDL(sdl, schema)
+			ExpectValidSDL(t, sdl, schema)
 		})
 
 		t.Run("adding conflicting value to existing schema twice", func(t *testing.T) {
@@ -158,7 +158,7 @@ func TestUniqueEnumValueNamesRule(t *testing.T) {
       }
     `
 
-			expectSDLErrors(sdl, schema)(t, []Err{
+			ExpectSDLErrors(t, sdl, schema)([]Err{
 				{
 					message:   `Enum value "SomeEnum.FOO" already exists in the schema. It cannot also be defined in this type extension.`,
 					locations: []Loc{{line: 3, column: 9}},
@@ -181,7 +181,7 @@ func TestUniqueEnumValueNamesRule(t *testing.T) {
       }
     `
 
-			expectSDLErrors(sdl, schema)(t, []Err{
+			ExpectSDLErrors(t, sdl, schema)([]Err{
 				{
 					message: `Enum value "SomeEnum.FOO" can only be defined once.`,
 					locations: []Loc{

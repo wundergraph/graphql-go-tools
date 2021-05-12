@@ -6,25 +6,25 @@ import (
 
 func TestUniqueFieldDefinitionNamesRule(t *testing.T) {
 
-	expectSDLErrors := func(sdlStr string, sch ...string) ResultCompare {
+	ExpectSDLErrors := func(t *testing.T, sdlStr string, sch ...string) ResultCompare {
 		schema := ""
 		if len(sch) > 0 {
 			schema = sch[0]
 		}
-		return ExpectSDLValidationErrors(
+		return ExpectSDLValidationErrors(t,
 			schema,
 			"UniqueFieldDefinitionNamesRule",
 			sdlStr,
 		)
 	}
 
-	expectValidSDL := func(sdlStr string, schema ...string) {
-		expectSDLErrors(sdlStr, schema...)(t, []Err{})
+	ExpectValidSDL := func(t *testing.T, sdlStr string, schema ...string) {
+		ExpectSDLErrors(t, sdlStr, schema...)([]Err{})
 	}
 
 	t.Run("Validate: Unique field definition names", func(t *testing.T) {
 		t.Run("no fields", func(t *testing.T) {
-			expectValidSDL(`
+			ExpectValidSDL(t, `
       type SomeObject
       interface SomeInterface
       input SomeInputObject
@@ -32,7 +32,7 @@ func TestUniqueFieldDefinitionNamesRule(t *testing.T) {
 		})
 
 		t.Run("one field", func(t *testing.T) {
-			expectValidSDL(`
+			ExpectValidSDL(t, `
       type SomeObject {
         foo: String
       }
@@ -48,7 +48,7 @@ func TestUniqueFieldDefinitionNamesRule(t *testing.T) {
 		})
 
 		t.Run("multiple fields", func(t *testing.T) {
-			expectValidSDL(`
+			ExpectValidSDL(t, `
       type SomeObject {
         foo: String
         bar: String
@@ -67,7 +67,7 @@ func TestUniqueFieldDefinitionNamesRule(t *testing.T) {
 		})
 
 		t.Run("duplicate fields inside the same type definition", func(t *testing.T) {
-			expectSDLErrors(`
+			ExpectSDLErrors(t, `
       type SomeObject {
         foo: String
         bar: String
@@ -85,7 +85,7 @@ func TestUniqueFieldDefinitionNamesRule(t *testing.T) {
         bar: String
         foo: String
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `Field "SomeObject.foo" can only be defined once.`,
 					locations: []Loc{
@@ -111,7 +111,7 @@ func TestUniqueFieldDefinitionNamesRule(t *testing.T) {
 		})
 
 		t.Run("extend type with new field", func(t *testing.T) {
-			expectValidSDL(`
+			ExpectValidSDL(t, `
       type SomeObject {
         foo: String
       }
@@ -145,7 +145,7 @@ func TestUniqueFieldDefinitionNamesRule(t *testing.T) {
 		})
 
 		t.Run("extend type with duplicate field", func(t *testing.T) {
-			expectSDLErrors(`
+			ExpectSDLErrors(t, `
       extend type SomeObject {
         foo: String
       }
@@ -166,7 +166,7 @@ func TestUniqueFieldDefinitionNamesRule(t *testing.T) {
       input SomeInputObject {
         foo: String
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `Field "SomeObject.foo" can only be defined once.`,
 					locations: []Loc{
@@ -192,7 +192,7 @@ func TestUniqueFieldDefinitionNamesRule(t *testing.T) {
 		})
 
 		t.Run("duplicate field inside extension", func(t *testing.T) {
-			expectSDLErrors(`
+			ExpectSDLErrors(t, `
       type SomeObject
       extend type SomeObject {
         foo: String
@@ -213,7 +213,7 @@ func TestUniqueFieldDefinitionNamesRule(t *testing.T) {
         bar: String
         foo: String
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `Field "SomeObject.foo" can only be defined once.`,
 					locations: []Loc{
@@ -239,7 +239,7 @@ func TestUniqueFieldDefinitionNamesRule(t *testing.T) {
 		})
 
 		t.Run("duplicate field inside different extensions", func(t *testing.T) {
-			expectSDLErrors(`
+			ExpectSDLErrors(t, `
       type SomeObject
       extend type SomeObject {
         foo: String
@@ -263,7 +263,7 @@ func TestUniqueFieldDefinitionNamesRule(t *testing.T) {
       extend input SomeInputObject {
         foo: String
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: `Field "SomeObject.foo" can only be defined once.`,
 					locations: []Loc{
@@ -308,7 +308,7 @@ func TestUniqueFieldDefinitionNamesRule(t *testing.T) {
       }
     `
 
-			expectValidSDL(sdl, schema)
+			ExpectValidSDL(t, sdl, schema)
 		})
 
 		t.Run("adding conflicting fields to existing schema twice", func(t *testing.T) {
@@ -347,7 +347,7 @@ func TestUniqueFieldDefinitionNamesRule(t *testing.T) {
       }
     `
 
-			expectSDLErrors(sdl, schema)(t, []Err{
+			ExpectSDLErrors(t, sdl, schema)([]Err{
 				{
 					message:   `Field "SomeObject.foo" already exists in the schema. It cannot also be defined in this type extension.`,
 					locations: []Loc{{line: 3, column: 9}},
@@ -404,7 +404,7 @@ func TestUniqueFieldDefinitionNamesRule(t *testing.T) {
       }
     `
 
-			expectSDLErrors(sdl, schema)(t, []Err{
+			ExpectSDLErrors(t, sdl, schema)([]Err{
 				{
 					message: `Field "SomeObject.foo" can only be defined once.`,
 					locations: []Loc{

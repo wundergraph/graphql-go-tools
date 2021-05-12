@@ -6,27 +6,27 @@ import (
 
 func TestUniqueOperationTypesRule(t *testing.T) {
 
-	expectSDLErrors := func(sdlStr string, sch ...string) ResultCompare {
+	ExpectSDLErrors := func(t *testing.T, sdlStr string, sch ...string) ResultCompare {
 		schema := ""
 		if len(sch) > 0 {
 			schema = sch[0]
 		}
-		return ExpectSDLValidationErrors(schema, "UniqueOperationTypesRule", sdlStr)
+		return ExpectSDLValidationErrors(t, schema, "UniqueOperationTypesRule", sdlStr)
 	}
 
-	expectValidSDL := func(sdlStr string, schema ...string) {
-		expectSDLErrors(sdlStr, schema...)(t, []Err{})
+	ExpectValidSDL := func(t *testing.T, sdlStr string, schema ...string) {
+		ExpectSDLErrors(t, sdlStr, schema...)([]Err{})
 	}
 
 	t.Run("Validate: Unique operation types", func(t *testing.T) {
 		t.Run("no schema definition", func(t *testing.T) {
-			expectValidSDL(`
+			ExpectValidSDL(t, `
       type Foo
     `)
 		})
 
 		t.Run("schema definition with all types", func(t *testing.T) {
-			expectValidSDL(`
+			ExpectValidSDL(t, `
       type Foo
 
       schema {
@@ -38,7 +38,7 @@ func TestUniqueOperationTypesRule(t *testing.T) {
 		})
 
 		t.Run("schema definition with single extension", func(t *testing.T) {
-			expectValidSDL(`
+			ExpectValidSDL(t, `
       type Foo
 
       schema { query: Foo }
@@ -51,7 +51,7 @@ func TestUniqueOperationTypesRule(t *testing.T) {
 		})
 
 		t.Run("schema definition with separate extensions", func(t *testing.T) {
-			expectValidSDL(`
+			ExpectValidSDL(t, `
       type Foo
 
       schema { query: Foo }
@@ -61,7 +61,7 @@ func TestUniqueOperationTypesRule(t *testing.T) {
 		})
 
 		t.Run("extend schema before definition", func(t *testing.T) {
-			expectValidSDL(`
+			ExpectValidSDL(t, `
       type Foo
 
       extend schema { mutation: Foo }
@@ -72,7 +72,7 @@ func TestUniqueOperationTypesRule(t *testing.T) {
 		})
 
 		t.Run("duplicate operation types inside single schema definition", func(t *testing.T) {
-			expectSDLErrors(`
+			ExpectSDLErrors(t, `
       type Foo
 
       schema {
@@ -84,7 +84,7 @@ func TestUniqueOperationTypesRule(t *testing.T) {
         mutation: Foo
         subscription: Foo
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: "There can be only one query type in schema.",
 					locations: []Loc{
@@ -110,7 +110,7 @@ func TestUniqueOperationTypesRule(t *testing.T) {
 		})
 
 		t.Run("duplicate operation types inside schema extension", func(t *testing.T) {
-			expectSDLErrors(`
+			ExpectSDLErrors(t, `
       type Foo
 
       schema {
@@ -124,7 +124,7 @@ func TestUniqueOperationTypesRule(t *testing.T) {
         mutation: Foo
         subscription: Foo
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: "There can be only one query type in schema.",
 					locations: []Loc{
@@ -150,7 +150,7 @@ func TestUniqueOperationTypesRule(t *testing.T) {
 		})
 
 		t.Run("duplicate operation types inside schema extension twice", func(t *testing.T) {
-			expectSDLErrors(`
+			ExpectSDLErrors(t, `
       type Foo
 
       schema {
@@ -170,7 +170,7 @@ func TestUniqueOperationTypesRule(t *testing.T) {
         mutation: Foo
         subscription: Foo
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: "There can be only one query type in schema.",
 					locations: []Loc{
@@ -217,7 +217,7 @@ func TestUniqueOperationTypesRule(t *testing.T) {
 		})
 
 		t.Run("duplicate operation types inside second schema extension", func(t *testing.T) {
-			expectSDLErrors(`
+			ExpectSDLErrors(t, `
       type Foo
 
       schema {
@@ -234,7 +234,7 @@ func TestUniqueOperationTypesRule(t *testing.T) {
         mutation: Foo
         subscription: Foo
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message: "There can be only one query type in schema.",
 					locations: []Loc{
@@ -269,7 +269,7 @@ func TestUniqueOperationTypesRule(t *testing.T) {
       }
     `
 
-			expectValidSDL(sdl, schema)
+			ExpectValidSDL(t, sdl, schema)
 		})
 
 		t.Run("define and extend schema inside extension SDL", func(t *testing.T) {
@@ -280,7 +280,7 @@ func TestUniqueOperationTypesRule(t *testing.T) {
       extend schema { subscription: Foo }
     `
 
-			expectValidSDL(sdl, schema)
+			ExpectValidSDL(t, sdl, schema)
 		})
 
 		t.Run("adding new operation types to existing schema", func(t *testing.T) {
@@ -290,7 +290,7 @@ func TestUniqueOperationTypesRule(t *testing.T) {
       extend schema { subscription: Foo }
     `
 
-			expectValidSDL(sdl, schema)
+			ExpectValidSDL(t, sdl, schema)
 		})
 
 		t.Run("adding conflicting operation types to existing schema", func(t *testing.T) {
@@ -310,7 +310,7 @@ func TestUniqueOperationTypesRule(t *testing.T) {
       }
     `
 
-			expectSDLErrors(sdl, schema)(t, []Err{
+			ExpectSDLErrors(t, sdl, schema)([]Err{
 				{
 					message:   "Type for query already defined in the schema. It cannot be redefined.",
 					locations: []Loc{{line: 3, column: 9}},
@@ -347,7 +347,7 @@ func TestUniqueOperationTypesRule(t *testing.T) {
       }
     `
 
-			expectSDLErrors(sdl, schema)(t, []Err{
+			ExpectSDLErrors(t, sdl, schema)([]Err{
 				{
 					message:   "Type for query already defined in the schema. It cannot be redefined.",
 					locations: []Loc{{line: 3, column: 9}},

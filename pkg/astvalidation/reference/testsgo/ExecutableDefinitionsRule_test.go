@@ -6,17 +6,17 @@ import (
 
 func TestExecutableDefinitionsRule(t *testing.T) {
 
-	expectErrors := func(queryStr string) ResultCompare {
-		return ExpectValidationErrors("ExecutableDefinitionsRule", queryStr)
+	ExpectErrors := func(t *testing.T, queryStr string) ResultCompare {
+		return ExpectValidationErrors(t, "ExecutableDefinitionsRule", queryStr)
 	}
 
-	expectValid := func(queryStr string) {
-		expectErrors(queryStr)(t, []Err{})
+	ExpectValid := func(t *testing.T, queryStr string) {
+		ExpectErrors(t, queryStr)([]Err{})
 	}
 
 	t.Run("Validate: Executable definitions", func(t *testing.T) {
 		t.Run("with only operation", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       query Foo {
         dog {
           name
@@ -26,7 +26,7 @@ func TestExecutableDefinitionsRule(t *testing.T) {
 		})
 
 		t.Run("with operation and fragment", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       query Foo {
         dog {
           name
@@ -41,7 +41,7 @@ func TestExecutableDefinitionsRule(t *testing.T) {
 		})
 
 		t.Run("with type definition", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       query Foo {
         dog {
           name
@@ -55,7 +55,7 @@ func TestExecutableDefinitionsRule(t *testing.T) {
       extend type Dog {
         color: String
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message:   `The "Cow" definition is not executable.`,
 					locations: []Loc{{line: 8, column: 7}},
@@ -68,7 +68,7 @@ func TestExecutableDefinitionsRule(t *testing.T) {
 		})
 
 		t.Run("with schema definition", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       schema {
         query: Query
       }
@@ -78,7 +78,7 @@ func TestExecutableDefinitionsRule(t *testing.T) {
       }
 
       extend schema @directive
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message:   "The schema definition is not executable.",
 					locations: []Loc{{line: 2, column: 7}},

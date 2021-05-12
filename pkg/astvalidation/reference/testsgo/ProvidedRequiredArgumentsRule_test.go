@@ -6,33 +6,33 @@ import (
 
 func TestProvidedRequiredArgumentsRule(t *testing.T) {
 
-	expectErrors := func(queryStr string) ResultCompare {
-		return ExpectValidationErrors("ProvidedRequiredArgumentsRule", queryStr)
+	ExpectErrors := func(t *testing.T, queryStr string) ResultCompare {
+		return ExpectValidationErrors(t, "ProvidedRequiredArgumentsRule", queryStr)
 	}
 
-	expectValid := func(queryStr string) {
-		expectErrors(queryStr)(t, []Err{})
+	ExpectValid := func(t *testing.T, queryStr string) {
+		ExpectErrors(t, queryStr)([]Err{})
 	}
 
-	expectSDLErrors := func(sdlStr string, sch ...string) ResultCompare {
+	ExpectSDLErrors := func(t *testing.T, sdlStr string, sch ...string) ResultCompare {
 		schema := ""
 		if len(sch) > 0 {
 			schema = sch[0]
 		}
-		return ExpectSDLValidationErrors(
+		return ExpectSDLValidationErrors(t,
 			schema,
 			"ProvidedRequiredArgumentsOnDirectivesRule",
 			sdlStr,
 		)
 	}
 
-	expectValidSDL := func(sdlStr string, schema ...string) {
-		expectSDLErrors(sdlStr)(t, []Err{})
+	ExpectValidSDL := func(t *testing.T, sdlStr string, schema ...string) {
+		ExpectSDLErrors(t, sdlStr)([]Err{})
 	}
 
 	t.Run("Validate: Provided required arguments", func(t *testing.T) {
 		t.Run("ignores unknown arguments", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       {
         dog {
           isHouseTrained(unknownArgument: true)
@@ -43,7 +43,7 @@ func TestProvidedRequiredArgumentsRule(t *testing.T) {
 
 		t.Run("Valid non-nullable value", func(t *testing.T) {
 			t.Run("Arg on optional arg", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           dog {
             isHouseTrained(atOtherHomes: true)
@@ -53,7 +53,7 @@ func TestProvidedRequiredArgumentsRule(t *testing.T) {
 			})
 
 			t.Run("No Arg on optional arg", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           dog {
             isHouseTrained
@@ -63,7 +63,7 @@ func TestProvidedRequiredArgumentsRule(t *testing.T) {
 			})
 
 			t.Run("No arg on non-null field with default", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           complicatedArgs {
             nonNullFieldWithDefault
@@ -73,7 +73,7 @@ func TestProvidedRequiredArgumentsRule(t *testing.T) {
 			})
 
 			t.Run("Multiple args", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           complicatedArgs {
             multipleReqs(req1: 1, req2: 2)
@@ -83,7 +83,7 @@ func TestProvidedRequiredArgumentsRule(t *testing.T) {
 			})
 
 			t.Run("Multiple args reverse order", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           complicatedArgs {
             multipleReqs(req2: 2, req1: 1)
@@ -93,7 +93,7 @@ func TestProvidedRequiredArgumentsRule(t *testing.T) {
 			})
 
 			t.Run("No args on multiple optional", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           complicatedArgs {
             multipleOpts
@@ -103,7 +103,7 @@ func TestProvidedRequiredArgumentsRule(t *testing.T) {
 			})
 
 			t.Run("One arg on multiple optional", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           complicatedArgs {
             multipleOpts(opt1: 1)
@@ -113,7 +113,7 @@ func TestProvidedRequiredArgumentsRule(t *testing.T) {
 			})
 
 			t.Run("Second arg on multiple optional", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           complicatedArgs {
             multipleOpts(opt2: 1)
@@ -123,7 +123,7 @@ func TestProvidedRequiredArgumentsRule(t *testing.T) {
 			})
 
 			t.Run("Multiple required args on mixedList", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           complicatedArgs {
             multipleOptAndReq(req1: 3, req2: 4)
@@ -133,7 +133,7 @@ func TestProvidedRequiredArgumentsRule(t *testing.T) {
 			})
 
 			t.Run("Multiple required and one optional arg on mixedList", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           complicatedArgs {
             multipleOptAndReq(req1: 3, req2: 4, opt1: 5)
@@ -143,7 +143,7 @@ func TestProvidedRequiredArgumentsRule(t *testing.T) {
 			})
 
 			t.Run("All required and optional args on mixedList", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           complicatedArgs {
             multipleOptAndReq(req1: 3, req2: 4, opt1: 5, opt2: 6)
@@ -155,13 +155,13 @@ func TestProvidedRequiredArgumentsRule(t *testing.T) {
 
 		t.Run("Invalid non-nullable value", func(t *testing.T) {
 			t.Run("Missing one non-nullable argument", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         {
           complicatedArgs {
             multipleReqs(req2: 2)
           }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   `Field "multipleReqs" argument "req1" of type "Int!" is required, but it was not provided.`,
 						locations: []Loc{{line: 4, column: 13}},
@@ -170,13 +170,13 @@ func TestProvidedRequiredArgumentsRule(t *testing.T) {
 			})
 
 			t.Run("Missing multiple non-nullable arguments", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         {
           complicatedArgs {
             multipleReqs
           }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   `Field "multipleReqs" argument "req1" of type "Int!" is required, but it was not provided.`,
 						locations: []Loc{{line: 4, column: 13}},
@@ -189,13 +189,13 @@ func TestProvidedRequiredArgumentsRule(t *testing.T) {
 			})
 
 			t.Run("Incorrect value and missing argument", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         {
           complicatedArgs {
             multipleReqs(req1: "one")
           }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   `Field "multipleReqs" argument "req2" of type "Int!" is required, but it was not provided.`,
 						locations: []Loc{{line: 4, column: 13}},
@@ -206,7 +206,7 @@ func TestProvidedRequiredArgumentsRule(t *testing.T) {
 
 		t.Run("Directive arguments", func(t *testing.T) {
 			t.Run("ignores unknown directives", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           dog @unknown
         }
@@ -214,7 +214,7 @@ func TestProvidedRequiredArgumentsRule(t *testing.T) {
 			})
 
 			t.Run("with directives of valid types", func(t *testing.T) {
-				expectValid(`
+				ExpectValid(t, `
         {
           dog @include(if: true) {
             name
@@ -227,13 +227,13 @@ func TestProvidedRequiredArgumentsRule(t *testing.T) {
 			})
 
 			t.Run("with directive with missing types", func(t *testing.T) {
-				expectErrors(`
+				ExpectErrors(t, `
         {
           dog @include {
             name @skip
           }
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   `Directive "@include" argument "if" of type "Boolean!" is required, but it was not provided.`,
 						locations: []Loc{{line: 3, column: 15}},
@@ -248,7 +248,7 @@ func TestProvidedRequiredArgumentsRule(t *testing.T) {
 
 		t.Run("within SDL", func(t *testing.T) {
 			t.Run("Missing optional args on directive defined inside SDL", func(t *testing.T) {
-				expectValidSDL(`
+				ExpectValidSDL(t, `
         type Query {
           foo: String @test
         }
@@ -258,13 +258,13 @@ func TestProvidedRequiredArgumentsRule(t *testing.T) {
 			})
 
 			t.Run("Missing arg on directive defined inside SDL", func(t *testing.T) {
-				expectSDLErrors(`
+				ExpectSDLErrors(t, `
         type Query {
           foo: String @test
         }
 
         directive @test(arg: String!) on FIELD_DEFINITION
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   `Directive "@test" argument "arg" of type "String!" is required, but it was not provided.`,
 						locations: []Loc{{line: 3, column: 23}},
@@ -273,11 +273,11 @@ func TestProvidedRequiredArgumentsRule(t *testing.T) {
 			})
 
 			t.Run("Missing arg on standard directive", func(t *testing.T) {
-				expectSDLErrors(`
+				ExpectSDLErrors(t, `
         type Query {
           foo: String @include
         }
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   `Directive "@include" argument "if" of type "Boolean!" is required, but it was not provided.`,
 						locations: []Loc{{line: 3, column: 23}},
@@ -286,12 +286,12 @@ func TestProvidedRequiredArgumentsRule(t *testing.T) {
 			})
 
 			t.Run("Missing arg on overridden standard directive", func(t *testing.T) {
-				expectSDLErrors(`
+				ExpectSDLErrors(t, `
         type Query {
           foo: String @deprecated
         }
         directive @deprecated(reason: String!) on FIELD
-      `)(t, []Err{
+      `)([]Err{
 					{
 						message:   `Directive "@deprecated" argument "reason" of type "String!" is required, but it was not provided.`,
 						locations: []Loc{{line: 3, column: 23}},
@@ -305,14 +305,14 @@ func TestProvidedRequiredArgumentsRule(t *testing.T) {
           foo: String
         }
       `)
-				expectSDLErrors(
+				ExpectSDLErrors(t,
 					`
           directive @test(arg: String!) on OBJECT
 
           extend type Query  @test
         `,
 					schema,
-				)(t, []Err{
+				)([]Err{
 					{
 						message:   `Directive "@test" argument "arg" of type "String!" is required, but it was not provided.`,
 						locations: []Loc{{line: 4, column: 30}},
@@ -328,12 +328,12 @@ func TestProvidedRequiredArgumentsRule(t *testing.T) {
           foo: String
         }
       `)
-				expectSDLErrors(
+				ExpectSDLErrors(t,
 					`
           extend type Query @test
         `,
 					schema,
-				)(t, []Err{
+				)([]Err{
 					{
 						message:   `Directive "@test" argument "arg" of type "String!" is required, but it was not provided.`,
 						locations: []Loc{{line: 2, column: 29}},

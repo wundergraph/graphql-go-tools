@@ -6,17 +6,17 @@ import (
 
 func TestKnownFragmentNamesRule(t *testing.T) {
 
-	expectErrors := func(queryStr string) ResultCompare {
-		return ExpectValidationErrors("KnownFragmentNamesRule", queryStr)
+	ExpectErrors := func(t *testing.T, queryStr string) ResultCompare {
+		return ExpectValidationErrors(t, "KnownFragmentNamesRule", queryStr)
 	}
 
-	expectValid := func(queryStr string) {
-		expectErrors(queryStr)(t, []Err{})
+	ExpectValid := func(t *testing.T, queryStr string) {
+		ExpectErrors(t, queryStr)([]Err{})
 	}
 
 	t.Run("Validate: Known fragment names", func(t *testing.T) {
 		t.Run("known fragment names are valid", func(t *testing.T) {
-			expectValid(`
+			ExpectValid(t, `
       {
         human(id: 4) {
           ...HumanFields1
@@ -42,7 +42,7 @@ func TestKnownFragmentNamesRule(t *testing.T) {
 		})
 
 		t.Run("unknown fragment names are invalid", func(t *testing.T) {
-			expectErrors(`
+			ExpectErrors(t, `
       {
         human(id: 4) {
           ...UnknownFragment1
@@ -55,7 +55,7 @@ func TestKnownFragmentNamesRule(t *testing.T) {
         name
         ...UnknownFragment3
       }
-    `)(t, []Err{
+    `)([]Err{
 				{
 					message:   `Unknown fragment "UnknownFragment1".`,
 					locations: []Loc{{line: 4, column: 14}},
