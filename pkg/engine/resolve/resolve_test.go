@@ -1859,3 +1859,67 @@ func (h hookContextPathMatcher) Matches(x interface{}) bool {
 func (h hookContextPathMatcher) String() string {
 	return fmt.Sprintf("is equal to %s", h.path)
 }
+
+func TestInputTemplate_Render(t *testing.T) {
+
+	runTest := func(variables string, sourcePath []string, renderAsGraphQLVariable bool, expected string) {
+		template := InputTemplate{
+			Segments: []TemplateSegment{
+				{
+					SegmentType:          VariableSegmentType,
+					VariableSource:       VariableSourceContext,
+					VariableSourcePath:   sourcePath,
+					RenderAsGraphQLValue: renderAsGraphQLVariable,
+				},
+			},
+		}
+		ctx := &Context{
+			Variables: []byte(variables),
+		}
+		buf := fastbuffer.New()
+		err := template.Render(ctx, nil, buf)
+		assert.NoError(t, err)
+		out := buf.String()
+		assert.Equal(t, expected, out)
+	}
+
+	t.Run("string scalar", func(t *testing.T) {
+		runTest(`{"foo":"bar"}`, []string{"foo"}, false, "bar")
+	})
+	t.Run("boolean scalar", func(t *testing.T) {
+		runTest(`{"foo":true}`, []string{"foo"}, false, "true")
+	})
+	t.Run("json object pass through", func(t *testing.T) {
+		runTest(`{"foo":{"bar":"baz"}}`, []string{"foo"}, false, `{"bar":"baz"}`)
+	})
+	t.Run("json object as graphql object", func(t *testing.T) {
+		runTest(`{"foo":{"bar":"baz"}}`, []string{"foo"}, true, `{bar:"baz"}`)
+	})
+	t.Run("json object as graphql object with null", func(t *testing.T) {
+		runTest(`{"foo":null}`, []string{"foo"}, true, `null`)
+	})
+	t.Run("json object as graphql object with number", func(t *testing.T) {
+		runTest(`{"foo":123}`, []string{"foo"}, true, `123`)
+	})
+	t.Run("json object as graphql object with boolean", func(t *testing.T) {
+		runTest(`{"foo":{"bar":true}}`, []string{"foo"}, true, `{bar:true}`)
+	})
+	t.Run("json object as graphql object with number", func(t *testing.T) {
+		runTest(`{"foo":{"bar":123}}`, []string{"foo"}, true, `{bar:123}`)
+	})
+	t.Run("json object as graphql object with float", func(t *testing.T) {
+		runTest(`{"foo":{"bar":1.23}}`, []string{"foo"}, true, `{bar:1.23}`)
+	})
+	t.Run("json object as graphql object with nesting", func(t *testing.T) {
+		runTest(`{"foo":{"bar":{"baz":"bat"}}}`, []string{"foo"}, true, `{bar:{baz:"bat"}}`)
+	})
+	t.Run("json object as graphql object with single array", func(t *testing.T) {
+		runTest(`{"foo":["bar"]}`, []string{"foo"}, true, `["bar"]`)
+	})
+	t.Run("json object as graphql object with array", func(t *testing.T) {
+		runTest(`{"foo":["bar","baz"]}`, []string{"foo"}, true, `["bar","baz"]`)
+	})
+	t.Run("json object as graphql object with object array", func(t *testing.T) {
+		runTest(`{"foo":[{"bar":"baz"},{"bar":"bat"}]}`, []string{"foo"}, true, `[{bar:"baz"},{bar:"bat"}]`)
+	})
+}
