@@ -18,6 +18,17 @@ func (d *Document) UnionTypeExtensionNameString(ref int) string {
 	return unsafebytes.BytesToString(d.Input.ByteSlice(d.UnionTypeExtensions[ref].Name))
 }
 
+func (d *Document) UnionTypeExtensionDescriptionBytes(ref int) ByteSlice {
+	if !d.UnionTypeExtensions[ref].Description.IsDefined {
+		return nil
+	}
+	return d.Input.ByteSlice(d.UnionTypeExtensions[ref].Description.Content)
+}
+
+func (d *Document) UnionTypeExtensionDescriptionString(ref int) string {
+	return unsafebytes.BytesToString(d.UnionTypeExtensionDescriptionBytes(ref))
+}
+
 func (d *Document) UnionTypeExtensionHasUnionMemberTypes(ref int) bool {
 	return d.UnionTypeExtensions[ref].HasUnionMemberTypes
 }

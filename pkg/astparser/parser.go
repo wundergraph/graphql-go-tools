@@ -1901,7 +1901,12 @@ func (p *Parser) parseUnionTypeExtension(extend position.Position) {
 	}
 	p.document.UnionTypeExtensions = append(p.document.UnionTypeExtensions, unionTypeExtension)
 	ref := len(p.document.UnionTypeExtensions) - 1
-	p.document.RootNodes = append(p.document.RootNodes, ast.Node{Ref: ref, Kind: ast.NodeKindUnionTypeExtension})
+	node := ast.Node{Ref: ref, Kind: ast.NodeKindUnionTypeExtension}
+	p.document.RootNodes = append(p.document.RootNodes, node)
+
+	if p.shouldIndex {
+		p.indexNode(unionTypeExtension.Name, node)
+	}
 }
 
 func (p *Parser) parseEnumTypeExtension(extend position.Position) {

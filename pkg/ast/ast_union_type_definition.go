@@ -74,12 +74,20 @@ func (d *Document) AddUnionTypeDefinition(definition UnionTypeDefinition) (ref i
 }
 
 func (d *Document) ImportUnionTypeDefinition(name, description string, typeRefs []int) (ref int) {
+	return d.ImportUnionTypeDefinitionWithDirectives(name, description, typeRefs, nil)
+}
+
+func (d *Document) ImportUnionTypeDefinitionWithDirectives(name, description string, typeRefs []int, directiveRefs []int) (ref int) {
 	definition := UnionTypeDefinition{
 		Name:                d.Input.AppendInputString(name),
 		Description:         d.ImportDescription(description),
 		HasUnionMemberTypes: len(typeRefs) > 0,
 		UnionMemberTypes: TypeList{
 			Refs: typeRefs,
+		},
+		HasDirectives: len(directiveRefs) > 0,
+		Directives: DirectiveList{
+			Refs: directiveRefs,
 		},
 	}
 
