@@ -24,7 +24,8 @@ func (e *extendInputObjectTypeDefinitionVisitor) EnterDocument(operation, defini
 
 func (e *extendInputObjectTypeDefinitionVisitor) EnterInputObjectTypeExtension(ref int) {
 
-	nodes, exists := e.operation.Index.NodesByNameBytes(e.operation.InputObjectTypeExtensionNameBytes(ref))
+	name := e.operation.InputObjectTypeExtensionNameBytes(ref)
+	nodes, exists := e.operation.Index.NodesByNameBytes(name)
 	if !exists {
 		return
 	}
@@ -36,4 +37,10 @@ func (e *extendInputObjectTypeDefinitionVisitor) EnterInputObjectTypeExtension(r
 		e.operation.ExtendInputObjectTypeDefinitionByInputObjectTypeExtension(nodes[i].Ref, ref)
 		return
 	}
+
+	e.operation.ImportInputObjectTypeDefinition(
+		name.String(),
+		e.operation.InputObjectTypeExtensionDescriptionString(ref),
+		e.operation.InputObjectTypeExtensions[ref].InputFieldsDefinition.Refs,
+	)
 }

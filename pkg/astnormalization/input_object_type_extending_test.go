@@ -30,4 +30,12 @@ func TestExtendInputObjectType(t *testing.T) {
 					extend input DogSize @deprecated(reason: "some reason") @skip(if: false) {breadth: Float weight: Float}
 					`)
 	})
+	t.Run("extend non existent input object type", func(t *testing.T) {
+		run(extendInputObjectTypeDefinition, "", `
+					extend input Location { lat: Float lon: Float }
+					 `, `
+					extend input Location { lat: Float lon: Float }
+					input Location { lat: Float lon: Float }
+					`)
+	})
 }

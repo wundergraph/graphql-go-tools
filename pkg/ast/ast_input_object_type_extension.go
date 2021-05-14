@@ -18,6 +18,17 @@ func (d *Document) InputObjectTypeExtensionNameString(ref int) string {
 	return unsafebytes.BytesToString(d.Input.ByteSlice(d.InputObjectTypeExtensions[ref].Name))
 }
 
+func (d *Document) InputObjectTypeExtensionDescriptionBytes(ref int) ByteSlice {
+	if !d.InputObjectTypeExtensions[ref].Description.IsDefined {
+		return nil
+	}
+	return d.Input.ByteSlice(d.InputObjectTypeExtensions[ref].Description.Content)
+}
+
+func (d *Document) InputObjectTypeExtensionDescriptionString(ref int) string {
+	return unsafebytes.BytesToString(d.InputObjectTypeExtensionDescriptionBytes(ref))
+}
+
 func (d *Document) InputObjectTypeExtensionHasInputFieldsDefinition(ref int) bool {
 	return d.InputObjectTypeDefinitions[ref].HasInputFieldsDefinition
 }

@@ -1938,5 +1938,10 @@ func (p *Parser) parseInputObjectTypeExtension(extend position.Position) {
 	}
 	p.document.InputObjectTypeExtensions = append(p.document.InputObjectTypeExtensions, inputObjectTypeExtension)
 	ref := len(p.document.InputObjectTypeExtensions) - 1
-	p.document.RootNodes = append(p.document.RootNodes, ast.Node{Ref: ref, Kind: ast.NodeKindInputObjectTypeExtension})
+	node := ast.Node{Ref: ref, Kind: ast.NodeKindInputObjectTypeExtension}
+	p.document.RootNodes = append(p.document.RootNodes, node)
+
+	if p.shouldIndex {
+		p.indexNode(inputObjectTypeExtension.Name, node)
+	}
 }
