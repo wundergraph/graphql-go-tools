@@ -138,12 +138,34 @@ func TestNormalizeOperation(t *testing.T) {
 					id
 					name
 					age
+					type {
+						... on TrialUser {
+							__typename
+							enabled
+						}
+						... on SubscribedUser {
+							__typename
+							subscription
+						}
+					}
+					metadata
 				}
 			}`, `query($a: Location){
 				findUserByLocation(loc: $a) {
 					id
 					name
 					age
+					type {
+						... on TrialUser {
+							__typename
+							enabled
+						}
+						... on SubscribedUser {
+							__typename
+							subscription
+						}
+					}
+					metadata
 				}
 			}`,
 			`{"a": {"lat": 1.000, "lon": 2.000, "planet": "EARTH"}}`,
@@ -649,6 +671,9 @@ enum __TypeKind {
 const typeExtensionsDefinition = `
 schema { query: Query }
 
+extend scalar JSONPayload
+extend union UserType = TrialUser | SubscribedUser
+
 extend type Query {
 	findUserByLocation(loc: Location): [User]
 }
@@ -661,9 +686,25 @@ type User {
 	name: String
 }
 
+type TrialUser {
+	enabled: Boolean
+}
+
+type SubscribedUser {
+	subscription: SubscriptionType
+}
+
+enum SubscriptionType {
+	BASIC
+	PRO
+	ULTIMATE
+}
+
 extend type User implements Entity {
 	id: ID
 	age: Int
+	type: UserType
+	metadata: JSONPayload
 }
 
 extend enum Planet {
