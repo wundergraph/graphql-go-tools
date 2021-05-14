@@ -135,11 +135,13 @@ func TestNormalizeOperation(t *testing.T) {
 		run(t, typeExtensionsDefinition, `
 			{
 				findUserByLocation(loc: {lat: 1.000, lon: 2.000, planet: "EARTH"}) {
+					id
 					name
 					age
 				}
 			}`, `query($a: Location){
 				findUserByLocation(loc: $a) {
+					id
 					name
 					age
 				}
@@ -651,11 +653,16 @@ extend type Query {
 	findUserByLocation(loc: Location): [User]
 }
 
+extend interface Entity {
+	id: ID
+}
+
 type User {
 	name: String
 }
 
-extend type User {
+extend type User implements Entity {
+	id: ID
 	age: Int
 }
 

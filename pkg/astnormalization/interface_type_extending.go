@@ -23,8 +23,8 @@ func (e *extendInterfaceTypeDefinitionVisitor) EnterDocument(operation, definiti
 }
 
 func (e *extendInterfaceTypeDefinitionVisitor) EnterInterfaceTypeExtension(ref int) {
-
-	nodes, exists := e.operation.Index.NodesByNameBytes(e.operation.InterfaceTypeExtensionNameBytes(ref))
+	name := e.operation.InterfaceTypeExtensionNameBytes(ref)
+	nodes, exists := e.operation.Index.NodesByNameBytes(name)
 	if !exists {
 		return
 	}
@@ -36,4 +36,10 @@ func (e *extendInterfaceTypeDefinitionVisitor) EnterInterfaceTypeExtension(ref i
 		e.operation.ExtendInterfaceTypeDefinitionByInterfaceTypeExtension(nodes[i].Ref, ref)
 		return
 	}
+
+	e.operation.ImportInterfaceTypeDefinition(
+		name.String(),
+		e.operation.InterfaceTypeExtensionDescriptionString(ref),
+		e.operation.InterfaceTypeExtensions[ref].FieldsDefinition.Refs,
+	)
 }

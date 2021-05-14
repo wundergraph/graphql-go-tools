@@ -55,4 +55,13 @@ func TestExtendInterfaceType(t *testing.T) {
 					}
 					`)
 	})
+
+	t.Run("extend non existent interface", func(t *testing.T) {
+		run(extendInterfaceTypeDefinition, "", `
+					extend interface Entity { id: ID }
+					 `, `
+					extend interface Entity { id: ID }
+					interface Entity { id: ID }
+					`)
+	})
 }

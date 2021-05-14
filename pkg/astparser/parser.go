@@ -1852,7 +1852,12 @@ func (p *Parser) parseInterfaceTypeExtension(extend position.Position) {
 	}
 	p.document.InterfaceTypeExtensions = append(p.document.InterfaceTypeExtensions, interfaceTypeExtension)
 	ref := len(p.document.InterfaceTypeExtensions) - 1
-	p.document.RootNodes = append(p.document.RootNodes, ast.Node{Ref: ref, Kind: ast.NodeKindInterfaceTypeExtension})
+	node := ast.Node{Ref: ref, Kind: ast.NodeKindInterfaceTypeExtension}
+	p.document.RootNodes = append(p.document.RootNodes, node)
+
+	if p.shouldIndex {
+		p.indexNode(interfaceTypeExtension.Name, node)
+	}
 }
 
 func (p *Parser) parseScalarTypeExtension(extend position.Position) {
