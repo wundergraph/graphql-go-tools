@@ -23,8 +23,8 @@ func (e *extendScalarTypeDefinitionVisitor) EnterDocument(operation, definition 
 }
 
 func (e *extendScalarTypeDefinitionVisitor) EnterScalarTypeExtension(ref int) {
-
-	nodes, exists := e.operation.Index.NodesByNameBytes(e.operation.ScalarTypeExtensionNameBytes(ref))
+	name := e.operation.ScalarTypeExtensionNameBytes(ref)
+	nodes, exists := e.operation.Index.NodesByNameBytes(name)
 	if !exists {
 		return
 	}
@@ -36,4 +36,10 @@ func (e *extendScalarTypeDefinitionVisitor) EnterScalarTypeExtension(ref int) {
 		e.operation.ExtendScalarTypeDefinitionByScalarTypeExtension(nodes[i].Ref, ref)
 		return
 	}
+
+	e.operation.ImportScalarTypeDefinitionWithDirectives(
+		name.String(),
+		e.operation.ScalarTypeExtensionDescriptionString(ref),
+		e.operation.ScalarTypeExtensions[ref].Directives.Refs,
+	)
 }

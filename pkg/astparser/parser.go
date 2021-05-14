@@ -1874,7 +1874,12 @@ func (p *Parser) parseScalarTypeExtension(extend position.Position) {
 	}
 	p.document.ScalarTypeExtensions = append(p.document.ScalarTypeExtensions, scalarTypeExtension)
 	ref := len(p.document.ScalarTypeExtensions) - 1
-	p.document.RootNodes = append(p.document.RootNodes, ast.Node{Ref: ref, Kind: ast.NodeKindScalarTypeExtension})
+	node := ast.Node{Ref: ref, Kind: ast.NodeKindScalarTypeExtension}
+	p.document.RootNodes = append(p.document.RootNodes, node)
+
+	if p.shouldIndex {
+		p.indexNode(scalarTypeExtension.Name, node)
+	}
 }
 
 func (p *Parser) parseUnionTypeExtension(extend position.Position) {

@@ -45,9 +45,17 @@ func (d *Document) AddScalarTypeDefinition(definition ScalarTypeDefinition) (ref
 }
 
 func (d *Document) ImportScalarTypeDefinition(name, description string) (ref int) {
+	return d.ImportScalarTypeDefinitionWithDirectives(name, description, nil)
+}
+
+func (d *Document) ImportScalarTypeDefinitionWithDirectives(name, description string, directiveRefs []int) (ref int) {
 	definition := ScalarTypeDefinition{
-		Description: d.ImportDescription(description),
-		Name:        d.Input.AppendInputString(name),
+		Description:   d.ImportDescription(description),
+		Name:          d.Input.AppendInputString(name),
+		HasDirectives: len(directiveRefs) > 0,
+		Directives: DirectiveList{
+			Refs: directiveRefs,
+		},
 	}
 
 	ref = d.AddScalarTypeDefinition(definition)
