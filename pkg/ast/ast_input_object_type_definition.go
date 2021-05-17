@@ -98,12 +98,20 @@ func (d *Document) AddInputObjectTypeDefinition(definition InputObjectTypeDefini
 }
 
 func (d *Document) ImportInputObjectTypeDefinition(name, description string, argsRefs []int) (ref int) {
+	return d.ImportInputObjectTypeDefinitionWithDirectives(name, description, argsRefs, nil)
+}
+
+func (d *Document) ImportInputObjectTypeDefinitionWithDirectives(name, description string, argsRefs []int, directiveRefs []int) (ref int) {
 	definition := InputObjectTypeDefinition{
 		Description:              d.ImportDescription(description),
 		Name:                     d.Input.AppendInputString(name),
 		HasInputFieldsDefinition: len(argsRefs) > 0,
 		InputFieldsDefinition: InputValueDefinitionList{
 			Refs: argsRefs,
+		},
+		HasDirectives: len(directiveRefs) > 0,
+		Directives: DirectiveList{
+			directiveRefs,
 		},
 	}
 

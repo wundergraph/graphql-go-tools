@@ -37,9 +37,10 @@ func (e *extendEnumTypeDefinitionVisitor) EnterEnumTypeExtension(ref int) {
 		return
 	}
 
-	e.operation.ImportEnumTypeDefinition(
+	e.operation.ImportEnumTypeDefinitionWithDirectives(
 		name.String(),
 		e.operation.EnumTypeExtensionDescriptionString(ref),
 		e.operation.EnumTypeExtensions[ref].EnumValuesDefinition.Refs,
+		e.operation.EnumTypeExtensions[ref].Directives.Refs,
 	)
 }

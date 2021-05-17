@@ -38,9 +38,10 @@ func (e *extendInputObjectTypeDefinitionVisitor) EnterInputObjectTypeExtension(r
 		return
 	}
 
-	e.operation.ImportInputObjectTypeDefinition(
+	e.operation.ImportInputObjectTypeDefinitionWithDirectives(
 		name.String(),
 		e.operation.InputObjectTypeExtensionDescriptionString(ref),
 		e.operation.InputObjectTypeExtensions[ref].InputFieldsDefinition.Refs,
+		e.operation.InputObjectTypeExtensions[ref].Directives.Refs,
 	)
 }

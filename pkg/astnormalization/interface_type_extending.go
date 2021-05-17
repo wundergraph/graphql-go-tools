@@ -37,9 +37,10 @@ func (e *extendInterfaceTypeDefinitionVisitor) EnterInterfaceTypeExtension(ref i
 		return
 	}
 
-	e.operation.ImportInterfaceTypeDefinition(
+	e.operation.ImportInterfaceTypeDefinitionWithDirectives(
 		name.String(),
 		e.operation.InterfaceTypeExtensionDescriptionString(ref),
 		e.operation.InterfaceTypeExtensions[ref].FieldsDefinition.Refs,
+		e.operation.InterfaceTypeExtensions[ref].Directives.Refs,
 	)
 }

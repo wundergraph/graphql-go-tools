@@ -38,10 +38,11 @@ func (e *extendObjectTypeDefinitionVisitor) EnterObjectTypeExtension(ref int) {
 		return
 	}
 
-	e.operation.ImportObjectTypeDefinition(
+	e.operation.ImportObjectTypeDefinitionWithDirectives(
 		name.String(),
 		e.operation.ObjectTypeExtensionDescriptionNameString(ref),
 		e.operation.ObjectTypeExtensions[ref].FieldsDefinition.Refs,
 		e.operation.ObjectTypeExtensions[ref].ImplementsInterfaces.Refs,
+		e.operation.ObjectTypeExtensions[ref].Directives.Refs,
 	)
 }
