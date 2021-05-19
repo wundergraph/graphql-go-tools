@@ -18,6 +18,17 @@ func (d *Document) InterfaceTypeExtensionNameString(ref int) string {
 	return unsafebytes.BytesToString(d.Input.ByteSlice(d.InterfaceTypeExtensions[ref].Name))
 }
 
+func (d *Document) InterfaceTypeExtensionDescriptionBytes(ref int) ByteSlice {
+	if !d.InterfaceTypeExtensions[ref].Description.IsDefined {
+		return nil
+	}
+	return d.Input.ByteSlice(d.InterfaceTypeExtensions[ref].Description.Content)
+}
+
+func (d *Document) InterfaceTypeExtensionDescriptionString(ref int) string {
+	return unsafebytes.BytesToString(d.InterfaceTypeExtensionDescriptionBytes(ref))
+}
+
 func (d *Document) InterfaceTypeExtensionHasFieldDefinitions(ref int) bool {
 	return d.InterfaceTypeExtensions[ref].HasFieldDefinitions
 }
@@ -37,5 +48,15 @@ func (d *Document) ExtendInterfaceTypeDefinitionByInterfaceTypeExtension(interfa
 		d.InterfaceTypeDefinitions[interfaceTypeDefinitionRef].HasDirectives = true
 	}
 
+	d.Index.MergedTypeExtensions = append(d.Index.MergedTypeExtensions, Node{Ref: interfaceTypeExtensionRef, Kind: NodeKindInterfaceTypeExtension})
+}
+
+func (d *Document) ImportAndExtendInterfaceTypeDefinitionByInterfaceTypeExtension(interfaceTypeExtensionRef int) {
+	d.ImportInterfaceTypeDefinitionWithDirectives(
+		d.InterfaceTypeExtensionNameString(interfaceTypeExtensionRef),
+		d.InterfaceTypeExtensionDescriptionString(interfaceTypeExtensionRef),
+		d.InterfaceTypeExtensions[interfaceTypeExtensionRef].FieldsDefinition.Refs,
+		d.InterfaceTypeExtensions[interfaceTypeExtensionRef].Directives.Refs,
+	)
 	d.Index.MergedTypeExtensions = append(d.Index.MergedTypeExtensions, Node{Ref: interfaceTypeExtensionRef, Kind: NodeKindInterfaceTypeExtension})
 }

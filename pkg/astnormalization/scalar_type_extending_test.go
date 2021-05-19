@@ -21,4 +21,15 @@ func TestExtendScalarType(t *testing.T) {
 					extend scalar Coordinates @deprecated(reason: "some reason") @skip(if: false)
 					`)
 	})
+	t.Run("extend non-existent scalar", func(t *testing.T) {
+		run(extendScalarTypeDefinition, testDefinition, `
+					extend scalar Mood
+					extend scalar Coordinates @deprecated(reason: "some reason") @skip(if: false)
+					 `, `
+					extend scalar Mood
+					extend scalar Coordinates @deprecated(reason: "some reason") @skip(if: false)
+					scalar Mood
+					scalar Coordinates @deprecated(reason: "some reason") @skip(if: false)
+					`)
+	})
 }

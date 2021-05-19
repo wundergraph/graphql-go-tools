@@ -18,6 +18,17 @@ func (d *Document) UnionTypeExtensionNameString(ref int) string {
 	return unsafebytes.BytesToString(d.Input.ByteSlice(d.UnionTypeExtensions[ref].Name))
 }
 
+func (d *Document) UnionTypeExtensionDescriptionBytes(ref int) ByteSlice {
+	if !d.UnionTypeExtensions[ref].Description.IsDefined {
+		return nil
+	}
+	return d.Input.ByteSlice(d.UnionTypeExtensions[ref].Description.Content)
+}
+
+func (d *Document) UnionTypeExtensionDescriptionString(ref int) string {
+	return unsafebytes.BytesToString(d.UnionTypeExtensionDescriptionBytes(ref))
+}
+
 func (d *Document) UnionTypeExtensionHasUnionMemberTypes(ref int) bool {
 	return d.UnionTypeExtensions[ref].HasUnionMemberTypes
 }
@@ -37,5 +48,15 @@ func (d *Document) ExtendUnionTypeDefinitionByUnionTypeExtension(unionTypeDefini
 		d.UnionTypeDefinitions[unionTypeDefinitionRef].HasUnionMemberTypes = true
 	}
 
+	d.Index.MergedTypeExtensions = append(d.Index.MergedTypeExtensions, Node{Ref: unionTypeExtensionRef, Kind: NodeKindUnionTypeExtension})
+}
+
+func (d *Document) ImportAndExtendUnionTypeDefinitionByUnionTypeExtension(unionTypeExtensionRef int) {
+	d.ImportUnionTypeDefinitionWithDirectives(
+		d.UnionTypeExtensionNameString(unionTypeExtensionRef),
+		d.UnionTypeExtensionDescriptionString(unionTypeExtensionRef),
+		d.UnionTypeExtensions[unionTypeExtensionRef].UnionMemberTypes.Refs,
+		d.UnionTypeExtensions[unionTypeExtensionRef].Directives.Refs,
+	)
 	d.Index.MergedTypeExtensions = append(d.Index.MergedTypeExtensions, Node{Ref: unionTypeExtensionRef, Kind: NodeKindUnionTypeExtension})
 }

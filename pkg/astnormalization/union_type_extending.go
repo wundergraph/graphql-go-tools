@@ -36,4 +36,6 @@ func (e *extendUnionTypeDefinitionVisitor) EnterUnionTypeExtension(ref int) {
 		e.operation.ExtendUnionTypeDefinitionByUnionTypeExtension(nodes[i].Ref, ref)
 		return
 	}
+
+	e.operation.ImportAndExtendUnionTypeDefinitionByUnionTypeExtension(ref)
 }

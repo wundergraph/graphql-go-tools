@@ -1395,7 +1395,7 @@ func (w *Walker) appendAncestor(ref int, kind ast.NodeKind) {
 	}
 
 	var exists bool
-	w.EnclosingTypeDefinition, exists = w.definition.Index.FirstNodeByNameBytes(typeName)
+	w.EnclosingTypeDefinition, exists = w.definition.Index.FirstNonExtensionNodeByNameBytes(typeName)
 	if !exists {
 		w.StopWithExternalErr(operationreport.ErrTypeUndefined(typeName))
 		return

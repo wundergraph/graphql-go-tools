@@ -55,4 +55,16 @@ func TestExtendInterfaceType(t *testing.T) {
 					}
 					`)
 	})
+
+	t.Run("extend non existent interface", func(t *testing.T) {
+		run(extendInterfaceTypeDefinition, "", `
+					extend interface Entity { id: ID }
+					extend interface Mammal @deprecated(reason: "some reason") @skip(if: false) { name: String }
+					 `, `
+					extend interface Entity { id: ID }
+					extend interface Mammal @deprecated(reason: "some reason") @skip(if: false) { name: String }
+					interface Entity { id: ID }
+					interface Mammal @deprecated(reason: "some reason") @skip(if: false) { name: String }
+					`)
+	})
 }

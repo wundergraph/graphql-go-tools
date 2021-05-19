@@ -48,4 +48,15 @@ func TestExtendUnionType(t *testing.T) {
 					extend union Mammal @deprecated(reason: "some reason") = Dog
 					`)
 	})
+	t.Run("extend non-existent union", func(t *testing.T) {
+		run(extendUnionTypeDefinition, testDefinition, `
+					extend union Response = SuccessResponse | ErrorResponse
+					extend union Mammal @deprecated(reason: "some reason") = Dog
+					 `, `
+					extend union Response = SuccessResponse | ErrorResponse
+					extend union Mammal @deprecated(reason: "some reason") = Dog
+					union Response = SuccessResponse | ErrorResponse
+					union Mammal @deprecated(reason: "some reason") = Dog
+					`)
+	})
 }

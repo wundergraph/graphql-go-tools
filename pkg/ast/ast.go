@@ -5,6 +5,8 @@
 // The document struct is designed in a way to enable performant parsing while keeping the ast easy to use with helper methods.
 package ast
 
+const InvalidRef = -1
+
 type Document struct {
 	Input                        Input
 	RootNodes                    []Node

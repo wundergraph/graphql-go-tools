@@ -23,7 +23,6 @@ func (e *extendEnumTypeDefinitionVisitor) EnterDocument(operation, definition *a
 }
 
 func (e *extendEnumTypeDefinitionVisitor) EnterEnumTypeExtension(ref int) {
-
 	nodes, exists := e.operation.Index.NodesByNameBytes(e.operation.EnumTypeExtensionNameBytes(ref))
 	if !exists {
 		return
@@ -36,4 +35,6 @@ func (e *extendEnumTypeDefinitionVisitor) EnterEnumTypeExtension(ref int) {
 		e.operation.ExtendEnumTypeDefinitionByEnumTypeExtension(nodes[i].Ref, ref)
 		return
 	}
+
+	e.operation.ImportAndExtendEnumTypeDefinitionByEnumTypeExtension(ref)
 }

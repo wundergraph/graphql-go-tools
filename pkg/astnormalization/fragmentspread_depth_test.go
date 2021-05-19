@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
+	"github.com/jensneuse/graphql-go-tools/pkg/asttransform"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
@@ -12,6 +13,11 @@ func TestRealDepthCalculator_CalculateDepthForFragmentSpread(t *testing.T) {
 	run := func(operation, definition, spreadName string, wantDepth int) {
 		op := unsafeparser.ParseGraphqlDocumentString(operation)
 		def := unsafeparser.ParseGraphqlDocumentString(definition)
+		err := asttransform.MergeDefinitionWithBaseSchema(&def)
+		if err != nil {
+			panic(err)
+		}
+
 		report := operationreport.Report{}
 		calc := FragmentSpreadDepth{}
 		var depths Depths

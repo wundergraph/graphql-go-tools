@@ -36,4 +36,6 @@ func (e *extendInputObjectTypeDefinitionVisitor) EnterInputObjectTypeExtension(r
 		e.operation.ExtendInputObjectTypeDefinitionByInputObjectTypeExtension(nodes[i].Ref, ref)
 		return
 	}
+
+	e.operation.ImportAndExtendInputObjectTypeDefinitionByInputObjectTypeExtension(ref)
 }

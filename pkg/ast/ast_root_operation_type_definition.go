@@ -99,6 +99,20 @@ func (d *Document) ImportRootOperationTypeDefinition(name string, operationType 
 	return d.AddRootOperationTypeDefinition(operationTypeDefinition)
 }
 
+func (d *Document) ImportRootOperationTypeDefinitions(queryTypeName, mutationTypeName, subscriptionTypeName string) (refs []int) {
+	if queryTypeName != "" {
+		refs = append(refs, d.ImportRootOperationTypeDefinition(queryTypeName, OperationTypeQuery))
+	}
+	if mutationTypeName != "" {
+		refs = append(refs, d.ImportRootOperationTypeDefinition(mutationTypeName, OperationTypeMutation))
+	}
+	if subscriptionTypeName != "" {
+		refs = append(refs, d.ImportRootOperationTypeDefinition(subscriptionTypeName, OperationTypeSubscription))
+	}
+
+	return refs
+}
+
 func (d *Document) ReplaceRootOperationTypeDefinition(name string, operationType OperationType) (ref int, ok bool) {
 	node, exists := d.NodeByNameStr(name)
 	if !exists || node.Kind != NodeKindObjectTypeDefinition {

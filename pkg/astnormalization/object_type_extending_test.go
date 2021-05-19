@@ -89,4 +89,15 @@ func TestExtendObjectType(t *testing.T) {
 					}
 					`)
 	})
+	t.Run("extend missing object type definition", func(t *testing.T) {
+		run(extendObjectTypeDefinition, `schema { query: Query }`, `
+			extend type Query {	me: String }
+			extend type Cat @deprecated(reason: "not as cool as dogs") @skip(if: false) { age: Int breed: String }
+			`, `
+			extend type Query { me: String }
+			extend type Cat @deprecated(reason: "not as cool as dogs") @skip(if: false) { age: Int breed: String }
+			type Query { me: String	}
+			type Cat @deprecated(reason: "not as cool as dogs") @skip(if: false) { age: Int breed: String }
+			`)
+	})
 }
