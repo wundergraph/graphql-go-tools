@@ -94,11 +94,10 @@ type registerNormalizeDeleteVariablesFunc func(walker *astvisitor.Walker) *delet
 
 // OperationNormalizer walks a given AST and applies all registered rules
 type OperationNormalizer struct {
-	operationWalkers        []*astvisitor.Walker
-	prepareDefinitionWalker *astvisitor.Walker
-	variablesExtraction     *variablesExtractionVisitor
-	options                 options
-	definitionNormalizer    *DefinitionNormalizer
+	operationWalkers     []*astvisitor.Walker
+	variablesExtraction  *variablesExtractionVisitor
+	options              options
+	definitionNormalizer *DefinitionNormalizer
 }
 
 // NewNormalizer creates a new OperationNormalizer and sets up all default rules
