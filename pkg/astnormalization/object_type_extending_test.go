@@ -100,4 +100,60 @@ func TestExtendObjectType(t *testing.T) {
 			type Cat @deprecated(reason: "not as cool as dogs") @skip(if: false) { age: Int breed: String }
 			`)
 	})
+	t.Run("extend object type by interface", func(t *testing.T) {
+		run(extendObjectTypeDefinition, testDefinition, `
+					type Dog {
+						name: String
+					}
+					extend type Dog implements ToyLover {
+						favoriteToy: String
+					}
+					interface ToyLover {
+						favoriteToy: String
+					}
+					 `, `
+					type Dog implements ToyLover {
+						name: String
+						favoriteToy: String
+					}
+					extend type Dog implements ToyLover {
+						favoriteToy: String
+					}
+					interface ToyLover {
+						favoriteToy: String
+					}
+					`)
+	})
+	t.Run("extend object type which implements interface by interface", func(t *testing.T) {
+		run(extendObjectTypeDefinition, testDefinition, `
+					type Dog implements ToyHater {
+						name: String
+						hatedToy: String
+					}
+					extend type Dog implements ToyLover {
+						favoriteToy: String
+					}
+					interface ToyLover {
+						favoriteToy: String
+					}
+					interface ToyHater {
+						hatedToy: String
+					}
+					 `, `
+					type Dog implements ToyHater & ToyLover {
+						name: String
+						hatedToy: String
+						favoriteToy: String
+					}
+					extend type Dog implements ToyLover {
+						favoriteToy: String
+					}
+					interface ToyLover {
+						favoriteToy: String
+					}
+					interface ToyHater {
+						hatedToy: String
+					}
+					`)
+	})
 }

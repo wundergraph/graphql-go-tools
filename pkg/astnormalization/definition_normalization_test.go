@@ -82,6 +82,42 @@ func TestNormalizeDefinition(t *testing.T) {
 		)
 	})
 
+	t.Run("removes type extension and includes interfaces when type already has implements interface", func(t *testing.T) {
+		run(t, `
+			schema { query: Query }
+			
+			type User implements Named {
+				name: String
+			}
+	
+			interface Named {
+				name: String
+			}
+
+			extend type User implements Entity {
+				id: ID
+			}
+			
+			interface Entity {
+				id: ID
+			}`, `
+			schema { query: Query }
+			
+			type User implements Named & Entity {
+				name: String
+				id: ID
+			}
+	
+			interface Named {
+				name: String
+			}
+			
+			interface Entity {
+				id: ID
+			}`,
+		)
+	})
+
 	t.Run("removes extensions and creates missing schema and root operation types", func(t *testing.T) {
 		run(t, extendedRootOperationTypeDefinition, `
 			schema {
