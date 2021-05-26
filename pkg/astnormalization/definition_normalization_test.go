@@ -68,7 +68,6 @@ func TestNormalizeDefinition(t *testing.T) {
 			interface Entity {
 				id: ID
 			}
-			
 				
 			enum Planet {
 				EARTH
@@ -83,7 +82,7 @@ func TestNormalizeDefinition(t *testing.T) {
 		)
 	})
 
-	t.Run("remove extensions and creates missing schema and root operation types", func(t *testing.T) {
+	t.Run("removes extensions and creates missing schema and root operation types", func(t *testing.T) {
 		run(t, extendedRootOperationTypeDefinition, `
 			schema {
 				query: Query
