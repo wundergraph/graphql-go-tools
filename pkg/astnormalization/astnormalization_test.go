@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
@@ -16,11 +17,10 @@ import (
 func TestNormalizeOperation(t *testing.T) {
 
 	run := func(t *testing.T, definition, operation, expectedOutput, variablesInput, expectedVariables string) {
+		t.Helper()
+
 		definitionDocument := unsafeparser.ParseGraphqlDocumentString(definition)
-		err := asttransform.MergeDefinitionWithBaseSchema(&definitionDocument)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, asttransform.MergeDefinitionWithBaseSchema(&definitionDocument))
 
 		operationDocument := unsafeparser.ParseGraphqlDocumentString(operation)
 		expectedOutputDocument := unsafeparser.ParseGraphqlDocumentString(expectedOutput)
@@ -34,6 +34,7 @@ func TestNormalizeOperation(t *testing.T) {
 			WithExtractVariables(),
 			WithRemoveFragmentDefinitions(),
 			WithRemoveUnusedVariables(),
+			WithNormalizeDefinition(),
 		)
 		normalizer.NormalizeOperation(&operationDocument, &definitionDocument, &report)
 
@@ -575,7 +576,6 @@ extend input Location {
 `
 
 const extendedRootOperationTypeDefinition = `
-scalar String
 extend type Query {
 	me: String
 }

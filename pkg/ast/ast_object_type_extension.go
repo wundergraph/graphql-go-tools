@@ -48,6 +48,13 @@ func (d *Document) ExtendObjectTypeDefinitionByObjectTypeExtension(objectTypeDef
 		d.ObjectTypeDefinitions[objectTypeDefinitionRef].HasDirectives = true
 	}
 
+	if len(d.ObjectTypeExtensions[objectTypeExtensionRef].ImplementsInterfaces.Refs) > 0 {
+		d.ObjectTypeDefinitions[objectTypeDefinitionRef].ImplementsInterfaces.Refs = append(
+			d.ObjectTypeDefinitions[objectTypeDefinitionRef].ImplementsInterfaces.Refs,
+			d.ObjectTypeExtensions[objectTypeExtensionRef].ImplementsInterfaces.Refs...,
+		)
+	}
+
 	d.Index.MergedTypeExtensions = append(d.Index.MergedTypeExtensions, Node{Ref: objectTypeExtensionRef, Kind: NodeKindObjectTypeExtension})
 }
 
