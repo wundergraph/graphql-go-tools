@@ -50,6 +50,26 @@ func TestNewSchemaFromString(t *testing.T) {
 	})
 }
 
+func TestSchema_Normalize(t *testing.T) {
+	t.Run("should successfully normalize schema", func(t *testing.T) {
+		parsedSchema, err := NewSchemaFromString("type Query { me: String } extend type Query { you: String }")
+		require.NoError(t, err)
+
+		require.False(t, parsedSchema.IsNormalized())
+		normalizationResult, err := parsedSchema.Normalize()
+
+		assert.NoError(t, err)
+		assert.True(t, normalizationResult.Successful)
+		assert.Nil(t, normalizationResult.Errors)
+		assert.True(t, parsedSchema.IsNormalized())
+
+		normalizationResult, err = parsedSchema.Normalize()
+		assert.NoError(t, err)
+		assert.True(t, normalizationResult.Successful)
+		assert.Nil(t, normalizationResult.Errors)
+	})
+}
+
 func TestSchema_HasQueryType(t *testing.T) {
 	run := func(schema string, expectation bool) func(t *testing.T) {
 		return func(t *testing.T) {

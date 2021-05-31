@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/asttransform"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation"
@@ -28,8 +29,9 @@ type TypeFieldArguments struct {
 }
 
 type Schema struct {
-	rawInput []byte
-	document ast.Document
+	rawInput     []byte
+	document     ast.Document
+	isNormalized bool
 }
 
 func NewSchemaFromReader(reader io.Reader) (*Schema, error) {
@@ -61,6 +63,24 @@ func ValidateSchemaString(schema string) (result ValidationResult, err error) {
 	return parsedSchema.Validate()
 }
 
+func (s *Schema) Normalize() (result NormalizationResult, err error) {
+	if s.isNormalized {
+		return NormalizationResult{
+			Successful: true,
+			Errors:     nil,
+		}, nil
+	}
+
+	report := operationreport.Report{}
+	astnormalization.NormalizeDefinition(&s.document, &report)
+	if report.HasErrors() {
+		return normalizationResultFromReport(report)
+	}
+
+	s.isNormalized = true
+	return NormalizationResult{Successful: true, Errors: nil}, nil
+}
+
 func (s *Schema) Document() []byte {
 	return s.rawInput
 }
@@ -75,6 +95,10 @@ func (s *Schema) QueryTypeName() string {
 	}
 
 	return string(s.document.Index.QueryTypeName)
+}
+
+func (s *Schema) IsNormalized() bool {
+	return s.isNormalized
 }
 
 func (s *Schema) HasMutationType() bool {
