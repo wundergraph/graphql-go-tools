@@ -28,7 +28,6 @@ type Configuration struct {
 	DefaultFlushInterval int64
 	DataSources          []DataSourceConfiguration
 	Fields               FieldConfigurations
-	Schema               string
 }
 
 type FieldConfigurations []FieldConfiguration

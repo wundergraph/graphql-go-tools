@@ -29,7 +29,6 @@ func NewEngineV2Configuration(schema *Schema) EngineV2Configuration {
 			DefaultFlushInterval: 0,
 			DataSources:          []plan.DataSourceConfiguration{},
 			Fields:               plan.FieldConfigurations{},
-			Schema:               string(schema.rawSchema),
 		},
 	}
 }
