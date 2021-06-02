@@ -10,6 +10,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
+	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
 	"github.com/jensneuse/graphql-go-tools/pkg/asttransform"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
@@ -30,6 +31,7 @@ type TypeFieldArguments struct {
 
 type Schema struct {
 	rawInput     []byte
+	rawSchema    []byte
 	document     ast.Document
 	isNormalized bool
 }
@@ -40,13 +42,13 @@ func NewSchemaFromReader(reader io.Reader) (*Schema, error) {
 		return nil, err
 	}
 
-	return createSchema(schemaContent)
+	return createSchema(schemaContent, true)
 }
 
 func NewSchemaFromString(schema string) (*Schema, error) {
 	schemaContent := []byte(schema)
 
-	return createSchema(schemaContent)
+	return createSchema(schemaContent, true)
 }
 
 func ValidateSchemaString(schema string) (result ValidationResult, err error) {
@@ -77,12 +79,35 @@ func (s *Schema) Normalize() (result NormalizationResult, err error) {
 		return normalizationResultFromReport(report)
 	}
 
+	normalizedSchemaBuffer := &bytes.Buffer{}
+	err = astprinter.PrintIndent(&s.document, nil, []byte("  "), normalizedSchemaBuffer)
+	if err != nil {
+		return NormalizationResult{
+			Successful: false,
+			Errors:     nil,
+		}, err
+	}
+
+	normalizedSchema, err := createSchema(normalizedSchemaBuffer.Bytes(), false)
+	if err != nil {
+		return NormalizationResult{
+			Successful: false,
+			Errors:     nil,
+		}, err
+	}
+
+	s.rawSchema = normalizedSchema.rawSchema
+	s.document = normalizedSchema.document
 	s.isNormalized = true
 	return NormalizationResult{Successful: true, Errors: nil}, nil
 }
 
-func (s *Schema) Document() []byte {
+func (s *Schema) Input() []byte {
 	return s.rawInput
+}
+
+func (s *Schema) Document() []byte {
+	return s.rawSchema
 }
 
 func (s *Schema) HasQueryType() bool {
@@ -334,20 +359,32 @@ func (s *Schema) putChildNode(nodes *[]TypeFields, typeName, fieldName string) (
 	return true
 }
 
-func createSchema(schemaContent []byte) (*Schema, error) {
+func createSchema(schemaContent []byte, mergeWithBaseSchema bool) (*Schema, error) {
 	document, report := astparser.ParseGraphqlDocumentBytes(schemaContent)
 	if report.HasErrors() {
 		return nil, report
 	}
 
-	err := asttransform.MergeDefinitionWithBaseSchema(&document)
-	if err != nil {
-		return nil, err
+	rawSchema := schemaContent
+	if mergeWithBaseSchema {
+		err := asttransform.MergeDefinitionWithBaseSchema(&document)
+		if err != nil {
+			return nil, err
+		}
+
+		rawSchemaBuffer := &bytes.Buffer{}
+		err = astprinter.PrintIndent(&document, nil, []byte("  "), rawSchemaBuffer)
+		if err != nil {
+			return nil, err
+		}
+
+		rawSchema = rawSchemaBuffer.Bytes()
 	}
 
 	return &Schema{
-		rawInput: schemaContent,
-		document: document,
+		rawInput:  schemaContent,
+		rawSchema: rawSchema,
+		document:  document,
 	}, nil
 }
 

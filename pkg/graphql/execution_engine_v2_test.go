@@ -35,7 +35,6 @@ func TestNewEngineV2Configuration(t *testing.T) {
 		engineConfig = NewEngineV2Configuration(schema)
 		assert.Len(t, engineConfig.plannerConfig.DataSources, 0)
 		assert.Len(t, engineConfig.plannerConfig.Fields, 0)
-		assert.Equal(t, countriesSchema, engineConfig.plannerConfig.Schema)
 	})
 
 	t.Run("should successfully add a data source", func(t *testing.T) {
