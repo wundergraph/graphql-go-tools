@@ -117,8 +117,9 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			engineConf := NewEngineV2Configuration(testCase.schema)
 			engineConf.SetDataSources(testCase.dataSources)
 			engineConf.SetFieldConfigurations(testCase.fields)
-
-			engine, err := NewExecutionEngineV2(abstractlogger.Noop{}, engineConf)
+			closer := make(chan struct{})
+			defer close(closer)
+			engine, err := NewExecutionEngineV2(abstractlogger.Noop{}, engineConf, closer)
 			require.NoError(t, err)
 
 			operation := testCase.operation(t)
@@ -532,8 +533,9 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			engineConf := NewEngineV2Configuration(testCase.schema)
 			engineConf.SetDataSources(testCase.dataSources)
 			engineConf.SetFieldConfigurations(testCase.fields)
-
-			engine, err := NewExecutionEngineV2(abstractlogger.Noop{}, engineConf)
+			closer := make(chan struct{})
+			defer close(closer)
+			engine, err := NewExecutionEngineV2(abstractlogger.Noop{}, engineConf, closer)
 			require.NoError(t, err)
 
 			triggerManager := subscription.NewManager(testCase.streamFactory(subscriptionCancel))
@@ -969,6 +971,9 @@ func (a *afterFetchHook) OnError(ctx resolve.HookContext, output []byte, singleF
 
 func TestExecutionWithOptions(t *testing.T) {
 
+	closer := make(chan struct{})
+	defer close(closer)
+
 	testCase := ExecutionEngineV2TestCase{
 		schema:    starwarsSchema(t),
 		operation: loadStarWarsQuery(starwars.FileSimpleHeroQuery, nil),
@@ -1002,7 +1007,7 @@ func TestExecutionWithOptions(t *testing.T) {
 	engineConf.SetDataSources(testCase.dataSources)
 	engineConf.SetFieldConfigurations(testCase.fields)
 
-	engine, err := NewExecutionEngineV2(abstractlogger.Noop{}, engineConf)
+	engine, err := NewExecutionEngineV2(abstractlogger.Noop{}, engineConf, closer)
 	require.NoError(t, err)
 
 	before := &beforeFetchHook{}
@@ -1019,6 +1024,10 @@ func TestExecutionWithOptions(t *testing.T) {
 }
 
 func BenchmarkExecutionEngineV2(b *testing.B) {
+
+	closer := make(chan struct{})
+	defer close(closer)
+
 	type benchCase struct {
 		engine *ExecutionEngineV2
 		writer *EngineResultWriter
@@ -1048,7 +1057,7 @@ func BenchmarkExecutionEngineV2(b *testing.B) {
 			},
 		})
 
-		engine, err := NewExecutionEngineV2(abstractlogger.NoopLogger, engineConf)
+		engine, err := NewExecutionEngineV2(abstractlogger.NoopLogger, engineConf, closer)
 		require.NoError(b, err)
 
 		return engine

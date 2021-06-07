@@ -166,8 +166,8 @@ func WithAfterFetchHook(hook resolve.AfterFetchHook) ExecutionOptionsV2 {
 	}
 }
 
-func NewExecutionEngineV2WithTriggerManagers(logger abstractlogger.Logger, engineConfig EngineV2Configuration, triggerManagers ...*subscription.Manager) (*ExecutionEngineV2, error) {
-	executionEngine, err := NewExecutionEngineV2(logger, engineConfig)
+func NewExecutionEngineV2WithTriggerManagers(logger abstractlogger.Logger, engineConfig EngineV2Configuration, closer <- chan struct{}, triggerManagers ...*subscription.Manager) (*ExecutionEngineV2, error) {
+	executionEngine, err := NewExecutionEngineV2(logger, engineConfig, closer)
 	if err != nil {
 		return nil, err
 	}
@@ -179,13 +179,13 @@ func NewExecutionEngineV2WithTriggerManagers(logger abstractlogger.Logger, engin
 	return executionEngine, nil
 }
 
-func NewExecutionEngineV2(logger abstractlogger.Logger, engineConfig EngineV2Configuration) (*ExecutionEngineV2, error) {
+func NewExecutionEngineV2(logger abstractlogger.Logger, engineConfig EngineV2Configuration, closer <- chan struct{}) (*ExecutionEngineV2, error) {
 	return &ExecutionEngineV2{
 		logger: logger,
 		config: engineConfig,
 		plannerPool: sync.Pool{
 			New: func() interface{} {
-				return plan.NewPlanner(engineConfig.plannerConfig)
+				return plan.NewPlanner(engineConfig.plannerConfig, closer)
 			},
 		},
 		resolver: resolve.New(),

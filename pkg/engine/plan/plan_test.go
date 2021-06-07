@@ -25,7 +25,9 @@ func TestPlanner_Plan(t *testing.T) {
 		norm.NormalizeOperation(&op, &def, report)
 		valid := astvalidation.DefaultOperationValidator()
 		valid.Validate(&op, &def, report)
-		p := NewPlanner(config)
+		closer := make(chan struct{})
+		defer close(closer)
+		p := NewPlanner(config,closer)
 		return p.Plan(&op, &def, operationName, report)
 	}
 
