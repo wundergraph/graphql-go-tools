@@ -1852,7 +1852,12 @@ func (p *Parser) parseInterfaceTypeExtension(extend position.Position) {
 	}
 	p.document.InterfaceTypeExtensions = append(p.document.InterfaceTypeExtensions, interfaceTypeExtension)
 	ref := len(p.document.InterfaceTypeExtensions) - 1
-	p.document.RootNodes = append(p.document.RootNodes, ast.Node{Ref: ref, Kind: ast.NodeKindInterfaceTypeExtension})
+	node := ast.Node{Ref: ref, Kind: ast.NodeKindInterfaceTypeExtension}
+	p.document.RootNodes = append(p.document.RootNodes, node)
+
+	if p.shouldIndex {
+		p.indexNode(interfaceTypeExtension.Name, node)
+	}
 }
 
 func (p *Parser) parseScalarTypeExtension(extend position.Position) {
@@ -1869,7 +1874,12 @@ func (p *Parser) parseScalarTypeExtension(extend position.Position) {
 	}
 	p.document.ScalarTypeExtensions = append(p.document.ScalarTypeExtensions, scalarTypeExtension)
 	ref := len(p.document.ScalarTypeExtensions) - 1
-	p.document.RootNodes = append(p.document.RootNodes, ast.Node{Ref: ref, Kind: ast.NodeKindScalarTypeExtension})
+	node := ast.Node{Ref: ref, Kind: ast.NodeKindScalarTypeExtension}
+	p.document.RootNodes = append(p.document.RootNodes, node)
+
+	if p.shouldIndex {
+		p.indexNode(scalarTypeExtension.Name, node)
+	}
 }
 
 func (p *Parser) parseUnionTypeExtension(extend position.Position) {
@@ -1891,7 +1901,12 @@ func (p *Parser) parseUnionTypeExtension(extend position.Position) {
 	}
 	p.document.UnionTypeExtensions = append(p.document.UnionTypeExtensions, unionTypeExtension)
 	ref := len(p.document.UnionTypeExtensions) - 1
-	p.document.RootNodes = append(p.document.RootNodes, ast.Node{Ref: ref, Kind: ast.NodeKindUnionTypeExtension})
+	node := ast.Node{Ref: ref, Kind: ast.NodeKindUnionTypeExtension}
+	p.document.RootNodes = append(p.document.RootNodes, node)
+
+	if p.shouldIndex {
+		p.indexNode(unionTypeExtension.Name, node)
+	}
 }
 
 func (p *Parser) parseEnumTypeExtension(extend position.Position) {
@@ -1912,7 +1927,12 @@ func (p *Parser) parseEnumTypeExtension(extend position.Position) {
 	}
 	p.document.EnumTypeExtensions = append(p.document.EnumTypeExtensions, enumTypeExtension)
 	ref := len(p.document.EnumTypeExtensions) - 1
-	p.document.RootNodes = append(p.document.RootNodes, ast.Node{Ref: ref, Kind: ast.NodeKindEnumTypeExtension})
+	node := ast.Node{Ref: ref, Kind: ast.NodeKindEnumTypeExtension}
+	p.document.RootNodes = append(p.document.RootNodes, node)
+
+	if p.shouldIndex {
+		p.indexNode(enumTypeExtension.Name, node)
+	}
 }
 
 func (p *Parser) parseInputObjectTypeExtension(extend position.Position) {
@@ -1933,5 +1953,10 @@ func (p *Parser) parseInputObjectTypeExtension(extend position.Position) {
 	}
 	p.document.InputObjectTypeExtensions = append(p.document.InputObjectTypeExtensions, inputObjectTypeExtension)
 	ref := len(p.document.InputObjectTypeExtensions) - 1
-	p.document.RootNodes = append(p.document.RootNodes, ast.Node{Ref: ref, Kind: ast.NodeKindInputObjectTypeExtension})
+	node := ast.Node{Ref: ref, Kind: ast.NodeKindInputObjectTypeExtension}
+	p.document.RootNodes = append(p.document.RootNodes, node)
+
+	if p.shouldIndex {
+		p.indexNode(inputObjectTypeExtension.Name, node)
+	}
 }

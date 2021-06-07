@@ -3647,24 +3647,37 @@ func TestExecutionValidation(t *testing.T) {
 	})
 }
 
-func TestValidationWithTypeName(t *testing.T) {
-	operation := `
-		query getApi($id: String!) {
-		  api(id: $id) {
-			__typename
-			... on Api {
-			  __typename
-			  id
-			  name
+func TestValidationEdgeCases(t *testing.T) {
+	run := func(definition, operation string, withNormalization bool) func(t *testing.T) {
+		return func(t *testing.T) {
+			op := unsafeparser.ParseGraphqlDocumentString(operation)
+			def := unsafeparser.ParseGraphqlDocumentString(definition)
+
+			if withNormalization {
+				report := operationreport.Report{}
+				normalizer := astnormalization.NewWithOpts(
+					astnormalization.WithExtractVariables(),
+					astnormalization.WithRemoveFragmentDefinitions(),
+					astnormalization.WithRemoveUnusedVariables(),
+					astnormalization.WithNormalizeDefinition(),
+				)
+				normalizer.NormalizeOperation(&op, &def, &report)
+				if report.HasErrors() {
+					panic(report.Error())
+				}
 			}
-			... on RequestResult {
-			  __typename
-			  status
-			  message
-			}  
-		  }
-		}`
-	definition := `
+
+			validator := DefaultOperationValidator()
+			var report operationreport.Report
+			validator.Validate(&op, &def, &report)
+			if report.HasErrors() {
+				t.Fatal(report.Error())
+			}
+		}
+	}
+
+	t.Run("validation with typename", run(
+		`
 		schema {
 			query: Query
 		}
@@ -3681,15 +3694,51 @@ func TestValidationWithTypeName(t *testing.T) {
 			message: String
 		}
 		scalar String
-	`
-	op := unsafeparser.ParseGraphqlDocumentString(operation)
-	def := unsafeparser.ParseGraphqlDocumentString(definition)
-	validator := DefaultOperationValidator()
-	var report operationreport.Report
-	validator.Validate(&op, &def, &report)
-	if report.HasErrors() {
-		t.Fatal(report.Error())
-	}
+	`,
+		`
+		query getApi($id: String!) {
+		  api(id: $id) {
+			__typename
+			... on Api {
+			  __typename
+			  id
+			  name
+			}
+			... on RequestResult {
+			  __typename
+			  status
+			  message
+			}  
+		  }
+		}`, false,
+	))
+
+	t.Run("validation for normalized federation schema", run(
+		`
+		scalar _Any
+		scalar String
+		union _Entity = User
+		
+		extend type Query {
+			_entities(representations: [_Any!]!): [_Entity]!
+		}
+
+		extend type Query {
+			me: User!
+		}
+
+		extend type User {
+			name: String!
+		}`,
+		`
+		query($representations: [_Any!]!) {
+			_entities(representations: $representations) {
+				... on User { 
+					name 
+				}
+			}
+		}`, true,
+	))
 }
 
 func BenchmarkValidation(b *testing.B) {

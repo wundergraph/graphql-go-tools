@@ -845,14 +845,14 @@ func (v *valuesVisitor) valueSatisfiesEnum(value ast.Value, node ast.Node) bool 
 		if v.Ancestors[0].Kind != ast.NodeKindOperationDefinition {
 			return false
 		}
-		definition,ok := v.operation.VariableDefinitionByNameAndOperation(v.Ancestors[0].Ref,name)
+		definition, ok := v.operation.VariableDefinitionByNameAndOperation(v.Ancestors[0].Ref, name)
 		if !ok {
 			return false
 		}
 		variableType := v.operation.VariableDefinitions[definition].Type
 		actualTypeName := v.operation.ResolveTypeNameBytes(variableType)
 		expectedTypeName := node.NameBytes(v.definition)
-		return bytes.Equal(actualTypeName,expectedTypeName)
+		return bytes.Equal(actualTypeName, expectedTypeName)
 	}
 	if value.Kind != ast.ValueKindEnum {
 		return false
@@ -868,14 +868,14 @@ func (v *valuesVisitor) valueSatisfiesInputObjectTypeDefinition(value ast.Value,
 		if v.Ancestors[0].Kind != ast.NodeKindOperationDefinition {
 			return false
 		}
-		definition,ok := v.operation.VariableDefinitionByNameAndOperation(v.Ancestors[0].Ref,name)
+		definition, ok := v.operation.VariableDefinitionByNameAndOperation(v.Ancestors[0].Ref, name)
 		if !ok {
 			return false
 		}
 		variableType := v.operation.VariableDefinitions[definition].Type
 		actualTypeName := v.operation.ResolveTypeNameBytes(variableType)
 		expectedTypeName := v.definition.InputObjectTypeDefinitionNameBytes(inputObjectTypeDefinition)
-		return bytes.Equal(actualTypeName,expectedTypeName)
+		return bytes.Equal(actualTypeName, expectedTypeName)
 	}
 
 	if value.Kind != ast.ValueKindObject {
@@ -1098,7 +1098,7 @@ func (f *fragmentsVisitor) EnterInlineFragment(ref int) {
 
 	typeName := f.operation.InlineFragmentTypeConditionName(ref)
 
-	node, exists := f.definition.Index.FirstNodeByNameBytes(typeName)
+	node, exists := f.definition.Index.FirstNonExtensionNodeByNameBytes(typeName)
 	if !exists {
 		f.StopWithExternalErr(operationreport.ErrTypeUndefined(typeName))
 		return

@@ -9,6 +9,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
+	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
+	"github.com/jensneuse/graphql-go-tools/pkg/asttransform"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 )
 
@@ -47,6 +50,26 @@ func TestNewSchemaFromString(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.Equal(t, schemaBytes, schema.rawInput)
+	})
+}
+
+func TestSchema_Normalize(t *testing.T) {
+	t.Run("should successfully normalize schema", func(t *testing.T) {
+		parsedSchema, err := NewSchemaFromString("type Query { me: String } extend type Query { you: String }")
+		require.NoError(t, err)
+
+		require.False(t, parsedSchema.IsNormalized())
+		normalizationResult, err := parsedSchema.Normalize()
+
+		assert.NoError(t, err)
+		assert.True(t, normalizationResult.Successful)
+		assert.Nil(t, normalizationResult.Errors)
+		assert.True(t, parsedSchema.IsNormalized())
+
+		normalizationResult, err = parsedSchema.Normalize()
+		assert.NoError(t, err)
+		assert.True(t, normalizationResult.Successful)
+		assert.Nil(t, normalizationResult.Errors)
 	})
 }
 
@@ -262,7 +285,17 @@ func TestSchema_Document(t *testing.T) {
 	schema, err := NewSchemaFromString(string(schemaBytes))
 	require.NoError(t, err)
 
-	assert.Equal(t, schemaBytes, schema.Document())
+	document, report := astparser.ParseGraphqlDocumentBytes(schemaBytes)
+	require.False(t, report.HasErrors())
+
+	err = asttransform.MergeDefinitionWithBaseSchema(&document)
+	require.NoError(t, err)
+
+	expectedSchemaBytesBuffer := &bytes.Buffer{}
+	err = astprinter.PrintIndent(&document, nil, []byte("  "), expectedSchemaBytesBuffer)
+	require.NoError(t, err)
+
+	assert.Equal(t, expectedSchemaBytesBuffer.Bytes(), schema.Document())
 }
 
 func TestValidateSchemaString(t *testing.T) {

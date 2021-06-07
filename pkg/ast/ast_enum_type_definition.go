@@ -67,12 +67,20 @@ func (d *Document) AddEnumTypeDefinition(definition EnumTypeDefinition) (ref int
 }
 
 func (d *Document) ImportEnumTypeDefinition(name, description string, valueRefs []int) (ref int) {
+	return d.ImportEnumTypeDefinitionWithDirectives(name, description, valueRefs, nil)
+}
+
+func (d *Document) ImportEnumTypeDefinitionWithDirectives(name, description string, valueRefs []int, directiveRefs []int) (ref int) {
 	definition := EnumTypeDefinition{
 		Description:             d.ImportDescription(description),
 		Name:                    d.Input.AppendInputString(name),
 		HasEnumValuesDefinition: len(valueRefs) > 0,
 		EnumValuesDefinition: EnumValueDefinitionList{
 			Refs: valueRefs,
+		},
+		HasDirectives: len(directiveRefs) > 0,
+		Directives: DirectiveList{
+			Refs: directiveRefs,
 		},
 	}
 

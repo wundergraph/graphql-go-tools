@@ -1406,7 +1406,6 @@ func TestGraphQLDataSource(t *testing.T) {
 				},
 			},
 			DefaultFlushInterval: 500,
-			Schema:               wgSchema,
 		}))
 
 	t.Run("subscription", RunTest(testDefinition, `
@@ -1504,7 +1503,7 @@ func TestGraphQLDataSource(t *testing.T) {
 		},
 		Fields: []plan.FieldConfiguration{
 			{
-				TypeName: "Subscription",
+				TypeName:  "Subscription",
 				FieldName: "foo",
 				Arguments: []plan.ArgumentConfiguration{
 					{

@@ -46,7 +46,7 @@ func NewExecutionEngine(logger abstractlogger.Logger, schema *Schema, plannerCon
 		},
 	}
 
-	basePlanner, err := datasource.NewBaseDataSourcePlanner(schema.rawInput, plannerConfig, logger)
+	basePlanner, err := datasource.NewBaseDataSourcePlanner(schema.rawSchema, plannerConfig, logger)
 	if err != nil {
 		return nil, err
 	}

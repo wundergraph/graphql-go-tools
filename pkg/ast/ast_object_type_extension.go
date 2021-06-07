@@ -18,6 +18,17 @@ func (d *Document) ObjectTypeExtensionNameString(ref int) string {
 	return unsafebytes.BytesToString(d.Input.ByteSlice(d.ObjectTypeExtensions[ref].Name))
 }
 
+func (d *Document) ObjectTypeExtensionDescriptionNameBytes(ref int) ByteSlice {
+	if !d.ObjectTypeExtensions[ref].Description.IsDefined {
+		return nil
+	}
+	return d.Input.ByteSlice(d.ObjectTypeExtensions[ref].Description.Content)
+}
+
+func (d *Document) ObjectTypeExtensionDescriptionNameString(ref int) string {
+	return unsafebytes.BytesToString(d.ObjectTypeExtensionDescriptionNameBytes(ref))
+}
+
 func (d *Document) ObjectTypeExtensionHasFieldDefinitions(ref int) bool {
 	return d.ObjectTypeExtensions[ref].HasFieldDefinitions
 }
@@ -37,5 +48,23 @@ func (d *Document) ExtendObjectTypeDefinitionByObjectTypeExtension(objectTypeDef
 		d.ObjectTypeDefinitions[objectTypeDefinitionRef].HasDirectives = true
 	}
 
+	if len(d.ObjectTypeExtensions[objectTypeExtensionRef].ImplementsInterfaces.Refs) > 0 {
+		d.ObjectTypeDefinitions[objectTypeDefinitionRef].ImplementsInterfaces.Refs = append(
+			d.ObjectTypeDefinitions[objectTypeDefinitionRef].ImplementsInterfaces.Refs,
+			d.ObjectTypeExtensions[objectTypeExtensionRef].ImplementsInterfaces.Refs...,
+		)
+	}
+
+	d.Index.MergedTypeExtensions = append(d.Index.MergedTypeExtensions, Node{Ref: objectTypeExtensionRef, Kind: NodeKindObjectTypeExtension})
+}
+
+func (d *Document) ImportAndExtendObjectTypeDefinitionByObjectTypeExtension(objectTypeExtensionRef int) {
+	d.ImportObjectTypeDefinitionWithDirectives(
+		d.ObjectTypeExtensionNameBytes(objectTypeExtensionRef).String(),
+		d.ObjectTypeExtensionDescriptionNameString(objectTypeExtensionRef),
+		d.ObjectTypeExtensions[objectTypeExtensionRef].FieldsDefinition.Refs,
+		d.ObjectTypeExtensions[objectTypeExtensionRef].ImplementsInterfaces.Refs,
+		d.ObjectTypeExtensions[objectTypeExtensionRef].Directives.Refs,
+	)
 	d.Index.MergedTypeExtensions = append(d.Index.MergedTypeExtensions, Node{Ref: objectTypeExtensionRef, Kind: NodeKindObjectTypeExtension})
 }

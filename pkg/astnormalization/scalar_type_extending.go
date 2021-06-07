@@ -36,4 +36,6 @@ func (e *extendScalarTypeDefinitionVisitor) EnterScalarTypeExtension(ref int) {
 		e.operation.ExtendScalarTypeDefinitionByScalarTypeExtension(nodes[i].Ref, ref)
 		return
 	}
+
+	e.operation.ImportAndExtendScalarTypeDefinitionByScalarTypeExtension(ref)
 }

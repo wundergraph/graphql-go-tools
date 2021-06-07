@@ -90,6 +90,24 @@ func (i *Index) FirstNodeByNameBytes(name []byte) (Node, bool) {
 	return node[0], true
 }
 
+func (i *Index) FirstNonExtensionNodeByNameBytes(name []byte) (Node, bool) {
+	hash := xxhash.Sum64(name)
+	nodes, exists := i.nodes[hash]
+	if !exists || len(nodes) == 0 {
+		return Node{}, false
+	}
+
+	for j := range nodes {
+		if nodes[j].IsExtensionKind() {
+			continue
+		}
+
+		return nodes[j], true
+	}
+
+	return Node{}, false
+}
+
 func (i *Index) RemoveNodeByName(name []byte) {
 	hash := xxhash.Sum64(name)
 	delete(i.nodes, hash)

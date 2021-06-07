@@ -71,6 +71,10 @@ func (d *Document) AddObjectTypeDefinition(definition ObjectTypeDefinition) (ref
 }
 
 func (d *Document) ImportObjectTypeDefinition(name, description string, fieldRefs []int, iRefs []int) (ref int) {
+	return d.ImportObjectTypeDefinitionWithDirectives(name, description, fieldRefs, iRefs, nil)
+}
+
+func (d *Document) ImportObjectTypeDefinitionWithDirectives(name, description string, fieldRefs []int, iRefs []int, directiveRefs []int) (ref int) {
 	definition := ObjectTypeDefinition{
 		Name:        d.Input.AppendInputString(name),
 		Description: d.ImportDescription(description),
@@ -80,6 +84,10 @@ func (d *Document) ImportObjectTypeDefinition(name, description string, fieldRef
 		HasFieldDefinitions: len(fieldRefs) > 0,
 		ImplementsInterfaces: TypeList{
 			Refs: iRefs,
+		},
+		HasDirectives: len(directiveRefs) > 0,
+		Directives: DirectiveList{
+			Refs: directiveRefs,
 		},
 	}
 

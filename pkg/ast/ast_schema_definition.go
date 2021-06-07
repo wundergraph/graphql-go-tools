@@ -14,13 +14,17 @@ func (s *SchemaDefinition) AddRootOperationTypeDefinitionRefs(refs ...int) {
 }
 
 func (d *Document) HasSchemaDefinition() bool {
+	return d.SchemaDefinitionRef() != InvalidRef
+}
+
+func (d *Document) SchemaDefinitionRef() int {
 	for i := range d.RootNodes {
 		if d.RootNodes[i].Kind == NodeKindSchemaDefinition {
-			return true
+			return d.RootNodes[i].Ref
 		}
 	}
 
-	return false
+	return InvalidRef
 }
 
 func (d *Document) AddSchemaDefinition(schemaDefinition SchemaDefinition) (ref int) {
@@ -38,23 +42,19 @@ func (d *Document) AddSchemaDefinitionRootNode(schemaDefinition SchemaDefinition
 }
 
 func (d *Document) ImportSchemaDefinition(queryTypeName, mutationTypeName, subscriptionTypeName string) {
-	var operationRefs []int
-
-	if queryTypeName != "" {
-		operationRefs = append(operationRefs, d.ImportRootOperationTypeDefinition(queryTypeName, OperationTypeQuery))
-	}
-	if mutationTypeName != "" {
-		operationRefs = append(operationRefs, d.ImportRootOperationTypeDefinition(mutationTypeName, OperationTypeMutation))
-	}
-	if subscriptionTypeName != "" {
-		operationRefs = append(operationRefs, d.ImportRootOperationTypeDefinition(subscriptionTypeName, OperationTypeSubscription))
-	}
+	rootOperationTypeRefs := d.ImportRootOperationTypeDefinitions(queryTypeName, mutationTypeName, subscriptionTypeName)
 
 	schemaDefinition := SchemaDefinition{
 		RootOperationTypeDefinitions: RootOperationTypeDefinitionList{
-			Refs: operationRefs,
+			Refs: rootOperationTypeRefs,
 		},
 	}
 
 	d.AddSchemaDefinitionRootNode(schemaDefinition)
+}
+
+func (d *Document) ReplaceRootOperationTypesOfSchemaDefinition(schemaDefinitionRef int, queryTypeName, mutationTypeName, subscriptionTypeName string) {
+	d.RootOperationTypeDefinitions = d.RootOperationTypeDefinitions[:0]
+	rootOperationTypeRefs := d.ImportRootOperationTypeDefinitions(queryTypeName, mutationTypeName, subscriptionTypeName)
+	d.SchemaDefinitions[schemaDefinitionRef].RootOperationTypeDefinitions.Refs = rootOperationTypeRefs
 }

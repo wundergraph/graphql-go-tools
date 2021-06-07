@@ -36,4 +36,6 @@ func (e *extendObjectTypeDefinitionVisitor) EnterObjectTypeExtension(ref int) {
 		e.operation.ExtendObjectTypeDefinitionByObjectTypeExtension(nodes[i].Ref, ref)
 		return
 	}
+
+	e.operation.ImportAndExtendObjectTypeDefinitionByObjectTypeExtension(ref)
 }

@@ -111,4 +111,104 @@ func TestRemoveTypeExtensions(t *testing.T) {
 			extendInterfaceTypeDefinition,
 			removeMergedTypeExtensions)
 	})
+
+	t.Run("remove object type extensions when object type definition does not exist", func(t *testing.T) {
+		runMany("", `
+					extend type Query {
+  						_entities(representations: [_Any!]!): [_Entity]!
+  						_service: _Service!
+					}
+
+					extend type Query {
+						me: User
+					}
+					`, `
+					type Query {
+  						_entities(representations: [_Any!]!): [_Entity]!
+  						_service: _Service!
+						me: User
+					}
+					`,
+			extendObjectTypeDefinition,
+			removeMergedTypeExtensions)
+	})
+
+	t.Run("remove input object type extensions when input object type definition does not exist", func(t *testing.T) {
+		runMany("", `
+					extend input Location {
+  						lat: Float
+					}
+
+					extend input Location {
+						lon: Float
+					}
+					`, `
+					input Location {
+  						lat: Float
+						lon: Float
+					}
+					`,
+			extendInputObjectTypeDefinition,
+			removeMergedTypeExtensions)
+	})
+
+	t.Run("remove enum type extensions when enum type does not exist", func(t *testing.T) {
+		runMany("", `
+					extend enum Planet {
+  						EARTH
+					}
+
+					extend enum Planet {
+						MARS
+					}
+					`, `
+					enum Planet {
+  						EARTH
+						MARS
+					}
+					`,
+			extendEnumTypeDefinition,
+			removeMergedTypeExtensions)
+	})
+
+	t.Run("remove interface type extensions when interface type does not exist", func(t *testing.T) {
+		runMany("", `
+					extend interface Entity {
+  						id: ID
+					}
+
+					extend interface Entity {
+						createdAt: String
+					}
+					`, `
+					interface Entity {
+  						id: ID
+						createdAt: String
+					}
+					`,
+			extendInterfaceTypeDefinition,
+			removeMergedTypeExtensions)
+	})
+
+	t.Run("remove scalar type extensions when scalar type does not exist", func(t *testing.T) {
+		runMany("", `
+					extend scalar IPv4
+					extend scalar IPv4 @deprecated(reason: "use IPv6")
+					`, `
+					scalar IPv4 @deprecated(reason: "use IPv6")
+					`,
+			extendScalarTypeDefinition,
+			removeMergedTypeExtensions)
+	})
+
+	t.Run("remove union type extensions when union type does not exist", func(t *testing.T) {
+		runMany("", `
+					extend union Response = SuccessResponse
+					extend union Response = ErrorResponse
+					`, `
+					union Response = SuccessResponse | ErrorResponse
+					`,
+			extendUnionTypeDefinition,
+			removeMergedTypeExtensions)
+	})
 }

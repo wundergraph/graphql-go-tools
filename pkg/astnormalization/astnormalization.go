@@ -94,9 +94,10 @@ type registerNormalizeDeleteVariablesFunc func(walker *astvisitor.Walker) *delet
 
 // OperationNormalizer walks a given AST and applies all registered rules
 type OperationNormalizer struct {
-	walkers             []*astvisitor.Walker
-	variablesExtraction *variablesExtractionVisitor
-	options             options
+	operationWalkers     []*astvisitor.Walker
+	variablesExtraction  *variablesExtractionVisitor
+	options              options
+	definitionNormalizer *DefinitionNormalizer
 }
 
 // NewNormalizer creates a new OperationNormalizer and sets up all default rules
@@ -107,7 +108,7 @@ func NewNormalizer(removeFragmentDefinitions, extractVariables bool) *OperationN
 			extractVariables:      extractVariables,
 		},
 	}
-	normalizer.setupWalkers()
+	normalizer.setupOperationWalkers()
 	return normalizer
 }
 
@@ -120,7 +121,12 @@ func NewWithOpts(opts ...Option) *OperationNormalizer {
 	normalizer := &OperationNormalizer{
 		options: options,
 	}
-	normalizer.setupWalkers()
+	normalizer.setupOperationWalkers()
+
+	if options.normalizeDefinition {
+		normalizer.definitionNormalizer = NewDefinitionNormalizer()
+	}
+
 	return normalizer
 }
 
@@ -128,6 +134,7 @@ type options struct {
 	removeFragmentDefinitions bool
 	extractVariables          bool
 	removeUnusedVariables     bool
+	normalizeDefinition       bool
 }
 
 type Option func(options *options)
@@ -150,7 +157,13 @@ func WithRemoveUnusedVariables() Option {
 	}
 }
 
-func (o *OperationNormalizer) setupWalkers() {
+func WithNormalizeDefinition() Option {
+	return func(options *options) {
+		options.normalizeDefinition = true
+	}
+}
+
+func (o *OperationNormalizer) setupOperationWalkers() {
 	fragmentInline := astvisitor.NewWalker(48)
 	fragmentSpreadInline(&fragmentInline)
 	directiveIncludeSkip(&fragmentInline)
@@ -169,13 +182,26 @@ func (o *OperationNormalizer) setupWalkers() {
 	if o.options.removeUnusedVariables {
 		deleteUnusedVariables(&other)
 	}
-	o.walkers = append(o.walkers, &fragmentInline, &other)
+	o.operationWalkers = append(o.operationWalkers, &fragmentInline, &other)
+}
+
+func (o *OperationNormalizer) prepareDefinition(definition *ast.Document, report *operationreport.Report) {
+	if o.definitionNormalizer != nil {
+		o.definitionNormalizer.NormalizeDefinition(definition, report)
+	}
 }
 
 // NormalizeOperation applies all registered rules to the AST
 func (o *OperationNormalizer) NormalizeOperation(operation, definition *ast.Document, report *operationreport.Report) {
-	for i := range o.walkers {
-		o.walkers[i].Walk(operation, definition, report)
+	if o.options.normalizeDefinition {
+		o.prepareDefinition(definition, report)
+		if report.HasErrors() {
+			return
+		}
+	}
+
+	for i := range o.operationWalkers {
+		o.operationWalkers[i].Walk(operation, definition, report)
 		if report.HasErrors() {
 			return
 		}
@@ -184,11 +210,18 @@ func (o *OperationNormalizer) NormalizeOperation(operation, definition *ast.Docu
 
 // NormalizeNamedOperation applies all registered rules to one specific named operation in the AST
 func (o *OperationNormalizer) NormalizeNamedOperation(operation, definition *ast.Document, operationName []byte, report *operationreport.Report) {
+	if o.options.normalizeDefinition {
+		o.prepareDefinition(definition, report)
+		if report.HasErrors() {
+			return
+		}
+	}
+
 	if o.variablesExtraction != nil {
 		o.variablesExtraction.operationName = operationName
 	}
-	for i := range o.walkers {
-		o.walkers[i].Walk(operation, definition, report)
+	for i := range o.operationWalkers {
+		o.operationWalkers[i].Walk(operation, definition, report)
 		if report.HasErrors() {
 			return
 		}
