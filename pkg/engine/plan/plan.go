@@ -96,7 +96,13 @@ func (d *DataSourceConfiguration) HasRootNode(typeName, fieldName string) bool {
 }
 
 type PlannerFactory interface {
-	Planner() DataSourcePlanner
+	// Planner should return the DataSourcePlanner
+	// closer is the closing channel for all stateful DataSources
+	// At runtime, the Execution Engine will be instantiated with one global resolve.Closer.
+	// Once the Closer gets closed, all stateful DataSources must close their connections and cleanup themselves.
+	// They can do so by starting a goroutine on instantiation time that blocking reads on the resolve.Closer.
+	// Once the Closer emits the close event, they have to terminate (e.g. close database connections).
+	Planner(closer <- chan struct{}) DataSourcePlanner
 }
 
 type TypeField struct {
@@ -111,7 +117,10 @@ type FieldMapping struct {
 	Path                  []string
 }
 
-func NewPlanner(config Configuration) *Planner {
+// NewPlanner creates a new Planner from the Configuration as well as the resolve.Closer
+// The resolve.Closer will be closed when the engine is no longer being used.
+// This allows all stateful DataSources to shutdown and cleanup their memory.
+func NewPlanner(config Configuration, closer <- chan struct{}) *Planner {
 
 	// required fields pre-processing
 
@@ -129,6 +138,7 @@ func NewPlanner(config Configuration) *Planner {
 	configurationWalker := astvisitor.NewWalker(48)
 	configVisitor := &configurationVisitor{
 		walker: &configurationWalker,
+		closer: closer,
 	}
 
 	configurationWalker.RegisterEnterDocumentVisitor(configVisitor)
@@ -889,6 +899,8 @@ type configurationVisitor struct {
 	fetches               []objectFetchConfiguration
 	currentBufferId       int
 	fieldBuffers          map[int]int
+
+	closer <- chan struct{}
 }
 
 type plannerConfiguration struct {
@@ -1033,7 +1045,7 @@ func (c *configurationVisitor) EnterField(ref int) {
 				bufferID = c.nextBufferID()
 				c.fieldBuffers[ref] = bufferID
 			}
-			planner := c.config.DataSources[i].Factory.Planner()
+			planner := c.config.DataSources[i].Factory.Planner(c.closer)
 			c.planners = append(c.planners, plannerConfiguration{
 				bufferID:   bufferID,
 				parentPath: parent,

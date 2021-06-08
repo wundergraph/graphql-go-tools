@@ -48,7 +48,7 @@ type Factory struct {
 	Client httpclient.Client
 }
 
-func (f *Factory) Planner() plan.DataSourcePlanner {
+func (f *Factory) Planner(<- chan struct{}) plan.DataSourcePlanner {
 	return &Planner{
 		client: f.Client,
 	}
