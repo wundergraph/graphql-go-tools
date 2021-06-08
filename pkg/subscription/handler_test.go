@@ -280,6 +280,10 @@ func TestHandler_Handle(t *testing.T) {
 	})
 
 	t.Run("engine v2", func(t *testing.T) {
+
+		closer := make(chan struct{})
+		defer close(closer)
+
 		starWarsSchema, err := graphql.NewSchemaFromString(string(starwars.Schema(t)))
 		require.NoError(t, err)
 
@@ -297,7 +301,7 @@ func TestHandler_Handle(t *testing.T) {
 				}),
 			},
 		})
-		engine, err := graphql.NewExecutionEngineV2(abstractlogger.NoopLogger, engineConf)
+		engine, err := graphql.NewExecutionEngineV2(abstractlogger.NoopLogger, engineConf,closer)
 		require.NoError(t, err)
 
 		ctx, cancel := context.WithCancel(context.Background())

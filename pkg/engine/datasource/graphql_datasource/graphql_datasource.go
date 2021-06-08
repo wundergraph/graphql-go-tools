@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/buger/jsonparser"
@@ -32,7 +31,6 @@ const (
 type Planner struct {
 	visitor                    *plan.Visitor
 	config                     Configuration
-	id                         string
 	upstreamOperation          *ast.Document
 	upstreamVariables          []byte
 	nodes                      []ast.Node
@@ -862,14 +860,11 @@ func (p *Planner) addField(ref int) {
 }
 
 type Factory struct {
-	id     int
 	Client httpclient.Client
 }
 
-func (f *Factory) Planner() plan.DataSourcePlanner {
-	f.id++
+func (f *Factory) Planner(<- chan struct{}) plan.DataSourcePlanner {
 	return &Planner{
-		id:     strconv.Itoa(f.id),
 		client: f.Client,
 	}
 }

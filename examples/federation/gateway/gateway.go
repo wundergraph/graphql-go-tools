@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	log "github.com/jensneuse/abstractlogger"
+
 	graphqlDataSource "github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/graphql_datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/graphql"
 	"github.com/jensneuse/graphql-go-tools/pkg/graphql/federation"
@@ -54,6 +55,8 @@ type Gateway struct {
 
 	readyCh   chan struct{}
 	readyOnce *sync.Once
+
+	engineCloser chan struct{}
 }
 
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -70,6 +73,12 @@ func (g *Gateway) Ready() {
 
 // Error handling is not finished.
 func (g *Gateway) UpdateDataSources(newDataSourcesConfig []graphqlDataSource.Configuration) {
+
+	if g.engineCloser != nil {
+		close(g.engineCloser)
+		g.engineCloser = make(chan struct{})
+	}
+
 	engineConfigFactory := federation.NewEngineConfigV2Factory(g.httpClient, newDataSourcesConfig...)
 
 	schema, err := engineConfigFactory.MergedSchema()
@@ -84,7 +93,7 @@ func (g *Gateway) UpdateDataSources(newDataSourcesConfig []graphqlDataSource.Con
 		return
 	}
 
-	engine, err := graphql.NewExecutionEngineV2(g.logger, datasourceConfig)
+	engine, err := graphql.NewExecutionEngineV2(g.logger, datasourceConfig, g.engineCloser)
 	if err != nil {
 		g.logger.Error("create engine: %v", log.Error(err))
 		return

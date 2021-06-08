@@ -23,7 +23,7 @@ func ConfigJSON(config Configuration) json.RawMessage {
 
 type Factory struct{}
 
-func (f *Factory) Planner() plan.DataSourcePlanner {
+func (f *Factory) Planner(<- chan struct{}) plan.DataSourcePlanner {
 	return &Planner{}
 }
 
