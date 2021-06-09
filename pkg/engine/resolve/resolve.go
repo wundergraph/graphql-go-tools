@@ -1245,6 +1245,16 @@ func (_ *ParallelFetch) FetchKind() FetchKind {
 	return FetchKindParallel
 }
 
+type BatchFetch struct {
+	Fetch        *SingleFetch
+	PrepareBatch func(inputs ...[]byte) (*BatchInput, error)
+}
+
+type BatchInput struct {
+	Input            []byte
+	OutToInPositions map[int][]int
+}
+
 type String struct {
 	Path     []string
 	Nullable bool
