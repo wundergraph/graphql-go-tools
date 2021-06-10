@@ -87,6 +87,7 @@ type Context struct {
 	Variables       []byte
 	Request         Request
 	pathElements    [][]byte
+	responseElements []string
 	patches         []patch
 	usedBuffers     []*bytes.Buffer
 	currentPatch    int
@@ -137,6 +138,23 @@ func (c *Context) SetBeforeFetchHook(hook BeforeFetchHook) {
 func (c *Context) SetAfterFetchHook(hook AfterFetchHook) {
 	c.afterFetchHook = hook
 }
+
+func (c *Context) addResponseElements(elements []string) {
+	c.responseElements = append(c.responseElements, elements...)
+}
+
+func (c *Context) addResponseArrayElements(elements []string) {
+	c.responseElements = append(c.responseElements, elements...)
+	c.responseElements = append(c.responseElements, "@")
+}
+
+func (c *Context) removeResponseLastElements(lastElemNum int) {
+	c.responseElements = c.responseElements[:len(c.responseElements)-lastElemNum]
+}
+func (c *Context) removeResponseArrayLastElements(lastElemNum int) {
+	c.responseElements = c.responseElements[:len(c.responseElements)-(lastElemNum + 1)]
+}
+
 
 func (c *Context) addPathElement(elem []byte) {
 	c.pathElements = append(c.pathElements, elem)

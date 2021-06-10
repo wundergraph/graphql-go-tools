@@ -11,48 +11,26 @@ import (
 )
 
 type Dataloader struct {
+	rootResponseNode *responseNode
 }
+
+// @TODO do not handle case when some fetch return errors and data
 
 func (d *Dataloader) Load(ctx *Context, fetch *BatchFetch, objectPath []string) (err error) {
 
 	return
 }
 
-func newResponseNode(rootPath string, value []byte) *responseNode {
-	return &responseNode{
-		key:      rootPath,
-		value:    value,
-		children: make(map[string]*responseNode),
-		mux:      &sync.Mutex{},
-	}
-}
-
-type responseNode struct {
-	key         string
-	value       []byte
-	parent      *responseNode
-	nextSibling *responseNode
-	children    map[string]*responseNode
-
-	mux *sync.Mutex
-}
-
-type selectionOptions struct {
-	objectPath []string
-	isArray bool
-	arrayPath []string
-}
-
-func (r *responseNode) fetch(ctx *Context, fetch *BatchFetch, selectionObj selectionOptions) (response []byte, err error) {
+func (d *Dataloader) LoadBatch(ctx *Context, batchFetch *BatchFetch, objectPath []string) (response []byte, err error) {
 	currentPath := string(ctx.path())
 
-	val, ok := r.get(currentPath)
+	val, ok := d.rootResponseNode.get(currentPath)
 	if ok { // the batch has already been resolved
 		return val.value, nil
 	}
 
-	// it's required to build and fetch batch
-	firstParent := r.getClosestParent(currentPath)
+	// it's required to build and batchFetch batch
+	firstParent := d.rootResponseNode.getClosestParent(currentPath)
 
 	var parents []*responseNode
 	parents = append(parents, firstParent)
@@ -72,13 +50,12 @@ func (r *responseNode) fetch(ctx *Context, fetch *BatchFetch, selectionObj selec
 	buf := fastbuffer.New()
 
 	for i := range parents {
-		val, _,_, err := jsonparser.Get(parents[i].value, selectionObj.objectPath...)
+		val, _, _, err := jsonparser.Get(parents[i].value, selectionObj.objectPath...)
 		if err != nil {
 			return nil, err
 		}
 
-
-		if err := fetch.Fetch.InputTemplate.Render(ctx, val, buf); err != nil {
+		if err := batchFetch.Fetch.InputTemplate.Render(ctx, val, buf); err != nil {
 			return nil, err
 		}
 
@@ -86,14 +63,105 @@ func (r *responseNode) fetch(ctx *Context, fetch *BatchFetch, selectionObj selec
 		buf.Reset()
 	}
 
-	batchInput, err := fetch.PrepareBatch(inputs...)
+	batchResponse, err := d.resolveBatchFetch(ctx, batchFetch, inputs...)
 	if err != nil {
 		return nil, err
 	}
 
+	childSuffix := strings.TrimLeft(currentPath, firstParent.key)
+	var prevNode *responseNode
 
+	for i, parent := range parents {
+		if !selectionObj.isArray {
+			childKey := parent.key + childSuffix
+			node := newResponseNode(childKey, batchResponse[i])
+			if prevNode != nil {
+				prevNode.nextSibling = node
+			}
+			prevNode = node
+			parent.add(node)
+		}
+	}
 
 	return nil, nil
+}
+
+func (d *Dataloader) flattenChildren(parentData []byte, childrenPath string) {
+
+}
+
+func (d *Dataloader) resolveBatchFetch(ctx *Context, batchFetch *BatchFetch, inputs ...[]byte) (result [][]byte, err error) {
+	batchInput, err := batchFetch.PrepareBatch(inputs...)
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Println("batch request", string(batchInput.Input))
+
+	if ctx.beforeFetchHook != nil {
+		ctx.beforeFetchHook.OnBeforeFetch(d.hookCtx(ctx), batchInput.Input)
+	}
+
+	batchBufferPair := &BufPair{
+		Data:   fastbuffer.New(),
+		Errors: fastbuffer.New(),
+	}
+
+	if err = batchFetch.Fetch.DataSource.Load(ctx.Context, batchInput.Input, batchBufferPair); err != nil {
+		return nil, err
+	}
+
+	if ctx.afterFetchHook != nil {
+		if batchBufferPair.HasData() {
+			ctx.afterFetchHook.OnData(d.hookCtx(ctx), batchBufferPair.Data.Bytes(), false)
+		}
+		if batchBufferPair.HasErrors() {
+			ctx.afterFetchHook.OnError(d.hookCtx(ctx), batchBufferPair.Errors.Bytes(), false)
+		}
+	}
+
+	var outPosition int
+	result = make([][]byte, 0, len(inputs))
+
+	_, err = jsonparser.ArrayEach(batchBufferPair.Data.Bytes(), func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+		inputPositions := batchInput.OutToInPositions[outPosition]
+
+		for _, pos := range inputPositions {
+			result[pos] = value
+		}
+
+		outPosition++
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func (d *Dataloader) hookCtx(ctx *Context) HookContext {
+	return HookContext{
+		CurrentPath: ctx.path(),
+	}
+}
+
+func newResponseNode(key string, value []byte) *responseNode {
+	return &responseNode{
+		key:      key,
+		value:    value,
+		children: make(map[string]*responseNode),
+		mux:      &sync.Mutex{},
+	}
+}
+
+type responseNode struct {
+	key         string
+	value       []byte
+	parent      *responseNode
+	nextSibling *responseNode
+	children    map[string]*responseNode
+
+	mux *sync.Mutex
 }
 
 func (r *responseNode) add(other *responseNode) (*responseNode, bool) {
@@ -158,12 +226,6 @@ func (r *responseNode) get(key string) (*responseNode, bool) {
 
 func (r *responseNode) hasChild(childKey string) bool {
 	return strings.HasPrefix(childKey, r.key)
-}
-
-func (r *responseNode) hookCtx(ctx *Context) HookContext {
-	return HookContext{
-		CurrentPath: ctx.path(),
-	}
 }
 
 //func (r *responseNode) first(key string) (*responseNode, bool) {
