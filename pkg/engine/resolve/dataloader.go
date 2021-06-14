@@ -2,7 +2,6 @@ package resolve
 
 import (
 	"fmt"
-	"strings"
 	"sync"
 
 	"github.com/buger/jsonparser"
@@ -10,87 +9,52 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/fastbuffer"
 )
 
-type Dataloader struct {
-	rootResponseNode *responseNode
+type DataLoader struct {
+	fetches map[int]*FetchResult
+	mu      sync.Mutex
 }
 
-// @TODO do not handle case when some fetch return errors and data
+func (d *DataLoader) LoadBatch(ctx *Context, batchFetch *BatchFetch) (response []byte, err error) {
+	var fetchResult *FetchResult
 
-func (d *Dataloader) Load(ctx *Context, fetch *BatchFetch, objectPath []string) (err error) {
-
-	return
-}
-
-func (d *Dataloader) LoadBatch(ctx *Context, batchFetch *BatchFetch, objectPath []string) (response []byte, err error) {
-	currentPath := string(ctx.path())
-
-	val, ok := d.rootResponseNode.get(currentPath)
-	if ok { // the batch has already been resolved
-		return val.value, nil
+	d.mu.Lock()
+	fetchResult, ok := d.fetches[batchFetch.Fetch.BufferId]
+	if ok {
+		response, err = fetchResult.result(ctx)
+	} else {
+		fetchResult = &FetchResult{}
+		d.fetches[batchFetch.Fetch.BufferId] = fetchResult
 	}
 
-	// it's required to build and batchFetch batch
-	firstParent := d.rootResponseNode.getClosestParent(currentPath)
+	d.mu.Unlock()
 
-	var parents []*responseNode
-	parents = append(parents, firstParent)
-	nextParent := firstParent
-
-	for {
-		if nextParent.nextSibling == nil {
-			break
-		}
-
-		parents = append(parents, nextParent.nextSibling)
-		nextParent = nextParent.nextSibling
-	}
-
-	inputs := make([][]byte, 0, len(parents))
-
-	buf := fastbuffer.New()
-
-	for i := range parents {
-		val, _, _, err := jsonparser.Get(parents[i].value, selectionObj.objectPath...)
-		if err != nil {
-			return nil, err
-		}
-
-		if err := batchFetch.Fetch.InputTemplate.Render(ctx, val, buf); err != nil {
-			return nil, err
-		}
-
-		inputs = append(inputs, buf.Bytes())
-		buf.Reset()
-	}
-
-	batchResponse, err := d.resolveBatchFetch(ctx, batchFetch, inputs...)
 	if err != nil {
 		return nil, err
 	}
 
-	childSuffix := strings.TrimLeft(currentPath, firstParent.key)
-	var prevNode *responseNode
-
-	for i, parent := range parents {
-		if !selectionObj.isArray {
-			childKey := parent.key + childSuffix
-			node := newResponseNode(childKey, batchResponse[i])
-			if prevNode != nil {
-				prevNode.nextSibling = node
-			}
-			prevNode = node
-			parent.add(node)
-		}
+	if response != nil {
+		return response, nil
 	}
 
-	return nil, nil
+	parentResponses, ok := d.fetches[ctx.lastFetchID]
+	if !ok { // It must be impossible case
+		return nil, fmt.Errorf("has not got fetch for %d", ctx.lastFetchID)
+	}
+
+	var inputs [][]byte
+	buf := fastbuffer.New()
+
+	for _, val := range d.selectedDataForFetch(parentResponses.results, ctx.responseElements...) {
+		batchFetch.Fetch.InputTemplate.Render(ctx, val, buf)
+		buf.Reset()
+	}
+
+	fetchResult.results, fetchResult.err = d.resolveBatchFetch(ctx, batchFetch, inputs...)
+
+	return fetchResult.result(ctx)
 }
 
-func (d *Dataloader) flattenChildren(parentData []byte, childrenPath string) {
-
-}
-
-func (d *Dataloader) resolveBatchFetch(ctx *Context, batchFetch *BatchFetch, inputs ...[]byte) (result [][]byte, err error) {
+func (d *DataLoader) resolveBatchFetch(ctx *Context, batchFetch *BatchFetch, inputs ...[]byte) (result [][]byte, err error) {
 	batchInput, err := batchFetch.PrepareBatch(inputs...)
 	if err != nil {
 		return nil, err
@@ -139,104 +103,62 @@ func (d *Dataloader) resolveBatchFetch(ctx *Context, batchFetch *BatchFetch, inp
 	return result, nil
 }
 
-func (d *Dataloader) hookCtx(ctx *Context) HookContext {
+func (d *DataLoader) hookCtx(ctx *Context) HookContext {
 	return HookContext{
 		CurrentPath: ctx.path(),
 	}
 }
 
-func newResponseNode(key string, value []byte) *responseNode {
-	return &responseNode{
-		key:      key,
-		value:    value,
-		children: make(map[string]*responseNode),
-		mux:      &sync.Mutex{},
-	}
-}
-
-type responseNode struct {
-	key         string
-	value       []byte
-	parent      *responseNode
-	nextSibling *responseNode
-	children    map[string]*responseNode
-
-	mux *sync.Mutex
-}
-
-func (r *responseNode) add(other *responseNode) (*responseNode, bool) {
-	parentNode := r.getClosestParent(other.key)
-
-	parentNode.mux.Lock()
-
-	if _, ok := parentNode.children[other.key]; ok {
-		fmt.Printf("Node %q has already existed\n", other.key)
+// @TODO fix performance
+func (d *DataLoader) selectedDataForFetch(input [][]byte, path ...string) [][]byte {
+	if len(path) == 0 {
+		return input
 	}
 
-	parentNode.children[other.key] = other
-	other.parent = parentNode
+	current, rest := path[0], path[1:]
 
-	parentNode.mux.Unlock()
+	if current == "@" {
+		temp := make([][]byte, 0, len(input))
 
-	return other, true
-}
+		for i := range input {
+			var vals [][]byte
+			jsonparser.ArrayEach(input[i], func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+				vals = append(vals, value)
+			})
 
-func (r *responseNode) getClosestParent(key string) *responseNode {
-	parent := r
-	parts := strings.Split(key, "/")
-	possibleParentPath := parts[0 : len(parts)-1]
-
-	for i := range possibleParentPath {
-		if i == 0 {
-			continue
+			temp = append(temp, d.selectedDataForFetch(vals, rest...)...)
 		}
 
-		node, ok := r.get(strings.Join(possibleParentPath[0:i], "/"))
-		if !ok {
-			return parent
-		}
-
-		parent = node
+		return temp
 	}
 
-	return parent
+	temp := make([][]byte, 0, len(input))
+
+	for i := range input {
+		el, _, _, err := jsonparser.Get(input[i], current)
+		if err != nil {
+			return nil
+		}
+		temp = append(temp, el)
+	}
+
+	return d.selectedDataForFetch(temp, rest...)
 }
 
-func (r *responseNode) get(key string) (*responseNode, bool) {
-	if key == r.key {
-		return r, true
-	}
-
-	if !strings.HasPrefix(key, r.key) {
-		return nil, false
-	}
-
-	for childKey, childVal := range r.children {
-		if childKey == key {
-			return childVal, true
-		}
-
-		if childVal.hasChild(key) {
-			return childVal.get(key)
-		}
-	}
-
-	return nil, false
+type FetchResult struct {
+	nextIdx int
+	err     error
+	results [][]byte
 }
 
-func (r *responseNode) hasChild(childKey string) bool {
-	return strings.HasPrefix(childKey, r.key)
-}
+func (f *FetchResult) result(ctx *Context) ([]byte, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
 
-//func (r *responseNode) first(key string) (*responseNode, bool) {
-//	childrenForKey, ok := r.children[key]
-//	if !ok {
-//		return nil, false
-//	}
-//
-//	if len(childrenForKey) == 0 {
-//		return nil, false
-//	}
-//
-//	return childrenForKey[0], true
-//}
+	res := f.results[f.nextIdx]
+
+	f.nextIdx++
+
+	return res, nil
+}

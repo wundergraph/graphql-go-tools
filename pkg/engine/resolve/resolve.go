@@ -67,6 +67,7 @@ const (
 
 	FetchKindSingle FetchKind = iota + 1
 	FetchKindParallel
+	FetchKindBatch
 )
 
 type HookContext struct {
@@ -84,17 +85,18 @@ type AfterFetchHook interface {
 
 type Context struct {
 	context.Context
-	Variables       []byte
-	Request         Request
-	pathElements    [][]byte
+	Variables        []byte
+	Request          Request
+	pathElements     [][]byte
 	responseElements []string
-	patches         []patch
-	usedBuffers     []*bytes.Buffer
-	currentPatch    int
-	maxPatch        int
-	pathPrefix      []byte
-	beforeFetchHook BeforeFetchHook
-	afterFetchHook  AfterFetchHook
+	lastFetchID      int
+	patches          []patch
+	usedBuffers      []*bytes.Buffer
+	currentPatch     int
+	maxPatch         int
+	pathPrefix       []byte
+	beforeFetchHook  BeforeFetchHook
+	afterFetchHook   AfterFetchHook
 }
 
 type Request struct {
@@ -152,9 +154,12 @@ func (c *Context) removeResponseLastElements(lastElemNum int) {
 	c.responseElements = c.responseElements[:len(c.responseElements)-lastElemNum]
 }
 func (c *Context) removeResponseArrayLastElements(lastElemNum int) {
-	c.responseElements = c.responseElements[:len(c.responseElements)-(lastElemNum + 1)]
+	c.responseElements = c.responseElements[:len(c.responseElements)-(lastElemNum+1)]
 }
 
+func (c *Context) resetResponsePathElements() {
+	c.responseElements = nil
+}
 
 func (c *Context) addPathElement(elem []byte) {
 	c.pathElements = append(c.pathElements, elem)
@@ -601,6 +606,9 @@ func (r *Resolver) resolveArray(ctx *Context, array *Array, data []byte, arrayBu
 		return nil
 	}
 
+	ctx.addResponseArrayElements(array.Path)
+	defer ctx.removeResponseArrayLastElements(len(array.Path))
+
 	if array.ResolveAsynchronous && !array.Stream.Enabled {
 		return r.resolveArrayAsynchronous(ctx, array, arrayItems, arrayBuf)
 	}
@@ -808,6 +816,19 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 
 	if len(object.Path) != 0 {
 		data, _, _, _ = jsonparser.Get(data, object.Path...)
+		ctx.addResponseElements(object.Path)
+		defer ctx.removeResponseLastElements(len(object.Path))
+	}
+
+	if object.Fetch != nil {
+		fmt.Println("FETCH Path", string(ctx.path()))
+		fmt.Println("FETCH Data", string(data))
+		fmt.Println("FETCH Object path", object.Path)
+		fmt.Println("FETCH RESPONSE ELEMENTS path", ctx.responseElements)
+	} else {
+		fmt.Println("SIMPLE Path", string(ctx.path()))
+		fmt.Println("SIMPLE Data", string(data))
+		fmt.Println("SIMPLE Object path", object.Path)
 	}
 
 	var set *resultSet
@@ -826,6 +847,9 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 	fieldBuf := r.getBufPair()
 	defer r.freeBufPair(fieldBuf)
 
+	responseElements := ctx.responseElements
+	lastFetchID := ctx.lastFetchID
+
 	typeNameSkip := false
 	first := true
 	for i := range object.Fields {
@@ -835,6 +859,8 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 			buffer, ok := set.buffers[object.Fields[i].BufferID]
 			if ok {
 				fieldData = buffer.Data.Bytes()
+				ctx.resetResponsePathElements()
+				ctx.lastFetchID = object.Fields[i].BufferID
 			}
 		} else {
 			fieldData = data
@@ -861,6 +887,8 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 		ctx.addPathElement(object.Fields[i].Name)
 		err = r.resolveNode(ctx, object.Fields[i].Value, fieldData, fieldBuf)
 		ctx.removeLastPathElement()
+		ctx.responseElements = responseElements
+		ctx.lastFetchID = lastFetchID
 		if err != nil {
 			if errors.Is(err, errTypeNameSkipped) {
 				objectBuf.Data.Reset()
@@ -938,6 +966,7 @@ func (r *Resolver) resolveFetch(ctx *Context, fetch Fetch, data []byte, set *res
 }
 
 func (r *Resolver) prepareSingleFetch(ctx *Context, fetch *SingleFetch, data []byte, set *resultSet, preparedInput *fastbuffer.FastBuffer) (err error) {
+	fmt.Println("Do fetch", string(ctx.path()), "fetch ID", fetch.BufferId)
 	err = fetch.InputTemplate.Render(ctx, data, preparedInput)
 	buf := r.getBufPair()
 	set.buffers[fetch.BufferId] = buf
@@ -1266,6 +1295,10 @@ func (_ *ParallelFetch) FetchKind() FetchKind {
 type BatchFetch struct {
 	Fetch        *SingleFetch
 	PrepareBatch func(inputs ...[]byte) (*BatchInput, error)
+}
+
+func (_ *BatchFetch) FetchKind() FetchKind {
+	return FetchKindBatch
 }
 
 type BatchInput struct {
