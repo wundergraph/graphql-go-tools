@@ -14,6 +14,94 @@ type DataLoader struct {
 	mu      sync.Mutex
 }
 
+// Load @TODO move duplicated code
+func (d *DataLoader) Load(ctx *Context, fetch *SingleFetch) (response []byte, err error) {
+	var fetchResult *FetchResult
+
+	d.mu.Lock()
+	fetchResult, ok := d.fetches[fetch.BufferId]
+	if ok {
+		response, err = fetchResult.result(ctx)
+	} else {
+		fetchResult = &FetchResult{}
+		d.fetches[fetch.BufferId] = fetchResult
+	}
+
+	d.mu.Unlock()
+
+	if err != nil {
+		return nil, err
+	}
+
+	if response != nil {
+		return response, nil
+	}
+
+	buf := fastbuffer.New()
+
+	if fetch.BufferId == 0 { // it must be root query
+		if err := fetch.InputTemplate.Render(ctx, nil, buf); err != nil {
+			return nil, err
+		}
+
+		result, err := d.resolveFetch(ctx, fetch, buf.Bytes())
+		fetchResult.results = [][]byte{result}
+		fetchResult.err = err
+
+		return fetchResult.result(ctx)
+	}
+
+	parentResponses, ok := d.fetches[ctx.lastFetchID]
+	if !ok && fetch.BufferId == 0 { // It must be root ele
+		return nil, fmt.Errorf("has not got fetch for %d", ctx.lastFetchID)
+	}
+
+	args := d.selectedDataForFetch(parentResponses.results, ctx.responseElements...) // TODO rename argument
+
+	wg := sync.WaitGroup{}
+	wg.Add(len(args))
+
+	results := make([][]byte, 0, len(args))
+	resultCh := make(chan struct{ result []byte; err error; pos int}, len(args))
+
+	for i, val := range args {
+		if err := fetch.InputTemplate.Render(ctx, val, buf); err != nil {
+			return nil, err
+		}
+
+		go func(pos int) {
+			result, err := d.resolveFetch(ctx, fetch, buf.Bytes())
+			resultCh <- struct {
+				result []byte
+				err    error
+				pos int
+			}{result: result, err: err, pos: pos}
+
+			wg.Done()
+		}(i)
+
+		buf.Reset()
+	}
+
+	go func() {
+		wg.Wait()
+		close(resultCh)
+	}()
+
+	for res := range resultCh {
+		// @TODO handle error from response
+		if res.err != nil {
+			fetchResult.err = res.err
+		}
+		results[res.pos] = res.result
+	}
+
+	fetchResult.results = results
+
+	return fetchResult.result(ctx)
+}
+
+// LoadBatch @TODO move duplicated code
 func (d *DataLoader) LoadBatch(ctx *Context, batchFetch *BatchFetch) (response []byte, err error) {
 	var fetchResult *FetchResult
 
@@ -45,7 +133,9 @@ func (d *DataLoader) LoadBatch(ctx *Context, batchFetch *BatchFetch) (response [
 	buf := fastbuffer.New()
 
 	for _, val := range d.selectedDataForFetch(parentResponses.results, ctx.responseElements...) {
-		batchFetch.Fetch.InputTemplate.Render(ctx, val, buf)
+		if err := batchFetch.Fetch.InputTemplate.Render(ctx, val, buf); err != nil {
+			return nil, err
+		}
 		buf.Reset()
 	}
 
@@ -54,6 +144,34 @@ func (d *DataLoader) LoadBatch(ctx *Context, batchFetch *BatchFetch) (response [
 	return fetchResult.result(ctx)
 }
 
+// @TODO add handling of error
+func (d *DataLoader) resolveFetch(ctx *Context, fetch *SingleFetch, input []byte) (result []byte, err error) {
+	if ctx.beforeFetchHook != nil {
+		ctx.beforeFetchHook.OnBeforeFetch(d.hookCtx(ctx), input)
+	}
+
+	batchBufferPair := &BufPair{
+		Data:   fastbuffer.New(),
+		Errors: fastbuffer.New(),
+	}
+
+	if err = fetch.DataSource.Load(ctx.Context, input, batchBufferPair); err != nil {
+		return nil, err
+	}
+
+	if ctx.afterFetchHook != nil {
+		if batchBufferPair.HasData() {
+			ctx.afterFetchHook.OnData(d.hookCtx(ctx), batchBufferPair.Data.Bytes(), false)
+		}
+		if batchBufferPair.HasErrors() {
+			ctx.afterFetchHook.OnError(d.hookCtx(ctx), batchBufferPair.Errors.Bytes(), false)
+		}
+	}
+
+	return batchBufferPair.Data.Bytes(), nil
+}
+
+// @TODO add handling of error
 func (d *DataLoader) resolveBatchFetch(ctx *Context, batchFetch *BatchFetch, inputs ...[]byte) (result [][]byte, err error) {
 	batchInput, err := batchFetch.PrepareBatch(inputs...)
 	if err != nil {
