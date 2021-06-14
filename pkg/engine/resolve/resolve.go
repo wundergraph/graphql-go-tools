@@ -95,6 +95,7 @@ type Context struct {
 	currentPatch     int
 	maxPatch         int
 	pathPrefix       []byte
+	dataLoader       *DataLoader
 	beforeFetchHook  BeforeFetchHook
 	afterFetchHook   AfterFetchHook
 }
@@ -113,6 +114,7 @@ func NewContext(ctx context.Context) *Context {
 		usedBuffers:  make([]*bytes.Buffer, 0, 48),
 		currentPatch: -1,
 		maxPatch:     -1,
+		dataLoader:   NewDataLoader(),
 	}
 }
 
@@ -131,6 +133,7 @@ func (c *Context) Free() {
 	c.beforeFetchHook = nil
 	c.afterFetchHook = nil
 	c.Request.Header = nil
+	c.dataLoader = NewDataLoader()
 }
 
 func (c *Context) SetBeforeFetchHook(hook BeforeFetchHook) {
@@ -928,6 +931,7 @@ func (r *Resolver) freeResultSet(set *resultSet) {
 }
 
 func (r *Resolver) resolveFetch(ctx *Context, fetch Fetch, data []byte, set *resultSet) (err error) {
+
 	switch f := fetch.(type) {
 	case *SingleFetch:
 		preparedInput := r.getBufPair()
@@ -937,44 +941,99 @@ func (r *Resolver) resolveFetch(ctx *Context, fetch Fetch, data []byte, set *res
 			return err
 		}
 		err = r.resolveSingleFetch(ctx, f, preparedInput.Data, set.buffers[f.BufferId])
+	case *BatchFetch:
+		preparedInput := r.getBufPair()
+		defer r.freeBufPair(preparedInput)
+		err = r.prepareSingleFetch(ctx, f.Fetch, data, set, preparedInput.Data)
+		if err != nil {
+			return err
+		}
+		err = r.resolveBatchFetch(ctx, f, preparedInput.Data, set.buffers[f.Fetch.BufferId])
 	case *ParallelFetch:
-		preparedInputs := r.getBufPairSlice()
-		defer r.freeBufPairSlice(preparedInputs)
-		for i := range f.Fetches {
-			preparedInput := r.getBufPair()
-			err = r.prepareSingleFetch(ctx, f.Fetches[i], data, set, preparedInput.Data)
-			if err != nil {
-				return err
-			}
-			*preparedInputs = append(*preparedInputs, preparedInput)
-		}
-		wg := r.getWaitGroup()
-		defer r.freeWaitGroup(wg)
-		for i := range f.Fetches {
-			preparedInput := (*preparedInputs)[i]
-			singleFetch := f.Fetches[i]
-			buf := set.buffers[f.Fetches[i].BufferId]
-			wg.Add(1)
-			go func(s *SingleFetch, buf *BufPair) {
-				_ = r.resolveSingleFetch(ctx, s, preparedInput.Data, buf)
-				wg.Done()
-			}(singleFetch, buf)
-		}
-		wg.Wait()
+		r.resolveParallelFetch(ctx, f, data, set)
 	}
 	return
 }
 
+// TODO try to make resolveFetch recursive
+func (r *Resolver) resolveParallelFetch(ctx *Context, fetch *ParallelFetch, data []byte, set *resultSet) (err error) {
+	preparedInputs := r.getBufPairSlice()
+	defer r.freeBufPairSlice(preparedInputs)
+
+	resolvers := make([]func() error, 0, len(fetch.Fetches))
+
+	wg := r.getWaitGroup()
+	defer r.freeWaitGroup(wg)
+
+	for i := range fetch.Fetches {
+		wg.Add(1)
+		switch f := fetch.Fetches[i].(type) {
+		case *SingleFetch:
+			preparedInput := r.getBufPair()
+			err = r.prepareSingleFetch(ctx, f, data, set, preparedInput.Data)
+			if err != nil {
+				return err
+			}
+			*preparedInputs = append(*preparedInputs, preparedInput)
+			buf := set.buffers[f.BufferId]
+			resolvers = append(resolvers, func() error {
+				return r.resolveSingleFetch(ctx, f, preparedInput.Data, buf)
+			})
+		case *BatchFetch:
+			preparedInput := r.getBufPair()
+			err = r.prepareSingleFetch(ctx, f.Fetch, data, set, preparedInput.Data)
+			if err != nil {
+				return err
+			}
+			*preparedInputs = append(*preparedInputs, preparedInput)
+			buf := set.buffers[f.Fetch.BufferId]
+			resolvers = append(resolvers, func() error {
+				return r.resolveBatchFetch(ctx, f, preparedInput.Data, buf)
+			})
+		}
+	}
+
+	for _, resolver := range resolvers {
+		go func(r func() error) {
+			_ = resolver() // @TODO handle error
+			wg.Done()
+		}(resolver)
+	}
+
+	wg.Wait()
+
+	return nil
+}
+
 func (r *Resolver) prepareSingleFetch(ctx *Context, fetch *SingleFetch, data []byte, set *resultSet, preparedInput *fastbuffer.FastBuffer) (err error) {
-	fmt.Println("Do fetch", string(ctx.path()), "fetch ID", fetch.BufferId)
 	err = fetch.InputTemplate.Render(ctx, data, preparedInput)
 	buf := r.getBufPair()
 	set.buffers[fetch.BufferId] = buf
 	return
 }
 
-func (r *Resolver) resolveSingleFetch(ctx *Context, fetch *SingleFetch, preparedInput *fastbuffer.FastBuffer, buf *BufPair) (err error) {
+func (r *Resolver) resolveBatchFetch(ctx *Context, fetch *BatchFetch, preparedInput *fastbuffer.FastBuffer, buf *BufPair) error {
+	resp, err := ctx.dataLoader.LoadBatch(ctx, fetch)
+	if err != nil {
+		return err
+	}
 
+	buf.Data.WriteBytes(resp)
+	return nil
+	//return ctx.getDataLoader(fetch).Load(ctx, preparedInput.Bytes(), buf)
+}
+
+func (r *Resolver) resolveSingleFetch(ctx *Context, fetch *SingleFetch, preparedInput *fastbuffer.FastBuffer, buf *BufPair) (err error) {
+	resp, err := ctx.dataLoader.Load(ctx, fetch)
+	if err != nil {
+		return err
+	}
+
+	buf.Data.WriteBytes(resp)
+	return nil
+}
+
+func (r *Resolver) resolveSingleFetch2(ctx *Context, fetch *SingleFetch, preparedInput *fastbuffer.FastBuffer, buf *BufPair) (err error) {
 	if ctx.beforeFetchHook != nil {
 		ctx.beforeFetchHook.OnBeforeFetch(r.hookCtx(ctx), preparedInput.Bytes())
 	}
@@ -1285,7 +1344,7 @@ func (_ *SingleFetch) FetchKind() FetchKind {
 }
 
 type ParallelFetch struct {
-	Fetches []*SingleFetch
+	Fetches []Fetch
 }
 
 func (_ *ParallelFetch) FetchKind() FetchKind {

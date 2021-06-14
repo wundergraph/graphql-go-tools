@@ -9,9 +9,16 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/fastbuffer"
 )
 
+func NewDataLoader() *DataLoader {
+	return &DataLoader{
+		fetches: map[int]*FetchResult{},
+		mu:      &sync.Mutex{},
+	}
+}
+
 type DataLoader struct {
 	fetches map[int]*FetchResult
-	mu      sync.Mutex
+	mu      *sync.Mutex
 }
 
 // Load @TODO move duplicated code
@@ -62,7 +69,11 @@ func (d *DataLoader) Load(ctx *Context, fetch *SingleFetch) (response []byte, er
 	wg.Add(len(args))
 
 	results := make([][]byte, 0, len(args))
-	resultCh := make(chan struct{ result []byte; err error; pos int}, len(args))
+	resultCh := make(chan struct {
+		result []byte
+		err    error
+		pos    int
+	}, len(args))
 
 	for i, val := range args {
 		if err := fetch.InputTemplate.Render(ctx, val, buf); err != nil {
@@ -74,7 +85,7 @@ func (d *DataLoader) Load(ctx *Context, fetch *SingleFetch) (response []byte, er
 			resultCh <- struct {
 				result []byte
 				err    error
-				pos int
+				pos    int
 			}{result: result, err: err, pos: pos}
 
 			wg.Done()
@@ -130,13 +141,14 @@ func (d *DataLoader) LoadBatch(ctx *Context, batchFetch *BatchFetch) (response [
 	}
 
 	var inputs [][]byte
-	buf := fastbuffer.New()
 
 	for _, val := range d.selectedDataForFetch(parentResponses.results, ctx.responseElements...) {
+		buf := fastbuffer.New()
 		if err := batchFetch.Fetch.InputTemplate.Render(ctx, val, buf); err != nil {
 			return nil, err
 		}
-		buf.Reset()
+
+		inputs = append(inputs, buf.Bytes())
 	}
 
 	fetchResult.results, fetchResult.err = d.resolveBatchFetch(ctx, batchFetch, inputs...)
@@ -203,7 +215,7 @@ func (d *DataLoader) resolveBatchFetch(ctx *Context, batchFetch *BatchFetch, inp
 	}
 
 	var outPosition int
-	result = make([][]byte, 0, len(inputs))
+	result = make([][]byte, len(inputs))
 
 	_, err = jsonparser.ArrayEach(batchBufferPair.Data.Bytes(), func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
 		inputPositions := batchInput.OutToInPositions[outPosition]

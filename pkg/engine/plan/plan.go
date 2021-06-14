@@ -102,7 +102,7 @@ type PlannerFactory interface {
 	// Once the Closer gets closed, all stateful DataSources must close their connections and cleanup themselves.
 	// They can do so by starting a goroutine on instantiation time that blocking reads on the resolve.Closer.
 	// Once the Closer emits the close event, they have to terminate (e.g. close database connections).
-	Planner(closer <- chan struct{}) DataSourcePlanner
+	Planner(closer <-chan struct{}) DataSourcePlanner
 }
 
 type TypeField struct {
@@ -120,7 +120,7 @@ type FieldMapping struct {
 // NewPlanner creates a new Planner from the Configuration as well as the resolve.Closer
 // The resolve.Closer will be closed when the engine is no longer being used.
 // This allows all stateful DataSources to shutdown and cleanup their memory.
-func NewPlanner(config Configuration, closer <- chan struct{}) *Planner {
+func NewPlanner(config Configuration, closer <-chan struct{}) *Planner {
 
 	// required fields pre-processing
 
@@ -746,8 +746,14 @@ func (v *Visitor) configureObjectFetch(config objectFetchConfiguration) {
 		return
 	}
 	fetchConfig := config.planner.ConfigureFetch()
-	fetch := v.configureSingleFetch(config, fetchConfig)
-	v.resolveInputTemplates(config, &fetch.Input, &fetch.Variables)
+	fetch := v.configureFetch(config, fetchConfig)
+
+	switch f := fetch.(type) {
+	case *resolve.SingleFetch:
+		v.resolveInputTemplates(config, &f.Input, &f.Variables)
+	case *resolve.BatchFetch:
+		v.resolveInputTemplates(config, &f.Fetch.Input, &f.Fetch.Variables)
+	}
 	if config.object.Fetch == nil {
 		config.object.Fetch = fetch
 		return
@@ -756,7 +762,13 @@ func (v *Visitor) configureObjectFetch(config objectFetchConfiguration) {
 	case *resolve.SingleFetch:
 		copyOfExisting := *existing
 		parallel := &resolve.ParallelFetch{
-			Fetches: []*resolve.SingleFetch{&copyOfExisting, fetch},
+			Fetches: []resolve.Fetch{&copyOfExisting, fetch},
+		}
+		config.object.Fetch = parallel
+	case *resolve.BatchFetch:
+		copyOfExisting := *existing
+		parallel := &resolve.ParallelFetch{
+			Fetches: []resolve.Fetch{&copyOfExisting, fetch},
 		}
 		config.object.Fetch = parallel
 	case *resolve.ParallelFetch:
@@ -764,13 +776,22 @@ func (v *Visitor) configureObjectFetch(config objectFetchConfiguration) {
 	}
 }
 
-func (v *Visitor) configureSingleFetch(internal objectFetchConfiguration, external FetchConfiguration) *resolve.SingleFetch {
-	return &resolve.SingleFetch{
+func (v *Visitor) configureFetch(internal objectFetchConfiguration, external FetchConfiguration) resolve.Fetch {
+	singleFetch := &resolve.SingleFetch{
 		BufferId:             internal.bufferID,
 		Input:                external.Input,
 		DataSource:           external.DataSource,
 		Variables:            external.Variables,
 		DisallowSingleFlight: external.DisallowSingleFlight,
+	}
+
+	if !external.BatchFetchConfiguration.Enabled {
+		return singleFetch
+	}
+
+	return &resolve.BatchFetch{
+		Fetch:        singleFetch,
+		PrepareBatch: external.BatchFetchConfiguration.PrepareBatch,
 	}
 }
 
@@ -884,10 +905,16 @@ type SubscriptionConfiguration struct {
 }
 
 type FetchConfiguration struct {
-	Input                string
-	Variables            resolve.Variables
-	DataSource           resolve.DataSource
-	DisallowSingleFlight bool
+	Input                   string
+	Variables               resolve.Variables
+	DataSource              resolve.DataSource
+	DisallowSingleFlight    bool
+	BatchFetchConfiguration BatchFetchConfiguration
+}
+
+type BatchFetchConfiguration struct {
+	Enabled      bool
+	PrepareBatch func(inputs ...[]byte) (*resolve.BatchInput, error)
 }
 
 type configurationVisitor struct {
@@ -900,7 +927,7 @@ type configurationVisitor struct {
 	currentBufferId       int
 	fieldBuffers          map[int]int
 
-	closer <- chan struct{}
+	closer <-chan struct{}
 }
 
 type plannerConfiguration struct {
