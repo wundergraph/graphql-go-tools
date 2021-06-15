@@ -9,28 +9,40 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/fastbuffer"
 )
 
-func NewDataLoader() *DataLoader {
+const initialValueID = -1
+
+func NewDataLoader(initialValue []byte) *DataLoader { // initial value represent data from subscription
+	fetches := make(map[int]*batchState)
+
+	if initialValue != nil {
+		fetches[initialValueID] = &batchState{
+			nextIdx: 0,
+			err:     nil,
+			results: [][]byte{initialValue},
+		}
+	}
+
 	return &DataLoader{
-		fetches: map[int]*FetchResult{},
+		fetches: fetches,
 		mu:      &sync.Mutex{},
 	}
 }
 
 type DataLoader struct {
-	fetches map[int]*FetchResult
+	fetches map[int]*batchState
 	mu      *sync.Mutex
 }
 
 // Load @TODO move duplicated code
 func (d *DataLoader) Load(ctx *Context, fetch *SingleFetch) (response []byte, err error) {
-	var fetchResult *FetchResult
+	var fetchResult *batchState
 
 	d.mu.Lock()
 	fetchResult, ok := d.fetches[fetch.BufferId]
 	if ok {
-		response, err = fetchResult.result(ctx)
+		response, err = fetchResult.next(ctx)
 	} else {
-		fetchResult = &FetchResult{}
+		fetchResult = &batchState{}
 		d.fetches[fetch.BufferId] = fetchResult
 	}
 
@@ -51,15 +63,15 @@ func (d *DataLoader) Load(ctx *Context, fetch *SingleFetch) (response []byte, er
 			return nil, err
 		}
 
-		result, err := d.resolveFetch(ctx, fetch, buf.Bytes())
+		result, err := d.resolveSingleFetch(ctx, fetch, buf.Bytes())
 		fetchResult.results = [][]byte{result}
 		fetchResult.err = err
 
-		return fetchResult.result(ctx)
+		return fetchResult.next(ctx)
 	}
 
 	parentResponses, ok := d.fetches[ctx.lastFetchID]
-	if !ok && fetch.BufferId == 0 { // It must be root ele
+	if !ok && fetch.BufferId == 0 { // It's impossible case
 		return nil, fmt.Errorf("has not got fetch for %d", ctx.lastFetchID)
 	}
 
@@ -81,7 +93,7 @@ func (d *DataLoader) Load(ctx *Context, fetch *SingleFetch) (response []byte, er
 		}
 
 		go func(pos int) {
-			result, err := d.resolveFetch(ctx, fetch, buf.Bytes())
+			result, err := d.resolveSingleFetch(ctx, fetch, buf.Bytes())
 			resultCh <- struct {
 				result []byte
 				err    error
@@ -100,7 +112,6 @@ func (d *DataLoader) Load(ctx *Context, fetch *SingleFetch) (response []byte, er
 	}()
 
 	for res := range resultCh {
-		// @TODO handle error from response
 		if res.err != nil {
 			fetchResult.err = res.err
 		}
@@ -109,19 +120,19 @@ func (d *DataLoader) Load(ctx *Context, fetch *SingleFetch) (response []byte, er
 
 	fetchResult.results = results
 
-	return fetchResult.result(ctx)
+	return fetchResult.next(ctx)
 }
 
 // LoadBatch @TODO move duplicated code
 func (d *DataLoader) LoadBatch(ctx *Context, batchFetch *BatchFetch) (response []byte, err error) {
-	var fetchResult *FetchResult
+	var fetchResult *batchState
 
 	d.mu.Lock()
 	fetchResult, ok := d.fetches[batchFetch.Fetch.BufferId]
 	if ok {
-		response, err = fetchResult.result(ctx)
+		response, err = fetchResult.next(ctx)
 	} else {
-		fetchResult = &FetchResult{}
+		fetchResult = &batchState{}
 		d.fetches[batchFetch.Fetch.BufferId] = fetchResult
 	}
 
@@ -153,15 +164,16 @@ func (d *DataLoader) LoadBatch(ctx *Context, batchFetch *BatchFetch) (response [
 
 	fetchResult.results, fetchResult.err = d.resolveBatchFetch(ctx, batchFetch, inputs...)
 
-	return fetchResult.result(ctx)
+	return fetchResult.next(ctx)
 }
 
 // @TODO add handling of error
-func (d *DataLoader) resolveFetch(ctx *Context, fetch *SingleFetch, input []byte) (result []byte, err error) {
+func (d *DataLoader) resolveSingleFetch(ctx *Context, fetch *SingleFetch, input []byte) (result []byte, err error) {
 	if ctx.beforeFetchHook != nil {
 		ctx.beforeFetchHook.OnBeforeFetch(d.hookCtx(ctx), input)
 	}
 
+	// @TODO use pool of pairs
 	batchBufferPair := &BufPair{
 		Data:   fastbuffer.New(),
 		Errors: fastbuffer.New(),
@@ -192,32 +204,12 @@ func (d *DataLoader) resolveBatchFetch(ctx *Context, batchFetch *BatchFetch, inp
 
 	fmt.Println("batch request", string(batchInput.Input))
 
-	if ctx.beforeFetchHook != nil {
-		ctx.beforeFetchHook.OnBeforeFetch(d.hookCtx(ctx), batchInput.Input)
-	}
-
-	batchBufferPair := &BufPair{
-		Data:   fastbuffer.New(),
-		Errors: fastbuffer.New(),
-	}
-
-	if err = batchFetch.Fetch.DataSource.Load(ctx.Context, batchInput.Input, batchBufferPair); err != nil {
-		return nil, err
-	}
-
-	if ctx.afterFetchHook != nil {
-		if batchBufferPair.HasData() {
-			ctx.afterFetchHook.OnData(d.hookCtx(ctx), batchBufferPair.Data.Bytes(), false)
-		}
-		if batchBufferPair.HasErrors() {
-			ctx.afterFetchHook.OnError(d.hookCtx(ctx), batchBufferPair.Errors.Bytes(), false)
-		}
-	}
+	response, err := d.resolveSingleFetch(ctx, batchFetch.Fetch, batchInput.Input)
 
 	var outPosition int
 	result = make([][]byte, len(inputs))
 
-	_, err = jsonparser.ArrayEach(batchBufferPair.Data.Bytes(), func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+	_, err = jsonparser.ArrayEach(response, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
 		inputPositions := batchInput.OutToInPositions[outPosition]
 
 		for _, pos := range inputPositions {
@@ -239,7 +231,7 @@ func (d *DataLoader) hookCtx(ctx *Context) HookContext {
 	}
 }
 
-// @TODO fix performance
+// @TODO possible performance issue, try to use loop instead of recursion
 func (d *DataLoader) selectedDataForFetch(input [][]byte, path ...string) [][]byte {
 	if len(path) == 0 {
 		return input
@@ -248,18 +240,15 @@ func (d *DataLoader) selectedDataForFetch(input [][]byte, path ...string) [][]by
 	current, rest := path[0], path[1:]
 
 	if current == "@" {
-		temp := make([][]byte, 0, len(input))
-
-		for i := range input {
+		return flatMap(input, func(val []byte) [][]byte {
 			var vals [][]byte
-			jsonparser.ArrayEach(input[i], func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+			// @TODO handle error
+			_, _ = jsonparser.ArrayEach(val, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
 				vals = append(vals, value)
 			})
 
-			temp = append(temp, d.selectedDataForFetch(vals, rest...)...)
-		}
-
-		return temp
+			return d.selectedDataForFetch(vals, rest...)
+		})
 	}
 
 	temp := make([][]byte, 0, len(input))
@@ -275,13 +264,14 @@ func (d *DataLoader) selectedDataForFetch(input [][]byte, path ...string) [][]by
 	return d.selectedDataForFetch(temp, rest...)
 }
 
-type FetchResult struct {
+type batchState struct {
 	nextIdx int
+
 	err     error
 	results [][]byte
 }
 
-func (f *FetchResult) result(ctx *Context) ([]byte, error) {
+func (f *batchState) next(ctx *Context) ([]byte, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -291,4 +281,14 @@ func (f *FetchResult) result(ctx *Context) ([]byte, error) {
 	f.nextIdx++
 
 	return res, nil
+}
+
+func flatMap(input [][]byte, f func(val []byte) [][]byte) [][]byte {
+	var result [][]byte
+
+	for i := range input {
+		result = append(result, f(input[i])...)
+	}
+
+	return result
 }

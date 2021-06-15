@@ -114,7 +114,7 @@ func NewContext(ctx context.Context) *Context {
 		usedBuffers:  make([]*bytes.Buffer, 0, 48),
 		currentPatch: -1,
 		maxPatch:     -1,
-		dataLoader:   NewDataLoader(),
+		dataLoader:   nil,
 	}
 }
 
@@ -133,7 +133,7 @@ func (c *Context) Free() {
 	c.beforeFetchHook = nil
 	c.afterFetchHook = nil
 	c.Request.Header = nil
-	c.dataLoader = NewDataLoader()
+	c.dataLoader = nil
 }
 
 func (c *Context) SetBeforeFetchHook(hook BeforeFetchHook) {
@@ -367,6 +367,10 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	buf := r.getBufPair()
 	defer r.freeBufPair(buf)
 
+	if data != nil {
+		ctx.lastFetchID = initialValueID
+	}
+	ctx.dataLoader = NewDataLoader(data)
 	err = r.resolveNode(ctx, response.Data, data, buf)
 	if err != nil {
 		return
