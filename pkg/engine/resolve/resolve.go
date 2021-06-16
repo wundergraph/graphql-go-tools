@@ -95,7 +95,7 @@ type Context struct {
 	currentPatch     int
 	maxPatch         int
 	pathPrefix       []byte
-	dataLoader       *DataLoader
+	dataLoader       *dataLoader
 	beforeFetchHook  BeforeFetchHook
 	afterFetchHook   AfterFetchHook
 }
@@ -229,16 +229,17 @@ type DataSource interface {
 type Resolver struct {
 	EnableSingleFlightLoader bool
 	resultSetPool            sync.Pool
-	byteSlicesPool           sync.Pool
-	waitGroupPool            sync.Pool
-	bufPairPool              sync.Pool
-	bufPairSlicePool         sync.Pool
-	errChanPool              sync.Pool
-	hash64Pool               sync.Pool
-	inflightFetchPool        sync.Pool
-	inflightFetchMu          sync.Mutex
-	inflightFetches          map[uint64]*inflightFetch
-	triggerManagers          map[uint64]*subscription.Manager
+	byteSlicesPool    sync.Pool
+	waitGroupPool     sync.Pool
+	bufPairPool       sync.Pool
+	bufPairSlicePool  sync.Pool
+	errChanPool       sync.Pool
+	hash64Pool        sync.Pool
+	inflightFetchPool sync.Pool
+	inflightFetchMu   sync.Mutex
+	inflightFetches   map[uint64]*inflightFetch
+	triggerManagers   map[uint64]*subscription.Manager
+	dataloaderFactory *dataloaderFactory
 }
 
 func (r *Resolver) RegisterTriggerManager(m *subscription.Manager) {
@@ -311,8 +312,9 @@ func New() *Resolver {
 				}
 			},
 		},
-		inflightFetches: map[uint64]*inflightFetch{},
-		triggerManagers: map[uint64]*subscription.Manager{},
+		inflightFetches:   map[uint64]*inflightFetch{},
+		triggerManagers:   map[uint64]*subscription.Manager{},
+		dataloaderFactory: newDataloaderFactory(),
 	}
 }
 
@@ -370,7 +372,12 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	if data != nil {
 		ctx.lastFetchID = initialValueID
 	}
-	ctx.dataLoader = NewDataLoader(data)
+	ctx.dataLoader = r.dataloaderFactory.newDataLoader(r, data)
+	defer func() {
+		r.dataloaderFactory.freeDataLoader(ctx.dataLoader)
+		ctx.dataLoader = nil
+	}()
+
 	err = r.resolveNode(ctx, response.Data, data, buf)
 	if err != nil {
 		return
@@ -1024,7 +1031,6 @@ func (r *Resolver) resolveBatchFetch(ctx *Context, fetch *BatchFetch, preparedIn
 
 	buf.Data.WriteBytes(resp)
 	return nil
-	//return ctx.getDataLoader(fetch).Load(ctx, preparedInput.Bytes(), buf)
 }
 
 func (r *Resolver) resolveSingleFetch(ctx *Context, fetch *SingleFetch, preparedInput *fastbuffer.FastBuffer, buf *BufPair) (err error) {
@@ -1037,13 +1043,14 @@ func (r *Resolver) resolveSingleFetch(ctx *Context, fetch *SingleFetch, prepared
 	return nil
 }
 
-func (r *Resolver) resolveSingleFetch2(ctx *Context, fetch *SingleFetch, preparedInput *fastbuffer.FastBuffer, buf *BufPair) (err error) {
+// it seems Resolver is not suitable place for the method.
+func (r *Resolver) fetch(ctx *Context, fetch *SingleFetch, preparedInput []byte, buf *BufPair) (err error) {
 	if ctx.beforeFetchHook != nil {
-		ctx.beforeFetchHook.OnBeforeFetch(r.hookCtx(ctx), preparedInput.Bytes())
+		ctx.beforeFetchHook.OnBeforeFetch(r.hookCtx(ctx), preparedInput)
 	}
 
 	if !r.EnableSingleFlightLoader || fetch.DisallowSingleFlight {
-		err = fetch.DataSource.Load(ctx.Context, preparedInput.Bytes(), buf)
+		err = fetch.DataSource.Load(ctx.Context, preparedInput, buf)
 		if ctx.afterFetchHook != nil {
 			if buf.HasData() {
 				ctx.afterFetchHook.OnData(r.hookCtx(ctx), buf.Data.Bytes(), false)
@@ -1057,7 +1064,7 @@ func (r *Resolver) resolveSingleFetch2(ctx *Context, fetch *SingleFetch, prepare
 
 	hash64 := r.getHash64()
 	_, _ = hash64.Write(fetch.DataSource.UniqueIdentifier())
-	_, _ = hash64.Write(preparedInput.Bytes())
+	_, _ = hash64.Write(preparedInput)
 	fetchID := hash64.Sum64()
 	r.putHash64(hash64)
 
@@ -1089,7 +1096,7 @@ func (r *Resolver) resolveSingleFetch2(ctx *Context, fetch *SingleFetch, prepare
 
 	r.inflightFetchMu.Unlock()
 
-	err = fetch.DataSource.Load(ctx.Context, preparedInput.Bytes(), &inflight.bufPair)
+	err = fetch.DataSource.Load(ctx.Context, preparedInput, &inflight.bufPair)
 	inflight.err = err
 
 	if inflight.bufPair.HasData() {

@@ -11,205 +11,223 @@ import (
 
 const initialValueID = -1
 
-func NewDataLoader(initialValue []byte) *DataLoader { // initial value represent data from subscription
-	fetches := make(map[int]*batchState)
+type fetcher interface {
+	fetch(ctx *Context, fetch *SingleFetch, preparedInput []byte, buf *BufPair) (err error)
+}
+
+type dataloaderFactory struct {
+	dataloaderPool   sync.Pool
+	muPool           sync.Pool
+	waitGroupPool    sync.Pool
+	bufPairPool      sync.Pool
+	bufPairSlicePool sync.Pool
+}
+
+func (df *dataloaderFactory) getWaitGroup() *sync.WaitGroup {
+	return df.waitGroupPool.Get().(*sync.WaitGroup)
+}
+
+func (df *dataloaderFactory) freeWaitGroup(wg *sync.WaitGroup) {
+	df.waitGroupPool.Put(wg)
+}
+
+func (df *dataloaderFactory) getBufPairSlicePool() *[]*BufPair {
+	return df.bufPairSlicePool.Get().(*[]*BufPair)
+}
+
+func (df *dataloaderFactory) freeBufPairSlice(slice *[]*BufPair) {
+	for i := range *slice {
+		df.freeBufPair((*slice)[i])
+	}
+	*slice = (*slice)[:0]
+	df.bufPairSlicePool.Put(slice)
+}
+
+func (df *dataloaderFactory) getBufPair() *BufPair {
+	return df.bufPairPool.Get().(*BufPair)
+}
+
+func (df *dataloaderFactory) freeBufPair(pair *BufPair) {
+	pair.Data.Reset()
+	pair.Errors.Reset()
+	df.bufPairPool.Put(pair)
+}
+
+func (df *dataloaderFactory) getMutex() *sync.Mutex {
+	return df.muPool.Get().(*sync.Mutex)
+}
+
+func (df *dataloaderFactory) freeMutex(mu *sync.Mutex) {
+	df.muPool.Put(mu)
+}
+
+func newDataloaderFactory() *dataloaderFactory {
+	return &dataloaderFactory{
+		muPool: sync.Pool{
+			New: func() interface{} {
+				return &sync.Mutex{}
+			},
+		},
+		waitGroupPool: sync.Pool{
+			New: func() interface{} {
+				return &sync.WaitGroup{}
+			},
+		},
+		bufPairPool: sync.Pool{
+			New: func() interface{} {
+				pair := BufPair{
+					Data:   fastbuffer.New(),
+					Errors: fastbuffer.New(),
+				}
+				return &pair
+			},
+		},
+		bufPairSlicePool: sync.Pool{
+			New: func() interface{} {
+				slice := make([]*BufPair, 0, 24)
+				return &slice
+			},
+		},
+		dataloaderPool: sync.Pool{
+			New: func() interface{} {
+				return &dataLoader{
+					fetches:      make(map[int]*batchState),
+					inUseBufPair: make([]*BufPair, 0, 8),
+				}
+			},
+		},
+	}
+}
+
+func (df *dataloaderFactory) newDataLoader(fetcher fetcher, initialValue []byte) *dataLoader { // initial value represent data from subscription
+	dataloader := df.dataloaderPool.Get().(*dataLoader)
 
 	if initialValue != nil {
-		fetches[initialValueID] = &batchState{
+		dataloader.fetches[initialValueID] = &batchState{
 			nextIdx: 0,
 			err:     nil,
 			results: [][]byte{initialValue},
 		}
 	}
 
-	return &DataLoader{
-		fetches: fetches,
-		mu:      &sync.Mutex{},
+	dataloader.fetcher = fetcher
+	dataloader.resourceProvider = df
+	dataloader.mu = df.getMutex()
+
+	return dataloader
+}
+
+func (df *dataloaderFactory) freeDataLoader(d *dataLoader) {
+	for _, pair := range d.inUseBufPair {
+		d.resourceProvider.freeBufPair(pair)
 	}
+
+	d.resourceProvider.freeMutex(d.mu)
+
+	d.inUseBufPair = d.inUseBufPair[:0]
+	d.fetches = nil
 }
 
-type DataLoader struct {
-	fetches map[int]*batchState
-	mu      *sync.Mutex
+type dataLoader struct {
+	fetches          map[int]*batchState
+	mu               *sync.Mutex
+	fetcher          fetcher
+	resourceProvider *dataloaderFactory
+
+	inUseBufPair []*BufPair
 }
 
-// Load @TODO move duplicated code
-func (d *DataLoader) Load(ctx *Context, fetch *SingleFetch) (response []byte, err error) {
+func (d *dataLoader) Load(ctx *Context, fetch *SingleFetch) (response []byte, err error) {
 	var fetchResult *batchState
 
-	d.mu.Lock()
-	fetchResult, ok := d.fetches[fetch.BufferId]
+	fetchResult, ok := d.getFetchState(fetch.BufferId)
 	if ok {
-		response, err = fetchResult.next(ctx)
-	} else {
-		fetchResult = &batchState{}
-		d.fetches[fetch.BufferId] = fetchResult
+		return fetchResult.next(ctx)
 	}
 
-	d.mu.Unlock()
+	fetchResult = &batchState{}
 
-	if err != nil {
-		return nil, err
-	}
+	parentResult, ok := d.getFetchState(ctx.lastFetchID)
 
-	if response != nil {
-		return response, nil
-	}
+	if !ok { // it must be root query without subscription data
+		buf := d.resourceProvider.getBufPair()
+		defer d.resourceProvider.freeBufPair(buf)
 
-	buf := fastbuffer.New()
-
-	if fetch.BufferId == 0 { // it must be root query
-		if err := fetch.InputTemplate.Render(ctx, nil, buf); err != nil {
+		if err := fetch.InputTemplate.Render(ctx, nil, buf.Data); err != nil {
 			return nil, err
 		}
 
-		result, err := d.resolveSingleFetch(ctx, fetch, buf.Bytes())
-		fetchResult.results = [][]byte{result}
+		pair := d.getResultBufPair()
+		err := d.fetcher.fetch(ctx, fetch, buf.Data.Bytes(), pair)
+		fetchResult.results = [][]byte{pair.Data.Bytes()}
 		fetchResult.err = err
+
+		d.setFetchState(fetchResult, fetch.BufferId)
 
 		return fetchResult.next(ctx)
 	}
 
-	parentResponses, ok := d.fetches[ctx.lastFetchID]
-	if !ok && fetch.BufferId == 0 { // It's impossible case
-		return nil, fmt.Errorf("has not got fetch for %d", ctx.lastFetchID)
-	}
+	fetchParams := d.selectedDataForFetch(parentResult.results, ctx.responseElements...)
+	fetchResult.results, fetchResult.err = d.resolveSingleFetch(ctx, fetch, fetchParams)
 
-	args := d.selectedDataForFetch(parentResponses.results, ctx.responseElements...) // TODO rename argument
-
-	wg := sync.WaitGroup{}
-	wg.Add(len(args))
-
-	results := make([][]byte, 0, len(args))
-	resultCh := make(chan struct {
-		result []byte
-		err    error
-		pos    int
-	}, len(args))
-
-	for i, val := range args {
-		if err := fetch.InputTemplate.Render(ctx, val, buf); err != nil {
-			return nil, err
-		}
-
-		go func(pos int) {
-			result, err := d.resolveSingleFetch(ctx, fetch, buf.Bytes())
-			resultCh <- struct {
-				result []byte
-				err    error
-				pos    int
-			}{result: result, err: err, pos: pos}
-
-			wg.Done()
-		}(i)
-
-		buf.Reset()
-	}
-
-	go func() {
-		wg.Wait()
-		close(resultCh)
-	}()
-
-	for res := range resultCh {
-		if res.err != nil {
-			fetchResult.err = res.err
-		}
-		results[res.pos] = res.result
-	}
-
-	fetchResult.results = results
+	d.setFetchState(fetchResult, fetch.BufferId)
 
 	return fetchResult.next(ctx)
 }
 
-// LoadBatch @TODO move duplicated code
-func (d *DataLoader) LoadBatch(ctx *Context, batchFetch *BatchFetch) (response []byte, err error) {
+func (d *dataLoader) LoadBatch(ctx *Context, batchFetch *BatchFetch) (response []byte, err error) {
 	var fetchResult *batchState
 
-	d.mu.Lock()
-	fetchResult, ok := d.fetches[batchFetch.Fetch.BufferId]
+	fetchResult, ok := d.getFetchState(batchFetch.Fetch.BufferId)
 	if ok {
-		response, err = fetchResult.next(ctx)
-	} else {
-		fetchResult = &batchState{}
-		d.fetches[batchFetch.Fetch.BufferId] = fetchResult
+		return fetchResult.next(ctx)
 	}
 
-	d.mu.Unlock()
+	fetchResult = &batchState{}
 
-	if err != nil {
-		return nil, err
-	}
-
-	if response != nil {
-		return response, nil
-	}
-
-	parentResponses, ok := d.fetches[ctx.lastFetchID]
-	if !ok { // It must be impossible case
+	parentResult, ok := d.getFetchState(ctx.lastFetchID)
+	if !ok {
 		return nil, fmt.Errorf("has not got fetch for %d", ctx.lastFetchID)
 	}
 
-	var inputs [][]byte
+	fetchParams := d.selectedDataForFetch(parentResult.results, ctx.responseElements...)
+	fetchResult.results, fetchResult.err = d.resolveBatchFetch(ctx, batchFetch, fetchParams)
 
-	for _, val := range d.selectedDataForFetch(parentResponses.results, ctx.responseElements...) {
-		buf := fastbuffer.New()
-		if err := batchFetch.Fetch.InputTemplate.Render(ctx, val, buf); err != nil {
-			return nil, err
-		}
-
-		inputs = append(inputs, buf.Bytes())
-	}
-
-	fetchResult.results, fetchResult.err = d.resolveBatchFetch(ctx, batchFetch, inputs...)
+	d.setFetchState(fetchResult, batchFetch.Fetch.BufferId)
 
 	return fetchResult.next(ctx)
 }
 
-// @TODO add handling of error
-func (d *DataLoader) resolveSingleFetch(ctx *Context, fetch *SingleFetch, input []byte) (result []byte, err error) {
-	if ctx.beforeFetchHook != nil {
-		ctx.beforeFetchHook.OnBeforeFetch(d.hookCtx(ctx), input)
-	}
+func (d *dataLoader) resolveBatchFetch(ctx *Context, batchFetch *BatchFetch, fetchParams [][]byte) (result [][]byte, err error) {
+	var inputs [][]byte
 
-	// @TODO use pool of pairs
-	batchBufferPair := &BufPair{
-		Data:   fastbuffer.New(),
-		Errors: fastbuffer.New(),
-	}
+	bufSlice := d.resourceProvider.getBufPairSlicePool()
+	defer d.resourceProvider.freeBufPairSlice(bufSlice)
 
-	if err = fetch.DataSource.Load(ctx.Context, input, batchBufferPair); err != nil {
-		return nil, err
-	}
-
-	if ctx.afterFetchHook != nil {
-		if batchBufferPair.HasData() {
-			ctx.afterFetchHook.OnData(d.hookCtx(ctx), batchBufferPair.Data.Bytes(), false)
+	for i := range fetchParams {
+		bufPair := d.resourceProvider.getBufPair()
+		*bufSlice = append(*bufSlice, bufPair)
+		if err := batchFetch.Fetch.InputTemplate.Render(ctx, fetchParams[i], bufPair.Data); err != nil {
+			return nil, err
 		}
-		if batchBufferPair.HasErrors() {
-			ctx.afterFetchHook.OnError(d.hookCtx(ctx), batchBufferPair.Errors.Bytes(), false)
-		}
+
+		inputs = append(inputs, bufPair.Data.Bytes())
 	}
 
-	return batchBufferPair.Data.Bytes(), nil
-}
-
-// @TODO add handling of error
-func (d *DataLoader) resolveBatchFetch(ctx *Context, batchFetch *BatchFetch, inputs ...[]byte) (result [][]byte, err error) {
 	batchInput, err := batchFetch.PrepareBatch(inputs...)
 	if err != nil {
 		return nil, err
 	}
 
-	fmt.Println("batch request", string(batchInput.Input))
-
-	response, err := d.resolveSingleFetch(ctx, batchFetch.Fetch, batchInput.Input)
+	pair := d.getResultBufPair()
+	if err := d.fetcher.fetch(ctx, batchFetch.Fetch, batchInput.Input, pair); err != nil {
+		return nil, err
+	}
 
 	var outPosition int
 	result = make([][]byte, len(inputs))
 
-	_, err = jsonparser.ArrayEach(response, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+	_, err = jsonparser.ArrayEach(pair.Data.Bytes(), func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
 		inputPositions := batchInput.OutToInPositions[outPosition]
 
 		for _, pos := range inputPositions {
@@ -225,14 +243,75 @@ func (d *DataLoader) resolveBatchFetch(ctx *Context, batchFetch *BatchFetch, inp
 	return result, nil
 }
 
-func (d *DataLoader) hookCtx(ctx *Context) HookContext {
-	return HookContext{
-		CurrentPath: ctx.path(),
+func (d *dataLoader) resolveSingleFetch(ctx *Context, fetch *SingleFetch, fetchParams [][]byte) ([][]byte, error) {
+	wg := d.resourceProvider.getWaitGroup()
+	defer d.resourceProvider.freeWaitGroup(wg)
+
+	wg.Add(len(fetchParams))
+
+	results := make([][]byte, len(fetchParams))
+
+	type fetchResult struct {
+		result *BufPair
+		err    error
+		pos    int
 	}
+
+	resultCh := make(chan fetchResult, len(fetchParams))
+
+	bufSlice := d.resourceProvider.getBufPairSlicePool()
+	defer d.resourceProvider.freeBufPairSlice(bufSlice)
+
+	for i, val := range fetchParams {
+		bufPair := d.resourceProvider.getBufPair()
+		*bufSlice = append(*bufSlice, bufPair)
+		if err := fetch.InputTemplate.Render(ctx, val, bufPair.Data); err != nil {
+			return nil, err
+		}
+
+		pair := d.getResultBufPair()
+		pos := i
+
+		go func() {
+			err := d.fetcher.fetch(ctx, fetch, bufPair.Data.Bytes(), pair)
+			resultCh <- fetchResult{result: pair, err: err, pos: pos}
+			wg.Done()
+		}()
+	}
+
+	go func() {
+		wg.Wait()
+		close(resultCh)
+	}()
+
+	var err error
+
+	for res := range resultCh {
+		if res.err != nil {
+			err = res.err
+		}
+		results[res.pos] = res.result.Data.Bytes()
+	}
+
+	return results, err
 }
 
-// @TODO possible performance issue, try to use loop instead of recursion
-func (d *DataLoader) selectedDataForFetch(input [][]byte, path ...string) [][]byte {
+func (d *dataLoader) getFetchState(fetchID int) (batchState *batchState, ok bool) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	batchState, ok = d.fetches[fetchID]
+	return
+}
+
+func (d *dataLoader) setFetchState(batchState *batchState, fetchID int) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	d.fetches[fetchID] = batchState
+}
+
+func (d *dataLoader) selectedDataForFetch(input [][]byte, path ...string) [][]byte {
 	if len(path) == 0 {
 		return input
 	}
@@ -264,6 +343,16 @@ func (d *DataLoader) selectedDataForFetch(input [][]byte, path ...string) [][]by
 	return d.selectedDataForFetch(temp, rest...)
 }
 
+func (d *dataLoader) getResultBufPair() (pair *BufPair) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	pair = d.resourceProvider.bufPairPool.Get().(*BufPair)
+	d.inUseBufPair = append(d.inUseBufPair, pair)
+
+	return
+}
+
 type batchState struct {
 	nextIdx int
 
@@ -271,14 +360,17 @@ type batchState struct {
 	results [][]byte
 }
 
-func (f *batchState) next(ctx *Context) ([]byte, error) {
-	if f.err != nil {
-		return nil, f.err
+// next works correctly only with synchronous resolve strategy
+// In case of asynchronous resolve strategy it's required to compute response position based on values from ctx (current path)
+// But there is no reason for asynchronous resolve strategy, it's not useful, as all IO operations (fetching data) is be done by dataloader
+func (b *batchState) next(ctx *Context) ([]byte, error) {
+	if b.err != nil {
+		return nil, b.err
 	}
 
-	res := f.results[f.nextIdx]
+	res := b.results[b.nextIdx]
 
-	f.nextIdx++
+	b.nextIdx++
 
 	return res, nil
 }
