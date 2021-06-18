@@ -157,6 +157,7 @@ func (c *Context) removeResponseLastElements(lastElemNum int) {
 	c.responseElements = c.responseElements[:len(c.responseElements)-lastElemNum]
 }
 func (c *Context) removeResponseArrayLastElements(lastElemNum int) {
+	fmt.Println("$$$$$$$$", c.responseElements, len(c.responseElements), "lastElemNum", lastElemNum, string(c.path()))
 	c.responseElements = c.responseElements[:len(c.responseElements)-(lastElemNum+1)]
 }
 
@@ -229,17 +230,17 @@ type DataSource interface {
 type Resolver struct {
 	EnableSingleFlightLoader bool
 	resultSetPool            sync.Pool
-	byteSlicesPool    sync.Pool
-	waitGroupPool     sync.Pool
-	bufPairPool       sync.Pool
-	bufPairSlicePool  sync.Pool
-	errChanPool       sync.Pool
-	hash64Pool        sync.Pool
-	inflightFetchPool sync.Pool
-	inflightFetchMu   sync.Mutex
-	inflightFetches   map[uint64]*inflightFetch
-	triggerManagers   map[uint64]*subscription.Manager
-	dataloaderFactory *dataloaderFactory
+	byteSlicesPool           sync.Pool
+	waitGroupPool            sync.Pool
+	bufPairPool              sync.Pool
+	bufPairSlicePool         sync.Pool
+	errChanPool              sync.Pool
+	hash64Pool               sync.Pool
+	inflightFetchPool        sync.Pool
+	inflightFetchMu          sync.Mutex
+	inflightFetches          map[uint64]*inflightFetch
+	triggerManagers          map[uint64]*subscription.Manager
+	dataloaderFactory        *dataloaderFactory
 }
 
 func (r *Resolver) RegisterTriggerManager(m *subscription.Manager) {
@@ -621,7 +622,10 @@ func (r *Resolver) resolveArray(ctx *Context, array *Array, data []byte, arrayBu
 	}
 
 	ctx.addResponseArrayElements(array.Path)
-	defer ctx.removeResponseArrayLastElements(len(array.Path))
+	defer func() {
+		fmt.Println(">>>>>>>>>>>>", string(data))
+		ctx.removeResponseArrayLastElements(len(array.Path))
+	}()
 
 	if array.ResolveAsynchronous && !array.Stream.Enabled {
 		return r.resolveArrayAsynchronous(ctx, array, arrayItems, arrayBuf)
@@ -652,6 +656,9 @@ func (r *Resolver) resolveArraySynchronous(ctx *Context, array *Array, arrayItem
 
 		ctx.addIntegerPathElement(i)
 		err = r.resolveNode(ctx, array.Item, (*arrayItems)[i], itemBuf)
+		if itemBuf.HasErrors() {
+			fmt.Println("has errors array")
+		}
 		ctx.removeLastPathElement()
 		if err != nil {
 			if errors.Is(err, errNonNullableFieldValueIsNull) && array.Nullable {
@@ -828,6 +835,12 @@ func (r *Resolver) resolveNull(b *fastbuffer.FastBuffer) {
 
 func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, objectBuf *BufPair) (err error) {
 
+	defer func() {
+		if objectBuf.HasErrors() {
+			fmt.Println("resolve object has errors")
+		}
+	}()
+
 	if len(object.Path) != 0 {
 		data, _, _, _ = jsonparser.Get(data, object.Path...)
 		ctx.addResponseElements(object.Path)
@@ -835,14 +848,14 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 	}
 
 	if object.Fetch != nil {
-		fmt.Println("FETCH Path", string(ctx.path()))
-		fmt.Println("FETCH Data", string(data))
-		fmt.Println("FETCH Object path", object.Path)
-		fmt.Println("FETCH RESPONSE ELEMENTS path", ctx.responseElements)
+		//fmt.Println("FETCH Path", string(ctx.path()))
+		//fmt.Println("FETCH Data", string(data))
+		//fmt.Println("FETCH Object path", object.Path)
+		//fmt.Println("FETCH RESPONSE ELEMENTS path", ctx.responseElements)
 	} else {
-		fmt.Println("SIMPLE Path", string(ctx.path()))
-		fmt.Println("SIMPLE Data", string(data))
-		fmt.Println("SIMPLE Object path", object.Path)
+		//fmt.Println("SIMPLE Path", string(ctx.path()))
+		//fmt.Println("SIMPLE Data", string(data))
+		//fmt.Println("SIMPLE Object path", object.Path)
 	}
 
 	var set *resultSet
@@ -910,12 +923,18 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 				return nil
 			}
 			if errors.Is(err, errNonNullableFieldValueIsNull) && object.Nullable {
+				objectBuf.Errors.WriteBytes(fieldBuf.Errors.Bytes()) // @TODO fixme
 				objectBuf.Data.Reset()
 				r.resolveNull(objectBuf.Data)
 				return nil
 			}
 			return
 		}
+
+		if fieldBuf.HasErrors() {
+			fmt.Println("field buf errors")
+		}
+
 		r.MergeBufPairs(fieldBuf, objectBuf, false)
 	}
 	if first {
@@ -1023,14 +1042,20 @@ func (r *Resolver) prepareSingleFetch(ctx *Context, fetch *SingleFetch, data []b
 	return
 }
 
-func (r *Resolver) resolveBatchFetch(ctx *Context, fetch *BatchFetch, preparedInput *fastbuffer.FastBuffer, buf *BufPair) error {
+func (r *Resolver) resolveBatchFetch(ctx *Context, fetch *BatchFetch, preparedInput *fastbuffer.FastBuffer, buf *BufPair) (err error) {
 	resp, err := ctx.dataLoader.LoadBatch(ctx, fetch)
 	if err != nil {
 		return err
 	}
 
-	buf.Data.WriteBytes(resp)
-	return nil
+	if resp == nil {
+		return
+	}
+
+	buf.Data.WriteBytes(resp.Data.Bytes())
+	buf.Errors.WriteBytes(resp.Errors.Bytes())
+
+	return
 }
 
 func (r *Resolver) resolveSingleFetch(ctx *Context, fetch *SingleFetch, preparedInput *fastbuffer.FastBuffer, buf *BufPair) (err error) {
@@ -1039,8 +1064,14 @@ func (r *Resolver) resolveSingleFetch(ctx *Context, fetch *SingleFetch, prepared
 		return err
 	}
 
-	buf.Data.WriteBytes(resp)
-	return nil
+	if resp == nil {
+		return
+	}
+
+	buf.Data.WriteBytes(resp.Data.Bytes())
+	buf.Errors.WriteBytes(resp.Errors.Bytes())
+
+	return
 }
 
 // it seems Resolver is not suitable place for the method.

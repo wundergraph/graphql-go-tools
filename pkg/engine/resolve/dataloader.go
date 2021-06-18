@@ -102,17 +102,22 @@ func newDataloaderFactory() *dataloaderFactory {
 func (df *dataloaderFactory) newDataLoader(fetcher fetcher, initialValue []byte) *dataLoader { // initial value represent data from subscription
 	dataloader := df.dataloaderPool.Get().(*dataLoader)
 
+	dataloader.mu = df.getMutex()
+	dataloader.fetcher = fetcher
+	dataloader.resourceProvider = df
+
 	if initialValue != nil {
+
+		buf := dataloader.getResultBufPair()
+		buf.Data.WriteBytes(initialValue)
+
 		dataloader.fetches[initialValueID] = &batchState{
-			nextIdx: 0,
-			err:     nil,
-			results: [][]byte{initialValue},
+			nextIdx:    0,
+			fetchError: nil,
+			results:    []*BufPair{buf},
 		}
 	}
 
-	dataloader.fetcher = fetcher
-	dataloader.resourceProvider = df
-	dataloader.mu = df.getMutex()
 
 	return dataloader
 }
@@ -137,7 +142,7 @@ type dataLoader struct {
 	inUseBufPair []*BufPair
 }
 
-func (d *dataLoader) Load(ctx *Context, fetch *SingleFetch) (response []byte, err error) {
+func (d *dataLoader) Load(ctx *Context, fetch *SingleFetch) (response *BufPair, err error) {
 	var fetchResult *batchState
 
 	fetchResult, ok := d.getFetchState(fetch.BufferId)
@@ -159,23 +164,23 @@ func (d *dataLoader) Load(ctx *Context, fetch *SingleFetch) (response []byte, er
 
 		pair := d.getResultBufPair()
 		err := d.fetcher.fetch(ctx, fetch, buf.Data.Bytes(), pair)
-		fetchResult.results = [][]byte{pair.Data.Bytes()}
-		fetchResult.err = err
+		fetchResult.results = []*BufPair{pair}
+		fetchResult.fetchError = err
 
 		d.setFetchState(fetchResult, fetch.BufferId)
 
 		return fetchResult.next(ctx)
 	}
 
-	fetchParams := d.selectedDataForFetch(parentResult.results, ctx.responseElements...)
-	fetchResult.results, fetchResult.err = d.resolveSingleFetch(ctx, fetch, fetchParams)
+	fetchParams := d.selectedDataForFetch(parentResult.data(), ctx.responseElements...)
+	fetchResult.results, fetchResult.fetchError = d.resolveSingleFetch(ctx, fetch, fetchParams)
 
 	d.setFetchState(fetchResult, fetch.BufferId)
 
 	return fetchResult.next(ctx)
 }
 
-func (d *dataLoader) LoadBatch(ctx *Context, batchFetch *BatchFetch) (response []byte, err error) {
+func (d *dataLoader) LoadBatch(ctx *Context, batchFetch *BatchFetch) (response *BufPair, err error) {
 	var fetchResult *batchState
 
 	fetchResult, ok := d.getFetchState(batchFetch.Fetch.BufferId)
@@ -190,15 +195,15 @@ func (d *dataLoader) LoadBatch(ctx *Context, batchFetch *BatchFetch) (response [
 		return nil, fmt.Errorf("has not got fetch for %d", ctx.lastFetchID)
 	}
 
-	fetchParams := d.selectedDataForFetch(parentResult.results, ctx.responseElements...)
-	fetchResult.results, fetchResult.err = d.resolveBatchFetch(ctx, batchFetch, fetchParams)
+	fetchParams := d.selectedDataForFetch(parentResult.data(), ctx.responseElements...)
+	fetchResult.results, fetchResult.fetchError = d.resolveBatchFetch(ctx, batchFetch, fetchParams)
 
 	d.setFetchState(fetchResult, batchFetch.Fetch.BufferId)
 
 	return fetchResult.next(ctx)
 }
 
-func (d *dataLoader) resolveBatchFetch(ctx *Context, batchFetch *BatchFetch, fetchParams [][]byte) (result [][]byte, err error) {
+func (d *dataLoader) resolveBatchFetch(ctx *Context, batchFetch *BatchFetch, fetchParams [][]byte) (results []*BufPair, err error) {
 	var inputs [][]byte
 
 	bufSlice := d.resourceProvider.getBufPairSlicePool()
@@ -219,37 +224,49 @@ func (d *dataLoader) resolveBatchFetch(ctx *Context, batchFetch *BatchFetch, fet
 		return nil, err
 	}
 
-	pair := d.getResultBufPair()
-	if err := d.fetcher.fetch(ctx, batchFetch.Fetch, batchInput.Input, pair); err != nil {
+	responsePair := d.getResultBufPair()
+	if err := d.fetcher.fetch(ctx, batchFetch.Fetch, batchInput.Input, responsePair); err != nil {
 		return nil, err
 	}
 
 	var outPosition int
-	result = make([][]byte, len(inputs))
+	results = make([]*BufPair, len(inputs))
 
-	_, err = jsonparser.ArrayEach(pair.Data.Bytes(), func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
-		inputPositions := batchInput.OutToInPositions[outPosition]
+	if responsePair.HasData() {
+		_, err = jsonparser.ArrayEach(responsePair.Data.Bytes(), func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+			inputPositions := batchInput.OutToInPositions[outPosition]
 
-		for _, pos := range inputPositions {
-			result[pos] = value
+			for _, pos := range inputPositions {
+				resultPair := d.getResultBufPair()
+				resultPair.Data.WriteBytes(value)
+				results[pos] = resultPair
+			}
+
+			outPosition++
+		})
+		if err != nil {
+			return nil, err
 		}
-
-		outPosition++
-	})
-	if err != nil {
-		return nil, err
 	}
 
-	return result, nil
+	if responsePair.HasErrors() {
+		if results[0] == nil {
+			results[0] = d.getResultBufPair()
+		}
+
+		results[0].Errors.WriteBytes(responsePair.Errors.Bytes())
+	}
+
+	return results, nil
 }
 
-func (d *dataLoader) resolveSingleFetch(ctx *Context, fetch *SingleFetch, fetchParams [][]byte) ([][]byte, error) {
+func (d *dataLoader) resolveSingleFetch(ctx *Context, fetch *SingleFetch, fetchParams [][]byte) ([]*BufPair, error) {
 	wg := d.resourceProvider.getWaitGroup()
 	defer d.resourceProvider.freeWaitGroup(wg)
 
 	wg.Add(len(fetchParams))
 
-	results := make([][]byte, len(fetchParams))
+	results := make([]*BufPair, len(fetchParams))
 
 	type fetchResult struct {
 		result *BufPair
@@ -287,10 +304,10 @@ func (d *dataLoader) resolveSingleFetch(ctx *Context, fetch *SingleFetch, fetchP
 	var err error
 
 	for res := range resultCh {
-		if res.err != nil {
+		if res.err != nil { // @TODO do not share single error for whole batch
 			err = res.err
 		}
-		results[res.pos] = res.result.Data.Bytes()
+		results[res.pos] = res.result
 	}
 
 	return results, err
@@ -356,16 +373,28 @@ func (d *dataLoader) getResultBufPair() (pair *BufPair) {
 type batchState struct {
 	nextIdx int
 
-	err     error
-	results [][]byte
+	fetchError error
+	results    []*BufPair
+}
+
+func (b *batchState) data() [][]byte {
+	dataSlice := make([][]byte, len(b.results))
+
+	for i := range b.results {
+		if b.results[i] != nil && b.results[i].HasData() {
+			dataSlice[i] = b.results[i].Data.Bytes()
+		}
+	}
+
+	return dataSlice
 }
 
 // next works correctly only with synchronous resolve strategy
 // In case of asynchronous resolve strategy it's required to compute response position based on values from ctx (current path)
 // But there is no reason for asynchronous resolve strategy, it's not useful, as all IO operations (fetching data) is be done by dataloader
-func (b *batchState) next(ctx *Context) ([]byte, error) {
-	if b.err != nil {
-		return nil, b.err
+func (b *batchState) next(ctx *Context) (*BufPair, error) {
+	if b.fetchError != nil {
+		return nil, b.fetchError
 	}
 
 	res := b.results[b.nextIdx]
