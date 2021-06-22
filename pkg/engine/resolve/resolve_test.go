@@ -788,6 +788,52 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			},
 		}, Context{Context: context.Background()}, `{"errors":[{"message":"errorMessage"}],"data":{"name":null}}`
 	}))
+	t.Run("nested fetch error for non-nullable field", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		r.EnableSingleFlightLoader = true
+		mockDataSource := NewMockDataSource(ctrl)
+		mockDataSource.EXPECT().UniqueIdentifier().Return([]byte("mock"))
+		mockDataSource.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
+			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+				pair.WriteErr([]byte("errorMessage"), nil, nil)
+				return
+			}).
+			Return(nil)
+		return &GraphQLResponse{
+			Data: &Object{
+				Nullable: true,
+				Fetch: &SingleFetch{
+					BufferId:   0,
+					DataSource: FakeDataSource(`{"id":1}`),
+				},
+				Fields: []*Field{
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("nestedObject"),
+						Value: &Object{
+							Nullable: false,
+							Fetch: &SingleFetch{
+								BufferId:   1,
+								DataSource: mockDataSource,
+							},
+							Fields: []*Field{
+								{
+									HasBuffer: true,
+									BufferID: 1,
+									Name: []byte("foo"),
+									Value: &String{
+										Path: []string{"foo"},
+										Nullable: false,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, Context{Context: context.Background()}, `{"errors":[{"message":"errorMessage"}],"data":null}`
+	}))
 	t.Run("fetch with two Errors", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		r.EnableSingleFlightLoader = true
 		mockDataSource := NewMockDataSource(ctrl)

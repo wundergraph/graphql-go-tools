@@ -851,6 +851,7 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 			}
 			if errors.Is(err, errNonNullableFieldValueIsNull) && object.Nullable {
 				objectBuf.Data.Reset()
+				r.MergeBufPairErrors(fieldBuf, objectBuf)
 				r.resolveNull(objectBuf.Data)
 				return nil
 			}
