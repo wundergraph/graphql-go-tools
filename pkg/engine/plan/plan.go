@@ -24,6 +24,13 @@ type Planner struct {
 	requiredFieldsVisitor *requiredFieldsVisitor
 }
 
+func (p *Planner) SetCloser(closer <-chan struct{}) {
+	if p.configurationVisitor == nil {
+		return
+	}
+	p.configurationVisitor.closer = closer
+}
+
 type Configuration struct {
 	DefaultFlushInterval int64
 	DataSources          []DataSourceConfiguration
@@ -102,7 +109,7 @@ type PlannerFactory interface {
 	// Once the Closer gets closed, all stateful DataSources must close their connections and cleanup themselves.
 	// They can do so by starting a goroutine on instantiation time that blocking reads on the resolve.Closer.
 	// Once the Closer emits the close event, they have to terminate (e.g. close database connections).
-	Planner(closer <- chan struct{}) DataSourcePlanner
+	Planner(closer <-chan struct{}) DataSourcePlanner
 }
 
 type TypeField struct {
@@ -120,7 +127,7 @@ type FieldMapping struct {
 // NewPlanner creates a new Planner from the Configuration as well as the resolve.Closer
 // The resolve.Closer will be closed when the engine is no longer being used.
 // This allows all stateful DataSources to shutdown and cleanup their memory.
-func NewPlanner(config Configuration, closer <- chan struct{}) *Planner {
+func NewPlanner(config Configuration, closer <-chan struct{}) *Planner {
 
 	// required fields pre-processing
 
@@ -900,7 +907,7 @@ type configurationVisitor struct {
 	currentBufferId       int
 	fieldBuffers          map[int]int
 
-	closer <- chan struct{}
+	closer <-chan struct{}
 }
 
 type plannerConfiguration struct {
