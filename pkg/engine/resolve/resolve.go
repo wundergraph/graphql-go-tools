@@ -1607,7 +1607,7 @@ func (r *Resolver) freeErrChan(ch chan error) {
 }
 
 func (r *Resolver) getWaitGroup() *sync.WaitGroup {
-	return &sync.WaitGroup{}
+	return r.waitGroupPool.Get().(*sync.WaitGroup)
 }
 
 func (r *Resolver) freeWaitGroup(wg *sync.WaitGroup) {
