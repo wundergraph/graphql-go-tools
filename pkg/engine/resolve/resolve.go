@@ -200,6 +200,14 @@ type DataSource interface {
 	UniqueIdentifier() []byte
 }
 
+type SubscriptionDataSource interface {
+	Start(input []byte, next chan<- []byte, stop <-chan struct{})
+	// UniqueIdentifier gives each stream a name, e.g. "kafka", "nats", "http-polling"
+	// Don't give streams of the same type a different UID, e.g. don't use "kafka1", "kafka2"
+	// This value should be static and the same for streams of the same kind
+	UniqueIdentifier() []byte
+}
+
 type Resolver struct {
 	EnableSingleFlightLoader bool
 	resultSetPool            sync.Pool
@@ -378,15 +386,6 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 }
 
 func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQLSubscription, writer FlushWriter) (err error) {
-	hash64 := r.getHash64()
-	_, _ = hash64.Write(subscription.Trigger.ManagerID)
-	managerID := hash64.Sum64()
-	r.putHash64(hash64)
-
-	manager, ok := r.triggerManagers[managerID]
-	if !ok {
-		return fmt.Errorf("trigger manager not found for id: %s", string(subscription.Trigger.ManagerID))
-	}
 
 	buf := r.getBufPair()
 	err = subscription.Trigger.InputTemplate.Render(ctx, nil, buf.Data)
@@ -394,15 +393,15 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 		return
 	}
 	rendered := buf.Data.Bytes()
-	triggerInput := make([]byte, len(rendered))
-	copy(triggerInput, rendered)
+	subscriptionInput := make([]byte, len(rendered))
+	copy(subscriptionInput, rendered)
 	r.freeBufPair(buf)
 
-	trigger := manager.StartTrigger(triggerInput)
-	defer manager.StopTrigger(trigger)
+	next := make(chan []byte)
+	subscription.Trigger.Source.Start(subscriptionInput, next, ctx.Done())
 
 	for {
-		data, ok := trigger.Next(ctx)
+		data, ok := <-next
 		if !ok {
 			return nil
 		}
@@ -1458,10 +1457,10 @@ type GraphQLSubscription struct {
 }
 
 type GraphQLSubscriptionTrigger struct {
-	ManagerID     []byte
-	Input         string
+	Input         []byte
 	InputTemplate InputTemplate
 	Variables     Variables
+	Source        SubscriptionDataSource
 }
 
 type FlushWriter interface {

@@ -581,7 +581,7 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 	if isSubscription {
 		v.plan = &SubscriptionResponsePlan{
 			FlushInterval: v.Config.DefaultFlushInterval,
-			Response: resolve.GraphQLSubscription{
+			Response: &resolve.GraphQLSubscription{
 				Response: graphQLResponse,
 			},
 		}
@@ -742,7 +742,7 @@ func (v *Visitor) resolveInputTemplates(config objectFetchConfiguration, input *
 
 func (v *Visitor) configureSubscription(config objectFetchConfiguration) {
 	subscription := config.planner.ConfigureSubscription()
-	config.trigger.Input = subscription.Input
+	config.trigger.Input = []byte(subscription.Input)
 	config.trigger.ManagerID = []byte(subscription.SubscriptionManagerID)
 	config.trigger.Variables = subscription.Variables
 	v.resolveInputTemplates(config, &config.trigger.Input, &config.trigger.Variables)
@@ -808,7 +808,7 @@ func (_ *SynchronousResponsePlan) PlanKind() Kind {
 }
 
 type StreamingResponsePlan struct {
-	Response      resolve.GraphQLStreamingResponse
+	Response      *resolve.GraphQLStreamingResponse
 	FlushInterval int64
 }
 
@@ -821,7 +821,7 @@ func (_ *StreamingResponsePlan) PlanKind() Kind {
 }
 
 type SubscriptionResponsePlan struct {
-	Response      resolve.GraphQLSubscription
+	Response      *resolve.GraphQLSubscription
 	FlushInterval int64
 }
 
