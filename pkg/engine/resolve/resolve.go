@@ -113,6 +113,43 @@ func NewContext(ctx context.Context) *Context {
 	}
 }
 
+func (c *Context) Clone() Context {
+	variables := make([]byte, len(c.Variables))
+	copy(variables, c.Variables)
+	pathPrefix := make([]byte, len(c.pathPrefix))
+	copy(pathPrefix, c.pathPrefix)
+	pathElements := make([][]byte, len(c.pathElements))
+	for i := range pathElements {
+		pathElements[i] = make([]byte, len(c.pathElements[i]))
+		copy(pathElements[i], c.pathElements[i])
+	}
+	patches := make([]patch, len(c.patches))
+	for i := range patches {
+		patches[i] = patch{
+			path:      make([]byte, len(c.patches[i].path)),
+			extraPath: make([]byte, len(c.patches[i].extraPath)),
+			data:      make([]byte, len(c.patches[i].data)),
+			index:     c.patches[i].index,
+		}
+		copy(patches[i].path, c.patches[i].path)
+		copy(patches[i].extraPath, c.patches[i].extraPath)
+		copy(patches[i].data, c.patches[i].data)
+	}
+	return Context{
+		Context:         c.Context,
+		Variables:       variables,
+		Request:         c.Request,
+		pathElements:    pathElements,
+		patches:         patches,
+		usedBuffers:     make([]*bytes.Buffer, 0, 48),
+		currentPatch:    c.currentPatch,
+		maxPatch:        c.maxPatch,
+		pathPrefix:      pathPrefix,
+		beforeFetchHook: c.beforeFetchHook,
+		afterFetchHook:  c.afterFetchHook,
+	}
+}
+
 func (c *Context) Free() {
 	c.Context = nil
 	c.Variables = c.Variables[:0]
@@ -655,6 +692,7 @@ func (r *Resolver) resolveArrayAsynchronous(ctx *Context, array *Array, arrayIte
 		itemBuf := r.getBufPair()
 		*bufSlice = append(*bufSlice, itemBuf)
 		itemData := (*arrayItems)[i]
+		cloned := ctx.Clone()
 		go func(ctx Context, i int) {
 			ctx.addPathElement([]byte(strconv.Itoa(i)))
 			if e := r.resolveNode(&ctx, array.Item, itemData, itemBuf); e != nil && !errors.Is(e, errTypeNameSkipped) {
@@ -663,8 +701,9 @@ func (r *Resolver) resolveArrayAsynchronous(ctx *Context, array *Array, arrayIte
 				default:
 				}
 			}
+			ctx.Free()
 			wg.Done()
-		}(*ctx, i)
+		}(cloned, i)
 	}
 
 	wg.Wait()
@@ -1607,7 +1646,7 @@ func (r *Resolver) freeErrChan(ch chan error) {
 }
 
 func (r *Resolver) getWaitGroup() *sync.WaitGroup {
-	return &sync.WaitGroup{}
+	return r.waitGroupPool.Get().(*sync.WaitGroup)
 }
 
 func (r *Resolver) freeWaitGroup(wg *sync.WaitGroup) {
