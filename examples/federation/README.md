@@ -7,5 +7,6 @@ go mod download
 ```
 2. Run start script
 ```
+chmod +x start.sh
 ./start.sh
 ```
