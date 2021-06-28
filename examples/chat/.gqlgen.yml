@@ -1,0 +1,3 @@
+models:
+  Chatroom:
+    model: github.com/jensneuse/graphql-go-tools/examples/chat.Chatroom
