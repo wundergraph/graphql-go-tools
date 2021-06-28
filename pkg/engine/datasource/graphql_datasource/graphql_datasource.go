@@ -10,7 +10,6 @@ import (
 
 	"github.com/buger/jsonparser"
 	"github.com/tidwall/sjson"
-	"nhooyr.io/websocket"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
@@ -876,7 +875,7 @@ var (
 		{"locations"},
 		{"path"},
 	}
-	entitiesPath     = []string{"_entities", "[0]"}
+	entitiesPath = []string{"_entities", "[0]"}
 )
 
 type Source struct {
@@ -931,19 +930,33 @@ func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPai
 	return
 }
 
-type SubscriptionSource struct {
+type GraphQLSubscriptionClient interface {
+	Subscribe(ctx context.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error
+}
 
+type GraphQLSubscriptionOptions struct {
+	Url, Body string
+}
+
+type SubscriptionSource struct {
+	client GraphQLSubscriptionClient
 }
 
 func (s *SubscriptionSource) Start(ctx context.Context, input []byte, next chan<- []byte) error {
 
-	websocket.Dial(ctx, "", &websocket.DialOptions{
+	var options GraphQLSubscriptionOptions
+	err := json.Unmarshal(input, &options)
+	if err != nil {
+		return err
+	}
+
+	return s.client.Subscribe(ctx, options, next)
+
+	/*websocket.Dial(ctx, "", &websocket.DialOptions{
 		HTTPClient:           nil,
 		HTTPHeader:           nil,
 		Subprotocols:         nil,
 		CompressionMode:      0,
 		CompressionThreshold: 0,
-	})
-
-	return nil
+	})*/
 }
