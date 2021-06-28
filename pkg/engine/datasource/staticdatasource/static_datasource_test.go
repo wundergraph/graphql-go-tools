@@ -32,6 +32,7 @@ func TestStaticDataSourcePlanning(t *testing.T) {
 						BufferId:   0,
 						Input:      "world",
 						DataSource: Source{},
+						DataSourceIdentifier: []byte("staticdatasource.Source"),
 					},
 				},
 			},

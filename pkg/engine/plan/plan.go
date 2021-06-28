@@ -2,7 +2,9 @@ package plan
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"reflect"
 	"regexp"
 	"strings"
 
@@ -22,13 +24,6 @@ type Planner struct {
 	planningVisitor       *Visitor
 	requiredFieldsWalker  *astvisitor.Walker
 	requiredFieldsVisitor *requiredFieldsVisitor
-}
-
-func (p *Planner) SetCloser(closer <-chan struct{}) {
-	if p.configurationVisitor == nil {
-		return
-	}
-	p.configurationVisitor.closer = closer
 }
 
 type Configuration struct {
@@ -109,7 +104,7 @@ type PlannerFactory interface {
 	// Once the Closer gets closed, all stateful DataSources must close their connections and cleanup themselves.
 	// They can do so by starting a goroutine on instantiation time that blocking reads on the resolve.Closer.
 	// Once the Closer emits the close event, they have to terminate (e.g. close database connections).
-	Planner(closer <-chan struct{}) DataSourcePlanner
+	Planner(ctx context.Context) DataSourcePlanner
 }
 
 type TypeField struct {
@@ -124,10 +119,15 @@ type FieldMapping struct {
 	Path                  []string
 }
 
-// NewPlanner creates a new Planner from the Configuration as well as the resolve.Closer
-// The resolve.Closer will be closed when the engine is no longer being used.
-// This allows all stateful DataSources to shutdown and cleanup their memory.
-func NewPlanner(config Configuration, closer <-chan struct{}) *Planner {
+// NewPlanner creates a new Planner from the Configuration and a ctx object
+// The context.Context object is used to determine the lifecycle of stateful DataSources
+// It's important to note that stateful DataSources must be closed when they are no longer being used
+// Stateful DataSources could be those that initiate a WebSocket connection to an origin, a database client, a streaming client, etc...
+// All DataSources are initiated with the same context.Context object provided to the Planner.
+// To ensure that there are no memory leaks, it's therefore important to add a cancel func or timeout to the context.Context
+// At the time when the resolver and all operations should be garbage collected, ensure to first cancel or timeout the ctx object
+// If you don't cancel the context.Context, the goroutines will run indefinitely and there's no reference left to stop them
+func NewPlanner(ctx context.Context, config Configuration) *Planner {
 
 	// required fields pre-processing
 
@@ -145,7 +145,7 @@ func NewPlanner(config Configuration, closer <-chan struct{}) *Planner {
 	configurationWalker := astvisitor.NewWalker(48)
 	configVisitor := &configurationVisitor{
 		walker: &configurationWalker,
-		closer: closer,
+		ctx:    ctx,
 	}
 
 	configurationWalker.RegisterEnterDocumentVisitor(configVisitor)
@@ -742,10 +742,10 @@ func (v *Visitor) resolveInputTemplates(config objectFetchConfiguration, input *
 
 func (v *Visitor) configureSubscription(config objectFetchConfiguration) {
 	subscription := config.planner.ConfigureSubscription()
-	config.trigger.Input = []byte(subscription.Input)
-	config.trigger.ManagerID = []byte(subscription.SubscriptionManagerID)
 	config.trigger.Variables = subscription.Variables
-	v.resolveInputTemplates(config, &config.trigger.Input, &config.trigger.Variables)
+	config.trigger.Source = subscription.DataSource
+	v.resolveInputTemplates(config, &subscription.Input, &config.trigger.Variables)
+	config.trigger.Input = []byte(subscription.Input)
 }
 
 func (v *Visitor) configureObjectFetch(config objectFetchConfiguration) {
@@ -772,12 +772,15 @@ func (v *Visitor) configureObjectFetch(config objectFetchConfiguration) {
 }
 
 func (v *Visitor) configureSingleFetch(internal objectFetchConfiguration, external FetchConfiguration) *resolve.SingleFetch {
+	dataSourceType := reflect.TypeOf(external.DataSource).String()
+	dataSourceType = strings.TrimPrefix(dataSourceType, "*")
 	return &resolve.SingleFetch{
 		BufferId:             internal.bufferID,
 		Input:                external.Input,
 		DataSource:           external.DataSource,
 		Variables:            external.Variables,
 		DisallowSingleFlight: external.DisallowSingleFlight,
+		DataSourceIdentifier: []byte(dataSourceType),
 	}
 }
 
@@ -885,9 +888,9 @@ type DataSourcePlanner interface {
 }
 
 type SubscriptionConfiguration struct {
-	Input                 string
-	SubscriptionManagerID string
-	Variables             resolve.Variables
+	Input      string
+	Variables  resolve.Variables
+	DataSource resolve.SubscriptionDataSource
 }
 
 type FetchConfiguration struct {
@@ -907,7 +910,7 @@ type configurationVisitor struct {
 	currentBufferId       int
 	fieldBuffers          map[int]int
 
-	closer <-chan struct{}
+	ctx context.Context
 }
 
 type plannerConfiguration struct {
@@ -1052,7 +1055,7 @@ func (c *configurationVisitor) EnterField(ref int) {
 				bufferID = c.nextBufferID()
 				c.fieldBuffers[ref] = bufferID
 			}
-			planner := c.config.DataSources[i].Factory.Planner(c.closer)
+			planner := c.config.DataSources[i].Factory.Planner(c.ctx)
 			c.planners = append(c.planners, plannerConfiguration{
 				bufferID:   bufferID,
 				parentPath: parent,

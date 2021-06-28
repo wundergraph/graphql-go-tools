@@ -10,6 +10,7 @@ import (
 
 	"github.com/buger/jsonparser"
 	"github.com/tidwall/sjson"
+	"nhooyr.io/websocket"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
@@ -22,10 +23,6 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 	"github.com/jensneuse/graphql-go-tools/pkg/pool"
-)
-
-const (
-	UniqueIdentifier = "graphql"
 )
 
 type Planner struct {
@@ -172,9 +169,9 @@ func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
 	}
 
 	return plan.SubscriptionConfiguration{
-		Input:                 string(input),
-		SubscriptionManagerID: "graphql_websocket_subscription",
-		Variables:            p.variables,
+		Input:      string(input),
+		DataSource: &SubscriptionSource{},
+		Variables:  p.variables,
 	}
 }
 
@@ -863,7 +860,7 @@ type Factory struct {
 	Client httpclient.Client
 }
 
-func (f *Factory) Planner(<- chan struct{}) plan.DataSourcePlanner {
+func (f *Factory) Planner(ctx context.Context) plan.DataSourcePlanner {
 	return &Planner{
 		client: f.Client,
 	}
@@ -880,7 +877,6 @@ var (
 		{"path"},
 	}
 	entitiesPath     = []string{"_entities", "[0]"}
-	uniqueIdentifier = []byte(UniqueIdentifier)
 )
 
 type Source struct {
@@ -935,6 +931,19 @@ func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPai
 	return
 }
 
-func (s *Source) UniqueIdentifier() []byte {
-	return uniqueIdentifier
+type SubscriptionSource struct {
+
+}
+
+func (s *SubscriptionSource) Start(ctx context.Context, input []byte, next chan<- []byte) error {
+
+	websocket.Dial(ctx, "", &websocket.DialOptions{
+		HTTPClient:           nil,
+		HTTPHeader:           nil,
+		Subprotocols:         nil,
+		CompressionMode:      0,
+		CompressionThreshold: 0,
+	})
+
+	return nil
 }

@@ -21,7 +21,6 @@ import (
 	errors "golang.org/x/xerrors"
 
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/subscription"
 	"github.com/jensneuse/graphql-go-tools/pkg/fastbuffer"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/pool"
@@ -234,15 +233,10 @@ type Fetches []Fetch
 
 type DataSource interface {
 	Load(ctx context.Context, input []byte, bufPair *BufPair) (err error)
-	UniqueIdentifier() []byte
 }
 
 type SubscriptionDataSource interface {
-	Start(input []byte, next chan<- []byte, stop <-chan struct{})
-	// UniqueIdentifier gives each stream a name, e.g. "kafka", "nats", "http-polling"
-	// Don't give streams of the same type a different UID, e.g. don't use "kafka1", "kafka2"
-	// This value should be static and the same for streams of the same kind
-	UniqueIdentifier() []byte
+	Start(ctx context.Context, input []byte, next chan<- []byte) error
 }
 
 type Resolver struct {
@@ -257,15 +251,7 @@ type Resolver struct {
 	inflightFetchPool        sync.Pool
 	inflightFetchMu          sync.Mutex
 	inflightFetches          map[uint64]*inflightFetch
-	triggerManagers          map[uint64]*subscription.Manager
-}
-
-func (r *Resolver) RegisterTriggerManager(m *subscription.Manager) {
-	hash64 := r.getHash64()
-	_, _ = hash64.Write(m.UniqueIdentifier())
-	managerID := hash64.Sum64()
-	r.putHash64(hash64)
-	r.triggerManagers[managerID] = m
+	ctx                      context.Context
 }
 
 type inflightFetch struct {
@@ -275,8 +261,10 @@ type inflightFetch struct {
 	bufPair  BufPair
 }
 
-func New() *Resolver {
+// New returns a new Resolver, ctx.Done() is used to cancel all active subscriptions & streams
+func New(ctx context.Context) *Resolver {
 	return &Resolver{
+		ctx: ctx,
 		resultSetPool: sync.Pool{
 			New: func() interface{} {
 				return &resultSet{
@@ -331,7 +319,6 @@ func New() *Resolver {
 			},
 		},
 		inflightFetches: map[uint64]*inflightFetch{},
-		triggerManagers: map[uint64]*subscription.Manager{},
 	}
 }
 
@@ -434,19 +421,31 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 	copy(subscriptionInput, rendered)
 	r.freeBufPair(buf)
 
+	c, cancel := context.WithCancel(ctx)
+	defer cancel()
+	resolverDone := r.ctx.Done()
+
 	next := make(chan []byte)
-	subscription.Trigger.Source.Start(subscriptionInput, next, ctx.Done())
+	err = subscription.Trigger.Source.Start(c, subscriptionInput, next)
+	if err != nil {
+		return err
+	}
 
 	for {
-		data, ok := <-next
-		if !ok {
+		select {
+		case <-resolverDone:
 			return nil
+		default:
+			data, ok := <-next
+			if !ok {
+				return nil
+			}
+			err = r.ResolveGraphQLResponse(ctx, subscription.Response, data, writer)
+			if err != nil {
+				return err
+			}
+			writer.Flush()
 		}
-		err = r.ResolveGraphQLResponse(ctx, subscription.Response, data, writer)
-		if err != nil {
-			return err
-		}
-		writer.Flush()
 	}
 }
 
@@ -985,7 +984,7 @@ func (r *Resolver) resolveSingleFetch(ctx *Context, fetch *SingleFetch, prepared
 	}
 
 	hash64 := r.getHash64()
-	_, _ = hash64.Write(fetch.DataSource.UniqueIdentifier())
+	_, _ = hash64.Write(fetch.DataSourceIdentifier)
 	_, _ = hash64.Write(preparedInput.Bytes())
 	fetchID := hash64.Sum64()
 	r.putHash64(hash64)
@@ -1122,6 +1121,7 @@ type SingleFetch struct {
 	// should be allowed to use SingleFlight
 	DisallowSingleFlight bool
 	InputTemplate        InputTemplate
+	DataSourceIdentifier []byte
 }
 
 type InputTemplate struct {

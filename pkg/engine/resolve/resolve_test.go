@@ -12,7 +12,6 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/subscription"
 	"github.com/jensneuse/graphql-go-tools/pkg/fastbuffer"
 )
 
@@ -69,7 +68,9 @@ func (g gotBytesFormatter) Got(got interface{}) string {
 func TestResolver_ResolveNode(t *testing.T) {
 	testFn := func(fn func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string)) func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-		r := New()
+		c,cancel := context.WithCancel(context.Background())
+		defer cancel()
+		r := New(c)
 		node, ctx, expectedOutput := fn(t, r, ctrl)
 		return func(t *testing.T) {
 			buf := &BufPair{
@@ -633,7 +634,9 @@ func TestResolver_ResolveNode(t *testing.T) {
 func TestResolver_WithHooks(t *testing.T) {
 	testFn := func(fn func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string)) func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-		r := New()
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		r := New(c)
 		node, ctx, expectedOutput := fn(t, r, ctrl)
 		return func(t *testing.T) {
 			buf := &BufPair{
@@ -739,7 +742,9 @@ func TestResolver_WithHooks(t *testing.T) {
 func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 	testFn := func(fn func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string)) func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-		r := New()
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		r := New(c)
 		node, ctx, expectedOutput := fn(t, r, ctrl)
 		return func(t *testing.T) {
 			buf := &bytes.Buffer{}
@@ -820,10 +825,10 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 							Fields: []*Field{
 								{
 									HasBuffer: true,
-									BufferID: 1,
-									Name: []byte("foo"),
+									BufferID:  1,
+									Name:      []byte("foo"),
 									Value: &String{
-										Path: []string{"foo"},
+										Path:     []string{"foo"},
 										Nullable: false,
 									},
 								},
@@ -1495,7 +1500,9 @@ func TestResolver_WithHeader(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			resolver := New()
+			c, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			resolver := New(c)
 
 			header := make(http.Header)
 			header.Set(tc.header, "foo")
@@ -1572,17 +1579,20 @@ type FakeStream struct {
 	cancel context.CancelFunc
 }
 
-func (f *FakeStream) Start(input []byte, next chan<- []byte, stop <-chan struct{}) {
-	time.Sleep(time.Millisecond)
-	count := 0
-	for {
-		if count == 3 {
-			f.cancel()
-			return
+func (f *FakeStream) Start(ctx context.Context,input []byte, next chan<- []byte) error {
+	go func() {
+		time.Sleep(time.Millisecond)
+		count := 0
+		for {
+			if count == 3 {
+				f.cancel()
+				return
+			}
+			next <- []byte(fmt.Sprintf(`{"counter":%d}`, count))
+			count++
 		}
-		next <- []byte(fmt.Sprintf(`{"counter":%d}`, count))
-		count++
-	}
+	}()
+	return nil
 }
 
 func (f *FakeStream) UniqueIdentifier() []byte {
@@ -1590,20 +1600,14 @@ func (f *FakeStream) UniqueIdentifier() []byte {
 }
 
 func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
-	resolver := New()
 	c, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	man := subscription.NewManager(&FakeStream{
-		cancel: cancel,
-	})
-	manCtx, cancelMan := context.WithCancel(context.Background())
-	defer cancelMan()
-	man.Run(manCtx.Done())
-	resolver.RegisterTriggerManager(man)
+	resolver := New(c)
 	plan := &GraphQLSubscription{
 		Trigger: GraphQLSubscriptionTrigger{
-			ManagerID: []byte("fake"),
-			Input:     "",
+			Source: &FakeStream{
+				cancel: cancel,
+			},
 		},
 		Response: &GraphQLResponse{
 			Data: &Object{
@@ -1634,7 +1638,10 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 func BenchmarkResolver_ResolveNode(b *testing.B) {
 
-	resolver := New()
+	c, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	resolver := New(c)
 
 	serviceOneDS := FakeDataSource(`{"serviceOne":{"fieldOne":"fieldOneValue"},"anotherServiceOne":{"fieldOne":"anotherFieldOneValue"},"reusingServiceOne":{"fieldOne":"reUsingFieldOneValue"}}`)
 	serviceTwoDS := FakeDataSource(`{"serviceTwo":{"fieldTwo":"fieldTwoValue"},"secondServiceTwo":{"fieldTwo":"secondFieldTwoValue"}}`)

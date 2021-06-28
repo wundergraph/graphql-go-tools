@@ -16,10 +16,6 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 )
 
-const (
-	UniqueIdentifier = "rest"
-)
-
 type Planner struct {
 	client              httpclient.Client
 	v                   *plan.Visitor
@@ -48,7 +44,7 @@ type Factory struct {
 	Client httpclient.Client
 }
 
-func (f *Factory) Planner(<- chan struct{}) plan.DataSourcePlanner {
+func (f *Factory) Planner(ctx context.Context) plan.DataSourcePlanner {
 	return &Planner{
 		client: f.Client,
 	}
@@ -135,7 +131,6 @@ func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
 
 	return plan.SubscriptionConfiguration{
 		Input:                 string(httpPollingInput),
-		SubscriptionManagerID: "http_polling_stream",
 		Variables:             nil,
 	}
 }
@@ -182,14 +177,6 @@ Next:
 
 type Source struct {
 	client httpclient.Client
-}
-
-var (
-	uniqueIdentifier = []byte(UniqueIdentifier)
-)
-
-func (_ *Source) UniqueIdentifier() []byte {
-	return uniqueIdentifier
 }
 
 func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPair) (err error) {

@@ -56,7 +56,9 @@ func TestCloser(t *testing.T) {
 		},
 		Fields: nil,
 	}
-	p := NewPlanner(cfg, closer)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	p := NewPlanner(ctx, cfg)
 	plan := p.Plan(&op, &def, "", report)
 	assert.NotNil(t, plan)
 
@@ -69,8 +71,8 @@ type StatefulSource struct {
 	signalClosed chan struct{}
 }
 
-func (s *StatefulSource) Start(closer <-chan struct{}){
-	<-closer
+func (s *StatefulSource) Start(ctx context.Context) {
+	<-ctx.Done()
 	close(s.signalClosed)
 }
 
@@ -78,11 +80,11 @@ type FakeFactory struct {
 	signalClosed chan struct{}
 }
 
-func (f *FakeFactory) Planner(closer <-chan struct{}) DataSourcePlanner {
+func (f *FakeFactory) Planner(ctx context.Context) DataSourcePlanner {
 	source := &StatefulSource{
 		signalClosed: f.signalClosed,
 	}
-	go source.Start(closer)
+	go source.Start(ctx)
 	return &FakePlanner{
 		source: source,
 	}

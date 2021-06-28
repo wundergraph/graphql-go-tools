@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -25,9 +26,9 @@ func TestPlanner_Plan(t *testing.T) {
 		norm.NormalizeOperation(&op, &def, report)
 		valid := astvalidation.DefaultOperationValidator()
 		valid.Validate(&op, &def, report)
-		closer := make(chan struct{})
-		defer close(closer)
-		p := NewPlanner(config, closer)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		p := NewPlanner(ctx, config)
 		return p.Plan(&op, &def, operationName, report)
 	}
 

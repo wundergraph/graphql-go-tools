@@ -94,7 +94,7 @@ func TestProcessDefer_Process(t *testing.T) {
 
 	expected := &plan.StreamingResponsePlan{
 		FlushInterval: 500,
-		Response: resolve.GraphQLStreamingResponse{
+		Response: &resolve.GraphQLStreamingResponse{
 			FlushInterval: 500,
 			InitialResponse: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
@@ -306,7 +306,7 @@ func TestProcessDefer_Process_Nested(t *testing.T) {
 
 	expected := &plan.StreamingResponsePlan{
 		FlushInterval: 500,
-		Response: resolve.GraphQLStreamingResponse{
+		Response: &resolve.GraphQLStreamingResponse{
 			FlushInterval: 500,
 			InitialResponse: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
@@ -545,7 +545,7 @@ func TestProcessDefer_Process_KeepFetchIfUsedUndeferred(t *testing.T) {
 
 	expected := &plan.StreamingResponsePlan{
 		FlushInterval: 500,
-		Response: resolve.GraphQLStreamingResponse{
+		Response: &resolve.GraphQLStreamingResponse{
 			FlushInterval: 500,
 			InitialResponse: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
@@ -751,7 +751,7 @@ func TestProcessDefer_Process_ParallelFetch(t *testing.T) {
 
 	expected := &plan.StreamingResponsePlan{
 		FlushInterval: 500,
-		Response: resolve.GraphQLStreamingResponse{
+		Response: &resolve.GraphQLStreamingResponse{
 			FlushInterval: 500,
 			InitialResponse: &resolve.GraphQLResponse{
 				Data: &resolve.Object{

@@ -117,9 +117,9 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			engineConf := NewEngineV2Configuration(testCase.schema)
 			engineConf.SetDataSources(testCase.dataSources)
 			engineConf.SetFieldConfigurations(testCase.fields)
-			closer := make(chan struct{})
-			defer close(closer)
-			engine, err := NewExecutionEngineV2(abstractlogger.Noop{}, engineConf, closer)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			engine, err := NewExecutionEngineV2(ctx, abstractlogger.Noop{}, engineConf)
 			require.NoError(t, err)
 
 			operation := testCase.operation(t)
@@ -533,14 +533,9 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			engineConf := NewEngineV2Configuration(testCase.schema)
 			engineConf.SetDataSources(testCase.dataSources)
 			engineConf.SetFieldConfigurations(testCase.fields)
-			closer := make(chan struct{})
-			defer close(closer)
-			engine, err := NewExecutionEngineV2(abstractlogger.Noop{}, engineConf, closer)
-			require.NoError(t, err)
 
-			triggerManager := subscription.NewManager(testCase.streamFactory(subscriptionCancel))
-			engine.WithTriggerManager(triggerManager)
-			triggerManager.Run(ctx.Done())
+			engine, err := NewExecutionEngineV2(ctx, abstractlogger.Noop{}, engineConf)
+			require.NoError(t, err)
 
 			operation := testCase.operation(t)
 
@@ -1007,7 +1002,10 @@ func TestExecutionWithOptions(t *testing.T) {
 	engineConf.SetDataSources(testCase.dataSources)
 	engineConf.SetFieldConfigurations(testCase.fields)
 
-	engine, err := NewExecutionEngineV2(abstractlogger.Noop{}, engineConf, closer)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	engine, err := NewExecutionEngineV2(ctx, abstractlogger.Noop{}, engineConf)
 	require.NoError(t, err)
 
 	before := &beforeFetchHook{}
@@ -1025,8 +1023,8 @@ func TestExecutionWithOptions(t *testing.T) {
 
 func BenchmarkExecutionEngineV2(b *testing.B) {
 
-	closer := make(chan struct{})
-	defer close(closer)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	type benchCase struct {
 		engine *ExecutionEngineV2
@@ -1057,7 +1055,7 @@ func BenchmarkExecutionEngineV2(b *testing.B) {
 			},
 		})
 
-		engine, err := NewExecutionEngineV2(abstractlogger.NoopLogger, engineConf, closer)
+		engine, err := NewExecutionEngineV2(ctx, abstractlogger.NoopLogger, engineConf)
 		require.NoError(b, err)
 
 		return engine
@@ -1071,7 +1069,7 @@ func BenchmarkExecutionEngineV2(b *testing.B) {
 		}
 	}
 
-	ctx := context.Background()
+	ctx = context.Background()
 	req := Request{
 		Query: "{hello}",
 	}

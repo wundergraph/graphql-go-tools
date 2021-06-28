@@ -96,7 +96,7 @@ func TestDefaultProcessor_Process(t *testing.T) {
 
 	expected := &plan.StreamingResponsePlan{
 		FlushInterval: 500,
-		Response: resolve.GraphQLStreamingResponse{
+		Response: &resolve.GraphQLStreamingResponse{
 			FlushInterval: 500,
 			InitialResponse: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
@@ -286,7 +286,7 @@ func TestDefaultProcessor_Federation(t *testing.T) {
 	}
 
 	expected := &plan.StreamingResponsePlan{
-		Response: resolve.GraphQLStreamingResponse{
+		Response: &resolve.GraphQLStreamingResponse{
 			InitialResponse: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{

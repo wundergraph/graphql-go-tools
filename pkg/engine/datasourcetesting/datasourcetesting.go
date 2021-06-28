@@ -1,6 +1,7 @@
 package datasourcetesting
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -30,9 +31,9 @@ func RunTest(definition, operation, operationName string, expectedPlan plan.Plan
 		norm.NormalizeOperation(&op, &def, &report)
 		valid := astvalidation.DefaultOperationValidator()
 		valid.Validate(&op, &def, &report)
-		closer := make(chan struct{})
-		defer close(closer)
-		p := plan.NewPlanner(config,closer)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		p := plan.NewPlanner(ctx,config)
 		actualPlan := p.Plan(&op, &def, operationName, &report)
 		if report.HasErrors() {
 			_, err := astprinter.PrintStringIndent(&def, nil, "  ")

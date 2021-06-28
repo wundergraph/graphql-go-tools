@@ -251,10 +251,9 @@ func TestDataSourceInput_Process(t *testing.T) {
 func TestDataSourceInput_Subscription_Process(t *testing.T) {
 
 	pre := &plan.SubscriptionResponsePlan{
-		Response: resolve.GraphQLSubscription{
+		Response: &resolve.GraphQLSubscription{
 			Trigger: resolve.GraphQLSubscriptionTrigger{
-				ManagerID: []byte("fake"),
-				Input:     `{"method":"POST","url":"http://localhost:4001/$$0$$","body":{"query":"{me {id username}}"}}`,
+				Input:     []byte(`{"method":"POST","url":"http://localhost:4001/$$0$$","body":{"query":"{me {id username}}"}}`),
 				Variables: []resolve.Variable{
 					&resolve.HeaderVariable{
 						Path: []string{"Authorization"},
@@ -266,9 +265,8 @@ func TestDataSourceInput_Subscription_Process(t *testing.T) {
 	}
 
 	expected := &plan.SubscriptionResponsePlan{
-		Response: resolve.GraphQLSubscription{
+		Response: &resolve.GraphQLSubscription{
 			Trigger: resolve.GraphQLSubscriptionTrigger{
-				ManagerID: []byte("fake"),
 				InputTemplate: resolve.InputTemplate{
 					Segments: []resolve.TemplateSegment{
 						{

@@ -12,7 +12,6 @@ import (
 
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/subscription"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 	"github.com/jensneuse/graphql-go-tools/pkg/postprocess"
 )
@@ -166,39 +165,22 @@ func WithAfterFetchHook(hook resolve.AfterFetchHook) ExecutionOptionsV2 {
 	}
 }
 
-func NewExecutionEngineV2WithTriggerManagers(logger abstractlogger.Logger, engineConfig EngineV2Configuration, closer <- chan struct{}, triggerManagers ...*subscription.Manager) (*ExecutionEngineV2, error) {
-	executionEngine, err := NewExecutionEngineV2(logger, engineConfig, closer)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, triggerManager := range triggerManagers {
-		executionEngine.WithTriggerManager(triggerManager)
-	}
-
-	return executionEngine, nil
-}
-
-func NewExecutionEngineV2(logger abstractlogger.Logger, engineConfig EngineV2Configuration, closer <- chan struct{}) (*ExecutionEngineV2, error) {
+func NewExecutionEngineV2(ctx context.Context, logger abstractlogger.Logger, engineConfig EngineV2Configuration) (*ExecutionEngineV2, error) {
 	return &ExecutionEngineV2{
 		logger: logger,
 		config: engineConfig,
 		plannerPool: sync.Pool{
 			New: func() interface{} {
-				return plan.NewPlanner(engineConfig.plannerConfig, closer)
+				return plan.NewPlanner(ctx, engineConfig.plannerConfig)
 			},
 		},
-		resolver: resolve.New(),
+		resolver: resolve.New(ctx),
 		internalExecutionContextPool: sync.Pool{
 			New: func() interface{} {
 				return newInternalExecutionContext()
 			},
 		},
 	}, nil
-}
-
-func (e *ExecutionEngineV2) WithTriggerManager(subManager *subscription.Manager) {
-	e.resolver.RegisterTriggerManager(subManager)
 }
 
 func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *Request, writer resolve.FlushWriter, options ...ExecutionOptionsV2) error {
@@ -239,7 +221,7 @@ func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *Request, wri
 	case *plan.SynchronousResponsePlan:
 		err = e.resolver.ResolveGraphQLResponse(execContext.resolveContext, p.Response, nil, writer)
 	case *plan.SubscriptionResponsePlan:
-		err = e.resolver.ResolveGraphQLSubscription(execContext.resolveContext, &p.Response, writer)
+		err = e.resolver.ResolveGraphQLSubscription(execContext.resolveContext, p.Response, writer)
 	default:
 		return errors.New("execution of operation is not possible")
 	}

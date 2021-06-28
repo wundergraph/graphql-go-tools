@@ -516,10 +516,9 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 	))
 	t.Run("pulling subscription get request with argument", datasourcetesting.RunTest(schema, argumentSubscription, "ArgumentQuery",
 		&plan.SubscriptionResponsePlan{
-			Response: resolve.GraphQLSubscription{
+			Response: &resolve.GraphQLSubscription{
 				Trigger: resolve.GraphQLSubscriptionTrigger{
-					Input:     `{"interval":1000,"request_input":{"method":"GET","url":"https://example.com/$$0$$/$$1$$"},"skip_publish_same_response":true}`,
-					ManagerID: []byte("http_polling_stream"),
+					Input:     []byte(`{"interval":1000,"request_input":{"method":"GET","url":"https://example.com/$$0$$/$$1$$"},"skip_publish_same_response":true}`),
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
 							Path: []string{"idVariable"},

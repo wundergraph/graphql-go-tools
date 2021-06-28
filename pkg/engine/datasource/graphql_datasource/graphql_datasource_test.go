@@ -41,6 +41,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							Path: []string{"Authorization"},
 						},
 					),
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
 				},
 				Fields: []*resolve.Field{
 					{
@@ -216,6 +217,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						),
 						DisallowSingleFlight: true,
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
 					Fields: []*resolve.Field{
 						{
@@ -314,6 +316,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						),
 						DisallowSingleFlight: false,
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
 					Fields: []*resolve.Field{
 						{
@@ -415,6 +418,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						),
 						DisallowSingleFlight: false,
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
 					Fields: []*resolve.Field{
 						{
@@ -536,6 +540,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						),
 						DisallowSingleFlight: false,
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
 					Fields: []*resolve.Field{
 						{
@@ -692,6 +697,7 @@ func TestGraphQLDataSource(t *testing.T) {
 										Path: []string{"thirdArg"},
 									},
 								),
+								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							},
 							{
 								BufferId:   2,
@@ -705,6 +711,7 @@ func TestGraphQLDataSource(t *testing.T) {
 										Path: []string{"fourthArg"},
 									},
 								),
+								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							},
 						},
 					},
@@ -721,6 +728,7 @@ func TestGraphQLDataSource(t *testing.T) {
 									BufferId:   1,
 									DataSource: &Source{},
 									Input:      `{"method":"POST","url":"https://country.service","body":{"query":"{countries {name}}"}}`,
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								},
 
 								Fields: []*resolve.Field{
@@ -767,6 +775,7 @@ func TestGraphQLDataSource(t *testing.T) {
 											Path: []string{"serviceOneField"},
 										},
 									),
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								},
 								Fields: []*resolve.Field{
 									{
@@ -1025,6 +1034,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						),
 						DisallowSingleFlight: true,
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
 					Fields: []*resolve.Field{
 						{
@@ -1164,6 +1174,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						),
 						DisallowSingleFlight: true,
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
 					Fields: []*resolve.Field{
 						{
@@ -1286,6 +1297,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						),
 						DisallowSingleFlight: true,
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
 					Fields: []*resolve.Field{
 						{
@@ -1413,10 +1425,10 @@ func TestGraphQLDataSource(t *testing.T) {
 			remainingJedis
 		}
 	`, "RemainingJedis", &plan.SubscriptionResponsePlan{
-		Response: resolve.GraphQLSubscription{
+		Response: &resolve.GraphQLSubscription{
 			Trigger: resolve.GraphQLSubscriptionTrigger{
-				ManagerID: []byte("graphql_websocket_subscription"),
-				Input:     `{"url":"wss://swapi.com/graphql","body":{"query":"subscription{remainingJedis}"}}`,
+				Input:  []byte(`{"url":"wss://swapi.com/graphql","body":{"query":"subscription{remainingJedis}"}}`),
+				Source: &SubscriptionSource{},
 			},
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
@@ -1460,15 +1472,15 @@ func TestGraphQLDataSource(t *testing.T) {
 			foo(bar: "baz")
 		}
 	`, "SubscriptionWithVariables", &plan.SubscriptionResponsePlan{
-		Response: resolve.GraphQLSubscription{
+		Response: &resolve.GraphQLSubscription{
 			Trigger: resolve.GraphQLSubscriptionTrigger{
-				ManagerID: []byte("graphql_websocket_subscription"),
-				Input:     `{"url":"wss://swapi.com/graphql","body":{"query":"subscription($a: String){foo(bar: $a)}","variables":{"a":"$$0$$"}}}`,
+				Input: []byte(`{"url":"wss://swapi.com/graphql","body":{"query":"subscription($a: String){foo(bar: $a)}","variables":{"a":"$$0$$"}}}`),
 				Variables: resolve.NewVariables(
 					&resolve.ContextVariable{
 						Path: []string{"a"},
 					},
 				),
+				Source: &SubscriptionSource{},
 			},
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
@@ -1549,6 +1561,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						BufferId:   0,
 						Input:      `{"method":"POST","url":"http://user.service","body":{"query":"{me {id username}}"}}`,
 						DataSource: &Source{},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
 					Fields: []*resolve.Field{
 						{
@@ -1565,6 +1578,7 @@ func TestGraphQLDataSource(t *testing.T) {
 										},
 									),
 									DataSource: &Source{},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								},
 								Path:     []string{"me"},
 								Nullable: true,
@@ -1632,6 +1646,7 @@ func TestGraphQLDataSource(t *testing.T) {
 																				Path: []string{"upc"},
 																			},
 																		),
+																		DataSourceIdentifier: []byte("graphql_datasource.Source"),
 																	},
 																	{
 																		BufferId: 3,
@@ -1642,6 +1657,7 @@ func TestGraphQLDataSource(t *testing.T) {
 																			},
 																		),
 																		DataSource: &Source{},
+																		DataSourceIdentifier: []byte("graphql_datasource.Source"),
 																	},
 																},
 															},
