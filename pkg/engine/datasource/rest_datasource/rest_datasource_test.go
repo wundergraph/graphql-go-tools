@@ -118,6 +118,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 						BufferId:   0,
 						Input:      `{"method":"GET","url":"https://example.com/friend"}`,
 						DataSource: &Source{},
+						DataSourceIdentifier: []byte("rest_datasource.Source"),
 					},
 					Fields: []*resolve.Field{
 						{
@@ -135,6 +136,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 											Path: []string{"name"},
 										},
 									),
+									DataSourceIdentifier: []byte("rest_datasource.Source"),
 								},
 								Fields: []*resolve.Field{
 									{
@@ -238,6 +240,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 								Path: []string{"a"},
 							},
 						),
+						DataSourceIdentifier: []byte("rest_datasource.Source"),
 					},
 					Fields: []*resolve.Field{
 						{
@@ -306,6 +309,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 										Path: []string{"a"},
 									},
 								),
+								DataSourceIdentifier: []byte("rest_datasource.Source"),
 							},
 							{
 								BufferId:   3,
@@ -319,6 +323,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 										Path: []string{"d"},
 									},
 								),
+								DataSourceIdentifier: []byte("rest_datasource.Source"),
 							},
 						},
 					},
@@ -340,6 +345,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 													Path: []string{"b"},
 												},
 											),
+											DataSourceIdentifier: []byte("rest_datasource.Source"),
 										},
 										{
 											BufferId:   2,
@@ -350,6 +356,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 													Path: []string{"c"},
 												},
 											),
+											DataSourceIdentifier: []byte("rest_datasource.Source"),
 										},
 									},
 								},
@@ -464,6 +471,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 								Path: []string{"b"},
 							},
 						),
+						DataSourceIdentifier: []byte("rest_datasource.Source"),
 					},
 					Fields: []*resolve.Field{
 						{
@@ -518,7 +526,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 		&plan.SubscriptionResponsePlan{
 			Response: &resolve.GraphQLSubscription{
 				Trigger: resolve.GraphQLSubscriptionTrigger{
-					Input:     []byte(`{"interval":1000,"request_input":{"method":"GET","url":"https://example.com/$$0$$/$$1$$"},"skip_publish_same_response":true}`),
+					Input: []byte(`{"interval":1000,"request_input":{"method":"GET","url":"https://example.com/$$0$$/$$1$$"},"skip_publish_same_response":true}`),
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
 							Path: []string{"idVariable"},
@@ -591,6 +599,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 						Input:                `{"body":{"foo":"bar"},"method":"POST","url":"https://example.com/friend"}`,
 						DataSource:           &Source{},
 						DisallowSingleFlight: true,
+						DataSourceIdentifier: []byte("rest_datasource.Source"),
 					},
 					Fields: []*resolve.Field{
 						{
@@ -655,6 +664,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 								Path: []string{"Authorization"},
 							},
 						},
+						DataSourceIdentifier: []byte("rest_datasource.Source"),
 					},
 					Fields: []*resolve.Field{
 						{
@@ -727,6 +737,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 								Path: []string{"idVariable"},
 							},
 						),
+						DataSourceIdentifier: []byte("rest_datasource.Source"),
 					},
 					Fields: []*resolve.Field{
 						{
@@ -812,6 +823,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 								Path: []string{"a"},
 							},
 						),
+						DataSourceIdentifier: []byte("rest_datasource.Source"),
 					},
 					Fields: []*resolve.Field{
 						{

@@ -32,11 +32,12 @@ func TestCloser(t *testing.T) {
 	norm.NormalizeOperation(&op, &def, report)
 	valid := astvalidation.DefaultOperationValidator()
 	valid.Validate(&op, &def, report)
-	closer := make(chan struct{})
-	closeSignal := make(chan struct{})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	closedSignal := make(chan struct{})
 
 	factory := &FakeFactory{
-		signalClosed: closeSignal,
+		signalClosed: closedSignal,
 	}
 
 	cfg := Configuration{
@@ -56,14 +57,14 @@ func TestCloser(t *testing.T) {
 		},
 		Fields: nil,
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+
 	p := NewPlanner(ctx, cfg)
 	plan := p.Plan(&op, &def, "", report)
 	assert.NotNil(t, plan)
 
-	close(closer) // terminate all stateful sources
-	<-closeSignal // stateful source closed from closer
+	cancel()     // terminate all stateful sources
+	<-ctx.Done() // stateful source closed from closer
+	<-closedSignal
 	// test terminates only if stateful source closed
 }
 
