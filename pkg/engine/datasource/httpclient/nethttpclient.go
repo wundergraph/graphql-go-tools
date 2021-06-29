@@ -12,16 +12,6 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 )
 
-type NetHttpClient struct {
-	client *http.Client
-}
-
-func NewNetHttpClient(client *http.Client) *NetHttpClient {
-	return &NetHttpClient{
-		client: client,
-	}
-}
-
 var (
 	DefaultNetHttpClient = &http.Client{
 		Timeout: time.Second * 10,
@@ -30,9 +20,13 @@ var (
 			TLSHandshakeTimeout: 0 * time.Second,
 		},
 	}
+	queryParamsKeys = [][]string{
+		{"name"},
+		{"value"},
+	}
 )
 
-func (n *NetHttpClient) Do(ctx context.Context, requestInput []byte, out io.Writer) (err error) {
+func Do(client *http.Client,ctx context.Context, requestInput []byte, out io.Writer) (err error) {
 
 	url, method, body, headers, queryParams := requestInputParams(requestInput)
 
@@ -90,7 +84,7 @@ func (n *NetHttpClient) Do(ctx context.Context, requestInput []byte, out io.Writ
 	request.Header.Add("accept", "application/json")
 	request.Header.Add("content-type", "application/json")
 
-	response, err := n.client.Do(request)
+	response, err := client.Do(request)
 	if err != nil {
 		return err
 	}

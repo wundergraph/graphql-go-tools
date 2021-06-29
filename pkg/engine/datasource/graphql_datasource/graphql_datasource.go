@@ -35,7 +35,8 @@ type Planner struct {
 	disallowSingleFlight       bool
 	hasFederationRoot          bool
 	extractEntities            bool
-	client                     httpclient.Client
+	fetchClient                *http.Client
+	subscriptionClient         GraphQLSubscriptionClient
 	isNested                   bool   // isNested - flags that datasource is nested e.g. field with datasource is not on a query type
 	rootTypeName               string // rootTypeName - holds name of top level type
 	rootFieldName              string // rootFieldName - holds name of root type field
@@ -149,7 +150,7 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 	return plan.FetchConfiguration{
 		Input: string(input),
 		DataSource: &Source{
-			client: p.client,
+			httpClient: p.fetchClient,
 		},
 		Variables:            p.variables,
 		DisallowSingleFlight: p.disallowSingleFlight,
@@ -168,9 +169,11 @@ func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
 	}
 
 	return plan.SubscriptionConfiguration{
-		Input:      string(input),
-		DataSource: &SubscriptionSource{},
-		Variables:  p.variables,
+		Input: string(input),
+		DataSource: &SubscriptionSource{
+			client: p.subscriptionClient,
+		},
+		Variables: p.variables,
 	}
 }
 
@@ -856,12 +859,13 @@ func (p *Planner) addField(ref int) {
 }
 
 type Factory struct {
-	Client httpclient.Client
+	Client *http.Client
 }
 
 func (f *Factory) Planner(ctx context.Context) plan.DataSourcePlanner {
 	return &Planner{
-		client: f.Client,
+		fetchClient:        f.Client,
+		subscriptionClient: NewWebSocketGraphQLSubscriptionClient(f.Client, ctx),
 	}
 }
 
@@ -879,14 +883,14 @@ var (
 )
 
 type Source struct {
-	client httpclient.Client
+	httpClient *http.Client
 }
 
 func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPair) (err error) {
 	buf := pool.BytesBuffer.Get()
 	defer pool.BytesBuffer.Put(buf)
 
-	err = s.client.Do(ctx, input, buf)
+	err = httpclient.Do(s.httpClient, ctx, input, buf)
 	if err != nil {
 		return
 	}
@@ -935,7 +939,9 @@ type GraphQLSubscriptionClient interface {
 }
 
 type GraphQLSubscriptionOptions struct {
-	Url, Body string
+	URL    string      `json:"url"`
+	Body   string      `json:"body"`
+	Header http.Header `json:"header"`
 }
 
 type SubscriptionSource struct {
@@ -943,20 +949,10 @@ type SubscriptionSource struct {
 }
 
 func (s *SubscriptionSource) Start(ctx context.Context, input []byte, next chan<- []byte) error {
-
 	var options GraphQLSubscriptionOptions
 	err := json.Unmarshal(input, &options)
 	if err != nil {
 		return err
 	}
-
 	return s.client.Subscribe(ctx, options, next)
-
-	/*websocket.Dial(ctx, "", &websocket.DialOptions{
-		HTTPClient:           nil,
-		HTTPHeader:           nil,
-		Subprotocols:         nil,
-		CompressionMode:      0,
-		CompressionThreshold: 0,
-	})*/
 }
