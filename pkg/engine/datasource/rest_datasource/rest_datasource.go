@@ -12,12 +12,11 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/subscription/http_polling"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 )
 
 type Planner struct {
-	client              httpclient.Client
+	client              *http.Client
 	v                   *plan.Visitor
 	config              Configuration
 	rootField           int
@@ -41,7 +40,7 @@ func (p *Planner) EnterOperationDefinition(ref int) {
 }
 
 type Factory struct {
-	Client httpclient.Client
+	Client *http.Client
 }
 
 func (f *Factory) Planner(ctx context.Context) plan.DataSourcePlanner {
@@ -121,18 +120,7 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 }
 
 func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
-
-	input := p.configureInput()
-
-	var httpPollingInput []byte
-	httpPollingInput = http_polling.SetSkipPublishSameResponse(httpPollingInput, p.config.Subscription.SkipPublishSameResponse)
-	httpPollingInput = http_polling.SetRequestInput(httpPollingInput, input)
-	httpPollingInput = http_polling.SetInputIntervalMillis(httpPollingInput, p.config.Subscription.PollingIntervalMillis)
-
-	return plan.SubscriptionConfiguration{
-		Input:                 string(httpPollingInput),
-		Variables:             nil,
-	}
+	return plan.SubscriptionConfiguration{}
 }
 
 var (
@@ -176,9 +164,9 @@ Next:
 }
 
 type Source struct {
-	client httpclient.Client
+	client *http.Client
 }
 
 func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPair) (err error) {
-	return s.client.Do(ctx, input, bufPair.Data)
+	return httpclient.Do(s.client, ctx, input, bufPair.Data)
 }

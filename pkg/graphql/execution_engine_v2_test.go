@@ -20,8 +20,6 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/staticdatasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/subscription"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/subscription/http_polling"
 	"github.com/jensneuse/graphql-go-tools/pkg/starwars"
 )
 
@@ -107,7 +105,6 @@ type executionEngineV2SubscriptionTestCase struct {
 	operation         func(t *testing.T) Request
 	dataSources       []plan.DataSourceConfiguration
 	fields            plan.FieldConfigurations
-	streamFactory     func(cancelSubscriptionFn context.CancelFunc) subscription.Stream
 	expectedResponses []string
 }
 
@@ -572,7 +569,9 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 				RootNodes: []plan.TypeField{
 					{TypeName: "Subscription", FieldNames: []string{"remainingJedis"}},
 				},
-				Factory: &graphql_datasource.Factory{},
+				Factory: &graphql_datasource.Factory{
+
+				},
 				Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
 					Subscription: graphql_datasource.SubscriptionConfiguration{
 						URL: "wss://swapi.com/graphql",

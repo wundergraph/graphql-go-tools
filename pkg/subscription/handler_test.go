@@ -12,7 +12,6 @@ import (
 
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/graphql_datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/subscription"
 	"github.com/jensneuse/graphql-go-tools/pkg/graphql"
 	"github.com/jensneuse/graphql-go-tools/pkg/starwars"
 )

@@ -1,6 +1,7 @@
 package graphql_datasource
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
@@ -725,9 +726,9 @@ func TestGraphQLDataSource(t *testing.T) {
 								Path:     []string{"serviceOne"},
 
 								Fetch: &resolve.SingleFetch{
-									BufferId:   1,
-									DataSource: &Source{},
-									Input:      `{"method":"POST","url":"https://country.service","body":{"query":"{countries {name}}"}}`,
+									BufferId:             1,
+									DataSource:           &Source{},
+									Input:                `{"method":"POST","url":"https://country.service","body":{"query":"{countries {name}}"}}`,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								},
 
@@ -1419,7 +1420,10 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 			DefaultFlushInterval: 500,
 		}))
-
+	factory := &Factory{
+		Client: http.DefaultClient,
+	}
+	ctx, _ := context.WithCancel(context.Background())
 	t.Run("subscription", RunTest(testDefinition, `
 		subscription RemainingJedis {
 			remainingJedis
@@ -1427,8 +1431,10 @@ func TestGraphQLDataSource(t *testing.T) {
 	`, "RemainingJedis", &plan.SubscriptionResponsePlan{
 		Response: &resolve.GraphQLSubscription{
 			Trigger: resolve.GraphQLSubscriptionTrigger{
-				Input:  []byte(`{"url":"wss://swapi.com/graphql","body":{"query":"subscription{remainingJedis}"}}`),
-				Source: &SubscriptionSource{},
+				Input: []byte(`{"url":"wss://swapi.com/graphql","body":{"query":"subscription{remainingJedis}"}}`),
+				Source: &SubscriptionSource{
+					NewWebSocketGraphQLSubscriptionClient(http.DefaultClient, ctx),
+				},
 			},
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
@@ -1458,7 +1464,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						URL: "wss://swapi.com/graphql",
 					},
 				}),
-				Factory: &Factory{},
+				Factory: factory,
 			},
 		},
 	}))
@@ -1480,7 +1486,9 @@ func TestGraphQLDataSource(t *testing.T) {
 						Path: []string{"a"},
 					},
 				),
-				Source: &SubscriptionSource{},
+				Source: &SubscriptionSource{
+					client: NewWebSocketGraphQLSubscriptionClient(http.DefaultClient, ctx),
+				},
 			},
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
@@ -1510,7 +1518,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						URL: "wss://swapi.com/graphql",
 					},
 				}),
-				Factory: &Factory{},
+				Factory: factory,
 			},
 		},
 		Fields: []plan.FieldConfiguration{
@@ -1558,9 +1566,9 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId:   0,
-						Input:      `{"method":"POST","url":"http://user.service","body":{"query":"{me {id username}}"}}`,
-						DataSource: &Source{},
+						BufferId:             0,
+						Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{me {id username}}"}}`,
+						DataSource:           &Source{},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
 					Fields: []*resolve.Field{
@@ -1577,7 +1585,7 @@ func TestGraphQLDataSource(t *testing.T) {
 											Path: []string{"id"},
 										},
 									),
-									DataSource: &Source{},
+									DataSource:           &Source{},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								},
 								Path:     []string{"me"},
@@ -1656,7 +1664,7 @@ func TestGraphQLDataSource(t *testing.T) {
 																				Path: []string{"upc"},
 																			},
 																		),
-																		DataSource: &Source{},
+																		DataSource:           &Source{},
 																		DataSourceIdentifier: []byte("graphql_datasource.Source"),
 																	},
 																},
