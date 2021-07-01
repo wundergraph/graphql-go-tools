@@ -41,6 +41,7 @@ func (c *WebSocketGraphQLSubscriptionClient) Subscribe(ctx context.Context, opti
 		HTTPClient:      c.httpClient,
 		HTTPHeader:      options.Header,
 		CompressionMode: websocket.CompressionDisabled,
+		Subprotocols:    []string{"graphql-ws"},
 	})
 	if err != nil {
 		return err
