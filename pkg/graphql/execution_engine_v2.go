@@ -205,7 +205,7 @@ func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *Request, wri
 	}
 
 	// Optimization: Hashing the operation and caching the postprocessed plan for
-	// this specific operation will improve perfomance significantly.
+	// this specific operation will improve performance significantly.
 	var report operationreport.Report
 	planner := e.plannerPool.Get().(*plan.Planner)
 	planResult := planner.Plan(&operation.document, &e.config.schema.document, operation.OperationName, &report)

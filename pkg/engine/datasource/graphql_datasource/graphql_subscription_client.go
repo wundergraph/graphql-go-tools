@@ -93,6 +93,7 @@ func (c *WebSocketGraphQLSubscriptionClient) handleSubscription(conn *websocket.
 	defer func() {
 		_ = conn.Write(ctx, websocket.MessageText, []byte(fmt.Sprintf(stopMessage, "1")))
 		_ = conn.Close(websocket.StatusNormalClosure, "")
+		close(next)
 	}()
 	subscriptionLifecycle := ctx.Done()
 	resolverLifecycle := c.ctx.Done()
@@ -136,8 +137,7 @@ func (c *WebSocketGraphQLSubscriptionClient) handleSubscription(conn *websocket.
 			case "complete":
 				return
 			case "connection_error":
-				// next <- []byte(`{"errors":[{"message":"connection error"}]}`)
-				close(next)
+				next <- []byte(`{"errors":[{"message":"connection error"}]}`)
 				return
 			default:
 				continue

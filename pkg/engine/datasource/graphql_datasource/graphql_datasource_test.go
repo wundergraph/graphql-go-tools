@@ -1947,6 +1947,9 @@ func TestSubscriptionSource_Start(t *testing.T) {
 		err := source.Start(ctx, chatSubscriptionOptions, next)
 		require.NoError(t, err)
 
+		nextBytes := <-next
+		assert.Equal(t, `{"errors":[{"message":"connection error"}]}`, string(nextBytes))
+
 		_, ok := <-next
 		assert.False(t, ok)
 	})
@@ -1966,7 +1969,25 @@ func TestSubscriptionSource_Start(t *testing.T) {
 	})
 
 	t.Run("should close connection on stop message", func(t *testing.T) {
-		// How to do?
+		next := make(chan []byte)
+		subscriptionLifecycle, cancelSubscription := context.WithCancel(context.Background())
+		resolverLifecycle, cancelResolver := context.WithCancel(context.Background())
+		defer cancelResolver()
+
+		source := newSubscriptionSource(resolverLifecycle)
+		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
+		err := source.Start(subscriptionLifecycle, chatSubscriptionOptions, next)
+		require.NoError(t, err)
+
+		username := "myuser"
+		message := "hello world!"
+		go sendChatMessage(t, username, message)
+
+		nextBytes := <-next
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, string(nextBytes))
+		cancelSubscription()
+		_, ok := <-next
+		assert.False(t, ok)
 	})
 
 	t.Run("should successfully subscribe with chat example", func(t *testing.T) {
