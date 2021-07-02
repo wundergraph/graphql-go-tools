@@ -144,12 +144,15 @@ type dataLoader struct {
 	inUseBufPair []*BufPair
 }
 
-func (d *dataLoader) Load(ctx *Context, fetch *SingleFetch) (response *BufPair, err error) {
+func (d *dataLoader) Load(ctx *Context, fetch *SingleFetch, buf *BufPair) (err error) {
 	var fetchResult *batchState
+	var resultPair *BufPair
 
 	fetchResult, ok := d.getFetchState(fetch.BufferId)
 	if ok {
-		return fetchResult.next(ctx)
+		resultPair, err = fetchResult.next(ctx)
+		copyBufPair(buf, resultPair)
+		return
 	}
 
 	fetchResult = &batchState{}
@@ -161,7 +164,7 @@ func (d *dataLoader) Load(ctx *Context, fetch *SingleFetch) (response *BufPair, 
 		defer d.resourceProvider.freeBufPair(buf)
 
 		if err := fetch.InputTemplate.Render(ctx, nil, buf.Data); err != nil {
-			return nil, err
+			return err
 		}
 
 		pair := d.getResultBufPair()
@@ -171,7 +174,9 @@ func (d *dataLoader) Load(ctx *Context, fetch *SingleFetch) (response *BufPair, 
 
 		d.setFetchState(fetchResult, fetch.BufferId)
 
-		return fetchResult.next(ctx)
+		resultPair, err = fetchResult.next(ctx)
+		copyBufPair(buf, resultPair)
+		return
 	}
 
 	fetchParams := d.selectedDataForFetch(parentResult.data(), ctx.responseElements...)
@@ -179,22 +184,27 @@ func (d *dataLoader) Load(ctx *Context, fetch *SingleFetch) (response *BufPair, 
 
 	d.setFetchState(fetchResult, fetch.BufferId)
 
-	return fetchResult.next(ctx)
+	resultPair, err = fetchResult.next(ctx)
+	copyBufPair(buf, resultPair)
+	return
 }
 
-func (d *dataLoader) LoadBatch(ctx *Context, batchFetch *BatchFetch) (response *BufPair, err error) {
+func (d *dataLoader) LoadBatch(ctx *Context, batchFetch *BatchFetch,  buf *BufPair) (err error) {
 	var fetchResult *batchState
+	var resultPair *BufPair
 
 	fetchResult, ok := d.getFetchState(batchFetch.Fetch.BufferId)
 	if ok {
-		return fetchResult.next(ctx)
+		resultPair, err = fetchResult.next(ctx)
+		copyBufPair(buf, resultPair)
+		return
 	}
 
 	fetchResult = &batchState{}
 
 	parentResult, ok := d.getFetchState(ctx.lastFetchID)
 	if !ok {
-		return nil, fmt.Errorf("has not got fetch for %d", ctx.lastFetchID)
+		return fmt.Errorf("has not got fetch for %d", ctx.lastFetchID)
 	}
 
 	fetchParams := d.selectedDataForFetch(parentResult.data(), ctx.responseElements...)
@@ -202,7 +212,9 @@ func (d *dataLoader) LoadBatch(ctx *Context, batchFetch *BatchFetch) (response *
 
 	d.setFetchState(fetchResult, batchFetch.Fetch.BufferId)
 
-	return fetchResult.next(ctx)
+	resultPair, err = fetchResult.next(ctx)
+	copyBufPair(buf, resultPair)
+	return
 }
 
 func (d *dataLoader) resolveBatchFetch(ctx *Context, batchFetch *BatchFetch, fetchParams [][]byte) (results []*BufPair, err error) {
@@ -414,4 +426,13 @@ func flatMap(input [][]byte, f func(val []byte) [][]byte) [][]byte {
 	}
 
 	return result
+}
+
+func copyBufPair(to, from *BufPair) {
+	if to == nil || from == nil {
+		return
+	}
+
+	to.Data.WriteBytes(from.Data.Bytes())
+	to.Errors.WriteBytes(from.Errors.Bytes())
 }

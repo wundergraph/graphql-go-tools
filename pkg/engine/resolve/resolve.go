@@ -229,6 +229,7 @@ type DataSource interface {
 
 type Resolver struct {
 	EnableSingleFlightLoader bool
+	EnableDataloader         bool
 	resultSetPool            sync.Pool
 	byteSlicesPool           sync.Pool
 	waitGroupPool            sync.Pool
@@ -1030,33 +1031,13 @@ func (r *Resolver) prepareSingleFetch(ctx *Context, fetch *SingleFetch, data []b
 }
 
 func (r *Resolver) resolveBatchFetch(ctx *Context, fetch *BatchFetch, preparedInput *fastbuffer.FastBuffer, buf *BufPair) (err error) {
-	resp, err := ctx.dataLoader.LoadBatch(ctx, fetch)
-	if err != nil {
-		return err
-	}
-
-	if resp == nil {
-		return
-	}
-
-	buf.Data.WriteBytes(resp.Data.Bytes())
-	buf.Errors.WriteBytes(resp.Errors.Bytes())
+	err = ctx.dataLoader.LoadBatch(ctx, fetch, buf)
 
 	return
 }
 
 func (r *Resolver) resolveSingleFetch(ctx *Context, fetch *SingleFetch, preparedInput *fastbuffer.FastBuffer, buf *BufPair) (err error) {
-	resp, err := ctx.dataLoader.Load(ctx, fetch)
-	if err != nil {
-		return err
-	}
-
-	if resp == nil {
-		return
-	}
-
-	buf.Data.WriteBytes(resp.Data.Bytes())
-	buf.Errors.WriteBytes(resp.Errors.Bytes())
+	err = ctx.dataLoader.Load(ctx, fetch, buf)
 
 	return
 }
