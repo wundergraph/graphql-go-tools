@@ -23,7 +23,7 @@ type Planner struct {
 	operationDefinition int
 }
 
-func (p *Planner) DownstreamResponseFieldAlias(downstreamFieldRef int) (alias string, exists bool) {
+func (p *Planner) DownstreamResponseFieldAlias(_ int) (alias string, exists bool) {
 	// the REST DataSourcePlanner doesn't rewrite upstream fields: skip
 	return
 }
