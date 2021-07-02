@@ -236,11 +236,9 @@ type Resolver struct {
 	bufPairSlicePool         sync.Pool
 	errChanPool              sync.Pool
 	hash64Pool               sync.Pool
-	inflightFetchPool        sync.Pool
-	inflightFetchMu          sync.Mutex
-	inflightFetches          map[uint64]*inflightFetch
 	triggerManagers          map[uint64]*subscription.Manager
 	dataloaderFactory        *dataloaderFactory
+	fetcher                  *Fetcher
 }
 
 func (r *Resolver) RegisterTriggerManager(m *subscription.Manager) {
@@ -258,7 +256,7 @@ type inflightFetch struct {
 	bufPair  BufPair
 }
 
-func New() *Resolver {
+func New(fetcher *Fetcher) *Resolver {
 	return &Resolver{
 		resultSetPool: sync.Pool{
 			New: func() interface{} {
@@ -303,19 +301,8 @@ func New() *Resolver {
 				return xxhash.New()
 			},
 		},
-		inflightFetchPool: sync.Pool{
-			New: func() interface{} {
-				return &inflightFetch{
-					bufPair: BufPair{
-						Data:   fastbuffer.New(),
-						Errors: fastbuffer.New(),
-					},
-				}
-			},
-		},
-		inflightFetches:   map[uint64]*inflightFetch{},
 		triggerManagers:   map[uint64]*subscription.Manager{},
-		dataloaderFactory: newDataloaderFactory(),
+		dataloaderFactory: newDataloaderFactory(fetcher),
 	}
 }
 
@@ -373,7 +360,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	if data != nil {
 		ctx.lastFetchID = initialValueID
 	}
-	ctx.dataLoader = r.dataloaderFactory.newDataLoader(r, data)
+	ctx.dataLoader = r.dataloaderFactory.newDataLoader(data)
 	defer func() {
 		r.dataloaderFactory.freeDataLoader(ctx.dataLoader)
 		ctx.dataLoader = nil
@@ -1074,90 +1061,6 @@ func (r *Resolver) resolveSingleFetch(ctx *Context, fetch *SingleFetch, prepared
 	return
 }
 
-// it seems Resolver is not suitable place for the method.
-func (r *Resolver) fetch(ctx *Context, fetch *SingleFetch, preparedInput []byte, buf *BufPair) (err error) {
-	if ctx.beforeFetchHook != nil {
-		ctx.beforeFetchHook.OnBeforeFetch(r.hookCtx(ctx), preparedInput)
-	}
-
-	if !r.EnableSingleFlightLoader || fetch.DisallowSingleFlight {
-		err = fetch.DataSource.Load(ctx.Context, preparedInput, buf)
-		if ctx.afterFetchHook != nil {
-			if buf.HasData() {
-				ctx.afterFetchHook.OnData(r.hookCtx(ctx), buf.Data.Bytes(), false)
-			}
-			if buf.HasErrors() {
-				ctx.afterFetchHook.OnError(r.hookCtx(ctx), buf.Errors.Bytes(), false)
-			}
-		}
-		return
-	}
-
-	hash64 := r.getHash64()
-	_, _ = hash64.Write(fetch.DataSource.UniqueIdentifier())
-	_, _ = hash64.Write(preparedInput)
-	fetchID := hash64.Sum64()
-	r.putHash64(hash64)
-
-	r.inflightFetchMu.Lock()
-	inflight, ok := r.inflightFetches[fetchID]
-	if ok {
-		inflight.waitFree.Add(1)
-		defer inflight.waitFree.Done()
-		r.inflightFetchMu.Unlock()
-		inflight.waitLoad.Wait()
-		if inflight.bufPair.HasData() {
-			if ctx.afterFetchHook != nil {
-				ctx.afterFetchHook.OnData(r.hookCtx(ctx), inflight.bufPair.Data.Bytes(), true)
-			}
-			buf.Data.WriteBytes(inflight.bufPair.Data.Bytes())
-		}
-		if inflight.bufPair.HasErrors() {
-			if ctx.afterFetchHook != nil {
-				ctx.afterFetchHook.OnError(r.hookCtx(ctx), inflight.bufPair.Errors.Bytes(), true)
-			}
-			buf.Errors.WriteBytes(inflight.bufPair.Errors.Bytes())
-		}
-		return inflight.err
-	}
-
-	inflight = r.getInflightFetch()
-	inflight.waitLoad.Add(1)
-	r.inflightFetches[fetchID] = inflight
-
-	r.inflightFetchMu.Unlock()
-
-	err = fetch.DataSource.Load(ctx.Context, preparedInput, &inflight.bufPair)
-	inflight.err = err
-
-	if inflight.bufPair.HasData() {
-		if ctx.afterFetchHook != nil {
-			ctx.afterFetchHook.OnData(r.hookCtx(ctx), inflight.bufPair.Data.Bytes(), false)
-		}
-		buf.Data.WriteBytes(inflight.bufPair.Data.Bytes())
-	}
-
-	if inflight.bufPair.HasErrors() {
-		if ctx.afterFetchHook != nil {
-			ctx.afterFetchHook.OnError(r.hookCtx(ctx), inflight.bufPair.Errors.Bytes(), true)
-		}
-		buf.Errors.WriteBytes(inflight.bufPair.Errors.Bytes())
-	}
-
-	inflight.waitLoad.Done()
-
-	r.inflightFetchMu.Lock()
-	delete(r.inflightFetches, fetchID)
-	r.inflightFetchMu.Unlock()
-
-	go func() {
-		inflight.waitFree.Wait()
-		r.freeInflightFetch(inflight)
-	}()
-
-	return
-}
-
 func (r *Resolver) hookCtx(ctx *Context) HookContext {
 	return HookContext{
 		CurrentPath: ctx.path(),
@@ -1774,17 +1677,6 @@ func (r *Resolver) getWaitGroup() *sync.WaitGroup {
 
 func (r *Resolver) freeWaitGroup(wg *sync.WaitGroup) {
 	r.waitGroupPool.Put(wg)
-}
-
-func (r *Resolver) getInflightFetch() *inflightFetch {
-	return r.inflightFetchPool.Get().(*inflightFetch)
-}
-
-func (r *Resolver) freeInflightFetch(f *inflightFetch) {
-	f.bufPair.Data.Reset()
-	f.bufPair.Errors.Reset()
-	f.err = nil
-	r.inflightFetchPool.Put(f)
 }
 
 func (r *Resolver) getHash64() hash.Hash64 {

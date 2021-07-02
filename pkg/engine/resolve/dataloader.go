@@ -21,6 +21,8 @@ type dataloaderFactory struct {
 	waitGroupPool    sync.Pool
 	bufPairPool      sync.Pool
 	bufPairSlicePool sync.Pool
+
+	fetcher *Fetcher
 }
 
 func (df *dataloaderFactory) getWaitGroup() *sync.WaitGroup {
@@ -61,7 +63,7 @@ func (df *dataloaderFactory) freeMutex(mu *sync.Mutex) {
 	df.muPool.Put(mu)
 }
 
-func newDataloaderFactory() *dataloaderFactory {
+func newDataloaderFactory(fetcher *Fetcher) *dataloaderFactory {
 	return &dataloaderFactory{
 		muPool: sync.Pool{
 			New: func() interface{} {
@@ -96,14 +98,14 @@ func newDataloaderFactory() *dataloaderFactory {
 				}
 			},
 		},
+		fetcher: fetcher,
 	}
 }
 
-func (df *dataloaderFactory) newDataLoader(fetcher fetcher, initialValue []byte) *dataLoader { // initial value represent data from subscription
+func (df *dataloaderFactory) newDataLoader(initialValue []byte) *dataLoader { // initial value represent data from subscription
 	dataloader := df.dataloaderPool.Get().(*dataLoader)
 
 	dataloader.mu = df.getMutex()
-	dataloader.fetcher = fetcher
 	dataloader.resourceProvider = df
 
 	if initialValue != nil {
