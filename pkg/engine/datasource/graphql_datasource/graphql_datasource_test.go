@@ -1937,7 +1937,7 @@ func TestSubscriptionSource_Start(t *testing.T) {
 		assert.Equal(t, errSubscriptionClientFail, err)
 	})
 
-	t.Run("should have a closed channel when connection is being revoked from server", func(t *testing.T) {
+	t.Run("invalid json: should have a closed channel when connection is being revoked from server", func(t *testing.T) {
 		next := make(chan []byte)
 		ctx := context.Background()
 		defer ctx.Done()
@@ -1947,7 +1947,20 @@ func TestSubscriptionSource_Start(t *testing.T) {
 		err := source.Start(ctx, chatSubscriptionOptions, next)
 		require.NoError(t, err)
 
-		time.Sleep(200 * time.Millisecond)
+		_, ok := <-next
+		assert.False(t, ok)
+	})
+
+	t.Run("invalid syntax (roomNam)", func(t *testing.T) {
+		next := make(chan []byte)
+		ctx := context.Background()
+		defer ctx.Done()
+
+		source := newSubscriptionSource(ctx)
+		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomNam: \"#test\") { text createdBy } }"}`)
+		err := source.Start(ctx, chatSubscriptionOptions, next)
+		require.NoError(t, err)
+
 		_, ok := <-next
 		assert.False(t, ok)
 	})
