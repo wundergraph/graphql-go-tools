@@ -135,6 +135,10 @@ func (c *WebSocketGraphQLSubscriptionClient) handleSubscription(conn *websocket.
 				}
 			case "complete":
 				return
+			case "connection_error":
+				// next <- []byte(`{"errors":[{"message":"connection error"}]}`)
+				close(next)
+				return
 			default:
 				continue
 			}
