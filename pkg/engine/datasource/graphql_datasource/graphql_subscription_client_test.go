@@ -68,7 +68,7 @@ func TestWebsocketSubscriptionClientErrorArray(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, websocket.MessageText, msgType)
 		assert.Equal(t, `{"type":"start","id":"1","payload":{"query":"subscription {messageAdded(roomNam: "room"){text}}"}}`, string(data))
-		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"error","id":"1","payload":[{"message":"error"}]}`))
+		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"error","id":"1","payload":[{"message":"error"},{"message":"error"}]}`))
 		assert.NoError(t, err)
 		msgType, data, err = conn.Read(r.Context())
 		assert.NoError(t, err)
@@ -89,7 +89,7 @@ func TestWebsocketSubscriptionClientErrorArray(t *testing.T) {
 	}, next)
 	assert.NoError(t, err)
 	message := <-next
-	assert.Equal(t, `{"errors":[{"message":"error"}]}`, string(message))
+	assert.Equal(t, `{"errors":[{"message":"error"},{"message":"error"}]}`, string(message))
 	_, ok := <-next
 	assert.False(t, ok)
 	<-serverDone

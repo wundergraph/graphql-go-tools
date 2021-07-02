@@ -92,9 +92,9 @@ func (c *WebSocketGraphQLSubscriptionClient) Subscribe(ctx context.Context, opti
 
 func (c *WebSocketGraphQLSubscriptionClient) handleSubscription(conn *websocket.Conn, ctx context.Context, next chan<- []byte) {
 	defer func() {
+		close(next)
 		_ = conn.Write(ctx, websocket.MessageText, []byte(fmt.Sprintf(stopMessage, "1")))
 		_ = conn.Close(websocket.StatusNormalClosure, "")
-		close(next)
 	}()
 	subscriptionLifecycle := ctx.Done()
 	resolverLifecycle := c.ctx.Done()
