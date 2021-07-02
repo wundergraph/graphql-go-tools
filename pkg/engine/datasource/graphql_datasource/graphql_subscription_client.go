@@ -35,6 +35,7 @@ func (c *WebSocketGraphQLSubscriptionClient) Subscribe(ctx context.Context, opti
 	if options.Header == nil {
 		options.Header = http.Header{}
 	}
+
 	options.Header.Set("Sec-WebSocket-Protocol", "graphql-ws")
 	options.Header.Set("Sec-WebSocket-Version", "13")
 	conn, response, err := websocket.Dial(ctx, options.URL, &websocket.DialOptions{
@@ -138,6 +139,33 @@ func (c *WebSocketGraphQLSubscriptionClient) handleSubscription(conn *websocket.
 				return
 			case "connection_error":
 				next <- []byte(`{"errors":[{"message":"connection error"}]}`)
+				return
+			case "error":
+				value,valueType,_,err := jsonparser.Get(data,"payload")
+				if err != nil {
+					next <- []byte(`{"errors":[{"message":"internal error"}]}`)
+					return
+				}
+				switch valueType {
+				case jsonparser.Array:
+					response := []byte(`{}`)
+					response,err = jsonparser.Set(response,value,"errors")
+					if err != nil {
+						next <- []byte(`{"errors":[{"message":"internal error"}]}`)
+						return
+					}
+					next <- response
+				case jsonparser.Object:
+					response := []byte(`{"errors":[]}`)
+					response,err = jsonparser.Set(response,value,"errors","[0]")
+					if err != nil {
+						next <- []byte(`{"errors":[{"message":"internal error"}]}`)
+						return
+					}
+					next <- response
+				default:
+					next <- []byte(`{"errors":[{"message":"internal error"}]}`)
+				}
 				return
 			default:
 				continue
