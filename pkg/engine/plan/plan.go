@@ -24,6 +24,13 @@ type Planner struct {
 	requiredFieldsVisitor *requiredFieldsVisitor
 }
 
+func (p *Planner) SetCloser(closer <-chan struct{}) {
+	if p.configurationVisitor == nil {
+		return
+	}
+	p.configurationVisitor.closer = closer
+}
+
 type Configuration struct {
 	DefaultFlushInterval int64
 	DataSources          []DataSourceConfiguration
