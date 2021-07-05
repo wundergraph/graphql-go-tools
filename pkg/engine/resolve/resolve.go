@@ -264,17 +264,17 @@ type DataSource interface {
 }
 
 type Resolver struct {
-	EnableDataloader         bool
-	resultSetPool            sync.Pool
-	byteSlicesPool           sync.Pool
-	waitGroupPool            sync.Pool
-	bufPairPool              sync.Pool
-	bufPairSlicePool         sync.Pool
-	errChanPool              sync.Pool
-	hash64Pool               sync.Pool
-	triggerManagers          map[uint64]*subscription.Manager
-	dataloaderFactory        *dataLoaderFactory
-	fetcher                  *Fetcher
+	EnableDataloader  bool
+	resultSetPool     sync.Pool
+	byteSlicesPool    sync.Pool
+	waitGroupPool     sync.Pool
+	bufPairPool       sync.Pool
+	bufPairSlicePool  sync.Pool
+	errChanPool       sync.Pool
+	hash64Pool        sync.Pool
+	triggerManagers   map[uint64]*subscription.Manager
+	dataloaderFactory *dataLoaderFactory
+	fetcher           *Fetcher
 }
 
 func (r *Resolver) RegisterTriggerManager(m *subscription.Manager) {
@@ -339,7 +339,7 @@ func New(fetcher *Fetcher, enableDataLoader bool) *Resolver {
 		},
 		triggerManagers:   map[uint64]*subscription.Manager{},
 		dataloaderFactory: newDataloaderFactory(fetcher),
-		EnableDataloader: enableDataLoader,
+		EnableDataloader:  enableDataLoader,
 	}
 }
 
@@ -651,7 +651,7 @@ func (r *Resolver) resolveArray(ctx *Context, array *Array, data []byte, arrayBu
 	ctx.addResponseArrayElements(array.Path)
 	defer func() { ctx.removeResponseArrayLastElements(array.Path) }()
 
-	if array.ResolveAsynchronous && !array.Stream.Enabled {
+	if array.ResolveAsynchronous && !array.Stream.Enabled && !r.EnableDataloader {
 		return r.resolveArrayAsynchronous(ctx, array, arrayItems, arrayBuf)
 	}
 	return r.resolveArraySynchronous(ctx, array, arrayItems, arrayBuf)
@@ -1042,16 +1042,21 @@ func (r *Resolver) prepareSingleFetch(ctx *Context, fetch *SingleFetch, data []b
 	return
 }
 
-func (r *Resolver) resolveBatchFetch(ctx *Context, fetch *BatchFetch, preparedInput *fastbuffer.FastBuffer, buf *BufPair) (err error) {
-	err = ctx.dataLoader.LoadBatch(ctx, fetch, buf)
+func (r *Resolver) resolveBatchFetch(ctx *Context, fetch *BatchFetch, preparedInput *fastbuffer.FastBuffer, buf *BufPair) error {
+	if r.EnableDataloader {
+		return ctx.dataLoader.LoadBatch(ctx, fetch, buf)
+	}
 
-	return
+	return r.fetcher.Fetch(ctx, fetch.Fetch, preparedInput, buf)
 }
 
-func (r *Resolver) resolveSingleFetch(ctx *Context, fetch *SingleFetch, preparedInput *fastbuffer.FastBuffer, buf *BufPair) (err error) {
-	err = ctx.dataLoader.Load(ctx, fetch, buf)
+func (r *Resolver) resolveSingleFetch(ctx *Context, fetch *SingleFetch, preparedInput *fastbuffer.FastBuffer, buf *BufPair) error {
+	if r.EnableDataloader {
+		return ctx.dataLoader.Load(ctx, fetch, buf)
 
-	return
+	}
+
+	return r.fetcher.Fetch(ctx, fetch, preparedInput, buf)
 }
 
 func (r *Resolver) hookCtx(ctx *Context) HookContext {
