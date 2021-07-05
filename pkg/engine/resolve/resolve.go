@@ -187,15 +187,14 @@ func (c *Context) addResponseElements(elements []string) {
 
 func (c *Context) addResponseArrayElements(elements []string) {
 	c.responseElements = append(c.responseElements, elements...)
-	c.responseElements = append(c.responseElements, "@")
+	c.responseElements = append(c.responseElements, arrayElementKey)
 }
 
-func (c *Context) removeResponseLastElements(lastElemNum int) {
-	c.responseElements = c.responseElements[:len(c.responseElements)-lastElemNum]
+func (c *Context) removeResponseLastElements(elements []string) {
+	c.responseElements = c.responseElements[:len(c.responseElements)-len(elements)]
 }
-func (c *Context) removeResponseArrayLastElements(lastElemNum int) {
-	fmt.Println("$$$$$$$$", c.responseElements, len(c.responseElements), "lastElemNum", lastElemNum, string(c.path()))
-	c.responseElements = c.responseElements[:len(c.responseElements)-(lastElemNum+1)]
+func (c *Context) removeResponseArrayLastElements(elements []string) {
+	c.responseElements = c.responseElements[:len(c.responseElements)-(len(elements)+1)]
 }
 
 func (c *Context) resetResponsePathElements() {
@@ -265,7 +264,6 @@ type DataSource interface {
 }
 
 type Resolver struct {
-	EnableSingleFlightLoader bool
 	EnableDataloader         bool
 	resultSetPool            sync.Pool
 	byteSlicesPool           sync.Pool
@@ -275,7 +273,7 @@ type Resolver struct {
 	errChanPool              sync.Pool
 	hash64Pool               sync.Pool
 	triggerManagers          map[uint64]*subscription.Manager
-	dataloaderFactory        *dataloaderFactory
+	dataloaderFactory        *dataLoaderFactory
 	fetcher                  *Fetcher
 }
 
@@ -294,7 +292,7 @@ type inflightFetch struct {
 	bufPair  BufPair
 }
 
-func New(fetcher *Fetcher) *Resolver {
+func New(fetcher *Fetcher, enableDataLoader bool) *Resolver {
 	return &Resolver{
 		resultSetPool: sync.Pool{
 			New: func() interface{} {
@@ -341,6 +339,7 @@ func New(fetcher *Fetcher) *Resolver {
 		},
 		triggerManagers:   map[uint64]*subscription.Manager{},
 		dataloaderFactory: newDataloaderFactory(fetcher),
+		EnableDataloader: enableDataLoader,
 	}
 }
 
@@ -398,11 +397,14 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	if data != nil {
 		ctx.lastFetchID = initialValueID
 	}
-	ctx.dataLoader = r.dataloaderFactory.newDataLoader(data)
-	defer func() {
-		r.dataloaderFactory.freeDataLoader(ctx.dataLoader)
-		ctx.dataLoader = nil
-	}()
+
+	if r.EnableDataloader {
+		ctx.dataLoader = r.dataloaderFactory.newDataLoader(data)
+		defer func() {
+			r.dataloaderFactory.freeDataLoader(ctx.dataLoader)
+			ctx.dataLoader = nil
+		}()
+	}
 
 	err = r.resolveNode(ctx, response.Data, data, buf)
 	if err != nil {
@@ -647,10 +649,7 @@ func (r *Resolver) resolveArray(ctx *Context, array *Array, data []byte, arrayBu
 	}
 
 	ctx.addResponseArrayElements(array.Path)
-	defer func() {
-		fmt.Println(">>>>>>>>>>>>", string(data))
-		ctx.removeResponseArrayLastElements(len(array.Path))
-	}()
+	defer func() { ctx.removeResponseArrayLastElements(array.Path) }()
 
 	if array.ResolveAsynchronous && !array.Stream.Enabled {
 		return r.resolveArrayAsynchronous(ctx, array, arrayItems, arrayBuf)
@@ -681,9 +680,6 @@ func (r *Resolver) resolveArraySynchronous(ctx *Context, array *Array, arrayItem
 
 		ctx.addIntegerPathElement(i)
 		err = r.resolveNode(ctx, array.Item, (*arrayItems)[i], itemBuf)
-		if itemBuf.HasErrors() {
-			fmt.Println("has errors array")
-		}
 		ctx.removeLastPathElement()
 		if err != nil {
 			if errors.Is(err, errNonNullableFieldValueIsNull) && array.Nullable {
@@ -862,27 +858,10 @@ func (r *Resolver) resolveNull(b *fastbuffer.FastBuffer) {
 
 func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, objectBuf *BufPair) (err error) {
 
-	defer func() {
-		if objectBuf.HasErrors() {
-			fmt.Println("resolve object has errors")
-		}
-	}()
-
 	if len(object.Path) != 0 {
 		data, _, _, _ = jsonparser.Get(data, object.Path...)
 		ctx.addResponseElements(object.Path)
-		defer ctx.removeResponseLastElements(len(object.Path))
-	}
-
-	if object.Fetch != nil {
-		//fmt.Println("FETCH Path", string(ctx.path()))
-		//fmt.Println("FETCH Data", string(data))
-		//fmt.Println("FETCH Object path", object.Path)
-		//fmt.Println("FETCH RESPONSE ELEMENTS path", ctx.responseElements)
-	} else {
-		//fmt.Println("SIMPLE Path", string(ctx.path()))
-		//fmt.Println("SIMPLE Data", string(data))
-		//fmt.Println("SIMPLE Object path", object.Path)
+		defer ctx.removeResponseLastElements(object.Path)
 	}
 
 	var set *resultSet
@@ -950,7 +929,6 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 				return nil
 			}
 			if errors.Is(err, errNonNullableFieldValueIsNull) && object.Nullable {
-				objectBuf.Errors.WriteBytes(fieldBuf.Errors.Bytes()) // @TODO fixme
 				objectBuf.Data.Reset()
 				r.MergeBufPairErrors(fieldBuf, objectBuf)
 				r.resolveNull(objectBuf.Data)
@@ -958,11 +936,6 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 			}
 			return
 		}
-
-		if fieldBuf.HasErrors() {
-			fmt.Println("field buf errors")
-		}
-
 		r.MergeBufPairs(fieldBuf, objectBuf, false)
 	}
 	if first {
@@ -1013,7 +986,6 @@ func (r *Resolver) resolveFetch(ctx *Context, fetch Fetch, data []byte, set *res
 	return
 }
 
-// TODO try to make resolveFetch recursive
 func (r *Resolver) resolveParallelFetch(ctx *Context, fetch *ParallelFetch, data []byte, set *resultSet) (err error) {
 	preparedInputs := r.getBufPairSlice()
 	defer r.freeBufPairSlice(preparedInputs)
@@ -1053,14 +1025,14 @@ func (r *Resolver) resolveParallelFetch(ctx *Context, fetch *ParallelFetch, data
 
 	for _, resolver := range resolvers {
 		go func(r func() error) {
-			_ = resolver() // @TODO handle error
+			_ = resolver()
 			wg.Done()
 		}(resolver)
 	}
 
 	wg.Wait()
 
-	return nil
+	return
 }
 
 func (r *Resolver) prepareSingleFetch(ctx *Context, fetch *SingleFetch, data []byte, set *resultSet, preparedInput *fastbuffer.FastBuffer) (err error) {

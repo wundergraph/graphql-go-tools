@@ -9,13 +9,16 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/fastbuffer"
 )
 
-const initialValueID = -1
+const (
+	initialValueID = -1
+	arrayElementKey = "@"
+)
 
 type fetcher interface {
 	fetch(ctx *Context, fetch *SingleFetch, preparedInput []byte, buf *BufPair) (err error)
 }
 
-type dataloaderFactory struct {
+type dataLoaderFactory struct {
 	dataloaderPool   sync.Pool
 	muPool           sync.Pool
 	waitGroupPool    sync.Pool
@@ -25,19 +28,19 @@ type dataloaderFactory struct {
 	fetcher *Fetcher
 }
 
-func (df *dataloaderFactory) getWaitGroup() *sync.WaitGroup {
+func (df *dataLoaderFactory) getWaitGroup() *sync.WaitGroup {
 	return df.waitGroupPool.Get().(*sync.WaitGroup)
 }
 
-func (df *dataloaderFactory) freeWaitGroup(wg *sync.WaitGroup) {
+func (df *dataLoaderFactory) freeWaitGroup(wg *sync.WaitGroup) {
 	df.waitGroupPool.Put(wg)
 }
 
-func (df *dataloaderFactory) getBufPairSlicePool() *[]*BufPair {
+func (df *dataLoaderFactory) getBufPairSlicePool() *[]*BufPair {
 	return df.bufPairSlicePool.Get().(*[]*BufPair)
 }
 
-func (df *dataloaderFactory) freeBufPairSlice(slice *[]*BufPair) {
+func (df *dataLoaderFactory) freeBufPairSlice(slice *[]*BufPair) {
 	for i := range *slice {
 		df.freeBufPair((*slice)[i])
 	}
@@ -45,26 +48,26 @@ func (df *dataloaderFactory) freeBufPairSlice(slice *[]*BufPair) {
 	df.bufPairSlicePool.Put(slice)
 }
 
-func (df *dataloaderFactory) getBufPair() *BufPair {
+func (df *dataLoaderFactory) getBufPair() *BufPair {
 	return df.bufPairPool.Get().(*BufPair)
 }
 
-func (df *dataloaderFactory) freeBufPair(pair *BufPair) {
+func (df *dataLoaderFactory) freeBufPair(pair *BufPair) {
 	pair.Data.Reset()
 	pair.Errors.Reset()
 	df.bufPairPool.Put(pair)
 }
 
-func (df *dataloaderFactory) getMutex() *sync.Mutex {
+func (df *dataLoaderFactory) getMutex() *sync.Mutex {
 	return df.muPool.Get().(*sync.Mutex)
 }
 
-func (df *dataloaderFactory) freeMutex(mu *sync.Mutex) {
+func (df *dataLoaderFactory) freeMutex(mu *sync.Mutex) {
 	df.muPool.Put(mu)
 }
 
-func newDataloaderFactory(fetcher *Fetcher) *dataloaderFactory {
-	return &dataloaderFactory{
+func newDataloaderFactory(fetcher *Fetcher) *dataLoaderFactory {
+	return &dataLoaderFactory{
 		muPool: sync.Pool{
 			New: func() interface{} {
 				return &sync.Mutex{}
@@ -102,7 +105,7 @@ func newDataloaderFactory(fetcher *Fetcher) *dataloaderFactory {
 	}
 }
 
-func (df *dataloaderFactory) newDataLoader(initialValue []byte) *dataLoader { // initial value represent data from subscription
+func (df *dataLoaderFactory) newDataLoader(initialValue []byte) *dataLoader { // initial value represent data from subscription
 	dataloader := df.dataloaderPool.Get().(*dataLoader)
 
 	dataloader.mu = df.getMutex()
@@ -123,7 +126,7 @@ func (df *dataloaderFactory) newDataLoader(initialValue []byte) *dataLoader { //
 	return dataloader
 }
 
-func (df *dataloaderFactory) freeDataLoader(d *dataLoader) {
+func (df *dataLoaderFactory) freeDataLoader(d *dataLoader) {
 	for _, pair := range d.inUseBufPair {
 		d.resourceProvider.freeBufPair(pair)
 	}
@@ -138,7 +141,7 @@ type dataLoader struct {
 	fetches          map[int]fetchState
 	mu               *sync.Mutex
 	fetcher          fetcher
-	resourceProvider *dataloaderFactory
+	resourceProvider *dataLoaderFactory
 
 	inUseBufPair []*BufPair
 }
@@ -317,13 +320,12 @@ func (d *dataLoader) resolveSingleFetch(ctx *Context, fetch *SingleFetch, fetchP
 		}
 
 		pair := d.getResultBufPair()
-		pos := i
 
-		go func() {
+		go func(pos int, pair *BufPair) {
 			err := d.fetcher.fetch(ctx, fetch, bufPair.Data.Bytes(), pair)
 			resultCh <- fetchResult{result: pair, err: err, pos: pos}
 			wg.Done()
-		}()
+		}(i, pair)
 	}
 
 	go func() {
@@ -366,7 +368,7 @@ func (d *dataLoader) selectedDataForFetch(input [][]byte, path ...string) ([][]b
 
 	current, rest := path[0], path[1:]
 
-	if current == "@" {
+	if current == arrayElementKey {
 		return flatMap(input, func(val []byte) ([][]byte, error) {
 			var vals [][]byte
 			_, err := jsonparser.ArrayEach(val, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {

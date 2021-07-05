@@ -18,8 +18,9 @@ import (
 )
 
 type EngineV2Configuration struct {
-	schema        *Schema
-	plannerConfig plan.Configuration
+	schema           *Schema
+	plannerConfig    plan.Configuration
+	dataLoaderConfig dataLoaderConfig
 }
 
 func NewEngineV2Configuration(schema *Schema) EngineV2Configuration {
@@ -29,6 +30,10 @@ func NewEngineV2Configuration(schema *Schema) EngineV2Configuration {
 			DefaultFlushInterval: 0,
 			DataSources:          []plan.DataSourceConfiguration{},
 			Fields:               plan.FieldConfigurations{},
+		},
+		dataLoaderConfig: dataLoaderConfig{
+			EnableSingleFlightLoader: false,
+			EnableDataLoader:         false,
 		},
 	}
 }
@@ -47,6 +52,19 @@ func (e *EngineV2Configuration) AddFieldConfiguration(fieldConfig plan.FieldConf
 
 func (e *EngineV2Configuration) SetFieldConfigurations(fieldConfigs plan.FieldConfigurations) {
 	e.plannerConfig.Fields = fieldConfigs
+}
+
+func (e *EngineV2Configuration) EnableSingleFlightLoader(enable bool) {
+	e.dataLoaderConfig.EnableSingleFlightLoader = enable
+}
+
+func (e *EngineV2Configuration) EnableDataLoader(enable bool) {
+	e.dataLoaderConfig.EnableDataLoader = enable
+}
+
+type dataLoaderConfig struct {
+	EnableSingleFlightLoader bool
+	EnableDataLoader         bool
 }
 
 type EngineResultWriter struct {
@@ -166,7 +184,7 @@ func WithAfterFetchHook(hook resolve.AfterFetchHook) ExecutionOptionsV2 {
 	}
 }
 
-func NewExecutionEngineV2WithTriggerManagers(logger abstractlogger.Logger, engineConfig EngineV2Configuration, closer <- chan struct{}, triggerManagers ...*subscription.Manager) (*ExecutionEngineV2, error) {
+func NewExecutionEngineV2WithTriggerManagers(logger abstractlogger.Logger, engineConfig EngineV2Configuration, closer <-chan struct{}, triggerManagers ...*subscription.Manager) (*ExecutionEngineV2, error) {
 	executionEngine, err := NewExecutionEngineV2(logger, engineConfig, closer)
 	if err != nil {
 		return nil, err
@@ -179,7 +197,9 @@ func NewExecutionEngineV2WithTriggerManagers(logger abstractlogger.Logger, engin
 	return executionEngine, nil
 }
 
-func NewExecutionEngineV2(logger abstractlogger.Logger, engineConfig EngineV2Configuration, closer <- chan struct{}) (*ExecutionEngineV2, error) {
+func NewExecutionEngineV2(logger abstractlogger.Logger, engineConfig EngineV2Configuration, closer <-chan struct{}) (*ExecutionEngineV2, error) {
+	fetcher := resolve.NewFetcher(engineConfig.dataLoaderConfig.EnableSingleFlightLoader)
+
 	return &ExecutionEngineV2{
 		logger: logger,
 		config: engineConfig,
@@ -188,7 +208,7 @@ func NewExecutionEngineV2(logger abstractlogger.Logger, engineConfig EngineV2Con
 				return plan.NewPlanner(engineConfig.plannerConfig, closer)
 			},
 		},
-		resolver: resolve.New(),
+		resolver: resolve.New(fetcher, engineConfig.dataLoaderConfig.EnableDataLoader),
 		internalExecutionContextPool: sync.Pool{
 			New: func() interface{} {
 				return newInternalExecutionContext()
