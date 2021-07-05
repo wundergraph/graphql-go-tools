@@ -3,6 +3,7 @@ module github.com/jensneuse/graphql-go-tools
 go 1.12
 
 require (
+	github.com/agnivade/levenshtein v1.1.1 // indirect
 	github.com/buger/jsonparser v0.0.0-20181115193947-bf1c66bbce23
 	github.com/cespare/xxhash v1.1.0
 	github.com/dave/jennifer v1.4.0
@@ -14,15 +15,16 @@ require (
 	github.com/gobuffalo/packr v1.30.1
 	github.com/gobwas/ws v1.0.2
 	github.com/golang/mock v1.4.1
+	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/iancoleman/strcase v0.0.0-20191112232945-16388991a334
 	github.com/jensneuse/abstractlogger v0.0.4
 	github.com/jensneuse/byte-template v0.0.0-20200214152254-4f3cf06e5c68
 	github.com/jensneuse/diffview v1.0.0
-	github.com/jensneuse/graphql-go-tools/examples/chat v0.0.0-00010101000000-000000000000
+	github.com/jensneuse/graphql-go-tools/examples/chat v0.0.0-20210628073736-e2ac669dc760
 	github.com/jensneuse/pipeline v0.0.0-20200117120358-9fb4de085cd6
 	github.com/klauspost/compress v1.13.1 // indirect
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/mitchellh/mapstructure v1.2.2 // indirect
+	github.com/mitchellh/mapstructure v1.4.1 // indirect
 	github.com/nats-io/nats-server/v2 v2.1.2 // indirect
 	github.com/nats-io/nats.go v1.9.1
 	github.com/pelletier/go-toml v1.6.0 // indirect
@@ -44,5 +46,3 @@ require (
 )
 
 replace github.com/tidwall/gjson => github.com/jensneuse/gjson v1.3.6-0.20200106141904-7ea619137b22
-
-replace github.com/jensneuse/graphql-go-tools/examples/chat => ./examples/chat
