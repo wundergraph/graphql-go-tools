@@ -10,6 +10,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/astimport"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
+	"github.com/jensneuse/graphql-go-tools/pkg/fastbuffer"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
@@ -921,7 +922,7 @@ type FetchConfiguration struct {
 
 type BatchFetchConfiguration struct {
 	Enabled      bool
-	PrepareBatch func(inputs ...[]byte) (*resolve.BatchInput, error)
+	PrepareBatch func(out *fastbuffer.FastBuffer, inputs ...*fastbuffer.FastBuffer) (outToInPositions map[int][]int, err error)
 }
 
 type configurationVisitor struct {

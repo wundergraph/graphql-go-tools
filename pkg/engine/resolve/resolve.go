@@ -1069,7 +1069,6 @@ func (r *Resolver) resolveBatchFetch(ctx *Context, fetch *BatchFetch, preparedIn
 func (r *Resolver) resolveSingleFetch(ctx *Context, fetch *SingleFetch, preparedInput *fastbuffer.FastBuffer, buf *BufPair) error {
 	if r.EnableDataloader {
 		return ctx.dataLoader.Load(ctx, fetch, buf)
-
 	}
 
 	return r.fetcher.Fetch(ctx, fetch, preparedInput, buf)
@@ -1312,16 +1311,11 @@ func (_ *ParallelFetch) FetchKind() FetchKind {
 
 type BatchFetch struct {
 	Fetch        *SingleFetch
-	PrepareBatch func(inputs ...[]byte) (*BatchInput, error)
+	PrepareBatch func(out *fastbuffer.FastBuffer, inputs ...*fastbuffer.FastBuffer) (outToInPositions map[int][]int, err error)
 }
 
 func (_ *BatchFetch) FetchKind() FetchKind {
 	return FetchKindBatch
-}
-
-type BatchInput struct {
-	Input            []byte
-	OutToInPositions map[int][]int
 }
 
 type String struct {

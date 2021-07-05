@@ -8,7 +8,7 @@ import (
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
+	"github.com/jensneuse/graphql-go-tools/pkg/fastbuffer"
 )
 
 var representationPath = []string{"body", "variables", "representations"}
@@ -27,23 +27,22 @@ func newBatchMerger() *batchMerger {
 	}
 }
 
-func (f *batchMerger) merge(inputs ...[]byte) (*resolve.BatchInput, error) {
+func (f *batchMerger) merge(out *fastbuffer.FastBuffer, inputs ...*fastbuffer.FastBuffer) (outToInPositions map[int][]int, err error) {
 	if len(inputs) == 0 {
 		return nil, nil
 	}
 
 	var variables [][]byte
 	var currOutPosition int
-	var err error
 
-	outToInPositions := make(map[int][]int, len(inputs))
+	outToInPositions = make(map[int][]int, len(inputs))
 	hashToOutPositions := make(map[uint64]int, len(inputs))
 
 	hash64 := f.hash64Pool.Get().(hash.Hash64)
 	defer f.hash64Pool.Put(hash64)
 
 	for i := range inputs {
-		inputVariables, _, _, err := jsonparser.Get(inputs[i], representationPath...)
+		inputVariables, _, _, err := jsonparser.Get(inputs[i].Bytes(), representationPath...)
 		if err != nil {
 			return nil, err
 		}
@@ -72,13 +71,14 @@ func (f *batchMerger) merge(inputs ...[]byte) (*resolve.BatchInput, error) {
 		}
 	}
 
-	batchInput := &resolve.BatchInput{OutToInPositions: outToInPositions}
-
 	representationJson := append([]byte("["), append(bytes.Join(variables, []byte(",")), []byte("]")...)...)
-	if batchInput.Input, err = jsonparser.Set(inputs[0], representationJson, representationPath...); err != nil {
 
+	mergedInput, err := jsonparser.Set(inputs[0].Bytes(), representationJson, representationPath...)
+	if err != nil {
 		return nil, err
 	}
 
-	return batchInput, nil
+	out.WriteBytes(mergedInput)
+
+	return outToInPositions, nil
 }
