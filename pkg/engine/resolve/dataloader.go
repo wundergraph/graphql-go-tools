@@ -170,7 +170,7 @@ func (d *dataLoader) Load(ctx *Context, fetch *SingleFetch, buf *BufPair) (err e
 		}
 
 		pair := d.getResultBufPair()
-		err := d.fetcher.fetch(ctx, fetch, buf.Data.Bytes(), pair)
+		err = d.fetcher.fetch(ctx, fetch, buf.Data.Bytes(), pair)
 		fetchResult = &singleFetchState{
 			fetchErrors: []error{err},
 			results:     []*BufPair{pair},

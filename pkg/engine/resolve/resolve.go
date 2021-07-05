@@ -339,6 +339,7 @@ func New(fetcher *Fetcher, enableDataLoader bool) *Resolver {
 		},
 		triggerManagers:   map[uint64]*subscription.Manager{},
 		dataloaderFactory: newDataloaderFactory(fetcher),
+		fetcher: fetcher,
 		EnableDataloader:  enableDataLoader,
 	}
 }
@@ -1047,7 +1048,22 @@ func (r *Resolver) resolveBatchFetch(ctx *Context, fetch *BatchFetch, preparedIn
 		return ctx.dataLoader.LoadBatch(ctx, fetch, buf)
 	}
 
-	return r.fetcher.Fetch(ctx, fetch.Fetch, preparedInput, buf)
+	// It's required to get head element from array
+	tempBuf := r.getBufPair()
+	defer r.freeBufPair(tempBuf)
+
+	if err := r.fetcher.Fetch(ctx, fetch.Fetch, preparedInput, tempBuf); err != nil {
+		return err
+	}
+
+	value, _, _, err := jsonparser.Get(tempBuf.Data.Bytes(), "[0]")
+	if err != nil {
+		return err
+	}
+
+	r.MergeBufPairErrors(tempBuf, buf)
+	buf.Data.WriteBytes(value)
+	return nil
 }
 
 func (r *Resolver) resolveSingleFetch(ctx *Context, fetch *SingleFetch, preparedInput *fastbuffer.FastBuffer, buf *BufPair) error {
