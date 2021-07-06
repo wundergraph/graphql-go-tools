@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"nhooyr.io/websocket"
@@ -40,8 +41,10 @@ func TestWebsocketSubscriptionClient(t *testing.T) {
 	client := NewWebSocketGraphQLSubscriptionClient(http.DefaultClient, ctx)
 	next := make(chan []byte)
 	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
-		URL:  strings.Replace(server.URL, "http", "ws", -1),
-		Body: `{"query":"subscription {messageAdded(roomName: "room"){text}}"}`,
+		URL: strings.Replace(server.URL, "http", "ws", -1),
+		Body: GraphQLBody{
+			Query: `subscription {messageAdded(roomName: "room"){text}}`,
+		},
 	}, next)
 	assert.NoError(t, err)
 	first := <-next
@@ -84,15 +87,20 @@ func TestWebsocketSubscriptionClientErrorArray(t *testing.T) {
 	client := NewWebSocketGraphQLSubscriptionClient(http.DefaultClient, ctx)
 	next := make(chan []byte)
 	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
-		URL:  strings.Replace(server.URL, "http", "ws", -1),
-		Body: `{"query":"subscription {messageAdded(roomNam: "room"){text}}"}`,
+		URL: strings.Replace(server.URL, "http", "ws", -1),
+		Body: GraphQLBody{
+			Query: `subscription {messageAdded(roomNam: "room"){text}}`,
+		},
 	}, next)
 	assert.NoError(t, err)
 	message := <-next
 	assert.Equal(t, `{"errors":[{"message":"error"},{"message":"error"}]}`, string(message))
 	_, ok := <-next
 	assert.False(t, ok)
-	<-serverDone
+	assert.Eventuallyf(t, func() bool {
+		<-serverDone
+		return true
+	}, time.Second, time.Millisecond*10, "server did not close")
 }
 
 func TestWebsocketSubscriptionClientErrorObject(t *testing.T) {
@@ -126,8 +134,10 @@ func TestWebsocketSubscriptionClientErrorObject(t *testing.T) {
 	client := NewWebSocketGraphQLSubscriptionClient(http.DefaultClient, ctx)
 	next := make(chan []byte)
 	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
-		URL:  strings.Replace(server.URL, "http", "ws", -1),
-		Body: `{"query":"subscription {messageAdded(roomNam: "room"){text}}"}`,
+		URL: strings.Replace(server.URL, "http", "ws", -1),
+		Body: GraphQLBody{
+			Query: `subscription {messageAdded(roomNam: "room"){text}}`,
+		},
 	}, next)
 	assert.NoError(t, err)
 	message := <-next

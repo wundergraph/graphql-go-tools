@@ -1914,7 +1914,9 @@ func TestSubscriptionSource_Start(t *testing.T) {
 	chatServerSubscriptionOptions := func(t *testing.T, body string) []byte {
 		options := GraphQLSubscriptionOptions{
 			URL:    chatServer.URL,
-			Body:   body,
+			Body:   GraphQLBody{
+				Query: body,
+			},
 			Header: nil,
 		}
 

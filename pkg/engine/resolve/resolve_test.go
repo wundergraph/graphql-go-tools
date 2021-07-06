@@ -1577,7 +1577,7 @@ func (f *FakeStream) Start(ctx context.Context,input []byte, next chan<- []byte)
 				f.cancel()
 				return
 			}
-			next <- []byte(fmt.Sprintf(`{"counter":%d}`, count))
+			next <- []byte(fmt.Sprintf(`{"data":{"counter":%d}}`, count))
 			count++
 		}
 	}()
