@@ -293,8 +293,8 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.ParallelFetch{
-						Fetches: []*resolve.SingleFetch{
-							{
+						Fetches: []resolve.Fetch{
+							&resolve.SingleFetch{
 								BufferId:   0,
 								Input:      `{"method":"GET","url":"https://example.com/$$0$$/$$1$$"}`,
 								DataSource: &Source{},
@@ -307,7 +307,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 									},
 								),
 							},
-							{
+							&resolve.SingleFetch{
 								BufferId:   3,
 								Input:      `{"method":"GET","url":"https://example.com/$$0$$/$$1$$"}`,
 								DataSource: &Source{},
@@ -330,8 +330,8 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							Value: &resolve.Object{
 								Nullable: true,
 								Fetch: &resolve.ParallelFetch{
-									Fetches: []*resolve.SingleFetch{
-										{
+									Fetches: []resolve.Fetch{
+										&resolve.SingleFetch{
 											BufferId:   1,
 											Input:      `{"method":"GET","url":"https://example.com/friends/phone/$$0$$"}`,
 											DataSource: &Source{},
@@ -341,7 +341,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 												},
 											),
 										},
-										{
+										&resolve.SingleFetch{
 											BufferId:   2,
 											Input:      `{"method":"GET","url":"https://example.com/friends/phone/$$0$$"}`,
 											DataSource: &Source{},

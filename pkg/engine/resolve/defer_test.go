@@ -95,7 +95,7 @@ func TestWithoutDefer(t *testing.T) {
 		},
 	}
 
-	resolver := New()
+	resolver := New(NewFetcher(false), false)
 
 	ctx := NewContext(context.Background())
 
@@ -244,7 +244,7 @@ func TestDefer(t *testing.T) {
 		},
 	}
 
-	resolver := New()
+	resolver := New(NewFetcher(false), false)
 
 	ctx := NewContext(context.Background())
 
@@ -376,7 +376,7 @@ func BenchmarkDefer(b *testing.B) {
 		},
 	}
 
-	resolver := New()
+	resolver := New(NewFetcher(false), false)
 
 	ctx := NewContext(context.Background())
 
