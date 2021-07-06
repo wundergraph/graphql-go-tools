@@ -68,7 +68,7 @@ func (g gotBytesFormatter) Got(got interface{}) string {
 func TestResolver_ResolveNode(t *testing.T) {
 	testFn := func(fn func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string)) func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-		c,cancel := context.WithCancel(context.Background())
+		c, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		r := New(c)
 		node, ctx, expectedOutput := fn(t, r, ctrl)
@@ -1564,11 +1564,19 @@ func (t *TestFlushWriter) Flush() {
 	t.buf.Reset()
 }
 
-type FakeStream struct {
-	cancel context.CancelFunc
+func FakeStream(cancelFunc func(), messageFunc func(count int) (message string, ok bool)) *_fakeStream {
+	return &_fakeStream{
+		cancel:      cancelFunc,
+		messageFunc: messageFunc,
+	}
 }
 
-func (f *FakeStream) Start(ctx context.Context,input []byte, next chan<- []byte) error {
+type _fakeStream struct {
+	cancel      context.CancelFunc
+	messageFunc func(counter int) (message string, ok bool)
+}
+
+func (f *_fakeStream) Start(ctx context.Context, input []byte, next chan<- []byte) error {
 	go func() {
 		time.Sleep(time.Millisecond)
 		count := 0
@@ -1577,52 +1585,88 @@ func (f *FakeStream) Start(ctx context.Context,input []byte, next chan<- []byte)
 				f.cancel()
 				return
 			}
-			next <- []byte(fmt.Sprintf(`{"data":{"counter":%d}}`, count))
+			message, ok := f.messageFunc(count)
+			next <- []byte(message)
+			if !ok {
+				f.cancel()
+				return
+			}
 			count++
 		}
 	}()
 	return nil
 }
 
-func (f *FakeStream) UniqueIdentifier() []byte {
+func (f *_fakeStream) UniqueIdentifier() []byte {
 	return []byte("fake")
 }
 
 func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
-	c, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	resolver := New(c)
-	plan := &GraphQLSubscription{
-		Trigger: GraphQLSubscriptionTrigger{
-			Source: &FakeStream{
-				cancel: cancel,
+	setup := func(ctx context.Context, stream *_fakeStream) (*Resolver, *GraphQLSubscription, *TestFlushWriter) {
+		plan := &GraphQLSubscription{
+			Trigger: GraphQLSubscriptionTrigger{
+				Source: stream,
 			},
-		},
-		Response: &GraphQLResponse{
-			Data: &Object{
-				Fields: []*Field{
-					{
-						Name: []byte("counter"),
-						Value: &Integer{
-							Path: []string{"counter"},
+			Response: &GraphQLResponse{
+				Data: &Object{
+					Fields: []*Field{
+						{
+							Name: []byte("counter"),
+							Value: &Integer{
+								Path: []string{"counter"},
+							},
 						},
 					},
 				},
 			},
-		},
+		}
+
+		out := &TestFlushWriter{
+			buf: bytes.Buffer{},
+		}
+
+		return New(ctx), plan, out
 	}
-	ctx := Context{
-		Context: c,
-	}
-	out := &TestFlushWriter{
-		buf: bytes.Buffer{},
-	}
-	err := resolver.ResolveGraphQLSubscription(&ctx, plan, out)
-	assert.NoError(t, err)
-	assert.Equal(t, 3, len(out.flushed))
-	assert.Equal(t, `{"data":{"counter":0}}`, out.flushed[0])
-	assert.Equal(t, `{"data":{"counter":1}}`, out.flushed[1])
-	assert.Equal(t, `{"data":{"counter":2}}`, out.flushed[2])
+
+	t.Run("should return errors if the upstream data has errors", func(t *testing.T) {
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		fakeStream := FakeStream(cancel, func(count int) (message string, ok bool) {
+			return `{"errors":[{"message":"Validation error occurred","locations":[{"line":1,"column":1}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}],"data":null}`, false
+		})
+
+		resolver, plan, out := setup(c, fakeStream)
+		ctx := Context{
+			Context: c,
+		}
+
+		err := resolver.ResolveGraphQLSubscription(&ctx, plan, out)
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(out.flushed))
+		assert.Equal(t, `{"data":null,"errors":[{"message":"Validation error occurred","locations":[{"line":1,"column":1}]}`, out.flushed[0])
+	})
+
+	t.Run("should successfully get result from upstream", func(t *testing.T) {
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		fakeStream := FakeStream(cancel, func(count int) (message string, ok bool) {
+			return fmt.Sprintf(`{"data":{"counter":%d}}`, count), true
+		})
+
+		resolver, plan, out := setup(c, fakeStream)
+		ctx := Context{
+			Context: c,
+		}
+
+		err := resolver.ResolveGraphQLSubscription(&ctx, plan, out)
+		assert.NoError(t, err)
+		assert.Equal(t, 3, len(out.flushed))
+		assert.Equal(t, `{"data":{"counter":0}}`, out.flushed[0])
+		assert.Equal(t, `{"data":{"counter":1}}`, out.flushed[1])
+		assert.Equal(t, `{"data":{"counter":2}}`, out.flushed[2])
+	})
 }
 
 func BenchmarkResolver_ResolveNode(b *testing.B) {
