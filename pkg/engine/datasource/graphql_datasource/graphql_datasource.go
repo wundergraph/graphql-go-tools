@@ -940,8 +940,14 @@ type GraphQLSubscriptionClient interface {
 
 type GraphQLSubscriptionOptions struct {
 	URL    string      `json:"url"`
-	Body   string      `json:"body"`
+	Body   GraphQLBody `json:"body"`
 	Header http.Header `json:"header"`
+}
+
+type GraphQLBody struct {
+	Query         string          `json:"query"`
+	OperationName string          `json:"operationName"`
+	Variables     json.RawMessage `json:"variables"`
 }
 
 type SubscriptionSource struct {

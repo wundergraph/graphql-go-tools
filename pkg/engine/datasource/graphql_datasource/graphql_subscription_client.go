@@ -2,6 +2,7 @@ package graphql_datasource
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -79,7 +80,13 @@ func (c *WebSocketGraphQLSubscriptionClient) Subscribe(ctx context.Context, opti
 	}
 
 	// subscribe
-	startRequest := fmt.Sprintf(startMessage, "1", options.Body)
+
+	graphQLBody, err := json.Marshal(options.Body)
+	if err != nil {
+		return err
+	}
+
+	startRequest := fmt.Sprintf(startMessage, "1", string(graphQLBody))
 	err = conn.Write(ctx, websocket.MessageText, []byte(startRequest))
 	if err != nil {
 		return err
@@ -141,7 +148,7 @@ func (c *WebSocketGraphQLSubscriptionClient) handleSubscription(conn *websocket.
 				next <- []byte(`{"errors":[{"message":"connection error"}]}`)
 				return
 			case "error":
-				value,valueType,_,err := jsonparser.Get(data,"payload")
+				value, valueType, _, err := jsonparser.Get(data, "payload")
 				if err != nil {
 					next <- []byte(`{"errors":[{"message":"internal error"}]}`)
 					return
@@ -149,7 +156,7 @@ func (c *WebSocketGraphQLSubscriptionClient) handleSubscription(conn *websocket.
 				switch valueType {
 				case jsonparser.Array:
 					response := []byte(`{}`)
-					response,err = jsonparser.Set(response,value,"errors")
+					response, err = jsonparser.Set(response, value, "errors")
 					if err != nil {
 						next <- []byte(`{"errors":[{"message":"internal error"}]}`)
 						return
@@ -157,7 +164,7 @@ func (c *WebSocketGraphQLSubscriptionClient) handleSubscription(conn *websocket.
 					next <- response
 				case jsonparser.Object:
 					response := []byte(`{"errors":[]}`)
-					response,err = jsonparser.Set(response,value,"errors","[0]")
+					response, err = jsonparser.Set(response, value, "errors", "[0]")
 					if err != nil {
 						next <- []byte(`{"errors":[{"message":"internal error"}]}`)
 						return
