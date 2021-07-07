@@ -27,19 +27,20 @@ import (
 )
 
 var (
-	lBrace           = []byte("{")
-	rBrace           = []byte("}")
-	lBrack           = []byte("[")
-	rBrack           = []byte("]")
-	comma            = []byte(",")
-	colon            = []byte(":")
-	quote            = []byte("\"")
-	null             = []byte("null")
-	literalData      = []byte("data")
-	literalErrors    = []byte("errors")
-	literalMessage   = []byte("message")
-	literalLocations = []byte("locations")
-	literalPath      = []byte("path")
+	lBrace            = []byte("{")
+	rBrace            = []byte("}")
+	lBrack            = []byte("[")
+	rBrack            = []byte("]")
+	comma             = []byte(",")
+	colon             = []byte(":")
+	quote             = []byte("\"")
+	null              = []byte("null")
+	literalData       = []byte("data")
+	literalErrors     = []byte("errors")
+	literalMessage    = []byte("message")
+	literalLocations  = []byte("locations")
+	literalPath       = []byte("path")
+	literalExtensions = []byte("extensions")
 )
 
 var (
@@ -59,6 +60,7 @@ var (
 		{"message"},
 		{"locations"},
 		{"path"},
+		{"extensions"},
 	}
 	entitiesPath = []string{"_entities", "[0]"}
 )
@@ -67,9 +69,10 @@ const (
 	rootErrorsPathIndex = 0
 	rootDataPathIndex   = 1
 
-	errorsMessagePathIndex   = 0
-	errorsLocationsPathIndex = 1
-	errorsPathPathIndex      = 2
+	errorsMessagePathIndex    = 0
+	errorsLocationsPathIndex  = 1
+	errorsPathPathIndex       = 2
+	errorsExtensionsPathIndex = 3
 )
 
 type Node interface {
@@ -409,7 +412,7 @@ func (r *Resolver) extractResponse(responseData []byte, bufPair *BufPair, cfg Pr
 		case rootErrorsPathIndex:
 			_, _ = jsonparser.ArrayEach(bytes, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
 				var (
-					message, locations, path []byte
+					message, locations, path, extensions []byte
 				)
 				jsonparser.EachKey(value, func(i int, bytes []byte, valueType jsonparser.ValueType, err error) {
 					switch i {
@@ -419,10 +422,12 @@ func (r *Resolver) extractResponse(responseData []byte, bufPair *BufPair, cfg Pr
 						locations = bytes
 					case errorsPathPathIndex:
 						path = bytes
+					case errorsExtensionsPathIndex:
+						extensions = bytes
 					}
 				}, errorPaths...)
 				if message != nil {
-					bufPair.WriteErr(message, locations, path)
+					bufPair.WriteErr(message, locations, path, extensions)
 				}
 			})
 		case rootDataPathIndex:
@@ -445,18 +450,19 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 
 	r.extractResponse(data, responseBuf, ProcessResponseConfig{ExtractGraphqlResponse: true})
 
+	ignoreData := false
 	err = r.resolveNode(ctx, response.Data, responseBuf.Data.Bytes(), buf)
 	if err != nil {
 		if !errors.Is(err, errNonNullableFieldValueIsNull) {
 			return
 		}
-		err = nil
+		ignoreData = true
 	}
 	if responseBuf.Errors.Len() > 0 {
 		r.MergeBufPairErrors(responseBuf, buf)
 	}
 
-	return writeGraphqlResponse(buf, writer)
+	return writeGraphqlResponse(buf, writer, ignoreData)
 }
 
 func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQLSubscription, writer FlushWriter) (err error) {
@@ -881,10 +887,36 @@ func (r *Resolver) resolveNull(b *fastbuffer.FastBuffer) {
 	b.WriteBytes(null)
 }
 
-func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, objectBuf *BufPair) (err error) {
+func (r *Resolver) addResolveError(ctx *Context, objectBuf *BufPair) {
+	// TODO: POC replace
 
+	var (
+		msg, locations, path []byte
+	)
+
+	msg = []byte("failed to resolve")
+	locations = []byte(fmt.Sprintf(`[{"line": %d, "path": %d}]`, ctx.position.Line, ctx.position.Column))
+
+	if len(ctx.pathElements) > 0 {
+		path = []byte(fmt.Sprintf(`["%s"]`, string(bytes.Join(ctx.pathElements, []byte(`","`)))))
+	}
+
+	objectBuf.WriteErr(msg, locations, path, nil)
+}
+
+func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, objectBuf *BufPair) (err error) {
 	if len(object.Path) != 0 {
 		data, _, _, _ = jsonparser.Get(data, object.Path...)
+
+		if len(data) == 0 {
+			if object.Nullable {
+				r.resolveNull(objectBuf.Data)
+				return
+			}
+
+			r.addResolveError(ctx, objectBuf)
+			return errNonNullableFieldValueIsNull
+		}
 	}
 
 	var set *resultSet
@@ -945,12 +977,16 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 				r.resolveEmptyObject(objectBuf.Data)
 				return nil
 			}
-			if errors.Is(err, errNonNullableFieldValueIsNull) && object.Nullable {
-				objectBuf.Data.Reset()
-				r.resolveNull(objectBuf.Data)
-				return nil
+			if errors.Is(err, errNonNullableFieldValueIsNull) {
+				if object.Nullable {
+					objectBuf.Data.Reset()
+					r.MergeBufPairErrors(fieldBuf, objectBuf)
+					r.resolveNull(objectBuf.Data)
+					return nil
+				}
+				r.addResolveError(ctx, objectBuf)
 			}
-			r.MergeBufPairErrors(fieldBuf, objectBuf)
+
 			return
 		}
 		r.MergeBufPairs(fieldBuf, objectBuf, false)
@@ -960,6 +996,7 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 			return errTypeNameSkipped
 		}
 		if !object.Nullable {
+			r.addResolveError(ctx, objectBuf)
 			return errNonNullableFieldValueIsNull
 		}
 		r.resolveNull(objectBuf.Data)
@@ -1628,7 +1665,7 @@ func (b *BufPair) writeErrors(data []byte) {
 	b.Errors.WriteBytes(data)
 }
 
-func (b *BufPair) WriteErr(message, locations, path []byte) {
+func (b *BufPair) WriteErr(message, locations, path, extensions []byte) {
 	if b.HasErrors() {
 		b.writeErrors(comma)
 	}
@@ -1640,6 +1677,7 @@ func (b *BufPair) WriteErr(message, locations, path []byte) {
 	b.writeErrors(quote)
 	b.writeErrors(message)
 	b.writeErrors(quote)
+
 	if locations != nil {
 		b.writeErrors(comma)
 		b.writeErrors(quote)
@@ -1648,6 +1686,7 @@ func (b *BufPair) WriteErr(message, locations, path []byte) {
 		b.writeErrors(colon)
 		b.writeErrors(locations)
 	}
+
 	if path != nil {
 		b.writeErrors(comma)
 		b.writeErrors(quote)
@@ -1656,6 +1695,16 @@ func (b *BufPair) WriteErr(message, locations, path []byte) {
 		b.writeErrors(colon)
 		b.writeErrors(path)
 	}
+
+	if extensions != nil {
+		b.writeErrors(comma)
+		b.writeErrors(quote)
+		b.writeErrors(literalExtensions)
+		b.writeErrors(quote)
+		b.writeErrors(colon)
+		b.writeErrors(extensions)
+	}
+
 	b.writeErrors(rBrace)
 }
 
@@ -1748,9 +1797,9 @@ func (r *Resolver) putHash64(h hash.Hash64) {
 	r.hash64Pool.Put(h)
 }
 
-func writeGraphqlResponse(buf *BufPair, writer io.Writer) (err error) {
+func writeGraphqlResponse(buf *BufPair, writer io.Writer, ignoreData bool) (err error) {
 	hasErrors := buf.Errors.Len() != 0
-	hasData := buf.Data.Len() != 0
+	hasData := buf.Data.Len() != 0 && !ignoreData
 
 	err = writeSafe(err, writer, lBrace)
 
@@ -1777,7 +1826,7 @@ func writeGraphqlResponse(buf *BufPair, writer io.Writer) (err error) {
 	}
 	err = writeSafe(err, writer, rBrace)
 
-	return
+	return err
 }
 
 func writeSafe(err error, writer io.Writer, data []byte) error {

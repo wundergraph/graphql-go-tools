@@ -740,12 +740,16 @@ func TestResolver_WithHooks(t *testing.T) {
 
 func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 	testFn := func(fn func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string)) func(t *testing.T) {
+		t.Helper()
+
 		ctrl := gomock.NewController(t)
 		c, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		r := New(c)
 		node, ctx, expectedOutput := fn(t, r, ctrl)
 		return func(t *testing.T) {
+			t.Helper()
+
 			buf := &bytes.Buffer{}
 			err := r.ResolveGraphQLResponse(&ctx, node, nil, buf)
 			assert.NoError(t, err)
@@ -753,30 +757,67 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			ctrl.Finish()
 		}
 	}
-	t.Run("empty graphql response", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("empty graphql response for nullable object", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Data: &Object{
 				Nullable: true,
 			},
 		}, Context{Context: context.Background()}, `{"data":null}`
 	}))
+	t.Run("empty graphql response for not nullable query field", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		return &GraphQLResponse{
+			Data: &Object{
+				Nullable: false,
+				Fields: []*Field{
+					{
+						BufferID:  0,
+						HasBuffer: true,
+						Name:      []byte("country"),
+						Position: Position{
+							Line:   3,
+							Column: 4,
+						},
+						Value: &Object{
+							Nullable: false,
+							Path:     []string{"country"},
+							Fields: []*Field{
+								{
+									Name: []byte("name"),
+									Value: &String{
+										Nullable: true,
+										Path:     []string{"name"},
+									},
+									Position: Position{
+										Line:   4,
+										Column: 5,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, Context{Context: context.Background()}, `{"errors":[{"message":"failed to resolve","locations":[{"line": 3, "path": 4}]}],"data":null}`
+	}))
 	t.Run("fetch with simple error", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		r.EnableSingleFlightLoader = true
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
-			Do(func(ctx context.Context, input []byte, w io.Writer) (err error) {
+			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 				pair := NewBufPair()
-				pair.WriteErr([]byte("errorMessage"), nil, nil)
-				return writeGraphqlResponse(pair, w)
-			}).
-			Return(nil)
+				pair.WriteErr([]byte("errorMessage"), nil, nil, nil)
+				return writeGraphqlResponse(pair, w, false)
+			})
 		return &GraphQLResponse{
 			Data: &Object{
-				Nullable: true,
+				Nullable: false,
 				Fetch: &SingleFetch{
 					BufferId:   0,
 					DataSource: mockDataSource,
+					ProcessResponseConfig: ProcessResponseConfig{
+						ExtractGraphqlResponse: true,
+					},
 				},
 				Fields: []*Field{
 					{
@@ -797,15 +838,14 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
-			Do(func(ctx context.Context, input []byte, w io.Writer) (err error) {
+			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 				pair := NewBufPair()
-				pair.WriteErr([]byte("errorMessage"), nil, nil)
-				return writeGraphqlResponse(pair, w)
-			}).
-			Return(nil)
+				pair.WriteErr([]byte("errorMessage"), nil, nil, nil)
+				return writeGraphqlResponse(pair, w, false)
+			})
 		return &GraphQLResponse{
 			Data: &Object{
-				Nullable: true,
+				Nullable: false,
 				Fetch: &SingleFetch{
 					BufferId:   0,
 					DataSource: FakeDataSource(`{"id":1}`),
@@ -820,6 +860,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 							Fetch: &SingleFetch{
 								BufferId:   1,
 								DataSource: mockDataSource,
+								ProcessResponseConfig: ProcessResponseConfig{
+									ExtractGraphqlResponse: true,
+								},
 							},
 							Fields: []*Field{
 								{
@@ -845,9 +888,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
 			Do(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 				pair := NewBufPair()
-				pair.WriteErr([]byte("errorMessage1"), nil, nil)
-				pair.WriteErr([]byte("errorMessage2"), nil, nil)
-				return writeGraphqlResponse(pair, w)
+				pair.WriteErr([]byte("errorMessage1"), nil, nil, nil)
+				pair.WriteErr([]byte("errorMessage2"), nil, nil, nil)
+				return writeGraphqlResponse(pair, w, false)
 			}).
 			Return(nil)
 		return &GraphQLResponse{
@@ -855,6 +898,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				Fetch: &SingleFetch{
 					BufferId:   0,
 					DataSource: mockDataSource,
+					ProcessResponseConfig: ProcessResponseConfig{
+						ExtractGraphqlResponse: true,
+					},
 				},
 				Fields: []*Field{
 					{
@@ -1014,7 +1060,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background()}, `{"data":{"stringObject":null,"integerObject":null,"floatObject":null,"booleanObject":null,"objectObject":null,"arrayObject":null,"asynchronousArrayObject":null,"nullableArray":null}}`
+		}, Context{Context: context.Background()}, `{"errors":[{"message":"failed to resolve","locations":[{"line": 0, "path": 0}],"path":["objectObject","objectField"]}],"data":{"stringObject":null,"integerObject":null,"floatObject":null,"booleanObject":null,"objectObject":null,"arrayObject":null,"asynchronousArrayObject":null,"nullableArray":null}}`
 	}))
 	t.Run("empty array should resolve correctly", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -1647,7 +1693,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		err := resolver.ResolveGraphQLSubscription(&ctx, plan, out)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(out.flushed))
-		assert.Equal(t, `{"errors":[[{"message":"Validation error occurred","locations":[{"line":1,"column":1}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}]],"data":null}`, out.flushed[0])
+		assert.Equal(t, `{"errors":[{"message":"failed to resolve","locations":[{"line": 0, "path": 0}]},{"message":"Validation error occurred","locations":[{"line":1,"column":1}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}],"data":null}`, out.flushed[0])
 	})
 
 	t.Run("should successfully get result from upstream", func(t *testing.T) {
