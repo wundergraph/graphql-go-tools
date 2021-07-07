@@ -2,13 +2,10 @@ package graphql
 
 import (
 	"context"
-	"fmt"
-	"io"
 	"io/ioutil"
 	"net/http"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/jensneuse/abstractlogger"
 	"github.com/stretchr/testify/assert"
@@ -519,428 +516,429 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		},
 	))
 
-	runSubscription := func(testCase executionEngineV2SubscriptionTestCase, withError bool) func(t *testing.T) {
-		return func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+	/*runSubscription := func(testCase executionEngineV2SubscriptionTestCase, withError bool) func(t *testing.T) {
+			return func(t *testing.T) {
+				chatServer := httptest.NewServer(chat.GraphQLEndpointHandler())
+				defer chatServer.Close()
 
-			subscriptionCtx, subscriptionCancel := context.WithCancel(ctx)
-			defer subscriptionCancel()
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
 
-			engineConf := NewEngineV2Configuration(testCase.schema)
-			engineConf.SetDataSources(testCase.dataSources)
-			engineConf.SetFieldConfigurations(testCase.fields)
+				subscriptionCtx, subscriptionCancel := context.WithCancel(ctx)
+				defer subscriptionCancel()
 
-			engine, err := NewExecutionEngineV2(ctx, abstractlogger.Noop{}, engineConf)
-			require.NoError(t, err)
+				engineConf := NewEngineV2Configuration(testCase.schema)
+				engineConf.SetDataSources(testCase.dataSources)
+				engineConf.SetFieldConfigurations(testCase.fields)
 
-			operation := testCase.operation(t)
+				engine, err := NewExecutionEngineV2(ctx, abstractlogger.Noop{}, engineConf)
+				require.NoError(t, err)
 
-			var messages []string
-			resultWriter := NewEngineResultWriter()
-			resultWriter.SetFlushCallback(func(data []byte) {
-				messages = append(messages, string(data))
-			})
+				operation := testCase.operation(t)
 
-			err = engine.Execute(subscriptionCtx, &operation, &resultWriter)
+				var messages []string
+				resultWriter := NewEngineResultWriter()
+				resultWriter.SetFlushCallback(func(data []byte) {
+					messages = append(messages, string(data))
+				})
 
-			assert.Equal(t, testCase.expectedResponses, messages)
+				err = engine.Execute(subscriptionCtx, &operation, &resultWriter)
 
-			if withError {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
+				assert.Equal(t, testCase.expectedResponses, messages)
+
+				if withError {
+					assert.Error(t, err)
+				} else {
+					assert.NoError(t, err)
+				}
 			}
 		}
-	}
 
-	runSubscriptionWithoutError := func(testCase executionEngineV2SubscriptionTestCase) func(t *testing.T) {
-		return runSubscription(testCase, false)
-	}
+		runSubscriptionWithoutError := func(testCase executionEngineV2SubscriptionTestCase) func(t *testing.T) {
+			return runSubscription(testCase, false)
+		}
 
-	t.Run("execute subscription operation with graphql data source", runSubscriptionWithoutError(executionEngineV2SubscriptionTestCase{
-		schema: starwarsSchema(t),
-		operation: func(t *testing.T) Request {
-			request := loadStarWarsQuery(starwars.FileRemainingJedisSubscription, nil)(t)
-			return request
-		},
-		dataSources: []plan.DataSourceConfiguration{
-			{
-				RootNodes: []plan.TypeField{
-					{TypeName: "Subscription", FieldNames: []string{"remainingJedis"}},
-				},
-				Factory: &graphql_datasource.Factory{
-
-				},
-				Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
-					Subscription: graphql_datasource.SubscriptionConfiguration{
-						URL: "wss://swapi.com/graphql",
-					},
-				}),
+		t.Run("execute subscription operation with graphql data source", runSubscriptionWithoutError(executionEngineV2SubscriptionTestCase{
+			schema: starwarsSchema(t),
+			operation: func(t *testing.T) Request {
+				request := loadStarWarsQuery(starwars.FileRemainingJedisSubscription, nil)(t)
+				return request
 			},
-		},
-		fields: []plan.FieldConfiguration{},
-		streamFactory: func(cancelSubscriptionFn context.CancelFunc) subscription.Stream {
-			stream := subscription.NewStreamStub([]byte("graphql_websocket_subscription"), context.Background().Done())
-			go func() {
-				stream.SendMessage(`{"url":"wss://swapi.com/graphql","body":{"query":"subscription{remainingJedis}"}}`, []byte(`{"remainingJedis":1}`))
-				time.Sleep(5 * time.Millisecond)
-				stream.SendMessage(`{"url":"wss://swapi.com/graphql","body":{"query":"subscription{remainingJedis}"}}`, []byte(`{"remainingJedis":2}`))
-				time.Sleep(5 * time.Millisecond)
-				cancelSubscriptionFn()
-			}()
-
-			return stream
-		},
-		expectedResponses: []string{`{"data":{"remainingJedis":1}}`, `{"data":{"remainingJedis":2}}`},
-	}))
-
-	t.Run("execute subscription with rest data source", runSubscriptionWithoutError(executionEngineV2SubscriptionTestCase{
-		schema: starwarsSchema(t),
-		operation: func(t *testing.T) Request {
-			request := loadStarWarsQuery(starwars.FileRemainingJedisSubscription, nil)(t)
-			return request
-		},
-		dataSources: []plan.DataSourceConfiguration{
-			{
-				RootNodes: []plan.TypeField{
-					{TypeName: "Subscription", FieldNames: []string{"remainingJedis"}},
+			dataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{TypeName: "Subscription", FieldNames: []string{"remainingJedis"}},
+					},
+					Factory: &graphql_datasource.Factory{},
+					Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
+						Subscription: graphql_datasource.SubscriptionConfiguration{
+							URL: "wss://swapi.com/graphql",
+						},
+					}),
 				},
-				Factory: &rest_datasource.Factory{
-					Client: testNetHttpClient(t, roundTripperTestCase{
+			},
+			fields: []plan.FieldConfiguration{},
+			streamFactory: func(cancelSubscriptionFn context.CancelFunc) subscription.Stream {
+				stream := subscription.NewStreamStub([]byte("graphql_websocket_subscription"), context.Background().Done())
+				go func() {
+					stream.SendMessage(`{"url":"wss://swapi.com/graphql","body":{"query":"subscription{remainingJedis}"}}`, []byte(`{"remainingJedis":1}`))
+					time.Sleep(5 * time.Millisecond)
+					stream.SendMessage(`{"url":"wss://swapi.com/graphql","body":{"query":"subscription{remainingJedis}"}}`, []byte(`{"remainingJedis":2}`))
+					time.Sleep(5 * time.Millisecond)
+					cancelSubscriptionFn()
+				}()
+
+				return stream
+			},
+			expectedResponses: []string{`{"data":{"remainingJedis":1}}`, `{"data":{"remainingJedis":2}}`},
+		}))
+
+		t.Run("execute subscription with rest data source", runSubscriptionWithoutError(executionEngineV2SubscriptionTestCase{
+			schema: starwarsSchema(t),
+			operation: func(t *testing.T) Request {
+				request := loadStarWarsQuery(starwars.FileRemainingJedisSubscription, nil)(t)
+				return request
+			},
+			dataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{TypeName: "Subscription", FieldNames: []string{"remainingJedis"}},
+					},
+					Factory: &rest_datasource.Factory{
+						Client: testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "example.com",
+							expectedPath:     "/",
+							expectedBody:     "",
+							sendResponseBody: `{"remainingJedis":1}`,
+							sendStatusCode:   200,
+						}),
+					},
+					Custom: rest_datasource.ConfigJSON(rest_datasource.Configuration{
+						Fetch: rest_datasource.FetchConfiguration{
+							URL:    "https://example.com/",
+							Method: "GET",
+							Body:   "",
+						},
+						Subscription: rest_datasource.SubscriptionConfiguration{
+							PollingIntervalMillis:   5,
+							SkipPublishSameResponse: true,
+						},
+					}),
+				},
+			},
+			fields: []plan.FieldConfiguration{},
+			streamFactory: func(cancelSubscriptionFn context.CancelFunc) subscription.Stream {
+				var callNum int
+
+				stream := http_polling.New(testHttpClientDecorator(func() httpclient.Client {
+					callNum++
+
+					return testNetHttpClient(t, roundTripperTestCase{
 						expectedHost:     "example.com",
 						expectedPath:     "/",
 						expectedBody:     "",
-						sendResponseBody: `{"remainingJedis":1}`,
+						sendResponseBody: fmt.Sprintf(`{"remainingJedis":%d}`, callNum),
 						sendStatusCode:   200,
-					}),
-				},
-				Custom: rest_datasource.ConfigJSON(rest_datasource.Configuration{
-					Fetch: rest_datasource.FetchConfiguration{
-						URL:    "https://example.com/",
-						Method: "GET",
-						Body:   "",
-					},
-					Subscription: rest_datasource.SubscriptionConfiguration{
-						PollingIntervalMillis:   5,
-						SkipPublishSameResponse: true,
-					},
-				}),
+					})
+				}))
+
+				go func() {
+					time.Sleep(15 * time.Millisecond)
+					cancelSubscriptionFn()
+				}()
+
+				return stream
 			},
-		},
-		fields: []plan.FieldConfiguration{},
-		streamFactory: func(cancelSubscriptionFn context.CancelFunc) subscription.Stream {
-			var callNum int
+			expectedResponses: []string{`{"data":{"remainingJedis":1}}`, `{"data":{"remainingJedis":2}}`},
+		}))
 
-			stream := http_polling.New(testHttpClientDecorator(func() httpclient.Client {
-				callNum++
-
-				return testNetHttpClient(t, roundTripperTestCase{
-					expectedHost:     "example.com",
-					expectedPath:     "/",
-					expectedBody:     "",
-					sendResponseBody: fmt.Sprintf(`{"remainingJedis":%d}`, callNum),
-					sendStatusCode:   200,
-				})
-			}))
-
-			go func() {
-				time.Sleep(15 * time.Millisecond)
-				cancelSubscriptionFn()
-			}()
-
-			return stream
-		},
-		expectedResponses: []string{`{"data":{"remainingJedis":1}}`, `{"data":{"remainingJedis":2}}`},
-	}))
-
-	t.Run("execute subscription with graphql federation data source", runSubscriptionWithoutError(executionEngineV2SubscriptionTestCase{
-		schema: federationSchema(t),
-		operation: func(t *testing.T) Request {
-			return Request{
-				Query: `
-					subscription UpdatePrice {
-						updatedPrice {
-							upc
-							name
-							price
-							reviews {
-								body
-								author {
-									name	
-									username
+		t.Run("execute subscription with graphql federation data source", runSubscriptionWithoutError(executionEngineV2SubscriptionTestCase{
+			schema: federationSchema(t),
+			operation: func(t *testing.T) Request {
+				return Request{
+					Query: `
+						subscription UpdatePrice {
+							updatedPrice {
+								upc
+								name
+								price
+								reviews {
+									body
+									author {
+										name
+										username
+									}
 								}
 							}
 						}
-					}
-				`,
-				OperationName: "UpdatePrice",
-			}
-		},
-		dataSources: []plan.DataSourceConfiguration{
-			{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"me"},
+					`,
+					OperationName: "UpdatePrice",
+				}
+			},
+			dataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"me"},
+						},
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id", "name", "username"},
+						},
 					},
-					{
-						TypeName:   "User",
-						FieldNames: []string{"id", "name", "username"},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id", "name", "username"},
+						},
 					},
-				},
-				ChildNodes: []plan.TypeField{
-					{
-						TypeName:   "User",
-						FieldNames: []string{"id", "name", "username"},
-					},
-				},
-				Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
-					Fetch: graphql_datasource.FetchConfiguration{
-						URL:    "http://user.service/",
-						Method: "GET",
-					},
-					Federation: graphql_datasource.FederationConfiguration{
-						Enabled:    true,
-						ServiceSDL: `extend type Query { me: User } type User @key(fields: "id") { id: ID! name: String username: String }`,
-					},
-				}),
-				Factory: &graphql_datasource.Factory{
-					Client: testNetHttpClient(t, roundTripperTestCase{
-						expectedHost:     "user.service",
-						expectedPath:     "/",
-						expectedBody:     `{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {name}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}}`,
-						sendResponseBody: `{"data":{"_entities":[{"name": "Name 1234"}]}}`,
-						sendStatusCode:   200,
+					Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
+						Fetch: graphql_datasource.FetchConfiguration{
+							URL:    "http://user.service/",
+							Method: "GET",
+						},
+						Federation: graphql_datasource.FederationConfiguration{
+							Enabled:    true,
+							ServiceSDL: `extend type Query { me: User } type User @key(fields: "id") { id: ID! name: String username: String }`,
+						},
 					}),
-				},
-			},
-			{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"topProducts"},
-					},
-					{
-						TypeName:   "Product",
-						FieldNames: []string{"upc", "name", "price", "weight"},
-					},
-					{
-						TypeName:   "Subscription",
-						FieldNames: []string{"updatedPrice"},
-					},
-					{
-						TypeName:   "Mutation",
-						FieldNames: []string{"setPrice"},
+					Factory: &graphql_datasource.Factory{
+						Client: testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "user.service",
+							expectedPath:     "/",
+							expectedBody:     `{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {name}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}}`,
+							sendResponseBody: `{"data":{"_entities":[{"name": "Name 1234"}]}}`,
+							sendStatusCode:   200,
+						}),
 					},
 				},
-				ChildNodes: []plan.TypeField{
-					{
-						TypeName:   "Product",
-						FieldNames: []string{"upc", "name", "price", "weight"},
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"topProducts"},
+						},
+						{
+							TypeName:   "Product",
+							FieldNames: []string{"upc", "name", "price", "weight"},
+						},
+						{
+							TypeName:   "Subscription",
+							FieldNames: []string{"updatedPrice"},
+						},
+						{
+							TypeName:   "Mutation",
+							FieldNames: []string{"setPrice"},
+						},
 					},
-				},
-				Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
-					Fetch: graphql_datasource.FetchConfiguration{
-						URL:    "http://product.service",
-						Method: "GET",
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Product",
+							FieldNames: []string{"upc", "name", "price", "weight"},
+						},
 					},
-					Subscription: graphql_datasource.SubscriptionConfiguration{
-						URL: "ws://product.service",
-					},
-					Federation: graphql_datasource.FederationConfiguration{
-						Enabled: true,
-						ServiceSDL: `
-extend	type Query {
-  topProducts(first: Int = 5): [Product]
-}
+					Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
+						Fetch: graphql_datasource.FetchConfiguration{
+							URL:    "http://product.service",
+							Method: "GET",
+						},
+						Subscription: graphql_datasource.SubscriptionConfiguration{
+							URL: "ws://product.service",
+						},
+						Federation: graphql_datasource.FederationConfiguration{
+							Enabled: true,
+							ServiceSDL: `
+	extend	type Query {
+	  topProducts(first: Int = 5): [Product]
+	}
 
-type Product @key(fields: "upc") {
-  upc: String!
-  name: String
-  price: Int
-  weight: Int
-}
+	type Product @key(fields: "upc") {
+	  upc: String!
+	  name: String
+	  price: Int
+	  weight: Int
+	}
 
-extend type Subscription  {
-  updatedPrice: Product!
-}
+	extend type Subscription  {
+	  updatedPrice: Product!
+	}
 
-extend type Mutation {
-  setPrice(upc: String!, price: Int!): Product
-}`,
-					},
-				}),
-				Factory: &graphql_datasource.Factory{
-					Client: testNetHttpClient(t, roundTripperTestCase{
-						expectedHost:     "product.service",
-						expectedPath:     "/",
-						expectedBody:     "",
-						sendResponseBody: ``,
-						sendStatusCode:   200,
+	extend type Mutation {
+	  setPrice(upc: String!, price: Int!): Product
+	}`,
+						},
 					}),
-				},
-			},
-			{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "User",
-						FieldNames: []string{"reviews"},
-					},
-					{
-						TypeName:   "Product",
-						FieldNames: []string{"reviews"},
+					Factory: &graphql_datasource.Factory{
+						Client: testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "product.service",
+							expectedPath:     "/",
+							expectedBody:     "",
+							sendResponseBody: ``,
+							sendStatusCode:   200,
+						}),
 					},
 				},
-				ChildNodes: []plan.TypeField{
-					{
-						TypeName:   "Review",
-						FieldNames: []string{"id", "body", "author", "product"},
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "User",
+							FieldNames: []string{"reviews"},
+						},
+						{
+							TypeName:   "Product",
+							FieldNames: []string{"reviews"},
+						},
 					},
-					{
-						TypeName:   "User",
-						FieldNames: []string{"id", "username", "reviews"},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Review",
+							FieldNames: []string{"id", "body", "author", "product"},
+						},
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id", "username", "reviews"},
+						},
+						{
+							TypeName:   "Product",
+							FieldNames: []string{"upc", "reviews"},
+						},
 					},
-					{
-						TypeName:   "Product",
-						FieldNames: []string{"upc", "reviews"},
-					},
-				},
-				Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
-					Fetch: graphql_datasource.FetchConfiguration{
-						URL:    "http://review.service/",
-						Method: "GET",
-					},
-					Federation: graphql_datasource.FederationConfiguration{
-						Enabled: true,
-						ServiceSDL: `
-type Review {
-  id: ID!
-  body: String
-  author: User @provides(fields: "username")
-  product: Product
-}
+					Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
+						Fetch: graphql_datasource.FetchConfiguration{
+							URL:    "http://review.service/",
+							Method: "GET",
+						},
+						Federation: graphql_datasource.FederationConfiguration{
+							Enabled: true,
+							ServiceSDL: `
+	type Review {
+	  id: ID!
+	  body: String
+	  author: User @provides(fields: "username")
+	  product: Product
+	}
 
-extend type User  @key(fields: "id") {
-  id: ID! @external
-  username: String @external
-  reviews: [Review]
-}
+	extend type User  @key(fields: "id") {
+	  id: ID! @external
+	  username: String @external
+	  reviews: [Review]
+	}
 
-extend type Product @key(fields: "upc") {
-  upc: String! @external
-  reviews: [Review]
-}`,
-					},
-				}),
-				Factory: &graphql_datasource.Factory{
-					Client: testNetHttpClient(t, roundTripperTestCase{
-						expectedHost:     "review.service",
-						expectedPath:     "/",
-						expectedBody:     `{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {reviews {body author {username id}}}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"}]}}`,
-						sendResponseBody: `{"data": {"_entities": [{"reviews": [{"body": "A highly effective form of birth control.","author": {"username": "User 1234","id": 1234}}]}]}}`,
-						sendStatusCode:   200,
+	extend type Product @key(fields: "upc") {
+	  upc: String! @external
+	  reviews: [Review]
+	}`,
+						},
 					}),
-				},
-			},
-		},
-		fields: plan.FieldConfigurations{
-			{
-				TypeName:       "User",
-				FieldName:      "name",
-				RequiresFields: []string{"id"},
-			},
-			{
-				TypeName:       "User",
-				FieldName:      "username",
-				RequiresFields: []string{"id"},
-			},
-			{
-				TypeName:       "Product",
-				FieldName:      "name",
-				RequiresFields: []string{"upc"},
-			},
-			{
-				TypeName:       "Product",
-				FieldName:      "price",
-				RequiresFields: []string{"upc"},
-			},
-			{
-				TypeName:       "Product",
-				FieldName:      "weight",
-				RequiresFields: []string{"upc"},
-			},
-			{
-				TypeName:       "User",
-				FieldName:      "reviews",
-				RequiresFields: []string{"id"},
-			},
-			{
-				TypeName:       "Product",
-				FieldName:      "reviews",
-				RequiresFields: []string{"upc"},
-			},
-			{
-				TypeName:  "Query",
-				FieldName: "topProducts",
-				Arguments: []plan.ArgumentConfiguration{
-					{
-						Name:       "first",
-						SourceType: plan.FieldArgumentSource,
+					Factory: &graphql_datasource.Factory{
+						Client: testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "review.service",
+							expectedPath:     "/",
+							expectedBody:     `{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {reviews {body author {username id}}}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"}]}}`,
+							sendResponseBody: `{"data": {"_entities": [{"reviews": [{"body": "A highly effective form of birth control.","author": {"username": "User 1234","id": 1234}}]}]}}`,
+							sendStatusCode:   200,
+						}),
 					},
 				},
 			},
-			{
-				TypeName:  "Mutation",
-				FieldName: "setPrice",
-				Arguments: []plan.ArgumentConfiguration{
-					{
-						Name:       "upc",
-						SourceType: plan.FieldArgumentSource,
+			fields: plan.FieldConfigurations{
+				{
+					TypeName:       "User",
+					FieldName:      "name",
+					RequiresFields: []string{"id"},
+				},
+				{
+					TypeName:       "User",
+					FieldName:      "username",
+					RequiresFields: []string{"id"},
+				},
+				{
+					TypeName:       "Product",
+					FieldName:      "name",
+					RequiresFields: []string{"upc"},
+				},
+				{
+					TypeName:       "Product",
+					FieldName:      "price",
+					RequiresFields: []string{"upc"},
+				},
+				{
+					TypeName:       "Product",
+					FieldName:      "weight",
+					RequiresFields: []string{"upc"},
+				},
+				{
+					TypeName:       "User",
+					FieldName:      "reviews",
+					RequiresFields: []string{"id"},
+				},
+				{
+					TypeName:       "Product",
+					FieldName:      "reviews",
+					RequiresFields: []string{"upc"},
+				},
+				{
+					TypeName:  "Query",
+					FieldName: "topProducts",
+					Arguments: []plan.ArgumentConfiguration{
+						{
+							Name:       "first",
+							SourceType: plan.FieldArgumentSource,
+						},
 					},
-					{
-						Name:       "price",
-						SourceType: plan.FieldArgumentSource,
+				},
+				{
+					TypeName:  "Mutation",
+					FieldName: "setPrice",
+					Arguments: []plan.ArgumentConfiguration{
+						{
+							Name:       "upc",
+							SourceType: plan.FieldArgumentSource,
+						},
+						{
+							Name:       "price",
+							SourceType: plan.FieldArgumentSource,
+						},
 					},
 				},
 			},
-		},
-		streamFactory: func(cancelSubscriptionFn context.CancelFunc) subscription.Stream {
-			stream := subscription.NewStreamStub([]byte("graphql_websocket_subscription"), context.Background().Done())
+			streamFactory: func(cancelSubscriptionFn context.CancelFunc) subscription.Stream {
+				stream := subscription.NewStreamStub([]byte("graphql_websocket_subscription"), context.Background().Done())
 
-			go func() {
-				stream.SendMessage(
-					`{"url":"ws://product.service","body":{"query":"subscription{updatedPrice {upc name price}}"}}`,
-					[]byte(`{"updatedPrice":{"upc": "top-1", "name": "Trilby", "price": 11}}`))
-				time.Sleep(5 * time.Millisecond)
-				stream.SendMessage(
-					`{"url":"ws://product.service","body":{"query":"subscription{updatedPrice {upc name price}}"}}`,
-					[]byte(`{"updatedPrice":{"upc": "top-1", "name": "Trilby", "price": 15}}`))
-				time.Sleep(5 * time.Millisecond)
-				cancelSubscriptionFn()
-			}()
+				go func() {
+					stream.SendMessage(
+						`{"url":"ws://product.service","body":{"query":"subscription{updatedPrice {upc name price}}"}}`,
+						[]byte(`{"updatedPrice":{"upc": "top-1", "name": "Trilby", "price": 11}}`))
+					time.Sleep(5 * time.Millisecond)
+					stream.SendMessage(
+						`{"url":"ws://product.service","body":{"query":"subscription{updatedPrice {upc name price}}"}}`,
+						[]byte(`{"updatedPrice":{"upc": "top-1", "name": "Trilby", "price": 15}}`))
+					time.Sleep(5 * time.Millisecond)
+					cancelSubscriptionFn()
+				}()
 
-			return stream
-		},
-		expectedResponses: []string{
-			`{"data":{"updatedPrice":{"upc":"top-1","name":"Trilby","price":11,"reviews":[{"body":"A highly effective form of birth control.","author":{"name":"Name 1234","username":"User 1234"}}]}}}`,
-			`{"data":{"updatedPrice":{"upc":"top-1","name":"Trilby","price":15,"reviews":[{"body":"A highly effective form of birth control.","author":{"name":"Name 1234","username":"User 1234"}}]}}}`,
-		},
-	}))
+				return stream
+			},
+			expectedResponses: []string{
+				`{"data":{"updatedPrice":{"upc":"top-1","name":"Trilby","price":11,"reviews":[{"body":"A highly effective form of birth control.","author":{"name":"Name 1234","username":"User 1234"}}]}}}`,
+				`{"data":{"updatedPrice":{"upc":"top-1","name":"Trilby","price":15,"reviews":[{"body":"A highly effective form of birth control.","author":{"name":"Name 1234","username":"User 1234"}}]}}}`,
+			},
+		}))*/
 }
 
-func testNetHttpClient(t *testing.T, testCase roundTripperTestCase) httpclient.Client {
-	return httpclient.NewNetHttpClient(&http.Client{
-		Transport: createTestRoundTripper(t, testCase),
-	})
+func testNetHttpClient(t *testing.T, testCase roundTripperTestCase) *http.Client {
+	client := httpclient.DefaultNetHttpClient
+	client.Transport = createTestRoundTripper(t, testCase)
+	return client
 }
 
-type testHttpClientDecorator func() httpclient.Client
+/*type testHttpClientDecorator func() *http.Client
 
 func (t testHttpClientDecorator) Do(ctx context.Context, requestInput []byte, out io.Writer) (err error) {
 	httpClient := t()
 	return httpClient.Do(ctx, requestInput, out)
-}
+}*/
 
 type beforeFetchHook struct {
 	input string
