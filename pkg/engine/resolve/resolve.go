@@ -42,9 +42,14 @@ var (
 	literalPath      = []byte("path")
 )
 
-var errNonNullableFieldValueIsNull = errors.New("non Nullable field value is null")
-var errTypeNameSkipped = errors.New("skipped because of __typename condition")
-var errHeaderPathInvalid = errors.New("invalid header path: header variables must be of this format: .request.header.{{ key }} ")
+var (
+	errNonNullableFieldValueIsNull = errors.New("non Nullable field value is null")
+	errTypeNameSkipped             = errors.New("skipped because of __typename condition")
+	errHeaderPathInvalid           = errors.New("invalid header path: header variables must be of this format: .request.header.{{ key }} ")
+
+	ErrInvalidErrorsObject = errors.New("errors object must be array")
+	ErrUnableToResolve     = errors.New("unable to resolve operation")
+)
 
 type Node interface {
 	NodeKind() NodeKind
@@ -373,7 +378,26 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	buf := r.getBufPair()
 	defer r.freeBufPair(buf)
 
-	err = r.resolveNode(ctx, response.Data, data, buf)
+	var (
+		errors     []byte
+		errorsType jsonparser.ValueType
+	)
+
+	if len(data) != 0 {
+		errors, errorsType, _, _ = jsonparser.Get(data, "errors")
+		data, _, _, _ = jsonparser.Get(data, "data")
+	}
+
+	if len(errors) != 0 {
+		if errorsType != jsonparser.Array {
+			return ErrInvalidErrorsObject
+		}
+		buf.writeErrors(errors)
+		_, err = buf.Data.Write(literal.NULL)
+	} else {
+		err = r.resolveNode(ctx, response.Data, data, buf)
+	}
+
 	if err != nil {
 		return
 	}
@@ -428,6 +452,14 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 	next := make(chan []byte)
 	err = subscription.Trigger.Source.Start(c, subscriptionInput, next)
 	if err != nil {
+		if errors.Is(err, ErrUnableToResolve) {
+			_, err = writer.Write([]byte(`{"errors":[{"message":"unable to resolve"}]}`))
+			if err != nil {
+				return err
+			}
+			writer.Flush()
+			return nil
+		}
 		return err
 	}
 

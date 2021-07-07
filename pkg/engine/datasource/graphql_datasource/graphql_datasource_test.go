@@ -1912,11 +1912,11 @@ func TestSubscriptionSource_Start(t *testing.T) {
 	}
 
 	chatServerSubscriptionOptions := func(t *testing.T, body string) []byte {
+		var gqlBody GraphQLBody
+		_ = json.Unmarshal([]byte(body), &gqlBody)
 		options := GraphQLSubscriptionOptions{
 			URL:    chatServer.URL,
-			Body:   GraphQLBody{
-				Query: body,
-			},
+			Body:   gqlBody,
 			Header: nil,
 		}
 
@@ -1932,14 +1932,20 @@ func TestSubscriptionSource_Start(t *testing.T) {
 		return subscriptionSource
 	}
 
-	t.Run("should return error when subscription client returns an error", func(t *testing.T) {
+	t.Run("should return error when input is invalid", func(t *testing.T) {
 		source := SubscriptionSource{client: FailingSubscriptionClient{}}
 		err := source.Start(context.Background(), []byte(`{"url": "", "body": "", "header": null}`), nil)
 		assert.Error(t, err)
-		assert.Equal(t, errSubscriptionClientFail, err)
 	})
 
-	t.Run("invalid json: should have a closed channel when connection is being revoked from server", func(t *testing.T) {
+	t.Run("should return error when subscription client returns an error", func(t *testing.T) {
+		source := SubscriptionSource{client: FailingSubscriptionClient{}}
+		err := source.Start(context.Background(), []byte(`{"url": "", "body": {}, "header": null}`), nil)
+		assert.Error(t, err)
+		assert.Equal(t, resolve.ErrUnableToResolve, err)
+	})
+
+	t.Run("invalid json: should stop before sending to upstream", func(t *testing.T) {
 		next := make(chan []byte)
 		ctx := context.Background()
 		defer ctx.Done()
@@ -1947,13 +1953,7 @@ func TestSubscriptionSource_Start(t *testing.T) {
 		source := newSubscriptionSource(ctx)
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: "#test") { text createdBy } }"}`)
 		err := source.Start(ctx, chatSubscriptionOptions, next)
-		require.NoError(t, err)
-
-		nextBytes := <-next
-		assert.Equal(t, `{"errors":[{"message":"connection error"}]}`, string(nextBytes))
-
-		_, ok := <-next
-		assert.False(t, ok)
+		require.ErrorIs(t, err,resolve.ErrUnableToResolve)
 	})
 
 	t.Run("invalid syntax (roomNam)", func(t *testing.T) {

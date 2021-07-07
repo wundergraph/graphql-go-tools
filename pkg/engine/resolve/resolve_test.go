@@ -1644,7 +1644,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		err := resolver.ResolveGraphQLSubscription(&ctx, plan, out)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(out.flushed))
-		assert.Equal(t, `{"data":null,"errors":[{"message":"Validation error occurred","locations":[{"line":1,"column":1}]}`, out.flushed[0])
+		assert.Equal(t, `{"errors":[[{"message":"Validation error occurred","locations":[{"line":1,"column":1}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}]],"data":null}`, out.flushed[0])
 	})
 
 	t.Run("should successfully get result from upstream", func(t *testing.T) {

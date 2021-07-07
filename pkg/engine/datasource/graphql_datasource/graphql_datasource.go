@@ -945,9 +945,9 @@ type GraphQLSubscriptionOptions struct {
 }
 
 type GraphQLBody struct {
-	Query         string          `json:"query"`
-	OperationName string          `json:"operationName"`
-	Variables     json.RawMessage `json:"variables"`
+	Query         string          `json:"query,omitempty"`
+	OperationName string          `json:"operationName,omitempty"`
+	Variables     json.RawMessage `json:"variables,omitempty"`
 }
 
 type SubscriptionSource struct {
@@ -959,6 +959,9 @@ func (s *SubscriptionSource) Start(ctx context.Context, input []byte, next chan<
 	err := json.Unmarshal(input, &options)
 	if err != nil {
 		return err
+	}
+	if options.Body.Query == "" {
+		return resolve.ErrUnableToResolve
 	}
 	return s.client.Subscribe(ctx, options, next)
 }
