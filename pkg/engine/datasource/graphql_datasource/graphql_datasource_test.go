@@ -1433,7 +1433,8 @@ func TestGraphQLDataSource(t *testing.T) {
 	factory := &Factory{
 		Client: http.DefaultClient,
 	}
-	ctx, _ := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	t.Run("subscription", RunTest(testDefinition, `
 		subscription RemainingJedis {
 			remainingJedis
@@ -1966,9 +1967,10 @@ func TestSubscriptionSource_Start(t *testing.T) {
 		err := source.Start(ctx, chatSubscriptionOptions, next)
 		require.NoError(t, err)
 
-		msg, _ := <-next
+		msg, ok := <-next
+		assert.True(t, ok)
 		assert.Equal(t, `{"errors":[{"message":"Unknown argument \"roomNam\" on field \"messageAdded\" of type \"Subscription\". Did you mean \"roomName\"?","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"Field \"messageAdded\" argument \"roomName\" of type \"String!\" is required but not provided.","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}]}`, string(msg))
-		_, ok := <-next
+		_, ok = <-next
 		assert.False(t, ok)
 	})
 

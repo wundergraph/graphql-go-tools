@@ -91,6 +91,7 @@ const (
 		}
 	`
 
+	// nolint
 	argumentSubscription = `
 		subscription ArgumentQuery($idVariable: String!) {
 			withArgument(id: $idVariable, name: "foo") {

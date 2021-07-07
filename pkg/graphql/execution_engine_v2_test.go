@@ -97,6 +97,7 @@ type ExecutionEngineV2TestCase struct {
 	expectedResponse string
 }
 
+// nolint
 type executionEngineV2SubscriptionTestCase struct {
 	schema            *Schema
 	operation         func(t *testing.T) Request
@@ -1097,6 +1098,7 @@ func BenchmarkExecutionEngineV2(b *testing.B) {
 
 }
 
+// nolint
 func federationSchema(t *testing.T) *Schema {
 	rawSchema := `
 type Query {
