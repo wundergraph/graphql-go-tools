@@ -29,7 +29,7 @@ const (
 }`
 
 	SubscriptionLiveMessages = `subscription LiveMessages {
-	messageAdded(rooName: "#test") {
+	messageAdded(roomName: "#test") {
 		text
 		createdBy
 	}

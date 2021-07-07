@@ -296,9 +296,6 @@ func TestHandler_Handle(t *testing.T) {
 		chatSchema, err := graphql.NewSchemaFromReader(bytes.NewBuffer(chatSchemaBytes))
 		require.NoError(t, err)
 
-		/*starWarsSchema, err := graphql.NewSchemaFromString(string(starwars.Schema(t)))
-		require.NoError(t, err)*/
-
 		engineConf := graphql.NewEngineV2Configuration(chatSchema)
 		engineConf.SetDataSources([]plan.DataSourceConfiguration{
 			{
@@ -343,15 +340,20 @@ func TestHandler_Handle(t *testing.T) {
 					},
 				},
 			},
+			{
+				TypeName:  "Subscription",
+				FieldName: "messageAdded",
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "roomName",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
 		})
 		engine, err := graphql.NewExecutionEngineV2(ctx, abstractlogger.NoopLogger, engineConf)
 		require.NoError(t, err)
-		/*
-			streamStub := subscription.NewStreamStub([]byte("graphql_websocket_subscription"), ctx.Done())
 
-			websocketManager := subscription.NewManager(streamStub)
-			websocketManager.Run(ctx.Done())
-		*/
 		executorPool := NewExecutorV2Pool(engine)
 		t.Run("connection_init", func(t *testing.T) {
 			_, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
@@ -527,7 +529,6 @@ func TestHandler_Handle(t *testing.T) {
 				payload, err := chat.GraphQLRequestForOperation(chat.SubscriptionLiveMessages)
 				require.NoError(t, err)
 				client.prepareStartMessage("1", payload).withoutError().and().send()
-				//go streamStub.SendMessage(`{"url":"wss://swapi.com/graphql","body":{"query":"subscription{remainingJedis}"}}`, []byte(`{"remainingJedis":1}`))
 
 				ctx, cancelFunc := context.WithCancel(context.Background())
 				handlerRoutineFunc := handlerRoutine(ctx)
@@ -536,10 +537,16 @@ func TestHandler_Handle(t *testing.T) {
 				time.Sleep(10 * time.Millisecond)
 				cancelFunc()
 
+				go sendChatMutation(t, chatServer.URL)
+
+				require.Eventually(t, func() bool {
+					return client.hasMoreMessagesThan(0)
+				}, 1*time.Second, 10*time.Millisecond)
+
 				expectedMessage := Message{
 					Id:      "1",
 					Type:    MessageTypeData,
-					Payload: []byte(`{"data":{"remainingJedis":1}}`),
+					Payload: []byte(`{"data":{"messageAdded":{"text":"Hello World!","createdBy":"myuser"}}}`),
 				}
 
 				messagesFromServer := client.readFromServer()
@@ -635,4 +642,18 @@ func jsonizePayload(t *testing.T, payload interface{}) json.RawMessage {
 	require.NoError(t, err)
 
 	return jsonBytes
+}
+
+func sendChatMutation(t *testing.T, url string) {
+	reqBody, err := chat.GraphQLRequestForOperation(chat.MutationSendMessage)
+	require.NoError(t, err)
+
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(reqBody))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+
+	httpClient := http.Client{}
+	resp, err := httpClient.Do(req)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 }
