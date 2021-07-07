@@ -188,11 +188,9 @@ func TestResolver_ResolveNode(t *testing.T) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
 			Load(gomock.Any(), []byte(`{"id":1}`)).
-			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
-				pair.Data.WriteBytes([]byte(`{"name":"Jens"}`))
-				return
-			}).
-			Return(nil)
+			DoAndReturn(func(ctx context.Context, input []byte) (data []byte, err error) {
+				return []byte(`{"name":"Jens"}`), nil
+			})
 		return &Object{
 			Fetch: &SingleFetch{
 				BufferId:   0,
@@ -554,11 +552,9 @@ func TestResolver_ResolveNode(t *testing.T) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
 			Load(gomock.Any(), gomock.GotFormatterAdapter(gotBytesFormatter{}, matchBytes(`{"id":1}`))).
-			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
-				pair.Data.WriteBytes([]byte(`{"name":"Woofie"}`))
-				return
-			}).
-			Return(nil)
+			DoAndReturn(func(ctx context.Context, input []byte) (data []byte, err error) {
+				return []byte(`{"name":"Woofie"}`), nil
+			})
 		return &Object{
 			Fetch: &SingleFetch{
 				BufferId:   0,
@@ -763,11 +759,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
 			Load(gomock.Any(), gomock.Any()).
-			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
-				pair.WriteErr([]byte("errorMessage"), nil, nil)
-				return
-			}).
-			Return(nil)
+			DoAndReturn(func(ctx context.Context, input []byte) (data []byte, err error) {
+				return []byte(`{"errors":[{"message":"errorMessage"}],"data":{"name":null}}`), nil
+			})
 		return &GraphQLResponse{
 			Data: &Object{
 				Nullable: true,
@@ -1505,14 +1499,11 @@ func TestResolver_WithHeader(t *testing.T) {
 			fakeService := NewMockDataSource(ctrl)
 			fakeService.EXPECT().
 				Load(gomock.Any(), gomock.Any()).
-				Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+				DoAndReturn(func(ctx context.Context, input []byte) (data []byte, err error) {
 					actual := string(input)
 					assert.Equal(t, "foo", actual)
-					pair.Data.WriteString(`{"bar":"baz"}`)
-					return
-				}).
-				Return(nil)
-
+					return []byte(`{"bar":"baz"}`), nil
+				})
 			out := &bytes.Buffer{}
 			res := &GraphQLResponse{
 				Data: &Object{
