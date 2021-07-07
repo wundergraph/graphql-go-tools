@@ -46,3 +46,6 @@ require (
 )
 
 replace github.com/tidwall/gjson => github.com/jensneuse/gjson v1.3.6-0.20200106141904-7ea619137b22
+
+replace	github.com/jensneuse/graphql-go-tools/examples/chat => ./examples/chat
+
