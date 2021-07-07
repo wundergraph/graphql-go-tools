@@ -112,8 +112,6 @@ github.com/jensneuse/diffview v1.0.0 h1:4b6FQJ7y3295JUHU3tRko6euyEboL825ZsXeZZM4
 github.com/jensneuse/diffview v1.0.0/go.mod h1:i6IacuD8LnEaPuiyzMHA+Wfz5mAuycMOf3R/orUY9y4=
 github.com/jensneuse/gjson v1.3.6-0.20200106141904-7ea619137b22 h1:zb7Yt0GH8yWZ4+IXROIvVl6UncFwhW3mLDkXPitVXSQ=
 github.com/jensneuse/gjson v1.3.6-0.20200106141904-7ea619137b22/go.mod h1:P256ACg0Mn+j1RXIDXoss50DeIABTYK1PULOJHhxOls=
-github.com/jensneuse/graphql-go-tools/examples/chat v0.0.0-20210628073736-e2ac669dc760 h1:s39bO4sJfcr3U6OysXTJChbdam1BdY6RE7ybVBTsd4c=
-github.com/jensneuse/graphql-go-tools/examples/chat v0.0.0-20210628073736-e2ac669dc760/go.mod h1:KQO0HE/7k6+BPuPyg9wPx8MC/sjmZmQnq3wCcv4DCEY=
 github.com/jensneuse/pipeline v0.0.0-20200117120358-9fb4de085cd6 h1:y8hvuqbuVGFNpEos+vB5I5X+QxWm0uyTk+5oeOinMjY=
 github.com/jensneuse/pipeline v0.0.0-20200117120358-9fb4de085cd6/go.mod h1:UsfzaMt+keVOxa007GcCJMFeTHr6voRfBGMQEW7DkdM=
 github.com/jessevdk/go-flags v1.4.0/go.mod h1:4FA24M0QyGHXBuZZK/XkWh8h0e1EYbRYJSGM75WSRxI=
