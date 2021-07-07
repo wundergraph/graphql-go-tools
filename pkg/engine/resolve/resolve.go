@@ -23,6 +23,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/fastbuffer"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
 	"github.com/jensneuse/graphql-go-tools/pkg/pool"
 )
 
@@ -47,8 +48,7 @@ var (
 	errTypeNameSkipped             = errors.New("skipped because of __typename condition")
 	errHeaderPathInvalid           = errors.New("invalid header path: header variables must be of this format: .request.header.{{ key }} ")
 
-	ErrInvalidErrorsObject = errors.New("errors object must be array")
-	ErrUnableToResolve     = errors.New("unable to resolve operation")
+	ErrUnableToResolve = errors.New("unable to resolve operation")
 )
 
 var (
@@ -120,6 +120,7 @@ type Context struct {
 	pathPrefix      []byte
 	beforeFetchHook BeforeFetchHook
 	afterFetchHook  AfterFetchHook
+	position        position.Position
 }
 
 type Request struct {
@@ -136,6 +137,7 @@ func NewContext(ctx context.Context) *Context {
 		usedBuffers:  make([]*bytes.Buffer, 0, 48),
 		currentPatch: -1,
 		maxPatch:     -1,
+		position:     position.Position{},
 	}
 }
 
@@ -173,6 +175,7 @@ func (c *Context) Clone() Context {
 		pathPrefix:      pathPrefix,
 		beforeFetchHook: c.beforeFetchHook,
 		afterFetchHook:  c.afterFetchHook,
+		position:        c.position,
 	}
 }
 
@@ -191,6 +194,7 @@ func (c *Context) Free() {
 	c.beforeFetchHook = nil
 	c.afterFetchHook = nil
 	c.Request.Header = nil
+	c.position = position.Position{}
 }
 
 func (c *Context) SetBeforeFetchHook(hook BeforeFetchHook) {
@@ -199,6 +203,10 @@ func (c *Context) SetBeforeFetchHook(hook BeforeFetchHook) {
 
 func (c *Context) SetAfterFetchHook(hook AfterFetchHook) {
 	c.afterFetchHook = hook
+}
+
+func (c *Context) setPosition(position position.Position) {
+	c.position = position
 }
 
 func (c *Context) addPathElement(elem []byte) {
@@ -434,32 +442,23 @@ func (r *Resolver) extractResponse(responseData []byte, bufPair *BufPair, cfg Pr
 }
 
 func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, data []byte, writer io.Writer) (err error) {
-
 	buf := r.getBufPair()
 	defer r.freeBufPair(buf)
 
-	var (
-		errors     []byte
-		errorsType jsonparser.ValueType
-	)
+	responseBuf := r.getBufPair()
+	defer r.freeBufPair(responseBuf)
 
-	if len(data) != 0 {
-		errors, errorsType, _, _ = jsonparser.Get(data, "errors")
-		data, _, _, _ = jsonparser.Get(data, "data")
-	}
+	r.extractResponse(data, responseBuf, ProcessResponseConfig{ExtractGraphqlResponse: true})
 
-	if len(errors) != 0 {
-		if errorsType != jsonparser.Array {
-			return ErrInvalidErrorsObject
-		}
-		buf.writeErrors(errors)
-		_, err = buf.Data.Write(literal.NULL)
-	} else {
-		err = r.resolveNode(ctx, response.Data, data, buf)
-	}
-
+	err = r.resolveNode(ctx, response.Data, responseBuf.Data.Bytes(), buf)
 	if err != nil {
-		return
+		if !errors.Is(err, errNonNullableFieldValueIsNull) {
+			return
+		}
+		err = nil
+	}
+	if responseBuf.Errors.Len() > 0 {
+		r.MergeBufPairErrors(responseBuf, buf)
 	}
 
 	hasErrors := buf.Errors.Len() != 0
@@ -475,17 +474,18 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 		err = r.writeSafe(err, writer, lBrack)
 		_, err = writer.Write(buf.Errors.Bytes())
 		err = r.writeSafe(err, writer, rBrack)
+		err = r.writeSafe(err, writer, comma)
 	}
 
+	err = r.writeSafe(err, writer, quote)
+	err = r.writeSafe(err, writer, literalData)
+	err = r.writeSafe(err, writer, quote)
+	err = r.writeSafe(err, writer, colon)
+
 	if hasData {
-		if hasErrors {
-			err = r.writeSafe(err, writer, comma)
-		}
-		err = r.writeSafe(err, writer, quote)
-		err = r.writeSafe(err, writer, literalData)
-		err = r.writeSafe(err, writer, quote)
-		err = r.writeSafe(err, writer, colon)
 		_, err = writer.Write(buf.Data.Bytes())
+	} else {
+		err = r.writeSafe(err, writer, literal.NULL)
 	}
 
 	err = r.writeSafe(err, writer, rBrace)
@@ -970,6 +970,7 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 		objectBuf.Data.WriteBytes(quote)
 		objectBuf.Data.WriteBytes(colon)
 		ctx.addPathElement(object.Fields[i].Name)
+		ctx.setPosition(object.Fields[i].Position)
 		err = r.resolveNode(ctx, object.Fields[i].Value, fieldData, fieldBuf)
 		ctx.removeLastPathElement()
 		if err != nil {
@@ -980,10 +981,10 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 			}
 			if errors.Is(err, errNonNullableFieldValueIsNull) && object.Nullable {
 				objectBuf.Data.Reset()
-				r.MergeBufPairErrors(fieldBuf, objectBuf)
 				r.resolveNull(objectBuf.Data)
 				return nil
 			}
+			r.MergeBufPairErrors(fieldBuf, objectBuf)
 			return
 		}
 		r.MergeBufPairs(fieldBuf, objectBuf, false)
@@ -1176,6 +1177,7 @@ func (_ *EmptyArray) NodeKind() NodeKind {
 type Field struct {
 	Name       []byte
 	Value      Node
+	Position   position.Position
 	Defer      *DeferField
 	Stream     *StreamField
 	HasBuffer  bool

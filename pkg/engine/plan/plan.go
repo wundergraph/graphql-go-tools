@@ -394,6 +394,7 @@ func (v *Visitor) EnterField(ref int) {
 				Path:     v.resolveFieldPath(ref),
 			},
 			OnTypeName: v.resolveOnTypeName(),
+			Position:   v.Operation.Fields[ref].Position,
 		}
 		*v.currentFields[len(v.currentFields)-1].fields = append(*v.currentFields[len(v.currentFields)-1].fields, v.currentField)
 		return
