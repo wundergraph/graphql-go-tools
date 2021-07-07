@@ -148,9 +148,12 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 		DataSource: &Source{
 			httpClient: p.fetchClient,
 		},
-		Variables:                 p.variables,
-		DisallowSingleFlight:      p.disallowSingleFlight,
-		ExtractFederationEntities: p.extractEntities,
+		Variables:            p.variables,
+		DisallowSingleFlight: p.disallowSingleFlight,
+		ProcessResponseConfig: resolve.ProcessResponseConfig{
+			ExtractGraphqlResponse:    true,
+			ExtractFederationEntities: p.extractEntities,
+		},
 	}
 }
 

@@ -215,7 +215,10 @@ func TestDefaultProcessor_Federation(t *testing.T) {
 										Path: []string{"id"},
 									},
 								),
-								ExtractFederationEntities: true,
+								ProcessResponseConfig: resolve.ProcessResponseConfig{
+									ExtractGraphqlResponse:    true,
+									ExtractFederationEntities: true,
+								},
 							},
 							Path:     []string{"me"},
 							Nullable: true,
@@ -261,7 +264,10 @@ func TestDefaultProcessor_Federation(t *testing.T) {
 																	Path: []string{"upc"},
 																},
 															),
-															ExtractFederationEntities: true,
+															ProcessResponseConfig: resolve.ProcessResponseConfig{
+																ExtractGraphqlResponse:    true,
+																ExtractFederationEntities: true,
+															},
 														},
 														Fields: []*resolve.Field{
 															{
@@ -359,7 +365,10 @@ func TestDefaultProcessor_Federation(t *testing.T) {
 								},
 							},
 						},
-						ExtractFederationEntities: true,
+						ProcessResponseConfig: resolve.ProcessResponseConfig{
+							ExtractGraphqlResponse:    true,
+							ExtractFederationEntities: true,
+						},
 					},
 					Operation: literal.REPLACE,
 					Value: &resolve.Array{
@@ -397,7 +406,10 @@ func TestDefaultProcessor_Federation(t *testing.T) {
 													},
 												},
 											},
-											ExtractFederationEntities: true,
+											ProcessResponseConfig: resolve.ProcessResponseConfig{
+												ExtractGraphqlResponse:    true,
+												ExtractFederationEntities: true,
+											},
 										},
 										Fields: []*resolve.Field{
 											{

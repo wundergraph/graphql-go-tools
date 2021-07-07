@@ -37,8 +37,11 @@ func TestDataSourceInput_Process(t *testing.T) {
 										Path: []string{"id"},
 									},
 								),
-								DataSource:                nil,
-								ExtractFederationEntities: true,
+								DataSource: nil,
+								ProcessResponseConfig: resolve.ProcessResponseConfig{
+									ExtractGraphqlResponse:    true,
+									ExtractFederationEntities: true,
+								},
 							},
 							Path:     []string{"me"},
 							Nullable: true,
@@ -86,7 +89,10 @@ func TestDataSourceInput_Process(t *testing.T) {
 																	Path: []string{"upc"},
 																},
 															),
-															ExtractFederationEntities: true,
+															ProcessResponseConfig: resolve.ProcessResponseConfig{
+																ExtractGraphqlResponse:    true,
+																ExtractFederationEntities: true,
+															},
 														},
 														Fields: []*resolve.Field{
 															{
@@ -161,8 +167,11 @@ func TestDataSourceInput_Process(t *testing.T) {
 										},
 									},
 								},
-								DataSource:                nil,
-								ExtractFederationEntities: true,
+								DataSource: nil,
+								ProcessResponseConfig: resolve.ProcessResponseConfig{
+									ExtractGraphqlResponse:    true,
+									ExtractFederationEntities: true,
+								},
 							},
 							Path:     []string{"me"},
 							Nullable: true,
@@ -220,7 +229,10 @@ func TestDataSourceInput_Process(t *testing.T) {
 																	},
 																},
 															},
-															ExtractFederationEntities: true,
+															ProcessResponseConfig: resolve.ProcessResponseConfig{
+																ExtractGraphqlResponse:    true,
+																ExtractFederationEntities: true,
+															},
 														},
 														Fields: []*resolve.Field{
 															{

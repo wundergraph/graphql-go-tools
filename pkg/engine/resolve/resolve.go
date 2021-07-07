@@ -386,7 +386,12 @@ func (r *Resolver) validateContext(ctx *Context) (err error) {
 	return nil
 }
 
-func (r *Resolver) preprocessResponse(responseData []byte, bufPair *BufPair) {
+func (r *Resolver) extractResponse(responseData []byte, bufPair *BufPair, cfg ProcessResponseConfig) {
+	if !cfg.ExtractGraphqlResponse {
+		bufPair.Data.WriteBytes(responseData)
+		return
+	}
+
 	jsonparser.EachKey(responseData, func(i int, bytes []byte, valueType jsonparser.ValueType, err error) {
 		switch i {
 		case 0:
@@ -409,7 +414,7 @@ func (r *Resolver) preprocessResponse(responseData []byte, bufPair *BufPair) {
 				}
 			})
 		case 1:
-			if false {
+			if cfg.ExtractFederationEntities {
 				data, _, _, _ := jsonparser.Get(bytes, entitiesPath...)
 				bufPair.Data.WriteBytes(data)
 				return
@@ -1051,7 +1056,7 @@ func (r *Resolver) resolveSingleFetch(ctx *Context, fetch *SingleFetch, prepared
 	if !r.EnableSingleFlightLoader || fetch.DisallowSingleFlight {
 		var data []byte
 		data, err = fetch.DataSource.Load(ctx.Context, preparedInput.Bytes())
-		r.preprocessResponse(data, buf)
+		r.extractResponse(data, buf, fetch.ProcessResponseConfig)
 		if ctx.afterFetchHook != nil {
 			if buf.HasData() {
 				ctx.afterFetchHook.OnData(r.hookCtx(ctx), buf.Data.Bytes(), false)
@@ -1099,7 +1104,7 @@ func (r *Resolver) resolveSingleFetch(ctx *Context, fetch *SingleFetch, prepared
 
 	var data []byte
 	data, err = fetch.DataSource.Load(ctx.Context, preparedInput.Bytes())
-	r.preprocessResponse(data, &inflight.bufPair)
+	r.extractResponse(data, &inflight.bufPair, fetch.ProcessResponseConfig)
 	inflight.err = err
 
 	if inflight.bufPair.HasData() {
@@ -1201,9 +1206,14 @@ type SingleFetch struct {
 	// By default SingleFlight for fetches is disabled and needs to be enabled on the Resolver first
 	// If the resolver allows SingleFlight it's up the each individual DataSource Planner to decide whether an Operation
 	// should be allowed to use SingleFlight
-	DisallowSingleFlight      bool
-	InputTemplate             InputTemplate
-	DataSourceIdentifier      []byte
+	DisallowSingleFlight  bool
+	InputTemplate         InputTemplate
+	DataSourceIdentifier  []byte
+	ProcessResponseConfig ProcessResponseConfig
+}
+
+type ProcessResponseConfig struct {
+	ExtractGraphqlResponse    bool
 	ExtractFederationEntities bool
 }
 
