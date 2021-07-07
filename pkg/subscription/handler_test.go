@@ -1,8 +1,11 @@
 package subscription
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -10,7 +13,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/jensneuse/graphql-go-tools/examples/chat"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/graphql_datasource"
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/graphql"
 	"github.com/jensneuse/graphql-go-tools/pkg/starwars"
@@ -279,35 +284,74 @@ func TestHandler_Handle(t *testing.T) {
 	})
 
 	t.Run("engine v2", func(t *testing.T) {
-
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		starWarsSchema, err := graphql.NewSchemaFromString(string(starwars.Schema(t)))
+		chatServer := httptest.NewServer(chat.GraphQLEndpointHandler())
+		defer chatServer.Close()
+
+		chatSchemaBytes, err := chat.LoadSchemaFromExamplesDirectoryWithinPkg()
 		require.NoError(t, err)
 
-		engineConf := graphql.NewEngineV2Configuration(starWarsSchema)
+		chatSchema, err := graphql.NewSchemaFromReader(bytes.NewBuffer(chatSchemaBytes))
+		require.NoError(t, err)
+
+		/*starWarsSchema, err := graphql.NewSchemaFromString(string(starwars.Schema(t)))
+		require.NoError(t, err)*/
+
+		engineConf := graphql.NewEngineV2Configuration(chatSchema)
 		engineConf.SetDataSources([]plan.DataSourceConfiguration{
 			{
 				RootNodes: []plan.TypeField{
-					{TypeName: "Subscription", FieldNames: []string{"remainingJedis"}},
+					{TypeName: "Mutation", FieldNames: []string{"post"}},
+					{TypeName: "Subscription", FieldNames: []string{"messageAdded"}},
 				},
-				Factory: &graphql_datasource.Factory{},
+				ChildNodes: []plan.TypeField{
+					{TypeName: "Message", FieldNames: []string{"text", "createdBy"}},
+				},
+				Factory: &graphql_datasource.Factory{
+					Client: httpclient.DefaultNetHttpClient,
+				},
 				Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
+					Fetch: graphql_datasource.FetchConfiguration{
+						URL:    chatServer.URL,
+						Method: http.MethodPost,
+						Header: nil,
+					},
 					Subscription: graphql_datasource.SubscriptionConfiguration{
-						URL: "wss://swapi.com/graphql",
+						URL: chatServer.URL,
 					},
 				}),
 			},
 		})
+		engineConf.SetFieldConfigurations([]plan.FieldConfiguration{
+			{
+				TypeName:  "Mutation",
+				FieldName: "post",
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "roomName",
+						SourceType: plan.FieldArgumentSource,
+					},
+					{
+						Name:       "username",
+						SourceType: plan.FieldArgumentSource,
+					},
+					{
+						Name:       "text",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+		})
 		engine, err := graphql.NewExecutionEngineV2(ctx, abstractlogger.NoopLogger, engineConf)
 		require.NoError(t, err)
+		/*
+			streamStub := subscription.NewStreamStub([]byte("graphql_websocket_subscription"), ctx.Done())
 
-		streamStub := subscription.NewStreamStub([]byte("graphql_websocket_subscription"), ctx.Done())
-
-		websocketManager := subscription.NewManager(streamStub)
-		websocketManager.Run(ctx.Done())
-
+			websocketManager := subscription.NewManager(streamStub)
+			websocketManager.Run(ctx.Done())
+		*/
 		executorPool := NewExecutorV2Pool(engine)
 		t.Run("connection_init", func(t *testing.T) {
 			_, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
@@ -415,7 +459,8 @@ func TestHandler_Handle(t *testing.T) {
 			subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
 
 			t.Run("should process query and return error when query is not valid", func(t *testing.T) {
-				payload := starwars.LoadQuery(t, starwars.FileInvalidQuery, nil)
+				payload, err := chat.GraphQLRequestForOperation(chat.InvalidOperation)
+				require.NoError(t, err)
 				client.prepareStartMessage("1", payload).withoutError().and().send()
 
 				ctx, cancelFunc := context.WithCancel(context.Background())
@@ -428,7 +473,7 @@ func TestHandler_Handle(t *testing.T) {
 				}
 				require.Eventually(t, waitForClientHavingAMessage, 1*time.Second, 5*time.Millisecond)
 
-				jsonErrMessage, err := json.Marshal("field: invalid not defined on type: Character, locations: [], path: [query,hero,invalid]")
+				jsonErrMessage, err := json.Marshal("field: serverName not defined on type: Query, locations: [], path: [query,serverName]")
 				require.NoError(t, err)
 				expectedErrorMessage := Message{
 					Id:      "1",
@@ -442,7 +487,8 @@ func TestHandler_Handle(t *testing.T) {
 			})
 
 			t.Run("should process and send result for a query", func(t *testing.T) {
-				payload := starwars.LoadQuery(t, starwars.FileSimpleHeroQuery, nil)
+				payload, err := chat.GraphQLRequestForOperation(chat.MutationSendMessage)
+				require.NoError(t, err)
 				client.prepareStartMessage("1", payload).withoutError().and().send()
 
 				ctx, cancelFunc := context.WithCancel(context.Background())
@@ -458,7 +504,7 @@ func TestHandler_Handle(t *testing.T) {
 				expectedDataMessage := Message{
 					Id:      "1",
 					Type:    MessageTypeData,
-					Payload: []byte(`{"data":{"hero":null}}`),
+					Payload: []byte(`{"data":{"post":{"text":"Hello World!","createdBy":"myuser"}}}`),
 				}
 
 				expectedCompleteMessage := Message{
@@ -478,9 +524,10 @@ func TestHandler_Handle(t *testing.T) {
 			subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
 
 			t.Run("should start subscription on start", func(t *testing.T) {
-				payload := starwars.LoadQuery(t, starwars.FileRemainingJedisSubscription, nil)
+				payload, err := chat.GraphQLRequestForOperation(chat.SubscriptionLiveMessages)
+				require.NoError(t, err)
 				client.prepareStartMessage("1", payload).withoutError().and().send()
-				go streamStub.SendMessage(`{"url":"wss://swapi.com/graphql","body":{"query":"subscription{remainingJedis}"}}`, []byte(`{"remainingJedis":1}`))
+				//go streamStub.SendMessage(`{"url":"wss://swapi.com/graphql","body":{"query":"subscription{remainingJedis}"}}`, []byte(`{"remainingJedis":1}`))
 
 				ctx, cancelFunc := context.WithCancel(context.Background())
 				handlerRoutineFunc := handlerRoutine(ctx)
