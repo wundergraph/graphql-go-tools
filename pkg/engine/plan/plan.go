@@ -775,12 +775,13 @@ func (v *Visitor) configureSingleFetch(internal objectFetchConfiguration, extern
 	dataSourceType := reflect.TypeOf(external.DataSource).String()
 	dataSourceType = strings.TrimPrefix(dataSourceType, "*")
 	return &resolve.SingleFetch{
-		BufferId:             internal.bufferID,
-		Input:                external.Input,
-		DataSource:           external.DataSource,
-		Variables:            external.Variables,
-		DisallowSingleFlight: external.DisallowSingleFlight,
-		DataSourceIdentifier: []byte(dataSourceType),
+		BufferId:                  internal.bufferID,
+		Input:                     external.Input,
+		DataSource:                external.DataSource,
+		Variables:                 external.Variables,
+		DisallowSingleFlight:      external.DisallowSingleFlight,
+		DataSourceIdentifier:      []byte(dataSourceType),
+		ExtractFederationEntities: external.ExtractFederationEntities,
 	}
 }
 
@@ -894,10 +895,11 @@ type SubscriptionConfiguration struct {
 }
 
 type FetchConfiguration struct {
-	Input                string
-	Variables            resolve.Variables
-	DataSource           resolve.DataSource
-	DisallowSingleFlight bool
+	Input                     string
+	Variables                 resolve.Variables
+	DataSource                resolve.DataSource
+	DisallowSingleFlight      bool
+	ExtractFederationEntities bool
 }
 
 type configurationVisitor struct {

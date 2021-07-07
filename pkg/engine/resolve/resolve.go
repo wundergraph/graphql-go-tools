@@ -1151,9 +1151,10 @@ type SingleFetch struct {
 	// By default SingleFlight for fetches is disabled and needs to be enabled on the Resolver first
 	// If the resolver allows SingleFlight it's up the each individual DataSource Planner to decide whether an Operation
 	// should be allowed to use SingleFlight
-	DisallowSingleFlight bool
-	InputTemplate        InputTemplate
-	DataSourceIdentifier []byte
+	DisallowSingleFlight      bool
+	InputTemplate             InputTemplate
+	DataSourceIdentifier      []byte
+	ExtractFederationEntities bool
 }
 
 type InputTemplate struct {

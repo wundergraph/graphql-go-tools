@@ -133,9 +133,6 @@ func (p *Planner) Register(visitor *plan.Visitor, config json.RawMessage, isNest
 func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 
 	var input []byte
-	if p.extractEntities {
-		input, _ = sjson.SetRawBytes(input, "extract_entities", []byte("true"))
-	}
 	input = httpclient.SetInputBodyWithPath(input, p.upstreamVariables, "variables")
 	input = httpclient.SetInputBodyWithPath(input, p.printOperation(), "query")
 
@@ -152,8 +149,9 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 		DataSource: &Source{
 			httpClient: p.fetchClient,
 		},
-		Variables:            p.variables,
-		DisallowSingleFlight: p.disallowSingleFlight,
+		Variables:                 p.variables,
+		DisallowSingleFlight:      p.disallowSingleFlight,
+		ExtractFederationEntities: p.extractEntities,
 	}
 }
 

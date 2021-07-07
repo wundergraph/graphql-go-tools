@@ -1320,7 +1320,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
 			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
 				actual := string(input)
-				expected := `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}},"extract_entities":true}`
+				expected := `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}}}`
 				assert.Equal(t, expected, actual)
 				pair.Data.WriteString(`{"reviews": [{"body": "A highly effective form of birth control.","product": {"upc": "top-1","__typename": "Product"}},{"body": "Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product": {"upc": "top-1","__typename": "Product"}}]}`)
 				return
@@ -1337,11 +1337,11 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				productServiceCallCount++
 				switch productServiceCallCount {
 				case 1:
-					expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"}]}},"extract_entities":true}`
+					expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"}]}}}`
 					assert.Equal(t, expected, actual)
 					pair.Data.WriteString(`{"name": "Trilby"}`)
 				case 2:
-					expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"}]}},"extract_entities":true}`
+					expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"}]}}}`
 					assert.Equal(t, expected, actual)
 					pair.Data.WriteString(`{"name": "Trilby"}`)
 				}
@@ -1383,7 +1383,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 											VariableSourcePath: []string{"id"},
 										},
 										{
-											Data:        []byte(`","__typename":"User"}]}},"extract_entities":true}`),
+											Data:        []byte(`","__typename":"User"}]}}}`),
 											SegmentType: StaticSegmentType,
 										},
 									},
@@ -1441,7 +1441,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 																		VariableSourcePath: []string{"upc"},
 																	},
 																	{
-																		Data:        []byte(`","__typename":"Product"}]}},"extract_entities":true}`),
+																		Data:        []byte(`","__typename":"Product"}]}}}`),
 																		SegmentType: StaticSegmentType,
 																	},
 																},
