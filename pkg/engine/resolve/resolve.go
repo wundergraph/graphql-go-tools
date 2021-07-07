@@ -1,4 +1,4 @@
-//go:generate mockgen -self_package=github.com/jensneuse/go-data-resolver/pkg/resolve -destination=resolve_mock_test.go -package=resolve . DataSource,BeforeFetchHook,AfterFetchHook
+//go:generate mockgen --build_flags=--mod=mod -self_package=github.com/jensneuse/graphql-go-tools/pkg/engine/resolve -destination=resolve_mock_test.go -package=resolve . DataSource,BeforeFetchHook,AfterFetchHook
 
 package resolve
 
@@ -49,6 +49,19 @@ var (
 
 	ErrInvalidErrorsObject = errors.New("errors object must be array")
 	ErrUnableToResolve     = errors.New("unable to resolve operation")
+)
+
+var (
+	responsePaths = [][]string{
+		{"errors"},
+		{"data"},
+	}
+	errorPaths = [][]string{
+		{"message"},
+		{"locations"},
+		{"path"},
+	}
+	entitiesPath = []string{"_entities", "[0]"}
 )
 
 type Node interface {
@@ -237,7 +250,7 @@ type Fetch interface {
 type Fetches []Fetch
 
 type DataSource interface {
-	Load(ctx context.Context, input []byte, bufPair *BufPair) (err error)
+	Load(ctx context.Context, input []byte) (data []byte, err error)
 }
 
 type SubscriptionDataSource interface {
@@ -371,6 +384,39 @@ func (r *Resolver) validateContext(ctx *Context) (err error) {
 		return fmt.Errorf("Context must be resetted using Free() before re-using it")
 	}
 	return nil
+}
+
+func (r *Resolver) preprocessResponse(responseData []byte, bufPair *BufPair) {
+	jsonparser.EachKey(responseData, func(i int, bytes []byte, valueType jsonparser.ValueType, err error) {
+		switch i {
+		case 0:
+			_, _ = jsonparser.ArrayEach(bytes, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+				var (
+					message, locations, path []byte
+				)
+				jsonparser.EachKey(value, func(i int, bytes []byte, valueType jsonparser.ValueType, err error) {
+					switch i {
+					case 0:
+						message = bytes
+					case 1:
+						locations = bytes
+					case 2:
+						path = bytes
+					}
+				}, errorPaths...)
+				if message != nil {
+					bufPair.WriteErr(message, locations, path)
+				}
+			})
+		case 1:
+			if false {
+				data, _, _, _ := jsonparser.Get(bytes, entitiesPath...)
+				bufPair.Data.WriteBytes(data)
+				return
+			}
+			bufPair.Data.WriteBytes(bytes)
+		}
+	}, responsePaths...)
 }
 
 func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, data []byte, writer io.Writer) (err error) {
@@ -1003,7 +1049,9 @@ func (r *Resolver) resolveSingleFetch(ctx *Context, fetch *SingleFetch, prepared
 	}
 
 	if !r.EnableSingleFlightLoader || fetch.DisallowSingleFlight {
-		err = fetch.DataSource.Load(ctx.Context, preparedInput.Bytes(), buf)
+		var data []byte
+		data, err = fetch.DataSource.Load(ctx.Context, preparedInput.Bytes())
+		r.preprocessResponse(data, buf)
 		if ctx.afterFetchHook != nil {
 			if buf.HasData() {
 				ctx.afterFetchHook.OnData(r.hookCtx(ctx), buf.Data.Bytes(), false)
@@ -1049,7 +1097,9 @@ func (r *Resolver) resolveSingleFetch(ctx *Context, fetch *SingleFetch, prepared
 
 	r.inflightFetchMu.Unlock()
 
-	err = fetch.DataSource.Load(ctx.Context, preparedInput.Bytes(), &inflight.bufPair)
+	var data []byte
+	data, err = fetch.DataSource.Load(ctx.Context, preparedInput.Bytes())
+	r.preprocessResponse(data, &inflight.bufPair)
 	inflight.err = err
 
 	if inflight.bufPair.HasData() {

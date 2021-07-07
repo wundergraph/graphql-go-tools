@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/buger/jsonparser"
 	"github.com/tidwall/sjson"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
@@ -867,24 +866,11 @@ func (f *Factory) Planner(ctx context.Context) plan.DataSourcePlanner {
 	}
 }
 
-var (
-	responsePaths = [][]string{
-		{"errors"},
-		{"data"},
-	}
-	errorPaths = [][]string{
-		{"message"},
-		{"locations"},
-		{"path"},
-	}
-	entitiesPath = []string{"_entities", "[0]"}
-)
-
 type Source struct {
 	httpClient *http.Client
 }
 
-func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPair) (err error) {
+func (s *Source) Load(ctx context.Context, input []byte) (data []byte, err error) {
 	buf := pool.BytesBuffer.Get()
 	defer pool.BytesBuffer.Put(buf)
 
@@ -893,43 +879,7 @@ func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPai
 		return
 	}
 
-	responseData := buf.Bytes()
-
-	extractEntitiesRaw, _, _, _ := jsonparser.Get(input, "extract_entities")
-	extractEntities := bytes.Equal(extractEntitiesRaw, literal.TRUE)
-
-	jsonparser.EachKey(responseData, func(i int, bytes []byte, valueType jsonparser.ValueType, err error) {
-		switch i {
-		case 0:
-			_, _ = jsonparser.ArrayEach(bytes, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
-				var (
-					message, locations, path []byte
-				)
-				jsonparser.EachKey(value, func(i int, bytes []byte, valueType jsonparser.ValueType, err error) {
-					switch i {
-					case 0:
-						message = bytes
-					case 1:
-						locations = bytes
-					case 2:
-						path = bytes
-					}
-				}, errorPaths...)
-				if message != nil {
-					bufPair.WriteErr(message, locations, path)
-				}
-			})
-		case 1:
-			if extractEntities {
-				data, _, _, _ := jsonparser.Get(bytes, entitiesPath...)
-				bufPair.Data.WriteBytes(data)
-				return
-			}
-			bufPair.Data.WriteBytes(bytes)
-		}
-	}, responsePaths...)
-
-	return
+	return buf.Bytes(), nil
 }
 
 type GraphQLSubscriptionClient interface {
