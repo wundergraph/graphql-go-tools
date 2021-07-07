@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasourcetesting"
@@ -522,7 +523,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 			},
 		},
 	))
-/*	t.Run("polling subscription get request with argument", datasourcetesting.RunTest(schema, argumentSubscription, "ArgumentQuery",
+	/*	t.Run("polling subscription get request with argument", datasourcetesting.RunTest(schema, argumentSubscription, "ArgumentQuery",
 		&plan.SubscriptionResponsePlan{
 			Response: &resolve.GraphQLSubscription{
 				Trigger: resolve.GraphQLSubscriptionTrigger{
@@ -895,10 +896,9 @@ func TestHttpJsonDataSource_Load(t *testing.T) {
 			defer server.Close()
 
 			input := []byte(fmt.Sprintf(`{"method":"GET","url":"%s"}`, server.URL))
-			pair := resolve.NewBufPair()
-			err := source.Load(context.Background(), input, pair)
+			data, err := source.Load(context.Background(), input)
 			assert.NoError(t, err)
-			assert.Equal(t, `ok`, pair.Data.String())
+			assert.Equal(t, `ok`, string(data))
 		})
 		t.Run("get with query parameters", func(t *testing.T) {
 
@@ -916,10 +916,9 @@ func TestHttpJsonDataSource_Load(t *testing.T) {
 			defer server.Close()
 
 			input := []byte(fmt.Sprintf(`{"query_params":[{"name":"foo","value":"bar"},{"name":"double","value":"first"},{"name":"double","value":"second"}],"method":"GET","url":"%s"}`, server.URL))
-			pair := resolve.NewBufPair()
-			err := source.Load(context.Background(), input, pair)
-			assert.NoError(t, err)
-			assert.Equal(t, `ok`, pair.Data.String())
+			data, err := source.Load(context.Background(), input)
+			require.NoError(t, err)
+			assert.Equal(t, `ok`, string(data))
 		})
 		t.Run("get with headers", func(t *testing.T) {
 
@@ -939,10 +938,9 @@ func TestHttpJsonDataSource_Load(t *testing.T) {
 			defer server.Close()
 
 			input := []byte(fmt.Sprintf(`{"method":"GET","url":"%s","header":{"Multi":["one", "two"],"MultiComma":["x,y"],"Authorization":["Bearer 123"],"Token":["%s"],"X-API-Key":["%s"]}}`, server.URL, authorization, xApiKey))
-			pair := resolve.NewBufPair()
-			err := source.Load(context.Background(), input, pair)
+			data, err := source.Load(context.Background(), input)
 			assert.NoError(t, err)
-			assert.Equal(t, `ok`, pair.Data.String())
+			assert.Equal(t, `ok`, string(data))
 		})
 		t.Run("post with body", func(t *testing.T) {
 
@@ -959,10 +957,9 @@ func TestHttpJsonDataSource_Load(t *testing.T) {
 			defer server.Close()
 
 			input := []byte(fmt.Sprintf(`{"method":"POST","url":"%s","body":%s}`, server.URL, body))
-			pair := resolve.NewBufPair()
-			err := source.Load(context.Background(), input, pair)
+			data, err := source.Load(context.Background(), input)
 			assert.NoError(t, err)
-			assert.Equal(t, `ok`, pair.Data.String())
+			assert.Equal(t, `ok`, string(data))
 		})
 	}
 

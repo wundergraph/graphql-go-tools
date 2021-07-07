@@ -935,10 +935,6 @@ func TestProcessDefer_Process_ShouldSkipWithoutDefer(t *testing.T) {
 type fakeService struct {
 }
 
-func (f *fakeService) Load(ctx context.Context, input []byte, bufPair *resolve.BufPair) (err error) {
-	panic("implement me")
-}
-
-func (f *fakeService) UniqueIdentifier() []byte {
+func (f *fakeService) Load(ctx context.Context, input []byte) (data []byte, err error) {
 	panic("implement me")
 }
