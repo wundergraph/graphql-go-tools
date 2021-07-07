@@ -64,6 +64,15 @@ var (
 	entitiesPath = []string{"_entities", "[0]"}
 )
 
+const (
+	rootErrorsPathIndex = 0
+	rootDataPathIndex   = 1
+
+	errorsMessagePathIndex   = 0
+	errorsLocationsPathIndex = 1
+	errorsPathPathIndex      = 2
+)
+
 type Node interface {
 	NodeKind() NodeKind
 }
@@ -394,18 +403,18 @@ func (r *Resolver) extractResponse(responseData []byte, bufPair *BufPair, cfg Pr
 
 	jsonparser.EachKey(responseData, func(i int, bytes []byte, valueType jsonparser.ValueType, err error) {
 		switch i {
-		case 0:
+		case rootErrorsPathIndex:
 			_, _ = jsonparser.ArrayEach(bytes, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
 				var (
 					message, locations, path []byte
 				)
 				jsonparser.EachKey(value, func(i int, bytes []byte, valueType jsonparser.ValueType, err error) {
 					switch i {
-					case 0:
+					case errorsMessagePathIndex:
 						message = bytes
-					case 1:
+					case errorsLocationsPathIndex:
 						locations = bytes
-					case 2:
+					case errorsPathPathIndex:
 						path = bytes
 					}
 				}, errorPaths...)
@@ -413,7 +422,7 @@ func (r *Resolver) extractResponse(responseData []byte, bufPair *BufPair, cfg Pr
 					bufPair.WriteErr(message, locations, path)
 				}
 			})
-		case 1:
+		case rootDataPathIndex:
 			if cfg.ExtractFederationEntities {
 				data, _, _, _ := jsonparser.Get(bytes, entitiesPath...)
 				bufPair.Data.WriteBytes(data)
