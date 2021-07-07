@@ -26,12 +26,11 @@ var (
 	}
 )
 
-func Do(client *http.Client,ctx context.Context, requestInput []byte, out io.Writer) (err error) {
+func Do(client *http.Client, ctx context.Context, requestInput []byte, out io.Writer) (err error) {
 
 	url, method, body, headers, queryParams := requestInputParams(requestInput)
 
-	// Change to `http.NewRequestWithContext` when support for go 1.12 is dropped
-	request, err := NewRequestWithContext(ctx, string(method), string(url), bytes.NewReader(body))
+	request, err := http.NewRequestWithContext(ctx, string(method), string(url), bytes.NewReader(body))
 	if err != nil {
 		return err
 	}

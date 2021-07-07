@@ -6,7 +6,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        go: [ '1.12', '1.15' ]
+        go: [ '1.15' ]
         os: [ 'ubuntu-latest']
     steps:
       - name: Set up Go ${{ matrix.go }}

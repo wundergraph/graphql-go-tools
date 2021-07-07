@@ -1,6 +1,6 @@
 module github.com/jensneuse/graphql-go-tools
 
-go 1.12
+go 1.15
 
 require (
 	github.com/agnivade/levenshtein v1.1.1 // indirect
@@ -38,7 +38,7 @@ require (
 	go.uber.org/atomic v1.5.1 // indirect
 	go.uber.org/multierr v1.4.0 // indirect
 	golang.org/x/lint v0.0.0-20191125180803-fdd1cda4f05f // indirect
-	golang.org/x/net v0.0.0-20200324143707-d3edc9973b7e
+	golang.org/x/net v0.0.0-20200324143707-d3edc9973b7e // indirect
 	golang.org/x/sys v0.0.0-20201101102859-da207088b7d1 // indirect
 	golang.org/x/tools v0.0.0-20200414032229-332987a829c3 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
@@ -47,5 +47,4 @@ require (
 
 replace github.com/tidwall/gjson => github.com/jensneuse/gjson v1.3.6-0.20200106141904-7ea619137b22
 
-replace	github.com/jensneuse/graphql-go-tools/examples/chat => ./examples/chat
-
+replace github.com/jensneuse/graphql-go-tools/examples/chat => ./examples/chat
