@@ -3,6 +3,7 @@ package plan
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -130,6 +131,6 @@ type FakeDataSource struct {
 	source *StatefulSource
 }
 
-func (f *FakeDataSource) Load(ctx context.Context, input []byte) (data []byte, err error) {
+func (f *FakeDataSource) Load(ctx context.Context, input []byte, w io.Writer) (err error) {
 	return
 }

@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -896,9 +897,9 @@ func TestHttpJsonDataSource_Load(t *testing.T) {
 			defer server.Close()
 
 			input := []byte(fmt.Sprintf(`{"method":"GET","url":"%s"}`, server.URL))
-			data, err := source.Load(context.Background(), input)
-			assert.NoError(t, err)
-			assert.Equal(t, `ok`, string(data))
+			b := &strings.Builder{}
+			require.NoError(t, source.Load(context.Background(), input, b))
+			assert.Equal(t, `ok`, b.String())
 		})
 		t.Run("get with query parameters", func(t *testing.T) {
 
@@ -916,9 +917,9 @@ func TestHttpJsonDataSource_Load(t *testing.T) {
 			defer server.Close()
 
 			input := []byte(fmt.Sprintf(`{"query_params":[{"name":"foo","value":"bar"},{"name":"double","value":"first"},{"name":"double","value":"second"}],"method":"GET","url":"%s"}`, server.URL))
-			data, err := source.Load(context.Background(), input)
-			require.NoError(t, err)
-			assert.Equal(t, `ok`, string(data))
+			b := &strings.Builder{}
+			require.NoError(t, source.Load(context.Background(), input, b))
+			assert.Equal(t, `ok`, b.String())
 		})
 		t.Run("get with headers", func(t *testing.T) {
 
@@ -938,9 +939,9 @@ func TestHttpJsonDataSource_Load(t *testing.T) {
 			defer server.Close()
 
 			input := []byte(fmt.Sprintf(`{"method":"GET","url":"%s","header":{"Multi":["one", "two"],"MultiComma":["x,y"],"Authorization":["Bearer 123"],"Token":["%s"],"X-API-Key":["%s"]}}`, server.URL, authorization, xApiKey))
-			data, err := source.Load(context.Background(), input)
-			assert.NoError(t, err)
-			assert.Equal(t, `ok`, string(data))
+			b := &strings.Builder{}
+			require.NoError(t, source.Load(context.Background(), input, b))
+			assert.Equal(t, `ok`, b.String())
 		})
 		t.Run("post with body", func(t *testing.T) {
 
@@ -957,9 +958,9 @@ func TestHttpJsonDataSource_Load(t *testing.T) {
 			defer server.Close()
 
 			input := []byte(fmt.Sprintf(`{"method":"POST","url":"%s","body":%s}`, server.URL, body))
-			data, err := source.Load(context.Background(), input)
-			assert.NoError(t, err)
-			assert.Equal(t, `ok`, string(data))
+			b := &strings.Builder{}
+			require.NoError(t, source.Load(context.Background(), input, b))
+			assert.Equal(t, `ok`, b.String())
 		})
 	}
 

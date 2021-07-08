@@ -267,7 +267,7 @@ type Fetch interface {
 type Fetches []Fetch
 
 type DataSource interface {
-	Load(ctx context.Context, input []byte) (data []byte, err error)
+	Load(ctx context.Context, input []byte, w io.Writer) (err error)
 }
 
 type SubscriptionDataSource interface {
@@ -357,14 +357,6 @@ func New(ctx context.Context) *Resolver {
 	}
 }
 
-func (r *Resolver) writeSafe(err error, writer io.Writer, data []byte) error {
-	if err != nil {
-		return err
-	}
-	_, err = writer.Write(data)
-	return err
-}
-
 func (r *Resolver) resolveNode(ctx *Context, node Node, data []byte, bufPair *BufPair) (err error) {
 	switch n := node.(type) {
 	case *Object:
@@ -404,6 +396,10 @@ func (r *Resolver) validateContext(ctx *Context) (err error) {
 }
 
 func (r *Resolver) extractResponse(responseData []byte, bufPair *BufPair, cfg ProcessResponseConfig) {
+	if len(responseData) == 0 {
+		return
+	}
+
 	if !cfg.ExtractGraphqlResponse {
 		bufPair.Data.WriteBytes(responseData)
 		return
@@ -461,36 +457,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 		r.MergeBufPairErrors(responseBuf, buf)
 	}
 
-	hasErrors := buf.Errors.Len() != 0
-	hasData := buf.Data.Len() != 0
-
-	err = r.writeSafe(err, writer, lBrace)
-
-	if hasErrors {
-		err = r.writeSafe(err, writer, quote)
-		err = r.writeSafe(err, writer, literalErrors)
-		err = r.writeSafe(err, writer, quote)
-		err = r.writeSafe(err, writer, colon)
-		err = r.writeSafe(err, writer, lBrack)
-		_, err = writer.Write(buf.Errors.Bytes())
-		err = r.writeSafe(err, writer, rBrack)
-		err = r.writeSafe(err, writer, comma)
-	}
-
-	err = r.writeSafe(err, writer, quote)
-	err = r.writeSafe(err, writer, literalData)
-	err = r.writeSafe(err, writer, quote)
-	err = r.writeSafe(err, writer, colon)
-
-	if hasData {
-		_, err = writer.Write(buf.Data.Bytes())
-	} else {
-		err = r.writeSafe(err, writer, literal.NULL)
-	}
-
-	err = r.writeSafe(err, writer, rBrace)
-
-	return
+	return writeGraphqlResponse(buf, writer)
 }
 
 func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQLSubscription, writer FlushWriter) (err error) {
@@ -649,31 +616,31 @@ func (r *Resolver) ResolveGraphQLResponsePatch(ctx *Context, patch *GraphQLRespo
 
 	if hasData {
 		if hasErrors {
-			err = r.writeSafe(err, writer, comma)
+			err = writeSafe(err, writer, comma)
 		}
-		err = r.writeSafe(err, writer, lBrace)
-		err = r.writeSafe(err, writer, quote)
-		err = r.writeSafe(err, writer, literal.OP)
-		err = r.writeSafe(err, writer, quote)
-		err = r.writeSafe(err, writer, colon)
-		err = r.writeSafe(err, writer, quote)
-		err = r.writeSafe(err, writer, patch.Operation)
-		err = r.writeSafe(err, writer, quote)
-		err = r.writeSafe(err, writer, comma)
-		err = r.writeSafe(err, writer, quote)
-		err = r.writeSafe(err, writer, literal.PATH)
-		err = r.writeSafe(err, writer, quote)
-		err = r.writeSafe(err, writer, colon)
-		err = r.writeSafe(err, writer, quote)
-		err = r.writeSafe(err, writer, path)
-		err = r.writeSafe(err, writer, quote)
-		err = r.writeSafe(err, writer, comma)
-		err = r.writeSafe(err, writer, quote)
-		err = r.writeSafe(err, writer, literal.VALUE)
-		err = r.writeSafe(err, writer, quote)
-		err = r.writeSafe(err, writer, colon)
+		err = writeSafe(err, writer, lBrace)
+		err = writeSafe(err, writer, quote)
+		err = writeSafe(err, writer, literal.OP)
+		err = writeSafe(err, writer, quote)
+		err = writeSafe(err, writer, colon)
+		err = writeSafe(err, writer, quote)
+		err = writeSafe(err, writer, patch.Operation)
+		err = writeSafe(err, writer, quote)
+		err = writeSafe(err, writer, comma)
+		err = writeSafe(err, writer, quote)
+		err = writeSafe(err, writer, literal.PATH)
+		err = writeSafe(err, writer, quote)
+		err = writeSafe(err, writer, colon)
+		err = writeSafe(err, writer, quote)
+		err = writeSafe(err, writer, path)
+		err = writeSafe(err, writer, quote)
+		err = writeSafe(err, writer, comma)
+		err = writeSafe(err, writer, quote)
+		err = writeSafe(err, writer, literal.VALUE)
+		err = writeSafe(err, writer, quote)
+		err = writeSafe(err, writer, colon)
 		_, err = writer.Write(buf.Data.Bytes())
-		err = r.writeSafe(err, writer, rBrace)
+		err = writeSafe(err, writer, rBrace)
 	}
 
 	return
@@ -1058,15 +1025,16 @@ func (r *Resolver) prepareSingleFetch(ctx *Context, fetch *SingleFetch, data []b
 }
 
 func (r *Resolver) resolveSingleFetch(ctx *Context, fetch *SingleFetch, preparedInput *fastbuffer.FastBuffer, buf *BufPair) (err error) {
+	dataBuf := pool.BytesBuffer.Get()
+	defer pool.BytesBuffer.Put(dataBuf)
 
 	if ctx.beforeFetchHook != nil {
 		ctx.beforeFetchHook.OnBeforeFetch(r.hookCtx(ctx), preparedInput.Bytes())
 	}
 
 	if !r.EnableSingleFlightLoader || fetch.DisallowSingleFlight {
-		var data []byte
-		data, err = fetch.DataSource.Load(ctx.Context, preparedInput.Bytes())
-		r.extractResponse(data, buf, fetch.ProcessResponseConfig)
+		err = fetch.DataSource.Load(ctx.Context, preparedInput.Bytes(), dataBuf)
+		r.extractResponse(dataBuf.Bytes(), buf, fetch.ProcessResponseConfig)
 		if ctx.afterFetchHook != nil {
 			if buf.HasData() {
 				ctx.afterFetchHook.OnData(r.hookCtx(ctx), buf.Data.Bytes(), false)
@@ -1112,9 +1080,8 @@ func (r *Resolver) resolveSingleFetch(ctx *Context, fetch *SingleFetch, prepared
 
 	r.inflightFetchMu.Unlock()
 
-	var data []byte
-	data, err = fetch.DataSource.Load(ctx.Context, preparedInput.Bytes())
-	r.extractResponse(data, &inflight.bufPair, fetch.ProcessResponseConfig)
+	err = fetch.DataSource.Load(ctx.Context, preparedInput.Bytes(), dataBuf)
+	r.extractResponse(dataBuf.Bytes(), &inflight.bufPair, fetch.ProcessResponseConfig)
 	inflight.err = err
 
 	if inflight.bufPair.HasData() {
@@ -1775,4 +1742,44 @@ func (r *Resolver) getHash64() hash.Hash64 {
 func (r *Resolver) putHash64(h hash.Hash64) {
 	h.Reset()
 	r.hash64Pool.Put(h)
+}
+
+func writeGraphqlResponse(buf *BufPair, writer io.Writer) (err error) {
+	hasErrors := buf.Errors.Len() != 0
+	hasData := buf.Data.Len() != 0
+
+	err = writeSafe(err, writer, lBrace)
+
+	if hasErrors {
+		err = writeSafe(err, writer, quote)
+		err = writeSafe(err, writer, literalErrors)
+		err = writeSafe(err, writer, quote)
+		err = writeSafe(err, writer, colon)
+		err = writeSafe(err, writer, lBrack)
+		_, err = writer.Write(buf.Errors.Bytes())
+		err = writeSafe(err, writer, rBrack)
+		err = writeSafe(err, writer, comma)
+	}
+
+	err = writeSafe(err, writer, quote)
+	err = writeSafe(err, writer, literalData)
+	err = writeSafe(err, writer, quote)
+	err = writeSafe(err, writer, colon)
+
+	if hasData {
+		_, err = writer.Write(buf.Data.Bytes())
+	} else {
+		err = writeSafe(err, writer, literal.NULL)
+	}
+	err = writeSafe(err, writer, rBrace)
+
+	return
+}
+
+func writeSafe(err error, writer io.Writer, data []byte) error {
+	if err != nil {
+		return err
+	}
+	_, err = writer.Write(data)
+	return err
 }

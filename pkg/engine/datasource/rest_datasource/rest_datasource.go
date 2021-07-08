@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"regexp"
 	"strings"
@@ -12,7 +13,6 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
-	"github.com/jensneuse/graphql-go-tools/pkg/pool"
 )
 
 type Planner struct {
@@ -167,13 +167,6 @@ type Source struct {
 	client *http.Client
 }
 
-func (s *Source) Load(ctx context.Context, input []byte) (data []byte, err error) {
-	buf := pool.BytesBuffer.Get()
-	defer pool.BytesBuffer.Put(buf)
-
-	err = httpclient.Do(s.client, ctx, input, buf)
-	if err != nil {
-		return
-	}
-	return buf.Bytes(), nil
+func (s *Source) Load(ctx context.Context, input []byte, w io.Writer) (err error) {
+	return httpclient.Do(s.client, ctx, input, w)
 }

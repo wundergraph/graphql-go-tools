@@ -2,6 +2,7 @@ package postprocess
 
 import (
 	"context"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -935,6 +936,6 @@ func TestProcessDefer_Process_ShouldSkipWithoutDefer(t *testing.T) {
 type fakeService struct {
 }
 
-func (f *fakeService) Load(ctx context.Context, input []byte) (data []byte, err error) {
+func (f *fakeService) Load(ctx context.Context, input []byte, w io.Writer) (err error) {
 	panic("implement me")
 }

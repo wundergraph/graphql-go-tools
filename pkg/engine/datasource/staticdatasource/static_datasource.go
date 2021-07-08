@@ -3,6 +3,7 @@ package staticdatasource
 import (
 	"context"
 	"encoding/json"
+	"io"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 )
@@ -57,6 +58,7 @@ func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
 
 type Source struct{}
 
-func (_ Source) Load(ctx context.Context, input []byte) (data []byte, err error) {
-	return input, nil
+func (_ Source) Load(ctx context.Context, input []byte, w io.Writer) (err error) {
+	_, err = w.Write(input)
+	return
 }

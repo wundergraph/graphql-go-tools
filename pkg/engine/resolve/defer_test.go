@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"testing"
 
@@ -427,10 +428,11 @@ func fakeService(t *testing.T, controller *gomock.Controller, serviceName, respo
 	for i := 0; i < len(expectedInput); i++ {
 		i := i
 		service.EXPECT().
-			Load(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 				assert.Equal(t, expectedInput[i], string(input))
-				return data, nil
+				_, err = w.Write(data)
+				return
 			})
 	}
 	return service

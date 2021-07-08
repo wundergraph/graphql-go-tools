@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 
@@ -20,7 +21,6 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/federation"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
-	"github.com/jensneuse/graphql-go-tools/pkg/pool"
 )
 
 type Planner struct {
@@ -873,16 +873,8 @@ type Source struct {
 	httpClient *http.Client
 }
 
-func (s *Source) Load(ctx context.Context, input []byte) (data []byte, err error) {
-	buf := pool.BytesBuffer.Get()
-	defer pool.BytesBuffer.Put(buf)
-
-	err = httpclient.Do(s.httpClient, ctx, input, buf)
-	if err != nil {
-		return
-	}
-
-	return buf.Bytes(), nil
+func (s *Source) Load(ctx context.Context, input []byte, writer io.Writer) (err error) {
+	return httpclient.Do(s.httpClient, ctx, input, writer)
 }
 
 type GraphQLSubscriptionClient interface {
