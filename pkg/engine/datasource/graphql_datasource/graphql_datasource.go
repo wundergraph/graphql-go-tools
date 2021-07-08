@@ -939,6 +939,17 @@ func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPai
 	return
 }
 
+func (s *Source) LoadBatch(ctx context.Context, inputs [][]byte, bufPairs []*resolve.BufPair) (err error) {
+	if len(inputs) != len(bufPairs) {
+		return fmt.Errorf("inputs len %d doesnt match bufPairs len %d", len(inputs), len(bufPairs))
+	}
+
+	resultedInput := pool.FastBuffer.Get()
+	defer  pool.FastBuffer.Put(resultedInput)
+
+	prepareBatch(resultedInput, inputs...)
+}
+
 func (s *Source) UniqueIdentifier() []byte {
 	return uniqueIdentifier
 }

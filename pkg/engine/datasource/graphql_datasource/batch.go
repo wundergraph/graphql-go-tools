@@ -12,7 +12,7 @@ import (
 
 var representationPath = []string{"body", "variables", "representations"}
 
-func prepareBatch(out *fastbuffer.FastBuffer, inputs ...*fastbuffer.FastBuffer) (outToInPositions map[int][]int, err error) {
+func prepareBatch(out *fastbuffer.FastBuffer, inputs ...[]byte) (outToInPositions map[int][]int, err error) {
 	if len(inputs) == 0 {
 		return nil, nil
 	}
@@ -27,7 +27,7 @@ func prepareBatch(out *fastbuffer.FastBuffer, inputs ...*fastbuffer.FastBuffer) 
 	defer pool.Hash64.Put(hash64)
 
 	for i := range inputs {
-		inputVariables, _, _, err := jsonparser.Get(inputs[i].Bytes(), representationPath...)
+		inputVariables, _, _, err := jsonparser.Get(inputs[i], representationPath...)
 		if err != nil {
 			return nil, err
 		}
@@ -58,7 +58,7 @@ func prepareBatch(out *fastbuffer.FastBuffer, inputs ...*fastbuffer.FastBuffer) 
 
 	representationJson := append([]byte("["), append(bytes.Join(variables, []byte(",")), []byte("]")...)...)
 
-	mergedInput, err := jsonparser.Set(inputs[0].Bytes(), representationJson, representationPath...)
+	mergedInput, err := jsonparser.Set(inputs[0], representationJson, representationPath...)
 	if err != nil {
 		return nil, err
 	}
