@@ -1838,7 +1838,7 @@ func writeGraphqlResponse(buf *BufPair, writer io.Writer, ignoreData bool) (err 
 		err = writeSafe(err, writer, quote)
 		err = writeSafe(err, writer, colon)
 		err = writeSafe(err, writer, lBrack)
-		_, err = writer.Write(buf.Errors.Bytes())
+		err = writeSafe(err, writer, buf.Errors.Bytes())
 		err = writeSafe(err, writer, rBrack)
 		err = writeSafe(err, writer, comma)
 	}
