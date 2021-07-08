@@ -64,7 +64,7 @@ func TestArrayStream(t *testing.T) {
 		},
 	}
 
-	resolver := New()
+	resolver := New(NewFetcher(false), false)
 
 	ctx := NewContext(context.Background())
 
@@ -157,7 +157,7 @@ func TestArrayStream_InitialBatch_1(t *testing.T) {
 		},
 	}
 
-	resolver := New()
+	resolver := New(NewFetcher(false), false)
 
 	ctx := NewContext(context.Background())
 
@@ -246,7 +246,7 @@ func TestArrayStream_InitialBatch_2(t *testing.T) {
 		},
 	}
 
-	resolver := New()
+	resolver := New(NewFetcher(false), false)
 
 	ctx := NewContext(context.Background())
 
@@ -362,7 +362,7 @@ func TestStreamAndDefer(t *testing.T) {
 		},
 	}
 
-	resolver := New()
+	resolver := New(NewFetcher(false), false)
 
 	ctx := NewContext(context.Background())
 
