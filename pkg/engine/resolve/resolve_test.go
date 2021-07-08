@@ -797,7 +797,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background()}, `{"errors":[{"message":"failed to resolve","locations":[{"line": 3, "path": 4}]}],"data":null}`
+		}, Context{Context: context.Background()}, `{"errors":[{"message":"failed to resolve","locations":[{"line": 3, "path": 4}],"path":["country"]}],"data":null}`
 	}))
 	t.Run("fetch with simple error", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		r.EnableSingleFlightLoader = true
@@ -879,7 +879,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background()}, `{"errors":[{"message":"errorMessage"}],"data":null}`
+		}, Context{Context: context.Background()}, `{"errors":[{"message":"errorMessage"},{"message":"failed to resolve","locations":[{"line": 0, "path": 0}],"path":["nestedObject"]}],"data":null}`
 	}))
 	t.Run("fetch with two Errors", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		r.EnableSingleFlightLoader = true

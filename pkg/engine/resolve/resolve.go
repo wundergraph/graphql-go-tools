@@ -34,13 +34,18 @@ var (
 	comma             = []byte(",")
 	colon             = []byte(":")
 	quote             = []byte("\"")
+	quotedComma       = []byte(`","`)
 	null              = []byte("null")
 	literalData       = []byte("data")
 	literalErrors     = []byte("errors")
 	literalMessage    = []byte("message")
 	literalLocations  = []byte("locations")
+	literalLine       = []byte("line")
+	literalColumn     = []byte("column")
 	literalPath       = []byte("path")
 	literalExtensions = []byte("extensions")
+
+	unableToResolveMsg = []byte("unable to resolve")
 )
 
 var (
@@ -888,20 +893,39 @@ func (r *Resolver) resolveNull(b *fastbuffer.FastBuffer) {
 }
 
 func (r *Resolver) addResolveError(ctx *Context, objectBuf *BufPair) {
-	// TODO: POC replace
+	locations, path := pool.BytesBuffer.Get(), pool.BytesBuffer.Get()
+	defer pool.BytesBuffer.Put(locations)
+	defer pool.BytesBuffer.Put(path)
 
-	var (
-		msg, locations, path []byte
-	)
+	var pathBytes []byte
 
-	msg = []byte("failed to resolve")
-	locations = []byte(fmt.Sprintf(`[{"line": %d, "path": %d}]`, ctx.position.Line, ctx.position.Column))
+	locations.Write(lBrack)
+	locations.Write(lBrace)
+	locations.Write(quote)
+	locations.Write(literalLine)
+	locations.Write(quote)
+	locations.Write(colon)
+	locations.Write([]byte(strconv.Itoa(int(ctx.position.Line))))
+	locations.Write(comma)
+	locations.Write(quote)
+	locations.Write(literalColumn)
+	locations.Write(quote)
+	locations.Write(colon)
+	locations.Write([]byte(strconv.Itoa(int(ctx.position.Column))))
+	locations.Write(rBrace)
+	locations.Write(rBrack)
 
 	if len(ctx.pathElements) > 0 {
-		path = []byte(fmt.Sprintf(`["%s"]`, string(bytes.Join(ctx.pathElements, []byte(`","`)))))
+		path.Write(lBrack)
+		path.Write(quote)
+		path.Write(bytes.Join(ctx.pathElements, quotedComma))
+		path.Write(quote)
+		path.Write(rBrack)
+
+		pathBytes = path.Bytes()
 	}
 
-	objectBuf.WriteErr(msg, locations, path, nil)
+	objectBuf.WriteErr(unableToResolveMsg, locations.Bytes(), pathBytes, nil)
 }
 
 func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, objectBuf *BufPair) (err error) {
@@ -978,13 +1002,18 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 				return nil
 			}
 			if errors.Is(err, errNonNullableFieldValueIsNull) {
+				objectBuf.Data.Reset()
+				r.MergeBufPairErrors(fieldBuf, objectBuf)
+
 				if object.Nullable {
-					objectBuf.Data.Reset()
-					r.MergeBufPairErrors(fieldBuf, objectBuf)
 					r.resolveNull(objectBuf.Data)
 					return nil
 				}
-				r.addResolveError(ctx, objectBuf)
+
+				// if fied is of object type than we should not add resolve error here
+				if _, ok := object.Fields[i].Value.(*Object); !ok {
+					r.addResolveError(ctx, objectBuf)
+				}
 			}
 
 			return
