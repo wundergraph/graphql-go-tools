@@ -49,7 +49,7 @@ func TestPlanner_Plan(t *testing.T) {
 				b := &strings.Builder{}
 				e := json.NewEncoder(b)
 				e.SetIndent("", " ")
-				e.Encode(v)
+				_ = e.Encode(v)
 				return b.String()
 			}
 
