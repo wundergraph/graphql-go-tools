@@ -127,6 +127,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("friend"),
+							Position: resolve.Position{
+								Line:   3,
+								Column: 4,
+							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Fetch: &resolve.SingleFetch{
@@ -147,11 +151,19 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 											Path:     []string{"name"},
 											Nullable: true,
 										},
+										Position: resolve.Position{
+											Line:   4,
+											Column: 5,
+										},
 									},
 									{
 										HasBuffer: true,
 										BufferID:  1,
 										Name:      []byte("pet"),
+										Position: resolve.Position{
+											Line:   5,
+											Column: 5,
+										},
 										Value: &resolve.Object{
 											Nullable: true,
 											Fields: []*resolve.Field{
@@ -161,12 +173,20 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 														Path:     []string{"id"},
 														Nullable: true,
 													},
+													Position: resolve.Position{
+														Line:   6,
+														Column: 6,
+													},
 												},
 												{
 													Name: []byte("name"),
 													Value: &resolve.String{
 														Path:     []string{"name"},
 														Nullable: true,
+													},
+													Position: resolve.Position{
+														Line:   7,
+														Column: 6,
 													},
 												},
 											},
@@ -249,6 +269,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("withArgument"),
+							Position: resolve.Position{
+								Line:   3,
+								Column: 4,
+							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Fields: []*resolve.Field{
@@ -257,6 +281,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 										Value: &resolve.String{
 											Path:     []string{"name"},
 											Nullable: true,
+										},
+										Position: resolve.Position{
+											Line:   4,
+											Column: 5,
 										},
 									},
 								},
@@ -334,6 +362,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("withArgument"),
+							Position: resolve.Position{
+								Line:   3,
+								Column: 4,
+							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Fetch: &resolve.ParallelFetch{
@@ -369,6 +401,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 											Path:     []string{"name"},
 											Nullable: true,
 										},
+										Position: resolve.Position{
+											Line:   4,
+											Column: 5,
+										},
 									},
 									{
 										BufferID:  1,
@@ -377,6 +413,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 										Value: &resolve.String{
 											Path:     []string{"phone"},
 											Nullable: true,
+										},
+										Position: resolve.Position{
+											Line:   5,
+											Column: 5,
 										},
 									},
 									{
@@ -387,6 +427,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 											Path:     []string{"phone"},
 											Nullable: true,
 										},
+										Position: resolve.Position{
+											Line:   6,
+											Column: 5,
+										},
 									},
 								},
 							},
@@ -395,6 +439,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							BufferID:  3,
 							HasBuffer: true,
 							Name:      []byte("aliased"),
+							Position: resolve.Position{
+								Line:   9,
+								Column: 4,
+							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Fields: []*resolve.Field{
@@ -403,6 +451,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 										Value: &resolve.String{
 											Path:     []string{"name"},
 											Nullable: true,
+										},
+										Position: resolve.Position{
+											Line:   10,
+											Column: 5,
 										},
 									},
 								},
@@ -480,6 +532,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("withArgument"),
+							Position: resolve.Position{
+								Line:   3,
+								Column: 4,
+							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Fields: []*resolve.Field{
@@ -488,6 +544,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 										Value: &resolve.String{
 											Path:     []string{"name"},
 											Nullable: true,
+										},
+										Position: resolve.Position{
+											Line:   4,
+											Column: 5,
 										},
 									},
 								},
@@ -608,6 +668,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("friend"),
+							Position: resolve.Position{
+								Line:   3,
+								Column: 4,
+							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Fields: []*resolve.Field{
@@ -616,6 +680,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 										Value: &resolve.String{
 											Path:     []string{"name"},
 											Nullable: true,
+										},
+										Position: resolve.Position{
+											Line:   4,
+											Column: 5,
 										},
 									},
 								},
@@ -673,6 +741,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("friend"),
+							Position: resolve.Position{
+								Line:   3,
+								Column: 4,
+							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Fields: []*resolve.Field{
@@ -681,6 +753,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 										Value: &resolve.String{
 											Path:     []string{"name"},
 											Nullable: true,
+										},
+										Position: resolve.Position{
+											Line:   4,
+											Column: 5,
 										},
 									},
 								},
@@ -746,6 +822,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("withArgument"),
+							Position: resolve.Position{
+								Line:   3,
+								Column: 4,
+							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Fields: []*resolve.Field{
@@ -754,6 +834,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 										Value: &resolve.String{
 											Path:     []string{"name"},
 											Nullable: true,
+										},
+										Position: resolve.Position{
+											Line:   4,
+											Column: 5,
 										},
 									},
 								},
@@ -832,6 +916,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("withArrayArguments"),
+							Position: resolve.Position{
+								Line:   3,
+								Column: 4,
+							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Fields: []*resolve.Field{
@@ -840,6 +928,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 										Value: &resolve.String{
 											Path:     []string{"name"},
 											Nullable: true,
+										},
+										Position: resolve.Position{
+											Line:   4,
+											Column: 5,
 										},
 									},
 								},

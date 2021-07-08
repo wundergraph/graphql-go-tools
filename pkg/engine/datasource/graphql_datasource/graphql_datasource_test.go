@@ -60,6 +60,10 @@ func TestGraphQLDataSource(t *testing.T) {
 						HasBuffer: true,
 						BufferID:  0,
 						Name:      []byte("droid"),
+						Position: resolve.Position{
+							Line:   3,
+							Column: 4,
+						},
 						Value: &resolve.Object{
 							Path:     []string{"droid"},
 							Nullable: true,
@@ -69,15 +73,27 @@ func TestGraphQLDataSource(t *testing.T) {
 									Value: &resolve.String{
 										Path: []string{"name"},
 									},
+									Position: resolve.Position{
+										Line:   4,
+										Column: 5,
+									},
 								},
 								{
 									Name: []byte("aliased"),
 									Value: &resolve.String{
 										Path: []string{"aliased"},
 									},
+									Position: resolve.Position{
+										Line:   5,
+										Column: 5,
+									},
 								},
 								{
 									Name: []byte("friends"),
+									Position: resolve.Position{
+										Line:   6,
+										Column: 5,
+									},
 									Value: &resolve.Array{
 										Nullable: true,
 										Path:     []string{"friends"},
@@ -89,6 +105,10 @@ func TestGraphQLDataSource(t *testing.T) {
 													Value: &resolve.String{
 														Path: []string{"name"},
 													},
+													Position: resolve.Position{
+														Line:   7,
+														Column: 6,
+													},
 												},
 											},
 										},
@@ -99,6 +119,10 @@ func TestGraphQLDataSource(t *testing.T) {
 									Value: &resolve.String{
 										Path: []string{"primaryFunction"},
 									},
+									Position: resolve.Position{
+										Line:   9,
+										Column: 5,
+									},
 								},
 							},
 						},
@@ -107,6 +131,10 @@ func TestGraphQLDataSource(t *testing.T) {
 						HasBuffer: true,
 						BufferID:  0,
 						Name:      []byte("hero"),
+						Position: resolve.Position{
+							Line:   11,
+							Column: 4,
+						},
 						Value: &resolve.Object{
 							Path:     []string{"hero"},
 							Nullable: true,
@@ -116,6 +144,10 @@ func TestGraphQLDataSource(t *testing.T) {
 									Value: &resolve.String{
 										Path: []string{"name"},
 									},
+									Position: resolve.Position{
+										Line:   12,
+										Column: 5,
+									},
 								},
 							},
 						},
@@ -124,6 +156,10 @@ func TestGraphQLDataSource(t *testing.T) {
 						HasBuffer: true,
 						BufferID:  0,
 						Name:      []byte("stringList"),
+						Position: resolve.Position{
+							Line:   14,
+							Column: 4,
+						},
 						Value: &resolve.Array{
 							Nullable: true,
 							Item: &resolve.String{
@@ -135,6 +171,10 @@ func TestGraphQLDataSource(t *testing.T) {
 						HasBuffer: true,
 						BufferID:  0,
 						Name:      []byte("nestedStringList"),
+						Position: resolve.Position{
+							Line:   15,
+							Column: 4,
+						},
 						Value: &resolve.Array{
 							Nullable: true,
 							Path:     []string{"nestedStringList"},
@@ -237,6 +277,10 @@ func TestGraphQLDataSource(t *testing.T) {
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("addFriend"),
+							Position: resolve.Position{
+								Line:   1,
+								Column: 37,
+							},
 							Value: &resolve.Object{
 								Fields: []*resolve.Field{
 									{
@@ -244,11 +288,19 @@ func TestGraphQLDataSource(t *testing.T) {
 										Value: &resolve.String{
 											Path: []string{"id"},
 										},
+										Position: resolve.Position{
+											Line:   1,
+											Column: 61,
+										},
 									},
 									{
 										Name: []byte("name"),
 										Value: &resolve.String{
 											Path: []string{"name"},
+										},
+										Position: resolve.Position{
+											Line:   1,
+											Column: 64,
 										},
 									},
 								},
@@ -337,6 +389,10 @@ func TestGraphQLDataSource(t *testing.T) {
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("foo"),
+							Position: resolve.Position{
+								Line:   3,
+								Column: 4,
+							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Path:     []string{"foo"},
@@ -346,6 +402,10 @@ func TestGraphQLDataSource(t *testing.T) {
 										Value: &resolve.String{
 											Nullable: true,
 											Path:     []string{"bar"},
+										},
+										Position: resolve.Position{
+											Line:   4,
+											Column: 5,
 										},
 									},
 								},
@@ -440,6 +500,10 @@ func TestGraphQLDataSource(t *testing.T) {
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("country"),
+							Position: resolve.Position{
+								Line:   3,
+								Column: 4,
+							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Path:     []string{"country"},
@@ -450,6 +514,10 @@ func TestGraphQLDataSource(t *testing.T) {
 											Nullable: false,
 											Path:     []string{"name"},
 										},
+										Position: resolve.Position{
+											Line:   4,
+											Column: 5,
+										},
 									},
 								},
 							},
@@ -458,6 +526,10 @@ func TestGraphQLDataSource(t *testing.T) {
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("alias"),
+							Position: resolve.Position{
+								Line:   6,
+								Column: 4,
+							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Path:     []string{"alias"},
@@ -467,6 +539,10 @@ func TestGraphQLDataSource(t *testing.T) {
 										Value: &resolve.String{
 											Nullable: false,
 											Path:     []string{"name"},
+										},
+										Position: resolve.Position{
+											Line:   7,
+											Column: 5,
 										},
 									},
 								},
@@ -563,6 +639,10 @@ func TestGraphQLDataSource(t *testing.T) {
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("country"),
+							Position: resolve.Position{
+								Line:   3,
+								Column: 4,
+							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Path:     []string{"country"},
@@ -573,6 +653,10 @@ func TestGraphQLDataSource(t *testing.T) {
 											Nullable: false,
 											Path:     []string{"name"},
 										},
+										Position: resolve.Position{
+											Line:   4,
+											Column: 5,
+										},
 									},
 								},
 							},
@@ -581,6 +665,10 @@ func TestGraphQLDataSource(t *testing.T) {
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("countryAlias"),
+							Position: resolve.Position{
+								Line:   6,
+								Column: 4,
+							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Path:     []string{"countryAlias"},
@@ -590,6 +678,10 @@ func TestGraphQLDataSource(t *testing.T) {
 										Value: &resolve.String{
 											Nullable: false,
 											Path:     []string{"name"},
+										},
+										Position: resolve.Position{
+											Line:   7,
+											Column: 5,
 										},
 									},
 								},
@@ -738,6 +830,10 @@ func TestGraphQLDataSource(t *testing.T) {
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("serviceOne"),
+							Position: resolve.Position{
+								Line:   3,
+								Column: 4,
+							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Path:     []string{"serviceOne"},
@@ -756,11 +852,19 @@ func TestGraphQLDataSource(t *testing.T) {
 										Value: &resolve.String{
 											Path: []string{"fieldOne"},
 										},
+										Position: resolve.Position{
+											Line:   4,
+											Column: 5,
+										},
 									},
 									{
 										Name:      []byte("countries"),
 										HasBuffer: true,
 										BufferID:  1,
+										Position: resolve.Position{
+											Line:   5,
+											Column: 5,
+										},
 										Value: &resolve.Array{
 											Path: []string{"countries"},
 											Item: &resolve.Object{
@@ -769,6 +873,10 @@ func TestGraphQLDataSource(t *testing.T) {
 														Name: []byte("name"),
 														Value: &resolve.String{
 															Path: []string{"name"},
+														},
+														Position: resolve.Position{
+															Line:   6,
+															Column: 6,
 														},
 													},
 												},
@@ -782,6 +890,10 @@ func TestGraphQLDataSource(t *testing.T) {
 							HasBuffer: true,
 							BufferID:  2,
 							Name:      []byte("serviceTwo"),
+							Position: resolve.Position{
+								Line:   9,
+								Column: 4,
+							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Path:     []string{"serviceTwo"},
@@ -804,11 +916,19 @@ func TestGraphQLDataSource(t *testing.T) {
 											Nullable: true,
 											Path:     []string{"fieldTwo"},
 										},
+										Position: resolve.Position{
+											Line:   10,
+											Column: 5,
+										},
 									},
 									{
 										HasBuffer: true,
 										BufferID:  3,
 										Name:      []byte("serviceOneResponse"),
+										Position: resolve.Position{
+											Line:   11,
+											Column: 5,
+										},
 										Value: &resolve.Object{
 											Nullable: true,
 											Path:     []string{"serviceOneResponse"},
@@ -817,6 +937,10 @@ func TestGraphQLDataSource(t *testing.T) {
 													Name: []byte("fieldOne"),
 													Value: &resolve.String{
 														Path: []string{"fieldOne"},
+													},
+													Position: resolve.Position{
+														Line:   12,
+														Column: 6,
 													},
 												},
 											},
@@ -829,6 +953,10 @@ func TestGraphQLDataSource(t *testing.T) {
 							HasBuffer: true,
 							BufferID:  0,
 							Name:      []byte("anotherServiceOne"),
+							Position: resolve.Position{
+								Line:   15,
+								Column: 4,
+							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Path:     []string{"anotherServiceOne"},
@@ -838,6 +966,10 @@ func TestGraphQLDataSource(t *testing.T) {
 										Value: &resolve.String{
 											Path: []string{"fieldOne"},
 										},
+										Position: resolve.Position{
+											Line:   16,
+											Column: 5,
+										},
 									},
 								},
 							},
@@ -846,6 +978,10 @@ func TestGraphQLDataSource(t *testing.T) {
 							BufferID:  2,
 							HasBuffer: true,
 							Name:      []byte("secondServiceTwo"),
+							Position: resolve.Position{
+								Line:   18,
+								Column: 4,
+							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Path:     []string{"secondServiceTwo"},
@@ -856,12 +992,20 @@ func TestGraphQLDataSource(t *testing.T) {
 											Path:     []string{"fieldTwo"},
 											Nullable: true,
 										},
+										Position: resolve.Position{
+											Line:   19,
+											Column: 5,
+										},
 									},
 									{
 										Name: []byte("serviceOneField"),
 										Value: &resolve.String{
 											Path:     []string{"serviceOneField"},
 											Nullable: true,
+										},
+										Position: resolve.Position{
+											Line:   20,
+											Column: 5,
 										},
 									},
 								},
@@ -871,6 +1015,10 @@ func TestGraphQLDataSource(t *testing.T) {
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("reusingServiceOne"),
+							Position: resolve.Position{
+								Line:   22,
+								Column: 4,
+							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Path:     []string{"reusingServiceOne"},
@@ -879,6 +1027,10 @@ func TestGraphQLDataSource(t *testing.T) {
 										Name: []byte("fieldOne"),
 										Value: &resolve.String{
 											Path: []string{"fieldOne"},
+										},
+										Position: resolve.Position{
+											Line:   23,
+											Column: 5,
 										},
 									},
 								},
@@ -1062,12 +1214,20 @@ func TestGraphQLDataSource(t *testing.T) {
 							HasBuffer: true,
 							BufferID:  0,
 							Name:      []byte("addTask"),
+							Position: resolve.Position{
+								Line:   2,
+								Column: 8,
+							},
 							Value: &resolve.Object{
 								Path:     []string{"addTask"},
 								Nullable: true,
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("task"),
+										Position: resolve.Position{
+											Line:   3,
+											Column: 7,
+										},
 										Value: &resolve.Array{
 											Nullable: true,
 											Path:     []string{"task"},
@@ -1079,17 +1239,29 @@ func TestGraphQLDataSource(t *testing.T) {
 														Value: &resolve.String{
 															Path: []string{"id"},
 														},
+														Position: resolve.Position{
+															Line:   4,
+															Column: 9,
+														},
 													},
 													{
 														Name: []byte("title"),
 														Value: &resolve.String{
 															Path: []string{"title"},
 														},
+														Position: resolve.Position{
+															Line:   5,
+															Column: 9,
+														},
 													},
 													{
 														Name: []byte("completed"),
 														Value: &resolve.Boolean{
 															Path: []string{"completed"},
+														},
+														Position: resolve.Position{
+															Line:   6,
+															Column: 9,
 														},
 													},
 												},
@@ -1203,12 +1375,20 @@ func TestGraphQLDataSource(t *testing.T) {
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("createUser"),
+							Position: resolve.Position{
+								Line:   3,
+								Column: 6,
+							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Path:     []string{"createUser"},
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("user"),
+										Position: resolve.Position{
+											Line:   4,
+											Column: 5,
+										},
 										Value: &resolve.Object{
 											Path:     []string{"user"},
 											Nullable: true,
@@ -1219,6 +1399,10 @@ func TestGraphQLDataSource(t *testing.T) {
 														Path:     []string{"id"},
 														Nullable: true,
 													},
+													Position: resolve.Position{
+														Line:   5,
+														Column: 7,
+													},
 												},
 												{
 													Name: []byte("username"),
@@ -1226,12 +1410,20 @@ func TestGraphQLDataSource(t *testing.T) {
 														Path:     []string{"username"},
 														Nullable: true,
 													},
+													Position: resolve.Position{
+														Line:   6,
+														Column: 7,
+													},
 												},
 												{
 													Name: []byte("createdDate"),
 													Value: &resolve.String{
 														Path:     []string{"createdDate"},
 														Nullable: true,
+													},
+													Position: resolve.Position{
+														Line:   7,
+														Column: 7,
 													},
 												},
 											},
@@ -1329,11 +1521,19 @@ func TestGraphQLDataSource(t *testing.T) {
 								Path:     []string{"__typename"},
 								Nullable: false,
 							},
+							Position: resolve.Position{
+								Line:   3,
+								Column: 4,
+							},
 						},
 						{
 							Name:      []byte("namespaceCreate"),
 							HasBuffer: true,
 							BufferID:  0,
+							Position: resolve.Position{
+								Line:   4,
+								Column: 4,
+							},
 							Value: &resolve.Object{
 								Path: []string{"namespaceCreate"},
 								Fields: []*resolve.Field{
@@ -1343,10 +1543,18 @@ func TestGraphQLDataSource(t *testing.T) {
 											Path:     []string{"__typename"},
 											Nullable: false,
 										},
+										Position: resolve.Position{
+											Line:   5,
+											Column: 5,
+										},
 									},
 									{
 										OnTypeName: []byte("NamespaceCreated"),
 										Name:       []byte("namespace"),
+										Position: resolve.Position{
+											Line:   7,
+											Column: 6,
+										},
 										Value: &resolve.Object{
 											Path: []string{"namespace"},
 											Fields: []*resolve.Field{
@@ -1356,12 +1564,20 @@ func TestGraphQLDataSource(t *testing.T) {
 														Path:     []string{"id"},
 														Nullable: false,
 													},
+													Position: resolve.Position{
+														Line:   8,
+														Column: 7,
+													},
 												},
 												{
 													Name: []byte("name"),
 													Value: &resolve.String{
 														Path:     []string{"name"},
 														Nullable: false,
+													},
+													Position: resolve.Position{
+														Line:   9,
+														Column: 7,
 													},
 												},
 											},
@@ -1373,12 +1589,20 @@ func TestGraphQLDataSource(t *testing.T) {
 										Value: &resolve.String{
 											Path: []string{"code"},
 										},
+										Position: resolve.Position{
+											Line:   13,
+											Column: 6,
+										},
 									},
 									{
 										OnTypeName: []byte("Error"),
 										Name:       []byte("message"),
 										Value: &resolve.String{
 											Path: []string{"message"},
+										},
+										Position: resolve.Position{
+											Line:   14,
+											Column: 6,
 										},
 									},
 								},
@@ -1464,6 +1688,10 @@ func TestGraphQLDataSource(t *testing.T) {
 					Fields: []*resolve.Field{
 						{
 							Name: []byte("remainingJedis"),
+							Position: resolve.Position{
+								Line:   3,
+								Column: 4,
+							},
 							Value: &resolve.Integer{
 								Path:     []string{"remainingJedis"},
 								Nullable: false,
@@ -1518,6 +1746,10 @@ func TestGraphQLDataSource(t *testing.T) {
 					Fields: []*resolve.Field{
 						{
 							Name: []byte("foo"),
+							Position: resolve.Position{
+								Line:   3,
+								Column: 4,
+							},
 							Value: &resolve.Integer{
 								Path:     []string{"foo"},
 								Nullable: false,
@@ -1600,6 +1832,10 @@ func TestGraphQLDataSource(t *testing.T) {
 							HasBuffer: true,
 							BufferID:  0,
 							Name:      []byte("me"),
+							Position: resolve.Position{
+								Line:   2,
+								Column: 7,
+							},
 							Value: &resolve.Object{
 								Fetch: &resolve.SingleFetch{
 									BufferId: 1,
@@ -1624,17 +1860,29 @@ func TestGraphQLDataSource(t *testing.T) {
 										Value: &resolve.String{
 											Path: []string{"id"},
 										},
+										Position: resolve.Position{
+											Line:   3,
+											Column: 8,
+										},
 									},
 									{
 										Name: []byte("username"),
 										Value: &resolve.String{
 											Path: []string{"username"},
 										},
+										Position: resolve.Position{
+											Line:   4,
+											Column: 8,
+										},
 									},
 									{
 										HasBuffer: true,
 										BufferID:  1,
 										Name:      []byte("reviews"),
+										Position: resolve.Position{
+											Line:   5,
+											Column: 8,
+										},
 										Value: &resolve.Array{
 											Path:     []string{"reviews"},
 											Nullable: true,
@@ -1646,9 +1894,17 @@ func TestGraphQLDataSource(t *testing.T) {
 														Value: &resolve.String{
 															Path: []string{"body"},
 														},
+														Position: resolve.Position{
+															Line:   6,
+															Column: 9,
+														},
 													},
 													{
 														Name: []byte("author"),
+														Position: resolve.Position{
+															Line:   7,
+															Column: 9,
+														},
 														Value: &resolve.Object{
 															Path: []string{"author"},
 															Fields: []*resolve.Field{
@@ -1657,11 +1913,19 @@ func TestGraphQLDataSource(t *testing.T) {
 																	Value: &resolve.String{
 																		Path: []string{"id"},
 																	},
+																	Position: resolve.Position{
+																		Line:   8,
+																		Column: 10,
+																	},
 																},
 																{
 																	Name: []byte("username"),
 																	Value: &resolve.String{
 																		Path: []string{"username"},
+																	},
+																	Position: resolve.Position{
+																		Line:   9,
+																		Column: 10,
 																	},
 																},
 															},
@@ -1669,6 +1933,10 @@ func TestGraphQLDataSource(t *testing.T) {
 													},
 													{
 														Name: []byte("product"),
+														Position: resolve.Position{
+															Line:   11,
+															Column: 9,
+														},
 														Value: &resolve.Object{
 															Path: []string{"product"},
 															Fetch: &resolve.ParallelFetch{
@@ -1713,6 +1981,10 @@ func TestGraphQLDataSource(t *testing.T) {
 																	Value: &resolve.String{
 																		Path: []string{"name"},
 																	},
+																	Position: resolve.Position{
+																		Line:   12,
+																		Column: 10,
+																	},
 																},
 																{
 																	HasBuffer: true,
@@ -1721,11 +1993,19 @@ func TestGraphQLDataSource(t *testing.T) {
 																	Value: &resolve.Integer{
 																		Path: []string{"price"},
 																	},
+																	Position: resolve.Position{
+																		Line:   13,
+																		Column: 10,
+																	},
 																},
 																{
 																	HasBuffer: true,
 																	BufferID:  3,
 																	Name:      []byte("reviews"),
+																	Position: resolve.Position{
+																		Line:   14,
+																		Column: 10,
+																	},
 																	Value: &resolve.Array{
 																		Nullable: true,
 																		Path:     []string{"reviews"},
@@ -1737,9 +2017,17 @@ func TestGraphQLDataSource(t *testing.T) {
 																					Value: &resolve.String{
 																						Path: []string{"body"},
 																					},
+																					Position: resolve.Position{
+																						Line:   15,
+																						Column: 11,
+																					},
 																				},
 																				{
 																					Name: []byte("author"),
+																					Position: resolve.Position{
+																						Line:   16,
+																						Column: 11,
+																					},
 																					Value: &resolve.Object{
 																						Path: []string{"author"},
 																						Fields: []*resolve.Field{
@@ -1748,11 +2036,19 @@ func TestGraphQLDataSource(t *testing.T) {
 																								Value: &resolve.String{
 																									Path: []string{"id"},
 																								},
+																								Position: resolve.Position{
+																									Line:   17,
+																									Column: 12,
+																								},
 																							},
 																							{
 																								Name: []byte("username"),
 																								Value: &resolve.String{
 																									Path: []string{"username"},
+																								},
+																								Position: resolve.Position{
+																									Line:   18,
+																									Column: 12,
 																								},
 																							},
 																						},

@@ -23,7 +23,6 @@ import (
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/fastbuffer"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
 	"github.com/jensneuse/graphql-go-tools/pkg/pool"
 )
 
@@ -120,7 +119,7 @@ type Context struct {
 	pathPrefix      []byte
 	beforeFetchHook BeforeFetchHook
 	afterFetchHook  AfterFetchHook
-	position        position.Position
+	position        Position
 }
 
 type Request struct {
@@ -137,7 +136,7 @@ func NewContext(ctx context.Context) *Context {
 		usedBuffers:  make([]*bytes.Buffer, 0, 48),
 		currentPatch: -1,
 		maxPatch:     -1,
-		position:     position.Position{},
+		position:     Position{},
 	}
 }
 
@@ -194,7 +193,7 @@ func (c *Context) Free() {
 	c.beforeFetchHook = nil
 	c.afterFetchHook = nil
 	c.Request.Header = nil
-	c.position = position.Position{}
+	c.position = Position{}
 }
 
 func (c *Context) SetBeforeFetchHook(hook BeforeFetchHook) {
@@ -205,7 +204,7 @@ func (c *Context) SetAfterFetchHook(hook AfterFetchHook) {
 	c.afterFetchHook = hook
 }
 
-func (c *Context) setPosition(position position.Position) {
+func (c *Context) setPosition(position Position) {
 	c.position = position
 }
 
@@ -1144,12 +1143,17 @@ func (_ *EmptyArray) NodeKind() NodeKind {
 type Field struct {
 	Name       []byte
 	Value      Node
-	Position   position.Position
+	Position   Position
 	Defer      *DeferField
 	Stream     *StreamField
 	HasBuffer  bool
 	BufferID   int
 	OnTypeName []byte
+}
+
+type Position struct {
+	Line   uint32
+	Column uint32
 }
 
 type StreamField struct {

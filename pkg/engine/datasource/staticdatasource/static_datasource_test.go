@@ -26,12 +26,16 @@ func TestStaticDataSourcePlanning(t *testing.T) {
 							Value: &resolve.String{
 								Nullable: true,
 							},
+							Position: resolve.Position{
+								Line:   1,
+								Column: 3,
+							},
 						},
 					},
 					Fetch: &resolve.SingleFetch{
-						BufferId:   0,
-						Input:      "world",
-						DataSource: Source{},
+						BufferId:             0,
+						Input:                "world",
+						DataSource:           Source{},
 						DataSourceIdentifier: []byte("staticdatasource.Source"),
 					},
 				},

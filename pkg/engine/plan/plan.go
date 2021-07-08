@@ -394,7 +394,10 @@ func (v *Visitor) EnterField(ref int) {
 				Path:     v.resolveFieldPath(ref),
 			},
 			OnTypeName: v.resolveOnTypeName(),
-			Position:   v.Operation.Fields[ref].Position,
+			Position: resolve.Position{
+				Line:   v.Operation.Fields[ref].Position.LineStart,
+				Column: v.Operation.Fields[ref].Position.CharStart,
+			},
 		}
 		*v.currentFields[len(v.currentFields)-1].fields = append(*v.currentFields[len(v.currentFields)-1].fields, v.currentField)
 		return
@@ -435,6 +438,10 @@ func (v *Visitor) EnterField(ref int) {
 		HasBuffer:  hasBuffer,
 		BufferID:   bufferID,
 		OnTypeName: v.resolveOnTypeName(),
+		Position: resolve.Position{
+			Line:   v.Operation.Fields[ref].Position.LineStart,
+			Column: v.Operation.Fields[ref].Position.CharStart,
+		},
 	}
 
 	*v.currentFields[len(v.currentFields)-1].fields = append(*v.currentFields[len(v.currentFields)-1].fields, v.currentField)
