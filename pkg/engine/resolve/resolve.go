@@ -1048,7 +1048,7 @@ func (r *Resolver) resolveBatchFetch(ctx *Context, fetch *BatchFetch, preparedIn
 		return ctx.dataLoader.LoadBatch(ctx, fetch, buf)
 	}
 
-	// It's required to get head element from array
+	// It's required to get first element from array
 	tempBuf := r.getBufPair()
 	defer r.freeBufPair(tempBuf)
 

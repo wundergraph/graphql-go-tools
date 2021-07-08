@@ -40,7 +40,6 @@ type Planner struct {
 	hasFederationRoot          bool
 	extractEntities            bool
 	client                     httpclient.Client
-	batchMerger                *batchMerger
 	isNested                   bool   // isNested - flags that datasource is nested e.g. field with datasource is not on a query type
 	rootTypeName               string // rootTypeName - holds name of top level type
 	rootFieldName              string // rootFieldName - holds name of root type field
@@ -160,7 +159,7 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 		DisallowSingleFlight: p.disallowSingleFlight,
 		BatchFetchConfiguration: plan.BatchFetchConfiguration{
 			Enabled:      p.extractEntities,
-			PrepareBatch: p.batchMerger.merge,
+			PrepareBatch: prepareBatch,
 		},
 	}
 }
@@ -179,7 +178,7 @@ func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
 	return plan.SubscriptionConfiguration{
 		Input:                 string(input),
 		SubscriptionManagerID: "graphql_websocket_subscription",
-		Variables:            p.variables,
+		Variables:             p.variables,
 	}
 }
 
@@ -868,10 +867,9 @@ type Factory struct {
 	Client httpclient.Client
 }
 
-func (f *Factory) Planner(<- chan struct{}) plan.DataSourcePlanner {
+func (f *Factory) Planner(<-chan struct{}) plan.DataSourcePlanner {
 	return &Planner{
 		client: f.Client,
-		batchMerger: newBatchMerger(),
 	}
 }
 

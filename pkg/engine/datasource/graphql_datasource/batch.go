@@ -3,31 +3,16 @@ package graphql_datasource
 import (
 	"bytes"
 	"hash"
-	"sync"
 
 	"github.com/buger/jsonparser"
-	"github.com/cespare/xxhash"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/fastbuffer"
+	"github.com/jensneuse/graphql-go-tools/pkg/pool"
 )
 
 var representationPath = []string{"body", "variables", "representations"}
 
-type batchMerger struct {
-	hash64Pool sync.Pool
-}
-
-func newBatchMerger() *batchMerger {
-	return &batchMerger{
-		hash64Pool: sync.Pool{
-			New: func() interface{} {
-				return xxhash.New()
-			},
-		},
-	}
-}
-
-func (f *batchMerger) merge(out *fastbuffer.FastBuffer, inputs ...*fastbuffer.FastBuffer) (outToInPositions map[int][]int, err error) {
+func prepareBatch(out *fastbuffer.FastBuffer, inputs ...*fastbuffer.FastBuffer) (outToInPositions map[int][]int, err error) {
 	if len(inputs) == 0 {
 		return nil, nil
 	}
@@ -38,8 +23,8 @@ func (f *batchMerger) merge(out *fastbuffer.FastBuffer, inputs ...*fastbuffer.Fa
 	outToInPositions = make(map[int][]int, len(inputs))
 	hashToOutPositions := make(map[uint64]int, len(inputs))
 
-	hash64 := f.hash64Pool.Get().(hash.Hash64)
-	defer f.hash64Pool.Put(hash64)
+	hash64 := pool.Hash64.Get().(hash.Hash64)
+	defer pool.Hash64.Put(hash64)
 
 	for i := range inputs {
 		inputVariables, _, _, err := jsonparser.Get(inputs[i].Bytes(), representationPath...)
