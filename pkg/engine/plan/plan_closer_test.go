@@ -132,6 +132,11 @@ func (f *FakeDataSource) Load(ctx context.Context, input []byte, bufPair *resolv
 	return
 }
 
+func (f *FakeDataSource) CreateBatch(inputs ...[]byte) (resolve.DataSourceBatch, error) {
+	panic("implement me")
+}
+
+
 func (f *FakeDataSource) UniqueIdentifier() []byte {
 	return []byte("fake_datasource")
 }

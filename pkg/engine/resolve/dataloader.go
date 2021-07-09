@@ -193,6 +193,7 @@ func (d *dataLoader) Load(ctx *Context, fetch *SingleFetch, responsePair *BufPai
 
 	resultPair, err = fetchResult.next(ctx)
 	copyBufPair(responsePair, resultPair)
+
 	return
 }
 
@@ -249,46 +250,19 @@ func (d *dataLoader) resolveBatchFetch(ctx *Context, batchFetch *BatchFetch, fet
 	outBuf := d.resourceProvider.getBufPair()
 	*bufSlice = append(*bufSlice, outBuf)
 
-	outToInPositions, err := batchFetch.PrepareBatch(outBuf.Data, inputBufs...)
-	if err != nil {
-		return nil, err
+	results := make([]*BufPair, len(inputBufs))
+	for i := range inputBufs {
+		results[i] = d.getResultBufPair()
 	}
 
 	fetchState = &batchFetchState{}
 
-	responsePair := d.getResultBufPair()
-	if err := d.fetcher.Fetch(ctx, batchFetch.Fetch, outBuf.Data, responsePair); err != nil {
+	if err = d.fetcher.FetchBatch(ctx, batchFetch.Fetch, inputBufs, results); err != nil {
 		fetchState.fetchError = err
 		return fetchState, nil
 	}
 
-	var outPosition int
-	results := make([]*BufPair, len(inputBufs))
 
-	if responsePair.HasData() {
-		_, err = jsonparser.ArrayEach(responsePair.Data.Bytes(), func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
-			inputPositions := outToInPositions[outPosition]
-
-			for _, pos := range inputPositions {
-				resultPair := d.getResultBufPair()
-				resultPair.Data.WriteBytes(value)
-				results[pos] = resultPair
-			}
-
-			outPosition++
-		})
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if responsePair.HasErrors() {
-		if results[0] == nil {
-			results[0] = d.getResultBufPair()
-		}
-
-		results[0].Errors.WriteBytes(responsePair.Errors.Bytes())
-	}
 
 	fetchState.results = results
 

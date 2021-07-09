@@ -1556,15 +1556,17 @@ func TestGraphQLDataSource(t *testing.T) {
 							BufferID:  0,
 							Name:      []byte("me"),
 							Value: &resolve.Object{
-								Fetch: &resolve.SingleFetch{
-									BufferId: 1,
-									Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body author {id username} product {upc}}}}}","variables":{"representations":[{"id":"$$0$$","__typename":"User"}]}},"extract_entities":true}`,
-									Variables: resolve.NewVariables(
-										&resolve.ObjectVariable{
-											Path: []string{"id"},
-										},
-									),
-									DataSource: &Source{},
+								Fetch: &resolve.BatchFetch{
+									Fetch: &resolve.SingleFetch{
+										BufferId: 1,
+										Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body author {id username} product {upc}}}}}","variables":{"representations":[{"id":"$$0$$","__typename":"User"}]}},"extract_entities":true}`,
+										Variables: resolve.NewVariables(
+											&resolve.ObjectVariable{
+												Path: []string{"id"},
+											},
+										),
+										DataSource: &Source{},
+									},
 								},
 								Path:     []string{"me"},
 								Nullable: true,
@@ -1623,25 +1625,29 @@ func TestGraphQLDataSource(t *testing.T) {
 															Path: []string{"product"},
 															Fetch: &resolve.ParallelFetch{
 																Fetches: []resolve.Fetch{
-																	&resolve.SingleFetch{
-																		BufferId:   2,
-																		Input:      `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"upc":"$$0$$","__typename":"Product"}]}},"extract_entities":true}`,
-																		DataSource: &Source{},
-																		Variables: resolve.NewVariables(
-																			&resolve.ObjectVariable{
-																				Path: []string{"upc"},
-																			},
-																		),
+																	&resolve.BatchFetch{
+																		Fetch: &resolve.SingleFetch{
+																			BufferId:   2,
+																			Input:      `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"upc":"$$0$$","__typename":"Product"}]}},"extract_entities":true}`,
+																			DataSource: &Source{},
+																			Variables: resolve.NewVariables(
+																				&resolve.ObjectVariable{
+																					Path: []string{"upc"},
+																				},
+																			),
+																		},
 																	},
-																	&resolve.SingleFetch{
-																		BufferId: 3,
-																		Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {reviews {body author {id username}}}}}","variables":{"representations":[{"upc":"$$0$$","__typename":"Product"}]}},"extract_entities":true}`,
-																		Variables: resolve.NewVariables(
-																			&resolve.ObjectVariable{
-																				Path: []string{"upc"},
-																			},
-																		),
-																		DataSource: &Source{},
+																	&resolve.BatchFetch{
+																		Fetch: &resolve.SingleFetch{
+																			BufferId: 3,
+																			Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {reviews {body author {id username}}}}}","variables":{"representations":[{"upc":"$$0$$","__typename":"Product"}]}},"extract_entities":true}`,
+																			Variables: resolve.NewVariables(
+																				&resolve.ObjectVariable{
+																					Path: []string{"upc"},
+																				},
+																			),
+																			DataSource: &Source{},
+																		},
 																	},
 																},
 															},

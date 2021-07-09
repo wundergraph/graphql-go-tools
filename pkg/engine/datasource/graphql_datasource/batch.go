@@ -2,17 +2,81 @@ package graphql_datasource
 
 import (
 	"bytes"
+	"fmt"
 	"hash"
 
 	"github.com/buger/jsonparser"
 
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 	"github.com/jensneuse/graphql-go-tools/pkg/fastbuffer"
 	"github.com/jensneuse/graphql-go-tools/pkg/pool"
 )
 
 var representationPath = []string{"body", "variables", "representations"}
 
-func prepareBatch(out *fastbuffer.FastBuffer, inputs ...[]byte) (outToInPositions map[int][]int, err error) {
+type Batch struct {
+	datasource       *Source
+	resultedInput    *fastbuffer.FastBuffer
+	outToInPositions map[int][]int
+	batchSize        int
+}
+
+func NewBatch(s *Source, inputs ...[]byte) (*Batch, error) {
+	resultedInput := pool.FastBuffer.Get()
+	//defer pool.FastBuffer.Put(resultedInput)
+
+	outToInPositions, err := multiplexBatch(resultedInput, inputs...)
+	if err != nil {
+		return nil, nil
+	}
+
+	return &Batch{
+		datasource:       s,
+		resultedInput:    resultedInput,
+		outToInPositions: outToInPositions,
+		batchSize:        len(inputs),
+	}, nil
+}
+
+func (b *Batch) Input() *fastbuffer.FastBuffer{
+	return b.resultedInput
+}
+
+func (b *Batch) Demultiplex(responseBufPair *resolve.BufPair, bufPairs []*resolve.BufPair) (err error) {
+	defer pool.FastBuffer.Put(b.resultedInput)
+
+	if b.batchSize != len(bufPairs) {
+		return fmt.Errorf("expected %d buf pairs", b.batchSize)
+	}
+
+	if err = demultiplexBatch(responseBufPair, b.outToInPositions, bufPairs); err != nil {
+		return err
+	}
+
+	return
+}
+
+//func (b *Batch) Load(ctx context.Context, bufPairs []*resolve.BufPair) (err error) {
+//	defer pool.FastBuffer.Put(b.resultedInput)
+//
+//	if b.batchSize != len(bufPairs) {
+//		return fmt.Errorf("expected %d buf pairs", b.batchSize)
+//	}
+//
+//	responsePair := resolve.NewBufPair()
+//
+//	if err = b.datasource.Load(ctx, b.resultedInput.Bytes(), responsePair); err != nil {
+//		return err
+//	}
+//
+//	if err = demultiplexBatch(responsePair, b.outToInPositions, bufPairs); err != nil {
+//		return err
+//	}
+//
+//	return
+//}
+
+func multiplexBatch(out *fastbuffer.FastBuffer, inputs ...[]byte) (outToInPositions map[int][]int, err error) {
 	if len(inputs) == 0 {
 		return nil, nil
 	}
@@ -66,4 +130,29 @@ func prepareBatch(out *fastbuffer.FastBuffer, inputs ...[]byte) (outToInPosition
 	out.WriteBytes(mergedInput)
 
 	return outToInPositions, nil
+}
+
+func demultiplexBatch(responsePair *resolve.BufPair, outToInPositions map[int][]int, resultBufPairs []*resolve.BufPair) (err error) {
+	var outPosition int
+
+	if responsePair.HasData() {
+		_, err = jsonparser.ArrayEach(responsePair.Data.Bytes(), func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+			inputPositions := outToInPositions[outPosition]
+
+			for _, pos := range inputPositions {
+				resultBufPairs[pos].Data.WriteBytes(value)
+			}
+
+			outPosition++
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	if responsePair.HasErrors() {
+		resultBufPairs[0].Errors.WriteBytes(responsePair.Errors.Bytes())
+	}
+
+	return
 }

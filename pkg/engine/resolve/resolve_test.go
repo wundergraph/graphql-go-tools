@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"net/http"
 	"sync"
 	"testing"
 	"time"
@@ -36,6 +35,11 @@ func (f *_fakeDataSource) Load(ctx context.Context, input []byte, pair *BufPair)
 	pair.Data.WriteBytes(f.data)
 	return
 }
+
+func (f *_fakeDataSource) CreateBatch(inputs ...[]byte) (DataSourceBatch, error) {
+	panic("implement me")
+}
+
 
 func FakeDataSource(data string) *_fakeDataSource {
 	return &_fakeDataSource{
@@ -1555,7 +1559,7 @@ func TestResolver_WithHeader(t *testing.T) {
 }
 
 type TestFlushWriter struct {
-	flushed []string
+	//flushed []string
 	buf     bytes.Buffer
 }
 
@@ -1609,7 +1613,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			Data: &Object{
 				Fields: []*Field{
 					{
-						Name: []byte("counter"),
+						//Name: []byte("counter"),
 						Value: &Integer{
 							Path: []string{"counter"},
 						},

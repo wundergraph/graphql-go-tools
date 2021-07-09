@@ -13,6 +13,7 @@ type Fetcher struct {
 	EnableSingleFlightLoader bool
 	hash64Pool               sync.Pool
 	inflightFetchPool        sync.Pool
+	bufPairPool              sync.Pool
 	inflightFetchMu          *sync.Mutex
 	inflightFetches          map[uint64]*inflightFetch
 }
@@ -33,6 +34,11 @@ func NewFetcher(enableSingleFlightLoader bool) *Fetcher {
 						Errors: fastbuffer.New(),
 					},
 				}
+			},
+		},
+		bufPairPool: sync.Pool{
+			New: func() interface{} {
+				return NewBufPair()
 			},
 		},
 		inflightFetchMu: &sync.Mutex{},
@@ -122,6 +128,40 @@ func (f *Fetcher) Fetch(ctx *Context, fetch *SingleFetch, preparedInput *fastbuf
 	}()
 
 	return
+}
+
+func (f *Fetcher) FetchBatch(ctx *Context, fetch *SingleFetch, preparedInputs []*fastbuffer.FastBuffer, bufs []*BufPair) (err error) {
+	inputs := make([][]byte, len(preparedInputs))
+	for i := range preparedInputs {
+		inputs[i] = preparedInputs[i].Bytes()
+	}
+
+	batch, err := fetch.DataSource.CreateBatch(inputs...)
+	if err != nil {
+		return err
+	}
+
+	buf := f.getBufPair()
+	defer f.freeBufPair(buf)
+
+	if err = f.Fetch(ctx, fetch, batch.Input(), buf); err != nil {
+		return err
+	}
+
+	if err = batch.Demultiplex(buf, bufs); err != nil {
+		return err
+	}
+
+	return
+}
+
+func (f *Fetcher) getBufPair() *BufPair {
+	return f.bufPairPool.Get().(*BufPair)
+}
+
+func (f *Fetcher) freeBufPair(buf *BufPair)  {
+	buf.Reset()
+	f.bufPairPool.Put(buf)
 }
 
 func (f *Fetcher) getInflightFetch() *inflightFetch {

@@ -195,3 +195,7 @@ func (_ *Source) UniqueIdentifier() []byte {
 func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPair) (err error) {
 	return s.client.Do(ctx, input, bufPair.Data)
 }
+
+func (_ *Source) CreateBatch(inputs ...[]byte) (resolve.DataSourceBatch, error) {
+	panic("not implemented")
+}

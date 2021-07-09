@@ -157,10 +157,7 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 		},
 		Variables:            p.variables,
 		DisallowSingleFlight: p.disallowSingleFlight,
-		BatchFetchConfiguration: plan.BatchFetchConfiguration{
-			Enabled:      p.extractEntities,
-			PrepareBatch: prepareBatch,
-		},
+		AllowBatch:           p.extractEntities, // Allow batch query for fetching entities.
 	}
 }
 
@@ -939,15 +936,12 @@ func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPai
 	return
 }
 
-func (s *Source) LoadBatch(ctx context.Context, inputs [][]byte, bufPairs []*resolve.BufPair) (err error) {
-	if len(inputs) != len(bufPairs) {
-		return fmt.Errorf("inputs len %d doesnt match bufPairs len %d", len(inputs), len(bufPairs))
+func (s *Source) CreateBatch(inputs ...[]byte) (resolve.DataSourceBatch, error) {
+	if len(inputs) == 0 {
+		return nil, nil
 	}
 
-	resultedInput := pool.FastBuffer.Get()
-	defer  pool.FastBuffer.Put(resultedInput)
-
-	prepareBatch(resultedInput, inputs...)
+	return NewBatch(s, inputs...)
 }
 
 func (s *Source) UniqueIdentifier() []byte {

@@ -258,9 +258,17 @@ type Fetch interface {
 
 type Fetches []Fetch
 
+type DataSourceBatch interface {
+	//Load(ctx context.Context, bufPairs []*BufPair) (err error) {
+	Demultiplex(responseBufPair *BufPair, bufPairs []*BufPair) (err error)
+	Input() *fastbuffer.FastBuffer
+}
+
 type DataSource interface {
 	Load(ctx context.Context, input []byte, bufPair *BufPair) (err error)
 	UniqueIdentifier() []byte
+
+	CreateBatch(inputs ...[]byte) (DataSourceBatch, error)
 }
 
 type Resolver struct {
@@ -339,7 +347,7 @@ func New(fetcher *Fetcher, enableDataLoader bool) *Resolver {
 		},
 		triggerManagers:   map[uint64]*subscription.Manager{},
 		dataloaderFactory: newDataloaderFactory(fetcher),
-		fetcher: fetcher,
+		fetcher:           fetcher,
 		EnableDataloader:  enableDataLoader,
 	}
 }
@@ -1048,21 +1056,10 @@ func (r *Resolver) resolveBatchFetch(ctx *Context, fetch *BatchFetch, preparedIn
 		return ctx.dataLoader.LoadBatch(ctx, fetch, buf)
 	}
 
-	// It's required to get first element from array
-	tempBuf := r.getBufPair()
-	defer r.freeBufPair(tempBuf)
-
-	if err := r.fetcher.Fetch(ctx, fetch.Fetch, preparedInput, tempBuf); err != nil {
+	if err := r.fetcher.FetchBatch(ctx, fetch.Fetch, []*fastbuffer.FastBuffer{preparedInput}, []*BufPair{buf}); err != nil {
 		return err
 	}
 
-	value, _, _, err := jsonparser.Get(tempBuf.Data.Bytes(), "[0]")
-	if err != nil {
-		return err
-	}
-
-	r.MergeBufPairErrors(tempBuf, buf)
-	buf.Data.WriteBytes(value)
 	return nil
 }
 
@@ -1310,8 +1307,7 @@ func (_ *ParallelFetch) FetchKind() FetchKind {
 }
 
 type BatchFetch struct {
-	Fetch        *SingleFetch
-	PrepareBatch func(out *fastbuffer.FastBuffer, inputs ...*fastbuffer.FastBuffer) (outToInPositions map[int][]int, err error)
+	Fetch *SingleFetch
 }
 
 func (_ *BatchFetch) FetchKind() FetchKind {

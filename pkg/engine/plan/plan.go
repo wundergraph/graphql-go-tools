@@ -10,7 +10,6 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/astimport"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
-	"github.com/jensneuse/graphql-go-tools/pkg/fastbuffer"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
@@ -793,13 +792,12 @@ func (v *Visitor) configureFetch(internal objectFetchConfiguration, external Fet
 		DisallowSingleFlight: external.DisallowSingleFlight,
 	}
 
-	if !external.BatchFetchConfiguration.Enabled {
+	if !external.AllowBatch {
 		return singleFetch
 	}
 
 	return &resolve.BatchFetch{
-		Fetch:        singleFetch,
-		PrepareBatch: external.BatchFetchConfiguration.PrepareBatch,
+		Fetch: singleFetch,
 	}
 }
 
@@ -913,16 +911,11 @@ type SubscriptionConfiguration struct {
 }
 
 type FetchConfiguration struct {
-	Input                   string
-	Variables               resolve.Variables
-	DataSource              resolve.DataSource
-	DisallowSingleFlight    bool
-	BatchFetchConfiguration BatchFetchConfiguration
-}
-
-type BatchFetchConfiguration struct {
-	Enabled      bool
-	PrepareBatch func(out *fastbuffer.FastBuffer, inputs ...*fastbuffer.FastBuffer) (outToInPositions map[int][]int, err error)
+	Input                string
+	Variables            resolve.Variables
+	DataSource           resolve.DataSource
+	DisallowSingleFlight bool
+	AllowBatch           bool
 }
 
 type configurationVisitor struct {
