@@ -15,13 +15,12 @@ import (
 var representationPath = []string{"body", "variables", "representations"}
 
 type Batch struct {
-	datasource       *Source
 	resultedInput    *fastbuffer.FastBuffer
 	outToInPositions map[int][]int
 	batchSize        int
 }
 
-func NewBatch(s *Source, inputs ...[]byte) (*Batch, error) {
+func NewBatch(inputs ...[]byte) (*Batch, error) {
 	resultedInput := pool.FastBuffer.Get()
 
 	outToInPositions, err := multiplexBatch(resultedInput, inputs...)
@@ -30,7 +29,6 @@ func NewBatch(s *Source, inputs ...[]byte) (*Batch, error) {
 	}
 
 	return &Batch{
-		datasource:       s,
 		resultedInput:    resultedInput,
 		outToInPositions: outToInPositions,
 		batchSize:        len(inputs),

@@ -941,7 +941,7 @@ func (s *Source) CreateBatch(inputs ...[]byte) (resolve.DataSourceBatch, error) 
 		return nil, nil
 	}
 
-	return NewBatch(s, inputs...)
+	return NewBatch(inputs...)
 }
 
 func (s *Source) UniqueIdentifier() []byte {
