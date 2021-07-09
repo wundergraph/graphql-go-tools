@@ -820,10 +820,10 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 							Fields: []*Field{
 								{
 									HasBuffer: true,
-									BufferID: 1,
-									Name: []byte("foo"),
+									BufferID:  1,
+									Name:      []byte("foo"),
 									Value: &String{
-										Path: []string{"foo"},
+										Path:     []string{"foo"},
 										Nullable: false,
 									},
 								},
@@ -833,6 +833,37 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				},
 			},
 		}, Context{Context: context.Background()}, `{"errors":[{"message":"errorMessage"}],"data":null}`
+	}))
+	t.Run("errors with path locations and other fields", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		r.EnableSingleFlightLoader = true
+		mockDataSource := NewMockDataSource(ctrl)
+		mockDataSource.EXPECT().UniqueIdentifier().Return([]byte("mock"))
+		mockDataSource.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
+			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+				pair.writeErrors([]byte(`{"path":["listOrders"],"data":null,"errorType":"IllegalArgument","errorInfo":null,"locations":[{"line":1,"column":73,"sourceName":null}],"message":"Invalid pagination token given."}`))
+				return
+			}).
+			Return(nil)
+		return &GraphQLResponse{
+			Data: &Object{
+				Fetch: &SingleFetch{
+					BufferId:   0,
+					DataSource: mockDataSource,
+				},
+				Fields: []*Field{
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("listOrders"),
+						Value: &Object{
+							Path:     []string{"listOrders"},
+							Nullable: true,
+						},
+					},
+				},
+			},
+		}, Context{Context: context.Background()}, `{"errors":[{"path":["listOrders"],"data":null,"errorType":"IllegalArgument","errorInfo":null,"locations":[{"line":1,"column":73,"sourceName":null}],"message":"Invalid pagination token given."}],"data":{"listOrders":null}}`
 	}))
 	t.Run("fetch with two Errors", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		r.EnableSingleFlightLoader = true
