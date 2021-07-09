@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"testing"
 
 	jsonpatch "github.com/evanphx/json-patch/v5"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 )
@@ -95,7 +97,7 @@ func TestWithoutDefer(t *testing.T) {
 		},
 	}
 
-	c,cancel := context.WithCancel(context.Background())
+	c, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	resolver := New(c)
@@ -247,7 +249,7 @@ func TestDefer(t *testing.T) {
 		},
 	}
 
-	c,cancel := context.WithCancel(context.Background())
+	c, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	resolver := New(c)
@@ -268,14 +270,14 @@ func TestDefer(t *testing.T) {
 	}
 
 	expectedBytes, err = ioutil.ReadFile("./testdata/defer_2.json")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.JSONEq(t, string(expectedBytes), writer.flushed[1])
 	if t.Failed() {
 		fmt.Println(writer.flushed[1])
 	}
 
 	expectedBytes, err = ioutil.ReadFile("./testdata/defer_3.json")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.JSONEq(t, string(expectedBytes), writer.flushed[2])
 	if t.Failed() {
 		fmt.Println(writer.flushed[2])
@@ -382,7 +384,7 @@ func BenchmarkDefer(b *testing.B) {
 		},
 	}
 
-	c,cancel := context.WithCancel(context.Background())
+	c, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	resolver := New(c)
@@ -423,17 +425,15 @@ func fakeService(t *testing.T, controller *gomock.Controller, serviceName, respo
 	data, err := ioutil.ReadFile(responseFilePath)
 	assert.NoError(t, err)
 	service := NewMockDataSource(controller)
-	service.EXPECT().UniqueIdentifier().Return([]byte(serviceName))
 	for i := 0; i < len(expectedInput); i++ {
 		i := i
 		service.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
-			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 				assert.Equal(t, expectedInput[i], string(input))
-				pair.Data.WriteBytes(data)
+				_, err = w.Write(data)
 				return
-			}).
-			Return(nil)
+			})
 	}
 	return service
 }

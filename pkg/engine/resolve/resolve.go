@@ -1,4 +1,4 @@
-//go:generate mockgen -self_package=github.com/jensneuse/go-data-resolver/pkg/resolve -destination=resolve_mock_test.go -package=resolve . DataSource,BeforeFetchHook,AfterFetchHook
+//go:generate mockgen --build_flags=--mod=mod -self_package=github.com/jensneuse/graphql-go-tools/pkg/engine/resolve -destination=resolve_mock_test.go -package=resolve . DataSource,BeforeFetchHook,AfterFetchHook
 
 package resolve
 
@@ -27,19 +27,26 @@ import (
 )
 
 var (
-	lBrace           = []byte("{")
-	rBrace           = []byte("}")
-	lBrack           = []byte("[")
-	rBrack           = []byte("]")
-	comma            = []byte(",")
-	colon            = []byte(":")
-	quote            = []byte("\"")
-	null             = []byte("null")
-	literalData      = []byte("data")
-	literalErrors    = []byte("errors")
-	literalMessage   = []byte("message")
-	literalLocations = []byte("locations")
-	literalPath      = []byte("path")
+	lBrace            = []byte("{")
+	rBrace            = []byte("}")
+	lBrack            = []byte("[")
+	rBrack            = []byte("]")
+	comma             = []byte(",")
+	colon             = []byte(":")
+	quote             = []byte("\"")
+	quotedComma       = []byte(`","`)
+	null              = []byte("null")
+	literalData       = []byte("data")
+	literalErrors     = []byte("errors")
+	literalMessage    = []byte("message")
+	literalLocations  = []byte("locations")
+	literalLine       = []byte("line")
+	literalColumn     = []byte("column")
+	literalPath       = []byte("path")
+	literalExtensions = []byte("extensions")
+
+	unableToResolveMsg = []byte("unable to resolve")
+	emptyArray         = []byte("[]")
 )
 
 var (
@@ -47,8 +54,31 @@ var (
 	errTypeNameSkipped             = errors.New("skipped because of __typename condition")
 	errHeaderPathInvalid           = errors.New("invalid header path: header variables must be of this format: .request.header.{{ key }} ")
 
-	ErrInvalidErrorsObject = errors.New("errors object must be array")
-	ErrUnableToResolve     = errors.New("unable to resolve operation")
+	ErrUnableToResolve = errors.New("unable to resolve operation")
+)
+
+var (
+	responsePaths = [][]string{
+		{"errors"},
+		{"data"},
+	}
+	errorPaths = [][]string{
+		{"message"},
+		{"locations"},
+		{"path"},
+		{"extensions"},
+	}
+	entitiesPath = []string{"_entities", "[0]"}
+)
+
+const (
+	rootErrorsPathIndex = 0
+	rootDataPathIndex   = 1
+
+	errorsMessagePathIndex    = 0
+	errorsLocationsPathIndex  = 1
+	errorsPathPathIndex       = 2
+	errorsExtensionsPathIndex = 3
 )
 
 type Node interface {
@@ -98,6 +128,7 @@ type Context struct {
 	pathPrefix      []byte
 	beforeFetchHook BeforeFetchHook
 	afterFetchHook  AfterFetchHook
+	position        Position
 }
 
 type Request struct {
@@ -114,6 +145,7 @@ func NewContext(ctx context.Context) *Context {
 		usedBuffers:  make([]*bytes.Buffer, 0, 48),
 		currentPatch: -1,
 		maxPatch:     -1,
+		position:     Position{},
 	}
 }
 
@@ -151,6 +183,7 @@ func (c *Context) Clone() Context {
 		pathPrefix:      pathPrefix,
 		beforeFetchHook: c.beforeFetchHook,
 		afterFetchHook:  c.afterFetchHook,
+		position:        c.position,
 	}
 }
 
@@ -169,6 +202,7 @@ func (c *Context) Free() {
 	c.beforeFetchHook = nil
 	c.afterFetchHook = nil
 	c.Request.Header = nil
+	c.position = Position{}
 }
 
 func (c *Context) SetBeforeFetchHook(hook BeforeFetchHook) {
@@ -177,6 +211,10 @@ func (c *Context) SetBeforeFetchHook(hook BeforeFetchHook) {
 
 func (c *Context) SetAfterFetchHook(hook AfterFetchHook) {
 	c.afterFetchHook = hook
+}
+
+func (c *Context) setPosition(position Position) {
+	c.position = position
 }
 
 func (c *Context) addPathElement(elem []byte) {
@@ -237,7 +275,7 @@ type Fetch interface {
 type Fetches []Fetch
 
 type DataSource interface {
-	Load(ctx context.Context, input []byte, bufPair *BufPair) (err error)
+	Load(ctx context.Context, input []byte, w io.Writer) (err error)
 }
 
 type SubscriptionDataSource interface {
@@ -327,14 +365,6 @@ func New(ctx context.Context) *Resolver {
 	}
 }
 
-func (r *Resolver) writeSafe(err error, writer io.Writer, data []byte) error {
-	if err != nil {
-		return err
-	}
-	_, err = writer.Write(data)
-	return err
-}
-
 func (r *Resolver) resolveNode(ctx *Context, node Node, data []byte, bufPair *BufPair) (err error) {
 	switch n := node.(type) {
 	case *Object:
@@ -373,64 +403,72 @@ func (r *Resolver) validateContext(ctx *Context) (err error) {
 	return nil
 }
 
-func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, data []byte, writer io.Writer) (err error) {
-
-	buf := r.getBufPair()
-	defer r.freeBufPair(buf)
-
-	var (
-		errors     []byte
-		errorsType jsonparser.ValueType
-	)
-
-	if len(data) != 0 {
-		errors, errorsType, _, _ = jsonparser.Get(data, "errors")
-		data, _, _, _ = jsonparser.Get(data, "data")
-	}
-
-	if len(errors) != 0 {
-		if errorsType != jsonparser.Array {
-			return ErrInvalidErrorsObject
-		}
-		buf.writeErrors(errors)
-		_, err = buf.Data.Write(literal.NULL)
-	} else {
-		err = r.resolveNode(ctx, response.Data, data, buf)
-	}
-
-	if err != nil {
+func (r *Resolver) extractResponse(responseData []byte, bufPair *BufPair, cfg ProcessResponseConfig) {
+	if len(responseData) == 0 {
 		return
 	}
 
-	hasErrors := buf.Errors.Len() != 0
-	hasData := buf.Data.Len() != 0
-
-	err = r.writeSafe(err, writer, lBrace)
-
-	if hasErrors {
-		err = r.writeSafe(err, writer, quote)
-		err = r.writeSafe(err, writer, literalErrors)
-		err = r.writeSafe(err, writer, quote)
-		err = r.writeSafe(err, writer, colon)
-		err = r.writeSafe(err, writer, lBrack)
-		_, err = writer.Write(buf.Errors.Bytes())
-		err = r.writeSafe(err, writer, rBrack)
+	if !cfg.ExtractGraphqlResponse {
+		bufPair.Data.WriteBytes(responseData)
+		return
 	}
 
-	if hasData {
-		if hasErrors {
-			err = r.writeSafe(err, writer, comma)
+	jsonparser.EachKey(responseData, func(i int, bytes []byte, valueType jsonparser.ValueType, err error) {
+		switch i {
+		case rootErrorsPathIndex:
+			_, _ = jsonparser.ArrayEach(bytes, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+				var (
+					message, locations, path, extensions []byte
+				)
+				jsonparser.EachKey(value, func(i int, bytes []byte, valueType jsonparser.ValueType, err error) {
+					switch i {
+					case errorsMessagePathIndex:
+						message = bytes
+					case errorsLocationsPathIndex:
+						locations = bytes
+					case errorsPathPathIndex:
+						path = bytes
+					case errorsExtensionsPathIndex:
+						extensions = bytes
+					}
+				}, errorPaths...)
+				if message != nil {
+					bufPair.WriteErr(message, locations, path, extensions)
+				}
+			})
+		case rootDataPathIndex:
+			if cfg.ExtractFederationEntities {
+				data, _, _, _ := jsonparser.Get(bytes, entitiesPath...)
+				bufPair.Data.WriteBytes(data)
+				return
+			}
+			bufPair.Data.WriteBytes(bytes)
 		}
-		err = r.writeSafe(err, writer, quote)
-		err = r.writeSafe(err, writer, literalData)
-		err = r.writeSafe(err, writer, quote)
-		err = r.writeSafe(err, writer, colon)
-		_, err = writer.Write(buf.Data.Bytes())
+	}, responsePaths...)
+}
+
+func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, data []byte, writer io.Writer) (err error) {
+	buf := r.getBufPair()
+	defer r.freeBufPair(buf)
+
+	responseBuf := r.getBufPair()
+	defer r.freeBufPair(responseBuf)
+
+	r.extractResponse(data, responseBuf, ProcessResponseConfig{ExtractGraphqlResponse: true})
+
+	ignoreData := false
+	err = r.resolveNode(ctx, response.Data, responseBuf.Data.Bytes(), buf)
+	if err != nil {
+		if !errors.Is(err, errNonNullableFieldValueIsNull) {
+			return
+		}
+		ignoreData = true
+	}
+	if responseBuf.Errors.Len() > 0 {
+		r.MergeBufPairErrors(responseBuf, buf)
 	}
 
-	err = r.writeSafe(err, writer, rBrace)
-
-	return
+	return writeGraphqlResponse(buf, writer, ignoreData)
 }
 
 func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQLSubscription, writer FlushWriter) (err error) {
@@ -589,31 +627,31 @@ func (r *Resolver) ResolveGraphQLResponsePatch(ctx *Context, patch *GraphQLRespo
 
 	if hasData {
 		if hasErrors {
-			err = r.writeSafe(err, writer, comma)
+			err = writeSafe(err, writer, comma)
 		}
-		err = r.writeSafe(err, writer, lBrace)
-		err = r.writeSafe(err, writer, quote)
-		err = r.writeSafe(err, writer, literal.OP)
-		err = r.writeSafe(err, writer, quote)
-		err = r.writeSafe(err, writer, colon)
-		err = r.writeSafe(err, writer, quote)
-		err = r.writeSafe(err, writer, patch.Operation)
-		err = r.writeSafe(err, writer, quote)
-		err = r.writeSafe(err, writer, comma)
-		err = r.writeSafe(err, writer, quote)
-		err = r.writeSafe(err, writer, literal.PATH)
-		err = r.writeSafe(err, writer, quote)
-		err = r.writeSafe(err, writer, colon)
-		err = r.writeSafe(err, writer, quote)
-		err = r.writeSafe(err, writer, path)
-		err = r.writeSafe(err, writer, quote)
-		err = r.writeSafe(err, writer, comma)
-		err = r.writeSafe(err, writer, quote)
-		err = r.writeSafe(err, writer, literal.VALUE)
-		err = r.writeSafe(err, writer, quote)
-		err = r.writeSafe(err, writer, colon)
+		err = writeSafe(err, writer, lBrace)
+		err = writeSafe(err, writer, quote)
+		err = writeSafe(err, writer, literal.OP)
+		err = writeSafe(err, writer, quote)
+		err = writeSafe(err, writer, colon)
+		err = writeSafe(err, writer, quote)
+		err = writeSafe(err, writer, patch.Operation)
+		err = writeSafe(err, writer, quote)
+		err = writeSafe(err, writer, comma)
+		err = writeSafe(err, writer, quote)
+		err = writeSafe(err, writer, literal.PATH)
+		err = writeSafe(err, writer, quote)
+		err = writeSafe(err, writer, colon)
+		err = writeSafe(err, writer, quote)
+		err = writeSafe(err, writer, path)
+		err = writeSafe(err, writer, quote)
+		err = writeSafe(err, writer, comma)
+		err = writeSafe(err, writer, quote)
+		err = writeSafe(err, writer, literal.VALUE)
+		err = writeSafe(err, writer, quote)
+		err = writeSafe(err, writer, colon)
 		_, err = writer.Write(buf.Data.Bytes())
-		err = r.writeSafe(err, writer, rBrace)
+		err = writeSafe(err, writer, rBrace)
 	}
 
 	return
@@ -630,6 +668,10 @@ func (r *Resolver) resolveEmptyObject(b *fastbuffer.FastBuffer) {
 }
 
 func (r *Resolver) resolveArray(ctx *Context, array *Array, data []byte, arrayBuf *BufPair) (err error) {
+	if bytes.Equal(data, emptyArray) {
+		r.resolveEmptyArray(arrayBuf.Data)
+		return
+	}
 
 	arrayItems := r.byteSlicesPool.Get().(*[][]byte)
 	defer func() {
@@ -644,7 +686,7 @@ func (r *Resolver) resolveArray(ctx *Context, array *Array, data []byte, arrayBu
 	if len(*arrayItems) == 0 {
 		if !array.Nullable {
 			r.resolveEmptyArray(arrayBuf.Data)
-			return nil
+			return errNonNullableFieldValueIsNull
 		}
 		r.resolveNull(arrayBuf.Data)
 		return nil
@@ -855,10 +897,55 @@ func (r *Resolver) resolveNull(b *fastbuffer.FastBuffer) {
 	b.WriteBytes(null)
 }
 
-func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, objectBuf *BufPair) (err error) {
+func (r *Resolver) addResolveError(ctx *Context, objectBuf *BufPair) {
+	locations, path := pool.BytesBuffer.Get(), pool.BytesBuffer.Get()
+	defer pool.BytesBuffer.Put(locations)
+	defer pool.BytesBuffer.Put(path)
 
+	var pathBytes []byte
+
+	locations.Write(lBrack)
+	locations.Write(lBrace)
+	locations.Write(quote)
+	locations.Write(literalLine)
+	locations.Write(quote)
+	locations.Write(colon)
+	locations.Write([]byte(strconv.Itoa(int(ctx.position.Line))))
+	locations.Write(comma)
+	locations.Write(quote)
+	locations.Write(literalColumn)
+	locations.Write(quote)
+	locations.Write(colon)
+	locations.Write([]byte(strconv.Itoa(int(ctx.position.Column))))
+	locations.Write(rBrace)
+	locations.Write(rBrack)
+
+	if len(ctx.pathElements) > 0 {
+		path.Write(lBrack)
+		path.Write(quote)
+		path.Write(bytes.Join(ctx.pathElements, quotedComma))
+		path.Write(quote)
+		path.Write(rBrack)
+
+		pathBytes = path.Bytes()
+	}
+
+	objectBuf.WriteErr(unableToResolveMsg, locations.Bytes(), pathBytes, nil)
+}
+
+func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, objectBuf *BufPair) (err error) {
 	if len(object.Path) != 0 {
 		data, _, _, _ = jsonparser.Get(data, object.Path...)
+
+		if len(data) == 0 {
+			if object.Nullable {
+				r.resolveNull(objectBuf.Data)
+				return
+			}
+
+			r.addResolveError(ctx, objectBuf)
+			return errNonNullableFieldValueIsNull
+		}
 	}
 
 	var set *resultSet
@@ -910,6 +997,7 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 		objectBuf.Data.WriteBytes(quote)
 		objectBuf.Data.WriteBytes(colon)
 		ctx.addPathElement(object.Fields[i].Name)
+		ctx.setPosition(object.Fields[i].Position)
 		err = r.resolveNode(ctx, object.Fields[i].Value, fieldData, fieldBuf)
 		ctx.removeLastPathElement()
 		if err != nil {
@@ -918,12 +1006,21 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 				r.resolveEmptyObject(objectBuf.Data)
 				return nil
 			}
-			if errors.Is(err, errNonNullableFieldValueIsNull) && object.Nullable {
+			if errors.Is(err, errNonNullableFieldValueIsNull) {
 				objectBuf.Data.Reset()
 				r.MergeBufPairErrors(fieldBuf, objectBuf)
-				r.resolveNull(objectBuf.Data)
-				return nil
+
+				if object.Nullable {
+					r.resolveNull(objectBuf.Data)
+					return nil
+				}
+
+				// if fied is of object type than we should not add resolve error here
+				if _, ok := object.Fields[i].Value.(*Object); !ok {
+					r.addResolveError(ctx, objectBuf)
+				}
 			}
+
 			return
 		}
 		r.MergeBufPairs(fieldBuf, objectBuf, false)
@@ -933,6 +1030,7 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 			return errTypeNameSkipped
 		}
 		if !object.Nullable {
+			r.addResolveError(ctx, objectBuf)
 			return errNonNullableFieldValueIsNull
 		}
 		r.resolveNull(objectBuf.Data)
@@ -997,13 +1095,16 @@ func (r *Resolver) prepareSingleFetch(ctx *Context, fetch *SingleFetch, data []b
 }
 
 func (r *Resolver) resolveSingleFetch(ctx *Context, fetch *SingleFetch, preparedInput *fastbuffer.FastBuffer, buf *BufPair) (err error) {
+	dataBuf := pool.BytesBuffer.Get()
+	defer pool.BytesBuffer.Put(dataBuf)
 
 	if ctx.beforeFetchHook != nil {
 		ctx.beforeFetchHook.OnBeforeFetch(r.hookCtx(ctx), preparedInput.Bytes())
 	}
 
 	if !r.EnableSingleFlightLoader || fetch.DisallowSingleFlight {
-		err = fetch.DataSource.Load(ctx.Context, preparedInput.Bytes(), buf)
+		err = fetch.DataSource.Load(ctx.Context, preparedInput.Bytes(), dataBuf)
+		r.extractResponse(dataBuf.Bytes(), buf, fetch.ProcessResponseConfig)
 		if ctx.afterFetchHook != nil {
 			if buf.HasData() {
 				ctx.afterFetchHook.OnData(r.hookCtx(ctx), buf.Data.Bytes(), false)
@@ -1049,7 +1150,8 @@ func (r *Resolver) resolveSingleFetch(ctx *Context, fetch *SingleFetch, prepared
 
 	r.inflightFetchMu.Unlock()
 
-	err = fetch.DataSource.Load(ctx.Context, preparedInput.Bytes(), &inflight.bufPair)
+	err = fetch.DataSource.Load(ctx.Context, preparedInput.Bytes(), dataBuf)
+	r.extractResponse(dataBuf.Bytes(), &inflight.bufPair, fetch.ProcessResponseConfig)
 	inflight.err = err
 
 	if inflight.bufPair.HasData() {
@@ -1112,11 +1214,17 @@ func (_ *EmptyArray) NodeKind() NodeKind {
 type Field struct {
 	Name       []byte
 	Value      Node
+	Position   Position
 	Defer      *DeferField
 	Stream     *StreamField
 	HasBuffer  bool
 	BufferID   int
 	OnTypeName []byte
+}
+
+type Position struct {
+	Line   uint32
+	Column uint32
 }
 
 type StreamField struct {
@@ -1151,9 +1259,15 @@ type SingleFetch struct {
 	// By default SingleFlight for fetches is disabled and needs to be enabled on the Resolver first
 	// If the resolver allows SingleFlight it's up the each individual DataSource Planner to decide whether an Operation
 	// should be allowed to use SingleFlight
-	DisallowSingleFlight bool
-	InputTemplate        InputTemplate
-	DataSourceIdentifier []byte
+	DisallowSingleFlight  bool
+	InputTemplate         InputTemplate
+	DataSourceIdentifier  []byte
+	ProcessResponseConfig ProcessResponseConfig
+}
+
+type ProcessResponseConfig struct {
+	ExtractGraphqlResponse    bool
+	ExtractFederationEntities bool
 }
 
 type InputTemplate struct {
@@ -1585,7 +1699,7 @@ func (b *BufPair) writeErrors(data []byte) {
 	b.Errors.WriteBytes(data)
 }
 
-func (b *BufPair) WriteErr(message, locations, path []byte) {
+func (b *BufPair) WriteErr(message, locations, path, extensions []byte) {
 	if b.HasErrors() {
 		b.writeErrors(comma)
 	}
@@ -1597,6 +1711,7 @@ func (b *BufPair) WriteErr(message, locations, path []byte) {
 	b.writeErrors(quote)
 	b.writeErrors(message)
 	b.writeErrors(quote)
+
 	if locations != nil {
 		b.writeErrors(comma)
 		b.writeErrors(quote)
@@ -1605,6 +1720,7 @@ func (b *BufPair) WriteErr(message, locations, path []byte) {
 		b.writeErrors(colon)
 		b.writeErrors(locations)
 	}
+
 	if path != nil {
 		b.writeErrors(comma)
 		b.writeErrors(quote)
@@ -1613,6 +1729,16 @@ func (b *BufPair) WriteErr(message, locations, path []byte) {
 		b.writeErrors(colon)
 		b.writeErrors(path)
 	}
+
+	if extensions != nil {
+		b.writeErrors(comma)
+		b.writeErrors(quote)
+		b.writeErrors(literalExtensions)
+		b.writeErrors(quote)
+		b.writeErrors(colon)
+		b.writeErrors(extensions)
+	}
+
 	b.writeErrors(rBrace)
 }
 
@@ -1703,4 +1829,44 @@ func (r *Resolver) getHash64() hash.Hash64 {
 func (r *Resolver) putHash64(h hash.Hash64) {
 	h.Reset()
 	r.hash64Pool.Put(h)
+}
+
+func writeGraphqlResponse(buf *BufPair, writer io.Writer, ignoreData bool) (err error) {
+	hasErrors := buf.Errors.Len() != 0
+	hasData := buf.Data.Len() != 0 && !ignoreData
+
+	err = writeSafe(err, writer, lBrace)
+
+	if hasErrors {
+		err = writeSafe(err, writer, quote)
+		err = writeSafe(err, writer, literalErrors)
+		err = writeSafe(err, writer, quote)
+		err = writeSafe(err, writer, colon)
+		err = writeSafe(err, writer, lBrack)
+		err = writeSafe(err, writer, buf.Errors.Bytes())
+		err = writeSafe(err, writer, rBrack)
+		err = writeSafe(err, writer, comma)
+	}
+
+	err = writeSafe(err, writer, quote)
+	err = writeSafe(err, writer, literalData)
+	err = writeSafe(err, writer, quote)
+	err = writeSafe(err, writer, colon)
+
+	if hasData {
+		_, err = writer.Write(buf.Data.Bytes())
+	} else {
+		err = writeSafe(err, writer, literal.NULL)
+	}
+	err = writeSafe(err, writer, rBrace)
+
+	return err
+}
+
+func writeSafe(err error, writer io.Writer, data []byte) error {
+	if err != nil {
+		return err
+	}
+	_, err = writer.Write(data)
+	return err
 }

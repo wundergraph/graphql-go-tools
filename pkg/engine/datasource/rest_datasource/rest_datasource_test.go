@@ -6,9 +6,11 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasourcetesting"
@@ -125,6 +127,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("friend"),
+							Position: resolve.Position{
+								Line:   3,
+								Column: 4,
+							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Fetch: &resolve.SingleFetch{
@@ -145,11 +151,19 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 											Path:     []string{"name"},
 											Nullable: true,
 										},
+										Position: resolve.Position{
+											Line:   4,
+											Column: 5,
+										},
 									},
 									{
 										HasBuffer: true,
 										BufferID:  1,
 										Name:      []byte("pet"),
+										Position: resolve.Position{
+											Line:   5,
+											Column: 5,
+										},
 										Value: &resolve.Object{
 											Nullable: true,
 											Fields: []*resolve.Field{
@@ -159,12 +173,20 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 														Path:     []string{"id"},
 														Nullable: true,
 													},
+													Position: resolve.Position{
+														Line:   6,
+														Column: 6,
+													},
 												},
 												{
 													Name: []byte("name"),
 													Value: &resolve.String{
 														Path:     []string{"name"},
 														Nullable: true,
+													},
+													Position: resolve.Position{
+														Line:   7,
+														Column: 6,
 													},
 												},
 											},
@@ -247,6 +269,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("withArgument"),
+							Position: resolve.Position{
+								Line:   3,
+								Column: 4,
+							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Fields: []*resolve.Field{
@@ -255,6 +281,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 										Value: &resolve.String{
 											Path:     []string{"name"},
 											Nullable: true,
+										},
+										Position: resolve.Position{
+											Line:   4,
+											Column: 5,
 										},
 									},
 								},
@@ -332,6 +362,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("withArgument"),
+							Position: resolve.Position{
+								Line:   3,
+								Column: 4,
+							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Fetch: &resolve.ParallelFetch{
@@ -367,6 +401,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 											Path:     []string{"name"},
 											Nullable: true,
 										},
+										Position: resolve.Position{
+											Line:   4,
+											Column: 5,
+										},
 									},
 									{
 										BufferID:  1,
@@ -375,6 +413,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 										Value: &resolve.String{
 											Path:     []string{"phone"},
 											Nullable: true,
+										},
+										Position: resolve.Position{
+											Line:   5,
+											Column: 5,
 										},
 									},
 									{
@@ -385,6 +427,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 											Path:     []string{"phone"},
 											Nullable: true,
 										},
+										Position: resolve.Position{
+											Line:   6,
+											Column: 5,
+										},
 									},
 								},
 							},
@@ -393,6 +439,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							BufferID:  3,
 							HasBuffer: true,
 							Name:      []byte("aliased"),
+							Position: resolve.Position{
+								Line:   9,
+								Column: 4,
+							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Fields: []*resolve.Field{
@@ -401,6 +451,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 										Value: &resolve.String{
 											Path:     []string{"name"},
 											Nullable: true,
+										},
+										Position: resolve.Position{
+											Line:   10,
+											Column: 5,
 										},
 									},
 								},
@@ -478,6 +532,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("withArgument"),
+							Position: resolve.Position{
+								Line:   3,
+								Column: 4,
+							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Fields: []*resolve.Field{
@@ -486,6 +544,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 										Value: &resolve.String{
 											Path:     []string{"name"},
 											Nullable: true,
+										},
+										Position: resolve.Position{
+											Line:   4,
+											Column: 5,
 										},
 									},
 								},
@@ -522,7 +584,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 			},
 		},
 	))
-/*	t.Run("polling subscription get request with argument", datasourcetesting.RunTest(schema, argumentSubscription, "ArgumentQuery",
+	/*	t.Run("polling subscription get request with argument", datasourcetesting.RunTest(schema, argumentSubscription, "ArgumentQuery",
 		&plan.SubscriptionResponsePlan{
 			Response: &resolve.GraphQLSubscription{
 				Trigger: resolve.GraphQLSubscriptionTrigger{
@@ -606,6 +668,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("friend"),
+							Position: resolve.Position{
+								Line:   3,
+								Column: 4,
+							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Fields: []*resolve.Field{
@@ -614,6 +680,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 										Value: &resolve.String{
 											Path:     []string{"name"},
 											Nullable: true,
+										},
+										Position: resolve.Position{
+											Line:   4,
+											Column: 5,
 										},
 									},
 								},
@@ -671,6 +741,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("friend"),
+							Position: resolve.Position{
+								Line:   3,
+								Column: 4,
+							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Fields: []*resolve.Field{
@@ -679,6 +753,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 										Value: &resolve.String{
 											Path:     []string{"name"},
 											Nullable: true,
+										},
+										Position: resolve.Position{
+											Line:   4,
+											Column: 5,
 										},
 									},
 								},
@@ -744,6 +822,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("withArgument"),
+							Position: resolve.Position{
+								Line:   3,
+								Column: 4,
+							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Fields: []*resolve.Field{
@@ -752,6 +834,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 										Value: &resolve.String{
 											Path:     []string{"name"},
 											Nullable: true,
+										},
+										Position: resolve.Position{
+											Line:   4,
+											Column: 5,
 										},
 									},
 								},
@@ -830,6 +916,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("withArrayArguments"),
+							Position: resolve.Position{
+								Line:   3,
+								Column: 4,
+							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Fields: []*resolve.Field{
@@ -838,6 +928,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 										Value: &resolve.String{
 											Path:     []string{"name"},
 											Nullable: true,
+										},
+										Position: resolve.Position{
+											Line:   4,
+											Column: 5,
 										},
 									},
 								},
@@ -895,10 +989,9 @@ func TestHttpJsonDataSource_Load(t *testing.T) {
 			defer server.Close()
 
 			input := []byte(fmt.Sprintf(`{"method":"GET","url":"%s"}`, server.URL))
-			pair := resolve.NewBufPair()
-			err := source.Load(context.Background(), input, pair)
-			assert.NoError(t, err)
-			assert.Equal(t, `ok`, pair.Data.String())
+			b := &strings.Builder{}
+			require.NoError(t, source.Load(context.Background(), input, b))
+			assert.Equal(t, `ok`, b.String())
 		})
 		t.Run("get with query parameters", func(t *testing.T) {
 
@@ -916,10 +1009,9 @@ func TestHttpJsonDataSource_Load(t *testing.T) {
 			defer server.Close()
 
 			input := []byte(fmt.Sprintf(`{"query_params":[{"name":"foo","value":"bar"},{"name":"double","value":"first"},{"name":"double","value":"second"}],"method":"GET","url":"%s"}`, server.URL))
-			pair := resolve.NewBufPair()
-			err := source.Load(context.Background(), input, pair)
-			assert.NoError(t, err)
-			assert.Equal(t, `ok`, pair.Data.String())
+			b := &strings.Builder{}
+			require.NoError(t, source.Load(context.Background(), input, b))
+			assert.Equal(t, `ok`, b.String())
 		})
 		t.Run("get with headers", func(t *testing.T) {
 
@@ -939,10 +1031,9 @@ func TestHttpJsonDataSource_Load(t *testing.T) {
 			defer server.Close()
 
 			input := []byte(fmt.Sprintf(`{"method":"GET","url":"%s","header":{"Multi":["one", "two"],"MultiComma":["x,y"],"Authorization":["Bearer 123"],"Token":["%s"],"X-API-Key":["%s"]}}`, server.URL, authorization, xApiKey))
-			pair := resolve.NewBufPair()
-			err := source.Load(context.Background(), input, pair)
-			assert.NoError(t, err)
-			assert.Equal(t, `ok`, pair.Data.String())
+			b := &strings.Builder{}
+			require.NoError(t, source.Load(context.Background(), input, b))
+			assert.Equal(t, `ok`, b.String())
 		})
 		t.Run("post with body", func(t *testing.T) {
 
@@ -959,10 +1050,9 @@ func TestHttpJsonDataSource_Load(t *testing.T) {
 			defer server.Close()
 
 			input := []byte(fmt.Sprintf(`{"method":"POST","url":"%s","body":%s}`, server.URL, body))
-			pair := resolve.NewBufPair()
-			err := source.Load(context.Background(), input, pair)
-			assert.NoError(t, err)
-			assert.Equal(t, `ok`, pair.Data.String())
+			b := &strings.Builder{}
+			require.NoError(t, source.Load(context.Background(), input, b))
+			assert.Equal(t, `ok`, b.String())
 		})
 	}
 

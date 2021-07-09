@@ -3,9 +3,9 @@ package staticdatasource
 import (
 	"context"
 	"encoding/json"
+	"io"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 )
 
 type Configuration struct {
@@ -58,7 +58,7 @@ func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
 
 type Source struct{}
 
-func (_ Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPair) (err error) {
-	bufPair.Data.WriteBytes(input)
+func (_ Source) Load(ctx context.Context, input []byte, w io.Writer) (err error) {
+	_, err = w.Write(input)
 	return
 }

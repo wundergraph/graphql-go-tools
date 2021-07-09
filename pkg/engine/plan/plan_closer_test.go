@@ -3,6 +3,7 @@ package plan
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,7 +13,6 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
 	"github.com/jensneuse/graphql-go-tools/pkg/asttransform"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
@@ -131,10 +131,6 @@ type FakeDataSource struct {
 	source *StatefulSource
 }
 
-func (f *FakeDataSource) Load(ctx context.Context, input []byte, bufPair *resolve.BufPair) (err error) {
+func (f *FakeDataSource) Load(ctx context.Context, input []byte, w io.Writer) (err error) {
 	return
-}
-
-func (f *FakeDataSource) UniqueIdentifier() []byte {
-	return []byte("fake_datasource")
 }

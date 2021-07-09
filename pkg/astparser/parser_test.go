@@ -1447,6 +1447,9 @@ func TestParser_Parse(t *testing.T) {
 					if doc.Input.ByteSliceString(field.Name) != "field" {
 						panic("want field")
 					}
+					if field.Position.LineStart != 1 || field.Position.CharStart != 8 {
+						panic("want correct position")
+					}
 				})
 		})
 		t.Run("shorthand query", func(t *testing.T) {
@@ -1693,6 +1696,9 @@ func TestParser_Parse(t *testing.T) {
 					personId := doc.Fields[personIdSelection.Ref]
 					if doc.Input.ByteSliceString(personId.Name) != "personID" {
 						panic("want personID")
+					}
+					if personId.Position.LineStart != 4 || personId.Position.CharStart != 10 {
+						panic("want correct position for a person id field")
 					}
 
 					// ...personFragment
