@@ -93,6 +93,7 @@ func (f *Fetcher) Fetch(ctx *Context, fetch *SingleFetch, preparedInput *fastbuf
 		return inflight.err
 	}
 
+
 	inflight = f.getInflightFetch()
 	inflight.waitLoad.Add(1)
 	f.inflightFetches[fetchID] = inflight
@@ -172,7 +173,7 @@ func (f *Fetcher) freeInflightFetch(inflightFetch *inflightFetch) {
 	inflightFetch.bufPair.Data.Reset()
 	inflightFetch.bufPair.Errors.Reset()
 	inflightFetch.err = nil
-	f.inflightFetchPool.Put(f)
+	f.inflightFetchPool.Put(inflightFetch)
 }
 
 func (f *Fetcher) hookCtx(ctx *Context) HookContext {

@@ -23,7 +23,6 @@ type Batch struct {
 
 func NewBatch(s *Source, inputs ...[]byte) (*Batch, error) {
 	resultedInput := pool.FastBuffer.Get()
-	//defer pool.FastBuffer.Put(resultedInput)
 
 	outToInPositions, err := multiplexBatch(resultedInput, inputs...)
 	if err != nil {

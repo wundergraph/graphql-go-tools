@@ -1034,7 +1034,7 @@ func (r *Resolver) resolveParallelFetch(ctx *Context, fetch *ParallelFetch, data
 
 	for _, resolver := range resolvers {
 		go func(r func() error) {
-			_ = resolver()
+			_ = r()
 			wg.Done()
 		}(resolver)
 	}
