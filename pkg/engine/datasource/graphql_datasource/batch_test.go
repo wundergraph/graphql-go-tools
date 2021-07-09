@@ -12,13 +12,10 @@ import (
 
 func newBufPair(data string, err string) *resolve.BufPair {
 	bufPair := resolve.NewBufPair()
-
-	if data != "" {
-		bufPair.Data.WriteBytes(nil)
-	}
+	bufPair.Data.WriteString(data)
 
 	if err != "" {
-		bufPair.Errors.WriteBytes(nil)
+		bufPair.Errors.WriteString(err)
 	}
 
 	return bufPair
@@ -144,7 +141,7 @@ func TestBatch_Demultiplex(t *testing.T) {
 			},
 			newBufPair(`[null,{"name":"Name 2", "price": 2.01, "__typename":"Product"}]`,`{"message":"errorMessage"}`),
 			[]*resolve.BufPair{
-				newBufPair("", `{"message":"errorMessage"}`),
+				newBufPair("null", `{"message":"errorMessage"}`),
 				newBufPair(`{"name":"Name 2", "price": 2.01, "__typename":"Product"}`, ""),
 			},
 		)
