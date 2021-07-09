@@ -1062,13 +1062,78 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			},
 		}, Context{Context: context.Background()}, `{"errors":[{"message":"unable to resolve","locations":[{"line":0,"column":0}],"path":["objectObject","objectField"]}],"data":{"stringObject":null,"integerObject":null,"floatObject":null,"booleanObject":null,"objectObject":null,"arrayObject":null,"asynchronousArrayObject":null,"nullableArray":null}}`
 	}))
-	t.Run("empty array should resolve correctly", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("empty nullable array should resolve correctly", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Data: &Object{
 				Nullable: true,
 				Fetch: &SingleFetch{
 					BufferId:   0,
 					DataSource: FakeDataSource(`[]`),
+				},
+				Fields: []*Field{
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("nullableArray"),
+						Value: &Array{
+							Nullable: true,
+							Item: &Object{
+								Nullable: false,
+								Fields: []*Field{
+									{
+										Name: []byte("foo"),
+										Value: &String{
+											Nullable: false,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, Context{Context: context.Background()}, `{"data":{"nullableArray":[]}}`
+	}))
+	t.Run("empty not nullable array should resolve correctly", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		return &GraphQLResponse{
+			Data: &Object{
+				Nullable: false,
+				Fetch: &SingleFetch{
+					BufferId:   0,
+					DataSource: FakeDataSource(`[]`),
+				},
+				Fields: []*Field{
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("notNullableArray"),
+						Value: &Array{
+							Nullable: false,
+							Item: &Object{
+								Nullable: false,
+								Fields: []*Field{
+									{
+										Name: []byte("foo"),
+										Value: &String{
+											Nullable: false,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, Context{Context: context.Background()}, `{"data":{"notNullableArray":[]}}`
+	}))
+	t.Run("when data null not nullable array should resolve to data null and errors", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		return &GraphQLResponse{
+			Data: &Object{
+				Nullable: false,
+				Fetch: &SingleFetch{
+					BufferId:              0,
+					DataSource:            FakeDataSource(`{"data":null}`),
+					ProcessResponseConfig: ProcessResponseConfig{ExtractGraphqlResponse: true},
 				},
 				Fields: []*Field{
 					{
@@ -1111,7 +1176,45 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background()}, `{"data":{"nonNullArray":[],"nullableArray":null}}`
+		}, Context{Context: context.Background()}, `{"errors":[{"message":"unable to resolve","locations":[{"line":0,"column":0}]}],"data":null}`
+	}))
+	t.Run("when data null and errors present not nullable array should result to null data upsteam error and resolve error", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		return &GraphQLResponse{
+			Data: &Object{
+				Nullable: false,
+				Fetch: &SingleFetch{
+					BufferId: 0,
+					DataSource: FakeDataSource(
+						`{"errors":[{"message":"Could not get a name","locations":[{"line":3,"column":5}],"path":["todos",0,"name"]}],"data":null}`),
+					ProcessResponseConfig: ProcessResponseConfig{ExtractGraphqlResponse: true},
+				},
+				Fields: []*Field{
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("todos"),
+						Value: &Array{
+							Nullable: false,
+							Item: &Object{
+								Nullable: false,
+								Fields: []*Field{
+									{
+										Name: []byte("name"),
+										Value: &String{
+											Nullable: false,
+										},
+										Position: Position{
+											Line:   100,
+											Column: 777,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, Context{Context: context.Background()}, `{"errors":[{"message":"Could not get a name","locations":[{"line":3,"column":5}],"path":["todos",0,"name"]},{"message":"unable to resolve","locations":[{"line":0,"column":0}]}],"data":null}`
 	}))
 	t.Run("complex GraphQL Server plan", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		r.EnableSingleFlightLoader = true

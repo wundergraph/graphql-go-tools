@@ -46,6 +46,7 @@ var (
 	literalExtensions = []byte("extensions")
 
 	unableToResolveMsg = []byte("unable to resolve")
+	emptyArray         = []byte("[]")
 )
 
 var (
@@ -667,6 +668,10 @@ func (r *Resolver) resolveEmptyObject(b *fastbuffer.FastBuffer) {
 }
 
 func (r *Resolver) resolveArray(ctx *Context, array *Array, data []byte, arrayBuf *BufPair) (err error) {
+	if bytes.Equal(data, emptyArray) {
+		r.resolveEmptyArray(arrayBuf.Data)
+		return
+	}
 
 	arrayItems := r.byteSlicesPool.Get().(*[][]byte)
 	defer func() {
@@ -681,7 +686,7 @@ func (r *Resolver) resolveArray(ctx *Context, array *Array, data []byte, arrayBu
 	if len(*arrayItems) == 0 {
 		if !array.Nullable {
 			r.resolveEmptyArray(arrayBuf.Data)
-			return nil
+			return errNonNullableFieldValueIsNull
 		}
 		r.resolveNull(arrayBuf.Data)
 		return nil
