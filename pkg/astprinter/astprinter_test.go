@@ -67,6 +67,24 @@ func TestPrint(t *testing.T) {
 				}`,
 			"subscription sub {...multipleSubscriptions} fragment multipleSubscriptions on Subscription {...{newMessage {body}} ... on Subscription {typedInlineFragment} newMessage {body sender} disallowedSecondRootField}")
 	})
+	t.Run("multiline comments indentation", func(t *testing.T) {
+		run(`"""
+the following lines test indentation
+	one tab
+  two spaces
+		two tabs
+no indentation
+"""
+type Query`,
+			`"""
+the following lines test indentation
+	one tab
+  two spaces
+		two tabs
+no indentation
+"""
+type Query `)
+	})
 	t.Run("directive definition", func(t *testing.T) {
 		run(`
 """
