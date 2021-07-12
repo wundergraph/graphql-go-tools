@@ -858,6 +858,32 @@ func TestParser_Parse(t *testing.T) {
 					}
 				})
 		})
+		t.Run("with interface implementation", func(t *testing.T) {
+			run(`interface NamedEntity implements Foo & Bar {
+ 								name: String
+							}`, parse, false,
+				func(doc *ast.Document, extra interface{}) {
+					namedEntity := doc.InterfaceTypeDefinitions[0]
+					if doc.Input.ByteSliceString(namedEntity.Name) != "NamedEntity" {
+						panic("want NamedEntity")
+					}
+					implementsFoo := doc.Types[namedEntity.ImplementsInterfaces.Refs[0]]
+					if implementsFoo.TypeKind != ast.TypeKindNamed {
+						panic("want TypeKindNamed")
+					}
+					if doc.Input.ByteSliceString(implementsFoo.Name) != "Foo" {
+						panic("want Foo")
+					}
+
+					implementsBar := doc.Types[namedEntity.ImplementsInterfaces.Refs[1]]
+					if implementsBar.TypeKind != ast.TypeKindNamed {
+						panic("want TypeKindNamed")
+					}
+					if doc.Input.ByteSliceString(implementsBar.Name) != "Bar" {
+						panic("want Bar")
+					}
+				})
+		})
 	})
 	t.Run("union type definition", func(t *testing.T) {
 		t.Run("simple", func(t *testing.T) {
