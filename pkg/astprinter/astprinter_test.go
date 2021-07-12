@@ -74,6 +74,13 @@ the following lines test indentation
   two spaces
 		two tabs
 no indentation
+example from issue:
+{
+	user(id: 1) {
+		userID
+		friends
+	}
+}
 """
 type Query`,
 			`"""
@@ -82,6 +89,13 @@ the following lines test indentation
   two spaces
 		two tabs
 no indentation
+example from issue:
+{
+	user(id: 1) {
+		userID
+		friends
+	}
+}
 """
 type Query `)
 	})
