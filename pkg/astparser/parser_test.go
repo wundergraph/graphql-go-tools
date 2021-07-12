@@ -379,7 +379,7 @@ func TestParser_Parse(t *testing.T) {
 	})
 	t.Run("interface type extension", func(t *testing.T) {
 		t.Run("simple", func(t *testing.T) {
-			run(`extend interface NamedEntity @foo {
+			run(`extend interface NamedEntity {
  								name: String
 							}`, parse, false,
 				func(doc *ast.Document, extra interface{}) {
