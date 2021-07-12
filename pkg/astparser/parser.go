@@ -1204,6 +1204,9 @@ func (p *Parser) parseInterfaceTypeDefinition(description *ast.Description) {
 		interfaceTypeDefinition.Directives = p.parseDirectiveList()
 		interfaceTypeDefinition.HasDirectives = len(interfaceTypeDefinition.Directives.Refs) > 0
 	}
+	if p.peekEqualsIdentKey(identkeyword.IMPLEMENTS) {
+		interfaceTypeDefinition.ImplementsInterfaces = p.parseImplementsInterfaces()
+	}
 	if p.peekEquals(keyword.LBRACE) {
 		interfaceTypeDefinition.FieldsDefinition = p.parseFieldDefinitionList()
 		interfaceTypeDefinition.HasFieldDefinitions = len(interfaceTypeDefinition.FieldsDefinition.Refs) > 0
