@@ -68,19 +68,20 @@ func TestPrint(t *testing.T) {
 			"subscription sub {...multipleSubscriptions} fragment multipleSubscriptions on Subscription {...{newMessage {body}} ... on Subscription {typedInlineFragment} newMessage {body sender} disallowedSecondRootField}")
 	})
 	t.Run("directive definition", func(t *testing.T) {
-		run(`	"""
-					directive @cache
-					"""
-					directive @cache(
-					  "maxAge defines the maximum time in seconds a response will be understood 'fresh', defaults to 300 (5 minutes)"
-					  maxAge: Int! = 300
-					  """
-					  vary defines the headers to append to the cache key
-					  In addition to all possible headers you can also select a custom claim for authenticated requests
-					  Examples: 'jwt.sub', 'jwt.team' to vary the cache key based on 'sub' or 'team' fields on the jwt. 
-					  """
-					  vary: [String]! = []
-					) on QUERY`,
+		run(`
+"""
+directive @cache
+"""
+directive @cache(
+  "maxAge defines the maximum time in seconds a response will be understood 'fresh', defaults to 300 (5 minutes)"
+  maxAge: Int! = 300
+  """
+  vary defines the headers to append to the cache key
+  In addition to all possible headers you can also select a custom claim for authenticated requests
+  Examples: 'jwt.sub', 'jwt.team' to vary the cache key based on 'sub' or 'team' fields on the jwt. 
+  """
+  vary: [String]! = []
+) on QUERY`,
 			`"""
 directive @cache
 """
