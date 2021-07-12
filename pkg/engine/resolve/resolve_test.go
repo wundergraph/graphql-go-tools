@@ -48,11 +48,11 @@ func FakeDataSource(data string) *_fakeDataSource {
 }
 
 type _fakeDataSourceBatch struct {
-	resultedInput  *fastbuffer.FastBuffer
-	bufPairs []*BufPair
+	resultedInput *fastbuffer.FastBuffer
+	bufPairs      []*BufPair
 }
 
-func (f *_fakeDataSourceBatch) Input() *fastbuffer.FastBuffer{
+func (f *_fakeDataSourceBatch) Input() *fastbuffer.FastBuffer {
 	return f.resultedInput
 }
 
@@ -65,7 +65,10 @@ func (f *_fakeDataSourceBatch) Demultiplex(responseBufPair *BufPair, bufPairs []
 	return nil
 }
 
-func NewFakeDataSourceBatch(resultedInput string, resultedBufPairs []struct{data string; err string }) *_fakeDataSourceBatch {
+func NewFakeDataSourceBatch(resultedInput string, resultedBufPairs []struct {
+	data string
+	err  string
+}) *_fakeDataSourceBatch {
 	bufInput := fastbuffer.New()
 	bufInput.WriteString(resultedInput)
 
@@ -74,7 +77,7 @@ func NewFakeDataSourceBatch(resultedInput string, resultedBufPairs []struct{data
 		bufPair := NewBufPair()
 		bufPair.Data.WriteString(v.data)
 		if v.err != "" {
-			bufPair.Errors.WriteString(v.err)
+			bufPair.WriteErr([]byte(v.err), nil, nil)
 		}
 
 		bufPairs[i] = bufPair
@@ -82,7 +85,7 @@ func NewFakeDataSourceBatch(resultedInput string, resultedBufPairs []struct{data
 
 	return &_fakeDataSourceBatch{
 		resultedInput: bufInput,
-		bufPairs: bufPairs,
+		bufPairs:      bufPairs,
 	}
 }
 
@@ -1537,41 +1540,51 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 		reviewsService := NewMockDataSource(ctrl)
 		reviewsService.EXPECT().UniqueIdentifier().Return([]byte("reviewsService"))
 		reviewsService.EXPECT().
-			CreateBatch(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}},"extract_entities":true}`).
-			Return()
+			CreateBatch([]byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}},"extract_entities":true}`)).
+			Return(NewFakeDataSourceBatch(
+				`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}},"extract_entities":true}`,
+				[]struct {
+					data string
+					err  string
+				}{
+					{data: `{"reviews": [{"body": "A highly effective form of birth control.","product": {"upc": "top-1","__typename": "Product"}},{"body": "Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product": {"upc": "top-2","__typename": "Product"}}]}`},
+				}), nil)
 		reviewsService.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
 			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
 				actual := string(input)
 				expected := `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}},"extract_entities":true}`
 				assert.Equal(t, expected, actual)
-				pair.Data.WriteString(`{"reviews": [{"body": "A highly effective form of birth control.","product": {"upc": "top-1","__typename": "Product"}},{"body": "Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product": {"upc": "top-1","__typename": "Product"}}]}`)
+				pair.Data.WriteString(`{"reviews": [{"body": "A highly effective form of birth control.","product": {"upc": "top-1","__typename": "Product"}},{"body": "Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product": {"upc": "top-2","__typename": "Product"}}]}`)
 				return
 			}).
 			Return(nil)
 
-		productServiceCallCount := 0
-
 		productService := NewMockDataSource(ctrl)
-		productService.EXPECT().UniqueIdentifier().Return([]byte("productService")).Times(2)
+		productService.EXPECT().UniqueIdentifier().Return([]byte("productService"))
+		productService.EXPECT().
+			CreateBatch(
+				[]byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"}]}},"extract_entities":true}`),
+				[]byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-2","__typename":"Product"}]}},"extract_entities":true}`),
+			).Return(NewFakeDataSourceBatch(
+			`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}},"extract_entities":true}`,
+			[]struct {
+				data string
+				err  string
+			}{
+				{data: `{"name": "Trilby"}`},
+				{data: `{"name": "Fedora"}`},
+			}), nil)
 		productService.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
 			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
 				actual := string(input)
-				productServiceCallCount++
-				switch productServiceCallCount {
-				case 1:
-					expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"}]}},"extract_entities":true}`
-					assert.Equal(t, expected, actual)
-					pair.Data.WriteString(`{"name": "Trilby"}`)
-				case 2:
-					expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"}]}},"extract_entities":true}`
-					assert.Equal(t, expected, actual)
-					pair.Data.WriteString(`{"name": "Trilby"}`)
-				}
+				expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}},"extract_entities":true}`
+				assert.Equal(t, expected, actual)
+				pair.Data.WriteString(`[{"name": "Trilby"},{"name": "Fedora"}]`)
 				return
 			}).
-			Return(nil).Times(2)
+			Return(nil)
 
 		return &GraphQLResponse{
 			Data: &Object{
@@ -1702,7 +1715,199 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background(), Variables: nil}, `{"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","name":"Trilby"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-1","name":"Trilby"}}]}}}`
+		}, Context{Context: context.Background(), Variables: nil}, `{"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","name":"Trilby"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-2","name":"Fedora"}}]}}}`
+	}))
+	t.Run("federation with enabled dataloader and fetch error ", testFn(newResolver(true, true), func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+
+		userService := NewMockDataSource(ctrl)
+		userService.EXPECT().UniqueIdentifier().Return([]byte("userService"))
+		userService.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
+			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+				actual := string(input)
+				expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"{me {id username}}"}}`
+				assert.Equal(t, expected, actual)
+				pair.Data.WriteString(`{"me": {"id": "1234","username": "Me","__typename": "User"}}`)
+				return
+			}).
+			Return(nil)
+
+		reviewsService := NewMockDataSource(ctrl)
+		reviewsService.EXPECT().UniqueIdentifier().Return([]byte("reviewsService"))
+		reviewsService.EXPECT().
+			CreateBatch([]byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}},"extract_entities":true}`)).
+			Return(NewFakeDataSourceBatch(
+				`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}},"extract_entities":true}`,
+				[]struct {
+					data string
+					err  string
+				}{
+					{data: `{"reviews": [{"body": "A highly effective form of birth control.","product": {"upc": "top-1","__typename": "Product"}},{"body": "Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product": {"upc": "top-2","__typename": "Product"}}]}`},
+				}), nil)
+		reviewsService.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
+			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+				actual := string(input)
+				expected := `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}},"extract_entities":true}`
+				assert.Equal(t, expected, actual)
+				pair.Data.WriteString(`{"reviews": [{"body": "A highly effective form of birth control.","product": {"upc": "top-1","__typename": "Product"}},{"body": "Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product": {"upc": "top-2","__typename": "Product"}}]}`)
+				return
+			}).
+			Return(nil)
+
+		productService := NewMockDataSource(ctrl)
+		productService.EXPECT().UniqueIdentifier().Return([]byte("productService"))
+		productService.EXPECT().
+			CreateBatch(
+				[]byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"}]}},"extract_entities":true}`),
+				[]byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-2","__typename":"Product"}]}},"extract_entities":true}`),
+			).Return(NewFakeDataSourceBatch(
+			`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}},"extract_entities":true}`,
+			[]struct {
+				data string
+				err  string
+			}{ {data: `null`, err: "errorMessage"}, {data: `null`}}), nil)
+		productService.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
+			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+				actual := string(input)
+				expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}},"extract_entities":true}`
+				assert.Equal(t, expected, actual)
+				pair.WriteErr([]byte("errorMessage"), nil, nil)
+				return
+			}).
+			Return(nil)
+
+		return &GraphQLResponse{
+			Data: &Object{
+				Fetch: &SingleFetch{
+					BufferId: 0,
+					InputTemplate: InputTemplate{
+						Segments: []TemplateSegment{
+							{
+								Data:        []byte(`{"method":"POST","url":"http://localhost:4001","body":{"query":"{me {id username}}"}}`),
+								SegmentType: StaticSegmentType,
+							},
+						},
+					},
+					DataSource: userService,
+				},
+				Fields: []*Field{
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("me"),
+						Value: &Object{
+							Fetch: &BatchFetch{
+								Fetch: &SingleFetch{
+									BufferId: 1,
+									InputTemplate: InputTemplate{
+										Segments: []TemplateSegment{
+											{
+												Data:        []byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"`),
+												SegmentType: StaticSegmentType,
+											},
+											{
+												SegmentType:        VariableSegmentType,
+												VariableSource:     VariableSourceObject,
+												VariableSourcePath: []string{"id"},
+											},
+											{
+												Data:        []byte(`","__typename":"User"}]}},"extract_entities":true}`),
+												SegmentType: StaticSegmentType,
+											},
+										},
+									},
+									DataSource: reviewsService,
+								},
+							},
+							Path:     []string{"me"},
+							Nullable: true,
+							Fields: []*Field{
+								{
+									Name: []byte("id"),
+									Value: &String{
+										Path: []string{"id"},
+									},
+								},
+								{
+									Name: []byte("username"),
+									Value: &String{
+										Path: []string{"username"},
+									},
+								},
+								{
+
+									HasBuffer: true,
+									BufferID:  1,
+									Name:      []byte("reviews"),
+									Value: &Array{
+										Path:     []string{"reviews"},
+										Nullable: true,
+										Item: &Object{
+											Nullable: true,
+											Fields: []*Field{
+												{
+													Name: []byte("body"),
+													Value: &String{
+														Path: []string{"body"},
+													},
+												},
+												{
+													Name: []byte("product"),
+													Value: &Object{
+														Path: []string{"product"},
+														Fetch: &BatchFetch{
+															Fetch: &SingleFetch{
+																BufferId:   2,
+																DataSource: productService,
+																InputTemplate: InputTemplate{
+																	Segments: []TemplateSegment{
+																		{
+																			Data:        []byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"`),
+																			SegmentType: StaticSegmentType,
+																		},
+																		{
+																			SegmentType:        VariableSegmentType,
+																			VariableSource:     VariableSourceObject,
+																			VariableSourcePath: []string{"upc"},
+																		},
+																		{
+																			Data:        []byte(`","__typename":"Product"}]}},"extract_entities":true}`),
+																			SegmentType: StaticSegmentType,
+																		},
+																	},
+																},
+															},
+														},
+														Fields: []*Field{
+															{
+																Name: []byte("upc"),
+																Value: &String{
+																	Path: []string{"upc"},
+																},
+															},
+															{
+																HasBuffer: true,
+																BufferID:  2,
+																Name:      []byte("name"),
+																Value: &String{
+																	Path: []string{"name"},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, Context{Context: context.Background(), Variables: nil}, `{"errors":[{"message":"errorMessage"}],"data":{"me":{"id":"1234","username":"Me","reviews":[null,null]}}}`
 	}))
 }
 

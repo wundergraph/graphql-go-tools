@@ -35,6 +35,7 @@ func TestNewEngineV2Configuration(t *testing.T) {
 		engineConfig = NewEngineV2Configuration(schema)
 		assert.Len(t, engineConfig.plannerConfig.DataSources, 0)
 		assert.Len(t, engineConfig.plannerConfig.Fields, 0)
+		assert.Equal(t, dataLoaderConfig{}, engineConfig.dataLoaderConfig)
 	})
 
 	t.Run("should successfully add a data source", func(t *testing.T) {
@@ -55,6 +56,16 @@ func TestNewEngineV2Configuration(t *testing.T) {
 
 		assert.Len(t, engineConfig.plannerConfig.DataSources, 3)
 		assert.Equal(t, ds, engineConfig.plannerConfig.DataSources)
+	})
+
+	t.Run("should successfully enable single flight loader", func(t *testing.T) {
+		engineConfig.EnableSingleFlightLoader(true)
+		assert.True(t, engineConfig.dataLoaderConfig.EnableSingleFlightLoader)
+	})
+
+	t.Run("should successfully enable data loader", func(t *testing.T) {
+		engineConfig.EnableDataLoader(true)
+		assert.True(t, engineConfig.dataLoaderConfig.EnableDataLoader)
 	})
 
 	t.Run("should successfully add a field config", func(t *testing.T) {
@@ -106,6 +117,7 @@ type executionEngineV2SubscriptionTestCase struct {
 	schema            *Schema
 	operation         func(t *testing.T) Request
 	dataSources       []plan.DataSourceConfiguration
+	enableDataLoader  bool
 	fields            plan.FieldConfigurations
 	streamFactory     func(cancelSubscriptionFn context.CancelFunc) subscription.Stream
 	expectedResponses []string
@@ -533,6 +545,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			engineConf := NewEngineV2Configuration(testCase.schema)
 			engineConf.SetDataSources(testCase.dataSources)
 			engineConf.SetFieldConfigurations(testCase.fields)
+			engineConf.EnableDataLoader(testCase.enableDataLoader)
 			closer := make(chan struct{})
 			defer close(closer)
 			engine, err := NewExecutionEngineV2(abstractlogger.Noop{}, engineConf, closer)
@@ -931,6 +944,280 @@ extend type Product @key(fields: "upc") {
 		expectedResponses: []string{
 			`{"data":{"updatedPrice":{"upc":"top-1","name":"Trilby","price":11,"reviews":[{"body":"A highly effective form of birth control.","author":{"name":"Name 1234","username":"User 1234"}}]}}}`,
 			`{"data":{"updatedPrice":{"upc":"top-1","name":"Trilby","price":15,"reviews":[{"body":"A highly effective form of birth control.","author":{"name":"Name 1234","username":"User 1234"}}]}}}`,
+		},
+	}))
+	t.Run("execute subscription with graphql federation data source and enabled data loader", runSubscriptionWithoutError(executionEngineV2SubscriptionTestCase{
+		schema: federationSchema(t),
+		enableDataLoader: true,
+		operation: func(t *testing.T) Request {
+			return Request{
+				Query: `
+					subscription UpdatePrice {
+						updatedPrice {
+							upc
+							name
+							price
+							reviews {
+								body
+								author {
+									name	
+									username
+								}
+							}
+						}
+					}
+				`,
+				OperationName: "UpdatePrice",
+			}
+		},
+		dataSources: []plan.DataSourceConfiguration{
+			{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"me"},
+					},
+					{
+						TypeName:   "User",
+						FieldNames: []string{"id", "name", "username"},
+					},
+				},
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "User",
+						FieldNames: []string{"id", "name", "username"},
+					},
+				},
+				Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
+					Fetch: graphql_datasource.FetchConfiguration{
+						URL:    "http://user.service/",
+						Method: "GET",
+					},
+					Federation: graphql_datasource.FederationConfiguration{
+						Enabled:    true,
+						ServiceSDL: `extend type Query { me: User } type User @key(fields: "id") { id: ID! name: String username: String }`,
+					},
+				}),
+				Factory: &graphql_datasource.Factory{
+					Client: testNetHttpClient(t, roundTripperTestCase{
+						expectedHost:     "user.service",
+						expectedPath:     "/",
+						expectedBody:     `{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {name}}}","variables":{"representations":[{"id":"1234","__typename":"User"},{"id":"4321","__typename":"User"}]}}`,
+						sendResponseBody: `{"data":{"_entities":[{"name": "Name 1234"},{"name": "Name 4321"}]}}`,
+						sendStatusCode:   200,
+					}),
+				},
+			},
+			{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"topProducts"},
+					},
+					{
+						TypeName:   "Product",
+						FieldNames: []string{"upc", "name", "price", "weight"},
+					},
+					{
+						TypeName:   "Subscription",
+						FieldNames: []string{"updatedPrice"},
+					},
+					{
+						TypeName:   "Mutation",
+						FieldNames: []string{"setPrice"},
+					},
+				},
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "Product",
+						FieldNames: []string{"upc", "name", "price", "weight"},
+					},
+				},
+				Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
+					Fetch: graphql_datasource.FetchConfiguration{
+						URL:    "http://product.service",
+						Method: "GET",
+					},
+					Subscription: graphql_datasource.SubscriptionConfiguration{
+						URL: "ws://product.service",
+					},
+					Federation: graphql_datasource.FederationConfiguration{
+						Enabled: true,
+						ServiceSDL: `
+extend	type Query {
+  topProducts(first: Int = 5): [Product]
+}
+
+type Product @key(fields: "upc") {
+  upc: String!
+  name: String
+  price: Int
+  weight: Int
+}
+
+extend type Subscription  {
+  updatedPrice: Product!
+}
+
+extend type Mutation {
+  setPrice(upc: String!, price: Int!): Product
+}`,
+					},
+				}),
+				Factory: &graphql_datasource.Factory{
+					Client: testNetHttpClient(t, roundTripperTestCase{
+						expectedHost:     "product.service",
+						expectedPath:     "/",
+						expectedBody:     "",
+						sendResponseBody: ``,
+						sendStatusCode:   200,
+					}),
+				},
+			},
+			{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "User",
+						FieldNames: []string{"reviews"},
+					},
+					{
+						TypeName:   "Product",
+						FieldNames: []string{"reviews"},
+					},
+				},
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "Review",
+						FieldNames: []string{"id", "body", "author", "product"},
+					},
+					{
+						TypeName:   "User",
+						FieldNames: []string{"id", "username", "reviews"},
+					},
+					{
+						TypeName:   "Product",
+						FieldNames: []string{"upc", "reviews"},
+					},
+				},
+				Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
+					Fetch: graphql_datasource.FetchConfiguration{
+						URL:    "http://review.service/",
+						Method: "GET",
+					},
+					Federation: graphql_datasource.FederationConfiguration{
+						Enabled: true,
+						ServiceSDL: `
+type Review {
+  id: ID!
+  body: String
+  author: User @provides(fields: "username")
+  product: Product
+}
+
+extend type User  @key(fields: "id") {
+  id: ID! @external
+  username: String @external
+  reviews: [Review]
+}
+
+extend type Product @key(fields: "upc") {
+  upc: String! @external
+  reviews: [Review]
+}`,
+					},
+				}),
+				Factory: &graphql_datasource.Factory{
+					Client: testNetHttpClient(t, roundTripperTestCase{
+						expectedHost:     "review.service",
+						expectedPath:     "/",
+						expectedBody:     `{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {reviews {body author {username id}}}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"}]}}`,
+						sendResponseBody: `{"data": {"_entities": [{"reviews": [{"body": "A highly effective form of birth control.","author": {"username": "User 1234","id": 1234}},{"body": "Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","author": {"username": "User 4321","id": 4321}}]}]}}`,
+						sendStatusCode:   200,
+					}),
+				},
+			},
+		},
+		fields: plan.FieldConfigurations{
+			{
+				TypeName:       "User",
+				FieldName:      "name",
+				RequiresFields: []string{"id"},
+			},
+			{
+				TypeName:       "User",
+				FieldName:      "username",
+				RequiresFields: []string{"id"},
+			},
+			{
+				TypeName:       "Product",
+				FieldName:      "name",
+				RequiresFields: []string{"upc"},
+			},
+			{
+				TypeName:       "Product",
+				FieldName:      "price",
+				RequiresFields: []string{"upc"},
+			},
+			{
+				TypeName:       "Product",
+				FieldName:      "weight",
+				RequiresFields: []string{"upc"},
+			},
+			{
+				TypeName:       "User",
+				FieldName:      "reviews",
+				RequiresFields: []string{"id"},
+			},
+			{
+				TypeName:       "Product",
+				FieldName:      "reviews",
+				RequiresFields: []string{"upc"},
+			},
+			{
+				TypeName:  "Query",
+				FieldName: "topProducts",
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "first",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+			{
+				TypeName:  "Mutation",
+				FieldName: "setPrice",
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "upc",
+						SourceType: plan.FieldArgumentSource,
+					},
+					{
+						Name:       "price",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+		},
+		streamFactory: func(cancelSubscriptionFn context.CancelFunc) subscription.Stream {
+			stream := subscription.NewStreamStub([]byte("graphql_websocket_subscription"), context.Background().Done())
+
+			go func() {
+				stream.SendMessage(
+					`{"url":"ws://product.service","body":{"query":"subscription{updatedPrice {upc name price}}"}}`,
+					[]byte(`{"updatedPrice":{"upc": "top-1", "name": "Trilby", "price": 11}}`))
+				time.Sleep(5 * time.Millisecond)
+				stream.SendMessage(
+					`{"url":"ws://product.service","body":{"query":"subscription{updatedPrice {upc name price}}"}}`,
+					[]byte(`{"updatedPrice":{"upc": "top-1", "name": "Trilby", "price": 15}}`))
+				time.Sleep(5 * time.Millisecond)
+				cancelSubscriptionFn()
+			}()
+
+			return stream
+		},
+		expectedResponses: []string{
+			`{"data":{"updatedPrice":{"upc":"top-1","name":"Trilby","price":11,"reviews":[{"body":"A highly effective form of birth control.","author":{"name":"Name 1234","username":"User 1234"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","author":{"name":"Name 4321","username":"User 4321"}}]}}}`,
+			`{"data":{"updatedPrice":{"upc":"top-1","name":"Trilby","price":15,"reviews":[{"body":"A highly effective form of birth control.","author":{"name":"Name 1234","username":"User 1234"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","author":{"name":"Name 4321","username":"User 4321"}}]}}}`,
 		},
 	}))
 }
