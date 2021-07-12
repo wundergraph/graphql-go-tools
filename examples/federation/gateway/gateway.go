@@ -93,6 +93,8 @@ func (g *Gateway) UpdateDataSources(newDataSourcesConfig []graphqlDataSource.Con
 		return
 	}
 
+	datasourceConfig.EnableDataLoader(true)
+
 	engine, err := graphql.NewExecutionEngineV2(g.logger, datasourceConfig, g.engineCloser)
 	if err != nil {
 		g.logger.Error("create engine: %v", log.Error(err))
