@@ -12,12 +12,13 @@ import (
 	graphqlDataSource "github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/graphql_datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 	"github.com/jensneuse/graphql-go-tools/pkg/graphql"
 )
 
 func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
-	_ = func(t *testing.T, httpClient *http.Client, dataSourceConfigs []graphqlDataSource.Configuration, expectedErr error) {
-		engineConfigV2Factory := NewEngineConfigV2Factory(httpClient, dataSourceConfigs...)
+	_ = func(t *testing.T, httpClient *http.Client,  batchFactory resolve.DataSourceBatchFactory, dataSourceConfigs []graphqlDataSource.Configuration, expectedErr error) {
+		engineConfigV2Factory := NewEngineConfigV2Factory(httpClient, batchFactory, dataSourceConfigs...)
 		_, err := engineConfigV2Factory.EngineV2Configuration()
 		assert.Error(t, err)
 		assert.Equal(t, expectedErr, err)
@@ -26,6 +27,7 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 	runWithoutError := func(
 		t *testing.T,
 		httpClient *http.Client,
+		batchFactory resolve.DataSourceBatchFactory,
 		dataSourceConfigs []graphqlDataSource.Configuration,
 		baseSchema string,
 		expectedConfigFactory func(t *testing.T, baseSchema string) graphql.EngineV2Configuration,
@@ -37,16 +39,17 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 		printedBaseSchema, err := astprinter.PrintString(&doc, nil)
 		require.NoError(t, err)
 
-		engineConfigV2Factory := NewEngineConfigV2Factory(httpClient, dataSourceConfigs...)
+		engineConfigV2Factory := NewEngineConfigV2Factory(httpClient, batchFactory, dataSourceConfigs...)
 		config, err := engineConfigV2Factory.EngineV2Configuration()
 		assert.NoError(t, err)
 		assert.Equal(t, expectedConfigFactory(t, printedBaseSchema), config)
 	}
 
 	httpClient := &http.Client{}
+	batchFactory := graphqlDataSource.NewBatchFactory()
 
 	t.Run("should create engine V2 configuration", func(t *testing.T) {
-		runWithoutError(t, httpClient, []graphqlDataSource.Configuration{
+		runWithoutError(t, httpClient, batchFactory, []graphqlDataSource.Configuration{
 			{
 				Fetch: graphqlDataSource.FetchConfiguration{
 					URL: "http://user.service",
@@ -145,6 +148,7 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 						},
 					}),
 					Factory: &graphqlDataSource.Factory{
+						BatchFactory: batchFactory,
 						Client: httpclient.NewNetHttpClient(httpClient),
 					},
 				},
@@ -175,6 +179,7 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 						},
 					}),
 					Factory: &graphqlDataSource.Factory{
+						BatchFactory: batchFactory,
 						Client: httpclient.NewNetHttpClient(httpClient),
 					},
 				},
@@ -204,6 +209,7 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 						},
 					},
 					Factory: &graphqlDataSource.Factory{
+						BatchFactory: batchFactory,
 						Client: httpclient.NewNetHttpClient(httpClient),
 					},
 					Custom: graphqlDataSource.ConfigJson(graphqlDataSource.Configuration{

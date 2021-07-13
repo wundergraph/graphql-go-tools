@@ -1515,7 +1515,8 @@ func TestGraphQLDataSource(t *testing.T) {
 		},
 	}))
 
-	federationFactory := &Factory{}
+	batchFactory := NewBatchFactory()
+	federationFactory := &Factory{BatchFactory: batchFactory}
 	t.Run("federation", RunTest(federationTestSchema,
 		`	query MyReviews {
 						me {
@@ -1567,6 +1568,7 @@ func TestGraphQLDataSource(t *testing.T) {
 										),
 										DataSource: &Source{},
 									},
+									BatchFactory: batchFactory,
 								},
 								Path:     []string{"me"},
 								Nullable: true,
@@ -1636,6 +1638,7 @@ func TestGraphQLDataSource(t *testing.T) {
 																				},
 																			),
 																		},
+																		BatchFactory: batchFactory,
 																	},
 																	&resolve.BatchFetch{
 																		Fetch: &resolve.SingleFetch{
@@ -1648,6 +1651,7 @@ func TestGraphQLDataSource(t *testing.T) {
 																			),
 																			DataSource: &Source{},
 																		},
+																		BatchFactory: batchFactory,
 																	},
 																},
 															},

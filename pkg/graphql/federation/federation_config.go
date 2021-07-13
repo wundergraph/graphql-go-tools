@@ -8,14 +8,20 @@ import (
 	graphqlDataSource "github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/graphql_datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 	"github.com/jensneuse/graphql-go-tools/pkg/federation"
 	"github.com/jensneuse/graphql-go-tools/pkg/graphql"
 )
 
-func NewEngineConfigV2Factory(httpClient *http.Client, dataSourceConfig ...graphqlDataSource.Configuration) *EngineConfigV2Factory {
+func NewEngineConfigV2Factory(
+	httpClient *http.Client,
+	batchFactory resolve.DataSourceBatchFactory,
+	dataSourceConfig ...graphqlDataSource.Configuration,
+) *EngineConfigV2Factory {
 	return &EngineConfigV2Factory{
 		httpClient:        httpClient,
 		dataSourceConfigs: dataSourceConfig,
+		batchFactory:      batchFactory,
 	}
 }
 
@@ -23,6 +29,7 @@ type EngineConfigV2Factory struct {
 	httpClient        *http.Client
 	dataSourceConfigs []graphqlDataSource.Configuration
 	schema            *graphql.Schema
+	batchFactory      resolve.DataSourceBatchFactory
 }
 
 func (f *EngineConfigV2Factory) SetMergedSchemaFromString(mergedSchema string) (err error) {
@@ -148,7 +155,9 @@ func (f *EngineConfigV2Factory) engineConfigDataSources() (planDataSources []pla
 		extractor := plan.NewLocalTypeFieldExtractor(&doc)
 		planDataSource.RootNodes, planDataSource.ChildNodes = extractor.GetAllNodes()
 
-		factory := &graphqlDataSource.Factory{}
+		factory := &graphqlDataSource.Factory{
+			BatchFactory: f.batchFactory,
+		}
 		if f.httpClient != nil {
 			factory.Client = httpclient.NewNetHttpClient(f.httpClient)
 		}

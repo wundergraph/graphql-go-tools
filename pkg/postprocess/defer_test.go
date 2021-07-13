@@ -939,10 +939,6 @@ func (f *fakeService) Load(ctx context.Context, input []byte, bufPair *resolve.B
 	panic("implement me")
 }
 
-func (f *fakeService) CreateBatch(inputs ...[]byte) (resolve.DataSourceBatch, error) {
-	panic("implement me")
-}
-
 func (f *fakeService) UniqueIdentifier() []byte {
 	panic("implement me")
 }

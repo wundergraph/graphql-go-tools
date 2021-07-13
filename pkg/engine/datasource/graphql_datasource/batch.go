@@ -20,7 +20,18 @@ type Batch struct {
 	batchSize        int
 }
 
-func NewBatch(inputs ...[]byte) (*Batch, error) {
+func NewBatchFactory() *BatchFactory {
+	return &BatchFactory{}
+}
+
+type BatchFactory struct {
+}
+
+func (b *BatchFactory) CreateBatch(inputs ...[]byte) (resolve.DataSourceBatch, error) {
+	if len(inputs) == 0 {
+		return nil, nil
+	}
+
 	resultedInput := pool.FastBuffer.Get()
 
 	outToInPositions, err := multiplexBatch(resultedInput, inputs...)
@@ -35,7 +46,7 @@ func NewBatch(inputs ...[]byte) (*Batch, error) {
 	}, nil
 }
 
-func (b *Batch) Input() *fastbuffer.FastBuffer{
+func (b *Batch) Input() *fastbuffer.FastBuffer {
 	return b.resultedInput
 }
 
@@ -52,26 +63,6 @@ func (b *Batch) Demultiplex(responseBufPair *resolve.BufPair, bufPairs []*resolv
 
 	return
 }
-
-//func (b *Batch) Load(ctx context.Context, bufPairs []*resolve.BufPair) (err error) {
-//	defer pool.FastBuffer.Put(b.resultedInput)
-//
-//	if b.batchSize != len(bufPairs) {
-//		return fmt.Errorf("expected %d buf pairs", b.batchSize)
-//	}
-//
-//	responsePair := resolve.NewBufPair()
-//
-//	if err = b.datasource.Load(ctx, b.resultedInput.Bytes(), responsePair); err != nil {
-//		return err
-//	}
-//
-//	if err = demultiplexBatch(responsePair, b.outToInPositions, bufPairs); err != nil {
-//		return err
-//	}
-//
-//	return
-//}
 
 func multiplexBatch(out *fastbuffer.FastBuffer, inputs ...[]byte) (outToInPositions map[int][]int, err error) {
 	if len(inputs) == 0 {

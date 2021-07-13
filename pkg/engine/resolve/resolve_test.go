@@ -37,10 +37,6 @@ func (f *_fakeDataSource) Load(ctx context.Context, input []byte, pair *BufPair)
 	return
 }
 
-func (f *_fakeDataSource) CreateBatch(inputs ...[]byte) (DataSourceBatch, error) {
-	panic("implement me")
-}
-
 func FakeDataSource(data string) *_fakeDataSource {
 	return &_fakeDataSource{
 		data: []byte(data),
@@ -1537,9 +1533,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			}).
 			Return(nil)
 
-		reviewsService := NewMockDataSource(ctrl)
-		reviewsService.EXPECT().UniqueIdentifier().Return([]byte("reviewsService"))
-		reviewsService.EXPECT().
+		reviewBatchFactory := NewMockDataSourceBatchFactory(ctrl)
+		reviewBatchFactory.EXPECT().
 			CreateBatch([]byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}},"extract_entities":true}`)).
 			Return(NewFakeDataSourceBatch(
 				`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}},"extract_entities":true}`,
@@ -1549,6 +1544,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				}{
 					{data: `{"reviews": [{"body": "A highly effective form of birth control.","product": {"upc": "top-1","__typename": "Product"}},{"body": "Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product": {"upc": "top-2","__typename": "Product"}}]}`},
 				}), nil)
+		reviewsService := NewMockDataSource(ctrl)
+		reviewsService.EXPECT().UniqueIdentifier().Return([]byte("reviewsService"))
 		reviewsService.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
 			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
@@ -1560,9 +1557,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			}).
 			Return(nil)
 
-		productService := NewMockDataSource(ctrl)
-		productService.EXPECT().UniqueIdentifier().Return([]byte("productService"))
-		productService.EXPECT().
+		productBatchFactory := NewMockDataSourceBatchFactory(ctrl)
+		productBatchFactory.EXPECT().
 			CreateBatch(
 				[]byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"}]}},"extract_entities":true}`),
 				[]byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-2","__typename":"Product"}]}},"extract_entities":true}`),
@@ -1575,6 +1571,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				{data: `{"name": "Trilby"}`},
 				{data: `{"name": "Fedora"}`},
 			}), nil)
+		productService := NewMockDataSource(ctrl)
+		productService.EXPECT().UniqueIdentifier().Return([]byte("productService"))
 		productService.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
 			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
@@ -1628,6 +1626,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 									},
 									DataSource: reviewsService,
 								},
+								BatchFactory: reviewBatchFactory,
 							},
 							Path:     []string{"me"},
 							Nullable: true,
@@ -1687,6 +1686,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 																	},
 																},
 															},
+															BatchFactory: productBatchFactory,
 														},
 														Fields: []*Field{
 															{
@@ -1732,18 +1732,19 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			}).
 			Return(nil)
 
-		reviewsService := NewMockDataSource(ctrl)
-		reviewsService.EXPECT().UniqueIdentifier().Return([]byte("reviewsService"))
-		reviewsService.EXPECT().
+		reviewBatchFactory := NewMockDataSourceBatchFactory(ctrl)
+		reviewBatchFactory.EXPECT().
 			CreateBatch([]byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}},"extract_entities":true}`)).
 			Return(NewFakeDataSourceBatch(
-				`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}},"extract_entities":true}`,
-				[]struct {
-					data string
-					err  string
-				}{
-					{data: `{"reviews": [{"body": "A highly effective form of birth control.","product": {"upc": "top-1","__typename": "Product"}},{"body": "Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product": {"upc": "top-2","__typename": "Product"}}]}`},
-				}), nil)
+			`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}},"extract_entities":true}`,
+			[]struct {
+				data string
+				err  string
+			}{
+				{data: `{"reviews": [{"body": "A highly effective form of birth control.","product": {"upc": "top-1","__typename": "Product"}},{"body": "Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product": {"upc": "top-2","__typename": "Product"}}]}`},
+			}), nil)
+		reviewsService := NewMockDataSource(ctrl)
+		reviewsService.EXPECT().UniqueIdentifier().Return([]byte("reviewsService"))
 		reviewsService.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
 			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
@@ -1755,18 +1756,19 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			}).
 			Return(nil)
 
-		productService := NewMockDataSource(ctrl)
-		productService.EXPECT().UniqueIdentifier().Return([]byte("productService"))
-		productService.EXPECT().
+		productBatchFactory := NewMockDataSourceBatchFactory(ctrl)
+		productBatchFactory.EXPECT().
 			CreateBatch(
-				[]byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"}]}},"extract_entities":true}`),
-				[]byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-2","__typename":"Product"}]}},"extract_entities":true}`),
-			).Return(NewFakeDataSourceBatch(
+			[]byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"}]}},"extract_entities":true}`),
+			[]byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-2","__typename":"Product"}]}},"extract_entities":true}`),
+		).Return(NewFakeDataSourceBatch(
 			`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}},"extract_entities":true}`,
 			[]struct {
 				data string
 				err  string
 			}{ {data: `null`, err: "errorMessage"}, {data: `null`}}), nil)
+		productService := NewMockDataSource(ctrl)
+		productService.EXPECT().UniqueIdentifier().Return([]byte("productService"))
 		productService.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
 			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
@@ -1820,6 +1822,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 									},
 									DataSource: reviewsService,
 								},
+								BatchFactory: reviewBatchFactory,
 							},
 							Path:     []string{"me"},
 							Nullable: true,
@@ -1879,6 +1882,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 																	},
 																},
 															},
+															BatchFactory: productBatchFactory,
 														},
 														Fields: []*Field{
 															{

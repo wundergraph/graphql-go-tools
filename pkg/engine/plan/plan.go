@@ -792,12 +792,13 @@ func (v *Visitor) configureFetch(internal objectFetchConfiguration, external Fet
 		DisallowSingleFlight: external.DisallowSingleFlight,
 	}
 
-	if !external.AllowBatch {
+	if !external.BatchConfig.AllowBatch {
 		return singleFetch
 	}
 
 	return &resolve.BatchFetch{
-		Fetch: singleFetch,
+		Fetch:       singleFetch,
+		BatchFactory: external.BatchConfig.BatchFactory,
 	}
 }
 
@@ -915,7 +916,12 @@ type FetchConfiguration struct {
 	Variables            resolve.Variables
 	DataSource           resolve.DataSource
 	DisallowSingleFlight bool
-	AllowBatch           bool
+	BatchConfig          BatchConfig
+}
+
+type BatchConfig struct {
+	AllowBatch  bool
+	BatchFactory resolve.DataSourceBatchFactory
 }
 
 type configurationVisitor struct {

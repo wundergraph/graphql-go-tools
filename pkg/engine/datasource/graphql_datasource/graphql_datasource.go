@@ -44,6 +44,7 @@ type Planner struct {
 	rootTypeName               string // rootTypeName - holds name of top level type
 	rootFieldName              string // rootFieldName - holds name of root type field
 	rootFieldRef               int    // rootFieldRef - holds ref of root type field
+	batchFactory               resolve.DataSourceBatchFactory
 }
 
 func (p *Planner) DownstreamResponseFieldAlias(downstreamFieldRef int) (alias string, exists bool) {
@@ -150,6 +151,15 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 	input = httpclient.SetInputURL(input, []byte(p.config.Fetch.URL))
 	input = httpclient.SetInputMethod(input, []byte(p.config.Fetch.Method))
 
+	var batchConfig plan.BatchConfig
+	// Allow batch query for fetching entities.
+	if p.extractEntities && p.batchFactory != nil {
+		batchConfig = plan.BatchConfig{
+			AllowBatch:   p.extractEntities, // Allow batch query for fetching entities.
+			BatchFactory: p.batchFactory,
+		}
+	}
+
 	return plan.FetchConfiguration{
 		Input: string(input),
 		DataSource: &Source{
@@ -157,7 +167,7 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 		},
 		Variables:            p.variables,
 		DisallowSingleFlight: p.disallowSingleFlight,
-		AllowBatch:           p.extractEntities, // Allow batch query for fetching entities.
+		BatchConfig:          batchConfig,
 	}
 }
 
@@ -861,12 +871,14 @@ func (p *Planner) addField(ref int) {
 }
 
 type Factory struct {
-	Client httpclient.Client
+	Client       httpclient.Client
+	BatchFactory resolve.DataSourceBatchFactory
 }
 
 func (f *Factory) Planner(<-chan struct{}) plan.DataSourcePlanner {
 	return &Planner{
-		client: f.Client,
+		client:       f.Client,
+		batchFactory: f.BatchFactory,
 	}
 }
 
@@ -934,14 +946,6 @@ func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPai
 	}, responsePaths...)
 
 	return
-}
-
-func (s *Source) CreateBatch(inputs ...[]byte) (resolve.DataSourceBatch, error) {
-	if len(inputs) == 0 {
-		return nil, nil
-	}
-
-	return NewBatch(inputs...)
 }
 
 func (s *Source) UniqueIdentifier() []byte {

@@ -75,7 +75,3 @@ func (_ Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPair
 	bufPair.Data.WriteBytes(input)
 	return
 }
-
-func (_ Source) CreateBatch(inputs ...[]byte) (resolve.DataSourceBatch, error) {
-	panic("not implemented")
-}

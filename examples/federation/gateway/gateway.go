@@ -79,7 +79,7 @@ func (g *Gateway) UpdateDataSources(newDataSourcesConfig []graphqlDataSource.Con
 		g.engineCloser = make(chan struct{})
 	}
 
-	engineConfigFactory := federation.NewEngineConfigV2Factory(g.httpClient, newDataSourcesConfig...)
+	engineConfigFactory := federation.NewEngineConfigV2Factory(g.httpClient, graphqlDataSource.NewBatchFactory(), newDataSourcesConfig...)
 
 	schema, err := engineConfigFactory.MergedSchema()
 	if err != nil {

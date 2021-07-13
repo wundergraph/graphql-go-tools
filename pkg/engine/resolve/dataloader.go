@@ -257,7 +257,7 @@ func (d *dataLoader) resolveBatchFetch(ctx *Context, batchFetch *BatchFetch, fet
 
 	fetchState = &batchFetchState{}
 
-	if err = d.fetcher.FetchBatch(ctx, batchFetch.Fetch, inputBufs, results); err != nil {
+	if err = d.fetcher.FetchBatch(ctx, batchFetch, inputBufs, results); err != nil {
 		fetchState.fetchError = err
 		return fetchState, nil
 	}

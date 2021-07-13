@@ -1,4 +1,4 @@
-//go:generate mockgen -self_package=github.com/jensneuse/go-data-resolver/pkg/resolve -destination=resolve_mock_test.go -package=resolve . DataSource,BeforeFetchHook,AfterFetchHook
+//go:generate mockgen -self_package=github.com/jensneuse/go-data-resolver/pkg/resolve -destination=resolve_mock_test.go -package=resolve . DataSource,BeforeFetchHook,AfterFetchHook,DataSourceBatch,DataSourceBatchFactory
 
 package resolve
 
@@ -258,8 +258,11 @@ type Fetch interface {
 
 type Fetches []Fetch
 
+type DataSourceBatchFactory interface {
+	CreateBatch(inputs ...[]byte) (DataSourceBatch, error)
+}
+
 type DataSourceBatch interface {
-	//Load(ctx context.Context, bufPairs []*BufPair) (err error) {
 	Demultiplex(responseBufPair *BufPair, bufPairs []*BufPair) (err error)
 	Input() *fastbuffer.FastBuffer
 }
@@ -267,8 +270,6 @@ type DataSourceBatch interface {
 type DataSource interface {
 	Load(ctx context.Context, input []byte, bufPair *BufPair) (err error)
 	UniqueIdentifier() []byte
-
-	CreateBatch(inputs ...[]byte) (DataSourceBatch, error)
 }
 
 type Resolver struct {
@@ -1056,7 +1057,7 @@ func (r *Resolver) resolveBatchFetch(ctx *Context, fetch *BatchFetch, preparedIn
 		return ctx.dataLoader.LoadBatch(ctx, fetch, buf)
 	}
 
-	if err := r.fetcher.FetchBatch(ctx, fetch.Fetch, []*fastbuffer.FastBuffer{preparedInput}, []*BufPair{buf}); err != nil {
+	if err := r.fetcher.FetchBatch(ctx, fetch, []*fastbuffer.FastBuffer{preparedInput}, []*BufPair{buf}); err != nil {
 		return err
 	}
 
@@ -1308,6 +1309,7 @@ func (_ *ParallelFetch) FetchKind() FetchKind {
 
 type BatchFetch struct {
 	Fetch *SingleFetch
+	BatchFactory DataSourceBatchFactory
 }
 
 func (_ *BatchFetch) FetchKind() FetchKind {

@@ -131,13 +131,13 @@ func (f *Fetcher) Fetch(ctx *Context, fetch *SingleFetch, preparedInput *fastbuf
 	return
 }
 
-func (f *Fetcher) FetchBatch(ctx *Context, fetch *SingleFetch, preparedInputs []*fastbuffer.FastBuffer, bufs []*BufPair) (err error) {
+func (f *Fetcher) FetchBatch(ctx *Context, fetch *BatchFetch, preparedInputs []*fastbuffer.FastBuffer, bufs []*BufPair) (err error) {
 	inputs := make([][]byte, len(preparedInputs))
 	for i := range preparedInputs {
 		inputs[i] = preparedInputs[i].Bytes()
 	}
 
-	batch, err := fetch.DataSource.CreateBatch(inputs...)
+	batch, err := fetch.BatchFactory.CreateBatch(inputs...)
 	if err != nil {
 		return err
 	}
@@ -145,7 +145,7 @@ func (f *Fetcher) FetchBatch(ctx *Context, fetch *SingleFetch, preparedInputs []
 	buf := f.getBufPair()
 	defer f.freeBufPair(buf)
 
-	if err = f.Fetch(ctx, fetch, batch.Input(), buf); err != nil {
+	if err = f.Fetch(ctx, fetch.Fetch, batch.Input(), buf); err != nil {
 		return err
 	}
 

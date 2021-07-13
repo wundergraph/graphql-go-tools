@@ -36,7 +36,8 @@ func runTestBatch(t *testing.T, inputs []string, expectedInput string, outToInPo
 		convertedInputs[i] = []byte(inputs[i])
 	}
 
-	batch, err := NewBatch(convertedInputs...)
+	batchFactory := NewBatchFactory()
+	batch, err := batchFactory.CreateBatch(convertedInputs...)
 	require.NoError(t, err)
 	assert.Equal(t, expectedBatch, batch)
 }
@@ -47,7 +48,9 @@ func runTestDemultiplex(t *testing.T, inputs []string, responseBufPair *resolve.
 		convertedInputs[i] = []byte(inputs[i])
 	}
 
-	batch, err := NewBatch(convertedInputs...)
+
+	batchFactory := NewBatchFactory()
+	batch, err := batchFactory.CreateBatch(convertedInputs...)
 	require.NoError(t, err)
 
 	gotBufPairs := make([]*resolve.BufPair, len(inputs))
