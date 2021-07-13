@@ -14,6 +14,8 @@ const (
 	arrayElementKey = "@"
 )
 
+var nullByte = []byte("null")
+
 type dataLoaderFactory struct {
 	dataloaderPool   sync.Pool
 	muPool           sync.Pool
@@ -348,8 +350,8 @@ func (d *dataLoader) selectedDataForFetch(input [][]byte, path ...string) ([][]b
 			_, err := jsonparser.ArrayEach(val, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
 				vals = append(vals, value)
 			})
-			if err != nil {
-				return nil, err
+			if err != nil { // In case if array is null
+				return nil, nil
 			}
 
 			return d.selectedDataForFetch(vals, rest...)
