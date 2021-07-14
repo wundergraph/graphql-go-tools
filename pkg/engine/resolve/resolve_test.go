@@ -61,10 +61,12 @@ func (f *_fakeDataSourceBatch) Demultiplex(responseBufPair *BufPair, bufPairs []
 	return nil
 }
 
-func NewFakeDataSourceBatch(resultedInput string, resultedBufPairs []struct {
+type resultedBufPair struct {
 	data string
 	err  string
-}) *_fakeDataSourceBatch {
+}
+
+func NewFakeDataSourceBatch(resultedInput string, resultedBufPairs []resultedBufPair) *_fakeDataSourceBatch {
 	bufInput := fastbuffer.New()
 	bufInput.WriteString(resultedInput)
 
@@ -1538,10 +1540,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			CreateBatch([]byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}},"extract_entities":true}`)).
 			Return(NewFakeDataSourceBatch(
 				`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}},"extract_entities":true}`,
-				[]struct {
-					data string
-					err  string
-				}{
+				[]resultedBufPair{
 					{data: `{"reviews": [{"body": "A highly effective form of birth control.","product": {"upc": "top-1","__typename": "Product"}},{"body": "Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product": {"upc": "top-2","__typename": "Product"}}]}`},
 				}), nil)
 		reviewsService := NewMockDataSource(ctrl)
@@ -1564,10 +1563,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				[]byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-2","__typename":"Product"}]}},"extract_entities":true}`),
 			).Return(NewFakeDataSourceBatch(
 			`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}},"extract_entities":true}`,
-			[]struct {
-				data string
-				err  string
-			}{
+			[]resultedBufPair{
 				{data: `{"name": "Trilby"}`},
 				{data: `{"name": "Fedora"}`},
 			}), nil)
@@ -1737,10 +1733,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			CreateBatch([]byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}},"extract_entities":true}`)).
 			Return(NewFakeDataSourceBatch(
 			`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}},"extract_entities":true}`,
-			[]struct {
-				data string
-				err  string
-			}{
+			[]resultedBufPair{
 				{data: `{"reviews": [{"body": "A highly effective form of birth control.","product": {"upc": "top-1","__typename": "Product"}},{"body": "Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product": {"upc": "top-2","__typename": "Product"}}]}`},
 			}), nil)
 		reviewsService := NewMockDataSource(ctrl)
@@ -1763,10 +1756,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			[]byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-2","__typename":"Product"}]}},"extract_entities":true}`),
 		).Return(NewFakeDataSourceBatch(
 			`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}},"extract_entities":true}`,
-			[]struct {
-				data string
-				err  string
-			}{ {data: `null`, err: "errorMessage"}, {data: `null`}}), nil)
+			[]resultedBufPair{ {data: `null`, err: "errorMessage"}, {data: `null`}}), nil)
 		productService := NewMockDataSource(ctrl)
 		productService.EXPECT().UniqueIdentifier().Return([]byte("productService"))
 		productService.EXPECT().

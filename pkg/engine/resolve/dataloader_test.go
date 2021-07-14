@@ -360,4 +360,232 @@ func TestDataLoader_Load(t *testing.T) {
 			DataSource: userService,
 		}, &Context{Context: context.Background(), lastFetchID: 1, responseElements: []string{"someProp", arrayElementKey}}, `{"user": {"id":11, "username": "Username 11"}}`
 	}))
+
+	t.Run("requires nested request with null array in path", testFn(map[int]fetchState{
+		1: &singleFetchState{
+			nextIdx:     0,
+			fetchErrors: nil,
+			results:     []*BufPair{newBufPair(`{"someProp": null}`, ``), newBufPair(`{"someProp": [{"id": 11}, {"id": 22}]}`, ``)},
+		},
+	}, func(t *testing.T, ctrl *gomock.Controller) (fetch *SingleFetch, ctx *Context, expectedOutput string) {
+		userService := NewMockDataSource(ctrl)
+		userService.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
+			Times(2).
+			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+				actual := string(input)
+				switch {
+				case strings.Contains(actual, "11"):
+					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id name }","variables":{"$userId":11}}`
+					assert.Equal(t, expected, actual)
+					pair.Data.WriteString(`{"user": {"id":11, "username": "Username 11"}}`)
+					return
+				case strings.Contains(actual, "22"):
+					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id name }","variables":{"$userId":22}}`
+					assert.Equal(t, expected, actual)
+					pair.Data.WriteString(`{"user": {"id":22, "username": "Username 22"}}`)
+					return
+				}
+
+				return errors.New("unexpected call")
+			}).
+			Return(nil)
+
+		return &SingleFetch{
+			BufferId: 2,
+			InputTemplate: InputTemplate{
+				Segments: []TemplateSegment{
+					{
+						Data:        []byte(`{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id name }","variables":{"$userId":`),
+						SegmentType: StaticSegmentType,
+					},
+					{
+						SegmentType:        VariableSegmentType,
+						VariableSource:     VariableSourceObject,
+						VariableSourcePath: []string{"id"},
+					},
+					{
+						Data:        []byte(`}}`),
+						SegmentType: StaticSegmentType,
+					},
+				},
+			},
+			DataSource: userService,
+		}, &Context{Context: context.Background(), lastFetchID: 1, responseElements: []string{"someProp", arrayElementKey}}, `{"user": {"id":11, "username": "Username 11"}}`
+	}))
+}
+
+func TestDataLoader_LoadBatch(t *testing.T) {
+	testFn := func(initialState map[int]fetchState, fn func(t *testing.T, ctrl *gomock.Controller) (fetch *BatchFetch, ctx *Context, expectedOutput string)) func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		dlFactory := newDataloaderFactory(NewFetcher(false))
+		dl := dlFactory.newDataLoader(nil)
+		if initialState != nil {
+			dl.fetches = initialState
+		}
+
+		fetch, ctx, expectedOutput := fn(t, ctrl)
+
+		return func(t *testing.T) {
+			bufPair := NewBufPair()
+			err := dl.LoadBatch(ctx, fetch, bufPair)
+			assert.NoError(t, err)
+			assert.Equal(t, expectedOutput, bufPair.Data.String())
+			ctrl.Finish()
+		}
+	}
+
+	t.Run("requires nested request", testFn(map[int]fetchState{
+		1: &batchFetchState{
+			nextIdx:    0,
+			fetchError: nil,
+			results:    []*BufPair{newBufPair(`{"someProp": {"upc": "top-1"}}`, ``), newBufPair(`{"someProp": {"upc": "top-2"}}`, ``)},
+		},
+	}, func(t *testing.T, ctrl *gomock.Controller) (fetch *BatchFetch, ctx *Context, expectedOutput string) {
+		batchFactory := NewMockDataSourceBatchFactory(ctrl)
+		batchFactory.EXPECT().
+			CreateBatch(
+				[]byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"}]}},"extract_entities":true}`),
+				[]byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-2","__typename":"Product"}]}},"extract_entities":true}`),
+			).Return(NewFakeDataSourceBatch(
+			`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}},"extract_entities":true}`,
+			[]resultedBufPair{
+				{data: `{"name": "Trilby"}`},
+				{data: `{"name": "Fedora"}`},
+			}), nil)
+
+		userService := NewMockDataSource(ctrl)
+		userService.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
+			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+				actual := string(input)
+				expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}},"extract_entities":true}`
+				assert.Equal(t, expected, actual)
+				pair.Data.WriteString(`[{"name": "Trilby"},{"name": "Fedora"}]`)
+				return
+			}).
+			Return(nil)
+
+		return &BatchFetch{
+			Fetch: &SingleFetch{
+				BufferId: 2,
+				InputTemplate: InputTemplate{
+					Segments: []TemplateSegment{
+						{
+							Data:        []byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"`),
+							SegmentType: StaticSegmentType,
+						},
+						{
+							SegmentType:        VariableSegmentType,
+							VariableSource:     VariableSourceObject,
+							VariableSourcePath: []string{"upc"},
+						},
+						{
+							Data:        []byte(`","__typename":"Product"}]}},"extract_entities":true}`),
+							SegmentType: StaticSegmentType,
+						},
+					},
+				},
+				DataSource: userService,
+			},
+			BatchFactory: batchFactory,
+		}, &Context{Context: context.Background(), lastFetchID: 1, responseElements: []string{"someProp"}}, `{"name": "Trilby"}`
+	}))
+
+	t.Run("doesn't requires nested request", testFn(map[int]fetchState{
+		1: &batchFetchState{
+			nextIdx:    1,
+			fetchError: nil,
+			results:    []*BufPair{newBufPair(`{"user": {"id":11, "username": "Username 11"}}`, ``), newBufPair(`{"user": {"id":22, "username": "Username 22"}}`, ``)},
+		},
+	}, func(t *testing.T, ctrl *gomock.Controller) (fetch *BatchFetch, ctx *Context, expectedOutput string) {
+		return &BatchFetch{
+			Fetch: &SingleFetch{
+				BufferId: 1,
+				InputTemplate: InputTemplate{
+					Segments: []TemplateSegment{
+						{
+							Data:        []byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"`),
+							SegmentType: StaticSegmentType,
+						},
+						{
+							SegmentType:        VariableSegmentType,
+							VariableSource:     VariableSourceObject,
+							VariableSourcePath: []string{"upc"},
+						},
+						{
+							Data:        []byte(`","__typename":"Product"}]}},"extract_entities":true}`),
+							SegmentType: StaticSegmentType,
+						},
+					},
+				},
+			},
+		}, &Context{Context: context.Background(), lastFetchID: 1, responseElements: []string{"someProp"}}, `{"user": {"id":22, "username": "Username 22"}}`
+	}))
+
+	t.Run("fetch error", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		dlFactory := newDataloaderFactory(NewFetcher(false))
+		dl := dlFactory.newDataLoader(nil)
+		dl.fetches = map[int]fetchState{
+			1: &singleFetchState{
+				nextIdx:     0,
+				fetchErrors: nil,
+				results:     []*BufPair{newBufPair(`{"someProp": {"upc": "top-1"}}`, ``), newBufPair(`{"someProp": {"upc": "top-2"}}`, ``)},
+			},
+		}
+
+		expErr := errors.New("failed to access http://localhost:4003")
+
+		batchFactory := NewMockDataSourceBatchFactory(ctrl)
+		batchFactory.EXPECT().
+			CreateBatch(
+				[]byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"}]}},"extract_entities":true}`),
+				[]byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-2","__typename":"Product"}]}},"extract_entities":true}`),
+			).Return(NewFakeDataSourceBatch(
+			`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}},"extract_entities":true}`,
+			[]resultedBufPair{}), nil)
+
+		userService := NewMockDataSource(ctrl)
+		userService.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
+			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+				actual := string(input)
+				expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}},"extract_entities":true}`
+				assert.Equal(t, expected, actual)
+				return
+			}).
+			Return(expErr)
+
+		err := dl.LoadBatch(
+			&Context{Context: context.Background(), lastFetchID: 1, responseElements: []string{"someProp"}},
+			&BatchFetch{
+				Fetch: &SingleFetch{
+					BufferId: 2,
+					InputTemplate: InputTemplate{
+						Segments: []TemplateSegment{
+							{
+								Data:        []byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"`),
+								SegmentType: StaticSegmentType,
+							},
+							{
+								SegmentType:        VariableSegmentType,
+								VariableSource:     VariableSourceObject,
+								VariableSourcePath: []string{"upc"},
+							},
+							{
+								Data:        []byte(`","__typename":"Product"}]}},"extract_entities":true}`),
+								SegmentType: StaticSegmentType,
+							},
+						},
+					},
+					DataSource: userService,
+				},
+				BatchFactory: batchFactory,
+			},
+			NewBufPair(),
+		)
+
+		assert.EqualError(t, err, expErr.Error())
+	})
 }
