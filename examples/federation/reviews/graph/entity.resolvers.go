@@ -7,7 +7,8 @@ import (
 	"context"
 
 	"github.com/99designs/gqlgen/example/federation/reviews/graph/model"
-	"github.com/jensneuse/federation-example/reviews/graph/generated"
+
+	"github.com/jensneuse/graphql-go-tools/examples/federation/reviews/graph/generated"
 )
 
 func (r *entityResolver) FindProductByUpc(ctx context.Context, upc string) (*model.Product, error) {

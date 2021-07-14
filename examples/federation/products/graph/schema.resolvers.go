@@ -10,7 +10,8 @@ import (
 	"time"
 
 	"github.com/99designs/gqlgen/example/federation/products/graph/model"
-	"github.com/jensneuse/federation-example/products/graph/generated"
+
+	"github.com/jensneuse/graphql-go-tools/examples/federation/products/graph/generated"
 )
 
 func (r *queryResolver) TopProducts(ctx context.Context, first *int) ([]*model.Product, error) {
