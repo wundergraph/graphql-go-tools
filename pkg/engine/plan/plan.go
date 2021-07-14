@@ -394,6 +394,10 @@ func (v *Visitor) EnterField(ref int) {
 				Path:     v.resolveFieldPath(ref),
 			},
 			OnTypeName: v.resolveOnTypeName(),
+			Position: resolve.Position{
+				Line:   v.Operation.Fields[ref].Position.LineStart,
+				Column: v.Operation.Fields[ref].Position.CharStart,
+			},
 		}
 		*v.currentFields[len(v.currentFields)-1].fields = append(*v.currentFields[len(v.currentFields)-1].fields, v.currentField)
 		return
@@ -434,6 +438,10 @@ func (v *Visitor) EnterField(ref int) {
 		HasBuffer:  hasBuffer,
 		BufferID:   bufferID,
 		OnTypeName: v.resolveOnTypeName(),
+		Position: resolve.Position{
+			Line:   v.Operation.Fields[ref].Position.LineStart,
+			Column: v.Operation.Fields[ref].Position.CharStart,
+		},
 	}
 
 	*v.currentFields[len(v.currentFields)-1].fields = append(*v.currentFields[len(v.currentFields)-1].fields, v.currentField)
@@ -775,12 +783,13 @@ func (v *Visitor) configureSingleFetch(internal objectFetchConfiguration, extern
 	dataSourceType := reflect.TypeOf(external.DataSource).String()
 	dataSourceType = strings.TrimPrefix(dataSourceType, "*")
 	return &resolve.SingleFetch{
-		BufferId:             internal.bufferID,
-		Input:                external.Input,
-		DataSource:           external.DataSource,
-		Variables:            external.Variables,
-		DisallowSingleFlight: external.DisallowSingleFlight,
-		DataSourceIdentifier: []byte(dataSourceType),
+		BufferId:              internal.bufferID,
+		Input:                 external.Input,
+		DataSource:            external.DataSource,
+		Variables:             external.Variables,
+		DisallowSingleFlight:  external.DisallowSingleFlight,
+		DataSourceIdentifier:  []byte(dataSourceType),
+		ProcessResponseConfig: external.ProcessResponseConfig,
 	}
 }
 
@@ -894,10 +903,11 @@ type SubscriptionConfiguration struct {
 }
 
 type FetchConfiguration struct {
-	Input                string
-	Variables            resolve.Variables
-	DataSource           resolve.DataSource
-	DisallowSingleFlight bool
+	Input                 string
+	Variables             resolve.Variables
+	DataSource            resolve.DataSource
+	DisallowSingleFlight  bool
+	ProcessResponseConfig resolve.ProcessResponseConfig
 }
 
 type configurationVisitor struct {

@@ -20,6 +20,8 @@ type CheckFunc func(t *testing.T, op ast.Document, actualPlan plan.Plan)
 
 func RunTest(definition, operation, operationName string, expectedPlan plan.Plan, config plan.Configuration, extraChecks ...CheckFunc) func(t *testing.T) {
 	return func(t *testing.T) {
+		t.Helper()
+
 		def := unsafeparser.ParseGraphqlDocumentString(definition)
 		op := unsafeparser.ParseGraphqlDocumentString(operation)
 		err := asttransform.MergeDefinitionWithBaseSchema(&def)
@@ -33,7 +35,7 @@ func RunTest(definition, operation, operationName string, expectedPlan plan.Plan
 		valid.Validate(&op, &def, &report)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		p := plan.NewPlanner(ctx,config)
+		p := plan.NewPlanner(ctx, config)
 		actualPlan := p.Plan(&op, &def, operationName, &report)
 		if report.HasErrors() {
 			_, err := astprinter.PrintStringIndent(&def, nil, "  ")

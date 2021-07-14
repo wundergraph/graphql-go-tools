@@ -1559,6 +1559,7 @@ func (p *Parser) parseField() int {
 	} else {
 		field.Name = p.tokens[firstIdent].Literal
 	}
+	field.Position = p.tokens[firstIdent].TextPosition
 
 	if p.peekEquals(keyword.LPAREN) {
 		field.Arguments = p.parseArgumentList()
