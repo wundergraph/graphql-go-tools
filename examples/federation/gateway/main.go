@@ -16,7 +16,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/graphql"
 	"github.com/jensneuse/graphql-go-tools/pkg/playground"
 
-	http2 "github.com/jensneuse/federation-example/gateway/http"
+	http2 "github.com/jensneuse/graphql-go-tools/examples/federation/gateway/http"
 )
 
 // It's just a simple example of graphql federation gateway server, it's NOT a production ready code.

@@ -9,8 +9,9 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/handler/debug"
 	"github.com/99designs/gqlgen/graphql/playground"
-	"github.com/jensneuse/federation-example/products/graph"
-	"github.com/jensneuse/federation-example/products/graph/generated"
+
+	"github.com/jensneuse/graphql-go-tools/examples/federation/products/graph"
+	"github.com/jensneuse/graphql-go-tools/examples/federation/products/graph/generated"
 )
 
 const defaultPort = "4002"
