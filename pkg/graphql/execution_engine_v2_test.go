@@ -4,6 +4,7 @@ import (
 	"context"
 	"io/ioutil"
 	"net/http"
+	"net/http/httptest"
 	"sync"
 	"testing"
 
@@ -11,6 +12,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	federationExample "github.com/jensneuse/graphql-go-tools/examples/federation"
+	accounts "github.com/jensneuse/graphql-go-tools/examples/federation/accounts/graph"
+	products "github.com/jensneuse/graphql-go-tools/examples/federation/products/graph"
+	reviews "github.com/jensneuse/graphql-go-tools/examples/federation/reviews/graph"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/graphql_datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/rest_datasource"
@@ -928,6 +933,40 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		}))*/
 }
 
+func TestExecutionEngineV2_FederationAndSubscription_IntegrationTest(t *testing.T) {
+	ctx, cancelFn := context.WithCancel(context.Background())
+	defer cancelFn()
+
+	setup, err := newFederationSetup(ctx)
+	defer func() {
+		setup.accountsUpstreamServer.Close()
+		setup.productsUpstreamServer.Close()
+		setup.reviewsUpstreamServer.Close()
+	}()
+
+	require.NoError(t, err)
+
+	t.Run("should successfully execute a federation operation", func(t *testing.T) {
+		gqlRequest := &Request{
+			OperationName: "",
+			Variables:     nil,
+			Query:         federationExample.QueryReviewsOfMe,
+		}
+
+		execCtx, execCtxCancelFn := context.WithCancel(context.Background())
+		defer execCtxCancelFn()
+
+		resultWriter := NewEngineResultWriter()
+		err = setup.engine.Execute(execCtx, gqlRequest, &resultWriter)
+		if assert.NoError(t, err) {
+			assert.Equal(t,
+				`{"data":{"me":{"reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","name":"Trilby","price":11}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-2","name":"Fedora","price":22}}]}}}`,
+				resultWriter.String(),
+			)
+		}
+	})
+}
+
 func testNetHttpClient(t *testing.T, testCase roundTripperTestCase) *http.Client {
 	client := httpclient.DefaultNetHttpClient
 	client.Transport = createTestRoundTripper(t, testCase)
@@ -1098,8 +1137,237 @@ func BenchmarkExecutionEngineV2(b *testing.B) {
 
 }
 
+type federationSetup struct {
+	accountsUpstreamServer *httptest.Server
+	productsUpstreamServer *httptest.Server
+	reviewsUpstreamServer  *httptest.Server
+	engine                 *ExecutionEngineV2
+}
+
+func newFederationSetup(ctx context.Context) (*federationSetup, error) {
+	setup := &federationSetup{
+		accountsUpstreamServer: httptest.NewServer(accounts.GraphQLEndpointHandler(accounts.EndpointOptions{EnableDebug: false})),
+		productsUpstreamServer: httptest.NewServer(products.GraphQLEndpointHandler(products.EndpointOptions{EnableDebug: false})),
+		reviewsUpstreamServer:  httptest.NewServer(reviews.GraphQLEndpointHandler(reviews.EndpointOptions{EnableDebug: false})),
+	}
+
+	accountsSDL, err := federationExample.LoadSDLFromExamplesDirectoryWithinPkg(federationExample.UpstreamAccounts)
+	if err != nil {
+		return nil, err
+	}
+
+	productsSDL, err := federationExample.LoadSDLFromExamplesDirectoryWithinPkg(federationExample.UpstreamProducts)
+	if err != nil {
+		return nil, err
+	}
+
+	reviewsSDL, err := federationExample.LoadSDLFromExamplesDirectoryWithinPkg(federationExample.UpstreamReviews)
+	if err != nil {
+		return nil, err
+	}
+
+	accountsDataSource := plan.DataSourceConfiguration{
+		RootNodes: []plan.TypeField{
+			{
+				TypeName:   "Query",
+				FieldNames: []string{"me"},
+			},
+			{
+				TypeName:   "User",
+				FieldNames: []string{"id", "name", "username"},
+			},
+		},
+		ChildNodes: []plan.TypeField{
+			{
+				TypeName:   "User",
+				FieldNames: []string{"id", "name", "username"},
+			},
+		},
+		Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
+			Fetch: graphql_datasource.FetchConfiguration{
+				URL:    setup.accountsUpstreamServer.URL,
+				Method: http.MethodPost,
+			},
+			Federation: graphql_datasource.FederationConfiguration{
+				Enabled:    true,
+				ServiceSDL: string(accountsSDL),
+			},
+		}),
+		Factory: &graphql_datasource.Factory{
+			Client: httpclient.DefaultNetHttpClient,
+		},
+	}
+
+	productsDataSource := plan.DataSourceConfiguration{
+		RootNodes: []plan.TypeField{
+			{
+				TypeName:   "Query",
+				FieldNames: []string{"topProducts"},
+			},
+			{
+				TypeName:   "Product",
+				FieldNames: []string{"upc", "name", "price", "weight"},
+			},
+			{
+				TypeName:   "Subscription",
+				FieldNames: []string{"updatedPrice"},
+			},
+			{
+				TypeName:   "Mutation",
+				FieldNames: []string{"setPrice"},
+			},
+		},
+		ChildNodes: []plan.TypeField{
+			{
+				TypeName:   "Product",
+				FieldNames: []string{"upc", "name", "price", "weight"},
+			},
+		},
+		Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
+			Fetch: graphql_datasource.FetchConfiguration{
+				URL:    setup.productsUpstreamServer.URL,
+				Method: http.MethodPost,
+			},
+			Subscription: graphql_datasource.SubscriptionConfiguration{
+				URL: setup.productsUpstreamServer.URL,
+			},
+			Federation: graphql_datasource.FederationConfiguration{
+				Enabled:    true,
+				ServiceSDL: string(productsSDL),
+			},
+		}),
+		Factory: &graphql_datasource.Factory{
+			Client: httpclient.DefaultNetHttpClient,
+		},
+	}
+
+	reviewsDataSource := plan.DataSourceConfiguration{
+		RootNodes: []plan.TypeField{
+			{
+				TypeName:   "User",
+				FieldNames: []string{"reviews"},
+			},
+			{
+				TypeName:   "Product",
+				FieldNames: []string{"reviews"},
+			},
+		},
+		ChildNodes: []plan.TypeField{
+			{
+				TypeName:   "Review",
+				FieldNames: []string{"id", "body", "author", "product"},
+			},
+			{
+				TypeName:   "User",
+				FieldNames: []string{"id", "username", "reviews"},
+			},
+			{
+				TypeName:   "Product",
+				FieldNames: []string{"upc", "reviews"},
+			},
+		},
+		Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
+			Fetch: graphql_datasource.FetchConfiguration{
+				URL:    setup.reviewsUpstreamServer.URL,
+				Method: http.MethodPost,
+			},
+			Subscription: graphql_datasource.SubscriptionConfiguration{
+				URL: setup.reviewsUpstreamServer.URL,
+			},
+			Federation: graphql_datasource.FederationConfiguration{
+				Enabled:    true,
+				ServiceSDL: string(reviewsSDL),
+			},
+		}),
+		Factory: &graphql_datasource.Factory{
+			Client: httpclient.DefaultNetHttpClient,
+		},
+	}
+
+	fieldConfigs := plan.FieldConfigurations{
+		{
+			TypeName:       "User",
+			FieldName:      "name",
+			RequiresFields: []string{"id"},
+		},
+		{
+			TypeName:       "User",
+			FieldName:      "username",
+			RequiresFields: []string{"id"},
+		},
+		{
+			TypeName:       "Product",
+			FieldName:      "name",
+			RequiresFields: []string{"upc"},
+		},
+		{
+			TypeName:       "Product",
+			FieldName:      "price",
+			RequiresFields: []string{"upc"},
+		},
+		{
+			TypeName:       "Product",
+			FieldName:      "weight",
+			RequiresFields: []string{"upc"},
+		},
+		{
+			TypeName:       "User",
+			FieldName:      "reviews",
+			RequiresFields: []string{"id"},
+		},
+		{
+			TypeName:       "Product",
+			FieldName:      "reviews",
+			RequiresFields: []string{"upc"},
+		},
+		{
+			TypeName:  "Query",
+			FieldName: "topProducts",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "first",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Mutation",
+			FieldName: "setPrice",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "upc",
+					SourceType: plan.FieldArgumentSource,
+				},
+				{
+					Name:       "price",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+	}
+
+	schema, err := federationSchema()
+	if err != nil {
+		return nil, err
+	}
+
+	engineConfig := NewEngineV2Configuration(schema)
+	engineConfig.AddDataSource(accountsDataSource)
+	engineConfig.AddDataSource(productsDataSource)
+	engineConfig.AddDataSource(reviewsDataSource)
+	engineConfig.SetFieldConfigurations(fieldConfigs)
+
+	engine, err := NewExecutionEngineV2(ctx, abstractlogger.Noop{}, engineConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	setup.engine = engine
+	return setup, nil
+}
+
 // nolint
-func federationSchema(t *testing.T) *Schema {
+func federationSchema() (*Schema, error) {
 	rawSchema := `
 type Query {
 	me: User
@@ -1137,8 +1405,5 @@ type Review {
 }
 `
 
-	schema, err := NewSchemaFromString(rawSchema)
-	require.NoError(t, err)
-
-	return schema
+	return NewSchemaFromString(rawSchema)
 }
