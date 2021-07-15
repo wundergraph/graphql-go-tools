@@ -2,6 +2,7 @@ package graph
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/handler/debug"
@@ -10,13 +11,27 @@ import (
 )
 
 type EndpointOptions struct {
-	EnableDebug bool
+	EnableDebug            bool
+	EnableRandomness       bool
+	OverrideUpdateInterval time.Duration
+}
+
+var TestOptions = EndpointOptions{
+	EnableDebug:            false,
+	EnableRandomness:       false,
+	OverrideUpdateInterval: 50 * time.Millisecond,
 }
 
 func GraphQLEndpointHandler(opts EndpointOptions) http.Handler {
 	srv := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{Resolvers: &Resolver{}}))
 	if opts.EnableDebug {
 		srv.Use(&debug.Tracer{})
+	}
+
+	randomnessEnabled = opts.EnableRandomness
+
+	if opts.OverrideUpdateInterval > 0 {
+		updateInterval = opts.OverrideUpdateInterval
 	}
 
 	return srv

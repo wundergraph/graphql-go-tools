@@ -13,6 +13,10 @@ type EndpointOptions struct {
 	EnableDebug bool
 }
 
+var TestOptions = EndpointOptions{
+	EnableDebug: false,
+}
+
 func GraphQLEndpointHandler(opts EndpointOptions) http.Handler {
 	srv := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{Resolvers: &Resolver{}}))
 	if opts.EnableDebug {
