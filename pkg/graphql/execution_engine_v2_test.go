@@ -104,15 +104,6 @@ type ExecutionEngineV2TestCase struct {
 	expectedResponse string
 }
 
-// nolint
-type executionEngineV2SubscriptionTestCase struct {
-	schema            *Schema
-	operation         func(t *testing.T) Request
-	dataSources       []plan.DataSourceConfiguration
-	fields            plan.FieldConfigurations
-	expectedResponses []string
-}
-
 func TestExecutionEngineV2_Execute(t *testing.T) {
 	run := func(testCase ExecutionEngineV2TestCase, withError bool) func(t *testing.T) {
 		return func(t *testing.T) {
@@ -126,7 +117,9 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 
 			operation := testCase.operation(t)
 			resultWriter := NewEngineResultWriter()
-			err = engine.Execute(context.Background(), &operation, &resultWriter)
+			execCtx, execCtxCancel := context.WithCancel(context.Background())
+			defer execCtxCancel()
+			err = engine.Execute(execCtx, &operation, &resultWriter)
 
 			assert.Equal(t, testCase.expectedResponse, resultWriter.String())
 
@@ -527,10 +520,9 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 
 func TestExecutionEngineV2_FederationAndSubscription_IntegrationTest(t *testing.T) {
 	ctx, cancelFn := context.WithCancel(context.Background())
-	defer cancelFn()
-
 	setup, err := newFederationSetup(ctx)
 	defer func() {
+		cancelFn()
 		setup.accountsUpstreamServer.Close()
 		setup.productsUpstreamServer.Close()
 		setup.reviewsUpstreamServer.Close()
@@ -639,9 +631,13 @@ func TestExecutionEngineV2_FederationAndSubscription_IntegrationTest(t *testing.
 }
 
 func testNetHttpClient(t *testing.T, testCase roundTripperTestCase) *http.Client {
-	client := httpclient.DefaultNetHttpClient
-	client.Transport = createTestRoundTripper(t, testCase)
-	return client
+	defaultClient := httpclient.DefaultNetHttpClient
+	return &http.Client{
+		Transport:     createTestRoundTripper(t, testCase),
+		CheckRedirect: defaultClient.CheckRedirect,
+		Jar:           defaultClient.Jar,
+		Timeout:       defaultClient.Timeout,
+	}
 }
 
 type beforeFetchHook struct {
