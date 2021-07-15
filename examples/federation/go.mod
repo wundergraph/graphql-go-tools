@@ -5,6 +5,7 @@ go 1.15
 require (
 	github.com/99designs/gqlgen v0.13.0
 	github.com/gobwas/ws v1.0.4
+	github.com/gorilla/websocket v1.4.2
 	github.com/jensneuse/abstractlogger v0.0.4
 	github.com/jensneuse/graphql-go-tools v1.20.2
 	github.com/nats-io/nats-server/v2 v2.3.2 // indirect

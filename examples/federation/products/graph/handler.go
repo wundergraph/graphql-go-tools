@@ -6,6 +6,9 @@ import (
 
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/handler/debug"
+	"github.com/99designs/gqlgen/graphql/handler/extension"
+	"github.com/99designs/gqlgen/graphql/handler/transport"
+	"github.com/gorilla/websocket"
 
 	"github.com/jensneuse/graphql-go-tools/examples/federation/products/graph/generated"
 )
@@ -23,7 +26,19 @@ var TestOptions = EndpointOptions{
 }
 
 func GraphQLEndpointHandler(opts EndpointOptions) http.Handler {
-	srv := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{Resolvers: &Resolver{}}))
+	srv := handler.New(generated.NewExecutableSchema(generated.Config{Resolvers: &Resolver{}}))
+
+	srv.AddTransport(transport.POST{})
+	srv.AddTransport(transport.Websocket{
+		KeepAlivePingInterval: 10 * time.Second,
+		Upgrader: websocket.Upgrader{
+			CheckOrigin: func(r *http.Request) bool {
+				return true
+			},
+		},
+	})
+	srv.Use(extension.Introspection{})
+
 	if opts.EnableDebug {
 		srv.Use(&debug.Tracer{})
 	}
