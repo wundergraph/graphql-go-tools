@@ -109,7 +109,7 @@ func NewHandler(logger abstractlogger.Logger, client Client, executorPool Execut
 	}, nil
 }
 
-// Handle will handle the subscritpion connection.
+// Handle will handle the subscription connection.
 func (h *Handler) Handle(ctx context.Context) {
 	defer func() {
 		h.subCancellations.CancelAll()

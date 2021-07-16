@@ -14,6 +14,14 @@ import (
 	"github.com/jensneuse/graphql-go-tools/examples/federation/products/graph/generated"
 )
 
+var (
+	randomnessEnabled = true
+	minPrice          = 10
+	maxPrice          = 1499
+	currentPrice      = minPrice
+	updateInterval    = time.Second
+)
+
 func (r *queryResolver) TopProducts(ctx context.Context, first *int) ([]*model.Product, error) {
 	return hats, nil
 }
@@ -25,12 +33,19 @@ func (r *subscriptionResolver) UpdatedPrice(ctx context.Context) (<-chan *model.
 			select {
 			case <-ctx.Done():
 				return
-			case <-time.After(time.Second):
+			case <-time.After(updateInterval):
 				rand.Seed(time.Now().UnixNano())
-				product := hats[rand.Intn(len(hats)-1)]
-				min := 10
-				max := 1499
-				product.Price = rand.Intn(max-min+1) + min
+				product := hats[0]
+
+				if randomnessEnabled {
+					product = hats[rand.Intn(len(hats)-1)]
+					product.Price = rand.Intn(maxPrice-minPrice+1) + minPrice
+					updatedPrice <- product
+					continue
+				}
+
+				product.Price = currentPrice
+				currentPrice += 1
 				updatedPrice <- product
 			}
 		}

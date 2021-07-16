@@ -11,8 +11,6 @@ import (
 	log "github.com/jensneuse/abstractlogger"
 	"go.uber.org/zap"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/subscription"
-	graphql_websocket_subscription "github.com/jensneuse/graphql-go-tools/pkg/engine/subscription/graphql-websocket-subscription"
 	"github.com/jensneuse/graphql-go-tools/pkg/graphql"
 	"github.com/jensneuse/graphql-go-tools/pkg/playground"
 
@@ -75,11 +73,7 @@ func startServer() {
 		mux.Handle(handlers[i].Path, handlers[i].Handler)
 	}
 
-	subscriptionManager := subscription.NewManager(graphql_websocket_subscription.New())
-	go subscriptionManager.Run(ctx.Done())
-
 	var gqlHandlerFactory HandlerFactoryFn = func(schema *graphql.Schema, engine *graphql.ExecutionEngineV2) http.Handler {
-		engine.WithTriggerManager(subscriptionManager)
 		return http2.NewGraphqlHTTPHandler(schema, engine, upgrader, logger)
 	}
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"sync"
 
@@ -73,12 +74,7 @@ func (g *Gateway) Ready() {
 
 // Error handling is not finished.
 func (g *Gateway) UpdateDataSources(newDataSourcesConfig []graphqlDataSource.Configuration) {
-
-	if g.engineCloser != nil {
-		close(g.engineCloser)
-		g.engineCloser = make(chan struct{})
-	}
-
+	ctx := context.Background()
 	engineConfigFactory := federation.NewEngineConfigV2Factory(g.httpClient, newDataSourcesConfig...)
 
 	schema, err := engineConfigFactory.MergedSchema()
@@ -93,7 +89,7 @@ func (g *Gateway) UpdateDataSources(newDataSourcesConfig []graphqlDataSource.Con
 		return
 	}
 
-	engine, err := graphql.NewExecutionEngineV2(g.logger, datasourceConfig, g.engineCloser)
+	engine, err := graphql.NewExecutionEngineV2(ctx, g.logger, datasourceConfig)
 	if err != nil {
 		g.logger.Error("create engine: %v", log.Error(err))
 		return

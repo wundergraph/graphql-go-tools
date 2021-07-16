@@ -77,13 +77,10 @@ func TestHttpClient(t *testing.T) {
 
 func TestHttpClientDo(t *testing.T) {
 
-	fast := NewFastHttpClient(DefaultFastHttpClient)
-	net := NewNetHttpClient(DefaultNetHttpClient)
-
-	runTest := func(client Client, ctx context.Context, input []byte, expectedOutput string) func(t *testing.T) {
+	runTest := func(ctx context.Context, input []byte, expectedOutput string) func(t *testing.T) {
 		return func(t *testing.T) {
 			out := &bytes.Buffer{}
-			err := client.Do(ctx, input, out)
+			err := Do(http.DefaultClient, ctx, input, out)
 			assert.NoError(t, err)
 			assert.Equal(t, expectedOutput, out.String())
 		}
@@ -102,8 +99,7 @@ func TestHttpClientDo(t *testing.T) {
 		var input []byte
 		input = SetInputMethod(input, []byte("GET"))
 		input = SetInputURL(input, []byte(server.URL))
-		t.Run("fast", runTest(fast, background, input, `ok`))
-		t.Run("net", runTest(net, background, input, `ok`))
+		t.Run("net", runTest(background, input, `ok`))
 	})
 
 	t.Run("query params simple", func(t *testing.T) {
@@ -119,8 +115,7 @@ func TestHttpClientDo(t *testing.T) {
 		input = SetInputMethod(input, []byte("GET"))
 		input = SetInputURL(input, []byte(server.URL))
 		input = SetInputQueryParams(input, []byte(`[{"name":"foo","value":"bar"}]`))
-		t.Run("fast", runTest(fast, background, input, `ok`))
-		t.Run("net", runTest(net, background, input, `ok`))
+		t.Run("net", runTest(background, input, `ok`))
 	})
 
 	t.Run("query params multiple", func(t *testing.T) {
@@ -142,8 +137,7 @@ func TestHttpClientDo(t *testing.T) {
 		input = SetInputMethod(input, []byte("GET"))
 		input = SetInputURL(input, []byte(server.URL))
 		input = SetInputQueryParams(input, []byte(`[{"name":"foo","value":"bar"},{"name":"foo","value":"baz"},{"name":"year","value":"2020"}]`))
-		t.Run("fast", runTest(fast, background, input, `ok`))
-		t.Run("net", runTest(net, background, input, `ok`))
+		t.Run("net", runTest(background, input, `ok`))
 	})
 
 	t.Run("query params multiple as array", func(t *testing.T) {
@@ -160,8 +154,7 @@ func TestHttpClientDo(t *testing.T) {
 		input = SetInputMethod(input, []byte("GET"))
 		input = SetInputURL(input, []byte(server.URL))
 		input = SetInputQueryParams(input, []byte(`[{"name":"foo","value":["bar","baz"]}]`))
-		t.Run("fast", runTest(fast, background, input, `ok`))
-		t.Run("net", runTest(net, background, input, `ok`))
+		t.Run("net", runTest(background, input, `ok`))
 	})
 
 	t.Run("post", func(t *testing.T) {
@@ -178,8 +171,7 @@ func TestHttpClientDo(t *testing.T) {
 		input = SetInputMethod(input, []byte("POST"))
 		input = SetInputBody(input, body)
 		input = SetInputURL(input, []byte(server.URL))
-		t.Run("fast", runTest(fast, background, input, `ok`))
-		t.Run("net", runTest(net, background, input, `ok`))
+		t.Run("net", runTest(background, input, `ok`))
 	})
 
 	t.Run("gzip", func(t *testing.T) {
@@ -201,7 +193,6 @@ func TestHttpClientDo(t *testing.T) {
 		input = SetInputMethod(input, []byte("POST"))
 		input = SetInputBody(input, body)
 		input = SetInputURL(input, []byte(server.URL))
-		t.Run("fast", runTest(fast, background, input, `ok`))
-		t.Run("net", runTest(net, background, input, `ok`))
+		t.Run("net", runTest(background, input, `ok`))
 	})
 }

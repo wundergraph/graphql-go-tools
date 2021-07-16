@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"regexp"
 	"strings"
@@ -11,24 +12,18 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/subscription/http_polling"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 )
 
-const (
-	UniqueIdentifier = "rest"
-)
-
 type Planner struct {
-	client              httpclient.Client
+	client              *http.Client
 	v                   *plan.Visitor
 	config              Configuration
 	rootField           int
 	operationDefinition int
 }
 
-func (p *Planner) DownstreamResponseFieldAlias(downstreamFieldRef int) (alias string, exists bool) {
+func (p *Planner) DownstreamResponseFieldAlias(_ int) (alias string, exists bool) {
 	// the REST DataSourcePlanner doesn't rewrite upstream fields: skip
 	return
 }
@@ -45,10 +40,10 @@ func (p *Planner) EnterOperationDefinition(ref int) {
 }
 
 type Factory struct {
-	Client httpclient.Client
+	Client *http.Client
 }
 
-func (f *Factory) Planner(<- chan struct{}) plan.DataSourcePlanner {
+func (f *Factory) Planner(ctx context.Context) plan.DataSourcePlanner {
 	return &Planner{
 		client: f.Client,
 	}
@@ -125,19 +120,7 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 }
 
 func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
-
-	input := p.configureInput()
-
-	var httpPollingInput []byte
-	httpPollingInput = http_polling.SetSkipPublishSameResponse(httpPollingInput, p.config.Subscription.SkipPublishSameResponse)
-	httpPollingInput = http_polling.SetRequestInput(httpPollingInput, input)
-	httpPollingInput = http_polling.SetInputIntervalMillis(httpPollingInput, p.config.Subscription.PollingIntervalMillis)
-
-	return plan.SubscriptionConfiguration{
-		Input:                 string(httpPollingInput),
-		SubscriptionManagerID: "http_polling_stream",
-		Variables:             nil,
-	}
+	return plan.SubscriptionConfiguration{}
 }
 
 var (
@@ -181,17 +164,9 @@ Next:
 }
 
 type Source struct {
-	client httpclient.Client
+	client *http.Client
 }
 
-var (
-	uniqueIdentifier = []byte(UniqueIdentifier)
-)
-
-func (_ *Source) UniqueIdentifier() []byte {
-	return uniqueIdentifier
-}
-
-func (s *Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPair) (err error) {
-	return s.client.Do(ctx, input, bufPair.Data)
+func (s *Source) Load(ctx context.Context, input []byte, w io.Writer) (err error) {
+	return httpclient.Do(s.client, ctx, input, w)
 }
