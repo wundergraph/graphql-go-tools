@@ -2,15 +2,26 @@ package graphql
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeprinter"
+	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 	"github.com/jensneuse/graphql-go-tools/pkg/starwars"
 )
 
 func TestRequest_Normalize(t *testing.T) {
+	assertNormalizedOperation := func(t *testing.T, expected string, document *ast.Document) {
+		t.Helper()
+
+		op := unsafeprinter.PrettyPrint(document, nil)
+		fmt.Println(op)
+		assert.Equal(t, expected, op)
+	}
+
 	t.Run("should return error when schema is nil", func(t *testing.T) {
 		request := Request{
 			OperationName: "Hello",
@@ -25,7 +36,7 @@ func TestRequest_Normalize(t *testing.T) {
 		assert.False(t, request.isNormalized)
 	})
 
-	t.Run("should successfully normalize the request", func(t *testing.T) {
+	t.Run("should successfully normalize request with fragments", func(t *testing.T) {
 		schema := starwarsSchema(t)
 		request := requestForQuery(t, starwars.FileFragmentsQuery)
 		documentBeforeNormalization := request.document
@@ -35,6 +46,16 @@ func TestRequest_Normalize(t *testing.T) {
 		assert.NotEqual(t, documentBeforeNormalization, request.document)
 		assert.True(t, result.Successful)
 		assert.True(t, request.isNormalized)
+
+		assertNormalizedOperation(t, `query Fragments($droidID: ID!){
+    hero {
+        name
+    }
+    droid(id: $droidID){
+        name
+    }
+}`, &request.document)
+
 	})
 
 	t.Run("should successfully normalize single query with arguments", func(t *testing.T) {
@@ -48,6 +69,40 @@ func TestRequest_Normalize(t *testing.T) {
 		assert.Equal(t, []byte(`{"a":"R2D2"}`), request.document.Input.Variables)
 		assert.True(t, result.Successful)
 		assert.True(t, request.isNormalized)
+
+		assertNormalizedOperation(t, `query($a: ID!){
+    droid(id: $a){
+        name
+    }
+}`, &request.document)
+	})
+
+	t.Run("should successfully normalize query and remove unused variables", func(t *testing.T) {
+		schema := starwarsSchema(t)
+		request := Request{
+			OperationName: "MySearch",
+			Variables: stringify(map[string]interface{}{
+				"s":     "Luke",
+				"other": "other",
+			}),
+			Query: `query MySearch($s: String!, $other: String) {search(name: $s) {...on Human {name}}}`,
+		}
+		documentBeforeNormalization := request.document
+
+		result, err := request.Normalize(schema)
+		assert.NoError(t, err)
+		assert.NotEqual(t, documentBeforeNormalization, request.document)
+		assert.Equal(t, []byte(`{"s":"Luke"}`), request.document.Input.Variables)
+		assert.True(t, result.Successful)
+		assert.True(t, request.isNormalized)
+
+		assertNormalizedOperation(t, `query MySearch($s: String!){
+    search(name: $s){
+        ... on Human {
+            name
+        }
+    }
+}`, &request.document)
 	})
 
 	t.Run("should successfully normalize multiple queries with arguments", func(t *testing.T) {
@@ -62,6 +117,29 @@ func TestRequest_Normalize(t *testing.T) {
 		assert.Equal(t, []byte(`{"a":"1"}`), request.document.Input.Variables)
 		assert.True(t, result.Successful)
 		assert.True(t, request.isNormalized)
+
+		assertNormalizedOperation(t, `query GetDroid($a: ID!){
+    droid(id: $a){
+        name
+    }
+}
+
+query Search {
+    search(name: "C3PO"){
+        ... on Droid {
+            name
+            primaryFunction
+        }
+        ... on Human {
+            name
+            height
+        }
+        ... on Starship {
+            name
+            length
+        }
+    }
+}`, &request.document)
 	})
 }
 
