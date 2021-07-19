@@ -2,7 +2,6 @@ package graphql
 
 import (
 	"errors"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,7 +17,6 @@ func TestRequest_Normalize(t *testing.T) {
 		t.Helper()
 
 		op := unsafeprinter.PrettyPrint(document, nil)
-		fmt.Println(op)
 		assert.Equal(t, expected, op)
 	}
 
