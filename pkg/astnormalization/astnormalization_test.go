@@ -260,34 +260,30 @@ schema {
 `
 	query := `fragment Fields on Country {name} query Q {country {...Fields}}`
 
+	runNormalization := func(t *testing.T, removeFragmentDefinitions bool, expectedOperation string) {
+		t.Helper()
+
+		definition := unsafeparser.ParseGraphqlDocumentString(schema)
+		operation := unsafeparser.ParseGraphqlDocumentString(query)
+
+		report := operationreport.Report{}
+		normalizer := NewNormalizer(removeFragmentDefinitions, true)
+		normalizer.NormalizeOperation(&operation, &definition, &report)
+		assert.False(t, report.HasErrors())
+		fmt.Println(report)
+
+		actualOperation := unsafeprinter.Print(&operation, nil)
+		assert.NotEqual(t, query, actualOperation)
+		assert.Equal(t, expectedOperation, actualOperation)
+	}
+
 	t.Run("should respect remove fragment definitions option", func(t *testing.T) {
 		t.Run("when remove fragments: true", func(t *testing.T) {
-			definition := unsafeparser.ParseGraphqlDocumentString(schema)
-			operation := unsafeparser.ParseGraphqlDocumentString(query)
-
-			report := operationreport.Report{}
-			normalizer := NewNormalizer(true, true)
-			normalizer.NormalizeOperation(&operation, &definition, &report)
-			assert.False(t, report.HasErrors())
-			fmt.Println(report)
-
-			actualOperation := unsafeprinter.Print(&operation, nil)
-			assert.NotEqual(t, query, actualOperation)
-			assert.Equal(t, `query Q {country {name}}`, actualOperation)
+			runNormalization(t, true, `query Q {country {name}}`)
 		})
 
 		t.Run("when remove fragments: false", func(t *testing.T) {
-			definition := unsafeparser.ParseGraphqlDocumentString(schema)
-			operation := unsafeparser.ParseGraphqlDocumentString(query)
-
-			report := operationreport.Report{}
-			normalizer := NewNormalizer(false, true)
-			normalizer.NormalizeOperation(&operation, &definition, &report)
-			assert.False(t, report.HasErrors())
-			fmt.Println(report)
-
-			actualOperation := unsafeprinter.Print(&operation, nil)
-			assert.Equal(t, `fragment Fields on Country {name} query Q {country {name}}`, actualOperation)
+			runNormalization(t, false, `fragment Fields on Country {name} query Q {country {name}}`)
 		})
 	})
 }
