@@ -49,7 +49,7 @@ func TestRequest_Normalize(t *testing.T) {
 		assert.Equal(t, normalizedOperation, op)
 	})
 
-	runNormalization := func(t *testing.T, request *Request, vars string, normalizedOperation string) {
+	runNormalization := func(t *testing.T, request *Request, expectedVars string, expectedNormalizedOperation string) {
 		t.Helper()
 
 		schema := starwarsSchema(t)
@@ -58,12 +58,12 @@ func TestRequest_Normalize(t *testing.T) {
 		result, err := request.Normalize(schema)
 		assert.NoError(t, err)
 		assert.NotEqual(t, documentBeforeNormalization, request.document)
-		assert.Equal(t, []byte(vars), request.document.Input.Variables)
+		assert.Equal(t, []byte(expectedVars), request.document.Input.Variables)
 		assert.True(t, result.Successful)
 		assert.True(t, request.isNormalized)
 
 		op := unsafeprinter.PrettyPrint(&request.document, nil)
-		assert.Equal(t, normalizedOperation, op)
+		assert.Equal(t, expectedNormalizedOperation, op)
 	}
 
 	t.Run("should successfully normalize single query with arguments", func(t *testing.T) {
