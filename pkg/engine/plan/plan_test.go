@@ -218,6 +218,18 @@ func TestPlanner_Plan(t *testing.T) {
 			`, "MyHero", expectedMyHeroPlan, Configuration{},
 		))
 
+		t.Run("should successfully plan unnamed query with fragment", test(testDefinition, `
+				fragment CharacterFields on Character {
+					name
+				}
+				query {
+					hero {
+						...CharacterFields
+					}
+				}
+			`, "", expectedMyHeroPlanWithFragment, Configuration{},
+		))
+
 		t.Run("should successfully plan multiple named queries by providing an operation name", test(testDefinition, `
 				query MyHero {
 					hero {
@@ -301,6 +313,39 @@ var expectedMyHeroPlan = &SynchronousResponsePlan{
 								Position: resolve.Position{
 									Line:   4,
 									Column: 7,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+}
+
+var expectedMyHeroPlanWithFragment = &SynchronousResponsePlan{
+	FlushInterval: 0,
+	Response: &resolve.GraphQLResponse{
+		Data: &resolve.Object{
+			Fields: []*resolve.Field{
+				{
+					Name: []byte("hero"),
+					Position: resolve.Position{
+						Line:   6,
+						Column: 6,
+					},
+					Value: &resolve.Object{
+						Path:     []string{"hero"},
+						Nullable: true,
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("name"),
+								Value: &resolve.String{
+									Path: []string{"name"},
+								},
+								Position: resolve.Position{
+									Line:   3,
+									Column: 6,
 								},
 							},
 						},
