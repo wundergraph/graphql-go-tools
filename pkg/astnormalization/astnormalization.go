@@ -104,8 +104,8 @@ type OperationNormalizer struct {
 func NewNormalizer(removeFragmentDefinitions, extractVariables bool) *OperationNormalizer {
 	normalizer := &OperationNormalizer{
 		options: options{
-			removeUnusedVariables: removeFragmentDefinitions,
-			extractVariables:      extractVariables,
+			removeFragmentDefinitions: removeFragmentDefinitions,
+			extractVariables:          extractVariables,
 		},
 	}
 	normalizer.setupOperationWalkers()
