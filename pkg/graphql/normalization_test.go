@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeprinter"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 	"github.com/jensneuse/graphql-go-tools/pkg/starwars"
 )
@@ -25,7 +26,7 @@ func TestRequest_Normalize(t *testing.T) {
 		assert.False(t, request.isNormalized)
 	})
 
-	t.Run("should successfully normalize the request", func(t *testing.T) {
+	t.Run("should successfully normalize request with fragments", func(t *testing.T) {
 		schema := starwarsSchema(t)
 		request := requestForQuery(t, starwars.FileFragmentsQuery)
 		documentBeforeNormalization := request.document
@@ -35,33 +36,108 @@ func TestRequest_Normalize(t *testing.T) {
 		assert.NotEqual(t, documentBeforeNormalization, request.document)
 		assert.True(t, result.Successful)
 		assert.True(t, request.isNormalized)
+
+		normalizedOperation := `query Fragments($droidID: ID!){
+    hero {
+        name
+    }
+    droid(id: $droidID){
+        name
+    }
+}`
+		op := unsafeprinter.PrettyPrint(&request.document, nil)
+		assert.Equal(t, normalizedOperation, op)
 	})
 
-	t.Run("should successfully normalize single query with arguments", func(t *testing.T) {
+	runNormalization := func(t *testing.T, request *Request, expectedVars string, expectedNormalizedOperation string) {
+		t.Helper()
+
 		schema := starwarsSchema(t)
-		request := requestForQuery(t, starwars.FileDroidWithArgQuery)
 		documentBeforeNormalization := request.document
 
 		result, err := request.Normalize(schema)
 		assert.NoError(t, err)
 		assert.NotEqual(t, documentBeforeNormalization, request.document)
-		assert.Equal(t, []byte(`{"a":"R2D2"}`), request.document.Input.Variables)
+		assert.Equal(t, []byte(expectedVars), request.document.Input.Variables)
 		assert.True(t, result.Successful)
 		assert.True(t, request.isNormalized)
+
+		op := unsafeprinter.PrettyPrint(&request.document, nil)
+		assert.Equal(t, expectedNormalizedOperation, op)
+	}
+
+	t.Run("should successfully normalize single query with arguments", func(t *testing.T) {
+		request := requestForQuery(t, starwars.FileDroidWithArgQuery)
+
+		runNormalization(t, &request, `{"a":"R2D2"}`, `query($a: ID!){
+    droid(id: $a){
+        name
+    }
+}`)
+	})
+
+	t.Run("should successfully normalize query and remove unused variables", func(t *testing.T) {
+		request := Request{
+			OperationName: "MySearch",
+			Variables: stringify(map[string]interface{}{
+				"s":     "Luke",
+				"other": "other",
+			}),
+			Query: `query MySearch($s: String!, $other: String) {search(name: $s) {...on Human {name}}}`,
+		}
+
+		runNormalization(t, &request, `{"s":"Luke"}`, `query MySearch($s: String!){
+    search(name: $s){
+        ... on Human {
+            name
+        }
+    }
+}`)
+	})
+
+	t.Run("should successfully normalize query and remove unused variables with no value provided", func(t *testing.T) {
+		request := Request{
+			OperationName: "MySearch",
+			Variables: stringify(map[string]interface{}{
+				"s": "Luke",
+			}),
+			Query: `query MySearch($s: String!, $other: String) {search(name: $s) {...on Human {name}}}`,
+		}
+		runNormalization(t, &request, `{"s":"Luke"}`, `query MySearch($s: String!){
+    search(name: $s){
+        ... on Human {
+            name
+        }
+    }
+}`)
 	})
 
 	t.Run("should successfully normalize multiple queries with arguments", func(t *testing.T) {
-		schema := starwarsSchema(t)
 		request := requestForQuery(t, starwars.FileMultiQueriesWithArguments)
 		request.OperationName = "GetDroid"
-		documentBeforeNormalization := request.document
 
-		result, err := request.Normalize(schema)
-		assert.NoError(t, err)
-		assert.NotEqual(t, documentBeforeNormalization, request.document)
-		assert.Equal(t, []byte(`{"a":"1"}`), request.document.Input.Variables)
-		assert.True(t, result.Successful)
-		assert.True(t, request.isNormalized)
+		runNormalization(t, &request, `{"a":"1"}`, `query GetDroid($a: ID!){
+    droid(id: $a){
+        name
+    }
+}
+
+query Search {
+    search(name: "C3PO"){
+        ... on Droid {
+            name
+            primaryFunction
+        }
+        ... on Human {
+            name
+            height
+        }
+        ... on Starship {
+            name
+            length
+        }
+    }
+}`)
 	})
 }
 
