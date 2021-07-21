@@ -1674,8 +1674,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 
 		userService := NewMockDataSource(ctrl)
 		userService.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
-			DoAndReturn(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 				actual := string(input)
 				expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"{me {id username}}"}}`
 				assert.Equal(t, expected, actual)
@@ -1693,8 +1693,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				}), nil)
 		reviewsService := NewMockDataSource(ctrl)
 		reviewsService.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
-			DoAndReturn(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 				actual := string(input)
 				expected := `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}},"extract_entities":true}`
 				assert.Equal(t, expected, actual)
@@ -1715,8 +1715,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			}), nil)
 		productService := NewMockDataSource(ctrl)
 		productService.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
-			DoAndReturn(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 				actual := string(input)
 				expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}},"extract_entities":true}`
 				assert.Equal(t, expected, actual)
@@ -1861,8 +1861,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 
 		userService := NewMockDataSource(ctrl)
 		userService.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
-			DoAndReturn(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 				actual := string(input)
 				expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"{me {id username}}"}}`
 				assert.Equal(t, expected, actual)
@@ -1880,8 +1880,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				}), nil)
 		reviewsService := NewMockDataSource(ctrl)
 		reviewsService.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
-			DoAndReturn(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 				actual := string(input)
 				expected := `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}},"extract_entities":true}`
 				assert.Equal(t, expected, actual)
@@ -1899,8 +1899,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			[]resultedBufPair{{data: `null`, err: "errorMessage"}, {data: `null`}}), nil)
 		productService := NewMockDataSource(ctrl)
 		productService.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
-			DoAndReturn(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 				actual := string(input)
 				expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}},"extract_entities":true}`
 				assert.Equal(t, expected, actual)

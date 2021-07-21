@@ -1,8 +1,10 @@
 package resolve
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io"
 	"strings"
 	"testing"
 
@@ -65,8 +67,8 @@ func TestDataLoader_Load(t *testing.T) {
 	t.Run("root request", testFn(nil, func(t *testing.T, ctrl *gomock.Controller) (fetch *SingleFetch, ctx *Context, expectedOutput string) {
 		userService := NewMockDataSource(ctrl)
 		userService.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
-			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+			Do(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 				actual := string(input)
 				expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"{me {id username}}"}}`
 				assert.Equal(t, expected, actual)
@@ -98,9 +100,9 @@ func TestDataLoader_Load(t *testing.T) {
 	}, func(t *testing.T, ctrl *gomock.Controller) (fetch *SingleFetch, ctx *Context, expectedOutput string) {
 		userService := NewMockDataSource(ctrl)
 		userService.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
 			Times(2).
-			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+			Do(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 				actual := string(input)
 				switch {
 				case strings.Contains(actual, "11"):
@@ -156,9 +158,9 @@ func TestDataLoader_Load(t *testing.T) {
 
 		userService := NewMockDataSource(ctrl)
 		userService.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
 			Times(2).
-			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+			Do(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 				actual := string(input)
 				switch {
 				case strings.Contains(actual, "11"):
@@ -317,9 +319,9 @@ func TestDataLoader_Load(t *testing.T) {
 	}, func(t *testing.T, ctrl *gomock.Controller) (fetch *SingleFetch, ctx *Context, expectedOutput string) {
 		userService := NewMockDataSource(ctrl)
 		userService.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
 			Times(4).
-			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+			Do(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 				actual := string(input)
 				switch {
 				case strings.Contains(actual, "11"):
@@ -370,9 +372,9 @@ func TestDataLoader_Load(t *testing.T) {
 	}, func(t *testing.T, ctrl *gomock.Controller) (fetch *SingleFetch, ctx *Context, expectedOutput string) {
 		userService := NewMockDataSource(ctrl)
 		userService.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
 			Times(2).
-			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+			Do(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 				actual := string(input)
 				switch {
 				case strings.Contains(actual, "11"):
@@ -456,8 +458,8 @@ func TestDataLoader_LoadBatch(t *testing.T) {
 
 		userService := NewMockDataSource(ctrl)
 		userService.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
-			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+			Do(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 				actual := string(input)
 				expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}},"extract_entities":true}`
 				assert.Equal(t, expected, actual)
@@ -548,8 +550,8 @@ func TestDataLoader_LoadBatch(t *testing.T) {
 
 		userService := NewMockDataSource(ctrl)
 		userService.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
-			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+			Do(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 				actual := string(input)
 				expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}},"extract_entities":true}`
 				assert.Equal(t, expected, actual)
