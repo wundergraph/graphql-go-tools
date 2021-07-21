@@ -7,6 +7,7 @@ import (
 	"github.com/cespare/xxhash"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/fastbuffer"
+	"github.com/jensneuse/graphql-go-tools/pkg/pool"
 )
 
 type Fetcher struct {
@@ -47,13 +48,17 @@ func NewFetcher(enableSingleFlightLoader bool) *Fetcher {
 }
 
 func (f *Fetcher) Fetch(ctx *Context, fetch *SingleFetch, preparedInput *fastbuffer.FastBuffer, buf *BufPair) (err error) {
+	dataBuf := pool.BytesBuffer.Get()
+	defer pool.BytesBuffer.Put(dataBuf)
 
 	if ctx.beforeFetchHook != nil {
 		ctx.beforeFetchHook.OnBeforeFetch(f.hookCtx(ctx), preparedInput.Bytes())
 	}
 
 	if !f.EnableSingleFlightLoader || fetch.DisallowSingleFlight {
-		err = fetch.DataSource.Load(ctx.Context, preparedInput.Bytes(), buf)
+		err = fetch.DataSource.Load(ctx.Context, preparedInput.Bytes(), dataBuf)
+		extractResponse(dataBuf.Bytes(), buf, fetch.ProcessResponseConfig)
+
 		if ctx.afterFetchHook != nil {
 			if buf.HasData() {
 				ctx.afterFetchHook.OnData(f.hookCtx(ctx), buf.Data.Bytes(), false)
@@ -66,7 +71,6 @@ func (f *Fetcher) Fetch(ctx *Context, fetch *SingleFetch, preparedInput *fastbuf
 	}
 
 	hash64 := f.getHash64()
-	_, _ = hash64.Write(fetch.DataSource.UniqueIdentifier())
 	_, _ = hash64.Write(preparedInput.Bytes())
 	fetchID := hash64.Sum64()
 	f.putHash64(hash64)
@@ -93,14 +97,14 @@ func (f *Fetcher) Fetch(ctx *Context, fetch *SingleFetch, preparedInput *fastbuf
 		return inflight.err
 	}
 
-
 	inflight = f.getInflightFetch()
 	inflight.waitLoad.Add(1)
 	f.inflightFetches[fetchID] = inflight
 
 	f.inflightFetchMu.Unlock()
 
-	err = fetch.DataSource.Load(ctx.Context, preparedInput.Bytes(), &inflight.bufPair)
+	err = fetch.DataSource.Load(ctx.Context, preparedInput.Bytes(), dataBuf)
+	extractResponse(dataBuf.Bytes(), &inflight.bufPair, fetch.ProcessResponseConfig)
 	inflight.err = err
 
 	if inflight.bufPair.HasData() {
@@ -160,7 +164,7 @@ func (f *Fetcher) getBufPair() *BufPair {
 	return f.bufPairPool.Get().(*BufPair)
 }
 
-func (f *Fetcher) freeBufPair(buf *BufPair)  {
+func (f *Fetcher) freeBufPair(buf *BufPair) {
 	buf.Reset()
 	f.bufPairPool.Put(buf)
 }

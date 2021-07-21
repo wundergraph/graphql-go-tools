@@ -132,7 +132,7 @@ type Context struct {
 	dataLoader       *dataLoader
 	beforeFetchHook  BeforeFetchHook
 	afterFetchHook   AfterFetchHook
-	position        Position
+	position         Position
 }
 
 type Request struct {
@@ -318,7 +318,7 @@ type SubscriptionDataSource interface {
 }
 
 type Resolver struct {
-	ctx                      context.Context
+	ctx               context.Context
 	EnableDataloader  bool
 	resultSetPool     sync.Pool
 	byteSlicesPool    sync.Pool
@@ -429,7 +429,7 @@ func (r *Resolver) validateContext(ctx *Context) (err error) {
 	return nil
 }
 
-func (r *Resolver) extractResponse(responseData []byte, bufPair *BufPair, cfg ProcessResponseConfig) {
+func extractResponse(responseData []byte, bufPair *BufPair, cfg ProcessResponseConfig) {
 	if len(responseData) == 0 {
 		return
 	}
@@ -480,7 +480,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	responseBuf := r.getBufPair()
 	defer r.freeBufPair(responseBuf)
 
-	r.extractResponse(data, responseBuf, ProcessResponseConfig{ExtractGraphqlResponse: true})
+	extractResponse(data, responseBuf, ProcessResponseConfig{ExtractGraphqlResponse: true})
 
 	if data != nil {
 		ctx.lastFetchID = initialValueID
@@ -493,7 +493,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 			ctx.dataLoader = nil
 		}()
 	}
-	
+
 	ignoreData := false
 	err = r.resolveNode(ctx, response.Data, responseBuf.Data.Bytes(), buf)
 	if err != nil {
@@ -1450,7 +1450,7 @@ func (_ *ParallelFetch) FetchKind() FetchKind {
 }
 
 type BatchFetch struct {
-	Fetch *SingleFetch
+	Fetch        *SingleFetch
 	BatchFactory DataSourceBatchFactory
 }
 
