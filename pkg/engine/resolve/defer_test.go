@@ -97,10 +97,10 @@ func TestWithoutDefer(t *testing.T) {
 		},
 	}
 
-	c, cancel := context.WithCancel(context.Background())
+	rCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	resolver := New(NewFetcher(false), false)
+	resolver := New(rCtx, NewFetcher(false), false)
 
 	ctx := NewContext(context.Background())
 
