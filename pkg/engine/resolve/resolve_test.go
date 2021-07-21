@@ -1679,8 +1679,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				actual := string(input)
 				expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"{me {id username}}"}}`
 				assert.Equal(t, expected, actual)
+				pair := NewBufPair()
 				pair.Data.WriteString(`{"me": {"id": "1234","username": "Me","__typename": "User"}}`)
-				return
+				return writeGraphqlResponse(pair, w, false)
 			})
 
 		reviewBatchFactory := NewMockDataSourceBatchFactory(ctrl)
@@ -1698,8 +1699,10 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				actual := string(input)
 				expected := `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}},"extract_entities":true}`
 				assert.Equal(t, expected, actual)
+				pair := NewBufPair()
 				pair.Data.WriteString(`{"reviews": [{"body": "A highly effective form of birth control.","product": {"upc": "top-1","__typename": "Product"}},{"body": "Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product": {"upc": "top-2","__typename": "Product"}}]}`)
-				return
+				return writeGraphqlResponse(pair, w, false)
+
 			})
 
 		productBatchFactory := NewMockDataSourceBatchFactory(ctrl)
@@ -1720,8 +1723,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				actual := string(input)
 				expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}},"extract_entities":true}`
 				assert.Equal(t, expected, actual)
+				pair := NewBufPair()
 				pair.Data.WriteString(`[{"name": "Trilby"},{"name": "Fedora"}]`)
-				return
+				return writeGraphqlResponse(pair, w, false)
 			})
 
 		return &GraphQLResponse{
@@ -1866,8 +1870,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				actual := string(input)
 				expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"{me {id username}}"}}`
 				assert.Equal(t, expected, actual)
+				pair := NewBufPair()
 				pair.Data.WriteString(`{"me": {"id": "1234","username": "Me","__typename": "User"}}`)
-				return
+				return writeGraphqlResponse(pair, w, false)
 			})
 
 		reviewBatchFactory := NewMockDataSourceBatchFactory(ctrl)
@@ -1885,8 +1890,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				actual := string(input)
 				expected := `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}},"extract_entities":true}`
 				assert.Equal(t, expected, actual)
+				pair := NewBufPair()
 				pair.Data.WriteString(`{"reviews": [{"body": "A highly effective form of birth control.","product": {"upc": "top-1","__typename": "Product"}},{"body": "Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product": {"upc": "top-2","__typename": "Product"}}]}`)
-				return
+				return writeGraphqlResponse(pair, w, false)
 			})
 
 		productBatchFactory := NewMockDataSourceBatchFactory(ctrl)
@@ -1904,8 +1910,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				actual := string(input)
 				expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}},"extract_entities":true}`
 				assert.Equal(t, expected, actual)
+				pair := NewBufPair()
 				pair.WriteErr([]byte("errorMessage"), nil, nil, nil)
-				return
+				return writeGraphqlResponse(pair, w, false)
 			})
 
 		return &GraphQLResponse{

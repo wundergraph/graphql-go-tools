@@ -72,8 +72,9 @@ func TestDataLoader_Load(t *testing.T) {
 				actual := string(input)
 				expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"{me {id username}}"}}`
 				assert.Equal(t, expected, actual)
+				pair := NewBufPair()
 				pair.Data.WriteString(`{"me": {"id": "1234","username": "Me","__typename": "User"}}`)
-				return
+				return writeGraphqlResponse(pair, w, false)
 			}).
 			Return(nil)
 
@@ -108,13 +109,15 @@ func TestDataLoader_Load(t *testing.T) {
 				case strings.Contains(actual, "11"):
 					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id name }","variables":{"$userId":11}}`
 					assert.Equal(t, expected, actual)
+					pair := NewBufPair()
 					pair.Data.WriteString(`{"user": {"id":11, "username": "Username 11"}}`)
-					return
+					return writeGraphqlResponse(pair, w, false)
 				case strings.Contains(actual, "22"):
 					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id name }","variables":{"$userId":22}}`
 					assert.Equal(t, expected, actual)
+					pair := NewBufPair()
 					pair.Data.WriteString(`{"user": {"id":22, "username": "Username 22"}}`)
-					return
+					return writeGraphqlResponse(pair, w, false)
 				}
 
 				return errors.New("unexpected call")
@@ -166,8 +169,9 @@ func TestDataLoader_Load(t *testing.T) {
 				case strings.Contains(actual, "11"):
 					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id name }","variables":{"$userId":11}}`
 					assert.Equal(t, expected, actual)
+					pair := NewBufPair()
 					pair.Data.WriteString(`{"user": {"id":11, "username": "Username 11"}}`)
-					return
+					return writeGraphqlResponse(pair, w, false)
 				case strings.Contains(actual, "22"):
 					return errors.New("failed to access http://localhost:4001")
 				}
@@ -327,13 +331,15 @@ func TestDataLoader_Load(t *testing.T) {
 				case strings.Contains(actual, "11"):
 					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id name }","variables":{"$userId":11}}`
 					assert.Equal(t, expected, actual)
+					pair := NewBufPair()
 					pair.Data.WriteString(`{"user": {"id":11, "username": "Username 11"}}`)
-					return
+					return writeGraphqlResponse(pair, w, false)
 				case strings.Contains(actual, "22"):
 					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id name }","variables":{"$userId":22}}`
 					assert.Equal(t, expected, actual)
+					pair := NewBufPair()
 					pair.Data.WriteString(`{"user": {"id":22, "username": "Username 22"}}`)
-					return
+					return writeGraphqlResponse(pair, w, false)
 				}
 
 				return errors.New("unexpected call")
@@ -380,13 +386,15 @@ func TestDataLoader_Load(t *testing.T) {
 				case strings.Contains(actual, "11"):
 					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id name }","variables":{"$userId":11}}`
 					assert.Equal(t, expected, actual)
+					pair := NewBufPair()
 					pair.Data.WriteString(`{"user": {"id":11, "username": "Username 11"}}`)
-					return
+					return writeGraphqlResponse(pair, w, false)
 				case strings.Contains(actual, "22"):
 					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id name }","variables":{"$userId":22}}`
 					assert.Equal(t, expected, actual)
+					pair := NewBufPair()
 					pair.Data.WriteString(`{"user": {"id":22, "username": "Username 22"}}`)
-					return
+					return writeGraphqlResponse(pair, w, false)
 				}
 
 				return errors.New("unexpected call")
@@ -463,8 +471,9 @@ func TestDataLoader_LoadBatch(t *testing.T) {
 				actual := string(input)
 				expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}},"extract_entities":true}`
 				assert.Equal(t, expected, actual)
+				pair := NewBufPair()
 				pair.Data.WriteString(`[{"name": "Trilby"},{"name": "Fedora"}]`)
-				return
+				return writeGraphqlResponse(pair, w, false)
 			}).
 			Return(nil)
 
