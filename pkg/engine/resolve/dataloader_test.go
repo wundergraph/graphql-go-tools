@@ -38,6 +38,8 @@ func TestDataLoader_Load(t *testing.T) {
 		fetch, ctx, expectedOutput := fn(t, ctrl)
 
 		return func(t *testing.T) {
+			t.Helper()
+
 			bufPair := NewBufPair()
 			err := dl.Load(ctx, fetch, bufPair)
 			assert.NoError(t, err)
@@ -57,6 +59,8 @@ func TestDataLoader_Load(t *testing.T) {
 		fetch, ctx, expectedErr := fn(t, ctrl)
 
 		return func(t *testing.T) {
+			t.Helper()
+
 			bufPair := NewBufPair()
 			err := dl.Load(ctx, fetch, bufPair)
 			assert.EqualError(t, err, expectedErr)
