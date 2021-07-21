@@ -455,10 +455,10 @@ func TestDataLoader_LoadBatch(t *testing.T) {
 		batchFactory := NewMockDataSourceBatchFactory(ctrl)
 		batchFactory.EXPECT().
 			CreateBatch(
-				[]byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"}]}},"extract_entities":true}`),
-				[]byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-2","__typename":"Product"}]}},"extract_entities":true}`),
+				[]byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"}]}}}`),
+				[]byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-2","__typename":"Product"}]}}}`),
 			).Return(NewFakeDataSourceBatch(
-			`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}},"extract_entities":true}`,
+			`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}}}`,
 			[]resultedBufPair{
 				{data: `{"name": "Trilby"}`},
 				{data: `{"name": "Fedora"}`},
@@ -469,7 +469,7 @@ func TestDataLoader_LoadBatch(t *testing.T) {
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
 			Do(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 				actual := string(input)
-				expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}},"extract_entities":true}`
+				expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}}}`
 				assert.Equal(t, expected, actual)
 				pair := NewBufPair()
 				pair.Data.WriteString(`[{"name": "Trilby"},{"name": "Fedora"}]`)
@@ -492,7 +492,7 @@ func TestDataLoader_LoadBatch(t *testing.T) {
 							VariableSourcePath: []string{"upc"},
 						},
 						{
-							Data:        []byte(`","__typename":"Product"}]}},"extract_entities":true}`),
+							Data:        []byte(`","__typename":"Product"}]}}}`),
 							SegmentType: StaticSegmentType,
 						},
 					},
@@ -525,7 +525,7 @@ func TestDataLoader_LoadBatch(t *testing.T) {
 							VariableSourcePath: []string{"upc"},
 						},
 						{
-							Data:        []byte(`","__typename":"Product"}]}},"extract_entities":true}`),
+							Data:        []byte(`","__typename":"Product"}]}}}`),
 							SegmentType: StaticSegmentType,
 						},
 					},
@@ -551,10 +551,10 @@ func TestDataLoader_LoadBatch(t *testing.T) {
 		batchFactory := NewMockDataSourceBatchFactory(ctrl)
 		batchFactory.EXPECT().
 			CreateBatch(
-				[]byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"}]}},"extract_entities":true}`),
-				[]byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-2","__typename":"Product"}]}},"extract_entities":true}`),
+				[]byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"}]}}}`),
+				[]byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-2","__typename":"Product"}]}}}`),
 			).Return(NewFakeDataSourceBatch(
-			`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}},"extract_entities":true}`,
+			`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}}}`,
 			[]resultedBufPair{}), nil)
 
 		userService := NewMockDataSource(ctrl)
@@ -562,7 +562,7 @@ func TestDataLoader_LoadBatch(t *testing.T) {
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
 			Do(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 				actual := string(input)
-				expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}},"extract_entities":true}`
+				expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}}}`
 				assert.Equal(t, expected, actual)
 				return
 			}).
@@ -585,7 +585,7 @@ func TestDataLoader_LoadBatch(t *testing.T) {
 								VariableSourcePath: []string{"upc"},
 							},
 							{
-								Data:        []byte(`","__typename":"Product"}]}},"extract_entities":true}`),
+								Data:        []byte(`","__typename":"Product"}]}}}`),
 								SegmentType: StaticSegmentType,
 							},
 						},

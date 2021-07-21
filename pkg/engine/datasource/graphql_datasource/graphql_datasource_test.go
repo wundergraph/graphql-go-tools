@@ -1841,13 +1841,13 @@ func TestGraphQLDataSource(t *testing.T) {
 								Fetch: &resolve.BatchFetch{
 									Fetch: &resolve.SingleFetch{
 										BufferId: 1,
-										Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body author {id username} product {upc}}}}}","variables":{"representations":[{"id":"$$0$$","__typename":"User"}]}},"extract_entities":true}`,
+										Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body author {id username} product {upc}}}}}","variables":{"representations":[{"id":"$$0$$","__typename":"User"}]}}}`,
 										Variables: resolve.NewVariables(
 											&resolve.ObjectVariable{
 												Path: []string{"id"},
 											},
 										),
-										DataSource: &Source{},
+										DataSource:           &Source{},
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 										ProcessResponseConfig: resolve.ProcessResponseConfig{
 											ExtractGraphqlResponse:    true,
@@ -1948,7 +1948,7 @@ func TestGraphQLDataSource(t *testing.T) {
 																	&resolve.BatchFetch{
 																		Fetch: &resolve.SingleFetch{
 																			BufferId:   2,
-																			Input:      `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"upc":"$$0$$","__typename":"Product"}]}},"extract_entities":true}`,
+																			Input:      `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"upc":"$$0$$","__typename":"Product"}]}}}`,
 																			DataSource: &Source{},
 																			Variables: resolve.NewVariables(
 																				&resolve.ObjectVariable{
@@ -1966,18 +1966,18 @@ func TestGraphQLDataSource(t *testing.T) {
 																	&resolve.BatchFetch{
 																		Fetch: &resolve.SingleFetch{
 																			BufferId: 3,
-																			Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {reviews {body author {id username}}}}}","variables":{"representations":[{"upc":"$$0$$","__typename":"Product"}]}},"extract_entities":true}`,
+																			Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {reviews {body author {id username}}}}}","variables":{"representations":[{"upc":"$$0$$","__typename":"Product"}]}}}`,
 																			Variables: resolve.NewVariables(
 																				&resolve.ObjectVariable{
 																					Path: []string{"upc"},
 																				},
 																			),
-																			DataSource: &Source{},
+																			DataSource:           &Source{},
 																			DataSourceIdentifier: []byte("graphql_datasource.Source"),
 																			ProcessResponseConfig: resolve.ProcessResponseConfig{
 																				ExtractGraphqlResponse:    true,
 																				ExtractFederationEntities: true,
-																			},												
+																			},
 																		},
 																		BatchFactory: batchFactory,
 																	},
