@@ -37,6 +37,7 @@ func TestNewEngineV2Configuration(t *testing.T) {
 		engineConfig = NewEngineV2Configuration(schema)
 		assert.Len(t, engineConfig.plannerConfig.DataSources, 0)
 		assert.Len(t, engineConfig.plannerConfig.Fields, 0)
+		assert.Equal(t, dataLoaderConfig{}, engineConfig.dataLoaderConfig)
 	})
 
 	t.Run("should successfully add a data source", func(t *testing.T) {
@@ -57,6 +58,16 @@ func TestNewEngineV2Configuration(t *testing.T) {
 
 		assert.Len(t, engineConfig.plannerConfig.DataSources, 3)
 		assert.Equal(t, ds, engineConfig.plannerConfig.DataSources)
+	})
+
+	t.Run("should successfully enable single flight loader", func(t *testing.T) {
+		engineConfig.EnableSingleFlightLoader(true)
+		assert.True(t, engineConfig.dataLoaderConfig.EnableSingleFlightLoader)
+	})
+
+	t.Run("should successfully enable data loader", func(t *testing.T) {
+		engineConfig.EnableDataLoader(true)
+		assert.True(t, engineConfig.dataLoaderConfig.EnableDataLoader)
 	})
 
 	t.Run("should successfully add a field config", func(t *testing.T) {
