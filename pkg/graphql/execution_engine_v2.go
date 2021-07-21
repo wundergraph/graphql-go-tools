@@ -17,8 +17,9 @@ import (
 )
 
 type EngineV2Configuration struct {
-	schema        *Schema
-	plannerConfig plan.Configuration
+	schema           *Schema
+	plannerConfig    plan.Configuration
+	dataLoaderConfig dataLoaderConfig
 }
 
 func NewEngineV2Configuration(schema *Schema) EngineV2Configuration {
@@ -28,6 +29,10 @@ func NewEngineV2Configuration(schema *Schema) EngineV2Configuration {
 			DefaultFlushInterval: 0,
 			DataSources:          []plan.DataSourceConfiguration{},
 			Fields:               plan.FieldConfigurations{},
+		},
+		dataLoaderConfig: dataLoaderConfig{
+			EnableSingleFlightLoader: false,
+			EnableDataLoader:         false,
 		},
 	}
 }
@@ -46,6 +51,19 @@ func (e *EngineV2Configuration) AddFieldConfiguration(fieldConfig plan.FieldConf
 
 func (e *EngineV2Configuration) SetFieldConfigurations(fieldConfigs plan.FieldConfigurations) {
 	e.plannerConfig.Fields = fieldConfigs
+}
+
+func (e *EngineV2Configuration) EnableSingleFlightLoader(enable bool) {
+	e.dataLoaderConfig.EnableSingleFlightLoader = enable
+}
+
+func (e *EngineV2Configuration) EnableDataLoader(enable bool) {
+	e.dataLoaderConfig.EnableDataLoader = enable
+}
+
+type dataLoaderConfig struct {
+	EnableSingleFlightLoader bool
+	EnableDataLoader         bool
 }
 
 type EngineResultWriter struct {
@@ -166,6 +184,8 @@ func WithAfterFetchHook(hook resolve.AfterFetchHook) ExecutionOptionsV2 {
 }
 
 func NewExecutionEngineV2(ctx context.Context, logger abstractlogger.Logger, engineConfig EngineV2Configuration) (*ExecutionEngineV2, error) {
+	fetcher := resolve.NewFetcher(engineConfig.dataLoaderConfig.EnableSingleFlightLoader)
+
 	return &ExecutionEngineV2{
 		logger: logger,
 		config: engineConfig,
@@ -174,7 +194,7 @@ func NewExecutionEngineV2(ctx context.Context, logger abstractlogger.Logger, eng
 				return plan.NewPlanner(ctx, engineConfig.plannerConfig)
 			},
 		},
-		resolver: resolve.New(ctx),
+		resolver: resolve.New(ctx, fetcher, engineConfig.dataLoaderConfig.EnableDataLoader),
 		internalExecutionContextPool: sync.Pool{
 			New: func() interface{} {
 				return newInternalExecutionContext()

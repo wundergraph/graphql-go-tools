@@ -40,6 +40,7 @@ type Planner struct {
 	rootTypeName               string // rootTypeName - holds name of top level type
 	rootFieldName              string // rootFieldName - holds name of root type field
 	rootFieldRef               int    // rootFieldRef - holds ref of root type field
+	batchFactory               resolve.DataSourceBatchFactory
 }
 
 func (p *Planner) DownstreamResponseFieldAlias(downstreamFieldRef int) (alias string, exists bool) {
@@ -143,6 +144,15 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 	input = httpclient.SetInputURL(input, []byte(p.config.Fetch.URL))
 	input = httpclient.SetInputMethod(input, []byte(p.config.Fetch.Method))
 
+	var batchConfig plan.BatchConfig
+	// Allow batch query for fetching entities.
+	if p.extractEntities && p.batchFactory != nil {
+		batchConfig = plan.BatchConfig{
+			AllowBatch:   p.extractEntities, // Allow batch query for fetching entities.
+			BatchFactory: p.batchFactory,
+		}
+	}
+
 	return plan.FetchConfiguration{
 		Input: string(input),
 		DataSource: &Source{
@@ -154,6 +164,7 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 			ExtractGraphqlResponse:    true,
 			ExtractFederationEntities: p.extractEntities,
 		},
+		BatchConfig:          batchConfig,
 	}
 }
 
@@ -860,12 +871,14 @@ func (p *Planner) addField(ref int) {
 
 type Factory struct {
 	Client *http.Client
+	BatchFactory resolve.DataSourceBatchFactory
 }
 
 func (f *Factory) Planner(ctx context.Context) plan.DataSourcePlanner {
 	return &Planner{
 		fetchClient:        f.Client,
 		subscriptionClient: NewWebSocketGraphQLSubscriptionClient(f.Client, ctx),
+		batchFactory: f.BatchFactory,
 	}
 }
 

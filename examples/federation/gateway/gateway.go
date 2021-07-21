@@ -75,7 +75,7 @@ func (g *Gateway) Ready() {
 // Error handling is not finished.
 func (g *Gateway) UpdateDataSources(newDataSourcesConfig []graphqlDataSource.Configuration) {
 	ctx := context.Background()
-	engineConfigFactory := federation.NewEngineConfigV2Factory(g.httpClient, newDataSourcesConfig...)
+	engineConfigFactory := federation.NewEngineConfigV2Factory(g.httpClient, graphqlDataSource.NewBatchFactory(), newDataSourcesConfig...)
 
 	schema, err := engineConfigFactory.MergedSchema()
 	if err != nil {
@@ -88,6 +88,8 @@ func (g *Gateway) UpdateDataSources(newDataSourcesConfig []graphqlDataSource.Con
 		g.logger.Error("get engine config: %v", log.Error(err))
 		return
 	}
+
+	datasourceConfig.EnableDataLoader(true)
 
 	engine, err := graphql.NewExecutionEngineV2(ctx, g.logger, datasourceConfig)
 	if err != nil {

@@ -43,6 +43,50 @@ func FakeDataSource(data string) *_fakeDataSource {
 	}
 }
 
+type _fakeDataSourceBatch struct {
+	resultedInput *fastbuffer.FastBuffer
+	bufPairs      []*BufPair
+}
+
+func (f *_fakeDataSourceBatch) Input() *fastbuffer.FastBuffer {
+	return f.resultedInput
+}
+
+func (f *_fakeDataSourceBatch) Demultiplex(responseBufPair *BufPair, bufPairs []*BufPair) (err error) {
+	for i := range bufPairs {
+		bufPairs[i].Data.WriteBytes(f.bufPairs[i].Data.Bytes())
+		bufPairs[i].Errors.WriteBytes(f.bufPairs[i].Errors.Bytes())
+	}
+
+	return nil
+}
+
+type resultedBufPair struct {
+	data string
+	err  string
+}
+
+func NewFakeDataSourceBatch(resultedInput string, resultedBufPairs []resultedBufPair) *_fakeDataSourceBatch {
+	bufInput := fastbuffer.New()
+	bufInput.WriteString(resultedInput)
+
+	bufPairs := make([]*BufPair, len(resultedBufPairs))
+	for i, v := range resultedBufPairs {
+		bufPair := NewBufPair()
+		bufPair.Data.WriteString(v.data)
+		if v.err != "" {
+			bufPair.WriteErr([]byte(v.err), nil, nil, nil)
+		}
+
+		bufPairs[i] = bufPair
+	}
+
+	return &_fakeDataSourceBatch{
+		resultedInput: bufInput,
+		bufPairs:      bufPairs,
+	}
+}
+
 type _byteMatchter struct {
 	data []byte
 }
@@ -66,13 +110,17 @@ func (g gotBytesFormatter) Got(got interface{}) string {
 	return "bytes: " + string(got.([]byte))
 }
 
+func newResolver(ctx context.Context, enableSingleFlight bool, enableDataLoader bool) *Resolver {
+	return New(ctx, NewFetcher(enableSingleFlight), enableDataLoader)
+}
+
 func TestResolver_ResolveNode(t *testing.T) {
-	testFn := func(fn func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string)) func(t *testing.T) {
+	testFn := func(enableSingleFlight bool, enableDataLoader bool, fn func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string)) func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-		c, cancel := context.WithCancel(context.Background())
+		rCtx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		r := New(c)
-		node, ctx, expectedOutput := fn(t, r, ctrl)
+		r := newResolver(rCtx, enableSingleFlight, enableDataLoader)
+		node, ctx, expectedOutput := fn(t, ctrl)
 		return func(t *testing.T) {
 			buf := &BufPair{
 				Data:   fastbuffer.New(),
@@ -85,15 +133,15 @@ func TestResolver_ResolveNode(t *testing.T) {
 			ctrl.Finish()
 		}
 	}
-	t.Run("Nullable empty object", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+	t.Run("Nullable empty object", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 			Nullable: true,
 		}, Context{Context: context.Background()}, `null`
 	}))
-	t.Run("empty object", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+	t.Run("empty object", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &EmptyObject{}, Context{Context: context.Background()}, `{}`
 	}))
-	t.Run("object with null field", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+	t.Run("object with null field", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 			Fields: []*Field{
 				{
@@ -103,7 +151,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 			},
 		}, Context{Context: context.Background()}, `{"foo":null}`
 	}))
-	t.Run("default graphql object", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+	t.Run("default graphql object", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 			Fields: []*Field{
 				{
@@ -115,7 +163,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 			},
 		}, Context{Context: context.Background()}, `{"data":null}`
 	}))
-	t.Run("graphql object with simple data source", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+	t.Run("graphql object with simple data source", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 			Fields: []*Field{
 				{
@@ -185,8 +233,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 			},
 		}, Context{Context: context.Background()}, `{"data":{"user":{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}}}`
 	}))
-	t.Run("fetch with context variable resolver", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
-		r.EnableSingleFlightLoader = true
+	t.Run("fetch with context variable resolver", testFn(true, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
 			Load(gomock.Any(), []byte(`{"id":1}`), gomock.AssignableToTypeOf(&bytes.Buffer{})).
@@ -233,7 +280,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 			},
 		}, Context{Context: context.Background(), Variables: []byte(`{"id":1}`)}, `{"name":"Jens"}`
 	}))
-	t.Run("resolve arrays", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+	t.Run("resolve arrays", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 			Fetch: &SingleFetch{
 				BufferId:   0,
@@ -357,7 +404,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 			},
 		}, Context{Context: context.Background()}, `{"synchronousFriends":[{"id":1,"name":"Alex"},{"id":2,"name":"Patric"}],"asynchronousFriends":[{"id":1,"name":"Alex"},{"id":2,"name":"Patric"}],"nullableFriends":null,"strings":["foo","bar","baz"],"integers":[123,456,789],"floats":[1.2,3.4,5.6],"booleans":[true,false,true]}`
 	}))
-	t.Run("array response from data source", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+	t.Run("array response from data source", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 				Fetch: &SingleFetch{
 					BufferId:   0,
@@ -388,7 +435,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 			}, Context{Context: context.Background()},
 			`{"pets":[{"name":"Woofie"}]}`
 	}))
-	t.Run("non null object with field condition can be null", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+	t.Run("non null object with field condition can be null", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 				Fetch: &SingleFetch{
 					BufferId:   0,
@@ -416,7 +463,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 			}, Context{Context: context.Background()},
 			`{}`
 	}))
-	t.Run("object with multiple type conditions", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+	t.Run("object with multiple type conditions", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 				Fetch: &SingleFetch{
 					BufferId:   0,
@@ -486,7 +533,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 			}, Context{Context: context.Background()},
 			`{"data":{"namespaceCreate":{"code":"UserAlreadyHasPersonalNamespace","message":""}}}`
 	}))
-	t.Run("resolve fieldsets based on __typename", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+	t.Run("resolve fieldsets based on __typename", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 				Fetch: &SingleFetch{
 					BufferId:   0,
@@ -518,7 +565,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 			}, Context{Context: context.Background()},
 			`{"pets":[{"name":"Woofie"}]}`
 	}))
-	t.Run("resolve fieldsets asynchronous based on __typename", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+	t.Run("resolve fieldsets asynchronous based on __typename", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 				Fetch: &SingleFetch{
 					BufferId:   0,
@@ -551,8 +598,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 			}, Context{Context: context.Background()},
 			`{"pets":[{"name":"Woofie"}]}`
 	}))
-	t.Run("parent object variables", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
-		r.EnableSingleFlightLoader = true
+	t.Run("parent object variables", testFn(true, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
 			Load(gomock.Any(), gomock.GotFormatterAdapter(gotBytesFormatter{}, matchBytes(`{"id":1}`)), gomock.AssignableToTypeOf(&bytes.Buffer{})).
@@ -631,12 +677,12 @@ func TestResolver_ResolveNode(t *testing.T) {
 }
 
 func TestResolver_WithHooks(t *testing.T) {
-	testFn := func(fn func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string)) func(t *testing.T) {
+	testFn := func(enableSingleFlight bool, enableDataLoader bool, fn func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string)) func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-		c, cancel := context.WithCancel(context.Background())
+		rCtx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		r := New(c)
-		node, ctx, expectedOutput := fn(t, r, ctrl)
+		r := newResolver(rCtx, enableSingleFlight, enableDataLoader)
+		node, ctx, expectedOutput := fn(t, ctrl)
 		return func(t *testing.T) {
 			buf := &BufPair{
 				Data:   fastbuffer.New(),
@@ -649,7 +695,7 @@ func TestResolver_WithHooks(t *testing.T) {
 			ctrl.Finish()
 		}
 	}
-	t.Run("resolve with hooks", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+	t.Run("resolve with hooks", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 
 		pathEq := func(expected string) gomock.Matcher {
 			return hookContextPathMatcher{path: expected}
@@ -739,14 +785,14 @@ func TestResolver_WithHooks(t *testing.T) {
 }
 
 func TestResolver_ResolveGraphQLResponse(t *testing.T) {
-	testFn := func(fn func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string)) func(t *testing.T) {
+	testFn := func(enableSingleFlight bool, enableDataLoader bool, fn func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string)) func(t *testing.T) {
 		t.Helper()
 
 		ctrl := gomock.NewController(t)
-		c, cancel := context.WithCancel(context.Background())
+		rCtx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		r := New(c)
-		node, ctx, expectedOutput := fn(t, r, ctrl)
+		r := newResolver(rCtx, enableSingleFlight, enableDataLoader)
+		node, ctx, expectedOutput := fn(t, ctrl)
 		return func(t *testing.T) {
 			t.Helper()
 
@@ -757,14 +803,14 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			ctrl.Finish()
 		}
 	}
-	t.Run("empty graphql response for nullable object", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("empty graphql response", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Data: &Object{
 				Nullable: true,
 			},
 		}, Context{Context: context.Background()}, `{"data":null}`
 	}))
-	t.Run("empty graphql response for not nullable query field", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("empty graphql response for not nullable query field", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Data: &Object{
 				Nullable: false,
@@ -799,8 +845,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			},
 		}, Context{Context: context.Background()}, `{"errors":[{"message":"unable to resolve","locations":[{"line":3,"column":4}],"path":["country"]}],"data":null}`
 	}))
-	t.Run("fetch with simple error", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
-		r.EnableSingleFlightLoader = true
+	t.Run("fetch with simple error", testFn(true, false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
@@ -833,8 +878,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			},
 		}, Context{Context: context.Background()}, `{"errors":[{"message":"errorMessage"}],"data":{"name":null}}`
 	}))
-	t.Run("nested fetch error for non-nullable field", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
-		r.EnableSingleFlightLoader = true
+	t.Run("nested fetch error for non-nullable field", testFn(true, false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
@@ -881,8 +925,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			},
 		}, Context{Context: context.Background()}, `{"errors":[{"message":"errorMessage"},{"message":"unable to resolve","locations":[{"line":0,"column":0}],"path":["nestedObject"]}],"data":null}`
 	}))
-	t.Run("fetch with two Errors", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
-		r.EnableSingleFlightLoader = true
+	t.Run("fetch with two Errors", testFn(true, false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
@@ -916,7 +959,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			},
 		}, Context{Context: context.Background()}, `{"errors":[{"message":"errorMessage1"},{"message":"errorMessage2"}],"data":{"name":null}}`
 	}))
-	t.Run("null field should bubble up to parent with error", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("null field should bubble up to parent with error", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Data: &Object{
 				Nullable: true,
@@ -1062,7 +1105,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			},
 		}, Context{Context: context.Background()}, `{"errors":[{"message":"unable to resolve","locations":[{"line":0,"column":0}],"path":["objectObject","objectField"]}],"data":{"stringObject":null,"integerObject":null,"floatObject":null,"booleanObject":null,"objectObject":null,"arrayObject":null,"asynchronousArrayObject":null,"nullableArray":null}}`
 	}))
-	t.Run("empty nullable array should resolve correctly", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("empty nullable array should resolve correctly", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Data: &Object{
 				Nullable: true,
@@ -1094,7 +1137,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			},
 		}, Context{Context: context.Background()}, `{"data":{"nullableArray":[]}}`
 	}))
-	t.Run("empty not nullable array should resolve correctly", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("empty not nullable array should resolve correctly", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Data: &Object{
 				Nullable: false,
@@ -1126,7 +1169,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			},
 		}, Context{Context: context.Background()}, `{"data":{"notNullableArray":[]}}`
 	}))
-	t.Run("when data null not nullable array should resolve to data null and errors", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("when data null not nullable array should resolve to data null and errors", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Data: &Object{
 				Nullable: false,
@@ -1178,7 +1221,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			},
 		}, Context{Context: context.Background()}, `{"errors":[{"message":"unable to resolve","locations":[{"line":0,"column":0}]}],"data":null}`
 	}))
-	t.Run("when data null and errors present not nullable array should result to null data upsteam error and resolve error", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("when data null and errors present not nullable array should result to null data upsteam error and resolve error", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Data: &Object{
 				Nullable: false,
@@ -1216,8 +1259,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			},
 		}, Context{Context: context.Background()}, `{"errors":[{"message":"Could not get a name","locations":[{"line":3,"column":5}],"path":["todos",0,"name"]},{"message":"unable to resolve","locations":[{"line":0,"column":0}]}],"data":null}`
 	}))
-	t.Run("complex GraphQL Server plan", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
-		r.EnableSingleFlightLoader = true
+	t.Run("complex GraphQL Server plan", testFn(true, false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		serviceOne := NewMockDataSource(ctrl)
 		serviceOne.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
@@ -1257,8 +1299,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 		return &GraphQLResponse{
 			Data: &Object{
 				Fetch: &ParallelFetch{
-					Fetches: []*SingleFetch{
-						{
+					Fetches: []Fetch{
+						&SingleFetch{
 							BufferId: 0,
 							Input:    `{"url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":"$$0$$"}}}`,
 							InputTemplate: InputTemplate{
@@ -1297,7 +1339,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 								},
 							),
 						},
-						{
+						&SingleFetch{
 							BufferId: 1,
 							Input:    `{"url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`,
 							InputTemplate: InputTemplate{
@@ -1453,8 +1495,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			},
 		}, Context{Context: context.Background(), Variables: []byte(`{"firstArg":"firstArgValue","thirdArg":123,"secondArg": true, "fourthArg": 12.34}`)}, `{"data":{"serviceOne":{"fieldOne":"fieldOneValue"},"serviceTwo":{"fieldTwo":"fieldTwoValue","serviceOneResponse":{"fieldOne":"fieldOneValue"}},"anotherServiceOne":{"fieldOne":"anotherFieldOneValue"},"secondServiceTwo":{"fieldTwo":"secondFieldTwoValue"},"reusingServiceOne":{"fieldOne":"reUsingFieldOneValue"}}}`
 	}))
-	t.Run("federation", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
-		r.EnableSingleFlightLoader = true
+	t.Run("federation", testFn(true, false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 
 		userService := NewMockDataSource(ctrl)
 		userService.EXPECT().
@@ -1629,6 +1670,377 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			},
 		}, Context{Context: context.Background(), Variables: nil}, `{"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","name":"Trilby"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-1","name":"Trilby"}}]}}}`
 	}))
+	t.Run("federation with enabled dataloader", testFn(true, true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+
+		userService := NewMockDataSource(ctrl)
+		userService.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
+			DoAndReturn(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+				actual := string(input)
+				expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"{me {id username}}"}}`
+				assert.Equal(t, expected, actual)
+				pair.Data.WriteString(`{"me": {"id": "1234","username": "Me","__typename": "User"}}`)
+				return
+			})
+
+		reviewBatchFactory := NewMockDataSourceBatchFactory(ctrl)
+		reviewBatchFactory.EXPECT().
+			CreateBatch([]byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}},"extract_entities":true}`)).
+			Return(NewFakeDataSourceBatch(
+				`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}},"extract_entities":true}`,
+				[]resultedBufPair{
+					{data: `{"reviews": [{"body": "A highly effective form of birth control.","product": {"upc": "top-1","__typename": "Product"}},{"body": "Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product": {"upc": "top-2","__typename": "Product"}}]}`},
+				}), nil)
+		reviewsService := NewMockDataSource(ctrl)
+		reviewsService.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
+			DoAndReturn(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+				actual := string(input)
+				expected := `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}},"extract_entities":true}`
+				assert.Equal(t, expected, actual)
+				pair.Data.WriteString(`{"reviews": [{"body": "A highly effective form of birth control.","product": {"upc": "top-1","__typename": "Product"}},{"body": "Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product": {"upc": "top-2","__typename": "Product"}}]}`)
+				return
+			})
+
+		productBatchFactory := NewMockDataSourceBatchFactory(ctrl)
+		productBatchFactory.EXPECT().
+			CreateBatch(
+				[]byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"}]}},"extract_entities":true}`),
+				[]byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-2","__typename":"Product"}]}},"extract_entities":true}`),
+			).Return(NewFakeDataSourceBatch(
+			`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}},"extract_entities":true}`,
+			[]resultedBufPair{
+				{data: `{"name": "Trilby"}`},
+				{data: `{"name": "Fedora"}`},
+			}), nil)
+		productService := NewMockDataSource(ctrl)
+		productService.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
+			DoAndReturn(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+				actual := string(input)
+				expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}},"extract_entities":true}`
+				assert.Equal(t, expected, actual)
+				pair.Data.WriteString(`[{"name": "Trilby"},{"name": "Fedora"}]`)
+				return
+			})
+
+		return &GraphQLResponse{
+			Data: &Object{
+				Fetch: &SingleFetch{
+					BufferId: 0,
+					InputTemplate: InputTemplate{
+						Segments: []TemplateSegment{
+							{
+								Data:        []byte(`{"method":"POST","url":"http://localhost:4001","body":{"query":"{me {id username}}"}}`),
+								SegmentType: StaticSegmentType,
+							},
+						},
+					},
+					DataSource: userService,
+				},
+				Fields: []*Field{
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("me"),
+						Value: &Object{
+							Fetch: &BatchFetch{
+								Fetch: &SingleFetch{
+									BufferId: 1,
+									InputTemplate: InputTemplate{
+										Segments: []TemplateSegment{
+											{
+												Data:        []byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"`),
+												SegmentType: StaticSegmentType,
+											},
+											{
+												SegmentType:        VariableSegmentType,
+												VariableSource:     VariableSourceObject,
+												VariableSourcePath: []string{"id"},
+											},
+											{
+												Data:        []byte(`","__typename":"User"}]}},"extract_entities":true}`),
+												SegmentType: StaticSegmentType,
+											},
+										},
+									},
+									DataSource: reviewsService,
+								},
+								BatchFactory: reviewBatchFactory,
+							},
+							Path:     []string{"me"},
+							Nullable: true,
+							Fields: []*Field{
+								{
+									Name: []byte("id"),
+									Value: &String{
+										Path: []string{"id"},
+									},
+								},
+								{
+									Name: []byte("username"),
+									Value: &String{
+										Path: []string{"username"},
+									},
+								},
+								{
+
+									HasBuffer: true,
+									BufferID:  1,
+									Name:      []byte("reviews"),
+									Value: &Array{
+										Path:     []string{"reviews"},
+										Nullable: true,
+										Item: &Object{
+											Nullable: true,
+											Fields: []*Field{
+												{
+													Name: []byte("body"),
+													Value: &String{
+														Path: []string{"body"},
+													},
+												},
+												{
+													Name: []byte("product"),
+													Value: &Object{
+														Path: []string{"product"},
+														Fetch: &BatchFetch{
+															Fetch: &SingleFetch{
+																BufferId:   2,
+																DataSource: productService,
+																InputTemplate: InputTemplate{
+																	Segments: []TemplateSegment{
+																		{
+																			Data:        []byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"`),
+																			SegmentType: StaticSegmentType,
+																		},
+																		{
+																			SegmentType:        VariableSegmentType,
+																			VariableSource:     VariableSourceObject,
+																			VariableSourcePath: []string{"upc"},
+																		},
+																		{
+																			Data:        []byte(`","__typename":"Product"}]}},"extract_entities":true}`),
+																			SegmentType: StaticSegmentType,
+																		},
+																	},
+																},
+															},
+															BatchFactory: productBatchFactory,
+														},
+														Fields: []*Field{
+															{
+																Name: []byte("upc"),
+																Value: &String{
+																	Path: []string{"upc"},
+																},
+															},
+															{
+																HasBuffer: true,
+																BufferID:  2,
+																Name:      []byte("name"),
+																Value: &String{
+																	Path: []string{"name"},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, Context{Context: context.Background(), Variables: nil}, `{"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","name":"Trilby"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-2","name":"Fedora"}}]}}}`
+	}))
+	t.Run("federation with enabled dataloader and fetch error ", testFn(true, true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+
+		userService := NewMockDataSource(ctrl)
+		userService.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
+			DoAndReturn(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+				actual := string(input)
+				expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"{me {id username}}"}}`
+				assert.Equal(t, expected, actual)
+				pair.Data.WriteString(`{"me": {"id": "1234","username": "Me","__typename": "User"}}`)
+				return
+			})
+
+		reviewBatchFactory := NewMockDataSourceBatchFactory(ctrl)
+		reviewBatchFactory.EXPECT().
+			CreateBatch([]byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}},"extract_entities":true}`)).
+			Return(NewFakeDataSourceBatch(
+				`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}},"extract_entities":true}`,
+				[]resultedBufPair{
+					{data: `{"reviews": [{"body": "A highly effective form of birth control.","product": {"upc": "top-1","__typename": "Product"}},{"body": "Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product": {"upc": "top-2","__typename": "Product"}}]}`},
+				}), nil)
+		reviewsService := NewMockDataSource(ctrl)
+		reviewsService.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
+			DoAndReturn(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+				actual := string(input)
+				expected := `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}},"extract_entities":true}`
+				assert.Equal(t, expected, actual)
+				pair.Data.WriteString(`{"reviews": [{"body": "A highly effective form of birth control.","product": {"upc": "top-1","__typename": "Product"}},{"body": "Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product": {"upc": "top-2","__typename": "Product"}}]}`)
+				return
+			})
+
+		productBatchFactory := NewMockDataSourceBatchFactory(ctrl)
+		productBatchFactory.EXPECT().
+			CreateBatch(
+				[]byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"}]}},"extract_entities":true}`),
+				[]byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-2","__typename":"Product"}]}},"extract_entities":true}`),
+			).Return(NewFakeDataSourceBatch(
+			`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}},"extract_entities":true}`,
+			[]resultedBufPair{{data: `null`, err: "errorMessage"}, {data: `null`}}), nil)
+		productService := NewMockDataSource(ctrl)
+		productService.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
+			DoAndReturn(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+				actual := string(input)
+				expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}},"extract_entities":true}`
+				assert.Equal(t, expected, actual)
+				pair.WriteErr([]byte("errorMessage"), nil, nil, nil)
+				return
+			})
+
+		return &GraphQLResponse{
+			Data: &Object{
+				Fetch: &SingleFetch{
+					BufferId: 0,
+					InputTemplate: InputTemplate{
+						Segments: []TemplateSegment{
+							{
+								Data:        []byte(`{"method":"POST","url":"http://localhost:4001","body":{"query":"{me {id username}}"}}`),
+								SegmentType: StaticSegmentType,
+							},
+						},
+					},
+					DataSource: userService,
+				},
+				Fields: []*Field{
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("me"),
+						Value: &Object{
+							Fetch: &BatchFetch{
+								Fetch: &SingleFetch{
+									BufferId: 1,
+									InputTemplate: InputTemplate{
+										Segments: []TemplateSegment{
+											{
+												Data:        []byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"`),
+												SegmentType: StaticSegmentType,
+											},
+											{
+												SegmentType:        VariableSegmentType,
+												VariableSource:     VariableSourceObject,
+												VariableSourcePath: []string{"id"},
+											},
+											{
+												Data:        []byte(`","__typename":"User"}]}},"extract_entities":true}`),
+												SegmentType: StaticSegmentType,
+											},
+										},
+									},
+									DataSource: reviewsService,
+								},
+								BatchFactory: reviewBatchFactory,
+							},
+							Path:     []string{"me"},
+							Nullable: true,
+							Fields: []*Field{
+								{
+									Name: []byte("id"),
+									Value: &String{
+										Path: []string{"id"},
+									},
+								},
+								{
+									Name: []byte("username"),
+									Value: &String{
+										Path: []string{"username"},
+									},
+								},
+								{
+
+									HasBuffer: true,
+									BufferID:  1,
+									Name:      []byte("reviews"),
+									Value: &Array{
+										Path:     []string{"reviews"},
+										Nullable: true,
+										Item: &Object{
+											Nullable: true,
+											Fields: []*Field{
+												{
+													Name: []byte("body"),
+													Value: &String{
+														Path: []string{"body"},
+													},
+												},
+												{
+													Name: []byte("product"),
+													Value: &Object{
+														Path: []string{"product"},
+														Fetch: &BatchFetch{
+															Fetch: &SingleFetch{
+																BufferId:   2,
+																DataSource: productService,
+																InputTemplate: InputTemplate{
+																	Segments: []TemplateSegment{
+																		{
+																			Data:        []byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"`),
+																			SegmentType: StaticSegmentType,
+																		},
+																		{
+																			SegmentType:        VariableSegmentType,
+																			VariableSource:     VariableSourceObject,
+																			VariableSourcePath: []string{"upc"},
+																		},
+																		{
+																			Data:        []byte(`","__typename":"Product"}]}},"extract_entities":true}`),
+																			SegmentType: StaticSegmentType,
+																		},
+																	},
+																},
+															},
+															BatchFactory: productBatchFactory,
+														},
+														Fields: []*Field{
+															{
+																Name: []byte("upc"),
+																Value: &String{
+																	Path: []string{"upc"},
+																},
+															},
+															{
+																HasBuffer: true,
+																BufferID:  2,
+																Name:      []byte("name"),
+																Value: &String{
+																	Path: []string{"name"},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, Context{Context: context.Background(), Variables: nil}, `{"errors":[{"message":"errorMessage"}],"data":{"me":{"id":"1234","username":"Me","reviews":[null,null]}}}`
+	}))
 }
 
 func TestResolver_WithHeader(t *testing.T) {
@@ -1642,9 +2054,9 @@ func TestResolver_WithHeader(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			c, cancel := context.WithCancel(context.Background())
+			rCtx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			resolver := New(c)
+			resolver := newResolver(rCtx, false, false)
 
 			header := make(http.Header)
 			header.Set(tc.header, "foo")
@@ -1754,7 +2166,7 @@ func (f *_fakeStream) UniqueIdentifier() []byte {
 }
 
 func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
-	setup := func(ctx context.Context, stream *_fakeStream) (*Resolver, *GraphQLSubscription, *TestFlushWriter) {
+	setup := func(ctx context.Context, stream *_fakeStream) (*Resolver, *GraphQLSubscription, *TestFlushWriter, context.CancelFunc) {
 		plan := &GraphQLSubscription{
 			Trigger: GraphQLSubscriptionTrigger{
 				Source: stream,
@@ -1777,7 +2189,8 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			buf: bytes.Buffer{},
 		}
 
-		return New(ctx), plan, out
+		rCtx, cancel := context.WithCancel(context.Background())
+		return newResolver(rCtx, false, false), plan, out, cancel
 	}
 
 	t.Run("should return errors if the upstream data has errors", func(t *testing.T) {
@@ -1788,7 +2201,9 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return `{"errors":[{"message":"Validation error occurred","locations":[{"line":1,"column":1}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}],"data":null}`, false
 		})
 
-		resolver, plan, out := setup(c, fakeStream)
+		resolver, plan, out, rCtxCancel := setup(c, fakeStream)
+		defer rCtxCancel()
+
 		ctx := Context{
 			Context: c,
 		}
@@ -1807,7 +2222,9 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, count), true
 		})
 
-		resolver, plan, out := setup(c, fakeStream)
+		resolver, plan, out, rCtxCancel := setup(c, fakeStream)
+		defer rCtxCancel()
+
 		ctx := Context{
 			Context: c,
 		}
@@ -1822,11 +2239,10 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 }
 
 func BenchmarkResolver_ResolveNode(b *testing.B) {
-
-	c, cancel := context.WithCancel(context.Background())
+	rCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	resolver := New(c)
+	resolver := newResolver(rCtx, true, false)
 
 	serviceOneDS := FakeDataSource(`{"serviceOne":{"fieldOne":"fieldOneValue"},"anotherServiceOne":{"fieldOne":"anotherFieldOneValue"},"reusingServiceOne":{"fieldOne":"reUsingFieldOneValue"}}`)
 	serviceTwoDS := FakeDataSource(`{"serviceTwo":{"fieldTwo":"fieldTwoValue"},"secondServiceTwo":{"fieldTwo":"secondFieldTwoValue"}}`)
@@ -1835,8 +2251,8 @@ func BenchmarkResolver_ResolveNode(b *testing.B) {
 	plan := &GraphQLResponse{
 		Data: &Object{
 			Fetch: &ParallelFetch{
-				Fetches: []*SingleFetch{
-					{
+				Fetches: []Fetch{
+					&SingleFetch{
 						BufferId: 0,
 						Input:    `{"url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":$$0$$}}}`,
 						InputTemplate: InputTemplate{
@@ -1875,7 +2291,7 @@ func BenchmarkResolver_ResolveNode(b *testing.B) {
 							},
 						),
 					},
-					{
+					&SingleFetch{
 						BufferId: 1,
 						Input:    `{"url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`,
 						InputTemplate: InputTemplate{
@@ -2080,7 +2496,6 @@ func BenchmarkResolver_ResolveNode(b *testing.B) {
 		serviceOneDS.artificialLatency = 0
 		serviceTwoDS.artificialLatency = 0
 		nestedServiceOneDS.artificialLatency = 0
-		resolver.EnableSingleFlightLoader = true
 		runBench(b)
 	})
 }

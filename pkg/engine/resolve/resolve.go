@@ -1,4 +1,4 @@
-//go:generate mockgen --build_flags=--mod=mod -self_package=github.com/jensneuse/graphql-go-tools/pkg/engine/resolve -destination=resolve_mock_test.go -package=resolve . DataSource,BeforeFetchHook,AfterFetchHook
+//go:generate mockgen --build_flags=--mod=mod -self_package=github.com/jensneuse/graphql-go-tools/pkg/engine/resolve -destination=resolve_mock_test.go -package=resolve . DataSource,BeforeFetchHook,AfterFetchHook,DataSourceBatch,DataSourceBatchFactory
 
 package resolve
 
@@ -101,6 +101,7 @@ const (
 
 	FetchKindSingle FetchKind = iota + 1
 	FetchKindParallel
+	FetchKindBatch
 )
 
 type HookContext struct {
@@ -118,16 +119,19 @@ type AfterFetchHook interface {
 
 type Context struct {
 	context.Context
-	Variables       []byte
-	Request         Request
-	pathElements    [][]byte
-	patches         []patch
-	usedBuffers     []*bytes.Buffer
-	currentPatch    int
-	maxPatch        int
-	pathPrefix      []byte
-	beforeFetchHook BeforeFetchHook
-	afterFetchHook  AfterFetchHook
+	Variables        []byte
+	Request          Request
+	pathElements     [][]byte
+	responseElements []string
+	lastFetchID      int
+	patches          []patch
+	usedBuffers      []*bytes.Buffer
+	currentPatch     int
+	maxPatch         int
+	pathPrefix       []byte
+	dataLoader       *dataLoader
+	beforeFetchHook  BeforeFetchHook
+	afterFetchHook   AfterFetchHook
 	position        Position
 }
 
@@ -146,6 +150,7 @@ func NewContext(ctx context.Context) *Context {
 		currentPatch: -1,
 		maxPatch:     -1,
 		position:     Position{},
+		dataLoader:   nil,
 	}
 }
 
@@ -203,6 +208,7 @@ func (c *Context) Free() {
 	c.afterFetchHook = nil
 	c.Request.Header = nil
 	c.position = Position{}
+	c.dataLoader = nil
 }
 
 func (c *Context) SetBeforeFetchHook(hook BeforeFetchHook) {
@@ -215,6 +221,26 @@ func (c *Context) SetAfterFetchHook(hook AfterFetchHook) {
 
 func (c *Context) setPosition(position Position) {
 	c.position = position
+}
+
+func (c *Context) addResponseElements(elements []string) {
+	c.responseElements = append(c.responseElements, elements...)
+}
+
+func (c *Context) addResponseArrayElements(elements []string) {
+	c.responseElements = append(c.responseElements, elements...)
+	c.responseElements = append(c.responseElements, arrayElementKey)
+}
+
+func (c *Context) removeResponseLastElements(elements []string) {
+	c.responseElements = c.responseElements[:len(c.responseElements)-len(elements)]
+}
+func (c *Context) removeResponseArrayLastElements(elements []string) {
+	c.responseElements = c.responseElements[:len(c.responseElements)-(len(elements)+1)]
+}
+
+func (c *Context) resetResponsePathElements() {
+	c.responseElements = nil
 }
 
 func (c *Context) addPathElement(elem []byte) {
@@ -274,6 +300,15 @@ type Fetch interface {
 
 type Fetches []Fetch
 
+type DataSourceBatchFactory interface {
+	CreateBatch(inputs ...[]byte) (DataSourceBatch, error)
+}
+
+type DataSourceBatch interface {
+	Demultiplex(responseBufPair *BufPair, bufPairs []*BufPair) (err error)
+	Input() *fastbuffer.FastBuffer
+}
+
 type DataSource interface {
 	Load(ctx context.Context, input []byte, w io.Writer) (err error)
 }
@@ -283,18 +318,17 @@ type SubscriptionDataSource interface {
 }
 
 type Resolver struct {
-	EnableSingleFlightLoader bool
-	resultSetPool            sync.Pool
-	byteSlicesPool           sync.Pool
-	waitGroupPool            sync.Pool
-	bufPairPool              sync.Pool
-	bufPairSlicePool         sync.Pool
-	errChanPool              sync.Pool
-	hash64Pool               sync.Pool
-	inflightFetchPool        sync.Pool
-	inflightFetchMu          sync.Mutex
-	inflightFetches          map[uint64]*inflightFetch
 	ctx                      context.Context
+	EnableDataloader  bool
+	resultSetPool     sync.Pool
+	byteSlicesPool    sync.Pool
+	waitGroupPool     sync.Pool
+	bufPairPool       sync.Pool
+	bufPairSlicePool  sync.Pool
+	errChanPool       sync.Pool
+	hash64Pool        sync.Pool
+	dataloaderFactory *dataLoaderFactory
+	fetcher           *Fetcher
 }
 
 type inflightFetch struct {
@@ -305,7 +339,7 @@ type inflightFetch struct {
 }
 
 // New returns a new Resolver, ctx.Done() is used to cancel all active subscriptions & streams
-func New(ctx context.Context) *Resolver {
+func New(ctx context.Context, fetcher *Fetcher, enableDataLoader bool) *Resolver {
 	return &Resolver{
 		ctx: ctx,
 		resultSetPool: sync.Pool{
@@ -351,17 +385,9 @@ func New(ctx context.Context) *Resolver {
 				return xxhash.New()
 			},
 		},
-		inflightFetchPool: sync.Pool{
-			New: func() interface{} {
-				return &inflightFetch{
-					bufPair: BufPair{
-						Data:   fastbuffer.New(),
-						Errors: fastbuffer.New(),
-					},
-				}
-			},
-		},
-		inflightFetches: map[uint64]*inflightFetch{},
+		dataloaderFactory: newDataloaderFactory(fetcher),
+		fetcher:           fetcher,
+		EnableDataloader:  enableDataLoader,
 	}
 }
 
@@ -456,6 +482,18 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 
 	r.extractResponse(data, responseBuf, ProcessResponseConfig{ExtractGraphqlResponse: true})
 
+	if data != nil {
+		ctx.lastFetchID = initialValueID
+	}
+
+	if r.EnableDataloader {
+		ctx.dataLoader = r.dataloaderFactory.newDataLoader(data)
+		defer func() {
+			r.dataloaderFactory.freeDataLoader(ctx.dataLoader)
+			ctx.dataLoader = nil
+		}()
+	}
+	
 	ignoreData := false
 	err = r.resolveNode(ctx, response.Data, responseBuf.Data.Bytes(), buf)
 	if err != nil {
@@ -692,7 +730,10 @@ func (r *Resolver) resolveArray(ctx *Context, array *Array, data []byte, arrayBu
 		return nil
 	}
 
-	if array.ResolveAsynchronous && !array.Stream.Enabled {
+	ctx.addResponseArrayElements(array.Path)
+	defer func() { ctx.removeResponseArrayLastElements(array.Path) }()
+
+	if array.ResolveAsynchronous && !array.Stream.Enabled && !r.EnableDataloader {
 		return r.resolveArrayAsynchronous(ctx, array, arrayItems, arrayBuf)
 	}
 	return r.resolveArraySynchronous(ctx, array, arrayItems, arrayBuf)
@@ -946,6 +987,9 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 			r.addResolveError(ctx, objectBuf)
 			return errNonNullableFieldValueIsNull
 		}
+
+		ctx.addResponseElements(object.Path)
+		defer ctx.removeResponseLastElements(object.Path)
 	}
 
 	var set *resultSet
@@ -964,6 +1008,9 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 	fieldBuf := r.getBufPair()
 	defer r.freeBufPair(fieldBuf)
 
+	responseElements := ctx.responseElements
+	lastFetchID := ctx.lastFetchID
+
 	typeNameSkip := false
 	first := true
 	for i := range object.Fields {
@@ -973,6 +1020,8 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 			buffer, ok := set.buffers[object.Fields[i].BufferID]
 			if ok {
 				fieldData = buffer.Data.Bytes()
+				ctx.resetResponsePathElements()
+				ctx.lastFetchID = object.Fields[i].BufferID
 			}
 		} else {
 			fieldData = data
@@ -1000,6 +1049,8 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 		ctx.setPosition(object.Fields[i].Position)
 		err = r.resolveNode(ctx, object.Fields[i].Value, fieldData, fieldBuf)
 		ctx.removeLastPathElement()
+		ctx.responseElements = responseElements
+		ctx.lastFetchID = lastFetchID
 		if err != nil {
 			if errors.Is(err, errTypeNameSkipped) {
 				objectBuf.Data.Reset()
@@ -1050,6 +1101,7 @@ func (r *Resolver) freeResultSet(set *resultSet) {
 }
 
 func (r *Resolver) resolveFetch(ctx *Context, fetch Fetch, data []byte, set *resultSet) (err error) {
+
 	switch f := fetch.(type) {
 	case *SingleFetch:
 		preparedInput := r.getBufPair()
@@ -1059,31 +1111,66 @@ func (r *Resolver) resolveFetch(ctx *Context, fetch Fetch, data []byte, set *res
 			return err
 		}
 		err = r.resolveSingleFetch(ctx, f, preparedInput.Data, set.buffers[f.BufferId])
+	case *BatchFetch:
+		preparedInput := r.getBufPair()
+		defer r.freeBufPair(preparedInput)
+		err = r.prepareSingleFetch(ctx, f.Fetch, data, set, preparedInput.Data)
+		if err != nil {
+			return err
+		}
+		err = r.resolveBatchFetch(ctx, f, preparedInput.Data, set.buffers[f.Fetch.BufferId])
 	case *ParallelFetch:
-		preparedInputs := r.getBufPairSlice()
-		defer r.freeBufPairSlice(preparedInputs)
-		for i := range f.Fetches {
+		r.resolveParallelFetch(ctx, f, data, set)
+	}
+	return
+}
+
+func (r *Resolver) resolveParallelFetch(ctx *Context, fetch *ParallelFetch, data []byte, set *resultSet) (err error) {
+	preparedInputs := r.getBufPairSlice()
+	defer r.freeBufPairSlice(preparedInputs)
+
+	resolvers := make([]func() error, 0, len(fetch.Fetches))
+
+	wg := r.getWaitGroup()
+	defer r.freeWaitGroup(wg)
+
+	for i := range fetch.Fetches {
+		wg.Add(1)
+		switch f := fetch.Fetches[i].(type) {
+		case *SingleFetch:
 			preparedInput := r.getBufPair()
-			err = r.prepareSingleFetch(ctx, f.Fetches[i], data, set, preparedInput.Data)
+			err = r.prepareSingleFetch(ctx, f, data, set, preparedInput.Data)
 			if err != nil {
 				return err
 			}
 			*preparedInputs = append(*preparedInputs, preparedInput)
+			buf := set.buffers[f.BufferId]
+			resolvers = append(resolvers, func() error {
+				return r.resolveSingleFetch(ctx, f, preparedInput.Data, buf)
+			})
+		case *BatchFetch:
+			preparedInput := r.getBufPair()
+			err = r.prepareSingleFetch(ctx, f.Fetch, data, set, preparedInput.Data)
+			if err != nil {
+				return err
+			}
+			*preparedInputs = append(*preparedInputs, preparedInput)
+			buf := set.buffers[f.Fetch.BufferId]
+			resolvers = append(resolvers, func() error {
+				return r.resolveBatchFetch(ctx, f, preparedInput.Data, buf)
+			})
 		}
-		wg := r.getWaitGroup()
-		defer r.freeWaitGroup(wg)
-		for i := range f.Fetches {
-			preparedInput := (*preparedInputs)[i]
-			singleFetch := f.Fetches[i]
-			buf := set.buffers[f.Fetches[i].BufferId]
-			wg.Add(1)
-			go func(s *SingleFetch, buf *BufPair) {
-				_ = r.resolveSingleFetch(ctx, s, preparedInput.Data, buf)
-				wg.Done()
-			}(singleFetch, buf)
-		}
-		wg.Wait()
 	}
+
+	for _, resolver := range resolvers {
+		go func(r func() error) {
+			_ = r()
+			wg.Done()
+		}(resolver)
+	}
+
+	wg.Wait()
+
 	return
 }
 
@@ -1094,92 +1181,24 @@ func (r *Resolver) prepareSingleFetch(ctx *Context, fetch *SingleFetch, data []b
 	return
 }
 
-func (r *Resolver) resolveSingleFetch(ctx *Context, fetch *SingleFetch, preparedInput *fastbuffer.FastBuffer, buf *BufPair) (err error) {
-	dataBuf := pool.BytesBuffer.Get()
-	defer pool.BytesBuffer.Put(dataBuf)
-
-	if ctx.beforeFetchHook != nil {
-		ctx.beforeFetchHook.OnBeforeFetch(r.hookCtx(ctx), preparedInput.Bytes())
+func (r *Resolver) resolveBatchFetch(ctx *Context, fetch *BatchFetch, preparedInput *fastbuffer.FastBuffer, buf *BufPair) error {
+	if r.EnableDataloader {
+		return ctx.dataLoader.LoadBatch(ctx, fetch, buf)
 	}
 
-	if !r.EnableSingleFlightLoader || fetch.DisallowSingleFlight {
-		err = fetch.DataSource.Load(ctx.Context, preparedInput.Bytes(), dataBuf)
-		r.extractResponse(dataBuf.Bytes(), buf, fetch.ProcessResponseConfig)
-		if ctx.afterFetchHook != nil {
-			if buf.HasData() {
-				ctx.afterFetchHook.OnData(r.hookCtx(ctx), buf.Data.Bytes(), false)
-			}
-			if buf.HasErrors() {
-				ctx.afterFetchHook.OnError(r.hookCtx(ctx), buf.Errors.Bytes(), false)
-			}
-		}
-		return
+	if err := r.fetcher.FetchBatch(ctx, fetch, []*fastbuffer.FastBuffer{preparedInput}, []*BufPair{buf}); err != nil {
+		return err
 	}
 
-	hash64 := r.getHash64()
-	_, _ = hash64.Write(fetch.DataSourceIdentifier)
-	_, _ = hash64.Write(preparedInput.Bytes())
-	fetchID := hash64.Sum64()
-	r.putHash64(hash64)
+	return nil
+}
 
-	r.inflightFetchMu.Lock()
-	inflight, ok := r.inflightFetches[fetchID]
-	if ok {
-		inflight.waitFree.Add(1)
-		defer inflight.waitFree.Done()
-		r.inflightFetchMu.Unlock()
-		inflight.waitLoad.Wait()
-		if inflight.bufPair.HasData() {
-			if ctx.afterFetchHook != nil {
-				ctx.afterFetchHook.OnData(r.hookCtx(ctx), inflight.bufPair.Data.Bytes(), true)
-			}
-			buf.Data.WriteBytes(inflight.bufPair.Data.Bytes())
-		}
-		if inflight.bufPair.HasErrors() {
-			if ctx.afterFetchHook != nil {
-				ctx.afterFetchHook.OnError(r.hookCtx(ctx), inflight.bufPair.Errors.Bytes(), true)
-			}
-			buf.Errors.WriteBytes(inflight.bufPair.Errors.Bytes())
-		}
-		return inflight.err
+func (r *Resolver) resolveSingleFetch(ctx *Context, fetch *SingleFetch, preparedInput *fastbuffer.FastBuffer, buf *BufPair) error {
+	if r.EnableDataloader {
+		return ctx.dataLoader.Load(ctx, fetch, buf)
 	}
 
-	inflight = r.getInflightFetch()
-	inflight.waitLoad.Add(1)
-	r.inflightFetches[fetchID] = inflight
-
-	r.inflightFetchMu.Unlock()
-
-	err = fetch.DataSource.Load(ctx.Context, preparedInput.Bytes(), dataBuf)
-	r.extractResponse(dataBuf.Bytes(), &inflight.bufPair, fetch.ProcessResponseConfig)
-	inflight.err = err
-
-	if inflight.bufPair.HasData() {
-		if ctx.afterFetchHook != nil {
-			ctx.afterFetchHook.OnData(r.hookCtx(ctx), inflight.bufPair.Data.Bytes(), false)
-		}
-		buf.Data.WriteBytes(inflight.bufPair.Data.Bytes())
-	}
-
-	if inflight.bufPair.HasErrors() {
-		if ctx.afterFetchHook != nil {
-			ctx.afterFetchHook.OnError(r.hookCtx(ctx), inflight.bufPair.Errors.Bytes(), true)
-		}
-		buf.Errors.WriteBytes(inflight.bufPair.Errors.Bytes())
-	}
-
-	inflight.waitLoad.Done()
-
-	r.inflightFetchMu.Lock()
-	delete(r.inflightFetches, fetchID)
-	r.inflightFetchMu.Unlock()
-
-	go func() {
-		inflight.waitFree.Wait()
-		r.freeInflightFetch(inflight)
-	}()
-
-	return
+	return r.fetcher.Fetch(ctx, fetch, preparedInput, buf)
 }
 
 func (r *Resolver) hookCtx(ctx *Context) HookContext {
@@ -1423,11 +1442,20 @@ func (_ *SingleFetch) FetchKind() FetchKind {
 }
 
 type ParallelFetch struct {
-	Fetches []*SingleFetch
+	Fetches []Fetch
 }
 
 func (_ *ParallelFetch) FetchKind() FetchKind {
 	return FetchKindParallel
+}
+
+type BatchFetch struct {
+	Fetch *SingleFetch
+	BatchFactory DataSourceBatchFactory
+}
+
+func (_ *BatchFetch) FetchKind() FetchKind {
+	return FetchKindBatch
 }
 
 type String struct {
@@ -1809,17 +1837,6 @@ func (r *Resolver) getWaitGroup() *sync.WaitGroup {
 
 func (r *Resolver) freeWaitGroup(wg *sync.WaitGroup) {
 	r.waitGroupPool.Put(wg)
-}
-
-func (r *Resolver) getInflightFetch() *inflightFetch {
-	return r.inflightFetchPool.Get().(*inflightFetch)
-}
-
-func (r *Resolver) freeInflightFetch(f *inflightFetch) {
-	f.bufPair.Data.Reset()
-	f.bufPair.Errors.Reset()
-	f.err = nil
-	r.inflightFetchPool.Put(f)
 }
 
 func (r *Resolver) getHash64() hash.Hash64 {

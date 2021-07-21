@@ -67,7 +67,7 @@ func TestArrayStream(t *testing.T) {
 	c,cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	resolver := New(c)
+	resolver := New(NewFetcher(false), false)
 
 	ctx := NewContext(context.Background())
 
@@ -160,10 +160,14 @@ func TestArrayStream_InitialBatch_1(t *testing.T) {
 		},
 	}
 
+<<<<<<< HEAD
 	c,cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	resolver := New(c)
+=======
+	resolver := New(NewFetcher(false), false)
+>>>>>>> chedom/feature/synchronous-batch
 
 	ctx := NewContext(context.Background())
 
@@ -252,10 +256,14 @@ func TestArrayStream_InitialBatch_2(t *testing.T) {
 		},
 	}
 
+<<<<<<< HEAD
 	c,cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	resolver := New(c)
+=======
+	resolver := New(NewFetcher(false), false)
+>>>>>>> chedom/feature/synchronous-batch
 
 	ctx := NewContext(context.Background())
 
@@ -371,10 +379,14 @@ func TestStreamAndDefer(t *testing.T) {
 		},
 	}
 
+<<<<<<< HEAD
 	c,cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	resolver := New(c)
+=======
+	resolver := New(NewFetcher(false), false)
+>>>>>>> chedom/feature/synchronous-batch
 
 	ctx := NewContext(context.Background())
 
