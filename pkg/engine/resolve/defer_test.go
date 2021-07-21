@@ -249,14 +249,10 @@ func TestDefer(t *testing.T) {
 		},
 	}
 
-<<<<<<< HEAD
-	c, cancel := context.WithCancel(context.Background())
+	rCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	resolver := New(c)
-=======
-	resolver := New(NewFetcher(false), false)
->>>>>>> chedom/feature/synchronous-batch
+	resolver := New(rCtx, NewFetcher(false), false)
 
 	ctx := NewContext(context.Background())
 
@@ -388,14 +384,10 @@ func BenchmarkDefer(b *testing.B) {
 		},
 	}
 
-<<<<<<< HEAD
-	c, cancel := context.WithCancel(context.Background())
+	rCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	resolver := New(c)
-=======
-	resolver := New(NewFetcher(false), false)
->>>>>>> chedom/feature/synchronous-batch
+	resolver := New(rCtx, NewFetcher(false), false)
 
 	ctx := NewContext(context.Background())
 
