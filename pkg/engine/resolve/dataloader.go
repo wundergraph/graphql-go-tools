@@ -14,8 +14,6 @@ const (
 	arrayElementKey = "@"
 )
 
-var nullByte = []byte("null")
-
 type dataLoaderFactory struct {
 	dataloaderPool   sync.Pool
 	muPool           sync.Pool
@@ -263,8 +261,6 @@ func (d *dataLoader) resolveBatchFetch(ctx *Context, batchFetch *BatchFetch, fet
 		fetchState.fetchError = err
 		return fetchState, nil
 	}
-
-
 
 	fetchState.results = results
 

@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"hash"
 	"io"
 	"net/http"
 	"net/textproto"
@@ -1120,7 +1119,7 @@ func (r *Resolver) resolveFetch(ctx *Context, fetch Fetch, data []byte, set *res
 		}
 		err = r.resolveBatchFetch(ctx, f, preparedInput.Data, set.buffers[f.Fetch.BufferId])
 	case *ParallelFetch:
-		r.resolveParallelFetch(ctx, f, data, set)
+		err = r.resolveParallelFetch(ctx, f, data, set)
 	}
 	return
 }
@@ -1199,12 +1198,6 @@ func (r *Resolver) resolveSingleFetch(ctx *Context, fetch *SingleFetch, prepared
 	}
 
 	return r.fetcher.Fetch(ctx, fetch, preparedInput, buf)
-}
-
-func (r *Resolver) hookCtx(ctx *Context) HookContext {
-	return HookContext{
-		CurrentPath: ctx.path(),
-	}
 }
 
 type Object struct {
@@ -1837,15 +1830,6 @@ func (r *Resolver) getWaitGroup() *sync.WaitGroup {
 
 func (r *Resolver) freeWaitGroup(wg *sync.WaitGroup) {
 	r.waitGroupPool.Put(wg)
-}
-
-func (r *Resolver) getHash64() hash.Hash64 {
-	return r.hash64Pool.Get().(hash.Hash64)
-}
-
-func (r *Resolver) putHash64(h hash.Hash64) {
-	h.Reset()
-	r.hash64Pool.Put(h)
 }
 
 func writeGraphqlResponse(buf *BufPair, writer io.Writer, ignoreData bool) (err error) {
