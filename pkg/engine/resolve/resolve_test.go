@@ -2205,14 +2205,9 @@ func (f *_fakeStream) Start(ctx context.Context, input []byte, next chan<- []byt
 	return nil
 }
 
-func (f *_fakeStream) UniqueIdentifier() []byte {
-	return []byte("fake")
-}
-
 func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
-	t.Skip("DEADLOCK HERE")
 
-	setup := func(ctx context.Context, stream *_fakeStream) (*Resolver, *GraphQLSubscription, *TestFlushWriter, context.CancelFunc) {
+	setup := func(ctx context.Context, stream *_fakeStream) (*Resolver, *GraphQLSubscription, *TestFlushWriter) {
 		plan := &GraphQLSubscription{
 			Trigger: GraphQLSubscriptionTrigger{
 				Source: stream,
@@ -2235,8 +2230,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			buf: bytes.Buffer{},
 		}
 
-		rCtx, cancel := context.WithCancel(context.Background())
-		return newResolver(rCtx, false, false), plan, out, cancel
+		return newResolver(ctx, false, false), plan, out
 	}
 
 	t.Run("should return errors if the upstream data has errors", func(t *testing.T) {
@@ -2247,8 +2241,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return `{"errors":[{"message":"Validation error occurred","locations":[{"line":1,"column":1}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}],"data":null}`, false
 		})
 
-		resolver, plan, out, rCtxCancel := setup(c, fakeStream)
-		defer rCtxCancel()
+		resolver, plan, out := setup(c, fakeStream)
 
 		ctx := Context{
 			Context: c,
@@ -2268,8 +2261,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, count), true
 		})
 
-		resolver, plan, out, rCtxCancel := setup(c, fakeStream)
-		defer rCtxCancel()
+		resolver, plan, out := setup(c, fakeStream)
 
 		ctx := Context{
 			Context: c,
