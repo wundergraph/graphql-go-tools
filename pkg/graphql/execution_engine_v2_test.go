@@ -1054,6 +1054,7 @@ func newFederationSetup(ctx context.Context) (*federationSetup, error) {
 	engineConfig.AddDataSource(reviewsDataSource)
 	engineConfig.AddDataSource(pollingDataSource)
 	engineConfig.SetFieldConfigurations(fieldConfigs)
+	engineConfig.EnableDataLoader(true)
 
 	engine, err := NewExecutionEngineV2(ctx, abstractlogger.Noop{}, engineConfig)
 	if err != nil {
