@@ -7,7 +7,6 @@ import (
 	"context"
 
 	"github.com/99designs/gqlgen/example/federation/accounts/graph/model"
-
 	"github.com/jensneuse/graphql-go-tools/examples/federation/accounts/graph/generated"
 )
 
