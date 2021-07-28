@@ -14,6 +14,8 @@ const (
 	arrayElementKey = "@"
 )
 
+// dataLoaderFactory is responsible for creating dataloader and provides different pools (e.g, bufPair,
+// bufPairSlice, waitGroup pools).
 type dataLoaderFactory struct {
 	dataloaderPool   sync.Pool
 	muPool           sync.Pool
@@ -101,7 +103,10 @@ func newDataloaderFactory(fetcher *Fetcher) *dataLoaderFactory {
 	}
 }
 
-func (df *dataLoaderFactory) newDataLoader(initialValue []byte) *dataLoader { // initial value represent data from subscription
+// newDataLoader returns new instance of dataLoader.
+// initialValue represents data from subscription, initialValue will be saved with initialValueID id and could be used
+// for further fetches.
+func (df *dataLoaderFactory) newDataLoader(initialValue []byte) *dataLoader {
 	dataloader := df.dataloaderPool.Get().(*dataLoader)
 
 	dataloader.mu = df.getMutex()
@@ -134,6 +139,7 @@ func (df *dataLoaderFactory) freeDataLoader(d *dataLoader) {
 	d.fetches = nil
 }
 
+// dataLoader
 type dataLoader struct {
 	fetches          map[int]fetchState
 	mu               *sync.Mutex
@@ -143,6 +149,7 @@ type dataLoader struct {
 	inUseBufPair []*BufPair
 }
 
+// Load fetches concurrently data for all siblings.
 func (d *dataLoader) Load(ctx *Context, fetch *SingleFetch, responsePair *BufPair) (err error) {
 	var fetchResult fetchState
 	var resultPair *BufPair
@@ -197,10 +204,10 @@ func (d *dataLoader) Load(ctx *Context, fetch *SingleFetch, responsePair *BufPai
 	return
 }
 
+// LoadBatch builds and resolve batch request for all siblings.
 func (d *dataLoader) LoadBatch(ctx *Context, batchFetch *BatchFetch, responsePair *BufPair) (err error) {
 	var fetchResult fetchState
 	var resultPair *BufPair
-
 	fetchResult, ok := d.getFetchState(batchFetch.Fetch.BufferId)
 	if ok {
 		resultPair, err = fetchResult.next(ctx)
