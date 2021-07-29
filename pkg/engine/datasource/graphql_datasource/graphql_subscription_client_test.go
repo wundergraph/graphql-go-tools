@@ -5,10 +5,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/atomic"
 	"nhooyr.io/websocket"
 )
 
@@ -145,4 +147,60 @@ func TestWebsocketSubscriptionClientErrorObject(t *testing.T) {
 	_, ok := <-next
 	assert.False(t, ok)
 	<-serverDone
+}
+
+func TestWebsocketSubscriptionClientDeDuplication(t *testing.T) {
+	serverDone := &sync.WaitGroup{}
+	connectedClients := atomic.NewInt64(0)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		serverDone.Add(1)
+		defer serverDone.Done()
+		conn, err := websocket.Accept(w, r, nil)
+		assert.NoError(t, err)
+		connectedClients.Inc()
+		msgType, data, err := conn.Read(r.Context())
+		assert.NoError(t, err)
+		assert.Equal(t, websocket.MessageText, msgType)
+		assert.Equal(t, `{"type":"connection_init"}`, string(data))
+		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"connection_ack"}`))
+		assert.NoError(t, err)
+		msgType, data, err = conn.Read(r.Context())
+		assert.NoError(t, err)
+		assert.Equal(t, websocket.MessageText, msgType)
+		assert.Equal(t, `{"type":"start","id":"1","payload":{"query":"subscription {messageAdded(roomName: \"room\"){text}}"}}`, string(data))
+		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"data","id":"1","payload":{"data":{"messageAdded":{"text":"first"}}}}`))
+		assert.NoError(t, err)
+		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"data","id":"1","payload":{"data":{"messageAdded":{"text":"second"}}}}`))
+		assert.NoError(t, err)
+		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"data","id":"1","payload":{"data":{"messageAdded":{"text":"third"}}}}`))
+		assert.NoError(t, err)
+	}))
+	defer server.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	client := NewWebSocketGraphQLSubscriptionClient(http.DefaultClient, ctx)
+	clientsDone := &sync.WaitGroup{}
+	for i := 0; i < 2; i++ {
+		clientsDone.Add(1)
+		go func() {
+			next := make(chan []byte)
+			err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
+				URL: strings.Replace(server.URL, "http", "ws", -1),
+				Body: GraphQLBody{
+					Query: `subscription {messageAdded(roomName: "room"){text}}`,
+				},
+			}, next)
+			assert.NoError(t, err)
+			first := <-next
+			second := <-next
+			third := <-next
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, string(first))
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, string(second))
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, string(third))
+			clientsDone.Done()
+		}()
+	}
+	serverDone.Wait()
+	clientsDone.Wait()
+	assert.Equal(t, int64(1), connectedClients.Load())
 }

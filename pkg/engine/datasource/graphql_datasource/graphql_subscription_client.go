@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync"
 
+	"github.com/OneOfOne/xxhash"
 	"github.com/buger/jsonparser"
 	"nhooyr.io/websocket"
 )
@@ -22,6 +24,7 @@ const (
 type WebSocketGraphQLSubscriptionClient struct {
 	httpClient *http.Client
 	ctx        context.Context
+	hashPool   sync.Pool
 }
 
 func NewWebSocketGraphQLSubscriptionClient(httpClient *http.Client, ctx context.Context) *WebSocketGraphQLSubscriptionClient {
@@ -179,4 +182,30 @@ func (c *WebSocketGraphQLSubscriptionClient) handleSubscription(conn *websocket.
 			}
 		}
 	}
+}
+
+func (c *WebSocketGraphQLSubscriptionClient) upgradeRequestHash(options GraphQLSubscriptionOptions) (uint64, error) {
+	var (
+		xxh *xxhash.XXHash64
+		err error
+	)
+	h := c.hashPool.Get()
+	if h == nil {
+		xxh = xxhash.New64()
+	} else {
+		xxh = h.(*xxhash.XXHash64)
+	}
+	defer c.hashPool.Put(xxh)
+	xxh.Reset()
+
+	_, err = xxh.WriteString(options.URL)
+	if err != nil {
+		return 0, err
+	}
+	err = options.Header.Write(xxh)
+	if err != nil {
+		return 0, err
+	}
+
+	return xxh.Sum64(), nil
 }
