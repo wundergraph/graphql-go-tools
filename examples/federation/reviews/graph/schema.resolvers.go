@@ -8,7 +8,6 @@ import (
 	"fmt"
 
 	"github.com/99designs/gqlgen/example/federation/reviews/graph/model"
-
 	"github.com/jensneuse/graphql-go-tools/examples/federation/reviews/graph/generated"
 )
 
