@@ -10,16 +10,7 @@ import (
 	"time"
 
 	"github.com/99designs/gqlgen/example/federation/products/graph/model"
-
 	"github.com/jensneuse/graphql-go-tools/examples/federation/products/graph/generated"
-)
-
-var (
-	randomnessEnabled = true
-	minPrice          = 10
-	maxPrice          = 1499
-	currentPrice      = minPrice
-	updateInterval    = time.Second
 )
 
 func (r *queryResolver) TopProducts(ctx context.Context, first *int) ([]*model.Product, error) {
@@ -94,3 +85,17 @@ func (r *Resolver) Subscription() generated.SubscriptionResolver { return &subsc
 
 type queryResolver struct{ *Resolver }
 type subscriptionResolver struct{ *Resolver }
+
+// !!! WARNING !!!
+// The code below was going to be deleted when updating resolvers. It has been copied here so you have
+// one last chance to move it out of harms way if you want. There are two reasons this happens:
+//  - When renaming or deleting a resolver the old code will be put in here. You can safely delete
+//    it when you're done.
+//  - You have helper methods in this file. Move them out to keep these resolver files clean.
+var (
+	randomnessEnabled = true
+	minPrice          = 10
+	maxPrice          = 1499
+	currentPrice      = minPrice
+	updateInterval    = time.Second
+)
