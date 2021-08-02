@@ -70,6 +70,11 @@ func (n Node) NameString(definition *Document) string {
 	return unsafebytes.BytesToString(definition.NodeNameBytes(n))
 }
 
+func (d *Document) UpdateRootNode(ref int, newNodeRef int, newNodeKind NodeKind) {
+	d.RootNodes[ref].Kind = newNodeKind
+	d.RootNodes[ref].Ref = newNodeRef
+}
+
 // TODO: we could use node name directly
 func (d *Document) NodeNameUnsafeString(node Node) string {
 	return unsafebytes.BytesToString(d.NodeNameBytes(node))
