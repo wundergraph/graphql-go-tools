@@ -7,7 +7,8 @@ import (
 )
 
 func NormalizeSubgraphSDL(definition *ast.Document, report *operationreport.Report) {
-	NewSubgraphSDLNormalizer().NormalizeSubgraphSDL(definition, report)
+	normalizer := NewSubgraphSDLNormalizer()
+	normalizer.NormalizeSubgraphSDL(definition, report)
 }
 
 type SubgraphSDLNormalizer struct {

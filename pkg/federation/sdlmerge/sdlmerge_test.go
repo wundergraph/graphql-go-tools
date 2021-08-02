@@ -108,11 +108,11 @@ const (
 		}
 	`
 	likeSchema = `
-	    type Like @key(fields: "id") {
-		    id: ID!
-		    productId: ID!
-		    userId: ID!
-	    }
+		type Like @key(fields: "id") {
+			id: ID!
+			productId: ID!
+			userId: ID!
+		}
 		type Query {
 			likesCount(productID: ID!): Int!
 			likes(productID: ID!): [Like]!
