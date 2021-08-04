@@ -262,10 +262,7 @@ func (h *connectionHandler) unsubscribeAllAndCloseConn() {
 	for id := range h.subscriptions {
 		h.unsubscribe(id)
 	}
-	err := h.conn.Close(websocket.StatusNormalClosure, "")
-	if err != nil {
-		h.log.Error("error closing websocket", abstractlogger.Error(err))
-	}
+	_ = h.conn.Close(websocket.StatusNormalClosure, "")
 }
 
 func (h *connectionHandler) subscribe(sub subscription) {
@@ -381,11 +378,7 @@ func (h *connectionHandler) unsubscribe(subscriptionID string) {
 	close(sub.next)
 	delete(h.subscriptions, subscriptionID)
 	stopRequest := fmt.Sprintf(stopMessage, subscriptionID)
-	err := h.conn.Write(h.ctx, websocket.MessageText, []byte(stopRequest))
-	if err != nil {
-		h.log.Error("unsubscribe failed", abstractlogger.Error(err))
-		return
-	}
+	_ = h.conn.Write(h.ctx, websocket.MessageText, []byte(stopRequest))
 }
 
 func (h *connectionHandler) checkActiveSubscriptions() (hasActiveSubscriptions bool) {
