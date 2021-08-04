@@ -124,6 +124,11 @@ func TestRequest_Normalize(t *testing.T) {
 				}),
 				Query: `query MySearch($s: String!, $s2: Int, $s3: String) {search(name: $s) {...on Human {name}}}`,
 			},
+			{
+				OperationName: "MySearch",
+				Variables:     []byte(`{"s":"Luke", "s2": null, "s3": 78.8}`),
+				Query:         `query MySearch($s: String!, $s2: String, $s3: String) {search(name: $s) {...on Human {name}}}`,
+			},
 		} {
 			runNormalization(t, &v, `{"s":"Luke"}`, expectedVar)
 		}
