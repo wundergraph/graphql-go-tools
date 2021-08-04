@@ -92,6 +92,37 @@ func TestWebsocketSubscriptionClient(t *testing.T) {
 	}, time.Second, time.Millisecond, "client handlers not 0")
 }
 
+func TestWebsocketSubscriptionClientImmediateClientCancel(t *testing.T) {
+	serverInvocations := atomic.NewInt64(0)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		serverInvocations.Inc()
+	}))
+	defer server.Close()
+	ctx, clientCancel := context.WithCancel(context.Background())
+	clientCancel()
+	serverCtx, serverCancel := context.WithCancel(context.Background())
+	defer serverCancel()
+	client := NewWebSocketGraphQLSubscriptionClient(http.DefaultClient, serverCtx,
+		WithReadTimeout(time.Millisecond),
+		WithLogger(logger()),
+	)
+	next := make(chan []byte)
+	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
+		URL: strings.Replace(server.URL, "http", "ws", -1),
+		Body: GraphQLBody{
+			Query: `subscription {messageAdded(roomName: "room"){text}}`,
+		},
+	}, next)
+	assert.Error(t, err)
+	assert.Eventuallyf(t, func() bool {
+		return serverInvocations.Load() == 0
+	}, time.Second, time.Millisecond*10, "server did not close")
+	serverCancel()
+	assert.Eventuallyf(t, func() bool {
+		return len(client.handlers) == 0
+	}, time.Second, time.Millisecond, "client handlers not 0")
+}
+
 func TestWebsocketSubscriptionClientWithServerDisconnect(t *testing.T) {
 	serverDone := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
