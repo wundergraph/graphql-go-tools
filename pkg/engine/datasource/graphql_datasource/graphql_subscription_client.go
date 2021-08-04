@@ -5,10 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"sync"
+	"time"
 
 	"github.com/OneOfOne/xxhash"
 	"github.com/buger/jsonparser"
+	"github.com/jensneuse/abstractlogger"
 	"nhooyr.io/websocket"
 )
 
@@ -24,25 +27,81 @@ const (
 type WebSocketGraphQLSubscriptionClient struct {
 	httpClient *http.Client
 	ctx        context.Context
+	log        abstractlogger.Logger
 	hashPool   sync.Pool
+	handlers   map[uint64]*connectionHandler
+	handlersMu sync.Mutex
+
+	readTimeout time.Duration
 }
 
-func NewWebSocketGraphQLSubscriptionClient(httpClient *http.Client, ctx context.Context) *WebSocketGraphQLSubscriptionClient {
+type Options func(options *opts)
+
+func WithLogger(log abstractlogger.Logger) Options {
+	return func(options *opts) {
+		options.log = log
+	}
+}
+
+func WithReadTimeout(timeout time.Duration) Options {
+	return func(options *opts) {
+		options.readTimeout = timeout
+	}
+}
+
+type opts struct {
+	readTimeout time.Duration
+	log         abstractlogger.Logger
+}
+
+func NewWebSocketGraphQLSubscriptionClient(httpClient *http.Client, ctx context.Context, options ...Options) *WebSocketGraphQLSubscriptionClient {
+	op := &opts{
+		readTimeout: time.Second,
+		log:         abstractlogger.NoopLogger,
+	}
+	for _, option := range options {
+		option(op)
+	}
 	return &WebSocketGraphQLSubscriptionClient{
-		httpClient: httpClient,
-		ctx:        ctx,
+		httpClient:  httpClient,
+		ctx:         ctx,
+		handlers:    map[uint64]*connectionHandler{},
+		log:         op.log,
+		readTimeout: op.readTimeout,
 	}
 }
 
 func (c *WebSocketGraphQLSubscriptionClient) Subscribe(ctx context.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error {
-	isSubscribed := false
+
+	handlerID, err := c.generateHandlerIDHash(options)
+	if err != nil {
+		return err
+	}
+
+	sub := subscription{
+		ctx:     ctx,
+		options: options,
+		next:    next,
+	}
+
+	c.handlersMu.Lock()
+	defer c.handlersMu.Unlock()
+	handler, exists := c.handlers[handlerID]
+	if exists {
+		select {
+		case handler.subscribeCh <- sub:
+		case <-ctx.Done():
+		}
+		return nil
+	}
+
 	if options.Header == nil {
 		options.Header = http.Header{}
 	}
-
 	options.Header.Set("Sec-WebSocket-Protocol", "graphql-ws")
 	options.Header.Set("Sec-WebSocket-Version", "13")
-	conn, response, err := websocket.Dial(ctx, options.URL, &websocket.DialOptions{
+
+	conn, upgradeResponse, err := websocket.Dial(ctx, options.URL, &websocket.DialOptions{
 		HTTPClient:      c.httpClient,
 		HTTPHeader:      options.Header,
 		CompressionMode: websocket.CompressionDisabled,
@@ -51,17 +110,9 @@ func (c *WebSocketGraphQLSubscriptionClient) Subscribe(ctx context.Context, opti
 	if err != nil {
 		return err
 	}
-	defer func() {
-		if isSubscribed {
-			return
-		}
-		_ = conn.Write(ctx, websocket.MessageText, []byte(fmt.Sprintf(stopMessage, "1")))
-		_ = conn.Close(websocket.StatusNormalClosure, "")
-	}()
-	if response.StatusCode != http.StatusSwitchingProtocols {
+	if upgradeResponse.StatusCode != http.StatusSwitchingProtocols {
 		return fmt.Errorf("upgrade unsuccessful")
 	}
-
 	// init + ack
 	err = conn.Write(ctx, websocket.MessageText, connectionInitMessage)
 	if err != nil {
@@ -82,109 +133,20 @@ func (c *WebSocketGraphQLSubscriptionClient) Subscribe(ctx context.Context, opti
 		return fmt.Errorf("expected connection_ack, got: %s", connectionAck)
 	}
 
-	// subscribe
+	handler = newConnectionHandler(c.ctx, conn, c.readTimeout, c.log)
+	c.handlers[handlerID] = handler
 
-	graphQLBody, err := json.Marshal(options.Body)
-	if err != nil {
-		return err
-	}
+	go func(handlerID uint64) {
+		handler.startBlocking(sub)
+		c.handlersMu.Lock()
+		delete(c.handlers, handlerID)
+		c.handlersMu.Unlock()
+	}(handlerID)
 
-	startRequest := fmt.Sprintf(startMessage, "1", string(graphQLBody))
-	err = conn.Write(ctx, websocket.MessageText, []byte(startRequest))
-	if err != nil {
-		return err
-	}
-
-	isSubscribed = true
-	go c.handleSubscription(conn, ctx, next)
 	return nil
 }
 
-func (c *WebSocketGraphQLSubscriptionClient) handleSubscription(conn *websocket.Conn, ctx context.Context, next chan<- []byte) {
-	defer func() {
-		close(next)
-		_ = conn.Write(ctx, websocket.MessageText, []byte(fmt.Sprintf(stopMessage, "1")))
-		_ = conn.Close(websocket.StatusNormalClosure, "")
-	}()
-	subscriptionLifecycle := ctx.Done()
-	resolverLifecycle := c.ctx.Done()
-	for {
-		select {
-		case <-subscriptionLifecycle:
-			return
-		case <-resolverLifecycle:
-			return
-		default:
-			msgType, data, err := conn.Read(ctx)
-			if err != nil {
-				continue
-			}
-			if msgType != websocket.MessageText {
-				continue
-			}
-			messageType, err := jsonparser.GetString(data, "type")
-			if err != nil {
-				continue
-			}
-			switch messageType {
-			case "data":
-				id, err := jsonparser.GetString(data, "id")
-				if err != nil {
-					continue
-				}
-				if id != "1" {
-					continue
-				}
-				payload, _, _, err := jsonparser.Get(data, "payload")
-				if err != nil {
-					continue
-				}
-				select {
-				case next <- payload:
-					continue
-				case <-subscriptionLifecycle:
-					return
-				}
-			case "complete":
-				return
-			case "connection_error":
-				next <- []byte(`{"errors":[{"message":"connection error"}]}`)
-				return
-			case "error":
-				value, valueType, _, err := jsonparser.Get(data, "payload")
-				if err != nil {
-					next <- []byte(`{"errors":[{"message":"internal error"}]}`)
-					return
-				}
-				switch valueType {
-				case jsonparser.Array:
-					response := []byte(`{}`)
-					response, err = jsonparser.Set(response, value, "errors")
-					if err != nil {
-						next <- []byte(`{"errors":[{"message":"internal error"}]}`)
-						return
-					}
-					next <- response
-				case jsonparser.Object:
-					response := []byte(`{"errors":[]}`)
-					response, err = jsonparser.Set(response, value, "errors", "[0]")
-					if err != nil {
-						next <- []byte(`{"errors":[{"message":"internal error"}]}`)
-						return
-					}
-					next <- response
-				default:
-					next <- []byte(`{"errors":[{"message":"internal error"}]}`)
-				}
-				return
-			default:
-				continue
-			}
-		}
-	}
-}
-
-func (c *WebSocketGraphQLSubscriptionClient) upgradeRequestHash(options GraphQLSubscriptionOptions) (uint64, error) {
+func (c *WebSocketGraphQLSubscriptionClient) generateHandlerIDHash(options GraphQLSubscriptionOptions) (uint64, error) {
 	var (
 		xxh *xxhash.XXHash64
 		err error
@@ -208,4 +170,229 @@ func (c *WebSocketGraphQLSubscriptionClient) upgradeRequestHash(options GraphQLS
 	}
 
 	return xxh.Sum64(), nil
+}
+
+func newConnectionHandler(ctx context.Context, conn *websocket.Conn, readTimeout time.Duration, log abstractlogger.Logger) *connectionHandler {
+	return &connectionHandler{
+		conn:               conn,
+		ctx:                ctx,
+		log:                log,
+		subscribeCh:        make(chan subscription),
+		nextSubscriptionID: 0,
+		subscriptions:      map[string]subscription{},
+		readTimeout:        readTimeout,
+	}
+}
+
+type connectionHandler struct {
+	conn               *websocket.Conn
+	ctx                context.Context
+	log                abstractlogger.Logger
+	subscribeCh        chan subscription
+	nextSubscriptionID int
+	subscriptions      map[string]subscription
+	readTimeout        time.Duration
+}
+
+type subscription struct {
+	ctx     context.Context
+	options GraphQLSubscriptionOptions
+	next    chan<- []byte
+}
+
+func (h *connectionHandler) startBlocking(sub subscription) {
+	readCtx, cancel := context.WithCancel(h.ctx)
+	defer func() {
+		h.unsubscribeAllAndCloseConn()
+		cancel()
+	}()
+	h.subscribe(sub)
+	dataCh := make(chan []byte)
+	go h.readBlocking(readCtx, dataCh)
+	for {
+		if h.ctx.Err() != nil {
+			return
+		}
+		hasActiveSubscriptions := h.checkActiveSubscriptions()
+		if !hasActiveSubscriptions {
+			return
+		}
+		select {
+		case <-time.After(h.readTimeout):
+			continue
+		case sub = <-h.subscribeCh:
+			h.subscribe(sub)
+		case data := <-dataCh:
+			messageType, err := jsonparser.GetString(data, "type")
+			if err != nil {
+				continue
+			}
+			switch messageType {
+			case "data":
+				h.handleMessageTypeData(data)
+			case "complete":
+				h.handleMessageTypeComplete(data)
+			case "connection_error":
+				h.handleMessageTypeConnectionError()
+				return
+			case "error":
+				h.handleMessageTypeError(data)
+				continue
+			default:
+				continue
+			}
+		}
+	}
+}
+
+func (h *connectionHandler) readBlocking(ctx context.Context, dataCh chan []byte) {
+	for {
+		msgType, data, err := h.conn.Read(ctx)
+		if err != nil {
+			continue
+		}
+		if msgType != websocket.MessageText {
+			continue
+		}
+		dataCh <- data
+	}
+}
+
+func (h *connectionHandler) unsubscribeAllAndCloseConn() {
+	for id := range h.subscriptions {
+		h.unsubscribe(id)
+	}
+	err := h.conn.Close(websocket.StatusNormalClosure, "")
+	if err != nil {
+		h.log.Error("error closing websocket", abstractlogger.Error(err))
+	}
+}
+
+func (h *connectionHandler) subscribe(sub subscription) {
+	graphQLBody, err := json.Marshal(sub.options.Body)
+	if err != nil {
+		return
+	}
+
+	h.nextSubscriptionID++
+
+	subscriptionID := strconv.Itoa(h.nextSubscriptionID)
+
+	startRequest := fmt.Sprintf(startMessage, subscriptionID, string(graphQLBody))
+	err = h.conn.Write(h.ctx, websocket.MessageText, []byte(startRequest))
+	if err != nil {
+		return
+	}
+
+	h.subscriptions[subscriptionID] = sub
+}
+
+func (h *connectionHandler) handleMessageTypeData(data []byte) {
+	id, err := jsonparser.GetString(data, "id")
+	if err != nil {
+		return
+	}
+	sub, ok := h.subscriptions[id]
+	if !ok {
+		return
+	}
+	payload, _, _, err := jsonparser.Get(data, "payload")
+	if err != nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(h.ctx, time.Second*5)
+	defer cancel()
+
+	select {
+	case <-ctx.Done():
+	case sub.next <- payload:
+	case <-sub.ctx.Done():
+	}
+}
+
+func (h *connectionHandler) handleMessageTypeConnectionError() {
+	for _, sub := range h.subscriptions {
+		ctx, cancel := context.WithTimeout(h.ctx, time.Second*5)
+		select {
+		case sub.next <- []byte(`{"errors":[{"message":"connection error"}]}`):
+			cancel()
+			continue
+		case <-ctx.Done():
+			cancel()
+			continue
+		}
+	}
+}
+
+func (h *connectionHandler) handleMessageTypeComplete(data []byte) {
+	id, err := jsonparser.GetString(data, "id")
+	if err != nil {
+		return
+	}
+	sub, ok := h.subscriptions[id]
+	if !ok {
+		return
+	}
+	close(sub.next)
+	delete(h.subscriptions, id)
+}
+
+func (h *connectionHandler) handleMessageTypeError(data []byte) {
+	id, err := jsonparser.GetString(data, "id")
+	if err != nil {
+		return
+	}
+	sub, ok := h.subscriptions[id]
+	if !ok {
+		return
+	}
+	value, valueType, _, err := jsonparser.Get(data, "payload")
+	if err != nil {
+		sub.next <- []byte(`{"errors":[{"message":"internal error"}]}`)
+		return
+	}
+	switch valueType {
+	case jsonparser.Array:
+		response := []byte(`{}`)
+		response, err = jsonparser.Set(response, value, "errors")
+		if err != nil {
+			sub.next <- []byte(`{"errors":[{"message":"internal error"}]}`)
+			return
+		}
+		sub.next <- response
+	case jsonparser.Object:
+		response := []byte(`{"errors":[]}`)
+		response, err = jsonparser.Set(response, value, "errors", "[0]")
+		if err != nil {
+			sub.next <- []byte(`{"errors":[{"message":"internal error"}]}`)
+			return
+		}
+		sub.next <- response
+	default:
+		sub.next <- []byte(`{"errors":[{"message":"internal error"}]}`)
+	}
+}
+
+func (h *connectionHandler) unsubscribe(subscriptionID string) {
+	sub, ok := h.subscriptions[subscriptionID]
+	if !ok {
+		return
+	}
+	close(sub.next)
+	delete(h.subscriptions, subscriptionID)
+	stopRequest := fmt.Sprintf(stopMessage, subscriptionID)
+	err := h.conn.Write(h.ctx, websocket.MessageText, []byte(stopRequest))
+	if err != nil {
+		h.log.Error("unsubscribe failed", abstractlogger.Error(err))
+		return
+	}
+}
+
+func (h *connectionHandler) checkActiveSubscriptions() (hasActiveSubscriptions bool) {
+	for id, sub := range h.subscriptions {
+		if sub.ctx.Err() != nil {
+			h.unsubscribe(id)
+		}
+	}
+	return len(h.subscriptions) != 0
 }

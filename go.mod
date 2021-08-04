@@ -3,6 +3,7 @@ module github.com/jensneuse/graphql-go-tools
 go 1.15
 
 require (
+	github.com/OneOfOne/xxhash v1.2.8 // indirect
 	github.com/agnivade/levenshtein v1.1.1 // indirect
 	github.com/buger/jsonparser v0.0.0-20181115193947-bf1c66bbce23
 	github.com/cespare/xxhash v1.1.0
@@ -34,6 +35,7 @@ require (
 	github.com/tidwall/gjson v1.3.5
 	github.com/tidwall/sjson v1.0.4
 	go.uber.org/atomic v1.9.0 // indirect
+	go.uber.org/zap v1.18.1 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
 	nhooyr.io/websocket v1.8.7
 )
