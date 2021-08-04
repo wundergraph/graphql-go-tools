@@ -373,8 +373,8 @@ func TestWebsocketSubscriptionClientDeDuplication(t *testing.T) {
 		assertStop(r.Context(), conn, 1, 2, 3, 4)
 	}))
 	defer server.Close()
-	serverCtx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	serverCtx, serverCancel := context.WithCancel(context.Background())
+	defer serverCancel()
 	client := NewWebSocketGraphQLSubscriptionClient(http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
@@ -382,7 +382,7 @@ func TestWebsocketSubscriptionClientDeDuplication(t *testing.T) {
 	clientsDone := &sync.WaitGroup{}
 
 	next := make(chan []byte)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, clientCancel := context.WithCancel(context.Background())
 	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
 		URL: strings.Replace(server.URL, "http", "ws", -1),
 		Body: GraphQLBody{
@@ -412,7 +412,7 @@ func TestWebsocketSubscriptionClientDeDuplication(t *testing.T) {
 		}(next, cancel)
 	}
 
-	cancel()
+	clientCancel()
 
 	serverDone.Wait()
 	clientsDone.Wait()
