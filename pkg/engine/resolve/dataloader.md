@@ -17,8 +17,7 @@ DataLoader provides solutions for next problems:
        "method":"POST",
        "url":"http://localhost:4003",
        "body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}",
-       "variables":{"representations":[{"upc":"top-1","__typename":"Product"}]}},
-       "extract_entities":true
+       "variables":{"representations":[{"upc":"top-1","__typename":"Product"}]}
    }```
    
    fetch 2: ```
@@ -26,16 +25,14 @@ DataLoader provides solutions for next problems:
       "method":"POST",
       "url":"http://localhost:4003",
       "body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}",
-      "variables":{"representations":[{"upc":"top-2","__typename":"Product"}]}},
-      "extract_entities":true
+      "variables":{"representations":[{"upc":"top-2","__typename":"Product"}]}}
       }```
    
       fetch 3: ```{
       "method":"POST",
       "url":"http://localhost:4003",
       "body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}",
-      "variables":{"representations":[{"upc":"top-3","__typename":"Product"}]}},
-      "extract_entities":true
+      "variables":{"representations":[{"upc":"top-3","__typename":"Product"}]}}
       }```
    
       After:
@@ -44,8 +41,7 @@ DataLoader provides solutions for next problems:
       "method":"POST",
       "url":"http://localhost:4003",
       "body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}",
-      "variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"},{"upc":"top-3","__typename":"Product"}]}},
-      "extract_entities":true
+      "variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"},{"upc":"top-3","__typename":"Product"}]}}
       }```
 
 2. Request deduplication
@@ -60,8 +56,7 @@ DataLoader provides solutions for next problems:
          "method":"POST",
          "url":"http://localhost:4003",
          "body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}",
-         "variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"},{"upc":"top-1","__typename":"Product"},{"upc":"top-3","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}},
-         "extract_entities":true
+         "variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"},{"upc":"top-1","__typename":"Product"},{"upc":"top-3","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}}
       }```
    
       Batch with deduplication:
@@ -70,8 +65,7 @@ DataLoader provides solutions for next problems:
       "method":"POST",
       "url":"http://localhost:4003",
       "body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}",
-      "variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"},{"upc":"top-3","__typename":"Product"}]}},
-      "extract_entities":true
+      "variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"},{"upc":"top-3","__typename":"Product"}]}}
       }```
 
 2. How does dataLoader work ?
