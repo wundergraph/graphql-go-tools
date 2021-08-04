@@ -486,7 +486,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	}
 
 	if r.EnableDataloader {
-		ctx.dataLoader = r.dataloaderFactory.newDataLoader(data)
+		ctx.dataLoader = r.dataloaderFactory.newDataLoader(responseBuf.Data.Bytes())
 		defer func() {
 			r.dataloaderFactory.freeDataLoader(ctx.dataLoader)
 			ctx.dataLoader = nil
