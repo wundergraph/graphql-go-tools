@@ -148,23 +148,23 @@ query {
    
    
 ```
-                                                              |topProducts|                                            FetchID=0
-                                                                    |
-                                                                    |
-                                                                    |    
-                             |------------------------------|Array of Products|--------------------|
-                             |                                      |                              |
-                             |                                      |                              |   
-                        |Product A|                           |Product B|                      |Product C|                
-                             |                                      |                              |  
-                             |                                      |                              |    
-           |----------|Array of Reviews|--------|            |Array of Reviews|    |-----|Array of Reviews|-----|      FetchID=1;LastFetchID=0;responsePath=[topProducts @]
-           |                 |                  |                   |              |                            |  
-           |                 |                  |                   |              |                            |
-       |Review A1|      |Review A2|      |Review A3|             |Review B1|    |Review C1|              |Review C2|
-           |                 |                  |                   |              |                            |
-           |                 |                  |                   |              |                            |
-        |Author 1|       |Author 2|         |Author 3|         |Author 4|      |Author 5|                 |Author 6|   FetchID=2;LastFetchID=1;responsePath=[reviews @ author]
+                                                    |topProducts|                                               FetchID=0
+                                                          |
+                                                          |
+                                                          |    
+                       |---------------------------|Array of Products|--------------------|
+                       |                                  |                               |
+                       |                                  |                               |   
+                  |Product A|                        |Product B|                      |Product C|                
+                       |                                  |                               |  
+                       |                                  |                               |    
+     |----------|Array of Reviews|--------|        |Array of Reviews|       |-----|Array of Reviews|-----|      FetchID=1;LastFetchID=0;responsePath=[topProducts @]
+     |                 |                  |               |                 |                            |  
+     |                 |                  |               |                 |                            |
+ |Review A1|      |Review A2|      |Review A3|         |Review B1|     |Review C1|                  |Review C2|
+     |                 |                  |               |                 |                            |
+     |                 |                  |               |                 |                            |
+  |Author 1|       |Author 2|         |Author 3|       |Author 4|       |Author 5|                   |Author 6| FetchID=2;LastFetchID=1;responsePath=[reviews @ author]
 
 
 ```
