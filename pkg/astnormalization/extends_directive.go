@@ -25,7 +25,7 @@ type User {
 }
 */
 type extendsDirectiveVisitor struct {
-	operation *ast.Document
+	document *ast.Document
 }
 
 func extendsDirective(walker *astvisitor.Walker) {
@@ -34,22 +34,22 @@ func extendsDirective(walker *astvisitor.Walker) {
 	walker.RegisterEnterObjectTypeDefinitionVisitor(v)
 }
 
-func (v *extendsDirectiveVisitor) EnterDocument(operation, _ *ast.Document) {
-	v.operation = operation
+func (v *extendsDirectiveVisitor) EnterDocument(document, _ *ast.Document) {
+	v.document = document
 }
 
 func (v *extendsDirectiveVisitor) EnterObjectTypeDefinition(ref int) {
-	if !v.operation.ObjectTypeDefinitions[ref].Directives.HasDirectiveByName(v.operation, "extends") {
+	if !v.document.ObjectTypeDefinitions[ref].Directives.HasDirectiveByName(v.document, "extends") {
 		return
 	}
-	for i := range v.operation.RootNodes {
-		if v.operation.RootNodes[i].Ref == ref && v.operation.RootNodes[i].Kind == ast.NodeKindObjectTypeDefinition {
+	for i := range v.document.RootNodes {
+		if v.document.RootNodes[i].Ref == ref && v.document.RootNodes[i].Kind == ast.NodeKindObjectTypeDefinition {
 			// give this node a new NodeKind of ObjectTypeExtension
-			newRef := v.operation.AddObjectTypeDefinitionExtension(ast.ObjectTypeExtension{ObjectTypeDefinition: v.operation.ObjectTypeDefinitions[ref]})
+			newRef := v.document.AddObjectTypeDefinitionExtension(ast.ObjectTypeExtension{ObjectTypeDefinition: v.document.ObjectTypeDefinitions[ref]})
 			// reflect changes inside the root nodes
-			v.operation.UpdateRootNode(i, newRef, ast.NodeKindObjectTypeExtension)
+			v.document.UpdateRootNode(i, newRef, ast.NodeKindObjectTypeExtension)
 			// only remove @extends if the nodes was updated
-			v.operation.ObjectTypeExtensions[newRef].Directives.RemoveDirectiveByName(v.operation, "extends")
+			v.document.ObjectTypeExtensions[newRef].Directives.RemoveDirectiveByName(v.document, "extends")
 			break
 		}
 	}
