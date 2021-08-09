@@ -52,7 +52,7 @@ func mustString(str string, err error) string {
 }
 
 func TestMergeSDLs(t *testing.T) {
-	got, err := MergeSDLs(accountSchema, productSchema, reviewSchema, likeSchema)
+	got, err := MergeSDLs(accountSchema, productSchema, reviewSchema, likeSchema, disLikeSchema)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,6 +118,12 @@ const (
 			likes(productID: ID!): [Like]!
 		}
 	`
+	disLikeSchema = `
+		type Like @key(fields: "id") @extends {
+			id: ID! @external
+			isDislike: Boolean!
+		}
+	`
 	federatedSchema = `
 		type Query {
 			me: User
@@ -152,6 +158,7 @@ const (
 			id: ID!
 			productId: ID!
 			userId: ID!
+			isDislike: Boolean!
 		}
 	`
 )

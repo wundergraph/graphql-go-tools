@@ -78,4 +78,13 @@ func TestNormalizeSubgraphSDL(t *testing.T) {
 		extend type Mutation { field: String! }
 		extend type Subscription @directive { newUser: ID! }
 	`, registerNormalizeFunc(implicitExtendRootOperation))
+	run("support extends directives",
+		`
+		type User @extends {
+			field: String!
+		}
+		`,
+		`
+		extend type User { field: String! }
+	`, registerNormalizeFunc(extendsDirective))
 }
