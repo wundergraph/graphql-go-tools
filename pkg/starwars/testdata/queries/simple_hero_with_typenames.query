@@ -1,0 +1,6 @@
+{
+    __typename
+    hero {
+        name
+    }
+}

@@ -451,11 +451,21 @@ func (v *Visitor) resolveOnTypeName() []byte {
 	if len(v.Walker.Ancestors) < 2 {
 		return nil
 	}
-	inlineFragment := v.Walker.Ancestors[len(v.Walker.Ancestors)-2]
-	if inlineFragment.Kind != ast.NodeKindInlineFragment {
-		return nil
+	node := v.Walker.Ancestors[len(v.Walker.Ancestors)-2]
+	switch node.Kind {
+	case ast.NodeKindInlineFragment:
+		return v.Operation.InlineFragmentTypeConditionName(node.Ref)
+	case ast.NodeKindOperationDefinition:
+		switch v.Operation.OperationDefinitions[node.Ref].OperationType {
+		case ast.OperationTypeQuery:
+			return v.Definition.Index.QueryTypeName
+		case ast.OperationTypeMutation:
+			return v.Definition.Index.MutationTypeName
+		case ast.OperationTypeSubscription:
+			// quering __typename is not allowed on subscription root type
+		}
 	}
-	return v.Operation.InlineFragmentTypeConditionName(inlineFragment.Ref)
+	return nil
 }
 
 func (v *Visitor) LeaveField(ref int) {

@@ -69,6 +69,8 @@ var (
 		{"extensions"},
 	}
 	entitiesPath = []string{"_entities", "[0]"}
+
+	typenameField = "__typename"
 )
 
 const (
@@ -979,8 +981,8 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 		}
 
 		if object.Fields[i].OnTypeName != nil {
-			typeName, _, _, _ := jsonparser.Get(fieldData, "__typename")
-			if !bytes.Equal(typeName, object.Fields[i].OnTypeName) {
+			typeName, _, _, _ := jsonparser.Get(fieldData, typenameField)
+			if len(typeName) > 0 && !bytes.Equal(typeName, object.Fields[i].OnTypeName) {
 				typeNameSkip = true
 				continue
 			}
@@ -998,7 +1000,15 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 		objectBuf.Data.WriteBytes(colon)
 		ctx.addPathElement(object.Fields[i].Name)
 		ctx.setPosition(object.Fields[i].Position)
-		err = r.resolveNode(ctx, object.Fields[i].Value, fieldData, fieldBuf)
+
+		if bytes.Equal(object.Fields[i].Name, literal.TYPENAME) {
+			fieldBuf.Data.WriteBytes(quote)
+			fieldBuf.Data.WriteBytes(object.Fields[i].OnTypeName)
+			fieldBuf.Data.WriteBytes(quote)
+		} else {
+			err = r.resolveNode(ctx, object.Fields[i].Value, fieldData, fieldBuf)
+		}
+
 		ctx.removeLastPathElement()
 		if err != nil {
 			if errors.Is(err, errTypeNameSkipped) {

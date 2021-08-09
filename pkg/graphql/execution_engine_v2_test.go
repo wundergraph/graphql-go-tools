@@ -107,6 +107,8 @@ type ExecutionEngineV2TestCase struct {
 func TestExecutionEngineV2_Execute(t *testing.T) {
 	run := func(testCase ExecutionEngineV2TestCase, withError bool) func(t *testing.T) {
 		return func(t *testing.T) {
+			t.Helper()
+
 			engineConf := NewEngineV2Configuration(testCase.schema)
 			engineConf.SetDataSources(testCase.dataSources)
 			engineConf.SetFieldConfigurations(testCase.fields)
@@ -260,6 +262,37 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			},
 			fields:           []plan.FieldConfiguration{},
 			expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+		},
+	))
+
+	t.Run("execute simple hero operation with typenames with graphql data source", runWithoutError(
+		ExecutionEngineV2TestCase{
+			schema:    starwarsSchema(t),
+			operation: loadStarWarsQuery(starwars.FileSimpleHeroQueryWithTypeNames, nil),
+			dataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{TypeName: "Query", FieldNames: []string{"hero"}},
+					},
+					Factory: &graphql_datasource.Factory{
+						Client: testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "example.com",
+							expectedPath:     "/",
+							expectedBody:     "",
+							sendResponseBody: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+							sendStatusCode:   200,
+						}),
+					},
+					Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
+						Fetch: graphql_datasource.FetchConfiguration{
+							URL:    "https://example.com/",
+							Method: "GET",
+						},
+					}),
+				},
+			},
+			fields:           []plan.FieldConfiguration{},
+			expectedResponse: `{"data":{"__typename":"Query","hero":{"name":"Luke Skywalker"}}}`,
 		},
 	))
 

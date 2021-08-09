@@ -1,0 +1,18 @@
+query Search($name: String!) {
+    __typename
+    search(name: $name) {
+        __typename
+        ...on Droid {
+            name
+            primaryFunction
+        }
+        ...on Human {
+            name
+            height
+        }
+        ...on Starship {
+            name
+            length
+        }
+    }
+}
