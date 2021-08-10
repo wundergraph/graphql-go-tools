@@ -1530,10 +1530,13 @@ type ContextVariable struct {
 }
 
 func (c *ContextVariable) SetJsonValueType(document *ast.Document, typeRef int) {
+	// TODO: check is it reachable
 	if document.TypeIsList(typeRef) {
 		c.JsonValueType = jsonparser.Array
 		return
 	}
+
+	// TODO: handle enum
 
 	if document.TypeIsScalar(typeRef, document) {
 		typeName := document.ResolveTypeNameString(typeRef)
@@ -1542,7 +1545,7 @@ func (c *ContextVariable) SetJsonValueType(document *ast.Document, typeRef int) 
 			c.JsonValueType = jsonparser.Boolean
 		case "Int", "Float":
 			c.JsonValueType = jsonparser.Number
-		case "String", "ID":
+		case "String", "Date", "ID":
 			c.JsonValueType = jsonparser.String
 		default:
 			// TODO: this could be wrong in case of custom scalars
