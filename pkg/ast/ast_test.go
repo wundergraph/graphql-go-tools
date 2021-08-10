@@ -331,30 +331,30 @@ func TestDocument_NodeByName(t *testing.T) {
 	})
 }
 
-func TestDirectiveList(t *testing.T) {
-	schema := "type User @directive1 @directive2 @directive3 @directive4 @directive5 { field: String! }"
-	t.Run("should delete directive by name", func(t *testing.T) {
-		doc, _ := astparser.ParseGraphqlDocumentString(schema)
-		replacer := strings.NewReplacer(" ", "", "\t", "", "\r", "", "\n", "")
-		// delete the last directive
-		doc.ObjectTypeDefinitions[0].Directives.RemoveDirectiveByName(&doc, "directive5")
-		// delete the middle directive
-		doc.ObjectTypeDefinitions[0].Directives.RemoveDirectiveByName(&doc, "directive3")
-		// delete the first directive
-		doc.ObjectTypeDefinitions[0].Directives.RemoveDirectiveByName(&doc, "directive1")
-		out, _ := astprinter.PrintString(&doc, nil)
-		assert.Equal(t, replacer.Replace("type User @directive2 @directive4 { field: String! }"), replacer.Replace(out))
-	})
-	t.Run("should search directive by name", func(t *testing.T) {
-		doc, _ := astparser.ParseGraphqlDocumentString(schema)
-		l := doc.ObjectTypeDefinitions[0].Directives
-		// search the last directive
-		assert.Equal(t, true, l.HasDirectiveByName(&doc, "directive5"))
-		// search the middle directive
-		assert.Equal(t, true, l.HasDirectiveByName(&doc, "directive3"))
-		// search the first directive
-		assert.Equal(t, true, l.HasDirectiveByName(&doc, "directive1"))
-		// search not found
-		assert.Equal(t, false, l.HasDirectiveByName(&doc, "directive0"))
-	})
+func TestDirectiveList_RemoveDirectiveByName(t *testing.T) {
+	const schema = "type User @directive1 @directive2 @directive3 @directive4 @directive5 { field: String! }"
+	doc, _ := astparser.ParseGraphqlDocumentString(schema)
+	replacer := strings.NewReplacer(" ", "", "\t", "", "\r", "", "\n", "")
+	// delete the last directive
+	doc.ObjectTypeDefinitions[0].Directives.RemoveDirectiveByName(&doc, "directive5")
+	// delete the middle directive
+	doc.ObjectTypeDefinitions[0].Directives.RemoveDirectiveByName(&doc, "directive3")
+	// delete the first directive
+	doc.ObjectTypeDefinitions[0].Directives.RemoveDirectiveByName(&doc, "directive1")
+	out, _ := astprinter.PrintString(&doc, nil)
+	assert.Equal(t, replacer.Replace("type User @directive2 @directive4 { field: String! }"), replacer.Replace(out))
+}
+
+func TestDirectiveList_HasDirectiveByName(t *testing.T) {
+	const schema = "type User @directive1 @directive2 @directive3 @directive4 @directive5 { field: String! }"
+	doc, _ := astparser.ParseGraphqlDocumentString(schema)
+	l := doc.ObjectTypeDefinitions[0].Directives
+	// search the last directive
+	assert.Equal(t, true, l.HasDirectiveByName(&doc, "directive5"))
+	// search the middle directive
+	assert.Equal(t, true, l.HasDirectiveByName(&doc, "directive3"))
+	// search the first directive
+	assert.Equal(t, true, l.HasDirectiveByName(&doc, "directive1"))
+	// search not found
+	assert.Equal(t, false, l.HasDirectiveByName(&doc, "directive0"))
 }
