@@ -1309,9 +1309,8 @@ func (i *InputTemplate) renderObjectVariable(data []byte, path []string, prepare
 }
 
 func (i *InputTemplate) renderContextVariable(ctx *Context, path []string, variableValueType jsonparser.ValueType, preparedInput *fastbuffer.FastBuffer) error {
-	value, _, _, err := jsonparser.Get(ctx.Variables, path...)
-	if err != nil {
-		// return err
+	value, valueType, _, err := jsonparser.Get(ctx.Variables, path...)
+	if err != nil || valueType == jsonparser.Null {
 		preparedInput.WriteBytes(literal.NULL)
 		return nil
 	}
@@ -1322,10 +1321,8 @@ func (i *InputTemplate) renderContextVariable(ctx *Context, path []string, varia
 func (i *InputTemplate) renderGraphQLValue(data []byte, valueType jsonparser.ValueType, buf *fastbuffer.FastBuffer) (err error) {
 	switch valueType {
 	case jsonparser.String:
-		buf.WriteBytes(literal.BACKSLASH)
 		buf.WriteBytes(literal.QUOTE)
 		buf.WriteBytes(data)
-		buf.WriteBytes(literal.BACKSLASH)
 		buf.WriteBytes(literal.QUOTE)
 	case jsonparser.Object:
 		buf.WriteBytes(literal.LBRACE)
