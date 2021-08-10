@@ -2104,10 +2104,9 @@ func TestInputTemplate_Render(t *testing.T) {
 		template := InputTemplate{
 			Segments: []TemplateSegment{
 				{
-					SegmentType:          VariableSegmentType,
-					VariableSource:       VariableSourceContext,
-					VariableSourcePath:   sourcePath,
-					RenderAsGraphQLValue: renderAsGraphQLVariable,
+					SegmentType:        VariableSegmentType,
+					VariableSource:     VariableSourceContext,
+					VariableSourcePath: sourcePath,
 				},
 			},
 		}
