@@ -68,6 +68,11 @@ func NewWebSocketGraphQLSubscriptionClient(httpClient *http.Client, ctx context.
 		handlers:    map[uint64]*connectionHandler{},
 		log:         op.log,
 		readTimeout: op.readTimeout,
+		hashPool: sync.Pool{
+			New: func() interface{} {
+				return xxhash.New64()
+			},
+		},
 	}
 }
 
@@ -148,15 +153,9 @@ func (c *WebSocketGraphQLSubscriptionClient) Subscribe(ctx context.Context, opti
 
 func (c *WebSocketGraphQLSubscriptionClient) generateHandlerIDHash(options GraphQLSubscriptionOptions) (uint64, error) {
 	var (
-		xxh *xxhash.XXHash64
 		err error
 	)
-	h := c.hashPool.Get()
-	if h == nil {
-		xxh = xxhash.New64()
-	} else {
-		xxh = h.(*xxhash.XXHash64)
-	}
+	xxh := c.hashPool.Get().(*xxhash.XXHash64)
 	defer c.hashPool.Put(xxh)
 	xxh.Reset()
 
