@@ -22,6 +22,8 @@ var (
 const (
 	startMessage = `{"type":"start","id":"%s","payload":%s}`
 	stopMessage  = `{"type":"stop","id":"%s"}`
+	internalError = `{"errors":[{"message":"connection error"}]}`
+	connectionError = `{"errors":[{"message":"connection error"}]}`
 )
 
 type WebSocketGraphQLSubscriptionClient struct {
@@ -310,7 +312,7 @@ func (h *connectionHandler) handleMessageTypeConnectionError() {
 	for _, sub := range h.subscriptions {
 		ctx, cancel := context.WithTimeout(h.ctx, time.Second*5)
 		select {
-		case sub.next <- []byte(`{"errors":[{"message":"connection error"}]}`):
+		case sub.next <- []byte(connectionError):
 			cancel()
 			continue
 		case <-ctx.Done():
@@ -344,7 +346,7 @@ func (h *connectionHandler) handleMessageTypeError(data []byte) {
 	}
 	value, valueType, _, err := jsonparser.Get(data, "payload")
 	if err != nil {
-		sub.next <- []byte(`{"errors":[{"message":"internal error"}]}`)
+		sub.next <- []byte(internalError)
 		return
 	}
 	switch valueType {
@@ -352,7 +354,7 @@ func (h *connectionHandler) handleMessageTypeError(data []byte) {
 		response := []byte(`{}`)
 		response, err = jsonparser.Set(response, value, "errors")
 		if err != nil {
-			sub.next <- []byte(`{"errors":[{"message":"internal error"}]}`)
+			sub.next <- []byte(internalError)
 			return
 		}
 		sub.next <- response
@@ -360,12 +362,12 @@ func (h *connectionHandler) handleMessageTypeError(data []byte) {
 		response := []byte(`{"errors":[]}`)
 		response, err = jsonparser.Set(response, value, "errors", "[0]")
 		if err != nil {
-			sub.next <- []byte(`{"errors":[{"message":"internal error"}]}`)
+			sub.next <- []byte(internalError)
 			return
 		}
 		sub.next <- response
 	default:
-		sub.next <- []byte(`{"errors":[{"message":"internal error"}]}`)
+		sub.next <- []byte(internalError)
 	}
 }
 
