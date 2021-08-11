@@ -786,6 +786,50 @@ func TestParser_Parse(t *testing.T) {
 				}
 			})
 		})
+		t.Run("with comment-out field", func(t *testing.T) {
+			run(`type Person {
+							   name: String
+							   # tbd: String
+							   age: Int
+							}`, parse, false, func(doc *ast.Document, extra interface{}) {
+				person := doc.ObjectTypeDefinitions[0]
+				personName := doc.Input.ByteSliceString(person.Name)
+				if personName != "Person" {
+					t.Fatal("want person")
+				}
+
+				// field definitions
+				if len(person.FieldsDefinition.Refs) != 2 {
+					t.Fatal("want 2")
+				}
+				nameString := doc.FieldDefinitions[person.FieldsDefinition.Refs[0]]
+				name := doc.Input.ByteSliceString(nameString.Name)
+				if name != "name" {
+					t.Fatal("want name")
+				}
+				nameStringType := doc.Types[nameString.Type]
+				if nameStringType.TypeKind != ast.TypeKindNamed {
+					t.Fatal("want TypeKindNamed")
+				}
+				stringName := doc.Input.ByteSliceString(nameStringType.Name)
+				if stringName != "String" {
+					t.Fatal("want String")
+				}
+				ageInt := doc.FieldDefinitions[person.FieldsDefinition.Refs[1]]
+				age := doc.Input.ByteSliceString(ageInt.Name)
+				if age != "age" {
+					t.Fatal("want age")
+				}
+				ageIntType := doc.Types[ageInt.Type]
+				if ageIntType.TypeKind != ast.TypeKindNamed {
+					t.Fatal("want TypeKindNamed")
+				}
+				intAge := doc.Input.ByteSliceString(ageIntType.Name)
+				if intAge != "Int" {
+					t.Fatal("want String")
+				}
+			})
+		})
 		t.Run("implements & without next", func(t *testing.T) {
 			run(`type Person implements Foo & {}`, parse, true)
 		})
