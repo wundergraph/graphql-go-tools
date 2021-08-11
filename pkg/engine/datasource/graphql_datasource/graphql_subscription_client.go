@@ -20,9 +20,9 @@ var (
 )
 
 const (
-	startMessage = `{"type":"start","id":"%s","payload":%s}`
-	stopMessage  = `{"type":"stop","id":"%s"}`
-	internalError = `{"errors":[{"message":"connection error"}]}`
+	startMessage    = `{"type":"start","id":"%s","payload":%s}`
+	stopMessage     = `{"type":"stop","id":"%s"}`
+	internalError   = `{"errors":[{"message":"connection error"}]}`
 	connectionError = `{"errors":[{"message":"connection error"}]}`
 )
 
@@ -248,6 +248,9 @@ func (h *connectionHandler) startBlocking(sub subscription) {
 
 func (h *connectionHandler) readBlocking(ctx context.Context, dataCh chan []byte) {
 	for {
+		if ctx.Err() != nil {
+			return
+		}
 		msgType, data, err := h.conn.Read(ctx)
 		if err != nil {
 			continue
@@ -255,7 +258,11 @@ func (h *connectionHandler) readBlocking(ctx context.Context, dataCh chan []byte
 		if msgType != websocket.MessageText {
 			continue
 		}
-		dataCh <- data
+		select {
+		case dataCh <- data:
+		case <-ctx.Done():
+			return
+		}
 	}
 }
 
