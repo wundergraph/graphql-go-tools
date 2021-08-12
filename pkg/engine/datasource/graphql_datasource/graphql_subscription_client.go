@@ -248,10 +248,10 @@ func (h *connectionHandler) startBlocking(sub subscription) {
 
 func (h *connectionHandler) readBlocking(ctx context.Context, dataCh chan []byte) {
 	for {
+		msgType, data, err := h.conn.Read(ctx)
 		if ctx.Err() != nil {
 			return
 		}
-		msgType, data, err := h.conn.Read(ctx)
 		if err != nil {
 			continue
 		}
