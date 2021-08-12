@@ -26,6 +26,9 @@ const (
 	connectionError = `{"errors":[{"message":"connection error"}]}`
 )
 
+// WebSocketGraphQLSubscriptionClient is a WebSocket client that allows running multiple subscriptions via the same WebSocket Connection
+// It takes care of de-duplicating WebSocket connections to the same origin under certain circumstances
+// If Hash(URL,Body,Headers) result in the same result, an existing WS connection is re-used
 type WebSocketGraphQLSubscriptionClient struct {
 	httpClient *http.Client
 	ctx        context.Context
@@ -78,6 +81,10 @@ func NewWebSocketGraphQLSubscriptionClient(httpClient *http.Client, ctx context.
 	}
 }
 
+// Subscribe initiates a new GraphQL Subscription with the origin
+// Each WebSocket (WS) to an origin is uniquely identified by the Hash(URL,Headers,Body)
+// If an existing WS with the same ID (Hash) exists, it is being re-used
+// If no connection exists, the client initiates a new one and sends the "init" and "connection ack" messages
 func (c *WebSocketGraphQLSubscriptionClient) Subscribe(ctx context.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error {
 
 	handlerID, err := c.generateHandlerIDHash(options)
@@ -153,6 +160,7 @@ func (c *WebSocketGraphQLSubscriptionClient) Subscribe(ctx context.Context, opti
 	return nil
 }
 
+// generateHandlerIDHash generates a Hash based on: URL, Headers, Body to uniquely identify Upgrade Requests
 func (c *WebSocketGraphQLSubscriptionClient) generateHandlerIDHash(options GraphQLSubscriptionOptions) (uint64, error) {
 	var (
 		err error
@@ -185,6 +193,9 @@ func newConnectionHandler(ctx context.Context, conn *websocket.Conn, readTimeout
 	}
 }
 
+// connectionHandler is responsible for handling a connection to an origin
+// it is responsible for managing all subscriptions using the underlying WebSocket connection
+// if all Subscriptions are complete or cancelled/unsubscribed the handler will terminate
 type connectionHandler struct {
 	conn               *websocket.Conn
 	ctx                context.Context
@@ -201,6 +212,8 @@ type subscription struct {
 	next    chan<- []byte
 }
 
+// startBlocking starts the single threaded event loop of the handler
+// if the global context returns or the websocket connection is terminated, it will stop
 func (h *connectionHandler) startBlocking(sub subscription) {
 	readCtx, cancel := context.WithCancel(h.ctx)
 	defer func() {
@@ -246,6 +259,9 @@ func (h *connectionHandler) startBlocking(sub subscription) {
 	}
 }
 
+// readBlocking is a dedicated loop running in a separate goroutine
+// because the library "nhooyr.io/websocket" doesn't allow reading with a context with Timeout
+// we'll block forever on reading until the context of the connectionHandler stops
 func (h *connectionHandler) readBlocking(ctx context.Context, dataCh chan []byte) {
 	for {
 		msgType, data, err := h.conn.Read(ctx)
@@ -273,6 +289,7 @@ func (h *connectionHandler) unsubscribeAllAndCloseConn() {
 	_ = h.conn.Close(websocket.StatusNormalClosure, "")
 }
 
+// subscribe adds a new subscription to the connectionHandler and sends the startMessage to the origin
 func (h *connectionHandler) subscribe(sub subscription) {
 	graphQLBody, err := json.Marshal(sub.options.Body)
 	if err != nil {
