@@ -9,8 +9,8 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/99designs/gqlgen/example/federation/products/graph/model"
 	"github.com/jensneuse/graphql-go-tools/examples/federation/products/graph/generated"
+	"github.com/jensneuse/graphql-go-tools/examples/federation/products/graph/model"
 )
 
 func (r *queryResolver) TopProducts(ctx context.Context, first *int) ([]*model.Product, error) {
@@ -77,6 +77,30 @@ func (r *subscriptionResolver) UpdateProductPrice(ctx context.Context, upc strin
 	return updatedPrice, nil
 }
 
+func (r *subscriptionResolver) Stock(ctx context.Context) (<-chan []*model.Product, error) {
+	stock := make(chan []*model.Product)
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(2 * time.Second):
+				rand.Seed(time.Now().UnixNano())
+				randIndex := rand.Intn(len(hats))
+
+				if hats[randIndex].InStock > 0 {
+					hats[randIndex].InStock--
+				}
+
+				stock <- hats
+			}
+		}
+	}()
+
+	return stock, nil
+}
+
 // Query returns generated.QueryResolver implementation.
 func (r *Resolver) Query() generated.QueryResolver { return &queryResolver{r} }
 
@@ -85,17 +109,3 @@ func (r *Resolver) Subscription() generated.SubscriptionResolver { return &subsc
 
 type queryResolver struct{ *Resolver }
 type subscriptionResolver struct{ *Resolver }
-
-// !!! WARNING !!!
-// The code below was going to be deleted when updating resolvers. It has been copied here so you have
-// one last chance to move it out of harms way if you want. There are two reasons this happens:
-//  - When renaming or deleting a resolver the old code will be put in here. You can safely delete
-//    it when you're done.
-//  - You have helper methods in this file. Move them out to keep these resolver files clean.
-var (
-	randomnessEnabled = true
-	minPrice          = 10
-	maxPrice          = 1499
-	currentPrice      = minPrice
-	updateInterval    = time.Second
-)

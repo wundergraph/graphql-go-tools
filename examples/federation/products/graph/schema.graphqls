@@ -5,10 +5,12 @@ extend type Query {
 extend type Subscription {
     updatedPrice: Product!
     updateProductPrice(upc: String!): Product!
+    stock: [Product!]
 }
 
 type Product @key(fields: "upc") {
     upc: String!
     name: String!
     price: Int!
+    inStock: Int!
 }
