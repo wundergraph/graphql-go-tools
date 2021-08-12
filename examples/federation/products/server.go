@@ -21,6 +21,7 @@ func main() {
 
 	http.Handle("/", playground.Handler("GraphQL playground", "/query"))
 	http.Handle("/query", graph.GraphQLEndpointHandler(graph.EndpointOptions{EnableDebug: true, EnableRandomness: true}))
+	http.HandleFunc("/websocket_connections", graph.WebsocketConnectionsHandler)
 
 	log.Printf("connect to http://localhost:%s/ for GraphQL playground", port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))

@@ -11,10 +11,10 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/99designs/gqlgen/example/federation/accounts/graph/model"
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/introspection"
 	"github.com/99designs/gqlgen/plugin/federation/fedruntime"
+	"github.com/jensneuse/graphql-go-tools/examples/federation/accounts/graph/model"
 	gqlparser "github.com/vektah/gqlparser/v2"
 	"github.com/vektah/gqlparser/v2/ast"
 )
@@ -363,7 +363,7 @@ func (ec *executionContext) _Entity_findUserByID(ctx context.Context, field grap
 	}
 	res := resTmp.(*model.User)
 	fc.Result = res
-	return ec.marshalNUser2ᚖgithubᚗcomᚋ99designsᚋgqlgenᚋexampleᚋfederationᚋaccountsᚋgraphᚋmodelᚐUser(ctx, field.Selections, res)
+	return ec.marshalNUser2ᚖgithubᚗcomᚋjensneuseᚋgraphqlᚑgoᚑtoolsᚋexamplesᚋfederationᚋaccountsᚋgraphᚋmodelᚐUser(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query_me(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -395,7 +395,7 @@ func (ec *executionContext) _Query_me(ctx context.Context, field graphql.Collect
 	}
 	res := resTmp.(*model.User)
 	fc.Result = res
-	return ec.marshalOUser2ᚖgithubᚗcomᚋ99designsᚋgqlgenᚋexampleᚋfederationᚋaccountsᚋgraphᚋmodelᚐUser(ctx, field.Selections, res)
+	return ec.marshalOUser2ᚖgithubᚗcomᚋjensneuseᚋgraphqlᚑgoᚑtoolsᚋexamplesᚋfederationᚋaccountsᚋgraphᚋmodelᚐUser(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query__entities(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -2254,11 +2254,11 @@ func (ec *executionContext) marshalNString2string(ctx context.Context, sel ast.S
 	return res
 }
 
-func (ec *executionContext) marshalNUser2githubᚗcomᚋ99designsᚋgqlgenᚋexampleᚋfederationᚋaccountsᚋgraphᚋmodelᚐUser(ctx context.Context, sel ast.SelectionSet, v model.User) graphql.Marshaler {
+func (ec *executionContext) marshalNUser2githubᚗcomᚋjensneuseᚋgraphqlᚑgoᚑtoolsᚋexamplesᚋfederationᚋaccountsᚋgraphᚋmodelᚐUser(ctx context.Context, sel ast.SelectionSet, v model.User) graphql.Marshaler {
 	return ec._User(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNUser2ᚖgithubᚗcomᚋ99designsᚋgqlgenᚋexampleᚋfederationᚋaccountsᚋgraphᚋmodelᚐUser(ctx context.Context, sel ast.SelectionSet, v *model.User) graphql.Marshaler {
+func (ec *executionContext) marshalNUser2ᚖgithubᚗcomᚋjensneuseᚋgraphqlᚑgoᚑtoolsᚋexamplesᚋfederationᚋaccountsᚋgraphᚋmodelᚐUser(ctx context.Context, sel ast.SelectionSet, v *model.User) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "must not be null")
@@ -2687,7 +2687,7 @@ func (ec *executionContext) marshalOString2ᚖstring(ctx context.Context, sel as
 	return graphql.MarshalString(*v)
 }
 
-func (ec *executionContext) marshalOUser2ᚖgithubᚗcomᚋ99designsᚋgqlgenᚋexampleᚋfederationᚋaccountsᚋgraphᚋmodelᚐUser(ctx context.Context, sel ast.SelectionSet, v *model.User) graphql.Marshaler {
+func (ec *executionContext) marshalOUser2ᚖgithubᚗcomᚋjensneuseᚋgraphqlᚑgoᚑtoolsᚋexamplesᚋfederationᚋaccountsᚋgraphᚋmodelᚐUser(ctx context.Context, sel ast.SelectionSet, v *model.User) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
