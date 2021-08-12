@@ -2,6 +2,7 @@ package datasourcetesting
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -48,7 +49,11 @@ func RunTest(definition, operation, operationName string, expectedPlan plan.Plan
 			}
 			t.Fatal(report.Error())
 		}
-		assert.Equal(t, expectedPlan, actualPlan)
+
+		actualBytes, _ := json.MarshalIndent(actualPlan, "", "  ")
+		expectedBytes, _ := json.MarshalIndent(expectedPlan, "", "  ")
+
+		assert.Equal(t, string(expectedBytes), string(actualBytes))
 
 		for _, extraCheck := range extraChecks {
 			extraCheck(t, op, actualPlan)
