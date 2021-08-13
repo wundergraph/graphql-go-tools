@@ -1,6 +1,8 @@
 package graph
 
 import (
+	"context"
+	"encoding/json"
 	"net/http"
 	"time"
 
@@ -9,9 +11,12 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler/extension"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/gorilla/websocket"
+	"go.uber.org/atomic"
 
 	"github.com/jensneuse/graphql-go-tools/examples/federation/products/graph/generated"
 )
+
+var websocketConnections atomic.Uint32
 
 type EndpointOptions struct {
 	EnableDebug            bool
@@ -26,6 +31,7 @@ var TestOptions = EndpointOptions{
 }
 
 func GraphQLEndpointHandler(opts EndpointOptions) http.Handler {
+	websocketConnections.Store(0)
 	srv := handler.New(generated.NewExecutableSchema(generated.Config{Resolvers: &Resolver{}}))
 
 	srv.AddTransport(transport.POST{})
@@ -35,6 +41,14 @@ func GraphQLEndpointHandler(opts EndpointOptions) http.Handler {
 			CheckOrigin: func(r *http.Request) bool {
 				return true
 			},
+		},
+		InitFunc: func(ctx context.Context, _ transport.InitPayload) (context.Context, error) {
+			websocketConnections.Inc()
+			go func(ctx context.Context) {
+				<-ctx.Done()
+				websocketConnections.Dec()
+			}(ctx)
+			return ctx, nil
 		},
 	})
 	srv.Use(extension.Introspection{})
@@ -50,4 +64,19 @@ func GraphQLEndpointHandler(opts EndpointOptions) http.Handler {
 	}
 
 	return srv
+}
+
+func WebsocketConnectionsHandler(w http.ResponseWriter, r *http.Request) {
+	response := map[string]uint32{
+		"websocket_connections": websocketConnections.Load(),
+	}
+
+	responseBytes, err := json.Marshal(response)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte("error"))
+		return
+	}
+
+	_, _ = w.Write(responseBytes)
 }

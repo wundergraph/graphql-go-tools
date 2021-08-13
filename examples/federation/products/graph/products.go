@@ -1,21 +1,24 @@
 package graph
 
-import "github.com/99designs/gqlgen/example/federation/products/graph/model"
+import "github.com/jensneuse/graphql-go-tools/examples/federation/products/graph/model"
 
 var hats = []*model.Product{
 	{
-		Upc:   "top-1",
-		Name:  "Trilby",
-		Price: 11,
+		Upc:     "top-1",
+		Name:    "Trilby",
+		Price:   11,
+		InStock: 500,
 	},
 	{
-		Upc:   "top-2",
-		Name:  "Fedora",
-		Price: 22,
+		Upc:     "top-2",
+		Name:    "Fedora",
+		Price:   22,
+		InStock: 1200,
 	},
 	{
-		Upc:   "top-3",
-		Name:  "Boater",
-		Price: 33,
+		Upc:     "top-3",
+		Name:    "Boater",
+		Price:   33,
+		InStock: 850,
 	},
 }

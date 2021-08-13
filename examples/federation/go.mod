@@ -10,6 +10,7 @@ require (
 	github.com/jensneuse/graphql-go-tools v1.20.2
 	github.com/nats-io/nats-server/v2 v2.3.2 // indirect
 	github.com/vektah/gqlparser/v2 v2.2.0
+	go.uber.org/atomic v1.9.0
 	go.uber.org/zap v1.13.0
 )
 
