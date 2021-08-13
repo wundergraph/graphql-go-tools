@@ -786,7 +786,7 @@ func TestParser_Parse(t *testing.T) {
 				}
 			})
 		})
-		t.Run("with comment-out field", func(t *testing.T) {
+		t.Run("object type with commented out field", func(t *testing.T) {
 			run(`type Person {
 							   name: String
 							   # tbd: String
