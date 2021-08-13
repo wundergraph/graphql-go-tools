@@ -1,6 +1,9 @@
 package plan
 
 import (
+	"context"
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -25,25 +28,40 @@ func TestPlanner_Plan(t *testing.T) {
 		norm.NormalizeOperation(&op, &def, report)
 		valid := astvalidation.DefaultOperationValidator()
 		valid.Validate(&op, &def, report)
-		closer := make(chan struct{})
-		defer close(closer)
-		p := NewPlanner(config, closer)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		p := NewPlanner(ctx, config)
 		return p.Plan(&op, &def, operationName, report)
 	}
 
 	test := func(definition, operation, operationName string, expectedPlan Plan, config Configuration) func(t *testing.T) {
 		return func(t *testing.T) {
+			t.Helper()
+
 			var report operationreport.Report
 			plan := testLogic(definition, operation, operationName, config, &report)
 			if report.HasErrors() {
 				t.Fatal(report.Error())
 			}
 			assert.Equal(t, expectedPlan, plan)
+
+			toJson := func(v interface{}) string {
+				b := &strings.Builder{}
+				e := json.NewEncoder(b)
+				e.SetIndent("", " ")
+				_ = e.Encode(v)
+				return b.String()
+			}
+
+			assert.Equal(t, toJson(expectedPlan), toJson(plan))
+
 		}
 	}
 
 	testWithError := func(definition, operation, operationName string, config Configuration) func(t *testing.T) {
 		return func(t *testing.T) {
+			t.Helper()
+
 			var report operationreport.Report
 			_ = testLogic(definition, operation, operationName, config, &report)
 			assert.True(t, report.HasErrors())
@@ -72,6 +90,10 @@ func TestPlanner_Plan(t *testing.T) {
 				Fields: []*resolve.Field{
 					{
 						Name: []byte("droid"),
+						Position: resolve.Position{
+							Line:   3,
+							Column: 4,
+						},
 						Value: &resolve.Object{
 							Path:     []string{"droid"},
 							Nullable: true,
@@ -81,17 +103,29 @@ func TestPlanner_Plan(t *testing.T) {
 									Value: &resolve.String{
 										Path: []string{"name"},
 									},
+									Position: resolve.Position{
+										Line:   4,
+										Column: 5,
+									},
 								},
 								{
 									Name: []byte("aliased"),
 									Value: &resolve.String{
 										Path: []string{"name"},
 									},
+									Position: resolve.Position{
+										Line:   5,
+										Column: 5,
+									},
 								},
 								{
 									Name: []byte("friends"),
 									Stream: &resolve.StreamField{
 										InitialBatchSize: 0,
+									},
+									Position: resolve.Position{
+										Line:   6,
+										Column: 5,
 									},
 									Value: &resolve.Array{
 										Nullable: true,
@@ -104,6 +138,10 @@ func TestPlanner_Plan(t *testing.T) {
 													Value: &resolve.String{
 														Path: []string{"name"},
 													},
+													Position: resolve.Position{
+														Line:   7,
+														Column: 6,
+													},
 												},
 											},
 										},
@@ -111,6 +149,10 @@ func TestPlanner_Plan(t *testing.T) {
 								},
 								{
 									Name: []byte("friendsWithInitialBatch"),
+									Position: resolve.Position{
+										Line:   9,
+										Column: 5,
+									},
 									Stream: &resolve.StreamField{
 										InitialBatchSize: 5,
 									},
@@ -125,6 +167,10 @@ func TestPlanner_Plan(t *testing.T) {
 													Value: &resolve.String{
 														Path: []string{"name"},
 													},
+													Position: resolve.Position{
+														Line:   10,
+														Column: 6,
+													},
 												},
 											},
 										},
@@ -132,12 +178,20 @@ func TestPlanner_Plan(t *testing.T) {
 								},
 								{
 									Name: []byte("primaryFunction"),
+									Position: resolve.Position{
+										Line:   12,
+										Column: 5,
+									},
 									Value: &resolve.String{
 										Path: []string{"primaryFunction"},
 									},
 								},
 								{
-									Name:  []byte("favoriteEpisode"),
+									Name: []byte("favoriteEpisode"),
+									Position: resolve.Position{
+										Line:   13,
+										Column: 5,
+									},
 									Defer: &resolve.DeferField{},
 									Value: &resolve.String{
 										Nullable: true,
@@ -164,15 +218,27 @@ func TestPlanner_Plan(t *testing.T) {
 			`, "MyHero", expectedMyHeroPlan, Configuration{},
 		))
 
+		t.Run("should successfully plan unnamed query with fragment", test(testDefinition, `
+				fragment CharacterFields on Character {
+					name
+				}
+				query {
+					hero {
+						...CharacterFields
+					}
+				}
+			`, "", expectedMyHeroPlanWithFragment, Configuration{},
+		))
+
 		t.Run("should successfully plan multiple named queries by providing an operation name", test(testDefinition, `
-				query MyDroid($id: ID!) {
-					droid(id: $id){
+				query MyHero {
+					hero {
 						name
 					}
 				}
-		
-				query MyHero {
-					hero {
+
+				query MyDroid($id: ID!) {
+					droid(id: $id){
 						name
 					}
 				}
@@ -231,6 +297,10 @@ var expectedMyHeroPlan = &SynchronousResponsePlan{
 			Fields: []*resolve.Field{
 				{
 					Name: []byte("hero"),
+					Position: resolve.Position{
+						Line:   3,
+						Column: 6,
+					},
 					Value: &resolve.Object{
 						Path:     []string{"hero"},
 						Nullable: true,
@@ -239,6 +309,43 @@ var expectedMyHeroPlan = &SynchronousResponsePlan{
 								Name: []byte("name"),
 								Value: &resolve.String{
 									Path: []string{"name"},
+								},
+								Position: resolve.Position{
+									Line:   4,
+									Column: 7,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+}
+
+var expectedMyHeroPlanWithFragment = &SynchronousResponsePlan{
+	FlushInterval: 0,
+	Response: &resolve.GraphQLResponse{
+		Data: &resolve.Object{
+			Fields: []*resolve.Field{
+				{
+					Name: []byte("hero"),
+					Position: resolve.Position{
+						Line:   6,
+						Column: 6,
+					},
+					Value: &resolve.Object{
+						Path:     []string{"hero"},
+						Nullable: true,
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("name"),
+								Value: &resolve.String{
+									Path: []string{"name"},
+								},
+								Position: resolve.Position{
+									Line:   3,
+									Column: 6,
 								},
 							},
 						},

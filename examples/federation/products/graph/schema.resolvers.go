@@ -9,8 +9,8 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/99designs/gqlgen/example/federation/products/graph/model"
-	"github.com/jensneuse/federation-example/products/graph/generated"
+	"github.com/jensneuse/graphql-go-tools/examples/federation/products/graph/generated"
+	"github.com/jensneuse/graphql-go-tools/examples/federation/products/graph/model"
 )
 
 func (r *queryResolver) TopProducts(ctx context.Context, first *int) ([]*model.Product, error) {
@@ -24,12 +24,19 @@ func (r *subscriptionResolver) UpdatedPrice(ctx context.Context) (<-chan *model.
 			select {
 			case <-ctx.Done():
 				return
-			case <-time.After(time.Second):
+			case <-time.After(updateInterval):
 				rand.Seed(time.Now().UnixNano())
-				product := hats[rand.Intn(len(hats)-1)]
-				min := 10
-				max := 1499
-				product.Price = rand.Intn(max-min+1) + min
+				product := hats[0]
+
+				if randomnessEnabled {
+					product = hats[rand.Intn(len(hats)-1)]
+					product.Price = rand.Intn(maxPrice-minPrice+1) + minPrice
+					updatedPrice <- product
+					continue
+				}
+
+				product.Price = currentPrice
+				currentPrice += 1
 				updatedPrice <- product
 			}
 		}
@@ -68,6 +75,30 @@ func (r *subscriptionResolver) UpdateProductPrice(ctx context.Context, upc strin
 	}()
 
 	return updatedPrice, nil
+}
+
+func (r *subscriptionResolver) Stock(ctx context.Context) (<-chan []*model.Product, error) {
+	stock := make(chan []*model.Product)
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(2 * time.Second):
+				rand.Seed(time.Now().UnixNano())
+				randIndex := rand.Intn(len(hats))
+
+				if hats[randIndex].InStock > 0 {
+					hats[randIndex].InStock--
+				}
+
+				stock <- hats
+			}
+		}
+	}()
+
+	return stock, nil
 }
 
 // Query returns generated.QueryResolver implementation.

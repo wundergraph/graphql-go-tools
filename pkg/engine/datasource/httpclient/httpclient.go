@@ -2,7 +2,6 @@ package httpclient
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"io"
 
@@ -42,10 +41,6 @@ var (
 		{BODY},
 	}
 )
-
-type Client interface {
-	Do(ctx context.Context, requestInput []byte, out io.Writer) (err error)
-}
 
 func wrapQuotesIfString(b []byte) []byte {
 

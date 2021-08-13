@@ -22,8 +22,18 @@ func (r *Request) Normalize(schema *Schema) (result NormalizationResult, err err
 
 	r.document.Input.Variables = r.Variables
 
-	normalizer := astnormalization.NewNormalizer(true, true)
-	normalizer.NormalizeNamedOperation(&r.document, &schema.document, []byte(r.OperationName), &report)
+	normalizer := astnormalization.NewWithOpts(
+		astnormalization.WithExtractVariables(),
+		astnormalization.WithRemoveFragmentDefinitions(),
+		astnormalization.WithRemoveUnusedVariables(),
+	)
+
+	if r.OperationName != "" {
+		normalizer.NormalizeNamedOperation(&r.document, &schema.document, []byte(r.OperationName), &report)
+	} else {
+		normalizer.NormalizeOperation(&r.document, &schema.document, &report)
+	}
+
 	if report.HasErrors() {
 		return normalizationResultFromReport(report)
 	}

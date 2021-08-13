@@ -64,7 +64,10 @@ func TestArrayStream(t *testing.T) {
 		},
 	}
 
-	resolver := New()
+	c,cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	resolver := New(c)
 
 	ctx := NewContext(context.Background())
 
@@ -157,7 +160,10 @@ func TestArrayStream_InitialBatch_1(t *testing.T) {
 		},
 	}
 
-	resolver := New()
+	c,cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	resolver := New(c)
 
 	ctx := NewContext(context.Background())
 
@@ -246,7 +252,10 @@ func TestArrayStream_InitialBatch_2(t *testing.T) {
 		},
 	}
 
-	resolver := New()
+	c,cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	resolver := New(c)
 
 	ctx := NewContext(context.Background())
 
@@ -362,7 +371,10 @@ func TestStreamAndDefer(t *testing.T) {
 		},
 	}
 
-	resolver := New()
+	c,cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	resolver := New(c)
 
 	ctx := NewContext(context.Background())
 

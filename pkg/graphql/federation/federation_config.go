@@ -6,7 +6,6 @@ import (
 
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
 	graphqlDataSource "github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/graphql_datasource"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/federation"
 	"github.com/jensneuse/graphql-go-tools/pkg/graphql"
@@ -150,7 +149,7 @@ func (f *EngineConfigV2Factory) engineConfigDataSources() (planDataSources []pla
 
 		factory := &graphqlDataSource.Factory{}
 		if f.httpClient != nil {
-			factory.Client = httpclient.NewNetHttpClient(f.httpClient)
+			factory.Client = f.httpClient
 		}
 		planDataSource.Factory = factory
 

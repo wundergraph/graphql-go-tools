@@ -40,7 +40,7 @@ func (p *ProcessDefer) processStreamingResponsePlan(in *plan.StreamingResponsePl
 func (p *ProcessDefer) synchronousResponse(pre *plan.SynchronousResponsePlan) plan.Plan {
 	p.out = &plan.StreamingResponsePlan{
 		FlushInterval: pre.FlushInterval,
-		Response: resolve.GraphQLStreamingResponse{
+		Response: &resolve.GraphQLStreamingResponse{
 			InitialResponse: pre.Response,
 			FlushInterval:   pre.FlushInterval,
 		},

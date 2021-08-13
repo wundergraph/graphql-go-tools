@@ -31,13 +31,17 @@ func TestDataSourceInput_Process(t *testing.T) {
 						Value: &resolve.Object{
 							Fetch: &resolve.SingleFetch{
 								BufferId: 1,
-								Input:    `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"$$0$$","__typename":"User"}]}},"extract_entities":true}`,
+								Input:    `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"$$0$$","__typename":"User"}]}}}`,
 								Variables: resolve.NewVariables(
 									&resolve.ObjectVariable{
 										Path: []string{"id"},
 									},
 								),
 								DataSource: nil,
+								ProcessResponseConfig: resolve.ProcessResponseConfig{
+									ExtractGraphqlResponse:    true,
+									ExtractFederationEntities: true,
+								},
 							},
 							Path:     []string{"me"},
 							Nullable: true,
@@ -78,13 +82,17 @@ func TestDataSourceInput_Process(t *testing.T) {
 														Path: []string{"product"},
 														Fetch: &resolve.SingleFetch{
 															BufferId:   2,
-															Input:      `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"$$0$$","__typename":"Product"}]}},"extract_entities":true}`,
+															Input:      `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"$$0$$","__typename":"Product"}]}}}`,
 															DataSource: nil,
 															Variables: resolve.NewVariables(
 																&resolve.ObjectVariable{
 																	Path: []string{"upc"},
 																},
 															),
+															ProcessResponseConfig: resolve.ProcessResponseConfig{
+																ExtractGraphqlResponse:    true,
+																ExtractFederationEntities: true,
+															},
 														},
 														Fields: []*resolve.Field{
 															{
@@ -154,12 +162,16 @@ func TestDataSourceInput_Process(t *testing.T) {
 											VariableSourcePath: []string{"id"},
 										},
 										{
-											Data:        []byte(`","__typename":"User"}]}},"extract_entities":true}`),
+											Data:        []byte(`","__typename":"User"}]}}}`),
 											SegmentType: resolve.StaticSegmentType,
 										},
 									},
 								},
 								DataSource: nil,
+								ProcessResponseConfig: resolve.ProcessResponseConfig{
+									ExtractGraphqlResponse:    true,
+									ExtractFederationEntities: true,
+								},
 							},
 							Path:     []string{"me"},
 							Nullable: true,
@@ -212,10 +224,14 @@ func TestDataSourceInput_Process(t *testing.T) {
 																		VariableSourcePath: []string{"upc"},
 																	},
 																	{
-																		Data:        []byte(`","__typename":"Product"}]}},"extract_entities":true}`),
+																		Data:        []byte(`","__typename":"Product"}]}}}`),
 																		SegmentType: resolve.StaticSegmentType,
 																	},
 																},
+															},
+															ProcessResponseConfig: resolve.ProcessResponseConfig{
+																ExtractGraphqlResponse:    true,
+																ExtractFederationEntities: true,
 															},
 														},
 														Fields: []*resolve.Field{
@@ -251,10 +267,9 @@ func TestDataSourceInput_Process(t *testing.T) {
 func TestDataSourceInput_Subscription_Process(t *testing.T) {
 
 	pre := &plan.SubscriptionResponsePlan{
-		Response: resolve.GraphQLSubscription{
+		Response: &resolve.GraphQLSubscription{
 			Trigger: resolve.GraphQLSubscriptionTrigger{
-				ManagerID: []byte("fake"),
-				Input:     `{"method":"POST","url":"http://localhost:4001/$$0$$","body":{"query":"{me {id username}}"}}`,
+				Input: []byte(`{"method":"POST","url":"http://localhost:4001/$$0$$","body":{"query":"{me {id username}}"}}`),
 				Variables: []resolve.Variable{
 					&resolve.HeaderVariable{
 						Path: []string{"Authorization"},
@@ -266,9 +281,8 @@ func TestDataSourceInput_Subscription_Process(t *testing.T) {
 	}
 
 	expected := &plan.SubscriptionResponsePlan{
-		Response: resolve.GraphQLSubscription{
+		Response: &resolve.GraphQLSubscription{
 			Trigger: resolve.GraphQLSubscriptionTrigger{
-				ManagerID: []byte("fake"),
 				InputTemplate: resolve.InputTemplate{
 					Segments: []resolve.TemplateSegment{
 						{
