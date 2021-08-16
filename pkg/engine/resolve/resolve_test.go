@@ -211,6 +211,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 							SegmentType:        VariableSegmentType,
 							VariableSource:     VariableSourceContext,
 							VariableSourcePath: []string{"id"},
+							VariableValueType:  jsonparser.Number,
 						},
 						{
 							SegmentType: StaticSegmentType,
@@ -741,15 +742,14 @@ func TestResolver_WithHooks(t *testing.T) {
 
 func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 	testFn := func(fn func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string)) func(t *testing.T) {
-		t.Helper()
-
-		ctrl := gomock.NewController(t)
-		c, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		r := New(c)
-		node, ctx, expectedOutput := fn(t, r, ctrl)
 		return func(t *testing.T) {
 			t.Helper()
+
+			ctrl := gomock.NewController(t)
+			c, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			r := New(c)
+			node, ctx, expectedOutput := fn(t, r, ctrl)
 
 			buf := &bytes.Buffer{}
 			err := r.ResolveGraphQLResponse(&ctx, node, nil, buf)
@@ -1261,7 +1261,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					Fetches: []*SingleFetch{
 						{
 							BufferId: 0,
-							Input:    `{"url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":"$$0$$"}}}`,
+							Input:    `{"url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":$$0$$}}}`,
 							InputTemplate: InputTemplate{
 								Segments: []TemplateSegment{
 									{
@@ -1272,19 +1272,21 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 										SegmentType:        VariableSegmentType,
 										VariableSource:     VariableSourceContext,
 										VariableSourcePath: []string{"thirdArg"},
+										VariableValueType:  jsonparser.Number,
 									},
 									{
 										SegmentType: StaticSegmentType,
-										Data:        []byte(`,"firstArg":"`),
+										Data:        []byte(`,"firstArg":`),
 									},
 									{
 										SegmentType:        VariableSegmentType,
 										VariableSource:     VariableSourceContext,
 										VariableSourcePath: []string{"firstArg"},
+										VariableValueType:  jsonparser.String,
 									},
 									{
 										SegmentType: StaticSegmentType,
-										Data:        []byte(`"}}}`),
+										Data:        []byte(`}}}`),
 									},
 								},
 							},
@@ -1311,6 +1313,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 										SegmentType:        VariableSegmentType,
 										VariableSource:     VariableSourceContext,
 										VariableSourcePath: []string{"fourthArg"},
+										VariableValueType:  jsonparser.Number,
 									},
 									{
 										SegmentType: StaticSegmentType,
@@ -1320,6 +1323,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 										SegmentType:        VariableSegmentType,
 										VariableSource:     VariableSourceContext,
 										VariableSourcePath: []string{"secondArg"},
+										VariableValueType:  jsonparser.Boolean,
 									},
 									{
 										SegmentType: StaticSegmentType,
