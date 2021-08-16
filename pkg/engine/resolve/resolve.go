@@ -1333,7 +1333,9 @@ func (i *InputTemplate) renderGraphQLValue(data []byte, valueType jsonparser.Val
 			} else {
 				first = false
 			}
+			buf.WriteBytes(literal.QUOTE)
 			buf.WriteBytes(key)
+			buf.WriteBytes(literal.QUOTE)
 			buf.WriteBytes(literal.COLON)
 			return i.renderGraphQLValue(value, dataType, buf)
 		})
