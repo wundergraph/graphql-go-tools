@@ -40,7 +40,7 @@ type Planner struct {
 	rootTypeName               string // rootTypeName - holds name of top level type
 	rootFieldName              string // rootFieldName - holds name of root type field
 	rootFieldRef               int    // rootFieldRef - holds ref of root type field
-	argTypeRef                 int    // argType - holds current argument type ref from the definition
+	argTypeRef                 int    // argTypeRef - holds current argument type ref from the definition
 }
 
 func (p *Planner) DownstreamResponseFieldAlias(downstreamFieldRef int) (alias string, exists bool) {
@@ -524,6 +524,7 @@ func (p *Planner) configureArgument(upstreamFieldRef, downstreamFieldRef int, fi
 	p.argTypeRef = -1
 }
 
+// configureFieldArgumentSource - creates variables for a plain argument types, in case object or list types goes deep and calls applyInlineFieldArgument
 func (p *Planner) configureFieldArgumentSource(upstreamFieldRef, downstreamFieldRef int, argumentName string, sourcePath []string) {
 	fieldArgument, ok := p.visitor.Operation.FieldArgument(downstreamFieldRef, []byte(argumentName))
 	if !ok {
@@ -560,6 +561,7 @@ func (p *Planner) configureFieldArgumentSource(upstreamFieldRef, downstreamField
 	p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, variableNameStr, []byte(contextVariableName))
 }
 
+// applyInlineFieldArgument - configures arguments for a complex argument of a list or input object type
 func (p *Planner) applyInlineFieldArgument(upstreamField, downstreamField int, argumentName string, sourcePath []string) {
 	fieldArgument, ok := p.visitor.Operation.FieldArgument(downstreamField, []byte(argumentName))
 	if !ok {
@@ -572,30 +574,20 @@ func (p *Planner) applyInlineFieldArgument(upstreamField, downstreamField int, a
 		Value: importedValue,
 	})
 	p.upstreamOperation.AddArgumentToField(upstreamField, argRef)
-	p.addVariableDefinitions(value, sourcePath)
+
+	p.addVariableDefinitionsRecursively(value, sourcePath, nil)
 }
 
-func (p *Planner) addVariableDefinitions(value ast.Value, sourcePath []string) {
-	switch value.Kind {
-	case ast.ValueKindObject:
-		for _, objectFieldRef := range p.visitor.Operation.ObjectValues[value.Ref].Refs {
-			p.addVariableDefinitionsRecursively(p.visitor.Operation.ObjectFields[objectFieldRef].Value, p.visitor.Operation.ObjectFieldNameBytes(objectFieldRef), sourcePath)
-		}
-		return
-	case ast.ValueKindList:
-		for _, i := range p.visitor.Operation.ListValues[value.Ref].Refs {
-			p.addVariableDefinitionsRecursively(p.visitor.Operation.Values[i], nil, sourcePath)
-		}
-		return
-	case ast.ValueKindVariable:
-		p.addVariableDefinitionsRecursively(value, nil, sourcePath)
-	default:
-		return
+// resolveNestedArgumentType - extracts type of nested field or array element of argument
+// fieldName - exists only for ast.ValueKindObject type of argument
+func (p *Planner) resolveNestedArgumentType(fieldName []byte) (fieldTypeRef int) {
+	if fieldName == nil {
+		return p.visitor.Definition.ResolveUnderlyingType(p.argTypeRef)
 	}
-}
 
-func (p *Planner) resolveInputObjectFieldType(fieldName []byte) (fieldTypeRef int) {
-	argTypeNode, _ := p.visitor.Definition.Index.FirstNodeByNameStr(p.visitor.Definition.ResolveTypeNameString(p.argTypeRef))
+	argTypeName := p.visitor.Definition.ResolveTypeNameString(p.argTypeRef)
+	argTypeNode, _ := p.visitor.Definition.Index.FirstNodeByNameStr(argTypeName)
+
 	for _, inputFieldDefRef := range p.visitor.Definition.InputObjectTypeDefinitions[argTypeNode.Ref].InputFieldsDefinition.Refs {
 		if bytes.Equal(p.visitor.Definition.InputValueDefinitionNameBytes(inputFieldDefRef), fieldName) {
 			return p.visitor.Definition.ResolveUnderlyingType(p.visitor.Definition.InputValueDefinitions[inputFieldDefRef].Type)
@@ -605,7 +597,28 @@ func (p *Planner) resolveInputObjectFieldType(fieldName []byte) (fieldTypeRef in
 	return -1
 }
 
-func (p *Planner) addVariableDefinitionsRecursively(value ast.Value, fieldName []byte, sourcePath []string) {
+// addVariableDefinitionsRecursively - recursively configures variables inside a list or an input type
+func (p *Planner) addVariableDefinitionsRecursively(value ast.Value, sourcePath []string, fieldName []byte) {
+	switch value.Kind {
+	case ast.ValueKindObject:
+		prevArgTypeRef := p.argTypeRef
+		p.argTypeRef = p.resolveNestedArgumentType(fieldName)
+		for _, objectFieldRef := range p.visitor.Operation.ObjectValues[value.Ref].Refs {
+			p.addVariableDefinitionsRecursively(p.visitor.Operation.ObjectFields[objectFieldRef].Value, sourcePath, p.visitor.Operation.ObjectFieldNameBytes(objectFieldRef))
+		}
+		p.argTypeRef = prevArgTypeRef
+		return
+	case ast.ValueKindList:
+		for _, i := range p.visitor.Operation.ListValues[value.Ref].Refs {
+			p.addVariableDefinitionsRecursively(p.visitor.Operation.Values[i], sourcePath, nil)
+		}
+		return
+	case ast.ValueKindVariable:
+		// continue after switch
+	default:
+		return
+	}
+
 	variableName := p.visitor.Operation.VariableValueNameBytes(value.Ref)
 	variableNameStr := p.visitor.Operation.VariableValueNameString(value.Ref)
 	variableDefinition, exists := p.visitor.Operation.VariableDefinitionByNameAndOperation(p.visitor.Walker.Ancestors[0].Ref, variableName)
@@ -615,7 +628,7 @@ func (p *Planner) addVariableDefinitionsRecursively(value ast.Value, fieldName [
 	importedVariableDefinition := p.visitor.Importer.ImportVariableDefinition(variableDefinition, p.visitor.Operation, p.upstreamOperation)
 	p.upstreamOperation.AddImportedVariableDefinitionToOperationDefinition(p.nodes[0].Ref, importedVariableDefinition)
 
-	fieldType := p.resolveInputObjectFieldType(fieldName)
+	fieldType := p.resolveNestedArgumentType(fieldName)
 	contextVariable := &resolve.ContextVariable{Path: append(sourcePath, variableNameStr)}
 	contextVariable.SetJsonValueType(p.visitor.Definition, fieldType)
 
@@ -626,6 +639,7 @@ func (p *Planner) addVariableDefinitionsRecursively(value ast.Value, fieldName [
 	p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, variableNameStr, []byte(contextVariableName))
 }
 
+// configureObjectFieldSource - configures source of a field when it has variables coming from current object
 func (p *Planner) configureObjectFieldSource(upstreamFieldRef, downstreamFieldRef int, fieldConfiguration plan.FieldConfiguration, argumentConfiguration plan.ArgumentConfiguration) {
 	if len(argumentConfiguration.SourcePath) < 1 {
 		return
@@ -653,10 +667,7 @@ func (p *Planner) configureObjectFieldSource(upstreamFieldRef, downstreamFieldRe
 	importedType := p.visitor.Importer.ImportType(argumentType, p.visitor.Definition, p.upstreamOperation)
 	p.upstreamOperation.AddVariableDefinitionToOperationDefinition(p.nodes[0].Ref, variableValue, importedType)
 
-	contextVariable := &resolve.ContextVariable{Path: argumentConfiguration.SourcePath}
-	contextVariable.SetJsonValueType(p.visitor.Definition, argumentType)
-
-	objectVariableName, exists := p.variables.AddVariable(contextVariable)
+	objectVariableName, exists := p.variables.AddVariable(&resolve.ObjectVariable{Path: argumentConfiguration.SourcePath})
 	if !exists {
 		p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, string(variableName), []byte(objectVariableName))
 	}
