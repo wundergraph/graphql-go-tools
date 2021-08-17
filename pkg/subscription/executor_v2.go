@@ -53,6 +53,9 @@ type ExecutorV2 struct {
 }
 
 func (e *ExecutorV2) Execute(writer resolve.FlushWriter) error {
+	if hook := e.engine.GetWsBeforeExecuteHook(); hook != nil {
+		return e.engine.Execute(e.context, e.operation, writer, graphql.WithBeforeExecuteHook(hook))
+	}
 	return e.engine.Execute(e.context, e.operation, writer)
 }
 

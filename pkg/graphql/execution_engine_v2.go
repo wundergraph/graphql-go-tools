@@ -21,8 +21,9 @@ import (
 )
 
 type EngineV2Configuration struct {
-	schema        *Schema
-	plannerConfig plan.Configuration
+	schema              *Schema
+	plannerConfig       plan.Configuration
+	wsBeforeExecuteHook BeforeExecuteHook
 }
 
 func NewEngineV2Configuration(schema *Schema) EngineV2Configuration {
@@ -50,6 +51,11 @@ func (e *EngineV2Configuration) AddFieldConfiguration(fieldConfig plan.FieldConf
 
 func (e *EngineV2Configuration) SetFieldConfigurations(fieldConfigs plan.FieldConfigurations) {
 	e.plannerConfig.Fields = fieldConfigs
+}
+
+// SetWsBeforeExecuteHook - sets before execution hook which will run for any operation done via websockets
+func (e *EngineV2Configuration) SetWsBeforeExecuteHook(hook BeforeExecuteHook) {
+	e.wsBeforeExecuteHook = hook
 }
 
 type EngineResultWriter struct {
@@ -157,17 +163,29 @@ type ExecutionEngineV2 struct {
 	executionPlanCache           *lru.Cache
 }
 
-type ExecutionOptionsV2 func(ctx *internalExecutionContext)
+type BeforeExecuteHook interface {
+	OnBeforeExecute(operation *Request) error
+}
+
+type ExecutionOptionsV2 func(ctx *internalExecutionContext, operation *Request) error
 
 func WithBeforeFetchHook(hook resolve.BeforeFetchHook) ExecutionOptionsV2 {
-	return func(ctx *internalExecutionContext) {
+	return func(ctx *internalExecutionContext, operation *Request) error {
 		ctx.resolveContext.SetBeforeFetchHook(hook)
+		return nil
 	}
 }
 
 func WithAfterFetchHook(hook resolve.AfterFetchHook) ExecutionOptionsV2 {
-	return func(ctx *internalExecutionContext) {
+	return func(ctx *internalExecutionContext, operation *Request) error {
 		ctx.resolveContext.SetAfterFetchHook(hook)
+		return nil
+	}
+}
+
+func WithBeforeExecuteHook(hook BeforeExecuteHook) ExecutionOptionsV2 {
+	return func(ctx *internalExecutionContext, operation *Request) error {
+		return hook.OnBeforeExecute(operation)
 	}
 }
 
@@ -216,7 +234,9 @@ func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *Request, wri
 	execContext.prepare(ctx, operation.Variables, operation.request)
 
 	for i := range options {
-		options[i](execContext)
+		if err := options[i](execContext, operation); err != nil {
+			return err
+		}
 	}
 
 	var report operationreport.Report
@@ -266,6 +286,10 @@ func (e *ExecutionEngineV2) getCachedPlan(ctx *internalExecutionContext, operati
 	p := ctx.postProcessor.Process(planResult)
 	e.executionPlanCache.Add(cacheKey, p)
 	return p
+}
+
+func (e *ExecutionEngineV2) GetWsBeforeExecuteHook() BeforeExecuteHook {
+	return e.config.wsBeforeExecuteHook
 }
 
 func (e *ExecutionEngineV2) getExecutionCtx() *internalExecutionContext {
