@@ -164,28 +164,28 @@ type ExecutionEngineV2 struct {
 }
 
 type BeforeExecuteHook interface {
-	OnBeforeExecute(operation *Request) error
+	OnBeforeExecute(reqCtx context.Context, operation *Request) error
 }
 
-type ExecutionOptionsV2 func(ctx *internalExecutionContext, operation *Request) error
+type ExecutionOptionsV2 func(ctx *internalExecutionContext, reqCtx context.Context, operation *Request) error
 
 func WithBeforeFetchHook(hook resolve.BeforeFetchHook) ExecutionOptionsV2 {
-	return func(ctx *internalExecutionContext, operation *Request) error {
+	return func(ctx *internalExecutionContext, reqCtx context.Context, operation *Request) error {
 		ctx.resolveContext.SetBeforeFetchHook(hook)
 		return nil
 	}
 }
 
 func WithAfterFetchHook(hook resolve.AfterFetchHook) ExecutionOptionsV2 {
-	return func(ctx *internalExecutionContext, operation *Request) error {
+	return func(ctx *internalExecutionContext, reqCtx context.Context, operation *Request) error {
 		ctx.resolveContext.SetAfterFetchHook(hook)
 		return nil
 	}
 }
 
 func WithBeforeExecuteHook(hook BeforeExecuteHook) ExecutionOptionsV2 {
-	return func(ctx *internalExecutionContext, operation *Request) error {
-		return hook.OnBeforeExecute(operation)
+	return func(ctx *internalExecutionContext, reqCtx context.Context, operation *Request) error {
+		return hook.OnBeforeExecute(reqCtx, operation)
 	}
 }
 
@@ -234,7 +234,7 @@ func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *Request, wri
 	execContext.prepare(ctx, operation.Variables, operation.request)
 
 	for i := range options {
-		if err := options[i](execContext, operation); err != nil {
+		if err := options[i](execContext, ctx, operation); err != nil {
 			return err
 		}
 	}

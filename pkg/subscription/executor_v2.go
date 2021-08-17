@@ -13,9 +13,10 @@ import (
 type ExecutorV2Pool struct {
 	engine       *graphql.ExecutionEngineV2
 	executorPool *sync.Pool
+	reqCtx       context.Context
 }
 
-func NewExecutorV2Pool(engine *graphql.ExecutionEngineV2) *ExecutorV2Pool {
+func NewExecutorV2Pool(engine *graphql.ExecutionEngineV2, ctx context.Context) *ExecutorV2Pool {
 	return &ExecutorV2Pool{
 		engine: engine,
 		executorPool: &sync.Pool{
@@ -23,6 +24,7 @@ func NewExecutorV2Pool(engine *graphql.ExecutionEngineV2) *ExecutorV2Pool {
 				return &ExecutorV2{}
 			},
 		},
+		reqCtx: ctx,
 	}
 }
 
@@ -36,7 +38,7 @@ func (e *ExecutorV2Pool) Get(payload []byte) (Executor, error) {
 	return &ExecutorV2{
 		engine:    e.engine,
 		operation: &operation,
-		context:   context.Background(),
+		context:   e.reqCtx,
 	}, nil
 }
 
