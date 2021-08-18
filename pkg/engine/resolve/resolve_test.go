@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"sync"
 	"testing"
@@ -12,7 +13,6 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/subscription"
 	"github.com/jensneuse/graphql-go-tools/pkg/fastbuffer"
 )
 
@@ -29,11 +29,11 @@ func (_ *_fakeDataSource) UniqueIdentifier() []byte {
 	return _fakeDataSourceUniqueID
 }
 
-func (f *_fakeDataSource) Load(ctx context.Context, input []byte, pair *BufPair) (err error) {
+func (f *_fakeDataSource) Load(ctx context.Context, input []byte, w io.Writer) (err error) {
 	if f.artificialLatency != 0 {
 		time.Sleep(f.artificialLatency)
 	}
-	pair.Data.WriteBytes(f.data)
+	_, err = w.Write(f.data)
 	return
 }
 
@@ -69,7 +69,9 @@ func (g gotBytesFormatter) Got(got interface{}) string {
 func TestResolver_ResolveNode(t *testing.T) {
 	testFn := func(fn func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string)) func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-		r := New()
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		r := New(c)
 		node, ctx, expectedOutput := fn(t, r, ctrl)
 		return func(t *testing.T) {
 			buf := &BufPair{
@@ -186,11 +188,10 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("fetch with context variable resolver", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		r.EnableSingleFlightLoader = true
 		mockDataSource := NewMockDataSource(ctrl)
-		mockDataSource.EXPECT().UniqueIdentifier().Return([]byte("mock"))
 		mockDataSource.EXPECT().
-			Load(gomock.Any(), []byte(`{"id":1}`), gomock.AssignableToTypeOf(&BufPair{})).
-			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
-				pair.Data.WriteBytes([]byte(`{"name":"Jens"}`))
+			Load(gomock.Any(), []byte(`{"id":1}`), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+			Do(func(ctx context.Context, input []byte, w io.Writer) (err error) {
+				_, err = w.Write([]byte(`{"name":"Jens"}`))
 				return
 			}).
 			Return(nil)
@@ -553,11 +554,10 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("parent object variables", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		r.EnableSingleFlightLoader = true
 		mockDataSource := NewMockDataSource(ctrl)
-		mockDataSource.EXPECT().UniqueIdentifier().Return([]byte("mock"))
 		mockDataSource.EXPECT().
-			Load(gomock.Any(), gomock.GotFormatterAdapter(gotBytesFormatter{}, matchBytes(`{"id":1}`)), gomock.AssignableToTypeOf(&BufPair{})).
-			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
-				pair.Data.WriteBytes([]byte(`{"name":"Woofie"}`))
+			Load(gomock.Any(), gomock.GotFormatterAdapter(gotBytesFormatter{}, matchBytes(`{"id":1}`)), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+			Do(func(ctx context.Context, input []byte, w io.Writer) (err error) {
+				_, err = w.Write([]byte(`{"name":"Woofie"}`))
 				return
 			}).
 			Return(nil)
@@ -633,7 +633,9 @@ func TestResolver_ResolveNode(t *testing.T) {
 func TestResolver_WithHooks(t *testing.T) {
 	testFn := func(fn func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string)) func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-		r := New()
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		r := New(c)
 		node, ctx, expectedOutput := fn(t, r, ctrl)
 		return func(t *testing.T) {
 			buf := &BufPair{
@@ -738,10 +740,16 @@ func TestResolver_WithHooks(t *testing.T) {
 
 func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 	testFn := func(fn func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string)) func(t *testing.T) {
+		t.Helper()
+
 		ctrl := gomock.NewController(t)
-		r := New()
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		r := New(c)
 		node, ctx, expectedOutput := fn(t, r, ctrl)
 		return func(t *testing.T) {
+			t.Helper()
+
 			buf := &bytes.Buffer{}
 			err := r.ResolveGraphQLResponse(&ctx, node, nil, buf)
 			assert.NoError(t, err)
@@ -749,30 +757,67 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			ctrl.Finish()
 		}
 	}
-	t.Run("empty graphql response", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("empty graphql response for nullable object", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Data: &Object{
 				Nullable: true,
 			},
 		}, Context{Context: context.Background()}, `{"data":null}`
 	}))
+	t.Run("empty graphql response for not nullable query field", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		return &GraphQLResponse{
+			Data: &Object{
+				Nullable: false,
+				Fields: []*Field{
+					{
+						BufferID:  0,
+						HasBuffer: true,
+						Name:      []byte("country"),
+						Position: Position{
+							Line:   3,
+							Column: 4,
+						},
+						Value: &Object{
+							Nullable: false,
+							Path:     []string{"country"},
+							Fields: []*Field{
+								{
+									Name: []byte("name"),
+									Value: &String{
+										Nullable: true,
+										Path:     []string{"name"},
+									},
+									Position: Position{
+										Line:   4,
+										Column: 5,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, Context{Context: context.Background()}, `{"errors":[{"message":"unable to resolve","locations":[{"line":3,"column":4}],"path":["country"]}],"data":null}`
+	}))
 	t.Run("fetch with simple error", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		r.EnableSingleFlightLoader = true
 		mockDataSource := NewMockDataSource(ctrl)
-		mockDataSource.EXPECT().UniqueIdentifier().Return([]byte("mock"))
 		mockDataSource.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
-			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
-				pair.WriteErr([]byte("errorMessage"), nil, nil)
-				return
-			}).
-			Return(nil)
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
+				pair := NewBufPair()
+				pair.WriteErr([]byte("errorMessage"), nil, nil, nil)
+				return writeGraphqlResponse(pair, w, false)
+			})
 		return &GraphQLResponse{
 			Data: &Object{
-				Nullable: true,
+				Nullable: false,
 				Fetch: &SingleFetch{
 					BufferId:   0,
 					DataSource: mockDataSource,
+					ProcessResponseConfig: ProcessResponseConfig{
+						ExtractGraphqlResponse: true,
+					},
 				},
 				Fields: []*Field{
 					{
@@ -791,17 +836,16 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 	t.Run("nested fetch error for non-nullable field", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		r.EnableSingleFlightLoader = true
 		mockDataSource := NewMockDataSource(ctrl)
-		mockDataSource.EXPECT().UniqueIdentifier().Return([]byte("mock"))
 		mockDataSource.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
-			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
-				pair.WriteErr([]byte("errorMessage"), nil, nil)
-				return
-			}).
-			Return(nil)
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
+				pair := NewBufPair()
+				pair.WriteErr([]byte("errorMessage"), nil, nil, nil)
+				return writeGraphqlResponse(pair, w, false)
+			})
 		return &GraphQLResponse{
 			Data: &Object{
-				Nullable: true,
+				Nullable: false,
 				Fetch: &SingleFetch{
 					BufferId:   0,
 					DataSource: FakeDataSource(`{"id":1}`),
@@ -816,14 +860,17 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 							Fetch: &SingleFetch{
 								BufferId:   1,
 								DataSource: mockDataSource,
+								ProcessResponseConfig: ProcessResponseConfig{
+									ExtractGraphqlResponse: true,
+								},
 							},
 							Fields: []*Field{
 								{
 									HasBuffer: true,
-									BufferID: 1,
-									Name: []byte("foo"),
+									BufferID:  1,
+									Name:      []byte("foo"),
 									Value: &String{
-										Path: []string{"foo"},
+										Path:     []string{"foo"},
 										Nullable: false,
 									},
 								},
@@ -832,18 +879,18 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background()}, `{"errors":[{"message":"errorMessage"}],"data":null}`
+		}, Context{Context: context.Background()}, `{"errors":[{"message":"errorMessage"},{"message":"unable to resolve","locations":[{"line":0,"column":0}],"path":["nestedObject"]}],"data":null}`
 	}))
 	t.Run("fetch with two Errors", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		r.EnableSingleFlightLoader = true
 		mockDataSource := NewMockDataSource(ctrl)
-		mockDataSource.EXPECT().UniqueIdentifier().Return([]byte("mock"))
 		mockDataSource.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
-			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
-				pair.WriteErr([]byte("errorMessage1"), nil, nil)
-				pair.WriteErr([]byte("errorMessage2"), nil, nil)
-				return
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+			Do(func(ctx context.Context, input []byte, w io.Writer) (err error) {
+				pair := NewBufPair()
+				pair.WriteErr([]byte("errorMessage1"), nil, nil, nil)
+				pair.WriteErr([]byte("errorMessage2"), nil, nil, nil)
+				return writeGraphqlResponse(pair, w, false)
 			}).
 			Return(nil)
 		return &GraphQLResponse{
@@ -851,6 +898,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				Fetch: &SingleFetch{
 					BufferId:   0,
 					DataSource: mockDataSource,
+					ProcessResponseConfig: ProcessResponseConfig{
+						ExtractGraphqlResponse: true,
+					},
 				},
 				Fields: []*Field{
 					{
@@ -1010,15 +1060,80 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background()}, `{"data":{"stringObject":null,"integerObject":null,"floatObject":null,"booleanObject":null,"objectObject":null,"arrayObject":null,"asynchronousArrayObject":null,"nullableArray":null}}`
+		}, Context{Context: context.Background()}, `{"errors":[{"message":"unable to resolve","locations":[{"line":0,"column":0}],"path":["objectObject","objectField"]}],"data":{"stringObject":null,"integerObject":null,"floatObject":null,"booleanObject":null,"objectObject":null,"arrayObject":null,"asynchronousArrayObject":null,"nullableArray":null}}`
 	}))
-	t.Run("empty array should resolve correctly", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("empty nullable array should resolve correctly", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Data: &Object{
 				Nullable: true,
 				Fetch: &SingleFetch{
 					BufferId:   0,
 					DataSource: FakeDataSource(`[]`),
+				},
+				Fields: []*Field{
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("nullableArray"),
+						Value: &Array{
+							Nullable: true,
+							Item: &Object{
+								Nullable: false,
+								Fields: []*Field{
+									{
+										Name: []byte("foo"),
+										Value: &String{
+											Nullable: false,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, Context{Context: context.Background()}, `{"data":{"nullableArray":[]}}`
+	}))
+	t.Run("empty not nullable array should resolve correctly", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		return &GraphQLResponse{
+			Data: &Object{
+				Nullable: false,
+				Fetch: &SingleFetch{
+					BufferId:   0,
+					DataSource: FakeDataSource(`[]`),
+				},
+				Fields: []*Field{
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("notNullableArray"),
+						Value: &Array{
+							Nullable: false,
+							Item: &Object{
+								Nullable: false,
+								Fields: []*Field{
+									{
+										Name: []byte("foo"),
+										Value: &String{
+											Nullable: false,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, Context{Context: context.Background()}, `{"data":{"notNullableArray":[]}}`
+	}))
+	t.Run("when data null not nullable array should resolve to data null and errors", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		return &GraphQLResponse{
+			Data: &Object{
+				Nullable: false,
+				Fetch: &SingleFetch{
+					BufferId:              0,
+					DataSource:            FakeDataSource(`{"data":null}`),
+					ProcessResponseConfig: ProcessResponseConfig{ExtractGraphqlResponse: true},
 				},
 				Fields: []*Field{
 					{
@@ -1061,45 +1176,80 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background()}, `{"data":{"nonNullArray":[],"nullableArray":null}}`
+		}, Context{Context: context.Background()}, `{"errors":[{"message":"unable to resolve","locations":[{"line":0,"column":0}]}],"data":null}`
+	}))
+	t.Run("when data null and errors present not nullable array should result to null data upsteam error and resolve error", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		return &GraphQLResponse{
+			Data: &Object{
+				Nullable: false,
+				Fetch: &SingleFetch{
+					BufferId: 0,
+					DataSource: FakeDataSource(
+						`{"errors":[{"message":"Could not get a name","locations":[{"line":3,"column":5}],"path":["todos",0,"name"]}],"data":null}`),
+					ProcessResponseConfig: ProcessResponseConfig{ExtractGraphqlResponse: true},
+				},
+				Fields: []*Field{
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("todos"),
+						Value: &Array{
+							Nullable: false,
+							Item: &Object{
+								Nullable: false,
+								Fields: []*Field{
+									{
+										Name: []byte("name"),
+										Value: &String{
+											Nullable: false,
+										},
+										Position: Position{
+											Line:   100,
+											Column: 777,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, Context{Context: context.Background()}, `{"errors":[{"message":"Could not get a name","locations":[{"line":3,"column":5}],"path":["todos",0,"name"]},{"message":"unable to resolve","locations":[{"line":0,"column":0}]}],"data":null}`
 	}))
 	t.Run("complex GraphQL Server plan", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		r.EnableSingleFlightLoader = true
 		serviceOne := NewMockDataSource(ctrl)
-		serviceOne.EXPECT().UniqueIdentifier().Return([]byte("serviceOne"))
 		serviceOne.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
-			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+			Do(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 				actual := string(input)
 				expected := `{"url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":123,"firstArg":"firstArgValue"}}}`
 				assert.Equal(t, expected, actual)
-				pair.Data.WriteString(`{"serviceOne":{"fieldOne":"fieldOneValue"},"anotherServiceOne":{"fieldOne":"anotherFieldOneValue"},"reusingServiceOne":{"fieldOne":"reUsingFieldOneValue"}}`)
+				_, err = w.Write([]byte(`{"serviceOne":{"fieldOne":"fieldOneValue"},"anotherServiceOne":{"fieldOne":"anotherFieldOneValue"},"reusingServiceOne":{"fieldOne":"reUsingFieldOneValue"}}`))
 				return
 			}).
 			Return(nil)
 
 		serviceTwo := NewMockDataSource(ctrl)
-		serviceTwo.EXPECT().UniqueIdentifier().Return([]byte("serviceTwo"))
 		serviceTwo.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
-			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+			Do(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 				actual := string(input)
 				expected := `{"url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo}}","variables":{"fourthArg":12.34,"secondArg":true}}}`
 				assert.Equal(t, expected, actual)
-				pair.Data.WriteString(`{"serviceTwo":{"fieldTwo":"fieldTwoValue"},"secondServiceTwo":{"fieldTwo":"secondFieldTwoValue"}}`)
+				_, err = w.Write([]byte(`{"serviceTwo":{"fieldTwo":"fieldTwoValue"},"secondServiceTwo":{"fieldTwo":"secondFieldTwoValue"}}`))
 				return
 			}).
 			Return(nil)
 
 		nestedServiceOne := NewMockDataSource(ctrl)
-		nestedServiceOne.EXPECT().UniqueIdentifier().Return([]byte("nestedServiceOne"))
 		nestedServiceOne.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
-			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+			Do(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 				actual := string(input)
 				expected := `{"url":"https://service.one","body":{"query":"{serviceOne {fieldOne}}"}}`
 				assert.Equal(t, expected, actual)
-				pair.Data.WriteString(`{"serviceOne":{"fieldOne":"fieldOneValue"}}`)
+				_, err = w.Write([]byte(`{"serviceOne":{"fieldOne":"fieldOneValue"}}`))
 				return
 			}).
 			Return(nil)
@@ -1307,27 +1457,25 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 		r.EnableSingleFlightLoader = true
 
 		userService := NewMockDataSource(ctrl)
-		userService.EXPECT().UniqueIdentifier().Return([]byte("userService"))
 		userService.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
-			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+			Do(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 				actual := string(input)
 				expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"{me {id username}}"}}`
 				assert.Equal(t, expected, actual)
-				pair.Data.WriteString(`{"me": {"id": "1234","username": "Me","__typename": "User"}}`)
+				_, err = w.Write([]byte(`{"me": {"id": "1234","username": "Me","__typename": "User"}}`))
 				return
 			}).
 			Return(nil)
 
 		reviewsService := NewMockDataSource(ctrl)
-		reviewsService.EXPECT().UniqueIdentifier().Return([]byte("userService"))
 		reviewsService.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
-			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+			Do(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 				actual := string(input)
-				expected := `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}},"extract_entities":true}`
+				expected := `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}}}`
 				assert.Equal(t, expected, actual)
-				pair.Data.WriteString(`{"reviews": [{"body": "A highly effective form of birth control.","product": {"upc": "top-1","__typename": "Product"}},{"body": "Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product": {"upc": "top-1","__typename": "Product"}}]}`)
+				_, err = w.Write([]byte(`{"reviews": [{"body": "A highly effective form of birth control.","product": {"upc": "top-1","__typename": "Product"}},{"body": "Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product": {"upc": "top-1","__typename": "Product"}}]}`))
 				return
 			}).
 			Return(nil)
@@ -1335,21 +1483,20 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 		productServiceCallCount := 0
 
 		productService := NewMockDataSource(ctrl)
-		productService.EXPECT().UniqueIdentifier().Return([]byte("userService")).Times(2)
 		productService.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
-			Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+			Do(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 				actual := string(input)
 				productServiceCallCount++
 				switch productServiceCallCount {
 				case 1:
-					expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"}]}},"extract_entities":true}`
+					expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"}]}}}`
 					assert.Equal(t, expected, actual)
-					pair.Data.WriteString(`{"name": "Trilby"}`)
+					_, err = w.Write([]byte(`{"name": "Trilby"}`))
 				case 2:
-					expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"}]}},"extract_entities":true}`
+					expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"}]}}}`
 					assert.Equal(t, expected, actual)
-					pair.Data.WriteString(`{"name": "Trilby"}`)
+					_, err = w.Write([]byte(`{"name": "Trilby"}`))
 				}
 				return
 			}).
@@ -1389,7 +1536,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 											VariableSourcePath: []string{"id"},
 										},
 										{
-											Data:        []byte(`","__typename":"User"}]}},"extract_entities":true}`),
+											Data:        []byte(`","__typename":"User"}]}}}`),
 											SegmentType: StaticSegmentType,
 										},
 									},
@@ -1447,7 +1594,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 																		VariableSourcePath: []string{"upc"},
 																	},
 																	{
-																		Data:        []byte(`","__typename":"Product"}]}},"extract_entities":true}`),
+																		Data:        []byte(`","__typename":"Product"}]}}}`),
 																		SegmentType: StaticSegmentType,
 																	},
 																},
@@ -1495,7 +1642,9 @@ func TestResolver_WithHeader(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			resolver := New()
+			c, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			resolver := New(c)
 
 			header := make(http.Header)
 			header.Set(tc.header, "foo")
@@ -1508,13 +1657,12 @@ func TestResolver_WithHeader(t *testing.T) {
 
 			ctrl := gomock.NewController(t)
 			fakeService := NewMockDataSource(ctrl)
-			fakeService.EXPECT().UniqueIdentifier().Return([]byte("fakeService"))
 			fakeService.EXPECT().
-				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&BufPair{})).
-				Do(func(ctx context.Context, input []byte, pair *BufPair) (err error) {
+				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+				Do(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 					actual := string(input)
 					assert.Equal(t, "foo", actual)
-					pair.Data.WriteString(`{"bar":"baz"}`)
+					_, err = w.Write([]byte(`{"bar":"baz"}`))
 					return
 				}).
 				Return(nil)
@@ -1568,73 +1716,117 @@ func (t *TestFlushWriter) Flush() {
 	t.buf.Reset()
 }
 
-type FakeStream struct {
-	cancel context.CancelFunc
-}
-
-func (f *FakeStream) Start(input []byte, next chan<- []byte, stop <-chan struct{}) {
-	time.Sleep(time.Millisecond)
-	count := 0
-	for {
-		if count == 3 {
-			f.cancel()
-			return
-		}
-		next <- []byte(fmt.Sprintf(`{"counter":%d}`, count))
-		count++
+func FakeStream(cancelFunc func(), messageFunc func(count int) (message string, ok bool)) *_fakeStream {
+	return &_fakeStream{
+		cancel:      cancelFunc,
+		messageFunc: messageFunc,
 	}
 }
 
-func (f *FakeStream) UniqueIdentifier() []byte {
+type _fakeStream struct {
+	cancel      context.CancelFunc
+	messageFunc func(counter int) (message string, ok bool)
+}
+
+func (f *_fakeStream) Start(ctx context.Context, input []byte, next chan<- []byte) error {
+	go func() {
+		time.Sleep(time.Millisecond)
+		count := 0
+		for {
+			if count == 3 {
+				f.cancel()
+				return
+			}
+			message, ok := f.messageFunc(count)
+			next <- []byte(message)
+			if !ok {
+				f.cancel()
+				return
+			}
+			count++
+		}
+	}()
+	return nil
+}
+
+func (f *_fakeStream) UniqueIdentifier() []byte {
 	return []byte("fake")
 }
 
 func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
-	resolver := New()
-	c, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	man := subscription.NewManager(&FakeStream{
-		cancel: cancel,
-	})
-	manCtx, cancelMan := context.WithCancel(context.Background())
-	defer cancelMan()
-	man.Run(manCtx.Done())
-	resolver.RegisterTriggerManager(man)
-	plan := &GraphQLSubscription{
-		Trigger: GraphQLSubscriptionTrigger{
-			ManagerID: []byte("fake"),
-			Input:     "",
-		},
-		Response: &GraphQLResponse{
-			Data: &Object{
-				Fields: []*Field{
-					{
-						Name: []byte("counter"),
-						Value: &Integer{
-							Path: []string{"counter"},
+	setup := func(ctx context.Context, stream *_fakeStream) (*Resolver, *GraphQLSubscription, *TestFlushWriter) {
+		plan := &GraphQLSubscription{
+			Trigger: GraphQLSubscriptionTrigger{
+				Source: stream,
+			},
+			Response: &GraphQLResponse{
+				Data: &Object{
+					Fields: []*Field{
+						{
+							Name: []byte("counter"),
+							Value: &Integer{
+								Path: []string{"counter"},
+							},
 						},
 					},
 				},
 			},
-		},
+		}
+
+		out := &TestFlushWriter{
+			buf: bytes.Buffer{},
+		}
+
+		return New(ctx), plan, out
 	}
-	ctx := Context{
-		Context: c,
-	}
-	out := &TestFlushWriter{
-		buf: bytes.Buffer{},
-	}
-	err := resolver.ResolveGraphQLSubscription(&ctx, plan, out)
-	assert.NoError(t, err)
-	assert.Equal(t, 3, len(out.flushed))
-	assert.Equal(t, `{"data":{"counter":0}}`, out.flushed[0])
-	assert.Equal(t, `{"data":{"counter":1}}`, out.flushed[1])
-	assert.Equal(t, `{"data":{"counter":2}}`, out.flushed[2])
+
+	t.Run("should return errors if the upstream data has errors", func(t *testing.T) {
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		fakeStream := FakeStream(cancel, func(count int) (message string, ok bool) {
+			return `{"errors":[{"message":"Validation error occurred","locations":[{"line":1,"column":1}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}],"data":null}`, false
+		})
+
+		resolver, plan, out := setup(c, fakeStream)
+		ctx := Context{
+			Context: c,
+		}
+
+		err := resolver.ResolveGraphQLSubscription(&ctx, plan, out)
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(out.flushed))
+		assert.Equal(t, `{"errors":[{"message":"unable to resolve","locations":[{"line":0,"column":0}]},{"message":"Validation error occurred","locations":[{"line":1,"column":1}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}],"data":null}`, out.flushed[0])
+	})
+
+	t.Run("should successfully get result from upstream", func(t *testing.T) {
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		fakeStream := FakeStream(cancel, func(count int) (message string, ok bool) {
+			return fmt.Sprintf(`{"data":{"counter":%d}}`, count), true
+		})
+
+		resolver, plan, out := setup(c, fakeStream)
+		ctx := Context{
+			Context: c,
+		}
+
+		err := resolver.ResolveGraphQLSubscription(&ctx, plan, out)
+		assert.NoError(t, err)
+		assert.Equal(t, 3, len(out.flushed))
+		assert.Equal(t, `{"data":{"counter":0}}`, out.flushed[0])
+		assert.Equal(t, `{"data":{"counter":1}}`, out.flushed[1])
+		assert.Equal(t, `{"data":{"counter":2}}`, out.flushed[2])
+	})
 }
 
 func BenchmarkResolver_ResolveNode(b *testing.B) {
 
-	resolver := New()
+	c, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	resolver := New(c)
 
 	serviceOneDS := FakeDataSource(`{"serviceOne":{"fieldOne":"fieldOneValue"},"anotherServiceOne":{"fieldOne":"anotherFieldOneValue"},"reusingServiceOne":{"fieldOne":"reUsingFieldOneValue"}}`)
 	serviceTwoDS := FakeDataSource(`{"serviceTwo":{"fieldTwo":"fieldTwoValue"},"secondServiceTwo":{"fieldTwo":"secondFieldTwoValue"}}`)

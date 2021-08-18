@@ -4,6 +4,7 @@ import (
 	"bytes"
 
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
 )
 
 type Field struct {
@@ -15,6 +16,7 @@ type Field struct {
 	Directives    DirectiveList // optional
 	SelectionSet  int           // optional
 	HasSelections bool
+	Position      position.Position
 }
 
 func (d *Document) FieldNameBytes(ref int) ByteSlice {

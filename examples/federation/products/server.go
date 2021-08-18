@@ -1,4 +1,4 @@
-//go:generate go run github.com/99designs/gqlgen
+//go:generate go run -mod=mod github.com/99designs/gqlgen
 package main
 
 import (
@@ -6,11 +6,9 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/99designs/gqlgen/graphql/handler"
-	"github.com/99designs/gqlgen/graphql/handler/debug"
 	"github.com/99designs/gqlgen/graphql/playground"
-	"github.com/jensneuse/federation-example/products/graph"
-	"github.com/jensneuse/federation-example/products/graph/generated"
+
+	"github.com/jensneuse/graphql-go-tools/examples/federation/products/graph"
 )
 
 const defaultPort = "4002"
@@ -21,11 +19,9 @@ func main() {
 		port = defaultPort
 	}
 
-	srv := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{Resolvers: &graph.Resolver{}}))
-	srv.Use(&debug.Tracer{})
-
 	http.Handle("/", playground.Handler("GraphQL playground", "/query"))
-	http.Handle("/query", srv)
+	http.Handle("/query", graph.GraphQLEndpointHandler(graph.EndpointOptions{EnableDebug: true, EnableRandomness: true}))
+	http.HandleFunc("/websocket_connections", graph.WebsocketConnectionsHandler)
 
 	log.Printf("connect to http://localhost:%s/ for GraphQL playground", port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))

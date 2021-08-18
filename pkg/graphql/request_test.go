@@ -219,6 +219,30 @@ func TestRequest_OperationType(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, OperationTypeUnknown, opType)
 	})
+
+	t.Run("should return operation type 'Query' if no name and a single operation is provided", func(t *testing.T) {
+		singleOperationQueryRequest := Request{
+			OperationName: "",
+			Variables:     nil,
+			Query:         "{ hello: String }",
+		}
+
+		opType, err := singleOperationQueryRequest.OperationType()
+		assert.NoError(t, err)
+		assert.Equal(t, OperationTypeQuery, opType)
+	})
+
+	t.Run("should return operation type 'Mutation' if mutation is the only operation", func(t *testing.T) {
+		singleOperationMutationRequest := Request{
+			OperationName: "",
+			Variables:     nil,
+			Query:         "mutation HelloMutation { hello: String }",
+		}
+
+		opType, err := singleOperationMutationRequest.OperationType()
+		assert.NoError(t, err)
+		assert.Equal(t, OperationTypeMutation, opType)
+	})
 }
 
 const namedIntrospectionQuery = `{"operationName":"IntrospectionQuery","variables":{},"query":"query IntrospectionQuery {\n  __schema {\n    queryType {\n      name\n    }\n    mutationType {\n      name\n    }\n    subscriptionType {\n      name\n    }\n    types {\n      ...FullType\n    }\n    directives {\n      name\n      description\n      locations\n      args {\n        ...InputValue\n      }\n    }\n  }\n}\n\nfragment FullType on __Type {\n  kind\n  name\n  description\n  fields(includeDeprecated: true) {\n    name\n    description\n    args {\n      ...InputValue\n    }\n    type {\n      ...TypeRef\n    }\n    isDeprecated\n    deprecationReason\n  }\n  inputFields {\n    ...InputValue\n  }\n  interfaces {\n    ...TypeRef\n  }\n  enumValues(includeDeprecated: true) {\n    name\n    description\n    isDeprecated\n    deprecationReason\n  }\n  possibleTypes {\n    ...TypeRef\n  }\n}\n\nfragment InputValue on __InputValue {\n  name\n  description\n  type {\n    ...TypeRef\n  }\n  defaultValue\n}\n\nfragment TypeRef on __Type {\n  kind\n  name\n  ofType {\n    kind\n    name\n    ofType {\n      kind\n      name\n      ofType {\n        kind\n        name\n        ofType {\n          kind\n          name\n          ofType {\n            kind\n            name\n            ofType {\n              kind\n              name\n              ofType {\n                kind\n                name\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}\n"}`

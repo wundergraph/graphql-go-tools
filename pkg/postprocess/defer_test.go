@@ -2,6 +2,7 @@ package postprocess
 
 import (
 	"context"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -94,7 +95,7 @@ func TestProcessDefer_Process(t *testing.T) {
 
 	expected := &plan.StreamingResponsePlan{
 		FlushInterval: 500,
-		Response: resolve.GraphQLStreamingResponse{
+		Response: &resolve.GraphQLStreamingResponse{
 			FlushInterval: 500,
 			InitialResponse: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
@@ -306,7 +307,7 @@ func TestProcessDefer_Process_Nested(t *testing.T) {
 
 	expected := &plan.StreamingResponsePlan{
 		FlushInterval: 500,
-		Response: resolve.GraphQLStreamingResponse{
+		Response: &resolve.GraphQLStreamingResponse{
 			FlushInterval: 500,
 			InitialResponse: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
@@ -545,7 +546,7 @@ func TestProcessDefer_Process_KeepFetchIfUsedUndeferred(t *testing.T) {
 
 	expected := &plan.StreamingResponsePlan{
 		FlushInterval: 500,
-		Response: resolve.GraphQLStreamingResponse{
+		Response: &resolve.GraphQLStreamingResponse{
 			FlushInterval: 500,
 			InitialResponse: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
@@ -751,7 +752,7 @@ func TestProcessDefer_Process_ParallelFetch(t *testing.T) {
 
 	expected := &plan.StreamingResponsePlan{
 		FlushInterval: 500,
-		Response: resolve.GraphQLStreamingResponse{
+		Response: &resolve.GraphQLStreamingResponse{
 			FlushInterval: 500,
 			InitialResponse: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
@@ -935,10 +936,6 @@ func TestProcessDefer_Process_ShouldSkipWithoutDefer(t *testing.T) {
 type fakeService struct {
 }
 
-func (f *fakeService) Load(ctx context.Context, input []byte, bufPair *resolve.BufPair) (err error) {
-	panic("implement me")
-}
-
-func (f *fakeService) UniqueIdentifier() []byte {
+func (f *fakeService) Load(ctx context.Context, input []byte, w io.Writer) (err error) {
 	panic("implement me")
 }

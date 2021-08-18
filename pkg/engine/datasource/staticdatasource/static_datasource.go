@@ -3,13 +3,9 @@ package staticdatasource
 import (
 	"context"
 	"encoding/json"
+	"io"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
-)
-
-const (
-	UniqueIdentifier = "static"
 )
 
 type Configuration struct {
@@ -23,7 +19,7 @@ func ConfigJSON(config Configuration) json.RawMessage {
 
 type Factory struct{}
 
-func (f *Factory) Planner(<- chan struct{}) plan.DataSourcePlanner {
+func (f *Factory) Planner(ctx context.Context) plan.DataSourcePlanner {
 	return &Planner{}
 }
 
@@ -56,22 +52,13 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 
 func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
 	return plan.SubscriptionConfiguration{
-		Input:                 p.config.Data,
-		SubscriptionManagerID: "static",
+		Input: p.config.Data,
 	}
 }
 
 type Source struct{}
 
-var (
-	uniqueIdentifier = []byte(UniqueIdentifier)
-)
-
-func (_ Source) UniqueIdentifier() []byte {
-	return uniqueIdentifier
-}
-
-func (_ Source) Load(ctx context.Context, input []byte, bufPair *resolve.BufPair) (err error) {
-	bufPair.Data.WriteBytes(input)
+func (_ Source) Load(ctx context.Context, input []byte, w io.Writer) (err error) {
+	_, err = w.Write(input)
 	return
 }

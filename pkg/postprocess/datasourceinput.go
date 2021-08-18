@@ -54,8 +54,8 @@ func (d *ProcessDataSource) traverseFetch(fetch resolve.Fetch) {
 }
 
 func (d *ProcessDataSource) traverseTrigger(trigger *resolve.GraphQLSubscriptionTrigger) {
-	d.resolveInputTemplate(trigger.Variables, trigger.Input, &trigger.InputTemplate)
-	trigger.Input = ""
+	d.resolveInputTemplate(trigger.Variables, string(trigger.Input), &trigger.InputTemplate)
+	trigger.Input = nil
 	trigger.Variables = nil
 }
 

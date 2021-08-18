@@ -12,16 +12,6 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 )
 
-type NetHttpClient struct {
-	client *http.Client
-}
-
-func NewNetHttpClient(client *http.Client) *NetHttpClient {
-	return &NetHttpClient{
-		client: client,
-	}
-}
-
 var (
 	DefaultNetHttpClient = &http.Client{
 		Timeout: time.Second * 10,
@@ -30,14 +20,17 @@ var (
 			TLSHandshakeTimeout: 0 * time.Second,
 		},
 	}
+	queryParamsKeys = [][]string{
+		{"name"},
+		{"value"},
+	}
 )
 
-func (n *NetHttpClient) Do(ctx context.Context, requestInput []byte, out io.Writer) (err error) {
+func Do(client *http.Client, ctx context.Context, requestInput []byte, out io.Writer) (err error) {
 
 	url, method, body, headers, queryParams := requestInputParams(requestInput)
 
-	// Change to `http.NewRequestWithContext` when support for go 1.12 is dropped
-	request, err := NewRequestWithContext(ctx, string(method), string(url), bytes.NewReader(body))
+	request, err := http.NewRequestWithContext(ctx, string(method), string(url), bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
@@ -90,7 +83,7 @@ func (n *NetHttpClient) Do(ctx context.Context, requestInput []byte, out io.Writ
 	request.Header.Add("accept", "application/json")
 	request.Header.Add("content-type", "application/json")
 
-	response, err := n.client.Do(request)
+	response, err := client.Do(request)
 	if err != nil {
 		return err
 	}

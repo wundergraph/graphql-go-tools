@@ -3,6 +3,7 @@ package plan
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,7 +13,6 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
 	"github.com/jensneuse/graphql-go-tools/pkg/asttransform"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
@@ -32,11 +32,12 @@ func TestCloser(t *testing.T) {
 	norm.NormalizeOperation(&op, &def, report)
 	valid := astvalidation.DefaultOperationValidator()
 	valid.Validate(&op, &def, report)
-	closer := make(chan struct{})
-	closeSignal := make(chan struct{})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	closedSignal := make(chan struct{})
 
 	factory := &FakeFactory{
-		signalClosed: closeSignal,
+		signalClosed: closedSignal,
 	}
 
 	cfg := Configuration{
@@ -56,12 +57,14 @@ func TestCloser(t *testing.T) {
 		},
 		Fields: nil,
 	}
-	p := NewPlanner(cfg, closer)
+
+	p := NewPlanner(ctx, cfg)
 	plan := p.Plan(&op, &def, "", report)
 	assert.NotNil(t, plan)
 
-	close(closer) // terminate all stateful sources
-	<-closeSignal // stateful source closed from closer
+	cancel()     // terminate all stateful sources
+	<-ctx.Done() // stateful source closed from closer
+	<-closedSignal
 	// test terminates only if stateful source closed
 }
 
@@ -69,8 +72,8 @@ type StatefulSource struct {
 	signalClosed chan struct{}
 }
 
-func (s *StatefulSource) Start(closer <-chan struct{}){
-	<-closer
+func (s *StatefulSource) Start(ctx context.Context) {
+	<-ctx.Done()
 	close(s.signalClosed)
 }
 
@@ -78,11 +81,11 @@ type FakeFactory struct {
 	signalClosed chan struct{}
 }
 
-func (f *FakeFactory) Planner(closer <-chan struct{}) DataSourcePlanner {
+func (f *FakeFactory) Planner(ctx context.Context) DataSourcePlanner {
 	source := &StatefulSource{
 		signalClosed: f.signalClosed,
 	}
-	go source.Start(closer)
+	go source.Start(ctx)
 	return &FakePlanner{
 		source: source,
 	}
@@ -128,10 +131,6 @@ type FakeDataSource struct {
 	source *StatefulSource
 }
 
-func (f *FakeDataSource) Load(ctx context.Context, input []byte, bufPair *resolve.BufPair) (err error) {
+func (f *FakeDataSource) Load(ctx context.Context, input []byte, w io.Writer) (err error) {
 	return
-}
-
-func (f *FakeDataSource) UniqueIdentifier() []byte {
-	return []byte("fake_datasource")
 }

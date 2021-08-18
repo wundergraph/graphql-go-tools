@@ -10,7 +10,6 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
 	graphqlDataSource "github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/graphql_datasource"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/graphql"
 )
@@ -145,7 +144,7 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 						},
 					}),
 					Factory: &graphqlDataSource.Factory{
-						Client: httpclient.NewNetHttpClient(httpClient),
+						Client: httpClient,
 					},
 				},
 				{
@@ -175,7 +174,7 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 						},
 					}),
 					Factory: &graphqlDataSource.Factory{
-						Client: httpclient.NewNetHttpClient(httpClient),
+						Client: httpClient,
 					},
 				},
 				{
@@ -204,7 +203,7 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 						},
 					},
 					Factory: &graphqlDataSource.Factory{
-						Client: httpclient.NewNetHttpClient(httpClient),
+						Client: httpClient,
 					},
 					Custom: graphqlDataSource.ConfigJson(graphqlDataSource.Configuration{
 						Fetch: graphqlDataSource.FetchConfiguration{

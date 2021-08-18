@@ -157,7 +157,7 @@ func (r *Request) OperationType() (OperationType, error) {
 			continue
 		}
 
-		if r.document.OperationDefinitionNameString(rootNode.Ref) != r.OperationName {
+		if r.OperationName != "" && r.document.OperationDefinitionNameString(rootNode.Ref) != r.OperationName {
 			continue
 		}
 

@@ -81,12 +81,11 @@ func (d *Document) AddImportedVariableDefinitionToOperationDefinition(operationD
 }
 
 func (d *Document) OperationNameExists(operationName string) bool {
-
 	for i := range d.RootNodes {
 		if d.RootNodes[i].Kind != NodeKindOperationDefinition {
 			continue
 		}
-		if d.OperationDefinitionNameString(i) == operationName {
+		if d.OperationDefinitionNameString(d.RootNodes[i].Ref) == operationName {
 			return true
 		}
 	}

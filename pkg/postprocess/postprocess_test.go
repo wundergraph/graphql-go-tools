@@ -96,7 +96,7 @@ func TestDefaultProcessor_Process(t *testing.T) {
 
 	expected := &plan.StreamingResponsePlan{
 		FlushInterval: 500,
-		Response: resolve.GraphQLStreamingResponse{
+		Response: &resolve.GraphQLStreamingResponse{
 			FlushInterval: 500,
 			InitialResponse: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
@@ -209,12 +209,16 @@ func TestDefaultProcessor_Federation(t *testing.T) {
 						Value: &resolve.Object{
 							Fetch: &resolve.SingleFetch{
 								BufferId: 1,
-								Input:    `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"$$0$$","__typename":"User"}]}},"extract_entities":true}`,
+								Input:    `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"$$0$$","__typename":"User"}]}}}`,
 								Variables: resolve.NewVariables(
 									&resolve.ObjectVariable{
 										Path: []string{"id"},
 									},
 								),
+								ProcessResponseConfig: resolve.ProcessResponseConfig{
+									ExtractGraphqlResponse:    true,
+									ExtractFederationEntities: true,
+								},
 							},
 							Path:     []string{"me"},
 							Nullable: true,
@@ -254,12 +258,16 @@ func TestDefaultProcessor_Federation(t *testing.T) {
 														Path: []string{"product"},
 														Fetch: &resolve.SingleFetch{
 															BufferId: 2,
-															Input:    `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"$$0$$","__typename":"Product"}]}},"extract_entities":true}`,
+															Input:    `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"$$0$$","__typename":"Product"}]}}}`,
 															Variables: resolve.NewVariables(
 																&resolve.ObjectVariable{
 																	Path: []string{"upc"},
 																},
 															),
+															ProcessResponseConfig: resolve.ProcessResponseConfig{
+																ExtractGraphqlResponse:    true,
+																ExtractFederationEntities: true,
+															},
 														},
 														Fields: []*resolve.Field{
 															{
@@ -286,7 +294,7 @@ func TestDefaultProcessor_Federation(t *testing.T) {
 	}
 
 	expected := &plan.StreamingResponsePlan{
-		Response: resolve.GraphQLStreamingResponse{
+		Response: &resolve.GraphQLStreamingResponse{
 			InitialResponse: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
@@ -353,9 +361,13 @@ func TestDefaultProcessor_Federation(t *testing.T) {
 								},
 								{
 									SegmentType: resolve.StaticSegmentType,
-									Data:        []byte(`","__typename":"User"}]}},"extract_entities":true}`),
+									Data:        []byte(`","__typename":"User"}]}}}`),
 								},
 							},
+						},
+						ProcessResponseConfig: resolve.ProcessResponseConfig{
+							ExtractGraphqlResponse:    true,
+							ExtractFederationEntities: true,
 						},
 					},
 					Operation: literal.REPLACE,
@@ -390,9 +402,13 @@ func TestDefaultProcessor_Federation(t *testing.T) {
 													},
 													{
 														SegmentType: resolve.StaticSegmentType,
-														Data:        []byte(`","__typename":"Product"}]}},"extract_entities":true}`),
+														Data:        []byte(`","__typename":"Product"}]}}}`),
 													},
 												},
+											},
+											ProcessResponseConfig: resolve.ProcessResponseConfig{
+												ExtractGraphqlResponse:    true,
+												ExtractFederationEntities: true,
 											},
 										},
 										Fields: []*resolve.Field{
