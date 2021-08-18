@@ -10,10 +10,11 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/graphql"
 )
 
+// ExecutorV2Pool - provides reusable executors
 type ExecutorV2Pool struct {
 	engine       *graphql.ExecutionEngineV2
 	executorPool *sync.Pool
-	reqCtx       context.Context
+	reqCtx       context.Context // reqCtx - holds original request context used to establish websocket connection
 }
 
 func NewExecutorV2Pool(engine *graphql.ExecutionEngineV2, reqCtx context.Context) *ExecutorV2Pool {
