@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -22,6 +23,19 @@ import (
 )
 
 type handlerRoutine func(ctx context.Context) func() bool
+
+type websocketHook struct {
+	called bool
+	hook   func(reqCtx context.Context, operation *graphql.Request) error
+}
+
+func (w *websocketHook) OnBeforeStart(reqCtx context.Context, operation *graphql.Request) error {
+	w.called = true
+	if w.hook != nil {
+		return w.hook(reqCtx, operation)
+	}
+	return nil
+}
 
 func TestHandler_Handle(t *testing.T) {
 	starwars.SetRelativePathToStarWarsPackage("../starwars")
@@ -341,10 +355,16 @@ func TestHandler_Handle(t *testing.T) {
 				},
 			},
 		})
+
+		hookHolder := &websocketHook{}
+		engineConf.SetWebsocketBeforeStartHook(hookHolder)
+
 		engine, err := graphql.NewExecutionEngineV2(ctx, abstractlogger.NoopLogger, engineConf)
 		require.NoError(t, err)
 
-		executorPool := NewExecutorV2Pool(engine)
+		reqCtx := context.Background()
+		executorPool := NewExecutorV2Pool(engine, reqCtx)
+
 		t.Run("connection_init", func(t *testing.T) {
 			_, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
 
@@ -476,6 +496,13 @@ func TestHandler_Handle(t *testing.T) {
 			t.Run("should process and send result for a query", func(t *testing.T) {
 				payload, err := chat.GraphQLRequestForOperation(chat.MutationSendMessage)
 				require.NoError(t, err)
+
+				hookHolder.hook = func(ctx context.Context, operation *graphql.Request) error {
+					assert.Equal(t, reqCtx, ctx)
+					assert.Contains(t, operation.Query, "mutation SendMessage")
+					return nil
+				}
+
 				client.prepareStartMessage("1", payload).withoutError().and().send()
 
 				ctx, cancelFunc := context.WithCancel(context.Background())
@@ -504,6 +531,51 @@ func TestHandler_Handle(t *testing.T) {
 				assert.Contains(t, messagesFromServer, expectedDataMessage)
 				assert.Contains(t, messagesFromServer, expectedCompleteMessage)
 				assert.Equal(t, 0, subscriptionHandler.ActiveSubscriptions())
+				assert.True(t, hookHolder.called)
+			})
+
+			t.Run("should interrupt and send an error", func(t *testing.T) {
+				t.Skip()
+
+				payload, err := chat.GraphQLRequestForOperation(chat.MutationSendMessage)
+				require.NoError(t, err)
+
+				errMsg := "interrupted"
+				hookHolder.hook = func(ctx context.Context, operation *graphql.Request) error {
+					return errors.New(errMsg)
+				}
+
+				client.prepareStartMessage("1", payload).withoutError().and().send()
+
+				ctx, cancelFunc := context.WithCancel(context.Background())
+				cancelFunc()
+				handlerRoutineFunc := handlerRoutine(ctx)
+				go handlerRoutineFunc()
+
+				waitForClientHavingTwoMessages := func() bool {
+					return client.hasMoreMessagesThan(1)
+				}
+				require.Eventually(t, waitForClientHavingTwoMessages, 60*time.Second, 5*time.Millisecond)
+
+				jsonErrMessage, err := json.Marshal(errMsg)
+				require.NoError(t, err)
+				expectedErrMessage := Message{
+					Id:      "1",
+					Type:    MessageTypeError,
+					Payload: jsonErrMessage,
+				}
+
+				expectedCompleteMessage := Message{
+					Id:      "1",
+					Type:    MessageTypeComplete,
+					Payload: nil,
+				}
+
+				messagesFromServer := client.readFromServer()
+				assert.Contains(t, messagesFromServer, expectedErrMessage)
+				assert.Contains(t, messagesFromServer, expectedCompleteMessage)
+				assert.Equal(t, 0, subscriptionHandler.ActiveSubscriptions())
+				assert.True(t, hookHolder.called)
 			})
 		})
 
@@ -592,6 +664,50 @@ func TestHandler_Handle(t *testing.T) {
 				assert.Contains(t, messagesFromServer, expectedMessage)
 
 				cancelFunc()
+			})
+		})
+
+		t.Run("interrupted subscription query", func(t *testing.T) {
+			subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
+
+			t.Run("should interrupt subscription on start", func(t *testing.T) {
+				t.Skip()
+
+				payload, err := chat.GraphQLRequestForOperation(chat.SubscriptionLiveMessages)
+				require.NoError(t, err)
+
+				errMsg := "sub_interrupted"
+				hookHolder.hook = func(ctx context.Context, operation *graphql.Request) error {
+					return errors.New(errMsg)
+				}
+
+				client.prepareStartMessage("1", payload).withoutError().and().send()
+
+				ctx, cancelFunc := context.WithCancel(context.Background())
+				handlerRoutineFunc := handlerRoutine(ctx)
+				go handlerRoutineFunc()
+
+				time.Sleep(10 * time.Millisecond)
+				cancelFunc()
+
+				go sendChatMutation(t, chatServer.URL)
+
+				require.Eventually(t, func() bool {
+					return client.hasMoreMessagesThan(0)
+				}, 1*time.Second, 10*time.Millisecond)
+
+				jsonErrMessage, err := json.Marshal(errMsg)
+				require.NoError(t, err)
+				expectedErrMessage := Message{
+					Id:      "1",
+					Type:    MessageTypeError,
+					Payload: jsonErrMessage,
+				}
+
+				messagesFromServer := client.readFromServer()
+				assert.Contains(t, messagesFromServer, expectedErrMessage)
+				assert.Equal(t, 0, subscriptionHandler.ActiveSubscriptions())
+				assert.True(t, hookHolder.called)
 			})
 		})
 
