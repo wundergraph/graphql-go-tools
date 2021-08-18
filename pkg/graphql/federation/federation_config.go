@@ -149,7 +149,7 @@ func (f *EngineConfigV2Factory) engineConfigDataSources() (planDataSources []pla
 
 		factory := &graphqlDataSource.Factory{}
 		if f.httpClient != nil {
-			factory.Client = f.httpClient
+			factory.HTTPClient = f.httpClient
 		}
 		planDataSource.Factory = factory
 

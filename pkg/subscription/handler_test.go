@@ -307,7 +307,7 @@ func TestHandler_Handle(t *testing.T) {
 					{TypeName: "Message", FieldNames: []string{"text", "createdBy"}},
 				},
 				Factory: &graphql_datasource.Factory{
-					Client: httpclient.DefaultNetHttpClient,
+					HTTPClient: httpclient.DefaultNetHttpClient,
 				},
 				Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
 					Fetch: graphql_datasource.FetchConfiguration{

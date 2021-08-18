@@ -1667,7 +1667,7 @@ func TestGraphQLDataSource(t *testing.T) {
 			DefaultFlushInterval: 500,
 		}))
 	factory := &Factory{
-		Client: http.DefaultClient,
+		HTTPClient: http.DefaultClient,
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
