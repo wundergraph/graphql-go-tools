@@ -76,6 +76,6 @@ func (e *ExecutorV2) SetContext(context context.Context) {
 func (e *ExecutorV2) Reset() {
 	e.engine = nil
 	e.operation = nil
-	e.context = context.TODO()
+	e.context = context.Background()
 	e.reqCtx = context.TODO()
 }
