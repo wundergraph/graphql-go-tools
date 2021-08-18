@@ -16,7 +16,7 @@ type ExecutorV2Pool struct {
 	reqCtx       context.Context
 }
 
-func NewExecutorV2Pool(engine *graphql.ExecutionEngineV2, ctx context.Context) *ExecutorV2Pool {
+func NewExecutorV2Pool(engine *graphql.ExecutionEngineV2, reqCtx context.Context) *ExecutorV2Pool {
 	return &ExecutorV2Pool{
 		engine: engine,
 		executorPool: &sync.Pool{
@@ -24,7 +24,7 @@ func NewExecutorV2Pool(engine *graphql.ExecutionEngineV2, ctx context.Context) *
 				return &ExecutorV2{}
 			},
 		},
-		reqCtx: ctx,
+		reqCtx: reqCtx,
 	}
 }
 
@@ -38,7 +38,8 @@ func (e *ExecutorV2Pool) Get(payload []byte) (Executor, error) {
 	return &ExecutorV2{
 		engine:    e.engine,
 		operation: &operation,
-		context:   e.reqCtx,
+		context:   context.Background(),
+		reqCtx:    e.reqCtx,
 	}, nil
 }
 
@@ -52,12 +53,10 @@ type ExecutorV2 struct {
 	engine    *graphql.ExecutionEngineV2
 	operation *graphql.Request
 	context   context.Context
+	reqCtx    context.Context
 }
 
 func (e *ExecutorV2) Execute(writer resolve.FlushWriter) error {
-	if hook := e.engine.GetWsBeforeExecuteHook(); hook != nil {
-		return e.engine.Execute(e.context, e.operation, writer, graphql.WithBeforeExecuteHook(hook))
-	}
 	return e.engine.Execute(e.context, e.operation, writer)
 }
 
@@ -77,5 +76,6 @@ func (e *ExecutorV2) SetContext(context context.Context) {
 func (e *ExecutorV2) Reset() {
 	e.engine = nil
 	e.operation = nil
-	e.context = context.Background()
+	e.context = context.TODO()
+	e.reqCtx = context.TODO()
 }

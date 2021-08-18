@@ -21,9 +21,9 @@ import (
 )
 
 type EngineV2Configuration struct {
-	schema              *Schema
-	plannerConfig       plan.Configuration
-	wsBeforeExecuteHook BeforeExecuteHook
+	schema                   *Schema
+	plannerConfig            plan.Configuration
+	websocketBeforeStartHook WebsocketBeforeStartHook
 }
 
 func NewEngineV2Configuration(schema *Schema) EngineV2Configuration {
@@ -53,9 +53,9 @@ func (e *EngineV2Configuration) SetFieldConfigurations(fieldConfigs plan.FieldCo
 	e.plannerConfig.Fields = fieldConfigs
 }
 
-// SetWsBeforeExecuteHook - sets before execution hook which will run for any operation done via websockets
-func (e *EngineV2Configuration) SetWsBeforeExecuteHook(hook BeforeExecuteHook) {
-	e.wsBeforeExecuteHook = hook
+// SetWebsocketBeforeStartHook - sets before execution hook which will run for any operation done via websockets
+func (e *EngineV2Configuration) SetWebsocketBeforeStartHook(hook WebsocketBeforeStartHook) {
+	e.websocketBeforeStartHook = hook
 }
 
 type EngineResultWriter struct {
@@ -163,29 +163,21 @@ type ExecutionEngineV2 struct {
 	executionPlanCache           *lru.Cache
 }
 
-type BeforeExecuteHook interface {
-	OnBeforeExecute(reqCtx context.Context, operation *Request) error
+type WebsocketBeforeStartHook interface {
+	OnBeforeStart(reqCtx context.Context, operation *Request) error
 }
 
-type ExecutionOptionsV2 func(ctx *internalExecutionContext, reqCtx context.Context, operation *Request) error
+type ExecutionOptionsV2 func(ctx *internalExecutionContext)
 
 func WithBeforeFetchHook(hook resolve.BeforeFetchHook) ExecutionOptionsV2 {
-	return func(ctx *internalExecutionContext, reqCtx context.Context, operation *Request) error {
+	return func(ctx *internalExecutionContext) {
 		ctx.resolveContext.SetBeforeFetchHook(hook)
-		return nil
 	}
 }
 
 func WithAfterFetchHook(hook resolve.AfterFetchHook) ExecutionOptionsV2 {
-	return func(ctx *internalExecutionContext, reqCtx context.Context, operation *Request) error {
+	return func(ctx *internalExecutionContext) {
 		ctx.resolveContext.SetAfterFetchHook(hook)
-		return nil
-	}
-}
-
-func WithBeforeExecuteHook(hook BeforeExecuteHook) ExecutionOptionsV2 {
-	return func(ctx *internalExecutionContext, reqCtx context.Context, operation *Request) error {
-		return hook.OnBeforeExecute(reqCtx, operation)
 	}
 }
 
@@ -234,9 +226,7 @@ func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *Request, wri
 	execContext.prepare(ctx, operation.Variables, operation.request)
 
 	for i := range options {
-		if err := options[i](execContext, ctx, operation); err != nil {
-			return err
-		}
+		options[i](execContext)
 	}
 
 	var report operationreport.Report
@@ -288,8 +278,8 @@ func (e *ExecutionEngineV2) getCachedPlan(ctx *internalExecutionContext, operati
 	return p
 }
 
-func (e *ExecutionEngineV2) GetWsBeforeExecuteHook() BeforeExecuteHook {
-	return e.config.wsBeforeExecuteHook
+func (e *ExecutionEngineV2) GetWebsocketBeforeStartHook() WebsocketBeforeStartHook {
+	return e.config.websocketBeforeStartHook
 }
 
 func (e *ExecutionEngineV2) getExecutionCtx() *internalExecutionContext {
