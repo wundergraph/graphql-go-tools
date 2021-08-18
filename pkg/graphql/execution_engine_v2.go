@@ -53,7 +53,7 @@ func (e *EngineV2Configuration) SetFieldConfigurations(fieldConfigs plan.FieldCo
 	e.plannerConfig.Fields = fieldConfigs
 }
 
-// SetWebsocketBeforeStartHook - sets before execution hook which will run for any operation done via websockets
+// SetWebsocketBeforeStartHook - sets before start hook which will be called before processing any operation sent over websockets
 func (e *EngineV2Configuration) SetWebsocketBeforeStartHook(hook WebsocketBeforeStartHook) {
 	e.websocketBeforeStartHook = hook
 }
