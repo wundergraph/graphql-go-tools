@@ -195,6 +195,16 @@ func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *Request, wri
 		}
 	}
 
+	if !operation.IsValidated() {
+		result, err := operation.ValidateForSchema(e.config.schema)
+		if err != nil {
+			return err
+		}
+		if !result.Valid {
+			return result.Errors
+		}
+	}
+
 	execContext := e.getExecutionCtx()
 	defer e.putExecutionCtx(execContext)
 

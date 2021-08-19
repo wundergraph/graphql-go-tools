@@ -108,9 +108,9 @@ func fieldsValidationResult(report operationreport.Report, valid bool, typeName,
 		Errors: nil,
 	}
 
-	var errors OperationValidationErrors
+	var errors RequestErrors
 	if !result.Valid {
-		errors = append(errors, OperationValidationError{
+		errors = append(errors, RequestError{
 			Message: fmt.Sprintf("field: %s is restricted on type: %s", fieldName, typeName),
 		})
 	}
@@ -120,7 +120,7 @@ func fieldsValidationResult(report operationreport.Report, valid bool, typeName,
 		return result, nil
 	}
 
-	errors = append(errors, operationValidationErrorsFromOperationReport(report)...)
+	errors = append(errors, RequestErrorsFromOperationReport(report)...)
 	result.Errors = errors
 
 	var err error

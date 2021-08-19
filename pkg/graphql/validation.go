@@ -22,6 +22,7 @@ func (r *Request) ValidateForSchema(schema *Schema) (result ValidationResult, er
 
 	validator := astvalidation.DefaultOperationValidator()
 	validator.Validate(&r.document, &schema.document, &report)
+	r.isValidated = true
 	return operationValidationResultFromReport(report)
 }
 
@@ -68,7 +69,7 @@ func operationValidationResultFromReport(report operationreport.Report) (Validat
 		return result, nil
 	}
 
-	result.Errors = operationValidationErrorsFromOperationReport(report)
+	result.Errors = RequestErrorsFromOperationReport(report)
 
 	var err error
 	if len(report.InternalErrors) > 0 {

@@ -115,26 +115,20 @@ func TestHandler_Handle(t *testing.T) {
 				}
 				require.Eventually(t, waitForClientHavingAMessage, 5*time.Second, 5*time.Millisecond)
 
-				jsonErrorMsg, err := json.Marshal("document doesn't contain any executable operation, locations: [], path: []")
-				require.NoError(t, err)
-
-				expectedMessage := Message{
-					Id:      "1",
-					Type:    MessageTypeError,
-					Payload: jsonErrorMsg,
-				}
-
 				messagesFromServer := client.readFromServer()
-				assert.Contains(t, messagesFromServer, expectedMessage)
+				assert.Len(t, messagesFromServer, 1)
+				assert.Equal(t, "1", messagesFromServer[0].Id)
+				assert.Equal(t, MessageTypeError, messagesFromServer[0].Type)
+				assert.Equal(t, `[{"message":"document doesn't contain any executable operation"}]`, string(messagesFromServer[0].Payload))
 			})
 
 			cancelFunc()
 		})
 
 		t.Run("non-subscription query", func(t *testing.T) {
-			subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
 
 			t.Run("should process query and return error when query is not valid", func(t *testing.T) {
+				subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
 				payload := starwars.LoadQuery(t, starwars.FileInvalidQuery, nil)
 				client.prepareStartMessage("1", payload).withoutError().and().send()
 
@@ -148,20 +142,16 @@ func TestHandler_Handle(t *testing.T) {
 				}
 				require.Eventually(t, waitForClientHavingAMessage, 1*time.Second, 5*time.Millisecond)
 
-				jsonErrMessage, err := json.Marshal("field: invalid not defined on type: Character, locations: [], path: [query,hero,invalid]")
-				require.NoError(t, err)
-				expectedErrorMessage := Message{
-					Id:      "1",
-					Type:    MessageTypeError,
-					Payload: jsonErrMessage,
-				}
-
 				messagesFromServer := client.readFromServer()
-				assert.Contains(t, messagesFromServer, expectedErrorMessage)
+				assert.Len(t, messagesFromServer, 1)
+				assert.Equal(t, "1", messagesFromServer[0].Id)
+				assert.Equal(t, MessageTypeError, messagesFromServer[0].Type)
+				assert.Equal(t, `[{"message":"field: invalid not defined on type: Character","path":["query","hero","invalid"]}]`, string(messagesFromServer[0].Payload))
 				assert.Equal(t, 0, subscriptionHandler.ActiveSubscriptions())
 			})
 
 			t.Run("should process and send result for a query", func(t *testing.T) {
+				subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
 				payload := starwars.LoadQuery(t, starwars.FileSimpleHeroQuery, nil)
 				client.prepareStartMessage("1", payload).withoutError().and().send()
 
@@ -441,13 +431,10 @@ func TestHandler_Handle(t *testing.T) {
 				}
 				require.Eventually(t, waitForClientHavingAMessage, 5*time.Second, 5*time.Millisecond)
 
-				jsonErrorMsg, err := json.Marshal("external: cannot find an operation with name: Broken, locations: [], path: []")
-				require.NoError(t, err)
-
 				expectedMessage := Message{
 					Id:      "1",
 					Type:    MessageTypeError,
-					Payload: jsonErrorMsg,
+					Payload: []byte(`[{"message":"document doesn't contain any executable operation"}]`),
 				}
 
 				messagesFromServer := client.readFromServer()
@@ -475,12 +462,10 @@ func TestHandler_Handle(t *testing.T) {
 				}
 				require.Eventually(t, waitForClientHavingAMessage, 1*time.Second, 5*time.Millisecond)
 
-				jsonErrMessage, err := json.Marshal("field: serverName not defined on type: Query, locations: [], path: [query,serverName]")
-				require.NoError(t, err)
 				expectedErrorMessage := Message{
 					Id:      "1",
 					Type:    MessageTypeError,
-					Payload: jsonErrMessage,
+					Payload: []byte(`[{"message":"field: serverName not defined on type: Query","path":["query","serverName"]}]`),
 				}
 
 				messagesFromServer := client.readFromServer()
@@ -523,9 +508,8 @@ func TestHandler_Handle(t *testing.T) {
 		})
 
 		t.Run("subscription query", func(t *testing.T) {
-			subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
-
 			t.Run("should start subscription on start", func(t *testing.T) {
+				subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
 				payload, err := chat.GraphQLRequestForOperation(chat.SubscriptionLiveMessages)
 				require.NoError(t, err)
 				client.prepareStartMessage("1", payload).withoutError().and().send()
@@ -554,7 +538,35 @@ func TestHandler_Handle(t *testing.T) {
 				assert.Equal(t, 1, subscriptionHandler.ActiveSubscriptions())
 			})
 
+			t.Run("should fail with validation error for invalid Subscription", func(t *testing.T) {
+				subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
+				payload, err := chat.GraphQLRequestForOperation(chat.InvalidSubscriptionLiveMessages)
+				require.NoError(t, err)
+				client.prepareStartMessage("1", payload).withoutError().and().send()
+
+				ctx, cancelFunc := context.WithCancel(context.Background())
+				handlerRoutineFunc := handlerRoutine(ctx)
+				go handlerRoutineFunc()
+
+				time.Sleep(10 * time.Millisecond)
+				cancelFunc()
+
+				go sendChatMutation(t, chatServer.URL)
+
+				require.Eventually(t, func() bool {
+					return client.hasMoreMessagesThan(0)
+				}, 1*time.Second, 10*time.Millisecond)
+
+				messagesFromServer := client.readFromServer()
+				assert.Len(t, messagesFromServer, 1)
+				assert.Equal(t, "1", messagesFromServer[0].Id)
+				assert.Equal(t, MessageTypeError, messagesFromServer[0].Type)
+				assert.Equal(t, `[{"message":"differing fields for objectName 'a' on (potentially) same type","path":["subscription","messageAdded"]}]`, string(messagesFromServer[0].Payload))
+				assert.Equal(t, 1, subscriptionHandler.ActiveSubscriptions())
+			})
+
 			t.Run("should stop subscription on stop and send complete message to client", func(t *testing.T) {
+				subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
 				client.reconnect().prepareStopMessage("1").withoutError().and().send()
 
 				ctx, cancelFunc := context.WithCancel(context.Background())
