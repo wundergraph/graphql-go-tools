@@ -63,6 +63,10 @@ type Executor interface {
 	Reset()
 }
 
+// WebsocketInitFunc is called when the server receives connection init message from the client.
+// This can be used to check initial payload to see whether to accept the websocket connection.
+type WebsocketInitFunc func(ctx context.Context, initPayload InitPayload) (context.Context, error)
+
 // Handler is the actual subscription handler which will keep track on how to handle messages coming from the client.
 type Handler struct {
 	logger abstractlogger.Logger
@@ -78,10 +82,16 @@ type Handler struct {
 	executorPool ExecutorPool
 	// bufferPool will hold buffers.
 	bufferPool *sync.Pool
+	// initFunc will check initial payload to see whether to accept the websocket connection.
+	initFunc WebsocketInitFunc
 }
 
-// NewHandler creates a new subscription handler.
-func NewHandler(logger abstractlogger.Logger, client Client, executorPool ExecutorPool) (*Handler, error) {
+func NewHandlerWithInitFunc(
+	logger abstractlogger.Logger,
+	client Client,
+	executorPool ExecutorPool,
+	initFunc WebsocketInitFunc,
+) (*Handler, error) {
 	keepAliveInterval, err := time.ParseDuration(DefaultKeepAliveInterval)
 	if err != nil {
 		return nil, err
@@ -105,7 +115,14 @@ func NewHandler(logger abstractlogger.Logger, client Client, executorPool Execut
 				return &writer
 			},
 		},
+		initFunc: initFunc,
 	}, nil
+}
+
+// Deprecated: switch to NewHandlerWithInitFunc.
+// NewHandler creates a new subscription handler.
+func NewHandler(logger abstractlogger.Logger, client Client, executorPool ExecutorPool) (*Handler, error) {
+	return NewHandlerWithInitFunc(logger, client, executorPool, nil)
 }
 
 // Handle will handle the subscription connection.
@@ -132,12 +149,22 @@ func (h *Handler) Handle(ctx context.Context) {
 
 			h.handleConnectionError("could not read message from client")
 		} else if message != nil {
+			h.logger.Info(
+				"Receive message",
+				abstractlogger.String("type", message.Type),
+				abstractlogger.String("payload", string(message.Payload)),
+			)
 			switch message.Type {
 			case MessageTypeConnectionInit:
-				h.handleInit()
+				ctx, err = h.handleInit(ctx, message.Payload)
+				if err != nil {
+					h.handleConnectionError("websocket connection couldn't be accepted")
+					return
+				}
+
 				go h.handleKeepAlive(ctx)
 			case MessageTypeStart:
-				h.handleStart(message.Id, message.Payload)
+				h.handleStart(ctx, message.Id, message.Payload)
 			case MessageTypeStop:
 				h.handleStop(message.Id)
 			case MessageTypeConnectionTerminate:
@@ -166,21 +193,34 @@ func (h *Handler) ChangeSubscriptionUpdateInterval(d time.Duration) {
 }
 
 // handleInit will handle an init message.
-func (h *Handler) handleInit() {
+func (h *Handler) handleInit(ctx context.Context, payload []byte) (extendedCtx context.Context, err error) {
+	if h.initFunc != nil {
+		initPayload := make(InitPayload)
+		// decode initial payload
+		if len(initPayload) > 0 {
+			if err = json.Unmarshal(payload, &initPayload); err != nil {
+				return extendedCtx, err
+			}
+		}
+		// check initial payload to see whether to accept the websocket connection
+		if extendedCtx, err = h.initFunc(ctx, initPayload); err != nil {
+			return extendedCtx, err
+		}
+	}
+
 	ackMessage := Message{
 		Type: MessageTypeConnectionAck,
 	}
 
-	err := h.client.WriteToClient(ackMessage)
-	if err != nil {
-		h.logger.Error("subscription.Handler.handleInit()",
-			abstractlogger.Error(err),
-		)
+	if err = h.client.WriteToClient(ackMessage); err != nil {
+		return extendedCtx, err
 	}
+
+	return extendedCtx, nil
 }
 
 // handleStart will handle s start message.
-func (h *Handler) handleStart(id string, payload []byte) {
+func (h *Handler) handleStart(ctx context.Context, id string, payload []byte) {
 	executor, err := h.executorPool.Get(payload)
 	if err != nil {
 		h.logger.Error("subscription.Handler.handleStart()",
@@ -196,8 +236,10 @@ func (h *Handler) handleStart(id string, payload []byte) {
 		return
 	}
 
+	executor.SetContext(ctx)
+
 	if executor.OperationType() == ast.OperationTypeSubscription {
-		ctx := h.subCancellations.Add(id)
+		ctx := h.subCancellations.AddWithParent(id, ctx)
 		go h.startSubscription(ctx, id, executor)
 		return
 	}
@@ -264,7 +306,6 @@ func (h *Handler) startSubscription(ctx context.Context, id string, executor Exe
 		}
 	}()
 
-	executor.SetContext(ctx)
 	buf := h.bufferPool.Get().(*graphql.EngineResultWriter)
 	buf.Reset()
 
