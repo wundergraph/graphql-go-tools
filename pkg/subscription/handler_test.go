@@ -516,6 +516,9 @@ func TestHandler_Handle(t *testing.T) {
 				}
 
 				messagesFromServer := client.readFromServer()
+				for _, v := range messagesFromServer {
+					t.Log(">>>", v.Type, "###", string(v.Payload))
+				}
 				assert.Contains(t, messagesFromServer, expectedDataMessage)
 				assert.Contains(t, messagesFromServer, expectedCompleteMessage)
 				assert.Equal(t, 0, subscriptionHandler.ActiveSubscriptions())

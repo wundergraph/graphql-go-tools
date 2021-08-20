@@ -207,6 +207,8 @@ func (h *Handler) handleInit(ctx context.Context, payload []byte) (extendedCtx c
 		if extendedCtx, err = h.initFunc(ctx, initPayload); err != nil {
 			return extendedCtx, err
 		}
+	} else {
+		extendedCtx = ctx
 	}
 
 	ackMessage := Message{
