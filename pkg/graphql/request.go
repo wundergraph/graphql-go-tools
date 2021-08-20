@@ -41,8 +41,9 @@ type Request struct {
 	document     ast.Document
 	isParsed     bool
 	isNormalized bool
-	isValidated  bool
 	request      resolve.Request
+
+	validForSchema map[uint64]ValidationResult
 }
 
 func UnmarshalRequest(reader io.Reader, request *Request) error {
@@ -95,10 +96,6 @@ func (r Request) Print(writer io.Writer) (n int, err error) {
 
 func (r *Request) IsNormalized() bool {
 	return r.isNormalized
-}
-
-func (r *Request) IsValidated() bool {
-	return r.isValidated
 }
 
 func (r *Request) parseQueryOnce() (report operationreport.Report) {
