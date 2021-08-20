@@ -234,19 +234,17 @@ func (h *Handler) handleStart(ctx context.Context, id string, payload []byte) {
 		return
 	}
 
-	executor.SetContext(ctx)
-
 	if executor.OperationType() == ast.OperationTypeSubscription {
 		ctx := h.subCancellations.AddWithParent(id, ctx)
 		go h.startSubscription(ctx, id, executor)
 		return
 	}
 
-	go h.handleNonSubscriptionOperation(id, executor)
+	go h.handleNonSubscriptionOperation(ctx, id, executor)
 }
 
 // handleNonSubscriptionOperation will handle a non-subscription operation like a query or a mutation.
-func (h *Handler) handleNonSubscriptionOperation(id string, executor Executor) {
+func (h *Handler) handleNonSubscriptionOperation(ctx context.Context, id string, executor Executor) {
 	defer func() {
 		err := h.executorPool.Put(executor)
 		if err != nil {
@@ -256,6 +254,7 @@ func (h *Handler) handleNonSubscriptionOperation(id string, executor Executor) {
 		}
 	}()
 
+	executor.SetContext(ctx)
 	buf := h.bufferPool.Get().(*graphql.EngineResultWriter)
 	buf.Reset()
 
@@ -291,6 +290,7 @@ func (h *Handler) startSubscription(ctx context.Context, id string, executor Exe
 		}
 	}()
 
+	executor.SetContext(ctx)
 	buf := h.bufferPool.Get().(*graphql.EngineResultWriter)
 	buf.Reset()
 

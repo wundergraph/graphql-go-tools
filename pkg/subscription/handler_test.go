@@ -494,7 +494,7 @@ func TestHandler_Handle(t *testing.T) {
 				client.prepareStartMessage("1", payload).withoutError().and().send()
 
 				ctx, cancelFunc := context.WithCancel(context.Background())
-				cancelFunc()
+				defer cancelFunc()
 				handlerRoutineFunc := handlerRoutine(ctx)
 				go handlerRoutineFunc()
 
@@ -516,9 +516,6 @@ func TestHandler_Handle(t *testing.T) {
 				}
 
 				messagesFromServer := client.readFromServer()
-				for _, v := range messagesFromServer {
-					t.Log(">>>", v.Type, "###", string(v.Payload))
-				}
 				assert.Contains(t, messagesFromServer, expectedDataMessage)
 				assert.Contains(t, messagesFromServer, expectedCompleteMessage)
 				assert.Equal(t, 0, subscriptionHandler.ActiveSubscriptions())
@@ -538,7 +535,7 @@ func TestHandler_Handle(t *testing.T) {
 				go handlerRoutineFunc()
 
 				time.Sleep(10 * time.Millisecond)
-				cancelFunc()
+				defer cancelFunc()
 
 				go sendChatMutation(t, chatServer.URL)
 
