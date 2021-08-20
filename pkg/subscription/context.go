@@ -6,6 +6,12 @@ import (
 
 type subscriptionCancellations map[string]context.CancelFunc
 
+func (sc subscriptionCancellations) AddWithParent(id string, parent context.Context) context.Context {
+	ctx, cancelFunc := context.WithCancel(parent)
+	sc[id] = cancelFunc
+	return ctx
+}
+
 func (sc subscriptionCancellations) Add(id string) context.Context {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	sc[id] = cancelFunc
