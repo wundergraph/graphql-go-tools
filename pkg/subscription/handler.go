@@ -158,7 +158,7 @@ func (h *Handler) Handle(ctx context.Context) {
 			case MessageTypeConnectionInit:
 				ctx, err = h.handleInit(ctx, message.Payload)
 				if err != nil {
-					h.handleConnectionError("websocket connection couldn't be accepted")
+					h.terminateConnection("failed to accept the websocket connection")
 					return
 				}
 
@@ -197,7 +197,7 @@ func (h *Handler) handleInit(ctx context.Context, payload []byte) (extendedCtx c
 	if h.initFunc != nil {
 		initPayload := make(InitPayload)
 		// decode initial payload
-		if len(initPayload) > 0 {
+		if len(payload) > 0 {
 			if err = json.Unmarshal(payload, &initPayload); err != nil {
 				return extendedCtx, err
 			}
@@ -410,6 +410,35 @@ func (h *Handler) sendKeepAlive() {
 		h.logger.Error("subscription.Handler.sendKeepAlive()",
 			abstractlogger.Error(err),
 		)
+	}
+}
+
+func (h *Handler) terminateConnection(reason interface{}) {
+	payloadBytes, err := json.Marshal(reason)
+	if err != nil {
+		h.logger.Error("subscription.Handler.terminateConnection()",
+			abstractlogger.Error(err),
+			abstractlogger.Any("errorPayload", reason),
+		)
+	}
+
+	connectionErrorMessage := Message{
+		Type:    MessageTypeConnectionTerminate,
+		Payload: payloadBytes,
+	}
+
+	err = h.client.WriteToClient(connectionErrorMessage)
+	if err != nil {
+		h.logger.Error("subscription.Handler.terminateConnection()",
+			abstractlogger.Error(err),
+		)
+
+		err := h.client.Disconnect()
+		if err != nil {
+			h.logger.Error("subscription.Handler.terminateConnection()",
+				abstractlogger.Error(err),
+			)
+		}
 	}
 }
 

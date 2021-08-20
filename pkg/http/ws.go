@@ -117,7 +117,14 @@ func (w *WebsocketSubscriptionClient) isClosedConnectionError(err error) bool {
 	return w.isClosedConnection
 }
 
-func HandleWebsocket(done chan bool, errChan chan error, conn net.Conn, executorPool subscription.ExecutorPool, logger abstractlogger.Logger) {
+func HandleWebsocketWithInitFunc(
+	done chan bool,
+	errChan chan error,
+	conn net.Conn,
+	executorPool subscription.ExecutorPool,
+	logger abstractlogger.Logger,
+	initFunc subscription.WebsocketInitFunc,
+) {
 	defer func() {
 		if err := conn.Close(); err != nil {
 			logger.Error("http.HandleWebsocket()",
@@ -128,7 +135,7 @@ func HandleWebsocket(done chan bool, errChan chan error, conn net.Conn, executor
 	}()
 
 	websocketClient := NewWebsocketSubscriptionClient(logger, conn)
-	subscriptionHandler, err := subscription.NewHandler(logger, websocketClient, executorPool)
+	subscriptionHandler, err := subscription.NewHandlerWithInitFunc(logger, websocketClient, executorPool, initFunc)
 	if err != nil {
 		logger.Error("http.HandleWebsocket()",
 			abstractlogger.String("message", "could not create subscriptionHandler"),
@@ -141,6 +148,10 @@ func HandleWebsocket(done chan bool, errChan chan error, conn net.Conn, executor
 
 	close(done)
 	subscriptionHandler.Handle(context.Background()) // Blocking
+}
+
+func HandleWebsocket(done chan bool, errChan chan error, conn net.Conn, executorPool subscription.ExecutorPool, logger abstractlogger.Logger) {
+	HandleWebsocketWithInitFunc(done, errChan, conn, executorPool, logger, nil)
 }
 
 // handleWebsocket will handle the websocket connection.
