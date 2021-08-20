@@ -1,7 +1,5 @@
 package subscription
 
-type key string
-
 // InitPayload is a structure that is parsed from the websocket init message payload.
 type InitPayload map[string]interface{}
 

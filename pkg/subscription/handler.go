@@ -120,7 +120,6 @@ func NewHandlerWithInitFunc(
 	}, nil
 }
 
-// Deprecated: switch to NewHandlerWithInitFunc.
 // NewHandler creates a new subscription handler.
 func NewHandler(logger abstractlogger.Logger, client Client, executorPool ExecutorPool) (*Handler, error) {
 	return NewHandlerWithInitFunc(logger, client, executorPool, nil)
