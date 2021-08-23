@@ -6,6 +6,7 @@ import (
 	"io"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/graphqlerrors"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
@@ -16,17 +17,48 @@ type Errors interface {
 	ErrorByIndex(i int) error
 }
 
-type OperationValidationErrors []OperationValidationError
+type RequestErrors []RequestError
 
-func operationValidationErrorsFromOperationReport(report operationreport.Report) (errors OperationValidationErrors) {
+func RequestErrorsFromError(err error) RequestErrors {
+	if errors, ok := err.(RequestErrors); ok {
+		return errors
+	}
+	if report, ok := err.(operationreport.Report); ok {
+		if len(report.ExternalErrors) == 0 {
+			return RequestErrors{
+				{
+					Message: "Internal Error",
+				},
+			}
+		}
+		var errors RequestErrors
+		for _, externalError := range report.ExternalErrors {
+			errors = append(errors, RequestError{
+				Message:   externalError.Message,
+				Locations: externalError.Locations,
+				Path: ErrorPath{
+					astPath: externalError.Path,
+				},
+			})
+		}
+		return errors
+	}
+	return RequestErrors{
+		{
+			Message: err.Error(),
+		},
+	}
+}
+
+func RequestErrorsFromOperationReport(report operationreport.Report) (errors RequestErrors) {
 	if len(report.ExternalErrors) == 0 {
 		return nil
 	}
 
 	for _, externalError := range report.ExternalErrors {
-		locations := make([]ErrorLocation, 0)
+		locations := make([]graphqlerrors.Location, 0)
 		for _, reportLocation := range externalError.Locations {
-			loc := ErrorLocation{
+			loc := graphqlerrors.Location{
 				Line:   reportLocation.Line,
 				Column: reportLocation.Column,
 			}
@@ -34,7 +66,7 @@ func operationValidationErrorsFromOperationReport(report operationreport.Report)
 			locations = append(locations, loc)
 		}
 
-		validationError := OperationValidationError{
+		validationError := RequestError{
 			Message:   externalError.Message,
 			Path:      ErrorPath{astPath: externalError.Path},
 			Locations: locations,
@@ -46,15 +78,14 @@ func operationValidationErrorsFromOperationReport(report operationreport.Report)
 	return errors
 }
 
-func (o OperationValidationErrors) Error() string {
+func (o RequestErrors) Error() string {
 	if len(o) > 0 { // avoid panic ...
 		return o.ErrorByIndex(0).Error()
 	}
-
 	return "no error" // ... so, this should never be returned
 }
 
-func (o OperationValidationErrors) WriteResponse(writer io.Writer) (n int, err error) {
+func (o RequestErrors) WriteResponse(writer io.Writer) (n int, err error) {
 	response := Response{
 		Errors: o,
 	}
@@ -67,11 +98,11 @@ func (o OperationValidationErrors) WriteResponse(writer io.Writer) (n int, err e
 	return writer.Write(responseBytes)
 }
 
-func (o OperationValidationErrors) Count() int {
+func (o RequestErrors) Count() int {
 	return len(o)
 }
 
-func (o OperationValidationErrors) ErrorByIndex(i int) error {
+func (o RequestErrors) ErrorByIndex(i int) error {
 	if i >= o.Count() {
 		return nil
 	}
@@ -79,13 +110,38 @@ func (o OperationValidationErrors) ErrorByIndex(i int) error {
 	return o[i]
 }
 
-type OperationValidationError struct {
-	Message   string          `json:"message"`
-	Locations []ErrorLocation `json:"locations,omitempty"`
-	Path      ErrorPath       `json:"path,omitempty"`
+type RequestError struct {
+	Message   string                   `json:"message"`
+	Locations []graphqlerrors.Location `json:"locations,omitempty"`
+	Path      ErrorPath                `json:"path"`
 }
 
-func (o OperationValidationError) Error() string {
+func (o RequestError) MarshalJSON() ([]byte, error) {
+	if o.Path.Len() == 0 {
+		return json.Marshal(struct {
+			Message   string                   `json:"message"`
+			Locations []graphqlerrors.Location `json:"locations,omitempty"`
+		}{
+			Message:   o.Message,
+			Locations: o.Locations,
+		})
+	}
+	path, err := o.Path.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(struct {
+		Message   string                   `json:"message"`
+		Locations []graphqlerrors.Location `json:"locations,omitempty"`
+		Path      json.RawMessage          `json:"path"`
+	}{
+		Message:   o.Message,
+		Locations: o.Locations,
+		Path:      path,
+	})
+}
+
+func (o RequestError) Error() string {
 	return fmt.Sprintf("%s, locations: %+v, path: %s", o.Message, o.Locations, o.Path.String())
 }
 
@@ -146,7 +202,6 @@ func (e *ErrorPath) MarshalJSON() ([]byte, error) {
 	return json.Marshal(e.astPath)
 }
 
-type ErrorLocation struct {
-	Line   uint32 `json:"line"`
-	Column uint32 `json:"column"`
+func (e *ErrorPath) Len() int {
+	return len(e.astPath)
 }

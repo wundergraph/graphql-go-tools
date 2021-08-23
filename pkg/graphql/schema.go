@@ -16,6 +16,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/introspection"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
+	"github.com/jensneuse/graphql-go-tools/pkg/pool"
 )
 
 type TypeFields struct {
@@ -34,6 +35,23 @@ type Schema struct {
 	rawSchema    []byte
 	document     ast.Document
 	isNormalized bool
+	hash         uint64
+}
+
+func (s *Schema) Hash() (uint64, error) {
+	if s.hash != 0 {
+		return s.hash, nil
+	}
+	h := pool.Hash64.Get()
+	h.Reset()
+	defer pool.Hash64.Put(h)
+	printer := astprinter.Printer{}
+	err := printer.Print(&s.document, nil, h)
+	if err != nil {
+		return 0, err
+	}
+	s.hash = h.Sum64()
+	return s.hash, nil
 }
 
 func NewSchemaFromReader(reader io.Reader) (*Schema, error) {

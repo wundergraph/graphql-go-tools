@@ -195,6 +195,14 @@ func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *Request, wri
 		}
 	}
 
+	result, err := operation.ValidateForSchema(e.config.schema)
+	if err != nil {
+		return err
+	}
+	if !result.Valid {
+		return result.Errors
+	}
+
 	execContext := e.getExecutionCtx()
 	defer e.putExecutionCtx(execContext)
 
@@ -216,7 +224,6 @@ func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *Request, wri
 
 	planResult = execContext.postProcessor.Process(planResult)
 
-	var err error
 	switch p := planResult.(type) {
 	case *plan.SynchronousResponsePlan:
 		err = e.resolver.ResolveGraphQLResponse(execContext.resolveContext, p.Response, nil, writer)

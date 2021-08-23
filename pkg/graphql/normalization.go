@@ -56,7 +56,7 @@ func normalizationResultFromReport(report operationreport.Report) (Normalization
 		return result, nil
 	}
 
-	result.Errors = operationValidationErrorsFromOperationReport(report)
+	result.Errors = RequestErrorsFromOperationReport(report)
 
 	var err error
 	if len(report.InternalErrors) > 0 {
