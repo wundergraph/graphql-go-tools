@@ -32,7 +32,7 @@ require (
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/viper v1.3.2
 	github.com/stretchr/testify v1.7.0
-	github.com/tidwall/gjson v1.3.5
+	github.com/tidwall/gjson v1.6.5
 	github.com/tidwall/sjson v1.0.4
 	go.uber.org/atomic v1.9.0
 	go.uber.org/zap v1.18.1
