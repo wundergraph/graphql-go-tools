@@ -32,15 +32,14 @@ require (
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/viper v1.3.2
 	github.com/stretchr/testify v1.7.0
-	github.com/tidwall/gjson v1.3.5
+	github.com/tidwall/gjson v1.8.1
+	github.com/tidwall/pretty v1.2.0 // indirect
 	github.com/tidwall/sjson v1.0.4
 	go.uber.org/atomic v1.9.0
 	go.uber.org/zap v1.18.1
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
 	nhooyr.io/websocket v1.8.7
 )
-
-replace github.com/tidwall/gjson => github.com/jensneuse/gjson v1.3.6-0.20200106141904-7ea619137b22
 
 replace github.com/jensneuse/graphql-go-tools/examples/federation => ./examples/federation
 
