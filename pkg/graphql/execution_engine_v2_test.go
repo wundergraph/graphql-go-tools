@@ -242,7 +242,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 						{TypeName: "Query", FieldNames: []string{"hero"}},
 					},
 					Factory: &graphql_datasource.Factory{
-						Client: testNetHttpClient(t, roundTripperTestCase{
+						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "example.com",
 							expectedPath:     "/",
 							expectedBody:     "",
@@ -277,7 +277,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 						{TypeName: "Query", FieldNames: []string{"hero"}},
 					},
 					Factory: &graphql_datasource.Factory{
-						Client: testNetHttpClient(t, roundTripperTestCase{
+						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "example.com",
 							expectedPath:     "/",
 							expectedBody:     "",
@@ -308,7 +308,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 						{TypeName: "Query", FieldNames: []string{"droid"}},
 					},
 					Factory: &graphql_datasource.Factory{
-						Client: testNetHttpClient(t, roundTripperTestCase{
+						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "example.com",
 							expectedPath:     "/",
 							expectedBody:     "",
@@ -339,7 +339,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 						{TypeName: "Query", FieldNames: []string{"droid"}},
 					},
 					Factory: &graphql_datasource.Factory{
-						Client: testNetHttpClient(t, roundTripperTestCase{
+						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "example.com",
 							expectedPath:     "/",
 							expectedBody:     "",
@@ -675,7 +675,7 @@ func TestExecutionWithOptions(t *testing.T) {
 					{TypeName: "Query", FieldNames: []string{"hero"}},
 				},
 				Factory: &graphql_datasource.Factory{
-					Client: testNetHttpClient(t, roundTripperTestCase{
+					HTTPClient: testNetHttpClient(t, roundTripperTestCase{
 						expectedHost:     "example.com",
 						expectedPath:     "/",
 						expectedBody:     "",
@@ -857,7 +857,7 @@ func newFederationSetup(ctx context.Context) (*federationSetup, error) {
 			},
 		}),
 		Factory: &graphql_datasource.Factory{
-			Client: httpclient.DefaultNetHttpClient,
+			HTTPClient: httpclient.DefaultNetHttpClient,
 		},
 	}
 
@@ -900,7 +900,7 @@ func newFederationSetup(ctx context.Context) (*federationSetup, error) {
 			},
 		}),
 		Factory: &graphql_datasource.Factory{
-			Client: httpclient.DefaultNetHttpClient,
+			HTTPClient: httpclient.DefaultNetHttpClient,
 		},
 	}
 
@@ -943,7 +943,7 @@ func newFederationSetup(ctx context.Context) (*federationSetup, error) {
 			},
 		}),
 		Factory: &graphql_datasource.Factory{
-			Client: httpclient.DefaultNetHttpClient,
+			HTTPClient: httpclient.DefaultNetHttpClient,
 		},
 	}
 

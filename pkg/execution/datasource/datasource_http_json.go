@@ -330,7 +330,7 @@ func (r *HttpJsonDataSource) Resolve(ctx context.Context, args ResolverArgs, out
 
 	res, err := r.Client.Do(request)
 	if err != nil {
-		r.Log.Error("HttpJsonDataSource.Resolve.Client.Do",
+		r.Log.Error("HttpJsonDataSource.Resolve.HTTPClient.Do",
 			log.Error(err),
 		)
 		return

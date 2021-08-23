@@ -144,7 +144,7 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 						},
 					}),
 					Factory: &graphqlDataSource.Factory{
-						Client: httpClient,
+						HTTPClient: httpClient,
 					},
 				},
 				{
@@ -174,7 +174,7 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 						},
 					}),
 					Factory: &graphqlDataSource.Factory{
-						Client: httpClient,
+						HTTPClient: httpClient,
 					},
 				},
 				{
@@ -203,7 +203,7 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 						},
 					},
 					Factory: &graphqlDataSource.Factory{
-						Client: httpClient,
+						HTTPClient: httpClient,
 					},
 					Custom: graphqlDataSource.ConfigJson(graphqlDataSource.Configuration{
 						Fetch: graphqlDataSource.FetchConfiguration{
