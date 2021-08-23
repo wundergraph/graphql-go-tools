@@ -114,9 +114,9 @@ func (r *Request) IsIntrospectionQuery() (result bool, err error) {
 		return false, report
 	}
 
-	if r.OperationName == defaultInrospectionQueryName {
-		return true, nil
-	}
+	//if r.OperationName == defaultInrospectionQueryName {
+	//	return true, nil
+	//}
 
 	if len(r.document.RootNodes) == 0 {
 		return
