@@ -1491,6 +1491,8 @@ func (p *Parser) parseSelectionSet() (int, bool) {
 			}
 			ref := p.parseSelection()
 			set.SelectionRefs = append(set.SelectionRefs, ref)
+		case keyword.COMMENT:
+			p.read()
 		default:
 			p.errUnexpectedToken(p.read(), keyword.RBRACE, keyword.IDENT, keyword.SPREAD)
 		}
