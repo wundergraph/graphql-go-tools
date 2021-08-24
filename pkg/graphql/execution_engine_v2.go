@@ -219,8 +219,6 @@ func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *Request, wri
 		options[i](execContext)
 	}
 
-	// Optimization: Hashing the operation and caching the postprocessed plan for
-	// this specific operation will improve performance significantly.
 	var report operationreport.Report
 	cachedPlan := e.getCachedPlan(execContext, &operation.document, &e.config.schema.document, operation.OperationName, &report)
 	if report.HasErrors() {
