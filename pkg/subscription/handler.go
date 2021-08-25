@@ -192,7 +192,7 @@ func (h *Handler) handleStart(id string, payload []byte) {
 	}
 
 	if err = h.handleOnBeforeStart(executor); err != nil {
-		h.handleError(id, cleanErrorMessage(err))
+		h.handleError(id, graphql.RequestErrorsFromError(err))
 		return
 	}
 
@@ -212,7 +212,7 @@ func (h *Handler) handleOnBeforeStart(executor Executor) error {
 			return hook.OnBeforeStart(e.reqCtx, e.operation)
 		}
 	case *ExecutorV1:
-		// do nothing for now
+		// do nothing
 	}
 
 	return nil
