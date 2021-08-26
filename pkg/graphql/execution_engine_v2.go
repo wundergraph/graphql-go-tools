@@ -21,8 +21,9 @@ import (
 )
 
 type EngineV2Configuration struct {
-	schema        *Schema
-	plannerConfig plan.Configuration
+	schema                   *Schema
+	plannerConfig            plan.Configuration
+	websocketBeforeStartHook WebsocketBeforeStartHook
 }
 
 func NewEngineV2Configuration(schema *Schema) EngineV2Configuration {
@@ -50,6 +51,11 @@ func (e *EngineV2Configuration) AddFieldConfiguration(fieldConfig plan.FieldConf
 
 func (e *EngineV2Configuration) SetFieldConfigurations(fieldConfigs plan.FieldConfigurations) {
 	e.plannerConfig.Fields = fieldConfigs
+}
+
+// SetWebsocketBeforeStartHook - sets before start hook which will be called before processing any operation sent over websockets
+func (e *EngineV2Configuration) SetWebsocketBeforeStartHook(hook WebsocketBeforeStartHook) {
+	e.websocketBeforeStartHook = hook
 }
 
 type EngineResultWriter struct {
@@ -155,6 +161,10 @@ type ExecutionEngineV2 struct {
 	resolver                     *resolve.Resolver
 	internalExecutionContextPool sync.Pool
 	executionPlanCache           *lru.Cache
+}
+
+type WebsocketBeforeStartHook interface {
+	OnBeforeStart(reqCtx context.Context, operation *Request) error
 }
 
 type ExecutionOptionsV2 func(ctx *internalExecutionContext)
@@ -266,6 +276,10 @@ func (e *ExecutionEngineV2) getCachedPlan(ctx *internalExecutionContext, operati
 	p := ctx.postProcessor.Process(planResult)
 	e.executionPlanCache.Add(cacheKey, p)
 	return p
+}
+
+func (e *ExecutionEngineV2) GetWebsocketBeforeStartHook() WebsocketBeforeStartHook {
+	return e.config.websocketBeforeStartHook
 }
 
 func (e *ExecutionEngineV2) getExecutionCtx() *internalExecutionContext {
