@@ -12,12 +12,12 @@ import (
 
 // ExecutorV2Pool - provides reusable executors
 type ExecutorV2Pool struct {
-	engine       *graphql.ExecutionEngineV2
-	executorPool *sync.Pool
-	reqCtx       context.Context // reqCtx - holds original request context used to establish websocket connection
+	engine               *graphql.ExecutionEngineV2
+	executorPool         *sync.Pool
+	connectionInitReqCtx context.Context // connectionInitReqCtx - holds original request context used to establish websocket connection
 }
 
-func NewExecutorV2Pool(engine *graphql.ExecutionEngineV2, reqCtx context.Context) *ExecutorV2Pool {
+func NewExecutorV2Pool(engine *graphql.ExecutionEngineV2, connectionInitReqCtx context.Context) *ExecutorV2Pool {
 	return &ExecutorV2Pool{
 		engine: engine,
 		executorPool: &sync.Pool{
@@ -25,7 +25,7 @@ func NewExecutorV2Pool(engine *graphql.ExecutionEngineV2, reqCtx context.Context
 				return &ExecutorV2{}
 			},
 		},
-		reqCtx: reqCtx,
+		connectionInitReqCtx: connectionInitReqCtx,
 	}
 }
 
@@ -40,7 +40,7 @@ func (e *ExecutorV2Pool) Get(payload []byte) (Executor, error) {
 		engine:    e.engine,
 		operation: &operation,
 		context:   context.Background(),
-		reqCtx:    e.reqCtx,
+		reqCtx:    e.connectionInitReqCtx,
 	}, nil
 }
 
