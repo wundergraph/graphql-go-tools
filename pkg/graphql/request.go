@@ -169,3 +169,12 @@ func (r *Request) OperationType() (OperationType, error) {
 
 	return OperationTypeUnknown, nil
 }
+
+func (r *Request) OperationDocument() (*ast.Document, error) {
+	report := r.parseQueryOnce()
+	if report.HasErrors() {
+		return nil, report
+	}
+
+	return &r.document, nil
+}

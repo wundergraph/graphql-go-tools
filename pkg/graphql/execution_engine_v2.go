@@ -149,6 +149,7 @@ type ExecutionEngineV2 struct {
 	plannerPool                  sync.Pool
 	resolver                     *resolve.Resolver
 	internalExecutionContextPool sync.Pool
+	operationMiddleware          OperationMiddleware
 }
 
 type ExecutionOptionsV2 func(ctx *internalExecutionContext)
@@ -165,6 +166,9 @@ func WithAfterFetchHook(hook resolve.AfterFetchHook) ExecutionOptionsV2 {
 	}
 }
 
+type OperationHandler func(ctx context.Context, operation *Request, writer resolve.FlushWriter) error
+type OperationMiddleware func(next OperationHandler) OperationHandler
+
 func NewExecutionEngineV2(ctx context.Context, logger abstractlogger.Logger, engineConfig EngineV2Configuration) (*ExecutionEngineV2, error) {
 	return &ExecutionEngineV2{
 		logger: logger,
@@ -180,6 +184,7 @@ func NewExecutionEngineV2(ctx context.Context, logger abstractlogger.Logger, eng
 				return newInternalExecutionContext()
 			},
 		},
+		operationMiddleware: processOperationMiddleware(nil),
 	}, nil
 }
 
@@ -203,37 +208,41 @@ func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *Request, wri
 		return result.Errors
 	}
 
-	execContext := e.getExecutionCtx()
-	defer e.putExecutionCtx(execContext)
+	operationHandler := e.operationMiddleware(func(ctx context.Context, operation *Request, writer resolve.FlushWriter) error {
+		execContext := e.getExecutionCtx()
+		defer e.putExecutionCtx(execContext)
 
-	execContext.prepare(ctx, operation.Variables, operation.request)
+		execContext.prepare(ctx, operation.Variables, operation.request)
 
-	for i := range options {
-		options[i](execContext)
-	}
+		for i := range options {
+			options[i](execContext)
+		}
 
-	// Optimization: Hashing the operation and caching the postprocessed plan for
-	// this specific operation will improve performance significantly.
-	var report operationreport.Report
-	planner := e.plannerPool.Get().(*plan.Planner)
-	planResult := planner.Plan(&operation.document, &e.config.schema.document, operation.OperationName, &report)
-	e.plannerPool.Put(planner)
-	if report.HasErrors() {
-		return errors.New(report.Error())
-	}
+		// Optimization: Hashing the operation and caching the postprocessed plan for
+		// this specific operation will improve performance significantly.
+		var report operationreport.Report
+		planner := e.plannerPool.Get().(*plan.Planner)
+		planResult := planner.Plan(&operation.document, &e.config.schema.document, operation.OperationName, &report)
+		e.plannerPool.Put(planner)
+		if report.HasErrors() {
+			return errors.New(report.Error())
+		}
 
-	planResult = execContext.postProcessor.Process(planResult)
+		planResult = execContext.postProcessor.Process(planResult)
 
-	switch p := planResult.(type) {
-	case *plan.SynchronousResponsePlan:
-		err = e.resolver.ResolveGraphQLResponse(execContext.resolveContext, p.Response, nil, writer)
-	case *plan.SubscriptionResponsePlan:
-		err = e.resolver.ResolveGraphQLSubscription(execContext.resolveContext, p.Response, writer)
-	default:
-		return errors.New("execution of operation is not possible")
-	}
+		switch p := planResult.(type) {
+		case *plan.SynchronousResponsePlan:
+			err = e.resolver.ResolveGraphQLResponse(execContext.resolveContext, p.Response, nil, writer)
+		case *plan.SubscriptionResponsePlan:
+			err = e.resolver.ResolveGraphQLSubscription(execContext.resolveContext, p.Response, writer)
+		default:
+			return errors.New("execution of operation is not possible")
+		}
 
-	return err
+		return err
+	})
+
+	return operationHandler(ctx, operation, writer)
 }
 
 func (e *ExecutionEngineV2) getExecutionCtx() *internalExecutionContext {
@@ -243,4 +252,20 @@ func (e *ExecutionEngineV2) getExecutionCtx() *internalExecutionContext {
 func (e *ExecutionEngineV2) putExecutionCtx(ctx *internalExecutionContext) {
 	ctx.reset()
 	e.internalExecutionContextPool.Put(ctx)
+}
+
+func processOperationMiddleware(middlewares []OperationMiddleware) OperationMiddleware {
+	middleware := OperationMiddleware(func(next OperationHandler) OperationHandler {
+		return next
+	})
+
+	// this loop goes backwards so the first extension is the outer most middleware and runs first.
+	for i := len(middlewares) - 1; i >= 0; i-- {
+		previous := middleware
+		middleware = func(next OperationHandler) OperationHandler {
+			return middlewares[i](previous(next))
+		}
+	}
+
+	return middleware
 }
