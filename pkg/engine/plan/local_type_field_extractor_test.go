@@ -167,5 +167,77 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 				{TypeName: "User", FieldNames: []string{"id", "reviews"}},
 			})
 	})
+	t.Run("union types", func(t *testing.T) {
+		run(t, `
+			extend type Query {
+				search(name: String!): SearchResult
+			}
+
+			union SearchResult = Human | Droid | Starship
+	
+			interface Character {
+				name: String!
+				friends: [Character]
+			}
+			
+			type Human implements Character {
+				name: String!
+				height: String!
+				friends: [Character]
+			}
+			
+			type Droid implements Character {
+				name: String!
+				primaryFunction: String!
+				friends: [Character]
+			}
+			
+			type Starship {
+				name: String!
+				length: Float!
+			}
+		`,
+			[]TypeField{
+				{TypeName: "Query", FieldNames: []string{"search"}},
+			},
+			[]TypeField{
+				{TypeName: "Human", FieldNames: []string{"name", "height", "friends"}},
+				{TypeName: "Droid", FieldNames: []string{"name", "primaryFunction", "friends"}},
+				{TypeName: "Character", FieldNames: []string{"name", "friends"}},
+				{TypeName: "Starship", FieldNames: []string{"name", "length"}},
+			})
+	})
+	t.Run("interface types", func(t *testing.T) {
+		run(t, `
+			extend type Query {
+				search(name: String!): Character
+			}
+	
+			interface Character {
+				name: String!
+				friends: [Character]
+			}
+			
+			type Human implements Character {
+				name: String!
+				height: String!
+				friends: [Character]
+			}
+			
+			type Droid implements Character {
+				name: String!
+				primaryFunction: String!
+				friends: [Character]
+			}
+		`,
+			[]TypeField{
+				{TypeName: "Query", FieldNames: []string{"search"}},
+			},
+			[]TypeField{
+				{TypeName: "Human", FieldNames: []string{"name", "height", "friends"}},
+				{TypeName: "Droid", FieldNames: []string{"name", "primaryFunction", "friends"}},
+				{TypeName: "Character", FieldNames: []string{"name", "friends"}},
+			})
+	})
 
 }
