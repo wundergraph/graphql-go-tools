@@ -200,8 +200,8 @@ func NewExecutionEngineV2(ctx context.Context, logger abstractlogger.Logger, eng
 				return newInternalExecutionContext()
 			},
 		},
-		executionPlanCache: executionPlanCache,
-		operationMiddleware: processOperationMiddleware(nil),
+		executionPlanCache:  executionPlanCache,
+		operationMiddleware: processOperationMiddleware(),
 	}, nil
 }
 
@@ -256,6 +256,10 @@ func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *Request, wri
 	return operationHandler(ctx, operation, writer)
 }
 
+func (e *ExecutionEngineV2) UseOperation(mw OperationMiddleware) {
+	e.operationMiddleware = processOperationMiddleware(e.operationMiddleware, mw)
+}
+
 func (e *ExecutionEngineV2) getCachedPlan(ctx *internalExecutionContext, operation, definition *ast.Document, operationName string, report *operationreport.Report) plan.Plan {
 
 	hash := pool.Hash64.Get()
@@ -300,16 +304,17 @@ func (e *ExecutionEngineV2) putExecutionCtx(ctx *internalExecutionContext) {
 	e.internalExecutionContextPool.Put(ctx)
 }
 
-func processOperationMiddleware(middlewares []OperationMiddleware) OperationMiddleware {
+func processOperationMiddleware(middlewares ...OperationMiddleware) OperationMiddleware {
 	middleware := OperationMiddleware(func(next OperationHandler) OperationHandler {
 		return next
 	})
 
-	// this loop goes backwards so the first extension is the outer most middleware and runs first.
+	// the first middleware is the outer most middleware and runs first.
 	for i := len(middlewares) - 1; i >= 0; i-- {
-		previous := middleware
+		previousMW := middleware
+		currentMW := middlewares[i]
 		middleware = func(next OperationHandler) OperationHandler {
-			return middlewares[i](previous(next))
+			return previousMW(currentMW(next))
 		}
 	}
 

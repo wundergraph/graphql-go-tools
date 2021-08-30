@@ -718,6 +718,158 @@ func TestExecutionWithOptions(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestExecutionEngineV2_OperationMW(t *testing.T) {
+	run := func(execCtx context.Context, testCase ExecutionEngineV2TestCase, mws ...OperationMiddleware) func(t *testing.T) {
+		return func(t *testing.T) {
+			engineConf := NewEngineV2Configuration(testCase.schema)
+			engineConf.SetDataSources(testCase.dataSources)
+			engineConf.SetFieldConfigurations(testCase.fields)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			engine, err := NewExecutionEngineV2(ctx, abstractlogger.Noop{}, engineConf)
+			require.NoError(t, err)
+
+			for _, mw := range mws {
+				engine.UseOperation(mw)
+			}
+
+			operation := testCase.operation(t)
+			resultWriter := NewEngineResultWriter()
+			err = engine.Execute(execCtx, &operation, &resultWriter)
+
+			assert.NoError(t, err)
+			assert.Equal(t, testCase.expectedResponse, resultWriter.String())
+		}
+	}
+
+	runWithBackground := func(testCase ExecutionEngineV2TestCase, mws ...OperationMiddleware) func(t *testing.T) {
+		execCtx, execCtxCancel := context.WithCancel(context.Background())
+		defer execCtxCancel()
+
+		return run(execCtx, testCase, mws...)
+	}
+
+	t.Run("invokes operation middleware in order", func(t *testing.T) {
+		var calls []string
+
+		mws := []OperationMiddleware{
+			func(next OperationHandler) OperationHandler {
+				calls = append(calls, "first")
+				return next
+			},
+			func(next OperationHandler) OperationHandler {
+				calls = append(calls, "second")
+				return next
+			},
+		}
+
+		runWithBackground(ExecutionEngineV2TestCase{
+			schema:    starwarsSchema(t),
+			operation: loadStarWarsQuery(starwars.FileSimpleHeroQuery, nil),
+			dataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{TypeName: "Query", FieldNames: []string{"hero"}},
+					},
+					Factory: &graphql_datasource.Factory{
+						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "example.com",
+							expectedPath:     "/",
+							expectedBody:     "",
+							sendResponseBody: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+							sendStatusCode:   200,
+						}),
+					},
+					Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
+						Fetch: graphql_datasource.FetchConfiguration{
+							URL:    "https://example.com/",
+							Method: "GET",
+						},
+					}),
+				},
+			},
+			fields:           []plan.FieldConfiguration{},
+			expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+		}, mws...)(t)
+
+		assert.Equal(t, []string{"first", "second"}, calls)
+	})
+
+	t.Run("breaks operation middleware chain", func(t *testing.T) {
+
+		testCase := ExecutionEngineV2TestCase{
+			schema:    starwarsSchema(t),
+			operation: loadStarWarsQuery(starwars.FileSimpleHeroQuery, nil),
+			dataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{TypeName: "Query", FieldNames: []string{"hero"}},
+					},
+					Factory: &graphql_datasource.Factory{
+						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "example.com",
+							expectedPath:     "/",
+							expectedBody:     "",
+							sendResponseBody: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+							sendStatusCode:   200,
+						}),
+					},
+					Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
+						Fetch: graphql_datasource.FetchConfiguration{
+							URL:    "https://example.com/",
+							Method: "GET",
+						},
+					}),
+				},
+			},
+			fields:           []plan.FieldConfiguration{},
+			expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+		}
+
+		authorizationMiddleware := func(next OperationHandler) OperationHandler {
+			return func(ctx context.Context, operation *Request, writer resolve.FlushWriter) error {
+				currentUserRole := ctx.Value("userRoleKey").(string)
+				if currentUserRole != "admin" {
+					pair := resolve.NewBufPair()
+					pair.WriteErr([]byte("errorMessage"), nil, nil, nil)
+					_, _ = writer.Write([]byte(`{"errors":[{"message":"access denied"}]}`))
+					return nil
+				} else {
+					return next(ctx, operation, writer)
+				}
+			}
+		}
+
+		t.Run("doesn't break chain in case if user is admin", func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			run(
+				context.WithValue(ctx, "userRoleKey", "admin"),
+				testCase,
+				authorizationMiddleware,
+			)(t)
+		})
+
+		t.Run("breaks chain in case if user is not admin", func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			originalExpResponse := testCase.expectedResponse
+			defer func() {testCase.expectedResponse = originalExpResponse}()
+
+			testCase.expectedResponse = `{"errors":[{"message":"access denied"}]}`
+
+			run(
+				context.WithValue(ctx, "userRoleKey", "guest"),
+				testCase,
+				authorizationMiddleware,
+			)(t)
+		})
+
+	})
+}
+
 func BenchmarkExecutionEngineV2(b *testing.B) {
 
 	ctx, cancel := context.WithCancel(context.Background())
