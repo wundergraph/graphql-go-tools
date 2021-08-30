@@ -1026,7 +1026,7 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 		r.MergeBufPairs(fieldBuf, objectBuf, false)
 	}
 	if first {
-		if typeNameSkip {
+		if typeNameSkip && !object.Nullable {
 			return errTypeNameSkipped
 		}
 		if !object.Nullable {

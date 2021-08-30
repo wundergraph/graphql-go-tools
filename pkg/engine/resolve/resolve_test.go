@@ -518,6 +518,55 @@ func TestResolver_ResolveNode(t *testing.T) {
 			}, Context{Context: context.Background()},
 			`{"pets":[{"name":"Woofie"}]}`
 	}))
+	t.Run("resolve fieldsets based on __typename when field is Nullable", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+		return &Object{
+				Fetch: &SingleFetch{
+					BufferId:   0,
+					DataSource: FakeDataSource(`{"pet":{"id": "1", "detail": null}}`),
+				},
+				Fields: []*Field{
+					{
+						BufferID:  0,
+						HasBuffer: true,
+						Name:      []byte("pet"),
+						Value: &Object{
+							Path: []string{"pet"},
+							Fields: []*Field{
+								{
+									BufferID:   0,
+									HasBuffer:  false,
+									Name:       []byte("id"),
+									Value: &String{
+										Path: []string{"id"},
+									},
+								},
+								{
+									BufferID:   0,
+									HasBuffer:  false,
+									Name:       []byte("detail"),
+									Value: &Object{
+										Path: []string{"detail"},
+										Nullable: true,
+										Fields: []*Field{
+											{
+												BufferID:   0,
+												HasBuffer:  false,
+												OnTypeName: []byte("Dog"),
+												Name:       []byte("name"),
+												Value: &String{
+													Path: []string{"name"},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}, Context{Context: context.Background()},
+			`{"pet":{"id":"1","detail":null}}`
+	}))
 	t.Run("resolve fieldsets asynchronous based on __typename", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 				Fetch: &SingleFetch{
