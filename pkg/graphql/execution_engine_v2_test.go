@@ -826,8 +826,8 @@ func TestExecutionEngineV2_OperationMW(t *testing.T) {
 			expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
 		}
 
-		type key int
-		userRoleKey := 0
+		type key struct {}
+		var userRoleKey key
 
 		authorizationMiddleware := func(next OperationHandler) OperationHandler {
 			return func(ctx context.Context, operation *Request, writer resolve.FlushWriter) error {
