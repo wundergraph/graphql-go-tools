@@ -1149,7 +1149,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				Nullable: false,
 				Fetch: &SingleFetch{
 					BufferId:   0,
-					DataSource: FakeDataSource(`[]`),
+					DataSource: FakeDataSource(`{"some_path": []}`),
 				},
 				Fields: []*Field{
 					{
@@ -1157,6 +1157,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						BufferID:  0,
 						Name:      []byte("notNullableArray"),
 						Value: &Array{
+							Path: []string{"some_path"},
 							Nullable: false,
 							Item: &Object{
 								Nullable: false,
