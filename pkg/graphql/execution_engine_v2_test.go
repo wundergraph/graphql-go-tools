@@ -826,9 +826,12 @@ func TestExecutionEngineV2_OperationMW(t *testing.T) {
 			expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
 		}
 
+		type key int
+		userRoleKey := 0
+
 		authorizationMiddleware := func(next OperationHandler) OperationHandler {
 			return func(ctx context.Context, operation *Request, writer resolve.FlushWriter) error {
-				currentUserRole := ctx.Value("userRoleKey").(string)
+				currentUserRole := ctx.Value(userRoleKey).(string)
 				if currentUserRole != "admin" {
 					pair := resolve.NewBufPair()
 					pair.WriteErr([]byte("errorMessage"), nil, nil, nil)
@@ -845,7 +848,7 @@ func TestExecutionEngineV2_OperationMW(t *testing.T) {
 			defer cancel()
 
 			run(
-				context.WithValue(ctx, "userRoleKey", "admin"),
+				context.WithValue(ctx, userRoleKey, "admin"),
 				testCase,
 				authorizationMiddleware,
 			)(t)
@@ -861,7 +864,7 @@ func TestExecutionEngineV2_OperationMW(t *testing.T) {
 			testCase.expectedResponse = `{"errors":[{"message":"access denied"}]}`
 
 			run(
-				context.WithValue(ctx, "userRoleKey", "guest"),
+				context.WithValue(ctx, userRoleKey, "guest"),
 				testCase,
 				authorizationMiddleware,
 			)(t)
