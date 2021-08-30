@@ -1664,7 +1664,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					Path:                  []string{},
 				},
 			},
-			DefaultFlushInterval: 500,
+			DefaultFlushIntervalMillis: 500,
 		}))
 	factory := &Factory{
 		HTTPClient: http.DefaultClient,

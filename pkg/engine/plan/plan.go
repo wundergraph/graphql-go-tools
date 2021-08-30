@@ -27,9 +27,9 @@ type Planner struct {
 }
 
 type Configuration struct {
-	DefaultFlushInterval int64
-	DataSources          []DataSourceConfiguration
-	Fields               FieldConfigurations
+	DefaultFlushIntervalMillis int64
+	DataSources                []DataSourceConfiguration
+	Fields                     FieldConfigurations
 }
 
 type FieldConfigurations []FieldConfiguration
@@ -588,7 +588,7 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 
 	if isSubscription {
 		v.plan = &SubscriptionResponsePlan{
-			FlushInterval: v.Config.DefaultFlushInterval,
+			FlushInterval: v.Config.DefaultFlushIntervalMillis,
 			Response: &resolve.GraphQLSubscription{
 				Response: graphQLResponse,
 			},

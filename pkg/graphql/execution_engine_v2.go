@@ -20,44 +20,6 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/postprocess"
 )
 
-type EngineV2Configuration struct {
-	schema                   *Schema
-	plannerConfig            plan.Configuration
-	websocketBeforeStartHook WebsocketBeforeStartHook
-}
-
-func NewEngineV2Configuration(schema *Schema) EngineV2Configuration {
-	return EngineV2Configuration{
-		schema: schema,
-		plannerConfig: plan.Configuration{
-			DefaultFlushInterval: 0,
-			DataSources:          []plan.DataSourceConfiguration{},
-			Fields:               plan.FieldConfigurations{},
-		},
-	}
-}
-
-func (e *EngineV2Configuration) AddDataSource(dataSource plan.DataSourceConfiguration) {
-	e.plannerConfig.DataSources = append(e.plannerConfig.DataSources, dataSource)
-}
-
-func (e *EngineV2Configuration) SetDataSources(dataSources []plan.DataSourceConfiguration) {
-	e.plannerConfig.DataSources = dataSources
-}
-
-func (e *EngineV2Configuration) AddFieldConfiguration(fieldConfig plan.FieldConfiguration) {
-	e.plannerConfig.Fields = append(e.plannerConfig.Fields, fieldConfig)
-}
-
-func (e *EngineV2Configuration) SetFieldConfigurations(fieldConfigs plan.FieldConfigurations) {
-	e.plannerConfig.Fields = fieldConfigs
-}
-
-// SetWebsocketBeforeStartHook - sets before start hook which will be called before processing any operation sent over websockets
-func (e *EngineV2Configuration) SetWebsocketBeforeStartHook(hook WebsocketBeforeStartHook) {
-	e.websocketBeforeStartHook = hook
-}
-
 type EngineResultWriter struct {
 	buf           *bytes.Buffer
 	flushCallback func(data []byte)

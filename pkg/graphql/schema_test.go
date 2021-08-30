@@ -432,6 +432,11 @@ func TestSchema_GetAllFieldArguments(t *testing.T) {
 			},
 			{
 				TypeName:      "Query",
+				FieldName:     "_entities",
+				ArgumentNames: []string{"representations"},
+			},
+			{
+				TypeName:      "Query",
 				FieldName:     "__type",
 				ArgumentNames: []string{"name"},
 			},
@@ -471,6 +476,11 @@ func TestSchema_GetAllFieldArguments(t *testing.T) {
 				TypeName:      "Query",
 				FieldName:     "singleArgLevel1",
 				ArgumentNames: []string{"lvl"},
+			},
+			{
+				TypeName:      "Query",
+				FieldName:     "_entities",
+				ArgumentNames: []string{"representations"},
 			},
 			{
 				TypeName:      "Query",
@@ -571,10 +581,13 @@ var invalidSchema = `type Query {
 	foo: Bar
 }`
 
-var schemaWithChildren = `
+var schemaWithChildren = `scalar _Any
+union _Entity = WithChildren
+
 type Query {
 	withChildren: WithChildren
 	singleArgLevel1(lvl: int): SingleArgLevel1
+	_entities(representations: [_Any!]!): [_Entity]!
 }
 
 extend type Query {
