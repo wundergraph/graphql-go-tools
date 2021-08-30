@@ -77,7 +77,8 @@ func startServer() {
 		return http2.NewGraphqlHTTPHandler(schema, engine, upgrader, logger)
 	}
 
-	gateway := NewGateway(gqlHandlerFactory, httpClient, logger)
+	persistentUserRoles := []string{"USER"}
+	gateway := NewGateway(gqlHandlerFactory, httpClient, logger, persistentUserRoles)
 
 	datasourceWatcher.Register(gateway)
 	go datasourceWatcher.Run(ctx)

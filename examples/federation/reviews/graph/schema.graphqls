@@ -1,6 +1,14 @@
+directive @hasRole(role: Role!) on FIELD_DEFINITION | OBJECT
+
+enum Role {
+    ADMIN
+    USER
+    GUEST
+}
+
 type Review {
     body: String!
-    author: User! @provides(fields: "username")
+    author: User! @provides(fields: "username") @hasRole(role: ADMIN)
     product: Product!
 }
 

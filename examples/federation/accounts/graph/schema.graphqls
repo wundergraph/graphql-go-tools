@@ -1,5 +1,13 @@
+directive @hasRole(role: Role!) on FIELD_DEFINITION | OBJECT
+
+enum Role {
+    ADMIN
+    USER
+    GUEST
+}
+
 extend type Query {
-    me: User
+    me: User @hasRole(role: USER)
 }
 
 type User @key(fields: "id") {

@@ -9,9 +9,10 @@ require (
 	github.com/jensneuse/abstractlogger v0.0.4
 	github.com/jensneuse/graphql-go-tools v1.20.2
 	github.com/nats-io/nats-server/v2 v2.3.2 // indirect
+	github.com/stretchr/testify v1.7.0
 	github.com/vektah/gqlparser/v2 v2.2.0
 	go.uber.org/atomic v1.9.0
-	go.uber.org/zap v1.13.0
+	go.uber.org/zap v1.18.1
 )
 
 replace github.com/jensneuse/graphql-go-tools => ../../

@@ -144,11 +144,11 @@ func HandleWebsocket(done chan bool, errChan chan error, conn net.Conn, executor
 }
 
 // handleWebsocket will handle the websocket connection.
-func (g *GraphQLHTTPRequestHandler) handleWebsocket(conn net.Conn) {
+func (g *GraphQLHTTPRequestHandler) handleWebsocket(ctx context.Context, conn net.Conn) {
 	done := make(chan bool)
 	errChan := make(chan error)
 
-	executorPool := subscription.NewExecutorV2Pool(g.engine)
+	executorPool := subscription.NewExecutorV2Pool(g.engine, ctx)
 	go HandleWebsocket(done, errChan, conn, executorPool, g.log)
 	select {
 	case err := <-errChan:

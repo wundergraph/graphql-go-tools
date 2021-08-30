@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/handler/debug"
 	"github.com/99designs/gqlgen/graphql/handler/extension"
@@ -14,6 +15,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/jensneuse/graphql-go-tools/examples/federation/products/graph/generated"
+	"github.com/jensneuse/graphql-go-tools/examples/federation/products/graph/model"
 )
 
 var websocketConnections atomic.Uint32
@@ -32,7 +34,11 @@ var TestOptions = EndpointOptions{
 
 func GraphQLEndpointHandler(opts EndpointOptions) http.Handler {
 	websocketConnections.Store(0)
-	srv := handler.New(generated.NewExecutableSchema(generated.Config{Resolvers: &Resolver{}}))
+	cfg := generated.Config{Resolvers: &Resolver{}}
+	cfg.Directives.HasRole = func(ctx context.Context, obj interface{}, next graphql.Resolver, role model.Role) (res interface{}, err error) {
+		return next(ctx)
+	}
+	srv := handler.New(generated.NewExecutableSchema(cfg))
 
 	srv.AddTransport(transport.POST{})
 	srv.AddTransport(transport.Websocket{

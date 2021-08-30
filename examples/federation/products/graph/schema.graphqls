@@ -1,5 +1,13 @@
+directive @hasRole(role: Role!) on FIELD_DEFINITION | OBJECT
+
+enum Role {
+    GUEST
+    ADMIN
+    USER
+}
+
 extend type Query {
-    topProducts(first: Int = 5): [Product]
+    topProducts(first: Int = 5): [Product] @hasRole(role: GUEST)
 }
 
 extend type Subscription {
