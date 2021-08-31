@@ -42,6 +42,8 @@ type Request struct {
 	isParsed     bool
 	isNormalized bool
 	request      resolve.Request
+
+	validForSchema map[uint64]ValidationResult
 }
 
 func UnmarshalRequest(reader io.Reader, request *Request) error {

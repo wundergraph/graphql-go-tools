@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"strings"
 	"sync"
 	"time"
 
@@ -229,7 +228,7 @@ func (h *Handler) handleStart(ctx context.Context, id string, payload []byte) {
 			abstractlogger.Error(err),
 		)
 
-		h.handleError(id, cleanErrorMessage(err))
+		h.handleError(id, graphql.RequestErrorsFromError(err))
 		return
 	}
 
@@ -266,7 +265,7 @@ func (h *Handler) handleNonSubscriptionOperation(ctx context.Context, id string,
 			abstractlogger.Error(err),
 		)
 
-		h.handleError(id, err.Error())
+		h.handleError(id, graphql.RequestErrorsFromError(err))
 		return
 	}
 
@@ -325,7 +324,7 @@ func (h *Handler) executeSubscription(buf *graphql.EngineResultWriter, id string
 			abstractlogger.Error(err),
 		)
 
-		h.handleError(id, err)
+		h.handleError(id, graphql.RequestErrorsFromError(err))
 		return
 	}
 
@@ -473,12 +472,12 @@ func (h *Handler) handleConnectionError(errorPayload interface{}) {
 }
 
 // handleError will handle an error message.
-func (h *Handler) handleError(id string, errorPayload interface{}) {
-	payloadBytes, err := json.Marshal(errorPayload)
+func (h *Handler) handleError(id string, errors graphql.RequestErrors) {
+	payloadBytes, err := json.Marshal(errors)
 	if err != nil {
 		h.logger.Error("subscription.Handler.handleError()",
 			abstractlogger.Error(err),
-			abstractlogger.Any("errorPayload", errorPayload),
+			abstractlogger.Any("errors", errors),
 		)
 	}
 
@@ -499,9 +498,4 @@ func (h *Handler) handleError(id string, errorPayload interface{}) {
 // ActiveSubscriptions will return the actual number of active subscriptions for that client.
 func (h *Handler) ActiveSubscriptions() int {
 	return len(h.subCancellations)
-}
-
-func cleanErrorMessage(err error) string {
-	errMsg := strings.TrimPrefix(err.Error(), "external: ")
-	return errMsg
 }

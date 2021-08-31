@@ -15,6 +15,19 @@ func (r *Request) ValidateForSchema(schema *Schema) (result ValidationResult, er
 		return ValidationResult{Valid: false, Errors: nil}, ErrNilSchema
 	}
 
+	schemaHash, err := schema.Hash()
+	if err != nil {
+		return ValidationResult{Valid: false}, err
+	}
+
+	if r.validForSchema == nil {
+		r.validForSchema = map[uint64]ValidationResult{}
+	}
+
+	if result, ok := r.validForSchema[schemaHash]; ok {
+		return result, nil
+	}
+
 	report := r.parseQueryOnce()
 	if report.HasErrors() {
 		return operationValidationResultFromReport(report)
@@ -22,7 +35,12 @@ func (r *Request) ValidateForSchema(schema *Schema) (result ValidationResult, er
 
 	validator := astvalidation.DefaultOperationValidator()
 	validator.Validate(&r.document, &schema.document, &report)
-	return operationValidationResultFromReport(report)
+	result, err = operationValidationResultFromReport(report)
+	if err != nil {
+		return result, err
+	}
+	r.validForSchema[schemaHash] = result
+	return result, err
 }
 
 // ValidateRestrictedFields validates a request by checking if `restrictedFields` contains blocked fields.
@@ -68,7 +86,7 @@ func operationValidationResultFromReport(report operationreport.Report) (Validat
 		return result, nil
 	}
 
-	result.Errors = operationValidationErrorsFromOperationReport(report)
+	result.Errors = RequestErrorsFromOperationReport(report)
 
 	var err error
 	if len(report.InternalErrors) > 0 {

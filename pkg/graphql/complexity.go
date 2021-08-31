@@ -64,7 +64,7 @@ func complexityResult(globalComplexityResult operation_complexity.OperationStats
 		return result, nil
 	}
 
-	result.Errors = operationValidationErrorsFromOperationReport(report)
+	result.Errors = RequestErrorsFromOperationReport(report)
 
 	var err error
 	if len(report.InternalErrors) > 0 {

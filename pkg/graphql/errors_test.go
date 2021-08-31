@@ -7,13 +7,14 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/graphqlerrors"
 )
 
 func TestOperationValidationErrors_Error(t *testing.T) {
-	validationErrs := OperationValidationErrors{
-		OperationValidationError{
+	validationErrs := RequestErrors{
+		RequestError{
 			Message: "a single error",
-			Locations: []ErrorLocation{
+			Locations: []graphqlerrors.Location{
 				{
 					Line:   1,
 					Column: 1,
@@ -35,10 +36,10 @@ func TestOperationValidationErrors_Error(t *testing.T) {
 }
 
 func TestOperationValidationErrors_WriteResponse(t *testing.T) {
-	validationErrs := OperationValidationErrors{
-		OperationValidationError{
+	validationErrs := RequestErrors{
+		RequestError{
 			Message: "error in operation",
-			Locations: []ErrorLocation{
+			Locations: []graphqlerrors.Location{
 				{
 					Line:   1,
 					Column: 1,
@@ -67,9 +68,9 @@ func TestOperationValidationErrors_WriteResponse(t *testing.T) {
 }
 
 func TestOperationValidationError_Error(t *testing.T) {
-	validatonErr := OperationValidationError{
+	validatonErr := RequestError{
 		Message: "error in operation",
-		Locations: []ErrorLocation{
+		Locations: []graphqlerrors.Location{
 			{
 				Line:   1,
 				Column: 1,
@@ -90,8 +91,8 @@ func TestOperationValidationError_Error(t *testing.T) {
 }
 
 func TestOperationValidationErrors_Count(t *testing.T) {
-	validationErrs := OperationValidationErrors{
-		OperationValidationError{
+	validationErrs := RequestErrors{
+		RequestError{
 			Message: "error in operation",
 		},
 	}
@@ -100,11 +101,11 @@ func TestOperationValidationErrors_Count(t *testing.T) {
 }
 
 func TestOperationValidationErrors_ErrorByIndex(t *testing.T) {
-	existingValidationError := OperationValidationError{
+	existingValidationError := RequestError{
 		Message: "error in operation",
 	}
 
-	validationErrs := OperationValidationErrors{
+	validationErrs := RequestErrors{
 		existingValidationError,
 	}
 
