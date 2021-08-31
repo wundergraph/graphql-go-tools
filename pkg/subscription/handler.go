@@ -232,6 +232,11 @@ func (h *Handler) handleStart(ctx context.Context, id string, payload []byte) {
 		return
 	}
 
+	if err = h.handleOnBeforeStart(executor); err != nil {
+		h.handleError(id, graphql.RequestErrorsFromError(err))
+		return
+	}
+
 	if executor.OperationType() == ast.OperationTypeSubscription {
 		ctx := h.subCancellations.AddWithParent(id, ctx)
 		go h.startSubscription(ctx, id, executor)
@@ -239,6 +244,19 @@ func (h *Handler) handleStart(ctx context.Context, id string, payload []byte) {
 	}
 
 	go h.handleNonSubscriptionOperation(ctx, id, executor)
+}
+
+func (h *Handler) handleOnBeforeStart(executor Executor) error {
+	switch e := executor.(type) {
+	case *ExecutorV2:
+		if hook := e.engine.GetWebsocketBeforeStartHook(); hook != nil {
+			return hook.OnBeforeStart(e.reqCtx, e.operation)
+		}
+	case *ExecutorV1:
+		// do nothing
+	}
+
+	return nil
 }
 
 // handleNonSubscriptionOperation will handle a non-subscription operation like a query or a mutation.

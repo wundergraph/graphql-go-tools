@@ -8,17 +8,22 @@ import (
 	"net/http"
 	"sync"
 
+	lru "github.com/hashicorp/golang-lru"
 	"github.com/jensneuse/abstractlogger"
 
+	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
+	"github.com/jensneuse/graphql-go-tools/pkg/pool"
 	"github.com/jensneuse/graphql-go-tools/pkg/postprocess"
 )
 
 type EngineV2Configuration struct {
-	schema        *Schema
-	plannerConfig plan.Configuration
+	schema                   *Schema
+	plannerConfig            plan.Configuration
+	websocketBeforeStartHook WebsocketBeforeStartHook
 }
 
 func NewEngineV2Configuration(schema *Schema) EngineV2Configuration {
@@ -46,6 +51,11 @@ func (e *EngineV2Configuration) AddFieldConfiguration(fieldConfig plan.FieldConf
 
 func (e *EngineV2Configuration) SetFieldConfigurations(fieldConfigs plan.FieldConfigurations) {
 	e.plannerConfig.Fields = fieldConfigs
+}
+
+// SetWebsocketBeforeStartHook - sets before start hook which will be called before processing any operation sent over websockets
+func (e *EngineV2Configuration) SetWebsocketBeforeStartHook(hook WebsocketBeforeStartHook) {
+	e.websocketBeforeStartHook = hook
 }
 
 type EngineResultWriter struct {
@@ -146,9 +156,15 @@ func (e *internalExecutionContext) reset() {
 type ExecutionEngineV2 struct {
 	logger                       abstractlogger.Logger
 	config                       EngineV2Configuration
-	plannerPool                  sync.Pool
+	planner                      *plan.Planner
+	plannerMu                    sync.Mutex
 	resolver                     *resolve.Resolver
 	internalExecutionContextPool sync.Pool
+	executionPlanCache           *lru.Cache
+}
+
+type WebsocketBeforeStartHook interface {
+	OnBeforeStart(reqCtx context.Context, operation *Request) error
 }
 
 type ExecutionOptionsV2 func(ctx *internalExecutionContext)
@@ -166,20 +182,21 @@ func WithAfterFetchHook(hook resolve.AfterFetchHook) ExecutionOptionsV2 {
 }
 
 func NewExecutionEngineV2(ctx context.Context, logger abstractlogger.Logger, engineConfig EngineV2Configuration) (*ExecutionEngineV2, error) {
+	executionPlanCache, err := lru.New(1024)
+	if err != nil {
+		return nil, err
+	}
 	return &ExecutionEngineV2{
-		logger: logger,
-		config: engineConfig,
-		plannerPool: sync.Pool{
-			New: func() interface{} {
-				return plan.NewPlanner(ctx, engineConfig.plannerConfig)
-			},
-		},
+		logger:   logger,
+		config:   engineConfig,
+		planner:  plan.NewPlanner(ctx, engineConfig.plannerConfig),
 		resolver: resolve.New(ctx),
 		internalExecutionContextPool: sync.Pool{
 			New: func() interface{} {
 				return newInternalExecutionContext()
 			},
 		},
+		executionPlanCache: executionPlanCache,
 	}, nil
 }
 
@@ -212,19 +229,13 @@ func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *Request, wri
 		options[i](execContext)
 	}
 
-	// Optimization: Hashing the operation and caching the postprocessed plan for
-	// this specific operation will improve performance significantly.
 	var report operationreport.Report
-	planner := e.plannerPool.Get().(*plan.Planner)
-	planResult := planner.Plan(&operation.document, &e.config.schema.document, operation.OperationName, &report)
-	e.plannerPool.Put(planner)
+	cachedPlan := e.getCachedPlan(execContext, &operation.document, &e.config.schema.document, operation.OperationName, &report)
 	if report.HasErrors() {
-		return errors.New(report.Error())
+		return report
 	}
 
-	planResult = execContext.postProcessor.Process(planResult)
-
-	switch p := planResult.(type) {
+	switch p := cachedPlan.(type) {
 	case *plan.SynchronousResponsePlan:
 		err = e.resolver.ResolveGraphQLResponse(execContext.resolveContext, p.Response, nil, writer)
 	case *plan.SubscriptionResponsePlan:
@@ -234,6 +245,41 @@ func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *Request, wri
 	}
 
 	return err
+}
+
+func (e *ExecutionEngineV2) getCachedPlan(ctx *internalExecutionContext, operation, definition *ast.Document, operationName string, report *operationreport.Report) plan.Plan {
+
+	hash := pool.Hash64.Get()
+	hash.Reset()
+	defer pool.Hash64.Put(hash)
+	err := astprinter.Print(operation, definition, hash)
+	if err != nil {
+		report.AddInternalError(err)
+		return nil
+	}
+
+	cacheKey := hash.Sum64()
+
+	if cached, ok := e.executionPlanCache.Get(cacheKey); ok {
+		if p, ok := cached.(plan.Plan); ok {
+			return p
+		}
+	}
+
+	e.plannerMu.Lock()
+	defer e.plannerMu.Unlock()
+	planResult := e.planner.Plan(operation, definition, operationName, report)
+	if report.HasErrors() {
+		return nil
+	}
+
+	p := ctx.postProcessor.Process(planResult)
+	e.executionPlanCache.Add(cacheKey, p)
+	return p
+}
+
+func (e *ExecutionEngineV2) GetWebsocketBeforeStartHook() WebsocketBeforeStartHook {
+	return e.config.websocketBeforeStartHook
 }
 
 func (e *ExecutionEngineV2) getExecutionCtx() *internalExecutionContext {
