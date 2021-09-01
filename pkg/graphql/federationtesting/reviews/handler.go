@@ -8,8 +8,5 @@ import (
 )
 
 func Handler() http.Handler {
-	mux := http.NewServeMux()
-	mux.Handle("/query", graph.GraphQLEndpointHandler(graph.EndpointOptions{EnableDebug: true}))
-
-	return mux
+	return graph.GraphQLEndpointHandler(graph.EndpointOptions{EnableDebug: true})
 }

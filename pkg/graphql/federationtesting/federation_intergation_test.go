@@ -4,11 +4,13 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"path"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/jensneuse/abstractlogger"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/graphql/federationtesting/accounts"
 	"github.com/jensneuse/graphql-go-tools/pkg/graphql/federationtesting/gateway"
@@ -35,7 +37,6 @@ func newFederationSetup() *federationSetup {
 	defer cancel()
 
 	poller.Run(ctx)
-
 	gatewayServer := httptest.NewServer(gtw)
 
 	return &federationSetup{
@@ -67,11 +68,34 @@ func TestFederationIntegrationTest(t *testing.T) {
 	setup := newFederationSetup()
 	defer setup.close()
 
-	t.Run("simple operation", func(t *testing.T) {
+	gqlClient := NewGraphqlClient(http.DefaultClient)
 
+	t.Run("single upstream query operation", func(t *testing.T) {
+		resp := gqlClient.Query(ctx, setup.gatewayServer.URL, path.Join("testdata", "queries/single_upstream.query"), nil, t)
+		assert.Equal(t, `{"data":{"me":{"id":"1234","username":"Me"}}}`, string(resp))
+	})
+
+	t.Run("query spans multiple federated servers", func(t *testing.T) {
+		resp := gqlClient.Query(ctx, setup.gatewayServer.URL, path.Join("testdata", "queries/multiple_upstream.query"), nil, t)
+		assert.Equal(t, `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","author":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","author":{"username":"Me"}}]},{"name":"Boater","reviews":[{"body":"This is the last straw. Hat you will wear. 11/10","author":{"username":"User 7777"}}]}]}}`, string(resp))
+	})
+
+	t.Run("mutation operation with variables", func(t *testing.T) {
+		resp := gqlClient.Query(ctx, setup.gatewayServer.URL, path.Join("testdata", "mutations/mutation_with_variables.query"), map[string]interface{}{
+			"authorID": "3210",
+			"upc": "top-1",
+			"review": "This is the last straw. Hat you will wear. 11/10",
+		}, t)
+		assert.Equal(t, `{"data":{"addReview":{"body":"This is the last straw. Hat you will wear. 11/10","author":{"username":"User 3210"}}}}`, string(resp))
+	})
+
+	t.Run("union query", func(t *testing.T) {
+		resp := gqlClient.Query(ctx, setup.gatewayServer.URL, path.Join("testdata", "queries/union.query"), nil, t)
+		assert.Equal(t, `{"data":{"me":{"username":"Me","history":[{"__typename":"Purchase","wallet":{"amount":123}},{"__typename":"Sale","rating":5},{"__typename":"Purchase","wallet":{"amount":123}}]}}}`, string(resp))
+	})
+
+	t.Run("interface query", func(t *testing.T) {
+		resp := gqlClient.Query(ctx, setup.gatewayServer.URL, path.Join("testdata", "queries/interface.query"), nil, t)
+		assert.Equal(t, `{"data":{"me":{"username":"Me","history":[{"wallet":{"amount":123,"specialField1":"some special value 1"}},{"rating":5},{"wallet":{"amount":123,"specialField2":"some special value 2"}}]}}}`, string(resp))
 	})
 }
-
-
-
-

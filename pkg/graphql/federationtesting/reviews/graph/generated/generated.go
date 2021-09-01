@@ -38,6 +38,7 @@ type Config struct {
 
 type ResolverRoot interface {
 	Entity() EntityResolver
+	Mutation() MutationResolver
 	Product() ProductResolver
 	User() UserResolver
 }
@@ -49,6 +50,10 @@ type ComplexityRoot struct {
 	Entity struct {
 		FindProductByUpc func(childComplexity int, upc string) int
 		FindUserByID     func(childComplexity int, id string) int
+	}
+
+	Mutation struct {
+		AddReview func(childComplexity int, authorID string, upc string, review string) int
 	}
 
 	Product struct {
@@ -68,9 +73,8 @@ type ComplexityRoot struct {
 	}
 
 	User struct {
-		ID       func(childComplexity int) int
-		Reviews  func(childComplexity int) int
-		Username func(childComplexity int) int
+		ID      func(childComplexity int) int
+		Reviews func(childComplexity int) int
 	}
 
 	Service struct {
@@ -82,11 +86,13 @@ type EntityResolver interface {
 	FindProductByUpc(ctx context.Context, upc string) (*model.Product, error)
 	FindUserByID(ctx context.Context, id string) (*model.User, error)
 }
+type MutationResolver interface {
+	AddReview(ctx context.Context, authorID string, upc string, review string) (*model.Review, error)
+}
 type ProductResolver interface {
 	Reviews(ctx context.Context, obj *model.Product) ([]*model.Review, error)
 }
 type UserResolver interface {
-	Username(ctx context.Context, obj *model.User) (string, error)
 	Reviews(ctx context.Context, obj *model.User) ([]*model.Review, error)
 }
 
@@ -128,6 +134,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Entity.FindUserByID(childComplexity, args["id"].(string)), true
+
+	case "Mutation.addReview":
+		if e.complexity.Mutation.AddReview == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_addReview_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.AddReview(childComplexity, args["authorID"].(string), args["upc"].(string), args["review"].(string)), true
 
 	case "Product.reviews":
 		if e.complexity.Product.Reviews == nil {
@@ -197,13 +215,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.User.Reviews(childComplexity), true
 
-	case "User.username":
-		if e.complexity.User.Username == nil {
-			break
-		}
-
-		return e.complexity.User.Username(childComplexity), true
-
 	case "_Service.sdl":
 		if e.complexity.Service.SDL == nil {
 			break
@@ -228,6 +239,20 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 			}
 			first = false
 			data := ec._Query(ctx, rc.Operation.SelectionSet)
+			var buf bytes.Buffer
+			data.MarshalGQL(&buf)
+
+			return &graphql.Response{
+				Data: buf.Bytes(),
+			}
+		}
+	case ast.Mutation:
+		return func(ctx context.Context) *graphql.Response {
+			if !first {
+				return nil
+			}
+			first = false
+			data := ec._Mutation(ctx, rc.Operation.SelectionSet)
 			var buf bytes.Buffer
 			data.MarshalGQL(&buf)
 
@@ -263,13 +288,12 @@ func (ec *executionContext) introspectType(name string) (*introspection.Type, er
 var sources = []*ast.Source{
 	{Name: "graph/schema.graphqls", Input: `type Review {
     body: String!
-    author: User! @provides(fields: "username")
+    author: User!
     product: Product!
 }
 
 extend type User @key(fields: "id") {
     id: ID! @external
-    username: String! @external
     reviews: [Review]
 }
 
@@ -277,7 +301,10 @@ extend type Product @key(fields: "upc") {
     upc: String! @external
     reviews: [Review]
 }
-`, BuiltIn: false},
+
+extend type Mutation {
+    addReview(authorID: String! upc: String!, review: String!): Review!
+}`, BuiltIn: false},
 	{Name: "federation/directives.graphql", Input: `
 scalar _Any
 scalar _FieldSet
@@ -342,6 +369,39 @@ func (ec *executionContext) field_Entity_findUserByID_args(ctx context.Context, 
 		}
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_addReview_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 string
+	if tmp, ok := rawArgs["authorID"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("authorID"))
+		arg0, err = ec.unmarshalNString2string(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["authorID"] = arg0
+	var arg1 string
+	if tmp, ok := rawArgs["upc"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("upc"))
+		arg1, err = ec.unmarshalNString2string(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["upc"] = arg1
+	var arg2 string
+	if tmp, ok := rawArgs["review"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("review"))
+		arg2, err = ec.unmarshalNString2string(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["review"] = arg2
 	return args, nil
 }
 
@@ -495,6 +555,48 @@ func (ec *executionContext) _Entity_findUserByID(ctx context.Context, field grap
 	res := resTmp.(*model.User)
 	fc.Result = res
 	return ec.marshalNUser2ᚖgithubᚗcomᚋjensneuseᚋgraphqlᚑgoᚑtoolsᚋpkgᚋgraphqlᚋfederationtestingᚋreviewsᚋgraphᚋmodelᚐUser(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Mutation_addReview(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	rawArgs := field.ArgumentMap(ec.Variables)
+	args, err := ec.field_Mutation_addReview_args(ctx, rawArgs)
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	fc.Args = args
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().AddReview(rctx, args["authorID"].(string), args["upc"].(string), args["review"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.Review)
+	fc.Result = res
+	return ec.marshalNReview2ᚖgithubᚗcomᚋjensneuseᚋgraphqlᚑgoᚑtoolsᚋpkgᚋgraphqlᚋfederationtestingᚋreviewsᚋgraphᚋmodelᚐReview(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Product_upc(ctx context.Context, field graphql.CollectedField, obj *model.Product) (ret graphql.Marshaler) {
@@ -850,41 +952,6 @@ func (ec *executionContext) _User_id(ctx context.Context, field graphql.Collecte
 	res := resTmp.(string)
 	fc.Result = res
 	return ec.marshalNID2string(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) _User_username(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	fc := &graphql.FieldContext{
-		Object:     "User",
-		Field:      field,
-		Args:       nil,
-		IsMethod:   true,
-		IsResolver: true,
-	}
-
-	ctx = graphql.WithFieldContext(ctx, fc)
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.User().Username(rctx, obj)
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(string)
-	fc.Result = res
-	return ec.marshalNString2string(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _User_reviews(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
@@ -2158,6 +2225,37 @@ func (ec *executionContext) _Entity(ctx context.Context, sel ast.SelectionSet) g
 	return out
 }
 
+var mutationImplementors = []string{"Mutation"}
+
+func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mutationImplementors)
+
+	ctx = graphql.WithFieldContext(ctx, &graphql.FieldContext{
+		Object: "Mutation",
+	})
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Mutation")
+		case "addReview":
+			out.Values[i] = ec._Mutation_addReview(ctx, field)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
 var productImplementors = []string{"Product", "_Entity"}
 
 func (ec *executionContext) _Product(ctx context.Context, sel ast.SelectionSet, obj *model.Product) graphql.Marshaler {
@@ -2307,20 +2405,6 @@ func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&invalids, 1)
 			}
-		case "username":
-			field := field
-			out.Concurrently(i, func() (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._User_username(ctx, field, obj)
-				if res == graphql.Null {
-					atomic.AddUint32(&invalids, 1)
-				}
-				return res
-			})
 		case "reviews":
 			field := field
 			out.Concurrently(i, func() (res graphql.Marshaler) {
@@ -2659,6 +2743,20 @@ func (ec *executionContext) marshalNProduct2ᚖgithubᚗcomᚋjensneuseᚋgraphq
 		return graphql.Null
 	}
 	return ec._Product(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNReview2githubᚗcomᚋjensneuseᚋgraphqlᚑgoᚑtoolsᚋpkgᚋgraphqlᚋfederationtestingᚋreviewsᚋgraphᚋmodelᚐReview(ctx context.Context, sel ast.SelectionSet, v model.Review) graphql.Marshaler {
+	return ec._Review(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNReview2ᚖgithubᚗcomᚋjensneuseᚋgraphqlᚑgoᚑtoolsᚋpkgᚋgraphqlᚋfederationtestingᚋreviewsᚋgraphᚋmodelᚐReview(ctx context.Context, sel ast.SelectionSet, v *model.Review) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	return ec._Review(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v interface{}) (string, error) {

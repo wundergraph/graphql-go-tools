@@ -109,7 +109,7 @@ func (d *DatasourcePollerPoller) updateSDLs(ctx context.Context) {
 
 			sdl, err := d.fetchServiceSDL(ctx, serviceConf.URL)
 			if err != nil {
-				log.Println("Failed to get sdl", err)
+				log.Printf("Failed to get sdl for service: %s, err: %s\n", serviceConf.Name, err)
 				return
 			}
 

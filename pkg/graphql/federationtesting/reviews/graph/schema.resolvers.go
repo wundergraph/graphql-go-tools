@@ -5,11 +5,22 @@ package graph
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/graphql/federationtesting/reviews/graph/generated"
 	"github.com/jensneuse/graphql-go-tools/pkg/graphql/federationtesting/reviews/graph/model"
 )
+
+func (r *mutationResolver) AddReview(ctx context.Context, authorID string, upc string, review string) (*model.Review, error) {
+	record := &model.Review{
+		Body:    review,
+		Author:  &model.User{ID: authorID},
+		Product: &model.Product{Upc: upc},
+	}
+
+	reviews = append(reviews, record)
+
+	return record, nil
+}
 
 func (r *productResolver) Reviews(ctx context.Context, obj *model.Product) ([]*model.Review, error) {
 	var res []*model.Review
@@ -21,10 +32,6 @@ func (r *productResolver) Reviews(ctx context.Context, obj *model.Product) ([]*m
 	}
 
 	return res, nil
-}
-
-func (r *userResolver) Username(ctx context.Context, obj *model.User) (string, error) {
-	return fmt.Sprintf("User %s", obj.ID), nil
 }
 
 func (r *userResolver) Reviews(ctx context.Context, obj *model.User) ([]*model.Review, error) {
@@ -39,11 +46,15 @@ func (r *userResolver) Reviews(ctx context.Context, obj *model.User) ([]*model.R
 	return res, nil
 }
 
+// Mutation returns generated.MutationResolver implementation.
+func (r *Resolver) Mutation() generated.MutationResolver { return &mutationResolver{r} }
+
 // Product returns generated.ProductResolver implementation.
 func (r *Resolver) Product() generated.ProductResolver { return &productResolver{r} }
 
 // User returns generated.UserResolver implementation.
 func (r *Resolver) User() generated.UserResolver { return &userResolver{r} }
 
+type mutationResolver struct{ *Resolver }
 type productResolver struct{ *Resolver }
 type userResolver struct{ *Resolver }

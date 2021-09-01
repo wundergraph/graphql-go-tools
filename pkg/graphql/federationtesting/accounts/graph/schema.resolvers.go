@@ -14,6 +14,7 @@ func (r *queryResolver) Me(ctx context.Context) (*model.User, error) {
 	return &model.User{
 		ID:       "1234",
 		Username: "Me",
+		History:  histories,
 	}, nil
 }
 
