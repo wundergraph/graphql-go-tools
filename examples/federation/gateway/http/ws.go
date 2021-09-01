@@ -148,7 +148,7 @@ func (g *GraphQLHTTPRequestHandler) handleWebsocket(conn net.Conn) {
 	done := make(chan bool)
 	errChan := make(chan error)
 
-	executorPool := subscription.NewExecutorV2Pool(g.engine)
+	executorPool := subscription.NewExecutorV2Pool(g.engine, context.Background())
 	go HandleWebsocket(done, errChan, conn, executorPool, g.log)
 	select {
 	case err := <-errChan:
