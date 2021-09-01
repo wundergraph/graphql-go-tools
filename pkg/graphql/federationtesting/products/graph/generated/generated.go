@@ -65,9 +65,7 @@ type ComplexityRoot struct {
 	}
 
 	Subscription struct {
-		Stock              func(childComplexity int) int
 		UpdateProductPrice func(childComplexity int, upc string) int
-		UpdatedPrice       func(childComplexity int) int
 	}
 
 	Service struct {
@@ -82,9 +80,7 @@ type QueryResolver interface {
 	TopProducts(ctx context.Context, first *int) ([]*model.Product, error)
 }
 type SubscriptionResolver interface {
-	UpdatedPrice(ctx context.Context) (<-chan *model.Product, error)
 	UpdateProductPrice(ctx context.Context, upc string) (<-chan *model.Product, error)
-	Stock(ctx context.Context) (<-chan []*model.Product, error)
 }
 
 type executableSchema struct {
@@ -173,13 +169,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Query.__resolve_entities(childComplexity, args["representations"].([]map[string]interface{})), true
 
-	case "Subscription.stock":
-		if e.complexity.Subscription.Stock == nil {
-			break
-		}
-
-		return e.complexity.Subscription.Stock(childComplexity), true
-
 	case "Subscription.updateProductPrice":
 		if e.complexity.Subscription.UpdateProductPrice == nil {
 			break
@@ -191,13 +180,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Subscription.UpdateProductPrice(childComplexity, args["upc"].(string)), true
-
-	case "Subscription.updatedPrice":
-		if e.complexity.Subscription.UpdatedPrice == nil {
-			break
-		}
-
-		return e.complexity.Subscription.UpdatedPrice(childComplexity), true
 
 	case "_Service.sdl":
 		if e.complexity.Service.SDL == nil {
@@ -278,9 +260,7 @@ var sources = []*ast.Source{
 }
 
 extend type Subscription {
-    updatedPrice: Product!
     updateProductPrice(upc: String!): Product!
-    stock: [Product!]
 }
 
 type Product @key(fields: "upc") {
@@ -807,51 +787,6 @@ func (ec *executionContext) _Query___schema(ctx context.Context, field graphql.C
 	return ec.marshalO__Schema2ᚖgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐSchema(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _Subscription_updatedPrice(ctx context.Context, field graphql.CollectedField) (ret func() graphql.Marshaler) {
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = nil
-		}
-	}()
-	fc := &graphql.FieldContext{
-		Object:     "Subscription",
-		Field:      field,
-		Args:       nil,
-		IsMethod:   true,
-		IsResolver: true,
-	}
-
-	ctx = graphql.WithFieldContext(ctx, fc)
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Subscription().UpdatedPrice(rctx)
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return nil
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return nil
-	}
-	return func() graphql.Marshaler {
-		res, ok := <-resTmp.(<-chan *model.Product)
-		if !ok {
-			return nil
-		}
-		return graphql.WriterFunc(func(w io.Writer) {
-			w.Write([]byte{'{'})
-			graphql.MarshalString(field.Alias).MarshalGQL(w)
-			w.Write([]byte{':'})
-			ec.marshalNProduct2ᚖgithubᚗcomᚋjensneuseᚋgraphqlᚑgoᚑtoolsᚋpkgᚋgraphqlᚋfederationtestingᚋproductsᚋgraphᚋmodelᚐProduct(ctx, field.Selections, res).MarshalGQL(w)
-			w.Write([]byte{'}'})
-		})
-	}
-}
-
 func (ec *executionContext) _Subscription_updateProductPrice(ctx context.Context, field graphql.CollectedField) (ret func() graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -899,48 +834,6 @@ func (ec *executionContext) _Subscription_updateProductPrice(ctx context.Context
 			graphql.MarshalString(field.Alias).MarshalGQL(w)
 			w.Write([]byte{':'})
 			ec.marshalNProduct2ᚖgithubᚗcomᚋjensneuseᚋgraphqlᚑgoᚑtoolsᚋpkgᚋgraphqlᚋfederationtestingᚋproductsᚋgraphᚋmodelᚐProduct(ctx, field.Selections, res).MarshalGQL(w)
-			w.Write([]byte{'}'})
-		})
-	}
-}
-
-func (ec *executionContext) _Subscription_stock(ctx context.Context, field graphql.CollectedField) (ret func() graphql.Marshaler) {
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = nil
-		}
-	}()
-	fc := &graphql.FieldContext{
-		Object:     "Subscription",
-		Field:      field,
-		Args:       nil,
-		IsMethod:   true,
-		IsResolver: true,
-	}
-
-	ctx = graphql.WithFieldContext(ctx, fc)
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Subscription().Stock(rctx)
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return nil
-	}
-	if resTmp == nil {
-		return nil
-	}
-	return func() graphql.Marshaler {
-		res, ok := <-resTmp.(<-chan []*model.Product)
-		if !ok {
-			return nil
-		}
-		return graphql.WriterFunc(func(w io.Writer) {
-			w.Write([]byte{'{'})
-			graphql.MarshalString(field.Alias).MarshalGQL(w)
-			w.Write([]byte{':'})
-			ec.marshalOProduct2ᚕᚖgithubᚗcomᚋjensneuseᚋgraphqlᚑgoᚑtoolsᚋpkgᚋgraphqlᚋfederationtestingᚋproductsᚋgraphᚋmodelᚐProductᚄ(ctx, field.Selections, res).MarshalGQL(w)
 			w.Write([]byte{'}'})
 		})
 	}
@@ -2288,12 +2181,8 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 	}
 
 	switch fields[0].Name {
-	case "updatedPrice":
-		return ec._Subscription_updatedPrice(ctx, fields[0])
 	case "updateProductPrice":
 		return ec._Subscription_updateProductPrice(ctx, fields[0])
-	case "stock":
-		return ec._Subscription_stock(ctx, fields[0])
 	default:
 		panic("unknown field " + strconv.Quote(fields[0].Name))
 	}
@@ -3079,53 +2968,6 @@ func (ec *executionContext) marshalOProduct2ᚕᚖgithubᚗcomᚋjensneuseᚋgra
 
 	}
 	wg.Wait()
-
-	return ret
-}
-
-func (ec *executionContext) marshalOProduct2ᚕᚖgithubᚗcomᚋjensneuseᚋgraphqlᚑgoᚑtoolsᚋpkgᚋgraphqlᚋfederationtestingᚋproductsᚋgraphᚋmodelᚐProductᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Product) graphql.Marshaler {
-	if v == nil {
-		return graphql.Null
-	}
-	ret := make(graphql.Array, len(v))
-	var wg sync.WaitGroup
-	isLen1 := len(v) == 1
-	if !isLen1 {
-		wg.Add(len(v))
-	}
-	for i := range v {
-		i := i
-		fc := &graphql.FieldContext{
-			Index:  &i,
-			Result: &v[i],
-		}
-		ctx := graphql.WithFieldContext(ctx, fc)
-		f := func(i int) {
-			defer func() {
-				if r := recover(); r != nil {
-					ec.Error(ctx, ec.Recover(ctx, r))
-					ret = nil
-				}
-			}()
-			if !isLen1 {
-				defer wg.Done()
-			}
-			ret[i] = ec.marshalNProduct2ᚖgithubᚗcomᚋjensneuseᚋgraphqlᚑgoᚑtoolsᚋpkgᚋgraphqlᚋfederationtestingᚋproductsᚋgraphᚋmodelᚐProduct(ctx, sel, v[i])
-		}
-		if isLen1 {
-			f(i)
-		} else {
-			go f(i)
-		}
-
-	}
-	wg.Wait()
-
-	for _, e := range ret {
-		if e == graphql.Null {
-			return graphql.Null
-		}
-	}
 
 	return ret
 }

@@ -71,3 +71,5 @@ func (g *GraphqlClient) Query(ctx context.Context, addr, queryFilePath string, v
 
 	return responseBodyBytes
 }
+
+
