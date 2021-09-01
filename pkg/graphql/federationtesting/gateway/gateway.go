@@ -56,8 +56,6 @@ type Gateway struct {
 
 	readyCh   chan struct{}
 	readyOnce *sync.Once
-
-	engineCloser chan struct{}
 }
 
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
