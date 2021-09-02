@@ -4,17 +4,13 @@ import (
 	"fmt"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/graphqlerrors"
 )
 
 type ExternalError struct {
-	Message   string     `json:"message"`
-	Path      ast.Path   `json:"path"`
-	Locations []Location `json:"locations"`
-}
-
-type Location struct {
-	Line   uint32 `json:"line"`
-	Column uint32 `json:"column"`
+	Message   string                   `json:"message"`
+	Path      ast.Path                 `json:"path"`
+	Locations []graphqlerrors.Location `json:"locations"`
 }
 
 func ErrDocumentDoesntContainExecutableOperation() (err ExternalError) {

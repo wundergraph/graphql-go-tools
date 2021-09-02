@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -22,6 +23,20 @@ import (
 )
 
 type handlerRoutine func(ctx context.Context) func() bool
+
+type websocketHook struct {
+	called bool
+	reqCtx context.Context
+	hook   func(reqCtx context.Context, operation *graphql.Request) error
+}
+
+func (w *websocketHook) OnBeforeStart(reqCtx context.Context, operation *graphql.Request) error {
+	w.called = true
+	if w.hook != nil {
+		return w.hook(reqCtx, operation)
+	}
+	return nil
+}
 
 func TestHandler_Handle(t *testing.T) {
 	starwars.SetRelativePathToStarWarsPackage("../starwars")
@@ -115,26 +130,20 @@ func TestHandler_Handle(t *testing.T) {
 				}
 				require.Eventually(t, waitForClientHavingAMessage, 5*time.Second, 5*time.Millisecond)
 
-				jsonErrorMsg, err := json.Marshal("document doesn't contain any executable operation, locations: [], path: []")
-				require.NoError(t, err)
-
-				expectedMessage := Message{
-					Id:      "1",
-					Type:    MessageTypeError,
-					Payload: jsonErrorMsg,
-				}
-
 				messagesFromServer := client.readFromServer()
-				assert.Contains(t, messagesFromServer, expectedMessage)
+				assert.Len(t, messagesFromServer, 1)
+				assert.Equal(t, "1", messagesFromServer[0].Id)
+				assert.Equal(t, MessageTypeError, messagesFromServer[0].Type)
+				assert.Equal(t, `[{"message":"document doesn't contain any executable operation"}]`, string(messagesFromServer[0].Payload))
 			})
 
 			cancelFunc()
 		})
 
 		t.Run("non-subscription query", func(t *testing.T) {
-			subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
 
 			t.Run("should process query and return error when query is not valid", func(t *testing.T) {
+				subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
 				payload := starwars.LoadQuery(t, starwars.FileInvalidQuery, nil)
 				client.prepareStartMessage("1", payload).withoutError().and().send()
 
@@ -148,20 +157,16 @@ func TestHandler_Handle(t *testing.T) {
 				}
 				require.Eventually(t, waitForClientHavingAMessage, 1*time.Second, 5*time.Millisecond)
 
-				jsonErrMessage, err := json.Marshal("field: invalid not defined on type: Character, locations: [], path: [query,hero,invalid]")
-				require.NoError(t, err)
-				expectedErrorMessage := Message{
-					Id:      "1",
-					Type:    MessageTypeError,
-					Payload: jsonErrMessage,
-				}
-
 				messagesFromServer := client.readFromServer()
-				assert.Contains(t, messagesFromServer, expectedErrorMessage)
+				assert.Len(t, messagesFromServer, 1)
+				assert.Equal(t, "1", messagesFromServer[0].Id)
+				assert.Equal(t, MessageTypeError, messagesFromServer[0].Type)
+				assert.Equal(t, `[{"message":"field: invalid not defined on type: Character","path":["query","hero","invalid"]}]`, string(messagesFromServer[0].Payload))
 				assert.Equal(t, 0, subscriptionHandler.ActiveSubscriptions())
 			})
 
 			t.Run("should process and send result for a query", func(t *testing.T) {
+				subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
 				payload := starwars.LoadQuery(t, starwars.FileSimpleHeroQuery, nil)
 				client.prepareStartMessage("1", payload).withoutError().and().send()
 
@@ -290,72 +295,8 @@ func TestHandler_Handle(t *testing.T) {
 		chatServer := httptest.NewServer(chat.GraphQLEndpointHandler())
 		defer chatServer.Close()
 
-		chatSchemaBytes, err := chat.LoadSchemaFromExamplesDirectoryWithinPkg()
-		require.NoError(t, err)
-
-		chatSchema, err := graphql.NewSchemaFromReader(bytes.NewBuffer(chatSchemaBytes))
-		require.NoError(t, err)
-
-		engineConf := graphql.NewEngineV2Configuration(chatSchema)
-		engineConf.SetDataSources([]plan.DataSourceConfiguration{
-			{
-				RootNodes: []plan.TypeField{
-					{TypeName: "Mutation", FieldNames: []string{"post"}},
-					{TypeName: "Subscription", FieldNames: []string{"messageAdded"}},
-				},
-				ChildNodes: []plan.TypeField{
-					{TypeName: "Message", FieldNames: []string{"text", "createdBy"}},
-				},
-				Factory: &graphql_datasource.Factory{
-					Client: httpclient.DefaultNetHttpClient,
-				},
-				Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
-					Fetch: graphql_datasource.FetchConfiguration{
-						URL:    chatServer.URL,
-						Method: http.MethodPost,
-						Header: nil,
-					},
-					Subscription: graphql_datasource.SubscriptionConfiguration{
-						URL: chatServer.URL,
-					},
-				}),
-			},
-		})
-		engineConf.SetFieldConfigurations([]plan.FieldConfiguration{
-			{
-				TypeName:  "Mutation",
-				FieldName: "post",
-				Arguments: []plan.ArgumentConfiguration{
-					{
-						Name:       "roomName",
-						SourceType: plan.FieldArgumentSource,
-					},
-					{
-						Name:       "username",
-						SourceType: plan.FieldArgumentSource,
-					},
-					{
-						Name:       "text",
-						SourceType: plan.FieldArgumentSource,
-					},
-				},
-			},
-			{
-				TypeName:  "Subscription",
-				FieldName: "messageAdded",
-				Arguments: []plan.ArgumentConfiguration{
-					{
-						Name:       "roomName",
-						SourceType: plan.FieldArgumentSource,
-					},
-				},
-			},
-		})
-		engine, err := graphql.NewExecutionEngineV2(ctx, abstractlogger.NoopLogger, engineConf)
-		require.NoError(t, err)
-
-		executorPool := NewExecutorV2Pool(engine)
 		t.Run("connection_init", func(t *testing.T) {
+			executorPool, _ := setupEngineV2(t, ctx, chatServer.URL)
 			_, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
 
 			t.Run("should send connection error message when error on read occurrs", func(t *testing.T) {
@@ -393,6 +334,7 @@ func TestHandler_Handle(t *testing.T) {
 		})
 
 		t.Run("connection_keep_alive", func(t *testing.T) {
+			executorPool, _ := setupEngineV2(t, ctx, chatServer.URL)
 			subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
 
 			t.Run("should successfully send keep alive messages after connection_init", func(t *testing.T) {
@@ -427,6 +369,7 @@ func TestHandler_Handle(t *testing.T) {
 		})
 
 		t.Run("erroneous operation(s)", func(t *testing.T) {
+			executorPool, _ := setupEngineV2(t, ctx, chatServer.URL)
 			_, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			handlerRoutineFunc := handlerRoutine(ctx)
@@ -441,13 +384,10 @@ func TestHandler_Handle(t *testing.T) {
 				}
 				require.Eventually(t, waitForClientHavingAMessage, 5*time.Second, 5*time.Millisecond)
 
-				jsonErrorMsg, err := json.Marshal("external: cannot find an operation with name: Broken, locations: [], path: []")
-				require.NoError(t, err)
-
 				expectedMessage := Message{
 					Id:      "1",
 					Type:    MessageTypeError,
-					Payload: jsonErrorMsg,
+					Payload: []byte(`[{"message":"document doesn't contain any executable operation"}]`),
 				}
 
 				messagesFromServer := client.readFromServer()
@@ -458,9 +398,11 @@ func TestHandler_Handle(t *testing.T) {
 		})
 
 		t.Run("non-subscription query", func(t *testing.T) {
-			subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
+			executorPool, hookHolder := setupEngineV2(t, ctx, chatServer.URL)
 
 			t.Run("should process query and return error when query is not valid", func(t *testing.T) {
+				subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
+
 				payload, err := chat.GraphQLRequestForOperation(chat.InvalidOperation)
 				require.NoError(t, err)
 				client.prepareStartMessage("1", payload).withoutError().and().send()
@@ -475,12 +417,10 @@ func TestHandler_Handle(t *testing.T) {
 				}
 				require.Eventually(t, waitForClientHavingAMessage, 1*time.Second, 5*time.Millisecond)
 
-				jsonErrMessage, err := json.Marshal("field: serverName not defined on type: Query, locations: [], path: [query,serverName]")
-				require.NoError(t, err)
 				expectedErrorMessage := Message{
 					Id:      "1",
 					Type:    MessageTypeError,
-					Payload: jsonErrMessage,
+					Payload: []byte(`[{"message":"field: serverName not defined on type: Query","path":["query","serverName"]}]`),
 				}
 
 				messagesFromServer := client.readFromServer()
@@ -489,8 +429,20 @@ func TestHandler_Handle(t *testing.T) {
 			})
 
 			t.Run("should process and send result for a query", func(t *testing.T) {
+				subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
+
 				payload, err := chat.GraphQLRequestForOperation(chat.MutationSendMessage)
 				require.NoError(t, err)
+
+				hookHolder.hook = func(ctx context.Context, operation *graphql.Request) error {
+					assert.Equal(t, hookHolder.reqCtx, ctx)
+					assert.Contains(t, operation.Query, "mutation SendMessage")
+					return nil
+				}
+				defer func() {
+					hookHolder.hook = nil
+				}()
+
 				client.prepareStartMessage("1", payload).withoutError().and().send()
 
 				ctx, cancelFunc := context.WithCancel(context.Background())
@@ -519,13 +471,58 @@ func TestHandler_Handle(t *testing.T) {
 				assert.Contains(t, messagesFromServer, expectedDataMessage)
 				assert.Contains(t, messagesFromServer, expectedCompleteMessage)
 				assert.Equal(t, 0, subscriptionHandler.ActiveSubscriptions())
+				assert.True(t, hookHolder.called)
 			})
+
+			t.Run("should process and send error message from hook for a query", func(t *testing.T) {
+				subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
+
+				payload, err := chat.GraphQLRequestForOperation(chat.MutationSendMessage)
+				require.NoError(t, err)
+
+				errMsg := "error_on_operation"
+				hookHolder.hook = func(ctx context.Context, operation *graphql.Request) error {
+					return errors.New(errMsg)
+				}
+				defer func() {
+					hookHolder.hook = nil
+				}()
+
+				client.prepareStartMessage("1", payload).withoutError().and().send()
+
+				ctx, cancelFunc := context.WithCancel(context.Background())
+				cancelFunc()
+				handlerRoutineFunc := handlerRoutine(ctx)
+				go handlerRoutineFunc()
+
+				waitForClientHavingTwoMessages := func() bool {
+					return client.hasMoreMessagesThan(0)
+				}
+				require.Eventually(t, waitForClientHavingTwoMessages, 5*time.Second, 5*time.Millisecond)
+
+				jsonErrMessage, err := json.Marshal(graphql.RequestErrors{
+					{Message: errMsg},
+				})
+				require.NoError(t, err)
+				expectedErrMessage := Message{
+					Id:      "1",
+					Type:    MessageTypeError,
+					Payload: jsonErrMessage,
+				}
+
+				messagesFromServer := client.readFromServer()
+				assert.Contains(t, messagesFromServer, expectedErrMessage)
+				assert.Equal(t, 0, subscriptionHandler.ActiveSubscriptions())
+				assert.True(t, hookHolder.called)
+			})
+
 		})
 
 		t.Run("subscription query", func(t *testing.T) {
-			subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
+			executorPool, hookHolder := setupEngineV2(t, ctx, chatServer.URL)
 
 			t.Run("should start subscription on start", func(t *testing.T) {
+				subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
 				payload, err := chat.GraphQLRequestForOperation(chat.SubscriptionLiveMessages)
 				require.NoError(t, err)
 				client.prepareStartMessage("1", payload).withoutError().and().send()
@@ -554,7 +551,35 @@ func TestHandler_Handle(t *testing.T) {
 				assert.Equal(t, 1, subscriptionHandler.ActiveSubscriptions())
 			})
 
+			t.Run("should fail with validation error for invalid Subscription", func(t *testing.T) {
+				subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
+				payload, err := chat.GraphQLRequestForOperation(chat.InvalidSubscriptionLiveMessages)
+				require.NoError(t, err)
+				client.prepareStartMessage("1", payload).withoutError().and().send()
+
+				ctx, cancelFunc := context.WithCancel(context.Background())
+				handlerRoutineFunc := handlerRoutine(ctx)
+				go handlerRoutineFunc()
+
+				time.Sleep(10 * time.Millisecond)
+				cancelFunc()
+
+				go sendChatMutation(t, chatServer.URL)
+
+				require.Eventually(t, func() bool {
+					return client.hasMoreMessagesThan(0)
+				}, 1*time.Second, 10*time.Millisecond)
+
+				messagesFromServer := client.readFromServer()
+				assert.Len(t, messagesFromServer, 1)
+				assert.Equal(t, "1", messagesFromServer[0].Id)
+				assert.Equal(t, MessageTypeError, messagesFromServer[0].Type)
+				assert.Equal(t, `[{"message":"differing fields for objectName 'a' on (potentially) same type","path":["subscription","messageAdded"]}]`, string(messagesFromServer[0].Payload))
+				assert.Equal(t, 1, subscriptionHandler.ActiveSubscriptions())
+			})
+
 			t.Run("should stop subscription on stop and send complete message to client", func(t *testing.T) {
+				subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
 				client.reconnect().prepareStopMessage("1").withoutError().and().send()
 
 				ctx, cancelFunc := context.WithCancel(context.Background())
@@ -581,9 +606,52 @@ func TestHandler_Handle(t *testing.T) {
 
 				cancelFunc()
 			})
+
+			t.Run("should interrupt subscription on start and return error message from hook", func(t *testing.T) {
+				subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
+
+				payload, err := chat.GraphQLRequestForOperation(chat.SubscriptionLiveMessages)
+				require.NoError(t, err)
+
+				errMsg := "sub_interrupted"
+				hookHolder.hook = func(ctx context.Context, operation *graphql.Request) error {
+					return errors.New(errMsg)
+				}
+
+				client.prepareStartMessage("1", payload).withoutError().and().send()
+
+				ctx, cancelFunc := context.WithCancel(context.Background())
+				handlerRoutineFunc := handlerRoutine(ctx)
+				go handlerRoutineFunc()
+
+				time.Sleep(10 * time.Millisecond)
+				cancelFunc()
+
+				go sendChatMutation(t, chatServer.URL)
+
+				require.Eventually(t, func() bool {
+					return client.hasMoreMessagesThan(0)
+				}, 1*time.Second, 10*time.Millisecond)
+
+				jsonErrMessage, err := json.Marshal(graphql.RequestErrors{
+					{Message: errMsg},
+				})
+				require.NoError(t, err)
+				expectedErrMessage := Message{
+					Id:      "1",
+					Type:    MessageTypeError,
+					Payload: jsonErrMessage,
+				}
+
+				messagesFromServer := client.readFromServer()
+				assert.Contains(t, messagesFromServer, expectedErrMessage)
+				assert.Equal(t, 0, subscriptionHandler.ActiveSubscriptions())
+				assert.True(t, hookHolder.called)
+			})
 		})
 
 		t.Run("connection_terminate", func(t *testing.T) {
+			executorPool, _ := setupEngineV2(t, ctx, chatServer.URL)
 			_, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
 
 			t.Run("should successfully disconnect from client", func(t *testing.T) {
@@ -600,6 +668,7 @@ func TestHandler_Handle(t *testing.T) {
 		})
 
 		t.Run("client is disconnected", func(t *testing.T) {
+			executorPool, _ := setupEngineV2(t, ctx, chatServer.URL)
 			_, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
 
 			t.Run("server should not read from client and stop handler", func(t *testing.T) {
@@ -618,6 +687,82 @@ func TestHandler_Handle(t *testing.T) {
 		})
 	})
 
+}
+
+func setupEngineV2(t *testing.T, ctx context.Context, chatServerURL string) (*ExecutorV2Pool, *websocketHook) {
+	chatSchemaBytes, err := chat.LoadSchemaFromExamplesDirectoryWithinPkg()
+	require.NoError(t, err)
+
+	chatSchema, err := graphql.NewSchemaFromReader(bytes.NewBuffer(chatSchemaBytes))
+	require.NoError(t, err)
+
+	engineConf := graphql.NewEngineV2Configuration(chatSchema)
+	engineConf.SetDataSources([]plan.DataSourceConfiguration{
+		{
+			RootNodes: []plan.TypeField{
+				{TypeName: "Mutation", FieldNames: []string{"post"}},
+				{TypeName: "Subscription", FieldNames: []string{"messageAdded"}},
+			},
+			ChildNodes: []plan.TypeField{
+				{TypeName: "Message", FieldNames: []string{"text", "createdBy"}},
+			},
+			Factory: &graphql_datasource.Factory{
+				HTTPClient: httpclient.DefaultNetHttpClient,
+			},
+			Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
+				Fetch: graphql_datasource.FetchConfiguration{
+					URL:    chatServerURL,
+					Method: http.MethodPost,
+					Header: nil,
+				},
+				Subscription: graphql_datasource.SubscriptionConfiguration{
+					URL: chatServerURL,
+				},
+			}),
+		},
+	})
+	engineConf.SetFieldConfigurations([]plan.FieldConfiguration{
+		{
+			TypeName:  "Mutation",
+			FieldName: "post",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "roomName",
+					SourceType: plan.FieldArgumentSource,
+				},
+				{
+					Name:       "username",
+					SourceType: plan.FieldArgumentSource,
+				},
+				{
+					Name:       "text",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Subscription",
+			FieldName: "messageAdded",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "roomName",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+	})
+
+	hookHolder := &websocketHook{
+		reqCtx: context.Background(),
+	}
+	engineConf.SetWebsocketBeforeStartHook(hookHolder)
+
+	engine, err := graphql.NewExecutionEngineV2(ctx, abstractlogger.NoopLogger, engineConf)
+	require.NoError(t, err)
+
+	executorPool := NewExecutorV2Pool(engine, hookHolder.reqCtx)
+
+	return executorPool, hookHolder
 }
 
 func setupSubscriptionHandlerTest(t *testing.T, executorPool ExecutorPool) (subscriptionHandler *Handler, client *mockClient, routine handlerRoutine) {

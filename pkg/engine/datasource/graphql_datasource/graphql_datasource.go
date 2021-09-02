@@ -870,15 +870,19 @@ func (p *Planner) addField(ref int) {
 }
 
 type Factory struct {
-	Client *http.Client
 	BatchFactory resolve.DataSourceBatchFactory
+	HTTPClient *http.Client
+	wsClient   *WebSocketGraphQLSubscriptionClient
 }
 
 func (f *Factory) Planner(ctx context.Context) plan.DataSourcePlanner {
+	if f.wsClient == nil {
+		f.wsClient = NewWebSocketGraphQLSubscriptionClient(f.HTTPClient, ctx)
+	}
 	return &Planner{
-		fetchClient:        f.Client,
-		subscriptionClient: NewWebSocketGraphQLSubscriptionClient(f.Client, ctx),
 		batchFactory: f.BatchFactory,
+		fetchClient:        f.HTTPClient,
+		subscriptionClient: f.wsClient,
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
@@ -37,7 +38,8 @@ func MergeSDLs(SDLs ...string) (string, error) {
 	if report.HasErrors() {
 		return "", fmt.Errorf("parse graphql document string: %s", report.Error())
 	}
-
+	// we don't expect this normalization to return error if none was returned above
+	astnormalization.NormalizeSubgraphSDL(&doc, &report)
 	if err := MergeAST(&doc); err != nil {
 		return "", fmt.Errorf("merge ast: %s", err.Error())
 	}

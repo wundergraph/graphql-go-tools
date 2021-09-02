@@ -35,6 +35,15 @@ const (
 	}
 }`
 
+	InvalidSubscriptionLiveMessages = `subscription LiveMessages {
+	messageAdded(roomName: "#test") {
+		a: text
+	}
+	messageAdded(roomName: "#test") {
+		a: createdBy
+	}
+}`
+
 	InvalidOperation = `query InvalidOperation {
 	serverName
 }

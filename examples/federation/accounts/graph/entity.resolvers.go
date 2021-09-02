@@ -6,9 +6,8 @@ package graph
 import (
 	"context"
 
-	"github.com/99designs/gqlgen/example/federation/accounts/graph/model"
-
 	"github.com/jensneuse/graphql-go-tools/examples/federation/accounts/graph/generated"
+	"github.com/jensneuse/graphql-go-tools/examples/federation/accounts/graph/model"
 )
 
 func (r *entityResolver) FindUserByID(ctx context.Context, id string) (*model.User, error) {

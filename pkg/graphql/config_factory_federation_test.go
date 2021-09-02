@@ -1,4 +1,4 @@
-package federation
+package graphql
 
 import (
 	"net/http"
@@ -12,12 +12,11 @@ import (
 	graphqlDataSource "github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/graphql_datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
-	"github.com/jensneuse/graphql-go-tools/pkg/graphql"
 )
 
 func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
-	_ = func(t *testing.T, httpClient *http.Client,  batchFactory resolve.DataSourceBatchFactory, dataSourceConfigs []graphqlDataSource.Configuration, expectedErr error) {
-		engineConfigV2Factory := NewEngineConfigV2Factory(httpClient, batchFactory, dataSourceConfigs...)
+	_ = func(t *testing.T, httpClient *http.Client, batchFactory resolve.DataSourceBatchFactory, dataSourceConfigs []graphqlDataSource.Configuration, expectedErr error) {
+		engineConfigV2Factory := NewFederationEngineConfigFactory(dataSourceConfigs, batchFactory, WithFederationHttpClient(httpClient))
 		_, err := engineConfigV2Factory.EngineV2Configuration()
 		assert.Error(t, err)
 		assert.Equal(t, expectedErr, err)
@@ -29,7 +28,7 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 		batchFactory resolve.DataSourceBatchFactory,
 		dataSourceConfigs []graphqlDataSource.Configuration,
 		baseSchema string,
-		expectedConfigFactory func(t *testing.T, baseSchema string) graphql.EngineV2Configuration,
+		expectedConfigFactory func(t *testing.T, baseSchema string) EngineV2Configuration,
 	) {
 		doc, report := astparser.ParseGraphqlDocumentString(baseSchema)
 		if report.HasErrors() {
@@ -38,7 +37,7 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 		printedBaseSchema, err := astprinter.PrintString(&doc, nil)
 		require.NoError(t, err)
 
-		engineConfigV2Factory := NewEngineConfigV2Factory(httpClient, batchFactory, dataSourceConfigs...)
+		engineConfigV2Factory := NewFederationEngineConfigFactory(dataSourceConfigs, batchFactory, WithFederationHttpClient(httpClient))
 		config, err := engineConfigV2Factory.EngineV2Configuration()
 		assert.NoError(t, err)
 		assert.Equal(t, expectedConfigFactory(t, printedBaseSchema), config)
@@ -76,11 +75,11 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 					ServiceSDL: reviewSchema,
 				},
 			},
-		}, baseFederationSchema, func(t *testing.T, baseSchema string) graphql.EngineV2Configuration {
-			schema, err := graphql.NewSchemaFromString(baseSchema)
+		}, baseFederationSchema, func(t *testing.T, baseSchema string) EngineV2Configuration {
+			schema, err := NewSchemaFromString(baseSchema)
 			require.NoError(t, err)
 
-			conf := graphql.NewEngineV2Configuration(schema)
+			conf := NewEngineV2Configuration(schema)
 			conf.SetFieldConfigurations(plan.FieldConfigurations{
 				{
 					TypeName:       "User",
@@ -147,7 +146,7 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 						},
 					}),
 					Factory: &graphqlDataSource.Factory{
-						Client: httpClient,
+						HTTPClient: httpClient,
 						BatchFactory: batchFactory,
 					},
 				},
@@ -178,7 +177,7 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 						},
 					}),
 					Factory: &graphqlDataSource.Factory{
-						Client: httpClient,
+						HTTPClient: httpClient,
 						BatchFactory: batchFactory,
 					},
 				},
@@ -208,7 +207,7 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 						},
 					},
 					Factory: &graphqlDataSource.Factory{
-						Client: httpClient,
+						HTTPClient: httpClient,
 						BatchFactory: batchFactory,
 					},
 					Custom: graphqlDataSource.ConfigJson(graphqlDataSource.Configuration{

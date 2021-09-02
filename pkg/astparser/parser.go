@@ -7,6 +7,7 @@ import (
 
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/graphqlerrors"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/identkeyword"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/keyword"
@@ -270,7 +271,7 @@ func (p *Parser) errUnexpectedIdentKey(unexpected token.Token, unexpectedKey ide
 
 	p.report.AddExternalError(operationreport.ExternalError{
 		Message: fmt.Sprintf("unexpected literal - got: %s want one of: %v", unexpectedKey, expectedKeywords),
-		Locations: []operationreport.Location{
+		Locations: []graphqlerrors.Location{
 			{
 				Line:   unexpected.TextPosition.LineStart,
 				Column: unexpected.TextPosition.CharStart,
@@ -317,7 +318,7 @@ func (p *Parser) errUnexpectedToken(unexpected token.Token, expectedKeywords ...
 
 	p.report.AddExternalError(operationreport.ExternalError{
 		Message: fmt.Sprintf("unexpected token - got: %s want one of: %v", unexpected.Keyword, expectedKeywords),
-		Locations: []operationreport.Location{
+		Locations: []graphqlerrors.Location{
 			{
 				Line:   unexpected.TextPosition.LineStart,
 				Column: unexpected.TextPosition.CharStart,
@@ -959,6 +960,8 @@ func (p *Parser) parseFieldDefinitionList() (list ast.FieldDefinitionList) {
 				refsInitialized = true
 			}
 			list.Refs = append(list.Refs, ref)
+		case keyword.COMMENT:
+			p.read()
 		default:
 			p.errUnexpectedToken(p.read())
 			return
@@ -1424,7 +1427,7 @@ func (p *Parser) parseDirectiveLocations(locations *ast.DirectiveLocations) {
 				if err != nil {
 					p.report.AddExternalError(operationreport.ExternalError{
 						Message: fmt.Sprintf("invalid directive location: %s", unsafebytes.BytesToString(raw)),
-						Locations: []operationreport.Location{
+						Locations: []graphqlerrors.Location{
 							{
 								Line:   ident.TextPosition.LineStart,
 								Column: ident.TextPosition.CharStart,

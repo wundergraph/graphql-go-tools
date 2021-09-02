@@ -41,7 +41,7 @@ func TestCloser(t *testing.T) {
 	}
 
 	cfg := Configuration{
-		DefaultFlushInterval: 500,
+		DefaultFlushIntervalMillis: 500,
 		DataSources: []DataSourceConfiguration{
 			{
 				RootNodes: []TypeField{

@@ -52,7 +52,7 @@ func mustString(str string, err error) string {
 }
 
 func TestMergeSDLs(t *testing.T) {
-	got, err := MergeSDLs(accountSchema, productSchema, reviewSchema)
+	got, err := MergeSDLs(accountSchema, productSchema, reviewSchema, likeSchema)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,10 +107,23 @@ const (
 			review: Review!
 		}
 	`
+	likeSchema = `
+		type Like @key(fields: "id") {
+			id: ID!
+			productId: ID!
+			userId: ID!
+		}
+		type Query {
+			likesCount(productID: ID!): Int!
+			likes(productID: ID!): [Like]!
+		}
+	`
 	federatedSchema = `
 		type Query {
 			me: User
 			topProducts(first: Int = 5): [Product]
+			likesCount(productID: ID!): Int!
+			likes(productID: ID!): [Like]!
 		}
 		
 		type Subscription {
@@ -134,6 +147,11 @@ const (
 			body: String!
 			author: User!
 			product: Product!
+		}
+		type Like {
+			id: ID!
+			productId: ID!
+			userId: ID!
 		}
 	`
 )

@@ -68,3 +68,8 @@ func (d *Document) ImportAndExtendObjectTypeDefinitionByObjectTypeExtension(obje
 	)
 	d.Index.MergedTypeExtensions = append(d.Index.MergedTypeExtensions, Node{Ref: objectTypeExtensionRef, Kind: NodeKindObjectTypeExtension})
 }
+
+func (d *Document) AddObjectTypeDefinitionExtension(extension ObjectTypeExtension) (ref int) {
+	d.ObjectTypeExtensions = append(d.ObjectTypeExtensions, extension)
+	return len(d.ObjectTypeExtensions) - 1
+}
