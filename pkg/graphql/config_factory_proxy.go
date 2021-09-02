@@ -6,6 +6,7 @@ import (
 
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
 	graphqlDataSource "github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/graphql_datasource"
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 )
 
 type proxyEngineConfigFactoryOptions struct {
@@ -32,9 +33,10 @@ type ProxyEngineConfigFactory struct {
 	httpClient          *http.Client
 	schema              *Schema
 	proxyUpstreamConfig ProxyUpstreamConfig
+	batchFactory        resolve.DataSourceBatchFactory
 }
 
-func NewProxyEngineConfigFactory(schema *Schema, proxyUpstreamConfig ProxyUpstreamConfig, opts ...ProxyEngineConfigFactoryOption) *ProxyEngineConfigFactory {
+func NewProxyEngineConfigFactory(schema *Schema, proxyUpstreamConfig ProxyUpstreamConfig, batchFactory resolve.DataSourceBatchFactory, opts ...ProxyEngineConfigFactoryOption) *ProxyEngineConfigFactory {
 	options := proxyEngineConfigFactoryOptions{
 		httpClient: &http.Client{
 			Timeout: time.Second * 10,
@@ -53,6 +55,7 @@ func NewProxyEngineConfigFactory(schema *Schema, proxyUpstreamConfig ProxyUpstre
 		httpClient:          options.httpClient,
 		schema:              schema,
 		proxyUpstreamConfig: proxyUpstreamConfig,
+		batchFactory:        batchFactory,
 	}
 }
 
@@ -75,7 +78,7 @@ func (p *ProxyEngineConfigFactory) EngineV2Configuration() (EngineV2Configuratio
 		return EngineV2Configuration{}, report
 	}
 
-	dataSource := newGraphQLDataSourceV2Generator(&rawDoc).Generate(dataSourceConfig, p.httpClient)
+	dataSource := newGraphQLDataSourceV2Generator(&rawDoc).Generate(dataSourceConfig, p.batchFactory, p.httpClient)
 	conf.AddDataSource(dataSource)
 
 	fieldConfigs := newGraphQLFieldConfigsV2Generator(p.schema).Generate()

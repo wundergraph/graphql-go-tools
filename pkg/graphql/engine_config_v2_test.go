@@ -81,7 +81,8 @@ func TestGraphQLDataSourceV2Generator_Generate(t *testing.T) {
 	doc, report := astparser.ParseGraphqlDocumentString(graphqlGeneratorSchema)
 	require.Falsef(t, report.HasErrors(), "document parser report has errors")
 
-	dataSource := newGraphQLDataSourceV2Generator(&doc).Generate(dataSourceConfig, client)
+	batchFactory := graphqlDataSource.NewBatchFactory()
+	dataSource := newGraphQLDataSourceV2Generator(&doc).Generate(dataSourceConfig, batchFactory, client)
 	expectedRootNodes := []plan.TypeField{
 		{
 			TypeName:   "Query",

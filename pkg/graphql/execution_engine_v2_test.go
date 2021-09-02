@@ -466,18 +466,18 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 }
 
 func TestExecutionEngineV2_FederationAndSubscription_IntegrationTest(t *testing.T) {
-	ctx, cancelFn := context.WithCancel(context.Background())
-	setup := newFederationSetup()
-	t.Cleanup(func() {
-		cancelFn()
-		setup.accountsUpstreamServer.Close()
-		setup.productsUpstreamServer.Close()
-		setup.reviewsUpstreamServer.Close()
-		setup.pollingUpstreamServer.Close()
-	})
 
 	runIntegration := func(t *testing.T, enableDataLoader bool, secondRun bool) {
 		t.Helper()
+		ctx, cancelFn := context.WithCancel(context.Background())
+		setup := newFederationSetup()
+		t.Cleanup(func() {
+			cancelFn()
+			setup.accountsUpstreamServer.Close()
+			setup.productsUpstreamServer.Close()
+			setup.reviewsUpstreamServer.Close()
+			setup.pollingUpstreamServer.Close()
+		})
 
 		engine, schema, err := newFederationEngine(ctx, setup, enableDataLoader)
 		require.NoError(t, err)
