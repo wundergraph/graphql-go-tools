@@ -4,15 +4,18 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"testing"
 
+	"github.com/gobwas/ws"
+	"github.com/gobwas/ws/wsutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/graphql"
+	"github.com/jensneuse/graphql-go-tools/pkg/subscription"
 )
 
 type queryVariables map[string]interface{}
@@ -63,13 +66,72 @@ func (g *GraphqlClient) Query(ctx context.Context, addr, queryFilePath string, v
 	require.NoError(t, err)
 	responseBodyBytes, err := ioutil.ReadAll(resp.Body)
 	require.NoError(t, err)
-	if http.StatusOK != resp.StatusCode {
-		fmt.Println(">>>", string(responseBodyBytes))
-	}
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Contains(t, resp.Header.Get("Content-Type"), "application/json")
 
 	return responseBodyBytes
 }
 
+func (g *GraphqlClient) Subscription(ctx context.Context, addr, queryFilePath string, variables queryVariables, t *testing.T) chan []byte {
+	messageCh := make(chan []byte)
 
+	conn, _, _, err := ws.Dial(ctx, addr)
+	require.NoError(t, err)
+	// 1. send connection init
+	initialClientMessage := subscription.Message{
+		Id:      "",
+		Type:    subscription.MessageTypeConnectionInit,
+		Payload: nil,
+	}
+
+	err = g.sendMessageToServer(conn, initialClientMessage)
+	require.NoError(t, err)
+	// 2. receive connection ack
+	serverMessage := g.readMessageFromServer(t, conn)
+	assert.Equal(t, `{"id":"","type":"connection_ack","payload":null}`, string(serverMessage))
+	// 3. send `start` message with subscription operation
+	startSubscriptionMessage := subscription.Message{
+		Id:      "1",
+		Type:    subscription.MessageTypeStart,
+		Payload: loadQuery(t, queryFilePath, variables),
+	}
+
+	err = g.sendMessageToServer(conn, startSubscriptionMessage)
+	require.NoError(t, err)
+
+	// 4. start receiving messages from subscription
+
+	go func() {
+		defer conn.Close()
+		defer close(messageCh)
+
+		for {
+			msgBytes, _, err := wsutil.ReadServerData(conn)
+			require.NoError(t, err)
+
+			messageCh <- msgBytes
+		}
+	}()
+
+	return messageCh
+}
+
+func (g *GraphqlClient) sendMessageToServer(clientConn net.Conn, message subscription.Message) error {
+	messageBytes, err := json.Marshal(message)
+	if err != nil {
+		return err
+	}
+
+	if err = wsutil.WriteClientText(clientConn, messageBytes); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (g *GraphqlClient) readMessageFromServer(t *testing.T, clientConn net.Conn) []byte {
+	msgBytes, _, err := wsutil.ReadServerData(clientConn)
+	require.NoError(t, err)
+
+	return msgBytes
+}

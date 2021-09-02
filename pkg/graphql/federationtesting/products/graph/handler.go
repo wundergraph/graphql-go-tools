@@ -57,12 +57,6 @@ func GraphQLEndpointHandler(opts EndpointOptions) http.Handler {
 		srv.Use(&debug.Tracer{})
 	}
 
-	randomnessEnabled = opts.EnableRandomness
-
-	if opts.OverrideUpdateInterval > 0 {
-		updateInterval = opts.OverrideUpdateInterval
-	}
-
 	return srv
 }
 

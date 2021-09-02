@@ -25,7 +25,7 @@ func Handler(
 ) *Gateway {
 	upgrader := &ws.DefaultHTTPUpgrader
 	upgrader.Header = http.Header{}
-	upgrader.Header.Add("Sec-Websocket-Protocol", "graphql-ws")
+	//upgrader.Header.Add("Sec-Websocket-Protocol", "graphql-ws")
 
 	datasourceWatcher := datasourcePoller
 
