@@ -63,6 +63,9 @@ func (p *ProxyEngineConfigFactory) EngineV2Configuration() (EngineV2Configuratio
 			Method: p.proxyUpstreamConfig.Method,
 			Header: p.proxyUpstreamConfig.StaticHeaders,
 		},
+		Subscription: graphqlDataSource.SubscriptionConfiguration{
+			URL: p.proxyUpstreamConfig.URL,
+		},
 	}
 
 	conf := NewEngineV2Configuration(p.schema)

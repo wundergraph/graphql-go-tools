@@ -15,7 +15,7 @@ require (
 	github.com/gobuffalo/packr v1.30.1
 	github.com/gobwas/ws v1.0.4
 	github.com/golang/mock v1.4.1
-	github.com/hashicorp/golang-lru v0.5.4 // indirect
+	github.com/hashicorp/golang-lru v0.5.4
 	github.com/iancoleman/strcase v0.0.0-20191112232945-16388991a334
 	github.com/jensneuse/abstractlogger v0.0.4
 	github.com/jensneuse/byte-template v0.0.0-20200214152254-4f3cf06e5c68

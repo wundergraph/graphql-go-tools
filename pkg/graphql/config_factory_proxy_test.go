@@ -66,6 +66,9 @@ func TestProxyEngineConfigFactory_EngineV2Configuration(t *testing.T) {
 					"Authorization": {"123abc"},
 				},
 			},
+			Subscription: graphqlDataSource.SubscriptionConfiguration{
+				URL: "http://localhost:8080",
+			},
 		}),
 	}
 
