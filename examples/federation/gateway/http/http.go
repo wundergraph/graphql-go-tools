@@ -3,6 +3,7 @@ package http
 
 import (
 	"bytes"
+	"fmt"
 	"net/http"
 
 	log "github.com/jensneuse/abstractlogger"
@@ -43,14 +44,16 @@ func (g *GraphQLHTTPRequestHandler) handleHTTP(w http.ResponseWriter, r *http.Re
 
 	buf := bytes.NewBuffer(make([]byte, 0, 4096))
 	resultWriter := graphql.NewEngineResultWriterFromBuffer(buf)
-	if err = g.engine.Execute(r.Context(), &gqlRequest, &resultWriter); err != nil {
-		g.log.Error("engine.Execute", log.Error(err))
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
 
 	w.Header().Add(httpHeaderContentType, httpContentTypeApplicationJson)
 	w.WriteHeader(http.StatusOK)
+
+	if err = g.engine.Execute(r.Context(), &gqlRequest, &resultWriter); err != nil {
+		g.log.Error("engine.Execute", log.Error(err))
+		_, _ = fmt.Fprintf(w, `{"errors":[{"message":"%s"}]}`, err)
+		return
+	}
+
 	if _, err = w.Write(buf.Bytes()); err != nil {
 		g.log.Error("write response", log.Error(err))
 		return

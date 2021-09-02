@@ -26,7 +26,8 @@ func NewMiddleware(
 			}
 
 			if err = checkRoles(ctx, requiredRoles); err != nil {
-				_, _ = fmt.Fprintf(writer, `{"errors":[{"message":"access denied, reason: %s"}]}`, err)
+				err := fmt.Errorf("access denied, reason: %s", err)
+				_, _ = fmt.Fprintf(writer, `{"errors":[{"message":"%s"}]}`, err)
 				return err
 			}
 
