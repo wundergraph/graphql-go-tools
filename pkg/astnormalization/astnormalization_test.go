@@ -405,9 +405,6 @@ var run = func(normalizeFunc registerNormalizeFunc, definition, operation, expec
 	}
 }
 
-func runOnDefinition(normalizeFunc registerNormalizeFunc, definition, expectedOutput string) {
-	run(normalizeFunc, "", definition, expectedOutput)
-}
 func runMany(definition, operation, expectedOutput string, normalizeFuncs ...registerNormalizeFunc) {
 	var runManyNormalizers = func(walker *astvisitor.Walker) {
 		for _, normalizeFunc := range normalizeFuncs {
