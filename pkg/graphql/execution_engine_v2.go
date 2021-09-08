@@ -2,10 +2,13 @@ package graphql
 
 import (
 	"bytes"
+	"compress/flate"
+	"compress/gzip"
 	"context"
 	"errors"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"sync"
 
 	lru "github.com/hashicorp/golang-lru"
@@ -13,6 +16,7 @@ import (
 
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
@@ -74,10 +78,28 @@ func (e *EngineResultWriter) Reset() {
 }
 
 func (e *EngineResultWriter) AsHTTPResponse(status int, headers http.Header) *http.Response {
+	b := &bytes.Buffer{}
+
+	switch headers.Get(httpclient.ContentEncodingHeader) {
+	case "gzip":
+		gzw := gzip.NewWriter(b)
+		_, _ = gzw.Write(e.Bytes())
+		_ = gzw.Close()
+	case "deflate":
+		fw, _ := flate.NewWriter(b, 1)
+		_, _ = fw.Write(e.Bytes())
+		_ = fw.Close()
+	default:
+		headers.Del(httpclient.ContentEncodingHeader) // delete unsupported compression header
+		b = e.buf
+	}
+
 	res := &http.Response{}
-	res.Body = ioutil.NopCloser(e.buf)
+	res.Body = ioutil.NopCloser(b)
 	res.Header = headers
 	res.StatusCode = status
+	res.ContentLength = int64(b.Len())
+	res.Header.Set("Content-Length", strconv.Itoa(b.Len()))
 	return res
 }
 
