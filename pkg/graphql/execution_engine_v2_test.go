@@ -1,6 +1,8 @@
 package graphql
 
 import (
+	"compress/flate"
+	"compress/gzip"
 	"context"
 	"fmt"
 	"io/ioutil"
@@ -28,19 +30,62 @@ import (
 )
 
 func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
-	rw := NewEngineResultWriter()
-	_, err := rw.Write([]byte(`{"key": "value"}`))
-	require.NoError(t, err)
+	t.Run("no compression", func(t *testing.T) {
+		rw := NewEngineResultWriter()
+		_, err := rw.Write([]byte(`{"key": "value"}`))
+		require.NoError(t, err)
 
-	headers := make(http.Header)
-	headers.Set("Content-Type", "application/json")
-	response := rw.AsHTTPResponse(http.StatusOK, headers)
-	body, err := ioutil.ReadAll(response.Body)
-	require.NoError(t, err)
+		headers := make(http.Header)
+		headers.Set("Content-Type", "application/json")
+		response := rw.AsHTTPResponse(http.StatusOK, headers)
+		body, err := ioutil.ReadAll(response.Body)
+		require.NoError(t, err)
 
-	assert.Equal(t, http.StatusOK, response.StatusCode)
-	assert.Equal(t, "application/json", response.Header.Get("Content-Type"))
-	assert.Equal(t, `{"key": "value"}`, string(body))
+		assert.Equal(t, http.StatusOK, response.StatusCode)
+		assert.Equal(t, "application/json", response.Header.Get("Content-Type"))
+		assert.Equal(t, `{"key": "value"}`, string(body))
+	})
+
+	t.Run("compression based on content encoding header", func(t *testing.T) {
+		rw := NewEngineResultWriter()
+		_, err := rw.Write([]byte(`{"key": "value"}`))
+		require.NoError(t, err)
+
+		headers := make(http.Header)
+		headers.Set("Content-Type", "application/json")
+
+		t.Run("gzip", func(t *testing.T) {
+			headers.Set(httpclient.ContentEncodingHeader, "gzip")
+
+			response := rw.AsHTTPResponse(http.StatusOK, headers)
+			assert.Equal(t, http.StatusOK, response.StatusCode)
+			assert.Equal(t, "application/json", response.Header.Get("Content-Type"))
+			assert.Equal(t, "gzip", response.Header.Get(httpclient.ContentEncodingHeader))
+
+			reader, err := gzip.NewReader(response.Body)
+			require.NoError(t, err)
+
+			body, err := ioutil.ReadAll(reader)
+			require.NoError(t, err)
+
+			assert.Equal(t, `{"key": "value"}`, string(body))
+		})
+
+		t.Run("deflate", func(t *testing.T) {
+			headers.Set(httpclient.ContentEncodingHeader, "deflate")
+
+			response := rw.AsHTTPResponse(http.StatusOK, headers)
+			assert.Equal(t, http.StatusOK, response.StatusCode)
+			assert.Equal(t, "application/json", response.Header.Get("Content-Type"))
+			assert.Equal(t, "deflate", response.Header.Get(httpclient.ContentEncodingHeader))
+
+			reader := flate.NewReader(response.Body)
+			body, err := ioutil.ReadAll(reader)
+			require.NoError(t, err)
+
+			assert.Equal(t, `{"key": "value"}`, string(body))
+		})
+	})
 }
 
 type ExecutionEngineV2TestCase struct {
