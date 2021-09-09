@@ -2,16 +2,12 @@ package graphql_datasource
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
-	"github.com/buger/jsonparser"
 	ll "github.com/jensneuse/abstractlogger"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/atomic"
@@ -146,7 +142,7 @@ func TestWebsocketSubscriptionClientWithServerDisconnect(t *testing.T) {
 		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"data","id":"1","payload":{"data":{"messageAdded":{"text":"third"}}}}`))
 		assert.NoError(t, err)
 
-		_,_, err = conn.Read(ctx)
+		_, _, err = conn.Read(ctx)
 		assert.Error(t, err)
 		close(serverDone)
 	}))
@@ -288,6 +284,7 @@ func TestWebsocketSubscriptionClientErrorObject(t *testing.T) {
 	}, time.Second, time.Millisecond*10, "server did not close")
 }
 
+/* deduplication implementation
 func TestWebsocketSubscriptionClientDeDuplication(t *testing.T) {
 	serverDone := &sync.WaitGroup{}
 	connectedClients := atomic.NewInt64(0)
@@ -420,3 +417,4 @@ func TestWebsocketSubscriptionClientDeDuplication(t *testing.T) {
 		return connectedClients.Load() == 0
 	}, time.Second, time.Millisecond, "clients not 0")
 }
+*/
