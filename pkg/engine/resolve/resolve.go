@@ -21,6 +21,7 @@ import (
 	errors "golang.org/x/xerrors"
 
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
+	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/fastbuffer"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/pool"
@@ -1284,7 +1285,7 @@ func (i *InputTemplate) Render(ctx *Context, data []byte, preparedInput *fastbuf
 			case VariableSourceObject:
 				err = i.renderObjectVariable(data, i.Segments[j].VariableSourcePath, preparedInput)
 			case VariableSourceContext:
-				err = i.renderContextVariable(ctx, i.Segments[j].VariableSourcePath, i.Segments[j].RenderAsGraphQLValue, preparedInput)
+				err = i.renderContextVariable(ctx, i.Segments[j].VariableSourcePath, i.Segments[j].VariableValueType, preparedInput)
 			case VariableSourceRequestHeader:
 				err = i.renderHeaderVariable(ctx, i.Segments[j].VariableSourcePath, preparedInput)
 			default:
@@ -1307,25 +1308,21 @@ func (i *InputTemplate) renderObjectVariable(data []byte, path []string, prepare
 	return nil
 }
 
-func (i *InputTemplate) renderContextVariable(ctx *Context, path []string, renderAsGraphQLValue bool, preparedInput *fastbuffer.FastBuffer) error {
+func (i *InputTemplate) renderContextVariable(ctx *Context, path []string, variableValueType jsonparser.ValueType, preparedInput *fastbuffer.FastBuffer) error {
 	value, valueType, _, err := jsonparser.Get(ctx.Variables, path...)
-	if err != nil {
-		return err
-	}
-	if !renderAsGraphQLValue {
-		preparedInput.WriteBytes(value)
+	if err != nil || valueType == jsonparser.Null {
+		preparedInput.WriteBytes(literal.NULL)
 		return nil
 	}
-	return i.renderGraphQLValue(value, valueType, preparedInput)
+
+	return i.renderGraphQLValue(value, variableValueType, preparedInput)
 }
 
 func (i *InputTemplate) renderGraphQLValue(data []byte, valueType jsonparser.ValueType, buf *fastbuffer.FastBuffer) (err error) {
 	switch valueType {
 	case jsonparser.String:
-		buf.WriteBytes(literal.BACKSLASH)
 		buf.WriteBytes(literal.QUOTE)
 		buf.WriteBytes(data)
-		buf.WriteBytes(literal.BACKSLASH)
 		buf.WriteBytes(literal.QUOTE)
 	case jsonparser.Object:
 		buf.WriteBytes(literal.LBRACE)
@@ -1336,7 +1333,9 @@ func (i *InputTemplate) renderGraphQLValue(data []byte, valueType jsonparser.Val
 			} else {
 				first = false
 			}
+			buf.WriteBytes(literal.QUOTE)
 			buf.WriteBytes(key)
+			buf.WriteBytes(literal.QUOTE)
 			buf.WriteBytes(literal.COLON)
 			return i.renderGraphQLValue(value, dataType, buf)
 		})
@@ -1411,11 +1410,11 @@ const (
 )
 
 type TemplateSegment struct {
-	SegmentType          SegmentType
-	Data                 []byte
-	VariableSource       VariableSource
-	VariableSourcePath   []string
-	RenderAsGraphQLValue bool
+	SegmentType        SegmentType
+	Data               []byte
+	VariableSource     VariableSource
+	VariableSourcePath []string
+	VariableValueType  jsonparser.ValueType
 }
 
 func (_ *SingleFetch) FetchKind() FetchKind {
@@ -1501,7 +1500,7 @@ const (
 	quotes               = "\""
 )
 
-func (v *Variables) AddVariable(variable Variable, quoteValue bool) (name string, exists bool) {
+func (v *Variables) AddVariable(variable Variable) (name string, exists bool) {
 	index := -1
 	for i := range *v {
 		if (*v)[i].Equals(variable) {
@@ -1516,9 +1515,6 @@ func (v *Variables) AddVariable(variable Variable, quoteValue bool) (name string
 	}
 	i := strconv.Itoa(index)
 	name = variablePrefixSuffix + i + variablePrefixSuffix
-	if quoteValue {
-		name = quotes + name + quotes
-	}
 	return
 }
 
@@ -1531,16 +1527,44 @@ const (
 )
 
 type ContextVariable struct {
-	Path                 []string
-	RenderAsGraphQLValue bool
+	Path          []string
+	JsonValueType jsonparser.ValueType
+}
+
+func (c *ContextVariable) SetJsonValueType(document *ast.Document, typeRef int) {
+	// TODO: check is it reachable
+	if document.TypeIsList(typeRef) {
+		c.JsonValueType = jsonparser.Array
+		return
+	}
+
+	// TODO: handle enum
+
+	if document.TypeIsScalar(typeRef, document) {
+		typeName := document.ResolveTypeNameString(typeRef)
+		switch typeName {
+		case "Boolean":
+			c.JsonValueType = jsonparser.Boolean
+		case "Int", "Float":
+			c.JsonValueType = jsonparser.Number
+		case "String", "Date", "ID":
+			c.JsonValueType = jsonparser.String
+		default:
+			// TODO: this could be wrong in case of custom scalars
+			c.JsonValueType = jsonparser.String
+		}
+		return
+	}
+
+	c.JsonValueType = jsonparser.Object
 }
 
 func (c *ContextVariable) TemplateSegment() TemplateSegment {
 	return TemplateSegment{
-		SegmentType:          VariableSegmentType,
-		VariableSource:       VariableSourceContext,
-		VariableSourcePath:   c.Path,
-		RenderAsGraphQLValue: c.RenderAsGraphQLValue,
+		SegmentType:        VariableSegmentType,
+		VariableSource:     VariableSourceContext,
+		VariableSourcePath: c.Path,
+		VariableValueType:  c.JsonValueType,
 	}
 }
 

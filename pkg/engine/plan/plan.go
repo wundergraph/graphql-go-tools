@@ -714,7 +714,7 @@ func (v *Visitor) resolveInputTemplates(config objectFetchConfiguration, input *
 		case "object":
 			variableName, _ = variables.AddVariable(&resolve.ObjectVariable{
 				Path: path,
-			}, false)
+			})
 		case "arguments":
 			argumentName := path[0]
 			arg, ok := v.Operation.FieldArgument(config.fieldRef, []byte(argumentName))
@@ -731,7 +731,7 @@ func (v *Visitor) resolveInputTemplates(config objectFetchConfiguration, input *
 			}
 			variableName, _ = variables.AddVariable(&resolve.ContextVariable{
 				Path: []string{variableValue},
-			}, false)
+			})
 		case "request":
 			if len(path) != 2 {
 				break
@@ -741,7 +741,7 @@ func (v *Visitor) resolveInputTemplates(config objectFetchConfiguration, input *
 				key := path[1]
 				variableName, _ = variables.AddVariable(&resolve.HeaderVariable{
 					Path: []string{key},
-				}, false)
+				})
 			}
 		}
 		return variableName
