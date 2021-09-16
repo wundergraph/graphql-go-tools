@@ -974,6 +974,86 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 			},
 		},
 	))
+	t.Run("get request with array query", datasourcetesting.RunTest(schema, arrayArgumentOperation, "ArgumentQuery",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						BufferId:   0,
+						Input:      `{"method":"GET","url":"https://example.com/friend/$$0$$"}`,
+						DataSource: &Source{},
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path: []string{"a"},
+							},
+						),
+						DataSourceIdentifier: []byte("rest_datasource.Source"),
+					},
+					Fields: []*resolve.Field{
+						{
+							BufferID:  0,
+							HasBuffer: true,
+							Name:      []byte("withArrayArguments"),
+							Position: resolve.Position{
+								Line:   3,
+								Column: 4,
+							},
+							Value: &resolve.Object{
+								Nullable: true,
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("name"),
+										Value: &resolve.String{
+											Path:     []string{"name"},
+											Nullable: true,
+										},
+										Position: resolve.Position{
+											Line:   4,
+											Column: 5,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		plan.Configuration{
+			DataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"withArrayArguments"},
+						},
+					},
+					Custom: ConfigJSON(Configuration{
+						Fetch: FetchConfiguration{
+							URL:    "https://example.com/friend/{{ .arguments.names }}",
+							Method: "GET",
+						},
+					}),
+					Factory: &Factory{},
+				},
+			},
+			Fields: []plan.FieldConfiguration{
+				{
+					TypeName:              "Query",
+					FieldName:             "withArrayArguments",
+					DisableDefaultMapping: true,
+					Arguments: []plan.ArgumentConfiguration{
+						{
+							Name: "names",
+							SourceType: plan.FieldArgumentSource,
+							SourcePath: []string{"names"},
+							RenderOptions: plan.RenderArrayAsCSV,
+						},
+					},
+				},
+			},
+		},
+	))
 }
 
 func TestHttpJsonDataSource_Load(t *testing.T) {
