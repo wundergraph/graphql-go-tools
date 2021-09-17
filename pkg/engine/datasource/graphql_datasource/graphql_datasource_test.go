@@ -49,6 +49,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						&resolve.ContextVariable{
 							Path:          []string{"id"},
 							JsonValueType: jsonparser.String,
+							RenderAsGraphQLValue: true,
 						},
 						&resolve.HeaderVariable{
 							Path: []string{"Authorization"},
@@ -269,6 +270,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							&resolve.ContextVariable{
 								Path:          []string{"name"},
 								JsonValueType: jsonparser.String,
+								RenderAsGraphQLValue: true,
 							},
 						),
 						DisallowSingleFlight:  true,
@@ -379,10 +381,12 @@ func TestGraphQLDataSource(t *testing.T) {
 							&resolve.ContextVariable{
 								Path:          []string{"a"},
 								JsonValueType: jsonparser.String,
+								RenderAsGraphQLValue: true,
 							},
 							&resolve.ContextVariable{
 								Path:          []string{"b"},
 								JsonValueType: jsonparser.String,
+								RenderAsGraphQLValue: true,
 							},
 						),
 						DisallowSingleFlight:  false,
@@ -492,10 +496,12 @@ func TestGraphQLDataSource(t *testing.T) {
 							&resolve.ContextVariable{
 								Path:          []string{"a"},
 								JsonValueType: jsonparser.String,
+								RenderAsGraphQLValue: true,
 							},
 							&resolve.ContextVariable{
 								Path:          []string{"b"},
 								JsonValueType: jsonparser.String,
+								RenderAsGraphQLValue: true,
 							},
 						),
 						DisallowSingleFlight:  false,
@@ -633,10 +639,12 @@ func TestGraphQLDataSource(t *testing.T) {
 							&resolve.ContextVariable{
 								Path:          []string{"a"},
 								JsonValueType: jsonparser.String,
+								RenderAsGraphQLValue: true,
 							},
 							&resolve.ContextVariable{
 								Path:          []string{"b"},
 								JsonValueType: jsonparser.String,
+								RenderAsGraphQLValue: true,
 							},
 						),
 						DisallowSingleFlight:  false,
@@ -810,10 +818,12 @@ func TestGraphQLDataSource(t *testing.T) {
 									&resolve.ContextVariable{
 										Path:          []string{"firstArg"},
 										JsonValueType: jsonparser.String,
+										RenderAsGraphQLValue: true,
 									},
 									&resolve.ContextVariable{
 										Path:          []string{"thirdArg"},
 										JsonValueType: jsonparser.Number,
+										RenderAsGraphQLValue: true,
 									},
 								),
 								DataSourceIdentifier:  []byte("graphql_datasource.Source"),
@@ -827,10 +837,12 @@ func TestGraphQLDataSource(t *testing.T) {
 									&resolve.ContextVariable{
 										Path:          []string{"secondArg"},
 										JsonValueType: jsonparser.Boolean,
+										RenderAsGraphQLValue: true,
 									},
 									&resolve.ContextVariable{
 										Path:          []string{"fourthArg"},
 										JsonValueType: jsonparser.Number,
+										RenderAsGraphQLValue: true,
 									},
 								),
 								DataSourceIdentifier:  []byte("graphql_datasource.Source"),
@@ -917,6 +929,7 @@ func TestGraphQLDataSource(t *testing.T) {
 									Variables: resolve.NewVariables(
 										&resolve.ObjectVariable{
 											Path: []string{"serviceOneField"},
+											RenderAsGraphQLValue: true,
 										},
 									),
 									DataSourceIdentifier:  []byte("graphql_datasource.Source"),
@@ -1211,14 +1224,17 @@ func TestGraphQLDataSource(t *testing.T) {
 							&resolve.ContextVariable{
 								Path:          []string{"title"},
 								JsonValueType: jsonparser.String,
+								RenderAsGraphQLValue: true,
 							},
 							&resolve.ContextVariable{
 								Path:          []string{"completed"},
 								JsonValueType: jsonparser.Boolean,
+								RenderAsGraphQLValue: true,
 							},
 							&resolve.ContextVariable{
 								Path:          []string{"name"},
 								JsonValueType: jsonparser.String,
+								RenderAsGraphQLValue: true,
 							},
 						),
 						DisallowSingleFlight:  true,
@@ -1378,10 +1394,12 @@ func TestGraphQLDataSource(t *testing.T) {
 							&resolve.ContextVariable{
 								Path:          []string{"id"},
 								JsonValueType: jsonparser.String,
+								RenderAsGraphQLValue: true,
 							},
 							&resolve.ContextVariable{
 								Path:          []string{"name"},
 								JsonValueType: jsonparser.String,
+								RenderAsGraphQLValue: true,
 							},
 						),
 						DisallowSingleFlight:  true,
@@ -1524,10 +1542,12 @@ func TestGraphQLDataSource(t *testing.T) {
 							&resolve.ContextVariable{
 								Path:          []string{"name"},
 								JsonValueType: jsonparser.String,
+								RenderAsGraphQLValue: true,
 							},
 							&resolve.ContextVariable{
 								Path:          []string{"personal"},
 								JsonValueType: jsonparser.Boolean,
+								RenderAsGraphQLValue: true,
 							},
 						),
 						DisallowSingleFlight:  true,
@@ -1756,6 +1776,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					&resolve.ContextVariable{
 						Path:          []string{"a"},
 						JsonValueType: jsonparser.String,
+						RenderAsGraphQLValue: true,
 					},
 				),
 				Source: &SubscriptionSource{
@@ -1864,6 +1885,8 @@ func TestGraphQLDataSource(t *testing.T) {
 									Variables: resolve.NewVariables(
 										&resolve.ObjectVariable{
 											Path: []string{"id"},
+											JsonValueType: jsonparser.String,
+											RenderAsGraphQLValue: true,
 										},
 									),
 									DataSource:           &Source{},
@@ -1969,6 +1992,8 @@ func TestGraphQLDataSource(t *testing.T) {
 																		Variables: resolve.NewVariables(
 																			&resolve.ObjectVariable{
 																				Path: []string{"upc"},
+																				JsonValueType: jsonparser.String,
+																				RenderAsGraphQLValue: true,
 																			},
 																		),
 																		DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -1983,6 +2008,8 @@ func TestGraphQLDataSource(t *testing.T) {
 																		Variables: resolve.NewVariables(
 																			&resolve.ObjectVariable{
 																				Path: []string{"upc"},
+																				JsonValueType: jsonparser.String,
+																				RenderAsGraphQLValue: true,
 																			},
 																		),
 																		DataSource:           &Source{},

@@ -124,6 +124,18 @@ func (d *Document) TypeIsScalar(ref int, definition *Document) bool {
 	return false
 }
 
+func (d *Document) TypeIsEnum(ref int, definition *Document) bool {
+	switch d.Types[ref].TypeKind {
+	case TypeKindNamed:
+		typeName := d.TypeNameBytes(ref)
+		node, _ := definition.Index.FirstNodeByNameBytes(typeName)
+		return node.Kind == NodeKindEnumTypeDefinition
+	case TypeKindNonNull:
+		return d.TypeIsEnum(d.Types[ref].OfType, definition)
+	}
+	return false
+}
+
 func (d *Document) TypeIsNonNull(ref int) bool {
 	return d.Types[ref].TypeKind == TypeKindNonNull
 }

@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"testing"
 
+	"github.com/buger/jsonparser"
 	jsonpatch "github.com/evanphx/json-patch/v5"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -48,6 +49,8 @@ func TestWithoutDefer(t *testing.T) {
 											SegmentType:        VariableSegmentType,
 											VariableSource:     VariableSourceObject,
 											VariableSourcePath: []string{"id"},
+											RenderVariableAsGraphQLValue: true,
+											VariableValueType: jsonparser.Number,
 										},
 									},
 								},
@@ -223,6 +226,8 @@ func TestDefer(t *testing.T) {
 								SegmentType:        VariableSegmentType,
 								VariableSource:     VariableSourceObject,
 								VariableSourcePath: []string{"id"},
+								VariableValueType: jsonparser.Number,
+								RenderVariableAsGraphQLValue: true,
 							},
 						},
 					},

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/buger/jsonparser"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -140,6 +141,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 									Variables: resolve.NewVariables(
 										&resolve.ObjectVariable{
 											Path: []string{"name"},
+											RenderAsPlainValue: true,
 										},
 									),
 									DataSourceIdentifier: []byte("rest_datasource.Source"),
@@ -256,10 +258,14 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
-								Path: []string{"idVariable"},
+								Path:          []string{"idVariable"},
+								JsonValueType: jsonparser.String,
+								RenderAsPlainValue: true,
 							},
 							&resolve.ContextVariable{
-								Path: []string{"a"},
+								Path:          []string{"a"},
+								JsonValueType: jsonparser.String,
+								RenderAsPlainValue: true,
 							},
 						),
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
@@ -333,10 +339,14 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 								DataSource: &Source{},
 								Variables: resolve.NewVariables(
 									&resolve.ContextVariable{
-										Path: []string{"idVariable"},
+										Path:          []string{"idVariable"},
+										JsonValueType: jsonparser.String,
+										RenderAsPlainValue: true,
 									},
 									&resolve.ContextVariable{
-										Path: []string{"a"},
+										Path:          []string{"a"},
+										JsonValueType: jsonparser.String,
+										RenderAsPlainValue: true,
 									},
 								),
 								DataSourceIdentifier: []byte("rest_datasource.Source"),
@@ -347,10 +357,14 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 								DataSource: &Source{},
 								Variables: resolve.NewVariables(
 									&resolve.ContextVariable{
-										Path: []string{"idVariable"},
+										Path:          []string{"idVariable"},
+										JsonValueType: jsonparser.String,
+										RenderAsPlainValue: true,
 									},
 									&resolve.ContextVariable{
-										Path: []string{"d"},
+										Path:          []string{"d"},
+										JsonValueType: jsonparser.String,
+										RenderAsPlainValue: true,
 									},
 								),
 								DataSourceIdentifier: []byte("rest_datasource.Source"),
@@ -376,7 +390,9 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 											DataSource: &Source{},
 											Variables: resolve.NewVariables(
 												&resolve.ContextVariable{
-													Path: []string{"b"},
+													Path:          []string{"b"},
+													JsonValueType: jsonparser.String,
+													RenderAsPlainValue: true,
 												},
 											),
 											DataSourceIdentifier: []byte("rest_datasource.Source"),
@@ -387,7 +403,9 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 											DataSource: &Source{},
 											Variables: resolve.NewVariables(
 												&resolve.ContextVariable{
-													Path: []string{"c"},
+													Path:          []string{"c"},
+													JsonValueType: jsonparser.String,
+													RenderAsPlainValue: true,
 												},
 											),
 											DataSourceIdentifier: []byte("rest_datasource.Source"),
@@ -519,10 +537,14 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
-								Path: []string{"a"},
+								Path:          []string{"a"},
+								JsonValueType: jsonparser.String,
+								RenderAsPlainValue: true,
 							},
 							&resolve.ContextVariable{
-								Path: []string{"b"},
+								Path:          []string{"b"},
+								JsonValueType: jsonparser.String,
+								RenderAsPlainValue: true,
 							},
 						),
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
@@ -809,10 +831,14 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
-								Path: []string{"a"},
+								Path:          []string{"a"},
+								JsonValueType: jsonparser.String,
+								RenderAsPlainValue: true,
 							},
 							&resolve.ContextVariable{
-								Path: []string{"idVariable"},
+								Path:          []string{"idVariable"},
+								JsonValueType: jsonparser.String,
+								RenderAsPlainValue: true,
 							},
 						),
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
@@ -906,7 +932,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
-								Path: []string{"a"},
+								Path:               []string{"a"},
+								JsonValueType:      jsonparser.Array,
+								ArrayJsonValueType: jsonparser.String,
+								RenderAsPlainValue: true,
 							},
 						),
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
@@ -984,7 +1013,10 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
-								Path: []string{"a"},
+								Path:               []string{"a"},
+								JsonValueType:      jsonparser.Array,
+								ArrayJsonValueType: jsonparser.String,
+								RenderAsArrayCSV:   true,
 							},
 						),
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
@@ -1044,10 +1076,8 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 					DisableDefaultMapping: true,
 					Arguments: []plan.ArgumentConfiguration{
 						{
-							Name: "names",
-							SourceType: plan.FieldArgumentSource,
-							SourcePath: []string{"names"},
-							RenderOptions: plan.RenderArrayAsCSV,
+							Name:         "names",
+							RenderConfig: plan.RenderArgumentAsArrayCSV,
 						},
 					},
 				},
