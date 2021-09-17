@@ -111,7 +111,6 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 	input := p.configureInput()
 	return plan.FetchConfiguration{
 		Input:     string(input),
-		Variables: nil,
 		DataSource: &Source{
 			client: p.client,
 		},

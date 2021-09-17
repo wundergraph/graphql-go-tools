@@ -443,7 +443,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 						Fetch: rest_datasource.FetchConfiguration{
 							URL:    "https://example.com/",
 							Method: "POST",
-							Body:   `{ "name": "{{ .arguments.name }}" }`,
+							Body:   `{ "name": {{ .arguments.name }} }`,
 						},
 					}),
 				},
@@ -454,6 +454,12 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					FieldName:             "hero",
 					DisableDefaultMapping: false,
 					Path:                  []string{"race"},
+					Arguments: []plan.ArgumentConfiguration{
+						{
+							Name: "name",
+							RenderConfig: plan.RenderArgumentAsGraphQLValue,
+						},
+					},
 				},
 			},
 			expectedResponse: `{"data":{"hero":"Human"}}`,
@@ -490,7 +496,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					},
 					Custom: rest_datasource.ConfigJSON(rest_datasource.Configuration{
 						Fetch: rest_datasource.FetchConfiguration{
-							URL:    "https://example.com/name/{{.arguments.name}}",
+							URL:    "https://example.com/name/{{ .arguments.name }}",
 							Method: "POST",
 							Body:   "",
 						},
@@ -503,6 +509,12 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					FieldName:             "hero",
 					DisableDefaultMapping: false,
 					Path:                  []string{"race"},
+					Arguments: []plan.ArgumentConfiguration{
+						{
+							Name: "name",
+							RenderConfig: plan.RenderArgumentDefault,
+						},
+					},
 				},
 			},
 			expectedResponse: `{"data":{"hero":"Human"}}`,

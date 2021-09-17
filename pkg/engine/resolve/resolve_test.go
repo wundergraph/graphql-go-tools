@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/buger/jsonparser"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 
@@ -210,6 +211,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 							SegmentType:        VariableSegmentType,
 							VariableSource:     VariableSourceContext,
 							VariableSourcePath: []string{"id"},
+							VariableValueType:  jsonparser.Number,
 						},
 						{
 							SegmentType: StaticSegmentType,
@@ -599,9 +601,11 @@ func TestResolver_ResolveNode(t *testing.T) {
 										Data:        []byte(`{"id":`),
 									},
 									{
-										SegmentType:        VariableSegmentType,
-										VariableSource:     VariableSourceObject,
-										VariableSourcePath: []string{"id"},
+										SegmentType:                  VariableSegmentType,
+										VariableSource:               VariableSourceObject,
+										VariableSourcePath:           []string{"id"},
+										VariableValueType:            jsonparser.Number,
+										RenderVariableAsGraphQLValue: true,
 									},
 									{
 										SegmentType: StaticSegmentType,
@@ -740,15 +744,14 @@ func TestResolver_WithHooks(t *testing.T) {
 
 func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 	testFn := func(fn func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string)) func(t *testing.T) {
-		t.Helper()
-
-		ctrl := gomock.NewController(t)
-		c, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		r := New(c)
-		node, ctx, expectedOutput := fn(t, r, ctrl)
 		return func(t *testing.T) {
 			t.Helper()
+
+			ctrl := gomock.NewController(t)
+			c, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			r := New(c)
+			node, ctx, expectedOutput := fn(t, r, ctrl)
 
 			buf := &bytes.Buffer{}
 			err := r.ResolveGraphQLResponse(&ctx, node, nil, buf)
@@ -1260,7 +1263,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					Fetches: []*SingleFetch{
 						{
 							BufferId: 0,
-							Input:    `{"url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":"$$0$$"}}}`,
+							Input:    `{"url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":$$0$$}}}`,
 							InputTemplate: InputTemplate{
 								Segments: []TemplateSegment{
 									{
@@ -1271,19 +1274,21 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 										SegmentType:        VariableSegmentType,
 										VariableSource:     VariableSourceContext,
 										VariableSourcePath: []string{"thirdArg"},
+										VariableValueType:  jsonparser.Number,
 									},
 									{
 										SegmentType: StaticSegmentType,
-										Data:        []byte(`,"firstArg":"`),
+										Data:        []byte(`,"firstArg":`),
 									},
 									{
 										SegmentType:        VariableSegmentType,
 										VariableSource:     VariableSourceContext,
 										VariableSourcePath: []string{"firstArg"},
+										VariableValueType:  jsonparser.String,
 									},
 									{
 										SegmentType: StaticSegmentType,
-										Data:        []byte(`"}}}`),
+										Data:        []byte(`}}}`),
 									},
 								},
 							},
@@ -1310,6 +1315,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 										SegmentType:        VariableSegmentType,
 										VariableSource:     VariableSourceContext,
 										VariableSourcePath: []string{"fourthArg"},
+										VariableValueType:  jsonparser.Number,
 									},
 									{
 										SegmentType: StaticSegmentType,
@@ -1319,6 +1325,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 										SegmentType:        VariableSegmentType,
 										VariableSource:     VariableSourceContext,
 										VariableSourcePath: []string{"secondArg"},
+										VariableValueType:  jsonparser.Boolean,
 									},
 									{
 										SegmentType: StaticSegmentType,
@@ -1527,16 +1534,18 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 								InputTemplate: InputTemplate{
 									Segments: []TemplateSegment{
 										{
-											Data:        []byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"`),
+											Data:        []byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":`),
 											SegmentType: StaticSegmentType,
 										},
 										{
-											SegmentType:        VariableSegmentType,
-											VariableSource:     VariableSourceObject,
-											VariableSourcePath: []string{"id"},
+											SegmentType:                  VariableSegmentType,
+											VariableSource:               VariableSourceObject,
+											VariableSourcePath:           []string{"id"},
+											VariableValueType:            jsonparser.String,
+											RenderVariableAsGraphQLValue: true,
 										},
 										{
-											Data:        []byte(`","__typename":"User"}]}}}`),
+											Data:        []byte(`,"__typename":"User"}]}}}`),
 											SegmentType: StaticSegmentType,
 										},
 									},
@@ -1585,16 +1594,18 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 															InputTemplate: InputTemplate{
 																Segments: []TemplateSegment{
 																	{
-																		Data:        []byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"`),
+																		Data:        []byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":`),
 																		SegmentType: StaticSegmentType,
 																	},
 																	{
-																		SegmentType:        VariableSegmentType,
-																		VariableSource:     VariableSourceObject,
-																		VariableSourcePath: []string{"upc"},
+																		SegmentType:                  VariableSegmentType,
+																		VariableSource:               VariableSourceObject,
+																		VariableSourcePath:           []string{"upc"},
+																		VariableValueType:            jsonparser.String,
+																		RenderVariableAsGraphQLValue: true,
 																	},
 																	{
-																		Data:        []byte(`","__typename":"Product"}]}}}`),
+																		Data:        []byte(`,"__typename":"Product"}]}}}`),
 																		SegmentType: StaticSegmentType,
 																	},
 																},
@@ -2099,15 +2110,16 @@ func (h hookContextPathMatcher) String() string {
 }
 
 func TestInputTemplate_Render(t *testing.T) {
+	runTest := func(t *testing.T, variables string, sourcePath []string, valueType jsonparser.ValueType, expected string) {
+		t.Helper()
 
-	runTest := func(variables string, sourcePath []string, renderAsGraphQLVariable bool, expected string) {
 		template := InputTemplate{
 			Segments: []TemplateSegment{
 				{
-					SegmentType:          VariableSegmentType,
-					VariableSource:       VariableSourceContext,
-					VariableSourcePath:   sourcePath,
-					RenderAsGraphQLValue: renderAsGraphQLVariable,
+					SegmentType:        VariableSegmentType,
+					VariableSource:     VariableSourceContext,
+					VariableSourcePath: sourcePath,
+					VariableValueType:  valueType,
 				},
 			},
 		}
@@ -2122,42 +2134,107 @@ func TestInputTemplate_Render(t *testing.T) {
 	}
 
 	t.Run("string scalar", func(t *testing.T) {
-		runTest(`{"foo":"bar"}`, []string{"foo"}, false, "bar")
+		runTest(t, `{"foo":"bar"}`, []string{"foo"}, jsonparser.String, `"bar"`)
 	})
 	t.Run("boolean scalar", func(t *testing.T) {
-		runTest(`{"foo":true}`, []string{"foo"}, false, "true")
+		runTest(t, `{"foo":true}`, []string{"foo"}, jsonparser.Boolean, "true")
 	})
 	t.Run("json object pass through", func(t *testing.T) {
-		runTest(`{"foo":{"bar":"baz"}}`, []string{"foo"}, false, `{"bar":"baz"}`)
+		runTest(t, `{"foo":{"bar":"baz"}}`, []string{"foo"}, jsonparser.Object, `{"bar":"baz"}`)
 	})
 	t.Run("json object as graphql object", func(t *testing.T) {
-		runTest(`{"foo":{"bar":"baz"}}`, []string{"foo"}, true, `{bar:\"baz\"}`)
+		runTest(t, `{"foo":{"bar":"baz"}}`, []string{"foo"}, jsonparser.Object, `{"bar":"baz"}`)
 	})
 	t.Run("json object as graphql object with null", func(t *testing.T) {
-		runTest(`{"foo":null}`, []string{"foo"}, true, `null`)
+		runTest(t, `{"foo":null}`, []string{"foo"}, jsonparser.String, `null`)
 	})
 	t.Run("json object as graphql object with number", func(t *testing.T) {
-		runTest(`{"foo":123}`, []string{"foo"}, true, `123`)
+		runTest(t, `{"foo":123}`, []string{"foo"}, jsonparser.Number, `123`)
 	})
 	t.Run("json object as graphql object with boolean", func(t *testing.T) {
-		runTest(`{"foo":{"bar":true}}`, []string{"foo"}, true, `{bar:true}`)
+		runTest(t, `{"foo":{"bar":true}}`, []string{"foo"}, jsonparser.Object, `{"bar":true}`)
 	})
 	t.Run("json object as graphql object with number", func(t *testing.T) {
-		runTest(`{"foo":{"bar":123}}`, []string{"foo"}, true, `{bar:123}`)
+		runTest(t, `{"foo":{"bar":123}}`, []string{"foo"}, jsonparser.Object, `{"bar":123}`)
 	})
 	t.Run("json object as graphql object with float", func(t *testing.T) {
-		runTest(`{"foo":{"bar":1.23}}`, []string{"foo"}, true, `{bar:1.23}`)
+		runTest(t, `{"foo":{"bar":1.23}}`, []string{"foo"}, jsonparser.Object, `{"bar":1.23}`)
 	})
 	t.Run("json object as graphql object with nesting", func(t *testing.T) {
-		runTest(`{"foo":{"bar":{"baz":"bat"}}}`, []string{"foo"}, true, `{bar:{baz:\"bat\"}}`)
+		runTest(t, `{"foo":{"bar":{"baz":"bat"}}}`, []string{"foo"}, jsonparser.Object, `{"bar":{"baz":"bat"}}`)
 	})
 	t.Run("json object as graphql object with single array", func(t *testing.T) {
-		runTest(`{"foo":["bar"]}`, []string{"foo"}, true, `[\"bar\"]`)
+		runTest(t, `{"foo":["bar"]}`, []string{"foo"}, jsonparser.Array, `["bar"]`)
 	})
 	t.Run("json object as graphql object with array", func(t *testing.T) {
-		runTest(`{"foo":["bar","baz"]}`, []string{"foo"}, true, `[\"bar\",\"baz\"]`)
+		runTest(t, `{"foo":["bar","baz"]}`, []string{"foo"}, jsonparser.Array, `["bar","baz"]`)
 	})
 	t.Run("json object as graphql object with object array", func(t *testing.T) {
-		runTest(`{"foo":[{"bar":"baz"},{"bar":"bat"}]}`, []string{"foo"}, true, `[{bar:\"baz\"},{bar:\"bat\"}]`)
+		runTest(t, `{"foo":[{"bar":"baz"},{"bar":"bat"}]}`, []string{"foo"}, jsonparser.Array, `[{"bar":"baz"},{"bar":"bat"}]`)
+	})
+	t.Run("array with csv render string", func(t *testing.T) {
+		template := InputTemplate{
+			Segments: []TemplateSegment{
+				{
+					SegmentType:                 VariableSegmentType,
+					VariableSource:              VariableSourceContext,
+					VariableSourcePath:          []string{"a"},
+					VariableValueType:           jsonparser.Array,
+					VariableValueArrayValueType: jsonparser.String,
+					RenderVariableAsArrayCSV:    true,
+				},
+			},
+		}
+		ctx := &Context{
+			Variables: []byte(`{"a":["foo","bar"]}`),
+		}
+		buf := fastbuffer.New()
+		err := template.Render(ctx, nil, buf)
+		assert.NoError(t, err)
+		out := buf.String()
+		assert.Equal(t, "foo,bar", out)
+	})
+	t.Run("array with csv render int", func(t *testing.T) {
+		template := InputTemplate{
+			Segments: []TemplateSegment{
+				{
+					SegmentType:                 VariableSegmentType,
+					VariableSource:              VariableSourceContext,
+					VariableSourcePath:          []string{"a"},
+					VariableValueType:           jsonparser.Array,
+					VariableValueArrayValueType: jsonparser.Number,
+					RenderVariableAsArrayCSV:    true,
+				},
+			},
+		}
+		ctx := &Context{
+			Variables: []byte(`{"a":[1,2,3]}`),
+		}
+		buf := fastbuffer.New()
+		err := template.Render(ctx, nil, buf)
+		assert.NoError(t, err)
+		out := buf.String()
+		assert.Equal(t, "1,2,3", out)
+	})
+	t.Run("array with default render int", func(t *testing.T) {
+		template := InputTemplate{
+			Segments: []TemplateSegment{
+				{
+					SegmentType:                 VariableSegmentType,
+					VariableSource:              VariableSourceContext,
+					VariableSourcePath:          []string{"a"},
+					VariableValueType:           jsonparser.Array,
+					VariableValueArrayValueType: jsonparser.Number,
+				},
+			},
+		}
+		ctx := &Context{
+			Variables: []byte(`{"a":[1,2,3]}`),
+		}
+		buf := fastbuffer.New()
+		err := template.Render(ctx, nil, buf)
+		assert.NoError(t, err)
+		out := buf.String()
+		assert.Equal(t, "[1,2,3]", out)
 	})
 }
