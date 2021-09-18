@@ -1312,7 +1312,7 @@ func (i *InputTemplate) renderObjectVariable(variables []byte, segment TemplateS
 	if segment.RenderVariableAsArrayCSV && segment.VariableValueType == jsonparser.Array {
 		return renderArrayCSV(value, segment.VariableValueArrayValueType, preparedInput)
 	}
-	return renderGraphQLValue(value, segment.VariableValueType, preparedInput)
+	return renderGraphQLValue(value, segment.VariableValueType, segment.OmitObjectKeyQuotes, segment.EscapeQuotes, preparedInput)
 }
 
 func (i *InputTemplate) renderContextVariable(ctx *Context, segment TemplateSegment, preparedInput *fastbuffer.FastBuffer) error {
@@ -1328,7 +1328,7 @@ func (i *InputTemplate) renderContextVariable(ctx *Context, segment TemplateSegm
 	if segment.RenderVariableAsArrayCSV && segment.VariableValueType == jsonparser.Array {
 		return renderArrayCSV(value, segment.VariableValueArrayValueType, preparedInput)
 	}
-	return renderGraphQLValue(value, segment.VariableValueType, preparedInput)
+	return renderGraphQLValue(value, segment.VariableValueType, segment.OmitObjectKeyQuotes, segment.EscapeQuotes, preparedInput)
 }
 
 func renderArrayCSV(data []byte, valueType jsonparser.ValueType, buf *fastbuffer.FastBuffer) error {
@@ -1347,11 +1347,17 @@ func renderArrayCSV(data []byte, valueType jsonparser.ValueType, buf *fastbuffer
 	return err
 }
 
-func renderGraphQLValue(data []byte, valueType jsonparser.ValueType, buf *fastbuffer.FastBuffer) (err error) {
+func renderGraphQLValue(data []byte, valueType jsonparser.ValueType, omitObjectKeyQuotes, escapeQuotes bool, buf *fastbuffer.FastBuffer) (err error) {
 	switch valueType {
 	case jsonparser.String:
+		if escapeQuotes {
+			buf.WriteBytes(literal.BACKSLASH)
+		}
 		buf.WriteBytes(literal.QUOTE)
 		buf.WriteBytes(data)
+		if escapeQuotes {
+			buf.WriteBytes(literal.BACKSLASH)
+		}
 		buf.WriteBytes(literal.QUOTE)
 	case jsonparser.Object:
 		buf.WriteBytes(literal.LBRACE)
@@ -1362,11 +1368,21 @@ func renderGraphQLValue(data []byte, valueType jsonparser.ValueType, buf *fastbu
 			} else {
 				first = false
 			}
-			buf.WriteBytes(literal.QUOTE)
+			if !omitObjectKeyQuotes {
+				if escapeQuotes {
+					buf.WriteBytes(literal.BACKSLASH)
+				}
+				buf.WriteBytes(literal.QUOTE)
+			}
 			buf.WriteBytes(key)
-			buf.WriteBytes(literal.QUOTE)
+			if !omitObjectKeyQuotes {
+				if escapeQuotes {
+					buf.WriteBytes(literal.BACKSLASH)
+				}
+				buf.WriteBytes(literal.QUOTE)
+			}
 			buf.WriteBytes(literal.COLON)
-			return renderGraphQLValue(value, dataType, buf)
+			return renderGraphQLValue(value, dataType, omitObjectKeyQuotes, escapeQuotes, buf)
 		})
 		if err != nil {
 			return err
@@ -1386,7 +1402,7 @@ func renderGraphQLValue(data []byte, valueType jsonparser.ValueType, buf *fastbu
 			} else {
 				first = false
 			}
-			arrayErr = renderGraphQLValue(value, dataType, buf)
+			arrayErr = renderGraphQLValue(value, dataType, omitObjectKeyQuotes, escapeQuotes, buf)
 		})
 		if arrayErr != nil {
 			return arrayErr
@@ -1448,6 +1464,8 @@ type TemplateSegment struct {
 	RenderVariableAsArrayCSV     bool
 	RenderVariableAsPlainValue   bool
 	RenderVariableAsGraphQLValue bool
+	OmitObjectKeyQuotes          bool
+	EscapeQuotes                 bool
 }
 
 func (_ *SingleFetch) FetchKind() FetchKind {
@@ -1565,6 +1583,8 @@ type ContextVariable struct {
 	RenderAsArrayCSV     bool
 	RenderAsPlainValue   bool
 	RenderAsGraphQLValue bool
+	OmitObjectKeyQuotes  bool
+	EscapeQuotes         bool
 }
 
 func (c *ContextVariable) SetJsonValueType(operation, definition *ast.Document, typeRef int) {
@@ -1614,6 +1634,8 @@ func (c *ContextVariable) TemplateSegment() TemplateSegment {
 		RenderVariableAsArrayCSV:     c.RenderAsArrayCSV,
 		RenderVariableAsPlainValue:   c.RenderAsPlainValue,
 		RenderVariableAsGraphQLValue: c.RenderAsGraphQLValue,
+		OmitObjectKeyQuotes:          c.OmitObjectKeyQuotes,
+		EscapeQuotes:                 c.EscapeQuotes,
 	}
 }
 
@@ -1647,6 +1669,8 @@ type ObjectVariable struct {
 	RenderAsGraphQLValue bool
 	RenderAsPlainValue   bool
 	RenderAsArrayCSV     bool
+	OmitObjectKeyQuotes  bool
+	EscapeQuotes         bool
 }
 
 func (o *ObjectVariable) SetJsonValueType(definition *ast.Document, typeRef int) {
@@ -1681,6 +1705,8 @@ func (o *ObjectVariable) TemplateSegment() TemplateSegment {
 		RenderVariableAsArrayCSV:     o.RenderAsArrayCSV,
 		RenderVariableAsPlainValue:   o.RenderAsPlainValue,
 		RenderVariableAsGraphQLValue: o.RenderAsGraphQLValue,
+		OmitObjectKeyQuotes:          o.OmitObjectKeyQuotes,
+		EscapeQuotes:                 o.EscapeQuotes,
 	}
 }
 
