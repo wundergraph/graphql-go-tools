@@ -9,10 +9,10 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/ast"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/datasource/httpclient"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/plan"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/lexer/literal"
 )
 
 type Planner struct {
@@ -110,7 +110,7 @@ func (p *Planner) configureInput() []byte {
 func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 	input := p.configureInput()
 	return plan.FetchConfiguration{
-		Input:     string(input),
+		Input: string(input),
 		DataSource: &Source{
 			client: p.client,
 		},

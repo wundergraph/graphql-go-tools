@@ -7,11 +7,11 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
-	"github.com/jensneuse/graphql-go-tools/pkg/middleware/operation_complexity"
-	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/ast"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/astparser"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/resolve"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/middleware/operation_complexity"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/operationreport"
 )
 
 const (

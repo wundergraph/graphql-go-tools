@@ -16,17 +16,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	federationExample "github.com/jensneuse/graphql-go-tools/examples/federation"
-	accounts "github.com/jensneuse/graphql-go-tools/examples/federation/accounts/graph"
-	products "github.com/jensneuse/graphql-go-tools/examples/federation/products/graph"
-	reviews "github.com/jensneuse/graphql-go-tools/examples/federation/reviews/graph"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/graphql_datasource"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/rest_datasource"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/staticdatasource"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
-	"github.com/jensneuse/graphql-go-tools/pkg/starwars"
+	federationExample "github.com/TykTechnologies/graphql-go-tools/examples/federation"
+	accounts "github.com/TykTechnologies/graphql-go-tools/examples/federation/accounts/graph"
+	products "github.com/TykTechnologies/graphql-go-tools/examples/federation/products/graph"
+	reviews "github.com/TykTechnologies/graphql-go-tools/examples/federation/reviews/graph"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/datasource/graphql_datasource"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/datasource/httpclient"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/datasource/rest_datasource"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/datasource/staticdatasource"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/plan"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/resolve"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/starwars"
 )
 
 func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
@@ -456,7 +456,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					Path:                  []string{"race"},
 					Arguments: []plan.ArgumentConfiguration{
 						{
-							Name: "name",
+							Name:         "name",
 							RenderConfig: plan.RenderArgumentAsGraphQLValue,
 						},
 					},
@@ -511,7 +511,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					Path:                  []string{"race"},
 					Arguments: []plan.ArgumentConfiguration{
 						{
-							Name: "name",
+							Name:         "name",
 							RenderConfig: plan.RenderArgumentDefault,
 						},
 					},

@@ -9,7 +9,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/lexer/literal"
 )
 
 func TestArrayStream(t *testing.T) {
@@ -65,7 +65,7 @@ func TestArrayStream(t *testing.T) {
 		},
 	}
 
-	c,cancel := context.WithCancel(context.Background())
+	c, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	resolver := New(c)
@@ -161,7 +161,7 @@ func TestArrayStream_InitialBatch_1(t *testing.T) {
 		},
 	}
 
-	c,cancel := context.WithCancel(context.Background())
+	c, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	resolver := New(c)
@@ -253,7 +253,7 @@ func TestArrayStream_InitialBatch_2(t *testing.T) {
 		},
 	}
 
-	c,cancel := context.WithCancel(context.Background())
+	c, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	resolver := New(c)
@@ -343,11 +343,11 @@ func TestStreamAndDefer(t *testing.T) {
 					InputTemplate: InputTemplate{
 						Segments: []TemplateSegment{
 							{
-								SegmentType:        VariableSegmentType,
-								VariableSource:     VariableSourceObject,
-								VariableSourcePath: []string{"id"},
+								SegmentType:                  VariableSegmentType,
+								VariableSource:               VariableSourceObject,
+								VariableSourcePath:           []string{"id"},
 								RenderVariableAsGraphQLValue: true,
-								VariableValueType: jsonparser.Number,
+								VariableValueType:            jsonparser.Number,
 							},
 						},
 					},
@@ -374,7 +374,7 @@ func TestStreamAndDefer(t *testing.T) {
 		},
 	}
 
-	c,cancel := context.WithCancel(context.Background())
+	c, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	resolver := New(c)

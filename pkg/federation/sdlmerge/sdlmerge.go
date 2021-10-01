@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
-	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
-	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
-	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
-	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/ast"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/astnormalization"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/astparser"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/astprinter"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/astvisitor"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/operationreport"
 )
 
 const rootOperationTypeDefinitions = `

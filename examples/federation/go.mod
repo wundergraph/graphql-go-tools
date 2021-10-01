@@ -1,4 +1,4 @@
-module github.com/jensneuse/graphql-go-tools/examples/federation
+module github.com/Technologies/graphql-go-tools/examples/federation
 
 go 1.15
 

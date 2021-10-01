@@ -15,10 +15,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jensneuse/graphql-go-tools/examples/chat"
-	. "github.com/jensneuse/graphql-go-tools/pkg/engine/datasourcetesting"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
+	"github.com/TykTechnologies/graphql-go-tools/examples/chat"
+	. "github.com/TykTechnologies/graphql-go-tools/pkg/engine/datasourcetesting"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/plan"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/resolve"
 )
 
 func TestGraphQLDataSource(t *testing.T) {
@@ -47,8 +47,8 @@ func TestGraphQLDataSource(t *testing.T) {
 					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$1$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!){droid(id: $id){name aliased: name friends {name} primaryFunction} hero {name} stringList nestedStringList}","variables":{"id":$$0$$}}}`,
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
-							Path:          []string{"id"},
-							JsonValueType: jsonparser.String,
+							Path:                 []string{"id"},
+							JsonValueType:        jsonparser.String,
 							RenderAsGraphQLValue: true,
 						},
 						&resolve.HeaderVariable{
@@ -268,8 +268,8 @@ func TestGraphQLDataSource(t *testing.T) {
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
-								Path:          []string{"name"},
-								JsonValueType: jsonparser.String,
+								Path:                 []string{"name"},
+								JsonValueType:        jsonparser.String,
 								RenderAsGraphQLValue: true,
 							},
 						),
@@ -379,13 +379,13 @@ func TestGraphQLDataSource(t *testing.T) {
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
-								Path:          []string{"a"},
-								JsonValueType: jsonparser.String,
+								Path:                 []string{"a"},
+								JsonValueType:        jsonparser.String,
 								RenderAsGraphQLValue: true,
 							},
 							&resolve.ContextVariable{
-								Path:          []string{"b"},
-								JsonValueType: jsonparser.String,
+								Path:                 []string{"b"},
+								JsonValueType:        jsonparser.String,
 								RenderAsGraphQLValue: true,
 							},
 						),
@@ -494,13 +494,13 @@ func TestGraphQLDataSource(t *testing.T) {
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
-								Path:          []string{"a"},
-								JsonValueType: jsonparser.String,
+								Path:                 []string{"a"},
+								JsonValueType:        jsonparser.String,
 								RenderAsGraphQLValue: true,
 							},
 							&resolve.ContextVariable{
-								Path:          []string{"b"},
-								JsonValueType: jsonparser.String,
+								Path:                 []string{"b"},
+								JsonValueType:        jsonparser.String,
 								RenderAsGraphQLValue: true,
 							},
 						),
@@ -637,13 +637,13 @@ func TestGraphQLDataSource(t *testing.T) {
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
-								Path:          []string{"a"},
-								JsonValueType: jsonparser.String,
+								Path:                 []string{"a"},
+								JsonValueType:        jsonparser.String,
 								RenderAsGraphQLValue: true,
 							},
 							&resolve.ContextVariable{
-								Path:          []string{"b"},
-								JsonValueType: jsonparser.String,
+								Path:                 []string{"b"},
+								JsonValueType:        jsonparser.String,
 								RenderAsGraphQLValue: true,
 							},
 						),
@@ -816,13 +816,13 @@ func TestGraphQLDataSource(t *testing.T) {
 								DataSource: &Source{},
 								Variables: resolve.NewVariables(
 									&resolve.ContextVariable{
-										Path:          []string{"firstArg"},
-										JsonValueType: jsonparser.String,
+										Path:                 []string{"firstArg"},
+										JsonValueType:        jsonparser.String,
 										RenderAsGraphQLValue: true,
 									},
 									&resolve.ContextVariable{
-										Path:          []string{"thirdArg"},
-										JsonValueType: jsonparser.Number,
+										Path:                 []string{"thirdArg"},
+										JsonValueType:        jsonparser.Number,
 										RenderAsGraphQLValue: true,
 									},
 								),
@@ -835,13 +835,13 @@ func TestGraphQLDataSource(t *testing.T) {
 								DataSource: &Source{},
 								Variables: resolve.NewVariables(
 									&resolve.ContextVariable{
-										Path:          []string{"secondArg"},
-										JsonValueType: jsonparser.Boolean,
+										Path:                 []string{"secondArg"},
+										JsonValueType:        jsonparser.Boolean,
 										RenderAsGraphQLValue: true,
 									},
 									&resolve.ContextVariable{
-										Path:          []string{"fourthArg"},
-										JsonValueType: jsonparser.Number,
+										Path:                 []string{"fourthArg"},
+										JsonValueType:        jsonparser.Number,
 										RenderAsGraphQLValue: true,
 									},
 								),
@@ -928,7 +928,7 @@ func TestGraphQLDataSource(t *testing.T) {
 									Input:      `{"method":"POST","url":"https://service.one","body":{"query":"query($a: String){serviceOneResponse: serviceOne(serviceOneArg: $a){fieldOne}}","variables":{"a":$$0$$}}}`,
 									Variables: resolve.NewVariables(
 										&resolve.ObjectVariable{
-											Path: []string{"serviceOneField"},
+											Path:                 []string{"serviceOneField"},
 											RenderAsGraphQLValue: true,
 										},
 									),
@@ -1222,18 +1222,18 @@ func TestGraphQLDataSource(t *testing.T) {
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
-								Path:          []string{"title"},
-								JsonValueType: jsonparser.String,
+								Path:                 []string{"title"},
+								JsonValueType:        jsonparser.String,
 								RenderAsGraphQLValue: true,
 							},
 							&resolve.ContextVariable{
-								Path:          []string{"completed"},
-								JsonValueType: jsonparser.Boolean,
+								Path:                 []string{"completed"},
+								JsonValueType:        jsonparser.Boolean,
 								RenderAsGraphQLValue: true,
 							},
 							&resolve.ContextVariable{
-								Path:          []string{"name"},
-								JsonValueType: jsonparser.String,
+								Path:                 []string{"name"},
+								JsonValueType:        jsonparser.String,
 								RenderAsGraphQLValue: true,
 							},
 						),
@@ -1392,13 +1392,13 @@ func TestGraphQLDataSource(t *testing.T) {
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
-								Path:          []string{"id"},
-								JsonValueType: jsonparser.String,
+								Path:                 []string{"id"},
+								JsonValueType:        jsonparser.String,
 								RenderAsGraphQLValue: true,
 							},
 							&resolve.ContextVariable{
-								Path:          []string{"name"},
-								JsonValueType: jsonparser.String,
+								Path:                 []string{"name"},
+								JsonValueType:        jsonparser.String,
 								RenderAsGraphQLValue: true,
 							},
 						),
@@ -1540,13 +1540,13 @@ func TestGraphQLDataSource(t *testing.T) {
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
-								Path:          []string{"name"},
-								JsonValueType: jsonparser.String,
+								Path:                 []string{"name"},
+								JsonValueType:        jsonparser.String,
 								RenderAsGraphQLValue: true,
 							},
 							&resolve.ContextVariable{
-								Path:          []string{"personal"},
-								JsonValueType: jsonparser.Boolean,
+								Path:                 []string{"personal"},
+								JsonValueType:        jsonparser.Boolean,
 								RenderAsGraphQLValue: true,
 							},
 						),
@@ -1774,8 +1774,8 @@ func TestGraphQLDataSource(t *testing.T) {
 				Input: []byte(`{"url":"wss://swapi.com/graphql","body":{"query":"subscription($a: String){foo(bar: $a)}","variables":{"a":$$0$$}}}`),
 				Variables: resolve.NewVariables(
 					&resolve.ContextVariable{
-						Path:          []string{"a"},
-						JsonValueType: jsonparser.String,
+						Path:                 []string{"a"},
+						JsonValueType:        jsonparser.String,
 						RenderAsGraphQLValue: true,
 					},
 				),
@@ -1884,8 +1884,8 @@ func TestGraphQLDataSource(t *testing.T) {
 									Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body author {id username} product {upc}}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
 									Variables: resolve.NewVariables(
 										&resolve.ObjectVariable{
-											Path: []string{"id"},
-											JsonValueType: jsonparser.String,
+											Path:                 []string{"id"},
+											JsonValueType:        jsonparser.String,
 											RenderAsGraphQLValue: true,
 										},
 									),
@@ -1991,8 +1991,8 @@ func TestGraphQLDataSource(t *testing.T) {
 																		DataSource: &Source{},
 																		Variables: resolve.NewVariables(
 																			&resolve.ObjectVariable{
-																				Path: []string{"upc"},
-																				JsonValueType: jsonparser.String,
+																				Path:                 []string{"upc"},
+																				JsonValueType:        jsonparser.String,
 																				RenderAsGraphQLValue: true,
 																			},
 																		),
@@ -2007,8 +2007,8 @@ func TestGraphQLDataSource(t *testing.T) {
 																		Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {reviews {body author {id username}}}}}","variables":{"representations":[{"upc":$$0$$,"__typename":"Product"}]}}}`,
 																		Variables: resolve.NewVariables(
 																			&resolve.ObjectVariable{
-																				Path: []string{"upc"},
-																				JsonValueType: jsonparser.String,
+																				Path:                 []string{"upc"},
+																				JsonValueType:        jsonparser.String,
 																				RenderAsGraphQLValue: true,
 																			},
 																		),

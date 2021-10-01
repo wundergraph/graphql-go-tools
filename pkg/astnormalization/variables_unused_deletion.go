@@ -5,8 +5,8 @@ import (
 
 	"github.com/buger/jsonparser"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/ast"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/astvisitor"
 )
 
 func deleteUnusedVariables(walker *astvisitor.Walker) *deleteUnusedVariablesVisitor {

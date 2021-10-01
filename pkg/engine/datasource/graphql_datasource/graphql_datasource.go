@@ -11,16 +11,16 @@ import (
 
 	"github.com/tidwall/sjson"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
-	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
-	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
-	"github.com/jensneuse/graphql-go-tools/pkg/federation"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
-	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/ast"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/astnormalization"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/astparser"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/astprinter"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/datasource/httpclient"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/plan"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/resolve"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/federation"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/lexer/literal"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/operationreport"
 )
 
 type Planner struct {
@@ -397,7 +397,7 @@ func (p *Planner) addRepresentationsVariable() {
 	representationsJson, _ := sjson.SetRawBytes(nil, "__typename", []byte("\""+p.lastFieldEnclosingTypeName+"\""))
 	for i := range fields {
 		objectVariable := &resolve.ObjectVariable{
-			Path: []string{fields[i]},
+			Path:                 []string{fields[i]},
 			RenderAsGraphQLValue: true,
 		}
 		fieldDef := p.fieldDefinition(fields[i], p.lastFieldEnclosingTypeName)
@@ -558,7 +558,7 @@ func (p *Planner) configureFieldArgumentSource(upstreamFieldRef, downstreamField
 	variableNameStr := p.visitor.Operation.VariableValueNameString(value.Ref)
 
 	contextVariable := &resolve.ContextVariable{
-		Path: []string{variableNameStr},
+		Path:                 []string{variableNameStr},
 		RenderAsGraphQLValue: true,
 	}
 	contextVariable.SetJsonValueType(p.visitor.Definition, p.visitor.Definition, p.argTypeRef)
@@ -652,7 +652,7 @@ func (p *Planner) addVariableDefinitionsRecursively(value ast.Value, sourcePath 
 
 	fieldType := p.resolveNestedArgumentType(fieldName)
 	contextVariable := &resolve.ContextVariable{
-		Path: append(sourcePath, variableNameStr),
+		Path:                 append(sourcePath, variableNameStr),
 		RenderAsGraphQLValue: true,
 	}
 	contextVariable.SetJsonValueType(p.visitor.Definition, p.visitor.Definition, fieldType)
@@ -693,7 +693,7 @@ func (p *Planner) configureObjectFieldSource(upstreamFieldRef, downstreamFieldRe
 	p.upstreamOperation.AddVariableDefinitionToOperationDefinition(p.nodes[0].Ref, variableValue, importedType)
 
 	objectVariableName, exists := p.variables.AddVariable(&resolve.ObjectVariable{
-		Path: argumentConfiguration.SourcePath,
+		Path:                 argumentConfiguration.SourcePath,
 		RenderAsGraphQLValue: true,
 	})
 	if !exists {

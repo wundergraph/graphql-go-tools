@@ -1,8 +1,8 @@
 package sdlmerge
 
 import (
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/ast"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/astvisitor"
 )
 
 func newRemoveObjectTypeDefinitionDirective(directives ...string) *removeObjectTypeDefinitionDirective {
@@ -40,5 +40,5 @@ func (r *removeObjectTypeDefinitionDirective) EnterObjectTypeDefinition(ref int)
 		}
 	}
 	// delete directives
-	r.operation.RemoveDirectivesFromNode(ast.Node{Kind: ast.NodeKindObjectTypeDefinition,Ref: ref},refsForDeletion)
+	r.operation.RemoveDirectivesFromNode(ast.Node{Kind: ast.NodeKindObjectTypeDefinition, Ref: ref}, refsForDeletion)
 }

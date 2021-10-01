@@ -1,21 +1,21 @@
 package unsafeprinter
 
 import (
-	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
+	"github.com/TykTechnologies/graphql-go-tools/internal/pkg/unsafeparser"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/ast"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/astprinter"
 )
 
-func Print (document,definition *ast.Document) string {
-	str,err := astprinter.PrintString(document,definition)
+func Print(document, definition *ast.Document) string {
+	str, err := astprinter.PrintString(document, definition)
 	if err != nil {
 		panic(err)
 	}
 	return str
 }
 
-func PrettyPrint (document,definition *ast.Document) string {
-	str,err := astprinter.PrintStringIndent(document,definition,"  ")
+func PrettyPrint(document, definition *ast.Document) string {
+	str, err := astprinter.PrintStringIndent(document, definition, "  ")
 	if err != nil {
 		panic(err)
 	}
@@ -24,5 +24,5 @@ func PrettyPrint (document,definition *ast.Document) string {
 
 func Prettify(document string) string {
 	doc := unsafeparser.ParseGraphqlDocumentString(document)
-	return PrettyPrint(&doc,nil)
+	return PrettyPrint(&doc, nil)
 }

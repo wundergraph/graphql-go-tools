@@ -142,9 +142,9 @@ github.com/jensneuse/byte-template v0.0.0-20200214152254-4f3cf06e5c68 h1:E80wOd3
 github.com/jensneuse/byte-template v0.0.0-20200214152254-4f3cf06e5c68/go.mod h1:0D5r/VSW6D/o65rKLL9xk7sZxL2+oku2HvFPYeIMFr4=
 github.com/jensneuse/diffview v1.0.0 h1:4b6FQJ7y3295JUHU3tRko6euyEboL825ZsXeZZM47Z4=
 github.com/jensneuse/diffview v1.0.0/go.mod h1:i6IacuD8LnEaPuiyzMHA+Wfz5mAuycMOf3R/orUY9y4=
-github.com/jensneuse/graphql-go-tools/examples/chat v0.0.0-20210714083836-7bf4457dc2b2 h1:9Fz+13ph1LjrZCip1ymflwPQT6Mcyjfw1rH1wC1gvV4=
-github.com/jensneuse/graphql-go-tools/examples/chat v0.0.0-20210714083836-7bf4457dc2b2/go.mod h1:KQO0HE/7k6+BPuPyg9wPx8MC/sjmZmQnq3wCcv4DCEY=
-github.com/jensneuse/graphql-go-tools/examples/federation v0.0.0-20210714083836-7bf4457dc2b2/go.mod h1:bby8E+a/+kl+6Ug/3MSvqx1QcN1CX2goY3KW1baJfGw=
+github.com/TykTechnologies/graphql-go-tools/examples/chat v0.0.0-20210714083836-7bf4457dc2b2 h1:9Fz+13ph1LjrZCip1ymflwPQT6Mcyjfw1rH1wC1gvV4=
+github.com/TykTechnologies/graphql-go-tools/examples/chat v0.0.0-20210714083836-7bf4457dc2b2/go.mod h1:KQO0HE/7k6+BPuPyg9wPx8MC/sjmZmQnq3wCcv4DCEY=
+github.com/TykTechnologies/graphql-go-tools/examples/federation v0.0.0-20210714083836-7bf4457dc2b2/go.mod h1:bby8E+a/+kl+6Ug/3MSvqx1QcN1CX2goY3KW1baJfGw=
 github.com/jensneuse/pipeline v0.0.0-20200117120358-9fb4de085cd6 h1:y8hvuqbuVGFNpEos+vB5I5X+QxWm0uyTk+5oeOinMjY=
 github.com/jensneuse/pipeline v0.0.0-20200117120358-9fb4de085cd6/go.mod h1:UsfzaMt+keVOxa007GcCJMFeTHr6voRfBGMQEW7DkdM=
 github.com/jessevdk/go-flags v1.4.0 h1:4IU2WS7AumrZ/40jfhf4QVDMsQwqA7VEHozFRrGARJA=

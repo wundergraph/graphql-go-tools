@@ -1,8 +1,8 @@
 package sdlmerge
 
 import (
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/ast"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/astvisitor"
 )
 
 func newRemoveFieldDefinitions(directives ...string) *removeFieldDefinitionByDirective {
@@ -42,5 +42,5 @@ func (r *removeFieldDefinitionByDirective) LeaveObjectTypeDefinition(ref int) {
 		}
 	}
 	// delete fields
-	r.operation.RemoveFieldDefinitionsFromObjectTypeDefinition(refsForDeletion,ref)
+	r.operation.RemoveFieldDefinitionsFromObjectTypeDefinition(refsForDeletion, ref)
 }

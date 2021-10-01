@@ -1,9 +1,11 @@
-module github.com/jensneuse/graphql-go-tools
+module github.com/TykTechnologies/graphql-go-tools
 
 go 1.15
 
 require (
 	github.com/OneOfOne/xxhash v1.2.8
+	github.com/TykTechnologies/graphql-go-tools/examples/chat v0.0.0-00010101000000-000000000000
+	github.com/TykTechnologies/graphql-go-tools/examples/federation v0.0.0-00010101000000-000000000000
 	github.com/agnivade/levenshtein v1.1.1 // indirect
 	github.com/buger/jsonparser v1.1.1
 	github.com/cespare/xxhash v1.1.0
@@ -21,8 +23,6 @@ require (
 	github.com/jensneuse/abstractlogger v0.0.4
 	github.com/jensneuse/byte-template v0.0.0-20200214152254-4f3cf06e5c68
 	github.com/jensneuse/diffview v1.0.0
-	github.com/jensneuse/graphql-go-tools/examples/chat v0.0.0-20210714083836-7bf4457dc2b2
-	github.com/jensneuse/graphql-go-tools/examples/federation v0.0.0-20210714083836-7bf4457dc2b2
 	github.com/jensneuse/pipeline v0.0.0-20200117120358-9fb4de085cd6
 	github.com/klauspost/compress v1.13.1 // indirect
 	github.com/mitchellh/go-homedir v1.1.0
@@ -42,6 +42,6 @@ require (
 	nhooyr.io/websocket v1.8.7
 )
 
-replace github.com/jensneuse/graphql-go-tools/examples/federation => ./examples/federation
+replace github.com/TykTechnologies/graphql-go-tools/examples/federation => ./examples/federation
 
-replace github.com/jensneuse/graphql-go-tools/examples/chat => ./examples/chat
+replace github.com/TykTechnologies/graphql-go-tools/examples/chat => ./examples/chat

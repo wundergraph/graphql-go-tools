@@ -3,7 +3,7 @@ package plan
 import (
 	"strings"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/ast"
 )
 
 var (
@@ -44,7 +44,7 @@ func (f *RequiredFieldExtractor) addFieldsForObjectExtensionDefinitions(fieldReq
 		}
 
 		for _, fieldDefinitionRef := range objectType.FieldsDefinition.Refs {
-			if f.document.FieldDefinitionHasNamedDirective(fieldDefinitionRef,federationExternalDirectiveName) {
+			if f.document.FieldDefinitionHasNamedDirective(fieldDefinitionRef, federationExternalDirectiveName) {
 				continue
 			}
 

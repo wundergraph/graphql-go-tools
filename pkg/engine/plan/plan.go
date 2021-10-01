@@ -8,12 +8,12 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/astimport"
-	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
-	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/ast"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/astimport"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/astvisitor"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/resolve"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/lexer/literal"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/operationreport"
 )
 
 type Planner struct {
@@ -729,7 +729,7 @@ func (v *Visitor) resolveInputTemplates(config objectFetchConfiguration, input *
 		switch parts[0] {
 		case "object":
 			variable := &resolve.ObjectVariable{
-				Path: path,
+				Path:               path,
 				RenderAsPlainValue: true,
 			}
 			variableName, _ = variables.AddVariable(variable)

@@ -1,4 +1,4 @@
-//go:generate mockgen --build_flags=--mod=mod -self_package=github.com/jensneuse/graphql-go-tools/pkg/engine/resolve -destination=resolve_mock_test.go -package=resolve . DataSource,BeforeFetchHook,AfterFetchHook
+//go:generate mockgen --build_flags=--mod=mod -self_package=github.com/TykTechnologies/graphql-go-tools/pkg/engine/resolve -destination=resolve_mock_test.go -package=resolve . DataSource,BeforeFetchHook,AfterFetchHook
 
 package resolve
 
@@ -20,11 +20,11 @@ import (
 
 	errors "golang.org/x/xerrors"
 
-	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/fastbuffer"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
-	"github.com/jensneuse/graphql-go-tools/pkg/pool"
+	"github.com/TykTechnologies/graphql-go-tools/internal/pkg/unsafebytes"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/ast"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/fastbuffer"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/lexer/literal"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/pool"
 )
 
 var (

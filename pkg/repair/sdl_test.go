@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeprinter"
+	"github.com/TykTechnologies/graphql-go-tools/internal/pkg/unsafeprinter"
 )
 
 func TestSDL(t *testing.T) {
@@ -38,10 +38,10 @@ type Mutation {
 	bar: Boolean
 }
 `
-		actual,err := SDL(input,OptionsSDL{
+		actual, err := SDL(input, OptionsSDL{
 			SetAllMutationFieldsNullable: true,
 		})
 		assert.NoError(t, err)
-		assert.Equal(t, unsafeprinter.Prettify(expected),unsafeprinter.Prettify(actual))
+		assert.Equal(t, unsafeprinter.Prettify(expected), unsafeprinter.Prettify(actual))
 	})
 }

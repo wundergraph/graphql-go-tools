@@ -1,11 +1,11 @@
 package repair
 
 import (
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
-	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
-	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
-	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/ast"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/astparser"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/astprinter"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/astvisitor"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/operationreport"
 )
 
 type OptionsSDL struct {
@@ -14,7 +14,7 @@ type OptionsSDL struct {
 
 func SDL(input string, options OptionsSDL) (string, error) {
 	repair := sdlRepair{
-		sdl: input,
+		sdl:     input,
 		options: options,
 	}
 	return repair.do()
@@ -158,9 +158,9 @@ func (e *emptyInputObjectTypeDefinitionVisitor) EnterInputObjectTypeDefinition(r
 }
 
 type setAllMutationFieldsNullableVisitor struct {
-	walker                *astvisitor.Walker
-	definition *ast.Document
-	insideMutation bool
+	walker           *astvisitor.Walker
+	definition       *ast.Document
+	insideMutation   bool
 	mutationTypeName string
 }
 

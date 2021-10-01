@@ -8,7 +8,7 @@ import (
 	"github.com/jensneuse/diffview"
 	"github.com/sebdah/goldie"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/astparser"
 )
 
 func TestGenerator_Generate(t *testing.T) {

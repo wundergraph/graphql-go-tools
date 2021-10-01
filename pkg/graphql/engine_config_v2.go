@@ -3,9 +3,9 @@ package graphql
 import (
 	"net/http"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	graphqlDataSource "github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/graphql_datasource"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/ast"
+	graphqlDataSource "github.com/TykTechnologies/graphql-go-tools/pkg/engine/datasource/graphql_datasource"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/plan"
 )
 
 const (

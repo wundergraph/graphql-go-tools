@@ -3,9 +3,9 @@ package astnormalization
 import (
 	"testing"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
-	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
-	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/astparser"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/astprinter"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/astvisitor"
 	"github.com/stretchr/testify/assert"
 )
 

@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/lexer/literal"
 )
 
 func TestWithoutDefer(t *testing.T) {
@@ -46,11 +46,11 @@ func TestWithoutDefer(t *testing.T) {
 								InputTemplate: InputTemplate{
 									Segments: []TemplateSegment{
 										{
-											SegmentType:        VariableSegmentType,
-											VariableSource:     VariableSourceObject,
-											VariableSourcePath: []string{"id"},
+											SegmentType:                  VariableSegmentType,
+											VariableSource:               VariableSourceObject,
+											VariableSourcePath:           []string{"id"},
 											RenderVariableAsGraphQLValue: true,
-											VariableValueType: jsonparser.Number,
+											VariableValueType:            jsonparser.Number,
 										},
 									},
 								},
@@ -223,10 +223,10 @@ func TestDefer(t *testing.T) {
 					InputTemplate: InputTemplate{
 						Segments: []TemplateSegment{
 							{
-								SegmentType:        VariableSegmentType,
-								VariableSource:     VariableSourceObject,
-								VariableSourcePath: []string{"id"},
-								VariableValueType: jsonparser.Number,
+								SegmentType:                  VariableSegmentType,
+								VariableSource:               VariableSourceObject,
+								VariableSourcePath:           []string{"id"},
+								VariableValueType:            jsonparser.Number,
 								RenderVariableAsGraphQLValue: true,
 							},
 						},
