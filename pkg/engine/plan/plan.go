@@ -64,16 +64,21 @@ func (a ArgumentsConfigurations) ForName(argName string) *ArgumentConfiguration 
 }
 
 type SourceType string
+type ArgumentRenderConfig string
 
 const (
-	ObjectFieldSource   SourceType = "object_field"
-	FieldArgumentSource SourceType = "field_argument"
+	ObjectFieldSource            SourceType           = "object_field"
+	FieldArgumentSource          SourceType           = "field_argument"
+	RenderArgumentDefault        ArgumentRenderConfig = ""
+	RenderArgumentAsArrayCSV     ArgumentRenderConfig = "render_argument_as_array_csv"
+	RenderArgumentAsGraphQLValue ArgumentRenderConfig = "render_argument_as_graphql_value"
 )
 
 type ArgumentConfiguration struct {
-	Name       string
-	SourceType SourceType
-	SourcePath []string
+	Name         string
+	SourceType   SourceType
+	SourcePath   []string
+	RenderConfig ArgumentRenderConfig
 }
 
 type DataSourceConfiguration struct {
@@ -156,7 +161,8 @@ func NewPlanner(ctx context.Context, config Configuration) *Planner {
 
 	planningWalker := astvisitor.NewWalker(48)
 	planningVisitor := &Visitor{
-		Walker: &planningWalker,
+		Walker:       &planningWalker,
+		fieldConfigs: map[int]*FieldConfiguration{},
 	}
 
 	p := &Planner{
@@ -288,6 +294,7 @@ type Visitor struct {
 	fetchConfigurations   []objectFetchConfiguration
 	fieldBuffers          map[int]int
 	skipFieldPaths        []string
+	fieldConfigs          map[int]*FieldConfiguration
 }
 
 type objectFields struct {
@@ -445,6 +452,14 @@ func (v *Visitor) EnterField(ref int) {
 	}
 
 	*v.currentFields[len(v.currentFields)-1].fields = append(*v.currentFields[len(v.currentFields)-1].fields, v.currentField)
+
+	typeName := v.Walker.EnclosingTypeDefinition.NameString(v.Definition)
+	fieldNameStr := v.Operation.FieldNameString(ref)
+	fieldConfig := v.Config.Fields.ForTypeField(typeName, fieldNameStr)
+	if fieldConfig == nil {
+		return
+	}
+	v.fieldConfigs[ref] = fieldConfig
 }
 
 func (v *Visitor) resolveOnTypeName() []byte {
@@ -644,6 +659,7 @@ func (v *Visitor) resolveFieldPath(ref int) []string {
 
 func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
 	v.Operation, v.Definition = operation, definition
+	v.fieldConfigs = map[int]*FieldConfiguration{}
 }
 
 func (v *Visitor) LeaveDocument(operation, definition *ast.Document) {
@@ -712,9 +728,11 @@ func (v *Visitor) resolveInputTemplates(config objectFetchConfiguration, input *
 		)
 		switch parts[0] {
 		case "object":
-			variableName, _ = variables.AddVariable(&resolve.ObjectVariable{
+			variable := &resolve.ObjectVariable{
 				Path: path,
-			}, false)
+				RenderAsPlainValue: true,
+			}
+			variableName, _ = variables.AddVariable(variable)
 		case "arguments":
 			argumentName := path[0]
 			arg, ok := v.Operation.FieldArgument(config.fieldRef, []byte(argumentName))
@@ -729,9 +747,33 @@ func (v *Visitor) resolveInputTemplates(config objectFetchConfiguration, input *
 			if !v.Operation.OperationDefinitionHasVariableDefinition(v.operationDefinition, variableValue) {
 				break // omit optional argument when variable is not defined
 			}
-			variableName, _ = variables.AddVariable(&resolve.ContextVariable{
+			variable := &resolve.ContextVariable{
 				Path: []string{variableValue},
-			}, false)
+			}
+			variableDefinition, exists := v.Operation.VariableDefinitionByNameAndOperation(v.operationDefinition, v.Operation.VariableValueNameBytes(value.Ref))
+			if !exists {
+				break
+			}
+			variableTypeRef := v.Operation.VariableDefinitions[variableDefinition].Type
+			variable.SetJsonValueType(v.Operation, v.Definition, variableTypeRef)
+
+			variable.RenderAsPlainValue = true
+			if fieldConfig, ok := v.fieldConfigs[config.fieldRef]; ok {
+				if argumentConfig := fieldConfig.Arguments.ForName(argumentName); argumentConfig != nil {
+					switch argumentConfig.RenderConfig {
+					case RenderArgumentAsArrayCSV:
+						variable.RenderAsArrayCSV = true
+						variable.RenderAsPlainValue = false
+					case RenderArgumentDefault:
+						variable.RenderAsPlainValue = true
+					case RenderArgumentAsGraphQLValue:
+						variable.RenderAsGraphQLValue = true
+						variable.RenderAsPlainValue = false
+					}
+				}
+			}
+
+			variableName, _ = variables.AddVariable(variable)
 		case "request":
 			if len(path) != 2 {
 				break
@@ -741,7 +783,7 @@ func (v *Visitor) resolveInputTemplates(config objectFetchConfiguration, input *
 				key := path[1]
 				variableName, _ = variables.AddVariable(&resolve.HeaderVariable{
 					Path: []string{key},
-				}, false)
+				})
 			}
 		}
 		return variableName

@@ -1,6 +1,8 @@
 package graphql
 
 import (
+	"compress/flate"
+	"compress/gzip"
 	"context"
 	"fmt"
 	"io/ioutil"
@@ -28,19 +30,62 @@ import (
 )
 
 func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
-	rw := NewEngineResultWriter()
-	_, err := rw.Write([]byte(`{"key": "value"}`))
-	require.NoError(t, err)
+	t.Run("no compression", func(t *testing.T) {
+		rw := NewEngineResultWriter()
+		_, err := rw.Write([]byte(`{"key": "value"}`))
+		require.NoError(t, err)
 
-	headers := make(http.Header)
-	headers.Set("Content-Type", "application/json")
-	response := rw.AsHTTPResponse(http.StatusOK, headers)
-	body, err := ioutil.ReadAll(response.Body)
-	require.NoError(t, err)
+		headers := make(http.Header)
+		headers.Set("Content-Type", "application/json")
+		response := rw.AsHTTPResponse(http.StatusOK, headers)
+		body, err := ioutil.ReadAll(response.Body)
+		require.NoError(t, err)
 
-	assert.Equal(t, http.StatusOK, response.StatusCode)
-	assert.Equal(t, "application/json", response.Header.Get("Content-Type"))
-	assert.Equal(t, `{"key": "value"}`, string(body))
+		assert.Equal(t, http.StatusOK, response.StatusCode)
+		assert.Equal(t, "application/json", response.Header.Get("Content-Type"))
+		assert.Equal(t, `{"key": "value"}`, string(body))
+	})
+
+	t.Run("compression based on content encoding header", func(t *testing.T) {
+		rw := NewEngineResultWriter()
+		_, err := rw.Write([]byte(`{"key": "value"}`))
+		require.NoError(t, err)
+
+		headers := make(http.Header)
+		headers.Set("Content-Type", "application/json")
+
+		t.Run("gzip", func(t *testing.T) {
+			headers.Set(httpclient.ContentEncodingHeader, "gzip")
+
+			response := rw.AsHTTPResponse(http.StatusOK, headers)
+			assert.Equal(t, http.StatusOK, response.StatusCode)
+			assert.Equal(t, "application/json", response.Header.Get("Content-Type"))
+			assert.Equal(t, "gzip", response.Header.Get(httpclient.ContentEncodingHeader))
+
+			reader, err := gzip.NewReader(response.Body)
+			require.NoError(t, err)
+
+			body, err := ioutil.ReadAll(reader)
+			require.NoError(t, err)
+
+			assert.Equal(t, `{"key": "value"}`, string(body))
+		})
+
+		t.Run("deflate", func(t *testing.T) {
+			headers.Set(httpclient.ContentEncodingHeader, "deflate")
+
+			response := rw.AsHTTPResponse(http.StatusOK, headers)
+			assert.Equal(t, http.StatusOK, response.StatusCode)
+			assert.Equal(t, "application/json", response.Header.Get("Content-Type"))
+			assert.Equal(t, "deflate", response.Header.Get(httpclient.ContentEncodingHeader))
+
+			reader := flate.NewReader(response.Body)
+			body, err := ioutil.ReadAll(reader)
+			require.NoError(t, err)
+
+			assert.Equal(t, `{"key": "value"}`, string(body))
+		})
+	})
 }
 
 type ExecutionEngineV2TestCase struct {
@@ -398,7 +443,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 						Fetch: rest_datasource.FetchConfiguration{
 							URL:    "https://example.com/",
 							Method: "POST",
-							Body:   `{ "name": "{{ .arguments.name }}" }`,
+							Body:   `{ "name": {{ .arguments.name }} }`,
 						},
 					}),
 				},
@@ -409,6 +454,12 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					FieldName:             "hero",
 					DisableDefaultMapping: false,
 					Path:                  []string{"race"},
+					Arguments: []plan.ArgumentConfiguration{
+						{
+							Name: "name",
+							RenderConfig: plan.RenderArgumentAsGraphQLValue,
+						},
+					},
 				},
 			},
 			expectedResponse: `{"data":{"hero":"Human"}}`,
@@ -445,7 +496,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					},
 					Custom: rest_datasource.ConfigJSON(rest_datasource.Configuration{
 						Fetch: rest_datasource.FetchConfiguration{
-							URL:    "https://example.com/name/{{.arguments.name}}",
+							URL:    "https://example.com/name/{{ .arguments.name }}",
 							Method: "POST",
 							Body:   "",
 						},
@@ -458,6 +509,12 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					FieldName:             "hero",
 					DisableDefaultMapping: false,
 					Path:                  []string{"race"},
+					Arguments: []plan.ArgumentConfiguration{
+						{
+							Name: "name",
+							RenderConfig: plan.RenderArgumentDefault,
+						},
+					},
 				},
 			},
 			expectedResponse: `{"data":{"hero":"Human"}}`,
