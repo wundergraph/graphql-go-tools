@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"testing"
 
+	"github.com/buger/jsonparser"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 
@@ -64,10 +65,10 @@ func TestArrayStream(t *testing.T) {
 		},
 	}
 
-	c,cancel := context.WithCancel(context.Background())
+	rCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	resolver := New(c)
+	resolver := New(rCtx, NewFetcher(false), false)
 
 	ctx := NewContext(context.Background())
 
@@ -160,10 +161,10 @@ func TestArrayStream_InitialBatch_1(t *testing.T) {
 		},
 	}
 
-	c,cancel := context.WithCancel(context.Background())
+	rCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	resolver := New(c)
+	resolver := New(rCtx, NewFetcher(false), false)
 
 	ctx := NewContext(context.Background())
 
@@ -252,10 +253,10 @@ func TestArrayStream_InitialBatch_2(t *testing.T) {
 		},
 	}
 
-	c,cancel := context.WithCancel(context.Background())
+	rCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	resolver := New(c)
+	resolver := New(rCtx, NewFetcher(false), false)
 
 	ctx := NewContext(context.Background())
 
@@ -345,6 +346,8 @@ func TestStreamAndDefer(t *testing.T) {
 								SegmentType:        VariableSegmentType,
 								VariableSource:     VariableSourceObject,
 								VariableSourcePath: []string{"id"},
+								RenderVariableAsGraphQLValue: true,
+								VariableValueType: jsonparser.Number,
 							},
 						},
 					},
@@ -371,10 +374,10 @@ func TestStreamAndDefer(t *testing.T) {
 		},
 	}
 
-	c,cancel := context.WithCancel(context.Background())
+	rCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	resolver := New(c)
+	resolver := New(rCtx, NewFetcher(false), false)
 
 	ctx := NewContext(context.Background())
 

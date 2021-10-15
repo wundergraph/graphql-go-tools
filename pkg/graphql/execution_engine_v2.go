@@ -2,10 +2,13 @@ package graphql
 
 import (
 	"bytes"
+	"compress/flate"
+	"compress/gzip"
 	"context"
 	"errors"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"sync"
 
 	lru "github.com/hashicorp/golang-lru"
@@ -13,50 +16,13 @@ import (
 
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 	"github.com/jensneuse/graphql-go-tools/pkg/pool"
 	"github.com/jensneuse/graphql-go-tools/pkg/postprocess"
 )
-
-type EngineV2Configuration struct {
-	schema                   *Schema
-	plannerConfig            plan.Configuration
-	websocketBeforeStartHook WebsocketBeforeStartHook
-}
-
-func NewEngineV2Configuration(schema *Schema) EngineV2Configuration {
-	return EngineV2Configuration{
-		schema: schema,
-		plannerConfig: plan.Configuration{
-			DefaultFlushInterval: 0,
-			DataSources:          []plan.DataSourceConfiguration{},
-			Fields:               plan.FieldConfigurations{},
-		},
-	}
-}
-
-func (e *EngineV2Configuration) AddDataSource(dataSource plan.DataSourceConfiguration) {
-	e.plannerConfig.DataSources = append(e.plannerConfig.DataSources, dataSource)
-}
-
-func (e *EngineV2Configuration) SetDataSources(dataSources []plan.DataSourceConfiguration) {
-	e.plannerConfig.DataSources = dataSources
-}
-
-func (e *EngineV2Configuration) AddFieldConfiguration(fieldConfig plan.FieldConfiguration) {
-	e.plannerConfig.Fields = append(e.plannerConfig.Fields, fieldConfig)
-}
-
-func (e *EngineV2Configuration) SetFieldConfigurations(fieldConfigs plan.FieldConfigurations) {
-	e.plannerConfig.Fields = fieldConfigs
-}
-
-// SetWebsocketBeforeStartHook - sets before start hook which will be called before processing any operation sent over websockets
-func (e *EngineV2Configuration) SetWebsocketBeforeStartHook(hook WebsocketBeforeStartHook) {
-	e.websocketBeforeStartHook = hook
-}
 
 type EngineResultWriter struct {
 	buf           *bytes.Buffer
@@ -112,10 +78,28 @@ func (e *EngineResultWriter) Reset() {
 }
 
 func (e *EngineResultWriter) AsHTTPResponse(status int, headers http.Header) *http.Response {
+	b := &bytes.Buffer{}
+
+	switch headers.Get(httpclient.ContentEncodingHeader) {
+	case "gzip":
+		gzw := gzip.NewWriter(b)
+		_, _ = gzw.Write(e.Bytes())
+		_ = gzw.Close()
+	case "deflate":
+		fw, _ := flate.NewWriter(b, 1)
+		_, _ = fw.Write(e.Bytes())
+		_ = fw.Close()
+	default:
+		headers.Del(httpclient.ContentEncodingHeader) // delete unsupported compression header
+		b = e.buf
+	}
+
 	res := &http.Response{}
-	res.Body = ioutil.NopCloser(e.buf)
+	res.Body = ioutil.NopCloser(b)
 	res.Header = headers
 	res.StatusCode = status
+	res.ContentLength = int64(b.Len())
+	res.Header.Set("Content-Length", strconv.Itoa(b.Len()))
 	return res
 }
 
@@ -186,11 +170,13 @@ func NewExecutionEngineV2(ctx context.Context, logger abstractlogger.Logger, eng
 	if err != nil {
 		return nil, err
 	}
+	fetcher := resolve.NewFetcher(engineConfig.dataLoaderConfig.EnableSingleFlightLoader)
+
 	return &ExecutionEngineV2{
 		logger:   logger,
 		config:   engineConfig,
 		planner:  plan.NewPlanner(ctx, engineConfig.plannerConfig),
-		resolver: resolve.New(ctx),
+		resolver: resolve.New(ctx, fetcher, engineConfig.dataLoaderConfig.EnableDataLoader),
 		internalExecutionContextPool: sync.Pool{
 			New: func() interface{} {
 				return newInternalExecutionContext()
