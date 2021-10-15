@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/buger/jsonparser"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 )
@@ -111,13 +112,13 @@ func TestDataLoader_Load(t *testing.T) {
 				actual := string(input)
 				switch {
 				case strings.Contains(actual, "11"):
-					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id name }","variables":{"$userId":11}}`
+					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id name }","variables":{"userId":11}}`
 					assert.Equal(t, expected, actual)
 					pair := NewBufPair()
 					pair.Data.WriteString(`{"user": {"id":11, "username": "Username 11"}}`)
 					return writeGraphqlResponse(pair, w, false)
 				case strings.Contains(actual, "22"):
-					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id name }","variables":{"$userId":22}}`
+					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id name }","variables":{"userId":22}}`
 					assert.Equal(t, expected, actual)
 					pair := NewBufPair()
 					pair.Data.WriteString(`{"user": {"id":22, "username": "Username 22"}}`)
@@ -133,13 +134,15 @@ func TestDataLoader_Load(t *testing.T) {
 			InputTemplate: InputTemplate{
 				Segments: []TemplateSegment{
 					{
-						Data:        []byte(`{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id name }","variables":{"$userId":`),
+						Data:        []byte(`{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id name }","variables":{"userId":`),
 						SegmentType: StaticSegmentType,
 					},
 					{
-						SegmentType:        VariableSegmentType,
-						VariableSource:     VariableSourceObject,
-						VariableSourcePath: []string{"id"},
+						SegmentType:                  VariableSegmentType,
+						VariableSource:               VariableSourceObject,
+						VariableSourcePath:           []string{"id"},
+						VariableValueType:            jsonparser.Number,
+						RenderVariableAsGraphQLValue: true,
 					},
 					{
 						Data:        []byte(`}}`),
@@ -362,6 +365,8 @@ func TestDataLoader_Load(t *testing.T) {
 						SegmentType:        VariableSegmentType,
 						VariableSource:     VariableSourceObject,
 						VariableSourcePath: []string{"id"},
+						VariableValueType:            jsonparser.Number,
+						RenderVariableAsGraphQLValue: true,
 					},
 					{
 						Data:        []byte(`}}`),
@@ -417,6 +422,8 @@ func TestDataLoader_Load(t *testing.T) {
 						SegmentType:        VariableSegmentType,
 						VariableSource:     VariableSourceObject,
 						VariableSourcePath: []string{"id"},
+						VariableValueType:            jsonparser.Number,
+						RenderVariableAsGraphQLValue: true,
 					},
 					{
 						Data:        []byte(`}}`),
@@ -487,16 +494,18 @@ func TestDataLoader_LoadBatch(t *testing.T) {
 				InputTemplate: InputTemplate{
 					Segments: []TemplateSegment{
 						{
-							Data:        []byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"`),
+							Data:        []byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":`),
 							SegmentType: StaticSegmentType,
 						},
 						{
 							SegmentType:        VariableSegmentType,
 							VariableSource:     VariableSourceObject,
 							VariableSourcePath: []string{"upc"},
+							VariableValueType:            jsonparser.String,
+							RenderVariableAsGraphQLValue: true,
 						},
 						{
-							Data:        []byte(`","__typename":"Product"}]}}}`),
+							Data:        []byte(`,"__typename":"Product"}]}}}`),
 							SegmentType: StaticSegmentType,
 						},
 					},
@@ -580,16 +589,18 @@ func TestDataLoader_LoadBatch(t *testing.T) {
 					InputTemplate: InputTemplate{
 						Segments: []TemplateSegment{
 							{
-								Data:        []byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"`),
+								Data:        []byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":`),
 								SegmentType: StaticSegmentType,
 							},
 							{
 								SegmentType:        VariableSegmentType,
 								VariableSource:     VariableSourceObject,
 								VariableSourcePath: []string{"upc"},
+								VariableValueType:            jsonparser.String,
+								RenderVariableAsGraphQLValue: true,
 							},
 							{
-								Data:        []byte(`","__typename":"Product"}]}}}`),
+								Data:        []byte(`,"__typename":"Product"}]}}}`),
 								SegmentType: StaticSegmentType,
 							},
 						},

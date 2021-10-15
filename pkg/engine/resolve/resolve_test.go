@@ -1798,6 +1798,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 												SegmentType:        VariableSegmentType,
 												VariableSource:     VariableSourceObject,
 												VariableSourcePath: []string{"id"},
+												VariableValueType:            jsonparser.Number,
+												RenderVariableAsGraphQLValue: true,
 											},
 											{
 												Data:        []byte(`","__typename":"User"}]}}}`),
@@ -1855,16 +1857,18 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 																InputTemplate: InputTemplate{
 																	Segments: []TemplateSegment{
 																		{
-																			Data:        []byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"`),
+																			Data:        []byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":`),
 																			SegmentType: StaticSegmentType,
 																		},
 																		{
 																			SegmentType:        VariableSegmentType,
 																			VariableSource:     VariableSourceObject,
 																			VariableSourcePath: []string{"upc"},
+																			VariableValueType:            jsonparser.String,
+																			RenderVariableAsGraphQLValue: true,
 																		},
 																		{
-																			Data:        []byte(`","__typename":"Product"}]}}}`),
+																			Data:        []byte(`,"__typename":"Product"}]}}}`),
 																			SegmentType: StaticSegmentType,
 																		},
 																	},
@@ -1994,6 +1998,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 												SegmentType:        VariableSegmentType,
 												VariableSource:     VariableSourceObject,
 												VariableSourcePath: []string{"id"},
+												VariableValueType:            jsonparser.Number,
+												RenderVariableAsGraphQLValue: true,
 											},
 											{
 												Data:        []byte(`","__typename":"User"}]}}}`),
@@ -2048,16 +2054,18 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 																InputTemplate: InputTemplate{
 																	Segments: []TemplateSegment{
 																		{
-																			Data:        []byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"`),
+																			Data:        []byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":`),
 																			SegmentType: StaticSegmentType,
 																		},
 																		{
 																			SegmentType:        VariableSegmentType,
 																			VariableSource:     VariableSourceObject,
 																			VariableSourcePath: []string{"upc"},
+																			VariableValueType:            jsonparser.String,
+																			RenderVariableAsGraphQLValue: true,
 																		},
 																		{
-																			Data:        []byte(`","__typename":"Product"}]}}}`),
+																			Data:        []byte(`,"__typename":"Product"}]}}}`),
 																			SegmentType: StaticSegmentType,
 																		},
 																	},
