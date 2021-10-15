@@ -9,7 +9,6 @@ import (
 
 	graphqlDataSource "github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/graphql_datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/graphql"
-	"github.com/jensneuse/graphql-go-tools/pkg/graphql/federation"
 )
 
 type DataSourceObserver interface {
@@ -70,10 +69,9 @@ func (g *Gateway) Ready() {
 	<-g.readyCh
 }
 
-// Error handling is not finished.
 func (g *Gateway) UpdateDataSources(newDataSourcesConfig []graphqlDataSource.Configuration) {
 	ctx := context.Background()
-	engineConfigFactory := federation.NewEngineConfigV2Factory(g.httpClient, newDataSourcesConfig...)
+	engineConfigFactory := graphql.NewFederationEngineConfigFactory(newDataSourcesConfig,graphqlDataSource.NewBatchFactory(), graphql.WithFederationHttpClient(g.httpClient))
 
 	schema, err := engineConfigFactory.MergedSchema()
 	if err != nil {
@@ -86,6 +84,8 @@ func (g *Gateway) UpdateDataSources(newDataSourcesConfig []graphqlDataSource.Con
 		g.logger.Error("get engine config: %v", log.Error(err))
 		return
 	}
+
+	datasourceConfig.EnableDataLoader(true)
 
 	engine, err := graphql.NewExecutionEngineV2(ctx, g.logger, datasourceConfig)
 	if err != nil {

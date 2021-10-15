@@ -11,6 +11,7 @@ import (
 
 	"github.com/OneOfOne/xxhash"
 	"github.com/buger/jsonparser"
+	"github.com/google/uuid"
 	"github.com/jensneuse/abstractlogger"
 	"nhooyr.io/websocket"
 )
@@ -34,7 +35,8 @@ type WebSocketGraphQLSubscriptionClient struct {
 	ctx        context.Context
 	log        abstractlogger.Logger
 	hashPool   sync.Pool
-	handlers   map[uint64]*connectionHandler
+	/*handlers   map[uint64]*connectionHandler // deduplication implementation */
+	handlers   map[string]*connectionHandler
 	handlersMu sync.Mutex
 
 	readTimeout time.Duration
@@ -68,9 +70,10 @@ func NewWebSocketGraphQLSubscriptionClient(httpClient *http.Client, ctx context.
 		option(op)
 	}
 	return &WebSocketGraphQLSubscriptionClient{
-		httpClient:  httpClient,
-		ctx:         ctx,
-		handlers:    map[uint64]*connectionHandler{},
+		httpClient: httpClient,
+		ctx:        ctx,
+		/*handlers:    map[uint64]*connectionHandler{}, // deduplication implementation */
+		handlers:    map[string]*connectionHandler{},
 		log:         op.log,
 		readTimeout: op.readTimeout,
 		hashPool: sync.Pool{
@@ -87,7 +90,8 @@ func NewWebSocketGraphQLSubscriptionClient(httpClient *http.Client, ctx context.
 // If no connection exists, the client initiates a new one and sends the "init" and "connection ack" messages
 func (c *WebSocketGraphQLSubscriptionClient) Subscribe(ctx context.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error {
 
-	handlerID, err := c.generateHandlerIDHash(options)
+	/* handlerID, err := c.generateHandlerIDHash(options) // deduplication implementation */
+	handlerID, err := c.generateNonDeduplicationID()
 	if err != nil {
 		return err
 	}
@@ -150,7 +154,14 @@ func (c *WebSocketGraphQLSubscriptionClient) Subscribe(ctx context.Context, opti
 	handler = newConnectionHandler(c.ctx, conn, c.readTimeout, c.log)
 	c.handlers[handlerID] = handler
 
-	go func(handlerID uint64) {
+	/* go func(handlerID uint64) {
+		handler.startBlocking(sub)
+		c.handlersMu.Lock()
+		delete(c.handlers, handlerID)
+		c.handlersMu.Unlock()
+	}(handlerID) // deduplication implementation */
+
+	go func(handlerID string) {
 		handler.startBlocking(sub)
 		c.handlersMu.Lock()
 		delete(c.handlers, handlerID)
@@ -161,7 +172,7 @@ func (c *WebSocketGraphQLSubscriptionClient) Subscribe(ctx context.Context, opti
 }
 
 // generateHandlerIDHash generates a Hash based on: URL, Headers, Body to uniquely identify Upgrade Requests
-func (c *WebSocketGraphQLSubscriptionClient) generateHandlerIDHash(options GraphQLSubscriptionOptions) (uint64, error) {
+/*func (c *WebSocketGraphQLSubscriptionClient) generateHandlerIDHash(options GraphQLSubscriptionOptions) (uint64, error) {
 	var (
 		err error
 	)
@@ -179,6 +190,20 @@ func (c *WebSocketGraphQLSubscriptionClient) generateHandlerIDHash(options Graph
 	}
 
 	return xxh.Sum64(), nil
+} // deduplication implementation */
+
+func (c *WebSocketGraphQLSubscriptionClient) generateNonDeduplicationID() (string, error) {
+	for {
+		u, err := uuid.NewRandom()
+		if err != nil {
+			return "", err
+		}
+
+		uuidString := u.String()
+		if _, ok := c.handlers[uuidString]; !ok {
+			return uuidString, nil
+		}
+	}
 }
 
 func newConnectionHandler(ctx context.Context, conn *websocket.Conn, readTimeout time.Duration, log abstractlogger.Logger) *connectionHandler {
