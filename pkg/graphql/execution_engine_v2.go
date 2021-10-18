@@ -165,6 +165,33 @@ func WithAfterFetchHook(hook resolve.AfterFetchHook) ExecutionOptionsV2 {
 	}
 }
 
+func WithAdditionalHttpHeaders(headers http.Header, excludeByKeys ...string) ExecutionOptionsV2 {
+	return func(ctx *internalExecutionContext) {
+		if len(headers) == 0 {
+			return
+		}
+
+		if ctx.resolveContext.Request.Header == nil {
+			ctx.resolveContext.Request.Header = make(http.Header)
+		}
+
+		excludeMap := make(map[string]bool)
+		for _, key := range excludeByKeys {
+			excludeMap[key] = true
+		}
+
+		for headerKey, headerValues := range headers {
+			if excludeMap[headerKey] {
+				continue
+			}
+
+			for _, headerValue := range headerValues {
+				ctx.resolveContext.Request.Header.Add(headerKey, headerValue)
+			}
+		}
+	}
+}
+
 func NewExecutionEngineV2(ctx context.Context, logger abstractlogger.Logger, engineConfig EngineV2Configuration) (*ExecutionEngineV2, error) {
 	executionPlanCache, err := lru.New(1024)
 	if err != nil {

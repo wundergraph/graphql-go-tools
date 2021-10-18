@@ -757,7 +757,14 @@ func setupEngineV2(t *testing.T, ctx context.Context, chatServerURL string) (*Ex
 	}
 	engineConf.SetWebsocketBeforeStartHook(hookHolder)
 
-	engine, err := graphql.NewExecutionEngineV2(ctx, abstractlogger.NoopLogger, engineConf)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://localhost:8080", nil)
+	require.NoError(t, err)
+
+	req.Header.Set("X-Other-Key", "x-other-value")
+
+	initCtx := NewInitialHttpRequestContext(req)
+
+	engine, err := graphql.NewExecutionEngineV2(initCtx, abstractlogger.NoopLogger, engineConf)
 	require.NoError(t, err)
 
 	executorPool := NewExecutorV2Pool(engine, hookHolder.reqCtx)
