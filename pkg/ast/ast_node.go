@@ -29,7 +29,6 @@ func (n *Node) IsExtensionKind() bool {
 }
 
 func (d *Document) NodeNameBytes(node Node) ByteSlice {
-
 	var ref ByteSliceReference
 
 	switch node.Kind {
@@ -55,6 +54,8 @@ func (d *Document) NodeNameBytes(node Node) ByteSlice {
 		ref = d.ObjectTypeExtensions[node.Ref].Name
 	case NodeKindInterfaceTypeExtension:
 		ref = d.InterfaceTypeExtensions[node.Ref].Name
+	case NodeKindUnionTypeExtension:
+		ref = d.UnionTypeExtensions[node.Ref].Name
 	case NodeKindEnumTypeExtension:
 		ref = d.EnumTypeExtensions[node.Ref].Name
 	}
@@ -336,7 +337,6 @@ func (d *Document) InputValueDefinitionIsLast(inputValue int, ancestor Node) boo
 // Node misc
 
 func (d *Document) NodeImplementsInterface(node Node, interfaceNode Node) bool {
-
 	nodeFields := d.NodeFieldDefinitions(node)
 	interfaceFields := d.NodeFieldDefinitions(interfaceNode)
 
@@ -384,7 +384,6 @@ func (d *Document) RemoveNodeFromNode(remove, from Node) {
 }
 
 func (d *Document) RemoveNodeFromSelectionSet(set int, node Node) {
-
 	var selectionKind SelectionKind
 
 	switch node.Kind {
@@ -423,7 +422,6 @@ func (d *Document) NodeFragmentIsAllowedOnNode(fragmentNode, onNode Node) bool {
 }
 
 func (d *Document) NodeFragmentIsAllowedOnInterfaceTypeDefinition(fragmentNode, interfaceTypeNode Node) bool {
-
 	switch fragmentNode.Kind {
 	case NodeKindObjectTypeDefinition:
 		return d.NodeImplementsInterface(fragmentNode, interfaceTypeNode)
@@ -437,7 +435,6 @@ func (d *Document) NodeFragmentIsAllowedOnInterfaceTypeDefinition(fragmentNode, 
 }
 
 func (d *Document) NodeFragmentIsAllowedOnUnionTypeDefinition(fragmentNode, unionTypeNode Node) bool {
-
 	switch fragmentNode.Kind {
 	case NodeKindObjectTypeDefinition:
 		return d.NodeIsUnionMember(fragmentNode, unionTypeNode)
@@ -451,7 +448,6 @@ func (d *Document) NodeFragmentIsAllowedOnUnionTypeDefinition(fragmentNode, unio
 }
 
 func (d *Document) NodeFragmentIsAllowedOnObjectTypeDefinition(fragmentNode, objectTypeNode Node) bool {
-
 	switch fragmentNode.Kind {
 	case NodeKindObjectTypeDefinition:
 		return bytes.Equal(d.ObjectTypeDefinitionNameBytes(fragmentNode.Ref), d.ObjectTypeDefinitionNameBytes(objectTypeNode.Ref))

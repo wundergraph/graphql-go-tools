@@ -198,12 +198,12 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 							FieldNames: []string{"body", "author", "product"},
 						},
 						{
-							TypeName:   "User",
-							FieldNames: []string{"id", "username", "reviews"},
+							TypeName:   "Product",
+							FieldNames: []string{"reviews", "upc"},
 						},
 						{
-							TypeName:   "Product",
-							FieldNames: []string{"upc", "reviews"},
+							TypeName:   "User",
+							FieldNames: []string{"reviews", "id", "username"},
 						},
 					},
 					Factory: &graphqlDataSource.Factory{
