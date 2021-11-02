@@ -24,6 +24,7 @@ func NewSubgraphSDLNormalizer() *SubgraphSDLNormalizer {
 func (s *SubgraphSDLNormalizer) setupWalkers() {
 	walker := astvisitor.NewWalker(48)
 	implicitExtendRootOperation(&walker)
+	extendsDirective(&walker)
 	s.walker = &walker
 }
 

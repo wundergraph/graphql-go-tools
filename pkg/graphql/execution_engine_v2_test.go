@@ -26,6 +26,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/staticdatasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
+	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 	"github.com/jensneuse/graphql-go-tools/pkg/starwars"
 )
 
@@ -88,11 +89,64 @@ func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
 	})
 }
 
+func TestWithAdditionalHttpHeaders(t *testing.T) {
+	reqHeader := http.Header{
+		http.CanonicalHeaderKey("X-Other-Key"):       []string{"x-other-value"},
+		http.CanonicalHeaderKey("Date"):              []string{"date-value"},
+		http.CanonicalHeaderKey("Host"):              []string{"host-value"},
+		http.CanonicalHeaderKey("Sec-WebSocket-Key"): []string{"sec-websocket-value"},
+		http.CanonicalHeaderKey("User-Agent"):        []string{"user-agent-value"},
+		http.CanonicalHeaderKey("Content-Length"):    []string{"content-length-value"},
+	}
+
+	t.Run("should add all headers to request without excluded keys", func(t *testing.T) {
+		internalExecutionCtx := &internalExecutionContext{
+			resolveContext: &resolve.Context{
+				Request: resolve.Request{
+					Header: nil,
+				},
+			},
+		}
+
+		optionsFn := WithAdditionalHttpHeaders(reqHeader)
+		optionsFn(internalExecutionCtx)
+
+		assert.Equal(t, reqHeader, internalExecutionCtx.resolveContext.Request.Header)
+	})
+
+	t.Run("should only add headers that are not excluded", func(t *testing.T) {
+		internalExecutionCtx := &internalExecutionContext{
+			resolveContext: &resolve.Context{
+				Request: resolve.Request{
+					Header: nil,
+				},
+			},
+		}
+
+		excludableRuntimeHeaders := []string{
+			http.CanonicalHeaderKey("Date"),
+			http.CanonicalHeaderKey("Host"),
+			http.CanonicalHeaderKey("Sec-WebSocket-Key"),
+			http.CanonicalHeaderKey("User-Agent"),
+			http.CanonicalHeaderKey("Content-Length"),
+		}
+
+		optionsFn := WithAdditionalHttpHeaders(reqHeader, excludableRuntimeHeaders...)
+		optionsFn(internalExecutionCtx)
+
+		expectedHeaders := http.Header{
+			http.CanonicalHeaderKey("X-Other-Key"): []string{"x-other-value"},
+		}
+		assert.Equal(t, expectedHeaders, internalExecutionCtx.resolveContext.Request.Header)
+	})
+}
+
 type ExecutionEngineV2TestCase struct {
 	schema           *Schema
 	operation        func(t *testing.T) Request
 	dataSources      []plan.DataSourceConfiguration
 	fields           plan.FieldConfigurations
+	engineOptions    []ExecutionOptionsV2
 	expectedResponse string
 }
 
@@ -111,7 +165,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			resultWriter := NewEngineResultWriter()
 			execCtx, execCtxCancel := context.WithCancel(context.Background())
 			defer execCtxCancel()
-			err = engine.Execute(execCtx, &operation, &resultWriter)
+			err = engine.Execute(execCtx, &operation, &resultWriter, testCase.engineOptions...)
 
 			assert.Equal(t, testCase.expectedResponse, resultWriter.String())
 
@@ -220,6 +274,45 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 				},
 			},
 			fields:           []plan.FieldConfiguration{},
+			expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+		},
+	))
+
+	t.Run("execute with additional headers", runWithoutError(
+		ExecutionEngineV2TestCase{
+			schema: starwarsSchema(t),
+			operation: func(t *testing.T) Request {
+				request := loadStarWarsQuery(starwars.FileSimpleHeroQuery, nil)(t)
+				return request
+			},
+			dataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{TypeName: "Query", FieldNames: []string{"hero"}},
+					},
+					Factory: &rest_datasource.Factory{
+						Client: testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "example.com",
+							expectedPath:     "/foo",
+							expectedBody:     "",
+							sendResponseBody: `{"hero": {"name": "Luke Skywalker"}}`,
+							sendStatusCode:   200,
+						}),
+					},
+					Custom: rest_datasource.ConfigJSON(rest_datasource.Configuration{
+						Fetch: rest_datasource.FetchConfiguration{
+							URL:    "https://example.com/{{ .request.headers.X-Other-Header }}",
+							Method: "GET",
+						},
+					}),
+				},
+			},
+			fields: []plan.FieldConfiguration{},
+			engineOptions: []ExecutionOptionsV2{
+				WithAdditionalHttpHeaders(http.Header{
+					"X-Other-Header": []string{"foo"},
+				}),
+			},
 			expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
 		},
 	))
@@ -456,7 +549,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					Path:                  []string{"race"},
 					Arguments: []plan.ArgumentConfiguration{
 						{
-							Name: "name",
+							Name:         "name",
 							RenderConfig: plan.RenderArgumentAsGraphQLValue,
 						},
 					},
@@ -511,7 +604,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					Path:                  []string{"race"},
 					Arguments: []plan.ArgumentConfiguration{
 						{
-							Name: "name",
+							Name:         "name",
 							RenderConfig: plan.RenderArgumentDefault,
 						},
 					},
@@ -758,6 +851,122 @@ func TestExecutionWithOptions(t *testing.T) {
 	assert.Equal(t, `{"hero":{"name":"Luke Skywalker"}}`, after.data)
 	assert.Equal(t, "", after.err)
 	assert.NoError(t, err)
+}
+
+func TestExecutionEngineV2_GetCachedPlan(t *testing.T) {
+	schema, err := NewSchemaFromString(testSubscriptionDefinition)
+	require.NoError(t, err)
+
+	gqlRequest := Request{
+		OperationName: "LastRegisteredUser",
+		Variables:     nil,
+		Query:         testSubscriptionLastRegisteredUserOperation,
+	}
+
+	validationResult, err := gqlRequest.ValidateForSchema(schema)
+	require.NoError(t, err)
+	require.True(t, validationResult.Valid)
+
+	normalizationResult, err := gqlRequest.Normalize(schema)
+	require.NoError(t, err)
+	require.True(t, normalizationResult.Successful)
+
+	differentGqlRequest := Request{
+		OperationName: "LiveUserCount",
+		Variables:     nil,
+		Query:         testSubscriptionLiveUserCountOperation,
+	}
+
+	validationResult, err = differentGqlRequest.ValidateForSchema(schema)
+	require.NoError(t, err)
+	require.True(t, validationResult.Valid)
+
+	normalizationResult, err = differentGqlRequest.Normalize(schema)
+	require.NoError(t, err)
+	require.True(t, normalizationResult.Successful)
+
+	engineConfig := NewEngineV2Configuration(schema)
+	engineConfig.SetDataSources([]plan.DataSourceConfiguration{
+		{
+			RootNodes: []plan.TypeField{
+				{
+					TypeName:   "Subscription",
+					FieldNames: []string{"lastRegisteredUser", "liveUserCount"},
+				},
+			},
+			ChildNodes: []plan.TypeField{
+				{
+					TypeName:   "User",
+					FieldNames: []string{"id", "username", "email"},
+				},
+			},
+			Factory: &graphql_datasource.Factory{},
+			Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
+				Subscription: graphql_datasource.SubscriptionConfiguration{
+					URL: "http://localhost:8080",
+				},
+			}),
+		},
+	})
+
+	engine, err := NewExecutionEngineV2(context.Background(), abstractlogger.NoopLogger, engineConfig)
+	require.NoError(t, err)
+
+	t.Run("should reuse cached plan", func(t *testing.T) {
+		t.Cleanup(engine.executionPlanCache.Purge)
+		require.Equal(t, 0, engine.executionPlanCache.Len())
+
+		firstInternalExecCtx := newInternalExecutionContext()
+		firstInternalExecCtx.resolveContext.Request.Header = http.Header{
+			http.CanonicalHeaderKey("Authorization"): []string{"123abc"},
+		}
+
+		report := operationreport.Report{}
+		cachedPlan := engine.getCachedPlan(firstInternalExecCtx, &gqlRequest.document, &schema.document, gqlRequest.OperationName, &report)
+		_, oldestCachedPlan, _ := engine.executionPlanCache.GetOldest()
+		assert.False(t, report.HasErrors())
+		assert.Equal(t, 1, engine.executionPlanCache.Len())
+		assert.Equal(t, cachedPlan, oldestCachedPlan.(*plan.SubscriptionResponsePlan))
+
+		secondInternalExecCtx := newInternalExecutionContext()
+		secondInternalExecCtx.resolveContext.Request.Header = http.Header{
+			http.CanonicalHeaderKey("Authorization"): []string{"123abc"},
+		}
+
+		cachedPlan = engine.getCachedPlan(secondInternalExecCtx, &gqlRequest.document, &schema.document, gqlRequest.OperationName, &report)
+		_, oldestCachedPlan, _ = engine.executionPlanCache.GetOldest()
+		assert.False(t, report.HasErrors())
+		assert.Equal(t, 1, engine.executionPlanCache.Len())
+		assert.Equal(t, cachedPlan, oldestCachedPlan.(*plan.SubscriptionResponsePlan))
+	})
+
+	t.Run("should create new plan and cache it", func(t *testing.T) {
+		t.Cleanup(engine.executionPlanCache.Purge)
+		require.Equal(t, 0, engine.executionPlanCache.Len())
+
+		firstInternalExecCtx := newInternalExecutionContext()
+		firstInternalExecCtx.resolveContext.Request.Header = http.Header{
+			http.CanonicalHeaderKey("Authorization"): []string{"123abc"},
+		}
+
+		report := operationreport.Report{}
+		cachedPlan := engine.getCachedPlan(firstInternalExecCtx, &gqlRequest.document, &schema.document, gqlRequest.OperationName, &report)
+		_, oldestCachedPlan, _ := engine.executionPlanCache.GetOldest()
+		assert.False(t, report.HasErrors())
+		assert.Equal(t, 1, engine.executionPlanCache.Len())
+		assert.Equal(t, cachedPlan, oldestCachedPlan.(*plan.SubscriptionResponsePlan))
+
+		secondInternalExecCtx := newInternalExecutionContext()
+		secondInternalExecCtx.resolveContext.Request.Header = http.Header{
+			http.CanonicalHeaderKey("Authorization"): []string{"xyz098"},
+		}
+
+		cachedPlan = engine.getCachedPlan(secondInternalExecCtx, &differentGqlRequest.document, &schema.document, differentGqlRequest.OperationName, &report)
+		_, oldestCachedPlan, _ = engine.executionPlanCache.GetOldest()
+		assert.False(t, report.HasErrors())
+		assert.Equal(t, 2, engine.executionPlanCache.Len())
+		assert.NotEqual(t, cachedPlan, oldestCachedPlan.(*plan.SubscriptionResponsePlan))
+	})
 }
 
 func BenchmarkExecutionEngineV2(b *testing.B) {
