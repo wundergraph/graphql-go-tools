@@ -182,7 +182,7 @@ func TestDocument_PrintValue(t *testing.T) {
 			buf := new(bytes.Buffer)
 			err := operation.PrintValue(prepareDoc(operation), buf)
 			assert.NoError(t, err)
-			assert.Equal(t, expectedOutput, string(buf.Bytes()))
+			assert.Equal(t, expectedOutput, buf.String())
 		}
 	}
 	t.Run("ValueKindString - non-block", run(func(doc *Document) Value {
