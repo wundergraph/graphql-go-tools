@@ -1106,9 +1106,6 @@ func (r *Resolver) freeResultSet(set *resultSet) {
 
 func (r *Resolver) resolveFetch(ctx *Context, fetch Fetch, data []byte, set *resultSet) (err error) {
 
-	path := string(ctx.path())
-	_ = path
-
 	switch f := fetch.(type) {
 	case *SingleFetch:
 		preparedInput := r.getBufPair()
