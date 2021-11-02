@@ -141,7 +141,7 @@ func (f *Fetcher) FetchBatch(ctx *Context, fetch *BatchFetch, preparedInputs []*
 		inputs[i] = preparedInputs[i].Bytes()
 	}
 
-	batch, err := fetch.BatchFactory.CreateBatch(inputs...)
+	batch, err := fetch.BatchFactory.CreateBatch(inputs)
 	if err != nil {
 		return err
 	}

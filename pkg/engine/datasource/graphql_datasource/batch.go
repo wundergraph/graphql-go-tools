@@ -3,12 +3,12 @@ package graphql_datasource
 import (
 	"bytes"
 	"fmt"
-	"hash"
 
 	"github.com/buger/jsonparser"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 	"github.com/jensneuse/graphql-go-tools/pkg/fastbuffer"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/pool"
 )
 
@@ -16,32 +16,42 @@ var representationPath = []string{"body", "variables", "representations"}
 
 type Batch struct {
 	resultedInput    *fastbuffer.FastBuffer
-	outToInPositions map[int][]int
+	responseMappings []inputResponseBufferMappings
 	batchSize        int
+}
+
+// inputResponseBufferMappings defines the relationship between input containing an _entities Query
+// and the output buffers, the response needs to be mapped to
+type inputResponseBufferMappings struct {
+	// responseIndex is the array position of the response
+	responseIndex int
+	// originalInput is the original input of a response to allow comparing and deduplication
+	originalInput []byte
+	// assignedBufferIndices are the buffers to which the response needs to be assigned
+	assignedBufferIndices []int
 }
 
 func NewBatchFactory() *BatchFactory {
 	return &BatchFactory{}
 }
 
-type BatchFactory struct {
-}
+type BatchFactory struct{}
 
-func (b *BatchFactory) CreateBatch(inputs ...[]byte) (resolve.DataSourceBatch, error) {
+func (b *BatchFactory) CreateBatch(inputs [][]byte) (resolve.DataSourceBatch, error) {
 	if len(inputs) == 0 {
 		return nil, nil
 	}
 
 	resultedInput := pool.FastBuffer.Get()
 
-	outToInPositions, err := multiplexBatch(resultedInput, inputs...)
+	responseMappings, err := b.multiplexBatch(resultedInput, inputs)
 	if err != nil {
 		return nil, nil
 	}
 
 	return &Batch{
 		resultedInput:    resultedInput,
-		outToInPositions: outToInPositions,
+		responseMappings: responseMappings,
 		batchSize:        len(inputs),
 	}, nil
 }
@@ -57,78 +67,101 @@ func (b *Batch) Demultiplex(responseBufPair *resolve.BufPair, bufPairs []*resolv
 		return fmt.Errorf("expected %d buf pairs", b.batchSize)
 	}
 
-	if err = demultiplexBatch(responseBufPair, b.outToInPositions, bufPairs); err != nil {
+	if err = b.demultiplexBatch(responseBufPair, b.responseMappings, bufPairs); err != nil {
 		return err
 	}
 
 	return
 }
 
-func multiplexBatch(out *fastbuffer.FastBuffer, inputs ...[]byte) (outToInPositions map[int][]int, err error) {
+func (b *BatchFactory) multiplexBatch(out *fastbuffer.FastBuffer, inputs [][]byte) (responseMappings []inputResponseBufferMappings, err error) {
 	if len(inputs) == 0 {
 		return nil, nil
 	}
 
-	var variables [][]byte
-	var currOutPosition int
+	variablesBuf := pool.FastBuffer.Get()
+	defer pool.FastBuffer.Put(variablesBuf)
 
-	outToInPositions = make(map[int][]int, len(inputs))
-	hashToOutPositions := make(map[uint64]int, len(inputs))
+	variablesBuf.WriteBytes(literal.LBRACK)
 
-	hash64 := pool.Hash64.Get().(hash.Hash64)
-	defer pool.Hash64.Put(hash64)
+	var (
+		variablesIdx int
+		firstRepresentationsStart int
+		firstRepresentationsEnd int
+	)
 
 	for i := range inputs {
-		inputVariables, _, _, err := jsonparser.Get(inputs[i], representationPath...)
+		inputVariables, _, representationsOffset, err := jsonparser.Get(inputs[i], representationPath...)
 		if err != nil {
 			return nil, err
 		}
 
-		if _, err = hash64.Write(inputVariables); err != nil {
-			return nil, err
+		if i == 0 {
+			firstRepresentationsStart = representationsOffset - len(inputVariables)
+			firstRepresentationsEnd = representationsOffset
 		}
-		// deduplicate inputs, do not send the same representation inputVariables
-		inputHash := hash64.Sum64()
-		hash64.Reset()
-
-		if outPosition, ok := hashToOutPositions[inputHash]; ok {
-			outToInPositions[outPosition] = append(outToInPositions[outPosition], i)
-			continue
-		}
-
-		hashToOutPositions[inputHash] = currOutPosition
-		outToInPositions[currOutPosition] = []int{i}
-		currOutPosition++
 
 		_, err = jsonparser.ArrayEach(inputVariables, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
-			variables = append(variables, value)
+
+			for j := range responseMappings {
+				existing := responseMappings[j].originalInput
+				if bytes.Equal(existing, value) {
+					responseMappings[j].assignedBufferIndices = append(responseMappings[j].assignedBufferIndices, i)
+					return
+				}
+			}
+
+			if variablesBuf.Len() != 1 {
+				variablesBuf.WriteBytes(literal.COMMA)
+			}
+			variablesBuf.WriteBytes(value)
+
+			responseMappings = append(responseMappings, inputResponseBufferMappings{
+				responseIndex:         variablesIdx,
+				originalInput:         value,
+				assignedBufferIndices: []int{i},
+			})
+
+			variablesIdx++
 		})
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	representationJson := append([]byte("["), append(bytes.Join(variables, []byte(",")), []byte("]")...)...)
+	variablesBuf.WriteBytes(literal.RBRACK)
 
-	mergedInput, err := jsonparser.Set(inputs[0], representationJson, representationPath...)
-	if err != nil {
-		return nil, err
-	}
+	representationJson := variablesBuf.Bytes()
+	representationJsonCopy := make([]byte, len(representationJson))
+	copy(representationJsonCopy, representationJson)
 
-	out.WriteBytes(mergedInput)
+	header := inputs[0][0:firstRepresentationsStart]
+	trailer := inputs[0][firstRepresentationsEnd:]
 
-	return outToInPositions, nil
+	out.WriteBytes(header)
+	out.WriteBytes(representationJsonCopy)
+	out.WriteBytes(trailer)
+
+	return
 }
 
-func demultiplexBatch(responsePair *resolve.BufPair, outToInPositions map[int][]int, resultBufPairs []*resolve.BufPair) (err error) {
+func (b *Batch) demultiplexBatch(responsePair *resolve.BufPair, responseMappings []inputResponseBufferMappings, resultBufPairs []*resolve.BufPair) (err error) {
 	var outPosition int
 
 	if responsePair.HasData() {
 		_, err = jsonparser.ArrayEach(responsePair.Data.Bytes(), func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
-			inputPositions := outToInPositions[outPosition]
 
-			for _, pos := range inputPositions {
-				resultBufPairs[pos].Data.WriteBytes(value)
+			if outPosition > len(responseMappings) +1 {
+				return
+			}
+
+			mapping := responseMappings[outPosition]
+
+			for _, index := range mapping.assignedBufferIndices {
+				if resultBufPairs[index].Data.Len() != 0 {
+					resultBufPairs[index].Data.WriteBytes(literal.COMMA)
+				}
+				resultBufPairs[index].Data.WriteBytes(value)
 			}
 
 			outPosition++

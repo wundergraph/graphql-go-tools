@@ -301,7 +301,7 @@ type Fetch interface {
 type Fetches []Fetch
 
 type DataSourceBatchFactory interface {
-	CreateBatch(inputs ...[]byte) (DataSourceBatch, error)
+	CreateBatch(inputs [][]byte) (DataSourceBatch, error)
 }
 
 type DataSourceBatch interface {
@@ -319,7 +319,7 @@ type SubscriptionDataSource interface {
 
 type Resolver struct {
 	ctx               context.Context
-	EnableDataloader  bool
+	dataLoaderEnabled bool
 	resultSetPool     sync.Pool
 	byteSlicesPool    sync.Pool
 	waitGroupPool     sync.Pool
@@ -387,7 +387,7 @@ func New(ctx context.Context, fetcher *Fetcher, enableDataLoader bool) *Resolver
 		},
 		dataloaderFactory: newDataloaderFactory(fetcher),
 		fetcher:           fetcher,
-		EnableDataloader:  enableDataLoader,
+		dataLoaderEnabled: enableDataLoader,
 	}
 }
 
@@ -486,7 +486,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 		ctx.lastFetchID = initialValueID
 	}
 
-	if r.EnableDataloader {
+	if r.dataLoaderEnabled {
 		ctx.dataLoader = r.dataloaderFactory.newDataLoader(responseBuf.Data.Bytes())
 		defer func() {
 			r.dataloaderFactory.freeDataLoader(ctx.dataLoader)
@@ -737,7 +737,7 @@ func (r *Resolver) resolveArray(ctx *Context, array *Array, data []byte, arrayBu
 	ctx.addResponseArrayElements(array.Path)
 	defer func() { ctx.removeResponseArrayLastElements(array.Path) }()
 
-	if array.ResolveAsynchronous && !array.Stream.Enabled && !r.EnableDataloader {
+	if array.ResolveAsynchronous && !array.Stream.Enabled && !r.dataLoaderEnabled {
 		return r.resolveArrayAsynchronous(ctx, array, arrayItems, arrayBuf)
 	}
 	return r.resolveArraySynchronous(ctx, array, arrayItems, arrayBuf)
@@ -1106,6 +1106,9 @@ func (r *Resolver) freeResultSet(set *resultSet) {
 
 func (r *Resolver) resolveFetch(ctx *Context, fetch Fetch, data []byte, set *resultSet) (err error) {
 
+	path := string(ctx.path())
+	_ = path
+
 	switch f := fetch.(type) {
 	case *SingleFetch:
 		preparedInput := r.getBufPair()
@@ -1186,7 +1189,7 @@ func (r *Resolver) prepareSingleFetch(ctx *Context, fetch *SingleFetch, data []b
 }
 
 func (r *Resolver) resolveBatchFetch(ctx *Context, fetch *BatchFetch, preparedInput *fastbuffer.FastBuffer, buf *BufPair) error {
-	if r.EnableDataloader {
+	if r.dataLoaderEnabled {
 		return ctx.dataLoader.LoadBatch(ctx, fetch, buf)
 	}
 
@@ -1198,7 +1201,7 @@ func (r *Resolver) resolveBatchFetch(ctx *Context, fetch *BatchFetch, preparedIn
 }
 
 func (r *Resolver) resolveSingleFetch(ctx *Context, fetch *SingleFetch, preparedInput *fastbuffer.FastBuffer, buf *BufPair) error {
-	if r.EnableDataloader {
+	if r.dataLoaderEnabled {
 		return ctx.dataLoader.Load(ctx, fetch, buf)
 	}
 

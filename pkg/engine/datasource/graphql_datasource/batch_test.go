@@ -21,14 +21,14 @@ func newBufPair(data string, err string) *resolve.BufPair {
 	return bufPair
 }
 
-func runTestBatch(t *testing.T, inputs []string, expectedInput string, outToInPos map[int][]int, batchSize int) {
+func runTestBatch(t *testing.T, inputs []string, expectedInput string, mappings []inputResponseBufferMappings, batchSize int) {
 	expectedFastBuf := fastbuffer.New()
 	expectedFastBuf.WriteBytes([]byte(expectedInput))
 
 	expectedBatch := &Batch{
 		resultedInput:    expectedFastBuf,
-		outToInPositions: outToInPos,
 		batchSize:        batchSize,
+		responseMappings: mappings,
 	}
 
 	convertedInputs := make([][]byte, len(inputs))
@@ -37,7 +37,7 @@ func runTestBatch(t *testing.T, inputs []string, expectedInput string, outToInPo
 	}
 
 	batchFactory := NewBatchFactory()
-	batch, err := batchFactory.CreateBatch(convertedInputs...)
+	batch, err := batchFactory.CreateBatch(convertedInputs)
 	require.NoError(t, err)
 	assert.Equal(t, expectedBatch, batch)
 }
@@ -49,7 +49,7 @@ func runTestDemultiplex(t *testing.T, inputs []string, responseBufPair *resolve.
 	}
 
 	batchFactory := NewBatchFactory()
-	batch, err := batchFactory.CreateBatch(convertedInputs...)
+	batch, err := batchFactory.CreateBatch(convertedInputs)
 	require.NoError(t, err)
 
 	gotBufPairs := make([]*resolve.BufPair, len(inputs))
@@ -71,7 +71,18 @@ func TestBatch(t *testing.T) {
 				`{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"upc":"top-2","__typename":"Product"}]}}}`,
 			},
 			`{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}}}`,
-			map[int][]int{0: {0}, 1: {1}},
+			[]inputResponseBufferMappings{
+				{
+					responseIndex:               0,
+					originalInput: []byte(`{"upc":"top-1","__typename":"Product"}`),
+					assignedBufferIndices: []int{0},
+				},
+				{
+					responseIndex:               1,
+					originalInput: []byte(`{"upc":"top-2","__typename":"Product"}`),
+					assignedBufferIndices: []int{1},
+				},
+			},
 			2,
 		)
 	})
@@ -83,8 +94,48 @@ func TestBatch(t *testing.T) {
 				`{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"upc":"top-2","__typename":"Product"}]}}}`,
 			},
 			`{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"upc":"top-2","__typename":"Product"}]}}}`,
-			map[int][]int{0: {0, 1}},
+			[]inputResponseBufferMappings{
+				{
+					responseIndex:               0,
+					originalInput: []byte(`{"upc":"top-2","__typename":"Product"}`),
+					assignedBufferIndices: []int{0,1},
+				},
+			},
 			2,
+		)
+	})
+	t.Run("deduplicate the same args with overlaps", func(t *testing.T) {
+		runTestBatch(
+			t,
+			[]string{
+				`{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"upc":"top-2","__typename":"Product"},{"upc":"top-1","__typename":"Product"}]}}}`,
+				`{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"upc":"top-2","__typename":"Product"},{"upc":"top-3","__typename":"Product"}]}}}`,
+				`{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"upc":"top-3","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}}}`,
+				`{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}}}`,
+				`{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"upc":"top-3","__typename":"Product"},{"upc":"top-1","__typename":"Product"}]}}}`,
+				`{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"upc":"top-2","__typename":"Product"}]}}}`,
+				`{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"}]}}}`,
+				`{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"upc":"top-3","__typename":"Product"}]}}}`,
+			},
+			`{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"upc":"top-2","__typename":"Product"},{"upc":"top-1","__typename":"Product"},{"upc":"top-3","__typename":"Product"}]}}}`,
+			[]inputResponseBufferMappings{
+				{
+					responseIndex:               0,
+					originalInput: []byte(`{"upc":"top-2","__typename":"Product"}`),
+					assignedBufferIndices: []int{0,1,2,3,5},
+				},
+				{
+					responseIndex:               1,
+					originalInput: []byte(`{"upc":"top-1","__typename":"Product"}`),
+					assignedBufferIndices: []int{0,3,4,6},
+				},
+				{
+					responseIndex:               2,
+					originalInput: []byte(`{"upc":"top-3","__typename":"Product"}`),
+					assignedBufferIndices: []int{1,2,4,7},
+				},
+			},
+			8,
 		)
 	})
 	t.Run("create batch with complex inputs", func(t *testing.T) {
@@ -97,7 +148,23 @@ func TestBatch(t *testing.T) {
 				`{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"category":"category-2", "name":"Top 2","__typename":"Product"}]}}}`,
 			},
 			`{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"category":"category-1", "name":"Top 1","__typename":"Product"},{"category":"category-2", "name":"Top 1","__typename":"Product"},{"category":"category-2", "name":"Top 2","__typename":"Product"}]}}}`,
-			map[int][]int{0: {0, 2}, 1: {1}, 2: {3}},
+			[]inputResponseBufferMappings{
+				{
+					responseIndex:               0,
+					originalInput: []byte(`{"category":"category-1", "name":"Top 1","__typename":"Product"}`),
+					assignedBufferIndices: []int{0,2},
+				},
+				{
+					responseIndex:               1,
+					originalInput: []byte(`{"category":"category-2", "name":"Top 1","__typename":"Product"}`),
+					assignedBufferIndices: []int{1},
+				},
+				{
+					responseIndex:               2,
+					originalInput: []byte(`{"category":"category-2", "name":"Top 2","__typename":"Product"}`),
+					assignedBufferIndices: []int{3},
+				},
+			},
 			4,
 		)
 	})
