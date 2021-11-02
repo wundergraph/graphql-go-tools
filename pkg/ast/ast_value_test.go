@@ -1,6 +1,7 @@
 package ast
 
 import (
+	"bytes"
 	"strconv"
 	"testing"
 
@@ -172,4 +173,35 @@ func TestDocument_ValueToJSON(t *testing.T) {
 			Ref:  0,
 		}
 	}, `{"foo":"bar","baz":{"bat":"bal"},"list":[1,2,3]}`))
+}
+
+func TestDocument_PrintValue(t *testing.T) {
+	run := func(prepareDoc func(doc *Document) Value, expectedOutput string) func(t *testing.T) {
+		operation := NewDocument()
+		return func(t *testing.T) {
+			buf := new(bytes.Buffer)
+			err := operation.PrintValue(prepareDoc(operation), buf)
+			assert.NoError(t, err)
+			assert.Equal(t, expectedOutput, string(buf.Bytes()))
+		}
+	}
+	t.Run("ValueKindString - non-block", run(func(doc *Document) Value {
+		doc.StringValues = append(doc.StringValues, StringValue{
+			Content: doc.Input.AppendInputString("foo"),
+		})
+		return Value{
+			Kind: ValueKindString,
+			Ref:  0,
+		}
+	}, `"foo"`))
+	t.Run("ValueKindString - block", run(func(doc *Document) Value {
+		doc.StringValues = append(doc.StringValues, StringValue{
+			BlockString: true,
+			Content:     doc.Input.AppendInputString("foo"),
+		})
+		return Value{
+			Kind: ValueKindString,
+			Ref:  0,
+		}
+	}, `"""foo"""`))
 }
