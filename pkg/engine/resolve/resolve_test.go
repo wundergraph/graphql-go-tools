@@ -86,6 +86,23 @@ func TestResolver_ResolveNode(t *testing.T) {
 			ctrl.Finish()
 		}
 	}
+
+	testErrFn := func(fn func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedErr string)) func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		r := New(c)
+		node, ctx, expectedErr := fn(t, r, ctrl)
+		return func(t *testing.T) {
+			buf := &BufPair{
+				Data:   fastbuffer.New(),
+				Errors: fastbuffer.New(),
+			}
+			err := r.resolveNode(&ctx, node, nil, buf)
+			assert.EqualError(t, err, expectedErr)
+			ctrl.Finish()
+		}
+	}
 	t.Run("Nullable empty object", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 			Nullable: true,
@@ -234,6 +251,48 @@ func TestResolver_ResolveNode(t *testing.T) {
 				},
 			},
 		}, Context{Context: context.Background(), Variables: []byte(`{"id":1}`)}, `{"name":"Jens"}`
+	}))
+	t.Run("resolve array of strings", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+		return &Object{
+			Fetch: &SingleFetch{
+				BufferId:   0,
+				DataSource: FakeDataSource(`{"strings": ["Alex", "true", "123"]}`),
+			},
+			Fields: []*Field{
+				{
+					BufferID:  0,
+					HasBuffer: true,
+					Name:      []byte("strings"),
+					Value: &Array{
+						Path: []string{"strings"},
+						Item: &String{
+							Nullable: false,
+						},
+					},
+				},
+			},
+		}, Context{Context: context.Background()}, `{"strings":["Alex","true","123"]}`
+	}))
+	t.Run("resolve array of mixed scalar types", testErrFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedErr string) {
+		return &Object{
+			Fetch: &SingleFetch{
+				BufferId:   0,
+				DataSource: FakeDataSource(`{"strings": ["Alex", "true", 123]}`),
+			},
+			Fields: []*Field{
+				{
+					BufferID:  0,
+					HasBuffer: true,
+					Name:      []byte("strings"),
+					Value: &Array{
+						Path: []string{"strings"},
+						Item: &String{
+							Nullable: false,
+						},
+					},
+				},
+			},
+		}, Context{Context: context.Background()}, `non Nullable field value is null`
 	}))
 	t.Run("resolve arrays", testFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{

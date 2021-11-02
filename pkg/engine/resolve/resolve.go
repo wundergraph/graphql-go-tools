@@ -13,7 +13,6 @@ import (
 	"strconv"
 	"sync"
 	"time"
-	"unicode"
 
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash"
@@ -681,6 +680,10 @@ func (r *Resolver) resolveArray(ctx *Context, array *Array, data []byte, arrayBu
 	}()
 
 	_, err = jsonparser.ArrayEach(data, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+		if err == nil && dataType == jsonparser.String {
+			value = data[offset-2:offset+len(value)] // add quotes to string values
+		}
+
 		*arrayItems = append(*arrayItems, value)
 	}, array.Path...)
 
@@ -856,27 +859,16 @@ func (r *Resolver) resolveString(str *String, data []byte, stringBuf *BufPair) e
 		valueType jsonparser.ValueType
 		err       error
 	)
-	if len(data) != 0 && str.Path == nil {
-		_, valueType, _, _ = jsonparser.Get(data)
-		if valueType == jsonparser.String || unicode.IsLetter(rune(data[0])) {
-			value = data
-		} else if !str.Nullable {
+
+	value, valueType, _, err = jsonparser.Get(data, str.Path...)
+	if err != nil || valueType != jsonparser.String {
+		if !str.Nullable {
 			return errNonNullableFieldValueIsNull
-		} else {
-			r.resolveNull(stringBuf.Data)
-			return nil
 		}
+		r.resolveNull(stringBuf.Data)
+		return nil
 	}
-	if value == nil {
-		value, valueType, _, err = jsonparser.Get(data, str.Path...)
-		if err != nil || valueType != jsonparser.String {
-			if !str.Nullable {
-				return errNonNullableFieldValueIsNull
-			}
-			r.resolveNull(stringBuf.Data)
-			return nil
-		}
-	}
+
 	if value == nil && !str.Nullable {
 		return errNonNullableFieldValueIsNull
 	}
