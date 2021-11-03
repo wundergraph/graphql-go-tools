@@ -126,6 +126,24 @@ func TestResolver_ResolveNode(t *testing.T) {
 			ctrl.Finish()
 		}
 	}
+
+	testErrFn := func(fn func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedErr string)) func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		r := newResolver(c, false, false)
+		node, ctx, expectedErr := fn(t, r, ctrl)
+		return func(t *testing.T) {
+			buf := &BufPair{
+				Data:   fastbuffer.New(),
+				Errors: fastbuffer.New(),
+			}
+			err := r.resolveNode(&ctx, node, nil, buf)
+			assert.EqualError(t, err, expectedErr)
+			ctrl.Finish()
+		}
+	}
+
 	t.Run("Nullable empty object", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 			Nullable: true,
@@ -273,6 +291,48 @@ func TestResolver_ResolveNode(t *testing.T) {
 				},
 			},
 		}, Context{Context: context.Background(), Variables: []byte(`{"id":1}`)}, `{"name":"Jens"}`
+	}))
+	t.Run("resolve array of strings", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+		return &Object{
+			Fetch: &SingleFetch{
+				BufferId:   0,
+				DataSource: FakeDataSource(`{"strings": ["Alex", "true", "123"]}`),
+			},
+			Fields: []*Field{
+				{
+					BufferID:  0,
+					HasBuffer: true,
+					Name:      []byte("strings"),
+					Value: &Array{
+						Path: []string{"strings"},
+						Item: &String{
+							Nullable: false,
+						},
+					},
+				},
+			},
+		}, Context{Context: context.Background()}, `{"strings":["Alex","true","123"]}`
+	}))
+	t.Run("resolve array of mixed scalar types", testErrFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedErr string) {
+		return &Object{
+			Fetch: &SingleFetch{
+				BufferId:   0,
+				DataSource: FakeDataSource(`{"strings": ["Alex", "true", 123]}`),
+			},
+			Fields: []*Field{
+				{
+					BufferID:  0,
+					HasBuffer: true,
+					Name:      []byte("strings"),
+					Value: &Array{
+						Path: []string{"strings"},
+						Item: &String{
+							Nullable: false,
+						},
+					},
+				},
+			},
+		}, Context{Context: context.Background()}, `non Nullable field value is null`
 	}))
 	t.Run("resolve arrays", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
@@ -575,19 +635,19 @@ func TestResolver_ResolveNode(t *testing.T) {
 							Path: []string{"pet"},
 							Fields: []*Field{
 								{
-									BufferID:   0,
-									HasBuffer:  false,
-									Name:       []byte("id"),
+									BufferID:  0,
+									HasBuffer: false,
+									Name:      []byte("id"),
 									Value: &String{
 										Path: []string{"id"},
 									},
 								},
 								{
-									BufferID:   0,
-									HasBuffer:  false,
-									Name:       []byte("detail"),
+									BufferID:  0,
+									HasBuffer: false,
+									Name:      []byte("detail"),
 									Value: &Object{
-										Path: []string{"detail"},
+										Path:     []string{"detail"},
 										Nullable: true,
 										Fields: []*Field{
 											{
@@ -1198,7 +1258,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						BufferID:  0,
 						Name:      []byte("notNullableArray"),
 						Value: &Array{
-							Path: []string{"some_path"},
+							Path:     []string{"some_path"},
 							Nullable: false,
 							Item: &Object{
 								Nullable: false,
@@ -1766,7 +1826,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 		reviewBatchFactory.EXPECT().
 			CreateBatch([][]byte{
 				[]byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}}}`),
-		}).
+			}).
 			Return(NewFakeDataSourceBatch(
 				`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}}}`,
 				[]resultedBufPair{
@@ -1842,9 +1902,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 												SegmentType: StaticSegmentType,
 											},
 											{
-												SegmentType:        VariableSegmentType,
-												VariableSource:     VariableSourceObject,
-												VariableSourcePath: []string{"id"},
+												SegmentType:                  VariableSegmentType,
+												VariableSource:               VariableSourceObject,
+												VariableSourcePath:           []string{"id"},
 												VariableValueType:            jsonparser.Number,
 												RenderVariableAsGraphQLValue: true,
 											},
@@ -1908,9 +1968,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 																			SegmentType: StaticSegmentType,
 																		},
 																		{
-																			SegmentType:        VariableSegmentType,
-																			VariableSource:     VariableSourceObject,
-																			VariableSourcePath: []string{"upc"},
+																			SegmentType:                  VariableSegmentType,
+																			VariableSource:               VariableSourceObject,
+																			VariableSourcePath:           []string{"upc"},
 																			VariableValueType:            jsonparser.String,
 																			RenderVariableAsGraphQLValue: true,
 																		},
@@ -1973,7 +2033,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 		reviewBatchFactory.EXPECT().
 			CreateBatch([][]byte{
 				[]byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}}}`),
-		}).
+			}).
 			Return(NewFakeDataSourceBatch(
 				`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}}}`,
 				[]resultedBufPair{
@@ -2046,9 +2106,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 												SegmentType: StaticSegmentType,
 											},
 											{
-												SegmentType:        VariableSegmentType,
-												VariableSource:     VariableSourceObject,
-												VariableSourcePath: []string{"id"},
+												SegmentType:                  VariableSegmentType,
+												VariableSource:               VariableSourceObject,
+												VariableSourcePath:           []string{"id"},
 												VariableValueType:            jsonparser.Number,
 												RenderVariableAsGraphQLValue: true,
 											},
@@ -2109,9 +2169,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 																			SegmentType: StaticSegmentType,
 																		},
 																		{
-																			SegmentType:        VariableSegmentType,
-																			VariableSource:     VariableSourceObject,
-																			VariableSourcePath: []string{"upc"},
+																			SegmentType:                  VariableSegmentType,
+																			VariableSource:               VariableSourceObject,
+																			VariableSourcePath:           []string{"upc"},
 																			VariableValueType:            jsonparser.String,
 																			RenderVariableAsGraphQLValue: true,
 																		},

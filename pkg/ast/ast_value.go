@@ -118,9 +118,24 @@ func (d *Document) PrintValue(value Value, w io.Writer) (err error) {
 			_, err = w.Write(literal.FALSE)
 		}
 	case ValueKindString:
+		// This code assumes string content is valid for the associated string
+		// type (block/non-block) according to the GraphQL spec. Content IS NOT
+		// processed to quote characters that are invalid for the associated
+		// type.
+		//
+		// GraphQL spec: https://spec.graphql.org/June2018/#StringValue
+		isBlockString := d.StringValues[value.Ref].BlockString
 		_, err = w.Write(literal.QUOTE)
+		if isBlockString {
+			_, err = w.Write(literal.QUOTE)
+			_, err = w.Write(literal.QUOTE)
+		}
 		_, err = w.Write(d.Input.ByteSlice(d.StringValues[value.Ref].Content))
 		_, err = w.Write(literal.QUOTE)
+		if isBlockString {
+			_, err = w.Write(literal.QUOTE)
+			_, err = w.Write(literal.QUOTE)
+		}
 	case ValueKindInteger:
 		if d.IntValues[value.Ref].Negative {
 			_, err = w.Write(literal.SUB)
