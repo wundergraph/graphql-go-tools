@@ -143,7 +143,9 @@ func (e *LocalTypeFieldExtractor) GetAllNodes() ([]TypeField, []TypeField) {
 		// considered a root node if ANY node related to the type is a root
 		// node.
 		nodeInfo.isRoot = nodeInfo.isRoot || isRootNode
-		nodeInfo.concreteTypeNames = concreteTypeNames
+		// Local union extensions are disjoint. For details, see the GraphQL
+		// spec: https://spec.graphql.org/October2021/#sec-Union-Extensions
+		nodeInfo.concreteTypeNames = append(nodeInfo.concreteTypeNames, concreteTypeNames...)
 
 		if isRootNode {
 			rootNodeNames = appendIfNotPresent(rootNodeNames, typeName)

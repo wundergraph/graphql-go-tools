@@ -385,6 +385,51 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 				{TypeName: "User", FieldNames: []string{"communications", "id"}},
 			})
 	})
+	t.Run("local union extension", func(t *testing.T) {
+		run(t, `
+			extend type Query {
+				me: User
+				communication(id: ID!): Communication
+				user(id: ID!): User
+			}
+
+			type User {
+				id: ID!
+				communications: [Communication!]!
+			}
+
+			type Review {
+				id: ID! @external
+				comment: String!
+				rating: Int!
+				user: User
+			}
+
+			type Comment {
+				id: ID! @external
+				comment: String!
+				user: User
+			}
+
+			type Post {
+				id: ID!
+				content: String!
+			}
+
+			union Communication = Review | Comment
+
+			extend union Communication = Post
+		`,
+			[]TypeField{
+				{TypeName: "Query", FieldNames: []string{"communication", "me", "user"}},
+			},
+			[]TypeField{
+				{TypeName: "Comment", FieldNames: []string{"comment", "id", "user"}},
+				{TypeName: "Post", FieldNames: []string{"content", "id"}},
+				{TypeName: "Review", FieldNames: []string{"comment", "id", "rating", "user"}},
+				{TypeName: "User", FieldNames: []string{"communications", "id"}},
+			})
+	})
 	t.Run("Entity definition", func(t *testing.T) {
 		run(t, `
 			type User @key(fields: "id") {
