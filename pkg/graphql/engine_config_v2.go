@@ -17,7 +17,7 @@ type EngineV2Configuration struct {
 	schema                   *Schema
 	plannerConfig            plan.Configuration
 	websocketBeforeStartHook WebsocketBeforeStartHook
-	dataLoaderConfig dataLoaderConfig
+	dataLoaderConfig         dataLoaderConfig
 }
 
 func NewEngineV2Configuration(schema *Schema) EngineV2Configuration {
@@ -83,13 +83,13 @@ func newGraphQLDataSourceV2Generator(document *ast.Document) *graphqlDataSourceV
 	}
 }
 
-func (d *graphqlDataSourceV2Generator) Generate(config graphqlDataSource.Configuration,batchFactory resolve.DataSourceBatchFactory, httpClient *http.Client) plan.DataSourceConfiguration {
+func (d *graphqlDataSourceV2Generator) Generate(config graphqlDataSource.Configuration, batchFactory resolve.DataSourceBatchFactory, httpClient *http.Client) plan.DataSourceConfiguration {
 	var planDataSource plan.DataSourceConfiguration
 	extractor := plan.NewLocalTypeFieldExtractor(d.document)
 	planDataSource.RootNodes, planDataSource.ChildNodes = extractor.GetAllNodes()
 
 	factory := &graphqlDataSource.Factory{
-		HTTPClient: httpClient,
+		HTTPClient:   httpClient,
 		BatchFactory: batchFactory,
 	}
 

@@ -24,7 +24,7 @@ func WithFederationHttpClient(client *http.Client) FederationEngineConfigFactory
 	}
 }
 
-func NewFederationEngineConfigFactory(dataSourceConfigs []graphqlDataSource.Configuration,batchFactory resolve.DataSourceBatchFactory, opts ...FederationEngineConfigFactoryOption) *FederationEngineConfigFactory {
+func NewFederationEngineConfigFactory(dataSourceConfigs []graphqlDataSource.Configuration, batchFactory resolve.DataSourceBatchFactory, opts ...FederationEngineConfigFactoryOption) *FederationEngineConfigFactory {
 	options := federationEngineConfigFactoryOptions{
 		httpClient: &http.Client{
 			Timeout: time.Second * 10,
@@ -131,7 +131,7 @@ func (f *FederationEngineConfigFactory) engineConfigDataSources() (planDataSourc
 			return nil, fmt.Errorf("parse graphql document string: %s", report.Error())
 		}
 
-		planDataSource := newGraphQLDataSourceV2Generator(&doc).Generate(dataSourceConfig,f.batchFactory, f.httpClient)
+		planDataSource := newGraphQLDataSourceV2Generator(&doc).Generate(dataSourceConfig, f.batchFactory, f.httpClient)
 		planDataSources = append(planDataSources, planDataSource)
 	}
 
