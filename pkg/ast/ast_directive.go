@@ -19,6 +19,28 @@ type Directive struct {
 	Arguments    ArgumentList // e.g. (if: true)
 }
 
+func (l *DirectiveList) HasDirectiveByName(document *Document, name string) bool {
+	for i := range l.Refs {
+		if document.DirectiveNameString(l.Refs[i]) == name {
+			return true
+		}
+	}
+	return false
+}
+
+func (l *DirectiveList) RemoveDirectiveByName(document *Document, name string) {
+	for i := range l.Refs {
+		if document.DirectiveNameString(l.Refs[i]) == name {
+			if i < len(l.Refs)-1 {
+				l.Refs = append(l.Refs[:i], l.Refs[i+1:]...)
+			} else {
+				l.Refs = l.Refs[:i]
+			}
+			return
+		}
+	}
+}
+
 func (d *Document) PrintDirective(ref int, w io.Writer) error {
 	_, err := w.Write(literal.AT)
 	if err != nil {

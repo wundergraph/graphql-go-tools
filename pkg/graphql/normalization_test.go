@@ -207,6 +207,6 @@ func Test_normalizationResultFromReport(t *testing.T) {
 		assert.Equal(t, internalErr, err)
 		assert.False(t, result.Successful)
 		assert.Equal(t, result.Errors.Count(), 1)
-		assert.Equal(t, "graphql error", result.Errors.(OperationValidationErrors)[0].Message)
+		assert.Equal(t, "graphql error", result.Errors.(RequestErrors)[0].Message)
 	})
 }

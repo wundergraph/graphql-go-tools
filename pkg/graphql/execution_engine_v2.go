@@ -2,51 +2,27 @@ package graphql
 
 import (
 	"bytes"
+	"compress/flate"
+	"compress/gzip"
 	"context"
 	"errors"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"sync"
 
+	lru "github.com/hashicorp/golang-lru"
 	"github.com/jensneuse/abstractlogger"
 
+	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
+	"github.com/jensneuse/graphql-go-tools/pkg/pool"
 	"github.com/jensneuse/graphql-go-tools/pkg/postprocess"
 )
-
-type EngineV2Configuration struct {
-	schema        *Schema
-	plannerConfig plan.Configuration
-}
-
-func NewEngineV2Configuration(schema *Schema) EngineV2Configuration {
-	return EngineV2Configuration{
-		schema: schema,
-		plannerConfig: plan.Configuration{
-			DefaultFlushInterval: 0,
-			DataSources:          []plan.DataSourceConfiguration{},
-			Fields:               plan.FieldConfigurations{},
-		},
-	}
-}
-
-func (e *EngineV2Configuration) AddDataSource(dataSource plan.DataSourceConfiguration) {
-	e.plannerConfig.DataSources = append(e.plannerConfig.DataSources, dataSource)
-}
-
-func (e *EngineV2Configuration) SetDataSources(dataSources []plan.DataSourceConfiguration) {
-	e.plannerConfig.DataSources = dataSources
-}
-
-func (e *EngineV2Configuration) AddFieldConfiguration(fieldConfig plan.FieldConfiguration) {
-	e.plannerConfig.Fields = append(e.plannerConfig.Fields, fieldConfig)
-}
-
-func (e *EngineV2Configuration) SetFieldConfigurations(fieldConfigs plan.FieldConfigurations) {
-	e.plannerConfig.Fields = fieldConfigs
-}
 
 type EngineResultWriter struct {
 	buf           *bytes.Buffer
@@ -102,10 +78,28 @@ func (e *EngineResultWriter) Reset() {
 }
 
 func (e *EngineResultWriter) AsHTTPResponse(status int, headers http.Header) *http.Response {
+	b := &bytes.Buffer{}
+
+	switch headers.Get(httpclient.ContentEncodingHeader) {
+	case "gzip":
+		gzw := gzip.NewWriter(b)
+		_, _ = gzw.Write(e.Bytes())
+		_ = gzw.Close()
+	case "deflate":
+		fw, _ := flate.NewWriter(b, 1)
+		_, _ = fw.Write(e.Bytes())
+		_ = fw.Close()
+	default:
+		headers.Del(httpclient.ContentEncodingHeader) // delete unsupported compression header
+		b = e.buf
+	}
+
 	res := &http.Response{}
-	res.Body = ioutil.NopCloser(e.buf)
+	res.Body = ioutil.NopCloser(b)
 	res.Header = headers
 	res.StatusCode = status
+	res.ContentLength = int64(b.Len())
+	res.Header.Set("Content-Length", strconv.Itoa(b.Len()))
 	return res
 }
 
@@ -146,9 +140,15 @@ func (e *internalExecutionContext) reset() {
 type ExecutionEngineV2 struct {
 	logger                       abstractlogger.Logger
 	config                       EngineV2Configuration
-	plannerPool                  sync.Pool
+	planner                      *plan.Planner
+	plannerMu                    sync.Mutex
 	resolver                     *resolve.Resolver
 	internalExecutionContextPool sync.Pool
+	executionPlanCache           *lru.Cache
+}
+
+type WebsocketBeforeStartHook interface {
+	OnBeforeStart(reqCtx context.Context, operation *Request) error
 }
 
 type ExecutionOptionsV2 func(ctx *internalExecutionContext)
@@ -165,21 +165,51 @@ func WithAfterFetchHook(hook resolve.AfterFetchHook) ExecutionOptionsV2 {
 	}
 }
 
+func WithAdditionalHttpHeaders(headers http.Header, excludeByKeys ...string) ExecutionOptionsV2 {
+	return func(ctx *internalExecutionContext) {
+		if len(headers) == 0 {
+			return
+		}
+
+		if ctx.resolveContext.Request.Header == nil {
+			ctx.resolveContext.Request.Header = make(http.Header)
+		}
+
+		excludeMap := make(map[string]bool)
+		for _, key := range excludeByKeys {
+			excludeMap[key] = true
+		}
+
+		for headerKey, headerValues := range headers {
+			if excludeMap[headerKey] {
+				continue
+			}
+
+			for _, headerValue := range headerValues {
+				ctx.resolveContext.Request.Header.Add(headerKey, headerValue)
+			}
+		}
+	}
+}
+
 func NewExecutionEngineV2(ctx context.Context, logger abstractlogger.Logger, engineConfig EngineV2Configuration) (*ExecutionEngineV2, error) {
+	executionPlanCache, err := lru.New(1024)
+	if err != nil {
+		return nil, err
+	}
+	fetcher := resolve.NewFetcher(engineConfig.dataLoaderConfig.EnableSingleFlightLoader)
+
 	return &ExecutionEngineV2{
-		logger: logger,
-		config: engineConfig,
-		plannerPool: sync.Pool{
-			New: func() interface{} {
-				return plan.NewPlanner(ctx, engineConfig.plannerConfig)
-			},
-		},
-		resolver: resolve.New(ctx),
+		logger:   logger,
+		config:   engineConfig,
+		planner:  plan.NewPlanner(ctx, engineConfig.plannerConfig),
+		resolver: resolve.New(ctx, fetcher, engineConfig.dataLoaderConfig.EnableDataLoader),
 		internalExecutionContextPool: sync.Pool{
 			New: func() interface{} {
 				return newInternalExecutionContext()
 			},
 		},
+		executionPlanCache: executionPlanCache,
 	}, nil
 }
 
@@ -195,6 +225,14 @@ func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *Request, wri
 		}
 	}
 
+	result, err := operation.ValidateForSchema(e.config.schema)
+	if err != nil {
+		return err
+	}
+	if !result.Valid {
+		return result.Errors
+	}
+
 	execContext := e.getExecutionCtx()
 	defer e.putExecutionCtx(execContext)
 
@@ -204,20 +242,13 @@ func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *Request, wri
 		options[i](execContext)
 	}
 
-	// Optimization: Hashing the operation and caching the postprocessed plan for
-	// this specific operation will improve performance significantly.
 	var report operationreport.Report
-	planner := e.plannerPool.Get().(*plan.Planner)
-	planResult := planner.Plan(&operation.document, &e.config.schema.document, operation.OperationName, &report)
-	e.plannerPool.Put(planner)
+	cachedPlan := e.getCachedPlan(execContext, &operation.document, &e.config.schema.document, operation.OperationName, &report)
 	if report.HasErrors() {
-		return errors.New(report.Error())
+		return report
 	}
 
-	planResult = execContext.postProcessor.Process(planResult)
-
-	var err error
-	switch p := planResult.(type) {
+	switch p := cachedPlan.(type) {
 	case *plan.SynchronousResponsePlan:
 		err = e.resolver.ResolveGraphQLResponse(execContext.resolveContext, p.Response, nil, writer)
 	case *plan.SubscriptionResponsePlan:
@@ -227,6 +258,41 @@ func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *Request, wri
 	}
 
 	return err
+}
+
+func (e *ExecutionEngineV2) getCachedPlan(ctx *internalExecutionContext, operation, definition *ast.Document, operationName string, report *operationreport.Report) plan.Plan {
+
+	hash := pool.Hash64.Get()
+	hash.Reset()
+	defer pool.Hash64.Put(hash)
+	err := astprinter.Print(operation, definition, hash)
+	if err != nil {
+		report.AddInternalError(err)
+		return nil
+	}
+
+	cacheKey := hash.Sum64()
+
+	if cached, ok := e.executionPlanCache.Get(cacheKey); ok {
+		if p, ok := cached.(plan.Plan); ok {
+			return p
+		}
+	}
+
+	e.plannerMu.Lock()
+	defer e.plannerMu.Unlock()
+	planResult := e.planner.Plan(operation, definition, operationName, report)
+	if report.HasErrors() {
+		return nil
+	}
+
+	p := ctx.postProcessor.Process(planResult)
+	e.executionPlanCache.Add(cacheKey, p)
+	return p
+}
+
+func (e *ExecutionEngineV2) GetWebsocketBeforeStartHook() WebsocketBeforeStartHook {
+	return e.config.websocketBeforeStartHook
 }
 
 func (e *ExecutionEngineV2) getExecutionCtx() *internalExecutionContext {

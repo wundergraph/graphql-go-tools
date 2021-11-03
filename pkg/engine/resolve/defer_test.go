@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"testing"
 
+	"github.com/buger/jsonparser"
 	jsonpatch "github.com/evanphx/json-patch/v5"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -48,6 +49,8 @@ func TestWithoutDefer(t *testing.T) {
 											SegmentType:        VariableSegmentType,
 											VariableSource:     VariableSourceObject,
 											VariableSourcePath: []string{"id"},
+											RenderVariableAsGraphQLValue: true,
+											VariableValueType: jsonparser.Number,
 										},
 									},
 								},
@@ -97,10 +100,10 @@ func TestWithoutDefer(t *testing.T) {
 		},
 	}
 
-	c, cancel := context.WithCancel(context.Background())
+	rCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	resolver := New(c)
+	resolver := New(rCtx, NewFetcher(false), false)
 
 	ctx := NewContext(context.Background())
 
@@ -223,6 +226,8 @@ func TestDefer(t *testing.T) {
 								SegmentType:        VariableSegmentType,
 								VariableSource:     VariableSourceObject,
 								VariableSourcePath: []string{"id"},
+								VariableValueType: jsonparser.Number,
+								RenderVariableAsGraphQLValue: true,
 							},
 						},
 					},
@@ -249,10 +254,10 @@ func TestDefer(t *testing.T) {
 		},
 	}
 
-	c, cancel := context.WithCancel(context.Background())
+	rCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	resolver := New(c)
+	resolver := New(rCtx, NewFetcher(false), false)
 
 	ctx := NewContext(context.Background())
 
@@ -384,10 +389,10 @@ func BenchmarkDefer(b *testing.B) {
 		},
 	}
 
-	c, cancel := context.WithCancel(context.Background())
+	rCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	resolver := New(c)
+	resolver := New(rCtx, NewFetcher(false), false)
 
 	ctx := NewContext(context.Background())
 

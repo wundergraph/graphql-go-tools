@@ -1,6 +1,8 @@
 package graphql
 
 import (
+	"compress/flate"
+	"compress/gzip"
 	"context"
 	"fmt"
 	"io/ioutil"
@@ -24,76 +26,119 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/staticdatasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
+	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 	"github.com/jensneuse/graphql-go-tools/pkg/starwars"
 )
 
-func TestNewEngineV2Configuration(t *testing.T) {
-	var engineConfig EngineV2Configuration
-
-	t.Run("should create a new engine v2 config", func(t *testing.T) {
-		schema, err := NewSchemaFromString(countriesSchema)
+func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
+	t.Run("no compression", func(t *testing.T) {
+		rw := NewEngineResultWriter()
+		_, err := rw.Write([]byte(`{"key": "value"}`))
 		require.NoError(t, err)
 
-		engineConfig = NewEngineV2Configuration(schema)
-		assert.Len(t, engineConfig.plannerConfig.DataSources, 0)
-		assert.Len(t, engineConfig.plannerConfig.Fields, 0)
+		headers := make(http.Header)
+		headers.Set("Content-Type", "application/json")
+		response := rw.AsHTTPResponse(http.StatusOK, headers)
+		body, err := ioutil.ReadAll(response.Body)
+		require.NoError(t, err)
+
+		assert.Equal(t, http.StatusOK, response.StatusCode)
+		assert.Equal(t, "application/json", response.Header.Get("Content-Type"))
+		assert.Equal(t, `{"key": "value"}`, string(body))
 	})
 
-	t.Run("should successfully add a data source", func(t *testing.T) {
-		ds := plan.DataSourceConfiguration{Custom: []byte("1")}
-		engineConfig.AddDataSource(ds)
+	t.Run("compression based on content encoding header", func(t *testing.T) {
+		rw := NewEngineResultWriter()
+		_, err := rw.Write([]byte(`{"key": "value"}`))
+		require.NoError(t, err)
 
-		assert.Len(t, engineConfig.plannerConfig.DataSources, 1)
-		assert.Equal(t, ds, engineConfig.plannerConfig.DataSources[0])
-	})
+		headers := make(http.Header)
+		headers.Set("Content-Type", "application/json")
 
-	t.Run("should successfully set all data sources", func(t *testing.T) {
-		ds := []plan.DataSourceConfiguration{
-			{Custom: []byte("2")},
-			{Custom: []byte("3")},
-			{Custom: []byte("4")},
-		}
-		engineConfig.SetDataSources(ds)
+		t.Run("gzip", func(t *testing.T) {
+			headers.Set(httpclient.ContentEncodingHeader, "gzip")
 
-		assert.Len(t, engineConfig.plannerConfig.DataSources, 3)
-		assert.Equal(t, ds, engineConfig.plannerConfig.DataSources)
-	})
+			response := rw.AsHTTPResponse(http.StatusOK, headers)
+			assert.Equal(t, http.StatusOK, response.StatusCode)
+			assert.Equal(t, "application/json", response.Header.Get("Content-Type"))
+			assert.Equal(t, "gzip", response.Header.Get(httpclient.ContentEncodingHeader))
 
-	t.Run("should successfully add a field config", func(t *testing.T) {
-		fieldConfig := plan.FieldConfiguration{FieldName: "a"}
-		engineConfig.AddFieldConfiguration(fieldConfig)
+			reader, err := gzip.NewReader(response.Body)
+			require.NoError(t, err)
 
-		assert.Len(t, engineConfig.plannerConfig.Fields, 1)
-		assert.Equal(t, fieldConfig, engineConfig.plannerConfig.Fields[0])
-	})
+			body, err := ioutil.ReadAll(reader)
+			require.NoError(t, err)
 
-	t.Run("should successfully set all field configs", func(t *testing.T) {
-		fieldConfigs := plan.FieldConfigurations{
-			{FieldName: "b"},
-			{FieldName: "c"},
-			{FieldName: "d"},
-		}
-		engineConfig.SetFieldConfigurations(fieldConfigs)
+			assert.Equal(t, `{"key": "value"}`, string(body))
+		})
 
-		assert.Len(t, engineConfig.plannerConfig.Fields, 3)
-		assert.Equal(t, fieldConfigs, engineConfig.plannerConfig.Fields)
+		t.Run("deflate", func(t *testing.T) {
+			headers.Set(httpclient.ContentEncodingHeader, "deflate")
+
+			response := rw.AsHTTPResponse(http.StatusOK, headers)
+			assert.Equal(t, http.StatusOK, response.StatusCode)
+			assert.Equal(t, "application/json", response.Header.Get("Content-Type"))
+			assert.Equal(t, "deflate", response.Header.Get(httpclient.ContentEncodingHeader))
+
+			reader := flate.NewReader(response.Body)
+			body, err := ioutil.ReadAll(reader)
+			require.NoError(t, err)
+
+			assert.Equal(t, `{"key": "value"}`, string(body))
+		})
 	})
 }
 
-func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
-	rw := NewEngineResultWriter()
-	_, err := rw.Write([]byte(`{"key": "value"}`))
-	require.NoError(t, err)
+func TestWithAdditionalHttpHeaders(t *testing.T) {
+	reqHeader := http.Header{
+		http.CanonicalHeaderKey("X-Other-Key"):       []string{"x-other-value"},
+		http.CanonicalHeaderKey("Date"):              []string{"date-value"},
+		http.CanonicalHeaderKey("Host"):              []string{"host-value"},
+		http.CanonicalHeaderKey("Sec-WebSocket-Key"): []string{"sec-websocket-value"},
+		http.CanonicalHeaderKey("User-Agent"):        []string{"user-agent-value"},
+		http.CanonicalHeaderKey("Content-Length"):    []string{"content-length-value"},
+	}
 
-	headers := make(http.Header)
-	headers.Set("Content-Type", "application/json")
-	response := rw.AsHTTPResponse(http.StatusOK, headers)
-	body, err := ioutil.ReadAll(response.Body)
-	require.NoError(t, err)
+	t.Run("should add all headers to request without excluded keys", func(t *testing.T) {
+		internalExecutionCtx := &internalExecutionContext{
+			resolveContext: &resolve.Context{
+				Request: resolve.Request{
+					Header: nil,
+				},
+			},
+		}
 
-	assert.Equal(t, http.StatusOK, response.StatusCode)
-	assert.Equal(t, "application/json", response.Header.Get("Content-Type"))
-	assert.Equal(t, `{"key": "value"}`, string(body))
+		optionsFn := WithAdditionalHttpHeaders(reqHeader)
+		optionsFn(internalExecutionCtx)
+
+		assert.Equal(t, reqHeader, internalExecutionCtx.resolveContext.Request.Header)
+	})
+
+	t.Run("should only add headers that are not excluded", func(t *testing.T) {
+		internalExecutionCtx := &internalExecutionContext{
+			resolveContext: &resolve.Context{
+				Request: resolve.Request{
+					Header: nil,
+				},
+			},
+		}
+
+		excludableRuntimeHeaders := []string{
+			http.CanonicalHeaderKey("Date"),
+			http.CanonicalHeaderKey("Host"),
+			http.CanonicalHeaderKey("Sec-WebSocket-Key"),
+			http.CanonicalHeaderKey("User-Agent"),
+			http.CanonicalHeaderKey("Content-Length"),
+		}
+
+		optionsFn := WithAdditionalHttpHeaders(reqHeader, excludableRuntimeHeaders...)
+		optionsFn(internalExecutionCtx)
+
+		expectedHeaders := http.Header{
+			http.CanonicalHeaderKey("X-Other-Key"): []string{"x-other-value"},
+		}
+		assert.Equal(t, expectedHeaders, internalExecutionCtx.resolveContext.Request.Header)
+	})
 }
 
 type ExecutionEngineV2TestCase struct {
@@ -101,6 +146,7 @@ type ExecutionEngineV2TestCase struct {
 	operation        func(t *testing.T) Request
 	dataSources      []plan.DataSourceConfiguration
 	fields           plan.FieldConfigurations
+	engineOptions    []ExecutionOptionsV2
 	expectedResponse string
 }
 
@@ -119,7 +165,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			resultWriter := NewEngineResultWriter()
 			execCtx, execCtxCancel := context.WithCancel(context.Background())
 			defer execCtxCancel()
-			err = engine.Execute(execCtx, &operation, &resultWriter)
+			err = engine.Execute(execCtx, &operation, &resultWriter, testCase.engineOptions...)
 
 			assert.Equal(t, testCase.expectedResponse, resultWriter.String())
 
@@ -232,6 +278,45 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		},
 	))
 
+	t.Run("execute with additional headers", runWithoutError(
+		ExecutionEngineV2TestCase{
+			schema: starwarsSchema(t),
+			operation: func(t *testing.T) Request {
+				request := loadStarWarsQuery(starwars.FileSimpleHeroQuery, nil)(t)
+				return request
+			},
+			dataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{TypeName: "Query", FieldNames: []string{"hero"}},
+					},
+					Factory: &rest_datasource.Factory{
+						Client: testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "example.com",
+							expectedPath:     "/foo",
+							expectedBody:     "",
+							sendResponseBody: `{"hero": {"name": "Luke Skywalker"}}`,
+							sendStatusCode:   200,
+						}),
+					},
+					Custom: rest_datasource.ConfigJSON(rest_datasource.Configuration{
+						Fetch: rest_datasource.FetchConfiguration{
+							URL:    "https://example.com/{{ .request.headers.X-Other-Header }}",
+							Method: "GET",
+						},
+					}),
+				},
+			},
+			fields: []plan.FieldConfiguration{},
+			engineOptions: []ExecutionOptionsV2{
+				WithAdditionalHttpHeaders(http.Header{
+					"X-Other-Header": []string{"foo"},
+				}),
+			},
+			expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+		},
+	))
+
 	t.Run("execute simple hero operation with graphql data source", runWithoutError(
 		ExecutionEngineV2TestCase{
 			schema:    starwarsSchema(t),
@@ -242,7 +327,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 						{TypeName: "Query", FieldNames: []string{"hero"}},
 					},
 					Factory: &graphql_datasource.Factory{
-						Client: testNetHttpClient(t, roundTripperTestCase{
+						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "example.com",
 							expectedPath:     "/",
 							expectedBody:     "",
@@ -277,7 +362,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 						{TypeName: "Query", FieldNames: []string{"hero"}},
 					},
 					Factory: &graphql_datasource.Factory{
-						Client: testNetHttpClient(t, roundTripperTestCase{
+						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "example.com",
 							expectedPath:     "/",
 							expectedBody:     "",
@@ -308,7 +393,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 						{TypeName: "Query", FieldNames: []string{"droid"}},
 					},
 					Factory: &graphql_datasource.Factory{
-						Client: testNetHttpClient(t, roundTripperTestCase{
+						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "example.com",
 							expectedPath:     "/",
 							expectedBody:     "",
@@ -339,7 +424,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 						{TypeName: "Query", FieldNames: []string{"droid"}},
 					},
 					Factory: &graphql_datasource.Factory{
-						Client: testNetHttpClient(t, roundTripperTestCase{
+						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "example.com",
 							expectedPath:     "/",
 							expectedBody:     "",
@@ -451,7 +536,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 						Fetch: rest_datasource.FetchConfiguration{
 							URL:    "https://example.com/",
 							Method: "POST",
-							Body:   `{ "name": "{{ .arguments.name }}" }`,
+							Body:   `{ "name": {{ .arguments.name }} }`,
 						},
 					}),
 				},
@@ -462,6 +547,12 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					FieldName:             "hero",
 					DisableDefaultMapping: false,
 					Path:                  []string{"race"},
+					Arguments: []plan.ArgumentConfiguration{
+						{
+							Name:         "name",
+							RenderConfig: plan.RenderArgumentAsGraphQLValue,
+						},
+					},
 				},
 			},
 			expectedResponse: `{"data":{"hero":"Human"}}`,
@@ -498,7 +589,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					},
 					Custom: rest_datasource.ConfigJSON(rest_datasource.Configuration{
 						Fetch: rest_datasource.FetchConfiguration{
-							URL:    "https://example.com/name/{{.arguments.name}}",
+							URL:    "https://example.com/name/{{ .arguments.name }}",
 							Method: "POST",
 							Body:   "",
 						},
@@ -511,6 +602,12 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					FieldName:             "hero",
 					DisableDefaultMapping: false,
 					Path:                  []string{"race"},
+					Arguments: []plan.ArgumentConfiguration{
+						{
+							Name:         "name",
+							RenderConfig: plan.RenderArgumentDefault,
+						},
+					},
 				},
 			},
 			expectedResponse: `{"data":{"hero":"Human"}}`,
@@ -519,115 +616,153 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 }
 
 func TestExecutionEngineV2_FederationAndSubscription_IntegrationTest(t *testing.T) {
-	ctx, cancelFn := context.WithCancel(context.Background())
-	setup, err := newFederationSetup(ctx)
-	defer func() {
-		cancelFn()
-		setup.accountsUpstreamServer.Close()
-		setup.productsUpstreamServer.Close()
-		setup.reviewsUpstreamServer.Close()
-		setup.pollingUpstreamServer.Close()
-	}()
 
-	require.NoError(t, err)
-
-	t.Run("should successfully execute a federation operation", func(t *testing.T) {
-		gqlRequest := &Request{
-			OperationName: "",
-			Variables:     nil,
-			Query:         federationExample.QueryReviewsOfMe,
-		}
-
-		validationResult, err := gqlRequest.ValidateForSchema(setup.schema)
-		require.NoError(t, err)
-		require.True(t, validationResult.Valid)
-
-		execCtx, execCtxCancelFn := context.WithCancel(context.Background())
-		defer execCtxCancelFn()
-
-		resultWriter := NewEngineResultWriter()
-		err = setup.engine.Execute(execCtx, gqlRequest, &resultWriter)
-		if assert.NoError(t, err) {
-			assert.Equal(t,
-				`{"data":{"me":{"reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","name":"Trilby","price":11}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-2","name":"Fedora","price":22}}]}}}`,
-				resultWriter.String(),
-			)
-		}
-	})
-
-	t.Run("should successfully execute a federation subscription", func(t *testing.T) {
-		gqlRequest := &Request{
-			OperationName: "",
-			Variables:     nil,
-			Query:         federationExample.SubscriptionUpdatedPrice,
-		}
-
-		validationResult, err := gqlRequest.ValidateForSchema(setup.schema)
-		require.NoError(t, err)
-		require.True(t, validationResult.Valid)
-
-		execCtx, execCtxCancelFn := context.WithCancel(context.Background())
-		defer execCtxCancelFn()
-
-		message := make(chan string)
-		resultWriter := NewEngineResultWriter()
-		resultWriter.SetFlushCallback(func(data []byte) {
-			message <- string(data)
+	runIntegration := func(t *testing.T, enableDataLoader bool, secondRun bool) {
+		t.Helper()
+		ctx, cancelFn := context.WithCancel(context.Background())
+		setup := newFederationSetup()
+		t.Cleanup(func() {
+			cancelFn()
+			setup.accountsUpstreamServer.Close()
+			setup.productsUpstreamServer.Close()
+			setup.reviewsUpstreamServer.Close()
+			setup.pollingUpstreamServer.Close()
 		})
 
-		go func() {
-			err := setup.engine.Execute(execCtx, gqlRequest, &resultWriter)
+		engine, schema, err := newFederationEngine(ctx, setup, enableDataLoader)
+		require.NoError(t, err)
+
+		t.Run("should successfully execute a federation operation", func(t *testing.T) {
+			gqlRequest := &Request{
+				OperationName: "",
+				Variables:     nil,
+				Query:         federationExample.QueryReviewsOfMe,
+			}
+
+			validationResult, err := gqlRequest.ValidateForSchema(schema)
+			require.NoError(t, err)
+			require.True(t, validationResult.Valid)
+
+			execCtx, execCtxCancelFn := context.WithCancel(context.Background())
+			defer execCtxCancelFn()
+
+			resultWriter := NewEngineResultWriter()
+			err = engine.Execute(execCtx, gqlRequest, &resultWriter)
+			if assert.NoError(t, err) {
+				assert.Equal(t,
+					`{"data":{"me":{"reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","name":"Trilby","price":11}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-2","name":"Fedora","price":22}}]}}}`,
+					resultWriter.String(),
+				)
+			}
+		})
+
+		t.Run("should successfully execute a federation subscription", func(t *testing.T) {
+			query := `
+subscription UpdatedPrice {
+  updatedPrice {
+    name
+    price
+	reviews {
+      body
+      author {
+		id
+		username
+      }
+    }
+  }
+}`
+
+			gqlRequest := &Request{
+				OperationName: "",
+				Variables:     nil,
+				Query:         query,
+			}
+
+			validationResult, err := gqlRequest.ValidateForSchema(schema)
+			require.NoError(t, err)
+			require.True(t, validationResult.Valid)
+
+			execCtx, execCtxCancelFn := context.WithCancel(context.Background())
+			defer execCtxCancelFn()
+
+			message := make(chan string)
+			resultWriter := NewEngineResultWriter()
+			resultWriter.SetFlushCallback(func(data []byte) {
+				message <- string(data)
+			})
+
+			go func() {
+				err := engine.Execute(execCtx, gqlRequest, &resultWriter)
+				assert.NoError(t, err)
+			}()
+
+			if assert.NoError(t, err) {
+				assert.Eventuallyf(t, func() bool {
+					msg := `{"data":{"updatedPrice":{"name":"Trilby","price":%d,"reviews":[{"body":"A highly effective form of birth control.","author":{"id":"1234","username":"User 1234"}}]}}}`
+					price := 10
+					if secondRun {
+						price += 2
+					}
+
+					firstMessage := <-message
+					expectedFirstMessage := fmt.Sprintf(msg, price)
+					assert.Equal(t, expectedFirstMessage, firstMessage)
+
+					secondMessage := <-message
+					expectedSecondMessage := fmt.Sprintf(msg, price+1)
+					assert.Equal(t, expectedSecondMessage, secondMessage)
+					return true
+				}, time.Second, 10*time.Millisecond, "did not receive expected messages")
+			}
+		})
+
+		/* Uncomment when polling subscriptions are ready:
+
+		t.Run("should successfully subscribe to rest data source", func(t *testing.T) {
+			gqlRequest := &Request{
+				OperationName: "",
+				Variables:     nil,
+				Query:         "subscription Counter { counter }",
+			}
+
+			validationResult, err := gqlRequest.ValidateForSchema(setup.schema)
+			require.NoError(t, err)
+			require.True(t, validationResult.Valid)
+
+			execCtx, execCtxCancelFn := context.WithCancel(context.Background())
+			defer execCtxCancelFn()
+
+			message := make(chan string)
+			resultWriter := NewEngineResultWriter()
+			resultWriter.SetFlushCallback(func(data []byte) {
+				fmt.Println(string(data))
+				message <- string(data)
+			})
+
+			err = setup.engine.Execute(execCtx, gqlRequest, &resultWriter)
 			assert.NoError(t, err)
-		}()
 
-		if assert.NoError(t, err) {
-			assert.Eventuallyf(t, func() bool {
-				firstMessage := <-message
-				assert.Equal(t, `{"data":{"updatedPrice":{"name":"Trilby","price":10}}}`, firstMessage)
-				secondMessage := <-message
-				assert.Equal(t, `{"data":{"updatedPrice":{"name":"Trilby","price":11}}}`, secondMessage)
-				return true
-			}, time.Second, 10*time.Millisecond, "did not receive expected messages")
-		}
-	})
-
-	/* Uncomment when polling subscriptions are ready:
-
-	t.Run("should successfully subscribe to rest data source", func(t *testing.T) {
-		gqlRequest := &Request{
-			OperationName: "",
-			Variables:     nil,
-			Query:         "subscription Counter { counter }",
-		}
-
-		validationResult, err := gqlRequest.ValidateForSchema(setup.schema)
-		require.NoError(t, err)
-		require.True(t, validationResult.Valid)
-
-		execCtx, execCtxCancelFn := context.WithCancel(context.Background())
-		defer execCtxCancelFn()
-
-		message := make(chan string)
-		resultWriter := NewEngineResultWriter()
-		resultWriter.SetFlushCallback(func(data []byte) {
-			fmt.Println(string(data))
-			message <- string(data)
+			if assert.NoError(t, err) {
+				assert.Eventuallyf(t, func() bool {
+					firstMessage := <-message
+					assert.Equal(t, `{"data":{"counter":1}}`, firstMessage)
+					secondMessage := <-message
+					assert.Equal(t, `{"data":{"counter":2}}`, secondMessage)
+					return true
+				}, time.Second, 10*time.Millisecond, "did not receive expected messages")
+			}
 		})
+		*/
 
-		err = setup.engine.Execute(execCtx, gqlRequest, &resultWriter)
-		assert.NoError(t, err)
+	}
 
-		if assert.NoError(t, err) {
-			assert.Eventuallyf(t, func() bool {
-				firstMessage := <-message
-				assert.Equal(t, `{"data":{"counter":1}}`, firstMessage)
-				secondMessage := <-message
-				assert.Equal(t, `{"data":{"counter":2}}`, secondMessage)
-				return true
-			}, time.Second, 10*time.Millisecond, "did not receive expected messages")
-		}
+	t.Run("federation", func(t *testing.T) {
+		runIntegration(t, false, false)
 	})
-	*/
+
+	t.Run("federation with data loader enabled", func(t *testing.T) {
+		runIntegration(t, true, true)
+	})
 }
 
 func testNetHttpClient(t *testing.T, testCase roundTripperTestCase) *http.Client {
@@ -675,7 +810,7 @@ func TestExecutionWithOptions(t *testing.T) {
 					{TypeName: "Query", FieldNames: []string{"hero"}},
 				},
 				Factory: &graphql_datasource.Factory{
-					Client: testNetHttpClient(t, roundTripperTestCase{
+					HTTPClient: testNetHttpClient(t, roundTripperTestCase{
 						expectedHost:     "example.com",
 						expectedPath:     "/",
 						expectedBody:     "",
@@ -716,6 +851,122 @@ func TestExecutionWithOptions(t *testing.T) {
 	assert.Equal(t, `{"hero":{"name":"Luke Skywalker"}}`, after.data)
 	assert.Equal(t, "", after.err)
 	assert.NoError(t, err)
+}
+
+func TestExecutionEngineV2_GetCachedPlan(t *testing.T) {
+	schema, err := NewSchemaFromString(testSubscriptionDefinition)
+	require.NoError(t, err)
+
+	gqlRequest := Request{
+		OperationName: "LastRegisteredUser",
+		Variables:     nil,
+		Query:         testSubscriptionLastRegisteredUserOperation,
+	}
+
+	validationResult, err := gqlRequest.ValidateForSchema(schema)
+	require.NoError(t, err)
+	require.True(t, validationResult.Valid)
+
+	normalizationResult, err := gqlRequest.Normalize(schema)
+	require.NoError(t, err)
+	require.True(t, normalizationResult.Successful)
+
+	differentGqlRequest := Request{
+		OperationName: "LiveUserCount",
+		Variables:     nil,
+		Query:         testSubscriptionLiveUserCountOperation,
+	}
+
+	validationResult, err = differentGqlRequest.ValidateForSchema(schema)
+	require.NoError(t, err)
+	require.True(t, validationResult.Valid)
+
+	normalizationResult, err = differentGqlRequest.Normalize(schema)
+	require.NoError(t, err)
+	require.True(t, normalizationResult.Successful)
+
+	engineConfig := NewEngineV2Configuration(schema)
+	engineConfig.SetDataSources([]plan.DataSourceConfiguration{
+		{
+			RootNodes: []plan.TypeField{
+				{
+					TypeName:   "Subscription",
+					FieldNames: []string{"lastRegisteredUser", "liveUserCount"},
+				},
+			},
+			ChildNodes: []plan.TypeField{
+				{
+					TypeName:   "User",
+					FieldNames: []string{"id", "username", "email"},
+				},
+			},
+			Factory: &graphql_datasource.Factory{},
+			Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
+				Subscription: graphql_datasource.SubscriptionConfiguration{
+					URL: "http://localhost:8080",
+				},
+			}),
+		},
+	})
+
+	engine, err := NewExecutionEngineV2(context.Background(), abstractlogger.NoopLogger, engineConfig)
+	require.NoError(t, err)
+
+	t.Run("should reuse cached plan", func(t *testing.T) {
+		t.Cleanup(engine.executionPlanCache.Purge)
+		require.Equal(t, 0, engine.executionPlanCache.Len())
+
+		firstInternalExecCtx := newInternalExecutionContext()
+		firstInternalExecCtx.resolveContext.Request.Header = http.Header{
+			http.CanonicalHeaderKey("Authorization"): []string{"123abc"},
+		}
+
+		report := operationreport.Report{}
+		cachedPlan := engine.getCachedPlan(firstInternalExecCtx, &gqlRequest.document, &schema.document, gqlRequest.OperationName, &report)
+		_, oldestCachedPlan, _ := engine.executionPlanCache.GetOldest()
+		assert.False(t, report.HasErrors())
+		assert.Equal(t, 1, engine.executionPlanCache.Len())
+		assert.Equal(t, cachedPlan, oldestCachedPlan.(*plan.SubscriptionResponsePlan))
+
+		secondInternalExecCtx := newInternalExecutionContext()
+		secondInternalExecCtx.resolveContext.Request.Header = http.Header{
+			http.CanonicalHeaderKey("Authorization"): []string{"123abc"},
+		}
+
+		cachedPlan = engine.getCachedPlan(secondInternalExecCtx, &gqlRequest.document, &schema.document, gqlRequest.OperationName, &report)
+		_, oldestCachedPlan, _ = engine.executionPlanCache.GetOldest()
+		assert.False(t, report.HasErrors())
+		assert.Equal(t, 1, engine.executionPlanCache.Len())
+		assert.Equal(t, cachedPlan, oldestCachedPlan.(*plan.SubscriptionResponsePlan))
+	})
+
+	t.Run("should create new plan and cache it", func(t *testing.T) {
+		t.Cleanup(engine.executionPlanCache.Purge)
+		require.Equal(t, 0, engine.executionPlanCache.Len())
+
+		firstInternalExecCtx := newInternalExecutionContext()
+		firstInternalExecCtx.resolveContext.Request.Header = http.Header{
+			http.CanonicalHeaderKey("Authorization"): []string{"123abc"},
+		}
+
+		report := operationreport.Report{}
+		cachedPlan := engine.getCachedPlan(firstInternalExecCtx, &gqlRequest.document, &schema.document, gqlRequest.OperationName, &report)
+		_, oldestCachedPlan, _ := engine.executionPlanCache.GetOldest()
+		assert.False(t, report.HasErrors())
+		assert.Equal(t, 1, engine.executionPlanCache.Len())
+		assert.Equal(t, cachedPlan, oldestCachedPlan.(*plan.SubscriptionResponsePlan))
+
+		secondInternalExecCtx := newInternalExecutionContext()
+		secondInternalExecCtx.resolveContext.Request.Header = http.Header{
+			http.CanonicalHeaderKey("Authorization"): []string{"xyz098"},
+		}
+
+		cachedPlan = engine.getCachedPlan(secondInternalExecCtx, &differentGqlRequest.document, &schema.document, differentGqlRequest.OperationName, &report)
+		_, oldestCachedPlan, _ = engine.executionPlanCache.GetOldest()
+		assert.False(t, report.HasErrors())
+		assert.Equal(t, 2, engine.executionPlanCache.Len())
+		assert.NotEqual(t, cachedPlan, oldestCachedPlan.(*plan.SubscriptionResponsePlan))
+	})
 }
 
 func BenchmarkExecutionEngineV2(b *testing.B) {
@@ -802,32 +1053,34 @@ type federationSetup struct {
 	productsUpstreamServer *httptest.Server
 	reviewsUpstreamServer  *httptest.Server
 	pollingUpstreamServer  *httptest.Server
-	engine                 *ExecutionEngineV2
-	schema                 *Schema
 }
 
-func newFederationSetup(ctx context.Context) (*federationSetup, error) {
-	setup := &federationSetup{
+func newFederationSetup() *federationSetup {
+	return &federationSetup{
 		accountsUpstreamServer: httptest.NewServer(accounts.GraphQLEndpointHandler(accounts.TestOptions)),
 		productsUpstreamServer: httptest.NewServer(products.GraphQLEndpointHandler(products.TestOptions)),
 		reviewsUpstreamServer:  httptest.NewServer(reviews.GraphQLEndpointHandler(reviews.TestOptions)),
 		pollingUpstreamServer:  httptest.NewServer(newPollingUpstreamHandler()),
 	}
+}
 
+func newFederationEngine(ctx context.Context, setup *federationSetup, enableDataLoader bool) (engine *ExecutionEngineV2, schema *Schema, err error) {
 	accountsSDL, err := federationExample.LoadSDLFromExamplesDirectoryWithinPkg(federationExample.UpstreamAccounts)
 	if err != nil {
-		return nil, err
+		return
 	}
 
 	productsSDL, err := federationExample.LoadSDLFromExamplesDirectoryWithinPkg(federationExample.UpstreamProducts)
 	if err != nil {
-		return nil, err
+		return
 	}
 
 	reviewsSDL, err := federationExample.LoadSDLFromExamplesDirectoryWithinPkg(federationExample.UpstreamReviews)
 	if err != nil {
-		return nil, err
+		return
 	}
+
+	batchFactory := graphql_datasource.NewBatchFactory()
 
 	accountsDataSource := plan.DataSourceConfiguration{
 		RootNodes: []plan.TypeField{
@@ -857,7 +1110,8 @@ func newFederationSetup(ctx context.Context) (*federationSetup, error) {
 			},
 		}),
 		Factory: &graphql_datasource.Factory{
-			Client: httpclient.DefaultNetHttpClient,
+			BatchFactory: batchFactory,
+			HTTPClient: httpclient.DefaultNetHttpClient,
 		},
 	}
 
@@ -900,7 +1154,8 @@ func newFederationSetup(ctx context.Context) (*federationSetup, error) {
 			},
 		}),
 		Factory: &graphql_datasource.Factory{
-			Client: httpclient.DefaultNetHttpClient,
+			BatchFactory: batchFactory,
+			HTTPClient: httpclient.DefaultNetHttpClient,
 		},
 	}
 
@@ -943,7 +1198,8 @@ func newFederationSetup(ctx context.Context) (*federationSetup, error) {
 			},
 		}),
 		Factory: &graphql_datasource.Factory{
-			Client: httpclient.DefaultNetHttpClient,
+			BatchFactory: batchFactory,
+			HTTPClient: httpclient.DefaultNetHttpClient,
 		},
 	}
 
@@ -1032,25 +1288,25 @@ func newFederationSetup(ctx context.Context) (*federationSetup, error) {
 		},
 	}
 
-	setup.schema, err = federationSchema()
+	schema, err = federationSchema()
 	if err != nil {
-		return nil, err
+		return
 	}
 
-	engineConfig := NewEngineV2Configuration(setup.schema)
+	engineConfig := NewEngineV2Configuration(schema)
 	engineConfig.AddDataSource(accountsDataSource)
 	engineConfig.AddDataSource(productsDataSource)
 	engineConfig.AddDataSource(reviewsDataSource)
 	engineConfig.AddDataSource(pollingDataSource)
 	engineConfig.SetFieldConfigurations(fieldConfigs)
+	engineConfig.EnableDataLoader(enableDataLoader)
 
-	engine, err := NewExecutionEngineV2(ctx, abstractlogger.Noop{}, engineConfig)
+	engine, err = NewExecutionEngineV2(ctx, abstractlogger.Noop{}, engineConfig)
 	if err != nil {
-		return nil, err
+		return
 	}
 
-	setup.engine = engine
-	return setup, nil
+	return
 }
 
 // nolint

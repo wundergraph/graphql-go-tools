@@ -124,6 +124,18 @@ func (d *Document) TypeIsScalar(ref int, definition *Document) bool {
 	return false
 }
 
+func (d *Document) TypeIsEnum(ref int, definition *Document) bool {
+	switch d.Types[ref].TypeKind {
+	case TypeKindNamed:
+		typeName := d.TypeNameBytes(ref)
+		node, _ := definition.Index.FirstNodeByNameBytes(typeName)
+		return node.Kind == NodeKindEnumTypeDefinition
+	case TypeKindNonNull:
+		return d.TypeIsEnum(d.Types[ref].OfType, definition)
+	}
+	return false
+}
+
 func (d *Document) TypeIsNonNull(ref int) bool {
 	return d.Types[ref].TypeKind == TypeKindNonNull
 }
@@ -178,10 +190,8 @@ func (d *Document) TypesAreCompatibleDeep(left int, right int) bool {
 }
 
 func (d *Document) ResolveTypeNameBytes(ref int) ByteSlice {
-	graphqlType := d.Types[ref]
-	for graphqlType.TypeKind != TypeKindNamed {
-		graphqlType = d.Types[graphqlType.OfType]
-	}
+	resolvedTypeRef := d.ResolveUnderlyingType(ref)
+	graphqlType := d.Types[resolvedTypeRef]
 	return d.Input.ByteSlice(graphqlType.Name)
 }
 
@@ -189,23 +199,13 @@ func (d *Document) ResolveTypeNameString(ref int) string {
 	return unsafebytes.BytesToString(d.ResolveTypeNameBytes(ref))
 }
 
-func (d *Document) TypeValueNeedsQuotes(ref int, definition *Document) bool {
+func (d *Document) ResolveUnderlyingType(ref int) (typeRef int) {
+	typeRef = ref
 	graphqlType := d.Types[ref]
-	switch graphqlType.TypeKind {
-	case TypeKindNonNull:
-		return d.TypeValueNeedsQuotes(graphqlType.OfType, definition)
-	case TypeKindList:
-		return false
-	case TypeKindNamed:
-		typeName := d.Input.ByteSliceString(graphqlType.Name)
-		switch typeName {
-		case "String", "Date", "ID":
-			return true
-		default:
-			node, _ := definition.Index.FirstNodeByNameStr(typeName)
-			return node.Kind == NodeKindEnumTypeDefinition
-		}
-	default:
-		return false
+	for graphqlType.TypeKind != TypeKindNamed {
+		typeRef = graphqlType.OfType
+		graphqlType = d.Types[typeRef]
+
 	}
+	return
 }
