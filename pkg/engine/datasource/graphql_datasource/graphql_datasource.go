@@ -165,7 +165,7 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 			ExtractGraphqlResponse:    true,
 			ExtractFederationEntities: p.extractEntities,
 		},
-		BatchConfig:          batchConfig,
+		BatchConfig: batchConfig,
 	}
 }
 
@@ -408,7 +408,7 @@ func (p *Planner) addRepresentationsVariable() {
 	representationsJson, _ := sjson.SetRawBytes(nil, "__typename", []byte("\""+p.lastFieldEnclosingTypeName+"\""))
 	for i := range fields {
 		objectVariable := &resolve.ObjectVariable{
-			Path: []string{fields[i]},
+			Path:                 []string{fields[i]},
 			RenderAsGraphQLValue: true,
 		}
 		fieldDef := p.fieldDefinition(fields[i], p.lastFieldEnclosingTypeName)
@@ -569,7 +569,7 @@ func (p *Planner) configureFieldArgumentSource(upstreamFieldRef, downstreamField
 	variableNameStr := p.visitor.Operation.VariableValueNameString(value.Ref)
 
 	contextVariable := &resolve.ContextVariable{
-		Path: []string{variableNameStr},
+		Path:                 []string{variableNameStr},
 		RenderAsGraphQLValue: true,
 	}
 	contextVariable.SetJsonValueType(p.visitor.Definition, p.visitor.Definition, p.argTypeRef)
@@ -663,7 +663,7 @@ func (p *Planner) addVariableDefinitionsRecursively(value ast.Value, sourcePath 
 
 	fieldType := p.resolveNestedArgumentType(fieldName)
 	contextVariable := &resolve.ContextVariable{
-		Path: append(sourcePath, variableNameStr),
+		Path:                 append(sourcePath, variableNameStr),
 		RenderAsGraphQLValue: true,
 	}
 	contextVariable.SetJsonValueType(p.visitor.Definition, p.visitor.Definition, fieldType)
@@ -704,7 +704,7 @@ func (p *Planner) configureObjectFieldSource(upstreamFieldRef, downstreamFieldRe
 	p.upstreamOperation.AddVariableDefinitionToOperationDefinition(p.nodes[0].Ref, variableValue, importedType)
 
 	objectVariableName, exists := p.variables.AddVariable(&resolve.ObjectVariable{
-		Path: argumentConfiguration.SourcePath,
+		Path:                 argumentConfiguration.SourcePath,
 		RenderAsGraphQLValue: true,
 	})
 	if !exists {
@@ -943,8 +943,8 @@ func (p *Planner) addField(ref int) {
 
 type Factory struct {
 	BatchFactory resolve.DataSourceBatchFactory
-	HTTPClient *http.Client
-	wsClient   *WebSocketGraphQLSubscriptionClient
+	HTTPClient   *http.Client
+	wsClient     *WebSocketGraphQLSubscriptionClient
 }
 
 func (f *Factory) Planner(ctx context.Context) plan.DataSourcePlanner {
@@ -952,7 +952,7 @@ func (f *Factory) Planner(ctx context.Context) plan.DataSourcePlanner {
 		f.wsClient = NewWebSocketGraphQLSubscriptionClient(f.HTTPClient, ctx)
 	}
 	return &Planner{
-		batchFactory: f.BatchFactory,
+		batchFactory:       f.BatchFactory,
 		fetchClient:        f.HTTPClient,
 		subscriptionClient: f.wsClient,
 	}

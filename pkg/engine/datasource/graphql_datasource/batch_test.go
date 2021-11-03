@@ -73,13 +73,13 @@ func TestBatch(t *testing.T) {
 			`{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}}}`,
 			[]inputResponseBufferMappings{
 				{
-					responseIndex:               0,
-					originalInput: []byte(`{"upc":"top-1","__typename":"Product"}`),
+					responseIndex:         0,
+					originalInput:         []byte(`{"upc":"top-1","__typename":"Product"}`),
 					assignedBufferIndices: []int{0},
 				},
 				{
-					responseIndex:               1,
-					originalInput: []byte(`{"upc":"top-2","__typename":"Product"}`),
+					responseIndex:         1,
+					originalInput:         []byte(`{"upc":"top-2","__typename":"Product"}`),
 					assignedBufferIndices: []int{1},
 				},
 			},
@@ -96,9 +96,9 @@ func TestBatch(t *testing.T) {
 			`{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"upc":"top-2","__typename":"Product"}]}}}`,
 			[]inputResponseBufferMappings{
 				{
-					responseIndex:               0,
-					originalInput: []byte(`{"upc":"top-2","__typename":"Product"}`),
-					assignedBufferIndices: []int{0,1},
+					responseIndex:         0,
+					originalInput:         []byte(`{"upc":"top-2","__typename":"Product"}`),
+					assignedBufferIndices: []int{0, 1},
 				},
 			},
 			2,
@@ -120,19 +120,19 @@ func TestBatch(t *testing.T) {
 			`{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"upc":"top-2","__typename":"Product"},{"upc":"top-1","__typename":"Product"},{"upc":"top-3","__typename":"Product"}]}}}`,
 			[]inputResponseBufferMappings{
 				{
-					responseIndex:               0,
-					originalInput: []byte(`{"upc":"top-2","__typename":"Product"}`),
-					assignedBufferIndices: []int{0,1,2,3,5},
+					responseIndex:         0,
+					originalInput:         []byte(`{"upc":"top-2","__typename":"Product"}`),
+					assignedBufferIndices: []int{0, 1, 2, 3, 5},
 				},
 				{
-					responseIndex:               1,
-					originalInput: []byte(`{"upc":"top-1","__typename":"Product"}`),
-					assignedBufferIndices: []int{0,3,4,6},
+					responseIndex:         1,
+					originalInput:         []byte(`{"upc":"top-1","__typename":"Product"}`),
+					assignedBufferIndices: []int{0, 3, 4, 6},
 				},
 				{
-					responseIndex:               2,
-					originalInput: []byte(`{"upc":"top-3","__typename":"Product"}`),
-					assignedBufferIndices: []int{1,2,4,7},
+					responseIndex:         2,
+					originalInput:         []byte(`{"upc":"top-3","__typename":"Product"}`),
+					assignedBufferIndices: []int{1, 2, 4, 7},
 				},
 			},
 			8,
@@ -150,18 +150,18 @@ func TestBatch(t *testing.T) {
 			`{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"category":"category-1", "name":"Top 1","__typename":"Product"},{"category":"category-2", "name":"Top 1","__typename":"Product"},{"category":"category-2", "name":"Top 2","__typename":"Product"}]}}}`,
 			[]inputResponseBufferMappings{
 				{
-					responseIndex:               0,
-					originalInput: []byte(`{"category":"category-1", "name":"Top 1","__typename":"Product"}`),
-					assignedBufferIndices: []int{0,2},
+					responseIndex:         0,
+					originalInput:         []byte(`{"category":"category-1", "name":"Top 1","__typename":"Product"}`),
+					assignedBufferIndices: []int{0, 2},
 				},
 				{
-					responseIndex:               1,
-					originalInput: []byte(`{"category":"category-2", "name":"Top 1","__typename":"Product"}`),
+					responseIndex:         1,
+					originalInput:         []byte(`{"category":"category-2", "name":"Top 1","__typename":"Product"}`),
 					assignedBufferIndices: []int{1},
 				},
 				{
-					responseIndex:               2,
-					originalInput: []byte(`{"category":"category-2", "name":"Top 2","__typename":"Product"}`),
+					responseIndex:         2,
+					originalInput:         []byte(`{"category":"category-2", "name":"Top 2","__typename":"Product"}`),
 					assignedBufferIndices: []int{3},
 				},
 			},

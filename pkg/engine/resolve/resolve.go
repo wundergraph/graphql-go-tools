@@ -722,7 +722,7 @@ func (r *Resolver) resolveArray(ctx *Context, array *Array, data []byte, arrayBu
 
 	_, err = jsonparser.ArrayEach(data, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
 		if err == nil && dataType == jsonparser.String {
-			value = data[offset-2:offset+len(value)] // add quotes to string values
+			value = data[offset-2 : offset+len(value)] // add quotes to string values
 		}
 
 		*arrayItems = append(*arrayItems, value)

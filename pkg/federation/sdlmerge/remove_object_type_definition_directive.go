@@ -40,5 +40,5 @@ func (r *removeObjectTypeDefinitionDirective) EnterObjectTypeDefinition(ref int)
 		}
 	}
 	// delete directives
-	r.operation.RemoveDirectivesFromNode(ast.Node{Kind: ast.NodeKindObjectTypeDefinition,Ref: ref},refsForDeletion)
+	r.operation.RemoveDirectivesFromNode(ast.Node{Kind: ast.NodeKindObjectTypeDefinition, Ref: ref}, refsForDeletion)
 }

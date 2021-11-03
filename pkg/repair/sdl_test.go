@@ -38,10 +38,10 @@ type Mutation {
 	bar: Boolean
 }
 `
-		actual,err := SDL(input,OptionsSDL{
+		actual, err := SDL(input, OptionsSDL{
 			SetAllMutationFieldsNullable: true,
 		})
 		assert.NoError(t, err)
-		assert.Equal(t, unsafeprinter.Prettify(expected),unsafeprinter.Prettify(actual))
+		assert.Equal(t, unsafeprinter.Prettify(expected), unsafeprinter.Prettify(actual))
 	})
 }
