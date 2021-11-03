@@ -100,10 +100,10 @@ func TestWithoutDefer(t *testing.T) {
 		},
 	}
 
-	c, cancel := context.WithCancel(context.Background())
+	rCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	resolver := New(c)
+	resolver := New(rCtx, NewFetcher(false), false)
 
 	ctx := NewContext(context.Background())
 
@@ -254,10 +254,10 @@ func TestDefer(t *testing.T) {
 		},
 	}
 
-	c, cancel := context.WithCancel(context.Background())
+	rCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	resolver := New(c)
+	resolver := New(rCtx, NewFetcher(false), false)
 
 	ctx := NewContext(context.Background())
 
@@ -389,10 +389,10 @@ func BenchmarkDefer(b *testing.B) {
 		},
 	}
 
-	c, cancel := context.WithCancel(context.Background())
+	rCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	resolver := New(c)
+	resolver := New(rCtx, NewFetcher(false), false)
 
 	ctx := NewContext(context.Background())
 

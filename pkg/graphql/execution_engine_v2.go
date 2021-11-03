@@ -197,11 +197,13 @@ func NewExecutionEngineV2(ctx context.Context, logger abstractlogger.Logger, eng
 	if err != nil {
 		return nil, err
 	}
+	fetcher := resolve.NewFetcher(engineConfig.dataLoaderConfig.EnableSingleFlightLoader)
+
 	return &ExecutionEngineV2{
 		logger:   logger,
 		config:   engineConfig,
 		planner:  plan.NewPlanner(ctx, engineConfig.plannerConfig),
-		resolver: resolve.New(ctx),
+		resolver: resolve.New(ctx, fetcher, engineConfig.dataLoaderConfig.EnableDataLoader),
 		internalExecutionContextPool: sync.Pool{
 			New: func() interface{} {
 				return newInternalExecutionContext()

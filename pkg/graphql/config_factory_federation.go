@@ -8,6 +8,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
 	graphqlDataSource "github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/graphql_datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 	"github.com/jensneuse/graphql-go-tools/pkg/federation"
 )
 
@@ -23,7 +24,7 @@ func WithFederationHttpClient(client *http.Client) FederationEngineConfigFactory
 	}
 }
 
-func NewFederationEngineConfigFactory(dataSourceConfigs []graphqlDataSource.Configuration, opts ...FederationEngineConfigFactoryOption) *FederationEngineConfigFactory {
+func NewFederationEngineConfigFactory(dataSourceConfigs []graphqlDataSource.Configuration,batchFactory resolve.DataSourceBatchFactory, opts ...FederationEngineConfigFactoryOption) *FederationEngineConfigFactory {
 	options := federationEngineConfigFactoryOptions{
 		httpClient: &http.Client{
 			Timeout: time.Second * 10,
@@ -41,6 +42,7 @@ func NewFederationEngineConfigFactory(dataSourceConfigs []graphqlDataSource.Conf
 	return &FederationEngineConfigFactory{
 		httpClient:        options.httpClient,
 		dataSourceConfigs: dataSourceConfigs,
+		batchFactory:      batchFactory,
 	}
 }
 
@@ -49,6 +51,7 @@ type FederationEngineConfigFactory struct {
 	httpClient        *http.Client
 	dataSourceConfigs []graphqlDataSource.Configuration
 	schema            *Schema
+	batchFactory      resolve.DataSourceBatchFactory
 }
 
 func (f *FederationEngineConfigFactory) SetMergedSchemaFromString(mergedSchema string) (err error) {
@@ -128,7 +131,7 @@ func (f *FederationEngineConfigFactory) engineConfigDataSources() (planDataSourc
 			return nil, fmt.Errorf("parse graphql document string: %s", report.Error())
 		}
 
-		planDataSource := newGraphQLDataSourceV2Generator(&doc).Generate(dataSourceConfig, f.httpClient)
+		planDataSource := newGraphQLDataSourceV2Generator(&doc).Generate(dataSourceConfig,f.batchFactory, f.httpClient)
 		planDataSources = append(planDataSources, planDataSource)
 	}
 

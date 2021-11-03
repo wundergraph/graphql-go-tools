@@ -1,0 +1,7 @@
+subscription UpdatePrice($upc: String!)  {
+    updateProductPrice(upc: $upc) {
+        upc
+        name
+        price
+    }
+}
